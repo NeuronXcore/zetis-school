@@ -1,7 +1,9 @@
 import { Outlet } from "react-router-dom";
 import { MassimoSidebar } from "../components/MassimoSidebar";
 import { ZetisAvatar } from "../components/ZetisAvatar";
+import { XPBadge } from "../components/XPBadge";
 import { useAuth } from "../auth/AuthProvider";
+import { PROFILE } from "../data/mock";
 
 // Layout commun de l'interface Massimo : sidebar + header + zone principale
 // (cf. docs/frontend-massimo/README.md § Layout commun).
@@ -14,9 +16,7 @@ export function MassimoLayout() {
         <header className="flex items-center justify-between border-b border-zetis-border bg-zetis-surface/60 px-6 py-3">
           <span className="text-sm text-zetis-muted">Aujourd'hui — prêt à apprendre ?</span>
           <div className="flex items-center gap-3">
-            <span className="rounded-full bg-zetis-surface-2 px-3 py-1 text-xs font-semibold text-zetis-accent-2">
-              ⭐ 0 XP
-            </span>
+            <XPBadge xp={PROFILE.xp} level={PROFILE.level} />
             <ZetisAvatar size={32} />
             {user && (
               <button

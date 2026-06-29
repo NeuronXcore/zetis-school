@@ -102,7 +102,7 @@ Ne modifie pas le backend, ne crée pas encore les pages finales, ne touche pas 
 | 4 | Backend FastAPI | ✅ | API minimale opérationnelle | `/health` répond OK |
 | 5 | Connexion front ↔ backend | ✅ | Fronts appellent l'API | Statut backend affiché dans les fronts |
 | 6 | Auth Papa/Massimo | ✅ | Deux rôles simples | Accès différencié Papa/Massimo |
-| 7 | Premières pages Massimo | ⬜ | Accueil, matières, ELI5, diagnostic | Navigation fonctionnelle |
+| 7 | Premières pages Massimo | ✅ | Accueil, matières, ELI5, diagnostic | Navigation fonctionnelle |
 | 8 | Premières pages Papa | ⬜ | Dashboard, cahier de bord, années scolaires | Navigation fonctionnelle |
 | 9 | Base de données | ⬜ | PostgreSQL + schéma initial | Migrations exécutables |
 | 10 | IA / RAG / mémoire | ⬜ | Moteur pédagogique initial | Réponse IA contextualisée + trace mémoire |
@@ -702,10 +702,10 @@ Les pages doivent être fonctionnelles visuellement, navigables, et préparées 
 ## Statut
 
 ```txt
-Statut : ⬜ À faire
-Date de début :
-Date de fin :
-Commit Git :
+Statut : ✅ Fait
+Date de début : 2026-06-29
+Date de fin : 2026-06-29
+Commit Git : feat(massimo): add first learning pages
 ```
 
 ## Pages prioritaires Massimo
