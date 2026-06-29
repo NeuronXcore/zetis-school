@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* Design System ZETIS — variante Papa : sombre, sobre, analytique (accent émeraude
+   pour distinguer du frontend Massimo). Cf. docs/design/design-system.md § Papa. */
+@theme {
+  --color-papa-bg: #0a0f1a;
+  --color-papa-surface: #111a28;
+  --color-papa-surface-2: #18243a;
+  --color-papa-border: #243348;
+  --color-papa-text: #e6edf6;
+  --color-papa-muted: #8595ac;
+  --color-papa-accent: #10b981;
+  --color-papa-accent-2: #38bdf8;
+  --color-papa-warn: #f59e0b;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-papa-bg);
+  color: var(--color-papa-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
