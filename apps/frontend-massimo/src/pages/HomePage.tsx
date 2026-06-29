@@ -1,3 +1,5 @@
+import { BackendStatus } from "../components/BackendStatus";
+
 // Page d'accueil temporaire de Massimo (Étape 2). Pas encore de données réelles.
 export function HomePage() {
   return (
@@ -8,6 +10,9 @@ export function HomePage() {
       <p className="mt-2 text-zetis-muted">
         Bienvenue&nbsp;! Ton espace d'apprentissage est en cours de construction.
       </p>
+      <div className="mt-3">
+        <BackendStatus />
+      </div>
 
       <section className="mt-8 rounded-2xl border border-zetis-border bg-zetis-surface p-6">
         <p className="text-sm font-semibold uppercase tracking-wide text-zetis-accent-2">
