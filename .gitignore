@@ -4,6 +4,14 @@ dist/
 *.tsbuildinfo
 .vite/
 
+# Python (backend / workers)
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.ruff_cache/
+
 # Graphify — knowledge graph généré (ne pas committer)
 graphify-out/
 
