@@ -99,7 +99,7 @@ Ne modifie pas le backend, ne crée pas encore les pages finales, ne touche pas 
 | 1 | Créer le squelette | ✅ | Repo propre, dossiers, configs de base | Arborescence complète affichée |
 | 2 | Frontend Massimo vide | ✅ | App React/Vite Massimo démarre | Page vide visible localement |
 | 3 | Frontend Papa vide | ✅ | App React/Vite Papa démarre | Page vide visible localement |
-| 4 | Backend FastAPI | ⬜ | API minimale opérationnelle | `/health` répond OK |
+| 4 | Backend FastAPI | ✅ | API minimale opérationnelle | `/health` répond OK |
 | 5 | Connexion front ↔ backend | ⬜ | Fronts appellent l'API | Statut backend affiché dans les fronts |
 | 6 | Auth Papa/Massimo | ⬜ | Deux rôles simples | Accès différencié Papa/Massimo |
 | 7 | Premières pages Massimo | ⬜ | Accueil, matières, ELI5, diagnostic | Navigation fonctionnelle |
@@ -427,10 +427,10 @@ Créer un backend Python FastAPI minimal, capable de démarrer et de répondre �
 ## Statut
 
 ```txt
-Statut : ⬜ À faire
-Date de début :
-Date de fin :
-Commit Git :
+Statut : ✅ Fait
+Date de début : 2026-06-29
+Date de fin : 2026-06-29
+Commit Git : feat(backend): bootstrap FastAPI health API
 ```
 
 ## Emplacement
@@ -444,8 +444,8 @@ apps/backend/
 - [ ] Créer `pyproject.toml`.
 - [ ] Ajouter FastAPI.
 - [ ] Ajouter Uvicorn.
-- [ ] Créer `src/main.py`.
-- [ ] Créer `src/api/health.py`.
+- [ ] Créer `app/main.py`.
+- [ ] Créer `app/api/health.py`.
 - [ ] Créer une route `GET /health`.
 - [ ] Créer une route `GET /api/version`.
 - [ ] Ajouter une configuration CORS temporaire pour les frontends locaux.
@@ -502,10 +502,9 @@ Ne touche pas aux pages frontend sauf documentation de connexion future.
 
 ```bash
 cd apps/backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-uvicorn src.main:app --reload
+uv venv --python 3.12 .venv
+uv pip install --python .venv -e ".[dev]"
+.venv/bin/uvicorn app.main:app --reload
 ```
 
 ## Commit conseillé
