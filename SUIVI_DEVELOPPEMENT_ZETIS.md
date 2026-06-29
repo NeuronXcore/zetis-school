@@ -97,7 +97,7 @@ Ne modifie pas le backend, ne crée pas encore les pages finales, ne touche pas 
 | Étape | Bloc | Statut | Objectif | Validation |
 |---:|---|---:|---|---|
 | 1 | Créer le squelette | ✅ | Repo propre, dossiers, configs de base | Arborescence complète affichée |
-| 2 | Frontend Massimo vide | ⬜ | App React/Vite Massimo démarre | Page vide visible localement |
+| 2 | Frontend Massimo vide | ✅ | App React/Vite Massimo démarre | Page vide visible localement |
 | 3 | Frontend Papa vide | ⬜ | App React/Vite Papa démarre | Page vide visible localement |
 | 4 | Backend FastAPI | ⬜ | API minimale opérationnelle | `/health` répond OK |
 | 5 | Connexion front ↔ backend | ⬜ | Fronts appellent l'API | Statut backend affiché dans les fronts |
@@ -239,10 +239,10 @@ Cette app doit démarrer localement, afficher une page simple, et préparer la f
 ## Statut
 
 ```txt
-Statut : ⬜ À faire
-Date de début :
-Date de fin :
-Commit Git :
+Statut : ✅ Fait
+Date de début : 2026-06-29
+Date de fin : 2026-06-29
+Commit Git : feat(massimo): bootstrap empty frontend shell
 ```
 
 ## Emplacement

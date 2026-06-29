@@ -1,0 +1,39 @@
+import { NavLink } from "react-router-dom";
+import { MASSIMO_NAV } from "../lib/navigation";
+import { ZetisAvatar } from "./ZetisAvatar";
+
+// Sidebar temporaire de l'interface Massimo (Étape 2).
+export function MassimoSidebar() {
+  return (
+    <aside className="flex w-60 shrink-0 flex-col gap-2 border-r border-zetis-border bg-zetis-surface p-4">
+      <div className="mb-4 flex items-center gap-3">
+        <ZetisAvatar size={44} />
+        <div>
+          <p className="text-lg font-bold leading-tight">ZETIS</p>
+          <p className="text-xs text-zetis-muted">Espace de Massimo</p>
+        </div>
+      </div>
+
+      <nav className="flex flex-col gap-1">
+        {MASSIMO_NAV.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === "/"}
+            className={({ isActive }) =>
+              [
+                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-zetis-accent text-white shadow"
+                  : "text-zetis-muted hover:bg-zetis-surface-2 hover:text-zetis-text",
+              ].join(" ")
+            }
+          >
+            <span className="text-lg">{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+    </aside>
+  );
+}

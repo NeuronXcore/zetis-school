@@ -1,3 +1,9 @@
+# Dépendances & builds (Node / Vite / TS)
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+
 # Graphify — knowledge graph généré (ne pas committer)
 graphify-out/
 
