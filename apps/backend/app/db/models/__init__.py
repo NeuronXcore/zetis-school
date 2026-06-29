@@ -1,3 +1,4 @@
+from app.db.models.ai import AIJob
 from app.db.models.assessment import Quiz, QuizAnswer, QuizAttempt, QuizQuestion
 from app.db.models.content import Capsule, Mindmap
 from app.db.models.progress import (
@@ -43,4 +44,5 @@ __all__ = [
     "SpacedReviewAttempt",
     "Capsule",
     "Mindmap",
+    "AIJob",
 ]

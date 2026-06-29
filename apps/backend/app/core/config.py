@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,11 @@ class Settings(BaseSettings):
 
     # --- Base de données (Étape 9) ---
     database_url: str = "postgresql+psycopg://zetis:zetis_dev_password@localhost:5432/zetis"
+
+    # --- IA (Étape 10) : provider LLM unique (ollama). Variables sans préfixe ZETIS_. ---
+    llm_provider: str = Field(default="ollama", validation_alias="LLM_PROVIDER")
+    ollama_base_url: str = Field(default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
+    ollama_model: str = Field(default="qwen2.5:32b", validation_alias="OLLAMA_MODEL")
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [
         "http://localhost:5173",

@@ -105,7 +105,7 @@ Ne modifie pas le backend, ne crée pas encore les pages finales, ne touche pas 
 | 7 | Premières pages Massimo | ✅ | Accueil, matières, ELI5, diagnostic | Navigation fonctionnelle |
 | 8 | Premières pages Papa | ✅ | Dashboard, cahier de bord, années scolaires | Navigation fonctionnelle |
 | 9 | Base de données | ✅ | PostgreSQL + schéma initial | Migrations exécutables |
-| 10 | IA / RAG / mémoire | ⬜ | Moteur pédagogique initial | Réponse IA contextualisée + trace mémoire |
+| 10 | IA / RAG / mémoire | ✅ | Moteur pédagogique initial | Réponse IA contextualisée + trace mémoire |
 
 ---
 
@@ -998,10 +998,10 @@ Cette étape ne doit pas chercher à tout faire parfaitement. Elle doit créer u
 ## Statut
 
 ```txt
-Statut : ⬜ À faire
-Date de début :
-Date de fin :
-Commit Git :
+Statut : ✅ Fait (boucle ELI5 + trace + mémoire ; RAG reporté)
+Date de début : 2026-06-29
+Date de fin : 2026-06-29
+Commit Git : feat(ai): add first pedagogical AI memory loop
 ```
 
 ## Boucle IA minimale attendue
@@ -1019,11 +1019,11 @@ Commit Git :
 ## Modules backend attendus
 
 ```txt
-src/ai/
-src/rag/
-src/memory/
-src/school/
-src/gamification/
+app/modules/ai/         provider abstrait + mock — ✅ fait
+app/modules/eli5/       moteur ELI5 (explain + reverse) + endpoints — ✅ fait
+app/modules/memory/     mémoire espacée (cartes, intervalles) — ✅ fait
+app/modules/rag/        reporté (pgvector + ingestion de documents)
+app/modules/gamification/  reporté (XP automatique)
 ```
 
 ## Fonctions prioritaires
