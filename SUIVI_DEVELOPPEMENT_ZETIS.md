@@ -96,7 +96,7 @@ Ne modifie pas le backend, ne crée pas encore les pages finales, ne touche pas 
 
 | Étape | Bloc | Statut | Objectif | Validation |
 |---:|---|---:|---|---|
-| 1 | Créer le squelette | ⬜ | Repo propre, dossiers, configs de base | Arborescence complète affichée |
+| 1 | Créer le squelette | ✅ | Repo propre, dossiers, configs de base | Arborescence complète affichée |
 | 2 | Frontend Massimo vide | ⬜ | App React/Vite Massimo démarre | Page vide visible localement |
 | 3 | Frontend Papa vide | ⬜ | App React/Vite Papa démarre | Page vide visible localement |
 | 4 | Backend FastAPI | ⬜ | API minimale opérationnelle | `/health` répond OK |
@@ -120,10 +120,10 @@ Le but est d'obtenir un projet propre, lisible, prêt pour le développement.
 ## Statut
 
 ```txt
-Statut : ⬜ À faire
-Date de début :
-Date de fin :
-Commit Git :
+Statut : ✅ Fait
+Date de début : 2026-06-29
+Date de fin : 2026-06-29
+Commit Git : chore: create initial ZETIS project skeleton
 ```
 
 ## Dossiers attendus
@@ -133,19 +133,18 @@ zetis/
 ├── apps/
 │   ├── frontend-massimo/
 │   ├── frontend-papa/
-│   └── backend/
+│   ├── backend/
+│   ├── worker-ai/
+│   └── worker-media/
 ├── packages/
 │   ├── ui/
 │   ├── types/
-│   ├── config/
-│   └── shared/
-├── database/
-│   ├── migrations/
-│   ├── seeds/
-│   └── schema/
-├── docker/
-├── scripts/
+│   └── prompts/
+├── infra/
+│   ├── docker/
+│   └── nginx/
 ├── storage/
+├── scripts/
 ├── docs/
 └── prompts/
 ```
@@ -168,6 +167,9 @@ SUIVI_DEVELOPPEMENT_ZETIS.md
 .env.example
 .gitignore
 docker-compose.yml
+package.json
+pnpm-workspace.yaml
+tsconfig.base.json
 ```
 
 ## Tâches
@@ -189,7 +191,7 @@ L'étape est terminée uniquement si :
 
 - l'arborescence existe réellement ;
 - les dossiers Massimo, Papa et Backend sont séparés ;
-- les dossiers communs `packages`, `database`, `docker`, `scripts`, `storage` existent ;
+- les dossiers communs `packages`, `infra`, `storage`, `scripts` existent ;
 - aucun gros développement fonctionnel n'a été commencé ;
 - Claude Code affiche la liste des fichiers créés.
 

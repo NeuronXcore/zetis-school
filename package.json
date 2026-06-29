@@ -1,0 +1,15 @@
+{
+  "name": "zetis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ZETIS — app éducative personnelle pour Massimo (monorepo)",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f"
+  }
+}

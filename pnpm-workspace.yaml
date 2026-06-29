@@ -1,0 +1,4 @@
+packages:
+  - "apps/frontend-massimo"
+  - "apps/frontend-papa"
+  - "packages/*"
