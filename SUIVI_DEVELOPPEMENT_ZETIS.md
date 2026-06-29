@@ -101,7 +101,7 @@ Ne modifie pas le backend, ne crée pas encore les pages finales, ne touche pas 
 | 3 | Frontend Papa vide | ✅ | App React/Vite Papa démarre | Page vide visible localement |
 | 4 | Backend FastAPI | ✅ | API minimale opérationnelle | `/health` répond OK |
 | 5 | Connexion front ↔ backend | ✅ | Fronts appellent l'API | Statut backend affiché dans les fronts |
-| 6 | Auth Papa/Massimo | ⬜ | Deux rôles simples | Accès différencié Papa/Massimo |
+| 6 | Auth Papa/Massimo | ✅ | Deux rôles simples | Accès différencié Papa/Massimo |
 | 7 | Premières pages Massimo | ⬜ | Accueil, matières, ELI5, diagnostic | Navigation fonctionnelle |
 | 8 | Premières pages Papa | ⬜ | Dashboard, cahier de bord, années scolaires | Navigation fonctionnelle |
 | 9 | Base de données | ⬜ | PostgreSQL + schéma initial | Migrations exécutables |
@@ -607,10 +607,10 @@ Ajouter une authentification simple locale avec deux rôles :
 ## Statut
 
 ```txt
-Statut : ⬜ À faire
-Date de début :
-Date de fin :
-Commit Git :
+Statut : ✅ Fait
+Date de début : 2026-06-29
+Date de fin : 2026-06-29
+Commit Git : feat(auth): add simple papa and massimo login
 ```
 
 ## Choix recommandé pour le début

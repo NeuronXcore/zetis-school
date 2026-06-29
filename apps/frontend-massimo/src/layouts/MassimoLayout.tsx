@@ -1,10 +1,12 @@
 import { Outlet } from "react-router-dom";
 import { MassimoSidebar } from "../components/MassimoSidebar";
 import { ZetisAvatar } from "../components/ZetisAvatar";
+import { useAuth } from "../auth/AuthProvider";
 
 // Layout commun de l'interface Massimo : sidebar + header + zone principale
 // (cf. docs/frontend-massimo/README.md § Layout commun).
 export function MassimoLayout() {
+  const { user, logout } = useAuth();
   return (
     <div className="flex h-full">
       <MassimoSidebar />
@@ -16,6 +18,15 @@ export function MassimoLayout() {
               ⭐ 0 XP
             </span>
             <ZetisAvatar size={32} />
+            {user && (
+              <button
+                type="button"
+                onClick={logout}
+                className="rounded-lg px-2 py-1 text-xs text-zetis-muted hover:text-zetis-text"
+              >
+                Déconnexion
+              </button>
+            )}
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6">

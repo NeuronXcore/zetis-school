@@ -1,14 +1,23 @@
 import { Routes, Route } from "react-router-dom";
 import { PapaLayout } from "./layouts/PapaLayout";
 import { DashboardPage } from "./pages/DashboardPage";
+import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { RequireAuth } from "./auth/RequireAuth";
 import { PAPA_NAV } from "./lib/navigation";
 
-// Routes Papa (Étape 3) : dashboard réel + placeholders pour les autres entrées.
+// Routes Papa (Étapes 3/6) : login public + cockpit protégé (dashboard + placeholders).
 export default function App() {
   return (
     <Routes>
-      <Route element={<PapaLayout />}>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        element={
+          <RequireAuth>
+            <PapaLayout />
+          </RequireAuth>
+        }
+      >
         <Route index element={<DashboardPage />} />
         {PAPA_NAV.filter((item) => item.to !== "/").map((item) => (
           <Route
