@@ -1,3 +1,5 @@
+import { BackendStatus } from "../components/BackendStatus";
+
 // Dashboard temporaire Papa (Étape 3). KPIs en données mockées — pas d'appel backend.
 const KPIS = [
   { label: "Sessions (semaine)", value: "—", hint: "à venir" },
@@ -15,6 +17,9 @@ export function DashboardPage() {
       <p className="mt-1 text-papa-muted">
         Cockpit de pilotage — vue d'ensemble de la progression de Massimo.
       </p>
+      <div className="mt-3">
+        <BackendStatus />
+      </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {KPIS.map((kpi) => (
