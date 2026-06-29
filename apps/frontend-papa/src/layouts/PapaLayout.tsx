@@ -1,9 +1,11 @@
 import { Outlet } from "react-router-dom";
 import { PapaSidebar } from "../components/PapaSidebar";
+import { useAuth } from "../auth/AuthProvider";
 
 // Layout commun de l'interface Papa : sidebar + header + zone analytique
 // (cf. docs/frontend-papa/README.md § Layout).
 export function PapaLayout() {
+  const { user, logout } = useAuth();
   return (
     <div className="flex h-full">
       <PapaSidebar />
@@ -15,12 +17,23 @@ export function PapaLayout() {
             </span>
             <span className="text-papa-muted">Période : 2026 — 4ᵉ</span>
           </div>
-          <button
-            type="button"
-            className="rounded-lg border border-papa-border px-3 py-1.5 text-sm font-medium text-papa-muted hover:text-papa-text"
-          >
-            Exporter
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-papa-border px-3 py-1.5 text-sm font-medium text-papa-muted hover:text-papa-text"
+            >
+              Exporter
+            </button>
+            {user && (
+              <button
+                type="button"
+                onClick={logout}
+                className="rounded-lg px-2 py-1 text-xs text-papa-muted hover:text-papa-text"
+              >
+                Déconnexion
+              </button>
+            )}
+          </div>
         </header>
         <main className="flex-1 overflow-auto p-6">
           <Outlet />
