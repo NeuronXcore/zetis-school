@@ -1,0 +1,8 @@
+# Fichiers de config / données — leurs clés (JSON/YAML) polluent le knowledge graph
+# sans apporter de sens métier. Le rôle de ces fichiers est déjà décrit dans la doc.
+package.json
+pnpm-workspace.yaml
+tsconfig*.json
+manifest.json
+.env.example
+docker-compose*.yml
