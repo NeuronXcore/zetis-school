@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { fetchHealth } from "../lib/api";
+import { fetchHealth } from "@zetis/auth";
+import { API_URL } from "../lib/authClient";
 
 type Status =
   | { kind: "loading" }
@@ -12,7 +13,7 @@ export function BackendStatus() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchHealth(controller.signal)
+    fetchHealth(API_URL, controller.signal)
       .then((h) => setStatus({ kind: "ok", service: h.service }))
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;

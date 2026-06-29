@@ -2,7 +2,7 @@ import { Outlet } from "react-router-dom";
 import { MassimoSidebar } from "../components/MassimoSidebar";
 import { ZetisAvatar } from "../components/ZetisAvatar";
 import { XPBadge } from "../components/XPBadge";
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "@zetis/auth";
 import { PROFILE } from "../data/mock";
 
 // Layout commun de l'interface Massimo : sidebar + header + zone principale

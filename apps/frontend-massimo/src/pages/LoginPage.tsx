@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "@zetis/auth";
 import { ZetisAvatar } from "../components/ZetisAvatar";
 
 // Page de connexion Massimo (Étape 6).
