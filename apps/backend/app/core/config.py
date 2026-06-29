@@ -8,6 +8,9 @@ class Settings(BaseSettings):
 
     app_name: str = "zetis-backend"
     version: str = "0.1.0"
+
+    # --- Base de données (Étape 9) ---
+    database_url: str = "postgresql+psycopg://zetis:zetis_dev_password@localhost:5432/zetis"
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [
         "http://localhost:5173",
