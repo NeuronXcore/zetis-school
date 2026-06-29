@@ -1,12 +1,22 @@
 import { Routes, Route } from "react-router-dom";
 import { RequireAuth } from "@zetis/auth";
 import { PapaLayout } from "./layouts/PapaLayout";
-import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
-import { PAPA_NAV } from "./lib/navigation";
+import { DashboardPage } from "./pages/DashboardPage";
+import { ProgressionPage } from "./pages/ProgressionPage";
+import { LacunesPage } from "./pages/LacunesPage";
+import { MissionsPage } from "./pages/MissionsPage";
+import { DiagnosticsPapaPage } from "./pages/DiagnosticsPapaPage";
+import { ConseilClasseIAPage } from "./pages/ConseilClasseIAPage";
+import { CahierBordPage } from "./pages/CahierBordPage";
+import { AnneesScolairesPage } from "./pages/AnneesScolairesPage";
+import { ProgrammesPage } from "./pages/ProgrammesPage";
+import { CapsulesPilotagePage } from "./pages/CapsulesPilotagePage";
+import { ModeFocusPage } from "./pages/ModeFocusPage";
+import { ParametresPage } from "./pages/ParametresPage";
 
-// Routes Papa (Étapes 3/6) : login public + cockpit protégé (dashboard + placeholders).
+// Routes Papa (Étape 8) : login public + cockpit protégé avec les premières pages.
 export default function App() {
   return (
     <Routes>
@@ -19,13 +29,17 @@ export default function App() {
         }
       >
         <Route index element={<DashboardPage />} />
-        {PAPA_NAV.filter((item) => item.to !== "/").map((item) => (
-          <Route
-            key={item.to}
-            path={item.to}
-            element={<PlaceholderPage title={item.label} icon={item.icon} />}
-          />
-        ))}
+        <Route path="/progression" element={<ProgressionPage />} />
+        <Route path="/lacunes" element={<LacunesPage />} />
+        <Route path="/missions" element={<MissionsPage />} />
+        <Route path="/diagnostics" element={<DiagnosticsPapaPage />} />
+        <Route path="/conseil" element={<ConseilClasseIAPage />} />
+        <Route path="/cahier" element={<CahierBordPage />} />
+        <Route path="/annees" element={<AnneesScolairesPage />} />
+        <Route path="/programmes" element={<ProgrammesPage />} />
+        <Route path="/capsules" element={<CapsulesPilotagePage />} />
+        <Route path="/focus" element={<ModeFocusPage />} />
+        <Route path="/parametres" element={<ParametresPage />} />
         <Route path="*" element={<PlaceholderPage title="Page introuvable" icon="🔍" />} />
       </Route>
     </Routes>
