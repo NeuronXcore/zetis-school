@@ -1,9 +1,9 @@
 import { Routes, Route } from "react-router-dom";
+import { RequireAuth } from "@zetis/auth";
 import { PapaLayout } from "./layouts/PapaLayout";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
-import { RequireAuth } from "./auth/RequireAuth";
 import { PAPA_NAV } from "./lib/navigation";
 
 // Routes Papa (Étapes 3/6) : login public + cockpit protégé (dashboard + placeholders).
@@ -13,7 +13,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route
         element={
-          <RequireAuth>
+          <RequireAuth fallback={<div className="p-6 text-papa-muted">Chargement…</div>}>
             <PapaLayout />
           </RequireAuth>
         }

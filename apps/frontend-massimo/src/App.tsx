@@ -1,8 +1,8 @@
 import { Routes, Route } from "react-router-dom";
+import { RequireAuth } from "@zetis/auth";
 import { MassimoLayout } from "./layouts/MassimoLayout";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
-import { RequireAuth } from "./auth/RequireAuth";
 import { AccueilMassimoPage } from "./pages/AccueilMassimoPage";
 import { MatieresPage } from "./pages/MatieresPage";
 import { MatiereDetailPage } from "./pages/MatiereDetailPage";
@@ -20,7 +20,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route
         element={
-          <RequireAuth>
+          <RequireAuth fallback={<div className="p-6 text-zetis-muted">Chargement…</div>}>
             <MassimoLayout />
           </RequireAuth>
         }

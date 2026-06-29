@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { PapaSidebar } from "../components/PapaSidebar";
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "@zetis/auth";
 
 // Layout commun de l'interface Papa : sidebar + header + zone analytique
 // (cf. docs/frontend-papa/README.md § Layout).

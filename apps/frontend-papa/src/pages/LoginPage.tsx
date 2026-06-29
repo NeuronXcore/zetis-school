@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "@zetis/auth";
 
 // Page de connexion Papa (Étape 6).
 export function LoginPage() {
