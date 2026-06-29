@@ -1,0 +1,49 @@
+{
+  "project": "ZETIS",
+  "generated_at": "2026-06-29",
+  "description": "Documentation racine et détaillée pour projet ZETIS, prête pour Claude Code.",
+  "root_files": [
+    "README.md",
+    "CLAUDE.md",
+    "ARCHITECTURE.md",
+    "TECH_STACK.md",
+    "ROADMAP.md",
+    "BACKLOG.md",
+    "PRODUCT_SPEC.md",
+    "PROJECT_STRUCTURE.md",
+    "DATA_MODEL.md",
+    "API_SPEC.md",
+    "SECURITY.md",
+    "DEPLOYMENT.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    "DECISIONS.md",
+    "GLOSSARY.md",
+    ".env.example"
+  ],
+  "folders": [
+    "docs/frontend-massimo",
+    "docs/frontend-papa",
+    "docs/ai",
+    "docs/backend",
+    "docs/school",
+    "docs/design",
+    "docs/devops",
+    "docs/decisions",
+    "prompts/claude-code"
+  ],
+  "recommended_first_read": [
+    "README.md",
+    "CLAUDE.md",
+    "ARCHITECTURE.md",
+    "PRODUCT_SPEC.md",
+    "PROJECT_STRUCTURE.md",
+    "TECH_STACK.md"
+  ],
+  "files": [
+    "SUIVI_DEVELOPPEMENT_ZETIS.md",
+    "prompts/claude-code/00-suivi-developpement.md"
+  ],
+  "updated": "2026-06-29",
+  "version": "v2-suivi"
+}

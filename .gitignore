@@ -1,0 +1,21 @@
+# Graphify — knowledge graph généré (ne pas committer)
+graphify-out/
+
+# Backups locaux
+*.bak-pre-graphify
+
+# Secrets (cf. CLAUDE.md > Règles sécurité)
+.env
+.env.local
+.env.production
+secrets/
+private/
+storage/uploads/
+storage/generated/
+storage/exports/
+
+# Claude Code — réglages locaux/personnels (le settings.json partagé reste versionné)
+.claude/settings.local.json
+
+# OS / éditeur
+.DS_Store
