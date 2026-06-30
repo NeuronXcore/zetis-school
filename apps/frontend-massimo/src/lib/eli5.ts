@@ -16,6 +16,8 @@ export interface Eli5Explain {
   common_mistake: string;
   check_question: string;
   next_action: string;
+  // Nombre de passages de cours (RAG) utilisés ; >0 → « d'après ton cours ».
+  sources_used?: number;
 }
 
 export interface Eli5Reverse {

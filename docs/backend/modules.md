@@ -42,7 +42,9 @@ Cartes, révisions, planning.
 
 ## RAG
 
-Documents, chunks, embeddings, recherche.
+Documents, chunks, embeddings, recherche. Ingestion texte (JSON) et fichiers
+(MD/TXT/PDF via `extract.py`), upload Papa en statut `pending`, validation/rejet
+des sources (`validate`/`reject`), récupération cosinus filtrée `validated`/`official`.
 
 ## AI
 

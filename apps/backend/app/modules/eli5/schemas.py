@@ -30,6 +30,8 @@ class ELI5ExplainResponse(BaseModel):
     common_mistake: str
     check_question: str
     next_action: str
+    # Nombre de passages de cours (RAG) injectés ; >0 → explication appuyée sur une source validée.
+    sources_used: int = 0
 
 
 class ELI5ReverseRequest(BaseModel):
