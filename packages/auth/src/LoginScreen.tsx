@@ -17,9 +17,10 @@ const ROLES = {
   papa: { name: "PAPA", sub: "ESPACE PARENT", user: "papa" },
 } as const;
 
-// L'animation fait disparaître les lettres en fondu sur la dernière seconde :
-// on fige juste avant pour que le wordmark ZETIS reste affiché à l'écran.
-const FREEZE_AT_SECONDS = 7;
+// Les lettres atteignent leur pic de netteté vers 5,9 s puis l'animation les efface
+// en fondu. On enchaîne en fondu doux vers le poster (= cette même image) à cet instant,
+// pour que le wordmark ZETIS reste affiché. (Le poster est la frame ~177.)
+const FREEZE_AT_SECONDS = 5.9;
 
 export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
   const { login, user } = useAuth();
@@ -32,6 +33,7 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [settled, setSettled] = useState(false); // fondu final vers le poster
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Joue l'animation de marque une fois à l'arrivée sur la page.
@@ -66,35 +68,36 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
       <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-fuchsia-600/20 blur-[120px]" />
 
       <div className="relative flex w-full max-w-7xl flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:justify-center lg:gap-12">
-        {/* Panneau de marque — animation ZETIS jouée une fois à l'arrivée, figée
-            juste avant le fondu final pour que le wordmark reste affiché. */}
+        {/* Panneau de marque — animation ZETIS jouée une fois à l'arrivée, puis fondu
+            doux vers le poster (image nette des lettres) pour finir en douceur. */}
         <div className="flex w-full items-center justify-center lg:flex-1">
-          <video
-            ref={videoRef}
-            src="/zetis-logo.mp4"
-            poster="/zetis-logo.png"
-            autoPlay
-            muted
-            playsInline
-            preload="auto"
-            onTimeUpdate={(e) => {
-              const v = e.currentTarget;
-              if (v.currentTime >= FREEZE_AT_SECONDS) {
-                v.pause();
-                v.currentTime = FREEZE_AT_SECONDS;
-              }
-            }}
-            onEnded={(e) => {
-              // Filet de sécurité : si la lecture atteint la fin (env. throttlé),
-              // on revient sur l'image où les lettres sont visibles.
-              const v = e.currentTarget;
-              v.currentTime = FREEZE_AT_SECONDS;
-            }}
-            aria-label="ZETIS — ton savoir, ton évolution"
-            className="w-full max-w-md object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(82%_62%_at_50%_50%,black_44%,transparent_100%)] lg:h-full lg:max-h-none lg:w-full lg:max-w-none"
-          >
-            <img src="/zetis-logo.png" alt="ZETIS — ton savoir, ton évolution" />
-          </video>
+          <div className="relative w-full max-w-md lg:h-full lg:max-w-none">
+            <video
+              ref={videoRef}
+              src="/zetis-logo.mp4"
+              poster="/zetis-logo.png"
+              autoPlay
+              muted
+              playsInline
+              preload="auto"
+              onTimeUpdate={(e) => {
+                // Avant le fondu final de l'animation, on enchaîne en douceur sur le poster.
+                if (!settled && e.currentTarget.currentTime >= FREEZE_AT_SECONDS) {
+                  setSettled(true);
+                  e.currentTarget.pause();
+                }
+              }}
+              onEnded={() => setSettled(true)}
+              aria-label="ZETIS — ton savoir, ton évolution"
+              className={`block h-full w-full object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(120%_72%_at_50%_50%,black_76%,transparent_100%)] transition-opacity duration-700 ease-in-out ${settled ? "opacity-0" : "opacity-100"}`}
+            />
+            {/* Poster figé (lettres nettes) en fondu d'entrée. */}
+            <img
+              src="/zetis-logo.png"
+              alt="ZETIS — ton savoir, ton évolution"
+              className={`pointer-events-none absolute inset-0 h-full w-full object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(120%_72%_at_50%_50%,black_76%,transparent_100%)] transition-opacity duration-700 ease-in-out ${settled ? "opacity-100" : "opacity-0"}`}
+            />
+          </div>
         </div>
 
         {/* Carte de connexion */}
