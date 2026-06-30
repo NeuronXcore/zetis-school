@@ -31,3 +31,27 @@ class OllamaProvider:
         data = response.json()
         duration_ms = int((time.monotonic() - start) * 1000)
         return LLMResponse(text=data.get("response", ""), model=self.model, duration_ms=duration_ms)
+
+
+class OllamaEmbeddingProvider:
+    """Embeddings locaux via ollama (nomic-embed-text → 768 dims). Pas de fallback."""
+
+    def __init__(self, base_url: str, model: str, dim: int, timeout: float = 60.0) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.dim = dim
+        self.timeout = timeout
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        response = httpx.post(
+            f"{self.base_url}/api/embed",
+            json={"model": self.model, "input": texts},
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        embeddings = response.json().get("embeddings", [])
+        if len(embeddings) != len(texts):
+            raise ValueError("Réponse d'embeddings ollama incohérente (taille ≠ entrée).")
+        return embeddings

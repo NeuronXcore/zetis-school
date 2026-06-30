@@ -1,6 +1,7 @@
 from app.db.models.ai import AIJob
 from app.db.models.assessment import Quiz, QuizAnswer, QuizAttempt, QuizQuestion
 from app.db.models.content import Capsule, Mindmap
+from app.db.models.rag import RagChunk, RagDocument
 from app.db.models.progress import (
     Gap,
     LearningEvent,
@@ -45,4 +46,6 @@ __all__ = [
     "Capsule",
     "Mindmap",
     "AIJob",
+    "RagDocument",
+    "RagChunk",
 ]

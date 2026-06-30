@@ -9,9 +9,9 @@ from sqlalchemy.pool import StaticPool
 import app.db.models as m  # noqa: F401  (peuple Base.metadata)
 from app.db.base import Base, get_db
 from app.main import app
-from app.modules.ai import get_provider
+from app.modules.ai import get_embedder, get_provider
 from app.modules.auth.deps import get_current_user
-from app.tests.fakes import FakeLLMProvider
+from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
 
 
 @pytest.fixture()
@@ -45,6 +45,7 @@ def client_db() -> Iterator[tuple[TestClient, sessionmaker]]:
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: {"username": "massimo", "role": "child"}
     app.dependency_overrides[get_provider] = lambda: FakeLLMProvider()
+    app.dependency_overrides[get_embedder] = lambda: FakeEmbeddingProvider()
     try:
         yield TestClient(app), TestSession
     finally:
