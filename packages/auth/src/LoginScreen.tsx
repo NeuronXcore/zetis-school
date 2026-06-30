@@ -17,6 +17,10 @@ const ROLES = {
   papa: { name: "PAPA", sub: "ESPACE PARENT", user: "papa" },
 } as const;
 
+// L'animation fait disparaître les lettres en fondu sur la dernière seconde :
+// on fige juste avant pour que le wordmark ZETIS reste affiché à l'écran.
+const FREEZE_AT_SECONDS = 7;
+
 export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
   const { login, user } = useAuth();
   const navigate = useNavigate();
@@ -62,8 +66,8 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
       <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-fuchsia-600/20 blur-[120px]" />
 
       <div className="relative flex w-full max-w-7xl flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:justify-center lg:gap-12">
-        {/* Panneau de marque — animation ZETIS jouée une fois à l'arrivée
-            (poster + fallback = dernière image ; s'arrête sur le logo complet). */}
+        {/* Panneau de marque — animation ZETIS jouée une fois à l'arrivée, figée
+            juste avant le fondu final pour que le wordmark reste affiché. */}
         <div className="flex w-full items-center justify-center lg:flex-1">
           <video
             ref={videoRef}
@@ -73,6 +77,19 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
             muted
             playsInline
             preload="auto"
+            onTimeUpdate={(e) => {
+              const v = e.currentTarget;
+              if (v.currentTime >= FREEZE_AT_SECONDS) {
+                v.pause();
+                v.currentTime = FREEZE_AT_SECONDS;
+              }
+            }}
+            onEnded={(e) => {
+              // Filet de sécurité : si la lecture atteint la fin (env. throttlé),
+              // on revient sur l'image où les lettres sont visibles.
+              const v = e.currentTarget;
+              v.currentTime = FREEZE_AT_SECONDS;
+            }}
             aria-label="ZETIS — ton savoir, ton évolution"
             className="w-full max-w-md object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(82%_62%_at_50%_50%,black_44%,transparent_100%)] lg:h-full lg:max-h-none lg:w-full lg:max-w-none"
           >
