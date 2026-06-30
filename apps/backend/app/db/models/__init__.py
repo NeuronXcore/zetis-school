@@ -19,6 +19,7 @@ from app.db.models.school import (
     SchoolYearSubject,
     Skill,
     Subject,
+    Theme,
 )
 from app.db.models.user import StudentProfile, User
 
@@ -28,6 +29,7 @@ __all__ = [
     "SchoolYear",
     "Subject",
     "SchoolYearSubject",
+    "Theme",
     "Chapter",
     "LearningObjective",
     "Skill",

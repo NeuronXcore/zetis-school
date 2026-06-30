@@ -11,6 +11,7 @@ from app.modules.gamification.router import router as gamification_router
 from app.modules.memory.router import router as memory_router
 from app.modules.missions.router import router as missions_router
 from app.modules.rag.router import router as rag_router
+from app.modules.subjects.router import router as subjects_router
 
 app = FastAPI(title="ZETIS Backend", version=settings.version)
 
@@ -31,4 +32,5 @@ app.include_router(missions_router)
 app.include_router(gamification_router)
 app.include_router(memory_router)
 app.include_router(rag_router)
+app.include_router(subjects_router)
 app.include_router(ai_router)
