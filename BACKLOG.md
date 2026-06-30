@@ -82,12 +82,15 @@
 
 ### RAG
 
-- Import PDF.
-- Extraction texte.
-- Chunking.
-- Embeddings.
-- Recherche vectorielle.
-- Réponse sourcée.
+- ✅ Import PDF (+ MD/TXT) — `POST /api/rag/upload`.
+- ✅ Extraction texte (`modules/rag/extract.py`, pypdf).
+- ✅ Chunking.
+- ✅ Embeddings (ollama `nomic-embed-text`, 768d).
+- ✅ Recherche vectorielle (pgvector cosinus).
+- ✅ Validation Papa des sources (`validate`/`reject`, page « Sources de cours »).
+- Réponse sourcée dédiée (`/rag/answer` + citations/confiance).
+- Stockage du fichier brut (MinIO).
+- RAG sur productions de Massimo.
 
 ### Capsules IA
 

@@ -283,21 +283,38 @@ Sortie :
 
 ## RAG
 
+Préfixe réel : `/api/rag`. Seuls les chunks `validated`/`official` sont récupérés.
+
 ### POST `/rag/documents`
 
-Import document.
+Ingère un document **texte** (JSON) en statut `validated` — sources de confiance / seed.
+Corps : `{ title, text, subject_id?, source_type?, level?, chapter? }`.
+Réponse : `{ document_id, chunks }`. Découpage + embedding faits à l'ingestion.
 
-### POST `/rag/documents/{id}/process`
+### POST `/rag/upload`
 
-Lance extraction/chunking/embedding.
+Ingère un **fichier** de cours (`multipart/form-data` : `file` MD/TXT/PDF + `title?`,
+`subject_id?`, `level?`, `chapter?`). Le texte est extrait (pypdf pour le PDF), puis
+chunké/vectorisé. La source arrive en statut **`pending`** : invisible du RAG tant
+qu'elle n'est pas validée à la main (relecture humaine, cf. CLAUDE.md).
+Réponse : `{ document_id, chunks }`. `400` si format non supporté / texte vide.
+
+### GET `/rag/documents`
+
+Liste les documents avec leur `validation_status` et leur nombre de chunks.
+
+### POST `/rag/documents/{id}/validate`
+
+Valide une source : passe le document **et ses chunks** en `validated`.
+Réponse : `{ document_id, validation_status }`. `404` si introuvable.
+
+### POST `/rag/documents/{id}/reject`
+
+Rejette une source : document + chunks en `rejected` (exclus de la récupération).
 
 ### POST `/rag/search`
 
-Recherche contextuelle.
-
-### POST `/rag/answer`
-
-Réponse sourcée.
+Recherche contextuelle (top-k cosinus). Corps : `{ query, subject_id?, k? }`.
 
 ## Capsules IA
 
@@ -375,6 +392,9 @@ Sortie :
 | `/school-years` POST | non | oui | oui |
 | `/capsules/{id}/validate` | non | oui | oui |
 | `/rag/documents` POST | non | oui | oui |
+| `/rag/upload` POST | non | oui | oui |
+| `/rag/documents/{id}/validate` POST | non | oui | oui |
+| `/rag/documents/{id}/reject` POST | non | oui | oui |
 | `/ai/eli5/explain` | oui | oui | oui |
 
 ## Documentation OpenAPI

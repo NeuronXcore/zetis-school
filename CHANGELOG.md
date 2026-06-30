@@ -1,5 +1,24 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.4.0 — RAG sémantique + sources Papa (étapes 11 → 12)
+
+Date : 2026-06-30
+
+### Ajouté
+
+- **RAG sémantique pgvector** (Étape 11) : modèles `rag_documents` / `rag_chunks` (`vector(768)`) + index ivfflat cosinus (migration `a1b2c3d4e5f6`) ; `OllamaEmbeddingProvider` (`/api/embed`, `nomic-embed-text`) ; module `rag` (chunking, ingestion vectorisée, recherche cosinus, `retrieve_for_skill`) ; endpoints `POST/GET /api/rag/documents`, `POST /api/rag/search`. ELI5 `explain` injecte le contexte récupéré (renvoie `[]` sans appel embeddings si aucune source → contrat intact).
+- **Ingestion de fichiers + validation Papa** (Étape 12) : `POST /api/rag/upload` (MD/TXT/PDF, extraction via **pypdf**) → source en statut **`pending`** ; `POST /api/rag/documents/{id}/validate|reject` (synchronise document + chunks). Page Papa **« Sources de cours »** (upload + liste + Valider/Rejeter). Seuls les chunks `validated`/`official` alimentent l'IA (relecture humaine, cf. CLAUDE.md).
+
+### Décisions
+
+- Embeddings et LLM restent des **providers abstraits** distincts (ollama en local), trace `ai_jobs` conservée.
+- Les sources uploadées par Papa ne sont **jamais** utilisées avant validation manuelle.
+- Reportés : réponse RAG sourcée dédiée (`/rag/answer`) + citations/confiance, stockage du fichier brut (MinIO), RAG sur les productions de Massimo, import des programmes officiels.
+
+### Dépendances
+
+- Backend : `python-multipart`, `pypdf`.
+
 ## 0.3.0 — MVP fonctionnel (étapes 2 → 10)
 
 Date : 2026-06-30

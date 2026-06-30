@@ -17,15 +17,24 @@ _RETRIEVABLE = ("validated", "official")
 
 
 def ingest_document(
-    db: Session, embedder: EmbeddingProvider, req: RagIngestRequest
+    db: Session,
+    embedder: EmbeddingProvider,
+    req: RagIngestRequest,
+    *,
+    validation_status: str = "validated",
 ) -> tuple[RagDocument, int]:
+    """Ingère un document (texte → chunks vectorisés).
+
+    `validation_status` par défaut `validated` (sources de confiance / officielles).
+    Les fichiers uploadés par Papa passent `pending` et restent invisibles du RAG
+    tant qu'ils ne sont pas validés à la main (règle CLAUDE.md)."""
     document = RagDocument(
         subject_id=req.subject_id,
         title=req.title,
         source_type=req.source_type,
         level=req.level,
         chapter=req.chapter,
-        validation_status="validated",
+        validation_status=validation_status,
         created_by="papa",
     )
     db.add(document)
@@ -50,6 +59,29 @@ def ingest_document(
     db.commit()
     db.refresh(document)
     return document, len(pieces)
+
+
+# Statuts qu'un humain peut appliquer à une source via l'interface Papa.
+_SETTABLE_STATUS = ("validated", "rejected", "pending")
+
+
+def set_validation(db: Session, document_id: int, status: str) -> RagDocument | None:
+    """Met à jour le statut de validation d'un document ET de ses chunks.
+
+    Comme la récupération filtre sur le statut des chunks, les deux doivent rester
+    synchronisés. Renvoie None si le document n'existe pas, lève ValueError si le
+    statut est invalide."""
+    if status not in _SETTABLE_STATUS:
+        raise ValueError(f"Statut invalide : {status}. Attendu : {_SETTABLE_STATUS}")
+    document = db.get(RagDocument, document_id)
+    if document is None:
+        return None
+    document.validation_status = status
+    for chunk in db.scalars(select(RagChunk).where(RagChunk.document_id == document_id)):
+        chunk.validation_status = status
+    db.commit()
+    db.refresh(document)
+    return document
 
 
 def count_chunks(db: Session, document_id: int) -> int:

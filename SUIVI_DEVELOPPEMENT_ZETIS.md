@@ -1132,6 +1132,55 @@ git commit -m "feat(rag): semantic RAG over course docs (pgvector) wired into EL
 
 ---
 
+# ÉTAPE 12 — Ingestion de fichiers + validation Papa des sources
+
+## Objectif
+
+Rendre le RAG réellement alimentable côté Papa : importer des fichiers de cours
+(MD / TXT / PDF) et n'autoriser leur usage par l'IA qu'après validation manuelle.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — upload fichiers (MD/TXT/PDF) en `pending` + validation/rejet Papa
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(rag): file upload + Papa source validation workflow
+```
+
+## Ce qui a été fait
+
+```txt
+Deps        python-multipart + pypdf (extraction PDF)
+Extraction  modules/rag/extract.py : MD/TXT (utf-8) + PDF (pypdf), ValueError sinon
+Service     ingest_document(validation_status=…) + set_validation (doc + chunks synchrones)
+Endpoints   POST /api/rag/upload (multipart, statut pending),
+            POST /api/rag/documents/{id}/validate, /reject
+Sources     un upload Papa reste `pending` → invisible du RAG tant que non validé (CLAUDE.md)
+Frontend    page Papa « Sources de cours » : upload + liste + badges + Valider/Rejeter
+            (lib/rag.ts, SourcesRagPage.tsx, nav + route)
+Tests       3 nouveaux (extraction, upload→pending, validate/reject) — 21 verts
+```
+
+## Critères de validation
+
+- Un fichier MD/TXT/PDF peut être uploadé, extrait, découpé et vectorisé.
+- La source uploadée arrive en `pending` et n'alimente pas `explain` avant validation.
+- Valider/Rejeter met à jour le document ET ses chunks (statut synchronisé).
+- Le front Papa expose l'upload et la validation ; aucune migration nécessaire
+  (le modèle supportait déjà `validated | pending | rejected`).
+- Reste reporté : stockage du fichier brut (MinIO), RAG sur productions de Massimo,
+  affichage des sources utilisées côté Massimo.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(rag): file upload + Papa source validation workflow"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :
