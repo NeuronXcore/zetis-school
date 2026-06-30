@@ -145,6 +145,27 @@ Le MVP ne doit pas tout faire. Il doit livrer un parcours complet minimal :
 
 Prérequis : Docker, Node.js LTS + `pnpm`, `uv` (Python 3.12 pour le backend), `ollama` avec le modèle `qwen2.5`.
 
+### Tout lancer en une commande
+
+Une fois le backend installé (étape 2 ci-dessous, à faire une seule fois), un seul script
+démarre l'infra, le backend et les deux frontends :
+
+```bash
+pnpm dev      # infra + backend :8000 + Massimo :5173 + Papa :5174 (Ctrl+C pour tout arrêter)
+```
+
+Scripts ciblés (racine) :
+
+```bash
+pnpm dev:front     # les 2 frontends en parallèle
+pnpm dev:massimo   # Massimo seul (:5173)
+pnpm dev:papa      # Papa seul (:5174)
+pnpm dev:back      # backend seul (:8000)
+pnpm infra:up      # infra Docker seule
+```
+
+### Installation détaillée (première fois)
+
 ```bash
 # 1. infra (base de données)
 docker compose up -d postgres
