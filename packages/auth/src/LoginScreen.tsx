@@ -46,23 +46,23 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#0a0e1a] px-4 py-8 text-white md:px-8">
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#000012] px-4 py-8 text-white md:px-8">
       {/* Halos lumineux d'arrière-plan */}
       <div className="pointer-events-none absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-indigo-600/20 blur-[120px]" />
       <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-fuchsia-600/20 blur-[120px]" />
 
-      <div className="relative grid w-full max-w-6xl items-center gap-10 lg:grid-cols-2">
-        {/* Panneau de marque — logo officiel ZETIS */}
-        <div className="flex flex-col items-center">
+      <div className="relative flex w-full max-w-7xl flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:justify-center lg:gap-12">
+        {/* Panneau de marque — logo officiel ZETIS (étiré à la hauteur de la carte) */}
+        <div className="flex w-full items-center justify-center lg:flex-1">
           <img
             src="/zetis-logo.png"
             alt="ZETIS — ton savoir, ton évolution"
-            className="w-full max-w-xl drop-shadow-[0_0_40px_rgba(99,102,241,0.25)]"
+            className="w-full max-w-md object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(82%_62%_at_50%_50%,black_42%,transparent_100%)] lg:h-full lg:max-h-none lg:w-full lg:max-w-none"
           />
         </div>
 
         {/* Carte de connexion */}
-        <div className="mx-auto w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-7 shadow-2xl backdrop-blur-xl md:p-8">
+        <div className="flex w-full max-w-md flex-col justify-center rounded-3xl border border-white/10 bg-white/5 p-7 shadow-2xl backdrop-blur-xl md:p-8">
           <h2 className="text-center text-xl font-medium tracking-[0.2em] text-slate-100">
             BIENVENUE SUR{" "}
             <span className="bg-gradient-to-r from-cyan-300 to-fuchsia-400 bg-clip-text font-bold text-transparent">
