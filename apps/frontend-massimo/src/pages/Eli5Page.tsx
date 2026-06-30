@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { ZetisAvatar } from "../components/ZetisAvatar";
 import {
+  type DueReview,
   type Eli5Explain,
   type Eli5Reverse,
   type Skill,
   explainEli5,
+  fetchDueReviews,
   fetchSkills,
   reverseEli5,
 } from "../lib/eli5";
@@ -17,6 +19,7 @@ export function Eli5Page() {
   const [explanation, setExplanation] = useState<Eli5Explain | null>(null);
   const [myText, setMyText] = useState("");
   const [reverse, setReverse] = useState<Eli5Reverse | null>(null);
+  const [dueReviews, setDueReviews] = useState<DueReview[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +31,14 @@ export function Eli5Page() {
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Erreur de chargement"));
   }, []);
+
+  // Cartes de révision dues (mémoire espacée) — rechargées après chaque reverse-evaluate.
+  function loadDueReviews() {
+    fetchDueReviews()
+      .then(setDueReviews)
+      .catch(() => setDueReviews([]));
+  }
+  useEffect(loadDueReviews, []);
 
   async function onExplain() {
     if (skillId == null) return;
@@ -49,6 +60,7 @@ export function Eli5Page() {
     setError(null);
     try {
       setReverse(await reverseEli5(skillId, myText));
+      loadDueReviews();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -141,6 +153,27 @@ export function Eli5Page() {
             </ul>
           )}
           <p className="mt-2 text-zetis-accent-2">Prochaine étape : {reverse.next_action}</p>
+        </section>
+      )}
+
+      {dueReviews.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-2 text-sm font-semibold text-zetis-muted">
+            🔁 À réviser ({dueReviews.length})
+          </h2>
+          <ul className="space-y-2">
+            {dueReviews.map((card) => (
+              <li
+                key={card.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-zetis-border bg-zetis-surface px-4 py-3 text-sm"
+              >
+                <span>{card.front_markdown}</span>
+                <span className="shrink-0 rounded-full bg-zetis-surface-2 px-2 py-0.5 text-xs text-zetis-muted">
+                  J+{card.interval_days}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
     </div>
