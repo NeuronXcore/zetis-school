@@ -7,8 +7,8 @@ from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import get_current_user
 from app.modules.eli5 import service
 from app.modules.eli5.schemas import (
+    ELI5ExplainJobResponse,
     ELI5ExplainRequest,
-    ELI5ExplainResponse,
     ELI5ReverseRequest,
     ELI5ReverseResponse,
     SkillOut,
@@ -22,14 +22,15 @@ def skills(db: Session = Depends(get_db), _: dict = Depends(get_current_user)) -
     return service.list_skills(db)
 
 
-@router.post("/explain", response_model=ELI5ExplainResponse)
+@router.post("/explain", response_model=ELI5ExplainJobResponse)
 def explain(
     req: ELI5ExplainRequest,
     db: Session = Depends(get_db),
     provider: LLMProvider = Depends(get_provider),
     _: dict = Depends(get_current_user),
 ) -> dict:
-    # context laissé vide pour l'instant (couture RAG prête côté service).
+    # context=None : stub RAG (couture prête côté service, implémentation reportée).
+    # Renvoie {job_id, status} ; l'explication est lue via GET /ai/jobs/{job_id}.
     return service.explain(db, provider, req, context=None)
 
 

@@ -13,7 +13,16 @@ class ELI5ExplainRequest(BaseModel):
     mode: str = "simple"
 
 
+class ELI5ExplainJobResponse(BaseModel):
+    """Contrat API_SPEC : explain crée un ai_jobs et renvoie sa référence (exécution synchrone)."""
+
+    job_id: int
+    status: str
+
+
 class ELI5ExplainResponse(BaseModel):
+    """Forme de l'explication stockée dans `ai_jobs.output_json` (lue via GET /ai/jobs/{job_id})."""
+
     title: str
     simple_explanation: str
     analogy: str
