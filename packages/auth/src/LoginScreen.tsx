@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 
@@ -28,6 +28,16 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Joue l'animation du logo une fois à l'arrivée sur la page.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
+  }, []);
 
   if (user) return <Navigate to="/" replace />;
 
@@ -52,13 +62,22 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
       <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-fuchsia-600/20 blur-[120px]" />
 
       <div className="relative flex w-full max-w-7xl flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:justify-center lg:gap-12">
-        {/* Panneau de marque — logo officiel ZETIS (étiré à la hauteur de la carte) */}
+        {/* Panneau de marque — animation du logo ZETIS, jouée une fois à l'arrivée
+            (poster + fallback = logo statique ; s'arrête sur la dernière image). */}
         <div className="flex w-full items-center justify-center lg:flex-1">
-          <img
-            src="/zetis-logo.png"
-            alt="ZETIS — ton savoir, ton évolution"
+          <video
+            ref={videoRef}
+            src="/zetis-logo.mp4"
+            poster="/zetis-logo.png"
+            autoPlay
+            muted
+            playsInline
+            preload="auto"
+            aria-label="ZETIS — ton savoir, ton évolution"
             className="w-full max-w-md object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(82%_62%_at_50%_50%,black_42%,transparent_100%)] lg:h-full lg:max-h-none lg:w-full lg:max-w-none"
-          />
+          >
+            <img src="/zetis-logo.png" alt="ZETIS — ton savoir, ton évolution" />
+          </video>
         </div>
 
         {/* Carte de connexion */}
