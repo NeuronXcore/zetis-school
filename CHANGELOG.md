@@ -1,5 +1,22 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.8.0 — Design system partagé `@zetis/ui` (étape 17)
+
+Date : 2026-06-30
+
+### Ajouté
+
+- **Package `@zetis/ui`** : design system partagé (shadcn-style) — `Button`, `Card`, `Badge`, `Spinner`, `EmptyState` + util `cn` (clsx + tailwind-merge, `class-variance-authority`). Consommé en source TS comme `@zetis/auth`.
+- **Théming par tokens sémantiques** : `primary`, `card`, `border`, `muted`, `foreground`… définis dans le `@theme` de chaque app et mappés sur sa palette (Massimo indigo `#6366f1` / Papa émeraude `#10b981`). `@source` ajouté pour que Tailwind v4 scanne `packages/ui`.
+- **Première adoption** : `MissionsPage` (Massimo + Papa) refondues sur les primitives.
+- **Feuille de route frontend** : `FRONTEND_ROADMAP.md` (état des pages, lots priorisés, quick wins).
+
+### Décisions
+
+- Base **shadcn/ui** (cva + Tailwind, tokens CSS) plutôt que primitives ad hoc ; **un seul composant, deux thèmes** via tokens sémantiques par app.
+- Vérifié au runtime : `bg-primary` rend la bonne couleur dans chaque app.
+- Reportés : généraliser aux pages live (Lot B), composants Radix (Dialog/Select), dark/light, mobile Massimo.
+
 ## 0.7.0 — Gamification : XP, niveaux, streak, badges (étape 16)
 
 Date : 2026-06-30

@@ -1380,6 +1380,52 @@ git commit -m "feat(gamification): XP summary (level, streak, badges) + XP award
 
 ---
 
+# ÉTAPE 17 — Design system partagé (`@zetis/ui`, shadcn-style)
+
+## Objectif
+
+Poser les fondations frontend (cf. `FRONTEND_ROADMAP.md`, Lot A) : un design system
+partagé entre Massimo et Papa, piloté par des tokens sémantiques, pour styliser
+ensuite les pages vite et de façon cohérente.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — packages/ui (Button/Card/Badge/Spinner/EmptyState) + tokens sémantiques par app
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(ui): shared design system (@zetis/ui) with per-app semantic theming
+```
+
+## Ce qui a été fait
+
+```txt
+Package    packages/ui (@zetis/ui) : cn (clsx+tailwind-merge), Button/Card/Badge/
+           Spinner/EmptyState (cva, shadcn-style), consommé en source TS (comme @zetis/auth)
+Théming    tokens sémantiques (primary/card/border/muted/foreground…) définis dans le
+           @theme de CHAQUE app et mappés sur sa palette (zetis indigo / papa émeraude) ;
+           @source ajouté pour que Tailwind v4 scanne les classes de packages/ui
+Preuve     refactor MissionsPage (Massimo + Papa) sur Button/Card/Badge/EmptyState
+Vérifié    navigateur : `bg-primary` rend #6366f1 (Massimo) et #10b981 (Papa) — même
+           composant, deux thèmes ; builds Massimo + Papa OK, 0 erreur console
+```
+
+## Critères de validation
+
+- Un composant unique de `@zetis/ui` s'affiche avec le thème de l'app qui l'utilise.
+- Les deux apps buildent et démarrent sans erreur ; Tailwind scanne `packages/ui`.
+- Aucune logique métier dans `packages/ui` (présentation pure).
+- Suite : généraliser le design system aux pages live (Lot B) puis câbler les pages mock.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(ui): shared design system (@zetis/ui) with per-app semantic theming"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

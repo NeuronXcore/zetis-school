@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Le design system partagé vit dans packages/ui : Tailwind doit scanner ses classes. */
+@source "../../../packages/ui/src";
+
 /* Design System ZETIS — palette sombre, accents lumineux (cf. docs/design/design-system.md) */
 @theme {
   --color-zetis-bg: #0b1020;
@@ -10,6 +13,19 @@
   --color-zetis-muted: #8b95b5;
   --color-zetis-accent: #6366f1;
   --color-zetis-accent-2: #22d3ee;
+
+  /* Tokens sémantiques consommés par @zetis/ui (mappés sur la palette Massimo). */
+  --color-background: var(--color-zetis-bg);
+  --color-foreground: var(--color-zetis-text);
+  --color-card: var(--color-zetis-surface);
+  --color-card-foreground: var(--color-zetis-text);
+  --color-muted: var(--color-zetis-surface-2);
+  --color-muted-foreground: var(--color-zetis-muted);
+  --color-border: var(--color-zetis-border);
+  --color-primary: var(--color-zetis-accent);
+  --color-primary-foreground: #ffffff;
+  --color-accent: var(--color-zetis-accent-2);
+  --color-ring: var(--color-zetis-accent);
 }
 
 html,
