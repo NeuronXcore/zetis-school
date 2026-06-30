@@ -22,3 +22,12 @@ class LLMProvider(Protocol):
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         ...
+
+
+class EmbeddingProvider(Protocol):
+    """Abstraction d'embeddings (RAG). `dim` = dimension des vecteurs produits."""
+
+    dim: int
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        ...

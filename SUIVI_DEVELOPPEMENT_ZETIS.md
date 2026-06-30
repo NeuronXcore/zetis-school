@@ -1022,7 +1022,7 @@ Commit Git : feat(ai): add first pedagogical AI memory loop ; refactor(ai): alig
 app/modules/ai/         provider abstrait + mock — ✅ fait
 app/modules/eli5/       moteur ELI5 (explain + reverse) + endpoints — ✅ fait
 app/modules/memory/     mémoire espacée (cartes, intervalles) — ✅ fait
-app/modules/rag/        reporté (pgvector + ingestion de documents)
+app/modules/rag/        ✅ fait à l'Étape 11 (pgvector + ingestion + récupération sémantique)
 app/modules/gamification/  reporté (XP automatique)
 ```
 
@@ -1080,6 +1080,54 @@ Crée une première boucle fiable et testable.
 ```bash
 git add .
 git commit -m "feat(ai): add first pedagogical AI memory loop"
+```
+
+---
+
+# ÉTAPE 11 — RAG sémantique (pgvector)
+
+## Objectif
+
+Donner à la boucle ELI5 un vrai contexte de cours : ingérer des documents,
+les vectoriser et récupérer les passages pertinents par similarité cosinus,
+puis injecter ce contexte dans `explain`.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — RAG sémantique pgvector (embeddings ollama nomic-embed-text 768d)
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(rag): semantic RAG over course docs (pgvector) wired into ELI5 explain
+```
+
+## Ce qui a été fait
+
+```txt
+Modèles      rag_documents, rag_chunks (vector 768) + index ivfflat cosinus
+Migration    a1b2c3d4e5f6 (extension vector déjà active depuis 5678d02df7f6)
+Embeddings   EmbeddingProvider + OllamaEmbeddingProvider (/api/embed) + get_embedder
+Module rag   chunking, ingestion vectorisée, recherche cosinus, retrieve_for_skill
+Endpoints    POST/GET /api/rag/documents, POST /api/rag/search
+Câblage      eli5 explain injecte le contexte (couture context=… désormais alimentée)
+Sources      seuls les chunks validated/official sont récupérés (CLAUDE.md)
+Tests        4 nouveaux (chunking, ingestion, embeddings, couture explain) — 18 verts
+```
+
+## Critères de validation
+
+- Un document de cours peut être ingéré et découpé en chunks vectorisés.
+- La recherche cosinus renvoie les passages pertinents d'une matière.
+- `explain` injecte le contexte récupéré, et renvoie `[]` sans appel embeddings
+  quand aucune source n'est indexée (comportement identique à l'ancien stub).
+- Reste reporté : ingestion de fichiers (PDF/MD), validation Papa des sources,
+  RAG sur productions de Massimo, frontend d'upload.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(rag): semantic RAG over course docs (pgvector) wired into ELI5 explain"
 ```
 
 ---

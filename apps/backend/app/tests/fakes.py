@@ -3,6 +3,17 @@ import json
 from app.modules.ai.provider import LLMRequest, LLMResponse
 
 
+class FakeEmbeddingProvider:
+    """Embedder déterministe pour les tests (aucun appel ollama)."""
+
+    def __init__(self, dim: int = 768) -> None:
+        self.dim = dim
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        # Vecteur reproductible dérivé du texte (suffisant pour vérifier l'ingestion).
+        return [[float(((hash(t) + i) % 1000) / 1000.0) for i in range(self.dim)] for t in texts]
+
+
 class FakeLLMProvider:
     """Provider IA déterministe pour les tests (aucun appel ollama)."""
 

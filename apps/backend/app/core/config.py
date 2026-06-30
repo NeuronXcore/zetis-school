@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     llm_provider: str = Field(default="ollama", validation_alias="LLM_PROVIDER")
     ollama_base_url: str = Field(default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
     ollama_model: str = Field(default="qwen2.5:32b", validation_alias="OLLAMA_MODEL")
+    # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
+    ollama_embed_model: str = Field(
+        default="nomic-embed-text", validation_alias="OLLAMA_EMBED_MODEL"
+    )
+    embed_dim: int = Field(default=768, validation_alias="EMBED_DIM")
+    rag_top_k: int = Field(default=3, validation_alias="RAG_TOP_K")
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [
         "http://localhost:5173",
