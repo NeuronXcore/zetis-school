@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 
@@ -10,8 +10,6 @@ interface LoginScreenProps {
   role: "massimo" | "papa";
   /** URL du frontend de l'autre profil (redirection croisée). */
   otherAppUrl: string;
-  /** Wordmark de marque injecté par l'app (ex. `<LogoZetis />`). Fallback texte sinon. */
-  brand?: ReactNode;
 }
 
 const ROLES = {
@@ -19,10 +17,7 @@ const ROLES = {
   papa: { name: "PAPA", sub: "ESPACE PARENT", user: "papa" },
 } as const;
 
-// Icônes de marque sous le wordmark (apprendre, progresser, comprendre, suivre, réussir, échanger).
-const BRAND_ICONS = [BookIcon, TargetIcon, BrainIcon, BarsIcon, TrophyIcon, ChatIcon];
-
-export function LoginScreen({ role, otherAppUrl, brand }: LoginScreenProps) {
+export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const me = ROLES[role];
@@ -33,6 +28,16 @@ export function LoginScreen({ role, otherAppUrl, brand }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Joue l'animation de marque une fois à l'arrivée sur la page.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
+  }, []);
 
   if (user) return <Navigate to="/" replace />;
 
@@ -51,30 +56,28 @@ export function LoginScreen({ role, otherAppUrl, brand }: LoginScreenProps) {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#000012] px-4 py-8 text-white md:px-8">
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#000010] px-4 py-8 text-white md:px-8">
       {/* Halos lumineux d'arrière-plan */}
       <div className="pointer-events-none absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-indigo-600/20 blur-[120px]" />
       <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-fuchsia-600/20 blur-[120px]" />
 
       <div className="relative flex w-full max-w-7xl flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:justify-center lg:gap-12">
-        {/* Panneau de marque — emblème + wordmark ZETIS vectoriel qui s'assemble à l'arrivée. */}
-        <div className="flex w-full flex-col items-center justify-center gap-6 lg:flex-1">
-          <img
-            src="/zetis-emblem.png"
-            alt=""
-            aria-hidden
-            className="w-44 object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.35)] [mask-image:radial-gradient(closest-side,black_82%,transparent_100%)] sm:w-52 lg:w-60"
-          />
-          {brand ?? (
-            <span className="text-4xl font-bold uppercase tracking-[0.35em] text-cyan-200 [text-shadow:0_0_14px_rgba(79,216,255,0.55)]">
-              ZETIS
-            </span>
-          )}
-          <div className="flex items-center gap-4 text-cyan-200/70">
-            {BRAND_ICONS.map((Icon, i) => (
-              <Icon key={i} className="h-5 w-5" />
-            ))}
-          </div>
+        {/* Panneau de marque — animation ZETIS jouée une fois à l'arrivée
+            (poster + fallback = dernière image ; s'arrête sur le logo complet). */}
+        <div className="flex w-full items-center justify-center lg:flex-1">
+          <video
+            ref={videoRef}
+            src="/zetis-logo.mp4"
+            poster="/zetis-logo.png"
+            autoPlay
+            muted
+            playsInline
+            preload="auto"
+            aria-label="ZETIS — ton savoir, ton évolution"
+            className="w-full max-w-md object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(82%_62%_at_50%_50%,black_44%,transparent_100%)] lg:h-full lg:max-h-none lg:w-full lg:max-w-none"
+          >
+            <img src="/zetis-logo.png" alt="ZETIS — ton savoir, ton évolution" />
+          </video>
         </div>
 
         {/* Carte de connexion */}
@@ -261,52 +264,3 @@ function AppleIcon({ className }: { className?: string }) {
   );
 }
 
-/* — Icônes de marque (sous le wordmark) — */
-function BookIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
-      <path d="M12 6c-1.5-1-4-1.5-6.5-1.3v12C8 16.5 10.5 17 12 18m0-12c1.5-1 4-1.5 6.5-1.3v12C16 16.5 13.5 17 12 18m0-12v12" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function TargetIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
-      <circle cx="12" cy="12" r="8" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="12" cy="12" r="0.8" fill="currentColor" />
-    </svg>
-  );
-}
-function BrainIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
-      <path d="M9 6a2.5 2.5 0 0 0-2.5 2.5A2.5 2.5 0 0 0 5 11a2.5 2.5 0 0 0 1.5 2.3A2.5 2.5 0 0 0 9 18V6Z" strokeLinejoin="round" />
-      <path d="M15 6a2.5 2.5 0 0 1 2.5 2.5A2.5 2.5 0 0 1 19 11a2.5 2.5 0 0 1-1.5 2.3A2.5 2.5 0 0 1 15 18V6Z" strokeLinejoin="round" />
-      <path d="M12 6v12" />
-    </svg>
-  );
-}
-function BarsIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className={className}>
-      <path d="M6 18v-4M12 18V8M18 18v-7" />
-    </svg>
-  );
-}
-function TrophyIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" className={className}>
-      <path d="M7 5h10v4a5 5 0 0 1-10 0V5Z" />
-      <path d="M7 7H4.5a2.5 2.5 0 0 0 2.5 3M17 7h2.5a2.5 2.5 0 0 1-2.5 3M10 15v3M14 15v3M8.5 19h7" strokeLinecap="round" />
-    </svg>
-  );
-}
-function ChatIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" className={className}>
-      <path d="M5 6h14v9H9l-4 3V6Z" />
-      <path d="M9 10.5h6" strokeLinecap="round" />
-    </svg>
-  );
-}
