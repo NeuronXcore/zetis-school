@@ -100,7 +100,14 @@ export function Eli5Page() {
         <section className="mt-4 flex gap-3 rounded-2xl border border-zetis-border bg-zetis-surface p-5">
           <ZetisAvatar size={40} />
           <div className="text-sm">
-            <p className="font-semibold text-zetis-accent-2">{explanation.title}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-zetis-accent-2">{explanation.title}</p>
+              {(explanation.sources_used ?? 0) > 0 && (
+                <span className="rounded-full bg-zetis-surface-2 px-2 py-0.5 text-xs font-medium text-zetis-accent-2">
+                  📚 D'après ton cours
+                </span>
+              )}
+            </div>
             <p className="mt-1">{explanation.simple_explanation}</p>
             <p className="mt-2 text-zetis-muted">
               <strong>Analogie :</strong> {explanation.analogy}

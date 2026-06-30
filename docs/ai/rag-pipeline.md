@@ -83,6 +83,8 @@ Implémenté (Étapes 11–12) :
   statut du document et de ses chunks) ; UI Papa « Sources de cours ».
 - **Récupération** : `search` (top-k cosinus, filtre matière) ; seuls les chunks
   `validated`/`official` sont renvoyés ; `retrieve_for_skill` injecte le contexte dans ELI5 `explain`.
+- **Visibilité enfant** (Étape 13) : `explain` expose `sources_used` (nb de passages
+  injectés) dans `output_json` → badge « 📚 D'après ton cours » côté Massimo.
 
 Reporté : génération de réponse sourcée dédiée (`/rag/answer`), `confiance`/citations,
 stockage du fichier brut (MinIO), sources `student_output`, import des programmes officiels.

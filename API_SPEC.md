@@ -255,6 +255,10 @@ Sortie :
 }
 ```
 
+L'explication normalisée est lue via `GET /ai/jobs/{job_id}` (`output`). Elle inclut
+`sources_used` (entier) : nombre de passages de cours (RAG) injectés. `>0` → le front
+Massimo affiche le badge « 📚 D'après ton cours ».
+
 ### POST `/ai/eli5/reverse-evaluate`
 
 Massimo explique à ZETIS.

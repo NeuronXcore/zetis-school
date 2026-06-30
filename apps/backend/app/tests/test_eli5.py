@@ -1,6 +1,8 @@
 import app.db.models as m
 from app.main import app
 from app.modules.ai import get_provider
+from app.modules.eli5 import service
+from app.modules.eli5.schemas import ELI5ExplainRequest
 from app.tests.fakes import FakeLLMProvider
 
 
@@ -19,6 +21,23 @@ def test_explain_creates_job_and_returns_reference(client_db) -> None:
     assert job["output"]["title"]
     assert job["output"]["check_question"]
     assert job["output"]["next_action"]
+    # Sans source RAG indexée, l'explication n'est pas marquée « d'après ton cours ».
+    assert job["output"]["sources_used"] == 0
+
+
+def test_explain_marks_sources_used(client_db) -> None:
+    # Avec un contexte de cours injecté, sources_used reflète le nombre de passages utilisés.
+    _, Session = client_db
+    with Session() as db:
+        result = service.explain(
+            db,
+            FakeLLMProvider(),
+            ELI5ExplainRequest(skill_id=1),
+            context=["Un passage de cours validé.", "Un autre passage."],
+        )
+        job = db.get(m.AIJob, result["job_id"])
+        assert job is not None
+        assert job.output_json["sources_used"] == 2
 
 
 def test_skills_listing(client_db) -> None:
