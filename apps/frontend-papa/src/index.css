@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* L'écran de login partagé vit dans packages/auth : Tailwind doit scanner ses classes. */
+/* Packages partagés : Tailwind doit scanner leurs classes (design system + login). */
+@source "../../../packages/ui/src";
 @source "../../../packages/auth/src";
 
 /* Design System ZETIS — variante Papa : sombre, sobre, analytique (accent émeraude
@@ -15,6 +16,19 @@
   --color-papa-accent: #10b981;
   --color-papa-accent-2: #38bdf8;
   --color-papa-warn: #f59e0b;
+
+  /* Tokens sémantiques consommés par @zetis/ui (mappés sur la palette Papa). */
+  --color-background: var(--color-papa-bg);
+  --color-foreground: var(--color-papa-text);
+  --color-card: var(--color-papa-surface);
+  --color-card-foreground: var(--color-papa-text);
+  --color-muted: var(--color-papa-surface-2);
+  --color-muted-foreground: var(--color-papa-muted);
+  --color-border: var(--color-papa-border);
+  --color-primary: var(--color-papa-accent);
+  --color-primary-foreground: #042f1f;
+  --color-accent: var(--color-papa-accent-2);
+  --color-ring: var(--color-papa-accent);
 }
 
 html,

@@ -1380,6 +1380,52 @@ git commit -m "feat(gamification): XP summary (level, streak, badges) + XP award
 
 ---
 
+# ÉTAPE 17 — Design system partagé (`@zetis/ui`, shadcn-style)
+
+## Objectif
+
+Poser les fondations frontend (cf. `FRONTEND_ROADMAP.md`, Lot A) : un design system
+partagé entre Massimo et Papa, piloté par des tokens sémantiques, pour styliser
+ensuite les pages vite et de façon cohérente.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — packages/ui (Button/Card/Badge/Spinner/EmptyState) + tokens sémantiques par app
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(ui): shared design system (@zetis/ui) with per-app semantic theming
+```
+
+## Ce qui a été fait
+
+```txt
+Package    packages/ui (@zetis/ui) : cn (clsx+tailwind-merge), Button/Card/Badge/
+           Spinner/EmptyState (cva, shadcn-style), consommé en source TS (comme @zetis/auth)
+Théming    tokens sémantiques (primary/card/border/muted/foreground…) définis dans le
+           @theme de CHAQUE app et mappés sur sa palette (zetis indigo / papa émeraude) ;
+           @source ajouté pour que Tailwind v4 scanne les classes de packages/ui
+Preuve     refactor MissionsPage (Massimo + Papa) sur Button/Card/Badge/EmptyState
+Vérifié    navigateur : `bg-primary` rend #6366f1 (Massimo) et #10b981 (Papa) — même
+           composant, deux thèmes ; builds Massimo + Papa OK, 0 erreur console
+```
+
+## Critères de validation
+
+- Un composant unique de `@zetis/ui` s'affiche avec le thème de l'app qui l'utilise.
+- Les deux apps buildent et démarrent sans erreur ; Tailwind scanne `packages/ui`.
+- Aucune logique métier dans `packages/ui` (présentation pure).
+- Suite : généraliser le design system aux pages live (Lot B) puis câbler les pages mock.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(ui): shared design system (@zetis/ui) with per-app semantic theming"
+```
+
+---
+
 # ÉTAPE 18 — Page de démarrage / login ZETIS unifiée
 
 ## Objectif
@@ -1390,7 +1436,7 @@ avec sélection de profil (Massimo / Papa) et redirection vers le bon frontend.
 ## Statut
 
 ```txt
-Statut : ✅ Fait — écran de login partagé (panneau de marque + carte glassmorphique) + redirection croisée
+Statut : ✅ Fait — écran de login partagé (panneau de marque animé + carte glassmorphique) + redirection croisée + avatars
 Date de début : 2026-06-30
 Date de fin : 2026-06-30
 Commit Git : feat(auth): unified ZETIS login/landing screen with profile redirect
@@ -1399,25 +1445,26 @@ Commit Git : feat(auth): unified ZETIS login/landing screen with profile redirec
 ## Ce qui a été fait
 
 ```txt
-Composant  packages/auth : LoginScreen partagé (panneau de marque = logo officiel
-           ZETIS (assets/brand/references/zetis-intro.png → public/zetis-logo.png) ;
-           carte de connexion glassmorphique : identifiant, mot de passe + œil,
-           « se souvenir », bouton dégradé, « ou », Apple (bientôt), aide)
+Composant  packages/auth : LoginScreen partagé (panneau de marque = animation ZETIS
+           jouée à l'arrivée, fondu final vers le logo ; carte glassmorphique :
+           identifiant, mot de passe + œil, « se souvenir », bouton dégradé, « ou »,
+           Apple (bientôt), aide) ; avatars Massimo/Papa dans le sélecteur de profil
 Profils    sélecteur MASSIMO / PAPA : le profil de l'app courante est actif, l'autre
            est un lien vers son frontend (VITE_PAPA_URL / VITE_MASSIMO_URL, défaut
            localhost:5174 / 5173) — l'auth restant par app (chaque app n'accepte que son rôle)
+Marque     LogoZetis (wordmark néon Syncopate) + setup Vitest/Testing Library (1 test)
 Apps       LoginPage Massimo + Papa réduites à <LoginScreen role=… otherAppUrl=… />
 Tailwind   @source packages/auth ajouté aux deux thèmes (scan des classes du composant)
-Vérifié    navigateur (1280px) : rendu fidèle à la maquette ; redirection PAPA → :5174 ;
-           connexion massimo/massimo1234 → dashboard. Builds Massimo + Papa OK.
+Vérifié    navigateur (1280px) : redirection PAPA → :5174 ; connexion massimo → dashboard.
+           Builds Massimo + Papa OK.
 ```
 
 ## Critères de validation
 
-- La page reproduit la maquette (deux colonnes desktop, responsive en une colonne).
+- La page est soignée (deux colonnes desktop, responsive en une colonne).
 - Choisir l'autre profil redirige vers son frontend ; le bon profil se connecte sur place.
 - La connexion fonctionne toujours (token + redirection vers le dashboard).
-- Reste reporté : « Mot de passe oublié » réel, Apple Sign-in, illustration de marque finale.
+- Reste reporté : « Mot de passe oublié » réel, Apple Sign-in, mutualisation de LogoZetis dans packages/ui.
 
 ## Commit conseillé
 

@@ -15,6 +15,7 @@
     "@fontsource/michroma": "^5.2.8",
     "@fontsource/syncopate": "^5.2.8",
     "@zetis/auth": "workspace:*",
+    "@zetis/ui": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.0"
