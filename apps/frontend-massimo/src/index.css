@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Le design system partagé vit dans packages/ui : Tailwind doit scanner ses classes. */
+/* Packages partagés : Tailwind doit scanner leurs classes (design system + login). */
 @source "../../../packages/ui/src";
+@source "../../../packages/auth/src";
 
 /* Design System ZETIS — palette sombre, accents lumineux (cf. docs/design/design-system.md) */
 @theme {

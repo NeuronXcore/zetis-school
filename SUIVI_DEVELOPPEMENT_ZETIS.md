@@ -1426,6 +1426,55 @@ git commit -m "feat(ui): shared design system (@zetis/ui) with per-app semantic 
 
 ---
 
+# ÉTAPE 18 — Page de démarrage / login ZETIS unifiée
+
+## Objectif
+
+Offrir une page d'accueil + connexion soignée et cohérente pour les deux apps,
+avec sélection de profil (Massimo / Papa) et redirection vers le bon frontend.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — écran de login partagé (panneau de marque animé + carte glassmorphique) + redirection croisée + avatars
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(auth): unified ZETIS login/landing screen with profile redirect
+```
+
+## Ce qui a été fait
+
+```txt
+Composant  packages/auth : LoginScreen partagé (panneau de marque = animation ZETIS
+           jouée à l'arrivée, fondu final vers le logo ; carte glassmorphique :
+           identifiant, mot de passe + œil, « se souvenir », bouton dégradé, « ou »,
+           Apple (bientôt), aide) ; avatars Massimo/Papa dans le sélecteur de profil
+Profils    sélecteur MASSIMO / PAPA : le profil de l'app courante est actif, l'autre
+           est un lien vers son frontend (VITE_PAPA_URL / VITE_MASSIMO_URL, défaut
+           localhost:5174 / 5173) — l'auth restant par app (chaque app n'accepte que son rôle)
+Marque     LogoZetis (wordmark néon Syncopate) + setup Vitest/Testing Library (1 test)
+Apps       LoginPage Massimo + Papa réduites à <LoginScreen role=… otherAppUrl=… />
+Tailwind   @source packages/auth ajouté aux deux thèmes (scan des classes du composant)
+Vérifié    navigateur (1280px) : redirection PAPA → :5174 ; connexion massimo → dashboard.
+           Builds Massimo + Papa OK.
+```
+
+## Critères de validation
+
+- La page est soignée (deux colonnes desktop, responsive en une colonne).
+- Choisir l'autre profil redirige vers son frontend ; le bon profil se connecte sur place.
+- La connexion fonctionne toujours (token + redirection vers le dashboard).
+- Reste reporté : « Mot de passe oublié » réel, Apple Sign-in, mutualisation de LogoZetis dans packages/ui.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(auth): unified ZETIS login/landing screen with profile redirect"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

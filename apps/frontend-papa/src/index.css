@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Le design system partagé vit dans packages/ui : Tailwind doit scanner ses classes. */
+/* Packages partagés : Tailwind doit scanner leurs classes (design system + login). */
 @source "../../../packages/ui/src";
+@source "../../../packages/auth/src";
 
 /* Design System ZETIS — variante Papa : sombre, sobre, analytique (accent émeraude
    pour distinguer du frontend Massimo). Cf. docs/design/design-system.md § Papa. */
