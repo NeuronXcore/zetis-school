@@ -26,7 +26,8 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const me = ROLES[role];
-  const other = role === "massimo" ? ROLES.papa : ROLES.massimo;
+  const otherKey = role === "massimo" ? "papa" : "massimo";
+  const other = ROLES[otherKey];
 
   const [username, setUsername] = useState<string>(me.user);
   const [password, setPassword] = useState("");
@@ -118,7 +119,7 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
               aria-current="true"
               className="flex items-center gap-3 rounded-xl border border-cyan-400/50 bg-cyan-400/10 px-4 py-3"
             >
-              <PersonIcon className="h-5 w-5 text-cyan-300" />
+              <ProfileVisual roleKey={role} active />
               <div className="text-left">
                 <p className="text-sm font-semibold">{me.name}</p>
                 <p className="text-[10px] tracking-wider text-slate-400">{me.sub}</p>
@@ -128,7 +129,7 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
               href={otherAppUrl}
               className="flex items-center gap-3 rounded-xl border border-white/10 px-4 py-3 transition-colors hover:border-white/25 hover:bg-white/5"
             >
-              <PersonIcon className="h-5 w-5 text-slate-400" />
+              <ProfileVisual roleKey={otherKey} />
               <div className="text-left">
                 <p className="text-sm font-semibold text-slate-200">{other.name}</p>
                 <p className="text-[10px] tracking-wider text-slate-500">{other.sub}</p>
@@ -238,6 +239,21 @@ function Field({
       {trailing}
     </div>
   );
+}
+
+// Visuel du profil : avatar de Massimo, icône générique pour Papa.
+function ProfileVisual({ roleKey, active }: { roleKey: "massimo" | "papa"; active?: boolean }) {
+  if (roleKey === "massimo") {
+    return (
+      <img
+        src="/massimo-avatar.png"
+        alt=""
+        aria-hidden
+        className={`h-9 w-9 shrink-0 rounded-full object-cover ring-1 ${active ? "ring-cyan-400/60" : "ring-white/15"}`}
+      />
+    );
+  }
+  return <PersonIcon className={`h-5 w-5 ${active ? "text-cyan-300" : "text-slate-400"}`} />;
 }
 
 function PersonIcon({ className }: { className?: string }) {
