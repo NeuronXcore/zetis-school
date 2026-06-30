@@ -6,12 +6,12 @@ La roadmap est volontairement progressive. ZETIS peut devenir très vaste, mais 
 
 ## État d'avancement (2026-06-30)
 
-MVP livré — **étapes 1 → 14** du `SUIVI_DEVELOPPEMENT_ZETIS.md`. Correspondance avec les phases :
+MVP livré — **étapes 1 → 15** du `SUIVI_DEVELOPPEMENT_ZETIS.md`. Correspondance avec les phases :
 
 - ✅ **Phase 0** : squelette, infra Docker, healthchecks.
 - ✅ **Phases 1-2** : frontends Massimo & Papa + premières pages (données mockées).
 - 🟡 **Phase 3** : modèle de données créé (PostgreSQL, 22 tables, migrations), pas encore tout alimenté.
-- 🟡 **Phase 4 (diagnostic)** : diagnostic QCM généré par IA, score par notion, lacunes + maîtrise (étape 14) ; reste remédiation auto, multi-matières, difficulté adaptative.
+- 🟡 **Phase 4 (diagnostic + remédiation)** : diagnostic QCM généré par IA, score par notion, lacunes + maîtrise (étape 14) ; remédiation = lacunes → missions + complétion (gap résolue + XP) (étape 15) ; reste multi-matières, difficulté adaptative.
 - 🟡 **Phase 5** : ELI5 explain + reverse opérationnel (provider ollama) ; à enrichir.
 - 🟡 **Phase 6 (RAG)** : RAG sémantique pgvector (Étape 11) + ingestion fichiers MD/TXT/PDF
   et validation Papa des sources (Étape 12) ; reste réponse sourcée dédiée, MinIO, programmes officiels.

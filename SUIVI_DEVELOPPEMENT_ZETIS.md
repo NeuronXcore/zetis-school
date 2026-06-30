@@ -1278,6 +1278,60 @@ git commit -m "feat(diagnostics): AI-generated diagnostic with per-skill scoring
 
 ---
 
+# ÉTAPE 15 — Remédiation : lacunes → missions
+
+## Objectif
+
+Transformer les lacunes (`gaps`) ouvertes du diagnostic en missions de remédiation
+concrètes pour Massimo, et boucler la boucle : terminer une mission résout la
+lacune liée et crédite de l'XP.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — génération de missions depuis les lacunes + complétion (gap résolue + XP)
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(missions): turn diagnostic gaps into remediation missions
+```
+
+## Ce qui a été fait
+
+```txt
+Module     app/modules/missions (schemas/service/router) ; aucune migration
+           (réutilise Mission/MissionStep/Gap/XPEvent)
+Génération generate_remediation : 1 mission par lacune ouverte sans mission active,
+           3 étapes pédagogiques (expliquer → réexpliquer → quiz), priorité ∝ sévérité.
+           Idempotent (pas de doublon pour une lacune déjà couverte).
+Complétion complete_mission : mission→completed, étapes→done, lacune liée→resolved,
+           XPEvent crédité (reason mission_remediation).
+Endpoints  POST /api/missions/generate-remediation (Papa), GET /api/missions,
+           GET /api/missions/today (Massimo), POST /api/missions/{id}/complete
+Frontend   Papa MissionsPage : bouton « Générer la remédiation » + liste (statut,
+           priorité, étapes). Massimo MissionsPage : missions du jour + « J'ai terminé »
+           (message + XP) ; route /missions remplace le placeholder.
+Tests      5 nouveaux (génération depuis gaps, idempotence, today, complétion
+           gap+XP, 404) — 33 verts. Builds Massimo + Papa OK.
+```
+
+## Critères de validation
+
+- Une lacune ouverte produit une mission de remédiation avec ses étapes.
+- Relancer la génération ne crée pas de doublon (idempotent).
+- Terminer une mission résout la lacune liée et crédite de l'XP.
+- Vocabulaire bienveillant : « renforcer », « consolidation », jamais d'échec.
+- Reste reporté : étapes interactives reliées à ELI5/quiz réels, niveaux/streak XP,
+  missions non issues d'un diagnostic (manuelles Papa).
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(missions): turn diagnostic gaps into remediation missions"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

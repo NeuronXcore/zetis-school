@@ -186,29 +186,30 @@ Termine tentative et calcule résultats.
 
 ## Missions
 
-### GET `/missions?student_id=&status=`
+Préfixe réel : `/api/missions`. Implémenté à l'étape 15 (remédiation) sur les tables
+`missions`/`mission_steps` + `gaps` + `xp_events`. Une mission de remédiation porte
+`mission_type = remediation` et des étapes (expliquer → réexpliquer → quiz).
 
-Liste missions.
+### POST `/missions/generate-remediation` (Papa)
 
-### GET `/missions/today`
+Transforme les lacunes ouvertes (`gaps`) en missions de remédiation (idempotent).
+Réponse : `{ created, missions: [MissionOut] }`.
 
-Mission du jour Massimo.
+### GET `/missions`
 
-### GET `/missions/{id}`
+Liste les missions de l'élève (avec leurs étapes) : `[MissionOut]` où
+`MissionOut = { id, subject, skill_id, skill_name, title, description, mission_type, status, priority, steps: [{ id, step_type, instruction, sort_order, status }] }`.
 
-Détail mission.
+### GET `/missions/today` (Massimo)
 
-### POST `/missions/{id}/start`
+Missions à faire (`planned`/`active`), les plus prioritaires d'abord.
 
-Démarre.
+### POST `/missions/{id}/complete` (Massimo)
 
-### POST `/missions/{id}/complete-step`
+Termine la mission : étapes `done`, **lacune liée résolue**, **XP crédité**.
+Réponse : `{ id, status, gap_resolved, xp_awarded }`.
 
-Termine une étape.
-
-### POST `/missions/{id}/complete`
-
-Termine la mission.
+> Reporté : `start`, `complete-step` (suivi étape par étape), missions manuelles Papa.
 
 ## Progression
 
@@ -396,6 +397,9 @@ Sortie :
 | `/diagnostics/generate` POST | non | oui | oui |
 | `/diagnostics/quizzes/{id}/submit` POST | oui | oui | oui |
 | `/diagnostics/results` GET | non | oui | oui |
+| `/missions/generate-remediation` POST | non | oui | oui |
+| `/missions/today` GET | oui | oui | oui |
+| `/missions/{id}/complete` POST | oui | oui | oui |
 | `/rag/documents` POST | non | oui | oui |
 | `/rag/upload` POST | non | oui | oui |
 | `/rag/documents/{id}/validate` POST | non | oui | oui |
