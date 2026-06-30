@@ -229,6 +229,17 @@ Maîtrise par notion.
 
 XP global et par matière.
 
+## Gamification
+
+Préfixe réel : `/api/gamification`. Implémenté à l'étape 16 sur la table `xp_events`.
+L'XP est crédité aux moments clés (mission +20, verbalisation ELI5 +10, diagnostic +15).
+
+### GET `/gamification/summary`
+
+Synthèse de progression de l'élève :
+`{ total_xp, level, xp_into_level, xp_for_next, streak_days, active_today, badges: [{ code, label, icon }], recent: [{ amount, reason, created_at }] }`.
+Niveau = `total_xp // 100 + 1` ; streak = jours consécutifs d'activité (tolérance d'un jour).
+
 ## ELI5
 
 ### POST `/ai/eli5/explain`
@@ -400,6 +411,7 @@ Sortie :
 | `/missions/generate-remediation` POST | non | oui | oui |
 | `/missions/today` GET | oui | oui | oui |
 | `/missions/{id}/complete` POST | oui | oui | oui |
+| `/gamification/summary` GET | oui | oui | oui |
 | `/rag/documents` POST | non | oui | oui |
 | `/rag/upload` POST | non | oui | oui |
 | `/rag/documents/{id}/validate` POST | non | oui | oui |

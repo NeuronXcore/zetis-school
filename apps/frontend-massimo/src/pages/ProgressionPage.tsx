@@ -1,37 +1,95 @@
+import { useEffect, useState } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { ProgressRing } from "../components/ProgressRing";
-import { PROFILE, SUBJECTS } from "../data/mock";
+import { SUBJECTS } from "../data/mock";
+import {
+  type GamificationSummary,
+  REASON_LABEL,
+  fetchGamificationSummary,
+} from "../lib/gamification";
 
-// Page Progression Massimo (Étape 7) — XP, niveau, régularité, par matière (mock).
+// Page Progression Massimo (Étape 16) — XP/niveau/streak/badges en direct (gamification).
+// La section « par matière » reste indicative (mock) en attendant la maîtrise par matière.
 export function ProgressionPage() {
-  const levelProgress = Math.round((PROFILE.xp / PROFILE.nextLevelXp) * 100);
+  const [summary, setSummary] = useState<GamificationSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchGamificationSummary()
+      .then(setSummary)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Erreur de chargement"));
+  }, []);
+
+  const levelProgress = summary
+    ? Math.round((summary.xp_into_level / summary.xp_for_next) * 100)
+    : 0;
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="Progression" subtitle="Vois tout ce que tu as construit." />
 
-      {/* Résumé */}
+      {error && <p className="mb-3 text-sm text-rose-400">{error}</p>}
+
+      {/* Résumé XP / niveau / streak */}
       <section className="flex flex-wrap items-center gap-6 rounded-2xl border border-zetis-border bg-zetis-surface p-5">
         <ProgressRing value={levelProgress} size={84} />
         <div>
-          <p className="text-lg font-bold">Niveau {PROFILE.level}</p>
+          <p className="text-lg font-bold">Niveau {summary?.level ?? 1}</p>
           <p className="text-sm text-zetis-muted">
-            {PROFILE.xp} / {PROFILE.nextLevelXp} XP vers le niveau {PROFILE.level + 1}
+            {summary?.xp_into_level ?? 0} / {summary?.xp_for_next ?? 100} XP vers le niveau{" "}
+            {(summary?.level ?? 1) + 1}
           </p>
+          <p className="mt-1 text-xs text-zetis-muted">{summary?.total_xp ?? 0} XP au total</p>
         </div>
         <div className="ml-auto flex gap-6 text-center">
           <div>
-            <p className="text-2xl font-bold text-zetis-accent-2">{PROFILE.streakDays}</p>
+            <p className="text-2xl font-bold text-zetis-accent-2">{summary?.streak_days ?? 0}</p>
             <p className="text-xs text-zetis-muted">jours de suite</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-emerald-300">{PROFILE.consolidatedThisWeek}</p>
-            <p className="text-xs text-zetis-muted">notions consolidées</p>
+            <p className="text-2xl font-bold text-emerald-300">{summary?.badges.length ?? 0}</p>
+            <p className="text-xs text-zetis-muted">badges gagnés</p>
           </div>
         </div>
       </section>
 
-      {/* Par matière */}
+      {/* Badges */}
+      {summary && summary.badges.length > 0 && (
+        <section className="mt-4">
+          <h3 className="mb-2 font-bold">Tes badges</h3>
+          <div className="flex flex-wrap gap-2">
+            {summary.badges.map((b) => (
+              <span
+                key={b.code}
+                className="flex items-center gap-1.5 rounded-full border border-zetis-border bg-zetis-surface px-3 py-1.5 text-sm"
+              >
+                <span className="text-base">{b.icon}</span>
+                {b.label}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Activité récente */}
+      {summary && summary.recent.length > 0 && (
+        <section className="mt-4">
+          <h3 className="mb-2 font-bold">Activité récente</h3>
+          <ul className="space-y-2">
+            {summary.recent.map((e, i) => (
+              <li
+                key={`${e.reason}-${i}`}
+                className="flex items-center justify-between rounded-xl border border-zetis-border bg-zetis-surface px-4 py-2.5 text-sm"
+              >
+                <span>{REASON_LABEL[e.reason] ?? e.reason}</span>
+                <span className="font-semibold text-zetis-accent-2">+{e.amount} XP</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Par matière (indicatif) */}
       <h3 className="mt-6 mb-2 font-bold">Par matière</h3>
       <div className="space-y-2">
         {SUBJECTS.map((s) => (

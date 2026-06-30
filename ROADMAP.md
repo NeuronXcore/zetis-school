@@ -6,7 +6,7 @@ La roadmap est volontairement progressive. ZETIS peut devenir très vaste, mais 
 
 ## État d'avancement (2026-06-30)
 
-MVP livré — **étapes 1 → 15** du `SUIVI_DEVELOPPEMENT_ZETIS.md`. Correspondance avec les phases :
+MVP livré — **étapes 1 → 16** du `SUIVI_DEVELOPPEMENT_ZETIS.md`. Correspondance avec les phases :
 
 - ✅ **Phase 0** : squelette, infra Docker, healthchecks.
 - ✅ **Phases 1-2** : frontends Massimo & Papa + premières pages (données mockées).
@@ -16,6 +16,7 @@ MVP livré — **étapes 1 → 15** du `SUIVI_DEVELOPPEMENT_ZETIS.md`. Correspon
 - 🟡 **Phase 6 (RAG)** : RAG sémantique pgvector (Étape 11) + ingestion fichiers MD/TXT/PDF
   et validation Papa des sources (Étape 12) ; reste réponse sourcée dédiée, MinIO, programmes officiels.
 - 🟡 **Phase 7** : mémoire espacée minimale (intervalles fixes 1/3/7).
+- 🟡 **Gamification** (transverse) : XP, niveaux, streak, badges (étape 16) ; XP crédité sur mission/verbalisation/diagnostic, affiché côté Massimo. Reste vue Papa, niveaux nommés, XP par matière.
 - ⬜ **Phases 8-12** : à venir (capsules, vocal, accès distant, multi-enfant).
 
 ## Phase 0 — Cadrage et squelette

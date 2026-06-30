@@ -7,6 +7,7 @@ from app.modules.ai.router import router as ai_router
 from app.modules.auth.router import router as auth_router
 from app.modules.diagnostics.router import router as diagnostics_router
 from app.modules.eli5.router import router as eli5_router
+from app.modules.gamification.router import router as gamification_router
 from app.modules.memory.router import router as memory_router
 from app.modules.missions.router import router as missions_router
 from app.modules.rag.router import router as rag_router
@@ -27,6 +28,7 @@ app.include_router(auth_router)
 app.include_router(eli5_router)
 app.include_router(diagnostics_router)
 app.include_router(missions_router)
+app.include_router(gamification_router)
 app.include_router(memory_router)
 app.include_router(rag_router)
 app.include_router(ai_router)
