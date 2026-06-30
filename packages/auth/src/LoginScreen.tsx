@@ -28,12 +28,14 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [finale, setFinale] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Joue l'animation du logo une fois à l'arrivée sur la page.
   useEffect(() => {
     const v = videoRef.current;
     if (v) {
+      setFinale(false);
       v.currentTime = 0;
       v.play().catch(() => {});
     }
@@ -64,7 +66,7 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
       <div className="relative flex w-full max-w-7xl flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:justify-center lg:gap-12">
         {/* Panneau de marque — animation du logo ZETIS, jouée une fois à l'arrivée
             (poster + fallback = logo statique ; s'arrête sur la dernière image). */}
-        <div className="flex w-full items-center justify-center lg:flex-1">
+        <div className="relative flex w-full items-center justify-center lg:flex-1">
           <video
             ref={videoRef}
             src="/zetis-logo.mp4"
@@ -73,11 +75,38 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
             muted
             playsInline
             preload="auto"
+            onEnded={() => setFinale(true)}
             aria-label="ZETIS — ton savoir, ton évolution"
-            className="w-full max-w-md object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(82%_62%_at_50%_50%,black_42%,transparent_100%)] lg:h-full lg:max-h-none lg:w-full lg:max-w-none"
+            className={`w-full max-w-md object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(82%_62%_at_50%_50%,black_42%,transparent_100%)] transition-opacity duration-[1200ms] lg:h-full lg:max-h-none lg:w-full lg:max-w-none ${finale ? "opacity-25" : "opacity-100"}`}
           >
             <img src="/zetis-logo.png" alt="ZETIS — ton savoir, ton évolution" />
           </video>
+
+          {/* Chorégraphie finale : les lettres de ZETIS s'assemblent (hommage générique Alien). */}
+          {finale && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="flex items-center gap-[0.18em] text-5xl font-extralight tracking-[0.1em] text-cyan-50 md:text-6xl lg:text-7xl">
+                {"ZETIS".split("").map((ch, i) => (
+                  <span
+                    key={i}
+                    className="zetis-letter inline-block [text-shadow:0_0_18px_rgba(34,211,238,0.55),0_0_42px_rgba(99,102,241,0.45)]"
+                    style={{ animationDelay: `${i * 0.42}s` }}
+                  >
+                    {ch}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <style>{`
+            @keyframes zetisAssemble {
+              0%   { opacity: 0; clip-path: inset(49% 0 49% 0); filter: blur(7px); transform: translateY(6px) scaleY(1.35); }
+              55%  { opacity: 1; filter: blur(2px); }
+              100% { opacity: 1; clip-path: inset(0 0 0 0); filter: blur(0); transform: translateY(0) scaleY(1); }
+            }
+            .zetis-letter { opacity: 0; animation: zetisAssemble 1.9s cubic-bezier(0.22,0.61,0.36,1) forwards; }
+          `}</style>
         </div>
 
         {/* Carte de connexion */}
