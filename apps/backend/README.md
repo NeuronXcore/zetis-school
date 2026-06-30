@@ -31,6 +31,10 @@ uvicorn app.main:app --reload
 | `GET /health/db` | `{"status":"ok","database":"reachable"}` (Étape 9) |
 | `GET /api/version` | `{"name":"zetis-backend","version":"0.1.0"}` |
 | `POST /api/auth/login` · `GET /api/auth/me` | auth JWT (Étape 6) |
+| `GET /api/ai/eli5/skills` | notions disponibles (Étape 10) |
+| `POST /api/ai/eli5/explain` | explication ELI5 d'une notion (Étape 10) |
+| `POST /api/ai/eli5/reverse-evaluate` | évalue la reformulation + écrit la trace (Étape 10) |
+| `GET /api/memory/reviews/due` | cartes de révision dues (Étape 10) |
 | `GET /docs` | Swagger UI (auto FastAPI) |
 
 ## Base de données (Étape 9)
@@ -50,8 +54,35 @@ docker compose up -d postgres
 
 Modèles dans `app/db/models/` (22 tables : users, profils, années, matières, chapitres,
 skills, quiz, maîtrise, lacunes, missions, mémoire espacée, capsules, mindmaps…).
-RAG/pgvector + jobs IA arrivent à l'Étape 10. `users` = identité (sans mot de passe) ;
-l'auth utilise encore les identifiants de config — le lien auth↔DB viendra ensuite.
+`users` = identité (sans mot de passe) ; l'auth utilise encore les identifiants de config —
+le lien auth↔DB viendra ensuite.
+
+## Boucle IA (Étape 10)
+
+Première boucle pédagogique, **tout en synchrone** : ELI5 (explain + reverse) → trace + mémoire espacée.
+
+- **Abstraction LLM** (`app/modules/ai/`) : `LLMProvider.generate(LLMRequest) -> LLMResponse` +
+  `OllamaProvider` (qwen2.5). `get_provider()` lit `LLM_PROVIDER` (défaut `ollama`). Un seul
+  provider, pas de routing ni de fallback. Prompts versionnés dans `app/prompts/` (jamais en dur).
+- **Trace `ai_jobs`** : une ligne écrite à CHAQUE appel IA (input/output/statut/durée) ;
+  consultable via `GET /api/ai/jobs/{id}`.
+- **Moteur ELI5** (`app/modules/eli5/`) : `explain(context=None)` (couture RAG prête) et
+  `reverse-evaluate`. Le reverse écrit `LearningEvent`, upsert `SkillMastery`, crée 1 `SpacedReviewCard`.
+  Feedback strictement bienveillant (garde-fou).
+- **Mémoire espacée** (`app/modules/memory/`) : intervalles FIXES selon le score —
+  `<50 → 1 j`, `<75 → 3 j`, sinon `7 j` (pas de SM-2).
+
+```bash
+# ollama doit tourner avec le modèle configuré
+ollama list | grep qwen2.5
+# exemple (avec un token via /api/auth/login) :
+curl -X POST localhost:8000/api/ai/eli5/explain \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"skill_id":1,"question":"je ne comprends pas les nombres relatifs"}'
+```
+
+RAG (pgvector activé, mais tables/ingestion à faire), jobs IA asynchrones et lien auth↔DB
+restent hors périmètre (étapes ultérieures).
 
 ## Tests
 
