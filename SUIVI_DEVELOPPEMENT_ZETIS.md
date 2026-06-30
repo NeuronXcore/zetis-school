@@ -1132,6 +1132,61 @@ git commit -m "feat(rag): semantic RAG over course docs (pgvector) wired into EL
 
 ---
 
+# ÉTAPE 14 — Diagnostic complet (Phase 4)
+
+> Étapes 12-13 (upload/validation RAG Papa + RAG visible Massimo) sont sur la
+> branche `feat/rag-file-upload-papa` (PR #14), indépendante de ce bloc.
+
+## Objectif
+
+Boucle de diagnostic de bout en bout : Papa lance un diagnostic IA par matière,
+Massimo répond à des QCM, le système score par notion, met à jour la maîtrise et
+ouvre des lacunes ; Papa visualise le niveau par notion.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — diagnostic QCM généré par IA, scoring par notion, lacunes, vues Massimo + Papa
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(diagnostics): AI-generated diagnostic with per-skill scoring and gaps
+```
+
+## Ce qui a été fait
+
+```txt
+Prompts    app/prompts/diagnostic.py (génération QCM versionnée v1, ton bienveillant)
+Module     app/modules/diagnostics (schemas/service/router) ; aucune migration
+           (réutilise Quiz/QuizQuestion/QuizAttempt/QuizAnswer + SkillMastery + Gap)
+Génération QCM par notion via LLMProvider (mockable) + trace ai_jobs (diagnostic_generate)
+Scoring    correction MCQ → score par notion → upsert SkillMastery + ouverture de Gap
+           (seuil < 70 % = notion à renforcer ; sévérité high si < 40 %)
+Endpoints  GET /api/diagnostics/subjects, POST /generate (Papa),
+           GET /quizzes, GET /quizzes/{id}, POST /quizzes/{id}/submit (Massimo),
+           GET /results (Papa)
+Frontend   Massimo : DiagnosticPage live (liste → QCM → forces + prochaines étapes)
+           Papa : DiagnosticsPapaPage (lancer par matière, score par notion, lacunes)
+Tests      6 nouveaux (génération, listing/taken, scoring+lacune, 100 %, résultats Papa,
+           404) — 24 verts. Builds Massimo + Papa OK.
+```
+
+## Critères de validation
+
+- Papa génère un diagnostic ; Massimo le voit, y répond, obtient un retour bienveillant.
+- Le score par notion alimente `skill_mastery` et ouvre des `gaps` pour les notions faibles.
+- Les bonnes réponses ne sont jamais exposées à l'enfant (servies sans `correct_index`).
+- Reste reporté : génération de missions de remédiation depuis les lacunes,
+  diagnostic multi-matières en une session, difficulté adaptative.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(diagnostics): AI-generated diagnostic with per-skill scoring and gaps"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

@@ -131,42 +131,40 @@ Création Papa ou IA.
 
 ## Diagnostic
 
-### POST `/diagnostics/start`
+Préfixe réel : `/api/diagnostics`. Implémenté à l'étape 14 (Phase 4) sur les tables
+`quizzes`/`quiz_questions`/`quiz_attempts`/`quiz_answers` (un diagnostic = un `quiz`
+de `quiz_type = diagnostic`). Les QCM sont générés par IA, par notion.
 
-Crée une session diagnostic.
+### GET `/diagnostics/subjects`
 
-Entrée :
+Matières disponibles pour lancer un diagnostic : `[{ id, name }]`.
 
-```json
-{
-  "student_id": "uuid",
-  "subject_ids": ["uuid"],
-  "mode": "pre_rentree",
-  "level_scope": ["5e", "4e"]
-}
-```
+### POST `/diagnostics/generate` (Papa)
 
-Sortie :
+Génère un diagnostic (QCM par notion) pour une matière. Corps : `{ subject_id, level? }`.
+Réponse : `{ quiz_id, subject, questions_count }`. Trace `ai_jobs` (`diagnostic_generate`).
 
-```json
-{
-  "diagnostic_id": "uuid",
-  "status": "created",
-  "first_quiz_id": "uuid"
-}
-```
+### GET `/diagnostics/quizzes` (Massimo)
 
-### GET `/diagnostics/{id}`
+Liste les diagnostics : `[{ quiz_id, title, subject, questions_count, taken }]`.
 
-Détail diagnostic.
+### GET `/diagnostics/quizzes/{id}` (Massimo)
 
-### GET `/diagnostics/{id}/results`
+Questions à passer — **sans** la bonne réponse :
+`{ quiz_id, title, subject, questions: [{ id, prompt, choices, skill_id, skill_name }] }`.
 
-Résultats par matière/notion.
+### POST `/diagnostics/quizzes/{id}/submit` (Massimo)
 
-### POST `/diagnostics/{id}/generate-missions`
+Corps : `{ answers: [{ question_id, choice_index }] }`. Corrige, écrit la tentative,
+met à jour la maîtrise et ouvre les lacunes. Réponse :
+`{ attempt_id, quiz_id, subject, score_percent, per_skill: [{ skill_id, skill_name, score, status }], gaps: [{ skill_id, skill_name, severity }], strengths: [..] }`.
 
-Génère missions de remédiation.
+### GET `/diagnostics/results` (Papa)
+
+Derniers diagnostics passés, score par notion + lacunes ouvertes.
+
+> Reporté : `generate-missions` (remédiation depuis les lacunes), diagnostic
+> multi-matières en une session, difficulté adaptative.
 
 ## Quiz
 
@@ -374,6 +372,9 @@ Sortie :
 | `/progress/summary` | lecture limitée | oui | oui |
 | `/school-years` POST | non | oui | oui |
 | `/capsules/{id}/validate` | non | oui | oui |
+| `/diagnostics/generate` POST | non | oui | oui |
+| `/diagnostics/quizzes/{id}/submit` POST | oui | oui | oui |
+| `/diagnostics/results` GET | non | oui | oui |
 | `/rag/documents` POST | non | oui | oui |
 | `/ai/eli5/explain` | oui | oui | oui |
 

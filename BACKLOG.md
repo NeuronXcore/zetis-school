@@ -56,11 +56,12 @@
 
 ### Diagnostic
 
-- Diagnostic initial 5e/4e.
-- Score par notion.
-- Priorisation lacunes.
-- Génération missions de remédiation.
-- Réutilisation du diagnostic plusieurs fois dans l’année.
+- ✅ Diagnostic initial 5e/4e (QCM générés par IA, par notion).
+- ✅ Score par notion (+ upsert maîtrise `skill_mastery`).
+- ✅ Priorisation lacunes (`gaps` ouvertes, sévérité medium/high).
+- Génération missions de remédiation depuis les lacunes.
+- ✅ Réutilisation du diagnostic plusieurs fois dans l’année (re-passation marquée `taken`).
+- Diagnostic multi-matières en une session + difficulté adaptative.
 
 ### ELI5
 
