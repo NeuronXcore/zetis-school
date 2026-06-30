@@ -1,5 +1,20 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.9.0 — Page de login / démarrage ZETIS unifiée (étape 18)
+
+Date : 2026-06-30
+
+### Ajouté
+
+- **`LoginScreen` partagé** (`@zetis/auth`) : page d'accueil + connexion soignée — panneau de marque (emblème onde sonore, wordmark dégradé, tagline, 6 icônes APPRENDRE→ÉCHANGER) + carte glassmorphique (identifiant, mot de passe avec œil, « se souvenir de moi », bouton dégradé, séparateur « ou », bouton Apple *bientôt*, lien d'aide).
+- **Sélecteur de profil Massimo / Papa** avec **redirection croisée** : le profil de l'app active se connecte sur place, l'autre profil renvoie vers son frontend (`VITE_PAPA_URL` / `VITE_MASSIMO_URL`, défauts `localhost:5174` / `5173`). L'auth reste par app (chaque app n'accepte que son rôle).
+- Les `LoginPage` des deux apps se réduisent à `<LoginScreen role=… otherAppUrl=… />` ; `@source packages/auth` ajouté aux thèmes Tailwind.
+
+### Décisions
+
+- Design unifié (même look dans les deux apps), réutilisant la palette par défaut Tailwind (indigo/cyan/fuchsia) indépendamment du thème d'app.
+- Reportés : « Mot de passe oublié » réel, Sign in with Apple, illustration de marque définitive.
+
 ## 0.7.0 — Gamification : XP, niveaux, streak, badges (étape 16)
 
 Date : 2026-06-30

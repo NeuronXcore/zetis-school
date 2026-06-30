@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* L'écran de login partagé vit dans packages/auth : Tailwind doit scanner ses classes. */
+@source "../../../packages/auth/src";
+
 /* Design System ZETIS — palette sombre, accents lumineux (cf. docs/design/design-system.md) */
 @theme {
   --color-zetis-bg: #0b1020;

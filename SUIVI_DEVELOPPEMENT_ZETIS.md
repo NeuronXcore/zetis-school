@@ -1380,6 +1380,54 @@ git commit -m "feat(gamification): XP summary (level, streak, badges) + XP award
 
 ---
 
+# ÉTAPE 18 — Page de démarrage / login ZETIS unifiée
+
+## Objectif
+
+Offrir une page d'accueil + connexion soignée et cohérente pour les deux apps,
+avec sélection de profil (Massimo / Papa) et redirection vers le bon frontend.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — écran de login partagé (panneau de marque + carte glassmorphique) + redirection croisée
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(auth): unified ZETIS login/landing screen with profile redirect
+```
+
+## Ce qui a été fait
+
+```txt
+Composant  packages/auth : LoginScreen partagé (panneau de marque ZETIS — emblème
+           onde sonore + wordmark dégradé + tagline + 6 icônes ; carte de connexion
+           glassmorphique : identifiant, mot de passe + œil, « se souvenir », bouton
+           dégradé, « ou », Apple (bientôt), aide)
+Profils    sélecteur MASSIMO / PAPA : le profil de l'app courante est actif, l'autre
+           est un lien vers son frontend (VITE_PAPA_URL / VITE_MASSIMO_URL, défaut
+           localhost:5174 / 5173) — l'auth restant par app (chaque app n'accepte que son rôle)
+Apps       LoginPage Massimo + Papa réduites à <LoginScreen role=… otherAppUrl=… />
+Tailwind   @source packages/auth ajouté aux deux thèmes (scan des classes du composant)
+Vérifié    navigateur (1280px) : rendu fidèle à la maquette ; redirection PAPA → :5174 ;
+           connexion massimo/massimo1234 → dashboard. Builds Massimo + Papa OK.
+```
+
+## Critères de validation
+
+- La page reproduit la maquette (deux colonnes desktop, responsive en une colonne).
+- Choisir l'autre profil redirige vers son frontend ; le bon profil se connecte sur place.
+- La connexion fonctionne toujours (token + redirection vers le dashboard).
+- Reste reporté : « Mot de passe oublié » réel, Apple Sign-in, illustration de marque finale.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(auth): unified ZETIS login/landing screen with profile redirect"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :
