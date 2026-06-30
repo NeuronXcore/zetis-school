@@ -241,19 +241,21 @@ function Field({
   );
 }
 
-// Visuel du profil : avatar de Massimo, icône générique pour Papa.
+// Visuel du profil : avatar dédié pour chaque profil.
+const PROFILE_AVATARS: Record<"massimo" | "papa", string> = {
+  massimo: "/massimo-avatar.png",
+  papa: "/papa-avatar.png",
+};
+
 function ProfileVisual({ roleKey, active }: { roleKey: "massimo" | "papa"; active?: boolean }) {
-  if (roleKey === "massimo") {
-    return (
-      <img
-        src="/massimo-avatar.png"
-        alt=""
-        aria-hidden
-        className={`h-9 w-9 shrink-0 rounded-full object-cover ring-1 ${active ? "ring-cyan-400/60" : "ring-white/15"}`}
-      />
-    );
-  }
-  return <PersonIcon className={`h-5 w-5 ${active ? "text-cyan-300" : "text-slate-400"}`} />;
+  return (
+    <img
+      src={PROFILE_AVATARS[roleKey]}
+      alt=""
+      aria-hidden
+      className={`h-9 w-9 shrink-0 rounded-full object-cover ring-1 ${active ? "ring-cyan-400/60" : "ring-white/15"}`}
+    />
+  );
 }
 
 function PersonIcon({ className }: { className?: string }) {
