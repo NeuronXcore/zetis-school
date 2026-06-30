@@ -96,11 +96,10 @@ function AddSubjectCard({ onAdd }: { onAdd: SubjectsData["addSubject"] }) {
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("");
 
-  async function submit(payload: { reset: () => void }) {
+  async function submit() {
     await onAdd({ name, icon: icon || null });
     setName("");
     setIcon("");
-    payload.reset();
   }
 
   return (
@@ -247,12 +246,11 @@ function ThemeBlock({
   const [name, setName] = useState("");
   const [period, setPeriod] = useState("");
 
-  async function submit(payload: { reset: () => void }) {
+  async function submit() {
     await onAddChapter(theme.id, { name, period: period || null });
     setName("");
     setPeriod("");
     setOpen(false);
-    payload.reset();
   }
 
   return (
@@ -323,12 +321,11 @@ function AddThemeForm({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
-  async function submit(payload: { reset: () => void }) {
+  async function submit() {
     await onAddTheme({ name, description: description || null });
     setName("");
     setDescription("");
     setOpen(false);
-    payload.reset();
   }
 
   if (!open) {
@@ -397,7 +394,7 @@ function InlineForm({
   children: ReactNode;
   submitLabel: string;
   disabled?: boolean;
-  onSubmit: (payload: { reset: () => void }) => Promise<void>;
+  onSubmit: () => Promise<void>;
   className?: string;
 }) {
   const [saving, setSaving] = useState(false);
@@ -408,7 +405,7 @@ function InlineForm({
     setSaving(true);
     setErr(null);
     try {
-      await onSubmit({ reset: () => setErr(null) });
+      await onSubmit();
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Erreur lors de l'enregistrement");
     } finally {

@@ -42,6 +42,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Les chapitres rattachés uniquement à un thème (voie subjects) n'ont pas de
+    # place dans le schéma d'avant : on les supprime avant de restaurer NOT NULL,
+    # sinon l'ALTER échoue sur les lignes à school_year_subject_id NULL.
+    op.execute("DELETE FROM chapters WHERE school_year_subject_id IS NULL")
     op.alter_column(
         "chapters", "school_year_subject_id", existing_type=sa.Integer(), nullable=False
     )

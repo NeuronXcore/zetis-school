@@ -1,6 +1,7 @@
 // Client API Matières & programmes (Papa) : Subject → Theme → Chapter.
 // Persistance backend (CLAUDE.md) : aucune donnée pédagogique stockée côté front.
-import { API_URL, authClient } from "./authClient";
+import { API_URL } from "./authClient";
+import { asJson, authHeader, jsonHeaders } from "./httpClient";
 
 export interface Chapter {
   id: number;
@@ -50,29 +51,6 @@ export interface ChapterCreate {
   name: string;
   description?: string | null;
   period?: string | null;
-}
-
-function authHeader(): HeadersInit {
-  const token = authClient.getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-function jsonHeaders(): HeadersInit {
-  return { "Content-Type": "application/json", ...authHeader() };
-}
-
-async function asJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    let detail = `Erreur ${res.status}`;
-    try {
-      const body = (await res.json()) as { detail?: string };
-      if (body.detail) detail = body.detail;
-    } catch {
-      // réponse non-JSON : message générique
-    }
-    throw new Error(detail);
-  }
-  return (await res.json()) as T;
 }
 
 export async function fetchSubjects(): Promise<Subject[]> {

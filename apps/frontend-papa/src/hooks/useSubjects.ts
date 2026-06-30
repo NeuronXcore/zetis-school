@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type ChapterCreate,
   type Subject,
@@ -31,6 +31,8 @@ export function useSubjects(): SubjectsData {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selected, setSelected] = useState<SubjectDetail | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // Miroir de selectedId lisible sans recréer addChapter (évite la closure obsolète).
+  const selectedIdRef = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectLoading, setSelectLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +66,7 @@ export function useSubjects(): SubjectsData {
   const select = useCallback(
     (subjectId: number | null) => {
       setSelectedId(subjectId);
+      selectedIdRef.current = subjectId;
       if (subjectId === null) {
         setSelected(null);
         return;
@@ -98,11 +101,13 @@ export function useSubjects(): SubjectsData {
   const addChapter = useCallback(
     async (themeId: number, data: ChapterCreate) => {
       await createChapter(themeId, data);
-      if (selectedId !== null) {
-        await Promise.all([refreshSelected(selectedId), loadSubjects()]);
+      // Lit la matière sélectionnée au moment de la résolution (pas celle capturée).
+      const current = selectedIdRef.current;
+      if (current !== null) {
+        await Promise.all([refreshSelected(current), loadSubjects()]);
       }
     },
-    [loadSubjects, refreshSelected, selectedId],
+    [loadSubjects, refreshSelected],
   );
 
   return {

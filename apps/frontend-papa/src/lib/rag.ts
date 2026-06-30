@@ -1,6 +1,7 @@
 // Appels aux sources de cours RAG du backend (Étape 12).
 // Papa uploade des fichiers (statut `pending`) puis valide/rejette les sources.
-import { API_URL, authClient } from "./authClient";
+import { API_URL } from "./authClient";
+import { asJson, authHeader } from "./httpClient";
 
 export type ValidationStatus = "pending" | "validated" | "rejected" | "official";
 
@@ -20,25 +21,6 @@ export interface UploadMeta {
   subject_id?: number | null;
   level?: string | null;
   chapter?: string | null;
-}
-
-function authHeader(): HeadersInit {
-  const token = authClient.getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function asJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    let detail = `Erreur ${res.status}`;
-    try {
-      const body = (await res.json()) as { detail?: string };
-      if (body.detail) detail = body.detail;
-    } catch {
-      // réponse non-JSON : on garde le message générique
-    }
-    throw new Error(detail);
-  }
-  return (await res.json()) as T;
 }
 
 export async function fetchDocuments(): Promise<RagDocument[]> {

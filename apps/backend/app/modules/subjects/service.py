@@ -82,26 +82,32 @@ def get_subject_detail(db: Session, subject_id: int) -> dict[str, Any]:
         select(Theme).where(Theme.subject_id == subject_id).order_by(Theme.sort_order, Theme.id)
     ).all()
 
-    theme_payloads = []
-    theme_total = len(themes)
-    chapter_total = 0
-    for theme in themes:
+    # Tous les chapitres des thèmes en une seule requête (pas de N+1), puis regroupés en mémoire.
+    theme_ids = [theme.id for theme in themes]
+    chapters_by_theme: dict[int, list[Chapter]] = {tid: [] for tid in theme_ids}
+    if theme_ids:
         chapters = db.scalars(
-            select(Chapter).where(Chapter.theme_id == theme.id).order_by(Chapter.sort_order, Chapter.id)
+            select(Chapter)
+            .where(Chapter.theme_id.in_(theme_ids))
+            .order_by(Chapter.sort_order, Chapter.id)
         ).all()
-        chapter_total += len(chapters)
-        theme_payloads.append(
-            {
-                "id": theme.id,
-                "name": theme.name,
-                "description": theme.description,
-                "sort_order": theme.sort_order,
-                "chapters": [_chapter_dict(c) for c in chapters],
-            }
-        )
+        for chapter in chapters:
+            chapters_by_theme[chapter.theme_id].append(chapter)
+
+    chapter_total = sum(len(rows) for rows in chapters_by_theme.values())
+    theme_payloads = [
+        {
+            "id": theme.id,
+            "name": theme.name,
+            "description": theme.description,
+            "sort_order": theme.sort_order,
+            "chapters": [_chapter_dict(c) for c in chapters_by_theme[theme.id]],
+        }
+        for theme in themes
+    ]
 
     return {
-        **_subject_dict(subject, {subject_id: theme_total}, {subject_id: chapter_total}),
+        **_subject_dict(subject, {subject_id: len(themes)}, {subject_id: chapter_total}),
         "themes": theme_payloads,
     }
 
