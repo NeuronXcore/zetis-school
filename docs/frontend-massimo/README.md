@@ -35,23 +35,31 @@ Sur iPhone, convertir la navigation en bottom bar avec accès rapide : Accueil, 
 
 ```txt
 ┌──────────────────────────────────────────────────────────────┐
-│ Sidebar ZETIS │ Header : matière / XP / avatar              │
+│ Sidebar ZETIS │ Header global : emblème ZETIS animé          │
+│               │ (cercle + livre, cubes neuronaux, réseau de  │
+│               │ connexions, halo) · avatar Massimo · niveau· │
+│               │ XP (live) · Déconnexion                      │
 │               ├──────────────────────────────────────────────┤
 │               │ Zone principale                             │
-│               │                                              │
 │               │ Cartes, missions, explications, quiz         │
-│               │                                              │
 └───────────────┴──────────────────────────────────────────────┘
 ```
+
+Le header est **global** (`MassimoBannerHeader`, monté dans `MassimoLayout`) et présent
+sur toutes les pages. Il affiche le niveau/XP **en direct** (gamification, repli `PROFILE`).
+Les effets sont en CSS + SVG et respectent `prefers-reduced-motion`.
 
 ## Composants clés
 
 - `MassimoLayout`
 - `MassimoSidebar`
+- `MassimoBannerHeader` (header global : emblème + effets)
+- `NeuralCubes` / `NeuralLinks` (effets animés du header, `headerFx.css`)
+- `glass` (primitives verre/halos/dégradés extraites du login)
+- `SubjectTile` (carte matière, cadre teinté par matière)
 - `ZetisAvatar`
 - `XPBadge`
 - `MissionCard`
-- `SubjectCard`
 - `Eli5Panel`
 - `QuizCard`
 - `ProgressRing`

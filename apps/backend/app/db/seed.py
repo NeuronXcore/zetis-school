@@ -59,15 +59,20 @@ def seed() -> None:
             sys_map[slug] = sy
         db.flush()
 
-        chapters = {
-            "francais": ["Lecture et compréhension", "Grammaire", "Orthographe", "Expression écrite"],
-            "mathematiques": ["Nombres relatifs", "Fractions", "Proportionnalité", "Géométrie"],
+        # Programme (Papa) : Subject → Theme → Chapter.
+        themes = {
+            "francais": ("Langue et expression", ["Lecture et compréhension", "Grammaire", "Orthographe", "Expression écrite"]),
+            "mathematiques": ("Nombres et calculs", ["Nombres relatifs", "Fractions", "Proportionnalité", "Géométrie"]),
         }
-        for slug, names in chapters.items():
+        for slug, (theme_name, names) in themes.items():
+            theme = m.Theme(subject_id=subjects[slug].id, name=theme_name, sort_order=0)
+            db.add(theme)
+            db.flush()
             for i, name in enumerate(names):
                 db.add(
                     m.Chapter(
                         school_year_subject_id=sys_map[slug].id,
+                        theme_id=theme.id,
                         name=name,
                         sort_order=i,
                         status="active" if i == 0 else "planned",

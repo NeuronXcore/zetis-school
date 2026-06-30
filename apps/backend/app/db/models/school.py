@@ -41,11 +41,27 @@ class SchoolYearSubject(Base):
     status: Mapped[str] = mapped_column(String(20), default="active")
 
 
+class Theme(Base):
+    __tablename__ = "themes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int] = mapped_column(ForeignKey("subjects.id"))
+    name: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class Chapter(Base):
     __tablename__ = "chapters"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    school_year_subject_id: Mapped[int] = mapped_column(ForeignKey("school_year_subjects.id"))
+    # Rattachement par programme (Étape 9). Nullable depuis le module subjects :
+    # un chapitre peut désormais vivre directement sous un thème (Subject → Theme → Chapter).
+    school_year_subject_id: Mapped[int | None] = mapped_column(
+        ForeignKey("school_year_subjects.id"), nullable=True
+    )
+    theme_id: Mapped[int | None] = mapped_column(ForeignKey("themes.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(160))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     period: Mapped[str | None] = mapped_column(String(40), nullable=True)
