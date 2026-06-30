@@ -1,5 +1,20 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.7.0 — Gamification : XP, niveaux, streak, badges (étape 16)
+
+Date : 2026-06-30
+
+### Ajouté
+
+- **Module gamification** (`app/modules/gamification`) : `GET /api/gamification/summary` → total XP, **niveau** (100 XP/niveau), barre vers le niveau suivant, **streak** (jours consécutifs, tolérance d'un jour), **badges** déterministes, activité récente. Aucune migration (lit/écrit `xp_events`).
+- **Crédit d'XP** via helper partagé `award_xp` : mission terminée (+20, déjà en place), **verbalisation ELI5 reverse** (+10), **diagnostic passé** (+15).
+- **Frontend Massimo** : `ProgressionPage` branchée (niveau, barre XP, streak, badges, activité récente) ; section « par matière » laissée indicative.
+
+### Décisions
+
+- Gamification au service de l'apprentissage (CLAUDE.md) : pas de loot box, pas de classement social, streak raisonnable.
+- Reportés : vue Papa de la régularité/XP, niveaux nommés, XP par matière, garde-fou anti-spam d'XP.
+
 ## 0.6.0 — Remédiation : lacunes → missions (étape 15)
 
 Date : 2026-06-30

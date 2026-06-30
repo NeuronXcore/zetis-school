@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.models import AIJob, LearningEvent, Skill, SkillMastery, StudentProfile, Subject
 from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.eli5.schemas import ELI5ExplainRequest, ELI5ReverseRequest
+from app.modules.gamification.service import XP_ELI5_REVERSE, award_xp
 from app.modules.memory.service import interval_from_score, schedule_review
 from app.prompts.eli5 import (
     ELI5_EXPLAIN_PROMPT_V1,
@@ -214,6 +215,11 @@ def reverse_evaluate(db: Session, provider: LLMProvider, req: ELI5ReverseRequest
         interval=interval,
         front=f"Réexplique : {skill.name}",
         back=req.answer_text,
+    )
+
+    # XP de verbalisation (gamification) — récompense l'effort d'explication.
+    award_xp(
+        db, student_id=student.id, subject_id=subject.id, amount=XP_ELI5_REVERSE, reason="eli5_reverse"
     )
 
     db.commit()

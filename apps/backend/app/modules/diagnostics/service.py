@@ -25,6 +25,7 @@ from app.db.models import (
     Subject,
 )
 from app.modules.ai.provider import LLMProvider, LLMRequest
+from app.modules.gamification.service import XP_DIAGNOSTIC, award_xp
 from app.prompts.diagnostic import (
     DIAGNOSTIC_GEN_PROMPT_V1,
     DIAGNOSTIC_SYSTEM,
@@ -338,6 +339,11 @@ def submit(
             )
         else:
             strengths.append(data["name"])
+
+    # XP pour avoir passé le diagnostic (gamification) — récompense l'engagement.
+    award_xp(
+        db, student_id=student.id, subject_id=quiz.subject_id, amount=XP_DIAGNOSTIC, reason="diagnostic"
+    )
 
     db.commit()
     return {

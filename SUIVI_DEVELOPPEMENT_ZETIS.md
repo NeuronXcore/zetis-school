@@ -1332,6 +1332,54 @@ git commit -m "feat(missions): turn diagnostic gaps into remediation missions"
 
 ---
 
+# ÉTAPE 16 — Gamification (XP, niveaux, streak, badges)
+
+## Objectif
+
+Rendre la progression visible et motivante : afficher XP, niveau, régularité
+(streak) et badges, et créditer de l'XP aux moments clés d'apprentissage.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — synthèse XP/niveau/streak/badges + crédit XP (mission, verbalisation, diagnostic)
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(gamification): XP summary (level, streak, badges) + XP awards
+```
+
+## Ce qui a été fait
+
+```txt
+Module     app/modules/gamification (schemas/service/router) ; aucune migration (lit/écrit XPEvent)
+award_xp   helper partagé (ajoute un XPEvent à la session, commit côté appelant)
+summary    total XP, niveau (100 XP/niveau), barre vers niveau suivant, streak
+           (jours consécutifs, tolérance 1 jour), badges déterministes, activité récente
+Hooks XP   mission terminée (+20, déjà en place), verbalisation ELI5 reverse (+10),
+           diagnostic passé (+15)
+Endpoint   GET /api/gamification/summary
+Frontend   Massimo ProgressionPage live (niveau, barre XP, streak, badges, activité récente) ;
+           section « par matière » laissée indicative (mock)
+Tests      5 nouveaux (summary vide, XP reverse, XP+badge diagnostic, montée de niveau,
+           badge première mission) — 38 verts. Build Massimo OK.
+```
+
+## Critères de validation
+
+- L'XP est crédité à la mission, la verbalisation et le diagnostic ; la synthèse le reflète.
+- Niveau et barre de progression corrects (100 XP/niveau) ; streak et badges cohérents.
+- Gamification non addictive (CLAUDE.md) : pas de loot box, pas de classement social.
+- Reste reporté : vue Papa de la régularité/XP, niveaux nommés, XP par matière, anti-spam d'XP.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(gamification): XP summary (level, streak, badges) + XP awards"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

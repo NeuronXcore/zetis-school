@@ -116,7 +116,7 @@
 - Avatar ZETIS.
 - Onde vocale.
 - Sons de feedback.
-- Badges.
+- ✅ Badges (étape 16 : XP, niveaux, streak, badges — affichés côté Massimo).
 - Mode focus.
 - Version iPhone optimisée.
 
