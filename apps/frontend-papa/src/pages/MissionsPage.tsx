@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
+import { Badge, type BadgeProps, Button, Card, CardContent, EmptyState } from "@zetis/ui";
 import { PageHeader } from "../components/PageHeader";
 import { type Mission, fetchMissions, generateRemediation } from "../lib/missions";
 
-// Missions Papa (Étape 15) — génère la remédiation depuis les lacunes et suit l'état.
-const STATUS_CLASS: Record<string, string> = {
-  planned: "bg-papa-surface-2 text-papa-muted",
-  active: "bg-sky-500/15 text-sky-300",
-  completed: "bg-emerald-500/15 text-emerald-300",
+// Missions Papa (Étape 15, design system étape 17) — génère la remédiation et suit l'état.
+const STATUS_VARIANT: Record<string, BadgeProps["variant"]> = {
+  planned: "muted",
+  active: "info",
+  completed: "success",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -59,14 +60,9 @@ export function MissionsPage() {
         title="Missions"
         subtitle="Missions proposées à Massimo et leur état."
         actions={
-          <button
-            type="button"
-            onClick={onGenerate}
-            disabled={busy}
-            className="rounded-lg bg-papa-accent px-4 py-2 text-sm font-semibold text-papa-bg disabled:opacity-50"
-          >
+          <Button onClick={onGenerate} disabled={busy}>
             {busy ? "Génération…" : "Générer la remédiation"}
-          </button>
+          </Button>
         }
       />
 
@@ -78,36 +74,38 @@ export function MissionsPage() {
       )}
 
       {missions.length === 0 ? (
-        <p className="text-sm text-papa-muted">
-          Aucune mission. Lance un diagnostic puis génère la remédiation depuis les lacunes.
-        </p>
+        <EmptyState
+          icon="🎯"
+          title="Aucune mission"
+          description="Lance un diagnostic puis génère la remédiation depuis les lacunes."
+        />
       ) : (
         <div className="space-y-3">
           {missions.map((mission) => (
-            <div key={mission.id} className="rounded-xl border border-papa-border bg-papa-surface p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">{mission.title}</p>
-                  <p className="text-xs text-papa-muted">
-                    {mission.subject} · {priorityLabel(mission.priority)}
-                  </p>
+            <Card key={mission.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{mission.title}</p>
+                    <p className="text-xs text-papa-muted">
+                      {mission.subject} · {priorityLabel(mission.priority)}
+                    </p>
+                  </div>
+                  <Badge variant={STATUS_VARIANT[mission.status] ?? "muted"}>
+                    {STATUS_LABEL[mission.status] ?? mission.status}
+                  </Badge>
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASS[mission.status] ?? STATUS_CLASS.planned}`}
-                >
-                  {STATUS_LABEL[mission.status] ?? mission.status}
-                </span>
-              </div>
-              {mission.steps.length > 0 && (
-                <ol className="mt-3 list-inside list-decimal space-y-1 text-sm text-papa-muted">
-                  {mission.steps.map((step) => (
-                    <li key={step.id} className={step.status === "done" ? "line-through opacity-60" : ""}>
-                      {step.instruction}
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
+                {mission.steps.length > 0 && (
+                  <ol className="mt-3 list-inside list-decimal space-y-1 text-sm text-papa-muted">
+                    {mission.steps.map((step) => (
+                      <li key={step.id} className={step.status === "done" ? "line-through opacity-60" : ""}>
+                        {step.instruction}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

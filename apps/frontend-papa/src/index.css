@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Le design system partagé vit dans packages/ui : Tailwind doit scanner ses classes. */
+@source "../../../packages/ui/src";
+
 /* Design System ZETIS — variante Papa : sombre, sobre, analytique (accent émeraude
    pour distinguer du frontend Massimo). Cf. docs/design/design-system.md § Papa. */
 @theme {
@@ -12,6 +15,19 @@
   --color-papa-accent: #10b981;
   --color-papa-accent-2: #38bdf8;
   --color-papa-warn: #f59e0b;
+
+  /* Tokens sémantiques consommés par @zetis/ui (mappés sur la palette Papa). */
+  --color-background: var(--color-papa-bg);
+  --color-foreground: var(--color-papa-text);
+  --color-card: var(--color-papa-surface);
+  --color-card-foreground: var(--color-papa-text);
+  --color-muted: var(--color-papa-surface-2);
+  --color-muted-foreground: var(--color-papa-muted);
+  --color-border: var(--color-papa-border);
+  --color-primary: var(--color-papa-accent);
+  --color-primary-foreground: #042f1f;
+  --color-accent: var(--color-papa-accent-2);
+  --color-ring: var(--color-papa-accent);
 }
 
 html,
