@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "massimo",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@zetis/frontend-massimo", "dev"],
+      "port": 5173,
+      "autoPort": false
+    },
+    {
+      "name": "papa",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@zetis/frontend-papa", "dev"],
+      "port": 5174,
+      "autoPort": false
+    }
+  ]
+}
