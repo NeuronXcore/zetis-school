@@ -998,10 +998,10 @@ Cette étape ne doit pas chercher à tout faire parfaitement. Elle doit créer u
 ## Statut
 
 ```txt
-Statut : ✅ Fait (boucle ELI5 + trace + mémoire ; RAG reporté)
+Statut : ✅ Fait — finalisé (boucle ELI5 explain → reverse → trace → mémoire ; contrat explain {job_id,status} aligné API_SPEC ; RAG stubbé/reporté)
 Date de début : 2026-06-29
-Date de fin : 2026-06-29
-Commit Git : feat(ai): add first pedagogical AI memory loop
+Date de fin : 2026-06-30
+Commit Git : feat(ai): add first pedagogical AI memory loop ; refactor(ai): align explain endpoint to {job_id,status} contract
 ```
 
 ## Boucle IA minimale attendue

@@ -62,8 +62,12 @@ def _run_traced(
     input_payload: dict,
     provider: LLMProvider,
     request: LLMRequest,
-) -> dict:
-    """Exécute un appel IA en SYNCHRONE et trace toujours un `ai_jobs` (input/output/statut/durée)."""
+) -> AIJob:
+    """Exécute un appel IA en SYNCHRONE et trace toujours un `ai_jobs` (input/output/statut/durée).
+
+    Renvoie le job (status `succeeded`, `output_json` peuplé) pour que l'appelant puisse
+    exposer `job_id`/`status` (contrat API_SPEC) ou relire la sortie via `job.output_json`.
+    """
     now = datetime.now(timezone.utc)
     job = AIJob(
         job_type=job_type,
@@ -94,7 +98,7 @@ def _run_traced(
     job.output_json = parsed
     job.duration_ms = response.duration_ms
     job.finished_at = datetime.now(timezone.utc)
-    return parsed
+    return job
 
 
 def explain(
@@ -114,15 +118,16 @@ def explain(
         question=req.question or "(pas de question précise)",
         context="\n".join(context or []) or "(aucun)",
     )
-    parsed = _run_traced(
+    job = _run_traced(
         db,
         job_type="eli5_explain",
         input_payload={"skill_id": skill.id, "mode": req.mode, "prompt_version": PROMPT_VERSION},
         provider=provider,
         request=LLMRequest(prompt=prompt, system=ELI5_SYSTEM, json_output=True),
     )
-    db.commit()
-    return {
+    # Normalise l'explication et la range dans la trace : récupérable via GET /ai/jobs/{job_id}.
+    parsed = job.output_json or {}
+    job.output_json = {
         "title": str(parsed.get("title") or f"Comprendre {skill.name}"),
         "simple_explanation": str(parsed.get("simple_explanation") or ""),
         "analogy": str(parsed.get("analogy") or ""),
@@ -131,6 +136,9 @@ def explain(
         "check_question": str(parsed.get("check_question") or ""),
         "next_action": str(parsed.get("next_action") or "reverse_explain"),
     }
+    db.commit()
+    # Contrat API_SPEC : l'endpoint renvoie la référence du job (exécution synchrone → déjà `succeeded`).
+    return {"job_id": job.id, "status": job.status}
 
 
 def _mastery_status(score: int) -> str:
@@ -151,13 +159,14 @@ def reverse_evaluate(db: Session, provider: LLMProvider, req: ELI5ReverseRequest
     prompt = ELI5_REVERSE_PROMPT_V1.format(
         skill=skill.name, subject=subject.name, level=skill.level or "4e", answer_text=req.answer_text
     )
-    parsed = _run_traced(
+    job = _run_traced(
         db,
         job_type="eli5_reverse",
         input_payload={"skill_id": skill.id, "prompt_version": PROMPT_VERSION},
         provider=provider,
         request=LLMRequest(prompt=prompt, system=ELI5_SYSTEM, json_output=True),
     )
+    parsed = job.output_json or {}
 
     score = max(0, min(100, int(parsed.get("score", 0))))
     feedback = _sanitize_feedback(str(parsed.get("feedback", "")))

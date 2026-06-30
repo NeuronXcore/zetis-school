@@ -4,14 +4,21 @@ from app.modules.ai import get_provider
 from app.tests.fakes import FakeLLMProvider
 
 
-def test_explain_returns_schema(client_db) -> None:
+def test_explain_creates_job_and_returns_reference(client_db) -> None:
     client, _ = client_db
     response = client.post("/api/ai/eli5/explain", json={"skill_id": 1})
     assert response.status_code == 200
     body = response.json()
-    assert body["title"]
-    assert body["check_question"]
-    assert body["next_action"]
+    # Contrat API_SPEC : explain renvoie la référence du job, pas l'explication inline.
+    assert set(body) == {"job_id", "status"}
+    assert body["status"] == "succeeded"
+
+    # L'explication normalisée est récupérable via GET /ai/jobs/{job_id}.
+    job = client.get(f"/api/ai/jobs/{body['job_id']}").json()
+    assert job["job_type"] == "eli5_explain"
+    assert job["output"]["title"]
+    assert job["output"]["check_question"]
+    assert job["output"]["next_action"]
 
 
 def test_skills_listing(client_db) -> None:

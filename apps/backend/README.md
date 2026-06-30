@@ -66,8 +66,10 @@ Première boucle pédagogique, **tout en synchrone** : ELI5 (explain + reverse) 
   provider, pas de routing ni de fallback. Prompts versionnés dans `app/prompts/` (jamais en dur).
 - **Trace `ai_jobs`** : une ligne écrite à CHAQUE appel IA (input/output/statut/durée) ;
   consultable via `GET /api/ai/jobs/{id}`.
-- **Moteur ELI5** (`app/modules/eli5/`) : `explain(context=None)` (couture RAG prête) et
-  `reverse-evaluate`. Le reverse écrit `LearningEvent`, upsert `SkillMastery`, crée 1 `SpacedReviewCard`.
+- **Moteur ELI5** (`app/modules/eli5/`) : `explain(context=None)` (couture RAG prête) renvoie
+  `{job_id, status}` (contrat API_SPEC) ; l'explication normalisée est dans `ai_jobs.output_json`,
+  lue via `GET /api/ai/jobs/{job_id}`. Le `reverse-evaluate` renvoie `{score, feedback, missing_points,
+  next_action}`, écrit `LearningEvent`, upsert `SkillMastery`, crée 1 `SpacedReviewCard`.
   Feedback strictement bienveillant (garde-fou).
 - **Mémoire espacée** (`app/modules/memory/`) : intervalles FIXES selon le score —
   `<50 → 1 j`, `<75 → 3 j`, sinon `7 j` (pas de SM-2).
