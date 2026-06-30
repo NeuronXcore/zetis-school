@@ -10,10 +10,11 @@ import { DiagnosticPage } from "./pages/DiagnosticPage";
 import { Eli5Page } from "./pages/Eli5Page";
 import { MindmapsPage } from "./pages/MindmapsPage";
 import { CapsulesIAPage } from "./pages/CapsulesIAPage";
+import { MissionsPage } from "./pages/MissionsPage";
 import { ProgressionPage } from "./pages/ProgressionPage";
 
 // Routes Massimo (Étape 7) : login public + espace protégé avec les premières pages.
-// Quiz / Missions / Chat restent des placeholders (étapes ultérieures).
+// Quiz / Chat restent des placeholders (étapes ultérieures) ; Missions est branché (Étape 15).
 export default function App() {
   return (
     <Routes>
@@ -34,7 +35,7 @@ export default function App() {
         <Route path="/capsules" element={<CapsulesIAPage />} />
         <Route path="/progression" element={<ProgressionPage />} />
         <Route path="/quiz" element={<PlaceholderPage title="Quiz" icon="✅" />} />
-        <Route path="/missions" element={<PlaceholderPage title="Missions" icon="🎯" />} />
+        <Route path="/missions" element={<MissionsPage />} />
         <Route path="/chat" element={<PlaceholderPage title="Chat ZETIS" icon="💬" />} />
         <Route path="*" element={<PlaceholderPage title="Page introuvable" icon="🔍" />} />
       </Route>

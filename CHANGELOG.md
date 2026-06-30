@@ -1,5 +1,23 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.6.0 — Remédiation : lacunes → missions (étape 15)
+
+Date : 2026-06-30
+
+### Ajouté
+
+- **Moteur de remédiation** (`app/modules/missions`) : `generate-remediation` transforme chaque **lacune ouverte** (`gaps`) du diagnostic en **mission de remédiation** (3 étapes : expliquer → réexpliquer → quiz, priorité ∝ sévérité). Idempotent. Aucune migration (réutilise `missions`/`mission_steps`/`gaps`/`xp_events`).
+- **Complétion** : `POST /api/missions/{id}/complete` → mission `completed`, étapes `done`, **lacune liée résolue**, **XP crédité** (`xp_events`).
+- **Endpoints** : `POST /api/missions/generate-remediation` (Papa), `GET /api/missions`, `GET /api/missions/today` (Massimo), `POST /api/missions/{id}/complete`.
+- **Frontend Papa** : `MissionsPage` branchée — bouton « Générer la remédiation », liste statut/priorité/étapes.
+- **Frontend Massimo** : `MissionsPage` (remplace le placeholder) — missions du jour + « J'ai terminé » (message + XP).
+
+### Décisions
+
+- Étapes de mission **déterministes** (template pédagogique), pas d'appel IA — robustes et testables.
+- Vocabulaire bienveillant (CLAUDE.md) : « renforcer », « consolidation », jamais d'échec.
+- Reportés : étapes reliées à ELI5/quiz réels, niveaux/streak XP, missions manuelles Papa.
+
 ## 0.5.0 — Diagnostic complet (étape 14, Phase 4)
 
 Date : 2026-06-30

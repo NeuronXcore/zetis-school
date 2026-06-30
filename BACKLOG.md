@@ -59,7 +59,7 @@
 - ✅ Diagnostic initial 5e/4e (QCM générés par IA, par notion).
 - ✅ Score par notion (+ upsert maîtrise `skill_mastery`).
 - ✅ Priorisation lacunes (`gaps` ouvertes, sévérité medium/high).
-- Génération missions de remédiation depuis les lacunes.
+- ✅ Génération missions de remédiation depuis les lacunes (étape 15 ; complétion → gap résolue + XP).
 - ✅ Réutilisation du diagnostic plusieurs fois dans l’année (re-passation marquée `taken`).
 - Diagnostic multi-matières en une session + difficulté adaptative.
 
