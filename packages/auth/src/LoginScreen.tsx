@@ -12,15 +12,6 @@ interface LoginScreenProps {
   otherAppUrl: string;
 }
 
-const FEATURES = [
-  { icon: "📖", label: "APPRENDRE" },
-  { icon: "🎯", label: "PROGRESSER" },
-  { icon: "🧠", label: "COMPRENDRE" },
-  { icon: "📊", label: "SUIVRE" },
-  { icon: "🏆", label: "RÉUSSIR" },
-  { icon: "💬", label: "ÉCHANGER" },
-];
-
 const ROLES = {
   massimo: { name: "MASSIMO", sub: "ESPACE ÉLÈVE", user: "massimo" },
   papa: { name: "PAPA", sub: "ESPACE PARENT", user: "papa" },
@@ -55,27 +46,19 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#070b16] px-4 py-8 text-white md:px-8">
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#0a0e1a] px-4 py-8 text-white md:px-8">
       {/* Halos lumineux d'arrière-plan */}
       <div className="pointer-events-none absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-indigo-600/20 blur-[120px]" />
       <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-fuchsia-600/20 blur-[120px]" />
 
       <div className="relative grid w-full max-w-6xl items-center gap-10 lg:grid-cols-2">
-        {/* Panneau de marque */}
-        <div className="flex flex-col items-center text-center">
-          <Emblem />
-          <h1 className="mt-6 bg-gradient-to-r from-cyan-300 via-indigo-300 to-fuchsia-400 bg-clip-text text-5xl font-bold tracking-[0.35em] text-transparent md:text-6xl">
-            ZETIS
-          </h1>
-          <p className="mt-3 text-xs tracking-[0.3em] text-slate-400">TON SAVOIR. TON ÉVOLUTION.</p>
-          <div className="mt-8 hidden grid-cols-6 gap-4 sm:grid">
-            {FEATURES.map((f) => (
-              <div key={f.label} className="flex flex-col items-center gap-1.5">
-                <span className="text-xl">{f.icon}</span>
-                <span className="text-[10px] tracking-wider text-slate-400">{f.label}</span>
-              </div>
-            ))}
-          </div>
+        {/* Panneau de marque — logo officiel ZETIS */}
+        <div className="flex flex-col items-center">
+          <img
+            src="/zetis-logo.png"
+            alt="ZETIS — ton savoir, ton évolution"
+            className="w-full max-w-xl drop-shadow-[0_0_40px_rgba(99,102,241,0.25)]"
+          />
         </div>
 
         {/* Carte de connexion */}
@@ -215,64 +198,6 @@ function Field({
       <div className="flex-1">{children}</div>
       {trailing}
     </div>
-  );
-}
-
-function Emblem() {
-  return (
-    <svg width="200" height="200" viewBox="0 0 200 200" className="drop-shadow-[0_0_25px_rgba(99,102,241,0.45)]">
-      <defs>
-        <linearGradient id="zetisRing" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#22d3ee" />
-          <stop offset="55%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#d946ef" />
-        </linearGradient>
-      </defs>
-      <circle cx="100" cy="100" r="92" fill="none" stroke="url(#zetisRing)" strokeWidth="2.5" opacity="0.9" />
-      {/* Onde sonore centrale */}
-      <g transform="translate(108 100)" strokeWidth="5" strokeLinecap="round">
-        {[
-          [-46, 16, "#22d3ee"],
-          [-35, 36, "#38bdf8"],
-          [-24, 64, "#38bdf8"],
-          [-12, 104, "#6366f1"],
-          [0, 132, "#6366f1"],
-          [12, 96, "#818cf8"],
-          [24, 56, "#a855f7"],
-          [36, 30, "#d946ef"],
-          [46, 16, "#d946ef"],
-        ].map(([x, h, color]) => (
-          <line
-            key={x as number}
-            x1={x as number}
-            y1={-(h as number) / 2}
-            x2={x as number}
-            y2={(h as number) / 2}
-            stroke={color as string}
-          />
-        ))}
-      </g>
-      {/* Pixels qui se dispersent (côté gauche, comme l'illustration) */}
-      {[
-        [40, 64, 7],
-        [54, 56, 5],
-        [46, 82, 6],
-        [62, 74, 4],
-        [34, 92, 5],
-        [58, 96, 4],
-      ].map(([x, y, s]) => (
-        <rect
-          key={`${x}-${y}`}
-          x={x}
-          y={y}
-          width={s}
-          height={s}
-          rx="1"
-          fill="#38bdf8"
-          opacity="0.8"
-        />
-      ))}
-    </svg>
   );
 }
 

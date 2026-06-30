@@ -1399,10 +1399,10 @@ Commit Git : feat(auth): unified ZETIS login/landing screen with profile redirec
 ## Ce qui a été fait
 
 ```txt
-Composant  packages/auth : LoginScreen partagé (panneau de marque ZETIS — emblème
-           onde sonore + wordmark dégradé + tagline + 6 icônes ; carte de connexion
-           glassmorphique : identifiant, mot de passe + œil, « se souvenir », bouton
-           dégradé, « ou », Apple (bientôt), aide)
+Composant  packages/auth : LoginScreen partagé (panneau de marque = logo officiel
+           ZETIS (assets/brand/references/zetis-intro.png → public/zetis-logo.png) ;
+           carte de connexion glassmorphique : identifiant, mot de passe + œil,
+           « se souvenir », bouton dégradé, « ou », Apple (bientôt), aide)
 Profils    sélecteur MASSIMO / PAPA : le profil de l'app courante est actif, l'autre
            est un lien vers son frontend (VITE_PAPA_URL / VITE_MASSIMO_URL, défaut
            localhost:5174 / 5173) — l'auth restant par app (chaque app n'accepte que son rôle)
