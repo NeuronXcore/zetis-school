@@ -5,6 +5,7 @@ from app.api.health import router as health_router
 from app.core.config import settings
 from app.modules.ai.router import router as ai_router
 from app.modules.auth.router import router as auth_router
+from app.modules.diagnostics.router import router as diagnostics_router
 from app.modules.eli5.router import router as eli5_router
 from app.modules.memory.router import router as memory_router
 from app.modules.rag.router import router as rag_router
@@ -23,6 +24,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(eli5_router)
+app.include_router(diagnostics_router)
 app.include_router(memory_router)
 app.include_router(rag_router)
 app.include_router(ai_router)

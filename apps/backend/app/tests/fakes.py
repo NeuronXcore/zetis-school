@@ -39,5 +39,20 @@ class FakeLLMProvider:
             "score": self._score,
             "feedback": self._feedback,
             "missing_points": ["Pense aussi à zéro"],
+            # clés diagnostic (génération QCM) — déterministe : index 0 correct
+            "questions": [
+                {
+                    "prompt": "Question de diagnostic ?",
+                    "choices": ["Bonne réponse", "Mauvaise A", "Mauvaise B", "Mauvaise C"],
+                    "correct_index": 0,
+                    "explanation": "Parce que c'est la bonne.",
+                },
+                {
+                    "prompt": "Autre question ?",
+                    "choices": ["Vrai", "Faux"],
+                    "correct_index": 0,
+                    "explanation": "Explication courte.",
+                },
+            ],
         }
         return LLMResponse(text=json.dumps(payload), model="fake", duration_ms=1)
