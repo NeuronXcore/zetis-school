@@ -4,6 +4,17 @@
 
 La roadmap est volontairement progressive. ZETIS peut devenir très vaste, mais le MVP doit prouver un cycle pédagogique complet avant d’ajouter toutes les fonctionnalités avancées.
 
+## État d'avancement (2026-06-30)
+
+MVP livré — **étapes 1 → 10** du `SUIVI_DEVELOPPEMENT_ZETIS.md`. Correspondance avec les phases :
+
+- ✅ **Phase 0** : squelette, infra Docker, healthchecks.
+- ✅ **Phases 1-2** : frontends Massimo & Papa + premières pages (données mockées).
+- 🟡 **Phase 3** : modèle de données créé (PostgreSQL, 22 tables, migrations), pas encore tout alimenté.
+- 🟡 **Phase 5** : ELI5 explain + reverse opérationnel (provider ollama) ; à enrichir.
+- 🟡 **Phase 7** : mémoire espacée minimale (intervalles fixes 1/3/7).
+- ⬜ **Phases 4, 6, 8-12** : à venir (diagnostic complet, RAG, capsules, vocal, accès distant, multi-enfant).
+
 ## Phase 0 — Cadrage et squelette
 
 Objectif : créer un dépôt propre et lançable.

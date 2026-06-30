@@ -88,6 +88,7 @@ zetis/
 │   ├── worker-ai/
 │   └── worker-media/
 ├── packages/
+│   ├── auth/        # logique auth + client API partagée (@zetis/auth)
 │   ├── ui/
 │   ├── types/
 │   └── prompts/
@@ -140,6 +141,30 @@ Le MVP ne doit pas tout faire. Il doit livrer un parcours complet minimal :
 9. Papa voit le résultat dans son dashboard.
 10. ZETIS planifie la révision espacée.
 
+## Démarrer en local (MVP)
+
+Prérequis : Docker, Node.js LTS + `pnpm`, `uv` (Python 3.12 pour le backend), `ollama` avec le modèle `qwen2.5`.
+
+```bash
+# 1. infra (base de données)
+docker compose up -d postgres
+
+# 2. backend (API :8000)
+cd apps/backend
+uv venv --python 3.12 .venv
+uv pip install --python .venv -e ".[dev]"
+.venv/bin/alembic upgrade head
+.venv/bin/python -m app.db.seed
+.venv/bin/uvicorn app.main:app --reload
+
+# 3. frontends (depuis la racine, dans deux terminaux)
+pnpm install
+pnpm --filter @zetis/frontend-massimo dev   # http://localhost:5173
+pnpm --filter @zetis/frontend-papa dev      # http://localhost:5174
+```
+
+Identifiants de développement : `massimo` / `massimo1234`, `papa` / `papa1234`.
+
 ## Statut du document
 
-Ce paquet est une base de documentation de développement. Il est conçu pour être donné directement à Claude Code afin d’initialiser ou refactorer le projet.
+**MVP livré — étapes 1 → 10** (cf. `SUIVI_DEVELOPPEMENT_ZETIS.md`) : deux frontends séparés, backend FastAPI, PostgreSQL + migrations, auth, et une première boucle pédagogique ELI5 + mémoire espacée. Les sections « vision » et « stack » ci-dessus restent la **cible produit** ; RAG (ingestion), capsules vidéo, jobs IA asynchrones et accès distant sont **post-MVP**.

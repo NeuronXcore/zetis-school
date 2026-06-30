@@ -67,13 +67,16 @@ zetis/
 │   │   ├── alembic.ini
 │   │   └── app/
 │   │       ├── main.py
+│   │       ├── api/
 │   │       ├── core/
-│   │       ├── db/
-│   │       ├── modules/
+│   │       ├── db/         # modèles SQLAlchemy + migrations Alembic
+│   │       ├── modules/    # auth, ai, eli5, memory
+│   │       ├── prompts/    # prompts IA versionnés
 │   │       └── tests/
 │   ├── worker-ai/
 │   └── worker-media/
 ├── packages/
+│   ├── auth/        # @zetis/auth : logique auth + client API partagée
 │   ├── ui/
 │   ├── types/
 │   └── prompts/
@@ -176,9 +179,10 @@ Massimo et Papa n’ont pas les mêmes besoins, pas les mêmes permissions, pas 
 
 Code partagé.
 
+- `auth` : `@zetis/auth` — logique d'auth + client API partagée entre les deux frontends (créé à la refacto post-Étape 7).
 - `ui` : composants communs si nécessaire.
 - `types` : types TypeScript générés ou maintenus.
-- `prompts` : prompts versionnés utilisés par le backend/worker.
+- `prompts` : prompts versionnés (les prompts IA backend vivent dans `apps/backend/app/prompts`).
 
 ## Dossier `docs/`
 
