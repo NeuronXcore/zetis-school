@@ -126,6 +126,8 @@ def explain(
         request=LLMRequest(prompt=prompt, system=ELI5_SYSTEM, json_output=True),
     )
     # Normalise l'explication et la range dans la trace : récupérable via GET /ai/jobs/{job_id}.
+    # `sources_used` = nombre de passages de cours injectés (RAG) → le front Massimo affiche
+    # « d'après ton cours » quand l'explication s'appuie sur une source validée.
     parsed = job.output_json or {}
     job.output_json = {
         "title": str(parsed.get("title") or f"Comprendre {skill.name}"),
@@ -135,6 +137,7 @@ def explain(
         "common_mistake": str(parsed.get("common_mistake") or ""),
         "check_question": str(parsed.get("check_question") or ""),
         "next_action": str(parsed.get("next_action") or "reverse_explain"),
+        "sources_used": len(context or []),
     }
     db.commit()
     # Contrat API_SPEC : l'endpoint renvoie la référence du job (exécution synchrone → déjà `succeeded`).

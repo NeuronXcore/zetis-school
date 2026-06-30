@@ -37,3 +37,8 @@ class RagSearchHit(BaseModel):
     document_id: int
     content: str
     distance: float
+
+
+class RagValidationOut(BaseModel):
+    document_id: int
+    validation_status: str

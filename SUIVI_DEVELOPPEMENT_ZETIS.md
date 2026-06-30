@@ -1132,10 +1132,101 @@ git commit -m "feat(rag): semantic RAG over course docs (pgvector) wired into EL
 
 ---
 
-# ÉTAPE 14 — Diagnostic complet (Phase 4)
+# ÉTAPE 12 — Ingestion de fichiers + validation Papa des sources
 
-> Étapes 12-13 (upload/validation RAG Papa + RAG visible Massimo) sont sur la
-> branche `feat/rag-file-upload-papa` (PR #14), indépendante de ce bloc.
+## Objectif
+
+Rendre le RAG réellement alimentable côté Papa : importer des fichiers de cours
+(MD / TXT / PDF) et n'autoriser leur usage par l'IA qu'après validation manuelle.
+
+## Statut
+
+```txt
+Statut : ✅ Fait — upload fichiers (MD/TXT/PDF) en `pending` + validation/rejet Papa
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(rag): file upload + Papa source validation workflow
+```
+
+## Ce qui a été fait
+
+```txt
+Deps        python-multipart + pypdf (extraction PDF)
+Extraction  modules/rag/extract.py : MD/TXT (utf-8) + PDF (pypdf), ValueError sinon
+Service     ingest_document(validation_status=…) + set_validation (doc + chunks synchrones)
+Endpoints   POST /api/rag/upload (multipart, statut pending),
+            POST /api/rag/documents/{id}/validate, /reject
+Sources     un upload Papa reste `pending` → invisible du RAG tant que non validé (CLAUDE.md)
+Frontend    page Papa « Sources de cours » : upload + liste + badges + Valider/Rejeter
+            (lib/rag.ts, SourcesRagPage.tsx, nav + route)
+Tests       3 nouveaux (extraction, upload→pending, validate/reject) — 21 verts
+```
+
+## Critères de validation
+
+- Un fichier MD/TXT/PDF peut être uploadé, extrait, découpé et vectorisé.
+- La source uploadée arrive en `pending` et n'alimente pas `explain` avant validation.
+- Valider/Rejeter met à jour le document ET ses chunks (statut synchronisé).
+- Le front Papa expose l'upload et la validation ; aucune migration nécessaire
+  (le modèle supportait déjà `validated | pending | rejected`).
+- Reste reporté : stockage du fichier brut (MinIO), RAG sur productions de Massimo,
+  affichage des sources utilisées côté Massimo.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(rag): file upload + Papa source validation workflow"
+```
+
+---
+
+# ÉTAPE 13 — RAG visible côté Massimo
+
+## Objectif
+
+Rendre le RAG perceptible par l'enfant : quand l'explication ELI5 s'appuie sur
+une source de cours validée, afficher un indice « d'après ton cours ».
+
+## Statut
+
+```txt
+Statut : ✅ Fait — badge « 📚 D'après ton cours » sur l'explication ELI5
+Date de début : 2026-06-30
+Date de fin : 2026-06-30
+Commit Git : feat(eli5): surface RAG sources_used as « d'après ton cours » badge
+```
+
+## Ce qui a été fait
+
+```txt
+Backend    eli5.service.explain ajoute `sources_used` (= nb de passages RAG injectés)
+           à output_json ; schema ELI5ExplainResponse complété (sources_used:int=0).
+           JobOut relaie output_json tel quel → exposé via GET /api/ai/jobs/{id}.
+Frontend   lib/eli5.ts : champ sources_used? ; Eli5Page : badge conditionnel
+           « 📚 D'après ton cours » dans la carte d'explication (sources_used>0).
+Tests      explain sans source → sources_used==0 (endpoint) ;
+           service.explain(context=[…]) → sources_used==len (niveau service). 22 verts.
+```
+
+## Critères de validation
+
+- Une explication appuyée sur une source validée porte le badge côté Massimo.
+- Sans source indexée, aucun badge (sources_used==0) — comportement inchangé.
+- Aucun nouveau endpoint ni migration ; le champ transite par l'`output_json` du job.
+- Reste reporté : afficher le *titre/chapitre* précis de la source (nécessite que
+  `retrieve_for_skill` renvoie les métadonnées, pas seulement le contenu).
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(eli5): surface RAG sources_used as « d'après ton cours » badge"
+```
+
+---
+
+# ÉTAPE 14 — Diagnostic complet (Phase 4)
 
 ## Objectif
 

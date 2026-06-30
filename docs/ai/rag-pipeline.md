@@ -68,3 +68,23 @@ Une réponse RAG doit contenir :
 - confiance ;
 - points à vérifier ;
 - suggestion d’exercice.
+
+## État d'implémentation (2026-06-30)
+
+Implémenté (Étapes 11–12) :
+
+- **Stockage** : `rag_documents` / `rag_chunks` (`vector(768)`) + index ivfflat cosinus
+  (migration `a1b2c3d4e5f6`).
+- **Embeddings** : `OllamaEmbeddingProvider` (`/api/embed`, `nomic-embed-text`, 768d).
+- **Ingestion texte** : `POST /api/rag/documents` (JSON) → statut `validated`.
+- **Ingestion fichiers** : `POST /api/rag/upload` (MD/TXT/PDF via `extract.py`/pypdf) →
+  statut **`pending`** ; extraction → chunking → embedding.
+- **Validation Papa** : `POST /api/rag/documents/{id}/validate|reject` (synchronise le
+  statut du document et de ses chunks) ; UI Papa « Sources de cours ».
+- **Récupération** : `search` (top-k cosinus, filtre matière) ; seuls les chunks
+  `validated`/`official` sont renvoyés ; `retrieve_for_skill` injecte le contexte dans ELI5 `explain`.
+- **Visibilité enfant** (Étape 13) : `explain` expose `sources_used` (nb de passages
+  injectés) dans `output_json` → badge « 📚 D'après ton cours » côté Massimo.
+
+Reporté : génération de réponse sourcée dédiée (`/rag/answer`), `confiance`/citations,
+stockage du fichier brut (MinIO), sources `student_output`, import des programmes officiels.
