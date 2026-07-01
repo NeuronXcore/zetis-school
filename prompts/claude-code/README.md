@@ -16,5 +16,6 @@ Ordre recommandé :
 8. `08-rag-pipeline.md`
 9. `09-spaced-memory.md`
 10. `10-capsules-ia.md`
+11. `11-capsules-lot2-mp4.md`
 
 Toujours demander à Claude Code de lire `CLAUDE.md` avant d’agir.
