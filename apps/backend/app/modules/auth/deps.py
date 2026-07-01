@@ -22,3 +22,20 @@ def get_current_user(
             detail="Token invalide ou expiré",
         )
     return user
+
+
+# Rôles autorisés pour l'espace Papa (le login dev émet le rôle "papa" ; on tolère
+# aussi les rôles DB "parent"/"admin").
+_PARENT_ROLES = frozenset({"papa", "parent", "admin"})
+
+
+def require_parent(
+    current: dict[str, str] = Depends(get_current_user),
+) -> dict[str, str]:
+    """Dépendance FastAPI : réserve la route à Papa (parent/admin). Cf. CLAUDE.md §sécurité."""
+    if current.get("role") not in _PARENT_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès réservé à Papa.",
+        )
+    return current

@@ -18,6 +18,13 @@ class Capsule(Base, TimestampMixin):
     video_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="draft")
 
+    # --- Lot 1 (ADR-0007) : génération LLM → CapsuleSpec typé, validé par Papa. ---
+    instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    spec_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    validation_status: Mapped[str] = mapped_column(
+        String(20), default="pending"
+    )  # pending | validated | rejected
+
 
 class Mindmap(Base, TimestampMixin):
     __tablename__ = "mindmaps"

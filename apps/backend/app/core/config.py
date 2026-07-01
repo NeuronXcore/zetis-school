@@ -23,6 +23,27 @@ class Settings(BaseSettings):
     )
     embed_dim: int = Field(default=768, validation_alias="EMBED_DIM")
     rag_top_k: int = Field(default=3, validation_alias="RAG_TOP_K")
+
+    # --- TTS (voix des capsules) : Piper local. Le binaire `piper` doit être sur le PATH
+    # et `piper_voice_model` pointer un modèle FR (.onnx). Cf. ADR-0007 (narration). ---
+    tts_provider: str = Field(default="piper", validation_alias="TTS_PROVIDER")
+    # 'macos' : voix `say` (dev local Mac). Ex. "Jacques", "Amelie", ou une voix « Premium »
+    # téléchargée dans Réglages Système (neurale, chaleureuse). `say_rate` = débit posé.
+    say_voice: str = Field(default="Jacques", validation_alias="TTS_SAY_VOICE")
+    say_rate: int = Field(default=165, validation_alias="TTS_SAY_RATE")
+    piper_binary: str = Field(default="piper", validation_alias="PIPER_BINARY")
+    piper_voice_model: str = Field(
+        default="storage/models/piper/fr_FR-siwis-medium.onnx",
+        validation_alias="PIPER_VOICE_MODEL",
+    )
+    # Piper : ralentit un peu la diction pour un ton plus rassurant (1.0 = normal).
+    piper_length_scale: float = Field(default=1.1, validation_alias="PIPER_LENGTH_SCALE")
+    # Index de locuteur pour un modèle Piper multi-voix (ex. upmc : pierre=1). None = mono-voix.
+    piper_speaker: int | None = Field(default=None, validation_alias="PIPER_SPEAKER")
+    audio_storage_dir: str = Field(
+        default="storage/generated", validation_alias="AUDIO_STORAGE_DIR"
+    )
+
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [
         "http://localhost:5173",

@@ -22,7 +22,11 @@ class OllamaProvider:
         }
         if request.system:
             payload["system"] = request.system
-        if request.json_output:
+        # Sortie structurée : un JSON Schema (ou "json") explicite prime sur le simple
+        # `format:"json"` déduit de json_output (cf. ADR-0007, addendum `fmt`).
+        if request.fmt is not None:
+            payload["format"] = request.fmt
+        elif request.json_output:
             payload["format"] = "json"
 
         start = time.monotonic()

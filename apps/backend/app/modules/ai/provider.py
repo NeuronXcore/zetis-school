@@ -8,6 +8,9 @@ class LLMRequest:
     system: str | None = None
     json_output: bool = True
     temperature: float = 0.2
+    # Sortie structurée ollama (clé `format`) : "json" ou un JSON Schema (dict).
+    # Défaut None → comportement historique (cf. ADR-0007, addendum `fmt`).
+    fmt: dict | str | None = None
 
 
 @dataclass

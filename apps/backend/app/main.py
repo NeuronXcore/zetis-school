@@ -5,6 +5,8 @@ from app.api.health import router as health_router
 from app.core.config import settings
 from app.modules.ai.router import router as ai_router
 from app.modules.auth.router import router as auth_router
+from app.modules.capsules.router import audio_router as capsules_audio_router
+from app.modules.capsules.router import router as capsules_router
 from app.modules.diagnostics.router import router as diagnostics_router
 from app.modules.eli5.router import router as eli5_router
 from app.modules.gamification.router import router as gamification_router
@@ -33,4 +35,6 @@ app.include_router(gamification_router)
 app.include_router(memory_router)
 app.include_router(rag_router)
 app.include_router(subjects_router)
+app.include_router(capsules_router)
+app.include_router(capsules_audio_router)
 app.include_router(ai_router)

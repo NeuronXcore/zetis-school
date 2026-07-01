@@ -1475,6 +1475,30 @@ git commit -m "feat(auth): unified ZETIS login/landing screen with profile redir
 
 ---
 
+# ÉTAPE — Capsules IA · Slice A (schéma + prompt, backend pur)
+
+## Statut
+
+Fait. Backend uniquement (ni endpoint, ni frontend, ni Remotion — cf. ADR-0007, slice B / Lot 1 à suivre).
+
+## Ce qui a été fait
+
+- Type partagé `@zetis/types` scaffolé + `packages/types/src/capsule.ts` (`CapsuleSpec` / `CapsuleScene`, vocabulaire fermé).
+- `app/modules/capsules/schemas.py` : miroir Pydantic strict (union discriminée `kind`, `extra="forbid"`, bornes fps/width/height/scenes/durée/numberline).
+- `app/prompts/capsule.py` : prompt versionné `v1` + few-shots (relatifs avec `numberline`, SVT sans) + `build_prompt -> (system, prompt)`.
+- `app/modules/capsules/service.py` : `generate_capsule_spec` synchrone (sortie structurée ollama via `fmt`, 1 réparation, trace `ai_jobs` `capsule_generate`, `CapsuleGenerationError`).
+- `LLMProvider` étendu (rétro-compatible) : champ `LLMRequest.fmt` (JSON Schema) → cf. addendum ADR-0007.
+- Tests offline : `test_capsule_prompt.py`, `test_capsule_service.py`.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(capsules): CapsuleSpec schema + versioned generation prompt (backend core)"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

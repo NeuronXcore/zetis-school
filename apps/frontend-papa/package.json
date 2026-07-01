@@ -10,11 +10,14 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@remotion/player": "4.0.484",
     "@zetis/auth": "workspace:*",
+    "@zetis/types": "workspace:*",
     "@zetis/ui": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.1.0"
+    "react-router-dom": "^7.1.0",
+    "remotion": "4.0.484"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
