@@ -9,12 +9,20 @@ from app.modules.auth.deps import get_current_user
 from app.modules.rag import service
 from app.modules.rag.extract import extract_text
 from app.modules.rag.schemas import (
+    RagClipRequest,
+    RagClipUrlRequest,
     RagDocumentOut,
     RagIngestRequest,
     RagIngestResponse,
     RagSearchHit,
     RagSearchRequest,
     RagValidationOut,
+)
+from app.modules.rag.transcript import (
+    TranscriptError,
+    TranscriptFetcher,
+    get_transcript_fetcher,
+    validate_video_url,
 )
 
 router = APIRouter(prefix="/api/rag", tags=["rag"])
@@ -61,6 +69,90 @@ def upload(
         chapter=chapter,
     )
     document, chunks = service.ingest_document(db, embedder, req, validation_status="pending")
+    return RagIngestResponse(document_id=document.id, chunks=chunks)
+
+
+@router.post("/clip", response_model=RagIngestResponse)
+def clip(
+    req: RagClipRequest,
+    db: Session = Depends(get_db),
+    embedder: EmbeddingProvider = Depends(get_embedder),
+    _: dict = Depends(get_current_user),
+) -> RagIngestResponse:
+    """Capture web (extension zetis-clip, côté Papa) → ingestion en statut `pending`.
+
+    Réutilise tel quel le pipeline de l'étape 12 (chunking + embeddings + persistance).
+    Une capture web arbitraire ne doit jamais alimenter l'IA de l'enfant sans relecture
+    (règle CLAUDE.md) : elle reste invisible du RAG jusqu'à validation manuelle dans
+    « Sources de cours ». Même garde que `/upload` (utilisateur authentifié Papa)."""
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Le texte capturé est vide.")
+    # Provenance conservée dans le contenu : pas de colonne source_url → aucune migration.
+    if req.source_url:
+        text = f"Source : {req.source_url}\n\n{text}"
+
+    ingest_req = RagIngestRequest(
+        title=(req.title.strip() or "Capture web"),
+        text=text,
+        subject_id=req.subject_id,
+        source_type=(req.source_type or "web_clip"),
+        level=req.level,
+        chapter=req.chapter,
+    )
+    document, chunks = service.ingest_document(db, embedder, ingest_req, validation_status="pending")
+    return RagIngestResponse(document_id=document.id, chunks=chunks)
+
+
+@router.post("/clip-url", response_model=RagIngestResponse)
+def clip_url(
+    req: RagClipUrlRequest,
+    db: Session = Depends(get_db),
+    embedder: EmbeddingProvider = Depends(get_embedder),
+    fetcher: TranscriptFetcher = Depends(get_transcript_fetcher),
+    _: dict = Depends(get_current_user),
+) -> RagIngestResponse:
+    """Import de la transcription d'une vidéo (extension zetis-clip, côté Papa).
+
+    Fetch sortant **borné à l'allowlist** (anti-SSRF, cf. ADR-0006 addendum) : l'URL
+    est validée avant tout appel réseau. La transcription part en statut `pending`
+    (relecture Papa dans « Sources de cours »). Langue d'origine conservée.
+
+    `400` (avec `code`) si hôte hors allowlist / URL invalide (`unsupported_url`) ou
+    transcription indisponible (`transcript_unavailable`, → repli DOM côté client)."""
+    try:
+        video_id = validate_video_url(req.url)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail={"code": "unsupported_url", "message": str(exc)}
+        ) from exc
+
+    try:
+        transcript, language = fetcher.fetch(video_id)
+    except TranscriptError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "transcript_unavailable",
+                "message": f"Transcription indisponible : {exc}",
+            },
+        ) from exc
+
+    # Provenance + langue conservées dans le contenu (pas de colonne dédiée → zéro migration).
+    header = f"Source : {req.url}"
+    if language:
+        header += f"\nLangue : {language}"
+    text = f"{header}\n\n{transcript}"
+
+    ingest_req = RagIngestRequest(
+        title=((req.title or "").strip() or "Transcription vidéo"),
+        text=text,
+        subject_id=req.subject_id,
+        source_type="video_transcript",
+        level=req.level,
+        chapter=req.chapter,
+    )
+    document, chunks = service.ingest_document(db, embedder, ingest_req, validation_status="pending")
     return RagIngestResponse(document_id=document.id, chunks=chunks)
 
 

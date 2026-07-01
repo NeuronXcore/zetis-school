@@ -1475,6 +1475,101 @@ git commit -m "feat(auth): unified ZETIS login/landing screen with profile redir
 
 ---
 
+# ÉTAPE 19 — Extension navigateur `zetis-clip` (capture RAG, côté Papa) — Lot 1
+
+> Note : le libellé « étape 19 » a aussi servi à la refonte Matières (CHANGELOG 0.10.0).
+> Cette étape-ci correspond au prompt « étape 19 — zetis-clip » et est publiée en `0.11.0`.
+
+## Objectif
+
+Donner à Papa un **client de capture** branché sur le pipeline RAG des étapes 11–12, pour
+envoyer une **page web / une sélection / un PDF** vers ZETIS sans quitter sa navigation.
+Aucune brique RAG réinventée : on ajoute une app + un endpoint mince. Tout arrive en
+`pending` (relecture obligatoire dans « Sources de cours »).
+
+## Réalisé
+
+- **Backend** : `POST /api/rag/clip` (`apps/backend/app/modules/rag/`) — schéma `RagClipRequest`,
+  appel `ingest_document(validation_status="pending")`, `400` si texte vide, provenance
+  `source_url` conservée dans le contenu (zéro migration). Garde identique à `/upload`.
+  Tests : `test_clip_lands_pending_and_keeps_provenance`, `test_clip_rejects_empty_text`.
+  `GET /subjects` était **déjà présent** → aucun nouvel endpoint matière.
+- **Extension `apps/extension-zetis-clip`** (MV3, Vite + `@crxjs/vite-plugin`, TS strict,
+  Tailwind v4, `@mozilla/readability`) :
+  - Popup (capture/aperçu/matière+chapitre/niveau/envoi), content script (Readability +
+    sélection + détection PDF), service worker (menus contextuels + POST clip/upload +
+    badge), page Options (URL backend + login Papa).
+  - Token JWT en `chrome.storage.local` ; logique d'auth `@zetis/auth` mirroirée (pas de
+    refactor du package partagé) ; composants `@zetis/ui` réutilisés.
+- **Docs** : ADR-0006, `DECISIONS.md`, `API_SPEC.md` (section + permissions), CHANGELOG 0.11.0.
+
+## Critères de validation
+
+- `pnpm --filter @zetis/extension-zetis-clip build` produit `dist/` chargeable
+  (`chrome://extensions` → mode dev → « charger non empaquetée »).
+- `POST /api/rag/clip` ingère en `pending` et renvoie `400` sur texte vide (tests verts).
+- Aucune capture ne devient `validated` automatiquement ; frontière Massimo/Papa intacte.
+
+## Reporté (étape 20+)
+
+Transcript vidéo, OCR image (Tesseract), audio/podcast, file d'attente offline, multi-onglets.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(zetis-clip): Papa browser extension to capture web/PDF sources into RAG (pending)"
+```
+
+---
+
+# ÉTAPE 20 — `zetis-clip` Lot 2 : transcription vidéo → RAG (côté Papa)
+
+> Publiée en `0.12.0` (le prompt visait « 0.11.0 », déjà pris par le Lot 1).
+
+## Objectif
+
+Étendre `zetis-clip` (Lot 1) et le pipeline RAG pour importer la **transcription** d'une
+vidéo (YouTube d'abord). Aucune nouvelle brique de traitement, aucun worker : un endpoint
+mince + un flux de popup. Tout reste `pending`.
+
+## Réalisé
+
+- **Backend** : `POST /api/rag/clip-url` (`app/modules/rag/`) — nouveau module
+  `transcript.py` (`validate_video_url` + allowlist `youtube.com`/`www.youtube.com`/`youtu.be`,
+  abstraction `TranscriptFetcher` mockable, impl `YouTubeTranscriptFetcher` à import
+  paresseux). Extraction serveur → `ingest_document(pending, source_type="video_transcript")`.
+  URL validée **avant** tout fetch (anti-SSRF borné). Langue d'origine conservée (humaine >
+  auto-générée, jamais de traduction). `400` structuré `{code, message}`
+  (`unsupported_url` / `transcript_unavailable`). Dépendance `youtube-transcript-api` ajoutée.
+- **Extension** : popup détecte l'onglet vidéo → « Vidéo détectée — importer la transcription »,
+  matière/chapitre/niveau, titre nettoyé éditable. Orchestration **hybride** serveur→repli :
+  `postClipUrl` puis, si `transcript_unavailable`, scrape DOM du panneau « Transcription »
+  (content script, `activeTab`) → `postClip`. Menu contextuel « Importer la transcription de
+  cette vidéo » restreint à YouTube. `api.ts` : `postClipUrl` + `ApiError.code`.
+- **Docs** : ADR-0006 addendum (exception SSRF bornée), `API_SPEC.md` (section + permissions),
+  CHANGELOG 0.12.0.
+
+## Critères de validation
+
+- `POST /api/rag/clip-url` → `pending` (récupérateur mocké) ; `400 unsupported_url` (hôte hors
+  allowlist) ; `400 transcript_unavailable`. Build extension OK.
+- Aucun fetch serveur hors allowlist ; aucune auto-validation ; frontière Massimo/Papa intacte.
+
+## Reporté (étapes 21+)
+
+OCR image (Tesseract), audio/podcast (Whisper), file d'attente offline, import multi-onglets,
+autres plateformes vidéo.
+
+## Commit conseillé
+
+```bash
+git add .
+git commit -m "feat(zetis-clip): import video transcripts into RAG (pending, host-allowlisted)"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

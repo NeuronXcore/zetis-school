@@ -11,7 +11,8 @@ from app.db.base import Base, get_db
 from app.main import app
 from app.modules.ai import get_embedder, get_provider
 from app.modules.auth.deps import get_current_user
-from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
+from app.modules.rag.transcript import get_transcript_fetcher
+from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider, FakeTranscriptFetcher
 
 
 @pytest.fixture()
@@ -46,6 +47,7 @@ def client_db() -> Iterator[tuple[TestClient, sessionmaker]]:
     app.dependency_overrides[get_current_user] = lambda: {"username": "massimo", "role": "child"}
     app.dependency_overrides[get_provider] = lambda: FakeLLMProvider()
     app.dependency_overrides[get_embedder] = lambda: FakeEmbeddingProvider()
+    app.dependency_overrides[get_transcript_fetcher] = lambda: FakeTranscriptFetcher()
     try:
         yield TestClient(app), TestSession
     finally:

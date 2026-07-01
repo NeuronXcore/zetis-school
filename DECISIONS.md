@@ -7,6 +7,7 @@
 - `docs/decisions/adr-0003-monorepo.md`
 - `docs/decisions/adr-0004-postgresql-pgvector.md`
 - `docs/decisions/adr-0005-capsules-ia-progressives.md`
+- `docs/decisions/adr-0006-extension-zetis-clip.md`
 
 ## Quand créer un ADR ?
 

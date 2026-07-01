@@ -35,7 +35,7 @@ Légende : ✅ branchée API · 🟡 maquette (mock) · ⬜ placeholder
 | Dashboard | 🟡 mock | partiel (agréger diagnostics/missions/XP) |
 | Diagnostics | ✅ | oui |
 | Missions | ✅ | oui |
-| Sources de cours | ✅ | oui |
+| Sources de cours | ✅ | oui (capture aussi via l'extension `zetis-clip`, étape 19) |
 | Lacunes | 🟡 mock | ⚠️ besoin endpoint `/gaps` |
 | Progression | 🟡 mock | oui (gamification) + ⚠️ par matière |
 | Programmes & matières | 🟡 mock | ⚠️ besoin endpoints school/subjects |

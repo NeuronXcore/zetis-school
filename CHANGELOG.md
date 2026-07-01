@@ -1,5 +1,69 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.12.0 — `zetis-clip` Lot 2 : transcription vidéo → RAG (Papa) — étape 20
+
+Date : 2026-07-01
+
+> Note de versionnage : le prompt étape 20 visait « 0.11.0 », déjà pris par le Lot 1 ; on
+> publie donc le Lot 2 en `0.12.0` (minor additif). Cf. ADR-0006 addendum.
+
+### Ajouté
+
+- **Backend `POST /api/rag/clip-url`** : importe la **transcription** d'une vidéo →
+  `ingest_document(validation_status="pending", source_type="video_transcript")` (pipeline
+  étape 12 réutilisé). Fetch sortant **borné à une allowlist** (`youtube.com`,
+  `www.youtube.com`, `youtu.be`), URL validée avant tout appel réseau. Langue d'origine
+  conservée (transcription humaine préférée à l'auto-générée, jamais de traduction).
+  `400` structuré `{code, message}` : `unsupported_url` / `transcript_unavailable`.
+- **`app/modules/rag/transcript.py`** : `validate_video_url`, abstraction `TranscriptFetcher`
+  (mockable — `FakeTranscriptFetcher` en tests offline), impl réelle `YouTubeTranscriptFetcher`
+  (import paresseux de `youtube-transcript-api`). Dépendance backend ajoutée.
+- **Extension (Lot 2)** :
+  - Popup : détection d'onglet vidéo (allowlist locale) → « Vidéo détectée — importer la
+    transcription », matière/chapitre/niveau, titre éditable (nettoyé), envoi + feedback
+    « Importé en attente ». Cas « transcription indisponible » géré (message + repli).
+  - Orchestration **hybride** : `POST /clip-url` (serveur) d'abord ; si `transcript_unavailable`,
+    **repli DOM** — le content script scrape le panneau « Transcription » de l'onglet actif
+    (`activeTab`, action utilisateur) puis `POST /clip`.
+  - Menu contextuel « Importer la transcription de cette vidéo » (restreint aux pages YouTube).
+  - `api.ts` : `postClipUrl` + `ApiError.code` (detail structuré) pour piloter le repli.
+- Tests backend : `clip-url` → `pending` (récupérateur mocké), `400 unsupported_url` (hôte hors
+  allowlist), `400 transcript_unavailable`, + unit `validate_video_url`.
+
+### Décisions
+
+- ADR-0006 **addendum étape 20** : exception SSRF bornée (fetch serveur limité aux hôtes vidéo
+  allowlistés, URL validée avant appel), architecture hybride serveur→repli client, ingestion
+  `pending`, dépendance `youtube-transcript-api`.
+- Aucune nouvelle `host_permissions` large (repli via `activeTab`) ; token toujours dans
+  `chrome.storage.local` ; contrats `/rag/documents` et `/rag/clip` inchangés.
+- Reporté (étapes 21+) : OCR image, audio/podcast, file d'attente offline, multi-onglets,
+  autres plateformes vidéo.
+
+## 0.11.0 — Extension navigateur `zetis-clip` : capture de sources RAG (Papa) — étape 19 (Lot 1)
+
+Date : 2026-07-01
+
+> Note de versionnage : la version `0.10.0` / le libellé « étape 19 » étant déjà pris par la
+> refonte Matières, cette livraison (décrite dans le prompt comme « étape 19 — zetis-clip »)
+> est publiée en `0.11.0`. Cf. ADR-0006.
+
+### Ajouté
+
+- **Nouvelle app `apps/extension-zetis-clip`** (Manifest V3, Vite + `@crxjs/vite-plugin`, TS strict, Tailwind v4) — outil **Papa** de capture de sources vers le RAG. Réutilise `@zetis/ui` et la logique d'auth de `@zetis/auth`. Tout arrive en statut **`pending`** (relecture obligatoire dans « Sources de cours »).
+  - **Popup** : type détecté (page / sélection / PDF), aperçu éditable du texte, titre, sélecteur de matière (`GET /subjects`), chapitre en texte libre autocomplété, niveau optionnel, envoi + feedback « Importé en attente ».
+  - **Content script** : extraction `@mozilla/readability` (anti-SSRF : pas de fetch backend d'URL arbitraire), capture de la sélection, détection PDF.
+  - **Service worker** : menus contextuels « Envoyer la sélection / la page à ZETIS », client API, `POST /api/rag/clip` (texte) ou `POST /api/rag/upload` (PDF), feedback par badge.
+  - **Page Options** : URL backend (+ permission d'hôte à la volée) et connexion Papa.
+  - Token JWT dans `chrome.storage.local` (jamais `localStorage`).
+- **Backend `POST /api/rag/clip`** : endpoint mince qui réutilise `ingest_document(validation_status="pending")` (pipeline étape 12, inchangé). `400` si texte vide. Provenance (`source_url`) conservée dans le contenu — aucune migration. Tests : `test_clip_lands_pending_and_keeps_provenance`, `test_clip_rejects_empty_text`.
+
+### Décisions
+
+- ADR-0006 (Accepté) : nouvelle app + dépendances `@crxjs/vite-plugin` et `@mozilla/readability`, capture côté Papa, ingestion `pending`, extraction client (anti-SSRF), token en `chrome.storage.local`.
+- Aucune auto-validation : le contrat de `POST /api/rag/documents` (= `validated`) n'est pas modifié. Pas de nouvelle table, pas de worker, pas de modification du CORS backend.
+- Reporté (étape 20+) : transcript vidéo, OCR image, audio, file d'attente offline, import multi-onglets.
+
 ## 0.10.0 — Refonte page Matières + header global animé Massimo (étape 19)
 
 Date : 2026-06-30

@@ -1,6 +1,7 @@
 import json
 
 from app.modules.ai.provider import LLMRequest, LLMResponse
+from app.modules.rag.transcript import TranscriptError
 
 
 class FakeEmbeddingProvider:
@@ -56,3 +57,22 @@ class FakeLLMProvider:
             ],
         }
         return LLMResponse(text=json.dumps(payload), model="fake", duration_ms=1)
+
+
+class FakeTranscriptFetcher:
+    """Récupérateur de transcription déterministe (aucun appel réseau)."""
+
+    def __init__(
+        self,
+        text: str = "This is a test transcript about the present perfect tense.",
+        language: str = "en",
+        available: bool = True,
+    ) -> None:
+        self._text = text
+        self._language = language
+        self._available = available
+
+    def fetch(self, video_id: str) -> tuple[str, str]:
+        if not self._available:
+            raise TranscriptError("Transcription désactivée pour cette vidéo.")
+        return self._text, self._language
