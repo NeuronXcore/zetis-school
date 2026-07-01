@@ -83,7 +83,7 @@ class YouTubeTranscriptFetcher:
             ) from exc
 
         try:
-            listing = YouTubeTranscriptApi.list_transcripts(video_id)
+            listing = _list_transcripts(YouTubeTranscriptApi, video_id)
             transcript = _pick_transcript(listing)
             segments = transcript.fetch()
             language = getattr(transcript, "language_code", "") or ""
@@ -96,6 +96,16 @@ class YouTubeTranscriptFetcher:
         if not text:
             raise TranscriptError("Transcription vide.")
         return text, language
+
+
+def _list_transcripts(api_cls: object, video_id: str) -> object:
+    """Liste les transcriptions disponibles, quelle que soit la version de la lib.
+
+    0.6.x : classmethod `YouTubeTranscriptApi.list_transcripts(video_id)`.
+    1.x    : méthode d'instance `YouTubeTranscriptApi().list(video_id)`."""
+    if hasattr(api_cls, "list_transcripts"):
+        return api_cls.list_transcripts(video_id)  # type: ignore[attr-defined]
+    return api_cls().list(video_id)  # type: ignore[operator]
 
 
 def _pick_transcript(listing: object):

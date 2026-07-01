@@ -156,6 +156,23 @@ def test_validate_video_url_extracts_id_and_rejects_bad_hosts() -> None:
         validate_video_url("http://127.0.0.1/watch?v=x")  # IP littérale hors allowlist
 
 
+def test_list_transcripts_supports_both_library_apis() -> None:
+    # Garde anti-régression : youtube-transcript-api 0.6.x (classmethod) vs 1.x (instance).
+    from app.modules.rag.transcript import _list_transcripts
+
+    class OldApi:  # 0.6.x
+        @classmethod
+        def list_transcripts(cls, video_id: str) -> str:
+            return f"old:{video_id}"
+
+    class NewApi:  # 1.x
+        def list(self, video_id: str) -> str:
+            return f"new:{video_id}"
+
+    assert _list_transcripts(OldApi, "vid") == "old:vid"
+    assert _list_transcripts(NewApi, "vid") == "new:vid"
+
+
 def test_clip_url_ingests_transcript_pending(client_db) -> None:
     # Transcription (récupérateur mocké) → ingestion `pending`, langue conservée.
     client, Session = client_db
