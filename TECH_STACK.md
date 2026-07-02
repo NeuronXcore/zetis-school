@@ -154,22 +154,14 @@ Ne jamais appeler un provider directement depuis les routes frontend ou les comp
 
 ## Vidéo / capsules IA
 
-### MVP
+Moteur retenu (ADR-0007) : **Remotion** (React). La capsule = **spec typé** joué par des
+composants Remotion que nous écrivons.
 
-- script ;
-- storyboard ;
-- slides/images ;
-- audio ;
-- rendu simple.
-
-### V2
-
-- Remotion ;
-- ffmpeg ;
-- génération images IA ;
-- avatar animé ZETIS ;
-- sous-titres ;
-- quiz intégré.
+- **Lot 1** : aperçu in-browser (`@remotion/player`), voix **Piper** (TTS par scène).
+- **Lot 2** : rendu **MP4** sandboxé dans **worker-media** (RQ + `@remotion/renderer`, Chromium +
+  ffmpeg), stockage **MinIO** (repli disque).
+- Différé : inserts **Manim**, génération d'images IA, avatar animé ZETIS, sous-titres, quiz
+  intégré.
 
 ## Authentification
 

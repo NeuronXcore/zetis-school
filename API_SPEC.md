@@ -332,25 +332,80 @@ Recherche contextuelle (top-k cosinus). Corps : `{ query, subject_id?, k? }`.
 
 ## Capsules IA
 
-### POST `/capsules/generate`
+Préfixe réel : `/api/capsules`. Micro-vidéos pédagogiques typées (`CapsuleSpec`)
+générées par IA, voix Piper par scène, rendu MP4 asynchrone (worker-media / Remotion).
+Cycle de vie : `pending` → (voix) → `validated` → `rendering` → MP4 disponible.
 
-Génère une capsule à partir d’une notion.
+### POST `/capsules/generate` (Papa)
 
-### GET `/capsules`
+Génère un `CapsuleSpec` et persiste la capsule (statut `pending`).
+Corps : `{ subject_id, instruction, level?, skill_id?, chapter_id?, visual, duration, difficulty }`.
+Réponse `201` : `CapsuleOut`.
 
-Liste capsules.
+### GET `/capsules` (Papa)
 
-### GET `/capsules/{id}`
+Liste les capsules : `[CapsuleListItem]`.
 
-Détail.
+### GET `/capsules/{id}` (Papa)
 
-### POST `/capsules/{id}/validate`
+Détail : `CapsuleOut` (inclut `spec_json`, aperçu via `@remotion/player`).
 
-Validation Papa.
+### PUT `/capsules/{id}/spec` (Papa)
 
-### POST `/capsules/{id}/publish`
+Remplace le spec (revalidé par le schéma) ; la capsule repasse en `pending`.
+Corps : `{ spec }`.
 
-Publication Massimo.
+### POST `/capsules/{id}/regenerate` (Papa)
+
+Régénère le spec. Corps : `{ instruction?, visual, duration, difficulty? }`.
+
+### POST `/capsules/{id}/classify` (Papa)
+
+(Re)rattache la capsule à un chapitre pour le regroupement. Corps : `{ chapter_id }`.
+
+### POST `/capsules/{id}/voice` (Papa)
+
+Synthétise la voix (Piper) scène par scène et cale les durées sur la narration.
+
+### POST `/capsules/{id}/validate` (Papa)
+
+Valide la capsule. Si la voix est prête, enfile aussi le rendu MP4 (auto).
+
+### POST `/capsules/{id}/reject` (Papa)
+
+Rejette la capsule (`validation_status = rejected`).
+
+### POST `/capsules/{id}/render` (Papa)
+
+Enfile le rendu MP4 (asynchrone, worker-media). Capsule → `rendering`.
+Réponse `202 Accepted` : `CapsuleOut`.
+
+### DELETE `/capsules/{id}` (Papa)
+
+Supprime la capsule. Réponse `204`.
+
+### GET `/capsules/{id}/audio/{scene_index}?token=` (Papa)
+
+Sert le WAV d'une scène. Papa-only via JWT en query param (`<audio>` ne peut pas
+envoyer d'en-tête `Authorization` en cross-origin). `401` si token invalide/absent.
+
+### GET `/capsules/library` (Massimo)
+
+Capsules validées **et rendues** (MP4 disponible), prêtes à regarder.
+Réponse : `[CapsulePublicItem]`, chaque item porte un flag `seen`.
+
+### GET `/capsules/stats` (Massimo)
+
+Compteurs enfant : `{ total, seen_count, new_count }`.
+
+### POST `/capsules/{id}/view` (Massimo)
+
+Marque une capsule comme vue (idempotent), au démarrage de la lecture. Réponse `204`.
+
+### GET `/capsules/{id}/video?token=` (Massimo)
+
+Sert le MP4 rendu. JWT en query param (`<video>`, rôles enfant ou Papa).
+`404` si la capsule n'est pas `validated` ou sans vidéo.
 
 ## Mindmaps
 
@@ -404,7 +459,9 @@ Sortie :
 | `/missions/today` | oui | oui | oui |
 | `/progress/summary` | lecture limitée | oui | oui |
 | `/school-years` POST | non | oui | oui |
-| `/capsules/{id}/validate` | non | oui | oui |
+| `/capsules/{id}/validate` POST | non | oui | oui |
+| `/capsules/library` GET | oui | oui | oui |
+| `/capsules/{id}/view` POST | oui | oui | oui |
 | `/diagnostics/generate` POST | non | oui | oui |
 | `/diagnostics/quizzes/{id}/submit` POST | oui | oui | oui |
 | `/diagnostics/results` GET | non | oui | oui |

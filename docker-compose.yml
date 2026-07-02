@@ -9,6 +9,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks: [default, internal]
 
   redis:
     image: redis:7-alpine
@@ -16,6 +17,7 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
+    networks: [default, internal]
 
   minio:
     image: minio/minio:latest
@@ -28,8 +30,43 @@ services:
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
+    networks: [default, internal]
+
+  # Rendu MP4 sandboxé des capsules (ADR-0007 §7). Profil `render` : non démarré par un
+  # `docker compose up` de dev (build lourd Chromium). Réseau `internal` = pas d'egress
+  # internet ; joint uniquement redis/minio/postgres. Limites CPU/RAM + timeout de rendu.
+  # NB : nécessite un backend containerisé écrivant l'audio sur le volume partagé.
+  worker-media:
+    build:
+      context: .
+      dockerfile: infra/docker/worker-media.Dockerfile
+    depends_on: [redis, minio, postgres]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zetis}:${POSTGRES_PASSWORD:-zetis_dev_password}@postgres:5432/${POSTGRES_DB:-zetis}
+      STORAGE_BACKEND: minio
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-zetis_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-zetis_minio_password}
+      MINIO_BUCKET_CAPSULES: ${MINIO_BUCKET_CAPSULES:-capsules}
+      AUDIO_STORAGE_DIR: /shared/audio
+      REMOTION_TIMEOUT: ${REMOTION_TIMEOUT:-600}
+    volumes:
+      - capsule_audio:/shared/audio
+    networks: [internal]
+    mem_limit: 2g
+    cpus: 1.5
+    restart: unless-stopped
+    profiles: [render]
+
+networks:
+  # Réseau sans accès internet (garde-fou rendu) : les services qui y sont joints ne peuvent
+  # joindre que les autres services du réseau, pas l'extérieur.
+  internal:
+    internal: true
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  capsule_audio:

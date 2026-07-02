@@ -7,6 +7,7 @@
 - `docs/decisions/adr-0003-monorepo.md`
 - `docs/decisions/adr-0004-postgresql-pgvector.md`
 - `docs/decisions/adr-0005-capsules-ia-progressives.md`
+- `docs/decisions/adr-0007-capsules-ia-remotion.md` — Capsules IA : moteur Remotion (capsule = spec typé ; Player Lot 1 + rendu MP4 Lot 2) — Accepté (2026-07-01)
 
 ## Quand créer un ADR ?
 

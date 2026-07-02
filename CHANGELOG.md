@@ -1,5 +1,25 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.11.0 — Capsules IA : Remotion + rendu MP4 + voix Piper (étape 20)
+
+Date : 2026-07-01
+
+### Ajouté
+
+- **Rendu MP4 sandboxé** (ADR-0007) : le **worker-media** consomme une file **RQ** et rend chaque capsule en vidéo via **Remotion/Node** (Chromium + ffmpeg), isolé du backend. La vidéo est stockée sur **MinIO** (repli disque) et **lue côté Massimo**.
+- **Voix off Piper par scène** : synthèse vocale locale (abstraction TTS, provider Piper) — la **narration pilote la durée de chaque scène**.
+- **Vocabulaire de scènes étendu à 9 types** : ajout de `barmodel`, `geometry`, `steps`, `timeline`, `diagram`.
+- **Regroupement matière → chapitre** de la bibliothèque de capsules (Massimo), avec **recherche** et **icônes de matière**.
+- **Difficulté** (facile / moyen / difficile) et option de **durée ≈ 1 min** pilotant la génération (**prompt v5**).
+- **Suivi des visionnages** Massimo : marquage vu / nouvelles capsules / **compteur de répétitions**.
+- **Pilotage Papa** : modale de création (badge **capsule-AI**), **édition JSON** du spec, **barres de progression live** (génération / voix / rendu) et **rendu automatique à la validation**.
+
+### Décisions
+
+- Capsule = **spec typé** (JSON versionné) rendu par un **moteur Remotion** : Player à l'écran (Lot 1) puis rendu **MP4** hors-ligne (Lot 2), cf. `docs/decisions/adr-0007-capsules-ia-remotion.md`.
+- Rendu vidéo **sandboxé** dans le worker-media (RQ), jamais dans le process backend ; artefacts sur MinIO.
+- Routes capsules **réservées à Papa** ; Massimo ne consulte que la bibliothèque validée et enregistre ses visionnages.
+
 ## 0.10.0 — Refonte page Matières + header global animé Massimo (étape 19)
 
 Date : 2026-06-30
