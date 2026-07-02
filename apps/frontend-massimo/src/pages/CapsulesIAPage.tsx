@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SoundToggle, useCelebrate } from "@zetis/ui";
 import { PageHeader } from "../components/PageHeader";
 import {
   type CapsulePublicItem,
@@ -12,6 +13,23 @@ import { DifficultyBadge } from "../components/DifficultyBadge";
 import { groupBySubjectChapter } from "../lib/groupCapsules";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { subjectIconFor } from "../lib/subjectIcons";
+
+// Mémorise les capsules déjà « célébrées » (localStorage) pour ne fêter chaque nouveauté qu'UNE fois.
+const CELEBRATED_KEY = "zetis:celebratedCapsules";
+function loadCelebrated(): Set<number> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(CELEBRATED_KEY) ?? "[]") as number[]);
+  } catch {
+    return new Set();
+  }
+}
+function saveCelebrated(ids: Set<number>): void {
+  try {
+    localStorage.setItem(CELEBRATED_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* stockage indisponible */
+  }
+}
 
 // Icône de matière : PNG dédié (assets/subjects) si dispo, sinon repli emoji.
 function SubjectIcon({ slug, size = 20 }: { slug: string; size?: number }) {
@@ -40,34 +58,59 @@ export function CapsulesIAPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const celebrate = useCelebrate();
 
   useEffect(() => {
     Promise.all([fetchCapsuleLibrary(), fetchCapsuleStats().catch(() => null)])
       .then(([list, s]) => {
         setItems(list);
         setStats(s);
+        // Fête les capsules fraîchement apparues (non vues et jamais célébrées).
+        const celebrated = loadCelebrated();
+        const fresh = list.filter((c) => !c.seen && !celebrated.has(c.id));
+        if (fresh.length > 0) {
+          fresh.forEach((c) => celebrated.add(c.id));
+          saveCelebrated(celebrated);
+          celebrate({
+            title: fresh.length === 1 ? "Nouvelle capsule !" : `${fresh.length} nouvelles capsules !`,
+            subtitle: fresh.length === 1 ? fresh[0].title : undefined,
+          });
+        }
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Chargement échoué"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [celebrate]);
 
   // À la FIN de la vidéo (regardée jusqu'au bout) : enregistre la vue + MAJ optimiste.
+  // Chaque visionnage complet incrémente `view_count` (répétitions incluses) ; « vue distincte »
+  // et « nouvelle » ne bougent que la 1re fois.
   function onEnded(c: CapsulePublicItem) {
     const wasUnseen = items.find((it) => it.id === c.id)?.seen === false;
     recordCapsuleView(c.id).catch(() => {});
     if (wasUnseen) {
       setItems((prev) => prev.map((it) => (it.id === c.id ? { ...it, seen: true } : it)));
-      setStats((s) =>
-        s ? { ...s, seen_count: s.seen_count + 1, new_count: Math.max(0, s.new_count - 1) } : s,
-      );
     }
+    setStats((s) =>
+      s
+        ? {
+            ...s,
+            view_count: s.view_count + 1,
+            seen_count: wasUnseen ? s.seen_count + 1 : s.seen_count,
+            new_count: wasUnseen ? Math.max(0, s.new_count - 1) : s.new_count,
+          }
+        : s,
+    );
   }
 
   const shelves = groupBySubjectChapter(items, search);
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Capsules IA" subtitle="De courtes vidéos pour comprendre une notion." />
+      <PageHeader
+        title="Capsules IA"
+        subtitle="De courtes vidéos pour comprendre une notion."
+        right={<SoundToggle />}
+      />
 
       {error && (
         <p className="mb-4 rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300">{error}</p>
@@ -93,6 +136,11 @@ export function CapsulesIAPage() {
                 👁️ {stats.seen_count} capsule{stats.seen_count > 1 ? "s" : ""} vue
                 {stats.seen_count > 1 ? "s" : ""}
               </span>
+              {stats.view_count > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-zetis-surface-2 px-3 py-1 font-semibold text-zetis-accent">
+                  🎬 {stats.view_count} visionnage{stats.view_count > 1 ? "s" : ""}
+                </span>
+              )}
             </div>
           )}
 

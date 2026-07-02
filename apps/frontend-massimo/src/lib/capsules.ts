@@ -19,6 +19,7 @@ export interface CapsuleStats {
   total: number;
   seen_count: number;
   new_count: number;
+  view_count: number;
 }
 
 function headers(): HeadersInit {

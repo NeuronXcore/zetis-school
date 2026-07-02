@@ -48,6 +48,21 @@ def test_stats_new_equals_total_minus_seen(client_db) -> None:
         assert (st["total"], st["seen_count"], st["new_count"]) == (2, 1, 1)
 
 
+def test_stats_view_count_sums_repeats(client_db) -> None:
+    _, Session = client_db
+    with Session() as db:
+        a = _published(db)
+        b = _published(db)
+        sid = get_default_student(db).id
+        assert service.capsule_stats(db, sid)["view_count"] == 0
+        service.record_view(db, sid, a.id)
+        service.record_view(db, sid, a.id)  # revoir a → +1 sur son compteur
+        service.record_view(db, sid, b.id)
+        st = service.capsule_stats(db, sid)
+        assert st["view_count"] == 3  # 2 (a) + 1 (b) : répétitions incluses
+        assert st["seen_count"] == 2  # mais 2 capsules distinctes vues
+
+
 def test_record_view_unpublished_raises_404(client_db) -> None:
     _, Session = client_db
     with Session() as db:
