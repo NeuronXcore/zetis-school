@@ -137,8 +137,16 @@ retouche), `llama3.3:70b`, `mistral-large` (familles ≠ → vérifier taux de J
 | ollama | **llama3.3:70b** | 9/9 ✅ | ~44 s / ~78 s | ELI5 clair (distance à zéro) ; **capsule bien calibrée** (évite « cathètes ») ; **le + rapide des gros** ; famille ≠ (mesuré OK) |
 | ollama | mistral-large (123B) | 9/9 ✅ | ~77 s / ~171 s | ELI5 riche (droite + échelle + dette) ; capsule bien calibrée ; **beaucoup trop lent** (~3 min/capsule), sans avantage qualité net |
 | ollama | **qwen3.6:35b-a3b** (MoE) | 9/9 ✅¹ | **~5,6 s / ~11 s** | Qualité ≈ 72b (ELI5 riche : dette, temp.) ; capsule « cathètes » comme 72b ; **le + rapide de tous** (~8× le 72b). ⚡ **Meilleur rapport qualité/vitesse** |
-| openai | gpt-4o (réf. cloud) | _clé requise_ | | (comparaison différée — pas de clé) |
-| anthropic | claude-sonnet-5 (réf. cloud) | _clé requise_ | | (comparaison différée — pas de clé) |
+| openai | gpt-4o (réf. cloud) | 9/9 ✅ | ~2 s / ~3,4 s | Correct mais **concis/sec** (json_object) — moins riche que le local |
+| anthropic | claude-sonnet-5 (réf. cloud) | 9/9 ✅ | ~8 s / ~7 s | **Riche et créatif** (ascenseur/parking) ≈ qwen3.6 ; raisonnement étendu activé |
+
+**Comparaison cloud (2026-07-02, prompts génériques)** : sur ELI5, **le local `qwen3.6:35b-a3b` égale
+Claude Sonnet 5 en richesse pédagogique (analogies variées : dette + thermomètre) et dépasse GPT-4o**
+(plus sec/textbook). Les 3 rendent 9/9 JSON valide. **Conclusion : aucun gain de qualité à passer au
+cloud** pour les tâches ZETIS → la décision de rester 100 % local (qwen3.6) est confirmée ET validée
+par la référence cloud, avec le bénéfice vie privée (données de Massimo jamais envoyées à un tiers).
+Notes d'intégration bench : Sonnet 5 déprécie `temperature` et renvoie un bloc `thinking` + du JSON
+entouré de balises ``` → le harnais extrait les blocs `text` et retire les balises (`_unfence`).
 
 ¹ **Qwen3 « thinking » (important)** : par défaut, le JSON part dans le champ `thinking` d'ollama et
 `response` est **vide** → sortie invalide. Il faut passer **`think: false`** dans la requête ollama.

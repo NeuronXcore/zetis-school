@@ -213,8 +213,9 @@ def call_anthropic(url: str, model: str, task: Task, timeout: float, api_key: st
     (« réponds UNIQUEMENT en JSON ») et on mesure le taux de validité."""
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY absente (export la clé pour la comparaison cloud)")
+    # NB : `temperature` est déprécié sur les modèles Claude récents (Sonnet 5) → on ne l'envoie
+    # pas (400 sinon). Défaut du modèle utilisé.
     payload: dict = {"model": model, "system": task.system, "max_tokens": 4096,
-                     "temperature": 0.2,
                      "messages": [{"role": "user", "content": task.prompt}]}
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
                "content-type": "application/json"}
@@ -223,8 +224,10 @@ def call_anthropic(url: str, model: str, task: Task, timeout: float, api_key: st
     r.raise_for_status()
     elapsed = time.monotonic() - start
     data = r.json()
+    # Sonnet 5 a le raisonnement étendu activé : content[0] peut être un bloc `thinking`.
+    # On concatène uniquement les blocs de type `text`.
     parts = data.get("content", [])
-    text = parts[0].get("text", "") if parts else ""
+    text = "".join(b.get("text", "") for b in parts if b.get("type") == "text")
     toks = int(data.get("usage", {}).get("output_tokens", 0))
     return RunResult(True, elapsed, toks, text)
 
@@ -272,6 +275,7 @@ def run_matrix(args) -> list[Cell]:
                 except Exception as exc:  # injoignable, timeout, 4xx/5xx
                     cell.error = f"{type(exc).__name__}: {str(exc)[:100]}"
                     break
+                res.text = _unfence(res.text)  # normalise (retire balises markdown éventuelles)
                 cell.total += 1
                 cell.latencies.append(res.elapsed_s)
                 if res.completion_tokens and res.elapsed_s > 0:
@@ -284,6 +288,17 @@ def run_matrix(args) -> list[Cell]:
                       f"{res.elapsed_s:.1f}s, {res.completion_tokens} tok, {detail}")
             cells.append(cell)
     return cells
+
+
+def _unfence(text: str) -> str:
+    """Retire un éventuel bloc markdown ```json … ``` autour du JSON (certains modèles, dont
+    Claude, en ajoutent malgré la consigne). Appliqué uniformément à tous les providers."""
+    t = text.strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[1] if "\n" in t else ""
+        if t.rstrip().endswith("```"):
+            t = t.rstrip()[:-3]
+    return t.strip()
 
 
 def _fmt(nums: list[float]) -> str:
