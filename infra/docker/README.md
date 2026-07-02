@@ -36,8 +36,9 @@ jamais les deux en même temps. Les données prod vivent dans des volumes sépar
 ### Prérequis & limites
 
 - Ollama sur l'hôte avec le modèle pull (`qwen3.6:35b-a3b`) et `nomic-embed-text` (RAG).
-- **Voix Piper (TTS)** : le binaire `piper` + le modèle FR `.onnx` ne sont pas encore dans l'image
-  backend → la narration des capsules est dégradée en prod-like tant qu'on ne les ajoute pas (suite).
+- **Voix Piper (TTS)** : `piper-tts` (extra `[tts]`) + le modèle FR `fr_FR-siwis-medium` sont **bakés
+  dans l'image backend** → la narration des capsules fonctionne en conteneur (piper-tts embarque la
+  phonémisation, pas besoin d'`espeak-ng` système). Modèle téléchargé au build depuis `rhasspy/piper-voices`.
 - Le 1er `up` construit les images (long : worker-media télécharge Chromium ~300 Mo). Si un build
   timeoute (`DeadlineExceeded` de BuildKit), pré-puller l'image de base une fois
   (`docker pull python:3.11-slim-bookworm`, `node:20-bookworm-slim`, `nginx:1.27-alpine`) puis relancer.
