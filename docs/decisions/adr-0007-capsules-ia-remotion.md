@@ -196,3 +196,66 @@ livrée. Un point d'implémentation précise le §5 (« sortie JSON stricte ») 
   aucun spec invalide renvoyé ni persisté.
 - `build_prompt(instruction, subject, level, skill=None) -> (system, prompt)` intègre le
   few-shot dans la chaîne `prompt` (conforme à l'API réelle).
+
+## Addendum — 2026-07-02 · Lot 1 + Lot 2 livrés, vocabulaire étendu, pilotage enrichi
+
+État réel sur la branche `feat/capsules-ia-remotion`, au-delà de la Slice A ci-dessus.
+
+### Vocabulaire de scènes : 4 → 9 `kind`
+
+Le §2 listait 4 `kind` (title/bullet/definition/numberline). Le vocabulaire fermé en compte
+désormais **9** (l'extension « scène par scène » prévue au §2 ; chaque ajout = type
+`@zetis/types` + modèle Pydantic + composant Remotion + few-shot + option de formulaire) :
+`title`, `bullet`, `definition`, `numberline`, **`barmodel`** (barre de fractions),
+**`geometry`** (triangle rectangle / triangle / rectangle, côtés libellés — Pythagore, aires),
+**`steps`** (étapes numérotées), **`timeline`** (frise chronologique — Histoire),
+**`diagram`** (schéma annoté autour d'un concept central — SVT / physique). Chaque scène porte
+en plus `narration` (texte écrit par le LLM) et `audioUrl` (piste TTS remplie par le serveur).
+Bornes actualisées : **4 à 9 scènes**, `durationInFrames` 60→900 (la voix pilote la durée),
+première scène toujours `title`.
+
+### Lot 1 livré (Papa) — + narration vocale
+
+Génération / CRUD / aperçu `@remotion/player` / validation opérationnels. Ajout de la **voix
+Piper** (module `app/modules/tts/`, `TtsProvider` / `PiperProvider`, `POST /{id}/voice`) : TTS
+par scène, la durée de chaque scène s'aligne sur sa narration. Trace `ai_jobs` `capsule_voice`.
+
+### Lot 2 livré — rendu MP4 sandboxé (détail dans `docs/ai/capsules-ia.md` §Lot 2)
+
+`worker-media` (Python RQ, process séparé) consomme un job Redis et rend la composition via
+`@remotion/renderer` (Chromium headless + ffmpeg, `licenseKey:"free-license"`) ; stockage via
+`VideoBackend` (**MinIO** ou disque en dev, `STORAGE_BACKEND`). `POST /{id}/render` (async, 202)
+→ `status` `rendering` → `published` (+ `video_url`). **Massimo** : `GET /library` (validées +
+rendues uniquement), `GET /{id}/video?token=`, `POST /{id}/view`, `GET /stats`. Inserts Manim
+et migration audio→MinIO **toujours différés**.
+
+### Rendu auto à la validation
+
+`service.validate_capsule` : valider une capsule dont la voix est prête **enfile aussitôt** le
+rendu MP4 (plus de clic « Rendre » manuel). Un échec d'enfilement (Redis KO) ne casse pas la
+validation (retour en `draft`) — la robustesse locale prime.
+
+### Axes de génération (prompt `v1` → `v5`)
+
+`build_prompt(instruction, subject, level, skill, visual, duration, difficulty)`. À la
+génération, Papa choisit : le **visuel pédagogique** (auto + 6 scènes ciblées), la **durée**
+(courte / moyenne / longue / ≈ 1 min) et la **difficulté** (`facile` / `moyen` / `difficile`,
+⭐ / ⭐⭐ / ⭐⭐⭐) — la difficulté pilote strictement le niveau de langue et d'abstraction (badge
+côté Massimo).
+
+### Données (complète le §6)
+
+Table `capsules` : + `chapter_id` (FK `chapters` — regroupement matière → chapitre),
+`difficulty`, `status` (cycle de rendu), `video_url`. Nouvelle table **`capsule_views`**
+(`CapsuleView`, unique `(student, capsule)`, colonne `count`) = visionnages complets de Massimo
+(répétitions + « vu / nouvelles » + `view_count` exposé à Papa). Migrations Alembic dédiées.
+
+### Pilotage Papa & lecture Massimo (UI)
+
+- **Papa** : liste **groupée par matière → chapitre** + recherche + icônes de matière ; **modale
+  de création** (badge capsule-AI) ; **modale d'édition JSON** brute du spec (revalidée →
+  `pending`) ; compteur « vue N fois » ; **barres de progression** live (%) pendant génération /
+  voix / rendu.
+- **Massimo** : **étagères par matière / chapitre**, badges « Nouveau » + difficulté, compteurs
+  (nouvelles / capsules vues), **lecteur MP4 plein écran**, visionnage compté à la fin
+  (`onEnded`).

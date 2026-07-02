@@ -7,7 +7,11 @@ import {
   BulletScene,
   CAPSULE_BG,
   DefinitionScene,
+  DiagramScene,
+  GeometryScene,
   NumberlineScene,
+  StepsScene,
+  TimelineScene,
   TitleScene,
 } from "./scenes";
 
@@ -23,6 +27,14 @@ function renderScene(scene: CapsuleScene) {
       return <NumberlineScene scene={scene} />;
     case "barmodel":
       return <BarmodelScene scene={scene} />;
+    case "geometry":
+      return <GeometryScene scene={scene} />;
+    case "steps":
+      return <StepsScene scene={scene} />;
+    case "timeline":
+      return <TimelineScene scene={scene} />;
+    case "diagram":
+      return <DiagramScene scene={scene} />;
   }
 }
 

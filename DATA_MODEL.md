@@ -375,17 +375,36 @@ updated_at
 id
 subject_id
 skill_id optional
+chapter_id optional      # rattachement pédagogique matière → chapitre (regroupement listes Papa/Massimo)
+difficulty optional      # facile | moyen | difficile (choisi par Papa, pilote la génération IA)
 title
 summary
 script_markdown
 storyboard_json
 audio_url optional
-video_url optional
+video_url optional        # chemin API du MP4 rendu
 thumbnail_url optional
-status             # draft | validated | published | archived
+status             # cycle de rendu MP4 : draft | rendering | published | failed
+instruction optional     # texte du prompt Papa (génération LLM → CapsuleSpec)
+spec_json                # CapsuleSpec typé (JSON)
+validation_status        # pending | validated | rejected
 created_at
 updated_at
 ```
+
+### CapsuleView
+
+Visionnage complet d’une capsule par Massimo. La ligne existe dès le premier visionnage : « vu » = une ligne existe, « capsules distinctes vues » = nombre de lignes.
+
+```txt
+id
+student_id               # FK profil élève
+capsule_id               # FK capsules
+viewed_at                # dernier visionnage complet
+count                    # nombre total de visionnages complets (défaut 1)
+```
+
+Contrainte unique `(student_id, capsule_id)`.
 
 ### Mindmap
 

@@ -24,6 +24,32 @@ export type CapsuleScene =
       parts: number;
       filled: number;
       caption?: string;
+    })
+  | (SceneCommon & {
+      // Figure géométrique animée (Pythagore, aires, angles). Vocabulaire fermé de formes.
+      kind: "geometry";
+      shape: "right_triangle" | "triangle" | "rectangle";
+      labels?: { a?: string; b?: string; c?: string };
+      caption?: string;
+    })
+  | (SceneCommon & {
+      // Étapes de résolution qui apparaissent une à une (méthode, calcul, rédaction).
+      kind: "steps";
+      heading?: string;
+      steps: string[];
+    })
+  | (SceneCommon & {
+      // Frise chronologique : événements datés le long d'une ligne (Histoire).
+      kind: "timeline";
+      heading?: string;
+      events: { date: string; label: string }[];
+    })
+  | (SceneCommon & {
+      // Schéma annoté : un concept central entouré d'annotations (SVT, physique).
+      kind: "diagram";
+      heading?: string;
+      center: string;
+      labels: string[];
     });
 
 export interface CapsuleSpec {

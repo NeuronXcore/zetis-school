@@ -9,6 +9,7 @@ Slice A : aucune route, aucune persistance du spec — on renvoie l'objet valid�
 """
 
 import copy
+import logging
 import math
 from datetime import datetime, timezone
 
@@ -17,12 +18,14 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import AIJob, Capsule, Skill, Subject
+from app.db.models import AIJob, Capsule, CapsuleView, Chapter, Skill, Subject
 from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.capsules import storage
 from app.modules.capsules.schemas import FPS, MAX_DURATION, CapsuleSpec, generation_schema
 from app.modules.tts.provider import TtsProvider, TtsRequest
 from app.prompts import capsule
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_LEVEL = "4e"
 VALIDATION_STATUSES = ("pending", "validated", "rejected")
@@ -70,15 +73,16 @@ def generate_capsule_spec(
     skill: str | None = None,
     visual: str = "auto",
     duration: str = "moyenne",
+    difficulty: str = "moyen",
 ) -> CapsuleSpec:
     """Génère un `CapsuleSpec` validé à partir d'une instruction Papa. Trace `ai_jobs`.
 
-    `visual`/`duration` = choix Papa (droite graduée, fractions, durée du clip…).
+    `visual`/`duration`/`difficulty` = choix Papa (droite graduée, durée du clip, niveau).
     Lève `CapsuleGenerationError` si la sortie reste invalide après une réparation (rien
     n'est renvoyé ni persisté dans ce cas).
     """
     system, prompt = capsule.build_prompt(
-        instruction, subject, level, skill, visual=visual, duration=duration
+        instruction, subject, level, skill, visual=visual, duration=duration, difficulty=difficulty
     )
     # narration forcée requise pour la génération (le stockage reste tolérant).
     schema = generation_schema()
@@ -94,6 +98,7 @@ def generate_capsule_spec(
             "skill": skill,
             "visual": visual,
             "duration": duration,
+            "difficulty": difficulty,
             "prompt_version": capsule.CAPSULE_PROMPT_VERSION,
         },
         created_by="parent",
@@ -169,6 +174,19 @@ def _resolve_context(db: Session, subject_id: int, skill_id: int | None) -> tupl
     return subject, skill
 
 
+def _validate_chapter(db: Session, chapter_id: int | None) -> None:
+    """Vérifie qu'un chapitre fourni existe (400 sinon). `None` = pas de classement."""
+    if chapter_id is not None and db.get(Chapter, chapter_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chapitre introuvable.")
+
+
+def _chapter_name(db: Session, chapter_id: int | None) -> str | None:
+    if chapter_id is None:
+        return None
+    chapter = db.get(Chapter, chapter_id)
+    return chapter.name if chapter else None
+
+
 def create_capsule(
     db: Session,
     llm: LLMProvider,
@@ -176,11 +194,14 @@ def create_capsule(
     instruction: str,
     level: str | None = None,
     skill_id: int | None = None,
+    chapter_id: int | None = None,
     visual: str = "auto",
     duration: str = "moyenne",
+    difficulty: str = "moyen",
 ) -> Capsule:
     """Génère un CapsuleSpec (trace ai_jobs) puis persiste la capsule en `pending`."""
     subject, skill = _resolve_context(db, subject_id, skill_id)
+    _validate_chapter(db, chapter_id)
     lvl = level or (skill.level if skill else None) or DEFAULT_LEVEL
     spec = generate_capsule_spec(
         db,
@@ -191,10 +212,13 @@ def create_capsule(
         skill=(skill.name if skill else None),
         visual=visual,
         duration=duration,
+        difficulty=difficulty,
     )
     capsule = Capsule(
         subject_id=subject.id,
         skill_id=skill_id,
+        chapter_id=chapter_id,
+        difficulty=difficulty,
         title=spec.title[:200],
         instruction=instruction,
         spec_json=spec.model_dump(),
@@ -233,12 +257,15 @@ def regenerate_capsule(
     instruction: str | None = None,
     visual: str = "auto",
     duration: str = "moyenne",
+    difficulty: str | None = None,
 ) -> Capsule:
     """Régénère le spec d'une capsule existante (instruction éventuellement modifiée)."""
     capsule = _capsule_or_404(db, capsule_id)
     subject, skill = _resolve_context(db, capsule.subject_id, capsule.skill_id)
     instr = instruction or capsule.instruction or ""
     lvl = (skill.level if skill else None) or DEFAULT_LEVEL
+    # Difficulté : celle demandée, sinon on conserve celle de la capsule (défaut « moyen »).
+    diff = difficulty or capsule.difficulty or "moyen"
     spec = generate_capsule_spec(
         db,
         llm,
@@ -248,8 +275,10 @@ def regenerate_capsule(
         skill=(skill.name if skill else None),
         visual=visual,
         duration=duration,
+        difficulty=diff,
     )
     capsule.instruction = instr
+    capsule.difficulty = diff
     capsule.spec_json = spec.model_dump()
     capsule.title = spec.title[:200]
     capsule.validation_status = "pending"
@@ -262,8 +291,19 @@ def delete_capsule(db: Session, capsule_id: int) -> None:
     capsule = _capsule_or_404(db, capsule_id)
     db.delete(capsule)
     db.commit()
-    # Nettoie les pistes audio sur disque (best-effort, après le commit DB).
+    # Nettoie les médias (audio disque + MP4) — best-effort, après le commit DB.
     storage.delete_capsule_audio(capsule_id)
+    storage.delete_capsule_video(capsule_id)
+
+
+def set_chapter(db: Session, capsule_id: int, chapter_id: int | None) -> Capsule:
+    """(Re)rattache une capsule à un chapitre (ou aucun si `None`). Papa-only."""
+    capsule = _capsule_or_404(db, capsule_id)
+    _validate_chapter(db, chapter_id)
+    capsule.chapter_id = chapter_id
+    db.commit()
+    db.refresh(capsule)
+    return capsule
 
 
 def set_validation(db: Session, capsule_id: int, new_status: str) -> Capsule:
@@ -276,6 +316,173 @@ def set_validation(db: Session, capsule_id: int, new_status: str) -> Capsule:
     db.commit()
     db.refresh(capsule)
     return capsule
+
+
+def validate_capsule(db: Session, capsule_id: int) -> Capsule:
+    """Papa valide une capsule. « Rendu auto à la validation » : si la voix est déjà
+    synthétisée, le rendu MP4 est enfilé aussitôt pour que Massimo l'ait sans clic manuel.
+
+    Un échec d'enfilement (file RQ / Redis indisponible) ne fait JAMAIS échouer la
+    validation : la capsule reste validée et Papa peut relancer le rendu à la main. La
+    robustesse locale prime sur l'automatisme (CLAUDE.md)."""
+    capsule = set_validation(db, capsule_id, "validated")
+    # Rien à rendre sans narration ; on n'enfile pas deux fois un rendu déjà en cours.
+    if not _has_narrated_audio(capsule.spec_json) or capsule.status == "rendering":
+        return capsule
+    try:
+        return request_render(db, capsule_id)
+    except HTTPException:
+        # Préconditions finalement non réunies : capsule simplement validée (sans rendu).
+        return capsule
+    except Exception:  # file RQ / Redis indisponible, etc.
+        logger.warning(
+            "Rendu auto à la validation impossible (capsule %s) ; rendu manuel possible.",
+            capsule_id,
+        )
+        # `request_render` a pu committer status="rendering" avant d'échouer à l'enfilement :
+        # on remet en `draft` pour ne pas laisser la capsule bloquée en « rendering » côté UI.
+        db.rollback()
+        fresh = db.get(Capsule, capsule_id)
+        if fresh is not None and fresh.status == "rendering" and not fresh.video_url:
+            fresh.status = "draft"
+            fresh.video_url = None
+            db.commit()
+            db.refresh(fresh)
+        return fresh if fresh is not None else capsule
+
+
+# ---------------------------------------------------------------------------
+# Lot 2 (ADR-0007) : rendu MP4 asynchrone. Le backend ne rend jamais lui-même — il
+# vérifie les préconditions, passe la capsule en `rendering` et enfile un job RQ que
+# `worker-media` (process sandboxé, séparé) consomme. `set_render_status` est le point
+# d'écriture utilisé par le worker au terme du rendu.
+# ---------------------------------------------------------------------------
+
+RENDER_STATUSES = ("draft", "rendering", "published", "failed")
+
+
+def _has_narrated_audio(spec: object) -> bool:
+    scenes = spec.get("scenes", []) if isinstance(spec, dict) else []
+    return any(isinstance(s, dict) and s.get("audioUrl") for s in scenes)
+
+
+def request_render(db: Session, capsule_id: int) -> Capsule:
+    """Papa : demande le rendu MP4. Préconditions = capsule **validée** + voix synthétisée.
+    Passe en `rendering` et enfile le job RQ (le worker fait le reste). Re-jouable."""
+    capsule = _capsule_or_404(db, capsule_id)
+    if capsule.validation_status != "validated":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La capsule doit être validée avant le rendu.",
+        )
+    if not _has_narrated_audio(capsule.spec_json):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Synthétise la voix (bouton Voix) avant de rendre la vidéo.",
+        )
+    # Import paresseux : évite de charger redis/rq (et d'ouvrir une connexion) à l'import du
+    # module, notamment sous les tests qui ne touchent pas la file.
+    from app.core.queue import enqueue_render
+
+    capsule.status = "rendering"
+    capsule.video_url = None
+    db.commit()
+    enqueue_render(capsule_id)
+    db.refresh(capsule)
+    return capsule
+
+
+def set_render_status(
+    db: Session, capsule_id: int, *, render_status: str, video_url: str | None = None
+) -> Capsule:
+    """Écrit l'issue du rendu (appelé par worker-media). Sans dépendance FastAPI."""
+    capsule = db.get(Capsule, capsule_id)
+    if capsule is None:
+        raise ValueError(f"Capsule {capsule_id} introuvable")
+    capsule.status = render_status
+    if video_url is not None:
+        capsule.video_url = video_url
+    db.commit()
+    db.refresh(capsule)
+    return capsule
+
+
+def list_published(db: Session) -> list[Capsule]:
+    """Capsules visibles par Massimo : validées ET rendues (MP4 disponible)."""
+    return list(
+        db.scalars(
+            select(Capsule)
+            .where(Capsule.validation_status == "validated", Capsule.video_url.is_not(None))
+            .order_by(Capsule.id.desc())
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# Suivi des visionnages (Massimo) : « vu / non-vu » + compteur de capsules distinctes.
+# Un seul enregistrement par (élève, capsule) → revoir une capsule ne double pas le compte.
+# ---------------------------------------------------------------------------
+
+
+def record_view(db: Session, student_id: int, capsule_id: int) -> None:
+    """Enregistre un visionnage complet : incrémente le compteur (ou crée la ligne à 1).
+    « Vu » = la ligne existe ; « vues distinctes » = nb de lignes ; répétitions = `count`.
+    Capsule publiée uniquement."""
+    capsule = db.get(Capsule, capsule_id)
+    if capsule is None or capsule.validation_status != "validated" or not capsule.video_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Capsule indisponible."
+        )
+    row = db.scalar(
+        select(CapsuleView).where(
+            CapsuleView.student_id == student_id, CapsuleView.capsule_id == capsule_id
+        )
+    )
+    now = datetime.now(timezone.utc)
+    if row is not None:
+        row.count += 1
+        row.viewed_at = now
+    else:
+        db.add(CapsuleView(student_id=student_id, capsule_id=capsule_id, viewed_at=now, count=1))
+    db.commit()
+
+
+def _default_student_id(db: Session) -> int | None:
+    """Élève courant (MVP mono-élève) : premier `StudentProfile`. Requête directe (pas
+    d'import du module eli5, pour éviter tout cycle d'import)."""
+    from app.db.models import StudentProfile
+
+    return db.scalar(select(StudentProfile.id).order_by(StudentProfile.id))
+
+
+def _capsule_view_count(db: Session, capsule_id: int) -> int:
+    """Nombre de visionnages de la capsule par l'élève courant (0 si jamais vue)."""
+    sid = _default_student_id(db)
+    if sid is None:
+        return 0
+    return (
+        db.scalar(
+            select(CapsuleView.count).where(
+                CapsuleView.student_id == sid, CapsuleView.capsule_id == capsule_id
+            )
+        )
+        or 0
+    )
+
+
+def seen_capsule_ids(db: Session, student_id: int) -> set[int]:
+    """Ids des capsules déjà vues par l'élève (une requête, pas de N+1)."""
+    return set(
+        db.scalars(select(CapsuleView.capsule_id).where(CapsuleView.student_id == student_id))
+    )
+
+
+def capsule_stats(db: Session, student_id: int) -> dict:
+    """Statistiques enfant : total publié, vues distinctes, nouvelles (non vues)."""
+    published_ids = {c.id for c in list_published(db)}
+    seen_count = len(seen_capsule_ids(db, student_id) & published_ids)
+    total = len(published_ids)
+    return {"total": total, "seen_count": seen_count, "new_count": total - seen_count}
 
 
 def synthesize_voice(db: Session, tts: TtsProvider, capsule_id: int) -> Capsule:
@@ -359,11 +566,18 @@ def capsule_out(db: Session, capsule: Capsule) -> dict:
         "id": capsule.id,
         "subject_id": capsule.subject_id,
         "subject": subject.name if subject else "",
+        "subject_slug": subject.slug if subject else "",
         "skill_id": capsule.skill_id,
+        "chapter_id": capsule.chapter_id,
+        "chapter": _chapter_name(db, capsule.chapter_id),
+        "difficulty": capsule.difficulty,
         "title": capsule.title,
         "instruction": capsule.instruction,
         "validation_status": capsule.validation_status,
         "spec": capsule.spec_json,
+        "status": capsule.status,
+        "video_url": capsule.video_url,
+        "view_count": _capsule_view_count(db, capsule.id),
         "created_at": capsule.created_at,
         "updated_at": capsule.updated_at,
     }
@@ -376,7 +590,30 @@ def capsule_list_item(db: Session, capsule: Capsule) -> dict:
         "id": capsule.id,
         "title": capsule.title,
         "subject": subject.name if subject else "",
+        "subject_slug": subject.slug if subject else "",
+        "chapter_id": capsule.chapter_id,
+        "chapter": _chapter_name(db, capsule.chapter_id),
+        "difficulty": capsule.difficulty,
         "validation_status": capsule.validation_status,
         "scenes_count": len(spec.get("scenes", [])),
+        "status": capsule.status,
+        "video_url": capsule.video_url,
+        "view_count": _capsule_view_count(db, capsule.id),
         "updated_at": capsule.updated_at,
+    }
+
+
+def capsule_public_item(db: Session, capsule: Capsule, seen: bool = False) -> dict:
+    """Vue enfant : id/titre/matière (+ slug/chapitre) + URL vidéo + `seen` (déjà vue)."""
+    subject = db.get(Subject, capsule.subject_id)
+    return {
+        "id": capsule.id,
+        "title": capsule.title,
+        "subject": subject.name if subject else "",
+        "subject_slug": subject.slug if subject else "",
+        "chapter_id": capsule.chapter_id,
+        "chapter": _chapter_name(db, capsule.chapter_id),
+        "difficulty": capsule.difficulty,
+        "video_url": capsule.video_url,
+        "seen": seen,
     }

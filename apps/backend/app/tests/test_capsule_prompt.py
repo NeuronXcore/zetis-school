@@ -50,6 +50,24 @@ def test_build_prompt_injects_visual_and_duration_hints() -> None:
     assert "Contrainte visuelle" not in plain
 
 
+def test_build_prompt_injects_difficulty_and_1min_hints() -> None:
+    _, prompt = capsule.build_prompt(
+        "Explique.", "Mathématiques", "6e", duration="1min", difficulty="difficile"
+    )
+    assert "1 minute" in prompt  # durée ~1 min
+    assert "DIFFICILE" in prompt  # niveau de difficulté
+    # Défaut « moyen » : un hint de difficulté est injecté.
+    _, plain = capsule.build_prompt("Explique.", "Mathématiques", "6e")
+    assert "NIVEAU DE DIFFICULTÉ = MOYEN" in plain
+
+
+def test_new_visual_hints_present_and_injected() -> None:
+    for key in ("geometry", "steps", "timeline", "diagram"):
+        assert key in capsule.VISUAL_HINTS
+    _, prompt = capsule.build_prompt("Explique Pythagore.", "Mathématiques", "4e", visual="geometry")
+    assert "geometry" in prompt
+
+
 def test_barmodel_scene_validation() -> None:
     base = {
         "title": "T",

@@ -44,6 +44,23 @@ class Settings(BaseSettings):
         default="storage/generated", validation_alias="AUDIO_STORAGE_DIR"
     )
 
+    # --- Stockage objet des vidéos de capsule (Lot 2) : 'disk' (fallback dev) | 'minio'. ---
+    # L'audio reste sur disque ; seul le MP4 rendu passe par ce backend.
+    storage_backend: str = Field(default="disk", validation_alias="STORAGE_BACKEND")
+    minio_endpoint: str = Field(default="localhost:9000", validation_alias="MINIO_ENDPOINT")
+    minio_access_key: str = Field(default="zetis_minio", validation_alias="MINIO_ROOT_USER")
+    minio_secret_key: str = Field(
+        default="zetis_minio_password", validation_alias="MINIO_ROOT_PASSWORD"
+    )
+    minio_secure: bool = Field(default=False, validation_alias="MINIO_SECURE")
+    minio_bucket_capsules: str = Field(
+        default="capsules", validation_alias="MINIO_BUCKET_CAPSULES"
+    )
+
+    # --- File de rendu asynchrone des capsules (Lot 2) : RQ sur Redis, hors backend. ---
+    redis_url: str = Field(default="redis://localhost:6379/0", validation_alias="REDIS_URL")
+    render_queue: str = Field(default="media", validation_alias="RENDER_QUEUE")
+
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [
         "http://localhost:5173",

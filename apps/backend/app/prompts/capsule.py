@@ -11,17 +11,45 @@ Règle CLAUDE.md : un prompt IA vit ici, jamais dans un composant.
 
 import json
 
-CAPSULE_PROMPT_VERSION = "v3"
+CAPSULE_PROMPT_VERSION = "v5"
 
 # Consignes optionnelles choisies par Papa au moment de la génération.
 VISUAL_HINTS = {
     "numberline": "Contrainte visuelle : inclus une scène 'numberline' (droite graduée) pertinente.",
     "barmodel": "Contrainte visuelle : inclus une scène 'barmodel' (barre de fractions/proportions).",
+    "geometry": "Contrainte visuelle : inclus une scène 'geometry' (figure géométrique) pertinente.",
+    "steps": "Contrainte visuelle : inclus une scène 'steps' (étapes de résolution numérotées).",
+    "timeline": "Contrainte visuelle : inclus une scène 'timeline' (frise chronologique).",
+    "diagram": "Contrainte visuelle : inclus une scène 'diagram' (schéma annoté center + labels).",
 }
 DURATION_HINTS = {
     "courte": "Durée : capsule COURTE — 4 scènes, durées proches de 75 frames.",
     "moyenne": "Durée : capsule de durée MOYENNE — 5 scènes.",
     "longue": "Durée : capsule LONGUE et détaillée — 6 à 7 scènes.",
+    "1min": (
+        "Durée : capsule TRÈS LONGUE (~1 minute) — 7 à 9 scènes détaillées, avec pour CHAQUE "
+        "scène une narration développée (2 à 3 phrases) qui approfondit l'explication."
+    ),
+}
+# Niveau de difficulté choisi par Papa : consigne DIRECTIVE qui ajuste vocabulaire, nombre de
+# concepts et complexité des exemples. Un mini-exemple de formulation ancre le niveau attendu.
+DIFFICULTY_HINTS = {
+    "facile": (
+        "NIVEAU DE DIFFICULTÉ = FACILE (respecte-le strictement) : phrases très courtes, "
+        "vocabulaire minimal du quotidien, UN SEUL concept, aucun terme technique non expliqué, "
+        "exemples ultra concrets. Formulation type : « Une fraction, c'est un morceau d'un tout. »"
+    ),
+    "moyen": (
+        "NIVEAU DE DIFFICULTÉ = MOYEN (respecte-le strictement) : vocabulaire courant, une notion "
+        "principale bien développée avec un exemple, 1 ou 2 termes clés introduits simplement. "
+        "Formulation type : « Le numérateur indique combien de parts on prend. »"
+    ),
+    "difficile": (
+        "NIVEAU DE DIFFICULTÉ = DIFFICILE (respecte-le strictement) : vocabulaire précis et exact, "
+        "va plus loin (une nuance, un cas particulier, un lien entre notions), exemple plus "
+        "exigeant. Reste bienveillant et clair, jamais décourageant. Formulation type : "
+        "« Deux fractions sont équivalentes si l'une s'obtient en multipliant l'autre. »"
+    ),
 }
 
 SYSTEM_PROMPT = (
@@ -36,7 +64,7 @@ SYSTEM_PROMPT = (
     "{\n"
     '  "title": str, "subject": str, "skill": str (optionnel), "level": str,\n'
     '  "fps": 30, "width": 1280, "height": 720,\n'
-    '  "scenes": [ 4 à 7 scènes ]\n'
+    '  "scenes": [ 4 à 9 scènes ]\n'
     "}\n"
     "Chaque scène a un champ \"kind\", un champ \"durationInFrames\" (entier) et un champ "
     "\"narration\" (texte parlé, voir contraintes). Types de scène :\n"
@@ -46,18 +74,35 @@ SYSTEM_PROMPT = (
     '- {"kind":"numberline","min":int,"max":int,'
     '"marks":[{"value":int,"label":str?,"color":str?}],"durationInFrames":int}\n'
     '- {"kind":"barmodel","heading":str?,"parts":int,"filled":int,"caption":str?,'
+    '"durationInFrames":int}\n'
+    '- {"kind":"geometry","shape":"right_triangle"|"triangle"|"rectangle",'
+    '"labels":{"a":str?,"b":str?,"c":str?}?,"caption":str?,"durationInFrames":int}\n'
+    '- {"kind":"steps","heading":str?,"steps":[str,...],"durationInFrames":int}\n'
+    '- {"kind":"timeline","heading":str?,"events":[{"date":str,"label":str}],'
+    '"durationInFrames":int}\n'
+    '- {"kind":"diagram","heading":str?,"center":str,"labels":[str,...],'
     '"durationInFrames":int}\n\n'
     "CONTRAINTES DE CONTENU :\n"
     "- Français simple, phrases courtes, adaptées à ~12 ans.\n"
     "- fps = 30, width = 1280, height = 720 (valeurs fixes).\n"
-    "- Entre 4 et 7 scènes ; la PREMIÈRE scène est de kind 'title'.\n"
-    "- durationInFrames entre 60 et 180 pour chaque scène.\n"
+    "- Entre 4 et 9 scènes ; la PREMIÈRE scène est de kind 'title'.\n"
+    "- durationInFrames entre 60 et 300 pour chaque scène.\n"
     "- bullet : 2 à 4 points, chacun ≤ 8 mots.\n"
     "- numberline : uniquement pour les nombres relatifs, la comparaison ou une droite "
     "graduée ; min < max ; marques à valeurs entières.\n"
     "- barmodel : pour les fractions, proportions ou pourcentages ; 2 ≤ parts ≤ 12 ; "
     "0 ≤ filled ≤ parts (ex. 3/4 → parts=4, filled=3).\n"
+    "- geometry : figure géométrique ; shape ∈ {right_triangle, triangle, rectangle} ; "
+    "labels a/b/c = libellés COURTS des côtés (ex. \"3\", \"c\"). Pour Pythagore, aires, angles.\n"
+    "- steps : 2 à 5 étapes de résolution/méthode, chacune ≤ 10 mots.\n"
+    "- timeline : 2 à 6 événements datés (date courte + label court) ; pour l'Histoire.\n"
+    "- diagram : un concept 'center' + 2 à 6 'labels' (annotations courtes) ; pour un schéma "
+    "annoté (SVT, physique).\n"
     "- color : code hexadécimal optionnel (ex. \"#ef4444\").\n"
+    "- Respecte STRICTEMENT le NIVEAU DE DIFFICULTÉ indiqué : il pilote le vocabulaire, le "
+    "nombre de concepts et la complexité des exemples (facile ≪ moyen ≪ difficile).\n"
+    "- Choisis le TYPE DE SCÈNE le plus adapté au propos (geometry pour une figure, timeline "
+    "pour des dates, steps pour une méthode, diagram pour un schéma…).\n"
     "- Ton bienveillant : n'emploie JAMAIS « échec », « lacune », « nul », « faute ». "
     "Préfère « à consolider », « prochaine étape ».\n"
     "- narration : pour CHAQUE scène, écris une phrase parlée (1 à 2 phrases), naturelle et "
@@ -251,6 +296,64 @@ FEW_SHOTS: list[dict] = [
             ],
         },
     },
+    {
+        "instruction": "Explique le théorème de Pythagore avec la figure.",
+        "subject": "Mathématiques",
+        "level": "4e",
+        "skill": "Théorème de Pythagore",
+        "spec": {
+            "title": "Le théorème de Pythagore",
+            "subject": "Mathématiques",
+            "skill": "Théorème de Pythagore",
+            "level": "4e",
+            "fps": 30,
+            "width": 1280,
+            "height": 720,
+            "scenes": [
+                {
+                    "kind": "title",
+                    "title": "Le théorème de Pythagore",
+                    "subtitle": "Dans un triangle rectangle",
+                    "narration": "Découvrons le théorème de Pythagore, dans un triangle rectangle.",
+                    "durationInFrames": 90,
+                },
+                {
+                    "kind": "geometry",
+                    "shape": "right_triangle",
+                    "labels": {"a": "a", "b": "b", "c": "c"},
+                    "caption": "c est l'hypoténuse (le plus grand côté).",
+                    "narration": "Voici un triangle rectangle. Les deux côtés de l'angle droit sont a et b, et le grand côté, en face, s'appelle l'hypoténuse, c.",
+                    "durationInFrames": 150,
+                },
+                {
+                    "kind": "steps",
+                    "heading": "Calculer un côté",
+                    "steps": [
+                        "Repérer l'angle droit",
+                        "Écrire a² + b² = c²",
+                        "Remplacer puis calculer",
+                    ],
+                    "narration": "Pour calculer un côté, on repère l'angle droit, on écrit a au carré plus b au carré égale c au carré, puis on remplace et on calcule.",
+                    "durationInFrames": 150,
+                },
+                {
+                    "kind": "definition",
+                    "term": "Théorème de Pythagore",
+                    "body": "Dans un triangle rectangle, a² + b² = c².",
+                    "example": "3² + 4² = 5² car 9 + 16 = 25.",
+                    "narration": "Le théorème dit que a au carré plus b au carré égale c au carré. Par exemple, trois et quatre donnent cinq, car neuf plus seize font vingt-cinq.",
+                    "durationInFrames": 150,
+                },
+                {
+                    "kind": "title",
+                    "title": "Bravo !",
+                    "subtitle": "Tu connais Pythagore",
+                    "narration": "Bravo ! Tu connais maintenant le théorème de Pythagore.",
+                    "durationInFrames": 75,
+                },
+            ],
+        },
+    },
 ]
 
 # Réinjectée en réparation ; le service y ajoute l'erreur de validation concrète.
@@ -275,6 +378,7 @@ def build_prompt(
     skill: str | None = None,
     visual: str = "auto",
     duration: str = "moyenne",
+    difficulty: str = "moyen",
 ) -> tuple[str, str]:
     """Construit le couple `(system, prompt)` pour `LLMProvider.generate`.
 
@@ -301,6 +405,8 @@ def build_prompt(
         target.append(VISUAL_HINTS[visual])
     if duration in DURATION_HINTS:
         target.append(DURATION_HINTS[duration])
+    if difficulty in DIFFICULTY_HINTS:
+        target.append(DIFFICULTY_HINTS[difficulty])
     target.append("Capsule attendue (objet JSON uniquement) :")
     blocks.append("\n".join(target))
 

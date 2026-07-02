@@ -58,7 +58,7 @@ Claude Code ne doit pas passer à l'étape suivante tant que :
 | Auth Papa/Massimo | ⬜ À faire | Auth simple locale au début |
 | IA / RAG | ⬜ À faire | À intégrer après socle stable |
 | Mémoire espacée | ⬜ À faire | Quiz, révisions, lacunes |
-| Capsules IA | ⬜ À faire | Génération progressive après moteur pédagogique |
+| Capsules IA | ✅ Terminé | Spec typé + moteur Remotion (Lot 1) + rendu MP4 worker-media/Piper (Lot 2) + difficulté/durée + chapitres + suivi des vues + rendu auto à la validation |
 
 Légende :
 

@@ -15,11 +15,12 @@ FPS = 30
 WIDTH = 1280
 HEIGHT = 720
 MIN_SCENES = 4
-MAX_SCENES = 7
+# Jusqu'à 9 scènes pour permettre une capsule « ~1 min » (option Papa « ≈ 1 min »).
+MAX_SCENES = 9
 MIN_DURATION = 60
 # Plafond haut : une scène peut être allongée pour tenir toute sa narration vocale
-# (« la voix pilote la durée »). Le prompt continue de viser des scènes courtes.
-MAX_DURATION = 600
+# (« la voix pilote la durée »). 900 frames = 30 s/scène (marge pour une narration développée).
+MAX_DURATION = 900
 
 
 class _SceneBase(BaseModel):
@@ -90,9 +91,71 @@ class BarmodelScene(_SceneBase):
         return self
 
 
+class GeometryLabels(BaseModel):
+    """Libellés (courts) des côtés d'une figure : a, b, et l'hypoténuse/diagonale c."""
+
+    model_config = ConfigDict(extra="forbid")
+    a: str | None = None
+    b: str | None = None
+    c: str | None = None
+
+
+class GeometryScene(_SceneBase):
+    """Figure géométrique animée (triangle rectangle, triangle, rectangle) avec côtés
+    éventuellement libellés. Pour Pythagore, aires, angles."""
+
+    kind: Literal["geometry"]
+    shape: Literal["right_triangle", "triangle", "rectangle"]
+    labels: GeometryLabels | None = None
+    caption: str | None = None
+
+
+class StepsScene(_SceneBase):
+    """Étapes numérotées qui apparaissent une à une (méthode, résolution)."""
+
+    kind: Literal["steps"]
+    heading: str | None = None
+    steps: list[str] = Field(min_length=2, max_length=6)
+
+
+class TimelineEvent(BaseModel):
+    """Un événement daté d'une frise chronologique."""
+
+    model_config = ConfigDict(extra="forbid")
+    date: str
+    label: str
+
+
+class TimelineScene(_SceneBase):
+    """Frise chronologique : événements datés le long d'une ligne (Histoire)."""
+
+    kind: Literal["timeline"]
+    heading: str | None = None
+    events: list[TimelineEvent] = Field(min_length=2, max_length=6)
+
+
+class DiagramScene(_SceneBase):
+    """Schéma annoté : un concept central entouré d'annotations (SVT, physique)."""
+
+    kind: Literal["diagram"]
+    heading: str | None = None
+    center: str
+    labels: list[str] = Field(min_length=2, max_length=6)
+
+
 # Union discriminée sur `kind` : le validateur choisit le bon modèle sans ambiguïté.
 CapsuleSceneModel = Annotated[
-    Union[TitleScene, BulletScene, DefinitionScene, NumberlineScene, BarmodelScene],
+    Union[
+        TitleScene,
+        BulletScene,
+        DefinitionScene,
+        NumberlineScene,
+        BarmodelScene,
+        GeometryScene,
+        StepsScene,
+        TimelineScene,
+        DiagramScene,
+    ],
     Field(discriminator="kind"),
 ]
 
@@ -149,8 +212,11 @@ def generation_schema() -> dict:
 
 
 # Choix Papa au moment de la génération (facultatifs → « auto »).
-VisualChoice = Literal["auto", "numberline", "barmodel"]
-DurationChoice = Literal["courte", "moyenne", "longue"]
+VisualChoice = Literal[
+    "auto", "numberline", "barmodel", "geometry", "steps", "timeline", "diagram"
+]
+DurationChoice = Literal["courte", "moyenne", "longue", "1min"]
+DifficultyChoice = Literal["facile", "moyen", "difficile"]
 
 
 class CapsuleCreateRequest(BaseModel):
@@ -162,8 +228,10 @@ class CapsuleCreateRequest(BaseModel):
     instruction: str = Field(min_length=3)
     level: str | None = None
     skill_id: int | None = None
+    chapter_id: int | None = None
     visual: VisualChoice = "auto"
     duration: DurationChoice = "moyenne"
+    difficulty: DifficultyChoice = "moyen"
 
 
 class CapsuleRegenerateRequest(BaseModel):
@@ -174,6 +242,8 @@ class CapsuleRegenerateRequest(BaseModel):
     instruction: str | None = None
     visual: VisualChoice = "auto"
     duration: DurationChoice = "moyenne"
+    # None → conserve la difficulté existante de la capsule.
+    difficulty: DifficultyChoice | None = None
 
 
 class CapsuleUpdateSpecRequest(BaseModel):
@@ -184,12 +254,30 @@ class CapsuleUpdateSpecRequest(BaseModel):
     spec: CapsuleSpec
 
 
+class CapsuleClassifyRequest(BaseModel):
+    """`POST /api/capsules/{id}/classify` : (re)rattache la capsule à un chapitre (ou aucun)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    chapter_id: int | None = None
+
+
 class CapsuleListItem(BaseModel):
     id: int
     title: str
     subject: str
+    # Regroupement matière → chapitre (slug pour l'emoji, chapitre facultatif).
+    subject_slug: str = ""
+    chapter_id: int | None = None
+    chapter: str | None = None
+    difficulty: str | None = None
     validation_status: str
     scenes_count: int
+    # Lot 2 : cycle de rendu (`draft`|`rendering`|`published`|`failed`) + URL du MP4 rendu.
+    status: str = "draft"
+    video_url: str | None = None
+    # Nombre de visionnages complets par Massimo (répétitions).
+    view_count: int = 0
     updated_at: datetime | None = None
 
 
@@ -197,10 +285,41 @@ class CapsuleOut(BaseModel):
     id: int
     subject_id: int
     subject: str
+    subject_slug: str = ""
     skill_id: int | None = None
+    chapter_id: int | None = None
+    chapter: str | None = None
+    difficulty: str | None = None
     title: str
     instruction: str | None = None
     validation_status: str
     spec: CapsuleSpec
+    # Lot 2 : rendu MP4.
+    status: str = "draft"
+    video_url: str | None = None
+    # Nombre de visionnages complets par Massimo (répétitions).
+    view_count: int = 0
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class CapsulePublicItem(BaseModel):
+    """Vue enfant (Massimo) : une capsule validée et rendue, prête à regarder."""
+
+    id: int
+    title: str
+    subject: str
+    subject_slug: str = ""
+    chapter_id: int | None = None
+    chapter: str | None = None
+    difficulty: str | None = None
+    video_url: str
+    seen: bool = False
+
+
+class CapsuleStats(BaseModel):
+    """Compteurs enfant : capsules publiées, vues distinctes, nouvelles (non vues)."""
+
+    total: int
+    seen_count: int
+    new_count: int

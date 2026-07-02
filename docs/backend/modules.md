@@ -52,7 +52,8 @@ Jobs, providers, prompts, traces.
 
 ## Capsules
 
-Scripts, storyboards, média, publication.
+Génération LLM d'un spec typé (moteur Remotion), voix Piper, rendu MP4 sandboxé (worker-media),
+validation Papa, suivi des visionnages Massimo.
 
 ## Mindmaps
 
