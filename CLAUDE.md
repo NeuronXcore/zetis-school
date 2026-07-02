@@ -166,8 +166,15 @@ DB       : PostgreSQL + pgvector
 Cache    : Redis
 Files    : MinIO
 Infra    : Docker Compose
-AI       : OpenAI ou Anthropic via abstraction provider
+AI       : Ollama local — génération `qwen3.6:35b-a3b` (MoE) via abstraction provider (ADR-0008)
+Embeddings : `nomic-embed-text` (768d, pgvector) — local, découplé de la génération (EMBED_PROVIDER)
 ```
+
+> IA retenue (ADR-0008) : **100 % local via Ollama**, MoE Qwen3 (qualité ≈ 72b à la vitesse la plus
+> rapide). Un modèle `qwen3*` impose `think:false` dans `OllamaProvider` (sinon JSON vide). **MLX
+> évalué puis rejeté** (plus lent qu'Ollama sur Apple Silicon) ; le `MLXProvider` reste câblé mais
+> désactivé. **Cloud OpenAI/Anthropic = benchmark de qualité uniquement, jamais en production** (vie
+> privée de Massimo). Comparer via `scripts/bench_llm.py`.
 
 Ne pas ajouter Next.js, Supabase, Firebase, Prisma, LangChain, Kubernetes ou un autre framework lourd sans justification écrite dans un ADR.
 

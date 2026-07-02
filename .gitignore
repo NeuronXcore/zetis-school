@@ -35,5 +35,8 @@ apps/backend/storage/
 # Claude Code — réglages locaux/personnels (le settings.json partagé reste versionné)
 .claude/settings.local.json
 
+# Artefacts de benchmark LLM (scripts/bench_llm.py — cf. ADR-0008)
+scratchpad/
+
 # OS / éditeur
 .DS_Store
