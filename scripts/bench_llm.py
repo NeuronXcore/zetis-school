@@ -321,6 +321,27 @@ def render_markdown(cells: list[Cell], args) -> str:
     return "\n".join(lines)
 
 
+def load_env_file(path: Path) -> None:
+    """Charge un fichier `.env` (KEY=VALUE) dans l'environnement, SANS écraser les variables
+    déjà définies (un `export` shell reste prioritaire). Sert à fournir OPENAI_API_KEY /
+    ANTHROPIC_API_KEY pour la comparaison cloud. Le fichier `.env` (racine) est git-ignoré :
+    n'y committe JAMAIS de secret (cf. CLAUDE.md § sécurité)."""
+    if not path.exists():
+        return
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line.startswith("export "):
+            line = line[len("export "):]
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+    print(f"  (.env chargé : {path})")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Benchmark Ollama vs MLX sur les prompts ZETIS.")
     p.add_argument("--ollama-url", default="http://localhost:11434")
@@ -336,8 +357,11 @@ def main() -> None:
     p.add_argument("--repeats", type=int, default=2)
     p.add_argument("--timeout", type=float, default=300.0)
     p.add_argument("--out", default="scratchpad/bench_llm.md")
+    # Fichier .env (git-ignoré) d'où lire OPENAI_API_KEY / ANTHROPIC_API_KEY. Défaut = .env racine.
+    p.add_argument("--env-file", default=str(REPO_ROOT / ".env"))
     args = p.parse_args()
 
+    load_env_file(Path(args.env_file))
     print("Benchmark qualité ZETIS — local (Ollama/MLX) + réf. cloud (OpenAI/Anthropic)")
     print(f"  Ollama    : {args.ollama_models}")
     print(f"  MLX       : {args.mlx_models}")

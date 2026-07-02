@@ -178,9 +178,11 @@ apps/backend/.venv/bin/python scripts/bench_llm.py \
 ollama pull llama3.3:70b ; ollama pull mistral-large
 
 # Cloud (référence qualité — nécessite une clé ; prompts génériques uniquement)
-export OPENAI_API_KEY=...  ANTHROPIC_API_KEY=...
+# Clés lues depuis le `.env` racine (git-ignoré) par défaut : y coller
+#   OPENAI_API_KEY=...  et/ou  ANTHROPIC_API_KEY=...
+# (ou --env-file <chemin>, ou export shell). Cf. .env.example.
 apps/backend/.venv/bin/python scripts/bench_llm.py \
-    --ollama-models qwen2.5:72b \
+    --ollama-models qwen3.6:35b-a3b \
     --openai-models gpt-4o --anthropic-models claude-sonnet-5 \
     --repeats 3 --out scratchpad/bench_quality_cloud.md
 ```
