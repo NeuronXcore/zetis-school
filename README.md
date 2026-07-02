@@ -143,7 +143,7 @@ Le MVP ne doit pas tout faire. Il doit livrer un parcours complet minimal :
 
 ## Démarrer en local (MVP)
 
-Prérequis : Docker, Node.js LTS + `pnpm`, `uv` (Python 3.12 pour le backend), `ollama` avec le modèle `qwen2.5`.
+Prérequis : Docker, Node.js LTS + `pnpm`, `uv` (Python 3.12 pour le backend), `ollama` avec les modèles `qwen3.6:35b-a3b` (génération, cf. ADR-0008) et `nomic-embed-text` (RAG).
 
 ### Tout lancer en une commande
 
@@ -153,6 +153,18 @@ démarre l'infra, le backend et les deux frontends :
 ```bash
 pnpm dev      # infra + backend :8000 + Massimo :5173 + Papa :5174 (Ctrl+C pour tout arrêter)
 ```
+
+Le **dev natif** (`pnpm dev`) reste recommandé au quotidien (HMR instantané). Pour un lancement
+**prod-like « tout containerisé »** (backend + worker-media + 2 frontends nginx en une commande),
+voir `infra/docker/README.md` :
+
+```bash
+pnpm prod:up      # docker-compose.prod.yml — tout en conteneurs (soit dev, soit prod, pas les deux)
+pnpm prod:down    # arrêter la stack prod
+```
+
+> Dans les deux modes, **Ollama tourne sur l'hôte** (GPU Metal) : le backend containerisé le joint
+> via `host.docker.internal`.
 
 Scripts ciblés (racine) :
 
