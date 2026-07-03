@@ -135,13 +135,17 @@ prerequisite_skill_ids optional
 > **rédaction de cours à la demande** (2026-07-03, `POST /api/lessons/{id}/generate-content`,
 > `job_type="lesson_content"`, moteur LOCAL `get_provider` — pas la dérogation cloud
 > `curriculum_*`). Régénération = écrasement ; leçon `archived` non rédigeable (409).
+> **Gate addendum §A** : toute (re)génération de `content_markdown` repasse la leçon en
+> `status='draft'` — re-validation Papa requise avant que les dérivés (ELI5, capsule,
+> quiz, mindmap, fiches, SRS) ne consomment le nouveau contenu. Le cours validé reste la
+> source canonique des dérivés (addendum ADR-0009 §A).
 
 ```txt
 id
 chapter_id
 title
 summary
-content_markdown   # nullable — rempli par la rédaction de cours locale (lesson_content)
+content_markdown   # nullable — rempli par la rédaction de cours locale (lesson_content) ; (re)génération → status='draft'
 status             # draft | validated | archived
 created_by         # parent | ai | imported
 source_document_id optional   # FK rag_documents (imports futurs)
@@ -159,10 +163,13 @@ unicité de la paire. Les notions générées par la passe 2 upsertent des `Skil
 persistant reste `skills`, aucune table `curriculum_*` (ADR-0009 §2).
 La génération skills-only (ADR-0010) upserte des `Skill` **sans** créer de liaison
 (aucune leçon dans ce flux).
+Index `ix_lesson_skills_skill` sur `skill_id` : la PK composite est ordonnée
+`(lesson_id, skill_id)` et ne couvre pas les requêtes par notion (résolution du cours
+canonique côté dérivés = `WHERE skill_id = …`).
 
 ```txt
 lesson_id          # FK lessons, ON DELETE CASCADE
-skill_id           # FK skills
+skill_id           # FK skills — pas de ON DELETE : suppression d'une Skill bloquée si référencée (elle porte l'historique de maîtrise)
 ```
 
 ### Exercise
@@ -378,7 +385,7 @@ created_at
 
 ```txt
 id
-job_type           # eli5, quiz_generation, capsule_script, rag_answer...
+job_type           # eli5, quiz_generation, capsule_script, rag_answer, curriculum_chapters, curriculum_lessons, lesson_content...
 status             # queued | running | succeeded | failed
 input_json
 output_json
@@ -503,6 +510,17 @@ Elle est résolue si :
 - score stable ;
 - validation parent optionnelle.
 
+### Cours canonique (addendum ADR-0009 §A)
+
+- Un dérivé (ELI5, capsule, quiz, mindmap, fiches, SRS) consomme en priorité le
+  `content_markdown` d'une leçon **`validated`** rattachée à la notion (via `LessonSkill`),
+  avant les chunks RAG bruts, avant la connaissance du modèle.
+- Résolution : leçon `validated` + `content_markdown` non nul, rattachée à `skill_id`,
+  la plus récente (`updated_at desc`) ; `is_primary` en réserve si le tri par récence
+  se révèle insuffisant (non implémenté).
+- La porte `status='validated'` fait l'invalidation : une leçon en (re)génération de
+  contenu repasse en `draft` et cesse d'alimenter les dérivés jusqu'à re-validation.
+
 ### XP
 
 L’XP récompense l’effort et la progression, pas seulement la performance.
@@ -526,6 +544,7 @@ Les contenus IA ont un statut. Les contenus critiques ou durables doivent pouvoi
 - `mission(student_id, status, priority)`.
 - `quiz_attempt(student_id, completed_at)`.
 - `learning_event(student_id, created_at)`.
+- `lesson_skills(skill_id)` — `ix_lesson_skills_skill` : résolution du cours canonique (dérivés par notion) ; la PK composite `(lesson_id, skill_id)` ne couvre pas ce filtre.
 - index vectoriel sur `rag_chunk.embedding`.
 
 ## Migrations

@@ -1,5 +1,43 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.13.0 — Référentiel : rattrapage « skills-only » + verrous du cours canonique
+
+Date : 2026-07-03
+
+### Ajouté
+
+- **Génération « skills-only » pour un niveau antérieur** (rattrapage, `docs/decisions/adr-0010-generation-skills-only-rattrapage.md`) :
+  Papa peut alimenter le référentiel de notions (`Skill`) d'un niveau du même cycle
+  (ex. français 5e) sans créer d'année scolaire rétroactive. Flux **stateless** en deux
+  temps : `POST /api/curriculum/skills-backfill/generate` enchaîne les passes 1 et 2
+  **en mémoire** (chapitres et leçons ne servent que d'échafaudage et ne sont **jamais
+  persistés**) et renvoie une prévisualisation des notions groupées + dédupliquées ;
+  après revue, `POST /api/curriculum/skills-backfill/confirm` upserte les notions en
+  `Skill` au niveau cible (réutilise l'upsert de la passe 2 — aucune leçon ni liaison
+  créée). Garde parent, niveau borné au cycle 4 (5e/4e/3e → sinon 400), trace `ai_jobs`
+  `curriculum_skills_backfill`, invariant vie privée testé. Miroir de types dans
+  `packages/types`.
+
+### Décisions
+
+- **Cours validé = source canonique des dérivés** (addendum `docs/decisions/adr-0009-addendum-cours-canonique.md`) :
+  un `Lesson.content_markdown` **validé** devient le contexte prioritaire des dérivés
+  (ELI5, capsule, quiz…), avant le RAG brut et la connaissance du modèle ; le lien
+  `Lesson ↔ Skill` est la table N-N `lesson_skills`.
+- **Passe 1 strictement mono-niveau** (précision ADR-0010) : le débordement du few-shot
+  SVT est corrigé et `CURRICULUM_PROMPT_VERSION` passe à `v2`.
+
+### Corrigé / verrouillé
+
+- **Gate du cours canonique** : `POST /api/lessons/{id}/generate-content` remet désormais
+  la leçon en `draft` après une (re)génération réussie (même si elle était `validated`) —
+  un cours réécrit non relu ne doit plus alimenter les dérivés ni Massimo avant
+  revalidation par Papa. (`archived` reste 409 ; l'édition manuelle du cours par Papa,
+  `PATCH /lessons/{id}`, ne touche pas le statut : Papa est l'autorité de validation.)
+- **Index `ix_lesson_skills_skill`** sur `lesson_skills(skill_id)` (migration
+  `e1f2a3b4c5d6`) : la PK composite `(lesson_id, skill_id)` ne couvre pas la résolution
+  du cours canonique par notion (filtre `skill_id`).
+
 ## 0.12.0 — Moteur LLM (MoE), lancement prod-like « tout Docker » + UX capsules (étape 21)
 
 Date : 2026-07-03

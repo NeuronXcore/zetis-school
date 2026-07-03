@@ -295,3 +295,77 @@ class ActiveSchoolYearOut(BaseModel):
     label: str
     level: str
     subjects: list[SchoolYearSubjectOut]
+
+
+# ---------------------------------------------------------------------------
+# Génération « skills-only » pour un niveau antérieur (rattrapage) — ADR-0010.
+# Flux stateless en deux temps : generate (prévisualisation en mémoire, rien de
+# persisté) → confirm (upsert des `Skill` au niveau cible). Aucun chapitre, aucune
+# leçon, aucune liaison `lesson_skills` ne sont créés par ce chemin (décision 1).
+# ---------------------------------------------------------------------------
+
+
+class SkillsBackfillGenerateRequest(BaseModel):
+    """`POST /api/curriculum/skills-backfill/generate` — corps { subject_id, level }.
+
+    `level` est validé côté service contre les niveaux du cycle 4 (5e|4e|3e) → 400
+    sinon (le lycée est différé, ADR-0009 §8) ; un `Literal` renverrait 422, on veut 400.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    subject_id: int
+    level: str = Field(min_length=1, max_length=20)
+
+
+class SkillsBackfillGroup(BaseModel):
+    """Notions d'un chapitre d'échafaudage (jeté après génération), dédupliquées."""
+
+    scaffold_chapter: str
+    notions: list[str]
+
+
+class SkillsBackfillPreview(BaseModel):
+    """Réponse de `generate` : prévisualisation revue par Papa avant confirmation.
+
+    `failed_scaffolds` = intitulés des chapitres d'échafaudage dont la passe 2 a échoué
+    (après réparation) — la génération n'avorte pas pour autant : liste partielle plutôt
+    que rien (ADR-0010, décision 4)."""
+
+    subject_id: int
+    subject_name: str
+    level: str
+    cycle: str
+    program_version: str
+    groups: list[SkillsBackfillGroup]
+    failed_scaffolds: list[str]
+
+
+class SkillsBackfillNotion(BaseModel):
+    """Notion revue par Papa (possiblement éditée/élaguée côté client, décision 2).
+
+    `scaffold_chapter` est conservé en entrée (contexte de la notion) même si l'upsert
+    actuel ne le persiste pas — l'upsert réutilisé ne pose que (subject_id, level, nom)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scaffold_chapter: str
+    name: str = Field(min_length=1, max_length=160)
+
+
+class SkillsBackfillConfirmRequest(BaseModel):
+    """`POST /api/curriculum/skills-backfill/confirm` — le client porte la liste revue
+    (flux stateless : aucun brouillon serveur entre generate et confirm, décision 2)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    subject_id: int
+    level: str = Field(min_length=1, max_length=20)
+    notions: list[SkillsBackfillNotion] = Field(min_length=1)
+
+
+class SkillsBackfillConfirmResult(BaseModel):
+    """Réponse de `confirm` : notions créées vs déjà présentes (idempotence, décision 4)."""
+
+    created: int
+    existing: int
