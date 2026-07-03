@@ -50,23 +50,34 @@ class CurriculumChapterOut(BaseModel):
     id: int
     school_year_subject_id: int | None
     name: str
-    description: str | None
+    description: str | None  # texte humain uniquement (13-bis : jamais de sérialisation)
     period: str | None
     status: str  # progression temporelle (planned|active|completed|skipped)
     sort_order: int
     source: str  # generated | manual
     validation_status: str  # pending | validated | rejected
     program_version: str | None
+    # Métadonnées dépliées depuis `metadata_json` (13-bis) : le frontend ne voit jamais
+    # la structure de stockage. Null pour un chapitre manuel sans métadonnées.
+    themes: list[str] | None
+    suggested_class: str | None
+    repartition: str | None  # officielle | interpretee | null
 
 
 class ChapterManualCreate(BaseModel):
-    """Création manuelle par Papa → `source='manual'`, validé d'office (ADR-0009 §3)."""
+    """Création manuelle par Papa → `source='manual'`, validé d'office (ADR-0009 §3).
+
+    Les métadonnées sont optionnelles : sans elles, `metadata_json` reste null (13-bis).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=160)
     description: str | None = None
     period: str | None = Field(default=None, max_length=40)
+    themes: list[str] | None = None
+    suggested_class: str | None = None
+    repartition: Literal["officielle", "interpretee"] | None = None
 
 
 class ChapterPatch(BaseModel):

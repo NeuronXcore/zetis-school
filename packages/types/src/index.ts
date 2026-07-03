@@ -4,6 +4,7 @@ export {
   type ChapterPatchRequest,
   type ChapterProgressStatus,
   type ChapterReorderRequest,
+  type ChapterRepartition,
   type ChapterSource,
   type ChapterValidationStatus,
   type CurriculumChapter,

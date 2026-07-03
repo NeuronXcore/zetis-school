@@ -94,6 +94,28 @@ def test_generate_creates_pending_generated_chapters(client_db) -> None:
         assert jobs[0].output_json["chapters_count"] == 3
 
 
+def test_generated_metadata_goes_to_metadata_json_not_description(client_db) -> None:
+    """Verrou 13-bis : `description` = texte humain SANS sérialisation ; les métadonnées
+    structurées vivent dans `metadata_json` (le bug corrigé ne doit pas revenir)."""
+    _, Session = client_db
+    with Session() as db:
+        sys_id = _seed_year_subject(db)
+        created = generate_chapters(db, FakeLLMProvider(), sys_id)
+
+        for chapter, expected in zip(created, _DEFAULT_CURRICULUM["chapters"]):
+            # description : jamais de JSON ni de champs sérialisés.
+            assert chapter.description == expected["description"]
+            for forbidden in ("{", "themes", "suggested_class", "repartition"):
+                assert forbidden not in (chapter.description or "")
+            # metadata_json : métadonnées complètes + version du prompt.
+            assert chapter.metadata_json == {
+                "themes": expected["themes"],
+                "suggested_class": expected["suggested_class"],
+                "repartition": expected["repartition"],
+                "prompt_version": curriculum.CURRICULUM_PROMPT_VERSION,
+            }
+
+
 def test_invalid_then_valid_triggers_single_repair(client_db) -> None:
     _, Session = client_db
     valid = json.dumps(_DEFAULT_CURRICULUM, ensure_ascii=False)
@@ -171,6 +193,22 @@ def test_manual_creation_is_validated_by_default(client_db) -> None:
         assert chapter.source == "manual"
         assert chapter.validation_status == "validated"
         assert chapter.sort_order == 0
+        assert chapter.metadata_json is None  # sans métadonnées fournies → null (13-bis)
+
+
+def test_manual_creation_with_optional_metadata(client_db) -> None:
+    _, Session = client_db
+    with Session() as db:
+        sys_id = _seed_year_subject(db)
+        chapter = create_manual_chapter(
+            db, sys_id, name="Les fractions", themes=["Nombres et calculs"],
+            suggested_class="5e", repartition="officielle",
+        )
+        assert chapter.metadata_json == {
+            "themes": ["Nombres et calculs"],
+            "suggested_class": "5e",
+            "repartition": "officielle",
+        }
 
 
 def test_update_chapter_validate_and_reject(client_db) -> None:

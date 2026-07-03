@@ -1,6 +1,7 @@
 from datetime import date
 
-from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -78,6 +79,13 @@ class Chapter(Base):
         String(20), default="validated"
     )  # pending|validated|rejected — manuel = validé d'office ; généré = pending
     program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
+    # Métadonnées structurées de génération (étape 13-bis) : {themes, suggested_class,
+    # repartition, prompt_version}. `description` reste du texte humain librement éditable
+    # par Papa — jamais de sérialisation dedans. JSONB sur Postgres (requêtable), JSON en
+    # tests SQLite.
+    metadata_json: Mapped[dict | None] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=True
+    )
 
 
 class LearningObjective(Base):

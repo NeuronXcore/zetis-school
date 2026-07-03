@@ -80,19 +80,15 @@ def _chapter_or_404(db: Session, chapter_id: int) -> Chapter:
     return chapter
 
 
-def _compose_description(generated: GeneratedChapter) -> str:
-    """Description persistée = texte généré + répartition (le modèle `Chapter` n'a pas de
-    settings_json : la répartition va dans la description, comme prévu par l'ADR-0009 §5)."""
-    repartition = (
-        "répartition officielle (repères annuels 2019)"
-        if generated.repartition == "officielle"
-        else "répartition indicative"
-    )
-    lines = [generated.description.strip()] if generated.description.strip() else []
-    if generated.themes:
-        lines.append(f"Thèmes : {', '.join(generated.themes)}.")
-    lines.append(f"Classe suggérée : {generated.suggested_class} — {repartition}.")
-    return "\n".join(lines)
+def _generated_metadata(generated: GeneratedChapter) -> dict:
+    """Métadonnées structurées → `metadata_json` (13-bis) : requêtables, dépliées par
+    l'API. `description` reste le texte humain du LLM, sans aucune sérialisation."""
+    return {
+        "themes": generated.themes,
+        "suggested_class": generated.suggested_class,
+        "repartition": generated.repartition,
+        "prompt_version": curriculum.CURRICULUM_PROMPT_VERSION,
+    }
 
 
 def _next_sort_order(chapters: list[Chapter]) -> int:
@@ -196,12 +192,13 @@ def generate_chapters(
         chapter = Chapter(
             school_year_subject_id=school_year_subject_id,
             name=generated.title[:160],
-            description=_compose_description(generated),
+            description=generated.description.strip() or None,
             sort_order=next_order + i,
             status="planned",
             source="generated",
             validation_status="pending",
             program_version=result.program_version,
+            metadata_json=_generated_metadata(generated),
         )
         db.add(chapter)
         created.append(chapter)
@@ -241,9 +238,21 @@ def create_manual_chapter(
     name: str,
     description: str | None = None,
     period: str | None = None,
+    themes: list[str] | None = None,
+    suggested_class: str | None = None,
+    repartition: str | None = None,
 ) -> Chapter:
-    """Écrit par Papa → validé d'office (*écrire* ≠ *choisir*, ADR-0009 §3)."""
+    """Écrit par Papa → validé d'office (*écrire* ≠ *choisir*, ADR-0009 §3).
+
+    Métadonnées optionnelles (13-bis) : sans elles, `metadata_json` reste null."""
     _sys_or_404(db, school_year_subject_id)
+    metadata = None
+    if themes is not None or suggested_class is not None or repartition is not None:
+        metadata = {
+            "themes": themes,
+            "suggested_class": suggested_class,
+            "repartition": repartition,
+        }
     next_order = (
         db.scalar(
             select(func.coalesce(func.max(Chapter.sort_order), -1)).where(
@@ -261,6 +270,7 @@ def create_manual_chapter(
         status="planned",
         source="manual",
         validation_status="validated",
+        metadata_json=metadata,
     )
     db.add(chapter)
     db.commit()
@@ -320,6 +330,9 @@ def reorder_chapters(
 
 
 def chapter_out(chapter: Chapter) -> dict:
+    # Métadonnées dépliées depuis `metadata_json` (13-bis) : null → champs null, jamais
+    # d'erreur ; le frontend ne voit pas la structure de stockage.
+    meta = chapter.metadata_json or {}
     return {
         "id": chapter.id,
         "school_year_subject_id": chapter.school_year_subject_id,
@@ -331,4 +344,7 @@ def chapter_out(chapter: Chapter) -> dict:
         "source": chapter.source,
         "validation_status": chapter.validation_status,
         "program_version": chapter.program_version,
+        "themes": meta.get("themes"),
+        "suggested_class": meta.get("suggested_class"),
+        "repartition": meta.get("repartition"),
     }

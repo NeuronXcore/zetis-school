@@ -68,6 +68,9 @@ def create_chapter(
         name=payload.name,
         description=payload.description,
         period=payload.period,
+        themes=payload.themes,
+        suggested_class=payload.suggested_class,
+        repartition=payload.repartition,
     )
     return service.chapter_out(chapter)
 

@@ -45,8 +45,16 @@ def test_generate_then_crud_flow(client_db) -> None:
     assert len(chapters) == 3
     assert all(c["source"] == "generated" and c["validation_status"] == "pending" for c in chapters)
     assert all(c["program_version"] == "2020" for c in chapters)
+    # 13-bis : métadonnées dépliées en premier niveau (jamais de `metadata_json` exposé),
+    # et description = texte humain sans sérialisation.
+    first = chapters[0]
+    assert first["themes"] == ["Nombres et calculs"]
+    assert first["suggested_class"] == "4e"
+    assert first["repartition"] == "officielle"
+    assert "metadata_json" not in first
+    assert "themes" not in (first["description"] or "")
 
-    # Création manuelle → validée d'office.
+    # Création manuelle → validée d'office ; sans métadonnées → champs null, pas d'erreur.
     res = client.post(
         f"/api/school-year-subjects/{sys_id}/chapters",
         json={"name": "Chapitre de Papa", "description": "Ajout manuel."},
@@ -56,6 +64,9 @@ def test_generate_then_crud_flow(client_db) -> None:
     assert manual["source"] == "manual"
     assert manual["validation_status"] == "validated"
     assert manual["sort_order"] == 3  # append après les générés
+    assert manual["themes"] is None
+    assert manual["suggested_class"] is None
+    assert manual["repartition"] is None
 
     # PATCH : validation d'un chapitre généré, puis édition.
     first_id = chapters[0]["id"]

@@ -96,6 +96,7 @@ status             # planned | active | completed | skipped (progression tempore
 source             # generated | manual (ADR-0009 §3 — co-construction Papa/IA)
 validation_status  # pending | validated | rejected (distinct de status, les deux coexistent)
 program_version    # version déclarative du programme (ex: 2020), null pour les manuels
+metadata_json      # JSONB nullable (13-bis) : {themes, suggested_class, repartition, prompt_version} — description reste du texte humain
 ```
 
 ### LearningObjective
