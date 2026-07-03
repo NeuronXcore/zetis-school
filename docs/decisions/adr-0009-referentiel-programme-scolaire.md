@@ -2,10 +2,8 @@
 
 ## Statut
 
-Proposé — 2026-07-03 · **section §7 (routage moteur) suspendue au bench T4**
-
-> ⚠️ Numérotation à confirmer : vérifier qu'aucun `adr-0009-*` n'existe déjà dans
-> `docs/decisions/` avant de committer ce fichier, puis ajouter la ligne à `DECISIONS.md`.
+Accepté — 2026-07-03 (bench T4 exécuté ; §7 tranché : issue (b), dérogation cloud
+étroite). Initialement Proposé le même jour, §7 suspendu aux résultats du bench.
 
 > S'appuie sur : `adr-0007` (pattern spec typé + sortie structurée `fmt` + 1 réparation),
 > `adr-0008` (production 100 % locale, cloud = yardstick de benchmark, `bench_llm.py`),
@@ -129,7 +127,10 @@ manual`) est redondant et source de cas limites. La colonne est marquée dépré
   validé → **le référentiel passe avant zetis-clip dans la file** (inverse l'ordre
   19-20 ; addendum à porter à l'adr-0006).
 
-### 7. Routage moteur — **OUVERT**, tranché par le bench T4
+### 7. Routage moteur — décision par bench T4
+
+> **Tranché le 2026-07-03 : issue (b)** — voir l'addendum en fin de document.
+> Le texte ci-dessous est conservé tel qu'écrit avant le bench (méthode et issues envisagées).
 
 Tension à arbitrer : la génération de référentiel exige une **connaissance factuelle fine
 du BO** (intitulés, découpages, versions) — capacité distincte de la richesse pédagogique
@@ -247,3 +248,58 @@ Lot E), `GET /subjects` (dette partagée avec adr-0006), CRUD chapitres
   générées (matching embedding + confirmation Papa) ; copie inter-années.
 - Commits suggérés : `feat(curriculum): two-pass AI program generation (chapters)` puis
   `feat(curriculum): lessons pass, RAG grounding and learning objectives`.
+
+---
+
+## Addendum — 2026-07-03 · Bench T4 exécuté : le §7 est tranché — issue (b)
+
+Bench exécuté (`scripts/bench_llm.py`, tâche T4, 3 répétitions, 2 prompts :
+maths cycle 4 avec repères annuels / SVT sans repères). Scorage humain
+(Papa, BO 2020 + repères 2019 ouverts, pré-analyse assistant validée) archivé
+dans `scratchpad/bench_curriculum.md` — c'est la pièce de référence de cette
+décision, à ne plus régénérer (tout re-run futur : `--out` daté).
+
+### Résultats (moyenne /8 sur 3 runs par cellule)
+
+| Moteur | T4a maths | T4b SVT | Constats saillants |
+|---|---|---|---|
+| ollama `qwen3.6:35b-a3b` | ~5,7 | ~4,0 | Intitulés officiels maths exacts mais répartition par classe esquivée ; **SVT : contamination géographie (run 1) + mélange massif d'anciens programmes (runs 2-3)** — structure 2020 absente |
+| openai `gpt-4o` | ~4,0 | ~6,0 | **Omission systématique 3/3 d'« Algorithmique et programmation »** (5e thème officiel maths) ; « Les enjeux contemporains de la planète » = intitulé de seconde (fuite de niveau) ; granularité table des matières |
+| anthropic `claude-sonnet-5` | ~6,7 | ~7,7 | Granularité chapitre de manuel ; **répartition par classe conforme aux repères 2019** (Pythagore 4e, cosinus 4e / sinus-tangente 3e) ; seuls glissements mineurs (probabilités 4e au lieu de 5e) ; version 2020 tenue sur les deux matières |
+
+Note de mesure : les 0/3 « JSON valide » de Sonnet en maths sont un **artefact
+de la borne du schéma jetable** (max 15 chapitres ; Sonnet en produit ~20, à la
+granularité que ZETIS vise). Leçon intégrée : le schéma de production borne à
+**3-25 chapitres** et laisse le prompt piloter la granularité.
+
+### Décision — issue (b) : dérogation cloud étroite et nommée
+
+Les tâches `curriculum_chapters` et `curriculum_lessons` sont routées vers un
+**`AnthropicProvider`** (modèle `claude-sonnet-5`) derrière l'abstraction
+`LLMProvider` existante. La dérogation est bornée par quatre conditions,
+toutes vérifiables :
+
+1. **Zéro donnée personnelle** dans les prompts (niveau, matière, version de
+   programme, chapitres existants uniquement) — invariant testé.
+2. **Tâche one-shot** par version de programme, déclenchée par Papa uniquement.
+3. **Clé en variable d'environnement** (`ANTHROPIC_API_KEY`, `.env` git-ignoré,
+   documentée dans `.env.example`), jamais en base ni en Git.
+4. **Dégradation propre** : sans clé, le service refuse avec un message clair
+   proposant le repli local explicite (`CURRICULUM_LLM_PROVIDER=ollama`,
+   qualité moindre documentée) — jamais de bascule silencieuse.
+
+Tout le reste de la production reste **100 % local** (adr-0008 inchangé sur son
+périmètre : les tâches quotidiennes de Massimo). L'ancrage RAG du §6 demeure
+recommandé en complément — même le meilleur moteur a montré des glissements
+mineurs ; la validation Papa reste le garde-fou final.
+
+Justification du rejet des autres issues : (a) est invalidée par l'échec
+structurel du local sur T4b (mélange de versions = risque éliminatoire pour un
+référentiel) ; (c) est invalidée car l'ancrage RAG corrigerait la structure
+mais pas la **répartition par classe**, synthèse des repères annuels que seul
+Sonnet produit nativement et que le BO seul ne contient pas.
+
+Notes d'implémentation héritées du harnais (adr-0008, phase 2) : Sonnet 5
+déprécie `temperature`, renvoie des blocs `thinking` et du JSON parfois
+clôturé par des balises ``` — l'`AnthropicProvider` doit extraire les blocs
+`text` et retirer les balises (pattern `_unfence` du bench).

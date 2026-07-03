@@ -173,8 +173,12 @@ Embeddings : `nomic-embed-text` (768d, pgvector) — local, découplé de la gé
 > IA retenue (ADR-0008) : **100 % local via Ollama**, MoE Qwen3 (qualité ≈ 72b à la vitesse la plus
 > rapide). Un modèle `qwen3*` impose `think:false` dans `OllamaProvider` (sinon JSON vide). **MLX
 > évalué puis rejeté** (plus lent qu'Ollama sur Apple Silicon) ; le `MLXProvider` reste câblé mais
-> désactivé. **Cloud OpenAI/Anthropic = benchmark de qualité uniquement, jamais en production** (vie
-> privée de Massimo). Comparer via `scripts/bench_llm.py`.
+> désactivé. **Cloud = benchmark de qualité, avec UNE dérogation de production** : les tâches
+> `curriculum_*` (génération du référentiel de programme) sont routées vers Anthropic
+> `claude-sonnet-5` — dérogation étroite justifiée et bornée par l'ADR-0009 (addendum) :
+> zéro donnée de Massimo dans ces prompts, tâche one-shot Papa, clé en env var,
+> dégradation propre sans clé. Toutes les autres tâches restent 100 % locales
+> (vie privée de Massimo). Comparer via `scripts/bench_llm.py`.
 
 Ne pas ajouter Next.js, Supabase, Firebase, Prisma, LangChain, Kubernetes ou un autre framework lourd sans justification écrite dans un ADR.
 
@@ -250,7 +254,12 @@ Toute fonctionnalité IA doit avoir :
 - une trace d’exécution ;
 - une stratégie de relecture humaine si contenu sensible ou scolaire important.
 
-Aucune réponse IA ne doit être considérée comme vérité absolue. Pour le programme scolaire officiel, le système doit ingérer des sources vérifiées et conserver la référence.
+Aucune réponse IA ne doit être considérée comme vérité absolue. Le programme
+scolaire peut être généré par LLM mais n'est jamais tenu pour vrai : validation
+Papa obligatoire avant activation, ancrage sur les sources officielles ingérées
+(BO dans le RAG) dès qu'elles existent, référence conservée
+(`LearningObjective.source_reference`), version de programme toujours tracée
+(`program_version`) — cf. ADR-0009.
 
 ## Règles RAG
 
