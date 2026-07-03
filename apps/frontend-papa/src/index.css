@@ -50,6 +50,29 @@
   background: var(--color-papa-surface-2);
 }
 
+/* Barre de défilement aux couleurs Papa (zones défilantes : modale de cours…).
+   N'apparaît que si le contenu dépasse (overflow auto) — fine, pouce émeraude
+   translucide sur piste invisible. */
+.papa-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: color-mix(in srgb, var(--color-papa-accent) 55%, transparent)
+    transparent;
+}
+.papa-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.papa-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.papa-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-papa-accent) 55%, transparent);
+  border-radius: 9999px;
+}
+.papa-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-papa-accent);
+}
+
 html,
 body,
 #root {
