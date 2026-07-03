@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import require_parent
 from app.modules.curriculum import get_curriculum_provider, service
@@ -218,6 +219,24 @@ def validate_lesson(lesson_id: int, db: Session = Depends(get_db)) -> dict:
 def reject_lesson(lesson_id: int, db: Session = Depends(get_db)) -> dict:
     """`draft` → `archived` (l'énuméré de `lessons.status` n'a pas de `rejected`)."""
     lesson = service.set_lesson_validation(db, lesson_id, "reject")
+    return service.lessons_out(db, [lesson])[0]
+
+
+@router.post("/lessons/{lesson_id}/generate-content", response_model=CurriculumLessonOut)
+def generate_lesson_content(
+    lesson_id: int,
+    db: Session = Depends(get_db),
+    llm: LLMProvider = Depends(get_provider),
+) -> dict:
+    """Rédige le cours complet (markdown) de la leçon — requête longue synchrone
+    (~40-60 s), moteur LOCAL (`get_provider`, jamais la dérogation cloud `curriculum_*`).
+    409 si la leçon est archivée ; la régénération écrase le cours existant."""
+    try:
+        lesson = service.generate_lesson_content(db, llm, lesson_id)
+    except service.CurriculumGenerationError as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
+        ) from exc
     return service.lessons_out(db, [lesson])[0]
 
 

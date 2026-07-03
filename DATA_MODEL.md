@@ -127,15 +127,17 @@ prerequisite_skill_ids optional
 > Migrée avec la passe 2 du référentiel (ADR-0009, Lot 2 Slice A, 2026-07-03 —
 > migration `c9dae1f2a3b4`). Sémantique co-construction (§3) : `created_by` ≈ source,
 > `status` ≈ validation (rejet d'une leçon `draft` → `archived`, pas de valeur
-> `rejected`). `content_markdown` reste vide en passe 2 (réservé à la génération de
-> cours downstream).
+> `rejected`). `content_markdown` reste vide en passe 2 ; il est rempli par la
+> **rédaction de cours à la demande** (2026-07-03, `POST /api/lessons/{id}/generate-content`,
+> `job_type="lesson_content"`, moteur LOCAL `get_provider` — pas la dérogation cloud
+> `curriculum_*`). Régénération = écrasement ; leçon `archived` non rédigeable (409).
 
 ```txt
 id
 chapter_id
 title
 summary
-content_markdown   # nullable — non rempli par la passe 2
+content_markdown   # nullable — rempli par la rédaction de cours locale (lesson_content)
 status             # draft | validated | archived
 created_by         # parent | ai | imported
 source_document_id optional   # FK rag_documents (imports futurs)

@@ -48,6 +48,7 @@ def test_lesson_routes_are_parent_only(client_db) -> None:
     assert client.patch("/api/lessons/1", json={}).status_code == 403
     assert client.post("/api/lessons/1/validate").status_code == 403
     assert client.post("/api/lessons/1/reject").status_code == 403
+    assert client.post("/api/lessons/1/generate-content").status_code == 403
     assert client.delete("/api/lessons/1").status_code == 403
 
 
@@ -144,3 +145,32 @@ def test_generate_then_lesson_crud_flow(client_db) -> None:
     assert client.get("/api/chapters/9999/lessons").status_code == 404
     assert client.patch("/api/lessons/9999", json={}).status_code == 404
     assert client.delete("/api/lessons/9999").status_code == 404
+
+
+def test_generate_lesson_content_flow(client_db) -> None:
+    """Rédaction du cours : `content` null → rempli (moteur local via conftest) ;
+    409 sur leçon archivée ; 404 sur leçon inconnue."""
+    client, Session = client_db
+    _as_papa()
+    chapter_id = _seed_validated_chapter(Session)
+    lessons = client.post(f"/api/chapters/{chapter_id}/generate-lessons").json()
+    first_id = lessons[0]["id"]
+    assert lessons[0]["content"] is None  # la passe 2 ne rédige pas le cours
+
+    res = client.post(f"/api/lessons/{first_id}/generate-content")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["id"] == first_id
+    assert body["content"] and "## Mini-exercices" in body["content"]
+    assert body["status"] == "draft"  # la rédaction ne valide pas la leçon
+
+    # Le GET liste transporte désormais le cours.
+    listed = client.get(f"/api/chapters/{chapter_id}/lessons").json()
+    assert next(l for l in listed if l["id"] == first_id)["content"] == body["content"]
+
+    # Leçon archivée : hors du flux → 409.
+    second_id = lessons[1]["id"]
+    client.post(f"/api/lessons/{second_id}/reject")
+    assert client.post(f"/api/lessons/{second_id}/generate-content").status_code == 409
+
+    assert client.post("/api/lessons/9999/generate-content").status_code == 404

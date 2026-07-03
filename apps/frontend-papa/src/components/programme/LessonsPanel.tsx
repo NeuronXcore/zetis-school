@@ -5,6 +5,7 @@ import { type CurriculumData } from "../../hooks/useCurriculum";
 import { chapterActions, lessonActions } from "../../lib/chapterActions";
 import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
 import { AddLessonForm } from "./AddLessonForm";
+import { LessonContentModal } from "./LessonContentModal";
 import { LessonRow } from "./LessonRow";
 
 // Étage leçons de l'état déplié d'un chapitre (Lot 2 Slice B). Le panneau n'est monté
@@ -21,6 +22,9 @@ export function LessonsPanel({
   const state = data.lessonsByChapter[chapter.id];
   const [adding, setAdding] = useState(false);
   const [toDelete, setToDelete] = useState<CurriculumLesson | null>(null);
+  // Modale « Lire le cours » : id seulement — la leçon est DÉRIVÉE de la liste, donc
+  // la modale se met à jour toute seule quand la rédaction remplace la leçon en cache.
+  const [readingId, setReadingId] = useState<number | null>(null);
   const generating = state?.generating ?? false;
   // Progression *estimée* (même pattern que la génération de chapitres et les capsules).
   const generationPct = useEstimatedProgress(generating, 22000);
@@ -35,6 +39,13 @@ export function LessonsPanel({
   const visible = (state?.lessons ?? []).filter(
     (l) => lessonActions(l.created_by, l.status).visible,
   );
+  const reading = visible.find((l) => l.id === readingId) ?? null;
+  // Lot « cours manquants » : leçons validées sans cours (le lot ne touche pas les drafts).
+  const batch = state?.batch ?? null;
+  const missingCount = visible.filter(
+    (l) => l.status === "validated" && l.content === null,
+  ).length;
+  const busy = generating || batch !== null;
 
   return (
     <div className="mt-3 flex flex-col gap-2 border-t border-papa-border pt-3">
@@ -53,6 +64,24 @@ export function LessonsPanel({
           pct={generationPct}
           label="ZETIS propose les leçons du chapitre (10 à 30 s)… Le panneau reste ouvert."
         />
+      )}
+
+      {batch && (
+        <div className="flex flex-col gap-1.5">
+          <ProgressBar
+            pct={Math.round((batch.done / batch.total) * 100)}
+            label={`Rédaction des cours : ${batch.done}/${batch.total} — « ${batch.currentTitle} »… (moteur local)`}
+          />
+          <div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => data.cancelMissingContents(chapter.id)}
+            >
+              Annuler après la leçon en cours
+            </Button>
+          </div>
+        </div>
       )}
 
       {!state || state.loading ? (
@@ -74,7 +103,7 @@ export function LessonsPanel({
                   lesson={lesson}
                   isFirst={i === 0}
                   isLast={i === visible.length - 1}
-                  disabled={generating}
+                  disabled={busy}
                   onValidate={() => void data.validateLesson(chapter.id, lesson.id)}
                   onReject={() => void data.rejectLesson(chapter.id, lesson.id)}
                   onEdit={(patch) => data.editLesson(chapter.id, lesson.id, patch)}
@@ -82,6 +111,7 @@ export function LessonsPanel({
                   onMove={(direction) =>
                     void data.moveLesson(chapter.id, lesson.id, direction)
                   }
+                  onRead={() => setReadingId(lesson.id)}
                 />
               ))}
             </ul>
@@ -100,7 +130,7 @@ export function LessonsPanel({
               size="sm"
               variant="secondary"
               onClick={() => setAdding(true)}
-              disabled={adding || generating}
+              disabled={adding || busy}
             >
               + Ajouter une leçon
             </Button>
@@ -108,7 +138,7 @@ export function LessonsPanel({
               <Button
                 size="sm"
                 onClick={() => void data.generateLessons(chapter.id)}
-                disabled={generating}
+                disabled={busy}
               >
                 {generating ? (
                   <>
@@ -119,8 +149,30 @@ export function LessonsPanel({
                 )}
               </Button>
             )}
+            {missingCount > 0 && !batch && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void data.generateMissingContents(chapter.id)}
+                disabled={busy}
+              >
+                ⚡ Rédiger les cours manquants ({missingCount})
+              </Button>
+            )}
           </div>
         </>
+      )}
+
+      {reading && (
+        <LessonContentModal
+          lesson={reading}
+          generating={state?.contentGeneratingId === reading.id}
+          error={state?.contentError ?? null}
+          onGenerate={() => void data.generateContent(chapter.id, reading.id)}
+          onValidate={() => void data.validateLesson(chapter.id, reading.id)}
+          onReject={() => void data.rejectLesson(chapter.id, reading.id)}
+          onClose={() => setReadingId(null)}
+        />
       )}
 
       <ConfirmDialog

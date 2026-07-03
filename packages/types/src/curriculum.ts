@@ -84,6 +84,9 @@ export interface CurriculumLesson {
   chapter_id: number;
   title: string;
   summary: string | null;
+  /** Cours complet (markdown), rempli par `POST /lessons/{id}/generate-content`
+   *  (moteur local) — null tant que Papa n'a pas demandé la rédaction. */
+  content: string | null;
   status: LessonStatus;
   created_by: LessonCreatedBy;
   sort_order: number;

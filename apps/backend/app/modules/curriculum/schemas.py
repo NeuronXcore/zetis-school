@@ -73,6 +73,33 @@ def lessons_generation_schema() -> dict:
     return GeneratedLessons.model_json_schema()
 
 
+# Rédaction du cours d'une leçon (moteur LOCAL — pas de dérogation curriculum_*).
+# Bornes larges : le prompt cadre 400-800 mots.
+MIN_CONTENT_CHARS = 300
+MAX_CONTENT_CHARS = 20000
+
+
+class GeneratedLessonContent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Markdown complet du cours (titre, explication, méthode, mini-exercices, récap).
+    content: str = Field(min_length=MIN_CONTENT_CHARS, max_length=MAX_CONTENT_CHARS)
+
+
+def lesson_content_schema() -> dict:
+    """Schéma JSON de sortie structurée de la rédaction de cours (`LLMRequest.fmt`).
+
+    Les bornes de longueur sont RETIRÉES du schéma envoyé : llama.cpp ne sait pas
+    convertir `minLength`/`maxLength` d'une string en grammaire (400 « failed to parse
+    grammar », vérifié en réel sur qwen3.6). Elles restent tenues par la validation
+    Pydantic + la réparation.
+    """
+    schema = GeneratedLessonContent.model_json_schema()
+    schema["properties"]["content"].pop("minLength", None)
+    schema["properties"]["content"].pop("maxLength", None)
+    return schema
+
+
 # ---------------------------------------------------------------------------
 # Contrats API (CRUD chapitres du référentiel, Papa uniquement).
 # Miroir TypeScript : `packages/types/src/curriculum.ts` (règle CLAUDE.md n°8).
@@ -150,6 +177,9 @@ class CurriculumLessonOut(BaseModel):
     chapter_id: int
     title: str
     summary: str | None
+    # Cours complet (markdown), rempli par `POST /lessons/{id}/generate-content`
+    # (moteur local) — null tant que Papa n'a pas demandé la rédaction.
+    content: str | None
     # `status` ≈ validation (draft|validated|archived), `created_by` ≈ source
     # (parent|ai|imported) — sémantique co-construction ADR-0009 §3.
     status: str

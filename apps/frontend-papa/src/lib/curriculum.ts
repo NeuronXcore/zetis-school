@@ -197,6 +197,17 @@ export async function deleteLesson(lessonId: number): Promise<void> {
   }
 }
 
+/** Rédaction du cours (moteur LOCAL ollama, ~40-60 s) : renvoie la leçon mise à jour.
+ *  409 si la leçon est archivée ; la régénération écrase le cours existant. */
+export async function generateLessonContent(lessonId: number): Promise<CurriculumLesson> {
+  return asJson(
+    await fetch(`${API_URL}/api/lessons/${lessonId}/generate-content`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
 /** Liste ordonnée COMPLÈTE des ids du chapitre — `archived` incluses (le backend vérifie). */
 export async function reorderLessons(
   chapterId: number,

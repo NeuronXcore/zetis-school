@@ -18,6 +18,7 @@ import {
   fetchChapters,
   fetchLessons,
   generateChapters,
+  generateLessonContent,
   generateLessons,
   patchChapter,
   patchLesson,
@@ -48,6 +49,12 @@ export interface ChapterLessonsState {
   error: string | null;
   /** Passe 2 en cours (requête longue ~10-30 s, panneau maintenu ouvert). */
   generating: boolean;
+  /** Rédaction du cours en cours pour CETTE leçon (moteur local, ~40-60 s). */
+  contentGeneratingId: number | null;
+  /** Erreur de rédaction du cours — verbatim, affichée DANS la modale (pas le panneau). */
+  contentError: string | null;
+  /** Rédaction en LOT des cours manquants (leçons validées sans cours) : avancement. */
+  batch: { done: number; total: number; currentTitle: string } | null;
 }
 
 const EMPTY_LESSONS: ChapterLessonsState = {
@@ -55,6 +62,9 @@ const EMPTY_LESSONS: ChapterLessonsState = {
   loading: false,
   error: null,
   generating: false,
+  contentGeneratingId: null,
+  contentError: null,
+  batch: null,
 };
 
 export interface CurriculumData {
@@ -100,6 +110,14 @@ export interface CurriculumData {
   removeLesson: (chapterId: number, lessonId: number) => Promise<void>;
   /** Monter/descendre parmi les leçons VISIBLES : optimiste, rollback si échec. */
   moveLesson: (chapterId: number, lessonId: number, direction: -1 | 1) => Promise<void>;
+  /** Rédige le cours de la leçon (moteur LOCAL, ~40-60 s) puis remplace la leçon
+   *  dans le cache avec la réponse — pas de re-fetch global. */
+  generateContent: (chapterId: number, lessonId: number) => Promise<void>;
+  /** Rédige SÉQUENTIELLEMENT les cours manquants des leçons validées du chapitre
+   *  (N × ~40-60 s, moteur local). S'arrête à la première erreur (verbatim). */
+  generateMissingContents: (chapterId: number) => Promise<void>;
+  /** Annule le lot en cours : la leçon en cours de rédaction se termine, pas la suite. */
+  cancelMissingContents: (chapterId: number) => void;
 }
 
 function message(e: unknown): string {
@@ -455,6 +473,83 @@ export function useCurriculum(): CurriculumData {
     [lessonsByChapter, patchLessonsState],
   );
 
+  // Rédaction du cours d'une leçon : remplacement ciblé dans le cache (setter
+  // fonctionnel — la liste courante n'est pas dans la closure), erreur dans la modale.
+  const generateContent = useCallback(
+    async (chapterId: number, lessonId: number) => {
+      patchLessonsState(chapterId, { contentGeneratingId: lessonId, contentError: null });
+      try {
+        const updated = await generateLessonContent(lessonId);
+        setLessonsByChapter((m) => ({
+          ...m,
+          [chapterId]: {
+            ...EMPTY_LESSONS,
+            ...m[chapterId],
+            lessons: (m[chapterId]?.lessons ?? []).map((l) =>
+              l.id === updated.id ? updated : l,
+            ),
+          },
+        }));
+      } catch (e) {
+        // 409 (archivée) / 502 (génération échouée) : detail backend verbatim.
+        patchLessonsState(chapterId, { contentError: message(e) });
+      } finally {
+        patchLessonsState(chapterId, { contentGeneratingId: null });
+      }
+    },
+    [patchLessonsState],
+  );
+
+  // Rédaction en LOT des cours manquants d'un chapitre : séquentiel (une leçon à la
+  // fois, le moteur local n'aime pas le parallèle), annulable entre deux leçons,
+  // arrêt à la première erreur (backend local indisponible ⇒ tout échouerait).
+  const batchCancelRef = useRef(new Set<number>());
+
+  const generateMissingContents = useCallback(
+    async (chapterId: number) => {
+      const state = lessonsByChapter[chapterId];
+      if (!state || state.batch) return;
+      const targets = state.lessons.filter(
+        (l) => l.status === "validated" && l.content === null,
+      );
+      if (targets.length === 0) return;
+      batchCancelRef.current.delete(chapterId);
+      patchLessonsState(chapterId, {
+        batch: { done: 0, total: targets.length, currentTitle: targets[0].title },
+        error: null,
+      });
+      try {
+        for (const [i, target] of targets.entries()) {
+          if (batchCancelRef.current.has(chapterId)) break;
+          patchLessonsState(chapterId, {
+            batch: { done: i, total: targets.length, currentTitle: target.title },
+          });
+          const updated = await generateLessonContent(target.id);
+          setLessonsByChapter((m) => ({
+            ...m,
+            [chapterId]: {
+              ...EMPTY_LESSONS,
+              ...m[chapterId],
+              lessons: (m[chapterId]?.lessons ?? []).map((l) =>
+                l.id === updated.id ? updated : l,
+              ),
+            },
+          }));
+        }
+      } catch (e) {
+        patchLessonsState(chapterId, { error: message(e) });
+      } finally {
+        batchCancelRef.current.delete(chapterId);
+        patchLessonsState(chapterId, { batch: null });
+      }
+    },
+    [lessonsByChapter, patchLessonsState],
+  );
+
+  const cancelMissingContents = useCallback((chapterId: number) => {
+    batchCancelRef.current.add(chapterId);
+  }, []);
+
   return {
     loading,
     error,
@@ -484,5 +579,8 @@ export function useCurriculum(): CurriculumData {
     rejectLesson: rejectLessonFor,
     removeLesson,
     moveLesson,
+    generateContent,
+    generateMissingContents,
+    cancelMissingContents,
   };
 }

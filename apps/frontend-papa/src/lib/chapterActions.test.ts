@@ -94,4 +94,13 @@ describe("lessonActions", () => {
       }
     }
   });
+
+  it("lecture du cours (modale) sur toute leçon visible, draft inclus", () => {
+    for (const createdBy of LESSON_CREATED_BY) {
+      for (const status of LESSON_STATUSES) {
+        const a = lessonActions(createdBy, status);
+        expect(a.canReadContent).toBe(status !== "archived");
+      }
+    }
+  });
 });

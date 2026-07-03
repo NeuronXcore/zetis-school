@@ -90,12 +90,16 @@ affichées : elles sont hors du flux et remplacées à la régénération. Pas d
 « Rejeté » ni « Archivé » côté leçons — si un besoin de consultation émerge, ce
 sera un toggle ultérieur, pas la V1.
 
-**Notions** : chips en lecture seule (dépliées par l'API : `{skill_id, name}`) —
-jamais éditables ici (elles vivent dans le référentiel de skills).
+**Notions** : chips en lecture seule à l'affichage (dépliées par l'API :
+`{skill_id, name}`). Éditables dans le formulaire ✎ (ajout/retrait par nom) pour
+relire et corriger la proposition IA avant validation : l'enregistrement REMPLACE le
+rattachement (`PATCH /lessons/{id}` avec `notions`, upsert par nom normalisé) — les
+`Skill` elles-mêmes ne sont jamais supprimées (elles vivent dans le référentiel de
+skills).
 
 **Actions par état** (même fonction pure testée que pour les chapitres, étendue) :
-`Valider`/`Rejeter` sur `draft` uniquement ; édition (titre/résumé) et suppression
-(avec confirmation) sur toute leçon visible ; réordonnancement par boutons
+`Valider`/`Rejeter` sur `draft` uniquement ; édition (titre/résumé/notions) et
+suppression (avec confirmation) sur toute leçon visible ; réordonnancement par boutons
 monter/descendre.
 
 **« Proposer des leçons »** : visible uniquement si le chapitre est validé ou
@@ -107,6 +111,32 @@ génération : re-fetch des leçons du chapitre, panneau maintenu ouvert.
 **« Ajouter une leçon »** : formulaire inline dans le panneau (Titre requis,
 Résumé optionnel), badge `Manuel` affiché d'emblée, créée validée d'office —
 symétrie exacte avec l'ajout de chapitre.
+
+### Modale de lecture du cours (action 📖 par leçon visible)
+
+Chaque leçon visible (draft incluse — relire le cours aide à valider) porte une
+action 📖 qui ouvre une modale : titre + badges + résumé, puis le **cours complet**
+(`lesson.content`, markdown rendu). Si le cours n'existe pas encore : état vide +
+bouton « ⚡ Rédiger le cours » → `POST /api/lessons/{id}/generate-content`, requête
+longue synchrone (~40-60 s) sur le **moteur local** (`get_provider`, qwen3.6 — jamais
+la dérogation cloud `curriculum_*`, réservée au référentiel), barre de progression
+estimée réutilisée (calibrage 42 s, pattern capsules). La réponse est la leçon
+complète : remplacement dans le cache, la modale se met à jour sans re-fetch.
+« ↻ Régénérer le cours » écrase l'existant (même route). Erreurs (409 archivée,
+502 génération) : `detail` backend verbatim DANS la modale. Trace `ai_jobs`
+(`job_type="lesson_content"`).
+
+La modale permet aussi de **trancher sur place** après lecture, sans repasser par la
+liste : boutons `Valider`/`Rejeter` dans l'en-tête, sur une leçon `draft` uniquement
+(même règle pure que la ligne). Après validation, le badge passe à `Validé` et la
+modale reste ouverte ; un rejet archive la leçon (hors du flux) → la modale se ferme
+d'elle-même.
+
+**Rédaction en lot** : « ⚡ Rédiger les cours manquants (N) » dans le pied du panneau —
+N = leçons **validées sans cours** du chapitre (les drafts se lisent une à une avant
+validation). Séquentiel (N × ~40-60 s, moteur local), progression réelle `n/total` avec
+le titre en cours, **annulable entre deux leçons**, arrêt à la première erreur (verbatim).
+Valider une leçon ne rédige JAMAIS son cours tout seul : deux actes distincts.
 
 ### Formulaire d'ajout inline (clic « Ajouter un chapitre »)
 
@@ -142,7 +172,8 @@ avec la liste complète ordonnée des ids.
 - Leçons (Lot 2) : `GET /api/chapters/{id}/lessons` · `POST .../generate-lessons`
   (409 si chapitre ni validé ni manuel) · `POST .../lessons` (manuel) ·
   `PATCH /lessons/{id}` · `POST /lessons/{id}/validate` et `/reject` ·
-  `DELETE /lessons/{id}` · `POST .../lessons/reorder`.
+  `DELETE /lessons/{id}` · `POST .../lessons/reorder` ·
+  `POST /lessons/{id}/generate-content` (cours markdown, moteur local, 409 si archivée).
 
 ## Thème
 
@@ -155,5 +186,5 @@ texte foncé de la même famille que le fond (jamais noir pur).
 Bandeau d'ancrage RAG (viendra avec l'ancrage, Lot 2 backend restant) ; case
 « proposer des leçons juste après » du formulaire d'ajout de chapitre (le bouton
 du panneau déplié couvre le besoin en deux clics) ; drag & drop ; édition des
-métadonnées de chapitre et des notions ; consultation des leçons archivées ;
+métadonnées de chapitre ; consultation des leçons archivées ;
 page Années scolaires (étape dédiée).

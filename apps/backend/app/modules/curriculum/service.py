@@ -19,6 +19,7 @@ sémantique par embedding est Lot 3.
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -40,11 +41,13 @@ from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.curriculum.schemas import (
     GeneratedChapter,
     GeneratedChapters,
+    GeneratedLessonContent,
     GeneratedLessons,
     generation_schema,
+    lesson_content_schema,
     lessons_generation_schema,
 )
-from app.prompts import curriculum
+from app.prompts import curriculum, lesson_content
 
 logger = logging.getLogger(__name__)
 
@@ -619,7 +622,7 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
             chapter_id=chapter_id,
             title=generated.title[:160],
             summary=generated.summary.strip() or None,
-            content_markdown=None,  # réservé à la génération de cours (downstream)
+            content_markdown=None,  # rempli plus tard par `generate_lesson_content` (local)
             status="draft",  # = pending, obligatoire pour du généré (§3)
             created_by="ai",
             sort_order=next_order + i,
@@ -649,6 +652,130 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
 def list_lessons(db: Session, chapter_id: int) -> list[Lesson]:
     _chapter_or_404(db, chapter_id)
     return _lessons_of_chapter(db, chapter_id)
+
+
+# Garantie « markdown pur » sur le cours persisté : le prompt l'exige, mais un modèle
+# local peut récidiver (vu en réel : <details>/<summary> pour cacher les solutions,
+# que react-markdown échappe à juste titre → balises affichées en texte). Conversion
+# douce (summary → gras, <br> → saut de ligne) puis suppression des balises HTML
+# CONNUES uniquement — une liste fermée, pour ne jamais toucher un « x<y et z>2 »
+# mathématique légitime.
+_HTML_SUMMARY = re.compile(r"<summary>(.*?)</summary>", re.IGNORECASE | re.DOTALL)
+_HTML_BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_HTML_KNOWN_TAGS = re.compile(
+    r"</?(?:details|summary|div|span|p|b|i|u|em|strong|sub|sup|hr|ul|ol|li|"
+    r"table|thead|tbody|tr|td|th|h[1-6])(?:\s[^<>\n]*)?/?>",
+    re.IGNORECASE,
+)
+
+
+def _scrub_content_html(content: str) -> str:
+    content = _HTML_SUMMARY.sub(lambda m: f"**{m.group(1).strip()}**", content)
+    content = _HTML_BR.sub("\n", content)
+    return _HTML_KNOWN_TAGS.sub("", content)
+
+
+def generate_lesson_content(db: Session, llm: LLMProvider, lesson_id: int) -> Lesson:
+    """Rédige le cours complet (markdown) d'une leçon — synchrone, moteur LOCAL.
+
+    Injecté avec `get_provider()` (Ollama), jamais le provider `curriculum_*` : la
+    dérogation cloud reste bornée au référentiel. Toute leçon non archivée est
+    rédigeable (`draft` inclus : relire le cours aide à valider) ; la régénération
+    écrase `content_markdown`. Lève `CurriculumGenerationError` si la sortie reste
+    invalide après UNE réparation — le contenu existant n'est alors pas touché.
+    """
+    lesson = _lesson_or_404(db, lesson_id)
+    if lesson.status == "archived":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Leçon {lesson_id} archivée : hors du flux, cours non rédigeable.",
+        )
+    chapter = _chapter_or_404(db, lesson.chapter_id)
+    subject, level, cycle = _lesson_context(db, chapter)
+    program_version = lesson.program_version or chapter.program_version or DEFAULT_PROGRAM_VERSION
+    notions = [
+        name
+        for (name,) in db.execute(
+            select(Skill.name)
+            .join(LessonSkill, LessonSkill.skill_id == Skill.id)
+            .where(LessonSkill.lesson_id == lesson.id)
+            .order_by(Skill.id)
+        ).all()
+    ]
+
+    system, prompt = lesson_content.build_prompt(
+        subject.name,
+        level,
+        cycle,
+        {"name": chapter.name, "description": chapter.description},
+        {"title": lesson.title, "summary": lesson.summary},
+        notions,
+        program_version,
+    )
+    schema = lesson_content_schema()
+
+    now = datetime.now(timezone.utc)
+    job = AIJob(
+        job_type="lesson_content",
+        status="running",
+        input_json={
+            "lesson_id": lesson_id,
+            "lesson_title": lesson.title,
+            "chapter_id": chapter.id,
+            "chapter": chapter.name,
+            "subject": subject.name,
+            "level": level,
+            "program_version": program_version,
+            "notions_count": len(notions),
+            "regenerate": lesson.content_markdown is not None,
+            "prompt_version": lesson_content.LESSON_CONTENT_PROMPT_VERSION,
+            "provider": type(llm).__name__,
+        },
+        created_by="parent",
+        created_at=now,
+        started_at=now,
+    )
+    db.add(job)
+    db.flush()
+
+    try:
+        response = llm.generate(LLMRequest(system=system, prompt=prompt, fmt=schema))
+        raw, model_used = response.text, response.model
+        result, error = _try_validate(raw, GeneratedLessonContent)
+
+        if result is None:
+            repair_prompt = (
+                f"{prompt}\n\n--- Ta réponse précédente (invalide) ---\n{raw}\n\n"
+                f"{lesson_content.REPAIR_INSTRUCTION}{error}"
+            )
+            response = llm.generate(LLMRequest(system=system, prompt=repair_prompt, fmt=schema))
+            raw, model_used = response.text, response.model
+            result, error = _try_validate(raw, GeneratedLessonContent)
+
+        if result is None:
+            raise CurriculumGenerationError(
+                f"GeneratedLessonContent invalide après réparation : {error}"
+            )
+    except CurriculumGenerationError as exc:
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        raise
+    except Exception as exc:  # noqa: BLE001 — erreur provider/réseau : on trace puis on remonte.
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        raise CurriculumGenerationError(f"Appel LLM échoué : {exc}") from exc
+
+    lesson.content_markdown = _scrub_content_html(result.content).strip()
+    job.status = "succeeded"
+    job.output_json = {"content_chars": len(lesson.content_markdown), "model": model_used}
+    job.finished_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(lesson)
+    return lesson
 
 
 def create_manual_lesson(
@@ -781,6 +908,7 @@ def lessons_out(db: Session, lessons: list[Lesson]) -> list[dict]:
             "chapter_id": l.chapter_id,
             "title": l.title,
             "summary": l.summary,
+            "content": l.content_markdown,
             "status": l.status,
             "created_by": l.created_by,
             "sort_order": l.sort_order,

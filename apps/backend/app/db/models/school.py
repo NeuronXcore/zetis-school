@@ -116,7 +116,8 @@ class Lesson(Base, TimestampMixin):
     chapter_id: Mapped[int] = mapped_column(ForeignKey("chapters.id"), index=True)
     title: Mapped[str] = mapped_column(String(160))
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Réservé à la génération de cours downstream — la passe 2 (ADR-0009) ne le remplit pas.
+    # Cours complet, rempli par la rédaction locale (`job_type="lesson_content"`) —
+    # la passe 2 (ADR-0009) ne le remplit pas.
     content_markdown: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Co-construction (ADR-0009 §3) : `created_by` ≈ source, `status` ≈ validation —
     # champs documentés de DATA_MODEL.md, pas de doublon du motif `source`/

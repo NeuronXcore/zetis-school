@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   type ActiveSchoolYear,
   type CurriculumChapter,
@@ -27,6 +27,7 @@ vi.mock("../lib/curriculum", () => ({
   rejectLesson: vi.fn(),
   deleteLesson: vi.fn(),
   reorderLessons: vi.fn(),
+  generateLessonContent: vi.fn(),
 }));
 
 import {
@@ -34,7 +35,11 @@ import {
   fetchChapters,
   fetchLessons,
   generateChapters,
+  generateLessonContent,
+  patchLesson,
+  rejectLesson,
   validateAllChapters,
+  validateLesson,
 } from "../lib/curriculum";
 
 const YEAR: ActiveSchoolYear = {
@@ -72,6 +77,7 @@ function lesson(over: Partial<CurriculumLesson>): CurriculumLesson {
     chapter_id: 1,
     title: "Découvrir la relation dans le triangle rectangle",
     summary: null,
+    content: null,
     status: "draft",
     created_by: "ai",
     sort_order: 0,
@@ -85,6 +91,10 @@ beforeEach(() => {
   vi.mocked(fetchActiveSchoolYear).mockReset();
   vi.mocked(fetchChapters).mockReset();
   vi.mocked(fetchLessons).mockReset();
+  vi.mocked(generateLessonContent).mockReset();
+  vi.mocked(validateLesson).mockReset();
+  vi.mocked(rejectLesson).mockReset();
+  vi.mocked(patchLesson).mockReset();
 });
 
 describe("ProgrammePage", () => {
@@ -213,6 +223,205 @@ describe("ProgrammePage", () => {
     expect(
       screen.getByRole("button", { name: "⚡ Proposer des leçons" }),
     ).toBeInTheDocument();
+  });
+
+  it("édition d'une leçon avant validation : notions retirables/ajoutables → PATCH complet", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    const draft = lesson({
+      id: 1,
+      chapter_id: 5,
+      notions: [
+        { skill_id: 7, name: "hypoténuse" },
+        { skill_id: 8, name: "carrés des côtés" },
+      ],
+    });
+    vi.mocked(fetchLessons).mockResolvedValue([draft]);
+    vi.mocked(patchLesson).mockResolvedValue(draft);
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Modifier ${draft.title}` }),
+    );
+
+    // Relecture/correction de la proposition IA : retrait d'une notion, ajout d'une autre.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retirer la notion carrés des côtés" }),
+    );
+    fireEvent.change(screen.getByLabelText("Nouvelle notion"), {
+      target: { value: "racine carrée" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    // Le PATCH remplace le rattachement complet (les Skill ne sont jamais supprimées).
+    await waitFor(() =>
+      expect(vi.mocked(patchLesson)).toHaveBeenCalledWith(1, {
+        title: draft.title,
+        summary: null,
+        notions: ["hypoténuse", "racine carrée"],
+      }),
+    );
+  });
+
+  it("modale cours : leçon sans contenu → Rédiger → markdown rendu (leçon remplacée en cache)", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    const draft = lesson({ id: 1, chapter_id: 5 });
+    vi.mocked(fetchLessons).mockResolvedValue([draft]);
+    vi.mocked(generateLessonContent).mockResolvedValue(
+      lesson({ id: 1, chapter_id: 5, content: "# Cours\n\nUn paragraphe de cours." }),
+    );
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Lire le cours de ${draft.title}` }),
+    );
+
+    // État vide de la modale : pas encore de cours → CTA de rédaction locale.
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Pas encore de cours rédigé");
+    fireEvent.click(within(dialog).getByRole("button", { name: "⚡ Rédiger le cours" }));
+
+    // La réponse remplace la leçon dans le cache → la modale (dérivée) affiche le markdown.
+    expect(await screen.findByText("Un paragraphe de cours.")).toBeInTheDocument();
+    expect(vi.mocked(generateLessonContent)).toHaveBeenCalledWith(1);
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "↻ Régénérer le cours" }),
+    ).toBeInTheDocument();
+  });
+
+  it("modale cours : leçon avec contenu → markdown direct ; erreur de rédaction verbatim", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    const withContent = lesson({
+      id: 1,
+      chapter_id: 5,
+      content: "# Déjà rédigé\n\nContenu existant du cours.",
+    });
+    vi.mocked(fetchLessons).mockResolvedValue([withContent]);
+    vi.mocked(generateLessonContent).mockRejectedValue(
+      new Error("Génération échouée : appel LLM échoué."),
+    );
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Lire le cours de ${withContent.title}` }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Contenu existant du cours.");
+
+    // Régénération en échec : detail backend verbatim DANS la modale, contenu conservé.
+    fireEvent.click(within(dialog).getByRole("button", { name: "↻ Régénérer le cours" }));
+    expect(
+      await screen.findByText("Génération échouée : appel LLM échoué."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Contenu existant du cours.");
+  });
+
+  it("modale cours : Valider sur place — badge à jour, modale ouverte, sans repasser par la liste", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    const draft = lesson({ id: 1, chapter_id: 5, content: "# Cours\n\nTexte du cours." });
+    // 1er fetch : draft ; re-fetch après validation : la même leçon validée.
+    vi.mocked(fetchLessons)
+      .mockResolvedValueOnce([draft])
+      .mockResolvedValueOnce([{ ...draft, status: "validated" }]);
+    vi.mocked(validateLesson).mockResolvedValue({ ...draft, status: "validated" });
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Lire le cours de ${draft.title}` }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Valider" }));
+
+    expect(vi.mocked(validateLesson)).toHaveBeenCalledWith(1);
+    // La modale reste ouverte, le badge se met à jour, les actions draft disparaissent.
+    await waitFor(() =>
+      expect(within(screen.getByRole("dialog")).getByText("Validé")).toBeInTheDocument(),
+    );
+    expect(
+      within(screen.getByRole("dialog")).queryByRole("button", { name: "Valider" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("modale cours : Rejeter sur place archive la leçon et ferme la modale", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    const draft = lesson({ id: 1, chapter_id: 5, content: "# Cours\n\nTexte du cours." });
+    vi.mocked(fetchLessons)
+      .mockResolvedValueOnce([draft])
+      .mockResolvedValueOnce([{ ...draft, status: "archived" }]);
+    vi.mocked(rejectLesson).mockResolvedValue({ ...draft, status: "archived" });
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Lire le cours de ${draft.title}` }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rejeter" }));
+
+    expect(vi.mocked(rejectLesson)).toHaveBeenCalledWith(1);
+    // Leçon archivée = hors du flux : la modale (dérivée de la liste) se ferme seule.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("lot « Rédiger les cours manquants » : validées sans cours seulement, séquentiel", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    vi.mocked(fetchLessons).mockResolvedValue([
+      lesson({ id: 1, chapter_id: 5, title: "Sans cours A", status: "validated" }),
+      lesson({ id: 2, chapter_id: 5, title: "Sans cours B", status: "validated" }),
+      lesson({ id: 3, chapter_id: 5, title: "Déjà rédigée", status: "validated", content: "# X" }),
+      lesson({ id: 4, chapter_id: 5, title: "Encore draft" }), // draft : hors lot
+    ]);
+    vi.mocked(generateLessonContent).mockImplementation((id: number) =>
+      Promise.resolve(
+        lesson({ id, chapter_id: 5, status: "validated", content: "# Cours généré" }),
+      ),
+    );
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
+
+    // Compteur = validées sans cours uniquement (2) — ni la rédigée, ni la draft.
+    const batchBtn = await screen.findByRole("button", {
+      name: "⚡ Rédiger les cours manquants (2)",
+    });
+    fireEvent.click(batchBtn);
+
+    await waitFor(() =>
+      expect(vi.mocked(generateLessonContent)).toHaveBeenCalledTimes(2),
+    );
+    expect(vi.mocked(generateLessonContent)).toHaveBeenNthCalledWith(1, 1);
+    expect(vi.mocked(generateLessonContent)).toHaveBeenNthCalledWith(2, 2);
+    // Tout est rédigé : le bouton disparaît.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: /Rédiger les cours manquants/ }),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("chapitre pending déplié : pas de bouton « Proposer des leçons »", async () => {

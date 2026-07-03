@@ -18,6 +18,7 @@ export function LessonRow({
   onEdit,
   onDelete,
   onMove,
+  onRead,
   disabled,
 }: {
   lesson: CurriculumLesson;
@@ -28,6 +29,8 @@ export function LessonRow({
   onEdit: (data: LessonPatchRequest) => Promise<void>;
   onDelete: () => void;
   onMove: (direction: -1 | 1) => void;
+  /** Ouvre la modale « Lire le cours » (contenu complet + rédaction locale). */
+  onRead: () => void;
   disabled?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -82,6 +85,17 @@ export function LessonRow({
         </div>
         {!editing && (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            {actions.canReadContent && (
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={`Lire le cours de ${lesson.title}`}
+                onClick={onRead}
+                disabled={disabled}
+              >
+                📖
+              </Button>
+            )}
             {actions.canValidate && (
               <Button size="sm" onClick={onValidate} disabled={disabled}>
                 Valider
@@ -121,7 +135,8 @@ export function LessonRow({
   );
 }
 
-// Édition inline : titre / résumé (PATCH partiel — les notions sont hors périmètre ici).
+// Édition inline : titre / résumé / notions. L'enregistrement REMPLACE le rattachement
+// des notions (`PATCH notions`) — les `Skill` elles-mêmes ne sont jamais supprimées.
 function EditLessonForm({
   lesson,
   onSubmit,
@@ -133,15 +148,27 @@ function EditLessonForm({
 }) {
   const [title, setTitle] = useState(lesson.title);
   const [summary, setSummary] = useState(lesson.summary ?? "");
+  const [notions, setNotions] = useState<string[]>(lesson.notions.map((n) => n.name));
+  const [newNotion, setNewNotion] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  function addNotion() {
+    const name = newNotion.trim();
+    if (!name) return;
+    // Dédup locale par casse — le backend normalise de toute façon (upsert par nom normalisé).
+    if (!notions.some((n) => n.toLowerCase() === name.toLowerCase())) {
+      setNotions([...notions, name]);
+    }
+    setNewNotion("");
+  }
 
   async function handle(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setErr(null);
     try {
-      await onSubmit({ title: title.trim(), summary: summary.trim() || null });
+      await onSubmit({ title: title.trim(), summary: summary.trim() || null, notions });
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Erreur lors de l'enregistrement");
     } finally {
@@ -163,6 +190,47 @@ function EditLessonForm({
         placeholder="Résumé (optionnel)"
         aria-label="Résumé"
       />
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-papa-muted">notions :</span>
+        {notions.length === 0 && <span className="text-xs text-papa-muted">aucune</span>}
+        {notions.map((n) => (
+          <Badge key={n} variant="muted">
+            {n}
+            <button
+              type="button"
+              aria-label={`Retirer la notion ${n}`}
+              className="ml-0.5 hover:text-rose-300"
+              onClick={() => setNotions(notions.filter((x) => x !== n))}
+            >
+              ×
+            </button>
+          </Badge>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={newNotion}
+          onChange={(e) => setNewNotion(e.target.value)}
+          placeholder="Ajouter une notion"
+          aria-label="Nouvelle notion"
+          className="max-w-60"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addNotion();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={addNotion}
+          disabled={!newNotion.trim()}
+        >
+          Ajouter
+        </Button>
+      </div>
       {err && <p className="text-xs text-rose-300">{err}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={!title.trim() || saving}>

@@ -47,10 +47,13 @@ export interface LessonActions {
   canValidate: boolean;
   /** « Rejeter » (→ `archived`) — uniquement sur une leçon `draft`. */
   canReject: boolean;
-  /** Édition inline (titre/résumé) — toute leçon visible. */
+  /** Édition inline (titre/résumé/notions) — toute leçon visible. */
   canEdit: boolean;
   /** Suppression (avec confirmation) — toute leçon visible. */
   canDelete: boolean;
+  /** Modale « Lire le cours » (+ rédaction locale) — toute leçon visible, `draft`
+   *  inclus : relire le cours aide à valider (le backend refuse `archived`, 409). */
+  canReadContent: boolean;
 }
 
 /** Même règle pure que `chapterActions`, côté leçons. `created_by` ne change aucune
@@ -67,5 +70,6 @@ export function lessonActions(
     canReject: status === "draft",
     canEdit: visible,
     canDelete: visible,
+    canReadContent: visible,
   };
 }
