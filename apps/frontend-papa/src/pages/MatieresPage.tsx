@@ -1,8 +1,9 @@
 import { type FormEvent, type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
-import { type CurriculumChapter } from "@zetis/types";
+import { type CurriculumChapter, type CurriculumLesson } from "@zetis/types";
 import { type SubjectDetail, type Theme } from "../lib/subjects";
 import { SourceBadge, ValidationBadge } from "../components/programme/badges";
+import { LessonContentModal } from "../components/programme/LessonContentModal";
 import { SUBJECT_EMOJI_OPTIONS, subjectEmoji } from "../lib/subjectEmoji";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { type SubjectsData, useSubjects } from "../hooks/useSubjects";
@@ -60,6 +61,9 @@ export function MatieresPapaPage() {
             yearLabel={data.year?.label ?? null}
             yearChapters={data.selectedYearChapters}
             yearChaptersLoading={data.yearChaptersLoading}
+            lessonsByChapter={data.chapterLessons}
+            lessonsLoadingId={data.chapterLessonsLoadingId}
+            onExpandChapter={(chapterId) => void data.loadChapterLessons(chapterId)}
             onClose={() => data.select(null)}
             onAddTheme={(d) => data.addTheme(data.selectedId!, d)}
             onAddChapter={data.addChapter}
@@ -193,6 +197,9 @@ function SubjectDetailPanel({
   yearLabel,
   yearChapters,
   yearChaptersLoading,
+  lessonsByChapter,
+  lessonsLoadingId,
+  onExpandChapter,
   onClose,
   onAddTheme,
   onAddChapter,
@@ -202,6 +209,9 @@ function SubjectDetailPanel({
   yearLabel: string | null;
   yearChapters: CurriculumChapter[] | null;
   yearChaptersLoading: boolean;
+  lessonsByChapter: Record<number, CurriculumLesson[]>;
+  lessonsLoadingId: number | null;
+  onExpandChapter: (chapterId: number) => void;
   onClose: () => void;
   onAddTheme: (data: { name: string; description?: string | null }) => Promise<void>;
   onAddChapter: SubjectsData["addChapter"];
@@ -238,6 +248,9 @@ function SubjectDetailPanel({
               chapters={yearChapters}
               loading={yearChaptersLoading}
               yearLabel={yearLabel}
+              lessonsByChapter={lessonsByChapter}
+              lessonsLoadingId={lessonsLoadingId}
+              onExpandChapter={onExpandChapter}
             />
           )}
           {detail.themes.length === 0 && (
@@ -257,15 +270,31 @@ function SubjectDetailPanel({
 
 // Chapitres du référentiel de l'année active : les MÊMES que la page Programme,
 // en lecture seule — l'édition (génération, validation, leçons) vit dans Programme.
+// Dépliage d'un chapitre → ses leçons VALIDÉES et la lecture de leurs cours (📖).
 function YearChaptersBlock({
   chapters,
   loading,
   yearLabel,
+  lessonsByChapter,
+  lessonsLoadingId,
+  onExpandChapter,
 }: {
   chapters: CurriculumChapter[];
   loading: boolean;
   yearLabel: string | null;
+  lessonsByChapter: Record<number, CurriculumLesson[]>;
+  lessonsLoadingId: number | null;
+  onExpandChapter: (chapterId: number) => void;
 }) {
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [reading, setReading] = useState<CurriculumLesson | null>(null);
+
+  function toggle(chapterId: number) {
+    const next = expandedId === chapterId ? null : chapterId;
+    setExpandedId(next);
+    if (next !== null) onExpandChapter(next);
+  }
+
   return (
     <div className="rounded-2xl border border-emerald-400/30 bg-papa-surface/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -275,6 +304,7 @@ function YearChaptersBlock({
           </p>
           <p className="text-xs text-papa-muted">
             Référentiel co-construit — les mêmes chapitres que la page Programme.
+            Déplie un chapitre pour lire les cours de ses leçons validées.
           </p>
         </div>
         <Link to="/programme" className={GHOST_BTN}>
@@ -290,21 +320,91 @@ function YearChaptersBlock({
       ) : (
         <ul className="mt-3 flex flex-col gap-1.5">
           {chapters.map((c) => (
-            <li
-              key={c.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-papa-bg/50 px-3 py-2 text-sm"
-            >
-              <span className="min-w-0 truncate">{c.name}</span>
-              <span className="flex shrink-0 items-center gap-1.5">
-                {c.period && <span className="text-xs text-papa-muted">{c.period}</span>}
-                <SourceBadge source={c.source} />
-                <ValidationBadge status={c.validation_status} />
-              </span>
+            <li key={c.id} className="rounded-lg bg-papa-bg/50 px-3 py-2 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  className="flex min-w-0 items-center gap-1.5 text-left hover:text-emerald-200"
+                  onClick={() => toggle(c.id)}
+                  aria-expanded={expandedId === c.id}
+                >
+                  <span className="truncate">{c.name}</span>
+                  <span aria-hidden className="text-xs text-papa-muted">
+                    {expandedId === c.id ? "▲" : "▼"}
+                  </span>
+                </button>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {c.period && <span className="text-xs text-papa-muted">{c.period}</span>}
+                  <SourceBadge source={c.source} />
+                  <ValidationBadge status={c.validation_status} />
+                </span>
+              </div>
+              {expandedId === c.id && (
+                <ValidatedLessonsList
+                  lessons={lessonsByChapter[c.id]}
+                  loading={lessonsLoadingId === c.id}
+                  onRead={setReading}
+                />
+              )}
             </li>
           ))}
         </ul>
       )}
+      {reading && (
+        <LessonContentModal
+          lesson={reading}
+          generating={false}
+          error={null}
+          readOnly
+          onClose={() => setReading(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Leçons VALIDÉES d'un chapitre déplié (consultation) : les drafts et archivées
+// restent dans Programme — ici on ne montre que ce qui est acté.
+function ValidatedLessonsList({
+  lessons,
+  loading,
+  onRead,
+}: {
+  lessons: CurriculumLesson[] | undefined;
+  loading: boolean;
+  onRead: (lesson: CurriculumLesson) => void;
+}) {
+  if (loading || lessons === undefined) {
+    return <p className="mt-2 text-xs text-papa-muted">Chargement des leçons…</p>;
+  }
+  const validated = lessons.filter((l) => l.status === "validated");
+  if (validated.length === 0) {
+    return (
+      <p className="mt-2 text-xs text-papa-muted">
+        Aucune leçon validée pour ce chapitre — valide-les dans Programme.
+      </p>
+    );
+  }
+  return (
+    <ul className="mt-2 flex flex-col gap-1 border-t border-papa-border/60 pt-2">
+      {validated.map((l) => (
+        <li key={l.id} className="flex flex-wrap items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-xs">📄 {l.title}</span>
+          {l.content !== null ? (
+            <button
+              type="button"
+              className="text-xs text-emerald-300 hover:text-emerald-200"
+              aria-label={`Lire le cours de ${l.title}`}
+              onClick={() => onRead(l)}
+            >
+              📖 Lire le cours
+            </button>
+          ) : (
+            <span className="text-xs text-papa-muted">cours en préparation</span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 

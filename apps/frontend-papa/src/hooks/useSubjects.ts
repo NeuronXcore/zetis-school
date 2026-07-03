@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type ActiveSchoolYear, type CurriculumChapter } from "@zetis/types";
+import {
+  type ActiveSchoolYear,
+  type CurriculumChapter,
+  type CurriculumLesson,
+} from "@zetis/types";
 import {
   type ChapterCreate,
   type Subject,
@@ -12,7 +16,7 @@ import {
   fetchSubjectDetail,
   fetchSubjects,
 } from "../lib/subjects";
-import { fetchActiveSchoolYear, fetchChapters } from "../lib/curriculum";
+import { fetchActiveSchoolYear, fetchChapters, fetchLessons } from "../lib/curriculum";
 
 // Hook de données de la page Matières (Papa).
 // Toute la logique API + état vit ici ; la page reste présentationnelle.
@@ -29,6 +33,11 @@ export interface SubjectsData {
    *  que la page Programme. null = matière hors année active (ou année absente). */
   selectedYearChapters: CurriculumChapter[] | null;
   yearChaptersLoading: boolean;
+  /** Leçons par chapitre déplié (liste brute — le composant filtre les validées).
+   *  Cache : fetch au premier dépliage seulement. */
+  chapterLessons: Record<number, CurriculumLesson[]>;
+  chapterLessonsLoadingId: number | null;
+  loadChapterLessons: (chapterId: number) => Promise<void>;
   select: (subjectId: number | null) => void;
   addSubject: (data: SubjectCreate) => Promise<void>;
   addTheme: (subjectId: number, data: ThemeCreate) => Promise<void>;
@@ -110,6 +119,28 @@ export function useSubjects(): SubjectsData {
       ? (yearChapters[selectedId] ?? [])
       : null;
 
+  // Leçons d'un chapitre du référentiel (consultation lecture seule) : fetch au
+  // premier dépliage, cache ensuite — les ids de chapitre sont globalement uniques.
+  const [chapterLessons, setChapterLessons] = useState<Record<number, CurriculumLesson[]>>({});
+  const [chapterLessonsLoadingId, setChapterLessonsLoadingId] = useState<number | null>(null);
+  const lessonsLoadedRef = useRef(new Set<number>());
+
+  const loadChapterLessons = useCallback(async (chapterId: number) => {
+    if (lessonsLoadedRef.current.has(chapterId)) return;
+    lessonsLoadedRef.current.add(chapterId);
+    setChapterLessonsLoadingId(chapterId);
+    try {
+      const list = await fetchLessons(chapterId);
+      setChapterLessons((m) => ({ ...m, [chapterId]: list }));
+    } catch (e) {
+      // Pas de cache d'erreur : le prochain dépliage retentera.
+      lessonsLoadedRef.current.delete(chapterId);
+      setError(e instanceof Error ? e.message : "Erreur de chargement");
+    } finally {
+      setChapterLessonsLoadingId((current) => (current === chapterId ? null : current));
+    }
+  }, []);
+
   const select = useCallback(
     (subjectId: number | null) => {
       setSelectedId(subjectId);
@@ -167,6 +198,9 @@ export function useSubjects(): SubjectsData {
     year,
     selectedYearChapters,
     yearChaptersLoading,
+    chapterLessons,
+    chapterLessonsLoadingId,
+    loadChapterLessons,
     select,
     addSubject,
     addTheme,

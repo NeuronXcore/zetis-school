@@ -21,6 +21,7 @@ export function LessonContentModal({
   lesson,
   generating,
   error,
+  readOnly = false,
   onGenerate,
   onValidate,
   onReject,
@@ -29,9 +30,12 @@ export function LessonContentModal({
   lesson: CurriculumLesson;
   generating: boolean;
   error: string | null;
-  onGenerate: () => void;
-  onValidate: () => void;
-  onReject: () => void;
+  /** Consultation pure (page Matières) : aucune action de rédaction ni de décision —
+   *  l'édition du référentiel vit dans Programme. */
+  readOnly?: boolean;
+  onGenerate?: () => void;
+  onValidate?: () => void;
+  onReject?: () => void;
   onClose: () => void;
 }) {
   const actions = lessonActions(lesson.created_by, lesson.status);
@@ -67,12 +71,12 @@ export function LessonContentModal({
             <LessonStatusBadge status={lesson.status} />
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            {actions.canValidate && (
+            {!readOnly && actions.canValidate && (
               <Button size="sm" onClick={onValidate} disabled={generating}>
                 Valider
               </Button>
             )}
-            {actions.canReject && (
+            {!readOnly && actions.canReject && (
               <Button size="sm" variant="outline" onClick={onReject} disabled={generating}>
                 Rejeter
               </Button>
@@ -106,7 +110,7 @@ export function LessonContentModal({
               <p className="text-sm text-papa-muted">
                 Pas encore de cours rédigé pour cette leçon.
               </p>
-              <Button onClick={onGenerate}>⚡ Rédiger le cours</Button>
+              {!readOnly && <Button onClick={onGenerate}>⚡ Rédiger le cours</Button>}
             </div>
           )
         ) : (
@@ -114,11 +118,13 @@ export function LessonContentModal({
             <div className={MARKDOWN_STYLES}>
               <ReactMarkdown>{lesson.content}</ReactMarkdown>
             </div>
-            <div className="mt-4 border-t border-papa-border pt-3">
-              <Button size="sm" variant="outline" disabled={generating} onClick={onGenerate}>
-                ↻ Régénérer le cours
-              </Button>
-            </div>
+            {!readOnly && (
+              <div className="mt-4 border-t border-papa-border pt-3">
+                <Button size="sm" variant="outline" disabled={generating} onClick={onGenerate}>
+                  ↻ Régénérer le cours
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>
