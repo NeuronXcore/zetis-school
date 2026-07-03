@@ -59,3 +59,20 @@ export interface ChapterPatchRequest {
 export interface ChapterReorderRequest {
   chapter_ids: number[];
 }
+
+/** Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres). */
+export interface SchoolYearSubjectRef {
+  id: number;
+  subject_id: number;
+  subject_name: string;
+  subject_slug: string;
+  status: string;
+}
+
+/** `GET /api/school-years/active/subjects` — lecture seule pour la page Programme (Slice B). */
+export interface ActiveSchoolYear {
+  id: number;
+  label: string;
+  level: string;
+  subjects: SchoolYearSubjectRef[];
+}

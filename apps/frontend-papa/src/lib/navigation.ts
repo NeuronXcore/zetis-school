@@ -15,6 +15,7 @@ export const PAPA_NAV: NavItem[] = [
   { to: "/conseil", label: "Conseil de classe IA", icon: "🧑‍🏫" },
   { to: "/cahier", label: "Cahier de bord IA", icon: "📓" },
   { to: "/annees", label: "Années scolaires", icon: "🗓️" },
+  { to: "/programme", label: "Programme", icon: "📖" },
   { to: "/programmes", label: "Matières & programmes", icon: "📚" },
   { to: "/sources", label: "Sources de cours", icon: "📥" },
   { to: "/capsules", label: "Capsules IA", icon: "🎬" },

@@ -57,6 +57,11 @@ services:
       # Ollama sur l'hôte (le modèle doit y être pull).
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.6:35b-a3b}
+      # Dérogation curriculum (ADR-0009) : clé lue depuis le .env à la RACINE du repo
+      # (convention : les clés API ne vivent que là — compose la substitue au `up`).
+      # Sans clé : 503 explicite sur la génération de programme, le reste fonctionne.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CURRICULUM_LLM_PROVIDER: ${CURRICULUM_LLM_PROVIDER:-anthropic}
       EMBED_PROVIDER: ollama
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       REDIS_URL: redis://redis:6379/0

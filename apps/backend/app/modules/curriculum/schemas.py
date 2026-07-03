@@ -31,7 +31,11 @@ class GeneratedChapters(BaseModel):
 
     subject: str
     cycle: str
-    program_version: str  # déclarative (ex: "2020"), fiabilisée par validation Papa
+    # Déclarative (ex: "2020"), fiabilisée par validation Papa. Borne 20 = colonne
+    # `chapters.program_version` VARCHAR(20) : une sortie verbeuse ("2020 (BO du 30
+    # juillet 2020)", vue en réel sur SVT) casserait l'INSERT — la borne la fait
+    # passer par la réparation au lieu de tronquer silencieusement.
+    program_version: str = Field(max_length=20)
     chapters: list[GeneratedChapter] = Field(min_length=MIN_CHAPTERS, max_length=MAX_CHAPTERS)
 
 
@@ -97,3 +101,22 @@ class ChapterReorderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     chapter_ids: list[int] = Field(min_length=1)
+
+
+class SchoolYearSubjectOut(BaseModel):
+    """Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres)."""
+
+    id: int
+    subject_id: int
+    subject_name: str
+    subject_slug: str
+    status: str
+
+
+class ActiveSchoolYearOut(BaseModel):
+    """`GET /api/school-years/active/subjects` — lecture seule pour la page Programme (Slice B)."""
+
+    id: int
+    label: str
+    level: str
+    subjects: list[SchoolYearSubjectOut]

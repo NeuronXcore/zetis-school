@@ -1,11 +1,25 @@
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Convention du monorepo : les clés API (secrets) vivent UNIQUEMENT dans le .env à la
+# racine du projet ; apps/backend/.env ne porte que la config locale du backend.
+# Chemins absolus (indépendants du cwd d'uvicorn) ; un fichier absent est ignoré.
+_BACKEND_DIR = Path(__file__).resolve().parents[2]  # apps/backend
+_REPO_ROOT = _BACKEND_DIR.parents[1]
 
 
 class Settings(BaseSettings):
     """Configuration du backend ZETIS (surchargée via .env ou variables d'env)."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="ZETIS_", extra="ignore")
+    # Ordre = priorité croissante : le .env du backend surcharge celui de la racine ;
+    # les vraies variables d'environnement priment sur les deux.
+    model_config = SettingsConfigDict(
+        env_file=(_REPO_ROOT / ".env", _BACKEND_DIR / ".env"),
+        env_prefix="ZETIS_",
+        extra="ignore",
+    )
 
     app_name: str = "zetis-backend"
     version: str = "0.1.0"
