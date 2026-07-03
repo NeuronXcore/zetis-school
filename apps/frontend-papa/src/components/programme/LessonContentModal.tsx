@@ -127,13 +127,17 @@ export function LessonContentModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
+      {/* Cadre arrondi = conteneur `overflow-hidden` ; le défilement vit sur le
+          wrapper interne, dont la barre est rognée par l'arrondi du cadre (sinon
+          elle « coupe » les coins droits). */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`Cours : ${lesson.title}`}
-        className="papa-scrollbar max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-papa-accent/30 bg-papa-surface p-6 shadow-[0_0_45px_-10px_rgba(16,185,129,0.45),0_0_90px_-18px_rgba(56,189,248,0.35)]"
+        className="flex max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-papa-accent/30 bg-papa-surface shadow-[0_0_45px_-10px_rgba(16,185,129,0.45),0_0_90px_-18px_rgba(56,189,248,0.35)]"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="papa-scrollbar min-h-0 w-full overflow-y-auto p-6">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span aria-hidden>📖</span>
@@ -254,6 +258,7 @@ export function LessonContentModal({
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );
