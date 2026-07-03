@@ -6,7 +6,8 @@
 matière par IA, en ajouter à la main, valider/rejeter/éditer/réordonner — selon les
 règles de co-construction de l'ADR-0009 §3. La page rend visibles la **source** de
 chaque chapitre (IA / Manuel) et son **statut de validation**, indépendamment de son
-statut de progression.
+statut de progression. Depuis le Lot 2, l'état déplié d'un chapitre expose ses
+**leçons** et leurs notions, avec les mêmes règles de co-construction.
 
 Maquettes de référence validées le 2026-07-03 (session Claude) : page Programme,
 état chapitre déplié, formulaire d'ajout inline.
@@ -49,11 +50,63 @@ Maquettes de référence validées le 2026-07-03 (session Claude) : page Program
 
 ### État déplié (chevron ▼ sur une ligne)
 
-Affiche, depuis les champs dépliés de l'API (`themes`, `suggested_class`,
-`repartition`) : la liste des thèmes du chapitre, la classe suggérée, et le badge
-de répartition (`officielle` = repères annuels / `interpretee` = indicative).
-La description (texte humain) s'affiche sous le titre.
-*(Les leçons viendront au Lot 2 — pas d'accordéon leçons dans cette version.)*
+Le dépliage charge les leçons du chapitre **à la demande** (`GET
+/api/chapters/{id}/lessons` — jamais au chargement de la page : une matière peut
+avoir 8 chapitres × 12 leçons).
+
+En tête du panneau déplié : la description (texte humain), puis les métadonnées du
+chapitre (thèmes, classe suggérée, badge de répartition `officielle`/`interpretee`).
+
+Puis la liste des leçons, chacune sur une ligne :
+
+```txt
+┌────────────────────────────────────────────────────────────────┐
+│ 📄 Découvrir la relation dans le triangle rectangle            │
+│    notions : (hypoténuse) (carrés des côtés) (égalité)         │
+│                                    [IA] [Validé]               │
+│ 📄 Calculer une longueur                                       │
+│    notions : (côté de l'angle droit) (racine carrée)           │
+│                    [IA] [À valider]  [Valider] [Rejeter] ✎ 🗑  │
+│ 📄 Réciproque (exercice type brevet)                           │
+│                                    [Manuel] [Validé]  ✎ 🗑     │
+├────────────────────────────────────────────────────────────────┤
+│ [+ Ajouter une leçon]   [⚡ Proposer des leçons]               │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Mapping des statuts (décision Slice A du Lot 2 — asymétrie assumée avec les
+chapitres)** :
+
+| Donnée API (`Lesson`)            | Badge UI     |
+|----------------------------------|--------------|
+| `created_by: ai`                 | `IA` (violet)|
+| `created_by: parent`             | `Manuel`     |
+| `status: draft`                  | `À valider`  |
+| `status: validated`              | `Validé`     |
+| `status: archived`               | **non affichée** |
+
+Les leçons `archived` (= rejetées par Papa ou retirées du flux) ne sont PAS
+affichées : elles sont hors du flux et remplacées à la régénération. Pas de badge
+« Rejeté » ni « Archivé » côté leçons — si un besoin de consultation émerge, ce
+sera un toggle ultérieur, pas la V1.
+
+**Notions** : chips en lecture seule (dépliées par l'API : `{skill_id, name}`) —
+jamais éditables ici (elles vivent dans le référentiel de skills).
+
+**Actions par état** (même fonction pure testée que pour les chapitres, étendue) :
+`Valider`/`Rejeter` sur `draft` uniquement ; édition (titre/résumé) et suppression
+(avec confirmation) sur toute leçon visible ; réordonnancement par boutons
+monter/descendre.
+
+**« Proposer des leçons »** : visible uniquement si le chapitre est validé ou
+manuel (le backend renvoie 409 sinon — l'UI ne montre simplement pas le bouton
+dans les autres cas). Requête longue (~10-30 s) : réutiliser le composant de
+progression estimée des chapitres (même pattern que le pilotage capsules). Après
+génération : re-fetch des leçons du chapitre, panneau maintenu ouvert.
+
+**« Ajouter une leçon »** : formulaire inline dans le panneau (Titre requis,
+Résumé optionnel), badge `Manuel` affiché d'emblée, créée validée d'office —
+symétrie exacte avec l'ajout de chapitre.
 
 ### Formulaire d'ajout inline (clic « Ajouter un chapitre »)
 
@@ -86,6 +139,10 @@ avec la liste complète ordonnée des ids.
 - `POST .../generate-chapters` — passe 1.
 - `POST` chapitre manuel · `PATCH` (nom/description/période + validate/reject) ·
   `DELETE` · `POST .../reorder`.
+- Leçons (Lot 2) : `GET /api/chapters/{id}/lessons` · `POST .../generate-lessons`
+  (409 si chapitre ni validé ni manuel) · `POST .../lessons` (manuel) ·
+  `PATCH /lessons/{id}` · `POST /lessons/{id}/validate` et `/reject` ·
+  `DELETE /lessons/{id}` · `POST .../lessons/reorder`.
 
 ## Thème
 
@@ -93,8 +150,10 @@ Papa émeraude (`@zetis/ui`, tokens sémantiques). Badges : IA = violet clair,
 Manuel/Validé = émeraude clair, À valider = ambre clair, Rejeté = rouge clair —
 texte foncé de la même famille que le fond (jamais noir pur).
 
-## Hors périmètre de cette page (Lot 2+)
+## Hors périmètre de cette page
 
-Accordéon leçons/notions ; bandeau d'ancrage RAG ; case « proposer des leçons par
-IA juste après » du formulaire d'ajout ; drag & drop ; édition des métadonnées
-(`themes`/`suggested_class`) — la génération les produit, Papa ne les édite pas.
+Bandeau d'ancrage RAG (viendra avec l'ancrage, Lot 2 backend restant) ; case
+« proposer des leçons juste après » du formulaire d'ajout de chapitre (le bouton
+du panneau déplié couvre le besoin en deux clics) ; drag & drop ; édition des
+métadonnées de chapitre et des notions ; consultation des leçons archivées ;
+page Années scolaires (étape dédiée).

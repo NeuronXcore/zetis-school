@@ -1,11 +1,12 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { type ChapterPatchRequest, type CurriculumChapter } from "@zetis/types";
 import { Badge, Button, Input, cn } from "@zetis/ui";
 import { chapterActions } from "../../lib/chapterActions";
 import { RepartitionBadge, SourceBadge, ValidationBadge } from "./badges";
 
 // Ligne de chapitre du référentiel : badges source + validation, actions selon l'état
-// (règle pure `chapterActions`), état déplié (thèmes / classe / répartition), édition inline.
+// (règle pure `chapterActions`), état déplié (thèmes / classe / répartition + étage
+// leçons via `lessonsSlot`, monté uniquement déplié → chargement paresseux), édition inline.
 
 export function ChapterRow({
   chapter,
@@ -18,6 +19,7 @@ export function ChapterRow({
   onDelete,
   onMove,
   disabled,
+  lessonsSlot,
 }: {
   chapter: CurriculumChapter;
   isFirst: boolean;
@@ -29,6 +31,8 @@ export function ChapterRow({
   onDelete: () => void;
   onMove: (direction: -1 | 1) => void;
   disabled?: boolean;
+  /** Étage leçons (Lot 2 Slice B) — rendu seulement quand la ligne est dépliée. */
+  lessonsSlot?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -77,7 +81,12 @@ export function ChapterRow({
                 <ValidationBadge status={chapter.validation_status} />
               </div>
               <Hint chapter={chapter} untouched={actions.untouchedByRegeneration} />
-              {expanded && <ExpandedDetails chapter={chapter} />}
+              {expanded && (
+                <>
+                  <ExpandedDetails chapter={chapter} />
+                  {lessonsSlot}
+                </>
+              )}
             </>
           )}
         </div>
@@ -127,7 +136,7 @@ export function ChapterRow({
   );
 }
 
-function ReorderButtons({
+export function ReorderButtons({
   isFirst,
   isLast,
   disabled,

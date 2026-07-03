@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { type ActiveSchoolYear, type CurriculumChapter } from "@zetis/types";
+import {
+  type ActiveSchoolYear,
+  type CurriculumChapter,
+  type CurriculumLesson,
+} from "@zetis/types";
 import { ProgrammePage } from "./ProgrammePage";
 
 // Un test de rendu par état de page (liste / vide / erreur), API mockée.
@@ -15,11 +19,20 @@ vi.mock("../lib/curriculum", () => ({
   reorderChapters: vi.fn(),
   validateAllChapters: vi.fn(),
   validateAllActiveYear: vi.fn(),
+  fetchLessons: vi.fn(),
+  generateLessons: vi.fn(),
+  createManualLesson: vi.fn(),
+  patchLesson: vi.fn(),
+  validateLesson: vi.fn(),
+  rejectLesson: vi.fn(),
+  deleteLesson: vi.fn(),
+  reorderLessons: vi.fn(),
 }));
 
 import {
   fetchActiveSchoolYear,
   fetchChapters,
+  fetchLessons,
   generateChapters,
   validateAllChapters,
 } from "../lib/curriculum";
@@ -53,9 +66,25 @@ function chapter(over: Partial<CurriculumChapter>): CurriculumChapter {
   };
 }
 
+function lesson(over: Partial<CurriculumLesson>): CurriculumLesson {
+  return {
+    id: 1,
+    chapter_id: 1,
+    title: "Découvrir la relation dans le triangle rectangle",
+    summary: null,
+    status: "draft",
+    created_by: "ai",
+    sort_order: 0,
+    program_version: "2020",
+    notions: [],
+    ...over,
+  };
+}
+
 beforeEach(() => {
   vi.mocked(fetchActiveSchoolYear).mockReset();
   vi.mocked(fetchChapters).mockReset();
+  vi.mocked(fetchLessons).mockReset();
 });
 
 describe("ProgrammePage", () => {
@@ -145,6 +174,64 @@ describe("ProgrammePage", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Valider" }));
     expect(await screen.findByText("1 chapitre validé.")).toBeInTheDocument();
     expect(vi.mocked(validateAllChapters)).toHaveBeenCalledWith(10);
+  });
+
+  it("dépliage : leçons chargées à la demande, archived masquée, notions en chips", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    vi.mocked(fetchLessons).mockResolvedValue([
+      lesson({
+        id: 1,
+        chapter_id: 5,
+        notions: [
+          { skill_id: 7, name: "hypoténuse" },
+          { skill_id: 8, name: "carrés des côtés" },
+        ],
+      }),
+      lesson({ id: 2, chapter_id: 5, title: "Leçon écartée", status: "archived" }),
+    ]);
+
+    render(<ProgrammePage />);
+    // Aucun fetch de leçons au chargement de la page (paresseux).
+    await screen.findByText("Théorème de Pythagore");
+    expect(vi.mocked(fetchLessons)).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Théorème de Pythagore" }));
+
+    expect(
+      await screen.findByText("Découvrir la relation dans le triangle rectangle"),
+    ).toBeInTheDocument();
+    expect(vi.mocked(fetchLessons)).toHaveBeenCalledWith(5);
+    // Leçon archivée : hors du flux, jamais affichée.
+    expect(screen.queryByText("Leçon écartée")).not.toBeInTheDocument();
+    // Notions en chips lecture seule.
+    expect(screen.getByText("hypoténuse")).toBeInTheDocument();
+    expect(screen.getByText("carrés des côtés")).toBeInTheDocument();
+    // Chapitre validé → « Proposer des leçons » visible (même condition que le 409 backend).
+    expect(
+      screen.getByRole("button", { name: "⚡ Proposer des leçons" }),
+    ).toBeInTheDocument();
+  });
+
+  it("chapitre pending déplié : pas de bouton « Proposer des leçons »", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 6, name: "Proportionnalité" }), // generated + pending
+    ]);
+    vi.mocked(fetchLessons).mockResolvedValue([]);
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Proportionnalité" }));
+
+    // Le panneau est bien là (ajout manuel possible), mais pas la passe 2.
+    expect(
+      await screen.findByRole("button", { name: "+ Ajouter une leçon" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "⚡ Proposer des leçons" }),
+    ).not.toBeInTheDocument();
   });
 
   it("état erreur : message backend verbatim + bouton réessayer", async () => {

@@ -20,6 +20,15 @@
       "runtimeArgs": ["--filter", "@zetis/frontend-papa", "dev"],
       "port": 5174,
       "autoPort": true
+    },
+    {
+      "name": "papa-dev",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-papa && VITE_API_URL=http://localhost:8001 npx vite --port 5175 --strictPort"
+      ],
+      "port": 5175
     }
   ]
 }

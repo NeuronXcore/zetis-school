@@ -5,6 +5,7 @@ import { PageHeader } from "../components/PageHeader";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { AddChapterForm } from "../components/programme/AddChapterForm";
 import { ChapterRow } from "../components/programme/ChapterRow";
+import { LessonsPanel } from "../components/programme/LessonsPanel";
 import { SubjectPills } from "../components/programme/SubjectPills";
 import {
   ValidateAllDialog,
@@ -217,6 +218,7 @@ function ChapterList({
             onEdit={(patch) => data.editChapter(chapter.id, patch)}
             onDelete={() => setToDelete(chapter)}
             onMove={(direction) => void data.move(chapter.id, direction)}
+            lessonsSlot={<LessonsPanel chapter={chapter} data={data} />}
           />
         ))}
       </ul>

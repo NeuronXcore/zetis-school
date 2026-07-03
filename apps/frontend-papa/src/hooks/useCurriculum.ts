@@ -4,17 +4,29 @@ import {
   type ChapterManualCreateRequest,
   type ChapterPatchRequest,
   type CurriculumChapter,
+  type CurriculumLesson,
+  type LessonManualCreateRequest,
+  type LessonPatchRequest,
 } from "@zetis/types";
+import { lessonActions } from "../lib/chapterActions";
 import {
   createManualChapter,
+  createManualLesson,
   deleteChapter,
+  deleteLesson,
   fetchActiveSchoolYear,
   fetchChapters,
+  fetchLessons,
   generateChapters,
+  generateLessons,
   patchChapter,
+  patchLesson,
+  rejectLesson,
   reorderChapters,
+  reorderLessons,
   validateAllActiveYear,
   validateAllChapters,
+  validateLesson,
 } from "../lib/curriculum";
 
 // Hook de données de la page Programme (Papa, Slice B — ADR-0009).
@@ -25,6 +37,25 @@ export type AddPosition =
   | { kind: "end" }
   | { kind: "start" }
   | { kind: "after"; chapterId: number };
+
+/** Leçons d'un chapitre déplié — chargées au premier dépliage, cachées ensuite (Lot 2 Slice B). */
+export interface ChapterLessonsState {
+  /** Liste COMPLÈTE renvoyée par l'API (`archived` incluses — l'UI filtre à l'affichage,
+   *  le reorder backend exige tous les ids). */
+  lessons: CurriculumLesson[];
+  loading: boolean;
+  /** Erreur de chargement ou d'action sur les leçons de CE chapitre — detail backend verbatim. */
+  error: string | null;
+  /** Passe 2 en cours (requête longue ~10-30 s, panneau maintenu ouvert). */
+  generating: boolean;
+}
+
+const EMPTY_LESSONS: ChapterLessonsState = {
+  lessons: [],
+  loading: false,
+  error: null,
+  generating: false,
+};
 
 export interface CurriculumData {
   /** Chargement initial (année active + matières). */
@@ -52,6 +83,23 @@ export interface CurriculumData {
   removeChapter: (chapterId: number) => Promise<void>;
   /** Monter/descendre d'un cran : optimiste côté UI, rollback si l'appel échoue. */
   move: (chapterId: number, direction: -1 | 1) => Promise<void>;
+  /** Leçons par chapitre — clé absente = jamais chargées (dépliage jamais ouvert). */
+  lessonsByChapter: Record<number, ChapterLessonsState>;
+  /** Chargement paresseux : fetch au premier appel seulement, no-op si déjà en cache. */
+  loadLessons: (chapterId: number) => Promise<void>;
+  /** Passe 2 : propose des leçons (chapitre validé ou manuel — 409 backend sinon). */
+  generateLessons: (chapterId: number) => Promise<void>;
+  addLesson: (chapterId: number, data: LessonManualCreateRequest) => Promise<void>;
+  editLesson: (
+    chapterId: number,
+    lessonId: number,
+    data: LessonPatchRequest,
+  ) => Promise<void>;
+  validateLesson: (chapterId: number, lessonId: number) => Promise<void>;
+  rejectLesson: (chapterId: number, lessonId: number) => Promise<void>;
+  removeLesson: (chapterId: number, lessonId: number) => Promise<void>;
+  /** Monter/descendre parmi les leçons VISIBLES : optimiste, rollback si échec. */
+  moveLesson: (chapterId: number, lessonId: number, direction: -1 | 1) => Promise<void>;
 }
 
 function message(e: unknown): string {
@@ -257,6 +305,156 @@ export function useCurriculum(): CurriculumData {
 
   const clearActionError = useCallback(() => setActionError(null), []);
 
+  // ---------------------------------------------------------------------------
+  // Leçons (Lot 2 Slice B) : cache par chapitre, jamais de fetch global.
+  // ---------------------------------------------------------------------------
+
+  const [lessonsByChapter, setLessonsByChapter] = useState<
+    Record<number, ChapterLessonsState>
+  >({});
+  // Chapitres dont les leçons ont été demandées — le cache survit aux re-dépliages
+  // et aux changements de matière (les ids de chapitre sont globalement uniques).
+  const lessonsLoadedRef = useRef(new Set<number>());
+
+  const patchLessonsState = useCallback(
+    (chapterId: number, patch: Partial<ChapterLessonsState>) => {
+      setLessonsByChapter((m) => ({
+        ...m,
+        [chapterId]: { ...EMPTY_LESSONS, ...m[chapterId], ...patch },
+      }));
+    },
+    [],
+  );
+
+  // Fetch + invalidation : utilisé au premier dépliage ET après toute mutation du chapitre.
+  const fetchLessonsInto = useCallback(
+    async (chapterId: number) => {
+      lessonsLoadedRef.current.add(chapterId);
+      patchLessonsState(chapterId, { loading: true, error: null });
+      try {
+        const list = await fetchLessons(chapterId);
+        patchLessonsState(chapterId, { lessons: list, loading: false });
+      } catch (e) {
+        // Pas de cache d'erreur : le prochain dépliage retentera.
+        lessonsLoadedRef.current.delete(chapterId);
+        patchLessonsState(chapterId, { error: message(e), loading: false });
+      }
+    },
+    [patchLessonsState],
+  );
+
+  const loadLessons = useCallback(
+    async (chapterId: number) => {
+      if (lessonsLoadedRef.current.has(chapterId)) return;
+      await fetchLessonsInto(chapterId);
+    },
+    [fetchLessonsInto],
+  );
+
+  const generateLessonsFor = useCallback(
+    async (chapterId: number) => {
+      patchLessonsState(chapterId, { generating: true, error: null });
+      try {
+        // Requête longue (~10-30 s). La réponse EST la liste complète après génération
+        // (contrat router.py) : pas de re-fetch séparé nécessaire.
+        const list = await generateLessons(chapterId);
+        lessonsLoadedRef.current.add(chapterId);
+        patchLessonsState(chapterId, { lessons: list });
+      } catch (e) {
+        // 409 (chapitre ni validé ni manuel) / 503 / 502 : detail backend verbatim.
+        patchLessonsState(chapterId, { error: message(e) });
+      } finally {
+        patchLessonsState(chapterId, { generating: false });
+      }
+    },
+    [patchLessonsState],
+  );
+
+  // Lève en cas d'échec : le formulaire inline affiche l'erreur (patron addChapter).
+  const addLesson = useCallback(
+    async (chapterId: number, data: LessonManualCreateRequest) => {
+      await createManualLesson(chapterId, data);
+      await fetchLessonsInto(chapterId);
+    },
+    [fetchLessonsInto],
+  );
+
+  const editLesson = useCallback(
+    async (chapterId: number, lessonId: number, data: LessonPatchRequest) => {
+      await patchLesson(lessonId, data);
+      await fetchLessonsInto(chapterId);
+    },
+    [fetchLessonsInto],
+  );
+
+  const setLessonValidation = useCallback(
+    async (chapterId: number, lessonId: number, action: "validate" | "reject") => {
+      patchLessonsState(chapterId, { error: null });
+      try {
+        if (action === "validate") await validateLesson(lessonId);
+        else await rejectLesson(lessonId);
+        await fetchLessonsInto(chapterId);
+      } catch (e) {
+        patchLessonsState(chapterId, { error: message(e) });
+      }
+    },
+    [patchLessonsState, fetchLessonsInto],
+  );
+
+  const validateLessonFor = useCallback(
+    (chapterId: number, lessonId: number) =>
+      setLessonValidation(chapterId, lessonId, "validate"),
+    [setLessonValidation],
+  );
+  const rejectLessonFor = useCallback(
+    (chapterId: number, lessonId: number) =>
+      setLessonValidation(chapterId, lessonId, "reject"),
+    [setLessonValidation],
+  );
+
+  const removeLesson = useCallback(
+    async (chapterId: number, lessonId: number) => {
+      patchLessonsState(chapterId, { error: null });
+      try {
+        await deleteLesson(lessonId);
+        await fetchLessonsInto(chapterId);
+      } catch (e) {
+        patchLessonsState(chapterId, { error: message(e) });
+      }
+    },
+    [patchLessonsState, fetchLessonsInto],
+  );
+
+  const moveLesson = useCallback(
+    async (chapterId: number, lessonId: number, direction: -1 | 1) => {
+      const state = lessonsByChapter[chapterId];
+      if (!state) return;
+      const all = state.lessons;
+      // On échange avec la voisine VISIBLE : les `archived` gardent leur position
+      // absolue dans la liste complète (le reorder backend exige tous les ids).
+      const visible = all.filter((l) => lessonActions(l.created_by, l.status).visible);
+      const vIndex = visible.findIndex((l) => l.id === lessonId);
+      const vTarget = vIndex + direction;
+      if (vIndex === -1 || vTarget < 0 || vTarget >= visible.length) return;
+      const a = all.indexOf(visible[vIndex]);
+      const b = all.indexOf(visible[vTarget]);
+      const next = [...all];
+      [next[a], next[b]] = [next[b], next[a]];
+      // Optimiste : la ligne bouge tout de suite ; rollback si l'appel échoue.
+      patchLessonsState(chapterId, { lessons: next, error: null });
+      try {
+        const ordered = await reorderLessons(
+          chapterId,
+          next.map((l) => l.id),
+        );
+        patchLessonsState(chapterId, { lessons: ordered });
+      } catch (e) {
+        patchLessonsState(chapterId, { lessons: all, error: message(e) });
+      }
+    },
+    [lessonsByChapter, patchLessonsState],
+  );
+
   return {
     loading,
     error,
@@ -277,5 +475,14 @@ export function useCurriculum(): CurriculumData {
     validateAll,
     removeChapter,
     move,
+    lessonsByChapter,
+    loadLessons,
+    generateLessons: generateLessonsFor,
+    addLesson,
+    editLesson,
+    validateLesson: validateLessonFor,
+    rejectLesson: rejectLessonFor,
+    removeLesson,
+    moveLesson,
   };
 }
