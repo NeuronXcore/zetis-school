@@ -157,6 +157,8 @@ Liaison minimale leçon ↔ notion (`Skill`), PK composite `(lesson_id, skill_id
 unicité de la paire. Les notions générées par la passe 2 upsertent des `Skill`
 (dédup par `subject_id` + `level` + nom normalisé casse/espaces) — le référentiel
 persistant reste `skills`, aucune table `curriculum_*` (ADR-0009 §2).
+La génération skills-only (ADR-0010) upserte des `Skill` **sans** créer de liaison
+(aucune leçon dans ce flux).
 
 ```txt
 lesson_id          # FK lessons, ON DELETE CASCADE
@@ -461,6 +463,7 @@ Subject 1─N Skill
 SchoolYearSubject 1─N Chapter
 Chapter 1─N Lesson
 Chapter 1─N LearningObjective
+Lesson N─N Skill (via LessonSkill)
 Quiz 1─N QuizQuestion
 Quiz 1─N QuizAttempt
 QuizAttempt 1─N QuizAnswer

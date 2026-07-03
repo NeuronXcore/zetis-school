@@ -16,7 +16,9 @@ Lance d'abord `graphify update .`, puis lis, dans cet ordre, avant toute ligne d
    constantes de version, `has_annual_markers` ;
 4. Le **service réel de la passe 2** (module curriculum) — identifie précisément :
    (a) d'où vient `Skill.level` à l'upsert (année active ? paramètre ?) ;
-   (b) la clé d'unicité de l'upsert (subject_id + name + level ? normalisation ?).
+   (b) la clé d'unicité de l'upsert — `DATA_MODEL.md` documente
+   `subject_id + level + nom normalisé`, confirme-le dans le code ;
+   (c) comment et où la liaison `lesson_skills` est créée après l'upsert.
    Si `Skill.level` est câblé en dur sur l'année active sans possibilité de le
    paramétrer proprement : ARRÊTE-TOI, signale le point et propose l'ajustement
    minimal (paramètre `level` injecté) avant de continuer ;
@@ -80,6 +82,10 @@ l'upsert après revue de la liste proposée.
 - Upsert des `Skill` avec `level` = niveau cible, en **réutilisant** la fonction
   d'upsert de la passe 2 (même clé, même normalisation). Ne duplique pas la logique ;
   si elle n'est pas factorisable telle quelle, extrais-la en helper partagé.
+- ⚠️ La passe 2 lie chaque skill à sa leçon via `lesson_skills` : le chemin
+  skills-only upserte la skill SANS créer de ligne `LessonSkill` (aucune leçon
+  n'existe dans ce flux). Le helper partagé doit rendre la liaison optionnelle —
+  ne crée JAMAIS de leçon fantôme pour porter le lien.
 - Retour : `{ created: int, existing: int }` (créées vs déjà présentes).
 - Flux stateless : le serveur ne stocke pas de brouillon entre generate et confirm ;
   c'est le client qui porte la liste (décision 2 — le confirm revalide les entrées).
@@ -101,11 +107,13 @@ l'upsert après revue de la liste proposée.
 ### 4. Tests (offline, `FakeLLMProvider`)
 
 - Génération nominale : preview correcte, notions dédupliquées, AUCUNE ligne créée
-  dans `chapters` ni `lessons` (**test-verrou** : compte avant/après identique).
+  dans `chapters`, `lessons` NI `lesson_skills` (**test-verrou** : compte
+  avant/après identique sur les trois tables).
 - Échec partiel : un chapitre d'échafaudage en échec après réparation →
   `failed_scaffolds` renseigné, le reste de la preview présent.
-- Confirm : upsert avec `level` cible ; re-confirm identique → `created=0`,
-  `existing=n` (idempotence) ; les skills préexistantes (seed) intactes.
+- Confirm : upsert avec `level` cible, sans AUCUNE ligne `lesson_skills` créée ;
+  re-confirm identique → `created=0`, `existing=n` (idempotence) ; les skills
+  préexistantes (seed) intactes.
 - Invariant vie privée ; garde parent (403 pour rôle child) ; validation du niveau
   (400 hors cycle 4) ; erreur propre sans clé API.
 - Test-verrou few-shots mono-niveau (tâche 0).
