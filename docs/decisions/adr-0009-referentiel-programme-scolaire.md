@@ -255,9 +255,12 @@ Lot E), `GET /subjects` (dette partagée avec adr-0006), CRUD chapitres
 
 Bench exécuté (`scripts/bench_llm.py`, tâche T4, 3 répétitions, 2 prompts :
 maths cycle 4 avec repères annuels / SVT sans repères). Scorage humain
-(Papa, BO 2020 + repères 2019 ouverts, pré-analyse assistant validée) archivé
-dans `scratchpad/bench_curriculum.md` — c'est la pièce de référence de cette
-décision, à ne plus régénérer (tout re-run futur : `--out` daté).
+(Papa, BO 2020 + repères 2019 ouverts, pré-analyse assistant validée),
+synthétisé dans le tableau ci-dessous. Les sorties brutes des runs sont
+archivées de façon versionnée dans
+`docs/decisions/annexes/adr-0009-bench-t4-curriculum-2026-07-03.md`
+(`scratchpad/` étant git-ignoré) — pièce de référence de cette décision, à ne
+plus régénérer (tout re-run futur : `--out` daté).
 
 ### Résultats (moyenne /8 sur 3 runs par cellule)
 
