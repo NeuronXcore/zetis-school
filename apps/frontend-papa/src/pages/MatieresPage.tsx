@@ -1,5 +1,8 @@
 import { type FormEvent, type ReactNode, useState } from "react";
+import { Link } from "react-router-dom";
+import { type CurriculumChapter } from "@zetis/types";
 import { type SubjectDetail, type Theme } from "../lib/subjects";
+import { SourceBadge, ValidationBadge } from "../components/programme/badges";
 import { SUBJECT_EMOJI_OPTIONS, subjectEmoji } from "../lib/subjectEmoji";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { type SubjectsData, useSubjects } from "../hooks/useSubjects";
@@ -54,6 +57,9 @@ export function MatieresPapaPage() {
           <SubjectDetailPanel
             detail={data.selected}
             loading={data.selectLoading}
+            yearLabel={data.year?.label ?? null}
+            yearChapters={data.selectedYearChapters}
+            yearChaptersLoading={data.yearChaptersLoading}
             onClose={() => data.select(null)}
             onAddTheme={(d) => data.addTheme(data.selectedId!, d)}
             onAddChapter={data.addChapter}
@@ -179,16 +185,23 @@ function SubjectsGrid({ data }: { data: SubjectsData }) {
   );
 }
 
-// Panneau de détail : thèmes + chapitres + ajout de thème/chapitre.
+// Panneau de détail : chapitres du référentiel (année active, lecture seule) +
+// thèmes/chapitres persistants + ajout de thème/chapitre.
 function SubjectDetailPanel({
   detail,
   loading,
+  yearLabel,
+  yearChapters,
+  yearChaptersLoading,
   onClose,
   onAddTheme,
   onAddChapter,
 }: {
   detail: SubjectDetail | null;
   loading: boolean;
+  yearLabel: string | null;
+  yearChapters: CurriculumChapter[] | null;
+  yearChaptersLoading: boolean;
   onClose: () => void;
   onAddTheme: (data: { name: string; description?: string | null }) => Promise<void>;
   onAddChapter: SubjectsData["addChapter"];
@@ -220,6 +233,13 @@ function SubjectDetailPanel({
 
       {detail && !loading && (
         <div className="flex flex-col gap-4">
+          {yearChapters !== null && (
+            <YearChaptersBlock
+              chapters={yearChapters}
+              loading={yearChaptersLoading}
+              yearLabel={yearLabel}
+            />
+          )}
           {detail.themes.length === 0 && (
             <p className="text-sm text-papa-muted">
               Aucun thème pour l'instant. Ajoute le premier ci-dessous.
@@ -232,6 +252,59 @@ function SubjectDetailPanel({
         </div>
       )}
     </section>
+  );
+}
+
+// Chapitres du référentiel de l'année active : les MÊMES que la page Programme,
+// en lecture seule — l'édition (génération, validation, leçons) vit dans Programme.
+function YearChaptersBlock({
+  chapters,
+  loading,
+  yearLabel,
+}: {
+  chapters: CurriculumChapter[];
+  loading: boolean;
+  yearLabel: string | null;
+}) {
+  return (
+    <div className="rounded-2xl border border-emerald-400/30 bg-papa-surface/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-semibold">
+            Chapitres de l'année active{yearLabel ? ` · ${yearLabel}` : ""}
+          </p>
+          <p className="text-xs text-papa-muted">
+            Référentiel co-construit — les mêmes chapitres que la page Programme.
+          </p>
+        </div>
+        <Link to="/programme" className={GHOST_BTN}>
+          Gérer dans Programme
+        </Link>
+      </div>
+      {loading ? (
+        <p className="mt-3 text-xs text-papa-muted">Chargement…</p>
+      ) : chapters.length === 0 ? (
+        <p className="mt-3 text-xs text-papa-muted">
+          Aucun chapitre pour cette matière — génère-les depuis la page Programme.
+        </p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-1.5">
+          {chapters.map((c) => (
+            <li
+              key={c.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-papa-bg/50 px-3 py-2 text-sm"
+            >
+              <span className="min-w-0 truncate">{c.name}</span>
+              <span className="flex shrink-0 items-center gap-1.5">
+                {c.period && <span className="text-xs text-papa-muted">{c.period}</span>}
+                <SourceBadge source={c.source} />
+                <ValidationBadge status={c.validation_status} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
