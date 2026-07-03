@@ -318,8 +318,10 @@ class CapsulePublicItem(BaseModel):
 
 
 class CapsuleStats(BaseModel):
-    """Compteurs enfant : capsules publiées, vues distinctes, nouvelles (non vues)."""
+    """Compteurs enfant : capsules publiées, vues distinctes, nouvelles (non vues),
+    et total de visionnages (avec répétitions)."""
 
     total: int
     seen_count: int
     new_count: int
+    view_count: int = 0

@@ -478,11 +478,27 @@ def seen_capsule_ids(db: Session, student_id: int) -> set[int]:
 
 
 def capsule_stats(db: Session, student_id: int) -> dict:
-    """Statistiques enfant : total publié, vues distinctes, nouvelles (non vues)."""
+    """Statistiques enfant : total publié, vues distinctes, nouvelles (non vues),
+    et total de visionnages (somme des `count`, répétitions incluses)."""
     published_ids = {c.id for c in list_published(db)}
     seen_count = len(seen_capsule_ids(db, student_id) & published_ids)
     total = len(published_ids)
-    return {"total": total, "seen_count": seen_count, "new_count": total - seen_count}
+    view_count = 0
+    if published_ids:
+        view_count = sum(
+            db.scalars(
+                select(CapsuleView.count).where(
+                    CapsuleView.student_id == student_id,
+                    CapsuleView.capsule_id.in_(published_ids),
+                )
+            )
+        )
+    return {
+        "total": total,
+        "seen_count": seen_count,
+        "new_count": total - seen_count,
+        "view_count": view_count,
+    }
 
 
 def synthesize_voice(db: Session, tts: TtsProvider, capsule_id: int) -> Capsule:

@@ -13,11 +13,21 @@ class Settings(BaseSettings):
     # --- Base de données (Étape 9) ---
     database_url: str = "postgresql+psycopg://zetis:zetis_dev_password@localhost:5432/zetis"
 
-    # --- IA (Étape 10) : provider LLM unique (ollama). Variables sans préfixe ZETIS_. ---
+    # --- IA (Étape 10) : provider LLM de génération. Variables sans préfixe ZETIS_. ---
+    # 'ollama' (défaut) ou 'mlx' (mlx_lm.server, Apple Silicon). Cf. ADR-0008.
     llm_provider: str = Field(default="ollama", validation_alias="LLM_PROVIDER")
     ollama_base_url: str = Field(default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
-    ollama_model: str = Field(default="qwen2.5:32b", validation_alias="OLLAMA_MODEL")
+    # Modèle de génération retenu (ADR-0008 phase 2) : MoE Qwen3 — qualité ≈ 72b à la vitesse
+    # la plus rapide (~5 s ELI5). `OllamaProvider` passe automatiquement `think:false` pour qwen3.
+    ollama_model: str = Field(default="qwen3.6:35b-a3b", validation_alias="OLLAMA_MODEL")
+    # --- MLX (ADR-0008) : serveur d'inférence local OpenAI-compatible (mlx_lm.server). ---
+    # Le backend n'importe pas `mlx` : il parle en HTTP, comme pour ollama.
+    mlx_base_url: str = Field(default="http://localhost:8080", validation_alias="MLX_BASE_URL")
+    mlx_model: str = Field(default="mlx-community/Qwen2.5-32B-Instruct-4bit", validation_alias="MLX_MODEL")
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
+    # Découplé de `llm_provider` : les embeddings restent sur ollama même si la
+    # génération passe sur MLX (évite toute migration pgvector). Cf. ADR-0008.
+    embed_provider: str = Field(default="ollama", validation_alias="EMBED_PROVIDER")
     ollama_embed_model: str = Field(
         default="nomic-embed-text", validation_alias="OLLAMA_EMBED_MODEL"
     )

@@ -1,5 +1,42 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.12.0 — Moteur LLM (MoE), lancement prod-like « tout Docker » + UX capsules (étape 21)
+
+Date : 2026-07-03
+
+### Ajouté
+
+- **Lancement prod-like « tout containerisé »** (`pnpm prod:up`, `docker-compose.prod.yml`) : backend,
+  worker-media et les **2 frontends servis par nginx**, en une commande, à côté du dev natif
+  (`pnpm dev`, inchangé). **Ollama reste sur l'hôte** (GPU Metal) ; le backend le joint via
+  `host.docker.internal`. Cf. `infra/docker/README.md`.
+- **Voix Piper (TTS) dans l'image backend** : `piper-tts` + modèle FR `fr_FR-siwis-medium` bakés →
+  la narration des capsules fonctionne en conteneur.
+- **Célébration « mini-victoire »** (brique partagée `@zetis/ui`, réutilisable) : petit surgissement
+  joyeux (halo néon + particules, CSS) + **carillon doux synthétisé** (Web Audio, aucun asset
+  binaire), **désactivable** via un `SoundToggle` persistant. Papa : à la génération réussie
+  (« Capsule créée ! ») ; Massimo : quand une **nouvelle capsule** apparaît (dédup une-fois-par-capsule).
+  Respecte `prefers-reduced-motion`.
+- **Compteur de visionnages de Massimo** sur les 2 frontends : `CapsuleStats.view_count` (somme des
+  visionnages, répétitions incluses) ; badge « 🎬 N visionnages ».
+
+### Décisions
+
+- **Moteur d'inférence LLM** (`docs/decisions/adr-0008-inference-mlx-vs-ollama.md`) : benchmark sur les
+  vrais prompts ZETIS (vitesse + qualité + % JSON valide) → **MLX rejeté** (plus lent qu'Ollama sur
+  M3 Max) ; **adopté `qwen3.6:35b-a3b`** (MoE : qualité ≈ 72b à la vitesse la plus rapide ;
+  `OllamaProvider` passe `think:false` pour les modèles Qwen3). Référence cloud (GPT-4o, Claude
+  Sonnet 5) : le local égale/dépasse → **production 100 % locale** confirmée (vie privée de Massimo).
+- **Embeddings découplés** de la génération (`EMBED_PROVIDER`, défaut `ollama`) → changer de modèle de
+  génération ne casse pas le RAG (zéro migration pgvector).
+
+### Corrigé
+
+- **Rendu MP4 en conteneur** : le worker-media lisait la DB via le défaut `localhost:5432`
+  (connection refused) → clé d'env corrigée en **`ZETIS_DATABASE_URL`** (préfixe attendu par la
+  config) ; sans ça la capsule restait `rendering` (invisible côté Massimo). Ajout de `shm_size: 1gb`
+  (fiabilité Chromium/Remotion sur capsules longues).
+
 ## 0.11.0 — Capsules IA : Remotion + rendu MP4 + voix Piper (étape 20)
 
 Date : 2026-07-01

@@ -16,7 +16,8 @@ Massimo ne voit que les capsules **`validated` + `published`** (MP4 disponible).
 
 1. **Créer** (badge « ✨ capsule-AI » → modale) : matière, chapitre (facultatif), instruction,
    **visuel pédagogique**, **durée** (courte → ≈ 1 min), **difficulté** (⭐ / ⭐⭐ / ⭐⭐⭐).
-   Génération LLM (~40 s, barre de progression live).
+   Génération LLM (barre de progression live). À la **réussite**, une petite **célébration**
+   « Capsule créée ! » (surgissement + carillon doux, brique partagée `@zetis/ui`) confirme.
 2. **Prévisualiser** : aperçu in-browser via `@remotion/player` (aucun rendu, pas de Chromium).
 3. **Voix** : synthèse Piper par scène (barre de progression) ; la durée se cale sur la voix.
 4. **Éditer** : modale d'**édition JSON brute** du spec (revalidée → repasse `pending`).
@@ -27,7 +28,10 @@ Massimo ne voit que les capsules **`validated` + `published`** (MP4 disponible).
    `published`. Sondage d'état automatique (~4 s).
 
 La liste est **groupée par matière → chapitre**, avec recherche par nom, icône de matière,
-badge de difficulté, badge de statut, et compteur « 👁️ vue N fois par Massimo ».
+badge de difficulté, badge de statut, et compteur « 👁️ vue N fois par Massimo » par capsule.
+En tête de page, un badge **« 🎬 N visionnages de Massimo »** agrège le total (répétitions
+incluses). Un **bouton son** (🔊/🔇) dans l'en-tête coupe/active le carillon des célébrations
+(réglage persistant, partagé avec l'interface Massimo).
 
 ## Endpoints (Papa, `require_parent`)
 

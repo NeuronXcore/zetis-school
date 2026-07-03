@@ -3,6 +3,7 @@ import capsuleAiIcon from "../assets/app/capsule-AI.png";
 import { DifficultyBadge } from "../components/DifficultyBadge";
 import { PageHeader } from "../components/PageHeader";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
+import { SoundToggle, useCelebrate } from "@zetis/ui";
 import { CapsulePlayer } from "../remotion/CapsulePlayer";
 import {
   type Capsule,
@@ -120,6 +121,9 @@ export function CapsulesPilotagePage() {
   const [editError, setEditError] = useState<string | null>(null);
   // Opération IA longue en cours (pilote la barre de progression estimée). Null = aucune.
   const [progressTask, setProgressTask] = useState<ProgressTask | null>(null);
+  const celebrate = useCelebrate();
+  // Total des visionnages de Massimo (somme des compteurs par capsule).
+  const totalViews = items.reduce((acc, c) => acc + (c.view_count ?? 0), 0);
 
   useEffect(() => {
     fetchSubjects()
@@ -188,6 +192,7 @@ export function CapsulesPilotagePage() {
       setSelected(capsule);
       setCreating(false);
       refreshList();
+      celebrate({ title: "Capsule créée !", subtitle: capsule.title });
     }
   }
 
@@ -327,19 +332,30 @@ export function CapsulesPilotagePage() {
         title="Capsules IA — Pilotage"
         subtitle="Créer, prévisualiser (Remotion), valider et éditer les capsules pédagogiques."
         actions={
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-2 rounded-lg bg-papa-accent px-4 py-2 text-sm font-semibold text-papa-bg"
-          >
-            <img src={capsuleAiIcon} alt="" aria-hidden className="h-6 w-6 object-contain" />
-            ✨ Créer une capsule
-          </button>
+          <div className="flex items-center gap-2">
+            <SoundToggle />
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="flex items-center gap-2 rounded-lg bg-papa-accent px-4 py-2 text-sm font-semibold text-papa-bg"
+            >
+              <img src={capsuleAiIcon} alt="" aria-hidden className="h-6 w-6 object-contain" />
+              ✨ Créer une capsule
+            </button>
+          </div>
         }
       />
 
       {error && (
         <p className="mb-4 rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300">{error}</p>
+      )}
+
+      {items.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2 text-sm">
+          <span className="inline-flex items-center gap-1 rounded-full bg-papa-surface-2 px-3 py-1 font-semibold text-papa-accent-2">
+            🎬 {totalViews} visionnage{totalViews > 1 ? "s" : ""} de Massimo
+          </span>
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
