@@ -889,6 +889,99 @@ def reorder_lessons(db: Session, chapter_id: int, lesson_ids: list[int]) -> list
     return [by_id[lid] for lid in lesson_ids]
 
 
+# ---------------------------------------------------------------------------
+# Lecture ÉLÈVE (page Cours de Massimo) — validé uniquement, filtrage serveur.
+# ---------------------------------------------------------------------------
+
+
+def student_cours_for_subject(db: Session, subject_slug: str) -> dict:
+    """Chapitres VALIDÉS de l'année active pour la matière, avec leurs leçons
+    VALIDÉES (référence légère, jamais le markdown complet — payload liste).
+
+    Rien de `pending`/`draft`/`archived` ne sort d'ici (ADR-0009 §9 : rien
+    n'atteint Massimo avant validation). 404 si matière inconnue ou hors année.
+    """
+    subject = db.scalars(select(Subject).where(Subject.slug == subject_slug)).first()
+    if subject is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject_slug} » inconnue.",
+        )
+    year = _active_year_or_404(db)
+    sys_row = db.scalars(
+        select(SchoolYearSubject).where(
+            SchoolYearSubject.school_year_id == year.id,
+            SchoolYearSubject.subject_id == subject.id,
+        )
+    ).first()
+    if sys_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject.name} » absente de l'année active.",
+        )
+
+    chapters = list(
+        db.scalars(
+            select(Chapter)
+            .where(
+                Chapter.school_year_subject_id == sys_row.id,
+                Chapter.validation_status == "validated",
+            )
+            .order_by(Chapter.sort_order, Chapter.id)
+        )
+    )
+    chapter_ids = [c.id for c in chapters]
+    lessons_by_chapter: dict[int, list[Lesson]] = {i: [] for i in chapter_ids}
+    if chapter_ids:
+        for lesson in db.scalars(
+            select(Lesson)
+            .where(Lesson.chapter_id.in_(chapter_ids), Lesson.status == "validated")
+            .order_by(Lesson.sort_order, Lesson.id)
+        ):
+            lessons_by_chapter[lesson.chapter_id].append(lesson)
+
+    return {
+        "subject_id": subject.id,
+        "subject_name": subject.name,
+        "subject_slug": subject.slug,
+        "level": year.level,
+        "chapters": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "description": c.description,
+                "lessons": [
+                    {
+                        "id": l.id,
+                        "title": l.title,
+                        "summary": l.summary,
+                        "has_content": l.content_markdown is not None,
+                    }
+                    for l in lessons_by_chapter[c.id]
+                ],
+            }
+            for c in chapters
+        ],
+    }
+
+
+def student_lesson_content(db: Session, lesson_id: int) -> dict:
+    """Cours d'une leçon pour Massimo — 404 indiscernable si la leçon n'existe pas,
+    n'est pas validée OU n'a pas de cours (aucune fuite d'existence des brouillons)."""
+    lesson = db.get(Lesson, lesson_id)
+    if lesson is None or lesson.status != "validated" or lesson.content_markdown is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pas de cours disponible pour cette leçon.",
+        )
+    return {
+        "id": lesson.id,
+        "title": lesson.title,
+        "summary": lesson.summary,
+        "content": lesson.content_markdown,
+    }
+
+
 def lessons_out(db: Session, lessons: list[Lesson]) -> list[dict]:
     """Sérialise avec notions dépliées (intitulé + `skill_id`) — jamais la liaison brute."""
     ids = [l.id for l in lessons]

@@ -18,4 +18,8 @@ export {
   type LessonReorderRequest,
   type LessonStatus,
   type SchoolYearSubjectRef,
+  type StudentChapter,
+  type StudentCours,
+  type StudentLessonContent,
+  type StudentLessonRef,
 } from "./curriculum";

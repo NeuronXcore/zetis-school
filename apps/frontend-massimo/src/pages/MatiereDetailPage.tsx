@@ -71,16 +71,29 @@ export function MatiereDetailPage() {
 
       {/* Actions rapides */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {ACTIONS.map((a) => (
-          <button
-            key={a.label}
-            type="button"
-            className="rounded-xl border border-zetis-border bg-zetis-surface p-3 text-center transition-transform hover:scale-[1.03]"
-          >
-            <div className="text-xl">{a.icon}</div>
-            <p className="mt-1 text-sm font-medium">{a.label}</p>
-          </button>
-        ))}
+        {ACTIONS.map((a) =>
+          // « Cours » est branché (page Cours, leçons validées du référentiel) ;
+          // les autres actions restent des maquettes (étapes ultérieures).
+          a.label === "Cours" ? (
+            <Link
+              key={a.label}
+              to={`/subjects/${slug}/cours`}
+              className="rounded-xl border border-zetis-border bg-zetis-surface p-3 text-center transition-transform hover:scale-[1.03]"
+            >
+              <div className="text-xl">{a.icon}</div>
+              <p className="mt-1 text-sm font-medium">{a.label}</p>
+            </Link>
+          ) : (
+            <button
+              key={a.label}
+              type="button"
+              className="rounded-xl border border-zetis-border bg-zetis-surface p-3 text-center transition-transform hover:scale-[1.03]"
+            >
+              <div className="text-xl">{a.icon}</div>
+              <p className="mt-1 text-sm font-medium">{a.label}</p>
+            </button>
+          ),
+        )}
       </div>
 
       {/* Chapitres */}

@@ -117,6 +117,40 @@ export interface LessonReorderRequest {
   lesson_ids: number[];
 }
 
+/** Contrats ÉLÈVE (page Cours de Massimo, lecture seule) : le serveur ne sert QUE du
+ *  validé (ADR-0009 §9) et jamais les champs d'atelier (source, statut, actions). */
+export interface StudentLessonRef {
+  id: number;
+  title: string;
+  summary: string | null;
+  /** Le markdown ne voyage jamais dans la liste : lecture via `/lessons/{id}/cours`. */
+  has_content: boolean;
+}
+
+export interface StudentChapter {
+  id: number;
+  name: string;
+  description: string | null;
+  lessons: StudentLessonRef[];
+}
+
+/** `GET /api/student/cours/{subject_slug}` — chapitres validés de l'année active. */
+export interface StudentCours {
+  subject_id: number;
+  subject_name: string;
+  subject_slug: string;
+  level: string;
+  chapters: StudentChapter[];
+}
+
+/** `GET /api/student/lessons/{id}/cours` — 404 si non validée ou sans cours. */
+export interface StudentLessonContent {
+  id: number;
+  title: string;
+  summary: string | null;
+  content: string;
+}
+
 /** Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres). */
 export interface SchoolYearSubjectRef {
   id: number;

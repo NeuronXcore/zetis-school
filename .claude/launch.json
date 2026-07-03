@@ -29,6 +29,15 @@
         "cd apps/frontend-papa && VITE_API_URL=http://localhost:8001 npx vite --port 5175 --strictPort"
       ],
       "port": 5175
+    },
+    {
+      "name": "massimo-dev",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-massimo && VITE_API_URL=http://localhost:8001 npx vite --port 5176 --strictPort"
+      ],
+      "port": 5176
     }
   ]
 }

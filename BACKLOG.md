@@ -21,9 +21,10 @@
 - Sidebar avec : Accueil, Matières, Cours, Diagnostic, ELI5, Capsules IA, Missions, Quiz, Progression, Mindmaps, Chat ZETIS.
 - Page matières.
 - Page matière dédiée.
-- Page cours. (2026-07-03 : brancher le bouton « Cours » — mort — de MatiereDetailPage sur
-  les leçons `validated` du référentiel, `GET /api/chapters/{id}/lessons` filtré côté UI ou
-  endpoint enfant dédié à créer. Rien n'atteint Massimo avant validation, ADR-0009 §9 ;
+- Page cours. **(FAIT 2026-07-03** : `/subjects/:slug/cours` branchée sur le bouton
+  « Cours » de MatiereDetailPage, via les routes élève `GET /api/student/cours/{slug}` et
+  `GET /api/student/lessons/{id}/cours` — validé uniquement, filtrage serveur, spec
+  `docs/frontend-massimo/page-cours.md`. Reste : XP à la lecture, quiz de fin de cours ;
   notions → skill_mastery.)
 - Page quiz.
 - Page progression XP.

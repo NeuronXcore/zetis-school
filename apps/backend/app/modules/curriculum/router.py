@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
-from app.modules.auth.deps import require_parent
+from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.curriculum import get_curriculum_provider, service
 from app.modules.curriculum.schemas import (
     ActiveSchoolYearOut,
@@ -23,9 +23,17 @@ from app.modules.curriculum.schemas import (
     LessonManualCreate,
     LessonPatch,
     LessonReorderRequest,
+    StudentCoursOut,
+    StudentLessonContentOut,
 )
 
 router = APIRouter(prefix="/api", tags=["curriculum"], dependencies=[Depends(require_parent)])
+
+# Routes ÉLÈVE (page Cours de Massimo) : lecture seule, tout utilisateur authentifié
+# (le rôle child passe) — le service ne sert QUE du validé (ADR-0009 §9).
+student_router = APIRouter(
+    prefix="/api/student", tags=["curriculum-student"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("/school-years/active/subjects", response_model=ActiveSchoolYearOut)
@@ -243,3 +251,20 @@ def generate_lesson_content(
 @router.delete("/lessons/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_lesson(lesson_id: int, db: Session = Depends(get_db)) -> None:
     service.delete_lesson(db, lesson_id)
+
+
+# ---------------------------------------------------------------------------
+# Lecture élève (page Cours de Massimo) — cf. docs/frontend-massimo/page-cours.md.
+# ---------------------------------------------------------------------------
+
+
+@student_router.get("/cours/{subject_slug}", response_model=StudentCoursOut)
+def student_cours(subject_slug: str, db: Session = Depends(get_db)) -> dict:
+    """Chapitres validés de l'année active + leçons validées (référence légère)."""
+    return service.student_cours_for_subject(db, subject_slug)
+
+
+@student_router.get("/lessons/{lesson_id}/cours", response_model=StudentLessonContentOut)
+def student_lesson_cours(lesson_id: int, db: Session = Depends(get_db)) -> dict:
+    """Cours (markdown) d'une leçon validée — 404 sinon, sans fuite des brouillons."""
+    return service.student_lesson_content(db, lesson_id)

@@ -223,6 +223,49 @@ class LessonReorderRequest(BaseModel):
     lesson_ids: list[int] = Field(min_length=1)
 
 
+# ---------------------------------------------------------------------------
+# Contrats ÉLÈVE (page Cours de Massimo) — lecture seule, validé uniquement.
+# Le filtrage est fait côté serveur : rien de `pending`/`draft` ne sort d'ici
+# (ADR-0009 §9). Pas de badges source/validation dans le contrat : Massimo voit
+# des cours, pas l'atelier.
+# ---------------------------------------------------------------------------
+
+
+class StudentLessonRef(BaseModel):
+    id: int
+    title: str
+    summary: str | None
+    # Le markdown complet ne voyage jamais dans la liste (payload léger) :
+    # il se lit via `GET /api/student/lessons/{id}/cours`.
+    has_content: bool
+
+
+class StudentChapterOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    lessons: list[StudentLessonRef]
+
+
+class StudentCoursOut(BaseModel):
+    """`GET /api/student/cours/{subject_slug}` — chapitres validés de l'année active."""
+
+    subject_id: int
+    subject_name: str
+    subject_slug: str
+    level: str
+    chapters: list[StudentChapterOut]
+
+
+class StudentLessonContentOut(BaseModel):
+    """`GET /api/student/lessons/{id}/cours` — 404 si non validée ou sans cours."""
+
+    id: int
+    title: str
+    summary: str | None
+    content: str
+
+
 class SchoolYearSubjectOut(BaseModel):
     """Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres)."""
 
