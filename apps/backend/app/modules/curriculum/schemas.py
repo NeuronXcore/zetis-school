@@ -6,6 +6,7 @@ d'invalide n'est persisté. Bornes larges côté schéma (leçon du bench T4 : l
 schéma jetable était fausse), granularité fine pilotée côté prompt.
 """
 
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -186,6 +187,12 @@ class CurriculumLessonOut(BaseModel):
     created_by: str
     sort_order: int
     program_version: str | None
+    # Provenance du COURS (≠ ligne leçon) : null tant qu'aucun cours n'a été écrit.
+    # `*_by` ∈ ('ai', 'parent') — affiché « IA » / « manuel » côté Papa.
+    content_created_at: datetime | None
+    content_created_by: str | None
+    content_updated_at: datetime | None
+    content_updated_by: str | None
     notions: list[LessonNotionOut]
 
 
@@ -204,7 +211,9 @@ class LessonManualCreate(BaseModel):
 
 class LessonPatch(BaseModel):
     """Édition partielle : `notions` fournie = remplace le rattachement (upsert des
-    nouvelles ; les `Skill` elles-mêmes ne sont jamais supprimées — référentiel)."""
+    nouvelles ; les `Skill` elles-mêmes ne sont jamais supprimées — référentiel).
+    `content` fourni = écriture/édition manuelle du cours (markdown, provenance
+    'parent') ; absent = cours intact — pas d'effacement possible par ce canal."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -213,6 +222,7 @@ class LessonPatch(BaseModel):
     notions: list[Annotated[str, Field(min_length=1, max_length=160)]] | None = Field(
         default=None, max_length=MAX_NOTIONS
     )
+    content: str | None = Field(default=None, min_length=1)
 
 
 class LessonReorderRequest(BaseModel):

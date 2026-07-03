@@ -675,6 +675,17 @@ def _scrub_content_html(content: str) -> str:
     return _HTML_KNOWN_TAGS.sub("", content)
 
 
+def _touch_content_audit(lesson: Lesson, by: str) -> None:
+    """Provenance du cours : `created_*` posés au premier write seulement,
+    `updated_*` écrasés à chaque write. `by` ∈ ('ai', 'parent')."""
+    now = datetime.now(timezone.utc)
+    if lesson.content_created_at is None:
+        lesson.content_created_at = now
+        lesson.content_created_by = by
+    lesson.content_updated_at = now
+    lesson.content_updated_by = by
+
+
 def generate_lesson_content(db: Session, llm: LLMProvider, lesson_id: int) -> Lesson:
     """Rédige le cours complet (markdown) d'une leçon — synchrone, moteur LOCAL.
 
@@ -770,6 +781,7 @@ def generate_lesson_content(db: Session, llm: LLMProvider, lesson_id: int) -> Le
         raise CurriculumGenerationError(f"Appel LLM échoué : {exc}") from exc
 
     lesson.content_markdown = _scrub_content_html(result.content).strip()
+    _touch_content_audit(lesson, "ai")
     job.status = "succeeded"
     job.output_json = {"content_chars": len(lesson.content_markdown), "model": model_used}
     job.finished_at = datetime.now(timezone.utc)
@@ -822,14 +834,27 @@ def update_lesson(
     title: str | None = None,
     summary: str | None = None,
     notions: list[str] | None = None,
+    content: str | None = None,
 ) -> Lesson:
     """Édition partielle. `notions` fournie = remplace le rattachement (upsert des
-    nouvelles) ; les `Skill` elles-mêmes ne sont jamais supprimées (référentiel)."""
+    nouvelles) ; les `Skill` elles-mêmes ne sont jamais supprimées (référentiel).
+    `content` fourni = écriture/édition manuelle du cours (même scrub markdown que la
+    rédaction IA, provenance 'parent') — le `status` de la leçon ne bouge pas : Papa
+    est l'autorité de validation, sa propre édition n'a pas à être revalidée."""
     lesson = _lesson_or_404(db, lesson_id)
     if title is not None:
         lesson.title = title.strip()
     if summary is not None:
         lesson.summary = summary
+    if content is not None:
+        scrubbed = _scrub_content_html(content).strip()
+        if not scrubbed:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Le cours ne peut pas être vide.",
+            )
+        lesson.content_markdown = scrubbed
+        _touch_content_audit(lesson, "parent")
     if notions is not None:
         chapter = _chapter_or_404(db, lesson.chapter_id)
         subject, level, _ = _lesson_context(db, chapter)
@@ -1006,6 +1031,10 @@ def lessons_out(db: Session, lessons: list[Lesson]) -> list[dict]:
             "created_by": l.created_by,
             "sort_order": l.sort_order,
             "program_version": l.program_version,
+            "content_created_at": l.content_created_at,
+            "content_created_by": l.content_created_by,
+            "content_updated_at": l.content_updated_at,
+            "content_updated_by": l.content_updated_by,
             "notions": notions_by_lesson[l.id],
         }
         for l in lessons

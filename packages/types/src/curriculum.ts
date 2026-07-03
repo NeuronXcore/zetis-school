@@ -72,6 +72,9 @@ export type LessonStatus = "draft" | "validated" | "archived";
 /** `created_by` d'une leçon ≈ source : parent = manuelle (validée d'office), ai = passe 2. */
 export type LessonCreatedBy = "parent" | "ai" | "imported";
 
+/** Auteur d'un write du COURS (`content`) : ai = rédaction locale, parent = édition Papa. */
+export type LessonContentAuthor = "ai" | "parent";
+
 /** Notion dépliée d'une leçon (intitulé + `skill_id`) — jamais la table de liaison brute. */
 export interface LessonNotion {
   skill_id: number;
@@ -92,6 +95,12 @@ export interface CurriculumLesson {
   sort_order: number;
   /** Version déclarative du programme (ex. "2020"), null pour les leçons manuelles. */
   program_version: string | null;
+  /** Provenance du COURS (≠ ligne leçon) : `created_*` posés au premier write,
+   *  `updated_*` à chaque write ; null tant qu'aucun cours n'existe (dates ISO). */
+  content_created_at: string | null;
+  content_created_by: LessonContentAuthor | null;
+  content_updated_at: string | null;
+  content_updated_by: LessonContentAuthor | null;
   notions: LessonNotion[];
 }
 
@@ -110,6 +119,9 @@ export interface LessonPatchRequest {
   title?: string;
   summary?: string | null;
   notions?: string[];
+  /** Écriture/édition MANUELLE du cours (markdown, provenance 'parent') ;
+   *  absent = cours intact. Le statut de la leçon ne bouge pas. */
+  content?: string;
 }
 
 /** `POST /api/chapters/{id}/lessons/reorder` — liste ordonnée complète. */

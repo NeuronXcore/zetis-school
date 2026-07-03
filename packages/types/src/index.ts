@@ -11,6 +11,7 @@ export {
   type ChapterValidationStatus,
   type CurriculumChapter,
   type CurriculumLesson,
+  type LessonContentAuthor,
   type LessonCreatedBy,
   type LessonManualCreateRequest,
   type LessonNotion,

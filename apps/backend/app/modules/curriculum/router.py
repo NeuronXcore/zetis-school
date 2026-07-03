@@ -209,9 +209,15 @@ def reorder_lessons(
 def update_lesson(
     lesson_id: int, payload: LessonPatch, db: Session = Depends(get_db)
 ) -> dict:
-    """Édition (`title`, `summary`, `notions` — fournie = remplace le rattachement)."""
+    """Édition (`title`, `summary`, `notions` — fournie = remplace le rattachement,
+    `content` — écriture/édition manuelle du cours, statut inchangé)."""
     lesson = service.update_lesson(
-        db, lesson_id, title=payload.title, summary=payload.summary, notions=payload.notions
+        db,
+        lesson_id,
+        title=payload.title,
+        summary=payload.summary,
+        notions=payload.notions,
+        content=payload.content,
     )
     return service.lessons_out(db, [lesson])[0]
 
