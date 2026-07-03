@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -116,7 +116,8 @@ class Lesson(Base, TimestampMixin):
     chapter_id: Mapped[int] = mapped_column(ForeignKey("chapters.id"), index=True)
     title: Mapped[str] = mapped_column(String(160))
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Réservé à la génération de cours downstream — la passe 2 (ADR-0009) ne le remplit pas.
+    # Cours complet, rempli par la rédaction locale (`job_type="lesson_content"`) —
+    # la passe 2 (ADR-0009) ne le remplit pas.
     content_markdown: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Co-construction (ADR-0009 §3) : `created_by` ≈ source, `status` ≈ validation —
     # champs documentés de DATA_MODEL.md, pas de doublon du motif `source`/
@@ -129,6 +130,17 @@ class Lesson(Base, TimestampMixin):
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
+    # Provenance du COURS (≠ TimestampMixin, qui bouge sur toute édition de la ligne) :
+    # `created_*` posés au premier write du cours, `updated_*` écrasés à chaque write.
+    # Null = pas encore de cours. `*_by` ∈ ('ai', 'parent').
+    content_created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    content_created_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    content_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    content_updated_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class LessonSkill(Base):

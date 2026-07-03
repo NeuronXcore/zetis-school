@@ -21,7 +21,11 @@
 - Sidebar avec : Accueil, Matières, Cours, Diagnostic, ELI5, Capsules IA, Missions, Quiz, Progression, Mindmaps, Chat ZETIS.
 - Page matières.
 - Page matière dédiée.
-- Page cours.
+- Page cours. **(FAIT 2026-07-03** : `/subjects/:slug/cours` branchée sur le bouton
+  « Cours » de MatiereDetailPage, via les routes élève `GET /api/student/cours/{slug}` et
+  `GET /api/student/lessons/{id}/cours` — validé uniquement, filtrage serveur, spec
+  `docs/frontend-massimo/page-cours.md`. Reste : XP à la lecture, quiz de fin de cours ;
+  notions → skill_mastery.)
 - Page quiz.
 - Page progression XP.
 
@@ -30,7 +34,7 @@
 - Dashboard parent.
 - Vue progression Massimo.
 - Vue lacunes.
-- Vue matières/programmes.
+- Vue matières (thèmes/chapitres persistants ; renommée depuis « Matières & programmes » le 2026-07-03).
 - Vue diagnostics.
 - Cahier de bord IA.
 - Paramètres.

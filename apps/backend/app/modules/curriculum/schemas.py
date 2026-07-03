@@ -6,6 +6,7 @@ d'invalide n'est persisté. Bornes larges côté schéma (leçon du bench T4 : l
 schéma jetable était fausse), granularité fine pilotée côté prompt.
 """
 
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -71,6 +72,33 @@ class GeneratedLessons(BaseModel):
 def lessons_generation_schema() -> dict:
     """Schéma JSON de sortie structurée de la passe 2 (`LLMRequest.fmt`)."""
     return GeneratedLessons.model_json_schema()
+
+
+# Rédaction du cours d'une leçon (moteur LOCAL — pas de dérogation curriculum_*).
+# Bornes larges : le prompt cadre 400-800 mots.
+MIN_CONTENT_CHARS = 300
+MAX_CONTENT_CHARS = 20000
+
+
+class GeneratedLessonContent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Markdown complet du cours (titre, explication, méthode, mini-exercices, récap).
+    content: str = Field(min_length=MIN_CONTENT_CHARS, max_length=MAX_CONTENT_CHARS)
+
+
+def lesson_content_schema() -> dict:
+    """Schéma JSON de sortie structurée de la rédaction de cours (`LLMRequest.fmt`).
+
+    Les bornes de longueur sont RETIRÉES du schéma envoyé : llama.cpp ne sait pas
+    convertir `minLength`/`maxLength` d'une string en grammaire (400 « failed to parse
+    grammar », vérifié en réel sur qwen3.6). Elles restent tenues par la validation
+    Pydantic + la réparation.
+    """
+    schema = GeneratedLessonContent.model_json_schema()
+    schema["properties"]["content"].pop("minLength", None)
+    schema["properties"]["content"].pop("maxLength", None)
+    return schema
 
 
 # ---------------------------------------------------------------------------
@@ -150,12 +178,21 @@ class CurriculumLessonOut(BaseModel):
     chapter_id: int
     title: str
     summary: str | None
+    # Cours complet (markdown), rempli par `POST /lessons/{id}/generate-content`
+    # (moteur local) — null tant que Papa n'a pas demandé la rédaction.
+    content: str | None
     # `status` ≈ validation (draft|validated|archived), `created_by` ≈ source
     # (parent|ai|imported) — sémantique co-construction ADR-0009 §3.
     status: str
     created_by: str
     sort_order: int
     program_version: str | None
+    # Provenance du COURS (≠ ligne leçon) : null tant qu'aucun cours n'a été écrit.
+    # `*_by` ∈ ('ai', 'parent') — affiché « IA » / « admin » côté Papa.
+    content_created_at: datetime | None
+    content_created_by: str | None
+    content_updated_at: datetime | None
+    content_updated_by: str | None
     notions: list[LessonNotionOut]
 
 
@@ -174,7 +211,9 @@ class LessonManualCreate(BaseModel):
 
 class LessonPatch(BaseModel):
     """Édition partielle : `notions` fournie = remplace le rattachement (upsert des
-    nouvelles ; les `Skill` elles-mêmes ne sont jamais supprimées — référentiel)."""
+    nouvelles ; les `Skill` elles-mêmes ne sont jamais supprimées — référentiel).
+    `content` fourni = écriture/édition manuelle du cours (markdown, provenance
+    'parent') ; absent = cours intact — pas d'effacement possible par ce canal."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -183,6 +222,7 @@ class LessonPatch(BaseModel):
     notions: list[Annotated[str, Field(min_length=1, max_length=160)]] | None = Field(
         default=None, max_length=MAX_NOTIONS
     )
+    content: str | None = Field(default=None, min_length=1)
 
 
 class LessonReorderRequest(BaseModel):
@@ -193,6 +233,49 @@ class LessonReorderRequest(BaseModel):
     lesson_ids: list[int] = Field(min_length=1)
 
 
+# ---------------------------------------------------------------------------
+# Contrats ÉLÈVE (page Cours de Massimo) — lecture seule, validé uniquement.
+# Le filtrage est fait côté serveur : rien de `pending`/`draft` ne sort d'ici
+# (ADR-0009 §9). Pas de badges source/validation dans le contrat : Massimo voit
+# des cours, pas l'atelier.
+# ---------------------------------------------------------------------------
+
+
+class StudentLessonRef(BaseModel):
+    id: int
+    title: str
+    summary: str | None
+    # Le markdown complet ne voyage jamais dans la liste (payload léger) :
+    # il se lit via `GET /api/student/lessons/{id}/cours`.
+    has_content: bool
+
+
+class StudentChapterOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    lessons: list[StudentLessonRef]
+
+
+class StudentCoursOut(BaseModel):
+    """`GET /api/student/cours/{subject_slug}` — chapitres validés de l'année active."""
+
+    subject_id: int
+    subject_name: str
+    subject_slug: str
+    level: str
+    chapters: list[StudentChapterOut]
+
+
+class StudentLessonContentOut(BaseModel):
+    """`GET /api/student/lessons/{id}/cours` — 404 si non validée ou sans cours."""
+
+    id: int
+    title: str
+    summary: str | None
+    content: str
+
+
 class SchoolYearSubjectOut(BaseModel):
     """Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres)."""
 
@@ -200,6 +283,8 @@ class SchoolYearSubjectOut(BaseModel):
     subject_id: int
     subject_name: str
     subject_slug: str
+    # Emoji de la matière (seed `subjects.icon`) — affiché devant le nom (pills Programme).
+    subject_icon: str | None
     status: str
 
 

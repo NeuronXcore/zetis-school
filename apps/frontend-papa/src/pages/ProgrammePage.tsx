@@ -5,6 +5,8 @@ import { PageHeader } from "../components/PageHeader";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { AddChapterForm } from "../components/programme/AddChapterForm";
 import { ChapterRow } from "../components/programme/ChapterRow";
+import { LessonsPanel } from "../components/programme/LessonsPanel";
+import { SubjectBatchBar } from "../components/programme/SubjectBatchBar";
 import { SubjectPills } from "../components/programme/SubjectPills";
 import {
   ValidateAllDialog,
@@ -67,7 +69,9 @@ export function ProgrammePage() {
           <div className="flex gap-2">
             <Button
               onClick={() => void data.generate()}
-              disabled={data.generating || data.selectedSysId === null}
+              disabled={
+                data.generating || data.subjectBatch !== null || data.selectedSysId === null
+              }
             >
               {data.generating ? (
                 <>
@@ -80,14 +84,18 @@ export function ProgrammePage() {
             <Button
               variant="secondary"
               onClick={() => setAdding(true)}
-              disabled={adding || data.selectedSysId === null}
+              disabled={
+                adding || data.subjectBatch !== null || data.selectedSysId === null
+              }
             >
               + Ajouter
             </Button>
             <Button
               variant="outline"
               onClick={() => setValidateDialogOpen(true)}
-              disabled={data.generating || pendingCount === 0}
+              disabled={
+                data.generating || data.subjectBatch !== null || pendingCount === 0
+              }
             >
               ✓ Tout valider
             </Button>
@@ -142,6 +150,7 @@ export function ProgrammePage() {
             selectedSysId={data.selectedSysId}
             onSelect={data.select}
           />
+          <SubjectBatchBar data={data} />
           {adding && (
             <AddChapterForm
               chapters={data.chapters}
@@ -190,10 +199,17 @@ function ChapterList({
         description="Génère une proposition de programme avec ZETIS, ou ajoute un chapitre à la main."
         action={
           <div className="flex gap-2">
-            <Button onClick={() => void data.generate()} disabled={data.generating}>
+            <Button
+              onClick={() => void data.generate()}
+              disabled={data.generating || data.subjectBatch !== null}
+            >
               ⚡ Générer
             </Button>
-            <Button variant="secondary" onClick={onAdd} disabled={adding}>
+            <Button
+              variant="secondary"
+              onClick={onAdd}
+              disabled={adding || data.subjectBatch !== null}
+            >
               + Ajouter
             </Button>
           </div>
@@ -210,13 +226,14 @@ function ChapterList({
             chapter={chapter}
             isFirst={i === 0}
             isLast={i === data.chapters.length - 1}
-            disabled={data.generating}
+            disabled={data.generating || data.subjectBatch !== null}
             onValidate={() => void data.validate(chapter.id)}
             onReject={() => void data.reject(chapter.id)}
             onRegenerate={() => void data.generate()}
             onEdit={(patch) => data.editChapter(chapter.id, patch)}
             onDelete={() => setToDelete(chapter)}
             onMove={(direction) => void data.move(chapter.id, direction)}
+            lessonsSlot={<LessonsPanel chapter={chapter} data={data} />}
           />
         ))}
       </ul>
@@ -224,6 +241,7 @@ function ChapterList({
         open={toDelete !== null}
         title="Supprimer le chapitre"
         confirmLabel="Supprimer"
+        tone="danger"
         onConfirm={() => {
           if (toDelete) void data.removeChapter(toDelete.id);
           setToDelete(null);

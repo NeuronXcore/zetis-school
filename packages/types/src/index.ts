@@ -11,6 +11,7 @@ export {
   type ChapterValidationStatus,
   type CurriculumChapter,
   type CurriculumLesson,
+  type LessonContentAuthor,
   type LessonCreatedBy,
   type LessonManualCreateRequest,
   type LessonNotion,
@@ -18,4 +19,8 @@ export {
   type LessonReorderRequest,
   type LessonStatus,
   type SchoolYearSubjectRef,
+  type StudentChapter,
+  type StudentCours,
+  type StudentLessonContent,
+  type StudentLessonRef,
 } from "./curriculum";

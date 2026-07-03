@@ -29,6 +29,12 @@ export function SubjectPills({
                 : "border-papa-border bg-papa-surface/60 text-papa-muted hover:bg-white/10 hover:text-papa-text",
             )}
           >
+            {/* aria-hidden : le nom accessible du tab reste le nom de la matière. */}
+            {s.subject_icon && (
+              <span aria-hidden className="mr-1.5">
+                {s.subject_icon}
+              </span>
+            )}
             {s.subject_name}
           </button>
         );

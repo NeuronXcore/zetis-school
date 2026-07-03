@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
-from app.modules.auth.deps import require_parent
+from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.curriculum import get_curriculum_provider, service
 from app.modules.curriculum.schemas import (
     ActiveSchoolYearOut,
@@ -22,9 +23,17 @@ from app.modules.curriculum.schemas import (
     LessonManualCreate,
     LessonPatch,
     LessonReorderRequest,
+    StudentCoursOut,
+    StudentLessonContentOut,
 )
 
 router = APIRouter(prefix="/api", tags=["curriculum"], dependencies=[Depends(require_parent)])
+
+# Routes ÉLÈVE (page Cours de Massimo) : lecture seule, tout utilisateur authentifié
+# (le rôle child passe) — le service ne sert QUE du validé (ADR-0009 §9).
+student_router = APIRouter(
+    prefix="/api/student", tags=["curriculum-student"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("/school-years/active/subjects", response_model=ActiveSchoolYearOut)
@@ -166,6 +175,28 @@ def generate_lessons(
     return service.lessons_out(db, lessons)
 
 
+@router.post(
+    "/chapters/{chapter_id}/extend-lessons",
+    response_model=list[CurriculumLessonOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def extend_lessons(
+    chapter_id: int,
+    db: Session = Depends(get_db),
+    llm: LLMProvider = Depends(get_curriculum_provider),
+) -> list[dict]:
+    """Complète la liste de leçons SANS rien supprimer (brouillons inclus) : l'existant
+    est injecté dans le prompt et les doublons de titre sont écartés. Mêmes préconditions
+    que la passe 2 (chapitre validé ou manuel, sinon 409) ; requête longue ~10-30 s."""
+    try:
+        lessons = service.generate_lessons(db, llm, chapter_id, mode="extend")
+    except service.CurriculumGenerationError as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
+        ) from exc
+    return service.lessons_out(db, lessons)
+
+
 @router.get("/chapters/{chapter_id}/lessons", response_model=list[CurriculumLessonOut])
 def list_lessons(chapter_id: int, db: Session = Depends(get_db)) -> list[dict]:
     return service.lessons_out(db, service.list_lessons(db, chapter_id))
@@ -200,9 +231,15 @@ def reorder_lessons(
 def update_lesson(
     lesson_id: int, payload: LessonPatch, db: Session = Depends(get_db)
 ) -> dict:
-    """Édition (`title`, `summary`, `notions` — fournie = remplace le rattachement)."""
+    """Édition (`title`, `summary`, `notions` — fournie = remplace le rattachement,
+    `content` — écriture/édition manuelle du cours, statut inchangé)."""
     lesson = service.update_lesson(
-        db, lesson_id, title=payload.title, summary=payload.summary, notions=payload.notions
+        db,
+        lesson_id,
+        title=payload.title,
+        summary=payload.summary,
+        notions=payload.notions,
+        content=payload.content,
     )
     return service.lessons_out(db, [lesson])[0]
 
@@ -221,6 +258,41 @@ def reject_lesson(lesson_id: int, db: Session = Depends(get_db)) -> dict:
     return service.lessons_out(db, [lesson])[0]
 
 
+@router.post("/lessons/{lesson_id}/generate-content", response_model=CurriculumLessonOut)
+def generate_lesson_content(
+    lesson_id: int,
+    db: Session = Depends(get_db),
+    llm: LLMProvider = Depends(get_provider),
+) -> dict:
+    """Rédige le cours complet (markdown) de la leçon — requête longue synchrone
+    (~40-60 s), moteur LOCAL (`get_provider`, jamais la dérogation cloud `curriculum_*`).
+    409 si la leçon est archivée ; la régénération écrase le cours existant."""
+    try:
+        lesson = service.generate_lesson_content(db, llm, lesson_id)
+    except service.CurriculumGenerationError as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
+        ) from exc
+    return service.lessons_out(db, [lesson])[0]
+
+
 @router.delete("/lessons/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_lesson(lesson_id: int, db: Session = Depends(get_db)) -> None:
     service.delete_lesson(db, lesson_id)
+
+
+# ---------------------------------------------------------------------------
+# Lecture élève (page Cours de Massimo) — cf. docs/frontend-massimo/page-cours.md.
+# ---------------------------------------------------------------------------
+
+
+@student_router.get("/cours/{subject_slug}", response_model=StudentCoursOut)
+def student_cours(subject_slug: str, db: Session = Depends(get_db)) -> dict:
+    """Chapitres validés de l'année active + leçons validées (référence légère)."""
+    return service.student_cours_for_subject(db, subject_slug)
+
+
+@student_router.get("/lessons/{lesson_id}/cours", response_model=StudentLessonContentOut)
+def student_lesson_cours(lesson_id: int, db: Session = Depends(get_db)) -> dict:
+    """Cours (markdown) d'une leçon validée — 404 sinon, sans fuite des brouillons."""
+    return service.student_lesson_content(db, lesson_id)

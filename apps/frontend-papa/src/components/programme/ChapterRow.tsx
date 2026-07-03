@@ -1,11 +1,12 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { type ChapterPatchRequest, type CurriculumChapter } from "@zetis/types";
 import { Badge, Button, Input, cn } from "@zetis/ui";
 import { chapterActions } from "../../lib/chapterActions";
 import { RepartitionBadge, SourceBadge, ValidationBadge } from "./badges";
 
 // Ligne de chapitre du référentiel : badges source + validation, actions selon l'état
-// (règle pure `chapterActions`), état déplié (thèmes / classe / répartition), édition inline.
+// (règle pure `chapterActions`), état déplié (thèmes / classe / répartition + étage
+// leçons via `lessonsSlot`, monté uniquement déplié → chargement paresseux), édition inline.
 
 export function ChapterRow({
   chapter,
@@ -18,6 +19,7 @@ export function ChapterRow({
   onDelete,
   onMove,
   disabled,
+  lessonsSlot,
 }: {
   chapter: CurriculumChapter;
   isFirst: boolean;
@@ -29,6 +31,8 @@ export function ChapterRow({
   onDelete: () => void;
   onMove: (direction: -1 | 1) => void;
   disabled?: boolean;
+  /** Étage leçons (Lot 2 Slice B) — rendu seulement quand la ligne est dépliée. */
+  lessonsSlot?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -38,7 +42,14 @@ export function ChapterRow({
   return (
     <li
       className={cn(
-        "rounded-2xl border border-papa-border bg-papa-surface/60 px-4 py-3",
+        "rounded-2xl border px-4 py-3 transition-[border-color,background-color,box-shadow]",
+        // Déplié = chapitre « au travail » : bordure accent + halo émeraude doux
+        // (même langage que la modale de cours), la ligne ressort de la liste.
+        // Branches EXCLUSIVES : deux utilitaires border/bg concurrents dans la même
+        // liste laissent l'ordre de la feuille CSS décider (accent perdait).
+        expanded
+          ? "border-papa-accent/70 bg-papa-accent/5 shadow-[0_0_35px_-6px_rgba(16,185,129,0.6)]"
+          : "border-papa-border bg-papa-surface/60",
         rejected && "opacity-60",
       )}
     >
@@ -64,7 +75,10 @@ export function ChapterRow({
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  className="flex min-w-0 items-center gap-1.5 text-left font-medium hover:text-emerald-200"
+                  className={cn(
+                    "flex min-w-0 items-center gap-1.5 text-left font-medium hover:text-emerald-200",
+                    expanded && "text-emerald-200",
+                  )}
                   onClick={() => setExpanded((v) => !v)}
                   aria-expanded={expanded}
                 >
@@ -77,7 +91,24 @@ export function ChapterRow({
                 <ValidationBadge status={chapter.validation_status} />
               </div>
               <Hint chapter={chapter} untouched={actions.untouchedByRegeneration} />
-              {expanded && <ExpandedDetails chapter={chapter} />}
+              {expanded && (
+                <>
+                  <ExpandedDetails chapter={chapter} />
+                  {lessonsSlot}
+                  {/* Second point de fermeture EN BAS : après avoir défilé un long
+                      étage de leçons, le titre (seul autre toggle) est hors écran. */}
+                  <div className="mt-2 border-t border-papa-border/60 pt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Replier ${chapter.name}`}
+                      onClick={() => setExpanded(false)}
+                    >
+                      ▲ Replier le chapitre
+                    </Button>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -127,7 +158,7 @@ export function ChapterRow({
   );
 }
 
-function ReorderButtons({
+export function ReorderButtons({
   isFirst,
   isLast,
   disabled,

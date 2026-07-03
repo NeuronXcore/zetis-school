@@ -137,6 +137,25 @@ _DEFAULT_CURRICULUM = {
 }
 
 
+# GeneratedLessonContent déterministe valide (≥ 300 caractères, structure imposée par
+# le prompt lesson_content) renvoyé quand le schéma `fmt` a la propriété `content`.
+_DEFAULT_LESSON_CONTENT = {
+    "content": (
+        "# Les nombres relatifs\n\n"
+        "Un nombre relatif, c'est un nombre avec un signe : + ou -. Imagine un "
+        "thermomètre : au-dessus de zéro il fait +5 °C, en dessous il fait -3 °C.\n\n"
+        "Par exemple, si tu descends de 2 étages depuis le rez-de-chaussée, tu es à "
+        "l'étage -2.\n\n"
+        "## Méthode\n\n1. Repère le signe de chaque nombre.\n2. Place-les sur une "
+        "droite graduée.\n3. Compare leur position : plus à droite = plus grand.\n\n"
+        "## Mini-exercices\n\n1. Compare -3 et 2. Solution : 2 > -3, car 2 est à "
+        "droite de -3.\n2. Range -1, 4 et -5. Solution : -5 < -1 < 4.\n\n"
+        "## Ce qu'il faut retenir\n\n- Un relatif a un signe.\n- La droite graduée "
+        "aide à comparer.\n- Plus à droite = plus grand."
+    )
+}
+
+
 class FakeLLMProvider:
     """Provider IA déterministe pour les tests (aucun appel ollama)."""
 
@@ -147,16 +166,19 @@ class FakeLLMProvider:
         capsule_spec: dict | None = None,
         curriculum_chapters: dict | None = None,
         curriculum_lessons: dict | None = None,
+        lesson_content: dict | None = None,
     ) -> None:
         self._feedback = feedback
         self._score = score
         self._capsule_spec = capsule_spec
         self._curriculum_chapters = curriculum_chapters
         self._curriculum_lessons = curriculum_lessons
+        self._lesson_content = lesson_content
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         # Sortie structurée demandée (fmt) → objet déterministe selon le schéma :
-        # curriculum passe 1 (propriété `chapters`), passe 2 (`lessons`) ou CapsuleSpec.
+        # curriculum passe 1 (propriété `chapters`), passe 2 (`lessons`), rédaction de
+        # cours (`content`) ou CapsuleSpec (fallback — garder cette branche EN DERNIER).
         # `fmt` est ignoré au-delà de ce branchement (le fake ne parle pas à ollama).
         if isinstance(request.fmt, dict) and "chapters" in request.fmt.get("properties", {}):
             chapters = self._curriculum_chapters or _DEFAULT_CURRICULUM
@@ -164,6 +186,9 @@ class FakeLLMProvider:
         if isinstance(request.fmt, dict) and "lessons" in request.fmt.get("properties", {}):
             lessons = self._curriculum_lessons or _DEFAULT_LESSONS
             return LLMResponse(text=json.dumps(lessons), model="fake", duration_ms=1)
+        if isinstance(request.fmt, dict) and "content" in request.fmt.get("properties", {}):
+            content = self._lesson_content or _DEFAULT_LESSON_CONTENT
+            return LLMResponse(text=json.dumps(content), model="fake", duration_ms=1)
         if request.fmt is not None:
             spec = self._capsule_spec or _DEFAULT_CAPSULE
             return LLMResponse(text=json.dumps(spec), model="fake", duration_ms=1)

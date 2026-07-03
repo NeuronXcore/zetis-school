@@ -72,6 +72,9 @@ export type LessonStatus = "draft" | "validated" | "archived";
 /** `created_by` d'une leçon ≈ source : parent = manuelle (validée d'office), ai = passe 2. */
 export type LessonCreatedBy = "parent" | "ai" | "imported";
 
+/** Auteur d'un write du COURS (`content`) : ai = rédaction locale, parent = édition Papa. */
+export type LessonContentAuthor = "ai" | "parent";
+
 /** Notion dépliée d'une leçon (intitulé + `skill_id`) — jamais la table de liaison brute. */
 export interface LessonNotion {
   skill_id: number;
@@ -84,11 +87,20 @@ export interface CurriculumLesson {
   chapter_id: number;
   title: string;
   summary: string | null;
+  /** Cours complet (markdown), rempli par `POST /lessons/{id}/generate-content`
+   *  (moteur local) — null tant que Papa n'a pas demandé la rédaction. */
+  content: string | null;
   status: LessonStatus;
   created_by: LessonCreatedBy;
   sort_order: number;
   /** Version déclarative du programme (ex. "2020"), null pour les leçons manuelles. */
   program_version: string | null;
+  /** Provenance du COURS (≠ ligne leçon) : `created_*` posés au premier write,
+   *  `updated_*` à chaque write ; null tant qu'aucun cours n'existe (dates ISO). */
+  content_created_at: string | null;
+  content_created_by: LessonContentAuthor | null;
+  content_updated_at: string | null;
+  content_updated_by: LessonContentAuthor | null;
   notions: LessonNotion[];
 }
 
@@ -107,11 +119,48 @@ export interface LessonPatchRequest {
   title?: string;
   summary?: string | null;
   notions?: string[];
+  /** Écriture/édition MANUELLE du cours (markdown, provenance 'parent') ;
+   *  absent = cours intact. Le statut de la leçon ne bouge pas. */
+  content?: string;
 }
 
 /** `POST /api/chapters/{id}/lessons/reorder` — liste ordonnée complète. */
 export interface LessonReorderRequest {
   lesson_ids: number[];
+}
+
+/** Contrats ÉLÈVE (page Cours de Massimo, lecture seule) : le serveur ne sert QUE du
+ *  validé (ADR-0009 §9) et jamais les champs d'atelier (source, statut, actions). */
+export interface StudentLessonRef {
+  id: number;
+  title: string;
+  summary: string | null;
+  /** Le markdown ne voyage jamais dans la liste : lecture via `/lessons/{id}/cours`. */
+  has_content: boolean;
+}
+
+export interface StudentChapter {
+  id: number;
+  name: string;
+  description: string | null;
+  lessons: StudentLessonRef[];
+}
+
+/** `GET /api/student/cours/{subject_slug}` — chapitres validés de l'année active. */
+export interface StudentCours {
+  subject_id: number;
+  subject_name: string;
+  subject_slug: string;
+  level: string;
+  chapters: StudentChapter[];
+}
+
+/** `GET /api/student/lessons/{id}/cours` — 404 si non validée ou sans cours. */
+export interface StudentLessonContent {
+  id: number;
+  title: string;
+  summary: string | null;
+  content: string;
 }
 
 /** Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres). */
@@ -120,6 +169,8 @@ export interface SchoolYearSubjectRef {
   subject_id: number;
   subject_name: string;
   subject_slug: string;
+  /** Emoji de la matière (`subjects.icon`) — affiché devant le nom (pills Programme). */
+  subject_icon: string | null;
   status: string;
 }
 

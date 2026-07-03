@@ -6,6 +6,9 @@ import {
   type ChapterManualCreateRequest,
   type ChapterPatchRequest,
   type CurriculumChapter,
+  type CurriculumLesson,
+  type LessonManualCreateRequest,
+  type LessonPatchRequest,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
@@ -106,6 +109,127 @@ export async function reorderChapters(
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ chapter_ids: chapterIds }),
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Leçons d'un chapitre (Lot 2 Slice B) — chemins : curriculum/router.py.
+// ---------------------------------------------------------------------------
+
+export async function fetchLessons(chapterId: number): Promise<CurriculumLesson[]> {
+  return asJson(
+    await fetch(`${API_URL}/api/chapters/${chapterId}/lessons`, { headers: authHeader() }),
+  );
+}
+
+/** Passe 2 (appel cloud synchrone ~10-30 s) : 409 si le chapitre n'est ni validé ni
+ *  manuel. Renvoie la liste complète des leçons du chapitre après génération. */
+export async function generateLessons(chapterId: number): Promise<CurriculumLesson[]> {
+  return asJson(
+    await fetch(`${API_URL}/api/chapters/${chapterId}/generate-lessons`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
+/** Extension (appel cloud synchrone ~10-30 s) : complète la liste SANS rien supprimer
+ *  (brouillons inclus) — l'existant est injecté dans le prompt, doublons écartés.
+ *  Mêmes préconditions que la passe 2 (409 sinon). Renvoie la liste complète. */
+export async function extendLessons(chapterId: number): Promise<CurriculumLesson[]> {
+  return asJson(
+    await fetch(`${API_URL}/api/chapters/${chapterId}/extend-lessons`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
+export async function createManualLesson(
+  chapterId: number,
+  data: LessonManualCreateRequest,
+): Promise<CurriculumLesson> {
+  return asJson(
+    await fetch(`${API_URL}/api/chapters/${chapterId}/lessons`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify(data),
+    }),
+  );
+}
+
+export async function patchLesson(
+  lessonId: number,
+  data: LessonPatchRequest,
+): Promise<CurriculumLesson> {
+  return asJson(
+    await fetch(`${API_URL}/api/lessons/${lessonId}`, {
+      method: "PATCH",
+      headers: jsonHeaders(),
+      body: JSON.stringify(data),
+    }),
+  );
+}
+
+/** `draft` → `validated` (409 sinon — le backend est la source de la règle). */
+export async function validateLesson(lessonId: number): Promise<CurriculumLesson> {
+  return asJson(
+    await fetch(`${API_URL}/api/lessons/${lessonId}/validate`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
+/** `draft` → `archived` : la leçon sort du flux (pas de statut `rejected` côté leçons). */
+export async function rejectLesson(lessonId: number): Promise<CurriculumLesson> {
+  return asJson(
+    await fetch(`${API_URL}/api/lessons/${lessonId}/reject`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
+export async function deleteLesson(lessonId: number): Promise<void> {
+  const res = await fetch(`${API_URL}/api/lessons/${lessonId}`, {
+    method: "DELETE",
+    headers: authHeader(),
+  });
+  if (!res.ok) {
+    let detail = `Erreur ${res.status}`;
+    try {
+      const body = (await res.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
+    } catch {
+      // réponse non-JSON : message générique
+    }
+    throw new Error(detail);
+  }
+}
+
+/** Rédaction du cours (moteur LOCAL ollama, ~40-60 s) : renvoie la leçon mise à jour.
+ *  409 si la leçon est archivée ; la régénération écrase le cours existant. */
+export async function generateLessonContent(lessonId: number): Promise<CurriculumLesson> {
+  return asJson(
+    await fetch(`${API_URL}/api/lessons/${lessonId}/generate-content`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
+/** Liste ordonnée COMPLÈTE des ids du chapitre — `archived` incluses (le backend vérifie). */
+export async function reorderLessons(
+  chapterId: number,
+  lessonIds: number[],
+): Promise<CurriculumLesson[]> {
+  return asJson(
+    await fetch(`${API_URL}/api/chapters/${chapterId}/lessons/reorder`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ lesson_ids: lessonIds }),
     }),
   );
 }

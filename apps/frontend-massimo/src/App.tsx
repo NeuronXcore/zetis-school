@@ -6,6 +6,7 @@ import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { AccueilMassimoPage } from "./pages/AccueilMassimoPage";
 import { MatieresPage } from "./pages/MatieresPage";
 import { MatiereDetailPage } from "./pages/MatiereDetailPage";
+import { CoursPage } from "./pages/CoursPage";
 import { DiagnosticPage } from "./pages/DiagnosticPage";
 import { Eli5Page } from "./pages/Eli5Page";
 import { MindmapsPage } from "./pages/MindmapsPage";
@@ -29,6 +30,7 @@ export default function App() {
         <Route index element={<AccueilMassimoPage />} />
         <Route path="/matieres" element={<MatieresPage />} />
         <Route path="/subjects/:slug" element={<MatiereDetailPage />} />
+        <Route path="/subjects/:slug/cours" element={<CoursPage />} />
         <Route path="/diagnostic" element={<DiagnosticPage />} />
         <Route path="/eli5" element={<Eli5Page />} />
         <Route path="/mindmaps" element={<MindmapsPage />} />

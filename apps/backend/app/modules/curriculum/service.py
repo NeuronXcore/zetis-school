@@ -19,6 +19,7 @@ sémantique par embedding est Lot 3.
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -40,11 +41,13 @@ from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.curriculum.schemas import (
     GeneratedChapter,
     GeneratedChapters,
+    GeneratedLessonContent,
     GeneratedLessons,
     generation_schema,
+    lesson_content_schema,
     lessons_generation_schema,
 )
-from app.prompts import curriculum
+from app.prompts import curriculum, lesson_content
 
 logger = logging.getLogger(__name__)
 
@@ -276,6 +279,7 @@ def active_year_with_subjects(db: Session) -> dict:
                 "subject_id": subject.id,
                 "subject_name": subject.name,
                 "subject_slug": subject.slug,
+                "subject_icon": subject.icon,
                 "status": sys_row.status,
             }
             for sys_row, subject in rows
@@ -507,12 +511,22 @@ def _lessons_of_chapter(db: Session, chapter_id: int) -> list[Lesson]:
     )
 
 
-def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Lesson]:
+def _normalize_lesson_title(title: str) -> str:
+    """Clé de dédup des titres de leçons — même esprit que `_normalize_skill_name`."""
+    return " ".join(title.casefold().split())
+
+
+def generate_lessons(
+    db: Session, llm: LLMProvider, chapter_id: int, mode: str = "replace"
+) -> list[Lesson]:
     """Passe 2 : génère et persiste les leçons + notions d'un chapitre (synchrone).
 
     Entrée = chapitre **validé ou manuel** uniquement (ADR-0009 §1), sinon refus 409.
-    Régénération (§3) : ne touche jamais les leçons `parent`/`imported` ni `validated` ;
-    remplace uniquement les leçons IA non validées, et append après l'existant conservé.
+    `mode="replace"` (défaut, §3) : ne touche jamais les leçons `parent`/`imported` ni
+    `validated` ; remplace uniquement les leçons IA non validées, et append après
+    l'existant conservé. `mode="extend"` : ne supprime RIEN — toutes les leçons
+    existantes sont injectées dans le prompt (« complète sans dupliquer ») et les
+    propositions dont le titre normalisé existe déjà sont écartées (filet anti-doublon).
     Chaque notion upserte une `Skill` (dédup par nom normalisé). Lève
     `CurriculumGenerationError` si la sortie reste invalide après UNE réparation —
     rien n'est alors persisté (rollback).
@@ -532,11 +546,18 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
     program_version = chapter.program_version or DEFAULT_PROGRAM_VERSION
 
     existing = _lessons_of_chapter(db, chapter_id)
-    # Conservées = manuelles/importées OU validées (jamais touchées, §3), injectées dans
-    # le prompt. Remplaçables = IA non validées (draft ou archivées/rejetées) — même
-    # règle que la passe 1.
-    kept = [l for l in existing if l.created_by != "ai" or l.status == "validated"]
-    replaceable = [l for l in existing if l.created_by == "ai" and l.status != "validated"]
+    if mode == "extend":
+        # Extension : RIEN n'est supprimé. Toutes les leçons existantes (archivées
+        # incluses — une leçon rejetée par Papa ne doit pas être re-proposée) sont
+        # injectées dans le prompt comme « à ne jamais dupliquer, complète autour ».
+        kept = existing
+        replaceable = []
+    else:
+        # Conservées = manuelles/importées OU validées (jamais touchées, §3), injectées
+        # dans le prompt. Remplaçables = IA non validées (draft ou archivées/rejetées)
+        # — même règle que la passe 1.
+        kept = [l for l in existing if l.created_by != "ai" or l.status == "validated"]
+        replaceable = [l for l in existing if l.created_by == "ai" and l.status != "validated"]
 
     meta = chapter.metadata_json or {}
     system, prompt = curriculum.build_lessons_prompt(
@@ -560,6 +581,7 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
             "level": level,
             "cycle": cycle,
             "program_version": program_version,
+            "mode": mode,
             "existing_kept_lessons": len(kept),
             "prompt_version": curriculum.LESSONS_PROMPT_VERSION,
             "provider": type(llm).__name__,
@@ -610,16 +632,24 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
     for lesson in replaceable:
         db.execute(LessonSkill.__table__.delete().where(LessonSkill.lesson_id == lesson.id))
         db.delete(lesson)
-    all_notions = [n for gl in result.lessons for n in gl.notions]
+    # Filet anti-doublon : le prompt interdit de dupliquer les conservées, mais le LLM
+    # peut récidiver — toute proposition dont le titre normalisé (casse/espaces) matche
+    # une leçon conservée est écartée (essentiel en mode extend : rien n'est remplacé).
+    kept_titles = {_normalize_lesson_title(l.title) for l in kept}
+    proposals = [
+        gl for gl in result.lessons if _normalize_lesson_title(gl.title) not in kept_titles
+    ]
+    duplicates_dropped = len(result.lessons) - len(proposals)
+    all_notions = [n for gl in proposals for n in gl.notions]
     skills_by_key, skills_created = _upsert_skills(db, subject.id, level, all_notions)
     next_order = max((l.sort_order for l in kept), default=-1) + 1
     created: list[Lesson] = []
-    for i, generated in enumerate(result.lessons):
+    for i, generated in enumerate(proposals):
         lesson = Lesson(
             chapter_id=chapter_id,
             title=generated.title[:160],
             summary=generated.summary.strip() or None,
-            content_markdown=None,  # réservé à la génération de cours (downstream)
+            content_markdown=None,  # rempli plus tard par `generate_lesson_content` (local)
             status="draft",  # = pending, obligatoire pour du généré (§3)
             created_by="ai",
             sort_order=next_order + i,
@@ -636,6 +666,7 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
     job.output_json = {
         "lessons_count": len(created),
         "replaced_drafts": len(replaceable),
+        "duplicates_dropped": duplicates_dropped,
         "skills_created": skills_created,
         "skills_reused": len({_normalize_skill_name(n) for n in all_notions}) - skills_created,
         "model": model_used,
@@ -649,6 +680,142 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
 def list_lessons(db: Session, chapter_id: int) -> list[Lesson]:
     _chapter_or_404(db, chapter_id)
     return _lessons_of_chapter(db, chapter_id)
+
+
+# Garantie « markdown pur » sur le cours persisté : le prompt l'exige, mais un modèle
+# local peut récidiver (vu en réel : <details>/<summary> pour cacher les solutions,
+# que react-markdown échappe à juste titre → balises affichées en texte). Conversion
+# douce (summary → gras, <br> → saut de ligne) puis suppression des balises HTML
+# CONNUES uniquement — une liste fermée, pour ne jamais toucher un « x<y et z>2 »
+# mathématique légitime.
+_HTML_SUMMARY = re.compile(r"<summary>(.*?)</summary>", re.IGNORECASE | re.DOTALL)
+_HTML_BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_HTML_KNOWN_TAGS = re.compile(
+    r"</?(?:details|summary|div|span|p|b|i|u|em|strong|sub|sup|hr|ul|ol|li|"
+    r"table|thead|tbody|tr|td|th|h[1-6])(?:\s[^<>\n]*)?/?>",
+    re.IGNORECASE,
+)
+
+
+def _scrub_content_html(content: str) -> str:
+    content = _HTML_SUMMARY.sub(lambda m: f"**{m.group(1).strip()}**", content)
+    content = _HTML_BR.sub("\n", content)
+    return _HTML_KNOWN_TAGS.sub("", content)
+
+
+def _touch_content_audit(lesson: Lesson, by: str) -> None:
+    """Provenance du cours : `created_*` posés au premier write seulement,
+    `updated_*` écrasés à chaque write. `by` ∈ ('ai', 'parent')."""
+    now = datetime.now(timezone.utc)
+    if lesson.content_created_at is None:
+        lesson.content_created_at = now
+        lesson.content_created_by = by
+    lesson.content_updated_at = now
+    lesson.content_updated_by = by
+
+
+def generate_lesson_content(db: Session, llm: LLMProvider, lesson_id: int) -> Lesson:
+    """Rédige le cours complet (markdown) d'une leçon — synchrone, moteur LOCAL.
+
+    Injecté avec `get_provider()` (Ollama), jamais le provider `curriculum_*` : la
+    dérogation cloud reste bornée au référentiel. Toute leçon non archivée est
+    rédigeable (`draft` inclus : relire le cours aide à valider) ; la régénération
+    écrase `content_markdown`. Lève `CurriculumGenerationError` si la sortie reste
+    invalide après UNE réparation — le contenu existant n'est alors pas touché.
+    """
+    lesson = _lesson_or_404(db, lesson_id)
+    if lesson.status == "archived":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Leçon {lesson_id} archivée : hors du flux, cours non rédigeable.",
+        )
+    chapter = _chapter_or_404(db, lesson.chapter_id)
+    subject, level, cycle = _lesson_context(db, chapter)
+    program_version = lesson.program_version or chapter.program_version or DEFAULT_PROGRAM_VERSION
+    notions = [
+        name
+        for (name,) in db.execute(
+            select(Skill.name)
+            .join(LessonSkill, LessonSkill.skill_id == Skill.id)
+            .where(LessonSkill.lesson_id == lesson.id)
+            .order_by(Skill.id)
+        ).all()
+    ]
+
+    system, prompt = lesson_content.build_prompt(
+        subject.name,
+        level,
+        cycle,
+        {"name": chapter.name, "description": chapter.description},
+        {"title": lesson.title, "summary": lesson.summary},
+        notions,
+        program_version,
+    )
+    schema = lesson_content_schema()
+
+    now = datetime.now(timezone.utc)
+    job = AIJob(
+        job_type="lesson_content",
+        status="running",
+        input_json={
+            "lesson_id": lesson_id,
+            "lesson_title": lesson.title,
+            "chapter_id": chapter.id,
+            "chapter": chapter.name,
+            "subject": subject.name,
+            "level": level,
+            "program_version": program_version,
+            "notions_count": len(notions),
+            "regenerate": lesson.content_markdown is not None,
+            "prompt_version": lesson_content.LESSON_CONTENT_PROMPT_VERSION,
+            "provider": type(llm).__name__,
+        },
+        created_by="parent",
+        created_at=now,
+        started_at=now,
+    )
+    db.add(job)
+    db.flush()
+
+    try:
+        response = llm.generate(LLMRequest(system=system, prompt=prompt, fmt=schema))
+        raw, model_used = response.text, response.model
+        result, error = _try_validate(raw, GeneratedLessonContent)
+
+        if result is None:
+            repair_prompt = (
+                f"{prompt}\n\n--- Ta réponse précédente (invalide) ---\n{raw}\n\n"
+                f"{lesson_content.REPAIR_INSTRUCTION}{error}"
+            )
+            response = llm.generate(LLMRequest(system=system, prompt=repair_prompt, fmt=schema))
+            raw, model_used = response.text, response.model
+            result, error = _try_validate(raw, GeneratedLessonContent)
+
+        if result is None:
+            raise CurriculumGenerationError(
+                f"GeneratedLessonContent invalide après réparation : {error}"
+            )
+    except CurriculumGenerationError as exc:
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        raise
+    except Exception as exc:  # noqa: BLE001 — erreur provider/réseau : on trace puis on remonte.
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        raise CurriculumGenerationError(f"Appel LLM échoué : {exc}") from exc
+
+    lesson.content_markdown = _scrub_content_html(result.content).strip()
+    _touch_content_audit(lesson, "ai")
+    job.status = "succeeded"
+    job.output_json = {"content_chars": len(lesson.content_markdown), "model": model_used}
+    job.finished_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(lesson)
+    return lesson
 
 
 def create_manual_lesson(
@@ -695,14 +862,27 @@ def update_lesson(
     title: str | None = None,
     summary: str | None = None,
     notions: list[str] | None = None,
+    content: str | None = None,
 ) -> Lesson:
     """Édition partielle. `notions` fournie = remplace le rattachement (upsert des
-    nouvelles) ; les `Skill` elles-mêmes ne sont jamais supprimées (référentiel)."""
+    nouvelles) ; les `Skill` elles-mêmes ne sont jamais supprimées (référentiel).
+    `content` fourni = écriture/édition manuelle du cours (même scrub markdown que la
+    rédaction IA, provenance 'parent') — le `status` de la leçon ne bouge pas : Papa
+    est l'autorité de validation, sa propre édition n'a pas à être revalidée."""
     lesson = _lesson_or_404(db, lesson_id)
     if title is not None:
         lesson.title = title.strip()
     if summary is not None:
         lesson.summary = summary
+    if content is not None:
+        scrubbed = _scrub_content_html(content).strip()
+        if not scrubbed:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Le cours ne peut pas être vide.",
+            )
+        lesson.content_markdown = scrubbed
+        _touch_content_audit(lesson, "parent")
     if notions is not None:
         chapter = _chapter_or_404(db, lesson.chapter_id)
         subject, level, _ = _lesson_context(db, chapter)
@@ -762,6 +942,99 @@ def reorder_lessons(db: Session, chapter_id: int, lesson_ids: list[int]) -> list
     return [by_id[lid] for lid in lesson_ids]
 
 
+# ---------------------------------------------------------------------------
+# Lecture ÉLÈVE (page Cours de Massimo) — validé uniquement, filtrage serveur.
+# ---------------------------------------------------------------------------
+
+
+def student_cours_for_subject(db: Session, subject_slug: str) -> dict:
+    """Chapitres VALIDÉS de l'année active pour la matière, avec leurs leçons
+    VALIDÉES (référence légère, jamais le markdown complet — payload liste).
+
+    Rien de `pending`/`draft`/`archived` ne sort d'ici (ADR-0009 §9 : rien
+    n'atteint Massimo avant validation). 404 si matière inconnue ou hors année.
+    """
+    subject = db.scalars(select(Subject).where(Subject.slug == subject_slug)).first()
+    if subject is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject_slug} » inconnue.",
+        )
+    year = _active_year_or_404(db)
+    sys_row = db.scalars(
+        select(SchoolYearSubject).where(
+            SchoolYearSubject.school_year_id == year.id,
+            SchoolYearSubject.subject_id == subject.id,
+        )
+    ).first()
+    if sys_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject.name} » absente de l'année active.",
+        )
+
+    chapters = list(
+        db.scalars(
+            select(Chapter)
+            .where(
+                Chapter.school_year_subject_id == sys_row.id,
+                Chapter.validation_status == "validated",
+            )
+            .order_by(Chapter.sort_order, Chapter.id)
+        )
+    )
+    chapter_ids = [c.id for c in chapters]
+    lessons_by_chapter: dict[int, list[Lesson]] = {i: [] for i in chapter_ids}
+    if chapter_ids:
+        for lesson in db.scalars(
+            select(Lesson)
+            .where(Lesson.chapter_id.in_(chapter_ids), Lesson.status == "validated")
+            .order_by(Lesson.sort_order, Lesson.id)
+        ):
+            lessons_by_chapter[lesson.chapter_id].append(lesson)
+
+    return {
+        "subject_id": subject.id,
+        "subject_name": subject.name,
+        "subject_slug": subject.slug,
+        "level": year.level,
+        "chapters": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "description": c.description,
+                "lessons": [
+                    {
+                        "id": l.id,
+                        "title": l.title,
+                        "summary": l.summary,
+                        "has_content": l.content_markdown is not None,
+                    }
+                    for l in lessons_by_chapter[c.id]
+                ],
+            }
+            for c in chapters
+        ],
+    }
+
+
+def student_lesson_content(db: Session, lesson_id: int) -> dict:
+    """Cours d'une leçon pour Massimo — 404 indiscernable si la leçon n'existe pas,
+    n'est pas validée OU n'a pas de cours (aucune fuite d'existence des brouillons)."""
+    lesson = db.get(Lesson, lesson_id)
+    if lesson is None or lesson.status != "validated" or lesson.content_markdown is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pas de cours disponible pour cette leçon.",
+        )
+    return {
+        "id": lesson.id,
+        "title": lesson.title,
+        "summary": lesson.summary,
+        "content": lesson.content_markdown,
+    }
+
+
 def lessons_out(db: Session, lessons: list[Lesson]) -> list[dict]:
     """Sérialise avec notions dépliées (intitulé + `skill_id`) — jamais la liaison brute."""
     ids = [l.id for l in lessons]
@@ -781,10 +1054,15 @@ def lessons_out(db: Session, lessons: list[Lesson]) -> list[dict]:
             "chapter_id": l.chapter_id,
             "title": l.title,
             "summary": l.summary,
+            "content": l.content_markdown,
             "status": l.status,
             "created_by": l.created_by,
             "sort_order": l.sort_order,
             "program_version": l.program_version,
+            "content_created_at": l.content_created_at,
+            "content_created_by": l.content_created_by,
+            "content_updated_at": l.content_updated_at,
+            "content_updated_by": l.content_updated_by,
             "notions": notions_by_lesson[l.id],
         }
         for l in lessons

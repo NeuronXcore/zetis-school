@@ -40,6 +40,7 @@ def test_lesson_routes_are_parent_only(client_db) -> None:
     client, Session = client_db  # conftest = rôle child
     chapter_id = _seed_validated_chapter(Session)
     assert client.post(f"/api/chapters/{chapter_id}/generate-lessons").status_code == 403
+    assert client.post(f"/api/chapters/{chapter_id}/extend-lessons").status_code == 403
     assert client.get(f"/api/chapters/{chapter_id}/lessons").status_code == 403
     assert client.post(f"/api/chapters/{chapter_id}/lessons", json={"title": "X"}).status_code == 403
     assert client.post(
@@ -48,6 +49,7 @@ def test_lesson_routes_are_parent_only(client_db) -> None:
     assert client.patch("/api/lessons/1", json={}).status_code == 403
     assert client.post("/api/lessons/1/validate").status_code == 403
     assert client.post("/api/lessons/1/reject").status_code == 403
+    assert client.post("/api/lessons/1/generate-content").status_code == 403
     assert client.delete("/api/lessons/1").status_code == 403
 
 
@@ -144,3 +146,132 @@ def test_generate_then_lesson_crud_flow(client_db) -> None:
     assert client.get("/api/chapters/9999/lessons").status_code == 404
     assert client.patch("/api/lessons/9999", json={}).status_code == 404
     assert client.delete("/api/lessons/9999").status_code == 404
+
+
+def test_generate_lesson_content_flow(client_db) -> None:
+    """Rédaction du cours : `content` null → rempli (moteur local via conftest) ;
+    409 sur leçon archivée ; 404 sur leçon inconnue."""
+    client, Session = client_db
+    _as_papa()
+    chapter_id = _seed_validated_chapter(Session)
+    lessons = client.post(f"/api/chapters/{chapter_id}/generate-lessons").json()
+    first_id = lessons[0]["id"]
+    assert lessons[0]["content"] is None  # la passe 2 ne rédige pas le cours
+
+    res = client.post(f"/api/lessons/{first_id}/generate-content")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["id"] == first_id
+    assert body["content"] and "## Mini-exercices" in body["content"]
+    assert body["status"] == "draft"  # la rédaction ne valide pas la leçon
+
+    # Le GET liste transporte désormais le cours.
+    listed = client.get(f"/api/chapters/{chapter_id}/lessons").json()
+    assert next(l for l in listed if l["id"] == first_id)["content"] == body["content"]
+
+    # Leçon archivée : hors du flux → 409.
+    second_id = lessons[1]["id"]
+    client.post(f"/api/lessons/{second_id}/reject")
+    assert client.post(f"/api/lessons/{second_id}/generate-content").status_code == 409
+
+    assert client.post("/api/lessons/9999/generate-content").status_code == 404
+
+
+def test_extend_lessons_appends_without_touching_existing(client_db) -> None:
+    """Extension : rien n'est supprimé (brouillons inclus), les nouvelles s'ajoutent
+    APRÈS l'existant, et les doublons de titre sont écartés (filet anti-doublon)."""
+    client, Session = client_db
+    _as_papa()
+    chapter_id = _seed_validated_chapter(Session)
+
+    # Chapitre avec UNE leçon manuelle : l'extension ajoute les 3 leçons du fake après.
+    manual = client.post(
+        f"/api/chapters/{chapter_id}/lessons", json={"title": "Leçon de Papa"}
+    ).json()
+    res = client.post(f"/api/chapters/{chapter_id}/extend-lessons")
+    assert res.status_code == 201
+    extended = res.json()
+    assert len(extended) == 4
+    assert extended[0]["id"] == manual["id"]  # l'existant garde sa place
+    assert all(l["created_by"] == "ai" and l["status"] == "draft" for l in extended[1:])
+
+    # Ré-extension avec la même sortie fake : titres tous déjà présents → AUCUN ajout,
+    # AUCUNE suppression (mêmes ids — les brouillons ne sont pas remplacés, ≠ passe 2).
+    res = client.post(f"/api/chapters/{chapter_id}/extend-lessons")
+    assert res.status_code == 201
+    again = res.json()
+    assert [l["id"] for l in again] == [l["id"] for l in extended]
+
+    # Même précondition que la passe 2 : chapitre ni validé ni manuel → 409.
+    with Session() as db:
+        chapter = db.get(m.Chapter, chapter_id)
+        chapter.validation_status = "pending"
+        db.commit()
+    assert client.post(f"/api/chapters/{chapter_id}/extend-lessons").status_code == 409
+    # Garde parent (conftest = child par défaut sur une nouvelle app… ici déjà papa) :
+    # couverte par test_lesson_routes_are_parent_only pour les routes leçons.
+
+
+def test_content_audit_and_manual_edit_flow(client_db) -> None:
+    """Provenance du cours : 'ai' au premier write IA, 'parent' sur édition Papa ;
+    `created_*` posés une fois, `updated_*` à chaque write ; le statut de la leçon
+    ne bouge jamais sur une édition de cours (Papa est l'autorité de validation)."""
+    client, Session = client_db
+    _as_papa()
+    chapter_id = _seed_validated_chapter(Session)
+    lessons = client.post(f"/api/chapters/{chapter_id}/generate-lessons").json()
+    first_id = lessons[0]["id"]
+    assert lessons[0]["content_created_at"] is None  # pas encore de cours
+
+    # Rédaction IA : audit 'ai' posé (created + updated).
+    body = client.post(f"/api/lessons/{first_id}/generate-content").json()
+    assert body["content_created_by"] == "ai"
+    assert body["content_updated_by"] == "ai"
+    assert body["content_created_at"] and body["content_updated_at"]
+    ai_created_at = body["content_created_at"]
+
+    # Édition manuelle : même scrub que la rédaction IA, created conservé ('ai'),
+    # updated repris par 'parent'.
+    res = client.patch(
+        f"/api/lessons/{first_id}",
+        json={"content": "# Mon cours\n\nAvant<br>après <div>bloc</div> et x<y intact."},
+    )
+    assert res.status_code == 200
+    patched = res.json()
+    assert "<br>" not in patched["content"] and "<div>" not in patched["content"]
+    assert "x<y intact" in patched["content"]  # liste fermée : les maths survivent
+    assert patched["content_created_by"] == "ai"
+    assert patched["content_created_at"] == ai_created_at
+    assert patched["content_updated_by"] == "parent"
+    assert patched["status"] == "draft"  # l'édition ne (dé)valide pas
+
+    # Leçon validée : l'édition manuelle du cours ne change pas le statut.
+    client.post(f"/api/lessons/{first_id}/validate")
+    res = client.patch(f"/api/lessons/{first_id}", json={"content": "# V2"})
+    assert res.status_code == 200
+    assert res.json()["status"] == "validated"
+
+    # PATCH sans `content` : cours et provenance intacts.
+    res = client.patch(f"/api/lessons/{first_id}", json={"title": "Renommée"})
+    assert res.json()["content"] == "# V2"
+    assert res.json()["content_updated_by"] == "parent"
+
+    # Régénération IA après édition manuelle : created conservé, updated repasse à 'ai'.
+    regen = client.post(f"/api/lessons/{first_id}/generate-content").json()
+    assert regen["content_created_by"] == "ai"
+    assert regen["content_created_at"] == ai_created_at
+    assert regen["content_updated_by"] == "ai"
+
+    # Écriture manuelle d'un cours inexistant : created = 'parent'.
+    third_id = lessons[2]["id"]
+    res = client.patch(f"/api/lessons/{third_id}", json={"content": "Cours écrit à la main."})
+    assert res.status_code == 200
+    assert res.json()["content_created_by"] == "parent"
+    assert res.json()["content_updated_by"] == "parent"
+
+    # Cours vide : refusé (min_length pydantic, puis vide après scrub).
+    assert client.patch(f"/api/lessons/{first_id}", json={"content": ""}).status_code == 422
+    assert (
+        client.patch(f"/api/lessons/{first_id}", json={"content": "<div></div>"}).status_code
+        == 422
+    )
