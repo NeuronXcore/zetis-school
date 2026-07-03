@@ -552,7 +552,7 @@ describe("ProgrammePage", () => {
       }),
     );
     expect(await screen.findByText("Mon cours.")).toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toHaveTextContent(/Rédigé le .+ par manuel/);
+    expect(screen.getByRole("dialog")).toHaveTextContent(/Rédigé le .+ par admin/);
     // Remplacement ciblé dans le cache : pas de re-fetch de la liste.
     expect(vi.mocked(fetchLessons)).toHaveBeenCalledTimes(1);
   });

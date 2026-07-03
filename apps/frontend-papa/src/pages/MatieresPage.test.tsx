@@ -185,7 +185,7 @@ describe("MatieresPapaPage — chapitres de l'année active", () => {
     expect(within(dialog).queryByRole("button", { name: "Rejeter" })).toBeNull();
     // La provenance du cours reste visible en lecture seule — mais pas l'édition.
     expect(dialog).toHaveTextContent(/Rédigé le .+ par IA/);
-    expect(dialog).toHaveTextContent(/Modifié le .+ par manuel/);
+    expect(dialog).toHaveTextContent(/Modifié le .+ par admin/);
     expect(within(dialog).queryByRole("button", { name: /Modifier le cours|Écrire/ })).toBeNull();
   });
 
