@@ -24,6 +24,19 @@ class Settings(BaseSettings):
     # Le backend n'importe pas `mlx` : il parle en HTTP, comme pour ollama.
     mlx_base_url: str = Field(default="http://localhost:8080", validation_alias="MLX_BASE_URL")
     mlx_model: str = Field(default="mlx-community/Qwen2.5-32B-Instruct-4bit", validation_alias="MLX_MODEL")
+    # --- Curriculum (ADR-0009, addendum) : dérogation cloud étroite pour `curriculum_*`. ---
+    # Seules les tâches de génération de référentiel sont routées vers Anthropic (bench T4,
+    # issue (b)) ; zéro donnée de Massimo dans ces prompts. Sans clé : erreur explicite,
+    # jamais de bascule silencieuse. Repli local assumé : CURRICULUM_LLM_PROVIDER=ollama.
+    curriculum_llm_provider: str = Field(
+        default="anthropic", validation_alias="CURRICULUM_LLM_PROVIDER"
+    )
+    anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
+    anthropic_base_url: str = Field(
+        default="https://api.anthropic.com", validation_alias="ANTHROPIC_BASE_URL"
+    )
+    anthropic_model: str = Field(default="claude-sonnet-5", validation_alias="ANTHROPIC_MODEL")
+
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
     # Découplé de `llm_provider` : les embeddings restent sur ollama même si la
     # génération passe sur MLX (évite toute migration pgvector). Cf. ADR-0008.
