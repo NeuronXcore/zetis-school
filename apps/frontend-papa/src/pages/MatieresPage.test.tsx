@@ -88,6 +88,10 @@ function lesson(over: Partial<CurriculumLesson>): CurriculumLesson {
     created_by: "ai",
     sort_order: 0,
     program_version: "2020",
+    content_created_at: null,
+    content_created_by: null,
+    content_updated_at: null,
+    content_updated_by: null,
     notions: [],
     ...over,
   };
@@ -147,6 +151,10 @@ describe("MatieresPapaPage — chapitres de l'année active", () => {
         id: 1,
         title: "Simplification et comparaison de fractions",
         content: "# Cours de fractions\n\nContenu du cours validé.",
+        content_created_at: "2026-07-01T08:00:00Z",
+        content_created_by: "ai",
+        content_updated_at: "2026-07-02T09:30:00Z",
+        content_updated_by: "parent",
       }),
       lesson({ id: 2, title: "Leçon encore draft", status: "draft" }),
       lesson({ id: 3, title: "Sans cours rédigé", content: null }),
@@ -175,6 +183,10 @@ describe("MatieresPapaPage — chapitres de l'année active", () => {
     expect(within(dialog).queryByRole("button", { name: /Rédiger|Régénérer/ })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Valider" })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Rejeter" })).toBeNull();
+    // La provenance du cours reste visible en lecture seule — mais pas l'édition.
+    expect(dialog).toHaveTextContent(/Rédigé le .+ par IA/);
+    expect(dialog).toHaveTextContent(/Modifié le .+ par manuel/);
+    expect(within(dialog).queryByRole("button", { name: /Modifier le cours|Écrire/ })).toBeNull();
   });
 
   it("matière hors année active → pas de section référentiel, pas de fetch chapitres", async () => {

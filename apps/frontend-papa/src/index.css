@@ -31,6 +31,25 @@
   --color-ring: var(--color-papa-accent);
 }
 
+/* Éditeur de cours (MDXEditor, modale 📖) : thème sombre `dark-theme` du package,
+   mappé sur la palette Papa via ses variables CSS. Double classe = spécificité
+   supérieure au `.dark-theme` du package (chargé après nous par le chunk lazy). */
+.lesson-content-editor.dark-theme {
+  --basePageBg: var(--color-papa-bg);
+  --baseBg: var(--color-papa-surface-2);
+  --baseBgSubtle: var(--color-papa-surface);
+  --baseBorder: var(--color-papa-border);
+  --baseText: var(--color-papa-text);
+  --accentSolid: var(--color-papa-accent);
+  border: 1px solid var(--color-papa-border);
+  border-radius: 0.75rem;
+  background: var(--color-papa-bg);
+}
+
+.lesson-content-editor.dark-theme .mdxeditor-toolbar {
+  background: var(--color-papa-surface-2);
+}
+
 html,
 body,
 #root {

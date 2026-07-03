@@ -89,11 +89,25 @@ export function LessonRow({
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Lire le cours de ${lesson.title}`}
+                aria-label={`Lire le cours de ${lesson.title}${
+                  lesson.content === null ? " (cours non rédigé)" : ""
+                }`}
+                title={lesson.content === null ? "Cours non rédigé" : "Cours rédigé"}
                 onClick={onRead}
                 disabled={disabled}
               >
-                📖
+                {/* Pastille d'état : pleine (émeraude) = cours rédigé, creuse = à rédiger. */}
+                <span className="relative">
+                  📖
+                  <span
+                    aria-hidden
+                    className={`absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full ${
+                      lesson.content === null
+                        ? "border border-papa-muted/70"
+                        : "bg-emerald-400"
+                    }`}
+                  />
+                </span>
               </Button>
             )}
             {actions.canValidate && (

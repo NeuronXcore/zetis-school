@@ -8,7 +8,7 @@ import {
   type LessonManualCreateRequest,
   type LessonPatchRequest,
 } from "@zetis/types";
-import { lessonActions } from "../lib/chapterActions";
+import { chapterActions, lessonActions } from "../lib/chapterActions";
 import {
   createManualChapter,
   createManualLesson,
@@ -56,6 +56,43 @@ export interface ChapterLessonsState {
   /** Rédaction en LOT des cours manquants (leçons validées sans cours) : avancement. */
   batch: { done: number; total: number; currentTitle: string } | null;
 }
+
+export type SubjectBatchKind = "lessons" | "contents";
+
+/** Lot au niveau MATIÈRE en cours — null = aucun. UN SEUL lot global à la fois
+ *  (verrou croisé avec la passe 1 et toute activité par chapitre). */
+export interface SubjectBatchState {
+  kind: SubjectBatchKind;
+  /** Matière figée au lancement : le lot survit à un changement de matière affichée. */
+  sysId: number;
+  subjectName: string;
+  /** `scan` = fetch FRAIS des leçons pour décider les cibles, `run` = boucle. */
+  phase: "scan" | "run";
+  done: number;
+  /** 0 pendant le scan (cibles inconnues). */
+  total: number;
+  /** Nom du chapitre (lot leçons) ou titre de la leçon (lot cours). */
+  currentLabel: string;
+  errors: { label: string; message: string }[];
+}
+
+/** Récapitulatif affiché après la fin du lot matière (succès, annulation ou coupe-circuit). */
+export interface SubjectBatchReport {
+  kind: SubjectBatchKind;
+  subjectName: string;
+  done: number;
+  total: number;
+  /** Lot leçons uniquement : chapitres éligibles sautés car ils ont déjà des leçons. */
+  skipped: number;
+  cancelled: boolean;
+  /** Coupe-circuit : 3 échecs consécutifs (moteur local ou clé API indisponible). */
+  aborted: boolean;
+  errors: { label: string; message: string }[];
+}
+
+/** Coupe-circuit commun aux lots (chapitre et matière) : au-delà de N échecs
+ *  consécutifs, le moteur (local ou clé API) est considéré indisponible. */
+const MAX_CONSECUTIVE_FAILURES = 3;
 
 const EMPTY_LESSONS: ChapterLessonsState = {
   lessons: [],
@@ -113,11 +150,28 @@ export interface CurriculumData {
   /** Rédige le cours de la leçon (moteur LOCAL, ~40-60 s) puis remplace la leçon
    *  dans le cache avec la réponse — pas de re-fetch global. */
   generateContent: (chapterId: number, lessonId: number) => Promise<void>;
+  /** Écriture/édition MANUELLE du cours (PATCH content, provenance 'parent', statut
+   *  inchangé) : remplacement ciblé dans le cache. LÈVE en cas d'échec (l'éditeur
+   *  garde le brouillon), l'erreur est aussi posée dans `contentError` (modale). */
+  saveContent: (chapterId: number, lessonId: number, content: string) => Promise<void>;
   /** Rédige SÉQUENTIELLEMENT les cours manquants des leçons validées du chapitre
-   *  (N × ~40-60 s, moteur local). S'arrête à la première erreur (verbatim). */
+   *  (N × ~40-60 s, moteur local). Continue après un échec isolé (résumé dans le
+   *  bandeau du panneau), coupe-circuit à 3 échecs consécutifs. */
   generateMissingContents: (chapterId: number) => Promise<void>;
   /** Annule le lot en cours : la leçon en cours de rédaction se termine, pas la suite. */
   cancelMissingContents: (chapterId: number) => void;
+  /** Lot matière en cours (leçons ou cours) — null = aucun. */
+  subjectBatch: SubjectBatchState | null;
+  /** Récapitulatif du dernier lot matière terminé — effacé par `clearSubjectBatchReport`. */
+  subjectBatchReport: SubjectBatchReport | null;
+  clearSubjectBatchReport: () => void;
+  /** Passe 2 en LOT : propose les leçons de tous les chapitres éligibles SANS leçons
+   *  de la matière affichée (les chapitres avec leçons sont sautés — jamais écrasés). */
+  runSubjectLessonsBatch: () => Promise<void>;
+  /** Rédige en LOT les cours manquants (leçons validées sans cours) de toute la matière. */
+  runSubjectContentsBatch: () => Promise<void>;
+  /** Annule le lot matière : l'élément en cours se termine, pas la suite. */
+  cancelSubjectBatch: () => void;
 }
 
 function message(e: unknown): string {
@@ -500,9 +554,38 @@ export function useCurriculum(): CurriculumData {
     [patchLessonsState],
   );
 
+  // Écriture/édition manuelle du cours : la réponse du PATCH EST la leçon à jour
+  // (contenu scrubé + provenance) → remplacement ciblé, pas de re-fetch (≠ editLesson).
+  const saveContent = useCallback(
+    async (chapterId: number, lessonId: number, content: string) => {
+      patchLessonsState(chapterId, { contentError: null });
+      try {
+        const updated = await patchLesson(lessonId, { content });
+        setLessonsByChapter((m) => ({
+          ...m,
+          [chapterId]: {
+            ...EMPTY_LESSONS,
+            ...m[chapterId],
+            lessons: (m[chapterId]?.lessons ?? []).map((l) =>
+              l.id === updated.id ? updated : l,
+            ),
+          },
+        }));
+      } catch (e) {
+        // Affichée dans la modale ET relancée : l'éditeur reste ouvert, brouillon intact.
+        patchLessonsState(chapterId, { contentError: message(e) });
+        throw e;
+      }
+    },
+    [patchLessonsState],
+  );
+
   // Rédaction en LOT des cours manquants d'un chapitre : séquentiel (une leçon à la
-  // fois, le moteur local n'aime pas le parallèle), annulable entre deux leçons,
-  // arrêt à la première erreur (backend local indisponible ⇒ tout échouerait).
+  // fois, le moteur local n'aime pas le parallèle), annulable entre deux leçons.
+  // Même politique d'erreur que les lots matière : on continue après un échec isolé
+  // (collecté, puis résumé dans le bandeau du panneau), coupe-circuit à
+  // MAX_CONSECUTIVE_FAILURES échecs consécutifs (moteur local indisponible
+  // ⇒ tout échouerait).
   const batchCancelRef = useRef(new Set<number>());
 
   const generateMissingContents = useCallback(
@@ -518,29 +601,50 @@ export function useCurriculum(): CurriculumData {
         batch: { done: 0, total: targets.length, currentTitle: targets[0].title },
         error: null,
       });
+      const errors: { label: string; message: string }[] = [];
+      let aborted = false;
+      let consecutiveFailures = 0;
       try {
         for (const [i, target] of targets.entries()) {
           if (batchCancelRef.current.has(chapterId)) break;
           patchLessonsState(chapterId, {
             batch: { done: i, total: targets.length, currentTitle: target.title },
           });
-          const updated = await generateLessonContent(target.id);
-          setLessonsByChapter((m) => ({
-            ...m,
-            [chapterId]: {
-              ...EMPTY_LESSONS,
-              ...m[chapterId],
-              lessons: (m[chapterId]?.lessons ?? []).map((l) =>
-                l.id === updated.id ? updated : l,
-              ),
-            },
-          }));
+          try {
+            const updated = await generateLessonContent(target.id);
+            setLessonsByChapter((m) => ({
+              ...m,
+              [chapterId]: {
+                ...EMPTY_LESSONS,
+                ...m[chapterId],
+                lessons: (m[chapterId]?.lessons ?? []).map((l) =>
+                  l.id === updated.id ? updated : l,
+                ),
+              },
+            }));
+            consecutiveFailures = 0;
+          } catch (e) {
+            errors.push({ label: target.title, message: message(e) });
+            consecutiveFailures += 1;
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+              aborted = true;
+              break;
+            }
+          }
         }
-      } catch (e) {
-        patchLessonsState(chapterId, { error: message(e) });
       } finally {
         batchCancelRef.current.delete(chapterId);
-        patchLessonsState(chapterId, { batch: null });
+        patchLessonsState(chapterId, {
+          batch: null,
+          ...(errors.length > 0 && {
+            error:
+              `Rédaction en échec pour ${errors.length} cours : ` +
+              errors.map((e) => `« ${e.label} » — ${e.message}`).join(" ; ") +
+              (aborted
+                ? ` Arrêt après ${MAX_CONSECUTIVE_FAILURES} échecs consécutifs.`
+                : ""),
+          }),
+        });
       }
     },
     [lessonsByChapter, patchLessonsState],
@@ -549,6 +653,252 @@ export function useCurriculum(): CurriculumData {
   const cancelMissingContents = useCallback((chapterId: number) => {
     batchCancelRef.current.add(chapterId);
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // Lots au niveau MATIÈRE : boucles séquentielles côté client (même pattern que
+  // le lot par chapitre — l'onglet doit rester ouvert). Contrairement au lot par
+  // chapitre, on continue après un échec isolé (un 409 de course ne doit pas
+  // gâcher 15 min de lot) avec un coupe-circuit à 3 échecs consécutifs
+  // (moteur local ou clé API indisponible ⇒ tout échouerait).
+  // ---------------------------------------------------------------------------
+
+  const [subjectBatch, setSubjectBatch] = useState<SubjectBatchState | null>(null);
+  const [subjectBatchReport, setSubjectBatchReport] =
+    useState<SubjectBatchReport | null>(null);
+  // Annulation globale et unique (≠ batchCancelRef, Set par chapitre) ; les deux
+  // lots ne coexistent jamais grâce au verrou ci-dessous.
+  const subjectBatchCancelRef = useRef(false);
+  // Verrou de réentrance lisible dans la closure (l'état peut être en retard d'un rendu).
+  const subjectBatchActiveRef = useRef(false);
+
+  /** Gardes communes aux deux lots — null si un lot ne peut pas démarrer. */
+  const beginSubjectBatch = useCallback((): {
+    sysId: number;
+    subjectName: string;
+  } | null => {
+    const sysId = selectedSysIdRef.current;
+    if (sysId === null || subjectBatchActiveRef.current || generating) return null;
+    const chapterActivity = Object.values(lessonsByChapter).some(
+      (s) => s.generating || s.batch !== null || s.contentGeneratingId !== null,
+    );
+    if (chapterActivity) return null;
+    subjectBatchActiveRef.current = true;
+    subjectBatchCancelRef.current = false;
+    setSubjectBatchReport(null);
+    const subjectName =
+      year?.subjects.find((s) => s.id === sysId)?.subject_name ?? "";
+    return { sysId, subjectName };
+  }, [generating, lessonsByChapter, year]);
+
+  /** Fetch FRAIS des leçons d'un chapitre + alimentation du cache (un dépliage
+   *  pendant le lot devient un no-op et affiche des données à jour). */
+  const scanChapterLessons = useCallback(
+    async (chapterId: number): Promise<CurriculumLesson[]> => {
+      const list = await fetchLessons(chapterId);
+      lessonsLoadedRef.current.add(chapterId);
+      patchLessonsState(chapterId, { lessons: list, loading: false });
+      return list;
+    },
+    [patchLessonsState],
+  );
+
+  const runSubjectLessonsBatch = useCallback(async () => {
+    const ctx = beginSubjectBatch();
+    if (!ctx) return;
+    const { sysId, subjectName } = ctx;
+    const base = { kind: "lessons" as const, sysId, subjectName };
+    const errors: { label: string; message: string }[] = [];
+    let done = 0;
+    let skipped = 0;
+    let total = 0;
+    let cancelled = false;
+    let aborted = false;
+    setSubjectBatch({
+      ...base,
+      phase: "scan",
+      done: 0,
+      total: 0,
+      currentLabel: "",
+      errors: [],
+    });
+    try {
+      // Scan sur fetch FRAIS obligatoire : generate-lessons REMPLACE les brouillons,
+      // décider un skip sur un cache périmé serait destructif.
+      const eligible = chapters.filter(
+        (c) => chapterActions(c.source, c.validation_status).canProposeLessons,
+      );
+      const targets: CurriculumChapter[] = [];
+      for (const c of eligible) {
+        if (subjectBatchCancelRef.current) {
+          cancelled = true;
+          break;
+        }
+        const list = await scanChapterLessons(c.id);
+        if (list.length > 0) skipped += 1;
+        else targets.push(c);
+      }
+      total = targets.length;
+      if (!cancelled) {
+        let consecutiveFailures = 0;
+        for (const c of targets) {
+          if (subjectBatchCancelRef.current) {
+            cancelled = true;
+            break;
+          }
+          setSubjectBatch({
+            ...base,
+            phase: "run",
+            done,
+            total,
+            currentLabel: c.name,
+            errors: [...errors],
+          });
+          patchLessonsState(c.id, { generating: true, error: null });
+          try {
+            const list = await generateLessons(c.id);
+            lessonsLoadedRef.current.add(c.id);
+            patchLessonsState(c.id, { lessons: list });
+            done += 1;
+            consecutiveFailures = 0;
+          } catch (e) {
+            errors.push({ label: c.name, message: message(e) });
+            patchLessonsState(c.id, { error: message(e) });
+            consecutiveFailures += 1;
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+              aborted = true;
+              break;
+            }
+          } finally {
+            patchLessonsState(c.id, { generating: false });
+          }
+        }
+      }
+    } catch (e) {
+      // Échec du scan : abort — pas de décision de skip sur données incertaines.
+      errors.push({ label: "Analyse des chapitres", message: message(e) });
+      aborted = true;
+    } finally {
+      setSubjectBatchReport({
+        kind: "lessons",
+        subjectName,
+        done,
+        total,
+        skipped,
+        cancelled,
+        aborted,
+        errors,
+      });
+      setSubjectBatch(null);
+      subjectBatchCancelRef.current = false;
+      subjectBatchActiveRef.current = false;
+    }
+  }, [beginSubjectBatch, chapters, patchLessonsState, scanChapterLessons]);
+
+  const runSubjectContentsBatch = useCallback(async () => {
+    const ctx = beginSubjectBatch();
+    if (!ctx) return;
+    const { sysId, subjectName } = ctx;
+    const base = { kind: "contents" as const, sysId, subjectName };
+    const errors: { label: string; message: string }[] = [];
+    let done = 0;
+    let total = 0;
+    let cancelled = false;
+    let aborted = false;
+    setSubjectBatch({
+      ...base,
+      phase: "scan",
+      done: 0,
+      total: 0,
+      currentLabel: "",
+      errors: [],
+    });
+    try {
+      // Des leçons validées existent indépendamment du statut du chapitre : scan complet.
+      const targets: { chapterId: number; lesson: CurriculumLesson }[] = [];
+      for (const c of chapters) {
+        if (subjectBatchCancelRef.current) {
+          cancelled = true;
+          break;
+        }
+        const list = await scanChapterLessons(c.id);
+        for (const l of list) {
+          if (l.status === "validated" && l.content === null) {
+            targets.push({ chapterId: c.id, lesson: l });
+          }
+        }
+      }
+      total = targets.length;
+      if (!cancelled) {
+        let consecutiveFailures = 0;
+        for (const { chapterId, lesson } of targets) {
+          if (subjectBatchCancelRef.current) {
+            cancelled = true;
+            break;
+          }
+          setSubjectBatch({
+            ...base,
+            phase: "run",
+            done,
+            total,
+            currentLabel: lesson.title,
+            errors: [...errors],
+          });
+          patchLessonsState(chapterId, {
+            contentGeneratingId: lesson.id,
+            contentError: null,
+          });
+          try {
+            const updated = await generateLessonContent(lesson.id);
+            setLessonsByChapter((m) => ({
+              ...m,
+              [chapterId]: {
+                ...EMPTY_LESSONS,
+                ...m[chapterId],
+                lessons: (m[chapterId]?.lessons ?? []).map((l) =>
+                  l.id === updated.id ? updated : l,
+                ),
+              },
+            }));
+            done += 1;
+            consecutiveFailures = 0;
+          } catch (e) {
+            errors.push({ label: lesson.title, message: message(e) });
+            patchLessonsState(chapterId, { contentError: message(e) });
+            consecutiveFailures += 1;
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+              aborted = true;
+              break;
+            }
+          } finally {
+            patchLessonsState(chapterId, { contentGeneratingId: null });
+          }
+        }
+      }
+    } catch (e) {
+      errors.push({ label: "Analyse des chapitres", message: message(e) });
+      aborted = true;
+    } finally {
+      setSubjectBatchReport({
+        kind: "contents",
+        subjectName,
+        done,
+        total,
+        skipped: 0,
+        cancelled,
+        aborted,
+        errors,
+      });
+      setSubjectBatch(null);
+      subjectBatchCancelRef.current = false;
+      subjectBatchActiveRef.current = false;
+    }
+  }, [beginSubjectBatch, chapters, patchLessonsState, scanChapterLessons]);
+
+  const cancelSubjectBatch = useCallback(() => {
+    subjectBatchCancelRef.current = true;
+  }, []);
+
+  const clearSubjectBatchReport = useCallback(() => setSubjectBatchReport(null), []);
 
   return {
     loading,
@@ -580,7 +930,14 @@ export function useCurriculum(): CurriculumData {
     removeLesson,
     moveLesson,
     generateContent,
+    saveContent,
     generateMissingContents,
     cancelMissingContents,
+    subjectBatch,
+    subjectBatchReport,
+    clearSubjectBatchReport,
+    runSubjectLessonsBatch,
+    runSubjectContentsBatch,
+    cancelSubjectBatch,
   };
 }

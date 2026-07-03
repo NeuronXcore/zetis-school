@@ -45,7 +45,8 @@ export function LessonsPanel({
   const missingCount = visible.filter(
     (l) => l.status === "validated" && l.content === null,
   ).length;
-  const busy = generating || batch !== null;
+  // Verrou croisé : un lot MATIÈRE en cours désactive aussi les actions du panneau.
+  const busy = generating || batch !== null || data.subjectBatch !== null;
 
   return (
     <div className="mt-3 flex flex-col gap-2 border-t border-papa-border pt-3">
@@ -169,6 +170,7 @@ export function LessonsPanel({
           generating={state?.contentGeneratingId === reading.id}
           error={state?.contentError ?? null}
           onGenerate={() => void data.generateContent(chapter.id, reading.id)}
+          onSaveContent={(markdown) => data.saveContent(chapter.id, reading.id, markdown)}
           onValidate={() => void data.validateLesson(chapter.id, reading.id)}
           onReject={() => void data.rejectLesson(chapter.id, reading.id)}
           onClose={() => setReadingId(null)}
