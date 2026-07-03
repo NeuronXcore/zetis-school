@@ -47,7 +47,7 @@ function ContentProvenance({ lesson }: { lesson: CurriculumLesson }) {
       ? lesson.content_updated_at
       : null;
   return (
-    <p className="mt-3 text-xs text-papa-muted">
+    <p className="text-xs text-papa-muted">
       {created
         ? `Rédigé le ${formatDate(created)} par ${authorLabel(lesson.content_created_by)}`
         : "Rédigé (date inconnue)"}
@@ -130,7 +130,7 @@ export function LessonContentModal({
         role="dialog"
         aria-modal="true"
         aria-label={`Cours : ${lesson.title}`}
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-papa-border bg-papa-surface p-5"
+        className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-papa-accent/30 bg-papa-surface p-6 shadow-[0_0_45px_-10px_rgba(16,185,129,0.45),0_0_90px_-18px_rgba(56,189,248,0.35)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -226,22 +226,31 @@ export function LessonContentModal({
           )
         ) : (
           <>
-            {!readOnly && (
-              <div className="mb-3 flex flex-wrap gap-2 border-b border-papa-border pb-3">
-                <Button size="sm" variant="outline" disabled={generating} onClick={onGenerate}>
-                  ↻ Régénérer le cours
-                </Button>
-                {canEditContent && (
-                  <Button size="sm" variant="outline" onClick={startEditing}>
-                    ✎ Modifier le cours
+            {/* Provenance + actions regroupées en tête : visibles sans faire défiler
+                un long cours. La provenance reste seule en readOnly (Matières). */}
+            <div className="mb-3 flex flex-col gap-2 border-b border-papa-border pb-3">
+              <ContentProvenance lesson={lesson} />
+              {!readOnly && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={generating}
+                    onClick={onGenerate}
+                  >
+                    ↻ Régénérer le cours
                   </Button>
-                )}
-              </div>
-            )}
+                  {canEditContent && (
+                    <Button size="sm" variant="outline" onClick={startEditing}>
+                      ✎ Modifier le cours
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
             <div className={MARKDOWN_STYLES}>
               <ReactMarkdown>{lesson.content}</ReactMarkdown>
             </div>
-            <ContentProvenance lesson={lesson} />
           </>
         )}
       </div>
