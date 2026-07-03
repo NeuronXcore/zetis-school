@@ -12,7 +12,7 @@ import {
   fetchSubjects,
 } from "../lib/subjects";
 
-// Hook de données de la page Matières & programmes (Papa).
+// Hook de données de la page Matières (Papa).
 // Toute la logique API + état vit ici ; la page reste présentationnelle.
 export interface SubjectsData {
   loading: boolean;

@@ -21,7 +21,10 @@
 - Sidebar avec : Accueil, Matières, Cours, Diagnostic, ELI5, Capsules IA, Missions, Quiz, Progression, Mindmaps, Chat ZETIS.
 - Page matières.
 - Page matière dédiée.
-- Page cours.
+- Page cours. (2026-07-03 : brancher le bouton « Cours » — mort — de MatiereDetailPage sur
+  les leçons `validated` du référentiel, `GET /api/chapters/{id}/lessons` filtré côté UI ou
+  endpoint enfant dédié à créer. Rien n'atteint Massimo avant validation, ADR-0009 §9 ;
+  notions → skill_mastery.)
 - Page quiz.
 - Page progression XP.
 
@@ -30,7 +33,7 @@
 - Dashboard parent.
 - Vue progression Massimo.
 - Vue lacunes.
-- Vue matières/programmes.
+- Vue matières (thèmes/chapitres persistants ; renommée depuis « Matières & programmes » le 2026-07-03).
 - Vue diagnostics.
 - Cahier de bord IA.
 - Paramètres.

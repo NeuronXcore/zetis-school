@@ -23,7 +23,7 @@ function SubjectIcon({
   return <span className={emojiClassName}>{subjectEmoji(slug, fallbackIcon)}</span>;
 }
 
-// Matières & programmes (Papa). Style verre inspiré de la page Matières de Massimo,
+// Matières (Papa). Style verre inspiré de la page Matières de Massimo,
 // décliné sur l'accent émeraude Papa. Données 100 % live (module backend `subjects`) :
 // Subject → Theme → Chapter. Aucune logique métier ici (cf. useSubjects).
 
@@ -35,7 +35,7 @@ const GHOST_BTN =
 const FIELD =
   "w-full rounded-lg border border-papa-border bg-papa-bg/60 px-3 py-2 text-sm text-papa-text placeholder:text-papa-muted focus:border-papa-accent focus:outline-none";
 
-export function ProgrammesPage() {
+export function MatieresPapaPage() {
   const data = useSubjects();
 
   return (
@@ -81,9 +81,9 @@ function Header({ count }: { count: number }) {
       <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300/80">
         Cockpit pédagogique
       </p>
-      <h1 className="mt-1 text-2xl font-bold">Matières &amp; programmes</h1>
+      <h1 className="mt-1 text-2xl font-bold">Matières</h1>
       <p className="mt-1 text-sm text-papa-muted">
-        Configurer les matières, structurer les thèmes et chapitres du programme.{" "}
+        Configurer les matières, structurer les thèmes et chapitres.{" "}
         {count} matière{count > 1 ? "s" : ""}.
       </p>
     </div>

@@ -14,7 +14,7 @@ Le frontend Papa est le cockpit de pilotage pédagogique. Il doit permettre de c
 6. Conseil de classe IA
 7. Cahier de bord IA
 8. Années scolaires
-9. Matières & programmes
+9. Matières (hiérarchie persistante matière → thème → chapitre ; le référentiel annuel avec leçons vit dans « Programme »)
 10. Sources de cours (upload + validation RAG)
 11. Capsules IA
 12. Mode focus

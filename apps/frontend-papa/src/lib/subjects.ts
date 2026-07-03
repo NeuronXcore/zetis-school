@@ -1,4 +1,4 @@
-// Client API Matières & programmes (Papa) : Subject → Theme → Chapter.
+// Client API Matières (Papa) : Subject → Theme → Chapter.
 // Persistance backend (CLAUDE.md) : aucune donnée pédagogique stockée côté front.
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
