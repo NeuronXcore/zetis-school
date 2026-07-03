@@ -105,14 +105,6 @@ export const SUBJECTS_PROGRESS: SubjectProgress[] = [
   { name: "Technologie", progress: 50, xp: 160, openGaps: 0 },
 ];
 
-export const SCHOOL_YEAR = {
-  label: "2026-2027",
-  level: "4ᵉ",
-  mode: "Hybride" as const,
-  pace: "3 sessions / semaine",
-  subjects: SUBJECTS_PROGRESS.map((s) => s.name),
-};
-
 export interface PapaCapsule {
   id: string;
   subject: string;

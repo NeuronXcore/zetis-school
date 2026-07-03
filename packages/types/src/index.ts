@@ -24,3 +24,9 @@ export {
   type StudentLessonContent,
   type StudentLessonRef,
 } from "./curriculum";
+export {
+  type SchoolYear,
+  type SchoolYearCreateRequest,
+  type SchoolYearPatchRequest,
+  type SchoolYearStatus,
+} from "./school";
