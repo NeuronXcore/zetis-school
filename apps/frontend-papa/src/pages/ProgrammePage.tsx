@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { Button, EmptyState, Spinner } from "@zetis/ui";
+import { type CurriculumChapter } from "@zetis/types";
+import { Button, ConfirmDialog, EmptyState, Spinner } from "@zetis/ui";
 import { PageHeader } from "../components/PageHeader";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { AddChapterForm } from "../components/programme/AddChapterForm";
 import { ChapterRow } from "../components/programme/ChapterRow";
 import { SubjectPills } from "../components/programme/SubjectPills";
+import {
+  ValidateAllDialog,
+  type ValidateScope,
+} from "../components/programme/ValidateAllDialog";
 import { useCurriculum } from "../hooks/useCurriculum";
 
 // Page Programme (Papa, Slice B — ADR-0009 §9) : éditeur du référentiel de l'année
@@ -21,6 +26,9 @@ const CYCLE_BY_LEVEL: Record<string, string> = {
 export function ProgrammePage() {
   const data = useCurriculum();
   const [adding, setAdding] = useState(false);
+  const [validateDialogOpen, setValidateDialogOpen] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   // Progression *estimée* (même pattern que les capsules) : l'appel de génération est
   // synchrone et opaque (~18-20 s mesurés), la barre monte vers 95 % puis se complète.
   const generationPct = useEstimatedProgress(data.generating, 22000);
@@ -28,6 +36,23 @@ export function ProgrammePage() {
   const cycle = data.year ? CYCLE_BY_LEVEL[data.year.level] : undefined;
   // Version déclarative du programme, portée par les chapitres générés (ADR-0009 §5).
   const programVersion = data.chapters.find((c) => c.program_version)?.program_version;
+  const pendingCount = data.chapters.filter((c) => c.validation_status === "pending").length;
+  const selectedSubject = data.year?.subjects.find((s) => s.id === data.selectedSysId);
+
+  async function onValidateAll(scope: ValidateScope) {
+    setValidating(true);
+    setNotice(null);
+    const count = await data.validateAll(scope);
+    setValidating(false);
+    setValidateDialogOpen(false);
+    if (count !== null) {
+      setNotice(
+        count > 0
+          ? `${count} chapitre${count > 1 ? "s" : ""} validé${count > 1 ? "s" : ""}${scope === "year" ? " sur l'année" : ""}.`
+          : "Aucun chapitre en attente à valider.",
+      );
+    }
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -59,9 +84,31 @@ export function ProgrammePage() {
             >
               + Ajouter
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => setValidateDialogOpen(true)}
+              disabled={data.generating || pendingCount === 0}
+            >
+              ✓ Tout valider
+            </Button>
           </div>
         }
       />
+
+      <ValidateAllDialog
+        open={validateDialogOpen}
+        subjectName={selectedSubject?.subject_name ?? ""}
+        pendingCount={pendingCount}
+        busy={validating}
+        onConfirm={(scope) => void onValidateAll(scope)}
+        onCancel={() => setValidateDialogOpen(false)}
+      />
+
+      {notice && (
+        <p className="mb-4 rounded-lg bg-emerald-500/15 px-3 py-2 text-sm text-emerald-300">
+          {notice}
+        </p>
+      )}
 
       {data.generating && (
         <div className="mb-4">
@@ -125,6 +172,9 @@ function ChapterList({
   adding: boolean;
   onAdd: () => void;
 }) {
+  // Confirmation avant suppression : un chapitre validé supprimé ne se régénère pas seul.
+  const [toDelete, setToDelete] = useState<CurriculumChapter | null>(null);
+
   if (data.chaptersLoading) {
     return (
       <div className="flex justify-center py-10">
@@ -152,27 +202,37 @@ function ChapterList({
     );
   }
   return (
-    <ul className="flex flex-col gap-2">
-      {data.chapters.map((chapter, i) => (
-        <ChapterRow
-          key={chapter.id}
-          chapter={chapter}
-          isFirst={i === 0}
-          isLast={i === data.chapters.length - 1}
-          disabled={data.generating}
-          onValidate={() => void data.validate(chapter.id)}
-          onReject={() => void data.reject(chapter.id)}
-          onRegenerate={() => void data.generate()}
-          onEdit={(patch) => data.editChapter(chapter.id, patch)}
-          onDelete={() => {
-            // Confirmation minimale : un chapitre validé supprimé ne se régénère pas seul.
-            if (window.confirm(`Supprimer le chapitre « ${chapter.name} » ?`)) {
-              void data.removeChapter(chapter.id);
-            }
-          }}
-          onMove={(direction) => void data.move(chapter.id, direction)}
-        />
-      ))}
-    </ul>
+    <>
+      <ul className="flex flex-col gap-2">
+        {data.chapters.map((chapter, i) => (
+          <ChapterRow
+            key={chapter.id}
+            chapter={chapter}
+            isFirst={i === 0}
+            isLast={i === data.chapters.length - 1}
+            disabled={data.generating}
+            onValidate={() => void data.validate(chapter.id)}
+            onReject={() => void data.reject(chapter.id)}
+            onRegenerate={() => void data.generate()}
+            onEdit={(patch) => data.editChapter(chapter.id, patch)}
+            onDelete={() => setToDelete(chapter)}
+            onMove={(direction) => void data.move(chapter.id, direction)}
+          />
+        ))}
+      </ul>
+      <ConfirmDialog
+        open={toDelete !== null}
+        title="Supprimer le chapitre"
+        confirmLabel="Supprimer"
+        onConfirm={() => {
+          if (toDelete) void data.removeChapter(toDelete.id);
+          setToDelete(null);
+        }}
+        onCancel={() => setToDelete(null)}
+      >
+        « {toDelete?.name} » sera supprimé. Un chapitre validé supprimé ne se régénère
+        pas tout seul.
+      </ConfirmDialog>
+    </>
   );
 }

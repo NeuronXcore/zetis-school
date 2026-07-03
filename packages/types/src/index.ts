@@ -1,6 +1,7 @@
 export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
   type ActiveSchoolYear,
+  type BatchValidationResult,
   type ChapterManualCreateRequest,
   type ChapterPatchRequest,
   type ChapterProgressStatus,

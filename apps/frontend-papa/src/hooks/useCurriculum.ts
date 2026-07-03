@@ -13,6 +13,8 @@ import {
   generateChapters,
   patchChapter,
   reorderChapters,
+  validateAllActiveYear,
+  validateAllChapters,
 } from "../lib/curriculum";
 
 // Hook de données de la page Programme (Papa, Slice B — ADR-0009).
@@ -44,6 +46,9 @@ export interface CurriculumData {
   editChapter: (chapterId: number, data: ChapterPatchRequest) => Promise<void>;
   validate: (chapterId: number) => Promise<void>;
   reject: (chapterId: number) => Promise<void>;
+  /** Validation par lot des `pending` : matière affichée ou année entière.
+   *  Renvoie le nombre de chapitres validés, ou null si l'appel a échoué. */
+  validateAll: (scope: "subject" | "year") => Promise<number | null>;
   removeChapter: (chapterId: number) => Promise<void>;
   /** Monter/descendre d'un cran : optimiste côté UI, rollback si l'appel échoue. */
   move: (chapterId: number, direction: -1 | 1) => Promise<void>;
@@ -191,6 +196,26 @@ export function useCurriculum(): CurriculumData {
     [setValidation],
   );
 
+  const validateAll = useCallback(
+    async (scope: "subject" | "year"): Promise<number | null> => {
+      const sysId = selectedSysIdRef.current;
+      if (scope === "subject" && sysId === null) return null;
+      setActionError(null);
+      try {
+        const result =
+          scope === "subject"
+            ? await validateAllChapters(sysId!)
+            : await validateAllActiveYear();
+        await refresh();
+        return result.validated_count;
+      } catch (e) {
+        setActionError(message(e));
+        return null;
+      }
+    },
+    [refresh],
+  );
+
   const removeChapter = useCallback(
     async (chapterId: number) => {
       setActionError(null);
@@ -249,6 +274,7 @@ export function useCurriculum(): CurriculumData {
     editChapter,
     validate,
     reject,
+    validateAll,
     removeChapter,
     move,
   };

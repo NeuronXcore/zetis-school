@@ -2,6 +2,7 @@
 // Types partagés depuis @zetis/types (contrat unique front/back, règle CLAUDE.md n°8).
 import {
   type ActiveSchoolYear,
+  type BatchValidationResult,
   type ChapterManualCreateRequest,
   type ChapterPatchRequest,
   type CurriculumChapter,
@@ -74,6 +75,26 @@ export async function deleteChapter(chapterId: number): Promise<void> {
     }
     throw new Error(detail);
   }
+}
+
+/** Lot matière : valide tous les `pending` de la matière (les `rejected` restent). */
+export async function validateAllChapters(sysId: number): Promise<BatchValidationResult> {
+  return asJson(
+    await fetch(`${API_URL}/api/school-year-subjects/${sysId}/chapters/validate-all`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
+/** Lot année : valide tous les `pending` de l'année active, toutes matières. */
+export async function validateAllActiveYear(): Promise<BatchValidationResult> {
+  return asJson(
+    await fetch(`${API_URL}/api/school-years/active/chapters/validate-all`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
 }
 
 export async function reorderChapters(

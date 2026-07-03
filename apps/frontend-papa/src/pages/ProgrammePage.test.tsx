@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { type ActiveSchoolYear, type CurriculumChapter } from "@zetis/types";
 import { ProgrammePage } from "./ProgrammePage";
 
@@ -13,9 +13,16 @@ vi.mock("../lib/curriculum", () => ({
   patchChapter: vi.fn(),
   deleteChapter: vi.fn(),
   reorderChapters: vi.fn(),
+  validateAllChapters: vi.fn(),
+  validateAllActiveYear: vi.fn(),
 }));
 
-import { fetchActiveSchoolYear, fetchChapters, generateChapters } from "../lib/curriculum";
+import {
+  fetchActiveSchoolYear,
+  fetchChapters,
+  generateChapters,
+  validateAllChapters,
+} from "../lib/curriculum";
 
 const YEAR: ActiveSchoolYear = {
   id: 1,
@@ -114,6 +121,30 @@ describe("ProgrammePage", () => {
     expect(screen.getByRole("button", { name: /Génération en cours/ })).toBeDisabled();
     // La liste reste affichée pendant l'appel.
     expect(screen.getByText("Nombres relatifs")).toBeInTheDocument();
+  });
+
+  it("validation par lot : bouton → modal avec compte → confirmation → API + notice", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 1, name: "Nombres relatifs" }), // pending
+      chapter({ id: 2, name: "Fractions", validation_status: "rejected" }),
+    ]);
+    vi.mocked(validateAllChapters).mockResolvedValue({ validated_count: 1 });
+
+    render(<ProgrammePage />);
+    await screen.findByText("Nombres relatifs"); // liste chargée → pendingCount à jour
+    const btn = screen.getByRole("button", { name: "✓ Tout valider" });
+    expect(btn).toBeEnabled(); // 1 pending → actif
+    fireEvent.click(btn);
+
+    // Modal : portée matière par défaut, avec le compte exact des pending (pas les rejetés).
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Cette matière — Mathématiques (1 chapitre en attente)");
+    expect(dialog).toHaveTextContent("Les chapitres rejetés et manuels ne sont pas modifiés");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Valider" }));
+    expect(await screen.findByText("1 chapitre validé.")).toBeInTheDocument();
+    expect(vi.mocked(validateAllChapters)).toHaveBeenCalledWith(10);
   });
 
   it("état erreur : message backend verbatim + bouton réessayer", async () => {

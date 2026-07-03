@@ -221,12 +221,7 @@ def generate_chapters(
 # ---------------------------------------------------------------------------
 
 
-def active_year_with_subjects(db: Session) -> dict:
-    """Année active + ses matières (`school_year_subject_id`) — lecture seule (Slice B).
-
-    La page Papa « Programme » en a besoin pour ses pills : `GET /api/subjects` ne
-    porte pas le rattachement à l'année.
-    """
+def _active_year_or_404(db: Session) -> SchoolYear:
     year = db.scalars(
         select(SchoolYear).where(SchoolYear.status == "active").order_by(SchoolYear.id.desc())
     ).first()
@@ -235,6 +230,16 @@ def active_year_with_subjects(db: Session) -> dict:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Aucune année scolaire active.",
         )
+    return year
+
+
+def active_year_with_subjects(db: Session) -> dict:
+    """Année active + ses matières (`school_year_subject_id`) — lecture seule (Slice B).
+
+    La page Papa « Programme » en a besoin pour ses pills : `GET /api/subjects` ne
+    porte pas le rattachement à l'année.
+    """
+    year = _active_year_or_404(db)
     rows = db.execute(
         select(SchoolYearSubject, Subject)
         .join(Subject, SchoolYearSubject.subject_id == Subject.id)
@@ -313,6 +318,41 @@ def create_manual_chapter(
     db.commit()
     db.refresh(chapter)
     return chapter
+
+
+def validate_all_chapters(db: Session, school_year_subject_id: int) -> int:
+    """Passe en `validated` tous les chapitres `pending` de la matière.
+
+    Les `rejected` (décision explicite de Papa) et les `manual` (déjà validés d'office)
+    ne sont pas touchés — le lot n'est qu'un raccourci de la validation unitaire (§3)."""
+    _sys_or_404(db, school_year_subject_id)
+    chapters = db.scalars(
+        select(Chapter).where(
+            Chapter.school_year_subject_id == school_year_subject_id,
+            Chapter.validation_status == "pending",
+        )
+    ).all()
+    for chapter in chapters:
+        chapter.validation_status = "validated"
+    db.commit()
+    return len(chapters)
+
+
+def validate_all_active_year(db: Session) -> int:
+    """Comme `validate_all_chapters`, mais sur TOUTES les matières de l'année active."""
+    year = _active_year_or_404(db)
+    chapters = db.scalars(
+        select(Chapter)
+        .join(SchoolYearSubject, Chapter.school_year_subject_id == SchoolYearSubject.id)
+        .where(
+            SchoolYearSubject.school_year_id == year.id,
+            Chapter.validation_status == "pending",
+        )
+    ).all()
+    for chapter in chapters:
+        chapter.validation_status = "validated"
+    db.commit()
+    return len(chapters)
 
 
 def update_chapter(
