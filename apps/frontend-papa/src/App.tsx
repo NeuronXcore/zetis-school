@@ -12,6 +12,7 @@ import { ConseilClasseIAPage } from "./pages/ConseilClasseIAPage";
 import { CahierBordPage } from "./pages/CahierBordPage";
 import { AnneesScolairesPage } from "./pages/AnneesScolairesPage";
 import { ProgrammesPage } from "./pages/ProgrammesPage";
+import { ProgrammePage } from "./pages/ProgrammePage";
 import { SourcesRagPage } from "./pages/SourcesRagPage";
 import { CapsulesPilotagePage } from "./pages/CapsulesPilotagePage";
 import { ModeFocusPage } from "./pages/ModeFocusPage";
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/conseil" element={<ConseilClasseIAPage />} />
         <Route path="/cahier" element={<CahierBordPage />} />
         <Route path="/annees" element={<AnneesScolairesPage />} />
+        <Route path="/programme" element={<ProgrammePage />} />
         <Route path="/programmes" element={<ProgrammesPage />} />
         <Route path="/sources" element={<SourcesRagPage />} />
         <Route path="/capsules" element={<CapsulesPilotagePage />} />

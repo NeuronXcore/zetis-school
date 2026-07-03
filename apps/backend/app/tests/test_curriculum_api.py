@@ -27,10 +27,31 @@ def _seed_year_subject(Session) -> int:
 def test_routes_are_parent_only(client_db) -> None:
     client, Session = client_db  # conftest = rôle child
     sys_id = _seed_year_subject(Session)
+    assert client.get("/api/school-years/active/subjects").status_code == 403
     assert client.post(f"/api/school-year-subjects/{sys_id}/generate-chapters").status_code == 403
     assert client.post(f"/api/school-year-subjects/{sys_id}/chapters", json={"name": "X"}).status_code == 403
     assert client.patch("/api/chapters/1", json={}).status_code == 403
     assert client.delete("/api/chapters/1").status_code == 403
+
+
+def test_active_school_year_subjects(client_db) -> None:
+    """Lecture Slice B : année active + `school_year_subject_id` de ses matières."""
+    client, Session = client_db
+    _as_papa()
+
+    # Sans année active → 404 explicite (l'UI affiche le detail).
+    assert client.get("/api/school-years/active/subjects").status_code == 404
+
+    sys_id = _seed_year_subject(Session)
+    res = client.get("/api/school-years/active/subjects")
+    assert res.status_code == 200
+    year = res.json()
+    assert year["label"] == "2026-2027"
+    assert year["level"] == "4e"
+    assert [s["id"] for s in year["subjects"]] == [sys_id]
+    subject = year["subjects"][0]
+    assert subject["subject_name"]
+    assert subject["subject_slug"]
 
 
 def test_generate_then_crud_flow(client_db) -> None:

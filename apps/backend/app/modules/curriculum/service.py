@@ -221,6 +221,43 @@ def generate_chapters(
 # ---------------------------------------------------------------------------
 
 
+def active_year_with_subjects(db: Session) -> dict:
+    """Année active + ses matières (`school_year_subject_id`) — lecture seule (Slice B).
+
+    La page Papa « Programme » en a besoin pour ses pills : `GET /api/subjects` ne
+    porte pas le rattachement à l'année.
+    """
+    year = db.scalars(
+        select(SchoolYear).where(SchoolYear.status == "active").order_by(SchoolYear.id.desc())
+    ).first()
+    if year is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aucune année scolaire active.",
+        )
+    rows = db.execute(
+        select(SchoolYearSubject, Subject)
+        .join(Subject, SchoolYearSubject.subject_id == Subject.id)
+        .where(SchoolYearSubject.school_year_id == year.id)
+        .order_by(Subject.sort_order, Subject.id)
+    ).all()
+    return {
+        "id": year.id,
+        "label": year.label,
+        "level": year.level,
+        "subjects": [
+            {
+                "id": sys_row.id,
+                "subject_id": subject.id,
+                "subject_name": subject.name,
+                "subject_slug": subject.slug,
+                "status": sys_row.status,
+            }
+            for sys_row, subject in rows
+        ],
+    }
+
+
 def list_chapters(db: Session, school_year_subject_id: int) -> list[Chapter]:
     _sys_or_404(db, school_year_subject_id)
     return list(

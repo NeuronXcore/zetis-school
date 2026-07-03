@@ -1,5 +1,6 @@
 export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
+  type ActiveSchoolYear,
   type ChapterManualCreateRequest,
   type ChapterPatchRequest,
   type ChapterProgressStatus,
@@ -8,4 +9,5 @@ export {
   type ChapterSource,
   type ChapterValidationStatus,
   type CurriculumChapter,
+  type SchoolYearSubjectRef,
 } from "./curriculum";

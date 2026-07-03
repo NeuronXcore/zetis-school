@@ -128,6 +128,22 @@ def test_invalid_then_valid_triggers_single_repair(client_db) -> None:
         assert _jobs(db)[0].status == "succeeded"
 
 
+def test_verbose_program_version_triggers_repair_not_truncation(client_db) -> None:
+    """`program_version` > 20 chars (vu en réel : "2020 (BO du 30 juillet 2020)" sur SVT)
+    dépasse la colonne VARCHAR(20) → doit être rejeté par le schéma et réparé, jamais
+    tronqué silencieusement ni envoyé à l'INSERT."""
+    _, Session = client_db
+    verbose = dict(_DEFAULT_CURRICULUM, program_version="2020 (BO du 30 juillet 2020)")
+    llm = _SequenceLLM(
+        [json.dumps(verbose, ensure_ascii=False), json.dumps(_DEFAULT_CURRICULUM, ensure_ascii=False)]
+    )
+    with Session() as db:
+        sys_id = _seed_year_subject(db)
+        created = generate_chapters(db, llm, sys_id)
+        assert llm.calls == 2  # la version verbeuse a déclenché la réparation
+        assert all(c.program_version == "2020" for c in created)
+
+
 def test_persistently_invalid_fails_clean_nothing_persisted(client_db) -> None:
     _, Session = client_db
     llm = _SequenceLLM(['{"bad": true}', '{"still": "wrong"}'])

@@ -12,6 +12,7 @@ from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import require_parent
 from app.modules.curriculum import get_curriculum_provider, service
 from app.modules.curriculum.schemas import (
+    ActiveSchoolYearOut,
     ChapterManualCreate,
     ChapterPatch,
     ChapterReorderRequest,
@@ -19,6 +20,12 @@ from app.modules.curriculum.schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["curriculum"], dependencies=[Depends(require_parent)])
+
+
+@router.get("/school-years/active/subjects", response_model=ActiveSchoolYearOut)
+def active_school_year_subjects(db: Session = Depends(get_db)) -> dict:
+    """Lecture seule (Slice B) : l'année active et les `school_year_subject_id` de ses matières."""
+    return service.active_year_with_subjects(db)
 
 
 @router.post(
