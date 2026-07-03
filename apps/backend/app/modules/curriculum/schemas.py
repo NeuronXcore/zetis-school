@@ -103,6 +103,12 @@ class ChapterReorderRequest(BaseModel):
     chapter_ids: list[int] = Field(min_length=1)
 
 
+class BatchValidationResult(BaseModel):
+    """Réponse des endpoints `validate-all` : nombre de chapitres passés en `validated`."""
+
+    validated_count: int
+
+
 class SchoolYearSubjectOut(BaseModel):
     """Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres)."""
 

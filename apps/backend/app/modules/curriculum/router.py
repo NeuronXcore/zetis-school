@@ -13,6 +13,7 @@ from app.modules.auth.deps import require_parent
 from app.modules.curriculum import get_curriculum_provider, service
 from app.modules.curriculum.schemas import (
     ActiveSchoolYearOut,
+    BatchValidationResult,
     ChapterManualCreate,
     ChapterPatch,
     ChapterReorderRequest,
@@ -93,6 +94,25 @@ def reorder_chapters(
 ) -> list[dict]:
     chapters = service.reorder_chapters(db, school_year_subject_id, payload.chapter_ids)
     return [service.chapter_out(c) for c in chapters]
+
+
+@router.post(
+    "/school-year-subjects/{school_year_subject_id}/chapters/validate-all",
+    response_model=BatchValidationResult,
+)
+def validate_all_chapters(
+    school_year_subject_id: int, db: Session = Depends(get_db)
+) -> dict:
+    """Validation par lot : tous les `pending` de la matière (les `rejected` restent)."""
+    count = service.validate_all_chapters(db, school_year_subject_id)
+    return {"validated_count": count}
+
+
+@router.post("/school-years/active/chapters/validate-all", response_model=BatchValidationResult)
+def validate_all_active_year(db: Session = Depends(get_db)) -> dict:
+    """Validation par lot : tous les `pending` de l'année active, toutes matières."""
+    count = service.validate_all_active_year(db)
+    return {"validated_count": count}
 
 
 @router.patch("/chapters/{chapter_id}", response_model=CurriculumChapterOut)

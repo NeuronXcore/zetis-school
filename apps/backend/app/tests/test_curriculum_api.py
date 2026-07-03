@@ -28,6 +28,8 @@ def test_routes_are_parent_only(client_db) -> None:
     client, Session = client_db  # conftest = rôle child
     sys_id = _seed_year_subject(Session)
     assert client.get("/api/school-years/active/subjects").status_code == 403
+    assert client.post(f"/api/school-year-subjects/{sys_id}/chapters/validate-all").status_code == 403
+    assert client.post("/api/school-years/active/chapters/validate-all").status_code == 403
     assert client.post(f"/api/school-year-subjects/{sys_id}/generate-chapters").status_code == 403
     assert client.post(f"/api/school-year-subjects/{sys_id}/chapters", json={"name": "X"}).status_code == 403
     assert client.patch("/api/chapters/1", json={}).status_code == 403
@@ -52,6 +54,66 @@ def test_active_school_year_subjects(client_db) -> None:
     subject = year["subjects"][0]
     assert subject["subject_name"]
     assert subject["subject_slug"]
+
+
+def test_validate_all_subject_batch(client_db) -> None:
+    """Lot matière : `pending` → `validated` ; `rejected` et `manual` intouchés."""
+    client, Session = client_db
+    _as_papa()
+    sys_id = _seed_year_subject(Session)
+
+    # 3 générés pending (FakeLLMProvider) + 1 manuel (validé d'office).
+    client.post(f"/api/school-year-subjects/{sys_id}/generate-chapters")
+    client.post(f"/api/school-year-subjects/{sys_id}/chapters", json={"name": "Manuel"})
+    chapters = client.get(f"/api/school-year-subjects/{sys_id}/chapters").json()
+    # Un généré rejeté explicitement : le lot ne doit pas le repêcher.
+    rejected_id = chapters[0]["id"]
+    client.patch(f"/api/chapters/{rejected_id}", json={"validation_action": "reject"})
+
+    res = client.post(f"/api/school-year-subjects/{sys_id}/chapters/validate-all")
+    assert res.status_code == 200
+    assert res.json() == {"validated_count": 2}  # 3 pending - 1 rejeté
+
+    after = {c["id"]: c["validation_status"] for c in
+             client.get(f"/api/school-year-subjects/{sys_id}/chapters").json()}
+    assert after[rejected_id] == "rejected"
+    assert sorted(after.values()) == ["rejected", "validated", "validated", "validated"]
+
+    # Rejouer le lot : plus rien à valider. 404 propre sur matière inconnue.
+    assert client.post(f"/api/school-year-subjects/{sys_id}/chapters/validate-all").json() == {
+        "validated_count": 0
+    }
+    assert client.post("/api/school-year-subjects/9999/chapters/validate-all").status_code == 404
+
+
+def test_validate_all_active_year_batch(client_db) -> None:
+    """Lot année : toutes les matières de l'année active d'un coup."""
+    client, Session = client_db
+    _as_papa()
+
+    # Sans année active → 404 explicite.
+    assert client.post("/api/school-years/active/chapters/validate-all").status_code == 404
+
+    sys_id = _seed_year_subject(Session)
+    # Une seconde matière sur la même année, avec ses propres chapitres générés.
+    with Session() as db:
+        year = db.scalars(select(m.SchoolYear)).first()
+        subject2 = m.Subject(name="Physique", slug="physique")
+        db.add(subject2)
+        db.flush()
+        sys2 = m.SchoolYearSubject(school_year_id=year.id, subject_id=subject2.id)
+        db.add(sys2)
+        db.commit()
+        sys2_id = sys2.id
+    client.post(f"/api/school-year-subjects/{sys_id}/generate-chapters")
+    client.post(f"/api/school-year-subjects/{sys2_id}/generate-chapters")
+
+    res = client.post("/api/school-years/active/chapters/validate-all")
+    assert res.status_code == 200
+    assert res.json() == {"validated_count": 6}  # 3 pending × 2 matières
+    for sid in (sys_id, sys2_id):
+        chapters = client.get(f"/api/school-year-subjects/{sid}/chapters").json()
+        assert all(c["validation_status"] == "validated" for c in chapters)
 
 
 def test_generate_then_crud_flow(client_db) -> None:

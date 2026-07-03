@@ -60,6 +60,11 @@ export interface ChapterReorderRequest {
   chapter_ids: number[];
 }
 
+/** Réponse des endpoints `POST .../validate-all` (lot matière ou année). */
+export interface BatchValidationResult {
+  validated_count: number;
+}
+
 /** Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres). */
 export interface SchoolYearSubjectRef {
   id: number;
