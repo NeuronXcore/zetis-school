@@ -1,19 +1,23 @@
-"""Prompt versionné de génération du référentiel — passe 1 : chapitres (ADR-0009, v1).
+"""Prompts versionnés de génération du référentiel (ADR-0009) — passe 1 : chapitres (v1)
+et passe 2 : leçons + notions (v1, Lot 2 Slice A).
 
 Module **pur** : aucune dépendance runtime (pas de DB, pas de provider), comme
-`app/prompts/capsule.py`. Il expose `build_chapters_prompt` qui produit le couple
-`(system, prompt)` attendu par `LLMProvider.generate`. La validité est garantie en dur
-par `GeneratedChapters` (Pydantic) côté service.
+`app/prompts/capsule.py`. Il expose `build_chapters_prompt` et `build_lessons_prompt`
+qui produisent le couple `(system, prompt)` attendu par `LLMProvider.generate`. La
+validité est garantie en dur par `GeneratedChapters` / `GeneratedLessons` (Pydantic)
+côté service.
 
-INVARIANT VIE PRIVÉE (ADR-0009 addendum, condition 1) : ce prompt ne reçoit et ne
-contient JAMAIS de donnée de Massimo — uniquement matière, niveau, cycle, version de
-programme et intitulés de chapitres existants. Testé dans test_curriculum_service.
+INVARIANT VIE PRIVÉE (ADR-0009 addendum, condition 1) : ces prompts ne reçoivent et ne
+contiennent JAMAIS de donnée de Massimo — uniquement matière, niveau, cycle, version de
+programme, chapitre cadré et intitulés existants. Testé dans test_curriculum_service et
+test_curriculum_lessons_service.
 """
 
 import json
 import unicodedata
 
 CURRICULUM_PROMPT_VERSION = "v1"
+LESSONS_PROMPT_VERSION = "v1"
 
 # Matières disposant de repères annuels de progression officiels (2019) : pour elles,
 # la répartition par classe est exigée conforme (`repartition="officielle"`). Ailleurs,
@@ -189,3 +193,126 @@ def build_chapters_prompt(
     blocks.append("\n".join(target))
 
     return SYSTEM_PROMPT, "\n\n".join(blocks)
+
+
+# ---------------------------------------------------------------------------
+# Passe 2 : leçons + notions d'un chapitre (Lot 2 Slice A, v1).
+# ---------------------------------------------------------------------------
+
+SYSTEM_PROMPT_LESSONS = (
+    "Tu es un expert du programme scolaire officiel français (Bulletin officiel de "
+    "l'Éducation nationale). À partir d'un chapitre donné d'une matière et d'un niveau, "
+    "tu produis les leçons de ce chapitre et leurs notions, destinées à un référentiel "
+    "de travail validé par un parent.\n\n"
+    "RÈGLES DE SORTIE (impératif) :\n"
+    "- Réponds UNIQUEMENT par un objet JSON valide conforme au schéma demandé "
+    "(lessons[] avec title, summary, notions). Aucun texte autour, PAS de balises ```.\n\n"
+    "RÈGLES DE CONTENU :\n"
+    "- Appuie-toi STRICTEMENT sur la version du programme demandée ; ne mélange jamais "
+    "des versions successives (2016 / 2020 / 2026). N'invente aucun contenu hors "
+    "programme.\n"
+    "- Granularité = LEÇON DE MANUEL : environ 2 à 8 leçons par chapitre. Ni "
+    "macro-section (le chapitre entier en une leçon), ni micro-item (une leçon par "
+    "exercice type).\n"
+    "- summary = 1 à 2 phrases décrivant ce que la leçon couvre.\n"
+    "- notions = 1 à 4 intitulés COURTS et FACTUELS par leçon (ex. « Théorème de "
+    "Pythagore », « Règle des signes ») : chaque notion doit pouvoir servir de "
+    "compétence réutilisable dans d'autres leçons, quiz ou diagnostics. Pas de phrase, "
+    "pas de verbe conjugué.\n"
+    "- Ne duplique JAMAIS une leçon déjà présente dans la liste des leçons existantes "
+    "fournie : complète autour, sans redite ni variante du même intitulé."
+)
+
+# Few-shot court : montre la granularité « leçon de manuel » et des notions courtes,
+# factuelles, réutilisables comme `Skill`. Chaque exemple DOIT rester valide au regard
+# de `GeneratedLessons` (garanti par test).
+LESSONS_FEW_SHOTS: list[dict] = [
+    {
+        "context": (
+            "Matière : Mathématiques · Niveau : 4e · Cycle : cycle 4 · "
+            "Version du programme : 2020 · Chapitre : « Théorème de Pythagore » — "
+            "Calculer une longueur dans un triangle rectangle ; réciproque. · "
+            "Thèmes : Espace et géométrie · Leçons existantes : aucune"
+        ),
+        "output": {
+            "lessons": [
+                {
+                    "title": "Vocabulaire du triangle rectangle et racine carrée",
+                    "summary": "Hypoténuse et côtés de l'angle droit ; racine carrée d'un nombre positif pour préparer les calculs de longueurs.",
+                    "notions": ["Hypoténuse", "Racine carrée"],
+                },
+                {
+                    "title": "Le théorème de Pythagore",
+                    "summary": "Énoncé du théorème et calcul de la longueur d'un côté d'un triangle rectangle.",
+                    "notions": ["Théorème de Pythagore", "Calcul de longueur"],
+                },
+                {
+                    "title": "Réciproque du théorème de Pythagore",
+                    "summary": "Utiliser l'égalité de Pythagore pour prouver qu'un triangle est rectangle ou non.",
+                    "notions": ["Réciproque de Pythagore"],
+                },
+            ]
+        },
+    },
+]
+
+# Réinjectée en réparation ; le service y ajoute l'erreur de validation concrète.
+LESSONS_REPAIR_INSTRUCTION = (
+    "Ta réponse précédente n'est pas un objet GeneratedLessons valide. Corrige-la en "
+    "respectant EXACTEMENT le schéma (2 à 12 leçons, 1 à 6 notions par leçon). Réponds "
+    "UNIQUEMENT par l'objet JSON corrigé, sans aucun texte ni balise. Erreur détectée : "
+)
+
+
+def build_lessons_prompt(
+    subject: str,
+    level: str,
+    cycle: str,
+    chapter: dict,
+    program_version: str,
+    existing_manual_lessons: list[str],
+) -> tuple[str, str]:
+    """Construit le couple `(system, prompt)` de la passe 2 (leçons d'un chapitre).
+
+    `chapter` = cadrage du chapitre validé/manuel : {"name", "description", "themes"}
+    (description et themes optionnels). `existing_manual_lessons` = intitulés des leçons
+    conservées (manuelles ou déjà validées) injectés avec la consigne « complète sans
+    dupliquer » (ADR-0009 §3).
+    """
+    blocks: list[str] = []
+    for shot in LESSONS_FEW_SHOTS:
+        blocks.append(
+            "EXEMPLE\n"
+            f"Contexte : {shot['context']}\n"
+            "Leçons attendues :\n"
+            f"{json.dumps(shot['output'], ensure_ascii=False, indent=2)}"
+        )
+
+    chapter_line = f"Chapitre : « {chapter['name']} »"
+    if chapter.get("description"):
+        chapter_line += f" — {chapter['description']}"
+    themes = chapter.get("themes") or []
+    existing = (
+        "\n".join(f"- {title}" for title in existing_manual_lessons)
+        if existing_manual_lessons
+        else "aucune"
+    )
+
+    target = [
+        "À TOI MAINTENANT",
+        f"Matière : {subject}",
+        f"Niveau : {level} · Cycle : {cycle}",
+        f"Version du programme : {program_version}"
+        + (" (BO du 30 juillet 2020)" if program_version == "2020" else ""),
+        chapter_line,
+    ]
+    if themes:
+        target.append(f"Thèmes du programme : {', '.join(themes)}")
+    target += [
+        "Leçons existantes (à ne JAMAIS dupliquer, complète autour) :",
+        existing,
+        "Leçons de ce chapitre pour ce niveau (objet JSON uniquement) :",
+    ]
+    blocks.append("\n".join(target))
+
+    return SYSTEM_PROMPT_LESSONS, "\n\n".join(blocks)

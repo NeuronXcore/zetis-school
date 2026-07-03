@@ -107,3 +107,39 @@ class Skill(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     level: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 5e, 4e...
     parent_skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
+
+
+class Lesson(Base, TimestampMixin):
+    __tablename__ = "lessons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chapter_id: Mapped[int] = mapped_column(ForeignKey("chapters.id"), index=True)
+    title: Mapped[str] = mapped_column(String(160))
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Réservé à la génération de cours downstream — la passe 2 (ADR-0009) ne le remplit pas.
+    content_markdown: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Co-construction (ADR-0009 §3) : `created_by` ≈ source, `status` ≈ validation —
+    # champs documentés de DATA_MODEL.md, pas de doublon du motif `source`/
+    # `validation_status` des chapitres. Rejet d'une leçon `draft` → `archived`
+    # (l'énuméré documenté n'a pas de `rejected`).
+    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft|validated|archived
+    created_by: Mapped[str] = mapped_column(String(20))  # parent|ai|imported
+    source_document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("rag_documents.id"), nullable=True
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
+
+
+class LessonSkill(Base):
+    """Liaison leçon ↔ notion (`Skill`) — minimale : PK composite = unicité de la paire.
+
+    Aucune table `curriculum_*` (ADR-0009 §2) : les notions upsertées par la passe 2
+    SONT des `Skill` (le référentiel persistant) ; cette table ne fait que rattacher."""
+
+    __tablename__ = "lesson_skills"
+
+    lesson_id: Mapped[int] = mapped_column(
+        ForeignKey("lessons.id", ondelete="CASCADE"), primary_key=True
+    )
+    skill_id: Mapped[int] = mapped_column(ForeignKey("skills.id"), primary_key=True)

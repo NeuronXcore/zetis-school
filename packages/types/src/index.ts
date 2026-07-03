@@ -10,5 +10,12 @@ export {
   type ChapterSource,
   type ChapterValidationStatus,
   type CurriculumChapter,
+  type CurriculumLesson,
+  type LessonCreatedBy,
+  type LessonManualCreateRequest,
+  type LessonNotion,
+  type LessonPatchRequest,
+  type LessonReorderRequest,
+  type LessonStatus,
   type SchoolYearSubjectRef,
 } from "./curriculum";

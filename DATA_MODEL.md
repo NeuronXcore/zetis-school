@@ -124,21 +124,37 @@ prerequisite_skill_ids optional
 
 ### Lesson
 
-> ⚠️ Documentée mais PAS ENCORE MIGRÉE : aucune table `lessons` ni modèle SQLAlchemy à ce
-> jour. Création prévue avec la passe 2 du référentiel (ADR-0009, Lot 2), qui ajoutera
-> aussi `program_version`. Écart relevé lors du Lot 1 Slice A (2026-07-03).
+> Migrée avec la passe 2 du référentiel (ADR-0009, Lot 2 Slice A, 2026-07-03 —
+> migration `c9dae1f2a3b4`). Sémantique co-construction (§3) : `created_by` ≈ source,
+> `status` ≈ validation (rejet d'une leçon `draft` → `archived`, pas de valeur
+> `rejected`). `content_markdown` reste vide en passe 2 (réservé à la génération de
+> cours downstream).
 
 ```txt
 id
 chapter_id
 title
 summary
-content_markdown
+content_markdown   # nullable — non rempli par la passe 2
 status             # draft | validated | archived
 created_by         # parent | ai | imported
-source_document_id optional
+source_document_id optional   # FK rag_documents (imports futurs)
+sort_order
+program_version    # version déclarative du programme (ex: 2020), null pour les manuelles
 created_at
 updated_at
+```
+
+### LessonSkill (liaison)
+
+Liaison minimale leçon ↔ notion (`Skill`), PK composite `(lesson_id, skill_id)` =
+unicité de la paire. Les notions générées par la passe 2 upsertent des `Skill`
+(dédup par `subject_id` + `level` + nom normalisé casse/espaces) — le référentiel
+persistant reste `skills`, aucune table `curriculum_*` (ADR-0009 §2).
+
+```txt
+lesson_id          # FK lessons, ON DELETE CASCADE
+skill_id           # FK skills
 ```
 
 ### Exercise

@@ -79,6 +79,31 @@ _DEFAULT_CAPSULE = {
 }
 
 
+# GeneratedLessons déterministe valide (cf. curriculum/schemas.py) renvoyé quand le
+# schéma `fmt` est celui de la passe 2 (repéré par sa propriété `lessons`). La notion
+# « Nombres relatifs » correspond EXACTEMENT à la Skill seedée par conftest : les tests
+# de dédup vérifient sa réutilisation (aucun doublon créé).
+_DEFAULT_LESSONS = {
+    "lessons": [
+        {
+            "title": "Additionner et soustraire des nombres relatifs",
+            "summary": "Règle des signes pour l'addition et la soustraction de relatifs.",
+            "notions": ["Nombres relatifs", "Règle des signes"],
+        },
+        {
+            "title": "Multiplier et diviser des nombres relatifs",
+            "summary": "Règle des signes pour le produit et le quotient.",
+            "notions": ["Règle des signes"],
+        },
+        {
+            "title": "Repérage sur une droite graduée",
+            "summary": "Abscisse d'un point et comparaison de nombres relatifs.",
+            "notions": ["Repérage sur une droite graduée"],
+        },
+    ]
+}
+
+
 # GeneratedChapters déterministe valide (cf. curriculum/schemas.py) renvoyé quand le
 # schéma `fmt` est celui du curriculum (repéré par sa propriété `chapters`). 3 chapitres
 # = borne basse du schéma de production (3-25).
@@ -121,19 +146,24 @@ class FakeLLMProvider:
         score: int = 80,
         capsule_spec: dict | None = None,
         curriculum_chapters: dict | None = None,
+        curriculum_lessons: dict | None = None,
     ) -> None:
         self._feedback = feedback
         self._score = score
         self._capsule_spec = capsule_spec
         self._curriculum_chapters = curriculum_chapters
+        self._curriculum_lessons = curriculum_lessons
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         # Sortie structurée demandée (fmt) → objet déterministe selon le schéma :
-        # curriculum (propriété `chapters`) ou CapsuleSpec. `fmt` est ignoré au-delà de
-        # ce branchement (le fake ne parle pas à ollama).
+        # curriculum passe 1 (propriété `chapters`), passe 2 (`lessons`) ou CapsuleSpec.
+        # `fmt` est ignoré au-delà de ce branchement (le fake ne parle pas à ollama).
         if isinstance(request.fmt, dict) and "chapters" in request.fmt.get("properties", {}):
             chapters = self._curriculum_chapters or _DEFAULT_CURRICULUM
             return LLMResponse(text=json.dumps(chapters), model="fake", duration_ms=1)
+        if isinstance(request.fmt, dict) and "lessons" in request.fmt.get("properties", {}):
+            lessons = self._curriculum_lessons or _DEFAULT_LESSONS
+            return LLMResponse(text=json.dumps(lessons), model="fake", duration_ms=1)
         if request.fmt is not None:
             spec = self._capsule_spec or _DEFAULT_CAPSULE
             return LLMResponse(text=json.dumps(spec), model="fake", duration_ms=1)

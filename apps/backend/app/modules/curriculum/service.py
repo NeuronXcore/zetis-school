@@ -1,16 +1,21 @@
-"""Service du référentiel de programme — passe 1 : chapitres (ADR-0009, Lot 1 Slice A).
+"""Service du référentiel de programme — passe 1 : chapitres (Lot 1 Slice A) et
+passe 2 : leçons + notions (Lot 2 Slice A), ADR-0009.
 
 Pipeline identique aux capsules (ADR-0007) : prompt versionné → `LLMProvider.generate`
 avec sortie structurée `fmt` → validation Pydantic stricte → UNE réparation max → erreur
 propre (rien d'invalide persisté). Chaque appel laisse une trace `ai_jobs`
-(`job_type="curriculum_chapters"`, provider/modèle inclus).
+(`job_type="curriculum_chapters"` / `"curriculum_lessons"`, provider/modèle inclus).
 
 Règles de co-construction (ADR-0009 §3), codées ici et testées :
-- chapitres générés → `source='generated'`, `validation_status='pending'` ;
-- création manuelle Papa → `source='manual'`, validé d'office ;
-- la régénération ne touche JAMAIS les chapitres `manual` ni les chapitres validés :
-  elle remplace uniquement les `generated` non validés de la matière ;
-- `sort_order` : les nouveaux chapitres s'ajoutent APRÈS l'existant conservé.
+- généré → `pending`/`draft` obligatoire ; écrit par Papa → validé d'office ;
+- la régénération ne touche JAMAIS les nœuds manuels ni validés : elle remplace
+  uniquement le généré non validé, et injecte l'existant conservé dans le prompt ;
+- `sort_order` : les nouveaux nœuds s'ajoutent APRÈS l'existant conservé ;
+- cascade indépendante : valider une leçon ne modifie pas le statut du chapitre.
+
+Passe 2 en plus : chaque notion générée upserte une `Skill` (référentiel persistant),
+dédupliquée par (subject_id, level, nom normalisé casse/espaces) — le matching
+sémantique par embedding est Lot 3.
 """
 
 import logging
@@ -21,9 +26,24 @@ from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import AIJob, Chapter, SchoolYear, SchoolYearSubject, Subject
+from app.db.models import (
+    AIJob,
+    Chapter,
+    Lesson,
+    LessonSkill,
+    SchoolYear,
+    SchoolYearSubject,
+    Skill,
+    Subject,
+)
 from app.modules.ai.provider import LLMProvider, LLMRequest
-from app.modules.curriculum.schemas import GeneratedChapter, GeneratedChapters, generation_schema
+from app.modules.curriculum.schemas import (
+    GeneratedChapter,
+    GeneratedChapters,
+    GeneratedLessons,
+    generation_schema,
+    lessons_generation_schema,
+)
 from app.prompts import curriculum
 
 logger = logging.getLogger(__name__)
@@ -48,10 +68,10 @@ def _strip_fences(text: str) -> str:
     return s.strip()
 
 
-def _try_validate(raw: str) -> tuple[GeneratedChapters | None, str | None]:
-    """Valide `raw` en `GeneratedChapters`. Retourne (obj, None) ou (None, erreur)."""
+def _try_validate(raw: str, model_cls=GeneratedChapters):
+    """Valide `raw` (GeneratedChapters par défaut). Retourne (obj, None) ou (None, erreur)."""
     try:
-        return GeneratedChapters.model_validate_json(_strip_fences(raw)), None
+        return model_cls.model_validate_json(_strip_fences(raw)), None
     except ValidationError as exc:
         detail = "; ".join(
             f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()[:6]
@@ -404,6 +424,371 @@ def reorder_chapters(
         by_id[chapter_id].sort_order = position
     db.commit()
     return [by_id[cid] for cid in chapter_ids]
+
+
+# ---------------------------------------------------------------------------
+# Passe 2 : leçons + notions d'un chapitre (Lot 2 Slice A, ADR-0009 §1/§3).
+# ---------------------------------------------------------------------------
+
+
+def _lesson_or_404(db: Session, lesson_id: int) -> Lesson:
+    lesson = db.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Leçon {lesson_id} introuvable."
+        )
+    return lesson
+
+
+def _lesson_context(db: Session, chapter: Chapter) -> tuple[Subject, str, str]:
+    """Résout (subject, level, cycle) du chapitre — requis pour le prompt et l'upsert
+    des `Skill` (scopées matière + niveau). Un chapitre rattaché à un thème seul (sans
+    `school_year_subject_id`) n'a pas de niveau : erreur métier explicite."""
+    if chapter.school_year_subject_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Chapitre {chapter.id} non rattaché à une matière d'année scolaire : "
+                "impossible de résoudre le niveau pour générer des leçons."
+            ),
+        )
+    sys_row = _sys_or_404(db, chapter.school_year_subject_id)
+    year = db.get(SchoolYear, sys_row.school_year_id)
+    subject = db.get(Subject, sys_row.subject_id)
+    level = year.level
+    return subject, level, CYCLE_BY_LEVEL.get(level, level)
+
+
+def _normalize_skill_name(name: str) -> str:
+    """Clé de dédup `Skill` : casse et espaces neutralisés (le matching sémantique par
+    embedding + confirmation Papa est Lot 3 — hors périmètre ici)."""
+    return " ".join(name.split()).casefold()
+
+
+def _upsert_skills(
+    db: Session, subject_id: int, level: str, notion_names: list[str]
+) -> tuple[dict[str, Skill], int]:
+    """Résout/insère une `Skill` par clé (subject_id, level, nom normalisé) — jamais de
+    doublon à la régénération. Retourne (map nom_normalisé → Skill, nb créées)."""
+    existing = db.scalars(
+        select(Skill).where(Skill.subject_id == subject_id, Skill.level == level)
+    ).all()
+    by_key: dict[str, Skill] = {_normalize_skill_name(s.name): s for s in existing}
+    created = 0
+    for raw_name in notion_names:
+        pretty = " ".join(raw_name.split())
+        key = _normalize_skill_name(pretty)
+        if not key or key in by_key:
+            continue
+        skill = Skill(subject_id=subject_id, name=pretty[:160], level=level)
+        db.add(skill)
+        by_key[key] = skill
+        created += 1
+    db.flush()  # ids nécessaires pour les liaisons
+    return by_key, created
+
+
+def _link_lesson_skills(db: Session, lesson: Lesson, skills: list[Skill]) -> None:
+    seen: set[int] = set()
+    for skill in skills:
+        if skill.id in seen:
+            continue
+        seen.add(skill.id)
+        db.add(LessonSkill(lesson_id=lesson.id, skill_id=skill.id))
+
+
+def _lessons_of_chapter(db: Session, chapter_id: int) -> list[Lesson]:
+    return list(
+        db.scalars(
+            select(Lesson)
+            .where(Lesson.chapter_id == chapter_id)
+            .order_by(Lesson.sort_order, Lesson.id)
+        )
+    )
+
+
+def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Lesson]:
+    """Passe 2 : génère et persiste les leçons + notions d'un chapitre (synchrone).
+
+    Entrée = chapitre **validé ou manuel** uniquement (ADR-0009 §1), sinon refus 409.
+    Régénération (§3) : ne touche jamais les leçons `parent`/`imported` ni `validated` ;
+    remplace uniquement les leçons IA non validées, et append après l'existant conservé.
+    Chaque notion upserte une `Skill` (dédup par nom normalisé). Lève
+    `CurriculumGenerationError` si la sortie reste invalide après UNE réparation —
+    rien n'est alors persisté (rollback).
+    """
+    chapter = _chapter_or_404(db, chapter_id)
+    if not (chapter.validation_status == "validated" or chapter.source == "manual"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Chapitre {chapter_id} ni validé ni manuel "
+                f"(source={chapter.source}, validation_status={chapter.validation_status}) : "
+                "valide-le d'abord pour générer ses leçons (ADR-0009 §1)."
+            ),
+        )
+    subject, level, cycle = _lesson_context(db, chapter)
+    # Version reprise du chapitre ; un chapitre manuel n'en a pas → référence opérative.
+    program_version = chapter.program_version or DEFAULT_PROGRAM_VERSION
+
+    existing = _lessons_of_chapter(db, chapter_id)
+    # Conservées = manuelles/importées OU validées (jamais touchées, §3), injectées dans
+    # le prompt. Remplaçables = IA non validées (draft ou archivées/rejetées) — même
+    # règle que la passe 1.
+    kept = [l for l in existing if l.created_by != "ai" or l.status == "validated"]
+    replaceable = [l for l in existing if l.created_by == "ai" and l.status != "validated"]
+
+    meta = chapter.metadata_json or {}
+    system, prompt = curriculum.build_lessons_prompt(
+        subject.name,
+        level,
+        cycle,
+        {"name": chapter.name, "description": chapter.description, "themes": meta.get("themes")},
+        program_version,
+        [l.title for l in kept],
+    )
+    schema = lessons_generation_schema()
+
+    now = datetime.now(timezone.utc)
+    job = AIJob(
+        job_type="curriculum_lessons",
+        status="running",
+        input_json={
+            "chapter_id": chapter_id,
+            "chapter": chapter.name,
+            "subject": subject.name,
+            "level": level,
+            "cycle": cycle,
+            "program_version": program_version,
+            "existing_kept_lessons": len(kept),
+            "prompt_version": curriculum.LESSONS_PROMPT_VERSION,
+            "provider": type(llm).__name__,
+        },
+        created_by="parent",
+        created_at=now,
+        started_at=now,
+    )
+    db.add(job)
+    db.flush()
+
+    try:
+        response = llm.generate(LLMRequest(system=system, prompt=prompt, fmt=schema))
+        raw, model_used = response.text, response.model
+        result, error = _try_validate(raw, GeneratedLessons)
+
+        if result is None:
+            repair_prompt = (
+                f"{prompt}\n\n--- Ta réponse précédente (invalide) ---\n{raw}\n\n"
+                f"{curriculum.LESSONS_REPAIR_INSTRUCTION}{error}"
+            )
+            response = llm.generate(LLMRequest(system=system, prompt=repair_prompt, fmt=schema))
+            raw, model_used = response.text, response.model
+            result, error = _try_validate(raw, GeneratedLessons)
+
+        if result is None:
+            raise CurriculumGenerationError(
+                f"GeneratedLessons invalide après réparation : {error}"
+            )
+    except CurriculumGenerationError as exc:
+        # Rien n'a été ajouté en session avant ce point (l'upsert vient après la
+        # validation réussie) : le commit ne persiste que la trace d'échec.
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        raise
+    except Exception as exc:  # noqa: BLE001 — erreur provider/réseau : on trace puis on remonte.
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        raise CurriculumGenerationError(f"Appel LLM échoué : {exc}") from exc
+
+    # Persistance (§3) : remplace uniquement les leçons IA non validées ; append après
+    # l'existant conservé. Liaisons purgées avec la leçon (SQLite n'applique pas le
+    # CASCADE des FK par défaut → purge explicite).
+    for lesson in replaceable:
+        db.execute(LessonSkill.__table__.delete().where(LessonSkill.lesson_id == lesson.id))
+        db.delete(lesson)
+    all_notions = [n for gl in result.lessons for n in gl.notions]
+    skills_by_key, skills_created = _upsert_skills(db, subject.id, level, all_notions)
+    next_order = max((l.sort_order for l in kept), default=-1) + 1
+    created: list[Lesson] = []
+    for i, generated in enumerate(result.lessons):
+        lesson = Lesson(
+            chapter_id=chapter_id,
+            title=generated.title[:160],
+            summary=generated.summary.strip() or None,
+            content_markdown=None,  # réservé à la génération de cours (downstream)
+            status="draft",  # = pending, obligatoire pour du généré (§3)
+            created_by="ai",
+            sort_order=next_order + i,
+            program_version=program_version,
+        )
+        db.add(lesson)
+        db.flush()
+        _link_lesson_skills(
+            db, lesson, [skills_by_key[_normalize_skill_name(n)] for n in generated.notions]
+        )
+        created.append(lesson)
+
+    job.status = "succeeded"
+    job.output_json = {
+        "lessons_count": len(created),
+        "replaced_drafts": len(replaceable),
+        "skills_created": skills_created,
+        "skills_reused": len({_normalize_skill_name(n) for n in all_notions}) - skills_created,
+        "model": model_used,
+    }
+    job.finished_at = datetime.now(timezone.utc)
+    db.commit()
+    # Réponse = liste complète des leçons du chapitre après génération (conservées + créées).
+    return _lessons_of_chapter(db, chapter_id)
+
+
+def list_lessons(db: Session, chapter_id: int) -> list[Lesson]:
+    _chapter_or_404(db, chapter_id)
+    return _lessons_of_chapter(db, chapter_id)
+
+
+def create_manual_lesson(
+    db: Session,
+    chapter_id: int,
+    title: str,
+    summary: str | None = None,
+    notions: list[str] | None = None,
+) -> Lesson:
+    """Écrite par Papa → `created_by='parent'`, `status='validated'` d'office (§3)."""
+    chapter = _chapter_or_404(db, chapter_id)
+    next_order = (
+        db.scalar(
+            select(func.coalesce(func.max(Lesson.sort_order), -1)).where(
+                Lesson.chapter_id == chapter_id
+            )
+        )
+        + 1
+    )
+    lesson = Lesson(
+        chapter_id=chapter_id,
+        title=title.strip(),
+        summary=summary,
+        status="validated",
+        created_by="parent",
+        sort_order=next_order,
+    )
+    db.add(lesson)
+    db.flush()
+    if notions:
+        subject, level, _ = _lesson_context(db, chapter)
+        skills_by_key, _ = _upsert_skills(db, subject.id, level, notions)
+        _link_lesson_skills(
+            db, lesson, [skills_by_key[_normalize_skill_name(n)] for n in notions]
+        )
+    db.commit()
+    db.refresh(lesson)
+    return lesson
+
+
+def update_lesson(
+    db: Session,
+    lesson_id: int,
+    title: str | None = None,
+    summary: str | None = None,
+    notions: list[str] | None = None,
+) -> Lesson:
+    """Édition partielle. `notions` fournie = remplace le rattachement (upsert des
+    nouvelles) ; les `Skill` elles-mêmes ne sont jamais supprimées (référentiel)."""
+    lesson = _lesson_or_404(db, lesson_id)
+    if title is not None:
+        lesson.title = title.strip()
+    if summary is not None:
+        lesson.summary = summary
+    if notions is not None:
+        chapter = _chapter_or_404(db, lesson.chapter_id)
+        subject, level, _ = _lesson_context(db, chapter)
+        db.execute(LessonSkill.__table__.delete().where(LessonSkill.lesson_id == lesson.id))
+        skills_by_key, _ = _upsert_skills(db, subject.id, level, notions)
+        _link_lesson_skills(
+            db, lesson, [skills_by_key[_normalize_skill_name(n)] for n in notions]
+        )
+    db.commit()
+    db.refresh(lesson)
+    return lesson
+
+
+def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
+    """`validate`/`reject` — uniquement pertinents sur une leçon `draft` (§3).
+
+    Rejet → `archived` : l'énuméré documenté de `lessons.status` n'a pas de `rejected` ;
+    la leçon sort du flux sans suppression. Cascade indépendante : le chapitre ne bouge pas.
+    """
+    lesson = _lesson_or_404(db, lesson_id)
+    if lesson.status != "draft":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Leçon {lesson_id} au statut '{lesson.status}' : "
+            "seule une leçon 'draft' peut être validée ou rejetée.",
+        )
+    lesson.status = "validated" if action == "validate" else "archived"
+    db.commit()
+    db.refresh(lesson)
+    return lesson
+
+
+def delete_lesson(db: Session, lesson_id: int) -> None:
+    lesson = _lesson_or_404(db, lesson_id)
+    db.execute(LessonSkill.__table__.delete().where(LessonSkill.lesson_id == lesson.id))
+    db.delete(lesson)
+    db.commit()
+
+
+def reorder_lessons(db: Session, chapter_id: int, lesson_ids: list[int]) -> list[Lesson]:
+    """Applique l'ordre donné (liste COMPLÈTE des ids du chapitre → `sort_order`) —
+    même convention que le réordonnancement des chapitres du Lot 1."""
+    lessons = list_lessons(db, chapter_id)
+    current_ids = {l.id for l in lessons}
+    if set(lesson_ids) != current_ids or len(lesson_ids) != len(current_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "La liste doit contenir exactement les ids des leçons de ce chapitre "
+                f"(attendus : {sorted(current_ids)})."
+            ),
+        )
+    by_id = {l.id: l for l in lessons}
+    for position, lesson_id in enumerate(lesson_ids):
+        by_id[lesson_id].sort_order = position
+    db.commit()
+    return [by_id[lid] for lid in lesson_ids]
+
+
+def lessons_out(db: Session, lessons: list[Lesson]) -> list[dict]:
+    """Sérialise avec notions dépliées (intitulé + `skill_id`) — jamais la liaison brute."""
+    ids = [l.id for l in lessons]
+    notions_by_lesson: dict[int, list[dict]] = {i: [] for i in ids}
+    if ids:
+        rows = db.execute(
+            select(LessonSkill.lesson_id, Skill.id, Skill.name)
+            .join(Skill, LessonSkill.skill_id == Skill.id)
+            .where(LessonSkill.lesson_id.in_(ids))
+            .order_by(Skill.id)
+        ).all()
+        for lesson_id, skill_id, skill_name in rows:
+            notions_by_lesson[lesson_id].append({"skill_id": skill_id, "name": skill_name})
+    return [
+        {
+            "id": l.id,
+            "chapter_id": l.chapter_id,
+            "title": l.title,
+            "summary": l.summary,
+            "status": l.status,
+            "created_by": l.created_by,
+            "sort_order": l.sort_order,
+            "program_version": l.program_version,
+            "notions": notions_by_lesson[l.id],
+        }
+        for l in lessons
+    ]
 
 
 def chapter_out(chapter: Chapter) -> dict:
