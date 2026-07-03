@@ -181,3 +181,55 @@ export interface ActiveSchoolYear {
   level: string;
   subjects: SchoolYearSubjectRef[];
 }
+
+/* ---------------------------------------------------------------------------
+ * Génération « skills-only » pour un niveau antérieur (rattrapage) — ADR-0010.
+ * Flux stateless : generate (prévisualisation en mémoire, rien de persisté) →
+ * revue Papa → confirm (upsert des `Skill` au niveau cible). Aucun chapitre, aucune
+ * leçon, aucune liaison n'est créé par ce chemin.
+ * --------------------------------------------------------------------------- */
+
+/** `POST /api/curriculum/skills-backfill/generate` — { subject_id, level } ;
+ *  `level` ∈ cycle 4 (5e|4e|3e), sinon 400. */
+export interface SkillsBackfillGenerateRequest {
+  subject_id: number;
+  level: string;
+}
+
+/** Notions d'un chapitre d'échafaudage (jeté après génération), dédupliquées. */
+export interface SkillsBackfillGroup {
+  scaffold_chapter: string;
+  notions: string[];
+}
+
+/** Réponse de `generate` : prévisualisation revue par Papa avant confirmation.
+ *  `failed_scaffolds` = échafaudages dont la passe 2 a échoué (liste partielle assumée). */
+export interface SkillsBackfillPreview {
+  subject_id: number;
+  subject_name: string;
+  level: string;
+  cycle: string;
+  program_version: string;
+  groups: SkillsBackfillGroup[];
+  failed_scaffolds: string[];
+}
+
+/** Notion revue par Papa (éditée/élaguée côté client) ; `scaffold_chapter` conservé
+ *  comme contexte même si l'upsert ne le persiste pas encore. */
+export interface SkillsBackfillNotion {
+  scaffold_chapter: string;
+  name: string;
+}
+
+/** `POST /api/curriculum/skills-backfill/confirm` — le client porte la liste revue. */
+export interface SkillsBackfillConfirmRequest {
+  subject_id: number;
+  level: string;
+  notions: SkillsBackfillNotion[];
+}
+
+/** Réponse de `confirm` : notions créées vs déjà présentes (idempotence). */
+export interface SkillsBackfillConfirmResult {
+  created: number;
+  existing: number;
+}

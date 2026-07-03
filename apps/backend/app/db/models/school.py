@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -150,6 +150,10 @@ class LessonSkill(Base):
     SONT des `Skill` (le référentiel persistant) ; cette table ne fait que rattacher."""
 
     __tablename__ = "lesson_skills"
+    # La PK composite est ordonnée `(lesson_id, skill_id)` et n'aide donc pas les requêtes
+    # filtrant par notion — c'est le cas de la résolution du cours canonique (addendum
+    # ADR-0009 §B/§C : « quelle leçon validée enseigne cette skill »). Index dédié requis.
+    __table_args__ = (Index("ix_lesson_skills_skill", "skill_id"),)
 
     lesson_id: Mapped[int] = mapped_column(
         ForeignKey("lessons.id", ondelete="CASCADE"), primary_key=True

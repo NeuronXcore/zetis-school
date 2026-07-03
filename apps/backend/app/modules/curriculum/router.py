@@ -23,6 +23,10 @@ from app.modules.curriculum.schemas import (
     LessonManualCreate,
     LessonPatch,
     LessonReorderRequest,
+    SkillsBackfillConfirmRequest,
+    SkillsBackfillConfirmResult,
+    SkillsBackfillGenerateRequest,
+    SkillsBackfillPreview,
     StudentCoursOut,
     StudentLessonContentOut,
 )
@@ -279,6 +283,40 @@ def generate_lesson_content(
 @router.delete("/lessons/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_lesson(lesson_id: int, db: Session = Depends(get_db)) -> None:
     service.delete_lesson(db, lesson_id)
+
+
+# ---------------------------------------------------------------------------
+# Génération « skills-only » pour un niveau antérieur (rattrapage) — ADR-0010.
+# Flux stateless en deux temps, Papa uniquement (garde `require_parent` du routeur).
+# ---------------------------------------------------------------------------
+
+
+@router.post("/curriculum/skills-backfill/generate", response_model=SkillsBackfillPreview)
+def skills_backfill_generate(
+    payload: SkillsBackfillGenerateRequest,
+    db: Session = Depends(get_db),
+    llm: LLMProvider = Depends(get_curriculum_provider),
+) -> dict:
+    """Enchaîne passes 1 et 2 EN MÉMOIRE et renvoie la prévisualisation des notions du
+    niveau demandé (aucune persistance) — requête longue synchrone (~6-9 appels LLM).
+    400 si le niveau est hors cycle 4 ; 503 si la clé cloud est absente (via la dépendance)."""
+    try:
+        return service.generate_skills_backfill(db, llm, payload.subject_id, payload.level)
+    except service.CurriculumGenerationError as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
+        ) from exc
+
+
+@router.post("/curriculum/skills-backfill/confirm", response_model=SkillsBackfillConfirmResult)
+def skills_backfill_confirm(
+    payload: SkillsBackfillConfirmRequest, db: Session = Depends(get_db)
+) -> dict:
+    """Upsert les notions revues par Papa en `Skill` au niveau cible (aucune leçon, aucune
+    liaison créée). Idempotent. Pas d'appel LLM ici : le client porte la liste (stateless)."""
+    return service.confirm_skills_backfill(
+        db, payload.subject_id, payload.level, [n.name for n in payload.notions]
+    )
 
 
 # ---------------------------------------------------------------------------
