@@ -79,6 +79,39 @@ _DEFAULT_CAPSULE = {
 }
 
 
+# GeneratedChapters déterministe valide (cf. curriculum/schemas.py) renvoyé quand le
+# schéma `fmt` est celui du curriculum (repéré par sa propriété `chapters`). 3 chapitres
+# = borne basse du schéma de production (3-25).
+_DEFAULT_CURRICULUM = {
+    "subject": "Mathématiques",
+    "cycle": "cycle 4",
+    "program_version": "2020",
+    "chapters": [
+        {
+            "title": "Nombres relatifs : opérations",
+            "description": "Additionner, soustraire, multiplier et diviser des relatifs.",
+            "themes": ["Nombres et calculs"],
+            "suggested_class": "4e",
+            "repartition": "officielle",
+        },
+        {
+            "title": "Théorème de Pythagore",
+            "description": "Calculer une longueur dans un triangle rectangle.",
+            "themes": ["Espace et géométrie"],
+            "suggested_class": "4e",
+            "repartition": "officielle",
+        },
+        {
+            "title": "Proportionnalité et pourcentages",
+            "description": "Traiter des situations de proportionnalité.",
+            "themes": ["Organisation et gestion de données, fonctions"],
+            "suggested_class": "4e",
+            "repartition": "officielle",
+        },
+    ],
+}
+
+
 class FakeLLMProvider:
     """Provider IA déterministe pour les tests (aucun appel ollama)."""
 
@@ -87,14 +120,20 @@ class FakeLLMProvider:
         feedback: str = "Bien joué, tu progresses ! Prochaine étape : un petit quiz.",
         score: int = 80,
         capsule_spec: dict | None = None,
+        curriculum_chapters: dict | None = None,
     ) -> None:
         self._feedback = feedback
         self._score = score
         self._capsule_spec = capsule_spec
+        self._curriculum_chapters = curriculum_chapters
 
     def generate(self, request: LLMRequest) -> LLMResponse:
-        # Sortie structurée demandée (fmt) → on renvoie un CapsuleSpec valide déterministe.
-        # `fmt` est ignoré au-delà de ce branchement (le fake ne parle pas à ollama).
+        # Sortie structurée demandée (fmt) → objet déterministe selon le schéma :
+        # curriculum (propriété `chapters`) ou CapsuleSpec. `fmt` est ignoré au-delà de
+        # ce branchement (le fake ne parle pas à ollama).
+        if isinstance(request.fmt, dict) and "chapters" in request.fmt.get("properties", {}):
+            chapters = self._curriculum_chapters or _DEFAULT_CURRICULUM
+            return LLMResponse(text=json.dumps(chapters), model="fake", duration_ms=1)
         if request.fmt is not None:
             spec = self._capsule_spec or _DEFAULT_CAPSULE
             return LLMResponse(text=json.dumps(spec), model="fake", duration_ms=1)

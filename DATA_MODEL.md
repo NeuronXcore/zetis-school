@@ -53,7 +53,7 @@ level              # ex: 4e
 starts_on
 ends_on
 status             # draft | active | archived
-mode               # ai_auto | hybrid | manual
+mode               # DÉPRÉCIÉ (ADR-0009 §4) — jamais lu ; suppression à la première migration touchant school_years
 created_at
 updated_at
 ```
@@ -86,12 +86,16 @@ settings_json
 
 ```txt
 id
-school_year_subject_id
+school_year_subject_id   # nullable depuis le module subjects (un chapitre peut vivre sous un thème)
+theme_id optional
 name
 description
 period             # trimestre/période
 sort_order
-status             # planned | active | completed | skipped
+status             # planned | active | completed | skipped (progression temporelle)
+source             # generated | manual (ADR-0009 §3 — co-construction Papa/IA)
+validation_status  # pending | validated | rejected (distinct de status, les deux coexistent)
+program_version    # version déclarative du programme (ex: 2020), null pour les manuels
 ```
 
 ### LearningObjective
@@ -118,6 +122,10 @@ prerequisite_skill_ids optional
 ```
 
 ### Lesson
+
+> ⚠️ Documentée mais PAS ENCORE MIGRÉE : aucune table `lessons` ni modèle SQLAlchemy à ce
+> jour. Création prévue avec la passe 2 du référentiel (ADR-0009, Lot 2), qui ajoutera
+> aussi `program_version`. Écart relevé lors du Lot 1 Slice A (2026-07-03).
 
 ```txt
 id

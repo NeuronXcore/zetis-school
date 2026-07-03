@@ -28,6 +28,9 @@ class SchoolYear(Base, TimestampMixin):
     starts_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # draft|active|archived
+    # Déprécié — cf. ADR-0009 §4 : jamais lu (la co-construction est un état par nœud,
+    # `source`/`validation_status` sur Chapter). Suppression à la première migration
+    # touchant `school_years`.
     mode: Mapped[str] = mapped_column(String(20), default="hybrid")  # ai_auto|hybrid|manual
 
 
@@ -67,6 +70,14 @@ class Chapter(Base):
     period: Mapped[str | None] = mapped_column(String(40), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="planned")  # planned|active|completed|skipped
+    # --- Référentiel de programme (ADR-0009 §3) : co-construction Papa/IA par nœud. ---
+    # `status` ci-dessus reste la progression temporelle ; `validation_status` est le
+    # statut de validation du référentiel — les deux coexistent, ne pas fusionner.
+    source: Mapped[str] = mapped_column(String(20), default="manual")  # generated|manual
+    validation_status: Mapped[str] = mapped_column(
+        String(20), default="validated"
+    )  # pending|validated|rejected — manuel = validé d'office ; généré = pending
+    program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
 
 
 class LearningObjective(Base):
