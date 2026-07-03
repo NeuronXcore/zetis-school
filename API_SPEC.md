@@ -107,27 +107,102 @@ Vue enrichie pour page matière :
 }
 ```
 
-## Chapitres et cours
+## Référentiel de programme (curriculum)
 
-### GET `/subjects/{subject_id}/chapters`
+Préfixe réel : `/api`. Génération et édition = **Papa uniquement** (`require_parent`).
+Deux passes descendantes (ADR-0009) : passe 1 chapitres, passe 2 leçons + notions
+(upsert `Skill`) ; co-construction par nœud (`source`/`validation_status` pour les
+chapitres, `created_by`/`status` pour les leçons). Tâches `curriculum_*` routées vers le
+cloud (dérogation ADR-0009, `claude-sonnet-5`) → **503** explicite sans clé ; la rédaction
+de cours reste **locale**. Contrat de types : `packages/types/src/curriculum.ts`.
 
-Liste chapitres.
+### Lecture de l'année active
 
-### GET `/chapters/{chapter_id}`
+#### GET `/school-years/active/subjects`
 
-Détail chapitre.
+Année active + `school_year_subject_id` de chaque matière (clé des routes chapitres).
 
-### GET `/chapters/{chapter_id}/lessons`
+### Passe 1 — chapitres
 
-Liste cours.
+#### POST `/school-year-subjects/{id}/generate-chapters`
 
-### GET `/lessons/{lesson_id}`
+Génère les chapitres d'une matière (IA, `pending` à valider). Requête longue (~10-30 s).
 
-Détail cours.
+#### GET `/school-year-subjects/{id}/chapters`
 
-### POST `/lessons`
+Liste des chapitres de la matière (ordonnés).
 
-Création Papa ou IA.
+#### POST `/school-year-subjects/{id}/chapters`
+
+Ajout manuel Papa → `source=manual`, validé d'office.
+
+#### POST `/school-year-subjects/{id}/chapters/reorder`
+
+Réordonne (liste complète ordonnée des ids → `sort_order`).
+
+#### POST `/school-year-subjects/{id}/chapters/validate-all` · POST `/school-years/active/chapters/validate-all`
+
+Validation par lot des `pending` (matière, ou toute l'année active).
+
+#### PATCH `/chapters/{id}` · DELETE `/chapters/{id}`
+
+Édition (nom/description/période + action `validate`/`reject`) · suppression.
+
+### Passe 2 — leçons + notions
+
+#### POST `/chapters/{id}/generate-lessons`
+
+Génère les leçons + notions d'un chapitre **validé ou manuel** (sinon 409) ; upsert des
+notions en `Skill`. Requête longue.
+
+#### POST `/chapters/{id}/extend-lessons`
+
+Complète sans rien supprimer (existant injecté au prompt, doublons de titre écartés).
+
+#### GET `/chapters/{id}/lessons` · POST `/chapters/{id}/lessons` · POST `/chapters/{id}/lessons/reorder`
+
+Liste · ajout manuel (validé d'office) · réordonnancement.
+
+#### PATCH `/lessons/{id}` · DELETE `/lessons/{id}`
+
+Édition (titre/résumé/notions — remplace le rattachement ; `content` — édition manuelle
+du cours, statut inchangé) · suppression.
+
+#### POST `/lessons/{id}/validate` · POST `/lessons/{id}/reject`
+
+`draft` → `validated` / `archived` (409 sinon).
+
+#### POST `/lessons/{id}/generate-content`
+
+Rédige le cours markdown (moteur **local**, ~40-60 s). Repasse la leçon en `draft`
+(gate du cours canonique, addendum ADR-0009 : un cours réécrit non relu ne doit pas
+alimenter les dérivés ni Massimo avant revalidation). 409 si archivée.
+
+### Rattrapage « skills-only » (niveau antérieur, ADR-0010)
+
+#### POST `/curriculum/skills-backfill/generate`
+
+Corps `{ subject_id, level }` (`level` ∈ cycle 4, sinon **400**). Enchaîne les passes
+1+2 **en mémoire** (rien de persisté) → prévisualisation des notions groupées par
+chapitre d'échafaudage + `failed_scaffolds`. 503 sans clé cloud.
+
+#### POST `/curriculum/skills-backfill/confirm`
+
+Corps `{ subject_id, level, notions: [{ scaffold_chapter, name }] }`. Upserte les notions
+en `Skill` au niveau cible (aucune leçon ni liaison). Idempotent → `{ created, existing }`.
+
+### Lecture élève (cours de Massimo)
+
+Préfixe `/api/student`, tout utilisateur authentifié (rôle child inclus) — le serveur ne
+sert **que du validé** (ADR-0009 §9).
+
+#### GET `/student/cours/{subject_slug}`
+
+Chapitres validés de l'année active + leçons validées (référence légère).
+
+#### GET `/student/lessons/{id}/cours`
+
+Cours (markdown) d'une leçon validée — 404 indiscernable sinon (aucune fuite des brouillons).
 
 ## Diagnostic
 
