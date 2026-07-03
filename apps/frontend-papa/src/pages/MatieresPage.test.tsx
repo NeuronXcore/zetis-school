@@ -53,6 +53,7 @@ const YEAR: ActiveSchoolYear = {
       subject_id: 2,
       subject_name: "Mathématiques",
       subject_slug: "mathematiques",
+      subject_icon: "➗",
       status: "active",
     },
   ],

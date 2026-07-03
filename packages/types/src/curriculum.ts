@@ -169,6 +169,8 @@ export interface SchoolYearSubjectRef {
   subject_id: number;
   subject_name: string;
   subject_slug: string;
+  /** Emoji de la matière (`subjects.icon`) — affiché devant le nom (pills Programme). */
+  subject_icon: string | null;
   status: string;
 }
 

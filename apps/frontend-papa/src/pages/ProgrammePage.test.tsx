@@ -66,8 +66,8 @@ const YEAR: ActiveSchoolYear = {
   label: "2026-2027",
   level: "4e",
   subjects: [
-    { id: 10, subject_id: 1, subject_name: "Mathématiques", subject_slug: "mathematiques", status: "active" },
-    { id: 11, subject_id: 2, subject_name: "Français", subject_slug: "francais", status: "active" },
+    { id: 10, subject_id: 1, subject_name: "Mathématiques", subject_slug: "mathematiques", subject_icon: "➗", status: "active" },
+    { id: 11, subject_id: 2, subject_name: "Français", subject_slug: "francais", subject_icon: "📖", status: "active" },
   ],
 };
 
@@ -146,6 +146,9 @@ describe("ProgrammePage", () => {
       "true",
     );
     expect(screen.getByRole("tab", { name: "Français" })).toBeInTheDocument();
+    // Emoji de la matière devant le nom — aria-hidden : le nom accessible reste propre.
+    expect(screen.getByRole("tab", { name: "Mathématiques" })).toHaveTextContent("➗");
+    expect(screen.getByRole("tab", { name: "Français" })).toHaveTextContent("📖");
     // Deux badges par ligne : source + validation.
     expect(screen.getByText("IA")).toBeInTheDocument();
     expect(screen.getByText("À valider")).toBeInTheDocument();

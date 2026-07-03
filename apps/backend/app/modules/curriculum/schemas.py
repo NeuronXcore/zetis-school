@@ -283,6 +283,8 @@ class SchoolYearSubjectOut(BaseModel):
     subject_id: int
     subject_name: str
     subject_slug: str
+    # Emoji de la matière (seed `subjects.icon`) — affiché devant le nom (pills Programme).
+    subject_icon: str | None
     status: str
 
 

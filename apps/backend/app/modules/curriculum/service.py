@@ -279,6 +279,7 @@ def active_year_with_subjects(db: Session) -> dict:
                 "subject_id": subject.id,
                 "subject_name": subject.name,
                 "subject_slug": subject.slug,
+                "subject_icon": subject.icon,
                 "status": sys_row.status,
             }
             for sys_row, subject in rows
