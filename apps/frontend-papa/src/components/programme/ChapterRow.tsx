@@ -42,7 +42,14 @@ export function ChapterRow({
   return (
     <li
       className={cn(
-        "rounded-2xl border border-papa-border bg-papa-surface/60 px-4 py-3",
+        "rounded-2xl border px-4 py-3 transition-[border-color,background-color,box-shadow]",
+        // Déplié = chapitre « au travail » : bordure accent + halo émeraude doux
+        // (même langage que la modale de cours), la ligne ressort de la liste.
+        // Branches EXCLUSIVES : deux utilitaires border/bg concurrents dans la même
+        // liste laissent l'ordre de la feuille CSS décider (accent perdait).
+        expanded
+          ? "border-papa-accent/40 bg-papa-surface shadow-[0_0_30px_-10px_rgba(16,185,129,0.4)]"
+          : "border-papa-border bg-papa-surface/60",
         rejected && "opacity-60",
       )}
     >
@@ -85,6 +92,18 @@ export function ChapterRow({
                 <>
                   <ExpandedDetails chapter={chapter} />
                   {lessonsSlot}
+                  {/* Second point de fermeture EN BAS : après avoir défilé un long
+                      étage de leçons, le titre (seul autre toggle) est hors écran. */}
+                  <div className="mt-2 border-t border-papa-border/60 pt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Replier ${chapter.name}`}
+                      onClick={() => setExpanded(false)}
+                    >
+                      ▲ Replier le chapitre
+                    </Button>
+                  </div>
                 </>
               )}
             </>

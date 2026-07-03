@@ -687,6 +687,30 @@ describe("ProgrammePage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("chapitre déplié : refermable depuis le BAS du panneau (« Replier le chapitre »)", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    vi.mocked(fetchLessons).mockResolvedValue([lesson({ id: 1, chapter_id: 5 })]);
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
+    expect(await screen.findByRole("button", { name: "+ Ajouter une leçon" })).toBeInTheDocument();
+
+    // Après un long défilement, le titre est hors écran : le pied du panneau replie aussi.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Replier Théorème de Pythagore" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "+ Ajouter une leçon" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Théorème de Pythagore" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("chapitre pending déplié : pas de bouton « Proposer des leçons »", async () => {
     vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
     vi.mocked(fetchChapters).mockResolvedValue([
