@@ -226,12 +226,8 @@ export function LessonContentModal({
           )
         ) : (
           <>
-            <div className={MARKDOWN_STYLES}>
-              <ReactMarkdown>{lesson.content}</ReactMarkdown>
-            </div>
-            <ContentProvenance lesson={lesson} />
             {!readOnly && (
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-papa-border pt-3">
+              <div className="mb-3 flex flex-wrap gap-2 border-b border-papa-border pb-3">
                 <Button size="sm" variant="outline" disabled={generating} onClick={onGenerate}>
                   ↻ Régénérer le cours
                 </Button>
@@ -242,6 +238,10 @@ export function LessonContentModal({
                 )}
               </div>
             )}
+            <div className={MARKDOWN_STYLES}>
+              <ReactMarkdown>{lesson.content}</ReactMarkdown>
+            </div>
+            <ContentProvenance lesson={lesson} />
           </>
         )}
       </div>
