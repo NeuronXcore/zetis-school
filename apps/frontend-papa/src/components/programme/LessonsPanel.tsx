@@ -197,6 +197,7 @@ export function LessonsPanel({
         open={toDelete !== null}
         title="Supprimer la leçon"
         confirmLabel="Supprimer"
+        tone="danger"
         onConfirm={() => {
           if (toDelete) void data.removeLesson(chapter.id, toDelete.id);
           setToDelete(null);

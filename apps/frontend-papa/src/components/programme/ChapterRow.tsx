@@ -48,7 +48,7 @@ export function ChapterRow({
         // Branches EXCLUSIVES : deux utilitaires border/bg concurrents dans la même
         // liste laissent l'ordre de la feuille CSS décider (accent perdait).
         expanded
-          ? "border-papa-accent/40 bg-papa-surface shadow-[0_0_30px_-10px_rgba(16,185,129,0.4)]"
+          ? "border-papa-accent/70 bg-papa-accent/5 shadow-[0_0_35px_-6px_rgba(16,185,129,0.6)]"
           : "border-papa-border bg-papa-surface/60",
         rejected && "opacity-60",
       )}
@@ -75,7 +75,10 @@ export function ChapterRow({
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  className="flex min-w-0 items-center gap-1.5 text-left font-medium hover:text-emerald-200"
+                  className={cn(
+                    "flex min-w-0 items-center gap-1.5 text-left font-medium hover:text-emerald-200",
+                    expanded && "text-emerald-200",
+                  )}
                   onClick={() => setExpanded((v) => !v)}
                   aria-expanded={expanded}
                 >

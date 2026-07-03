@@ -36,4 +36,21 @@ describe("ConfirmDialog", () => {
     expect(screen.getByRole("button", { name: "En cours…" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Annuler" })).toBeDisabled();
   });
+
+  it("tone danger : cadre et bouton de confirmation dans les rouges", () => {
+    render(
+      <ConfirmDialog
+        open
+        tone="danger"
+        title="Supprimer la leçon"
+        confirmLabel="Supprimer"
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(screen.getByRole("dialog").className).toContain("border-rose-500/50");
+    expect(screen.getByRole("button", { name: "Supprimer" }).className).toContain(
+      "bg-rose-600",
+    );
+  });
 });

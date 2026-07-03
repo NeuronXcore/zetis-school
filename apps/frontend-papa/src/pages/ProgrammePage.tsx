@@ -241,6 +241,7 @@ function ChapterList({
         open={toDelete !== null}
         title="Supprimer le chapitre"
         confirmLabel="Supprimer"
+        tone="danger"
         onConfirm={() => {
           if (toDelete) void data.removeChapter(toDelete.id);
           setToDelete(null);
