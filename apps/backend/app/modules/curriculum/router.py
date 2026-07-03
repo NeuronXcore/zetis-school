@@ -175,6 +175,28 @@ def generate_lessons(
     return service.lessons_out(db, lessons)
 
 
+@router.post(
+    "/chapters/{chapter_id}/extend-lessons",
+    response_model=list[CurriculumLessonOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def extend_lessons(
+    chapter_id: int,
+    db: Session = Depends(get_db),
+    llm: LLMProvider = Depends(get_curriculum_provider),
+) -> list[dict]:
+    """Complète la liste de leçons SANS rien supprimer (brouillons inclus) : l'existant
+    est injecté dans le prompt et les doublons de titre sont écartés. Mêmes préconditions
+    que la passe 2 (chapitre validé ou manuel, sinon 409) ; requête longue ~10-30 s."""
+    try:
+        lessons = service.generate_lessons(db, llm, chapter_id, mode="extend")
+    except service.CurriculumGenerationError as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
+        ) from exc
+    return service.lessons_out(db, lessons)
+
+
 @router.get("/chapters/{chapter_id}/lessons", response_model=list[CurriculumLessonOut])
 def list_lessons(chapter_id: int, db: Session = Depends(get_db)) -> list[dict]:
     return service.lessons_out(db, service.list_lessons(db, chapter_id))

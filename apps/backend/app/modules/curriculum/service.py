@@ -511,12 +511,22 @@ def _lessons_of_chapter(db: Session, chapter_id: int) -> list[Lesson]:
     )
 
 
-def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Lesson]:
+def _normalize_lesson_title(title: str) -> str:
+    """Clé de dédup des titres de leçons — même esprit que `_normalize_skill_name`."""
+    return " ".join(title.casefold().split())
+
+
+def generate_lessons(
+    db: Session, llm: LLMProvider, chapter_id: int, mode: str = "replace"
+) -> list[Lesson]:
     """Passe 2 : génère et persiste les leçons + notions d'un chapitre (synchrone).
 
     Entrée = chapitre **validé ou manuel** uniquement (ADR-0009 §1), sinon refus 409.
-    Régénération (§3) : ne touche jamais les leçons `parent`/`imported` ni `validated` ;
-    remplace uniquement les leçons IA non validées, et append après l'existant conservé.
+    `mode="replace"` (défaut, §3) : ne touche jamais les leçons `parent`/`imported` ni
+    `validated` ; remplace uniquement les leçons IA non validées, et append après
+    l'existant conservé. `mode="extend"` : ne supprime RIEN — toutes les leçons
+    existantes sont injectées dans le prompt (« complète sans dupliquer ») et les
+    propositions dont le titre normalisé existe déjà sont écartées (filet anti-doublon).
     Chaque notion upserte une `Skill` (dédup par nom normalisé). Lève
     `CurriculumGenerationError` si la sortie reste invalide après UNE réparation —
     rien n'est alors persisté (rollback).
@@ -536,11 +546,18 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
     program_version = chapter.program_version or DEFAULT_PROGRAM_VERSION
 
     existing = _lessons_of_chapter(db, chapter_id)
-    # Conservées = manuelles/importées OU validées (jamais touchées, §3), injectées dans
-    # le prompt. Remplaçables = IA non validées (draft ou archivées/rejetées) — même
-    # règle que la passe 1.
-    kept = [l for l in existing if l.created_by != "ai" or l.status == "validated"]
-    replaceable = [l for l in existing if l.created_by == "ai" and l.status != "validated"]
+    if mode == "extend":
+        # Extension : RIEN n'est supprimé. Toutes les leçons existantes (archivées
+        # incluses — une leçon rejetée par Papa ne doit pas être re-proposée) sont
+        # injectées dans le prompt comme « à ne jamais dupliquer, complète autour ».
+        kept = existing
+        replaceable = []
+    else:
+        # Conservées = manuelles/importées OU validées (jamais touchées, §3), injectées
+        # dans le prompt. Remplaçables = IA non validées (draft ou archivées/rejetées)
+        # — même règle que la passe 1.
+        kept = [l for l in existing if l.created_by != "ai" or l.status == "validated"]
+        replaceable = [l for l in existing if l.created_by == "ai" and l.status != "validated"]
 
     meta = chapter.metadata_json or {}
     system, prompt = curriculum.build_lessons_prompt(
@@ -564,6 +581,7 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
             "level": level,
             "cycle": cycle,
             "program_version": program_version,
+            "mode": mode,
             "existing_kept_lessons": len(kept),
             "prompt_version": curriculum.LESSONS_PROMPT_VERSION,
             "provider": type(llm).__name__,
@@ -614,11 +632,19 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
     for lesson in replaceable:
         db.execute(LessonSkill.__table__.delete().where(LessonSkill.lesson_id == lesson.id))
         db.delete(lesson)
-    all_notions = [n for gl in result.lessons for n in gl.notions]
+    # Filet anti-doublon : le prompt interdit de dupliquer les conservées, mais le LLM
+    # peut récidiver — toute proposition dont le titre normalisé (casse/espaces) matche
+    # une leçon conservée est écartée (essentiel en mode extend : rien n'est remplacé).
+    kept_titles = {_normalize_lesson_title(l.title) for l in kept}
+    proposals = [
+        gl for gl in result.lessons if _normalize_lesson_title(gl.title) not in kept_titles
+    ]
+    duplicates_dropped = len(result.lessons) - len(proposals)
+    all_notions = [n for gl in proposals for n in gl.notions]
     skills_by_key, skills_created = _upsert_skills(db, subject.id, level, all_notions)
     next_order = max((l.sort_order for l in kept), default=-1) + 1
     created: list[Lesson] = []
-    for i, generated in enumerate(result.lessons):
+    for i, generated in enumerate(proposals):
         lesson = Lesson(
             chapter_id=chapter_id,
             title=generated.title[:160],
@@ -640,6 +666,7 @@ def generate_lessons(db: Session, llm: LLMProvider, chapter_id: int) -> list[Les
     job.output_json = {
         "lessons_count": len(created),
         "replaced_drafts": len(replaceable),
+        "duplicates_dropped": duplicates_dropped,
         "skills_created": skills_created,
         "skills_reused": len({_normalize_skill_name(n) for n in all_notions}) - skills_created,
         "model": model_used,

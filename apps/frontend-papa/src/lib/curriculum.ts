@@ -134,6 +134,18 @@ export async function generateLessons(chapterId: number): Promise<CurriculumLess
   );
 }
 
+/** Extension (appel cloud synchrone ~10-30 s) : complète la liste SANS rien supprimer
+ *  (brouillons inclus) — l'existant est injecté dans le prompt, doublons écartés.
+ *  Mêmes préconditions que la passe 2 (409 sinon). Renvoie la liste complète. */
+export async function extendLessons(chapterId: number): Promise<CurriculumLesson[]> {
+  return asJson(
+    await fetch(`${API_URL}/api/chapters/${chapterId}/extend-lessons`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
 export async function createManualLesson(
   chapterId: number,
   data: LessonManualCreateRequest,

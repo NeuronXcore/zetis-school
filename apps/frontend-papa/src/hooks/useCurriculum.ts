@@ -14,6 +14,7 @@ import {
   createManualLesson,
   deleteChapter,
   deleteLesson,
+  extendLessons,
   fetchActiveSchoolYear,
   fetchChapters,
   fetchLessons,
@@ -134,8 +135,12 @@ export interface CurriculumData {
   lessonsByChapter: Record<number, ChapterLessonsState>;
   /** Chargement paresseux : fetch au premier appel seulement, no-op si déjà en cache. */
   loadLessons: (chapterId: number) => Promise<void>;
-  /** Passe 2 : propose des leçons (chapitre validé ou manuel — 409 backend sinon). */
+  /** Passe 2 : propose des leçons (chapitre validé ou manuel — 409 backend sinon).
+   *  Remplace les brouillons IA non validés. */
   generateLessons: (chapterId: number) => Promise<void>;
+  /** Extension : ZETIS AJOUTE des leçons à la liste sans rien supprimer (l'existant
+   *  est injecté dans le prompt, doublons écartés). Mêmes préconditions que la passe 2. */
+  extendLessons: (chapterId: number) => Promise<void>;
   addLesson: (chapterId: number, data: LessonManualCreateRequest) => Promise<void>;
   editLesson: (
     chapterId: number,
@@ -423,13 +428,13 @@ export function useCurriculum(): CurriculumData {
     [fetchLessonsInto],
   );
 
-  const generateLessonsFor = useCallback(
-    async (chapterId: number) => {
+  // Passe 2 et extension partagent le même cycle de vie : requête longue (~10-30 s)
+  // dont la réponse EST la liste complète (contrat router.py) — pas de re-fetch.
+  const runLessonsCall = useCallback(
+    async (chapterId: number, call: (id: number) => Promise<CurriculumLesson[]>) => {
       patchLessonsState(chapterId, { generating: true, error: null });
       try {
-        // Requête longue (~10-30 s). La réponse EST la liste complète après génération
-        // (contrat router.py) : pas de re-fetch séparé nécessaire.
-        const list = await generateLessons(chapterId);
+        const list = await call(chapterId);
         lessonsLoadedRef.current.add(chapterId);
         patchLessonsState(chapterId, { lessons: list });
       } catch (e) {
@@ -440,6 +445,16 @@ export function useCurriculum(): CurriculumData {
       }
     },
     [patchLessonsState],
+  );
+
+  const generateLessonsFor = useCallback(
+    (chapterId: number) => runLessonsCall(chapterId, generateLessons),
+    [runLessonsCall],
+  );
+
+  const extendLessonsFor = useCallback(
+    (chapterId: number) => runLessonsCall(chapterId, extendLessons),
+    [runLessonsCall],
   );
 
   // Lève en cas d'échec : le formulaire inline affiche l'erreur (patron addChapter).
@@ -923,6 +938,7 @@ export function useCurriculum(): CurriculumData {
     lessonsByChapter,
     loadLessons,
     generateLessons: generateLessonsFor,
+    extendLessons: extendLessonsFor,
     addLesson,
     editLesson,
     validateLesson: validateLessonFor,

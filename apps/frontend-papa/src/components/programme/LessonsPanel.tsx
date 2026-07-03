@@ -150,6 +150,19 @@ export function LessonsPanel({
                 )}
               </Button>
             )}
+            {/* Extension : ZETIS AJOUTE des leçons à la liste (l'existant est injecté
+                dans le prompt, doublons écartés) — ≠ Proposer, qui remplace les
+                brouillons. N'a de sens que s'il y a déjà des leçons. */}
+            {canProposeLessons && visible.length > 0 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void data.extendLessons(chapter.id)}
+                disabled={busy}
+              >
+                ➕ Ajouter des leçons (ZETIS)
+              </Button>
+            )}
             {missingCount > 0 && !batch && (
               <Button
                 size="sm"

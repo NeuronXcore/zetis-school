@@ -40,6 +40,7 @@ def test_lesson_routes_are_parent_only(client_db) -> None:
     client, Session = client_db  # conftest = rôle child
     chapter_id = _seed_validated_chapter(Session)
     assert client.post(f"/api/chapters/{chapter_id}/generate-lessons").status_code == 403
+    assert client.post(f"/api/chapters/{chapter_id}/extend-lessons").status_code == 403
     assert client.get(f"/api/chapters/{chapter_id}/lessons").status_code == 403
     assert client.post(f"/api/chapters/{chapter_id}/lessons", json={"title": "X"}).status_code == 403
     assert client.post(
@@ -174,6 +175,41 @@ def test_generate_lesson_content_flow(client_db) -> None:
     assert client.post(f"/api/lessons/{second_id}/generate-content").status_code == 409
 
     assert client.post("/api/lessons/9999/generate-content").status_code == 404
+
+
+def test_extend_lessons_appends_without_touching_existing(client_db) -> None:
+    """Extension : rien n'est supprimé (brouillons inclus), les nouvelles s'ajoutent
+    APRÈS l'existant, et les doublons de titre sont écartés (filet anti-doublon)."""
+    client, Session = client_db
+    _as_papa()
+    chapter_id = _seed_validated_chapter(Session)
+
+    # Chapitre avec UNE leçon manuelle : l'extension ajoute les 3 leçons du fake après.
+    manual = client.post(
+        f"/api/chapters/{chapter_id}/lessons", json={"title": "Leçon de Papa"}
+    ).json()
+    res = client.post(f"/api/chapters/{chapter_id}/extend-lessons")
+    assert res.status_code == 201
+    extended = res.json()
+    assert len(extended) == 4
+    assert extended[0]["id"] == manual["id"]  # l'existant garde sa place
+    assert all(l["created_by"] == "ai" and l["status"] == "draft" for l in extended[1:])
+
+    # Ré-extension avec la même sortie fake : titres tous déjà présents → AUCUN ajout,
+    # AUCUNE suppression (mêmes ids — les brouillons ne sont pas remplacés, ≠ passe 2).
+    res = client.post(f"/api/chapters/{chapter_id}/extend-lessons")
+    assert res.status_code == 201
+    again = res.json()
+    assert [l["id"] for l in again] == [l["id"] for l in extended]
+
+    # Même précondition que la passe 2 : chapitre ni validé ni manuel → 409.
+    with Session() as db:
+        chapter = db.get(m.Chapter, chapter_id)
+        chapter.validation_status = "pending"
+        db.commit()
+    assert client.post(f"/api/chapters/{chapter_id}/extend-lessons").status_code == 409
+    # Garde parent (conftest = child par défaut sur une nouvelle app… ici déjà papa) :
+    # couverte par test_lesson_routes_are_parent_only pour les routes leçons.
 
 
 def test_content_audit_and_manual_edit_flow(client_db) -> None:

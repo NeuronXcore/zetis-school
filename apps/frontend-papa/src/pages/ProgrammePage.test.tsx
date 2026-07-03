@@ -37,6 +37,7 @@ vi.mock("../lib/curriculum", () => ({
   reorderChapters: vi.fn(),
   validateAllChapters: vi.fn(),
   validateAllActiveYear: vi.fn(),
+  extendLessons: vi.fn(),
   fetchLessons: vi.fn(),
   generateLessons: vi.fn(),
   createManualLesson: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock("../lib/curriculum", () => ({
 }));
 
 import {
+  extendLessons,
   fetchActiveSchoolYear,
   fetchChapters,
   fetchLessons,
@@ -114,6 +116,7 @@ beforeEach(() => {
   vi.mocked(fetchActiveSchoolYear).mockReset();
   vi.mocked(fetchChapters).mockReset();
   vi.mocked(fetchLessons).mockReset();
+  vi.mocked(extendLessons).mockReset();
   vi.mocked(generateLessons).mockReset();
   vi.mocked(generateLessonContent).mockReset();
   vi.mocked(validateLesson).mockReset();
@@ -638,6 +641,50 @@ describe("ProgrammePage", () => {
       name: "Lire le cours de Sans cours (cours non rédigé)",
     });
     expect(withoutContent).toHaveAttribute("title", "Cours non rédigé");
+  });
+
+  it("« ➕ Ajouter des leçons (ZETIS) » : complète la liste sans passer par la passe 2", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    const existing = lesson({ id: 1, chapter_id: 5, title: "Leçon déjà là", status: "validated" });
+    vi.mocked(fetchLessons).mockResolvedValue([existing]);
+    // La réponse EST la liste complète : existante conservée + ajout ZETIS.
+    vi.mocked(extendLessons).mockResolvedValue([
+      existing,
+      lesson({ id: 2, chapter_id: 5, title: "Leçon complémentaire", sort_order: 1 }),
+    ]);
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "➕ Ajouter des leçons (ZETIS)" }),
+    );
+
+    expect(await screen.findByText("Leçon complémentaire")).toBeInTheDocument();
+    expect(screen.getByText("Leçon déjà là")).toBeInTheDocument();
+    expect(vi.mocked(extendLessons)).toHaveBeenCalledWith(5);
+    expect(vi.mocked(generateLessons)).not.toHaveBeenCalled();
+  });
+
+  it("« ➕ Ajouter des leçons » : absent si le chapitre n'a encore aucune leçon", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Théorème de Pythagore", validation_status: "validated" }),
+    ]);
+    vi.mocked(fetchLessons).mockResolvedValue([]);
+
+    render(<ProgrammePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
+
+    // L'entrée en matière reste la passe 2 ; l'extension n'a de sens qu'avec de l'existant.
+    expect(
+      await screen.findByRole("button", { name: "⚡ Proposer des leçons" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Ajouter des leçons \(ZETIS\)/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("chapitre pending déplié : pas de bouton « Proposer des leçons »", async () => {
