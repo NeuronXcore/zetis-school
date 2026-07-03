@@ -1,17 +1,22 @@
-"""Schémas du référentiel de programme — passe 1 : chapitres (ADR-0009).
+"""Schémas du référentiel de programme — passes 1 (chapitres) et 2 (leçons), ADR-0009.
 
-`GeneratedChapters` = miroir Pydantic **strict** de la sortie LLM (couche de garantie
-dure, pattern CapsuleSpec) : `extra="forbid"` partout, rien d'invalide n'est persisté.
-Bornes 3-25 chapitres — leçon du bench T4 : la borne 15 du schéma jetable était fausse
-(Sonnet produit ~20 chapitres à la granularité « chapitre de manuel » que ZETIS vise).
+`GeneratedChapters` / `GeneratedLessons` = miroirs Pydantic **stricts** de la sortie LLM
+(couche de garantie dure, pattern CapsuleSpec) : `extra="forbid"` partout, rien
+d'invalide n'est persisté. Bornes larges côté schéma (leçon du bench T4 : la borne 15 du
+schéma jetable était fausse), granularité fine pilotée côté prompt.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 MIN_CHAPTERS = 3
 MAX_CHAPTERS = 25
+# Passe 2 : bornes larges (le prompt cadre ≈ 2-8 leçons, 1-4 notions).
+MIN_LESSONS = 2
+MAX_LESSONS = 12
+MIN_NOTIONS = 1
+MAX_NOTIONS = 6
 
 
 class GeneratedChapter(BaseModel):
@@ -42,6 +47,30 @@ class GeneratedChapters(BaseModel):
 def generation_schema() -> dict:
     """Schéma JSON de sortie structurée (`LLMRequest.fmt`)."""
     return GeneratedChapters.model_json_schema()
+
+
+class GeneratedLesson(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=160)
+    summary: str  # 1-2 phrases (cadré par le prompt)
+    # Intitulés courts, factuels, réutilisables comme `Skill` (borne 160 par notion =
+    # colonne `skills.name` VARCHAR(160) : une notion verbeuse passe par la réparation
+    # au lieu de casser l'INSERT — même leçon que `program_version` en passe 1).
+    notions: list[Annotated[str, Field(min_length=1, max_length=160)]] = Field(
+        min_length=MIN_NOTIONS, max_length=MAX_NOTIONS
+    )
+
+
+class GeneratedLessons(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lessons: list[GeneratedLesson] = Field(min_length=MIN_LESSONS, max_length=MAX_LESSONS)
+
+
+def lessons_generation_schema() -> dict:
+    """Schéma JSON de sortie structurée de la passe 2 (`LLMRequest.fmt`)."""
+    return GeneratedLessons.model_json_schema()
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +136,61 @@ class BatchValidationResult(BaseModel):
     """Réponse des endpoints `validate-all` : nombre de chapitres passés en `validated`."""
 
     validated_count: int
+
+
+class LessonNotionOut(BaseModel):
+    """Notion dépliée d'une leçon (intitulé + `skill_id`) — jamais la liaison brute."""
+
+    skill_id: int
+    name: str
+
+
+class CurriculumLessonOut(BaseModel):
+    id: int
+    chapter_id: int
+    title: str
+    summary: str | None
+    # `status` ≈ validation (draft|validated|archived), `created_by` ≈ source
+    # (parent|ai|imported) — sémantique co-construction ADR-0009 §3.
+    status: str
+    created_by: str
+    sort_order: int
+    program_version: str | None
+    notions: list[LessonNotionOut]
+
+
+class LessonManualCreate(BaseModel):
+    """Création manuelle par Papa → `created_by='parent'`, `status='validated'` d'office
+    (ADR-0009 §3 : *écrire* = validé). Notions optionnelles (upsert `Skill` identique)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=160)
+    summary: str | None = None
+    notions: list[Annotated[str, Field(min_length=1, max_length=160)]] = Field(
+        default_factory=list, max_length=MAX_NOTIONS
+    )
+
+
+class LessonPatch(BaseModel):
+    """Édition partielle : `notions` fournie = remplace le rattachement (upsert des
+    nouvelles ; les `Skill` elles-mêmes ne sont jamais supprimées — référentiel)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    summary: str | None = None
+    notions: list[Annotated[str, Field(min_length=1, max_length=160)]] | None = Field(
+        default=None, max_length=MAX_NOTIONS
+    )
+
+
+class LessonReorderRequest(BaseModel):
+    """Liste ORDONNÉE et complète des ids de leçons du chapitre → `sort_order`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    lesson_ids: list[int] = Field(min_length=1)
 
 
 class SchoolYearSubjectOut(BaseModel):

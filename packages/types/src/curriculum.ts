@@ -1,7 +1,8 @@
 /**
- * Contrats API du référentiel de programme — Lot 1 Slice A (ADR-0009).
+ * Contrats API du référentiel de programme — Lots 1 et 2 Slice A (ADR-0009).
  * Miroir des schémas Pydantic `app/modules/curriculum/schemas.py` (règle CLAUDE.md n°8).
- * Consommés par la page Papa « Programme » (Slice B, étape 14).
+ * Consommés par la page Papa « Programme » (chapitres : étape 14 ; accordéon
+ * leçons/notions : Slice B du Lot 2, étape 16).
  */
 
 /** generated = passe 1 IA (validation Papa requise) · manual = écrit par Papa. */
@@ -63,6 +64,54 @@ export interface ChapterReorderRequest {
 /** Réponse des endpoints `POST .../validate-all` (lot matière ou année). */
 export interface BatchValidationResult {
   validated_count: number;
+}
+
+/** `status` d'une leçon ≈ validation (ADR-0009 §3) : draft = à valider, archived = rejetée. */
+export type LessonStatus = "draft" | "validated" | "archived";
+
+/** `created_by` d'une leçon ≈ source : parent = manuelle (validée d'office), ai = passe 2. */
+export type LessonCreatedBy = "parent" | "ai" | "imported";
+
+/** Notion dépliée d'une leçon (intitulé + `skill_id`) — jamais la table de liaison brute. */
+export interface LessonNotion {
+  skill_id: number;
+  name: string;
+}
+
+/** Réponse des endpoints leçons (`/api/chapters/{id}/lessons`, `/api/lessons/{id}`). */
+export interface CurriculumLesson {
+  id: number;
+  chapter_id: number;
+  title: string;
+  summary: string | null;
+  status: LessonStatus;
+  created_by: LessonCreatedBy;
+  sort_order: number;
+  /** Version déclarative du programme (ex. "2020"), null pour les leçons manuelles. */
+  program_version: string | null;
+  notions: LessonNotion[];
+}
+
+/** `POST /api/chapters/{id}/lessons` — création manuelle (validée d'office).
+ *  Chaque notion upserte une `Skill` (dédup par nom normalisé). */
+export interface LessonManualCreateRequest {
+  title: string;
+  summary?: string | null;
+  notions?: string[];
+}
+
+/** `PATCH /api/lessons/{id}` — édition partielle ; `notions` fournie = remplace le
+ *  rattachement (les `Skill` ne sont jamais supprimées). Validation via les endpoints
+ *  dédiés `POST /api/lessons/{id}/validate` et `.../reject` (draft uniquement). */
+export interface LessonPatchRequest {
+  title?: string;
+  summary?: string | null;
+  notions?: string[];
+}
+
+/** `POST /api/chapters/{id}/lessons/reorder` — liste ordonnée complète. */
+export interface LessonReorderRequest {
+  lesson_ids: number[];
 }
 
 /** Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres). */

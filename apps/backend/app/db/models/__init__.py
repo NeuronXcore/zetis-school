@@ -16,6 +16,8 @@ from app.db.models.progress import (
 from app.db.models.school import (
     Chapter,
     LearningObjective,
+    Lesson,
+    LessonSkill,
     SchoolYear,
     SchoolYearSubject,
     Skill,
@@ -33,6 +35,8 @@ __all__ = [
     "Theme",
     "Chapter",
     "LearningObjective",
+    "Lesson",
+    "LessonSkill",
     "Skill",
     "Quiz",
     "QuizQuestion",

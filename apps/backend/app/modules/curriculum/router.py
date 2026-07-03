@@ -18,6 +18,10 @@ from app.modules.curriculum.schemas import (
     ChapterPatch,
     ChapterReorderRequest,
     CurriculumChapterOut,
+    CurriculumLessonOut,
+    LessonManualCreate,
+    LessonPatch,
+    LessonReorderRequest,
 )
 
 router = APIRouter(prefix="/api", tags=["curriculum"], dependencies=[Depends(require_parent)])
@@ -134,3 +138,89 @@ def update_chapter(
 @router.delete("/chapters/{chapter_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_chapter(chapter_id: int, db: Session = Depends(get_db)) -> None:
     service.delete_chapter(db, chapter_id)
+
+
+# ---------------------------------------------------------------------------
+# Passe 2 : leçons + notions d'un chapitre (Lot 2 Slice A, ADR-0009).
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/chapters/{chapter_id}/generate-lessons",
+    response_model=list[CurriculumLessonOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_lessons(
+    chapter_id: int,
+    db: Session = Depends(get_db),
+    llm: LLMProvider = Depends(get_curriculum_provider),
+) -> list[dict]:
+    """Passe 2 (requête longue synchrone, ~10-30 s) : génère les leçons du chapitre
+    (validé ou manuel uniquement, sinon 409) et renvoie la liste complète après génération."""
+    try:
+        lessons = service.generate_lessons(db, llm, chapter_id)
+    except service.CurriculumGenerationError as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
+        ) from exc
+    return service.lessons_out(db, lessons)
+
+
+@router.get("/chapters/{chapter_id}/lessons", response_model=list[CurriculumLessonOut])
+def list_lessons(chapter_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    return service.lessons_out(db, service.list_lessons(db, chapter_id))
+
+
+@router.post(
+    "/chapters/{chapter_id}/lessons",
+    response_model=CurriculumLessonOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_lesson(
+    chapter_id: int, payload: LessonManualCreate, db: Session = Depends(get_db)
+) -> dict:
+    """Ajout manuel Papa → `created_by='parent'`, validée d'office (ADR-0009 §3)."""
+    lesson = service.create_manual_lesson(
+        db, chapter_id, title=payload.title, summary=payload.summary, notions=payload.notions
+    )
+    return service.lessons_out(db, [lesson])[0]
+
+
+@router.post(
+    "/chapters/{chapter_id}/lessons/reorder", response_model=list[CurriculumLessonOut]
+)
+def reorder_lessons(
+    chapter_id: int, payload: LessonReorderRequest, db: Session = Depends(get_db)
+) -> list[dict]:
+    lessons = service.reorder_lessons(db, chapter_id, payload.lesson_ids)
+    return service.lessons_out(db, lessons)
+
+
+@router.patch("/lessons/{lesson_id}", response_model=CurriculumLessonOut)
+def update_lesson(
+    lesson_id: int, payload: LessonPatch, db: Session = Depends(get_db)
+) -> dict:
+    """Édition (`title`, `summary`, `notions` — fournie = remplace le rattachement)."""
+    lesson = service.update_lesson(
+        db, lesson_id, title=payload.title, summary=payload.summary, notions=payload.notions
+    )
+    return service.lessons_out(db, [lesson])[0]
+
+
+@router.post("/lessons/{lesson_id}/validate", response_model=CurriculumLessonOut)
+def validate_lesson(lesson_id: int, db: Session = Depends(get_db)) -> dict:
+    """`draft` → `validated` (409 sinon). Le statut du chapitre ne bouge pas (§3)."""
+    lesson = service.set_lesson_validation(db, lesson_id, "validate")
+    return service.lessons_out(db, [lesson])[0]
+
+
+@router.post("/lessons/{lesson_id}/reject", response_model=CurriculumLessonOut)
+def reject_lesson(lesson_id: int, db: Session = Depends(get_db)) -> dict:
+    """`draft` → `archived` (l'énuméré de `lessons.status` n'a pas de `rejected`)."""
+    lesson = service.set_lesson_validation(db, lesson_id, "reject")
+    return service.lessons_out(db, [lesson])[0]
+
+
+@router.delete("/lessons/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_lesson(lesson_id: int, db: Session = Depends(get_db)) -> None:
+    service.delete_lesson(db, lesson_id)
