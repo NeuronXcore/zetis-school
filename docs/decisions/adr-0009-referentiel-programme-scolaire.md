@@ -60,6 +60,10 @@ Massimo/Papa, aucune donnée de l'enfant envoyée à un tiers (`SECURITY.md`).
   `app/prompts/curriculum.py` (v1). Trace `ai_jobs` : `curriculum_chapters` /
   `curriculum_lessons` (avec `engine_id`/`model_tag`).
 
+> Comportement mono-niveau de la passe 1 précisé par l'`adr-0010` (décision 5) :
+> génération strictement pour le niveau demandé, toutes matières ; le besoin
+> multi-niveaux (rattrapage) passe par la génération « skills-only » dédiée.
+
 ### 2. Générer **dans la hiérarchie existante** — pas de tables `curriculum_*`
 
 La passe 1 crée des `Chapter` sous le `SchoolYearSubject` de l'année active ; la passe 2

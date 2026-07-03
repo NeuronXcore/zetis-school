@@ -112,6 +112,10 @@ source_reference
 
 ### Skill / Notion
 
+> Peut être alimentée par la génération « skills-only » pour un niveau antérieur
+> (rattrapage, ADR-0010) : notions upsertées sans chapitre associé, `level` = niveau
+> cible, après prévisualisation + confirmation Papa.
+
 ```txt
 id
 subject_id
