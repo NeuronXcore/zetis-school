@@ -188,7 +188,7 @@ class CurriculumLessonOut(BaseModel):
     sort_order: int
     program_version: str | None
     # Provenance du COURS (≠ ligne leçon) : null tant qu'aucun cours n'a été écrit.
-    # `*_by` ∈ ('ai', 'parent') — affiché « IA » / « manuel » côté Papa.
+    # `*_by` ∈ ('ai', 'parent') — affiché « IA » / « admin » côté Papa.
     content_created_at: datetime | None
     content_created_by: str | None
     content_updated_at: datetime | None
