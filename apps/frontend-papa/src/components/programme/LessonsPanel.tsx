@@ -156,7 +156,10 @@ export function LessonsPanel({
             {canProposeLessons && visible.length > 0 && (
               <Button
                 size="sm"
-                variant="secondary"
+                variant="outline"
+                // Violet = langage visuel des propositions IA (badge « IA ») — version
+                // douce, comme la pill de matière active en émeraude.
+                className="border-violet-400/50 bg-violet-500/10 text-violet-200 hover:bg-violet-500/25 hover:text-violet-100"
                 onClick={() => void data.extendLessons(chapter.id)}
                 disabled={busy}
               >
