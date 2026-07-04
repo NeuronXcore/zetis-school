@@ -17,7 +17,7 @@ modules/
 ├── quizzes
 ├── missions
 ├── progress
-├── spaced_memory
+├── memory            # révision espacée / SRS (le chantier « spaced_memory » y vit)
 ├── rag
 ├── ai
 ├── capsules

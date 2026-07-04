@@ -24,6 +24,11 @@ ZETIS doit revoir une notion avant qu’elle soit oubliée. L’intervalle dépe
 | Good | 7 jours |
 | Easy | 14 jours |
 
+> Implémenté (2026-07-04) dans le module `memory` : `RATING_INTERVALS` +
+> `record_attempt`. `ease_factor` existe en colonne (réserve d'évolution ci-dessous)
+> mais n'entre PAS dans le calcul MVP. Un 2e passage le même jour est une
+> **consolidation** (détectée côté serveur) : planification inchangée, XP réduit.
+
 ## Adaptation
 
 À terme, adapter selon :
