@@ -13,6 +13,9 @@ export interface NavItem {
 export const MASSIMO_NAV: NavItem[] = [
   { to: "/", label: "Accueil", icon: "🏠" },
   { to: "/matieres", label: "Matières", icon: "📚" },
+  // « Révision » après le bloc « apprendre » (Cours vit sous Matières) : j'apprends → j'ancre.
+  // Icône emoji (le workspace n'embarque pas lucide-react ; pas de nouvelle dépendance).
+  { to: "/revision", label: "Révision", icon: "🗂️" },
   { to: "/diagnostic", label: "Diagnostic", icon: "🧭" },
   { to: "/eli5", label: "ELI5", icon: "💡", image: eli5Icon },
   { to: "/mindmaps", label: "Mindmaps", icon: "🕸️" },
