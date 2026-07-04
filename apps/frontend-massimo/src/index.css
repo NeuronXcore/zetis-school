@@ -29,6 +29,48 @@
   --color-ring: var(--color-zetis-accent);
 }
 
+/* Entrée du toast XP de la page ELI5 (utilisé via motion-safe: — respecte
+   prefers-reduced-motion, qui neutralise l'animation). */
+@keyframes eli5-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Flottement doux de l'icône de marque ELI5 (en-tête). motion-safe: uniquement. */
+@keyframes eli5-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(2deg);
+  }
+}
+
+/* Bulles d'explication qui filent d'ELI5 vers ZETIS (en-tête). motion-safe: uniquement. */
+@keyframes eli5-talk {
+  0% {
+    transform: translateX(0) scale(0.5);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(40px) scale(0.5);
+    opacity: 0;
+  }
+}
+
 html,
 body,
 #root {

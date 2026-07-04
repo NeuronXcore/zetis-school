@@ -68,6 +68,21 @@ export async function fetchSkills(): Promise<Skill[]> {
   return asJson(await fetch(`${API_URL}/api/ai/eli5/skills`, { headers: headers() }));
 }
 
+// Notion suggérée d'après les leçons en cours (chip « 📖 Ta leçon »). Porte un skill_id
+// réel → un clic lance explain + le badge « D'après ta leçon … » (ELI5 v2).
+export interface LessonSuggestion {
+  skill_id: number;
+  name: string;
+  lesson_id: number;
+  lesson_title: string;
+}
+
+export async function fetchLessonSuggestions(): Promise<LessonSuggestion[]> {
+  return asJson(
+    await fetch(`${API_URL}/api/student/lesson-suggestions`, { headers: headers() }),
+  );
+}
+
 async function fetchJob(jobId: number): Promise<AIJob> {
   return asJson(await fetch(`${API_URL}/api/ai/jobs/${jobId}`, { headers: headers() }));
 }
@@ -106,4 +121,51 @@ export async function reverseEli5(skillId: number, answerText: string): Promise<
       body: JSON.stringify({ skill_id: skillId, answer_text: answerText }),
     }),
   );
+}
+
+// Dictée ELI5 (ADR-0012) : audio → texte, transcrit en LOCAL (Whisper). Le texte
+// alimente le même textarea puis part en reverse-evaluate.
+export interface Eli5Transcript {
+  transcript: string;
+  duration_seconds: number;
+}
+
+/** Levée sur 503 : moteur STT indisponible côté serveur → le front masque le micro. */
+export class Eli5SttUnavailable extends Error {
+  constructor() {
+    super("Dictée indisponible");
+    this.name = "Eli5SttUnavailable";
+  }
+}
+
+// Notion hors-programme demandée par l'enfant (« Dis à Papa d'ajouter »). Tracée pour Papa,
+// qui l'ajoutera via le skills-backfill (backend notion_requests). Aucune donnée durable côté front.
+export interface NotionRequest {
+  id: number;
+  text: string;
+  status: string;
+}
+
+export async function requestNotion(text: string): Promise<NotionRequest> {
+  return asJson(
+    await fetch(`${API_URL}/api/ai/eli5/request-notion`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ text }),
+    }),
+  );
+}
+
+export async function transcribeEli5(audio: Blob): Promise<Eli5Transcript> {
+  // Multipart : on n'impose PAS de Content-Type (le navigateur pose la boundary).
+  const token = authClient.getToken();
+  const form = new FormData();
+  form.append("file", audio, "dictee.webm");
+  const res = await fetch(`${API_URL}/api/ai/eli5/transcribe`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  if (res.status === 503) throw new Eli5SttUnavailable();
+  return asJson(res);
 }
