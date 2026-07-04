@@ -63,3 +63,14 @@ def client_db() -> Iterator[tuple[TestClient, sessionmaker]]:
         yield TestClient(app), TestSession
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_enqueue(monkeypatch) -> None:
+    """Isolation : aucun test ne doit enfiler un job sur le VRAI Redis (ADR-0013).
+
+    `set_lesson_validation` enfile la génération de cartes en best-effort ; si Redis tourne
+    localement, l'enfilement réussirait et polluerait la file (avec des `lesson_id` SQLite).
+    On neutralise l'enqueue par défaut ; un test dédié vérifie la robustesse en le faisant
+    échouer explicitement."""
+    monkeypatch.setattr("app.core.queue.enqueue_generate_cards", lambda lesson_id: "test-job")

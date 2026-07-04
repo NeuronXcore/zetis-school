@@ -232,13 +232,16 @@ def test_manual_endpoint_generates_and_is_parent_only(client_db):
     assert client.get("/api/student/reviews/summary").json()["total_due"] == 2
 
 
-def test_validate_lesson_never_breaks_without_worker(client_db):
+def test_validate_lesson_never_breaks_if_enqueue_fails(client_db, monkeypatch):
     client, TestSession = client_db
     db = TestSession()
     lesson_id, _ = _seed_lesson(db, validated=False, with_content=True)
 
-    # Valider enfile un job async (worker-ai) ; sans Redis, l'enfilement échoue en silence
-    # et la validation reste un succès (robustesse ADR-0013 §1).
+    # Enqueue qui échoue (Redis/worker down) → la validation reste un succès (robustesse §1).
+    def boom(_lesson_id: int) -> str:
+        raise RuntimeError("Redis indisponible")
+
+    monkeypatch.setattr("app.core.queue.enqueue_generate_cards", boom)
     _as(PARENT)
     resp = client.post(f"/api/lessons/{lesson_id}/validate")
     assert resp.status_code == 200, resp.text
