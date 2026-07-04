@@ -275,7 +275,7 @@ def generate_lesson_cards(
     embedder: EmbeddingProvider = Depends(get_embedder),
 ) -> dict:
     """Papa : (re)génère MANUELLEMENT les cartes SRS d'une leçon (secours / régénération à la
-    demande — le flux normal est déclenché à la validation, ADR-0012 §1). Upsert préservant
+    demande — le flux normal est déclenché à la validation, ADR-0013 §1). Upsert préservant
     la planification : réviser une formulation ne réinitialise jamais les intervalles."""
     return srs_generation.refresh_cards_for_lesson(db, provider, embedder, lesson_id=lesson_id)
 

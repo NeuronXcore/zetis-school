@@ -927,7 +927,7 @@ def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
     db.commit()
     db.refresh(lesson)
 
-    # ADR-0012 : valider une leçon (avec cours) alimente le SRS de Massimo. Génération
+    # ADR-0013 : valider une leçon (avec cours) alimente le SRS de Massimo. Génération
     # ASYNCHRONE (worker-ai) : ne bloque pas Papa et un échec d'enfilement ne casse pas la
     # validation (robustesse locale, cf. `validate_capsule`). Endpoint manuel = secours.
     if action == "validate" and lesson.content_markdown:

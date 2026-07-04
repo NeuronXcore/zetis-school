@@ -1,4 +1,4 @@
-"""Génération et cycle de vie des cartes SRS (ADR-0012).
+"""Génération et cycle de vie des cartes SRS (ADR-0013).
 
 Test-verrou central de réconciliation (les trois branches) + cas dégradé + invariant vie
 privée + endpoint manuel Papa. Provider IA mocké (`FakeLLMProvider`).
@@ -228,7 +228,7 @@ def test_validate_lesson_never_breaks_without_worker(client_db):
     lesson_id, _ = _seed_lesson(db, validated=False, with_content=True)
 
     # Valider enfile un job async (worker-ai) ; sans Redis, l'enfilement échoue en silence
-    # et la validation reste un succès (robustesse ADR-0012 §1).
+    # et la validation reste un succès (robustesse ADR-0013 §1).
     _as(PARENT)
     resp = client.post(f"/api/lessons/{lesson_id}/validate")
     assert resp.status_code == 200, resp.text

@@ -1,10 +1,10 @@
-"""Génération et cycle de vie des cartes de révision (SRS) — ADR-0012.
+"""Génération et cycle de vie des cartes de révision (SRS) — ADR-0013.
 
 Le contenu d'une carte dérive du COURS VALIDÉ de la leçon (substrat canonique, ADR-0011).
 Déclencheur : la VALIDATION d'une leçon (draft → validated) rafraîchit les cartes de ses
 notions ; un endpoint manuel Papa sert de secours / régénération à la demande.
 
-Invariant central (ADR-0012 §3) : rafraîchir le CONTENU d'une carte ne touche JAMAIS sa
+Invariant central (ADR-0013 §3) : rafraîchir le CONTENU d'une carte ne touche JAMAIS sa
 PLANIFICATION. Clé métier `(student_id, skill_id, card_type)`. Trois branches à l'upsert :
 
   A · notion toujours couverte  → update recto/verso seuls ; due_at/interval/ease INTACTS.
@@ -14,7 +14,7 @@ PLANIFICATION. Clé métier `(student_id, skill_id, card_type)`. Trois branches 
 
 On ne supprime JAMAIS une ligne `SpacedReviewCard` (jeter l'historique = régression §Alt).
 Cas dégradé (génération manuelle sans cours validé) : cartes `pending`, filtrées serveur,
-activées quand un cours validé les régénère (ADR-0012 §4). 100 % local (ADR-0008).
+activées quand un cours validé les régénère (ADR-0013 §4). 100 % local (ADR-0008).
 """
 
 import json
@@ -49,7 +49,7 @@ MAX_CARDS_PER_SKILL = 3
 MAX_SKILLS_PER_RUN = 12
 ALLOWED_CARD_TYPES = ("definition", "method", "example", "error_correction")
 
-# Cycle de vie du `status` (ADR-0012). `scheduled` = active (révisable) ; `pending` = cas
+# Cycle de vie du `status` (ADR-0013). `scheduled` = active (révisable) ; `pending` = cas
 # dégradé (généré sans cours validé) ; `suspended` = orpheline (planification conservée).
 STATUS_ACTIVE = "scheduled"
 STATUS_PENDING = "pending"
@@ -119,7 +119,7 @@ def _lesson_skills(db: Session, lesson_id: int) -> list[Skill]:
 
 
 def _active_students(db: Session) -> list[StudentProfile]:
-    """Tous les profils élèves (le mécanisme ne présume pas le mono-élève, ADR-0012 §1)."""
+    """Tous les profils élèves (le mécanisme ne présume pas le mono-élève, ADR-0013 §1)."""
     return list(db.scalars(select(StudentProfile).order_by(StudentProfile.id)))
 
 
@@ -182,7 +182,7 @@ def refresh_cards_for_lesson(
     *,
     lesson_id: int,
 ) -> dict:
-    """Génère/rafraîchit les cartes des notions d'une leçon (upsert 3 branches, ADR-0012 §3)."""
+    """Génère/rafraîchit les cartes des notions d'une leçon (upsert 3 branches, ADR-0013 §3)."""
     _lesson_or_404(db, lesson_id)
     students = _active_students(db)
     result = {"created": 0, "updated": 0, "reactivated": 0, "pending": 0}

@@ -1,4 +1,4 @@
-# ADR-0012 — Génération et cycle de vie des cartes de révision (SRS)
+# ADR-0013 — Génération et cycle de vie des cartes de révision (SRS)
 
 ## Statut
 
@@ -7,8 +7,8 @@ Accepté — 2026-07-04 (slice backend implémentée : prompt `app/prompts/srs_c
 déclencheur async sur la validation de leçon + endpoint manuel `POST
 /api/lessons/{id}/generate-cards`, filtrage serveur `pending`/`suspended`, tests offline).
 
-> ⚠️ Collision de numéro : `adr-0012-stt-whisper-local.md` porte aussi le 0012 — à
-> renuméroter (0013).
+> Renuméroté 0012 → 0013 le 2026-07-04 pour lever la collision avec
+> `adr-0012-stt-whisper-local.md` (qui conserve le 0012).
 
 > S'appuie sur : `adr-0011` (résolveur `resolve_canonical_context` + convention de
 > prompt à deux sections — le SRS en est un **client**, il ne réécrit rien) ;
@@ -217,7 +217,7 @@ contenu ?
 
 - **Docs** : ligne dans `DECISIONS.md` ; note sous `SpacedReviewCard` dans
   `DATA_MODEL.md` (« alimentée par génération à la validation d'une leçon,
-  ADR-0012 ; upsert `(student, skill, card_type)` préservant la planification ») ;
+  ADR-0013 ; upsert `(student, skill, card_type)` préservant la planification ») ;
   ajout de `srs_cards_generate` à la liste des `job_type` de `AIJob`.
 - **Slice backend** : prompt `app/prompts/srs_cards.py` (v1), service de
   génération (consomme `resolve_canonical_context`), hook sur la validation de

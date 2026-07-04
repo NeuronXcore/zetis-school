@@ -340,7 +340,7 @@ last_reviewed_at
 status             # scheduled/new (actives) | pending (dégradé) | suspended (orpheline) | archived
 ```
 
-> Alimentée par génération à la validation d'une leçon (ADR-0012) : le contenu
+> Alimentée par génération à la validation d'une leçon (ADR-0013) : le contenu
 > (recto/verso) dérive du cours canonique validé (résolveur ADR-0011), 100 % local.
 > **Upsert clé `(student_id, skill_id, card_type)` préservant la planification** —
 > réécrire le contenu ne touche jamais `interval_days`/`ease_factor`/`due_at`. Une notion

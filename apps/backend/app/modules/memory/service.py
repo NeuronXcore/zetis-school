@@ -91,7 +91,7 @@ RATING_INTERVALS = {"again": 1, "hard": 3, "good": 7, "easy": 14}
 VALID_RATINGS = frozenset(RATING_INTERVALS)
 
 # Une carte « active » (`scheduled`/`new`) est révisable ; on exclut les états non-servis
-# (ADR-0012) : `pending` = générée sans cours validé (cas dégradé) ; `suspended` = orpheline
+# (ADR-0013) : `pending` = générée sans cours validé (cas dégradé) ; `suspended` = orpheline
 # (plus aucun cours validé ne la couvre, planification conservée) ; `archived` = réserve.
 # Le gate `due_at IS NOT NULL` (cf. `_due_conditions`) exclut déjà `pending` (due_at null) ;
 # ce filtre de statut protège aussi les cartes suspendues (qui gardent leur due_at).

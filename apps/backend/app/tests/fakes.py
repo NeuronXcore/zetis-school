@@ -168,7 +168,7 @@ _DEFAULT_LESSON_CONTENT = {
 }
 
 
-# Cartes SRS déterministes (cf. prompts/srs_cards.py, ADR-0012) renvoyées quand le schéma
+# Cartes SRS déterministes (cf. prompts/srs_cards.py, ADR-0013) renvoyées quand le schéma
 # `fmt` a la propriété `cards`. Deux types distincts (definition + method) pour vérifier la
 # borne 1-3, la variété et la clé métier `(student, skill, card_type)`.
 _DEFAULT_SRS_CARDS = {

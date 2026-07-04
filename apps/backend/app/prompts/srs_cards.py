@@ -1,9 +1,9 @@
-"""Prompts de génération de cartes de révision (SRS) — versionnés (ADR-0012).
+"""Prompts de génération de cartes de révision (SRS) — versionnés (ADR-0013).
 
 Le SRS est un CLIENT du substrat canonique (ADR-0011) : le contenu d'une carte (recto/
 verso) dérive du COURS VALIDÉ de la leçon rattachée à la notion (`Skill`), jamais de la
 connaissance brute du modèle ni du RAG seul. 100 % local (ADR-0008 : tâche pédagogique
-quotidienne, pas de dérogation cloud). Invariant vie privée (ADR-0012 §2) : le prompt ne
+quotidienne, pas de dérogation cloud). Invariant vie privée (ADR-0013 §2) : le prompt ne
 contient AUCUNE donnée de Massimo — seulement la notion et le cours.
 """
 
