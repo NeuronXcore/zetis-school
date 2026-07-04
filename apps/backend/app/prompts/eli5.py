@@ -5,6 +5,9 @@ backend vivent donc ici, comme l'autorise la consigne (« ou apps/backend/.../pr
 """
 
 PROMPT_VERSION = "v1"
+# ELI5 v2 (ADR-0011) : `explain` passe au contexte canonique à deux sections. `reverse`
+# reste en v1 → version dédiée par prompt, la trace reflète celle réellement utilisée.
+ELI5_EXPLAIN_PROMPT_VERSION = "v2"
 
 # Règles pédagogiques (CLAUDE.md) : bienveillance stricte, jamais « nul »/« échec »/« grosse lacune ».
 ELI5_SYSTEM = (
@@ -21,6 +24,19 @@ ELI5_EXPLAIN_PROMPT_V1 = (
     "Notion : {skill}\n"
     "Question de l'enfant : {question}\n"
     "Contexte de cours (peut être vide) :\n{context}\n\n"
+    "Réponds en JSON avec EXACTEMENT ces clés (valeurs en français) : "
+    "title, simple_explanation, analogy, example, common_mistake, check_question, next_action."
+)
+
+# ELI5 v2 (ADR-0011) : la tâche « expliquer simplement » ne change pas ; on INSÈRE le bloc
+# de contexte canonique (`build_canonical_sections`) — cours validé d'abord, puis extraits,
+# puis la règle d'autorité « le cours fait foi ». Le service compose et passe `{context_block}`.
+ELI5_EXPLAIN_PROMPT_V2 = (
+    "Explique la notion suivante à un enfant de niveau {level}.\n"
+    "Matière : {subject}\n"
+    "Notion : {skill}\n"
+    "Question de l'enfant : {question}\n\n"
+    "{context_block}\n\n"
     "Réponds en JSON avec EXACTEMENT ces clés (valeurs en français) : "
     "title, simple_explanation, analogy, example, common_mistake, check_question, next_action."
 )

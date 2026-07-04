@@ -18,6 +18,9 @@ export interface Eli5Explain {
   next_action: string;
   // Nombre de passages de cours (RAG) utilisés ; >0 → « d'après ton cours ».
   sources_used?: number;
+  // Cours canonique utilisé (ADR-0011) ; si présent → « d'après ta leçon … ».
+  lesson_id?: number;
+  lesson_title?: string;
 }
 
 export interface Eli5Reverse {
