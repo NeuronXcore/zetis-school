@@ -320,3 +320,40 @@ def test_summary_aggregates_due_by_subject(client_db):
     }
     # ordre par sort_order de matière.
     assert [s["slug"] for s in body["subjects"]] == ["mathematiques", "francais"]
+    # les deux ont des cartes actives → non grisées.
+    assert all(s["has_cards"] for s in body["subjects"])
+
+
+def test_summary_subject_with_cards_but_none_due_is_up_to_date(client_db):
+    """Matière avec des cartes actives mais aucune due → présente, due=0, has_cards=True
+    (état « à jour ✓ » côté Massimo, distinct du grisé « pas encore de cartes »)."""
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        svt = _subject(db, "svt", "SVT", sort_order=0)
+        _card(db, student, svt, due_at=now + timedelta(days=3))  # active, pas due
+        db.commit()
+
+    subjects = {s["slug"]: s for s in client.get("/api/student/reviews/summary").json()["subjects"]}
+    assert subjects["svt"]["due_count"] == 0
+    assert subjects["svt"]["has_cards"] is True
+
+
+def test_summary_lists_all_subjects_even_without_cards(client_db):
+    """« Par défaut, je veux voir toutes les matières » : une matière sans aucune carte
+    apparaît quand même (grisée, has_cards=False), aux côtés de celles qui ont des cartes.
+    L'ordre suit `sort_order`."""
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        maths = _subject(db, "mathematiques", "Maths", sort_order=0)
+        _subject(db, "histoire", "Histoire", sort_order=1)  # aucune carte → grisée
+        _card(db, student, maths, due_at=now - timedelta(days=1))
+        db.commit()
+
+    subjects = {s["slug"]: s for s in client.get("/api/student/reviews/summary").json()["subjects"]}
+    assert subjects["mathematiques"]["has_cards"] is True
+    assert subjects["histoire"]["has_cards"] is False
+    assert subjects["histoire"]["due_count"] == 0

@@ -337,8 +337,22 @@ interval_days
 ease_factor
 due_at
 last_reviewed_at
-status
+status             # scheduled/new (actives) | pending (dégradé) | suspended (orpheline) | archived
 ```
+
+> Alimentée depuis la **page Papa « Cartes SRS »** (ADR-0013, génération par matière —
+> PAS un effet de bord de la validation) : le contenu (recto/verso) dérive du cours canonique
+> validé (résolveur ADR-0011), 100 % local.
+> **Upsert clé `(student_id, skill_id, card_type)` préservant la planification** —
+> réécrire le contenu ne touche jamais `interval_days`/`ease_factor`/`due_at`. Une notion
+> que plus aucun cours validé ne couvre → carte `suspended` (hors session, planification
+> conservée, réactivable) ; **le flux de génération/réconciliation ne supprime jamais**. Cas
+> dégradé (sans cours validé) → `pending`, filtrée serveur. Filtrage :
+> `INACTIVE_CARD_STATUSES = {pending, suspended, archived}` (module `memory`).
+> **Actions manuelles Papa** (page « Cartes de révision ») : éditer le recto/verso d'une carte
+> (`PATCH /api/memory/cards/{card_id}`, planification préservée — même invariant) ; supprimer
+> une carte (`DELETE /api/memory/cards/{card_id}`) ou toutes les cartes d'une notion
+> (`DELETE /api/memory/cards/skills/{skill_id}`) — seules suppressions, explicites et confirmées.
 
 ### SpacedReviewAttempt
 
@@ -386,7 +400,7 @@ created_at
 
 ```txt
 id
-job_type           # eli5, quiz_generation, capsule_script, rag_answer, curriculum_chapters, curriculum_lessons, lesson_content...
+job_type           # eli5, quiz_generation, capsule_script, rag_answer, curriculum_chapters, curriculum_lessons, lesson_content, srs_cards_generate...
 status             # queued | running | succeeded | failed
 input_json
 output_json

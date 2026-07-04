@@ -3,7 +3,7 @@
 ## Objectif
 
 Donner à Massimo un rituel de révision quotidien : des **decks circulaires** (par
-matière + mélanges) alimentés par le moteur SRS (`spaced_memory`). Un deck est une
+matière + mélanges) alimentés par le moteur SRS (module `memory`). Un deck est une
 **file dynamique** : le compteur affiché = nombre de cartes dont le `due_at` est
 dépassé, il varie chaque jour selon les ratings passés. La page est un *runner de
 session*, pas une page de gestion : un tap → je révise.
@@ -19,8 +19,8 @@ Réf. mockup validé : `mockup-page-revision-v3.html` (2026-07-04).
 Quatre points d'entrée, tous vers `/revision` :
 
 1. **Sidebar** : entrée « Révision », placée après « Cours » (flux : j'apprends
-   → j'ancre). Icône Lucide (`Layers`) — la sidebar est du chrome UI, Phosphor
-   reste réservé aux pictogrammes de matières.
+   → j'ancre). Icône = l'illustration de marque `SRS-cards.png` (même patron que
+   ELI5 ; `lucide-react` absent du workspace, l'emoji 🗂️ était le repli initial).
 2. **Accueil** : le raccourci « Révision — N cartes » (`page-accueil.md`).
 3. **Page matière dédiée** : bouton « Réviser (N cartes) » en **deep link**
    `/revision?subject={slug}` → lance directement la session du deck matière,
@@ -51,9 +51,15 @@ sur `/revision/session` sans deck en mémoire ⇒ redirection vers `/revision`
 - **Aucun rouge, aucun vocabulaire d'échec.** Ratings affichés : 🔄 À revoir ·
   🤔 Difficile · 🙂 Bien · ⚡ Facile (mapping code inchangé :
   `again | hard | good | easy`). `again` = ambre doux.
-- Matière sans carte due : deck atténué + « à jour ✓ » (positif, jamais grisé
-  comme un manque). État zéro global : « Tout est frais dans ta mémoire ! 🎉 »
-  + suggestion douce (cours, capsule), pas de CTA de révision.
+- **Toutes les matières sont affichées** dans « Par matière » (3 états, `has_cards` +
+  `due_count` du summary) :
+  - cartes dues → deck lançable (badge compteur) ;
+  - cartes présentes mais rien dû → deck atténué + « à jour ✓ » (positif, jamais grisé
+    comme un manque) ;
+  - **aucune carte encore générée** (`has_cards=false`) → deck **grisé** affichant l'**emoji**
+    de la matière, badge « à venir » + « pas encore de cartes », non lançable.
+  État zéro global (rien dû nulle part) : « Tout est frais dans ta mémoire ! 🎉 » +
+  suggestion douce (cours, capsule), pas de CTA de révision.
 - Quitter en cours de session ne perd rien : chaque rating est POSTé au fil de
   l'eau, sans confirmation de sortie.
 - Sons (design system, toujours mutables) : `réussite` au palier haut,
@@ -69,14 +75,19 @@ sur `/revision/session` sans deck en mémoire ⇒ redirection vers `/revision`
 │   (🔀 collage 4 matières)      (🔀 collage 4 matières)    │
 │   Mélange du jour [11]         Mélange éclair [5]        │
 │   toutes les matières          5 cartes rapides          │
-│  PAR MATIÈRE ─────────────────────────────────────────── │
-│   (🖼️ Français)[3] (🖼️ Maths)[2] (🖼️ H-G)[2] (🖼️ Angl.)[2]│
-│   (🖼️ SVT)[1] (🖼️ Ph-Ch)[1] (🖼️ Esp. à jour✓) (🖼️ Techno✓)│
+│  PAR MATIÈRE (toutes les matières) ─────────────────────── │
+│   (🖼️ Français)[9] (🖼️ Maths)[15+] (🖼️ SVT)[12]          │
+│   (🌍 H-Géo · à venir) (🇬🇧 Anglais · à venir) …grisées    │
 └──────────────────────────────────────────────────────────┘
 ```
 
-- Decks circulaires : illustration matière (assets `*_256.png`), effet pile de
-  cartes (2 disques décalés), anneau conique indigo→cyan, badge compteur.
+- Decks circulaires : **simple cercle** avec l'illustration de la matière (assets
+  `*_256.png`) ou son **emoji** (matières sans carte) — pas d'effet pile ni d'anneau
+  coloré, badge compteur en surimpression.
+- **Bannière « SRS · Révision espacée »** en tête (composant `SpacedMemoryHero`) :
+  illustration `SRS-cards.png` animée (flip + étincelles) + courbe SVG de mémoire qui
+  monte à chaque révision espacée (1j→3j→7j→14j) — motive Massimo en illustrant simplement
+  le concept, sans exposer d'échéance réelle. Animations en `motion-safe:`.
 - **Hiérarchie = recommandation** : mélanges en haut et plus grands
   (interleaving par défaut), matières en dessous (ciblage ponctuel).
 - Badge plafonné à l'affichage : « 15+ » au-delà de 15.
@@ -93,6 +104,9 @@ sur `/revision/session` sans deck en mémoire ⇒ redirection vers `/revision`
 
 - Le flip est le geste signature : Massimo doit *décider* de révéler
   (retrieval practice — la tentative de rappel précède la réponse).
+- Recto/verso color-codés (apparence distincte) : **recto bleu** (pastille « ❓ Question »),
+  **verso émeraude** (pastille « ✅ Réponse » — positif, jamais de rouge d'échec). La couleur
+  bascule au flip.
 - Rating → la carte sort, la suivante entre. Points de progression discrets.
 
 ## Écran 3 — Popup de fin de session (3 paliers)

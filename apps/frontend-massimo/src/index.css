@@ -71,6 +71,95 @@
   }
 }
 
+/* Confettis du palier haut de la révision (SessionEndPopup). Animés en dur mais
+   déclenchés uniquement hors prefers-reduced-motion (garde côté composant) puis
+   purgés après ~4 s. */
+@keyframes zetis-confetti-fall {
+  0% {
+    transform: translateY(-10%) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(560px) rotate(320deg);
+    opacity: 0;
+  }
+}
+
+/* Bannière « Mémoire durable » (SRS) de la page Révision — motion-safe: uniquement. */
+/* Flottement doux de l'illustration SRS. */
+@keyframes srs-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-9px) rotate(1deg);
+  }
+}
+/* Tracé progressif de la courbe de mémoire (SVG pathLength=1 → dashoffset 1→0). */
+@keyframes srs-draw {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  65%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+/* Pulsation des points de révision espacés (J+1, J+3, J+7…), déclenchés en cascade. */
+@keyframes srs-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+/* Icône SRS : retournement « carte » périodique (la surprise). Perspective incluse dans le
+   transform pour ne pas dépendre d'un parent `perspective`. Reste face avant 70 % du temps,
+   puis un flip complet + petit pop. */
+@keyframes srs-flip {
+  0%,
+  70% {
+    transform: perspective(700px) rotateY(0deg);
+  }
+  84% {
+    transform: perspective(700px) rotateY(180deg) scale(1.08);
+  }
+  100% {
+    transform: perspective(700px) rotateY(360deg) scale(1);
+  }
+}
+/* Halo derrière l'icône, qui gonfle au moment du flip. */
+@keyframes srs-halo {
+  0%,
+  68%,
+  100% {
+    opacity: 0.22;
+    transform: scale(1);
+  }
+  84% {
+    opacity: 0.6;
+    transform: scale(1.22);
+  }
+}
+/* Étincelles qui scintillent autour de l'icône. */
+@keyframes srs-sparkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4) rotate(0deg);
+  }
+  45%,
+  55% {
+    opacity: 1;
+    transform: scale(1) rotate(35deg);
+  }
+}
+
 html,
 body,
 #root {

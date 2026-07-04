@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { fetchCapsuleStats } from "../lib/capsules";
+import { fetchReviewsSummary } from "../lib/reviews";
 import { MASSIMO_NAV } from "../lib/navigation";
 import { ZetisAvatar } from "./ZetisAvatar";
 
@@ -9,9 +10,15 @@ export function MassimoSidebar() {
   // Pastille « nouvelles capsules » (non vues). Récupérée au montage ; la page Capsules
   // reste la source à jour après visionnage.
   const [newCapsules, setNewCapsules] = useState(0);
+  // Pastille « nouvelles cartes » : cartes dues jamais révisées (fraîchement générées par
+  // Papa). Se vide dès que Massimo les révise (1er passage → `last_reviewed_at` posé).
+  const [newCards, setNewCards] = useState(0);
   useEffect(() => {
     fetchCapsuleStats()
       .then((s) => setNewCapsules(s.new_count))
+      .catch(() => {});
+    fetchReviewsSummary()
+      .then((s) => setNewCards(s.new_count))
       .catch(() => {});
   }, []);
 
@@ -49,6 +56,11 @@ export function MassimoSidebar() {
             {item.to === "/capsules" && newCapsules > 0 && (
               <span className="ml-auto rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-bold text-white">
                 {newCapsules}
+              </span>
+            )}
+            {item.to === "/revision" && newCards > 0 && (
+              <span className="ml-auto rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                {newCards}
               </span>
             )}
           </NavLink>

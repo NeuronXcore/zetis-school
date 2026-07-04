@@ -325,8 +325,12 @@ entrelacement des matières sont décidés côté serveur.
 
 ### GET `/student/reviews/summary`
 
-Cartes dues agrégées par matière (compteurs exacts, le « 15+ » est de la présentation) :
-`{ subjects: [{ slug, name, due_count }], total_due, flash_size }`.
+**Toutes les matières** de l'élève, avec leurs cartes dues agrégées (compteurs exacts, le
+« 15+ » est de la présentation) :
+`{ subjects: [{ slug, name, due_count, new_count, has_cards }], total_due, flash_size, new_count }`.
+`has_cards=false` → matière sans carte active : grisée « pas encore de cartes » côté Massimo,
+non lançable (l'UI affiche l'emoji de la matière). `has_cards=true` avec `due_count=0` = « à
+jour ✓ ». `new_count` = cartes dues jamais révisées (badge « nouveau »).
 
 ### POST `/student/reviews/session`
 
@@ -343,6 +347,24 @@ quel que soit le rating, +2 en consolidation. **Consolidation détectée côté 
 de flag client) : une carte déjà notée aujourd'hui ⇒ planification inchangée, XP réduit.
 `404` si la carte n'existe pas ou n'appartient pas à l'élève (pas de fuite d'existence) ;
 `422` si le rating est hors vocabulaire.
+
+## Cartes SRS — pilotage Papa
+
+Préfixe réel : `/api/memory/cards`. Routes **parent** (`require_parent`) de la page Papa
+« Cartes de révision » (ADR-0013). Génération 100 % locale (Ollama) ancrée sur le cours
+validé de chaque notion ; la validation d'une leçon n'a **aucun** effet de bord (surface
+page-driven). Invariant §3 : rafraîchir le CONTENU d'une carte ne touche jamais sa
+planification.
+
+- `GET /overview` — KPI globaux + résumé par matière `{ subjects: [{ subject_id, name, active_cards, to_generate, suspended }], totals }`.
+- `GET /subjects/{subject_id}` — arbre chapitre → leçon → notion (état + `card_count`, jamais le contenu) + notions suspendues.
+- `POST /subjects/{subject_id}/generate` — réconcilie toute la matière (upsert 3 branches A/B/C + suspend les orphelines). **Non destructif** : réécrit le contenu, préserve la planification. Déclenché par « Générer les N » ou « ↻ Régénérer » (même quand `to_generate = 0`). Renvoie `{ subject_id, created, updated, reactivated, pending, suspended, failed_skills }`.
+- `POST /skills/{skill_id}/generate` — génération/relance unitaire d'une notion. `{ created, updated, reactivated, pending }`.
+- `GET /skills/{skill_id}/cards` — recto/verso des cartes d'une notion (aperçu) `[{ id, card_type, front_markdown, back_markdown, status }]`.
+- `POST /skills/{skill_id}/reactivate` — réactive les cartes suspendues (planification intacte) `{ skill_id, reactivated }`.
+- `DELETE /skills/{skill_id}` — retire **toutes** les cartes d'une notion + leur historique `{ skill_id, deleted }`.
+- `PATCH /{card_id}` — **édite une carte** (recto/verso) ; planification préservée. Renvoie la carte (`CardContent`). `404` si absente. Chemin à un segment (pas de collision avec `/skills/...`).
+- `DELETE /{card_id}` — **supprime une carte** unitaire + ses attempts `{ id, deleted }`. `404` si absente.
 
 ## ELI5
 

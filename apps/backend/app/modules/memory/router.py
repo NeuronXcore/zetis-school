@@ -3,15 +3,27 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.modules.auth.deps import get_current_user
+from app.modules.ai import get_embedder, get_provider
+from app.modules.ai.provider import EmbeddingProvider, LLMProvider
+from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.eli5.service import get_default_student
+from app.modules.memory import generation
 from app.modules.memory.schemas import (
     AttemptRequest,
     AttemptResult,
+    CardContent,
+    CardsOverview,
+    DeleteCardResult,
+    DeleteCardsResult,
+    ReactivateResult,
     ReviewCard,
     ReviewsSummary,
     SessionRequest,
+    SkillGenerateResult,
+    SubjectCardsTree,
     SubjectDeck,
+    SubjectGenerateResult,
+    UpdateCardRequest,
 )
 from app.modules.memory.service import (
     build_session,
@@ -84,3 +96,71 @@ def reviews_attempt(
 ) -> AttemptResult:
     student = get_default_student(db)
     return AttemptResult(**record_attempt(db, student, card_id, body.rating))
+
+
+# --- Pilotage PAPA de la génération des cartes (/api/memory/cards/*, ADR-0013) ---
+# `require_parent` partout (page « Cartes SRS ») — à ne pas confondre avec les routes élève
+# `/api/student/reviews/*`. Génération LOCALE (Ollama) ancrée sur le cours validé.
+parent_router = APIRouter(
+    prefix="/api/memory/cards", tags=["srs-cards"], dependencies=[Depends(require_parent)]
+)
+
+
+@parent_router.get("/overview", response_model=CardsOverview)
+def cards_overview(db: Session = Depends(get_db)) -> dict:
+    return generation.overview(db)
+
+
+@parent_router.get("/subjects/{subject_id}", response_model=SubjectCardsTree)
+def subject_cards_tree(subject_id: int, db: Session = Depends(get_db)) -> dict:
+    return generation.subject_tree(db, subject_id)
+
+
+@parent_router.post("/subjects/{subject_id}/generate", response_model=SubjectGenerateResult)
+def generate_subject(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    provider: LLMProvider = Depends(get_provider),
+    embedder: EmbeddingProvider = Depends(get_embedder),
+) -> dict:
+    return generation.reconcile_cards_for_subject(db, provider, embedder, subject_id=subject_id)
+
+
+@parent_router.post("/skills/{skill_id}/generate", response_model=SkillGenerateResult)
+def generate_skill(
+    skill_id: int,
+    db: Session = Depends(get_db),
+    provider: LLMProvider = Depends(get_provider),
+    embedder: EmbeddingProvider = Depends(get_embedder),
+) -> dict:
+    return generation.generate_cards_for_skill(db, provider, embedder, skill_id=skill_id)
+
+
+@parent_router.get("/skills/{skill_id}/cards", response_model=list[CardContent])
+def skill_cards(skill_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    return generation.skill_cards(db, skill_id)
+
+
+@parent_router.post("/skills/{skill_id}/reactivate", response_model=ReactivateResult)
+def reactivate_skill(skill_id: int, db: Session = Depends(get_db)) -> dict:
+    return generation.reactivate_skill(db, skill_id)
+
+
+@parent_router.delete("/skills/{skill_id}", response_model=DeleteCardsResult)
+def delete_skill_cards(skill_id: int, db: Session = Depends(get_db)) -> dict:
+    # Retrait de toutes les cartes d'une notion (§5) — l'UI confirme (cartes + historique).
+    return generation.delete_skill_cards(db, skill_id)
+
+
+# Édition / suppression à la carte (correction manuelle). Chemins à UN segment
+# (`/{card_id}`) : pas de collision avec les routes `/skills/...` / `/subjects/...` (2 segments).
+@parent_router.patch("/{card_id}", response_model=CardContent)
+def update_card(card_id: int, body: UpdateCardRequest, db: Session = Depends(get_db)) -> dict:
+    return generation.update_card(
+        db, card_id, front_markdown=body.front_markdown, back_markdown=body.back_markdown
+    )
+
+
+@parent_router.delete("/{card_id}", response_model=DeleteCardResult)
+def delete_card(card_id: int, db: Session = Depends(get_db)) -> dict:
+    return generation.delete_card(db, card_id)

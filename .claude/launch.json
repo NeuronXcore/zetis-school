@@ -65,6 +65,15 @@
         "cd apps/frontend-massimo && VITE_API_URL=http://localhost:8001 npx vite --port 5176 --strictPort"
       ],
       "port": 5176
+    },
+    {
+      "name": "papa-srs",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-papa && VITE_API_URL=http://localhost:8001 npx vite --port 5177 --strictPort"
+      ],
+      "port": 5177
     }
   ]
 }

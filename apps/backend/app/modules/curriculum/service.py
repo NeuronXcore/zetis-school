@@ -926,6 +926,8 @@ def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
     lesson.status = "validated" if action == "validate" else "archived"
     db.commit()
     db.refresh(lesson)
+    # Note (ADR-0013) : la génération des cartes SRS n'est PAS un effet de bord de la
+    # validation — elle est pilotée explicitement depuis la page Papa « Cartes SRS ».
     return lesson
 
 

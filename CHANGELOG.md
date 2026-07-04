@@ -1,5 +1,46 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.14.0 — Cartes SRS : génération page-driven + pilotage Papa + refonte UI Révision Massimo
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Génération des cartes SRS** (ADR-0013, module `memory`) : contenu dérivé du **cours
+  validé** de chaque notion, 100 % local (Ollama), upsert réconciliateur à 3 branches
+  (A régénère en préservant la planif / B crée / C suspend les orphelines, réactivables).
+  Page Papa **« Cartes de révision »** (`/cartes-revision`) : arbre matière→chapitre→notion,
+  KPI, aperçu recto/verso, génération par matière.
+- **Pilotage Papa — évolutions** (endpoints `/api/memory/cards/*`, `require_parent`) :
+  - Bouton **« ↻ Régénérer »** par matière, même quand rien n'est « à générer »
+    (réconciliation non destructive) ; **barre de progression estimée (%)** pendant la
+    génération (patron partagé `ProgressBar` + `useEstimatedProgress`).
+  - **Édition d'une carte** en place (`PATCH /api/memory/cards/{card_id}`, recto/verso,
+    planification préservée) et **suppression d'une carte** unitaire
+    (`DELETE /api/memory/cards/{card_id}`), avec `ConfirmDialog` — distinctes du retrait de
+    toute une notion (`DELETE /skills/{id}`).
+- **Surface Massimo** : `GET /api/student/reviews/summary` renvoie **toutes** les matières
+  avec un booléen `has_cards`.
+- **Refonte UI page Révision Massimo** (`/revision`) :
+  - « Par matière » affiche **toutes** les matières ; celles sans carte apparaissent
+    **grisées** avec leur **emoji** (« à venir » / « pas encore de cartes »), non lançables.
+  - Decks = **simples cercles** avec l'icône/emoji de la matière (suppression de l'effet
+    pile et de l'anneau conique coloré / « halo »).
+  - Bannière motivante **« SRS · Révision espacée »** (`SpacedMemoryHero`) : illustration
+    `SRS-cards.png` animée + courbe SVG de mémoire (points espacés 1j→3j→7j→14j).
+  - `FlipCard` recto/verso **color-codés** : recto bleu « Question », verso émeraude
+    « Réponse ».
+  - Icône de la sidebar « Révision » = `SRS-cards.png` (au lieu de l'emoji 🗂️).
+
+### Décisions
+
+- Contrat `summary` étendu : `has_cards` distingue « aucune carte active » de « cartes
+  présentes » (grisé vs « à jour ✓ ») — cf. ADR-0013 (addendum).
+- L'édition d'une carte ne touche **jamais** la planification (`interval_days`,
+  `ease_factor`, `due_at`) : seul le contenu change (invariant ADR-0013 §3).
+- La régénération d'une matière est **non destructive** (réécrit le contenu, préserve
+  l'historique de révision de Massimo).
+
 ## 0.13.0 — Référentiel : rattrapage « skills-only » + verrous du cours canonique
 
 Date : 2026-07-03

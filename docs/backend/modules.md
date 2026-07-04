@@ -36,9 +36,15 @@ Missions, étapes, statut.
 
 XP, maîtrise, lacunes, synthèses.
 
-## Spaced memory
+## Spaced memory (`memory`)
 
-Cartes, révisions, planning.
+Moteur SRS (intervalles fixes MVP), cartes, révisions, planning. Deux surfaces :
+- **Élève** (`/api/student/reviews/*`) : `summary` (toutes les matières + `has_cards`),
+  `session`, `cards/{id}/attempt`. Mécanique SRS invisible (jamais de `due_at`/`interval`).
+- **Pilotage Papa** (`/api/memory/cards/*`, `require_parent`, ADR-0013) : `overview`,
+  arbre `subjects/{id}`, génération par matière/notion, réconciliation des orphelines
+  (reactivate / delete-skill), et **édition/suppression à la carte** (`PATCH`/`DELETE
+  /{card_id}`) — l'édition préserve la planification (§3).
 
 ## RAG
 
