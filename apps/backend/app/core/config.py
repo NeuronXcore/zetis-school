@@ -81,6 +81,20 @@ class Settings(BaseSettings):
         default="storage/generated", validation_alias="AUDIO_STORAGE_DIR"
     )
 
+    # --- STT (dictée ELI5, ADR-0012) : Whisper LOCAL via faster-whisper. 100 % local,
+    # aucun tiers (vie privée de Massimo). Dépendance optionnelle `[stt]` : sans elle,
+    # l'endpoint /transcribe répond 503 et le frontend masque le micro. ---
+    stt_provider: str = Field(default="faster-whisper", validation_alias="STT_PROVIDER")
+    # 'small' = rapide sur CPU/Apple Silicon (défaut), déjà bon en français. Pour plus de
+    # précision (plus lent) : 'medium' (bon compromis) ou 'large-v3' (max, ~3 Go).
+    whisper_model: str = Field(default="small", validation_alias="WHISPER_MODEL")
+    whisper_device: str = Field(default="cpu", validation_alias="WHISPER_DEVICE")
+    # int8 = rapide/léger. Pour grappiller un peu de précision : 'int8_float16' ou 'float32'
+    # (plus lent, plus de RAM). Le levier dominant reste la taille du modèle ci-dessus.
+    whisper_compute_type: str = Field(
+        default="int8", validation_alias="WHISPER_COMPUTE_TYPE"
+    )
+
     # --- Stockage objet des vidéos de capsule (Lot 2) : 'disk' (fallback dev) | 'minio'. ---
     # L'audio reste sur disque ; seul le MP4 rendu passe par ce backend.
     storage_backend: str = Field(default="disk", validation_alias="STORAGE_BACKEND")

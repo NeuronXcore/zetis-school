@@ -276,6 +276,15 @@ class StudentLessonContentOut(BaseModel):
     content: str
 
 
+class LessonSuggestionOut(BaseModel):
+    """`GET /api/student/lesson-suggestions` — une notion des leçons en cours (chip ELI5)."""
+
+    skill_id: int
+    name: str
+    lesson_id: int
+    lesson_title: str
+
+
 class SchoolYearSubjectOut(BaseModel):
     """Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres)."""
 

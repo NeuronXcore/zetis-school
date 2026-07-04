@@ -40,7 +40,11 @@ export function MassimoSidebar() {
               ].join(" ")
             }
           >
-            <span className="text-lg">{item.icon}</span>
+            {item.image ? (
+              <img src={item.image} alt="" className="h-5 w-5 rounded object-cover" />
+            ) : (
+              <span className="text-lg">{item.icon}</span>
+            )}
             {item.label}
             {item.to === "/capsules" && newCapsules > 0 && (
               <span className="ml-auto rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-bold text-white">

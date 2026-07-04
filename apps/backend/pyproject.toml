@@ -31,6 +31,13 @@ dev = [
 tts = [
     "piper-tts>=1.2.0",
 ]
+# Dictée ELI5 (ADR-0012). Optionnel : STT 100 % local via faster-whisper (CTranslate2,
+# sans torch). `pip install -e '.[stt]'` puis 1er usage télécharge le modèle (WHISPER_MODEL,
+# défaut 'small' = rapide ; 'medium'/'large-v3' plus précis, plus lents). Sans ce paquet,
+# /transcribe répond 503 et le micro est masqué côté front.
+stt = [
+    "faster-whisper>=1.0",
+]
 
 [build-system]
 requires = ["hatchling"]

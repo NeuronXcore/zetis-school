@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta, timezone
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,7 @@ from app.db.models import AIJob, LearningEvent, Skill, SkillMastery, StudentProf
 from app.modules.ai.canonical_context import build_canonical_sections, resolve_canonical_context
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.eli5.schemas import ELI5ExplainRequest, ELI5ReverseRequest
+from app.modules.stt.provider import SttProvider, SttRequest, SttUnavailable
 from app.modules.gamification.service import XP_ELI5_REVERSE, award_xp
 from app.modules.memory.service import interval_from_score, schedule_review
 from app.prompts.eli5 import (
@@ -21,6 +22,10 @@ from app.prompts.eli5 import (
 
 _BANNED_WORDS = ("nul", "échec", "echec", "grosse lacune")
 _SAFE_FEEDBACK = "C'est une notion à renforcer — tu progresses, on continue ensemble à la prochaine étape."
+
+# Garde-fou taille : une dictée ELI5 est courte (< ~30 s). 25 Mo couvre largement
+# WebM/Opus et évite de charger un gros fichier en mémoire.
+_MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
 
 def _sanitize_feedback(text: str) -> str:
@@ -162,6 +167,64 @@ def explain(
     db.commit()
     # Contrat API_SPEC : l'endpoint renvoie la référence du job (exécution synchrone → déjà `succeeded`).
     return {"job_id": job.id, "status": job.status}
+
+
+def transcribe(db: Session, stt: SttProvider, file: UploadFile) -> dict:
+    """Dictée ELI5 (ADR-0012) — Massimo parle, Whisper LOCAL transcrit.
+
+    « Soit il écrit, soit il parle » : le texte renvoyé alimente le même textarea puis
+    part en reverse-evaluate (input_mode text). 100 % local, zéro tiers (vie privée).
+    Tracé dans `ai_jobs` comme toute tâche IA ; l'audio brut n'est pas conservé.
+    """
+    raw = file.file.read()
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Audio vide.")
+    if len(raw) > _MAX_AUDIO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Dictée trop longue.",
+        )
+
+    now = datetime.now(timezone.utc)
+    job = AIJob(
+        job_type="eli5_transcribe",
+        status="running",
+        input_json={"content_type": file.content_type, "bytes": len(raw)},
+        created_by="child",
+        created_at=now,
+        started_at=now,
+    )
+    db.add(job)
+    db.flush()
+
+    try:
+        result = stt.transcribe(SttRequest(audio=raw, mime=file.content_type))
+    except SttUnavailable as exc:
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        # Dégradation propre : le frontend masque le micro sur 503 (jamais de bascule tierce).
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Dictée indisponible : {exc}",
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Transcription échouée : {exc}"
+        ) from exc
+
+    transcript = result.text.strip()
+    job.status = "succeeded"
+    job.output_json = {"transcript": transcript, "duration_seconds": result.duration_seconds}
+    job.duration_ms = int(result.duration_seconds * 1000)
+    job.finished_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"transcript": transcript, "duration_seconds": result.duration_seconds}
 
 
 def _mastery_status(score: int) -> str:

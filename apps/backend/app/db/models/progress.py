@@ -34,6 +34,24 @@ class Gap(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class NotionRequest(Base, TimestampMixin):
+    """Notion demandée par l'enfant sur ELI5 mais absente de son programme.
+
+    L'enfant tape une notion en champ libre non résolue (ex. « pythagore ») et clique
+    « Dis à Papa d'ajouter ». Papa la voit dans sa page Programme et l'ajoute via le
+    skills-backfill. PAS de FK skill (la notion n'existe pas encore) ; `subject_id`
+    optionnel (inconnu la plupart du temps). Statut : pending|added|dismissed.
+    """
+
+    __tablename__ = "notion_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"), index=True)
+    text: Mapped[str] = mapped_column(String(160))
+    subject_id: Mapped[int | None] = mapped_column(ForeignKey("subjects.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(15), default="pending")  # pending|added|dismissed
+
+
 class Mission(Base, TimestampMixin):
     __tablename__ = "missions"
 
