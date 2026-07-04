@@ -315,6 +315,35 @@ Synthèse de progression de l'élève :
 `{ total_xp, level, xp_into_level, xp_for_next, streak_days, active_today, badges: [{ code, label, icon }], recent: [{ amount, reason, created_at }] }`.
 Niveau = `total_xp // 100 + 1` ; streak = jours consécutifs d'activité (tolérance d'un jour).
 
+## Révision (spaced memory)
+
+Préfixe réel : `/api/student/reviews`. Slice backend implémentée dans le module `memory`
+(moteur SRS MVP : intervalles fixes again 1j / hard 3j / good 7j / easy 14j, pas de SM-2).
+Routes élève (`get_current_user`, rôle `child`). **La mécanique SRS est invisible** : le
+payload ne contient jamais `due_at`, `interval_days` ni `ease_factor`. Plafonds et
+entrelacement des matières sont décidés côté serveur.
+
+### GET `/student/reviews/summary`
+
+Cartes dues agrégées par matière (compteurs exacts, le « 15+ » est de la présentation) :
+`{ subjects: [{ slug, name, due_count }], total_due, flash_size }`.
+
+### POST `/student/reviews/session`
+
+Corps `{ deck: "mix_day" | "mix_flash" | { subject: "<slug>" } }`. Renvoie la liste servie
+`[{ card_id, subject_slug, front_markdown, back_markdown }]` — plafonnée (mélange 12 /
+matière 8 / éclair 5), triée `due_at` croissant, puis entrelacée pour les mélanges.
+`400` si le deck matière est inconnu ou sans carte due.
+
+### POST `/student/reviews/cards/{card_id}/attempt`
+
+Corps `{ rating: "again" | "hard" | "good" | "easy" }`. Renvoie
+`{ next_due_at, xp_awarded, is_consolidation }`. XP crédité via `award_xp` : +5 par carte
+quel que soit le rating, +2 en consolidation. **Consolidation détectée côté serveur** (pas
+de flag client) : une carte déjà notée aujourd'hui ⇒ planification inchangée, XP réduit.
+`404` si la carte n'existe pas ou n'appartient pas à l'élève (pas de fuite d'existence) ;
+`422` si le rating est hors vocabulaire.
+
 ## ELI5
 
 ### POST `/ai/eli5/explain`

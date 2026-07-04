@@ -350,6 +350,7 @@ rating             # again | hard | good | easy
 response_text optional
 reviewed_at
 next_due_at
+is_consolidation   # re-tour de consolidation (2e passage même jour) — détecté serveur, sans effet SRS
 ```
 
 ### DocumentSource
