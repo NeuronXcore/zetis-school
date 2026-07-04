@@ -3,6 +3,7 @@ import {
   addNotion,
   countNotions,
   type EditableGroup,
+  findCrossGroupDuplicates,
   flattenNotions,
   removeNotion,
   setNotion,
@@ -58,5 +59,46 @@ describe("skillsBackfill — édition pure des notions", () => {
     expect(flattenNotions(groups)).toEqual([
       { scaffold_chapter: "S", name: "Nombres relatifs" },
     ]);
+  });
+});
+
+describe("findCrossGroupDuplicates — signalement non bloquant", () => {
+  it("marque les deux occurrences avec le chapitre de l'autre groupe", () => {
+    const groups: EditableGroup[] = [
+      { scaffold_chapter: "Nombres relatifs", notions: ["Addition", "Comparaison"] },
+      { scaffold_chapter: "Fractions", notions: ["Addition"] },
+    ];
+    const dups = findCrossGroupDuplicates(groups);
+    expect(dups.get("0:0")).toEqual(["Fractions"]); // « Addition » du groupe 0
+    expect(dups.get("1:0")).toEqual(["Nombres relatifs"]); // « Addition » du groupe 1
+    expect(dups.has("0:1")).toBe(false); // « Comparaison » unique → non marquée
+  });
+
+  it("insensible à la casse et aux espaces", () => {
+    const groups: EditableGroup[] = [
+      { scaffold_chapter: "A", notions: ["Droite  graduée"] },
+      { scaffold_chapter: "B", notions: ["droite graduée"] },
+    ];
+    const dups = findCrossGroupDuplicates(groups);
+    expect(dups.get("0:0")).toEqual(["B"]);
+    expect(dups.get("1:0")).toEqual(["A"]);
+  });
+
+  it("ne marque PAS un doublon interne à un même groupe (dédup serveur déjà faite)", () => {
+    const groups: EditableGroup[] = [
+      { scaffold_chapter: "A", notions: ["Relatifs", "Relatifs"] },
+    ];
+    expect(findCrossGroupDuplicates(groups).size).toBe(0);
+  });
+
+  it("ignore les notions vides et cumule plusieurs autres chapitres", () => {
+    const groups: EditableGroup[] = [
+      { scaffold_chapter: "A", notions: ["Ratio", "  "] },
+      { scaffold_chapter: "B", notions: ["Ratio"] },
+      { scaffold_chapter: "C", notions: ["ratio"] },
+    ];
+    const dups = findCrossGroupDuplicates(groups);
+    expect(dups.get("0:0")).toEqual(["B", "C"]);
+    expect(dups.has("0:1")).toBe(false); // notion vide ignorée
   });
 });

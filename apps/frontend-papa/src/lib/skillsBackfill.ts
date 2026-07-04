@@ -59,3 +59,41 @@ export function flattenNotions(groups: EditableGroup[]): SkillsBackfillNotion[] 
 export function countNotions(groups: EditableGroup[]): number {
   return groups.reduce((n, g) => n + g.notions.filter((x) => x.trim() !== "").length, 0);
 }
+
+/** Clé de comparaison d'une notion : espaces normalisés + minuscules (dédup insensible
+ *  à la casse, cohérente avec l'upsert backend qui déduplique par nom normalisé). */
+function normalizeNotion(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** Doublons INTER-groupes : une même notion (nom normalisé) présente dans plusieurs
+ *  chapitres d'échafaudage. On les *signale* sans les bloquer — l'upsert idempotent les
+ *  fusionne côté serveur, bloquer mentirait sur la gravité (ADR-0010). Retour : clé
+ *  `"${gi}:${ni}"` → libellés des AUTRES chapitres où la notion réapparaît (dédupliqués,
+ *  ordre d'apparition). Les notions vides sont ignorées. */
+export function findCrossGroupDuplicates(groups: EditableGroup[]): Map<string, string[]> {
+  // 1er passage : normalisé → ensemble ordonné des chapitres qui le contiennent.
+  const chaptersByNotion = new Map<string, string[]>();
+  for (const g of groups) {
+    for (const raw of g.notions) {
+      const key = normalizeNotion(raw);
+      if (!key) continue;
+      const chapters = chaptersByNotion.get(key) ?? [];
+      if (!chapters.includes(g.scaffold_chapter)) chapters.push(g.scaffold_chapter);
+      chaptersByNotion.set(key, chapters);
+    }
+  }
+  // 2e passage : chaque occurrence dont le nom apparaît dans ≥2 chapitres est marquée,
+  // avec la liste des chapitres AUTRES que le sien.
+  const out = new Map<string, string[]>();
+  groups.forEach((g, gi) => {
+    g.notions.forEach((raw, ni) => {
+      const key = normalizeNotion(raw);
+      if (!key) return;
+      const chapters = chaptersByNotion.get(key) ?? [];
+      const others = chapters.filter((c) => c !== g.scaffold_chapter);
+      if (others.length > 0) out.set(`${gi}:${ni}`, others);
+    });
+  });
+  return out;
+}
