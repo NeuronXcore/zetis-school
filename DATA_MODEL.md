@@ -520,6 +520,11 @@ Elle est résolue si :
   se révèle insuffisant (non implémenté).
 - La porte `status='validated'` fait l'invalidation : une leçon en (re)génération de
   contenu repasse en `draft` et cesse d'alimenter les dérivés jusqu'à re-validation.
+- **Substrat partagé (ADR-0011)** : cette résolution est implémentée UNE fois dans
+  `app/modules/ai/canonical_context.py` (`resolve_canonical_context` + `build_canonical_sections`),
+  consommée par tous les dérivés (ELI5 v2 = premier client) ; le gate `status='validated'`
+  vit dans la clause `where` du résolveur — aucun dérivé ne le réimplémente. La trace
+  `ai_jobs.output_json` porte `lesson_id`/`lesson_title` quand un cours canonique a servi.
 
 ### XP
 

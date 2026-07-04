@@ -32,6 +32,10 @@ class ELI5ExplainResponse(BaseModel):
     next_action: str
     # Nombre de passages de cours (RAG) injectés ; >0 → explication appuyée sur une source validée.
     sources_used: int = 0
+    # Cours canonique utilisé (ADR-0011 §3) : nullables, présents quand une leçon validée a
+    # servi de source. Le badge Massimo passe de « D'après ton cours » à « D'après ta leçon … ».
+    lesson_id: int | None = None
+    lesson_title: str | None = None
 
 
 class ELI5ReverseRequest(BaseModel):

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.db.base import get_db
 from app.modules.ai import get_embedder, get_provider
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
@@ -14,7 +13,6 @@ from app.modules.eli5.schemas import (
     ELI5ReverseResponse,
     SkillOut,
 )
-from app.modules.rag import service as rag_service
 
 router = APIRouter(prefix="/api/ai/eli5", tags=["ai"])
 
@@ -32,17 +30,10 @@ def explain(
     embedder: EmbeddingProvider = Depends(get_embedder),
     _: dict = Depends(get_current_user),
 ) -> dict:
-    # RAG (Étape 11) : on récupère le contexte de cours de la matière. Renvoie []
-    # — sans appel embeddings — si aucune source n'est indexée (comportement identique
-    # à l'ancien stub). Renvoie {job_id, status} ; explication lue via GET /ai/jobs/{job_id}.
-    context = rag_service.retrieve_for_skill(
-        db,
-        embedder,
-        skill_id=req.skill_id,
-        query=req.question or "",
-        k=settings.rag_top_k,
-    )
-    return service.explain(db, provider, req, context=context)
+    # ELI5 v2 (ADR-0011) : la résolution du contexte (cours validé d'abord, RAG en
+    # complément) vit désormais dans le substrat partagé, appelé par le service.
+    # Renvoie {job_id, status} ; explication lue via GET /ai/jobs/{job_id}.
+    return service.explain(db, provider, embedder, req)
 
 
 @router.post("/reverse-evaluate", response_model=ELI5ReverseResponse)

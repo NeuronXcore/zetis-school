@@ -102,11 +102,15 @@ export function Eli5Page() {
           <div className="text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-semibold text-zetis-accent-2">{explanation.title}</p>
-              {(explanation.sources_used ?? 0) > 0 && (
+              {explanation.lesson_title ? (
+                <span className="rounded-full bg-zetis-surface-2 px-2 py-0.5 text-xs font-medium text-zetis-accent-2">
+                  📚 D'après ta leçon <em>{explanation.lesson_title}</em>
+                </span>
+              ) : (explanation.sources_used ?? 0) > 0 ? (
                 <span className="rounded-full bg-zetis-surface-2 px-2 py-0.5 text-xs font-medium text-zetis-accent-2">
                   📚 D'après ton cours
                 </span>
-              )}
+              ) : null}
             </div>
             <p className="mt-1">{explanation.simple_explanation}</p>
             <p className="mt-2 text-zetis-muted">

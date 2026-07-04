@@ -3,7 +3,18 @@ from app.main import app
 from app.modules.ai import get_provider
 from app.modules.eli5 import service
 from app.modules.eli5.schemas import ELI5ExplainRequest
-from app.tests.fakes import FakeLLMProvider
+from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
+
+
+def _add_validated_lesson(db, *, skill_id: int, title: str, content: str) -> m.Lesson:
+    lesson = m.Lesson(
+        chapter_id=1, title=title, content_markdown=content, status="validated", created_by="ai"
+    )
+    db.add(lesson)
+    db.flush()
+    db.add(m.LessonSkill(lesson_id=lesson.id, skill_id=skill_id))
+    db.commit()
+    return lesson
 
 
 def test_explain_creates_job_and_returns_reference(client_db) -> None:
@@ -25,19 +36,39 @@ def test_explain_creates_job_and_returns_reference(client_db) -> None:
     assert job["output"]["sources_used"] == 0
 
 
-def test_explain_marks_sources_used(client_db) -> None:
-    # Avec un contexte de cours injecté, sources_used reflète le nombre de passages utilisés.
+def test_explain_uses_canonical_course(client_db) -> None:
+    # ELI5 v2 (ADR-0011) : une leçon validée sert de source canonique → output_json porte
+    # lesson_id/lesson_title (le badge Massimo devient « D'après ta leçon … »).
     _, Session = client_db
     with Session() as db:
+        lesson = _add_validated_lesson(
+            db, skill_id=1, title="Additionner des relatifs", content="# Cours\n\nRègle des signes."
+        )
         result = service.explain(
-            db,
-            FakeLLMProvider(),
-            ELI5ExplainRequest(skill_id=1),
-            context=["Un passage de cours validé.", "Un autre passage."],
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), ELI5ExplainRequest(skill_id=1)
         )
         job = db.get(m.AIJob, result["job_id"])
         assert job is not None
-        assert job.output_json["sources_used"] == 2
+        assert job.output_json["lesson_id"] == lesson.id
+        assert job.output_json["lesson_title"] == "Additionner des relatifs"
+        # Pas de RAG indexé : le cours canonique suffit, sources_used reste à 0.
+        assert job.output_json["sources_used"] == 0
+
+
+def test_explain_without_course_stays_v1_compatible(client_db) -> None:
+    # Non-régression : sans cours validé, output_json ne porte aucun lesson_id et
+    # sources_used reste intact (comportement identique à v1).
+    _, Session = client_db
+    with Session() as db:
+        result = service.explain(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), ELI5ExplainRequest(skill_id=1)
+        )
+        job = db.get(m.AIJob, result["job_id"])
+        assert job is not None
+        assert job.output_json["sources_used"] == 0
+        assert "lesson_id" not in job.output_json
+        assert "lesson_title" not in job.output_json
+        assert job.output_json["title"]
 
 
 def test_skills_listing(client_db) -> None:

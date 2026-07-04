@@ -6,12 +6,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import AIJob, LearningEvent, Skill, SkillMastery, StudentProfile, Subject
-from app.modules.ai.provider import LLMProvider, LLMRequest
+from app.modules.ai.canonical_context import build_canonical_sections, resolve_canonical_context
+from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.eli5.schemas import ELI5ExplainRequest, ELI5ReverseRequest
 from app.modules.gamification.service import XP_ELI5_REVERSE, award_xp
 from app.modules.memory.service import interval_from_score, schedule_review
 from app.prompts.eli5 import (
-    ELI5_EXPLAIN_PROMPT_V1,
+    ELI5_EXPLAIN_PROMPT_V2,
+    ELI5_EXPLAIN_PROMPT_VERSION,
     ELI5_REVERSE_PROMPT_V1,
     ELI5_SYSTEM,
     PROMPT_VERSION,
@@ -105,32 +107,45 @@ def _run_traced(
 def explain(
     db: Session,
     provider: LLMProvider,
+    embedder: EmbeddingProvider,
     req: ELI5ExplainRequest,
-    context: list[str] | None = None,
 ) -> dict:
-    """ELI5 — ZETIS explique. `context` (vide ici) prépare la couture RAG (drop-in)."""
+    """ELI5 v2 — ZETIS explique, premier CLIENT du substrat canonique (ADR-0011).
+
+    Résout le contexte via `resolve_canonical_context` (cours validé d'abord, RAG en
+    complément) au lieu d'une récupération plate, et insère le bloc à deux sections dans
+    le prompt. La tâche « expliquer simplement » ne change pas.
+    """
     get_default_student(db)
     skill, subject = _skill_and_subject(db, req.skill_id)
 
-    prompt = ELI5_EXPLAIN_PROMPT_V1.format(
+    ctx = resolve_canonical_context(
+        db, embedder, skill_id=req.skill_id, query=req.question or ""
+    )
+    prompt = ELI5_EXPLAIN_PROMPT_V2.format(
         level=skill.level or "4e",
         subject=subject.name,
         skill=skill.name,
         question=req.question or "(pas de question précise)",
-        context="\n".join(context or []) or "(aucun)",
+        context_block=build_canonical_sections(ctx),
     )
     job = _run_traced(
         db,
         job_type="eli5_explain",
-        input_payload={"skill_id": skill.id, "mode": req.mode, "prompt_version": PROMPT_VERSION},
+        input_payload={
+            "skill_id": skill.id,
+            "mode": req.mode,
+            "prompt_version": ELI5_EXPLAIN_PROMPT_VERSION,
+        },
         provider=provider,
         request=LLMRequest(prompt=prompt, system=ELI5_SYSTEM, json_output=True),
     )
     # Normalise l'explication et la range dans la trace : récupérable via GET /ai/jobs/{job_id}.
-    # `sources_used` = nombre de passages de cours injectés (RAG) → le front Massimo affiche
-    # « d'après ton cours » quand l'explication s'appuie sur une source validée.
+    # `sources_used` = nombre de passages RAG injectés ; `lesson_id`/`lesson_title` (nullables)
+    # renseignés quand un cours canonique a servi → le badge Massimo passe de « D'après ton
+    # cours » à « D'après ta leçon … » (ADR-0011 §3). Contrat rétro-compatible.
     parsed = job.output_json or {}
-    job.output_json = {
+    output: dict = {
         "title": str(parsed.get("title") or f"Comprendre {skill.name}"),
         "simple_explanation": str(parsed.get("simple_explanation") or ""),
         "analogy": str(parsed.get("analogy") or ""),
@@ -138,8 +153,12 @@ def explain(
         "common_mistake": str(parsed.get("common_mistake") or ""),
         "check_question": str(parsed.get("check_question") or ""),
         "next_action": str(parsed.get("next_action") or "reverse_explain"),
-        "sources_used": len(context or []),
+        "sources_used": len(ctx.chunks),
     }
+    if ctx.lesson is not None:
+        output["lesson_id"] = ctx.lesson.id
+        output["lesson_title"] = ctx.lesson.title
+    job.output_json = output
     db.commit()
     # Contrat API_SPEC : l'endpoint renvoie la référence du job (exécution synchrone → déjà `succeeded`).
     return {"job_id": job.id, "status": job.status}
