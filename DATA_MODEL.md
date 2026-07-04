@@ -337,8 +337,17 @@ interval_days
 ease_factor
 due_at
 last_reviewed_at
-status
+status             # scheduled/new (actives) | pending (dégradé) | suspended (orpheline) | archived
 ```
+
+> Alimentée par génération à la validation d'une leçon (ADR-0013) : le contenu
+> (recto/verso) dérive du cours canonique validé (résolveur ADR-0011), 100 % local.
+> **Upsert clé `(student_id, skill_id, card_type)` préservant la planification** —
+> réécrire le contenu ne touche jamais `interval_days`/`ease_factor`/`due_at`. Une notion
+> que plus aucun cours validé ne couvre → carte `suspended` (hors session, planification
+> conservée, réactivable) ; jamais de suppression. Cas dégradé (sans cours validé) →
+> `pending`, filtrée serveur. Filtrage : `INACTIVE_CARD_STATUSES = {pending, suspended,
+> archived}` (module `memory`).
 
 ### SpacedReviewAttempt
 
@@ -386,7 +395,7 @@ created_at
 
 ```txt
 id
-job_type           # eli5, quiz_generation, capsule_script, rag_answer, curriculum_chapters, curriculum_lessons, lesson_content...
+job_type           # eli5, quiz_generation, capsule_script, rag_answer, curriculum_chapters, curriculum_lessons, lesson_content, srs_cards_generate...
 status             # queued | running | succeeded | failed
 input_json
 output_json

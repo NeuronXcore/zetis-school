@@ -32,3 +32,22 @@ def enqueue_render(capsule_id: int) -> str:
         "worker_media.jobs.render_capsule", capsule_id, job_timeout=RENDER_JOB_TIMEOUT
     )
     return job.id
+
+
+# Génération de cartes SRS (ADR-0013) : la validation d'une leçon enfile un job consommé par
+# `worker-ai` (process séparé), qui appelle `run_lesson_card_generation`. Enqueue PAR NOM de
+# tâche pour éviter tout import croisé backend ↔ worker (même principe que le rendu capsule).
+CARDS_JOB_TIMEOUT = 600  # secondes — 1 appel LLM local par notion de la leçon
+
+
+@lru_cache(maxsize=1)
+def cards_queue() -> Queue:
+    return Queue(settings.cards_queue, connection=_redis())
+
+
+def enqueue_generate_cards(lesson_id: int) -> str:
+    """Enfile la (re)génération des cartes SRS d'une leçon validée et renvoie l'id du job RQ."""
+    job = cards_queue().enqueue(
+        "worker_ai.jobs.generate_lesson_cards", lesson_id, job_timeout=CARDS_JOB_TIMEOUT
+    )
+    return job.id

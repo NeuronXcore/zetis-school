@@ -49,3 +49,17 @@ class AttemptResult(BaseModel):
     next_due_at: datetime | None
     xp_awarded: int
     is_consolidation: bool
+
+
+# --- Génération de cartes (endpoint manuel Papa, ADR-0013) ---
+# Les cartes héritent de la validation de leur leçon source (pas de file de relecture par
+# carte). L'endpoint manuel renvoie un simple compte-rendu de la réconciliation.
+
+
+class CardGenerationResult(BaseModel):
+    """Compte-rendu de `refresh_cards_for_lesson` : upsert 3 branches (ADR-0013 §3)."""
+
+    created: int  # branche B — cartes créées (actives, dues maintenant)
+    updated: int  # branche A — contenu réécrit, planification préservée
+    reactivated: int  # branche C inverse — carte suspendue/pending réactivée en place
+    pending: int  # cas dégradé — générée sans cours validé (non servie)
