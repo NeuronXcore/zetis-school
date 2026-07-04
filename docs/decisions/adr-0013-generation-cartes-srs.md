@@ -2,7 +2,8 @@
 
 ## Statut
 
-Proposé — 2026-07-04. **Contrat arrêté après maquette validée** (surface = page
+Accepté — **livré 2026-07-05** (proposé 2026-07-04 ; cf. addendum en fin de doc pour les
+endpoints réels et les actions de pilotage ajoutées). **Contrat arrêté après maquette validée** (surface = page
 Papa « Cartes SRS », génération explicite par matière, aperçu recto/verso,
 réconciliation des orphelines visible) : prêt pour acceptation Papa. Les décisions
 §1–§4 et les alternatives écartées constituent le contrat que les deux slices
@@ -289,3 +290,25 @@ contenu ?
   mais n'est pas bloquant.
 - Commit backend suggéré :
   `feat(memory): SRS card generation from canonical course on lesson validation`.
+
+## Addendum — livré (2026-07-05)
+
+Écarts assumés vs le contrat initial, tous **non destructifs** et cohérents avec l'invariant
+§3 (le contenu change, la planification jamais) :
+
+- **Endpoints réels** (préfixe `/api/memory/cards`, `require_parent`, cf. `API_SPEC.md`) :
+  génération **par matière** via `POST /subjects/{id}/generate` (et non `/cards/generate`),
+  unitaire via `POST /skills/{id}/generate` ; lectures `GET /overview`, `GET /subjects/{id}`,
+  `GET /skills/{id}/cards` ; réconciliation `POST /skills/{id}/reactivate`,
+  `DELETE /skills/{id}` (retrait de toutes les cartes d'une notion).
+- **Bouton « ↻ Régénérer » par matière** : affiché même quand `to_generate = 0` (rien à
+  générer) pour relancer la réconciliation de toute la matière — réécrit le contenu, préserve
+  la planif. Utile après édition d'un cours. Une **barre de progression estimée (%)** est
+  affichée pendant la génération (patron partagé `ProgressBar` + `useEstimatedProgress`).
+- **Édition / suppression à la carte** (correction manuelle Papa, dans l'aperçu recto/verso) :
+  - `PATCH /{card_id}` — édite recto/verso d'**une** carte, planification préservée (§3).
+  - `DELETE /{card_id}` — supprime **une** carte + ses attempts (distinct du `DELETE /skills/{id}`
+    qui retire toute la notion). L'UI confirme via `ConfirmDialog`.
+- **Surface Massimo** : `GET /api/student/reviews/summary` renvoie désormais **toutes** les
+  matières avec un booléen `has_cards` (matière sans carte = grisée « pas encore de cartes »,
+  emoji affiché) — cf. `docs/frontend-massimo/page-revision.md`.

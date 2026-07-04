@@ -57,7 +57,7 @@ Claude Code ne doit pas passer à l'étape suivante tant que :
 | Base PostgreSQL | ⬜ À faire | Schéma initial + migrations |
 | Auth Papa/Massimo | ⬜ À faire | Auth simple locale au début |
 | IA / RAG | ⬜ À faire | À intégrer après socle stable |
-| Mémoire espacée | ⬜ À faire | Quiz, révisions, lacunes |
+| Mémoire espacée (SRS) | ✅ Backend + UI | Moteur SRS (module `memory`) + page Massimo `/revision` (decks, toutes les matières dont grisées, bannière SRS, recto/verso color-codés) + génération des cartes depuis le cours validé (ADR-0013) + page Papa « Cartes de révision » (génération/régénération par matière avec barre %, réconciliation des orphelines, édition/suppression à la carte). Reste : ancrage RAG des cartes générées sans cours (Slice A-bis) |
 | Capsules IA | ✅ Terminé | Spec typé + moteur Remotion (Lot 1) + rendu MP4 worker-media/Piper (Lot 2) + difficulté/durée + chapitres + suivi des vues + rendu auto à la validation |
 | Référentiel de programme | ✅ Backend / 🟨 UI | Génération IA 2 passes (chapitres → leçons + notions), co-construction Papa/IA, page Programme, cours par leçon (moteur local), rattrapage skills-only (ADR-0010) + verrous cours canonique — tout en prod. Reste : maquette UI du skills-backfill à valider, ancrage RAG (Slice A-bis) |
 

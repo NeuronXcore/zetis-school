@@ -346,9 +346,13 @@ status             # scheduled/new (actives) | pending (dégradé) | suspended (
 > **Upsert clé `(student_id, skill_id, card_type)` préservant la planification** —
 > réécrire le contenu ne touche jamais `interval_days`/`ease_factor`/`due_at`. Une notion
 > que plus aucun cours validé ne couvre → carte `suspended` (hors session, planification
-> conservée, réactivable) ; jamais de suppression. Cas dégradé (sans cours validé) →
-> `pending`, filtrée serveur. Filtrage : `INACTIVE_CARD_STATUSES = {pending, suspended,
-> archived}` (module `memory`).
+> conservée, réactivable) ; **le flux de génération/réconciliation ne supprime jamais**. Cas
+> dégradé (sans cours validé) → `pending`, filtrée serveur. Filtrage :
+> `INACTIVE_CARD_STATUSES = {pending, suspended, archived}` (module `memory`).
+> **Actions manuelles Papa** (page « Cartes de révision ») : éditer le recto/verso d'une carte
+> (`PATCH /api/memory/cards/{card_id}`, planification préservée — même invariant) ; supprimer
+> une carte (`DELETE /api/memory/cards/{card_id}`) ou toutes les cartes d'une notion
+> (`DELETE /api/memory/cards/skills/{skill_id}`) — seules suppressions, explicites et confirmées.
 
 ### SpacedReviewAttempt
 

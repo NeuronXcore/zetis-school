@@ -1,7 +1,7 @@
 # Prompt Claude Code — Révision (SRS) · Slice frontend Massimo (frontend pur)
 
-> Deuxième slice du chantier Révision. **Prérequis : la slice backend
-> `spaced_memory` est livrée et ses tests verts** (endpoints
+> Deuxième slice du chantier Révision. **Prérequis : la slice backend (module
+> `memory`) est livrée et ses tests verts** (endpoints
 > `GET /api/student/reviews/summary`, `POST /api/student/reviews/session`,
 > `POST /api/student/reviews/cards/{id}/attempt`). Travaille uniquement dans
 > `apps/frontend-massimo` (+ extraction validée éventuelle vers `@zetis/ui`).
