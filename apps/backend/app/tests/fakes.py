@@ -187,6 +187,44 @@ _DEFAULT_SRS_CARDS = {
 }
 
 
+# Quiz déterministe multi-formats (ADR-0014) renvoyé quand le schéma `fmt` a la propriété
+# `questions`. UN exemplaire de chacun des sept formats du Lot 1. Chaque énoncé porte un tag
+# `[[Qn]]` : la passe d'auto-vérification (fmt `answer`) le relit dans le prompt pour renvoyer
+# une réponse baked. La question `matching` (Q7) DIVERGE volontairement de sa clé à la
+# vérification → elle doit être écartée (jamais persistée). `skill` = la Skill seedée par conftest.
+_DEFAULT_QUIZ = {
+    "questions": [
+        {"question_type": "mcq", "skill": "Nombres relatifs", "prompt": "[[Q1]] Quel est l'opposé de -2 ?",
+         "choices": ["+2", "-2", "0", "+4"], "correct_index": 0, "explanation": "L'opposé de -2 est +2."},
+        {"question_type": "mcq_multi", "skill": "Nombres relatifs", "prompt": "[[Q2]] Lesquels sont négatifs ?",
+         "choices": ["-3", "+5", "-1", "+2"], "correct_indices": [0, 2], "explanation": "-3 et -1 portent le signe -."},
+        {"question_type": "true_false", "skill": "Nombres relatifs", "prompt": "[[Q3]] -5 est plus petit que -1.",
+         "answer": True, "explanation": "Sur la droite graduée, -5 est à gauche de -1."},
+        {"question_type": "cloze", "skill": "Nombres relatifs", "prompt": "[[Q4]] Un nombre relatif a un ___ .",
+         "blanks": [["signe"]], "explanation": "Un relatif porte un signe + ou -."},
+        {"question_type": "numeric", "skill": "Nombres relatifs", "prompt": "[[Q5]] Donne une valeur approchée de pi.",
+         "value": "3.14", "tolerance": 0.01, "explanation": "pi ≈ 3,14."},
+        {"question_type": "ordering", "skill": "Nombres relatifs", "prompt": "[[Q6]] Range du plus petit au plus grand.",
+         "items": ["4", "-5", "-1"], "order": ["-5", "-1", "4"], "explanation": "-5 < -1 < 4."},
+        {"question_type": "matching", "skill": "Nombres relatifs", "prompt": "[[Q7]] Associe l'animal à sa classe.",
+         "left": ["chat", "truite"], "right": ["mammifère", "poisson"],
+         "pairs": {"chat": "mammifère", "truite": "poisson"}, "explanation": "Le chat est un mammifère."},
+    ]
+}
+
+# Réponse baked de l'auto-vérification par tag. Toutes CONCORDENT avec la clé, SAUF Q7
+# (matching) qui inverse les paires → divergence → question écartée par la passe de contrôle.
+_DEFAULT_QUIZ_SELFCHECK = {
+    "[[Q1]]": {"choice_index": 0},
+    "[[Q2]]": {"choice_indices": [0, 2]},
+    "[[Q3]]": {"value": True},
+    "[[Q4]]": {"blanks": ["signe"]},
+    "[[Q5]]": {"value": "3.14"},
+    "[[Q6]]": {"order": ["-5", "-1", "4"]},
+    "[[Q7]]": {"pairs": {"chat": "poisson", "truite": "mammifère"}},  # ← divergence volontaire
+}
+
+
 class FakeLLMProvider:
     """Provider IA déterministe pour les tests (aucun appel ollama)."""
 
@@ -199,6 +237,8 @@ class FakeLLMProvider:
         curriculum_lessons: dict | None = None,
         lesson_content: dict | None = None,
         srs_cards: dict | None = None,
+        quiz: dict | None = None,
+        quiz_selfcheck: dict | None = None,
     ) -> None:
         self._feedback = feedback
         self._score = score
@@ -207,6 +247,8 @@ class FakeLLMProvider:
         self._curriculum_lessons = curriculum_lessons
         self._lesson_content = lesson_content
         self._srs_cards = srs_cards
+        self._quiz = quiz
+        self._quiz_selfcheck = quiz_selfcheck
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         # Sortie structurée demandée (fmt) → objet déterministe selon le schéma :
@@ -225,6 +267,15 @@ class FakeLLMProvider:
         if isinstance(request.fmt, dict) and "cards" in request.fmt.get("properties", {}):
             cards = self._srs_cards or _DEFAULT_SRS_CARDS
             return LLMResponse(text=json.dumps(cards), model="fake", duration_ms=1)
+        # Quiz (ADR-0014) : génération (propriété `questions`) puis auto-vérification à
+        # l'aveugle (propriété `answer`) — repérée par tag `[[Qn]]` relu dans le prompt.
+        if isinstance(request.fmt, dict) and "questions" in request.fmt.get("properties", {}):
+            quiz = self._quiz or _DEFAULT_QUIZ
+            return LLMResponse(text=json.dumps(quiz), model="fake", duration_ms=1)
+        if isinstance(request.fmt, dict) and "answer" in request.fmt.get("properties", {}):
+            checks = self._quiz_selfcheck or _DEFAULT_QUIZ_SELFCHECK
+            answer = next((a for tag, a in checks.items() if tag in request.prompt), None)
+            return LLMResponse(text=json.dumps({"answer": answer}), model="fake", duration_ms=1)
         if request.fmt is not None:
             spec = self._capsule_spec or _DEFAULT_CAPSULE
             return LLMResponse(text=json.dumps(spec), model="fake", duration_ms=1)

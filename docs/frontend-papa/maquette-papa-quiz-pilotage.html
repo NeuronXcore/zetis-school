@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS Papa — Quiz · pilotage (maquette)</title>
+<style>
+  :root{
+    --papa:#10b981; --papa-dark:#059669; --papa-50:#ecfdf5; --papa-100:#d1fae5;
+    --bg:#f8fafc; --card:#ffffff; --border:#e2e8f0; --fg:#0f172a; --muted:#64748b;
+    --violet-bg:#ede9fe; --violet-fg:#6d28d9;
+    --ambre-bg:#fef3c7; --ambre-fg:#b45309;
+    --rouge-bg:#fee2e2; --rouge-fg:#b91c1c;
+    --bleu-bg:#dbeafe; --bleu-fg:#1d4ed8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,-apple-system,sans-serif}
+  body{background:var(--bg);color:var(--fg);font-size:14px}
+  .layout{display:flex;min-height:100vh}
+
+  /* sidebar simplifiée (repère, non fonctionnelle) */
+  .sidebar{width:200px;background:#0f172a;color:#94a3b8;padding:20px 12px;flex-shrink:0}
+  .sidebar .logo{font-weight:800;letter-spacing:.2em;color:var(--papa);font-size:15px;margin-bottom:24px;padding-left:8px}
+  .sidebar a{display:block;padding:8px 10px;border-radius:8px;color:#94a3b8;text-decoration:none;font-size:13px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(16,185,129,.15);color:var(--papa)}
+
+  main{flex:1;padding:28px 32px;max-width:1080px}
+  .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+  h1{font-size:22px;font-weight:700}
+  .subtitle{color:var(--muted);font-size:13px;margin-top:4px;max-width:560px}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .kpi .val{font-size:22px;font-weight:700}
+  .kpi .lbl{color:var(--muted);font-size:12px;margin-top:2px}
+  .kpi.health .val{color:var(--papa-dark)}
+
+  /* filtres */
+  .filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .pill{padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:13px;color:var(--muted)}
+  .pill.active{background:var(--papa);border-color:var(--papa);color:#fff;font-weight:600}
+  select{padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:13px;color:var(--fg)}
+  .search{flex:1;min-width:180px;max-width:260px;padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:13px}
+
+  /* santé auto-vérif */
+  .health-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:20px}
+  .health-card h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .health-card h3 .hint{font-weight:400;color:var(--muted);font-size:12px}
+  .health-row{display:grid;grid-template-columns:110px 1fr 90px;align-items:center;gap:12px;margin-bottom:6px;font-size:13px}
+  .health-bar{height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden}
+  .health-bar i{display:block;height:100%;background:var(--papa);border-radius:4px}
+  .health-row .pct{color:var(--muted);font-size:12px;text-align:right}
+
+  /* groupes matière */
+  .subject-group{margin-bottom:22px}
+  .subject-group>h2{font-size:14px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .subject-group>h2 .cnt{font-weight:400;color:var(--muted);font-size:12px}
+
+  .lesson-row{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .lesson-row .info{flex:1;min-width:0}
+  .lesson-title{font-weight:600;font-size:14px}
+  .lesson-meta{color:var(--muted);font-size:12px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
+  .b-ctx{background:var(--bleu-bg);color:var(--bleu-fg)}
+  .b-ok{background:var(--papa-100);color:#065f46}
+  .b-fmt{background:#f1f5f9;color:#475569;font-weight:500}
+  .b-warn{background:var(--ambre-bg);color:var(--ambre-fg)}
+  .b-off{background:var(--rouge-bg);color:var(--rouge-fg)}
+
+  .btn{border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--papa);color:#fff}
+  .btn-primary:hover{background:var(--papa-dark)}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--fg)}
+  .btn-ghost:hover{background:#f1f5f9}
+  .btn-danger-ghost{background:transparent;border:1px solid #fecaca;color:var(--rouge-fg);font-size:12px;padding:5px 10px}
+  .btn-danger-ghost:hover{background:var(--rouge-bg)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  /* génération en cours */
+  .gen-progress{flex:1;max-width:300px}
+  .gen-progress .lbl{font-size:12px;color:var(--muted);margin-bottom:4px}
+  .pbar{height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden}
+  .pbar i{display:block;height:100%;width:38%;background:linear-gradient(90deg,var(--papa),#34d399);border-radius:4px;animation:grow 42s linear forwards}
+  @keyframes grow{to{width:96%}}
+
+  .empty-note{color:var(--muted);font-size:12px;font-style:italic}
+
+  /* modale d'inspection */
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;z-index:50}
+  .overlay.open{display:flex}
+  .modal{background:var(--card);border-radius:16px;max-width:720px;width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+  .modal h2{font-size:17px;font-weight:700}
+  .modal .src{font-size:12px;color:var(--muted);margin-bottom:16px}
+  .modal .src a{color:var(--papa-dark);text-decoration:none;font-weight:600}
+  .close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)}
+
+  .q-card{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .q-card.retired{opacity:.55;background:#fafafa}
+  .q-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
+  .q-num{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em}
+  .q-prompt{font-size:14px;font-weight:600;margin-bottom:10px}
+  .choice{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;font-size:13px;margin-bottom:4px;border:1px solid transparent}
+  .choice.correct{background:var(--papa-50);border-color:var(--papa-100);color:#065f46;font-weight:600}
+  .choice .key{font-size:11px;font-weight:700;color:var(--papa-dark);margin-left:auto}
+  .q-expl{background:#f8fafc;border-left:3px solid var(--papa);border-radius:0 8px 8px 0;padding:8px 12px;font-size:12.5px;color:#475569;margin-top:8px}
+  .q-expl b{color:var(--fg)}
+  .retired-note{font-size:12px;color:var(--rouge-fg);margin-top:8px;font-weight:600}
+  .b-manual{background:var(--papa-100);color:#065f46}
+
+  /* popover de génération */
+  .gen-pop{position:relative;display:inline-block}
+  .pop{display:none;position:absolute;right:0;top:calc(100% + 8px);z-index:20;background:var(--card);
+       border:1px solid var(--border);border-radius:14px;padding:16px;width:280px;box-shadow:0 12px 40px rgba(0,0,0,.15)}
+  .pop.open{display:block}
+  .pop h4{font-size:13px;font-weight:700;margin-bottom:10px}
+  .pop .row{margin-bottom:12px}
+  .pop .row label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .seg{display:flex;gap:6px}
+  .seg button{flex:1;padding:7px 4px;border-radius:8px;border:1px solid var(--border);background:var(--card);
+              font-size:12.5px;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--papa-50);border-color:var(--papa);color:#065f46;font-weight:700}
+  .pop .foot{display:flex;gap:8px;justify-content:flex-end}
+  .pop .hint{font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.4}
+
+  /* actions par quiz + édition question */
+  .q-actions{display:flex;gap:6px;flex-shrink:0}
+  .add-quiz{background:none;border:none;color:var(--papa-dark);font-size:12.5px;font-weight:600;cursor:pointer;padding:4px 0}
+  .add-quiz:hover{text-decoration:underline}
+  .q-edit{display:none;border-top:1px dashed var(--border);margin-top:10px;padding-top:12px}
+  .q-edit.open{display:block}
+  .q-edit label{display:block;font-size:11.5px;color:var(--muted);margin:8px 0 4px}
+  .q-edit input[type=text],.q-edit textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit}
+  .q-edit .ch{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .q-edit .ch input[type=text]{flex:1}
+  .q-edit .ch input[type=radio]{accent-color:var(--papa)}
+  .q-edit .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+  .edit-note{font-size:11px;color:var(--muted);margin-top:8px;font-style:italic}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="logo">ZETIS · PAPA</div>
+    <a href="#">Dashboard</a><a href="#">Progression</a><a href="#">Lacunes</a>
+    <a href="#">Missions</a><a href="#">Diagnostics</a><a href="#">Programme</a>
+    <a href="#" class="active">Quiz</a>
+    <a href="#">Sources de cours</a><a href="#">Capsules IA</a><a href="#">Cahier de bord IA</a>
+  </nav>
+
+  <main>
+    <div class="page-header">
+      <div>
+        <h1>Quiz — pilotage</h1>
+        <p class="subtitle">Générer, inspecter et retirer les quiz de fin de cours. Un quiz se génère depuis le cours validé d'une leçon (moteur local). Massimo ne voit un quiz que s'il existe ici.</p>
+      </div>
+      <button class="btn btn-ghost" disabled title="Génération en lot — reportée (ADR-0014)">⚡ Générer les manquants (5)</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="val">12</div><div class="lbl">Quiz actifs</div></div>
+      <div class="kpi"><div class="val">84</div><div class="lbl">Questions servies</div></div>
+      <div class="kpi"><div class="val">5</div><div class="lbl">Questions retirées</div></div>
+      <div class="kpi health"><div class="val">6 %</div><div class="lbl">Écart auto-vérification (moy.)</div></div>
+    </div>
+
+    <div class="health-card">
+      <h3>🩺 Santé de la génération par matière <span class="hint">— % de questions écartées par l'auto-vérification (clé non retrouvée à l'aveugle)</span></h3>
+      <div class="health-row"><span>Français</span><div class="health-bar"><i style="width:4%"></i></div><span class="pct">4 % · 2/48 écartées</span></div>
+      <div class="health-row"><span>Mathématiques</span><div class="health-bar"><i style="width:8%;background:#f59e0b"></i></div><span class="pct">8 % · 3/36 écartées</span></div>
+      <div class="health-row"><span>Histoire-Géo</span><div class="health-bar"><i style="width:5%"></i></div><span class="pct">5 % · 1/20 écartées</span></div>
+    </div>
+
+    <div class="filters">
+      <button class="pill active">Toutes</button>
+      <button class="pill">Français</button>
+      <button class="pill">Mathématiques</button>
+      <button class="pill">Histoire-Géo</button>
+      <button class="pill">SVT</button>
+      <select><option>Contexte : tous</option><option>Fin de cours</option><option>Révision</option><option>Diagnostic</option><option>Post-capsule</option></select>
+      <input class="search" placeholder="🔎 Rechercher une leçon…">
+    </div>
+
+    <!-- FRANÇAIS -->
+    <section class="subject-group">
+      <h2>📕 Français <span class="cnt">— 3 leçons validées · 1 sans quiz</span></h2>
+
+      <div class="lesson-row">
+        <div class="info">
+          <div class="lesson-title">L'accord du participe passé</div>
+          <div class="lesson-meta">
+            <span class="badge b-ctx">Fin de cours</span>
+            <span class="badge b-ok">7 questions</span>
+            <span class="badge b-fmt">QCM</span><span class="badge b-fmt">QCM multi</span><span class="badge b-fmt">Trous</span><span class="badge b-fmt">Association</span>
+            <span class="badge b-warn">1 retirée</span>
+            <span>· généré le 04/07 · leçon <a href="#" style="color:var(--papa-dark)">Le récit au XIXᵉ › L'accord du participe passé</a></span>
+          </div>
+        </div>
+        <div class="q-actions">
+          <button class="btn btn-ghost" onclick="document.getElementById('inspect').classList.add('open')">👁 Inspecter</button>
+          <button class="btn btn-ghost" title="Régénère les questions IA depuis le cours actuel — les questions manuelles sont préservées">↻</button>
+          <button class="btn btn-ghost" title="Des tentatives existent → le quiz sera archivé (jamais effacé)" style="color:var(--rouge-fg)">🗑</button>
+        </div>
+      </div>
+      <div style="text-align:right;margin:-4px 4px 10px 0">
+        <button class="add-quiz" onclick="alert('Nouveau quiz pour cette leçon : Générer (popover volume + difficulté) ou Créer à la main (titre + questions, badge Manuel)')">+ Nouveau quiz pour cette leçon</button>
+      </div>
+
+      <div class="lesson-row">
+        <div class="info">
+          <div class="lesson-title">Le discours direct et indirect</div>
+          <div class="lesson-meta"><span class="empty-note">Génération en cours…</span></div>
+        </div>
+        <div class="gen-progress">
+          <div class="lbl">Génération + auto-vérification (~60 s)</div>
+          <div class="pbar"><i></i></div>
+        </div>
+      </div>
+
+      <div class="lesson-row">
+        <div class="info">
+          <div class="lesson-title">Les expansions du nom</div>
+          <div class="lesson-meta"><span class="empty-note">Aucun quiz — le bouton n'apparaît pas côté Massimo</span></div>
+        </div>
+        <div class="gen-pop">
+          <button class="btn btn-primary" onclick="this.nextElementSibling.classList.toggle('open')">⚡ Générer le quiz</button>
+          <div class="pop">
+            <h4>Générer le quiz</h4>
+            <p class="hint">ZETIS choisit les formats selon le cours (QCM, trous, association…). Tu pourras inspecter, éditer ou retirer des questions ensuite.</p>
+            <div class="row">
+              <label>Nombre de questions</label>
+              <div class="seg">
+                <button onclick="segPick(this)">Court · ~5</button>
+                <button class="on" onclick="segPick(this)">Normal · ~8</button>
+              </div>
+            </div>
+            <div class="row">
+              <label>Difficulté</label>
+              <div class="seg">
+                <button onclick="segPick(this)">⭐</button>
+                <button class="on" onclick="segPick(this)">⭐⭐</button>
+                <button onclick="segPick(this)">⭐⭐⭐</button>
+              </div>
+            </div>
+            <div class="foot">
+              <button class="btn btn-ghost" onclick="this.closest('.pop').classList.remove('open')">Annuler</button>
+              <button class="btn btn-primary">⚡ Générer (~60 s)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MATHS -->
+    <section class="subject-group">
+      <h2>📐 Mathématiques <span class="cnt">— 2 leçons validées · 1 sans quiz</span></h2>
+
+      <div class="lesson-row">
+        <div class="info">
+          <div class="lesson-title">Théorème de Pythagore — calcul de l'hypoténuse</div>
+          <div class="lesson-meta">
+            <span class="badge b-ctx">Fin de cours</span>
+            <span class="badge b-ok">6 questions</span>
+            <span class="badge b-fmt">QCM</span><span class="badge b-fmt">Rép. courte</span><span class="badge b-fmt">Vrai/Faux</span><span class="badge b-fmt">Ordre</span>
+            <span>· généré le 03/07</span>
+          </div>
+        </div>
+        <button class="btn btn-ghost">👁 Inspecter</button>
+        <button class="btn btn-ghost">↻</button>
+      </div>
+
+      <div class="lesson-row">
+        <div class="info">
+          <div class="lesson-title">Puissances de 10 et écriture scientifique</div>
+          <div class="lesson-meta"><span class="empty-note">Aucun quiz</span></div>
+        </div>
+        <button class="btn btn-primary">⚡ Générer le quiz</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- MODALE D'INSPECTION -->
+<div class="overlay" id="inspect">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Quiz — L'accord du participe passé</h2>
+      <button class="close" onclick="document.getElementById('inspect').classList.remove('open')">✕</button>
+    </div>
+    <div class="src">Fin de cours · 7 questions (1 retirée) · généré le 04/07 depuis la leçon
+      <a href="#">Le récit au XIXᵉ siècle › L'accord du participe passé</a> (cours validé du 02/07) · moteur local · auto-vérification : 1 question écartée à la génération</div>
+
+    <div class="q-card">
+      <div class="q-head"><span class="q-num">Q1 · <span class="badge b-fmt">QCM</span> · notion : accord avec être</span>
+        <span class="q-actions">
+          <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="this.closest('.q-card').querySelector('.q-edit').classList.toggle('open')">✏️ Éditer</button>
+          <button class="btn-danger-ghost btn">Retirer</button>
+        </span></div>
+      <div class="q-prompt">Avec l'auxiliaire <b>être</b>, le participe passé s'accorde avec…</div>
+      <div class="choice">le complément d'objet direct</div>
+      <div class="choice correct">le sujet <span class="key">✓ CLÉ</span></div>
+      <div class="choice">le verbe conjugué</div>
+      <div class="choice">rien — il est invariable</div>
+      <div class="q-expl"><b>Explication servie à Massimo :</b> Avec être, le participe suit le sujet comme un adjectif : « elles sont parti<b>es</b> ». Le COD, lui, ne compte que pour l'auxiliaire avoir.</div>
+      <div class="q-edit">
+        <label>Énoncé</label>
+        <input type="text" value="Avec l'auxiliaire être, le participe passé s'accorde avec…">
+        <label>Choix (clé = bouton radio)</label>
+        <div class="ch"><input type="radio" name="k1"><input type="text" value="le complément d'objet direct"></div>
+        <div class="ch"><input type="radio" name="k1" checked><input type="text" value="le sujet"></div>
+        <div class="ch"><input type="radio" name="k1"><input type="text" value="le verbe conjugué"></div>
+        <div class="ch"><input type="radio" name="k1"><input type="text" value="rien — il est invariable"></div>
+        <label>Explication (feedback Massimo)</label>
+        <textarea rows="2">Avec être, le participe suit le sujet comme un adjectif : « elles sont parties ». Le COD, lui, ne compte que pour l'auxiliaire avoir.</textarea>
+        <p class="edit-note">Enregistrer passe cette question en <b>Manuel</b> : elle survivra aux régénérations ↻.</p>
+        <div class="foot">
+          <button class="btn btn-ghost" onclick="this.closest('.q-edit').classList.remove('open')">Annuler</button>
+          <button class="btn btn-primary">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="q-card">
+      <div class="q-head"><span class="q-num">Q2 · <span class="badge b-fmt">QCM multi</span> · notion : accord avec avoir + COD antéposé</span>
+        <button class="btn-danger-ghost btn">Retirer</button></div>
+      <div class="q-prompt">Coche <b>toutes</b> les phrases correctement accordées :</div>
+      <div class="choice correct">Les fleurs que j'ai cueillies sentent bon. <span class="key">✓ CLÉ</span></div>
+      <div class="choice">Les fleurs que j'ai cueilli sentent bon.</div>
+      <div class="choice correct">Elle a mangé une pomme. <span class="key">✓ CLÉ</span></div>
+      <div class="q-expl"><b>Scoring :</b> tout-ou-rien · <b>feedback par case</b> dans l'explication.</div>
+    </div>
+
+    <div class="q-card">
+      <div class="q-head"><span class="q-num">Q3 · <span class="badge b-fmt">Texte à trous</span> <span class="badge b-manual">Manuel</span> · notion : COD antéposé</span>
+        <span class="q-actions">
+          <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px">✏️ Éditer</button>
+          <button class="btn-danger-ghost btn">Retirer</button>
+        </span></div>
+      <div class="q-prompt">« Les lettres que Julie a ______ (écrire) sont arrivées. »</div>
+      <div class="choice correct">écrites <span class="key">✓ CLÉ (normalisation : casse, accents)</span></div>
+      <div class="q-expl"><b>Explication :</b> « que » reprend « les lettres » (féminin pluriel), placé avant avoir → accord. <i>(Éditée par Papa le 04/07 — préservée par ↻)</i></div>
+    </div>
+
+    <div class="q-card retired">
+      <div class="q-head"><span class="q-num">Q5 · <span class="badge b-fmt">Vrai/Faux</span> <span class="badge b-off">Retirée</span></span></div>
+      <div class="q-prompt">« Le participe passé des verbes pronominaux s'accorde toujours. »</div>
+      <div class="retired-note">Retirée le 04/07 — clé ambiguë (cas des pronominaux réfléchis avec COD). N'est plus servie à Massimo ; les tentatives passées sont conservées.</div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="add-quiz">+ Ajouter une question manuelle</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" title="Remplace les questions IA depuis le cours actuel — les 1 manuelle(s) sont préservées">↻ Régénérer</button>
+        <button class="btn btn-ghost" style="color:var(--rouge-fg)" title="3 tentatives de Massimo → archivage (le quiz sort du service, l'historique reste)">🗑 Supprimer</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script>
+function segPick(btn){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+document.addEventListener('click',e=>{
+  document.querySelectorAll('.pop.open').forEach(p=>{
+    if(!p.closest('.gen-pop').contains(e.target)) p.classList.remove('open');
+  });
+});
+</script>
+</body>
+</html>

@@ -12,9 +12,14 @@ class Quiz(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     subject_id: Mapped[int] = mapped_column(ForeignKey("subjects.id"))
     chapter_id: Mapped[int | None] = mapped_column(ForeignKey("chapters.id"), nullable=True)
+    # Leçon source d'un quiz de fin de cours (ADR-0014 : 0..N quiz par leçon). Nullable :
+    # les autres contextes (diagnostic, révision) ne sont pas rattachés à une leçon.
+    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     quiz_type: Mapped[str] = mapped_column(String(30), default="mission")
+    # draft|ready|archived (String libre — pas d'enum DB). `archived` = supprimé mais
+    # conservé car il porte des tentatives (ADR-0014 Décision 3 : on n'efface pas l'histoire).
     status: Mapped[str] = mapped_column(String(20), default="draft")
     created_by: Mapped[str] = mapped_column(String(20), default="ai")
 
@@ -25,13 +30,22 @@ class QuizQuestion(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     quiz_id: Mapped[int] = mapped_column(ForeignKey("quizzes.id"))
     skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
+    # mcq|mcq_multi|true_false|cloze|numeric|ordering|matching (+ short_answer/open légaux
+    # mais non émis par le générateur — ADR-0014 Décision 4). String libre, pas d'enum DB.
     question_type: Mapped[str] = mapped_column(String(20), default="mcq")
     prompt_markdown: Mapped[str] = mapped_column(Text)
+    # PRÉSENTATION servie à l'élève (jamais la clé) : options mcq, colonnes matching, items
+    # ordering… `correct_answer_json` porte la clé, jamais renvoyée côté /api/student.
     choices_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     correct_answer_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     explanation_markdown: Mapped[str | None] = mapped_column(Text, nullable=True)
     difficulty: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # ADR-0014 Décision 3 : `source` distingue le généré de l'édité-à-la-main (préservé par
+    # la régénération) ; `status` retire une question défectueuse des tirages sans effacer
+    # les `quiz_answers` déjà collectées.
+    source: Mapped[str] = mapped_column(String(20), default="generated")  # generated|manual
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active|retired
 
 
 class QuizAttempt(Base):
