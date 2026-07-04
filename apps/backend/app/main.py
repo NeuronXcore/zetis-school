@@ -17,6 +17,7 @@ from app.modules.memory.router import parent_router as cards_parent_router
 from app.modules.memory.router import router as memory_router
 from app.modules.memory.router import student_router as reviews_student_router
 from app.modules.missions.router import router as missions_router
+from app.modules.quizzes.router import pilotage_router as quizzes_pilotage_router
 from app.modules.quizzes.router import router as quizzes_router
 from app.modules.quizzes.router import student_router as quizzes_student_router
 from app.modules.rag.router import router as rag_router
@@ -48,6 +49,7 @@ app.include_router(curriculum_router)
 app.include_router(curriculum_student_router)
 app.include_router(quizzes_router)
 app.include_router(quizzes_student_router)
+app.include_router(quizzes_pilotage_router)
 # massimo_router avant capsules_router : sa route littérale `/library` doit primer sur la
 # route paramétrée `/{capsule_id}` du router Papa (sinon "library" est capté et rejeté en 422).
 app.include_router(capsules_massimo_router)

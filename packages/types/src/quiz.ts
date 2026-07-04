@@ -1,0 +1,140 @@
+/**
+ * Contrats API du moteur de quiz (page Papa « Quiz — pilotage », ADR-0014 Lot 1).
+ * Miroir des schémas / dicts backend (`app/modules/quizzes/`). Règle CLAUDE.md n°8.
+ *
+ * Asymétrie serveur : la clé (`correct_answer_json`) et l'explication ne circulent QUE côté
+ * Papa (inspection). Massimo ne les reçoit jamais — types élève définis ailleurs si besoin.
+ */
+
+/** Les sept formats à correction déterministe du Lot 1. */
+export type QuizFormat =
+  | "mcq"
+  | "mcq_multi"
+  | "true_false"
+  | "cloze"
+  | "numeric"
+  | "ordering"
+  | "matching";
+
+// --- Overview (`GET /api/quiz-pilotage/overview`) ---
+
+export interface QuizPilotageKpis {
+  active_quizzes: number;
+  served_questions: number;
+  retired_questions: number;
+  /** Taux d'écart moyen de l'auto-vérification (null si aucune génération). */
+  avg_discard_rate: number | null;
+}
+
+export interface QuizPilotageSubject {
+  subject_id: number;
+  name: string;
+  slug: string;
+  validated_lessons: number;
+  lessons_without_quiz: number;
+  quiz_count: number;
+  discarded: number;
+  generated_total: number;
+  discard_rate: number | null;
+}
+
+export interface QuizPilotageOverview {
+  kpis: QuizPilotageKpis;
+  subjects: QuizPilotageSubject[];
+}
+
+// --- Arbre matière (`GET /api/quiz-pilotage/subjects/{id}`) ---
+
+/** Résumé d'un quiz pour l'inventaire (jamais les questions elles-mêmes). */
+export interface QuizCard {
+  quiz_id: number;
+  title: string;
+  quiz_type: string;
+  status: string; // ready | archived
+  questions_count: number;
+  retired_count: number;
+  manual_count: number;
+  formats: QuizFormat[];
+  discard_rate: number | null;
+  created_at: string | null;
+}
+
+export interface QuizPilotageLesson {
+  lesson_id: number;
+  title: string;
+  chapter_name: string | null;
+  quizzes: QuizCard[]; // vide → leçon « sans quiz » (bouton Générer)
+}
+
+export interface QuizPilotageTree {
+  subject_id: number;
+  name: string;
+  slug: string;
+  lessons: QuizPilotageLesson[];
+}
+
+// --- Génération (`POST /api/lessons/{id}/quizzes/generate`, `.../regenerate`) ---
+
+export interface QuizGenerateRequest {
+  count: 5 | 8;
+  difficulty: 1 | 2 | 3;
+}
+
+export interface QuizGenerateResult {
+  quiz_id: number;
+  lesson_id: number | null;
+  questions_generated: number;
+  questions_discarded: number;
+}
+
+// --- Inspection Papa (`GET /api/quizzes/{id}` — AVEC clés) ---
+
+export interface PapaQuizQuestion {
+  id: number;
+  question_type: string;
+  prompt_markdown: string;
+  choices_json: unknown;
+  correct_answer_json: unknown;
+  explanation_markdown: string | null;
+  skill_id: number | null;
+  skill_name: string;
+  difficulty: number | null;
+  source: string; // generated | manual
+  status: string; // active | retired
+  sort_order: number;
+}
+
+export interface PapaQuizDetail {
+  quiz_id: number;
+  title: string;
+  lesson_id: number | null;
+  subject_id: number;
+  status: string;
+  questions: PapaQuizQuestion[];
+}
+
+/** `PATCH /api/quiz-questions/{id}` — toute édition bascule la question en `manual`. */
+export interface QuestionPatch {
+  prompt_markdown?: string;
+  choices_json?: unknown;
+  correct_answer_json?: unknown;
+  explanation_markdown?: string;
+  difficulty?: number;
+}
+
+/** `POST /api/quizzes/{id}/questions` — question manuelle. */
+export interface ManualQuestionCreate {
+  question_type: string;
+  prompt_markdown: string;
+  choices_json?: unknown;
+  correct_answer_json?: unknown;
+  explanation_markdown?: string;
+  skill_id?: number;
+  difficulty?: number;
+}
+
+/** `DELETE /api/quizzes/{id}` — hard delete si aucune tentative, sinon archivage. */
+export interface QuizDeleteResult {
+  deleted: boolean;
+  archived: boolean;
+}

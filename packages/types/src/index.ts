@@ -1,5 +1,21 @@
 export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
+  type ManualQuestionCreate,
+  type PapaQuizDetail,
+  type PapaQuizQuestion,
+  type QuestionPatch,
+  type QuizCard,
+  type QuizDeleteResult,
+  type QuizFormat,
+  type QuizGenerateRequest,
+  type QuizGenerateResult,
+  type QuizPilotageKpis,
+  type QuizPilotageLesson,
+  type QuizPilotageOverview,
+  type QuizPilotageSubject,
+  type QuizPilotageTree,
+} from "./quiz";
+export {
   type ActiveSchoolYear,
   type BatchValidationResult,
   type ChapterManualCreateRequest,

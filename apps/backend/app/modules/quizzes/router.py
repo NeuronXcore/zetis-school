@@ -35,6 +35,22 @@ router = APIRouter(prefix="/api", tags=["quizzes"], dependencies=[Depends(requir
 student_router = APIRouter(
     prefix="/api/student", tags=["quizzes-student"], dependencies=[Depends(get_current_user)]
 )
+# Surface de lecture de la page « Quiz — pilotage » (overview + arbre matière), Papa only.
+pilotage_router = APIRouter(
+    prefix="/api/quiz-pilotage", tags=["quiz-pilotage"], dependencies=[Depends(require_parent)]
+)
+
+
+@pilotage_router.get("/overview")
+def pilotage_overview(db: Session = Depends(get_db)) -> dict:
+    """KPI globaux + santé de la génération par matière (taux d'écart de l'auto-vérif)."""
+    return service.pilotage_overview(db)
+
+
+@pilotage_router.get("/subjects/{subject_id}")
+def pilotage_subject_tree(subject_id: int, db: Session = Depends(get_db)) -> dict:
+    """Leçons validées d'une matière + leurs quiz (leçons sans quiz incluses)."""
+    return service.pilotage_subject_tree(db, subject_id)
 
 
 # ── Papa ──────────────────────────────────────────────────────────────────────
