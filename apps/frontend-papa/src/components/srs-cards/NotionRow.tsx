@@ -1,5 +1,10 @@
+import ReactMarkdown from "react-markdown";
 import { type SrsCardContent, type SrsNotion } from "@zetis/types";
 import { Badge, Button, Spinner } from "@zetis/ui";
+
+// Rendu markdown compact des cartes (gras + listes lisibles, pas d'astérisques bruts).
+const MD =
+  "leading-snug [&_p]:m-0 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:mt-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mt-0.5 [&_strong]:font-semibold [&_code]:rounded [&_code]:bg-black/20 [&_code]:px-1";
 
 // Ligne « notion » (présentation pure). État en chip (jamais de rouge : échec ambre, suspendu
 // ardoise, actif émeraude) + actions selon l'état. Aperçu recto/verso inline à la demande.
@@ -33,14 +38,26 @@ function CardPreview({ cards }: { cards: SrsCardContent[] | undefined }) {
   if (cards.length === 0)
     return <p className="mt-2 text-xs text-muted-foreground">Aucune carte.</p>;
   return (
-    <ul className="mt-2 flex flex-col gap-2 border-l-2 border-border pl-3">
+    <ul className="mt-2 flex flex-col gap-2.5">
       {cards.map((c) => (
-        <li key={c.id} className="text-xs">
-          <span className="mb-0.5 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        <li key={c.id} className="rounded-lg border border-border bg-card p-2.5 text-xs">
+          <span className="mb-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
             {CARD_TYPE_LABEL[c.card_type] ?? c.card_type}
           </span>
-          <p className="font-medium text-foreground">{c.front_markdown}</p>
-          <p className="text-muted-foreground">{c.back_markdown}</p>
+          {/* Recto (question) : cadre neutre, étiquette bleutée. */}
+          <div className="rounded-md border border-sky-500/25 bg-sky-500/5 p-2">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-sky-300">Recto</p>
+            <div className={`text-foreground ${MD}`}>
+              <ReactMarkdown>{c.front_markdown}</ReactMarkdown>
+            </div>
+          </div>
+          {/* Verso (réponse) : cadre émeraude, texte clair — bien plus visible qu'avant. */}
+          <div className="mt-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">Verso</p>
+            <div className={`text-emerald-50 ${MD}`}>
+              <ReactMarkdown>{c.back_markdown}</ReactMarkdown>
+            </div>
+          </div>
         </li>
       ))}
     </ul>
