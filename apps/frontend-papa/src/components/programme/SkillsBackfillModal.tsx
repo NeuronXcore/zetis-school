@@ -1,31 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { type SkillsBackfillConfirmResult, type SkillsBackfillPreview } from "@zetis/types";
-import { Button } from "@zetis/ui";
-import { confirmSkillsBackfill, generateSkillsBackfill } from "../../lib/curriculum";
-import {
-  addNotion,
-  countNotions,
-  type EditableGroup,
-  flattenNotions,
-  removeNotion,
-  setNotion,
-} from "../../lib/skillsBackfill";
+import { useEffect, useState } from "react";
+import { Badge, Button, ConfirmDialog } from "@zetis/ui";
+import { CYCLE4_LEVELS, useSkillsBackfill } from "../../hooks/useSkillsBackfill";
+import { type EditableGroup } from "../../lib/skillsBackfill";
 import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+import { EditableNotionChip } from "./EditableNotionChip";
 
 // Modale « Rattrapage skills-only » (ADR-0010), déclenchée depuis la page Programme.
-// Flux stateless en trois temps : choisir un niveau → générer la prévisualisation (passes
-// 1+2 EN MÉMOIRE, rien de persisté) → relire/ajuster les notions → confirmer l'upsert.
-// Aucun chapitre ni cours n'est créé : les « chapitres d'échafaudage » ne servent qu'à
-// regrouper les notions à l'écran. Chrome de modale du patron LessonContentModal.
-
-// Cycle 4 uniquement (le backend refuse hors cycle 4 par un 400 explicite).
-const CYCLE4_LEVELS = ["5e", "4e", "3e"] as const;
-
-/** Niveau antérieur par défaut = celui juste avant l'année active (5e pour une 4e). */
-function defaultPriorLevel(activeLevel: string): string | null {
-  const i = CYCLE4_LEVELS.indexOf(activeLevel as (typeof CYCLE4_LEVELS)[number]);
-  return i > 0 ? CYCLE4_LEVELS[i - 1] : null;
-}
+// Présentation PURE : toute la logique vit dans `useSkillsBackfill`. Flux stateless en
+// trois temps : choisir un niveau → générer la prévisualisation (passes 1+2 EN MÉMOIRE,
+// rien de persisté) → relire/ajuster les notions → confirmer l'upsert. Aucun chapitre ni
+// cours n'est créé : les « chapitres d'échafaudage » ne servent qu'à regrouper à l'écran.
+// Chrome de modale inline (patron LessonContentModal — pas de <Modal> partagé maison).
 
 export function SkillsBackfillModal({
   subjectId,
@@ -35,80 +20,52 @@ export function SkillsBackfillModal({
 }: {
   subjectId: number;
   subjectName: string;
-  /** Niveau de l'année active — marqué « année en cours », le rattrapage vise un niveau antérieur. */
+  /** Niveau de l'année active — marqué « en cours », le rattrapage vise un niveau antérieur. */
   activeLevel: string;
   onClose: () => void;
 }) {
-  const [level, setLevel] = useState<string | null>(() => defaultPriorLevel(activeLevel));
-  const [generating, setGenerating] = useState(false);
-  const [preview, setPreview] = useState<SkillsBackfillPreview | null>(null);
-  const [groups, setGroups] = useState<EditableGroup[]>([]);
-  const [confirming, setConfirming] = useState(false);
-  const [result, setResult] = useState<SkillsBackfillConfirmResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Édition inline d'une notion (renommage / ajout) : coordonnées + brouillon.
-  const [editing, setEditing] = useState<{ gi: number; ni: number } | null>(null);
-  const [draft, setDraft] = useState("");
+  const backfill = useSkillsBackfill({ subjectId, activeLevel });
+  const {
+    status,
+    level,
+    preview,
+    groups,
+    result,
+    error,
+    editing,
+    draft,
+    busy,
+    total,
+    duplicates,
+    hasUnconfirmedProposal,
+  } = backfill;
+
+  // Gardes de confirmation : fermer une proposition non confirmée / régénérer par-dessus
+  // des ajustements — tous deux perdent du travail (flux stateless), donc on avertit.
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const guardOpen = confirmClose || confirmRegen;
 
   // Progression *estimée* : ~6-9 appels LLM séquentiels (cloud), cible ~90 s.
-  const generationPct = useEstimatedProgress(generating, 90000);
-  const busy = generating || confirming;
-  const total = useMemo(() => countNotions(groups), [groups]);
+  const generationPct = useEstimatedProgress(status === "generating", 90000);
+
+  // Fermeture protégée : jamais pendant un appel ; avertir si une proposition non
+  // confirmée serait perdue ; sinon fermer directement.
+  function requestClose() {
+    if (busy) return;
+    if (hasUnconfirmedProposal) setConfirmClose(true);
+    else onClose();
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      // Un appel long est en cours (2 min de génération) : ne pas fermer par mégarde.
-      if (e.key === "Escape" && !busy) onClose();
+      // Ne pas interférer avec une garde déjà ouverte (elle gère son propre Échap).
+      if (e.key === "Escape" && !guardOpen) requestClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, busy]);
-
-  async function handleGenerate() {
-    if (level === null || generating) return;
-    setGenerating(true);
-    setError(null);
-    setEditing(null);
-    try {
-      const data = await generateSkillsBackfill(subjectId, level);
-      setPreview(data);
-      setGroups(data.groups.map((g) => ({ ...g, notions: [...g.notions] })));
-    } catch (e) {
-      // 400 (hors cycle 4) / 503 (clé absente) / 502 : detail backend verbatim.
-      setError(e instanceof Error ? e.message : "Génération impossible.");
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  async function handleConfirm() {
-    if (level === null || confirming) return;
-    setConfirming(true);
-    setError(null);
-    try {
-      const res = await confirmSkillsBackfill(subjectId, level, flattenNotions(groups));
-      setResult(res);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Confirmation impossible.");
-    } finally {
-      setConfirming(false);
-    }
-  }
-
-  function commitEdit(gi: number, ni: number) {
-    const name = draft.trim().replace(/\s+/g, " ");
-    setGroups((gs) => (name ? setNotion(gs, gi, ni, name) : removeNotion(gs, gi, ni)));
-    setEditing(null);
-  }
-
-  function startAdd(gi: number) {
-    setGroups((gs) => {
-      const next = addNotion(gs, gi, "");
-      setEditing({ gi, ni: next[gi].notions.length - 1 });
-      return next;
-    });
-    setDraft("");
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guardOpen, busy, hasUnconfirmedProposal]);
 
   const dialogClass =
     "flex max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-papa-accent/30 " +
@@ -117,7 +74,7 @@ export function SkillsBackfillModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={() => !busy && onClose()}
+      onClick={requestClose}
     >
       <div
         role="dialog"
@@ -127,7 +84,7 @@ export function SkillsBackfillModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="papa-scrollbar min-h-0 w-full overflow-y-auto p-6">
-          {/* En-tête : titre + fermeture (désactivée pendant un appel en cours). */}
+          {/* En-tête : titre + badge IA (origine générée) + fermeture (bloquée en appel). */}
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span aria-hidden>🎯</span>
@@ -140,12 +97,13 @@ export function SkillsBackfillModal({
                   </span>
                 )}
               </h2>
+              <Badge variant="violet">IA</Badge>
             </div>
             <Button
               size="sm"
               variant="ghost"
               aria-label="Fermer"
-              onClick={onClose}
+              onClick={requestClose}
               disabled={busy}
             >
               ✕
@@ -153,12 +111,14 @@ export function SkillsBackfillModal({
           </div>
 
           {error && (
-            <p className="mb-3 rounded-lg bg-rose-500/15 px-3 py-2 text-xs text-rose-300">
-              {error}
-            </p>
+            <ErrorBanner
+              detail={error}
+              onClose={requestClose}
+              onRetry={() => backfill.retry()}
+            />
           )}
 
-          {generating && (
+          {status === "generating" && (
             <div className="mb-3">
               <ProgressBar
                 pct={generationPct}
@@ -179,35 +139,91 @@ export function SkillsBackfillModal({
               groups={groups}
               failedScaffolds={preview.failed_scaffolds}
               total={total}
-              confirming={confirming}
+              duplicates={duplicates}
+              confirming={status === "confirming"}
               editing={editing}
               draft={draft}
-              setDraft={setDraft}
-              onStartEdit={(gi, ni, name) => {
-                setEditing({ gi, ni });
-                setDraft(name);
-              }}
-              onCommitEdit={commitEdit}
-              onRemove={(gi, ni) => {
-                setGroups((gs) => removeNotion(gs, gi, ni));
-                setEditing(null);
-              }}
-              onAdd={startAdd}
-              onRegenerate={() => void handleGenerate()}
-              onConfirm={() => void handleConfirm()}
-              onCancel={onClose}
+              setDraft={backfill.setDraft}
+              onStartEdit={backfill.startEdit}
+              onCommitEdit={backfill.commitEdit}
+              onRemove={backfill.remove}
+              onAdd={backfill.startAdd}
+              onRegenerate={() => setConfirmRegen(true)}
+              onConfirm={() => void backfill.confirm()}
+              onCancel={requestClose}
             />
           ) : (
             <LevelStep
               level={level}
               activeLevel={activeLevel}
-              generating={generating}
-              onPick={setLevel}
-              onGenerate={() => void handleGenerate()}
-              onCancel={onClose}
+              generating={status === "generating"}
+              onPick={backfill.setLevel}
+              onGenerate={() => void backfill.generate()}
+              onCancel={requestClose}
             />
           )}
         </div>
+      </div>
+
+      {/* Garde : fermer une proposition non confirmée. */}
+      <ConfirmDialog
+        open={confirmClose}
+        title="Fermer sans confirmer ?"
+        confirmLabel="Fermer et perdre"
+        cancelLabel="Continuer l'édition"
+        tone="danger"
+        onCancel={() => setConfirmClose(false)}
+        onConfirm={() => {
+          setConfirmClose(false);
+          onClose();
+        }}
+      >
+        La proposition n'est pas encore confirmée. Rien n'a été enregistré — fermer
+        maintenant perdra les notions générées et tes ajustements.
+      </ConfirmDialog>
+
+      {/* Garde : régénérer par-dessus des ajustements. */}
+      <ConfirmDialog
+        open={confirmRegen}
+        title="Régénérer la proposition ?"
+        confirmLabel="Régénérer"
+        cancelLabel="Annuler"
+        tone="danger"
+        onCancel={() => setConfirmRegen(false)}
+        onConfirm={() => {
+          setConfirmRegen(false);
+          void backfill.generate();
+        }}
+      >
+        Une nouvelle proposition écrasera la liste actuelle et tes ajustements.
+      </ConfirmDialog>
+    </div>
+  );
+}
+
+// --- Bandeau d'erreur : detail backend VERBATIM (style mono) + Fermer / Réessayer -----
+
+function ErrorBanner({
+  detail,
+  onClose,
+  onRetry,
+}: {
+  detail: string;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3">
+      <p className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-rose-200">
+        {detail}
+      </p>
+      <div className="mt-2 flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onClose}>
+          Fermer
+        </Button>
+        <Button size="sm" onClick={onRetry}>
+          ↻ Réessayer
+        </Button>
       </div>
     </div>
   );
@@ -286,6 +302,7 @@ function PreviewStep({
   groups,
   failedScaffolds,
   total,
+  duplicates,
   confirming,
   editing,
   draft,
@@ -301,6 +318,7 @@ function PreviewStep({
   groups: EditableGroup[];
   failedScaffolds: string[];
   total: number;
+  duplicates: Map<string, string[]>;
   confirming: boolean;
   editing: { gi: number; ni: number } | null;
   draft: string;
@@ -336,46 +354,19 @@ function PreviewStep({
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {g.notions.map((n, ni) =>
-                editing && editing.gi === gi && editing.ni === ni ? (
-                  <input
-                    key={ni}
-                    // eslint-disable-next-line jsx-a11y/no-autofocus
-                    autoFocus
-                    aria-label="Renommer la notion"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onBlur={() => onCommitEdit(gi, ni)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") onCommitEdit(gi, ni);
-                      if (e.key === "Escape") onCommitEdit(gi, ni);
-                    }}
-                    className="rounded-full border border-papa-accent bg-papa-bg px-3 py-1 text-xs text-papa-text outline-none"
-                  />
-                ) : (
-                  <span
-                    key={ni}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 py-1 pl-3 pr-1.5 text-xs text-emerald-200"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onStartEdit(gi, ni, n)}
-                      aria-label={`Renommer la notion ${n}`}
-                      className="max-w-[16rem] truncate"
-                    >
-                      {n || "(vide)"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRemove(gi, ni)}
-                      aria-label={`Retirer la notion ${n}`}
-                      className="grid h-4 w-4 place-items-center rounded-full bg-black/20 text-emerald-100 hover:bg-black/40"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ),
-              )}
+              {g.notions.map((n, ni) => (
+                <EditableNotionChip
+                  key={ni}
+                  name={n}
+                  editing={editing?.gi === gi && editing.ni === ni}
+                  draft={draft}
+                  duplicateChapters={duplicates.get(`${gi}:${ni}`)}
+                  onStartEdit={() => onStartEdit(gi, ni, n)}
+                  onSetDraft={setDraft}
+                  onCommit={() => onCommitEdit(gi, ni)}
+                  onRemove={() => onRemove(gi, ni)}
+                />
+              ))}
               <button
                 type="button"
                 onClick={() => onAdd(gi)}
@@ -395,15 +386,18 @@ function PreviewStep({
           <b className="text-papa-text">{groups.length}</b> section
           {groups.length > 1 ? "s" : ""}
         </span>
+        {/* Régénérer isolé à gauche — seule action destructive de l'écran. */}
+        <Button size="sm" variant="ghost" onClick={onRegenerate} disabled={confirming}>
+          ↻ Régénérer
+        </Button>
         <div className="ml-auto flex gap-2">
-          <Button size="sm" variant="ghost" onClick={onRegenerate} disabled={confirming}>
-            ↻ Régénérer
-          </Button>
           <Button size="sm" variant="ghost" onClick={onCancel} disabled={confirming}>
             Annuler
           </Button>
           <Button size="sm" onClick={onConfirm} disabled={total === 0 || confirming}>
-            {confirming ? "Ajout…" : "✓ Confirmer"}
+            {confirming
+              ? "Ajout…"
+              : `✓ Confirmer ${total} notion${total > 1 ? "s" : ""}`}
           </Button>
         </div>
       </div>
@@ -419,7 +413,7 @@ function ResultStep({
   level,
   onClose,
 }: {
-  result: SkillsBackfillConfirmResult;
+  result: { created: number; existing: number };
   subjectName: string;
   level: string;
   onClose: () => void;

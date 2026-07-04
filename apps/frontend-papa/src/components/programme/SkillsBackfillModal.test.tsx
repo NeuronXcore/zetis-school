@@ -87,8 +87,8 @@ describe("SkillsBackfillModal", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(screen.getByText("Fractions égales")).toBeInTheDocument();
 
-    // Confirmation : la charge utile aplatie reflète l'édition.
-    fireEvent.click(screen.getByRole("button", { name: "✓ Confirmer" }));
+    // Confirmation : le libellé reflète le compteur (3 notions après édition).
+    fireEvent.click(screen.getByRole("button", { name: "✓ Confirmer 3 notions" }));
     await waitFor(() =>
       expect(vi.mocked(confirmSkillsBackfill)).toHaveBeenCalledWith(1, "5e", [
         { scaffold_chapter: "Nombres relatifs : introduction", name: "Nombres relatifs" },
@@ -117,5 +117,66 @@ describe("SkillsBackfillModal", () => {
     ).toBeInTheDocument();
     // Pas de prévisualisation : l'étape niveau (bouton Générer) est toujours là.
     expect(screen.getByRole("button", { name: "⚡ Générer" })).toBeInTheDocument();
+    // Bandeau d'erreur : bouton Réessayer proposé, édition (ici l'étape) conservée.
+    expect(screen.getByRole("button", { name: "↻ Réessayer" })).toBeInTheDocument();
+  });
+
+  it("badge « IA » présent (origine générée signalée)", () => {
+    open();
+    expect(screen.getByText("IA")).toBeInTheDocument();
+  });
+
+  it("le libellé « Confirmer » reflète le compteur en direct", async () => {
+    vi.mocked(generateSkillsBackfill).mockResolvedValue(PREVIEW);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "⚡ Générer" }));
+    await screen.findByText("Nombres relatifs : introduction");
+    // 3 notions au départ (2 + 1).
+    expect(screen.getByRole("button", { name: "✓ Confirmer 3 notions" })).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retirer la notion Comparaison de relatifs" }),
+    );
+    expect(screen.getByRole("button", { name: "✓ Confirmer 2 notions" })).toBeInTheDocument();
+  });
+
+  it("doublon inter-groupes signalé (« aussi dans … »), pas supprimé", async () => {
+    vi.mocked(generateSkillsBackfill).mockResolvedValue({
+      ...PREVIEW,
+      groups: [
+        { scaffold_chapter: "Nombres relatifs : introduction", notions: ["Addition"] },
+        { scaffold_chapter: "Fractions", notions: ["addition"] },
+      ],
+      failed_scaffolds: [],
+    });
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "⚡ Générer" }));
+    await screen.findByText("Fractions");
+    // Les deux occurrences restent (non bloquées) et sont signalées.
+    expect(screen.getAllByText(/aussi dans/)).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "✓ Confirmer 2 notions" })).toBeInTheDocument();
+  });
+
+  it("fermer une proposition non confirmée demande confirmation avant de perdre", async () => {
+    vi.mocked(generateSkillsBackfill).mockResolvedValue(PREVIEW);
+    const onClose = vi.fn();
+    render(
+      <SkillsBackfillModal
+        subjectId={1}
+        subjectName="Mathématiques"
+        activeLevel="4e"
+        onClose={onClose}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "⚡ Générer" }));
+    await screen.findByText("Nombres relatifs : introduction");
+
+    // Tentative de fermeture → garde, onClose PAS encore appelé.
+    fireEvent.click(screen.getByRole("button", { name: "Fermer" }));
+    expect(screen.getByText("Fermer sans confirmer ?")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Confirmation de la perte → fermeture effective.
+    fireEvent.click(screen.getByRole("button", { name: "Fermer et perdre" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
