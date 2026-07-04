@@ -3,6 +3,7 @@ import json
 import wave
 
 from app.modules.ai.provider import LLMRequest, LLMResponse
+from app.modules.stt.provider import SttRequest, SttResponse
 from app.modules.tts.provider import TtsRequest, TtsResponse
 
 
@@ -33,6 +34,17 @@ class FakeTtsProvider:
             w.setframerate(self.rate)
             w.writeframes(b"\x00\x00" * int(seconds * self.rate))  # silence
         return TtsResponse(audio_wav=buf.getvalue(), duration_seconds=seconds)
+
+
+class FakeSttProvider:
+    """STT déterministe pour les tests : renvoie une transcription fixe (aucun Whisper)."""
+
+    def __init__(self, text: str = "Un nombre relatif est un nombre avec un signe.") -> None:
+        self._text = text
+
+    def transcribe(self, request: SttRequest) -> SttResponse:
+        # La durée dépend de la taille de l'audio (reproductible), sans décoder quoi que ce soit.
+        return SttResponse(text=self._text, duration_seconds=max(1.0, len(request.audio) / 32000.0))
 
 
 # CapsuleSpec déterministe valide (cf. schemas.CapsuleSpec) renvoyé pour toute demande de

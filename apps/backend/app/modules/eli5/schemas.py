@@ -49,3 +49,14 @@ class ELI5ReverseResponse(BaseModel):
     feedback: str
     missing_points: list[str]
     next_action: str
+
+
+class ELI5TranscribeResponse(BaseModel):
+    """Dictée ELI5 (ADR-0012) : audio → texte, transcrit en LOCAL (faster-whisper).
+
+    Le texte alimente le même textarea puis part en reverse-evaluate (input_mode text) :
+    « soit il écrit, soit il parle ». Aucune donnée audio durable côté serveur.
+    """
+
+    transcript: str
+    duration_seconds: float

@@ -12,6 +12,8 @@ from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.curriculum import get_curriculum_provider, service
+from app.modules.notions import service as notions_service
+from app.modules.notions.schemas import NotionRequestOut, NotionRequestPatch
 from app.modules.curriculum.schemas import (
     ActiveSchoolYearOut,
     BatchValidationResult,
@@ -23,6 +25,7 @@ from app.modules.curriculum.schemas import (
     LessonManualCreate,
     LessonPatch,
     LessonReorderRequest,
+    LessonSuggestionOut,
     SkillsBackfillConfirmRequest,
     SkillsBackfillConfirmResult,
     SkillsBackfillGenerateRequest,
@@ -334,3 +337,35 @@ def student_cours(subject_slug: str, db: Session = Depends(get_db)) -> dict:
 def student_lesson_cours(lesson_id: int, db: Session = Depends(get_db)) -> dict:
     """Cours (markdown) d'une leçon validée — 404 sinon, sans fuite des brouillons."""
     return service.student_lesson_content(db, lesson_id)
+
+
+@student_router.get("/lesson-suggestions", response_model=list[LessonSuggestionOut])
+def student_lesson_suggestions(db: Session = Depends(get_db)) -> list[dict]:
+    """Notions à explorer (chips ELI5) tirées des leçons en cours de Massimo.
+
+    Année active + leçons validées, ordre du curriculum, priorité aux non-maîtrisées.
+    Vide propre si pas d'année active / pas de leçon validée avec notions.
+    """
+    return service.lesson_suggestions(db)
+
+
+# ---------------------------------------------------------------------------
+# Demandes de notions hors-programme (ELI5 → « Dis à Papa ») — Papa uniquement.
+# L'enfant les crée via POST /api/ai/eli5/request-notion ; ici Papa les liste et les trie.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/notion-requests", response_model=list[NotionRequestOut])
+def list_notion_requests(
+    status: str | None = "pending", db: Session = Depends(get_db)
+) -> list[dict]:
+    """Demandes de notions de l'enfant (par défaut celles en attente), récentes d'abord."""
+    return notions_service.list_requests(db, status)
+
+
+@router.patch("/notion-requests/{request_id}", response_model=NotionRequestOut)
+def patch_notion_request(
+    request_id: int, body: NotionRequestPatch, db: Session = Depends(get_db)
+) -> dict:
+    """Triage : marquer une demande added (ajoutée au programme) ou dismissed (ignorée)."""
+    return notions_service.set_status(db, request_id, body.status)

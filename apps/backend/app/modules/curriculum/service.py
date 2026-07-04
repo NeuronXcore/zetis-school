@@ -35,6 +35,8 @@ from app.db.models import (
     SchoolYear,
     SchoolYearSubject,
     Skill,
+    SkillMastery,
+    StudentProfile,
     Subject,
 )
 from app.modules.ai.provider import LLMProvider, LLMRequest
@@ -1045,6 +1047,97 @@ def student_lesson_content(db: Session, lesson_id: int) -> dict:
         "summary": lesson.summary,
         "content": lesson.content_markdown,
     }
+
+
+def lesson_suggestions(db: Session, student_id: int | None = None, limit: int = 3) -> list[dict]:
+    """Notions à explorer (chips ELI5), tirées des LEÇONS EN COURS de Massimo.
+
+    « Leçon en cours » = leçons validées de l'ANNÉE ACTIVE, dans l'ordre du curriculum
+    (chapitre `sort_order` puis leçon `sort_order`). On aplatit leurs notions (dédup par
+    `skill_id`, 1ʳᵉ occurrence garde son titre de leçon) puis on PRIORISE les notions pas
+    encore maîtrisées (SkillMastery). Vide propre si pas d'année active / pas de leçon
+    validée avec notions. Lecture seule (aucune trace).
+    """
+    year = db.scalar(
+        select(SchoolYear).where(SchoolYear.status == "active").order_by(SchoolYear.id.desc())
+    )
+    if year is None:
+        return []
+    sys_ids = list(
+        db.scalars(
+            select(SchoolYearSubject.id).where(SchoolYearSubject.school_year_id == year.id)
+        )
+    )
+    if not sys_ids:
+        return []
+
+    chapters = list(
+        db.scalars(
+            select(Chapter)
+            .where(
+                Chapter.school_year_subject_id.in_(sys_ids),
+                Chapter.validation_status == "validated",
+            )
+            .order_by(Chapter.sort_order, Chapter.id)
+        )
+    )
+    if not chapters:
+        return []
+    chapter_rank = {c.id: i for i, c in enumerate(chapters)}
+
+    lessons = list(
+        db.scalars(
+            select(Lesson).where(
+                Lesson.chapter_id.in_(list(chapter_rank)), Lesson.status == "validated"
+            )
+        )
+    )
+    # Ordre curriculum : chapitre (rang) puis leçon (sort_order).
+    lessons.sort(key=lambda l: (chapter_rank.get(l.chapter_id, len(chapters)), l.sort_order, l.id))
+    if not lessons:
+        return []
+
+    lesson_ids = [l.id for l in lessons]
+    notions_by_lesson: dict[int, list[tuple[int, str]]] = {i: [] for i in lesson_ids}
+    for lid, sid, sname in db.execute(
+        select(LessonSkill.lesson_id, Skill.id, Skill.name)
+        .join(Skill, LessonSkill.skill_id == Skill.id)
+        .where(LessonSkill.lesson_id.in_(lesson_ids))
+        .order_by(Skill.id)
+    ).all():
+        notions_by_lesson[lid].append((sid, sname))
+
+    # Aplatit dans l'ordre curriculum, dédup skill_id (1ʳᵉ occurrence garde son titre).
+    ordered: list[dict] = []
+    seen: set[int] = set()
+    for lesson in lessons:
+        for sid, sname in notions_by_lesson[lesson.id]:
+            if sid in seen:
+                continue
+            seen.add(sid)
+            ordered.append(
+                {"skill_id": sid, "name": sname, "lesson_id": lesson.id, "lesson_title": lesson.title}
+            )
+    if not ordered:
+        return []
+
+    # Priorité aux notions PAS ENCORE maîtrisées (l'ordre curriculum est conservé dans chaque groupe).
+    if student_id is None:
+        first_student = db.scalar(select(StudentProfile).order_by(StudentProfile.id))
+        student_id = first_student.id if first_student else None
+    mastered: set[int] = set()
+    if student_id is not None:
+        mastered = set(
+            db.scalars(
+                select(SkillMastery.skill_id).where(
+                    SkillMastery.student_id == student_id,
+                    SkillMastery.status == "mastered",
+                )
+            )
+        )
+    unmastered = [s for s in ordered if s["skill_id"] not in mastered]
+    rest = [s for s in ordered if s["skill_id"] in mastered]
+    return (unmastered + rest)[:limit]
 
 
 def lessons_out(db: Session, lessons: list[Lesson]) -> list[dict]:
