@@ -71,6 +71,20 @@
   }
 }
 
+/* Confettis du palier haut de la révision (SessionEndPopup). Animés en dur mais
+   déclenchés uniquement hors prefers-reduced-motion (garde côté composant) puis
+   purgés après ~4 s. */
+@keyframes zetis-confetti-fall {
+  0% {
+    transform: translateY(-10%) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(560px) rotate(320deg);
+    opacity: 0;
+  }
+}
+
 html,
 body,
 #root {
