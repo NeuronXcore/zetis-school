@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     AIJob,
+    Chapter,
     Lesson,
     LessonSkill,
     Quiz,
@@ -622,8 +623,6 @@ def _validated_lesson_ids_for_subject(db: Session, subject_id: int) -> list[int]
     )
     if not sys_ids:
         return []
-    from app.db.models import Chapter  # local : évite d'alourdir l'entête
-
     chapter_ids = list(
         db.scalars(
             select(Chapter.id).where(
@@ -834,4 +833,204 @@ def complete_attempt(db: Session, student: StudentProfile, attempt_id: int) -> d
         "per_skill": per_skill_out,
         "strengths": strengths,
         "to_review": to_review,
+    }
+
+
+# ── Pilotage Papa : overview + arbre par matière (page « Quiz — pilotage ») ────
+# Surface de LECTURE dédiée (même patron que la page SRS : overview léger + arbre matière).
+
+
+def _generation_stats_by_subject(db: Session) -> dict[int, dict]:
+    """Cumule (généré, écarté) par matière depuis les traces `ai_jobs` de génération.
+
+    Le taux d'écart de l'auto-vérification est l'indicateur de santé du moteur local par
+    matière (Décision 5). On relie chaque job à sa matière via `output_json.quiz_id`."""
+    stats: dict[int, dict] = {}
+    jobs = db.scalars(
+        select(AIJob).where(AIJob.job_type == "quiz_generate").order_by(AIJob.id)
+    )
+    for job in jobs:
+        out = job.output_json or {}
+        quiz = db.get(Quiz, out.get("quiz_id")) if out.get("quiz_id") else None
+        if quiz is None:
+            continue
+        bucket = stats.setdefault(quiz.subject_id, {"generated": 0, "discarded": 0})
+        bucket["generated"] += out.get("questions_generated", 0)
+        bucket["discarded"] += out.get("questions_discarded", 0)
+    return stats
+
+
+def _subject_validated_lessons(db: Session, subject_id: int) -> list[Lesson]:
+    """Leçons validées (avec cours) de la matière dans l'année active, ordre du curriculum."""
+    year = _active_year(db)
+    if year is None:
+        return []
+    sys_row = db.scalar(
+        select(SchoolYearSubject).where(
+            SchoolYearSubject.school_year_id == year.id,
+            SchoolYearSubject.subject_id == subject_id,
+        )
+    )
+    if sys_row is None:
+        return []
+    chapters = list(
+        db.scalars(
+            select(Chapter)
+            .where(
+                Chapter.school_year_subject_id == sys_row.id,
+                Chapter.validation_status == "validated",
+            )
+            .order_by(Chapter.sort_order, Chapter.id)
+        )
+    )
+    lessons: list[Lesson] = []
+    for chapter in chapters:
+        for lesson in db.scalars(
+            select(Lesson)
+            .where(
+                Lesson.chapter_id == chapter.id,
+                Lesson.status == "validated",
+                Lesson.content_markdown.isnot(None),
+            )
+            .order_by(Lesson.sort_order, Lesson.id)
+        ):
+            lesson._chapter_name = chapter.name  # type: ignore[attr-defined]
+            lessons.append(lesson)
+    return lessons
+
+
+def _quiz_card(db: Session, quiz: Quiz) -> dict:
+    """Résumé d'un quiz pour la page pilotage : compteurs, formats, taux d'écart."""
+    active = list(
+        db.scalars(
+            select(QuizQuestion).where(
+                QuizQuestion.quiz_id == quiz.id, QuizQuestion.status == "active"
+            )
+        )
+    )
+    retired = (
+        db.scalar(
+            select(func.count())
+            .select_from(QuizQuestion)
+            .where(QuizQuestion.quiz_id == quiz.id, QuizQuestion.status == "retired")
+        )
+        or 0
+    )
+    formats: list[str] = []
+    for q in active:  # formats distincts, ordre d'apparition (stable pour l'UI)
+        if q.question_type not in formats:
+            formats.append(q.question_type)
+    return {
+        "quiz_id": quiz.id,
+        "title": quiz.title,
+        "quiz_type": quiz.quiz_type,
+        "status": quiz.status,
+        "questions_count": len(active),
+        "retired_count": retired,
+        "manual_count": sum(1 for q in active if q.source == "manual"),
+        "formats": formats,
+        "discard_rate": _discard_rate(db, quiz.id),
+        "created_at": quiz.created_at.isoformat() if quiz.created_at is not None else None,
+    }
+
+
+def pilotage_overview(db: Session) -> dict:
+    """KPI globaux + santé de la génération par matière (payload léger, jamais les questions)."""
+    subjects = list(db.scalars(select(Subject).order_by(Subject.sort_order, Subject.name)))
+    gen_stats = _generation_stats_by_subject(db)
+
+    kpi = {"active_quizzes": 0, "served_questions": 0, "retired_questions": 0}
+    out_subjects: list[dict] = []
+    total_generated = total_discarded = 0
+    for subject in subjects:
+        lessons = _subject_validated_lessons(db, subject.id)
+        if not lessons:
+            continue
+        lesson_ids = [lesson.id for lesson in lessons]
+        quizzes = list(
+            db.scalars(
+                select(Quiz).where(
+                    Quiz.lesson_id.in_(lesson_ids),
+                    Quiz.quiz_type == QUIZ_TYPE_MISSION,
+                    Quiz.status != "archived",
+                )
+            )
+        )
+        lessons_with_quiz = {q.lesson_id for q in quizzes}
+        served = retired = 0
+        for quiz in quizzes:
+            served += (
+                db.scalar(
+                    select(func.count())
+                    .select_from(QuizQuestion)
+                    .where(QuizQuestion.quiz_id == quiz.id, QuizQuestion.status == "active")
+                )
+                or 0
+            )
+            retired += (
+                db.scalar(
+                    select(func.count())
+                    .select_from(QuizQuestion)
+                    .where(QuizQuestion.quiz_id == quiz.id, QuizQuestion.status == "retired")
+                )
+                or 0
+            )
+        stats = gen_stats.get(subject.id, {"generated": 0, "discarded": 0})
+        gen, disc = stats["generated"], stats["discarded"]
+        total_generated += gen
+        total_discarded += disc
+        kpi["active_quizzes"] += len(quizzes)
+        kpi["served_questions"] += served
+        kpi["retired_questions"] += retired
+        out_subjects.append(
+            {
+                "subject_id": subject.id,
+                "name": subject.name,
+                "slug": subject.slug,
+                "validated_lessons": len(lessons),
+                "lessons_without_quiz": len(lessons) - len(lessons_with_quiz),
+                "quiz_count": len(quizzes),
+                "discarded": disc,
+                "generated_total": gen + disc,
+                "discard_rate": round(disc / (gen + disc), 3) if (gen + disc) else None,
+            }
+        )
+    kpi["avg_discard_rate"] = (
+        round(total_discarded / total_generated, 3) if total_generated else None
+    )
+    return {"kpis": kpi, "subjects": out_subjects}
+
+
+def pilotage_subject_tree(db: Session, subject_id: int) -> dict:
+    """Leçons validées de la matière + leurs quiz (leçons SANS quiz incluses → bouton Générer)."""
+    subject = db.get(Subject, subject_id)
+    if subject is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Matière introuvable.")
+    lessons = _subject_validated_lessons(db, subject_id)
+    out_lessons: list[dict] = []
+    for lesson in lessons:
+        quizzes = list(
+            db.scalars(
+                select(Quiz)
+                .where(
+                    Quiz.lesson_id == lesson.id,
+                    Quiz.quiz_type == QUIZ_TYPE_MISSION,
+                    Quiz.status != "archived",
+                )
+                .order_by(Quiz.id.desc())
+            )
+        )
+        out_lessons.append(
+            {
+                "lesson_id": lesson.id,
+                "title": lesson.title,
+                "chapter_name": getattr(lesson, "_chapter_name", None),
+                "quizzes": [_quiz_card(db, q) for q in quizzes],
+            }
+        )
+    return {
+        "subject_id": subject.id,
+        "name": subject.name,
+        "slug": subject.slug,
+        "lessons": out_lessons,
     }

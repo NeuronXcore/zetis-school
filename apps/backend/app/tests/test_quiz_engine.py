@@ -309,6 +309,47 @@ def test_scoring_weak_signal_and_revision_stub_are_pure():
 # ── Garde parent ──────────────────────────────────────────────────────────────
 
 
+# ── Pilotage Papa : overview + arbre matière ──────────────────────────────────
+
+
+def test_pilotage_overview_reports_kpis_and_per_subject_health(client_db):
+    client, TestSession = client_db
+    db = TestSession()
+    _gen(db)  # 6 générées, 1 écartée sur « mathematiques »
+
+    _as(PARENT)
+    data = client.get("/api/quiz-pilotage/overview").json()
+    assert data["kpis"]["active_quizzes"] == 1
+    assert data["kpis"]["served_questions"] == 6
+    maths = next(s for s in data["subjects"] if s["slug"] == "mathematiques")
+    assert maths["validated_lessons"] == 1 and maths["lessons_without_quiz"] == 0
+    assert maths["discarded"] == 1 and maths["generated_total"] == 7
+    assert maths["discard_rate"] == round(1 / 7, 3)  # 1 écartée / 7 tentées
+
+
+def test_pilotage_tree_includes_lessons_without_quiz(client_db):
+    client, TestSession = client_db
+    db = TestSession()
+    quiz, _, lesson_id, _ = _gen(db)
+    subject_id = db.get(m.Quiz, quiz.id).subject_id
+
+    _as(PARENT)
+    tree = client.get(f"/api/quiz-pilotage/subjects/{subject_id}").json()
+    lesson = next(l for l in tree["lessons"] if l["lesson_id"] == lesson_id)
+    assert lesson["chapter_name"] == "Nombres relatifs : opérations"
+    assert len(lesson["quizzes"]) == 1
+    card = lesson["quizzes"][0]
+    assert card["questions_count"] == 6 and card["status"] == "ready"
+    assert set(card["formats"]) == {"mcq", "mcq_multi", "true_false", "cloze", "numeric", "ordering"}
+
+
+def test_pilotage_routes_require_parent(client_db):
+    client, _ = client_db
+    _as(CHILD)
+    assert client.get("/api/quiz-pilotage/overview").status_code == 403
+    assert client.get("/api/quiz-pilotage/subjects/1").status_code == 403
+
+
 def test_papa_routes_require_parent(client_db):
     client, TestSession = client_db
     db = TestSession()
