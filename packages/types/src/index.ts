@@ -30,3 +30,13 @@ export {
   type StudentLessonContent,
   type StudentLessonRef,
 } from "./curriculum";
+export {
+  type ReviewAttemptRequest,
+  type ReviewAttemptResult,
+  type ReviewCard,
+  type ReviewDeck,
+  type ReviewRating,
+  type ReviewSessionRequest,
+  type ReviewsSummary,
+  type ReviewSubjectDue,
+} from "./reviews";

@@ -1,6 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -131,6 +141,10 @@ class SpacedReviewCard(Base):
     interval_days: Mapped[int] = mapped_column(Integer, default=1)
     ease_factor: Mapped[float] = mapped_column(Float, default=2.5)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Horodatage du dernier passage noté (DATA_MODEL.md) — inchangé lors d'une
+    # consolidation (re-tour le même jour). Réservé au dashboard Papa ; jamais servi à
+    # l'élève (la mécanique SRS est invisible).
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(15), default="new")
 
 
@@ -143,3 +157,6 @@ class SpacedReviewAttempt(Base):
     rating: Mapped[str] = mapped_column(String(10))  # again|hard|good|easy
     reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     next_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Re-tour de consolidation (2e passage d'une carte le même jour) : tracé pour la
+    # lisibilité du dashboard Papa, sans effet sur la planification. Détecté côté serveur.
+    is_consolidation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
