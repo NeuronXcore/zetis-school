@@ -62,28 +62,6 @@ services:
     restart: unless-stopped
     profiles: [render]
 
-  # Génération asynchrone des cartes SRS (ADR-0013). Profil `cards` : opt-in. Sur le réseau
-  # `default` (et pas `internal`) car il doit joindre Ollama, qui tourne HORS compose (host ou
-  # service dédié) → `OLLAMA_BASE_URL`. Sans Ollama joignable, les jobs échouent proprement
-  # sans jamais casser la validation de leçon (l'enfilement backend est best-effort).
-  worker-ai:
-    build:
-      context: .
-      dockerfile: infra/docker/worker-ai.Dockerfile
-    depends_on: [redis, postgres]
-    environment:
-      REDIS_URL: redis://redis:6379/0
-      CARDS_QUEUE: ${CARDS_QUEUE:-ai}
-      ZETIS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zetis}:${POSTGRES_PASSWORD:-zetis_dev_password}@postgres:5432/${POSTGRES_DB:-zetis}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks: [default]
-    mem_limit: 1g
-    cpus: 1.0
-    restart: unless-stopped
-    profiles: [cards]
-
 networks:
   # Réseau sans accès internet (garde-fou rendu) : les services qui y sont joints ne peuvent
   # joindre que les autres services du réseau, pas l'extérieur.

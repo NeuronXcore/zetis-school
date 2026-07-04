@@ -340,8 +340,9 @@ last_reviewed_at
 status             # scheduled/new (actives) | pending (dégradé) | suspended (orpheline) | archived
 ```
 
-> Alimentée par génération à la validation d'une leçon (ADR-0013) : le contenu
-> (recto/verso) dérive du cours canonique validé (résolveur ADR-0011), 100 % local.
+> Alimentée depuis la **page Papa « Cartes SRS »** (ADR-0013, génération par matière —
+> PAS un effet de bord de la validation) : le contenu (recto/verso) dérive du cours canonique
+> validé (résolveur ADR-0011), 100 % local.
 > **Upsert clé `(student_id, skill_id, card_type)` préservant la planification** —
 > réécrire le contenu ne touche jamais `interval_days`/`ease_factor`/`due_at`. Une notion
 > que plus aucun cours validé ne couvre → carte `suspended` (hors session, planification

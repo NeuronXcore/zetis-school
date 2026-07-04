@@ -31,7 +31,6 @@ export {
   type StudentLessonRef,
 } from "./curriculum";
 export {
-  type CardGenerationResult,
   type ReviewAttemptRequest,
   type ReviewAttemptResult,
   type ReviewCard,
@@ -41,4 +40,17 @@ export {
   type ReviewSessionRequest,
   type ReviewsSummary,
   type ReviewSubjectDue,
+  type SrsCardContent,
+  type SrsCardsOverview,
+  type SrsDeleteResult,
+  type SrsNotion,
+  type SrsNotionState,
+  type SrsOverviewSubject,
+  type SrsOverviewTotals,
+  type SrsReactivateResult,
+  type SrsSkillGenerateResult,
+  type SrsSubjectGenerateResult,
+  type SrsSubjectTree,
+  type SrsTreeChapter,
+  type SrsTreeLesson,
 } from "./reviews";

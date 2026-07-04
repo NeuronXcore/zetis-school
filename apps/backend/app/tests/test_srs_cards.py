@@ -1,22 +1,22 @@
-"""Génération et cycle de vie des cartes SRS (ADR-0013).
+"""Cartes SRS (ADR-0013) — génération page-driven Papa + réconciliation 3 branches.
 
-Test-verrou central de réconciliation (les trois branches) + cas dégradé + invariant vie
-privée + endpoint manuel Papa. Provider IA mocké (`FakeLLMProvider`).
+Test-verrou central (A/B/C + réactivation), cas dégradé, idempotence, suppression explicite,
+invariant vie privée, échec partiel, garde parent, lectures de pilotage. Provider IA mocké.
 """
 
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 import app.db.models as m
 from app.main import app
+from app.modules.ai.provider import LLMResponse
 from app.modules.auth.deps import get_current_user
-from app.modules.curriculum import service as curriculum_service
 from app.modules.eli5.service import get_default_student
 from app.modules.memory.generation import (
     _now,
-    reconcile_orphans,
-    refresh_cards_for_lesson,
+    generate_cards_for_skill,
+    reconcile_cards_for_subject,
 )
 from app.modules.memory.service import get_reviews_summary
 from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
@@ -25,15 +25,16 @@ PARENT = {"username": "papa", "role": "parent"}
 CHILD = {"username": "massimo", "role": "child"}
 
 
-def _seed_lesson(db, *, validated: bool = True, with_content: bool = True) -> tuple[int, int]:
-    """Année + matière + chapitre + leçon rattachée à la Skill « Nombres relatifs » (conftest).
+def _as(role: dict) -> None:
+    app.dependency_overrides[get_current_user] = lambda: role
 
-    Le chapitre est rattaché à une `SchoolYearSubject` (niveau résolvable) pour que
-    `update_lesson(notions=…)` fonctionne. → (lesson_id, skill_id)."""
+
+def _seed_lesson(db, *, validated: bool = True, with_content: bool = True) -> tuple[int, int]:
+    """Année ACTIVE + matière + chapitre validé + leçon rattachée à « Nombres relatifs »."""
     skill = db.scalar(select(m.Skill).where(m.Skill.name == "Nombres relatifs"))
     subject = db.get(m.Subject, skill.subject_id)
     profile = db.scalars(select(m.StudentProfile)).first()
-    year = m.SchoolYear(student_id=profile.id, label="2026-2027", level="4e")
+    year = m.SchoolYear(student_id=profile.id, label="2026-2027", level="4e", status="active")
     db.add(year)
     db.flush()
     sys_row = m.SchoolYearSubject(school_year_id=year.id, subject_id=subject.id)
@@ -56,7 +57,7 @@ def _seed_lesson(db, *, validated: bool = True, with_content: bool = True) -> tu
     return lesson.id, skill.id
 
 
-def _definition_card(db, skill_id: int) -> m.SpacedReviewCard:
+def _def_card(db, skill_id: int) -> m.SpacedReviewCard:
     return db.scalar(
         select(m.SpacedReviewCard).where(
             m.SpacedReviewCard.skill_id == skill_id,
@@ -65,127 +66,127 @@ def _definition_card(db, skill_id: int) -> m.SpacedReviewCard:
     )
 
 
-# ── Branche B : notion nouvellement couverte → carte active, due maintenant ──────
+# ── Génération unitaire d'une notion : branches A / B ─────────────────────────
 
 
-def test_branch_b_new_skill_creates_active_due_card(client_db):
+def test_generate_skill_creates_active_cards(client_db):
     _, TestSession = client_db
     db = TestSession()
-    lesson_id, skill_id = _seed_lesson(db)
-
-    result = refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
-    assert result["created"] == 2  # definition + method
-    card = _definition_card(db, skill_id)
-    assert card.status == "scheduled"
-    assert card.due_at is not None
-    assert card.interval_days == 0
-    # Servie à Massimo.
-    summary = get_reviews_summary(db, get_default_student(db))
-    assert summary["total_due"] == 2
+    _, skill_id = _seed_lesson(db)
+    r = generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+    assert r["created"] == 2  # definition + method
+    card = _def_card(db, skill_id)
+    assert card.status == "scheduled" and card.due_at is not None and card.interval_days == 0
+    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 2
 
 
-# ── Branche A : régénération → contenu réécrit, planification INTACTE ─────────────
-
-
-def test_branch_a_regeneration_preserves_schedule(client_db):
+def test_regeneration_updates_content_but_never_schedule(client_db):
     _, TestSession = client_db
     db = TestSession()
-    lesson_id, skill_id = _seed_lesson(db)
-    refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
-
-    # Simule un historique de révision durement acquis.
-    card = _definition_card(db, skill_id)
-    card_id = card.id
+    _, skill_id = _seed_lesson(db)
+    generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+    card = _def_card(db, skill_id)
+    cid = card.id
     card.due_at = _now() + timedelta(days=30)
     card.interval_days = 30
     card.ease_factor = 2.7
     db.commit()
-    kept_due, kept_interval, kept_ease = card.due_at, card.interval_days, card.ease_factor
+    kept = (card.due_at, card.interval_days, card.ease_factor)
 
-    # Papa réédite : contenu DIFFÉRENT pour la même notion.
-    new_content = FakeLLMProvider(
-        srs_cards={
-            "cards": [
-                {
-                    "card_type": "definition",
-                    "front_markdown": "RECTO réécrit ?",
-                    "back_markdown": "VERSO réécrit.",
-                }
-            ]
-        }
+    changed = FakeLLMProvider(
+        srs_cards={"cards": [{"card_type": "definition", "front_markdown": "NEW ?", "back_markdown": "NEW."}]}
     )
-    refresh_cards_for_lesson(db, new_content, FakeEmbeddingProvider(), lesson_id=lesson_id)
-
-    same = db.get(m.SpacedReviewCard, card_id)
-    assert same is not None  # ligne jamais supprimée
-    assert same.front_markdown == "RECTO réécrit ?"  # contenu mis à jour
-    assert same.due_at == kept_due  # planification SACRÉE
-    assert same.interval_days == kept_interval
-    assert same.ease_factor == kept_ease
+    generate_cards_for_skill(db, changed, FakeEmbeddingProvider(), skill_id=skill_id)
+    same = db.get(m.SpacedReviewCard, cid)
+    assert same.front_markdown == "NEW ?"  # contenu mis à jour
+    assert (same.due_at, same.interval_days, same.ease_factor) == kept  # planification SACRÉE
 
 
-# ── Branche C : orpheline → suspendue (planif conservée), puis réactivée en place ──
+def test_generate_is_idempotent(client_db):
+    _, TestSession = client_db
+    db = TestSession()
+    _, skill_id = _seed_lesson(db)
+    for _ in range(2):
+        generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+    n = db.scalar(
+        select(func.count()).select_from(m.SpacedReviewCard).where(
+            m.SpacedReviewCard.skill_id == skill_id
+        )
+    )
+    assert n == 2  # clé (student, skill, card_type) → pas de doublon
 
 
-def test_branch_c_orphan_suspends_then_reactivates_in_place(client_db):
+# ── Réconciliation par matière : branche C + réactivation ─────────────────────
+
+
+def test_reconcile_subject_generates_targets(client_db):
+    _, TestSession = client_db
+    db = TestSession()
+    _, skill_id = _seed_lesson(db)
+    subject_id = db.get(m.Skill, skill_id).subject_id
+    r = reconcile_cards_for_subject(db, FakeLLMProvider(), FakeEmbeddingProvider(), subject_id=subject_id)
+    assert r["created"] == 2 and r["failed_skills"] == []
+    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 2
+
+
+def test_reconcile_suspends_orphan_then_reactivates_in_place(client_db):
     _, TestSession = client_db
     db = TestSession()
     lesson_id, skill_id = _seed_lesson(db)
-    refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
-
-    card = _definition_card(db, skill_id)
-    card_id = card.id
+    subject_id = db.get(m.Skill, skill_id).subject_id
+    generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+    card = _def_card(db, skill_id)
     card.due_at = _now() + timedelta(days=30)
     card.interval_days = 30
     db.commit()
     kept_due = card.due_at
 
-    # La notion quitte toute couverture : la leçon source est archivée.
-    lesson = db.get(m.Lesson, lesson_id)
-    lesson.status = "archived"
+    # La notion quitte toute couverture (leçon repassée draft) → réconciliation matière.
+    db.get(m.Lesson, lesson_id).status = "draft"
     db.commit()
-
-    suspended = reconcile_orphans(db, skill_ids=[skill_id])
-    assert suspended >= 1
+    reconcile_cards_for_subject(db, FakeLLMProvider(), FakeEmbeddingProvider(), subject_id=subject_id)
     db.refresh(card)
-    assert card.status == "suspended"
-    assert card.due_at == kept_due  # planification conservée
+    assert card.status == "suspended" and card.due_at == kept_due  # planif conservée
     assert get_reviews_summary(db, get_default_student(db))["total_due"] == 0  # hors session
 
-    # Une nouvelle leçon validée re-couvre la notion → réactivation EN PLACE.
-    l2_id, _ = _seed_lesson(db)
-    refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=l2_id)
-    same = db.get(m.SpacedReviewCard, card_id)
-    assert same.id == card_id  # même ligne
-    assert same.status == "scheduled"  # réactivée
-    assert same.due_at == kept_due  # planification acquise préservée
+    # La leçon est re-validée → réactivation en place au prochain rafraîchissement matière.
+    db.get(m.Lesson, lesson_id).status = "validated"
+    db.commit()
+    reconcile_cards_for_subject(db, FakeLLMProvider(), FakeEmbeddingProvider(), subject_id=subject_id)
+    db.refresh(card)
+    assert card.status == "scheduled" and card.due_at == kept_due  # même ligne, planif intacte
 
 
-# ── Cas dégradé : génération sans cours validé → carte pending, non servie ────────
-
-
-def test_degraded_without_validated_course_is_pending(client_db):
+def test_degraded_generation_is_pending_and_unserved(client_db):
     _, TestSession = client_db
     db = TestSession()
-    # Leçon en `draft` (pas de cours validé pour la notion) → cas dégradé.
-    lesson_id, skill_id = _seed_lesson(db, validated=False)
-
-    result = refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
-    assert result["pending"] == 2
-    assert result["created"] == 0
-    card = _definition_card(db, skill_id)
-    assert card.status == "pending"
-    assert card.due_at is None
-    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 0  # non servie
+    _, skill_id = _seed_lesson(db, validated=False)  # pas de cours validé
+    r = generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+    assert r["pending"] == 2 and r["created"] == 0
+    assert _def_card(db, skill_id).status == "pending"
+    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 0
 
 
-# ── Invariant vie privée : aucune donnée de Massimo dans le prompt ────────────────
-
-
-def test_privacy_prompt_contains_no_student_data(client_db):
+def test_reconcile_reports_failed_skills(client_db):
     _, TestSession = client_db
     db = TestSession()
-    lesson_id, _ = _seed_lesson(db)
+    _, skill_id = _seed_lesson(db)
+    subject_id = db.get(m.Skill, skill_id).subject_id
+
+    class FailingLLM(FakeLLMProvider):
+        def generate(self, request):
+            if isinstance(request.fmt, dict) and "cards" in request.fmt.get("properties", {}):
+                return LLMResponse(text="pas du json", model="fake", duration_ms=1)
+            return super().generate(request)
+
+    r = reconcile_cards_for_subject(db, FailingLLM(), FakeEmbeddingProvider(), subject_id=subject_id)
+    assert r["failed_skills"] == [skill_id] and r["created"] == 0
+
+
+def test_privacy_prompt_has_no_student_data(client_db):
+    _, TestSession = client_db
+    db = TestSession()
+    _, skill_id = _seed_lesson(db)
 
     class RecordingLLM(FakeLLMProvider):
         def __init__(self):
@@ -197,102 +198,88 @@ def test_privacy_prompt_contains_no_student_data(client_db):
             return super().generate(request)
 
     llm = RecordingLLM()
-    refresh_cards_for_lesson(db, llm, FakeEmbeddingProvider(), lesson_id=lesson_id)
+    generate_cards_for_skill(db, llm, FakeEmbeddingProvider(), skill_id=skill_id)
     assert llm.seen
     for req in llm.seen:
-        blob = f"{req.system}\n{req.prompt}"
-        assert "Massimo" not in blob  # que la notion + le cours, jamais l'élève
-        assert "Un nombre relatif a un signe" in req.prompt  # ancré sur le cours validé
+        assert "Massimo" not in f"{req.system}\n{req.prompt}"
+        assert "Un nombre relatif a un signe" in req.prompt  # ancré sur le cours
 
 
-# ── Endpoint manuel Papa (secours / régénération à la demande) ───────────────────
+# ── Suppression explicite (§5, seul point de suppression) ─────────────────────
 
 
-def _as(role: dict) -> None:
-    app.dependency_overrides[get_current_user] = lambda: role
+def test_delete_removes_cards_and_history(client_db):
+    _, TestSession = client_db
+    db = TestSession()
+    _, skill_id = _seed_lesson(db)
+    generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+    card = _def_card(db, skill_id)
+    db.add(
+        m.SpacedReviewAttempt(
+            card_id=card.id, student_id=card.student_id, rating="good", reviewed_at=_now()
+        )
+    )
+    db.commit()
+
+    from app.modules.memory.generation import delete_skill_cards
+
+    out = delete_skill_cards(db, skill_id)
+    assert out["deleted"] == 2
+    assert db.scalar(
+        select(func.count()).select_from(m.SpacedReviewCard).where(
+            m.SpacedReviewCard.skill_id == skill_id
+        )
+    ) == 0
+    assert db.scalar(select(func.count()).select_from(m.SpacedReviewAttempt)) == 0
 
 
-def test_manual_endpoint_generates_and_is_parent_only(client_db):
+# ── Endpoints Papa (garde parent + lectures + actions) ────────────────────────
+
+
+def test_generate_endpoints_are_parent_only(client_db):
     client, TestSession = client_db
     db = TestSession()
-    lesson_id, _ = _seed_lesson(db)
-
-    # Enfant : la route curriculum est protégée par require_parent → 403.
+    _, skill_id = _seed_lesson(db)
+    subject_id = db.get(m.Skill, skill_id).subject_id
     _as(CHILD)
-    assert client.post(f"/api/lessons/{lesson_id}/generate-cards").status_code == 403
-
-    _as(PARENT)
-    resp = client.post(f"/api/lessons/{lesson_id}/generate-cards")
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["created"] == 2
-    assert body == {"created": 2, "updated": 0, "reactivated": 0, "pending": 0}
-
-    _as(CHILD)
-    assert client.get("/api/student/reviews/summary").json()["total_due"] == 2
+    assert client.post(f"/api/memory/cards/subjects/{subject_id}/generate").status_code == 403
+    assert client.post(f"/api/memory/cards/skills/{skill_id}/generate").status_code == 403
+    assert client.get("/api/memory/cards/overview").status_code == 403
 
 
-def test_validate_lesson_never_breaks_if_enqueue_fails(client_db, monkeypatch):
+def test_overview_tree_preview_and_actions(client_db):
     client, TestSession = client_db
     db = TestSession()
-    lesson_id, _ = _seed_lesson(db, validated=False, with_content=True)
-
-    # Enqueue qui échoue (Redis/worker down) → la validation reste un succès (robustesse §1).
-    def boom(_lesson_id: int) -> str:
-        raise RuntimeError("Redis indisponible")
-
-    monkeypatch.setattr("app.core.queue.enqueue_generate_cards", boom)
+    _, skill_id = _seed_lesson(db)
+    subject_id = db.get(m.Skill, skill_id).subject_id
     _as(PARENT)
-    resp = client.post(f"/api/lessons/{lesson_id}/validate")
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["status"] == "validated"
 
+    # Avant génération : la notion est « à générer ».
+    tree = client.get(f"/api/memory/cards/subjects/{subject_id}").json()
+    notions = [n for ch in tree["chapters"] for le in ch["lessons"] for n in le["notions"]]
+    assert any(n["skill_id"] == skill_id and n["state"] == "to_generate" for n in notions)
 
-# ── Câblage réconciliation orpheline : édition / suppression de leçon (ADR-0013 §3-C) ──
+    ov0 = client.get("/api/memory/cards/overview").json()
+    subj0 = next(s for s in ov0["subjects"] if s["subject_id"] == subject_id)
+    assert subj0["to_generate"] >= 1 and subj0["active_cards"] == 0
 
+    # Générer la matière → notion « ok », cartes actives, aperçu recto/verso disponible.
+    gen = client.post(f"/api/memory/cards/subjects/{subject_id}/generate").json()
+    assert gen["created"] == 2
+    tree2 = client.get(f"/api/memory/cards/subjects/{subject_id}").json()
+    n2 = [n for ch in tree2["chapters"] for le in ch["lessons"] for n in le["notions"] if n["skill_id"] == skill_id][0]
+    assert n2["state"] == "ok" and n2["card_count"] == 2
+    cards = client.get(f"/api/memory/cards/skills/{skill_id}/cards").json()
+    assert len(cards) == 2 and cards[0]["front_markdown"]
 
-def test_update_lesson_removing_notion_suspends_its_cards(client_db):
-    _, TestSession = client_db
-    db = TestSession()
-    lesson_id, skill_id = _seed_lesson(db)
-    refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
-    card = _definition_card(db, skill_id)
-    assert card.status == "scheduled"
+    # Suspendre (orphelinage) puis réactiver via l'endpoint.
+    db2 = TestSession()
+    for c in db2.scalars(select(m.SpacedReviewCard).where(m.SpacedReviewCard.skill_id == skill_id)):
+        c.status = "suspended"
+    db2.commit()
+    react = client.post(f"/api/memory/cards/skills/{skill_id}/reactivate").json()
+    assert react["reactivated"] == 2
 
-    # Papa retire « Nombres relatifs » de la leçon (remplacée par une autre notion).
-    curriculum_service.update_lesson(db, lesson_id, notions=["Les puissances"])
-
-    db.refresh(card)
-    assert card.status == "suspended"  # orpheline, hors session
-    assert card.due_at is not None  # planification conservée (jamais réinitialisée)
-    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 0
-
-
-def test_delete_lesson_suspends_orphaned_cards_but_keeps_rows(client_db):
-    _, TestSession = client_db
-    db = TestSession()
-    lesson_id, skill_id = _seed_lesson(db)
-    refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
-    card = _definition_card(db, skill_id)
-    card_id = card.id
-
-    curriculum_service.delete_lesson(db, lesson_id)
-
-    same = db.get(m.SpacedReviewCard, card_id)
-    assert same is not None  # la carte n'est JAMAIS supprimée
-    assert same.status == "suspended"
-    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 0
-
-
-def test_update_lesson_keeping_notion_leaves_cards_active(client_db):
-    _, TestSession = client_db
-    db = TestSession()
-    lesson_id, skill_id = _seed_lesson(db)
-    refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
-
-    # Édition qui CONSERVE la notion (ajoute juste un résumé) → aucune suspension.
-    curriculum_service.update_lesson(db, lesson_id, summary="Résumé mis à jour")
-
-    card = _definition_card(db, skill_id)
-    assert card.status == "scheduled"
-    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 2
+    # DELETE = seule suppression.
+    dele = client.request("DELETE", f"/api/memory/cards/skills/{skill_id}").json()
+    assert dele["deleted"] == 2

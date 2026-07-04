@@ -39,6 +39,21 @@ SRS_CARDS_PROMPT_V1 = (
     '"front_markdown": "...", "back_markdown": "..."}}]}}.'
 )
 
+def build_cards_prompt(
+    skill_name: str,
+    canonical_sections: str,
+    *,
+    level: str = "4e",
+    subject: str = "cette matière",
+) -> tuple[str, str]:
+    """Patron versionné `-> (system, prompt)` (comme capsule/curriculum). Le bloc de contexte
+    canonique (`build_canonical_sections`, ADR-0011) est inséré tel quel — zéro réécriture."""
+    prompt = SRS_CARDS_PROMPT_V1.format(
+        level=level, subject=subject, skill=skill_name, context_block=canonical_sections
+    )
+    return SRS_CARDS_SYSTEM, prompt
+
+
 # Sortie structurée (clé `fmt` Ollama). Volontairement SANS minItems/maxItems ni
 # minLength/maxLength (Ollama plante dessus) : borne 1-3 et validation des champs côté code.
 SRS_CARDS_SCHEMA = {

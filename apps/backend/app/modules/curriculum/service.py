@@ -897,38 +897,17 @@ def update_lesson(
             )
         lesson.content_markdown = scrubbed
         _touch_content_audit(lesson, "parent")
-    removed_skill_ids: list[int] = []
     if notions is not None:
         chapter = _chapter_or_404(db, lesson.chapter_id)
         subject, level, _ = _lesson_context(db, chapter)
-        old_skill_ids = set(
-            db.scalars(select(LessonSkill.skill_id).where(LessonSkill.lesson_id == lesson.id))
-        )
         db.execute(LessonSkill.__table__.delete().where(LessonSkill.lesson_id == lesson.id))
         skills_by_key, _ = _upsert_skills(db, subject.id, level, notions)
-        new_skills = [skills_by_key[_normalize_skill_name(n)] for n in notions]
-        _link_lesson_skills(db, lesson, new_skills)
-        db.flush()
-        removed_skill_ids = list(old_skill_ids - {s.id for s in new_skills})
+        _link_lesson_skills(
+            db, lesson, [skills_by_key[_normalize_skill_name(n)] for n in notions]
+        )
     db.commit()
     db.refresh(lesson)
-    # ADR-0013 §3-C : une notion retirée d'une leçon peut devenir orpheline (plus aucun cours
-    # validé) → ses cartes actives sont suspendues (planification conservée). No-op si la
-    # notion reste couverte par une autre leçon validée.
-    if removed_skill_ids:
-        _reconcile_srs_orphans(db, removed_skill_ids)
     return lesson
-
-
-def _reconcile_srs_orphans(db: Session, skill_ids: list[int]) -> None:
-    """Suspend les cartes SRS des notions devenues orphelines (ADR-0013 §3-C). Best-effort :
-    la réconciliation ne doit jamais casser l'édition/suppression de leçon côté Papa."""
-    try:
-        from app.modules.memory.generation import reconcile_orphans
-
-        reconcile_orphans(db, skill_ids=skill_ids)
-    except Exception:  # noqa: BLE001 — pur DB : un échec est improbable et ne bloque pas Papa.
-        db.rollback()
 
 
 def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
@@ -947,31 +926,16 @@ def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
     lesson.status = "validated" if action == "validate" else "archived"
     db.commit()
     db.refresh(lesson)
-
-    # ADR-0013 : valider une leçon (avec cours) alimente le SRS de Massimo. Génération
-    # ASYNCHRONE (worker-ai) : ne bloque pas Papa et un échec d'enfilement ne casse pas la
-    # validation (robustesse locale, cf. `validate_capsule`). Endpoint manuel = secours.
-    if action == "validate" and lesson.content_markdown:
-        try:
-            from app.core.queue import enqueue_generate_cards
-
-            enqueue_generate_cards(lesson.id)
-        except Exception:  # noqa: BLE001 — Redis absent / worker down : validation intacte.
-            pass
+    # Note (ADR-0013) : la génération des cartes SRS n'est PAS un effet de bord de la
+    # validation — elle est pilotée explicitement depuis la page Papa « Cartes SRS ».
     return lesson
 
 
 def delete_lesson(db: Session, lesson_id: int) -> None:
     lesson = _lesson_or_404(db, lesson_id)
-    skill_ids = list(
-        db.scalars(select(LessonSkill.skill_id).where(LessonSkill.lesson_id == lesson.id))
-    )
     db.execute(LessonSkill.__table__.delete().where(LessonSkill.lesson_id == lesson.id))
     db.delete(lesson)
     db.commit()
-    # Supprimer une leçon peut orpheliner ses notions (ADR-0013 §3-C) → cartes suspendues.
-    if skill_ids:
-        _reconcile_srs_orphans(db, skill_ids)
 
 
 def reorder_lessons(db: Session, chapter_id: int, lesson_ids: list[int]) -> list[Lesson]:

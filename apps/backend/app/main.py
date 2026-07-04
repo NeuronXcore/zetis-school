@@ -13,6 +13,7 @@ from app.modules.curriculum.router import student_router as curriculum_student_r
 from app.modules.diagnostics.router import router as diagnostics_router
 from app.modules.eli5.router import router as eli5_router
 from app.modules.gamification.router import router as gamification_router
+from app.modules.memory.router import parent_router as cards_parent_router
 from app.modules.memory.router import router as memory_router
 from app.modules.memory.router import student_router as reviews_student_router
 from app.modules.missions.router import router as missions_router
@@ -38,6 +39,7 @@ app.include_router(missions_router)
 app.include_router(gamification_router)
 app.include_router(memory_router)
 app.include_router(reviews_student_router)
+app.include_router(cards_parent_router)
 app.include_router(rag_router)
 app.include_router(subjects_router)
 app.include_router(curriculum_router)

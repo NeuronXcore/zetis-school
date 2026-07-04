@@ -51,15 +51,89 @@ class AttemptResult(BaseModel):
     is_consolidation: bool
 
 
-# --- Génération de cartes (endpoint manuel Papa, ADR-0013) ---
-# Les cartes héritent de la validation de leur leçon source (pas de file de relecture par
-# carte). L'endpoint manuel renvoie un simple compte-rendu de la réconciliation.
+# --- Pilotage des cartes (page Papa « Cartes SRS », ADR-0013) ---
+# Types de PILOTAGE Papa, distincts des types élève ci-dessus. Miroir de
+# `packages/types/src/reviews.ts` (section Papa).
+
+NotionState = Literal["ok", "to_generate", "failed", "suspended"]
 
 
-class CardGenerationResult(BaseModel):
-    """Compte-rendu de `refresh_cards_for_lesson` : upsert 3 branches (ADR-0013 §3)."""
+class SkillGenerateResult(BaseModel):
+    """Compte-rendu d'une génération unitaire (upsert 3 branches, ADR-0013 §3)."""
 
     created: int  # branche B — cartes créées (actives, dues maintenant)
     updated: int  # branche A — contenu réécrit, planification préservée
-    reactivated: int  # branche C inverse — carte suspendue/pending réactivée en place
+    reactivated: int  # carte suspendue/pending réactivée en place
     pending: int  # cas dégradé — générée sans cours validé (non servie)
+
+
+class SubjectGenerateResult(SkillGenerateResult):
+    """Compte-rendu d'une réconciliation par matière : + orphelines suspendues + échecs."""
+
+    subject_id: int
+    suspended: int  # branche C — notions orphelines suspendues
+    failed_skills: list[int]  # notions dont la génération a échoué (le reste a réussi)
+
+
+class OverviewSubject(BaseModel):
+    subject_id: int
+    name: str
+    active_cards: int
+    to_generate: int
+    suspended: int
+
+
+class OverviewTotals(BaseModel):
+    covered: int  # notions couvertes par une leçon validée
+    active: int
+    to_generate: int
+    suspended: int
+
+
+class CardsOverview(BaseModel):
+    subjects: list[OverviewSubject]
+    totals: OverviewTotals
+
+
+class NotionOut(BaseModel):
+    skill_id: int
+    name: str
+    state: NotionState
+    card_count: int
+
+
+class TreeLesson(BaseModel):
+    lesson_id: int
+    title: str
+    notions: list[NotionOut]
+
+
+class TreeChapter(BaseModel):
+    chapter_id: int
+    name: str
+    lessons: list[TreeLesson]
+
+
+class SubjectCardsTree(BaseModel):
+    subject_id: int
+    name: str
+    chapters: list[TreeChapter]
+    suspended: list[NotionOut]
+
+
+class CardContent(BaseModel):
+    id: int
+    card_type: str
+    front_markdown: str
+    back_markdown: str
+    status: str
+
+
+class ReactivateResult(BaseModel):
+    skill_id: int
+    reactivated: int
+
+
+class DeleteCardsResult(BaseModel):
+    skill_id: int
+    deleted: int

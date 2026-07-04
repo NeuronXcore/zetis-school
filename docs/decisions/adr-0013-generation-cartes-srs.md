@@ -2,13 +2,11 @@
 
 ## Statut
 
-Accepté — 2026-07-04 (slice backend implémentée : prompt `app/prompts/srs_cards.py` v1,
-`app/modules/memory/generation.py` — upsert 3 branches + réconciliation orpheline,
-déclencheur async sur la validation de leçon + endpoint manuel `POST
-/api/lessons/{id}/generate-cards`, filtrage serveur `pending`/`suspended`, tests offline).
-
-> Renuméroté 0012 → 0013 le 2026-07-04 pour lever la collision avec
-> `adr-0012-stt-whisper-local.md` (qui conserve le 0012).
+Proposé — 2026-07-04. **Contrat arrêté après maquette validée** (surface = page
+Papa « Cartes SRS », génération explicite par matière, aperçu recto/verso,
+réconciliation des orphelines visible) : prêt pour acceptation Papa. Les décisions
+§1–§4 et les alternatives écartées constituent le contrat que les deux slices
+(backend `memory` + page Papa) implémentent.
 
 > S'appuie sur : `adr-0011` (résolveur `resolve_canonical_context` + convention de
 > prompt à deux sections — le SRS en est un **client**, il ne réécrit rien) ;
@@ -43,20 +41,45 @@ principes déjà actés ailleurs.
 
 ## Décision
 
-### 1. Déclencheur : la validation d'une leçon, pas « d'une notion »
+### 1. Déclencheur : une page Papa « Cartes SRS », génération explicite par matière
 
-Une `Skill` n'a pas de `validation_status` (ADR-0010). Ce qui se valide, c'est la
-**leçon** (`Lesson.status: draft → validated`). Le déclencheur est donc :
+Une `Skill` n'a pas de `validation_status` (ADR-0010) ; ce qui se valide, c'est la
+**leçon** (`Lesson.status: draft → validated`). La génération part donc **des
+leçons validées** — mais elle n'est **pas** un effet de bord automatique de la
+validation. Elle est une **action Papa explicite**, depuis une **page dédiée
+« Cartes de révision »** (sidebar Papa), alignée sur le pattern déjà établi pour
+les capsules (dérivé du cours piloté par Papa, pas génération cachée).
 
-> quand une leçon passe `validated` **et** possède un `content_markdown` non nul,
-> générer/rafraîchir les cartes SRS des skills qu'elle porte (via `lesson_skills`).
+> Arbitrage tranché (2026-07-04) : **page seule**, pas d'auto-génération à la
+> validation. Cohérence de mental model — tous les dérivés du cours sont soit à la
+> demande (ELI5), soit pilotés explicitement par Papa (capsules, cartes) ; aucun
+> n'est un side-effect silencieux. Le coût assumé : une leçon validée n'a pas de
+> cartes tant que Papa n'a pas généré depuis la page — acceptable pour un usage
+> mono-parent qui curate activement, et cohérent avec le geste « je publie vers la
+> révision » des capsules.
 
-Concrètement, la génération est enfilée dans le même hook que la validation de
-leçon (`PATCH /lessons/{id}` → `validate`), de façon asynchrone : valider une
-leçon ne doit pas bloquer Papa pendant ~1 skill × quelques secondes de LLM. Un
-échec d'enfilement ne casse pas la validation (robustesse locale, pattern capsule
-`validate_capsule`). Endpoint manuel de secours : `POST
-/api/lessons/{id}/generate-cards` (Papa, régénération à la demande).
+**La page répond à une question distincte de la page Programme** : Programme
+répond à « le référentiel est-il correct ? » (structure, cours, validation) ; la
+page Cartes SRS répond à « qu'est-ce que Massimo révise, et est-ce sain ? » (état
+des cartes par notion). Séparation identique à Années scolaires ↔ Programme
+(ADR-0009 §4) : une page = une question. La page Cartes SRS **consomme** les
+leçons validées (via l'API), elle ne les édite jamais — corriger un cours se fait
+dans Programme.
+
+**Granularité de génération : par matière.** Chaque matière ayant des notions à
+générer expose un bouton « Générer les N » dans son en-tête (condition d'affichage
+`nb_à_générer > 0`, calculée par une fonction pure testée — même patron que
+« Proposer des leçons » de la page Programme). Génération séquentielle des notions
+de la matière, progression visible. Pas de bouton global tout-matières : le lot
+par matière borne la charge LLM à une unité mentale cohérente et donne un point de
+contrôle entre chaque.
+
+Endpoints (Papa, rôle parent) : `POST /api/memory/cards/generate` corps
+`{ subject_id }` (génère/rafraîchit les cartes des skills des leçons validées de
+la matière) ; `POST /api/memory/cards/skills/{skill_id}/generate` (une notion, pour
+« générer »/« relancer »/« régénérer » unitaire). Asynchrone, trace `ai_jobs` ;
+un échec sur une skill n'avorte pas les autres (liste partielle, comme la passe 2
+curriculum).
 
 Portée par élève : les cartes sont créées **pour chaque profil élève actif**
 (aujourd'hui Massimo seul ; le mécanisme ne présume pas le mono-élève, il boucle
@@ -115,24 +138,31 @@ branches. La planification de Massimo est structurellement à l'abri des
 ré-éditions de cours de Papa — réécrite, suspendue ou réactivée, mais jamais
 réinitialisée ni détruite.
 
-### 4. Validation : la carte hérite de la validation de sa leçon source
+### 4. Validation : la carte hérite de la validation de sa leçon source ; l'aperçu remplace toute file de validation
 
 Règle de sécurité absolue du projet : rien n'atteint Massimo sans validation Papa.
 Une carte est du contenu qui atteint Massimo — mais elle **n'ouvre pas une
 nouvelle file de validation**. Elle hérite du gate qui existe déjà :
 
-- La génération n'est **déclenchée que par la validation d'une leçon** (§1) : par
-  construction, une carte issue de ce flux dérive d'un cours validé par Papa. La
-  validation du cours canonique *est* la validation de la carte (cohérent avec
-  l'ADR-0011 : le cours fait foi).
+- La page ne génère **que depuis des leçons validées** (§1) : par construction,
+  une carte dérive d'un cours validé par Papa. La validation du cours canonique
+  *est* la validation de la carte (cohérent avec l'ADR-0011 : le cours fait foi).
 - `SpacedReviewCard` ne reçoit **pas** de colonne `validation_status`. Le contrôle
   d'exposition à Massimo est déjà fait en amont : la carte n'existe que parce
   qu'une leçon validée l'a engendrée.
-- Corollaire du §2 (dégradation) : si Papa force une génération manuelle sans
-  cours validé (RAG/modèle seul), les cartes produites sont marquées `status`
-  **non-actif** (ex. `pending`) et **filtrées côté serveur** de `build_session`
-  (le même filtrage serveur qui protège déjà Massimo). Elles deviennent actives
-  quand un cours validé les régénère. Ainsi le §4 tient même dans le cas dégradé :
+- **Contrôle qualité par aperçu, pas par validation carte à carte.** La page
+  expose un aperçu recto/verso de chaque notion générée (bouton « voir »). Papa
+  relit d'un coup d'œil ce que Massimo va réviser ; s'il n'aime pas, il régénère
+  (contenu réécrit, planification préservée — §3 branche A). C'est ce qui
+  **justifie l'absence de file de validation dédiée** : Papa a déjà validé le
+  cours source, l'aperçu lui suffit à contrôler le dérivé. Une file « valider
+  chaque carte » doublerait le travail pour un gain nul (cf. §Alternatives).
+- Cas dégradé fortement réduit par la page : comme la page ne propose la
+  génération que sur des leçons validées, le chemin « générer sans cours validé »
+  n'existe quasiment plus dans le flux nominal. Il subsiste comme garde-fou : si
+  une génération produit malgré tout une carte non adossée à un cours validé (skill
+  couverte uniquement par une leçon repassée `draft` entre-temps), la carte est
+  marquée `status` **non-actif** et **filtrée côté serveur** de `build_session` —
   aucune carte non adossée à un contenu validé n'atteint l'élève.
 
 ## Alternatives considérées
@@ -171,12 +201,23 @@ contenu ?
   couvrir. Réversible, non destructif, honnête vis-à-vis de Massimo. → **Retenu**
   (§3, branche C).
 
+### Déclencheur : auto à la validation vs page explicite
+
 - **À la génération de `content_markdown`** (`lesson_content`) : trop tôt — le
   contenu est encore `draft`, non relu par Papa. Générer des cartes depuis un
   cours non validé viole le §4. → Écarté.
-- **À la validation de la leçon (retenu)** : le seul moment où le cours canonique
-  existe *et* est validé. Aligne le SRS sur le gate de tous les dérivés
-  (ADR-0011). → **Retenu** (§1).
+- **Auto-génération en effet de bord de la validation de leçon** : zéro corvée
+  pour Papa (valider une leçon crée ses cartes), mais **side-effect silencieux** —
+  les échecs de génération, les cartes orphelines (§3 branche C) et les cartes du
+  cas dégradé n'ont alors **aucune surface où Papa les voit ni les relance**. Rend
+  les modes d'échec invisibles ; incohérent avec les autres dérivés (ELI5, capsule)
+  qui ne sont jamais des side-effects. → Écarté.
+- **Page « Cartes SRS » explicite, génération par matière (retenu)** : surface
+  dédiée où l'état de chaque notion est visible (à jour / à générer / échec /
+  suspendue), où Papa génère/relance/réconcilie, et où l'aperçu remplace la file de
+  validation. Aligne le SRS sur le pattern capsule (dérivé piloté par Papa). Coût :
+  le deck peut retarder sur les validations récentes tant que Papa n'a pas généré —
+  assumé (§1). → **Retenu** (§1).
 
 ### Validation : file dédiée vs héritage
 
@@ -191,8 +232,9 @@ contenu ?
 
 ### Positives
 
-- La page `/revision` se remplit enfin : valider une leçon alimente
-  automatiquement les decks de Massimo. Le circuit référentiel → cours → SRS est
+- La page `/revision` se remplit enfin : depuis la page Cartes SRS, Papa génère
+  les cartes des leçons validées et alimente les decks de Massimo. Le circuit
+  référentiel → cours → SRS est
   bouclé.
 - **Zéro migration** : `SpacedReviewCard` existe déjà avec toutes ses colonnes
   (le moteur SRS est livré). L'upsert n'exploite que l'existant.
@@ -217,7 +259,7 @@ contenu ?
 
 - **Docs** : ligne dans `DECISIONS.md` ; note sous `SpacedReviewCard` dans
   `DATA_MODEL.md` (« alimentée par génération à la validation d'une leçon,
-  ADR-0013 ; upsert `(student, skill, card_type)` préservant la planification ») ;
+  ADR-0012 ; upsert `(student, skill, card_type)` préservant la planification ») ;
   ajout de `srs_cards_generate` à la liste des `job_type` de `AIJob`.
 - **Slice backend** : prompt `app/prompts/srs_cards.py` (v1), service de
   génération (consomme `resolve_canonical_context`), hook sur la validation de
@@ -229,10 +271,18 @@ contenu ?
   ligne conservée avec sa planification, puis **réactivée** quand une leçon
   validée re-couvre la skill. Plus : cas dégradé → carte `pending` non servie ;
   invariant vie privée.
-- **Pas de slice UI dédiée** a priori : le déclenchement est un effet de bord de
-  la validation de leçon (page Programme existante). Une surface de pilotage des
-  cartes (voir/éditer/compter) est un chantier ultérieur optionnel, pas un
-  prérequis.
+- **Deux slices** (méthodo : ADR → maquette validée → prompt) :
+  - *Backend* : prompt `app/prompts/srs_cards.py` (v1), service de génération dans
+    le module `memory` (consomme `resolve_canonical_context`, upsert réconciliateur
+    à 3 branches), endpoints `POST /api/memory/cards/generate` (par matière) et
+    `.../skills/{skill_id}/generate` (unitaire), lecture d'état des cartes par
+    matière/notion pour la page, réconciliation des orphelines (suspendre /
+    réactiver / retirer). Tests offline (test-verrou 3 branches, cf. ci-dessus).
+  - *Frontend Papa* : page « Cartes de révision » (sidebar), maquette validée
+    `mockup-papa-cartes-srs.html` (2026-07-04) — thème émeraude, arbre
+    matière→chapitre→notion, KPI, génération par matière, aperçu recto/verso,
+    section suspendues actionnable. `packages/types/src/reviews.ts` étendu (types
+    de pilotage Papa, distincts des types élève déjà livrés).
 - **Ordre dans la file** : brique suivante du chantier SRS, après la page
   `/revision` (livrée). Peut précéder ou suivre la Slice A-bis (ancrage RAG) —
   indépendantes ; l'ancrage améliorera la qualité des cartes générées sans cours,

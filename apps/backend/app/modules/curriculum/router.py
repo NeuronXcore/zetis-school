@@ -8,12 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.modules.ai import get_embedder, get_provider
-from app.modules.ai.provider import EmbeddingProvider, LLMProvider
+from app.modules.ai import get_provider
+from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.curriculum import get_curriculum_provider, service
-from app.modules.memory import generation as srs_generation
-from app.modules.memory.schemas import CardGenerationResult
 from app.modules.notions import service as notions_service
 from app.modules.notions.schemas import NotionRequestOut, NotionRequestPatch
 from app.modules.curriculum.schemas import (
@@ -265,19 +263,6 @@ def reject_lesson(lesson_id: int, db: Session = Depends(get_db)) -> dict:
     """`draft` → `archived` (l'énuméré de `lessons.status` n'a pas de `rejected`)."""
     lesson = service.set_lesson_validation(db, lesson_id, "reject")
     return service.lessons_out(db, [lesson])[0]
-
-
-@router.post("/lessons/{lesson_id}/generate-cards", response_model=CardGenerationResult)
-def generate_lesson_cards(
-    lesson_id: int,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> dict:
-    """Papa : (re)génère MANUELLEMENT les cartes SRS d'une leçon (secours / régénération à la
-    demande — le flux normal est déclenché à la validation, ADR-0013 §1). Upsert préservant
-    la planification : réviser une formulation ne réinitialise jamais les intervalles."""
-    return srs_generation.refresh_cards_for_lesson(db, provider, embedder, lesson_id=lesson_id)
 
 
 @router.post("/lessons/{lesson_id}/generate-content", response_model=CurriculumLessonOut)
