@@ -17,6 +17,7 @@ XP_PER_LEVEL = 100
 # Récompenses par action (le crédit mission vit dans le module missions : +20).
 XP_ELI5_REVERSE = 10
 XP_DIAGNOSTIC = 15
+XP_QUIZ_COMPLETED = 30  # quiz de fin de cours terminé (ADR-0014)
 
 
 def award_xp(
