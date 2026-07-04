@@ -52,3 +52,26 @@ export interface ReviewAttemptResult {
   xp_awarded: number;
   is_consolidation: boolean;
 }
+
+// --- Génération de cartes (ADR-0012) ---
+// Les cartes sont générées EN LOCAL à partir du cours validé d'une leçon. Elles HÉRITENT de
+// la validation de leur leçon source (pas de file de relecture par carte) : le déclencheur
+// est la validation d'une leçon (auto) + un endpoint manuel Papa de secours/régénération.
+
+/** Type de carte généré (variété pédagogique, ADR-0012 §2). */
+export type ReviewCardType = "definition" | "method" | "example" | "error_correction";
+
+/**
+ * Compte-rendu de `POST /api/lessons/{id}/generate-cards` — upsert 3 branches (ADR-0012 §3).
+ * La régénération préserve la planification acquise (jamais de réinitialisation).
+ */
+export interface CardGenerationResult {
+  /** Branche B — cartes créées (actives, dues immédiatement). */
+  created: number;
+  /** Branche A — contenu réécrit, planification (`due_at`/intervalle) préservée. */
+  updated: number;
+  /** Carte suspendue/pending réactivée en place. */
+  reactivated: number;
+  /** Cas dégradé — générée sans cours validé, non servie tant qu'un cours ne l'adosse pas. */
+  pending: number;
+}

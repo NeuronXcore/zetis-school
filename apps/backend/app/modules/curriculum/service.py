@@ -926,6 +926,17 @@ def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
     lesson.status = "validated" if action == "validate" else "archived"
     db.commit()
     db.refresh(lesson)
+
+    # ADR-0012 : valider une leçon (avec cours) alimente le SRS de Massimo. Génération
+    # ASYNCHRONE (worker-ai) : ne bloque pas Papa et un échec d'enfilement ne casse pas la
+    # validation (robustesse locale, cf. `validate_capsule`). Endpoint manuel = secours.
+    if action == "validate" and lesson.content_markdown:
+        try:
+            from app.core.queue import enqueue_generate_cards
+
+            enqueue_generate_cards(lesson.id)
+        except Exception:  # noqa: BLE001 — Redis absent / worker down : validation intacte.
+            pass
     return lesson
 
 

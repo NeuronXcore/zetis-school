@@ -31,9 +31,11 @@ export {
   type StudentLessonRef,
 } from "./curriculum";
 export {
+  type CardGenerationResult,
   type ReviewAttemptRequest,
   type ReviewAttemptResult,
   type ReviewCard,
+  type ReviewCardType,
   type ReviewDeck,
   type ReviewRating,
   type ReviewSessionRequest,

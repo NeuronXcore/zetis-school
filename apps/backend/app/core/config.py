@@ -111,6 +111,8 @@ class Settings(BaseSettings):
     # --- File de rendu asynchrone des capsules (Lot 2) : RQ sur Redis, hors backend. ---
     redis_url: str = Field(default="redis://localhost:6379/0", validation_alias="REDIS_URL")
     render_queue: str = Field(default="media", validation_alias="RENDER_QUEUE")
+    # File de génération des cartes SRS (ADR-0012), consommée par `worker-ai`.
+    cards_queue: str = Field(default="ai", validation_alias="CARDS_QUEUE")
 
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [

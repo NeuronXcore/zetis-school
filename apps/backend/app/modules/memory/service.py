@@ -90,9 +90,12 @@ XP_REASON_CONSOLIDATION = "review_consolidation"
 RATING_INTERVALS = {"again": 1, "hard": 3, "good": 7, "easy": 14}
 VALID_RATINGS = frozenset(RATING_INTERVALS)
 
-# Une carte « active » est révisable ; on exclut les états mis de côté. Aucun n'existe
-# encore, mais le filtre exprime l'intention et protège d'une future suspension.
-INACTIVE_CARD_STATUSES = frozenset({"suspended", "archived"})
+# Une carte « active » (`scheduled`/`new`) est révisable ; on exclut les états non-servis
+# (ADR-0012) : `pending` = générée sans cours validé (cas dégradé) ; `suspended` = orpheline
+# (plus aucun cours validé ne la couvre, planification conservée) ; `archived` = réserve.
+# Le gate `due_at IS NOT NULL` (cf. `_due_conditions`) exclut déjà `pending` (due_at null) ;
+# ce filtre de statut protège aussi les cartes suspendues (qui gardent leur due_at).
+INACTIVE_CARD_STATUSES = frozenset({"pending", "suspended", "archived"})
 
 
 def _now() -> datetime:

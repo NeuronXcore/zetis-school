@@ -168,6 +168,25 @@ _DEFAULT_LESSON_CONTENT = {
 }
 
 
+# Cartes SRS déterministes (cf. prompts/srs_cards.py, ADR-0012) renvoyées quand le schéma
+# `fmt` a la propriété `cards`. Deux types distincts (definition + method) pour vérifier la
+# borne 1-3, la variété et la clé métier `(student, skill, card_type)`.
+_DEFAULT_SRS_CARDS = {
+    "cards": [
+        {
+            "card_type": "definition",
+            "front_markdown": "Qu'est-ce qu'un nombre relatif ?",
+            "back_markdown": "Un nombre avec un signe : + ou -.",
+        },
+        {
+            "card_type": "method",
+            "front_markdown": "Comment comparer deux nombres relatifs ?",
+            "back_markdown": "Sur la droite graduée, le plus à droite est le plus grand.",
+        },
+    ]
+}
+
+
 class FakeLLMProvider:
     """Provider IA déterministe pour les tests (aucun appel ollama)."""
 
@@ -179,6 +198,7 @@ class FakeLLMProvider:
         curriculum_chapters: dict | None = None,
         curriculum_lessons: dict | None = None,
         lesson_content: dict | None = None,
+        srs_cards: dict | None = None,
     ) -> None:
         self._feedback = feedback
         self._score = score
@@ -186,6 +206,7 @@ class FakeLLMProvider:
         self._curriculum_chapters = curriculum_chapters
         self._curriculum_lessons = curriculum_lessons
         self._lesson_content = lesson_content
+        self._srs_cards = srs_cards
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         # Sortie structurée demandée (fmt) → objet déterministe selon le schéma :
@@ -201,6 +222,9 @@ class FakeLLMProvider:
         if isinstance(request.fmt, dict) and "content" in request.fmt.get("properties", {}):
             content = self._lesson_content or _DEFAULT_LESSON_CONTENT
             return LLMResponse(text=json.dumps(content), model="fake", duration_ms=1)
+        if isinstance(request.fmt, dict) and "cards" in request.fmt.get("properties", {}):
+            cards = self._srs_cards or _DEFAULT_SRS_CARDS
+            return LLMResponse(text=json.dumps(cards), model="fake", duration_ms=1)
         if request.fmt is not None:
             spec = self._capsule_spec or _DEFAULT_CAPSULE
             return LLMResponse(text=json.dumps(spec), model="fake", duration_ms=1)
