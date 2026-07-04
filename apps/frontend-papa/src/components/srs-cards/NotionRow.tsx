@@ -1,6 +1,7 @@
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { type SrsCardContent, type SrsNotion } from "@zetis/types";
-import { Badge, Button, Spinner } from "@zetis/ui";
+import { type SrsCardContent, type SrsCardUpdate, type SrsNotion } from "@zetis/types";
+import { Badge, Button, ConfirmDialog, Spinner } from "@zetis/ui";
 
 // Rendu markdown compact des cartes (gras + listes lisibles, pas d'astérisques bruts).
 const MD =
@@ -33,32 +34,164 @@ function StateChip({ notion }: { notion: SrsNotion }) {
   }
 }
 
-function CardPreview({ cards }: { cards: SrsCardContent[] | undefined }) {
+const TEXTAREA =
+  "w-full resize-y rounded-md border border-border bg-background p-2 text-xs text-foreground focus:border-primary focus:outline-none";
+
+// Carte unique : lecture (markdown recto/verso) OU édition INLINE (2 zones de texte, sur place).
+// La suppression passe par un ConfirmDialog. Aucune donnée de planification n'est touchée.
+function EditableCard({
+  card,
+  onEdit,
+  onDelete,
+}: {
+  card: SrsCardContent;
+  onEdit: (body: SrsCardUpdate) => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [front, setFront] = useState(card.front_markdown);
+  const [back, setBack] = useState(card.back_markdown);
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const startEdit = () => {
+    setFront(card.front_markdown);
+    setBack(card.back_markdown);
+    setEditing(true);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await onEdit({ front_markdown: front, back_markdown: back });
+      setEditing(false);
+    } catch {
+      // erreur remontée par le hook ; on reste en édition
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await onDelete();
+      setConfirmDelete(false);
+    } catch {
+      setConfirmDelete(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <li className="rounded-lg border border-border bg-card p-2.5 text-xs">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+          {CARD_TYPE_LABEL[card.card_type] ?? card.card_type}
+        </span>
+        {!editing && (
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={startEdit}>
+              ✏️ éditer
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
+              🗑 supprimer
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="flex flex-col gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300">Recto</span>
+            <textarea
+              className={TEXTAREA}
+              rows={2}
+              value={front}
+              onChange={(e) => setFront(e.target.value)}
+              disabled={busy}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+              Verso
+            </span>
+            <textarea
+              className={TEXTAREA}
+              rows={3}
+              value={back}
+              onChange={(e) => setBack(e.target.value)}
+              disabled={busy}
+            />
+          </label>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={save} disabled={busy || (!front.trim() && !back.trim())}>
+              {busy ? "Enregistrement…" : "Enregistrer"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={busy}>
+              Annuler
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Recto (question) : cadre bleuté. */}
+          <div className="rounded-md border border-sky-500/25 bg-sky-500/5 p-2">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-sky-300">Recto</p>
+            <div className={`text-foreground ${MD}`}>
+              <ReactMarkdown>{card.front_markdown}</ReactMarkdown>
+            </div>
+          </div>
+          {/* Verso (réponse) : cadre émeraude. */}
+          <div className="mt-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+              Verso
+            </p>
+            <div className={`text-emerald-50 ${MD}`}>
+              <ReactMarkdown>{card.back_markdown}</ReactMarkdown>
+            </div>
+          </div>
+        </>
+      )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        tone="danger"
+        title="Supprimer cette carte ?"
+        confirmLabel="Supprimer"
+        busy={busy}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={remove}
+      >
+        Supprime cette carte <strong>ET</strong> son historique de révision. Action irréversible.
+      </ConfirmDialog>
+    </li>
+  );
+}
+
+function CardPreview({
+  cards,
+  onEditCard,
+  onDeleteCard,
+}: {
+  cards: SrsCardContent[] | undefined;
+  onEditCard: (cardId: number, body: SrsCardUpdate) => Promise<void>;
+  onDeleteCard: (cardId: number) => Promise<void>;
+}) {
   if (!cards) return <p className="mt-2 text-xs text-muted-foreground">Chargement de l'aperçu…</p>;
   if (cards.length === 0)
     return <p className="mt-2 text-xs text-muted-foreground">Aucune carte.</p>;
   return (
     <ul className="mt-2 flex flex-col gap-2.5">
       {cards.map((c) => (
-        <li key={c.id} className="rounded-lg border border-border bg-card p-2.5 text-xs">
-          <span className="mb-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            {CARD_TYPE_LABEL[c.card_type] ?? c.card_type}
-          </span>
-          {/* Recto (question) : cadre neutre, étiquette bleutée. */}
-          <div className="rounded-md border border-sky-500/25 bg-sky-500/5 p-2">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-sky-300">Recto</p>
-            <div className={`text-foreground ${MD}`}>
-              <ReactMarkdown>{c.front_markdown}</ReactMarkdown>
-            </div>
-          </div>
-          {/* Verso (réponse) : cadre émeraude, texte clair — bien plus visible qu'avant. */}
-          <div className="mt-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">Verso</p>
-            <div className={`text-emerald-50 ${MD}`}>
-              <ReactMarkdown>{c.back_markdown}</ReactMarkdown>
-            </div>
-          </div>
-        </li>
+        <EditableCard
+          key={c.id}
+          card={c}
+          onEdit={(body) => onEditCard(c.id, body)}
+          onDelete={() => onDeleteCard(c.id)}
+        />
       ))}
     </ul>
   );
@@ -73,6 +206,8 @@ export interface NotionRowProps {
   onTogglePreview: () => void;
   onReactivate?: () => void;
   onRemove?: () => void;
+  onEditCard: (cardId: number, body: SrsCardUpdate) => Promise<void>;
+  onDeleteCard: (cardId: number) => Promise<void>;
 }
 
 export function NotionRow({
@@ -84,6 +219,8 @@ export function NotionRow({
   onTogglePreview,
   onReactivate,
   onRemove,
+  onEditCard,
+  onDeleteCard,
 }: NotionRowProps) {
   const suspended = notion.state === "suspended";
   return (
@@ -127,7 +264,9 @@ export function NotionRow({
           Plus aucun cours validé ne couvre cette notion — la planification de Massimo est conservée.
         </p>
       )}
-      {previewOpen && !suspended && <CardPreview cards={previewCards} />}
+      {previewOpen && !suspended && (
+        <CardPreview cards={previewCards} onEditCard={onEditCard} onDeleteCard={onDeleteCard} />
+      )}
     </li>
   );
 }

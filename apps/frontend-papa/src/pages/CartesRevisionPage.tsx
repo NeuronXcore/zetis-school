@@ -95,6 +95,10 @@ export function CartesRevisionPage() {
                 onTogglePreview={(id) => cards.togglePreview(id)}
                 onReactivate={(id) => void cards.reactivate(subject.subject_id, id)}
                 onRemove={(notion) => setConfirm({ subjectId: subject.subject_id, notion })}
+                onEditCard={(skillId, cardId, body) => cards.editCard(skillId, cardId, body)}
+                onDeleteCard={(skillId, cardId) =>
+                  cards.removeCard(subject.subject_id, skillId, cardId)
+                }
               />
             ))}
           </div>

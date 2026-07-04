@@ -19,21 +19,26 @@ export interface DeckDiscProps {
   collageUrls?: string[];
   /** Repli neutre (initiale de la matière) si `imageUrl` manque. */
   fallbackInitial?: string;
+  /** Emoji de la matière — affiché quand il n'y a pas d'illustration (matières sans carte). */
+  emoji?: string;
   /** `count === 0` : deck « à jour ✓ », atténué et non cliquable. */
   atDay?: boolean;
+  /** Aucune carte encore générée : disque GRISÉ « à venir », non cliquable (jamais anxiogène). */
+  noCards?: boolean;
   /** Contient des cartes fraîchement générées jamais révisées → badge « ✨ new ». */
   isNew?: boolean;
   onClick?: () => void;
 }
 
-const RING = "conic-gradient(from 210deg, #6366f1, #22d3ee, #a855f7, #6366f1)";
-
 function DiscFace({
   imageUrl,
   collageUrls,
   fallbackInitial,
+  emoji,
   size,
-}: Pick<DeckDiscProps, "imageUrl" | "collageUrls" | "fallbackInitial"> & { size: string }) {
+}: Pick<DeckDiscProps, "imageUrl" | "collageUrls" | "fallbackInitial" | "emoji"> & {
+  size: string;
+}) {
   // Mélange : collage 2×2 des matières + 🔀 en surimpression.
   if (collageUrls && collageUrls.length > 0) {
     return (
@@ -49,7 +54,7 @@ function DiscFace({
       </div>
     );
   }
-  // Matière : illustration, ou repli neutre (initiale sur verre).
+  // Matière : illustration, sinon emoji de la matière, sinon repli neutre (initiale).
   return (
     <div
       className={`flex ${size} items-center justify-center overflow-hidden rounded-full bg-zetis-surface-2`}
@@ -61,6 +66,10 @@ function DiscFace({
           aria-hidden
           className="h-[82%] w-[82%] object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.45)]"
         />
+      ) : emoji ? (
+        <span className="text-6xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.45)]">
+          {emoji}
+        </span>
       ) : (
         <span className="text-2xl font-bold text-zetis-muted">
           {(fallbackInitial ?? "?").slice(0, 1).toUpperCase()}
@@ -78,35 +87,30 @@ export function DeckDisc({
   imageUrl,
   collageUrls,
   fallbackInitial,
+  emoji,
   atDay = false,
+  noCards = false,
   isNew = false,
   onClick,
 }: DeckDiscProps) {
   const disc = hero ? "h-28 w-28" : "h-20 w-20";
-  const face = hero ? "h-24 w-24" : "h-[4.25rem] w-[4.25rem]";
 
   const visual = (
-    <div className="relative">
-      {/* Effet pile : deux disques décalés derrière. */}
-      <div
-        aria-hidden
-        className={`absolute inset-0 ${disc} -rotate-6 rounded-full border border-white/10 bg-white/5`}
+    <div className={`relative ${noCards ? "grayscale" : ""}`}>
+      {/* Cercle simple avec l'illustration (ou l'emoji) de la matière — rien derrière. */}
+      <DiscFace
+        imageUrl={imageUrl}
+        collageUrls={collageUrls}
+        fallbackInitial={fallbackInitial}
+        emoji={emoji}
+        size={disc}
       />
-      <div
-        aria-hidden
-        className={`absolute inset-0 ${disc} rotate-6 rounded-full border border-white/10 bg-white/5`}
-      />
-      {/* Anneau conique + face. */}
-      <div className={`relative ${disc} rounded-full p-[3px]`} style={{ background: RING }}>
-        <DiscFace
-          imageUrl={imageUrl}
-          collageUrls={collageUrls}
-          fallbackInitial={fallbackInitial}
-          size={face}
-        />
-      </div>
-      {/* Badge : compteur (dû) ou « à jour ✓ » (positif). */}
-      {atDay ? (
+      {/* Badge : « à venir » (pas de carte), « à jour ✓ », ou compteur dû. */}
+      {noCards ? (
+        <span className="absolute -right-1 -top-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-slate-300">
+          à venir
+        </span>
+      ) : atDay ? (
         <span className="absolute -right-1 -top-1 rounded-full border border-emerald-400/40 bg-emerald-400/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
           à jour ✓
         </span>
@@ -116,7 +120,7 @@ export function DeckDisc({
         </span>
       )}
       {/* Fraîchement générées, jamais vues → « ✨ new » (positif, jamais anxiogène). */}
-      {isNew && !atDay && (
+      {isNew && !atDay && !noCards && (
         <span className="absolute -left-1 -top-1 rounded-full border border-emerald-300/50 bg-emerald-400/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-100 shadow">
           ✨ new
         </span>
@@ -126,15 +130,23 @@ export function DeckDisc({
 
   const label = (
     <div className="mt-3 text-center">
-      <p className="text-sm font-semibold text-slate-100">{title}</p>
-      {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+      <p className={`text-sm font-semibold ${noCards ? "text-slate-400" : "text-slate-100"}`}>
+        {title}
+      </p>
+      {noCards ? (
+        <p className="text-xs text-slate-500">pas encore de cartes</p>
+      ) : (
+        subtitle && <p className="text-xs text-slate-400">{subtitle}</p>
+      )}
     </div>
   );
 
-  // À jour : non interactif (pas de bouton), atténué mais valorisant.
-  if (atDay || !onClick) {
+  // À jour ✓ (atténué mais valorisant) ou sans carte encore (grisé) : non interactif.
+  if (atDay || noCards || !onClick) {
     return (
-      <div className={`flex flex-col items-center ${atDay ? "opacity-60" : ""}`}>
+      <div
+        className={`flex flex-col items-center ${noCards ? "opacity-50" : atDay ? "opacity-60" : ""}`}
+      >
         {visual}
         {label}
       </div>

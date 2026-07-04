@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from fastapi import HTTPException, status
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -116,25 +116,61 @@ def _due_conditions(student_id: int, now: datetime):
 def get_reviews_summary(db: Session, student: StudentProfile) -> dict:
     """Cartes dues agrégées par matière (via `skill_id` → `Skill.subject_id`).
 
+    TOUTES les matières sont renvoyées (Massimo voit l'ensemble de ses matières « par
+    défaut »), avec trois états côté client :
+    - `has_cards=True, due_count>0` : cartes à réviser (lançable) ;
+    - `has_cards=True, due_count=0` : cartes présentes mais aucune due (« à jour ✓ ») ;
+    - `has_cards=False` : aucune carte active générée → matière GRISÉE (« pas encore de
+      cartes »), non lançable (l'UI affiche alors l'emoji de la matière).
+
     Compteurs EXACTS : le « 15+ » est de la présentation (slice UI). `flash_size` = nombre
     de cartes que servirait le « Mélange éclair ».
     """
     now = _now()
-    # « Nouvelle » = carte due jamais révisée (`last_reviewed_at IS NULL`) — c.-à-d. fraîchement
-    # générée par Papa, que Massimo n'a pas encore vue. Le badge se vide dès le 1er passage.
-    new_expr = func.count(case((SpacedReviewCard.last_reviewed_at.is_(None), SpacedReviewCard.id)))
-    rows = db.execute(
-        select(Subject.slug, Subject.name, func.count(SpacedReviewCard.id), new_expr)
+    # Cartes ACTIVES (servables) par matière, indépendamment de l'échéance : on compte à part
+    # les cartes dues (à réviser) et, parmi elles, les « nouvelles » (jamais révisées → badge).
+    active_conditions = (
+        SpacedReviewCard.student_id == student.id,
+        SpacedReviewCard.due_at.is_not(None),
+        SpacedReviewCard.status.not_in(INACTIVE_CARD_STATUSES),
+    )
+    due_expr = func.count(case((SpacedReviewCard.due_at <= now, SpacedReviewCard.id)))
+    new_expr = func.count(
+        case(
+            (
+                and_(
+                    SpacedReviewCard.due_at <= now,
+                    SpacedReviewCard.last_reviewed_at.is_(None),
+                ),
+                SpacedReviewCard.id,
+            )
+        )
+    )
+    card_rows = db.execute(
+        select(Subject.id, due_expr, new_expr)
         .join(Skill, Skill.subject_id == Subject.id)
         .join(SpacedReviewCard, SpacedReviewCard.skill_id == Skill.id)
-        .where(*_due_conditions(student.id, now))
+        .where(*active_conditions)
         .group_by(Subject.id)
-        .order_by(Subject.sort_order, Subject.name)
     ).all()
-    subjects = [
-        {"slug": slug, "name": name, "due_count": due, "new_count": new}
-        for slug, name, due, new in rows
-    ]
+    with_cards = {sid: (due, new) for sid, due, new in card_rows}
+
+    rows = db.execute(
+        select(Subject.id, Subject.slug, Subject.name).order_by(Subject.sort_order, Subject.name)
+    ).all()
+    subjects = []
+    for sid, slug, name in rows:
+        due, new = with_cards.get(sid, (0, 0))
+        subjects.append(
+            {
+                "slug": slug,
+                "name": name,
+                "due_count": due,
+                "new_count": new,
+                "has_cards": sid in with_cards,
+            }
+        )
+
     total_due = sum(s["due_count"] for s in subjects)
     return {
         "subjects": subjects,

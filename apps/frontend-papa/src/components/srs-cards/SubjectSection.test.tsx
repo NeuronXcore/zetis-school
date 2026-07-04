@@ -19,6 +19,8 @@ function renderSection(overrides: Partial<SubjectSectionProps> = {}) {
     onTogglePreview: vi.fn(),
     onReactivate: vi.fn(),
     onRemove: vi.fn(),
+    onEditCard: vi.fn().mockResolvedValue(undefined),
+    onDeleteCard: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
   render(<SubjectSection {...props} />);
@@ -26,11 +28,24 @@ function renderSection(overrides: Partial<SubjectSectionProps> = {}) {
 }
 
 describe("SubjectSection", () => {
-  it("bouton « Générer les N » visible seulement si des notions sont à générer", () => {
-    const { rerender } = render(<div />);
-    rerender(<div />);
+  it("to_generate=0 avec des cartes → bouton « ↻ Régénérer » (pas « Générer les N »)", () => {
     renderSection({ subject: { subject_id: 1, name: "Français", active_cards: 5, to_generate: 0, suspended: 0 } });
-    expect(screen.queryByRole("button", { name: /Générer/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Régénérer/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Générer les/ })).not.toBeInTheDocument();
+  });
+
+  it("matière vide (0 carte, 0 à générer) → aucun bouton de génération", () => {
+    renderSection({ subject: { subject_id: 1, name: "Français", active_cards: 0, to_generate: 0, suspended: 0 } });
+    expect(screen.queryByRole("button", { name: /générer/i })).not.toBeInTheDocument();
+  });
+
+  it("« ↻ Régénérer » appelle onGenerateSubject sans toggler l'accordéon", () => {
+    const props = renderSection({
+      subject: { subject_id: 1, name: "Français", active_cards: 5, to_generate: 0, suspended: 0 },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Régénérer/ }));
+    expect(props.onGenerateSubject).toHaveBeenCalledTimes(1);
+    expect(props.onToggle).not.toHaveBeenCalled();
   });
 
   it("affiche « Générer les 3 » quand to_generate = 3", () => {
@@ -46,6 +61,19 @@ describe("SubjectSection", () => {
     // Cliquer l'en-tête (hors bouton) toggle bien.
     fireEvent.click(screen.getByRole("button", { name: /Français/ }));
     expect(props.onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("affiche la barre de progression (%) pendant la génération par matière", () => {
+    renderSection({ busySubject: true });
+    // Barre présente + pourcentage (démarre à 1 %) + bouton en état « Génération… ».
+    expect(screen.getByText(/ZETIS génère les cartes/)).toBeInTheDocument();
+    expect(screen.getByText(/%$/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Génération/ })).toBeInTheDocument();
+  });
+
+  it("pas de barre de progression hors génération", () => {
+    renderSection({ busySubject: false });
+    expect(screen.queryByText(/ZETIS génère les cartes/)).not.toBeInTheDocument();
   });
 
   it("rend la section « Suspendues » quand l'arbre en contient", () => {

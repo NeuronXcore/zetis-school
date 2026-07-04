@@ -549,7 +549,7 @@ def reactivate_skill(db: Session, skill_id: int) -> dict:
 
 
 def delete_skill_cards(db: Session, skill_id: int) -> dict:
-    """SEUL point de suppression (§5) : retire les cartes d'une notion ET leur historique."""
+    """Retire les cartes d'une notion ET leur historique (§5)."""
     card_ids = list(
         db.scalars(select(SpacedReviewCard.id).where(SpacedReviewCard.skill_id == skill_id))
     )
@@ -562,3 +562,37 @@ def delete_skill_cards(db: Session, skill_id: int) -> dict:
         db.execute(SpacedReviewCard.__table__.delete().where(SpacedReviewCard.id.in_(card_ids)))
     db.commit()
     return {"skill_id": skill_id, "deleted": len(card_ids)}
+
+
+# ── Édition / suppression à la carte (correction manuelle Papa) ──────────────
+
+
+def update_card(db: Session, card_id: int, *, front_markdown: str, back_markdown: str) -> dict:
+    """Édite le recto/verso d'UNE carte. Invariant §3 : rafraîchir le CONTENU ne touche
+    JAMAIS la planification (due_at/interval/ease) ni l'historique de révision."""
+    card = db.get(SpacedReviewCard, card_id)
+    if card is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Carte introuvable.")
+    card.front_markdown = front_markdown
+    card.back_markdown = back_markdown
+    db.commit()
+    return {
+        "id": card.id,
+        "card_type": card.card_type,
+        "front_markdown": card.front_markdown,
+        "back_markdown": card.back_markdown,
+        "status": card.status,
+    }
+
+
+def delete_card(db: Session, card_id: int) -> dict:
+    """Supprime UNE carte et son historique d'attempts (action Papa explicite, confirmée UI)."""
+    card = db.get(SpacedReviewCard, card_id)
+    if card is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Carte introuvable.")
+    db.execute(
+        SpacedReviewAttempt.__table__.delete().where(SpacedReviewAttempt.card_id == card_id)
+    )
+    db.delete(card)
+    db.commit()
+    return {"id": card_id, "deleted": 1}

@@ -19,6 +19,8 @@ export interface ReviewSubjectDue {
   due_count: number;
   /** Cartes dues jamais révisées (fraîchement générées) de cette matière — badge « nouveau ». */
   new_count: number;
+  /** `false` → aucune carte active générée : matière GRISÉE (« pas encore de cartes »), non lançable. */
+  has_cards: boolean;
 }
 
 /** `GET /api/student/reviews/summary`. */
@@ -133,6 +135,18 @@ export interface SrsCardContent {
   front_markdown: string;
   back_markdown: string;
   status: string;
+}
+
+/** `PATCH /api/memory/cards/{card_id}` — édition manuelle recto/verso (planification préservée). */
+export interface SrsCardUpdate {
+  front_markdown: string;
+  back_markdown: string;
+}
+
+/** `DELETE /api/memory/cards/{card_id}` — suppression d'une carte unique (+ historique). */
+export interface SrsCardDeleteResult {
+  id: number;
+  deleted: number;
 }
 
 export interface SrsReactivateResult {

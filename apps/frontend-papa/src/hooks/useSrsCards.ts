@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import {
   type SrsCardContent,
   type SrsCardsOverview,
+  type SrsCardUpdate,
   type SrsSubjectTree,
 } from "@zetis/types";
 import {
+  deleteCard,
   deleteSkillCards,
   fetchCardsOverview,
   fetchSkillCards,
@@ -12,6 +14,7 @@ import {
   generateSkillCards,
   generateSubjectCards,
   reactivateSkill,
+  updateCard,
 } from "../lib/srsCards";
 
 // Toute la logique de la page « Cartes de révision » vit ici (les composants restent
@@ -43,6 +46,8 @@ export interface UseSrsCards {
   togglePreview: (skillId: number) => void;
   reactivate: (subjectId: number, skillId: number) => Promise<void>;
   remove: (subjectId: number, skillId: number) => Promise<void>;
+  editCard: (skillId: number, cardId: number, body: SrsCardUpdate) => Promise<void>;
+  removeCard: (subjectId: number, skillId: number, cardId: number) => Promise<void>;
 }
 
 export function useSrsCards(): UseSrsCards {
@@ -180,6 +185,42 @@ export function useSrsCards(): UseSrsCards {
     [runSkill],
   );
 
+  // Édition d'une carte : met à jour l'aperçu en place (planification préservée côté serveur).
+  const editCard = useCallback(
+    async (skillId: number, cardId: number, body: SrsCardUpdate) => {
+      setError(null);
+      try {
+        const updated = await updateCard(cardId, body);
+        setPreviews((p) => ({
+          ...p,
+          [skillId]: (p[skillId] ?? []).map((c) => (c.id === cardId ? updated : c)),
+        }));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Édition impossible");
+        throw e; // laisse le composant garder le mode édition ouvert
+      }
+    },
+    [],
+  );
+
+  // Suppression d'une carte : retire de l'aperçu, referme si vide, puis re-fetch (compteurs/état).
+  const removeCard = useCallback(
+    async (subjectId: number, skillId: number, cardId: number) => {
+      setError(null);
+      try {
+        await deleteCard(cardId);
+        const remaining = (previews[skillId] ?? []).filter((c) => c.id !== cardId);
+        setPreviews((p) => ({ ...p, [skillId]: remaining }));
+        if (remaining.length === 0) setPreviewOpen((s) => withItem(s, skillId, false));
+        await refreshSubject(subjectId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Suppression impossible");
+        throw e;
+      }
+    },
+    [previews, refreshSubject],
+  );
+
   const togglePreview = useCallback(
     (skillId: number) => {
       setPreviewOpen((prev) => {
@@ -220,5 +261,7 @@ export function useSrsCards(): UseSrsCards {
     togglePreview,
     reactivate,
     remove,
+    editCard,
+    removeCard,
   };
 }

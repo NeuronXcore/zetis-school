@@ -16,6 +16,7 @@ class SubjectDue(BaseModel):
     name: str
     due_count: int
     new_count: int = 0  # cartes dues jamais révisées (fraîchement générées) de cette matière
+    has_cards: bool = True  # False → aucune carte active : matière grisée (« pas encore de cartes »)
 
 
 class ReviewsSummary(BaseModel):
@@ -138,4 +139,16 @@ class ReactivateResult(BaseModel):
 
 class DeleteCardsResult(BaseModel):
     skill_id: int
+    deleted: int
+
+
+class UpdateCardRequest(BaseModel):
+    """Édition manuelle d'une carte (recto/verso) — planification préservée côté service."""
+
+    front_markdown: str
+    back_markdown: str
+
+
+class DeleteCardResult(BaseModel):
+    id: int
     deleted: int

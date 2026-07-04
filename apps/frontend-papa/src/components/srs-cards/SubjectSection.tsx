@@ -1,11 +1,13 @@
 import {
   type SrsCardContent,
+  type SrsCardUpdate,
   type SrsNotion,
   type SrsOverviewSubject,
   type SrsSubjectTree,
 } from "@zetis/types";
 import { Button, Spinner } from "@zetis/ui";
 import { subjectGenerateLabel } from "../../hooks/useSrsCards";
+import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
 import { NotionRow } from "./NotionRow";
 
 // Section « matière » (présentation pure) : accordéon + bouton « Générer les N » (visible
@@ -26,11 +28,21 @@ export interface SubjectSectionProps {
   onTogglePreview: (skillId: number) => void;
   onReactivate: (skillId: number) => void;
   onRemove: (notion: SrsNotion) => void;
+  onEditCard: (skillId: number, cardId: number, body: SrsCardUpdate) => Promise<void>;
+  onDeleteCard: (skillId: number, cardId: number) => Promise<void>;
 }
 
 export function SubjectSection(props: SubjectSectionProps) {
   const { subject, expanded, tree, treeLoading, busySubject } = props;
   const genLabel = subjectGenerateLabel(subject.to_generate);
+  // Rien « à générer » mais des cartes existent → bouton secondaire « ↻ Régénérer » : relance
+  // la réconciliation de la matière (réécrit le contenu, planification de Massimo préservée —
+  // non destructif). Utile après avoir édité un cours, et déclenche la barre % ci-dessous.
+  const canRegenerate = subject.to_generate === 0 && subject.active_cards > 0;
+  // Barre de progression estimée pendant la génération par matière (même pattern que
+  // Programme/Capsules : le backend LLM ne renvoie pas d'avancement). Durée cible ≈ nombre
+  // de notions à générer × ~8 s (moteur local), plancher 20 s.
+  const genPct = useEstimatedProgress(busySubject, Math.max(20000, subject.to_generate * 8000));
 
   const notionRow = (notion: SrsNotion) => (
     <NotionRow
@@ -43,6 +55,8 @@ export function SubjectSection(props: SubjectSectionProps) {
       onTogglePreview={() => props.onTogglePreview(notion.skill_id)}
       onReactivate={() => props.onReactivate(notion.skill_id)}
       onRemove={() => props.onRemove(notion)}
+      onEditCard={(cardId, body) => props.onEditCard(notion.skill_id, cardId, body)}
+      onDeleteCard={(cardId) => props.onDeleteCard(notion.skill_id, cardId)}
     />
   );
 
@@ -67,12 +81,25 @@ export function SubjectSection(props: SubjectSectionProps) {
             {subject.suspended > 0 && ` · ${subject.suspended} suspendue${subject.suspended > 1 ? "s" : ""}`}
           </span>
         </button>
-        {genLabel && (
+        {genLabel ? (
           <Button size="sm" onClick={props.onGenerateSubject} disabled={busySubject}>
             {busySubject ? "Génération…" : `${genLabel} ▶`}
           </Button>
-        )}
+        ) : canRegenerate ? (
+          <Button variant="ghost" size="sm" onClick={props.onGenerateSubject} disabled={busySubject}>
+            {busySubject ? "Génération…" : "↻ Régénérer"}
+          </Button>
+        ) : null}
       </div>
+
+      {busySubject && (
+        <div className="px-4 pb-3">
+          <ProgressBar
+            pct={genPct}
+            label={`ZETIS génère les cartes de « ${subject.name} » (moteur local)…`}
+          />
+        </div>
+      )}
 
       {expanded && (
         <div className="border-t border-border px-4 py-3">

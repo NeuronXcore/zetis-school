@@ -13,6 +13,7 @@ from app.modules.memory.schemas import (
     AttemptResult,
     CardContent,
     CardsOverview,
+    DeleteCardResult,
     DeleteCardsResult,
     ReactivateResult,
     ReviewCard,
@@ -22,6 +23,7 @@ from app.modules.memory.schemas import (
     SubjectCardsTree,
     SubjectDeck,
     SubjectGenerateResult,
+    UpdateCardRequest,
 )
 from app.modules.memory.service import (
     build_session,
@@ -146,5 +148,19 @@ def reactivate_skill(skill_id: int, db: Session = Depends(get_db)) -> dict:
 
 @parent_router.delete("/skills/{skill_id}", response_model=DeleteCardsResult)
 def delete_skill_cards(skill_id: int, db: Session = Depends(get_db)) -> dict:
-    # SEULE suppression de cartes (§5) — l'UI confirmera (supprime cartes + historique).
+    # Retrait de toutes les cartes d'une notion (§5) — l'UI confirme (cartes + historique).
     return generation.delete_skill_cards(db, skill_id)
+
+
+# Édition / suppression à la carte (correction manuelle). Chemins à UN segment
+# (`/{card_id}`) : pas de collision avec les routes `/skills/...` / `/subjects/...` (2 segments).
+@parent_router.patch("/{card_id}", response_model=CardContent)
+def update_card(card_id: int, body: UpdateCardRequest, db: Session = Depends(get_db)) -> dict:
+    return generation.update_card(
+        db, card_id, front_markdown=body.front_markdown, back_markdown=body.back_markdown
+    )
+
+
+@parent_router.delete("/{card_id}", response_model=DeleteCardResult)
+def delete_card(card_id: int, db: Session = Depends(get_db)) -> dict:
+    return generation.delete_card(db, card_id)

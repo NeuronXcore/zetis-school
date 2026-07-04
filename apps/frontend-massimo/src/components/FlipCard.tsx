@@ -57,13 +57,26 @@ function Face({
   content: string;
   className?: string;
 }) {
+  // Recto (Question) et verso (Réponse) ont une APPARENCE distincte : le recto est bleu
+  // (« je cherche »), le verso vert (« voilà, c'est ancré ! » — positif, jamais un rouge d'échec).
+  const isBack = side === "Réponse";
+  const faceTone = isBack
+    ? "border-emerald-400/30 bg-emerald-500/[0.08]"
+    : "border-sky-400/30 bg-sky-500/[0.08]";
+  const pillTone = isBack
+    ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100"
+    : "border-sky-400/40 bg-sky-400/15 text-sky-100";
   return (
     <div
-      className={`flex min-h-56 w-full flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl ${className}`}
+      className={`flex min-h-56 w-full flex-col gap-4 rounded-3xl border ${faceTone} p-6 shadow-2xl backdrop-blur-xl ${className}`}
     >
       <div className="flex items-center justify-between">
         <SubjectTag name={subjectName} iconUrl={subjectIconUrl} />
-        <span className="text-[11px] uppercase tracking-wide text-slate-400">{side}</span>
+        <span
+          className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${pillTone}`}
+        >
+          {isBack ? "✅ Réponse" : "❓ Question"}
+        </span>
       </div>
       <div className={`flex-1 ${MD}`}>
         <ReactMarkdown>{content}</ReactMarkdown>

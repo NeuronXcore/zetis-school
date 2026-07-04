@@ -2,7 +2,9 @@
 // Types partagés depuis @zetis/types (contrat unique front/back). Rôle parent côté backend.
 import {
   type SrsCardContent,
+  type SrsCardDeleteResult,
   type SrsCardsOverview,
+  type SrsCardUpdate,
   type SrsDeleteResult,
   type SrsReactivateResult,
   type SrsSkillGenerateResult,
@@ -10,7 +12,7 @@ import {
   type SrsSubjectTree,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
-import { asJson, authHeader } from "./httpClient";
+import { asJson, authHeader, jsonHeaders } from "./httpClient";
 
 const BASE = `${API_URL}/api/memory/cards`;
 
@@ -58,4 +60,20 @@ export async function deleteSkillCards(skillId: number): Promise<SrsDeleteResult
   return asJson(
     await fetch(`${BASE}/skills/${skillId}`, { method: "DELETE", headers: authHeader() }),
   );
+}
+
+/** Édite le recto/verso d'UNE carte (correction manuelle) — planification préservée. */
+export async function updateCard(cardId: number, body: SrsCardUpdate): Promise<SrsCardContent> {
+  return asJson(
+    await fetch(`${BASE}/${cardId}`, {
+      method: "PATCH",
+      headers: jsonHeaders(),
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+/** Supprime UNE carte (+ son historique). */
+export async function deleteCard(cardId: number): Promise<SrsCardDeleteResult> {
+  return asJson(await fetch(`${BASE}/${cardId}`, { method: "DELETE", headers: authHeader() }));
 }

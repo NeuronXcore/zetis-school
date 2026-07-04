@@ -3,8 +3,10 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { type ReviewsSummary } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { DeckDisc } from "../components/DeckDisc";
+import { SpacedMemoryHero } from "../components/SpacedMemoryHero";
 import { NeonBackdrop } from "../components/glass";
 import { subjectIconFor } from "../lib/subjectIcons";
+import { subjectEmoji } from "../lib/subjectEmoji";
 import { fetchReviewsSummary } from "../lib/reviews";
 import { type RevisionSessionState } from "./RevisionSessionPage";
 
@@ -82,6 +84,8 @@ export function RevisionPage() {
       <div className="relative">
         <PageHeader title="🔁 Révision" subtitle="Ancre tes notions, une carte à la fois." />
 
+        <SpacedMemoryHero />
+
         {error && (
           <p className="mb-4 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{error}</p>
         )}
@@ -146,18 +150,24 @@ export function RevisionPage() {
               </h2>
               <div className="grid grid-cols-2 justify-items-center gap-6 sm:grid-cols-3 md:grid-cols-4">
                 {summary.subjects.map((subject) => {
-                  const atDay = subject.due_count === 0;
+                  // 3 états : sans carte (grisé « à venir », emoji) / à jour ✓ / lançable.
+                  const noCards = !subject.has_cards;
+                  const atDay = subject.has_cards && subject.due_count === 0;
+                  const launchable = subject.has_cards && subject.due_count > 0;
                   return (
                     <DeckDisc
                       key={subject.slug}
                       title={subject.name}
                       count={subject.due_count}
-                      imageUrl={subjectIconFor(subject.slug)}
+                      // Matières sans carte : emoji (pas d'illustration) ; les autres : illustration.
+                      imageUrl={noCards ? undefined : subjectIconFor(subject.slug)}
+                      emoji={subjectEmoji(subject.slug)}
                       fallbackInitial={subject.name}
                       atDay={atDay}
+                      noCards={noCards}
                       isNew={subject.new_count > 0}
                       onClick={
-                        atDay
+                        !launchable
                           ? undefined
                           : () =>
                               launch({

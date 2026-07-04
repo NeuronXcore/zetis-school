@@ -20,9 +20,10 @@ const SUMMARY: ReviewsSummary = {
   flash_size: 5,
   new_count: 4,
   subjects: [
-    { slug: "maths", name: "Maths", due_count: 20, new_count: 4 }, // > 15 → « 15+ », a du neuf
-    { slug: "svt", name: "SVT", due_count: 3, new_count: 0 },
-    { slug: "espagnol", name: "Espagnol", due_count: 0, new_count: 0 }, // à jour → non cliquable
+    { slug: "maths", name: "Maths", due_count: 20, new_count: 4, has_cards: true }, // > 15 → « 15+ »
+    { slug: "svt", name: "SVT", due_count: 3, new_count: 0, has_cards: true },
+    { slug: "espagnol", name: "Espagnol", due_count: 0, new_count: 0, has_cards: true }, // à jour ✓
+    { slug: "histoire", name: "Histoire", due_count: 0, new_count: 0, has_cards: false }, // sans carte → grisé
   ],
 };
 
@@ -66,12 +67,20 @@ describe("RevisionPage — écran des decks", () => {
     expect(screen.getByRole("button", { name: /Maths/ })).toBeInTheDocument();
   });
 
+  it("matière sans carte : grisée « à venir » / « pas encore de cartes », non cliquable", async () => {
+    renderAt();
+    await screen.findByText("Histoire");
+    expect(screen.getByText("à venir")).toBeInTheDocument();
+    expect(screen.getByText("pas encore de cartes")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Histoire/ })).not.toBeInTheDocument();
+  });
+
   it("état zéro global : message bienveillant, aucun CTA de révision", async () => {
     vi.mocked(fetchReviewsSummary).mockResolvedValue({
       total_due: 0,
       flash_size: 0,
       new_count: 0,
-      subjects: [{ slug: "maths", name: "Maths", due_count: 0, new_count: 0 }],
+      subjects: [{ slug: "maths", name: "Maths", due_count: 0, new_count: 0, has_cards: true }],
     });
     renderAt();
     expect(await screen.findByText(/Tout est frais dans ta mémoire/)).toBeInTheDocument();

@@ -12,6 +12,8 @@ vi.mock("../lib/srsCards", () => ({
   fetchSkillCards: vi.fn(),
   reactivateSkill: vi.fn(),
   deleteSkillCards: vi.fn(),
+  updateCard: vi.fn(),
+  deleteCard: vi.fn(),
 }));
 
 import { deleteSkillCards, fetchCardsOverview, fetchSubjectTree } from "../lib/srsCards";

@@ -296,6 +296,95 @@ def test_overview_tree_preview_and_actions(client_db):
     react = client.post(f"/api/memory/cards/skills/{skill_id}/reactivate").json()
     assert react["reactivated"] == 2
 
-    # DELETE = seule suppression.
+    # DELETE des cartes d'une notion.
     dele = client.request("DELETE", f"/api/memory/cards/skills/{skill_id}").json()
     assert dele["deleted"] == 2
+
+
+# ── Édition / suppression à la carte (correction manuelle Papa) ───────────────
+
+
+def test_edit_card_updates_content_but_preserves_schedule(client_db):
+    client, TestSession = client_db
+    db = TestSession()
+    _, skill_id = _seed_lesson(db)
+    generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+    card = _def_card(db, skill_id)
+    card.due_at = _now() + timedelta(days=30)
+    card.interval_days = 30
+    db.commit()
+    cid, kept_due, kept_int = card.id, card.due_at, card.interval_days
+
+    _as(PARENT)
+    r = client.patch(
+        f"/api/memory/cards/{cid}",
+        json={"front_markdown": "Q éditée ?", "back_markdown": "R éditée."},
+    )
+    assert r.status_code == 200
+    assert r.json()["front_markdown"] == "Q éditée ?"
+
+    fresh = TestSession().get(m.SpacedReviewCard, cid)
+    assert fresh.front_markdown == "Q éditée ?" and fresh.back_markdown == "R éditée."
+    # Invariant §3 : le contenu change, la planification NON.
+    assert fresh.due_at == kept_due and fresh.interval_days == kept_int
+
+    # Carte inexistante → 404.
+    assert (
+        client.patch(
+            "/api/memory/cards/999999", json={"front_markdown": "x", "back_markdown": "y"}
+        ).status_code
+        == 404
+    )
+
+
+def test_delete_single_card_removes_only_that_card(client_db):
+    client, TestSession = client_db
+    db = TestSession()
+    _, skill_id = _seed_lesson(db)
+    generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+    card = _def_card(db, skill_id)  # 'definition' ; 'method' reste
+    db.add(
+        m.SpacedReviewAttempt(
+            card_id=card.id, student_id=card.student_id, rating="good", reviewed_at=_now()
+        )
+    )
+    db.commit()
+    cid = card.id
+
+    _as(PARENT)
+    assert client.request("DELETE", f"/api/memory/cards/{cid}").json() == {"id": cid, "deleted": 1}
+
+    db2 = TestSession()
+    assert db2.get(m.SpacedReviewCard, cid) is None
+    remaining = db2.scalar(
+        select(func.count()).select_from(m.SpacedReviewCard).where(
+            m.SpacedReviewCard.skill_id == skill_id
+        )
+    )
+    assert remaining == 1  # l'autre carte de la notion est intacte
+    assert (
+        db2.scalar(
+            select(func.count()).select_from(m.SpacedReviewAttempt).where(
+                m.SpacedReviewAttempt.card_id == cid
+            )
+        )
+        == 0
+    )
+    # 404 sur une carte déjà supprimée.
+    assert client.request("DELETE", f"/api/memory/cards/{cid}").status_code == 404
+
+
+def test_card_edit_delete_are_parent_only(client_db):
+    client, TestSession = client_db
+    db = TestSession()
+    _, skill_id = _seed_lesson(db)
+    generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+    cid = _def_card(db, skill_id).id
+    _as(CHILD)
+    assert (
+        client.patch(
+            f"/api/memory/cards/{cid}", json={"front_markdown": "x", "back_markdown": "y"}
+        ).status_code
+        == 403
+    )
+    assert client.request("DELETE", f"/api/memory/cards/{cid}").status_code == 403

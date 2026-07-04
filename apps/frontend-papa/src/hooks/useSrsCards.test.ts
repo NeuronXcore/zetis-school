@@ -11,13 +11,17 @@ vi.mock("../lib/srsCards", () => ({
   fetchSkillCards: vi.fn(),
   reactivateSkill: vi.fn(),
   deleteSkillCards: vi.fn(),
+  updateCard: vi.fn(),
+  deleteCard: vi.fn(),
 }));
 
 import {
+  deleteCard,
   fetchCardsOverview,
   fetchSkillCards,
   fetchSubjectTree,
   generateSubjectCards,
+  updateCard,
 } from "../lib/srsCards";
 
 const OVERVIEW: SrsCardsOverview = {
@@ -112,5 +116,42 @@ describe("useSrsCards", () => {
     act(() => result.current.togglePreview(10));
     await waitFor(() => expect(result.current.previews[10]).toHaveLength(1));
     expect(fetchSkillCards).toHaveBeenCalledWith(10);
+  });
+
+  it("editCard met à jour l'aperçu en place (planification côté serveur)", async () => {
+    vi.mocked(updateCard).mockResolvedValue({
+      id: 5,
+      card_type: "definition",
+      front_markdown: "Q2",
+      back_markdown: "R2",
+      status: "scheduled",
+    });
+    const { result } = renderHook(() => useSrsCards());
+    await waitFor(() => expect(result.current.overview).not.toBeNull());
+    act(() => result.current.togglePreview(10));
+    await waitFor(() => expect(result.current.previews[10]).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.editCard(10, 5, { front_markdown: "Q2", back_markdown: "R2" });
+    });
+    expect(updateCard).toHaveBeenCalledWith(5, { front_markdown: "Q2", back_markdown: "R2" });
+    expect(result.current.previews[10][0].front_markdown).toBe("Q2");
+  });
+
+  it("removeCard retire la carte de l'aperçu et rafraîchit la matière", async () => {
+    vi.mocked(deleteCard).mockResolvedValue({ id: 5, deleted: 1 });
+    const { result } = renderHook(() => useSrsCards());
+    await waitFor(() => expect(result.current.overview).not.toBeNull());
+    act(() => result.current.togglePreview(10));
+    await waitFor(() => expect(result.current.previews[10]).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.removeCard(1, 10, 5);
+    });
+    expect(deleteCard).toHaveBeenCalledWith(5);
+    expect(result.current.previews[10]).toHaveLength(0);
+    // Dernière carte retirée → aperçu refermé + re-fetch de la matière.
+    expect(result.current.previewOpen.has(10)).toBe(false);
+    expect(fetchSubjectTree).toHaveBeenCalled();
   });
 });
