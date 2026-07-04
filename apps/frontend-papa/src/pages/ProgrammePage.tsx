@@ -6,6 +6,7 @@ import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { AddChapterForm } from "../components/programme/AddChapterForm";
 import { ChapterRow } from "../components/programme/ChapterRow";
 import { LessonsPanel } from "../components/programme/LessonsPanel";
+import { NotionRequestsPanel } from "../components/programme/NotionRequestsPanel";
 import { SkillsBackfillModal } from "../components/programme/SkillsBackfillModal";
 import { SubjectBatchBar } from "../components/programme/SubjectBatchBar";
 import { SubjectPills } from "../components/programme/SubjectPills";
@@ -138,6 +139,11 @@ export function ProgrammePage() {
           {notice}
         </p>
       )}
+
+      {/* Demandes de notions hors-programme envoyées par Massimo depuis ELI5. */}
+      <div className="mb-4">
+        <NotionRequestsPanel />
+      </div>
 
       {data.generating && (
         <div className="mb-4">

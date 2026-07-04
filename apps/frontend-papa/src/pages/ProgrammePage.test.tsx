@@ -27,6 +27,12 @@ vi.mock("../components/programme/LessonContentEditor", () => ({
   ),
 }));
 
+// Le panneau « Demandes de Massimo » fetch au montage : mocké vide → invisible ici.
+vi.mock("../lib/notionRequests", () => ({
+  fetchNotionRequests: vi.fn().mockResolvedValue([]),
+  resolveNotionRequest: vi.fn(),
+}));
+
 vi.mock("../lib/curriculum", () => ({
   fetchActiveSchoolYear: vi.fn(),
   fetchChapters: vi.fn(),
