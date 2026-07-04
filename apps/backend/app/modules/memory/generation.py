@@ -123,6 +123,25 @@ def _active_students(db: Session) -> list[StudentProfile]:
     return list(db.scalars(select(StudentProfile).order_by(StudentProfile.id)))
 
 
+def _has_validated_course(db: Session, skill_id: int) -> bool:
+    """Une leçon validée AVEC cours couvre-t-elle cette notion ? Miroir du gate du résolveur
+    (ADR-0011) mais PUR DB (sans embedder) : la réconciliation d'orphelins n'a pas besoin du
+    RAG, seulement de savoir si la notion est encore enseignée par un cours validé."""
+    return (
+        db.scalar(
+            select(Lesson.id)
+            .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
+            .where(
+                LessonSkill.skill_id == skill_id,
+                Lesson.status == "validated",
+                Lesson.content_markdown.isnot(None),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def _llm_cards(
     db: Session,
     provider: LLMProvider,
@@ -237,17 +256,17 @@ def refresh_cards_for_lesson(
     return result
 
 
-def reconcile_orphans(db: Session, embedder: EmbeddingProvider, *, skill_ids: list[int]) -> int:
+def reconcile_orphans(db: Session, *, skill_ids: list[int]) -> int:
     """Branche C : suspend les cartes actives des notions que PLUS AUCUN cours validé ne couvre.
 
     La condition n'est pas « absente d'une leçon » (LessonSkill est N-N) mais « aucune leçon
-    validée ne couvre la skill » — c'est le résolveur ADR-0011 qui répond. Planification
-    conservée, jamais de suppression : la carte est réactivable en place plus tard.
+    validée ne couvre la skill » (`_has_validated_course`). Planification conservée, jamais de
+    suppression : la carte est réactivable en place au prochain rafraîchissement d'un cours.
+    Pur DB (pas d'embedder) → appelable en synchrone depuis l'édition/suppression de leçon.
     """
     suspended = 0
     for skill_id in dict.fromkeys(skill_ids):  # dédup, ordre stable
-        ctx = resolve_canonical_context(db, embedder, skill_id=skill_id)
-        if ctx.has_course:
+        if _has_validated_course(db, skill_id):
             continue  # toujours couverte → pas orpheline
         cards = db.scalars(
             select(SpacedReviewCard).where(

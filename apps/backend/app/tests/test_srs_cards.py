@@ -11,6 +11,7 @@ from sqlalchemy import select
 import app.db.models as m
 from app.main import app
 from app.modules.auth.deps import get_current_user
+from app.modules.curriculum import service as curriculum_service
 from app.modules.eli5.service import get_default_student
 from app.modules.memory.generation import (
     _now,
@@ -25,11 +26,20 @@ CHILD = {"username": "massimo", "role": "child"}
 
 
 def _seed_lesson(db, *, validated: bool = True, with_content: bool = True) -> tuple[int, int]:
-    """Chapitre + leçon rattachée à la Skill « Nombres relatifs » seedée par conftest.
+    """Année + matière + chapitre + leçon rattachée à la Skill « Nombres relatifs » (conftest).
 
-    → (lesson_id, skill_id). `validated=True` + `with_content` = cours canonique valide."""
+    Le chapitre est rattaché à une `SchoolYearSubject` (niveau résolvable) pour que
+    `update_lesson(notions=…)` fonctionne. → (lesson_id, skill_id)."""
     skill = db.scalar(select(m.Skill).where(m.Skill.name == "Nombres relatifs"))
-    chapter = m.Chapter(name="Nombres relatifs : opérations")
+    subject = db.get(m.Subject, skill.subject_id)
+    profile = db.scalars(select(m.StudentProfile)).first()
+    year = m.SchoolYear(student_id=profile.id, label="2026-2027", level="4e")
+    db.add(year)
+    db.flush()
+    sys_row = m.SchoolYearSubject(school_year_id=year.id, subject_id=subject.id)
+    db.add(sys_row)
+    db.flush()
+    chapter = m.Chapter(school_year_subject_id=sys_row.id, name="Nombres relatifs : opérations")
     db.add(chapter)
     db.flush()
     lesson = m.Lesson(
@@ -135,7 +145,7 @@ def test_branch_c_orphan_suspends_then_reactivates_in_place(client_db):
     lesson.status = "archived"
     db.commit()
 
-    suspended = reconcile_orphans(db, FakeEmbeddingProvider(), skill_ids=[skill_id])
+    suspended = reconcile_orphans(db, skill_ids=[skill_id])
     assert suspended >= 1
     db.refresh(card)
     assert card.status == "suspended"
@@ -233,3 +243,53 @@ def test_validate_lesson_never_breaks_without_worker(client_db):
     resp = client.post(f"/api/lessons/{lesson_id}/validate")
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "validated"
+
+
+# ── Câblage réconciliation orpheline : édition / suppression de leçon (ADR-0013 §3-C) ──
+
+
+def test_update_lesson_removing_notion_suspends_its_cards(client_db):
+    _, TestSession = client_db
+    db = TestSession()
+    lesson_id, skill_id = _seed_lesson(db)
+    refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
+    card = _definition_card(db, skill_id)
+    assert card.status == "scheduled"
+
+    # Papa retire « Nombres relatifs » de la leçon (remplacée par une autre notion).
+    curriculum_service.update_lesson(db, lesson_id, notions=["Les puissances"])
+
+    db.refresh(card)
+    assert card.status == "suspended"  # orpheline, hors session
+    assert card.due_at is not None  # planification conservée (jamais réinitialisée)
+    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 0
+
+
+def test_delete_lesson_suspends_orphaned_cards_but_keeps_rows(client_db):
+    _, TestSession = client_db
+    db = TestSession()
+    lesson_id, skill_id = _seed_lesson(db)
+    refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
+    card = _definition_card(db, skill_id)
+    card_id = card.id
+
+    curriculum_service.delete_lesson(db, lesson_id)
+
+    same = db.get(m.SpacedReviewCard, card_id)
+    assert same is not None  # la carte n'est JAMAIS supprimée
+    assert same.status == "suspended"
+    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 0
+
+
+def test_update_lesson_keeping_notion_leaves_cards_active(client_db):
+    _, TestSession = client_db
+    db = TestSession()
+    lesson_id, skill_id = _seed_lesson(db)
+    refresh_cards_for_lesson(db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson_id)
+
+    # Édition qui CONSERVE la notion (ajoute juste un résumé) → aucune suspension.
+    curriculum_service.update_lesson(db, lesson_id, summary="Résumé mis à jour")
+
+    card = _definition_card(db, skill_id)
+    assert card.status == "scheduled"
+    assert get_reviews_summary(db, get_default_student(db))["total_due"] == 2
