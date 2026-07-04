@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS — Quiz du cours (maquette Massimo)</title>
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --indigo:#6366f1; --indigo-soft:rgba(99,102,241,.18);
+    --cyan:#22d3ee; --fuchsia:#e879f9;
+    --bg:#0b1020; --glass:rgba(255,255,255,.05); --glass-border:rgba(255,255,255,.1);
+    --fg:#e6e9f5; --muted:#8b93b5;
+    --ok:#34d399; --soft-warn:#fbbf24;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+  body{background:radial-gradient(1000px 500px at 80% -10%, rgba(99,102,241,.25), transparent 60%),
+              radial-gradient(800px 400px at 5% 110%, rgba(34,211,238,.12), transparent 60%),
+              var(--bg);
+       color:var(--fg);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px 16px}
+
+  .wordmark{font-family:'Syncopate',sans-serif;font-weight:700;letter-spacing:.35em;font-size:14px;
+    background:linear-gradient(90deg,var(--cyan),var(--indigo),var(--fuchsia));-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:18px}
+
+  .shell{width:100%;max-width:560px}
+
+  /* en-tête du quiz */
+  .quiz-head{background:var(--glass);border:1px solid var(--glass-border);border-radius:18px;padding:16px 20px;margin-bottom:14px;backdrop-filter:blur(8px)}
+  .quiz-head .lesson{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+  .quiz-head h1{font-size:18px;font-weight:700;margin:4px 0 12px}
+  .progress-track{height:10px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden}
+  .progress-track i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--cyan),var(--indigo));transition:width .4s ease}
+  .progress-lbl{font-size:12px;color:var(--muted);margin-top:6px;text-align:right}
+
+  /* carte question */
+  .q-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:22px;padding:24px;backdrop-filter:blur(8px);
+          box-shadow:0 0 40px rgba(99,102,241,.12)}
+  .q-type{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--cyan);
+          border:1px solid rgba(34,211,238,.35);border-radius:999px;padding:3px 12px;margin-bottom:14px;text-transform:uppercase}
+  .q-prompt{font-size:19px;font-weight:600;line-height:1.45;margin-bottom:20px}
+  .q-prompt .blank{display:inline-block;min-width:110px;border-bottom:2px dashed var(--indigo);text-align:center;color:var(--cyan)}
+
+  /* options — gros boutons gaming sobres */
+  .opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:rgba(255,255,255,.04);
+       border:1.5px solid var(--glass-border);border-radius:16px;padding:15px 18px;margin-bottom:10px;
+       color:var(--fg);font-size:15.5px;cursor:pointer;transition:all .15s ease}
+  .opt:hover{border-color:var(--indigo);background:var(--indigo-soft);transform:translateY(-1px)}
+  .opt.selected{border-color:var(--cyan);background:rgba(34,211,238,.12);box-shadow:0 0 18px rgba(34,211,238,.2)}
+  .opt .box{width:22px;height:22px;border-radius:7px;border:2px solid var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .opt.radio .box{border-radius:50%}
+  .opt.selected .box{border-color:var(--cyan);background:var(--cyan);color:#06222b;font-weight:800}
+
+  input.answer{width:100%;background:rgba(255,255,255,.05);border:1.5px solid var(--glass-border);border-radius:14px;
+    padding:14px 16px;font-size:17px;color:var(--fg);outline:none;text-align:center}
+  input.answer:focus{border-color:var(--cyan);box-shadow:0 0 16px rgba(34,211,238,.2)}
+
+  /* ordering */
+  .ord{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.04);border:1.5px solid var(--glass-border);
+       border-radius:14px;padding:12px 14px;margin-bottom:8px;font-size:14.5px}
+  .ord .n{width:26px;height:26px;border-radius:8px;background:var(--indigo-soft);color:var(--cyan);font-weight:800;
+          display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+  .ord .mv{margin-left:auto;display:flex;gap:6px}
+  .ord button{background:rgba(255,255,255,.07);border:1px solid var(--glass-border);color:var(--fg);border-radius:8px;
+              width:32px;height:32px;cursor:pointer;font-size:14px}
+  .ord button:hover{border-color:var(--indigo)}
+
+  /* matching */
+  .match{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:10px}
+  .match .left{background:rgba(255,255,255,.04);border:1.5px solid var(--glass-border);border-radius:14px;padding:12px 14px;font-size:14px}
+  .match select{background:#161c33;border:1.5px solid var(--glass-border);color:var(--fg);border-radius:12px;padding:11px 12px;font-size:13.5px;max-width:220px}
+
+  /* feedback */
+  .feedback{border-radius:16px;padding:16px 18px;margin-top:16px;font-size:14.5px;line-height:1.5;display:none;animation:pop .3s ease}
+  .feedback.show{display:block}
+  .feedback.good{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4)}
+  .feedback.almost{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35)}
+  .feedback .fb-title{font-weight:700;margin-bottom:4px}
+  .feedback.good .fb-title{color:var(--ok)}
+  .feedback.almost .fb-title{color:var(--soft-warn)}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .actions{display:flex;justify-content:flex-end;margin-top:18px}
+  .btn-main{background:linear-gradient(90deg,var(--indigo),#818cf8);border:none;color:#fff;font-size:16px;font-weight:700;
+            border-radius:16px;padding:14px 34px;cursor:pointer;box-shadow:0 6px 24px rgba(99,102,241,.35);transition:transform .12s}
+  .btn-main:hover{transform:translateY(-2px)}
+  .btn-main:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+  /* écran de fin */
+  .end{display:none;text-align:center;padding:34px 24px}
+  .end.show{display:block;animation:pop .4s ease}
+  .end .big{font-size:44px;margin-bottom:10px}
+  .end h2{font-size:22px;margin-bottom:6px}
+  .end p{color:var(--muted);font-size:14.5px;margin-bottom:18px}
+  .xp{display:inline-block;background:linear-gradient(90deg,var(--indigo),var(--fuchsia));border-radius:999px;
+      padding:8px 22px;font-weight:800;font-size:16px;margin-bottom:22px;box-shadow:0 0 26px rgba(232,121,249,.3)}
+  .strengths{text-align:left;max-width:380px;margin:0 auto 20px}
+  .strengths div{background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:12px 16px;margin-bottom:8px;font-size:14px}
+  .mute-note{font-size:11.5px;color:var(--muted);margin-top:20px}
+  .sound{position:fixed;top:18px;right:18px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;
+         width:40px;height:40px;color:var(--fg);cursor:pointer;font-size:16px}
+
+  /* ── Écran 1 : grille des matières (pattern SubjectTile / page Matières) ── */
+  .view-title{font-size:20px;font-weight:700;margin-bottom:4px}
+  .view-sub{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+  .subj-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(min-width:520px){.subj-grid{grid-template-columns:repeat(4,1fr)}}
+  .subj-tile{--tint:#6366f1;background:var(--glass);border:1.5px solid color-mix(in srgb,var(--tint) 45%,transparent);
+    border-radius:18px;padding:18px 10px 14px;text-align:center;cursor:pointer;color:var(--fg);
+    backdrop-filter:blur(8px);transition:transform .15s,box-shadow .15s;position:relative}
+  .subj-tile:hover{transform:translateY(-3px);box-shadow:0 0 24px color-mix(in srgb,var(--tint) 30%,transparent)}
+  .subj-tile .emo{font-size:34px;display:block;margin-bottom:8px;filter:drop-shadow(0 0 12px color-mix(in srgb,var(--tint) 45%,transparent))}
+  .subj-tile .nm{font-size:13px;font-weight:700}
+  .subj-tile .cnt{display:inline-block;margin-top:7px;font-size:11px;font-weight:700;border-radius:999px;padding:2px 10px;
+    background:color-mix(in srgb,var(--tint) 22%,transparent);color:color-mix(in srgb,var(--tint) 70%,white)}
+  .subj-tile.off{opacity:.38;cursor:default;filter:grayscale(.4)}
+  .subj-tile.off:hover{transform:none;box-shadow:none}
+  .subj-tile.off .cnt{background:rgba(255,255,255,.08);color:var(--muted)}
+
+  /* ── Écran 2 : quiz de la matière ── */
+  .back{background:none;border:none;color:var(--cyan);font-size:13px;cursor:pointer;padding:0;margin-bottom:14px;font-weight:600}
+  .quiz-item{--tint:#f472b6;display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--glass);
+    border:1.5px solid var(--glass-border);border-left:4px solid var(--tint);border-radius:16px;padding:16px 18px;margin-bottom:10px;
+    color:var(--fg);cursor:pointer;transition:all .15s;backdrop-filter:blur(8px)}
+  .quiz-item:hover{border-color:var(--indigo);transform:translateY(-1px);box-shadow:0 0 18px rgba(99,102,241,.18)}
+  .quiz-item .emo{font-size:26px}
+  .quiz-item .tt{font-weight:700;font-size:15px}
+  .quiz-item .mm{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .quiz-item .done{margin-left:auto;font-size:12px;font-weight:700;color:var(--ok);white-space:nowrap}
+  .quiz-item .go{margin-left:auto;font-size:18px;color:var(--indigo)}
+  .hidden{display:none!important}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<button class="sound" title="Couper le son">🔊</button>
+<div class="wordmark">ZETIS</div>
+
+<div class="shell">
+
+  <!-- ÉCRAN 1 — grille des matières (même logique visuelle que la page Matières) -->
+  <div id="view-subjects">
+    <h1 class="view-title">Quiz 🎯</h1>
+    <p class="view-sub">Choisis une matière — les quiz apparaissent quand un cours en a un.</p>
+    <div class="subj-grid">
+      <button class="subj-tile" style="--tint:#f472b6" onclick="showList()"><span class="emo">📕</span><span class="nm">Français</span><br><span class="cnt">2 quiz</span></button>
+      <button class="subj-tile" style="--tint:#60a5fa" onclick="showList()"><span class="emo">📐</span><span class="nm">Maths</span><br><span class="cnt">1 quiz</span></button>
+      <button class="subj-tile off" style="--tint:#fbbf24"><span class="emo">🌍</span><span class="nm">Histoire-Géo</span><br><span class="cnt">bientôt</span></button>
+      <button class="subj-tile off" style="--tint:#34d399"><span class="emo">🌿</span><span class="nm">SVT</span><br><span class="cnt">bientôt</span></button>
+      <button class="subj-tile off" style="--tint:#a78bfa"><span class="emo">⚗️</span><span class="nm">Physique-Chimie</span><br><span class="cnt">bientôt</span></button>
+      <button class="subj-tile off" style="--tint:#f87171"><span class="emo">🇬🇧</span><span class="nm">Anglais</span><br><span class="cnt">bientôt</span></button>
+      <button class="subj-tile off" style="--tint:#22d3ee"><span class="emo">🤖</span><span class="nm">Technologie</span><br><span class="cnt">bientôt</span></button>
+      <button class="subj-tile off" style="--tint:#e879f9"><span class="emo">🎨</span><span class="nm">Arts</span><br><span class="cnt">bientôt</span></button>
+    </div>
+  </div>
+
+  <!-- ÉCRAN 2 — quiz disponibles de la matière -->
+  <div id="view-list" class="hidden">
+    <button class="back" onclick="showSubjects()">← Toutes les matières</button>
+    <h1 class="view-title">📕 Français</h1>
+    <p class="view-sub">Le récit au XIXᵉ siècle</p>
+    <button class="quiz-item" style="--tint:#f472b6" onclick="startQuiz()">
+      <span class="emo">📝</span>
+      <span><span class="tt">L'accord du participe passé</span><br><span class="mm">7 questions · quiz du cours</span></span>
+      <span class="go">▶</span>
+    </button>
+    <button class="quiz-item" style="--tint:#f472b6" onclick="startQuiz()">
+      <span class="emo">📝</span>
+      <span><span class="tt">Le discours direct et indirect</span><br><span class="mm">6 questions · quiz du cours</span></span>
+      <span class="done">✓ fait · rejouer</span>
+    </button>
+  </div>
+
+  <!-- ÉCRAN 3 — lecteur (inchangé) -->
+  <div id="player" class="hidden">
+  <div class="quiz-head">
+    <div class="lesson">Français · Le récit au XIXᵉ siècle</div>
+    <h1>Quiz du cours — L'accord du participe passé</h1>
+    <div class="progress-track"><i id="pbar" style="width:14%"></i></div>
+    <div class="progress-lbl" id="plbl">Question 1 / 7</div>
+  </div>
+
+  <div class="q-card" id="qcard"><!-- rendu par JS --></div>
+
+  <div class="q-card end" id="endcard">
+    <div class="big">🌟</div>
+    <h2>Beau travail, Massimo !</h2>
+    <p>Tu as consolidé <b style="color:var(--ok)">6 notions sur 7</b> de ce cours.</p>
+    <div class="xp">+30 XP</div>
+    <div class="strengths">
+      <div>💪 <b>Tes forces :</b> l'accord avec <i>être</i> et le repérage du COD.</div>
+      <div>🔭 <b>À revoir bientôt :</b> les verbes pronominaux — ZETIS te la reproposera dans tes révisions.</div>
+    </div>
+    <button class="btn-main" onclick="showList();document.getElementById('endcard').classList.remove('show');document.getElementById('qcard').style.display='block';idx=0;render()">Retour aux quiz</button>
+  </div>
+  </div><!-- /player -->
+
+  <p class="mute-note">Maquette interactive — grille matières (pattern page Matières) → quiz de la matière → lecteur · 7 formats du Lot 1 · feedback toujours bienveillant.</p>
+</div>
+
+<script>
+const questions = [
+ {type:'QCM', prompt:`Avec l'auxiliaire <b>être</b>, le participe passé s'accorde avec…`,
+  kind:'mcq', opts:['le complément d\u2019objet direct','le sujet','le verbe conjugué','rien — il est invariable'], correct:[1],
+  explGood:`Exactement ! Avec <i>être</i>, le participe suit le sujet comme un adjectif : « elles sont parti<b>es</b> ».`,
+  explAlmost:`Pas tout à fait — c'était tentant ! Avec <i>être</i>, le participe s'accorde avec le <b>sujet</b> : « elles sont parti<b>es</b> ». Le COD, lui, ne compte qu'avec <i>avoir</i>.`},
+
+ {type:'QCM multi', prompt:`Coche <b>toutes</b> les phrases correctement accordées :`,
+  kind:'multi', opts:['Les fleurs que j\u2019ai cueillies sentent bon.','Les fleurs que j\u2019ai cueilli sentent bon.','Elle a mangé une pomme.'], correct:[0,2],
+  explGood:`Parfait, les deux ! « cueillies » s'accorde car le COD « que » (= les fleurs) est <b>avant</b> ; « mangé » reste invariable car le COD est après.`,
+  explAlmost:`Presque ! Les bonnes réponses étaient la 1 et la 3 : le participe s'accorde seulement quand le COD est placé <b>avant</b> l'auxiliaire <i>avoir</i>.`},
+
+ {type:'Vrai / Faux', prompt:`« Avec l'auxiliaire <i>avoir</i>, le participe passé ne s'accorde <b>jamais</b>. »`,
+  kind:'mcq', opts:['Vrai','Faux'], correct:[1],
+  explGood:`Bien vu ! Il s'accorde quand le COD est placé <b>avant</b> : « la pomme qu'il a mang<b>ée</b> ».`,
+  explAlmost:`C'était un piège classique 😉 Il s'accorde quand le COD est placé <b>avant</b> : « la pomme qu'il a mang<b>ée</b> ».`},
+
+ {type:'Texte à trous', prompt:`« Les lettres que Julie a <span class="blank" id="blankview">______</span> sont arrivées. » <span style="color:var(--muted);font-size:14px">(verbe <i>écrire</i>)</span>`,
+  kind:'input', placeholder:'écris le participe…', correct:['écrites','ecrites'],
+  explGood:`Oui ! « que » reprend « les lettres » (féminin pluriel), placé avant <i>avoir</i> → écrit<b>es</b>.`,
+  explAlmost:`Presque — la bonne forme est « écrit<b>es</b> » : « que » reprend « les lettres » (féminin pluriel), placé avant <i>avoir</i>.`},
+
+ {type:'Réponse courte', prompt:`Combien y a-t-il d'auxiliaires en français ?`,
+  kind:'input', placeholder:'un nombre…', correct:['2','deux'],
+  explGood:`Oui : <i>être</i> et <i>avoir</i>, et chacun a sa règle d'accord.`,
+  explAlmost:`Il y en a <b>2</b> : <i>être</i> et <i>avoir</i> — et chacun a sa règle d'accord.`},
+
+ {type:'Remets dans l\u2019ordre', prompt:`Remets les étapes du raisonnement dans le bon ordre :`,
+  kind:'order', opts:['Je repère l\u2019auxiliaire (être ou avoir)','Si avoir : je cherche le COD','Je regarde si le COD est avant le verbe','J\u2019accorde (ou pas) le participe'],
+  explGood:`C'est exactement la méthode ! Auxiliaire → COD → position → accord.`,
+  explAlmost:`L'ordre de la méthode : auxiliaire → chercher le COD → sa position → accorder. Tu l'auras au prochain coup !`},
+
+ {type:'Association', prompt:`Associe chaque phrase à sa règle :`,
+  kind:'match',
+  pairs:[{l:'« Elles sont arrivées »',opts:['Accord avec le sujet (être)','COD avant → accord','COD après → invariable'],correct:0},
+         {l:'« La tarte qu\u2019il a faite »',opts:['Accord avec le sujet (être)','COD avant → accord','COD après → invariable'],correct:1},
+         {l:'« Il a fait une tarte »',opts:['Accord avec le sujet (être)','COD avant → accord','COD après → invariable'],correct:2}],
+  explGood:`Trois sur trois — tu tiens la logique complète de l'accord !`,
+  explAlmost:`Presque ! Retiens : <i>être</i> → sujet ; <i>avoir</i> → seulement si le COD est <b>avant</b>.`}
+];
+
+let idx=0, answered=false, sel=new Set(), order=[0,1,2,3];
+const card=document.getElementById('qcard');
+
+function render(){
+  answered=false; sel=new Set(); order=[...Array(4).keys()];
+  const q=questions[idx];
+  document.getElementById('pbar').style.width=((idx)/questions.length*100+14)+'%';
+  document.getElementById('plbl').textContent=`Question ${idx+1} / ${questions.length}`;
+  let inner=`<span class="q-type">${q.type}</span><div class="q-prompt">${q.prompt}</div>`;
+
+  if(q.kind==='mcq'||q.kind==='multi'){
+    inner+=q.opts.map((o,i)=>`<button class="opt ${q.kind==='mcq'?'radio':''}" data-i="${i}" onclick="pick(${i})"><span class="box"></span>${o}</button>`).join('');
+  }
+  if(q.kind==='input'){
+    inner+=`<input class="answer" id="ans" placeholder="${q.placeholder}" autocomplete="off">`;
+  }
+  if(q.kind==='order'){
+    inner+=`<div id="ordwrap">${orderHtml(q)}</div>`;
+  }
+  if(q.kind==='match'){
+    inner+=q.pairs.map((p,i)=>`<div class="match"><div class="left">${p.l}</div>
+      <select id="m${i}"><option value="">— choisis —</option>${p.opts.map((o,j)=>`<option value="${j}">${o}</option>`).join('')}</select></div>`).join('');
+  }
+  inner+=`<div class="feedback" id="fb"><div class="fb-title" id="fbt"></div><div id="fbx"></div></div>
+          <div class="actions"><button class="btn-main" id="go" onclick="validate()">Valider</button></div>`;
+  card.innerHTML=inner;
+}
+function orderHtml(q){
+  return order.map((oi,pos)=>`<div class="ord"><span class="n">${pos+1}</span>${q.opts[oi]}
+    <span class="mv"><button onclick="move(${pos},-1)">↑</button><button onclick="move(${pos},1)">↓</button></span></div>`).join('');
+}
+function move(pos,d){ if(answered)return; const np=pos+d; if(np<0||np>=order.length)return;
+  [order[pos],order[np]]=[order[np],order[pos]];
+  document.getElementById('ordwrap').innerHTML=orderHtml(questions[idx]); }
+function pick(i){ if(answered)return; const q=questions[idx];
+  if(q.kind==='mcq'){sel=new Set([i]);} else {sel.has(i)?sel.delete(i):sel.add(i);}
+  document.querySelectorAll('.opt').forEach(b=>{
+    const bi=+b.dataset.i; b.classList.toggle('selected',sel.has(bi));
+    b.querySelector('.box').textContent=sel.has(bi)?'✓':'';});}
+function validate(){
+  const q=questions[idx];
+  if(!answered){
+    let good=false;
+    if(q.kind==='mcq'||q.kind==='multi'){ if(sel.size===0)return;
+      good = sel.size===q.correct.length && q.correct.every(c=>sel.has(c)); }
+    if(q.kind==='input'){ const v=(document.getElementById('ans').value||'').trim().toLowerCase()
+        .normalize('NFD').replace(/\p{Diacritic}/gu,''); if(!v)return;
+      good = q.correct.map(c=>c.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase()).includes(v); }
+    if(q.kind==='order'){ good = order.every((o,i)=>o===i); }
+    if(q.kind==='match'){ good = q.pairs.every((p,i)=>+document.getElementById('m'+i).value===p.correct);
+      if(q.pairs.some((p,i)=>document.getElementById('m'+i).value===''))return; }
+    const fb=document.getElementById('fb');
+    fb.className='feedback show '+(good?'good':'almost');
+    document.getElementById('fbt').textContent = good?'✨ Bien joué !':'💡 Pas tout à fait — regarde :';
+    document.getElementById('fbx').innerHTML = good?q.explGood:q.explAlmost;
+    document.getElementById('go').textContent = (idx===questions.length-1)?'Terminer':'Question suivante →';
+    answered=true; return;
+  }
+  idx++;
+  if(idx<questions.length){ render(); }
+  else{ card.style.display='none';
+        document.getElementById('pbar').style.width='100%';
+        document.getElementById('plbl').textContent='Terminé !';
+        document.getElementById('endcard').classList.add('show'); }
+}
+function showSubjects(){ swap('view-subjects'); }
+function showList(){ swap('view-list'); }
+function startQuiz(){ swap('player'); idx=0;
+  document.getElementById('endcard').classList.remove('show');
+  document.getElementById('qcard').style.display='block'; render(); }
+function swap(id){ ['view-subjects','view-list','player'].forEach(v=>
+  document.getElementById(v).classList.toggle('hidden', v!==id)); }
+showSubjects();
+</script>
+</body>
+</html>
