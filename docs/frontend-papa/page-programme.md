@@ -188,3 +188,9 @@ Bandeau d'ancrage RAG (viendra avec l'ancrage, Lot 2 backend restant) ; case
 du panneau déplié couvre le besoin en deux clics) ; drag & drop ; édition des
 métadonnées de chapitre ; consultation des leçons archivées ;
 page Années scolaires (étape dédiée).
+
+## Voir aussi
+
+- **Rattrapage « skills-only » (niveau antérieur)** : action `🎯 Rattrapage` du header,
+  flux en modale qui génère puis upserte les notions d'un niveau antérieur du cycle
+  sans créer de chapitres (ADR-0010). Maquette : `page-programme-skills-backfill.md`.

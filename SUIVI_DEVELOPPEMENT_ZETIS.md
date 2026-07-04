@@ -59,6 +59,7 @@ Claude Code ne doit pas passer à l'étape suivante tant que :
 | IA / RAG | ⬜ À faire | À intégrer après socle stable |
 | Mémoire espacée | ⬜ À faire | Quiz, révisions, lacunes |
 | Capsules IA | ✅ Terminé | Spec typé + moteur Remotion (Lot 1) + rendu MP4 worker-media/Piper (Lot 2) + difficulté/durée + chapitres + suivi des vues + rendu auto à la validation |
+| Référentiel de programme | ✅ Backend / 🟨 UI | Génération IA 2 passes (chapitres → leçons + notions), co-construction Papa/IA, page Programme, cours par leçon (moteur local), rattrapage skills-only (ADR-0010) + verrous cours canonique — tout en prod. Reste : maquette UI du skills-backfill à valider, ancrage RAG (Slice A-bis) |
 
 Légende :
 
@@ -1495,6 +1496,55 @@ Fait. Backend uniquement (ni endpoint, ni frontend, ni Remotion — cf. ADR-0007
 ```bash
 git add .
 git commit -m "feat(capsules): CapsuleSpec schema + versioned generation prompt (backend core)"
+```
+
+---
+
+# ÉTAPE — Référentiel de programme scolaire (ADR-0009 / ADR-0010)
+
+## Statut
+
+Backend **terminé et en prod** ; **UI Papa du référentiel faite** (page Programme) ;
+**UI du rattrapage skills-only : maquette à valider** avant implémentation.
+
+## Ce qui a été fait
+
+- **Décisions** : `adr-0009` (génération LLM 2 passes dans la hiérarchie existante,
+  co-construction par nœud, dérogation cloud `curriculum_*` → `claude-sonnet-5` après
+  bench T4), son **addendum cours canonique** (le cours validé = source des dérivés ;
+  lien `lesson_skills`), `adr-0010` (rattrapage « skills-only » pour un niveau antérieur).
+- **Lot 1 — chapitres** : `app/prompts/curriculum.py` (prompt versionné), module
+  `app/modules/curriculum` (`GeneratedChapters` 3-25, passe 1, règles §3, trace `ai_jobs`
+  `curriculum_chapters`, résolveur `CURRICULUM_LLM_PROVIDER` + `AnthropicProvider`, 503
+  sans clé), colonnes `Chapter.source/validation_status/program_version`, page Papa
+  **Programme** (liste, badges source/validation, ajout inline, réordonnancement,
+  validation par lot).
+- **Lot 2 — leçons + notions** : tables `lessons` + `lesson_skills`, passe 2
+  (`generate_lessons`/`extend-lessons`, upsert `Skill` par `subject_id`+`level`+nom
+  normalisé), étage leçons de la page Programme, **rédaction de cours par leçon** (moteur
+  **local**, `generate-content`, provenance + édition manuelle), lots « proposer les
+  leçons » / « rédiger les cours manquants », **page Cours de Massimo** (routes élève,
+  validé uniquement).
+- **Rattrapage skills-only (ADR-0010)** : endpoints `POST /api/curriculum/skills-backfill/
+  generate|confirm` (passes 1+2 en mémoire, aucun chapitre/leçon persisté ; upsert des
+  notions au niveau cible ; stateless, idempotent), passe 1 rendue strictement mono-niveau
+  (`CURRICULUM_PROMPT_VERSION` v2).
+- **Verrous du cours canonique** : index `ix_lesson_skills_skill` (migration
+  `e1f2a3b4c5d6`) ; `generate-content` repasse la leçon en `draft` après (re)génération.
+- **Docs** : `DATA_MODEL.md`, `DECISIONS.md`, `API_SPEC.md` (section Référentiel),
+  maquettes `docs/frontend-papa/page-programme.md` + `page-programme-skills-backfill.md`.
+
+## Reste à faire
+
+- **UI Papa du rattrapage skills-only** (frontend pur) : implémenter d'après la maquette
+  `docs/frontend-papa/page-programme-skills-backfill.md` (une fois validée).
+- Ancrage RAG des attendus du BO (Slice A-bis) ; réconciliation skills seed (Lot 3) ;
+  `prerequisite_skill_ids`.
+
+## Commit conseillé
+
+```bash
+git commit -m "docs(curriculum): sync API_SPEC + SUIVI, skills-backfill UI mockup"
 ```
 
 ---

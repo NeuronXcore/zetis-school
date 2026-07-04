@@ -9,6 +9,9 @@ import {
   type CurriculumLesson,
   type LessonManualCreateRequest,
   type LessonPatchRequest,
+  type SkillsBackfillConfirmResult,
+  type SkillsBackfillNotion,
+  type SkillsBackfillPreview,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
@@ -230,6 +233,43 @@ export async function reorderLessons(
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ lesson_ids: lessonIds }),
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Rattrapage « skills-only » pour un niveau antérieur (ADR-0010).
+// Flux stateless : generate (prévisualisation en mémoire, rien de persisté) → confirm.
+// ---------------------------------------------------------------------------
+
+/** Passe 1+2 EN MÉMOIRE (appel cloud, ~1-3 min) : rien de persisté, renvoie les notions
+ *  groupées par chapitre d'échafaudage + `failed_scaffolds`. 400 si niveau hors cycle 4,
+ *  503 sans clé cloud. */
+export async function generateSkillsBackfill(
+  subjectId: number,
+  level: string,
+): Promise<SkillsBackfillPreview> {
+  return asJson(
+    await fetch(`${API_URL}/api/curriculum/skills-backfill/generate`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ subject_id: subjectId, level }),
+    }),
+  );
+}
+
+/** Upsert des notions revues en `Skill` au niveau cible (aucune leçon ni liaison créée) —
+ *  pas d'appel LLM. Idempotent : renvoie `{ created, existing }`. */
+export async function confirmSkillsBackfill(
+  subjectId: number,
+  level: string,
+  notions: SkillsBackfillNotion[],
+): Promise<SkillsBackfillConfirmResult> {
+  return asJson(
+    await fetch(`${API_URL}/api/curriculum/skills-backfill/confirm`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ subject_id: subjectId, level, notions }),
     }),
   );
 }
