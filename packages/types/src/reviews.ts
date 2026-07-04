@@ -17,6 +17,8 @@ export interface ReviewSubjectDue {
   slug: string;
   name: string;
   due_count: number;
+  /** Cartes dues jamais révisées (fraîchement générées) de cette matière — badge « nouveau ». */
+  new_count: number;
 }
 
 /** `GET /api/student/reviews/summary`. */
@@ -25,6 +27,8 @@ export interface ReviewsSummary {
   total_due: number;
   /** Nombre de cartes que servirait le « Mélange éclair » (= min(5, total_due)). */
   flash_size: number;
+  /** Total de cartes dues jamais révisées (fraîchement générées) — pilote le badge « nouveau ». */
+  new_count: number;
 }
 
 /** Carte servie en session — jamais de champ de planification. */

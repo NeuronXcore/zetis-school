@@ -18,10 +18,11 @@ import { fetchReviewsSummary } from "../lib/reviews";
 const SUMMARY: ReviewsSummary = {
   total_due: 27,
   flash_size: 5,
+  new_count: 4,
   subjects: [
-    { slug: "maths", name: "Maths", due_count: 20 }, // > 15 → « 15+ »
-    { slug: "svt", name: "SVT", due_count: 3 },
-    { slug: "espagnol", name: "Espagnol", due_count: 0 }, // à jour → non cliquable
+    { slug: "maths", name: "Maths", due_count: 20, new_count: 4 }, // > 15 → « 15+ », a du neuf
+    { slug: "svt", name: "SVT", due_count: 3, new_count: 0 },
+    { slug: "espagnol", name: "Espagnol", due_count: 0, new_count: 0 }, // à jour → non cliquable
   ],
 };
 
@@ -47,6 +48,15 @@ describe("RevisionPage — écran des decks", () => {
     expect(within(screen.getByRole("button", { name: /SVT/ })).getByText("3")).toBeInTheDocument();
   });
 
+  it("badge « ✨ new » sur les decks contenant des cartes fraîchement générées", async () => {
+    renderAt();
+    const maths = await screen.findByRole("button", { name: /Maths/ });
+    expect(within(maths).getByText(/new/)).toBeInTheDocument(); // maths new_count=4
+    expect(
+      within(screen.getByRole("button", { name: /SVT/ })).queryByText(/new/),
+    ).not.toBeInTheDocument(); // svt new_count=0
+  });
+
   it("matière à jour : « à jour ✓ », non cliquable (pas de bouton)", async () => {
     renderAt();
     await screen.findByText("Espagnol");
@@ -60,7 +70,8 @@ describe("RevisionPage — écran des decks", () => {
     vi.mocked(fetchReviewsSummary).mockResolvedValue({
       total_due: 0,
       flash_size: 0,
-      subjects: [{ slug: "maths", name: "Maths", due_count: 0 }],
+      new_count: 0,
+      subjects: [{ slug: "maths", name: "Maths", due_count: 0, new_count: 0 }],
     });
     renderAt();
     expect(await screen.findByText(/Tout est frais dans ta mémoire/)).toBeInTheDocument();

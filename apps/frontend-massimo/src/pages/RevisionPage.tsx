@@ -120,6 +120,7 @@ export function RevisionPage() {
                   count={summary.total_due}
                   hero
                   collageUrls={collageUrls}
+                  isNew={summary.new_count > 0}
                   onClick={() =>
                     launch({ deck: "mix_day", label: "Mélange du jour", subjectNames })
                   }
@@ -130,6 +131,7 @@ export function RevisionPage() {
                   count={summary.flash_size}
                   hero
                   collageUrls={collageUrls}
+                  isNew={summary.new_count > 0}
                   onClick={() =>
                     launch({ deck: "mix_flash", label: "Mélange éclair", subjectNames })
                   }
@@ -153,6 +155,7 @@ export function RevisionPage() {
                       imageUrl={subjectIconFor(subject.slug)}
                       fallbackInitial={subject.name}
                       atDay={atDay}
+                      isNew={subject.new_count > 0}
                       onClick={
                         atDay
                           ? undefined

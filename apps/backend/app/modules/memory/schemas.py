@@ -15,12 +15,14 @@ class SubjectDue(BaseModel):
     slug: str
     name: str
     due_count: int
+    new_count: int = 0  # cartes dues jamais révisées (fraîchement générées) de cette matière
 
 
 class ReviewsSummary(BaseModel):
     subjects: list[SubjectDue]
     total_due: int
     flash_size: int
+    new_count: int = 0  # total de cartes « nouvelles » (badge Massimo)
 
 
 class SubjectDeck(BaseModel):

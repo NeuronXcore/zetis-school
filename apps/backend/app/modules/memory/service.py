@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -120,20 +120,27 @@ def get_reviews_summary(db: Session, student: StudentProfile) -> dict:
     de cartes que servirait le « Mélange éclair ».
     """
     now = _now()
+    # « Nouvelle » = carte due jamais révisée (`last_reviewed_at IS NULL`) — c.-à-d. fraîchement
+    # générée par Papa, que Massimo n'a pas encore vue. Le badge se vide dès le 1er passage.
+    new_expr = func.count(case((SpacedReviewCard.last_reviewed_at.is_(None), SpacedReviewCard.id)))
     rows = db.execute(
-        select(Subject.slug, Subject.name, func.count(SpacedReviewCard.id))
+        select(Subject.slug, Subject.name, func.count(SpacedReviewCard.id), new_expr)
         .join(Skill, Skill.subject_id == Subject.id)
         .join(SpacedReviewCard, SpacedReviewCard.skill_id == Skill.id)
         .where(*_due_conditions(student.id, now))
         .group_by(Subject.id)
         .order_by(Subject.sort_order, Subject.name)
     ).all()
-    subjects = [{"slug": slug, "name": name, "due_count": count} for slug, name, count in rows]
+    subjects = [
+        {"slug": slug, "name": name, "due_count": due, "new_count": new}
+        for slug, name, due, new in rows
+    ]
     total_due = sum(s["due_count"] for s in subjects)
     return {
         "subjects": subjects,
         "total_due": total_due,
         "flash_size": min(REVIEW_SESSION_FLASH, total_due),
+        "new_count": sum(s["new_count"] for s in subjects),
     }
 
 

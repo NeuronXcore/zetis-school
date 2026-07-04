@@ -18,7 +18,7 @@ from app.modules.memory.generation import (
     generate_cards_for_skill,
     reconcile_cards_for_subject,
 )
-from app.modules.memory.service import get_reviews_summary
+from app.modules.memory.service import get_reviews_summary, record_attempt
 from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
 
 PARENT = {"username": "papa", "role": "parent"}
@@ -100,6 +100,22 @@ def test_regeneration_updates_content_but_never_schedule(client_db):
     same = db.get(m.SpacedReviewCard, cid)
     assert same.front_markdown == "NEW ?"  # contenu mis à jour
     assert (same.due_at, same.interval_days, same.ease_factor) == kept  # planification SACRÉE
+
+
+def test_summary_new_count_reflects_fresh_cards(client_db):
+    _, TestSession = client_db
+    db = TestSession()
+    _, skill_id = _seed_lesson(db)
+    generate_cards_for_skill(db, FakeLLMProvider(), FakeEmbeddingProvider(), skill_id=skill_id)
+
+    student = get_default_student(db)
+    summ = get_reviews_summary(db, student)
+    assert summ["new_count"] == 2  # 2 cartes fraîchement générées, jamais révisées
+    assert summ["subjects"][0]["new_count"] == 2
+
+    # Un passage → la carte n'est plus « nouvelle » (last_reviewed_at posé).
+    record_attempt(db, student, _def_card(db, skill_id).id, "good")
+    assert get_reviews_summary(db, student)["new_count"] == 1
 
 
 def test_generate_is_idempotent(client_db):

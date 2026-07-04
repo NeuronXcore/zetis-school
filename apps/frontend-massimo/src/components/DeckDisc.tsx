@@ -21,6 +21,8 @@ export interface DeckDiscProps {
   fallbackInitial?: string;
   /** `count === 0` : deck « à jour ✓ », atténué et non cliquable. */
   atDay?: boolean;
+  /** Contient des cartes fraîchement générées jamais révisées → badge « ✨ new ». */
+  isNew?: boolean;
   onClick?: () => void;
 }
 
@@ -77,6 +79,7 @@ export function DeckDisc({
   collageUrls,
   fallbackInitial,
   atDay = false,
+  isNew = false,
   onClick,
 }: DeckDiscProps) {
   const disc = hero ? "h-28 w-28" : "h-20 w-20";
@@ -110,6 +113,12 @@ export function DeckDisc({
       ) : (
         <span className="absolute -right-1 -top-1 min-w-6 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 px-2 py-0.5 text-center text-xs font-bold text-white shadow-lg shadow-indigo-900/40">
           {cappedCount(count)}
+        </span>
+      )}
+      {/* Fraîchement générées, jamais vues → « ✨ new » (positif, jamais anxiogène). */}
+      {isNew && !atDay && (
+        <span className="absolute -left-1 -top-1 rounded-full border border-emerald-300/50 bg-emerald-400/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-100 shadow">
+          ✨ new
         </span>
       )}
     </div>
