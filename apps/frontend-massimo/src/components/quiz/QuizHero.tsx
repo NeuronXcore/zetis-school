@@ -44,7 +44,7 @@ export function QuizHero() {
           <img
             src={quizIcon}
             alt=""
-            className={`qh-icon h-16 w-16 rounded-2xl object-cover ${answered && !reduced ? "qh-nod" : ""}`}
+            className={`qh-icon h-24 w-24 rounded-2xl object-cover ${answered && !reduced ? "qh-nod" : ""}`}
             key={answered && !reduced ? `nod-${tick}` : "idle"}
           />
           {answered && !reduced && (
