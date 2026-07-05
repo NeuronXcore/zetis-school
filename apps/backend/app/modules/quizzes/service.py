@@ -36,7 +36,7 @@ from app.modules.ai.canonical_context import (
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.gamification.service import award_xp, quiz_xp
-from app.modules.quizzes import correction, scoring
+from app.modules.quizzes import correction, judge, scoring
 from app.modules.quizzes.schemas import (
     GeneratedQuiz,
     ManualQuestionCreate,
@@ -54,8 +54,9 @@ from app.prompts.quiz import (
 )
 
 QUIZ_TYPE_MISSION = "mission"
-# Types éditables à la main par Papa (Lot 1) : les sept à correction déterministe.
-MANUAL_QUESTION_TYPES = correction.SUPPORTED_TYPES
+# Types éditables à la main par Papa : les sept déterministes (Lot 1) + `open` (Lot 2, jugé par
+# LLM). `open` n'entre JAMAIS dans le mix auto-généré (ADR-0014 Décision 3) : opt-in manuel Papa.
+MANUAL_QUESTION_TYPES = correction.SUPPORTED_TYPES | {"open"}
 
 
 def _now() -> datetime:
@@ -551,8 +552,16 @@ def add_manual_question(db: Session, quiz_id: int, payload: ManualQuestionCreate
     if payload.question_type not in MANUAL_QUESTION_TYPES:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail=f"Type de question non pris en charge (Lot 1) : {payload.question_type}.",
+            detail=f"Type de question non pris en charge : {payload.question_type}.",
         )
+    if payload.question_type == "open":
+        # Une question ouverte se juge contre des critères : ils sont obligatoires (Lot 2).
+        key = payload.correct_answer_json if isinstance(payload.correct_answer_json, dict) else {}
+        if not key.get("criteria"):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Une question ouverte doit lister au moins un critère (`correct_answer_json.criteria`).",
+            )
     next_order = (
         db.scalar(select(func.max(QuizQuestion.sort_order)).where(QuizQuestion.quiz_id == quiz.id))
         or 0
@@ -771,16 +780,44 @@ def _attempt_or_404(db: Session, student: StudentProfile, attempt_id: int) -> Qu
 
 
 def submit_answer(
-    db: Session, student: StudentProfile, attempt_id: int, question_id: int, answer_json
+    db: Session,
+    student: StudentProfile,
+    attempt_id: int,
+    question_id: int,
+    answer_json,
+    provider: LLMProvider | None = None,
 ) -> dict:
-    """Corrige CETTE réponse côté serveur et renvoie le feedback immédiat (jamais la clé)."""
+    """Corrige CETTE réponse côté serveur et renvoie le feedback immédiat (jamais la clé).
+
+    Formats déterministes (Lot 1) : correcteur pur. Format `open` (Lot 2) : jugement LLM local
+    critère par critère (garde-fous : bénéfice du doute, ambiguïté remontée à Papa, bienveillant)."""
     attempt = _attempt_or_404(db, student, attempt_id)
     q = _question_or_404(db, question_id)
     if q.quiz_id != attempt.quiz_id or q.status != "active":
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, detail="Question hors de cette tentative."
         )
-    is_correct = correction.correct(q.question_type, answer_json, q.correct_answer_json)
+
+    ai_eval = None
+    if q.question_type == "open":
+        if provider is None:  # garde-fou : la route élève injecte toujours le provider
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Juge indisponible pour cette question."
+            )
+        key = q.correct_answer_json if isinstance(q.correct_answer_json, dict) else {}
+        answer_text = answer_json.get("text", "") if isinstance(answer_json, dict) else str(answer_json or "")
+        verdict = judge.judge_open(
+            provider, prompt=q.prompt_markdown, answer_text=answer_text, criteria=key.get("criteria", [])
+        )
+        is_correct = verdict["is_correct"]
+        ai_eval = verdict["ai_evaluation_json"]
+        explanation = verdict["feedback_markdown"]
+        ambiguous = verdict["ambiguous"]
+    else:
+        is_correct = correction.correct(q.question_type, answer_json, q.correct_answer_json)
+        explanation = q.explanation_markdown
+        ambiguous = False
+
     existing = db.scalar(
         select(QuizAnswer).where(
             QuizAnswer.attempt_id == attempt_id, QuizAnswer.question_id == question_id
@@ -790,6 +827,8 @@ def submit_answer(
         existing.answer_json = answer_json
         existing.is_correct = is_correct
         existing.score = 1.0 if is_correct else 0.0
+        existing.feedback_markdown = explanation if q.question_type == "open" else existing.feedback_markdown
+        existing.ai_evaluation_json = ai_eval
     else:
         db.add(
             QuizAnswer(
@@ -798,10 +837,17 @@ def submit_answer(
                 answer_json=answer_json,
                 is_correct=is_correct,
                 score=1.0 if is_correct else 0.0,
+                feedback_markdown=explanation if q.question_type == "open" else None,
+                ai_evaluation_json=ai_eval,
             )
         )
     db.commit()
-    return {"is_correct": is_correct, "explanation_markdown": q.explanation_markdown}
+    return {
+        "is_correct": is_correct,
+        "explanation_markdown": explanation,
+        "criteria": (ai_eval or {}).get("criteria") if ai_eval else None,
+        "ambiguous": ambiguous,
+    }
 
 
 def complete_attempt(db: Session, student: StudentProfile, attempt_id: int) -> dict:

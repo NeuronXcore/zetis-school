@@ -154,11 +154,14 @@ def start_attempt(quiz_id: int, db: Session = Depends(get_db)) -> dict:
 
 @student_router.post("/quiz-attempts/{attempt_id}/answers", response_model=AnswerFeedbackOut)
 def submit_answer(
-    attempt_id: int, req: SubmitAnswerRequest, db: Session = Depends(get_db)
+    attempt_id: int,
+    req: SubmitAnswerRequest,
+    db: Session = Depends(get_db),
+    provider: LLMProvider = Depends(get_provider),  # utilisé seulement par le format `open` (juge)
 ) -> dict:
     """Corrige la réponse et renvoie le feedback immédiat — jamais la clé."""
     return service.submit_answer(
-        db, get_default_student(db), attempt_id, req.question_id, req.answer_json
+        db, get_default_student(db), attempt_id, req.question_id, req.answer_json, provider=provider
     )
 
 

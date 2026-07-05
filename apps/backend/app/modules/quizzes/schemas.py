@@ -249,6 +249,10 @@ class AnswerFeedbackOut(BaseModel):
 
     is_correct: bool
     explanation_markdown: str | None
+    # Format `open` (Lot 2) : jugement critère par critère + drapeau d'ambiguïté (bénéfice du
+    # doute). None / False pour les formats déterministes.
+    criteria: Any | None = None
+    ambiguous: bool = False
 
 
 class SkillScoreOut(BaseModel):

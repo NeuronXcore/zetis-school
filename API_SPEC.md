@@ -276,13 +276,17 @@ substrat canonique** (ADR-0011). Génération **locale** depuis le cours validé
   ni explication) ; chaque quiz porte `lesson_id`.
 - **POST `/api/student/quizzes/{id}/attempts`** — démarre une tentative.
 - **POST `/api/student/quiz-attempts/{id}/answers`** — corps `{ question_id, answer_json }` :
-  correction serveur, renvoie `{ is_correct, explanation_markdown }` (jamais la clé).
+  correction serveur, renvoie `{ is_correct, explanation_markdown, criteria?, ambiguous }` (jamais
+  la clé). Format `open` (Lot 2) : **jugement LLM local** critère par critère (résultat structuré
+  dans `quiz_answers.ai_evaluation_json`) — bénéfice du doute si le juge n'est pas sûr (élève
+  crédité, ambiguïté remontée à Papa), feedback toujours bienveillant.
 - **POST `/api/student/quiz-attempts/{id}/complete`** — score global + par notion, scoring pondéré
   (`mission` = signal faible, jamais de `Gap`), **XP = base d'effort + bonus score** (0 %→10,
   100 %→30), résumé bienveillant `{ score_percent, xp_awarded, per_skill, strengths, to_review }`.
 
-> Reporté (Lot 2) : format `open` (jugement LLM contre critères), génération en lot,
-> `revision`/`capsule_post_test` réels (scoring stubs).
+> Le format `open` (Lot 2) est **livré** : question ajoutée par Papa (opt-in manuel, critères
+> obligatoires), jugée par le LLM local à la réponse. Reste reporté : génération en lot,
+> contextes `revision`/`capsule_post_test` réels (scoring en stub).
 
 ## Missions
 

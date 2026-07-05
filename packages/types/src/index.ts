@@ -2,6 +2,7 @@ export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
   type AnswerFeedback,
   type ManualQuestionCreate,
+  type OpenCriterion,
   type PapaQuizDetail,
   type PapaQuizQuestion,
   type QuestionPatch,

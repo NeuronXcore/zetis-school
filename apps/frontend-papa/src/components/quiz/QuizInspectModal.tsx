@@ -84,6 +84,19 @@ function KeyView({ q }: { q: PapaQuizQuestion }) {
       </p>
     );
   }
+  if (q.question_type === "open") {
+    const crits = (key as { criteria?: string[] })?.criteria ?? [];
+    return (
+      <div className="text-sm text-papa-muted">
+        <p className="font-semibold text-papa-text">Critères attendus (jugés par l'IA) :</p>
+        <ul className="mt-1 list-disc pl-5">
+          {crits.map((c, i) => (
+            <li key={i}>{c}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
   return <pre className="text-xs text-papa-muted">{JSON.stringify(key)}</pre>;
 }
 
@@ -196,17 +209,33 @@ export function QuizInspectModal({
 }: Props) {
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const [addType, setAddType] = useState<"mcq" | "open">("mcq");
   const [draft, setDraft] = useState<ManualQuestionCreate>(BLANK_MCQ);
+  const [criteriaText, setCriteriaText] = useState(""); // question ouverte : un critère par ligne
   const [savingAdd, setSavingAdd] = useState(false);
 
   const active = detail.questions.filter((q) => q.status !== "retired");
   const retired = detail.questions.filter((q) => q.status === "retired");
 
+  const openCriteria = criteriaText.split("\n").map((s) => s.trim()).filter(Boolean);
+  const canAdd =
+    !!draft.prompt_markdown.trim() && (addType === "mcq" || openCriteria.length > 0);
+
   const submitAdd = async () => {
     setSavingAdd(true);
     try {
-      await onAdd(detail.quiz_id, draft);
+      const payload: ManualQuestionCreate =
+        addType === "open"
+          ? {
+              question_type: "open",
+              prompt_markdown: draft.prompt_markdown,
+              correct_answer_json: { criteria: openCriteria },
+              explanation_markdown: draft.explanation_markdown,
+            }
+          : draft;
+      await onAdd(detail.quiz_id, payload);
       setDraft(BLANK_MCQ);
+      setCriteriaText("");
       setAdding(false);
     } finally {
       setSavingAdd(false);
@@ -298,37 +327,66 @@ export function QuizInspectModal({
 
         {adding && (
           <div className="mb-3 rounded-xl border border-dashed border-papa-accent/50 p-4">
-            <p className="mb-2 text-xs font-semibold text-papa-accent">Nouvelle question manuelle (QCM)</p>
+            <div className="mb-3 flex gap-2">
+              {(["mcq", "open"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setAddType(t)}
+                  className={`rounded-lg border px-3 py-1 text-xs ${
+                    addType === t
+                      ? "border-papa-accent bg-papa-accent/10 font-semibold text-papa-accent"
+                      : "border-papa-border text-papa-muted"
+                  }`}
+                >
+                  {t === "mcq" ? "QCM" : "Réponse ouverte"}
+                </button>
+              ))}
+            </div>
             <input
               className="mb-2 w-full rounded-lg border border-papa-border px-3 py-2 text-sm"
               placeholder="Énoncé"
               value={draft.prompt_markdown}
               onChange={(e) => setDraft((d) => ({ ...d, prompt_markdown: e.target.value }))}
             />
-            {(draft.choices_json as string[]).map((c, i) => (
-              <div key={i} className="mb-1.5 flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="add-key"
-                  checked={draft.correct_answer_json === i}
-                  onChange={() => setDraft((d) => ({ ...d, correct_answer_json: i }))}
-                  className="accent-papa-accent"
+            {addType === "mcq" ? (
+              (draft.choices_json as string[]).map((c, i) => (
+                <div key={i} className="mb-1.5 flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="add-key"
+                    checked={draft.correct_answer_json === i}
+                    onChange={() => setDraft((d) => ({ ...d, correct_answer_json: i }))}
+                    className="accent-papa-accent"
+                  />
+                  <input
+                    className="flex-1 rounded-lg border border-papa-border px-3 py-1.5 text-sm"
+                    placeholder={`Choix ${i + 1}`}
+                    value={c}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        choices_json: (d.choices_json as string[]).map((x, j) =>
+                          j === i ? e.target.value : x,
+                        ),
+                      }))
+                    }
+                  />
+                </div>
+              ))
+            ) : (
+              <>
+                <label className="mb-1 block text-[11px] text-papa-muted">
+                  Critères attendus — un par ligne (l'IA juge la réponse contre eux)
+                </label>
+                <textarea
+                  rows={3}
+                  className="mb-1 w-full rounded-lg border border-papa-border px-3 py-2 text-sm"
+                  placeholder={"parle du signe négatif\nutilise la droite graduée"}
+                  value={criteriaText}
+                  onChange={(e) => setCriteriaText(e.target.value)}
                 />
-                <input
-                  className="flex-1 rounded-lg border border-papa-border px-3 py-1.5 text-sm"
-                  placeholder={`Choix ${i + 1}`}
-                  value={c}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      choices_json: (d.choices_json as string[]).map((x, j) =>
-                        j === i ? e.target.value : x,
-                      ),
-                    }))
-                  }
-                />
-              </div>
-            ))}
+              </>
+            )}
             <textarea
               rows={2}
               className="mt-1 w-full rounded-lg border border-papa-border px-3 py-2 text-sm"
@@ -346,7 +404,7 @@ export function QuizInspectModal({
               <button
                 className="rounded-lg bg-papa-accent px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
                 onClick={submitAdd}
-                disabled={savingAdd || !draft.prompt_markdown.trim()}
+                disabled={savingAdd || !canAdd}
               >
                 Ajouter
               </button>

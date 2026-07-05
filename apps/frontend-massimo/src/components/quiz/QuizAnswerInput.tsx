@@ -138,6 +138,23 @@ function ClozeInput({ question, onChange, disabled }: Props) {
   );
 }
 
+function OpenInput({ onChange, disabled }: Props) {
+  const [text, setText] = useState("");
+  return (
+    <textarea
+      rows={4}
+      disabled={disabled}
+      placeholder="Explique avec tes mots…"
+      className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3.5 text-[15px] leading-relaxed outline-none focus:border-cyan-400"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange({ text: e.target.value }, e.target.value.trim() !== "");
+      }}
+    />
+  );
+}
+
 function NumericInput({ onChange, disabled }: Props) {
   const [val, setVal] = useState("");
   return (
@@ -253,6 +270,7 @@ const BY_TYPE: Record<string, (p: Props) => ReactElement> = {
   numeric: NumericInput,
   ordering: OrderingInput,
   matching: MatchingInput,
+  open: OpenInput,
 };
 
 export function QuizAnswerInput(props: Props) {

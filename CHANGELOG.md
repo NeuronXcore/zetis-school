@@ -23,6 +23,12 @@ Date : 2026-07-05
   « 🎯 Quiz » sur la page Cours quand un quiz existe ; hero animé sur la page Quiz.
 - **Migration `b1c2d3e4f5a6`** : `quizzes.lesson_id`, `quiz_questions.source` + `.status`
   (`question_type` reste `varchar` → extension des formats sans DDL).
+- **Lot 2 — format `open` (jugement LLM)** — clôt l'ADR-0014. Réponse écrite libre **jugée par
+  le moteur local** contre des critères (opt-in manuel Papa, hors mix auto-généré) : évaluation
+  **critère par critère** (persistée dans `quiz_answers.ai_evaluation_json`, migration
+  `c2d3e4f5a6b7`), **bénéfice du doute** si le juge n'est pas sûr (élève crédité, ambiguïté
+  remontée à Papa), feedback toujours bienveillant. Player Massimo (zone de texte) + authoring
+  Papa (bascule QCM / Réponse ouverte + critères). Vérifié live (Ollama réel).
 
 ### UI Massimo (retouches)
 

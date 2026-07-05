@@ -213,13 +213,14 @@ def test_edit_flips_to_manual_and_regenerate_preserves_it(client_db):
     assert fresh_generated.one() == 6  # nouveau lot généré
 
 
-def test_add_manual_question_rejects_lot2_types(client_db):
+def test_add_manual_question_rejects_unknown_type(client_db):
     _, TestSession = client_db
     db = TestSession()
     quiz, _, _, _ = _gen(db)
+    # `open` est désormais accepté (Lot 2) ; un type inconnu reste refusé.
     with pytest.raises(HTTPException) as exc:
         service.add_manual_question(
-            db, quiz.id, ManualQuestionCreate(question_type="open", prompt_markdown="?", correct_answer_json={})
+            db, quiz.id, ManualQuestionCreate(question_type="essay", prompt_markdown="?", correct_answer_json={})
         )
     assert exc.value.status_code == 400
 

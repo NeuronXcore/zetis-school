@@ -2,8 +2,10 @@
 
 ## Statut
 
-Accepté — 2026-07-05. Lot 1 implémenté et fusionné : moteur backend (module `quizzes`),
-page Papa « Quiz — pilotage », client Massimo (grille → lecteur 7 formats → résumé).
+Accepté — 2026-07-05. **ADR clôturé** — Lot 1 (moteur backend `quizzes`, page Papa
+« Quiz — pilotage », client Massimo) **et Lot 2** (format `open` jugé par LLM local, critère
+par critère, garde-fous bénéfice du doute / ambiguïté remontée à Papa) implémentés et vérifiés
+live (Ollama réel). `open` reste hors du mix auto-généré : opt-in manuel de Papa (Décision 3).
 
 > S'appuie sur : `adr-0009` (§3 co-construction, §9 filtrage serveur du validé),
 > `adr-0011` (substrat canonique partagé — le quiz en devient le deuxième client

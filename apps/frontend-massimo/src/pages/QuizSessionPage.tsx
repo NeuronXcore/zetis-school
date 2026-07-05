@@ -23,6 +23,7 @@ const FORMAT_LABELS: Record<string, string> = {
   numeric: "Réponse courte",
   ordering: "Remets dans l'ordre",
   matching: "Association",
+  open: "Réponse ouverte",
 };
 
 export function QuizSessionPage() {

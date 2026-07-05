@@ -1578,12 +1578,21 @@ Papa) ; #44 (client Massimo) en revue.
   aucune `Gap`, questions `manual` préservées par la régénération. 279 tests backend +
   66 (Massimo) + 100 (Papa) verts.
 
+## Lot 2 — format `open` (jugement LLM) — FAIT (ADR clôturé)
+
+Réponse écrite libre **jugée par le moteur local** contre des critères (garde-fous Décision 4 :
+critère par critère, bénéfice du doute + ambiguïté remontée à Papa, feedback bienveillant).
+`open` reste hors du mix auto-généré (opt-in manuel Papa). Migration `c2d3e4f5a6b7`
+(`quiz_answers.ai_evaluation_json`), module `judge.py`, prompt juge versionné, player Massimo
+(zone de texte) + authoring Papa (bascule QCM / Réponse ouverte). 6 tests de calibrage + vérifié
+live (Ollama réel). **ADR-0014 clôturé.**
+
 ## Reste à faire
 
-- **Lot 2** : format `open` (jugement LLM contre critères), génération en lot, contextes
-  `revision`/`capsule_post_test` réels (scoring aujourd'hui en stub).
-- Badge « déjà fait · rejouer » par quiz (statut de tentative) ; éditeurs manuels Papa par
-  format autres que QCM.
+- Génération **en lot** (« générer les quiz manquants »), contextes `revision`/
+  `capsule_post_test` réels (scoring aujourd'hui en stub).
+- Badge « déjà fait · rejouer » par quiz (statut de tentative) ; génération auto de questions
+  ouvertes avec critères assistée par LLM (opt-in), aujourd'hui saisis à la main par Papa.
 
 ## Commit conseillé
 

@@ -71,3 +71,6 @@ class QuizAnswer(Base):
     is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     feedback_markdown: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Jugement structuré d'une réponse `open` (ADR-0014 Lot 2) : critère par critère + drapeau
+    # d'ambiguïté (jamais une note globale opaque). Null pour les formats déterministes.
+    ai_evaluation_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)

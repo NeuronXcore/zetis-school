@@ -174,10 +174,21 @@ export interface StartAttemptResult {
   questions_count: number;
 }
 
+/** Évaluation d'un critère d'une question ouverte (format `open`, Lot 2). */
+export interface OpenCriterion {
+  label: string;
+  met: boolean;
+  note?: string;
+}
+
 /** `POST /api/student/quiz-attempts/{id}/answers` — feedback immédiat, la clé n'est JAMAIS renvoyée. */
 export interface AnswerFeedback {
   is_correct: boolean;
   explanation_markdown: string | null;
+  /** Format `open` : jugement critère par critère (null pour les formats déterministes). */
+  criteria?: OpenCriterion[] | null;
+  /** Réponse ambiguë créditée par bénéfice du doute (format `open`). */
+  ambiguous?: boolean;
 }
 
 export interface QuizSkillScore {
