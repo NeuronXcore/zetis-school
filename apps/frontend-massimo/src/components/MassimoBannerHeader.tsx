@@ -55,23 +55,19 @@ export function MassimoBannerHeader() {
       <NeuralCubes />
 
       <div className="relative flex h-full items-center justify-between px-5">
-        <p className="hidden text-sm text-slate-200 drop-shadow sm:block">
-          Aujourd'hui — prêt à apprendre&nbsp;?
-        </p>
-
-        <div className="ml-auto flex items-center gap-3 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 backdrop-blur-md">
-          <div className="text-right">
-            <p className="text-sm font-semibold text-slate-100">Massimo</p>
-            <p className="text-xs text-slate-300">
-              Niveau {level} · {totalXp} XP
-            </p>
-          </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 backdrop-blur-md">
           <img
             src="/massimo-avatar.png"
             alt=""
             aria-hidden
             className="h-14 w-14 shrink-0 rounded-full object-cover ring-2 ring-cyan-400/60"
           />
+          <div className="text-left">
+            <p className="text-sm font-semibold text-slate-100">Massimo</p>
+            <p className="text-xs text-slate-300">
+              Niveau {level} · {totalXp} XP
+            </p>
+          </div>
           {user && (
             <button
               type="button"
@@ -82,6 +78,10 @@ export function MassimoBannerHeader() {
             </button>
           )}
         </div>
+
+        <p className="hidden text-sm text-slate-200 drop-shadow sm:block">
+          Aujourd'hui — prêt à apprendre&nbsp;?
+        </p>
       </div>
     </header>
   );
