@@ -131,6 +131,20 @@ def test_student_payload_never_leaks_key_or_explanation(client_db):
 # ── Flux de tentative complet + XP ────────────────────────────────────────────
 
 
+def test_student_quiz_carries_lesson_id_and_subjects_summary(client_db):
+    client, TestSession = client_db
+    db = TestSession()
+    quiz, _, lesson_id, _ = _gen(db)
+
+    _as(CHILD)
+    quizzes = client.get("/api/student/quizzes/mathematiques").json()
+    assert quizzes[0]["lesson_id"] == lesson_id  # le bouton page Cours peut cibler la leçon
+
+    subjects = client.get("/api/student/quiz-subjects").json()
+    maths = next(s for s in subjects if s["slug"] == "mathematiques")
+    assert maths["quiz_count"] == 1 and maths["name"] == "Mathématiques"
+
+
 def test_full_attempt_flow_feedback_score_and_xp(client_db):
     client, TestSession = client_db
     db = TestSession()

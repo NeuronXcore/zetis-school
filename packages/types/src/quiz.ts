@@ -138,3 +138,62 @@ export interface QuizDeleteResult {
   deleted: boolean;
   archived: boolean;
 }
+
+// --- Flux élève Massimo (`/api/student/*`) — JAMAIS de clé ni d'explication à l'avance ---
+
+/** `GET /api/student/quiz-subjects` — grille écran 1 (grisée si `quiz_count === 0`). */
+export interface QuizSubjectSummary {
+  subject_id: number;
+  slug: string;
+  name: string;
+  quiz_count: number;
+}
+
+/** Question servie à Massimo : ni clé ni explication (asymétrie serveur). */
+export interface StudentQuizQuestion {
+  id: number;
+  question_type: string;
+  prompt_markdown: string;
+  choices_json: unknown; // présentation selon le format (options, items, colonnes…)
+  skill_id: number | null;
+  skill_name: string;
+}
+
+/** `GET /api/student/quizzes/{subject_slug}` — quiz jouables (questions embarquées). */
+export interface StudentQuiz {
+  quiz_id: number;
+  title: string;
+  lesson_id: number | null;
+  questions: StudentQuizQuestion[];
+}
+
+/** `POST /api/student/quizzes/{id}/attempts`. */
+export interface StartAttemptResult {
+  attempt_id: number;
+  quiz_id: number;
+  questions_count: number;
+}
+
+/** `POST /api/student/quiz-attempts/{id}/answers` — feedback immédiat, la clé n'est JAMAIS renvoyée. */
+export interface AnswerFeedback {
+  is_correct: boolean;
+  explanation_markdown: string | null;
+}
+
+export interface QuizSkillScore {
+  skill_id: number | null;
+  skill_name: string;
+  score: number;
+  status: string;
+}
+
+/** `POST /api/student/quiz-attempts/{id}/complete` — résumé bienveillant + XP serveur. */
+export interface QuizCompleteResult {
+  attempt_id: number;
+  quiz_id: number;
+  score_percent: number;
+  xp_awarded: number;
+  per_skill: QuizSkillScore[];
+  strengths: string[]; // forces
+  to_review: string[]; // « à revoir bientôt » — jamais de vocabulaire d'échec
+}

@@ -28,6 +28,7 @@ from app.modules.quizzes.schemas import (
     QuizListItem,
     StartAttemptOut,
     StudentQuizOut,
+    StudentQuizSubjectOut,
     SubmitAnswerRequest,
 )
 
@@ -132,6 +133,12 @@ def delete_quiz(quiz_id: int, db: Session = Depends(get_db)) -> dict:
 
 
 # ── Élève (Massimo) ───────────────────────────────────────────────────────────
+
+
+@student_router.get("/quiz-subjects", response_model=list[StudentQuizSubjectOut])
+def student_quiz_subjects(db: Session = Depends(get_db)) -> list[dict]:
+    """Grille « Quiz » : matières de l'année active + nombre de quiz jouables (0 → grisée)."""
+    return service.student_quiz_subjects(db)
 
 
 @student_router.get("/quizzes/{subject_slug}", response_model=list[StudentQuizOut])

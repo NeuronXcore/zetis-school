@@ -688,7 +688,45 @@ def list_student_quizzes(db: Session, subject_slug: str) -> list[dict]:
             {
                 "quiz_id": quiz.id,
                 "title": quiz.title,
+                "lesson_id": quiz.lesson_id,
                 "questions": [_student_question_out(db, q) for q in questions],
+            }
+        )
+    return out
+
+
+def student_quiz_subjects(db: Session) -> list[dict]:
+    """Grille « Quiz » (écran 1) : matières de l'année active à leçons validées + nb de quiz.
+
+    `quiz_count == 0` → la matière est servie mais grisée (« bientôt »), même logique que les
+    matières sans carte sur la page Révision. Matière sans leçon validée : absente."""
+    year = _active_year(db)
+    if year is None:
+        return []
+    subjects = list(db.scalars(select(Subject).order_by(Subject.sort_order, Subject.name)))
+    out: list[dict] = []
+    for subject in subjects:
+        lesson_ids = _validated_lesson_ids_for_subject(db, subject.id)
+        if not lesson_ids:
+            continue
+        quiz_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(Quiz)
+                .where(
+                    Quiz.lesson_id.in_(lesson_ids),
+                    Quiz.quiz_type == QUIZ_TYPE_MISSION,
+                    Quiz.status != "archived",
+                )
+            )
+            or 0
+        )
+        out.append(
+            {
+                "subject_id": subject.id,
+                "slug": subject.slug,
+                "name": subject.name,
+                "quiz_count": quiz_count,
             }
         )
     return out
