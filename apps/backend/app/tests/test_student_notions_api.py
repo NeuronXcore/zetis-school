@@ -9,7 +9,7 @@ Deux routes couvertes :
 Le conftest authentifie en rôle `child` : ces routes doivent lui répondre 200.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -127,8 +127,51 @@ def test_summary_counts_per_subject_including_empty(client_db) -> None:
     # cachée (draft) et pending ne comptent pas ; s_signes n'est compté qu'une fois.
     assert subjects["mathematiques"]["notion_count"] == 3
     assert subjects["mathematiques"]["name"] == "Mathématiques" or subjects["mathematiques"]["name"]
-    # Français : présent, à 0 (front « bientôt »), jamais filtré.
+    # Leçons fraîchement créées (défaut) → les 3 notions sont « new ».
+    assert subjects["mathematiques"]["new_count"] == 3
+    # Français : présent, à 0/0 (front « bientôt »), jamais filtré.
     assert subjects["francais"]["notion_count"] == 0
+    assert subjects["francais"]["new_count"] == 0
+
+
+def test_summary_new_count_only_within_freshness_window(client_db) -> None:
+    """« new » = notion dont une leçon validée porteuse a été créée récemment. Une notion
+    n'ayant que des leçons anciennes ne compte PAS comme fraîche."""
+    client, Session = client_db
+    with Session() as db:
+        maths = db.scalars(select(m.Subject).where(m.Subject.slug == "mathematiques")).first()
+        profile = db.scalars(select(m.StudentProfile)).first()
+        year = m.SchoolYear(student_id=profile.id, label="2026-2027", level="4e", status="active")
+        db.add(year)
+        db.flush()
+        sys_row = m.SchoolYearSubject(school_year_id=year.id, subject_id=maths.id)
+        db.add(sys_row)
+        db.flush()
+        chapter = m.Chapter(
+            school_year_subject_id=sys_row.id, name="Nombres", sort_order=0,
+            source="generated", validation_status="validated",
+        )
+        db.add(chapter)
+        db.flush()
+        s_fresh = m.Skill(subject_id=maths.id, name="Notion fraîche")
+        s_old = m.Skill(subject_id=maths.id, name="Notion ancienne")
+        db.add_all([s_fresh, s_old])
+        db.flush()
+        fresh = m.Lesson(chapter_id=chapter.id, title="Fraîche", created_by="ai", status="validated")
+        old = m.Lesson(chapter_id=chapter.id, title="Ancienne", created_by="ai", status="validated")
+        db.add_all([fresh, old])
+        db.flush()
+        # La leçon « ancienne » est créée hors fenêtre (30 j) → sa notion n'est pas « new ».
+        old.created_at = datetime.now(timezone.utc) - timedelta(days=30)
+        db.add(m.LessonSkill(lesson_id=fresh.id, skill_id=s_fresh.id))
+        db.add(m.LessonSkill(lesson_id=old.id, skill_id=s_old.id))
+        db.commit()
+
+    res = client.get("/api/student/notions/summary")
+    assert res.status_code == 200
+    maths_row = next(s for s in res.json()["subjects"] if s["slug"] == "mathematiques")
+    assert maths_row["notion_count"] == 2  # les deux notions comptent
+    assert maths_row["new_count"] == 1  # seule la notion fraîche est « new »
 
 
 def test_subject_notions_dedup_filtering_and_recent_chapter(client_db) -> None:

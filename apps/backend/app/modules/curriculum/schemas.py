@@ -297,6 +297,8 @@ class NotionSummarySubject(BaseModel):
     # Nombre de notions (`Skill`) distinctes atteignables via chapitres+leçons validés.
     # 0 = matière encore vide côté validé (front : « bientôt »), jamais filtrée.
     notion_count: int
+    # Notions fraîchement ajoutées (leçon validée porteuse créée récemment) → deck « ✨ new ».
+    new_count: int
 
 
 class StudentNotionsSummaryOut(BaseModel):

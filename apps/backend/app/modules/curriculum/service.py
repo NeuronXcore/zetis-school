@@ -20,11 +20,11 @@ sémantique par embedding est Lot 3.
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
-from sqlalchemy import distinct, func, select
+from sqlalchemy import case, distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -1051,13 +1051,22 @@ def student_lesson_content(db: Session, lesson_id: int) -> dict:
     }
 
 
+# Fenêtre de « fraîcheur » d'une notion (badge ✨ new des decks ELI5) : une notion est
+# NOUVELLE tant qu'une leçon validée qui l'enseigne a été créée dans cet intervalle.
+# Signal GLOBAL (récence de création, pas par-enfant) — `Skill`/`Chapter` n'ont pas
+# d'horodatage, seule `Lesson` (TimestampMixin) en porte un.
+NOTION_NEW_WINDOW_DAYS = 7
+
+
 def student_notions_summary(db: Session) -> dict:
     """Compteur de notions VALIDÉES par matière de l'année active (decks ELI5 v2).
 
     Une notion (`Skill`) est comptée si elle est atteignable via un chapitre `validated`
     → une leçon `validated` → `LessonSkill` — même chaîne que `student_cours_for_subject`.
-    Compte distinct par matière en UNE requête agrégée (pas de N+1). Une matière sans
-    rien de validé apparaît à 0 (le front affiche « bientôt »), jamais filtrée.
+    `new_count` = notions dont une leçon validée porteuse a été créée dans les
+    `NOTION_NEW_WINDOW_DAYS` derniers jours (deck « ✨ new » : contenu fraîchement ajouté
+    au programme). Les deux compteurs en UNE requête agrégée (pas de N+1). Une matière
+    sans rien de validé apparaît à 0/0 (le front affiche « bientôt »), jamais filtrée.
     """
     year = _active_year_or_404(db)
     subject_rows = db.execute(
@@ -1068,13 +1077,19 @@ def student_notions_summary(db: Session) -> dict:
     ).all()
 
     sys_ids = [row.id for row in subject_rows]
-    counts: dict[int, int] = {}
+    counts: dict[int, tuple[int, int]] = {}
     if sys_ids:
-        counts = dict(
-            db.execute(
+        cutoff = datetime.now(timezone.utc) - timedelta(days=NOTION_NEW_WINDOW_DAYS)
+        # `count(distinct(case))` ignore les NULL → ne compte que les notions dont AU MOINS
+        # une leçon validée porteuse est récente (fenêtre de fraîcheur).
+        new_skill = case((Lesson.created_at >= cutoff, LessonSkill.skill_id))
+        counts = {
+            sys_id: (total, new or 0)
+            for sys_id, total, new in db.execute(
                 select(
                     Chapter.school_year_subject_id,
                     func.count(distinct(LessonSkill.skill_id)),
+                    func.count(distinct(new_skill)),
                 )
                 .join(Lesson, Lesson.chapter_id == Chapter.id)
                 .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
@@ -1085,11 +1100,16 @@ def student_notions_summary(db: Session) -> dict:
                 )
                 .group_by(Chapter.school_year_subject_id)
             ).all()
-        )
+        }
 
     return {
         "subjects": [
-            {"slug": row.slug, "name": row.name, "notion_count": counts.get(row.id, 0)}
+            {
+                "slug": row.slug,
+                "name": row.name,
+                "notion_count": counts.get(row.id, (0, 0))[0],
+                "new_count": counts.get(row.id, (0, 0))[1],
+            }
             for row in subject_rows
         ]
     }

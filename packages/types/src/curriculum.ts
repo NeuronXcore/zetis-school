@@ -171,6 +171,8 @@ export interface NotionSummarySubject {
   /** Notions (`Skill`) distinctes atteignables via chapitres+leçons validés ;
    *  0 = matière encore vide côté validé (front : « bientôt »), jamais filtrée. */
   notion_count: number;
+  /** Notions fraîchement ajoutées (leçon validée porteuse créée récemment) → deck « ✨ new ». */
+  new_count: number;
 }
 
 /** `GET /api/student/notions/summary` — compteurs par matière de l'année active. */

@@ -58,6 +58,8 @@ function HomeScreen({ page }: { page: ReturnType<typeof useEli5Page> }) {
       hint: empty ? undefined : `${s.notion_count} notion${s.notion_count > 1 ? "s" : ""}`,
       dimmed: empty,
       dimmedHint: "bientôt ✨",
+      // Notions fraîchement ajoutées au programme → badge « ✨ new » (comme Révision).
+      isNew: s.new_count > 0,
     };
   });
 

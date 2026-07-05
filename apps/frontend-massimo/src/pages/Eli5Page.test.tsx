@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { type Eli5Explain, type Eli5Reverse } from "../lib/eli5";
 import { type StudentNotionsSummary, type SubjectNotions } from "@zetis/types";
@@ -59,8 +59,8 @@ const REVERSE: Eli5Reverse = {
 
 const SUMMARY: StudentNotionsSummary = {
   subjects: [
-    { slug: "mathematiques", name: "Mathématiques", notion_count: 2 },
-    { slug: "espagnol", name: "Espagnol", notion_count: 0 }, // vide → « bientôt »
+    { slug: "mathematiques", name: "Mathématiques", notion_count: 2, new_count: 1 }, // fraîches → ✨ new
+    { slug: "espagnol", name: "Espagnol", notion_count: 0, new_count: 0 }, // vide → « bientôt »
   ],
 };
 const MATHS_NOTIONS: SubjectNotions = {
@@ -101,6 +101,9 @@ describe("Eli5Page — entrée v2 par decks", () => {
     expect(screen.getByRole("button", { name: /Question libre/ })).toBeInTheDocument();
     // Matière sans notion : « bientôt », toujours cliquable (dimmedClickable).
     expect(screen.getByText("bientôt ✨")).toBeInTheDocument();
+    // Notions fraîchement ajoutées → badge « ✨ new » sur le deck matière.
+    const maths = screen.getByRole("button", { name: /Mathématiques/ });
+    expect(within(maths).getByText(/new/)).toBeInTheDocument();
   });
 
   it("chip de notion → session avec badge « D'après ta leçon » (skill_id circule)", async () => {
