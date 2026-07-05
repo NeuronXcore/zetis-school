@@ -60,7 +60,7 @@ export function MassimoBannerHeader() {
             src="/massimo-avatar.png"
             alt=""
             aria-hidden
-            className="h-14 w-14 shrink-0 rounded-full object-cover ring-2 ring-cyan-400/60"
+            className="h-16 w-16 shrink-0 rounded-full object-cover ring-2 ring-cyan-400/60"
           />
           <div className="text-left">
             <p className="text-sm font-semibold text-slate-100">Massimo</p>
