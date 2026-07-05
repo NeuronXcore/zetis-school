@@ -4,9 +4,9 @@
 
 Accepté — 2026-07-05
 
-> **Implémentation en file d'attente** (mono-chantier : après le référentiel/backfill, séquencée
-> avec les autres dérivés). L'ADR fige la décision ; la page-spec `page-fiches.md` reste à
-> écrire/committer avant la session Claude Code.
+> **Implémentée** (2026-07-05, branche `fiche`) — backend module `fiches` + viewer Massimo +
+> pilotage Papa. Voir l'**Addendum — implémentation** en fin d'ADR pour les écarts assumés
+> (résolveur `skill_id`, export image A5, endpoints ajoutés).
 >
 > Consomme `adr-0011-contexte-canonique-partage` : la fiche est un **dérivé** du cours validé
 > (`resolve_canonical_context`, gate `status='validated'`). Réutilise le modèle de
@@ -155,4 +155,26 @@ matière = jointure `lesson → chapter → subject` (aucune table de plus).
 - **Ajouter la ligne `adr-0015` à l'index `DECISIONS.md`.**
 - Ajouter « fiches » à la lignée des dérivés canoniques citée dans `adr-0011`
   (quiz → mindmap → **fiches** → SRS → capsule).
-```
+
+## Addendum — implémentation (2026-07-05)
+
+Implémentée sur la branche `fiche` (slices A backend + B frontend + raffinements). Écarts assumés
+vs la décision initiale :
+
+- **§3 (résolveur)** : `resolve_canonical_context` prend en réalité un **`skill_id`** (pas un objet
+  `Lesson`) et renvoie *une* leçon validée. La fiche étant leçon-centrée, le service **force** le
+  cours de LA leçon comme source et n'utilise le résolveur que pour ses extraits RAG — patron déjà
+  établi par le quiz de fin de cours (`quizzes/_canonical_sections`).
+- **§5 (impression)** : `window.print()` + `@media print` donnait une **page blanche** (l'app vit
+  dans un shell à hauteur fixe + scroll interne, hostile à l'impression CSS). Révisé : rendu clair
+  A5 dédié (`FicheA5`) capturé via **`html-to-image`** → **image A5 (PNG) téléchargeable** +
+  document A5 autonome à imprimer. Une dépendance frontend a donc été ajoutée (écart au « aucune
+  dépendance nouvelle », justifié par le besoin réel et la cible iPhone).
+- **§4 (Papa)** : génération **par leçon** (pas « par matière ») via un arbre matière → leçons.
+  Édition du spec via un **formulaire structuré** (`FicheEditorModal`) plutôt que du JSON brut.
+- **Endpoints ajoutés** (complètent le contrat que la UI exige) : `GET /api/student/fiches/summary`
+  (grille de decks) et `GET /api/fiches/pilotage/{subject_id}` (arbre Papa, miroir quiz-pilotage).
+- **Briques `@zetis/ui`** extraites (`ContentLifecycleActions`, `GenerationProgress`,
+  `ContentStatusBadge`) — réutilisées ensuite par les mindmaps (ADR-0016).
+- **Viewer** : le badge « D'après ton cours » est complété par un bouton **« Voir le cours »** qui
+  ouvre le cours source **à côté** de la fiche (même page). Pont SRS (§6) toujours **stub**.

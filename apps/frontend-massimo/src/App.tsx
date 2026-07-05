@@ -9,6 +9,8 @@ import { MatiereDetailPage } from "./pages/MatiereDetailPage";
 import { CoursPage } from "./pages/CoursPage";
 import { RevisionPage } from "./pages/RevisionPage";
 import { RevisionSessionPage } from "./pages/RevisionSessionPage";
+import { FichesPage } from "./pages/FichesPage";
+import { FicheSubjectPage } from "./pages/FicheSubjectPage";
 import { QuizPage } from "./pages/QuizPage";
 import { QuizSessionPage } from "./pages/QuizSessionPage";
 import { DiagnosticPage } from "./pages/DiagnosticPage";
@@ -37,6 +39,8 @@ export default function App() {
         <Route path="/subjects/:slug/cours" element={<CoursPage />} />
         <Route path="/revision" element={<RevisionPage />} />
         <Route path="/revision/session" element={<RevisionSessionPage />} />
+        <Route path="/fiches" element={<FichesPage />} />
+        <Route path="/fiches/:slug" element={<FicheSubjectPage />} />
         <Route path="/diagnostic" element={<DiagnosticPage />} />
         <Route path="/eli5" element={<Eli5Page />} />
         <Route path="/mindmaps" element={<MindmapsPage />} />

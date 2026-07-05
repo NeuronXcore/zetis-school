@@ -232,3 +232,7 @@ body {
   color: var(--color-zetis-text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+
+/* L'impression de la fiche ne passe PLUS par un @media print du shell (hauteur fixe + scroll
+   interne → page blanche). Elle se fait via un rendu clair A5 dédié capturé en image (FicheA5 +
+   lib/ficheExport) : téléchargement PNG ou document A5 autonome à imprimer. */

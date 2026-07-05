@@ -22,6 +22,8 @@ export const MASSIMO_NAV: NavItem[] = [
   { to: "/eli5", label: "ELI5", icon: "💡", image: eli5Icon },
   { to: "/mindmaps", label: "Mindmaps", icon: "🕸️" },
   { to: "/capsules", label: "Capsules IA", icon: "🎬" },
+  // Fiches de révision (résumé d'une leçon sur une page) — dérivé du cours validé.
+  { to: "/fiches", label: "Fiches", icon: "🗂️" },
   // Icône de marque quiz.png (comme ELI5/SRS) ; repli emoji ✅ si l'asset manque.
   { to: "/quiz", label: "Quiz", icon: "✅", image: quizIcon },
   { to: "/progression", label: "Progression", icon: "📈" },

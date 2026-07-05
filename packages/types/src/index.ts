@@ -1,5 +1,17 @@
 export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
+  type FicheDefinition,
+  type FicheDetail,
+  type FicheListItem,
+  type FichePilotageLesson,
+  type FichePilotageTree,
+  type FichesSummary,
+  type FichesSummarySubject,
+  type FicheSpec,
+  type FicheValidationStatus,
+} from "./fiche";
+export { FICHE_BUDGETS } from "./fiche";
+export {
   type AnswerFeedback,
   type ManualQuestionCreate,
   type OpenCriterion,

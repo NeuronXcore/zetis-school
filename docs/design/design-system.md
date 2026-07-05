@@ -115,3 +115,10 @@ re-spécifier, il est **extrait en briques `@zetis/ui`** réutilisées par fiche
 />
 <GenerationProgress variant="bar" | "ring" value={pct} label="Génération…" />
 ```
+
+**Implémenté** (`packages/ui`) : `ContentLifecycleActions` (+ `ContentStatusBadge`),
+`GenerationProgress` (+ hook `useEstimatedProgress`, déplacé depuis `frontend-papa`). Le
+`ProgressBar.tsx` de `frontend-papa` **ré-exporte** `GenerationProgress` → les capsules passent
+dessus sans régression (preuve de réutilisation). Premier client : les **fiches** (viewer Massimo
++ pilotage Papa `FicheEditorModal`) ; mindmaps ensuite. `ConfirmDialog` et la célébration
+(`useCelebrate`) étaient déjà partagés.

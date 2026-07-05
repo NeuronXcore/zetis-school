@@ -32,6 +32,26 @@ class Capsule(Base, TimestampMixin):
     )  # pending | validated | rejected
 
 
+class Fiche(Base, TimestampMixin):
+    """Fiche de révision d'UNE leçon (ADR-0015), dérivée du cours canonique validé.
+
+    Leçon-centré : une fiche = 1 leçon = 1 page (`lesson_id`). `spec_json` porte le `FicheSpec`
+    typé (validé par Pydantic avant persistance — jamais de spec invalide en base). Conventions
+    de colonnes reprises de `capsules` (`validation_status`, `source`, `program_version`).
+    """
+
+    __tablename__ = "fiches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id"), index=True)
+    spec_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    validation_status: Mapped[str] = mapped_column(
+        String(20), default="pending"
+    )  # pending | validated | rejected
+    source: Mapped[str] = mapped_column(String(20), default="generated")  # generated | manual
+    program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
+
+
 class Mindmap(Base, TimestampMixin):
     __tablename__ = "mindmaps"
 

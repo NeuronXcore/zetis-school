@@ -405,7 +405,7 @@ created_at
 
 ```txt
 id
-job_type           # eli5, quiz_generation, capsule_script, rag_answer, curriculum_chapters, curriculum_lessons, lesson_content, srs_cards_generate...
+job_type           # eli5, quiz_generation, capsule_script, rag_answer, curriculum_chapters, curriculum_lessons, lesson_content, srs_cards_generate, fiche_generate...
 status             # queued | running | succeeded | failed
 input_json
 output_json
@@ -465,6 +465,34 @@ count                    # nombre total de visionnages complets (défaut 1)
 ```
 
 Contrainte unique `(student_id, capsule_id)`.
+
+### Fiche
+
+Fiche de révision d’UNE leçon (ADR-0015), dérivée du cours canonique validé (leçon-centré : une fiche = 1 leçon = 1 page). Le cours forcé = la leçon fichée ; le RAG ne sert que de complément (patron du quiz de fin de cours). `spec_json` porte le `FicheSpec` typé, validé par Pydantic (`extra="forbid"` + budgets de sections) avant persistance — jamais de spec invalide en base.
+
+```txt
+id
+lesson_id                # FK lessons (index) — une fiche = 1 leçon
+spec_json                # FicheSpec typé (JSON) : essentiel, definitions≤4, points_cles≤5, erreurs_a_eviter≤3, mini_exemple?
+validation_status        # pending | validated | rejected (gate `validated` avant tout accès Massimo)
+source                   # generated | manual
+program_version optional # version de programme (traçabilité, ex: 2020)
+created_at
+updated_at
+```
+
+### FicheView
+
+Fiche vue par Massimo (retrait futur du badge « Nouveau »). La ligne existe dès la première consultation : « vu » = une ligne existe.
+
+```txt
+id
+student_id               # FK profil élève
+fiche_id                 # FK fiches
+seen_at                  # première consultation
+```
+
+Contrainte unique `(student_id, fiche_id)`.
 
 ### Mindmap
 

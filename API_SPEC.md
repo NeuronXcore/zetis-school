@@ -311,6 +311,38 @@ substrat canonique** (ADR-0011). Génération **locale** depuis le cours validé
 > obligatoires), jugée par le LLM local à la réponse. Reste reporté : génération en lot,
 > contextes `revision`/`capsule_post_test` réels (scoring en stub).
 
+## Fiches — révision (ADR-0015)
+
+Fiche de révision d'**une leçon** (« 1 leçon = 1 page »), **dérivée du cours canonique** (ADR-0011 :
+force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `FicheSpec` à
+**budgets** (miroir Pydantic strict : `essentiel` ≤ 600, `definitions` ≤ 4, `points_cles` ≤ 5,
+`erreurs_a_eviter` ≤ 3, `mini_exemple` ≤ 400). Une fiche invalide n'est **jamais** persistée
+(1 réparation puis erreur). Trace `ai_jobs` `fiche_generate`.
+
+### Génération & CRUD — Papa (`require_parent`)
+
+- **POST `/api/fiches/generate`** — corps `{ lesson_id }`. 404/409 si la leçon n'est pas `validated`
+  / sans cours. Renvoie la fiche `pending`.
+- **PUT `/api/fiches/{id}`** — corps `{ spec }` : **revalidation** du `FicheSpec` → repasse `pending`.
+- **POST `/api/fiches/{id}/regenerate`** — régénère (écrase le spec) → `pending`.
+- **POST `/api/fiches/{id}/validate`** — `pending → validated` (visible côté Massimo).
+- **DELETE `/api/fiches/{id}`**.
+- **GET `/api/fiches/lessons/{lesson_id}`** — fiches d'une leçon (tous statuts).
+- **GET `/api/fiches/pilotage/{subject_id}`** — arbre matière → leçons validées → leurs fiches
+  (leçons sans fiche incluses ; miroir de `quiz-pilotage`).
+
+### Flux élève — Massimo (`/api/student`, gate `validated`, 404 sinon)
+
+- **GET `/api/student/fiches/summary`** — grille de decks : compteur de fiches `validated` +
+  `new_count` (jamais ouvertes) par matière de l'année active.
+- **GET `/api/student/subjects/{slug}/fiches`** — deck d'une matière (fiches `validated`, `seen`).
+- **GET `/api/student/fiches/{id}`** — la fiche (spec complet) ; **404** si non `validated`.
+- **POST `/api/student/fiches/{id}/seen`** — marque la fiche vue (retrait du badge « nouveau »).
+
+> Le viewer Massimo affiche le cours source **à côté** de la fiche (bouton « Voir le cours »,
+> réutilise `GET /api/student/lessons/{id}/cours`) et exporte la fiche en **image A5** (PNG) /
+> impression A5. Le pilotage Papa édite le `FicheSpec` via un **formulaire structuré**.
+
 ## Missions
 
 Préfixe réel : `/api/missions`. Implémenté à l'étape 15 (remédiation) sur les tables

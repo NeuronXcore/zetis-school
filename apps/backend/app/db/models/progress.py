@@ -129,6 +129,21 @@ class CapsuleView(Base):
     count: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
+class FicheView(Base):
+    """Fiche de révision vue par un élève (ADR-0015). Unique(student, fiche) → « vu » = la ligne
+    existe (retrait futur du badge « Nouveau »). Analogue à `CapsuleView`, sans compteur."""
+
+    __tablename__ = "fiche_views"
+    __table_args__ = (
+        UniqueConstraint("student_id", "fiche_id", name="uq_fiche_views_student_fiche"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"), index=True)
+    fiche_id: Mapped[int] = mapped_column(ForeignKey("fiches.id"), index=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class SpacedReviewCard(Base):
     __tablename__ = "spaced_review_cards"
 

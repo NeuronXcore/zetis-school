@@ -21,6 +21,8 @@ export const PAPA_NAV: NavItem[] = [
   { to: "/matieres", label: "Matières", icon: "📚" },
   { to: "/sources", label: "Sources de cours", icon: "📥" },
   { to: "/capsules", label: "Capsules IA", icon: "🎬" },
+  // Fiches de révision (📄 pour ne pas doublonner 🗂️ des Cartes de révision).
+  { to: "/fiches", label: "Fiches", icon: "📄" },
   { to: "/focus", label: "Mode focus", icon: "🔍" },
   { to: "/parametres", label: "Paramètres", icon: "⚙️" },
 ];

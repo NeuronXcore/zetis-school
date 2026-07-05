@@ -1602,6 +1602,65 @@ git commit -m "feat(quizzes): unified quiz engine (ADR-0014 lot 1) — backend, 
 
 ---
 
+# ÉTAPE — Fiches de révision (ADR-0015)
+
+## Statut
+
+**Terminé** (branche `fiche`, non committée) — backend module `fiches` + viewer Massimo +
+pilotage Papa. 304 tests backend + 104 (Papa) + 73 (Massimo) verts ; `tsc -b` et `vite build`
+verts ; migration appliquée sur le Postgres de dev. Vérif **live** à faire avant merge.
+
+## Ce qui a été fait
+
+- **Décision** : `adr-0015` — la fiche est un **objet leçon** (« 1 leçon = 1 page »), distinct de
+  la flashcard SRS (qui porte une *notion*) ; spec fermé à **budgets** ; dérivée du **cours
+  canonique** (ADR-0011) ; pont SRS faible ; génération par Massimo différée. Docs synchronisées :
+  `DATA_MODEL.md`, `API_SPEC.md`, `docs/backend/modules.md`, `docs/design/design-system.md`,
+  `docs/frontend-massimo/page-fiches.md`.
+- **Backend — module `fiches`** : `FicheSpec` (`packages/types/src/fiche.ts` + miroir Pydantic
+  borné, const `FICHE_BUDGETS` : `essentiel` ≤ 600, `definitions` ≤ 4, `points_cles` ≤ 5,
+  `erreurs_a_eviter` ≤ 3, `mini_exemple` ≤ 400) ; prompt versionné `app/prompts/fiche.py` (`v1`) ;
+  service `generate_fiche` **leçon-centré** — force le cours de LA leçon comme source canonique +
+  complément RAG (miroir du quiz de fin de cours ; piège : `resolve_canonical_context` prend un
+  `skill_id`, pas un `lesson_id`) ; migration `d3e4f5a6b7c8` (tables `fiches` + `fiche_views`) ;
+  trace `ai_jobs` `fiche_generate` ; `FakeLLMProvider` étendu (branche `essentiel`).
+- **Endpoints** : Papa (`require_parent`) `POST /api/fiches/generate`, `PUT /api/fiches/{id}`
+  (revalide → `pending`), `POST /{id}/regenerate`, `POST /{id}/validate`, `DELETE /{id}`,
+  `GET /api/fiches/lessons/{id}`, `GET /api/fiches/pilotage/{subject_id}` (arbre matière → leçons
+  → fiches, miroir quiz-pilotage). Massimo (`/api/student`, gate `validated`, 404 sinon) :
+  `fiches/summary` (decks), `subjects/{slug}/fiches`, `fiches/{id}`, `fiches/{id}/seen`.
+- **Briques partagées `@zetis/ui`** (factorisation réutilisée ensuite par les mindmaps) :
+  `GenerationProgress` (variant `bar`|`ring` + `useEstimatedProgress` déplacé de frontend-papa),
+  `ContentLifecycleActions` (quatuor Générer · Régénérer · Éditer · Supprimer + `ConfirmDialog`) et
+  `ContentStatusBadge`. `ProgressBar.tsx` (Papa) **ré-exporte** `GenerationProgress` → capsules
+  inchangées (preuve de réutilisation, découpe minimale validée).
+- **Viewer Massimo** (`/fiches`, `/fiches/:slug`) : decks `SubjectDeckGrid` (compteur + « ✨
+  nouveau ») → liste par leçon → `FicheCard` (⭐ essentiel / 📖 définitions / 🔑 à retenir / ⚠️
+  pièges / 💡 exemple) + badge de provenance « 📚 D'après ton cours ». Bouton **« 📖 Voir le
+  cours »** (haut-droite) : ouvre le cours source **à côté** de la fiche (`CoursPanel`, même page,
+  fiche à gauche / cours à droite ; réutilise `GET /api/student/lessons/{id}/cours` +
+  `react-markdown`). **Export A5** : rendu clair `FicheA5` + `html-to-image` → « 🖼️ Image A5 »
+  (PNG téléchargeable) et « 🖨️ Imprimer » (document A5 autonome) — remplace l'ancien
+  `window.print()`/`@media print` qui donnait une page blanche (shell à scroll interne).
+- **Pilotage Papa** (`/fiches`, émeraude, sidebar « Fiches ») : arbre matière → leçons → fiches,
+  génération par leçon (+ célébration), `ContentLifecycleActions` par fiche, et **éditeur
+  structuré** `FicheEditorModal` (champs + listes à + / × + compteurs de budget) qui **remplace**
+  l'édition du `spec_json` brut. Dépendance ajoutée : `html-to-image` (frontend-massimo).
+
+## Reste à faire
+
+- Pont **SRS** réel (« 🃏 Ajouter à mes cartes » aujourd'hui stub) — dépend du chantier SRS.
+- Génération d'une fiche **par Massimo** (différée, ADR-0015 « Alternatives »).
+- Vérif **live** end-to-end (générer → valider → lire → image / impression A5) puis merge.
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(fiches): révision cards (ADR-0015) — backend, Massimo viewer, Papa pilotage"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

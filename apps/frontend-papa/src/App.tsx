@@ -17,6 +17,7 @@ import { CartesRevisionPage } from "./pages/CartesRevisionPage";
 import { QuizPilotagePage } from "./pages/QuizPilotagePage";
 import { SourcesRagPage } from "./pages/SourcesRagPage";
 import { CapsulesPilotagePage } from "./pages/CapsulesPilotagePage";
+import { FichesPilotagePage } from "./pages/FichesPilotagePage";
 import { ModeFocusPage } from "./pages/ModeFocusPage";
 import { ParametresPage } from "./pages/ParametresPage";
 
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/matieres" element={<MatieresPapaPage />} />
         <Route path="/sources" element={<SourcesRagPage />} />
         <Route path="/capsules" element={<CapsulesPilotagePage />} />
+        <Route path="/fiches" element={<FichesPilotagePage />} />
         <Route path="/focus" element={<ModeFocusPage />} />
         <Route path="/parametres" element={<ParametresPage />} />
         <Route path="*" element={<PlaceholderPage title="Page introuvable" icon="🔍" />} />

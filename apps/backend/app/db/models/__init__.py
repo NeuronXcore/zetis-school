@@ -1,9 +1,10 @@
 from app.db.models.ai import AIJob
 from app.db.models.assessment import Quiz, QuizAnswer, QuizAttempt, QuizQuestion
-from app.db.models.content import Capsule, Mindmap
+from app.db.models.content import Capsule, Fiche, Mindmap
 from app.db.models.rag import RagChunk, RagDocument
 from app.db.models.progress import (
     CapsuleView,
+    FicheView,
     Gap,
     LearningEvent,
     Mission,
@@ -53,7 +54,9 @@ __all__ = [
     "SpacedReviewCard",
     "SpacedReviewAttempt",
     "CapsuleView",
+    "FicheView",
     "Capsule",
+    "Fiche",
     "Mindmap",
     "AIJob",
     "RagDocument",

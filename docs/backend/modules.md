@@ -72,6 +72,18 @@ Jobs, providers, prompts, traces.
 Génération LLM d'un spec typé (moteur Remotion), voix Piper, rendu MP4 sandboxé (worker-media),
 validation Papa, suivi des visionnages Massimo.
 
+## Fiches
+
+Fiches de révision (ADR-0015) — **dérivé leçon-centré** du cours canonique (ADR-0011) : une fiche
+= 1 leçon = 1 page. `FicheSpec` à **budgets** (essentiel / définitions ≤ 4 / points-clés ≤ 5 /
+pièges ≤ 3 / exemple), garanti par le miroir Pydantic. Génération : force le cours de LA leçon
+comme source + complément RAG (miroir du quiz de fin de cours). Deux surfaces :
+- **Papa** (`/api/fiches/*`, `require_parent`) : génération/régénération par leçon, édition
+  (revalide → `pending`), validation, suppression, `pilotage/{subject_id}` (arbre matière → leçons
+  validées → leurs fiches, miroir quiz-pilotage).
+- **Élève** (`/api/student/fiches/*`, gate `validated`) : `summary` (decks : compteur + « nouveau »
+  par matière), `subjects/{slug}/fiches` (deck matière), `{id}` (404 si non validée), `{id}/seen`.
+
 ## Mindmaps
 
 Génération, stockage, tentative, évaluation.

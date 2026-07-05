@@ -1,5 +1,44 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.17.0 — Fiches de révision (ADR-0015) : backend + viewer Massimo + pilotage Papa
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Backend — module `fiches`** — `FicheSpec` à budgets (const `FICHE_BUDGETS` : `essentiel` ≤ 600,
+  `definitions` ≤ 4, `points_cles` ≤ 5, `erreurs_a_eviter` ≤ 3, `mini_exemple` ≤ 400) + miroir
+  Pydantic strict ; prompt versionné `app/prompts/fiche.py` (`v1`) ; service `generate_fiche`
+  **leçon-centré** dérivé du **cours canonique** (ADR-0011, force le cours de la leçon + complément
+  RAG, comme le quiz de fin de cours) ; migration `d3e4f5a6b7c8` (tables `fiches` + `fiche_views`) ;
+  trace `ai_jobs` `fiche_generate`.
+- **Endpoints** — Papa (`require_parent`) `/api/fiches/*` (generate, `PUT` revalide→`pending`,
+  regenerate, validate, delete, `lessons/{id}`, `pilotage/{subject_id}` = arbre matière→leçons→fiches,
+  miroir quiz-pilotage) ; Massimo (`/api/student/fiches/*`, gate `validated`, 404 sinon) :
+  `summary` (decks), `subjects/{slug}/fiches`, `{id}`, `{id}/seen`.
+- **Briques `@zetis/ui` factorisées** — `GenerationProgress` (variant `bar`|`ring` +
+  `useEstimatedProgress` déplacé de frontend-papa), `ContentLifecycleActions` (quatuor
+  Générer · Régénérer · Éditer · Supprimer) et `ContentStatusBadge`. `ProgressBar.tsx` (Papa)
+  ré-exporte `GenerationProgress` → **capsules intactes** (preuve de réutilisation). Réutilisées
+  ensuite par les mindmaps (ADR-0016).
+- **Viewer Massimo** (`/fiches`, `/fiches/:slug`) — decks `SubjectDeckGrid` (badge « ✨ nouveau »),
+  `FicheCard` (⭐/📖/🔑/⚠️/💡 + badge « 📚 D'après ton cours »), bouton **« 📖 Voir le cours »**
+  (panneau du cours source **à côté** de la fiche, même page ; réutilise
+  `/api/student/lessons/{id}/cours` + `react-markdown`), **export A5** « 🖼️ Image A5 » (PNG) et
+  « 🖨️ Imprimer » (document A5 autonome) via `html-to-image` — corrige la page blanche de
+  l'impression du shell.
+- **Pilotage Papa** (`/fiches`, émeraude) — arbre matière→leçons→fiches, génération par leçon +
+  célébration, `ContentLifecycleActions` par fiche, **éditeur structuré** `FicheEditorModal`
+  (formulaire + compteurs de budget) remplaçant l'édition du `spec_json` brut.
+
+### Décisions
+
+- La fiche est un **objet leçon** (« 1 leçon = 1 page », budgets = contrat structurel), distinct de
+  la flashcard SRS (qui porte une *notion*) ; pont SRS différé ; génération par Massimo différée.
+
+304 tests backend + 104 (Papa) + 73 (Massimo) verts ; `tsc -b` et `vite build` verts ; migration
+appliquée sur le Postgres de dev. Dépendance ajoutée : `html-to-image` (frontend-massimo).
+
 ## 0.16.0 — ELI5 v2 : entrée par decks matières + composant partagé + emblème animé
 
 Date : 2026-07-05

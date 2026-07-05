@@ -12,15 +12,16 @@ Sidebar desktop :
 2. Matières
 3. Cours
 4. Révision
-5. Diagnostic
-6. ELI5
-7. Capsules IA
-8. Missions
-9. Quiz
-10. Progression
-11. Mindmaps
-12. Chat ZETIS
-13. Paramètres simples
+5. Fiches
+6. Diagnostic
+7. ELI5
+8. Capsules IA
+9. Missions
+10. Quiz
+11. Progression
+12. Mindmaps
+13. Chat ZETIS
+14. Paramètres simples
 
 La sidebar suit le flux d'apprentissage : j'apprends (Cours) → j'ancre (Révision)
 → je me situe (Diagnostic). Icônes Lucide (chrome UI) ; Phosphor reste réservé
