@@ -17,7 +17,19 @@ XP_PER_LEVEL = 100
 # Récompenses par action (le crédit mission vit dans le module missions : +20).
 XP_ELI5_REVERSE = 10
 XP_DIAGNOSTIC = 15
-XP_QUIZ_COMPLETED = 30  # quiz de fin de cours terminé (ADR-0014)
+# Quiz de fin de cours (ADR-0014) : base d'effort + bonus proportionnel au score.
+XP_QUIZ_BASE = 10  # forfait « terminé » — l'effort est récompensé, jamais 0 (CLAUDE.md)
+XP_QUIZ_MAX = 30  # atteint sur un score parfait (100 %)
+
+
+def quiz_xp(score_percent: int) -> int:
+    """XP d'un quiz terminé : base d'effort + bonus selon le score. 0 % → 10, 100 % → 30.
+
+    Récompense l'engagement ET la performance sans jamais punir (aucun 0 après un quiz joué
+    jusqu'au bout). Fonction pure, testée."""
+    clamped = max(0, min(100, score_percent))
+    bonus = round((XP_QUIZ_MAX - XP_QUIZ_BASE) * clamped / 100)
+    return XP_QUIZ_BASE + bonus
 
 
 def award_xp(

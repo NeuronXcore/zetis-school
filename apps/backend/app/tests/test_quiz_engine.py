@@ -164,10 +164,10 @@ def test_full_attempt_flow_feedback_score_and_xp(client_db):
     done = client.post(f"/api/student/quiz-attempts/{attempt_id}/complete")
     data = done.json()
     assert data["score_percent"] == 50  # 1 bonne / 2 répondues
-    assert data["xp_awarded"] == 30
+    assert data["xp_awarded"] == 20  # base 10 + bonus round(20 × 0.5) = 20
 
     check = TestSession()
-    assert check.scalar(select(func.sum(m.XPEvent.amount)).where(m.XPEvent.reason == "quiz_completed")) == 30
+    assert check.scalar(select(func.sum(m.XPEvent.amount)).where(m.XPEvent.reason == "quiz_completed")) == 20
 
 
 def test_reanswering_updates_the_same_answer(client_db):
@@ -290,10 +290,20 @@ def test_mission_context_never_opens_a_gap_even_at_zero(client_db):
     data = client.post(f"/api/student/quiz-attempts/{attempt_id}/complete").json()
 
     assert data["score_percent"] == 0
+    assert data["xp_awarded"] == 10  # tout faux → base d'effort seule (jamais 0, jamais 30)
     check = TestSession()
     assert check.scalar(select(func.count()).select_from(m.Gap)) == 0  # AUCUNE lacune ouverte
     # …mais la maîtrise a bien reçu le signal faible.
     assert check.scalar(select(func.count()).select_from(m.SkillMastery)) >= 1
+
+
+def test_quiz_xp_rewards_effort_and_performance():
+    """XP d'un quiz : base d'effort + bonus score, jamais 0, plafonné à 30."""
+    from app.modules.gamification.service import quiz_xp
+
+    assert quiz_xp(0) == 10  # terminé mais tout faux → effort récompensé, jamais puni
+    assert quiz_xp(50) == 20
+    assert quiz_xp(100) == 30  # score parfait → max (valeur de la maquette)
 
 
 def test_scoring_weak_signal_and_revision_stub_are_pure():

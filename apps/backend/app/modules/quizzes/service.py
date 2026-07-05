@@ -35,7 +35,7 @@ from app.modules.ai.canonical_context import (
     resolve_canonical_context,
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
-from app.modules.gamification.service import XP_QUIZ_COMPLETED, award_xp
+from app.modules.gamification.service import award_xp, quiz_xp
 from app.modules.quizzes import correction, scoring
 from app.modules.quizzes.schemas import (
     GeneratedQuiz,
@@ -841,11 +841,12 @@ def complete_attempt(db: Session, student: StudentProfile, attempt_id: int) -> d
         context=attempt.context or QUIZ_TYPE_MISSION,
         now=now,
     )
+    xp = quiz_xp(overall)  # base d'effort + bonus selon le score (0 % → 10, 100 % → 30)
     award_xp(
         db,
         student_id=student.id,
         subject_id=quiz.subject_id if quiz is not None else None,
-        amount=XP_QUIZ_COMPLETED,
+        amount=xp,
         reason="quiz_completed",
     )
     attempt.score_percent = overall
@@ -867,7 +868,7 @@ def complete_attempt(db: Session, student: StudentProfile, attempt_id: int) -> d
         "attempt_id": attempt.id,
         "quiz_id": attempt.quiz_id,
         "score_percent": overall,
-        "xp_awarded": XP_QUIZ_COMPLETED,
+        "xp_awarded": xp,
         "per_skill": per_skill_out,
         "strengths": strengths,
         "to_review": to_review,
