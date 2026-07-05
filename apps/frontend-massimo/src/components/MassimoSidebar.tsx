@@ -24,10 +24,11 @@ export function MassimoSidebar() {
   }, []);
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col gap-2 border-r border-zetis-border bg-zetis-surface p-4">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-zetis-border bg-zetis-surface">
       <style>{ZLOGO_CSS}</style>
-      <div className="mb-5 flex flex-col items-center gap-3 px-1">
-        {/* Logo avec halo animé : un anneau néon dégradé qui tourne derrière le logo. */}
+      {/* Bande logo : même hauteur que le header principal → le logo s'aligne sur l'avatar
+          de Massimo et la ligne horizontale du header se prolonge à travers la sidebar. */}
+      <div className="flex h-24 shrink-0 items-center justify-center border-b border-zetis-border sm:h-28">
         <div className="zlogo relative h-16 w-16">
           <span className="zlogo-halo" aria-hidden />
           <img
@@ -36,6 +37,9 @@ export function MassimoSidebar() {
             className="zlogo-img h-16 w-16 rounded-full object-cover"
           />
         </div>
+      </div>
+      {/* Wordmark : juste sous la ligne du header. */}
+      <div className="flex justify-center py-3">
         <img
           src={zetisWordmark}
           alt="ZETIS"
@@ -43,7 +47,7 @@ export function MassimoSidebar() {
         />
       </div>
 
-      <nav className="flex flex-col gap-1">
+      <nav className="flex flex-col gap-1 px-4 pb-4">
         {MASSIMO_NAV.map((item) => (
           <NavLink
             key={item.to}
