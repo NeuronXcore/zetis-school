@@ -29,12 +29,12 @@ export function MassimoSidebar() {
         <img
           src={zetisAvatar}
           alt="ZETIS"
-          className="h-12 w-12 shrink-0 rounded-full object-cover"
+          className="h-16 w-16 shrink-0 rounded-full object-cover"
         />
         <img
           src={zetisWordmark}
           alt="ZETIS"
-          className="h-6 w-auto min-w-0 object-contain"
+          className="h-7 w-auto min-w-0 object-contain"
         />
       </div>
 
