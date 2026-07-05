@@ -285,6 +285,45 @@ class LessonSuggestionOut(BaseModel):
     lesson_title: str
 
 
+# ---------------------------------------------------------------------------
+# Decks de notions validées (ELI5 v2, entrée par matière) — lecture seule.
+# Route NEUTRE (pas de préfixe /eli5/) : d'autres dérivés la consommeront.
+# ---------------------------------------------------------------------------
+
+
+class NotionSummarySubject(BaseModel):
+    slug: str
+    name: str
+    # Nombre de notions (`Skill`) distinctes atteignables via chapitres+leçons validés.
+    # 0 = matière encore vide côté validé (front : « bientôt »), jamais filtrée.
+    notion_count: int
+
+
+class StudentNotionsSummaryOut(BaseModel):
+    """`GET /api/student/notions/summary` — compteurs par matière de l'année active."""
+
+    subjects: list[NotionSummarySubject]
+
+
+class SubjectNotionRef(BaseModel):
+    skill_id: int
+    name: str
+    # Chapitre de la leçon validée la plus récente qui enseigne cette notion.
+    chapter_title: str
+
+
+class SubjectNotionsSubject(BaseModel):
+    slug: str
+    name: str
+
+
+class SubjectNotionsOut(BaseModel):
+    """`GET /api/student/subjects/{subject_slug}/notions` — notions validées dédupliquées."""
+
+    subject: SubjectNotionsSubject
+    notions: list[SubjectNotionRef]
+
+
 class SchoolYearSubjectOut(BaseModel):
     """Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres)."""
 

@@ -163,6 +163,35 @@ export interface StudentLessonContent {
   content: string;
 }
 
+/** Decks de notions validées (ELI5 v2) : entrée par matière, lecture seule. Route
+ *  NEUTRE (pas de préfixe `/eli5/`) — d'autres dérivés la consommeront. */
+export interface NotionSummarySubject {
+  slug: string;
+  name: string;
+  /** Notions (`Skill`) distinctes atteignables via chapitres+leçons validés ;
+   *  0 = matière encore vide côté validé (front : « bientôt »), jamais filtrée. */
+  notion_count: number;
+}
+
+/** `GET /api/student/notions/summary` — compteurs par matière de l'année active. */
+export interface StudentNotionsSummary {
+  subjects: NotionSummarySubject[];
+}
+
+export interface SubjectNotionRef {
+  skill_id: number;
+  name: string;
+  /** Chapitre de la leçon validée la plus récente qui enseigne cette notion. */
+  chapter_title: string;
+}
+
+/** `GET /api/student/subjects/{subject_slug}/notions` — notions validées dédupliquées
+ *  par `skill_id`. 404 hors année active ; `notions: []` si rien de validé. */
+export interface SubjectNotions {
+  subject: { slug: string; name: string };
+  notions: SubjectNotionRef[];
+}
+
 /** Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres). */
 export interface SchoolYearSubjectRef {
   id: number;

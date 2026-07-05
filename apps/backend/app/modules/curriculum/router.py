@@ -32,6 +32,8 @@ from app.modules.curriculum.schemas import (
     SkillsBackfillPreview,
     StudentCoursOut,
     StudentLessonContentOut,
+    StudentNotionsSummaryOut,
+    SubjectNotionsOut,
 )
 
 router = APIRouter(prefix="/api", tags=["curriculum"], dependencies=[Depends(require_parent)])
@@ -337,6 +339,19 @@ def student_cours(subject_slug: str, db: Session = Depends(get_db)) -> dict:
 def student_lesson_cours(lesson_id: int, db: Session = Depends(get_db)) -> dict:
     """Cours (markdown) d'une leçon validée — 404 sinon, sans fuite des brouillons."""
     return service.student_lesson_content(db, lesson_id)
+
+
+@student_router.get("/notions/summary", response_model=StudentNotionsSummaryOut)
+def student_notions_summary(db: Session = Depends(get_db)) -> dict:
+    """Compteur de notions validées par matière de l'année active (decks ELI5 v2)."""
+    return service.student_notions_summary(db)
+
+
+@student_router.get("/subjects/{subject_slug}/notions", response_model=SubjectNotionsOut)
+def student_subject_notions(subject_slug: str, db: Session = Depends(get_db)) -> dict:
+    """Notions validées d'une matière (dédup par skill_id) — 404 si hors année active,
+    `notions: []` si la matière n'a encore rien de validé. Route neutre (dérivés multiples)."""
+    return service.student_subject_notions(db, subject_slug)
 
 
 @student_router.get("/lesson-suggestions", response_model=list[LessonSuggestionOut])
