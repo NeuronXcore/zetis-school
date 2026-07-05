@@ -29,6 +29,7 @@ export const QUIZ_FORMAT_LABELS: Record<QuizFormat, string> = {
 };
 
 export function formatLabel(format: string): string {
+  if (format === "open") return "Réponse ouverte"; // Lot 2 — jugé par l'IA (hors QuizFormat)
   return QUIZ_FORMAT_LABELS[format as QuizFormat] ?? format;
 }
 

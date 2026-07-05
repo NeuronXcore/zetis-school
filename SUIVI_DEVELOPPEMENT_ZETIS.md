@@ -1549,6 +1549,59 @@ git commit -m "docs(curriculum): sync API_SPEC + SUIVI, skills-backfill UI mocku
 
 ---
 
+# ÉTAPE — Moteur de quiz unifié (ADR-0014, Lot 1)
+
+## Statut
+
+**Terminé** — backend + page Papa « Quiz — pilotage » + client Massimo, vérifiés live (génération
+Ollama réelle → passation → feedback serveur). Merge `main` : PR #41 (backend) + #43 (pilotage
+Papa) ; #44 (client Massimo) en revue.
+
+## Ce qui a été fait
+
+- **Décision** : `adr-0014` (service partagé 4 contextes, 2ᵉ client du substrat canonique,
+  7 formats à correction déterministe, auto-vérification à l'aveugle, scoring pondéré, doctrine
+  de validation par échantillonnage). Docs synchronisées : `DECISIONS.md`, `DATA_MODEL.md`
+  (Quiz/QuizQuestion), `API_SPEC.md` (section Quiz), `docs/backend/modules.md`.
+- **Backend — module `quizzes`** : migration `b1c2d3e4f5a6` (`quizzes.lesson_id`,
+  `quiz_questions.source`/`status`) ; `correction.py` (7 correcteurs purs + normalisation) ;
+  `scoring.py` (`apply_quiz_result`, `mission` = signal faible sans `Gap`) ; génération +
+  auto-vérif + CRUD Papa + flux élève ; prompt versionné `app/prompts/quiz.py` (`v1`) ;
+  `FakeLLMProvider` étendu ; XP `quiz_xp(score)` = base 10 + bonus (max 30).
+- **Page Papa « Quiz — pilotage »** (`/quiz`) : surface de lecture `/api/quiz-pilotage`
+  (overview + arbre matière), inventaire, génération (popover + `ProgressBar`), modale
+  d'inspection (clés, édition→`manual`, retrait, ajout manuel, régénérer, supprimer).
+- **Client Massimo** (`/quiz`, `/quiz/session`) : grille matières (grisée si aucun quiz) →
+  lecteur 7 formats → feedback immédiat → résumé bienveillant ; bouton « 🎯 Quiz » page Cours ;
+  hero animé. Types partagés `packages/types/src/quiz.ts`.
+- **Invariants prouvés par tests** : zéro fuite de clé côté `/api/student`, `mission` n'ouvre
+  aucune `Gap`, questions `manual` préservées par la régénération. 279 tests backend +
+  66 (Massimo) + 100 (Papa) verts.
+
+## Lot 2 — format `open` (jugement LLM) — FAIT (ADR clôturé)
+
+Réponse écrite libre **jugée par le moteur local** contre des critères (garde-fous Décision 4 :
+critère par critère, bénéfice du doute + ambiguïté remontée à Papa, feedback bienveillant).
+`open` reste hors du mix auto-généré (opt-in manuel Papa). Migration `c2d3e4f5a6b7`
+(`quiz_answers.ai_evaluation_json`), module `judge.py`, prompt juge versionné, player Massimo
+(zone de texte) + authoring Papa (bascule QCM / Réponse ouverte). 6 tests de calibrage + vérifié
+live (Ollama réel). **ADR-0014 clôturé.**
+
+## Reste à faire
+
+- Génération **en lot** (« générer les quiz manquants »), contextes `revision`/
+  `capsule_post_test` réels (scoring aujourd'hui en stub).
+- Badge « déjà fait · rejouer » par quiz (statut de tentative) ; génération auto de questions
+  ouvertes avec critères assistée par LLM (opt-in), aujourd'hui saisis à la main par Papa.
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(quizzes): unified quiz engine (ADR-0014 lot 1) — backend, Papa pilotage, Massimo client"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

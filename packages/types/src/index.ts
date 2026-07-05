@@ -1,10 +1,13 @@
 export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
+  type AnswerFeedback,
   type ManualQuestionCreate,
+  type OpenCriterion,
   type PapaQuizDetail,
   type PapaQuizQuestion,
   type QuestionPatch,
   type QuizCard,
+  type QuizCompleteResult,
   type QuizDeleteResult,
   type QuizFormat,
   type QuizGenerateRequest,
@@ -14,6 +17,11 @@ export {
   type QuizPilotageOverview,
   type QuizPilotageSubject,
   type QuizPilotageTree,
+  type QuizSkillScore,
+  type QuizSubjectSummary,
+  type StartAttemptResult,
+  type StudentQuiz,
+  type StudentQuizQuestion,
 } from "./quiz";
 export {
   type ActiveSchoolYear,

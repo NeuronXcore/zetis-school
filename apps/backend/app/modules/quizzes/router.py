@@ -28,6 +28,7 @@ from app.modules.quizzes.schemas import (
     QuizListItem,
     StartAttemptOut,
     StudentQuizOut,
+    StudentQuizSubjectOut,
     SubmitAnswerRequest,
 )
 
@@ -134,6 +135,12 @@ def delete_quiz(quiz_id: int, db: Session = Depends(get_db)) -> dict:
 # ── Élève (Massimo) ───────────────────────────────────────────────────────────
 
 
+@student_router.get("/quiz-subjects", response_model=list[StudentQuizSubjectOut])
+def student_quiz_subjects(db: Session = Depends(get_db)) -> list[dict]:
+    """Grille « Quiz » : matières de l'année active + nombre de quiz jouables (0 → grisée)."""
+    return service.student_quiz_subjects(db)
+
+
 @student_router.get("/quizzes/{subject_slug}", response_model=list[StudentQuizOut])
 def student_quizzes(subject_slug: str, db: Session = Depends(get_db)) -> list[dict]:
     """Quiz jouables d'une matière (leçons validées, questions actives, SANS clé)."""
@@ -147,11 +154,14 @@ def start_attempt(quiz_id: int, db: Session = Depends(get_db)) -> dict:
 
 @student_router.post("/quiz-attempts/{attempt_id}/answers", response_model=AnswerFeedbackOut)
 def submit_answer(
-    attempt_id: int, req: SubmitAnswerRequest, db: Session = Depends(get_db)
+    attempt_id: int,
+    req: SubmitAnswerRequest,
+    db: Session = Depends(get_db),
+    provider: LLMProvider = Depends(get_provider),  # utilisé seulement par le format `open` (juge)
 ) -> dict:
     """Corrige la réponse et renvoie le feedback immédiat — jamais la clé."""
     return service.submit_answer(
-        db, get_default_student(db), attempt_id, req.question_id, req.answer_json
+        db, get_default_student(db), attempt_id, req.question_id, req.answer_json, provider=provider
     )
 
 

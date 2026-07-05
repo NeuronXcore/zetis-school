@@ -220,7 +220,17 @@ class StudentQuestionOut(BaseModel):
 class StudentQuizOut(BaseModel):
     quiz_id: int
     title: str
+    lesson_id: int | None  # permet au bouton de la page Cours de savoir si un quiz existe
     questions: list[StudentQuestionOut]
+
+
+class StudentQuizSubjectOut(BaseModel):
+    """Vignette de la grille « Quiz » (écran 1) : matière + nombre de quiz jouables."""
+
+    subject_id: int
+    slug: str
+    name: str
+    quiz_count: int  # 0 → vignette grisée « bientôt »
 
 
 class StartAttemptOut(BaseModel):
@@ -239,6 +249,10 @@ class AnswerFeedbackOut(BaseModel):
 
     is_correct: bool
     explanation_markdown: str | None
+    # Format `open` (Lot 2) : jugement critère par critère + drapeau d'ambiguïté (bénéfice du
+    # doute). None / False pour les formats déterministes.
+    criteria: Any | None = None
+    ambiguous: bool = False
 
 
 class SkillScoreOut(BaseModel):

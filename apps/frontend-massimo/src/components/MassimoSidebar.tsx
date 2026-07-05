@@ -3,7 +3,8 @@ import { NavLink } from "react-router-dom";
 import { fetchCapsuleStats } from "../lib/capsules";
 import { fetchReviewsSummary } from "../lib/reviews";
 import { MASSIMO_NAV } from "../lib/navigation";
-import { ZetisAvatar } from "./ZetisAvatar";
+import zetisAvatar from "../assets/brand/zetis-avatar.png";
+import zetisWordmark from "../assets/brand/zetis-texte.png";
 
 // Sidebar temporaire de l'interface Massimo (Étape 2).
 export function MassimoSidebar() {
@@ -23,16 +24,30 @@ export function MassimoSidebar() {
   }, []);
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col gap-2 border-r border-zetis-border bg-zetis-surface p-4">
-      <div className="mb-4 flex items-center gap-3">
-        <ZetisAvatar size={44} />
-        <div>
-          <p className="text-lg font-bold leading-tight">ZETIS</p>
-          <p className="text-xs text-zetis-muted">Espace de Massimo</p>
+    <aside className="flex w-60 shrink-0 flex-col border-r border-zetis-border bg-[#000010]">
+      <style>{ZLOGO_CSS}</style>
+      {/* Bande logo : même hauteur que le header principal → le logo s'aligne sur l'avatar
+          de Massimo et la ligne horizontale du header se prolonge à travers la sidebar. */}
+      <div className="flex h-24 shrink-0 items-center justify-center border-b border-zetis-border sm:h-28">
+        <div className="zlogo relative h-16 w-16">
+          <span className="zlogo-halo" aria-hidden />
+          <img
+            src={zetisAvatar}
+            alt="ZETIS"
+            className="zlogo-img h-16 w-16 rounded-full object-cover"
+          />
         </div>
       </div>
+      {/* Wordmark : juste sous la ligne du header. */}
+      <div className="flex justify-center py-3">
+        <img
+          src={zetisWordmark}
+          alt="ZETIS"
+          className="h-9 w-auto max-w-full object-contain"
+        />
+      </div>
 
-      <nav className="flex flex-col gap-1">
+      <nav className="flex flex-col gap-1 px-4 pb-4">
         {MASSIMO_NAV.map((item) => (
           <NavLink
             key={item.to}
@@ -48,9 +63,14 @@ export function MassimoSidebar() {
             }
           >
             {item.image ? (
-              <img src={item.image} alt="" className="h-5 w-5 rounded object-cover" />
+              <img
+                src={item.image}
+                alt=""
+                // Quiz (feature phare) mise en avant : icône plus grande que les autres.
+                className={`${item.to === "/quiz" ? "h-9 w-9" : "h-7 w-7"} rounded object-cover`}
+              />
             ) : (
-              <span className="text-lg">{item.icon}</span>
+              <span className="text-2xl leading-none">{item.icon}</span>
             )}
             {item.label}
             {item.to === "/capsules" && newCapsules > 0 && (
@@ -69,3 +89,12 @@ export function MassimoSidebar() {
     </aside>
   );
 }
+
+const ZLOGO_CSS = `
+.zlogo-halo{position:absolute;inset:-7px;border-radius:9999px;z-index:0;
+  background:conic-gradient(from 0deg,#22d3ee,#6366f1,#a855f7,#e879f9,#22d3ee);
+  filter:blur(9px);opacity:.75;animation:zlogo-spin 5.5s linear infinite}
+.zlogo-img{position:relative;z-index:1}
+@keyframes zlogo-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.zlogo-halo{animation:none}}
+`;

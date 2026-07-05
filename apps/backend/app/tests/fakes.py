@@ -225,6 +225,19 @@ _DEFAULT_QUIZ_SELFCHECK = {
 }
 
 
+# Jugement `open` déterministe (ADR-0014 Lot 2) renvoyé quand le schéma `fmt` a la propriété
+# `criteria`. Défaut : deux critères acquis, juge confiant → réponse créditée. Les tests de
+# calibrage passent un `quiz_judge` custom (critère non acquis, juge non confiant → ambiguïté…).
+_DEFAULT_QUIZ_JUDGE = {
+    "criteria": [
+        {"label": "Point attendu 1", "met": True, "note": "bien présent"},
+        {"label": "Point attendu 2", "met": True, "note": "bien présent"},
+    ],
+    "feedback": "Bravo, tu as bien expliqué avec tes mots !",
+    "confident": True,
+}
+
+
 class FakeLLMProvider:
     """Provider IA déterministe pour les tests (aucun appel ollama)."""
 
@@ -239,6 +252,7 @@ class FakeLLMProvider:
         srs_cards: dict | None = None,
         quiz: dict | None = None,
         quiz_selfcheck: dict | None = None,
+        quiz_judge: dict | None = None,
     ) -> None:
         self._feedback = feedback
         self._score = score
@@ -249,6 +263,7 @@ class FakeLLMProvider:
         self._srs_cards = srs_cards
         self._quiz = quiz
         self._quiz_selfcheck = quiz_selfcheck
+        self._quiz_judge = quiz_judge
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         # Sortie structurée demandée (fmt) → objet déterministe selon le schéma :
@@ -276,6 +291,9 @@ class FakeLLMProvider:
             checks = self._quiz_selfcheck or _DEFAULT_QUIZ_SELFCHECK
             answer = next((a for tag, a in checks.items() if tag in request.prompt), None)
             return LLMResponse(text=json.dumps({"answer": answer}), model="fake", duration_ms=1)
+        if isinstance(request.fmt, dict) and "criteria" in request.fmt.get("properties", {}):
+            verdict = self._quiz_judge or _DEFAULT_QUIZ_JUDGE
+            return LLMResponse(text=json.dumps(verdict), model="fake", duration_ms=1)
         if request.fmt is not None:
             spec = self._capsule_spec or _DEFAULT_CAPSULE
             return LLMResponse(text=json.dumps(spec), model="fake", duration_ms=1)

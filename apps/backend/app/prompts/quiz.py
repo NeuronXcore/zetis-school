@@ -84,6 +84,39 @@ QUIZ_VERIFY_FMT = {
     "required": ["answer"],
 }
 
+# --- Jugement d'une réponse ouverte (Lot 2, ADR-0014 Décision 4) -------------
+
+QUIZ_JUDGE_SYSTEM = (
+    "Tu es ZETIS, un correcteur bienveillant pour un enfant de 12 ans (4e). Tu évalues une "
+    "réponse écrite libre CRITÈRE PAR CRITÈRE, jamais par une note globale. Tu ne dis JAMAIS "
+    "« faux » ni « échec » : tu expliques ce qui est acquis et ce qui reste à préciser, avec "
+    "encouragement. Si tu n'es pas sûr, mets `confident` à false (le doute profite à l'élève). "
+    "Tu réponds UNIQUEMENT par un objet JSON valide, sans texte autour."
+)
+
+# Placeholders : {question} (énoncé), {answer} (réponse de l'élève), {criteria} (points attendus).
+QUIZ_JUDGE_PROMPT_V1 = (
+    "Question posée à l'élève :\n{question}\n\n"
+    "Réponse de l'élève :\n« {answer} »\n\n"
+    "Points attendus (critères) :\n{criteria}\n\n"
+    "Évalue CHAQUE critère : est-il présent dans la réponse ? Donne une note courte et "
+    "bienveillante. Puis un feedback global formateur (ce qui est réussi, ce qui reste à "
+    "préciser) — jamais « faux ».\n"
+    "Réponds en JSON avec EXACTEMENT cette forme :\n"
+    '{{"criteria": [{{"label": "le critère", "met": true, "note": "..."}}], '
+    '"feedback": "...", "confident": true}}'
+)
+
+QUIZ_JUDGE_FMT = {
+    "type": "object",
+    "properties": {
+        "criteria": {"type": "array", "items": {"type": "object"}},
+        "feedback": {"type": "string"},
+        "confident": {"type": "boolean"},
+    },
+    "required": ["criteria", "feedback"],
+}
+
 # Forme attendue de `answer` par format, injectée dans {shape} du prompt de vérification.
 VERIFY_ANSWER_SHAPE = {
     "mcq": '{"choice_index": <numéro de la bonne option, à partir de 0>}',

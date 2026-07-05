@@ -192,10 +192,11 @@ status
 id
 subject_id
 chapter_id optional
+lesson_id optional     # quiz de fin de cours rattaché à sa leçon (0..N par leçon, ADR-0014)
 title
 description
 quiz_type          # diagnostic | mission | revision | capsule_post_test
-status
+status             # draft | ready | archived (suppression = archivage si tentatives, ADR-0014)
 created_by
 ```
 
@@ -205,13 +206,17 @@ created_by
 id
 quiz_id
 skill_id optional
-question_type      # mcq | short_answer | open | ordering | matching
+question_type      # mcq | mcq_multi | true_false | cloze | numeric | ordering | matching
+                   #   (short_answer/open légaux mais non émis : short_answer remplacé par la
+                   #    paire numeric/open ; open = jugement LLM, Lot 2 — ADR-0014)
 prompt_markdown
-choices_json
+choices_json           # PRÉSENTATION servie à l'élève (options, items, colonnes) — jamais la clé
 correct_answer_json
 explanation_markdown
 difficulty
 sort_order
+source             # generated | manual (édition Papa → manual, préservée par la régénération)
+status             # active | retired (retrait = hors tirages ; les quiz_answers passées restent)
 ```
 
 ### QuizAttempt

@@ -9,6 +9,8 @@ import { MatiereDetailPage } from "./pages/MatiereDetailPage";
 import { CoursPage } from "./pages/CoursPage";
 import { RevisionPage } from "./pages/RevisionPage";
 import { RevisionSessionPage } from "./pages/RevisionSessionPage";
+import { QuizPage } from "./pages/QuizPage";
+import { QuizSessionPage } from "./pages/QuizSessionPage";
 import { DiagnosticPage } from "./pages/DiagnosticPage";
 import { Eli5Page } from "./pages/Eli5Page";
 import { MindmapsPage } from "./pages/MindmapsPage";
@@ -40,7 +42,8 @@ export default function App() {
         <Route path="/mindmaps" element={<MindmapsPage />} />
         <Route path="/capsules" element={<CapsulesIAPage />} />
         <Route path="/progression" element={<ProgressionPage />} />
-        <Route path="/quiz" element={<PlaceholderPage title="Quiz" icon="✅" />} />
+        <Route path="/quiz" element={<QuizPage />} />
+        <Route path="/quiz/session" element={<QuizSessionPage />} />
         <Route path="/missions" element={<MissionsPage />} />
         <Route path="/chat" element={<PlaceholderPage title="Chat ZETIS" icon="💬" />} />
         <Route path="*" element={<PlaceholderPage title="Page introuvable" icon="🔍" />} />
