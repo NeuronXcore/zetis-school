@@ -3,10 +3,10 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { type ReviewsSummary } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { DeckDisc } from "../components/DeckDisc";
+import { SubjectDeckGrid } from "../components/SubjectDeckGrid";
 import { SpacedMemoryHero } from "../components/SpacedMemoryHero";
 import { NeonBackdrop } from "../components/glass";
 import { subjectIconFor } from "../lib/subjectIcons";
-import { subjectEmoji } from "../lib/subjectEmoji";
 import { fetchReviewsSummary } from "../lib/reviews";
 import { type RevisionSessionState } from "./RevisionSessionPage";
 
@@ -148,39 +148,29 @@ export function RevisionPage() {
               <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
                 Par matière
               </h2>
-              <div className="grid grid-cols-2 justify-items-center gap-6 sm:grid-cols-3 md:grid-cols-4">
-                {summary.subjects.map((subject) => {
-                  // 3 états : sans carte (grisé « à venir », emoji) / à jour ✓ / lançable.
-                  const noCards = !subject.has_cards;
-                  const atDay = subject.has_cards && subject.due_count === 0;
-                  const launchable = subject.has_cards && subject.due_count > 0;
-                  return (
-                    <DeckDisc
-                      key={subject.slug}
-                      title={subject.name}
-                      count={subject.due_count}
-                      // Matières sans carte : emoji (pas d'illustration) ; les autres : illustration.
-                      imageUrl={noCards ? undefined : subjectIconFor(subject.slug)}
-                      emoji={subjectEmoji(subject.slug)}
-                      fallbackInitial={subject.name}
-                      atDay={atDay}
-                      noCards={noCards}
-                      isNew={subject.new_count > 0}
-                      onClick={
-                        !launchable
-                          ? undefined
-                          : () =>
-                              launch({
-                                deck: { subject: subject.slug },
-                                label: subject.name,
-                                subjectSlug: subject.slug,
-                                subjectNames,
-                              })
-                      }
-                    />
-                  );
-                })}
-              </div>
+              {/* Grille « Par matière » extraite dans SubjectDeckGrid (partagée avec ELI5) :
+                  3 états — sans carte (grisé « à venir ») / à jour ✓ / lançable. Inerte quand
+                  atténué (dimmedClickable non fourni), à l'identique du rendu précédent. */}
+              <SubjectDeckGrid
+                subjects={summary.subjects.map((subject) => ({
+                  slug: subject.slug,
+                  name: subject.name,
+                  count: subject.due_count,
+                  dimmed: !subject.has_cards,
+                  atDay: subject.has_cards && subject.due_count === 0,
+                  isNew: subject.new_count > 0,
+                }))}
+                onSelect={(slug) => {
+                  const subject = summary.subjects.find((s) => s.slug === slug);
+                  if (!subject) return;
+                  launch({
+                    deck: { subject: subject.slug },
+                    label: subject.name,
+                    subjectSlug: subject.slug,
+                    subjectNames,
+                  });
+                }}
+              />
             </section>
           </div>
         ) : null}
