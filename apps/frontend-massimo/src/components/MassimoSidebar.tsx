@@ -48,7 +48,12 @@ export function MassimoSidebar() {
             }
           >
             {item.image ? (
-              <img src={item.image} alt="" className="h-7 w-7 rounded object-cover" />
+              <img
+                src={item.image}
+                alt=""
+                // Quiz (feature phare) mise en avant : icône plus grande que les autres.
+                className={`${item.to === "/quiz" ? "h-9 w-9" : "h-7 w-7"} rounded object-cover`}
+              />
             ) : (
               <span className="text-2xl leading-none">{item.icon}</span>
             )}
