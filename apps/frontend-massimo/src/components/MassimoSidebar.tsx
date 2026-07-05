@@ -24,7 +24,7 @@ export function MassimoSidebar() {
   }, []);
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-zetis-border bg-zetis-surface">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-zetis-border bg-[#000010]">
       <style>{ZLOGO_CSS}</style>
       {/* Bande logo : même hauteur que le header principal → le logo s'aligne sur l'avatar
           de Massimo et la ligne horizontale du header se prolonge à travers la sidebar. */}
