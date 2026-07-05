@@ -26,7 +26,18 @@ Tests initiaux et périodiques.
 
 ## Quizzes
 
-Quiz, questions, tentatives, réponses.
+Moteur de quiz unifié (ADR-0014, Lot 1) — quiz de fin de cours en premier client, **deuxième
+client du substrat canonique** (ADR-0011). Génération **locale** depuis le cours validé d'une
+leçon (formats choisis par le modèle), **auto-vérification à l'aveugle** (question dont le modèle
+ne retrouve pas la clé → écartée), **correction déterministe serveur** (7 formats : `mcq`,
+`mcq_multi`, `true_false`, `cloze`, `numeric`, `ordering`, `matching`), **scoring pondéré**
+(`mission` = signal faible, jamais de `Gap`). Trois surfaces :
+- **Papa** (`/api/quizzes/*`, `require_parent`) : génération/régénération par leçon, inspection
+  avec clés, édition (→ `manual`), ajout manuel, retrait, suppression (hard/archivage).
+- **Pilotage Papa** (`/api/quiz-pilotage/*`) : `overview` (KPI + santé de l'auto-vérif par
+  matière), arbre `subjects/{id}` (leçons validées + leurs quiz).
+- **Élève** (`/api/student/quiz*`) : `quiz-subjects`, quiz par matière, tentative, feedback
+  immédiat et complétion — **jamais** la clé ni l'explication servies à l'avance.
 
 ## Missions
 

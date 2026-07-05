@@ -1,5 +1,35 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.15.0 — Moteur de quiz unifié (ADR-0014, Lot 1) : backend + pilotage Papa + client Massimo
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Moteur de quiz unifié** (ADR-0014, module `quizzes`) — quiz de fin de cours en premier
+  client, **deuxième client du substrat canonique** (ADR-0011). Génération **locale** depuis le
+  cours validé d'une leçon (formats choisis par le modèle), **auto-vérification à l'aveugle**
+  (question dont le modèle ne retrouve pas sa clé → écartée), **correction déterministe serveur**
+  (7 formats : `mcq`, `mcq_multi`, `true_false`, `cloze`, `numeric`, `ordering`, `matching`),
+  **scoring pondéré** (`mission` = signal faible, **n'ouvre jamais de lacune**). XP = base
+  d'effort + bonus score (0 %→10, 100 %→30).
+- **Page Papa « Quiz — pilotage »** (`/quiz`, endpoints `/api/quiz-pilotage/*` + `/api/quizzes/*`)
+  : inventaire par matière, génération par leçon (popover volume/difficulté + barre de progression),
+  inspection avec clés, édition (→ `manual`)/ajout manuel/retrait, régénération (préserve les
+  `manual`), suppression (hard/archivage), KPI + santé de l'auto-vérification par matière.
+- **Client Massimo** (`/quiz`, `/quiz/session`, endpoints `/api/student/quiz*`) : grille des
+  matières (grisée si aucun quiz) → lecteur question par question (7 formats), **feedback immédiat
+  bienveillant** (jamais la clé), résumé de fin (XP + forces / « à revoir bientôt ») ; bouton
+  « 🎯 Quiz » sur la page Cours quand un quiz existe ; hero animé sur la page Quiz.
+- **Migration `b1c2d3e4f5a6`** : `quizzes.lesson_id`, `quiz_questions.source` + `.status`
+  (`question_type` reste `varchar` → extension des formats sans DDL).
+
+### UI Massimo (retouches)
+
+- En-tête sidebar refondu (logo `zetis-avatar.png` + halo animé + wordmark `zetis-texte.png`),
+  aligné sur l'avatar du header ; header : profil Massimo à gauche ; fond sidebar = fond header
+  (`#000010`) ; icônes agrandies.
+
 ## 0.14.0 — Cartes SRS : génération page-driven + pilotage Papa + refonte UI Révision Massimo
 
 Date : 2026-07-05

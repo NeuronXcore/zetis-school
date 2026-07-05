@@ -241,23 +241,48 @@ Derniers diagnostics passés, score par notion + lacunes ouvertes.
 > Reporté : `generate-missions` (remédiation depuis les lacunes), diagnostic
 > multi-matières en une session, difficulté adaptative.
 
-## Quiz
+## Quiz — moteur unifié (ADR-0014, Lot 1)
 
-### GET `/quizzes/{id}`
+Quiz de fin de cours (`quiz_type = mission`), premier client du moteur, **deuxième client du
+substrat canonique** (ADR-0011). Génération **locale** depuis le cours validé d'une leçon,
+**auto-vérification à l'aveugle** (question dont le modèle ne retrouve pas la clé → écartée),
+**correction déterministe serveur** (7 formats). Asymétrie stricte : côté élève, ni
+`correct_answer_json` ni `explanation_markdown` (sauf le feedback immédiat après réponse).
 
-Retourne quiz et questions.
+### Génération & CRUD — Papa (`require_parent`)
 
-### POST `/quizzes/{id}/attempts`
+- **POST `/api/lessons/{lesson_id}/quizzes/generate`** — corps `{ count: 5|8, difficulty: 1|2|3 }`.
+  409 si la leçon n'est pas `validated` / sans cours. Trace `ai_jobs` (`quiz_generate` :
+  `questions_generated`/`questions_discarded`). Réponse `{ quiz_id, lesson_id, questions_generated,
+  questions_discarded }`. 0..N quiz par leçon (régénérer ≠ créer).
+- **GET `/api/lessons/{lesson_id}/quizzes`** · **GET `/api/subjects/{slug}/quizzes`** — inventaire
+  (compteurs, statut, taux d'écart).
+- **GET `/api/quizzes/{id}`** — vue Papa : questions **avec** clés et explications.
+- **POST `/api/quizzes/{id}/regenerate`** — remplace les questions `generated`, **préserve les `manual`**.
+- **PATCH `/api/quiz-questions/{id}`** — toute édition bascule la question en `source='manual'`.
+- **POST `/api/quizzes/{id}/questions`** — ajoute une question manuelle. **POST
+  `/api/quiz-questions/{id}/retire`** — `status='retired'` (hors tirages, réponses conservées).
+- **DELETE `/api/quizzes/{id}`** — hard delete si aucune tentative, sinon archivage.
 
-Démarre tentative.
+### Pilotage — page Papa « Quiz — pilotage » (`require_parent`)
 
-### POST `/quiz-attempts/{attempt_id}/answers`
+- **GET `/api/quiz-pilotage/overview`** — KPI globaux + santé de l'auto-vérification par matière.
+- **GET `/api/quiz-pilotage/subjects/{id}`** — leçons validées + leurs quiz (leçons sans quiz incluses).
 
-Envoie réponse.
+### Flux élève — Massimo (`/api/student`, filtrage serveur, jamais la clé)
 
-### POST `/quiz-attempts/{attempt_id}/complete`
+- **GET `/api/student/quiz-subjects`** — grille des matières + nombre de quiz (0 → grisée).
+- **GET `/api/student/quizzes/{subject_slug}`** — quiz jouables (questions actives, **sans** clé
+  ni explication) ; chaque quiz porte `lesson_id`.
+- **POST `/api/student/quizzes/{id}/attempts`** — démarre une tentative.
+- **POST `/api/student/quiz-attempts/{id}/answers`** — corps `{ question_id, answer_json }` :
+  correction serveur, renvoie `{ is_correct, explanation_markdown }` (jamais la clé).
+- **POST `/api/student/quiz-attempts/{id}/complete`** — score global + par notion, scoring pondéré
+  (`mission` = signal faible, jamais de `Gap`), **XP = base d'effort + bonus score** (0 %→10,
+  100 %→30), résumé bienveillant `{ score_percent, xp_awarded, per_skill, strengths, to_review }`.
 
-Termine tentative et calcule résultats.
+> Reporté (Lot 2) : format `open` (jugement LLM contre critères), génération en lot,
+> `revision`/`capsule_post_test` réels (scoring stubs).
 
 ## Missions
 
