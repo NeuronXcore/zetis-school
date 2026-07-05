@@ -1,5 +1,34 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.16.0 — ELI5 v2 : entrée par decks matières + composant partagé + emblème animé
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Routes élève « notions validées »** (module `curriculum`, lecture seule, aucune migration)
+  — `GET /api/student/notions/summary` (compteurs par matière de l'année active, une requête
+  agrégée) et `GET /api/student/subjects/{slug}/notions` (notions dédupliquées par `skill_id`,
+  `chapter_title` de la leçon la plus récente ; 404 hors année, `[]` si rien de validé). Même
+  chaîne de filtrage que les cours élève (chapitre `validated` → leçon `validated` → `Skill`).
+  Types dans `packages/types/src/curriculum.ts`.
+- **Refonte ELI5 en 3 écrans** (frontend Massimo, `/eli5`) : écran 1 **decks matières**
+  (compteurs de notions, matière vide = « bientôt », deck « ✨ Question libre » en tête) → écran 2
+  **chips de notions** (nom + `chapter_title`) + champ « pose ta question » → écran 3 = **la
+  session ELI5 existante, inchangée** (explain → reverse, badge « D'après ta leçon »). Chip →
+  `explain` avec `skill_id` réel (badge leçon déterministe) ; question libre → résolution client
+  (le moteur n'accepte que `skill_id`). Deep-link `?subject=slug`. Le moteur ELI5 n'est pas touché.
+- **Composant partagé `SubjectDeckGrid`** — extrait de la grille « Par matière » de la page
+  Révision (enveloppe `DeckDisc`), **Révision migrée dessus à l'identique** (parité visuelle
+  préservée) ; les Mélanges restent locaux à Révision. `DeckDisc` gagne des options
+  rétro-compatibles (deck atténué mais cliquable, `soonHint`, `hideBadge`).
+- **Badge « ✨ new » sur les decks ELI5** — `new_count` par matière dans `/notions/summary` :
+  notions dont une leçon validée porteuse a été créée dans les 7 derniers jours (récence de
+  création, signal global ; `Lesson.created_at` faute d'horodatage sur `Skill`/`Chapter`).
+- **Emblème animé ELI5** dans l'en-tête de l'écran decks — symboles de complexité (❓🔢🧩🌀) en
+  orbite autour de l'ampoule 💡 qui s'illumine par à-coups (« aha ! ») en projetant des
+  étincelles ; 4 `@keyframes` en `motion-safe:` (figé sous `prefers-reduced-motion`).
+
 ## 0.15.0 — Moteur de quiz unifié (ADR-0014, Lot 1) : backend + pilotage Papa + client Massimo
 
 Date : 2026-07-05
