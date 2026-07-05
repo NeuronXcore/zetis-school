@@ -104,6 +104,8 @@ describe("Eli5Page — entrée v2 par decks", () => {
     // Notions fraîchement ajoutées → badge « ✨ new » sur le deck matière.
     const maths = screen.getByRole("button", { name: /Mathématiques/ });
     expect(within(maths).getByText(/new/)).toBeInTheDocument();
+    // Emblème animé ELI5 (ampoule = l'idée) présent dans l'en-tête.
+    expect(screen.getByText("💡")).toBeInTheDocument();
   });
 
   it("chip de notion → session avec badge « D'après ta leçon » (skill_id circule)", async () => {

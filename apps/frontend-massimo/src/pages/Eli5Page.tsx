@@ -81,7 +81,8 @@ function HomeScreen({ page }: { page: ReturnType<typeof useEli5Page> }) {
   return (
     <>
       <header className="mb-6 text-center">
-        <h1 className="text-2xl font-bold">💡 ELI5 — Explique-moi&nbsp;!</h1>
+        <Eli5Emblem />
+        <h1 className="mt-3 text-2xl font-bold">ELI5 — Explique-moi&nbsp;!</h1>
         <p className="mt-1 text-zetis-muted">
           Choisis une matière : je t'explique n'importe quelle notion, simplement.
         </p>
@@ -104,6 +105,52 @@ function HomeScreen({ page }: { page: ReturnType<typeof useEli5Page> }) {
       />
       {page.summaryLoading && <p className="mt-4 text-center text-zetis-muted">Chargement…</p>}
     </>
+  );
+}
+
+// Emblème animé ELI5 : le concept « Explique comme à un enfant » mis en scène — des
+// symboles de complexité tournent autour de l'ampoule (l'idée), qui s'illumine par
+// à-coups (le « aha ! ») en projetant des étincelles. Complexité qui tourbillonne →
+// une idée simple et lumineuse. Tout est motion-safe : figé et lisible sous
+// prefers-reduced-motion (ampoule + halo doux, sans mouvement).
+const ORBIT_GLYPHS = [
+  { e: "❓", pos: "left-1/2 top-0 -translate-x-1/2" },
+  { e: "🔢", pos: "right-0 top-1/2 -translate-y-1/2" },
+  { e: "🧩", pos: "bottom-0 left-1/2 -translate-x-1/2" },
+  { e: "🌀", pos: "left-0 top-1/2 -translate-y-1/2" },
+];
+
+function Eli5Emblem() {
+  return (
+    <div className="relative mx-auto h-24 w-24" aria-hidden>
+      {/* Halo « idée » qui respire */}
+      <span className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500/40 to-cyan-400/30 blur-2xl motion-safe:animate-[eli5-idea-glow_3s_ease-in-out_infinite]" />
+
+      {/* Symboles de complexité en orbite autour de l'idée */}
+      <div className="absolute inset-0 motion-safe:animate-[eli5-orbit_11s_linear_infinite]">
+        {ORBIT_GLYPHS.map((g) => (
+          <span key={g.e} className={`absolute ${g.pos} text-base opacity-60`}>
+            {g.e}
+          </span>
+        ))}
+      </div>
+
+      {/* Étincelles du déclic (n'apparaissent qu'au flash de l'ampoule) */}
+      <span className="absolute right-1 top-2 text-sm opacity-0 motion-safe:animate-[eli5-spark_3s_ease-in-out_infinite]">
+        ✨
+      </span>
+      <span
+        className="absolute bottom-3 left-2 text-xs opacity-0 motion-safe:animate-[eli5-spark_3s_ease-in-out_infinite]"
+        style={{ animationDelay: "0.18s" }}
+      >
+        ✨
+      </span>
+
+      {/* L'idée : l'ampoule qui s'illumine (emoji ELI5) */}
+      <span className="absolute inset-0 flex items-center justify-center text-5xl drop-shadow-[0_2px_6px_rgba(99,102,241,0.5)] motion-safe:animate-[eli5-aha_3s_ease-in-out_infinite]">
+        💡
+      </span>
+    </div>
   );
 }
 

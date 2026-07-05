@@ -71,6 +71,66 @@
   }
 }
 
+/* ── Emblème animé ELI5 (en-tête écran 1) : le CONCEPT « Explique comme à un enfant ».
+   Des symboles de complexité (❓🔢🧩🌀) tournent autour de l'ampoule = l'idée ; celle-ci
+   s'illumine par à-coups — le « aha ! » — en projetant des étincelles. Toutes ces
+   animations sont posées en motion-safe: → figées et propres sous prefers-reduced-motion. */
+
+/* Halo « idée » qui respire derrière l'ampoule. */
+@keyframes eli5-idea-glow {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.12);
+  }
+}
+
+/* Ronde des symboles de complexité autour de l'idée. */
+@keyframes eli5-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* L'ampoule « comprend » : petit sursaut + flash lumineux (le déclic), puis repos. */
+@keyframes eli5-aha {
+  0%,
+  60%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 0 0 rgba(34, 211, 238, 0));
+  }
+  70% {
+    transform: scale(1.18) rotate(-4deg);
+    filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.95));
+  }
+  80% {
+    transform: scale(1.08) rotate(3deg);
+    filter: drop-shadow(0 0 7px rgba(99, 102, 241, 0.6));
+  }
+}
+
+/* Étincelles du déclic — synchronisées avec le flash de l'ampoule (~70 % du cycle). */
+@keyframes eli5-spark {
+  0%,
+  55% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
 /* Confettis du palier haut de la révision (SessionEndPopup). Animés en dur mais
    déclenchés uniquement hors prefers-reduced-motion (garde côté composant) puis
    purgés après ~4 s. */
