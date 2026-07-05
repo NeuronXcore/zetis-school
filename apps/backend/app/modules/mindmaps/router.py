@@ -27,6 +27,7 @@ from app.modules.mindmaps.schemas import (
     MindmapPilotageTree,
     MindmapReconstructionRequest,
     MindmapReconstructionResult,
+    MindmapsSummaryOut,
     MindmapUpdateRequest,
 )
 
@@ -114,12 +115,19 @@ def delete(mindmap_id: int, db: Session = Depends(get_db)) -> Response:
 # ── Massimo (read-only + reconstruction, gate `validated` dans le service) ───────
 
 
+@student_router.get("/mindmaps/summary", response_model=MindmapsSummaryOut)
+def student_mindmaps_summary(db: Session = Depends(get_db)) -> dict:
+    """Grille de decks : compteur de cartes validées par matière (année active). Sans « Nouveau »."""
+    return service.mindmaps_summary(db)
+
+
 @student_router.get("/subjects/{subject_slug}/mindmaps", response_model=list[MindmapListItem])
 def student_subject_mindmaps(subject_slug: str, db: Session = Depends(get_db)) -> list[dict]:
     """Deck : cartes validées d'une matière (leçons validées de l'année active). Route neutre."""
     return service.list_subject_mindmaps(db, subject_slug)
 
 
+# Déclaré APRÈS `/mindmaps/summary` : sinon « summary » serait capté comme un {mindmap_id} (→ 422).
 @student_router.get("/mindmaps/{mindmap_id}", response_model=MindmapOut)
 def student_mindmap(mindmap_id: int, db: Session = Depends(get_db)) -> dict:
     """La carte (404 si non `validated`, sans fuite des brouillons)."""
@@ -138,9 +146,9 @@ def student_evaluate(
 def student_attempt(
     mindmap_id: int, req: MindmapReconstructionRequest, db: Session = Depends(get_db)
 ) -> dict:
-    """Tentative de reconstruction : score SERVEUR + XP serveur, persistée."""
+    """Tentative de reconstruction : score SERVEUR + XP serveur (réduit par les échecs), persistée."""
     return service.record_attempt(
-        db, get_default_student(db), mindmap_id, req.placements
+        db, get_default_student(db), mindmap_id, req.placements, failed_attempts=req.failed_attempts
     )
 
 

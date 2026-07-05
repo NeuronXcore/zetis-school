@@ -35,6 +35,9 @@ def quiz_xp(score_percent: int) -> int:
     return XP_QUIZ_BASE + bonus
 
 
+XP_MINDMAP_FAIL_PENALTY = 5  # XP retirés par tentative ratée pendant une séance de reconstruction
+
+
 def mindmap_xp(score_percent: int) -> int:
     """XP d'une reconstruction de mindmap : base d'effort + bonus selon le score. 0 % → 10, 100 % → 30.
 
@@ -42,6 +45,15 @@ def mindmap_xp(score_percent: int) -> int:
     clamped = max(0, min(100, score_percent))
     bonus = round((XP_MINDMAP_MAX - XP_MINDMAP_BASE) * clamped / 100)
     return XP_MINDMAP_BASE + bonus
+
+
+def mindmap_reconstruction_xp(score_percent: int, failed_attempts: int = 0) -> int:
+    """XP d'une reconstruction RÉUSSIE, réduit par le nombre d'échecs de la séance.
+
+    L'effort reste récompensé (plancher = base) : chaque tentative ratée retire un forfait, mais on
+    ne descend jamais sous `XP_MINDMAP_BASE`. Déterministe (mêmes score + échecs → même XP)."""
+    base = mindmap_xp(score_percent)
+    return max(XP_MINDMAP_BASE, base - XP_MINDMAP_FAIL_PENALTY * max(0, failed_attempts))
 
 
 def award_xp(

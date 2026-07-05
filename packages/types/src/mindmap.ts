@@ -31,6 +31,18 @@ export interface MindmapJson {
   optional_nodes?: string[];
 }
 
+// Résumé des decks (écran d'accueil Massimo) : une matière de l'année active + son compteur.
+// Sans `new_count` : le suivi des vues (badge « Nouveau ») est différé en V1 (ADR-0016 §3).
+export interface MindmapsSummarySubject {
+  slug: string;
+  name: string;
+  mindmap_count: number;
+}
+
+export interface MindmapsSummary {
+  subjects: MindmapsSummarySubject[];
+}
+
 // Item de deck (grille matière côté Massimo, liste Papa) — sans le `mindmap_json` complet.
 export interface MindmapListItem {
   id: number;
@@ -76,6 +88,9 @@ export interface MindmapNodePlacement {
 
 export interface MindmapReconstructionRequest {
   placements: MindmapNodePlacement[];
+  // Nombre de tentatives ratées de la séance — réduit l'XP à la réussite (serveur). Ignoré par
+  // /evaluate. Absent = 0.
+  failed_attempts?: number;
 }
 
 // Détail juste/faux d'UN nœud attendu (renvoyé par l'évaluation serveur).

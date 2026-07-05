@@ -16,6 +16,7 @@ import { QuizSessionPage } from "./pages/QuizSessionPage";
 import { DiagnosticPage } from "./pages/DiagnosticPage";
 import { Eli5Page } from "./pages/Eli5Page";
 import { MindmapsPage } from "./pages/MindmapsPage";
+import { MindmapSubjectPage } from "./pages/MindmapSubjectPage";
 import { CapsulesIAPage } from "./pages/CapsulesIAPage";
 import { MissionsPage } from "./pages/MissionsPage";
 import { ProgressionPage } from "./pages/ProgressionPage";
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/diagnostic" element={<DiagnosticPage />} />
         <Route path="/eli5" element={<Eli5Page />} />
         <Route path="/mindmaps" element={<MindmapsPage />} />
+        <Route path="/mindmaps/:slug" element={<MindmapSubjectPage />} />
         <Route path="/capsules" element={<CapsulesIAPage />} />
         <Route path="/progression" element={<ProgressionPage />} />
         <Route path="/quiz" element={<QuizPage />} />

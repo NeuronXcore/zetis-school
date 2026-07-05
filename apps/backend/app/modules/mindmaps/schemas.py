@@ -160,6 +160,20 @@ class MindmapPilotageTree(BaseModel):
 # --- Reconstruction (mode `student_reconstruction`) : évaluation SERVEUR, déterministe. ---
 
 
+class MindmapsSummarySubject(BaseModel):
+    """Une matière de l'année active + son compteur de cartes validées (grille de decks)."""
+
+    slug: str
+    name: str
+    mindmap_count: int
+
+
+class MindmapsSummaryOut(BaseModel):
+    """Résumé des decks mindmaps (écran d'accueil Massimo) — matières de l'année active."""
+
+    subjects: list[MindmapsSummarySubject]
+
+
 class MindmapNodePlacement(BaseModel):
     """Un nœud placé par l'élève : le nœud `node_id` est accroché sous `parent_id` (None = centre).
 
@@ -176,6 +190,9 @@ class MindmapReconstructionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     placements: list[MindmapNodePlacement] = Field(default_factory=list, max_length=MAX_NODES)
+    # Nombre de tentatives ratées de la séance (mode reconstruction) — réduit l'XP à la réussite.
+    # Ignoré par `/evaluate` (pur). Borné pour éviter tout abus.
+    failed_attempts: int = Field(default=0, ge=0, le=100)
 
 
 class MindmapNodeEval(BaseModel):

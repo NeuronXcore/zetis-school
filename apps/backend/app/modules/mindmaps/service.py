@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -45,7 +45,7 @@ from app.modules.ai.canonical_context import (
     resolve_canonical_context,
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
-from app.modules.gamification.service import award_xp, mindmap_xp
+from app.modules.gamification.service import award_xp, mindmap_reconstruction_xp
 from app.modules.mindmaps.schemas import (
     MindmapJson,
     MindmapNodeEval,
@@ -448,6 +448,41 @@ def list_subject_mindmaps(db: Session, subject_slug: str) -> list[dict]:
     ]
 
 
+def mindmaps_summary(db: Session) -> dict:
+    """Compteur de cartes validées par matière de l'année active (grille de decks Massimo).
+
+    Liste TOUTES les matières de l'année active (celles sans carte → compteur 0, deck « bientôt »).
+    Même esprit que `/fiches/summary`, mais **sans `new_count`** : le suivi des vues (badge
+    « Nouveau ») est différé en V1 (pas de table `mindmap_views` dans le périmètre ADR-0016 §3).
+    """
+    year = _active_year(db)
+    if year is None:
+        return {"subjects": []}
+    subjects = list(
+        db.scalars(
+            select(Subject)
+            .join(SchoolYearSubject, SchoolYearSubject.subject_id == Subject.id)
+            .where(SchoolYearSubject.school_year_id == year.id)
+            .order_by(Subject.sort_order, Subject.id)
+        )
+    )
+    out = []
+    for subject in subjects:
+        lesson_ids = _validated_lesson_ids_for_subject(db, subject.id)
+        count = (
+            db.scalar(
+                select(func.count(Mindmap.id)).where(
+                    Mindmap.lesson_id.in_(lesson_ids),
+                    Mindmap.validation_status == "validated",
+                )
+            )
+            if lesson_ids
+            else 0
+        )
+        out.append({"slug": subject.slug, "name": subject.name, "mindmap_count": count or 0})
+    return {"subjects": out}
+
+
 def get_student_mindmap(db: Session, mindmap_id: int) -> dict:
     """La carte pour Massimo — 404 si absente OU non `validated` (aucune fuite de brouillon)."""
     row = db.get(Mindmap, mindmap_id)
@@ -534,13 +569,18 @@ def evaluate_reconstruction(
 
 
 def record_attempt(
-    db: Session, student: StudentProfile, mindmap_id: int, placements: list[MindmapNodePlacement]
+    db: Session,
+    student: StudentProfile,
+    mindmap_id: int,
+    placements: list[MindmapNodePlacement],
+    failed_attempts: int = 0,
 ) -> dict:
     """Tentative de reconstruction (`/attempts`) : score SERVEUR, persistance + **XP serveur**.
 
     Le score est calculé par `score_reconstruction` (déterministe) — jamais côté client. L'XP suit
-    le patron du quiz (`mindmap_xp` : base d'effort + bonus au score, aucun 0 après une tentative
-    jouée). L'attribution vit ici, côté serveur (ADR-0016). Le commit est fait après `award_xp`.
+    le patron du quiz (base d'effort + bonus au score) **réduit par le nombre d'échecs de la séance**
+    (`failed_attempts`), avec un plancher (l'effort reste récompensé). L'attribution vit ici, côté
+    serveur (ADR-0016). Le commit est fait après `award_xp`.
     """
     row = _validated_mindmap_or_404(db, mindmap_id)
     score, details = score_reconstruction(row.mindmap_json or {}, placements)
@@ -558,7 +598,7 @@ def record_attempt(
 
     lesson = db.get(Lesson, row.lesson_id)
     subject = _subject_of(db, lesson) if lesson else None
-    xp = mindmap_xp(score)
+    xp = mindmap_reconstruction_xp(score, failed_attempts)
     award_xp(
         db,
         student_id=student.id,

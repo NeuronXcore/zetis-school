@@ -30,7 +30,7 @@ from app.db.models import (
 )
 from app.modules.ai.canonical_context import CanonicalContext, build_canonical_sections
 from app.modules.ai.provider import LLMResponse
-from app.modules.gamification.service import mindmap_xp
+from app.modules.gamification.service import mindmap_reconstruction_xp, mindmap_xp
 from app.modules.mindmaps import service
 from app.modules.mindmaps.schemas import MindmapJson, MindmapNodePlacement
 from app.prompts import mindmap
@@ -272,6 +272,24 @@ def test_pending_mindmap_hidden_until_validated(client_db) -> None:
         assert service.get_student_mindmap(db, row.id)["mindmap_json"]["center"]
 
 
+def test_summary_counts_validated_per_subject(client_db) -> None:
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        row = service.generate_mindmap(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+        # `pending` → compteur 0 pour la matière ; toutes les matières de l'année sont listées.
+        summ = service.mindmaps_summary(db)
+        maths = next(s for s in summ["subjects"] if s["slug"] == "mathematiques")
+        assert maths["mindmap_count"] == 0
+        # Après validation → compteur 1.
+        service.validate_mindmap(db, row.id)
+        summ2 = service.mindmaps_summary(db)
+        maths2 = next(s for s in summ2["subjects"] if s["slug"] == "mathematiques")
+        assert maths2["mindmap_count"] == 1
+
+
 # ── Reconstruction — évaluation SERVEUR déterministe ───────────────────────────
 
 
@@ -330,6 +348,37 @@ def test_record_attempt_persists_score_and_awards_xp_server(client_db) -> None:
         assert len(events) == 1
         assert events[0].reason == "mindmap_reconstruction"
         assert events[0].amount == 25
+
+
+def test_reconstruction_xp_reduced_by_failed_attempts() -> None:
+    # Réussite (100 %) → 30 XP ; chaque échec retire 5 ; plancher = base (10).
+    assert mindmap_reconstruction_xp(100, 0) == 30
+    assert mindmap_reconstruction_xp(100, 1) == 25
+    assert mindmap_reconstruction_xp(100, 3) == 15
+    assert mindmap_reconstruction_xp(100, 10) == 10  # plancher, jamais sous la base
+
+
+def test_record_attempt_applies_failure_penalty_server(client_db) -> None:
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        row = service.generate_mindmap(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+        service.validate_mindmap(db, row.id)
+        student = db.scalar(select(StudentProfile))
+        # Reconstruction parfaite (score 100) mais 2 échecs en séance → XP = 30 - 2*5 = 20.
+        placements = [
+            MindmapNodePlacement(node_id="signe", parent_id=None),
+            MindmapNodePlacement(node_id="droite", parent_id=None),
+            MindmapNodePlacement(node_id="oppose", parent_id="signe"),
+            MindmapNodePlacement(node_id="comparer", parent_id="droite"),
+        ]
+        result = service.record_attempt(db, student, row.id, placements, failed_attempts=2)
+        assert result["score"] == 100
+        assert result["xp_awarded"] == 20
+        event = db.scalar(select(XPEvent).where(XPEvent.student_id == student.id))
+        assert event.amount == 20
 
 
 def test_evaluate_reconstruction_is_pure_no_persist_no_xp(client_db) -> None:

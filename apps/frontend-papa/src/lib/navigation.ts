@@ -23,6 +23,7 @@ export const PAPA_NAV: NavItem[] = [
   { to: "/capsules", label: "Capsules IA", icon: "🎬" },
   // Fiches de révision (📄 pour ne pas doublonner 🗂️ des Cartes de révision).
   { to: "/fiches", label: "Fiches", icon: "📄" },
+  { to: "/mindmaps", label: "Mindmaps", icon: "🧠" },
   { to: "/focus", label: "Mode focus", icon: "🔍" },
   { to: "/parametres", label: "Paramètres", icon: "⚙️" },
 ];

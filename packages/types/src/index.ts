@@ -24,6 +24,8 @@ export {
   type MindmapPilotageTree,
   type MindmapReconstructionRequest,
   type MindmapReconstructionResult,
+  type MindmapsSummary,
+  type MindmapsSummarySubject,
   type MindmapValidationStatus,
 } from "./mindmap";
 export {
