@@ -45,6 +45,8 @@ export default function App() {
         <Route path="/diagnostic" element={<DiagnosticPage />} />
         <Route path="/eli5" element={<Eli5Page />} />
         <Route path="/mindmaps" element={<MindmapsPage />} />
+        {/* Deep-link mission (ADR-0019) : ouvre une carte par id directement en mode Reconstruire. */}
+        <Route path="/mindmaps/reconstruire/:mindmapId" element={<MindmapSubjectPage />} />
         <Route path="/mindmaps/:slug" element={<MindmapSubjectPage />} />
         <Route path="/capsules" element={<CapsulesIAPage />} />
         <Route path="/progression" element={<ProgressionPage />} />

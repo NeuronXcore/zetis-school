@@ -58,12 +58,19 @@ class Settings(BaseSettings):
     mission_xp_reward: int = Field(default=50, validation_alias="MISSION_XP_REWARD")
     mission_reverse_threshold: int = Field(default=70, validation_alias="MISSION_REVERSE_THRESHOLD")
     mission_quiz_threshold: int = Field(default=70, validation_alias="MISSION_QUIZ_THRESHOLD")
+    # ADR-0019 (verdict option B) : seuil du signal de rappel « mindmap ». Une reconstruction
+    # ≥ ce seuil peut tenir lieu de rappel à la place du quiz dans le verdict d'acquisition.
+    mission_mindmap_threshold: int = Field(default=70, validation_alias="MISSION_MINDMAP_THRESHOLD")
 
     # --- Sélecteur de la mission du jour (ADR-0017 lot 2, décision 2) : scoring DÉTERMINISTE,
     # zéro LLM. La formule est VERSIONNÉE (`MISSION_SCORING_VERSION` couvre formule ET templates
     # d'étapes) : tout changement de facteur/pondération = bump, tracé dans la sortie du sélecteur.
     # Pondérations et seuils vivent ICI, jamais dans le code du service. ---
-    mission_scoring_version: str = Field(default="v1", validation_alias="MISSION_SCORING_VERSION")
+    # v2 (ADR-0018) : le facteur `forced_priority` lit le flag `mission.force_priority` au lieu du
+    # type `manual`. v3 (ADR-0019) : le parcours généré peut inclure un step `mindmap`, et le
+    # verdict admet la reconstruction comme signal de rappel (option B). Le versionnage couvre
+    # formule ET templates de parcours — tout changement = bump tracé.
+    mission_scoring_version: str = Field(default="v3", validation_alias="MISSION_SCORING_VERSION")
     mission_weight_severity: float = Field(default=1.0, validation_alias="MISSION_WEIGHT_SEVERITY")
     mission_weight_due_pressure: float = Field(
         default=0.8, validation_alias="MISSION_WEIGHT_DUE_PRESSURE"
@@ -82,6 +89,19 @@ class Settings(BaseSettings):
     )
     # Nombre de cartes dues qui sature `due_pressure` à 1.0.
     mission_due_pressure_cap: int = Field(default=6, validation_alias="MISSION_DUE_PRESSURE_CAP")
+
+    # --- Commander une mission (ADR-0018) : Papa apporte le scope, ZETIS résout les notions les
+    # plus fragiles, une mission mono-skill par notion cochée. Seuil et plafond versionnés
+    # (`MISSION_COMMAND_VERSION`), même discipline que le scoring. ---
+    mission_command_version: str = Field(default="v1", validation_alias="MISSION_COMMAND_VERSION")
+    # Une notion `mastery ≥ seuil` arrive décochée par défaut (recochable côté Papa).
+    mission_command_mastered_threshold: float = Field(
+        default=0.8, validation_alias="MISSION_COMMAND_MASTERED_THRESHOLD"
+    )
+    # Plafond de notions cochées par commande = plafond de missions créées (fan-out atomique).
+    mission_command_max_skills: int = Field(
+        default=3, validation_alias="MISSION_COMMAND_MAX_SKILLS"
+    )
 
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
     # Découplé de `llm_provider` : les embeddings restent sur ollama même si la

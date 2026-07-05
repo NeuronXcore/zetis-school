@@ -18,10 +18,11 @@ function prettifySlug(slug: string): string {
 }
 
 export function MindmapSubjectPage() {
-  const { slug = "" } = useParams();
+  const { slug = "", mindmapId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const subjectName = (location.state as { name?: string } | null)?.name ?? prettifySlug(slug);
+  // Deep-link mission (ADR-0019) : entrée par id → on ouvre la carte directement en Reconstruire.
+  const reconstruire = mindmapId != null;
 
   const [list, setList] = useState<MindmapListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,10 +31,16 @@ export function MindmapSubjectPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   // Mode possédé ici (et non dans MindmapWorkspace) : il pilote le panneau « fiche » — consultable
   // en Regarde/Mémorise, fermé de force en Reconstruire (voir la fiche pendant le test = triche).
-  const [mode, setMode] = useState<MindmapMode>("view");
+  const [mode, setMode] = useState<MindmapMode>(reconstruire ? "build" : "view");
   const [ficheOpen, setFicheOpen] = useState(false);
 
+  // Le slug de matière vient des params (écran liste) ou de la carte résolue (deep-link par id).
+  const effSlug = detail?.subject_slug || slug;
+  const subjectName = (location.state as { name?: string } | null)?.name ?? prettifySlug(effSlug);
+
+  // Écran liste : chargé seulement hors deep-link (en reconstruire on ouvre directement une carte).
   useEffect(() => {
+    if (reconstruire) return;
     let alive = true;
     setError(null);
     fetchSubjectMindmaps(slug)
@@ -42,7 +49,24 @@ export function MindmapSubjectPage() {
     return () => {
       alive = false;
     };
-  }, [slug]);
+  }, [slug, reconstruire]);
+
+  // Deep-link : résout la carte par id et l'ouvre en Reconstruire (pas de liste, pas de slug requis).
+  useEffect(() => {
+    if (mindmapId == null) return;
+    let alive = true;
+    setError(null);
+    setDetail(null);
+    setDetailLoading(true);
+    setFicheOpen(false);
+    Promise.all([fetchMindmap(Number(mindmapId)), markMindmapSeen(Number(mindmapId))])
+      .then(([mm]) => alive && setDetail(mm))
+      .catch((e) => alive && setError(e instanceof Error ? e.message : "Carte indisponible"))
+      .finally(() => alive && setDetailLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [mindmapId]);
 
   const open = useCallback(
     async (idx: number) => {
@@ -66,20 +90,20 @@ export function MindmapSubjectPage() {
     [list],
   );
 
-  const iconUrl = subjectIconFor(slug);
+  const iconUrl = subjectIconFor(effSlug);
   const heading = (
     <div className="flex items-center gap-2 text-slate-200">
       {iconUrl ? (
         <img src={iconUrl} alt="" aria-hidden className="h-7 w-7 object-contain" />
       ) : (
-        <span aria-hidden>{subjectEmoji(slug)}</span>
+        <span aria-hidden>{subjectEmoji(effSlug)}</span>
       )}
       <span className="font-semibold">{subjectName}</span>
     </div>
   );
 
   // ── Écran 3 : la carte interactive ────────────────────────────────────────
-  if (openIdx !== null && list) {
+  if (reconstruire || (openIdx !== null && list)) {
     // Le panneau « fiche » n'est ouvert que hors mode Reconstruire (build).
     const showFiche = ficheOpen && mode !== "build";
     return (
@@ -89,10 +113,10 @@ export function MindmapSubjectPage() {
           <div className="mb-4 flex items-center justify-between">
             <button
               type="button"
-              onClick={() => setOpenIdx(null)}
+              onClick={() => (reconstruire ? navigate("/missions") : setOpenIdx(null))}
               className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300 hover:border-cyan-400/40"
             >
-              ← Retour
+              {reconstruire ? "← Retour à ma mission" : "← Retour"}
             </button>
             {heading}
           </div>

@@ -5,6 +5,8 @@ Deux schémas, deux routers : `MissionStudentOut` (Massimo, SANS scores/facteurs
 un champ présent dans la réponse réseau est un champ exposé, quoi qu'en fasse l'UI.
 """
 
+from datetime import date
+
 from pydantic import BaseModel
 
 # --- Frontière STUDENT (Massimo) : aucun score, aucun facteur, aucun motif de génération -----
@@ -96,6 +98,10 @@ class MissionPilotOut(BaseModel):
     priority: int
     created_by: str
     generation_reason: str
+    # ADR-0018 : analytiques Papa. `due_date` (échéance informationnelle) et `force_priority`
+    # (plancher de score) n'existent QUE sur ce schéma — jamais dans MissionStudentOut.
+    force_priority: bool
+    due_date: date | None
     steps: list[MissionStepPilotOut]
 
 
@@ -128,6 +134,7 @@ class VerdictOut(BaseModel):
     verdict: str | None
     quiz_score: float | None
     reverse_score: float | None
+    mindmap_score: float | None  # ADR-0019 : signal de rappel alternatif (analytique Papa)
     xp: int | None
     effect: str | None
     skill_id: int | None
@@ -139,3 +146,68 @@ class PilotSummaryOut(BaseModel):
     pool: int  # validées planned|active
     completed_this_week: int
     acquired_rate_30d: float  # 0..1 (part de verdicts « acquise » sur 30 j)
+
+
+# --- Commander une mission (ADR-0018) : preview/confirm sans état, Papa uniquement -----------
+
+
+class CommandNotionOut(BaseModel):
+    """Une notion résolue d'un scope, avec sa fragilité mesurée. `checked` = proposé coché."""
+
+    skill_id: int
+    name: str
+    level: str | None
+    mastery: float  # 0..1
+    fragility: float  # 1 - mastery
+    checked: bool  # décoché si maîtrisé (mastery ≥ seuil), recochable côté Papa
+
+
+class CommandPreviewRequest(BaseModel):
+    gate: str  # "deadline" | "theme_ref" (informationnel : la résolution est chapitre → notions)
+    chapter_id: int
+    due_date: date | None = None
+
+
+class CommandPreviewResponse(BaseModel):
+    scope_label: str
+    notions: list[CommandNotionOut]
+    compose_note: str
+
+
+class CommandConfirmRequest(BaseModel):
+    gate: str
+    chapter_id: int | None = None
+    due_date: date | None = None
+    skill_ids: list[int]  # les notions COCHÉES (1..MISSION_COMMAND_MAX_SKILLS)
+    force_priority: bool = False
+
+
+# --- Pilotage cycle de vie (Papa) : édition métadonnées + éditeur de parcours ---------------
+
+
+class MissionPatchRequest(BaseModel):
+    """Champs sûrs d'édition (tous optionnels). Les immuables (skill/type/status/validation…)
+    ne sont pas exposés — le service les ignore de toute façon."""
+
+    title: str | None = None
+    description: str | None = None
+    priority: int | None = None
+    force_priority: bool | None = None
+    due_date: date | None = None
+
+
+class MissionStepOptionOut(BaseModel):
+    step_type: str
+    available: bool  # eli5/vocal toujours ; mindmap/quiz ssi une ressource validée existe
+    resource_id: int | None
+    selected: bool  # présent dans le parcours courant
+
+
+class MissionStepOptionsOut(BaseModel):
+    options: list[MissionStepOptionOut]
+    current_types: list[str]  # parcours courant, dans l'ordre
+    editable: bool  # faux dès que la mission est démarrée
+
+
+class SetMissionStepsRequest(BaseModel):
+    step_types: list[str]  # liste ordonnée (1 type = 1 étape)

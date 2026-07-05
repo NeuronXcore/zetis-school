@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -89,6 +90,15 @@ class Mission(Base, TimestampMixin):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     priority: Mapped[int] = mapped_column(Integer, default=0)
     created_by: Mapped[str] = mapped_column(String(20), default="ai")
+    # ADR-0018 : missions commandées par Papa (« Commander une mission »).
+    # `force_priority` alimente le facteur `forced_priority` du sélecteur (plancher de score, lu
+    # PAR MISSION depuis v2 — plus par le type). `due_date` est PUREMENT informationnelle (repère
+    # d'affichage/tri côté pilotage Papa) : jamais sérialisée dans un schéma student, aucun effet
+    # mécanique propre — l'urgence passe exclusivement par `force_priority`.
+    force_priority: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class MissionStep(Base):

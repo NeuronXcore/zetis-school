@@ -139,7 +139,10 @@ def _score(mission: Mission, ctx: _Context) -> Scored:
         if mission.subject_id is not None and mission.subject_id == ctx.last_completed_subject
         else 0.0
     )
-    forced_priority = 1.0 if mission.mission_type == "manual" else 0.0
+    # v2 (ADR-0018) : plancher lu PAR MISSION via `force_priority`, plus par le type `manual`.
+    # Une mission commandée par Papa mais non prioritaire (thématique « Prioritaire » décochée)
+    # n'est pas plancher-isée — elle concourt sur ses seuls facteurs naturels.
+    forced_priority = 1.0 if mission.force_priority else 0.0
 
     factors = [
         Factor("severity", severity, settings.mission_weight_severity,

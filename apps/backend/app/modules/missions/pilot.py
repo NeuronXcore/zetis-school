@@ -46,6 +46,20 @@ def _proof_for_step(db: Session, mission: Mission, step: MissionStep, started: d
             else None
         )
         return {"label": "Quiz", "value": value, "satisfied": value is not None}
+    if step.step_type == msvc.STEP_MINDMAP:
+        value = (
+            msvc._mindmap_score_after(
+                db, student_id=mission.student_id, mindmap_id=step.resource_id, after=started
+            )
+            if started is not None
+            else None
+        )
+        # `satisfied` calé sur le gate de complétion (`_verify_proof` : score > 0).
+        return {
+            "label": "Mindmap",
+            "value": None if value is None else float(value),
+            "satisfied": value is not None and value > 0,
+        }
     return {"label": step.step_type, "value": None, "satisfied": step.status == "done"}
 
 
@@ -93,6 +107,8 @@ def _to_pilot_out(db: Session, mission: Mission) -> dict:
         "validation_status": mission.validation_status,
         "priority": mission.priority,
         "created_by": mission.created_by,
+        "force_priority": mission.force_priority,
+        "due_date": mission.due_date,
         "generation_reason": _generation_reason(db, mission),
         "steps": [
             {
@@ -198,6 +214,7 @@ def verdicts_recent(db: Session, student, limit: int = 20) -> list[dict]:
             "verdict": r.get("verdict"),
             "quiz_score": r.get("quiz_score"),
             "reverse_score": r.get("reverse_score"),
+            "mindmap_score": r.get("mindmap_score"),
             "xp": r.get("xp"),
             "effect": r.get("effect"),
             "skill_id": r.get("skill_id"),

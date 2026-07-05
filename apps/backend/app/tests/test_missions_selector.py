@@ -249,7 +249,7 @@ def test_pilot_election_exposes_factors(client_db) -> None:
     assert election["elected"] is not None
     names = {f["name"] for f in election["factors"]}
     assert {"severity", "due_pressure", "continuity", "variety", "forced_priority"} == names
-    assert election["scoring_version"] == "v1"
+    assert election["scoring_version"] == "v3"  # ADR-0019 : step mindmap + verdict option B
     assert any(f["dominant"] for f in election["factors"])
     # generation_reason calculé côté pilot.
     assert election["elected"]["generation_reason"].startswith("Lacune")

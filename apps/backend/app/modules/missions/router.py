@@ -11,13 +11,19 @@ from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.modules.auth.deps import get_current_user
 from app.modules.eli5.service import get_default_student
-from app.modules.missions import pilot, service
+from app.modules.missions import command, pilot, service
 from app.modules.missions.schemas import (
+    CommandConfirmRequest,
+    CommandPreviewRequest,
+    CommandPreviewResponse,
     ElectionResponse,
     GenerateResponse,
+    MissionPatchRequest,
     MissionPilotOut,
+    MissionStepOptionsOut,
     MissionStudentOut,
     PilotSummaryOut,
+    SetMissionStepsRequest,
     StepCompleteResponse,
     TodayResponse,
     ValidateMissionsRequest,
@@ -134,3 +140,86 @@ def verdicts_recent(
 @pilot_router.get("/pilot/summary", response_model=PilotSummaryOut)
 def pilot_summary(db: Session = Depends(get_db), _: dict = Depends(get_current_user)) -> dict:
     return pilot.pilot_summary(db, get_default_student(db))
+
+
+# --- Commander une mission (ADR-0018) : preview/confirm sans état, Papa uniquement -----------
+
+
+@pilot_router.post("/command/preview", response_model=CommandPreviewResponse)
+def command_preview(
+    payload: CommandPreviewRequest,
+    db: Session = Depends(get_db),
+    _: dict = Depends(get_current_user),
+) -> dict:
+    """Résout un chapitre en notions fragiles (proposées cochées) — n'écrit rien."""
+    return command.resolve_chapter_notions(db, get_default_student(db), payload.chapter_id)
+
+
+@pilot_router.post("/command/confirm", response_model=list[MissionPilotOut])
+def command_confirm(
+    payload: CommandConfirmRequest,
+    db: Session = Depends(get_db),
+    _: dict = Depends(get_current_user),
+) -> list[dict]:
+    """Crée une mission `manual` mono-skill par notion cochée (fan-out atomique, validated)."""
+    return command.create_command_missions(
+        db,
+        get_default_student(db),
+        skill_ids=payload.skill_ids,
+        due_date=payload.due_date,
+        force_priority=payload.force_priority,
+    )
+
+
+# --- Cycle de vie d'une mission (Papa) : delete / regenerate / patch / éditeur de parcours ---
+
+
+@pilot_router.delete("/{mission_id}")
+def delete_mission(
+    mission_id: int, db: Session = Depends(get_db), _: dict = Depends(get_current_user)
+) -> dict:
+    """Suppression dure (mission + étapes) — distincte de `reject`."""
+    return service.delete_mission(db, get_default_student(db), mission_id)
+
+
+@pilot_router.post("/{mission_id}/regenerate", response_model=MissionPilotOut)
+def regenerate_mission(
+    mission_id: int, db: Session = Depends(get_db), _: dict = Depends(get_current_user)
+) -> dict:
+    """Reconstruit le parcours (déterministe, planned only)."""
+    mission = service.regenerate_mission(db, get_default_student(db), mission_id)
+    return pilot._to_pilot_out(db, mission)
+
+
+@pilot_router.patch("/{mission_id}", response_model=MissionPilotOut)
+def patch_mission(
+    mission_id: int,
+    payload: MissionPatchRequest,
+    db: Session = Depends(get_db),
+    _: dict = Depends(get_current_user),
+) -> dict:
+    """Édite les métadonnées sûres d'une mission."""
+    mission = service.patch_mission(
+        db, get_default_student(db), mission_id, payload.model_dump(exclude_unset=True)
+    )
+    return pilot._to_pilot_out(db, mission)
+
+
+@pilot_router.get("/{mission_id}/step-options", response_model=MissionStepOptionsOut)
+def step_options(
+    mission_id: int, db: Session = Depends(get_db), _: dict = Depends(get_current_user)
+) -> dict:
+    """Palette d'étapes disponibles + parcours courant (éditeur de parcours)."""
+    return service.mission_step_options(db, get_default_student(db), mission_id)
+
+
+@pilot_router.put("/{mission_id}/steps", response_model=MissionPilotOut)
+def set_steps(
+    mission_id: int,
+    payload: SetMissionStepsRequest,
+    db: Session = Depends(get_db),
+    _: dict = Depends(get_current_user),
+) -> dict:
+    """Impose la liste ordonnée des étapes (planned only)."""
+    mission = service.set_mission_steps(db, get_default_student(db), mission_id, payload.step_types)
+    return pilot._to_pilot_out(db, mission)

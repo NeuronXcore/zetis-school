@@ -92,7 +92,11 @@ reproductible et non anxiogène.
      sélection dans le référentiel (matière/chapitre/notions) ou texte libre
      **résolu en `Skill` par similarité d'embeddings** (nomic + pgvector
      existants, read-only, classement `similarité × fragilité` — zéro
-     dépendance nouvelle). Dans les trois cas, ZETIS compose depuis son
+     dépendance nouvelle). **⚠️ Voir ADR-0018 — constat read-before-code : la
+     prémisse « embeddings existants » est fausse contre le modèle réel (`Skill`
+     n'a pas de colonne d'embedding, seul `RagChunk` en a). La voie texte libre
+     est reportée ; la v1 de la porte (iii) se limite à la sélection dans le
+     référentiel.** Dans les trois cas, ZETIS compose depuis son
      évaluation pédagogique (mastery par skill, lacunes, verdicts pondérés
      ADR-0014) les notions les plus fragiles *du scope* ; Papa confirme via un
      flux preview/confirm sans état (patron ADR-0010 : rien en base avant
@@ -202,6 +206,10 @@ reproductible et non anxiogène.
      `revision` — c'est la boucle qui vérifie l'acquisition dans le temps,
      conformément à « plusieurs réussites espacées ».
    - Seuils dans la config (voisins des pondérations), versionnés avec elles.
+   - **⚠️ Amendé par ADR-0019 (verdict, option B)** : le signal de *rappel* peut
+     être prouvé par le quiz **ou** par une reconstruction de mindmap
+     (`acquired = reverse≥t ET (quiz≥t OU mindmap≥t)`). La réexplication reste
+     toujours requise. Bump `MISSION_SCORING_VERSION` v2→v3.
    - **Formulation enfant : deux issues, toutes deux positives.** « Mission
      terminée ! +60 XP — la notion est bien en place ✓ » ou « Mission
      terminée ! +60 XP — on la reverra bientôt, tranquille. » Jamais de refus

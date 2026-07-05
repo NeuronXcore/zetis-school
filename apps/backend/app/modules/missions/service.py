@@ -26,6 +26,8 @@ from app.db.models import (
     LearningEvent,
     Lesson,
     LessonSkill,
+    Mindmap,
+    MindmapAttempt,
     Mission,
     MissionStep,
     Quiz,
@@ -56,6 +58,7 @@ STEP_ELI5 = "eli5"
 STEP_VOCAL = "vocal_explain"
 STEP_QUIZ = "quiz"
 STEP_LESSON = "lesson"
+STEP_MINDMAP = "mindmap"  # reconstruction de carte mentale (ADR-0019) — step scoré, pas consultation
 _CONSULT_STEPS = (STEP_ELI5, STEP_LESSON)
 
 
@@ -84,12 +87,40 @@ def _resolve_mission_quiz_id(db: Session, skill_id: int | None) -> int | None:
     )
 
 
+def _resolve_mission_mindmap_id(db: Session, skill_id: int | None) -> int | None:
+    """Une mindmap VALIDÉE couvrant la notion (via sa leçon validée), sinon None.
+
+    Même esprit que `_resolve_mission_quiz_id` (« réutiliser sinon dégrader ») : sans mindmap
+    réutilisable, l'étape mindmap est simplement omise du parcours — elle est OPTIONNELLE."""
+    if skill_id is None:
+        return None
+    return db.scalar(
+        select(Mindmap.id)
+        .join(Lesson, Lesson.id == Mindmap.lesson_id)
+        .join(LessonSkill, LessonSkill.lesson_id == Mindmap.lesson_id)
+        .where(
+            Mindmap.validation_status == "validated",
+            Lesson.status == "validated",
+            LessonSkill.skill_id == skill_id,
+        )
+        .order_by(Mindmap.id.desc())
+        .limit(1)
+    )
+
+
 def _build_steps(db: Session, skill_id: int | None, skill_name: str) -> list[tuple[str, str, int | None]]:
-    """(step_type, instruction, resource_id) — parcours expliquer → réexpliquer → vérifier."""
+    """(step_type, instruction, resource_id) — expliquer → réexpliquer → [reconstruire] → [vérifier]."""
     steps: list[tuple[str, str, int | None]] = [
         (STEP_ELI5, f"Demande à ZETIS de t'expliquer « {skill_name} » (ELI5).", skill_id),
         (STEP_VOCAL, f"Réexplique « {skill_name} » avec tes mots à ZETIS.", skill_id),
     ]
+    # Reconstruction de la carte mentale (ADR-0019) — consolidation structurelle, après avoir
+    # réexpliqué et avant le quiz. Optionnelle (comme le quiz) : présente si une carte validée existe.
+    mindmap_id = _resolve_mission_mindmap_id(db, skill_id)
+    if mindmap_id is not None:
+        steps.append(
+            (STEP_MINDMAP, f"Reconstruis la carte mentale de « {skill_name} ».", mindmap_id)
+        )
     quiz_id = _resolve_mission_quiz_id(db, skill_id)
     if quiz_id is not None:
         steps.append(
@@ -215,10 +246,19 @@ def generate_remediation(db: Session, student: StudentProfile) -> list[dict]:
 def _build_revision_steps(
     db: Session, skill_id: int | None, skill_name: str
 ) -> list[tuple[str, str, int | None]]:
-    """Template `revision` (ADR-0017 §5) : cartes dues (relecture) → mini-quiz de récupération."""
+    """Template `revision` (ADR-0017 §5) : relecture → [reconstruire] → mini-quiz de récupération.
+
+    La reconstruction de carte (ADR-0019) est une récupération active plus forte qu'une relecture
+    passive : particulièrement pertinente en révision (et, via le verdict option B, elle peut y
+    tenir lieu de signal de rappel quand aucun quiz n'existe)."""
     steps: list[tuple[str, str, int | None]] = [
         (STEP_ELI5, f"Relis et rappelle-toi « {skill_name} ».", skill_id),
     ]
+    mindmap_id = _resolve_mission_mindmap_id(db, skill_id)
+    if mindmap_id is not None:
+        steps.append(
+            (STEP_MINDMAP, f"Reconstruis la carte mentale de « {skill_name} ».", mindmap_id)
+        )
     quiz_id = _resolve_mission_quiz_id(db, skill_id)
     if quiz_id is not None:
         steps.append((STEP_QUIZ, f"Petit quiz de récupération sur « {skill_name} ».", quiz_id))
@@ -560,6 +600,30 @@ def _quiz_score_after(
     return attempt.score_percent if attempt is not None else None
 
 
+def _mindmap_score_after(
+    db: Session, *, student_id: int, mindmap_id: int | None, after: datetime
+) -> int | None:
+    """Score de la dernière MindmapAttempt pour cette carte, POSTÉRIEURE à `after` (ADR-0019).
+
+    Miroir de `_quiz_score_after` sur `MindmapAttempt`. Ce modèle n'a ni `context` ni
+    `completed_at` : une tentative n'existe qu'une fois son score calculé serveur
+    (`mindmaps.service.record_attempt`) — l'existence vaut complétion. Le gate de postériorité
+    se fait sur `created_at`."""
+    if mindmap_id is None:
+        return None
+    attempt = db.scalar(
+        select(MindmapAttempt)
+        .where(
+            MindmapAttempt.student_id == student_id,
+            MindmapAttempt.mindmap_id == mindmap_id,
+            MindmapAttempt.created_at > after,
+        )
+        .order_by(MindmapAttempt.created_at.desc())
+        .limit(1)
+    )
+    return attempt.score if attempt is not None else None
+
+
 def _verify_proof(
     db: Session, student: StudentProfile, mission: Mission, step: MissionStep, started: datetime
 ) -> None:
@@ -593,6 +657,19 @@ def _verify_proof(
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 detail="Fais d'abord le quiz de la mission pour valider cette étape.",
+            )
+        return
+    if step.step_type == STEP_MINDMAP:
+        # Preuve = une reconstruction postérieure au start avec au moins un nœud correct
+        # (score > 0). `score > 0` = effort (compléter ≠ acquérir) : pas un seuil qualité, qui
+        # relève du verdict (§option B). `score == 0` (rien placé) ne vaut pas complétion.
+        score = _mindmap_score_after(
+            db, student_id=student.id, mindmap_id=step.resource_id, after=started
+        )
+        if score is None or score <= 0:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail="Reconstruis d'abord la carte mentale de la mission pour valider cette étape.",
             )
         return
     raise HTTPException(
@@ -720,11 +797,29 @@ def _complete_mission(
         if quiz_step is not None
         else None
     )
+    mindmap_step = db.scalar(
+        select(MissionStep).where(
+            MissionStep.mission_id == mission.id, MissionStep.step_type == STEP_MINDMAP
+        )
+    )
+    mindmap_score = (
+        _mindmap_score_after(
+            db, student_id=student.id, mindmap_id=mindmap_step.resource_id, after=started
+        )
+        if mindmap_step is not None
+        else None
+    )
+    # Verdict (ADR-0019, option B) : le RAPPEL peut être prouvé par le quiz OU par la
+    # reconstruction de carte (récupération active de la structure) — l'un OU l'autre au seuil
+    # suffit. La réexplication (reverse) reste toujours requise. Résout le « à revoir par défaut »
+    # des notions sans quiz mais avec mindmap.
+    recall_ok = (
+        quiz_score is not None and quiz_score >= settings.mission_quiz_threshold
+    ) or (mindmap_score is not None and mindmap_score >= settings.mission_mindmap_threshold)
     acquired = (
         reverse_score is not None
         and reverse_score >= settings.mission_reverse_threshold
-        and quiz_score is not None
-        and quiz_score >= settings.mission_quiz_threshold
+        and recall_ok
     )
     verdict = "acquired" if acquired else "review_later"
 
@@ -753,6 +848,7 @@ def _complete_mission(
                 "verdict": verdict,
                 "reverse_score": reverse_score,
                 "quiz_score": quiz_score,
+                "mindmap_score": mindmap_score,
                 "xp": settings.mission_xp_reward,
                 "effect": "gap_resolved" if verdict == "acquired" else "srs_rescheduled",
             },
@@ -780,3 +876,160 @@ def validate_missions(db: Session, mission_ids: list[int]) -> dict:
             updated += 1
     db.commit()
     return {"validated": updated}
+
+
+# --- Pilotage cycle de vie (Papa) : delete / regenerate / patch / éditeur de parcours -------
+
+# Palette de types éditables (l'arc pédagogique), dans l'ordre canonique. `lesson` reste hors
+# palette (jamais composé par les générateurs). Champs immuables au PATCH côté service.
+_STEP_PALETTE = (STEP_ELI5, STEP_VOCAL, STEP_MINDMAP, STEP_QUIZ)
+_PATCHABLE_FIELDS = ("title", "description", "priority", "force_priority", "due_date")
+
+
+def _owned_mission_or_404(db: Session, student: StudentProfile, mission_id: int) -> Mission:
+    mission = db.get(Mission, mission_id)
+    if mission is None or mission.student_id != student.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Mission introuvable.")
+    return mission
+
+
+def _step_instruction(step_type: str, skill_name: str) -> str:
+    return {
+        STEP_ELI5: f"Demande à ZETIS de t'expliquer « {skill_name} » (ELI5).",
+        STEP_VOCAL: f"Réexplique « {skill_name} » avec tes mots à ZETIS.",
+        STEP_MINDMAP: f"Reconstruis la carte mentale de « {skill_name} ».",
+        STEP_QUIZ: f"Refais un petit quiz sur « {skill_name} » pour vérifier.",
+    }.get(step_type, skill_name)
+
+
+def _resolve_step_resource(db: Session, step_type: str, skill_id: int | None) -> int | None:
+    """resource_id d'un type d'étape pour une notion, ou None si non résoluble (mindmap/quiz)."""
+    if step_type in (STEP_ELI5, STEP_VOCAL):
+        return skill_id
+    if step_type == STEP_MINDMAP:
+        return _resolve_mission_mindmap_id(db, skill_id)
+    if step_type == STEP_QUIZ:
+        return _resolve_mission_quiz_id(db, skill_id)
+    return None
+
+
+def _write_steps(db: Session, mission: Mission, specs: list[tuple[str, str, int | None]]) -> None:
+    """Remplace toutes les étapes d'une mission par `specs` (step_type, instruction, resource_id)."""
+    for old in db.scalars(select(MissionStep).where(MissionStep.mission_id == mission.id)):
+        db.delete(old)
+    db.flush()
+    for index, (step_type, instruction, resource_id) in enumerate(specs):
+        db.add(
+            MissionStep(
+                mission_id=mission.id,
+                step_type=step_type,
+                instruction=instruction,
+                resource_id=resource_id,
+                sort_order=index,
+                status="pending",
+            )
+        )
+
+
+def delete_mission(db: Session, student: StudentProfile, mission_id: int) -> dict:
+    """Suppression dure (mission + étapes). Les traces (verdicts, XP) restent — audit préservé.
+    Distinct de `reject` (qui conserve un enregistrement `rejected`)."""
+    mission = _owned_mission_or_404(db, student, mission_id)
+    for step in db.scalars(select(MissionStep).where(MissionStep.mission_id == mission.id)):
+        db.delete(step)
+    db.delete(mission)
+    db.commit()
+    return {"deleted": True, "id": mission_id}
+
+
+def regenerate_mission(db: Session, student: StudentProfile, mission_id: int) -> Mission:
+    """Reconstruit le parcours d'une mission `planned` (déterministe). `validation_status`
+    inchangé (action Papa directe : l'invariant « un humain a approuvé » tient)."""
+    mission = _owned_mission_or_404(db, student, mission_id)
+    if mission.status != "planned":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Seule une mission non démarrée peut être régénérée.",
+        )
+    skill_name = _skill_name(db, mission.skill_id)
+    specs = (
+        _build_revision_steps(db, mission.skill_id, skill_name)
+        if mission.mission_type == "revision"
+        else _build_steps(db, mission.skill_id, skill_name)
+    )
+    _write_steps(db, mission, specs)
+    db.commit()
+    return mission
+
+
+def patch_mission(db: Session, student: StudentProfile, mission_id: int, data: dict) -> Mission:
+    """Édite les champs sûrs (`title`/`description`/`priority`/`force_priority`/`due_date`).
+    Les champs immuables (skill, type, status, validation…) ne sont jamais touchés."""
+    mission = _owned_mission_or_404(db, student, mission_id)
+    for field in _PATCHABLE_FIELDS:
+        if field in data:
+            setattr(mission, field, data[field])
+    db.commit()
+    return mission
+
+
+def mission_step_options(db: Session, student: StudentProfile, mission_id: int) -> dict:
+    """Palette d'étapes disponibles pour la notion de la mission + parcours courant (éditeur)."""
+    mission = _owned_mission_or_404(db, student, mission_id)
+    current = list(
+        db.scalars(
+            select(MissionStep)
+            .where(MissionStep.mission_id == mission.id)
+            .order_by(MissionStep.sort_order)
+        )
+    )
+    current_types = [s.step_type for s in current]
+    options = []
+    for step_type in _STEP_PALETTE:
+        resource_id = _resolve_step_resource(db, step_type, mission.skill_id)
+        # eli5/vocal toujours dispo (resource = skill_id) ; mindmap/quiz ssi résolus.
+        available = (step_type in (STEP_ELI5, STEP_VOCAL) and mission.skill_id is not None) or (
+            step_type in (STEP_MINDMAP, STEP_QUIZ) and resource_id is not None
+        )
+        options.append(
+            {
+                "step_type": step_type,
+                "available": available,
+                "resource_id": resource_id,
+                "selected": step_type in current_types,
+            }
+        )
+    return {"options": options, "current_types": current_types, "editable": mission.status == "planned"}
+
+
+def set_mission_steps(
+    db: Session, student: StudentProfile, mission_id: int, step_types: list[str]
+) -> Mission:
+    """Éditeur de parcours : impose la liste ordonnée de types (planned only). Chaque type doit
+    être disponible pour la notion ; ≥ 1 étape. `validation_status` inchangé."""
+    mission = _owned_mission_or_404(db, student, mission_id)
+    if mission.status != "planned":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Le parcours ne peut être modifié qu'avant le démarrage de la mission.",
+        )
+    ordered = list(dict.fromkeys(step_types))  # dédoublonne en préservant l'ordre (1 type = 1 étape)
+    if not ordered:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Au moins une étape.")
+    skill_name = _skill_name(db, mission.skill_id)
+    specs: list[tuple[str, str, int | None]] = []
+    for step_type in ordered:
+        if step_type not in _STEP_PALETTE:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Type d'étape inconnu : {step_type}."
+            )
+        resource_id = _resolve_step_resource(db, step_type, mission.skill_id)
+        if step_type in (STEP_MINDMAP, STEP_QUIZ) and resource_id is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail=f"Aucune ressource « {step_type} » disponible pour cette notion.",
+            )
+        specs.append((step_type, _step_instruction(step_type, skill_name), resource_id))
+    _write_steps(db, mission, specs)
+    db.commit()
+    return mission
