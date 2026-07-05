@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type QuizSubjectSummary, type StudentQuiz } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
+import { QuizHero } from "../components/quiz/QuizHero";
 import { fetchQuizSubjects, fetchSubjectQuizzes } from "../lib/quiz";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { type QuizSessionState } from "./QuizSessionPage";
@@ -110,10 +111,7 @@ export function QuizPage() {
   // ── Écran 1 : grille des matières ─────────────────────────────────────────
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader
-        title="Quiz 🎯"
-        subtitle="Choisis une matière — les quiz apparaissent quand un cours en a un."
-      />
+      <QuizHero />
 
       {error && (
         <p className="mb-4 rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300">{error}</p>
