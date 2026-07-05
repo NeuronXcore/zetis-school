@@ -494,17 +494,39 @@ seen_at                  # première consultation
 
 Contrainte unique `(student_id, fiche_id)`.
 
-### Mindmap
+### Mindmap (ADR-0016)
+
+Carte mentale d'UNE leçon, dérivée du cours canonique validé — **leçon-centré**, sœur des fiches.
+`mindmap_json` porte un **arbre strict** (`{center, nodes:[{id,label,parent}], edges?,
+required_nodes?, optional_nodes?}`) **sans positions** : le layout (radial/horizontal/…) est de la
+présentation, calculé côté client (Slice B). Colonnes reprises de `fiches`/`capsules`.
+
+> Réaligné depuis un vestige notion-centré (`subject_id/skill_id/student_id/title/mode/status`)
+> qu'aucun code n'utilisait — migration `e4f5a6b7c8d9` (reshape + `mindmap_attempts`).
 
 ```txt
 id
-student_id optional
-subject_id
-skill_id optional
-title
-mindmap_json
-mode               # reference | training | student_reconstruction
-status
+lesson_id          # FK lessons, index — une mindmap = 1 leçon
+mindmap_json       # arbre strict, sans positions
+validation_status  # pending | validated | rejected
+source             # generated | manual
+program_version    # ex: 2020
+created_at
+updated_at
+```
+
+### MindmapAttempt (ADR-0016)
+
+Tentative de reconstruction (mode `student_reconstruction`). Le `score` (0–100) et le détail
+juste/faux par nœud (`details_json`) sont calculés **côté serveur, de façon déterministe**
+(comparaison des nœuds placés à l'arbre de référence — aucune position n'entre dans le score).
+
+```txt
+id
+student_id         # FK student_profiles, index
+mindmap_id         # FK mindmaps, index
+score              # 0–100, sur les nœuds requis
+details_json       # [{node_id, label, expected_parent, placed_parent, placed, correct, optional}]
 created_at
 updated_at
 ```

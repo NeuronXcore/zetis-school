@@ -20,6 +20,9 @@ XP_DIAGNOSTIC = 15
 # Quiz de fin de cours (ADR-0014) : base d'effort + bonus proportionnel au score.
 XP_QUIZ_BASE = 10  # forfait « terminé » — l'effort est récompensé, jamais 0 (CLAUDE.md)
 XP_QUIZ_MAX = 30  # atteint sur un score parfait (100 %)
+# Reconstruction de mindmap (ADR-0016) : même barème d'effort + performance que le quiz.
+XP_MINDMAP_BASE = 10
+XP_MINDMAP_MAX = 30
 
 
 def quiz_xp(score_percent: int) -> int:
@@ -30,6 +33,15 @@ def quiz_xp(score_percent: int) -> int:
     clamped = max(0, min(100, score_percent))
     bonus = round((XP_QUIZ_MAX - XP_QUIZ_BASE) * clamped / 100)
     return XP_QUIZ_BASE + bonus
+
+
+def mindmap_xp(score_percent: int) -> int:
+    """XP d'une reconstruction de mindmap : base d'effort + bonus selon le score. 0 % → 10, 100 % → 30.
+
+    Même esprit que `quiz_xp` (jamais 0 après une tentative jouée). Fonction pure, testée."""
+    clamped = max(0, min(100, score_percent))
+    bonus = round((XP_MINDMAP_MAX - XP_MINDMAP_BASE) * clamped / 100)
+    return XP_MINDMAP_BASE + bonus
 
 
 def award_xp(

@@ -12,6 +12,21 @@ export {
 } from "./fiche";
 export { FICHE_BUDGETS } from "./fiche";
 export {
+  type MindmapAttemptResult,
+  type MindmapDetail,
+  type MindmapEdge,
+  type MindmapJson,
+  type MindmapListItem,
+  type MindmapNode,
+  type MindmapNodeEval,
+  type MindmapNodePlacement,
+  type MindmapPilotageLesson,
+  type MindmapPilotageTree,
+  type MindmapReconstructionRequest,
+  type MindmapReconstructionResult,
+  type MindmapValidationStatus,
+} from "./mindmap";
+export {
   type AnswerFeedback,
   type ManualQuestionCreate,
   type OpenCriterion,

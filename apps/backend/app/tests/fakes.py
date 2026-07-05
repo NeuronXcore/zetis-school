@@ -119,6 +119,24 @@ _DEFAULT_FICHE = {
 }
 
 
+# MindmapJson déterministe valide (cf. mindmaps/schemas.py, ADR-0016) renvoyé quand le schéma
+# `fmt` a la propriété `center`. ARBRE STRICT intègre (parents cohérents, aucun cycle) : 2 racines,
+# 2 enfants, 2 optionnels. `required_nodes` pilotent le barème de reconstruction déterministe.
+_DEFAULT_MINDMAP = {
+    "center": "Les nombres relatifs",
+    "nodes": [
+        {"id": "signe", "label": "Un signe + ou -", "parent": None},
+        {"id": "droite", "label": "Droite graduée", "parent": None},
+        {"id": "oppose", "label": "Opposé", "parent": "signe"},
+        {"id": "comparer", "label": "Comparer", "parent": "droite"},
+        {"id": "exemple", "label": "-3 < 2", "parent": "comparer"},
+        {"id": "erreur", "label": "Ne pas oublier le signe", "parent": "signe"},
+    ],
+    "required_nodes": ["signe", "droite", "oppose", "comparer"],
+    "optional_nodes": ["exemple", "erreur"],
+}
+
+
 # GeneratedLessons déterministe valide (cf. curriculum/schemas.py) renvoyé quand le
 # schéma `fmt` est celui de la passe 2 (repéré par sa propriété `lessons`). La notion
 # « Nombres relatifs » correspond EXACTEMENT à la Skill seedée par conftest : les tests
@@ -275,6 +293,7 @@ class FakeLLMProvider:
         score: int = 80,
         capsule_spec: dict | None = None,
         fiche: dict | None = None,
+        mindmap: dict | None = None,
         curriculum_chapters: dict | None = None,
         curriculum_lessons: dict | None = None,
         lesson_content: dict | None = None,
@@ -287,6 +306,7 @@ class FakeLLMProvider:
         self._score = score
         self._capsule_spec = capsule_spec
         self._fiche = fiche
+        self._mindmap = mindmap
         self._curriculum_chapters = curriculum_chapters
         self._curriculum_lessons = curriculum_lessons
         self._lesson_content = lesson_content
@@ -329,6 +349,10 @@ class FakeLLMProvider:
         if isinstance(request.fmt, dict) and "essentiel" in request.fmt.get("properties", {}):
             fiche = self._fiche or _DEFAULT_FICHE
             return LLMResponse(text=json.dumps(fiche), model="fake", duration_ms=1)
+        # Mindmap (ADR-0016) : schéma repéré par sa propriété `center`. AVANT le fallback capsule.
+        if isinstance(request.fmt, dict) and "center" in request.fmt.get("properties", {}):
+            mindmap = self._mindmap or _DEFAULT_MINDMAP
+            return LLMResponse(text=json.dumps(mindmap), model="fake", duration_ms=1)
         if request.fmt is not None:
             spec = self._capsule_spec or _DEFAULT_CAPSULE
             return LLMResponse(text=json.dumps(spec), model="fake", duration_ms=1)
