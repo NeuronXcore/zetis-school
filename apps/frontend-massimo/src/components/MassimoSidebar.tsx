@@ -3,7 +3,8 @@ import { NavLink } from "react-router-dom";
 import { fetchCapsuleStats } from "../lib/capsules";
 import { fetchReviewsSummary } from "../lib/reviews";
 import { MASSIMO_NAV } from "../lib/navigation";
-import { ZetisAvatar } from "./ZetisAvatar";
+import zetisAvatar from "../assets/brand/zetis-avatar.png";
+import zetisWordmark from "../assets/brand/zetis-texte.png";
 
 // Sidebar temporaire de l'interface Massimo (Étape 2).
 export function MassimoSidebar() {
@@ -24,12 +25,17 @@ export function MassimoSidebar() {
 
   return (
     <aside className="flex w-60 shrink-0 flex-col gap-2 border-r border-zetis-border bg-zetis-surface p-4">
-      <div className="mb-4 flex items-center gap-3">
-        <ZetisAvatar size={44} />
-        <div>
-          <p className="text-lg font-bold leading-tight">ZETIS</p>
-          <p className="text-xs text-zetis-muted">Espace de Massimo</p>
-        </div>
+      <div className="mb-5 flex items-center gap-2.5 px-1">
+        <img
+          src={zetisAvatar}
+          alt="ZETIS"
+          className="h-12 w-12 shrink-0 rounded-full object-cover"
+        />
+        <img
+          src={zetisWordmark}
+          alt="ZETIS"
+          className="h-6 w-auto min-w-0 object-contain"
+        />
       </div>
 
       <nav className="flex flex-col gap-1">
