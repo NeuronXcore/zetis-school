@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { type Eli5Explain, type Eli5Reverse } from "../lib/eli5";
+import { type StudentNotionsSummary, type SubjectNotions } from "@zetis/types";
 import { Eli5Page } from "./Eli5Page";
 
 vi.mock("../lib/eli5", () => ({
@@ -14,17 +15,22 @@ vi.mock("../lib/eli5", () => ({
   requestNotion: vi.fn(),
   Eli5SttUnavailable: class extends Error {},
 }));
+vi.mock("../lib/notions", () => ({
+  fetchNotionsSummary: vi.fn(),
+  fetchSubjectNotions: vi.fn(),
+}));
 
 import {
   explainEli5,
   fetchDueReviews,
   fetchLessonSuggestions,
   fetchSkills,
-  requestNotion,
   reverseEli5,
 } from "../lib/eli5";
+import { fetchNotionsSummary, fetchSubjectNotions } from "../lib/notions";
 
-const EXPLAIN: Eli5Explain = {
+// Explication AVEC leçon canonique → badge « D'après ta leçon ».
+const EXPLAIN_WITH_LESSON: Eli5Explain = {
   title: "Les fractions",
   simple_explanation: "Une fraction est une part d'un tout.",
   analogy: "Comme une pizza coupée en parts.",
@@ -32,7 +38,16 @@ const EXPLAIN: Eli5Explain = {
   common_mistake: "",
   check_question: "Combien font deux quarts ?",
   next_action: "Réviser demain",
+  sources_used: 2,
+  lesson_id: 9,
+  lesson_title: "Les nombres relatifs",
+};
+// Explication SANS leçon ni cours → aucun badge (chemin question libre).
+const EXPLAIN_NO_SOURCE: Eli5Explain = {
+  ...EXPLAIN_WITH_LESSON,
   sources_used: 0,
+  lesson_id: undefined,
+  lesson_title: undefined,
 };
 
 const REVERSE: Eli5Reverse = {
@@ -42,79 +57,119 @@ const REVERSE: Eli5Reverse = {
   next_action: "Refais un exercice sur les parts.",
 };
 
+const SUMMARY: StudentNotionsSummary = {
+  subjects: [
+    { slug: "mathematiques", name: "Mathématiques", notion_count: 2, new_count: 1 }, // fraîches → ✨ new
+    { slug: "espagnol", name: "Espagnol", notion_count: 0, new_count: 0 }, // vide → « bientôt »
+  ],
+};
+const MATHS_NOTIONS: SubjectNotions = {
+  subject: { slug: "mathematiques", name: "Mathématiques" },
+  notions: [{ skill_id: 1, name: "Les fractions", chapter_title: "Nombres et calculs" }],
+};
+const EMPTY_NOTIONS: SubjectNotions = {
+  subject: { slug: "espagnol", name: "Espagnol" },
+  notions: [],
+};
+
 beforeEach(() => {
   vi.mocked(fetchSkills)
     .mockReset()
     .mockResolvedValue([{ id: 1, name: "Les fractions", subject: "Maths" }]);
   vi.mocked(fetchDueReviews).mockReset().mockResolvedValue([]);
   vi.mocked(fetchLessonSuggestions).mockReset().mockResolvedValue([]);
-  vi.mocked(explainEli5).mockReset().mockResolvedValue(EXPLAIN);
-  vi.mocked(reverseEli5).mockReset().mockResolvedValue(REVERSE);
+  vi.mocked(explainEli5).mockReset().mockResolvedValue(EXPLAIN_WITH_LESSON);
+  vi.mocked(fetchNotionsSummary).mockReset().mockResolvedValue(SUMMARY);
+  vi.mocked(fetchSubjectNotions).mockReset().mockImplementation(async (slug: string) =>
+    slug === "espagnol" ? EMPTY_NOTIONS : MATHS_NOTIONS,
+  );
 });
 
-function renderPage() {
+function renderAt(path = "/eli5") {
   return render(
-    <MemoryRouter initialEntries={["/eli5"]}>
+    <MemoryRouter initialEntries={[path]}>
       <Eli5Page />
     </MemoryRouter>,
   );
 }
 
-describe("Eli5Page", () => {
-  it("déroule la boucle et n'affiche jamais de vocabulaire négatif", async () => {
-    renderPage();
-    // Attend que fetchSkills soit résolu (la chip « Ta leçon » n'apparaît qu'ensuite),
-    // sinon la résolution du champ n'a aucun skill à matcher.
-    await screen.findByText(/Ta leçon/);
+describe("Eli5Page — entrée v2 par decks", () => {
+  it("écran 1 : decks matières + compteur, matière vide « bientôt »", async () => {
+    renderAt();
+    // Deck matière avec compteur (2 notions) et deck spécial Question libre.
+    expect(await screen.findByRole("button", { name: /Mathématiques/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Question libre/ })).toBeInTheDocument();
+    // Matière sans notion : « bientôt », toujours cliquable (dimmedClickable).
+    expect(screen.getByText("bientôt ✨")).toBeInTheDocument();
+    // Notions fraîchement ajoutées → badge « ✨ new » sur le deck matière.
+    const maths = screen.getByRole("button", { name: /Mathématiques/ });
+    expect(within(maths).getByText(/new/)).toBeInTheDocument();
+    // Emblème animé ELI5 (ampoule = l'idée) présent dans l'en-tête.
+    expect(screen.getByText("💡")).toBeInTheDocument();
+  });
 
-    fireEvent.change(screen.getByLabelText(/Quelle notion/i), {
+  it("chip de notion → session avec badge « D'après ta leçon » (skill_id circule)", async () => {
+    renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: /Mathématiques/ }));
+
+    // Écran 2 : chip de notion (nom + chapitre en sous-texte).
+    const chip = await screen.findByRole("button", { name: /Les fractions/ });
+    expect(screen.getByText("Nombres et calculs")).toBeInTheDocument();
+    fireEvent.click(chip);
+
+    // Écran 3 : explication + badge leçon (le skill_id de la notion a bien circulé).
+    expect(await screen.findByText(/Comme une pizza coupée en parts/)).toBeInTheDocument();
+    expect(screen.getByText(/D'après ta leçon/)).toBeInTheDocument();
+    expect(screen.getByText("Les nombres relatifs")).toBeInTheDocument();
+  });
+
+  it("question libre → session SANS badge leçon", async () => {
+    vi.mocked(explainEli5).mockResolvedValue(EXPLAIN_NO_SOURCE);
+    renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: /Question libre/ }));
+
+    fireEvent.change(await screen.findByLabelText(/Ta question/i), {
       target: { value: "Les fractions" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Expliquer" }));
+    // Attend que les skills soient chargés (résolution client) puis lance l'explication.
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Expliquer" }));
+      expect(vi.mocked(explainEli5)).toHaveBeenCalled();
+    });
 
-    // État 2 — explication + blocs teintés.
     expect(await screen.findByText(/Comme une pizza coupée en parts/)).toBeInTheDocument();
+    expect(screen.queryByText(/D'après ta leçon/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/D'après ton cours/)).not.toBeInTheDocument();
+  });
 
-    fireEvent.change(screen.getByPlaceholderText(/Écris ton explication/), {
+  it("déroule la boucle complète et bannit le vocabulaire négatif", async () => {
+    vi.mocked(reverseEli5).mockResolvedValue(REVERSE);
+    renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: /Mathématiques/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Les fractions/ }));
+
+    fireEvent.change(await screen.findByPlaceholderText(/Écris ton explication/), {
       target: { value: "Une fraction c'est une part d'un tout." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Envoyer à ZETIS" }));
 
-    // État 4 — retour bienveillant.
     expect(await screen.findByText(/72% compris/)).toBeInTheDocument();
-    expect(screen.getByText("À ajouter à ton explication")).toBeInTheDocument();
-
-    // Vocabulaire interdit : jamais à l'écran.
     for (const banned of ["échec", "manquant", "lacune"]) {
       expect(screen.queryByText(new RegExp(banned, "i"))).not.toBeInTheDocument();
     }
   });
 
-  it("champ sans match : état vide bienveillant, aucun appel explain", async () => {
-    renderPage();
-    // Laisse fetchSkills se résoudre avant de soumettre (chip = skills chargés).
-    await screen.findByText(/Ta leçon/);
-
-    fireEvent.change(screen.getByLabelText(/Quelle notion/i), {
-      target: { value: "le théorème de Pythagore" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Expliquer" }));
-
-    expect(await screen.findByText(/pas encore dans ton programme/)).toBeInTheDocument();
-    expect(vi.mocked(explainEli5)).not.toHaveBeenCalled();
+  it("matière vide : carte positive + question libre possible", async () => {
+    renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: /Espagnol/ }));
+    expect(await screen.findByText(/arrivent bientôt/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expliquer" })).toBeInTheDocument();
   });
 
-  it("notion hors-programme : « Dis à Papa » signale et confirme", async () => {
-    vi.mocked(requestNotion).mockResolvedValue({ id: 1, text: "Pythagore", status: "pending" });
-    renderPage();
-    await screen.findByText(/Ta leçon/);
-
-    fireEvent.change(screen.getByLabelText(/Quelle notion/i), { target: { value: "Pythagore" } });
-    fireEvent.click(screen.getByRole("button", { name: "Expliquer" }));
-
-    fireEvent.click(await screen.findByRole("button", { name: /Dis à Papa/ }));
-
-    expect(await screen.findByText(/C'est noté/)).toBeInTheDocument();
-    expect(vi.mocked(requestNotion)).toHaveBeenCalledWith("Pythagore");
+  it("deep-link ?subject= ouvre directement l'écran notions", async () => {
+    renderAt("/eli5?subject=mathematiques");
+    expect(await screen.findByRole("button", { name: /Les fractions/ })).toBeInTheDocument();
+    // On est bien sur l'écran matière (bouton retour « Matières »).
+    expect(screen.getByRole("button", { name: /Matières/ })).toBeInTheDocument();
   });
 });

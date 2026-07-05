@@ -204,6 +204,29 @@ Chapitres validés de l'année active + leçons validées (référence légère)
 
 Cours (markdown) d'une leçon validée — 404 indiscernable sinon (aucune fuite des brouillons).
 
+### Notions validées (entrée ELI5 v2 par decks matières)
+
+Routes **neutres** (pas de préfixe `/eli5/` — d'autres dérivés les consomment), lecture
+seule, même chaîne de filtrage que les cours élève (chapitre `validated` → leçon
+`validated` → `LessonSkill` → `Skill`). Types : `packages/types/src/curriculum.ts`.
+
+#### GET `/student/notions/summary`
+
+Compteur de notions validées par matière de l'année active (une requête agrégée, pas de
+N+1) → `{ subjects: [{ slug, name, notion_count, new_count }] }`. Une matière sans rien de
+validé apparaît à `0/0` (front : deck « bientôt »), jamais filtrée. `new_count` = notions
+dont une leçon validée porteuse a été créée dans les 7 derniers jours (deck « ✨ new »,
+récence de création — `Skill`/`Chapter` n'ayant pas d'horodatage, le signal vient de
+`Lesson.created_at`).
+
+#### GET `/student/subjects/{subject_slug}/notions`
+
+Notions validées d'une matière, **dédupliquées par `skill_id`** →
+`{ subject: { slug, name }, notions: [{ skill_id, name, chapter_title }] }`. `chapter_title`
+= chapitre de la leçon validée la plus récente qui enseigne la notion ; tri : ordre des
+chapitres (`sort_order`) puis nom. **404** si la matière est inconnue ou hors année active ;
+`notions: []` (pas 404) si la matière existe mais n'a rien de validé.
+
 ## Diagnostic
 
 Préfixe réel : `/api/diagnostics`. Implémenté à l'étape 14 (Phase 4) sur les tables
@@ -420,9 +443,14 @@ Sortie :
 }
 ```
 
-L'explication normalisée est lue via `GET /ai/jobs/{job_id}` (`output`). Elle inclut
-`sources_used` (entier) : nombre de passages de cours (RAG) injectés. `>0` → le front
-Massimo affiche le badge « 📚 D'après ton cours ».
+Le backend n'accepte qu'un `skill_id` réel (pas de texte libre : la question libre est
+résolue côté client contre les skills réels — cf. entrée ELI5 v2). L'explication normalisée
+est lue via `GET /ai/jobs/{job_id}` (`output`). Elle inclut `sources_used` (entier) : nombre
+de passages de cours (RAG) injectés — `>0` → badge « 📚 D'après ton cours ». Quand un cours
+canonique validé a servi (ADR-0011), l'`output` porte aussi `lesson_id`/`lesson_title` →
+badge prioritaire « 📚 D'après ta leçon *{titre}* ». L'entrée Massimo (decks matières →
+notions) fournit un `skill_id` de notion validée, ce qui déclenche déterministiquement ce
+badge leçon.
 
 ### POST `/ai/eli5/reverse-evaluate`
 

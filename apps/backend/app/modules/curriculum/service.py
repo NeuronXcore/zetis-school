@@ -20,11 +20,11 @@ sémantique par embedding est Lot 3.
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import case, distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -1048,6 +1048,153 @@ def student_lesson_content(db: Session, lesson_id: int) -> dict:
         "title": lesson.title,
         "summary": lesson.summary,
         "content": lesson.content_markdown,
+    }
+
+
+# Fenêtre de « fraîcheur » d'une notion (badge ✨ new des decks ELI5) : une notion est
+# NOUVELLE tant qu'une leçon validée qui l'enseigne a été créée dans cet intervalle.
+# Signal GLOBAL (récence de création, pas par-enfant) — `Skill`/`Chapter` n'ont pas
+# d'horodatage, seule `Lesson` (TimestampMixin) en porte un.
+NOTION_NEW_WINDOW_DAYS = 7
+
+
+def student_notions_summary(db: Session) -> dict:
+    """Compteur de notions VALIDÉES par matière de l'année active (decks ELI5 v2).
+
+    Une notion (`Skill`) est comptée si elle est atteignable via un chapitre `validated`
+    → une leçon `validated` → `LessonSkill` — même chaîne que `student_cours_for_subject`.
+    `new_count` = notions dont une leçon validée porteuse a été créée dans les
+    `NOTION_NEW_WINDOW_DAYS` derniers jours (deck « ✨ new » : contenu fraîchement ajouté
+    au programme). Les deux compteurs en UNE requête agrégée (pas de N+1). Une matière
+    sans rien de validé apparaît à 0/0 (le front affiche « bientôt »), jamais filtrée.
+    """
+    year = _active_year_or_404(db)
+    subject_rows = db.execute(
+        select(SchoolYearSubject.id, Subject.name, Subject.slug)
+        .join(Subject, SchoolYearSubject.subject_id == Subject.id)
+        .where(SchoolYearSubject.school_year_id == year.id)
+        .order_by(Subject.sort_order, Subject.id)
+    ).all()
+
+    sys_ids = [row.id for row in subject_rows]
+    counts: dict[int, tuple[int, int]] = {}
+    if sys_ids:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=NOTION_NEW_WINDOW_DAYS)
+        # `count(distinct(case))` ignore les NULL → ne compte que les notions dont AU MOINS
+        # une leçon validée porteuse est récente (fenêtre de fraîcheur).
+        new_skill = case((Lesson.created_at >= cutoff, LessonSkill.skill_id))
+        counts = {
+            sys_id: (total, new or 0)
+            for sys_id, total, new in db.execute(
+                select(
+                    Chapter.school_year_subject_id,
+                    func.count(distinct(LessonSkill.skill_id)),
+                    func.count(distinct(new_skill)),
+                )
+                .join(Lesson, Lesson.chapter_id == Chapter.id)
+                .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
+                .where(
+                    Chapter.school_year_subject_id.in_(sys_ids),
+                    Chapter.validation_status == "validated",
+                    Lesson.status == "validated",
+                )
+                .group_by(Chapter.school_year_subject_id)
+            ).all()
+        }
+
+    return {
+        "subjects": [
+            {
+                "slug": row.slug,
+                "name": row.name,
+                "notion_count": counts.get(row.id, (0, 0))[0],
+                "new_count": counts.get(row.id, (0, 0))[1],
+            }
+            for row in subject_rows
+        ]
+    }
+
+
+def student_subject_notions(db: Session, subject_slug: str) -> dict:
+    """Notions VALIDÉES d'une matière de l'année active, dédupliquées par `skill_id`.
+
+    Même chaîne de filtrage que `student_cours_for_subject` (chapitres `validated` →
+    leçons `validated` → `LessonSkill` → `Skill`). Une notion rattachée à plusieurs
+    leçons/chapitres n'apparaît qu'une fois ; `chapter_title` = celui de la leçon la
+    plus récente (`updated_at desc`, `id` en départage). Tri : ordre des chapitres du
+    référentiel (`sort_order`) puis nom de notion.
+
+    404 si la matière est inconnue ou absente de l'année active. `notions: []` (pas
+    d'erreur) si la matière existe mais n'a rien de validé — le front a un état positif.
+    """
+    subject = db.scalars(select(Subject).where(Subject.slug == subject_slug)).first()
+    if subject is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject_slug} » inconnue.",
+        )
+    year = _active_year_or_404(db)
+    sys_row = db.scalars(
+        select(SchoolYearSubject).where(
+            SchoolYearSubject.school_year_id == year.id,
+            SchoolYearSubject.subject_id == subject.id,
+        )
+    ).first()
+    if sys_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject.name} » absente de l'année active.",
+        )
+
+    chapters = list(
+        db.scalars(
+            select(Chapter)
+            .where(
+                Chapter.school_year_subject_id == sys_row.id,
+                Chapter.validation_status == "validated",
+            )
+            .order_by(Chapter.sort_order, Chapter.id)
+        )
+    )
+    subject_ref = {"slug": subject.slug, "name": subject.name}
+    if not chapters:
+        return {"subject": subject_ref, "notions": []}
+    chapter_rank = {c.id: i for i, c in enumerate(chapters)}
+    chapter_name = {c.id: c.name for c in chapters}
+
+    # Dédup par skill_id : on garde la leçon validée la plus récente qui l'enseigne
+    # (updated_at desc, id desc en départage) → son chapitre fournit `chapter_title`.
+    best: dict[int, dict] = {}
+    for skill_id, skill_name, chapter_id, updated_at, lesson_id in db.execute(
+        select(Skill.id, Skill.name, Lesson.chapter_id, Lesson.updated_at, Lesson.id)
+        .join(LessonSkill, LessonSkill.skill_id == Skill.id)
+        .join(Lesson, Lesson.id == LessonSkill.lesson_id)
+        .where(Lesson.chapter_id.in_(list(chapter_rank)), Lesson.status == "validated")
+    ).all():
+        recency = (updated_at, lesson_id)
+        current = best.get(skill_id)
+        if current is None or recency > current["recency"]:
+            best[skill_id] = {
+                "skill_id": skill_id,
+                "name": skill_name,
+                "chapter_id": chapter_id,
+                "recency": recency,
+            }
+
+    notions = sorted(
+        best.values(),
+        key=lambda n: (chapter_rank[n["chapter_id"]], n["name"].casefold()),
+    )
+    return {
+        "subject": subject_ref,
+        "notions": [
+            {
+                "skill_id": n["skill_id"],
+                "name": n["name"],
+                "chapter_title": chapter_name[n["chapter_id"]],
+            }
+            for n in notions
+        ],
     }
 
 

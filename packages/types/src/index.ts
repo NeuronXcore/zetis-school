@@ -42,6 +42,7 @@ export {
   type LessonPatchRequest,
   type LessonReorderRequest,
   type LessonStatus,
+  type NotionSummarySubject,
   type SchoolYearSubjectRef,
   type SkillsBackfillConfirmRequest,
   type SkillsBackfillConfirmResult,
@@ -53,6 +54,9 @@ export {
   type StudentCours,
   type StudentLessonContent,
   type StudentLessonRef,
+  type StudentNotionsSummary,
+  type SubjectNotionRef,
+  type SubjectNotions,
 } from "./curriculum";
 export {
   type ReviewAttemptRequest,

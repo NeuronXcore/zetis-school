@@ -14,6 +14,11 @@ l'accueil (même destination).
 Réf. moteur : `docs/ai/spaced-memory.md` (ratings, intervalles).
 Réf. mockup validé : `mockup-page-revision-v3.html` (2026-07-04).
 
+> **Note (2026-07-05)** : la grille « Par matière » est désormais rendue par le composant
+> partagé `components/SubjectDeckGrid.tsx` (enveloppe `DeckDisc`), extrait pour l'entrée ELI5 v2
+> et réutilisé ici **sans changement visuel**. Les **Mélanges** restent locaux à cette page
+> (structure hero + collage propre à Révision).
+
 ## Accès & navigation
 
 Quatre points d'entrée, tous vers `/revision` :

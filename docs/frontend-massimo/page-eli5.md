@@ -1,7 +1,31 @@
 # Page Massimo — ELI5
 
-> Révision post-revue mockup (2026-07-04). Remplace la version précédente.
-> Réf. visuelle : `mockup-eli5-massimo.html`. Style : login/Matières (glassmorphique / néon).
+> **Refonte v2 (2026-07-05) — entrée par decks matières.** L'implémentation vit en 3 écrans
+> (réf. visuelle `mockup-page-eli5-v2.html`, prompts `prompt-eli5-v2-slice-{a,b}*.md`) ; la
+> section « Refonte v2 » ci-dessous prime. La « boucle » décrite plus bas (États 1→4) reste
+> valide mais correspond désormais à l'**écran 3 (session)**, inchangé.
+> Réf. antérieure : `mockup-eli5-massimo.html`. Style : login/Matières (glassmorphique / néon).
+
+## Refonte v2 — entrée par decks matières
+
+Trois écrans, route `/eli5` inchangée, **moteur ELI5 (explain/reverse, badge) non modifié** :
+
+1. **Decks matières** — grille de disques (composant partagé `SubjectDeckGrid`, extrait de la
+   page Révision) alimentée par `GET /api/student/notions/summary` : badge = nombre de notions,
+   badge « ✨ new » si des notions ont été fraîchement ajoutées (`new_count`), matière à 0 →
+   atténuée « bientôt ✨ » mais toujours cliquable. Deck spécial « ✨ Question libre » en tête.
+   En-tête : **emblème animé** (symboles de complexité en orbite autour de l'ampoule 💡 qui fait
+   « aha ! ») — décoratif, `motion-safe:` (figé sous `prefers-reduced-motion`).
+2. **Notions de la matière** — chips plates via `GET /api/student/subjects/{slug}/notions`
+   (notion en gras + `chapter_title` en sous-texte) ; carte positive si liste vide ; champ « pose
+   ta question » toujours présent. Deep-link `?subject=slug` ouvre directement cet écran.
+3. **Session ELI5** — la boucle existante (voir plus bas), inchangée. Une chip envoie un
+   `skill_id` réel → badge « 📚 D'après ta leçon » déterministe ; la question libre est résolue
+   côté client (le backend n'accepte que `skill_id`).
+
+Contrats et logique : `lib/notions.ts`, `hooks/useEli5Page.ts`, `components/SubjectDeckGrid.tsx`
+(+ `DeckDisc`), `pages/Eli5Page.tsx`. Les chips « à réviser » / « Ta leçon » de l'ancien État 1
+sont remplacées par la navigation decks → notions.
 
 ## Objectif
 

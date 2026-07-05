@@ -23,8 +23,13 @@ export interface DeckDiscProps {
   emoji?: string;
   /** `count === 0` : deck « à jour ✓ », atténué et non cliquable. */
   atDay?: boolean;
-  /** Aucune carte encore générée : disque GRISÉ « à venir », non cliquable (jamais anxiogène). */
+  /** Aucune carte encore générée : disque GRISÉ « à venir » (jamais anxiogène). Inerte
+   *  par défaut ; reste cliquable si `onClick` est fourni (ELI5 : matière « bientôt »). */
   noCards?: boolean;
+  /** Sous-titre du disque `noCards` (défaut « pas encore de cartes »). ELI5 : « bientôt ✨ ». */
+  soonHint?: string;
+  /** Masque le badge (compteur / « à jour » / « à venir ») — deck spécial sans compteur. */
+  hideBadge?: boolean;
   /** Contient des cartes fraîchement générées jamais révisées → badge « ✨ new ». */
   isNew?: boolean;
   onClick?: () => void;
@@ -90,6 +95,8 @@ export function DeckDisc({
   emoji,
   atDay = false,
   noCards = false,
+  soonHint,
+  hideBadge = false,
   isNew = false,
   onClick,
 }: DeckDiscProps) {
@@ -106,7 +113,7 @@ export function DeckDisc({
         size={disc}
       />
       {/* Badge : « à venir » (pas de carte), « à jour ✓ », ou compteur dû. */}
-      {noCards ? (
+      {hideBadge ? null : noCards ? (
         <span className="absolute -right-1 -top-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-slate-300">
           à venir
         </span>
@@ -134,19 +141,22 @@ export function DeckDisc({
         {title}
       </p>
       {noCards ? (
-        <p className="text-xs text-slate-500">pas encore de cartes</p>
+        <p className="text-xs text-slate-500">{soonHint ?? "pas encore de cartes"}</p>
       ) : (
         subtitle && <p className="text-xs text-slate-400">{subtitle}</p>
       )}
     </div>
   );
 
-  // À jour ✓ (atténué mais valorisant) ou sans carte encore (grisé) : non interactif.
-  if (atDay || noCards || !onClick) {
+  // Atténuation « à jour ✓ » / « à venir » (grisé) — appliquée que le disque soit
+  // interactif ou non, pour que Révision (inerte) et ELI5 (cliquable) partagent le look.
+  const dim = noCards ? "opacity-50" : atDay ? "opacity-60" : "";
+
+  // Sans `onClick` : disque inerte (Révision « à jour ✓ » / « à venir »). Avec `onClick` :
+  // bouton — un deck atténué mais cliquable (ELI5 « bientôt ») reste donc actionnable.
+  if (!onClick) {
     return (
-      <div
-        className={`flex flex-col items-center ${noCards ? "opacity-50" : atDay ? "opacity-60" : ""}`}
-      >
+      <div className={`flex flex-col items-center ${dim}`}>
         {visual}
         {label}
       </div>
@@ -157,7 +167,7 @@ export function DeckDisc({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center rounded-3xl p-2 transition-transform hover:scale-[1.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+      className={`flex flex-col items-center rounded-3xl p-2 transition-transform hover:scale-[1.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 ${dim}`}
     >
       {visual}
       {label}

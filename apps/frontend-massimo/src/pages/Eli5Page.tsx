@@ -1,16 +1,23 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import { SoundToggle } from "@zetis/ui";
 import { ProgressRing } from "../components/ProgressRing";
+import { DeckDisc } from "../components/DeckDisc";
+import { SubjectDeckGrid, type SubjectDeck } from "../components/SubjectDeckGrid";
 import { NeonBackdrop, GlassPanel, NEON_BUTTON, NEON_TEXT } from "../components/glass";
 import { type AnswerMode, type Eli5Chip, eli5SourceBadge, useEli5 } from "../hooks/useEli5";
+import { useEli5Page } from "../hooks/useEli5Page";
+import { subjectEmoji } from "../lib/subjectEmoji";
 import { speak, stopSpeaking } from "../lib/speech";
 import eli5Icon from "../assets/app/ELI5.png";
 import zetisAvatar from "../assets/app/zetis-avatar.png";
 
-// Page ELI5 Massimo — refonte « la boucle » (Lot B, pur frontend).
-// Conversation empilée qui grandit vers le bas : les sections s'accumulent le long
-// d'un rail dégradé indigo→cyan (comprendre → reformuler). Toute la logique vit dans
-// useEli5 ; ce composant est purement présentationnel.
+// Page ELI5 Massimo — entrée v2 par decks matières (slice B). Trois écrans :
+//   1. decks matières (SubjectDeckGrid partagé avec Révision) + deck « Question libre » ;
+//   2. notions de la matière (chips) + champ « pose ta question » ;
+//   3. la session ELI5 EXISTANTE (comprendre → reformuler), inchangée.
+// Le câblage d'entrée fournit un `skill_id` réel via chip (→ badge « d'après ta leçon »)
+// ou résout la question libre côté client (useEli5). Toute la logique vit dans les hooks
+// useEli5 / useEli5Page ; ce composant reste présentationnel.
 
 function prefersReducedMotion(): boolean {
   return (
@@ -19,33 +26,284 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-// Phrase d'accueil dite par ZETIS pendant la préparation. AFFICHÉE avec « ELI5 » propre ;
-// PRONONCÉE en phonétique pour que la voix Piper française sonne « anglais » (ee-el-eye-five).
-// TODO(voix) : ajuster la phonétique à l'oreille (candidats A–D testés).
 const ELI5_PREPARING = "Massimo, je prépare ton ELI5…";
 // Phonétique retenue à l'oreille (voix Piper FR) : « i èl aïe faille-ve » ≈ "ee-el-eye-five".
 const ELI5_PREPARING_SAY = "Massimo, je prépare ton i èl aïe faille-ve";
 
 export function Eli5Page() {
   const eli5 = useEli5();
+  const page = useEli5Page(eli5.status);
+
+  return (
+    <div className="relative mx-auto max-w-3xl">
+      <NeonBackdrop />
+      <div className="relative">
+        {page.screen === "home" && <HomeScreen page={page} />}
+        {page.screen === "subject" && <SubjectScreen page={page} eli5={eli5} />}
+        {page.screen === "session" && <SessionScreen page={page} eli5={eli5} />}
+      </div>
+    </div>
+  );
+}
+
+// ── Écran 1 — decks matières ────────────────────────────────────────────────────
+
+function HomeScreen({ page }: { page: ReturnType<typeof useEli5Page> }) {
+  const decks: SubjectDeck[] = (page.summary ?? []).map((s) => {
+    const empty = s.notion_count === 0;
+    return {
+      slug: s.slug,
+      name: s.name,
+      count: s.notion_count,
+      hint: empty ? undefined : `${s.notion_count} notion${s.notion_count > 1 ? "s" : ""}`,
+      dimmed: empty,
+      dimmedHint: "bientôt ✨",
+      // Notions fraîchement ajoutées au programme → badge « ✨ new » (comme Révision).
+      isNew: s.new_count > 0,
+    };
+  });
+
+  // Deck spécial « Question libre » : disque hero sans compteur, toujours accessible —
+  // même si les compteurs n'ont pas chargé (dégradation : on garde une porte de sortie).
+  const libre = (
+    <DeckDisc
+      title="Question libre"
+      subtitle="sur n'importe quoi"
+      count={0}
+      hero
+      hideBadge
+      emoji="✨"
+      fallbackInitial="?"
+      onClick={page.openLibre}
+    />
+  );
+
+  return (
+    <>
+      <header className="mb-6 text-center">
+        <Eli5Emblem />
+        <h1 className="mt-3 text-2xl font-bold">ELI5 — Explique-moi&nbsp;!</h1>
+        <p className="mt-1 text-zetis-muted">
+          Choisis une matière : je t'explique n'importe quelle notion, simplement.
+        </p>
+      </header>
+
+      {page.summaryError && (
+        <p className="mb-4 rounded-lg bg-amber-500/15 px-3 py-2 text-center text-sm text-amber-200">
+          Les matières n'ont pas pu charger — tu peux quand même poser une question libre.
+        </p>
+      )}
+
+      {/* Une seule grille montée en continu (decks vides pendant le chargement) : le deck
+          « Question libre » du slot lead reste ainsi toujours accessible et cliquable, même
+          au tout premier instant, sans jamais se démonter au passage chargement → chargé. */}
+      <SubjectDeckGrid
+        subjects={page.summaryLoading ? [] : decks}
+        onSelect={page.openSubject}
+        lead={libre}
+        dimmedClickable
+      />
+      {page.summaryLoading && <p className="mt-4 text-center text-zetis-muted">Chargement…</p>}
+    </>
+  );
+}
+
+// Emblème animé ELI5 : le concept « Explique comme à un enfant » mis en scène — des
+// symboles de complexité tournent autour de l'ampoule (l'idée), qui s'illumine par
+// à-coups (le « aha ! ») en projetant des étincelles. Complexité qui tourbillonne →
+// une idée simple et lumineuse. Tout est motion-safe : figé et lisible sous
+// prefers-reduced-motion (ampoule + halo doux, sans mouvement).
+const ORBIT_GLYPHS = [
+  { e: "❓", pos: "left-1/2 top-0 -translate-x-1/2" },
+  { e: "🔢", pos: "right-0 top-1/2 -translate-y-1/2" },
+  { e: "🧩", pos: "bottom-0 left-1/2 -translate-x-1/2" },
+  { e: "🌀", pos: "left-0 top-1/2 -translate-y-1/2" },
+];
+
+function Eli5Emblem() {
+  return (
+    <div className="relative mx-auto h-24 w-24" aria-hidden>
+      {/* Halo « idée » qui respire */}
+      <span className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500/40 to-cyan-400/30 blur-2xl motion-safe:animate-[eli5-idea-glow_3s_ease-in-out_infinite]" />
+
+      {/* Symboles de complexité en orbite autour de l'idée */}
+      <div className="absolute inset-0 motion-safe:animate-[eli5-orbit_11s_linear_infinite]">
+        {ORBIT_GLYPHS.map((g) => (
+          <span key={g.e} className={`absolute ${g.pos} text-base opacity-60`}>
+            {g.e}
+          </span>
+        ))}
+      </div>
+
+      {/* Étincelles du déclic (n'apparaissent qu'au flash de l'ampoule) */}
+      <span className="absolute right-1 top-2 text-sm opacity-0 motion-safe:animate-[eli5-spark_3s_ease-in-out_infinite]">
+        ✨
+      </span>
+      <span
+        className="absolute bottom-3 left-2 text-xs opacity-0 motion-safe:animate-[eli5-spark_3s_ease-in-out_infinite]"
+        style={{ animationDelay: "0.18s" }}
+      >
+        ✨
+      </span>
+
+      {/* L'idée : l'ampoule qui s'illumine (emoji ELI5) */}
+      <span className="absolute inset-0 flex items-center justify-center text-5xl drop-shadow-[0_2px_6px_rgba(99,102,241,0.5)] motion-safe:animate-[eli5-aha_3s_ease-in-out_infinite]">
+        💡
+      </span>
+    </div>
+  );
+}
+
+// ── Écran 2 — notions de la matière ─────────────────────────────────────────────
+
+function SubjectScreen({
+  page,
+  eli5,
+}: {
+  page: ReturnType<typeof useEli5Page>;
+  eli5: ReturnType<typeof useEli5>;
+}) {
+  const subject = page.subject;
+  const libre = subject?.libre ?? false;
+  const emoji = libre ? "✨" : subject ? subjectEmoji(subject.slug) : "📘";
+  const hasNotions = !libre && page.notions.length > 0;
+
+  // Chip de notion → question pré-remplie + skill_id réel (traces propres, badge leçon).
+  const onNotion = (skillId: number, name: string) => {
+    const chip: Eli5Chip = {
+      key: `notion-${skillId}`,
+      kind: "lesson",
+      emoji: "📖",
+      name,
+      note: "",
+      skillId,
+    };
+    eli5.submitChip(chip);
+  };
+
+  const placeholder = libre
+    ? "Pose ta question sur n'importe quoi…"
+    : `Ex. : explique-moi un truc de ${(subject?.name ?? "").toLowerCase()}…`;
+
+  return (
+    <>
+      <div className="mb-6 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={page.goHome}
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-zetis-text transition-colors hover:bg-white/10"
+        >
+          ← Matières
+        </button>
+        <h1 className="flex items-center gap-2 text-xl font-bold">
+          <span aria-hidden className="text-2xl">
+            {emoji}
+          </span>
+          {subject?.name ?? ""}
+        </h1>
+      </div>
+
+      {!libre && page.notionsLoading && <p className="text-zetis-muted">Chargement…</p>}
+
+      {hasNotions && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zetis-muted">
+            Tape une notion, je te l'explique
+          </h2>
+          <div className="flex flex-wrap gap-2.5">
+            {page.notions.map((n) => (
+              <button
+                key={n.skill_id}
+                type="button"
+                onClick={() => onNotion(n.skill_id, n.name)}
+                className="flex flex-col gap-0.5 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-zetis-accent-2 hover:bg-white/10"
+              >
+                <span className="text-sm font-semibold text-zetis-text">{n.name}</span>
+                <span className="text-[11px] text-zetis-muted">{n.chapter_title}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Matière sans notion validée : carte positive (jamais un vide anxiogène). */}
+      {!libre && !page.notionsLoading && !hasNotions && (
+        <GlassPanel className="mb-6 p-5">
+          <p className="text-sm leading-relaxed text-zetis-muted">
+            🚀 Les notions de cette matière arrivent bientôt.
+            <br />
+            En attendant, pose-moi ta question ci-dessous — je t'explique quand même&nbsp;!
+          </p>
+        </GlassPanel>
+      )}
+
+      {/* Champ « pose ta question » — toujours présent (résolu côté client par useEli5). */}
+      <GlassPanel className="p-5">
+        <label htmlFor="eli5-question" className="mb-2 block text-sm font-medium">
+          {libre ? "Ta question" : "Ou pose ta question"}
+        </label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            id="eli5-question"
+            type="text"
+            value={eli5.question}
+            onChange={(e) => eli5.setQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") eli5.submitQuestion();
+            }}
+            placeholder={placeholder}
+            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-zetis-text outline-none placeholder:text-zetis-muted focus:border-zetis-accent focus:ring-2 focus:ring-zetis-accent/40"
+          />
+          <button type="button" onClick={eli5.submitQuestion} disabled={eli5.busy} className={NEON_BUTTON}>
+            Expliquer
+          </button>
+        </div>
+
+        {/* Champ sans match : état vide bienveillant + « Dis à Papa d'ajouter ». */}
+        {eli5.noMatch && (
+          <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+            {eli5.requested ? (
+              <p>C'est noté&nbsp;! Papa pourra l'ajouter à ton programme&nbsp;👍</p>
+            ) : (
+              <>
+                <p>Cette notion n'est pas encore dans ton programme.</p>
+                <button
+                  type="button"
+                  onClick={eli5.requestNotion}
+                  disabled={eli5.requesting}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 font-medium text-amber-100 transition-colors hover:bg-amber-300/20 disabled:opacity-60"
+                >
+                  {eli5.requesting ? "…" : `📨 Dis à Papa d'ajouter « ${eli5.question.trim()} »`}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {eli5.error && <p className="mt-3 text-sm text-rose-300">{eli5.error}</p>}
+      </GlassPanel>
+    </>
+  );
+}
+
+// ── Écran 3 — session ELI5 existante (comprendre → reformuler), inchangée ─────────
+
+function SessionScreen({
+  page,
+  eli5,
+}: {
+  page: ReturnType<typeof useEli5Page>;
+  eli5: ReturnType<typeof useEli5>;
+}) {
   const {
     status,
     busy,
-    question,
-    setQuestion,
     answer,
     setAnswer,
     explanation,
     reverse,
     currentTitle,
-    chips,
     error,
-    noMatch,
-    requesting,
-    requested,
-    requestNotion,
-    submitQuestion,
-    submitChip,
     reExplain,
     submitAnswer,
     mode,
@@ -58,9 +316,8 @@ export function Eli5Page() {
     toggleDictation,
   } = eli5;
 
-  // Auto-scroll : chaque section révélée entre dans la vue. Déclenché sur les
-  // transitions d'état uniquement (jamais pendant la frappe du textarea, qui ne
-  // change pas l'état). prefers-reduced-motion → saut instantané.
+  // Auto-scroll : chaque section révélée entre dans la vue (jamais pendant la frappe du
+  // textarea, qui ne change pas l'état). prefers-reduced-motion → saut instantané.
   const explainRef = useRef<HTMLDivElement>(null);
   const feedbackRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -81,153 +338,95 @@ export function Eli5Page() {
   const started = status !== "idle";
 
   return (
-    <div className="relative mx-auto max-w-3xl">
-      <NeonBackdrop />
+    <>
+      {/* En-tête : retour vers la matière + duo ELI5 ↔ ZETIS + titre. SoundToggle = coupe
+          la voix de ZETIS (aucun autoplay si muet). */}
+      <header className="mb-6 flex flex-wrap items-center gap-4">
+        <button
+          type="button"
+          onClick={page.backFromSession}
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-zetis-text transition-colors hover:bg-white/10"
+        >
+          ← Retour
+        </button>
+        <ExplainDuo />
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold">Comprendre avec ELI5</h1>
+          <p className="mt-1 text-zetis-muted">
+            ZETIS t'explique simplement, puis tu réexpliques pour vérifier.
+          </p>
+        </div>
+        <SoundToggle className="shrink-0" />
+      </header>
 
-      <div className="relative">
-        {/* En-tête : duo ELI5 ↔ ZETIS (l'explication file de l'un à l'autre) + titre.
-            SoundToggle à droite = coupe la voix de ZETIS (aucun autoplay si muet). */}
-        <header className="mb-6 flex flex-wrap items-center gap-4">
-          <ExplainDuo />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold">Comprendre avec ELI5</h1>
-            <p className="mt-1 text-zetis-muted">
-              ZETIS t'explique simplement, puis tu réexpliques pour vérifier.
-            </p>
-          </div>
-          <SoundToggle className="shrink-0" />
-        </header>
+      {!started && error && <p className="text-sm text-rose-300">{error}</p>}
 
-        {/* ── État 1 — Question (action principale unique) ── */}
-        <GlassPanel className="p-5">
-          <label htmlFor="eli5-question" className="mb-2 block text-sm font-medium">
-            Quelle notion veux-tu comprendre&nbsp;?
-          </label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              id="eli5-question"
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submitQuestion();
-              }}
-              placeholder="Les nombres relatifs, la photosynthèse…"
-              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-zetis-text outline-none placeholder:text-zetis-muted focus:border-zetis-accent focus:ring-2 focus:ring-zetis-accent/40"
-            />
-            <button
-              type="button"
-              onClick={submitQuestion}
-              disabled={busy}
-              className={NEON_BUTTON}
-            >
-              {status === "generating" ? "…" : "Expliquer"}
-            </button>
-          </div>
+      {started && (
+        <div className="relative mt-2">
+          {/* Rail dégradé indigo→cyan : grandit avec les sections révélées. */}
+          <div
+            aria-hidden
+            className="absolute bottom-6 left-[21px] top-6 w-[2px] rounded bg-gradient-to-b from-indigo-500 to-cyan-400"
+          />
 
-          {chips.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {chips.map((chip) => (
-                <ChipButton key={chip.key} chip={chip} onClick={() => submitChip(chip)} />
-              ))}
-            </div>
+          {/* Phase 1 — ZETIS explique (nœud = marque ELI5) */}
+          <LoopRow
+            ref={explainRef}
+            node={
+              <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full">
+                <img src={eli5Icon} alt="ELI5" className="h-full w-full object-cover" />
+              </span>
+            }
+            halo="indigo"
+          >
+            {status === "generating" ? (
+              <ZetisWave text={ELI5_PREPARING} say={ELI5_PREPARING_SAY} />
+            ) : explanation ? (
+              <ExplanationCard eli5={eli5} onReExplain={reExplain} busy={busy} />
+            ) : null}
+          </LoopRow>
+
+          {/* Phase 2 — À toi d'expliquer (visible dès qu'une explication existe) */}
+          {explanation && (
+            <LoopRow node={<span aria-hidden>🎙️</span>} halo="cyan">
+              <AnswerBlock
+                title={currentTitle}
+                answer={answer}
+                setAnswer={setAnswer}
+                onSubmit={submitAnswer}
+                disabled={busy}
+                mode={mode}
+                onMode={setMode}
+                sttAvailable={sttAvailable}
+                recording={recording}
+                transcribing={transcribing}
+                micAnalyser={micAnalyser}
+                micError={micError}
+                onToggleDictation={toggleDictation}
+              />
+            </LoopRow>
           )}
 
-          {/* Champ sans match : état vide bienveillant + « Dis à Papa d'ajouter ». */}
-          {noMatch && (
-            <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
-              {requested ? (
-                <p>C'est noté&nbsp;! Papa pourra l'ajouter à ton programme&nbsp;👍</p>
-              ) : (
-                <>
-                  <p>
-                    Cette notion n'est pas encore dans ton programme — choisis une suggestion
-                    ci-dessus&nbsp;👆
-                  </p>
-                  <button
-                    type="button"
-                    onClick={requestNotion}
-                    disabled={requesting}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 font-medium text-amber-100 transition-colors hover:bg-amber-300/20 disabled:opacity-60"
-                  >
-                    {requesting ? "…" : `📨 Dis à Papa d'ajouter « ${question.trim()} »`}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-
-          {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
-        </GlassPanel>
-
-        {/* ── La boucle : rail + phases empilées ── */}
-        {started && (
-          <div className="relative mt-6">
-            {/* Rail dégradé indigo→cyan : grandit avec les sections révélées. */}
-            <div
-              aria-hidden
-              className="absolute bottom-6 left-[21px] top-6 w-[2px] rounded bg-gradient-to-b from-indigo-500 to-cyan-400"
-            />
-
-            {/* Phase 1 — ZETIS explique (nœud = marque ELI5) */}
-            <LoopRow
-              ref={explainRef}
-              node={
-                <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full">
-                  <img src={eli5Icon} alt="ELI5" className="h-full w-full object-cover" />
-                </span>
-              }
-              halo="indigo"
-            >
-              {status === "generating" ? (
-                <ZetisWave text={ELI5_PREPARING} say={ELI5_PREPARING_SAY} />
-              ) : explanation ? (
-                <ExplanationCard eli5={eli5} onReExplain={reExplain} busy={busy} />
+          {/* Phase 3 — Le retour de ZETIS */}
+          {(status === "evaluating" || status === "feedback") && (
+            <LoopRow ref={feedbackRef} node={<span aria-hidden>✨</span>} halo="fuchsia">
+              {status === "evaluating" ? (
+                <ZetisWave text="ZETIS regarde ton explication…" />
+              ) : reverse ? (
+                <FeedbackCard reverse={reverse} />
               ) : null}
             </LoopRow>
-
-            {/* Phase 2 — À toi d'expliquer (visible dès qu'une explication existe) */}
-            {explanation && (
-              <LoopRow node={<span aria-hidden>🎙️</span>} halo="cyan">
-                <AnswerBlock
-                  title={currentTitle}
-                  answer={answer}
-                  setAnswer={setAnswer}
-                  onSubmit={submitAnswer}
-                  disabled={busy}
-                  mode={mode}
-                  onMode={setMode}
-                  sttAvailable={sttAvailable}
-                  recording={recording}
-                  transcribing={transcribing}
-                  micAnalyser={micAnalyser}
-                  micError={micError}
-                  onToggleDictation={toggleDictation}
-                />
-              </LoopRow>
-            )}
-
-            {/* Phase 3 — Le retour de ZETIS */}
-            {(status === "evaluating" || status === "feedback") && (
-              <LoopRow ref={feedbackRef} node={<span aria-hidden>✨</span>} halo="fuchsia">
-                {status === "evaluating" ? (
-                  <ZetisWave text="ZETIS regarde ton explication…" />
-                ) : reverse ? (
-                  <FeedbackCard reverse={reverse} />
-                ) : null}
-              </LoopRow>
-            )}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Toast XP sticky — retour visuel. Le crédit réel est fait côté serveur. */}
       {status === "feedback" && <XpToast />}
-    </div>
+    </>
   );
 }
 
-// ── Sous-composants présentationnels ───────────────────────────────────────────
+// ── Sous-composants présentationnels (session existante, inchangés) ──────────────
 
 // Duo d'avatars de l'en-tête : ELI5 (agrandi) et ZETIS côte à côte. Des bulles filent
 // d'ELI5 vers ZETIS — « comme si Massimo expliquait à ZETIS ». ELI5 flotte, ZETIS
@@ -279,20 +478,6 @@ function ExplainDuo() {
         />
       </div>
     </div>
-  );
-}
-
-function ChipButton({ chip, onClick }: { chip: Eli5Chip; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zetis-text transition-colors hover:border-zetis-accent hover:bg-white/10"
-    >
-      <span aria-hidden>{chip.emoji}</span>
-      <span className="font-medium">{chip.name}</span>
-      <span className="text-xs text-zetis-muted">· {chip.note}</span>
-    </button>
   );
 }
 
@@ -462,9 +647,7 @@ function AnswerBlock({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">🎙️ À toi d'expliquer</h2>
         {/* Toggle Écrire / Parler (ADR-0012). Masqué si la dictée n'est pas possible. */}
-        {sttAvailable && (
-          <ModeToggle mode={mode} onMode={onMode} disabled={transcribing} />
-        )}
+        {sttAvailable && <ModeToggle mode={mode} onMode={onMode} disabled={transcribing} />}
       </div>
       <p className="mt-1 text-sm text-zetis-muted">
         Explique {title ? <strong className="text-zetis-text">{title}</strong> : "cette notion"}{" "}
@@ -669,7 +852,9 @@ function VoiceWaveform({ analyser }: { analyser: AnalyserNode | null }) {
       </div>
     );
   }
-  return <canvas ref={canvasRef} aria-hidden className="max-w-full" style={{ width: 280, height: 56 }} />;
+  return (
+    <canvas ref={canvasRef} aria-hidden className="max-w-full" style={{ width: 280, height: 56 }} />
+  );
 }
 
 // Bouton d'une capacité Phase 9 (vocal / mindmap) : désactivé, badge « bientôt ».
@@ -712,9 +897,7 @@ function FeedbackCard({ reverse }: { reverse: ReturnType<typeof useEli5>["revers
         {nothingMissing ? (
           <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4">
             <h3 className="text-sm font-semibold text-emerald-300">🎉 Tu n'as rien oublié&nbsp;!</h3>
-            <p className="mt-1 text-sm text-zetis-text">
-              Ton explication couvre tout l'essentiel.
-            </p>
+            <p className="mt-1 text-sm text-zetis-text">Ton explication couvre tout l'essentiel.</p>
           </div>
         ) : (
           <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-4">
