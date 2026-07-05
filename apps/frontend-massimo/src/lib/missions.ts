@@ -51,8 +51,24 @@ async function asJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function fetchTodayMissions(): Promise<Mission[]> {
+// Contrat `/today` (ADR-0017 lot 2) : une mission ÉLUE + sa raison, ou état serein (elected null).
+export interface TodayResponse {
+  elected: Mission | null;
+  reason: string;
+  reason_code: string;
+  scoring_version: string;
+  alternatives: Mission[];
+}
+
+export async function fetchToday(): Promise<TodayResponse> {
   return asJson(await fetch(`${API_URL}/api/missions/today`, { headers: headers() }));
+}
+
+// Adaptation minimale (la refonte « mission du jour + raison » est une slice frontend séparée) :
+// l'élue d'abord, puis les alternatives, pour que la page actuelle continue de fonctionner.
+export async function fetchTodayMissions(): Promise<Mission[]> {
+  const today = await fetchToday();
+  return today.elected ? [today.elected, ...today.alternatives] : [...today.alternatives];
 }
 
 export async function startMission(missionId: number): Promise<Mission> {

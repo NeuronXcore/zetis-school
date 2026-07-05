@@ -356,40 +356,54 @@ existe côté serveur, **postérieure au `start`** et **dans l'ordre** (`sort_or
 générée naît `validation_status = pending` : le gate `validated` est **dans la requête** des
 routes student (une mission `pending` est invisible, y compris par id → 404).
 
-### POST `/missions/generate-remediation` (Papa)
+**ADR-0017 lot 2 — sources, sélecteur, pilotage.** `mission_type` est un vocabulaire fermé
+orienté **source** (`remediation | revision | progression | manual`). Le sélecteur de la mission
+du jour est un **scoring déterministe versionné** (`MISSION_SCORING_VERSION`, zéro LLM). Frontière
+stricte (§3) : **deux schémas, deux routers** — `MissionStudentOut` (Massimo, sans scores) et
+`MissionPilotOut` (Papa, sur-ensemble : `validation_status`, `generation_reason`, preuves brutes).
 
-Transforme les lacunes ouvertes (`gaps`) en missions de remédiation `pending` (idempotent).
-Réponse : `{ created, missions: [MissionOut] }`. L'étape `quiz` n'est ajoutée que si un quiz de
-mission prêt couvre déjà la notion (sinon mission à 2 étapes ; auto-génération = Lot 2).
+### Frontière student (Massimo)
 
-### POST `/missions/validate` (Papa)
+- **GET `/missions`** → `[MissionStudentOut]` (validées de l'élève). `MissionStudentOut = { id,
+  subject, skill_id, skill_name, title, description, mission_type, status, priority, steps: [{ id,
+  step_type, instruction, resource_id, sort_order, status }] }`.
+- **GET `/missions/today`** — **contrat cassant** (ex-liste) : `{ elected: MissionStudentOut | null,
+  reason, reason_code, scoring_version, alternatives: [MissionStudentOut] (≤2) }`. `reason` est une
+  **phrase template** figée choisie par le facteur dominant (jamais de LLM) ; `elected: null` =
+  état serein « Tu n'as rien d'obligatoire maintenant ».
+- **POST `/missions/{id}/start`** → `MissionStudentOut` (`planned → active`, idempotent, horodate
+  `started_at`).
+- **POST `/missions/{id}/steps/{step_id}/complete`** → `{ mission_status, verdict, xp_awarded }`.
+  Preuve par `step_type` (**409** si absente / antérieure au start / hors ordre) ; dernière étape
+  → **XP +50 inconditionnel** + verdict (`acquired` si reverse ≥ `MISSION_REVERSE_THRESHOLD` ET
+  quiz ≥ `MISSION_QUIZ_THRESHOLD` → mastery↑, lacune `resolved` ; sinon `review_later` → mastery
+  honnête, lacune `in_progress`, carte SRS (re)programmée). Trace `LearningEvent` `mission_verdict`.
 
-Valide en lot des missions `pending` → `validated`. Corps `{ ids: [int] }`, réponse
-`{ validated }` (idempotent). Pilotage complet (rejet, badge, zone « À valider ») = Lot 2.
+### Frontière pilotage (Papa) — `MissionPilotOut`
 
-### GET `/missions` — GET `/missions/today` (Massimo)
+- **POST `/missions/generate-remediation` · `/generate-revision` · `/generate-progression`** →
+  `{ created, missions }`. Générateurs idempotents par source, missions `pending`. `revision` =
+  cartes SRS dues groupées par matière (`lesson|eli5 → quiz`) ; `progression` = prochaine notion
+  non maîtrisée d'un chapitre actif ou rattrapage jamais travaillé (`eli5 → vocal_explain → quiz`).
+- **GET `/missions/pending`** → `[MissionPilotOut]` (avec `generation_reason`).
+- **POST `/missions/validate`** `{ ids: [int] }` → `{ validated }` (validation en lot).
+- **POST `/missions/{id}/reject`** → `{ id, validation_status: "rejected" }`.
+- **GET `/missions/election/today`** → `{ elected: MissionPilotOut | null, score, factors: [{ name,
+  value, weight, contribution, dominant }], scoring_version, reason, reason_code, alternatives:
+  [{ mission, score }] }` — **recalculé à la demande** (déterminisme ⇒ rien à stocker).
+- **GET `/missions/pilot?type=&subject=`** → `[MissionPilotOut]` (preuves brutes par étape).
+- **GET `/missions/verdicts/recent`** → `[{ mission_id, mission_type, verdict, quiz_score,
+  reverse_score, xp, effect, skill_id, subject_id }]`.
+- **GET `/missions/pilot/summary`** → `{ pending, pool, completed_this_week, acquired_rate_30d }`.
 
-Missions **validées** de l'élève : `[MissionOut]` où `MissionOut = { id, subject, skill_id,
-skill_name, title, description, mission_type, status, priority, steps: [{ id, step_type,
-instruction, resource_id, sort_order, status }] }`. `today` = `planned`/`active`, prioritaires
-d'abord.
+Facteurs de score (pondérations en config) : `severity` (remediation), `due_pressure` (revision),
+`continuity` (progression : chapitre actif vs rattrapage), `variety` (malus si même matière que la
+**dernière mission complétée** — proxy déterministe, aucune élection stockée), `forced_priority`
+(plancher des `manual`). `Mission.available_from` n'existe pas sur le modèle réel → toutes les
+validées `planned|active` sont candidates.
 
-### POST `/missions/{id}/start` (Massimo)
-
-`planned → active`, idempotent, horodate `started_at` (socle des preuves). Réponse : `MissionOut`.
-
-### POST `/missions/{id}/steps/{step_id}/complete` (Massimo)
-
-Valide une étape si sa preuve existe (**409** sinon / si antérieure au start / hors ordre) :
-`eli5`/`lesson` = consultation (tracée) ; `vocal_explain` = un score reverse postérieur au start ;
-`quiz` = une `QuizAttempt` `context=mission` du quiz, postérieure au start. La **dernière** étape
-termine la mission : **XP +50 inconditionnel** + **verdict** (`acquired` si score reverse ≥
-`MISSION_REVERSE_THRESHOLD` ET quiz ≥ `MISSION_QUIZ_THRESHOLD` → mastery↑, lacune `resolved` ;
-sinon `review_later` → mastery honnête, lacune `in_progress`, carte SRS (re)programmée).
-Réponse : `{ mission_status, verdict, xp_awarded }`.
-
-> Reporté (Lot 2/3) : sélecteur `/missions/today` (mission élue + raison), sources
-> `revision`/`progression`, missions manuelles Papa, pilotage Papa complet.
+> Reporté (Lot 3) : porte « Commander » (recommandation/échéance/thématique), résolution par
+> embeddings, Conseil de classe, croisées automatiques, auto-validation par type.
 
 ## Progression
 

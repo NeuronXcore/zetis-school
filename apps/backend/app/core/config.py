@@ -59,6 +59,30 @@ class Settings(BaseSettings):
     mission_reverse_threshold: int = Field(default=70, validation_alias="MISSION_REVERSE_THRESHOLD")
     mission_quiz_threshold: int = Field(default=70, validation_alias="MISSION_QUIZ_THRESHOLD")
 
+    # --- Sélecteur de la mission du jour (ADR-0017 lot 2, décision 2) : scoring DÉTERMINISTE,
+    # zéro LLM. La formule est VERSIONNÉE (`MISSION_SCORING_VERSION` couvre formule ET templates
+    # d'étapes) : tout changement de facteur/pondération = bump, tracé dans la sortie du sélecteur.
+    # Pondérations et seuils vivent ICI, jamais dans le code du service. ---
+    mission_scoring_version: str = Field(default="v1", validation_alias="MISSION_SCORING_VERSION")
+    mission_weight_severity: float = Field(default=1.0, validation_alias="MISSION_WEIGHT_SEVERITY")
+    mission_weight_due_pressure: float = Field(
+        default=0.8, validation_alias="MISSION_WEIGHT_DUE_PRESSURE"
+    )
+    mission_weight_continuity: float = Field(
+        default=0.6, validation_alias="MISSION_WEIGHT_CONTINUITY"
+    )
+    # `variety` est un MALUS (soustrait) : anti-répétition si la même matière a été élue la veille
+    # (proxy déterministe : matière de la dernière mission complétée — l'ADR interdit de stocker
+    # les élections).
+    mission_weight_variety: float = Field(default=0.5, validation_alias="MISSION_WEIGHT_VARIETY")
+    # Plancher des missions `manual` (priorité forcée Papa) : domine le score sans jamais être
+    # dominé (une mission « avant le contrôle » court-circuite le score, jamais l'inverse).
+    mission_weight_forced_priority: float = Field(
+        default=100.0, validation_alias="MISSION_WEIGHT_FORCED_PRIORITY"
+    )
+    # Nombre de cartes dues qui sature `due_pressure` à 1.0.
+    mission_due_pressure_cap: int = Field(default=6, validation_alias="MISSION_DUE_PRESSURE_CAP")
+
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
     # Découplé de `llm_provider` : les embeddings restent sur ollama même si la
     # génération passe sur MLX (évite toute migration pgvector). Cf. ADR-0008.

@@ -21,20 +21,29 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.models import (
+    Chapter,
     Gap,
     LearningEvent,
+    Lesson,
     LessonSkill,
     Mission,
     MissionStep,
     Quiz,
     QuizAttempt,
+    SchoolYear,
+    SchoolYearSubject,
     Skill,
     SkillMastery,
+    SpacedReviewCard,
     StudentProfile,
     Subject,
 )
 from app.modules.gamification.service import award_xp
 from app.modules.memory.service import interval_from_score, schedule_review
+
+# Notions considérées « en place » (ne relancent pas de progression). Aligné sur les paliers
+# de mastery (`_status_from_score` d'ADR-0014 : mastered ≥ 90, solid ≥ 70).
+_MASTERED_STATUSES = ("mastered", "solid")
 
 XP_REASON = "mission_remediation"
 _PRIORITY_BY_SEVERITY = {"high": 2, "medium": 1, "low": 0}
@@ -197,6 +206,256 @@ def generate_remediation(db: Session, student: StudentProfile) -> list[dict]:
     return [_to_out(db, m) for m in created]
 
 
+# --- Générateurs par source (idempotents, tous → pending ; templates purs versionnés) ------
+#
+# Le vocabulaire de scoring/templates est versionné par `MISSION_SCORING_VERSION` : un
+# changement de parcours change ce que « mission » veut dire, il se trace comme une pondération.
+
+
+def _build_revision_steps(
+    db: Session, skill_id: int | None, skill_name: str
+) -> list[tuple[str, str, int | None]]:
+    """Template `revision` (ADR-0017 §5) : cartes dues (relecture) → mini-quiz de récupération."""
+    steps: list[tuple[str, str, int | None]] = [
+        (STEP_ELI5, f"Relis et rappelle-toi « {skill_name} ».", skill_id),
+    ]
+    quiz_id = _resolve_mission_quiz_id(db, skill_id)
+    if quiz_id is not None:
+        steps.append((STEP_QUIZ, f"Petit quiz de récupération sur « {skill_name} ».", quiz_id))
+    return steps
+
+
+def _skill_has_active_mission(db: Session, *, student_id: int, skill_id: int) -> bool:
+    """Toute mission planned/active (quel que soit le type) couvrant déjà cette notion."""
+    return bool(
+        db.scalar(
+            select(Mission.id).where(
+                Mission.student_id == student_id,
+                Mission.skill_id == skill_id,
+                Mission.status.in_(_ACTIVE_STATUSES),
+            )
+        )
+    )
+
+
+def _subject_has_active_mission_of_type(
+    db: Session, *, student_id: int, subject_id: int, mission_type: str
+) -> bool:
+    return bool(
+        db.scalar(
+            select(Mission.id).where(
+                Mission.student_id == student_id,
+                Mission.subject_id == subject_id,
+                Mission.mission_type == mission_type,
+                Mission.status.in_(_ACTIVE_STATUSES),
+            )
+        )
+    )
+
+
+def _create_mission(
+    db: Session,
+    *,
+    student: StudentProfile,
+    subject_id: int | None,
+    skill_id: int | None,
+    title: str,
+    description: str,
+    mission_type: str,
+    steps: list[tuple[str, str, int | None]],
+) -> Mission:
+    mission = Mission(
+        student_id=student.id,
+        subject_id=subject_id,
+        skill_id=skill_id,
+        title=title,
+        description=description,
+        mission_type=mission_type,
+        status="planned",
+        validation_status="pending",
+        priority=1,
+        created_by="ai",
+    )
+    db.add(mission)
+    db.flush()
+    for index, (step_type, instruction, resource_id) in enumerate(steps):
+        db.add(
+            MissionStep(
+                mission_id=mission.id,
+                step_type=step_type,
+                instruction=instruction,
+                resource_id=resource_id,
+                sort_order=index,
+                status="pending",
+            )
+        )
+    return mission
+
+
+def generate_revision(db: Session, student: StudentProfile) -> list[dict]:
+    """Cartes SRS dues groupées par matière → une mission `revision` par matière (idempotente).
+
+    Notion représentative = la carte la plus en retard de la matière. Si les cartes ne sont pas
+    encore alimentées, la source démarre vide (dégradation gracieuse — ADR-0017 §Conséquences)."""
+    now = datetime.now(timezone.utc)
+    due_cards = list(
+        db.scalars(
+            select(SpacedReviewCard)
+            .where(
+                SpacedReviewCard.student_id == student.id,
+                SpacedReviewCard.due_at.is_not(None),
+                SpacedReviewCard.due_at <= now,
+            )
+            .order_by(SpacedReviewCard.due_at)  # plus en retard d'abord
+        )
+    )
+    representative: dict[int, int] = {}  # subject_id -> skill_id (première = plus en retard)
+    for card in due_cards:
+        skill = db.get(Skill, card.skill_id)
+        if skill is not None:
+            representative.setdefault(skill.subject_id, card.skill_id)
+
+    created: list[Mission] = []
+    for subject_id, skill_id in representative.items():
+        if _subject_has_active_mission_of_type(
+            db, student_id=student.id, subject_id=subject_id, mission_type="revision"
+        ):
+            continue
+        skill_name = _skill_name(db, skill_id)
+        created.append(
+            _create_mission(
+                db,
+                student=student,
+                subject_id=subject_id,
+                skill_id=skill_id,
+                title=f"Révision : {skill_name}",
+                description="Révision des notions à revoir.",
+                mission_type="revision",
+                steps=_build_revision_steps(db, skill_id, skill_name),
+            )
+        )
+    db.commit()
+    return [_to_out(db, m) for m in created]
+
+
+def _active_year(db: Session, student_id: int) -> SchoolYear | None:
+    return db.scalar(
+        select(SchoolYear)
+        .where(SchoolYear.student_id == student_id, SchoolYear.status == "active")
+        .order_by(SchoolYear.id.desc())
+    )
+
+
+def _year_subject_ids(db: Session, year_id: int) -> list[int]:
+    return list(
+        db.scalars(
+            select(SchoolYearSubject.subject_id).where(
+                SchoolYearSubject.school_year_id == year_id,
+                SchoolYearSubject.status == "active",
+            )
+        )
+    )
+
+
+def _next_progression_skill(
+    db: Session, *, student: StudentProfile, year: SchoolYear, subject_id: int
+) -> tuple[int | None, str | None]:
+    """(skill_id, continuité) de la prochaine notion à travailler d'une matière, ou (None, None).
+
+    Priorité : notion non maîtrisée d'un chapitre actif du programme validé (`active_chapter`),
+    sinon notion de rattrapage (niveau ≠ année) jamais travaillée (`rattrapage`, ADR-0010)."""
+    mastered = {
+        skill_id
+        for skill_id, info in mastery_by_skill_local(db, student.id).items()
+        if info in _MASTERED_STATUSES
+    }
+
+    # a) Notions des leçons validées de chapitres validés (actifs/planifiés), en ordre curriculum.
+    sys_ids = list(
+        db.scalars(
+            select(SchoolYearSubject.id).where(
+                SchoolYearSubject.school_year_id == year.id,
+                SchoolYearSubject.subject_id == subject_id,
+            )
+        )
+    )
+    if sys_ids:
+        skill_ids_in_order = db.scalars(
+            select(LessonSkill.skill_id)
+            .join(Lesson, Lesson.id == LessonSkill.lesson_id)
+            .join(Chapter, Chapter.id == Lesson.chapter_id)
+            .where(
+                Chapter.school_year_subject_id.in_(sys_ids),
+                Chapter.validation_status == "validated",
+                Chapter.status.in_(("active", "planned")),
+                Lesson.status == "validated",
+            )
+            .order_by(Chapter.sort_order, Lesson.sort_order, LessonSkill.skill_id)
+        )
+        for skill_id in skill_ids_in_order:
+            if skill_id not in mastered and not _skill_has_active_mission(
+                db, student_id=student.id, skill_id=skill_id
+            ):
+                return skill_id, "active_chapter"
+
+    # b) Rattrapage : notion de la matière au niveau ≠ année, jamais travaillée (aucune mastery).
+    worked = set(mastery_by_skill_local(db, student.id).keys())
+    rattrapage = db.scalars(
+        select(Skill.id)
+        .where(Skill.subject_id == subject_id, Skill.level.is_not(None), Skill.level != year.level)
+        .order_by(Skill.id)
+    )
+    for skill_id in rattrapage:
+        if skill_id not in worked and not _skill_has_active_mission(
+            db, student_id=student.id, skill_id=skill_id
+        ):
+            return skill_id, "rattrapage"
+    return None, None
+
+
+def generate_progression(db: Session, student: StudentProfile) -> list[dict]:
+    """Prochaine notion non maîtrisée par matière de l'année active → mission `progression`.
+
+    Template complet `eli5 → vocal_explain → quiz`. Idempotente (une notion déjà couverte par une
+    mission active est ignorée). Année/programme absents → vide (dégradation gracieuse)."""
+    year = _active_year(db, student.id)
+    if year is None:
+        return []
+    created: list[Mission] = []
+    for subject_id in _year_subject_ids(db, year.id):
+        skill_id, _continuity = _next_progression_skill(
+            db, student=student, year=year, subject_id=subject_id
+        )
+        if skill_id is None:
+            continue
+        skill_name = _skill_name(db, skill_id)
+        created.append(
+            _create_mission(
+                db,
+                student=student,
+                subject_id=subject_id,
+                skill_id=skill_id,
+                title=f"Progresser : {skill_name}",
+                description=f"Nouvelle notion à découvrir : « {skill_name} ».",
+                mission_type="progression",
+                steps=_build_steps(db, skill_id, skill_name),
+            )
+        )
+    db.commit()
+    return [_to_out(db, m) for m in created]
+
+
+def mastery_by_skill_local(db: Session, student_id: int) -> dict[int, str]:
+    """{skill_id: status} — lecture directe (évite un import du service evidence dans les
+    générateurs ; l'évidence reste le point d'entrée des CONSOMMATEURS analytiques)."""
+    return {
+        row.skill_id: row.status
+        for row in db.scalars(
+            select(SkillMastery).where(SkillMastery.student_id == student_id)
+        )
+    }
+
+
 # --- Lecture student (gate `validated` DANS la requête, §5ter) -----------------------------
 
 
@@ -214,21 +473,22 @@ def list_missions(db: Session, student: StudentProfile) -> list[dict]:
     return [_to_out(db, m) for m in missions]
 
 
-def today_missions(db: Session, student: StudentProfile, limit: int = 5) -> list[dict]:
-    """Missions à faire (planned/active) validées, les plus prioritaires d'abord."""
-    missions = list(
-        db.scalars(
-            select(Mission)
-            .where(
-                Mission.student_id == student.id,
-                Mission.validation_status == "validated",
-                Mission.status.in_(_ACTIVE_STATUSES),
-            )
-            .order_by(Mission.priority.desc(), Mission.id)
-            .limit(limit)
-        )
-    )
-    return [_to_out(db, m) for m in missions]
+def today_election(db: Session, student: StudentProfile) -> dict:
+    """Mission du jour ÉLUE + raison (contrat cassant ADR-0017 §3). Vue student (sans scores).
+
+    `elected: None` = état serein « rien d'obligatoire » (servi tel quel, jamais de remplissage)."""
+    from app.modules.missions import selector
+
+    result = selector.elect(db, student)
+    elected = result["elected"]
+    reason, reason_code = selector.reason_for(elected)
+    return {
+        "elected": _to_out(db, elected.mission) if elected is not None else None,
+        "reason": reason,
+        "reason_code": reason_code,
+        "scoring_version": result["scoring_version"],
+        "alternatives": [_to_out(db, alt.mission) for alt in result["alternatives"]],
+    }
 
 
 # --- Exécution : start + complete-step -----------------------------------------------------
@@ -478,6 +738,26 @@ def _complete_mission(
         subject_id=mission.subject_id,
         amount=settings.mission_xp_reward,
         reason=XP_REASON,
+    )
+    # Trace du verdict (source de `evidence.recent_verdicts` / pilotage Papa — ADR-0017 §5bis).
+    # Le verdict n'est pas un état persistant sur la mission : c'est un événement horodaté.
+    db.add(
+        LearningEvent(
+            student_id=student.id,
+            subject_id=mission.subject_id,
+            skill_id=mission.skill_id,
+            event_type="mission_verdict",
+            payload_json={
+                "mission_id": mission.id,
+                "mission_type": mission.mission_type,
+                "verdict": verdict,
+                "reverse_score": reverse_score,
+                "quiz_score": quiz_score,
+                "xp": settings.mission_xp_reward,
+                "effect": "gap_resolved" if verdict == "acquired" else "srs_rescheduled",
+            },
+            created_at=datetime.now(timezone.utc),
+        )
     )
     db.commit()
     return {

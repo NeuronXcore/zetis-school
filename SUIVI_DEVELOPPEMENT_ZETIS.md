@@ -1701,6 +1701,48 @@ git commit -m "feat(missions): proof-based steps + acquisition verdict (ADR-0017
 
 ---
 
+# ÉTAPE — Missions Lot 2 : sources + sélecteur + pilotage (ADR-0017)
+
+## Statut
+
+FAIT (backend + tests + lib frontend minimale + docs) — 2026-07-05. Branche `mission`.
+
+## Ce qui a été fait
+
+- **Module neutre `evidence/`** (read-only, patron ADR-0011) : mastery/gaps/verdicts/quiz
+  pondéré (poids ADR-0014 consommé)/SRS ; test-verrou de neutralité (aucun import missions/conseil).
+- **Générateurs** `revision` (cartes dues/matière) et `progression` (prochaine notion non maîtrisée
+  d'un chapitre actif / rattrapage), idempotents → `pending`, templates purs.
+- **Sélecteur déterministe versionné** (`selector.py`, `MISSION_SCORING_VERSION=v1`) : facteurs
+  nommés + pondérations en config, `variety` = matière de la dernière mission complétée (proxy),
+  `reason` = phrase figée du facteur dominant.
+- **Contrat `/today` cassant** (objet élue+raison) + **split schémas** `MissionStudentOut` /
+  `MissionPilotOut` (2 routers, gate en requête). **Routes pilotage Papa** : pending, validate,
+  reject, election/today (recalcul), pilot, verdicts/recent, pilot/summary. `generation_reason`
+  calculé. **Trace verdict** `LearningEvent`.
+- **Tests** : invariants 7–11 + générateurs + pilotage (`test_missions_selector.py`) ; Lot 1 adapté
+  au nouveau `/today`. **340 back verts.** Lib frontend Massimo adaptée a minima.
+
+## Divergences tranchées
+
+- `Mission.available_from` (DATA_MODEL) absent du modèle réel → toutes les validées candidates
+  (aucune migration). `generation_reason` et l'élection **calculés/recalculés**, jamais stockés.
+
+## Reste à faire
+
+- **Lot 3** : porte « Commander » (recommandation/échéance/thématique + notions résolues par
+  embeddings décochables), Conseil de classe IA, croisées automatiques, auto-validation par type.
+- **Slices frontend** : refonte MissionsPage Massimo (mission du jour + raison) ; page pilotage
+  Papa (`docs/frontend-papa/page-missions-pilotage.md`).
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(missions): evidence service + deterministic daily selector + Papa pilotage (ADR-0017 lot 2)"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

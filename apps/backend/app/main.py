@@ -20,6 +20,7 @@ from app.modules.memory.router import router as memory_router
 from app.modules.memory.router import student_router as reviews_student_router
 from app.modules.mindmaps.router import router as mindmaps_router
 from app.modules.mindmaps.router import student_router as mindmaps_student_router
+from app.modules.missions.router import pilot_router as missions_pilot_router
 from app.modules.missions.router import router as missions_router
 from app.modules.quizzes.router import pilotage_router as quizzes_pilotage_router
 from app.modules.quizzes.router import router as quizzes_router
@@ -43,6 +44,7 @@ app.include_router(auth_router)
 app.include_router(eli5_router)
 app.include_router(diagnostics_router)
 app.include_router(missions_router)
+app.include_router(missions_pilot_router)
 app.include_router(gamification_router)
 app.include_router(memory_router)
 app.include_router(reviews_student_router)

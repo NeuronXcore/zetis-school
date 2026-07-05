@@ -1,5 +1,42 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.19.0 — Missions : sources, sélecteur déterministe, pilotage Papa (ADR-0017 lot 2)
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Module neutre `evidence/`** (patron ADR-0011, read-only, sans import `missions`/conseil) :
+  `mastery_by_skill`, `open_gaps`, `recent_verdicts`, `weighted_quiz_signal` (poids ADR-0014
+  consommé, jamais réécrit), `srs_pressure`. Test-verrou de neutralité.
+- **Générateurs par source** (idempotents, `pending`) : `generate-revision` (cartes SRS dues par
+  matière, `lesson|eli5 → quiz`), `generate-progression` (prochaine notion non maîtrisée d'un
+  chapitre actif / rattrapage jamais travaillé, `eli5 → vocal_explain → quiz`).
+- **Sélecteur déterministe versionné** (`selector.py`, `MISSION_SCORING_VERSION=v1`, zéro LLM) :
+  facteurs `severity`/`due_pressure`/`continuity`/`variety`(malus)/`forced_priority`, pondérations
+  en config ; `reason_code` = facteur dominant → **phrase template figée**.
+- **Frontière pilotage Papa** (`MissionPilotOut`, router dédié) : `GET /missions/pending`,
+  `POST /missions/{id}/reject`, `GET /missions/election/today` (recalcul à la demande, facteurs +
+  alternatives), `GET /missions/pilot?type=&subject=` (preuves brutes par étape),
+  `GET /missions/verdicts/recent`, `GET /missions/pilot/summary` (KPI). `generation_reason`
+  **calculé** au read (non stocké).
+- **Trace verdict** — `LearningEvent` `mission_verdict` à la complétion (source de `recent_verdicts`).
+- **Tests invariants 7–11** (sélecteur jamais pending, déterminisme, variety, reason ∈ dict figé,
+  aucun champ pilot chez student) + générateurs + pilotage. **340 back verts.**
+
+### Modifié — cassant
+
+- **`GET /missions/today`** : de liste triée à `{ elected, reason, reason_code, scoring_version,
+  alternatives }` (ADR-0017 §3). Split de schémas `MissionStudentOut` / `MissionPilotOut`
+  (deux routers, gate en requête). Lib frontend Massimo adaptée a minima (refonte visuelle =
+  slice séparée).
+- **`config` / `.env.example`** : `MISSION_SCORING_VERSION` + pondérations des facteurs.
+
+### Noté
+
+- `Mission.available_from` (DATA_MODEL) n'existe pas sur le modèle réel → toutes les validées
+  `planned|active` sont candidates (aucune migration ajoutée).
+
 ## 0.18.0 — Missions à preuves serveur + verdict d'acquisition (ADR-0017 lot 1)
 
 Date : 2026-07-05

@@ -133,8 +133,10 @@ def test_pending_mission_never_reaches_student(client_db) -> None:
             steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
             validation="pending",
         )
-    # Absente de today et de la liste ; invisible même par id (start → 404).
-    assert all(mm["id"] != mid for mm in client.get("/api/missions/today").json())
+    # Absente de today (élue + alternatives) et de la liste ; invisible même par id (start → 404).
+    today = client.get("/api/missions/today").json()
+    today_ids = {m["id"] for m in ([today["elected"]] if today["elected"] else []) + today["alternatives"]}
+    assert mid not in today_ids
     assert all(mm["id"] != mid for mm in client.get("/api/missions").json())
     assert client.post(f"/api/missions/{mid}/start").status_code == 404
     # Après validation Papa → visible.
