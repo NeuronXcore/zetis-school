@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type MindmapsSummary } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
+import { AnimatedMindmapIcon } from "../components/AnimatedMindmapIcon";
 import { SubjectDeckGrid } from "../components/SubjectDeckGrid";
 import { NeonBackdrop } from "../components/glass";
 import { fetchMindmapsSummary } from "../lib/mindmaps";
@@ -36,7 +37,12 @@ export function MindmapsPage() {
       <NeonBackdrop />
       <div className="relative">
         <PageHeader
-          title="🧠 Mes mindmaps"
+          title={
+            <span className="inline-flex items-center gap-3">
+              <AnimatedMindmapIcon className="h-12 w-12" />
+              Mes mindmaps
+            </span>
+          }
           subtitle="Vois la carte d'une notion, entraîne-toi à la compléter, puis reconstruis-la."
         />
 

@@ -64,8 +64,34 @@ Vérifié le 2026-07-05 (backend `app.main` sur la vraie DB dev, Ollama `Qwen3.6
   `xp_awarded:20` (= max(10, 30−5·2)), avec **XPEvent** (`mindmap_reconstruction`, 20, matière) et
   **MindmapAttempt** (score 100) réellement persistés. ✅
 
+### Polish UX front (session 2026-07-05 soir · NON commité · working-tree)
+
+Ajouts frontend Massimo par-dessus la Slice B (tous en working-tree, **81 tests massimo + tsc
+verts**, aucune modif backend) :
+
+- **Fiche de révision en panneau latéral gauche** sur l'écran 3 (`FicheSidePanel`) : bouton
+  « 🗂️ Voir la fiche », visible **uniquement en Regarde/Mémorise** (masqué + refermé en
+  Reconstruire = test). Retrouve la fiche via `subject_slug` + `lesson_id` → `fetchSubjectFiches`
+  → `fetchFiche` (endpoints existants, gate `validated`) ; réutilise `FicheCard` ; état doux si la
+  leçon n'a pas de fiche. Ne consomme PAS `markFicheSeen`.
+- **`MindmapWorkspace` : `mode` remonté en prop CONTRÔLÉE** (la page pilote le panneau fiche). Seul
+  consommateur = `MindmapSubjectPage`.
+- **Reconstruire — récompense** : un nœud bien placé devient **DORÉ** (état `correct` dans
+  `MindmapNode`, dégradé ambre + `mm-gold-pop`) et persiste au fil des passes ; **popup éphémère de
+  félicitation** grand + centré (`mm-cheer`, ~1,1 s, message aléatoire) à chaque bon dépôt.
+- **Progression par pastilles animées** (`PassDots`) en Mémorise et Reconstruire : une pastille par
+  passe (done pleine accent / active qui respire `mm-dot-active` / todo creuse) — remplace les
+  anciens pills « Passe X/N ».
+- **Sidebar** : entrée Mindmaps utilise l'icône de marque `assets/app/mindmaps.png` (repli emoji).
+- **En-tête `/mindmaps`** : emoji 🧠 remplacé par `AnimatedMindmapIcon` (SVG+CSS animé : nœuds
+  **rectangles** qui apparaissent un à un, **liens dorés** tracés en séquence, boucle ~3,8 s, **halo
+  doré** qui respire). `PageHeader.title` accepte désormais un `ReactNode`.
+- Keyframes ajoutées dans `src/index.css` : `mm-gold-pop`, `mm-cheer`, `mm-dot-active`,
+  `mm-fiche-cta` (halo du bouton fiche) — toutes `motion-safe`.
+
 ### EN COURS / reste EXACTEMENT
 
+0. **Polish UX front ci-dessus = NON commité** (working-tree) : à commiter avec / avant la PR.
 1. **Commité** : `47d2dde` (Slice B front + complément backend). Reste à **pousser + ouvrir la PR**.
 2. **Drag complet des 4 passes en navigateur réel NON simulé** (simulation de drag instable dans le
    preview) — mais la reconstruction + l'XP sont prouvés au niveau API sur la vraie DB, et le drag
@@ -95,8 +121,10 @@ Vérifié le 2026-07-05 (backend `app.main` sur la vraie DB dev, Ollama `Qwen3.6
 
 ### PROCHAIN PAS
 
-1. **Pousser la branche `mindmap` + ouvrir la PR** (Slice A `cfe2b43` + Slice B `47d2dde`).
-   L'E2E vrai backend est **fait et vert** (voir ci-dessus).
+1. **Commiter le polish UX front** (working-tree ci-dessus) puis **pousser la branche `mindmap` +
+   ouvrir la PR** (Slice A `cfe2b43` + Slice B `47d2dde` + polish). L'E2E vrai backend est **fait et
+   vert** (voir ci-dessus). Le rendu live du panneau fiche / icône animée reste à revoir en session
+   connectée (le preview est sur l'écran de login) — logique couverte par tsc + 81 tests.
 2. (Optionnel) Revérifier la page pilotage Papa + l'éditeur d'arbre en navigateur (login Papa).
 
 ### Repères (Git / orientation)

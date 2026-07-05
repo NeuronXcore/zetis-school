@@ -12,6 +12,7 @@ export type MindmapNodeState =
   | "slot" // Reconstruire : emplacement vide
   | "target" // Reconstruire : emplacement vide + une étiquette est sélectionnée (cible)
   | "filled" // Reconstruire : rempli, pas encore vérifié
+  | "correct" // Reconstruire : étiquette bien placée par Massimo → DORÉ (récompense immédiate)
   | "ok" // Reconstruire : vérifié juste (réponse serveur)
   | "ko"; // Reconstruire : vérifié faux (réponse serveur)
 
@@ -41,6 +42,8 @@ const STATE_CLASS: Record<MindmapNodeState, string> = {
   slot: "bg-white/5 text-slate-500 border-dashed border-white/25",
   target: "bg-cyan-500/10 text-cyan-200 border-dashed border-cyan-300/70 cursor-pointer ring-2 ring-cyan-400/40",
   filled: "bg-slate-800/90 text-slate-100 border-cyan-300/50 cursor-pointer",
+  correct:
+    "bg-gradient-to-br from-amber-300 to-yellow-500 text-amber-950 border-amber-200/80 font-semibold shadow-[0_0_18px_rgba(251,191,36,0.6)] motion-safe:animate-[mm-gold-pop_0.45s_ease-out]",
   ok: "bg-emerald-500/20 text-emerald-100 border-emerald-400/60",
   ko: "bg-rose-500/20 text-rose-100 border-rose-400/60",
 };

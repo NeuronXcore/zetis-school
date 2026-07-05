@@ -3,6 +3,7 @@
 import eli5Icon from "../assets/app/ELI5.png";
 import quizIcon from "../assets/app/quiz.png";
 import srsIcon from "../assets/app/SRS-cards.png";
+import mindmapsIcon from "../assets/app/mindmaps.png";
 
 export interface NavItem {
   to: string;
@@ -20,7 +21,8 @@ export const MASSIMO_NAV: NavItem[] = [
   { to: "/revision", label: "Révision", icon: "🗂️", image: srsIcon },
   { to: "/diagnostic", label: "Diagnostic", icon: "🧭" },
   { to: "/eli5", label: "ELI5", icon: "💡", image: eli5Icon },
-  { to: "/mindmaps", label: "Mindmaps", icon: "🕸️" },
+  // Icône de marque mindmaps.png (comme ELI5/SRS/Quiz) ; repli emoji 🕸️ si l'asset manque.
+  { to: "/mindmaps", label: "Mindmaps", icon: "🕸️", image: mindmapsIcon },
   { to: "/capsules", label: "Capsules IA", icon: "🎬" },
   // Fiches de révision (résumé d'une leçon sur une page) — dérivé du cours validé.
   { to: "/fiches", label: "Fiches", icon: "🗂️" },

@@ -51,14 +51,20 @@ const HINTS: Record<MindmapMode, string> = {
 export function MindmapWorkspace({
   mm,
   mindmapId,
+  mode,
+  onModeChange,
   accent = "#22d3ee",
 }: {
   mm: MindmapJson;
   mindmapId: number;
+  // Mode CONTRÔLÉ par la page (MindmapSubjectPage) : elle en a besoin pour piloter le panneau
+  // « fiche » (visible en Regarde/Mémorise, masqué en Reconstruire). Contrat inchangé par ailleurs.
+  mode: MindmapMode;
+  onModeChange: (m: MindmapMode) => void;
   accent?: string;
 }) {
   const [kind, setKind] = useState<LayoutKind>(() => defaultLayout(mm));
-  const [mode, setMode] = useState<MindmapMode>("view");
+  const setMode = onModeChange;
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [layoutError, setLayoutError] = useState(false);
 
@@ -76,6 +82,10 @@ export function MindmapWorkspace({
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [errorOpen, setErrorOpen] = useState(false);
   const [success, setSuccess] = useState<MindmapAttemptResult | null>(null);
+  // Félicitation ÉPHÉMÈRE à chaque bon placement : `n` change à chaque fois → relance l'animation ;
+  // effacée après ~1,1 s. Le timer est nettoyé au démontage / à la relance.
+  const [cheer, setCheer] = useState<{ n: number; msg: string } | null>(null);
+  const cheerTimer = useRef<number | null>(null);
   // Reconstruction en PASSES aléatoires : chaque passe blanchit un petit sous-ensemble (le reste de
   // la carte reste visible = contexte). Partition tirée au hasard à chaque séance ; nb de passes
   // adapté au nombre de nœuds. `buildPasses` = ids par passe ; `buildPass` = passe courante.
@@ -174,6 +184,15 @@ export function MindmapWorkspace({
   // un emplacement attend le nœud de sa propre position (`slotId`). Bon dépôt → posé ; mauvais →
   // REFUSÉ (l'étiquette revient à la banque) + popup d'erreur immédiat + compte un échec.
   // La reconstruction n'accumule donc que des placements justes ; l'XP final reste calculé serveur.
+  const cheerNow = useCallback(() => {
+    const MSGS = ["Bravo ! 🎉", "Bien joué ! ✨", "Parfait ! 🌟", "Excellent ! 💫", "Super ! 🏆", "Trop fort ! 🚀"];
+    const msg = MSGS[Math.floor(Math.random() * MSGS.length)];
+    setCheer((c) => ({ n: (c?.n ?? 0) + 1, msg }));
+    if (cheerTimer.current) window.clearTimeout(cheerTimer.current);
+    cheerTimer.current = window.setTimeout(() => setCheer(null), 1100);
+  }, []);
+  useEffect(() => () => void (cheerTimer.current && window.clearTimeout(cheerTimer.current)), []);
+
   const dropAt = useCallback(
     (slotId: string, chipNodeId: string) => {
       if (success) return;
@@ -183,8 +202,9 @@ export function MindmapWorkspace({
         return; // revert : ne pas placer l'étiquette
       }
       setAssignment((prev) => ({ ...prev, [slotId]: chipNodeId }));
+      cheerNow(); // bon placement → nœud doré (nodeStateFor) + félicitation éphémère
     },
-    [success],
+    [success, cheerNow],
   );
 
   // Emplacement (nœud blanchi de la passe courante) sous un point écran, ou null. Drop + survol.
@@ -238,12 +258,13 @@ export function MindmapWorkspace({
         if (levelIndex.get(id) !== pass) return "node";
         return revealed.has(id) ? "revealed" : "masked";
       }
-      // build : seuls les nœuds blanchis de la passe courante sont des emplacements ; le reste de la
-      // carte est montré comme CONTEXTE (labels visibles) — on ne blanchit jamais toute la carte.
+      // build : une étiquette bien placée par Massimo devient DORÉE (récompense qui persiste au fil
+      // des passes). Les nœuds blanchis restants sont des emplacements ; le reste = CONTEXTE (label).
+      if (assignment[id]) return "correct";
       if (!currentSlotSet.has(id)) return "node";
       return isDragging && dropTarget === id ? "target" : "slot";
     },
-    [mode, currentSlotSet, levelIndex, pass, revealed, isDragging, dropTarget],
+    [mode, assignment, currentSlotSet, levelIndex, pass, revealed, isDragging, dropTarget],
   );
 
   const labelFor = useCallback(
@@ -482,6 +503,18 @@ export function MindmapWorkspace({
     setMemorizeDone(false);
   }, []);
 
+  // Statuts des pastilles de progression (une par passe) pour chaque mode.
+  const trainStatuses: PassStatus[] = levels.map((_, i) =>
+    i < pass ? "done" : i === pass ? (passComplete ? "done" : "active") : "todo",
+  );
+  const buildStatuses: PassStatus[] = buildPasses.map((ids, i) =>
+    ids.length > 0 && ids.every((id) => Boolean(assignment[id]))
+      ? "done"
+      : i === buildPass
+        ? "active"
+        : "todo",
+  );
+
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -504,14 +537,7 @@ export function MindmapWorkspace({
       {mode === "train" ? (
         <div className="mb-2 flex min-h-[28px] flex-wrap items-center gap-x-3 gap-y-1 text-sm">
           <span className="text-slate-400">{HINTS.train}</span>
-          {levels.length > 0 && (
-            <span className="inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-2.5 py-0.5 text-cyan-200">
-              Passe {pass + 1}/{levels.length}
-              <span className="text-cyan-300">
-                · {revealedInLevel}/{currentLevelIds.length} révélées
-              </span>
-            </span>
-          )}
+          {levels.length > 0 && <PassDots statuses={trainStatuses} accent="cyan" />}
           {passComplete && !memorizeDone && (
             <button
               type="button"
@@ -527,12 +553,7 @@ export function MindmapWorkspace({
           <span className="text-slate-400">
             Replace les étiquettes blanchies — le reste de la carte t'aide.
           </span>
-          {buildPasses.length > 0 && (
-            <span className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-amber-200">
-              Passe {Math.min(buildPass + 1, buildPasses.length)}/{buildPasses.length}
-              <span className="text-amber-300">· {currentChunk.length} à placer</span>
-            </span>
-          )}
+          {buildPasses.length > 0 && <PassDots statuses={buildStatuses} accent="amber" />}
         </div>
       ) : (
         <p className="mb-2 min-h-[20px] text-sm text-slate-400">{HINTS[mode]}</p>
@@ -580,6 +601,19 @@ export function MindmapWorkspace({
               <Controls showInteractive={false} />
             </ReactFlow>
           </ReactFlowProvider>
+        )}
+
+        {/* Félicitation ÉPHÉMÈRE (Reconstruire) : toast doré non bloquant à chaque bon placement.
+            `key={cheer.n}` remonte l'élément → l'animation repart même sur deux bons dépôts d'affilée. */}
+        {mode === "build" && cheer && (
+          <div
+            key={cheer.n}
+            className="pointer-events-none absolute inset-0 z-40 grid place-items-center motion-safe:animate-[mm-cheer_1.1s_ease-out_forwards]"
+          >
+            <span className="rounded-3xl border border-amber-300/60 bg-slate-900/90 px-8 py-5 text-3xl font-extrabold text-amber-200 shadow-[0_8px_40px_rgba(251,191,36,0.6)] sm:text-4xl">
+              {cheer.msg}
+            </span>
+          </div>
         )}
 
         {/* Popup de fin de mémorisation : ZETIS invite à reconstruire pour gagner des XP. */}
@@ -702,6 +736,43 @@ export function MindmapWorkspace({
         </div>
       )}
     </div>
+  );
+}
+
+// Points de progression des PASSES : une pastille par passe. « done » = passe réussie (pleine,
+// accent), « active » = passe en cours (respire), « todo » = à venir (creuse). Le changement de
+// statut est animé (transition douce) → Massimo voit chaque passe se valider.
+type PassStatus = "done" | "active" | "todo";
+
+function PassDots({ statuses, accent }: { statuses: PassStatus[]; accent: "cyan" | "amber" }) {
+  const doneCls = accent === "amber" ? "border-amber-300 bg-amber-400" : "border-cyan-300 bg-cyan-400";
+  const activeCls =
+    accent === "amber"
+      ? "border-amber-300 bg-amber-400/30 text-amber-400"
+      : "border-cyan-300 bg-cyan-400/30 text-cyan-400";
+  const doneCount = statuses.filter((s) => s === "done").length;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5"
+      role="progressbar"
+      aria-label="Progression des passes"
+      aria-valuemin={0}
+      aria-valuemax={statuses.length}
+      aria-valuenow={doneCount}
+    >
+      {statuses.map((s, i) => (
+        <span
+          key={i}
+          className={`h-3 w-3 rounded-full border transition-all duration-300 ${
+            s === "done"
+              ? doneCls
+              : s === "active"
+                ? `${activeCls} motion-safe:animate-[mm-dot-active_1.1s_ease-in-out_infinite]`
+                : "border-white/20 bg-white/5"
+          }`}
+        />
+      ))}
+    </span>
   );
 }
 

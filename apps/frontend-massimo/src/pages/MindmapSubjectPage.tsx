@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { type MindmapDetail, type MindmapListItem } from "@zetis/types";
 import { MindmapWorkspace } from "../components/mindmap/MindmapWorkspace";
+import { type MindmapMode } from "../components/mindmap/ModeSegmented";
+import { FicheSidePanel } from "../components/mindmap/FicheSidePanel";
 import { NeonBackdrop } from "../components/glass";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -26,6 +28,10 @@ export function MindmapSubjectPage() {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [detail, setDetail] = useState<MindmapDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // Mode possédé ici (et non dans MindmapWorkspace) : il pilote le panneau « fiche » — consultable
+  // en Regarde/Mémorise, fermé de force en Reconstruire (voir la fiche pendant le test = triche).
+  const [mode, setMode] = useState<MindmapMode>("view");
+  const [ficheOpen, setFicheOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -45,6 +51,8 @@ export function MindmapSubjectPage() {
       setOpenIdx(idx);
       setDetail(null);
       setDetailLoading(true);
+      setMode("view");
+      setFicheOpen(false);
       try {
         const [mm] = await Promise.all([fetchMindmap(item.id), markMindmapSeen(item.id)]);
         setDetail(mm);
@@ -72,8 +80,10 @@ export function MindmapSubjectPage() {
 
   // ── Écran 3 : la carte interactive ────────────────────────────────────────
   if (openIdx !== null && list) {
+    // Le panneau « fiche » n'est ouvert que hors mode Reconstruire (build).
+    const showFiche = ficheOpen && mode !== "build";
     return (
-      <div className="relative mx-auto max-w-5xl">
+      <div className={`relative mx-auto ${showFiche ? "max-w-7xl" : "max-w-5xl"}`}>
         <NeonBackdrop />
         <div className="relative">
           <div className="mb-4 flex items-center justify-between">
@@ -91,15 +101,57 @@ export function MindmapSubjectPage() {
             <p className="text-zetis-muted">Chargement de la carte…</p>
           ) : (
             <>
-              <div className="mb-3 flex items-center gap-2">
-                <span className="text-lg font-bold text-slate-100">{detail.title}</span>
-                {detail.chapter && (
-                  <span className="text-xs font-medium uppercase tracking-wide text-cyan-300">
-                    {detail.chapter}
-                  </span>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-lg font-bold text-slate-100">{detail.title}</span>
+                  {detail.chapter && (
+                    <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-cyan-300">
+                      {detail.chapter}
+                    </span>
+                  )}
+                </div>
+                {/* En Reconstruire, on masque le bouton : consulter la fiche fausserait le test. */}
+                {mode !== "build" && (
+                  <button
+                    type="button"
+                    onClick={() => setFicheOpen((o) => !o)}
+                    aria-pressed={showFiche}
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      showFiche
+                        ? "border-cyan-300/60 bg-cyan-500/20 text-cyan-100"
+                        : "border-cyan-400/40 bg-cyan-500/15 text-cyan-100 hover:border-cyan-300/70 hover:bg-cyan-500/25 motion-safe:animate-[mm-fiche-cta_2.2s_ease-in-out_infinite]"
+                    }`}
+                  >
+                    {showFiche ? "✕ Masquer la fiche" : "🗂️ Voir la fiche"}
+                  </button>
                 )}
               </div>
-              <MindmapWorkspace mm={detail.mindmap_json} mindmapId={detail.id} />
+
+              {/* Fiche à GAUCHE, carte à droite (même page) — empilé en mobile, côte à côte en lg. */}
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                {showFiche && (
+                  <div className="min-w-0 lg:flex-[2]">
+                    <FicheSidePanel
+                      key={detail.lesson_id}
+                      subjectSlug={detail.subject_slug || slug}
+                      lessonId={detail.lesson_id}
+                      title={detail.title}
+                      onClose={() => setFicheOpen(false)}
+                    />
+                  </div>
+                )}
+                <div className="min-w-0 lg:flex-[3]">
+                  <MindmapWorkspace
+                    mm={detail.mindmap_json}
+                    mindmapId={detail.id}
+                    mode={mode}
+                    onModeChange={(m) => {
+                      setMode(m);
+                      if (m === "build") setFicheOpen(false);
+                    }}
+                  />
+                </div>
+              </div>
             </>
           )}
         </div>
