@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS Papa — Missions · pilotage (maquette)</title>
+<style>
+  :root{
+    --papa:#10b981; --papa-dark:#059669; --papa-50:#ecfdf5; --papa-100:#d1fae5;
+    --bg:#f8fafc; --card:#ffffff; --border:#e2e8f0; --fg:#0f172a; --muted:#64748b;
+    --violet-bg:#ede9fe; --violet-fg:#6d28d9;
+    --ambre-bg:#fef3c7; --ambre-fg:#b45309;
+    --rouge-bg:#fee2e2; --rouge-fg:#b91c1c;
+    --bleu-bg:#dbeafe; --bleu-fg:#1d4ed8;
+    --indigo-bg:#e0e7ff; --indigo-fg:#4338ca;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,-apple-system,sans-serif}
+  body{background:var(--bg);color:var(--fg);font-size:14px}
+  .layout{display:flex;min-height:100vh}
+
+  /* sidebar (repère) */
+  .sidebar{width:200px;background:#0f172a;color:#94a3b8;padding:20px 12px;flex-shrink:0}
+  .sidebar .logo{font-weight:800;letter-spacing:.2em;color:var(--papa);font-size:15px;margin-bottom:24px;padding-left:8px}
+  .sidebar a{display:block;padding:8px 10px;border-radius:8px;color:#94a3b8;text-decoration:none;font-size:13px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(16,185,129,.15);color:var(--papa)}
+  .sidebar .vbadge{float:right;background:var(--ambre-bg);color:var(--ambre-fg);border-radius:999px;font-size:11px;font-weight:700;padding:1px 8px}
+
+  main{flex:1;padding:28px 32px;max-width:1080px}
+  .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+  h1{font-size:22px;font-weight:700}
+  .subtitle{color:var(--muted);font-size:13px;margin-top:4px;max-width:600px}
+  .btn{border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--papa);color:#fff}
+  .btn-primary:hover{background:var(--papa-dark)}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--fg)}
+  .btn-ghost:hover{background:#f1f5f9}
+  .btn-danger-ghost{background:transparent;border:1px solid #fecaca;color:var(--rouge-fg);font-size:12px;padding:5px 10px}
+  .btn-danger-ghost:hover{background:var(--rouge-bg)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .kpi .val{font-size:22px;font-weight:700}
+  .kpi .lbl{color:var(--muted);font-size:12px;margin-top:2px}
+  .kpi.warn .val{color:var(--ambre-fg)}
+  .kpi.ok .val{color:var(--papa-dark)}
+
+  section{margin-bottom:26px}
+  section>h2{font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  section>h2 .cnt{background:var(--ambre-bg);color:var(--ambre-fg);border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px}
+  section>h2 .hint{font-weight:400;color:var(--muted);font-size:12px}
+
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
+  .b-remediation{background:var(--indigo-bg);color:var(--indigo-fg)}
+  .b-revision{background:var(--bleu-bg);color:var(--bleu-fg)}
+  .b-progression{background:var(--violet-bg);color:var(--violet-fg)}
+  .b-manual{background:var(--papa-100);color:#065f46}
+  .b-cross{background:linear-gradient(90deg,var(--indigo-bg),var(--violet-bg));color:var(--indigo-fg)}
+  .b-acquired{background:var(--papa-100);color:#065f46}
+  .b-later{background:var(--indigo-bg);color:var(--indigo-fg)}
+
+  /* ===== Zone À valider (5ter) ===== */
+  .pending-card{background:var(--card);border:1px solid #fde68a;border-radius:12px;overflow:hidden}
+  .pending-head{display:flex;align-items:center;gap:12px;background:#fffbeb;padding:10px 16px;border-bottom:1px solid #fde68a}
+  .pending-head label{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;cursor:pointer}
+  .pending-head .spacer{flex:1}
+  .prow{display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--border);font-size:13.5px}
+  .prow:last-child{border-bottom:none}
+  .prow input{width:15px;height:15px;accent-color:var(--papa)}
+  .prow .title{font-weight:600}
+  .prow .meta{color:var(--muted);font-size:12px;margin-top:2px}
+  .prow .info{flex:1;min-width:0}
+  .steps-mini{font-size:12px;color:var(--muted);letter-spacing:.05em;white-space:nowrap}
+
+  /* ===== Élue aujourd'hui ===== */
+  .elected{background:var(--card);border:1px solid var(--border);border-left:4px solid var(--papa);border-radius:12px;padding:16px 18px}
+  .elected .top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .elected .title{font-weight:700;font-size:15px}
+  .elected .score{font-variant-numeric:tabular-nums;font-weight:700;color:var(--papa-dark)}
+  .elected .ver{margin-left:auto;font-size:11px;color:var(--muted);font-family:ui-monospace,monospace}
+  .factors{display:grid;grid-template-columns:120px 1fr 60px;gap:8px 12px;align-items:center;max-width:560px}
+  .factors .fname{font-size:12.5px;color:var(--muted)}
+  .factors .fname.dominant{color:var(--papa-dark);font-weight:700}
+  .fbar{height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden}
+  .fbar i{display:block;height:100%;background:var(--papa);border-radius:4px}
+  .fbar.neg i{background:#f87171}
+  .factors .fval{font-size:12px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+  .alts{margin-top:12px;font-size:12.5px;color:var(--muted)}
+  .alts b{color:var(--fg);font-weight:600}
+  .reason-line{margin-top:10px;font-size:12.5px;background:var(--papa-50);border-left:3px solid var(--papa);border-radius:0 8px 8px 0;padding:7px 12px;color:#065f46}
+
+  /* ===== Suivi ===== */
+  .filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .pill{padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:13px;color:var(--muted)}
+  .pill.active{background:var(--papa);border-color:var(--papa);color:#fff;font-weight:600}
+  .mrow{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .mrow .info{flex:1;min-width:0}
+  .mrow .title{font-weight:600;font-size:14px}
+  .mrow .meta{color:var(--muted);font-size:12px;margin-top:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .proof{font-size:12px;color:var(--muted);white-space:nowrap}
+  .proof b{color:var(--papa-dark)}
+  .star{color:var(--ambre-fg);font-size:12px;font-weight:700}
+
+  /* ===== Verdicts ===== */
+  .vrow{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 16px;display:flex;align-items:center;gap:14px;margin-bottom:8px;font-size:13.5px}
+  .vrow .scores{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .vrow .scores b{color:var(--fg)}
+  .srs-arrow{font-size:12px;color:var(--indigo-fg);font-weight:600;white-space:nowrap}
+
+  /* ===== Modale Commander (3 portes) ===== */
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;z-index:50}
+  .overlay.open{display:flex}
+  .modal{background:var(--card);border-radius:16px;max-width:640px;width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+  .modal h2{font-size:17px;font-weight:700}
+  .modal .sub{font-size:12.5px;color:var(--muted);margin-bottom:16px}
+  .close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)}
+  .portes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
+  .porte{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--card);cursor:pointer;text-align:left}
+  .porte .pt{font-size:13px;font-weight:700}
+  .porte .pd{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .porte.active{border-color:var(--papa);background:var(--papa-50)}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600}
+  .field input[type=text]{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:13.5px}
+  .resolved{border:1px solid var(--border);border-radius:12px;padding:4px 0;margin-bottom:14px}
+  .resolved-head{font-size:11.5px;color:var(--muted);padding:8px 14px 4px;font-weight:600;letter-spacing:.04em}
+  .skillrow{display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:13px}
+  .skillrow input{width:14px;height:14px;accent-color:var(--papa)}
+  .skillrow .sn{flex:1}
+  .skillrow .frag{font-size:11px;border-radius:999px;padding:2px 8px;font-weight:600}
+  .frag.hi{background:var(--rouge-bg);color:var(--rouge-fg)}
+  .frag.mid{background:var(--ambre-bg);color:var(--ambre-fg)}
+  .frag.lo{background:var(--papa-100);color:#065f46}
+  .skillrow .sim{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;width:64px;text-align:right}
+  .skillrow.unchecked{opacity:.45}
+  .compose-note{font-size:12px;color:var(--muted);background:#f8fafc;border-left:3px solid var(--papa);border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:16px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px}
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <nav class="sidebar">
+    <div class="logo">ZETIS · PAPA</div>
+    <a href="#">Dashboard</a>
+    <a href="#">Programme</a>
+    <a href="#">Sources de cours</a>
+    <a href="#">Quiz</a>
+    <a href="#">Cartes SRS</a>
+    <a href="#" class="active">Missions <span class="vbadge">4</span></a>
+    <a href="#">Diagnostics</a>
+    <a href="#">Lacunes</a>
+    <a href="#">Conseil de classe IA</a>
+    <a href="#">Cahier de bord IA</a>
+  </nav>
+
+  <main>
+    <div class="page-header">
+      <div>
+        <h1>Missions — pilotage</h1>
+        <div class="subtitle">ZETIS compose les missions depuis l'évidence mesurée (maîtrise, lacunes, verdicts).
+        Rien n'atteint Massimo sans votre validation. Vous pouvez commander une mission sur une échéance ou une thématique.</div>
+      </div>
+      <button class="btn btn-primary" onclick="document.getElementById('cmd').classList.add('open')">+ Commander une mission</button>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpis">
+      <div class="kpi warn"><div class="val">4</div><div class="lbl">à valider</div></div>
+      <div class="kpi"><div class="val">6</div><div class="lbl">dans le pool (validées)</div></div>
+      <div class="kpi ok"><div class="val">5</div><div class="lbl">terminées cette semaine</div></div>
+      <div class="kpi ok"><div class="val">72 %</div><div class="lbl">verdicts « acquise » (30 j)</div></div>
+    </div>
+
+    <!-- ================= À VALIDER (5ter) ================= -->
+    <section>
+      <h2>À valider <span class="cnt">4</span> <span class="hint">— missions générées, invisibles pour Massimo tant que non validées</span></h2>
+      <div class="pending-card">
+        <div class="pending-head">
+          <label><input type="checkbox" checked onclick="toggleAll(this)"> Tout sélectionner</label>
+          <span class="spacer"></span>
+          <button class="btn btn-primary" style="padding:6px 14px">Valider la sélection (4)</button>
+        </div>
+        <div class="prow">
+          <input type="checkbox" checked>
+          <div class="info">
+            <div class="title">Renforcer : les classes de mots</div>
+            <div class="meta">📖 Français · notion « Classes de mots » · lacune sévérité 0.7 · 💡→🎙→❓</div>
+          </div>
+          <span class="badge b-remediation">remediation</span>
+          <button class="btn-danger-ghost btn">Rejeter</button>
+        </div>
+        <div class="prow">
+          <input type="checkbox" checked>
+          <div class="info">
+            <div class="title">Découvrir : le théorème de Pythagore</div>
+            <div class="meta">➗ Maths · prochaine notion du chapitre « Triangle rectangle » · 📘→💡→🎙→❓</div>
+          </div>
+          <span class="badge b-progression">progression</span>
+          <button class="btn-danger-ghost btn">Rejeter</button>
+        </div>
+        <div class="prow">
+          <input type="checkbox" checked>
+          <div class="info">
+            <div class="title">Réviser : cartes d'Histoire-Géo</div>
+            <div class="meta">🌍 Histoire-Géo · 6 cartes dues · 📘→❓</div>
+          </div>
+          <span class="badge b-revision">revision</span>
+          <button class="btn-danger-ghost btn">Rejeter</button>
+        </div>
+        <div class="prow">
+          <input type="checkbox" checked>
+          <div class="info">
+            <div class="title">Rattrapage : proportionnalité (5ᵉ)</div>
+            <div class="meta">➗ Maths · notion de rattrapage jamais travaillée (ADR-0010) · 💡→🎙→❓</div>
+          </div>
+          <span class="badge b-progression">progression</span>
+          <button class="btn-danger-ghost btn">Rejeter</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ÉLUE AUJOURD'HUI ================= -->
+    <section>
+      <h2>Élue aujourd'hui <span class="hint">— pourquoi cette mission, facteur par facteur</span></h2>
+      <div class="elected">
+        <div class="top">
+          <span class="title">Renforcer les nombres relatifs</span>
+          <span class="badge b-remediation">remediation</span>
+          <span class="score">score 0.82</span>
+          <span class="ver">MISSION_SCORING_VERSION=v1</span>
+        </div>
+        <div class="factors">
+          <span class="fname">severity</span><div class="fbar"><i style="width:40%"></i></div><span class="fval">+0.40</span>
+          <span class="fname dominant">due_pressure ◄</span><div class="fbar"><i style="width:32%"></i></div><span class="fval">+0.32</span>
+          <span class="fname">continuity</span><div class="fbar"><i style="width:20%"></i></div><span class="fval">+0.20</span>
+          <span class="fname">variety</span><div class="fbar neg"><i style="width:10%"></i></div><span class="fval">−0.10</span>
+        </div>
+        <div class="reason-line">Phrase servie à Massimo (dérivée du facteur dominant) : « Parce que cette notion revient bientôt »</div>
+        <div class="alts">Alternatives non retenues : <b>Les temps du récit</b> (0.71) · <b>Pythagore</b> (0.64)</div>
+      </div>
+    </section>
+
+    <!-- ================= EN COURS / PLANIFIÉES ================= -->
+    <section>
+      <h2>En cours &amp; planifiées <span class="hint">— preuves par étape, jamais du déclaratif</span></h2>
+      <div class="filters">
+        <button class="pill active">Toutes</button>
+        <button class="pill">remediation</button>
+        <button class="pill">revision</button>
+        <button class="pill">progression</button>
+        <button class="pill">manual</button>
+        <select><option>Toutes matières</option><option>Français</option><option>Maths</option></select>
+      </div>
+      <div class="mrow">
+        <div class="info">
+          <div class="title">Renforcer les nombres relatifs <span class="badge b-remediation">remediation</span></div>
+          <div class="meta">➗ Maths · active · étape courante : Verbaliser</div>
+        </div>
+        <span class="proof">💡 lu ✓ · 🎙 — · ❓ —</span>
+      </div>
+      <div class="mrow">
+        <div class="info">
+          <div class="title">Les temps du récit <span class="badge b-remediation">remediation</span></div>
+          <div class="meta">📖 Français · active</div>
+        </div>
+        <span class="proof">💡 lu ✓ · 🎙 reverse <b>0.8</b> ✓ · ❓ —</span>
+      </div>
+      <div class="mrow">
+        <div class="info">
+          <div class="title">Préparer le contrôle de jeudi <span class="badge b-manual">manual</span> <span class="star">★ priorité forcée</span></div>
+          <div class="meta">🌍 Histoire-Géo · planifiée · commandée le 04/07 (porte : échéance)</div>
+        </div>
+        <span class="proof">📘 — · 💡 — · ❓ —</span>
+      </div>
+      <div class="mrow">
+        <div class="info">
+          <div class="title">Lire et résumer un texte scientifique <span class="badge b-cross">croisée</span> <span class="badge b-manual">manual</span></div>
+          <div class="meta">📖 Français × 🌿 SVT · planifiée · proposée par le Conseil de classe</div>
+        </div>
+        <span class="proof">📘 — · 💡 — · 🎙 — · ❓ —</span>
+      </div>
+    </section>
+
+    <!-- ================= VERDICTS RÉCENTS ================= -->
+    <section>
+      <h2>Verdicts récents <span class="hint">— compléter ≠ acquérir ; l'XP est crédité dans les deux cas</span></h2>
+      <div class="vrow">
+        <span class="badge b-acquired">✓ acquise</span>
+        <div>Les fractions — comparer et ranger <span style="color:var(--muted);font-size:12px">· ➗ Maths · 03/07</span></div>
+        <span class="scores">quiz <b>85 %</b> · reverse <b>0.8</b> · lacune → résolue · +60 XP</span>
+      </div>
+      <div class="vrow">
+        <span class="badge b-later">↻ à revoir</span>
+        <div>L'accord du participe passé <span style="color:var(--muted);font-size:12px">· 📖 Français · 02/07</span></div>
+        <span class="scores">quiz <b>55 %</b> · reverse <b>0.4</b> · +50 XP</span>
+        <span class="srs-arrow">→ carte SRS reprogrammée</span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ================= MODALE : COMMANDER UNE MISSION (3 portes) ================= -->
+<div class="overlay" id="cmd">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Commander une mission</h2>
+      <button class="close" onclick="document.getElementById('cmd').classList.remove('open')">✕</button>
+    </div>
+    <div class="sub">Vous donnez l'intention — ZETIS compose depuis l'évidence (maîtrise, lacunes, verdicts). Rien n'est créé avant confirmation.</div>
+
+    <div class="portes">
+      <button class="porte" onclick="alert('Maquette : ouvre la liste des recommandations du Conseil de classe')">
+        <div class="pt">📋 Recommandation</div>
+        <div class="pd">Depuis le Conseil de classe IA</div>
+      </button>
+      <button class="porte" onclick="alert('Maquette : sélecteur chapitre + date')">
+        <div class="pt">📅 Échéance</div>
+        <div class="pd">Contrôle, exposé… sur un chapitre</div>
+      </button>
+      <button class="porte active">
+        <div class="pt">🎯 Thématique</div>
+        <div class="pd">Texte libre → notions résolues</div>
+      </button>
+    </div>
+
+    <div class="field">
+      <label>Thématique</label>
+      <input type="text" value="les fractions">
+    </div>
+
+    <div class="resolved">
+      <div class="resolved-head">NOTIONS RÉSOLUES (similarité × fragilité) — décochez ce qui ne convient pas</div>
+      <div class="skillrow">
+        <input type="checkbox" checked>
+        <span class="sn">Comparer et ranger des fractions <span style="color:var(--muted);font-size:11px">· 4ᵉ</span></span>
+        <span class="frag hi">fragile 0.35</span><span class="sim">sim 0.91</span>
+      </div>
+      <div class="skillrow">
+        <input type="checkbox" checked>
+        <span class="sn">Additionner des fractions de même dénominateur <span style="color:var(--muted);font-size:11px">· 5ᵉ rattrapage</span></span>
+        <span class="frag mid">moyen 0.55</span><span class="sim">sim 0.88</span>
+      </div>
+      <div class="skillrow unchecked">
+        <input type="checkbox" onclick="this.closest('.skillrow').classList.toggle('unchecked')">
+        <span class="sn">Fractions et pourcentages <span style="color:var(--muted);font-size:11px">· 4ᵉ</span></span>
+        <span class="frag lo">solide 0.85</span><span class="sim">sim 0.82</span>
+      </div>
+    </div>
+
+    <div class="compose-note">ZETIS composera <b>1 mission</b> ciblant les 2 notions cochées, parcours 💡→🎙→❓, ~15 min.
+    La notion « solide » a été décochée automatiquement (maîtrise ≥ 0.8) — recochable.</div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('cmd').classList.remove('open')">Annuler</button>
+      <button class="btn btn-primary">Confirmer — créer la mission</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleAll(cb){
+    document.querySelectorAll('.prow input[type=checkbox]').forEach(c => c.checked = cb.checked);
+  }
+</script>
+</body>
+</html>
