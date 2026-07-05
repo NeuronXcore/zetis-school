@@ -25,16 +25,21 @@ export function MassimoSidebar() {
 
   return (
     <aside className="flex w-60 shrink-0 flex-col gap-2 border-r border-zetis-border bg-zetis-surface p-4">
-      <div className="mb-5 flex items-center gap-2.5 px-1">
-        <img
-          src={zetisAvatar}
-          alt="ZETIS"
-          className="h-16 w-16 shrink-0 rounded-full object-cover"
-        />
+      <style>{ZLOGO_CSS}</style>
+      <div className="mb-5 flex flex-col items-center gap-3 px-1">
+        {/* Logo avec halo animé : un anneau néon dégradé qui tourne derrière le logo. */}
+        <div className="zlogo relative h-16 w-16">
+          <span className="zlogo-halo" aria-hidden />
+          <img
+            src={zetisAvatar}
+            alt="ZETIS"
+            className="zlogo-img h-16 w-16 rounded-full object-cover"
+          />
+        </div>
         <img
           src={zetisWordmark}
           alt="ZETIS"
-          className="h-7 w-auto min-w-0 object-contain"
+          className="h-9 w-auto max-w-full object-contain"
         />
       </div>
 
@@ -80,3 +85,12 @@ export function MassimoSidebar() {
     </aside>
   );
 }
+
+const ZLOGO_CSS = `
+.zlogo-halo{position:absolute;inset:-7px;border-radius:9999px;z-index:0;
+  background:conic-gradient(from 0deg,#22d3ee,#6366f1,#a855f7,#e879f9,#22d3ee);
+  filter:blur(9px);opacity:.75;animation:zlogo-spin 5.5s linear infinite}
+.zlogo-img{position:relative;z-index:1}
+@keyframes zlogo-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.zlogo-halo{animation:none}}
+`;
