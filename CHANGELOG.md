@@ -1,5 +1,42 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.18.0 — Missions à preuves serveur + verdict d'acquisition (ADR-0017 lot 1)
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Preuves serveur des étapes** — `POST /api/missions/{id}/start` (`planned → active`, idempotent,
+  horodate `started_at`) et `POST /api/missions/{id}/steps/{step_id}/complete` : une étape ne se
+  valide que si sa **preuve** existe (`eli5`/`lesson` = consultation tracée ; `vocal_explain` = score
+  reverse ; `quiz` = `QuizAttempt` `context=mission`), **postérieure au `start`** et **dans l'ordre**
+  (`sort_order`) — sinon **409**. Fin de la complétion déclarative de l'étape 15.
+- **Verdict d'acquisition découplé** (§5bis) — la dernière étape crédite **+50 XP inconditionnels**
+  (effort) puis calcule un verdict : `acquired` (reverse ≥ `MISSION_REVERSE_THRESHOLD` **et** quiz ≥
+  `MISSION_QUIZ_THRESHOLD` → mastery↑, lacune `resolved`) ou `review_later` (mastery honnête, lacune
+  `in_progress`, **carte SRS (re)programmée**). Deux issues, toutes deux positives.
+- **Validation Papa** (§5ter) — missions générées naissent `validation_status = pending` ; gate
+  `validated` **dans la requête** des routes student (invisible même par id) ;
+  `POST /api/missions/validate {ids}` (validation en lot, minimal — pilotage complet = Lot 2).
+- **Config** — `MISSION_XP_REWARD` (50), `MISSION_REVERSE_THRESHOLD`, `MISSION_QUIZ_THRESHOLD`.
+- **Tests d'invariants** (6) — pending jamais exposé, preuve absente/antérieure/hors-ordre → 409,
+  XP même si `review_later`, `review_later` ⇒ lacune `in_progress` + carte SRS, `failed` jamais écrit
+  par un flux enfant, aucune pénalité de temps ; + verdict `acquired` (quiz + reverse).
+
+### Modifié
+
+- **Migration `f3a4b5c6d7e8`** — `missions.validation_status` (NOT NULL, backfill existant →
+  `validated`), `missions.subject_id` → nullable, `missions.started_at`, `mission_steps.resource_id`.
+- **Générateur `generate_remediation`** — missions `pending`, `step_type` alignés ADR
+  (`eli5`/`vocal_explain`/`quiz`), `resource_id` réels ; l'étape `quiz` réutilise un quiz de mission
+  prêt couvrant la notion, sinon est omise (auto-génération = Lot 2).
+- **Frontend Massimo minimal** — `MissionsPage` : démarrer + valider chaque étape (409 parlant) ;
+  refonte visuelle complète = slice frontend séparée.
+
+### Retiré
+
+- `POST /api/missions/{id}/complete` (complétion déclarative + résolution directe de lacune).
+
 ## 0.17.0 — Fiches de révision (ADR-0015) : backend + viewer Massimo + pilotage Papa
 
 Date : 2026-07-05

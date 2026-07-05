@@ -5,6 +5,20 @@
 Proposé — 2026-07-05. Draft préparé pendant le chantier référentiel ; ouverture
 du chantier missions après clôture du chantier actif (règle mono-chantier).
 
+> **Amendement acté à l'implémentation du Lot 1 (2026-07-05).** Read-before-code : la
+> prémisse « `MissionStep.resource_id` existe déjà → **zéro migration** pour le ciblage »
+> (décision 5) était **fausse** contre le modèle réel — le champ n'existait pas, et le
+> vocabulaire `step_type` réel était `explain`/`reverse`/`quiz` (≠ `eli5`/`vocal_explain`/`quiz`).
+> Stop-on-blocker → décisions validées avec le commanditaire :
+> 1. `mission_steps.resource_id` **ajouté** à la migration `f3a4b5c6d7e8` (le ciblage l'exige) ;
+> 2. `step_type` réels **migrés** `explain→eli5`, `reverse→vocal_explain` (alignement ADR/DATA_MODEL) ;
+> 3. la preuve « postérieure au start » impose de **persister `missions.started_at`** (même migration) ;
+> 4. l'auto-génération du quiz de mission (« générer via ADR-0014 si absent », déc. 5) est
+>    **reportée au Lot 2** : le moteur quiz est verrouillé à une leçon validée + LLM, indisponible
+>    pour une lacune de diagnostic sans leçon. Lot 1 : réutilise un quiz prêt couvrant la notion,
+>    sinon l'étape quiz est omise (mission à 2 étapes → verdict `review_later` par défaut, la
+>    notion revient via SRS). Générateur `generate_remediation` resté **pur-DB** (déterministe).
+
 > S'appuie sur : `adr-0009`/`adr-0010` (les `Skill` sont le référentiel durable,
 > y compris les notions de rattrapage skills-only), l'étape 15 (missions de
 > remédiation à étapes **déterministes**, décision réaffirmée ici), `adr-0008`

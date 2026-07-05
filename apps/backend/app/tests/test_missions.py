@@ -1,17 +1,86 @@
-"""Tests missions de remédiation (SQLite + FakeLLMProvider).
+"""Tests missions — proof-based steps + verdict d'acquisition (ADR-0017 lot 1).
 
-Les lacunes sont créées via un diagnostic raté, puis transformées en missions.
-Couvre la génération, l'idempotence, la vue « du jour » et la complétion
-(lacune résolue + XP)."""
+Deux niveaux :
+- intégration : générer (pending) → valider (Papa) → exposer aux routes student ;
+- invariants (un test par invariant du prompt lot 1), en construisant les missions et leurs
+  preuves directement en base (le fixture n'a ni leçon ni quiz — on maîtrise chaque timestamp).
+"""
+
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
 import app.db.models as m
 
 
+# --- Helpers ------------------------------------------------------------------------------
+
+
+def _seeded(db):
+    student = db.scalar(select(m.StudentProfile))
+    skill = db.scalar(select(m.Skill))
+    subject = db.scalar(select(m.Subject))
+    return student, skill, subject
+
+
+def _make_mission(db, *, student, skill, subject, steps, validation="validated"):
+    """Crée une mission `remediation` avec ses étapes (step_type, resource_id). Retourne son id."""
+    mission = m.Mission(
+        student_id=student.id,
+        subject_id=subject.id,
+        skill_id=skill.id,
+        title=f"Renforcer : {skill.name}",
+        mission_type="remediation",
+        status="planned",
+        validation_status=validation,
+        priority=1,
+        created_by="ai",
+    )
+    db.add(mission)
+    db.flush()
+    for index, (step_type, resource_id) in enumerate(steps):
+        db.add(
+            m.MissionStep(
+                mission_id=mission.id,
+                step_type=step_type,
+                resource_id=resource_id,
+                sort_order=index,
+                status="pending",
+            )
+        )
+    db.commit()
+    return mission.id
+
+
+def _add_reverse_event(db, *, student, skill, score, at):
+    db.add(
+        m.LearningEvent(
+            student_id=student.id,
+            subject_id=skill.subject_id,
+            skill_id=skill.id,
+            event_type="reverse_eli5",
+            payload_json={"score": score},
+            created_at=at,
+        )
+    )
+    db.commit()
+
+
+def _add_mission_quiz_attempt(db, *, student, quiz_id, score, at):
+    db.add(
+        m.QuizAttempt(
+            quiz_id=quiz_id,
+            student_id=student.id,
+            started_at=at,
+            completed_at=at,
+            score_percent=score,
+            context="mission",
+        )
+    )
+    db.commit()
+
+
 def _open_gaps_via_failed_diagnostic(client) -> None:
-    """Génère un diagnostic (subject_id=1 = Mathématiques en test) et y répond faux
-    → ouvre au moins une lacune."""
     body = client.post("/api/diagnostics/generate", json={"subject_id": 1}).json()
     quiz = client.get(f"/api/diagnostics/quizzes/{body['quiz_id']}").json()
     answers = [{"question_id": q["id"], "choice_index": 1} for q in quiz["questions"]]
@@ -19,61 +88,297 @@ def _open_gaps_via_failed_diagnostic(client) -> None:
     assert res.json()["gaps"], "le diagnostic raté doit ouvrir une lacune"
 
 
-def test_generate_remediation_from_gaps(client_db) -> None:
+def _steps_of(client, mission_id) -> list[dict]:
+    return next(mm for mm in client.get("/api/missions").json() if mm["id"] == mission_id)["steps"]
+
+
+# --- Intégration : génération pending + validation Papa ------------------------------------
+
+
+def test_generate_creates_pending_missions_with_aligned_step_types(client_db) -> None:
     client, _ = client_db
     _open_gaps_via_failed_diagnostic(client)
-
-    res = client.post("/api/missions/generate-remediation")
-    assert res.status_code == 200, res.text
-    data = res.json()
+    data = client.post("/api/missions/generate-remediation").json()
     assert data["created"] >= 1
     mission = data["missions"][0]
     assert mission["mission_type"] == "remediation"
-    assert mission["status"] == "planned"
-    assert len(mission["steps"]) == 3  # explain / reverse / quiz
-    assert mission["skill_name"]
+    # Vocabulaire step_type aligné sur l'ADR (plus explain/reverse).
+    types = [s["step_type"] for s in mission["steps"]]
+    assert types[:2] == ["eli5", "vocal_explain"]
+    # Fixture sans leçon/quiz validés → étape quiz omise (réutiliser sinon dégrader).
+    assert "quiz" not in types
 
 
-def test_generate_remediation_is_idempotent(client_db) -> None:
+def test_generate_is_idempotent(client_db) -> None:
     client, _ = client_db
     _open_gaps_via_failed_diagnostic(client)
     first = client.post("/api/missions/generate-remediation").json()["created"]
     second = client.post("/api/missions/generate-remediation").json()["created"]
     assert first >= 1
-    assert second == 0  # pas de doublon pour une lacune déjà couverte
+    assert second == 0
 
 
-def test_today_lists_planned_missions(client_db) -> None:
-    client, _ = client_db
-    _open_gaps_via_failed_diagnostic(client)
-    client.post("/api/missions/generate-remediation")
-    today = client.get("/api/missions/today").json()
-    assert len(today) >= 1
-    assert all(mm["status"] in ("planned", "active") for mm in today)
+# --- Invariant 1 : une mission pending n'atteint JAMAIS une route student ------------------
 
 
-def test_complete_mission_resolves_gap_and_awards_xp(client_db) -> None:
+def test_pending_mission_never_reaches_student(client_db) -> None:
     client, Session = client_db
-    _open_gaps_via_failed_diagnostic(client)
-    mission = client.post("/api/missions/generate-remediation").json()["missions"][0]
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        mid = _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
+            validation="pending",
+        )
+    # Absente de today et de la liste ; invisible même par id (start → 404).
+    assert all(mm["id"] != mid for mm in client.get("/api/missions/today").json())
+    assert all(mm["id"] != mid for mm in client.get("/api/missions").json())
+    assert client.post(f"/api/missions/{mid}/start").status_code == 404
+    # Après validation Papa → visible.
+    assert client.post("/api/missions/validate", json={"ids": [mid]}).json()["validated"] == 1
+    assert any(mm["id"] == mid for mm in client.get("/api/missions").json())
 
-    res = client.post(f"/api/missions/{mission['id']}/complete").json()
-    assert res["status"] == "completed"
-    assert res["gap_resolved"] is True
-    assert res["xp_awarded"] > 0
+
+# --- Invariant 2 : preuve absente / antérieure au start / hors ordre → 409 -----------------
+
+
+def test_complete_step_requires_ordered_posterior_proof(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        mid = _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
+        )
+    steps = _steps_of(client, mid)
+    eli5_step, vocal_step = steps[0], steps[1]
+
+    # Hors ordre : compléter l'étape 2 avant l'étape 1 → 409.
+    assert (
+        client.post(f"/api/missions/{mid}/steps/{vocal_step['id']}/complete").status_code == 409
+    )
+
+    # Démarrage puis étape 1 (consultation) OK.
+    client.post(f"/api/missions/{mid}/start")
+    assert client.post(f"/api/missions/{mid}/steps/{eli5_step['id']}/complete").status_code == 200
+
+    # Étape 2 sans preuve reverse → 409.
+    assert (
+        client.post(f"/api/missions/{mid}/steps/{vocal_step['id']}/complete").status_code == 409
+    )
 
     with Session() as db:
-        # La lacune de la notion est résolue.
-        gap = db.scalar(select(m.Gap).where(m.Gap.skill_id == mission["skill_id"]))
-        assert gap is not None and gap.status == "resolved"
-        # Un événement XP a été crédité.
+        student, skill, _ = _seeded(db)
+        started = db.get(m.Mission, mid).started_at
+        # Preuve ANTÉRIEURE au start → ne compte pas.
+        _add_reverse_event(db, student=student, skill=skill, score=80, at=started - timedelta(hours=1))
+    assert (
+        client.post(f"/api/missions/{mid}/steps/{vocal_step['id']}/complete").status_code == 409
+    )
+
+    with Session() as db:
+        student, skill, _ = _seeded(db)
+        started = db.get(m.Mission, mid).started_at
+        _add_reverse_event(db, student=student, skill=skill, score=80, at=started + timedelta(seconds=1))
+    # Preuve postérieure → 200 (et fin de mission, 2 étapes).
+    assert client.post(f"/api/missions/{mid}/steps/{vocal_step['id']}/complete").status_code == 200
+
+
+# --- Invariant 3 : XP crédité même si verdict review_later ---------------------------------
+
+
+def test_xp_awarded_even_when_review_later(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        mid = _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
+        )
+    client.post(f"/api/missions/{mid}/start")
+    with Session() as db:
+        student, skill, _ = _seeded(db)
+        started = db.get(m.Mission, mid).started_at
+        # Score bas → verdict review_later (et pas de quiz).
+        _add_reverse_event(db, student=student, skill=skill, score=40, at=started + timedelta(seconds=1))
+    steps = _steps_of(client, mid)
+    client.post(f"/api/missions/{mid}/steps/{steps[0]['id']}/complete")
+    res = client.post(f"/api/missions/{mid}/steps/{steps[1]['id']}/complete").json()
+    assert res["mission_status"] == "completed"
+    assert res["verdict"] == "review_later"
+    assert res["xp_awarded"] == 50
+    with Session() as db:
         xp = db.scalar(select(m.XPEvent).where(m.XPEvent.reason == "mission_remediation"))
-        assert xp is not None and xp.amount > 0
-        # La mission n'apparaît plus dans « à faire ».
-    today = client.get("/api/missions/today").json()
-    assert all(mm["id"] != mission["id"] for mm in today)
+        assert xp is not None and xp.amount == 50
 
 
-def test_complete_unknown_mission_404(client_db) -> None:
+# --- Invariant 4 : review_later ⇒ lacune in_progress + carte SRS programmée ----------------
+
+
+def test_review_later_reopens_gap_and_schedules_srs(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        db.add(
+            m.Gap(student_id=student.id, skill_id=skill.id, subject_id=subject.id, status="open")
+        )
+        db.commit()
+        mid = _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
+        )
+    client.post(f"/api/missions/{mid}/start")
+    with Session() as db:
+        student, skill, _ = _seeded(db)
+        started = db.get(m.Mission, mid).started_at
+        _add_reverse_event(db, student=student, skill=skill, score=45, at=started + timedelta(seconds=1))
+    steps = _steps_of(client, mid)
+    client.post(f"/api/missions/{mid}/steps/{steps[0]['id']}/complete")
+    assert (
+        client.post(f"/api/missions/{mid}/steps/{steps[1]['id']}/complete").json()["verdict"]
+        == "review_later"
+    )
+    with Session() as db:
+        _, skill, _ = _seeded(db)
+        gap = db.scalar(select(m.Gap).where(m.Gap.skill_id == skill.id))
+        assert gap is not None and gap.status == "in_progress"
+        card = db.scalar(select(m.SpacedReviewCard).where(m.SpacedReviewCard.skill_id == skill.id))
+        assert card is not None and card.status == "scheduled" and card.due_at is not None
+
+
+# --- Verdict acquired (quiz + reverse au-dessus des seuils) → lacune résolue ---------------
+
+
+def test_acquired_verdict_resolves_gap(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        db.add(
+            m.Gap(student_id=student.id, skill_id=skill.id, subject_id=subject.id, status="open")
+        )
+        quiz = m.Quiz(subject_id=subject.id, title="Quiz mission", quiz_type="mission", status="ready")
+        db.add(quiz)
+        db.commit()
+        quiz_id = quiz.id
+        mid = _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id), ("quiz", quiz_id)],
+        )
+    client.post(f"/api/missions/{mid}/start")
+    with Session() as db:
+        student, skill, _ = _seeded(db)
+        started = db.get(m.Mission, mid).started_at
+        after = started + timedelta(seconds=1)
+        _add_reverse_event(db, student=student, skill=skill, score=90, at=after)
+        _add_mission_quiz_attempt(db, student=student, quiz_id=quiz_id, score=85, at=after)
+    steps = _steps_of(client, mid)
+    client.post(f"/api/missions/{mid}/steps/{steps[0]['id']}/complete")
+    client.post(f"/api/missions/{mid}/steps/{steps[1]['id']}/complete")
+    res = client.post(f"/api/missions/{mid}/steps/{steps[2]['id']}/complete").json()
+    assert res["verdict"] == "acquired"
+    assert res["xp_awarded"] == 50
+    with Session() as db:
+        _, skill, _ = _seeded(db)
+        gap = db.scalar(select(m.Gap).where(m.Gap.skill_id == skill.id))
+        assert gap is not None and gap.status == "resolved"
+        mastery = db.scalar(select(m.SkillMastery).where(m.SkillMastery.skill_id == skill.id))
+        assert mastery is not None and mastery.status == "mastered"
+
+
+# --- Invariant 5 : `failed` n'est jamais écrit par un flux student -------------------------
+
+
+def test_failed_status_never_written_by_student_flow(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        mid = _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
+        )
+    client.post(f"/api/missions/{mid}/start")
+    with Session() as db:
+        student, skill, _ = _seeded(db)
+        started = db.get(m.Mission, mid).started_at
+        _add_reverse_event(db, student=student, skill=skill, score=30, at=started + timedelta(seconds=1))
+    steps = _steps_of(client, mid)
+    client.post(f"/api/missions/{mid}/steps/{steps[0]['id']}/complete")
+    client.post(f"/api/missions/{mid}/steps/{steps[1]['id']}/complete")
+    with Session() as db:
+        assert db.scalar(select(m.Mission.id).where(m.Mission.status == "failed")) is None
+        assert db.get(m.Mission, mid).status == "completed"
+
+
+# --- Invariant 6 : aucune pénalité liée au temps ------------------------------------------
+
+
+def test_no_time_penalty_on_old_mission(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        mid = _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
+        )
+        # Mission « planned » vieille de 10 jours.
+        db.get(m.Mission, mid).created_at = datetime.now(timezone.utc) - timedelta(days=10)
+        db.commit()
+    client.post(f"/api/missions/{mid}/start")
+    with Session() as db:
+        student, skill, _ = _seeded(db)
+        started = db.get(m.Mission, mid).started_at
+        _add_reverse_event(db, student=student, skill=skill, score=80, at=started + timedelta(seconds=1))
+    steps = _steps_of(client, mid)
+    client.post(f"/api/missions/{mid}/steps/{steps[0]['id']}/complete")
+    res = client.post(f"/api/missions/{mid}/steps/{steps[1]['id']}/complete").json()
+    # Traitée exactement comme une mission d'hier : complétion normale, XP plein.
+    assert res["mission_status"] == "completed"
+    assert res["xp_awarded"] == 50
+
+
+def test_start_is_idempotent(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        mid = _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
+        )
+    first = client.post(f"/api/missions/{mid}/start").json()
+    assert first["status"] == "active"
+    with Session() as db:
+        started = db.get(m.Mission, mid).started_at
+    # Rejouer /start ne réinitialise pas started_at.
+    second = client.post(f"/api/missions/{mid}/start").json()
+    assert second["status"] == "active"
+    with Session() as db:
+        assert db.get(m.Mission, mid).started_at == started
+
+
+def test_unknown_mission_start_404(client_db) -> None:
     client, _ = client_db
-    assert client.post("/api/missions/9999/complete").status_code == 404
+    assert client.post("/api/missions/9999/start").status_code == 404

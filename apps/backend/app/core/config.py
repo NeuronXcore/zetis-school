@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     )
     anthropic_model: str = Field(default="claude-sonnet-5", validation_alias="ANTHROPIC_MODEL")
 
+    # --- Missions (ADR-0017 lot 1) : récompense d'effort + seuils du verdict d'acquisition. ---
+    # L'XP récompense l'EFFORT (crédité à la complétion, inconditionnel) : +50 (arbitrage 5bis,
+    # valeur DATA_MODEL.md retenue). Le VERDICT (acquired vs review_later) est découplé : il
+    # exige score reverse ET score quiz ≥ seuils. Seuils versionnés avec le scoring (Lot 2).
+    mission_xp_reward: int = Field(default=50, validation_alias="MISSION_XP_REWARD")
+    mission_reverse_threshold: int = Field(default=70, validation_alias="MISSION_REVERSE_THRESHOLD")
+    mission_quiz_threshold: int = Field(default=70, validation_alias="MISSION_QUIZ_THRESHOLD")
+
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
     # Découplé de `llm_provider` : les embeddings restent sur ollama même si la
     # génération passe sur MLX (évite toute migration pgvector). Cf. ADR-0008.

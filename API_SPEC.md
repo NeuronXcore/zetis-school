@@ -345,30 +345,51 @@ force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `
 
 ## Missions
 
-Préfixe réel : `/api/missions`. Implémenté à l'étape 15 (remédiation) sur les tables
-`missions`/`mission_steps` + `gaps` + `xp_events`. Une mission de remédiation porte
-`mission_type = remediation` et des étapes (expliquer → réexpliquer → quiz).
+Préfixe réel : `/api/missions`. Sur les tables `missions`/`mission_steps` + `gaps` +
+`xp_events`. Une mission de remédiation porte `mission_type = remediation` et des étapes
+`step_type` alignées ADR (`eli5` → `vocal_explain` → `quiz`), chacune ciblant un `resource_id`
+(skill pour eli5/vocal_explain, quiz pour quiz).
+
+**ADR-0017 lot 1 — preuves serveur + verdict.** La complétion déclarative de l'étape 15
+(`POST /missions/{id}/complete`) est **retirée**. Une étape ne se valide que si sa **preuve**
+existe côté serveur, **postérieure au `start`** et **dans l'ordre** (`sort_order`). Toute mission
+générée naît `validation_status = pending` : le gate `validated` est **dans la requête** des
+routes student (une mission `pending` est invisible, y compris par id → 404).
 
 ### POST `/missions/generate-remediation` (Papa)
 
-Transforme les lacunes ouvertes (`gaps`) en missions de remédiation (idempotent).
-Réponse : `{ created, missions: [MissionOut] }`.
+Transforme les lacunes ouvertes (`gaps`) en missions de remédiation `pending` (idempotent).
+Réponse : `{ created, missions: [MissionOut] }`. L'étape `quiz` n'est ajoutée que si un quiz de
+mission prêt couvre déjà la notion (sinon mission à 2 étapes ; auto-génération = Lot 2).
 
-### GET `/missions`
+### POST `/missions/validate` (Papa)
 
-Liste les missions de l'élève (avec leurs étapes) : `[MissionOut]` où
-`MissionOut = { id, subject, skill_id, skill_name, title, description, mission_type, status, priority, steps: [{ id, step_type, instruction, sort_order, status }] }`.
+Valide en lot des missions `pending` → `validated`. Corps `{ ids: [int] }`, réponse
+`{ validated }` (idempotent). Pilotage complet (rejet, badge, zone « À valider ») = Lot 2.
 
-### GET `/missions/today` (Massimo)
+### GET `/missions` — GET `/missions/today` (Massimo)
 
-Missions à faire (`planned`/`active`), les plus prioritaires d'abord.
+Missions **validées** de l'élève : `[MissionOut]` où `MissionOut = { id, subject, skill_id,
+skill_name, title, description, mission_type, status, priority, steps: [{ id, step_type,
+instruction, resource_id, sort_order, status }] }`. `today` = `planned`/`active`, prioritaires
+d'abord.
 
-### POST `/missions/{id}/complete` (Massimo)
+### POST `/missions/{id}/start` (Massimo)
 
-Termine la mission : étapes `done`, **lacune liée résolue**, **XP crédité**.
-Réponse : `{ id, status, gap_resolved, xp_awarded }`.
+`planned → active`, idempotent, horodate `started_at` (socle des preuves). Réponse : `MissionOut`.
 
-> Reporté : `start`, `complete-step` (suivi étape par étape), missions manuelles Papa.
+### POST `/missions/{id}/steps/{step_id}/complete` (Massimo)
+
+Valide une étape si sa preuve existe (**409** sinon / si antérieure au start / hors ordre) :
+`eli5`/`lesson` = consultation (tracée) ; `vocal_explain` = un score reverse postérieur au start ;
+`quiz` = une `QuizAttempt` `context=mission` du quiz, postérieure au start. La **dernière** étape
+termine la mission : **XP +50 inconditionnel** + **verdict** (`acquired` si score reverse ≥
+`MISSION_REVERSE_THRESHOLD` ET quiz ≥ `MISSION_QUIZ_THRESHOLD` → mastery↑, lacune `resolved` ;
+sinon `review_later` → mastery honnête, lacune `in_progress`, carte SRS (re)programmée).
+Réponse : `{ mission_status, verdict, xp_awarded }`.
+
+> Reporté (Lot 2/3) : sélecteur `/missions/today` (mission élue + raison), sources
+> `revision`/`progression`, missions manuelles Papa, pilotage Papa complet.
 
 ## Progression
 
@@ -391,7 +412,7 @@ XP global et par matière.
 ## Gamification
 
 Préfixe réel : `/api/gamification`. Implémenté à l'étape 16 sur la table `xp_events`.
-L'XP est crédité aux moments clés (mission +20, verbalisation ELI5 +10, diagnostic +15).
+L'XP est crédité aux moments clés (mission +50 — ADR-0017 §5bis, verbalisation ELI5 +10, diagnostic +15).
 
 ### GET `/gamification/summary`
 
