@@ -1,16 +1,39 @@
+import { ConfirmDialog } from "@zetis/ui";
 import { useState } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
-import { useCouncilClass } from "../hooks/useCouncilClass";
+import { type Equipping, useCouncilClass } from "../hooks/useCouncilClass";
 import { type CouncilRecommendation, reportToMarkdown } from "../lib/councilClass";
 import type { Subject } from "../lib/subjects";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { subjectIconFor } from "../lib/subjectIcons";
 
-// Conseil de classe IA Papa (ADR-0020) — narration LLM locale sur le service d'évidence.
+// Conseil de classe IA Papa (ADR-0020/0021) — narration LLM locale + équipement d'une notion.
 // Composant présentationnel ; toute la logique vit dans `useCouncilClass`.
 
-const GEN_MS = 18000; // ordre de grandeur d'une génération LLM locale (barre estimée).
+const GEN_MS = 18000; // génération d'une synthèse (barre estimée).
+const EQUIP_MS = 90000; // équipement d'une notion : jusqu'à 5 générations LLM locales.
+
+// Libellés FR des pièces du kit (ADR-0021).
+const PIECE_LABEL: Record<string, string> = {
+  cours: "cours",
+  fiche: "fiche",
+  srs: "cartes",
+  quiz: "quiz",
+  mindmap: "carte mentale",
+};
+const labelPieces = (pieces: string[]) => pieces.map((p) => PIECE_LABEL[p] ?? p).join(", ");
+
+/** Barre de progression d'UNE notion (remontée par `key` à chaque notion → % repart de 0). */
+function EquipProgress({ equipping }: { equipping: Equipping }) {
+  const pct = useEstimatedProgress(true, EQUIP_MS);
+  return (
+    <ProgressBar
+      pct={pct}
+      label={`🛠️ ${equipping.name} (${equipping.index}/${equipping.total}) — cours, fiche, cartes, quiz, carte mentale…`}
+    />
+  );
+}
 
 /** Logo circulaire de matière (icône PNG ronde qu'on a créée, repli emoji), grande taille. */
 function SubjectDisc({ subject }: { subject: Subject | undefined }) {
@@ -49,8 +72,10 @@ function downloadMarkdown(filename: string, content: string): void {
 export function ConseilClasseIAPage() {
   const c = useCouncilClass();
   const [period, setPeriod] = useState("Trimestre 1");
+  const [pendingReco, setPendingReco] = useState<CouncilRecommendation | null>(null);
   const pct = useEstimatedProgress(c.generating, GEN_MS);
   const subjectById = new Map(c.subjects.map((s) => [s.id, s]));
+  const busy = c.equipping !== null;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -101,6 +126,38 @@ export function ConseilClasseIAPage() {
       {c.generating && (
         <div className="mb-4">
           <ProgressBar pct={pct} label="🧠 Rédaction du conseil de classe (LLM local)…" />
+        </div>
+      )}
+
+      {c.equipping && (
+        <div key={c.equipping.index} className="mb-4">
+          <EquipProgress equipping={c.equipping} />
+        </div>
+      )}
+
+      {c.equipResults.length > 0 && !busy && (
+        <div className="mb-4 space-y-1 rounded-lg border border-papa-border bg-papa-surface-2 p-3 text-xs text-papa-muted">
+          {c.equipResults.map((res) => (
+            <p key={res.skill_id}>
+              <span className="font-medium text-papa-fg">{res.skill_name}</span> —{" "}
+              {res.has_lesson ? (
+                <>
+                  {res.generated.length > 0 && (
+                    <span className="text-emerald-300">généré : {labelPieces(res.generated)}</span>
+                  )}
+                  {res.skipped.length > 0 && <> · déjà présent : {labelPieces(res.skipped)}</>}
+                  {res.errors.length > 0 && (
+                    <span className="text-red-300">
+                      {" "}
+                      · échec : {labelPieces(res.errors.map((e) => e.piece))}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-amber-300">{res.reason}</span>
+              )}
+            </p>
+          ))}
         </div>
       )}
 
@@ -181,8 +238,8 @@ export function ConseilClasseIAPage() {
                     <RecommendationRow
                       key={`${s.subject_id}-${i}`}
                       reco={r}
-                      creating={c.creatingKey === r.skill_ids.join(",")}
-                      onCreate={() => void c.createMissions(r.skill_ids, r.skill_names)}
+                      disabled={busy}
+                      onCreate={() => setPendingReco(r)}
                     />
                   ))}
                   </div>
@@ -192,17 +249,36 @@ export function ConseilClasseIAPage() {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={pendingReco !== null}
+        title="Générer le contenu et créer la mission ?"
+        confirmLabel="Générer et créer"
+        onCancel={() => setPendingReco(null)}
+        onConfirm={() => {
+          const reco = pendingReco;
+          setPendingReco(null);
+          if (reco) void c.equipAndCreateMissions(reco.skill_ids, reco.skill_names);
+        }}
+      >
+        <p>
+          ZETIS va générer et valider le kit pédagogique complet — <b>cours, fiche, cartes de
+          révision, quiz et carte mentale</b> — pour{" "}
+          {pendingReco ? pendingReco.skill_names.join(", ") : ""}, puis créer la mission. Le contenu
+          généré sera <b>validé automatiquement</b> (tu pourras l'éditer ensuite).
+        </p>
+      </ConfirmDialog>
     </div>
   );
 }
 
 function RecommendationRow({
   reco,
-  creating,
+  disabled,
   onCreate,
 }: {
   reco: CouncilRecommendation;
-  creating: boolean;
+  disabled: boolean;
   onCreate: () => void;
 }) {
   return (
@@ -214,12 +290,10 @@ function RecommendationRow({
       <button
         type="button"
         onClick={onCreate}
-        disabled={creating}
+        disabled={disabled}
         className="shrink-0 rounded-lg bg-papa-accent px-3 py-1.5 text-xs font-semibold text-papa-bg disabled:opacity-60"
       >
-        {creating
-          ? "Création…"
-          : `Créer ${reco.skill_ids.length > 1 ? "ces missions" : "cette mission"}`}
+        Créer {reco.skill_ids.length > 1 ? "ces missions" : "cette mission"}
       </button>
     </div>
   );

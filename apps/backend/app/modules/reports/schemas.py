@@ -57,6 +57,29 @@ class GenerateCouncilRequest(BaseModel):
     period: str | None = None
 
 
+class EquipNotionRequest(BaseModel):
+    """`POST /api/reports/class-council/equip-notion` : génère + auto-valide le kit d'UNE notion."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    skill_id: int
+
+
+class EquipPieceError(BaseModel):
+    piece: str
+    message: str
+
+
+class EquipNotionResult(BaseModel):
+    skill_id: int
+    skill_name: str
+    has_lesson: bool
+    generated: list[str] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list)
+    errors: list[EquipPieceError] = Field(default_factory=list)
+    reason: str | None = None
+
+
 class CreateMissionsFromRecoRequest(BaseModel):
     """`POST /api/reports/class-council/create-missions` : une recommandation → missions
     mono-notion via le flux Commander (ADR-0018). La validation Papa = ce clic."""

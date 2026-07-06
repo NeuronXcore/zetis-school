@@ -21,8 +21,18 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import AIJob, CouncilReport, Skill, Subject
-from app.modules.ai.provider import LLMProvider, LLMRequest
+from app.db.models import (
+    AIJob,
+    CouncilReport,
+    Fiche,
+    Lesson,
+    LessonSkill,
+    Mindmap,
+    Quiz,
+    Skill,
+    Subject,
+)
+from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.evidence import service as evidence
 from app.modules.missions import command
 from app.prompts import council
@@ -315,3 +325,175 @@ def create_missions_from_reco(
     return command.create_command_missions(
         db, student, skill_ids=skill_ids, due_date=due_date, force_priority=force_priority
     )
+
+
+# --- Équipement pédagogique d'une notion (ADR-0021) ----------------------------------------
+#
+# « Créer ces missions » génère, avant la mission, le KIT complet d'une notion (cours → fiche →
+# SRS → quiz → mindmap) et l'AUTO-VALIDE (la popup de confirmation Papa vaut approbation — soupape
+# §5ter bornée à ce geste). Orchestration pure des générateurs existants ; try/except par pièce ;
+# idempotence (contenu déjà validé non régénéré) ; dégradation gracieuse leçon-centrée (notion sans
+# leçon canonique → contenus sautés + signalés). Équiper AVANT de créer : les étapes de la mission
+# résolvent alors les ressources fraîches.
+
+_EQUIP_QUIZ_COUNT = 5
+_EQUIP_QUIZ_DIFFICULTY = 2
+
+
+def _skill_lesson(db: Session, skill_id: int) -> Lesson | None:
+    """Leçon la plus récente rattachée à la notion (tout statut sauf archivée), ou None."""
+    return db.scalar(
+        select(Lesson)
+        .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
+        .where(LessonSkill.skill_id == skill_id, Lesson.status != "archived")
+        .order_by(Lesson.id.desc())
+        .limit(1)
+    )
+
+
+def _has_validated_fiche(db: Session, lesson_id: int) -> bool:
+    return bool(
+        db.scalar(
+            select(Fiche.id).where(
+                Fiche.lesson_id == lesson_id, Fiche.validation_status == "validated"
+            )
+        )
+    )
+
+
+def _has_validated_mindmap(db: Session, lesson_id: int) -> bool:
+    return bool(
+        db.scalar(
+            select(Mindmap.id).where(
+                Mindmap.lesson_id == lesson_id, Mindmap.validation_status == "validated"
+            )
+        )
+    )
+
+
+def _has_ready_mission_quiz(db: Session, skill_id: int) -> bool:
+    return bool(
+        db.scalar(
+            select(Quiz.id)
+            .join(LessonSkill, LessonSkill.lesson_id == Quiz.lesson_id)
+            .where(
+                Quiz.quiz_type == "mission",
+                Quiz.status == "ready",
+                LessonSkill.skill_id == skill_id,
+            )
+        )
+    )
+
+
+def equip_notion(
+    db: Session, *, skill_id: int, llm: LLMProvider, embedder: EmbeddingProvider
+) -> dict:
+    """Génère + auto-valide le kit pédagogique d'UNE notion (ADR-0021). Résumé typé, jamais
+    d'exception qui remonte : chaque pièce est isolée, l'échec est reporté."""
+    # Imports paresseux : évite tout cycle avec les modules générateurs (qui n'importent pas reports).
+    from app.modules.curriculum.service import generate_lesson_content, set_lesson_validation
+    from app.modules.fiches.service import generate_fiche, validate_fiche
+    from app.modules.memory.generation import generate_cards_for_skill
+    from app.modules.mindmaps.service import generate_mindmap, validate_mindmap
+    from app.modules.quizzes.service import generate_quiz
+
+    skill = db.get(Skill, skill_id)
+    name = skill.name if skill is not None else f"notion {skill_id}"
+    generated: list[str] = []
+    skipped: list[str] = []
+    errors: list[dict] = []
+
+    lesson = _skill_lesson(db, skill_id)
+    if lesson is None:
+        return {
+            "skill_id": skill_id,
+            "skill_name": name,
+            "has_lesson": False,
+            "generated": [],
+            "skipped": ["cours", "fiche", "srs", "quiz", "mindmap"],
+            "errors": [],
+            "reason": "Aucune leçon rattachée à cette notion — kit non généré.",
+        }
+    lesson_id = lesson.id
+
+    # 1) Cours (leçon canonique). Idempotent : une leçon déjà validée avec contenu n'est pas
+    #    régénérée (generate_lesson_content la repasserait en `draft`).
+    try:
+        if lesson.status == "validated" and lesson.content_markdown:
+            skipped.append("cours")
+        else:
+            generate_lesson_content(db, llm, lesson_id)  # écrit le contenu, repasse en `draft`
+            set_lesson_validation(db, lesson_id, "validate")  # draft → validated
+            generated.append("cours")
+    except Exception as exc:  # noqa: BLE001 — on isole chaque pièce
+        errors.append({"piece": "cours", "message": str(exc)})
+
+    # Sans leçon validée + contenu, aucun dérivé n'est possible (générateurs verrouillés, 409).
+    db.refresh(lesson)
+    if not (lesson.status == "validated" and lesson.content_markdown):
+        skipped.extend(p for p in ("fiche", "srs", "quiz", "mindmap") if p not in skipped)
+        return {
+            "skill_id": skill_id,
+            "skill_name": name,
+            "has_lesson": True,
+            "generated": generated,
+            "skipped": skipped,
+            "errors": errors,
+            "reason": "Cours indisponible — dérivés non générés.",
+        }
+
+    # 2) Fiche
+    try:
+        if _has_validated_fiche(db, lesson_id):
+            skipped.append("fiche")
+        else:
+            fiche = generate_fiche(db, llm, embedder, lesson_id=lesson_id)
+            validate_fiche(db, fiche.id)
+            generated.append("fiche")
+    except Exception as exc:  # noqa: BLE001
+        errors.append({"piece": "fiche", "message": str(exc)})
+
+    # 3) Cartes SRS (auto-actives `scheduled` dès que la leçon est validée)
+    try:
+        generate_cards_for_skill(db, llm, embedder, skill_id=skill_id)
+        generated.append("srs")
+    except Exception as exc:  # noqa: BLE001
+        errors.append({"piece": "srs", "message": str(exc)})
+
+    # 4) Quiz de mission (né `ready`, type `mission` → résolu par l'étape de mission)
+    try:
+        if _has_ready_mission_quiz(db, skill_id):
+            skipped.append("quiz")
+        else:
+            generate_quiz(
+                db,
+                llm,
+                embedder,
+                lesson_id=lesson_id,
+                count=_EQUIP_QUIZ_COUNT,
+                difficulty=_EQUIP_QUIZ_DIFFICULTY,
+            )
+            generated.append("quiz")
+    except Exception as exc:  # noqa: BLE001
+        errors.append({"piece": "quiz", "message": str(exc)})
+
+    # 5) Mindmap
+    try:
+        if _has_validated_mindmap(db, lesson_id):
+            skipped.append("mindmap")
+        else:
+            mindmap = generate_mindmap(db, llm, embedder, lesson_id=lesson_id)
+            validate_mindmap(db, mindmap.id)
+            generated.append("mindmap")
+    except Exception as exc:  # noqa: BLE001
+        errors.append({"piece": "mindmap", "message": str(exc)})
+
+    return {
+        "skill_id": skill_id,
+        "skill_name": name,
+        "has_lesson": True,
+        "generated": generated,
+        "skipped": skipped,
+        "errors": errors,
+        "reason": None,
+    }

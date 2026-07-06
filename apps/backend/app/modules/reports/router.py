@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.modules.ai import get_provider
-from app.modules.ai.provider import LLMProvider
+from app.modules.ai import get_embedder, get_provider
+from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import require_parent
 from app.modules.eli5.service import get_default_student
 from app.modules.missions.schemas import MissionPilotOut
@@ -17,6 +17,8 @@ from app.modules.reports.schemas import (
     CouncilReportListItem,
     CouncilReportOut,
     CreateMissionsFromRecoRequest,
+    EquipNotionRequest,
+    EquipNotionResult,
     GenerateCouncilRequest,
 )
 
@@ -43,6 +45,17 @@ def generate_council(
 @router.get("/class-council", response_model=list[CouncilReportListItem])
 def list_council(period: str | None = None, db: Session = Depends(get_db)) -> list[dict]:
     return service.list_reports(db, get_default_student(db), period=period)
+
+
+@router.post("/class-council/equip-notion", response_model=EquipNotionResult)
+def equip_notion(
+    payload: EquipNotionRequest,
+    db: Session = Depends(get_db),
+    provider: LLMProvider = Depends(get_provider),
+    embedder: EmbeddingProvider = Depends(get_embedder),
+) -> dict:
+    """Génère + auto-valide le kit pédagogique d'une notion (ADR-0021), avant création mission."""
+    return service.equip_notion(db, skill_id=payload.skill_id, llm=provider, embedder=embedder)
 
 
 @router.post("/class-council/create-missions", response_model=list[MissionPilotOut])

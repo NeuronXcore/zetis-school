@@ -38,6 +38,21 @@ export interface CouncilReportListItem {
   created_at: string | null;
 }
 
+export interface EquipPieceError {
+  piece: string;
+  message: string;
+}
+
+export interface EquipNotionResult {
+  skill_id: number;
+  skill_name: string;
+  has_lesson: boolean;
+  generated: string[];
+  skipped: string[];
+  errors: EquipPieceError[];
+  reason: string | null;
+}
+
 function headers(): HeadersInit {
   const token = authClient.getToken();
   const base: HeadersInit = { "Content-Type": "application/json" };
@@ -76,6 +91,15 @@ export function fetchCouncilReport(id: number): Promise<CouncilReport> {
   return fetch(`${API_URL}/api/reports/class-council/${id}`, { headers: headers() }).then((r) =>
     asJson<CouncilReport>(r),
   );
+}
+
+/** Équipe une notion : ZETIS génère + auto-valide son kit (cours/fiche/SRS/quiz/mindmap). */
+export function equipNotion(skillId: number): Promise<EquipNotionResult> {
+  return fetch(`${API_URL}/api/reports/class-council/equip-notion`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ skill_id: skillId }),
+  }).then((r) => asJson<EquipNotionResult>(r));
 }
 
 export function createMissionsFromReco(

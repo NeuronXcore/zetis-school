@@ -138,6 +138,81 @@ def test_create_missions_from_reco_reuses_commander(client_db) -> None:
         assert mission.force_priority is True
 
 
+def _seed_validated_lesson_for_skill(db):
+    """Année active → matière → chapitre validé → leçon validée + contenu, rattachée à la notion."""
+    subject = db.scalar(select(m.Subject))
+    skill = db.scalar(select(m.Skill))
+    student = db.scalar(select(m.StudentProfile))
+    year = m.SchoolYear(student_id=student.id, label="2026-2027", level="4e", status="active")
+    db.add(year)
+    db.flush()
+    sysr = m.SchoolYearSubject(school_year_id=year.id, subject_id=subject.id, status="active")
+    db.add(sysr)
+    db.flush()
+    chap = m.Chapter(
+        school_year_subject_id=sysr.id, name="Ch", validation_status="validated", sort_order=0
+    )
+    db.add(chap)
+    db.flush()
+    lesson = m.Lesson(
+        chapter_id=chap.id,
+        title="Leçon",
+        status="validated",
+        created_by="ai",
+        content_markdown="# Titre\n\nUn contenu de cours suffisant pour dériver.",
+        program_version="2020",
+        sort_order=0,
+    )
+    db.add(lesson)
+    db.flush()
+    db.add(m.LessonSkill(lesson_id=lesson.id, skill_id=skill.id))
+    db.commit()
+    return lesson, skill
+
+
+def test_equip_notion_skips_when_no_lesson(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        sid = db.scalar(select(m.Skill)).id
+    _as_parent()
+    r = client.post("/api/reports/class-council/equip-notion", json={"skill_id": sid})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["has_lesson"] is False
+    assert body["generated"] == []
+    assert set(body["skipped"]) == {"cours", "fiche", "srs", "quiz", "mindmap"}
+
+
+def test_equip_notion_generates_and_autovalidates_kit(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        _seed_validated_lesson_for_skill(db)
+        sid = db.scalar(select(m.Skill)).id
+    _as_parent()
+    r = client.post("/api/reports/class-council/equip-notion", json={"skill_id": sid})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["has_lesson"] is True
+    assert body["errors"] == []
+    # Cours déjà validé → sauté (idempotence) ; les dérivés sont générés.
+    assert "cours" in body["skipped"]
+    assert {"fiche", "srs", "quiz", "mindmap"}.issubset(set(body["generated"]))
+    # Auto-validation en base : le kit est utilisable par une mission tout de suite.
+    with Session() as db:
+        assert db.scalar(
+            select(m.Fiche).where(m.Fiche.validation_status == "validated")
+        ) is not None
+        assert db.scalar(
+            select(m.Mindmap).where(m.Mindmap.validation_status == "validated")
+        ) is not None
+        assert db.scalar(
+            select(m.Quiz).where(m.Quiz.quiz_type == "mission", m.Quiz.status == "ready")
+        ) is not None
+    # Idempotence : un 2e passage ne régénère pas les pièces déjà validées.
+    again = client.post("/api/reports/class-council/equip-notion", json={"skill_id": sid}).json()
+    assert {"fiche", "quiz", "mindmap"}.issubset(set(again["skipped"]))
+
+
 def test_list_and_get_report(client_db) -> None:
     client, Session = client_db
     with Session() as db:
