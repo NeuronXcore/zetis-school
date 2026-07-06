@@ -284,9 +284,10 @@ subject_id optional  # nullable (ADR-0017) : missions croisées multi-matières 
 skill_id optional
 title
 description
-mission_type       # remediation | revision | progression | manual (ADR-0017 : orienté SOURCE ;
-                   #   l'activité vit dans MissionStep.step_type). Anciennes valeurs orientées
-                   #   activité (learn/practice/revise…) abandonnées.
+mission_type       # remediation | revision | progression | manual | champion (ADR-0017 orienté
+                   #   SOURCE ; `champion` = croisée multi-matières, ADR-0022 ; l'activité vit dans
+                   #   MissionStep.step_type). Anciennes valeurs activité (learn/practice…) abandonnées.
+subject_id optional # NULL pour une champion croisée (la matière vit dans les étapes) — ADR-0022
 status             # planned | active | completed | failed | cancelled
                    #   (`failed` réservé Papa : jamais écrit par un flux enfant — ADR-0017 §4)
 validation_status  # pending | validated | rejected (ADR-0017 §5ter ; gate `validated` DANS la
@@ -305,6 +306,8 @@ id
 mission_id
 step_type          # lesson | eli5 | quiz | mindmap | capsule | vocal_explain
 resource_id optional
+skill_id optional  # notion portée par l'étape (ADR-0022) : renseignée pour une champion croisée
+                   #   (verdict PAR NOTION) ; NULL pour une mission mono-notion (→ mission.skill_id)
 instruction
 sort_order
 status

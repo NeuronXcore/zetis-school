@@ -12,7 +12,9 @@ import {
 import { STEP_EMOJI, STEP_LABEL } from "../lib/missionSteps";
 import { useMissionsPilotage } from "../hooks/useMissionsPilotage";
 import { useCommandMission } from "../hooks/useCommandMission";
+import { useChampionMission } from "../hooks/useChampionMission";
 import { CommandMissionModal } from "../components/CommandMissionModal";
+import { ChampionMissionModal } from "../components/ChampionMissionModal";
 import { MissionTimeline } from "../components/MissionTimeline";
 import { MissionEditModal } from "../components/MissionEditModal";
 
@@ -27,9 +29,10 @@ const TYPE_BADGE: Record<string, string> = {
   revision: "bg-sky-500/15 text-sky-300",
   progression: "bg-violet-500/15 text-violet-300",
   manual: "bg-emerald-500/15 text-emerald-300",
+  champion: "bg-amber-500/15 text-amber-300",
 };
 
-const TYPE_FILTERS = ["remediation", "revision", "progression", "manual"] as const;
+const TYPE_FILTERS = ["remediation", "revision", "progression", "manual", "champion"] as const;
 
 function TypeBadge({ type }: { type: string }) {
   return (
@@ -78,6 +81,7 @@ function Kpi({ value, label, tone }: { value: ReactNode; label: string; tone?: "
 export function MissionsPage() {
   const p = useMissionsPilotage();
   const cmd = useCommandMission(p.reload);
+  const champ = useChampionMission(p.reload);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [editing, setEditing] = useState<MissionPilot | null>(null);
   const [confirm, setConfirm] = useState<{ kind: "delete" | "regenerate"; id: number } | null>(
@@ -143,9 +147,17 @@ export function MissionsPage() {
       <PageHeader
         title="Missions — pilotage"
         subtitle="ZETIS compose les missions depuis l'évidence mesurée (maîtrise, lacunes, verdicts). Rien n'atteint Massimo sans votre validation."
-        actions={<Button onClick={cmd.openModal}>+ Commander une mission</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" onClick={champ.openModal} className="border border-papa-border">
+              🏆 Défi champion
+            </Button>
+            <Button onClick={cmd.openModal}>+ Commander une mission</Button>
+          </div>
+        }
       />
       <CommandMissionModal cmd={cmd} />
+      <ChampionMissionModal champ={champ} />
 
       {p.error && (
         <p className="mb-4 rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300">{p.error}</p>

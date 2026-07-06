@@ -48,6 +48,7 @@ from app.modules.memory.service import interval_from_score, schedule_review
 _MASTERED_STATUSES = ("mastered", "solid")
 
 XP_REASON = "mission_remediation"
+XP_REASON_CHAMPION = "mission_champion"  # XP majoré d'un défi croisé (ADR-0022) + badge Champion
 _PRIORITY_BY_SEVERITY = {"high": 2, "medium": 1, "low": 0}
 _ACTIVE_STATUSES = ("planned", "active")
 _OPEN_GAP_STATUSES = ("open", "in_progress")
@@ -158,8 +159,21 @@ def _skill_name(db: Session, skill_id: int | None) -> str:
 # --- Sérialisation (schéma student ; aucun champ analytique) -------------------------------
 
 
+def _skill_subject(db: Session, skill_id: int | None) -> tuple[str | None, str]:
+    """(nom de notion, nom de matière) d'un skill_id — ('', '') si None/introuvable. Sert à étiqueter
+    chaque étape d'une champion croisée par sa matière (ADR-0022) sans exposer de score (frontière §3)."""
+    if skill_id is None:
+        return None, ""
+    skill = db.get(Skill, skill_id)
+    if skill is None:
+        return None, ""
+    subject = db.get(Subject, skill.subject_id) if skill.subject_id is not None else None
+    return skill.name, (subject.name if subject is not None else "")
+
+
 def _to_out(db: Session, mission: Mission) -> dict:
     subject = db.get(Subject, mission.subject_id) if mission.subject_id is not None else None
+    subject_name = subject.name if subject is not None else ""
     steps = list(
         db.scalars(
             select(MissionStep)
@@ -167,9 +181,33 @@ def _to_out(db: Session, mission: Mission) -> dict:
             .order_by(MissionStep.sort_order)
         )
     )
+    # XP affiché : majoré pour une champion (autant que le crédit réel à la complétion).
+    xp_reward = (
+        champion_xp(len({s.skill_id for s in steps if s.skill_id is not None}))
+        if mission.mission_type == "champion"
+        else settings.mission_xp_reward
+    )
+
+    def _step_out(s: MissionStep) -> dict:
+        # ADR-0022 : chaque étape porte sa notion (`skill_id`) ; pour une croisée, on résout SA
+        # matière (fallback = la notion/matière de la mission pour les missions mono-notion).
+        sid = s.skill_id if s.skill_id is not None else mission.skill_id
+        step_skill_name, step_subject = _skill_subject(db, sid)
+        return {
+            "id": s.id,
+            "step_type": s.step_type,
+            "instruction": s.instruction,
+            "resource_id": s.resource_id,
+            "skill_id": s.skill_id,
+            "skill_name": step_skill_name or _skill_name(db, mission.skill_id),
+            "subject": step_subject or subject_name,
+            "sort_order": s.sort_order,
+            "status": s.status,
+        }
+
     return {
         "id": mission.id,
-        "subject": subject.name if subject is not None else "",
+        "subject": subject_name,
         "skill_id": mission.skill_id,
         "skill_name": _skill_name(db, mission.skill_id),
         "title": mission.title,
@@ -180,18 +218,8 @@ def _to_out(db: Session, mission: Mission) -> dict:
         "origin": "papa" if mission.created_by == "parent" else "zetis",
         "priority": mission.priority,
         "estimated_minutes": max(5, sum(_STEP_MINUTES.get(s.step_type, 4) for s in steps)),
-        "xp_reward": settings.mission_xp_reward,
-        "steps": [
-            {
-                "id": s.id,
-                "step_type": s.step_type,
-                "instruction": s.instruction,
-                "resource_id": s.resource_id,
-                "sort_order": s.sort_order,
-                "status": s.status,
-            }
-            for s in steps
-        ],
+        "xp_reward": xp_reward,
+        "steps": [_step_out(s) for s in steps],
     }
 
 
@@ -782,25 +810,30 @@ def complete_step(db: Session, student: StudentProfile, mission_id: int, step_id
 def _apply_verdict(
     db: Session,
     student: StudentProfile,
-    mission: Mission,
     verdict: str,
     reverse_score: int | None,
+    *,
+    skill_id: int | None,
 ) -> None:
-    """Met à jour mastery / lacune / SRS selon le verdict. `acquired` ne baisse jamais la mastery."""
+    """Met à jour mastery / lacune / SRS d'UNE notion selon le verdict. `acquired` ne baisse jamais
+    la mastery. Prend le `skill_id` en paramètre (et non `mission.skill_id`) : une mission `champion`
+    croisée applique CE verdict à chacune de ses notions (ADR-0022, verdict par notion)."""
+    if skill_id is None:
+        return
     now = datetime.now(timezone.utc)
     measured = float(reverse_score) if reverse_score is not None else 0.0
     mastery = db.scalar(
         select(SkillMastery).where(
-            SkillMastery.student_id == student.id, SkillMastery.skill_id == mission.skill_id
+            SkillMastery.student_id == student.id, SkillMastery.skill_id == skill_id
         )
     )
     if mastery is None:
-        mastery = SkillMastery(student_id=student.id, skill_id=mission.skill_id)
+        mastery = SkillMastery(student_id=student.id, skill_id=skill_id)
         db.add(mastery)
     gap = db.scalar(
         select(Gap).where(
             Gap.student_id == student.id,
-            Gap.skill_id == mission.skill_id,
+            Gap.skill_id == skill_id,
             Gap.status.in_(_OPEN_GAP_STATUSES),
         )
     )
@@ -819,21 +852,149 @@ def _apply_verdict(
         mastery.status = "in_progress"
         if gap is not None:
             gap.status = "in_progress"
-        skill_name = _skill_name(db, mission.skill_id)
+        skill_name = _skill_name(db, skill_id)
         schedule_review(
             db,
             student_id=student.id,
-            skill_id=mission.skill_id,
+            skill_id=skill_id,
             interval=interval_from_score(int(measured)),
             front=f"Réexplique : {skill_name}",
             back="Reprends cette notion tranquillement — tu y reviens bientôt.",
         )
 
 
+def _recall_ok(quiz_score: float | None, mindmap_score: int | None) -> bool:
+    """Signal de RAPPEL (ADR-0019, option B) : quiz OU reconstruction de carte au seuil suffit."""
+    return (quiz_score is not None and quiz_score >= settings.mission_quiz_threshold) or (
+        mindmap_score is not None and mindmap_score >= settings.mission_mindmap_threshold
+    )
+
+
+def champion_xp(n_notions: int) -> int:
+    """XP majoré d'un défi croisé (ADR-0022) : forfait de base + bonus par notion. Déterministe."""
+    return settings.mission_champion_xp_base + settings.mission_champion_xp_per_notion * max(
+        0, n_notions
+    )
+
+
+def _notion_verdict(
+    db: Session, student: StudentProfile, mission: Mission, skill_id: int, started: datetime
+) -> dict:
+    """Verdict d'acquisition d'UNE notion d'une champion, depuis les preuves de SES étapes
+    (ADR-0022). Miroir du calcul mono (§5bis) restreint aux étapes taggées `skill_id`."""
+    reverse_score = _reverse_score_after(
+        db, student_id=student.id, skill_id=skill_id, after=started
+    )
+    quiz_step = db.scalar(
+        select(MissionStep).where(
+            MissionStep.mission_id == mission.id,
+            MissionStep.step_type == STEP_QUIZ,
+            MissionStep.skill_id == skill_id,
+        )
+    )
+    quiz_score = (
+        _quiz_score_after(db, student_id=student.id, quiz_id=quiz_step.resource_id, after=started)
+        if quiz_step is not None
+        else None
+    )
+    mindmap_step = db.scalar(
+        select(MissionStep).where(
+            MissionStep.mission_id == mission.id,
+            MissionStep.step_type == STEP_MINDMAP,
+            MissionStep.skill_id == skill_id,
+        )
+    )
+    mindmap_score = (
+        _mindmap_score_after(
+            db, student_id=student.id, mindmap_id=mindmap_step.resource_id, after=started
+        )
+        if mindmap_step is not None
+        else None
+    )
+    acquired = (
+        reverse_score is not None
+        and reverse_score >= settings.mission_reverse_threshold
+        and _recall_ok(quiz_score, mindmap_score)
+    )
+    return {
+        "skill_id": skill_id,
+        "verdict": "acquired" if acquired else "review_later",
+        "reverse_score": reverse_score,
+        "quiz_score": quiz_score,
+        "mindmap_score": mindmap_score,
+    }
+
+
+def _ordered_step_skill_ids(db: Session, mission: Mission) -> list[int]:
+    """Notions distinctes des étapes d'une champion, dans l'ordre d'apparition (`sort_order`)."""
+    ordered: list[int] = []
+    for step in db.scalars(
+        select(MissionStep)
+        .where(MissionStep.mission_id == mission.id)
+        .order_by(MissionStep.sort_order)
+    ):
+        if step.skill_id is not None and step.skill_id not in ordered:
+            ordered.append(step.skill_id)
+    return ordered
+
+
+def _complete_champion(
+    db: Session, student: StudentProfile, mission: Mission, started: datetime
+) -> dict:
+    """Termine une champion croisée : verdict PAR NOTION (ADR-0022) + XP majoré + badge Champion.
+
+    Itère le verdict §5bis sur les notions distinctes des étapes ; chaque notion voit sa mastery /
+    lacune / carte SRS mise à jour comme une mission mono-notion. Le verdict SERVI (completed-today,
+    célébration) est agrégé : « acquise » ssi TOUTES les notions le sont, sinon « à revoir » (une
+    seule trace de verdict par mission — completed-today reste 1 ligne = 1 mission)."""
+    mission.status = "completed"
+    for step in db.scalars(select(MissionStep).where(MissionStep.mission_id == mission.id)):
+        step.status = "done"
+
+    skill_ids = _ordered_step_skill_ids(db, mission)
+    per_notion = [_notion_verdict(db, student, mission, sid, started) for sid in skill_ids]
+    for v in per_notion:
+        _apply_verdict(db, student, v["verdict"], v["reverse_score"], skill_id=v["skill_id"])
+    aggregate = (
+        "acquired"
+        if skill_ids and all(v["verdict"] == "acquired" for v in per_notion)
+        else "review_later"
+    )
+    xp = champion_xp(len(skill_ids))
+    award_xp(
+        db,
+        student_id=student.id,
+        subject_id=None,  # croisée : plusieurs matières, XP non imputé à une seule
+        amount=xp,
+        reason=XP_REASON_CHAMPION,
+    )
+    db.add(
+        LearningEvent(
+            student_id=student.id,
+            subject_id=None,
+            skill_id=None,
+            event_type="mission_verdict",
+            payload_json={
+                "mission_id": mission.id,
+                "mission_type": "champion",
+                "verdict": aggregate,
+                "per_notion": per_notion,
+                "xp": xp,
+                "effect": "gap_resolved" if aggregate == "acquired" else "srs_rescheduled",
+            },
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+    db.commit()
+    return {"mission_status": mission.status, "verdict": aggregate, "xp_awarded": xp}
+
+
 def _complete_mission(
     db: Session, student: StudentProfile, mission: Mission, started: datetime
 ) -> dict:
     """Termine la mission : XP inconditionnel + verdict d'acquisition depuis les scores mesurés."""
+    if mission.mission_type == "champion":
+        return _complete_champion(db, student, mission, started)
     mission.status = "completed"
     for step in db.scalars(select(MissionStep).where(MissionStep.mission_id == mission.id)):
         step.status = "done"
@@ -867,18 +1028,15 @@ def _complete_mission(
     # reconstruction de carte (récupération active de la structure) — l'un OU l'autre au seuil
     # suffit. La réexplication (reverse) reste toujours requise. Résout le « à revoir par défaut »
     # des notions sans quiz mais avec mindmap.
-    recall_ok = (
-        quiz_score is not None and quiz_score >= settings.mission_quiz_threshold
-    ) or (mindmap_score is not None and mindmap_score >= settings.mission_mindmap_threshold)
     acquired = (
         reverse_score is not None
         and reverse_score >= settings.mission_reverse_threshold
-        and recall_ok
+        and _recall_ok(quiz_score, mindmap_score)
     )
     verdict = "acquired" if acquired else "review_later"
 
     if mission.skill_id is not None:
-        _apply_verdict(db, student, mission, verdict, reverse_score)
+        _apply_verdict(db, student, verdict, reverse_score, skill_id=mission.skill_id)
 
     # XP = effort (inconditionnel, quel que soit le verdict — règle XP de DATA_MODEL.md).
     award_xp(

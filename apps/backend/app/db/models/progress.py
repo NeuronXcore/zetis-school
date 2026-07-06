@@ -112,6 +112,10 @@ class MissionStep(Base):
     # `quiz_id` pour quiz. Nullable : une étape de consultation peut ne rien cibler. Sans lui,
     # la preuve « ce quiz-ci, postérieur au start » serait invérifiable.
     resource_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Notion portée par l'étape (ADR-0022). NULL pour les missions mono-notion (l'étape hérite de
+    # `mission.skill_id`) ; renseigné pour une mission `champion` croisée, dont les étapes couvrent
+    # plusieurs notions/matières — le verdict d'acquisition PAR NOTION en a besoin.
+    skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(15), default="pending")
 

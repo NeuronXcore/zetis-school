@@ -280,7 +280,12 @@ def test_no_score_leak_student_but_pilot_shows_proof(client_db) -> None:
         )
     # Route student : le step mindmap n'expose que les champs génériques, aucune preuve/score.
     student_step = next(s for s in _steps_of(client, mid) if s["step_type"] == "mindmap")
-    assert set(student_step) == {"id", "step_type", "instruction", "resource_id", "sort_order", "status"}
+    # `skill_id`/`skill_name`/`subject` (ADR-0022) sont des étiquettes de notion/matière, pas des
+    # scores/facteurs — frontière §3 OK (la preuve `proof` reste, elle, pilot-only).
+    assert set(student_step) == {
+        "id", "step_type", "instruction", "resource_id", "skill_id", "skill_name", "subject",
+        "sort_order", "status",
+    }
     assert "proof" not in student_step
     # Route pilot (Papa) : la preuve est exposée avec le label « Mindmap ».
     pilot = next(mm for mm in client.get("/api/missions/pilot").json() if mm["id"] == mid)

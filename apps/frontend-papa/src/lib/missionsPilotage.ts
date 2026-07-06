@@ -69,6 +69,48 @@ export interface CommandConfirmPayload {
  *  backend fait foi via un 422). */
 export const MISSION_COMMAND_MAX_SKILLS = 3;
 
+// --- Défi champion croisé (ADR-0022) : multi-matières, multi-outils, verdict par notion --------
+export type ChampionFlavor = "boss" | "consolidation" | "mix";
+
+export interface ChampionNotion {
+  skill_id: number;
+  name: string;
+  subject_id: number;
+  subject_name: string;
+  level: string | null;
+  mastery: number;
+  fragility: number;
+  status: string | null;
+  checked: boolean;
+}
+
+export interface ChampionPreview {
+  flavor: string;
+  scope_label: string;
+  notions: ChampionNotion[];
+  compose_note: string;
+}
+
+/** Résumé d'équipement d'une notion (ADR-0021, réutilisé au confirm). */
+export interface EquipResult {
+  skill_id: number;
+  skill_name: string;
+  has_lesson: boolean;
+  generated: string[];
+  skipped: string[];
+  errors: { piece: string; message: string }[];
+  reason: string | null;
+}
+
+export interface ChampionCreateResponse {
+  mission: MissionPilot | null;
+  equipment: EquipResult[];
+}
+
+/** Plafond de notions d'un défi champion (miroir de MISSION_CHAMPION_MAX_SKILLS ; le backend
+ *  fait foi via un 422). */
+export const MISSION_CHAMPION_MAX_SKILLS = 3;
+
 // --- Élection (recalculée à la demande — sélecteur déterministe) ---------------------------
 export interface ElectionFactor {
   name: string;
@@ -201,6 +243,28 @@ export function commandConfirm(payload: CommandConfirmPayload): Promise<MissionP
     headers: headers(),
     body: JSON.stringify(payload),
   }).then((r) => asJson<MissionPilot[]>(r));
+}
+
+export function championPreview(
+  subjectIds: number[],
+  flavor: ChampionFlavor,
+): Promise<ChampionPreview> {
+  return fetch(`${API_URL}/api/missions/champion/preview`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ subject_ids: subjectIds, flavor }),
+  }).then((r) => asJson<ChampionPreview>(r));
+}
+
+export function championConfirm(
+  skillIds: number[],
+  flavor: ChampionFlavor,
+): Promise<ChampionCreateResponse> {
+  return fetch(`${API_URL}/api/missions/champion/confirm`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ skill_ids: skillIds, flavor }),
+  }).then((r) => asJson<ChampionCreateResponse>(r));
 }
 
 // --- Cycle de vie d'une mission (Papa) : delete / regenerate / patch / éditeur de parcours ---

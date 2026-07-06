@@ -113,6 +113,19 @@ export function createMissionsFromReco(
   }).then((r) => asJson<MissionPilot[]>(r));
 }
 
+/** Pont croisé (ADR-0022 §8) : notions déjà équipées → UNE mission `champion` multi-matières.
+ *  Compose seul (l'équipement passe par `equipNotion`, en amont). */
+export function composeChampionFromReco(
+  skillIds: number[],
+  flavor = "consolidation",
+): Promise<MissionPilot> {
+  return fetch(`${API_URL}/api/reports/class-council/create-champion`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ skill_ids: skillIds, flavor }),
+  }).then((r) => asJson<MissionPilot>(r));
+}
+
 /** Export Markdown côté client (aucune route — ADR-0020). */
 export function reportToMarkdown(report: CouncilReport): string {
   const lines: string[] = [

@@ -57,6 +57,8 @@ export interface SubjectGroup {
 export interface CompletionBanner {
   verdict: "acquired" | "review_later";
   xp: number;
+  /** Défi champion croisé (ADR-0022) → célébration dédiée 🏆. */
+  champion: boolean;
 }
 
 export interface UseMissions {
@@ -64,6 +66,8 @@ export interface UseMissions {
   error: string | null;
   today: MissionTodayResponse | null;
   groups: SubjectGroup[];
+  /** Défis champion croisés (ADR-0022) — hors groupes matière (multi-matières). */
+  champions: Mission[];
   upToDate: { name: string; slug: string }[];
   completed: CompletedMission[];
   /** Verdict de la mission qu'on vient de terminer (à afficher, deux issues positives). */
@@ -160,12 +164,15 @@ export function useMissions(): UseMissions {
     (result: StepCompleteResult) => {
       if (result.mission_status === "completed" && result.verdict) {
         const verdict = result.verdict as "acquired" | "review_later";
-        setCompletion({ verdict, xp: result.xp_awarded });
+        const champion = activeActivity?.mission.mission_type === "champion";
+        setCompletion({ verdict, xp: result.xp_awarded, champion });
         celebrate({
-          title: "Mission terminée !",
+          title: champion ? "Défi champion relevé ! 🏆" : "Mission terminée !",
           subtitle:
             verdict === "acquired"
-              ? "Notion bien en place ✓"
+              ? champion
+                ? "Toutes les notions bien en place — bravo champion 🏆"
+                : "Notion bien en place ✓"
               : "On la reverra bientôt, tranquille 🌙",
         });
       }
@@ -173,7 +180,7 @@ export function useMissions(): UseMissions {
         /* le rafraîchissement échoue silencieusement : l'état courant reste affiché */
       });
     },
-    [celebrate, load],
+    [celebrate, load, activeActivity],
   );
 
   const closeActivity = useCallback(() => {
@@ -185,9 +192,13 @@ export function useMissions(): UseMissions {
   // L'élue est INCLUSE dans son groupe matière (sinon une matière dont la seule mission est l'élue
   // serait classée « à jour » à tort). Le disque « Mission du jour » n'est qu'un raccourci vers elle.
   const available = missions.filter((msn) => msn.status === "planned" || msn.status === "active");
+  // Les champions croisées (ADR-0022) sont HORS matière (subject vide) → leur propre deck 🏆,
+  // jamais dans un groupe matière (ni dans le décompte « à jour »).
+  const champions = available.filter((msn) => msn.mission_type === "champion");
+  const regular = available.filter((msn) => msn.mission_type !== "champion");
 
   const groupMap = new Map<string, Mission[]>();
-  for (const msn of available) {
+  for (const msn of regular) {
     const list = groupMap.get(msn.subject) ?? [];
     list.push(msn);
     groupMap.set(msn.subject, list);
@@ -198,11 +209,7 @@ export function useMissions(): UseMissions {
 
   // Matières « à jour » : au programme mais sans aucune mission disponible (élue incluse dans le
   // décompte des « à traiter » — une matière dont la seule mission est l'élue n'est pas à jour).
-  const subjectsWithMissions = new Set(
-    missions
-      .filter((msn) => msn.status === "planned" || msn.status === "active")
-      .map((msn) => msn.subject),
-  );
+  const subjectsWithMissions = new Set(regular.map((msn) => msn.subject));
   const upToDate = allSubjects
     .filter((s) => !subjectsWithMissions.has(s.name))
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
@@ -217,6 +224,7 @@ export function useMissions(): UseMissions {
     error,
     today,
     groups,
+    champions,
     upToDate,
     completed,
     completion,

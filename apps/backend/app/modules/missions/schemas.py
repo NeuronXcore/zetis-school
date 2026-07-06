@@ -9,6 +9,10 @@ from datetime import date
 
 from pydantic import BaseModel
 
+# Réutilisation du résumé d'équipement (ADR-0021) pour le retour du confirm champion. `reports.schemas`
+# n'importe rien de `missions` (pas de cycle) — les deux `__init__` de module sont vides.
+from app.modules.reports.schemas import EquipNotionResult
+
 # --- Frontière STUDENT (Massimo) : aucun score, aucun facteur, aucun motif de génération -----
 
 
@@ -17,6 +21,12 @@ class MissionStepStudentOut(BaseModel):
     step_type: str
     instruction: str | None
     resource_id: int | None
+    # ADR-0022 : notion + matière portées par l'étape (renseignées pour une champion croisée, sinon
+    # dérivées de la mission) — badges matière/notion par étape côté Massimo. Étiquettes d'affichage,
+    # pas des scores : frontière §3 préservée.
+    skill_id: int | None = None
+    skill_name: str | None = None
+    subject: str = ""
     sort_order: int
     status: str
 
@@ -99,6 +109,7 @@ class MissionStepPilotOut(BaseModel):
     step_type: str
     instruction: str | None
     resource_id: int | None
+    skill_id: int | None = None  # ADR-0022 : notion de l'étape (croisée)
     sort_order: int
     status: str
     proof: StepProofOut
@@ -231,3 +242,45 @@ class MissionStepOptionsOut(BaseModel):
 
 class SetMissionStepsRequest(BaseModel):
     step_types: list[str]  # liste ordonnée (1 type = 1 étape)
+
+
+# --- Missions croisées « champion » (ADR-0022) : preview/confirm sans état, Papa uniquement -----
+
+
+class ChampionNotionOut(BaseModel):
+    """Une notion travaillée résolue pour un défi champion, avec sa matière et sa maîtrise."""
+
+    skill_id: int
+    name: str
+    subject_id: int
+    subject_name: str
+    level: str | None
+    mastery: float  # 0..1
+    fragility: float  # 1 - mastery
+    status: str | None
+    checked: bool  # proposé coché (round-robin sur les matières selon la saveur), recochable
+
+
+class ChampionPreviewRequest(BaseModel):
+    subject_ids: list[int]  # ≥ 2 matières (sinon ce n'est pas croisé)
+    flavor: str  # "boss" | "consolidation" | "mix"
+
+
+class ChampionPreviewResponse(BaseModel):
+    flavor: str
+    scope_label: str
+    notions: list[ChampionNotionOut]
+    compose_note: str
+
+
+class ChampionConfirmRequest(BaseModel):
+    skill_ids: list[int]  # notions COCHÉES (≥ 2 matières, ≤ MISSION_CHAMPION_MAX_SKILLS)
+    flavor: str
+
+
+class ChampionCreateResponse(BaseModel):
+    """Résultat du confirm : la mission croisée composée + le résumé d'équipement par notion
+    (ADR-0021 réutilisé). `mission` est None si la composition n'a pas abouti (rare)."""
+
+    mission: MissionPilotOut | None
+    equipment: list[EquipNotionResult]

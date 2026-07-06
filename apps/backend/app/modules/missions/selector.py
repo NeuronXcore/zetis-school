@@ -166,7 +166,10 @@ def _score(mission: Mission, ctx: _Context) -> Scored:
 
 def _candidates(db: Session, student: StudentProfile) -> list[Mission]:
     """Missions validées, planned|active (pas de `available_from` sur le modèle réel : toutes
-    disponibles). Ordre de base stable pour un tri déterministe en aval."""
+    disponibles). Ordre de base stable pour un tri déterministe en aval.
+
+    Les missions `champion` croisées sont EXCLUES : jamais élues « mission du jour » (invariant
+    ADR-0017 §6, réaffirmé ADR-0022) — elles restent jouables via leur deck dédié."""
     return list(
         db.scalars(
             select(Mission)
@@ -174,6 +177,7 @@ def _candidates(db: Session, student: StudentProfile) -> list[Mission]:
                 Mission.student_id == student.id,
                 Mission.validation_status == "validated",
                 Mission.status.in_(_ACTIVE_STATUSES),
+                Mission.mission_type != "champion",
             )
             .order_by(Mission.id)
         )

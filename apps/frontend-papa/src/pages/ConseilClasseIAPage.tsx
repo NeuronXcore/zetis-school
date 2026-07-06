@@ -229,6 +229,7 @@ export function ConseilClasseIAPage() {
   const c = useCouncilClass();
   const [period, setPeriod] = useState("Trimestre 1");
   const [pendingReco, setPendingReco] = useState<CouncilRecommendation | null>(null);
+  const [pendingChampion, setPendingChampion] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const pct = useEstimatedProgress(c.generating, GEN_MS);
   const subjectById = new Map(c.subjects.map((s) => [s.id, s]));
@@ -332,6 +333,50 @@ export function ConseilClasseIAPage() {
             <p className="mt-1 text-papa-muted">{c.report.global_summary}</p>
           </section>
 
+          {/* Défi champion croisé (ADR-0022 §8) : agrégat des recos ≥ 2 matières → 1 mission champion. */}
+          {c.hasActiveChampion ? (
+            <section className="mb-4 rounded-xl border border-papa-border bg-papa-surface-2 p-3 text-sm text-papa-muted">
+              🏆 Un défi champion est déjà en cours pour Massimo.
+            </section>
+          ) : (
+            c.championSuggestion && (
+              <section className="mb-4 rounded-xl border border-amber-300/40 bg-amber-400/5 p-4">
+                <div className="flex flex-wrap items-start gap-3">
+                  <span className="text-2xl" aria-hidden>
+                    🏆
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-amber-100">Défi champion croisé</p>
+                    <p className="mt-0.5 text-sm text-papa-muted">
+                      Un parcours unique reliant{" "}
+                      {new Set(c.championSuggestion.notions.map((n) => n.subject_name)).size} matières
+                      pour renforcer ces notions ensemble — plusieurs outils, XP majoré.
+                    </p>
+                    <ul className="mt-2 flex flex-wrap gap-2">
+                      {c.championSuggestion.notions.map((n) => (
+                        <li
+                          key={n.skill_id}
+                          className="rounded-full border border-papa-border bg-papa-surface px-3 py-1 text-xs text-papa-text"
+                        >
+                          <span className="text-papa-muted">{n.subject_name} · </span>
+                          {n.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setPendingChampion(true)}
+                    className="shrink-0 rounded-lg border border-amber-300/50 bg-amber-400/15 px-3 py-1.5 text-sm font-semibold text-amber-100 hover:bg-amber-400/25 disabled:opacity-45"
+                  >
+                    🏆 Créer ce défi champion
+                  </button>
+                </div>
+              </section>
+            )
+          )}
+
           {c.report.subjects.length === 0 ? (
             <EmptyState />
           ) : (
@@ -393,6 +438,26 @@ export function ConseilClasseIAPage() {
           révision, quiz et carte mentale</b> — pour{" "}
           {pendingReco ? pendingReco.skill_names.join(", ") : ""}, puis créer la mission. Le contenu
           généré sera <b>validé automatiquement</b> (tu pourras l'éditer ensuite).
+        </p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={pendingChampion}
+        tone="important"
+        title="Créer ce défi champion croisé ?"
+        confirmLabel="Générer et créer le défi"
+        onCancel={() => setPendingChampion(false)}
+        onConfirm={() => {
+          setPendingChampion(false);
+          const s = c.championSuggestion;
+          if (s) void c.equipAndCreateChampion(s.skillIds, s.notions.map((n) => n.name));
+        }}
+      >
+        <p>
+          ZETIS va équiper chaque notion (<b>cours, fiche, cartes, quiz, carte mentale</b> —
+          auto-validés) puis composer <b>un défi champion unique</b> reliant plusieurs matières
+          (parcours multi-outils, XP majoré). Le contenu sera <b>validé automatiquement</b>
+          (éditable ensuite).
         </p>
       </ConfirmDialog>
 
