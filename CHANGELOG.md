@@ -1,5 +1,79 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.19.0 — Missions : sources, sélecteur déterministe, pilotage Papa (ADR-0017 lot 2)
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Module neutre `evidence/`** (patron ADR-0011, read-only, sans import `missions`/conseil) :
+  `mastery_by_skill`, `open_gaps`, `recent_verdicts`, `weighted_quiz_signal` (poids ADR-0014
+  consommé, jamais réécrit), `srs_pressure`. Test-verrou de neutralité.
+- **Générateurs par source** (idempotents, `pending`) : `generate-revision` (cartes SRS dues par
+  matière, `lesson|eli5 → quiz`), `generate-progression` (prochaine notion non maîtrisée d'un
+  chapitre actif / rattrapage jamais travaillé, `eli5 → vocal_explain → quiz`).
+- **Sélecteur déterministe versionné** (`selector.py`, `MISSION_SCORING_VERSION=v1`, zéro LLM) :
+  facteurs `severity`/`due_pressure`/`continuity`/`variety`(malus)/`forced_priority`, pondérations
+  en config ; `reason_code` = facteur dominant → **phrase template figée**.
+- **Frontière pilotage Papa** (`MissionPilotOut`, router dédié) : `GET /missions/pending`,
+  `POST /missions/{id}/reject`, `GET /missions/election/today` (recalcul à la demande, facteurs +
+  alternatives), `GET /missions/pilot?type=&subject=` (preuves brutes par étape),
+  `GET /missions/verdicts/recent`, `GET /missions/pilot/summary` (KPI). `generation_reason`
+  **calculé** au read (non stocké).
+- **Trace verdict** — `LearningEvent` `mission_verdict` à la complétion (source de `recent_verdicts`).
+- **Tests invariants 7–11** (sélecteur jamais pending, déterminisme, variety, reason ∈ dict figé,
+  aucun champ pilot chez student) + générateurs + pilotage. **340 back verts.**
+
+### Modifié — cassant
+
+- **`GET /missions/today`** : de liste triée à `{ elected, reason, reason_code, scoring_version,
+  alternatives }` (ADR-0017 §3). Split de schémas `MissionStudentOut` / `MissionPilotOut`
+  (deux routers, gate en requête). Lib frontend Massimo adaptée a minima (refonte visuelle =
+  slice séparée).
+- **`config` / `.env.example`** : `MISSION_SCORING_VERSION` + pondérations des facteurs.
+
+### Noté
+
+- `Mission.available_from` (DATA_MODEL) n'existe pas sur le modèle réel → toutes les validées
+  `planned|active` sont candidates (aucune migration ajoutée).
+
+## 0.18.0 — Missions à preuves serveur + verdict d'acquisition (ADR-0017 lot 1)
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Preuves serveur des étapes** — `POST /api/missions/{id}/start` (`planned → active`, idempotent,
+  horodate `started_at`) et `POST /api/missions/{id}/steps/{step_id}/complete` : une étape ne se
+  valide que si sa **preuve** existe (`eli5`/`lesson` = consultation tracée ; `vocal_explain` = score
+  reverse ; `quiz` = `QuizAttempt` `context=mission`), **postérieure au `start`** et **dans l'ordre**
+  (`sort_order`) — sinon **409**. Fin de la complétion déclarative de l'étape 15.
+- **Verdict d'acquisition découplé** (§5bis) — la dernière étape crédite **+50 XP inconditionnels**
+  (effort) puis calcule un verdict : `acquired` (reverse ≥ `MISSION_REVERSE_THRESHOLD` **et** quiz ≥
+  `MISSION_QUIZ_THRESHOLD` → mastery↑, lacune `resolved`) ou `review_later` (mastery honnête, lacune
+  `in_progress`, **carte SRS (re)programmée**). Deux issues, toutes deux positives.
+- **Validation Papa** (§5ter) — missions générées naissent `validation_status = pending` ; gate
+  `validated` **dans la requête** des routes student (invisible même par id) ;
+  `POST /api/missions/validate {ids}` (validation en lot, minimal — pilotage complet = Lot 2).
+- **Config** — `MISSION_XP_REWARD` (50), `MISSION_REVERSE_THRESHOLD`, `MISSION_QUIZ_THRESHOLD`.
+- **Tests d'invariants** (6) — pending jamais exposé, preuve absente/antérieure/hors-ordre → 409,
+  XP même si `review_later`, `review_later` ⇒ lacune `in_progress` + carte SRS, `failed` jamais écrit
+  par un flux enfant, aucune pénalité de temps ; + verdict `acquired` (quiz + reverse).
+
+### Modifié
+
+- **Migration `f3a4b5c6d7e8`** — `missions.validation_status` (NOT NULL, backfill existant →
+  `validated`), `missions.subject_id` → nullable, `missions.started_at`, `mission_steps.resource_id`.
+- **Générateur `generate_remediation`** — missions `pending`, `step_type` alignés ADR
+  (`eli5`/`vocal_explain`/`quiz`), `resource_id` réels ; l'étape `quiz` réutilise un quiz de mission
+  prêt couvrant la notion, sinon est omise (auto-génération = Lot 2).
+- **Frontend Massimo minimal** — `MissionsPage` : démarrer + valider chaque étape (409 parlant) ;
+  refonte visuelle complète = slice frontend séparée.
+
+### Retiré
+
+- `POST /api/missions/{id}/complete` (complétion déclarative + résolution directe de lacune).
+
 ## 0.17.0 — Fiches de révision (ADR-0015) : backend + viewer Massimo + pilotage Papa
 
 Date : 2026-07-05

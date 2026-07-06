@@ -280,12 +280,18 @@ notes
 ```txt
 id
 student_id
-subject_id
+subject_id optional  # nullable (ADR-0017) : missions croisées multi-matières futures
 skill_id optional
 title
 description
-mission_type       # learn | practice | revise | explain | capsule | mindmap
+mission_type       # remediation | revision | progression | manual (ADR-0017 : orienté SOURCE ;
+                   #   l'activité vit dans MissionStep.step_type). Anciennes valeurs orientées
+                   #   activité (learn/practice/revise…) abandonnées.
 status             # planned | active | completed | failed | cancelled
+                   #   (`failed` réservé Papa : jamais écrit par un flux enfant — ADR-0017 §4)
+validation_status  # pending | validated | rejected (ADR-0017 §5ter ; gate `validated` DANS la
+                   #   requête des routes student ; missions générées naissent `pending`)
+started_at         # horodatage du start ; socle des PREUVES d'étapes (postérieures au start)
 priority
 created_by         # ai | parent | system
 available_from

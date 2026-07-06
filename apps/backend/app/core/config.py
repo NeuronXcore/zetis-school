@@ -51,6 +51,58 @@ class Settings(BaseSettings):
     )
     anthropic_model: str = Field(default="claude-sonnet-5", validation_alias="ANTHROPIC_MODEL")
 
+    # --- Missions (ADR-0017 lot 1) : récompense d'effort + seuils du verdict d'acquisition. ---
+    # L'XP récompense l'EFFORT (crédité à la complétion, inconditionnel) : +50 (arbitrage 5bis,
+    # valeur DATA_MODEL.md retenue). Le VERDICT (acquired vs review_later) est découplé : il
+    # exige score reverse ET score quiz ≥ seuils. Seuils versionnés avec le scoring (Lot 2).
+    mission_xp_reward: int = Field(default=50, validation_alias="MISSION_XP_REWARD")
+    mission_reverse_threshold: int = Field(default=70, validation_alias="MISSION_REVERSE_THRESHOLD")
+    mission_quiz_threshold: int = Field(default=70, validation_alias="MISSION_QUIZ_THRESHOLD")
+    # ADR-0019 (verdict option B) : seuil du signal de rappel « mindmap ». Une reconstruction
+    # ≥ ce seuil peut tenir lieu de rappel à la place du quiz dans le verdict d'acquisition.
+    mission_mindmap_threshold: int = Field(default=70, validation_alias="MISSION_MINDMAP_THRESHOLD")
+
+    # --- Sélecteur de la mission du jour (ADR-0017 lot 2, décision 2) : scoring DÉTERMINISTE,
+    # zéro LLM. La formule est VERSIONNÉE (`MISSION_SCORING_VERSION` couvre formule ET templates
+    # d'étapes) : tout changement de facteur/pondération = bump, tracé dans la sortie du sélecteur.
+    # Pondérations et seuils vivent ICI, jamais dans le code du service. ---
+    # v2 (ADR-0018) : le facteur `forced_priority` lit le flag `mission.force_priority` au lieu du
+    # type `manual`. v3 (ADR-0019) : le parcours généré peut inclure un step `mindmap`, et le
+    # verdict admet la reconstruction comme signal de rappel (option B). Le versionnage couvre
+    # formule ET templates de parcours — tout changement = bump tracé.
+    mission_scoring_version: str = Field(default="v3", validation_alias="MISSION_SCORING_VERSION")
+    mission_weight_severity: float = Field(default=1.0, validation_alias="MISSION_WEIGHT_SEVERITY")
+    mission_weight_due_pressure: float = Field(
+        default=0.8, validation_alias="MISSION_WEIGHT_DUE_PRESSURE"
+    )
+    mission_weight_continuity: float = Field(
+        default=0.6, validation_alias="MISSION_WEIGHT_CONTINUITY"
+    )
+    # `variety` est un MALUS (soustrait) : anti-répétition si la même matière a été élue la veille
+    # (proxy déterministe : matière de la dernière mission complétée — l'ADR interdit de stocker
+    # les élections).
+    mission_weight_variety: float = Field(default=0.5, validation_alias="MISSION_WEIGHT_VARIETY")
+    # Plancher des missions `manual` (priorité forcée Papa) : domine le score sans jamais être
+    # dominé (une mission « avant le contrôle » court-circuite le score, jamais l'inverse).
+    mission_weight_forced_priority: float = Field(
+        default=100.0, validation_alias="MISSION_WEIGHT_FORCED_PRIORITY"
+    )
+    # Nombre de cartes dues qui sature `due_pressure` à 1.0.
+    mission_due_pressure_cap: int = Field(default=6, validation_alias="MISSION_DUE_PRESSURE_CAP")
+
+    # --- Commander une mission (ADR-0018) : Papa apporte le scope, ZETIS résout les notions les
+    # plus fragiles, une mission mono-skill par notion cochée. Seuil et plafond versionnés
+    # (`MISSION_COMMAND_VERSION`), même discipline que le scoring. ---
+    mission_command_version: str = Field(default="v1", validation_alias="MISSION_COMMAND_VERSION")
+    # Une notion `mastery ≥ seuil` arrive décochée par défaut (recochable côté Papa).
+    mission_command_mastered_threshold: float = Field(
+        default=0.8, validation_alias="MISSION_COMMAND_MASTERED_THRESHOLD"
+    )
+    # Plafond de notions cochées par commande = plafond de missions créées (fan-out atomique).
+    mission_command_max_skills: int = Field(
+        default=3, validation_alias="MISSION_COMMAND_MAX_SKILLS"
+    )
+
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
     # Découplé de `llm_provider` : les embeddings restent sur ollama même si la
     # génération passe sur MLX (évite toute migration pgvector). Cf. ADR-0008.

@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -67,14 +68,37 @@ class Mission(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"))
-    subject_id: Mapped[int] = mapped_column(ForeignKey("subjects.id"))
+    # Nullable depuis ADR-0017 (5ter) : les missions « croisées » multi-matières n'ont pas
+    # de matière unique — la matière se dérive alors des Skill des étapes. Aucune logique de
+    # croisée en Lot 1 ; la colonne est seulement rendue nullable.
+    subject_id: Mapped[int | None] = mapped_column(ForeignKey("subjects.id"), nullable=True)
     skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     mission_type: Mapped[str] = mapped_column(String(20), default="practice")
     status: Mapped[str] = mapped_column(String(15), default="planned")
+    # ADR-0017 (5ter) : validation Papa découplée du cycle de vie (même séparation que
+    # Lesson.status). Toute mission générée naît `pending` ; le gate `validated` est dans la
+    # requête des routes student (jamais un filtre Python aval). Défaut `validated` : les voies
+    # non génératives (manuel Papa) sont validées par construction — le générateur force `pending`.
+    validation_status: Mapped[str] = mapped_column(
+        String(15), default="validated", server_default="validated", nullable=False
+    )  # pending|validated|rejected
+    # Horodatage du passage planned→active (POST /start). Fait foi pour la PREUVE des étapes :
+    # une trace (QuizAttempt, score reverse) ne valide une étape que si elle est POSTÉRIEURE au
+    # start (une vieille tentative ne valide pas une notion jamais retravaillée — ADR-0017 §5).
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     priority: Mapped[int] = mapped_column(Integer, default=0)
     created_by: Mapped[str] = mapped_column(String(20), default="ai")
+    # ADR-0018 : missions commandées par Papa (« Commander une mission »).
+    # `force_priority` alimente le facteur `forced_priority` du sélecteur (plancher de score, lu
+    # PAR MISSION depuis v2 — plus par le type). `due_date` est PUREMENT informationnelle (repère
+    # d'affichage/tri côté pilotage Papa) : jamais sérialisée dans un schéma student, aucun effet
+    # mécanique propre — l'urgence passe exclusivement par `force_priority`.
+    force_priority: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class MissionStep(Base):
@@ -82,8 +106,12 @@ class MissionStep(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     mission_id: Mapped[int] = mapped_column(ForeignKey("missions.id"))
-    step_type: Mapped[str] = mapped_column(String(20))
+    step_type: Mapped[str] = mapped_column(String(20))  # eli5|vocal_explain|quiz|lesson
     instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Cible réelle de l'étape (ADR-0017 §5, ajout Lot 1) : `skill_id` pour eli5/vocal_explain,
+    # `quiz_id` pour quiz. Nullable : une étape de consultation peut ne rien cibler. Sans lui,
+    # la preuve « ce quiz-ci, postérieur au start » serait invérifiable.
+    resource_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(15), default="pending")
 

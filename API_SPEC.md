@@ -297,6 +297,9 @@ substrat canonique** (ADR-0011). Génération **locale** depuis le cours validé
 - **GET `/api/student/quiz-subjects`** — grille des matières + nombre de quiz (0 → grisée).
 - **GET `/api/student/quizzes/{subject_slug}`** — quiz jouables (questions actives, **sans** clé
   ni explication) ; chaque quiz porte `lesson_id`.
+- **GET `/api/student/quiz/{quiz_id}`** — un quiz jouable par id (même charge que ci-dessus, sans
+  clé). Entrée du **quiz de mission** (`QuizMissionModal`) : le runner lance ensuite une tentative
+  dont le `context` vaut `quiz_type = "mission"` → preuve d'étape quiz.
 - **POST `/api/student/quizzes/{id}/attempts`** — démarre une tentative.
 - **POST `/api/student/quiz-attempts/{id}/answers`** — corps `{ question_id, answer_json }` :
   correction serveur, renvoie `{ is_correct, explanation_markdown, criteria?, ambiguous }` (jamais
@@ -345,30 +348,77 @@ force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `
 
 ## Missions
 
-Préfixe réel : `/api/missions`. Implémenté à l'étape 15 (remédiation) sur les tables
-`missions`/`mission_steps` + `gaps` + `xp_events`. Une mission de remédiation porte
-`mission_type = remediation` et des étapes (expliquer → réexpliquer → quiz).
+Préfixe réel : `/api/missions`. Sur les tables `missions`/`mission_steps` + `gaps` +
+`xp_events`. Une mission de remédiation porte `mission_type = remediation` et des étapes
+`step_type` alignées ADR (`eli5` → `vocal_explain` → `quiz`), chacune ciblant un `resource_id`
+(skill pour eli5/vocal_explain, quiz pour quiz).
 
-### POST `/missions/generate-remediation` (Papa)
+**ADR-0017 lot 1 — preuves serveur + verdict.** La complétion déclarative de l'étape 15
+(`POST /missions/{id}/complete`) est **retirée**. Une étape ne se valide que si sa **preuve**
+existe côté serveur, **postérieure au `start`** et **dans l'ordre** (`sort_order`). Toute mission
+générée naît `validation_status = pending` : le gate `validated` est **dans la requête** des
+routes student (une mission `pending` est invisible, y compris par id → 404).
 
-Transforme les lacunes ouvertes (`gaps`) en missions de remédiation (idempotent).
-Réponse : `{ created, missions: [MissionOut] }`.
+**ADR-0017 lot 2 — sources, sélecteur, pilotage.** `mission_type` est un vocabulaire fermé
+orienté **source** (`remediation | revision | progression | manual`). Le sélecteur de la mission
+du jour est un **scoring déterministe versionné** (`MISSION_SCORING_VERSION`, zéro LLM). Frontière
+stricte (§3) : **deux schémas, deux routers** — `MissionStudentOut` (Massimo, sans scores) et
+`MissionPilotOut` (Papa, sur-ensemble : `validation_status`, `generation_reason`, preuves brutes).
 
-### GET `/missions`
+### Frontière student (Massimo)
 
-Liste les missions de l'élève (avec leurs étapes) : `[MissionOut]` où
-`MissionOut = { id, subject, skill_id, skill_name, title, description, mission_type, status, priority, steps: [{ id, step_type, instruction, sort_order, status }] }`.
+- **GET `/missions`** → `[MissionStudentOut]` (validées de l'élève). `MissionStudentOut = { id,
+  subject, skill_id, skill_name, title, description, mission_type, status, priority,
+  estimated_minutes, xp_reward, steps: [{ id, step_type, instruction, resource_id, sort_order,
+  status }] }`. `estimated_minutes` (durée estimée dérivée des étapes) + `xp_reward` (XP d'effort
+  constant) = **affichage enfant, aucun score**. **L'ordre des étapes (`sort_order`) dépend du
+  type** (§5 amendé) : `progression` = découverte d'abord (`eli5 → vocal_explain → [mindmap] →
+  [quiz]`) ; `remediation`/`revision` = **rappel d'abord** (`[mindmap] → [quiz] → eli5 [→ vocal]`).
+- **GET `/missions/today`** — **contrat cassant** (ex-liste) : `{ elected: MissionStudentOut | null,
+  reason, reason_code, scoring_version, alternatives: [MissionStudentOut] (≤2) }`. `reason` est une
+  **phrase template** figée choisie par le facteur dominant (jamais de LLM) ; `elected: null` =
+  état serein « Tu n'as rien d'obligatoire maintenant ».
+- **POST `/missions/{id}/start`** → `MissionStudentOut` (`planned → active`, idempotent, horodate
+  `started_at`).
+- **POST `/missions/{id}/steps/{step_id}/complete`** → `{ mission_status, verdict, xp_awarded }`.
+  Preuve par `step_type` (**409** si absente / antérieure au start / hors ordre) ; dernière étape
+  → **XP +50 inconditionnel** + verdict (`acquired` si reverse ≥ `MISSION_REVERSE_THRESHOLD` ET
+  quiz ≥ `MISSION_QUIZ_THRESHOLD` → mastery↑, lacune `resolved` ; sinon `review_later` → mastery
+  honnête, lacune `in_progress`, carte SRS (re)programmée). Trace `LearningEvent` `mission_verdict`.
+- **GET `/missions/completed-today`** → `[{ mission_id, title, subject, verdict, xp }]` — missions
+  terminées aujourd'hui + verdict (deux issues positives) + XP, relues des `LearningEvent`
+  `mission_verdict` du jour. **Aucun score brut** (reverse/quiz/mindmap restent Papa — frontière §3).
 
-### GET `/missions/today` (Massimo)
+> Exécution frontend (`page-missions.md`) : chaque activité s'ouvre **EN MODALE in-page**
+> (`ActivityModal`) ; la preuve est produite dans la modale et l'étape validée aussitôt — pas de
+> redirection ni de marqueur de retour. Le quiz de mission par id se lit via
+> **GET `/api/student/quiz/{quiz_id}`** (§Quiz).
 
-Missions à faire (`planned`/`active`), les plus prioritaires d'abord.
+### Frontière pilotage (Papa) — `MissionPilotOut`
 
-### POST `/missions/{id}/complete` (Massimo)
+- **POST `/missions/generate-remediation` · `/generate-revision` · `/generate-progression`** →
+  `{ created, missions }`. Générateurs idempotents par source, missions `pending`. `revision` =
+  cartes SRS dues groupées par matière (`lesson|eli5 → quiz`) ; `progression` = prochaine notion
+  non maîtrisée d'un chapitre actif ou rattrapage jamais travaillé (`eli5 → vocal_explain → quiz`).
+- **GET `/missions/pending`** → `[MissionPilotOut]` (avec `generation_reason`).
+- **POST `/missions/validate`** `{ ids: [int] }` → `{ validated }` (validation en lot).
+- **POST `/missions/{id}/reject`** → `{ id, validation_status: "rejected" }`.
+- **GET `/missions/election/today`** → `{ elected: MissionPilotOut | null, score, factors: [{ name,
+  value, weight, contribution, dominant }], scoring_version, reason, reason_code, alternatives:
+  [{ mission, score }] }` — **recalculé à la demande** (déterminisme ⇒ rien à stocker).
+- **GET `/missions/pilot?type=&subject=`** → `[MissionPilotOut]` (preuves brutes par étape).
+- **GET `/missions/verdicts/recent`** → `[{ mission_id, mission_type, verdict, quiz_score,
+  reverse_score, xp, effect, skill_id, subject_id }]`.
+- **GET `/missions/pilot/summary`** → `{ pending, pool, completed_this_week, acquired_rate_30d }`.
 
-Termine la mission : étapes `done`, **lacune liée résolue**, **XP crédité**.
-Réponse : `{ id, status, gap_resolved, xp_awarded }`.
+Facteurs de score (pondérations en config) : `severity` (remediation), `due_pressure` (revision),
+`continuity` (progression : chapitre actif vs rattrapage), `variety` (malus si même matière que la
+**dernière mission complétée** — proxy déterministe, aucune élection stockée), `forced_priority`
+(plancher des `manual`). `Mission.available_from` n'existe pas sur le modèle réel → toutes les
+validées `planned|active` sont candidates.
 
-> Reporté : `start`, `complete-step` (suivi étape par étape), missions manuelles Papa.
+> Reporté (Lot 3) : porte « Commander » (recommandation/échéance/thématique), résolution par
+> embeddings, Conseil de classe, croisées automatiques, auto-validation par type.
 
 ## Progression
 
@@ -391,7 +441,7 @@ XP global et par matière.
 ## Gamification
 
 Préfixe réel : `/api/gamification`. Implémenté à l'étape 16 sur la table `xp_events`.
-L'XP est crédité aux moments clés (mission +20, verbalisation ELI5 +10, diagnostic +15).
+L'XP est crédité aux moments clés (mission +50 — ADR-0017 §5bis, verbalisation ELI5 +10, diagnostic +15).
 
 ### GET `/gamification/summary`
 

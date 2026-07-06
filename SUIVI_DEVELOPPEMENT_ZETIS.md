@@ -1661,6 +1661,88 @@ git commit -m "feat(fiches): révision cards (ADR-0015) — backend, Massimo vie
 
 ---
 
+# ÉTAPE — Missions Lot 1 : preuves serveur + verdict (ADR-0017)
+
+## Statut
+
+FAIT (backend + tests + frontend minimal + docs) — 2026-07-05. Branche `mission`.
+
+## Ce qui a été fait
+
+- **Migration `f3a4b5c6d7e8`** (seule du chantier) : `missions.validation_status` (backfill
+  existant → `validated`), `missions.subject_id` nullable, `missions.started_at`,
+  `mission_steps.resource_id`. Modèles `Mission`/`MissionStep` alignés (tests SQLite = create_all).
+- **Service** : générateur `pending`, `step_type` alignés ADR (`eli5`/`vocal_explain`/`quiz`),
+  `resource_id` réels (skill / quiz réutilisé sinon étape quiz omise, pur-DB) ; `start` idempotent ;
+  `complete-step` à **preuves serveur** (409 si absente/antérieure au start/hors ordre) ; dernière
+  étape → **XP +50 inconditionnel** + **verdict** (`acquired`/`review_later` → mastery/gap/SRS) ;
+  gate `validated` **dans la requête** des routes student ; `validate` Papa minimal.
+- **Retiré** : `POST /missions/{id}/complete` (déclaratif étape 15).
+- **Tests** : 11 tests missions (6 invariants + verdict acquired + idempotence) ; adaptation du test
+  gamification « first_mission » au nouveau flux. **329 back + 81 massimo + tsc -b verts.**
+
+## Divergence tranchée (stop-on-blocker → commanditaire)
+
+La prémisse ADR « zéro migration de ciblage » était fausse : `MissionStep.resource_id` **et**
+`missions.started_at` ajoutés ; `step_type` réels migrés `explain→eli5`/`reverse→vocal_explain` ;
+auto-génération du quiz de mission **reportée au Lot 2**. Amendement consigné dans l'ADR-0017.
+
+## Reste à faire
+
+- **Lot 2** : sources `revision`/`progression`, sélecteur `/missions/today` (mission élue + raison,
+  scoring versionné), service d'évidence partagé, auto-génération du quiz de mission, pilotage Papa
+  (validation en lot + badge + zone « À valider »), refonte visuelle MissionsPage Massimo.
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(missions): proof-based steps + acquisition verdict (ADR-0017 lot 1)"
+```
+
+---
+
+# ÉTAPE — Missions Lot 2 : sources + sélecteur + pilotage (ADR-0017)
+
+## Statut
+
+FAIT (backend + tests + lib frontend minimale + docs) — 2026-07-05. Branche `mission`.
+
+## Ce qui a été fait
+
+- **Module neutre `evidence/`** (read-only, patron ADR-0011) : mastery/gaps/verdicts/quiz
+  pondéré (poids ADR-0014 consommé)/SRS ; test-verrou de neutralité (aucun import missions/conseil).
+- **Générateurs** `revision` (cartes dues/matière) et `progression` (prochaine notion non maîtrisée
+  d'un chapitre actif / rattrapage), idempotents → `pending`, templates purs.
+- **Sélecteur déterministe versionné** (`selector.py`, `MISSION_SCORING_VERSION=v1`) : facteurs
+  nommés + pondérations en config, `variety` = matière de la dernière mission complétée (proxy),
+  `reason` = phrase figée du facteur dominant.
+- **Contrat `/today` cassant** (objet élue+raison) + **split schémas** `MissionStudentOut` /
+  `MissionPilotOut` (2 routers, gate en requête). **Routes pilotage Papa** : pending, validate,
+  reject, election/today (recalcul), pilot, verdicts/recent, pilot/summary. `generation_reason`
+  calculé. **Trace verdict** `LearningEvent`.
+- **Tests** : invariants 7–11 + générateurs + pilotage (`test_missions_selector.py`) ; Lot 1 adapté
+  au nouveau `/today`. **340 back verts.** Lib frontend Massimo adaptée a minima.
+
+## Divergences tranchées
+
+- `Mission.available_from` (DATA_MODEL) absent du modèle réel → toutes les validées candidates
+  (aucune migration). `generation_reason` et l'élection **calculés/recalculés**, jamais stockés.
+
+## Reste à faire
+
+- **Lot 3** : porte « Commander » (recommandation/échéance/thématique + notions résolues par
+  embeddings décochables), Conseil de classe IA, croisées automatiques, auto-validation par type.
+- **Slices frontend** : refonte MissionsPage Massimo (mission du jour + raison) ; page pilotage
+  Papa (`docs/frontend-papa/page-missions-pilotage.md`).
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(missions): evidence service + deterministic daily selector + Papa pilotage (ADR-0017 lot 2)"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

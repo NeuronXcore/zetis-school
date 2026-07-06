@@ -54,6 +54,8 @@ export function MindmapWorkspace({
   mode,
   onModeChange,
   accent = "#22d3ee",
+  onComplete,
+  storageScope = "",
 }: {
   mm: MindmapJson;
   mindmapId: number;
@@ -62,6 +64,12 @@ export function MindmapWorkspace({
   mode: MindmapMode;
   onModeChange: (m: MindmapMode) => void;
   accent?: string;
+  // Mission : notifie la complétion d'une reconstruction (la modale pilote alors le verdict). Si
+  // fourni, le popup de réussite interne est masqué (le verdict de mission devient la récompense).
+  onComplete?: (result: MindmapAttemptResult) => void;
+  // Isole les positions localStorage entre la page pleine et la modale de mission (défaut "" =
+  // clé historique préservée pour la route pleine page).
+  storageScope?: string;
 }) {
   const [kind, setKind] = useState<LayoutKind>(() => defaultLayout(mm));
   const setMode = onModeChange;
@@ -291,10 +299,10 @@ export function MindmapWorkspace({
   const livePosRef = useRef<Record<string, XY>>({});
 
   useEffect(() => {
-    const saved = loadArrangement(mindmapId, kind);
+    const saved = loadArrangement(mindmapId, kind, storageScope);
     livePosRef.current = saved;
     setLivePos(saved);
-  }, [mindmapId, kind]);
+  }, [mindmapId, kind, storageScope]);
 
   // Répercute les déplacements de nœuds (React Flow) dans `livePos` — sans casser le drag natif.
   const handleNodesChange = useCallback(
@@ -318,12 +326,12 @@ export function MindmapWorkspace({
 
   // Persiste la disposition au relâchement d'un nœud (fin de déplacement).
   const persistArrangement = useCallback(() => {
-    saveArrangement(mindmapId, kind, livePosRef.current);
-  }, [mindmapId, kind]);
+    saveArrangement(mindmapId, kind, livePosRef.current, storageScope);
+  }, [mindmapId, kind, storageScope]);
 
   // Réinitialise la disposition à celle calculée par elk (oublie les déplacements mémorisés).
   const resetArrangement = useCallback(() => {
-    clearArrangement(mindmapId, kind);
+    clearArrangement(mindmapId, kind, storageScope);
     livePosRef.current = {};
     setLivePos({});
     setRfNodes((prev) =>
@@ -332,7 +340,7 @@ export function MindmapWorkspace({
         return b ? { ...n, position: { x: b.x, y: b.y } } : n;
       }),
     );
-  }, [mindmapId, kind, layout, setRfNodes]);
+  }, [mindmapId, kind, layout, setRfNodes, storageScope]);
   const hasArrangement = Object.keys(livePos).length > 0;
 
   // Centre d'un nœud selon sa position VIVE (livePos sinon elk) — pour router les arêtes.
@@ -456,12 +464,13 @@ export function MindmapWorkspace({
         failedAttempts,
       );
       setSuccess(attempt);
+      onComplete?.(attempt); // mission : valide l'étape + affiche le verdict (popup interne masqué)
     } catch {
       // silencieux : l'élève peut réessayer (aucune donnée corrompue côté client)
     } finally {
       setBusy(false);
     }
-  }, [mindmapId, mm, assignment, failedAttempts]);
+  }, [mindmapId, mm, assignment, failedAttempts, onComplete]);
 
   useEffect(() => {
     if (mode === "build" && allPlaced && !busy && !success) submitAttempt();
@@ -678,8 +687,9 @@ export function MindmapWorkspace({
           </div>
         )}
 
-        {/* Popup de RÉUSSITE : XP gagnés (réduits par les échecs) + nombre de tentatives. */}
-        {mode === "build" && success && (
+        {/* Popup de RÉUSSITE : XP gagnés (réduits par les échecs) + nombre de tentatives. Masqué en
+            mission (`onComplete` fourni) : c'est le verdict de mission qui récompense. */}
+        {mode === "build" && success && !onComplete && (
           <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
             <div className="max-w-sm rounded-2xl border border-emerald-400/40 bg-slate-900/95 p-6 text-center shadow-2xl">
               <p className="text-4xl">🎉</p>
@@ -801,13 +811,13 @@ function opposite(p: Position): Position {
 // multi-appareils — une synchro serveur serait un follow-up).
 type XY = { x: number; y: number };
 
-function arrangementKey(mindmapId: number, kind: LayoutKind): string {
-  return `zetis:mm:${mindmapId}:${kind}:pos`;
+function arrangementKey(mindmapId: number, kind: LayoutKind, scope: string): string {
+  return `zetis:mm:${mindmapId}:${kind}${scope ? `:${scope}` : ""}:pos`;
 }
 
-function loadArrangement(mindmapId: number, kind: LayoutKind): Record<string, XY> {
+function loadArrangement(mindmapId: number, kind: LayoutKind, scope: string): Record<string, XY> {
   try {
-    const raw = localStorage.getItem(arrangementKey(mindmapId, kind));
+    const raw = localStorage.getItem(arrangementKey(mindmapId, kind, scope));
     const parsed = raw ? JSON.parse(raw) : null;
     return parsed && typeof parsed === "object" ? (parsed as Record<string, XY>) : {};
   } catch {
@@ -815,17 +825,22 @@ function loadArrangement(mindmapId: number, kind: LayoutKind): Record<string, XY
   }
 }
 
-function saveArrangement(mindmapId: number, kind: LayoutKind, pos: Record<string, XY>): void {
+function saveArrangement(
+  mindmapId: number,
+  kind: LayoutKind,
+  pos: Record<string, XY>,
+  scope: string,
+): void {
   try {
-    localStorage.setItem(arrangementKey(mindmapId, kind), JSON.stringify(pos));
+    localStorage.setItem(arrangementKey(mindmapId, kind, scope), JSON.stringify(pos));
   } catch {
     // quota atteint / stockage indisponible (navigation privée) : on ignore silencieusement.
   }
 }
 
-function clearArrangement(mindmapId: number, kind: LayoutKind): void {
+function clearArrangement(mindmapId: number, kind: LayoutKind, scope: string): void {
   try {
-    localStorage.removeItem(arrangementKey(mindmapId, kind));
+    localStorage.removeItem(arrangementKey(mindmapId, kind, scope));
   } catch {
     // silencieux
   }

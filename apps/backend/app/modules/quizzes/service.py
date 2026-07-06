@@ -704,6 +704,28 @@ def list_student_quizzes(db: Session, subject_slug: str) -> list[dict]:
     return out
 
 
+def get_student_quiz(db: Session, quiz_id: int) -> dict:
+    """Un quiz jouable par id (questions actives, sans clé) — entrée deep-link mission.
+
+    Réutilise le gate servable (`_servable_quiz_or_404` : quiz de mission, non archivé, leçon
+    validée). Le runner standard fixe ensuite `context=quiz.quiz_type="mission"` → la preuve
+    d'étape quiz se produit sans surface d'API supplémentaire (ADR-0017 §5)."""
+    quiz = _servable_quiz_or_404(db, quiz_id)
+    questions = list(
+        db.scalars(
+            select(QuizQuestion)
+            .where(QuizQuestion.quiz_id == quiz.id, QuizQuestion.status == "active")
+            .order_by(QuizQuestion.sort_order, QuizQuestion.id)
+        )
+    )
+    return {
+        "quiz_id": quiz.id,
+        "title": quiz.title,
+        "lesson_id": quiz.lesson_id,
+        "questions": [_student_question_out(db, q) for q in questions],
+    }
+
+
 def student_quiz_subjects(db: Session) -> list[dict]:
     """Grille « Quiz » (écran 1) : matières de l'année active à leçons validées + nb de quiz.
 

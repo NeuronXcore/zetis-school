@@ -57,3 +57,66 @@
   mockup-page-mindmaps.html`) alors qu'on ne devait qu'en corriger le titre. → Restauré via
   `git checkout HEAD -- <fichier>` puis re-application du correctif de titre (« Mes mindmaps »).
   Vérifier `git status` avant tout commit pour ne pas embarquer une suppression involontaire.
+
+## Chantier `mission` (ADR-0017/0018/0019)
+
+### Backend / dev
+
+- **Le backend `:8000` reste STALE toute la session** : démarré avant les Lots missions, il rend en
+  **404** toutes les routes récentes (`/pilot/*`, `/command/*`, `/{id}/regenerate`…) alors qu'elles
+  sont commitées et enregistrées dans `main.py`. → Un **backend-dev sur `:8001`** (hot-reload actif,
+  `--reload`) sert de source de vérité. **Toujours vérifier quel backend répond avant de conclure à un
+  bug de routing.** (Le front dev `papa-dev :5175` / `massimo-dev :5176` pointe déjà sur `:8001`.)
+- **`ADR-0017` supposait `Skill` cherchable par embeddings** (pour la porte « thématique texte libre »
+  de Commander). FAUX : **seul `RagChunk` porte une colonne `embedding` (pgvector) ; `Skill` n'en a
+  pas.** → texte-libre reporté (ADR-0018), v1 = sélection référentiel. Annoté dans ADR-0017 §1 (iii).
+- **`ADR-0017` déclarait « zéro migration de ciblage »** — faux aussi : `mission_steps.resource_id` et
+  `missions.started_at` n'existaient pas (Lot 1, migration `f3a4b5c6d7e8`), et Commander a exigé
+  `missions.force_priority` + `missions.due_date` (migration `a7b8c9d0e1f2`). Lire le modèle réel avant
+  de se fier à la prémisse « zéro migration » d'un ADR.
+- **Cycle d'import** : `pilot.py` fait `from ... import service as msvc`. Donc **`service.py` ne doit PAS
+  importer `pilot`** (les fonctions cycle-de-vie renvoient l'objet `Mission`, et c'est le **router** qui
+  sérialise via `pilot._to_pilot_out`). Sinon `ImportError` circulaire au démarrage.
+- **Le sélecteur plancher-isait TOUTE mission `manual` par son TYPE** (`forced_priority = 1.0 if
+  mission_type == "manual"`). Incompatible avec « l'urgence passe par `force_priority` » (ADR-0018). →
+  lire le **flag** `mission.force_priority` ⇒ **changement de facteur ⇒ bump `MISSION_SCORING_VERSION`**
+  (v1→v2, puis v2→v3 pour le step mindmap). Toute assertion de test sur `scoring_version` à mettre à jour.
+- **`MindmapAttempt` n'a ni `context` ni `completed_at`** (contrairement à `QuizAttempt`) : une tentative
+  n'existe qu'une fois **scorée serveur** → l'existence vaut complétion. La preuve d'un step mindmap se
+  gate donc sur `created_at > started_at` + `score > 0`, sans filtre `context="mission"`.
+
+### Frontend Papa / preview
+
+- **`useState` placé au milieu d'un hook (après des `useCallback`)** → React « change in order of Hooks »
+  **au HOT-RELOAD** (Fast Refresh préserve l'état de l'instance montée dont l'ordre diffère) + **white
+  screen**. Pas visible au reload complet, donc trompeur. → **Grouper tous les `useState` en tête** du
+  hook. (Vu sur `busyMission` dans `useMissionsPilotage`.)
+- **`ContentLifecycleActions` (@zetis/ui) n'est pas réutilisable pour les missions** : sa copie de
+  ConfirmDialog est figée pour le contenu LLM (« le contenu repassera à valider », « depuis la leçon »),
+  fausse pour une mission (regenerate déterministe, pas de reset de validation). → rangée d'actions
+  dédiée + `ConfirmDialog` brut.
+- **Le runner de mission Massimo n'a AUCUN deep-link de step** (eli5/quiz compris) : l'enfant navigue
+  manuellement puis « Valide » (preuve serveur). Le step mindmap ajoute le **premier** CTA de deep-link
+  (« Reconstruire → » vers `/mindmaps/reconstruire/:id`). `fetchMindmap(id)` renvoyant déjà `subject_slug`,
+  aucune route/schéma supplémentaire n'a été nécessaire pour résoudre le slug côté client.
+
+## Chantier `mission` — frontend Massimo (page decks + modales in-page)
+
+- **⚠️ `backdrop-filter`/`transform` sur un panneau de modale casse les enfants `position: fixed`.**
+  Le `MindmapWorkspace` rend son fantôme de drag en `position: fixed; left/top = clientX/clientY`
+  (viewport). Dans `ActivityModal`, `backdrop-blur-xl` (et l'ancienne animation `translate/scale`)
+  sur le PANNEAU créent un **bloc conteneur** pour les descendants fixed → le fantôme se positionne
+  par rapport au panneau centré, pas au viewport (« nœud loin de la souris, hors plan »). Idem pour
+  le toast XP d'ELI5. → **Aucun `backdrop-filter`/`transform` sur le panneau** (fond `zetis-surface`
+  opaque, le flou n'y servait à rien) ; entrée en **opacité seule**. Le backdrop de l'*overlay*
+  (`inset-0`, à 0,0) est inoffensif. Piège de coord classique React Flow / drag custom.
+- **Bascule deep-link → modales in-page** (remplace l'entrée « le runner n'a aucun deep-link » plus
+  haut) : les 3 activités (ELI5 / quiz / mindmap) s'ouvrent EN MODALE sur `/missions` ; l'étape se
+  valide dans la modale (`completeStep`), fin du marqueur `sessionStorage` + de la redirection. Une
+  seule modale ELI5 couvre `eli5` + `vocal_explain` (complète `eli5` à `status="explained"`, `vocal`
+  à `feedback`+reverse, stop au 1er 409). UI d'activité **extraites** (`Eli5Session`/`QuizRunner`) →
+  `Eli5Page.test.tsx` garde le DOM identique (mouvement pur, à relancer après extraction).
+- **Étape mindmap absente alors qu'une carte existe** : `_resolve_mission_mindmap_id` résout la carte
+  à la **création** de la mission ; une carte validée *après* coup n'est pas rétro-ajoutée. → **régénérer
+  le parcours** (`POST /missions/{id}/regenerate`, planned seulement — une mission `active` refuse,
+  409). Pas besoin de générer si la carte existe déjà.

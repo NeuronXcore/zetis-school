@@ -5,132 +5,114 @@
 > L'état du **code** se lit dans Git ; les **décisions figées** dans `DECISIONS.md`/les ADR ;
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 
-## Reprise — chantier `mindmap` (ADR-0016) · branche `mindmap`
+## Reprise — chantier `mission` (ADR-0017/0018/0019) · branche `mission`
 
-État global : **Slice A backend = TERMINÉE et COMMITÉE** (`cfe2b43`). **Slice B frontend = quasi
-finie mais NON COMMITÉE**, avec un **complément backend** (résumé + XP-pénalité) lui aussi non
-commité. **Aucun test end-to-end avec le vrai backend (Postgres + Ollama) n'a été joué** : toute la
-vérif front s'est faite dans un harnais isolé à `fetch` mocké.
+État global : les **Lots 1+2 backend de l'ADR-0017 sont COMMITÉS** (`dd9ee78`, `9e10e9b`).
+Par-dessus, **4 slices sont FAITES mais NON COMMITÉES** (working-tree) et s'empilent :
+(1) page Papa « Missions — pilotage », (2) **Commander** (ADR-0018), (3) **step mindmap**
+(ADR-0019), (4) **cycle de vie** (frise + delete/éditer/régénérer). **364 tests backend verts,
+tsc + builds massimo/papa verts, E2E live joués et verts** (sauf 2 clics UI finaux, cf. EN COURS).
 
-### FAIT (et vérifié)
+### FAIT — commité (dans Git)
 
-- **Slice A backend (commit `cfe2b43`)** : type `MindmapJson` (arbre strict) + miroir Pydantic
-  (intégrité de l'arbre), prompt `v1`, service `generate_mindmap`, **reshape de la table `mindmaps`**
-  (vestige notion-centré → leçon-centré) + table `mindmap_attempts`, **migration `e4f5a6b7c8d9`
-  APPLIQUÉE sur la vraie DB** (roundtrip up/down/up vérifié), endpoints Papa + Massimo, évaluation de
-  la reconstruction **serveur** (`score_reconstruction`). 16 tests. → dans Git, rien à refaire.
-- **Complément backend (NON commité)** : endpoint `GET /api/student/mindmaps/summary` (compteur de
-  cartes validées par matière, decks Massimo) ; **XP-pénalité** `mindmap_reconstruction_xp(score,
-  failed_attempts) = max(10, 30 − 5·échecs)` (gamification) ; `record_attempt` accepte
-  `failed_attempts` ; champ `failed_attempts` (schéma requête) ; router le transmet. **+2 tests.**
-  ⚠️ Pas de nouvelle migration : `failed_attempts` n'est PAS persisté, il ne fait que réduire l'XP
-  calculé. **323 tests backend verts.**
-- **Slice B frontend (NON commité)** — vérifié en harnais isolé (`fetch` mocké) :
-  - Deps épinglées `@xyflow/react@12.11.1` + `elkjs@0.11.1` (massimo).
-  - Moteur `lib/mindmapLayout.ts` (elk : radial / layered RIGHT / DOWN + « équilibrée » = miroir
-    maison) — **4 layouts rendus OK à l'écran**. `lib/mindmapTree.ts` pur (maxDepth, defaultLayout,
-    nodeLevels, **randomPasses**, placementsPayload, shuffle) — testé.
-  - Viewer Massimo : `MindmapsPage` (decks) → `MindmapSubjectPage` (liste + `MindmapWorkspace`),
-    3 modes : **Regarde / Mémorise / Reconstruire** (badges numérotés colorés ① ② ③ + tooltip XP).
-  - **Mémorise** = passes par niveau (`nodeLevels`) + popup final « Reconstruis pour gagner des XP ».
-    Vérifié à l'écran (Passe 1/2 → 2/2 → popup → bascule Reconstruire).
-  - **Reconstruire** = séance : validation **instantanée par dépôt** (mauvais → revert + popup
-    d'erreur immédiat + échec compté), **passes aléatoires partielles** (`ceil(n/3)`, le reste de la
-    carte reste en contexte), soumission **auto** quand la carte est complète, popup XP (réduit par
-    les échecs). Vérifié à l'écran : blanchiment partiel (3/6), « Passe 1/3 », aléatoire à chaque
-    Recommencer, popup erreur + revert, popup succès `+30 XP` / `+25 XP` (1 échec).
-  - Nœuds **déplaçables** à la souris (ré-agencement) + arêtes qui se re-routent + **disposition
-    persistée en localStorage** par carte + présentation.
-  - Arêtes **orthogonales arrondies** (`smoothstep`, `borderRadius: 10`).
-  - Pilotage **Papa** : `MindmapsPilotagePage` (briques `@zetis/ui` partagées) + `MindmapEditorModal`
-    (**éditeur d'ARBRE structuré**, plus de JSON brut) + route + entrée sidebar.
-  - Types partagés `packages/types/src/mindmap.ts`. **81 tests massimo + build + tsc verts** ;
-    **papa tsc vert** ; **types tsc vert**.
+- **ADR-0017 Lot 1** (`dd9ee78`) : steps à preuves serveur + verdict d'acquisition, migration
+  `f3a4b5c6d7e8`.
+- **ADR-0017 Lot 2** (`9e10e9b`) : service d'évidence + sélecteur déterministe versionné + 7 routes
+  pilotage Papa.
 
-### E2E vrai backend — JOUÉ ET VERT (Postgres + Ollama, dev DB)
+### FAIT — working-tree, NON commité (4 slices, à committer séparément)
 
-Vérifié le 2026-07-05 (backend `app.main` sur la vraie DB dev, Ollama `Qwen3.6:35b-a3b` +
-`nomic-embed-text`, front `massimo-dev` sur 5176 → backend 8001) :
+1. **Page Papa « Missions — pilotage »** (frontend Lot 2). `lib/missionsPilotage.ts` +
+   `hooks/useMissionsPilotage.ts` + `pages/MissionsPage.tsx` (réécrite, 5 sections : KPI → À valider
+   → Élue → En cours → Verdicts) + badge sidebar `pending` (`PapaSidebar.tsx`, event
+   `zetis:missions-pending-changed`). Frontière `MissionPilotOut` respectée, thème sombre traduit
+   depuis la maquette claire. `lib/missions.ts` (ancienne page étape 15) **supprimé**. E2E live vert
+   (reject 4→3, KPI + badge en direct).
 
-- **Génération Papa via Ollama** : `POST /api/mindmaps/generate {lesson_id:52}` → mindmap
-  « Manifestations des séismes » (10 nœuds, arbre cohérent) `pending` → `POST /{id}/validate` →
-  `validated`. ✅
-- **Endpoint `GET /api/student/mindmaps/summary`** : compteurs réels par matière (SVT passe à 1
-  après génération). ✅
-- **Viewer réel** : la mindmap générée s'affiche avec layout **elk** (11 nœuds RF + 10 arêtes
-  arrondies), 4 présentations, 3 modes. Reconstruire = passes partielles aléatoires « Passe 1/4 »
-  (10 nœuds → ceil/3), contexte visible, **plus de bouton Vérifier** (validation auto). ✅
-- **XP-pénalité en base réelle** : reconstruction correcte + `failed_attempts:2` →
-  `xp_awarded:20` (= max(10, 30−5·2)), avec **XPEvent** (`mindmap_reconstruction`, 20, matière) et
-  **MindmapAttempt** (score 100) réellement persistés. ✅
+2. **Commander une mission** (ADR-0018). Papa apporte le scope → ZETIS résout les notions fragiles →
+   **1 mission mono-skill par notion cochée** (fan-out, plafond `MISSION_COMMAND_MAX_SKILLS=3`),
+   `manual`/`validated` par construction. v1 = 2 portes (Échéance chapitre+date ; Thématique
+   sélection référentiel) ; Recommandation + texte-libre **désactivées avec raison**. Backend :
+   `missions/command.py` (`preview` sans écriture + `confirm` fan-out), 2 routes `command/preview|confirm`,
+   config `mission_command_*`. **Migration `a7b8c9d0e1f2`** (`missions.force_priority` + `due_date`)
+   **APPLIQUÉE sur la DB dev**. **Sélecteur bumpé `MISSION_SCORING_VERSION` v1→v2** : `forced_priority`
+   lit le flag `mission.force_priority` (plus le type). Front : `useCommandMission.ts` +
+   `CommandMissionModal.tsx` + bouton `+ Commander`. E2E live vert (preview, fan-out, badge).
 
-### Polish UX front (session 2026-07-05 soir · NON commité · working-tree)
+3. **Step mindmap dans les missions** (ADR-0019). Active le créneau `mindmap` (déjà dans le
+   vocabulaire fermé ADR-0017 §5). **Aucune migration** (`step_type` `String(20)` suffit). Backend
+   `service.py` : `STEP_MINDMAP`, `_resolve_mission_mindmap_id` (optionnel comme le quiz), inséré dans
+   `_build_steps` + `_build_revision_steps` (`eli5→vocal→[mindmap]→[quiz]`), `_mindmap_score_after`
+   (preuve = `MindmapAttempt` `score>0` ET `created_at>started_at`), branche `_verify_proof`. **Verdict
+   OPTION B** : `acquired = reverse≥t ET (quiz≥t OU mindmap≥t)` — la reconstruction **se substitue au
+   quiz**. Config `mission_mindmap_threshold=70`, **bump v2→v3**. Front Massimo : CTA « Reconstruire → »
+   + route **`/mindmaps/reconstruire/:mindmapId`** (ouvre par id en mode build). Front Papa : emoji/label
+   🧠. **E2E live vert** : mission 25 (skill 92, mindmap 3) sans quiz + mindmap 80 + reverse 82 →
+   verdict `acquired`.
 
-Ajouts frontend Massimo par-dessus la Slice B (tous en working-tree, **81 tests massimo + tsc
-verts**, aucune modif backend) :
-
-- **Fiche de révision en panneau latéral gauche** sur l'écran 3 (`FicheSidePanel`) : bouton
-  « 🗂️ Voir la fiche », visible **uniquement en Regarde/Mémorise** (masqué + refermé en
-  Reconstruire = test). Retrouve la fiche via `subject_slug` + `lesson_id` → `fetchSubjectFiches`
-  → `fetchFiche` (endpoints existants, gate `validated`) ; réutilise `FicheCard` ; état doux si la
-  leçon n'a pas de fiche. Ne consomme PAS `markFicheSeen`.
-- **`MindmapWorkspace` : `mode` remonté en prop CONTRÔLÉE** (la page pilote le panneau fiche). Seul
-  consommateur = `MindmapSubjectPage`.
-- **Reconstruire — récompense** : un nœud bien placé devient **DORÉ** (état `correct` dans
-  `MindmapNode`, dégradé ambre + `mm-gold-pop`) et persiste au fil des passes ; **popup éphémère de
-  félicitation** grand + centré (`mm-cheer`, ~1,1 s, message aléatoire) à chaque bon dépôt.
-- **Progression par pastilles animées** (`PassDots`) en Mémorise et Reconstruire : une pastille par
-  passe (done pleine accent / active qui respire `mm-dot-active` / todo creuse) — remplace les
-  anciens pills « Passe X/N ».
-- **Sidebar** : entrée Mindmaps utilise l'icône de marque `assets/app/mindmaps.png` (repli emoji).
-- **En-tête `/mindmaps`** : emoji 🧠 remplacé par `AnimatedMindmapIcon` (SVG+CSS animé : nœuds
-  **rectangles** qui apparaissent un à un, **liens dorés** tracés en séquence, boucle ~3,8 s, **halo
-  doré** qui respire). `PageHeader.title` accepte désormais un `ReactNode`.
-- Keyframes ajoutées dans `src/index.css` : `mm-gold-pop`, `mm-cheer`, `mm-dot-active`,
-  `mm-fiche-cta` (halo du bouton fiche) — toutes `motion-safe`.
+4. **Cycle de vie des missions (Papa)** — CETTE session. Sur la page pilotage, chaque mission
+   (pool + À valider) est une **ligne dépliable** → **frise** (`MissionTimeline.tsx`, séquence + statut,
+   emoji + ✓/●/○ + score, PAS d'horodatage) + actions **✏️ Éditer / ↻ Régénérer / 🗑 Supprimer**.
+   Backend `service.py` : `delete_mission` (hard, mission+steps ; ≠ reject), `regenerate_mission`
+   (**planned-only**, reconstruit le parcours, garde `validation_status`), `patch_mission` (champs
+   sûrs), `mission_step_options` + `set_mission_steps` (**éditeur de parcours** = palette contrainte,
+   planned-only). Routes `DELETE|PATCH /{id}`, `POST /{id}/regenerate`, `GET /{id}/step-options`,
+   `PUT /{id}/steps`. Front : `MissionEditModal.tsx` (métadonnées + éditeur d'étapes ↑/↓/✕ + palette
+   d'ajout) + `ConfirmDialog` (delete `tone=danger`, regenerate) + `lib/missionSteps.ts` (STEP_EMOJI/
+   STEP_LABEL partagés). Hook : mutations `remove/regenerate/patch/saveSteps/loadStepOptions` +
+   `busyMission` par id.
 
 ### EN COURS / reste EXACTEMENT
 
-0. **Polish UX front ci-dessus = NON commité** (working-tree) : à commiter avec / avant la PR.
-1. **Commité** : `47d2dde` (Slice B front + complément backend). Reste à **pousser + ouvrir la PR**.
-2. **Drag complet des 4 passes en navigateur réel NON simulé** (simulation de drag instable dans le
-   preview) — mais la reconstruction + l'XP sont prouvés au niveau API sur la vraie DB, et le drag
-   est prouvé en harnais. Risque résiduel faible.
-3. **Page pilotage Papa + éditeur d'arbre : pas ré-ouverts en navigateur** cette session (nécessite
-   login Papa). Génération/validation Papa prouvées via l'API. À faire à l'occasion.
-4. **Badge « Nouveau » / suivi des vues : DIFFÉRÉ** (pas de table `mindmap_views`, `/seen` no-op).
-5. **Données de test laissées dans la DB dev** : mindmap SVT id 5 (généré), 1 MindmapAttempt + 1
-   XPEvent (+20) pour Massimo. Sans conséquence (dev), à savoir.
+0. **Tout le working-tree est NON commité.** À committer en **4 commits séparés** (pilotage → commander
+   → mindmap-step → lifecycle) après vérif humaine (tests + diff). Messages suggérés : voir checklist.
+1. **2 clics UI non joués** (verif interrompue par le user) : le **ConfirmDialog de suppression** et le
+   **bouton Régénérer** n'ont pas été cliqués en navigateur. Le rendu (frise, modale d'édition avec
+   éditeur d'étapes, boutons, Régénérer masqué si `active`) EST vérifié à l'écran ; les endpoints sont
+   couverts par 9 tests `test_missions_lifecycle.py` (delete, regenerate planned-only, patch, step-options,
+   set-steps). Risque résiduel faible. → **Premier geste de reprise** : rejouer ces 2 clics.
+2. **Vérif live *propre* du payload force_priority/due_date de la modale Commander** reste à rejouer
+   (scripting DOM avait floppé ; logique prouvée par les 7 tests `test_missions_command.py`).
+3. **Données de test laissées en DB dev** : missions manual 24/25 (skill 92), +50 XP student ; 8 missions
+   validées. Sans conséquence (dev).
 
 ### DÉCISIONS ACTIVES (prises en session — ne pas rouvrir)
 
-- Table `mindmaps` vestige (notion-centré, inutilisée) → **reshape leçon-centré** (décidé avec le
-  user). Migration `e4f5a6b7c8d9`.
-- Ajout de `/api/student/mindmaps/summary` (counts only, **sans** « Nouveau ») bien que le prompt
-  Slice B disait « frontend uniquement » — décidé avec le user (les decks l'exigent).
-- **Reconstruire = validation instantanée client** (`chipNodeId === slotId`) ; l'XP reste **serveur**
-  (`/attempts`, réduit par les échecs). `/evaluate` (pur) existe mais n'est plus appelé côté client.
-- **Reconstruire = passes aléatoires partielles**, `ceil(n/3)`, contexte visible (jamais tout
-  blanchi depuis le centre).
-- Layout = **présentation client** (ADR-0016) → disposition persistée en **localStorage** (pas de
-  sync multi-appareils : follow-up).
-- Arêtes `smoothstep` avec `pathOptions.borderRadius: 10` (18 fait planter). **Un seul** handle
-  source + un cible par nœud, position par côté (les handles multiples adressés par id ne se
-  résolvent pas dans React Flow).
-- `maxDepth` compte le **centre comme niveau 1** (seuil de `defaultLayout`).
+- **ADR-0018** : fan-out 1 mission/notion (cap 3), 2 portes v1, **texte-libre reporté** (constat
+  read-before-code : `Skill` n'a pas d'embedding, seul `RagChunk` en a), `force_priority` **par flag**
+  (bump v1→v2). `due_date` **informationnelle Papa-only**, jamais dans un schéma student.
+- **ADR-0019** : mindmap créneau activé, **verdict option B** (mindmap substitue le quiz au rappel,
+  reverse toujours requis), bump **v2→v3**. Preuve = `score>0` (effort, pas seuil qualité).
+- **Cycle de vie** : `delete` = suppression dure (≠ `reject` qui garde un `rejected`) ; `regenerate` =
+  déterministe, **planned-only**, garde la validation ; `patch` = champs sûrs uniquement (immuables :
+  skill/type/status/validation/started_at) ; **éditeur de parcours = palette contrainte** (types
+  disponibles pour la notion, mindmap/quiz ssi ressource résolue), planned-only, ≥1 étape.
+- **Frise = séquence + statut** (pas d'horodatage) et **Édition = métadonnées + éditeur d'étapes** —
+  tranchés avec le user.
+
+### PIÈGES (détail → `TROUBLESHOOTING.md` §Chantier `mission`)
+
+- Backend **:8000 est STALE** (démarré avant les Lots) → routes récentes en 404. Utiliser **:8001**
+  (hot-reload actif). C'est le piège n°1 de toute reprise ici.
+- `useState` placé **après** des `useCallback` dans un hook → HMR « change in order of Hooks » + white
+  screen à chaud (pas au reload). Toujours grouper les `useState` en tête.
+- `service.py` ne doit **pas** importer `pilot` (cycle `pilot→service`) → le **router** sérialise via
+  `pilot._to_pilot_out`.
+- `ContentLifecycleActions` (@zetis/ui) a une copie de confirmation spécifique au contenu LLM
+  (« repassera à valider ») → inadaptée aux missions ; on a assemblé une rangée d'actions dédiée.
 
 ### PROCHAIN PAS
 
-1. **Commiter le polish UX front** (working-tree ci-dessus) puis **pousser la branche `mindmap` +
-   ouvrir la PR** (Slice A `cfe2b43` + Slice B `47d2dde` + polish). L'E2E vrai backend est **fait et
-   vert** (voir ci-dessus). Le rendu live du panneau fiche / icône animée reste à revoir en session
-   connectée (le preview est sur l'écran de login) — logique couverte par tsc + 81 tests.
-2. (Optionnel) Revérifier la page pilotage Papa + l'éditeur d'arbre en navigateur (login Papa).
+1. **Rejouer en navigateur** (login Papa, :5175 → :8001) les 2 clics manquants : Supprimer (popup
+   danger → confirmer → la mission disparaît) et Régénérer (mission planifiée → parcours reconstruit).
+2. Lancer la **suite complète** (`pytest`, `tsc -b`, `vite build`) une dernière fois, puis **committer
+   en 4 slices** + pousser la branche `mission` + ouvrir la PR.
 
 ### Repères (Git / orientation)
 
-- `git log --oneline` : `cfe2b43` = Slice A (dernier commit). Le reste = working-tree.
-- Zone code : `graphify explain "mindmap"` ; back `app/modules/mindmaps/` ; front massimo
-  `src/components/mindmap/` + `src/lib/mindmap*.ts` ; papa `MindmapsPilotagePage`/`MindmapEditorModal`.
-- Modèle de données mindmaps : `DATA_MODEL.md` (sections Mindmap + MindmapAttempt, déjà à jour).
-- Écarts rencontrés : `TROUBLESHOOTING.md`.
+- `git log --oneline` : `9e10e9b` (Lot 2) = dernier commit ; tout le reste = working-tree.
+- Zone code : `graphify explain "missions"` ; back `app/modules/missions/` (`service.py`, `pilot.py`,
+  `command.py`, `selector.py`, `schemas.py`, `router.py`) + `evidence/` ; front papa `MissionsPage.tsx`
+  + `MissionEditModal.tsx` + `MissionTimeline.tsx` + `CommandMissionModal.tsx` + `hooks/useMissionsPilotage.ts`
+  + `useCommandMission.ts` ; front massimo `MissionsPage.tsx` + `MindmapSubjectPage.tsx` (route reconstruire).
+- Décisions figées : ADR-0017 / 0018 / 0019 (`docs/decisions/`). Écarts : `TROUBLESHOOTING.md`.
