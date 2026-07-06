@@ -5,114 +5,96 @@
 > L'état du **code** se lit dans Git ; les **décisions figées** dans `DECISIONS.md`/les ADR ;
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 
-## Reprise — chantier `mission` (ADR-0017/0018/0019) · branche `mission`
+## Reprise — chantier `Conseil de classe IA` (ADR-0020/0021) · branche `feat/conseil-classe-backend`
 
-État global : les **Lots 1+2 backend de l'ADR-0017 sont COMMITÉS** (`dd9ee78`, `9e10e9b`).
-Par-dessus, **4 slices sont FAITES mais NON COMMITÉES** (working-tree) et s'empilent :
-(1) page Papa « Missions — pilotage », (2) **Commander** (ADR-0018), (3) **step mindmap**
-(ADR-0019), (4) **cycle de vie** (frise + delete/éditer/régénérer). **364 tests backend verts,
-tsc + builds massimo/papa verts, E2E live joués et verts** (sauf 2 clics UI finaux, cf. EN COURS).
+État global : la branche `feat/conseil-classe-backend` porte **10 commits FAITS, NON POUSSÉS**
+(le prochain pas est push + PR). Le chantier missions précédent (ADR-0017/0018/0019 + frontend
+Massimo) est **MERGÉ dans `main`** (PR #46) ; le correctif `generate_revision` mono-notion est
+**MERGÉ `main`** (PR #47). **379 tests backend verts, tsc + builds papa/massimo verts, E2E live
+Ollama joués et verts.**
 
-### FAIT — commité (dans Git)
+### FAIT — sur `feat/conseil-classe-backend` (10 commits, à pousser)
 
-- **ADR-0017 Lot 1** (`dd9ee78`) : steps à preuves serveur + verdict d'acquisition, migration
-  `f3a4b5c6d7e8`.
-- **ADR-0017 Lot 2** (`9e10e9b`) : service d'évidence + sélecteur déterministe versionné + 7 routes
-  pilotage Papa.
+- **ADR-0020 — Conseil de classe IA** (Papa-only). Nouveau module backend `app/modules/reports` :
+  narration LLM **100 % locale** (`get_provider`, jamais le cloud) posée sur le **service d'évidence**
+  (2e consommateur après le scoring missions). Le LLM **narre et hiérarchise** une évidence
+  *calculée* ; il n'invente aucun `skill_id` (revalidés serveur = anti-hallucination). Sortie typée
+  versionnée (`CouncilReportSpec` `extra=forbid`, `COUNCIL_PROMPT_VERSION=v1`, une réparation, trace
+  `AIJob`). **Rapport PERSISTÉ** : table `council_reports` (migration `b8c9d0e1f2a3`, **appliquée DB
+  dev**) + `evidence_snapshot_json` (évidence figée = auditabilité, un artefact LLM n'étant pas
+  rejouable). Routes Papa (`require_parent`) : `POST/GET /api/reports/class-council`, `GET /{id}`,
+  `POST /create-missions` (pont → `command.create_command_missions`, mono-notion). Front Papa :
+  `lib/councilClass.ts` + `hooks/useCouncilClass.ts` + `ConseilClasseIAPage` (mock → réel : Générer /
+  Créer / Exporter Markdown, style sombre `papa-*`, logos matières circulaires dorés).
 
-### FAIT — working-tree, NON commité (4 slices, à committer séparément)
+- **ADR-0021 — Équipement de mission** (« Créer ces missions » = **confirmer → équiper → créer**).
+  Backend `reports.equip_notion` orchestre les 5 générateurs existants (cours→fiche→SRS→quiz→mindmap)
+  et les **auto-valide** ; route `POST /api/reports/class-council/equip-notion`. **On ne régénère
+  JAMAIS une pièce déjà créée** (même un brouillon `pending` de Papa) — on génère seulement le
+  manquant, et on **valide** l'existant `pending` (helpers en logique d'existence : `_existing_fiche`
+  / `_existing_mindmap`, `_has_mission_quiz`, `_has_srs_cards`). Dégradation gracieuse leçon-centrée
+  (notion sans leçon validée → contenus sautés + signalés). Front Papa : popup **ConfirmDialog
+  `tone="important"`** (cadre doré animé — nouveau ton réutilisable dans `@zetis/ui`) + **barre de
+  progression IA dorée** par notion (pipeline des 5 pièces qui s'allument) + **popup éphémère de fin**
+  (coche ✓ par pièce) + **badge doré « Missions générées »** sur les notions équipées (persistant, cf.
+  décisions).
 
-1. **Page Papa « Missions — pilotage »** (frontend Lot 2). `lib/missionsPilotage.ts` +
-   `hooks/useMissionsPilotage.ts` + `pages/MissionsPage.tsx` (réécrite, 5 sections : KPI → À valider
-   → Élue → En cours → Verdicts) + badge sidebar `pending` (`PapaSidebar.tsx`, event
-   `zetis:missions-pending-changed`). Frontière `MissionPilotOut` respectée, thème sombre traduit
-   depuis la maquette claire. `lib/missions.ts` (ancienne page étape 15) **supprimé**. E2E live vert
-   (reject 4→3, KPI + badge en direct).
-
-2. **Commander une mission** (ADR-0018). Papa apporte le scope → ZETIS résout les notions fragiles →
-   **1 mission mono-skill par notion cochée** (fan-out, plafond `MISSION_COMMAND_MAX_SKILLS=3`),
-   `manual`/`validated` par construction. v1 = 2 portes (Échéance chapitre+date ; Thématique
-   sélection référentiel) ; Recommandation + texte-libre **désactivées avec raison**. Backend :
-   `missions/command.py` (`preview` sans écriture + `confirm` fan-out), 2 routes `command/preview|confirm`,
-   config `mission_command_*`. **Migration `a7b8c9d0e1f2`** (`missions.force_priority` + `due_date`)
-   **APPLIQUÉE sur la DB dev**. **Sélecteur bumpé `MISSION_SCORING_VERSION` v1→v2** : `forced_priority`
-   lit le flag `mission.force_priority` (plus le type). Front : `useCommandMission.ts` +
-   `CommandMissionModal.tsx` + bouton `+ Commander`. E2E live vert (preview, fan-out, badge).
-
-3. **Step mindmap dans les missions** (ADR-0019). Active le créneau `mindmap` (déjà dans le
-   vocabulaire fermé ADR-0017 §5). **Aucune migration** (`step_type` `String(20)` suffit). Backend
-   `service.py` : `STEP_MINDMAP`, `_resolve_mission_mindmap_id` (optionnel comme le quiz), inséré dans
-   `_build_steps` + `_build_revision_steps` (`eli5→vocal→[mindmap]→[quiz]`), `_mindmap_score_after`
-   (preuve = `MindmapAttempt` `score>0` ET `created_at>started_at`), branche `_verify_proof`. **Verdict
-   OPTION B** : `acquired = reverse≥t ET (quiz≥t OU mindmap≥t)` — la reconstruction **se substitue au
-   quiz**. Config `mission_mindmap_threshold=70`, **bump v2→v3**. Front Massimo : CTA « Reconstruire → »
-   + route **`/mindmaps/reconstruire/:mindmapId`** (ouvre par id en mode build). Front Papa : emoji/label
-   🧠. **E2E live vert** : mission 25 (skill 92, mindmap 3) sans quiz + mindmap 80 + reverse 82 →
-   verdict `acquired`.
-
-4. **Cycle de vie des missions (Papa)** — CETTE session. Sur la page pilotage, chaque mission
-   (pool + À valider) est une **ligne dépliable** → **frise** (`MissionTimeline.tsx`, séquence + statut,
-   emoji + ✓/●/○ + score, PAS d'horodatage) + actions **✏️ Éditer / ↻ Régénérer / 🗑 Supprimer**.
-   Backend `service.py` : `delete_mission` (hard, mission+steps ; ≠ reject), `regenerate_mission`
-   (**planned-only**, reconstruit le parcours, garde `validation_status`), `patch_mission` (champs
-   sûrs), `mission_step_options` + `set_mission_steps` (**éditeur de parcours** = palette contrainte,
-   planned-only). Routes `DELETE|PATCH /{id}`, `POST /{id}/regenerate`, `GET /{id}/step-options`,
-   `PUT /{id}/steps`. Front : `MissionEditModal.tsx` (métadonnées + éditeur d'étapes ↑/↓/✕ + palette
-   d'ajout) + `ConfirmDialog` (delete `tone=danger`, regenerate) + `lib/missionSteps.ts` (STEP_EMOJI/
-   STEP_LABEL partagés). Hook : mutations `remove/regenerate/patch/saveSteps/loadStepOptions` +
-   `busyMission` par id.
+- **Missions Massimo — « qui a généré » + badge new** (dernier commit). Liste des missions élève :
+  chip **👤 par Papa / 🤖 par ZETIS** + badge **✨ new** (style ZETIS de `DeckDisc`) sur les missions
+  `planned`. Backend : champ d'**affichage** `origin` (`papa`/`zetis`) sur `MissionStudentOut`, dérivé
+  de `created_by` — l'enum interne `created_by` **reste pilot-only** (frontière ADR-0017 §3, test-verrou
+  vert). Type partagé `Mission.origin`.
 
 ### EN COURS / reste EXACTEMENT
 
-0. **Tout le working-tree est NON commité.** À committer en **4 commits séparés** (pilotage → commander
-   → mindmap-step → lifecycle) après vérif humaine (tests + diff). Messages suggérés : voir checklist.
-1. **2 clics UI non joués** (verif interrompue par le user) : le **ConfirmDialog de suppression** et le
-   **bouton Régénérer** n'ont pas été cliqués en navigateur. Le rendu (frise, modale d'édition avec
-   éditeur d'étapes, boutons, Régénérer masqué si `active`) EST vérifié à l'écran ; les endpoints sont
-   couverts par 9 tests `test_missions_lifecycle.py` (delete, regenerate planned-only, patch, step-options,
-   set-steps). Risque résiduel faible. → **Premier geste de reprise** : rejouer ces 2 clics.
-2. **Vérif live *propre* du payload force_priority/due_date de la modale Commander** reste à rejouer
-   (scripting DOM avait floppé ; logique prouvée par les 7 tests `test_missions_command.py`).
-3. **Données de test laissées en DB dev** : missions manual 24/25 (skill 92), +50 XP student ; 8 missions
-   validées. Sans conséquence (dev).
+0. **Tout est commité sur `feat/conseil-classe-backend` (10 commits) mais NON POUSSÉ.** → push +
+   ouvrir la PR vers `main`.
+1. **Données de test laissées en DB dev** : `council_report` id 1, missions `manual` créées via le
+   Conseil de classe, **kits générés** (SVT Magnitude/Foyer, Français, etc. — fiches/quiz/mindmaps/SRS
+   validés). Sans conséquence (dev).
+2. **Serveurs de vérif encore up possibles** : `backend-dev2` :8002 (frais), `papa-dev2` :5178,
+   `massimo-dev2` :5177. Le config `massimo-dev2` a été ajouté à `.claude/launch.json`.
 
 ### DÉCISIONS ACTIVES (prises en session — ne pas rouvrir)
 
-- **ADR-0018** : fan-out 1 mission/notion (cap 3), 2 portes v1, **texte-libre reporté** (constat
-  read-before-code : `Skill` n'a pas d'embedding, seul `RagChunk` en a), `force_priority` **par flag**
-  (bump v1→v2). `due_date` **informationnelle Papa-only**, jamais dans un schéma student.
-- **ADR-0019** : mindmap créneau activé, **verdict option B** (mindmap substitue le quiz au rappel,
-  reverse toujours requis), bump **v2→v3**. Preuve = `score>0` (effort, pas seuil qualité).
-- **Cycle de vie** : `delete` = suppression dure (≠ `reject` qui garde un `rejected`) ; `regenerate` =
-  déterministe, **planned-only**, garde la validation ; `patch` = champs sûrs uniquement (immuables :
-  skill/type/status/validation/started_at) ; **éditeur de parcours = palette contrainte** (types
-  disponibles pour la notion, mindmap/quiz ssi ressource résolue), planned-only, ≥1 étape.
-- **Frise = séquence + statut** (pas d'horodatage) et **Édition = métadonnées + éditeur d'étapes** —
-  tranchés avec le user.
+- **ADR-0020** : rapport Conseil **persisté** (LLM non rejouable → figer + snapshot d'évidence, contraste
+  assumé avec l'élection de mission qui ne stocke rien) ; `skill_id` des recommandations **ancrés** sur
+  l'évidence ; 100 % local ; Papa-only ; recommandation → missions **mono-notion** via Commander ;
+  « évolution » comparative et croisées multi-matières **hors v1**.
+- **ADR-0021** : la **popup de confirmation Papa vaut approbation** → **auto-validation** du kit
+  (soupape §5ter de l'ADR-0017 actée et **bornée** à ce geste) ; **jamais de régénération** d'une pièce
+  déjà créée (même `pending`) — seulement validation de l'existant + génération du manquant ; équiper
+  **AVANT** de créer la mission (ses étapes résolvent les ressources fraîches).
+- **Missions Massimo** : exposer un champ d'affichage `origin` (papa/zetis), **pas** l'enum `created_by`
+  (pilot-only) ; badge « new » = mission `planned` (jamais démarrée), aucun suivi de vues.
 
-### PIÈGES (détail → `TROUBLESHOOTING.md` §Chantier `mission`)
+### PIÈGES (voir aussi `TROUBLESHOOTING.md`)
 
-- Backend **:8000 est STALE** (démarré avant les Lots) → routes récentes en 404. Utiliser **:8001**
-  (hot-reload actif). C'est le piège n°1 de toute reprise ici.
-- `useState` placé **après** des `useCallback` dans un hook → HMR « change in order of Hooks » + white
-  screen à chaud (pas au reload). Toujours grouper les `useState` en tête.
-- `service.py` ne doit **pas** importer `pilot` (cycle `pilot→service`) → le **router** sérialise via
-  `pilot._to_pilot_out`.
-- `ContentLifecycleActions` (@zetis/ui) a une copie de confirmation spécifique au contenu LLM
-  (« repassera à valider ») → inadaptée aux missions ; on a assemblé une rangée d'actions dédiée.
+- **Backends dev sans `--reload`** : `backend-dev2` (:8002) doit être **redémarré** après tout ajout de
+  route (equip-notion, origin…) sinon 404 / champ absent. `:8001` (`backend-dev`) est souvent STALE.
+- Générateurs (fiche/quiz/mindmap/SRS/cours) **verrouillés à une leçon canonique validée** : une notion
+  sans leçon → contenus non générables (dégradation gracieuse signalée).
+- `set_lesson_validation(db, id, "validate")` **exige un statut `draft`** ; `generate_lesson_content`
+  repasse la leçon en `draft` — d'où l'ordre generate→validate.
+- HMR « change in order of Hooks » = **artefact de dev** quand on ajoute/retire un hook ; un **reload
+  complet** résout ; l'ordre du code est correct (tsc + build de prod verts).
+- `reports/service.py` importe les générateurs en **imports paresseux** (dans la fonction) pour éviter
+  tout cycle.
 
 ### PROCHAIN PAS
 
-1. **Rejouer en navigateur** (login Papa, :5175 → :8001) les 2 clics manquants : Supprimer (popup
-   danger → confirmer → la mission disparaît) et Régénérer (mission planifiée → parcours reconstruit).
-2. Lancer la **suite complète** (`pytest`, `tsc -b`, `vite build`) une dernière fois, puis **committer
-   en 4 slices** + pousser la branche `mission` + ouvrir la PR.
+1. **Pousser** `feat/conseil-classe-backend` + ouvrir la **PR** vers `main`.
+2. Suites déjà vertes (`pytest` 379 · `tsc -b` · `vite build` papa+massimo) — relancer une dernière fois
+   si besoin après rebase.
+3. Débouchés futurs : porte (i) « Recommandation retenue » de l'ADR-0018 (débloquée par cette page),
+   « évolution » comparative (slice 2), missions **croisées multi-matières** (ADR dédié à écrire).
 
 ### Repères (Git / orientation)
 
-- `git log --oneline` : `9e10e9b` (Lot 2) = dernier commit ; tout le reste = working-tree.
-- Zone code : `graphify explain "missions"` ; back `app/modules/missions/` (`service.py`, `pilot.py`,
-  `command.py`, `selector.py`, `schemas.py`, `router.py`) + `evidence/` ; front papa `MissionsPage.tsx`
-  + `MissionEditModal.tsx` + `MissionTimeline.tsx` + `CommandMissionModal.tsx` + `hooks/useMissionsPilotage.ts`
-  + `useCommandMission.ts` ; front massimo `MissionsPage.tsx` + `MindmapSubjectPage.tsx` (route reconstruire).
-- Décisions figées : ADR-0017 / 0018 / 0019 (`docs/decisions/`). Écarts : `TROUBLESHOOTING.md`.
+- `git log --oneline main..feat/conseil-classe-backend` = les 10 commits du chantier.
+- Zone code : `graphify explain "reports"` / `"missions"`. Back : `app/modules/reports/`
+  (`service.py`, `router.py`, `schemas.py`) + `app/prompts/council.py` + `app/modules/evidence/`.
+  Front papa : `pages/ConseilClasseIAPage.tsx` + `lib/councilClass.ts` + `hooks/useCouncilClass.ts`.
+  Front massimo : `pages/MissionsPage.tsx`.
+- Décisions figées : ADR-0020 / 0021 (`docs/decisions/`) + `DECISIONS.md`. Modèle : `DATA_MODEL.md`
+  (table `council_reports`). API : `API_SPEC.md` §Conseil de classe.
