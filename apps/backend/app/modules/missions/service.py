@@ -61,6 +61,10 @@ STEP_LESSON = "lesson"
 STEP_MINDMAP = "mindmap"  # reconstruction de carte mentale (ADR-0019) — step scoré, pas consultation
 _CONSULT_STEPS = (STEP_ELI5, STEP_LESSON)
 
+# Durée estimée par type d'étape (minutes) — déterministe, purement indicative (affichage enfant).
+# Pas une donnée pédagogique : une addition d'ordres de grandeur pour situer l'effort.
+_STEP_MINUTES = {STEP_LESSON: 5, STEP_ELI5: 5, STEP_VOCAL: 5, STEP_MINDMAP: 6, STEP_QUIZ: 4}
+
 
 # --- Cibles réelles des étapes ------------------------------------------------------------
 
@@ -108,14 +112,12 @@ def _resolve_mission_mindmap_id(db: Session, skill_id: int | None) -> int | None
     )
 
 
-def _build_steps(db: Session, skill_id: int | None, skill_name: str) -> list[tuple[str, str, int | None]]:
-    """(step_type, instruction, resource_id) — expliquer → réexpliquer → [reconstruire] → [vérifier]."""
-    steps: list[tuple[str, str, int | None]] = [
-        (STEP_ELI5, f"Demande à ZETIS de t'expliquer « {skill_name} » (ELI5).", skill_id),
-        (STEP_VOCAL, f"Réexplique « {skill_name} » avec tes mots à ZETIS.", skill_id),
-    ]
-    # Reconstruction de la carte mentale (ADR-0019) — consolidation structurelle, après avoir
-    # réexpliqué et avant le quiz. Optionnelle (comme le quiz) : présente si une carte validée existe.
+def _recall_steps(
+    db: Session, skill_id: int | None, skill_name: str
+) -> list[tuple[str, str, int | None]]:
+    """Étapes de RAPPEL (récupération active), optionnelles : reconstruction de carte (ADR-0019)
+    puis mini-quiz — présentes ssi une ressource validée existe pour la notion."""
+    steps: list[tuple[str, str, int | None]] = []
     mindmap_id = _resolve_mission_mindmap_id(db, skill_id)
     if mindmap_id is not None:
         steps.append(
@@ -127,6 +129,23 @@ def _build_steps(db: Session, skill_id: int | None, skill_name: str) -> list[tup
             (STEP_QUIZ, f"Refais un petit quiz sur « {skill_name} » pour vérifier.", quiz_id)
         )
     return steps
+
+
+def _build_steps(
+    db: Session, skill_id: int | None, skill_name: str, mission_type: str = "progression"
+) -> list[tuple[str, str, int | None]]:
+    """Composition d'un parcours (ADR-0017 §5). L'ORDRE dépend du type — ELI5 n'est PAS toujours en
+    tête, c'est la même timeline réordonnée selon l'intention pédagogique :
+    - `progression` (notion NOUVELLE) → DÉCOUVERTE d'abord : expliquer → réexpliquer → [reconstruire] → [vérifier] ;
+    - `remediation` (notion DÉJÀ VUE) → RAPPEL d'abord (récupération active avant re-explication) :
+      [reconstruire] → [vérifier] → expliquer → réexpliquer.
+    Sans ressource de rappel (ni carte ni quiz), les deux ordres coïncident (expliquer → réexpliquer)."""
+    discover: list[tuple[str, str, int | None]] = [
+        (STEP_ELI5, f"Demande à ZETIS de t'expliquer « {skill_name} » (ELI5).", skill_id),
+        (STEP_VOCAL, f"Réexplique « {skill_name} » avec tes mots à ZETIS.", skill_id),
+    ]
+    recall = _recall_steps(db, skill_id, skill_name)
+    return recall + discover if mission_type == "remediation" else discover + recall
 
 
 def _skill_name(db: Session, skill_id: int | None) -> str:
@@ -158,6 +177,8 @@ def _to_out(db: Session, mission: Mission) -> dict:
         "mission_type": mission.mission_type,
         "status": mission.status,
         "priority": mission.priority,
+        "estimated_minutes": max(5, sum(_STEP_MINUTES.get(s.step_type, 4) for s in steps)),
+        "xp_reward": settings.mission_xp_reward,
         "steps": [
             {
                 "id": s.id,
@@ -220,7 +241,7 @@ def generate_remediation(db: Session, student: StudentProfile) -> list[dict]:
         db.add(mission)
         db.flush()
         for index, (step_type, instruction, resource_id) in enumerate(
-            _build_steps(db, gap.skill_id, skill_name)
+            _build_steps(db, gap.skill_id, skill_name, mission_type="remediation")
         ):
             db.add(
                 MissionStep(
@@ -246,23 +267,15 @@ def generate_remediation(db: Session, student: StudentProfile) -> list[dict]:
 def _build_revision_steps(
     db: Session, skill_id: int | None, skill_name: str
 ) -> list[tuple[str, str, int | None]]:
-    """Template `revision` (ADR-0017 §5) : relecture → [reconstruire] → mini-quiz de récupération.
-
-    La reconstruction de carte (ADR-0019) est une récupération active plus forte qu'une relecture
-    passive : particulièrement pertinente en révision (et, via le verdict option B, elle peut y
-    tenir lieu de signal de rappel quand aucun quiz n'existe)."""
-    steps: list[tuple[str, str, int | None]] = [
+    """Template `revision` (ADR-0017 §5) : RAPPEL d'abord (récupération active — [reconstruire] →
+    [mini-quiz]) puis relecture de consolidation. Notion déjà vue → on teste le rappel avant de
+    relire (effet de test). La reconstruction (ADR-0019) est une récupération plus forte que la
+    relecture passive ; via le verdict option B elle peut tenir lieu de signal de rappel sans quiz."""
+    recall = _recall_steps(db, skill_id, skill_name)
+    relire: list[tuple[str, str, int | None]] = [
         (STEP_ELI5, f"Relis et rappelle-toi « {skill_name} ».", skill_id),
     ]
-    mindmap_id = _resolve_mission_mindmap_id(db, skill_id)
-    if mindmap_id is not None:
-        steps.append(
-            (STEP_MINDMAP, f"Reconstruis la carte mentale de « {skill_name} ».", mindmap_id)
-        )
-    quiz_id = _resolve_mission_quiz_id(db, skill_id)
-    if quiz_id is not None:
-        steps.append((STEP_QUIZ, f"Petit quiz de récupération sur « {skill_name} ».", quiz_id))
-    return steps
+    return recall + relire
 
 
 def _skill_has_active_mission(db: Session, *, student_id: int, skill_id: int) -> bool:
@@ -529,6 +542,43 @@ def today_election(db: Session, student: StudentProfile) -> dict:
         "scoring_version": result["scoring_version"],
         "alternatives": [_to_out(db, alt.mission) for alt in result["alternatives"]],
     }
+
+
+def completed_today(db: Session, student: StudentProfile) -> list[dict]:
+    """« Terminées aujourd'hui » (vue student) : les verdicts du jour, relus depuis les
+    `LearningEvent(mission_verdict)` horodatés (le verdict n'est pas un état de mission, §5bis).
+
+    Frontière §3 : on ne renvoie QUE `{title, subject, verdict, xp}` — jamais les scores bruts
+    présents dans le `payload_json` (reverse/quiz/mindmap restent analytiques Papa)."""
+    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    events = db.scalars(
+        select(LearningEvent)
+        .where(
+            LearningEvent.student_id == student.id,
+            LearningEvent.event_type == "mission_verdict",
+            LearningEvent.created_at >= day_start,
+        )
+        .order_by(LearningEvent.created_at.desc())
+    )
+    out: list[dict] = []
+    for event in events:
+        payload = event.payload_json or {}
+        mission = db.get(Mission, payload.get("mission_id"))
+        if mission is None:
+            continue
+        subject = (
+            db.get(Subject, mission.subject_id) if mission.subject_id is not None else None
+        )
+        out.append(
+            {
+                "mission_id": mission.id,
+                "title": mission.title,
+                "subject": subject.name if subject is not None else "",
+                "verdict": payload.get("verdict") or "review_later",
+                "xp": int(payload.get("xp") or 0),
+            }
+        )
+    return out
 
 
 # --- Exécution : start + complete-step -----------------------------------------------------
@@ -955,7 +1005,7 @@ def regenerate_mission(db: Session, student: StudentProfile, mission_id: int) ->
     specs = (
         _build_revision_steps(db, mission.skill_id, skill_name)
         if mission.mission_type == "revision"
-        else _build_steps(db, mission.skill_id, skill_name)
+        else _build_steps(db, mission.skill_id, skill_name, mission_type=mission.mission_type)
     )
     _write_steps(db, mission, specs)
     db.commit()

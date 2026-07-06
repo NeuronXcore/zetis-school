@@ -92,11 +92,12 @@ def test_regenerate_rebuilds_parcours_and_keeps_validation(client_db) -> None:
     with Session() as db:
         student, skill, subject = _seeded(db)
         _seed_mindmap_for_skill(db, skill)  # rend le step mindmap résoluble
-        # Parcours amputé (juste eli5) → regenerate doit reconstruire eli5→vocal→mindmap.
+        # Parcours amputé (juste eli5) → regenerate reconstruit le parcours complet. La mission est
+        # `remediation` (notion déjà vue) → RAPPEL d'abord (ADR-0017 §5) : mindmap → eli5 → vocal.
         mid = _make_mission(db, student=student, skill=skill, subject=subject, steps=[("eli5", skill.id)])
     res = client.post(f"/api/missions/{mid}/regenerate")
     assert res.status_code == 200
-    assert [s["step_type"] for s in res.json()["steps"]] == ["eli5", "vocal_explain", "mindmap"]
+    assert [s["step_type"] for s in res.json()["steps"]] == ["mindmap", "eli5", "vocal_explain"]
     assert res.json()["validation_status"] == "validated"  # inchangé
 
 

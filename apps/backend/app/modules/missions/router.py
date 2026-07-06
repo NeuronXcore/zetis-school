@@ -16,6 +16,7 @@ from app.modules.missions.schemas import (
     CommandConfirmRequest,
     CommandPreviewRequest,
     CommandPreviewResponse,
+    CompletedMissionOut,
     ElectionResponse,
     GenerateResponse,
     MissionPatchRequest,
@@ -47,6 +48,15 @@ def list_missions(db: Session = Depends(get_db), _: dict = Depends(get_current_u
 def today(db: Session = Depends(get_db), _: dict = Depends(get_current_user)) -> dict:
     """Mission du jour ÉLUE + raison (contrat ADR-0017 §3), ou état serein si rien d'obligatoire."""
     return service.today_election(db, get_default_student(db))
+
+
+@router.get("/completed-today", response_model=list[CompletedMissionOut])
+def completed_today(
+    db: Session = Depends(get_db), _: dict = Depends(get_current_user)
+) -> list[dict]:
+    """Missions terminées aujourd'hui + verdict (deux issues positives) + XP. Chemin littéral
+    placé avant `/{mission_id}/…` — pas de collision (suffixe distinct)."""
+    return service.completed_today(db, get_default_student(db))
 
 
 @router.post("/{mission_id}/start", response_model=MissionStudentOut)

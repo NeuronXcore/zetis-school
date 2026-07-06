@@ -145,6 +145,25 @@ def test_student_quiz_carries_lesson_id_and_subjects_summary(client_db):
     assert maths["quiz_count"] == 1 and maths["name"] == "Mathématiques"
 
 
+def test_student_quiz_by_id_serves_mission_quiz_without_key(client_db):
+    """Deep-link mission → quiz par id (le runner fixe ensuite context=mission). Même asymétrie
+    serveur que la liste par matière : ni clé ni explication ; quiz inconnu/non servable → 404."""
+    client, TestSession = client_db
+    db = TestSession()
+    quiz, _, lesson_id, _ = _gen(db)
+    quiz_id = quiz.id
+
+    _as(CHILD)
+    got = client.get(f"/api/student/quiz/{quiz_id}")
+    assert got.status_code == 200
+    body = got.json()
+    assert body["quiz_id"] == quiz_id and body["lesson_id"] == lesson_id
+    assert len(body["questions"]) >= 1
+    for forbidden in ("correct_answer", "correct_index", "correct_indices", "explanation"):
+        assert forbidden not in got.text
+    assert client.get("/api/student/quiz/999999").status_code == 404
+
+
 def test_full_attempt_flow_feedback_score_and_xp(client_db):
     client, TestSession = client_db
     db = TestSession()

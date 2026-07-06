@@ -31,6 +31,11 @@ class MissionStudentOut(BaseModel):
     mission_type: str
     status: str
     priority: int
+    # Affichage enfant : durée estimée (dérivée des étapes, déterministe) et XP d'effort
+    # (constante `mission_xp_reward`). Ni score ni facteur — l'XP est l'unique nombre montré,
+    # et il récompense l'effort, pas la performance (frontière §3 préservée).
+    estimated_minutes: int
+    xp_reward: int
     steps: list[MissionStepStudentOut]
 
 
@@ -53,6 +58,18 @@ class StepCompleteResponse(BaseModel):
     mission_status: str
     verdict: str | None  # acquired | review_later | None (mission non terminée)
     xp_awarded: int
+
+
+class CompletedMissionOut(BaseModel):
+    """« Terminées aujourd'hui » (vue student). Le verdict n'est PAS un état de mission mais un
+    `LearningEvent(mission_verdict)` horodaté (§5bis) : on relit ceux du jour. Deux issues, toutes
+    deux positives ; XP d'effort affiché. AUCUN score (reverse/quiz/mindmap) — frontière §3."""
+
+    mission_id: int
+    title: str
+    subject: str
+    verdict: str  # "acquired" | "review_later"
+    xp: int
 
 
 class ValidateMissionsRequest(BaseModel):

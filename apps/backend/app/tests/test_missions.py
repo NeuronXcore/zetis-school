@@ -384,3 +384,102 @@ def test_start_is_idempotent(client_db) -> None:
 def test_unknown_mission_start_404(client_db) -> None:
     client, _ = client_db
     assert client.post("/api/missions/9999/start").status_code == 404
+
+
+# --- Affichage enfant : durée + XP exposés, aucune fuite de score (frontière §3) -----------
+
+
+def test_student_mission_exposes_minutes_and_xp_without_scores(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
+        )
+    mission = client.get("/api/missions").json()[0]
+    # 5 + 5 minutes (eli5 + vocal), XP d'effort constant.
+    assert mission["estimated_minutes"] == 10
+    assert mission["xp_reward"] == 50
+    # Aucun champ analytique ne fuit vers Massimo (ADR-0017 §3).
+    leaked = {"score", "factors", "mastery", "fragility", "reverse_score", "quiz_score", "reason"}
+    assert leaked.isdisjoint(mission.keys())
+
+
+# --- « Terminées aujourd'hui » : verdict + XP relus des events, sans score ------------------
+
+
+def test_completed_today_lists_verdict_and_xp_without_scores(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        mid = _make_mission(
+            db,
+            student=student,
+            skill=skill,
+            subject=subject,
+            steps=[("eli5", skill.id), ("vocal_explain", skill.id)],
+        )
+    assert client.get("/api/missions/completed-today").json() == []  # rien de terminé encore
+
+    client.post(f"/api/missions/{mid}/start")
+    with Session() as db:
+        student, skill, _ = _seeded(db)
+        started = db.get(m.Mission, mid).started_at
+        _add_reverse_event(db, student=student, skill=skill, score=90, at=started + timedelta(seconds=1))
+    steps = _steps_of(client, mid)
+    client.post(f"/api/missions/{mid}/steps/{steps[0]['id']}/complete")
+    client.post(f"/api/missions/{mid}/steps/{steps[1]['id']}/complete")
+
+    done = client.get("/api/missions/completed-today")
+    assert done.status_code == 200
+    cards = done.json()
+    assert len(cards) == 1
+    card = cards[0]
+    assert card["mission_id"] == mid
+    assert card["verdict"] in {"acquired", "review_later"}
+    assert card["xp"] == 50
+    assert card["title"] and "subject" in card
+    # Aucun score brut relu depuis le payload de l'event (frontière §3).
+    assert {"reverse_score", "quiz_score", "mindmap_score", "score"}.isdisjoint(card.keys())
+
+
+# --- Ordre des étapes selon le type : ELI5 pas toujours en tête (ADR-0017 §5) ---------------
+
+
+def test_step_order_depends_on_mission_type(client_db, monkeypatch) -> None:
+    from app.modules.missions import service
+
+    # Ressources de rappel présentes (on isole l'ORDRE, pas la résolution).
+    monkeypatch.setattr(service, "_resolve_mission_mindmap_id", lambda db, sid: 100)
+    monkeypatch.setattr(service, "_resolve_mission_quiz_id", lambda db, sid: 200)
+    _, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        prog = [s[0] for s in service._build_steps(db, skill.id, skill.name, mission_type="progression")]
+        remed = [s[0] for s in service._build_steps(db, skill.id, skill.name, mission_type="remediation")]
+        rev = [s[0] for s in service._build_revision_steps(db, skill.id, skill.name)]
+
+    # Notion NOUVELLE (progression) → découverte d'abord.
+    assert prog == ["eli5", "vocal_explain", "mindmap", "quiz"]
+    # Notion DÉJÀ VUE (remediation) → rappel d'abord, ELI5 ensuite.
+    assert remed == ["mindmap", "quiz", "eli5", "vocal_explain"]
+    # Révision → rappel d'abord, relecture ensuite (pas de verbalisation).
+    assert rev == ["mindmap", "quiz", "eli5"]
+
+
+def test_step_order_identical_without_recall_resources(client_db, monkeypatch) -> None:
+    """Sans carte ni quiz réutilisables, les deux ordres coïncident (expliquer → réexpliquer)."""
+    from app.modules.missions import service
+
+    monkeypatch.setattr(service, "_resolve_mission_mindmap_id", lambda db, sid: None)
+    monkeypatch.setattr(service, "_resolve_mission_quiz_id", lambda db, sid: None)
+    _, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        prog = [s[0] for s in service._build_steps(db, skill.id, skill.name, mission_type="progression")]
+        remed = [s[0] for s in service._build_steps(db, skill.id, skill.name, mission_type="remediation")]
+    assert prog == remed == ["eli5", "vocal_explain"]

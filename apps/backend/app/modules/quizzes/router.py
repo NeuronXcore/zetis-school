@@ -147,6 +147,13 @@ def student_quizzes(subject_slug: str, db: Session = Depends(get_db)) -> list[di
     return service.list_student_quizzes(db, subject_slug)
 
 
+@student_router.get("/quiz/{quiz_id}", response_model=StudentQuizOut)
+def student_quiz(quiz_id: int, db: Session = Depends(get_db)) -> dict:
+    """Un quiz jouable par id (deep-link mission). Singulier `/quiz/` — pas de collision avec
+    `/quizzes/{subject_slug}` (pluriel)."""
+    return service.get_student_quiz(db, quiz_id)
+
+
 @student_router.post("/quizzes/{quiz_id}/attempts", response_model=StartAttemptOut)
 def start_attempt(quiz_id: int, db: Session = Depends(get_db)) -> dict:
     return service.start_attempt(db, get_default_student(db), quiz_id)
