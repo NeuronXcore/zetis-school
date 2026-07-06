@@ -3,11 +3,38 @@ import { PageHeader } from "../components/PageHeader";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { useCouncilClass } from "../hooks/useCouncilClass";
 import { type CouncilRecommendation, reportToMarkdown } from "../lib/councilClass";
+import type { Subject } from "../lib/subjects";
+import { subjectEmoji } from "../lib/subjectEmoji";
+import { subjectIconFor } from "../lib/subjectIcons";
 
 // Conseil de classe IA Papa (ADR-0020) — narration LLM locale sur le service d'évidence.
 // Composant présentationnel ; toute la logique vit dans `useCouncilClass`.
 
 const GEN_MS = 18000; // ordre de grandeur d'une génération LLM locale (barre estimée).
+
+/** Logo circulaire de matière (icône PNG ronde qu'on a créée, repli emoji), grande taille. */
+function SubjectDisc({ subject }: { subject: Subject | undefined }) {
+  const url = subject ? subjectIconFor(subject.slug) : undefined;
+  const frame = "h-[72px] w-[72px] shrink-0 rounded-full border-2 border-amber-400";
+  if (url) {
+    return (
+      <img
+        src={url}
+        alt=""
+        aria-hidden
+        className={`${frame} bg-papa-surface-2 object-contain p-1`}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className={`${frame} flex items-center justify-center bg-papa-surface-2 text-4xl leading-none`}
+    >
+      {subject ? subjectEmoji(subject.slug, subject.icon) : "📚"}
+    </span>
+  );
+}
 
 function downloadMarkdown(filename: string, content: string): void {
   const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
@@ -23,6 +50,7 @@ export function ConseilClasseIAPage() {
   const c = useCouncilClass();
   const [period, setPeriod] = useState("Trimestre 1");
   const pct = useEstimatedProgress(c.generating, GEN_MS);
+  const subjectById = new Map(c.subjects.map((s) => [s.id, s]));
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -130,10 +158,9 @@ export function ConseilClasseIAPage() {
           ) : (
             <div className="space-y-3">
               {c.report.subjects.map((s) => (
-                <div
-                  key={s.subject_id}
-                  className="rounded-xl border border-papa-border bg-papa-surface p-4"
-                >
+                <div key={s.subject_id} className="flex items-start gap-3">
+                  <SubjectDisc subject={subjectById.get(s.subject_id)} />
+                  <div className="flex-1 rounded-xl border border-papa-border bg-papa-surface p-4">
                   <p className="font-semibold">{s.subject_name}</p>
                   {s.strengths && (
                     <p className="mt-1 text-sm">
@@ -158,6 +185,7 @@ export function ConseilClasseIAPage() {
                       onCreate={() => void c.createMissions(r.skill_ids, r.skill_names)}
                     />
                   ))}
+                  </div>
                 </div>
               ))}
             </div>

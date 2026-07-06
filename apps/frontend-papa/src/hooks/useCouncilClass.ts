@@ -7,6 +7,7 @@ import {
   fetchCouncilReports,
   generateCouncil,
 } from "../lib/councilClass";
+import { type Subject, fetchSubjects } from "../lib/subjects";
 
 // Toute la logique de la page « Conseil de classe IA » vit ici (le composant reste
 // présentationnel). Au montage : historique des rapports + dernier rapport en cours. `generate`
@@ -22,6 +23,8 @@ export interface UseCouncilClass {
   error: string | null;
   report: CouncilReport | null;
   history: CouncilReportListItem[];
+  /** Matières (pour résoudre l'icône circulaire par `subject_id`). */
+  subjects: Subject[];
   generating: boolean;
   creatingKey: string | null; // clé de la reco en cours de création (skill_ids joints)
   created: CreatedFeedback | null;
@@ -36,6 +39,7 @@ export function useCouncilClass(): UseCouncilClass {
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<CouncilReport | null>(null);
   const [history, setHistory] = useState<CouncilReportListItem[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [generating, setGenerating] = useState(false);
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedFeedback | null>(null);
@@ -44,8 +48,9 @@ export function useCouncilClass(): UseCouncilClass {
     setLoading(true);
     setError(null);
     try {
-      const items = await fetchCouncilReports();
+      const [items, subs] = await Promise.all([fetchCouncilReports(), fetchSubjects()]);
       setHistory(items);
+      setSubjects(subs);
       setReport(items.length > 0 ? await fetchCouncilReport(items[0].id) : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Chargement impossible");
@@ -104,6 +109,7 @@ export function useCouncilClass(): UseCouncilClass {
     error,
     report,
     history,
+    subjects,
     generating,
     creatingKey,
     created,
