@@ -692,6 +692,27 @@ Massimo reproduit une mindmap.
 
 Évaluation.
 
+## Conseil de classe IA (ADR-0020)
+
+Synthèse périodique par matière, **Papa-only** (`require_parent`). Narration LLM **100 % locale**
+posée sur le service d'évidence (le LLM narre et hiérarchise une évidence *calculée* ; il
+n'invente aucun `skill_id` — chaque id est revalidé serveur, anti-hallucination). Rapport **figé**
+(`council_reports` + snapshot d'évidence = auditabilité, un artefact LLM n'étant pas rejouable).
+Aucune surface Massimo.
+
+- **POST `/api/reports/class-council`** `{ period? }` → `CouncilReportOut`
+  `{ id, period, global_summary, subjects: [{ subject_id, subject_name, strengths, to_reinforce,
+  recent_evolution, recommendations: [{ skill_ids, skill_names, mission_type:"manual",
+  template_hint, justification }] }], prompt_version, created_at }`. Génère + persiste. Évidence
+  vide → rapport serein (0 matière), sans appel LLM. Erreur provider → `502`.
+- **GET `/api/reports/class-council?period=`** → `[CouncilReportListItem]`
+  `{ id, period, subjects_count, created_at }` (récents d'abord).
+- **GET `/api/reports/class-council/{id}`** → `CouncilReportOut`.
+- **POST `/api/reports/class-council/create-missions`** `{ skill_ids, due_date?, force_priority? }`
+  → `[MissionPilotOut]`. Pont d'actionnabilité : une recommandation → missions **mono-notion** via
+  le flux Commander (ADR-0018 ; `manual`, `validated` par construction — la validation Papa = ce
+  clic). Croisées multi-matières hors v1.
+
 ## Jobs IA
 
 ### GET `/ai/jobs/{job_id}`
