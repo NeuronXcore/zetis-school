@@ -29,6 +29,8 @@ export interface Mission {
   mission_type: string;
   /** "planned" | "active" | "completed". */
   status: string;
+  /** « Qui a généré la mission » (affichage enfant) : "papa" ou "zetis". */
+  origin: string;
   priority: number;
   estimated_minutes: number;
   xp_reward: number;
