@@ -252,6 +252,7 @@ export function ConseilClasseIAPage() {
 
       <ConfirmDialog
         open={pendingReco !== null}
+        tone="important"
         title="Générer le contenu et créer la mission ?"
         confirmLabel="Générer et créer"
         onCancel={() => setPendingReco(null)}
