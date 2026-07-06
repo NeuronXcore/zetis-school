@@ -9,7 +9,18 @@ import {
   fetchCouncilReports,
   generateCouncil,
 } from "../lib/councilClass";
+import { type MissionPilot, fetchPilotList } from "../lib/missionsPilotage";
 import { type Subject, fetchSubjects } from "../lib/subjects";
+
+/** Notions déjà « équipées » = celles qui ont au moins une mission `manual` (créée depuis ce
+ *  flux ou Commander). Dérivé du backend pour survivre à un rechargement. */
+function manualMissionSkillIds(missions: MissionPilot[]): Set<number> {
+  return new Set(
+    missions
+      .filter((m) => m.mission_type === "manual" && m.skill_id != null)
+      .map((m) => m.skill_id as number),
+  );
+}
 
 // Toute la logique de la page « Conseil de classe IA » vit ici (le composant reste
 // présentationnel). Au montage : historique des rapports + dernier rapport en cours. `generate`
@@ -39,6 +50,8 @@ export interface UseCouncilClass {
   equipping: Equipping | null;
   /** Récap par notion du dernier « Créer ces missions » (généré / sauté / erreurs). */
   equipResults: EquipNotionResult[];
+  /** `skill_id` dont les missions ont été générées cette session (mise en évidence + badge). */
+  generatedSkillIds: Set<number>;
   created: CreatedFeedback | null;
   generate: (period?: string) => Promise<void>;
   openReport: (id: number) => Promise<void>;
@@ -56,15 +69,22 @@ export function useCouncilClass(): UseCouncilClass {
   const [generating, setGenerating] = useState(false);
   const [equipping, setEquipping] = useState<Equipping | null>(null);
   const [equipResults, setEquipResults] = useState<EquipNotionResult[]>([]);
+  const [generatedSkillIds, setGeneratedSkillIds] = useState<Set<number>>(new Set());
   const [created, setCreated] = useState<CreatedFeedback | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [items, subs] = await Promise.all([fetchCouncilReports(), fetchSubjects()]);
+      const [items, subs, missions] = await Promise.all([
+        fetchCouncilReports(),
+        fetchSubjects(),
+        fetchPilotList(),
+      ]);
       setHistory(items);
       setSubjects(subs);
+      // Notions déjà équipées (missions `manual` existantes) → badge persistant après rechargement.
+      setGeneratedSkillIds(manualMissionSkillIds(missions));
       setReport(items.length > 0 ? await fetchCouncilReport(items[0].id) : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Chargement impossible");
@@ -120,6 +140,7 @@ export function useCouncilClass(): UseCouncilClass {
         // 2) Créer les missions APRÈS l'équipement (leurs étapes résolvent les ressources fraîches).
         const missions = await createMissionsFromReco(skillIds);
         setCreated({ count: missions.length, skillNames });
+        setGeneratedSkillIds((prev) => new Set([...prev, ...skillIds]));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Équipement / création impossible");
       } finally {
@@ -138,6 +159,7 @@ export function useCouncilClass(): UseCouncilClass {
     generating,
     equipping,
     equipResults,
+    generatedSkillIds,
     created,
     generate,
     openReport,

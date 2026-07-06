@@ -1,5 +1,5 @@
 import { ConfirmDialog } from "@zetis/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { type Equipping, useCouncilClass } from "../hooks/useCouncilClass";
@@ -14,16 +14,6 @@ import { subjectIconFor } from "../lib/subjectIcons";
 const GEN_MS = 18000; // génération d'une synthèse (barre estimée).
 const EQUIP_MS = 90000; // équipement d'une notion : jusqu'à 5 générations LLM locales.
 
-// Libellés FR des pièces du kit (ADR-0021).
-const PIECE_LABEL: Record<string, string> = {
-  cours: "cours",
-  fiche: "fiche",
-  srs: "cartes",
-  quiz: "quiz",
-  mindmap: "carte mentale",
-};
-const labelPieces = (pieces: string[]) => pieces.map((p) => PIECE_LABEL[p] ?? p).join(", ");
-
 // Pipeline de génération (concept IA) : les 5 pièces du kit s'allument une à une.
 const KIT_STEPS = [
   { key: "cours", label: "Cours", icon: "📖" },
@@ -34,11 +24,13 @@ const KIT_STEPS = [
 ];
 
 // Animations dorées « IA » — keyframes injectées localement (aucune dépendance au CSS de l'app).
-const EQUIP_KEYFRAMES = `
+const AI_KEYFRAMES = `
 @keyframes zetis-ai-flow { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
 @keyframes zetis-ai-sweep { 0% { transform: translateX(-140%); } 100% { transform: translateX(360%); } }
 @keyframes zetis-ai-glow { 0%,100% { box-shadow: 0 0 10px -2px rgba(251,191,36,0.35); } 50% { box-shadow: 0 0 26px 0 rgba(251,191,36,0.85); } }
-@keyframes zetis-ai-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.18); } }`;
+@keyframes zetis-ai-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.18); } }
+@keyframes zetis-done-in { 0% { opacity: 0; transform: translateY(10px) scale(0.94); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes zetis-check-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.25); } 100% { transform: scale(1); opacity: 1; } }`;
 
 /**
  * Barre d'équipement d'UNE notion — dorée, animée, thème « génération IA » :
@@ -54,8 +46,6 @@ function EquipProgress({ equipping }: { equipping: Equipping }) {
       className="relative overflow-hidden rounded-xl border border-amber-400/50 bg-gradient-to-b from-amber-500/10 to-transparent p-4"
       style={{ animation: "zetis-ai-glow 2.6s ease-in-out infinite" }}
     >
-      <style>{EQUIP_KEYFRAMES}</style>
-
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm font-semibold text-amber-200">
           <span className="text-lg" style={{ animation: "zetis-ai-pulse 1.4s ease-in-out infinite" }}>
@@ -142,6 +132,89 @@ function SubjectDisc({ subject }: { subject: Subject | undefined }) {
   );
 }
 
+/** Coche dorée du kit (✓ générée/présente, ✕ échec, vide sinon). */
+function KitCheck({ checked, failed }: { checked: boolean; failed: boolean }) {
+  return (
+    <span
+      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] font-bold ${
+        failed
+          ? "border-red-400 text-red-300"
+          : checked
+            ? "border-amber-400 bg-amber-400/20 text-amber-300"
+            : "border-papa-border text-transparent"
+      }`}
+      style={checked && !failed ? { animation: "zetis-check-pop 0.35s ease-out" } : undefined}
+    >
+      {failed ? "✕" : checked ? "✓" : ""}
+    </span>
+  );
+}
+
+/** Popup éphémère de fin : coche ce qui a été généré par notion (auto-dismiss + clic). */
+function EquipDonePopup({
+  results,
+  missionCount,
+  onClose,
+}: {
+  results: import("../lib/councilClass").EquipNotionResult[];
+  missionCount: number;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-label="Kit généré"
+        className="w-full max-w-md rounded-2xl border border-amber-400/60 bg-card p-5"
+        style={{ animation: "zetis-done-in 0.35s ease-out, zetis-ai-glow 2.6s ease-in-out infinite" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-2xl" style={{ animation: "zetis-ai-pulse 1.4s ease-in-out infinite" }} aria-hidden>
+            ✨
+          </span>
+          <h2 className="text-lg font-bold text-amber-200">Kit prêt !</h2>
+        </div>
+        <p className="mt-1 text-sm text-papa-muted">
+          {missionCount} mission{missionCount > 1 ? "s" : ""} créée{missionCount > 1 ? "s" : ""} et
+          validée{missionCount > 1 ? "s" : ""}.
+        </p>
+
+        <div className="mt-3 space-y-2.5">
+          {results.map((res) => (
+            <div key={res.skill_id}>
+              <p className="text-sm font-medium text-papa-fg">{res.skill_name}</p>
+              {res.has_lesson ? (
+                <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  {KIT_STEPS.map((st) => {
+                    const failed = res.errors.some((e) => e.piece === st.key);
+                    const done =
+                      !failed &&
+                      (res.generated.includes(st.key) || res.skipped.includes(st.key));
+                    return (
+                      <span key={st.key} className="flex items-center gap-1.5">
+                        <KitCheck checked={done} failed={failed} />
+                        <span className={done ? "text-papa-fg" : "text-papa-muted/50"}>
+                          {st.icon} {st.label}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-0.5 text-xs text-amber-300">{res.reason}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function downloadMarkdown(filename: string, content: string): void {
   const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -156,12 +229,22 @@ export function ConseilClasseIAPage() {
   const c = useCouncilClass();
   const [period, setPeriod] = useState("Trimestre 1");
   const [pendingReco, setPendingReco] = useState<CouncilRecommendation | null>(null);
+  const [showDone, setShowDone] = useState(false);
   const pct = useEstimatedProgress(c.generating, GEN_MS);
   const subjectById = new Map(c.subjects.map((s) => [s.id, s]));
   const busy = c.equipping !== null;
 
+  // Popup éphémère de fin : apparaît quand le flux équipe+crée se termine, s'efface seul après 6 s.
+  useEffect(() => {
+    if (!c.created || c.equipResults.length === 0) return;
+    setShowDone(true);
+    const t = setTimeout(() => setShowDone(false), 6000);
+    return () => clearTimeout(t);
+  }, [c.created, c.equipResults]);
+
   return (
     <div className="mx-auto max-w-4xl">
+      <style>{AI_KEYFRAMES}</style>
       <PageHeader
         title="Conseil de classe IA"
         subtitle="Synthèse par matière, à partir des résultats réels de Massimo."
@@ -215,50 +298,6 @@ export function ConseilClasseIAPage() {
       {c.equipping && (
         <div key={c.equipping.index} className="mb-4">
           <EquipProgress equipping={c.equipping} />
-        </div>
-      )}
-
-      {c.equipResults.length > 0 && !busy && (
-        <div className="mb-4 space-y-1 rounded-lg border border-papa-border bg-papa-surface-2 p-3 text-xs text-papa-muted">
-          {c.equipResults.map((res) => (
-            <p key={res.skill_id}>
-              <span className="font-medium text-papa-fg">{res.skill_name}</span> —{" "}
-              {res.has_lesson ? (
-                <>
-                  {res.generated.length > 0 && (
-                    <span className="text-emerald-300">généré : {labelPieces(res.generated)}</span>
-                  )}
-                  {res.skipped.length > 0 && <> · déjà présent : {labelPieces(res.skipped)}</>}
-                  {res.errors.length > 0 && (
-                    <span className="text-red-300">
-                      {" "}
-                      · échec : {labelPieces(res.errors.map((e) => e.piece))}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span className="text-amber-300">{res.reason}</span>
-              )}
-            </p>
-          ))}
-        </div>
-      )}
-
-      {c.created && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
-          <span>
-            {c.created.count} mission{c.created.count > 1 ? "s" : ""} créée
-            {c.created.count > 1 ? "s" : ""} ({c.created.skillNames.join(", ")}) — validée
-            {c.created.count > 1 ? "s" : ""} par ton clic, visible côté Massimo.
-          </span>
-          <button
-            type="button"
-            onClick={c.dismissCreated}
-            aria-label="Fermer"
-            className="ml-3 text-emerald-300"
-          >
-            ✕
-          </button>
         </div>
       )}
 
@@ -322,6 +361,10 @@ export function ConseilClasseIAPage() {
                       key={`${s.subject_id}-${i}`}
                       reco={r}
                       disabled={busy}
+                      done={
+                        r.skill_ids.length > 0 &&
+                        r.skill_ids.every((id) => c.generatedSkillIds.has(id))
+                      }
                       onCreate={() => setPendingReco(r)}
                     />
                   ))}
@@ -352,6 +395,14 @@ export function ConseilClasseIAPage() {
           généré sera <b>validé automatiquement</b> (tu pourras l'éditer ensuite).
         </p>
       </ConfirmDialog>
+
+      {showDone && c.created && (
+        <EquipDonePopup
+          results={c.equipResults}
+          missionCount={c.created.count}
+          onClose={() => setShowDone(false)}
+        />
+      )}
     </div>
   );
 }
@@ -359,25 +410,52 @@ export function ConseilClasseIAPage() {
 function RecommendationRow({
   reco,
   disabled,
+  done,
   onCreate,
 }: {
   reco: CouncilRecommendation;
   disabled: boolean;
+  done: boolean;
   onCreate: () => void;
 }) {
   return (
-    <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-papa-border bg-papa-surface-2 p-3">
+    <div
+      className={`relative mt-3 flex items-start justify-between gap-3 rounded-lg border p-3 transition-colors ${
+        done ? "border-amber-400/60 bg-amber-400/10" : "border-papa-border bg-papa-surface-2"
+      }`}
+    >
+      {/* Badge circulaire doré « missions générées » — dans la gouttière gauche (hors card),
+          centré sous la colonne du logo matière (disc 72px + gap 12px + p-4 16px) et en face
+          de la notion (centré verticalement sur la ligne). */}
+      {done && (
+        <span
+          title="Missions générées"
+          aria-label="Missions générées"
+          className="absolute right-full top-1/2 mr-[40px] flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-400/20 text-xl"
+          style={{ animation: "zetis-done-in 0.35s ease-out, zetis-ai-glow 2.6s ease-in-out infinite" }}
+        >
+          🎯
+        </span>
+      )}
       <div className="text-sm">
-        <p className="text-papa-accent-2">{reco.skill_names.join(" · ")}</p>
+        <p className={done ? "font-medium text-amber-200" : "text-papa-accent-2"}>
+          {reco.skill_names.join(" · ")}
+        </p>
         <p className="mt-0.5 text-papa-muted">{reco.justification}</p>
       </div>
       <button
         type="button"
         onClick={onCreate}
-        disabled={disabled}
-        className="shrink-0 rounded-lg bg-papa-accent px-3 py-1.5 text-xs font-semibold text-papa-bg disabled:opacity-60"
+        disabled={disabled || done}
+        className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-100 ${
+          done
+            ? "bg-amber-400/20 text-amber-200 ring-1 ring-amber-400/60"
+            : "bg-papa-accent text-papa-bg disabled:opacity-60"
+        }`}
       >
-        Créer {reco.skill_ids.length > 1 ? "ces missions" : "cette mission"}
+        {done
+          ? "Générées ✓"
+          : `Créer ${reco.skill_ids.length > 1 ? "ces missions" : "cette mission"}`}
       </button>
     </div>
   );
