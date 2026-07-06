@@ -398,8 +398,10 @@ stricte (§3) : **deux schémas, deux routers** — `MissionStudentOut` (Massimo
 
 - **POST `/missions/generate-remediation` · `/generate-revision` · `/generate-progression`** →
   `{ created, missions }`. Générateurs idempotents par source, missions `pending`. `revision` =
-  cartes SRS dues groupées par matière (`lesson|eli5 → quiz`) ; `progression` = prochaine notion
-  non maîtrisée d'un chapitre actif ou rattrapage jamais travaillé (`eli5 → vocal_explain → quiz`).
+  **une mission par notion due** (mono-notion, top-N par retard `MISSION_REVISION_TOP_N` ;
+  `[mindmap] → [quiz] → eli5`) — jamais groupée par matière (le verdict d'acquisition est
+  mono-notion, ADR-0017 §5) ; `progression` = prochaine notion non maîtrisée d'un chapitre actif
+  ou rattrapage jamais travaillé (`eli5 → vocal_explain → quiz`).
 - **GET `/missions/pending`** → `[MissionPilotOut]` (avec `generation_reason`).
 - **POST `/missions/validate`** `{ ids: [int] }` → `{ validated }` (validation en lot).
 - **POST `/missions/{id}/reject`** → `{ id, validation_status: "rejected" }`.

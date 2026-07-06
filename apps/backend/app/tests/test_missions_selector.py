@@ -211,6 +211,50 @@ def test_generate_revision_from_due_cards(client_db) -> None:
     assert any(mm["mission_type"] == "revision" for mm in pend)
 
 
+def test_generate_revision_one_mission_per_due_notion(client_db) -> None:
+    """ADR-0017 §5 (amendé 2026-07-06) : UNE mission `revision` par notion due, top-N par retard,
+    jamais groupée par matière. Idempotente par notion, plafond = MISSION_REVISION_TOP_N (3)."""
+    client, Session = client_db
+    from datetime import datetime, timedelta, timezone
+
+    with Session() as db:
+        student, skill0, subject = _seeded(db)
+        now = datetime.now(timezone.utc)
+        # 4 notions dues de la MÊME matière — piège de l'ancien groupé-par-matière (1 seule mission).
+        skills = [skill0]
+        for i in range(1, 4):
+            s = m.Skill(subject_id=subject.id, name=f"Notion {i}", level="4e")
+            db.add(s)
+            db.flush()
+            skills.append(s)
+        for offset, s in enumerate(skills):  # skill0 le plus en retard (-4j), Notion 3 le moins
+            db.add(
+                m.SpacedReviewCard(
+                    student_id=student.id,
+                    skill_id=s.id,
+                    front_markdown="f",
+                    back_markdown="b",
+                    due_at=now - timedelta(days=4 - offset),
+                    status="scheduled",
+                )
+            )
+        db.commit()
+        overdue_ids = [s.id for s in skills]  # du plus au moins en retard
+
+    created = client.post("/api/missions/generate-revision").json()
+    # 4 notions dues, plafond 3 → 3 missions, une par notion (mono-notion).
+    assert created["created"] == 3
+    skill_ids = [mm["skill_id"] for mm in created["missions"]]
+    assert all(sid is not None for sid in skill_ids)  # jamais sans notion / multi-notions
+    assert len(set(skill_ids)) == 3  # aucune notion en double
+    assert set(skill_ids) == set(overdue_ids[:3])  # les 3 plus en retard, pas une par matière
+    assert all(mm["mission_type"] == "revision" for mm in created["missions"])
+
+    # Idempotence : re-générer ne duplique pas et ne dépasse pas le plafond.
+    again = client.post("/api/missions/generate-revision").json()
+    assert again["created"] == 0
+
+
 def test_generate_progression_from_curriculum(client_db) -> None:
     client, Session = client_db
     with Session() as db:
