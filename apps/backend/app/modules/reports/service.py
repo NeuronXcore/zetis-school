@@ -30,6 +30,7 @@ from app.db.models import (
     Mindmap,
     Quiz,
     Skill,
+    SpacedReviewCard,
     Subject,
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
@@ -332,8 +333,10 @@ def create_missions_from_reco(
 # « Créer ces missions » génère, avant la mission, le KIT complet d'une notion (cours → fiche →
 # SRS → quiz → mindmap) et l'AUTO-VALIDE (la popup de confirmation Papa vaut approbation — soupape
 # §5ter bornée à ce geste). Orchestration pure des générateurs existants ; try/except par pièce ;
-# idempotence (contenu déjà validé non régénéré) ; dégradation gracieuse leçon-centrée (notion sans
-# leçon canonique → contenus sautés + signalés). Équiper AVANT de créer : les étapes de la mission
+# **on ne régénère JAMAIS une pièce déjà créée** (même un brouillon `pending` de Papa) — on génère
+# seulement ce qui manque, et on valide l'existant `pending` pour le rendre utilisable ; dégradation
+# gracieuse leçon-centrée (notion sans leçon canonique → contenus sautés + signalés). Équiper AVANT
+# de créer : les étapes de la mission
 # résolvent alors les ressources fraîches.
 
 _EQUIP_QUIZ_COUNT = 5
@@ -351,38 +354,34 @@ def _skill_lesson(db: Session, skill_id: int) -> Lesson | None:
     )
 
 
-def _has_validated_fiche(db: Session, lesson_id: int) -> bool:
-    return bool(
-        db.scalar(
-            select(Fiche.id).where(
-                Fiche.lesson_id == lesson_id, Fiche.validation_status == "validated"
-            )
-        )
+# Existence = « déjà créé » (tout statut, y compris un brouillon de Papa) : on ne régénère JAMAIS,
+# on génère uniquement ce qui manque (ADR-0021). On récupère l'entité pour la valider si besoin.
+def _existing_fiche(db: Session, lesson_id: int) -> Fiche | None:
+    return db.scalar(
+        select(Fiche).where(Fiche.lesson_id == lesson_id).order_by(Fiche.id.desc()).limit(1)
     )
 
 
-def _has_validated_mindmap(db: Session, lesson_id: int) -> bool:
-    return bool(
-        db.scalar(
-            select(Mindmap.id).where(
-                Mindmap.lesson_id == lesson_id, Mindmap.validation_status == "validated"
-            )
-        )
+def _existing_mindmap(db: Session, lesson_id: int) -> Mindmap | None:
+    return db.scalar(
+        select(Mindmap).where(Mindmap.lesson_id == lesson_id).order_by(Mindmap.id.desc()).limit(1)
     )
 
 
-def _has_ready_mission_quiz(db: Session, skill_id: int) -> bool:
+def _has_mission_quiz(db: Session, skill_id: int) -> bool:
+    """Un quiz de mission existe déjà pour la notion (tout statut) — pas de régénération."""
     return bool(
         db.scalar(
             select(Quiz.id)
             .join(LessonSkill, LessonSkill.lesson_id == Quiz.lesson_id)
-            .where(
-                Quiz.quiz_type == "mission",
-                Quiz.status == "ready",
-                LessonSkill.skill_id == skill_id,
-            )
+            .where(Quiz.quiz_type == "mission", LessonSkill.skill_id == skill_id)
         )
     )
+
+
+def _has_srs_cards(db: Session, skill_id: int) -> bool:
+    """Des cartes SRS existent déjà pour la notion — `generate_cards_for_skill` rappellerait le LLM."""
+    return bool(db.scalar(select(SpacedReviewCard.id).where(SpacedReviewCard.skill_id == skill_id)))
 
 
 def equip_notion(
@@ -416,10 +415,12 @@ def equip_notion(
         }
     lesson_id = lesson.id
 
-    # 1) Cours (leçon canonique). Idempotent : une leçon déjà validée avec contenu n'est pas
-    #    régénérée (generate_lesson_content la repasserait en `draft`).
+    # 1) Cours (leçon canonique). Un cours DÉJÀ RÉDIGÉ (manuel Papa ou antérieur) n'est jamais
+    #    régénéré — juste validé s'il est encore en brouillon, pour rendre les dérivés possibles.
     try:
-        if lesson.status == "validated" and lesson.content_markdown:
+        if lesson.content_markdown:
+            if lesson.status == "draft":
+                set_lesson_validation(db, lesson_id, "validate")  # brouillon existant → validé
             skipped.append("cours")
         else:
             generate_lesson_content(db, llm, lesson_id)  # écrit le contenu, repasse en `draft`
@@ -442,9 +443,12 @@ def equip_notion(
             "reason": "Cours indisponible — dérivés non générés.",
         }
 
-    # 2) Fiche
+    # 2) Fiche — déjà créée (même `pending` de Papa) → jamais régénérée, validée si besoin.
     try:
-        if _has_validated_fiche(db, lesson_id):
+        existing_fiche = _existing_fiche(db, lesson_id)
+        if existing_fiche is not None:
+            if existing_fiche.validation_status == "pending":
+                validate_fiche(db, existing_fiche.id)
             skipped.append("fiche")
         else:
             fiche = generate_fiche(db, llm, embedder, lesson_id=lesson_id)
@@ -453,16 +457,19 @@ def equip_notion(
     except Exception as exc:  # noqa: BLE001
         errors.append({"piece": "fiche", "message": str(exc)})
 
-    # 3) Cartes SRS (auto-actives `scheduled` dès que la leçon est validée)
+    # 3) Cartes SRS — déjà présentes → pas de rappel LLM (`generate_cards_for_skill` régénère).
     try:
-        generate_cards_for_skill(db, llm, embedder, skill_id=skill_id)
-        generated.append("srs")
+        if _has_srs_cards(db, skill_id):
+            skipped.append("srs")
+        else:
+            generate_cards_for_skill(db, llm, embedder, skill_id=skill_id)
+            generated.append("srs")
     except Exception as exc:  # noqa: BLE001
         errors.append({"piece": "srs", "message": str(exc)})
 
-    # 4) Quiz de mission (né `ready`, type `mission` → résolu par l'étape de mission)
+    # 4) Quiz de mission — déjà créé pour la notion → pas de régénération.
     try:
-        if _has_ready_mission_quiz(db, skill_id):
+        if _has_mission_quiz(db, skill_id):
             skipped.append("quiz")
         else:
             generate_quiz(
@@ -477,9 +484,12 @@ def equip_notion(
     except Exception as exc:  # noqa: BLE001
         errors.append({"piece": "quiz", "message": str(exc)})
 
-    # 5) Mindmap
+    # 5) Mindmap — déjà créée (même `pending` de Papa) → jamais régénérée, validée si besoin.
     try:
-        if _has_validated_mindmap(db, lesson_id):
+        existing_mindmap = _existing_mindmap(db, lesson_id)
+        if existing_mindmap is not None:
+            if existing_mindmap.validation_status == "pending":
+                validate_mindmap(db, existing_mindmap.id)
             skipped.append("mindmap")
         else:
             mindmap = generate_mindmap(db, llm, embedder, lesson_id=lesson_id)

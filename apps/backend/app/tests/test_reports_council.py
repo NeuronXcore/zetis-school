@@ -213,6 +213,26 @@ def test_equip_notion_generates_and_autovalidates_kit(client_db) -> None:
     assert {"fiche", "quiz", "mindmap"}.issubset(set(again["skipped"]))
 
 
+def test_equip_notion_does_not_regenerate_existing_pending_content(client_db) -> None:
+    """Une pièce déjà créée (brouillon `pending` de Papa) n'est PAS régénérée — juste validée."""
+    client, Session = client_db
+    with Session() as db:
+        lesson, _ = _seed_validated_lesson_for_skill(db)
+        # Papa a déjà créé une fiche (encore `pending`).
+        db.add(m.Fiche(lesson_id=lesson.id, validation_status="pending", source="manual"))
+        db.commit()
+        sid = db.scalar(select(m.Skill)).id
+    _as_parent()
+    body = client.post("/api/reports/class-council/equip-notion", json={"skill_id": sid}).json()
+    # La fiche existante est SAUTÉE (pas régénérée), pas dans `generated`.
+    assert "fiche" in body["skipped"]
+    assert "fiche" not in body["generated"]
+    with Session() as db:
+        fiches = list(db.scalars(select(m.Fiche)))
+        assert len(fiches) == 1  # aucune fiche en double
+        assert fiches[0].validation_status == "validated"  # le brouillon a été validé, pas recréé
+
+
 def test_list_and_get_report(client_db) -> None:
     client, Session = client_db
     with Session() as db:

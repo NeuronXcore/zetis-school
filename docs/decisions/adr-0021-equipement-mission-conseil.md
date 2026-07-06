@@ -62,10 +62,14 @@ Deux décisions figées encadrent ce geste :
    **fraîchement créées** (quiz/mindmap validés). Créer puis générer laisserait des
    étapes omises.
 
-5. **Idempotence & robustesse.** Un contenu déjà présent **et validé** n'est pas
-   régénéré (on ne réécrit pas le travail existant). Chaque génération est isolée
-   (`try/except` par pièce) : l'échec d'une pièce n'abandonne pas les autres, il est
-   reporté. Zéro génération compensatoire.
+5. **On ne régénère jamais l'existant — on complète.** Toute pièce **déjà créée**
+   n'est **jamais régénérée**, quel que soit son statut : cela inclut un contenu
+   **créé manuellement par Papa** et encore en **brouillon `pending`** (une fiche,
+   un quiz, une carte mentale, un cours). ZETIS ne génère **que ce qui manque** ;
+   pour une pièce existante non encore validée, il la **valide** simplement (pas de
+   rappel du LLM) afin de rendre la mission jouable. Chaque pièce est isolée
+   (`try/except`) : l'échec de l'une n'abandonne pas les autres. Zéro génération
+   compensatoire.
 
 6. **Progression visible (barres estimées avec %).** Le kit d'une notion = une
    opération longue (jusqu'à 5 générations LLM locales) : le front affiche une
