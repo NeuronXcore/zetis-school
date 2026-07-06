@@ -328,6 +328,17 @@ def create_missions_from_reco(
     )
 
 
+def create_champion_from_reco(db: Session, student, *, skill_ids: list[int], flavor: str) -> dict:
+    """Pont d'actionnabilité CROISÉ (ADR-0022 §8) : une recommandation champion → UNE mission
+    `champion` multi-matières. La page Conseil a déjà **équipé** chaque notion (boucle `equip_notion`,
+    barres par notion) ; ici on ne fait que **composer** (compose-only). Import paresseux → pas de
+    cycle reports↔missions."""
+    from app.modules.missions import champion, pilot
+
+    mission = champion.compose_champion_mission(db, student, skill_ids=skill_ids, flavor=flavor)
+    return pilot._to_pilot_out(db, mission)
+
+
 # --- Équipement pédagogique d'une notion (ADR-0021) ----------------------------------------
 #
 # « Créer ces missions » génère, avant la mission, le KIT complet d'une notion (cours → fiche →

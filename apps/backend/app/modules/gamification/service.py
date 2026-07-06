@@ -96,7 +96,13 @@ def _compute_streak(dates: set, today) -> tuple[int, bool]:
 
 
 def _badges(
-    *, total_xp: int, streak: int, mission_count: int, diag_done: bool, eli5_count: int
+    *,
+    total_xp: int,
+    streak: int,
+    mission_count: int,
+    diag_done: bool,
+    eli5_count: int,
+    champion_count: int = 0,
 ) -> list[dict]:
     earned: list[dict] = []
 
@@ -107,6 +113,8 @@ def _badges(
         add("first_mission", "Première mission", "🎯")
     if mission_count >= 5:
         add("persevering", "Persévérant", "🏅")
+    if champion_count >= 1:  # ADR-0022 : un défi croisé relevé
+        add("champion", "Champion", "🏆")
     if eli5_count >= 1:
         add("explainer", "Petit prof", "🗣️")
     if diag_done:
@@ -135,7 +143,11 @@ def summary(db: Session, student: StudentProfile) -> dict:
     today = datetime.now(timezone.utc).date()
     streak, active_today = _compute_streak(dates, today)
 
-    mission_count = sum(1 for e in events if e.reason == "mission_remediation")
+    # Les défis champion (ADR-0022) comptent aussi comme missions accomplies (badges génériques).
+    champion_count = sum(1 for e in events if e.reason == "mission_champion")
+    mission_count = (
+        sum(1 for e in events if e.reason == "mission_remediation") + champion_count
+    )
     eli5_count = sum(1 for e in events if e.reason == "eli5_reverse")
     diag_done = any(e.reason == "diagnostic" for e in events)
 
@@ -152,6 +164,7 @@ def summary(db: Session, student: StudentProfile) -> dict:
             mission_count=mission_count,
             diag_done=diag_done,
             eli5_count=eli5_count,
+            champion_count=champion_count,
         ),
         "recent": [
             {

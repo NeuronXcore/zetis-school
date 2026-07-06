@@ -3,13 +3,18 @@ import {
   type CouncilReport,
   type CouncilReportListItem,
   type EquipNotionResult,
+  composeChampionFromReco,
   createMissionsFromReco,
   equipNotion,
   fetchCouncilReport,
   fetchCouncilReports,
   generateCouncil,
 } from "../lib/councilClass";
-import { type MissionPilot, fetchPilotList } from "../lib/missionsPilotage";
+import {
+  MISSION_CHAMPION_MAX_SKILLS,
+  type MissionPilot,
+  fetchPilotList,
+} from "../lib/missionsPilotage";
 import { type Subject, fetchSubjects } from "../lib/subjects";
 
 /** Notions déjà « équipées » = celles qui ont au moins une mission `manual` (créée depuis ce
@@ -38,6 +43,33 @@ export interface Equipping {
   total: number;
 }
 
+/** Défi champion croisé proposé par le Conseil (ADR-0022 §8) : agrégat des recommandations
+ *  ancrées de ≥ 2 matières du rapport. `null` si moins de 2 matières recommandées. */
+export interface ChampionSuggestion {
+  skillIds: number[];
+  notions: { skill_id: number; name: string; subject_name: string }[];
+  flavor: string;
+}
+
+/** Dérive une suggestion champion depuis le rapport figé : une notion recommandée en tête de
+ *  chaque matière qui en a, sur ≥ 2 matières (plafond partagé). Réutilise l'ancrage (pas de LLM). */
+function deriveChampionSuggestion(report: CouncilReport | null): ChampionSuggestion | null {
+  if (!report) return null;
+  const notions: ChampionSuggestion["notions"] = [];
+  for (const s of report.subjects) {
+    const rec = s.recommendations[0];
+    if (!rec || rec.skill_ids.length === 0) continue;
+    notions.push({
+      skill_id: rec.skill_ids[0],
+      name: rec.skill_names[0] ?? `notion ${rec.skill_ids[0]}`,
+      subject_name: s.subject_name,
+    });
+    if (notions.length >= MISSION_CHAMPION_MAX_SKILLS) break;
+  }
+  if (notions.length < 2) return null; // une notion par matière → < 2 = pas croisé
+  return { skillIds: notions.map((n) => n.skill_id), notions, flavor: "consolidation" };
+}
+
 export interface UseCouncilClass {
   loading: boolean;
   error: string | null;
@@ -53,10 +85,16 @@ export interface UseCouncilClass {
   /** `skill_id` dont les missions ont été générées cette session (mise en évidence + badge). */
   generatedSkillIds: Set<number>;
   created: CreatedFeedback | null;
+  /** Défi champion croisé proposé (agrégat des recos ≥ 2 matières), ou null. */
+  championSuggestion: ChampionSuggestion | null;
+  /** Un défi champion planned|active existe déjà → on n'en propose pas un doublon. */
+  hasActiveChampion: boolean;
   generate: (period?: string) => Promise<void>;
   openReport: (id: number) => Promise<void>;
   /** Équipe chaque notion (kit auto-validé) PUIS crée les missions (ADR-0021). */
   equipAndCreateMissions: (skillIds: number[], skillNames: string[]) => Promise<void>;
+  /** Équipe chaque notion PUIS compose UN défi champion croisé (ADR-0022 §8). */
+  equipAndCreateChampion: (skillIds: number[], skillNames: string[]) => Promise<void>;
   dismissCreated: () => void;
 }
 
@@ -71,6 +109,7 @@ export function useCouncilClass(): UseCouncilClass {
   const [equipResults, setEquipResults] = useState<EquipNotionResult[]>([]);
   const [generatedSkillIds, setGeneratedSkillIds] = useState<Set<number>>(new Set());
   const [created, setCreated] = useState<CreatedFeedback | null>(null);
+  const [hasActiveChampion, setHasActiveChampion] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,6 +124,12 @@ export function useCouncilClass(): UseCouncilClass {
       setSubjects(subs);
       // Notions déjà équipées (missions `manual` existantes) → badge persistant après rechargement.
       setGeneratedSkillIds(manualMissionSkillIds(missions));
+      // Défi champion déjà en cours → on ne repropose pas (reload-safe, sans doublon).
+      setHasActiveChampion(
+        missions.some(
+          (mm) => mm.mission_type === "champion" && ["planned", "active"].includes(mm.status),
+        ),
+      );
       setReport(items.length > 0 ? await fetchCouncilReport(items[0].id) : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Chargement impossible");
@@ -150,6 +195,37 @@ export function useCouncilClass(): UseCouncilClass {
     [],
   );
 
+  // Défi champion croisé : même geste que « Créer ces missions » (équipe chaque notion, barres par
+  // notion) puis COMPOSE une mission champion unique au lieu du fan-out mono-notion (ADR-0022 §8).
+  const equipAndCreateChampion = useCallback(
+    async (skillIds: number[], skillNames: string[]) => {
+      setError(null);
+      setCreated(null);
+      setEquipResults([]);
+      const results: EquipNotionResult[] = [];
+      try {
+        for (let i = 0; i < skillIds.length; i++) {
+          setEquipping({
+            name: skillNames[i] ?? `notion ${skillIds[i]}`,
+            index: i + 1,
+            total: skillIds.length,
+          });
+          results.push(await equipNotion(skillIds[i]));
+        }
+        setEquipResults(results);
+        await composeChampionFromReco(skillIds); // compose seul (notions déjà équipées)
+        setCreated({ count: 1, skillNames });
+        setGeneratedSkillIds((prev) => new Set([...prev, ...skillIds]));
+        setHasActiveChampion(true);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Équipement / création du défi impossible");
+      } finally {
+        setEquipping(null);
+      }
+    },
+    [],
+  );
+
   return {
     loading,
     error,
@@ -161,9 +237,12 @@ export function useCouncilClass(): UseCouncilClass {
     equipResults,
     generatedSkillIds,
     created,
+    championSuggestion: deriveChampionSuggestion(report),
+    hasActiveChampion,
     generate,
     openReport,
     equipAndCreateMissions,
+    equipAndCreateChampion,
     dismissCreated: () => setCreated(null),
   };
 }

@@ -243,3 +243,50 @@ def test_list_and_get_report(client_db) -> None:
     assert any(item["id"] == rid and item["period"] == "T1" for item in listed)
     detail = client.get(f"/api/reports/class-council/{rid}").json()
     assert detail["id"] == rid and detail["period"] == "T1"
+
+
+# --- Pont d'actionnabilité CROISÉ (ADR-0022 §8) : reco champion → mission champion -------------
+
+
+def test_create_champion_from_reco(client_db) -> None:
+    """`create-champion` compose UNE mission `champion` multi-matières à partir de notions
+    (déjà équipées côté page). Papa-only, validated par construction, étapes taggées `skill_id`."""
+    client, Session = client_db
+    with Session() as db:
+        subj_a = db.scalar(select(m.Subject))  # Mathématiques (seedé)
+        skill_a = db.scalar(select(m.Skill))
+        subj_b = m.Subject(name="Français", slug="francais")
+        db.add(subj_b)
+        db.flush()
+        skill_b = m.Skill(subject_id=subj_b.id, name="Temps du récit", level="4e")
+        db.add(skill_b)
+        db.commit()
+        ids = [skill_a.id, skill_b.id]
+    _as_parent()
+    res = client.post(
+        "/api/reports/class-council/create-champion",
+        json={"skill_ids": ids, "flavor": "consolidation"},
+    )
+    assert res.status_code == 200
+    mission = res.json()
+    assert mission["mission_type"] == "champion"
+    assert mission["subject_id"] is None and mission["skill_id"] is None
+    assert mission["validation_status"] == "validated"
+    assert {s["skill_id"] for s in mission["steps"]} == set(ids)
+
+
+def test_create_champion_requires_two_subjects(client_db) -> None:
+    client, Session = client_db
+    with Session() as db:
+        subj_a = db.scalar(select(m.Subject))
+        s1 = db.scalar(select(m.Skill))
+        s2 = m.Skill(subject_id=subj_a.id, name="Autre notion maths", level="4e")
+        db.add(s2)
+        db.commit()
+        ids = [s1.id, s2.id]
+    _as_parent()
+    res = client.post(
+        "/api/reports/class-council/create-champion",
+        json={"skill_ids": ids, "flavor": "consolidation"},
+    )
+    assert res.status_code == 422  # 1 seule matière → pas une croisée

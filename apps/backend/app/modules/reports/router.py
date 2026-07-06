@@ -16,6 +16,7 @@ from app.modules.reports import service
 from app.modules.reports.schemas import (
     CouncilReportListItem,
     CouncilReportOut,
+    CreateChampionRequest,
     CreateMissionsFromRecoRequest,
     EquipNotionRequest,
     EquipNotionResult,
@@ -68,6 +69,15 @@ def create_missions(
         skill_ids=payload.skill_ids,
         due_date=payload.due_date,
         force_priority=payload.force_priority,
+    )
+
+
+@router.post("/class-council/create-champion", response_model=MissionPilotOut)
+def create_champion(payload: CreateChampionRequest, db: Session = Depends(get_db)) -> dict:
+    """Recommandation croisée → UNE mission `champion` (ADR-0022 §8). Compose seul : la page a déjà
+    équipé chaque notion via `equip-notion` (mêmes barres de progression que « Créer ces missions »)."""
+    return service.create_champion_from_reco(
+        db, get_default_student(db), skill_ids=payload.skill_ids, flavor=payload.flavor
     )
 
 

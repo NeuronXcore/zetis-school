@@ -11,6 +11,11 @@ export interface MissionStep {
   instruction: string | null;
   /** Cible du deep-link : skill_id (eli5/vocal), quiz_id (quiz), mindmap_id (mindmap). */
   resource_id: number | null;
+  /** Notion + matière de l'étape (ADR-0022) : renseignées pour une mission `champion` croisée
+   * (badges matière par étape), sinon dérivées de la mission. Étiquettes, jamais un score. */
+  skill_id: number | null;
+  skill_name: string | null;
+  subject: string;
   sort_order: number;
   /** "pending" | "done". */
   status: string;

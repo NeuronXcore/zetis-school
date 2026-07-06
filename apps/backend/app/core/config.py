@@ -107,6 +107,26 @@ class Settings(BaseSettings):
         default=3, validation_alias="MISSION_COMMAND_MAX_SKILLS"
     )
 
+    # --- Missions croisées « champion » (ADR-0022) : UNE mission multi-matières, multi-outils,
+    # verdict PAR NOTION. Papa choisit une saveur (boss/consolidation/mix) puis ZETIS compose ; la
+    # mission est exclue du sélecteur quotidien (jamais élue « mission du jour », ADR-0017 §6). Les
+    # seuils de verdict (`mission_{reverse,quiz,mindmap}_threshold`) sont RÉUTILISÉS tels quels. ---
+    mission_champion_version: str = Field(
+        default="v1", validation_alias="MISSION_CHAMPION_VERSION"
+    )
+    # Plafond de notions d'un défi champion (borne la longueur — une champion dépasse volontairement
+    # le budget 15 min, c'est un défi). ≥ 2 matières distinctes exigées (sinon ce n'est pas croisé).
+    mission_champion_max_skills: int = Field(
+        default=3, validation_alias="MISSION_CHAMPION_MAX_SKILLS"
+    )
+    # XP majoré (l'effort d'un défi transversal) : forfait de base + bonus par notion travaillée.
+    mission_champion_xp_base: int = Field(
+        default=80, validation_alias="MISSION_CHAMPION_XP_BASE"
+    )
+    mission_champion_xp_per_notion: int = Field(
+        default=30, validation_alias="MISSION_CHAMPION_XP_PER_NOTION"
+    )
+
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
     # Découplé de `llm_provider` : les embeddings restent sur ollama même si la
     # génération passe sur MLX (évite toute migration pgvector). Cf. ADR-0008.

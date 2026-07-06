@@ -91,6 +91,16 @@ class CreateMissionsFromRecoRequest(BaseModel):
     force_priority: bool = False
 
 
+class CreateChampionRequest(BaseModel):
+    """`POST /api/reports/class-council/create-champion` (ADR-0022 §8) : une recommandation croisée
+    → UNE mission `champion` multi-matières. Les notions sont déjà équipées (boucle `equip-notion`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    skill_ids: list[int]
+    flavor: str = "consolidation"
+
+
 # --- Réponses (surface Papa) ---------------------------------------------------------------
 
 

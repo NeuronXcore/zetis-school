@@ -40,6 +40,7 @@ const TYPE_META: Record<string, { label: string; cls: string }> = {
   revision: { label: "Réviser", cls: "bg-cyan-500/15 text-cyan-200" },
   progression: { label: "Découvrir", cls: "bg-fuchsia-500/15 text-fuchsia-200" },
   manual: { label: "Mission de Papa", cls: "bg-amber-500/15 text-amber-100" },
+  champion: { label: "🏆 Défi champion", cls: "bg-amber-500/20 text-amber-100" },
 };
 
 function SubjectIcon({ slug, className }: { slug: string; className?: string }) {
@@ -100,7 +101,7 @@ export function MissionsPage() {
       const found = g.missions.find((x) => x.id === id);
       if (found) return found;
     }
-    return null;
+    return m.champions.find((x) => x.id === id) ?? null;
   }
 
   const openSubject = (slug: string) => {
@@ -141,6 +142,7 @@ export function MissionsPage() {
             m={m}
             onSubject={openSubject}
             onElected={() => m.today?.elected && openMission(m.today.elected.id, "home")}
+            onChampion={() => m.champions[0] && openMission(m.champions[0].id, "home")}
           />
         ) : screen === "subject" ? (
           <SubjectScreen
@@ -192,10 +194,12 @@ function HomeScreen({
   m,
   onSubject,
   onElected,
+  onChampion,
 }: {
   m: Ui;
   onSubject: (slug: string) => void;
   onElected: () => void;
+  onChampion: () => void;
 }) {
   const elected = m.today?.elected ?? null;
   const decks: SubjectDeck[] = [
@@ -208,18 +212,35 @@ function HomeScreen({
     ...m.upToDate.map((s) => ({ slug: s.slug, name: s.name, count: 0, atDay: true })),
   ];
 
-  // Disque hero « Mission du jour » (comme « Question libre » d'ELI5) → ouvre l'élue directement.
+  // Disque hero « Mission du jour » (comme « Question libre » d'ELI5) → ouvre l'élue directement ;
+  // à côté, le disque « Défi champion 🏆 » (ADR-0022) quand un défi croisé attend Massimo.
   const lead = (
-    <DeckDisc
-      hero
-      hideBadge
-      count={0}
-      emoji="🎯"
-      title="Mission du jour"
-      subtitle={elected ? elected.title : "Rien d'obligatoire"}
-      fallbackInitial="🎯"
-      onClick={elected ? onElected : undefined}
-    />
+    <>
+      <DeckDisc
+        hero
+        hideBadge
+        count={0}
+        emoji="🎯"
+        title="Mission du jour"
+        subtitle={elected ? elected.title : "Rien d'obligatoire"}
+        fallbackInitial="🎯"
+        onClick={elected ? onElected : undefined}
+      />
+      {m.champions.length > 0 && (
+        <DeckDisc
+          hero
+          hideBadge
+          count={0}
+          emoji="🏆"
+          title="Défi champion"
+          subtitle={
+            m.champions.length > 1 ? `${m.champions.length} défis à relever` : "Plusieurs matières"
+          }
+          fallbackInitial="🏆"
+          onClick={onChampion}
+        />
+      )}
+    </>
   );
 
   return (
@@ -358,11 +379,16 @@ function MissionScreen({
 
   const step = currentStep(mission);
   const isElected = m.today?.elected?.id === mission.id;
-  const slug = m.slugForSubject(mission.subject);
+  const isChampion = mission.mission_type === "champion";
+  // Champion croisée : plusieurs matières, dérivées des étapes (subject vide au niveau mission).
+  const championSubjects = isChampion
+    ? [...new Set(mission.steps.map((s) => s.subject).filter(Boolean))]
+    : [];
+  const backLabel = isElected ? "Missions" : mission.subject || "Missions";
 
   return (
     <>
-      <ScreenHeader onBack={onBack} back={isElected ? "Missions" : mission.subject}>
+      <ScreenHeader onBack={onBack} back={backLabel}>
         {mission.title}
       </ScreenHeader>
 
@@ -372,8 +398,20 @@ function MissionScreen({
           {m.today.reason}
         </p>
       )}
+      {isChampion && (
+        <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-sm text-amber-200">
+          <span aria-hidden>🏆</span>
+          Défi croisé — {championSubjects.length} matières, plusieurs outils. Tu peux le faire !
+        </p>
+      )}
       <div className="mb-2 flex flex-wrap items-center gap-3">
-        <SubjectChip slug={slug} name={mission.subject} />
+        {isChampion ? (
+          championSubjects.map((name) => (
+            <SubjectChip key={name} slug={m.slugForSubject(name)} name={name} />
+          ))
+        ) : (
+          <SubjectChip slug={m.slugForSubject(mission.subject)} name={mission.subject} />
+        )}
         <span className="text-sm text-zetis-muted">⏱ {mission.estimated_minutes} min</span>
         <span className="text-sm font-semibold text-amber-300">+{mission.xp_reward} XP</span>
       </div>
@@ -381,7 +419,14 @@ function MissionScreen({
       <p className="mt-4 text-xs font-semibold uppercase tracking-[0.1em] text-zetis-muted">
         Le parcours — clique l'étape à faire
       </p>
-      <Timeline mission={mission} current={step} busy={m.busy} onStep={(s) => m.openStep(mission, s)} />
+      <Timeline
+        mission={mission}
+        current={step}
+        busy={m.busy}
+        onStep={(s) => m.openStep(mission, s)}
+        showSubject={isChampion}
+        slugForSubject={m.slugForSubject}
+      />
 
       {step == null && (
         <p className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-center text-sm text-emerald-300">
@@ -399,11 +444,16 @@ function Timeline({
   current,
   busy,
   onStep,
+  showSubject = false,
+  slugForSubject,
 }: {
   mission: Mission;
   current: MissionStep | null;
   busy: boolean;
   onStep: (step: MissionStep) => void;
+  // Champion croisée (ADR-0022) : chaque tuile porte un badge matière (l'étape change de matière).
+  showSubject?: boolean;
+  slugForSubject?: (name: string) => string;
 }) {
   const ordered = [...mission.steps].sort(bySort);
   // Amène l'étape courante dans le champ (timeline scrollable) — utile sur écran étroit.
@@ -423,6 +473,12 @@ function Timeline({
         const state = done ? "Fait ✓" : isCurrent ? "▶ À toi de jouer" : "Ensuite";
         const tile = (
           <>
+            {showSubject && s.subject && (
+              <span className="mx-auto mb-1 flex items-center justify-center gap-1 text-[10px] text-zetis-muted">
+                <SubjectIcon slug={slugForSubject?.(s.subject) ?? ""} className="h-3.5 w-3.5 object-contain" />
+                <span className="max-w-[80px] truncate">{s.subject}</span>
+              </span>
+            )}
             <span
               className={`mx-auto grid h-14 w-14 place-items-center rounded-2xl border text-2xl ${
                 done
@@ -435,7 +491,9 @@ function Timeline({
               {done ? "✓" : meta.icon}
             </span>
             <p className="mt-2 text-sm font-semibold text-zetis-text">{meta.label}</p>
-            <p className="text-[11px] text-zetis-muted">{meta.sub}</p>
+            <p className="text-[11px] text-zetis-muted">
+              {showSubject && s.skill_name ? s.skill_name : meta.sub}
+            </p>
             <p
               className={`mt-1.5 text-xs font-semibold ${
                 done ? "text-emerald-300" : isCurrent ? "text-fuchsia-300" : "text-zetis-muted"
@@ -542,9 +600,11 @@ function DoneCard({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-zetis-text">{completed.title}</p>
-        <span className="mt-1 inline-flex">
-          <SubjectChip slug={slug} name={completed.subject} />
-        </span>
+        {completed.subject && (
+          <span className="mt-1 inline-flex">
+            <SubjectChip slug={slug} name={completed.subject} />
+          </span>
+        )}
       </div>
       <span className="shrink-0 text-sm font-semibold text-amber-300">+{completed.xp} XP</span>
     </div>
@@ -555,24 +615,35 @@ function CompletionCard({
   completion,
   onDismiss,
 }: {
-  completion: { verdict: "acquired" | "review_later"; xp: number };
+  completion: { verdict: "acquired" | "review_later"; xp: number; champion: boolean };
   onDismiss: () => void;
 }) {
   const acquired = completion.verdict === "acquired";
+  const champion = completion.champion;
   return (
     <div
       className={`mb-4 flex items-center gap-3 rounded-2xl border px-4 py-3.5 ${
-        acquired ? "border-emerald-400/40 bg-emerald-400/10" : "border-indigo-400/40 bg-indigo-400/10"
+        champion
+          ? "border-amber-300/50 bg-amber-400/10"
+          : acquired
+            ? "border-emerald-400/40 bg-emerald-400/10"
+            : "border-indigo-400/40 bg-indigo-400/10"
       }`}
     >
       <span aria-hidden className="text-2xl">
-        {acquired ? "🎉" : "🌙"}
+        {champion ? "🏆" : acquired ? "🎉" : "🌙"}
       </span>
       <div className="flex-1">
         <p className="font-semibold text-zetis-text">
-          {acquired ? "✓ Notion bien en place" : "🌙 On la reverra bientôt, tranquille"}
+          {champion
+            ? "🏆 Défi champion relevé !"
+            : acquired
+              ? "✓ Notion bien en place"
+              : "🌙 On la reverra bientôt, tranquille"}
         </p>
-        <p className="text-sm text-zetis-muted">Mission terminée — bravo ! +{completion.xp} XP</p>
+        <p className="text-sm text-zetis-muted">
+          {champion ? "Bravo champion — " : "Mission terminée — bravo ! "}+{completion.xp} XP
+        </p>
       </div>
       <button
         type="button"

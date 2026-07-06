@@ -116,6 +116,7 @@ def _to_pilot_out(db: Session, mission: Mission) -> dict:
                 "step_type": s.step_type,
                 "instruction": s.instruction,
                 "resource_id": s.resource_id,
+                "skill_id": s.skill_id,  # ADR-0022 : notion de l'étape (croisée)
                 "sort_order": s.sort_order,
                 "status": s.status,
                 "proof": _proof_for_step(db, mission, s, mission.started_at),

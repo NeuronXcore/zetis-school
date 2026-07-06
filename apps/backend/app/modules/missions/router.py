@@ -9,10 +9,16 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.modules.ai import get_embedder, get_provider
+from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import get_current_user
 from app.modules.eli5.service import get_default_student
-from app.modules.missions import command, pilot, service
+from app.modules.missions import champion, command, pilot, service
 from app.modules.missions.schemas import (
+    ChampionConfirmRequest,
+    ChampionCreateResponse,
+    ChampionPreviewRequest,
+    ChampionPreviewResponse,
     CommandConfirmRequest,
     CommandPreviewRequest,
     CommandPreviewResponse,
@@ -178,6 +184,43 @@ def command_confirm(
         skill_ids=payload.skill_ids,
         due_date=payload.due_date,
         force_priority=payload.force_priority,
+    )
+
+
+# --- Défi champion croisé (ADR-0022) : preview/confirm, Papa uniquement ----------------------
+
+
+@pilot_router.post("/champion/preview", response_model=ChampionPreviewResponse)
+def champion_preview(
+    payload: ChampionPreviewRequest,
+    db: Session = Depends(get_db),
+    _: dict = Depends(get_current_user),
+) -> dict:
+    """Résout un scope multi-matières + saveur en notions proposées cochées — n'écrit rien."""
+    return champion.resolve_champion_notions(
+        db,
+        get_default_student(db),
+        subject_ids=payload.subject_ids,
+        flavor=payload.flavor,
+    )
+
+
+@pilot_router.post("/champion/confirm", response_model=ChampionCreateResponse)
+def champion_confirm(
+    payload: ChampionConfirmRequest,
+    db: Session = Depends(get_db),
+    provider: LLMProvider = Depends(get_provider),
+    embedder: EmbeddingProvider = Depends(get_embedder),
+    _: dict = Depends(get_current_user),
+) -> dict:
+    """Équipe chaque notion (ADR-0021) puis compose UNE mission `champion` croisée (validated)."""
+    return champion.create_champion_mission(
+        db,
+        get_default_student(db),
+        skill_ids=payload.skill_ids,
+        flavor=payload.flavor,
+        llm=provider,
+        embedder=embedder,
     )
 
 
