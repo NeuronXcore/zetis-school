@@ -176,6 +176,8 @@ def _to_out(db: Session, mission: Mission) -> dict:
         "description": mission.description,
         "mission_type": mission.mission_type,
         "status": mission.status,
+        # Affichage enfant « qui a généré » : dérivé de created_by (jamais l'enum interne).
+        "origin": "papa" if mission.created_by == "parent" else "zetis",
         "priority": mission.priority,
         "estimated_minutes": max(5, sum(_STEP_MINUTES.get(s.step_type, 4) for s in steps)),
         "xp_reward": settings.mission_xp_reward,

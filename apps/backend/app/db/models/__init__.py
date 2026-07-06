@@ -2,6 +2,7 @@ from app.db.models.ai import AIJob
 from app.db.models.assessment import Quiz, QuizAnswer, QuizAttempt, QuizQuestion
 from app.db.models.content import Capsule, Fiche, Mindmap, MindmapAttempt
 from app.db.models.rag import RagChunk, RagDocument
+from app.db.models.reports import CouncilReport
 from app.db.models.progress import (
     CapsuleView,
     FicheView,
@@ -62,4 +63,5 @@ __all__ = [
     "AIJob",
     "RagDocument",
     "RagChunk",
+    "CouncilReport",
 ]

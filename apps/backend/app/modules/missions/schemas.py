@@ -30,6 +30,9 @@ class MissionStudentOut(BaseModel):
     description: str | None
     mission_type: str
     status: str
+    # « Qui a généré la mission » côté enfant : champ d'AFFICHAGE dérivé (`papa`/`zetis`), pas
+    # le `created_by` interne (qui reste pilot-only) — frontière §3 préservée.
+    origin: str
     priority: int
     # Affichage enfant : durée estimée (dérivée des étapes, déterministe) et XP d'effort
     # (constante `mission_xp_reward`). Ni score ni facteur — l'XP est l'unique nombre montré,

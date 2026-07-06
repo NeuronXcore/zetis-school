@@ -368,10 +368,12 @@ stricte (§3) : **deux schémas, deux routers** — `MissionStudentOut` (Massimo
 ### Frontière student (Massimo)
 
 - **GET `/missions`** → `[MissionStudentOut]` (validées de l'élève). `MissionStudentOut = { id,
-  subject, skill_id, skill_name, title, description, mission_type, status, priority,
+  subject, skill_id, skill_name, title, description, mission_type, status, origin, priority,
   estimated_minutes, xp_reward, steps: [{ id, step_type, instruction, resource_id, sort_order,
   status }] }`. `estimated_minutes` (durée estimée dérivée des étapes) + `xp_reward` (XP d'effort
-  constant) = **affichage enfant, aucun score**. **L'ordre des étapes (`sort_order`) dépend du
+  constant) = **affichage enfant, aucun score**. `origin` (`papa`/`zetis`) = champ d'affichage
+  « qui a généré la mission », dérivé de `created_by` (l'enum interne `created_by` reste **pilot-only**,
+  frontière §3). Le client marque « ✨ new » les missions `status="planned"`. **L'ordre des étapes (`sort_order`) dépend du
   type** (§5 amendé) : `progression` = découverte d'abord (`eli5 → vocal_explain → [mindmap] →
   [quiz]`) ; `remediation`/`revision` = **rappel d'abord** (`[mindmap] → [quiz] → eli5 [→ vocal]`).
 - **GET `/missions/today`** — **contrat cassant** (ex-liste) : `{ elected: MissionStudentOut | null,
@@ -691,6 +693,34 @@ Massimo reproduit une mindmap.
 ### POST `/mindmaps/{id}/evaluate`
 
 Évaluation.
+
+## Conseil de classe IA (ADR-0020)
+
+Synthèse périodique par matière, **Papa-only** (`require_parent`). Narration LLM **100 % locale**
+posée sur le service d'évidence (le LLM narre et hiérarchise une évidence *calculée* ; il
+n'invente aucun `skill_id` — chaque id est revalidé serveur, anti-hallucination). Rapport **figé**
+(`council_reports` + snapshot d'évidence = auditabilité, un artefact LLM n'étant pas rejouable).
+Aucune surface Massimo.
+
+- **POST `/api/reports/class-council`** `{ period? }` → `CouncilReportOut`
+  `{ id, period, global_summary, subjects: [{ subject_id, subject_name, strengths, to_reinforce,
+  recent_evolution, recommendations: [{ skill_ids, skill_names, mission_type:"manual",
+  template_hint, justification }] }], prompt_version, created_at }`. Génère + persiste. Évidence
+  vide → rapport serein (0 matière), sans appel LLM. Erreur provider → `502`.
+- **GET `/api/reports/class-council?period=`** → `[CouncilReportListItem]`
+  `{ id, period, subjects_count, created_at }` (récents d'abord).
+- **GET `/api/reports/class-council/{id}`** → `CouncilReportOut`.
+- **POST `/api/reports/class-council/equip-notion`** `{ skill_id }` → `EquipNotionResult`
+  `{ skill_id, skill_name, has_lesson, generated: [str], skipped: [str], errors: [{piece, message}],
+  reason }` (ADR-0021). Génère + **auto-valide** le kit d'UNE notion (cours→fiche→SRS→quiz→mindmap),
+  100 % local. **Ne régénère jamais une pièce déjà créée** (même un brouillon `pending` de Papa) : on
+  génère seulement le manquant et on valide l'existant `pending`. Dégradation gracieuse : notion sans
+  leçon canonique validée → `has_lesson=false`, contenus `skipped`. Appelé **avant** create-missions
+  (les étapes de la mission résolvent alors les ressources fraîches).
+- **POST `/api/reports/class-council/create-missions`** `{ skill_ids, due_date?, force_priority? }`
+  → `[MissionPilotOut]`. Pont d'actionnabilité : une recommandation → missions **mono-notion** via
+  le flux Commander (ADR-0018 ; `manual`, `validated` par construction — la validation Papa = ce
+  clic). Croisées multi-matières hors v1.
 
 ## Jobs IA
 

@@ -537,6 +537,28 @@ created_at
 updated_at
 ```
 
+### CouncilReport (ADR-0020)
+
+Rapport « Conseil de classe IA » **figé**, Papa-only. Narration LLM locale posée sur le service
+d'évidence. On stocke l'artefact ET l'évidence qui l'a produit (`evidence_snapshot_json`) : une
+génération LLM n'est pas rejouable, l'auditabilité vient donc du figeage (contraste assumé avec
+l'élection de mission, qui ne stocke rien). `subjects_json` = la Spec validée **et ancrée**
+(recommandations dont les `skill_id` ont été revalidés contre l'évidence). `period` = simple
+libellé en v1 (pas de modèle de période).
+
+```txt
+id
+student_id             # FK student_profiles, index
+period                 # libellé (ex. "Trimestre 1")
+global_summary         # narration globale
+subjects_json          # [{subject_id, subject_name, strengths, to_reinforce, recent_evolution,
+                       #   recommendations: [{skill_ids, mission_type, template_hint, justification}]}]
+prompt_version         # version du prompt (COUNCIL_PROMPT_VERSION)
+evidence_snapshot_json # évidence figée au moment de la génération (auditabilité)
+created_by             # "ai"
+created_at
+```
+
 ## Relations clés
 
 ```txt

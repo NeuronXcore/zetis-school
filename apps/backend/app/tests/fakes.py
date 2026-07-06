@@ -91,6 +91,24 @@ _DEFAULT_CAPSULE = {
 }
 
 
+# CouncilReportSpec déterministe valide (cf. reports/schemas.py, ADR-0020) renvoyé quand le schéma
+# `fmt` a la propriété `global_summary`. Recommandations vides par défaut (aucun skill_id à ancrer,
+# donc valide quels que soient les ids seedés) ; un test passant `council=` cible des skill_id réels.
+_DEFAULT_COUNCIL = {
+    "global_summary": "Massimo progresse ; quelques notions sont à renforcer, rien d'inquiétant.",
+    "subjects": [
+        {
+            "subject_id": 1,
+            "subject_name": "Mathématiques",
+            "strengths": "De l'aisance sur les bases.",
+            "to_reinforce": "Une notion en cours de construction.",
+            "recent_evolution": "Tendance stable ces derniers temps.",
+            "recommendations": [],
+        }
+    ],
+}
+
+
 # FicheSpec déterministe valide (cf. fiches/schemas.py, ADR-0015) renvoyé quand le schéma `fmt`
 # a la propriété `essentiel`. Budgets respectés (definitions 2≤4, points 3≤5, erreurs 2≤3).
 _DEFAULT_FICHE = {
@@ -301,6 +319,7 @@ class FakeLLMProvider:
         quiz: dict | None = None,
         quiz_selfcheck: dict | None = None,
         quiz_judge: dict | None = None,
+        council: dict | None = None,
     ) -> None:
         self._feedback = feedback
         self._score = score
@@ -314,6 +333,7 @@ class FakeLLMProvider:
         self._quiz = quiz
         self._quiz_selfcheck = quiz_selfcheck
         self._quiz_judge = quiz_judge
+        self._council = council
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         # Sortie structurée demandée (fmt) → objet déterministe selon le schéma :
@@ -353,6 +373,11 @@ class FakeLLMProvider:
         if isinstance(request.fmt, dict) and "center" in request.fmt.get("properties", {}):
             mindmap = self._mindmap or _DEFAULT_MINDMAP
             return LLMResponse(text=json.dumps(mindmap), model="fake", duration_ms=1)
+        # Conseil de classe IA (ADR-0020) : schéma repéré par sa propriété `global_summary`.
+        # AVANT le fallback capsule (qui capte tout `fmt` restant).
+        if isinstance(request.fmt, dict) and "global_summary" in request.fmt.get("properties", {}):
+            council = self._council or _DEFAULT_COUNCIL
+            return LLMResponse(text=json.dumps(council), model="fake", duration_ms=1)
         if request.fmt is not None:
             spec = self._capsule_spec or _DEFAULT_CAPSULE
             return LLMResponse(text=json.dumps(spec), model="fake", duration_ms=1)

@@ -299,6 +299,12 @@ function MissionRow({ mission, onClick }: { mission: Mission; onClick: () => voi
         <p className="font-semibold text-zetis-text">{mission.title}</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-xs text-zetis-muted">
           <span className={`rounded-md px-2 py-0.5 font-semibold ${type.cls}`}>{type.label}</span>
+          {mission.status === "planned" && (
+            <span className="rounded-full border border-emerald-300/50 bg-emerald-400/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-100 shadow">
+              ✨ new
+            </span>
+          )}
+          <span>{mission.origin === "papa" ? "👤 par Papa" : "🤖 par ZETIS"}</span>
           <span>⏱ {mission.estimated_minutes} min</span>
           <span className="font-semibold text-amber-300">+{mission.xp_reward} XP</span>
           <MiniParcours steps={mission.steps} />
