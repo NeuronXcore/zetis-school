@@ -116,6 +116,16 @@ reproductible et non anxiogène.
    - `continuity` : chapitre en cours vs rattrapage ancien (progression) ;
    - `variety` : malus si la même matière a été élue la veille (anti-répétition) ;
    - `forced_priority` : plancher des missions manuelles Papa.
+   - **⚠️ Addendum `variety` (2026-07-06)** : « la matière élue la veille » se
+     dérive des **faits persistés** — la matière de la dernière mission
+     `active`/`completed` de la veille. Une élection jamais démarrée ne laisse
+     aucune trace et ne compte pas : `variety` pénalise la répétition
+     d'**activité réelle**, pas d'élection théorique. Sans cette dérivation, le
+     facteur exigerait de connaître une élection passée que rien ne persiste —
+     contradiction avec « aucune trace d'élection à stocker » (Conséquences) et
+     avec la rejouabilité elle-même (rejouer hier dépendrait d'avant-hier,
+     récursivement). Le facteur reste ainsi calculable depuis la base et
+     l'élection strictement rejouable.
    Les pondérations vivent dans la config (`config.py` + `.env.example`), pas
    dans le code du service. La formule est **versionnée**
    (`MISSION_SCORING_VERSION`, `v1`) : tout changement de facteur ou de
@@ -203,6 +213,17 @@ reproductible et non anxiogène.
      redirection) ; la preuve est produite DANS la modale et l'étape validée
      aussitôt (`completeStep`), verdict inline en fin de mission. Une seule modale
      ELI5 couvre `eli5` + `vocal_explain`. Aucun marqueur de retour.
+   - **⚠️ Amendé (Lot 2, 2026-07-06) — granularité `revision` : UNE mission par
+     notion due.** Le générateur `generate-revision` produit une mission par
+     notion due (top-N par retard, N en config), jamais une mission
+     multi-notions : le verdict d'acquisition (5bis) est **mono-notion**
+     (mastery, lacune, carte SRS d'UN skill) — une mission groupée n'aurait pas
+     de verdict défini. Le budget ~15 min (décision 4) borne les **étapes**,
+     pas les notions. `progression` est mono-notion par construction (« la
+     prochaine notion ») ; `remediation` l'était déjà (une mission par lacune,
+     étape 15). Toute mission générée est donc mono-notion — les parcours
+     multi-notions restent le territoire des croisées (`manual` / Conseil de
+     classe, hors périmètre).
 
 5bis. **Verdict d'acquisition découplé de la complétion (mise en conformité
    avec les règles métier de `DATA_MODEL.md`).** Les règles métier existantes
@@ -311,7 +332,7 @@ reproductible et non anxiogène.
 
 ## Suivi
 
-- **Docs** : ligne dans `DECISIONS.md` (« ADR-0015 — arbitrage des missions,
+- **Docs** : ligne dans `DECISIONS.md` (« ADR-0017 — arbitrage des missions,
   scoring déterministe versionné ») ; correction du vocabulaire `mission_type`
   dans `DATA_MODEL.md` (décision 1) ; mise à jour `API_SPEC.md` §Missions
   (nouveau contrat `/missions/today`, générateurs par source) ; pointeur dans
