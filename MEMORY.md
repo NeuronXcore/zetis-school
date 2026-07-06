@@ -7,11 +7,12 @@
 
 ## Reprise — chantier `Conseil de classe IA` (ADR-0020/0021) · branche `feat/conseil-classe-backend`
 
-État global : la branche `feat/conseil-classe-backend` porte **10 commits FAITS, NON POUSSÉS**
-(le prochain pas est push + PR). Le chantier missions précédent (ADR-0017/0018/0019 + frontend
-Massimo) est **MERGÉ dans `main`** (PR #46) ; le correctif `generate_revision` mono-notion est
-**MERGÉ `main`** (PR #47). **379 tests backend verts, tsc + builds papa/massimo verts, E2E live
-Ollama joués et verts.**
+État global : la branche `feat/conseil-classe-backend` (13 commits) est **POUSSÉE** et la
+**PR [#48](https://github.com/NeuronXcore/zetis-school/pull/48) est OUVERTE** vers `main`
+(MERGEABLE / CLEAN) — **reste à review + merge**. Le chantier missions précédent
+(ADR-0017/0018/0019 + frontend Massimo) est **MERGÉ dans `main`** (PR #46) ; le correctif
+`generate_revision` mono-notion est **MERGÉ `main`** (PR #47). **379 tests backend verts, tsc +
+builds papa/massimo verts, E2E live Ollama joués et verts.**
 
 ### FAIT — sur `feat/conseil-classe-backend` (10 commits, à pousser)
 
@@ -47,8 +48,7 @@ Ollama joués et verts.**
 
 ### EN COURS / reste EXACTEMENT
 
-0. **Tout est commité sur `feat/conseil-classe-backend` (10 commits) mais NON POUSSÉ.** → push +
-   ouvrir la PR vers `main`.
+0. **Branche poussée + PR #48 ouverte (MERGEABLE/CLEAN).** → **review + merge**.
 1. **Données de test laissées en DB dev** : `council_report` id 1, missions `manual` créées via le
    Conseil de classe, **kits générés** (SVT Magnitude/Foyer, Français, etc. — fiches/quiz/mindmaps/SRS
    validés). Sans conséquence (dev).
@@ -83,7 +83,7 @@ Ollama joués et verts.**
 
 ### PROCHAIN PAS
 
-1. **Pousser** `feat/conseil-classe-backend` + ouvrir la **PR** vers `main`.
+1. **Review + merge de la PR #48** (déjà poussée, MERGEABLE/CLEAN).
 2. Suites déjà vertes (`pytest` 379 · `tsc -b` · `vite build` papa+massimo) — relancer une dernière fois
    si besoin après rebase.
 3. Débouchés futurs : porte (i) « Recommandation retenue » de l'ADR-0018 (débloquée par cette page),
