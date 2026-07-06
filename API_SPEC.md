@@ -297,6 +297,9 @@ substrat canonique** (ADR-0011). Génération **locale** depuis le cours validé
 - **GET `/api/student/quiz-subjects`** — grille des matières + nombre de quiz (0 → grisée).
 - **GET `/api/student/quizzes/{subject_slug}`** — quiz jouables (questions actives, **sans** clé
   ni explication) ; chaque quiz porte `lesson_id`.
+- **GET `/api/student/quiz/{quiz_id}`** — un quiz jouable par id (même charge que ci-dessus, sans
+  clé). Entrée du **quiz de mission** (`QuizMissionModal`) : le runner lance ensuite une tentative
+  dont le `context` vaut `quiz_type = "mission"` → preuve d'étape quiz.
 - **POST `/api/student/quizzes/{id}/attempts`** — démarre une tentative.
 - **POST `/api/student/quiz-attempts/{id}/answers`** — corps `{ question_id, answer_json }` :
   correction serveur, renvoie `{ is_correct, explanation_markdown, criteria?, ambiguous }` (jamais
@@ -365,8 +368,12 @@ stricte (§3) : **deux schémas, deux routers** — `MissionStudentOut` (Massimo
 ### Frontière student (Massimo)
 
 - **GET `/missions`** → `[MissionStudentOut]` (validées de l'élève). `MissionStudentOut = { id,
-  subject, skill_id, skill_name, title, description, mission_type, status, priority, steps: [{ id,
-  step_type, instruction, resource_id, sort_order, status }] }`.
+  subject, skill_id, skill_name, title, description, mission_type, status, priority,
+  estimated_minutes, xp_reward, steps: [{ id, step_type, instruction, resource_id, sort_order,
+  status }] }`. `estimated_minutes` (durée estimée dérivée des étapes) + `xp_reward` (XP d'effort
+  constant) = **affichage enfant, aucun score**. **L'ordre des étapes (`sort_order`) dépend du
+  type** (§5 amendé) : `progression` = découverte d'abord (`eli5 → vocal_explain → [mindmap] →
+  [quiz]`) ; `remediation`/`revision` = **rappel d'abord** (`[mindmap] → [quiz] → eli5 [→ vocal]`).
 - **GET `/missions/today`** — **contrat cassant** (ex-liste) : `{ elected: MissionStudentOut | null,
   reason, reason_code, scoring_version, alternatives: [MissionStudentOut] (≤2) }`. `reason` est une
   **phrase template** figée choisie par le facteur dominant (jamais de LLM) ; `elected: null` =
@@ -378,6 +385,14 @@ stricte (§3) : **deux schémas, deux routers** — `MissionStudentOut` (Massimo
   → **XP +50 inconditionnel** + verdict (`acquired` si reverse ≥ `MISSION_REVERSE_THRESHOLD` ET
   quiz ≥ `MISSION_QUIZ_THRESHOLD` → mastery↑, lacune `resolved` ; sinon `review_later` → mastery
   honnête, lacune `in_progress`, carte SRS (re)programmée). Trace `LearningEvent` `mission_verdict`.
+- **GET `/missions/completed-today`** → `[{ mission_id, title, subject, verdict, xp }]` — missions
+  terminées aujourd'hui + verdict (deux issues positives) + XP, relues des `LearningEvent`
+  `mission_verdict` du jour. **Aucun score brut** (reverse/quiz/mindmap restent Papa — frontière §3).
+
+> Exécution frontend (`page-missions.md`) : chaque activité s'ouvre **EN MODALE in-page**
+> (`ActivityModal`) ; la preuve est produite dans la modale et l'étape validée aussitôt — pas de
+> redirection ni de marqueur de retour. Le quiz de mission par id se lit via
+> **GET `/api/student/quiz/{quiz_id}`** (§Quiz).
 
 ### Frontière pilotage (Papa) — `MissionPilotOut`
 

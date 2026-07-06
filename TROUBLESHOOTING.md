@@ -99,3 +99,24 @@
   manuellement puis « Valide » (preuve serveur). Le step mindmap ajoute le **premier** CTA de deep-link
   (« Reconstruire → » vers `/mindmaps/reconstruire/:id`). `fetchMindmap(id)` renvoyant déjà `subject_slug`,
   aucune route/schéma supplémentaire n'a été nécessaire pour résoudre le slug côté client.
+
+## Chantier `mission` — frontend Massimo (page decks + modales in-page)
+
+- **⚠️ `backdrop-filter`/`transform` sur un panneau de modale casse les enfants `position: fixed`.**
+  Le `MindmapWorkspace` rend son fantôme de drag en `position: fixed; left/top = clientX/clientY`
+  (viewport). Dans `ActivityModal`, `backdrop-blur-xl` (et l'ancienne animation `translate/scale`)
+  sur le PANNEAU créent un **bloc conteneur** pour les descendants fixed → le fantôme se positionne
+  par rapport au panneau centré, pas au viewport (« nœud loin de la souris, hors plan »). Idem pour
+  le toast XP d'ELI5. → **Aucun `backdrop-filter`/`transform` sur le panneau** (fond `zetis-surface`
+  opaque, le flou n'y servait à rien) ; entrée en **opacité seule**. Le backdrop de l'*overlay*
+  (`inset-0`, à 0,0) est inoffensif. Piège de coord classique React Flow / drag custom.
+- **Bascule deep-link → modales in-page** (remplace l'entrée « le runner n'a aucun deep-link » plus
+  haut) : les 3 activités (ELI5 / quiz / mindmap) s'ouvrent EN MODALE sur `/missions` ; l'étape se
+  valide dans la modale (`completeStep`), fin du marqueur `sessionStorage` + de la redirection. Une
+  seule modale ELI5 couvre `eli5` + `vocal_explain` (complète `eli5` à `status="explained"`, `vocal`
+  à `feedback`+reverse, stop au 1er 409). UI d'activité **extraites** (`Eli5Session`/`QuizRunner`) →
+  `Eli5Page.test.tsx` garde le DOM identique (mouvement pur, à relancer après extraction).
+- **Étape mindmap absente alors qu'une carte existe** : `_resolve_mission_mindmap_id` résout la carte
+  à la **création** de la mission ; une carte validée *après* coup n'est pas rétro-ajoutée. → **régénérer
+  le parcours** (`POST /missions/{id}/regenerate`, planned seulement — une mission `active` refuse,
+  409). Pas besoin de générer si la carte existe déjà.

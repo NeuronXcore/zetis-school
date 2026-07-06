@@ -187,6 +187,23 @@ reproductible et non anxiogène.
    formule *et* templates : un changement de parcours change ce que « mission »
    veut dire, il se trace pareil).
 
+   - **⚠️ Amendé (slice frontend Massimo) — l'ORDRE dépend du type, ELI5 pas
+     toujours en tête.** Le bloc de templates ci-dessus fixait « découverte
+     d'abord » pour tous. Correction pédagogique (effet de test) : `progression`
+     (notion **nouvelle**) garde la découverte d'abord (`eli5 → vocal_explain →
+     [mindmap] → [quiz]`) ; `remediation` et `revision` (notion **déjà vue**)
+     passent au **rappel d'abord** (`[mindmap] → [quiz] → eli5 [→ vocal_explain]`).
+     `manual` n'est pas réordonné (Papa compose). Sans ressource de rappel (ni
+     carte ni quiz), les deux ordres coïncident. Le front est **agnostique** : il
+     rend le `sort_order` servi et n'ouvre que l'étape courante ; la preuve de
+     chaque `step_type` est inchangée. Bump `MISSION_SCORING_VERSION` couvre déjà
+     les templates.
+   - **Exécution frontend : activités EN MODALE in-page.** Chaque `step_type`
+     s'ouvre dans une modale (`ActivityModal`) sur `/missions` (jamais de
+     redirection) ; la preuve est produite DANS la modale et l'étape validée
+     aussitôt (`completeStep`), verdict inline en fin de mission. Une seule modale
+     ELI5 couvre `eli5` + `vocal_explain`. Aucun marqueur de retour.
+
 5bis. **Verdict d'acquisition découplé de la complétion (mise en conformité
    avec les règles métier de `DATA_MODEL.md`).** Les règles métier existantes
    exigent que la maîtrise combine « score moyen, récence, répétitions
@@ -333,6 +350,15 @@ reproductible et non anxiogène.
   classe (non implémentée à ce jour). Ordre cible :
   référentiel → page Quiz (runner) → Lot 1 → Lot 2 (+ service d'évidence)
   → Conseil de classe → Lot 3.
+- **Slice frontend Massimo — page élève** (`page-missions.md`) : navigation par
+  **decks** (accueil disques matières + disque « Mission du jour » → matière →
+  **timeline horizontale** → étape), activités **EN MODALE in-page** (ELI5 /
+  quiz / mindmap ; brique `ActivityModal`, UI d'activité extraites et partagées
+  avec leurs pages pleines), champs d'affichage `estimated_minutes`/`xp_reward`,
+  endpoint `GET /missions/completed-today`, et l'**ordre des étapes par type**
+  (§5 amendé). Croisées multi-matières **différées** (modèle mono-matière → ADR
+  dédié). Commit suggéré :
+  `feat(missions): student page — deck nav, in-page activity modals, type-ordered steps`.
 - Ordre dans la file : après clôture du chantier référentiel (mono-chantier).
 - Commits suggérés : `feat(missions): real step execution (start/complete-step)`
   (Lot 1) ; `feat(missions): multi-source generation + deterministic daily

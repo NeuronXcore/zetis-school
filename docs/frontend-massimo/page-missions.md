@@ -2,15 +2,21 @@
 
 ## Objectif
 
-Donner à Massimo ses missions du moment : **la** mission du jour (élue par
-l'arbitrage déterministe, ADR-0017), les missions croisées multi-matières, et le
-reste rangé par matière — dans la logique visuelle des autres pages (icônes de
-matière, cadres teintés, verre/néon).
+Donner à Massimo ses missions du moment via une **navigation par decks** (même
+motif visuel qu'ELI5 v2 / Révision) : un **accueil** de disques ronds par matière
++ un disque **« Mission du jour »** (l'élue par l'arbitrage déterministe,
+ADR-0017), puis — par matière — la **liste** des missions, puis le **parcours**
+d'une mission sous forme de **timeline horizontale**.
 
 Une mission est un **parcours mixte** (ADR-0017 §5) : jamais une activité unique,
-toujours un enchaînement typé (découvrir → verbaliser → mini-quiz, variable selon
-le type). La complétion d'une étape exige sa **preuve serveur** (§5) ; la fin de
-mission produit un **verdict d'acquisition** découplé de la complétion (§5bis).
+toujours un enchaînement typé (découvrir / verbaliser / mini-quiz / reconstruire).
+**L'ordre des étapes dépend du type** — voir ADR-0017 §5 *amendé* : ELI5 n'est pas
+toujours en tête. La complétion d'une étape exige sa **preuve serveur** (§5) ; la
+fin de mission produit un **verdict d'acquisition** découplé de la complétion (§5bis).
+
+Chaque activité s'ouvre **EN MODALE in-page** : Massimo ne quitte jamais
+`/missions`, et l'étape se valide **dans la modale** (preuve serveur) — plus de
+redirection vers `/eli5` `/quiz` `/mindmaps`, plus de marqueur de retour.
 
 Route : `/missions`.
 
@@ -19,70 +25,65 @@ Route : `/missions`.
 - Vocabulaire des pastilles de type (traduction enfant du `mission_type`) :
   `remediation` → **Renforcer** · `revision` → **Réviser** · `progression` →
   **Découvrir** · `manual` → **Mission de Papa**. Jamais de jargon de source.
-- **Aucune notion de retard** : pas de compteur, pas d'état « en retard », pas de
-  rouge. Les badges compteurs sont teintés couleur matière et comptent les
-  missions **disponibles**.
+- **Aucune notion de retard** : pas de compteur de retard, pas d'état « en
+  retard », pas de rouge. Les badges compteurs comptent les missions
+  **disponibles**.
 - **Verdict à deux issues, toutes deux positives** : « ✓ Notion bien en place »
   (vert) / « 🌙 On la reverra bientôt » (indigo doux — une promesse, pas un
   échec atténué ; jamais d'orange/warning). L'XP s'affiche dans les deux cas.
-- Le CTA de la mission en cours **nomme l'étape courante** (« Continuer :
-  Expliquer à ZETIS → »), jamais un « Continuer » générique.
-- Étape suivante = « Ensuite », jamais « verrouillée ».
-- Icônes de matière : **PNG par slug via `lib/subjectIcons.ts`** (repli emoji) —
-  AUCUN mapping emoji local dans le composant (règle « ne pas hardcoder les
-  matières dans l'UI »).
+- Sur la timeline, l'**étape courante nomme l'activité** (« ❓ Mini-quiz — ▶ À
+  toi de jouer »), jamais un « Continuer » générique ; l'étape suivante =
+  « Ensuite », jamais « verrouillée ».
+- Icônes de matière : **PNG par slug via `lib/subjectIcons.ts`** (repli emoji
+  `subjectEmoji`) — AUCUN mapping emoji local (« ne pas hardcoder les matières »).
 
-## Structure de la page (de haut en bas)
+## Structure — 3 écrans (navigation par decks)
 
 > Le header global vit dans `MassimoLayout` — pas dans cette page.
 
-1. **Mission du jour** (héros) : titre, pastille `reason`, chip matière (icône),
-   durée, XP, **frise du parcours** (étapes typées : faite ✓ / courante mise en
-   avant / « Ensuite »), CTA nommant l'étape courante.
-2. **Missions croisées** (multi-matières) : cartes à cadre **dégradé reliant les
-   deux couleurs de matière**, deux chips matière. **Visibles tant que ≤ 3** ;
-   au-delà, la section devient un expandeur fermé avec badge compteur (même
-   motif que les matières). Leur rareté justifie l'exception de visibilité.
-3. **Par matière** : un expandeur natif `<details>`/`<summary>` par matière avec
-   missions, **fermé par défaut** (pas d'attribut `open`, pas d'état React) —
-   icône matière, nom, **badge compteur teinté**, chevron pivotant
-   (`prefers-reduced-motion` respecté). Matières sans mission : ligne simple
-   sans expandeur, « ✓ À jour, bravo ! ».
-4. **Terminées aujourd'hui** : cartes compactes avec verdict + XP.
-5. **Message ZETIS** : court, bienveillant (« Une mission, tranquillement —
-   c'est déjà super. »).
+1. **Accueil** : `SubjectDeckGrid` (disques ronds par matière, icône PNG + badge
+   compteur de missions **disponibles** ; matières sans mission = disque
+   « à jour ✓ » atténué, non cliquable) précédé d'un **disque hero
+   « 🎯 Mission du jour »** (→ ouvre directement le parcours de l'élue ;
+   `elected: null` → disque « Rien d'obligatoire », inerte). En bas :
+   **Terminées aujourd'hui** (cartes verdict + XP) + message ZETIS.
+2. **Matière** (clic d'un disque) : la **liste des missions** de la matière
+   (cartes : pastille type, durée, XP, **mini-parcours typé**, « n/N faits »).
+   L'élue est incluse dans son groupe matière (le disque du jour n'est qu'un
+   raccourci).
+3. **Mission** (clic d'une carte, ou du disque Mission du jour) : titre, pastille
+   `reason` (si élue), chips matière / durée / XP, puis la **timeline
+   HORIZONTALE** du parcours — étapes typées : faite ✓ / **courante = bouton
+   lumineux cliquable (« ▶ À toi de jouer »), auto-scrollée dans le champ** /
+   suivantes « Ensuite ». Clic sur l'étape courante → la **modale** de l'activité.
+
+## Missions croisées (multi-matières) — DIFFÉRÉES
+
+Le modèle `Mission` est mono-matière (un seul `subject_id`/`skill_id`) ; les
+croisées (ADR-0017 §6, « manuel Papa uniquement, hors-V1 ») exigent une
+représentation multi-matière + un ADR dédié. **Non implémentées** ; la page ne
+rend aucune section croisées en v1.
 
 ## Wireframe
 
 ```txt
-┌──────────────────────────────────────────────────────────────┐
-│ 🎯 Mes missions                                              │
-│ Une mission, c'est un petit parcours.                        │
-├──────────────────────────────────────────────────────────────┤
-│ ┌ MISSION DU JOUR ─────────────────────────────────────────┐ │
-│ │ Renforcer les nombres relatifs                           │ │
-│ │ 💡 Parce que cette notion revient bientôt                │ │
-│ │ ➗ Mathématiques · ⏱ 15 min · +60 XP                     │ │
-│ │  [💡 Découvrir ✓]──[🎙 Verbaliser ◉]──[❓ Mini-quiz ·]   │ │
-│ │ [ Continuer : Expliquer à ZETIS → ]                      │ │
-│ └──────────────────────────────────────────────────────────┘ │
-│ 🔗 MISSIONS CROISÉES (cartes visibles si ≤ 3)                │
-│ ┌ 📖 Français × 🌿 SVT — Lire et résumer… · 💡🎙❓ ───────┐  │
-│ 📚 PAR MATIÈRE (expandeurs fermés par défaut)                │
-│ ▶ 📖 Français                                     (2)        │
-│ ▶ ➗ Mathématiques                                (1)        │
-│ ▶ 🌍 Histoire-Géo                                 (2)        │
-│   🇬🇧 Anglais                          ✓ À jour, bravo !     │
-│ ✨ TERMINÉES AUJOURD'HUI                                     │
-│ [✓ Notion bien en place] Les fractions…            +60 XP    │
-│ [🌙 On la reverra bientôt] L'accord du participe…  +50 XP    │
-└──────────────────────────────────────────────────────────────┘
+ACCUEIL                          MATIÈRE (clic disque)        MISSION (clic carte)
+┌──────────────────────────┐    ┌───────────────────────┐   ┌───────────────────────┐
+│ 🎯 Mes missions          │    │ ← Matières   🌿 SVT   │   │ ← Retour              │
+│      (   🎯   )          │    │ ┌───────────────────┐ │   │ Progresser : Magnitude│
+│   Mission du jour        │    │ │ Magnitude         │ │   │ 💡 …prochaine étape   │
+│   ┌────┐ ┌────┐ ┌────┐   │    │ │ Découvrir ⏱16 +50 │ │   │ 🌿 SVT · ⏱16 · +50 XP │
+│   │📖 6│ │➗ 8│ │🌿 3│   │    │ │ ✓ ✓ 🗺  2/3 faits │ │   │ LE PARCOURS           │
+│   └────┘ └────┘ └────┘   │    │ └───────────────────┘ │   │ [✓]─[✓]─[🗺 ▶ À toi]  │
+│   Espagnol  à jour ✓     │    │ … autres missions …   │   │  clic 🗺 → MODALE     │
+│ ✨ Terminées aujourd'hui │    └───────────────────────┘   └───────────────────────┘
+└──────────────────────────┘
 ```
 
-## Frise / mini-parcours (étapes typées)
+## Timeline / mini-parcours (étapes typées)
 
-Vocabulaire visuel des `step_type` — le même sur la frise du héros et le
-mini-parcours des cartes :
+Vocabulaire visuel des `step_type` — le même sur la timeline (écran mission) et
+le mini-parcours des cartes (écran matière) :
 
 | `step_type`     | Icône | Libellé enfant        | Preuve serveur (§5)                  |
 |-----------------|-------|-----------------------|--------------------------------------|
@@ -90,58 +91,75 @@ mini-parcours des cartes :
 | `eli5`          | 💡    | Découvrir             | consultation                          |
 | `vocal_explain` | 🎙    | Verbaliser            | score reverse retourné                |
 | `quiz`          | ❓    | Mini-quiz             | `QuizAttempt` (`context=mission`)     |
+| `mindmap`       | 🗺    | Reconstruire          | `MindmapAttempt` scorée (ADR-0016)    |
 
-Étape prouvée = pastille verte ✓. Étape courante (héros) = encadrée, lumineuse.
+Étape prouvée = ✓. Le front **affiche l'ordre servi** (`sort_order`) et n'ouvre
+que l'**étape courante** (les preuves se produisent dans l'ordre, garde serveur).
 
-## Données API (contrat : ADR-0017 §3 et §5/§5bis — Lots 1 et 2)
+## Modales d'activité (in-page)
 
-- `GET /api/missions/today` — **nouveau contrat (Lot 2)** :
-  `{ elected: MissionOut | null, reason, reason_code, scoring_version,
-  alternatives: [MissionOut] }`. `elected: null` → état « Aucune mission ».
-- `GET /api/missions` — liste avec étapes (`MissionStudentOut` : **jamais** de
-  scores, facteurs ni motifs de génération — frontière de schémas serveur,
-  ADR-0017 §3) ; le regroupement par matière est fait côté client (hook), les
-  croisées sont les missions à ≥ 2 matières (dérivées des `Skill` des étapes,
-  `subject_id` null). Les routes student ne servent que les missions
-  **validées** (gate 5ter en requête) — la validation est invisible ici, par
-  construction.
-- `POST /api/missions/{id}/start` (Lot 1).
-- `POST /api/missions/{id}/steps/{step_id}/complete` (Lot 1) — **refusé sans
-  preuve** (preuve postérieure au `start`, étapes dans l'ordre `sort_order`) ;
-  la dernière étape retourne le verdict :
+- Brique **`components/ActivityModal.tsx`** : grande modale (scroll interne,
+  Escape / clic backdrop / ✕, **confirm-on-close** si l'activité est en cours,
+  `prefers-reduced-motion`). ⚠️ **Pas de `backdrop-filter`/`transform` sur le
+  panneau** — ils créeraient un bloc conteneur pour les descendants
+  `position: fixed` (fantôme de drag du mindmap, toast XP d'ELI5), qui se
+  décaleraient du viewport.
+- Une modale « mission-aware » par type : **`Eli5MissionModal`** (couvre **eli5 +
+  vocal_explain** en UNE session ELI5 : valide `eli5` à l'affichage de
+  l'explication, `vocal_explain` au retour du reverse, dans l'ordre, stop au 1er
+  409), **`QuizMissionModal`** (valide au résumé du quiz), **`MindmapMissionModal`**
+  (valide sur l'auto-soumission de la reconstruction). Chacune appelle
+  `completeStep` sur le signal de succès et affiche le **verdict inline** +
+  « Terminer ✓ » en fin de mission.
+- Les UI d'activité sont **partagées** avec leurs pages pleines (`Eli5Session`,
+  `QuizRunner`, `MindmapWorkspace` — extraites, zéro duplication).
+
+## Données API (contrat : ADR-0017 §3 et §5/§5bis)
+
+- `GET /api/missions/today` — `{ elected: MissionStudentOut | null, reason,
+  reason_code, scoring_version, alternatives }`. `elected: null` → « Aucune mission ».
+- `GET /api/missions` — liste `MissionStudentOut` : **jamais** de scores, facteurs
+  ni motifs (frontière §3). **Champs d'affichage enfant** : `estimated_minutes`
+  (durée estimée, dérivée des étapes, déterministe) + `xp_reward` (XP d'effort,
+  constant) — l'XP est le **seul** nombre montré. Regroupement par matière côté
+  client (hook) ; l'élue est incluse dans son groupe.
+- `POST /api/missions/{id}/start`.
+- `POST /api/missions/{id}/steps/{step_id}/complete` — refusé sans preuve (409,
+  postérieure au `start`, ordre `sort_order`) ; dernière étape → verdict
   `{ mission_status, verdict: "acquired" | "review_later", xp_awarded }`.
-- Le bouton « J'ai terminé » global de l'étape 15 **disparaît**.
+- `GET /api/missions/completed-today` — terminées du jour (verdict + XP), relues
+  des `LearningEvent(mission_verdict)` horodatés, **sans aucun score** (frontière §3).
+- **Ordre des étapes dépendant du type** (ADR-0017 §5 *amendé*) : `progression` →
+  découverte d'abord ; `remediation`/`revision` → **rappel d'abord**. Le front est
+  **agnostique** (rend le `sort_order` servi).
 
 ## États
 
-- **Aucune mission** (`elected: null`) : « Tu n'as rien d'obligatoire
-  maintenant. Tu peux choisir une matière ou faire une révision rapide. »
-- **Mission en cours** : frise avec étape courante, CTA nommé.
-- **Fin de mission** : célébration mini-victoire (brique `@zetis/ui`, son doux,
-  `prefers-reduced-motion`), verdict affiché avec l'une des deux formulations.
+- **Accueil** : decks matières + disque Mission du jour + terminées + note ZETIS.
+- **Mission** : timeline avec étape courante cliquable ; toutes faites → « 🎉 ».
+- **Fin de mission** : mini-victoire (`@zetis/ui`, son doux, `prefers-reduced-motion`)
+  + verdict inline (une des deux formulations) + bouton « Terminer ✓ ».
+- **Preuve manquante (409)** : message doux **inline dans la modale**, jamais un échec.
 - **Chargement / erreur** : Spinner partagé ; message + réessayer.
 
 ## Implémentation
 
-- Logique dans un hook **`useMissions`** (aucune logique métier dans le
-  composant) — même motif que `useMatieres`.
-- Expandeurs : `<details>`/`<summary>` **natifs** (zéro JS, clavier/lecteur
-  d'écran gratuits, « fermé par défaut » = absence d'`open`). Pas de Radix
-  Accordion (report explicite du design system) ; si une animation d'ouverture
-  devient nécessaire, ce sera une décision ultérieure.
-- Icônes matière : `lib/subjectIcons.ts` exclusivement.
+- Logique dans **`useMissions`** (aucune logique métier dans le composant) :
+  regroupement par matière, `activeActivity`, `openStep` (démarre la mission puis
+  ouvre la modale), `onStepDone` (rafraîchit + verdict + célébration),
+  `closeActivity`. **Aucun marqueur `sessionStorage`** : la validation vit dans la modale.
+- Decks : `SubjectDeckGrid` / `DeckDisc` **partagés** (ELI5 / Révision).
+- Icônes matière : `lib/subjectIcons.ts` (repli `subjectEmoji`).
 - Thème Massimo (verre/néon, tokens `zetis-*`, primitives glass existantes).
-- Mockup de référence : `mockup-page-missions-massimo.html` (validé).
 
 ## Hors périmètre V1
 
-- Génération automatique de missions croisées (v1 = croisées **manuelles Papa
-  uniquement**, ADR-0017 §6) ; page Papa de pilotage (Lot 3) ; XP par étape
-  (l'XP reste à la mission) ; animation d'ouverture des expandeurs ; recherche.
+- Missions croisées multi-matières (ADR dédié) ; XP par étape (l'XP reste à la
+  mission) ; recherche. La page de pilotage Papa est une slice sœur séparée.
 
 ## Voir aussi
 
-- `docs/decisions/adr-0017-arbitrage-missions.md` (sources, scoring versionné,
-  preuves, verdict d'acquisition).
+- `docs/decisions/adr-0017-arbitrage-missions.md` (§5 *amendé* : ordre par type ;
+  §5bis verdict ; §3 frontière de schémas).
 - `page-accueil.md` (la carte « Mission du jour » de l'Accueil consomme le même
   `GET /missions/today` — même élue, même raison, jamais deux vérités).
