@@ -43,6 +43,11 @@ export async function fetchSubjectQuizzes(subjectSlug: string): Promise<StudentQ
   );
 }
 
+/** `GET /api/student/quiz/{id}` — un quiz jouable par id (deep-link mission ; questions sans clé). */
+export async function fetchQuizById(quizId: number): Promise<StudentQuiz> {
+  return asJson(await fetch(`${API_URL}/api/student/quiz/${quizId}`, { headers: headers() }));
+}
+
 /** `POST /api/student/quizzes/{id}/attempts` — démarre une tentative. */
 export async function startQuizAttempt(quizId: number): Promise<StartAttemptResult> {
   return asJson(

@@ -1,170 +1,581 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button, Card, CardContent, EmptyState } from "@zetis/ui";
+import { useEffect, useRef, useState } from "react";
+import { type Mission, type MissionStep } from "@zetis/types";
+import { Spinner } from "@zetis/ui";
+import { NeonBackdrop } from "../components/glass";
 import { PageHeader } from "../components/PageHeader";
-import {
-  type Mission,
-  completeStep,
-  fetchTodayMissions,
-  startMission,
-} from "../lib/missions";
+import { DeckDisc } from "../components/DeckDisc";
+import { SubjectDeckGrid, type SubjectDeck } from "../components/SubjectDeckGrid";
+import { subjectIconFor } from "../lib/subjectIcons";
+import { subjectEmoji } from "../lib/subjectEmoji";
+import { currentStep, useMissions } from "../hooks/useMissions";
+import { Eli5MissionModal } from "../components/missions/Eli5MissionModal";
+import { QuizMissionModal } from "../components/missions/QuizMissionModal";
+import { MindmapMissionModal } from "../components/missions/MindmapMissionModal";
 
-// Icône par type d'étape (le runner reste minimal : liste + valider). L'étape mindmap ajoute en
-// plus un CTA « Reconstruire → » qui deep-linke vers le mode Reconstruire de la bonne carte.
-const STEP_ICON: Record<string, string> = {
-  lesson: "📘",
-  eli5: "💡",
-  vocal_explain: "🎙",
-  quiz: "❓",
-  mindmap: "🧠",
+// Page Missions Massimo — navigation par DECKS (même logique qu'ELI5/Révision) :
+//   1. accueil : gros disques ronds par matière + disque « Mission du jour » ;
+//   2. matière : la liste de ses missions ;
+//   3. mission : la TIMELINE horizontale des étapes — on clique l'étape courante pour la faire
+//      (ELI5 / mini-quiz / carte mentale s'ouvrent EN MODALE, sans quitter /missions).
+// Présentationnel : toute la logique (élection, preuve, verdict, deep-links) vit dans useMissions.
+
+type Ui = ReturnType<typeof useMissions>;
+const bySort = (a: MissionStep, b: MissionStep) => a.sort_order - b.sort_order;
+
+// Vocabulaire visuel des étapes typées (spec + mindmap 🗺).
+const STEP_META: Record<string, { icon: string; label: string; action: string; sub: string }> = {
+  lesson: { icon: "📘", label: "Lire", action: "Lire la leçon", sub: "la leçon" },
+  eli5: { icon: "💡", label: "Découvrir", action: "Découvrir avec ZETIS", sub: "ZETIS t'explique" },
+  vocal_explain: { icon: "🎙", label: "Verbaliser", action: "Expliquer à ZETIS", sub: "avec tes mots" },
+  quiz: { icon: "❓", label: "Mini-quiz", action: "Faire le mini-quiz", sub: "quelques questions" },
+  mindmap: { icon: "🗺", label: "Reconstruire", action: "Reconstruire la carte", sub: "de mémoire" },
+};
+function stepMeta(type: string) {
+  return STEP_META[type] ?? { icon: "•", label: "Étape", action: "Continuer", sub: "" };
+}
+
+// mission_type → pastille enfant (jamais le jargon de source).
+const TYPE_META: Record<string, { label: string; cls: string }> = {
+  remediation: { label: "Renforcer", cls: "bg-indigo-500/18 text-indigo-200" },
+  revision: { label: "Réviser", cls: "bg-cyan-500/15 text-cyan-200" },
+  progression: { label: "Découvrir", cls: "bg-fuchsia-500/15 text-fuchsia-200" },
+  manual: { label: "Mission de Papa", cls: "bg-amber-500/15 text-amber-100" },
 };
 
-// Page Missions Massimo (ADR-0017 lot 1) — version minimale du flux à preuves : démarrer une
-// mission, puis valider ses étapes dans l'ordre. Le serveur vérifie la preuve de chaque étape
-// (409 message parlant si l'activité n'a pas été faite) et rend un verdict à la dernière étape.
-// La refonte visuelle complète (parcours guidé) est une slice frontend séparée.
+function SubjectIcon({ slug, className }: { slug: string; className?: string }) {
+  const url = subjectIconFor(slug);
+  return url ? (
+    <img src={url} alt="" aria-hidden className={className ?? "h-5 w-5 object-contain"} />
+  ) : (
+    <span aria-hidden className="text-base leading-none">
+      {subjectEmoji(slug)}
+    </span>
+  );
+}
+
+function SubjectChip({ slug, name }: { slug: string; name: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-zetis-text">
+      <SubjectIcon slug={slug} className="h-4 w-4 object-contain" />
+      {name}
+    </span>
+  );
+}
+
+function MiniParcours({ steps }: { steps: MissionStep[] }) {
+  const ordered = [...steps].sort(bySort);
+  return (
+    <span className="inline-flex items-center gap-1">
+      {ordered.map((s, i) => (
+        <span key={s.id} className="inline-flex items-center gap-1">
+          {i > 0 && <span className="h-px w-2 bg-white/15" aria-hidden />}
+          <span
+            title={stepMeta(s.step_type).label}
+            className={`grid h-5 w-5 place-items-center rounded-md border text-[11px] ${
+              s.status === "done"
+                ? "border-emerald-400/50 bg-emerald-400/15"
+                : "border-white/10 bg-white/5"
+            }`}
+          >
+            {s.status === "done" ? "✓" : stepMeta(s.step_type).icon}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// ── Page : orchestration des 3 écrans + modales ─────────────────────────────────
 export function MissionsPage() {
-  const navigate = useNavigate();
-  const [missions, setMissions] = useState<Mission[]>([]);
-  const [busyId, setBusyId] = useState<number | null>(null);
-  const [celebration, setCelebration] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const m = useMissions();
+  const [screen, setScreen] = useState<"home" | "subject" | "mission">("home");
+  const [subjectSlug, setSubjectSlug] = useState<string | null>(null);
+  const [missionId, setMissionId] = useState<number | null>(null);
+  const [missionFrom, setMissionFrom] = useState<"home" | "subject">("home");
 
-  function load() {
-    fetchTodayMissions()
-      .then(setMissions)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Erreur de chargement"));
-  }
-  useEffect(load, []);
-
-  async function onStart(mission: Mission) {
-    setBusyId(mission.id);
-    setError(null);
-    try {
-      await startMission(mission.id);
-      load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    } finally {
-      setBusyId(null);
+  function findMission(id: number | null): Mission | null {
+    if (id == null) return null;
+    if (m.today?.elected?.id === id) return m.today.elected;
+    for (const g of m.groups) {
+      const found = g.missions.find((x) => x.id === id);
+      if (found) return found;
     }
+    return null;
   }
 
-  async function onCompleteStep(mission: Mission, stepId: number) {
-    setBusyId(mission.id);
-    setError(null);
-    try {
-      const res = await completeStep(mission.id, stepId);
-      if (res.mission_status === "completed") {
-        // Deux issues, toutes deux positives (ADR-0017 §5bis).
-        const tail =
-          res.verdict === "acquired"
-            ? "la notion est bien en place ✓"
-            : "on la reverra bientôt, tranquille.";
-        setCelebration(`Mission terminée ! +${res.xp_awarded} XP — ${tail}`);
-      }
-      load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  // Prochaine étape à valider = première non terminée (les étapes se complètent dans l'ordre).
-  function nextStepId(mission: Mission): number | null {
-    const next = [...mission.steps]
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .find((s) => s.status !== "done");
-    return next ? next.id : null;
-  }
+  const openSubject = (slug: string) => {
+    setSubjectSlug(slug);
+    setScreen("subject");
+  };
+  const openMission = (id: number, from: "home" | "subject") => {
+    setMissionId(id);
+    setMissionFrom(from);
+    setScreen("mission");
+  };
+  const goHome = () => setScreen("home");
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <PageHeader
-        title="Mes missions"
-        subtitle="De petites missions pour renforcer tes notions, une étape à la fois."
-      />
+    <div className="relative mx-auto max-w-2xl">
+      <NeonBackdrop />
+      <div className="relative">
+        {/* Verdict de la mission qu'on vient de terminer — deux issues, toutes deux positives. */}
+        {m.completion && <CompletionCard completion={m.completion} onDismiss={m.dismissCompletion} />}
 
-      {celebration && (
-        <p className="mb-4 rounded-xl bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-300">
-          {celebration}
+        {m.loading ? (
+          <div className="flex justify-center py-16">
+            <Spinner />
+          </div>
+        ) : m.error ? (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center backdrop-blur-xl">
+            <p className="text-sm text-zetis-muted">{m.error}</p>
+            <button
+              type="button"
+              onClick={m.reload}
+              className="mt-3 text-sm font-semibold text-cyan-300 hover:underline"
+            >
+              Réessayer
+            </button>
+          </div>
+        ) : screen === "home" ? (
+          <HomeScreen
+            m={m}
+            onSubject={openSubject}
+            onElected={() => m.today?.elected && openMission(m.today.elected.id, "home")}
+          />
+        ) : screen === "subject" ? (
+          <SubjectScreen
+            m={m}
+            slug={subjectSlug}
+            onBack={goHome}
+            onMission={(id) => openMission(id, "subject")}
+          />
+        ) : (
+          <MissionScreen
+            m={m}
+            mission={findMission(missionId)}
+            onBack={() => (missionFrom === "subject" && subjectSlug ? openSubject(subjectSlug) : goHome())}
+          />
+        )}
+
+        {/* Activité de l'étape courante EN MODALE — Massimo ne quitte pas /missions. */}
+        {m.activeActivity?.kind === "eli5" && (
+          <Eli5MissionModal
+            mission={m.activeActivity.mission}
+            step={m.activeActivity.step}
+            onStepDone={m.onStepDone}
+            onClose={m.closeActivity}
+          />
+        )}
+        {m.activeActivity?.kind === "quiz" && (
+          <QuizMissionModal
+            mission={m.activeActivity.mission}
+            step={m.activeActivity.step}
+            onStepDone={m.onStepDone}
+            onClose={m.closeActivity}
+          />
+        )}
+        {m.activeActivity?.kind === "mindmap" && (
+          <MindmapMissionModal
+            mission={m.activeActivity.mission}
+            step={m.activeActivity.step}
+            onStepDone={m.onStepDone}
+            onClose={m.closeActivity}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Écran 1 — accueil : decks matières + « Mission du jour » ─────────────────────
+function HomeScreen({
+  m,
+  onSubject,
+  onElected,
+}: {
+  m: Ui;
+  onSubject: (slug: string) => void;
+  onElected: () => void;
+}) {
+  const elected = m.today?.elected ?? null;
+  const decks: SubjectDeck[] = [
+    ...m.groups.map((g) => ({
+      slug: g.slug,
+      name: g.name,
+      count: g.missions.length,
+      hint: `${g.missions.length} mission${g.missions.length > 1 ? "s" : ""}`,
+    })),
+    ...m.upToDate.map((s) => ({ slug: s.slug, name: s.name, count: 0, atDay: true })),
+  ];
+
+  // Disque hero « Mission du jour » (comme « Question libre » d'ELI5) → ouvre l'élue directement.
+  const lead = (
+    <DeckDisc
+      hero
+      hideBadge
+      count={0}
+      emoji="🎯"
+      title="Mission du jour"
+      subtitle={elected ? elected.title : "Rien d'obligatoire"}
+      fallbackInitial="🎯"
+      onClick={elected ? onElected : undefined}
+    />
+  );
+
+  return (
+    <>
+      <PageHeader
+        title="🎯 Mes missions"
+        subtitle="Attaque la mission du jour, ou choisis une matière."
+      />
+      <SubjectDeckGrid subjects={decks} onSelect={onSubject} lead={lead} />
+
+      {m.completed.length > 0 && (
+        <>
+          <SectionTitle>✨ Terminées aujourd'hui</SectionTitle>
+          {m.completed.map((c) => (
+            <DoneCard key={c.mission_id} completed={c} slug={m.slugForSubject(c.subject)} />
+          ))}
+        </>
+      )}
+
+      <ZetisNote />
+    </>
+  );
+}
+
+// ── Écran 2 — matière : la liste de ses missions ────────────────────────────────
+function SubjectScreen({
+  m,
+  slug,
+  onBack,
+  onMission,
+}: {
+  m: Ui;
+  slug: string | null;
+  onBack: () => void;
+  onMission: (id: number) => void;
+}) {
+  const group = m.groups.find((g) => g.slug === slug);
+  const name = group?.name ?? slug ?? "";
+  return (
+    <>
+      <ScreenHeader onBack={onBack} back="Matières">
+        <span className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5">
+          <SubjectIcon slug={slug ?? ""} className="h-5 w-5 object-contain" />
+        </span>
+        {name}
+      </ScreenHeader>
+
+      {group && group.missions.length > 0 ? (
+        <div className="space-y-3">
+          {group.missions.map((mission) => (
+            <MissionRow key={mission.id} mission={mission} onClick={() => onMission(mission.id)} />
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center text-sm text-emerald-300">
+          ✓ À jour, bravo !
         </p>
       )}
-      {error && <p className="mb-3 text-sm text-rose-400">{error}</p>}
+    </>
+  );
+}
 
-      {missions.length === 0 ? (
-        <EmptyState
-          icon="💪"
-          title="Aucune mission pour l'instant"
-          description="Fais un diagnostic et ZETIS te préparera des missions sur mesure."
-        />
-      ) : (
-        <div className="space-y-3">
-          {missions.map((mission) => {
-            const next = nextStepId(mission);
-            return (
-              <Card key={mission.id}>
-                <CardContent>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-zetis-accent-2">{mission.title}</p>
-                    <span className="rounded-full bg-zetis-surface-2 px-2.5 py-0.5 text-xs text-zetis-muted">
-                      {mission.subject}
-                    </span>
-                  </div>
-                  <ol className="mt-3 list-inside list-decimal space-y-1 text-sm text-zetis-muted">
-                    {mission.steps.map((step) => {
-                      // CTA « Reconstruire → » : uniquement sur l'étape mindmap COURANTE d'une
-                      // mission active (la preuve doit être postérieure au start).
-                      const showRebuild =
-                        step.step_type === "mindmap" &&
-                        step.status !== "done" &&
-                        step.id === next &&
-                        mission.status === "active" &&
-                        step.resource_id != null;
-                      return (
-                        <li key={step.id} className={step.status === "done" ? "line-through" : ""}>
-                          {STEP_ICON[step.step_type] ?? "•"} {step.instruction}
-                          {showRebuild && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate(`/mindmaps/reconstruire/${step.resource_id}`)
-                              }
-                              className="ml-2 rounded-md bg-zetis-surface-2 px-2 py-0.5 text-xs font-semibold text-zetis-accent-2 hover:opacity-80"
-                            >
-                              Reconstruire →
-                            </button>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                  {mission.status === "planned" ? (
-                    <Button
-                      className="mt-4"
-                      onClick={() => onStart(mission)}
-                      disabled={busyId === mission.id}
-                    >
-                      {busyId === mission.id ? "…" : "Commencer 🚀"}
-                    </Button>
-                  ) : (
-                    next !== null && (
-                      <Button
-                        className="mt-4"
-                        onClick={() => onCompleteStep(mission, next)}
-                        disabled={busyId === mission.id}
-                      >
-                        {busyId === mission.id ? "…" : "Valider cette étape ✅"}
-                      </Button>
-                    )
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+// Carte-ligne d'une mission dans la liste matière (→ ouvre l'écran mission).
+function MissionRow({ mission, onClick }: { mission: Mission; onClick: () => void }) {
+  const type = TYPE_META[mission.mission_type] ?? {
+    label: mission.mission_type,
+    cls: "bg-white/10 text-zetis-muted",
+  };
+  const done = mission.steps.filter((s) => s.status === "done").length;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:-translate-y-0.5 hover:border-white/20"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-zetis-text">{mission.title}</p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-xs text-zetis-muted">
+          <span className={`rounded-md px-2 py-0.5 font-semibold ${type.cls}`}>{type.label}</span>
+          <span>⏱ {mission.estimated_minutes} min</span>
+          <span className="font-semibold text-amber-300">+{mission.xp_reward} XP</span>
+          <MiniParcours steps={mission.steps} />
+          {done > 0 && (
+            <span className="text-emerald-300">
+              {done}/{mission.steps.length} fait{done > 1 ? "s" : ""}
+            </span>
+          )}
         </div>
+      </div>
+      <span aria-hidden className="text-lg text-zetis-muted">
+        →
+      </span>
+    </button>
+  );
+}
+
+// ── Écran 3 — mission : la TIMELINE horizontale des étapes ───────────────────────
+function MissionScreen({
+  m,
+  mission,
+  onBack,
+}: {
+  m: Ui;
+  mission: Mission | null;
+  onBack: () => void;
+}) {
+  // Mission disparue de la liste (terminée pendant la session) → petit état positif.
+  if (!mission) {
+    return (
+      <>
+        <ScreenHeader onBack={onBack} back="Missions">
+          Mission
+        </ScreenHeader>
+        <div className="rounded-3xl border border-emerald-400/25 bg-emerald-400/5 p-8 text-center backdrop-blur-xl">
+          <p className="text-3xl" aria-hidden>
+            ✨
+          </p>
+          <p className="mt-3 font-semibold text-zetis-text">Mission terminée — bravo&nbsp;!</p>
+          <button
+            type="button"
+            onClick={onBack}
+            className="mt-4 text-sm font-semibold text-cyan-300 hover:underline"
+          >
+            ← Revenir à mes missions
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  const step = currentStep(mission);
+  const isElected = m.today?.elected?.id === mission.id;
+  const slug = m.slugForSubject(mission.subject);
+
+  return (
+    <>
+      <ScreenHeader onBack={onBack} back={isElected ? "Missions" : mission.subject}>
+        {mission.title}
+      </ScreenHeader>
+
+      {isElected && m.today?.reason && (
+        <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-zetis-muted">
+          <span aria-hidden>💡</span>
+          {m.today.reason}
+        </p>
       )}
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <SubjectChip slug={slug} name={mission.subject} />
+        <span className="text-sm text-zetis-muted">⏱ {mission.estimated_minutes} min</span>
+        <span className="text-sm font-semibold text-amber-300">+{mission.xp_reward} XP</span>
+      </div>
+
+      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.1em] text-zetis-muted">
+        Le parcours — clique l'étape à faire
+      </p>
+      <Timeline mission={mission} current={step} busy={m.busy} onStep={(s) => m.openStep(mission, s)} />
+
+      {step == null && (
+        <p className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-center text-sm text-emerald-300">
+          🎉 Toutes les étapes sont faites&nbsp;!
+        </p>
+      )}
+    </>
+  );
+}
+
+// Timeline HORIZONTALE : chaque étape est une tuile ; l'étape courante est un bouton lumineux
+// (« ▶ Faire »), les faites ✓, les suivantes « Ensuite » (l'ordre est imposé serveur).
+function Timeline({
+  mission,
+  current,
+  busy,
+  onStep,
+}: {
+  mission: Mission;
+  current: MissionStep | null;
+  busy: boolean;
+  onStep: (step: MissionStep) => void;
+}) {
+  const ordered = [...mission.steps].sort(bySort);
+  // Amène l'étape courante dans le champ (timeline scrollable) — utile sur écran étroit.
+  const currentRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = currentRef.current;
+    if (typeof el?.scrollIntoView !== "function") return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", inline: "center", block: "nearest" });
+  }, [current?.id]);
+  return (
+    <div className="mt-3 flex items-stretch gap-2 overflow-x-auto pb-2">
+      {ordered.map((s, i) => {
+        const meta = stepMeta(s.step_type);
+        const done = s.status === "done";
+        const isCurrent = current?.id === s.id;
+        const state = done ? "Fait ✓" : isCurrent ? "▶ À toi de jouer" : "Ensuite";
+        const tile = (
+          <>
+            <span
+              className={`mx-auto grid h-14 w-14 place-items-center rounded-2xl border text-2xl ${
+                done
+                  ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-300"
+                  : isCurrent
+                    ? "border-fuchsia-400/50 bg-fuchsia-400/15"
+                    : "border-white/10 bg-white/5"
+              }`}
+            >
+              {done ? "✓" : meta.icon}
+            </span>
+            <p className="mt-2 text-sm font-semibold text-zetis-text">{meta.label}</p>
+            <p className="text-[11px] text-zetis-muted">{meta.sub}</p>
+            <p
+              className={`mt-1.5 text-xs font-semibold ${
+                done ? "text-emerald-300" : isCurrent ? "text-fuchsia-300" : "text-zetis-muted"
+              }`}
+            >
+              {state}
+            </p>
+          </>
+        );
+        return (
+          <div key={s.id} ref={isCurrent ? currentRef : undefined} className="flex items-center">
+            {i > 0 && (
+              <span
+                aria-hidden
+                className={`h-0.5 w-4 shrink-0 ${done || isCurrent ? "bg-emerald-400/50" : "bg-white/15"}`}
+              />
+            )}
+            {isCurrent ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onStep(s)}
+                className="w-28 shrink-0 rounded-2xl border border-fuchsia-400/40 bg-white/5 px-2 py-3 text-center shadow-[0_0_22px_rgba(232,121,249,0.15)] transition enabled:hover:-translate-y-0.5 disabled:opacity-60"
+              >
+                {tile}
+              </button>
+            ) : (
+              <div
+                className={`w-28 shrink-0 rounded-2xl px-2 py-3 text-center ${done ? "" : "opacity-70"}`}
+              >
+                {tile}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Briques partagées ───────────────────────────────────────────────────────────
+function ScreenHeader({
+  onBack,
+  back,
+  children,
+}: {
+  onBack: () => void;
+  back: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-6 flex items-center gap-3">
+      <button
+        type="button"
+        onClick={onBack}
+        className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-zetis-text transition-colors hover:bg-white/10"
+      >
+        ← {back}
+      </button>
+      <h1 className="flex min-w-0 items-center gap-2 text-xl font-bold">{children}</h1>
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-3.5 mt-8 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.1em] text-zetis-muted">
+      {children}
+      <span className="h-px flex-1 bg-white/10" aria-hidden />
+    </div>
+  );
+}
+
+function ZetisNote() {
+  return (
+    <div className="mt-8 flex items-center gap-3.5 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-zetis-muted">
+      <span
+        aria-hidden
+        className="h-9 w-9 shrink-0 rounded-full border border-indigo-400/40 bg-[radial-gradient(circle_at_35%_30%,#818cf8,#312e81)] shadow-[0_0_16px_rgba(99,102,241,0.35)]"
+      />
+      <p>Pas besoin de tout faire aujourd'hui. Une mission, tranquillement — c'est déjà super. 🚀</p>
+    </div>
+  );
+}
+
+function DoneCard({
+  completed,
+  slug,
+}: {
+  completed: { title: string; subject: string; verdict: "acquired" | "review_later"; xp: number };
+  slug: string;
+}) {
+  const acquired = completed.verdict === "acquired";
+  return (
+    <div className="mb-3 flex items-center gap-3.5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3.5 backdrop-blur-xl">
+      <span
+        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
+          acquired
+            ? "border-emerald-400/40 bg-emerald-400/12 text-emerald-300"
+            : "border-indigo-400/40 bg-indigo-400/12 text-indigo-200"
+        }`}
+      >
+        {acquired ? "✓ Notion bien en place" : "🌙 On la reverra bientôt"}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-zetis-text">{completed.title}</p>
+        <span className="mt-1 inline-flex">
+          <SubjectChip slug={slug} name={completed.subject} />
+        </span>
+      </div>
+      <span className="shrink-0 text-sm font-semibold text-amber-300">+{completed.xp} XP</span>
+    </div>
+  );
+}
+
+function CompletionCard({
+  completion,
+  onDismiss,
+}: {
+  completion: { verdict: "acquired" | "review_later"; xp: number };
+  onDismiss: () => void;
+}) {
+  const acquired = completion.verdict === "acquired";
+  return (
+    <div
+      className={`mb-4 flex items-center gap-3 rounded-2xl border px-4 py-3.5 ${
+        acquired ? "border-emerald-400/40 bg-emerald-400/10" : "border-indigo-400/40 bg-indigo-400/10"
+      }`}
+    >
+      <span aria-hidden className="text-2xl">
+        {acquired ? "🎉" : "🌙"}
+      </span>
+      <div className="flex-1">
+        <p className="font-semibold text-zetis-text">
+          {acquired ? "✓ Notion bien en place" : "🌙 On la reverra bientôt, tranquille"}
+        </p>
+        <p className="text-sm text-zetis-muted">Mission terminée — bravo ! +{completion.xp} XP</p>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="text-zetis-muted hover:text-zetis-text"
+        aria-label="Fermer"
+      >
+        ✕
+      </button>
     </div>
   );
 }

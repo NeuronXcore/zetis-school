@@ -88,6 +88,13 @@ export {
   type SubjectNotions,
 } from "./curriculum";
 export {
+  type CompletedMission,
+  type Mission,
+  type MissionStep,
+  type MissionTodayResponse,
+  type StepCompleteResult,
+} from "./mission";
+export {
   type ReviewAttemptRequest,
   type ReviewAttemptResult,
   type ReviewCard,

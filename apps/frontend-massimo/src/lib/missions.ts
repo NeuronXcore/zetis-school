@@ -1,35 +1,16 @@
-// Appels aux missions (ADR-0017 lot 1) — Massimo démarre une mission puis valide ses étapes.
-// La complétion déclarative de l'étape 15 est retirée : le serveur vérifie la PREUVE de chaque
-// étape (score reverse, quiz joué) et rend un VERDICT d'acquisition à la dernière étape.
+// Appels aux missions (ADR-0017) — Massimo démarre une mission puis valide ses étapes. Le serveur
+// vérifie la PREUVE de chaque étape (score reverse, quiz joué, reconstruction) et rend un VERDICT
+// d'acquisition à la dernière étape. Aucune logique métier ici : les contrats vivent dans
+// @zetis/types, la décision (élection, preuve, verdict) est 100 % serveur.
+import {
+  type CompletedMission,
+  type Mission,
+  type MissionTodayResponse,
+  type StepCompleteResult,
+} from "@zetis/types";
 import { API_URL, authClient } from "./authClient";
 
-export interface MissionStep {
-  id: number;
-  step_type: string;
-  instruction: string | null;
-  resource_id: number | null;
-  sort_order: number;
-  status: string;
-}
-
-export interface Mission {
-  id: number;
-  subject: string;
-  skill_id: number | null;
-  skill_name: string | null;
-  title: string;
-  description: string | null;
-  mission_type: string;
-  status: string;
-  priority: number;
-  steps: MissionStep[];
-}
-
-export interface StepCompleteResult {
-  mission_status: string;
-  verdict: string | null; // "acquired" | "review_later" | null (mission non terminée)
-  xp_awarded: number;
-}
+export type { CompletedMission, Mission, MissionStep, MissionTodayResponse, StepCompleteResult } from "@zetis/types";
 
 function headers(): HeadersInit {
   const token = authClient.getToken();
@@ -51,24 +32,19 @@ async function asJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-// Contrat `/today` (ADR-0017 lot 2) : une mission ÉLUE + sa raison, ou état serein (elected null).
-export interface TodayResponse {
-  elected: Mission | null;
-  reason: string;
-  reason_code: string;
-  scoring_version: string;
-  alternatives: Mission[];
-}
-
-export async function fetchToday(): Promise<TodayResponse> {
+/** `GET /api/missions/today` — la mission ÉLUE + sa raison, ou état serein (`elected: null`). */
+export async function fetchToday(): Promise<MissionTodayResponse> {
   return asJson(await fetch(`${API_URL}/api/missions/today`, { headers: headers() }));
 }
 
-// Adaptation minimale (la refonte « mission du jour + raison » est une slice frontend séparée) :
-// l'élue d'abord, puis les alternatives, pour que la page actuelle continue de fonctionner.
-export async function fetchTodayMissions(): Promise<Mission[]> {
-  const today = await fetchToday();
-  return today.elected ? [today.elected, ...today.alternatives] : [...today.alternatives];
+/** `GET /api/missions` — toutes les missions validées (regroupement par matière fait côté client). */
+export async function fetchMissions(): Promise<Mission[]> {
+  return asJson(await fetch(`${API_URL}/api/missions`, { headers: headers() }));
+}
+
+/** `GET /api/missions/completed-today` — terminées du jour + verdict (deux issues positives) + XP. */
+export async function fetchCompletedToday(): Promise<CompletedMission[]> {
+  return asJson(await fetch(`${API_URL}/api/missions/completed-today`, { headers: headers() }));
 }
 
 export async function startMission(missionId: number): Promise<Mission> {
