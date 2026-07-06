@@ -16,7 +16,7 @@ deux issues du verdict sont positives (la machine change, pas le discours)."""
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -291,21 +291,6 @@ def _skill_has_active_mission(db: Session, *, student_id: int, skill_id: int) ->
     )
 
 
-def _subject_has_active_mission_of_type(
-    db: Session, *, student_id: int, subject_id: int, mission_type: str
-) -> bool:
-    return bool(
-        db.scalar(
-            select(Mission.id).where(
-                Mission.student_id == student_id,
-                Mission.subject_id == subject_id,
-                Mission.mission_type == mission_type,
-                Mission.status.in_(_ACTIVE_STATUSES),
-            )
-        )
-    )
-
-
 def _create_mission(
     db: Session,
     *,
@@ -346,45 +331,62 @@ def _create_mission(
 
 
 def generate_revision(db: Session, student: StudentProfile) -> list[dict]:
-    """Cartes SRS dues groupées par matière → une mission `revision` par matière (idempotente).
+    """Cartes SRS dues → UNE mission `revision` par notion due (ADR-0017 §5, amendé 2026-07-06).
 
-    Notion représentative = la carte la plus en retard de la matière. Si les cartes ne sont pas
-    encore alimentées, la source démarre vide (dégradation gracieuse — ADR-0017 §Conséquences)."""
-    now = datetime.now(timezone.utc)
-    due_cards = list(
-        db.scalars(
-            select(SpacedReviewCard)
-            .where(
-                SpacedReviewCard.student_id == student.id,
-                SpacedReviewCard.due_at.is_not(None),
-                SpacedReviewCard.due_at <= now,
+    **Mono-notion, jamais groupée par matière** : le verdict d'acquisition (§5bis) est mono-notion
+    (mastery / lacune / carte SRS d'UN skill) — une mission multi-notions n'aurait pas de verdict
+    défini. Bornée aux top-N notions les plus en retard (`MISSION_REVISION_TOP_N`), N comptant les
+    missions `revision` déjà actives : on ne crée que le complément, pour ne pas inonder la file de
+    validation Papa. Idempotente par notion (une notion déjà couverte par une mission active est
+    ignorée). Cartes non alimentées → source vide (dégradation gracieuse — ADR-0017 §Conséquences)."""
+    active_revision = (
+        db.scalar(
+            select(func.count(Mission.id)).where(
+                Mission.student_id == student.id,
+                Mission.mission_type == "revision",
+                Mission.status.in_(_ACTIVE_STATUSES),
             )
-            .order_by(SpacedReviewCard.due_at)  # plus en retard d'abord
         )
+        or 0
     )
-    representative: dict[int, int] = {}  # subject_id -> skill_id (première = plus en retard)
-    for card in due_cards:
-        skill = db.get(Skill, card.skill_id)
-        if skill is not None:
-            representative.setdefault(skill.subject_id, card.skill_id)
+    budget = settings.mission_revision_top_n - active_revision
+    if budget <= 0:
+        return []
 
+    now = datetime.now(timezone.utc)
+    due_cards = db.scalars(
+        select(SpacedReviewCard)
+        .where(
+            SpacedReviewCard.student_id == student.id,
+            SpacedReviewCard.due_at.is_not(None),
+            SpacedReviewCard.due_at <= now,
+        )
+        .order_by(SpacedReviewCard.due_at)  # plus en retard d'abord
+    )
     created: list[Mission] = []
-    for subject_id, skill_id in representative.items():
-        if _subject_has_active_mission_of_type(
-            db, student_id=student.id, subject_id=subject_id, mission_type="revision"
-        ):
+    seen: set[int] = set()  # une carte par notion suffit (la plus en retard, prise en premier)
+    for card in due_cards:
+        if len(created) >= budget:
+            break
+        if card.skill_id in seen:
             continue
-        skill_name = _skill_name(db, skill_id)
+        seen.add(card.skill_id)
+        skill = db.get(Skill, card.skill_id)
+        if skill is None:
+            continue
+        if _skill_has_active_mission(db, student_id=student.id, skill_id=card.skill_id):
+            continue
+        skill_name = _skill_name(db, card.skill_id)
         created.append(
             _create_mission(
                 db,
                 student=student,
-                subject_id=subject_id,
-                skill_id=skill_id,
+                subject_id=skill.subject_id,
+                skill_id=card.skill_id,
                 title=f"Révision : {skill_name}",
-                description="Révision des notions à revoir.",
+                description=f"Notion à revoir : « {skill_name} ».",
                 mission_type="revision",
-                steps=_build_revision_steps(db, skill_id, skill_name),
+                steps=_build_revision_steps(db, card.skill_id, skill_name),
             )
         )
     db.commit()

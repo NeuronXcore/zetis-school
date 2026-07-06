@@ -89,6 +89,10 @@ class Settings(BaseSettings):
     )
     # Nombre de cartes dues qui sature `due_pressure` à 1.0.
     mission_due_pressure_cap: int = Field(default=6, validation_alias="MISSION_DUE_PRESSURE_CAP")
+    # Générateur `revision` (ADR-0017 §5, amendé 2026-07-06) : UNE mission par notion due, bornée
+    # aux N notions les plus en retard (mono-notion — le verdict d'acquisition §5bis l'exige ; N
+    # borne aussi la file de validation Papa).
+    mission_revision_top_n: int = Field(default=3, validation_alias="MISSION_REVISION_TOP_N")
 
     # --- Commander une mission (ADR-0018) : Papa apporte le scope, ZETIS résout les notions les
     # plus fragiles, une mission mono-skill par notion cochée. Seuil et plafond versionnés
