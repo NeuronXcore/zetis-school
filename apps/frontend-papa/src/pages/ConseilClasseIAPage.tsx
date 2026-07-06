@@ -24,14 +24,97 @@ const PIECE_LABEL: Record<string, string> = {
 };
 const labelPieces = (pieces: string[]) => pieces.map((p) => PIECE_LABEL[p] ?? p).join(", ");
 
-/** Barre de progression d'UNE notion (remontée par `key` à chaque notion → % repart de 0). */
+// Pipeline de génération (concept IA) : les 5 pièces du kit s'allument une à une.
+const KIT_STEPS = [
+  { key: "cours", label: "Cours", icon: "📖" },
+  { key: "fiche", label: "Fiche", icon: "📄" },
+  { key: "srs", label: "Cartes", icon: "🗂️" },
+  { key: "quiz", label: "Quiz", icon: "✅" },
+  { key: "mindmap", label: "Carte mentale", icon: "🧠" },
+];
+
+// Animations dorées « IA » — keyframes injectées localement (aucune dépendance au CSS de l'app).
+const EQUIP_KEYFRAMES = `
+@keyframes zetis-ai-flow { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+@keyframes zetis-ai-sweep { 0% { transform: translateX(-140%); } 100% { transform: translateX(360%); } }
+@keyframes zetis-ai-glow { 0%,100% { box-shadow: 0 0 10px -2px rgba(251,191,36,0.35); } 50% { box-shadow: 0 0 26px 0 rgba(251,191,36,0.85); } }
+@keyframes zetis-ai-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.18); } }`;
+
+/**
+ * Barre d'équipement d'UNE notion — dorée, animée, thème « génération IA » :
+ * dégradé d'or qui coule + faisceau de scan + pipeline des 5 pièces qui s'illuminent.
+ * Remontée par `key` à chaque notion → le % repart de 0.
+ */
 function EquipProgress({ equipping }: { equipping: Equipping }) {
   const pct = useEstimatedProgress(true, EQUIP_MS);
+  const seg = 100 / KIT_STEPS.length;
+
   return (
-    <ProgressBar
-      pct={pct}
-      label={`🛠️ ${equipping.name} (${equipping.index}/${equipping.total}) — cours, fiche, cartes, quiz, carte mentale…`}
-    />
+    <div
+      className="relative overflow-hidden rounded-xl border border-amber-400/50 bg-gradient-to-b from-amber-500/10 to-transparent p-4"
+      style={{ animation: "zetis-ai-glow 2.6s ease-in-out infinite" }}
+    >
+      <style>{EQUIP_KEYFRAMES}</style>
+
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-sm font-semibold text-amber-200">
+          <span className="text-lg" style={{ animation: "zetis-ai-pulse 1.4s ease-in-out infinite" }}>
+            🧠
+          </span>
+          ZETIS génère le kit — <span className="text-amber-100">{equipping.name}</span>
+          <span className="text-amber-300/70">
+            ({equipping.index}/{equipping.total})
+          </span>
+        </p>
+        <span
+          className="shrink-0 text-lg font-bold tabular-nums text-amber-300"
+          style={{ textShadow: "0 0 14px rgba(251,191,36,0.75)" }}
+        >
+          {Math.round(pct)}%
+        </span>
+      </div>
+
+      <div className="relative h-3 overflow-hidden rounded-full bg-amber-950/50 ring-1 ring-amber-400/20">
+        <div
+          className="relative h-full overflow-hidden rounded-full"
+          style={{
+            width: `${pct}%`,
+            backgroundImage: "linear-gradient(90deg,#f59e0b,#fcd34d,#fde68a,#fbbf24,#f59e0b)",
+            backgroundSize: "200% 100%",
+            animation: "zetis-ai-flow 2.2s linear infinite",
+          }}
+        >
+          <span
+            className="absolute inset-y-0 w-1/3"
+            style={{
+              animation: "zetis-ai-sweep 1.5s ease-in-out infinite",
+              background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.65),transparent)",
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {KIT_STEPS.map((st, i) => {
+          const lit = pct >= i * seg;
+          const active = lit && pct < (i + 1) * seg;
+          return (
+            <span
+              key={st.key}
+              className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                lit
+                  ? "border-amber-400/70 bg-amber-400/15 text-amber-200"
+                  : "border-papa-border text-papa-muted/50"
+              }`}
+              style={active ? { animation: "zetis-ai-glow 1.1s ease-in-out infinite" } : undefined}
+            >
+              {st.icon} {st.label}
+              {active ? " …" : lit ? " ✓" : ""}
+            </span>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
