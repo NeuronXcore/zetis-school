@@ -17,9 +17,20 @@ export default defineManifest({
   version: pkg.version,
   description:
     "Capture une page web, une sélection ou un PDF vers le RAG ZETIS. Tout arrive en attente, à valider côté Papa.",
+  // Icône de marque ZETIS (avatar néon : livre + onde) — dérivée de assets/brand/avatars/zetis.
+  icons: {
+    16: "icons/icon-16.png",
+    32: "icons/icon-32.png",
+    48: "icons/icon-48.png",
+    128: "icons/icon-128.png",
+  },
   action: {
     default_popup: "src/popup/index.html",
     default_title: "Envoyer à ZETIS",
+    default_icon: {
+      16: "icons/icon-16.png",
+      32: "icons/icon-32.png",
+    },
   },
   options_page: "src/options/index.html",
   background: {
