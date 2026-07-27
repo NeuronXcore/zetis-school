@@ -6,15 +6,20 @@ import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { MonthCalendar } from "../components/activity/MonthCalendar";
 import { SessionDayBlock } from "../components/activity/SessionDayBlock";
+import { KpiBreakdown } from "../components/activity/KpiBreakdown";
 import { fetchSessions } from "../lib/activity";
 import { fetchSubjects } from "../lib/subjects";
 import { formatMinutes, toLocalIso } from "../lib/heatmap";
 import {
+  dayActiveMinutes,
   latestDayWithSessions,
   monthRange,
   periodTotals,
   shiftMonth,
 } from "../lib/sessions";
+import { sessionDurations, sessionsByDay, type BreakdownRow } from "../lib/kpiBreakdown";
+
+type CahierKpi = "sessions" | "active_minutes" | "average";
 
 // Cahier de bord IA — vue SESSIONS (Lot 1 de la page).
 //
@@ -41,6 +46,7 @@ export function CahierBordPage() {
   const [data, setData] = useState<ActivitySessions | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openKpi, setOpenKpi] = useState<CahierKpi | null>(null);
 
   const range = useMemo(() => monthRange(anchor), [anchor]);
   const currentMonthStart = toLocalIso(new Date()).slice(0, 7);
@@ -83,6 +89,34 @@ export function CahierBordPage() {
   const totals = periodTotals(data?.days ?? []);
   const selectedDay = data?.days.find((day) => day.date === selectedDate);
 
+  // Détail des KPI : tout se calcule depuis le mois DÉJÀ chargé — aucune requête supplémentaire,
+  // et donc aucun risque d'afficher un détail qui divergerait du total juste au-dessus.
+  const kpiDetail: Record<CahierKpi, { title: string; rows: BreakdownRow[]; empty: string }> = {
+    sessions: {
+      title: "Sessions du mois, jour par jour",
+      rows: sessionsByDay(data?.days ?? []),
+      empty: "Aucune session ce mois-ci.",
+    },
+    active_minutes: {
+      title: "Temps actif par jour",
+      rows: sessionsByDay(data?.days ?? []).map((row) => {
+        const day = data?.days.find((d) => d.date === row.key);
+        const minutes = day ? dayActiveMinutes(day) : 0;
+        return { ...row, value: minutes, display: minutes > 0 ? `${minutes} min` : "—" };
+      }),
+      empty: "Aucune minute active ce mois-ci.",
+    },
+    average: {
+      title: "Durée de chaque session, de la plus longue à la plus courte",
+      rows: sessionDurations(data?.days ?? []),
+      empty: "Aucune session à comparer ce mois-ci.",
+    },
+  };
+
+  function toggleKpi(key: CahierKpi) {
+    setOpenKpi((current) => (current === key ? null : key));
+  }
+
   /** Sortir du jour ciblé : la vue ne doit pas rester commandée par un lien dont on vient de
    *  sortir (changement de mois, de matière, ou choix d'une autre date). */
   function clearTarget() {
@@ -103,13 +137,34 @@ export function CahierBordPage() {
       />
 
       <div className="grid grid-cols-3 gap-4">
-        <KpiCard label="Sessions du mois" value={String(totals.sessions)} />
-        <KpiCard label="Temps actif total" value={formatMinutes(totals.activeMinutes)} />
+        <KpiCard
+          label="Sessions du mois"
+          value={String(totals.sessions)}
+          onClick={() => toggleKpi("sessions")}
+          expanded={openKpi === "sessions"}
+        />
+        <KpiCard
+          label="Temps actif total"
+          value={formatMinutes(totals.activeMinutes)}
+          onClick={() => toggleKpi("active_minutes")}
+          expanded={openKpi === "active_minutes"}
+        />
         <KpiCard
           label="Moyenne par session"
           value={totals.sessions > 0 ? `${totals.averageMinutes} min` : "—"}
+          onClick={() => toggleKpi("average")}
+          expanded={openKpi === "average"}
         />
       </div>
+
+      {openKpi && (
+        <KpiBreakdown
+          title={kpiDetail[openKpi].title}
+          rows={kpiDetail[openKpi].rows}
+          emptyLabel={kpiDetail[openKpi].empty}
+          onClose={() => setOpenKpi(null)}
+        />
+      )}
 
       {subjects.length > 0 && (
         <SubjectFilterChips

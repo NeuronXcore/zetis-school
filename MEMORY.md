@@ -102,8 +102,25 @@ chaque événement est pré-formaté Europe/Paris → une carte pouvait afficher
 `21:07` sur sa première ligne selon le fuseau du navigateur. Ajout de `started_time`/`ended_time`
 (additif, testé).
 
-**PROCHAIN PAS** : slice C (page Cahier de bord · vue Sessions) — elle réutilise
-`SubjectFilterChips` + `ActivityEventIcon` et active le bouton « Ouvrir dans le cahier de bord ».
+### KPI dépliables (demande Papa, après les 3 slices)
+
+Les cartes KPI étaient inertes. Elles s'ouvrent désormais sur un **panneau de détail inline**
+(`KpiBreakdown`, une seule carte ouverte à la fois), alimenté par `lib/kpiBreakdown.ts` (pur,
+testé) qui REGROUPE des valeurs déjà servies — aucun recalcul depuis les événements bruts.
+
+- Dashboard : sessions/jour, temps actif/jour, XP/jour, missions terminées de la semaine.
+  Chargement **paresseux** au premier dépliage (`heatmap?weeks=1` + sessions de la semaine),
+  conservé ensuite. `week_start` vient du payload KPI serveur.
+- Cahier : sessions/jour, temps actif/jour, et **durées de chaque session triées** (la dispersion
+  éclaire la moyenne). Zéro requête de plus : le mois est déjà chargé.
+- Les 2 KPI **mock** (lacunes ouvertes, notions consolidées) restent volontairement NON
+  cliquables — fabriquer un détail pour des données mock serait mentir.
+- `RegularityCard` reçoit désormais `subjects` en prop (évite deux `GET /api/subjects` sur le
+  même écran).
+
+**PROCHAIN PAS** : rien de codé en attente sur ce chantier. Restent, hors code : pousser la
+branche + PR, et committer le travail d'unification du résolveur backend (7 fichiers laissés
+dans l'arbre, verts, hors de mes commits).
 
 > ⚠️ Les sections ci-dessous datent d'avant plusieurs chantiers mergés depuis (missions champion
 > ADR-0022, ZETIS Clip, années scolaires) : les considérer comme des repères historiques, pas comme

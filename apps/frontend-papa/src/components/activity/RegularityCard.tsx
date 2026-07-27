@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { SubjectFilterChips, type SubjectFilterOption } from "@zetis/ui";
 import type { ActivityHeatmap as ActivityHeatmapData } from "@zetis/types";
 import { fetchHeatmap } from "../../lib/activity";
-import { fetchSubjects } from "../../lib/subjects";
 import { ActivityHeatmap } from "./ActivityHeatmap";
 import { DayDetailPanel } from "./DayDetailPanel";
 
@@ -16,20 +15,17 @@ const WEEKS = 26;
  *  Massimo. */
 const DROPOUT_THRESHOLD = 4;
 
-export function RegularityCard() {
-  const [subjects, setSubjects] = useState<SubjectFilterOption[]>([]);
+interface RegularityCardProps {
+  /** Matières descendues par la page : elles servent aussi aux détails de KPI, on évite
+   *  ainsi deux `GET /api/subjects` identiques sur le même écran. */
+  subjects: SubjectFilterOption[];
+}
+
+export function RegularityCard({ subjects }: RegularityCardProps) {
   const [subjectId, setSubjectId] = useState<number | null>(null);
   const [heatmap, setHeatmap] = useState<ActivityHeatmapData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchSubjects()
-      .then((rows) =>
-        setSubjects(rows.map((s) => ({ id: s.id, slug: s.slug, name: s.name }))),
-      )
-      .catch(() => setSubjects([])); // le filtre disparaît, la heatmap reste utilisable
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

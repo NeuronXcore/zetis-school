@@ -1,17 +1,36 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { SubjectFilterOption } from "@zetis/ui";
+import type {
+  ActivityHeatmap,
+  ActivitySessions,
+  DashboardKpis,
+  KpiValue,
+} from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { BackendStatus } from "../components/BackendStatus";
 import { RegularityCard } from "../components/activity/RegularityCard";
-import { fetchDashboardKpis } from "../lib/activity";
-import { formatDelta, formatMinutes } from "../lib/heatmap";
-import type { DashboardKpis, KpiValue } from "@zetis/types";
+import { KpiBreakdown } from "../components/activity/KpiBreakdown";
+import { fetchDashboardKpis, fetchHeatmap, fetchSessions } from "../lib/activity";
+import { fetchSubjects } from "../lib/subjects";
+import { formatDelta, formatMinutes, toLocalIso } from "../lib/heatmap";
+import {
+  activeMinutesByDay,
+  completedMissions,
+  sessionsByDay,
+  xpByDay,
+  type BreakdownRow,
+} from "../lib/kpiBreakdown";
 import { ALERTS, KPIS, PERIOD_LABEL, RECOMMENDATIONS, STUDENT } from "../data/mock";
 
 // Dashboard Papa (Étape 8) — état pédagogique en une page.
+//
 // Les 4 KPI de RÉGULARITÉ viennent du backend avec leur écart hebdomadaire (chantier
-// « Activité ») ; les KPI pédagogiques restants (lacunes ouvertes, notions consolidées) sont
-// encore les valeurs mock d'origine, servis par d'autres routes.
+// « Activité ») et se DÉPLIENT sur leur détail. Les KPI pédagogiques restants (lacunes
+// ouvertes, notions consolidées) sont encore les valeurs mock d'origine, servis par d'autres
+// routes : ils ne sont volontairement PAS cliquables — proposer un détail qu'on fabriquerait de
+// toutes pièces serait mentir.
+
 const REGULARITY_LABELS = new Set([
   "Sessions (semaine)",
   "XP (semaine)",
@@ -19,17 +38,88 @@ const REGULARITY_LABELS = new Set([
   "Temps actif",
 ]);
 
+type KpiKey = "sessions" | "active_minutes" | "xp" | "missions";
+
 export function DashboardPage() {
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
+  const [subjects, setSubjects] = useState<SubjectFilterOption[]>([]);
+  const [openKpi, setOpenKpi] = useState<KpiKey | null>(null);
+
+  // Données du détail, chargées PARESSEUSEMENT au premier dépliage puis conservées : rouvrir
+  // une carte ne doit pas relancer une requête.
+  const [weekDays, setWeekDays] = useState<ActivityHeatmap | null>(null);
+  const [weekSessions, setWeekSessions] = useState<ActivitySessions | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     // Échec silencieux : le dashboard reste lisible même si l'activité n'est pas joignable.
     fetchDashboardKpis()
       .then(setKpis)
       .catch(() => setKpis(null));
+    fetchSubjects()
+      .then((rows) => setSubjects(rows.map((s) => ({ id: s.id, slug: s.slug, name: s.name }))))
+      .catch(() => setSubjects([]));
   }, []);
 
-  function card(label: string, kpi: KpiValue, format: (n: number) => string, unit = "") {
+  const weekStart = kpis?.week_start ?? null;
+
+  const loadDetail = useCallback(async () => {
+    if (!weekStart || (weekDays && weekSessions)) return;
+    setDetailLoading(true);
+    try {
+      // `weeks=1` = la semaine courante seule : la même route que la heatmap, bornée au strict
+      // nécessaire plutôt qu'un second scan de 26 semaines.
+      const [heatmap, sessions] = await Promise.all([
+        fetchHeatmap(1),
+        fetchSessions(weekStart, toLocalIso(new Date())),
+      ]);
+      setWeekDays(heatmap);
+      setWeekSessions(sessions);
+    } catch {
+      // Le détail reste vide et le dit ; les KPI eux-mêmes restent affichés.
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [weekStart, weekDays, weekSessions]);
+
+  function toggle(key: KpiKey) {
+    setOpenKpi((current) => (current === key ? null : key));
+    void loadDetail();
+  }
+
+  const subjectNames = useMemo(() => new Map(subjects.map((s) => [s.slug, s.name])), [subjects]);
+  const weekEnd = toLocalIso(new Date());
+
+  const detail: Record<KpiKey, { title: string; rows: BreakdownRow[]; empty: string }> = {
+    sessions: {
+      title: "Sessions de la semaine, jour par jour",
+      rows: sessionsByDay(weekSessions?.days ?? []),
+      empty: "Aucune session cette semaine.",
+    },
+    active_minutes: {
+      title: "Temps actif par jour",
+      rows: weekStart ? activeMinutesByDay(weekDays?.days ?? [], weekStart, weekEnd) : [],
+      empty: "Aucune minute active cette semaine.",
+    },
+    xp: {
+      title: "XP gagné par jour",
+      rows: weekStart ? xpByDay(weekDays?.days ?? [], weekStart, weekEnd) : [],
+      empty: "Aucun XP gagné cette semaine.",
+    },
+    missions: {
+      title: "Missions terminées cette semaine",
+      rows: completedMissions(weekSessions?.days ?? [], subjectNames),
+      empty: "Aucune mission terminée cette semaine.",
+    },
+  };
+
+  function card(
+    key: KpiKey,
+    label: string,
+    kpi: KpiValue,
+    format: (n: number) => string,
+    unit = "",
+  ) {
     return (
       <KpiCard
         key={label}
@@ -37,6 +127,8 @@ export function DashboardPage() {
         value={format(kpi.value)}
         delta={formatDelta(kpi.delta, unit)}
         deltaDirection={kpi.delta < 0 ? "down" : "up"}
+        onClick={() => toggle(key)}
+        expanded={openKpi === key}
       />
     );
   }
@@ -52,10 +144,10 @@ export function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         {kpis ? (
           <>
-            {card("Sessions (semaine)", kpis.sessions, String)}
-            {card("Temps actif", kpis.active_minutes, formatMinutes, "min")}
-            {card("XP (semaine)", kpis.xp, (n) => `+${n}`)}
-            {card("Missions terminées", kpis.missions_completed, String)}
+            {card("sessions", "Sessions (semaine)", kpis.sessions, String)}
+            {card("active_minutes", "Temps actif", kpis.active_minutes, formatMinutes, "min")}
+            {card("xp", "XP (semaine)", kpis.xp, (n) => `+${n}`)}
+            {card("missions", "Missions terminées", kpis.missions_completed, String)}
           </>
         ) : (
           KPIS.filter((k) => REGULARITY_LABELS.has(k.label)).map((k) => (
@@ -67,7 +159,17 @@ export function DashboardPage() {
         ))}
       </div>
 
-      <RegularityCard />
+      {openKpi && (
+        <KpiBreakdown
+          title={detail[openKpi].title}
+          rows={detail[openKpi].rows}
+          emptyLabel={detail[openKpi].empty}
+          loading={detailLoading}
+          onClose={() => setOpenKpi(null)}
+        />
+      )}
+
+      <RegularityCard subjects={subjects} />
 
       <section className="mt-6 rounded-xl border border-papa-border bg-papa-surface p-5">
         <p className="font-semibold text-papa-warn">Alertes prioritaires</p>
