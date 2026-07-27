@@ -257,7 +257,21 @@ confidence_score   # 0-100
 last_seen_at
 next_review_at
 status             # unknown | weak | learning | solid | mastered
+mastered_at        # instant de bascule vers `mastered` (nullable)
 ```
+
+**`mastered_at` — invariant et règle d'écriture.** `mastered_at IS NOT NULL` ⟺ `status ==
+"mastered"`. Écrit UNIQUEMENT par `progress/mastery.set_mastery_status`, seul point de passage des
+quatre modules qui écrivent le statut (diagnostic, quiz, ELI5 reverse, mission) :
+
+- entrée dans `mastered` → tamponner ;
+- `mastered` → `mastered` → **ne rien toucher**. Le quiz de fin de cours réévalue la maîtrise à
+  chaque passage : re-tamponner ferait recompter éternellement les mêmes notions dans
+  « consolidées cette semaine » ;
+- sortie de `mastered` → effacer (une date qui survit à la régression ment sur l'état courant).
+
+`NULL` sur une ligne `mastered` = consolidée avant la migration `f1a2b3c4d5e6`, date inconnue.
+Ces lignes comptent dans le **stock** de notions consolidées, jamais dans une **semaine**.
 
 ### Gap / Lacune
 
@@ -270,10 +284,43 @@ source             # diagnostic | quiz | parent | ai_observation
 severity           # low | medium | high
 status             # open | in_progress | resolved | ignored
 first_detected_at
-last_confirmed_at
-resolved_at optional
+resolved_at        # instant de fermeture (nullable)
 notes
 ```
+
+**« Lacune ouverte » = `status ∈ (open, in_progress)`** — définition unique, portée par
+`progress/service.OPEN_GAP_STATUSES` et importée par `missions`, `missions/pilot` et `evidence`
+(elle a existé en quatre exemplaires divergents).
+
+**`resolved_at`** est le symétrique de `first_detected_at` : une ligne `gaps` porte exactement un
+cycle ouverture → résolution, une re-détection après fermeture créant une NOUVELLE ligne. Écrit à
+la seule transition vers `resolved`. **Rien n'est posé sur la transition vers `in_progress`**, qui
+peut se rejouer sur une lacune déjà `in_progress` — toute date y serait re-tamponnée à chaque
+verdict `review_later`. `last_confirmed_at`, jamais implémenté ni lu, a été retiré de ce modèle
+pour la même raison.
+
+`status = "ignored"` n'est aujourd'hui écrit nulle part : aucune route ne permet à Papa de fermer
+une lacune à la main.
+
+### StudentWeeklyGoal
+
+```txt
+id
+student_id
+week_start         # lundi Europe/Paris
+target_days        # 1..7
+unique(student_id, week_start)
+```
+
+Engagement que l'ENFANT se donne (« cette semaine, je viens 3 jours »). Table et non colonne sur
+`student_profiles` : une colonne unique ne distinguerait pas « pas encore choisi cette semaine »
+de « a choisi 3 », or c'est l'absence de ligne qui déclenche l'invitation du lundi.
+
+**Aucune colonne d'atteinte** (`achieved`, `status`, `completed_days`) : le nombre de jours venus
+se dérive du journal `learning_events` à la lecture. La stocker ferait exister en base un état
+« objectif non atteint » — rien de punitif ne doit être persistable. `week_start` est toujours
+déduit serveur, ce qui interdit la modification rétroactive comme le reproche sur une semaine
+passée.
 
 ### Mission
 

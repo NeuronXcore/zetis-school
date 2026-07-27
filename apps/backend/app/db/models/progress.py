@@ -30,6 +30,11 @@ class SkillMastery(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_review_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="unknown")
+    # Instant de bascule vers `mastered`. Écrit UNIQUEMENT par `progress/mastery.py`, qui garantit
+    # l'invariant `mastered_at IS NOT NULL ⟺ status == "mastered"` et le non-re-tamponnage — sans
+    # quoi « consolidées cette semaine » recompterait les mêmes notions à chaque quiz.
+    # `NULL` sur une ligne `mastered` = consolidée avant la migration, date inconnue.
+    mastered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Gap(Base):
@@ -43,6 +48,11 @@ class Gap(Base):
     severity: Mapped[str] = mapped_column(String(10), default="medium")  # low|medium|high
     status: Mapped[str] = mapped_column(String(15), default="open")  # open|in_progress|resolved|ignored
     first_detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Symétrique de `first_detected_at` : une ligne `gaps` porte exactement un cycle
+    # ouverture → résolution (une re-détection après résolution crée une NOUVELLE ligne).
+    # Écrit à la seule transition vers `resolved` ; `NULL` sur les lignes refermées avant la
+    # migration. Rien n'est posé sur la transition vers `in_progress`, qui peut se rejouer.
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -224,3 +234,31 @@ class SpacedReviewAttempt(Base):
     # Re-tour de consolidation (2e passage d'une carte le même jour) : tracé pour la
     # lisibilité du dashboard Papa, sans effet sur la planification. Détecté côté serveur.
     is_consolidation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class StudentWeeklyGoal(Base, TimestampMixin):
+    """Engagement hebdomadaire que l'élève se donne à lui-même (« cette semaine, je viens 3 jours »).
+
+    Une ligne par (élève, semaine) et non une colonne sur `student_profiles` : une colonne unique
+    ne distinguerait pas « pas encore choisi cette semaine » de « a choisi 3 », or c'est
+    précisément l'absence de ligne qui déclenche l'invitation du lundi.
+
+    **Aucune colonne d'atteinte** (`achieved`, `status`, `completed_days`). Le nombre de jours
+    venus se DÉRIVE du journal d'activité à la lecture, comme les sessions. La stocker créerait un
+    état pouvant diverger du journal, et surtout ferait exister en base un état « objectif non
+    atteint » — ce que la règle produit interdit : rien de punitif ne doit être persistable.
+
+    `week_start` = lundi en Europe/Paris (cf. `activity/timeutils.week_start`), jamais reçu du
+    client : la semaine est toujours déduite serveur, ce qui interdit à la fois la modification
+    rétroactive et le reproche sur une semaine passée.
+    """
+
+    __tablename__ = "student_weekly_goals"
+    __table_args__ = (
+        UniqueConstraint("student_id", "week_start", name="uq_weekly_goal_student_week"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"), index=True)
+    week_start: Mapped[date] = mapped_column(Date)
+    target_days: Mapped[int] = mapped_column(Integer)  # 1..7, borné côté schéma Pydantic

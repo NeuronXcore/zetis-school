@@ -14,6 +14,7 @@ from app.db.models.progress import (
     SkillMastery,
     SpacedReviewAttempt,
     SpacedReviewCard,
+    StudentWeeklyGoal,
     XPEvent,
 )
 from app.db.models.school import (
@@ -54,6 +55,7 @@ __all__ = [
     "LearningEvent",
     "SpacedReviewCard",
     "SpacedReviewAttempt",
+    "StudentWeeklyGoal",
     "CapsuleView",
     "FicheView",
     "Capsule",
