@@ -1827,6 +1827,63 @@ git commit -m "feat(missions): evidence service + deterministic daily selector +
 
 ---
 
+# ÉTAPE — Mindmaps : brique canvas partagée + aperçu de fidélité Papa (addendum ADR-0016)
+
+## Statut
+
+FAIT (extraction + backend + page/modale Papa + tests + vérification live) — 2026-07-27.
+Branche `feat/mindmaps-pilotage-papa`, commits `3758be8` (extraction, dédié) et `02fc625`.
+**Non poussé.**
+
+## Ce qui a été fait
+
+- **Brique partagée `@zetis/ui/mindmap`** : `MindmapWorkspace`, `MindmapNode`, `ModeSegmented`,
+  `LayoutSelector`, `NodeBank`, `mindmapLayout.ts`, `mindmapTree.ts`, `mindmap.css` déplacés
+  depuis `frontend-massimo`. `@xyflow/react` + `elkjs` **déplacés** (pas ajoutés) vers
+  `packages/ui`. **Export en sous-chemin** (`./mindmap`), jamais depuis la racine — sinon React
+  Flow entre dans le bundle de toutes les pages Papa et le `lazy()` ne sert plus à rien.
+- **Contrat d'extraction tenu** : zéro fetch (`mindmap_json` en prop), zéro logique métier,
+  évaluation **injectée** (`evaluator`). Massimo passe l'évaluateur élève, Papa celui d'aperçu.
+- **Backend** : `POST /api/mindmaps/{id}/evaluate-preview` (`require_parent`, tous statuts, zéro
+  écriture) + `attempt_count`/`avg_score` sur `pilotage/{subject_id}` (une requête ; le N+1 par
+  leçon supprimé au passage).
+- **Papa** : page `/mindmaps` complétée (chapitres, recherche, métrique, `destructionNotice`) +
+  `MindmapPreviewModal` 4 onglets (hublot sombre, brique en `lazy()`) + `MindmapOutlineEditor`
+  extrait de `MindmapEditorModal` et monté aux deux endroits.
+
+## Divergences tranchées (stop-on-blocker)
+
+- Le prompt disait `MindmapCanvas` → le composant réel est **`MindmapWorkspace`**, avec **deux**
+  points de montage (page + step de mission ADR-0019), pas un.
+- `score_reconstruction` était **déjà pure** → seule la mise en forme est factorisée.
+- `delete_mindmap` purgeait **déjà** les tentatives → la migration `ON DELETE CASCADE` demandée par
+  l'addendum est redondante, **aucune migration livrée**.
+- `MindmapEditorModal` était **déjà** un éditeur structuré (l'addendum supposait du JSON brut) →
+  réutilisé, pas réécrit (son test existant reste vert).
+- Périmètre : le user a arbitré « frontend pur » → **frontend + les 2 routes backend**, sans quoi
+  l'onglet *Reconstruis* de l'aperçu était impossible (`/evaluate` renvoie 404 sur du `pending`).
+
+## Tests
+
+413 back · 81 Massimo · 129 Papa. Live sur Postgres réel : reconstruction **complète** jouée dans
+l'aperçu Papa → score 100 % affiché, `mindmap_attempts`/`xp_events`/`learning_events` **inchangés**
+(11/68/38 avant et après). Non-régression Massimo vérifiée sur les deux points de montage.
+
+## Reste à faire
+
+- **Pousser la branche + ouvrir la PR** (rien à coder).
+- Différés (hors périmètre assumé) : statut `rejected`, drag-to-reparent, liens transverses,
+  préférence de layout persistée par élève, pastille « à relire » (exigerait une persistance des
+  ouvertures).
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(mindmaps): shared canvas brick + Papa fidelity preview and editorial lifecycle"
+```
+
+---
+
 # 5. Checklist de fin de chaque étape
 
 À la fin de chaque bloc, Claude Code doit répondre avec :

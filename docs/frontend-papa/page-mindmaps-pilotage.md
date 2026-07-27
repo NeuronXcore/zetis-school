@@ -1,10 +1,20 @@
 # Page Papa — Pilotage Mindmaps
 
 > Spec issue de l'**addendum ADR-0016 du 2026-07-27** (aperçu fidèle, brique de canvas
-> partagée, évaluation d'aperçu, cycle de vie éditorial). **À valider avant implémentation.**
-> Backend Slice A livré ; le canvas existe côté Massimo et doit être **extrait** dans
-> `@zetis/ui` — cette page en est le second consommateur.
+> partagée, évaluation d'aperçu, cycle de vie éditorial). **IMPLÉMENTÉE le 2026-07-27** — le
+> canvas a été extrait dans `@zetis/ui/mindmap` et cette page en est le second consommateur.
 > Contrat d'API : `packages/types/src/mindmap.ts` = source de vérité.
+>
+> **Trois écarts entre cette spec et le livré, assumés :**
+> 1. **Pas de migration `ON DELETE CASCADE`** — `delete_mindmap` purgeait déjà les tentatives
+>    avant la carte ; la contrainte demandée était redondante. Le comportement décrit au §
+>    « Cycle de vie et historique » est bien celui du code.
+> 2. **L'éditeur outline réutilise `MindmapEditorModal`**, qui était déjà structuré (la spec
+>    supposait une édition du `mindmap_json` brut à remplacer). Il a été extrait en
+>    `MindmapOutlineEditor` et monté aux deux endroits ; les raccourcis clavier sont ajoutés
+>    par-dessus, le sélecteur de parent `<select>` est conservé (souris + lecteurs d'écran).
+> 3. **Pastille « à relire » non livrée** (§ États limites) : elle exigerait de persister les
+>    ouvertures de Papa, ce qu'aucune table ne fait aujourd'hui. Différée.
 
 ## Objectif
 

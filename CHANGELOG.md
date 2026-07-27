@@ -1,5 +1,62 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.22.0 — Mindmaps : brique canvas partagée + aperçu de fidélité Papa (addendum ADR-0016)
+
+Date : 2026-07-27
+
+> Papa validait une carte mentale **sans la voir** : ni la lisibilité de la disposition, ni la
+> faisabilité de *Mémorise*, ni la difficulté de *Reconstruis* ne s'inspectent dans un arbre
+> textuel. **Un seul renderer pour les deux interfaces** — ce que Papa valide est, par
+> construction, ce que Massimo verra.
+
+### Ajouté
+
+- **Brique partagée `@zetis/ui/mindmap`** : `MindmapWorkspace`, `MindmapNode`, `ModeSegmented`,
+  `LayoutSelector`, `NodeBank`, `mindmapLayout.ts`, `mindmapTree.ts`, `mindmap.css`. Contrat :
+  **zéro fetch** (la carte descend en prop, le gate `validated` reste dans la requête serveur) et
+  **zéro logique métier** (évaluation injectée par la prop `evaluator`). Export **en sous-chemin**
+  volontaire — depuis la racine `@zetis/ui`, React Flow entrerait dans le bundle de toutes les
+  pages Papa.
+- **`POST /api/mindmaps/{id}/evaluate-preview`** (`require_parent`) : même barème que `/evaluate`
+  (fonction pure partagée), **sans gate `validated`** (Papa prévisualise du `pending`) et **sans
+  aucune écriture** — ni `mindmap_attempts`, ni `xp_events`, ni `learning_events`.
+- **`GET /api/mindmaps/pilotage/{subject_id}`** expose `attempt_count` / `avg_score` (une requête
+  d'agrégat). Champs portés par `MindmapPilotageCard`, **pas** par `MindmapOut` servi aux routes
+  élève : le suivi est parent-side.
+- **Page Papa `/mindmaps`** : chapitres repliables + recherche, métrique « reconstruite N fois ·
+  moyenne X % », **signal avant destruction** dans les confirmations (nouvelle prop
+  `destructionNotice` de `ContentLifecycleActions`), mention explicite « cours non validé ».
+- **`MindmapPreviewModal`** — 4 onglets (Regarde · Mémorise · Reconstruis · Éditer),
+  `min(1400px, 95vw) × 90vh`, hublot sombre encadré rendant la brique avec le style Massimo
+  (exception cadrée à la frontière visuelle), brique en `lazy()`.
+- **`MindmapOutlineEditor`** extrait de `MindmapEditorModal` et monté aux deux endroits ; dans
+  l'onglet Éditer, canvas re-layouté sur le brouillon (debounce 300 ms) et raccourcis
+  `⇥` / `⇧⇥` / `⏎` / `⌫`.
+
+### Modifié
+
+- `@xyflow/react` et `elkjs` **déplacés** de `frontend-massimo` vers `packages/ui` — versions
+  épinglées inchangées, **aucune dépendance nouvelle**.
+- `pilotage_tree` : le N+1 (une requête de cartes par leçon) est remplacé par une requête groupée.
+
+### Écarts assumés avec l'addendum
+
+- **Aucune migration** : l'`ON DELETE CASCADE` demandé est déjà couvert par `delete_mindmap`, qui
+  purge les tentatives avant la carte.
+- `score_reconstruction` était **déjà** une fonction pure — seule la mise en forme du résultat est
+  factorisée (`_evaluation_out`).
+- `MindmapEditorModal` était **déjà** un éditeur structuré (l'addendum supposait du JSON brut) →
+  réutilisé, pas réécrit.
+
+### Vérifié
+
+413 tests backend · 81 Massimo · 129 Papa. Live sur Postgres réel : reconstruction **complète**
+jouée dans l'aperçu Papa → score serveur 100 % affiché et `mindmap_attempts` / `xp_events` /
+`learning_events` **strictement inchangés** (11 / 68 / 38 avant et après). Non-régression Massimo
+vérifiée sur les **deux** points de montage (page mindmaps + étape mindmap d'une mission).
+
+---
+
 ## 0.21.0 — `zetis-clip` Lot 2 : transcription vidéo → RAG (Papa) — étape 20
 
 Date : 2026-07-01 (mergé dans `main` le 2026-07-27)
