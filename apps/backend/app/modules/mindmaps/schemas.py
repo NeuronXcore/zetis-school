@@ -134,6 +134,19 @@ class MindmapListItem(BaseModel):
     subject_slug: str = ""
 
 
+class MindmapPilotageCard(MindmapOut):
+    """Une carte vue depuis le pilotage Papa : la carte + l'agrégat de ses reconstructions.
+
+    `attempt_count` / `avg_score` alimentent la métrique de liste et le **signal avant
+    destruction** des confirmations de Régénérer / Supprimer (addendum ADR-0016 §E).
+    **Strictement côté Papa** : ces champs n'existent pas sur `MindmapOut`, servi aux routes
+    élève — rien de cet agrégat ne remonte chez Massimo.
+    """
+
+    attempt_count: int = 0
+    avg_score: int | None = None  # None = jamais reconstruite
+
+
 class MindmapPilotageLesson(BaseModel):
     """Une leçon validée d'une matière + ses mindmaps (tous statuts) — pilotage Papa."""
 
@@ -141,7 +154,7 @@ class MindmapPilotageLesson(BaseModel):
     title: str
     chapter: str | None = None
     has_content: bool
-    mindmaps: list[MindmapOut]
+    mindmaps: list[MindmapPilotageCard]
 
 
 class MindmapPilotageSubject(BaseModel):

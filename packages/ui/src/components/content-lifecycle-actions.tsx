@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "./button";
 import { ConfirmDialog } from "./confirm-dialog";
 
@@ -19,6 +19,13 @@ export interface ContentLifecycleActionsProps {
   busy?: boolean;
   /** Nom du contenu, injecté dans les libellés de confirmation (ex. le titre de la fiche). */
   itemLabel?: string;
+  /**
+   * Signal AVANT destruction, ajouté aux confirmations de Régénérer / Supprimer : ce que l'élève
+   * a déjà produit sur ce contenu et qui va disparaître (ex. « Massimo l'a reconstruite 3 fois
+   * (moyenne 78 %) »). C'est la seule information qui rend la confirmation utile — sans elle, Papa
+   * confirme à l'aveugle. Absent = confirmation générique.
+   */
+  destructionNotice?: ReactNode;
   /** Libellés surchargables (défauts pédagogiques bienveillants). */
   labels?: Partial<{
     validate: string;
@@ -56,6 +63,7 @@ export function ContentLifecycleActions({
   onDelete,
   busy = false,
   itemLabel,
+  destructionNotice,
   labels,
 }: ContentLifecycleActionsProps) {
   const [confirming, setConfirming] = useState<null | "regenerate" | "delete">(null);
@@ -100,6 +108,7 @@ export function ContentLifecycleActions({
       >
         La version actuelle{suffix} sera remplacée par une nouvelle génération, et le contenu
         repassera « à valider ».
+        {destructionNotice && <span className="mt-2 block">{destructionNotice}</span>}
       </ConfirmDialog>
 
       <ConfirmDialog
@@ -116,6 +125,7 @@ export function ContentLifecycleActions({
       >
         Cette action supprime définitivement le contenu{suffix}. Tu pourras le régénérer plus
         tard depuis la leçon.
+        {destructionNotice && <span className="mt-2 block">{destructionNotice}</span>}
       </ConfirmDialog>
     </div>
   );

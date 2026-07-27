@@ -333,11 +333,36 @@ def mindmap_out(db: Session, row: Mindmap) -> dict:
     }
 
 
+def _attempt_stats(db: Session, mindmap_ids: list[int]) -> dict[int, tuple[int, int | None]]:
+    """Agrégat des tentatives par carte — **une seule requête**, pas de N+1.
+
+    Retourne `{mindmap_id: (nombre de tentatives, score moyen arrondi)}`. Une carte jamais
+    reconstruite est absente du dict (l'appelant retombe sur `(0, None)`).
+    """
+    if not mindmap_ids:
+        return {}
+    rows = db.execute(
+        select(
+            MindmapAttempt.mindmap_id,
+            func.count(MindmapAttempt.id),
+            func.avg(MindmapAttempt.score),
+        )
+        .where(MindmapAttempt.mindmap_id.in_(mindmap_ids))
+        .group_by(MindmapAttempt.mindmap_id)
+    ).all()
+    return {mid: (count, round(avg) if avg is not None else None) for mid, count, avg in rows}
+
+
 def pilotage_tree(db: Session, subject_id: int) -> dict:
     """Pilotage Papa : leçons validées d'une matière (année active) + leurs mindmaps (1 appel).
 
     Miroir de `fiches.pilotage_tree` : les leçons sans carte sont incluses (Papa peut générer).
-    Chaque carte porte son `validation_status` (aucun filtre `validated` : vue Papa, pas élève).
+    Chaque carte porte son `validation_status` (aucun filtre `validated` : vue Papa, pas élève)
+    **et l'agrégat de ses tentatives** (`attempt_count` / `avg_score`) — le « signal avant
+    destruction » de l'addendum ADR-0016 §E.
+
+    Cet agrégat est fusionné **ici seulement**, jamais dans `mindmap_out` (partagé avec les routes
+    élève) : le suivi est parent-side, rien n'en remonte chez Massimo (pas d'auto-surveillance).
     """
     subject = db.get(Subject, subject_id)
     if subject is None:
@@ -353,13 +378,34 @@ def pilotage_tree(db: Session, subject_id: int) -> dict:
         if lesson_ids
         else []
     )
+    # Toutes les cartes de la matière en UNE requête (au lieu d'une par leçon), regroupées ensuite.
+    cards = (
+        list(
+            db.scalars(
+                select(Mindmap)
+                .where(Mindmap.lesson_id.in_(lesson_ids))
+                .order_by(Mindmap.id.desc())
+            )
+        )
+        if lesson_ids
+        else []
+    )
+    by_lesson: dict[int, list[Mindmap]] = {}
+    for card in cards:
+        by_lesson.setdefault(card.lesson_id, []).append(card)
+    stats = _attempt_stats(db, [c.id for c in cards])
+
+    def card_out(card: Mindmap) -> dict:
+        count, avg = stats.get(card.id, (0, None))
+        return {**mindmap_out(db, card), "attempt_count": count, "avg_score": avg}
+
     lessons = [
         {
             "lesson_id": lesson.id,
             "title": lesson.title,
             "chapter": chapter_name,
             "has_content": bool(lesson.content_markdown),
-            "mindmaps": [mindmap_out(db, m) for m in list_mindmaps_for_lesson(db, lesson.id)],
+            "mindmaps": [card_out(c) for c in by_lesson.get(lesson.id, [])],
         }
         for lesson, chapter_name in rows
     ]
@@ -554,18 +600,46 @@ def score_reconstruction(
     return score, details
 
 
-def evaluate_reconstruction(
-    db: Session, mindmap_id: int, placements: list[MindmapNodePlacement]
-) -> dict:
-    """Évaluation PURE (`/evaluate`) : score + détail, **sans persistance ni XP**. Déterministe."""
-    row = _validated_mindmap_or_404(db, mindmap_id)
-    score, details = score_reconstruction(row.mindmap_json or {}, placements)
+def _evaluation_out(mindmap_json: dict, placements: list[MindmapNodePlacement]) -> dict:
+    """Met en forme le résultat d'une évaluation. **Un seul barème, plusieurs appelants.**
+
+    Partagé par `/evaluate` (élève), `/evaluate-preview` (aperçu Papa) et `record_attempt` —
+    ainsi le score que Papa voit dans l'aperçu est, par construction, celui que Massimo obtiendra.
+    """
+    score, details = score_reconstruction(mindmap_json or {}, placements)
     return {
         "score": score,
         "correct_count": sum(1 for d in details if d.correct and not d.optional),
         "expected_count": sum(1 for d in details if not d.optional),
         "details": details,
     }
+
+
+def evaluate_reconstruction(
+    db: Session, mindmap_id: int, placements: list[MindmapNodePlacement]
+) -> dict:
+    """Évaluation PURE (`/evaluate`) : score + détail, **sans persistance ni XP**. Déterministe."""
+    row = _validated_mindmap_or_404(db, mindmap_id)
+    return _evaluation_out(row.mindmap_json or {}, placements)
+
+
+def evaluate_preview(
+    db: Session, mindmap_id: int, placements: list[MindmapNodePlacement]
+) -> dict:
+    """Évaluation d'APERÇU Papa (`/evaluate-preview`, `require_parent`) — addendum ADR-0016 §C.
+
+    Deux différences avec `/evaluate`, et deux seulement :
+
+    1. **Aucun gate `validated`** (`_mindmap_or_404`) : Papa prévisualise justement du `pending`,
+       que les routes élève cachent (404).
+    2. **Zéro effet de bord** : aucun `mindmap_attempts`, aucun `xp_events`, aucun
+       `learning_events` — jouer *Reconstruis* dans l'aperçu ne doit rien écrire dans le journal
+       de Massimo. Aucun `db.add`, aucun `db.commit` ici : c'est le contrat, pas un détail.
+
+    Le barème est le même (`_evaluation_out`) : c'est tout l'intérêt de l'aperçu de fidélité.
+    """
+    row = _mindmap_or_404(db, mindmap_id)
+    return _evaluation_out(row.mindmap_json or {}, placements)
 
 
 def record_attempt(
@@ -583,9 +657,9 @@ def record_attempt(
     serveur (ADR-0016). Le commit est fait après `award_xp`.
     """
     row = _validated_mindmap_or_404(db, mindmap_id)
-    score, details = score_reconstruction(row.mindmap_json or {}, placements)
-    correct_count = sum(1 for d in details if d.correct and not d.optional)
-    expected_count = sum(1 for d in details if not d.optional)
+    out = _evaluation_out(row.mindmap_json or {}, placements)
+    score = out["score"]
+    details = out["details"]
 
     attempt = MindmapAttempt(
         student_id=student.id,
@@ -608,14 +682,7 @@ def record_attempt(
     )
     db.commit()
     db.refresh(attempt)
-    return {
-        "attempt_id": attempt.id,
-        "score": score,
-        "xp_awarded": xp,
-        "correct_count": correct_count,
-        "expected_count": expected_count,
-        "details": details,
-    }
+    return {**out, "attempt_id": attempt.id, "xp_awarded": xp}
 
 
 def mark_seen(db: Session, student_id: int, mindmap_id: int) -> None:

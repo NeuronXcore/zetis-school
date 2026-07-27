@@ -100,6 +100,18 @@ def regenerate(
     return service.mindmap_out(db, row)
 
 
+@router.post("/{mindmap_id}/evaluate-preview", response_model=MindmapReconstructionResult)
+def evaluate_preview(
+    mindmap_id: int, req: MindmapReconstructionRequest, db: Session = Depends(get_db)
+) -> dict:
+    """Aperçu Papa : même barème que `/evaluate`, **sans persistance ni XP** (addendum §C).
+
+    Sert les cartes de **tous** statuts (Papa prévisualise du `pending`, que les routes élève
+    cachent). `failed_attempts` du payload est ignoré : il ne sert qu'au calcul d'XP, absent ici.
+    """
+    return service.evaluate_preview(db, mindmap_id, req.placements)
+
+
 @router.post("/{mindmap_id}/validate", response_model=MindmapOut)
 def validate(mindmap_id: int, db: Session = Depends(get_db)) -> dict:
     """Papa : `pending` → `validated` (la carte devient visible côté Massimo)."""

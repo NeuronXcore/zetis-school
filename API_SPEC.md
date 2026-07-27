@@ -710,6 +710,12 @@ Liste.
 
 Génère mindmap de référence.
 
+### GET `/mindmaps/pilotage/{subject_id}`
+
+Papa (`require_parent`) : arbre matière → leçons validées → leurs cartes (tous statuts). Chaque
+carte porte `attempt_count` et `avg_score` (agrégat `mindmap_attempts`, une requête). **Cet agrégat
+n'existe que sur cette surface** : le suivi est parent-side, rien n'en remonte chez Massimo.
+
 ### POST `/mindmaps/{id}/attempts`
 
 Massimo reproduit une mindmap.
@@ -717,6 +723,17 @@ Massimo reproduit une mindmap.
 ### POST `/mindmaps/{id}/evaluate`
 
 Évaluation.
+
+### POST `/mindmaps/{id}/evaluate-preview`
+
+Papa (`require_parent`) — **aperçu de fidélité** (addendum ADR-0016 §C). Même barème que
+`/evaluate` (fonction pure partagée), avec deux différences :
+
+- **aucun gate `validated`** : Papa prévisualise du `pending`, que les routes élève cachent (404) ;
+- **aucun effet de bord** : ni `mindmap_attempts`, ni `xp_events`, ni `learning_events`. Papa peut
+  jouer *Reconstruis* autant qu'il veut sans écrire une ligne dans le journal de Massimo.
+
+`failed_attempts` du payload est ignoré (il ne sert qu'au calcul d'XP, absent ici).
 
 ## Conseil de classe IA (ADR-0020)
 

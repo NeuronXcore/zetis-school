@@ -21,6 +21,7 @@ from app.db.models import (
     LessonSkill,
     Mindmap,
     MindmapAttempt,
+    LearningEvent,
     SchoolYear,
     SchoolYearSubject,
     Skill,
@@ -409,10 +410,152 @@ def test_evaluate_pending_mindmap_404(client_db) -> None:
         assert getattr(exc.value, "status_code", None) == 404
 
 
+# ── Aperçu Papa : évaluation sans effet de bord (addendum ADR-0016 §C) ─────────
+
+
+def test_evaluate_preview_persists_nothing(client_db) -> None:
+    """Test-verrou : jouer *Reconstruis* dans l'aperçu Papa n'écrit RIEN chez Massimo."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        row = service.generate_mindmap(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+        service.validate_mindmap(db, row.id)
+        student = db.scalar(select(StudentProfile))
+        # Une vraie tentative d'abord : le compteur n'est pas trivialement à zéro.
+        service.record_attempt(db, student, row.id, _partial_placements())
+        attempts_before = db.scalar(select(func.count()).select_from(MindmapAttempt))
+        xp_before = db.scalar(select(func.count()).select_from(XPEvent))
+        learning_before = db.scalar(select(func.count()).select_from(LearningEvent))
+
+        service.evaluate_preview(db, row.id, _partial_placements())
+
+        assert db.scalar(select(func.count()).select_from(MindmapAttempt)) == attempts_before
+        assert db.scalar(select(func.count()).select_from(XPEvent)) == xp_before
+        assert db.scalar(select(func.count()).select_from(LearningEvent)) == learning_before
+
+
+def test_evaluate_preview_same_scale_as_evaluate(client_db) -> None:
+    """Un seul barème, deux appelants : ce que Papa voit est ce que Massimo obtiendra."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        row = service.generate_mindmap(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+        service.validate_mindmap(db, row.id)
+        student = service.evaluate_reconstruction(db, row.id, _partial_placements())
+        preview = service.evaluate_preview(db, row.id, _partial_placements())
+        assert preview["score"] == student["score"]
+        assert preview["correct_count"] == student["correct_count"]
+        assert preview["expected_count"] == student["expected_count"]
+        assert [d.node_id for d in preview["details"]] == [d.node_id for d in student["details"]]
+
+
+def test_evaluate_preview_works_on_pending_mindmap(client_db) -> None:
+    """C'est tout l'objet de l'aperçu : `/evaluate` renvoie 404 sur du `pending`, pas la preview."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        row = service.generate_mindmap(  # reste `pending`
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+        result = service.evaluate_preview(db, row.id, _partial_placements())
+        assert result["score"] == 75
+
+
+# ── Agrégat de pilotage (signal avant destruction, §E) ─────────────────────────
+
+
+def test_pilotage_exposes_attempt_aggregate(client_db) -> None:
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        row = service.generate_mindmap(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+        service.validate_mindmap(db, row.id)
+        subject_id = db.scalar(select(Subject.id).where(Subject.slug == "mathematiques"))
+
+        # Aucune tentative → compteur à zéro, moyenne inconnue (pas 0 %, qui se lirait « nul »).
+        card = service.pilotage_tree(db, subject_id)["lessons"][0]["mindmaps"][0]
+        assert card["attempt_count"] == 0
+        assert card["avg_score"] is None
+
+        student = db.scalar(select(StudentProfile))
+        service.record_attempt(db, student, row.id, _partial_placements())  # 75
+        service.record_attempt(  # 100
+            db,
+            student,
+            row.id,
+            [
+                MindmapNodePlacement(node_id="signe", parent_id=None),
+                MindmapNodePlacement(node_id="droite", parent_id=None),
+                MindmapNodePlacement(node_id="oppose", parent_id="signe"),
+                MindmapNodePlacement(node_id="comparer", parent_id="droite"),
+            ],
+        )
+        card = service.pilotage_tree(db, subject_id)["lessons"][0]["mindmaps"][0]
+        assert card["attempt_count"] == 2
+        assert card["avg_score"] == 88  # round((75 + 100) / 2)
+
+
+def test_pilotage_aggregate_never_leaks_to_student_routes(client_db) -> None:
+    """Le suivi est parent-side : `mindmap_out` (routes élève) n'a pas ces champs."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        row = service.generate_mindmap(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+        service.validate_mindmap(db, row.id)
+        student = db.scalar(select(StudentProfile))
+        service.record_attempt(db, student, row.id, _partial_placements())
+
+        out = service.get_student_mindmap(db, row.id)
+        assert "attempt_count" not in out
+        assert "avg_score" not in out
+
+
+# ── L'XP n'est JAMAIS rembobiné (§E.3) ─────────────────────────────────────────
+
+
+def test_xp_survives_delete_and_regenerate(client_db) -> None:
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        row = service.generate_mindmap(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+        service.validate_mindmap(db, row.id)
+        student = db.scalar(select(StudentProfile))
+        service.record_attempt(db, student, row.id, _partial_placements())
+        xp_total = db.scalar(select(func.sum(XPEvent.amount)))
+        assert xp_total == 25
+
+        # Régénérer : nouvel arbre, anciennes tentatives conservées telles quelles, XP intact.
+        service.regenerate_mindmap(db, FakeLLMProvider(), FakeEmbeddingProvider(), mindmap_id=row.id)
+        assert db.scalar(select(func.sum(XPEvent.amount))) == xp_total
+        assert db.scalar(select(func.count()).select_from(MindmapAttempt)) == 1
+
+        # Supprimer : l'historique de reconstruction part avec la carte, l'XP reste acquis.
+        service.delete_mindmap(db, row.id)
+        assert db.scalar(select(func.count()).select_from(MindmapAttempt)) == 0
+        assert db.scalar(select(func.sum(XPEvent.amount))) == xp_total
+
+
 # ── Garde parent (403 child) sur les écritures ─────────────────────────────────
 
 
 def test_parent_routes_forbidden_for_child(client_db) -> None:
     client, _ = client_db  # get_current_user override → rôle "child"
     resp = client.post("/api/mindmaps/generate", json={"lesson_id": 1})
+    assert resp.status_code == 403
+
+
+def test_evaluate_preview_forbidden_for_child(client_db) -> None:
+    """L'aperçu est une route Papa : un `child` ne peut pas contourner le gate `validated` par là."""
+    client, _ = client_db
+    resp = client.post("/api/mindmaps/1/evaluate-preview", json={"placements": []})
     assert resp.status_code == 403

@@ -20,6 +20,7 @@ export {
   type MindmapNode,
   type MindmapNodeEval,
   type MindmapNodePlacement,
+  type MindmapPilotageCard,
   type MindmapPilotageLesson,
   type MindmapPilotageTree,
   type MindmapReconstructionRequest,

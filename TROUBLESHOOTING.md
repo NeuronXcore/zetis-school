@@ -42,6 +42,35 @@
   est vide (ex. en mode Regarde), ce qui fait recalculer `currentSlotSet` → `derivedNodes` →
   `setRfNodes` en boucle. → **`useMemo` sur `currentChunk`** (référence stable).
 
+### Extraction de la brique `@zetis/ui/mindmap` (addendum, 2026-07-27)
+
+- **Le prompt parlait de `MindmapCanvas` — le composant réel s'appelle `MindmapWorkspace`**, et il
+  a **deux** points de montage, pas un : `MindmapSubjectPage` **et** `MindmapMissionModal` (step
+  mindmap ADR-0019). La non-régression porte sur les deux ; ne conclure qu'après avoir ouvert
+  l'étape mindmap d'une mission sur `/missions`.
+- **Export en SOUS-CHEMIN obligatoire** (`@zetis/ui/mindmap`, pas la racine `@zetis/ui`) : la brique
+  embarque React Flow + elkjs (~1,6 Mo). Ré-exportée depuis `src/index.ts`, elle entrerait dans le
+  bundle de **toutes** les pages Papa et le `lazy()` de la modale ne servirait plus à rien.
+  Contrôle : après `vite build` de Papa, React Flow doit être dans un **chunk séparé**.
+- **Les keyframes CSS ne suivent pas automatiquement le composant.** `mm-gold-pop`, `mm-dot-active`
+  et `mm-cheer` vivaient dans `apps/frontend-massimo/src/index.css` ; Papa ne les avait pas → le
+  nœud doré et le toast de félicitation auraient été muets côté aperçu, **sans erreur**. Résolu par
+  un `mindmap.css` co-localisé, importé par la brique elle-même. Le `@source
+  "../../../packages/ui/src"` des deux `index.css` couvre déjà les **classes** Tailwind ; il ne
+  couvre pas les `@keyframes`.
+- **Simuler un drag dans la brique : `left_click_drag` ne suffit pas.** Il émet des `MouseEvent`,
+  or la banque écoute `onPointerDown` → aucun dépôt, et React Flow pan à la place. Il faut
+  dispatcher de vrais `PointerEvent` (`pointerdown` sur la puce, puis `pointermove`+`pointerup` sur
+  `window`), en **deux evals** avec ~250 ms entre chaque dépôt (React doit re-render entre deux).
+
+### Backend `:8001` sans `--reload` (config `backend-dev`)
+
+- La configuration `backend-dev` de `.claude/launch.json` lance `uvicorn` **sans `--reload`** : un
+  backend démarré avant une modification sert l'**ancien code** en silence. Symptôme vécu : les
+  champs `attempt_count`/`avg_score` fraîchement ajoutés absents de la réponse `pilotage`, sans
+  aucune erreur. → **Redémarrer le serveur après toute modification backend** (`preview_stop` puis
+  `preview_start`). Complète le piège du `:8000` stale ci-dessous.
+
 ### Harnais de vérification (preview)
 
 - **Le harnais isolé (`mmpreview.html/tsx`) est instable pour les simulations de drag intensives** :
