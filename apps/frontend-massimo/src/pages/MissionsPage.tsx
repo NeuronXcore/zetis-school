@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { type Mission, type MissionStep } from "@zetis/types";
 import { Spinner } from "@zetis/ui";
 import { NeonBackdrop } from "../components/glass";
@@ -89,6 +90,7 @@ function MiniParcours({ steps }: { steps: MissionStep[] }) {
 // ── Page : orchestration des 3 écrans + modales ─────────────────────────────────
 export function MissionsPage() {
   const m = useMissions();
+  const location = useLocation();
   const [screen, setScreen] = useState<"home" | "subject" | "mission">("home");
   const [subjectSlug, setSubjectSlug] = useState<string | null>(null);
   const [missionId, setMissionId] = useState<number | null>(null);
@@ -114,6 +116,19 @@ export function MissionsPage() {
     setScreen("mission");
   };
   const goHome = () => setScreen("home");
+
+  // Deep-link depuis l'accueil (« Commencer → ») : `state.openMissionId` ouvre directement la
+  // mission élue. Une seule fois (ref), et seulement une fois les missions chargées — sinon
+  // `findMission` ne trouverait rien. Si la mission n'existe plus (terminée entre-temps), on
+  // reste sereinement sur l'accueil des missions plutôt que d'afficher une erreur.
+  const deepLinkDone = useRef(false);
+  useEffect(() => {
+    if (deepLinkDone.current || m.loading) return;
+    const requested = (location.state as { openMissionId?: number } | null)?.openMissionId;
+    if (requested == null) return;
+    deepLinkDone.current = true;
+    if (findMission(requested)) openMission(requested, "home");
+  }, [m.loading, location.state]);
 
   return (
     <div className="relative mx-auto max-w-2xl">
