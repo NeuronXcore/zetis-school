@@ -16,9 +16,14 @@ export const PAPA_NAV: NavItem[] = [
   { to: "/cahier", label: "Cahier de bord IA", icon: "📓" },
   { to: "/annees", label: "Années scolaires", icon: "🗓️" },
   { to: "/programme", label: "Programme", icon: "📖" },
+  { to: "/cartes-revision", label: "Cartes de révision", icon: "🗂️" },
+  { to: "/quiz", label: "Quiz", icon: "✅" },
   { to: "/matieres", label: "Matières", icon: "📚" },
   { to: "/sources", label: "Sources de cours", icon: "📥" },
   { to: "/capsules", label: "Capsules IA", icon: "🎬" },
+  // Fiches de révision (📄 pour ne pas doublonner 🗂️ des Cartes de révision).
+  { to: "/fiches", label: "Fiches", icon: "📄" },
+  { to: "/mindmaps", label: "Mindmaps", icon: "🧠" },
   { to: "/focus", label: "Mode focus", icon: "🔍" },
   { to: "/parametres", label: "Paramètres", icon: "⚙️" },
 ];

@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import {
   type StudentCours,
   type StudentLessonContent,
   type StudentLessonRef,
+  type StudentQuiz,
 } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { fetchStudentCours, fetchStudentLessonCours } from "../lib/cours";
+import { fetchSubjectQuizzes } from "../lib/quiz";
+import { type QuizSessionState } from "./QuizSessionPage";
 
 // Page Cours (élève) — /subjects/:slug/cours (spec docs/frontend-massimo/page-cours.md).
 // Chapitres validés → leçons validées → lecture du cours. Le serveur ne sert QUE du
@@ -21,12 +24,15 @@ const MARKDOWN_STYLES =
 
 export function CoursPage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [cours, setCours] = useState<StudentCours | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [reading, setReading] = useState<StudentLessonContent | null>(null);
   const [readingLoading, setReadingLoading] = useState(false);
+  // Quiz jouables de la matière, indexés par leçon : un bouton n'apparaît que si un quiz existe.
+  const [quizByLesson, setQuizByLesson] = useState<Record<number, StudentQuiz>>({});
 
   const load = useCallback(async () => {
     if (!slug) return;
@@ -41,6 +47,15 @@ export function CoursPage() {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
     } finally {
       setLoading(false);
+    }
+    // Quiz de la matière — NON bloquant (leur absence/erreur ne retarde jamais la lecture).
+    try {
+      const quizzes = await fetchSubjectQuizzes(slug);
+      const map: Record<number, StudentQuiz> = {};
+      for (const q of quizzes) if (q.lesson_id != null) map[q.lesson_id] = q;
+      setQuizByLesson(map);
+    } catch {
+      setQuizByLesson({});
     }
   }, [slug]);
 
@@ -139,18 +154,36 @@ export function CoursPage() {
                           <p className="text-xs text-zetis-muted">{lesson.summary}</p>
                         )}
                       </div>
-                      {lesson.has_content ? (
-                        <button
-                          type="button"
-                          className="rounded-lg bg-zetis-accent px-3 py-1.5 text-sm font-semibold text-white"
-                          onClick={() => void openLesson(lesson)}
-                          disabled={readingLoading}
-                        >
-                          Lire →
-                        </button>
-                      ) : (
-                        <span className="text-xs text-zetis-muted">bientôt disponible</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {quizByLesson[lesson.id] && (
+                          <button
+                            type="button"
+                            className="rounded-lg border border-indigo-400/50 px-3 py-1.5 text-sm font-semibold text-indigo-200"
+                            onClick={() =>
+                              navigate("/quiz/session", {
+                                state: {
+                                  quiz: quizByLesson[lesson.id],
+                                  label: `${cours?.subject_name ?? ""} · ${lesson.title}`,
+                                } satisfies QuizSessionState,
+                              })
+                            }
+                          >
+                            🎯 Quiz
+                          </button>
+                        )}
+                        {lesson.has_content ? (
+                          <button
+                            type="button"
+                            className="rounded-lg bg-zetis-accent px-3 py-1.5 text-sm font-semibold text-white"
+                            onClick={() => void openLesson(lesson)}
+                            disabled={readingLoading}
+                          >
+                            Lire →
+                          </button>
+                        ) : (
+                          <span className="text-xs text-zetis-muted">bientôt disponible</span>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>

@@ -20,11 +20,11 @@ sémantique par embedding est Lot 3.
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import case, distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -35,6 +35,8 @@ from app.db.models import (
     SchoolYear,
     SchoolYearSubject,
     Skill,
+    SkillMastery,
+    StudentProfile,
     Subject,
 )
 from app.modules.ai.provider import LLMProvider, LLMRequest
@@ -53,6 +55,9 @@ logger = logging.getLogger(__name__)
 
 # Résolution niveau → cycle (collège ; le lycée est par classe, cf. ADR-0009 §8).
 CYCLE_BY_LEVEL = {"6e": "cycle 3", "5e": "cycle 4", "4e": "cycle 4", "3e": "cycle 4"}
+# Niveaux couverts par le rattrapage « skills-only » (ADR-0010) : cycle 4 uniquement.
+# Le lycée (2de…) est différé (ADR-0009 §8) → 400 explicite hors de cette liste.
+CYCLE_4_LEVELS = ("5e", "4e", "3e")
 # Référence opérative 2026-2027 : BO cycle 4 du 30 juillet 2020 (ADR-0009 §5).
 DEFAULT_PROGRAM_VERSION = "2020"
 
@@ -720,8 +725,12 @@ def generate_lesson_content(db: Session, llm: LLMProvider, lesson_id: int) -> Le
     Injecté avec `get_provider()` (Ollama), jamais le provider `curriculum_*` : la
     dérogation cloud reste bornée au référentiel. Toute leçon non archivée est
     rédigeable (`draft` inclus : relire le cours aide à valider) ; la régénération
-    écrase `content_markdown`. Lève `CurriculumGenerationError` si la sortie reste
-    invalide après UNE réparation — le contenu existant n'est alors pas touché.
+    écrase `content_markdown`. **Gate du cours canonique (addendum ADR-0009 §A)** :
+    une écriture réussie repasse la leçon en `status='draft'` (même si elle était
+    `validated`) — un cours réécrit non relu ne doit pas alimenter les dérivés ni
+    Massimo avant revalidation. Lève `CurriculumGenerationError` si la sortie reste
+    invalide après UNE réparation — le contenu et le statut existants ne sont alors
+    pas touchés.
     """
     lesson = _lesson_or_404(db, lesson_id)
     if lesson.status == "archived":
@@ -810,6 +819,11 @@ def generate_lesson_content(db: Session, llm: LLMProvider, lesson_id: int) -> Le
 
     lesson.content_markdown = _scrub_content_html(result.content).strip()
     _touch_content_audit(lesson, "ai")
+    # Gate du cours canonique (addendum ADR-0009 §A) : un cours fraîchement (re)généré
+    # n'est pas relu — il doit repasser en `draft` pour ne PAS alimenter les dérivés
+    # ni Massimo avant revalidation par Papa, même si la leçon était `validated`.
+    # (`archived` a déjà été refusée 409 en amont ; une leçon `draft` reste `draft`.)
+    lesson.status = "draft"
     job.status = "succeeded"
     job.output_json = {"content_chars": len(lesson.content_markdown), "model": model_used}
     job.finished_at = datetime.now(timezone.utc)
@@ -912,6 +926,8 @@ def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
     lesson.status = "validated" if action == "validate" else "archived"
     db.commit()
     db.refresh(lesson)
+    # Note (ADR-0013) : la génération des cartes SRS n'est PAS un effet de bord de la
+    # validation — elle est pilotée explicitement depuis la page Papa « Cartes SRS ».
     return lesson
 
 
@@ -1035,6 +1051,244 @@ def student_lesson_content(db: Session, lesson_id: int) -> dict:
     }
 
 
+# Fenêtre de « fraîcheur » d'une notion (badge ✨ new des decks ELI5) : une notion est
+# NOUVELLE tant qu'une leçon validée qui l'enseigne a été créée dans cet intervalle.
+# Signal GLOBAL (récence de création, pas par-enfant) — `Skill`/`Chapter` n'ont pas
+# d'horodatage, seule `Lesson` (TimestampMixin) en porte un.
+NOTION_NEW_WINDOW_DAYS = 7
+
+
+def student_notions_summary(db: Session) -> dict:
+    """Compteur de notions VALIDÉES par matière de l'année active (decks ELI5 v2).
+
+    Une notion (`Skill`) est comptée si elle est atteignable via un chapitre `validated`
+    → une leçon `validated` → `LessonSkill` — même chaîne que `student_cours_for_subject`.
+    `new_count` = notions dont une leçon validée porteuse a été créée dans les
+    `NOTION_NEW_WINDOW_DAYS` derniers jours (deck « ✨ new » : contenu fraîchement ajouté
+    au programme). Les deux compteurs en UNE requête agrégée (pas de N+1). Une matière
+    sans rien de validé apparaît à 0/0 (le front affiche « bientôt »), jamais filtrée.
+    """
+    year = _active_year_or_404(db)
+    subject_rows = db.execute(
+        select(SchoolYearSubject.id, Subject.name, Subject.slug)
+        .join(Subject, SchoolYearSubject.subject_id == Subject.id)
+        .where(SchoolYearSubject.school_year_id == year.id)
+        .order_by(Subject.sort_order, Subject.id)
+    ).all()
+
+    sys_ids = [row.id for row in subject_rows]
+    counts: dict[int, tuple[int, int]] = {}
+    if sys_ids:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=NOTION_NEW_WINDOW_DAYS)
+        # `count(distinct(case))` ignore les NULL → ne compte que les notions dont AU MOINS
+        # une leçon validée porteuse est récente (fenêtre de fraîcheur).
+        new_skill = case((Lesson.created_at >= cutoff, LessonSkill.skill_id))
+        counts = {
+            sys_id: (total, new or 0)
+            for sys_id, total, new in db.execute(
+                select(
+                    Chapter.school_year_subject_id,
+                    func.count(distinct(LessonSkill.skill_id)),
+                    func.count(distinct(new_skill)),
+                )
+                .join(Lesson, Lesson.chapter_id == Chapter.id)
+                .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
+                .where(
+                    Chapter.school_year_subject_id.in_(sys_ids),
+                    Chapter.validation_status == "validated",
+                    Lesson.status == "validated",
+                )
+                .group_by(Chapter.school_year_subject_id)
+            ).all()
+        }
+
+    return {
+        "subjects": [
+            {
+                "slug": row.slug,
+                "name": row.name,
+                "notion_count": counts.get(row.id, (0, 0))[0],
+                "new_count": counts.get(row.id, (0, 0))[1],
+            }
+            for row in subject_rows
+        ]
+    }
+
+
+def student_subject_notions(db: Session, subject_slug: str) -> dict:
+    """Notions VALIDÉES d'une matière de l'année active, dédupliquées par `skill_id`.
+
+    Même chaîne de filtrage que `student_cours_for_subject` (chapitres `validated` →
+    leçons `validated` → `LessonSkill` → `Skill`). Une notion rattachée à plusieurs
+    leçons/chapitres n'apparaît qu'une fois ; `chapter_title` = celui de la leçon la
+    plus récente (`updated_at desc`, `id` en départage). Tri : ordre des chapitres du
+    référentiel (`sort_order`) puis nom de notion.
+
+    404 si la matière est inconnue ou absente de l'année active. `notions: []` (pas
+    d'erreur) si la matière existe mais n'a rien de validé — le front a un état positif.
+    """
+    subject = db.scalars(select(Subject).where(Subject.slug == subject_slug)).first()
+    if subject is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject_slug} » inconnue.",
+        )
+    year = _active_year_or_404(db)
+    sys_row = db.scalars(
+        select(SchoolYearSubject).where(
+            SchoolYearSubject.school_year_id == year.id,
+            SchoolYearSubject.subject_id == subject.id,
+        )
+    ).first()
+    if sys_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject.name} » absente de l'année active.",
+        )
+
+    chapters = list(
+        db.scalars(
+            select(Chapter)
+            .where(
+                Chapter.school_year_subject_id == sys_row.id,
+                Chapter.validation_status == "validated",
+            )
+            .order_by(Chapter.sort_order, Chapter.id)
+        )
+    )
+    subject_ref = {"slug": subject.slug, "name": subject.name}
+    if not chapters:
+        return {"subject": subject_ref, "notions": []}
+    chapter_rank = {c.id: i for i, c in enumerate(chapters)}
+    chapter_name = {c.id: c.name for c in chapters}
+
+    # Dédup par skill_id : on garde la leçon validée la plus récente qui l'enseigne
+    # (updated_at desc, id desc en départage) → son chapitre fournit `chapter_title`.
+    best: dict[int, dict] = {}
+    for skill_id, skill_name, chapter_id, updated_at, lesson_id in db.execute(
+        select(Skill.id, Skill.name, Lesson.chapter_id, Lesson.updated_at, Lesson.id)
+        .join(LessonSkill, LessonSkill.skill_id == Skill.id)
+        .join(Lesson, Lesson.id == LessonSkill.lesson_id)
+        .where(Lesson.chapter_id.in_(list(chapter_rank)), Lesson.status == "validated")
+    ).all():
+        recency = (updated_at, lesson_id)
+        current = best.get(skill_id)
+        if current is None or recency > current["recency"]:
+            best[skill_id] = {
+                "skill_id": skill_id,
+                "name": skill_name,
+                "chapter_id": chapter_id,
+                "recency": recency,
+            }
+
+    notions = sorted(
+        best.values(),
+        key=lambda n: (chapter_rank[n["chapter_id"]], n["name"].casefold()),
+    )
+    return {
+        "subject": subject_ref,
+        "notions": [
+            {
+                "skill_id": n["skill_id"],
+                "name": n["name"],
+                "chapter_title": chapter_name[n["chapter_id"]],
+            }
+            for n in notions
+        ],
+    }
+
+
+def lesson_suggestions(db: Session, student_id: int | None = None, limit: int = 3) -> list[dict]:
+    """Notions à explorer (chips ELI5), tirées des LEÇONS EN COURS de Massimo.
+
+    « Leçon en cours » = leçons validées de l'ANNÉE ACTIVE, dans l'ordre du curriculum
+    (chapitre `sort_order` puis leçon `sort_order`). On aplatit leurs notions (dédup par
+    `skill_id`, 1ʳᵉ occurrence garde son titre de leçon) puis on PRIORISE les notions pas
+    encore maîtrisées (SkillMastery). Vide propre si pas d'année active / pas de leçon
+    validée avec notions. Lecture seule (aucune trace).
+    """
+    year = db.scalar(
+        select(SchoolYear).where(SchoolYear.status == "active").order_by(SchoolYear.id.desc())
+    )
+    if year is None:
+        return []
+    sys_ids = list(
+        db.scalars(
+            select(SchoolYearSubject.id).where(SchoolYearSubject.school_year_id == year.id)
+        )
+    )
+    if not sys_ids:
+        return []
+
+    chapters = list(
+        db.scalars(
+            select(Chapter)
+            .where(
+                Chapter.school_year_subject_id.in_(sys_ids),
+                Chapter.validation_status == "validated",
+            )
+            .order_by(Chapter.sort_order, Chapter.id)
+        )
+    )
+    if not chapters:
+        return []
+    chapter_rank = {c.id: i for i, c in enumerate(chapters)}
+
+    lessons = list(
+        db.scalars(
+            select(Lesson).where(
+                Lesson.chapter_id.in_(list(chapter_rank)), Lesson.status == "validated"
+            )
+        )
+    )
+    # Ordre curriculum : chapitre (rang) puis leçon (sort_order).
+    lessons.sort(key=lambda l: (chapter_rank.get(l.chapter_id, len(chapters)), l.sort_order, l.id))
+    if not lessons:
+        return []
+
+    lesson_ids = [l.id for l in lessons]
+    notions_by_lesson: dict[int, list[tuple[int, str]]] = {i: [] for i in lesson_ids}
+    for lid, sid, sname in db.execute(
+        select(LessonSkill.lesson_id, Skill.id, Skill.name)
+        .join(Skill, LessonSkill.skill_id == Skill.id)
+        .where(LessonSkill.lesson_id.in_(lesson_ids))
+        .order_by(Skill.id)
+    ).all():
+        notions_by_lesson[lid].append((sid, sname))
+
+    # Aplatit dans l'ordre curriculum, dédup skill_id (1ʳᵉ occurrence garde son titre).
+    ordered: list[dict] = []
+    seen: set[int] = set()
+    for lesson in lessons:
+        for sid, sname in notions_by_lesson[lesson.id]:
+            if sid in seen:
+                continue
+            seen.add(sid)
+            ordered.append(
+                {"skill_id": sid, "name": sname, "lesson_id": lesson.id, "lesson_title": lesson.title}
+            )
+    if not ordered:
+        return []
+
+    # Priorité aux notions PAS ENCORE maîtrisées (l'ordre curriculum est conservé dans chaque groupe).
+    if student_id is None:
+        first_student = db.scalar(select(StudentProfile).order_by(StudentProfile.id))
+        student_id = first_student.id if first_student else None
+    mastered: set[int] = set()
+    if student_id is not None:
+        mastered = set(
+            db.scalars(
+                select(SkillMastery.skill_id).where(
+                    SkillMastery.student_id == student_id,
+                    SkillMastery.status == "mastered",
+                )
+            )
+        )
+    unmastered = [s for s in ordered if s["skill_id"] not in mastered]
+    rest = [s for s in ordered if s["skill_id"] in mastered]
+    return (unmastered + rest)[:limit]
+
+
 def lessons_out(db: Session, lessons: list[Lesson]) -> list[dict]:
     """Sérialise avec notions dépliées (intitulé + `skill_id`) — jamais la liaison brute."""
     ids = [l.id for l in lessons]
@@ -1088,3 +1342,203 @@ def chapter_out(chapter: Chapter) -> dict:
         "suggested_class": meta.get("suggested_class"),
         "repartition": meta.get("repartition"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Génération « skills-only » pour un niveau antérieur (rattrapage) — ADR-0010.
+#
+# Papa alimente le référentiel de skills d'un niveau du même cycle (ex. 5e) sans
+# créer d'année scolaire rétroactive. Les passes 1 puis 2 sont enchaînées EN MÉMOIRE :
+# chapitres et leçons ne servent que d'échafaudage de cadrage et ne sont JAMAIS
+# persistés (décision 1). Seules les notions, après revue Papa, sont upsertées en
+# `Skill` au niveau cible (confirm), en RÉUTILISANT l'upsert de la passe 2 — même clé,
+# même normalisation, et AUCUNE ligne `lesson_skills` (aucune leçon dans ce flux).
+# ---------------------------------------------------------------------------
+
+
+def _subject_or_404(db: Session, subject_id: int) -> Subject:
+    subject = db.get(Subject, subject_id)
+    if subject is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Matière {subject_id} introuvable."
+        )
+    return subject
+
+
+def _require_cycle4_level(level: str) -> None:
+    """Le rattrapage ne couvre que le cycle 4 (5e|4e|3e) — lycée différé (ADR-0009 §8)."""
+    if level not in CYCLE_4_LEVELS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Niveau « {level} » hors périmètre : le rattrapage skills-only ne couvre "
+                f"que le cycle 4 ({', '.join(CYCLE_4_LEVELS)}). Le lycée est différé "
+                "(ADR-0009 §8)."
+            ),
+        )
+
+
+def _generate_validated(
+    llm: LLMProvider, system: str, prompt: str, schema: dict, model_cls, repair_instruction: str
+) -> tuple[object, str]:
+    """Génère → valide (`model_cls`) → UNE réparation → (objet validé, modèle utilisé).
+
+    Reproduit le pipeline des passes 1 et 2 (sortie structurée `fmt`, une seule réparation
+    réinjectant réponse fautive + erreur concrète). Lève `CurriculumGenerationError` si la
+    sortie reste invalide après réparation. Factorise la mécanique pour l'orchestration
+    skills-backfill (N appels) ; les passes 1/2 gardent leur version inline (trace couplée).
+    """
+    response = llm.generate(LLMRequest(system=system, prompt=prompt, fmt=schema))
+    raw, model_used = response.text, response.model
+    result, error = _try_validate(raw, model_cls)
+    if result is None:
+        repair_prompt = (
+            f"{prompt}\n\n--- Ta réponse précédente (invalide) ---\n{raw}\n\n"
+            f"{repair_instruction}{error}"
+        )
+        response = llm.generate(LLMRequest(system=system, prompt=repair_prompt, fmt=schema))
+        raw, model_used = response.text, response.model
+        result, error = _try_validate(raw, model_cls)
+    if result is None:
+        raise CurriculumGenerationError(
+            f"{model_cls.__name__} invalide après réparation : {error}"
+        )
+    return result, model_used
+
+
+def _dedupe_notions(names: list[str]) -> list[str]:
+    """Dédup par nom normalisé (même clé que l'upsert `Skill`), ordre de 1re apparition,
+    forme « jolie » (espaces normalisés) conservée. Les intitulés vides sont écartés."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in names:
+        pretty = " ".join(raw.split())
+        key = _normalize_skill_name(pretty)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(pretty)
+    return out
+
+
+def generate_skills_backfill(
+    db: Session, llm: LLMProvider, subject_id: int, level: str
+) -> dict:
+    """Passe 1 + passe 2 EN MÉMOIRE pour (matière, niveau du cycle 4) — ADR-0010.
+
+    Ne persiste NI `Chapter`, NI `Lesson`, NI `LessonSkill` : seule une trace `ai_jobs`
+    (`curriculum_skills_backfill`) est écrite. Retourne la prévisualisation des notions
+    groupées par chapitre d'échafaudage (dédupliquées) + `failed_scaffolds`. Lève
+    `CurriculumGenerationError` si la passe 1 (chapitres) échoue — sans chapitres, rien à
+    prévisualiser. L'échec de passe 2 sur UN chapitre d'échafaudage n'avorte pas les autres.
+    """
+    _require_cycle4_level(level)
+    subject = _subject_or_404(db, subject_id)
+    cycle = CYCLE_BY_LEVEL.get(level, level)
+    program_version = DEFAULT_PROGRAM_VERSION
+
+    now = datetime.now(timezone.utc)
+    job = AIJob(
+        job_type="curriculum_skills_backfill",
+        status="running",
+        input_json={
+            "subject_id": subject.id,
+            "subject": subject.name,
+            "level": level,
+            "cycle": cycle,
+            "program_version": program_version,
+            "prompt_version": curriculum.CURRICULUM_PROMPT_VERSION,
+            "provider": type(llm).__name__,
+        },
+        created_by="parent",
+        created_at=now,
+        started_at=now,
+    )
+    db.add(job)
+    db.flush()
+
+    try:
+        # Passe 1 (mémoire) : chapitres d'échafaudage. `existing=[]` : on part du
+        # référentiel officiel vierge pour ce niveau, rien à compléter (décision 1).
+        system, prompt = curriculum.build_chapters_prompt(
+            subject.name, level, cycle, program_version, []
+        )
+        chapters_result, model_used = _generate_validated(
+            llm, system, prompt, generation_schema(),
+            GeneratedChapters, curriculum.REPAIR_INSTRUCTION,
+        )
+    except CurriculumGenerationError as exc:
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        raise
+    except Exception as exc:  # noqa: BLE001 — erreur provider/réseau : on trace puis on remonte.
+        job.status = "failed"
+        job.error_message = str(exc)[:1000]
+        job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        raise CurriculumGenerationError(f"Appel LLM échoué : {exc}") from exc
+
+    # Passe 2 (mémoire), un chapitre d'échafaudage à la fois. Un échec (invalide après
+    # réparation OU réseau) sur l'un n'avorte pas les autres : on le signale (décision 4).
+    groups: list[dict] = []
+    failed_scaffolds: list[str] = []
+    for gc in chapters_result.chapters:
+        try:
+            system, prompt = curriculum.build_lessons_prompt(
+                subject.name, level, cycle,
+                {"name": gc.title, "description": gc.description, "themes": gc.themes},
+                program_version, [],
+            )
+            lessons_result, _ = _generate_validated(
+                llm, system, prompt, lessons_generation_schema(),
+                GeneratedLessons, curriculum.LESSONS_REPAIR_INSTRUCTION,
+            )
+        except Exception:  # noqa: BLE001 — échafaudage en échec : signalé, on poursuit.
+            failed_scaffolds.append(gc.title)
+            continue
+        notions = _dedupe_notions([n for gl in lessons_result.lessons for n in gl.notions])
+        groups.append({"scaffold_chapter": gc.title, "notions": notions})
+
+    job.status = "succeeded"
+    job.output_json = {
+        "scaffolds_total": len(chapters_result.chapters),
+        "scaffolds_ok": len(groups),
+        "scaffolds_failed": len(failed_scaffolds),
+        "notions_total": sum(len(g["notions"]) for g in groups),
+        "model": model_used,
+    }
+    job.finished_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {
+        "subject_id": subject.id,
+        "subject_name": subject.name,
+        "level": level,
+        "cycle": cycle,
+        "program_version": program_version,
+        "groups": groups,
+        "failed_scaffolds": failed_scaffolds,
+    }
+
+
+def confirm_skills_backfill(
+    db: Session, subject_id: int, level: str, notion_names: list[str]
+) -> dict:
+    """Upsert des notions revues en `Skill` au niveau cible — ADR-0010, décision 2/4.
+
+    Réutilise `_upsert_skills` de la passe 2 (même clé (subject_id, level, nom normalisé),
+    même dédup) SANS créer aucune ligne `lesson_skills` (aucune leçon dans ce flux).
+    Idempotent : re-confirmer une liste identique renvoie `created=0`. Retourne le nombre
+    de notions créées vs déjà présentes."""
+    _require_cycle4_level(level)
+    subject = _subject_or_404(db, subject_id)
+
+    _, created = _upsert_skills(db, subject.id, level, notion_names)
+    db.commit()
+
+    # « Déjà présentes » = notions distinctes non vides (même normalisation que l'upsert)
+    # qui n'ont pas été créées à ce passage — idempotence : tout re-confirm → existing=n.
+    unique_keys = {k for k in (_normalize_skill_name(n) for n in notion_names) if k}
+    return {"created": created, "existing": len(unique_keys) - created}

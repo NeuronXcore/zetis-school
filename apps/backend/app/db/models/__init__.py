@@ -1,13 +1,16 @@
 from app.db.models.ai import AIJob
 from app.db.models.assessment import Quiz, QuizAnswer, QuizAttempt, QuizQuestion
-from app.db.models.content import Capsule, Mindmap
+from app.db.models.content import Capsule, Fiche, Mindmap, MindmapAttempt
 from app.db.models.rag import RagChunk, RagDocument
+from app.db.models.reports import CouncilReport
 from app.db.models.progress import (
     CapsuleView,
+    FicheView,
     Gap,
     LearningEvent,
     Mission,
     MissionStep,
+    NotionRequest,
     SkillMastery,
     SpacedReviewAttempt,
     SpacedReviewCard,
@@ -44,6 +47,7 @@ __all__ = [
     "QuizAnswer",
     "SkillMastery",
     "Gap",
+    "NotionRequest",
     "Mission",
     "MissionStep",
     "XPEvent",
@@ -51,9 +55,13 @@ __all__ = [
     "SpacedReviewCard",
     "SpacedReviewAttempt",
     "CapsuleView",
+    "FicheView",
     "Capsule",
+    "Fiche",
     "Mindmap",
+    "MindmapAttempt",
     "AIJob",
     "RagDocument",
     "RagChunk",
+    "CouncilReport",
 ]

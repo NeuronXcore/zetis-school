@@ -6,6 +6,7 @@ reorder, invariant vie privée, erreur explicite sans clé API.
 """
 
 import json
+import re
 
 import pytest
 from fastapi import HTTPException
@@ -67,9 +68,24 @@ def _jobs(db) -> list[m.AIJob]:
 
 
 def test_few_shots_are_valid_generated_chapters() -> None:
-    """Les exemples few-shot du prompt v1 restent conformes au schéma de production."""
+    """Les exemples few-shot du prompt restent conformes au schéma de production."""
     for shot in curriculum.FEW_SHOTS:
         GeneratedChapters.model_validate(shot["output"])
+
+
+def test_few_shots_are_strictly_mono_level() -> None:
+    """ADR-0010, décision 5 : la passe 1 est strictement mono-niveau. Dans chaque exemple
+    few-shot, tous les `suggested_class` valent le niveau annoncé dans le `context` — ce
+    verrou empêche le débordement 5e/4e (corrigé sur l'exemple SVT) de réapparaître."""
+    for shot in curriculum.FEW_SHOTS:
+        match = re.search(r"Niveau\s*:\s*(\S+)", shot["context"])
+        assert match, f"contexte sans niveau détectable : {shot['context']!r}"
+        level = match.group(1)
+        for chapter in shot["output"]["chapters"]:
+            assert chapter["suggested_class"] == level, (
+                f"few-shot {shot['output']['subject']!r} : suggested_class "
+                f"{chapter['suggested_class']!r} ≠ niveau annoncé {level!r}"
+            )
 
 
 def test_generate_creates_pending_generated_chapters(client_db) -> None:

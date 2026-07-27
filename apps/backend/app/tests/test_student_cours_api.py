@@ -48,6 +48,9 @@ def _seed_referential(Session) -> dict:
         # brouillon, archivée — seules les deux premières doivent sortir.
         with_content = create_manual_lesson(db, validated.id, title="Règle des signes")
         generate_lesson_content(db, FakeLLMProvider(), with_content.id)
+        # La rédaction remet la leçon en `draft` (gate du cours canonique, addendum
+        # ADR-0009 §A) : Papa relit le cours puis la revalide → cours validé visible.
+        with_content.status = "validated"
         without_content = create_manual_lesson(db, validated.id, title="Produits de relatifs")
         draft = create_manual_lesson(db, validated.id, title="Brouillon caché")
         draft.status = "draft"

@@ -6,6 +6,8 @@ import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { AddChapterForm } from "../components/programme/AddChapterForm";
 import { ChapterRow } from "../components/programme/ChapterRow";
 import { LessonsPanel } from "../components/programme/LessonsPanel";
+import { NotionRequestsPanel } from "../components/programme/NotionRequestsPanel";
+import { SkillsBackfillModal } from "../components/programme/SkillsBackfillModal";
 import { SubjectBatchBar } from "../components/programme/SubjectBatchBar";
 import { SubjectPills } from "../components/programme/SubjectPills";
 import {
@@ -21,6 +23,7 @@ import { cycleForLevel } from "../lib/yearDisplay";
 export function ProgrammePage() {
   const data = useCurriculum();
   const [adding, setAdding] = useState(false);
+  const [backfillOpen, setBackfillOpen] = useState(false);
   const [validateDialogOpen, setValidateDialogOpen] = useState(false);
   const [validating, setValidating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -92,9 +95,28 @@ export function ProgrammePage() {
             >
               ✓ Tout valider
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => setBackfillOpen(true)}
+              disabled={
+                data.generating || data.subjectBatch !== null || data.selectedSysId === null
+              }
+              title="Générer les notions d'un niveau antérieur (rattrapage)"
+            >
+              🎯 Rattrapage
+            </Button>
           </div>
         }
       />
+
+      {backfillOpen && selectedSubject && data.year && (
+        <SkillsBackfillModal
+          subjectId={selectedSubject.subject_id}
+          subjectName={selectedSubject.subject_name}
+          activeLevel={data.year.level}
+          onClose={() => setBackfillOpen(false)}
+        />
+      )}
 
       <ValidateAllDialog
         open={validateDialogOpen}
@@ -110,6 +132,11 @@ export function ProgrammePage() {
           {notice}
         </p>
       )}
+
+      {/* Demandes de notions hors-programme envoyées par Massimo depuis ELI5. */}
+      <div className="mb-4">
+        <NotionRequestsPanel />
+      </div>
 
       {data.generating && (
         <div className="mb-4">

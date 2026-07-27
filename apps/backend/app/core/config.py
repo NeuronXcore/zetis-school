@@ -51,6 +51,82 @@ class Settings(BaseSettings):
     )
     anthropic_model: str = Field(default="claude-sonnet-5", validation_alias="ANTHROPIC_MODEL")
 
+    # --- Missions (ADR-0017 lot 1) : récompense d'effort + seuils du verdict d'acquisition. ---
+    # L'XP récompense l'EFFORT (crédité à la complétion, inconditionnel) : +50 (arbitrage 5bis,
+    # valeur DATA_MODEL.md retenue). Le VERDICT (acquired vs review_later) est découplé : il
+    # exige score reverse ET score quiz ≥ seuils. Seuils versionnés avec le scoring (Lot 2).
+    mission_xp_reward: int = Field(default=50, validation_alias="MISSION_XP_REWARD")
+    mission_reverse_threshold: int = Field(default=70, validation_alias="MISSION_REVERSE_THRESHOLD")
+    mission_quiz_threshold: int = Field(default=70, validation_alias="MISSION_QUIZ_THRESHOLD")
+    # ADR-0019 (verdict option B) : seuil du signal de rappel « mindmap ». Une reconstruction
+    # ≥ ce seuil peut tenir lieu de rappel à la place du quiz dans le verdict d'acquisition.
+    mission_mindmap_threshold: int = Field(default=70, validation_alias="MISSION_MINDMAP_THRESHOLD")
+
+    # --- Sélecteur de la mission du jour (ADR-0017 lot 2, décision 2) : scoring DÉTERMINISTE,
+    # zéro LLM. La formule est VERSIONNÉE (`MISSION_SCORING_VERSION` couvre formule ET templates
+    # d'étapes) : tout changement de facteur/pondération = bump, tracé dans la sortie du sélecteur.
+    # Pondérations et seuils vivent ICI, jamais dans le code du service. ---
+    # v2 (ADR-0018) : le facteur `forced_priority` lit le flag `mission.force_priority` au lieu du
+    # type `manual`. v3 (ADR-0019) : le parcours généré peut inclure un step `mindmap`, et le
+    # verdict admet la reconstruction comme signal de rappel (option B). Le versionnage couvre
+    # formule ET templates de parcours — tout changement = bump tracé.
+    mission_scoring_version: str = Field(default="v3", validation_alias="MISSION_SCORING_VERSION")
+    mission_weight_severity: float = Field(default=1.0, validation_alias="MISSION_WEIGHT_SEVERITY")
+    mission_weight_due_pressure: float = Field(
+        default=0.8, validation_alias="MISSION_WEIGHT_DUE_PRESSURE"
+    )
+    mission_weight_continuity: float = Field(
+        default=0.6, validation_alias="MISSION_WEIGHT_CONTINUITY"
+    )
+    # `variety` est un MALUS (soustrait) : anti-répétition si la même matière a été élue la veille
+    # (proxy déterministe : matière de la dernière mission complétée — l'ADR interdit de stocker
+    # les élections).
+    mission_weight_variety: float = Field(default=0.5, validation_alias="MISSION_WEIGHT_VARIETY")
+    # Plancher des missions `manual` (priorité forcée Papa) : domine le score sans jamais être
+    # dominé (une mission « avant le contrôle » court-circuite le score, jamais l'inverse).
+    mission_weight_forced_priority: float = Field(
+        default=100.0, validation_alias="MISSION_WEIGHT_FORCED_PRIORITY"
+    )
+    # Nombre de cartes dues qui sature `due_pressure` à 1.0.
+    mission_due_pressure_cap: int = Field(default=6, validation_alias="MISSION_DUE_PRESSURE_CAP")
+    # Générateur `revision` (ADR-0017 §5, amendé 2026-07-06) : UNE mission par notion due, bornée
+    # aux N notions les plus en retard (mono-notion — le verdict d'acquisition §5bis l'exige ; N
+    # borne aussi la file de validation Papa).
+    mission_revision_top_n: int = Field(default=3, validation_alias="MISSION_REVISION_TOP_N")
+
+    # --- Commander une mission (ADR-0018) : Papa apporte le scope, ZETIS résout les notions les
+    # plus fragiles, une mission mono-skill par notion cochée. Seuil et plafond versionnés
+    # (`MISSION_COMMAND_VERSION`), même discipline que le scoring. ---
+    mission_command_version: str = Field(default="v1", validation_alias="MISSION_COMMAND_VERSION")
+    # Une notion `mastery ≥ seuil` arrive décochée par défaut (recochable côté Papa).
+    mission_command_mastered_threshold: float = Field(
+        default=0.8, validation_alias="MISSION_COMMAND_MASTERED_THRESHOLD"
+    )
+    # Plafond de notions cochées par commande = plafond de missions créées (fan-out atomique).
+    mission_command_max_skills: int = Field(
+        default=3, validation_alias="MISSION_COMMAND_MAX_SKILLS"
+    )
+
+    # --- Missions croisées « champion » (ADR-0022) : UNE mission multi-matières, multi-outils,
+    # verdict PAR NOTION. Papa choisit une saveur (boss/consolidation/mix) puis ZETIS compose ; la
+    # mission est exclue du sélecteur quotidien (jamais élue « mission du jour », ADR-0017 §6). Les
+    # seuils de verdict (`mission_{reverse,quiz,mindmap}_threshold`) sont RÉUTILISÉS tels quels. ---
+    mission_champion_version: str = Field(
+        default="v1", validation_alias="MISSION_CHAMPION_VERSION"
+    )
+    # Plafond de notions d'un défi champion (borne la longueur — une champion dépasse volontairement
+    # le budget 15 min, c'est un défi). ≥ 2 matières distinctes exigées (sinon ce n'est pas croisé).
+    mission_champion_max_skills: int = Field(
+        default=3, validation_alias="MISSION_CHAMPION_MAX_SKILLS"
+    )
+    # XP majoré (l'effort d'un défi transversal) : forfait de base + bonus par notion travaillée.
+    mission_champion_xp_base: int = Field(
+        default=80, validation_alias="MISSION_CHAMPION_XP_BASE"
+    )
+    mission_champion_xp_per_notion: int = Field(
+        default=30, validation_alias="MISSION_CHAMPION_XP_PER_NOTION"
+    )
+
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
     # Découplé de `llm_provider` : les embeddings restent sur ollama même si la
     # génération passe sur MLX (évite toute migration pgvector). Cf. ADR-0008.
@@ -79,6 +155,20 @@ class Settings(BaseSettings):
     piper_speaker: int | None = Field(default=None, validation_alias="PIPER_SPEAKER")
     audio_storage_dir: str = Field(
         default="storage/generated", validation_alias="AUDIO_STORAGE_DIR"
+    )
+
+    # --- STT (dictée ELI5, ADR-0012) : Whisper LOCAL via faster-whisper. 100 % local,
+    # aucun tiers (vie privée de Massimo). Dépendance optionnelle `[stt]` : sans elle,
+    # l'endpoint /transcribe répond 503 et le frontend masque le micro. ---
+    stt_provider: str = Field(default="faster-whisper", validation_alias="STT_PROVIDER")
+    # 'small' = rapide sur CPU/Apple Silicon (défaut), déjà bon en français. Pour plus de
+    # précision (plus lent) : 'medium' (bon compromis) ou 'large-v3' (max, ~3 Go).
+    whisper_model: str = Field(default="small", validation_alias="WHISPER_MODEL")
+    whisper_device: str = Field(default="cpu", validation_alias="WHISPER_DEVICE")
+    # int8 = rapide/léger. Pour grappiller un peu de précision : 'int8_float16' ou 'float32'
+    # (plus lent, plus de RAM). Le levier dominant reste la taille du modèle ci-dessus.
+    whisper_compute_type: str = Field(
+        default="int8", validation_alias="WHISPER_COMPUTE_TYPE"
     )
 
     # --- Stockage objet des vidéos de capsule (Lot 2) : 'disk' (fallback dev) | 'minio'. ---

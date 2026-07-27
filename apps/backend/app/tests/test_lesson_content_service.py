@@ -259,3 +259,19 @@ def test_ai_generated_draft_lesson_is_writable(client_db) -> None:
 
         assert lesson.status == "draft"  # la rédaction ne valide pas la leçon
         assert lesson.content_markdown is not None
+
+
+def test_generate_content_resets_validated_lesson_to_draft(client_db) -> None:
+    """Gate du cours canonique (addendum ADR-0009 §A) : (re)générer le cours d'une leçon
+    VALIDÉE la repasse en `draft` — un cours réécrit non relu ne doit plus alimenter les
+    dérivés ni Massimo avant revalidation par Papa. (`archived` reste 409, cf. test dédié.)"""
+    _, Session = client_db
+    with Session() as db:
+        lesson_id = _seed_lesson(db, status="validated")
+        assert db.get(m.Lesson, lesson_id).status == "validated"
+
+        lesson = generate_lesson_content(db, FakeLLMProvider(), lesson_id)
+
+        assert lesson.status == "draft"
+        assert lesson.content_markdown is not None
+        assert db.get(m.Lesson, lesson_id).status == "draft"  # persisté en base

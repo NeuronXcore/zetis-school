@@ -11,8 +11,10 @@ vi.mock("../lib/cours", () => ({
   fetchStudentCours: vi.fn(),
   fetchStudentLessonCours: vi.fn(),
 }));
+vi.mock("../lib/quiz", () => ({ fetchSubjectQuizzes: vi.fn() }));
 
 import { fetchStudentCours, fetchStudentLessonCours } from "../lib/cours";
+import { fetchSubjectQuizzes } from "../lib/quiz";
 
 const COURS: StudentCours = {
   subject_id: 1,
@@ -40,6 +42,7 @@ const COURS: StudentCours = {
 beforeEach(() => {
   vi.mocked(fetchStudentCours).mockReset().mockResolvedValue(COURS);
   vi.mocked(fetchStudentLessonCours).mockReset();
+  vi.mocked(fetchSubjectQuizzes).mockReset().mockResolvedValue([]);
 });
 
 function renderPage() {
@@ -82,5 +85,14 @@ describe("CoursPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "← Retour aux leçons" }));
     expect(await screen.findByRole("button", { name: "Lire →" })).toBeInTheDocument();
+  });
+
+  it("affiche le bouton 🎯 Quiz sur une leçon qui a un quiz", async () => {
+    vi.mocked(fetchSubjectQuizzes).mockResolvedValue([
+      { quiz_id: 9, title: "Quiz — Lire et comprendre", lesson_id: 1, questions: [] },
+    ]);
+    renderPage();
+    // Le bouton apparaît après le fetch non bloquant des quiz de la matière.
+    expect(await screen.findByRole("button", { name: /Quiz/ })).toBeInTheDocument();
   });
 });

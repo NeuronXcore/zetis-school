@@ -29,6 +29,258 @@
   --color-ring: var(--color-zetis-accent);
 }
 
+/* Entrée du toast XP de la page ELI5 (utilisé via motion-safe: — respecte
+   prefers-reduced-motion, qui neutralise l'animation). */
+@keyframes eli5-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Flottement doux de l'icône de marque ELI5 (en-tête). motion-safe: uniquement. */
+@keyframes eli5-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(2deg);
+  }
+}
+
+/* Bulles d'explication qui filent d'ELI5 vers ZETIS (en-tête). motion-safe: uniquement. */
+@keyframes eli5-talk {
+  0% {
+    transform: translateX(0) scale(0.5);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(40px) scale(0.5);
+    opacity: 0;
+  }
+}
+
+/* ── Emblème animé ELI5 (en-tête écran 1) : le CONCEPT « Explique comme à un enfant ».
+   Des symboles de complexité (❓🔢🧩🌀) tournent autour de l'ampoule = l'idée ; celle-ci
+   s'illumine par à-coups — le « aha ! » — en projetant des étincelles. Toutes ces
+   animations sont posées en motion-safe: → figées et propres sous prefers-reduced-motion. */
+
+/* Halo « idée » qui respire derrière l'ampoule. */
+@keyframes eli5-idea-glow {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.12);
+  }
+}
+
+/* Ronde des symboles de complexité autour de l'idée. */
+@keyframes eli5-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* L'ampoule « comprend » : petit sursaut + flash lumineux (le déclic), puis repos. */
+@keyframes eli5-aha {
+  0%,
+  60%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 0 0 rgba(34, 211, 238, 0));
+  }
+  70% {
+    transform: scale(1.18) rotate(-4deg);
+    filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.95));
+  }
+  80% {
+    transform: scale(1.08) rotate(3deg);
+    filter: drop-shadow(0 0 7px rgba(99, 102, 241, 0.6));
+  }
+}
+
+/* Étincelles du déclic — synchronisées avec le flash de l'ampoule (~70 % du cycle). */
+@keyframes eli5-spark {
+  0%,
+  55% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+/* Confettis du palier haut de la révision (SessionEndPopup). Animés en dur mais
+   déclenchés uniquement hors prefers-reduced-motion (garde côté composant) puis
+   purgés après ~4 s. */
+@keyframes zetis-confetti-fall {
+  0% {
+    transform: translateY(-10%) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(560px) rotate(320deg);
+    opacity: 0;
+  }
+}
+
+/* Bannière « Mémoire durable » (SRS) de la page Révision — motion-safe: uniquement. */
+/* Flottement doux de l'illustration SRS. */
+@keyframes srs-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-9px) rotate(1deg);
+  }
+}
+/* Tracé progressif de la courbe de mémoire (SVG pathLength=1 → dashoffset 1→0). */
+@keyframes srs-draw {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  65%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+/* Pulsation des points de révision espacés (J+1, J+3, J+7…), déclenchés en cascade. */
+@keyframes srs-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+/* Icône SRS : retournement « carte » périodique (la surprise). Perspective incluse dans le
+   transform pour ne pas dépendre d'un parent `perspective`. Reste face avant 70 % du temps,
+   puis un flip complet + petit pop. */
+@keyframes srs-flip {
+  0%,
+  70% {
+    transform: perspective(700px) rotateY(0deg);
+  }
+  84% {
+    transform: perspective(700px) rotateY(180deg) scale(1.08);
+  }
+  100% {
+    transform: perspective(700px) rotateY(360deg) scale(1);
+  }
+}
+/* Halo derrière l'icône, qui gonfle au moment du flip. */
+@keyframes srs-halo {
+  0%,
+  68%,
+  100% {
+    opacity: 0.22;
+    transform: scale(1);
+  }
+  84% {
+    opacity: 0.6;
+    transform: scale(1.22);
+  }
+}
+/* Étincelles qui scintillent autour de l'icône. */
+@keyframes srs-sparkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4) rotate(0deg);
+  }
+  45%,
+  55% {
+    opacity: 1;
+    transform: scale(1) rotate(35deg);
+  }
+}
+/* Reconstruire : un nœud bien placé devient doré → petit « pop » de récompense (une fois, au
+   moment où il passe en doré). motion-safe uniquement. */
+@keyframes mm-gold-pop {
+  0% {
+    transform: scale(0.9);
+  }
+  55% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+/* Points de progression des PASSES (Mémorise / Reconstruire) : la passe en cours « respire »
+   (scale + lueur via currentColor) ; done/todo sont statiques (transition douce au changement). */
+@keyframes mm-dot-active {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+  50% {
+    transform: scale(1.35);
+    box-shadow: 0 0 9px 1px currentColor;
+  }
+}
+/* Popup éphémère de félicitation (Reconstruire) : apparaît, gonfle, monte puis s'efface. */
+@keyframes mm-cheer {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.8);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1.08);
+  }
+  32% {
+    transform: translateY(0) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.96);
+  }
+}
+/* Bouton « Voir la fiche » (page mindmap) : halo cyan qui respire pour inviter au clic quand la
+   fiche est fermée. Discret (léger scale + lueur pulsée), motion-safe uniquement. */
+@keyframes mm-fiche-cta {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 16px 2px rgba(34, 211, 238, 0.5);
+    transform: scale(1.05);
+  }
+}
+
 html,
 body,
 #root {
@@ -41,3 +293,7 @@ body {
   color: var(--color-zetis-text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+
+/* L'impression de la fiche ne passe PLUS par un @media print du shell (hauteur fixe + scroll
+   interne → page blanche). Elle se fait via un rendu clair A5 dédié capturé en image (FicheA5 +
+   lib/ficheExport) : téléchargement PNG ou document A5 autonome à imprimer. */

@@ -17,6 +17,43 @@ XP_PER_LEVEL = 100
 # Récompenses par action (le crédit mission vit dans le module missions : +20).
 XP_ELI5_REVERSE = 10
 XP_DIAGNOSTIC = 15
+# Quiz de fin de cours (ADR-0014) : base d'effort + bonus proportionnel au score.
+XP_QUIZ_BASE = 10  # forfait « terminé » — l'effort est récompensé, jamais 0 (CLAUDE.md)
+XP_QUIZ_MAX = 30  # atteint sur un score parfait (100 %)
+# Reconstruction de mindmap (ADR-0016) : même barème d'effort + performance que le quiz.
+XP_MINDMAP_BASE = 10
+XP_MINDMAP_MAX = 30
+
+
+def quiz_xp(score_percent: int) -> int:
+    """XP d'un quiz terminé : base d'effort + bonus selon le score. 0 % → 10, 100 % → 30.
+
+    Récompense l'engagement ET la performance sans jamais punir (aucun 0 après un quiz joué
+    jusqu'au bout). Fonction pure, testée."""
+    clamped = max(0, min(100, score_percent))
+    bonus = round((XP_QUIZ_MAX - XP_QUIZ_BASE) * clamped / 100)
+    return XP_QUIZ_BASE + bonus
+
+
+XP_MINDMAP_FAIL_PENALTY = 5  # XP retirés par tentative ratée pendant une séance de reconstruction
+
+
+def mindmap_xp(score_percent: int) -> int:
+    """XP d'une reconstruction de mindmap : base d'effort + bonus selon le score. 0 % → 10, 100 % → 30.
+
+    Même esprit que `quiz_xp` (jamais 0 après une tentative jouée). Fonction pure, testée."""
+    clamped = max(0, min(100, score_percent))
+    bonus = round((XP_MINDMAP_MAX - XP_MINDMAP_BASE) * clamped / 100)
+    return XP_MINDMAP_BASE + bonus
+
+
+def mindmap_reconstruction_xp(score_percent: int, failed_attempts: int = 0) -> int:
+    """XP d'une reconstruction RÉUSSIE, réduit par le nombre d'échecs de la séance.
+
+    L'effort reste récompensé (plancher = base) : chaque tentative ratée retire un forfait, mais on
+    ne descend jamais sous `XP_MINDMAP_BASE`. Déterministe (mêmes score + échecs → même XP)."""
+    base = mindmap_xp(score_percent)
+    return max(XP_MINDMAP_BASE, base - XP_MINDMAP_FAIL_PENALTY * max(0, failed_attempts))
 
 
 def award_xp(
@@ -59,7 +96,13 @@ def _compute_streak(dates: set, today) -> tuple[int, bool]:
 
 
 def _badges(
-    *, total_xp: int, streak: int, mission_count: int, diag_done: bool, eli5_count: int
+    *,
+    total_xp: int,
+    streak: int,
+    mission_count: int,
+    diag_done: bool,
+    eli5_count: int,
+    champion_count: int = 0,
 ) -> list[dict]:
     earned: list[dict] = []
 
@@ -70,6 +113,8 @@ def _badges(
         add("first_mission", "Première mission", "🎯")
     if mission_count >= 5:
         add("persevering", "Persévérant", "🏅")
+    if champion_count >= 1:  # ADR-0022 : un défi croisé relevé
+        add("champion", "Champion", "🏆")
     if eli5_count >= 1:
         add("explainer", "Petit prof", "🗣️")
     if diag_done:
@@ -98,7 +143,11 @@ def summary(db: Session, student: StudentProfile) -> dict:
     today = datetime.now(timezone.utc).date()
     streak, active_today = _compute_streak(dates, today)
 
-    mission_count = sum(1 for e in events if e.reason == "mission_remediation")
+    # Les défis champion (ADR-0022) comptent aussi comme missions accomplies (badges génériques).
+    champion_count = sum(1 for e in events if e.reason == "mission_champion")
+    mission_count = (
+        sum(1 for e in events if e.reason == "mission_remediation") + champion_count
+    )
     eli5_count = sum(1 for e in events if e.reason == "eli5_reverse")
     diag_done = any(e.reason == "diagnostic" for e in events)
 
@@ -115,6 +164,7 @@ def summary(db: Session, student: StudentProfile) -> dict:
             mission_count=mission_count,
             diag_done=diag_done,
             eli5_count=eli5_count,
+            champion_count=champion_count,
         ),
         "recent": [
             {

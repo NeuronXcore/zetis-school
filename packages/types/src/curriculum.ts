@@ -163,6 +163,37 @@ export interface StudentLessonContent {
   content: string;
 }
 
+/** Decks de notions validées (ELI5 v2) : entrée par matière, lecture seule. Route
+ *  NEUTRE (pas de préfixe `/eli5/`) — d'autres dérivés la consommeront. */
+export interface NotionSummarySubject {
+  slug: string;
+  name: string;
+  /** Notions (`Skill`) distinctes atteignables via chapitres+leçons validés ;
+   *  0 = matière encore vide côté validé (front : « bientôt »), jamais filtrée. */
+  notion_count: number;
+  /** Notions fraîchement ajoutées (leçon validée porteuse créée récemment) → deck « ✨ new ». */
+  new_count: number;
+}
+
+/** `GET /api/student/notions/summary` — compteurs par matière de l'année active. */
+export interface StudentNotionsSummary {
+  subjects: NotionSummarySubject[];
+}
+
+export interface SubjectNotionRef {
+  skill_id: number;
+  name: string;
+  /** Chapitre de la leçon validée la plus récente qui enseigne cette notion. */
+  chapter_title: string;
+}
+
+/** `GET /api/student/subjects/{subject_slug}/notions` — notions validées dédupliquées
+ *  par `skill_id`. 404 hors année active ; `notions: []` si rien de validé. */
+export interface SubjectNotions {
+  subject: { slug: string; name: string };
+  notions: SubjectNotionRef[];
+}
+
 /** Matière de l'année active — `id` = school_year_subject_id (clé des routes chapitres). */
 export interface SchoolYearSubjectRef {
   id: number;
@@ -180,4 +211,56 @@ export interface ActiveSchoolYear {
   label: string;
   level: string;
   subjects: SchoolYearSubjectRef[];
+}
+
+/* ---------------------------------------------------------------------------
+ * Génération « skills-only » pour un niveau antérieur (rattrapage) — ADR-0010.
+ * Flux stateless : generate (prévisualisation en mémoire, rien de persisté) →
+ * revue Papa → confirm (upsert des `Skill` au niveau cible). Aucun chapitre, aucune
+ * leçon, aucune liaison n'est créé par ce chemin.
+ * --------------------------------------------------------------------------- */
+
+/** `POST /api/curriculum/skills-backfill/generate` — { subject_id, level } ;
+ *  `level` ∈ cycle 4 (5e|4e|3e), sinon 400. */
+export interface SkillsBackfillGenerateRequest {
+  subject_id: number;
+  level: string;
+}
+
+/** Notions d'un chapitre d'échafaudage (jeté après génération), dédupliquées. */
+export interface SkillsBackfillGroup {
+  scaffold_chapter: string;
+  notions: string[];
+}
+
+/** Réponse de `generate` : prévisualisation revue par Papa avant confirmation.
+ *  `failed_scaffolds` = échafaudages dont la passe 2 a échoué (liste partielle assumée). */
+export interface SkillsBackfillPreview {
+  subject_id: number;
+  subject_name: string;
+  level: string;
+  cycle: string;
+  program_version: string;
+  groups: SkillsBackfillGroup[];
+  failed_scaffolds: string[];
+}
+
+/** Notion revue par Papa (éditée/élaguée côté client) ; `scaffold_chapter` conservé
+ *  comme contexte même si l'upsert ne le persiste pas encore. */
+export interface SkillsBackfillNotion {
+  scaffold_chapter: string;
+  name: string;
+}
+
+/** `POST /api/curriculum/skills-backfill/confirm` — le client porte la liste revue. */
+export interface SkillsBackfillConfirmRequest {
+  subject_id: number;
+  level: string;
+  notions: SkillsBackfillNotion[];
+}
+
+/** Réponse de `confirm` : notions créées vs déjà présentes (idempotence). */
+export interface SkillsBackfillConfirmResult {
+  created: number;
+  existing: number;
 }

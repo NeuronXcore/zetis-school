@@ -74,19 +74,6 @@ export const EVENTS: LearningEvent[] = [
   { date: "26/06", subject: "Anglais", text: "Lacune résolue : present simple consolidé après 3 réussites." },
 ];
 
-export interface CouncilEntry {
-  subject: string;
-  strong: string;
-  toReinforce: string;
-  action: string;
-}
-
-export const CLASS_COUNCIL: CouncilEntry[] = [
-  { subject: "Français", strong: "lecture plus régulière", toReinforce: "temps du récit, justification des réponses", action: "2 missions courtes + 1 ELI5 reverse" },
-  { subject: "Mathématiques", strong: "calcul mental en progrès", toReinforce: "nombres relatifs", action: "1 capsule + 1 quiz de suivi" },
-  { subject: "SVT", strong: "curiosité sur le vivant", toReinforce: "nutrition végétale", action: "1 capsule + mindmap" },
-];
-
 export interface SubjectProgress {
   name: string;
   progress: number;

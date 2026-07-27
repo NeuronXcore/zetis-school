@@ -1,69 +1,92 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { type MindmapsSummary } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
-import { MINDMAP } from "../data/mock";
+import { AnimatedMindmapIcon } from "../components/AnimatedMindmapIcon";
+import { SubjectDeckGrid } from "../components/SubjectDeckGrid";
+import { NeonBackdrop } from "../components/glass";
+import { fetchMindmapsSummary } from "../lib/mindmaps";
 
-// Page Mindmaps Massimo (Étape 7) — carte mockée + mode entraînement.
+// Écran 1 (/mindmaps) : un deck de mindmaps par matière. Compteur = cartes validées ; matière sans
+// carte → deck grisé « bientôt » (inerte). Structure/état des decks fournis par le serveur (aucune
+// logique métier client). Le badge « Nouveau » est différé en V1 (pas de suivi des vues, ADR-0016).
+
 export function MindmapsPage() {
-  const [training, setTraining] = useState(false);
+  const [summary, setSummary] = useState<MindmapsSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    fetchMindmapsSummary()
+      .then((data) => alive && setSummary(data))
+      .catch((e) => alive && setError(e instanceof Error ? e.message : "Chargement impossible"))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const hasAny = summary?.subjects.some((s) => s.mindmap_count > 0);
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <PageHeader
-        title="Mindmaps"
-        subtitle="Organise les idées : carte complète, ou reconstruis-la toi-même."
-      />
+    <div className="relative mx-auto max-w-3xl">
+      <NeonBackdrop />
+      <div className="relative">
+        <PageHeader
+          title={
+            <span className="inline-flex items-center gap-3">
+              <AnimatedMindmapIcon className="h-12 w-12" />
+              Mes mindmaps
+            </span>
+          }
+          subtitle="Vois la carte d'une notion, entraîne-toi à la compléter, puis reconstruis-la."
+        />
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm">
-          Notion : <strong>{MINDMAP.notion}</strong>
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setTraining(false)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              !training ? "bg-zetis-accent text-white" : "border border-zetis-border text-zetis-muted"
-            }`}
-          >
-            Carte complète
-          </button>
-          <button
-            type="button"
-            onClick={() => setTraining(true)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              training ? "bg-zetis-accent text-white" : "border border-zetis-border text-zetis-muted"
-            }`}
-          >
-            Mode entraînement
-          </button>
-        </div>
-      </div>
-
-      <section className="mt-4 rounded-2xl border border-zetis-border bg-zetis-surface p-6">
-        <div className="flex flex-col items-center">
-          <div className="rounded-xl bg-zetis-accent px-4 py-2 font-bold text-white">
-            {MINDMAP.notion}
-          </div>
-          <div className="mt-6 grid grid-cols-3 gap-4">
-            {MINDMAP.branches.map((b, i) => (
-              <div key={b.label} className="flex flex-col items-center text-center">
-                <div className="rounded-lg border border-zetis-border bg-zetis-surface-2 px-3 py-1.5 text-sm font-medium">
-                  {training ? `?` : b.label}
-                </div>
-                <div className="my-2 h-4 w-px bg-zetis-border" />
-                <div className="rounded-lg border border-dashed border-zetis-border px-3 py-1.5 text-xs text-zetis-muted">
-                  {training ? `Branche ${i + 1}` : b.child}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {training && (
-          <p className="mt-6 text-center text-sm text-zetis-muted">
-            À toi de retrouver les branches&nbsp;! (saisie interactive à venir)
-          </p>
+        {error && (
+          <p className="mb-4 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{error}</p>
         )}
-      </section>
+
+        {loading ? (
+          <p className="text-zetis-muted">Chargement…</p>
+        ) : summary && !hasAny ? (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl backdrop-blur-xl">
+            <p className="text-2xl">🌱</p>
+            <p className="mt-2 text-lg font-semibold text-slate-100">
+              Tes mindmaps arrivent bientôt !
+            </p>
+            <p className="mt-1 text-sm text-slate-400">
+              Elles apparaîtront ici dès qu'un cours sera prêt.
+            </p>
+          </div>
+        ) : summary ? (
+          <section>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
+              Choisis une matière
+            </h2>
+            <SubjectDeckGrid
+              subjects={summary.subjects.map((s) => ({
+                slug: s.slug,
+                name: s.name,
+                count: s.mindmap_count,
+                hint:
+                  s.mindmap_count > 0
+                    ? `${s.mindmap_count} carte${s.mindmap_count > 1 ? "s" : ""}`
+                    : undefined,
+                dimmed: s.mindmap_count === 0,
+                dimmedHint: "bientôt ✨",
+              }))}
+              onSelect={(slug) => {
+                const subject = summary.subjects.find((s) => s.slug === slug);
+                navigate(`/mindmaps/${slug}`, { state: { name: subject?.name } });
+              }}
+            />
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

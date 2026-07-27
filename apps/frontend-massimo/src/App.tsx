@@ -7,9 +7,16 @@ import { AccueilMassimoPage } from "./pages/AccueilMassimoPage";
 import { MatieresPage } from "./pages/MatieresPage";
 import { MatiereDetailPage } from "./pages/MatiereDetailPage";
 import { CoursPage } from "./pages/CoursPage";
+import { RevisionPage } from "./pages/RevisionPage";
+import { RevisionSessionPage } from "./pages/RevisionSessionPage";
+import { FichesPage } from "./pages/FichesPage";
+import { FicheSubjectPage } from "./pages/FicheSubjectPage";
+import { QuizPage } from "./pages/QuizPage";
+import { QuizSessionPage } from "./pages/QuizSessionPage";
 import { DiagnosticPage } from "./pages/DiagnosticPage";
 import { Eli5Page } from "./pages/Eli5Page";
 import { MindmapsPage } from "./pages/MindmapsPage";
+import { MindmapSubjectPage } from "./pages/MindmapSubjectPage";
 import { CapsulesIAPage } from "./pages/CapsulesIAPage";
 import { MissionsPage } from "./pages/MissionsPage";
 import { ProgressionPage } from "./pages/ProgressionPage";
@@ -31,12 +38,20 @@ export default function App() {
         <Route path="/matieres" element={<MatieresPage />} />
         <Route path="/subjects/:slug" element={<MatiereDetailPage />} />
         <Route path="/subjects/:slug/cours" element={<CoursPage />} />
+        <Route path="/revision" element={<RevisionPage />} />
+        <Route path="/revision/session" element={<RevisionSessionPage />} />
+        <Route path="/fiches" element={<FichesPage />} />
+        <Route path="/fiches/:slug" element={<FicheSubjectPage />} />
         <Route path="/diagnostic" element={<DiagnosticPage />} />
         <Route path="/eli5" element={<Eli5Page />} />
         <Route path="/mindmaps" element={<MindmapsPage />} />
+        {/* Deep-link mission (ADR-0019) : ouvre une carte par id directement en mode Reconstruire. */}
+        <Route path="/mindmaps/reconstruire/:mindmapId" element={<MindmapSubjectPage />} />
+        <Route path="/mindmaps/:slug" element={<MindmapSubjectPage />} />
         <Route path="/capsules" element={<CapsulesIAPage />} />
         <Route path="/progression" element={<ProgressionPage />} />
-        <Route path="/quiz" element={<PlaceholderPage title="Quiz" icon="✅" />} />
+        <Route path="/quiz" element={<QuizPage />} />
+        <Route path="/quiz/session" element={<QuizSessionPage />} />
         <Route path="/missions" element={<MissionsPage />} />
         <Route path="/chat" element={<PlaceholderPage title="Chat ZETIS" icon="💬" />} />
         <Route path="*" element={<PlaceholderPage title="Page introuvable" icon="🔍" />} />

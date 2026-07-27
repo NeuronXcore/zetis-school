@@ -3,6 +3,7 @@ import json
 import wave
 
 from app.modules.ai.provider import LLMRequest, LLMResponse
+from app.modules.stt.provider import SttRequest, SttResponse
 from app.modules.tts.provider import TtsRequest, TtsResponse
 
 
@@ -33,6 +34,17 @@ class FakeTtsProvider:
             w.setframerate(self.rate)
             w.writeframes(b"\x00\x00" * int(seconds * self.rate))  # silence
         return TtsResponse(audio_wav=buf.getvalue(), duration_seconds=seconds)
+
+
+class FakeSttProvider:
+    """STT déterministe pour les tests : renvoie une transcription fixe (aucun Whisper)."""
+
+    def __init__(self, text: str = "Un nombre relatif est un nombre avec un signe.") -> None:
+        self._text = text
+
+    def transcribe(self, request: SttRequest) -> SttResponse:
+        # La durée dépend de la taille de l'audio (reproductible), sans décoder quoi que ce soit.
+        return SttResponse(text=self._text, duration_seconds=max(1.0, len(request.audio) / 32000.0))
 
 
 # CapsuleSpec déterministe valide (cf. schemas.CapsuleSpec) renvoyé pour toute demande de
@@ -76,6 +88,70 @@ _DEFAULT_CAPSULE = {
             "durationInFrames": 75,
         },
     ],
+}
+
+
+# CouncilReportSpec déterministe valide (cf. reports/schemas.py, ADR-0020) renvoyé quand le schéma
+# `fmt` a la propriété `global_summary`. Recommandations vides par défaut (aucun skill_id à ancrer,
+# donc valide quels que soient les ids seedés) ; un test passant `council=` cible des skill_id réels.
+_DEFAULT_COUNCIL = {
+    "global_summary": "Massimo progresse ; quelques notions sont à renforcer, rien d'inquiétant.",
+    "subjects": [
+        {
+            "subject_id": 1,
+            "subject_name": "Mathématiques",
+            "strengths": "De l'aisance sur les bases.",
+            "to_reinforce": "Une notion en cours de construction.",
+            "recent_evolution": "Tendance stable ces derniers temps.",
+            "recommendations": [],
+        }
+    ],
+}
+
+
+# FicheSpec déterministe valide (cf. fiches/schemas.py, ADR-0015) renvoyé quand le schéma `fmt`
+# a la propriété `essentiel`. Budgets respectés (definitions 2≤4, points 3≤5, erreurs 2≤3).
+_DEFAULT_FICHE = {
+    "title": "Les nombres relatifs",
+    "subject": "Mathématiques",
+    "level": "4e",
+    "chapter": "Nombres relatifs",
+    "essentiel": (
+        "Un nombre relatif est un nombre précédé d'un signe + ou -. La droite graduée aide à "
+        "les placer et à les comparer : plus on va vers la droite, plus le nombre est grand."
+    ),
+    "definitions": [
+        {"terme": "Nombre relatif", "definition": "Un nombre positif, négatif ou nul, avec son signe."},
+        {"terme": "Opposé", "definition": "Le même nombre avec le signe contraire (opposé de -3 : +3)."},
+    ],
+    "points_cles": [
+        "Plus à droite = plus grand",
+        "0 sépare positifs et négatifs",
+        "Deux opposés sont à la même distance de 0",
+    ],
+    "erreurs_a_eviter": [
+        "Penser que -5 est plus grand que -1",
+        "Oublier le signe devant le nombre",
+    ],
+    "mini_exemple": "Comparer -3 et 2 : -3 est à gauche de 2, donc -3 < 2.",
+}
+
+
+# MindmapJson déterministe valide (cf. mindmaps/schemas.py, ADR-0016) renvoyé quand le schéma
+# `fmt` a la propriété `center`. ARBRE STRICT intègre (parents cohérents, aucun cycle) : 2 racines,
+# 2 enfants, 2 optionnels. `required_nodes` pilotent le barème de reconstruction déterministe.
+_DEFAULT_MINDMAP = {
+    "center": "Les nombres relatifs",
+    "nodes": [
+        {"id": "signe", "label": "Un signe + ou -", "parent": None},
+        {"id": "droite", "label": "Droite graduée", "parent": None},
+        {"id": "oppose", "label": "Opposé", "parent": "signe"},
+        {"id": "comparer", "label": "Comparer", "parent": "droite"},
+        {"id": "exemple", "label": "-3 < 2", "parent": "comparer"},
+        {"id": "erreur", "label": "Ne pas oublier le signe", "parent": "signe"},
+    ],
+    "required_nodes": ["signe", "droite", "oppose", "comparer"],
+    "optional_nodes": ["exemple", "erreur"],
 }
 
 
@@ -156,6 +232,76 @@ _DEFAULT_LESSON_CONTENT = {
 }
 
 
+# Cartes SRS déterministes (cf. prompts/srs_cards.py, ADR-0013) renvoyées quand le schéma
+# `fmt` a la propriété `cards`. Deux types distincts (definition + method) pour vérifier la
+# borne 1-3, la variété et la clé métier `(student, skill, card_type)`.
+_DEFAULT_SRS_CARDS = {
+    "cards": [
+        {
+            "card_type": "definition",
+            "front_markdown": "Qu'est-ce qu'un nombre relatif ?",
+            "back_markdown": "Un nombre avec un signe : + ou -.",
+        },
+        {
+            "card_type": "method",
+            "front_markdown": "Comment comparer deux nombres relatifs ?",
+            "back_markdown": "Sur la droite graduée, le plus à droite est le plus grand.",
+        },
+    ]
+}
+
+
+# Quiz déterministe multi-formats (ADR-0014) renvoyé quand le schéma `fmt` a la propriété
+# `questions`. UN exemplaire de chacun des sept formats du Lot 1. Chaque énoncé porte un tag
+# `[[Qn]]` : la passe d'auto-vérification (fmt `answer`) le relit dans le prompt pour renvoyer
+# une réponse baked. La question `matching` (Q7) DIVERGE volontairement de sa clé à la
+# vérification → elle doit être écartée (jamais persistée). `skill` = la Skill seedée par conftest.
+_DEFAULT_QUIZ = {
+    "questions": [
+        {"question_type": "mcq", "skill": "Nombres relatifs", "prompt": "[[Q1]] Quel est l'opposé de -2 ?",
+         "choices": ["+2", "-2", "0", "+4"], "correct_index": 0, "explanation": "L'opposé de -2 est +2."},
+        {"question_type": "mcq_multi", "skill": "Nombres relatifs", "prompt": "[[Q2]] Lesquels sont négatifs ?",
+         "choices": ["-3", "+5", "-1", "+2"], "correct_indices": [0, 2], "explanation": "-3 et -1 portent le signe -."},
+        {"question_type": "true_false", "skill": "Nombres relatifs", "prompt": "[[Q3]] -5 est plus petit que -1.",
+         "answer": True, "explanation": "Sur la droite graduée, -5 est à gauche de -1."},
+        {"question_type": "cloze", "skill": "Nombres relatifs", "prompt": "[[Q4]] Un nombre relatif a un ___ .",
+         "blanks": [["signe"]], "explanation": "Un relatif porte un signe + ou -."},
+        {"question_type": "numeric", "skill": "Nombres relatifs", "prompt": "[[Q5]] Donne une valeur approchée de pi.",
+         "value": "3.14", "tolerance": 0.01, "explanation": "pi ≈ 3,14."},
+        {"question_type": "ordering", "skill": "Nombres relatifs", "prompt": "[[Q6]] Range du plus petit au plus grand.",
+         "items": ["4", "-5", "-1"], "order": ["-5", "-1", "4"], "explanation": "-5 < -1 < 4."},
+        {"question_type": "matching", "skill": "Nombres relatifs", "prompt": "[[Q7]] Associe l'animal à sa classe.",
+         "left": ["chat", "truite"], "right": ["mammifère", "poisson"],
+         "pairs": {"chat": "mammifère", "truite": "poisson"}, "explanation": "Le chat est un mammifère."},
+    ]
+}
+
+# Réponse baked de l'auto-vérification par tag. Toutes CONCORDENT avec la clé, SAUF Q7
+# (matching) qui inverse les paires → divergence → question écartée par la passe de contrôle.
+_DEFAULT_QUIZ_SELFCHECK = {
+    "[[Q1]]": {"choice_index": 0},
+    "[[Q2]]": {"choice_indices": [0, 2]},
+    "[[Q3]]": {"value": True},
+    "[[Q4]]": {"blanks": ["signe"]},
+    "[[Q5]]": {"value": "3.14"},
+    "[[Q6]]": {"order": ["-5", "-1", "4"]},
+    "[[Q7]]": {"pairs": {"chat": "poisson", "truite": "mammifère"}},  # ← divergence volontaire
+}
+
+
+# Jugement `open` déterministe (ADR-0014 Lot 2) renvoyé quand le schéma `fmt` a la propriété
+# `criteria`. Défaut : deux critères acquis, juge confiant → réponse créditée. Les tests de
+# calibrage passent un `quiz_judge` custom (critère non acquis, juge non confiant → ambiguïté…).
+_DEFAULT_QUIZ_JUDGE = {
+    "criteria": [
+        {"label": "Point attendu 1", "met": True, "note": "bien présent"},
+        {"label": "Point attendu 2", "met": True, "note": "bien présent"},
+    ],
+    "feedback": "Bravo, tu as bien expliqué avec tes mots !",
+    "confident": True,
+}
+
+
 class FakeLLMProvider:
     """Provider IA déterministe pour les tests (aucun appel ollama)."""
 
@@ -164,16 +310,30 @@ class FakeLLMProvider:
         feedback: str = "Bien joué, tu progresses ! Prochaine étape : un petit quiz.",
         score: int = 80,
         capsule_spec: dict | None = None,
+        fiche: dict | None = None,
+        mindmap: dict | None = None,
         curriculum_chapters: dict | None = None,
         curriculum_lessons: dict | None = None,
         lesson_content: dict | None = None,
+        srs_cards: dict | None = None,
+        quiz: dict | None = None,
+        quiz_selfcheck: dict | None = None,
+        quiz_judge: dict | None = None,
+        council: dict | None = None,
     ) -> None:
         self._feedback = feedback
         self._score = score
         self._capsule_spec = capsule_spec
+        self._fiche = fiche
+        self._mindmap = mindmap
         self._curriculum_chapters = curriculum_chapters
         self._curriculum_lessons = curriculum_lessons
         self._lesson_content = lesson_content
+        self._srs_cards = srs_cards
+        self._quiz = quiz
+        self._quiz_selfcheck = quiz_selfcheck
+        self._quiz_judge = quiz_judge
+        self._council = council
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         # Sortie structurée demandée (fmt) → objet déterministe selon le schéma :
@@ -189,6 +349,35 @@ class FakeLLMProvider:
         if isinstance(request.fmt, dict) and "content" in request.fmt.get("properties", {}):
             content = self._lesson_content or _DEFAULT_LESSON_CONTENT
             return LLMResponse(text=json.dumps(content), model="fake", duration_ms=1)
+        if isinstance(request.fmt, dict) and "cards" in request.fmt.get("properties", {}):
+            cards = self._srs_cards or _DEFAULT_SRS_CARDS
+            return LLMResponse(text=json.dumps(cards), model="fake", duration_ms=1)
+        # Quiz (ADR-0014) : génération (propriété `questions`) puis auto-vérification à
+        # l'aveugle (propriété `answer`) — repérée par tag `[[Qn]]` relu dans le prompt.
+        if isinstance(request.fmt, dict) and "questions" in request.fmt.get("properties", {}):
+            quiz = self._quiz or _DEFAULT_QUIZ
+            return LLMResponse(text=json.dumps(quiz), model="fake", duration_ms=1)
+        if isinstance(request.fmt, dict) and "answer" in request.fmt.get("properties", {}):
+            checks = self._quiz_selfcheck or _DEFAULT_QUIZ_SELFCHECK
+            answer = next((a for tag, a in checks.items() if tag in request.prompt), None)
+            return LLMResponse(text=json.dumps({"answer": answer}), model="fake", duration_ms=1)
+        if isinstance(request.fmt, dict) and "criteria" in request.fmt.get("properties", {}):
+            verdict = self._quiz_judge or _DEFAULT_QUIZ_JUDGE
+            return LLMResponse(text=json.dumps(verdict), model="fake", duration_ms=1)
+        # Fiche de révision (ADR-0015) : schéma repéré par sa propriété `essentiel`. AVANT le
+        # fallback capsule (qui capte tout `fmt` restant), sinon la fiche recevrait un CapsuleSpec.
+        if isinstance(request.fmt, dict) and "essentiel" in request.fmt.get("properties", {}):
+            fiche = self._fiche or _DEFAULT_FICHE
+            return LLMResponse(text=json.dumps(fiche), model="fake", duration_ms=1)
+        # Mindmap (ADR-0016) : schéma repéré par sa propriété `center`. AVANT le fallback capsule.
+        if isinstance(request.fmt, dict) and "center" in request.fmt.get("properties", {}):
+            mindmap = self._mindmap or _DEFAULT_MINDMAP
+            return LLMResponse(text=json.dumps(mindmap), model="fake", duration_ms=1)
+        # Conseil de classe IA (ADR-0020) : schéma repéré par sa propriété `global_summary`.
+        # AVANT le fallback capsule (qui capte tout `fmt` restant).
+        if isinstance(request.fmt, dict) and "global_summary" in request.fmt.get("properties", {}):
+            council = self._council or _DEFAULT_COUNCIL
+            return LLMResponse(text=json.dumps(council), model="fake", duration_ms=1)
         if request.fmt is not None:
             spec = self._capsule_spec or _DEFAULT_CAPSULE
             return LLMResponse(text=json.dumps(spec), model="fake", duration_ms=1)

@@ -1,5 +1,262 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.19.0 — Missions : sources, sélecteur déterministe, pilotage Papa (ADR-0017 lot 2)
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Module neutre `evidence/`** (patron ADR-0011, read-only, sans import `missions`/conseil) :
+  `mastery_by_skill`, `open_gaps`, `recent_verdicts`, `weighted_quiz_signal` (poids ADR-0014
+  consommé, jamais réécrit), `srs_pressure`. Test-verrou de neutralité.
+- **Générateurs par source** (idempotents, `pending`) : `generate-revision` (cartes SRS dues par
+  matière, `lesson|eli5 → quiz`), `generate-progression` (prochaine notion non maîtrisée d'un
+  chapitre actif / rattrapage jamais travaillé, `eli5 → vocal_explain → quiz`).
+- **Sélecteur déterministe versionné** (`selector.py`, `MISSION_SCORING_VERSION=v1`, zéro LLM) :
+  facteurs `severity`/`due_pressure`/`continuity`/`variety`(malus)/`forced_priority`, pondérations
+  en config ; `reason_code` = facteur dominant → **phrase template figée**.
+- **Frontière pilotage Papa** (`MissionPilotOut`, router dédié) : `GET /missions/pending`,
+  `POST /missions/{id}/reject`, `GET /missions/election/today` (recalcul à la demande, facteurs +
+  alternatives), `GET /missions/pilot?type=&subject=` (preuves brutes par étape),
+  `GET /missions/verdicts/recent`, `GET /missions/pilot/summary` (KPI). `generation_reason`
+  **calculé** au read (non stocké).
+- **Trace verdict** — `LearningEvent` `mission_verdict` à la complétion (source de `recent_verdicts`).
+- **Tests invariants 7–11** (sélecteur jamais pending, déterminisme, variety, reason ∈ dict figé,
+  aucun champ pilot chez student) + générateurs + pilotage. **340 back verts.**
+
+### Modifié — cassant
+
+- **`GET /missions/today`** : de liste triée à `{ elected, reason, reason_code, scoring_version,
+  alternatives }` (ADR-0017 §3). Split de schémas `MissionStudentOut` / `MissionPilotOut`
+  (deux routers, gate en requête). Lib frontend Massimo adaptée a minima (refonte visuelle =
+  slice séparée).
+- **`config` / `.env.example`** : `MISSION_SCORING_VERSION` + pondérations des facteurs.
+
+### Noté
+
+- `Mission.available_from` (DATA_MODEL) n'existe pas sur le modèle réel → toutes les validées
+  `planned|active` sont candidates (aucune migration ajoutée).
+
+## 0.18.0 — Missions à preuves serveur + verdict d'acquisition (ADR-0017 lot 1)
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Preuves serveur des étapes** — `POST /api/missions/{id}/start` (`planned → active`, idempotent,
+  horodate `started_at`) et `POST /api/missions/{id}/steps/{step_id}/complete` : une étape ne se
+  valide que si sa **preuve** existe (`eli5`/`lesson` = consultation tracée ; `vocal_explain` = score
+  reverse ; `quiz` = `QuizAttempt` `context=mission`), **postérieure au `start`** et **dans l'ordre**
+  (`sort_order`) — sinon **409**. Fin de la complétion déclarative de l'étape 15.
+- **Verdict d'acquisition découplé** (§5bis) — la dernière étape crédite **+50 XP inconditionnels**
+  (effort) puis calcule un verdict : `acquired` (reverse ≥ `MISSION_REVERSE_THRESHOLD` **et** quiz ≥
+  `MISSION_QUIZ_THRESHOLD` → mastery↑, lacune `resolved`) ou `review_later` (mastery honnête, lacune
+  `in_progress`, **carte SRS (re)programmée**). Deux issues, toutes deux positives.
+- **Validation Papa** (§5ter) — missions générées naissent `validation_status = pending` ; gate
+  `validated` **dans la requête** des routes student (invisible même par id) ;
+  `POST /api/missions/validate {ids}` (validation en lot, minimal — pilotage complet = Lot 2).
+- **Config** — `MISSION_XP_REWARD` (50), `MISSION_REVERSE_THRESHOLD`, `MISSION_QUIZ_THRESHOLD`.
+- **Tests d'invariants** (6) — pending jamais exposé, preuve absente/antérieure/hors-ordre → 409,
+  XP même si `review_later`, `review_later` ⇒ lacune `in_progress` + carte SRS, `failed` jamais écrit
+  par un flux enfant, aucune pénalité de temps ; + verdict `acquired` (quiz + reverse).
+
+### Modifié
+
+- **Migration `f3a4b5c6d7e8`** — `missions.validation_status` (NOT NULL, backfill existant →
+  `validated`), `missions.subject_id` → nullable, `missions.started_at`, `mission_steps.resource_id`.
+- **Générateur `generate_remediation`** — missions `pending`, `step_type` alignés ADR
+  (`eli5`/`vocal_explain`/`quiz`), `resource_id` réels ; l'étape `quiz` réutilise un quiz de mission
+  prêt couvrant la notion, sinon est omise (auto-génération = Lot 2).
+- **Frontend Massimo minimal** — `MissionsPage` : démarrer + valider chaque étape (409 parlant) ;
+  refonte visuelle complète = slice frontend séparée.
+
+### Retiré
+
+- `POST /api/missions/{id}/complete` (complétion déclarative + résolution directe de lacune).
+
+## 0.17.0 — Fiches de révision (ADR-0015) : backend + viewer Massimo + pilotage Papa
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Backend — module `fiches`** — `FicheSpec` à budgets (const `FICHE_BUDGETS` : `essentiel` ≤ 600,
+  `definitions` ≤ 4, `points_cles` ≤ 5, `erreurs_a_eviter` ≤ 3, `mini_exemple` ≤ 400) + miroir
+  Pydantic strict ; prompt versionné `app/prompts/fiche.py` (`v1`) ; service `generate_fiche`
+  **leçon-centré** dérivé du **cours canonique** (ADR-0011, force le cours de la leçon + complément
+  RAG, comme le quiz de fin de cours) ; migration `d3e4f5a6b7c8` (tables `fiches` + `fiche_views`) ;
+  trace `ai_jobs` `fiche_generate`.
+- **Endpoints** — Papa (`require_parent`) `/api/fiches/*` (generate, `PUT` revalide→`pending`,
+  regenerate, validate, delete, `lessons/{id}`, `pilotage/{subject_id}` = arbre matière→leçons→fiches,
+  miroir quiz-pilotage) ; Massimo (`/api/student/fiches/*`, gate `validated`, 404 sinon) :
+  `summary` (decks), `subjects/{slug}/fiches`, `{id}`, `{id}/seen`.
+- **Briques `@zetis/ui` factorisées** — `GenerationProgress` (variant `bar`|`ring` +
+  `useEstimatedProgress` déplacé de frontend-papa), `ContentLifecycleActions` (quatuor
+  Générer · Régénérer · Éditer · Supprimer) et `ContentStatusBadge`. `ProgressBar.tsx` (Papa)
+  ré-exporte `GenerationProgress` → **capsules intactes** (preuve de réutilisation). Réutilisées
+  ensuite par les mindmaps (ADR-0016).
+- **Viewer Massimo** (`/fiches`, `/fiches/:slug`) — decks `SubjectDeckGrid` (badge « ✨ nouveau »),
+  `FicheCard` (⭐/📖/🔑/⚠️/💡 + badge « 📚 D'après ton cours »), bouton **« 📖 Voir le cours »**
+  (panneau du cours source **à côté** de la fiche, même page ; réutilise
+  `/api/student/lessons/{id}/cours` + `react-markdown`), **export A5** « 🖼️ Image A5 » (PNG) et
+  « 🖨️ Imprimer » (document A5 autonome) via `html-to-image` — corrige la page blanche de
+  l'impression du shell.
+- **Pilotage Papa** (`/fiches`, émeraude) — arbre matière→leçons→fiches, génération par leçon +
+  célébration, `ContentLifecycleActions` par fiche, **éditeur structuré** `FicheEditorModal`
+  (formulaire + compteurs de budget) remplaçant l'édition du `spec_json` brut.
+
+### Décisions
+
+- La fiche est un **objet leçon** (« 1 leçon = 1 page », budgets = contrat structurel), distinct de
+  la flashcard SRS (qui porte une *notion*) ; pont SRS différé ; génération par Massimo différée.
+
+304 tests backend + 104 (Papa) + 73 (Massimo) verts ; `tsc -b` et `vite build` verts ; migration
+appliquée sur le Postgres de dev. Dépendance ajoutée : `html-to-image` (frontend-massimo).
+
+## 0.16.0 — ELI5 v2 : entrée par decks matières + composant partagé + emblème animé
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Routes élève « notions validées »** (module `curriculum`, lecture seule, aucune migration)
+  — `GET /api/student/notions/summary` (compteurs par matière de l'année active, une requête
+  agrégée) et `GET /api/student/subjects/{slug}/notions` (notions dédupliquées par `skill_id`,
+  `chapter_title` de la leçon la plus récente ; 404 hors année, `[]` si rien de validé). Même
+  chaîne de filtrage que les cours élève (chapitre `validated` → leçon `validated` → `Skill`).
+  Types dans `packages/types/src/curriculum.ts`.
+- **Refonte ELI5 en 3 écrans** (frontend Massimo, `/eli5`) : écran 1 **decks matières**
+  (compteurs de notions, matière vide = « bientôt », deck « ✨ Question libre » en tête) → écran 2
+  **chips de notions** (nom + `chapter_title`) + champ « pose ta question » → écran 3 = **la
+  session ELI5 existante, inchangée** (explain → reverse, badge « D'après ta leçon »). Chip →
+  `explain` avec `skill_id` réel (badge leçon déterministe) ; question libre → résolution client
+  (le moteur n'accepte que `skill_id`). Deep-link `?subject=slug`. Le moteur ELI5 n'est pas touché.
+- **Composant partagé `SubjectDeckGrid`** — extrait de la grille « Par matière » de la page
+  Révision (enveloppe `DeckDisc`), **Révision migrée dessus à l'identique** (parité visuelle
+  préservée) ; les Mélanges restent locaux à Révision. `DeckDisc` gagne des options
+  rétro-compatibles (deck atténué mais cliquable, `soonHint`, `hideBadge`).
+- **Badge « ✨ new » sur les decks ELI5** — `new_count` par matière dans `/notions/summary` :
+  notions dont une leçon validée porteuse a été créée dans les 7 derniers jours (récence de
+  création, signal global ; `Lesson.created_at` faute d'horodatage sur `Skill`/`Chapter`).
+- **Emblème animé ELI5** dans l'en-tête de l'écran decks — symboles de complexité (❓🔢🧩🌀) en
+  orbite autour de l'ampoule 💡 qui s'illumine par à-coups (« aha ! ») en projetant des
+  étincelles ; 4 `@keyframes` en `motion-safe:` (figé sous `prefers-reduced-motion`).
+
+## 0.15.0 — Moteur de quiz unifié (ADR-0014, Lot 1) : backend + pilotage Papa + client Massimo
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Moteur de quiz unifié** (ADR-0014, module `quizzes`) — quiz de fin de cours en premier
+  client, **deuxième client du substrat canonique** (ADR-0011). Génération **locale** depuis le
+  cours validé d'une leçon (formats choisis par le modèle), **auto-vérification à l'aveugle**
+  (question dont le modèle ne retrouve pas sa clé → écartée), **correction déterministe serveur**
+  (7 formats : `mcq`, `mcq_multi`, `true_false`, `cloze`, `numeric`, `ordering`, `matching`),
+  **scoring pondéré** (`mission` = signal faible, **n'ouvre jamais de lacune**). XP = base
+  d'effort + bonus score (0 %→10, 100 %→30).
+- **Page Papa « Quiz — pilotage »** (`/quiz`, endpoints `/api/quiz-pilotage/*` + `/api/quizzes/*`)
+  : inventaire par matière, génération par leçon (popover volume/difficulté + barre de progression),
+  inspection avec clés, édition (→ `manual`)/ajout manuel/retrait, régénération (préserve les
+  `manual`), suppression (hard/archivage), KPI + santé de l'auto-vérification par matière.
+- **Client Massimo** (`/quiz`, `/quiz/session`, endpoints `/api/student/quiz*`) : grille des
+  matières (grisée si aucun quiz) → lecteur question par question (7 formats), **feedback immédiat
+  bienveillant** (jamais la clé), résumé de fin (XP + forces / « à revoir bientôt ») ; bouton
+  « 🎯 Quiz » sur la page Cours quand un quiz existe ; hero animé sur la page Quiz.
+- **Migration `b1c2d3e4f5a6`** : `quizzes.lesson_id`, `quiz_questions.source` + `.status`
+  (`question_type` reste `varchar` → extension des formats sans DDL).
+- **Lot 2 — format `open` (jugement LLM)** — clôt l'ADR-0014. Réponse écrite libre **jugée par
+  le moteur local** contre des critères (opt-in manuel Papa, hors mix auto-généré) : évaluation
+  **critère par critère** (persistée dans `quiz_answers.ai_evaluation_json`, migration
+  `c2d3e4f5a6b7`), **bénéfice du doute** si le juge n'est pas sûr (élève crédité, ambiguïté
+  remontée à Papa), feedback toujours bienveillant. Player Massimo (zone de texte) + authoring
+  Papa (bascule QCM / Réponse ouverte + critères). Vérifié live (Ollama réel).
+
+### UI Massimo (retouches)
+
+- En-tête sidebar refondu (logo `zetis-avatar.png` + halo animé + wordmark `zetis-texte.png`),
+  aligné sur l'avatar du header ; header : profil Massimo à gauche ; fond sidebar = fond header
+  (`#000010`) ; icônes agrandies.
+
+## 0.14.0 — Cartes SRS : génération page-driven + pilotage Papa + refonte UI Révision Massimo
+
+Date : 2026-07-05
+
+### Ajouté
+
+- **Génération des cartes SRS** (ADR-0013, module `memory`) : contenu dérivé du **cours
+  validé** de chaque notion, 100 % local (Ollama), upsert réconciliateur à 3 branches
+  (A régénère en préservant la planif / B crée / C suspend les orphelines, réactivables).
+  Page Papa **« Cartes de révision »** (`/cartes-revision`) : arbre matière→chapitre→notion,
+  KPI, aperçu recto/verso, génération par matière.
+- **Pilotage Papa — évolutions** (endpoints `/api/memory/cards/*`, `require_parent`) :
+  - Bouton **« ↻ Régénérer »** par matière, même quand rien n'est « à générer »
+    (réconciliation non destructive) ; **barre de progression estimée (%)** pendant la
+    génération (patron partagé `ProgressBar` + `useEstimatedProgress`).
+  - **Édition d'une carte** en place (`PATCH /api/memory/cards/{card_id}`, recto/verso,
+    planification préservée) et **suppression d'une carte** unitaire
+    (`DELETE /api/memory/cards/{card_id}`), avec `ConfirmDialog` — distinctes du retrait de
+    toute une notion (`DELETE /skills/{id}`).
+- **Surface Massimo** : `GET /api/student/reviews/summary` renvoie **toutes** les matières
+  avec un booléen `has_cards`.
+- **Refonte UI page Révision Massimo** (`/revision`) :
+  - « Par matière » affiche **toutes** les matières ; celles sans carte apparaissent
+    **grisées** avec leur **emoji** (« à venir » / « pas encore de cartes »), non lançables.
+  - Decks = **simples cercles** avec l'icône/emoji de la matière (suppression de l'effet
+    pile et de l'anneau conique coloré / « halo »).
+  - Bannière motivante **« SRS · Révision espacée »** (`SpacedMemoryHero`) : illustration
+    `SRS-cards.png` animée + courbe SVG de mémoire (points espacés 1j→3j→7j→14j).
+  - `FlipCard` recto/verso **color-codés** : recto bleu « Question », verso émeraude
+    « Réponse ».
+  - Icône de la sidebar « Révision » = `SRS-cards.png` (au lieu de l'emoji 🗂️).
+
+### Décisions
+
+- Contrat `summary` étendu : `has_cards` distingue « aucune carte active » de « cartes
+  présentes » (grisé vs « à jour ✓ ») — cf. ADR-0013 (addendum).
+- L'édition d'une carte ne touche **jamais** la planification (`interval_days`,
+  `ease_factor`, `due_at`) : seul le contenu change (invariant ADR-0013 §3).
+- La régénération d'une matière est **non destructive** (réécrit le contenu, préserve
+  l'historique de révision de Massimo).
+
+## 0.13.0 — Référentiel : rattrapage « skills-only » + verrous du cours canonique
+
+Date : 2026-07-03
+
+### Ajouté
+
+- **Génération « skills-only » pour un niveau antérieur** (rattrapage, `docs/decisions/adr-0010-generation-skills-only-rattrapage.md`) :
+  Papa peut alimenter le référentiel de notions (`Skill`) d'un niveau du même cycle
+  (ex. français 5e) sans créer d'année scolaire rétroactive. Flux **stateless** en deux
+  temps : `POST /api/curriculum/skills-backfill/generate` enchaîne les passes 1 et 2
+  **en mémoire** (chapitres et leçons ne servent que d'échafaudage et ne sont **jamais
+  persistés**) et renvoie une prévisualisation des notions groupées + dédupliquées ;
+  après revue, `POST /api/curriculum/skills-backfill/confirm` upserte les notions en
+  `Skill` au niveau cible (réutilise l'upsert de la passe 2 — aucune leçon ni liaison
+  créée). Garde parent, niveau borné au cycle 4 (5e/4e/3e → sinon 400), trace `ai_jobs`
+  `curriculum_skills_backfill`, invariant vie privée testé. Miroir de types dans
+  `packages/types`.
+
+### Décisions
+
+- **Cours validé = source canonique des dérivés** (addendum `docs/decisions/adr-0009-addendum-cours-canonique.md`) :
+  un `Lesson.content_markdown` **validé** devient le contexte prioritaire des dérivés
+  (ELI5, capsule, quiz…), avant le RAG brut et la connaissance du modèle ; le lien
+  `Lesson ↔ Skill` est la table N-N `lesson_skills`.
+- **Passe 1 strictement mono-niveau** (précision ADR-0010) : le débordement du few-shot
+  SVT est corrigé et `CURRICULUM_PROMPT_VERSION` passe à `v2`.
+
+### Corrigé / verrouillé
+
+- **Gate du cours canonique** : `POST /api/lessons/{id}/generate-content` remet désormais
+  la leçon en `draft` après une (re)génération réussie (même si elle était `validated`) —
+  un cours réécrit non relu ne doit plus alimenter les dérivés ni Massimo avant
+  revalidation par Papa. (`archived` reste 409 ; l'édition manuelle du cours par Papa,
+  `PATCH /lessons/{id}`, ne touche pas le statut : Papa est l'autorité de validation.)
+- **Index `ix_lesson_skills_skill`** sur `lesson_skills(skill_id)` (migration
+  `e1f2a3b4c5d6`) : la PK composite `(lesson_id, skill_id)` ne couvre pas la résolution
+  du cours canonique par notion (filtre `skill_id`).
+
 ## 0.12.0 — Moteur LLM (MoE), lancement prod-like « tout Docker » + UX capsules (étape 21)
 
 Date : 2026-07-03

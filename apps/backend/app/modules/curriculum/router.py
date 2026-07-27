@@ -12,6 +12,8 @@ from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.curriculum import get_curriculum_provider, service
+from app.modules.notions import service as notions_service
+from app.modules.notions.schemas import NotionRequestOut, NotionRequestPatch
 from app.modules.curriculum.schemas import (
     ActiveSchoolYearOut,
     BatchValidationResult,
@@ -23,8 +25,15 @@ from app.modules.curriculum.schemas import (
     LessonManualCreate,
     LessonPatch,
     LessonReorderRequest,
+    LessonSuggestionOut,
+    SkillsBackfillConfirmRequest,
+    SkillsBackfillConfirmResult,
+    SkillsBackfillGenerateRequest,
+    SkillsBackfillPreview,
     StudentCoursOut,
     StudentLessonContentOut,
+    StudentNotionsSummaryOut,
+    SubjectNotionsOut,
 )
 
 router = APIRouter(prefix="/api", tags=["curriculum"], dependencies=[Depends(require_parent)])
@@ -282,6 +291,40 @@ def delete_lesson(lesson_id: int, db: Session = Depends(get_db)) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Génération « skills-only » pour un niveau antérieur (rattrapage) — ADR-0010.
+# Flux stateless en deux temps, Papa uniquement (garde `require_parent` du routeur).
+# ---------------------------------------------------------------------------
+
+
+@router.post("/curriculum/skills-backfill/generate", response_model=SkillsBackfillPreview)
+def skills_backfill_generate(
+    payload: SkillsBackfillGenerateRequest,
+    db: Session = Depends(get_db),
+    llm: LLMProvider = Depends(get_curriculum_provider),
+) -> dict:
+    """Enchaîne passes 1 et 2 EN MÉMOIRE et renvoie la prévisualisation des notions du
+    niveau demandé (aucune persistance) — requête longue synchrone (~6-9 appels LLM).
+    400 si le niveau est hors cycle 4 ; 503 si la clé cloud est absente (via la dépendance)."""
+    try:
+        return service.generate_skills_backfill(db, llm, payload.subject_id, payload.level)
+    except service.CurriculumGenerationError as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
+        ) from exc
+
+
+@router.post("/curriculum/skills-backfill/confirm", response_model=SkillsBackfillConfirmResult)
+def skills_backfill_confirm(
+    payload: SkillsBackfillConfirmRequest, db: Session = Depends(get_db)
+) -> dict:
+    """Upsert les notions revues par Papa en `Skill` au niveau cible (aucune leçon, aucune
+    liaison créée). Idempotent. Pas d'appel LLM ici : le client porte la liste (stateless)."""
+    return service.confirm_skills_backfill(
+        db, payload.subject_id, payload.level, [n.name for n in payload.notions]
+    )
+
+
+# ---------------------------------------------------------------------------
 # Lecture élève (page Cours de Massimo) — cf. docs/frontend-massimo/page-cours.md.
 # ---------------------------------------------------------------------------
 
@@ -296,3 +339,48 @@ def student_cours(subject_slug: str, db: Session = Depends(get_db)) -> dict:
 def student_lesson_cours(lesson_id: int, db: Session = Depends(get_db)) -> dict:
     """Cours (markdown) d'une leçon validée — 404 sinon, sans fuite des brouillons."""
     return service.student_lesson_content(db, lesson_id)
+
+
+@student_router.get("/notions/summary", response_model=StudentNotionsSummaryOut)
+def student_notions_summary(db: Session = Depends(get_db)) -> dict:
+    """Compteur de notions validées par matière de l'année active (decks ELI5 v2)."""
+    return service.student_notions_summary(db)
+
+
+@student_router.get("/subjects/{subject_slug}/notions", response_model=SubjectNotionsOut)
+def student_subject_notions(subject_slug: str, db: Session = Depends(get_db)) -> dict:
+    """Notions validées d'une matière (dédup par skill_id) — 404 si hors année active,
+    `notions: []` si la matière n'a encore rien de validé. Route neutre (dérivés multiples)."""
+    return service.student_subject_notions(db, subject_slug)
+
+
+@student_router.get("/lesson-suggestions", response_model=list[LessonSuggestionOut])
+def student_lesson_suggestions(db: Session = Depends(get_db)) -> list[dict]:
+    """Notions à explorer (chips ELI5) tirées des leçons en cours de Massimo.
+
+    Année active + leçons validées, ordre du curriculum, priorité aux non-maîtrisées.
+    Vide propre si pas d'année active / pas de leçon validée avec notions.
+    """
+    return service.lesson_suggestions(db)
+
+
+# ---------------------------------------------------------------------------
+# Demandes de notions hors-programme (ELI5 → « Dis à Papa ») — Papa uniquement.
+# L'enfant les crée via POST /api/ai/eli5/request-notion ; ici Papa les liste et les trie.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/notion-requests", response_model=list[NotionRequestOut])
+def list_notion_requests(
+    status: str | None = "pending", db: Session = Depends(get_db)
+) -> list[dict]:
+    """Demandes de notions de l'enfant (par défaut celles en attente), récentes d'abord."""
+    return notions_service.list_requests(db, status)
+
+
+@router.patch("/notion-requests/{request_id}", response_model=NotionRequestOut)
+def patch_notion_request(
+    request_id: int, body: NotionRequestPatch, db: Session = Depends(get_db)
+) -> dict:
+    """Triage : marquer une demande added (ajoutée au programme) ou dismissed (ignorée)."""
+    return notions_service.set_status(db, request_id, body.status)

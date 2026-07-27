@@ -11,17 +11,23 @@ Sidebar desktop :
 1. Accueil
 2. Matières
 3. Cours
-4. Diagnostic
-5. ELI5
-6. Capsules IA
-7. Missions
-8. Quiz
-9. Progression
-10. Mindmaps
-11. Chat ZETIS
-12. Paramètres simples
+4. Révision
+5. Fiches
+6. Diagnostic
+7. ELI5
+8. Capsules IA
+9. Missions
+10. Quiz
+11. Progression
+12. Mindmaps
+13. Chat ZETIS
+14. Paramètres simples
 
-Sur iPhone, convertir la navigation en bottom bar avec accès rapide : Accueil, Missions, ELI5, Quiz, Profil.
+La sidebar suit le flux d'apprentissage : j'apprends (Cours) → j'ancre (Révision)
+→ je me situe (Diagnostic). Icônes Lucide (chrome UI) ; Phosphor reste réservé
+aux pictogrammes de matières.
+
+Sur iPhone, convertir la navigation en bottom bar avec accès rapide : Accueil, Révision, Missions, ELI5, Profil.
 
 ## Ton UX
 
@@ -62,6 +68,9 @@ Les effets sont en CSS + SVG et respectent `prefers-reduced-motion`.
 - `MissionCard`
 - `Eli5Panel`
 - `QuizCard`
+- `DeckDisc` (deck circulaire : illustration matière, effet pile, anneau, badge compteur)
+- `FlipCard` (carte de révision recto/verso, flip 3D)
+- `SessionEndPopup` (fin de session à 3 paliers : célébration / encouragement / re-tour)
 - `ProgressRing`
 - `VoiceInputButton`
 - `MindmapCanvas`

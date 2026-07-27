@@ -18,6 +18,7 @@ Claude Code agit comme développeur principal du projet ZETIS. Il doit transform
 8. Ajouter ou mettre à jour les types partagés dès qu’un contrat API change.
 9. Ajouter un test minimal pour toute logique métier importante.
 10. Mettre à jour la documentation si l’implémentation diverge.
+11. Suivre `docs/WORKFLOW.md` pour le déroulé de chaque session (cadrage → read-before-code → stop-on-blocker → vérification humaine → clôture) — source unique du process.
 
 ## Utilisation obligatoire de Graphify
 
@@ -84,6 +85,8 @@ Pour chaque bloc de développement :
 9. Proposer un commit Git clair
 ```
 
+> Déroulé détaillé de session (ouverture, reprise, clôture) : `docs/WORKFLOW.md`.
+
 ### Règle de sécurité
 
 Graphify est un outil d’aide au développement. Il ne doit jamais contenir de secrets, clés API, mots de passe, tokens ou données personnelles sensibles.
@@ -103,6 +106,23 @@ storage/exports/
 
 Utiliser uniquement `.env.example` pour documenter les variables d’environnement.
 
+## Déroulé des sessions & mémoire inter-sessions
+
+Le process de travail par chantier est décrit dans **`docs/WORKFLOW.md`** — source unique. À ne pas dupliquer ici. En résumé :
+
+- **Mono-chantier** : une seule branche / un seul chantier actif à la fois ; un hors-périmètre explicite dans chaque prompt. La dérive (« tant qu’on y est… ») est interdite : Claude Code s’arrête au bord du périmètre.
+- **Rituel de décision** : `mockup → spec → ADR → prompt`. Une décision figée dans un ADR ne se rediscute pas — Claude Code la **relit**, il ne la rouvre pas.
+- **Mémoire** : la conversation est volatile, le **dépôt** est permanent. Tout ce qui doit survivre à une fin de session s’écrit dans le repo :
+  - `MEMORY.md` = raisonnement (fait / en cours / à faire / décisions actives / prochain pas), écrit pour un lecteur **sans contexte** ;
+  - Git = état du code ;
+  - ADR / specs = décisions figées.
+  - Graphify **n’est pas de la mémoire** : c’est de l’**orientation** dans le code (réduit le coût de reconstruction après un reset de contexte).
+- **Stop-on-blocker** : sur toute divergence réelle avec la doc (signature d’API inattendue, module absent, table non réutilisable…), Claude Code **s’arrête, signale, propose l’ajustement minimal** — il ne code jamais autour.
+
+Raccourcis Claude Code (`.claude/commands/`) :
+
+- **`/cloture`** — fin de session (encore lucide) : met à jour `MEMORY.md` (+ `TROUBLESHOOTING.md` / `ARCHITECTURE.md` si nécessaire) et rend la checklist 9 points. **Ne committe pas** : l’humain vérifie (tests, diff) puis committe.
+- **`/reprise`** — nouvelle session, contexte perdu : réoriente via Graphify, relit `MEMORY.md` et `git log`, reprend au « prochain pas » **sans recoder l’existant ni re-décider**.
 
 ## Objectif produit
 
@@ -340,6 +360,8 @@ Quand une tâche est terminée, Claude Code doit produire :
 4. tests ajoutés ;
 5. points restant à faire ;
 6. risques connus.
+
+> Clôture de session complète (checklist 9 points + message de commit) : `docs/WORKFLOW.md` §6.4, via la commande `/cloture`.
 
 ## Interdictions
 

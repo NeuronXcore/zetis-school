@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
 from app.db.models import AIJob
 from app.modules.auth.deps import get_current_user
+from app.modules.tts import get_tts
+from app.modules.tts.provider import TtsProvider, TtsRequest
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
@@ -33,3 +35,31 @@ def get_job(
         output=job.output_json,
         duration_ms=job.duration_ms,
     )
+
+
+class TtsSpeakRequest(BaseModel):
+    text: str
+
+
+@router.post("/tts")
+def tts(
+    req: TtsSpeakRequest,
+    engine: TtsProvider = Depends(get_tts),
+    _: dict = Depends(get_current_user),
+) -> Response:
+    """Voix de ZETIS pour l'UI (ex. « Massimo, je prépare ton ELI5 »).
+
+    Utilise le MÊME moteur TTS que la narration des capsules (ADR-0007) → une seule
+    voix ZETIS partout. Voix indisponible (binaire/modèle absent) → 503 : le frontend
+    dégrade en silence (aucune bascule vers une voix tierce).
+    """
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Texte vide.")
+    try:
+        audio = engine.synthesize(TtsRequest(text=text))
+    except Exception as exc:  # noqa: BLE001 — binaire piper absent / échec synthèse
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Voix indisponible : {exc}"
+        ) from exc
+    return Response(content=audio.audio_wav, media_type="audio/wav")

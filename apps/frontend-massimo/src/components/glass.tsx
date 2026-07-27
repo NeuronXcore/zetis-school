@@ -5,7 +5,7 @@ import { type ReactNode } from "react";
 // Aucune couleur inventée — uniquement les classes déjà présentes dans le login.
 
 /**
- * Halos lumineux d'arrière-plan (indigo / cyan / fuchsia), identiques au login
+ * Halos lumineux d'arrière-plan (indigo / cyan), issus du login
  * (`bg-…-600/20 blur-[120px]`). Purement décoratif, ne capte pas les clics.
  */
 export function NeonBackdrop() {
@@ -13,7 +13,6 @@ export function NeonBackdrop() {
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-indigo-600/20 blur-[120px]" />
       <div className="absolute right-1/4 top-1/3 h-80 w-80 rounded-full bg-cyan-500/15 blur-[120px]" />
-      <div className="absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-fuchsia-600/20 blur-[120px]" />
     </div>
   );
 }

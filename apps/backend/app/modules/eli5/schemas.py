@@ -32,6 +32,10 @@ class ELI5ExplainResponse(BaseModel):
     next_action: str
     # Nombre de passages de cours (RAG) injectés ; >0 → explication appuyée sur une source validée.
     sources_used: int = 0
+    # Cours canonique utilisé (ADR-0011 §3) : nullables, présents quand une leçon validée a
+    # servi de source. Le badge Massimo passe de « D'après ton cours » à « D'après ta leçon … ».
+    lesson_id: int | None = None
+    lesson_title: str | None = None
 
 
 class ELI5ReverseRequest(BaseModel):
@@ -45,3 +49,14 @@ class ELI5ReverseResponse(BaseModel):
     feedback: str
     missing_points: list[str]
     next_action: str
+
+
+class ELI5TranscribeResponse(BaseModel):
+    """Dictée ELI5 (ADR-0012) : audio → texte, transcrit en LOCAL (faster-whisper).
+
+    Le texte alimente le même textarea puis part en reverse-evaluate (input_mode text) :
+    « soit il écrit, soit il parle ». Aucune donnée audio durable côté serveur.
+    """
+
+    transcript: str
+    duration_seconds: float

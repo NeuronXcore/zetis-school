@@ -16,7 +16,11 @@ test_curriculum_lessons_service.
 import json
 import unicodedata
 
-CURRICULUM_PROMPT_VERSION = "v1"
+# v2 (ADR-0010, décision 5) : few-shot SVT réaligné strictement mono-niveau (le chapitre
+# « Nutrition… » était en 5e pour un contexte 4e — débordement supprimé). Tout changement
+# de texte de prompt = bump (traçabilité `ai_jobs` + `metadata_json.prompt_version`).
+CURRICULUM_PROMPT_VERSION = "v2"
+# Inchangé : le texte du prompt leçons (passe 2) n'est pas touché par l'ADR-0010.
 LESSONS_PROMPT_VERSION = "v1"
 
 # Matières disposant de repères annuels de progression officiels (2019) : pour elles,
@@ -113,7 +117,7 @@ FEW_SHOTS: list[dict] = [
                     "title": "Nutrition et organisation des êtres vivants",
                     "description": "Besoins nutritifs et approvisionnement des organes. Répartition indicative.",
                     "themes": ["Le vivant et son évolution"],
-                    "suggested_class": "5e",
+                    "suggested_class": "4e",
                     "repartition": "interpretee",
                 },
             ],

@@ -57,8 +57,9 @@ Claude Code ne doit pas passer à l'étape suivante tant que :
 | Base PostgreSQL | ⬜ À faire | Schéma initial + migrations |
 | Auth Papa/Massimo | ⬜ À faire | Auth simple locale au début |
 | IA / RAG | ⬜ À faire | À intégrer après socle stable |
-| Mémoire espacée | ⬜ À faire | Quiz, révisions, lacunes |
+| Mémoire espacée (SRS) | ✅ Backend + UI | Moteur SRS (module `memory`) + page Massimo `/revision` (decks, toutes les matières dont grisées, bannière SRS, recto/verso color-codés) + génération des cartes depuis le cours validé (ADR-0013) + page Papa « Cartes de révision » (génération/régénération par matière avec barre %, réconciliation des orphelines, édition/suppression à la carte). Reste : ancrage RAG des cartes générées sans cours (Slice A-bis) |
 | Capsules IA | ✅ Terminé | Spec typé + moteur Remotion (Lot 1) + rendu MP4 worker-media/Piper (Lot 2) + difficulté/durée + chapitres + suivi des vues + rendu auto à la validation |
+| Référentiel de programme | ✅ Backend / 🟨 UI | Génération IA 2 passes (chapitres → leçons + notions), co-construction Papa/IA, page Programme, cours par leçon (moteur local), rattrapage skills-only (ADR-0010) + verrous cours canonique — tout en prod. Reste : maquette UI du skills-backfill à valider, ancrage RAG (Slice A-bis) |
 
 Légende :
 
@@ -1495,6 +1496,249 @@ Fait. Backend uniquement (ni endpoint, ni frontend, ni Remotion — cf. ADR-0007
 ```bash
 git add .
 git commit -m "feat(capsules): CapsuleSpec schema + versioned generation prompt (backend core)"
+```
+
+---
+
+# ÉTAPE — Référentiel de programme scolaire (ADR-0009 / ADR-0010)
+
+## Statut
+
+Backend **terminé et en prod** ; **UI Papa du référentiel faite** (page Programme) ;
+**UI du rattrapage skills-only : maquette à valider** avant implémentation.
+
+## Ce qui a été fait
+
+- **Décisions** : `adr-0009` (génération LLM 2 passes dans la hiérarchie existante,
+  co-construction par nœud, dérogation cloud `curriculum_*` → `claude-sonnet-5` après
+  bench T4), son **addendum cours canonique** (le cours validé = source des dérivés ;
+  lien `lesson_skills`), `adr-0010` (rattrapage « skills-only » pour un niveau antérieur).
+- **Lot 1 — chapitres** : `app/prompts/curriculum.py` (prompt versionné), module
+  `app/modules/curriculum` (`GeneratedChapters` 3-25, passe 1, règles §3, trace `ai_jobs`
+  `curriculum_chapters`, résolveur `CURRICULUM_LLM_PROVIDER` + `AnthropicProvider`, 503
+  sans clé), colonnes `Chapter.source/validation_status/program_version`, page Papa
+  **Programme** (liste, badges source/validation, ajout inline, réordonnancement,
+  validation par lot).
+- **Lot 2 — leçons + notions** : tables `lessons` + `lesson_skills`, passe 2
+  (`generate_lessons`/`extend-lessons`, upsert `Skill` par `subject_id`+`level`+nom
+  normalisé), étage leçons de la page Programme, **rédaction de cours par leçon** (moteur
+  **local**, `generate-content`, provenance + édition manuelle), lots « proposer les
+  leçons » / « rédiger les cours manquants », **page Cours de Massimo** (routes élève,
+  validé uniquement).
+- **Rattrapage skills-only (ADR-0010)** : endpoints `POST /api/curriculum/skills-backfill/
+  generate|confirm` (passes 1+2 en mémoire, aucun chapitre/leçon persisté ; upsert des
+  notions au niveau cible ; stateless, idempotent), passe 1 rendue strictement mono-niveau
+  (`CURRICULUM_PROMPT_VERSION` v2).
+- **Verrous du cours canonique** : index `ix_lesson_skills_skill` (migration
+  `e1f2a3b4c5d6`) ; `generate-content` repasse la leçon en `draft` après (re)génération.
+- **Docs** : `DATA_MODEL.md`, `DECISIONS.md`, `API_SPEC.md` (section Référentiel),
+  maquettes `docs/frontend-papa/page-programme.md` + `page-programme-skills-backfill.md`.
+
+## Reste à faire
+
+- **UI Papa du rattrapage skills-only** (frontend pur) : implémenter d'après la maquette
+  `docs/frontend-papa/page-programme-skills-backfill.md` (une fois validée).
+- Ancrage RAG des attendus du BO (Slice A-bis) ; réconciliation skills seed (Lot 3) ;
+  `prerequisite_skill_ids`.
+
+## Commit conseillé
+
+```bash
+git commit -m "docs(curriculum): sync API_SPEC + SUIVI, skills-backfill UI mockup"
+```
+
+---
+
+# ÉTAPE — Moteur de quiz unifié (ADR-0014, Lot 1)
+
+## Statut
+
+**Terminé** — backend + page Papa « Quiz — pilotage » + client Massimo, vérifiés live (génération
+Ollama réelle → passation → feedback serveur). Merge `main` : PR #41 (backend) + #43 (pilotage
+Papa) ; #44 (client Massimo) en revue.
+
+## Ce qui a été fait
+
+- **Décision** : `adr-0014` (service partagé 4 contextes, 2ᵉ client du substrat canonique,
+  7 formats à correction déterministe, auto-vérification à l'aveugle, scoring pondéré, doctrine
+  de validation par échantillonnage). Docs synchronisées : `DECISIONS.md`, `DATA_MODEL.md`
+  (Quiz/QuizQuestion), `API_SPEC.md` (section Quiz), `docs/backend/modules.md`.
+- **Backend — module `quizzes`** : migration `b1c2d3e4f5a6` (`quizzes.lesson_id`,
+  `quiz_questions.source`/`status`) ; `correction.py` (7 correcteurs purs + normalisation) ;
+  `scoring.py` (`apply_quiz_result`, `mission` = signal faible sans `Gap`) ; génération +
+  auto-vérif + CRUD Papa + flux élève ; prompt versionné `app/prompts/quiz.py` (`v1`) ;
+  `FakeLLMProvider` étendu ; XP `quiz_xp(score)` = base 10 + bonus (max 30).
+- **Page Papa « Quiz — pilotage »** (`/quiz`) : surface de lecture `/api/quiz-pilotage`
+  (overview + arbre matière), inventaire, génération (popover + `ProgressBar`), modale
+  d'inspection (clés, édition→`manual`, retrait, ajout manuel, régénérer, supprimer).
+- **Client Massimo** (`/quiz`, `/quiz/session`) : grille matières (grisée si aucun quiz) →
+  lecteur 7 formats → feedback immédiat → résumé bienveillant ; bouton « 🎯 Quiz » page Cours ;
+  hero animé. Types partagés `packages/types/src/quiz.ts`.
+- **Invariants prouvés par tests** : zéro fuite de clé côté `/api/student`, `mission` n'ouvre
+  aucune `Gap`, questions `manual` préservées par la régénération. 279 tests backend +
+  66 (Massimo) + 100 (Papa) verts.
+
+## Lot 2 — format `open` (jugement LLM) — FAIT (ADR clôturé)
+
+Réponse écrite libre **jugée par le moteur local** contre des critères (garde-fous Décision 4 :
+critère par critère, bénéfice du doute + ambiguïté remontée à Papa, feedback bienveillant).
+`open` reste hors du mix auto-généré (opt-in manuel Papa). Migration `c2d3e4f5a6b7`
+(`quiz_answers.ai_evaluation_json`), module `judge.py`, prompt juge versionné, player Massimo
+(zone de texte) + authoring Papa (bascule QCM / Réponse ouverte). 6 tests de calibrage + vérifié
+live (Ollama réel). **ADR-0014 clôturé.**
+
+## Reste à faire
+
+- Génération **en lot** (« générer les quiz manquants »), contextes `revision`/
+  `capsule_post_test` réels (scoring aujourd'hui en stub).
+- Badge « déjà fait · rejouer » par quiz (statut de tentative) ; génération auto de questions
+  ouvertes avec critères assistée par LLM (opt-in), aujourd'hui saisis à la main par Papa.
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(quizzes): unified quiz engine (ADR-0014 lot 1) — backend, Papa pilotage, Massimo client"
+```
+
+---
+
+# ÉTAPE — Fiches de révision (ADR-0015)
+
+## Statut
+
+**Terminé** (branche `fiche`, non committée) — backend module `fiches` + viewer Massimo +
+pilotage Papa. 304 tests backend + 104 (Papa) + 73 (Massimo) verts ; `tsc -b` et `vite build`
+verts ; migration appliquée sur le Postgres de dev. Vérif **live** à faire avant merge.
+
+## Ce qui a été fait
+
+- **Décision** : `adr-0015` — la fiche est un **objet leçon** (« 1 leçon = 1 page »), distinct de
+  la flashcard SRS (qui porte une *notion*) ; spec fermé à **budgets** ; dérivée du **cours
+  canonique** (ADR-0011) ; pont SRS faible ; génération par Massimo différée. Docs synchronisées :
+  `DATA_MODEL.md`, `API_SPEC.md`, `docs/backend/modules.md`, `docs/design/design-system.md`,
+  `docs/frontend-massimo/page-fiches.md`.
+- **Backend — module `fiches`** : `FicheSpec` (`packages/types/src/fiche.ts` + miroir Pydantic
+  borné, const `FICHE_BUDGETS` : `essentiel` ≤ 600, `definitions` ≤ 4, `points_cles` ≤ 5,
+  `erreurs_a_eviter` ≤ 3, `mini_exemple` ≤ 400) ; prompt versionné `app/prompts/fiche.py` (`v1`) ;
+  service `generate_fiche` **leçon-centré** — force le cours de LA leçon comme source canonique +
+  complément RAG (miroir du quiz de fin de cours ; piège : `resolve_canonical_context` prend un
+  `skill_id`, pas un `lesson_id`) ; migration `d3e4f5a6b7c8` (tables `fiches` + `fiche_views`) ;
+  trace `ai_jobs` `fiche_generate` ; `FakeLLMProvider` étendu (branche `essentiel`).
+- **Endpoints** : Papa (`require_parent`) `POST /api/fiches/generate`, `PUT /api/fiches/{id}`
+  (revalide → `pending`), `POST /{id}/regenerate`, `POST /{id}/validate`, `DELETE /{id}`,
+  `GET /api/fiches/lessons/{id}`, `GET /api/fiches/pilotage/{subject_id}` (arbre matière → leçons
+  → fiches, miroir quiz-pilotage). Massimo (`/api/student`, gate `validated`, 404 sinon) :
+  `fiches/summary` (decks), `subjects/{slug}/fiches`, `fiches/{id}`, `fiches/{id}/seen`.
+- **Briques partagées `@zetis/ui`** (factorisation réutilisée ensuite par les mindmaps) :
+  `GenerationProgress` (variant `bar`|`ring` + `useEstimatedProgress` déplacé de frontend-papa),
+  `ContentLifecycleActions` (quatuor Générer · Régénérer · Éditer · Supprimer + `ConfirmDialog`) et
+  `ContentStatusBadge`. `ProgressBar.tsx` (Papa) **ré-exporte** `GenerationProgress` → capsules
+  inchangées (preuve de réutilisation, découpe minimale validée).
+- **Viewer Massimo** (`/fiches`, `/fiches/:slug`) : decks `SubjectDeckGrid` (compteur + « ✨
+  nouveau ») → liste par leçon → `FicheCard` (⭐ essentiel / 📖 définitions / 🔑 à retenir / ⚠️
+  pièges / 💡 exemple) + badge de provenance « 📚 D'après ton cours ». Bouton **« 📖 Voir le
+  cours »** (haut-droite) : ouvre le cours source **à côté** de la fiche (`CoursPanel`, même page,
+  fiche à gauche / cours à droite ; réutilise `GET /api/student/lessons/{id}/cours` +
+  `react-markdown`). **Export A5** : rendu clair `FicheA5` + `html-to-image` → « 🖼️ Image A5 »
+  (PNG téléchargeable) et « 🖨️ Imprimer » (document A5 autonome) — remplace l'ancien
+  `window.print()`/`@media print` qui donnait une page blanche (shell à scroll interne).
+- **Pilotage Papa** (`/fiches`, émeraude, sidebar « Fiches ») : arbre matière → leçons → fiches,
+  génération par leçon (+ célébration), `ContentLifecycleActions` par fiche, et **éditeur
+  structuré** `FicheEditorModal` (champs + listes à + / × + compteurs de budget) qui **remplace**
+  l'édition du `spec_json` brut. Dépendance ajoutée : `html-to-image` (frontend-massimo).
+
+## Reste à faire
+
+- Pont **SRS** réel (« 🃏 Ajouter à mes cartes » aujourd'hui stub) — dépend du chantier SRS.
+- Génération d'une fiche **par Massimo** (différée, ADR-0015 « Alternatives »).
+- Vérif **live** end-to-end (générer → valider → lire → image / impression A5) puis merge.
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(fiches): révision cards (ADR-0015) — backend, Massimo viewer, Papa pilotage"
+```
+
+---
+
+# ÉTAPE — Missions Lot 1 : preuves serveur + verdict (ADR-0017)
+
+## Statut
+
+FAIT (backend + tests + frontend minimal + docs) — 2026-07-05. Branche `mission`.
+
+## Ce qui a été fait
+
+- **Migration `f3a4b5c6d7e8`** (seule du chantier) : `missions.validation_status` (backfill
+  existant → `validated`), `missions.subject_id` nullable, `missions.started_at`,
+  `mission_steps.resource_id`. Modèles `Mission`/`MissionStep` alignés (tests SQLite = create_all).
+- **Service** : générateur `pending`, `step_type` alignés ADR (`eli5`/`vocal_explain`/`quiz`),
+  `resource_id` réels (skill / quiz réutilisé sinon étape quiz omise, pur-DB) ; `start` idempotent ;
+  `complete-step` à **preuves serveur** (409 si absente/antérieure au start/hors ordre) ; dernière
+  étape → **XP +50 inconditionnel** + **verdict** (`acquired`/`review_later` → mastery/gap/SRS) ;
+  gate `validated` **dans la requête** des routes student ; `validate` Papa minimal.
+- **Retiré** : `POST /missions/{id}/complete` (déclaratif étape 15).
+- **Tests** : 11 tests missions (6 invariants + verdict acquired + idempotence) ; adaptation du test
+  gamification « first_mission » au nouveau flux. **329 back + 81 massimo + tsc -b verts.**
+
+## Divergence tranchée (stop-on-blocker → commanditaire)
+
+La prémisse ADR « zéro migration de ciblage » était fausse : `MissionStep.resource_id` **et**
+`missions.started_at` ajoutés ; `step_type` réels migrés `explain→eli5`/`reverse→vocal_explain` ;
+auto-génération du quiz de mission **reportée au Lot 2**. Amendement consigné dans l'ADR-0017.
+
+## Reste à faire
+
+- **Lot 2** : sources `revision`/`progression`, sélecteur `/missions/today` (mission élue + raison,
+  scoring versionné), service d'évidence partagé, auto-génération du quiz de mission, pilotage Papa
+  (validation en lot + badge + zone « À valider »), refonte visuelle MissionsPage Massimo.
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(missions): proof-based steps + acquisition verdict (ADR-0017 lot 1)"
+```
+
+---
+
+# ÉTAPE — Missions Lot 2 : sources + sélecteur + pilotage (ADR-0017)
+
+## Statut
+
+FAIT (backend + tests + lib frontend minimale + docs) — 2026-07-05. Branche `mission`.
+
+## Ce qui a été fait
+
+- **Module neutre `evidence/`** (read-only, patron ADR-0011) : mastery/gaps/verdicts/quiz
+  pondéré (poids ADR-0014 consommé)/SRS ; test-verrou de neutralité (aucun import missions/conseil).
+- **Générateurs** `revision` (cartes dues/matière) et `progression` (prochaine notion non maîtrisée
+  d'un chapitre actif / rattrapage), idempotents → `pending`, templates purs.
+- **Sélecteur déterministe versionné** (`selector.py`, `MISSION_SCORING_VERSION=v1`) : facteurs
+  nommés + pondérations en config, `variety` = matière de la dernière mission complétée (proxy),
+  `reason` = phrase figée du facteur dominant.
+- **Contrat `/today` cassant** (objet élue+raison) + **split schémas** `MissionStudentOut` /
+  `MissionPilotOut` (2 routers, gate en requête). **Routes pilotage Papa** : pending, validate,
+  reject, election/today (recalcul), pilot, verdicts/recent, pilot/summary. `generation_reason`
+  calculé. **Trace verdict** `LearningEvent`.
+- **Tests** : invariants 7–11 + générateurs + pilotage (`test_missions_selector.py`) ; Lot 1 adapté
+  au nouveau `/today`. **340 back verts.** Lib frontend Massimo adaptée a minima.
+
+## Divergences tranchées
+
+- `Mission.available_from` (DATA_MODEL) absent du modèle réel → toutes les validées candidates
+  (aucune migration). `generation_reason` et l'élection **calculés/recalculés**, jamais stockés.
+
+## Reste à faire
+
+- **Lot 3** : porte « Commander » (recommandation/échéance/thématique + notions résolues par
+  embeddings décochables), Conseil de classe IA, croisées automatiques, auto-validation par type.
+- **Slices frontend** : refonte MissionsPage Massimo (mission du jour + raison) ; page pilotage
+  Papa (`docs/frontend-papa/page-missions-pilotage.md`).
+
+## Commit conseillé
+
+```bash
+git commit -m "feat(missions): evidence service + deterministic daily selector + Papa pilotage (ADR-0017 lot 2)"
 ```
 
 ---
