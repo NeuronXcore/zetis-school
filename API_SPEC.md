@@ -582,6 +582,30 @@ chunké/vectorisé. La source arrive en statut **`pending`** : invisible du RAG 
 qu'elle n'est pas validée à la main (relecture humaine, cf. CLAUDE.md).
 Réponse : `{ document_id, chunks }`. `400` si format non supporté / texte vide.
 
+### POST `/rag/clip`
+
+Capture **texte** envoyée par l'extension `zetis-clip` (page web / sélection, côté Papa).
+Corps : `{ title, text, source_url?, source_type?, subject_id?, level?, chapter? }`
+(`source_type` def. `web_clip`). Réutilise `ingest_document` : la source arrive en statut
+**`pending`** (relecture obligatoire, cf. CLAUDE.md) — une capture web n'alimente jamais
+l'IA de Massimo sans validation. `source_url` est conservé dans le contenu (provenance,
+sans colonne dédiée). Réponse : `{ document_id, chunks }`. `400` si `text` vide.
+
+### POST `/rag/clip-url`
+
+Import de la **transcription** d'une vidéo (extension `zetis-clip` Lot 2, côté Papa).
+Corps : `{ url, title?, subject_id?, level?, chapter? }`. Extraction **côté serveur**
+(`youtube-transcript-api`), avec un **fetch sortant borné à une allowlist d'hôtes**
+(`youtube.com`, `www.youtube.com`, `youtu.be` — cf. ADR-0006 addendum). Préfère une
+transcription humaine à une auto-générée ; **conserve la langue d'origine** (pas de
+traduction). Ingestion en statut **`pending`** (`source_type = video_transcript`),
+provenance + langue conservées dans le contenu. Réponse : `{ document_id, chunks }`.
+
+`400` avec un `detail` **structuré** `{ code, message }` :
+- `unsupported_url` : hôte hors allowlist, schéma non http(s), IP littérale, id introuvable.
+- `transcript_unavailable` : transcription désactivée/absente → le client bascule sur le
+  repli DOM (scrape du panneau « Transcription ») puis `POST /rag/clip`.
+
 ### GET `/rag/documents`
 
 Liste les documents avec leur `validation_status` et leur nombre de chunks.
@@ -768,6 +792,8 @@ Sortie :
 | `/gamification/summary` GET | oui | oui | oui |
 | `/rag/documents` POST | non | oui | oui |
 | `/rag/upload` POST | non | oui | oui |
+| `/rag/clip` POST | non | oui | oui |
+| `/rag/clip-url` POST | non | oui | oui |
 | `/rag/documents/{id}/validate` POST | non | oui | oui |
 | `/rag/documents/{id}/reject` POST | non | oui | oui |
 | `/ai/eli5/explain` | oui | oui | oui |

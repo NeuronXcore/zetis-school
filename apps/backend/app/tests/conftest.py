@@ -12,12 +12,14 @@ from app.main import app
 from app.modules.ai import get_embedder, get_provider
 from app.modules.auth.deps import get_current_user
 from app.modules.curriculum import get_curriculum_provider
+from app.modules.rag.transcript import get_transcript_fetcher
 from app.modules.stt import get_stt
 from app.modules.tts import get_tts
 from app.tests.fakes import (
     FakeEmbeddingProvider,
     FakeLLMProvider,
     FakeSttProvider,
+    FakeTranscriptFetcher,
     FakeTtsProvider,
 )
 
@@ -56,6 +58,7 @@ def client_db() -> Iterator[tuple[TestClient, sessionmaker]]:
     # Curriculum (ADR-0009) : provider dédié, mocké lui aussi (aucun appel Anthropic).
     app.dependency_overrides[get_curriculum_provider] = lambda: FakeLLMProvider()
     app.dependency_overrides[get_embedder] = lambda: FakeEmbeddingProvider()
+    app.dependency_overrides[get_transcript_fetcher] = lambda: FakeTranscriptFetcher()
     app.dependency_overrides[get_tts] = lambda: FakeTtsProvider()
     # STT (ADR-0012) : dictée mockée (aucun faster-whisper ni modèle en CI).
     app.dependency_overrides[get_stt] = lambda: FakeSttProvider()

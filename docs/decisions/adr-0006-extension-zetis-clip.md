@@ -63,3 +63,42 @@ Créer une nouvelle application `apps/extension-zetis-clip` : une **extension na
 
 - Implémentation : étape 19 (Lot 1), `feat(zetis-clip): Papa browser extension …`.
 - Étape 20+ : transcript vidéo (`youtube-transcript-api`), OCR (Tesseract.js), audio (Whisper), envoi différé hors-ligne.
+
+---
+
+## Addendum — étape 20 (Lot 2 : transcription vidéo)
+
+**Statut** : Accepté — 2026-07-01.
+
+**Contexte** : le Lot 1 a choisi l'extraction **côté client** précisément pour que le
+backend ne fetch jamais d'URL arbitraire (surface SSRF). Le Lot 2 importe des
+transcriptions vidéo, ce qui est bien plus fiable côté serveur (`youtube-transcript-api`)
+que via un scrape DOM fragile. Cela **réintroduit un fetch sortant côté serveur** — une
+exception à la décision du Lot 1.
+
+**Décision (exception bornée)** :
+
+- Nouvel endpoint `POST /api/rag/clip-url` (Papa-only, comme `/upload` et `/clip`).
+- Le fetch sortant est **borné par une allowlist d'hôtes** : `youtube.com`,
+  `www.youtube.com`, `youtu.be`. L'URL est **validée/normalisée avant tout appel réseau**
+  (`transcript.validate_video_url`) : schéma http(s) obligatoire, rejet des IP littérales
+  et de tout hôte hors allowlist, extraction bornée de l'identifiant vidéo.
+- **Architecture hybride** : primaire = serveur ; **repli = client** — si le serveur
+  renvoie `transcript_unavailable`, le content script scrape le panneau « Transcription »
+  de l'onglet actif (via `activeTab`, sur action utilisateur) et envoie le texte au
+  `POST /api/rag/clip` existant. Pas de nouvel endpoint pour le repli.
+- Ingestion toujours en **`pending`** (`source_type = video_transcript`) ; contrats de
+  `/rag/documents` et `/rag/clip` inchangés ; `clip-url` est purement additif.
+- **Langue conservée** : transcription humaine préférée à l'auto-générée ; jamais de
+  traduction automatique ; langue d'origine tracée dans le contenu (pas de migration).
+- **Nouvelle dépendance backend** : `youtube-transcript-api` (import paresseux ; le
+  récupérateur est abstrait derrière `TranscriptFetcher`, mockable pour les tests offline).
+
+**Conséquences** :
+
+- Positif : import vidéo fiable, surface SSRF réduite à une allowlist explicite et
+  validée, repli robuste quand la plateforme ne fournit pas de transcription API.
+- Coût : une exception au principe « zéro fetch serveur » du Lot 1, strictement bornée et
+  documentée ici ; une dépendance de plus.
+- Reporté (étapes 21+) : OCR image, audio/podcast (Whisper), file d'attente offline,
+  import multi-onglets, autres plateformes vidéo (Vimeo, etc.).

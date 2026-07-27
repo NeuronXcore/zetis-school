@@ -9,8 +9,11 @@ import pytest
 from sqlalchemy import func, select
 
 import app.db.models as m
+from app.main import app
 from app.modules.rag.chunking import chunk_text
 from app.modules.rag.extract import extract_text
+from app.modules.rag.transcript import get_transcript_fetcher, validate_video_url
+from app.tests.fakes import FakeTranscriptFetcher
 
 
 def test_chunk_text_groups_and_splits() -> None:
@@ -85,6 +88,40 @@ def test_upload_lands_pending_and_is_not_retrievable(client_db) -> None:
         assert statuses == {"pending"}
 
 
+def test_clip_lands_pending_and_keeps_provenance(client_db) -> None:
+    # Une capture web (extension zetis-clip) reste `pending` : relecture Papa obligatoire.
+    client, Session = client_db
+    res = client.post(
+        "/api/rag/clip",
+        json={
+            "title": "Théorème de Pythagore — Wikipédia",
+            "text": "Dans un triangle rectangle, le carré de l'hypoténuse...",
+            "source_url": "https://fr.wikipedia.org/wiki/Theoreme_de_Pythagore",
+            "subject_id": 1,
+            "chapter": "Géométrie",
+        },
+    )
+    assert res.status_code == 200, res.text
+    doc_id = res.json()["document_id"]
+    assert res.json()["chunks"] >= 1
+
+    listed = client.get("/api/rag/documents").json()
+    assert listed[0]["validation_status"] == "pending"
+    assert listed[0]["source_type"] == "web_clip"
+    with Session() as db:
+        chunk = db.scalar(select(m.RagChunk).where(m.RagChunk.document_id == doc_id))
+        assert chunk is not None
+        assert chunk.validation_status == "pending"
+        # La provenance (URL) est conservée dans le contenu, sans colonne dédiée.
+        assert "fr.wikipedia.org" in chunk.content
+
+
+def test_clip_rejects_empty_text(client_db) -> None:
+    client, _ = client_db
+    res = client.post("/api/rag/clip", json={"title": "Vide", "text": "   "})
+    assert res.status_code == 400, res.text
+
+
 def test_validate_then_reject_syncs_document_and_chunks(client_db) -> None:
     client, Session = client_db
     doc_id = client.post(
@@ -106,6 +143,77 @@ def test_validate_then_reject_syncs_document_and_chunks(client_db) -> None:
 
     missing = client.post("/api/rag/documents/9999/validate")
     assert missing.status_code == 404
+
+
+def test_validate_video_url_extracts_id_and_rejects_bad_hosts() -> None:
+    assert validate_video_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") == "dQw4w9WgXcQ"
+    assert validate_video_url("https://youtu.be/dQw4w9WgXcQ") == "dQw4w9WgXcQ"
+    with pytest.raises(ValueError):
+        validate_video_url("https://vimeo.com/12345")  # hôte hors allowlist
+    with pytest.raises(ValueError):
+        validate_video_url("ftp://youtube.com/watch?v=x")  # schéma non http(s)
+    with pytest.raises(ValueError):
+        validate_video_url("http://127.0.0.1/watch?v=x")  # IP littérale hors allowlist
+
+
+def test_list_transcripts_supports_both_library_apis() -> None:
+    # Garde anti-régression : youtube-transcript-api 0.6.x (classmethod) vs 1.x (instance).
+    from app.modules.rag.transcript import _list_transcripts
+
+    class OldApi:  # 0.6.x
+        @classmethod
+        def list_transcripts(cls, video_id: str) -> str:
+            return f"old:{video_id}"
+
+    class NewApi:  # 1.x
+        def list(self, video_id: str) -> str:
+            return f"new:{video_id}"
+
+    assert _list_transcripts(OldApi, "vid") == "old:vid"
+    assert _list_transcripts(NewApi, "vid") == "new:vid"
+
+
+def test_clip_url_ingests_transcript_pending(client_db) -> None:
+    # Transcription (récupérateur mocké) → ingestion `pending`, langue conservée.
+    client, Session = client_db
+    res = client.post(
+        "/api/rag/clip-url",
+        json={
+            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "title": "Cours d'anglais — present perfect",
+            "subject_id": 1,
+            "chapter": "Present perfect",
+        },
+    )
+    assert res.status_code == 200, res.text
+    doc_id = res.json()["document_id"]
+    assert res.json()["chunks"] >= 1
+
+    listed = client.get("/api/rag/documents").json()
+    assert listed[0]["source_type"] == "video_transcript"
+    assert listed[0]["validation_status"] == "pending"
+    with Session() as db:
+        chunk = db.scalar(select(m.RagChunk).where(m.RagChunk.document_id == doc_id))
+        assert chunk is not None
+        assert chunk.validation_status == "pending"
+        assert "youtube.com" in chunk.content  # provenance
+        assert "Langue : en" in chunk.content  # langue d'origine (pas de traduction)
+
+
+def test_clip_url_rejects_non_allowlisted_host(client_db) -> None:
+    client, _ = client_db
+    res = client.post("/api/rag/clip-url", json={"url": "https://vimeo.com/12345"})
+    assert res.status_code == 400, res.text
+    assert res.json()["detail"]["code"] == "unsupported_url"
+
+
+def test_clip_url_reports_unavailable_transcript(client_db) -> None:
+    # Transcription désactivée → 400 code `transcript_unavailable` (déclenche le repli client).
+    client, _ = client_db
+    app.dependency_overrides[get_transcript_fetcher] = lambda: FakeTranscriptFetcher(available=False)
+    res = client.post("/api/rag/clip-url", json={"url": "https://youtu.be/dQw4w9WgXcQ"})
+    assert res.status_code == 400, res.text
+    assert res.json()["detail"]["code"] == "transcript_unavailable"
 
 
 def test_explain_without_sources_still_returns_job(client_db) -> None:
