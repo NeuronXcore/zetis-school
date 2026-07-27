@@ -1,4 +1,4 @@
-import { type LayoutKind } from "../../lib/mindmapTree";
+import { type LayoutKind } from "./mindmapTree";
 
 // Sélecteur de présentation (ADR-0016 §3) : Radial · Horizontal · Vertical · Équilibrée. État de
 // vue pur (client), aucune incidence sur le score ou la donnée. Présélection = defaultLayout(mm).

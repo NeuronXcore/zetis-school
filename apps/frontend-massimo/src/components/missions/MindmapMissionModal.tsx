@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { type MindmapAttemptResult, type MindmapDetail } from "@zetis/types";
-import { fetchMindmap, markMindmapSeen } from "../../lib/mindmaps";
+import { MindmapWorkspace, type MindmapMode } from "@zetis/ui/mindmap";
+import { fetchMindmap, markMindmapSeen, submitMindmapAttempt } from "../../lib/mindmaps";
 import { completeStepSafely } from "../../lib/missionSteps";
-import { MindmapWorkspace } from "../mindmap/MindmapWorkspace";
-import { type MindmapMode } from "../mindmap/ModeSegmented";
 import { ActivityModal } from "../ActivityModal";
 import { InlineHint, StepVerdictFooter, type MissionModalProps, type StepVerdict } from "./shared";
 
@@ -80,6 +79,8 @@ export function MindmapMissionModal({ mission, step, onStepDone, onClose }: Miss
         <MindmapWorkspace
           mm={detail.mindmap_json}
           mindmapId={detail.id}
+          // Évaluateur ÉLÈVE : persiste la tentative et crédite l'XP (serveur).
+          evaluator={(placements, failed) => submitMindmapAttempt(detail.id, placements, failed)}
           mode={mode}
           onModeChange={setMode}
           storageScope="mission"

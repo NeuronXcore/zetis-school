@@ -7,9 +7,41 @@
 
 ## État à la reprise
 
-**`main` est à jour, aucun chantier en cours, aucune branche active.** Le dernier chantier
-(**Conseil de classe IA + équipement de mission**) est **MERGÉ dans `main`** — PR
-[#48](https://github.com/NeuronXcore/zetis-school/pull/48), squash `639209e`. Rien en attente.
+**Chantier ACTIF : branche `feat/mindmaps-pilotage-papa`** — *Mindmaps · pilotage Papa*
+(addendum ADR-0016 du 2026-07-27). **Non mergé, non poussé.** Trois commits :
+
+1. `64dd708` — docs seuls (addendum ADR-0016 + `docs/frontend-papa/page-mindmaps-pilotage.md`).
+2. `3758be8` — **extraction de la brique canvas dans `@zetis/ui`** (`@zetis/ui/mindmap`).
+3. *(à venir)* — aperçu Papa + `evaluate-preview` + cycle de vie éditorial.
+
+**Ce qui est fait** — un seul renderer pour les deux interfaces :
+
+- **Brique partagée** `packages/ui/src/components/mindmap/` : `MindmapWorkspace`, `MindmapNode`,
+  `ModeSegmented`, `LayoutSelector`, `NodeBank`, `mindmapLayout.ts`, `mindmapTree.ts`,
+  `mindmap.css`. `@xyflow/react` + `elkjs` **déplacés** (pas ajoutés) de `frontend-massimo` vers
+  `packages/ui`. Export en **sous-chemin** (`./mindmap`), jamais depuis la racine.
+- **Contrat** : zéro fetch (la carte descend en prop), zéro logique métier, évaluation **injectée**
+  (prop `evaluator`). Massimo passe l'évaluateur élève, Papa celui d'aperçu.
+- **Backend** : `POST /api/mindmaps/{id}/evaluate-preview` (`require_parent`, tous statuts,
+  **zéro persistance**) + agrégat `attempt_count`/`avg_score` sur `pilotage/{subject_id}`
+  (une requête ; le N+1 par leçon a été supprimé au passage). **Aucune migration** — le CASCADE
+  était déjà couvert par `delete_mindmap`.
+- **Papa** : page `/mindmaps` (chapitres repliables, recherche, métrique de reconstruction, signal
+  avant destruction via la nouvelle prop `destructionNotice` de `ContentLifecycleActions`) +
+  `MindmapPreviewModal` 4 onglets (hublot sombre, brique en `lazy()`) + `MindmapOutlineEditor`
+  extrait de `MindmapEditorModal` (monté aux deux endroits).
+
+**Vérifié live** (backend `:8001`, Postgres réel) : les 3 modes × 4 présentations et l'étape
+mindmap d'une mission côté Massimo (non-régression, 2 points de montage) ; côté Papa, une
+reconstruction **complète** jouée dans l'aperçu → score serveur 100 % rendu et
+`mindmap_attempts`/`xp_events`/`learning_events` **inchangés** (11/68/38 avant et après).
+413 tests back + 81 Massimo + 129 Papa verts.
+
+**PROCHAIN PAS : pousser la branche + ouvrir la PR.** Rien ne reste à coder sur ce chantier.
+
+> ⚠️ Les sections ci-dessous datent d'avant plusieurs chantiers mergés depuis (missions champion
+> ADR-0022, ZETIS Clip, années scolaires) : les considérer comme des repères historiques, pas comme
+> l'état de `main`. Se fier à `git log` pour l'état réel.
 
 ### Derniers chantiers mergés (repères)
 

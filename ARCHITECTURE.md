@@ -86,7 +86,26 @@ Fonctions principales :
 - mode focus ;
 - validation contenus générés ;
 - pilotage capsules IA ;
+- **pilotage mindmaps avec aperçu de fidélité** (voir ci-dessous) ;
 - paramètres sécurité et IA.
+
+### `packages/ui` — briques partagées Massimo + Papa
+
+Design system commun (tokens sémantiques mappés par chaque app sur sa palette). Deux points
+d'entrée :
+
+- **`@zetis/ui`** (racine) — boutons, cartes, `ConfirmDialog`, `GenerationProgress`,
+  `ContentLifecycleActions`, célébration… Léger, importé partout.
+- **`@zetis/ui/mindmap`** — **brique de canvas mindmap** (`MindmapWorkspace` + 3 modes + moteur de
+  layout elk + nœuds React Flow). Export **en sous-chemin délibérément séparé** : elle embarque
+  `@xyflow/react` et `elkjs` (~1,6 Mo), qui n'ont rien à faire dans le bundle des pages qui ne
+  rendent pas de carte. Papa la charge en `import()` paresseux (addendum ADR-0016 §A).
+
+Contrat de la brique : **zéro fetch** (la carte descend en prop — le gate `validated` reste dans la
+requête serveur de l'appelant) et **zéro logique métier** (l'évaluation de la reconstruction est
+injectée par la prop `evaluator`). Trois points de montage : la page mindmaps de Massimo, l'étape
+mindmap d'une mission, et l'aperçu Papa. **Un seul renderer** — ce que Papa valide est, par
+construction, ce que Massimo verra.
 
 ## Backend API
 

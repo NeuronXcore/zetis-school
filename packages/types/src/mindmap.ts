@@ -63,13 +63,21 @@ export interface MindmapDetail {
   mindmap_json: MindmapJson;
 }
 
+// Une carte vue depuis le pilotage Papa : la carte + l'agrégat de ses reconstructions. Ces deux
+// champs n'existent QUE sur cette surface (addendum ADR-0016 §E) : le suivi est parent-side, rien
+// n'en remonte dans l'interface de Massimo.
+export interface MindmapPilotageCard extends MindmapDetail {
+  attempt_count: number;
+  avg_score: number | null; // null = jamais reconstruite
+}
+
 // Arbre de pilotage Papa d'une matière : leçons validées + leurs mindmaps (1 appel).
 export interface MindmapPilotageLesson {
   lesson_id: number;
   title: string;
   chapter: string | null;
   has_content: boolean;
-  mindmaps: MindmapDetail[];
+  mindmaps: MindmapPilotageCard[];
 }
 
 export interface MindmapPilotageTree {

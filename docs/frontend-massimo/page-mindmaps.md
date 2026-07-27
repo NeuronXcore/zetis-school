@@ -3,6 +3,16 @@
 > Décision de fond : **ADR-0016** (rendu & layout des mindmaps). Ce document décrit la **surface
 > Massimo** telle qu'implémentée. Une mindmap est un objet **leçon-centré** (comme les fiches et les
 > quiz), dérivée du **cours canonique** de la leçon (ADR-0011). Le serveur ne sert que le `validated`.
+>
+> **Le canvas et les 3 modes sont une brique `@zetis/ui` partagée** (`@zetis/ui/mindmap`, addendum
+> ADR-0016 §A) : `MindmapWorkspace`, `ModeSegmented`, `LayoutSelector`, `NodeBank`, les nœuds custom
+> et le moteur de layout ne vivent plus dans `frontend-massimo`. La page Papa de pilotage en est le
+> second consommateur (aperçu de fidélité) — **ce que Papa valide est, par construction, ce que
+> Massimo verra**. Deux conséquences pour cette page : la carte descend **en prop** (le gate
+> `validated` reste dans la requête serveur, jamais dans le composant) et **l'évaluation de la
+> reconstruction est injectée** (prop `evaluator`) — Massimo passe l'évaluateur élève
+> (`/attempts`, persiste + crédite l'XP), Papa l'évaluateur d'aperçu (sans effet de bord).
+> Ce qui **reste** côté Massimo : les écrans decks/liste, le `POST /seen`, le panneau « fiche ».
 
 ## Objectif
 

@@ -219,54 +219,10 @@
     transform: scale(1) rotate(35deg);
   }
 }
-/* Reconstruire : un nœud bien placé devient doré → petit « pop » de récompense (une fois, au
-   moment où il passe en doré). motion-safe uniquement. */
-@keyframes mm-gold-pop {
-  0% {
-    transform: scale(0.9);
-  }
-  55% {
-    transform: scale(1.14);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-/* Points de progression des PASSES (Mémorise / Reconstruire) : la passe en cours « respire »
-   (scale + lueur via currentColor) ; done/todo sont statiques (transition douce au changement). */
-@keyframes mm-dot-active {
-  0%,
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
-  }
-  50% {
-    transform: scale(1.35);
-    box-shadow: 0 0 9px 1px currentColor;
-  }
-}
-/* Popup éphémère de félicitation (Reconstruire) : apparaît, gonfle, monte puis s'efface. */
-@keyframes mm-cheer {
-  0% {
-    opacity: 0;
-    transform: translateY(6px) scale(0.8);
-  }
-  18% {
-    opacity: 1;
-    transform: translateY(0) scale(1.08);
-  }
-  32% {
-    transform: translateY(0) scale(1);
-  }
-  75% {
-    opacity: 1;
-    transform: translateY(-4px) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-16px) scale(0.96);
-  }
-}
+/* `mm-gold-pop`, `mm-dot-active` et `mm-cheer` ont migré avec le canvas dans la brique partagée :
+   `packages/ui/src/components/mindmap/mindmap.css` (addendum ADR-0016 §A). Ne pas les redéclarer
+   ici — la brique importe sa propre feuille. */
+
 /* Bouton « Voir la fiche » (page mindmap) : halo cyan qui respire pour inviter au clic quand la
    fiche est fermée. Discret (léger scale + lueur pulsée), motion-safe uniquement. */
 @keyframes mm-fiche-cta {

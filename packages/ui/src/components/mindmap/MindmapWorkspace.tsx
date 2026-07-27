@@ -12,12 +12,16 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { type MindmapAttemptResult, type MindmapJson } from "@zetis/types";
+import {
+  type MindmapAttemptResult,
+  type MindmapJson,
+  type MindmapNodePlacement,
+} from "@zetis/types";
 import { MindmapNode, type MindmapNodeData, type MindmapNodeState } from "./MindmapNode";
 import { LayoutSelector } from "./LayoutSelector";
 import { ModeSegmented, type MindmapMode } from "./ModeSegmented";
 import { NodeBank, type BankChip } from "./NodeBank";
-import { CENTER_ID, computeLayout, type LayoutResult, type NodeBox } from "../../lib/mindmapLayout";
+import { CENTER_ID, computeLayout, type LayoutResult, type NodeBox } from "./mindmapLayout";
 import {
   childrenOf,
   defaultLayout,
@@ -28,18 +32,35 @@ import {
   rootsOf,
   shuffle,
   type LayoutKind,
-} from "../../lib/mindmapTree";
-import { submitMindmapAttempt } from "../../lib/mindmaps";
+} from "./mindmapTree";
+import "./mindmap.css";
 
 // Espace de travail d'UNE carte (écran 3). Détient tout l'état d'interaction (présentation, mode,
 // dépli, révélation, reconstruction) et rend React Flow. Le layout est calculé côté client (elk,
 // asynchrone) ; la reconstruction est **évaluée par le serveur** (aucun score ici).
+//
+// BRIQUE PARTAGÉE Massimo + Papa (addendum ADR-0016 §A) : **zéro fetch, zéro logique métier**.
+// `mm` descend en prop (le gate `validated` reste dans la requête serveur de l'appelant), et
+// l'évaluation de la reconstruction passe par la prop `evaluator` — Massimo injecte l'évaluateur
+// réel (`/attempts`, persiste + crédite l'XP), Papa l'évaluateur d'aperçu (`/evaluate-preview`,
+// sans effet de bord). Un seul barème serveur, deux consommateurs.
 //
 // Reconstruire = GLISSER-DÉPOSER (pointeur → mouse ET touch) : on tire une étiquette de la banque
 // sur un emplacement. Le drag démarre sur une puce (hors canvas) → il n'entre pas en conflit avec
 // le pan de React Flow (qui ne démarre que sur un pointerdown DANS le canvas).
 
 const nodeTypes = { mm: MindmapNode };
+
+/**
+ * Évaluation d'une reconstruction complète — **injectée** par l'appelant (addendum ADR-0016 §C).
+ * Le score n'est JAMAIS calculé ici : la brique se contente d'envoyer les placements et d'afficher
+ * le résultat. Massimo passe l'évaluateur élève (persiste la tentative + crédite l'XP), Papa passe
+ * l'évaluateur d'aperçu (aucune persistance, `xp_awarded = 0`).
+ */
+export type MindmapEvaluator = (
+  placements: MindmapNodePlacement[],
+  failedAttempts: number,
+) => Promise<MindmapAttemptResult>;
 
 const HINTS: Record<MindmapMode, string> = {
   view: "Déplace un nœud pour ré-agencer la carte · glisse le fond pour te déplacer · molette pour zoomer · clique une branche pour la replier/déplier.",
@@ -53,22 +74,27 @@ export function MindmapWorkspace({
   mindmapId,
   mode,
   onModeChange,
+  evaluator,
   accent = "#22d3ee",
   onComplete,
   storageScope = "",
 }: {
   mm: MindmapJson;
+  // Sert UNIQUEMENT de clé de persistance de la disposition (localStorage, `arrangementKey`) —
+  // la brique ne fait aucun appel réseau avec cet id (cf. `evaluator`).
   mindmapId: number;
   // Mode CONTRÔLÉ par la page (MindmapSubjectPage) : elle en a besoin pour piloter le panneau
   // « fiche » (visible en Regarde/Mémorise, masqué en Reconstruire). Contrat inchangé par ailleurs.
   mode: MindmapMode;
   onModeChange: (m: MindmapMode) => void;
+  // Évaluation SERVEUR de la reconstruction, injectée (§C). Aucun score calculé ici.
+  evaluator: MindmapEvaluator;
   accent?: string;
-  // Mission : notifie la complétion d'une reconstruction (la modale pilote alors le verdict). Si
-  // fourni, le popup de réussite interne est masqué (le verdict de mission devient la récompense).
+  // Mission / aperçu Papa : notifie la complétion d'une reconstruction (l'appelant pilote alors le
+  // verdict). Si fourni, le popup de réussite interne est masqué — c'est l'appelant qui récompense.
   onComplete?: (result: MindmapAttemptResult) => void;
-  // Isole les positions localStorage entre la page pleine et la modale de mission (défaut "" =
-  // clé historique préservée pour la route pleine page).
+  // Isole les positions localStorage entre la page pleine, la modale de mission et l'aperçu Papa
+  // (défaut "" = clé historique préservée pour la route pleine page).
   storageScope?: string;
 }) {
   const [kind, setKind] = useState<LayoutKind>(() => defaultLayout(mm));
@@ -453,24 +479,21 @@ export function MindmapWorkspace({
     }
   }, [mode, chunkDone, isLastBuildPass, buildPass, buildPasses, success]);
 
-  // Toute la carte reconstruite → soumission AUTOMATIQUE : le SERVEUR persiste + calcule l'XP (réduit
-  // par les échecs). Pas de bouton, pas de contrôle intermédiaire (déjà fait à chaque dépôt).
+  // Toute la carte reconstruite → soumission AUTOMATIQUE au SERVEUR via l'`evaluator` injecté (qui
+  // persiste + calcule l'XP côté Massimo, ou évalue sans effet de bord côté aperçu Papa). Pas de
+  // bouton, pas de contrôle intermédiaire (déjà fait à chaque dépôt).
   const submitAttempt = useCallback(async () => {
     setBusy(true);
     try {
-      const attempt = await submitMindmapAttempt(
-        mindmapId,
-        placementsPayload(mm, assignment),
-        failedAttempts,
-      );
+      const attempt = await evaluator(placementsPayload(mm, assignment), failedAttempts);
       setSuccess(attempt);
-      onComplete?.(attempt); // mission : valide l'étape + affiche le verdict (popup interne masqué)
+      onComplete?.(attempt); // mission / aperçu : l'appelant prend la main (popup interne masqué)
     } catch {
       // silencieux : l'élève peut réessayer (aucune donnée corrompue côté client)
     } finally {
       setBusy(false);
     }
-  }, [mindmapId, mm, assignment, failedAttempts, onComplete]);
+  }, [evaluator, mm, assignment, failedAttempts, onComplete]);
 
   useEffect(() => {
     if (mode === "build" && allPlaced && !busy && !success) submitAttempt();

@@ -540,6 +540,23 @@ created_at
 updated_at
 ```
 
+**Cycle de vie face à l'historique** (addendum ADR-0016 §E) — quatre règles, pour qu'aucune
+implémentation ne « corrige » l'XP :
+
+1. Éditer une carte `validated` la repasse en `pending` → elle sort de la liste de Massimo jusqu'à
+   re-validation. La modale l'annonce **avant** l'enregistrement.
+2. **Supprimer une carte supprime ses tentatives** : un score de reconstruction n'a aucun sens sans
+   l'arbre de référence qui l'a produit. (Fait par `delete_mindmap`, qui purge `mindmap_attempts`
+   avant la carte — pas d'`ON DELETE CASCADE` sur la FK, la suppression explicite suffit.)
+3. **L'XP déjà crédité n'est JAMAIS rembobiné.** `xp_events` / `learning_events` restent intacts à
+   la suppression comme à la régénération : le décrémenter ferait régresser le niveau de Massimo
+   sur une action de Papa.
+4. **Régénérer ne recalcule aucun score passé.** Le nouvel arbre rend les anciennes tentatives non
+   comparables ; elles sont conservées telles quelles.
+
+L'agrégat `attempt_count` / `avg_score` de ces tentatives n'est exposé que sur la route de
+pilotage Papa — il alimente la métrique de liste et le signal avant destruction des confirmations.
+
 ### CouncilReport (ADR-0020)
 
 Rapport « Conseil de classe IA » **figé**, Papa-only. Narration LLM locale posée sur le service

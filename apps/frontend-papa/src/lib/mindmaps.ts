@@ -1,6 +1,12 @@
 // Client API de la page Papa « Mindmaps — pilotage » (cartes mentales, ADR-0016). Types partagés
 // depuis @zetis/types (contrat unique front/back). Rôle parent côté backend.
-import { type MindmapDetail, type MindmapJson, type MindmapPilotageTree } from "@zetis/types";
+import {
+  type MindmapDetail,
+  type MindmapJson,
+  type MindmapNodePlacement,
+  type MindmapPilotageTree,
+  type MindmapReconstructionResult,
+} from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
 
@@ -9,6 +15,29 @@ const API = `${API_URL}/api/mindmaps`;
 /** Leçons validées d'une matière + leurs cartes (1 appel, leçons sans carte incluses). */
 export async function fetchMindmapPilotage(subjectId: number): Promise<MindmapPilotageTree> {
   return asJson(await fetch(`${API}/pilotage/${subjectId}`, { headers: authHeader() }));
+}
+
+/** Une carte, **`pending` comprise** (route parent) — alimente la modale d'aperçu. */
+export async function fetchMindmap(id: number): Promise<MindmapDetail> {
+  return asJson(await fetch(`${API}/${id}`, { headers: authHeader() }));
+}
+
+/**
+ * Évaluation d'APERÇU (addendum ADR-0016 §C) : même barème que la reconstruction de Massimo,
+ * **sans aucune persistance ni XP**. Papa peut jouer *Reconstruis* autant qu'il veut sans écrire
+ * une ligne dans le journal de Massimo.
+ */
+export async function evaluateMindmapPreview(
+  id: number,
+  placements: MindmapNodePlacement[],
+): Promise<MindmapReconstructionResult> {
+  return asJson(
+    await fetch(`${API}/${id}/evaluate-preview`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ placements }),
+    }),
+  );
 }
 
 /** Génère une carte à partir d'une leçon validée (statut `pending`) — requête longue (LLM local). */
