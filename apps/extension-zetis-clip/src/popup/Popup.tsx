@@ -164,7 +164,15 @@ export function Popup() {
   return (
     <div className="flex flex-col gap-3 p-4">
       <header className="flex items-center justify-between">
-        <h1 className="text-base font-semibold">ZETIS Clip</h1>
+        <div className="flex items-center gap-2">
+          <img
+            src="/icons/icon-48.png"
+            alt=""
+            aria-hidden="true"
+            className="h-6 w-6 rounded-full"
+          />
+          <h1 className="text-base font-semibold">ZETIS Clip</h1>
+        </div>
         {draft && <Badge>{KIND_LABEL[draft.kind]}</Badge>}
       </header>
 
