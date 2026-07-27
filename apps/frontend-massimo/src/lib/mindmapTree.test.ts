@@ -12,7 +12,7 @@ import {
   randomPasses,
   rootsOf,
   shuffle,
-} from "./mindmapTree";
+} from "@zetis/ui/mindmap";
 
 // Carte de test (arbre strict) : 2 racines, profondeur 3 (droite → comparer → exemple).
 const MM: MindmapJson = {

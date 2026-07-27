@@ -1,0 +1,57 @@
+/* Animations de la brique mindmap (@zetis/ui, addendum ADR-0016 §A).
+   Co-localisées avec le composant qui les consomme — la brique est montée par Massimo ET par la
+   modale d'aperçu Papa, dont les feuilles de style respectives n'ont pas à les connaître.
+   Importées par `MindmapWorkspace.tsx` (comme `@xyflow/react/dist/style.css`).
+   NB : `mm-fiche-cta` n'est PAS ici — elle appartient au bouton « Voir la fiche » de la page
+   Massimo, pas au canvas. */
+
+/* Reconstruire : un nœud bien placé devient doré → petit « pop » de récompense (une fois, au
+   moment où il passe en doré). motion-safe uniquement. */
+@keyframes mm-gold-pop {
+  0% {
+    transform: scale(0.9);
+  }
+  55% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Points de progression des PASSES (Mémorise / Reconstruire) : la passe en cours « respire »
+   (scale + lueur via currentColor) ; done/todo sont statiques (transition douce au changement). */
+@keyframes mm-dot-active {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+  50% {
+    transform: scale(1.35);
+    box-shadow: 0 0 9px 1px currentColor;
+  }
+}
+
+/* Popup éphémère de félicitation (Reconstruire) : apparaît, gonfle, monte puis s'efface. */
+@keyframes mm-cheer {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.8);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1.08);
+  }
+  32% {
+    transform: translateY(0) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.96);
+  }
+}

@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { type MindmapDetail, type MindmapListItem } from "@zetis/types";
-import { MindmapWorkspace } from "../components/mindmap/MindmapWorkspace";
-import { type MindmapMode } from "../components/mindmap/ModeSegmented";
+import { MindmapWorkspace, type MindmapMode } from "@zetis/ui/mindmap";
 import { FicheSidePanel } from "../components/mindmap/FicheSidePanel";
 import { NeonBackdrop } from "../components/glass";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { subjectEmoji } from "../lib/subjectEmoji";
-import { fetchMindmap, fetchSubjectMindmaps, markMindmapSeen } from "../lib/mindmaps";
+import {
+  fetchMindmap,
+  fetchSubjectMindmaps,
+  markMindmapSeen,
+  submitMindmapAttempt,
+} from "../lib/mindmaps";
 
 // Écrans 2 (liste des cartes d'une matière) + 3 (la carte interactive). À l'ouverture d'une carte :
 // POST /seen. Aucune logique métier : le serveur ne sert que le validé et évalue la reconstruction.
@@ -168,6 +172,10 @@ export function MindmapSubjectPage() {
                   <MindmapWorkspace
                     mm={detail.mindmap_json}
                     mindmapId={detail.id}
+                    // Évaluateur ÉLÈVE : persiste la tentative et crédite l'XP (serveur).
+                    evaluator={(placements, failed) =>
+                      submitMindmapAttempt(detail.id, placements, failed)
+                    }
                     mode={mode}
                     onModeChange={(m) => {
                       setMode(m);
