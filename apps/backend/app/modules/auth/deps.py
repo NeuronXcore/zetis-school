@@ -39,3 +39,22 @@ def require_parent(
             detail="Accès réservé à Papa.",
         )
     return current
+
+
+# Rôles de l'espace enfant (le login dev émet "massimo" ; on tolère le rôle DB "child").
+_CHILD_ROLES = frozenset({"massimo", "child"})
+
+
+def require_child(
+    current: dict[str, str] = Depends(get_current_user),
+) -> dict[str, str]:
+    """Dépendance FastAPI : réserve la route à Massimo (télémétrie de navigation).
+
+    Symétrique de `require_parent` : la seule écriture cliente du journal d'activité ne doit pas
+    pouvoir être alimentée depuis l'espace Papa."""
+    if current.get("role") not in _CHILD_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès réservé à l'espace de Massimo.",
+        )
+    return current

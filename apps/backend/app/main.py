@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
 from app.core.config import settings
+from app.modules.activity.router import parent_router as activity_parent_router
+from app.modules.activity.router import telemetry_router
 from app.modules.ai.router import router as ai_router
 from app.modules.auth.router import router as auth_router
 from app.modules.capsules.router import audio_router as capsules_audio_router
@@ -70,3 +72,6 @@ app.include_router(capsules_massimo_router)
 app.include_router(capsules_router)
 app.include_router(capsules_audio_router)
 app.include_router(ai_router)
+# Activité : télémétrie de navigation (Massimo) + lectures de pilotage (Papa).
+app.include_router(telemetry_router)
+app.include_router(activity_parent_router)

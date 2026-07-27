@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS Papa — Activité de Massimo (maquette v2)</title>
+<style>
+  :root{
+    --papa:#10b981; --papa-dark:#059669; --papa-50:#ecfdf5; --papa-100:#d1fae5;
+    --heat-1:#a7f3d0; --heat-2:#34d399; --heat-3:#059669; --heat-4:#065f46;
+    --bg:#f8fafc; --card:#ffffff; --border:#e2e8f0; --fg:#0f172a; --muted:#64748b;
+    --ambre-bg:#fef3c7; --ambre-fg:#b45309;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,-apple-system,sans-serif}
+  body{background:var(--bg);color:var(--fg);font-size:14px}
+  .layout{display:flex;min-height:100vh}
+
+  .sidebar{width:200px;background:#0f172a;color:#94a3b8;padding:20px 12px;flex-shrink:0}
+  .sidebar .logo{font-weight:800;letter-spacing:.2em;color:var(--papa);font-size:15px;margin-bottom:24px;padding-left:8px}
+  .sidebar a{display:block;padding:8px 10px;border-radius:8px;color:#94a3b8;text-decoration:none;font-size:13px;margin-bottom:2px;cursor:pointer}
+  .sidebar a.active{background:rgba(16,185,129,.15);color:var(--papa)}
+
+  main{flex:1;padding:28px 32px;max-width:1080px}
+  .page-header{margin-bottom:20px}
+  h1{font-size:22px;font-weight:700}
+  .subtitle{color:var(--muted);font-size:13px;margin-top:4px;max-width:640px}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .kpi .val{font-size:22px;font-weight:700}
+  .kpi .lbl{color:var(--muted);font-size:12px;margin-top:2px}
+  .delta{font-size:12px;font-weight:600;margin-left:6px}
+  .delta.up{color:var(--papa-dark)} .delta.down{color:#b45309}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:20px}
+  .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap}
+  .card-head h2{font-size:15px;font-weight:700}
+  .card-head .meta{font-size:12px;color:var(--muted)}
+  .warn-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;font-size:12px;font-weight:600;background:var(--ambre-bg);color:var(--ambre-fg)}
+
+  /* ── filtre matières par pastilles (subjectIcons — emoji = placeholder des PNG assets) ── */
+  .subject-filter{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .schip{display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 6px;border-radius:999px;border:1px solid var(--border);
+         background:var(--card);cursor:pointer;font-size:13px;color:var(--muted);transition:all .12s}
+  .schip .pic{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;background:#f1f5f9}
+  .schip:hover{border-color:var(--papa)}
+  .schip.active{background:var(--papa-50);border-color:var(--papa);color:#065f46;font-weight:600}
+  .schip.active .pic{background:var(--papa-100)}
+  .schip.all{padding:5px 14px}
+
+  /* ── heatmap ── */
+  .hm-months{display:grid;margin-left:30px;font-size:11px;color:var(--muted);margin-bottom:4px}
+  .hm-wrap{display:flex;gap:8px}
+  .hm-dows{display:grid;grid-template-rows:repeat(7,13px);row-gap:3px;font-size:11px;color:var(--muted);line-height:13px}
+  .hm-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,13px);gap:3px}
+  .hm-cell{width:13px;height:13px;border-radius:3px;background:#f1f5f9;border:1px solid var(--border)}
+  .hm-cell.f{background:transparent;border:none}
+  .hm-cell.a{border:none;cursor:pointer}
+  .hm-cell.sel{outline:2px solid var(--fg);outline-offset:1px}
+  .hm-legend{display:flex;align-items:center;gap:5px;justify-content:flex-end;margin-top:10px;font-size:12px;color:var(--muted)}
+  .hm-legend span.sq{width:13px;height:13px;border-radius:3px;display:inline-block}
+
+  .day-detail{margin-top:16px;border-top:1px solid var(--border);padding-top:14px}
+  .day-detail .hint{font-size:13px;color:var(--muted);font-style:italic}
+  .dd-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .dd-head b{font-size:14px}
+  .dd-head .meta{font-size:12.5px;color:var(--muted)}
+  .ev{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
+  .ev .t{color:var(--muted);min-width:44px;font-variant-numeric:tabular-nums}
+  .ev .ic{width:20px;text-align:center}
+  .ev .lb{flex:1}
+  .ev .lb .sub{color:var(--muted)}
+  .ev .xp{font-weight:600;min-width:56px;text-align:right;color:var(--papa-dark)}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--papa-100);color:#065f46}
+  .btn{border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--fg)}
+  .btn-ghost:hover{background:#f1f5f9}
+
+  /* ── cahier de bord ── */
+  .filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .pill{padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:13px;color:var(--muted)}
+  .pill.active{background:var(--papa);border-color:var(--papa);color:#fff;font-weight:600}
+  .day-block{border-top:1px solid var(--border);padding:14px 0}
+  .day-block:first-child{border-top:none;padding-top:0}
+  .db-head{display:flex;justify-content:space-between;align-items:baseline}
+  .db-head b{font-size:14px}
+  .db-head .meta{font-size:12.5px;color:var(--muted)}
+  .session{margin-top:10px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px 16px}
+  .s-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .s-head b{font-size:13.5px;font-variant-numeric:tabular-nums}
+  .none{font-size:12.5px;color:var(--muted);font-style:italic}
+  .note{font-size:12px;color:var(--muted);margin-top:14px;border-top:1px solid var(--border);padding-top:10px}
+  .view{display:none}
+  .view.active{display:block}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="logo">ZETIS</div>
+    <a data-view="dashboard" class="active">Dashboard</a>
+    <a>Progression</a>
+    <a>Lacunes</a>
+    <a>Missions</a>
+    <a>Diagnostics</a>
+    <a>Conseil de classe IA</a>
+    <a data-view="cahier">Cahier de bord IA</a>
+    <a>Années scolaires</a>
+    <a>Matières</a>
+    <a>Capsules IA</a>
+  </nav>
+
+  <main>
+    <!-- ═══════════ DASHBOARD ═══════════ -->
+    <section id="view-dashboard" class="view active">
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p class="subtitle">Les KPI portent un delta vs semaine précédente. L'intensité de la heatmap encode les minutes actives, pas le nombre d'événements.</p>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi"><div class="val">4<span class="delta down">−2</span></div><div class="lbl">Sessions cette semaine</div></div>
+        <div class="kpi"><div class="val">1h12<span class="delta up">+18 min</span></div><div class="lbl">Temps actif semaine</div></div>
+        <div class="kpi"><div class="val" style="color:var(--papa-dark)">+180<span class="delta up">+45</span></div><div class="lbl">XP semaine</div></div>
+        <div class="kpi"><div class="val">3<span class="delta up">+1</span></div><div class="lbl">Missions terminées</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Régularité de Massimo</h2>
+          <span class="warn-badge" id="dropout-badge" style="display:none">⚠ aucune activité depuis <span id="dropout-days"></span> jours</span>
+          <span class="meta">26 semaines · intensité = minutes actives · cliquer un jour</span>
+        </div>
+        <div class="subject-filter" id="sf-heatmap"></div>
+        <div class="hm-months" id="hm-months"></div>
+        <div class="hm-wrap">
+          <div class="hm-dows"><span></span><span>Lun</span><span></span><span>Mer</span><span></span><span>Ven</span><span></span></div>
+          <div class="hm-grid" id="hm-grid"></div>
+        </div>
+        <div class="hm-legend">
+          <span>0</span>
+          <span class="sq" style="background:#f1f5f9;border:1px solid var(--border)"></span>
+          <span class="sq" style="background:var(--heat-1)" title="< 10 min"></span>
+          <span class="sq" style="background:var(--heat-2)" title="10–20 min"></span>
+          <span class="sq" style="background:var(--heat-3)" title="20–40 min"></span>
+          <span class="sq" style="background:var(--heat-4)" title="40 min et +"></span>
+          <span>40 min+</span>
+        </div>
+        <div class="day-detail" id="day-detail">
+          <p class="hint">Sélectionne un jour dans la grille pour voir le journal de la session.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ CAHIER DE BORD ═══════════ -->
+    <section id="view-cahier" class="view">
+      <div class="page-header">
+        <h1>Cahier de bord — sessions</h1>
+        <p class="subtitle">Connexions, pages, leçons, activités — regroupées en sessions avec temps de travail par jour.</p>
+      </div>
+
+      <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi"><div class="val" id="ck-sessions">—</div><div class="lbl">Sessions sur la période</div></div>
+        <div class="kpi"><div class="val" id="ck-active">—</div><div class="lbl">Temps actif total</div></div>
+        <div class="kpi"><div class="val" id="ck-avg">—</div><div class="lbl">Moyenne par session</div></div>
+      </div>
+
+      <div class="filters">
+        <button class="pill active">7 jours</button>
+        <button class="pill">14 jours</button>
+        <button class="pill">30 jours</button>
+      </div>
+      <div class="subject-filter" id="sf-cahier"></div>
+
+      <div class="card">
+        <div id="cahier-days"></div>
+        <p class="note">Sessions reconstruites côté serveur : événements espacés de moins de 15 min = une session (SESSION_GAP_MINUTES). Temps actif = somme des écarts entre interactions, plafonnés à 5 min (ACTIVE_GAP_CAP_MINUTES) — indicateur de présence, pas mesure d'attention.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+/* ─── navigation ─── */
+document.querySelectorAll('.sidebar a[data-view]').forEach(a => {
+  a.addEventListener('click', () => {
+    document.querySelectorAll('.sidebar a[data-view]').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    a.classList.add('active');
+    document.getElementById('view-' + a.dataset.view).classList.add('active');
+  });
+});
+
+/* ─── matières : pictogrammes via subjectIcons (emoji = placeholder des PNG de src/assets/subjects/) ─── */
+const SUBJECTS = [
+  { slug:'maths',    name:'Maths',           pic:'📐' },
+  { slug:'francais', name:'Français',        pic:'📚' },
+  { slug:'histoire', name:'Histoire-Géo',    pic:'🌍' },
+  { slug:'anglais',  name:'Anglais',         pic:'🇬🇧' },
+  { slug:'svt',      name:'SVT',             pic:'🌱' },
+  { slug:'physique', name:'Physique-Chimie', pic:'⚗️' }
+];
+
+const DAY = 86400000;
+function rnd(seed){ const x = Math.sin(seed) * 10000; return x - Math.floor(x); }
+const TYPES = [
+  { icon:'🃏', label:'Révision SRS',          xp:c => c*5, detail:c => c + ' cartes revues' },
+  { icon:'🎯', label:'Mission terminée',      xp:() => 20, detail:() => 'objectif atteint' },
+  { icon:'✅', label:'Quiz de fin de cours',  xp:() => 15, detail:c => Math.min(c+4,10) + '/10 bonnes réponses' },
+  { icon:'💬', label:'ELI5',                  xp:() => 0,  detail:() => 'explication demandée' },
+  { icon:'🎙️', label:'Verbalisation reverse', xp:() => 10, detail:() => 'notion réexpliquée' },
+  { icon:'📖', label:'Cours consulté',        xp:() => 0,  detail:() => 'lecture' },
+  { icon:'📄', label:'Fiche consultée',       xp:() => 0,  detail:() => 'lecture' }
+];
+const today = new Date(); today.setHours(0,0,0,0);
+const dow = (today.getDay() + 6) % 7;
+const WEEKS = 26;
+const end = new Date(today.getTime() + (6 - dow) * DAY);
+const start = new Date(end.getTime() - (WEEKS * 7 - 1) * DAY);
+const fmtLong = new Intl.DateTimeFormat('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+
+function genDay(i, d){
+  const wd = (d.getDay() + 6) % 7;
+  if (d > today) return { d, future:true, sessions:[] };
+  const r = rnd(i * 7.13 + 1);
+  const base = wd >= 5 ? 0.55 : 0.28;
+  const pause = (i > 60 && i < 68) || (i > 118 && i < 123);
+  if (pause || r <= base) return { d, future:false, sessions:[] };
+  const nSess = rnd(i + 40) > 0.8 ? 2 : 1;
+  const sessions = [];
+  for (let s = 0; s < nSess; s++){
+    let h = s === 0 ? (wd >= 5 ? 10 : 17) + Math.floor(rnd(i+s)*2) : 17 + Math.floor(rnd(i+s+3)*2);
+    let m = Math.floor(rnd(i + s + 5) * 45);
+    const n = 2 + Math.floor(rnd(i * 3.7 + s * 11 + 2) * 5);
+    const events = [{ h, m, icon:'🔑', label:'Connexion', subj:null, sub:'', xp:0 }];
+    let active = 0;
+    for (let k = 0; k < n; k++){
+      const t = TYPES[Math.floor(rnd(i * 13 + s * 7 + k * 5) * TYPES.length)];
+      const subj = SUBJECTS[Math.floor(rnd(i * 17 + k * 3) * SUBJECTS.length)];
+      const cnt = 2 + Math.floor(rnd(i + k) * 8);
+      const gap = 4 + Math.floor(rnd(i + k + 7) * 12);
+      m += gap; if (m >= 60){ m -= 60; h++; }
+      active += Math.min(gap, 5);
+      events.push({ h, m, icon:t.icon, label:t.label, subj:subj.slug,
+                    sub:subj.name + ' · ' + t.detail(cnt), xp:t.xp(cnt), mins:Math.min(gap,5) });
+    }
+    sessions.push({ events, active,
+      start: events[0].h + 'h' + String(events[0].m).padStart(2,'0'),
+      end: events[events.length-1].h + 'h' + String(events[events.length-1].m).padStart(2,'0') });
+  }
+  return { d, future:false, sessions };
+}
+const days = [];
+for (let i = 0; i < WEEKS * 7; i++) days.push(genDay(i, new Date(start.getTime() + i * DAY)));
+
+/* minutes actives d'un jour, filtrées par matière */
+function dayMinutes(o, slug){
+  return o.sessions.reduce((a,s) => a + s.events.reduce((b,e) =>
+    b + ((!slug || e.subj === slug) ? (e.mins || 0) : 0), 0), 0);
+}
+
+/* ─── pastilles de matière (composant partagé entre les deux vues) ─── */
+function buildSubjectFilter(rootId, onChange){
+  const root = document.getElementById(rootId);
+  let current = null;
+  const all = document.createElement('button');
+  all.className = 'schip all active';
+  all.textContent = 'Toutes';
+  all.addEventListener('click', () => select(null, all));
+  root.appendChild(all);
+  const chips = [all];
+  SUBJECTS.forEach(s => {
+    const c = document.createElement('button');
+    c.className = 'schip';
+    c.innerHTML = '<span class="pic">' + s.pic + '</span>' + s.name;
+    c.title = s.name;
+    c.addEventListener('click', () => select(s.slug, c));
+    root.appendChild(c);
+    chips.push(c);
+  });
+  function select(slug, chip){
+    current = slug;
+    chips.forEach(x => x.classList.remove('active'));
+    chip.classList.add('active');
+    onChange(slug);
+  }
+}
+
+/* ─── heatmap (intensité = minutes actives) ─── */
+const grid = document.getElementById('hm-grid');
+const detail = document.getElementById('day-detail');
+const heat = mn => mn === 0 ? null : mn < 10 ? 'var(--heat-1)' : mn < 20 ? 'var(--heat-2)' : mn < 40 ? 'var(--heat-3)' : 'var(--heat-4)';
+let sel = null, hmFilter = null;
+const cells = [];
+
+function renderHeatmap(){
+  days.forEach((o, idx) => {
+    const c = cells[idx];
+    if (o.future) return;
+    const mn = dayMinutes(o, hmFilter);
+    c.style.background = mn ? heat(mn) : '#f1f5f9';
+    c.style.border = mn ? 'none' : '1px solid var(--border)';
+    c.classList.toggle('a', mn > 0);
+    c.title = fmtLong.format(o.d) + (mn ? ' — ' + mn + ' min actives' : ' — aucune activité');
+  });
+}
+days.forEach(o => {
+  const c = document.createElement('div');
+  c.className = 'hm-cell';
+  if (o.future) c.classList.add('f');
+  else c.addEventListener('click', () => showDay(o, c));
+  grid.appendChild(c);
+  cells.push(c);
+});
+function showDay(o, cell){
+  if (sel) sel.classList.remove('sel');
+  sel = cell; cell.classList.add('sel');
+  const label = fmtLong.format(o.d);
+  const evs = o.sessions.flatMap(s => s.events).filter(e => !hmFilter || e.subj === hmFilter || e.label === 'Connexion');
+  const acts = evs.filter(e => e.label !== 'Connexion');
+  if (!acts.length){
+    detail.innerHTML = '<div class="dd-head"><b>' + label + '</b><span class="meta">aucune activité' + (hmFilter ? ' pour cette matière' : '') + '</span></div>';
+    return;
+  }
+  const xp = acts.reduce((a,e) => a + e.xp, 0);
+  const mn = dayMinutes(o, hmFilter);
+  let html = '<div class="dd-head"><b>' + label + '</b><span class="meta">'
+    + o.sessions.length + ' session' + (o.sessions.length>1?'s':'') + ' · ' + mn + ' min actives · +' + xp + ' XP</span></div>';
+  evs.forEach(e => {
+    html += '<div class="ev"><span class="t">' + e.h + 'h' + String(e.m).padStart(2,'0') + '</span>'
+      + '<span class="ic">' + e.icon + '</span>'
+      + '<span class="lb">' + e.label + (e.sub ? ' <span class="sub">· ' + e.sub + '</span>' : '') + '</span>'
+      + (e.xp ? '<span class="xp">+' + e.xp + ' XP</span>' : '<span class="xp"></span>') + '</div>';
+  });
+  html += '<div style="margin-top:12px"><button class="btn btn-ghost">Ouvrir dans le cahier de bord →</button></div>';
+  detail.innerHTML = html;
+}
+buildSubjectFilter('sf-heatmap', slug => { hmFilter = slug; renderHeatmap(); if (sel){ sel.classList.remove('sel'); sel = null; }
+  detail.innerHTML = '<p class="hint">Sélectionne un jour dans la grille pour voir le journal de la session.</p>'; });
+renderHeatmap();
+
+/* mois */
+const months = document.getElementById('hm-months');
+months.style.gridTemplateColumns = 'repeat(' + WEEKS + ', 16px)';
+const mfmt = new Intl.DateTimeFormat('fr-FR', { month:'short' });
+let lastM = -1;
+for (let w = 0; w < WEEKS; w++){
+  const d = new Date(start.getTime() + w * 7 * DAY);
+  const s = document.createElement('span');
+  if (d.getMonth() !== lastM){ s.textContent = mfmt.format(d); lastM = d.getMonth(); }
+  months.appendChild(s);
+}
+
+/* badge décrochage : jours consécutifs sans activité en fin de série */
+(function(){
+  const past = days.filter(o => !o.future);
+  let streak = 0;
+  for (let i = past.length - 1; i >= 0 && !past[i].sessions.length; i--) streak++;
+  if (streak >= 4){
+    document.getElementById('dropout-days').textContent = streak;
+    document.getElementById('dropout-badge').style.display = 'inline-flex';
+  }
+})();
+
+/* ─── cahier de bord ─── */
+let cbFilter = null;
+function renderCahier(){
+  const last7 = days.filter(o => !o.future).slice(-7).reverse();
+  let tS = 0, tA = 0;
+  const cd = document.getElementById('cahier-days');
+  cd.innerHTML = '';
+  last7.forEach(o => {
+    const block = document.createElement('div');
+    block.className = 'day-block';
+    const label = fmtLong.format(o.d);
+    const sessions = o.sessions
+      .map(s => ({ ...s, events: s.events.filter(e => !cbFilter || e.subj === cbFilter || e.label === 'Connexion') }))
+      .filter(s => s.events.some(e => e.label !== 'Connexion'));
+    if (!sessions.length){
+      block.innerHTML = '<div class="db-head"><b>' + label + '</b><span class="none">aucune session' + (cbFilter ? ' pour cette matière' : '') + '</span></div>';
+      cd.appendChild(block); return;
+    }
+    let dayActive = 0;
+    let html = '';
+    sessions.forEach(s => {
+      const act = s.events.reduce((a,e) => a + (e.mins || 0), 0);
+      dayActive += act; tS++; tA += act;
+      html += '<div class="session"><div class="s-head"><b>' + s.start + ' → ' + s.end + '</b>'
+        + '<span class="badge">' + act + ' min actives</span></div>';
+      s.events.forEach(e => {
+        html += '<div class="ev"><span class="t">' + e.h + 'h' + String(e.m).padStart(2,'0') + '</span>'
+          + '<span class="ic">' + e.icon + '</span>'
+          + '<span class="lb">' + e.label + (e.sub ? ' <span class="sub">· ' + e.sub + '</span>' : '') + '</span>'
+          + (e.xp ? '<span class="xp">+' + e.xp + ' XP</span>' : '<span class="xp"></span>') + '</div>';
+      });
+      html += '</div>';
+    });
+    block.innerHTML = '<div class="db-head"><b>' + label + '</b><span class="meta">'
+      + sessions.length + ' session' + (sessions.length>1?'s':'') + ' · ' + dayActive + ' min actives</span></div>' + html;
+    cd.appendChild(block);
+  });
+  document.getElementById('ck-sessions').textContent = tS;
+  document.getElementById('ck-active').textContent = Math.floor(tA/60) + 'h' + String(tA%60).padStart(2,'0');
+  document.getElementById('ck-avg').textContent = tS ? Math.round(tA/tS) + ' min' : '—';
+}
+buildSubjectFilter('sf-cahier', slug => { cbFilter = slug; renderCahier(); });
+renderCahier();
+</script>
+</body>
+</html>

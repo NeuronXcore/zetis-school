@@ -763,6 +763,97 @@ Aucune surface Massimo.
   le flux Commander (ADR-0018 ; `manual`, `validated` par construction — la validation Papa = ce
   clic). Croisées multi-matières hors v1.
 
+## Activité (journal `learning_events`)
+
+Source unique de l'activité. `xp_events` reste le grand livre de l'XP : le champ `xp` des
+réponses ci-dessous en est sommé séparément, **jamais par UNION** des deux tables. Bucketing par
+jour et par semaine en **Europe/Paris**. Contrats TypeScript : `packages/types/src/activity.ts`.
+
+### POST `/api/telemetry/pageview` (Massimo)
+
+Seule écriture cliente autorisée dans le journal. Entrée `{ route }` (1–200 caractères,
+`extra="forbid"` → un `created_at` envoyé par le client est rejeté en `422`).
+
+**Le serveur horodate.** Une route identique à la précédente du même élève est ignorée
+silencieusement. Réponse `204` dans tous les cas de succès. Déclaratif observationnel :
+n'influence ni XP, ni score, ni verdict.
+
+### GET `/api/parent/activity/heatmap?weeks=26&subject_id=` (Papa)
+
+`weeks` borné serveur (1 à 53, défaut 26). Les jours **sans activité sont omis** et reconstruits
+côté client.
+
+```json
+{
+  "days": [{ "date": "2026-07-15", "active_minutes": 24, "events": 9, "xp": 30 }],
+  "days_inactive": 0
+}
+```
+
+`active_minutes` = intensité de la case (pas le nombre d'événements). `days_inactive` = jours
+consécutifs sans activité en fin de série, **toutes matières**, même quand `subject_id` filtre le
+reste de la réponse : le décrochage renseigne sur l'enfant, pas sur une matière.
+
+### GET `/api/parent/activity/days/{date}?subject_id=` (Papa)
+
+`404` si la date n'est pas au format `AAAA-MM-JJ`. Journal trié, `review_attempted` consécutifs
+**agrégés côté serveur** en une ligne, `minutes` fourni par événement (le client ne recalcule
+rien).
+
+```json
+{
+  "date": "2026-07-15",
+  "events": [
+    { "time": "10:00", "event_type": "login", "label": "Connexion",
+      "subject_slug": null, "skill_name": null, "xp": 0, "minutes": 2, "detail": null },
+    { "time": "10:02", "event_type": "review_attempted", "label": "Révision SRS · 8 cartes",
+      "subject_slug": "mathematiques", "xp": 40, "minutes": 9, "count": 8 }
+  ]
+}
+```
+
+### GET `/api/parent/activity/sessions?from=&to=&subject_id=` (Papa)
+
+Sessions **reconstruites** (coupure à `SESSION_GAP_MINUTES` = 15), jamais stockées. Période
+bornée serveur (défaut : 7 derniers jours ; amplitude maximale `ACTIVITY_MAX_RANGE_DAYS`). Jours
+rendus du plus **récent** au plus ancien, y compris ceux sans session (`sessions: []`) :
+l'absence d'activité est une information. `started_at`/`ended_at` sont des instants **UTC** (pour
+calculer) ; `started_time`/`ended_time` sont les mêmes bornes déjà formatées en **Europe/Paris**
+(pour afficher) — reformater l'UTC côté client suivrait le fuseau du navigateur et pourrait
+contredire le `time` des événements de la même carte.
+
+```json
+{
+  "days": [
+    { "date": "2026-07-15",
+      "sessions": [
+        { "started_at": "2026-07-15T08:00:00+00:00", "ended_at": "2026-07-15T08:40:00+00:00",
+          "started_time": "10:00", "ended_time": "10:40",
+          "active_minutes": 22, "events": [] }
+      ] }
+  ]
+}
+```
+
+### GET `/api/parent/dashboard` (Papa)
+
+KPI de régularité en `{ value, delta }` — semaine **lundi→dimanche Europe/Paris** contre la
+précédente, delta calculé serveur.
+
+```json
+{
+  "week_start": "2026-07-13",
+  "sessions": { "value": 4, "delta": 1 },
+  "active_minutes": { "value": 96, "delta": 18 },
+  "xp": { "value": 180, "delta": -20 },
+  "missions_completed": { "value": 3, "delta": 0 }
+}
+```
+
+Surface neuve : la page Dashboard n'avait pas encore d'endpoint. Les KPI pédagogiques de la spec
+(lacunes ouvertes, notions consolidées, prochaine révision) restent servis par `/gaps` et
+`/progress/summary`.
+
 ## Jobs IA
 
 ### GET `/ai/jobs/{job_id}`

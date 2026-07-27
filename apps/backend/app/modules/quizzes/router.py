@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.db.models import Quiz
+from app.modules.activity.events import EVENT_QUIZ_ATTEMPTED, log_learning_event
 from app.modules.ai import get_embedder, get_provider
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
@@ -174,4 +176,23 @@ def submit_answer(
 
 @student_router.post("/quiz-attempts/{attempt_id}/complete", response_model=CompleteOut)
 def complete_attempt(attempt_id: int, db: Session = Depends(get_db)) -> dict:
-    return service.complete_attempt(db, get_default_student(db), attempt_id)
+    student = get_default_student(db)
+    result = service.complete_attempt(db, student, attempt_id)
+    # Journal d'activité : deuxième surface de `quiz_attempted` (quiz de fin de cours, ADR-0014).
+    # `xp` est recopié dans le payload pour que le journal reste auto-suffisant — les minutes et
+    # l'XP d'une ligne ne se reconstruisent jamais en croisant `xp_events`.
+    quiz = db.get(Quiz, result["quiz_id"])
+    log_learning_event(
+        db,
+        student_id=student.id,
+        event_type=EVENT_QUIZ_ATTEMPTED,
+        subject_id=quiz.subject_id if quiz is not None else None,
+        payload={
+            "quiz_id": result["quiz_id"],
+            "quiz_type": "lesson",
+            "score_percent": result["score_percent"],
+            "xp": result["xp_awarded"],
+        },
+    )
+    db.commit()
+    return result

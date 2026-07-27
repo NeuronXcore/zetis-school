@@ -11,6 +11,11 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.modules.activity.events import (
+    EVENT_FICHE_VIEWED,
+    log_view_once_per_day,
+    subject_id_for_lesson,
+)
 from app.modules.ai import get_embedder, get_provider
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
@@ -121,7 +126,20 @@ def student_subject_fiches(subject_slug: str, db: Session = Depends(get_db)) -> 
 @student_router.get("/fiches/{fiche_id}", response_model=FicheOut)
 def student_fiche(fiche_id: int, db: Session = Depends(get_db)) -> dict:
     """La fiche (404 si non `validated`, sans fuite des brouillons)."""
-    return service.get_student_fiche(db, fiche_id)
+    fiche = service.get_student_fiche(db, fiche_id)
+    # Journal d'activité : au plus une fois par (élève, fiche, jour Paris). Après le service,
+    # pour qu'une fiche non validée (404) n'entre jamais dans le journal.
+    log_view_once_per_day(
+        db,
+        student_id=get_default_student(db).id,
+        event_type=EVENT_FICHE_VIEWED,
+        payload_key="fiche_id",
+        payload_value=fiche_id,
+        subject_id=subject_id_for_lesson(db, fiche["lesson_id"]),
+        payload={"fiche_id": fiche_id},
+    )
+    db.commit()
+    return fiche
 
 
 @student_router.post("/fiches/{fiche_id}/seen", status_code=status.HTTP_204_NO_CONTENT)

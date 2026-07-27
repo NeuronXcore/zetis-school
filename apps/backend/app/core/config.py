@@ -127,6 +127,28 @@ class Settings(BaseSettings):
         default=30, validation_alias="MISSION_CHAMPION_XP_PER_NOTION"
     )
 
+    # --- Activité (journal `learning_events`) : les SESSIONS NE SONT PAS STOCKÉES, elles sont
+    # reconstruites à la lecture (event sourcing : le journal est la vérité brute, la session une
+    # projection). Changer une constante recalcule tout l'historique — aucune migration, pas de
+    # table `sessions`. Versionnées comme `MISSION_SCORING_VERSION` : tout changement = bump. ---
+    activity_projection_version: str = Field(
+        default="v1", validation_alias="ACTIVITY_PROJECTION_VERSION"
+    )
+    # Coupure de session : deux événements espacés de PLUS que ce seuil ouvrent une session.
+    session_gap_minutes: int = Field(default=15, validation_alias="SESSION_GAP_MINUTES")
+    # Temps actif = somme des écarts entre événements, chaque écart PLAFONNÉ à cette valeur.
+    # Heuristique de PRÉSENCE assumée, pas une mesure d'attention (l'UI l'explicite).
+    active_gap_cap_minutes: int = Field(default=5, validation_alias="ACTIVE_GAP_CAP_MINUTES")
+    # Bucketing par jour et par semaine côté Papa ; `created_at` reste stocké en UTC.
+    activity_timezone: str = Field(default="Europe/Paris", validation_alias="ACTIVITY_TIMEZONE")
+    # Bornes serveur des lectures parent (le client ne choisit pas l'ampleur d'un scan).
+    activity_max_weeks: int = Field(default=53, validation_alias="ACTIVITY_MAX_WEEKS")
+    activity_max_range_days: int = Field(default=366, validation_alias="ACTIVITY_MAX_RANGE_DAYS")
+    # Longueur maximale d'une route de télémétrie (borne d'écriture client).
+    telemetry_route_max_length: int = Field(
+        default=200, validation_alias="TELEMETRY_ROUTE_MAX_LENGTH"
+    )
+
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
     # Découplé de `llm_provider` : les embeddings restent sur ollama même si la
     # génération passe sur MLX (évite toute migration pgvector). Cf. ADR-0008.

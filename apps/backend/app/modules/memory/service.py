@@ -13,6 +13,7 @@ from app.db.models import (
     StudentProfile,
     Subject,
 )
+from app.modules.activity.events import EVENT_REVIEW_ATTEMPTED, log_learning_event
 from app.modules.gamification.service import award_xp
 
 
@@ -326,6 +327,22 @@ def record_attempt(
         )
     )
     award_xp(db, student_id=student.id, subject_id=subject_id, amount=xp, reason=reason)
+    # Journal d'activité : une carte = un événement. Les cartes consécutives d'une même séance
+    # sont regroupées À LA LECTURE en « Révision SRS · n cartes » (le journal reste brut, la
+    # projection agrège) — cf. `activity/service.group_reviews`.
+    log_learning_event(
+        db,
+        student_id=student.id,
+        event_type=EVENT_REVIEW_ATTEMPTED,
+        subject_id=subject_id,
+        skill_id=card.skill_id,
+        payload={
+            "card_id": card.id,
+            "rating": rating,
+            "is_consolidation": is_consolidation,
+            "xp": xp,
+        },
+    )
     db.commit()
     return {
         "next_due_at": next_due_at,

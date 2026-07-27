@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -132,7 +133,23 @@ class XPEvent(Base):
 
 
 class LearningEvent(Base):
+    """Journal d'activité pédagogique : ce que Massimo a FAIT, horodaté par le serveur.
+
+    À ne pas confondre avec `xp_events`, qui est le grand livre de l'économie XP (solde, niveau,
+    streak). Les deux tables comptent des choses différentes : les minutes actives et les
+    sessions se calculent sur `learning_events`, le XP se somme depuis `xp_events`. **Jamais
+    d'UNION des deux** — ce serait un double comptage. Cf. DATA_MODEL.md.
+
+    Les sessions ne sont pas stockées : elles sont RECONSTRUITES à la lecture depuis ce journal
+    (cf. `modules/activity/service.py`).
+    """
+
     __tablename__ = "learning_events"
+    # Toutes les lectures d'activité scannent une fenêtre temporelle POUR UN ÉLÈVE (heatmap 26
+    # semaines, sessions, détail-jour) : l'index composite sert exactement ce motif.
+    __table_args__ = (
+        Index("ix_learning_events_student_created", "student_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"))

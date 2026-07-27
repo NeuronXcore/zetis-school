@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.db.models import Quiz
+from app.modules.activity.events import EVENT_QUIZ_ATTEMPTED, log_learning_event
 from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import get_current_user
@@ -59,7 +61,22 @@ def submit(
     _: dict = Depends(get_current_user),
 ) -> dict:
     student = get_default_student(db)
-    return service.submit(db, student, quiz_id, req.answers)
+    result = service.submit(db, student, quiz_id, req.answers)
+    # Journal d'activité : une tentative de quiz, saveur « diagnostic ». Pas de dédupe — refaire
+    # un diagnostic EST une activité, contrairement à un rafraîchissement de page.
+    log_learning_event(
+        db,
+        student_id=student.id,
+        event_type=EVENT_QUIZ_ATTEMPTED,
+        subject_id=db.get(Quiz, quiz_id).subject_id,
+        payload={
+            "quiz_id": quiz_id,
+            "quiz_type": "diagnostic",
+            "score_percent": result["score_percent"],
+        },
+    )
+    db.commit()
+    return result
 
 
 @router.get("/results", response_model=list[DiagnosticResultSummary])

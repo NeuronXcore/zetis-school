@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import AIJob, LearningEvent, Skill, SkillMastery, StudentProfile, Subject
+from app.modules.activity.events import EVENT_ELI5_REQUESTED, log_learning_event
 from app.modules.ai.canonical_context import build_canonical_sections, resolve_canonical_context
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.eli5.schemas import ELI5ExplainRequest, ELI5ReverseRequest
@@ -164,6 +165,17 @@ def explain(
         output["lesson_id"] = ctx.lesson.id
         output["lesson_title"] = ctx.lesson.title
     job.output_json = output
+    # Journal d'activité : posé APRÈS la génération réussie — le journal enregistre les
+    # explications effectivement délivrées à Massimo, pas les tentatives avortées (un échec LLM
+    # remonte en erreur et n'a pas sa place dans une heatmap de travail).
+    log_learning_event(
+        db,
+        student_id=get_default_student(db).id,
+        event_type=EVENT_ELI5_REQUESTED,
+        subject_id=subject.id,
+        skill_id=skill.id,
+        payload={"skill_id": skill.id},
+    )
     db.commit()
     # Contrat API_SPEC : l'endpoint renvoie la référence du job (exécution synchrone → déjà `succeeded`).
     return {"job_id": job.id, "status": job.status}
@@ -269,7 +281,10 @@ def reverse_evaluate(db: Session, provider: LLMProvider, req: ELI5ReverseRequest
             subject_id=subject.id,
             skill_id=skill.id,
             event_type="reverse_eli5",
-            payload_json={"score": score, "interval_days": interval},
+            # `xp` ajouté (clé ADDITIVE, aucun lecteur existant ne s'en trouve modifié) : le
+            # journal d'activité affiche l'XP de chaque ligne depuis son propre payload, sans
+            # jamais croiser `xp_events`. Sans lui, une verbalisation s'afficherait à 0 XP.
+            payload_json={"score": score, "interval_days": interval, "xp": XP_ELI5_REVERSE},
             created_at=now,
         )
     )
