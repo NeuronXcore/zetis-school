@@ -27,6 +27,7 @@ from app.modules.quizzes.router import router as quizzes_router
 from app.modules.quizzes.router import student_router as quizzes_student_router
 from app.modules.rag.router import router as rag_router
 from app.modules.reports.router import router as reports_router
+from app.modules.school.router import router as school_router
 from app.modules.subjects.router import router as subjects_router
 
 app = FastAPI(title="ZETIS Backend", version=settings.version)
@@ -53,6 +54,7 @@ app.include_router(cards_parent_router)
 app.include_router(rag_router)
 app.include_router(reports_router)
 app.include_router(subjects_router)
+app.include_router(school_router)
 app.include_router(curriculum_router)
 app.include_router(curriculum_student_router)
 app.include_router(quizzes_router)

@@ -15,17 +15,10 @@ import {
   type ValidateScope,
 } from "../components/programme/ValidateAllDialog";
 import { useCurriculum } from "../hooks/useCurriculum";
+import { cycleForLevel } from "../lib/yearDisplay";
 
 // Page Programme (Papa, Slice B — ADR-0009 §9) : éditeur du référentiel de l'année
 // active. Aucune logique métier ici (cf. useCurriculum + chapterActions).
-
-// Affichage seulement — le backend fait sa propre résolution (service curriculum).
-const CYCLE_BY_LEVEL: Record<string, string> = {
-  "6e": "cycle 3",
-  "5e": "cycle 4",
-  "4e": "cycle 4",
-  "3e": "cycle 4",
-};
 
 export function ProgrammePage() {
   const data = useCurriculum();
@@ -38,7 +31,7 @@ export function ProgrammePage() {
   // synchrone et opaque (~18-20 s mesurés), la barre monte vers 95 % puis se complète.
   const generationPct = useEstimatedProgress(data.generating, 22000);
 
-  const cycle = data.year ? CYCLE_BY_LEVEL[data.year.level] : undefined;
+  const cycle = data.year ? cycleForLevel(data.year.level) : undefined;
   // Version déclarative du programme, portée par les chapitres générés (ADR-0009 §5).
   const programVersion = data.chapters.find((c) => c.program_version)?.program_version;
   const pendingCount = data.chapters.filter((c) => c.validation_status === "pending").length;

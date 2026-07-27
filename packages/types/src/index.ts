@@ -88,6 +88,12 @@ export {
   type SubjectNotions,
 } from "./curriculum";
 export {
+  type SchoolYear,
+  type SchoolYearCreateRequest,
+  type SchoolYearPatchRequest,
+  type SchoolYearStatus,
+} from "./school";
+export {
   type CompletedMission,
   type Mission,
   type MissionStep,
