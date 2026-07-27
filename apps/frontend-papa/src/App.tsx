@@ -11,9 +11,14 @@ import { DiagnosticsPapaPage } from "./pages/DiagnosticsPapaPage";
 import { ConseilClasseIAPage } from "./pages/ConseilClasseIAPage";
 import { CahierBordPage } from "./pages/CahierBordPage";
 import { AnneesScolairesPage } from "./pages/AnneesScolairesPage";
-import { ProgrammesPage } from "./pages/ProgrammesPage";
+import { MatieresPapaPage } from "./pages/MatieresPage";
+import { ProgrammePage } from "./pages/ProgrammePage";
+import { CartesRevisionPage } from "./pages/CartesRevisionPage";
+import { QuizPilotagePage } from "./pages/QuizPilotagePage";
 import { SourcesRagPage } from "./pages/SourcesRagPage";
 import { CapsulesPilotagePage } from "./pages/CapsulesPilotagePage";
+import { FichesPilotagePage } from "./pages/FichesPilotagePage";
+import { MindmapsPilotagePage } from "./pages/MindmapsPilotagePage";
 import { ModeFocusPage } from "./pages/ModeFocusPage";
 import { ParametresPage } from "./pages/ParametresPage";
 
@@ -37,9 +42,14 @@ export default function App() {
         <Route path="/conseil" element={<ConseilClasseIAPage />} />
         <Route path="/cahier" element={<CahierBordPage />} />
         <Route path="/annees" element={<AnneesScolairesPage />} />
-        <Route path="/programmes" element={<ProgrammesPage />} />
+        <Route path="/programme" element={<ProgrammePage />} />
+        <Route path="/cartes-revision" element={<CartesRevisionPage />} />
+        <Route path="/quiz" element={<QuizPilotagePage />} />
+        <Route path="/matieres" element={<MatieresPapaPage />} />
         <Route path="/sources" element={<SourcesRagPage />} />
         <Route path="/capsules" element={<CapsulesPilotagePage />} />
+        <Route path="/fiches" element={<FichesPilotagePage />} />
+        <Route path="/mindmaps" element={<MindmapsPilotagePage />} />
         <Route path="/focus" element={<ModeFocusPage />} />
         <Route path="/parametres" element={<ParametresPage />} />
         <Route path="*" element={<PlaceholderPage title="Page introuvable" icon="🔍" />} />

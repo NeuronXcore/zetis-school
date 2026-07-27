@@ -27,9 +27,16 @@ private/
 storage/uploads/
 storage/generated/
 storage/exports/
+storage/models/
+storage/piper/
+# Stockage runtime écrit par le backend (CWD = apps/backend) : audio TTS, etc.
+apps/backend/storage/
 
 # Claude Code — réglages locaux/personnels (le settings.json partagé reste versionné)
 .claude/settings.local.json
+
+# Artefacts de benchmark LLM (scripts/bench_llm.py — cf. ADR-0008)
+scratchpad/
 
 # OS / éditeur
 .DS_Store

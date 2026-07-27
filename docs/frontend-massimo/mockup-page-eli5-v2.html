@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS — Mockup Page ELI5 v2 (Massimo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --zetis-bg: #0a0d1c;
+    --zetis-primary: #6366f1;
+    --zetis-cyan: #22d3ee;
+    --zetis-fuchsia: #d946ef;
+    --zetis-fg: #eef0ff;
+    --zetis-muted: #8b91b8;
+    --zetis-glass: rgba(255, 255, 255, 0.055);
+    --zetis-glass-border: rgba(255, 255, 255, 0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--zetis-bg);
+    color: var(--zetis-fg);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .neon-backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .neon-backdrop::before, .neon-backdrop::after {
+    content: ""; position: absolute; border-radius: 50%; filter: blur(110px); opacity: .3;
+  }
+  .neon-backdrop::before { width: 520px; height: 520px; top: -140px; left: -120px; background: var(--zetis-primary); }
+  .neon-backdrop::after { width: 460px; height: 460px; bottom: -160px; right: -100px; background: var(--zetis-fuchsia); opacity: .16; }
+  .halo-cyan { position: absolute; width: 340px; height: 340px; border-radius: 50%; background: var(--zetis-cyan); filter: blur(120px); opacity: .1; top: 45%; left: 55%; }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 860px; margin: 0 auto; padding: 32px 20px 60px;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+
+  .wordmark {
+    font-family: "Syncopate", sans-serif; font-weight: 700;
+    font-size: 15px; letter-spacing: .35em; color: var(--zetis-fg);
+    text-align: center; margin-bottom: 6px; opacity: .9;
+  }
+  .wordmark span { color: var(--zetis-cyan); }
+
+  .screen { display: none; animation: fadeIn .25s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .page-title {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-size: 24px; font-weight: 800; margin: 18px 0 4px; text-align: center;
+  }
+  .page-sub { text-align: center; color: var(--zetis-muted); font-size: 14.5px; margin-bottom: 28px; }
+
+  .section-label {
+    font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--zetis-muted); margin: 26px 4px 16px;
+  }
+
+  /* ── Decks circulaires ─────────────────────────────── */
+  .decks-row { display: flex; justify-content: center; margin-bottom: 6px; }
+  .decks-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px 12px;
+  }
+  @media (max-width: 640px) { .decks-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 460px) { .decks-grid { grid-template-columns: repeat(2, 1fr); gap: 20px 10px; } }
+
+  .deck { display: flex; flex-direction: column; align-items: center; gap: 10px;
+    background: none; border: none; cursor: pointer; color: var(--zetis-fg);
+    font-family: inherit; padding: 4px; border-radius: 18px; transition: transform .15s ease;
+  }
+  .deck:hover { transform: translateY(-3px); }
+  .deck:focus-visible { outline: 2px solid var(--zetis-cyan); outline-offset: 3px; }
+
+  .deck-stack { position: relative; width: 92px; height: 92px; }
+  .deck-stack::before, .deck-stack::after {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+  }
+  .deck-stack::before { transform: translate(5px, 4px) scale(.97); opacity: .6; }
+  .deck-stack::after  { transform: translate(10px, 8px) scale(.94); opacity: .3; }
+
+  .deck-face {
+    position: absolute; inset: 0; z-index: 2; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px;
+    background:
+      radial-gradient(circle at 32% 28%, rgba(255,255,255,.10), rgba(255,255,255,.02) 60%),
+      var(--zetis-bg);
+    border: 1px solid var(--zetis-glass-border);
+  }
+  .deck-ring {
+    position: absolute; inset: -4px; z-index: 1; border-radius: 50%;
+    background: conic-gradient(from 210deg, var(--zetis-primary), var(--zetis-cyan), var(--accent, var(--zetis-fuchsia)), var(--zetis-primary));
+    filter: saturate(1.1);
+  }
+  .deck-ring::after {
+    content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--zetis-bg);
+  }
+  .deck-badge {
+    position: absolute; z-index: 3; top: -4px; right: -6px;
+    min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px;
+    background: linear-gradient(135deg, var(--zetis-primary), var(--zetis-cyan));
+    color: #fff; font-size: 12.5px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(34, 211, 238, .35);
+  }
+  .deck-name { font-size: 13.5px; font-weight: 700; text-align: center; line-height: 1.25; }
+  .deck-hint { font-size: 11.5px; color: var(--zetis-muted); }
+
+  .deck.soon .deck-face { opacity: .55; }
+  .deck.soon .deck-ring { opacity: .25; }
+  .deck.soon .deck-name { color: var(--zetis-muted); }
+
+  /* Deck spécial « Question libre » — plus grand, seul sur sa rangée */
+  .deck.libre .deck-stack { width: 108px; height: 108px; }
+  .deck.libre .deck-face { font-size: 48px; }
+  .deck.libre .deck-ring {
+    background: conic-gradient(from 210deg, var(--zetis-fuchsia), var(--zetis-primary), var(--zetis-cyan), var(--zetis-fuchsia));
+    animation: spin 9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .deck.libre .deck-ring { animation: none; } }
+
+  /* ── Écran notions ─────────────────────────────────── */
+  .back-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .btn-back {
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    color: var(--zetis-fg); border-radius: 12px; padding: 9px 14px;
+    font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .btn-back:hover { background: rgba(255,255,255,.09); }
+  .subject-heading { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; }
+  .subject-heading .emoji { font-size: 26px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip {
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    border-radius: 16px; padding: 11px 16px 9px; cursor: pointer;
+    color: var(--zetis-fg); font-family: inherit; text-align: left;
+    display: flex; flex-direction: column; gap: 2px;
+    transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+  }
+  .chip:hover {
+    transform: translateY(-2px); border-color: var(--zetis-cyan);
+    box-shadow: 0 4px 18px rgba(34, 211, 238, .18);
+  }
+  .chip:focus-visible { outline: 2px solid var(--zetis-cyan); outline-offset: 2px; }
+  .chip .notion { font-size: 14.5px; font-weight: 700; }
+  .chip .chapter { font-size: 11px; color: var(--zetis-muted); }
+
+  .glass-card {
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    border-radius: 20px; padding: 20px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+
+  .ask-row { display: flex; gap: 10px; margin-top: 8px; }
+  .ask-input {
+    flex: 1; background: rgba(255,255,255,.06); border: 1px solid var(--zetis-glass-border);
+    border-radius: 14px; padding: 13px 16px; color: var(--zetis-fg);
+    font-size: 15px; font-family: inherit;
+  }
+  .ask-input::placeholder { color: var(--zetis-muted); }
+  .ask-input:focus { outline: none; border-color: var(--zetis-primary); box-shadow: 0 0 0 3px rgba(99,102,241,.25); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--zetis-primary), var(--zetis-cyan));
+    border: none; color: #fff; border-radius: 14px; padding: 13px 20px;
+    font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(99,102,241,.4);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 26px rgba(34,211,238,.4); }
+
+  .empty-note { color: var(--zetis-muted); font-size: 14px; line-height: 1.55; }
+
+  /* ── Écran session ─────────────────────────────────── */
+  .badge-cours {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(34, 211, 238, .12); border: 1px solid rgba(34, 211, 238, .35);
+    color: var(--zetis-cyan); border-radius: 999px; padding: 5px 12px;
+    font-size: 12.5px; font-weight: 700; margin-bottom: 14px;
+  }
+  .explain-title { font-size: 19px; font-weight: 800; margin-bottom: 12px; }
+  .explain-block { margin-bottom: 16px; }
+  .explain-block h4 {
+    font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--zetis-muted); margin-bottom: 5px; font-weight: 700;
+  }
+  .explain-block p { font-size: 15px; line-height: 1.6; }
+
+  .mini-q {
+    background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.35);
+    border-radius: 14px; padding: 14px 16px; font-size: 14.5px; line-height: 1.55;
+    margin-bottom: 18px;
+  }
+  .mini-q strong { color: var(--zetis-cyan); }
+
+  .session-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn-ghost {
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    color: var(--zetis-fg); border-radius: 14px; padding: 12px 16px;
+    font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .btn-ghost:hover { border-color: var(--zetis-cyan); }
+
+  .footnote { text-align: center; color: var(--zetis-muted); font-size: 12px; margin-top: 34px; opacity: .7; }
+</style>
+</head>
+<body>
+<div class="neon-backdrop"><div class="halo-cyan"></div></div>
+
+<div class="app">
+  <div class="wordmark">ZET<span>IS</span></div>
+
+  <!-- ══════════ ÉCRAN 1 — Decks matières ══════════ -->
+  <section class="screen active" id="screen-home">
+    <h1 class="page-title">💡 ELI5 — Explique-moi !</h1>
+    <p class="page-sub">Choisis une matière : je t'explique n'importe quelle notion, simplement.</p>
+
+    <div class="decks-row">
+      <button class="deck libre" onclick="openLibre()">
+        <div class="deck-stack">
+          <div class="deck-ring"></div>
+          <div class="deck-face">✨</div>
+        </div>
+        <div class="deck-name">Question libre</div>
+        <div class="deck-hint">sur n'importe quoi</div>
+      </button>
+    </div>
+
+    <div class="section-label">Par matière</div>
+    <div class="decks-grid" id="decks-grid"></div>
+  </section>
+
+  <!-- ══════════ ÉCRAN 2 — Notions de la matière ══════════ -->
+  <section class="screen" id="screen-subject">
+    <div class="back-row">
+      <button class="btn-back" onclick="goHome()">← Matières</button>
+      <div class="subject-heading"><span class="emoji" id="subj-emoji"></span><span id="subj-name"></span></div>
+    </div>
+
+    <div id="notions-block">
+      <div class="section-label">Tape une notion, je te l'explique</div>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div id="empty-block" style="display:none" class="glass-card">
+      <p class="empty-note">🚀 Les notions de cette matière arrivent bientôt.<br>
+      En attendant, pose-moi ta question ci-dessous — je t'explique quand même !</p>
+    </div>
+
+    <div class="section-label">Ou pose ta question</div>
+    <div class="glass-card">
+      <div class="ask-row">
+        <input class="ask-input" id="free-q" placeholder="Ex. : pourquoi -5 est plus petit que -2 ?">
+        <button class="btn-primary" onclick="startSession(null)">Expliquer</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ ÉCRAN 3 — Session ELI5 (existant) ══════════ -->
+  <section class="screen" id="screen-session">
+    <div class="back-row">
+      <button class="btn-back" onclick="backToSubject()">← Retour</button>
+      <div class="subject-heading"><span class="emoji" id="sess-emoji"></span><span id="sess-subject"></span></div>
+    </div>
+
+    <div class="glass-card">
+      <div class="badge-cours" id="badge-cours">📚 D'après ta leçon <em>&nbsp;« Les nombres relatifs »</em></div>
+      <div class="explain-title" id="sess-title">Comprendre les nombres relatifs</div>
+
+      <div class="explain-block">
+        <h4>Explication simple</h4>
+        <p>Imagine un thermomètre : au-dessus de zéro il fait chaud (+3°C), en dessous il fait froid (−4°C). Les nombres relatifs, c'est exactement ça — des nombres avec un signe qui dit de quel côté de zéro ils sont.</p>
+      </div>
+      <div class="explain-block">
+        <h4>Analogie</h4>
+        <p>C'est comme un ascenseur : le rez-de-chaussée c'est 0, les étages c'est +1, +2, +3… et le parking en sous-sol c'est −1, −2.</p>
+      </div>
+      <div class="explain-block">
+        <h4>Exemple</h4>
+        <p>−5 est plus petit que −2, parce que le sous-sol −5 est plus bas que le sous-sol −2.</p>
+      </div>
+
+      <div class="mini-q"><strong>Petite vérif :</strong> entre −7 et −3, lequel est le plus grand ?</div>
+
+      <div class="session-actions">
+        <button class="btn-ghost">🔄 Réexplique autrement</button>
+        <button class="btn-primary">🎤 À toi d'expliquer !</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="footnote">Mockup ELI5 v2 · écran 3 = session existante (explication → reverse), inchangée</div>
+</div>
+
+<script>
+  const SUBJECTS = [
+    { slug: "francais",        name: "Français",        emoji: "📖", accent: "#f472b6", notions: [
+      { n: "Le point de vue narratif",   c: "Lecture et compréhension" },
+      { n: "Les figures de style",       c: "Lecture et compréhension" },
+      { n: "L'accord du participe passé", c: "Grammaire" },
+      { n: "Les subordonnées relatives", c: "Grammaire" },
+    ]},
+    { slug: "mathematiques",   name: "Mathématiques",   emoji: "🧮", accent: "#22d3ee", notions: [
+      { n: "Les nombres relatifs",       c: "Nombres et calculs" },
+      { n: "La règle des signes",        c: "Nombres et calculs" },
+      { n: "Le théorème de Pythagore",   c: "Géométrie" },
+      { n: "Les puissances de 10",       c: "Nombres et calculs" },
+      { n: "La proportionnalité",        c: "Organisation de données" },
+      { n: "Le calcul littéral",         c: "Nombres et calculs" },
+    ]},
+    { slug: "histoire-geo",    name: "Histoire-Géo",    emoji: "🌍", accent: "#fbbf24", notions: [
+      { n: "La Révolution française",    c: "Le XVIIIᵉ siècle" },
+      { n: "L'urbanisation du monde",    c: "Géographie urbaine" },
+      { n: "Les traites négrières",      c: "Le XVIIIᵉ siècle" },
+    ]},
+    { slug: "svt",             name: "SVT",             emoji: "🌿", accent: "#34d399", notions: [
+      { n: "La météo et le climat",      c: "La planète Terre" },
+      { n: "La reproduction sexuée",     c: "Le vivant et son évolution" },
+    ]},
+    { slug: "anglais",         name: "Anglais",         emoji: "🇬🇧", accent: "#818cf8", notions: [
+      { n: "Le present perfect",         c: "Grammaire" },
+      { n: "Les modaux (can, must…)",    c: "Grammaire" },
+    ]},
+    { slug: "espagnol",        name: "Espagnol",        emoji: "🇪🇸", accent: "#fb7185", notions: [] },
+    { slug: "physique-chimie", name: "Physique-Chimie", emoji: "⚗️", accent: "#a78bfa", notions: [
+      { n: "Atomes et molécules",        c: "Organisation de la matière" },
+      { n: "L'intensité du courant",     c: "Circuits électriques" },
+      { n: "Les transformations chimiques", c: "Organisation de la matière" },
+    ]},
+    { slug: "technologie",     name: "Technologie",     emoji: "⚙️", accent: "#38bdf8", notions: [
+      { n: "Les capteurs et actionneurs", c: "Objets connectés" },
+    ]},
+  ];
+
+  const $ = id => document.getElementById(id);
+  let current = null;
+
+  function show(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    $(id).classList.add("active");
+    window.scrollTo({ top: 0 });
+  }
+
+  function renderDecks() {
+    $("decks-grid").innerHTML = SUBJECTS.map(s => {
+      const soon = s.notions.length === 0;
+      return `
+      <button class="deck ${soon ? "soon" : ""}" style="--accent:${s.accent}" onclick="openSubject('${s.slug}')">
+        <div class="deck-stack">
+          <div class="deck-ring"></div>
+          <div class="deck-face">${s.emoji}</div>
+          ${soon ? "" : `<div class="deck-badge">${s.notions.length}</div>`}
+        </div>
+        <div class="deck-name">${s.name}</div>
+        <div class="deck-hint">${soon ? "bientôt ✨" : s.notions.length + " notion" + (s.notions.length > 1 ? "s" : "")}</div>
+      </button>`;
+    }).join("");
+  }
+
+  function openSubject(slug) {
+    current = SUBJECTS.find(s => s.slug === slug);
+    $("subj-emoji").textContent = current.emoji;
+    $("subj-name").textContent = current.name;
+    const has = current.notions.length > 0;
+    $("notions-block").style.display = has ? "block" : "none";
+    $("empty-block").style.display = has ? "none" : "block";
+    $("chips").innerHTML = current.notions.map((x, i) => `
+      <button class="chip" onclick="startSession(${i})">
+        <span class="notion">${x.n}</span>
+        <span class="chapter">${x.c}</span>
+      </button>`).join("");
+    $("free-q").value = "";
+    $("free-q").placeholder = `Ex. : explique-moi un truc de ${current.name.toLowerCase()}…`;
+    show("screen-subject");
+  }
+
+  function openLibre() {
+    current = { name: "Question libre", emoji: "✨", notions: [] };
+    $("subj-emoji").textContent = "✨";
+    $("subj-name").textContent = "Question libre";
+    $("notions-block").style.display = "none";
+    $("empty-block").style.display = "none";
+    $("chips").innerHTML = "";
+    $("free-q").value = "";
+    $("free-q").placeholder = "Pose ta question sur n'importe quoi…";
+    show("screen-subject");
+  }
+
+  // notionIdx = null → question libre (pas de skill_id → fallback RAG/modèle, pas de badge leçon)
+  function startSession(notionIdx) {
+    const notion = notionIdx !== null ? current.notions[notionIdx] : null;
+    $("sess-emoji").textContent = current.emoji;
+    $("sess-subject").textContent = current.name;
+    if (notion) {
+      $("sess-title").textContent = "Comprendre : " + notion.n.toLowerCase();
+      $("badge-cours").style.display = "inline-flex";
+      $("badge-cours").innerHTML = `📚 D'après ta leçon&nbsp;<em>« ${notion.n} »</em>`;
+    } else {
+      const q = $("free-q").value.trim();
+      $("sess-title").textContent = q ? "Ta question : " + q : "Comprendre les nombres relatifs";
+      $("badge-cours").style.display = "none";
+    }
+    show("screen-session");
+  }
+
+  function goHome() { show("screen-home"); }
+  function backToSubject() {
+    current && current.name !== "Question libre" && current.slug
+      ? openSubject(current.slug) : goHome();
+  }
+
+  renderDecks();
+</script>
+</body>
+</html>

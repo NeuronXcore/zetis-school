@@ -52,14 +52,24 @@ def test_level_increases_with_xp(client_db) -> None:
 
 
 def test_mission_completion_grants_first_mission_badge(client_db) -> None:
-    # Diagnostic raté → lacune → mission → complétion → badge « première mission ».
+    # Diagnostic raté → lacune → mission (pending) → validation Papa → start → preuves →
+    # complétion des étapes → badge « première mission » (ADR-0017 lot 1 : flux à preuves).
     client, _ = client_db
     body = client.post("/api/diagnostics/generate", json={"subject_id": 1}).json()
     quiz = client.get(f"/api/diagnostics/quizzes/{body['quiz_id']}").json()
     wrong = [{"question_id": q["id"], "choice_index": 1} for q in quiz["questions"]]
     client.post(f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": wrong})
     mission = client.post("/api/missions/generate-remediation").json()["missions"][0]
-    client.post(f"/api/missions/{mission['id']}/complete")
+    mid = mission["id"]
+    client.post("/api/missions/validate", json={"ids": [mid]})
+    client.post(f"/api/missions/{mid}/start")
+    # Preuve de l'étape vocal_explain : un reverse ELI5 postérieur au start.
+    client.post(
+        "/api/ai/eli5/reverse-evaluate",
+        json={"skill_id": mission["skill_id"], "answer_text": "Je réexplique la notion."},
+    )
+    for step in mission["steps"]:  # eli5 puis vocal_explain (2 étapes, fixture sans quiz)
+        client.post(f"/api/missions/{mid}/steps/{step['id']}/complete")
 
     s = client.get("/api/gamification/summary").json()
     assert any(b["code"] == "first_mission" for b in s["badges"])

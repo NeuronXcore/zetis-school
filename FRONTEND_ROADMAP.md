@@ -24,6 +24,7 @@ Légende : ✅ branchée API · 🟡 maquette (mock) · ⬜ placeholder
 | Missions | ✅ | oui |
 | Progression | ✅ (résiduel mock « par matière ») | oui (gamification) |
 | Mindmaps | 🟡 mock | non (pas de backend) |
+| Révision | ⬜ à faire (spec + mockup validés 2026-07-04) | ✅ backend fait (module `memory`, `/api/student/reviews/*`) |
 | Capsules IA | 🟡 mock | non (Phase 8) |
 | Quiz | ⬜ placeholder | partiel (réutiliser moteur diagnostic) |
 | Chat ZETIS | ⬜ placeholder | non |
@@ -90,7 +91,9 @@ de lecture simple (`/subjects`, `/subjects/{slug}/overview`, `/gaps`, agrégat d
 Faire l'UI d'abord avec un type partagé, brancher ensuite.
 
 ### Lot E — Nouvelles pages fonctionnelles (plus gros)
-Quiz (réutiliser le moteur diagnostic), Programmes & Années scolaires (CRUD Papa),
+Quiz (réutiliser le moteur diagnostic), **Révision** (backend fait — module `memory`,
+`/api/student/reviews/*` ; reste la page `/revision`, spec et mockup déjà validés),
+Programmes & Années scolaires (CRUD Papa),
 Cahier de bord IA (lecture `ai_jobs`). Mindmaps / Capsules / Chat = phases ultérieures.
 
 ---

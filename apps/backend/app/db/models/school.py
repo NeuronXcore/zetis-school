@@ -1,6 +1,7 @@
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -28,6 +29,9 @@ class SchoolYear(Base, TimestampMixin):
     starts_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # draft|active|archived
+    # Déprécié — cf. ADR-0009 §4 : jamais lu (la co-construction est un état par nœud,
+    # `source`/`validation_status` sur Chapter). Suppression à la première migration
+    # touchant `school_years`.
     mode: Mapped[str] = mapped_column(String(20), default="hybrid")  # ai_auto|hybrid|manual
 
 
@@ -67,6 +71,21 @@ class Chapter(Base):
     period: Mapped[str | None] = mapped_column(String(40), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="planned")  # planned|active|completed|skipped
+    # --- Référentiel de programme (ADR-0009 §3) : co-construction Papa/IA par nœud. ---
+    # `status` ci-dessus reste la progression temporelle ; `validation_status` est le
+    # statut de validation du référentiel — les deux coexistent, ne pas fusionner.
+    source: Mapped[str] = mapped_column(String(20), default="manual")  # generated|manual
+    validation_status: Mapped[str] = mapped_column(
+        String(20), default="validated"
+    )  # pending|validated|rejected — manuel = validé d'office ; généré = pending
+    program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
+    # Métadonnées structurées de génération (étape 13-bis) : {themes, suggested_class,
+    # repartition, prompt_version}. `description` reste du texte humain librement éditable
+    # par Papa — jamais de sérialisation dedans. JSONB sur Postgres (requêtable), JSON en
+    # tests SQLite.
+    metadata_json: Mapped[dict | None] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=True
+    )
 
 
 class LearningObjective(Base):
@@ -88,3 +107,55 @@ class Skill(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     level: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 5e, 4e...
     parent_skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
+
+
+class Lesson(Base, TimestampMixin):
+    __tablename__ = "lessons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chapter_id: Mapped[int] = mapped_column(ForeignKey("chapters.id"), index=True)
+    title: Mapped[str] = mapped_column(String(160))
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Cours complet, rempli par la rédaction locale (`job_type="lesson_content"`) —
+    # la passe 2 (ADR-0009) ne le remplit pas.
+    content_markdown: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Co-construction (ADR-0009 §3) : `created_by` ≈ source, `status` ≈ validation —
+    # champs documentés de DATA_MODEL.md, pas de doublon du motif `source`/
+    # `validation_status` des chapitres. Rejet d'une leçon `draft` → `archived`
+    # (l'énuméré documenté n'a pas de `rejected`).
+    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft|validated|archived
+    created_by: Mapped[str] = mapped_column(String(20))  # parent|ai|imported
+    source_document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("rag_documents.id"), nullable=True
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
+    # Provenance du COURS (≠ TimestampMixin, qui bouge sur toute édition de la ligne) :
+    # `created_*` posés au premier write du cours, `updated_*` écrasés à chaque write.
+    # Null = pas encore de cours. `*_by` ∈ ('ai', 'parent').
+    content_created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    content_created_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    content_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    content_updated_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+
+class LessonSkill(Base):
+    """Liaison leçon ↔ notion (`Skill`) — minimale : PK composite = unicité de la paire.
+
+    Aucune table `curriculum_*` (ADR-0009 §2) : les notions upsertées par la passe 2
+    SONT des `Skill` (le référentiel persistant) ; cette table ne fait que rattacher."""
+
+    __tablename__ = "lesson_skills"
+    # La PK composite est ordonnée `(lesson_id, skill_id)` et n'aide donc pas les requêtes
+    # filtrant par notion — c'est le cas de la résolution du cours canonique (addendum
+    # ADR-0009 §B/§C : « quelle leçon validée enseigne cette skill »). Index dédié requis.
+    __table_args__ = (Index("ix_lesson_skills_skill", "skill_id"),)
+
+    lesson_id: Mapped[int] = mapped_column(
+        ForeignKey("lessons.id", ondelete="CASCADE"), primary_key=True
+    )
+    skill_id: Mapped[int] = mapped_column(ForeignKey("skills.id"), primary_key=True)

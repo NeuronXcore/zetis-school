@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "backend",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:back"],
+      "port": 8000
+    },
+    {
       "name": "massimo",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@zetis/frontend-massimo", "dev"],
@@ -14,6 +20,69 @@
       "runtimeArgs": ["--filter", "@zetis/frontend-papa", "dev"],
       "port": 5174,
       "autoPort": true
+    },
+    {
+      "name": "backend-dev",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/backend && ZETIS_CORS_ORIGINS='[\"http://localhost:5175\",\"http://localhost:5176\",\"http://localhost:5177\"]' .venv/bin/uvicorn app.main:app --port 8001"
+      ],
+      "port": 8001
+    },
+    {
+      "name": "backend-dev2",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/backend && ZETIS_CORS_ORIGINS='[\"http://localhost:5177\",\"http://localhost:5178\"]' .venv/bin/uvicorn app.main:app --port 8002"
+      ],
+      "port": 8002
+    },
+    {
+      "name": "papa-dev2",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-papa && VITE_API_URL=http://localhost:8002 npx vite --port 5178 --strictPort"
+      ],
+      "port": 5178
+    },
+    {
+      "name": "papa-dev",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-papa && VITE_API_URL=http://localhost:8001 npx vite --port 5175 --strictPort"
+      ],
+      "port": 5175
+    },
+    {
+      "name": "massimo-dev",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-massimo && VITE_API_URL=http://localhost:8001 npx vite --port 5176 --strictPort"
+      ],
+      "port": 5176
+    },
+    {
+      "name": "massimo-dev2",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-massimo && VITE_API_URL=http://localhost:8002 npx vite --port 5177 --strictPort"
+      ],
+      "port": 5177
+    },
+    {
+      "name": "papa-srs",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-papa && VITE_API_URL=http://localhost:8001 npx vite --port 5177 --strictPort"
+      ],
+      "port": 5177
     }
   ]
 }

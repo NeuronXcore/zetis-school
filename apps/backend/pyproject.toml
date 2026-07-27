@@ -16,12 +16,28 @@ dependencies = [
     "python-multipart>=0.0.9",
     "pypdf>=5.1",
     "youtube-transcript-api>=1.0",
+    "redis>=5.0",
+    "rq>=1.16",
+    "minio>=7.2",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
     "httpx>=0.27",
+]
+# Voix des capsules (ADR-0007). Optionnel : le code appelle le binaire `piper` en
+# sous-processus (pas d'import Python). `pip install -e '.[tts]'` fournit la CLI + onnxruntime,
+# puis télécharger un modèle de voix FR (.onnx) et le pointer via PIPER_VOICE_MODEL.
+tts = [
+    "piper-tts>=1.2.0",
+]
+# Dictée ELI5 (ADR-0012). Optionnel : STT 100 % local via faster-whisper (CTranslate2,
+# sans torch). `pip install -e '.[stt]'` puis 1er usage télécharge le modèle (WHISPER_MODEL,
+# défaut 'small' = rapide ; 'medium'/'large-v3' plus précis, plus lents). Sans ce paquet,
+# /transcribe répond 503 et le micro est masqué côté front.
+stt = [
+    "faster-whisper>=1.0",
 ]
 
 [build-system]

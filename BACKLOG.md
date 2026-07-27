@@ -18,10 +18,14 @@
 ### Frontend Massimo
 
 - Dashboard enfant.
-- Sidebar avec : Accueil, Matières, Cours, Diagnostic, ELI5, Capsules IA, Missions, Quiz, Progression, Mindmaps, Chat ZETIS.
+- Sidebar avec : Accueil, Matières, Cours, Révision, Diagnostic, ELI5, Capsules IA, Missions, Quiz, Progression, Mindmaps, Chat ZETIS.
 - Page matières.
 - Page matière dédiée.
-- Page cours.
+- Page cours. **(FAIT 2026-07-03** : `/subjects/:slug/cours` branchée sur le bouton
+  « Cours » de MatiereDetailPage, via les routes élève `GET /api/student/cours/{slug}` et
+  `GET /api/student/lessons/{id}/cours` — validé uniquement, filtrage serveur, spec
+  `docs/frontend-massimo/page-cours.md`. Reste : XP à la lecture, quiz de fin de cours ;
+  notions → skill_mastery.)
 - Page quiz.
 - Page progression XP.
 
@@ -30,7 +34,7 @@
 - Dashboard parent.
 - Vue progression Massimo.
 - Vue lacunes.
-- Vue matières/programmes.
+- Vue matières (thèmes/chapitres persistants ; renommée depuis « Matières & programmes » le 2026-07-03).
 - Vue diagnostics.
 - Cahier de bord IA.
 - Paramètres.
@@ -74,10 +78,19 @@
 
 ### Spaced memory
 
-- Cartes par notion.
-- Intervalles de révision.
-- Prochaine révision.
-- Révision automatique dans missions.
+- Cartes par notion (1–3 par skill via `card_type`, validées par Papa). *(à faire —
+  chantier dérivé du cours canonique, ADR-0011)*
+- Intervalles de révision. **(FAIT 2026-07-04** : moteur MVP, module `memory`.)
+- Prochaine révision. **(FAIT 2026-07-04** : replanification `due_at` selon le rating.)
+- Révision automatique dans missions. *(à faire)*
+- Page Révision Massimo `/revision` : decks circulaires par matière + mélanges
+  (spec `docs/frontend-massimo/page-revision.md`, mockup validé 2026-07-04). *(à faire —
+  slice UI ; backend prêt : `GET/POST /api/student/reviews/*`)*
+- Plafonds de session serveur (mélange 12 / matière 8 / éclair 5) + entrelacement
+  des matières côté serveur. **(FAIT 2026-07-04** : `build_session` + helper pur `interleave`.)
+- Popups de fin de session à 3 paliers *(à faire — UI)* + re-tour des cartes fragiles
+  (1× max, sans effet SRS, XP réduit, détection consolidation côté serveur). **(Backend
+  FAIT 2026-07-04** : consolidation détectée serveur, XP +2 ; le « 1× max » reste côté UI.)
 
 ## Priorité P2 — IA avancée
 

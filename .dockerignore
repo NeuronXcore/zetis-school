@@ -1,0 +1,25 @@
+# Contexte de build Docker — exclut ce qui ne doit JAMAIS entrer dans les images
+# (dépendances hôte, secrets, artefacts). Cf. infra/docker/.
+**/node_modules
+**/.venv
+.venv-*
+**/dist
+**/build
+.git
+.github
+graphify-out
+scratchpad
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.vite
+# Données locales / générées (jamais dans une image)
+apps/backend/storage
+storage/
+# Secrets & envs locaux
+.env
+**/.env
+!**/.env.example
+# Divers
+*.log
+.DS_Store

@@ -31,6 +31,48 @@
   --color-ring: var(--color-papa-accent);
 }
 
+/* Éditeur de cours (MDXEditor, modale 📖) : thème sombre `dark-theme` du package,
+   mappé sur la palette Papa via ses variables CSS. Double classe = spécificité
+   supérieure au `.dark-theme` du package (chargé après nous par le chunk lazy). */
+.lesson-content-editor.dark-theme {
+  --basePageBg: var(--color-papa-bg);
+  --baseBg: var(--color-papa-surface-2);
+  --baseBgSubtle: var(--color-papa-surface);
+  --baseBorder: var(--color-papa-border);
+  --baseText: var(--color-papa-text);
+  --accentSolid: var(--color-papa-accent);
+  border: 1px solid var(--color-papa-border);
+  border-radius: 0.75rem;
+  background: var(--color-papa-bg);
+}
+
+.lesson-content-editor.dark-theme .mdxeditor-toolbar {
+  background: var(--color-papa-surface-2);
+}
+
+/* Barre de défilement aux couleurs Papa (zones défilantes : modale de cours…).
+   N'apparaît que si le contenu dépasse (overflow auto) — fine, pouce émeraude
+   translucide sur piste invisible. */
+.papa-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: color-mix(in srgb, var(--color-papa-accent) 55%, transparent)
+    transparent;
+}
+.papa-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.papa-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.papa-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-papa-accent) 55%, transparent);
+  border-radius: 9999px;
+}
+.papa-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-papa-accent);
+}
+
 html,
 body,
 #root {

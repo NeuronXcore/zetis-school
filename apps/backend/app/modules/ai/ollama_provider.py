@@ -20,9 +20,17 @@ class OllamaProvider:
             "stream": False,
             "options": {"temperature": request.temperature},
         }
+        # Modèles Qwen3 « thinking » : sans `think:false`, la sortie JSON part dans le champ
+        # `thinking` et `response` revient vide → contenu invalide. Cf. ADR-0008 (addendum).
+        if "qwen3" in self.model.lower():
+            payload["think"] = False
         if request.system:
             payload["system"] = request.system
-        if request.json_output:
+        # Sortie structurée : un JSON Schema (ou "json") explicite prime sur le simple
+        # `format:"json"` déduit de json_output (cf. ADR-0007, addendum `fmt`).
+        if request.fmt is not None:
+            payload["format"] = request.fmt
+        elif request.json_output:
             payload["format"] = "json"
 
         start = time.monotonic()
