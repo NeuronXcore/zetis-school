@@ -4,16 +4,16 @@ import { SubjectFilterChips, type SubjectFilterOption } from "@zetis/ui";
 import type { ActivitySessions } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
+import { MonthCalendar } from "../components/activity/MonthCalendar";
 import { SessionDayBlock } from "../components/activity/SessionDayBlock";
 import { fetchSessions } from "../lib/activity";
 import { fetchSubjects } from "../lib/subjects";
-import { formatMinutes } from "../lib/heatmap";
+import { formatMinutes, toLocalIso } from "../lib/heatmap";
 import {
-  PERIOD_DAYS,
-  type PeriodDays,
-  periodRange,
-  periodRangeForDate,
+  latestDayWithSessions,
+  monthRange,
   periodTotals,
+  shiftMonth,
 } from "../lib/sessions";
 
 // Cahier de bord IA — vue SESSIONS (Lot 1 de la page).
@@ -22,28 +22,29 @@ import {
 // regroupées en sessions avec leur temps de travail. Les volets IA de la page (résumés de
 // journal, notes parent) restent au backlog : cette vue en est le socle.
 //
-// Les sessions ne sont PAS stockées : le serveur les reconstruit à la lecture. Le client affiche.
-
-const DEFAULT_PERIOD: PeriodDays = 7;
+// Navigation par MOIS, comme on tourne les pages d'un cahier : le calendrier donne l'aperçu du
+// mois, le clic sur une date ouvre le détail de ses sessions. Les sessions ne sont PAS stockées —
+// le serveur les reconstruit à la lecture, le client affiche.
 
 export function CahierBordPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   // Jour ciblé par le pont depuis le dashboard (`/cahier?date=AAAA-MM-JJ`).
   const targetDate = searchParams.get("date");
 
-  const [period, setPeriod] = useState<PeriodDays>(DEFAULT_PERIOD);
+  // Mois affiché : celui du jour ciblé si on arrive par le pont, sinon le mois courant.
+  const [anchor, setAnchor] = useState<Date>(() =>
+    targetDate ? new Date(`${targetDate}T00:00:00`) : new Date(),
+  );
   const [subjects, setSubjects] = useState<SubjectFilterOption[]>([]);
   const [subjectId, setSubjectId] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(targetDate);
   const [data, setData] = useState<ActivitySessions | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // La période chargée dépend du jour ciblé : arriver depuis le dashboard doit montrer CE jour,
-  // pas la semaine en cours.
-  const range = useMemo(
-    () => (targetDate ? periodRangeForDate(targetDate, period) : periodRange(period)),
-    [targetDate, period],
-  );
+  const range = useMemo(() => monthRange(anchor), [anchor]);
+  const currentMonthStart = toLocalIso(new Date()).slice(0, 7);
+  const canGoNext = range.from.slice(0, 7) < currentMonthStart;
 
   useEffect(() => {
     fetchSubjects()
@@ -56,10 +57,16 @@ export function CahierBordPage() {
     setLoading(true);
     fetchSessions(range.from, range.to, subjectId)
       .then((res) => {
-        if (!cancelled) {
-          setData(res);
-          setError(null);
-        }
+        if (cancelled) return;
+        setData(res);
+        setError(null);
+        // Sélection par défaut : le jour actif le plus récent du mois. Ouvrir un calendrier
+        // sans aucun détail affiché n'apprendrait rien. Un jour explicitement ciblé (pont) ou
+        // déjà choisi par Papa n'est jamais écrasé.
+        setSelectedDate((current) => {
+          if (current && res.days.some((day) => day.date === current)) return current;
+          return latestDayWithSessions(res.days);
+        });
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
@@ -72,25 +79,20 @@ export function CahierBordPage() {
     };
   }, [range.from, range.to, subjectId]);
 
-  // Positionnement sur le jour ciblé, une fois ses blocs rendus.
-  useEffect(() => {
-    if (!targetDate || !data) return;
-    document
-      .getElementById(`jour-${targetDate}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [targetDate, data]);
-
-  const subjectNames = useMemo(
-    () => new Map(subjects.map((s) => [s.slug, s.name])),
-    [subjects],
-  );
+  const subjectNames = useMemo(() => new Map(subjects.map((s) => [s.slug, s.name])), [subjects]);
   const totals = periodTotals(data?.days ?? []);
-  const isEmpty = totals.sessions === 0;
+  const selectedDay = data?.days.find((day) => day.date === selectedDate);
 
-  /** Changer de filtre relâche le jour ciblé : la période affichée ne doit pas rester
-   *  commandée par un lien dont on vient de sortir. */
+  /** Sortir du jour ciblé : la vue ne doit pas rester commandée par un lien dont on vient de
+   *  sortir (changement de mois, de matière, ou choix d'une autre date). */
   function clearTarget() {
     if (targetDate) setSearchParams({}, { replace: true });
+  }
+
+  function handleShiftMonth(offset: number) {
+    setAnchor((current) => shiftMonth(current, offset));
+    setSelectedDate(null); // la sélection appartient au mois qu'on quitte
+    clearTarget();
   }
 
   return (
@@ -101,33 +103,12 @@ export function CahierBordPage() {
       />
 
       <div className="grid grid-cols-3 gap-4">
-        <KpiCard label="Sessions sur la période" value={String(totals.sessions)} />
+        <KpiCard label="Sessions du mois" value={String(totals.sessions)} />
         <KpiCard label="Temps actif total" value={formatMinutes(totals.activeMinutes)} />
         <KpiCard
           label="Moyenne par session"
           value={totals.sessions > 0 ? `${totals.averageMinutes} min` : "—"}
         />
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {PERIOD_DAYS.map((days) => (
-          <button
-            key={days}
-            type="button"
-            aria-pressed={period === days}
-            onClick={() => {
-              setPeriod(days);
-              clearTarget();
-            }}
-            className={`rounded-full border px-3.5 py-1 text-sm transition-colors ${
-              period === days
-                ? "border-papa-accent bg-papa-accent/10 font-semibold text-papa-accent"
-                : "border-papa-border text-papa-muted hover:border-papa-accent/60"
-            }`}
-          >
-            {days} jours
-          </button>
-        ))}
       </div>
 
       {subjects.length > 0 && (
@@ -138,34 +119,49 @@ export function CahierBordPage() {
             setSubjectId(next);
             clearTarget();
           }}
-          className="mt-3"
+          className="mt-4"
         />
       )}
 
       <section className="mt-4 rounded-xl border border-papa-border bg-papa-surface p-5">
-        {loading && <p className="text-sm text-papa-muted">Chargement des sessions…</p>}
-        {error && <p className="text-sm text-papa-warn">{error}</p>}
+        {error && <p className="mb-3 text-sm text-papa-warn">{error}</p>}
 
-        {!loading && !error && isEmpty && (
-          <p className="py-6 text-center text-sm text-papa-muted">
-            Aucune session sur cette période
-            {subjectId != null ? " pour cette matière" : ""}. Massimo n'a pas travaillé dans ZETIS
-            sur cet intervalle — élargis la période pour remonter plus loin.
-          </p>
-        )}
+        <MonthCalendar
+          days={data?.days ?? []}
+          anchor={anchor}
+          selectedDate={selectedDate}
+          onSelectDay={(date) => {
+            setSelectedDate(date);
+            clearTarget();
+          }}
+          onShiftMonth={handleShiftMonth}
+          canGoNext={canGoNext}
+        />
 
-        {!loading &&
-          !error &&
-          !isEmpty &&
-          data?.days.map((day) => (
+        <div className="mt-4 border-t border-papa-border pt-4">
+          {loading && <p className="text-sm text-papa-muted">Chargement des sessions…</p>}
+
+          {!loading && !error && totals.sessions === 0 && (
+            <p className="py-4 text-center text-sm text-papa-muted">
+              Aucune session ce mois-ci{subjectId != null ? " pour cette matière" : ""}. Change de
+              mois pour remonter plus loin.
+            </p>
+          )}
+
+          {!loading && !error && totals.sessions > 0 && !selectedDay && (
+            <p className="py-4 text-center text-sm italic text-papa-muted">
+              Clique une date du calendrier pour voir le détail de ses sessions.
+            </p>
+          )}
+
+          {!loading && !error && selectedDay && (
             <SessionDayBlock
-              key={day.date}
-              day={day}
+              day={selectedDay}
               subjectNames={subjectNames}
               filtered={subjectId != null}
-              highlighted={day.date === targetDate}
             />
-          ))}
+          )}
+        </div>
 
         <p className="mt-3.5 border-t border-papa-border pt-2.5 text-xs text-papa-muted">
           Sessions reconstruites côté serveur : des événements espacés de moins de 15 min forment

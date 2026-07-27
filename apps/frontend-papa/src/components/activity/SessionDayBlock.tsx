@@ -13,26 +13,14 @@ interface SessionDayBlockProps {
   subjectNames: Map<string, string>;
   /** Un filtre matière est actif : le nuance le message d'absence. */
   filtered: boolean;
-  /** Jour ciblé par le pont depuis le dashboard : mis en évidence. */
-  highlighted?: boolean;
 }
 
-export function SessionDayBlock({
-  day,
-  subjectNames,
-  filtered,
-  highlighted = false,
-}: SessionDayBlockProps) {
+export function SessionDayBlock({ day, subjectNames, filtered }: SessionDayBlockProps) {
   const minutes = dayActiveMinutes(day);
   const count = day.sessions.length;
 
   return (
-    <div
-      id={`jour-${day.date}`}
-      className={`border-t border-papa-border py-3.5 first:border-t-0 first:pt-0 ${
-        highlighted ? "-mx-3 rounded-lg bg-papa-surface-2/60 px-3" : ""
-      }`}
-    >
+    <div id={`jour-${day.date}`}>
       <div className="flex items-baseline justify-between gap-3">
         {/* `first-letter` et non `capitalize` : en français, seul le jour prend la majuscule. */}
         <b className="text-sm first-letter:uppercase">{formatLongDate(day.date)}</b>

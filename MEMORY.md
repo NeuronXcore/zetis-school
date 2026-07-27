@@ -18,16 +18,25 @@ Le chantier « Activité » est **CLOS** côté code.
   prompt met hors périmètre. Mock **remplacé** par la vue Sessions (« Lot 1 » de la page selon la
   spec) : laisser du faux à côté de données réelles aurait induit en erreur. Les volets IA
   restent au backlog.
-- `lib/sessions.ts` (pur, testé) : `periodRange`, `periodRangeForDate` (pont), `periodTotals`,
-  `dayActiveMinutes`. Formatage réutilisé de `lib/heatmap.ts` (rien de redéclaré).
+- `lib/sessions.ts` (pur, testé) : `monthRange`, `shiftMonth`, `buildMonthGrid`,
+  `latestDayWithSessions`, `periodTotals`, `dayActiveMinutes`. Formatage réutilisé de
+  `lib/heatmap.ts` (rien de redéclaré).
+- **REFONTE en calendrier mensuel** (décision Papa du 2026-07-27, POSTÉRIEURE à la maquette) :
+  la liste par jour + pastilles 7/14/30 a été remplacée par un `MonthCalendar` cliquable
+  (7 colonnes, cases voisines inertes pour l'alignement, futur atténué, teintes
+  **transparentes** pour que le numéro reste lisible, avance bloquée au-delà du mois courant,
+  sélection par défaut = dernier jour actif du mois). `page-cahier-bord.md` §Vue Sessions amendé,
+  maquette **annotée comme périmée pour cette vue** (sa vue Dashboard reste valide). Les
+  helpers 7/14/30 devenus morts ont été supprimés avec leurs tests.
 - `components/activity/` : `SessionDayBlock` + `ActivityEntryRow` **extrait** et partagé avec le
   panneau détail-jour du dashboard (une ligne de journal se lit pareil aux deux endroits).
-- **Pont activé** : « Ouvrir dans le cahier de bord » → `/cahier?date=`, la page charge la période
-  finissant à ce jour, s'y positionne et le met en évidence ; changer de filtre relâche la cible.
+- **Pont activé** : « Ouvrir dans le cahier de bord » → `/cahier?date=`, le cahier ouvre le MOIS
+  de ce jour avec la date sélectionnée ; changer de mois/matière/date relâche la cible.
 
-**Vérifié LIVE** : KPI de période, jours vides (« aucune session »), bornes de session en heure
-de Paris, filtre matière (« aucune session pour cette matière », KPI à 0), pont cliqué depuis le
-dashboard → recadrage + scroll + surbrillance. Zéro erreur console.
+**Vérifié LIVE** : KPI du mois, alignement du calendrier (1er juillet = mercredi), intensités,
+futur atténué, flèche « mois suivant » désactivée sur le mois courant, clic sur une date →
+détail, navigation vers juin → re-sélection auto du dernier jour actif, bornes de session en
+heure de Paris, filtre matière, pont depuis le dashboard. Zéro erreur console.
 
 ### Slice B (frontends) — faite et vérifiée dans le navigateur
 

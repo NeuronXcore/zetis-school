@@ -159,6 +159,19 @@
         <p class="subtitle">Connexions, pages, leçons, activités — regroupées en sessions avec temps de travail par jour.</p>
       </div>
 
+      <!-- ═══ MAQUETTE PÉRIMÉE POUR CETTE VUE ═══
+           Décision Papa du 2026-07-27, postérieure à cette maquette : la navigation
+           de cette page passe de la LISTE PAR JOUR ci-dessous (avec pastilles
+           7/14/30 jours) à un CALENDRIER MENSUEL cliquable — on tourne les pages
+           d'un cahier, le clic sur une date ouvre le détail de ses sessions.
+           La référence est désormais le code (`CahierBordPage` + `MonthCalendar`)
+           et `page-cahier-bord.md` §Vue Sessions, amendé en conséquence.
+           La vue Dashboard de cette maquette, elle, reste valide. -->
+      <div class="warn-badge" style="margin-bottom:14px">
+        ⚠ Cette vue est périmée : la page est passée à un calendrier mensuel
+        (cf. page-cahier-bord.md §Vue Sessions). La vue Dashboard reste valide.
+      </div>
+
       <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
         <div class="kpi"><div class="val" id="ck-sessions">—</div><div class="lbl">Sessions sur la période</div></div>
         <div class="kpi"><div class="val" id="ck-active">—</div><div class="lbl">Temps actif total</div></div>
