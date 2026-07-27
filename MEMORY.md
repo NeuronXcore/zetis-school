@@ -7,10 +7,27 @@
 
 ## État à la reprise
 
-**Chantier ACTIF : branche `feat/activite-backend`** — *Activité, slices A + B*.
-**Non mergé, non poussé.** Deux commits (A = backend, B = frontends). La slice C (page Cahier de
-bord · vue Sessions) **reste à faire**, prompt dédié
-`prompts/claude-code/prompt-activite-slice-c-cahier-bord.md`.
+**Chantier ACTIF : branche `feat/activite-backend`** — *Activité, slices A + B + C*.
+**Non mergé, non poussé.** Trois commits (A = backend, B = frontends, C = cahier de bord).
+Le chantier « Activité » est **CLOS** côté code.
+
+### Slice C (cahier de bord · vue Sessions) — faite et vérifiée dans le navigateur
+
+- **La page et la route `/cahier` EXISTAIENT déjà** (le prompt supposait de les créer). Son
+  contenu était un mock des volets IA (timeline pédagogique, note parent) — précisément ce que le
+  prompt met hors périmètre. Mock **remplacé** par la vue Sessions (« Lot 1 » de la page selon la
+  spec) : laisser du faux à côté de données réelles aurait induit en erreur. Les volets IA
+  restent au backlog.
+- `lib/sessions.ts` (pur, testé) : `periodRange`, `periodRangeForDate` (pont), `periodTotals`,
+  `dayActiveMinutes`. Formatage réutilisé de `lib/heatmap.ts` (rien de redéclaré).
+- `components/activity/` : `SessionDayBlock` + `ActivityEntryRow` **extrait** et partagé avec le
+  panneau détail-jour du dashboard (une ligne de journal se lit pareil aux deux endroits).
+- **Pont activé** : « Ouvrir dans le cahier de bord » → `/cahier?date=`, la page charge la période
+  finissant à ce jour, s'y positionne et le met en évidence ; changer de filtre relâche la cible.
+
+**Vérifié LIVE** : KPI de période, jours vides (« aucune session »), bornes de session en heure
+de Paris, filtre matière (« aucune session pour cette matière », KPI à 0), pont cliqué depuis le
+dashboard → recadrage + scroll + surbrillance. Zéro erreur console.
 
 ### Slice B (frontends) — faite et vérifiée dans le navigateur
 

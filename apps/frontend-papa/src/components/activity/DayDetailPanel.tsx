@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { ActivityEventIcon } from "@zetis/ui";
+import { Link } from "react-router-dom";
 import type { ActivityDayDetail, ActivityHeatmapDay } from "@zetis/types";
 import { fetchDayDetail } from "../../lib/activity";
 import { formatLongDate } from "../../lib/heatmap";
+import { ActivityEntryRow } from "./ActivityEntryRow";
 
 // Panneau détail-jour, INLINE sous la grille (pas de modale) : Papa compare plusieurs jours
 // sans perdre le contexte de la heatmap. Le journal est chargé PARESSEUSEMENT, au clic.
@@ -75,34 +76,24 @@ export function DayDetailPanel({
       {!loading &&
         !error &&
         detail?.events.map((event, index) => (
-          <div
+          <ActivityEntryRow
             key={`${event.time}-${event.event_type}-${index}`}
-            className="flex items-center gap-2.5 border-b border-papa-surface-2 py-1.5 text-sm last:border-b-0"
-          >
-            <span className="min-w-[44px] tabular-nums text-papa-muted">{event.time}</span>
-            <ActivityEventIcon eventType={event.event_type} className="text-papa-muted" />
-            <span className="flex-1">
-              {event.label}
-              {(event.subject_slug || event.detail) && (
-                <span className="text-papa-muted">
-                  {" · "}
-                  {[
-                    event.subject_slug
-                      ? (subjectNames.get(event.subject_slug) ?? event.subject_slug)
-                      : null,
-                    event.skill_name,
-                    event.detail,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-              )}
-            </span>
-            <span className="min-w-[56px] text-right font-semibold text-papa-accent">
-              {event.xp ? `+${event.xp} XP` : ""}
-            </span>
-          </div>
+            entry={event}
+            subjectNames={subjectNames}
+          />
         ))}
+
+      {/* Pont vers le cahier de bord : la vue Sessions du même jour, avec ses bornes horaires. */}
+      {!loading && !error && detail && detail.events.length > 0 && (
+        <div className="mt-3">
+          <Link
+            to={`/cahier?date=${date}`}
+            className="inline-block rounded-lg border border-papa-border px-3.5 py-2 text-sm font-medium hover:border-papa-accent"
+          >
+            Ouvrir dans le cahier de bord →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

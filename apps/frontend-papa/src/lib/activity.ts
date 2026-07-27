@@ -1,6 +1,11 @@
 // Appels aux lectures d'activité (module backend `activity`, slice A).
 // Contrats : `@zetis/types` (`packages/types/src/activity.ts`) — rien n'est redéclaré ici.
-import type { ActivityDayDetail, ActivityHeatmap, DashboardKpis } from "@zetis/types";
+import type {
+  ActivityDayDetail,
+  ActivityHeatmap,
+  ActivitySessions,
+  DashboardKpis,
+} from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader } from "./httpClient";
 
@@ -29,6 +34,21 @@ export async function fetchDayDetail(
     headers: authHeader(),
   });
   return asJson<ActivityDayDetail>(res);
+}
+
+/** Sessions reconstruites sur une période. Les bornes sont validées serveur ; les jours sans
+ *  session sont servis quand même (`sessions: []`) — l'absence d'activité est une information. */
+export async function fetchSessions(
+  from: string,
+  to: string,
+  subjectId?: number | null,
+): Promise<ActivitySessions> {
+  const params = new URLSearchParams({ from, to });
+  if (subjectId != null) params.set("subject_id", String(subjectId));
+  const res = await fetch(`${API_URL}/api/parent/activity/sessions?${params}`, {
+    headers: authHeader(),
+  });
+  return asJson<ActivitySessions>(res);
 }
 
 /** KPI hebdomadaires `{value, delta}` — les deltas sont calculés serveur. */
