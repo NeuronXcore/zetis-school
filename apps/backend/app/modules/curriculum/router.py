@@ -8,11 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.modules.activity.events import (
-    EVENT_LESSON_VIEWED,
-    log_view_once_per_day,
-    subject_id_for_lesson,
-)
+from app.modules.activity.events import EVENT_LESSON_VIEWED, log_view_once_per_day
 from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
@@ -41,6 +37,7 @@ from app.modules.curriculum.schemas import (
     StudentNotionsSummaryOut,
     SubjectNotionsOut,
 )
+from app.modules.subjects.resolver import subject_id_for_lesson
 
 router = APIRouter(prefix="/api", tags=["curriculum"], dependencies=[Depends(require_parent)])
 

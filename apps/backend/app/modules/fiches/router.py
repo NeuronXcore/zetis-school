@@ -11,11 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.modules.activity.events import (
-    EVENT_FICHE_VIEWED,
-    log_view_once_per_day,
-    subject_id_for_lesson,
-)
+from app.modules.activity.events import EVENT_FICHE_VIEWED, log_view_once_per_day
 from app.modules.ai import get_embedder, get_provider
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
@@ -29,6 +25,7 @@ from app.modules.fiches.schemas import (
     FichesSummaryOut,
     FicheUpdateRequest,
 )
+from app.modules.subjects.resolver import subject_id_for_lesson
 
 router = APIRouter(prefix="/api/fiches", tags=["fiches"], dependencies=[Depends(require_parent)])
 

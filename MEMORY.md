@@ -127,9 +127,18 @@ testé) qui REGROUPE des valeurs déjà servies — aucun recalcul depuis les é
 - `RegularityCard` reçoit désormais `subjects` en prop (évite deux `GET /api/subjects` sur le
   même écran).
 
-**PROCHAIN PAS** : rien de codé en attente sur ce chantier. Restent, hors code : pousser la
-branche + PR, et committer le travail d'unification du résolveur backend (7 fichiers laissés
-dans l'arbre, verts, hors de mes commits).
+### Résolveur « leçon → matière » unifié
+
+`app/modules/subjects/resolver.py` : implémentation UNIQUE, remplaçant trois jumeaux privés
+(`fiches`, `mindmaps`, journal d'activité). Deux formes selon le besoin réel de l'appelant —
+`subject_id_for_lesson` (id → id, pour les routers et le journal) et `subject_of_lesson`
+(leçon chargée → `Subject`, pour fiches/mindmaps qui veulent `.name`/`.slug`) : rendre un objet
+au journal lui ferait payer un `db.get` pour rien. Solde −88/+12 lignes. Test-verrou qui
+n'importe AUCUN des trois consommateurs (preuve de neutralité) et couvre les deux branches de
+rattachement d'un chapitre (`school_year_subject_id` | `theme_id`) — le seul point où les
+jumeaux pouvaient diverger.
+
+**PROCHAIN PAS** : rien de codé en attente. Reste, hors code : pousser la branche + ouvrir la PR.
 
 > ⚠️ Les sections ci-dessous datent d'avant plusieurs chantiers mergés depuis (missions champion
 > ADR-0022, ZETIS Clip, années scolaires) : les considérer comme des repères historiques, pas comme

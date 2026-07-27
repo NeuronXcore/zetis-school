@@ -20,14 +20,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import (
-    Chapter,
-    LearningEvent,
-    Lesson,
-    SchoolYearSubject,
-    StudentProfile,
-    Theme,
-)
+from app.db.models import LearningEvent, StudentProfile
 from app.modules.activity.timeutils import day_bounds_utc, today_local
 
 # --- Vocabulaire du journal ------------------------------------------------------------------
@@ -137,33 +130,6 @@ def log_view_once_per_day(
         skill_id=skill_id,
         payload=payload,
     )
-
-
-def subject_id_for_lesson(db: Session, lesson_id: int) -> int | None:
-    """Matière d'une leçon via `chapter → (school_year_subject | theme) → subject`.
-
-    Le rattachement d'un chapitre est branché (cf. modèle `Chapter`) : soit une matière d'année,
-    soit directement un thème. Sans cette résolution, un `lesson_viewed` sans `subject_id`
-    disparaîtrait dès que Papa filtre la heatmap par matière.
-
-    NOTE : `fiches/service.py` et `mindmaps/service.py` portent chacun un jumeau PRIVÉ de cette
-    logique. Les unifier dépasse le périmètre de ce chantier (on ne restructure pas les modules
-    voisins) ; le résolveur est ici PUBLIC pour que l'unification future ait une cible."""
-    lesson = db.get(Lesson, lesson_id)
-    if lesson is None:
-        return None
-    chapter = db.get(Chapter, lesson.chapter_id)
-    if chapter is None:
-        return None
-    if chapter.school_year_subject_id is not None:
-        sys_row = db.get(SchoolYearSubject, chapter.school_year_subject_id)
-        if sys_row is not None:
-            return sys_row.subject_id
-    if chapter.theme_id is not None:
-        theme = db.get(Theme, chapter.theme_id)
-        if theme is not None:
-            return theme.subject_id
-    return None
 
 
 def student_id_or_none(db: Session) -> int | None:
