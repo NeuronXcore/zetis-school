@@ -138,10 +138,11 @@ def activity_sessions(
 
 @parent_router.get("/dashboard", response_model=DashboardKpisOut)
 def dashboard(db: Session = Depends(get_db)) -> dict:
-    """KPI de régularité en `{value, delta}` (semaine lun→dim Europe/Paris vs précédente).
+    """KPI du dashboard : 4 flux hebdomadaires `{value, delta}` + 2 stocks `{value}`.
 
-    Surface NEUVE : la page Dashboard n'avait pas encore d'endpoint côté backend. Elle porte
-    pour l'instant les 4 KPI de régularité du chantier « Activité » ; les KPI pédagogiques de la
-    spec (lacunes ouvertes, notions consolidées, prochaine révision) restent servis par leurs
-    routes existantes (`/gaps`, `/progress/summary`) et pourront rejoindre ce payload."""
+    Surface NEUVE : la page Dashboard n'avait pas d'endpoint côté backend. Elle porte les 4 KPI
+    de régularité du chantier « Activité », plus les lacunes ouvertes et les notions consolidées
+    (comptées par le module `progress` ; leur détail vit sur `/api/parent/progress/*`). Les
+    routes `/gaps` et `/progress/summary` de la spec n'ont jamais existé en code — le compteur
+    passe donc par ici. Reste hors payload : « prochaine révision »."""
     return service.dashboard_kpis(db, student_id=get_default_student(db).id)

@@ -83,9 +83,22 @@ class KpiValue(BaseModel):
     delta: int
 
 
+class KpiCount(BaseModel):
+    """KPI de STOCK : valeur du jour, sans écart hebdomadaire.
+
+    Les lacunes et les notions consolidées décrivent un état, pas un flux de la semaine ; le
+    modèle ne porte pas les horodatages qui permettraient de reconstituer l'état d'il y a sept
+    jours (cf. `activity/service.dashboard_kpis`). Un type distinct de `KpiValue` rend
+    l'absence de delta explicite au lieu d'un `delta: 0` trompeur."""
+
+    value: int
+
+
 class DashboardKpisOut(BaseModel):
     week_start: str
     sessions: KpiValue
     active_minutes: KpiValue
     xp: KpiValue
     missions_completed: KpiValue
+    open_gaps: KpiCount
+    consolidated_skills: KpiCount

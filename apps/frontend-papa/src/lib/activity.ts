@@ -4,7 +4,9 @@ import type {
   ActivityDayDetail,
   ActivityHeatmap,
   ActivitySessions,
+  ConsolidatedSkill,
   DashboardKpis,
+  OpenGap,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader } from "./httpClient";
@@ -51,8 +53,22 @@ export async function fetchSessions(
   return asJson<ActivitySessions>(res);
 }
 
-/** KPI hebdomadaires `{value, delta}` — les deltas sont calculés serveur. */
+/** KPI du dashboard : flux hebdomadaires `{value, delta}` + stocks `{value}`, calculés serveur. */
 export async function fetchDashboardKpis(): Promise<DashboardKpis> {
   const res = await fetch(`${API_URL}/api/parent/dashboard`, { headers: authHeader() });
   return asJson<DashboardKpis>(res);
+}
+
+/** Détail du KPI « lacunes ouvertes » : les plus sévères d'abord. */
+export async function fetchOpenGaps(): Promise<OpenGap[]> {
+  const res = await fetch(`${API_URL}/api/parent/progress/gaps`, { headers: authHeader() });
+  return asJson<OpenGap[]>(res);
+}
+
+/** Détail du KPI « notions consolidées » : la maîtrise la plus haute d'abord. */
+export async function fetchConsolidatedSkills(): Promise<ConsolidatedSkill[]> {
+  const res = await fetch(`${API_URL}/api/parent/progress/consolidated`, {
+    headers: authHeader(),
+  });
+  return asJson<ConsolidatedSkill[]>(res);
 }

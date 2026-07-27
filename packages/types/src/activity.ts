@@ -93,7 +93,20 @@ export interface KpiValue {
   delta: number;
 }
 
-/** `GET /api/parent/dashboard` — KPI de régularité, semaine lundi→dimanche Europe/Paris. */
+/**
+ * KPI de STOCK : valeur du jour, sans écart hebdomadaire.
+ *
+ * Lacunes et notions consolidées décrivent un ÉTAT, pas un flux de la semaine. Reconstituer
+ * l'état d'il y a sept jours exigerait de savoir quand chaque lacune a été résolue et quand
+ * chaque notion est passée à « maîtrisée » — le modèle ne porte aucun de ces horodatages. Un
+ * type distinct de `KpiValue` rend l'absence de delta explicite, là où un `delta: 0` laisserait
+ * croire à une semaine stable.
+ */
+export interface KpiCount {
+  value: number;
+}
+
+/** `GET /api/parent/dashboard` — KPI du dashboard, semaine lundi→dimanche Europe/Paris. */
 export interface DashboardKpis {
   /** Lundi de la semaine courante, `AAAA-MM-JJ`. */
   week_start: string;
@@ -101,6 +114,30 @@ export interface DashboardKpis {
   active_minutes: KpiValue;
   xp: KpiValue;
   missions_completed: KpiValue;
+  open_gaps: KpiCount;
+  consolidated_skills: KpiCount;
+}
+
+/** Une lacune ouverte (`GET /api/parent/progress/gaps`). Formulation bienveillante côté UI :
+ *  « notion à renforcer », jamais « échec » (CLAUDE.md §pédagogie). */
+export interface OpenGap {
+  skill_id: number;
+  skill_name: string;
+  subject_slug?: string | null;
+  subject_name?: string | null;
+  severity: "low" | "medium" | "high";
+  status: "open" | "in_progress";
+  first_detected_at?: string | null;
+}
+
+/** Une notion consolidée (`GET /api/parent/progress/consolidated`) — `mastered`, score ≥ 90. */
+export interface ConsolidatedSkill {
+  skill_id: number;
+  skill_name: string;
+  subject_slug?: string | null;
+  subject_name?: string | null;
+  mastery_score: number;
+  last_seen_at?: string | null;
 }
 
 /** Body de `POST /api/telemetry/pageview` — le SERVEUR horodate, jamais le client. */

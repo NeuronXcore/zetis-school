@@ -113,8 +113,17 @@ testé) qui REGROUPE des valeurs déjà servies — aucun recalcul depuis les é
   conservé ensuite. `week_start` vient du payload KPI serveur.
 - Cahier : sessions/jour, temps actif/jour, et **durées de chaque session triées** (la dispersion
   éclaire la moyenne). Zéro requête de plus : le mois est déjà chargé.
-- Les 2 KPI **mock** (lacunes ouvertes, notions consolidées) restent volontairement NON
-  cliquables — fabriquer un détail pour des données mock serait mentir.
+- **Lacunes ouvertes / notions consolidées rendues RÉELLES** (module backend **`progress`** créé,
+  `GET /api/parent/progress/{gaps,consolidated}` + compteurs dans le payload dashboard). Les
+  routes `/gaps` et `/progress/summary` de la spec produit **n'ont jamais existé en code**.
+  Vocabulaire figé : lacune ouverte = `open|in_progress` (même définition que les missions de
+  remédiation) ; notion consolidée = `mastered` (≥ 90), `solid` NON compté.
+  **Servis sans delta** : ce sont des stocks, et le modèle n'a ni `resolved_at` sur `gaps` ni
+  horodatage de bascule sur `skill_mastery` → un écart serait faux. Type `KpiCount` distinct de
+  `KpiValue` pour rendre l'absence explicite.
+- **Garde de version du payload** (`isCompleteKpis`, testée) : un backend antérieur qui ne sert
+  pas les stocks blanchissait TOUTE la page (incident réel observé en vérif live). Décalage de
+  version → repli sur les vignettes mock, plus de crash.
 - `RegularityCard` reçoit désormais `subjects` en prop (évite deux `GET /api/subjects` sur le
   même écran).
 

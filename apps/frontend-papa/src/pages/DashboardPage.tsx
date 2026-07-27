@@ -3,20 +3,30 @@ import type { SubjectFilterOption } from "@zetis/ui";
 import type {
   ActivityHeatmap,
   ActivitySessions,
+  ConsolidatedSkill,
   DashboardKpis,
   KpiValue,
+  OpenGap,
 } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { BackendStatus } from "../components/BackendStatus";
 import { RegularityCard } from "../components/activity/RegularityCard";
 import { KpiBreakdown } from "../components/activity/KpiBreakdown";
-import { fetchDashboardKpis, fetchHeatmap, fetchSessions } from "../lib/activity";
+import {
+  fetchConsolidatedSkills,
+  fetchDashboardKpis,
+  fetchHeatmap,
+  fetchOpenGaps,
+  fetchSessions,
+} from "../lib/activity";
 import { fetchSubjects } from "../lib/subjects";
 import { formatDelta, formatMinutes, toLocalIso } from "../lib/heatmap";
 import {
   activeMinutesByDay,
   completedMissions,
+  consolidatedRows,
+  openGapRows,
   sessionsByDay,
   xpByDay,
   type BreakdownRow,
@@ -25,20 +35,45 @@ import { ALERTS, KPIS, PERIOD_LABEL, RECOMMENDATIONS, STUDENT } from "../data/mo
 
 // Dashboard Papa (Étape 8) — état pédagogique en une page.
 //
-// Les 4 KPI de RÉGULARITÉ viennent du backend avec leur écart hebdomadaire (chantier
-// « Activité ») et se DÉPLIENT sur leur détail. Les KPI pédagogiques restants (lacunes
-// ouvertes, notions consolidées) sont encore les valeurs mock d'origine, servis par d'autres
-// routes : ils ne sont volontairement PAS cliquables — proposer un détail qu'on fabriquerait de
-// toutes pièces serait mentir.
+// Six KPI, tous réels et tous dépliables sur leur détail :
+// - quatre FLUX hebdomadaires (sessions, temps actif, XP, missions) avec leur écart vs semaine
+//   précédente, servis par le module `activity` ;
+// - deux STOCKS (lacunes ouvertes, notions consolidées) servis SANS delta par le module
+//   `progress` — le modèle ne porte pas les horodatages qui permettraient de reconstituer
+//   l'état d'il y a une semaine, et un `+0` laisserait croire à une semaine stable.
+//
+// Le mock `KPIS` ne sert plus que de repli d'affichage si le backend est injoignable.
 
-const REGULARITY_LABELS = new Set([
+type KpiKey =
+  | "sessions"
+  | "active_minutes"
+  | "xp"
+  | "missions"
+  | "open_gaps"
+  | "consolidated";
+
+/** Le payload porte-t-il bien tous les KPI attendus ? Garde contre un backend d'une version
+ *  antérieure : mieux vaut retomber sur les vignettes de repli que blanchir la page. */
+export function isCompleteKpis(payload: DashboardKpis | null | undefined): payload is DashboardKpis {
+  if (!payload) return false;
+  const flows = [payload.sessions, payload.active_minutes, payload.xp, payload.missions_completed];
+  const stocks = [payload.open_gaps, payload.consolidated_skills];
+  return (
+    typeof payload.week_start === "string" &&
+    flows.every((kpi) => typeof kpi?.value === "number" && typeof kpi?.delta === "number") &&
+    stocks.every((kpi) => typeof kpi?.value === "number")
+  );
+}
+
+/** Repli mock, affiché seulement si `/api/parent/dashboard` ne répond pas ou répond incomplet. */
+const FALLBACK_LABELS = [
   "Sessions (semaine)",
+  "Temps actif",
   "XP (semaine)",
   "Missions terminées",
-  "Temps actif",
-]);
-
-type KpiKey = "sessions" | "active_minutes" | "xp" | "missions";
+  "Lacunes ouvertes",
+  "Notions consolidées",
+];
 
 export function DashboardPage() {
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
@@ -49,12 +84,17 @@ export function DashboardPage() {
   // une carte ne doit pas relancer une requête.
   const [weekDays, setWeekDays] = useState<ActivityHeatmap | null>(null);
   const [weekSessions, setWeekSessions] = useState<ActivitySessions | null>(null);
+  const [gaps, setGaps] = useState<OpenGap[] | null>(null);
+  const [consolidated, setConsolidated] = useState<ConsolidatedSkill[] | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     // Échec silencieux : le dashboard reste lisible même si l'activité n'est pas joignable.
+    // Le payload est aussi VÉRIFIÉ avant usage : un backend d'une version antérieure (qui ne
+    // sert pas encore les deux stocks) renvoie un objet incomplet, et lire `.value` dessus
+    // faisait mourir toute la page en écran blanc. Décalage de version = repli, pas de crash.
     fetchDashboardKpis()
-      .then(setKpis)
+      .then((payload) => setKpis(isCompleteKpis(payload) ? payload : null))
       .catch(() => setKpis(null));
     fetchSubjects()
       .then((rows) => setSubjects(rows.map((s) => ({ id: s.id, slug: s.slug, name: s.name }))))
@@ -63,7 +103,8 @@ export function DashboardPage() {
 
   const weekStart = kpis?.week_start ?? null;
 
-  const loadDetail = useCallback(async () => {
+  /** Détail des KPI de la SEMAINE (flux). Deux requêtes, une seule fois. */
+  const loadWeekDetail = useCallback(async () => {
     if (!weekStart || (weekDays && weekSessions)) return;
     setDetailLoading(true);
     try {
@@ -82,9 +123,33 @@ export function DashboardPage() {
     }
   }, [weekStart, weekDays, weekSessions]);
 
+  /** Détail des KPI de STOCK (progression). Chargé séparément : ouvrir « lacunes » n'a aucune
+   *  raison de déclencher un scan de la semaine, et réciproquement. */
+  const loadProgressDetail = useCallback(async () => {
+    if (gaps && consolidated) return;
+    setDetailLoading(true);
+    try {
+      const [openGaps, consolidatedSkills] = await Promise.all([
+        fetchOpenGaps(),
+        fetchConsolidatedSkills(),
+      ]);
+      setGaps(openGaps);
+      setConsolidated(consolidatedSkills);
+    } catch {
+      setGaps([]);
+      setConsolidated([]);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [gaps, consolidated]);
+
   function toggle(key: KpiKey) {
     setOpenKpi((current) => (current === key ? null : key));
-    void loadDetail();
+    if (key === "open_gaps" || key === "consolidated") {
+      void loadProgressDetail();
+    } else {
+      void loadWeekDetail();
+    }
   }
 
   const subjectNames = useMemo(() => new Map(subjects.map((s) => [s.slug, s.name])), [subjects]);
@@ -110,6 +175,16 @@ export function DashboardPage() {
       title: "Missions terminées cette semaine",
       rows: completedMissions(weekSessions?.days ?? [], subjectNames),
       empty: "Aucune mission terminée cette semaine.",
+    },
+    open_gaps: {
+      title: "Notions à renforcer, les plus urgentes d'abord",
+      rows: openGapRows(gaps ?? []),
+      empty: "Aucune notion à renforcer pour le moment.",
+    },
+    consolidated: {
+      title: "Notions consolidées (maîtrise ≥ 90 %)",
+      rows: consolidatedRows(consolidated ?? []),
+      empty: "Aucune notion consolidée pour le moment.",
     },
   };
 
@@ -148,15 +223,27 @@ export function DashboardPage() {
             {card("active_minutes", "Temps actif", kpis.active_minutes, formatMinutes, "min")}
             {card("xp", "XP (semaine)", kpis.xp, (n) => `+${n}`)}
             {card("missions", "Missions terminées", kpis.missions_completed, String)}
+            {/* Stocks : pas de delta à passer, la carte n'en affiche donc aucun. */}
+            <KpiCard
+              label="Lacunes ouvertes"
+              value={String(kpis.open_gaps.value)}
+              onClick={() => toggle("open_gaps")}
+              expanded={openKpi === "open_gaps"}
+            />
+            <KpiCard
+              label="Notions consolidées"
+              value={String(kpis.consolidated_skills.value)}
+              onClick={() => toggle("consolidated")}
+              expanded={openKpi === "consolidated"}
+            />
           </>
         ) : (
-          KPIS.filter((k) => REGULARITY_LABELS.has(k.label)).map((k) => (
+          // Backend injoignable : on retombe sur les vignettes mock, non cliquables — mieux vaut
+          // une page lisible qu'un écran vide, mais rien ne doit se faire passer pour du réel.
+          KPIS.filter((k) => FALLBACK_LABELS.includes(k.label)).map((k) => (
             <KpiCard key={k.label} label={k.label} value={k.value} />
           ))
         )}
-        {KPIS.filter((k) => !REGULARITY_LABELS.has(k.label)).map((k) => (
-          <KpiCard key={k.label} label={k.label} value={k.value} />
-        ))}
       </div>
 
       {openKpi && (

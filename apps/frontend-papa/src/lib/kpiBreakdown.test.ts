@@ -3,8 +3,10 @@ import type { ActivityEntry, ActivityHeatmapDay, ActivitySessionDay } from "@zet
 import {
   activeMinutesByDay,
   completedMissions,
+  consolidatedRows,
   enumerateDates,
   formatShortDate,
+  openGapRows,
   sessionDurations,
   sessionsByDay,
   xpByDay,
@@ -103,6 +105,56 @@ describe("sessionDurations", () => {
       sessionDay("2026-07-14", [{ active: 12 }]),
     ]);
     expect(rows.map((r) => r.value)).toEqual([30, 12, 5]);
+  });
+});
+
+describe("openGapRows", () => {
+  it("formule les sévérités sans jamais parler d'échec (CLAUDE.md §pédagogie)", () => {
+    const rows = openGapRows([
+      {
+        skill_id: 1,
+        skill_name: "Fractions",
+        subject_name: "Mathématiques",
+        severity: "high",
+        status: "in_progress",
+      },
+      { skill_id: 2, skill_name: "Narrateur", subject_name: "Français", severity: "low", status: "open" },
+    ]);
+
+    expect(rows[0]).toMatchObject({ label: "Fractions", display: "à travailler en priorité" });
+    expect(rows[0].caption).toBe("Mathématiques · en cours");
+    expect(rows[1].display).toBe("à consolider");
+    // Aucun vocabulaire d'échec nulle part.
+    const text = rows.map((r) => `${r.display} ${r.caption}`).join(" ").toLowerCase();
+    expect(text).not.toMatch(/échec|nul|mauvais|grosse lacune/);
+  });
+
+  it("classe la barre par sévérité décroissante", () => {
+    const rows = openGapRows([
+      { skill_id: 1, skill_name: "A", severity: "high", status: "open" },
+      { skill_id: 2, skill_name: "B", severity: "medium", status: "open" },
+      { skill_id: 3, skill_name: "C", severity: "low", status: "open" },
+    ]);
+    expect(rows.map((r) => r.value)).toEqual([3, 2, 1]);
+  });
+});
+
+describe("consolidatedRows", () => {
+  it("affiche la maîtrise en pourcentage", () => {
+    const rows = consolidatedRows([
+      {
+        skill_id: 7,
+        skill_name: "Nombres relatifs",
+        subject_name: "Mathématiques",
+        mastery_score: 95,
+      },
+    ]);
+    expect(rows[0]).toMatchObject({
+      label: "Nombres relatifs",
+      value: 95,
+      display: "95 %",
+      caption: "Mathématiques",
+    });
   });
 });
 

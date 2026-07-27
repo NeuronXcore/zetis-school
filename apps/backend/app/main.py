@@ -27,6 +27,7 @@ from app.modules.missions.router import router as missions_router
 from app.modules.quizzes.router import pilotage_router as quizzes_pilotage_router
 from app.modules.quizzes.router import router as quizzes_router
 from app.modules.quizzes.router import student_router as quizzes_student_router
+from app.modules.progress.router import router as progress_router
 from app.modules.rag.router import router as rag_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
@@ -75,3 +76,4 @@ app.include_router(ai_router)
 # Activité : télémétrie de navigation (Massimo) + lectures de pilotage (Papa).
 app.include_router(telemetry_router)
 app.include_router(activity_parent_router)
+app.include_router(progress_router)

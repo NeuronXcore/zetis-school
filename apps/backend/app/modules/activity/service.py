@@ -34,6 +34,7 @@ from app.modules.activity.events import (
     EVENT_QUIZ_ATTEMPTED,
     EVENT_REVIEW_ATTEMPTED,
 )
+from app.modules.progress import service as progress_service
 from app.modules.activity.timeutils import (
     day_bounds_utc,
     local_day,
@@ -417,10 +418,20 @@ def _week_metrics(
 
 
 def dashboard_kpis(db: Session, *, student_id: int) -> dict:
-    """Les 4 KPI de régularité en `{value, delta}` — semaine en cours vs précédente.
+    """KPI du dashboard : 4 FLUX hebdomadaires en `{value, delta}` + 2 STOCKS en `{value}`.
 
-    Le delta est calculé SERVEUR (le client n'invente aucun chiffre). Semaine lundi→dimanche en
-    Europe/Paris, conformément à la spec des deltas hebdomadaires."""
+    Les deltas sont calculés SERVEUR (le client n'invente aucun chiffre). Semaine lundi→dimanche
+    en Europe/Paris, conformément à la spec des deltas hebdomadaires.
+
+    **Pourquoi les lacunes et les notions consolidées n'ont PAS de delta.** Ce sont des stocks,
+    pas des flux : « 5 lacunes ouvertes » décrit l'état d'aujourd'hui. Reconstituer le stock d'il
+    y a une semaine exigerait de savoir QUAND chaque lacune a été résolue et quand chaque notion
+    est passée à `mastered` — or `gaps` ne porte que `first_detected_at` (pas de `resolved_at`)
+    et `skill_mastery` aucun horodatage de bascule. Afficher un écart calculé sur autre chose
+    (les lacunes OUVERTES cette semaine, par exemple) sous le même nom que les autres deltas
+    serait un chiffre faux. On sert donc la valeur seule ; ajouter les deux horodatages
+    manquants est un chantier de modèle, pas un contournement d'affichage.
+    """
     monday = week_start(today_local())
     current = _week_metrics(db, student_id=student_id, monday=monday)
     previous = _week_metrics(db, student_id=student_id, monday=monday - timedelta(days=7))
@@ -435,5 +446,9 @@ def dashboard_kpis(db: Session, *, student_id: int) -> dict:
         "missions_completed": {
             "value": current["missions_completed"],
             "delta": current["missions_completed"] - previous["missions_completed"],
+        },
+        "open_gaps": {"value": progress_service.open_gap_count(db, student_id=student_id)},
+        "consolidated_skills": {
+            "value": progress_service.consolidated_count(db, student_id=student_id)
         },
     }

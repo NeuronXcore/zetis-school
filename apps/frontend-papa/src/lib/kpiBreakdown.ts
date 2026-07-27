@@ -5,7 +5,12 @@
 // chiffre. Aucune de ces fonctions ne relit des événements bruts pour recalculer un total.
 //
 // Fonctions pures, sans React : testables directement.
-import type { ActivityHeatmapDay, ActivitySessionDay } from "@zetis/types";
+import type {
+  ActivityHeatmapDay,
+  ActivitySessionDay,
+  ConsolidatedSkill,
+  OpenGap,
+} from "@zetis/types";
 import { toLocalIso } from "./heatmap";
 
 export interface BreakdownRow {
@@ -112,6 +117,42 @@ export function sessionDurations(days: ActivitySessionDay[]): BreakdownRow[] {
       })),
     )
     .sort((a, b) => b.value - a.value);
+}
+
+// Sévérité : vocabulaire BIENVEILLANT (CLAUDE.md §pédagogie). On décrit un effort à fournir,
+// jamais un échec — « grosse lacune » ne s'écrit nulle part.
+const SEVERITY_LABELS: Record<string, string> = {
+  high: "à travailler en priorité",
+  medium: "à renforcer",
+  low: "à consolider",
+};
+
+// Poids d'affichage de la barre : la sévérité n'est pas un nombre côté serveur, la barre ne fait
+// que rendre l'ordre lisible.
+const SEVERITY_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
+/** Lacunes ouvertes, servies déjà triées par sévérité. */
+export function openGapRows(gaps: OpenGap[]): BreakdownRow[] {
+  return gaps.map((gap) => ({
+    key: String(gap.skill_id),
+    label: gap.skill_name,
+    value: SEVERITY_WEIGHT[gap.severity] ?? 1,
+    display: SEVERITY_LABELS[gap.severity] ?? "à renforcer",
+    caption: [gap.subject_name ?? gap.subject_slug, gap.status === "in_progress" ? "en cours" : null]
+      .filter(Boolean)
+      .join(" · "),
+  }));
+}
+
+/** Notions consolidées, servies déjà triées par maîtrise décroissante. */
+export function consolidatedRows(skills: ConsolidatedSkill[]): BreakdownRow[] {
+  return skills.map((skill) => ({
+    key: String(skill.skill_id),
+    label: skill.skill_name,
+    value: skill.mastery_score,
+    display: `${skill.mastery_score} %`,
+    caption: skill.subject_name ?? skill.subject_slug ?? undefined,
+  }));
 }
 
 /** Missions terminées de la période : un `mission_verdict` = une mission bouclée. */

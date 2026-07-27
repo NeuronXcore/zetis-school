@@ -846,13 +846,47 @@ précédente, delta calculé serveur.
   "sessions": { "value": 4, "delta": 1 },
   "active_minutes": { "value": 96, "delta": 18 },
   "xp": { "value": 180, "delta": -20 },
-  "missions_completed": { "value": 3, "delta": 0 }
+  "missions_completed": { "value": 3, "delta": 0 },
+  "open_gaps": { "value": 5 },
+  "consolidated_skills": { "value": 3 }
 }
 ```
 
-Surface neuve : la page Dashboard n'avait pas encore d'endpoint. Les KPI pédagogiques de la spec
-(lacunes ouvertes, notions consolidées, prochaine révision) restent servis par `/gaps` et
-`/progress/summary`.
+Quatre **flux** hebdomadaires en `{value, delta}` et deux **stocks** en `{value}` seul. Les stocks
+n'ont pas de delta parce qu'il serait faux : reconstituer l'état d'il y a une semaine exigerait de
+savoir quand chaque lacune a été résolue et quand chaque notion est passée à `mastered`, or `gaps`
+ne porte que `first_detected_at` et `skill_mastery` aucun horodatage de bascule. Les ajouter est un
+chantier de modèle, pas un contournement d'affichage.
+
+Surface neuve : la page Dashboard n'avait pas d'endpoint. Les routes `/gaps` et `/progress/summary`
+citées par la spec produit n'ont jamais existé en code. Reste hors payload : « prochaine révision ».
+
+## Progression (module `progress`, Papa)
+
+Détail des deux KPI de stock. Analyses parentales : jamais servies à Massimo.
+
+### GET `/api/parent/progress/gaps`
+
+Lacunes ouvertes (`status ∈ open | in_progress`, même définition que le générateur de missions de
+remédiation), les plus sévères d'abord. L'UI les formule en « notions à renforcer » — jamais de
+vocabulaire d'échec (CLAUDE.md §pédagogie).
+
+```json
+[{ "skill_id": 12, "skill_name": "Temps du récit", "subject_slug": "francais",
+   "subject_name": "Français", "severity": "high", "status": "in_progress",
+   "first_detected_at": "2026-07-01T08:00:00+00:00" }]
+```
+
+### GET `/api/parent/progress/consolidated`
+
+Notions consolidées, la maîtrise la plus haute d'abord. **Consolidée = `mastered`** (score ≥ 90,
+paliers partagés diagnostic/quiz) ; `solid` (≥ 70) n'est volontairement pas compté — « consolidé »
+doit vouloir dire acquis, pas « presque ».
+
+```json
+[{ "skill_id": 7, "skill_name": "Nombres relatifs", "subject_slug": "mathematiques",
+   "subject_name": "Mathématiques", "mastery_score": 95, "last_seen_at": null }]
+```
 
 ## Jobs IA
 
