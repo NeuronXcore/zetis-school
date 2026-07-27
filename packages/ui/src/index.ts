@@ -22,6 +22,16 @@ export {
 } from "./components/content-lifecycle-actions";
 export { Spinner } from "./components/spinner";
 export { EmptyState } from "./components/empty-state";
+// Pictogrammes de matière : résolveur + assets partagés (les `lib/subjectIcons.ts` des deux apps
+// ré-exportent ceci). Chantier « Activité » : pastilles de filtre et icônes d'événements,
+// communes au dashboard (slice B) et au cahier de bord (slice C).
+export { subjectIconFor } from "./lib/subjectIcons";
+export {
+  SubjectFilterChips,
+  type SubjectFilterChipsProps,
+  type SubjectFilterOption,
+} from "./components/subject-filter-chips";
+export { ActivityEventIcon, type ActivityEventIconProps } from "./components/activity-icons";
 // Célébration « mini-victoire » (capsule créée / nouvelle) + réglage son partagé.
 export {
   CelebrationProvider,

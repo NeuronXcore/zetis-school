@@ -7,10 +7,37 @@
 
 ## État à la reprise
 
-**Chantier ACTIF : branche `feat/activite-backend`** — *Activité · slice A (backend)*.
-**Non mergé, non poussé.** Un commit. Slices B (télémétrie Massimo + bloc Régularité du
-dashboard) et C (page Cahier de bord · vue Sessions) **restent à faire**, prompts dédiés dans
-`prompts/claude-code/prompt-activite-slice-{b,c}-*.md`.
+**Chantier ACTIF : branche `feat/activite-backend`** — *Activité, slices A + B*.
+**Non mergé, non poussé.** Deux commits (A = backend, B = frontends). La slice C (page Cahier de
+bord · vue Sessions) **reste à faire**, prompt dédié
+`prompts/claude-code/prompt-activite-slice-c-cahier-bord.md`.
+
+### Slice B (frontends) — faite et vérifiée dans le navigateur
+
+- **Télémétrie Massimo** : `lib/telemetry.ts` (fire-and-forget, `keepalive`, échec silencieux) +
+  `hooks/usePageviewTelemetry.ts` monté dans `MassimoLayout` (donc sous `RequireAuth` : la page
+  de login n'est pas tracée). Envoie le `pathname` seul. **Aucune UI côté Massimo.**
+- **`subjectIcons` extrait vers `@zetis/ui`** : le résolveur ET les 17 PNG étaient DUPLIQUÉS dans
+  les deux apps (le prompt n'en annonçait qu'une copie). Assets déplacés dans
+  `packages/ui/src/assets/subjects/`, glob rendu **relatif** (un glob `/src/assets/...` se
+  résoudrait dans l'app consommatrice), les deux `lib/subjectIcons.ts` **ré-exportent** →
+  les 14 sites d'import inchangés.
+- **`SubjectFilterChips`** (contrôlé, `aria-pressed`) et **`ActivityEventIcon`** dans `@zetis/ui`,
+  réutilisés tels quels par la slice C.
+- **Bloc Régularité** (`components/activity/`) : heatmap 26×7 en CSS pur, `lib/heatmap.ts` (pur,
+  testé), KPI à delta, badge de décrochage ≥ 4 jours, panneau détail-jour inline en fetch
+  paresseux. Bouton « Ouvrir dans le cahier de bord » **pas encore posé** — la slice C crée la
+  route et l'activera.
+
+**Vérifié LIVE** (backend `:8001`, papa `:5175`, massimo `:5176`) : KPI réels avec deltas,
+heatmap peuplée, clic-jour → journal réel, filtre matière propagé (`subject_id` dans les logs),
+navigation Massimo → 3 `page_viewed` en base aux bonnes heures de Paris, zéro erreur console.
+Deux défauts vus à l'écran et corrigés : « Lundi 6 **J**uillet » (`capitalize` → `first-letter`)
+et matières affichées en **slug** au lieu du nom.
+
+⚠️ **`lucide-react` n'existe pas dans le monorepo** alors que le prompt B demandait des icônes
+Lucide ET « zéro dépendance nouvelle ». Tranché par du **SVG inline** (`activity-icons.tsx`,
+géométrie Lucide) : seul ce fichier changerait si la dépendance était ajoutée.
 
 **Ce qui est fait** — le serveur journalise l'activité et la projette pour Papa :
 
@@ -49,7 +76,8 @@ chaque événement est pré-formaté Europe/Paris → une carte pouvait afficher
 `21:07` sur sa première ligne selon le fuseau du navigateur. Ajout de `started_time`/`ended_time`
 (additif, testé).
 
-**PROCHAIN PAS** : slice B (télémétrie Massimo + bloc Régularité du dashboard Papa).
+**PROCHAIN PAS** : slice C (page Cahier de bord · vue Sessions) — elle réutilise
+`SubjectFilterChips` + `ActivityEventIcon` et active le bouton « Ouvrir dans le cahier de bord ».
 
 > ⚠️ Les sections ci-dessous datent d'avant plusieurs chantiers mergés depuis (missions champion
 > ADR-0022, ZETIS Clip, années scolaires) : les considérer comme des repères historiques, pas comme
