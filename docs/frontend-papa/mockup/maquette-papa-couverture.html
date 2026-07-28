@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS Papa — Couverture de production (maquette)</title>
+<style>
+  :root{
+    --papa:#10b981; --papa-dark:#059669; --papa-50:#ecfdf5; --papa-100:#d1fae5;
+    --bg:#f8fafc; --card:#ffffff; --border:#e2e8f0; --fg:#0f172a; --muted:#64748b;
+    --violet-bg:#ede9fe; --violet-fg:#6d28d9;
+    --ambre-bg:#fef3c7; --ambre-fg:#b45309;
+    --rouge-bg:#fee2e2; --rouge-fg:#b91c1c;
+    --bleu-bg:#dbeafe; --bleu-fg:#1d4ed8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,-apple-system,sans-serif}
+  body{background:var(--bg);color:var(--fg);font-size:14px}
+  .layout{display:flex;min-height:100vh}
+
+  .sidebar{width:200px;background:#0f172a;color:#94a3b8;padding:20px 12px;flex-shrink:0}
+  .sidebar .logo{font-weight:800;letter-spacing:.2em;color:var(--papa);font-size:15px;margin-bottom:24px;padding-left:8px}
+  .sidebar a{display:block;padding:8px 10px;border-radius:8px;color:#94a3b8;text-decoration:none;font-size:13px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(16,185,129,.15);color:var(--papa)}
+  .sidebar .sep{height:1px;background:#1e293b;margin:12px 8px}
+
+  main{flex:1;padding:28px 32px;max-width:1160px}
+  .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
+  h1{font-size:22px;font-weight:700}
+  .subtitle{color:var(--muted);font-size:13px;margin-top:4px;max-width:620px;line-height:1.45}
+
+  .btn{border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--papa);color:#fff}
+  .btn-primary:hover{background:var(--papa-dark)}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--fg)}
+  .btn-ghost:hover{background:#f1f5f9}
+  .btn-sm{font-size:12px;padding:5px 10px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px}
+  .kpi .val{font-size:21px;font-weight:700}
+  .kpi .lbl{color:var(--muted);font-size:11.5px;margin-top:2px;line-height:1.3}
+
+  /* bandeaux d'anomalie */
+  .alerts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+  .alert-card{display:flex;align-items:center;gap:12px;border-radius:12px;padding:12px 15px}
+  .alert-card .ico{font-size:20px;flex-shrink:0}
+  .alert-card .txt{flex:1;font-size:12.5px;line-height:1.4}
+  .alert-card .sub{color:var(--muted);font-size:11.5px;margin-top:2px}
+  .a-warn{background:#fffbeb;border:1px solid #fcd34d}
+  .a-warn b{color:var(--ambre-fg)}
+  .a-alert{background:#fef2f2;border:1px solid #fca5a5}
+  .a-alert b{color:var(--rouge-fg)}
+
+  .filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .pill{padding:6px 13px;border-radius:999px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:12.5px;color:var(--muted)}
+  .pill.active{background:var(--papa);border-color:var(--papa);color:#fff;font-weight:600}
+  .pill.warn.active{background:var(--ambre-fg);border-color:var(--ambre-fg)}
+  .pill.alert.active{background:var(--rouge-fg);border-color:var(--rouge-fg)}
+  .spacer{flex:1}
+  select{padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:13px;color:var(--fg)}
+  select:disabled{opacity:.5}
+  .search{min-width:170px;padding:7px 12px;border-radius:8px;border:1px solid var(--border);font-size:13px}
+
+  .matrix{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px}
+  table{width:100%;border-collapse:collapse}
+  thead th{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;
+           padding:11px 8px;text-align:center;border-bottom:1px solid var(--border);background:#f8fafc}
+  thead th.lesson-col{text-align:left;padding-left:18px}
+  thead th .sup{display:block;font-size:9.5px;font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;margin-top:1px}
+  thead th.notion-col{background:#f1f5f9}
+
+  tbody tr{border-bottom:1px solid #f1f5f9}
+  tbody tr:last-child{border-bottom:none}
+  tbody tr.lesson:hover{background:#fcfdfe}
+
+  tr.chapter-row td{background:#f8fafc;padding:9px 18px;font-size:12.5px;font-weight:700}
+  tr.chapter-row .ch-inner{display:flex;align-items:center;gap:10px}
+  tr.chapter-row .ch-meta{font-weight:400;color:var(--muted);font-size:11.5px}
+  tr.chapter-row .ch-actions{margin-left:auto}
+
+  td.lesson-col{padding:10px 8px 10px 18px}
+  .l-wrap{display:flex;align-items:center;gap:9px}
+  .l-state{width:16px;flex-shrink:0;font-size:12px;text-align:center}
+  .l-title{font-size:13.5px;font-weight:500}
+  .l-note{font-size:11px;color:var(--muted);margin-top:1px}
+  .row-blocked .l-title{color:var(--muted)}
+
+  td.cell{text-align:center;padding:8px 4px;width:76px}
+  td.cell.notion-col{background:#fbfcfd}
+
+  .c{position:relative;display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;
+     border-radius:7px;font-size:13px;font-weight:700;cursor:default}
+  .c-ok{background:var(--papa-100);color:#047857}
+  .c-pending{background:var(--ambre-bg);color:var(--ambre-fg)}
+  .c-stale{background:var(--rouge-bg);color:var(--rouge-fg)}
+  .c-none{background:transparent;border:1.5px dashed #cbd5e1;color:#94a3b8;font-weight:500;cursor:pointer}
+  .c-none:hover{border-color:var(--papa);color:var(--papa-dark);background:var(--papa-50)}
+  .c-na{color:#cbd5e1;font-weight:400}
+  .c-ok.bulk{background:#f0fdf4;color:#65a30d;box-shadow:inset 0 0 0 1.5px #d9f99d}
+  .c-ok.sys{background:#f1f5f9;color:#64748b}
+  .c-frac{font-size:11.5px;font-weight:700;letter-spacing:-.02em}
+  .c-frac.part{background:var(--ambre-bg);color:var(--ambre-fg)}
+  .c-frac.zero{background:transparent;border:1.5px dashed #cbd5e1;color:#94a3b8;font-weight:500;cursor:pointer}
+  .c-frac.full{background:var(--papa-100);color:#047857}
+
+  .legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);
+          border-radius:12px;padding:12px 16px;font-size:12px;color:var(--muted);margin-bottom:16px}
+  .legend .item{display:flex;align-items:center;gap:7px}
+  .legend .c{width:24px;height:21px;font-size:11.5px}
+
+  /* orphelins */
+  .orphans{background:var(--card);border:1px solid #fca5a5;border-radius:14px;padding:16px 18px;margin-bottom:20px}
+  .orphans h3{font-size:13.5px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+  .orphans .hint{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;max-width:760px}
+  .orphan-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid #f1f5f9;font-size:13px}
+  .orphan-row .o-info{flex:1}
+  .orphan-row .o-meta{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
+  .b-off{background:var(--rouge-bg);color:var(--rouge-fg)}
+
+  .footnote{font-size:12px;color:var(--muted);line-height:1.6;max-width:840px}
+  .footnote b{color:var(--fg)}
+  .footnote + .footnote{margin-top:10px}
+
+  .pop-wrap{position:relative;display:inline-block}
+  .pop{display:none;position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 6px);z-index:30;
+       background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px;width:250px;
+       box-shadow:0 12px 40px rgba(15,23,42,.16);text-align:left;cursor:default}
+  .pop.open{display:block}
+  .pop h4{font-size:12.5px;font-weight:700;margin-bottom:5px}
+  .pop p{font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:10px}
+  .pop .foot{display:flex;gap:6px}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="logo">ZETIS · PAPA</div>
+    <a href="#">Dashboard</a><a href="#">Progression</a><a href="#">Lacunes</a>
+    <a href="#">Missions</a><a href="#">Diagnostics</a>
+    <div class="sep"></div>
+    <a href="#">Programme</a>
+    <a href="#" class="active">Couverture</a>
+    <a href="#">Quiz</a><a href="#">Fiches</a><a href="#">Mindmaps</a>
+    <a href="#">Cartes SRS</a><a href="#">Capsules IA</a>
+    <div class="sep"></div>
+    <a href="#">Sources de cours</a><a href="#">Cahier de bord IA</a><a href="#">Paramètres</a>
+  </nav>
+
+  <main>
+    <div class="page-header">
+      <div>
+        <h1>Couverture de production</h1>
+        <p class="subtitle">Ce qui existe, ce qui attend ta relecture, ce qui a décroché de son cours.
+          Une ligne = une leçon. Rien n'est généré depuis cette page sans un clic explicite.</p>
+      </div>
+      <select><option>Année 2026-2027 · 4e</option><option>Année 2025-2026 · 5e</option></select>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="val">32</div><div class="lbl">Leçons validées</div></div>
+      <div class="kpi"><div class="val">24<span style="font-size:14px;color:var(--muted)"> / 32</span></div><div class="lbl">Cours rédigés et validés</div></div>
+      <div class="kpi"><div class="val">41 %</div><div class="lbl">Dérivés leçon produits<br>(quiz · fiche · mindmap)</div></div>
+      <div class="kpi"><div class="val">3</div><div class="lbl">Périmés — servis dans une version obsolète</div></div>
+    </div>
+
+    <div class="alerts">
+      <div class="alert-card a-warn">
+        <div class="ico">⏳</div>
+        <div class="txt">
+          <b>9 objets produits n'atteignent pas Massimo</b> — ils attendent seulement d'être relus.
+          <div class="sub">4 fiches · 3 mindmaps · 2 cartes SRS</div>
+        </div>
+        <button class="btn btn-primary btn-sm">File de relecture</button>
+      </div>
+      <div class="alert-card a-alert">
+        <div class="ico">🧩</div>
+        <div class="txt">
+          <b>2 dérivés orphelins</b> — leur leçon a été archivée.
+          <div class="sub">Plus servis à Massimo, mais toujours en base</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('orph').scrollIntoView({behavior:'smooth'})">Voir</button>
+      </div>
+    </div>
+
+    <div class="filters">
+      <button class="pill active" onclick="pick(this)">Tout (32)</button>
+      <button class="pill" onclick="pick(this)">🔒 Bloquées (8)</button>
+      <button class="pill" onclick="pick(this)">🟢 Prêtes, incomplètes (14)</button>
+      <button class="pill warn" onclick="pick(this)">⏳ À relire (9)</button>
+      <button class="pill alert" onclick="pick(this)">⚠ Périmés (3)</button>
+      <div class="spacer"></div>
+      <select><option>Toutes les matières</option><option>Français</option><option>Mathématiques</option><option>Histoire-Géo</option></select>
+      <input class="search" placeholder="🔎 Leçon…">
+    </div>
+
+    <div class="legend">
+      <span style="font-weight:600;color:var(--fg)">Légende :</span>
+      <span class="item"><span class="c c-ok">✓</span> à jour, servi</span>
+      <span class="item"><span class="c c-pending">⏳</span> produit, en attente de relecture</span>
+      <span class="item"><span class="c c-stale">⚠</span> périmé — le cours a changé après</span>
+      <span class="item"><span class="c c-none">+</span> absent — cliquer pour générer</span>
+      <span class="item"><span class="c c-na">·</span> bloqué — cours non validé</span>
+      <span style="width:100%;height:0"></span>
+      <span style="font-weight:600;color:var(--fg)">Provenance de la validation :</span>
+      <span class="item"><span class="c c-ok">✓</span> relu par Papa</span>
+      <span class="item"><span class="c c-ok bulk">✓</span> validé en lot, non relu pièce à pièce</span>
+      <span class="item"><span class="c c-ok sys">✓</span> servi sans relecture (quiz, par doctrine)</span>
+    </div>
+
+    <!-- ══════════ FRANÇAIS ══════════ -->
+    <h2 style="font-size:14px;font-weight:700;margin:0 0 8px 2px">📕 Français
+      <span style="font-weight:400;color:var(--muted);font-size:12px">— 12 leçons · 3 chapitres</span></h2>
+
+    <div class="matrix">
+      <table>
+        <thead>
+          <tr>
+            <th class="lesson-col">Leçon</th>
+            <th>Cours<span class="sup">la porte</span></th>
+            <th>Quiz<span class="sup">sans gate</span></th>
+            <th>Fiche</th>
+            <th>Mindmap</th>
+            <th class="notion-col">Cartes<span class="sup">notions couvertes</span></th>
+            <th class="notion-col">Capsules<span class="sup">notions couvertes</span></th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr class="chapter-row"><td colspan="7"><div class="ch-inner">
+            <span>Ch. 3 — Le récit au XIXᵉ siècle</span>
+            <span class="ch-meta">4 leçons · 3 prêtes · 1 bloquée</span>
+            <span class="ch-actions">
+              <button class="btn btn-ghost btn-sm" disabled title="Production en lot — chantier ultérieur">⚡ Compléter le chapitre (6)</button>
+            </span>
+          </div></td></tr>
+
+          <tr class="lesson">
+            <td class="lesson-col"><div class="l-wrap"><span class="l-state" title="Prête — cours validé">🟢</span>
+              <div><div class="l-title">L'accord du participe passé</div></div></div></td>
+            <td class="cell"><span class="c c-ok" title="Cours validé le 02/07">✓</span></td>
+            <td class="cell"><span class="c c-ok" title="7 questions · généré le 04/07 · inspecté le 04/07">✓</span></td>
+            <td class="cell"><span class="c c-ok bulk" title="Validée le 05/07 — validation groupée, non relue pièce à pièce">✓</span></td>
+            <td class="cell"><span class="c c-none" title="Aucune mindmap — générer">+</span></td>
+            <td class="cell notion-col"><span class="c c-frac full" title="3 notions de la leçon sur 3 portent au moins une carte">3/3</span></td>
+            <td class="cell notion-col"><span class="c c-frac zero" title="Aucune capsule publiée sur les 3 notions">0/3</span></td>
+          </tr>
+
+          <tr class="lesson">
+            <td class="lesson-col"><div class="l-wrap"><span class="l-state" title="Prête — cours validé">🟢</span>
+              <div><div class="l-title">Le discours rapporté</div></div></div></td>
+            <td class="cell"><span class="c c-ok bulk" title="Cours généré et auto-validé par l'équipement du 06/07 (ADR-0021) — jamais ouvert">✓</span></td>
+            <td class="cell"><span class="c c-ok sys" title="5 questions · servi sans relecture (doctrine ADR-0014)">✓</span></td>
+            <td class="cell"><span class="c c-pending" title="Fiche produite le 06/07 — jamais relue">⏳</span></td>
+            <td class="cell"><span class="c c-none">+</span></td>
+            <td class="cell notion-col"><span class="c c-frac zero">0/2</span></td>
+            <td class="cell notion-col"><span class="c c-frac zero">0/2</span></td>
+          </tr>
+
+          <tr class="lesson">
+            <td class="lesson-col"><div class="l-wrap"><span class="l-state" title="Prête — cours validé">🟢</span>
+              <div>
+                <div class="l-title">Les figures de style</div>
+                <div class="l-note">cours réécrit le 06/07 — 2 dérivés antérieurs</div>
+              </div></div></td>
+            <td class="cell"><span class="c c-ok" title="Cours revalidé le 06/07">✓</span></td>
+            <td class="cell">
+              <span class="pop-wrap">
+                <span class="c c-stale" onclick="togglePop(this)" title="Quiz du 03/07 — cours réécrit le 06/07">⚠</span>
+                <span class="pop">
+                  <h4>Quiz périmé</h4>
+                  <p>Généré le 03/07 depuis un cours réécrit le 06/07. Il est <b>toujours servi à Massimo</b>
+                     dans son ancienne version — le quiz n'a pas de gate de validation (doctrine ADR-0014).</p>
+                  <span class="foot">
+                    <button class="btn btn-primary btn-sm">↻ Régénérer</button>
+                    <button class="btn btn-ghost btn-sm">👁 Inspecter</button>
+                  </span>
+                </span>
+              </span>
+            </td>
+            <td class="cell"><span class="c c-stale" title="Fiche du 05/07 — cours réécrit le 06/07 · servie dans son ancienne version">⚠</span></td>
+            <td class="cell"><span class="c c-none">+</span></td>
+            <td class="cell notion-col"><span class="c c-frac part" title="2 notions couvertes sur 4">2/4</span></td>
+            <td class="cell notion-col"><span class="c c-frac zero">0/4</span></td>
+          </tr>
+
+          <tr class="lesson row-blocked">
+            <td class="lesson-col"><div class="l-wrap"><span class="l-state" title="Bloquée — cours non rédigé">🔒</span>
+              <div>
+                <div class="l-title">L'incipit et l'entrée dans le récit</div>
+                <div class="l-note">leçon validée, cours jamais rédigé</div>
+              </div></div></td>
+            <td class="cell"><span class="c c-none" title="Rédiger le cours (~45 s, moteur local)">+</span></td>
+            <td class="cell"><span class="c c-na" title="Nécessite un cours validé">·</span></td>
+            <td class="cell"><span class="c c-na">·</span></td>
+            <td class="cell"><span class="c c-na">·</span></td>
+            <td class="cell notion-col"><span class="c c-na">·</span></td>
+            <td class="cell notion-col"><span class="c c-na">·</span></td>
+          </tr>
+
+          <tr class="chapter-row"><td colspan="7"><div class="ch-inner">
+            <span>Ch. 4 — Argumenter</span>
+            <span class="ch-meta">3 leçons · 0 prête · 3 bloquées</span>
+            <span class="ch-actions">
+              <button class="btn btn-ghost btn-sm" disabled title="Production en lot — chantier ultérieur">⚡ Rédiger les 3 cours</button>
+            </span>
+          </div></td></tr>
+
+          <tr class="lesson row-blocked">
+            <td class="lesson-col"><div class="l-wrap"><span class="l-state">🔒</span>
+              <div><div class="l-title">Thèse, arguments, exemples</div></div></div></td>
+            <td class="cell"><span class="c c-none">+</span></td>
+            <td class="cell"><span class="c c-na">·</span></td><td class="cell"><span class="c c-na">·</span></td>
+            <td class="cell"><span class="c c-na">·</span></td>
+            <td class="cell notion-col"><span class="c c-na">·</span></td>
+            <td class="cell notion-col"><span class="c c-na">·</span></td>
+          </tr>
+
+          <tr class="lesson row-blocked">
+            <td class="lesson-col"><div class="l-wrap"><span class="l-state" title="Bloquée — leçon non validée">🔒</span>
+              <div>
+                <div class="l-title">Les connecteurs logiques</div>
+                <div class="l-note">leçon en brouillon — à valider dans Programme</div>
+              </div></div></td>
+            <td class="cell"><span class="c c-na" title="La leçon elle-même n'est pas validée">·</span></td>
+            <td class="cell"><span class="c c-na">·</span></td><td class="cell"><span class="c c-na">·</span></td>
+            <td class="cell"><span class="c c-na">·</span></td>
+            <td class="cell notion-col"><span class="c c-na">·</span></td>
+            <td class="cell notion-col"><span class="c c-na">·</span></td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ══════════ MATHÉMATIQUES ══════════ -->
+    <h2 style="font-size:14px;font-weight:700;margin:0 0 8px 2px">📐 Mathématiques
+      <span style="font-weight:400;color:var(--muted);font-size:12px">— 11 leçons · 4 chapitres</span></h2>
+
+    <div class="matrix">
+      <table>
+        <thead>
+          <tr>
+            <th class="lesson-col">Leçon</th>
+            <th>Cours</th><th>Quiz</th><th>Fiche</th><th>Mindmap</th>
+            <th class="notion-col">Cartes</th><th class="notion-col">Capsules</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="chapter-row"><td colspan="7"><div class="ch-inner">
+            <span>Ch. 2 — Théorème de Pythagore</span>
+            <span class="ch-meta">3 leçons · 3 prêtes</span>
+            <span class="ch-actions"><button class="btn btn-ghost btn-sm" disabled title="Production en lot — chantier ultérieur">⚡ Compléter le chapitre (5)</button></span>
+          </div></td></tr>
+
+          <tr class="lesson">
+            <td class="lesson-col"><div class="l-wrap"><span class="l-state">🟢</span>
+              <div><div class="l-title">Énoncé et démonstration</div></div></div></td>
+            <td class="cell"><span class="c c-ok">✓</span></td>
+            <td class="cell"><span class="c c-ok sys" title="servi sans relecture (doctrine ADR-0014)">✓</span></td>
+            <td class="cell"><span class="c c-ok">✓</span></td>
+            <td class="cell"><span class="c c-pending" title="Mindmap produite le 06/07 — jamais relue">⏳</span></td>
+            <td class="cell notion-col"><span class="c c-frac full">2/2</span></td>
+            <td class="cell notion-col"><span class="c c-frac part" title="1 notion sur 2 · 1 capsule générée mais non rendue, non comptée">1/2</span></td>
+          </tr>
+
+          <tr class="lesson">
+            <td class="lesson-col"><div class="l-wrap"><span class="l-state">🟢</span>
+              <div><div class="l-title">Calculer une longueur</div></div></div></td>
+            <td class="cell"><span class="c c-ok">✓</span></td>
+            <td class="cell"><span class="c c-ok">✓</span></td>
+            <td class="cell"><span class="c c-none">+</span></td>
+            <td class="cell"><span class="c c-none">+</span></td>
+            <td class="cell notion-col"><span class="c c-frac part">1/3</span></td>
+            <td class="cell notion-col"><span class="c c-frac zero">0/3</span></td>
+          </tr>
+
+          <tr class="lesson">
+            <td class="lesson-col"><div class="l-wrap"><span class="l-state" title="Complète">✔</span>
+              <div><div class="l-title">La réciproque</div></div></div></td>
+            <td class="cell"><span class="c c-ok">✓</span></td>
+            <td class="cell"><span class="c c-ok">✓</span></td>
+            <td class="cell"><span class="c c-ok">✓</span></td>
+            <td class="cell"><span class="c c-ok">✓</span></td>
+            <td class="cell notion-col"><span class="c c-frac full">2/2</span></td>
+            <td class="cell notion-col"><span class="c c-frac full">2/2</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ══════════ ORPHELINS ══════════ -->
+    <div class="orphans" id="orph">
+      <h3>🧩 Orphelins <span class="badge b-off">hors matrice</span></h3>
+      <p class="hint">Dérivés dont la leçon a été archivée ou supprimée. Ils ne sont plus servis à Massimo
+        (le filtrage remonte la chaîne complète), mais ils occupent la base et faussent les compteurs
+        de leurs pages de pilotage. Aucune suppression automatique : un objet peut porter de l'historique.</p>
+
+      <div class="orphan-row">
+        <div class="o-info">
+          <div><b>Fiche</b> — « La proportionnalité en tableau »</div>
+          <div class="o-meta">Mathématiques · leçon archivée le 28/06 · validée le 25/06 · jamais consultée</div>
+        </div>
+        <button class="btn btn-ghost btn-sm">Réattacher…</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--rouge-fg);border-color:#fecaca">Supprimer</button>
+      </div>
+
+      <div class="orphan-row">
+        <div class="o-info">
+          <div><b>Quiz</b> — « Les accords dans le groupe nominal »</div>
+          <div class="o-meta">Français · leçon archivée le 01/07 · <b style="color:var(--ambre-fg)">3 tentatives de Massimo</b> — porte de l'historique</div>
+        </div>
+        <button class="btn btn-ghost btn-sm">Réattacher…</button>
+        <button class="btn btn-ghost btn-sm" disabled title="Des tentatives existent — archivage seulement, jamais de suppression">Supprimer</button>
+      </div>
+    </div>
+
+    <p class="footnote">
+      <b>Lecture de la matrice.</b> Les quatre premières colonnes sont <b>leçon-centrées</b> : un objet, un état.
+      Les deux dernières (fond grisé) sont <b>notion-centrées</b> — la fraction indique combien des notions
+      enseignées par la leçon portent au moins une carte ou une capsule. Elles n'affichent <b>pas</b> d'état de
+      fraîcheur : la source canonique d'une notion peut changer de leçon d'une génération à l'autre, un badge
+      « périmé » y serait ininterprétable. Une carte comptée sur cette ligne a pu être produite depuis le cours
+      d'une autre leçon enseignant la même notion.
+    </p>
+    <p class="footnote">
+      <b>Ce qui compte comme « couvert ».</b> Capsule = <b>publiée</b> uniquement (une capsule générée, sans voix
+      ou sans rendu MP4, n'est pas consommable et n'est pas comptée). Carte SRS = validée. Fiche et mindmap =
+      validées. Quiz = existant, le quiz n'ayant pas de gate de validation.
+    </p>
+    <p class="footnote">
+      <b>Provenance de la validation.</b> Un ✓ ne dit pas comment l'objet est passé. Le nuancier distingue
+      ce qui a été <b>relu pièce à pièce</b>, ce qui est passé dans une <b>validation groupée</b>, et ce qui
+      est <b>servi sans relecture</b> par doctrine assumée (les quiz, cf. ADR-0014). C'est une information
+      de traçabilité, au même titre que « généré / manuel » — elle n'est ni comptée, ni classée, ni relancée.
+      Elle sert à expliquer un objet le jour où une question se pose sur lui. La <b>colonne Cours</b> le porte
+      aussi, et c'est là qu'elle compte le plus : l'équipement d'une mission génère et auto-valide le cours,
+      qui peut donc atteindre Massimo sans avoir jamais été ouvert.
+    </p>
+    <p class="footnote">
+      <b>« Cours » n'est pas une colonne comme les autres</b> : c'est la porte. Sans cours validé, aucun dérivé
+      n'est générable — la ligne est marquée 🔒 et ses cellules sont inertes. Deux causes distinctes de blocage :
+      cours jamais rédigé (action possible : le rédiger) ou leçon elle-même non validée (action à mener dans Programme).
+    </p>
+
+  </main>
+</div>
+
+<script>
+function pick(btn){
+  btn.parentElement.querySelectorAll('.pill').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function togglePop(el){
+  const pop = el.parentElement.querySelector('.pop');
+  const wasOpen = pop.classList.contains('open');
+  document.querySelectorAll('.pop.open').forEach(p=>p.classList.remove('open'));
+  if(!wasOpen) pop.classList.add('open');
+  event.stopPropagation();
+}
+document.addEventListener('click',()=>document.querySelectorAll('.pop.open').forEach(p=>p.classList.remove('open')));
+</script>
+</body>
+</html>

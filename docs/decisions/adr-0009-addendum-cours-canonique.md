@@ -50,6 +50,23 @@ addendum ajoute le premier. Même porte partout : un cours que Papa repasse en �
 (`status != validated`) **cesse immédiatement** d'alimenter les dérivés, sans mécanisme
 supplémentaire — le filtre de statut suffit.
 
+> **Deux précisions apportées le 2026-07-28.**
+>
+> **1. Le gate vaut à la naissance, pas dans la durée (addendum ADR-0011 §E).** Ce §A garantit
+> qu'un dérivé *naît* d'un cours validé. Il ne dit rien de la suite : régénérer un cours
+> repasse la leçon en `draft`, mais les dérivés déjà `validated` **restent servis** dans leur
+> version obsolète. La notion de **dérivé périmé** (`is_stale`, colonne
+> `lessons.content_updated_at`) comble ce trou — signalée à Papa, jamais déclassée
+> automatiquement, et utilisée comme **prédicat d'orchestration** par l'équipement (ADR-0021 §5
+> corrigé : « déjà validé *et frais* »).
+>
+> **2. Exception — mission engagée (chantier « invariants de lecture des dérivés »).** Une
+> ressource référencée par le `resource_id` d'une étape d'une **mission active** de Massimo
+> reste servable jusqu'à la fin de cette mission, même si sa leçon repasse en `draft`. Le gate
+> porte sur la **découverte**, jamais sur l'**achèvement d'un parcours engagé** : sans cette
+> exception, une régénération de cours par Papa bloque une mission en cours et empêche son
+> verdict d'être calculé. L'exception est nommée et testée côté serveur.
+
 **Contrainte de design portée en avant** : tout prompt de dérivé écrit à partir de
 maintenant doit prévoir une section « cours validé » distincte de la section « extraits
 RAG », avec la règle explicite *le cours fait foi* (vocabulaire, notations, méthode).

@@ -93,6 +93,14 @@ Deux questions n'ont jamais été tranchées par écrit :
    assumée. Ceci régularise le précédent de l'étape 14 (diagnostic) sans le
    modifier.
 
+   **Traçabilité de la non-relecture (addendum ADR-0011 §F, 2026-07-28)** : un quiz
+   servi sans gate porte désormais `validated_by='system'` — la valeur est
+   **strictement réservée** à ce cas, seul contenu que la présente décision sort du
+   gate. Un test dédié garantit qu'aucun autre chemin ne l'écrit, faute de quoi une
+   future auto-validation pourrait s'y déguiser sans ADR. La page « Couverture de
+   production » rend cette provenance visible par objet — sans jamais la totaliser ni
+   en faire une relance (§F.2).
+
 3. **Lot 1 — famille à correction déterministe (sept formats).** La correction
    est du code pur, testable, sans IA au moment de la correction :
    `mcq` (choix simple, existant), `mcq_multi` (choix multiples),
