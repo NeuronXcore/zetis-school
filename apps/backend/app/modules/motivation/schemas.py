@@ -41,3 +41,43 @@ class WeekGoalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target_days: int = Field(ge=MIN_TARGET_DAYS, le=MAX_TARGET_DAYS)
+
+
+# --- Messages (accueil, clôture de séance) -----------------------------------------------------
+
+
+class MessageCtaOut(BaseModel):
+    """Action proposée. `null` quand il n'y en a pas — le client n'a alors aucun bouton."""
+
+    label: str
+    target: str
+
+
+class WelcomeContextOut(BaseModel):
+    """Ce qui a servi à choisir le message. Sert à l'UI pour l'illustration et pour alimenter
+    d'autres blocs — **jamais** pour recomposer une phrase.
+
+    `days_since_last_visit` est ici et n'apparaît dans AUCUN texte : le nombre de jours d'absence
+    ne doit jamais être lu par l'enfant."""
+
+    first_name: str
+    last_notion: str | None = None
+    days_since_last_visit: int | None = None
+    consolidated_this_week: int
+    gaps_closed_this_week: int
+    reviews_due: int
+    regularity: WeekEngagementOut
+
+
+class MessageOut(BaseModel):
+    """Message composé SERVEUR. Le `code` sert au client à choisir une illustration, jamais à
+    réinterpréter le texte."""
+
+    code: str
+    title: str
+    subtitle: str | None = None
+    cta: MessageCtaOut | None = None
+
+
+class WelcomeOut(MessageOut):
+    context: WelcomeContextOut

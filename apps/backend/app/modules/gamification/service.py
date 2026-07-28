@@ -11,7 +11,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import StudentProfile, XPEvent
-from app.modules.motivation import service as motivation_service
 
 XP_PER_LEVEL = 100
 
@@ -163,9 +162,6 @@ def summary(db: Session, student: StudentProfile) -> dict:
         # jusqu'à sa suppression.
         "streak_days": streak,
         "active_today": active_today,
-        # Régularité douce (chantier « auto-motivation ») : un compte de jours dans la semaine,
-        # qui ne peut pas casser. Additif — aucun consommateur existant n'est modifié.
-        "regularity": motivation_service.week_engagement(db, student_id=student.id),
         "badges": _badges(
             total_xp=total_xp,
             streak=streak,

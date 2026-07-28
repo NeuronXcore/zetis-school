@@ -810,6 +810,49 @@ Aucun cron : le changement de semaine se fait seul (le lundi, aucune ligne n'exi
 semaines passées ne sont servies par **aucune** route élève — un historique d'objectifs manqués
 serait le streak déguisé.
 
+### GET `/api/student/motivation/welcome`
+
+Ce que ZETIS dit à Massimo en arrivant, **composé serveur**.
+
+```json
+{
+  "code": "back_after_break",
+  "title": "Content de te revoir, Massimo !",
+  "subtitle": "On reprend là où tu t'étais arrêté : le théorème de Pythagore.",
+  "cta": { "label": "Reprendre", "target": "missions" },
+  "context": {
+    "first_name": "Massimo", "last_notion": "le théorème de Pythagore",
+    "days_since_last_visit": 6, "consolidated_this_week": 0,
+    "gaps_closed_this_week": 0, "reviews_due": 4, "regularity": {}
+  }
+}
+```
+
+**Déterministe, sans LLM ni aléa** : deux appels sur le même état rendent la même phrase. Le
+client affiche `title`/`subtitle` **tels quels** ; `code` sert à choisir une illustration, jamais
+à réinterpréter le texte. `cta: null` = aucun bouton.
+
+Dix codes, premier applicable : `first_visit`, `back_after_break` (≥ 4 j), `back_short_break`
+(2–3 j), `no_goal_yet`, `goal_reached_today`, `goal_reached`, `progress_visible`, `resume_notion`,
+`reviews_due`, `all_clear`. L'ordre porte une intention : ce qui est humain (te revoir) passe
+avant tout compteur, et l'invitation à s'engager avant la félicitation — sinon on rate la fenêtre
+du lundi.
+
+`context` sert à l'illustration et à d'autres blocs, **jamais** à recomposer une phrase.
+`days_since_last_visit` y figure et n'apparaît dans **aucun texte** : le nombre de jours d'absence
+ne doit jamais être lu par l'enfant. Il se mesure sur les événements **strictement antérieurs à
+aujourd'hui** — la connexion étant journalisée avant l'appel, l'absence vaudrait sinon toujours 0.
+
+### GET `/api/student/motivation/wrap-up`
+
+Le mot de la fin d'une séance : ce qui a été gagné, et le prochain pas. Même forme que `welcome`,
+sans `context`. Codes : `week_goal_reached`, `mission_in_progress`, `reviews_left`, `day_done`,
+`all_clear`.
+
+Endpoint distinct plutôt qu'un `?moment=` sur `welcome` : les entrées diffèrent (l'accueil regarde
+l'absence, la clôture le reste-à-faire). **La clôture ne dit JAMAIS combien de jours il reste pour
+tenir l'engagement** — l'enfant repart avec une intention, pas avec un décompte.
+
 > `GET /api/gamification/summary` porte désormais le même bloc sous la clé `regularity`.
 > `streak_days` et `active_today` y sont **dépréciés** : ils restent servis **inchangés** tant que
 > le frontend ne les a pas quittés (les redéfinir comme un compte hebdomadaire ferait afficher

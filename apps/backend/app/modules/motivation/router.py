@@ -15,7 +15,12 @@ from app.db.base import get_db
 from app.modules.auth.deps import require_child
 from app.modules.eli5.service import get_default_student
 from app.modules.motivation import service
-from app.modules.motivation.schemas import WeekEngagementOut, WeekGoalRequest
+from app.modules.motivation.schemas import (
+    MessageOut,
+    WeekEngagementOut,
+    WeekGoalRequest,
+    WelcomeOut,
+)
 
 router = APIRouter(
     prefix="/api/student/motivation",
@@ -45,3 +50,22 @@ def put_week(body: WeekGoalRequest, db: Session = Depends(get_db)) -> dict:
     return service.set_week_goal(
         db, student_id=get_default_student(db).id, target_days=body.target_days
     )
+
+
+@router.get("/welcome", response_model=WelcomeOut)
+def get_welcome(db: Session = Depends(get_db)) -> dict:
+    """Ce que ZETIS dit à Massimo en arrivant.
+
+    Le texte est composé SERVEUR et déterministe (aucun LLM, aucun aléa) : deux appels sur le
+    même état rendent la même phrase. Le client affiche `title`/`subtitle` tels quels."""
+    return service.welcome(db, student_id=get_default_student(db).id)
+
+
+@router.get("/wrap-up", response_model=MessageOut)
+def get_wrap_up(db: Session = Depends(get_db)) -> dict:
+    """Le mot de la fin d'une séance : ce qui a été gagné, et le prochain pas.
+
+    Endpoint distinct de `/welcome` plutôt qu'un paramètre `?moment=` : les entrées diffèrent
+    (l'accueil regarde l'absence, la clôture le reste-à-faire) et un paramètre qui change tout le
+    sens d'une réponse rend le schéma flou."""
+    return service.wrap_up(db, student_id=get_default_student(db).id)
