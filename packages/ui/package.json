@@ -7,7 +7,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./mindmap": "./src/components/mindmap/index.ts"
+    "./mindmap": "./src/components/mindmap/index.ts",
+    "./galaxy": "./src/components/galaxy/index.ts",
+    "./galaxy/canvas": "./src/components/galaxy/GalaxyCanvas.tsx"
   },
   "dependencies": {
     "@xyflow/react": "12.11.1",
@@ -15,13 +17,17 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "elkjs": "0.11.1",
-    "tailwind-merge": "^2.6.0"
+    "react-force-graph-3d": "1.29.1",
+    "tailwind-merge": "^2.6.0",
+    "three": "0.185.1",
+    "three-spritetext": "1.10.0"
   },
   "peerDependencies": {
     "react": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
+    "@types/three": "0.185.0",
     "react": "^19.0.0",
     "typescript": "~5.7.2"
   }

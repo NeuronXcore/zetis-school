@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@zetis/auth";
 import { PROFILE } from "../data/mock";
 import { fetchGamificationSummary } from "../lib/gamification";
@@ -62,12 +63,18 @@ export function MassimoBannerHeader() {
             aria-hidden
             className="h-16 w-16 shrink-0 rounded-full object-cover ring-2 ring-cyan-400/60"
           />
-          <div className="text-left">
+          {/* Le niveau ouvre la galaxie (ADR-0024 §7) : le bandeau est présent sur toutes
+              les pages, c'est l'accès permanent à la progression. */}
+          <Link
+            to="/progression"
+            className="rounded-lg px-1 py-0.5 text-left transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+            aria-label={`Massimo, niveau ${level}, ${totalXp} XP — voir ma galaxie`}
+          >
             <p className="text-sm font-semibold text-slate-100">Massimo</p>
             <p className="text-xs text-slate-300">
               Niveau {level} · {totalXp} XP
             </p>
-          </div>
+          </Link>
           {user && (
             <button
               type="button"

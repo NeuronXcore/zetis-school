@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@zetis/auth";
 import { useAccueil } from "../hooks/useAccueil";
 import { useMotivationWeek } from "../hooks/useMotivationWeek";
+import { HomeGalaxyPreview } from "../components/galaxy/HomeGalaxyPreview";
 import { ZetisMessageCard } from "../components/motivation/ZetisMessageCard";
 import { WeekDots } from "../components/motivation/WeekDots";
 import { WeekGoalPicker } from "../components/motivation/WeekGoalPicker";
@@ -35,14 +36,27 @@ export function AccueilMassimoPage() {
   const name = welcome?.context.first_name || displayName(user?.username ?? "");
 
   return (
-    <div className="mx-auto max-w-3xl">
+    // Deux colonnes à partir du grand écran : la galaxie à gauche, ce qu'il y a à FAIRE à
+    // droite. En dessous, une seule colonne — sur téléphone, empiler garde l'ordre de
+    // lecture, et la galaxie passe alors en dernier (elle inspire, elle n'agit pas).
+    <div className="mx-auto max-w-7xl">
       <h1 className="text-2xl font-bold">Bonjour{name ? ` ${name}` : ""} 👋</h1>
+
+      <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
+        {/* Colonne gauche — la galaxie. `lg:sticky` : elle reste visible pendant qu'on
+            parcourt les actions de droite. */}
+        <div className="order-2 lg:order-1 lg:sticky lg:top-4">
+          <HomeGalaxyPreview />
+        </div>
+
+        {/* Colonne droite — l'action du jour. */}
+        <div className="order-1 lg:order-2">
 
       {/* Ce que ZETIS a à dire, en premier : le levier « il se souvient » doit être la première
           chose lue. Si l'appel échoue, la carte n'est pas rendue — pas de phrase de secours, qui
           serait exactement le mensonge qu'on vient de retirer de cette page. */}
       {welcome && (
-        <div className="mt-4">
+        <div>
           <ZetisMessageCard message={welcome} />
         </div>
       )}
@@ -132,6 +146,8 @@ export function AccueilMassimoPage() {
           <p className="mt-1 font-semibold">Capsule IA</p>
           <p className="text-xs text-zetis-muted">Une notion en vidéo</p>
         </Link>
+      </div>
+        </div>
       </div>
     </div>
   );
