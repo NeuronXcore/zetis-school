@@ -1982,3 +1982,102 @@ Respecte les critères de validation de l'étape 1.
 Ne code aucune fonctionnalité métier.
 À la fin, affiche l'arborescence complète et propose le commit Git.
 ```
+
+# ÉTAPE — Activité : journal `learning_events`, projections Papa, cahier de bord
+
+## Statut
+
+FAIT (backend + 2 frontends + docs + vérification live) — 2026-07-27.
+Branche `feat/activite-backend`, **7 commits**, du `c1b331b` au `1284deb`. **Non poussée.**
+
+## Ce qui a été fait
+
+- **Module `activity`** : helper `log_learning_event` (patron `award_xp`), dédupe des
+  consultations (1/élève/ressource/jour Paris), projections **pures** et testées isolément,
+  bucketing Europe/Paris (`timeutils`).
+- **7 hooks** + `POST /api/telemetry/pageview` (`require_child`, créé) — seule écriture cliente.
+- **Lectures Papa** : heatmap, détail-jour, sessions, et `GET /api/parent/dashboard` (surface
+  neuve : aucun endpoint dashboard n'existait).
+- **Module `progress`** : lacunes ouvertes et notions consolidées réelles + leur détail.
+- **Papa** : bloc Régularité (heatmap CSS pure), Cahier de bord en **calendrier mensuel**, six KPI
+  dépliables. **Massimo** : télémétrie invisible.
+- Extraction `subjectIcons` + assets vers `@zetis/ui` ; résolveur « leçon → matière » unifié.
+- Migration `d0e1f2a3b4c5` (index composite), appliquée sur la DB de dev.
+
+## Divergences tranchées (stop-on-blocker)
+
+- **Les specs n'existaient pas** : `page-dashboard.md` et `page-cahier-bord.md` étaient des stubs
+  de 40 lignes, la maquette introuvable. Arrêt et signalement ; le user a fourni les trois
+  fichiers, installés dans le dépôt avant toute ligne de code.
+- **`POST /api/missions/{id}/complete` n'existe pas** — les missions se terminent par étape. Aucune
+  route créée.
+- **Deux `event_type` préexistants réutilisés** (`reverse_eli5`, `mission_verdict`) : les ajouter
+  aurait produit deux événements pour un seul acte (double comptage), les renommer aurait cassé
+  `evidence.VERDICT_EVENT` et `completed-today`. **7 hooks neufs, pas 9.**
+- Les routes `/gaps` et `/progress/summary` de la spec produit n'ont **jamais existé** en code.
+- Décision du user en cours de chantier : la vue Sessions passe de la liste 7/14/30 jours à un
+  **calendrier mensuel** (maquette annotée comme périmée pour cette vue, spec amendée et datée).
+
+## Tests
+
+453 back · 111 Massimo · 166 Papa. Vérifié LIVE sur Postgres : migration en aller-retour, les deux
+dédupes confirmées entre deux exécutions, résolution de matière, gardes 422/403, quatre lectures
+Papa, pont dashboard → cahier. Un test de `days_inactive` **mutation-testé**.
+
+## Reste à faire
+
+- **Pousser la branche + ouvrir la PR** (rien à coder).
+- Différés : volets IA du cahier (résumés journal, notes parent) ; KPI « prochaine révision ».
+
+---
+
+# ÉTAPE — Auto-motivation de Massimo : régularité douce, engagement, ZETIS qui se souvient
+
+## Statut
+
+FAIT (backend + frontend + docs + vérification live) — 2026-07-28.
+Branche `feat/motivation-massimo` (part de `feat/activite-backend`), **11 commits**, du `67b4811`
+au `c98bb36`. **Non poussée — à merger APRÈS `feat/activite-backend`.**
+
+## Décision produit
+
+« ZETIS doit avoir une main de fer dans un gant de velours. » Le principe *« un enfant chronométré
+travaille pour le chronomètre »* est **amendé partiellement** : vrai pour le TEMPS, levé pour
+l'EFFORT. Quatre leviers retenus par le user (engagement choisi · ZETIS se souvient · progrès réel
+· clôture qui engage), et le **streak remplacé, pas amendé**.
+
+## Ce qui a été fait
+
+- **A** — `mastered_at`, `resolved_at`, `student_weekly_goals` (migration `f1a2b3c4d5e6`, aller-retour
+  vérifié sur Postgres) + helper `progress/mastery.py`, point de passage unique des 4 sites.
+- **B** — module `motivation` : régularité douce + engagement (`require_child`).
+- **C** — `welcome`/`wrap-up`, textes composés SERVEUR, déterministes, sans LLM.
+- **F1/F0/F2/F3** — accueil honnête, carte ZETIS, « Ma semaine ».
+- **F4 puis D** — streak retiré du frontend PUIS du backend, dans cet ordre.
+- **F5/F6** — clôture sur les trois écrans de fin, purge des mocks morts.
+
+## Divergences tranchées (stop-on-blocker)
+
+- **`lucide-react` n'existe nulle part** dans le monorepo, alors que la spec demandait des icônes
+  Lucide ET « zéro dépendance nouvelle » : tranché par du SVG inline (géométrie Lucide), seule
+  option ne violant aucune des deux consignes.
+- **`subjectIcons` était dupliqué dans les DEUX apps**, pas seulement chez Massimo : l'extraction
+  supprime 34 fichiers, et le glob devait passer en relatif.
+- L'échelle de couleur de la heatmap est **inversée** par rapport à la maquette (thème sombre).
+- `resolved_at` était **déjà spécifié** dans DATA_MODEL.md sans avoir jamais été implémenté ;
+  `last_confirmed_at`, jamais écrit ni lu, a été **retiré de la spec** plutôt que codé.
+
+## Tests
+
+488 back · 111 Massimo · 166 Papa. Vérifié LIVE de bout en bout : engagement posé et révisé à la
+baisse, message d'accueil cohérent après changement d'objectif, séance de révision complète jouée
+jusqu'à la clôture.
+
+## Reste à faire
+
+- **Pousser les deux branches et ouvrir les PR DANS L'ORDRE** (rien à coder).
+- Différés : `ignored` sur les lacunes (aucune route Papa ne ferme une lacune à la main) ;
+  `skill_id` sur `quiz_attempted` (une séance 100 % quiz ne laisse pas de notion) ;
+  `completed_today` bucketisé en Paris.
+
+---

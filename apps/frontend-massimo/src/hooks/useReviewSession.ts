@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type ReviewCard, type ReviewDeck, type ReviewRating } from "@zetis/types";
+import {
+  type MotivationMessage,
+  type ReviewCard,
+  type ReviewDeck,
+  type ReviewRating,
+} from "@zetis/types";
+import { fetchWrapUp } from "../lib/motivation";
 import { startReviewSession, submitReviewAttempt } from "../lib/reviews";
 import { prefersReducedMotion } from "../lib/motion";
 
@@ -58,6 +64,9 @@ export interface ReviewSessionApi {
   /** Notes affichées (retardées après le flip, ou immédiates en reduced-motion). */
   showRatings: boolean;
   summary: SessionSummary | null;
+  /** Mot de la fin servi par ZETIS, chargé à l'entrée en `summary`. Récupéré par le HOOK et non
+   *  par la modale, pour que `SessionEndPopup` reste un composant de présentation pure. */
+  wrapUp: MotivationMessage | null;
   error: string | null;
   reducedMotion: boolean;
   reveal: () => void;
@@ -73,6 +82,7 @@ export function useReviewSession(deck: ReviewDeck | null): ReviewSessionApi {
   const [pos, setPos] = useState(0);
   const [showRatings, setShowRatings] = useState(false);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const [wrapUp, setWrapUp] = useState<MotivationMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Compteurs du passage courant + XP de session : tenus en refs (pas de re-render
@@ -181,6 +191,12 @@ export function useReviewSession(deck: ReviewDeck | null): ReviewSessionApi {
           } else {
             setSummary(buildSummary());
             setStatus("summary");
+            // Un seul appel par fin de séance ; `redo` ne le relance pas (la séance continue).
+            void fetchWrapUp()
+              .then(setWrapUp)
+              .catch(() => {
+                /* silence : la modale de fin s'affiche normalement sans le mot de la fin */
+              });
           }
         } catch (e) {
           // Bienveillant : on n'affiche jamais d'« échec », la carte reste notable.
@@ -214,6 +230,7 @@ export function useReviewSession(deck: ReviewDeck | null): ReviewSessionApi {
     progress: { current: Math.min(pos + 1, cards.length), total: cards.length },
     showRatings,
     summary,
+    wrapUp,
     error,
     reducedMotion,
     reveal,

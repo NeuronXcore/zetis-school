@@ -763,6 +763,101 @@ Aucune surface Massimo.
   le flux Commander (ADR-0018 ; `manual`, `validated` par construction — la validation Papa = ce
   clic). Croisées multi-matières hors v1.
 
+## Motivation (Massimo)
+
+Leviers d'auto-motivation de l'enfant. Réservées à l'espace de Massimo (`require_child`) — Papa
+reçoit `403`, y compris en lecture : si Papa pouvait poser l'objectif, ce ne serait plus un
+engagement mais une consigne. Contrats : `packages/types/src/motivation.ts`.
+
+### GET `/api/student/motivation/week`
+
+Régularité douce + engagement de la semaine courante.
+
+```json
+{
+  "week_start": "2026-07-27",
+  "days": [{ "date": "2026-07-27", "active": true, "is_today": false }],
+  "days_done": 2,
+  "today_done": true,
+  "goal_days": 3,
+  "goal_met": false
+}
+```
+
+Les **7 jours sont toujours servis**, jours à venir compris : le client n'a ni grille à
+reconstruire ni date à calculer. Un jour est « actif » s'il porte au moins un `learning_event`
+(jamais `xp_events`) en **Europe/Paris** — un jour de lecture sans XP reste un jour où Massimo est
+venu, et la connexion suffit à cocher la case.
+
+`days_done` est un COMPTE hebdomadaire, pas une série : il ne peut pas casser, et le lundi la
+grille repart de zéro case cochée — un départ, pas une chute. Il n'existe volontairement aucun
+champ `missed`, `failed`, `remaining`, `best` ni `streak` : le contrat ne porte pas la matière
+première d'une punition, donc aucun client ne peut en afficher une. `goal_days: null` = aucun
+engagement pris cette semaine (état qui déclenche l'invitation du lundi), à distinguer d'un
+objectif à 0, qui n'existe pas.
+
+### PUT `/api/student/motivation/week`
+
+Corps `{ "target_days": 1..7 }`, `extra="forbid"`. Réponse identique au GET.
+
+`PUT` car c'est un **upsert idempotent** sur (élève, semaine courante) : rejouer la requête rend
+le même état, jamais une seconde ligne. **La semaine est déduite serveur** et ne peut pas être
+choisie par le client (un `week_start` dans le corps → `422`) : ni modification rétroactive, ni
+reproche sur une semaine passée. Réviser son objectif à la baisse est autorisé, sans confirmation
+ni trace servie — et peut faire basculer `goal_met` à `true`.
+
+Aucun cron : le changement de semaine se fait seul (le lundi, aucune ligne n'existe encore). Les
+semaines passées ne sont servies par **aucune** route élève — un historique d'objectifs manqués
+serait le streak déguisé.
+
+### GET `/api/student/motivation/welcome`
+
+Ce que ZETIS dit à Massimo en arrivant, **composé serveur**.
+
+```json
+{
+  "code": "back_after_break",
+  "title": "Content de te revoir, Massimo !",
+  "subtitle": "On reprend là où tu t'étais arrêté : le théorème de Pythagore.",
+  "cta": { "label": "Reprendre", "target": "missions" },
+  "context": {
+    "first_name": "Massimo", "last_notion": "le théorème de Pythagore",
+    "days_since_last_visit": 6, "consolidated_this_week": 0,
+    "gaps_closed_this_week": 0, "reviews_due": 4, "regularity": {}
+  }
+}
+```
+
+**Déterministe, sans LLM ni aléa** : deux appels sur le même état rendent la même phrase. Le
+client affiche `title`/`subtitle` **tels quels** ; `code` sert à choisir une illustration, jamais
+à réinterpréter le texte. `cta: null` = aucun bouton.
+
+Dix codes, premier applicable : `first_visit`, `back_after_break` (≥ 4 j), `back_short_break`
+(2–3 j), `no_goal_yet`, `goal_reached_today`, `goal_reached`, `progress_visible`, `resume_notion`,
+`reviews_due`, `all_clear`. L'ordre porte une intention : ce qui est humain (te revoir) passe
+avant tout compteur, et l'invitation à s'engager avant la félicitation — sinon on rate la fenêtre
+du lundi.
+
+`context` sert à l'illustration et à d'autres blocs, **jamais** à recomposer une phrase.
+`days_since_last_visit` y figure et n'apparaît dans **aucun texte** : le nombre de jours d'absence
+ne doit jamais être lu par l'enfant. Il se mesure sur les événements **strictement antérieurs à
+aujourd'hui** — la connexion étant journalisée avant l'appel, l'absence vaudrait sinon toujours 0.
+
+### GET `/api/student/motivation/wrap-up`
+
+Le mot de la fin d'une séance : ce qui a été gagné, et le prochain pas. Même forme que `welcome`,
+sans `context`. Codes : `week_goal_reached`, `mission_in_progress`, `reviews_left`, `day_done`,
+`all_clear`.
+
+Endpoint distinct plutôt qu'un `?moment=` sur `welcome` : les entrées diffèrent (l'accueil regarde
+l'absence, la clôture le reste-à-faire). **La clôture ne dit JAMAIS combien de jours il reste pour
+tenir l'engagement** — l'enfant repart avec une intention, pas avec un décompte.
+
+> `GET /api/gamification/summary` porte le même bloc sous la clé `regularity`. `streak_days`,
+> `active_today` et le badge `streak_3` (« Régulier 3 jours » 🔥) ont été **retirés** avec le
+> streak : il tombait à zéro dès un jour entier manqué et se calculait en UTC alors que tout le
+> reste bucketise en Europe/Paris.
+
 ## Activité (journal `learning_events`)
 
 Source unique de l'activité. `xp_events` reste le grand livre de l'XP : le champ `xp` des

@@ -1,6 +1,6 @@
 """Tests gamification (SQLite + FakeLLMProvider).
 
-Vérifie la synthèse XP (niveau, streak, badges) et le crédit d'XP aux moments clés
+Vérifie la synthèse XP (niveau, badges, régularité) et le crédit d'XP aux moments clés
 (verbalisation ELI5, diagnostic, mission de remédiation)."""
 
 
@@ -9,7 +9,7 @@ def test_summary_empty(client_db) -> None:
     s = client.get("/api/gamification/summary").json()
     assert s["total_xp"] == 0
     assert s["level"] == 1
-    assert s["streak_days"] == 0
+    assert s["regularity"]["days_done"] == 0
     assert s["badges"] == []
     assert s["recent"] == []
 
@@ -19,8 +19,10 @@ def test_eli5_reverse_awards_xp(client_db) -> None:
     client.post("/api/ai/eli5/reverse-evaluate", json={"skill_id": 1, "answer_text": "Mon explication."})
     s = client.get("/api/gamification/summary").json()
     assert s["total_xp"] >= 10
-    assert s["active_today"] is True
-    assert s["streak_days"] == 1
+    # La régularité remplace le streak. Elle compte les jours de PRÉSENCE via le journal
+    # d'activité : la verbalisation écrit un `reverse_eli5`, la journée est donc cochée.
+    assert s["regularity"]["days_done"] == 1
+    assert s["regularity"]["today_done"] is True
     assert any(b["code"] == "explainer" for b in s["badges"])
 
 

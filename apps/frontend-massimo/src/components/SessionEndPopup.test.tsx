@@ -67,4 +67,32 @@ describe("SessionEndPopup", () => {
     renderPopup({ tier: "low", pct: 0, good: 0, total: 3, canRedo: true, fragileCount: 1 });
     expect(screen.getByRole("button", { name: /Refaire un tour \(1 carte\)/ })).toBeInTheDocument();
   });
+
+  describe("mot de la fin de ZETIS", () => {
+    const wrapUp = {
+      code: "mission_in_progress",
+      title: "Belle séance ! On finira les fractions la prochaine fois.",
+      subtitle: "Il te reste 1 étape.",
+    };
+
+    it("affiche le message servi", () => {
+      renderPopup({ tier: "high", wrapUp });
+      expect(screen.getByText(/On finira les fractions/)).toBeTruthy();
+      expect(screen.getByText(/Il te reste 1 étape/)).toBeTruthy();
+    });
+
+    it("le TAIT dans la branche « refaire un tour »", () => {
+      // Ligne rouge : à ce moment-là l'intention principale est de refaire le tour. Un second
+      // appel à l'action la concurrencerait.
+      renderPopup({ tier: "low", canRedo: true, fragileCount: 3, wrapUp });
+      expect(screen.getByText(/Refaire un tour/)).toBeTruthy();
+      expect(screen.queryByText(/On finira les fractions/)).toBeNull();
+    });
+
+    it("s'affiche normalement quand le message est absent", () => {
+      // Un échec de l'appel ne doit JAMAIS empêcher une fin de séance de s'afficher.
+      renderPopup({ tier: "high", wrapUp: null });
+      expect(screen.getByText(/Continuer/)).toBeTruthy();
+    });
+  });
 });

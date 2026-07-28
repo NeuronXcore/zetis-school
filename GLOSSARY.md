@@ -71,3 +71,51 @@ Mode piloté par Papa pour concentrer Massimo sur une matière ou une notion pri
 ## XP
 
 Points d’expérience attribués à Massimo pour valoriser effort, régularité et progression.
+
+## Régularité douce
+
+Nombre de jours de la semaine courante (lundi→dimanche, Europe/Paris) où Massimo est venu — au
+moins un événement dans `learning_events`, la connexion suffisant à cocher la journée. Servie en
+7 cases par `GET /api/student/motivation/week`, affichée côté enfant sous le nom **« Ma semaine »**
+(« Régularité » est le mot de Papa, un mot d'évaluation).
+
+C'est un **compte**, pas une série : il ne peut pas casser, un jour manqué ne retire rien, et le
+lundi il repart de zéro — un départ, pas une chute. Il n'existe volontairement ni « jours
+consécutifs », ni « meilleure série », ni « record » : les fournir rebâtirait le streak sous un
+autre nom.
+
+> **Remplace le « streak »** (retiré en 0.24.0), qui tombait à zéro dès un jour entier manqué et
+> se calculait en UTC. Un capital qu'on peut perdre fait venir par peur de perdre : ce n'est pas
+> de l'auto-motivation.
+
+## Engagement hebdomadaire
+
+Nombre de jours (1 à 7) que Massimo se donne **lui-même** en début de semaine. Écrit par l'enfant
+seul — si Papa pouvait le poser, ce ne serait plus un engagement mais une consigne, et le levier
+d'autonomie disparaîtrait. La semaine est toujours déduite serveur : ni modification rétroactive,
+ni reproche sur une semaine passée. Réviser à la baisse est autorisé, sans confirmation ni trace.
+
+**Rien n'est affiché ni stocké quand l'objectif n'est pas atteint** : ni « il te reste N jours »,
+ni historique des semaines passées. Le contrat serveur ne porte aucune donnée de manque.
+
+## Notion consolidée
+
+Notion dont la maîtrise a atteint le palier `mastered` (score ≥ 90, paliers partagés par le
+diagnostic et le quiz). `solid` (≥ 70) n'est volontairement **pas** compté : « consolidé » doit
+vouloir dire acquis, pas « presque ». L'instant de bascule est horodaté (`skill_mastery.mastered_at`)
+et n'est jamais re-tamponné tant que la notion reste consolidée — sans quoi « consolidées cette
+semaine » recompterait éternellement les mêmes notions.
+
+## Lacune ouverte
+
+Lacune dont le statut est `open` ou `in_progress`. Définition **unique** portée par
+`progress/service.OPEN_GAP_STATUSES` (elle a existé en quatre exemplaires divergents). Formulée
+côté interface en « notion à renforcer » — jamais de vocabulaire d'échec (CLAUDE.md).
+
+## Session (activité)
+
+Suite d'événements de `learning_events` espacés de moins de `SESSION_GAP_MINUTES` (15 min). Les
+sessions **ne sont jamais stockées** : elles sont reconstruites à la lecture, si bien que changer
+la constante recalcule tout l'historique sans migration. Le **temps actif** associé est une
+heuristique de PRÉSENCE (somme des écarts plafonnés à 5 min), pas une mesure d'attention — et il
+reste strictement côté Papa.

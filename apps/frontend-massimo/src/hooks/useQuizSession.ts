@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type AnswerFeedback,
+  type MotivationMessage,
   type QuizCompleteResult,
   type StudentQuiz,
   type StudentQuizQuestion,
 } from "@zetis/types";
+import { fetchWrapUp } from "../lib/motivation";
 import { completeQuizAttempt, startQuizAttempt, submitQuizAnswer } from "../lib/quiz";
 
 // Toute la logique de la passation d'un quiz vit ici (les composants d'entrée / feedback /
@@ -30,6 +32,9 @@ export interface QuizSessionApi {
   progress: { current: number; total: number };
   feedback: AnswerFeedback | null;
   summary: QuizCompleteResult | null;
+  /** Mot de la fin servi par ZETIS, chargé À L'ENTRÉE en `summary`. Récupéré par le HOOK et non
+   *  par la carte, pour que `QuizEndCard` reste un composant de présentation pure. */
+  wrapUp: MotivationMessage | null;
   error: string | null;
   /** Vrai à la dernière question (le bouton affiche « Terminer » au lieu de « Suivante »). */
   isLast: boolean;
@@ -44,6 +49,7 @@ export function useQuizSession(quiz: StudentQuiz | null): QuizSessionApi {
   const [pos, setPos] = useState(0);
   const [feedback, setFeedback] = useState<AnswerFeedback | null>(null);
   const [summary, setSummary] = useState<QuizCompleteResult | null>(null);
+  const [wrapUp, setWrapUp] = useState<MotivationMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const attemptRef = useRef<number | null>(null);
@@ -60,6 +66,7 @@ export function useQuizSession(quiz: StudentQuiz | null): QuizSessionApi {
     setStatus("loading");
     setError(null);
     setSummary(null);
+    setWrapUp(null);
     setFeedback(null);
     setPos(0);
     try {
@@ -115,6 +122,13 @@ export function useQuizSession(quiz: StudentQuiz | null): QuizSessionApi {
       try {
         setSummary(await completeQuizAttempt(attemptId));
         setStatus("summary");
+        // Un seul appel par fin de quiz. Un échec laisse `wrapUp` à null : l'écran de fin
+        // s'affiche normalement sans lui.
+        void fetchWrapUp()
+          .then(setWrapUp)
+          .catch(() => {
+            /* silence */
+          });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Impossible de terminer le quiz");
         setStatus("error");
@@ -131,6 +145,7 @@ export function useQuizSession(quiz: StudentQuiz | null): QuizSessionApi {
     progress: { current: Math.min(pos + 1, total), total },
     feedback,
     summary,
+    wrapUp,
     error,
     isLast: pos + 1 >= total,
     submit,

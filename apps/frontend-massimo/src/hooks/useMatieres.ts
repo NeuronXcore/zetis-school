@@ -22,12 +22,6 @@ export interface Progression {
   xpForNext: number;
   totalXp: number;
   levelProgress: number; // 0–100
-  streakDays: number;
-}
-
-export interface WeeklyObjectives {
-  done: number;
-  total: number;
 }
 
 export interface MatieresData {
@@ -38,7 +32,6 @@ export interface MatieresData {
   progression: Progression;
   subjects: Subject[];
   recommendedCapsule: Capsule;
-  weekly: WeeklyObjectives;
   bestSubject: Subject;
 }
 
@@ -49,13 +42,10 @@ const FALLBACK_PROGRESSION: Progression = {
   xpForNext: PROFILE.nextLevelXp,
   totalXp: PROFILE.xp,
   levelProgress: Math.round((PROFILE.xp / PROFILE.nextLevelXp) * 100),
-  streakDays: PROFILE.streakDays,
 };
 
 // TODO(api) : remplacer par GET /api/subjects (maîtrise par matière en direct).
 const MOCK_SUBJECTS = SUBJECTS;
-// TODO(api) : remplacer par l'endpoint « objectifs de la semaine ».
-const MOCK_WEEKLY: WeeklyObjectives = { done: PROFILE.consolidatedThisWeek, total: 5 };
 // TODO(api) : remplacer par l'endpoint « capsule recommandée ».
 const MOCK_CAPSULE = RECOMMENDED_CAPSULE;
 
@@ -83,7 +73,6 @@ export function useMatieres(): MatieresData {
           totalXp: s.total_xp,
           levelProgress:
             s.xp_for_next > 0 ? Math.round((s.xp_into_level / s.xp_for_next) * 100) : 0,
-          streakDays: s.streak_days,
         });
         setLive(true);
       })
@@ -106,7 +95,6 @@ export function useMatieres(): MatieresData {
     progression,
     subjects: MOCK_SUBJECTS,
     recommendedCapsule: MOCK_CAPSULE,
-    weekly: MOCK_WEEKLY,
     bestSubject: pickBestSubject(MOCK_SUBJECTS),
   };
 }

@@ -37,7 +37,7 @@ export function QuizRunner({
     setAnswer({ json: null, ok: false });
   }, [session.progress.current]);
 
-  const { question, status, progress, feedback, summary, error } = session;
+  const { question, status, progress, feedback, summary, wrapUp, error } = session;
   const pctBar = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
 
   return (
@@ -139,7 +139,9 @@ export function QuizRunner({
         </>
       )}
 
-      {status === "summary" && summary && <QuizEndCard result={summary} onFinish={session.finish} />}
+      {status === "summary" && summary && (
+        <QuizEndCard result={summary} onFinish={session.finish} wrapUp={wrapUp} />
+      )}
     </>
   );
 }

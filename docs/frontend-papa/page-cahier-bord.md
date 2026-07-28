@@ -59,9 +59,17 @@ restent au backlog : cette vue est le socle.
   note de bas de carte — Papa doit savoir comment le chiffre est fabriqué.
 - Les deux constantes sont **versionnées côté serveur** (même esprit que
   `MISSION_SCORING_VERSION`).
-- **Strictement côté Papa** : rien de ce tracking ne remonte dans l'interface
-  de Massimo (pas de compteur de temps visible — un enfant chronométré
-  travaille pour le chronomètre).
+- **Le TEMPS reste strictement côté Papa** : aucun compteur de minutes, aucune
+  session, aucun calendrier d'activité dans l'interface de Massimo — un enfant
+  chronométré travaille pour le chronomètre.
+
+  > **Amendement du 2026-07-27** (décision Papa). Le principe ci-dessus vaut pour
+  > le TEMPS, et pour lui seul. Il est levé pour l'**effort** : Massimo voit
+  > désormais sa régularité (7 cases sans compteur de durée), l'engagement qu'il
+  > s'est donné, et ses notions consolidées. « ZETIS doit avoir une main de fer
+  > dans un gant de velours » — la main de fer, c'est que ZETIS revienne vers lui
+  > avec quelque chose de vrai à dire ; le velours, c'est que rien ne casse
+  > jamais. Détail : `docs/frontend-massimo/page-accueil.md`.
 - Jours sans session **visibles**, jamais masqués : l'absence est une information.
   Dans le calendrier mensuel, ce sont les cases sans teinte — présentes, cliquables,
   et dont le détail annonce « aucune session ». Un mois entièrement vide le dit

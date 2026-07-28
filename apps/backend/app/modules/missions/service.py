@@ -42,6 +42,8 @@ from app.db.models import (
 )
 from app.modules.gamification.service import award_xp
 from app.modules.memory.service import interval_from_score, schedule_review
+from app.modules.progress.mastery import set_mastery_status
+from app.modules.progress.service import OPEN_GAP_STATUSES
 
 # Notions considérées « en place » (ne relancent pas de progression). Aligné sur les paliers
 # de mastery (`_status_from_score` d'ADR-0014 : mastered ≥ 90, solid ≥ 70).
@@ -51,7 +53,8 @@ XP_REASON = "mission_remediation"
 XP_REASON_CHAMPION = "mission_champion"  # XP majoré d'un défi croisé (ADR-0022) + badge Champion
 _PRIORITY_BY_SEVERITY = {"high": 2, "medium": 1, "low": 0}
 _ACTIVE_STATUSES = ("planned", "active")
-_OPEN_GAP_STATUSES = ("open", "in_progress")
+# Importée de `progress` : source UNIQUE de « lacune ouverte » (elle vivait ici en double).
+_OPEN_GAP_STATUSES = OPEN_GAP_STATUSES
 
 # Étapes déterministes du parcours remediation (ADR-0017 §5). `step_type` aligné sur l'ADR /
 # DATA_MODEL (eli5/vocal_explain/quiz) ; chaque étape porte sa cible dans `resource_id`.
@@ -841,16 +844,23 @@ def _apply_verdict(
     if verdict == "acquired":
         mastery.mastery_score = max(mastery.mastery_score or 0.0, measured)
         mastery.confidence_score = max(mastery.confidence_score or 0.0, measured)
-        mastery.status = "mastered"
+        set_mastery_status(mastery, "mastered", now)
         if gap is not None:
             gap.status = "resolved"
+            # Seule transition qui horodate : la requête ci-dessus filtre `open|in_progress`,
+            # donc une lacune déjà `resolved` n'est jamais sélectionnée — `resolved_at` est
+            # écrit une fois et une seule.
+            gap.resolved_at = now
     else:
         # review_later : mastery mise à jour honnêtement, lacune rouverte en cours, et la notion
         # revient d'elle-même via une carte SRS (la boucle qui vérifie l'acquisition dans le temps).
         mastery.mastery_score = measured
         mastery.confidence_score = measured
-        mastery.status = "in_progress"
+        set_mastery_status(mastery, "in_progress", now)
         if gap is not None:
+            # Volontairement SANS horodatage : cette branche peut réécrire `in_progress` sur une
+            # lacune qui l'est déjà (le filtre accepte les deux statuts). Toute date posée ici
+            # serait re-tamponnée à chaque verdict `review_later` et ne voudrait plus rien dire.
             gap.status = "in_progress"
         skill_name = _skill_name(db, skill_id)
         schedule_review(

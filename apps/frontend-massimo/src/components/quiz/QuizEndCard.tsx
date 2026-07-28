@@ -1,4 +1,4 @@
-import { type QuizCompleteResult } from "@zetis/types";
+import { type MotivationMessage, type QuizCompleteResult } from "@zetis/types";
 
 // Écran de fin d'un quiz — toujours bienveillant (vocabulaire CLAUDE.md : jamais « échec »).
 // XP et score viennent du serveur (`complete`), jamais recalculés côté client.
@@ -12,12 +12,19 @@ function celebration(score: number): { emoji: string; title: string } {
 export function QuizEndCard({
   result,
   onFinish,
+  wrapUp = null,
 }: {
   result: QuizCompleteResult;
   onFinish: () => void;
+  /** Mot de la fin servi par ZETIS. `null` = non chargé ou en échec : l'écran de fin ne dépend
+   *  jamais de lui. */
+  wrapUp?: MotivationMessage | null;
 }) {
   const { emoji, title } = celebration(result.score_percent);
-  const consolidated = result.per_skill.filter((s) => s.score >= 70).length;
+  // `strengths` est calculé SERVEUR avec le seuil de maîtrise. Ce composant filtrait auparavant
+  // lui-même sur `score >= 70` : une règle pédagogique dupliquée dans un composant de
+  // présentation, libre de diverger du serveur à la première évolution du seuil.
+  const consolidated = result.strengths.length;
   const totalSkills = result.per_skill.length;
 
   return (
@@ -55,6 +62,15 @@ export function QuizEndCard({
       >
         Retour aux quiz
       </button>
+
+      {/* Le mot de la fin de ZETIS, sous l'action principale : il propose le prochain pas sans
+          concurrencer le bouton de sortie. */}
+      {wrapUp && (
+        <p className="mt-4 text-sm text-slate-300">
+          {wrapUp.title}
+          {wrapUp.subtitle && <span className="text-slate-400"> {wrapUp.subtitle}</span>}
+        </p>
+      )}
     </div>
   );
 }

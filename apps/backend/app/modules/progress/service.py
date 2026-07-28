@@ -16,13 +16,19 @@ Vocabulaire figé ici, faute de définition dans le glossaire :
 Lecture seule : aucune écriture, aucun effet de bord.
 """
 
-from sqlalchemy import select
+from datetime import date, timedelta
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Gap, Skill, SkillMastery, Subject
+from app.modules.activity.timeutils import range_bounds_utc
 
-# Repris à l'identique de `missions._OPEN_GAP_STATUSES` (même notion, même définition).
+# SOURCE UNIQUE de « lacune ouverte ». Cette définition vivait en quatre exemplaires (constante
+# dans `missions`, constante ici, deux tuples écrits en dur dans `pilot` et `evidence`) : quatre
+# comptages qui pouvaient diverger silencieusement. Les trois autres importent désormais celui-ci.
 OPEN_GAP_STATUSES = ("open", "in_progress")
+RESOLVED_GAP_STATUS = "resolved"
 MASTERED_STATUS = "mastered"
 
 # Ordre de gravité décroissante : ce qui est le plus urgent se lit en premier.
@@ -92,3 +98,58 @@ def open_gap_count(db: Session, *, student_id: int) -> int:
 
 def consolidated_count(db: Session, *, student_id: int) -> int:
     return len(consolidated_skills(db, student_id=student_id))
+
+
+# --- Flux hebdomadaires (ce que les horodatages de bascule rendent calculable) -----------------
+# À distinguer des STOCKS ci-dessus. Un stock répond « où en est Massimo aujourd'hui », un flux
+# « qu'a-t-il gagné cette semaine ». Seul le second est honnêtement calculable : effacer
+# `mastered_at` à la sortie de `mastered` interdit de reconstituer le stock d'il y a sept jours.
+
+
+def _week_bounds(monday: date):
+    """Bornes UTC de la semaine lundi→dimanche — les jours sont des jours Europe/Paris, les
+    colonnes sont stockées en UTC. Aucune conversion côté SQL."""
+    return range_bounds_utc(monday, monday + timedelta(days=6))
+
+
+def consolidated_this_week(db: Session, *, student_id: int, monday: date) -> int:
+    """Notions passées à « consolidée » pendant la semaine.
+
+    Les lignes héritées (`mastered` sans `mastered_at`) ne comptent dans AUCUNE semaine : une
+    notion acquise il y a six mois ne doit pas gonfler la première semaine affichée."""
+    start, end = _week_bounds(monday)
+    return int(
+        db.scalar(
+            select(func.count())
+            .select_from(SkillMastery)
+            .where(
+                SkillMastery.student_id == student_id,
+                SkillMastery.status == MASTERED_STATUS,
+                SkillMastery.mastered_at.is_not(None),
+                SkillMastery.mastered_at >= start,
+                SkillMastery.mastered_at < end,
+            )
+        )
+        or 0
+    )
+
+
+def gaps_closed_this_week(db: Session, *, student_id: int, monday: date) -> int:
+    """Notions dont une lacune a été refermée pendant la semaine.
+
+    Compte des NOTIONS distinctes, pas des lignes : `_upsert_gap` (diagnostics) ne déduplique que
+    sur `status == "open"`, donc une notion re-ratée alors qu'elle était `in_progress` reçoit une
+    seconde ligne. Sans `DISTINCT`, une seule notion refermée compterait deux fois."""
+    start, end = _week_bounds(monday)
+    return int(
+        db.scalar(
+            select(func.count(func.distinct(Gap.skill_id))).where(
+                Gap.student_id == student_id,
+                Gap.status == RESOLVED_GAP_STATUS,
+                Gap.resolved_at.is_not(None),
+                Gap.resolved_at >= start,
+                Gap.resolved_at < end,
+            )
+        )
+        or 0
+    )

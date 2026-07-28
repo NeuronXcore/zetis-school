@@ -1,11 +1,16 @@
-"""Service gamification : crédit d'XP et synthèse (niveau, streak, badges).
+"""Service gamification : crédit d'XP et synthèse (niveau, badges).
 
-Gamification au service de l'apprentissage (CLAUDE.md) : XP, niveaux et badges
-pédagogiques, streak raisonnable — pas de mécanique addictive ni de classement social.
-Le crédit d'XP passe par `award_xp`, appelé aux moments clés (mission, verbalisation,
-diagnostic)."""
+Gamification au service de l'apprentissage (CLAUDE.md) : XP, niveaux et badges pédagogiques —
+pas de mécanique addictive. Le crédit d'XP passe par `award_xp`, appelé aux moments clés
+(mission, verbalisation, diagnostic).
 
-from datetime import datetime, timedelta, timezone
+**Le streak a été retiré** (chantier « auto-motivation ») : il tombait à zéro dès un jour entier
+manqué et se calculait en UTC alors que tout le reste bucketise en Europe/Paris. Il est remplacé
+par la régularité douce du module `motivation`, un compte hebdomadaire qui ne peut pas casser.
+La composition de `regularity` dans la réponse vit dans le ROUTEUR — ce service reste le grand
+livre de l'économie XP et n'a pas à connaître un module de plus haut niveau."""
+
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -78,27 +83,9 @@ def _level_from_xp(total_xp: int) -> tuple[int, int]:
     return level, into
 
 
-def _compute_streak(dates: set, today) -> tuple[int, bool]:
-    """Jours consécutifs d'activité jusqu'à aujourd'hui (tolérance d'un jour).
-
-    `active_today` = activité enregistrée aujourd'hui. Le streak est ancré sur
-    aujourd'hui si actif, sinon sur hier (on ne casse pas le streak en cours de journée)."""
-    active_today = today in dates
-    anchor = today if active_today else today - timedelta(days=1)
-    if anchor not in dates:
-        return 0, active_today
-    streak = 0
-    day = anchor
-    while day in dates:
-        streak += 1
-        day = day - timedelta(days=1)
-    return streak, active_today
-
-
 def _badges(
     *,
     total_xp: int,
-    streak: int,
     mission_count: int,
     diag_done: bool,
     eli5_count: int,
@@ -123,8 +110,6 @@ def _badges(
         add("xp_100", "100 XP", "⭐")
     if total_xp >= 500:
         add("xp_500", "500 XP", "🌟")
-    if streak >= 3:
-        add("streak_3", "Régulier 3 jours", "🔥")
     return earned
 
 
@@ -139,10 +124,6 @@ def summary(db: Session, student: StudentProfile) -> dict:
     total_xp = sum(e.amount for e in events)
     level, into = _level_from_xp(total_xp)
 
-    dates = {e.created_at.date() for e in events if e.created_at is not None}
-    today = datetime.now(timezone.utc).date()
-    streak, active_today = _compute_streak(dates, today)
-
     # Les défis champion (ADR-0022) comptent aussi comme missions accomplies (badges génériques).
     champion_count = sum(1 for e in events if e.reason == "mission_champion")
     mission_count = (
@@ -156,11 +137,8 @@ def summary(db: Session, student: StudentProfile) -> dict:
         "level": level,
         "xp_into_level": into,
         "xp_for_next": XP_PER_LEVEL,
-        "streak_days": streak,
-        "active_today": active_today,
         "badges": _badges(
             total_xp=total_xp,
-            streak=streak,
             mission_count=mission_count,
             diag_done=diag_done,
             eli5_count=eli5_count,

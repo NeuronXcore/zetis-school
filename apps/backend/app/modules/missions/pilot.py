@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Gap, Mission, MissionStep, Skill, Subject
+from app.modules.progress.service import OPEN_GAP_STATUSES
 from app.modules.evidence import service as evidence
 from app.modules.missions import selector
 from app.modules.missions import service as msvc
@@ -69,7 +70,7 @@ def _generation_reason(db: Session, mission: Mission) -> str:
             select(Gap).where(
                 Gap.student_id == mission.student_id,
                 Gap.skill_id == mission.skill_id,
-                Gap.status.in_(("open", "in_progress")),
+                Gap.status.in_(OPEN_GAP_STATUSES),
             )
         )
         sev = _SEVERITY_LABEL.get(gap.severity, gap.severity) if gap is not None else "?"

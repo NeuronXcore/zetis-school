@@ -1,5 +1,119 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.24.0 — Auto-motivation de Massimo : régularité douce, engagement choisi, ZETIS qui se souvient
+
+Date : 2026-07-28
+
+> « ZETIS doit avoir une main de fer dans un gant de velours. » Le principe *« un enfant
+> chronométré travaille pour le chronomètre »* est **amendé partiellement** : il reste vrai pour
+> le TEMPS (aucune minute, aucune session, aucun calendrier chez Massimo — ça reste du pilotage
+> Papa), il est levé pour l'EFFORT. La main de fer, c'est que ZETIS revienne vers l'enfant avec
+> quelque chose de **vrai** à dire ; le velours, c'est que **rien ne casse jamais**.
+
+### Ajouté
+
+- **Module backend `motivation`** (`/api/student/motivation`, `require_child` — Papa reçoit 403
+  même en lecture) : `GET`/`PUT /week` (régularité + engagement), `GET /welcome`, `GET /wrap-up`.
+- **Régularité douce** : un COMPTE de jours dans la semaine courante, servi en 7 cases toujours
+  complètes. Source `learning_events` (jamais `xp_events`), bucketing Europe/Paris — la connexion
+  seule coche la journée : « j'étais là et ça n'a pas compté » est l'effet à éviter.
+- **Engagement hebdomadaire choisi par l'enfant** (`student_weekly_goals`) : 7 pastilles, un tap
+  suffit. La semaine est toujours déduite serveur (ni triche rétroactive, ni reproche sur une
+  semaine passée) ; réviser à la baisse est autorisé, sans confirmation ni trace.
+- **Messages composés SERVEUR et déterministes** — aucun LLM, aucun aléa : deux appels sur le même
+  état rendent la même phrase. Dix codes d'accueil, cinq de clôture ; le client affiche
+  `title`/`subtitle` verbatim et n'utilise le `code` que pour choisir une illustration.
+- **`skill_mastery.mastered_at` et `gaps.resolved_at`** (migration `f1a2b3c4d5e6`) : sans eux,
+  « notions consolidées cette semaine » n'est pas calculable honnêtement.
+- **Frontend Massimo** : carte ZETIS et « Ma semaine » sur l'accueil, mot de la fin sur les trois
+  écrans de fin de séance (révision, quiz, mission).
+
+### Modifié
+
+- **L'accueil de Massimo ne ment plus.** Il affichait TROIS nombres inventés — dont « Tu as
+  consolidé 3 notions cette semaine », une constante codée en dur — et son bouton « Commencer »
+  n'avait aucun handler. Tout vient désormais du serveur, ou n'est pas affiché. Le raccourci
+  « Révision rapide » affiche `flash_size` (plafonné) et non `total_due` : « 83 cartes en retard »
+  sur l'écran d'accueil serait la pression quotidienne anxiogène interdite par CLAUDE.md.
+- `QuizEndCard` lit `result.strengths` au lieu de refiltrer sur `score >= 70` — une règle
+  pédagogique dupliquée dans un composant de présentation.
+- `CLAUDE.md` §gamification : « streak raisonnable » → « régularité douce qui ne peut pas casser »,
+  et trois interdits ajoutés (série qui se casse, décompte de jours manqués, objectif imposé).
+
+### Retiré
+
+- **Le streak** (`_compute_streak`, `streak_days`, `active_today`, badge `streak_3` 🔥). Il tombait
+  à zéro dès un jour entier manqué et se calculait en UTC. Pris en flagrant délit en vérification
+  live : `0` affiché à un enfant venu **deux jours** cette semaine. Frontend basculé AVANT la
+  suppression backend, pour qu'aucun écran ne casse entre les deux commits.
+- Tuile « Objectifs de la semaine » (Matières) : second nombre inventé **et** doublon sémantique
+  de l'engagement — deux « objectifs de la semaine » différents ne pouvaient pas coexister.
+
+### Invariants (testés, pas seulement documentés)
+
+- **Aucune donnée punitive n'est persistable ni servie** : pas de clé `missed`/`failed`/
+  `remaining`/`streak`/`best`, pas de colonne d'atteinte sur `student_weekly_goals`.
+- **Un jour passé sans activité et un jour à venir sont rendus À L'IDENTIQUE** — mêmes classes,
+  même `aria-label` : aucun signe ne désigne les jours manqués.
+- **Le nombre de jours d'absence n'apparaît dans aucun texte** ; deux verrous parcourent tous les
+  templates (aucun mot d'échec, aucun décompte de jours). La clôture ne dit jamais ce qu'il reste
+  à faire pour tenir l'engagement.
+
+### Pièges
+
+- `quizzes/scoring.py` rejoue à chaque quiz : sans non-re-tamponnage de `mastered_at`,
+  « consolidées cette semaine » recompterait éternellement les mêmes notions. D'où le helper
+  unique `progress/mastery.py`, point de passage des 4 sites d'écriture.
+- Le `login` est journalisé AVANT l'appel à l'accueil : l'absence se mesure sur les événements
+  **strictement antérieurs à aujourd'hui**, sinon elle vaut toujours 0.
+- `gamification` (bas niveau) ne doit pas importer `motivation` (haut niveau) : cycle
+  `motivation → memory → gamification`. La composition vit dans le routeur.
+- Une prop **optionnelle** a laissé passer un câblage manquant à travers `tsc` ET les tests — vu
+  seulement en jouant une vraie séance.
+
+488 tests backend · 111 Massimo · 166 Papa.
+
+## 0.23.0 — Activité : journal `learning_events`, projections Papa, cahier de bord
+
+Date : 2026-07-27
+
+> Papa n'avait aucune vue de ce que Massimo fait réellement dans ZETIS. Le journal d'activité
+> existait en table depuis le schéma initial, sans être alimenté ni lu.
+
+### Ajouté
+
+- **Module `activity`** : helper `log_learning_event` (calqué sur `award_xp`), dédupe des
+  consultations (1/élève/ressource/jour Paris), projections **pures** (`bucket_days`,
+  `build_sessions`, `active_minutes`, `group_reviews`), bucketing Europe/Paris.
+- **7 hooks** : login, page_viewed, lesson_viewed, fiche_viewed, quiz_attempted (deux surfaces),
+  eli5_requested, review_attempted.
+- **`POST /api/telemetry/pageview`** (`require_child`, créé pour l'occasion) : seule écriture
+  cliente du journal. Le serveur horodate ; route consécutive identique ignorée.
+- **Lectures Papa** : `GET /api/parent/activity/{heatmap,days/{date},sessions}` et
+  `GET /api/parent/dashboard` (surface neuve — aucun endpoint dashboard n'existait).
+- **Module `progress`** : `GET /api/parent/progress/{gaps,consolidated}`. Les routes `/gaps` et
+  `/progress/summary` de la spec produit n'ont **jamais existé** en code.
+- **Frontend Papa** : bloc Régularité (heatmap 26 semaines en CSS pur), page Cahier de bord en
+  **calendrier mensuel cliquable**, six KPI tous dépliables sur leur détail.
+- **Frontend Massimo** : télémétrie de navigation, invisible (aucun compteur à l'écran).
+- Migration `d0e1f2a3b4c5` : index `(student_id, created_at)` — la table n'en avait aucun hors PK.
+
+### Modifié
+
+- `subjectIcons` et ses 17 PNG étaient **dupliqués dans les deux apps** : extraits vers
+  `@zetis/ui`, les anciens chemins ré-exportent (14 sites d'import inchangés).
+- Résolveur « leçon → matière » unifié : il existait en **trois** exemplaires (−88/+12 lignes).
+- « Lacune ouverte » existait en **quatre** définitions dupliquées → source unique.
+
+### Décisions
+
+- **Sessions jamais stockées** : reconstruites à la lecture (seuil 15 min). Changer la constante
+  recalcule tout l'historique, sans migration.
+- **`xp_events` et `learning_events` jamais en UNION** : deux journaux, deux sémantiques.
+- **Deux `event_type` préexistants réutilisés** (`reverse_eli5`, `mission_verdict`) au lieu d'être
+  dupliqués — les ajouter aurait double-compté ; les renommer aurait cassé leurs lecteurs.
+- `POST /api/missions/{id}/complete`, cité par la spec, **n'existe pas** et n'a pas été créé.
+
 ## 0.22.0 — Mindmaps : brique canvas partagée + aperçu de fidélité Papa (addendum ADR-0016)
 
 Date : 2026-07-27

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { type Mission, type MissionStep } from "@zetis/types";
 import { Spinner } from "@zetis/ui";
 import { NeonBackdrop } from "../components/glass";
@@ -7,7 +8,7 @@ import { DeckDisc } from "../components/DeckDisc";
 import { SubjectDeckGrid, type SubjectDeck } from "../components/SubjectDeckGrid";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { subjectEmoji } from "../lib/subjectEmoji";
-import { currentStep, useMissions } from "../hooks/useMissions";
+import { type CompletionBanner, currentStep, useMissions } from "../hooks/useMissions";
 import { Eli5MissionModal } from "../components/missions/Eli5MissionModal";
 import { QuizMissionModal } from "../components/missions/QuizMissionModal";
 import { MindmapMissionModal } from "../components/missions/MindmapMissionModal";
@@ -89,6 +90,7 @@ function MiniParcours({ steps }: { steps: MissionStep[] }) {
 // ── Page : orchestration des 3 écrans + modales ─────────────────────────────────
 export function MissionsPage() {
   const m = useMissions();
+  const location = useLocation();
   const [screen, setScreen] = useState<"home" | "subject" | "mission">("home");
   const [subjectSlug, setSubjectSlug] = useState<string | null>(null);
   const [missionId, setMissionId] = useState<number | null>(null);
@@ -114,6 +116,19 @@ export function MissionsPage() {
     setScreen("mission");
   };
   const goHome = () => setScreen("home");
+
+  // Deep-link depuis l'accueil (« Commencer → ») : `state.openMissionId` ouvre directement la
+  // mission élue. Une seule fois (ref), et seulement une fois les missions chargées — sinon
+  // `findMission` ne trouverait rien. Si la mission n'existe plus (terminée entre-temps), on
+  // reste sereinement sur l'accueil des missions plutôt que d'afficher une erreur.
+  const deepLinkDone = useRef(false);
+  useEffect(() => {
+    if (deepLinkDone.current || m.loading) return;
+    const requested = (location.state as { openMissionId?: number } | null)?.openMissionId;
+    if (requested == null) return;
+    deepLinkDone.current = true;
+    if (findMission(requested)) openMission(requested, "home");
+  }, [m.loading, location.state]);
 
   return (
     <div className="relative mx-auto max-w-2xl">
@@ -615,7 +630,7 @@ function CompletionCard({
   completion,
   onDismiss,
 }: {
-  completion: { verdict: "acquired" | "review_later"; xp: number; champion: boolean };
+  completion: CompletionBanner;
   onDismiss: () => void;
 }) {
   const acquired = completion.verdict === "acquired";
@@ -644,6 +659,16 @@ function CompletionCard({
         <p className="text-sm text-zetis-muted">
           {champion ? "Bravo champion — " : "Mission terminée — bravo ! "}+{completion.xp} XP
         </p>
+        {/* Le mot de la fin, servi par ZETIS : ce qui a été gagné et le prochain pas. Absent si
+            l'appel a échoué — une fin de mission ne doit jamais dépendre de lui. */}
+        {completion.wrapUp && (
+          <p className="mt-1 text-sm text-zetis-text">
+            {completion.wrapUp.title}
+            {completion.wrapUp.subtitle && (
+              <span className="text-zetis-muted"> {completion.wrapUp.subtitle}</span>
+            )}
+          </p>
+        )}
       </div>
       <button
         type="button"

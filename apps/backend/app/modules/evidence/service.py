@@ -25,6 +25,7 @@ from app.db.models import (
     SkillMastery,
     SpacedReviewCard,
 )
+from app.modules.progress.service import OPEN_GAP_STATUSES
 from app.modules.quizzes.scoring import WEAK_SIGNAL_WEIGHT
 
 VERDICT_EVENT = "mission_verdict"
@@ -51,7 +52,7 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
     """Lacunes ouvertes/en cours, ordre stable (id) : {id, skill_id, subject_id, severity, status}."""
     rows = db.scalars(
         select(Gap)
-        .where(Gap.student_id == student_id, Gap.status.in_(("open", "in_progress")))
+        .where(Gap.student_id == student_id, Gap.status.in_(OPEN_GAP_STATUSES))
         .order_by(Gap.id)
     )
     return [

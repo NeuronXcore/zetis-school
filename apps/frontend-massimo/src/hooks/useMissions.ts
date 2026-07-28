@@ -5,9 +5,11 @@ import {
   type Mission,
   type MissionStep,
   type MissionTodayResponse,
+  type MotivationMessage,
   type StepCompleteResult,
 } from "@zetis/types";
 import { fetchCompletedToday, fetchMissions, fetchToday, startMission } from "../lib/missions";
+import { fetchWrapUp } from "../lib/motivation";
 import { fetchNotionsSummary } from "../lib/notions";
 
 // Hook de la page Missions (ADR-0017). TOUTE l'orchestration vit ici ; le composant reste
@@ -59,6 +61,9 @@ export interface CompletionBanner {
   xp: number;
   /** Défi champion croisé (ADR-0022) → célébration dédiée 🏆. */
   champion: boolean;
+  /** Mot de la fin servi par ZETIS (« demain on finit … »). `null` si l'appel échoue : une fin
+   *  de mission ne doit JAMAIS être bloquée par un message d'accompagnement. */
+  wrapUp: MotivationMessage | null;
 }
 
 export interface UseMissions {
@@ -165,7 +170,16 @@ export function useMissions(): UseMissions {
       if (result.mission_status === "completed" && result.verdict) {
         const verdict = result.verdict as "acquired" | "review_later";
         const champion = activeActivity?.mission.mission_type === "champion";
-        setCompletion({ verdict, xp: result.xp_awarded, champion });
+        setCompletion({ verdict, xp: result.xp_awarded, champion, wrapUp: null });
+        // Le mot de la fin arrive après coup : la bannière s'affiche immédiatement, ZETIS
+        // complète quand il a répondu. Un seul appel par fin de mission, jamais de polling.
+        void fetchWrapUp()
+          .then((wrapUp) =>
+            setCompletion((current) => (current ? { ...current, wrapUp } : current)),
+          )
+          .catch(() => {
+            /* silence : la bannière reste, simplement sans mot de la fin */
+          });
         celebrate({
           title: champion ? "Défi champion relevé ! 🏆" : "Mission terminée !",
           subtitle:
