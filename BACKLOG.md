@@ -123,6 +123,33 @@
 - Export image/JSON.
 - Score de restitution.
 
+### ZETIS Galaxy — vue graphe des connaissances (Massimo)
+
+**Chantier dédié**, décidé le 2026-07-28 : trop gros pour être greffé en fin de session.
+
+Spec : `docs/frontend-massimo/zetis-galaxy.md` — ⚠️ **brouillon de fin juin, jamais confronté au
+code**, à re-valider avant de s'y fier. Rien n'est implémenté (« galaxy » n'existe nulle part dans
+le dépôt).
+
+Idée : la page de progression de Massimo rendue comme une galaxie qu'on allume. Étoile = `Skill`,
+constellation = matière, luminosité = `SkillMastery.status`. **Pas de rouge, jamais de manque** —
+une notion non vue est une étoile pas encore née, pas un échec. Animation branchée sur les
+`learning_events`, jamais sur un timer.
+
+À trancher en ouverture de chantier :
+
+- **Moteur de rendu** — la spec conseille `react-force-graph` / `cytoscape.js`, mais le dépôt a
+  déjà `@xyflow/react` + elk (brique mindmap `@zetis/ui/mindmap`). Réutiliser éviterait ~1,6 Mo de
+  dépendance en double ; à confirmer, un graphe de connaissances n'a pas les mêmes contraintes
+  qu'un arbre de mindmap.
+- **Contrat API** — la spec demande `GET /progress/skills` au format `{ nodes, edges }` ; le module
+  `progress` expose aujourd'hui `consolidated_skills`, pas ce format. Aucune table nouvelle : tout
+  se dérive de `skills` + `skill_mastery`.
+- **Sort de `ProgressionPage.tsx`** — la page existe déjà sous une autre forme. Remplacement,
+  cohabitation, ou évolution ?
+- La spec précède les chantiers Activité, Motivation et Couverture : vérifier qu'elle ne contredit
+  pas leurs décisions (notamment la doctrine anti-streak et l'absence de score par matière).
+
 ## Priorité P3 — polish
 
 - Animations gaming sobres.

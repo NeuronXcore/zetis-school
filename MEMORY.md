@@ -195,7 +195,12 @@ manuellement et a remonté 3 défauts réels que les tests ne voyaient pas (cf. 
 3. Puis, au choix : **file de relecture** (prérequis dur du cron ADR-0023 — automatiser la
    fabrication d'un goulot est le seul vrai risque), ou **production en lot** (§7 : deux passes
    non fusionnables, cours puis équipement), dont le bouton « ⚡ Compléter le chapitre » marque
-   déjà l'emplacement, désactivé.
+   déjà l'emplacement, désactivé — ou **ZETIS Galaxy**, voir ci-dessous.
+3 bis. **ZETIS Galaxy = chantier dédié** (décision du user, 2026-07-28). Ni la spec ni le code ne
+   se traitent en fin de session : la spec est un brouillon de fin juin à re-valider entièrement,
+   et rien n'est implémenté. Périmètre, questions ouvertes et pièges : `BACKLOG.md` §P2. Ouvrir le
+   chantier par le rituel normal (`mockup → spec → ADR → prompt`) — la spec récupérée est une
+   **entrée de discussion, pas une décision**.
 4. Restent ouverts, sans urgence : le **test flaky** `ProgrammePage` (barre de progression
    temporisée, cf. `TROUBLESHOOTING.md`), et la **vérification à l'écran de bout en bout** de la
    Couverture, que l'agent ne peut pas faire sans session Papa.
