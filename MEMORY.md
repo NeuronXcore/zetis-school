@@ -7,9 +7,15 @@
 
 ## État à la reprise
 
-**Une branche en cours : `docs/couverture-production`** — 5 commits, **poussée sur `origin`**,
-**aucune PR ouverte volontairement** : le chantier continue sur cette même branche à la
-prochaine session (décision du user). Ne pas ouvrir de PR ni repartir de `main` sans son accord.
+**Aucune branche en cours — on repart de `main`.** Le chantier « Couverture de production »
+(ADR-0023) est **MERGÉ** : PR [#54](https://github.com/NeuronXcore/zetis-school/pull/54), merge
+commit `dc82f9c`, **7 commits conservés individuellement** (merge commit délibéré, pas de squash :
+chacun est autonome et revertable seul, ce qui comptait surtout pour `chore(assets)`). Branche
+`docs/couverture-production` supprimée en local et sur `origin`.
+
+⚠️ **Ne pas ré-implémenter** la Couverture : elle est complète et sur `main` — backend
+(`production` + `engagement` + provenance), page Papa, passe visuelle, convention d'assets.
+
 Les chantiers `activite` et `motivation` des sessions précédentes sont **mergés** (voir repères).
 
 ### Session 2 (2026-07-28) — passe visuelle `/couverture` + rangement des assets
@@ -143,7 +149,8 @@ manuellement et a remonté 3 défauts réels que les tests ne voyaient pas (cf. 
    versionnée, **importée nulle part** (elle ne pèse que dans git). Laissée intacte
    volontairement : l'agent ne décide pas seul du sort d'une image d'un mineur. Trois options —
    garder / renommer et ranger dans `assets/brand/icons/` / sortir du dépôt.
-2. **Ne pas ouvrir de PR** — on reste sur `docs/couverture-production` pour la suite.
+2. **Créer une branche** pour le chantier suivant : `main` est propre et à jour, plus rien n'est
+   en cours (la PR #54 a tout emporté).
 3. Puis, au choix : **file de relecture** (prérequis dur du cron ADR-0023 — automatiser la
    fabrication d'un goulot est le seul vrai risque), ou **production en lot** (§7 : deux passes
    non fusionnables, cours puis équipement), dont le bouton « ⚡ Compléter le chapitre » marque
