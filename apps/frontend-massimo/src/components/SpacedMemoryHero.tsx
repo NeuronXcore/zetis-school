@@ -1,5 +1,5 @@
 import { GlassPanel } from "./glass";
-import srsImg from "../assets/app/SRS-cards.png";
+import srsImg from "../assets/app/SRS-cards_384.png";
 
 // Bannière motivante de la page Révision : illustre le concept de RÉVISION ESPACÉE (SRS)
 // pour Massimo. Animation = courbe de mémoire qui monte à chaque révision, avec des points

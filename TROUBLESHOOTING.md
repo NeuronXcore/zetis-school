@@ -205,3 +205,65 @@ c'est d'ailleurs plus fidèle à l'app réelle.
 Autre piège du même ordre : **jsdom n'implémente pas `scrollIntoView`**. L'appeler dans un
 `useEffect` jette et démonte l'arbre. Toujours `ref.current?.scrollIntoView?.({...})` — sur la
 méthode aussi, pas seulement sur la ref.
+
+## Chantier `couverture` — passe visuelle + rangement des assets (2026-07-28, session 2)
+
+### `?subject_id=` filtre aussi la LISTE des matières renvoyée
+
+`GET /api/production/coverage?subject_id=N` restreint `subject_query` (`coverage.py:352`), donc
+`coverage.subjects` ne contient plus que la matière sélectionnée. Le `<select>` d'origine se vidait
+ainsi de ses options dès le premier choix : il fallait repasser par « Toutes les matières » pour en
+changer. Bug **présent depuis l'origine**, invisible tant que le sélecteur était un menu déroulant,
+criant dès qu'on est passé à des pastilles.
+
+Correctif **client** (`CouverturePage`) : mémoriser la liste du chargement non filtré. Pas de
+changement backend — l'endpoint fait ce qu'on lui demande.
+
+### Une `drop-shadow` animée sur un PNG opaque est invisible
+
+L'icône de la Couverture est livrée **sans canal alpha** (fond noir aplati jusqu'aux bords). Une
+`filter: drop-shadow()` épouse la silhouette alpha : sur un rectangle plein, elle se dessine
+derrière l'image et reste intégralement masquée. L'animation tournait — `getAnimations()` le
+confirmait — sans qu'on en voie rien.
+
+Deux corrections : `border-radius` pour rogner les coins noirs (sinon un carré noir sur le fond
+bleu nuit), et **halo en `box-shadow`**, qui se dessine hors de la boîte en suivant le rayon.
+
+Règle générale : `drop-shadow` pour un PNG détouré, `box-shadow` pour une image opaque.
+
+### Vérifier une animation sans session authentifiée
+
+Le navigateur intégré n'était pas connecté à l'espace Papa, et l'agent ne saisit pas de mot de
+passe. Plutôt que de livrer sans regarder : **banc d'essai isolé** — un HTML dans le scratchpad
+avec le CSS copié à l'identique et le vrai fichier image, servi par un `python3 -m http.server`,
+puis capture d'écran + `getAnimations()` / `getComputedStyle()` pour prouver que la valeur change
+dans le temps. Démonté après coup. Utile pour tout ce qui est purement visuel et sans données.
+
+### Une section repliée sort de l'arbre d'accessibilité
+
+Les expanders par matière ont cassé 2 tests d'un coup : `getByRole("link"|"button")` ne trouve plus
+rien sous un conteneur `hidden`, alors que `getByText` **continue** de le trouver (RTL n'ignore que
+`script`/`style`). D'où des échecs qui semblent incohérents entre deux tests voisins. Ouvrir la
+section d'abord (helper `expandSubject()`).
+
+### `findByRole` attrape le premier arrivé, pas le bon
+
+La pastille de filtre « Mathématiques » et l'en-tête de matrice du même nom sont deux boutons. La
+liste des pastilles est posée par un `useEffect`, donc **un cran après** le premier rendu de la
+matrice : `findByRole` résolvait sur l'en-tête, avec un `aria-pressed` à `null`. Scoper la requête
+(`within(getByRole("group", …))`) au lieu de se fier à l'unicité du libellé.
+
+### `import.meta.glob` aspire tout le dossier
+
+`packages/ui/src/assets/subjects/` contenait `logos_matieres_zetis_apercu.png`, une planche de
+contact de 264 ko qu'aucun slug ne résout. Le glob `*.png` du résolveur l'embarquait quand même —
+**dans les deux apps**, soit 528 ko de bundle mort. Déplacée dans `assets/brand/references/`.
+
+Un dossier lu par un glob n'est pas un dossier de rangement : tout ce qu'on y pose part dans le
+bundle, résolu ou non.
+
+### Test temporisé instable
+
+`ProgrammePage.test.tsx` › « pendant la génération : barre de progression estimée avec % » a échoué
+une fois (1029 ms) puis est repassé vert **5 fois de suite**. Flaky sur la temporisation de la
+barre, sans rapport avec le chantier. Non traité.

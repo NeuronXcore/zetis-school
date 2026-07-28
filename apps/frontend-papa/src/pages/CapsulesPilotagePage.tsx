@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import capsuleAiIcon from "../assets/app/capsule-AI.png";
+import capsuleAiIcon from "../assets/app/capsule-AI_256.png";
 import { DifficultyBadge } from "../components/DifficultyBadge";
 import { PageHeader } from "../components/PageHeader";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";

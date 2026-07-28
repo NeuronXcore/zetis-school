@@ -7,10 +7,40 @@
 
 ## État à la reprise
 
-**Une branche en cours : `docs/couverture-production`** — 4 commits, **poussée sur `origin`**,
+**Une branche en cours : `docs/couverture-production`** — 5 commits, **poussée sur `origin`**,
 **aucune PR ouverte volontairement** : le chantier continue sur cette même branche à la
 prochaine session (décision du user). Ne pas ouvrir de PR ni repartir de `main` sans son accord.
 Les chantiers `activite` et `motivation` des sessions précédentes sont **mergés** (voir repères).
+
+### Session 2 (2026-07-28) — passe visuelle `/couverture` + rangement des assets
+
+La passe visuelle demandée au « prochain pas » a été faite, **pilotée par le user** qui regardait
+la page dans son propre navigateur (l'agent n'a jamais eu de session Papa : il ne saisit pas de
+mot de passe). Quatre retours, quatre livrables — détail dans `docs/frontend-papa/page-couverture.md`
+§Passe visuelle :
+
+1. **KPI cliquables** → chacun ouvre son complément (« 27/78 cours » ouvre les 51 restants). La
+   pilule « 🔒 Bloquées » a été **scindée** en `🔒 Non validées` / `📝 Sans cours` : elle mélangeait
+   les deux causes, or `blocked_no_course` ne contient que des leçons *validées* — « Leçons
+   validées » ne pouvait pas pointer dessus sans se contredire.
+2. **Pictogrammes de matière** sur les en-têtes de matrice **et** en pastilles de filtre (le
+   `<select>` a disparu). `SubjectPictogram` extrait de `SubjectFilterChips` → un seul rendu.
+3. **Expanders par matière** : repliés en vue d'ensemble, dépliés dès qu'un filtre ou une matière
+   est demandé, avec rappel d'anomalies (`🔒 4  ⏳ 2`) calculé sur la matière **entière**.
+4. **Icône `CouvertureIcon`** (fournie par le user) + respiration lumineuse, aux 3 endroits qui
+   désignent la Couverture (en-tête animé, sidebar, relais Dashboard).
+
+**Rangement des assets, hors chantier mais demandé explicitement** (« mets de l'ordre », puis
+« go ») : ~9,8 Mo retirés des bundles (Massimo 10,3 Mo → 1,6 Mo ; Papa 2,1 Mo → 1,0 Mo), 11
+originaux rapatriés dans `assets/brand/icons/`, 2 doublons exacts supprimés, planche de contact
+sortie du glob. La **règle a été inversée** dans `assets/brand/README.md` : les visuels importés
+vivent dans `src/assets/`, pas dans `public/assets/` — c'est ce que le code faisait déjà, la doc
+avait tort. Voir §DÉCISIONS ACTIVES.
+
+**Vérifié** : 212 Papa + 111 Massimo verts, `tsc -b` et `vite build` verts sur les deux apps.
+L'icône et son animation ont été prouvées sur un **banc d'essai isolé** (le navigateur intégré
+n'étant pas connecté) : capture + `getAnimations()`. Le reste de la page **n'a toujours pas été vu
+de bout en bout par l'agent**.
 
 ### Chantier « Couverture de production » (ADR-0023) — CLOS
 
@@ -67,6 +97,18 @@ manuellement et a remonté 3 défauts réels que les tests ne voyaient pas (cf. 
 - **§F** : `mark_validated` est l'**unique** point d'écriture de `validated` ; toute action
   groupée écrit `parent_bulk` **sans exception** ; `system` est **strictement réservé au quiz**
   (test-verrou). Une leçon déjà validée n'est jamais re-tamponnée par un lot.
+- **Assets (session 2)** — l'original pleine résolution va dans `assets/brand/`, la **réduction**
+  (suffixe `_256` / `_384`, dimensionnée sur le rendu réel **× 3** car Massimo tourne sur iPhone)
+  va là où le code l'importe : `packages/ui/src/assets/` si les deux interfaces s'en servent,
+  `apps/frontend-<app>/src/assets/` sinon. **`public/assets/` n'est plus le point de dépôt** — un
+  `import` TS fait échouer le build si le fichier manque, hashe le nom pour le cache, et sort du
+  bundle ce qui n'est plus utilisé. Règle complète : `assets/brand/README.md`.
+- **Couverture — KPI** : un KPI ouvre son **complément**, pas ce qu'il compte (un chiffre atteint
+  ne se travaille pas). Les cartes restent cliquables même à zéro (choix du user).
+- **Couverture — expanders** : repliés en vue d'ensemble, **dépliés dès qu'on demande quelque
+  chose d'explicite** (pilule d'état ou matière). On ne cache jamais ce qui vient d'être demandé.
+  Les rappels d'anomalies sont des **comptes**, jamais un pourcentage — le « aucun score par
+  matière » ci-dessus tient toujours.
 - **Vocabulaire** : « Mindmap » ≠ « carte (de révision) ». Ne jamais écrire « carte mentale »
   dans l'UI Papa — les deux colonnes sont voisines dans la matrice.
 - **Capsules** : non générables en un clic **par construction** (l'API exige une `instruction`
@@ -95,20 +137,30 @@ manuellement et a remonté 3 défauts réels que les tests ne voyaient pas (cf. 
 
 ### PROCHAIN PAS
 
-1. **Passe visuelle sur `/couverture`** (dev : front `5178`, back `8002`, `--reload` actif).
-   C'est le point faible de ce chantier — tout le reste est couvert par des tests.
+1. **Trancher le sort de la photo de Massimo** —
+   `apps/frontend-massimo/src/assets/app/ChatGPT Image 5 juil. 2026, 14_36_01.png` (2 Mo, 1254 px)
+   est une **photo du visage de l'enfant** montée dans une icône de progression. Elle est
+   versionnée, **importée nulle part** (elle ne pèse que dans git). Laissée intacte
+   volontairement : l'agent ne décide pas seul du sort d'une image d'un mineur. Trois options —
+   garder / renommer et ranger dans `assets/brand/icons/` / sortir du dépôt.
 2. **Ne pas ouvrir de PR** — on reste sur `docs/couverture-production` pour la suite.
 3. Puis, au choix : **file de relecture** (prérequis dur du cron ADR-0023 — automatiser la
    fabrication d'un goulot est le seul vrai risque), ou **production en lot** (§7 : deux passes
    non fusionnables, cours puis équipement), dont le bouton « ⚡ Compléter le chapitre » marque
    déjà l'emplacement, désactivé.
+4. Restent ouverts, sans urgence : le **test flaky** `ProgrammePage` (barre de progression
+   temporisée, cf. `TROUBLESHOOTING.md`), et la **vérification à l'écran de bout en bout** de la
+   Couverture, que l'agent ne peut pas faire sans session Papa.
 
 ### Repères (orientation)
 
 - `graphify explain "production"` / `"provenance"` / `"engagement"`. Back :
   `app/modules/production/` (modèle de lecture), `app/modules/provenance.py` (unique écrivain de
   la validation), `app/modules/engagement/` (exception mission engagée). Front papa :
-  `CouverturePage.tsx`, `components/couverture/`, `lib/pilotageLinks.ts`, `hooks/useCoverage.ts`.
+  `CouverturePage.tsx`, `components/couverture/`, `lib/pilotageLinks.ts`, `hooks/useCoverage.ts`,
+  `lib/coverageFilters.ts` (fonctions pures : pilules + `subjectAnomalies`),
+  `components/CouvertureIcon.tsx`. Partagé : `packages/ui/src/components/subject-pictogram.tsx`.
+- Visuels : `assets/brand/README.md` §Règle principale (source de vérité de la convention).
 - Décisions : `DECISIONS.md` (index ADR complet 0001→0023, avec les 3 addenda ADR-0009/0011) +
   `docs/decisions/`. Modèle : `DATA_MODEL.md`. API : `API_SPEC.md`. Pièges : `TROUBLESHOOTING.md`.
 - Données de test laissées en DB dev (council_report id 1, missions manual, kits générés) — sans
