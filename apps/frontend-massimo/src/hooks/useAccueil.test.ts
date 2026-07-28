@@ -3,10 +3,35 @@ import { renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("../lib/missions", () => ({ fetchToday: vi.fn() }));
 vi.mock("../lib/reviews", () => ({ fetchReviewsSummary: vi.fn() }));
+vi.mock("../lib/motivation", () => ({ fetchWelcome: vi.fn() }));
 
 import { fetchToday } from "../lib/missions";
+import { fetchWelcome } from "../lib/motivation";
 import { fetchReviewsSummary } from "../lib/reviews";
 import { useAccueil } from "./useAccueil";
+
+const welcome = {
+  code: "all_clear",
+  title: "Rien d'obligatoire aujourd'hui, Massimo.",
+  subtitle: null,
+  cta: null,
+  context: {
+    first_name: "Massimo",
+    last_notion: null,
+    days_since_last_visit: 0,
+    consolidated_this_week: 0,
+    gaps_closed_this_week: 0,
+    reviews_due: 0,
+    regularity: {
+      week_start: "2026-07-27",
+      days: [],
+      days_done: 0,
+      today_done: false,
+      goal_days: null,
+      goal_met: false,
+    },
+  },
+};
 
 const today = {
   elected: {
@@ -35,6 +60,7 @@ const reviews = { subjects: [], total_due: 42, flash_size: 5, new_count: 0 };
 beforeEach(() => {
   vi.mocked(fetchToday).mockReset().mockResolvedValue(today as never);
   vi.mocked(fetchReviewsSummary).mockReset().mockResolvedValue(reviews as never);
+  vi.mocked(fetchWelcome).mockReset().mockResolvedValue(welcome as never);
 });
 
 describe("useAccueil", () => {
@@ -71,6 +97,34 @@ describe("useAccueil", () => {
     // « Tu as consolidé N notions » ne peut réapparaître côté client.
     const { result } = renderHook(() => useAccueil());
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(Object.keys(result.current).sort()).toEqual(["loading", "reviews", "today"]);
+    expect(Object.keys(result.current).sort()).toEqual([
+      "loading",
+      "refreshWelcome",
+      "reviews",
+      "today",
+      "welcome",
+    ]);
+  });
+
+  it("recharge le message quand l'engagement change", async () => {
+    // Sans ça, ZETIS resterait sur « engagement tenu » après que Massimo a relevé son objectif,
+    // et contredirait la carte « Ma semaine » juste en dessous.
+    const { result } = renderHook(() => useAccueil());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(fetchWelcome).toHaveBeenCalledTimes(1);
+
+    result.current.refreshWelcome();
+    await waitFor(() => expect(fetchWelcome).toHaveBeenCalledTimes(2));
+  });
+
+  it("garde la page vivante si le message de ZETIS tombe", async () => {
+    // La carte ZETIS ne s'affichera pas — et surtout, aucune phrase de secours ne la remplace :
+    // ce serait le mensonge qu'on vient de retirer de cette page, sous une autre forme.
+    vi.mocked(fetchWelcome).mockRejectedValue(new Error("503"));
+    const { result } = renderHook(() => useAccueil());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.welcome).toBeNull();
+    expect(result.current.today?.elected?.id).toBe(7);
   });
 });

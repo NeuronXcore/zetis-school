@@ -13,6 +13,17 @@ export {
   type OpenGap,
   type PageViewRequest,
 } from "./activity";
+export {
+  type MotivationContext,
+  type MotivationCta,
+  type MotivationDay,
+  type MotivationGoalRequest,
+  type MotivationMessage,
+  type MotivationWeek,
+  type MotivationWelcome,
+  type WelcomeCode,
+  type WrapUpCode,
+} from "./motivation";
 export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
   type FicheDefinition,

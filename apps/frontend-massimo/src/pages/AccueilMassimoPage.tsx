@@ -1,6 +1,10 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "@zetis/auth";
 import { useAccueil } from "../hooks/useAccueil";
+import { useMotivationWeek } from "../hooks/useMotivationWeek";
+import { ZetisMessageCard } from "../components/motivation/ZetisMessageCard";
+import { WeekDots } from "../components/motivation/WeekDots";
+import { WeekGoalPicker } from "../components/motivation/WeekGoalPicker";
 
 // Accueil Massimo — branché sur les routes réelles.
 //
@@ -23,13 +27,44 @@ const SHORTCUT_CLASS =
 
 export function AccueilMassimoPage() {
   const { user } = useAuth();
-  const { today, reviews, loading } = useAccueil();
+  const { welcome, today, reviews, loading, refreshWelcome } = useAccueil();
+  // Changer d'engagement change ce que ZETIS a à dire : on le recharge.
+  const week = useMotivationWeek(refreshWelcome);
   const elected = today?.elected ?? null;
-  const name = displayName(user?.username ?? "");
+  // Le prénom du profil dès qu'il est connu ; sinon le compte connecté (« massimo » → « Massimo »).
+  const name = welcome?.context.first_name || displayName(user?.username ?? "");
 
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-bold">Bonjour{name ? ` ${name}` : ""} 👋</h1>
+
+      {/* Ce que ZETIS a à dire, en premier : le levier « il se souvient » doit être la première
+          chose lue. Si l'appel échoue, la carte n'est pas rendue — pas de phrase de secours, qui
+          serait exactement le mensonge qu'on vient de retirer de cette page. */}
+      {welcome && (
+        <div className="mt-4">
+          <ZetisMessageCard message={welcome} />
+        </div>
+      )}
+
+      {/* Ma semaine : la grille et le geste d'engagement dans la MÊME carte — l'action et son
+          effet au même endroit. */}
+      {week.week && (
+        <section className="mt-4 rounded-2xl border border-zetis-border bg-zetis-surface p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zetis-accent-2">
+            Ma semaine
+          </p>
+          <div className="mt-3">
+            <WeekDots week={week.week} />
+          </div>
+          <WeekGoalPicker
+            goalDays={week.week.goal_days}
+            onChoose={week.chooseGoal}
+            pending={week.pending}
+          />
+          {week.notice && <p className="mt-2 text-sm text-zetis-muted">{week.notice}</p>}
+        </section>
+      )}
 
       {/* Mission du jour. `elected: null` n'est pas une erreur : c'est l'état serein prévu par la
           spec — rien d'obligatoire maintenant. */}
