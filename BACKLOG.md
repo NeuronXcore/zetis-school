@@ -130,8 +130,9 @@ Décisions : **ADR-0024** (amendé 3 fois en cours de chantier). Spec :
 `docs/frontend-massimo/zetis-galaxy.md`. Routes : `API_SPEC.md` §ZETIS Galaxy.
 Pièges d'exécution : `MEMORY.md` §Chantier ZETIS Galaxy.
 
-Reste à la charge du user, non vérifiable par l'agent : `prefers-reduced-motion` à l'écran, et
-les **plafonds de nœuds sur les trois appareils réels** (valeurs 40/90/150 provisoires).
+Reste à la charge du user, non vérifiable par l'agent. **MacBook vérifié le 2026-07-28** (fluide
+au plafond desktop de 150). Restent l'**iPhone** et l'**iPad** (paliers 40/90 provisoires), et
+**`prefers-reduced-motion`** — non exercé, l'option étant désactivée sur la machine du user.
 
 Idée : la page de progression de Massimo rendue comme une galaxie qu'on allume. Étoile = `Skill`,
 constellation = matière, amas = chapitre, luminosité = `SkillMastery.status`. **Pas de rouge,

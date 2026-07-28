@@ -265,17 +265,25 @@ repris parce que je validais une propriété calculée (`background-position` qu
 déclarée) au lieu de comparer deux captures d'écran. Les captures comparées sont le seul test
 utile sur du visuel.
 
-**Reste ouvert** : `prefers-reduced-motion` n'a **pas** pu être testé (le panneau navigateur ne
-l'émule pas) — couvert par tests unitaires et par la variante `motion-safe:`, mais pas à l'écran.
-Et les **plafonds de nœuds (40/90/150) ne sont pas mesurés** : ils demandent l'iPhone, l'iPad et
-le MacBook réels.
+**Vérifié par le user (2026-07-28)** : **MacBook OK**, l'animation est fluide au plafond desktop
+(150 nœuds). C'était le poste le plus confortable des trois.
+
+**Reste ouvert** :
+
+- **iPhone et iPad non essayés.** L'iPhone est le poste contraint : c'est lui qui décide si le
+  palier `compact` (40) doit baisser. Si ça coince, on baisse CE palier — on ne retire pas la 3D
+  des deux autres.
+- **`prefers-reduced-motion` toujours non vérifié à l'écran.** Le panneau navigateur ne l'émule
+  pas, et le retour « ça bouge sur mon Mac » prouve justement que l'option est **désactivée**
+  chez le user — donc le chemin où tout doit se figer n'a jamais été exercé en vrai. Couvert par
+  tests unitaires (`particlesFor`) et par la variante `motion-safe:`, rien de plus.
+  Pour l'essayer : Réglages Système → Accessibilité → Affichage → Réduire les animations.
 
 ### PROCHAIN PAS
 
-0. **Ouvrir la PR de `feat/galaxy`** — la branche est poussée, rien n'est mergé. Deux
-   vérifications que l'agent NE PEUT PAS faire et qui restent à la charge du user :
-   `prefers-reduced-motion` à l'écran, et les **plafonds de nœuds sur les trois appareils
-   réels** (iPhone, iPad, MacBook). Les valeurs 40/90/150 sont provisoires.
+0. **Ouvrir la PR de `feat/galaxy`** — la branche est poussée, rien n'est mergé.
+   Vérifications à la charge du user, que l'agent ne peut pas faire : **MacBook ✅ fait**,
+   restent **iPhone + iPad** (plafonds 40/90 provisoires) et **`prefers-reduced-motion`**.
 1. **Trancher le sort de la photo de Massimo** —
    `apps/frontend-massimo/src/assets/app/ChatGPT Image 5 juil. 2026, 14_36_01.png` (2 Mo, 1254 px)
    est une **photo du visage de l'enfant** montée dans une icône de progression. Elle est
