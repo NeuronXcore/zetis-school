@@ -86,6 +86,24 @@
       "port": 5177
     },
     {
+      "name": "backend-galaxy",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/backend && ZETIS_CORS_ORIGINS='[\"http://localhost:5179\"]' .venv/bin/uvicorn app.main:app --reload --port 8003"
+      ],
+      "port": 8003
+    },
+    {
+      "name": "massimo-galaxy",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-massimo && VITE_API_URL=http://localhost:8003 npx vite --port 5179 --strictPort"
+      ],
+      "port": 5179
+    },
+    {
       "name": "papa-srs",
       "runtimeExecutable": "sh",
       "runtimeArgs": [
