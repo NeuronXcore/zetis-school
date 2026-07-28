@@ -16,7 +16,32 @@ chacun est autonome et revertable seul, ce qui comptait surtout pour `chore(asse
 ⚠️ **Ne pas ré-implémenter** la Couverture : elle est complète et sur `main` — backend
 (`production` + `engagement` + provenance), page Papa, passe visuelle, convention d'assets.
 
-Les chantiers `activite` et `motivation` des sessions précédentes sont **mergés** (voir repères).
+### Branches restantes — toutes vérifiées, toutes fusionnées (2026-07-28)
+
+Quatre branches subsistent dans le dépôt. **Aucune ne porte de travail absent de `main`** — c'est
+vérifié, pas supposé. Elles peuvent être supprimées sans risque ; elles ne l'ont pas été faute de
+demande.
+
+| Branche | Preuve | |
+|---|---|---|
+| `feat/activite-backend` (local + `origin`) | PR #52 · SHA fusionné `1284deb` = tip | ✅ |
+| `feat/motivation-massimo` (local + `origin`) | PR #53 · SHA fusionné `befe91e` = tip | ✅ |
+| `origin/mindmap` | tip ancêtre de `main` | ✅ |
+| `origin/mission` | PR #46 · tip ancêtre de `main` | ✅ |
+
+⚠️ **Deux pièges de diagnostic**, à connaître avant de refaire ce contrôle :
+
+- **`git branch --merged` ne liste PAS `activite` ni `motivation`.** Les PR #52 et #53 ont été
+  **squashées** : les commits d'origine ne sont donc pas ancêtres de `main`, seul leur contenu y
+  est (`6e7cb78`, `40bcef8`). L'outil dit vrai sur la topologie et faux sur le fond — s'y fier
+  seul ferait conclure à du travail perdu.
+- **Le diff de contenu vs `main` n'est pas un test** : 1188 et 484 lignes d'écart, mais c'est
+  `main` qui a avancé depuis sur les mêmes fichiers. Comparer un tip figé à une trunk qui bouge ne
+  prouve rien.
+
+Le seul test qui tranche pour une branche squashée : **`gh pr view <n> --json headRefOid`** (le SHA
+que GitHub a réellement fusionné) comparé au tip local **et** distant. S'ils sont identiques, rien
+n'a été poussé après la fusion.
 
 ### Session 2 (2026-07-28) — passe visuelle `/couverture` + rangement des assets
 
