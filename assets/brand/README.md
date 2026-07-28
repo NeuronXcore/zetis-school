@@ -121,58 +121,41 @@ Ces fichiers ne sont pas des ressources graphiques officielles du projet.
 
 ## Règle principale
 
-Les fichiers originaux vont dans :
+**Les originaux vont dans `assets/brand/`** — pleine résolution, versionnés, jamais importés par
+le code, jamais servis directement.
 
-```txt
-assets/brand/
+**Les copies allégées vont là où le code les importe**, et le critère est la portée :
+
+| Portée | Emplacement | Accès |
+|---|---|---|
+| Les deux interfaces | `packages/ui/src/assets/<famille>/` | résolveur dédié (ex. `subjectIconFor`) |
+| Une seule interface | `apps/frontend-<app>/src/assets/{app,brand}/` | `import` TS |
+
+### Pourquoi `src/assets/` et pas `public/assets/`
+
+C'est l'inverse de ce que disait ce README jusqu'ici, et la pratique avait déjà tranché. Un
+`import` TypeScript :
+
+- **fait échouer le build** si le fichier manque — un chemin absolu `/assets/x.png` cassé ne se
+  voit qu'à l'exécution, en image blanche, souvent en production ;
+- **hashe le nom de fichier** (`ZETIS_map_256-YDJyCzsm.png`), donc invalide le cache navigateur
+  à chaque changement de visuel ;
+- **sort du bundle ce qui n'est plus importé**, alors que `public/` embarque tout, pour toujours.
+
+`apps/frontend-*/public/assets/` ne contient plus que son README. Les visuels historiques posés à
+la racine de `public/` (avatars, logo, `zetis-logo.mp4`) y restent : ils sont référencés par
+chemin absolu depuis `index.html` et les balises de partage, où un `import` n'a pas cours.
+
+### Toujours déposer une version réduite
+
+Un pictogramme rendu à 24 px n'a pas besoin de 1248 px. Réduire à 256 px avant d'importer :
+
+```bash
+sips -Z 256 assets/brand/icons/mon-icone.png --out apps/frontend-papa/src/assets/app/mon-icone_256.png
 ```
 
-Les fichiers réellement utilisés par les frontends peuvent ensuite être copiés ou référencés dans :
-
-```txt
-apps/frontend-massimo/public/assets/
-apps/frontend-papa/public/assets/
-```
-
-Le dossier `assets/brand/` reste la source de vérité.
-
----
-
-## Utilisation dans les frontends
-
-### Frontend Massimo
-
-Les images utilisées par l’interface Massimo doivent être disponibles dans :
-
-```txt
-apps/frontend-massimo/public/assets/
-```
-
-Exemple :
-
-```txt
-apps/frontend-massimo/public/assets/logo/zetis-logo-primary.png
-apps/frontend-massimo/public/assets/avatars/zetis/zetis-avatar-circle.png
-apps/frontend-massimo/public/assets/avatars/massimo/massimo-avatar.png
-```
-
----
-
-### Frontend Papa
-
-Les images utilisées par l’interface Papa doivent être disponibles dans :
-
-```txt
-apps/frontend-papa/public/assets/
-```
-
-Exemple :
-
-```txt
-apps/frontend-papa/public/assets/logo/zetis-logo-primary.png
-apps/frontend-papa/public/assets/avatars/zetis/zetis-avatar-circle.png
-apps/frontend-papa/public/assets/avatars/papa/papa-avatar.png
-```
+Le suffixe `_256` est la convention du dépôt (cf. `packages/ui/src/assets/subjects/`, qui livre
+`_120` et `_256`). L'original reste dans `assets/brand/icons/`, seule la réduction est importée.
 
 ---
 

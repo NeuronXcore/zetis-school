@@ -7,71 +7,74 @@
 
 ## État à la reprise
 
-**DEUX branches en attente, à pousser et merger DANS CET ORDRE** (la seconde dépend de la
-première) — rien n'est poussé, aucune PR ouverte.
+**Une branche en cours : `docs/couverture-production`** — 5 commits, **poussée sur `origin`**,
+**aucune PR ouverte volontairement** : le chantier continue sur cette même branche à la
+prochaine session (décision du user). Ne pas ouvrir de PR ni repartir de `main` sans son accord.
+Les chantiers `activite` et `motivation` des sessions précédentes sont **mergés** (voir repères).
 
-### 1. `feat/activite-backend` — chantier « Activité » (CLOS)
+### Session 2 (2026-07-28) — passe visuelle `/couverture` + rangement des assets
 
-Sept commits. Journal `learning_events` alimenté (7 hooks + télémétrie), projections parent
-(heatmap, détail-jour, sessions), bloc Régularité du dashboard, page Cahier de bord en
-**calendrier mensuel**, KPI tous dépliables, module `progress` (lacunes/notions réelles),
-résolveur « leçon → matière » unifié. Migration `d0e1f2a3b4c5` appliquée sur la DB de dev.
+La passe visuelle demandée au « prochain pas » a été faite, **pilotée par le user** qui regardait
+la page dans son propre navigateur (l'agent n'a jamais eu de session Papa : il ne saisit pas de
+mot de passe). Quatre retours, quatre livrables — détail dans `docs/frontend-papa/page-couverture.md`
+§Passe visuelle :
 
-Décisions figées : sessions **jamais stockées** (reconstruites à la lecture) · `xp_events` et
-`learning_events` **jamais en UNION** · `days_inactive` toujours toutes matières · deux
-`event_type` préexistants RÉUTILISÉS (`reverse_eli5`, `mission_verdict`) au lieu d'être dupliqués
-· `POST /api/missions/{id}/complete` n'existe pas et n'a pas été créé.
+1. **KPI cliquables** → chacun ouvre son complément (« 27/78 cours » ouvre les 51 restants). La
+   pilule « 🔒 Bloquées » a été **scindée** en `🔒 Non validées` / `📝 Sans cours` : elle mélangeait
+   les deux causes, or `blocked_no_course` ne contient que des leçons *validées* — « Leçons
+   validées » ne pouvait pas pointer dessus sans se contredire.
+2. **Pictogrammes de matière** sur les en-têtes de matrice **et** en pastilles de filtre (le
+   `<select>` a disparu). `SubjectPictogram` extrait de `SubjectFilterChips` → un seul rendu.
+3. **Expanders par matière** : repliés en vue d'ensemble, dépliés dès qu'un filtre ou une matière
+   est demandé, avec rappel d'anomalies (`🔒 4  ⏳ 2`) calculé sur la matière **entière**.
+4. **Icône `CouvertureIcon`** (fournie par le user) + respiration lumineuse, aux 3 endroits qui
+   désignent la Couverture (en-tête animé, sidebar, relais Dashboard).
 
-### 2. `feat/motivation-massimo` — chantier « Auto-motivation » (CLOS)
+**Rangement des assets, hors chantier mais demandé explicitement** (« mets de l'ordre », puis
+« go ») : ~9,8 Mo retirés des bundles (Massimo 10,3 Mo → 1,6 Mo ; Papa 2,1 Mo → 1,0 Mo), 11
+originaux rapatriés dans `assets/brand/icons/`, 2 doublons exacts supprimés, planche de contact
+sortie du glob. La **règle a été inversée** dans `assets/brand/README.md` : les visuels importés
+vivent dans `src/assets/`, pas dans `public/assets/` — c'est ce que le code faisait déjà, la doc
+avait tort. Voir §DÉCISIONS ACTIVES.
 
-Onze commits. Décision produit du user : « ZETIS doit avoir une main de fer dans un gant de
-velours ». Le principe *« un enfant chronométré travaille pour le chronomètre »* est **amendé
-partiellement** — il reste vrai pour le TEMPS (aucune minute, aucune session, aucun calendrier
-chez Massimo), il est levé pour l'EFFORT. Amendement daté dans `page-cahier-bord.md` §Principes.
+**Vérifié** : 212 Papa + 111 Massimo verts, `tsc -b` et `vite build` verts sur les deux apps.
+L'icône et son animation ont été prouvées sur un **banc d'essai isolé** (le navigateur intégré
+n'étant pas connecté) : capture + `getAnimations()`. Le reste de la page **n'a toujours pas été vu
+de bout en bout par l'agent**.
 
-- **F1** `67b4811` — l'accueil ne ment plus (il affichait TROIS nombres inventés, dont
-  « Tu as consolidé 3 notions », et un bouton « Commencer » sans handler).
-- **A** `eaf6723` — `mastered_at`, `resolved_at`, `student_weekly_goals` (migration
-  `f1a2b3c4d5e6`, aller-retour vérifié sur Postgres).
-- **B** `9f93641` — module `motivation` : régularité douce + engagement (`require_child`).
-- **C** `a10b839` — `welcome`/`wrap-up`, textes composés SERVEUR et déterministes.
-- **F0/F2/F3** `aa73ff3` — « Ma semaine » et la carte ZETIS à l'écran.
-- **F4+D** `a25e597` — streak retiré partout (frontend AVANT backend).
-- **F5/F6** — `wrap-up` sur les 3 écrans de fin + purge des mocks morts.
+### Chantier « Couverture de production » (ADR-0023) — CLOS
 
-**DÉCISIONS FIGÉES — ne pas rouvrir :**
+Quatre commits, dans cet ordre (chacun dépend du précédent) :
 
-- **Aucune donnée punitive n'est persistable ni servie** : pas de clé `missed`/`failed`/
-  `remaining`/`streak`/`best`, pas de colonne d'atteinte sur `student_weekly_goals`. Testé.
-- **Un jour passé sans activité et un jour à venir sont rendus À L'IDENTIQUE** dans la grille.
-  Testé sur le RENDU, pas seulement sur le contrat.
-- **Le nombre de jours d'absence n'apparaît dans aucun texte** ; deux verrous de vocabulaire
-  parcourent tous les templates (aucun mot d'échec, aucun décompte de jours).
-- **La régularité compte la PRÉSENCE** (`learning_events`, jamais `xp_events`) : la connexion
-  seule coche la journée.
-- **L'engagement est écrit par l'enfant SEUL** (Papa : 403 même en lecture), semaine toujours
-  déduite serveur, révision à la baisse sans trace.
-- **Pas de badge « objectif atteint »** : un badge conditionné à l'engagement rendrait l'échec
-  visible et transformerait une déclaration d'autonomie en épreuve.
-- Les messages sont **déterministes, sans LLM** : deux appels sur le même état → même phrase.
+1. **`8c993b6` docs** — ADR-0023 + addenda ADR-0011 §E (fraîcheur) et §F (provenance), 4 ADR
+   amendés, maquette + spec + 2 prompts de slice.
+2. **`02f37a9` engagement** — prérequis : module neutre `engagement` + exception « mission
+   engagée » sur les chemins d'achèvement des mindmaps.
+3. **`586b202` production (backend)** — `is_stale`, provenance (migration `d5e6f7a8b9c0`),
+   modèle de lecture + 2 endpoints `require_parent`.
+4. **(ce commit) frontend + correctifs** — page Couverture, liens ciblés, validation en lot,
+   et deux défauts de schéma/UX corrigés (voir ci-dessous).
 
-**PIÈGES rencontrés (coûteux à redécouvrir) :**
+**Migrations appliquées sur la DB de dev** : `d5e6f7a8b9c0` (provenance, 6 tables, reprise NULL)
+et `e6f7a8b9c0d1` (horodatages `fiches`/`mindmaps`).
 
-- `quizzes/scoring.py` rejoue à CHAQUE quiz → sans non-re-tamponnage de `mastered_at`,
-  « consolidées cette semaine » recompterait éternellement les mêmes notions. D'où le helper
-  unique `progress/mastery.py`.
-- Le `login` est journalisé AVANT l'appel à l'accueil → l'absence se mesure sur les événements
-  **strictement antérieurs à aujourd'hui**, sinon elle vaut toujours 0.
-- `gamification` (bas niveau) ne doit PAS importer `motivation` (haut niveau) : cycle
-  `motivation → memory → gamification`. La composition de `regularity` vit dans le ROUTEUR.
-- Une prop **optionnelle** (`wrapUp?`) a laissé passer un câblage manquant à travers `tsc` ET les
-  tests — vu seulement en jouant une vraie séance de révision.
+**Vérifié** : 518 back + 203 Papa verts, `tsc -b` et `vite build` verts, un seul head alembic.
+Modèle de lecture éprouvé sur **Postgres réel** (69 leçons, 18 requêtes, 79 ms — aucun N+1).
 
-**Vérifié** : 488 back + 111 Massimo + 166 Papa verts, `tsc -b` vert, un seul head alembic.
-Les deux chantiers ont été vérifiés à l'écran de bout en bout.
+⚠️ **Ce chantier n'a PAS été vérifié à l'écran de bout en bout** : la session Papa du navigateur
+intégré a expiré en cours de route, et l'agent ne saisit pas de mot de passe. Le user a testé
+manuellement et a remonté 3 défauts réels que les tests ne voyaient pas (cf. `TROUBLESHOOTING.md`
+§ chantier `couverture`). **La prochaine session doit commencer par une passe visuelle.**
 
-**PROCHAIN PAS** : pousser les deux branches et ouvrir les PR dans l'ordre. Rien de codé en
-attente. Données de test laissées dans la DB dev.
+### Ce que le user a remonté et qui reste ouvert
+
+- **Colonne Fiche** : le lien ciblé surligne la carte mais n'ouvre pas sa modale — volontaire
+  (c'est un ÉDITEUR, pas une vue), à trancher si la symétrie avec quiz/mindmap est préférée.
+- **Ouverture auto de la modale mindmap** : ajoutée sur un malentendu de ma part (le user parlait
+  de la colonne *Cartes*, pas *Mindmap*). Défendable en soi — à confirmer ou retirer.
+- **5 générations non voulues** dans la DB dev (jobs #316→#320), **gardées** sur décision du user.
+  « Calculs avec priorités et nombres relatifs » reste en `draft` : son cours vient d'être rédigé,
+  le gate ADR-0009 §A joue son rôle — **ne pas la revalider mécaniquement**.
 
 ### Derniers chantiers mergés (repères)
 
@@ -86,6 +89,31 @@ attente. Données de test laissées dans la DB dev.
 - **`generate_revision` mono-notion** (ADR-0017 §5) — PR #47.
 
 ### DÉCISIONS ACTIVES (figées — ne pas rouvrir ; détail dans les ADR)
+
+- **Couverture** : `absent` se déduit de **l'existence de la ligne**, jamais d'une date — une
+  date nulle rend seulement le *périmé* indécidable. Le **cours n'entre pas** dans le pourcentage
+  de dérivés (il en est la condition). **Aucun agrégat de provenance** (§F.2), aucun tri, aucun
+  score par matière : la page répond à « où j'en suis », elle ne produit pas un classement.
+- **§F** : `mark_validated` est l'**unique** point d'écriture de `validated` ; toute action
+  groupée écrit `parent_bulk` **sans exception** ; `system` est **strictement réservé au quiz**
+  (test-verrou). Une leçon déjà validée n'est jamais re-tamponnée par un lot.
+- **Assets (session 2)** — l'original pleine résolution va dans `assets/brand/`, la **réduction**
+  (suffixe `_256` / `_384`, dimensionnée sur le rendu réel **× 3** car Massimo tourne sur iPhone)
+  va là où le code l'importe : `packages/ui/src/assets/` si les deux interfaces s'en servent,
+  `apps/frontend-<app>/src/assets/` sinon. **`public/assets/` n'est plus le point de dépôt** — un
+  `import` TS fait échouer le build si le fichier manque, hashe le nom pour le cache, et sort du
+  bundle ce qui n'est plus utilisé. Règle complète : `assets/brand/README.md`.
+- **Couverture — KPI** : un KPI ouvre son **complément**, pas ce qu'il compte (un chiffre atteint
+  ne se travaille pas). Les cartes restent cliquables même à zéro (choix du user).
+- **Couverture — expanders** : repliés en vue d'ensemble, **dépliés dès qu'on demande quelque
+  chose d'explicite** (pilule d'état ou matière). On ne cache jamais ce qui vient d'être demandé.
+  Les rappels d'anomalies sont des **comptes**, jamais un pourcentage — le « aucun score par
+  matière » ci-dessus tient toujours.
+- **Vocabulaire** : « Mindmap » ≠ « carte (de révision) ». Ne jamais écrire « carte mentale »
+  dans l'UI Papa — les deux colonnes sont voisines dans la matrice.
+- **Capsules** : non générables en un clic **par construction** (l'API exige une `instruction`
+  écrite par Papa). Depuis la Couverture, on ouvre le compositeur pré-rempli — avec `skill_id`,
+  sans quoi la capsule ne compte dans aucune fraction.
 
 - **Activité — 2 `event_type` RÉUTILISÉS au lieu d'être dupliqués.** La spec demandait
   `eli5_reverse` et `mission_completed` ; le code émettait déjà, au même instant et pour le même
@@ -107,20 +135,33 @@ attente. Données de test laissées dans la DB dev.
 - **Missions Massimo** : champ d'affichage `origin` (papa/zetis), **pas** l'enum `created_by`
   (pilot-only) ; badge « new » = mission `planned`.
 
-### PROCHAIN PAS (candidat — à cadrer avant de coder)
+### PROCHAIN PAS
 
-- **Missions croisées multi-matières** (esprit EPI) : c'est le **gros morceau** restant. Le Conseil
-  de classe est la vue transversale légitime pour les proposer (ADR-0017 §6). ⚠️ Elles **cassent
-  l'invariant de verdict mono-notion** (ADR-0017 §5bis) → **écrire un ADR dédié d'abord**
-  (dérivation matières depuis les `Skill` des étapes, composition, verdict, porte manual vs Conseil).
-- Plus petits : « évolution récente » comparative (slice 2 de l'ADR-0020), réglage
-  `COUNCIL_PROMPT_VERSION` après usage.
+1. **Trancher le sort de la photo de Massimo** —
+   `apps/frontend-massimo/src/assets/app/ChatGPT Image 5 juil. 2026, 14_36_01.png` (2 Mo, 1254 px)
+   est une **photo du visage de l'enfant** montée dans une icône de progression. Elle est
+   versionnée, **importée nulle part** (elle ne pèse que dans git). Laissée intacte
+   volontairement : l'agent ne décide pas seul du sort d'une image d'un mineur. Trois options —
+   garder / renommer et ranger dans `assets/brand/icons/` / sortir du dépôt.
+2. **Ne pas ouvrir de PR** — on reste sur `docs/couverture-production` pour la suite.
+3. Puis, au choix : **file de relecture** (prérequis dur du cron ADR-0023 — automatiser la
+   fabrication d'un goulot est le seul vrai risque), ou **production en lot** (§7 : deux passes
+   non fusionnables, cours puis équipement), dont le bouton « ⚡ Compléter le chapitre » marque
+   déjà l'emplacement, désactivé.
+4. Restent ouverts, sans urgence : le **test flaky** `ProgrammePage` (barre de progression
+   temporisée, cf. `TROUBLESHOOTING.md`), et la **vérification à l'écran de bout en bout** de la
+   Couverture, que l'agent ne peut pas faire sans session Papa.
 
 ### Repères (orientation)
 
-- `graphify explain "reports"` / `"missions"`. Back : `app/modules/reports/`, `app/modules/missions/`,
-  `app/modules/evidence/`. Front papa : `ConseilClasseIAPage.tsx`. Front massimo : `MissionsPage.tsx`.
-- Décisions : `DECISIONS.md` (index ADR complet 0001→0021) + `docs/decisions/`. Modèle :
-  `DATA_MODEL.md`. API : `API_SPEC.md`. Pièges : `TROUBLESHOOTING.md`.
+- `graphify explain "production"` / `"provenance"` / `"engagement"`. Back :
+  `app/modules/production/` (modèle de lecture), `app/modules/provenance.py` (unique écrivain de
+  la validation), `app/modules/engagement/` (exception mission engagée). Front papa :
+  `CouverturePage.tsx`, `components/couverture/`, `lib/pilotageLinks.ts`, `hooks/useCoverage.ts`,
+  `lib/coverageFilters.ts` (fonctions pures : pilules + `subjectAnomalies`),
+  `components/CouvertureIcon.tsx`. Partagé : `packages/ui/src/components/subject-pictogram.tsx`.
+- Visuels : `assets/brand/README.md` §Règle principale (source de vérité de la convention).
+- Décisions : `DECISIONS.md` (index ADR complet 0001→0023, avec les 3 addenda ADR-0009/0011) +
+  `docs/decisions/`. Modèle : `DATA_MODEL.md`. API : `API_SPEC.md`. Pièges : `TROUBLESHOOTING.md`.
 - Données de test laissées en DB dev (council_report id 1, missions manual, kits générés) — sans
   conséquence.

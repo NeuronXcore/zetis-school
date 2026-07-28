@@ -149,3 +149,121 @@
   à la **création** de la mission ; une carte validée *après* coup n'est pas rétro-ajoutée. → **régénérer
   le parcours** (`POST /missions/{id}/regenerate`, planned seulement — une mission `active` refuse,
   409). Pas besoin de générer si la carte existe déjà.
+
+## Chantier `couverture` (ADR-0023) — pièges rencontrés
+
+### Le serveur dev sert un code antérieur, sans le dire
+
+**Symptôme** : une route existe dans le fichier, l'appel renvoie `404`. Ou pire — un champ
+ajouté au modèle de lecture arrive vide, et l'UI qui en dépend paraît inerte.
+
+**Cause** : `.claude/launch.json` lançait `backend-dev`/`backend-dev2` **sans `--reload`**.
+Le processus gardait le code de son démarrage.
+
+**Diagnostic en une commande** — comparer le code au processus :
+
+```bash
+curl -s localhost:8002/openapi.json | python3 -c "import sys,json;print([p for p in json.load(sys.stdin)['paths'] if 'ma-route' in p])"
+```
+
+Corrigé : `--reload` ajouté aux deux configs. **Réflexe à garder** : vérifier ses ajouts backend
+contre le serveur que l'humain utilise, pas seulement par les tests et des appels directs à la base.
+
+### `fiches` / `mindmaps` : horodatages nullable sans défaut serveur
+
+**Symptôme** : une fiche générée n'apparaît jamais dans la matrice (cellule `+` permanente), et
+chaque clic en crée une de plus. Cinq doublons avant qu'on comprenne.
+
+**Cause** : ces deux tables ont été créées avec `created_at`/`updated_at` **nullable et sans
+`DEFAULT now()`**, contrairement à `quizzes`/`capsules`. Le `TimestampMixin` déclare pourtant le
+défaut : la migration de création ne l'a jamais suivi. Toute ligne insérée sans horodatage
+explicite naissait à `NULL`.
+
+**Vérifier** :
+
+```sql
+select table_name, column_name, column_default, is_nullable from information_schema.columns
+where column_name in ('created_at','updated_at') and table_name in ('fiches','mindmaps','quizzes','capsules');
+```
+
+Corrigé par `e6f7a8b9c0d1`. **Leçon de conception** : ne jamais déduire l'absence d'un objet
+d'une date manquante. `absent` se déduit de l'existence de la ligne ; une date nulle rend
+seulement le *périmé* indécidable, ce qui est un défaut acceptable, pas un mensonge.
+
+### Une capsule créée sans `skill_id` ne compte nulle part
+
+La Couverture compte les capsules **par notion** (`Capsule.skill_id`). Le compositeur de la page
+Capsules IA n'envoyait pas ce champ : les capsules créées là n'étaient rattachées à aucune notion
+et restaient invisibles dans les fractions, quel que soit le travail fourni.
+
+### Les tests de page cassent quand on ajoute `useSearchParams`
+
+`ProgrammePage.test.tsx` rendait `<ProgrammePage />` nu ; le hook exige un Router (26 tests
+tombés d'un coup). Passer par un helper `renderPage(route)` qui enveloppe dans `<MemoryRouter>` —
+c'est d'ailleurs plus fidèle à l'app réelle.
+
+Autre piège du même ordre : **jsdom n'implémente pas `scrollIntoView`**. L'appeler dans un
+`useEffect` jette et démonte l'arbre. Toujours `ref.current?.scrollIntoView?.({...})` — sur la
+méthode aussi, pas seulement sur la ref.
+
+## Chantier `couverture` — passe visuelle + rangement des assets (2026-07-28, session 2)
+
+### `?subject_id=` filtre aussi la LISTE des matières renvoyée
+
+`GET /api/production/coverage?subject_id=N` restreint `subject_query` (`coverage.py:352`), donc
+`coverage.subjects` ne contient plus que la matière sélectionnée. Le `<select>` d'origine se vidait
+ainsi de ses options dès le premier choix : il fallait repasser par « Toutes les matières » pour en
+changer. Bug **présent depuis l'origine**, invisible tant que le sélecteur était un menu déroulant,
+criant dès qu'on est passé à des pastilles.
+
+Correctif **client** (`CouverturePage`) : mémoriser la liste du chargement non filtré. Pas de
+changement backend — l'endpoint fait ce qu'on lui demande.
+
+### Une `drop-shadow` animée sur un PNG opaque est invisible
+
+L'icône de la Couverture est livrée **sans canal alpha** (fond noir aplati jusqu'aux bords). Une
+`filter: drop-shadow()` épouse la silhouette alpha : sur un rectangle plein, elle se dessine
+derrière l'image et reste intégralement masquée. L'animation tournait — `getAnimations()` le
+confirmait — sans qu'on en voie rien.
+
+Deux corrections : `border-radius` pour rogner les coins noirs (sinon un carré noir sur le fond
+bleu nuit), et **halo en `box-shadow`**, qui se dessine hors de la boîte en suivant le rayon.
+
+Règle générale : `drop-shadow` pour un PNG détouré, `box-shadow` pour une image opaque.
+
+### Vérifier une animation sans session authentifiée
+
+Le navigateur intégré n'était pas connecté à l'espace Papa, et l'agent ne saisit pas de mot de
+passe. Plutôt que de livrer sans regarder : **banc d'essai isolé** — un HTML dans le scratchpad
+avec le CSS copié à l'identique et le vrai fichier image, servi par un `python3 -m http.server`,
+puis capture d'écran + `getAnimations()` / `getComputedStyle()` pour prouver que la valeur change
+dans le temps. Démonté après coup. Utile pour tout ce qui est purement visuel et sans données.
+
+### Une section repliée sort de l'arbre d'accessibilité
+
+Les expanders par matière ont cassé 2 tests d'un coup : `getByRole("link"|"button")` ne trouve plus
+rien sous un conteneur `hidden`, alors que `getByText` **continue** de le trouver (RTL n'ignore que
+`script`/`style`). D'où des échecs qui semblent incohérents entre deux tests voisins. Ouvrir la
+section d'abord (helper `expandSubject()`).
+
+### `findByRole` attrape le premier arrivé, pas le bon
+
+La pastille de filtre « Mathématiques » et l'en-tête de matrice du même nom sont deux boutons. La
+liste des pastilles est posée par un `useEffect`, donc **un cran après** le premier rendu de la
+matrice : `findByRole` résolvait sur l'en-tête, avec un `aria-pressed` à `null`. Scoper la requête
+(`within(getByRole("group", …))`) au lieu de se fier à l'unicité du libellé.
+
+### `import.meta.glob` aspire tout le dossier
+
+`packages/ui/src/assets/subjects/` contenait `logos_matieres_zetis_apercu.png`, une planche de
+contact de 264 ko qu'aucun slug ne résout. Le glob `*.png` du résolveur l'embarquait quand même —
+**dans les deux apps**, soit 528 ko de bundle mort. Déplacée dans `assets/brand/references/`.
+
+Un dossier lu par un glob n'est pas un dossier de rangement : tout ce qu'on y pose part dans le
+bundle, résolu ou non.
+
+### Test temporisé instable
+
+`ProgrammePage.test.tsx` › « pendant la génération : barre de progression estimée avec % » a échoué
+une fois (1029 ms) puis est repassé vert **5 fois de suite**. Flaky sur la temporisation de la
+barre, sans rapport avec le chantier. Non traité.

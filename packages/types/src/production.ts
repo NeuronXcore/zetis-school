@@ -1,0 +1,110 @@
+// Couverture de production (page Papa « Couverture ») — contrat de `GET /api/production/*`.
+// Décisions : addendum ADR-0011 §E (fraîcheur) et §F (provenance), ADR-0023.
+
+/** État d'une cellule de la matrice, pour UN dérivé d'UNE leçon.
+ * `stale` prime sur `validated` : un dérivé périmé EST validé, et c'est précisément
+ * l'information que le ✓ ne doit pas masquer. */
+export type CellState = "absent" | "pending" | "validated" | "stale" | "blocked";
+
+/** Deux causes de blocage distinctes, parce que l'action à mener diffère :
+ * `blocked_lesson` → agir dans Programme ; `blocked_no_course` → rédiger le cours ici. */
+export type RowState = "blocked_lesson" | "blocked_no_course" | "ready" | "complete";
+
+/** QUI a laissé passer le contenu (§F) — jamais totalisé, jamais transformé en relance.
+ * `null` sur un objet validé = antérieur à la traçabilité (« provenance inconnue »). */
+export type ValidatedBy = "parent" | "parent_bulk" | "system";
+
+export interface CoverageCell {
+  state: CellState;
+  derived_at: string | null;
+  validated_by: ValidatedBy | null;
+  /** Cible d'un « Régénérer » (la leçon pour la colonne Cours). `null` si `absent`/`blocked`. */
+  object_id: number | null;
+}
+
+/** Colonne notion-centrée : une fraction, et **aucun état de fraîcheur** (§E.5). */
+export interface CoverageFraction {
+  covered: number;
+  total: number;
+}
+
+/** Une notion de la leçon, et ce qu'elle porte de consommable.
+ *  `skill_id` est la cible des générations lancées depuis la matrice. */
+export interface CoverageNotionItem {
+  skill_id: number;
+  name: string;
+  has_card: boolean;
+  has_capsule: boolean;
+}
+
+export interface CoverageNotions {
+  cards: CoverageFraction;
+  capsules: CoverageFraction;
+  items: CoverageNotionItem[];
+}
+
+export interface CoverageCells {
+  cours: CoverageCell;
+  quiz: CoverageCell;
+  fiche: CoverageCell;
+  mindmap: CoverageCell;
+}
+
+/** Les quatre colonnes leçon-centrées, dans l'ordre d'affichage de la matrice. */
+export type CoverageCellKey = keyof CoverageCells;
+
+export interface CoverageLesson {
+  id: number;
+  title: string;
+  row_state: RowState;
+  cells: CoverageCells;
+  notions: CoverageNotions;
+}
+
+export interface CoverageChapter {
+  id: number;
+  title: string;
+  lessons: CoverageLesson[];
+}
+
+export interface CoverageSubject {
+  id: number;
+  name: string;
+  slug: string;
+  chapters: CoverageChapter[];
+}
+
+export interface CoverageSchoolYear {
+  id: number;
+  label: string;
+  level: string;
+}
+
+export interface CoverageTotals {
+  lessons: number;
+  lessons_validated: number;
+  courses_written: number;
+  /** Porte sur quiz · fiche · mindmap UNIQUEMENT — le cours en est la condition, pas un dérivé. */
+  derivatives_percent: number;
+  pending_count: number;
+  stale_count: number;
+  orphan_count: number;
+}
+
+export interface Coverage {
+  school_year: CoverageSchoolYear | null;
+  totals: CoverageTotals;
+  subjects: CoverageSubject[];
+}
+
+export type OrphanType = "fiche" | "mindmap" | "quiz";
+
+export interface ProductionOrphan {
+  type: OrphanType;
+  id: number;
+  title: string;
+  subject: string | null;
+  archived_at: string | null;
+  /** Vrai → suppression désactivée : on n'efface pas l'historique de Massimo pour faire propre. */
+  has_history: boolean;
+}

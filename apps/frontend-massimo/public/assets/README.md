@@ -1,8 +1,21 @@
 # public/assets — frontend Massimo
 
-Ce dossier contient **uniquement des copies optimisées** des visuels servis par l'interface Massimo.
+**Ce dossier n'est plus le point de dépôt des visuels**, contrairement à ce qu'il annonçait. Il est
+conservé vide.
 
-- Source de vérité : `assets/brand/` (racine du repo). Voir [assets/brand/README.md](../../../../assets/brand/README.md).
-- Ne jamais éditer un visuel ici sans mettre à jour l'original dans `assets/brand/`.
-- Référencer en code via un chemin absolu : `/assets/logo/zetis-logo-primary.png`, `/assets/avatars/zetis/...`.
-- Pas d'images lourdes (préférer PNG/WebP allégés < ~300 Ko). Les originaux haute-déf restent dans `assets/brand/references/`.
+Les images importées par le code vivent dans `src/assets/` :
+
+- `apps/frontend-massimo/src/assets/app/` — pictogrammes d'écran (ELI5, quiz, cartes SRS…) ;
+- `apps/frontend-massimo/src/assets/brand/` — avatar et signature ZETIS ;
+- `packages/ui/src/assets/<famille>/` — visuels partagés avec Papa (ex. `subjects/`).
+
+Les originaux pleine résolution restent dans [`assets/brand/`](../../../../assets/brand/README.md),
+à la racine du dépôt : source de vérité, et règle complète.
+
+Raison du changement : un `import` TS fait échouer le build quand le fichier manque, hashe le nom
+pour invalider le cache navigateur, et sort du bundle ce qui n'est plus utilisé — trois choses
+qu'un chemin absolu vers `public/` ne sait pas faire.
+
+> Exception : les fichiers posés à la racine de `public/` (`massimo-avatar.png`, `zetis-logo.png`,
+> `zetis-banner.png`, `zetis-logo.mp4`) restent servis par chemin absolu — ils sont référencés
+> depuis `index.html`, où un `import` n'a pas cours.

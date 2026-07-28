@@ -273,3 +273,13 @@ export async function confirmSkillsBackfill(
     }),
   );
 }
+
+/** Valide en lot les leçons `draft` d'un chapitre (provenance `parent_bulk`, addendum §F.3). */
+export async function validateAllLessons(chapterId: number): Promise<BatchValidationResult> {
+  return asJson(
+    await fetch(`${API_URL}/api/chapters/${chapterId}/lessons/validate-all`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}

@@ -1,4 +1,6 @@
-from sqlalchemy import JSON, ForeignKey, String, Text
+from datetime import datetime
+
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -30,6 +32,15 @@ class Capsule(Base, TimestampMixin):
     validation_status: Mapped[str] = mapped_column(
         String(20), default="pending"
     )  # pending | validated | rejected
+    # Provenance de la validation (addendum ADR-0011 §F) : `validation_status` dit SI c'est
+    # passé, ces deux colonnes disent QUI a laissé passer. NULL = non validé, ou antérieur à
+    # la traçabilité (aucune rétro-attribution).
+    validated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    validated_by: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # parent | parent_bulk | system
 
 
 class Fiche(Base, TimestampMixin):
@@ -48,6 +59,13 @@ class Fiche(Base, TimestampMixin):
     validation_status: Mapped[str] = mapped_column(
         String(20), default="pending"
     )  # pending | validated | rejected
+    # Provenance de la validation (addendum ADR-0011 §F) — cf. `Capsule`.
+    validated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    validated_by: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # parent | parent_bulk | system
     source: Mapped[str] = mapped_column(String(20), default="generated")  # generated | manual
     program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
 
@@ -69,6 +87,13 @@ class Mindmap(Base, TimestampMixin):
     validation_status: Mapped[str] = mapped_column(
         String(20), default="pending"
     )  # pending | validated | rejected
+    # Provenance de la validation (addendum ADR-0011 §F) — cf. `Capsule`.
+    validated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    validated_by: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # parent | parent_bulk | system
     source: Mapped[str] = mapped_column(String(20), default="generated")  # generated | manual
     program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
 

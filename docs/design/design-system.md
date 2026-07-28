@@ -72,9 +72,13 @@ Toujours prévoir mute.
 
 ## Pictogrammes de matière (Massimo)
 
-- Toujours résolus via **`lib/subjectIcons.ts`** (`import.meta.glob` sur **`src/assets/subjects/`**,
-  PNG par **slug**, **repli emoji** si l'asset manque). **Jamais** d'emoji ni de chemin d'asset
-  codé en dur dans une page.
+- Toujours résolus via **`subjectIconFor`** (`@zetis/ui`), qui fait un `import.meta.glob` sur
+  **`packages/ui/src/assets/subjects/`** — PNG par **slug**, **repli sur l'initiale** si l'asset
+  manque. **Jamais** d'emoji ni de chemin d'asset codé en dur dans une page. Les
+  `apps/frontend-*/src/lib/subjectIcons.ts` ne sont que des ré-exports : les assets ont quitté les
+  deux apps (où ils étaient dupliqués à l'identique) pour `packages/ui` au commit `6e7cb78`.
+- Rendus par **`SubjectPictogram`** (`@zetis/ui`, tailles `sm`/`md`/`lg`), utilisé tel quel par les
+  pastilles `SubjectFilterChips` et les en-têtes de matière de la Couverture.
 - Rendus par **`SubjectTile`** (cadre teinté par la couleur de la matière) et les **decks
   circulaires** de `SubjectDeckGrid` (anneau conique + pictogramme), communs à ELI5, Révision,
   Quiz, Fiches, Mindmaps.

@@ -22,6 +22,12 @@ class Quiz(Base, TimestampMixin):
     # conservé car il porte des tentatives (ADR-0014 Décision 3 : on n'efface pas l'histoire).
     status: Mapped[str] = mapped_column(String(20), default="draft")
     created_by: Mapped[str] = mapped_column(String(20), default="ai")
+    # Provenance (addendum ADR-0011 §F). Le quiz n'a PAS de `validation_status` : l'ADR-0014 §2
+    # le sert sans gate, par doctrine. Ces colonnes tracent précisément cette non-relecture —
+    # `validated_by='system'`, écrit à la génération. `system` est STRICTEMENT réservé à ce cas
+    # (test dédié) : sans ce verrou, une future auto-validation pourrait s'y déguiser sans ADR.
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    validated_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class QuizQuestion(Base):

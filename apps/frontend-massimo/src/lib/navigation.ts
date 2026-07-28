@@ -1,9 +1,9 @@
 // Entrées de la sidebar Massimo (cf. SUIVI Étape 2 + docs/frontend-massimo/README.md).
 // Étape 2 : navigation temporaire. Les vraies pages arrivent à l'Étape 7.
-import eli5Icon from "../assets/app/ELI5.png";
-import quizIcon from "../assets/app/quiz.png";
-import srsIcon from "../assets/app/SRS-cards.png";
-import mindmapsIcon from "../assets/app/mindmaps.png";
+import eli5Icon from "../assets/app/ELI5_256.png";
+import quizIcon from "../assets/app/quiz_384.png";
+import srsIcon from "../assets/app/SRS-cards_384.png";
+import mindmapsIcon from "../assets/app/mindmaps_256.png";
 
 export interface NavItem {
   to: string;

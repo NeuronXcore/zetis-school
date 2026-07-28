@@ -11,6 +11,7 @@ import type {
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { BackendStatus } from "../components/BackendStatus";
+import { ProductionAlertCard } from "../components/ProductionAlertCard";
 import { RegularityCard } from "../components/activity/RegularityCard";
 import { KpiBreakdown } from "../components/activity/KpiBreakdown";
 import {
@@ -215,6 +216,9 @@ export function DashboardPage() {
         subtitle={`${STUDENT} · ${PERIOD_LABEL}`}
         actions={<BackendStatus />}
       />
+
+      {/* Le Dashboard SIGNALE, la Couverture TRAITE : une ligne, une action, rien de plus. */}
+      <ProductionAlertCard />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         {kpis ? (

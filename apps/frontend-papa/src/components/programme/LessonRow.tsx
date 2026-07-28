@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { type CurriculumLesson, type LessonPatchRequest } from "@zetis/types";
-import { Badge, Button, Input } from "@zetis/ui";
+import { Badge, Button, Input, cn } from "@zetis/ui";
+import { FOCUS_RING, useFocusTarget } from "../../hooks/useFocusTarget";
 import { lessonActions } from "../../lib/chapterActions";
 import { LessonSourceBadge, LessonStatusBadge } from "./badges";
 import { ReorderButtons } from "./ChapterRow";
@@ -20,6 +21,7 @@ export function LessonRow({
   onMove,
   onRead,
   disabled,
+  focused,
 }: {
   lesson: CurriculumLesson;
   isFirst: boolean;
@@ -32,12 +34,22 @@ export function LessonRow({
   /** Ouvre la modale « Lire le cours » (contenu complet + rédaction locale). */
   onRead: () => void;
   disabled?: boolean;
+  /** Cible d'un lien profond (« débloquer » depuis la Couverture) : la ligne se signale
+   *  et se met à portée de regard. Purement visuel — aucune action n'est déclenchée. */
+  focused?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const actions = lessonActions(lesson.created_by, lesson.status);
+  const rowRef = useFocusTarget<HTMLLIElement>(Boolean(focused));
 
   return (
-    <li className="rounded-xl border border-papa-border/70 bg-papa-bg/50 px-3 py-2">
+    <li
+      ref={rowRef}
+      className={cn(
+        "rounded-xl border px-3 py-2 transition-[border-color,box-shadow,background-color] duration-500",
+        focused ? FOCUS_RING : "border-papa-border/70 bg-papa-bg/50",
+      )}
+    >
       <div className="flex items-start gap-2">
         <ReorderButtons
           isFirst={isFirst}

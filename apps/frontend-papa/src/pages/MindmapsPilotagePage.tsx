@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ContentLifecycleActions,
   ContentStatusBadge,
@@ -10,6 +11,7 @@ import {
 } from "@zetis/ui";
 import { type MindmapPilotageCard, type MindmapPilotageTree } from "@zetis/types";
 import { MindmapPreviewModal, destructionNotice } from "../components/MindmapPreviewModal";
+import { FocusableCard } from "../components/FocusableCard";
 import { PageHeader } from "../components/PageHeader";
 import { type Subject, fetchSubjects } from "../lib/subjects";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -53,6 +55,10 @@ type Lesson = MindmapPilotageTree["lessons"][number];
 export function MindmapsPilotagePage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectId, setSubjectId] = useState<number | null>(null);
+  // Lien profond depuis la Couverture : ?subject=<id>&focus=<mindmap_id>.
+  const [params] = useSearchParams();
+  const focusSubjectId = Number(params.get("subject")) || null;
+  const focusMindmapId = Number(params.get("focus")) || null;
   const [tree, setTree] = useState<MindmapPilotageTree | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +71,24 @@ export function MindmapsPilotagePage() {
     null,
   );
 
+  // Lien profond → on ouvre la modale SUR la carte visée. Le contenu d'une carte mentale vit
+  // dans cette modale (4 onglets) : s'arrêter à la ligne surlignée obligerait Papa à cliquer
+  // une fois de plus pour voir ce qu'il est venu voir. Même geste que le quiz, dont le lien
+  // ouvre déjà sa modale d'inspection.
+  const openedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (focusMindmapId === null || tree === null) return;
+    if (openedRef.current === focusMindmapId) return; // une seule ouverture : refermer doit refermer
+    for (const lesson of tree.lessons) {
+      const card = lesson.mindmaps.find((m) => m.id === focusMindmapId);
+      if (card) {
+        openedRef.current = focusMindmapId;
+        setPreview({ card, lesson });
+        return;
+      }
+    }
+  }, [focusMindmapId, tree]);
+
   const celebrate = useCelebrate();
   const busyOp = genLessonId !== null || regenMindmapId !== null;
   const pct = useEstimatedProgress(busyOp, GEN_MS);
@@ -73,7 +97,7 @@ export function MindmapsPilotagePage() {
     fetchSubjects()
       .then((s) => {
         setSubjects(s);
-        setSubjectId((prev) => prev ?? (s.length ? s[0].id : null));
+        setSubjectId((prev) => prev ?? focusSubjectId ?? (s.length ? s[0].id : null));
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Chargement matières échoué"));
   }, []);
@@ -272,9 +296,9 @@ export function MindmapsPilotagePage() {
                         )}
 
                         {lesson.mindmaps.map((mindmap) => (
-                          <div
+                          <FocusableCard
                             key={mindmap.id}
-                            className="mt-3 rounded-lg border border-papa-border/70 bg-papa-bg p-3"
+                            focused={mindmap.id === focusMindmapId}
                           >
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <span className="flex flex-wrap items-center gap-2 text-sm">
@@ -320,7 +344,7 @@ export function MindmapsPilotagePage() {
                                 <GenerationProgress value={pct} label="Régénération de la carte…" />
                               </div>
                             )}
-                          </div>
+                          </FocusableCard>
                         ))}
                       </div>
                     ))}

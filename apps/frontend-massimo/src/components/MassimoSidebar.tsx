@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import { fetchCapsuleStats } from "../lib/capsules";
 import { fetchReviewsSummary } from "../lib/reviews";
 import { MASSIMO_NAV } from "../lib/navigation";
-import zetisAvatar from "../assets/brand/zetis-avatar.png";
+import zetisAvatar from "../assets/brand/zetis-avatar_256.png";
 import zetisWordmark from "../assets/brand/zetis-texte.png";
 
 // Sidebar temporaire de l'interface Massimo (Étape 2).

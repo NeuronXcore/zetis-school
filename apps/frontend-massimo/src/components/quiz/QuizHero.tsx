@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
-import quizIcon from "../../assets/app/quiz.png";
+import quizIcon from "../../assets/app/quiz_384.png";
 import { prefersReducedMotion } from "../../lib/motion";
 
 // Hero animé de la page Quiz : la mascotte ZETIS « répond à des quiz » en boucle — des options

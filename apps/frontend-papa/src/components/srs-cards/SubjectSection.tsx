@@ -21,6 +21,8 @@ export interface SubjectSectionProps {
   busySubject: boolean;
   isBusySkill: (skillId: number) => boolean;
   isPreviewOpen: (skillId: number) => boolean;
+  /** Notion ciblée par un lien profond. */
+  focusSkillId?: number | null;
   previewCards: (skillId: number) => SrsCardContent[] | undefined;
   onToggle: () => void;
   onGenerateSubject: () => void;
@@ -48,6 +50,7 @@ export function SubjectSection(props: SubjectSectionProps) {
     <NotionRow
       key={notion.skill_id}
       notion={notion}
+      focused={notion.skill_id === props.focusSkillId}
       busy={props.isBusySkill(notion.skill_id)}
       previewOpen={props.isPreviewOpen(notion.skill_id)}
       previewCards={props.previewCards(notion.skill_id)}

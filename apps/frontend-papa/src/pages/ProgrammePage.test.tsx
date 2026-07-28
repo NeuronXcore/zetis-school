@@ -1,11 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import {
   type ActiveSchoolYear,
   type CurriculumChapter,
   type CurriculumLesson,
 } from "@zetis/types";
 import { ProgrammePage } from "./ProgrammePage";
+
+/** La page lit ses paramètres d'URL (lien profond « débloquer cette leçon » venu de la
+ *  Couverture) : elle exige donc un Router, comme dans l'app réelle. `route` permet de
+ *  tester le ciblage. */
+function renderPage(route = "/programme") {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <ProgrammePage />
+    </MemoryRouter>,
+  );
+}
 
 // Un test de rendu par état de page (liste / vide / erreur), API mockée.
 
@@ -147,7 +159,7 @@ describe("ProgrammePage", () => {
       }),
     ]);
 
-    render(<ProgrammePage />);
+    renderPage();
 
     expect(await screen.findByText("Nombres relatifs")).toBeInTheDocument();
     expect(screen.getByText("Programme · cycle 4 — 4e")).toBeInTheDocument();
@@ -174,7 +186,7 @@ describe("ProgrammePage", () => {
     vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
     vi.mocked(fetchChapters).mockResolvedValue([]);
 
-    render(<ProgrammePage />);
+    renderPage();
 
     expect(
       await screen.findByText("Aucun chapitre pour cette matière"),
@@ -189,7 +201,7 @@ describe("ProgrammePage", () => {
     vi.mocked(fetchChapters).mockResolvedValue([chapter({ id: 1, name: "Nombres relatifs" })]);
     vi.mocked(generateChapters).mockReturnValue(new Promise(() => {})); // appel long en cours
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click((await screen.findAllByRole("button", { name: /Générer/ }))[0]);
 
     // Barre estimée (pattern capsules) : label + pourcentage live, bouton en loading.
@@ -208,7 +220,7 @@ describe("ProgrammePage", () => {
     ]);
     vi.mocked(validateAllChapters).mockResolvedValue({ validated_count: 1 });
 
-    render(<ProgrammePage />);
+    renderPage();
     await screen.findByText("Nombres relatifs"); // liste chargée → pendingCount à jour
     const btn = screen.getByRole("button", { name: "✓ Tout valider" });
     expect(btn).toBeEnabled(); // 1 pending → actif
@@ -222,6 +234,39 @@ describe("ProgrammePage", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Valider" }));
     expect(await screen.findByText("1 chapitre validé.")).toBeInTheDocument();
     expect(vi.mocked(validateAllChapters)).toHaveBeenCalledWith(10);
+  });
+
+  it("lien profond : sélectionne la matière, déplie le chapitre, cible la leçon", async () => {
+    // Le parcours « débloquer » depuis la Couverture. Le lien porte le subject_id (2 =
+    // Français) ; la page doit le traduire en school_year_subject_id (11) toute seule —
+    // sinon elle afficherait Mathématiques, sélectionnée par défaut.
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Lecture et compréhension", validation_status: "validated" }),
+    ]);
+    vi.mocked(fetchLessons).mockResolvedValue([
+      lesson({ id: 1, chapter_id: 5, title: "Comprendre l'implicite", status: "draft" }),
+    ]);
+
+    renderPage("/programme?subject=2&chapter=5&lesson=1");
+
+    // Le chapitre est déplié D'OFFICE : la leçon visée est visible sans un clic de plus.
+    await waitFor(() => expect(vi.mocked(fetchLessons)).toHaveBeenCalledWith(5));
+    const row = await screen.findByText("Comprendre l'implicite");
+    expect(row).toBeTruthy();
+    // La matière du lien a bien été sélectionnée (fetch des chapitres du sysId 11).
+    expect(vi.mocked(fetchChapters)).toHaveBeenCalledWith(11);
+  });
+
+  it("sans paramètres, aucun chapitre n'est déplié d'office", async () => {
+    vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
+    vi.mocked(fetchChapters).mockResolvedValue([
+      chapter({ id: 5, name: "Lecture et compréhension", validation_status: "validated" }),
+    ]);
+
+    renderPage();
+    await screen.findByText("Lecture et compréhension");
+    expect(vi.mocked(fetchLessons)).not.toHaveBeenCalled();
   });
 
   it("dépliage : leçons chargées à la demande, archived masquée, notions en chips", async () => {
@@ -241,7 +286,7 @@ describe("ProgrammePage", () => {
       lesson({ id: 2, chapter_id: 5, title: "Leçon écartée", status: "archived" }),
     ]);
 
-    render(<ProgrammePage />);
+    renderPage();
     // Aucun fetch de leçons au chargement de la page (paresseux).
     await screen.findByText("Théorème de Pythagore");
     expect(vi.mocked(fetchLessons)).not.toHaveBeenCalled();
@@ -279,7 +324,7 @@ describe("ProgrammePage", () => {
     vi.mocked(fetchLessons).mockResolvedValue([draft]);
     vi.mocked(patchLesson).mockResolvedValue(draft);
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", { name: `Modifier ${draft.title}` }),
@@ -316,7 +361,7 @@ describe("ProgrammePage", () => {
       lesson({ id: 1, chapter_id: 5, content: "# Cours\n\nUn paragraphe de cours." }),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", {
@@ -352,7 +397,7 @@ describe("ProgrammePage", () => {
       new Error("Génération échouée : appel LLM échoué."),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", { name: `Lire le cours de ${withContent.title}` }),
@@ -381,7 +426,7 @@ describe("ProgrammePage", () => {
       .mockResolvedValueOnce([{ ...draft, status: "validated" }]);
     vi.mocked(validateLesson).mockResolvedValue({ ...draft, status: "validated" });
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", { name: `Lire le cours de ${draft.title}` }),
@@ -411,7 +456,7 @@ describe("ProgrammePage", () => {
       .mockResolvedValueOnce([{ ...draft, status: "archived" }]);
     vi.mocked(rejectLesson).mockResolvedValue({ ...draft, status: "archived" });
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", { name: `Lire le cours de ${draft.title}` }),
@@ -442,7 +487,7 @@ describe("ProgrammePage", () => {
       ),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
 
     // Compteur = validées sans cours uniquement (2) — ni la rédigée, ni la draft.
@@ -479,7 +524,7 @@ describe("ProgrammePage", () => {
         : Promise.resolve(lesson({ id, chapter_id: 5, status: "validated", content: "# OK" })),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "⚡ Rédiger les cours manquants (2)" }),
@@ -512,7 +557,7 @@ describe("ProgrammePage", () => {
       new Error("Moteur local indisponible."),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "⚡ Rédiger les cours manquants (4)" }),
@@ -545,7 +590,7 @@ describe("ProgrammePage", () => {
       }),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", {
@@ -587,7 +632,7 @@ describe("ProgrammePage", () => {
     });
     vi.mocked(fetchLessons).mockResolvedValue([withContent]);
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", { name: `Lire le cours de ${withContent.title}` }),
@@ -617,7 +662,7 @@ describe("ProgrammePage", () => {
       lesson({ id: 1, chapter_id: 5, content: "# Vieux cours sans audit." }),
     ]);
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", { name: /Lire le cours de/ }),
@@ -637,7 +682,7 @@ describe("ProgrammePage", () => {
       lesson({ id: 2, chapter_id: 5, title: "Sans cours" }),
     ]);
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
 
     // L'état du cours est porté par le label ET le tooltip du bouton de lecture.
@@ -664,7 +709,7 @@ describe("ProgrammePage", () => {
       lesson({ id: 2, chapter_id: 5, title: "Leçon complémentaire", sort_order: 1 }),
     ]);
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "➕ Ajouter des leçons (ZETIS)" }),
@@ -683,7 +728,7 @@ describe("ProgrammePage", () => {
     ]);
     vi.mocked(fetchLessons).mockResolvedValue([]);
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
 
     // L'entrée en matière reste la passe 2 ; l'extension n'a de sens qu'avec de l'existant.
@@ -702,7 +747,7 @@ describe("ProgrammePage", () => {
     ]);
     vi.mocked(fetchLessons).mockResolvedValue([lesson({ id: 1, chapter_id: 5 })]);
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Théorème de Pythagore" }));
     expect(await screen.findByRole("button", { name: "+ Ajouter une leçon" })).toBeInTheDocument();
 
@@ -726,7 +771,7 @@ describe("ProgrammePage", () => {
     ]);
     vi.mocked(fetchLessons).mockResolvedValue([]);
 
-    render(<ProgrammePage />);
+    renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Proportionnalité" }));
 
     // Le panneau est bien là (ajout manuel possible), mais pas la passe 2.
@@ -751,7 +796,7 @@ describe("ProgrammePage", () => {
     );
     vi.mocked(generateLessons).mockResolvedValue([lesson({ id: 20, chapter_id: 5 })]);
 
-    render(<ProgrammePage />);
+    renderPage();
     await screen.findByText("Théorème de Pythagore");
     fireEvent.click(
       screen.getByRole("button", { name: "⚡ Proposer les leçons (chapitres sans leçons)" }),
@@ -779,7 +824,7 @@ describe("ProgrammePage", () => {
         : Promise.resolve([lesson({ id: 21, chapter_id: 6 })]),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
     await screen.findByText("Théorème de Pythagore");
     fireEvent.click(
       screen.getByRole("button", { name: "⚡ Proposer les leçons (chapitres sans leçons)" }),
@@ -816,7 +861,7 @@ describe("ProgrammePage", () => {
       Promise.resolve(lesson({ id, status: "validated", content: "# Cours généré" })),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
     await screen.findByText("Théorème de Pythagore");
     fireEvent.click(
       screen.getByRole("button", { name: "⚡ Rédiger tous les cours manquants" }),
@@ -846,7 +891,7 @@ describe("ProgrammePage", () => {
       () => new Promise((resolve) => { resolveFirst = resolve; }),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
     await screen.findByText("Théorème de Pythagore");
     fireEvent.click(
       screen.getByRole("button", { name: "⚡ Rédiger tous les cours manquants" }),
@@ -879,7 +924,7 @@ describe("ProgrammePage", () => {
       new Error("Aucune année scolaire active."),
     );
 
-    render(<ProgrammePage />);
+    renderPage();
 
     expect(await screen.findByText("Aucune année scolaire active.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Réessayer" })).toBeInTheDocument();

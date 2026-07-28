@@ -144,6 +144,14 @@ Réordonne (liste complète ordonnée des ids → `sort_order`).
 
 Validation par lot des `pending` (matière, ou toute l'année active).
 
+#### POST `/chapters/{id}/lessons/validate-all`
+
+Validation par lot des leçons `draft` d'un chapitre. Sortie `{ "validated_count": n }`.
+
+Seules les `draft` sont touchées : une leçon déjà validée n'est **pas** re-tamponnée (écraser
+un `validated_by='parent'` par `parent_bulk` perdrait l'information qu'elle a été relue), une
+`archived` reste écartée. Provenance `parent_bulk` sans exception (addendum ADR-0011 §F.3).
+
 #### PATCH `/chapters/{id}` · DELETE `/chapters/{id}`
 
 Édition (nom/description/période + action `validate`/`reject`) · suppression.
@@ -982,6 +990,56 @@ doit vouloir dire acquis, pas « presque ».
 [{ "skill_id": 7, "skill_name": "Nombres relatifs", "subject_slug": "mathematiques",
    "subject_name": "Mathématiques", "mastery_score": 95, "last_seen_at": null }]
 ```
+
+## Production — Couverture (Papa, ADR-0023)
+
+`require_parent`, **lecture seule** : ces routes ne génèrent rien et ne valident rien. Les
+actions de la page passent par les endpoints existants de chaque module.
+
+### GET `/production/coverage?subject_id=`
+
+Matrice matière → chapitre → leçon. `subject_id` absent → toutes les matières de l'année active.
+**Une requête agrégée par matière** (aucun N+1).
+
+```json
+{ "school_year": { "id": 1, "label": "2026-2027", "level": "4e" },
+  "totals": { "lessons": 74, "lessons_validated": 15, "courses_written": 26,
+              "derivatives_percent": 13, "pending_count": 1, "stale_count": 0, "orphan_count": 0 },
+  "subjects": [{ "id": 1, "name": "Français", "slug": "francais", "chapters": [
+    { "id": 9, "title": "Lecture et compréhension", "lessons": [
+      { "id": 2, "title": "…", "row_state": "ready",
+        "cells": { "cours": { "state": "validated", "derived_at": "…", "validated_by": "parent",
+                              "object_id": 2 },
+                   "quiz": {}, "fiche": {}, "mindmap": {} },
+        "notions": { "cards": { "covered": 3, "total": 3 },
+                     "capsules": { "covered": 0, "total": 3 },
+                     "items": [{ "skill_id": 41, "name": "Narrateur",
+                                 "has_card": true, "has_capsule": false }] } }]}]}]}
+```
+
+- `CellState` = `absent` | `pending` | `validated` | `stale` | `blocked`. **`absent` se déduit
+  de l'existence de la ligne, jamais d'une date** (un dérivé sans horodatage existe quand même).
+  Le **quiz n'a pas de `pending`** : servi sans gate (ADR-0014 §2).
+- `RowState` = `blocked_lesson` | `blocked_no_course` | `ready` | `complete` — deux causes de
+  blocage distinctes, parce que l'action à mener diffère.
+- `validated_by` = `parent` | `parent_bulk` | `system` | `null` (addendum ADR-0011 §F).
+- `object_id` = cible d'un « Régénérer » / d'un lien de pilotage (la leçon pour `cours`).
+- `derivatives_percent` porte sur **quiz · fiche · mindmap uniquement** — le cours en est la
+  condition, pas un dérivé.
+- `notions.items` : détail par notion, pour agir sans générer à l'aveugle. **Aucun état de
+  fraîcheur sur les colonnes notion-centrées** (§E.5).
+
+### GET `/production/orphans`
+
+Dérivés (`fiche` | `mindmap` | `quiz`) dont la leçon est `archived`.
+
+```json
+[{ "type": "quiz", "id": 3, "title": "…", "subject": "Français",
+   "archived_at": "…", "has_history": true }]
+```
+
+`has_history` vrai (au moins une tentative) → l'UI désactive la suppression. **Lecture seule** :
+cette route ne supprime ni ne réattache rien.
 
 ## Jobs IA
 

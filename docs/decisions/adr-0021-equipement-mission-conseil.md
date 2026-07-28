@@ -107,6 +107,21 @@ déjà validé ; parallélisme (générations séquentielles, une barre à la fo
   jamais masqué (pas de fausse impression de complétude).
 
 ## Suivi
+- **Amendé par l'ADR-0023 et l'addendum ADR-0011 §E.6 (2026-07-28)** — deux conséquences
+  directes sur ce flux :
+  1. **L'orchestrateur est extrait** du module `reports` vers le module neutre `production`
+     (patron ADR-0011 §1) : il gagne un second point d'entrée (scope chapitre depuis la page
+     Couverture) et un troisième (composition champion, ADR-0022 §5). Refactor de déplacement,
+     comportement constant.
+  2. **L'idempotence de la décision 5 est corrigée** en « déjà validé **et frais** ». Une pièce
+     **périmée** (son cours source a été réécrit après elle, `is_stale`) est désormais
+     **régénérée** là où elle était sautée ; une pièce `pending` **et** périmée est
+     **régénérée, jamais validée** — la valider reviendrait à promouvoir activement un contenu
+     obsolète.
+- **Provenance tracée (addendum ADR-0011 §F)** : le kit auto-validé par la popup de la
+  décision 2 porte `validated_by='parent_bulk'` + `validated_at`, y compris quand il valide une
+  pièce `pending` préexistante de Papa. C'est la seule façon de rendre détectable, a posteriori,
+  qu'un contenu a atteint Massimo sans avoir été ouvert.
 - **Docs** : ligne `DECISIONS.md` ; `API_SPEC.md §Conseil de classe` (endpoint
   d'équipement) ; note dans `adr-0020` (le pont d'actionnabilité équipe désormais).
 - **Backend** : orchestration dans le module `reports` (résolution leçon canonique,

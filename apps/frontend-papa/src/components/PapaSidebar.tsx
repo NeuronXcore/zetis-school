@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { PAPA_NAV } from "../lib/navigation";
 import { MISSIONS_PENDING_EVENT, fetchPilotSummary } from "../lib/missionsPilotage";
@@ -29,8 +29,9 @@ export function PapaSidebar() {
 
       <nav className="flex flex-col gap-1">
         {PAPA_NAV.map((item) => (
-          <NavLink
-            key={item.to}
+          <Fragment key={item.to}>
+            {item.startsGroup && <div className="my-2 h-px bg-papa-border" role="presentation" />}
+            <NavLink
             to={item.to}
             end={item.to === "/"}
             className={({ isActive }) =>
@@ -42,14 +43,25 @@ export function PapaSidebar() {
               ].join(" ")
             }
           >
-            <span className="text-base">{item.icon}</span>
+            {item.iconUrl ? (
+              // Décoratif : le libellé de l'entrée est juste à côté.
+              <img
+                src={item.iconUrl}
+                alt=""
+                aria-hidden
+                className="h-5 w-5 shrink-0 rounded-[22%] object-contain"
+              />
+            ) : (
+              <span className="text-base">{item.icon}</span>
+            )}
             <span className="flex-1">{item.label}</span>
             {item.to === "/missions" && pending > 0 && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-300">
                 {pending}
               </span>
             )}
-          </NavLink>
+            </NavLink>
+          </Fragment>
         ))}
       </nav>
     </aside>

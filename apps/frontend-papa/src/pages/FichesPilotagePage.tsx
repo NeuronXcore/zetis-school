@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ContentLifecycleActions,
   ContentStatusBadge,
@@ -9,6 +10,7 @@ import {
 } from "@zetis/ui";
 import { type FicheDetail, type FichePilotageTree } from "@zetis/types";
 import { FicheEditorModal } from "../components/FicheEditorModal";
+import { FocusableCard } from "../components/FocusableCard";
 import { PageHeader } from "../components/PageHeader";
 import { type Subject, fetchSubjects } from "../lib/subjects";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -46,6 +48,11 @@ function SubjectIcon({ slug, size = 20 }: { slug: string; size?: number }) {
 export function FichesPilotagePage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectId, setSubjectId] = useState<number | null>(null);
+  // Lien profond depuis la Couverture : ?subject=<id>&focus=<fiche_id>. La matière visée prime
+  // sur la première de la liste, sinon on atterrirait à côté de l'objet cherché.
+  const [params] = useSearchParams();
+  const focusSubjectId = Number(params.get("subject")) || null;
+  const focusFicheId = Number(params.get("focus")) || null;
   const [tree, setTree] = useState<FichePilotageTree | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +71,7 @@ export function FichesPilotagePage() {
     fetchSubjects()
       .then((s) => {
         setSubjects(s);
-        setSubjectId((prev) => prev ?? (s.length ? s[0].id : null));
+        setSubjectId((prev) => prev ?? focusSubjectId ?? (s.length ? s[0].id : null));
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Chargement matières échoué"));
   }, []);
@@ -204,10 +211,7 @@ export function FichesPilotagePage() {
               )}
 
               {lesson.fiches.map((fiche) => (
-                <div
-                  key={fiche.id}
-                  className="mt-3 rounded-lg border border-papa-border/70 bg-papa-bg p-3"
-                >
+                <FocusableCard key={fiche.id} focused={fiche.id === focusFicheId}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-sm">
                       <ContentStatusBadge status={fiche.validation_status} />
@@ -231,7 +235,7 @@ export function FichesPilotagePage() {
                       <GenerationProgress value={pct} label="Régénération de la fiche…" />
                     </div>
                   )}
-                </div>
+                </FocusableCard>
               ))}
             </div>
           ))}

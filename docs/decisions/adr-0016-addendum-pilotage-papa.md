@@ -112,6 +112,15 @@ Quatre règles, à écrire noir sur blanc pour qu'aucune implémentation ne « c
    (conséquence mécanique de la revalidation + du gate). La modale l'annonce **avant**
    sauvegarde : « Cette carte est visible par Massimo. La modifier la retirera de sa liste
    jusqu'à validation. »
+
+   **Exception — mission engagée (chantier « invariants de lecture des dérivés », 2026-07-28).**
+   Une carte référencée par le `resource_id` d'une étape d'une **mission active** de Massimo
+   reste **servable jusqu'à la fin de cette mission**, même repassée en `pending`. Sans cette
+   exception, l'ADR-0019 §2 rend l'étape incomplétable (il exige une `MindmapAttempt`
+   postérieure au `start`) : la mission n'a plus de verdict et Massimo reste bloqué sur un
+   parcours mort, du fait d'une action de Papa. Règle générale : **le gate porte sur la
+   découverte, jamais sur l'achèvement d'un parcours engagé.** L'exception est nommée et testée
+   côté serveur ; la carte disparaît bien des routes de découverte pendant ce temps.
 2. **Supprimer une carte supprime ses tentatives** (`mindmap_attempts`, `ON DELETE CASCADE`) :
    un score de reconstruction n'a aucun sens sans l'arbre de référence qui l'a produit.
 3. **L'XP déjà crédité n'est jamais rembobiné.** `xp_events` / `learning_events` restent

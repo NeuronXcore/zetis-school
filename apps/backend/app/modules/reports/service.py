@@ -38,6 +38,7 @@ from app.modules.evidence import service as evidence
 from app.modules.missions import command
 from app.prompts import council
 
+from app.modules.provenance import PARENT_BULK
 from app.modules.reports.schemas import CouncilReportSpec, generation_schema
 
 # Bornes de composition : on plafonne les notions fournies au LLM (prompt borné + focus sur les
@@ -459,11 +460,12 @@ def equip_notion(
         existing_fiche = _existing_fiche(db, lesson_id)
         if existing_fiche is not None:
             if existing_fiche.validation_status == "pending":
-                validate_fiche(db, existing_fiche.id)
+                # Valide un brouillon PRÉEXISTANT de Papa : `parent_bulk` sans exception (§F.4).
+                validate_fiche(db, existing_fiche.id, by=PARENT_BULK)
             skipped.append("fiche")
         else:
             fiche = generate_fiche(db, llm, embedder, lesson_id=lesson_id)
-            validate_fiche(db, fiche.id)
+            validate_fiche(db, fiche.id, by=PARENT_BULK)
             generated.append("fiche")
     except Exception as exc:  # noqa: BLE001
         errors.append({"piece": "fiche", "message": str(exc)})
@@ -500,11 +502,12 @@ def equip_notion(
         existing_mindmap = _existing_mindmap(db, lesson_id)
         if existing_mindmap is not None:
             if existing_mindmap.validation_status == "pending":
-                validate_mindmap(db, existing_mindmap.id)
+                # Idem fiche : brouillon préexistant validé en lot (§F.4).
+                validate_mindmap(db, existing_mindmap.id, by=PARENT_BULK)
             skipped.append("mindmap")
         else:
             mindmap = generate_mindmap(db, llm, embedder, lesson_id=lesson_id)
-            validate_mindmap(db, mindmap.id)
+            validate_mindmap(db, mindmap.id, by=PARENT_BULK)
             generated.append("mindmap")
     except Exception as exc:  # noqa: BLE001
         errors.append({"piece": "mindmap", "message": str(exc)})

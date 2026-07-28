@@ -39,6 +39,7 @@ from app.db.models import (
     StudentProfile,
     Subject,
 )
+from app.modules.provenance import PARENT, PARENT_BULK, mark_validated
 from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.curriculum.schemas import (
     GeneratedChapter,
@@ -349,6 +350,29 @@ def create_manual_chapter(
     return chapter
 
 
+def validate_all_lessons(db: Session, chapter_id: int) -> int:
+    """Passe en `validated` toutes les leçons `draft` d'un chapitre. Renvoie le compte.
+
+    Même geste que `validate_all_chapters` un étage plus bas : un raccourci de la validation
+    unitaire, pas une décision différente. Seules les `draft` sont touchées — une leçon
+    `archived` reste écartée, une leçon déjà validée n'est pas re-tamponnée (sa provenance
+    d'origine, éventuellement `parent`, serait écrasée par `parent_bulk` : ce serait perdre de
+    l'information, pas en gagner).
+
+    Provenance `parent_bulk` **sans exception** (addendum ADR-0011 §F.3) : Papa a bien approuvé,
+    mais il n'a pas ouvert chaque leçon. La colonne Cours de la page Couverture le rendra
+    visible, objet par objet — c'est le prix, assumé, de la commodité.
+    """
+    _chapter_or_404(db, chapter_id)
+    lessons = db.scalars(
+        select(Lesson).where(Lesson.chapter_id == chapter_id, Lesson.status == "draft")
+    ).all()
+    for lesson in lessons:
+        mark_validated(lesson, PARENT_BULK, field="status")
+    db.commit()
+    return len(lessons)
+
+
 def validate_all_chapters(db: Session, school_year_subject_id: int) -> int:
     """Passe en `validated` tous les chapitres `pending` de la matière.
 
@@ -362,7 +386,7 @@ def validate_all_chapters(db: Session, school_year_subject_id: int) -> int:
         )
     ).all()
     for chapter in chapters:
-        chapter.validation_status = "validated"
+        mark_validated(chapter, PARENT_BULK)  # action groupée → jamais `parent` (§F.3)
     db.commit()
     return len(chapters)
 
@@ -379,7 +403,7 @@ def validate_all_active_year(db: Session) -> int:
         )
     ).all()
     for chapter in chapters:
-        chapter.validation_status = "validated"
+        mark_validated(chapter, PARENT_BULK)  # action groupée → jamais `parent` (§F.3)
     db.commit()
     return len(chapters)
 
@@ -400,7 +424,7 @@ def update_chapter(
     if period is not None:
         chapter.period = period
     if validation_action == "validate":
-        chapter.validation_status = "validated"
+        mark_validated(chapter, PARENT)  # relecture unitaire depuis le pilotage
     elif validation_action == "reject":
         chapter.validation_status = "rejected"
     db.commit()
@@ -923,7 +947,10 @@ def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
             detail=f"Leçon {lesson_id} au statut '{lesson.status}' : "
             "seule une leçon 'draft' peut être validée ou rejetée.",
         )
-    lesson.status = "validated" if action == "validate" else "archived"
+    if action == "validate":
+        mark_validated(lesson, PARENT, field="status")
+    else:
+        lesson.status = "archived"
     db.commit()
     db.refresh(lesson)
     # Note (ADR-0013) : la génération des cartes SRS n'est PAS un effet de bord de la

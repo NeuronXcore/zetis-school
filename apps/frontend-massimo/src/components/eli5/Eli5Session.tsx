@@ -4,8 +4,8 @@ import { ProgressRing } from "../ProgressRing";
 import { GlassPanel, NEON_BUTTON, NEON_TEXT } from "../glass";
 import { type AnswerMode, eli5SourceBadge, useEli5 } from "../../hooks/useEli5";
 import { speak, stopSpeaking } from "../../lib/speech";
-import eli5Icon from "../../assets/app/ELI5.png";
-import zetisAvatar from "../../assets/app/zetis-avatar.png";
+import eli5Icon from "../../assets/app/ELI5_256.png";
+import zetisAvatar from "../../assets/brand/zetis-avatar_256.png";
 
 // Session ELI5 (comprendre → reformuler) — EXTRAITE de Eli5Page pour être réutilisée à la fois par
 // la page (écran 3) ET par la modale de mission (`headerless`). Purement présentationnelle : toute

@@ -91,3 +91,25 @@ Génération, stockage, tentative, évaluation.
 ## Reports
 
 Cahier de bord, conseil de classe IA.
+
+## Production (ADR-0023)
+
+Modèle de lecture de la page Papa « Couverture de production » : l'union des cinq pilotages
+par type. **Lecture seule** — ne génère rien, ne valide rien. Deux étages séparés : des
+fonctions pures (`cell_state`, `row_state`) testables sans base, et une requête agrégée par
+matière qui les alimente (aucun N+1).
+
+## Provenance (addendum ADR-0011 §F)
+
+Module neutre d'une seule fonction : `mark_validated(row, by)`. **Unique point d'écriture** de
+`validation_status='validated'` + `validated_at`/`validated_by`. Passer par lui garantit qu'aucun
+objet ne devient validé sans provenance (test-verrou §F.3). `parent` = relu pièce à pièce ;
+`parent_bulk` = action groupée (sans exception) ; `system` = servi sans relecture par doctrine,
+**strictement réservé au quiz**.
+
+## Engagement (invariants de lecture des dérivés)
+
+Substrat neutre, read-only : « cette ressource est-elle la cible d'une étape d'une mission
+active ? ». Les modules dérivés s'en servent pour ouvrir une exception **nommée** à leur gate,
+sur les chemins d'**achèvement** uniquement. Règle : *le gate porte sur la découverte, jamais
+sur l'achèvement d'un parcours engagé* (addenda ADR-0009 §A et ADR-0016 §6).

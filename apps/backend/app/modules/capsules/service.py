@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import AIJob, Capsule, CapsuleView, Chapter, Skill, Subject
+from app.modules.provenance import PARENT, mark_validated
 from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.capsules import storage
 from app.modules.capsules.schemas import FPS, MAX_DURATION, CapsuleSpec, generation_schema
@@ -312,7 +313,11 @@ def set_validation(db: Session, capsule_id: int, new_status: str) -> Capsule:
             status_code=status.HTTP_400_BAD_REQUEST, detail="Statut de validation invalide."
         )
     capsule = _capsule_or_404(db, capsule_id)
-    capsule.validation_status = new_status
+    if new_status == "validated":
+        # Seul chemin de validation d'une capsule : Papa l'a ouverte dans le pilotage (§F.3).
+        mark_validated(capsule, PARENT)
+    else:
+        capsule.validation_status = new_status
     db.commit()
     db.refresh(capsule)
     return capsule

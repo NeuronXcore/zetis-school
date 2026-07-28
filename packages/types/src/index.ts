@@ -153,3 +153,22 @@ export {
   type SrsTreeChapter,
   type SrsTreeLesson,
 } from "./reviews";
+export {
+  type Coverage,
+  type CoverageCell,
+  type CoverageCellKey,
+  type CoverageCells,
+  type CoverageChapter,
+  type CoverageFraction,
+  type CoverageLesson,
+  type CoverageNotionItem,
+  type CoverageNotions,
+  type CoverageSchoolYear,
+  type CoverageSubject,
+  type CoverageTotals,
+  type CellState,
+  type OrphanType,
+  type ProductionOrphan,
+  type RowState,
+  type ValidatedBy,
+} from "./production";

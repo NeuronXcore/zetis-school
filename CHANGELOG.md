@@ -1,5 +1,57 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.25.0 — Couverture de production : voir le stock, et pouvoir agir dessus
+
+Date : 2026-07-28
+
+> Cinq pages de pilotage donnaient cinq vues partielles du même objet. Cette page en est
+> l'**union** — et elle assume de dire des choses inconfortables : ce qui dort sans être relu,
+> ce qui atteint Massimo dans une version obsolète, ce qui est passé sans que personne l'ouvre.
+
+### Ajouté
+
+- **Page Papa « Couverture de production »** (`/couverture`) : matrice une-ligne-par-leçon,
+  colonnes Cours · Quiz · Fiche · Mindmap (leçon-centrées) + Cartes · Capsules (notion-centrées,
+  fond distinct). KPI, bandeaux d'anomalie, filtres client, encart orphelins, 4 notes de lecture.
+- **Module backend `production`** : `GET /api/production/coverage` et `/orphans`, `require_parent`,
+  lecture seule. Une requête agrégée par matière — vérifié sur Postgres réel (69 leçons,
+  18 requêtes, 79 ms).
+- **Fraîcheur des dérivés** (addendum ADR-0011 §E) : `is_stale` en fonction pure dans le module
+  neutre `canonical_context`, appuyée sur `lessons.content_updated_at` — colonne préexistante,
+  bougée par les deux seuls écrivains de `content_markdown`. Un renommage ne périme rien.
+- **Provenance de la validation** (addendum ADR-0011 §F) : `validated_at` / `validated_by`
+  (`parent` | `parent_bulk` | `system`) sur `fiches`, `mindmaps`, `capsules`, `chapters`,
+  `lessons` **et `quizzes`** — migration `d5e6f7a8b9c0`, reprise `NULL` (aucune rétro-attribution).
+  Module `provenance` = unique point d'écriture ; nuancier visible sur chaque ✓ de la matrice.
+- **Invariants de lecture des dérivés** : module neutre `engagement` + exception « mission
+  engagée » sur les chemins d'achèvement des mindmaps. Le gate porte sur la découverte, jamais
+  sur l'achèvement d'un parcours engagé.
+- **Validation en lot des leçons d'un chapitre** : `POST /api/chapters/{id}/lessons/validate-all`
+  + bouton dans l'en-tête de chapitre de la Couverture (provenance `parent_bulk`).
+- **Liens ciblés** : chaque cellule renseignée ouvre SON objet sur sa page de pilotage
+  (`?subject=&focus=`), avec défilement + surlignage ; le quiz et la mindmap ouvrent directement
+  leur modale. Le badge « À valider → » d'une leçon en brouillon mène à Programme, chapitre
+  déplié et ligne surlignée. Une notion « ✓ couverte » ouvre ses cartes, aperçu déplié.
+- **Génération depuis la matrice** : `+` sur une cellule absente ; détail par notion sur les
+  fractions (cartes en un clic ; capsules via le compositeur pré-rempli — l'instruction reste
+  à Papa, l'API l'exige).
+- **Sidebar Papa** : entrée « Couverture » en tête du groupe production + séparateurs de groupe.
+  Aucune entrée existante déplacée. Carte d'alerte au Dashboard (masquée si tout est à zéro).
+
+### Corrigé
+
+- **`fiches` / `mindmaps` : horodatages sans défaut serveur** (migration `e6f7a8b9c0d1`).
+  `created_at`/`updated_at` étaient nullable sans `DEFAULT now()`, contrairement à `quizzes` et
+  `capsules` — le `TimestampMixin` n'avait jamais été suivi par leur migration de création. Une
+  fiche naissait donc à `NULL`, la matrice la lisait « absente », et chaque clic empilait un
+  doublon. Colonnes alignées + reprise, et `absent` se déduit désormais de **l'existence de la
+  ligne**, jamais d'une date.
+- **Capsules non rattachées à une notion** : le compositeur n'envoyait jamais `skill_id`, si
+  bien qu'une capsule créée depuis la page Capsules IA ne pouvait compter dans aucune fraction.
+- **`.claude/launch.json`** : les configs `backend-dev`/`backend-dev2` lançaient `uvicorn` sans
+  `--reload` — le serveur servait un code antérieur sans le dire (404 sur des routes existantes).
+
+
 ## 0.24.0 — Auto-motivation de Massimo : régularité douce, engagement choisi, ZETIS qui se souvient
 
 Date : 2026-07-28

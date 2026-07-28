@@ -20,6 +20,7 @@ export function ChapterRow({
   onMove,
   disabled,
   lessonsSlot,
+  defaultExpanded,
 }: {
   chapter: CurriculumChapter;
   isFirst: boolean;
@@ -33,8 +34,11 @@ export function ChapterRow({
   disabled?: boolean;
   /** Étage leçons (Lot 2 Slice B) — rendu seulement quand la ligne est dépliée. */
   lessonsSlot?: ReactNode;
+  /** Déplié d'office à l'arrivée (lien profond vers une leçon de ce chapitre). Non
+   *  contrôlé ensuite : Papa peut replier normalement. */
+  defaultExpanded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [editing, setEditing] = useState(false);
   const actions = chapterActions(chapter.source, chapter.validation_status);
   const rejected = chapter.validation_status === "rejected";

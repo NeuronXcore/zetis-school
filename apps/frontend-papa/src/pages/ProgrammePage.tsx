@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { type CurriculumChapter } from "@zetis/types";
 import { Button, ConfirmDialog, EmptyState, Spinner } from "@zetis/ui";
 import { PageHeader } from "../components/PageHeader";
@@ -35,6 +36,26 @@ export function ProgrammePage() {
   // Version déclarative du programme, portée par les chapitres générés (ADR-0009 §5).
   const programVersion = data.chapters.find((c) => c.program_version)?.program_version;
   const pendingCount = data.chapters.filter((c) => c.validation_status === "pending").length;
+  // Lien profond « débloquer cette leçon » (depuis la page Couverture) :
+  // ?subject=<subject_id>&chapter=<chapter_id>&lesson=<lesson_id>
+  const [params] = useSearchParams();
+  const focusSubjectId = Number(params.get("subject")) || null;
+  const focusChapterId = Number(params.get("chapter")) || null;
+  const focusLessonId = Number(params.get("lesson")) || null;
+
+  // La Couverture connaît le `subject_id` ; la page Programme sélectionne par
+  // `school_year_subject_id`. On fait la correspondance ici plutôt que d'exposer le sysId
+  // dans l'URL : c'est un identifiant de jointure, il n'a pas à voyager.
+  const { year, select } = data;
+  useEffect(() => {
+    if (focusSubjectId === null || year === null) return;
+    const target = year.subjects.find((s) => s.subject_id === focusSubjectId);
+    if (target && target.id !== data.selectedSysId) select(target.id);
+    // `data.selectedSysId` volontairement hors dépendances : une fois la matière posée,
+    // Papa doit pouvoir en changer sans que le lien la ramène de force.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSubjectId, year, select]);
+
   const selectedSubject = data.year?.subjects.find((s) => s.id === data.selectedSysId);
 
   async function onValidateAll(scope: ValidateScope) {
@@ -181,7 +202,13 @@ export function ProgrammePage() {
               onCancel={() => setAdding(false)}
             />
           )}
-          <ChapterList data={data} adding={adding} onAdd={() => setAdding(true)} />
+          <ChapterList
+            data={data}
+            adding={adding}
+            onAdd={() => setAdding(true)}
+            focusChapterId={focusChapterId}
+            focusLessonId={focusLessonId}
+          />
           <p className="text-xs text-papa-muted">
             ⓘ La régénération ne touche jamais les chapitres manuels ni validés. Chaque
             génération est tracée (cahier de bord IA).
@@ -196,10 +223,14 @@ function ChapterList({
   data,
   adding,
   onAdd,
+  focusChapterId,
+  focusLessonId,
 }: {
   data: ReturnType<typeof useCurriculum>;
   adding: boolean;
   onAdd: () => void;
+  focusChapterId?: number | null;
+  focusLessonId?: number | null;
 }) {
   // Confirmation avant suppression : un chapitre validé supprimé ne se régénère pas seul.
   const [toDelete, setToDelete] = useState<CurriculumChapter | null>(null);
@@ -253,7 +284,10 @@ function ChapterList({
             onEdit={(patch) => data.editChapter(chapter.id, patch)}
             onDelete={() => setToDelete(chapter)}
             onMove={(direction) => void data.move(chapter.id, direction)}
-            lessonsSlot={<LessonsPanel chapter={chapter} data={data} />}
+            defaultExpanded={chapter.id === focusChapterId}
+            lessonsSlot={
+              <LessonsPanel chapter={chapter} data={data} focusLessonId={focusLessonId} />
+            }
           />
         ))}
       </ul>

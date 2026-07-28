@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   type QuizCard,
   type QuizGenerateRequest,
@@ -152,6 +153,22 @@ function QuizRow({
 export function QuizPilotagePage() {
   const q = useQuizPilotage();
   const [filter, setFilter] = useState<number | null>(null); // subject_id ou null (toutes)
+
+  // Lien profond depuis la Couverture : ?subject=<id>&focus=<quiz_id>.
+  // Cette page a une modale d'inspection — autant l'ouvrir SUR le quiz visé plutôt que de
+  // laisser Papa le retrouver dans l'arbre. Filtrer sur la matière au passage.
+  const [params] = useSearchParams();
+  const focusQuizId = Number(params.get("focus")) || null;
+  const focusSubjectId = Number(params.get("subject")) || null;
+  // Une seule ouverture par lien : sans ce garde, refermer la modale la rouvrirait aussitôt.
+  const openedRef = useRef<number | null>(null);
+  const { openInspect } = q;
+  useEffect(() => {
+    if (focusSubjectId !== null) setFilter(focusSubjectId);
+    if (focusQuizId === null || openedRef.current === focusQuizId) return;
+    openedRef.current = focusQuizId;
+    void openInspect(focusQuizId);
+  }, [focusQuizId, focusSubjectId, openInspect]);
 
   const subjects = q.overview?.subjects ?? [];
   const shown = filter == null ? subjects : subjects.filter((s) => s.subject_id === filter);
