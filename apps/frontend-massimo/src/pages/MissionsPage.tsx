@@ -8,7 +8,7 @@ import { DeckDisc } from "../components/DeckDisc";
 import { SubjectDeckGrid, type SubjectDeck } from "../components/SubjectDeckGrid";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { subjectEmoji } from "../lib/subjectEmoji";
-import { currentStep, useMissions } from "../hooks/useMissions";
+import { type CompletionBanner, currentStep, useMissions } from "../hooks/useMissions";
 import { Eli5MissionModal } from "../components/missions/Eli5MissionModal";
 import { QuizMissionModal } from "../components/missions/QuizMissionModal";
 import { MindmapMissionModal } from "../components/missions/MindmapMissionModal";
@@ -630,7 +630,7 @@ function CompletionCard({
   completion,
   onDismiss,
 }: {
-  completion: { verdict: "acquired" | "review_later"; xp: number; champion: boolean };
+  completion: CompletionBanner;
   onDismiss: () => void;
 }) {
   const acquired = completion.verdict === "acquired";
@@ -659,6 +659,16 @@ function CompletionCard({
         <p className="text-sm text-zetis-muted">
           {champion ? "Bravo champion — " : "Mission terminée — bravo ! "}+{completion.xp} XP
         </p>
+        {/* Le mot de la fin, servi par ZETIS : ce qui a été gagné et le prochain pas. Absent si
+            l'appel a échoué — une fin de mission ne doit jamais dépendre de lui. */}
+        {completion.wrapUp && (
+          <p className="mt-1 text-sm text-zetis-text">
+            {completion.wrapUp.title}
+            {completion.wrapUp.subtitle && (
+              <span className="text-zetis-muted"> {completion.wrapUp.subtitle}</span>
+            )}
+          </p>
+        )}
       </div>
       <button
         type="button"

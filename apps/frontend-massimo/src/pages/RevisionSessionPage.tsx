@@ -136,6 +136,7 @@ export function RevisionSessionPage() {
             onRedo={session.redo}
             onFinish={session.finish}
             reducedMotion={reducedMotion}
+            wrapUp={session.wrapUp}
           />
         )}
       </div>

@@ -40,15 +40,7 @@ export const PROFILE = {
   nextLevelXp: 1500,
 };
 
-export const DAILY_MISSION = {
-  title: "Renforcer les nombres relatifs",
-  subject: "Mathématiques",
-  durationMin: 15,
-  xp: 60,
-  reason: "parce que cette notion revient bientôt",
-};
 
-export const QUICK_REVIEW_CARDS = 3;
 
 const CH = (name: string, status: ChapterStatus): Chapter => ({ name, status });
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { type MotivationMessage } from "@zetis/types";
 import { type SessionTier } from "../hooks/useReviewSession";
 import { NEON_BUTTON } from "./glass";
 
@@ -21,6 +22,10 @@ export interface SessionEndPopupProps {
   onRedo: () => void;
   onFinish: () => void;
   reducedMotion: boolean;
+  /** Mot de la fin servi par ZETIS. Volontairement ABSENT de la branche « refaire un tour » :
+   *  un second appel à l'action y concurrencerait « Refaire un tour », qui est l'intention
+   *  principale à ce moment-là. */
+  wrapUp?: MotivationMessage | null;
 }
 
 // Dégradés par palier — chaleur croissante mais jamais de rouge (vocabulaire enfant).
@@ -67,6 +72,7 @@ export function SessionEndPopup({
   onRedo,
   onFinish,
   reducedMotion,
+  wrapUp = null,
 }: SessionEndPopupProps) {
   const target = Math.round(pct * 100);
   const [fill, setFill] = useState(reducedMotion ? target : 0);
@@ -150,6 +156,14 @@ export function SessionEndPopup({
               <button type="button" className={NEON_BUTTON} onClick={onFinish}>
                 {tier === "high" ? "Continuer" : "Terminer"}
               </button>
+              {/* Le mot de la fin, uniquement hors branche « refaire un tour » : là-bas,
+                  l'intention principale est de refaire le tour, pas d'aller ailleurs. */}
+              {wrapUp && (
+                <p className="max-w-sm text-sm text-slate-300">
+                  {wrapUp.title}
+                  {wrapUp.subtitle && <span className="text-slate-400"> {wrapUp.subtitle}</span>}
+                </p>
+              )}
             </>
           )}
         </div>
