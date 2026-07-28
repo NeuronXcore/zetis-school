@@ -44,6 +44,8 @@ from app.modules.ai.canonical_context import (
     resolve_canonical_context,
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
+from app.modules.eli5.service import get_default_student
+from app.modules.engagement.service import STEP_MINDMAP, is_engaged_in_active_mission
 from app.modules.gamification.service import award_xp, mindmap_reconstruction_xp
 from app.modules.mindmaps.schemas import (
     MindmapJson,
@@ -514,16 +516,29 @@ def mindmaps_summary(db: Session) -> dict:
 
 
 def get_student_mindmap(db: Session, mindmap_id: int) -> dict:
-    """La carte pour Massimo — 404 si absente OU non `validated` (aucune fuite de brouillon)."""
+    """La carte pour Massimo — 404 si absente OU non servable (aucune fuite de brouillon)."""
+    return mindmap_out(db, _servable_mindmap_or_404(db, mindmap_id))
+
+
+def _servable_mindmap_or_404(db: Session, mindmap_id: int) -> Mindmap:
+    """Carte servable : `validated`, OU engagée dans une mission active (exception nommée).
+
+    L'exception (addendum ADR-0016 §6 règle 1) tient l'invariant « le gate porte sur la
+    découverte, jamais sur l'achèvement d'un parcours engagé » : une carte que Papa vient
+    d'éditer repasse `pending` et sort bien des decks (`mindmaps_summary`,
+    `list_subject_mindmaps` gardent le filtre strict), mais reste jouable jusqu'au bout par
+    l'élève dont une mission active la référence — sinon l'étape ADR-0019 §2 n'a plus de
+    preuve possible et la mission n'a plus de verdict.
+    """
     row = db.get(Mindmap, mindmap_id)
-    if row is None or row.validation_status != "validated":
+    if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Carte mentale introuvable.")
-    return mindmap_out(db, row)
-
-
-def _validated_mindmap_or_404(db: Session, mindmap_id: int) -> Mindmap:
-    row = db.get(Mindmap, mindmap_id)
-    if row is None or row.validation_status != "validated":
+    if row.validation_status != "validated" and not is_engaged_in_active_mission(
+        db,
+        step_type=STEP_MINDMAP,
+        resource_id=mindmap_id,
+        student_id=get_default_student(db).id,
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Carte mentale introuvable.")
     return row
 
@@ -603,7 +618,7 @@ def evaluate_reconstruction(
     db: Session, mindmap_id: int, placements: list[MindmapNodePlacement]
 ) -> dict:
     """Évaluation PURE (`/evaluate`) : score + détail, **sans persistance ni XP**. Déterministe."""
-    row = _validated_mindmap_or_404(db, mindmap_id)
+    row = _servable_mindmap_or_404(db, mindmap_id)
     return _evaluation_out(row.mindmap_json or {}, placements)
 
 
@@ -640,7 +655,7 @@ def record_attempt(
     (`failed_attempts`), avec un plancher (l'effort reste récompensé). L'attribution vit ici, côté
     serveur (ADR-0016). Le commit est fait après `award_xp`.
     """
-    row = _validated_mindmap_or_404(db, mindmap_id)
+    row = _servable_mindmap_or_404(db, mindmap_id)
     out = _evaluation_out(row.mindmap_json or {}, placements)
     score = out["score"]
     details = out["details"]
@@ -677,4 +692,4 @@ def mark_seen(db: Session, student_id: int, mindmap_id: int) -> None:
     seulement l'existence/visibilité de la carte pour que le client Slice B puisse appeler la route
     sans 404 ; le suivi réel des vues arrivera avec le badge.
     """
-    _validated_mindmap_or_404(db, mindmap_id)
+    _servable_mindmap_or_404(db, mindmap_id)
