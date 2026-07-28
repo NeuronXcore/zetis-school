@@ -7,7 +7,9 @@
 
 ## État à la reprise
 
-**Une branche en cours : `docs/couverture-production`** — 4 commits, rien de poussé, aucune PR.
+**Une branche en cours : `docs/couverture-production`** — 4 commits, **poussée sur `origin`**,
+**aucune PR ouverte volontairement** : le chantier continue sur cette même branche à la
+prochaine session (décision du user). Ne pas ouvrir de PR ni repartir de `main` sans son accord.
 Les chantiers `activite` et `motivation` des sessions précédentes sont **mergés** (voir repères).
 
 ### Chantier « Couverture de production » (ADR-0023) — CLOS
@@ -95,7 +97,7 @@ manuellement et a remonté 3 défauts réels que les tests ne voyaient pas (cf. 
 
 1. **Passe visuelle sur `/couverture`** (dev : front `5178`, back `8002`, `--reload` actif).
    C'est le point faible de ce chantier — tout le reste est couvert par des tests.
-2. Pousser la branche + PR.
+2. **Ne pas ouvrir de PR** — on reste sur `docs/couverture-production` pour la suite.
 3. Puis, au choix : **file de relecture** (prérequis dur du cron ADR-0023 — automatiser la
    fabrication d'un goulot est le seul vrai risque), ou **production en lot** (§7 : deux passes
    non fusionnables, cours puis équipement), dont le bouton « ⚡ Compléter le chapitre » marque
