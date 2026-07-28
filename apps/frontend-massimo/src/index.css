@@ -237,6 +237,34 @@
   }
 }
 
+/* Rotation des planètes-matières de la page Progression (ZETIS Galaxy, ADR-0024).
+   La surface défile horizontalement et boucle : lue derrière un masque circulaire ombré,
+   elle se lit comme un globe qui tourne sur son axe — pour zéro JavaScript et zéro Three.js
+   (l'écran d'ensemble ne doit PAS charger le chunk 3D).
+
+   ⚠️ Le déplacement DOIT valoir exactement la largeur de la tuile, sinon la boucle saute.
+   Tuile = 160px pour une sphère de 80px : il faut que du relief entre et sorte du champ,
+   sinon on ne voit qu'un motif figé et rien ne semble tourner (constaté).
+   Utilisé via motion-safe: → neutralisé sous prefers-reduced-motion. */
+@keyframes zetis-planet-spin {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -160px 0;
+  }
+}
+
+/* Voile de nuages : même sens, plus lent → parallaxe, donc profondeur. */
+@keyframes zetis-planet-haze {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -160px 0;
+  }
+}
+
 html,
 body,
 #root {

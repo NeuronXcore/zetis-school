@@ -172,3 +172,18 @@ export {
   type RowState,
   type ValidatedBy,
 } from "./production";
+export {
+  type GalaxyAction,
+  type GalaxyActionKind,
+  type GalaxyConstellation,
+  type GalaxyEdge,
+  type GalaxyFullGraph,
+  type GalaxyNode,
+  type GalaxyTimeline,
+  type GalaxyTimelinePoint,
+  type GalaxyNotion,
+  type GalaxyOverview,
+  type GalaxyStatus,
+  type GalaxySubject,
+  type GalaxySubjectRef,
+} from "./galaxy";
