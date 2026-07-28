@@ -78,6 +78,14 @@ class Chapter(Base):
     validation_status: Mapped[str] = mapped_column(
         String(20), default="validated"
     )  # pending|validated|rejected — manuel = validé d'office ; généré = pending
+    # Provenance de la validation (addendum ADR-0011 §F) : `validation_status` dit SI c'est
+    # passé, ces deux colonnes disent QUI a laissé passer. `validate-all` est le chemin le plus
+    # « en lot » du projet — sans elles, rien ne distingue un chapitre relu d'un chapitre
+    # emporté par un raccourci. NULL = non validé, ou antérieur à la traçabilité.
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    validated_by: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # parent | parent_bulk | system
     program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
     # Métadonnées structurées de génération (étape 13-bis) : {themes, suggested_class,
     # repartition, prompt_version}. `description` reste du texte humain librement éditable
@@ -141,6 +149,14 @@ class Lesson(Base, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
     content_updated_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Provenance de la validation de la LEÇON (addendum ADR-0011 §F). Distincte de
+    # `content_updated_by` (`ai`/`parent`), qui dit qui a ÉCRIT le cours : ici, qui l'a laissé
+    # ATTEINDRE Massimo. L'équipement ADR-0021 §2 génère ET auto-valide le cours dans son kit —
+    # un cours `parent_bulk` dit donc « Massimo lit un cours que Papa n'a jamais ouvert ».
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    validated_by: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # parent | parent_bulk | system
 
 
 class LessonSkill(Base):

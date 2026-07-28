@@ -34,6 +34,7 @@ from app.modules.ai.canonical_context import (
     build_canonical_sections,
     resolve_canonical_context,
 )
+from app.modules.provenance import SYSTEM
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.gamification.service import award_xp, quiz_xp
 from app.modules.quizzes import correction, judge, scoring
@@ -352,6 +353,10 @@ def generate_quiz(
         quiz_type=QUIZ_TYPE_MISSION,
         status="ready",
         created_by="ai",
+        # ADR-0014 §2 : le quiz est servi SANS gate de validation. `system` trace cette
+        # non-relecture par doctrine — valeur strictement réservée à ce cas (§F.1).
+        validated_at=datetime.now(timezone.utc),
+        validated_by=SYSTEM,
     )
     db.add(quiz)
     db.flush()

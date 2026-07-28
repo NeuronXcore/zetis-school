@@ -39,6 +39,7 @@ from app.db.models import (
     StudentProfile,
     Subject,
 )
+from app.modules.provenance import PARENT, PARENT_BULK, mark_validated
 from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.curriculum.schemas import (
     GeneratedChapter,
@@ -362,7 +363,7 @@ def validate_all_chapters(db: Session, school_year_subject_id: int) -> int:
         )
     ).all()
     for chapter in chapters:
-        chapter.validation_status = "validated"
+        mark_validated(chapter, PARENT_BULK)  # action groupée → jamais `parent` (§F.3)
     db.commit()
     return len(chapters)
 
@@ -379,7 +380,7 @@ def validate_all_active_year(db: Session) -> int:
         )
     ).all()
     for chapter in chapters:
-        chapter.validation_status = "validated"
+        mark_validated(chapter, PARENT_BULK)  # action groupée → jamais `parent` (§F.3)
     db.commit()
     return len(chapters)
 
@@ -400,7 +401,7 @@ def update_chapter(
     if period is not None:
         chapter.period = period
     if validation_action == "validate":
-        chapter.validation_status = "validated"
+        mark_validated(chapter, PARENT)  # relecture unitaire depuis le pilotage
     elif validation_action == "reject":
         chapter.validation_status = "rejected"
     db.commit()
@@ -923,7 +924,10 @@ def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
             detail=f"Leçon {lesson_id} au statut '{lesson.status}' : "
             "seule une leçon 'draft' peut être validée ou rejetée.",
         )
-    lesson.status = "validated" if action == "validate" else "archived"
+    if action == "validate":
+        mark_validated(lesson, PARENT, field="status")
+    else:
+        lesson.status = "archived"
     db.commit()
     db.refresh(lesson)
     # Note (ADR-0013) : la génération des cartes SRS n'est PAS un effet de bord de la

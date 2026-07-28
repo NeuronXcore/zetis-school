@@ -40,6 +40,7 @@ from app.modules.ai.canonical_context import (
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.eli5.service import get_default_student
 from app.modules.fiches.schemas import FicheSpec
+from app.modules.provenance import PARENT, ValidatedBy, mark_validated
 from app.modules.subjects.resolver import subject_of_lesson
 from app.prompts import fiche
 
@@ -269,10 +270,15 @@ def update_fiche_spec(db: Session, *, fiche_id: int, spec: FicheSpec) -> Fiche:
     return row
 
 
-def validate_fiche(db: Session, fiche_id: int) -> Fiche:
-    """`pending` → `validated` (rend la fiche visible côté Massimo)."""
+def validate_fiche(db: Session, fiche_id: int, *, by: ValidatedBy = PARENT) -> Fiche:
+    """`pending` → `validated` (rend la fiche visible côté Massimo).
+
+    `by` trace la provenance (§F) : `PARENT` depuis la page de pilotage (Papa a ouvert la
+    fiche), `PARENT_BULK` depuis l'équipement ADR-0021 §2 (la popup vaut approbation, mais
+    rien n'a été relu pièce par pièce).
+    """
     row = _fiche_or_404(db, fiche_id)
-    row.validation_status = "validated"
+    mark_validated(row, by)
     db.commit()
     db.refresh(row)
     return row

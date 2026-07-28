@@ -19,6 +19,7 @@ seuls les paramètres réels du RAG transitent.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -26,6 +27,26 @@ from sqlalchemy.orm import Session
 from app.db.models import Lesson, LessonSkill
 from app.modules.ai.provider import EmbeddingProvider
 from app.modules.rag.service import retrieve_for_skill
+
+
+def is_stale(derived_at: datetime | None, content_updated_at: datetime | None) -> bool:
+    """Un dérivé est périmé si le cours source a été réécrit APRÈS sa production (§E.1).
+
+    Vit ici, jamais dupliquée dans un module dérivé — même règle que le résolveur (§1) : une
+    définition du périmé qui existe en deux exemplaires finit par en avoir deux différentes.
+
+    Deux `None` possibles, tous deux non périmés : pas de cours (rien n'a pu changer), ou pas
+    de dérivé (rien à périmer). L'égalité stricte n'est PAS périmée : un dérivé produit dans la
+    même transaction que son cours est frais.
+
+    Référence côté dérivé = son propre `updated_at` (§E.4). Conséquence assumée : un dérivé que
+    Papa édite après un changement de cours redevient « frais » sans avoir été régénéré. On
+    présume Papa informé — le faux négatif est sans danger, c'est le faux POSITIF qu'on élimine
+    (un badge « périmé » à tort tue la crédibilité de la page qui l'affiche).
+    """
+    if derived_at is None or content_updated_at is None:
+        return False
+    return content_updated_at > derived_at
 
 
 @dataclass(frozen=True)

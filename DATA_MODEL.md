@@ -95,6 +95,8 @@ sort_order
 status             # planned | active | completed | skipped (progression temporelle)
 source             # generated | manual (ADR-0009 §3 — co-construction Papa/IA)
 validation_status  # pending | validated | rejected (distinct de status, les deux coexistent)
+validated_at optional      # horodatage de la validation (addendum ADR-0011 §F)
+validated_by optional      # parent | parent_bulk | system — QUI a laissé passer ; NULL = non validé, ou antérieur à la traçabilité (aucune rétro-attribution)
 program_version    # version déclarative du programme (ex: 2020), null pour les manuels
 metadata_json      # JSONB nullable (13-bis) : {themes, suggested_class, repartition, prompt_version} — description reste du texte humain
 ```
@@ -151,6 +153,18 @@ created_by         # parent | ai | imported
 source_document_id optional   # FK rag_documents (imports futurs)
 sort_order
 program_version    # version déclarative du programme (ex: 2020), null pour les manuelles
+content_created_at optional   # provenance du COURS : posé au premier write de content_markdown
+content_created_by optional   # ai | parent
+content_updated_at optional   # RÉFÉRENCE DE FRAÎCHEUR (addendum ADR-0011 §E.3) — écrasée aux SEULS
+                              # writes de content_markdown (generate-content, PATCH portant `content`).
+                              # Un renommage / un sort_order / un rattachement de notion n'y touchent
+                              # JAMAIS : `updated_at` est trop bruyant pour servir de référence.
+content_updated_by optional   # ai | parent — qui a ÉCRIT le cours
+validated_at optional         # horodatage de la validation (addendum ADR-0011 §F)
+validated_by optional         # parent | parent_bulk | system — qui l'a laissé ATTEINDRE Massimo.
+                              # Distinct de content_updated_by (qui l'a écrit). L'équipement
+                              # ADR-0021 §2 auto-valide le cours → `parent_bulk` = « Massimo lit un
+                              # cours que Papa n'a jamais ouvert ».
 created_at
 updated_at
 ```
@@ -198,6 +212,10 @@ description
 quiz_type          # diagnostic | mission | revision | capsule_post_test
 status             # draft | ready | archived (suppression = archivage si tentatives, ADR-0014)
 created_by
+validated_at optional  # horodatage, posé à la génération (addendum ADR-0011 §F)
+validated_by optional  # TOUJOURS `system` : le quiz est servi SANS gate de validation par doctrine
+                       # (ADR-0014 §2). Valeur strictement réservée à ce cas — un test-verrou
+                       # interdit à tout autre chemin de l'écrire.
 ```
 
 ### QuizQuestion
@@ -528,6 +546,8 @@ status             # cycle de rendu MP4 : draft | rendering | published | failed
 instruction optional     # texte du prompt Papa (génération LLM → CapsuleSpec)
 spec_json                # CapsuleSpec typé (JSON)
 validation_status        # pending | validated | rejected
+validated_at optional      # horodatage de la validation (addendum ADR-0011 §F)
+validated_by optional      # parent | parent_bulk | system — QUI a laissé passer ; NULL = non validé, ou antérieur à la traçabilité (aucune rétro-attribution)
 created_at
 updated_at
 ```
@@ -555,6 +575,8 @@ id
 lesson_id                # FK lessons (index) — une fiche = 1 leçon
 spec_json                # FicheSpec typé (JSON) : essentiel, definitions≤4, points_cles≤5, erreurs_a_eviter≤3, mini_exemple?
 validation_status        # pending | validated | rejected (gate `validated` avant tout accès Massimo)
+validated_at optional      # horodatage de la validation (addendum ADR-0011 §F)
+validated_by optional      # parent | parent_bulk | system — QUI a laissé passer ; NULL = non validé, ou antérieur à la traçabilité (aucune rétro-attribution)
 source                   # generated | manual
 program_version optional # version de programme (traçabilité, ex: 2020)
 created_at
@@ -589,6 +611,8 @@ id
 lesson_id          # FK lessons, index — une mindmap = 1 leçon
 mindmap_json       # arbre strict, sans positions
 validation_status  # pending | validated | rejected
+validated_at optional      # horodatage de la validation (addendum ADR-0011 §F)
+validated_by optional      # parent | parent_bulk | system — QUI a laissé passer ; NULL = non validé, ou antérieur à la traçabilité (aucune rétro-attribution)
 source             # generated | manual
 program_version    # ex: 2020
 created_at

@@ -52,6 +52,7 @@ from app.modules.mindmaps.schemas import (
     MindmapNodeEval,
     MindmapNodePlacement,
 )
+from app.modules.provenance import PARENT, ValidatedBy, mark_validated
 from app.modules.subjects.resolver import subject_of_lesson
 from app.prompts import mindmap
 
@@ -273,10 +274,14 @@ def update_mindmap_json(db: Session, *, mindmap_id: int, spec: MindmapJson) -> M
     return row
 
 
-def validate_mindmap(db: Session, mindmap_id: int) -> Mindmap:
-    """`pending` → `validated` (rend la carte visible côté Massimo)."""
+def validate_mindmap(db: Session, mindmap_id: int, *, by: ValidatedBy = PARENT) -> Mindmap:
+    """`pending` → `validated` (rend la carte visible côté Massimo).
+
+    `by` trace la provenance (§F) : `PARENT` depuis le pilotage, `PARENT_BULK` depuis
+    l'équipement ADR-0021 §2.
+    """
     row = _mindmap_or_404(db, mindmap_id)
-    row.validation_status = "validated"
+    mark_validated(row, by)
     db.commit()
     db.refresh(row)
     return row

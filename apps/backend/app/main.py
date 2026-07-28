@@ -30,6 +30,7 @@ from app.modules.quizzes.router import student_router as quizzes_student_router
 from app.modules.motivation.router import router as motivation_router
 from app.modules.progress.router import router as progress_router
 from app.modules.rag.router import router as rag_router
+from app.modules.production.router import router as production_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
 from app.modules.subjects.router import router as subjects_router
@@ -80,3 +81,4 @@ app.include_router(activity_parent_router)
 app.include_router(progress_router)
 # Motivation (Massimo) : régularité douce + engagement hebdomadaire choisi par l'enfant.
 app.include_router(motivation_router)
+app.include_router(production_router)
