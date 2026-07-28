@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import StudentProfile, XPEvent
+from app.modules.motivation import service as motivation_service
 
 XP_PER_LEVEL = 100
 
@@ -156,8 +157,15 @@ def summary(db: Session, student: StudentProfile) -> dict:
         "level": level,
         "xp_into_level": into,
         "xp_for_next": XP_PER_LEVEL,
+        # DÉPRÉCIÉS — remplacés par `regularity`. Servis INCHANGÉS jusqu'à ce que le frontend ait
+        # basculé : les redéfinir comme un compte hebdomadaire ferait afficher « 3 jours
+        # d'affilée » à un écran qui parle de série consécutive. Un champ déprécié garde son sens
+        # jusqu'à sa suppression.
         "streak_days": streak,
         "active_today": active_today,
+        # Régularité douce (chantier « auto-motivation ») : un compte de jours dans la semaine,
+        # qui ne peut pas casser. Additif — aucun consommateur existant n'est modifié.
+        "regularity": motivation_service.week_engagement(db, student_id=student.id),
         "badges": _badges(
             total_xp=total_xp,
             streak=streak,
