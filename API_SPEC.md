@@ -853,10 +853,10 @@ Endpoint distinct plutôt qu'un `?moment=` sur `welcome` : les entrées diffère
 l'absence, la clôture le reste-à-faire). **La clôture ne dit JAMAIS combien de jours il reste pour
 tenir l'engagement** — l'enfant repart avec une intention, pas avec un décompte.
 
-> `GET /api/gamification/summary` porte désormais le même bloc sous la clé `regularity`.
-> `streak_days` et `active_today` y sont **dépréciés** : ils restent servis **inchangés** tant que
-> le frontend ne les a pas quittés (les redéfinir comme un compte hebdomadaire ferait afficher
-> « N jours d'affilée » à un écran qui parle de série consécutive).
+> `GET /api/gamification/summary` porte le même bloc sous la clé `regularity`. `streak_days`,
+> `active_today` et le badge `streak_3` (« Régulier 3 jours » 🔥) ont été **retirés** avec le
+> streak : il tombait à zéro dès un jour entier manqué et se calculait en UTC alors que tout le
+> reste bucketise en Europe/Paris.
 
 ## Activité (journal `learning_events`)
 

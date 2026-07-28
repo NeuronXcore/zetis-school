@@ -175,12 +175,12 @@ class TestRoutes:
             client.put("/api/student/motivation/week", json={"target_days": 3}).status_code == 403
         )
 
-    def test_gamification_sert_regularity_ET_le_streak_deprecie(self, client_db) -> None:
-        """Coexistence pendant la bascule : `streak_days` reste servi et INCHANGÉ tant que le
-        frontend ne l'a pas quitté."""
+    def test_gamification_sert_regularity_et_PLUS_de_streak(self, client_db) -> None:
+        """Le streak est retiré : plus de `streak_days`, plus d'`active_today`, plus de badge 🔥."""
         client, _ = client_db
         body = client.get("/api/gamification/summary").json()
 
-        assert "regularity" in body
         assert len(body["regularity"]["days"]) == 7
-        assert "streak_days" in body and "active_today" in body
+        assert "streak_days" not in body
+        assert "active_today" not in body
+        assert all(b["code"] != "streak_3" for b in body["badges"])

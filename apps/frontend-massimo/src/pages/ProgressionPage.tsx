@@ -7,17 +7,27 @@ import {
   REASON_LABEL,
   fetchGamificationSummary,
 } from "../lib/gamification";
+import { fetchWelcome } from "../lib/motivation";
 
-// Page Progression Massimo (Étape 16) — XP/niveau/streak/badges en direct (gamification).
+// Page Progression Massimo — XP, niveau, badges et PROGRÈS RÉEL.
+//
+// La tuile « jours de suite » (streak) a été remplacée par « notions consolidées cette semaine » :
+// un chiffre vrai, et de progrès, là où il y avait un chiffre de pression. Surtout pas
+// « jours cette semaine » ici — ce serait redire « Ma semaine », qui vit sur l'accueil.
 // La section « par matière » reste indicative (mock) en attendant la maîtrise par matière.
 export function ProgressionPage() {
   const [summary, setSummary] = useState<GamificationSummary | null>(null);
+  const [consolidated, setConsolidated] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchGamificationSummary()
       .then(setSummary)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Erreur de chargement"));
+    // `context` du message d'accueil : documenté comme servant AUSSI à alimenter d'autres blocs.
+    fetchWelcome()
+      .then((w) => setConsolidated(w.context.consolidated_this_week))
+      .catch(() => setConsolidated(null));
   }, []);
 
   const levelProgress = summary
@@ -30,7 +40,7 @@ export function ProgressionPage() {
 
       {error && <p className="mb-3 text-sm text-rose-400">{error}</p>}
 
-      {/* Résumé XP / niveau / streak */}
+      {/* Résumé XP / niveau / progrès de la semaine */}
       <section className="flex flex-wrap items-center gap-6 rounded-2xl border border-zetis-border bg-zetis-surface p-5">
         <ProgressRing value={levelProgress} size={84} />
         <div>
@@ -43,8 +53,11 @@ export function ProgressionPage() {
         </div>
         <div className="ml-auto flex gap-6 text-center">
           <div>
-            <p className="text-2xl font-bold text-zetis-accent-2">{summary?.streak_days ?? 0}</p>
-            <p className="text-xs text-zetis-muted">jours de suite</p>
+            <p className="text-2xl font-bold text-zetis-accent-2">{consolidated ?? 0}</p>
+            <p className="text-xs text-zetis-muted">
+              notion{(consolidated ?? 0) > 1 ? "s" : ""} consolidée
+              {(consolidated ?? 0) > 1 ? "s" : ""} cette semaine
+            </p>
           </div>
           <div>
             <p className="text-2xl font-bold text-emerald-300">{summary?.badges.length ?? 0}</p>

@@ -1,4 +1,7 @@
-// Appels à la gamification (Étape 16) — XP, niveau, streak, badges de Massimo.
+// Appels à la gamification — XP, niveau, badges et régularité de Massimo.
+// `streak_days`/`active_today` ont été RETIRÉS avec le streak : ils tombaient à zéro après
+// un seul jour manqué. `regularity` (module motivation) les remplace.
+import type { MotivationWeek } from "@zetis/types";
 import { API_URL, authClient } from "./authClient";
 
 export interface Badge {
@@ -18,8 +21,7 @@ export interface GamificationSummary {
   level: number;
   xp_into_level: number;
   xp_for_next: number;
-  streak_days: number;
-  active_today: boolean;
+  regularity: MotivationWeek;
   badges: Badge[];
   recent: XpEvent[];
 }

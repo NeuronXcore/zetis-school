@@ -38,8 +38,6 @@ export const PROFILE = {
   level: 7,
   xp: 1240,
   nextLevelXp: 1500,
-  consolidatedThisWeek: 3,
-  streakDays: 4,
 };
 
 export const DAILY_MISSION = {

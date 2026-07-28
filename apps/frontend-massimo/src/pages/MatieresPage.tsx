@@ -2,12 +2,16 @@ import { Link } from "react-router-dom";
 import { GlassPanel, NEON_BAR_FILL, NEON_BUTTON, NeonBackdrop } from "../components/glass";
 import { SubjectTile } from "../components/SubjectTile";
 import { type Subject } from "../data/mock";
-import { type Progression, type WeeklyObjectives, useMatieres } from "../hooks/useMatieres";
+import { type MotivationWeek } from "@zetis/types";
+import { type Progression, useMatieres } from "../hooks/useMatieres";
+import { useMotivationWeek } from "../hooks/useMotivationWeek";
+import { WeekDots } from "../components/motivation/WeekDots";
 
 // Page Matières de Massimo — même « matière » visuelle que le login (verre + néon).
 // Aucune logique métier ici : les données viennent du hook useMatieres.
 export function MatieresPage() {
-  const { progression, subjects, recommendedCapsule, weekly, bestSubject } = useMatieres();
+  const { progression, subjects, recommendedCapsule, bestSubject } = useMatieres();
+  const week = useMotivationWeek();
 
   return (
     <div className="relative isolate -m-6 min-h-full overflow-hidden bg-[#000010] p-6 text-white">
@@ -20,11 +24,7 @@ export function MatieresPage() {
           durationMin={recommendedCapsule.durationMin}
         />
         <SubjectsGrid subjects={subjects} />
-        <WeekStrip
-          streakDays={progression.streakDays}
-          weekly={weekly}
-          bestSubject={bestSubject}
-        />
+        <WeekStrip week={week.week} bestSubject={bestSubject} />
       </div>
     </div>
   );
@@ -102,38 +102,42 @@ function SubjectsGrid({ subjects }: { subjects: Subject[] }) {
   );
 }
 
-// 4. Bande « Cette semaine » : série, objectifs, meilleure matière.
+// 4. Bande « Cette semaine ».
+//
+// La tuile « Série en cours » (streak) et la tuile « Objectifs de la semaine » ont été retirées
+// ensemble. La première affichait une série qui tombait à zéro après un seul jour manqué — la
+// mécanique la plus contraire à l'esprit du produit. La seconde affichait `PROFILE.consolidatedThisWeek`,
+// une constante codée en dur, ET portait le même nom que l'engagement hebdomadaire que Massimo
+// choisit désormais lui-même : deux « objectifs de la semaine » différents ne pouvaient pas
+// coexister dans la même app.
 function WeekStrip({
-  streakDays,
-  weekly,
+  week,
   bestSubject,
 }: {
-  streakDays: number;
-  weekly: WeeklyObjectives;
+  week: MotivationWeek | null;
   bestSubject: Subject;
 }) {
-  const weeklyPct = weekly.total > 0 ? Math.round((weekly.done / weekly.total) * 100) : 0;
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">
         Cette semaine
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <GlassPanel className="p-4">
-          <p className="text-xs text-slate-400">Série en cours</p>
-          <p className="mt-1 text-2xl font-bold text-cyan-200">
-            {streakDays} <span className="text-base font-medium text-slate-400">jours</span>
-          </p>
-        </GlassPanel>
-
-        <GlassPanel className="p-4">
-          <p className="text-xs text-slate-400">Objectifs de la semaine</p>
-          <p className="mt-1 text-sm font-semibold text-slate-100">
-            {weekly.done} / {weekly.total}
-          </p>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-            <div className={NEON_BAR_FILL} style={{ width: `${weeklyPct}%` }} />
-          </div>
+        {/* Rappel discret de « Ma semaine », dont le geste d'engagement vit sur l'accueil : on
+            montre l'état ici, on ne redemande pas de s'engager à chaque page. */}
+        <GlassPanel className="p-4 sm:col-span-2">
+          <p className="text-xs text-slate-400">Ma semaine</p>
+          {week ? (
+            <div className="mt-2">
+              <WeekDots week={week} compact />
+              <p className="mt-2 text-sm text-slate-300">
+                {week.days_done} jour{week.days_done > 1 ? "s" : ""} cette semaine
+                {week.goal_days != null && ` · objectif ${week.goal_days}`}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate-400">—</p>
+          )}
         </GlassPanel>
 
         <GlassPanel className="p-4">

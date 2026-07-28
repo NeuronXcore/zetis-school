@@ -329,7 +329,8 @@ Autorisé :
 - XP ;
 - niveaux ;
 - badges pédagogiques ;
-- streak raisonnable ;
+- **régularité douce** — un compte de jours dans la semaine, qui ne peut pas casser ;
+- **engagement hebdomadaire choisi par l'enfant lui-même** ;
 - missions quotidiennes courtes ;
 - boss de chapitre.
 
@@ -338,8 +339,16 @@ Autorisé :
 - loot boxes ;
 - récompenses aléatoires excessives ;
 - pression quotidienne anxiogène ;
+- **série (« streak ») qui se casse** — un capital qu'on peut perdre fait venir par peur de
+  perdre, ce n'est pas de l'auto-motivation ;
+- **décompte de jours manqués**, sous quelque forme que ce soit ;
+- **objectif imposé à l'enfant** — un objectif subi se fuit, un objectif qu'on s'est donné se
+  tient ;
 - classements sociaux ;
 - notifications intrusives.
+
+> Le streak historique a été retiré (2026-07-27) : il tombait à zéro dès un jour entier manqué.
+> Voir `docs/frontend-massimo/page-accueil.md` et le module backend `motivation`.
 
 ## Règles sécurité
 
