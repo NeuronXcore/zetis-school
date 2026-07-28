@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS — Maquette ZETIS Galaxy (Massimo, page Progression)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --zetis-bg: #0a0d1c;
+    --zetis-primary: #6366f1;
+    --zetis-cyan: #22d3ee;
+    --zetis-fuchsia: #d946ef;
+    --zetis-fg: #eef0ff;
+    --zetis-muted: #8b91b8;
+    --zetis-glass: rgba(255, 255, 255, 0.055);
+    --zetis-glass-border: rgba(255, 255, 255, 0.12);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--zetis-bg); color: var(--zetis-fg); min-height: 100vh; overflow-x: hidden;
+  }
+  .neon-backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .neon-backdrop::before, .neon-backdrop::after { content: ""; position: absolute; border-radius: 50%; filter: blur(110px); opacity: .3; }
+  .neon-backdrop::before { width: 520px; height: 520px; top: -140px; left: -120px; background: var(--zetis-primary); }
+  .neon-backdrop::after { width: 460px; height: 460px; bottom: -160px; right: -100px; background: var(--zetis-fuchsia); opacity: .16; }
+  .halo-cyan { position: absolute; width: 340px; height: 340px; border-radius: 50%; background: var(--zetis-cyan); filter: blur(120px); opacity: .1; top: 45%; left: 55%; }
+
+  .app { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; padding: 32px 20px 60px; min-height: 100vh; }
+  .wordmark { font-family: "Syncopate", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .35em; text-align: center; margin-bottom: 6px; opacity: .9; }
+  .wordmark span { color: var(--zetis-cyan); }
+
+  .screen { display: none; animation: fadeIn .25s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .page-title { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 24px; font-weight: 800; margin: 18px 0 4px; text-align: center; }
+  .page-sub { text-align: center; color: var(--zetis-muted); font-size: 14.5px; margin-bottom: 24px; }
+  .section-label { font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--zetis-muted); margin: 26px 4px 14px; }
+  .glass-card { background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); border-radius: 20px; padding: 20px; }
+
+  /* ══════════ BANDEAU XP (conservé, devient cliquable) ══════════ */
+  .xp-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .ring { position: relative; width: 84px; height: 84px; flex: none; border-radius: 50%;
+    background: conic-gradient(var(--zetis-cyan) 0turn, var(--zetis-primary) .62turn, rgba(255,255,255,.08) .62turn); }
+  .ring::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: var(--zetis-bg); }
+  .ring b { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; }
+  .xp-meta .lvl { font-size: 18px; font-weight: 800; }
+  .xp-meta .sub { font-size: 13px; color: var(--zetis-muted); margin-top: 3px; }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .badge { background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); border-radius: 999px; padding: 7px 13px; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+
+  /* ══════════ VIEWPORT GALAXIE ══════════ */
+  .gx-viewport { position: relative; height: 540px; border-radius: 20px; overflow: hidden; margin-top: 6px;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(99,102,241,.16), transparent 62%),
+      radial-gradient(circle at 18% 78%, rgba(217,70,239,.10), transparent 55%),
+      var(--zetis-glass);
+    border: 1px solid var(--zetis-glass-border); cursor: grab; user-select: none; }
+  @media (max-width: 640px) { .gx-viewport { height: 400px; } }
+  .starfield { position: absolute; inset: 0; pointer-events: none; opacity: .55;
+    background-image:
+      radial-gradient(1px 1px at 12% 22%, #fff, transparent), radial-gradient(1px 1px at 74% 14%, #fff, transparent),
+      radial-gradient(1px 1px at 31% 67%, #fff, transparent), radial-gradient(1px 1px at 88% 58%, #fff, transparent),
+      radial-gradient(1px 1px at 55% 88%, #fff, transparent), radial-gradient(1px 1px at 8% 51%, #fff, transparent),
+      radial-gradient(1px 1px at 64% 40%, #fff, transparent), radial-gradient(1px 1px at 42% 9%, #fff, transparent),
+      radial-gradient(1px 1px at 95% 82%, #fff, transparent), radial-gradient(1px 1px at 22% 93%, #fff, transparent); }
+  .canvas-note { position: absolute; left: 12px; top: 12px; z-index: 5; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--zetis-muted); background: rgba(10,13,28,.82); border: 1px dashed var(--zetis-glass-border); border-radius: 999px; padding: 6px 12px; }
+
+  .gx-links { position: absolute; inset: 0; pointer-events: none; }
+
+  /* Constellations (vue d'ensemble) */
+  .cst { position: absolute; transform: translate(-50%, -50%); background: none; border: none; cursor: pointer;
+    font-family: inherit; color: var(--zetis-fg); display: flex; flex-direction: column; align-items: center; gap: 7px;
+    padding: 8px; border-radius: 18px; transition: transform .18s ease; }
+  .cst:hover { transform: translate(-50%, -50%) scale(1.06); }
+  .cst:focus-visible { outline: 2px solid var(--zetis-cyan); outline-offset: 3px; }
+  .cst-orb { width: 92px; height: 92px; border-radius: 50%; position: relative;
+    background: radial-gradient(circle at 36% 32%, color-mix(in srgb, var(--accent) 85%, #fff), color-mix(in srgb, var(--accent) 40%, transparent) 58%, transparent 72%);
+    box-shadow: 0 0 42px color-mix(in srgb, var(--accent) 45%, transparent); }
+  .cst-orb .mini { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #fff; box-shadow: 0 0 7px #fff; }
+  .cst-name { font-size: 14px; font-weight: 800; }
+  .cst-count { font-size: 12px; color: var(--zetis-muted); }
+
+  /* Étoiles (constellation d'une matière) */
+  .star { position: absolute; transform: translate(-50%, -50%); border: none; background: none; cursor: pointer;
+    font-family: inherit; padding: 0; border-radius: 50%; transition: transform .15s ease; }
+  .star:hover { transform: translate(-50%, -50%) scale(1.25); }
+  .star:focus-visible { outline: 2px solid var(--zetis-cyan); outline-offset: 4px; }
+  .star i { display: block; border-radius: 50%; }
+  .star .lbl { position: absolute; top: 118%; left: 50%; transform: translateX(-50%); white-space: nowrap;
+    font-size: 11px; font-weight: 700; color: #cfd3f2; text-shadow: 0 1px 6px #0a0d1c; pointer-events: none; }
+  .star.sel { transform: translate(-50%, -50%) scale(1.3); }
+  .star.sel i { box-shadow: 0 0 0 3px rgba(34,211,238,.5), 0 0 26px rgba(34,211,238,.7); }
+
+  /* Les 5 états lumineux — aucun rouge, aucune couleur d'échec */
+  .s-unknown  i { width: 11px; height: 11px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.26); }
+  .s-weak     i { width: 13px; height: 13px; background: rgba(139,145,184,.85); box-shadow: 0 0 8px rgba(139,145,184,.5); }
+  .s-learning i { width: 15px; height: 15px; background: #818cf8; box-shadow: 0 0 14px rgba(129,140,248,.75); }
+  .s-solid    i { width: 17px; height: 17px; background: #22d3ee; box-shadow: 0 0 20px rgba(34,211,238,.85); }
+  .s-mastered i { width: 19px; height: 19px; background: #fff; box-shadow: 0 0 10px #fff, 0 0 30px rgba(34,211,238,.95), 0 0 54px rgba(99,102,241,.6); }
+
+  /* Amas = chapitre */
+  .cluster-label { position: absolute; transform: translate(-50%, -50%); font-size: 10.5px; font-weight: 800;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--zetis-muted); pointer-events: none; opacity: .75; }
+  .cluster-halo { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, rgba(99,102,241,.13), transparent 68%); }
+
+  /* Légende */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .lg { display: flex; align-items: center; gap: 8px; background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    border-radius: 999px; padding: 7px 14px 7px 10px; font-size: 12.5px; font-weight: 700; }
+  .lg .dot { position: relative; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+
+  /* ══════════ PANNEAU D'ACTIONS ══════════ */
+  .panel { position: absolute; right: 12px; top: 12px; bottom: 12px; width: 300px; z-index: 6;
+    background: rgba(9,12,26,.985); backdrop-filter: blur(14px); border: 1px solid var(--zetis-glass-border);
+    border-radius: 18px; padding: 18px; display: none; flex-direction: column; gap: 6px; overflow-y: auto;
+    box-shadow: 0 18px 50px rgba(0,0,0,.65); animation: slideIn .2s ease; }
+  .panel.on { display: flex; }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+  /* Panneau latéral en desktop et tablette PAYSAGE ; feuille basse en portrait et sur téléphone.
+     Seuil à 900px : l'iPad portrait (768) bascule en feuille, l'iPad paysage (1024) garde le côté. */
+  .panel-close { position: absolute; right: 12px; top: 12px; background: none; border: none; color: var(--zetis-muted);
+    font-size: 20px; cursor: pointer; font-family: inherit; line-height: 1; }
+  .panel-close:hover { color: var(--zetis-fg); }
+  .panel .p-chapter { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--zetis-muted); font-weight: 800; }
+  .panel .p-name { font-size: 18px; font-weight: 800; line-height: 1.25; margin: 6px 0 10px; padding-right: 22px; }
+  .p-state { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+    border-radius: 999px; padding: 6px 13px; font-size: 12.5px; font-weight: 800;
+    background: rgba(34,211,238,.12); border: 1px solid rgba(34,211,238,.34); color: #a5f3fc; }
+  .p-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .p-act { display: flex; align-items: center; gap: 11px; text-align: left; cursor: pointer; font-family: inherit;
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); color: var(--zetis-fg);
+    border-radius: 13px; padding: 11px 14px; font-size: 13.5px; font-weight: 700; transition: transform .12s ease, border-color .12s ease; }
+  .p-act:hover { transform: translateY(-2px); border-color: var(--zetis-cyan); }
+  .p-act .ico { font-size: 18px; }
+  .p-act.primary { background: linear-gradient(135deg, var(--zetis-primary), var(--zetis-cyan)); border: none; color: #fff;
+    box-shadow: 0 4px 18px rgba(34,211,238,.3); }
+  .p-note { margin-top: auto; font-size: 11.5px; color: var(--zetis-muted); line-height: 1.55; padding-top: 16px; flex: none; }
+
+  /* Panneau latéral en desktop et tablette PAYSAGE ; feuille basse en portrait et sur téléphone.
+     Seuil à 900px : l'iPad portrait (768) bascule en feuille, l'iPad paysage (1024) garde le côté.
+     Actions sur 2 colonnes pour que la feuille reste basse et laisse voir la constellation. */
+  @media (max-width: 900px) {
+    .panel { left: 12px; width: auto; top: auto; height: 64%; }
+    .p-actions { display: grid; grid-template-columns: repeat(2, 1fr); }
+    .p-note { padding-top: 12px; }
+  }
+  @media (max-width: 460px) { .p-actions { grid-template-columns: 1fr; } }
+
+  .back-row { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .btn-back { background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); color: var(--zetis-fg);
+    border-radius: 12px; padding: 9px 14px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .btn-back:hover { background: rgba(255,255,255,.09); }
+  .subject-heading { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; }
+  .hint { font-size: 13px; color: var(--zetis-muted); margin: 12px 2px 0; }
+  .hint b { color: var(--zetis-cyan); font-weight: 700; }
+
+  .footnote { color: var(--zetis-muted); font-size: 12px; margin-top: 34px; opacity: .8; line-height: 1.7; }
+  .footnote b { color: #cfd3f2; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="neon-backdrop"><div class="halo-cyan"></div></div>
+
+<div class="app">
+  <div class="wordmark">ZET<span>IS</span></div>
+
+  <!-- ══════════ ÉCRAN 1 — Ma galaxie (vue d'ensemble) ══════════ -->
+  <section class="screen active" id="screen-galaxy">
+    <h1 class="page-title">🌌 Ma galaxie</h1>
+    <p class="page-sub">Chaque étoile est une notion. Plus tu apprends, plus ta galaxie s'allume.</p>
+
+    <div class="glass-card xp-row">
+      <div class="ring"><b>7</b></div>
+      <div class="xp-meta">
+        <div class="lvl">Niveau 7 · 1240 XP</div>
+        <div class="sub">Encore 60 XP avant le niveau 8</div>
+      </div>
+      <div class="badges">
+        <span class="badge">🏆 Champion</span>
+        <span class="badge">🧠 Explorateur</span>
+        <span class="badge">📖 Lecteur</span>
+      </div>
+    </div>
+
+    <div class="section-label">Choisis une constellation</div>
+    <div class="gx-viewport" id="vp-galaxy">
+      <div class="starfield"></div>
+      <div class="canvas-note">Canvas 3D force-directed</div>
+      <svg class="gx-links" id="links-galaxy"></svg>
+      <!-- constellations injectées en JS -->
+    </div>
+
+    <p class="hint">Fais tourner la galaxie, <b>attrape une constellation</b> et tire dessus. Touche-la pour entrer dedans.</p>
+  </section>
+
+  <!-- ══════════ ÉCRAN 2 — Une constellation (une matière) ══════════ -->
+  <section class="screen" id="screen-subject">
+    <div class="back-row">
+      <button class="btn-back" onclick="goGalaxy()">← Ma galaxie</button>
+      <div class="subject-heading"><span>🧪</span><span>SVT</span></div>
+    </div>
+
+    <div class="gx-viewport" id="vp-subject">
+      <div class="starfield"></div>
+      <div class="canvas-note">Canvas 3D force-directed</div>
+      <svg class="gx-links" id="links-subject"></svg>
+      <!-- amas + étoiles injectés en JS -->
+
+      <aside class="panel" id="panel">
+        <button class="panel-close" onclick="closePanel()" aria-label="Fermer">×</button>
+        <div class="p-chapter" id="p-chapter">Chapitre 2 · La cellule</div>
+        <div class="p-name" id="p-name">Mitose et division cellulaire</div>
+        <span class="p-state" id="p-state">✨ En construction</span>
+        <div class="p-actions" id="p-actions"></div>
+        <p class="p-note">Seules les activités qui existent vraiment sont proposées.</p>
+      </aside>
+    </div>
+
+    <div class="legend">
+      <span class="lg"><span class="dot"><span class="star s-unknown" style="position:static;transform:none"><i></i></span></span>À découvrir</span>
+      <span class="lg"><span class="dot"><span class="star s-weak" style="position:static;transform:none"><i></i></span></span>On commence</span>
+      <span class="lg"><span class="dot"><span class="star s-learning" style="position:static;transform:none"><i></i></span></span>En construction</span>
+      <span class="lg"><span class="dot"><span class="star s-solid" style="position:static;transform:none"><i></i></span></span>Bien acquis</span>
+      <span class="lg"><span class="dot"><span class="star s-mastered" style="position:static;transform:none"><i></i></span></span>Maîtrisé</span>
+    </div>
+
+    <p class="hint">Touche une étoile pour voir ce que tu peux faire avec cette notion. <b>Tire dessus</b> pour l'écarter des autres.</p>
+  </section>
+
+  <p class="footnote">
+    <b>Maquette statique.</b> La zone marquée « canvas 3D force-directed » sera rendue par
+    <code>react-force-graph-3d</code> : rotation de la caméra, nœuds étirables à la main, halos animés.
+    Cette page cadre la <b>mise en page</b>, les <b>cinq états lumineux</b>, la <b>légende</b> et le
+    <b>panneau d'actions</b> — pas le moteur 3D, qui se juge en vrai.<br>
+    Aucun rouge, aucun pourcentage, aucun classement de matières : la galaxie répond à « où j'en suis »,
+    elle ne note pas Massimo. Une notion jamais vue est une étoile pas encore née, pas un manque.
+  </p>
+</div>
+
+<script>
+/* ─────────── Données de démonstration (aucun appel réseau) ─────────── */
+const SUBJECTS = [
+  { name: "Maths",    icon: "📐", accent: "#6366f1", x: 30, y: 32, lit: 14, total: 22 },
+  { name: "Français", icon: "📚", accent: "#d946ef", x: 68, y: 24, lit: 9,  total: 18 },
+  { name: "SVT",      icon: "🧪", accent: "#22d3ee", x: 50, y: 58, lit: 11, total: 16 },
+  { name: "Histoire", icon: "🏛️", accent: "#a78bfa", x: 20, y: 74, lit: 6,  total: 15 },
+  { name: "Anglais",  icon: "🌍", accent: "#34d399", x: 80, y: 70, lit: 4,  total: 12 },
+];
+
+const CHAPTERS = [
+  { title: "Ch. 1 · Le vivant", cx: 26, cy: 30, r: 120 },
+  { title: "Ch. 2 · La cellule", cx: 58, cy: 40, r: 140 },
+  { title: "Ch. 3 · Génétique",  cx: 40, cy: 76, r: 120 },
+];
+
+/* status : unknown | weak | learning | solid | mastered
+   Le 6e statut réel `in_progress` (verdict review_later) se rend comme `learning`. */
+const NOTIONS = [
+  { n: "Cellule animale",    ch: 0, s: "mastered", x: 18, y: 22, acts: ["cours","eli5","revision","mindmap"] },
+  { n: "Cellule végétale",   ch: 0, s: "solid",    x: 31, y: 18, acts: ["cours","eli5","quiz"] },
+  { n: "Membrane",           ch: 0, s: "learning", x: 24, y: 38, acts: ["eli5","quiz"] },
+  { n: "Noyau",              ch: 0, s: "weak",     x: 34, y: 33, acts: ["cours","eli5"] },
+  { n: "Mitose",             ch: 1, s: "learning", x: 55, y: 32, acts: ["cours","eli5","quiz","mindmap","revision"] },
+  { n: "Chromosomes",        ch: 1, s: "solid",    x: 66, y: 38, acts: ["cours","eli5","revision"] },
+  { n: "Cycle cellulaire",   ch: 1, s: "unknown",  x: 60, y: 48, acts: ["eli5"] },
+  { n: "ADN",                ch: 1, s: "mastered", x: 50, y: 44, acts: ["cours","eli5","revision","mindmap","quiz"] },
+  { n: "Gène",               ch: 2, s: "weak",     x: 35, y: 70, acts: ["cours","eli5"] },
+  { n: "Allèle",             ch: 2, s: "unknown",  x: 45, y: 80, acts: ["eli5"] },
+  { n: "Hérédité",           ch: 2, s: "learning", x: 33, y: 84, acts: ["cours","eli5","quiz"] },
+];
+
+const STATE_LABEL = {
+  unknown:  "🌑 À découvrir",
+  weak:     "🌘 On commence",
+  learning: "✨ En construction",
+  solid:    "💫 Bien acquis",
+  mastered: "🌟 Maîtrisé",
+};
+
+/* Catalogue d'actions. Une action absente du tableau `acts` d'une notion
+   n'est PAS grisée : elle n'est simplement pas rendue. */
+const ACTIONS = {
+  cours:    { ico: "📖", label: "Voir le cours" },
+  eli5:     { ico: "💡", label: "Fais-moi comprendre" },
+  quiz:     { ico: "🎯", label: "Me tester" },
+  revision: { ico: "🗂️", label: "Réviser mes cartes" },
+  mindmap:  { ico: "🧠", label: "Reconstruire la carte" },
+};
+
+/* ─────────── Rendu écran 1 ─────────── */
+const vpG = document.getElementById("vp-galaxy");
+const svgG = document.getElementById("links-galaxy");
+
+SUBJECTS.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "cst";
+  b.style.left = s.x + "%";
+  b.style.top = s.y + "%";
+  b.style.setProperty("--accent", s.accent);
+  const minis = Array.from({ length: 7 }, (_, k) => {
+    const a = (k / 7) * Math.PI * 2, rr = 26 + (k % 3) * 9;
+    return `<span class="mini" style="left:${46 + Math.cos(a) * rr}px;top:${46 + Math.sin(a) * rr}px;opacity:${k < Math.round(7 * s.lit / s.total) ? 1 : .22}"></span>`;
+  }).join("");
+  b.innerHTML = `<span class="cst-orb">${minis}</span>
+    <span class="cst-name">${s.icon} ${s.name}</span>
+    <span class="cst-count">${s.lit} étoiles allumées</span>`;
+  b.onclick = () => { if (s.name === "SVT") goSubject(); };
+  vpG.appendChild(b);
+});
+
+// liens entre constellations (structure : la galaxie relie ses systèmes)
+svgG.innerHTML = SUBJECTS.slice(1).map(s =>
+  `<line x1="${SUBJECTS[2].x}%" y1="${SUBJECTS[2].y}%" x2="${s.x}%" y2="${s.y}%"
+     stroke="rgba(255,255,255,.10)" stroke-width="1.5" />`).join("");
+
+/* ─────────── Rendu écran 2 ─────────── */
+const vpS = document.getElementById("vp-subject");
+const svgS = document.getElementById("links-subject");
+
+CHAPTERS.forEach(c => {
+  const halo = document.createElement("div");
+  halo.className = "cluster-halo";
+  halo.style.cssText = `left:${c.cx}%;top:${c.cy}%;width:${c.r}px;height:${c.r}px`;
+  vpS.appendChild(halo);
+  const lab = document.createElement("div");
+  lab.className = "cluster-label";
+  lab.style.cssText = `left:${c.cx}%;top:calc(${c.cy}% - ${c.r / 2 + 12}px)`;
+  lab.textContent = c.title;
+  vpS.appendChild(lab);
+});
+
+// arêtes de structure : chapitre → notion (la seule relation qui existe vraiment)
+svgS.innerHTML = NOTIONS.map(n => {
+  const c = CHAPTERS[n.ch];
+  return `<line x1="${c.cx}%" y1="${c.cy}%" x2="${n.x}%" y2="${n.y}%"
+     stroke="rgba(255,255,255,.13)" stroke-width="1.2" />`;
+}).join("");
+
+NOTIONS.forEach((n, i) => {
+  const b = document.createElement("button");
+  b.className = `star s-${n.s}`;
+  b.style.left = n.x + "%";
+  b.style.top = n.y + "%";
+  b.setAttribute("aria-label", `${n.n} — ${STATE_LABEL[n.s].replace(/^\S+\s/, "")}`);
+  b.innerHTML = `<i></i><span class="lbl">${n.n}</span>`;
+  b.onclick = e => { e.stopPropagation(); openPanel(i, b); };
+  vpS.appendChild(b);
+});
+
+/* ─────────── Panneau d'actions ─────────── */
+const panel = document.getElementById("panel");
+
+function openPanel(i, el) {
+  const n = NOTIONS[i];
+  document.querySelectorAll(".star.sel").forEach(s => s.classList.remove("sel"));
+  el.classList.add("sel");
+  document.getElementById("p-chapter").textContent = CHAPTERS[n.ch].title;
+  document.getElementById("p-name").textContent = n.n;
+  document.getElementById("p-state").textContent = STATE_LABEL[n.s];
+  document.getElementById("p-actions").innerHTML = n.acts.map((k, j) => {
+    const a = ACTIONS[k];
+    return `<button class="p-act${j === 0 ? " primary" : ""}"><span class="ico">${a.ico}</span>${a.label}</button>`;
+  }).join("");
+  panel.classList.add("on");
+}
+
+function closePanel() {
+  panel.classList.remove("on");
+  document.querySelectorAll(".star.sel").forEach(s => s.classList.remove("sel"));
+}
+
+// clic sur le fond → referme
+vpS.addEventListener("click", e => { if (e.target === vpS || e.target.classList.contains("starfield")) closePanel(); });
+
+/* ─────────── Navigation entre écrans ─────────── */
+function show(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  window.scrollTo({ top: 0 });
+}
+function goGalaxy() { closePanel(); show("screen-galaxy"); }
+function goSubject() { show("screen-subject"); }
+</script>
+</body>
+</html>

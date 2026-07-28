@@ -1,5 +1,62 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.26.0 — ZETIS Galaxy : la progression de Massimo devient une galaxie
+
+Date : 2026-07-28
+
+> La page Progression affichait des pourcentages **mockés** « par matière ». Elle affiche
+> désormais le vrai graphe des connaissances — et l'or n'y est pas un décor : il ne coule que
+> vers ce que Massimo a réellement travaillé.
+
+### Ajouté
+
+- **Module backend `galaxy`** (ADR-0024) : 4 routes ÉLÈVE — vue d'ensemble, graphe global,
+  constellation d'une matière, panneau d'actions d'une notion — plus la frise de progression.
+  **Aucune table, aucune migration** : tout se dérive de l'existant via
+  `evidence.mastery_by_skill()` (6ᵉ consommateur du substrat, ADR-0011 §1).
+- **Page `/progression` = la galaxie** : canvas 3D (`react-force-graph-3d` en `lazy()`), soleil
+  de matière, amas par chapitre, étoiles par notion, drag élastique, rotation orbitale.
+  La section « par matière » **mockée** disparaît — c'était sa donnée qui manquait.
+- **Panneau d'actions par notion** : toute la panoplie ZETIS (cours · ELI5 · fiche · capsule ·
+  mindmap · révision · quiz), l'indisponible **grisé et non cliquable**.
+- **KPI d'états cliquables** : les 5 états portent leur compte et filtrent la constellation ;
+  ce qui n'est pas concerné est **atténué, jamais masqué**.
+- **Recherche de notion** : locale, insensible à la casse **et aux accents**, cadre toutes les
+  correspondances d'un coup ; message transitoire quand rien ne correspond.
+- **Aperçu sur l'Accueil** : graphe global en deux colonnes, badges matières cliquables, frise
+  de progression, plein écran **dans la page** (sidebar et bandeau préservés).
+- **Frise de progression MONOTONE** : dérivée de `learning_events` (append-only) et non de
+  `SkillMastery`, qui peut régresser — la courbe ne peut donc que monter.
+
+### Modifié
+
+- **ADR-0024 amendé trois fois en cours de chantier**, chaque fois par décision explicite :
+  le graphe global sur l'Accueil (§9 rouvert), la panoplie complète avec grisé (§4 révisé),
+  et le revirement 2D → 3D acté avec son coût.
+- `MassimoBannerHeader` : le niveau/XP devient un lien vers la galaxie.
+
+### Pièges rencontrés (documentés dans la spec)
+
+- **`SkillMastery.status` a SIX valeurs**, pas cinq : `in_progress` ne sort d'aucun
+  `_status_from_score()` et serait manqué en silence par un mapping à 5 branches.
+- **Le `lazy()` ne suffit pas** : ré-exporter le canvas depuis le baril `@zetis/ui/galaxy`
+  faisait entrer Three.js dans le bundle de départ (3,6 Mo). D'où le sous-chemin
+  `@zetis/ui/galaxy/canvas`.
+- **Un matériau très émissif aplatit une sphère** (plus d'ombrage, plus de reflet) — vrai pour
+  le soleil comme pour le cerveau.
+- **Sans nœud racine, les composantes se disloquent** ; et la remontée de l'or doit être
+  **transitive**, sinon elle s'arrête aux matières dans le graphe global.
+- **Tailwind v4 met `cursor: default` sur les `<button>`** : `cursor-pointer` est désormais
+  explicite là où l'interactivité doit se voir.
+
+### Dépendances
+
+`react-force-graph-3d` 1.29.1, `three-spritetext` 1.10.0, `three` 0.185.1 (peer de
+`three-spritetext`, déclarée explicitement) + `@types/three` en dev. Trois épinglées à la
+version exacte, convention ADR-0016. Chunk 3D isolé : 1,39 Mo, chargé à l'ouverture d'une
+galaxie seulement.
+
+
 ## 0.25.0 — Couverture de production : voir le stock, et pouvoir agir dessus
 
 Date : 2026-07-28

@@ -125,30 +125,51 @@
 
 ### ZETIS Galaxy — vue graphe des connaissances (Massimo)
 
-**Chantier dédié**, décidé le 2026-07-28 : trop gros pour être greffé en fin de session.
+**LIVRÉ le 2026-07-28** — branche `feat/galaxy`, PR à ouvrir. ⚠️ **Ne pas ré-implémenter.**
+Décisions : **ADR-0024** (amendé 3 fois en cours de chantier). Spec :
+`docs/frontend-massimo/zetis-galaxy.md`. Routes : `API_SPEC.md` §ZETIS Galaxy.
+Pièges d'exécution : `MEMORY.md` §Chantier ZETIS Galaxy.
 
-Spec : `docs/frontend-massimo/zetis-galaxy.md` — ⚠️ **brouillon de fin juin, jamais confronté au
-code**, à re-valider avant de s'y fier. Rien n'est implémenté (« galaxy » n'existe nulle part dans
-le dépôt).
+Reste à la charge du user, non vérifiable par l'agent : `prefers-reduced-motion` à l'écran, et
+les **plafonds de nœuds sur les trois appareils réels** (valeurs 40/90/150 provisoires).
 
 Idée : la page de progression de Massimo rendue comme une galaxie qu'on allume. Étoile = `Skill`,
-constellation = matière, luminosité = `SkillMastery.status`. **Pas de rouge, jamais de manque** —
-une notion non vue est une étoile pas encore née, pas un échec. Animation branchée sur les
-`learning_events`, jamais sur un timer.
+constellation = matière, amas = chapitre, luminosité = `SkillMastery.status`. **Pas de rouge,
+jamais de manque** — une notion non vue est une étoile pas encore née, pas un échec.
 
-À trancher en ouverture de chantier :
+Décisions prises (détail et justifications dans l'ADR) :
 
-- **Moteur de rendu** — la spec conseille `react-force-graph` / `cytoscape.js`, mais le dépôt a
-  déjà `@xyflow/react` + elk (brique mindmap `@zetis/ui/mindmap`). Réutiliser éviterait ~1,6 Mo de
-  dépendance en double ; à confirmer, un graphe de connaissances n'a pas les mêmes contraintes
-  qu'un arbre de mindmap.
-- **Contrat API** — la spec demande `GET /progress/skills` au format `{ nodes, edges }` ; le module
-  `progress` expose aujourd'hui `consolidated_skills`, pas ce format. Aucune table nouvelle : tout
-  se dérive de `skills` + `skill_mastery`.
-- **Sort de `ProgressionPage.tsx`** — la page existe déjà sous une autre forme. Remplacement,
-  cohabitation, ou évolution ?
-- La spec précède les chantiers Activité, Motivation et Couverture : vérifier qu'elle ne contredit
-  pas leurs décisions (notamment la doctrine anti-streak et l'absence de score par matière).
+- **Emplacement** — la Galaxy **devient le contenu de `/progression`** (même route, même onglet).
+  La section « par matière » **mockée** disparaît.
+- **Moteur de rendu** — **`react-force-graph-3d`**, en `lazy()`. Le user a demandé un graphe **3D
+  animé, aux nœuds étirables** : `@xyflow/react` (canvas 2D) est techniquement disqualifié. Deux
+  moteurs graphe coexistent désormais — React Flow reste celui des mindmaps (ADR-0016, non rouvert).
+- **Arêtes** — dérivées de la **structure réelle uniquement** (`Skill ← lesson_skills → Lesson →
+  Chapter`). ⚠️ Le read-before-code a montré que **`prerequisite_skill_ids` n'existe pas** et que
+  `parent_skill_id` est **NULL partout** : les « liens stellaires » du brouillon n'avaient aucune
+  source. Un graphe de prérequis reste possible, mais c'est un chantier pédagogique à part.
+- **Contrat API** — `GET /progress/skills` **n'existe pas** et `progress` est Papa-only. Trois
+  routes élève neuves sous `/api/student/galaxy`, assises sur `evidence.mastery_by_skill()`.
+  Aucune table, **aucune migration**.
+- **Clic sur une étoile** → panneau d'actions. ⚠️ Seul ELI5 est notion-adressable par URL
+  aujourd'hui, d'où une troisième route dédiée. Une action sans contenu validé **n'est pas
+  proposée**.
+- **Doctrine** — l'ADR fige rétroactivement : pas de rouge, **aucun score ni pourcentage par
+  matière** (un **compte** d'étoiles allumées), **aucun capital perdable** (pas de streak, une
+  étoile allumée ne s'éteint pas).
+
+Prompts prêts : `prompts/claude-code/prompt-galaxy-slice-a-backend.md` (backend, zéro migration)
+puis `prompt-galaxy-slice-b-frontend.md` (Massimo).
+
+Risques connus, à surveiller : poids de Three.js (~600 Ko-1 Mo, isolé par `lazy()`) et **perf 3D
+sur le poste le plus contraint** — Massimo travaille sur **iPhone, iPad et un MacBook dédié à
+l'école**, et ce sont les deux derniers qui donnent son sens à une vue 3D. Plafond de nœuds
+**adaptatif** (compact 40 / tablette 90 / desktop 150, valeurs **provisoires non mesurées**) et
+repli sans WebGL prévus, **à essayer sur les trois appareils réels**.
+
+Reste ouvert (hors v1) : graphe de prérequis, aperçu sur l'Accueil, annonce « +1 étoile » en fin de
+mission, animation temps réel, et la **réconciliation de `docs/frontend-massimo/navigation.md`**
+(autre brouillon du même stash, qui décrit une nav à 5 verbes contredite par les 12 entrées réelles).
 
 ## Priorité P3 — polish
 

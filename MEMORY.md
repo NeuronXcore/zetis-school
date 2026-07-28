@@ -7,7 +7,16 @@
 
 ## État à la reprise
 
-**Aucune branche en cours — on repart de `main`.** Le chantier « Couverture de production »
+**Branche : `feat/galaxy`** (depuis `main`, 2026-07-28) — chantier **ZETIS Galaxy COMPLET**,
+cadrage **et** implémentation, poussé sur `origin`. ⚠️ **PR à ouvrir, rien n'est mergé.**
+
+Le chantier a été ouvert comme un cadrage (maquette → spec → ADR-0024 → prompts), puis le user a
+demandé d'enchaîner l'exécution dans la même session. Les deux slices y sont : backend `galaxy`
+(4 routes + frise, **aucune migration**) et frontend Massimo (page Progression refondue + aperçu
+sur l'Accueil). **Vérifié à l'écran sur la vraie base**, pas seulement en test.
+Voir §« Chantier ZETIS Galaxy » plus bas pour les pièges — ils sont coûteux à re-découvrir.
+
+Le chantier « Couverture de production »
 (ADR-0023) est **MERGÉ** : PR [#54](https://github.com/NeuronXcore/zetis-school/pull/54), merge
 commit `dc82f9c`, **7 commits conservés individuellement** (merge commit délibéré, pas de squash :
 chacun est autonome et revertable seul, ce qui comptait surtout pour `chore(assets)`). Branche
@@ -182,25 +191,105 @@ manuellement et a remonté 3 défauts réels que les tests ne voyaient pas (cf. 
 - **Missions Massimo** : champ d'affichage `origin` (papa/zetis), **pas** l'enum `created_by`
   (pilot-only) ; badge « new » = mission `planned`.
 
+### Chantier ZETIS Galaxy — CADRÉ **ET LIVRÉ** le 2026-07-28
+
+Branche `feat/galaxy`, poussée. **PR à ouvrir.** 157 tests Massimo + 542 backend, typecheck
+Massimo + Papa, build — verts. Vérifié **à l'écran sur la vraie base** (Postgres + backend :8003).
+
+**Livré** : cadrage complet (maquette, spec réécrite, ADR-0024, 2 prompts) **+** module backend
+`galaxy` (4 routes élève + frise, **aucune migration**) **+** frontend Massimo (page Progression
+refondue, aperçu Accueil 2 colonnes, brique `@zetis/ui/galaxy` + sous-chemin `/canvas`).
+
+⚠️ **Ne pas ré-implémenter.** Détail des routes : `API_SPEC.md` §ZETIS Galaxy.
+
+**Trois amendements de l'ADR-0024, tous par décision explicite du user en cours de session** —
+ils sont écrits dans l'ADR avec leur date et leur coût, ne pas les rouvrir sans raison :
+
+1. **§9 rouvert** : un graphe **global** existe sur l'Accueil, alors que l'ADR l'excluait. Coûts
+   bornés (canvas en `lazy()`, repli sur matières+chapitres au plafond), pas ignorés.
+2. **§4 révisé** : la panoplie **complète** est renvoyée avec `available`, au lieu d'omettre
+   l'indisponible. Justification : une fiche manquante n'est pas un échec de l'enfant.
+3. **2D → 3D** : `@xyflow/react` avait été retenu pour son coût nul, puis disqualifié par
+   l'exigence 3D. Deux moteurs graphe coexistent ; **ADR-0016 non rouvert**, les mindmaps gardent
+   React Flow.
+
+**Ce que le read-before-code a invalidé dans le brouillon** — à ne pas re-découvrir :
+
+1. **`Skill.prerequisite_skill_ids` n'existe pas** (ni colonne, ni table) et **`parent_skill_id` est
+   NULL partout** (`curriculum/service.py:501-521` ne l'écrit jamais). Les « liens stellaires »
+   n'avaient **aucune source de données**. → arêtes dérivées de
+   `Skill ← lesson_skills → Lesson → Chapter`, rien d'autre.
+2. **`GET /progress/skills` n'existe pas**, et `progress` est **Papa-only** (`require_parent`).
+   → trois routes élève neuves sous `/api/student/galaxy`.
+3. **`/progression` est déjà un onglet** avec une page XP/badges, dont la section « par matière »
+   est **mockée**. → la Galaxy prend sa place, l'existant prime sur `navigation.md`.
+4. **Seul ELI5 est notion-adressable par URL** (`/eli5?skill_id=N`) ; Quiz et Révision passent par
+   `location.state`, Cours/Fiches/Mindmaps par matière. Et **aucune fonction backend** ne dit « pour
+   ce `skill_id`, quels contenus validés existent » (`production/coverage.py` est leçon-centrée
+   **et** Papa-only). → 3ᵉ route `galaxy/notion/{skill_id}`, réutilisant les résolveurs de
+   `missions/service.py:76,98`.
+
+**Pièges rencontrés À L'EXÉCUTION** — chacun a coûté un aller-retour, aucun n'est théorique :
+
+- `SkillMastery.status` a **SIX** valeurs, pas cinq : `in_progress` est écrit par
+  `missions/service.py:859` et ne sort d'aucun `_status_from_score()`. Un mapping à 5 branches le
+  manque **en silence**.
+- `mastery_score` est sur **0–100** ; `evidence.mastery_by_skill()` renvoie la valeur **brute**.
+- **Massimo a trois postes, pas un** (précisé par le user le 2026-07-28) : **iPhone, iPad et un
+  MacBook dédié à l'école**. Ne pas re-rédiger « l'iPhone est la cible » — c'est le poste le plus
+  **contraint**, et ce sont l'iPad et le MacBook qui donnent son sens à la 3D. D'où un plafond de
+  nœuds **adaptatif** (40 / 90 / 150, provisoire) et l'interdiction de faire dépendre quoi que ce
+  soit d'essentiel du **survol**, qui n'existe pas au tactile.
+- **Le `lazy()` ne suffit pas à isoler Three.js.** Ré-exporter le canvas depuis le baril
+  `@zetis/ui/galaxy` le faisait entrer dans le bundle de départ (**3,6 Mo**, mesuré). D'où le
+  sous-chemin dédié `@zetis/ui/galaxy/canvas`. Ne pas « simplifier » ce baril.
+- **Un matériau très émissif APLATIT une sphère** : elle s'éclaire uniformément, plus d'ombrage
+  ni de reflet, elle se lit comme un disque. Vrai pour le soleil comme pour le cerveau — garder
+  l'émission basse et mettre l'éclat dans les **aures**.
+- **Un panneau face caméra est plat par construction** : le pictogramme de matière plaqué sur le
+  soleil masquait le limbe ombré. Il a été retiré du soleil (il reste sur l'écran d'ensemble).
+- **Sans nœud racine, les composantes se disloquent** (le moteur de forces éloigne les
+  composantes disjointes) — d'où `subject` dans une constellation et `root` dans le graphe global.
+- **La remontée de l'or doit être TRANSITIVE** : un seul cran suffit dans une constellation mais
+  pas dans le graphe global (3 niveaux) — les liens du cerveau restaient éteints.
+- **Tailwind v4 pose `cursor: default` sur les `<button>`** (changement vs v3) : `cursor-pointer`
+  est explicite partout où l'interactivité doit se voir.
+- **En construisant soi-même les objets 3D, `nodeVal`/`nodeColor`/`nodeRelSize` cessent de
+  s'appliquer** — reproduire la formule de la lib (`∛volume × rayon`), sinon les nœuds
+  rapetissent d'un coup et deviennent inatteignables au doigt.
+- **`GalaxyCanvas` ne filtre plus les clics** : il filtrait sur `kind === "skill"` et avalait les
+  clics sur les soleils. C'est l'appelant qui décide du sens d'un clic.
+
+**Vérification : mesurer que ça BOUGE ne prouve pas que ça se VOIT.** Trois rendus ont dû être
+repris parce que je validais une propriété calculée (`background-position` qui change, animation
+déclarée) au lieu de comparer deux captures d'écran. Les captures comparées sont le seul test
+utile sur du visuel.
+
+**Reste ouvert** : `prefers-reduced-motion` n'a **pas** pu être testé (le panneau navigateur ne
+l'émule pas) — couvert par tests unitaires et par la variante `motion-safe:`, mais pas à l'écran.
+Et les **plafonds de nœuds (40/90/150) ne sont pas mesurés** : ils demandent l'iPhone, l'iPad et
+le MacBook réels.
+
 ### PROCHAIN PAS
 
+0. **Ouvrir la PR de `feat/galaxy`** — la branche est poussée, rien n'est mergé. Deux
+   vérifications que l'agent NE PEUT PAS faire et qui restent à la charge du user :
+   `prefers-reduced-motion` à l'écran, et les **plafonds de nœuds sur les trois appareils
+   réels** (iPhone, iPad, MacBook). Les valeurs 40/90/150 sont provisoires.
 1. **Trancher le sort de la photo de Massimo** —
    `apps/frontend-massimo/src/assets/app/ChatGPT Image 5 juil. 2026, 14_36_01.png` (2 Mo, 1254 px)
    est une **photo du visage de l'enfant** montée dans une icône de progression. Elle est
    versionnée, **importée nulle part** (elle ne pèse que dans git). Laissée intacte
    volontairement : l'agent ne décide pas seul du sort d'une image d'un mineur. Trois options —
    garder / renommer et ranger dans `assets/brand/icons/` / sortir du dépôt.
-2. **Créer une branche** pour le chantier suivant : `main` est propre et à jour, plus rien n'est
-   en cours (la PR #54 a tout emporté).
-3. Puis, au choix : **file de relecture** (prérequis dur du cron ADR-0023 — automatiser la
-   fabrication d'un goulot est le seul vrai risque), ou **production en lot** (§7 : deux passes
-   non fusionnables, cours puis équipement), dont le bouton « ⚡ Compléter le chapitre » marque
-   déjà l'emplacement, désactivé — ou **ZETIS Galaxy**, voir ci-dessous.
-3 bis. **ZETIS Galaxy = chantier dédié** (décision du user, 2026-07-28). Ni la spec ni le code ne
-   se traitent en fin de session : la spec est un brouillon de fin juin à re-valider entièrement,
-   et rien n'est implémenté. Périmètre, questions ouvertes et pièges : `BACKLOG.md` §P2. Ouvrir le
-   chantier par le rituel normal (`mockup → spec → ADR → prompt`) — la spec récupérée est une
-   **entrée de discussion, pas une décision**.
+2. **Une fois la Galaxy mergée**, au choix : **file de relecture** (prérequis dur du cron
+   ADR-0023 — automatiser la fabrication d'un goulot est le seul vrai risque), ou **production
+   en lot** (§7 : deux passes non fusionnables, cours puis équipement), dont le bouton
+   « ⚡ Compléter le chapitre » marque déjà l'emplacement, désactivé.
+3. ~~ZETIS Galaxy = chantier à ouvrir~~ → **LIVRÉ le 2026-07-28**, cadrage et code.
+   Voir §« Chantier ZETIS Galaxy ». Suites possibles, hors v1 : graphe de **prérequis** (la
+   donnée n'existe pas, c'est un chantier pédagogique à part), annonce « +1 étoile » en fin de
+   mission, animation temps réel poussée par événement, réconciliation de `navigation.md`.
 4. Restent ouverts, sans urgence : le **test flaky** `ProgrammePage` (barre de progression
    temporisée, cf. `TROUBLESHOOTING.md`), et la **vérification à l'écran de bout en bout** de la
    Couverture, que l'agent ne peut pas faire sans session Papa.

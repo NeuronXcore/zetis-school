@@ -1041,6 +1041,96 @@ Dérivés (`fiche` | `mindmap` | `quiz`) dont la leçon est `archived`.
 `has_history` vrai (au moins une tentative) → l'UI désactive la suppression. **Lecture seule** :
 cette route ne supprime ni ne réattache rien.
 
+## ZETIS Galaxy (Massimo, ADR-0024)
+
+Surface **ÉLÈVE** — `get_current_user`, jamais `require_parent`. Lecture seule, **aucune table
+nouvelle, aucune migration** : le graphe se dérive de `skills` / `lesson_skills` / `lessons` /
+`chapters` + `skill_mastery`, via `evidence.mastery_by_skill()`.
+
+Gate de visibilité partout : `Chapter.validation_status == "validated"` **et**
+`Lesson.status == "validated"`. Une notion non validée n'apparaît pas — pas même « à découvrir ».
+
+> ⚠️ Ces routes ne consomment **ni** le module `progress` **ni** `production` (Papa-only) : aucune
+> donnée de pilotage (`validated_by`, fraîcheur, orphelins, sévérité) ne descend jusqu'à Massimo.
+
+### GET `/student/galaxy`
+
+Vue d'ensemble. `lit` = notions dont le statut n'est ni `unknown` ni absent — un **COMPTE**,
+jamais un pourcentage (aucun score par matière, ADR-0024 §5).
+
+```json
+{ "subjects": [{ "subject_id": 3, "name": "SVT", "slug": "svt", "lit": 11, "total": 16 }] }
+```
+
+### GET `/student/galaxy/all`
+
+**Toutes** les matières dans un seul graphe (Accueil) : `root` → matières → chapitres → notions.
+
+Le nœud `root` n'est pas décoratif : sans lui chaque matière forme une composante **isolée** que
+le moteur de forces éloigne, et la galaxie se disloque. Chaque nœud porte son `subject_slug`, ce
+qui permet à un clic d'ouvrir la bonne constellation sans second aller-retour.
+
+### GET `/student/galaxy/{subject_slug}`
+
+Une constellation : `subject` → chapitres → notions.
+
+```json
+{ "subject": { "subject_id": 3, "name": "SVT", "slug": "svt" },
+  "nodes": [{ "id": "chapter-12", "kind": "chapter", "label": "La cellule" },
+            { "id": "skill-88", "kind": "skill", "label": "Mitose", "skill_id": 88,
+              "chapter_id": 12, "status": "learning", "intensity": 58 }],
+  "edges": [{ "source": "chapter-12", "target": "skill-88", "type": "structure" }] }
+```
+
+- `kind` = `root` | `subject` | `chapter` | `skill`. Arêtes de type **`structure` uniquement** :
+  `Skill.prerequisite_skill_ids` **n'existe pas** et `parent_skill_id` est NULL partout — aucun
+  prérequis n'est inventé.
+- `status` : les 5 états rendus. ⚠️ **`SkillMastery.status` en a SIX** — `in_progress` (verdict
+  de mission `review_later`) ne sort d'aucun `_status_from_score()` et est normalisé en
+  `learning` **côté serveur**.
+- `intensity` (0–100, brut) module une luminosité ; il n'est **jamais affiché**.
+- 404 si la matière est inconnue ou hors année active ; `nodes: []` si rien n'est validé.
+
+### GET `/student/galaxy/notion/{skill_id}`
+
+Panneau d'actions — **toute la panoplie ZETIS**, chaque activité portant sa disponibilité.
+
+```json
+{ "skill_id": 88, "name": "Mitose", "status": "learning", "chapter_title": "La cellule",
+  "subject_slug": "svt", "subject_name": "SVT",
+  "actions": [{ "kind": "cours", "available": true, "lesson_id": 41 },
+              { "kind": "eli5", "available": true },
+              { "kind": "fiche", "available": false },
+              { "kind": "capsule", "available": false },
+              { "kind": "mindmap", "available": true, "mindmap_id": 9 },
+              { "kind": "revision", "available": false },
+              { "kind": "quiz", "available": true, "quiz_id": 77 }] }
+```
+
+Ordre pédagogique stable : comprendre → mémoriser → se tester. `eli5` est **toujours** disponible
+(elle ne dépend d'aucun contenu préexistant). 404 pour une notion hors des matières de l'élève —
+un id inconnu ne révèle rien.
+
+> Révision de l'ADR-0024 §4 (2026-07-28) : la règle initiale était « une action sans contenu
+> n'est pas proposée ». On renvoie désormais **tout**, avec `available` — une activité manquante
+> n'est pas un échec de Massimo, c'est du contenu que Papa n'a pas encore produit.
+
+### GET `/student/galaxy/timeline`
+
+Frise de progression, **MONOTONE par construction**.
+
+```json
+{ "points": [{ "date": "2026-07-01", "lit": 2 }, { "date": "2026-07-08", "lit": 5 }], "total": 5 }
+```
+
+⚠️ Construite sur la **première fois** où chaque notion a été travaillée, en lisant
+`learning_events` (**append-only**) — et **non** sur `SkillMastery`, qui peut **régresser**
+(`mastery_score` est une moyenne glissante ; `set_mastery_status` gère explicitement la sortie de
+« maîtrisé »). Une frise fondée sur l'état courant montrerait la galaxie **s'assombrir** : c'est
+le cadrage de perte que ZETIS bannit. Ne jamais « corriger » cette courbe avec l'état courant.
+
+Aucune table, aucun ordonnanceur : l'historique existe déjà, il suffit de le lire.
+
 ## Jobs IA
 
 ### GET `/ai/jobs/{job_id}`
