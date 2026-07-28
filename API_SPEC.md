@@ -763,6 +763,131 @@ Aucune surface Massimo.
   le flux Commander (ADR-0018 ; `manual`, `validated` par construction — la validation Papa = ce
   clic). Croisées multi-matières hors v1.
 
+## Activité (journal `learning_events`)
+
+Source unique de l'activité. `xp_events` reste le grand livre de l'XP : le champ `xp` des
+réponses ci-dessous en est sommé séparément, **jamais par UNION** des deux tables. Bucketing par
+jour et par semaine en **Europe/Paris**. Contrats TypeScript : `packages/types/src/activity.ts`.
+
+### POST `/api/telemetry/pageview` (Massimo)
+
+Seule écriture cliente autorisée dans le journal. Entrée `{ route }` (1–200 caractères,
+`extra="forbid"` → un `created_at` envoyé par le client est rejeté en `422`).
+
+**Le serveur horodate.** Une route identique à la précédente du même élève est ignorée
+silencieusement. Réponse `204` dans tous les cas de succès. Déclaratif observationnel :
+n'influence ni XP, ni score, ni verdict.
+
+### GET `/api/parent/activity/heatmap?weeks=26&subject_id=` (Papa)
+
+`weeks` borné serveur (1 à 53, défaut 26). Les jours **sans activité sont omis** et reconstruits
+côté client.
+
+```json
+{
+  "days": [{ "date": "2026-07-15", "active_minutes": 24, "events": 9, "xp": 30 }],
+  "days_inactive": 0
+}
+```
+
+`active_minutes` = intensité de la case (pas le nombre d'événements). `days_inactive` = jours
+consécutifs sans activité en fin de série, **toutes matières**, même quand `subject_id` filtre le
+reste de la réponse : le décrochage renseigne sur l'enfant, pas sur une matière.
+
+### GET `/api/parent/activity/days/{date}?subject_id=` (Papa)
+
+`404` si la date n'est pas au format `AAAA-MM-JJ`. Journal trié, `review_attempted` consécutifs
+**agrégés côté serveur** en une ligne, `minutes` fourni par événement (le client ne recalcule
+rien).
+
+```json
+{
+  "date": "2026-07-15",
+  "events": [
+    { "time": "10:00", "event_type": "login", "label": "Connexion",
+      "subject_slug": null, "skill_name": null, "xp": 0, "minutes": 2, "detail": null },
+    { "time": "10:02", "event_type": "review_attempted", "label": "Révision SRS · 8 cartes",
+      "subject_slug": "mathematiques", "xp": 40, "minutes": 9, "count": 8 }
+  ]
+}
+```
+
+### GET `/api/parent/activity/sessions?from=&to=&subject_id=` (Papa)
+
+Sessions **reconstruites** (coupure à `SESSION_GAP_MINUTES` = 15), jamais stockées. Période
+bornée serveur (défaut : 7 derniers jours ; amplitude maximale `ACTIVITY_MAX_RANGE_DAYS`). Jours
+rendus du plus **récent** au plus ancien, y compris ceux sans session (`sessions: []`) :
+l'absence d'activité est une information. `started_at`/`ended_at` sont des instants **UTC** (pour
+calculer) ; `started_time`/`ended_time` sont les mêmes bornes déjà formatées en **Europe/Paris**
+(pour afficher) — reformater l'UTC côté client suivrait le fuseau du navigateur et pourrait
+contredire le `time` des événements de la même carte.
+
+```json
+{
+  "days": [
+    { "date": "2026-07-15",
+      "sessions": [
+        { "started_at": "2026-07-15T08:00:00+00:00", "ended_at": "2026-07-15T08:40:00+00:00",
+          "started_time": "10:00", "ended_time": "10:40",
+          "active_minutes": 22, "events": [] }
+      ] }
+  ]
+}
+```
+
+### GET `/api/parent/dashboard` (Papa)
+
+KPI de régularité en `{ value, delta }` — semaine **lundi→dimanche Europe/Paris** contre la
+précédente, delta calculé serveur.
+
+```json
+{
+  "week_start": "2026-07-13",
+  "sessions": { "value": 4, "delta": 1 },
+  "active_minutes": { "value": 96, "delta": 18 },
+  "xp": { "value": 180, "delta": -20 },
+  "missions_completed": { "value": 3, "delta": 0 },
+  "open_gaps": { "value": 5 },
+  "consolidated_skills": { "value": 3 }
+}
+```
+
+Quatre **flux** hebdomadaires en `{value, delta}` et deux **stocks** en `{value}` seul. Les stocks
+n'ont pas de delta parce qu'il serait faux : reconstituer l'état d'il y a une semaine exigerait de
+savoir quand chaque lacune a été résolue et quand chaque notion est passée à `mastered`, or `gaps`
+ne porte que `first_detected_at` et `skill_mastery` aucun horodatage de bascule. Les ajouter est un
+chantier de modèle, pas un contournement d'affichage.
+
+Surface neuve : la page Dashboard n'avait pas d'endpoint. Les routes `/gaps` et `/progress/summary`
+citées par la spec produit n'ont jamais existé en code. Reste hors payload : « prochaine révision ».
+
+## Progression (module `progress`, Papa)
+
+Détail des deux KPI de stock. Analyses parentales : jamais servies à Massimo.
+
+### GET `/api/parent/progress/gaps`
+
+Lacunes ouvertes (`status ∈ open | in_progress`, même définition que le générateur de missions de
+remédiation), les plus sévères d'abord. L'UI les formule en « notions à renforcer » — jamais de
+vocabulaire d'échec (CLAUDE.md §pédagogie).
+
+```json
+[{ "skill_id": 12, "skill_name": "Temps du récit", "subject_slug": "francais",
+   "subject_name": "Français", "severity": "high", "status": "in_progress",
+   "first_detected_at": "2026-07-01T08:00:00+00:00" }]
+```
+
+### GET `/api/parent/progress/consolidated`
+
+Notions consolidées, la maîtrise la plus haute d'abord. **Consolidée = `mastered`** (score ≥ 90,
+paliers partagés diagnostic/quiz) ; `solid` (≥ 70) n'est volontairement pas compté — « consolidé »
+doit vouloir dire acquis, pas « presque ».
+
+```json
+[{ "skill_id": 7, "skill_name": "Nombres relatifs", "subject_slug": "mathematiques",
+   "subject_name": "Mathématiques", "mastery_score": 95, "last_seen_at": null }]
+```
+
 ## Jobs IA
 
 ### GET `/ai/jobs/{job_id}`

@@ -333,10 +333,34 @@ id
 student_id
 subject_id optional
 skill_id optional
-event_type         # lesson_viewed, quiz_attempted, eli5_reverse, etc.
+event_type         # lesson_viewed, quiz_attempted, reverse_eli5, etc.
 payload_json
 created_at
+index              # (student_id, created_at) — toutes les lectures d'activité
 ```
+
+**Deux journaux, jamais d'UNION.** `xp_events` est le **grand livre de l'économie XP** (solde,
+niveau, streak) ; `learning_events` est le **journal d'activité** (ce que Massimo a fait). Les
+minutes actives et les sessions se calculent sur `learning_events` ; le XP affiché est une
+métrique **séparée**, sommée depuis `xp_events`. Les mélanger double-compterait : un quiz
+terminé écrit une ligne dans chaque table sans être deux activités.
+
+**Les sessions ne sont pas stockées.** Elles sont reconstruites à la lecture
+(`modules/activity/service.py`) : une session = événements consécutifs espacés de moins de
+`SESSION_GAP_MINUTES` (15). Changer la constante recalcule tout l'historique, sans migration.
+Le temps actif est une heuristique de **présence** : somme des écarts plafonnés à
+`ACTIVE_GAP_CAP_MINUTES` (5) — pas une mesure d'attention. Bucketing par jour et par semaine en
+**Europe/Paris**, `created_at` restant stocké en UTC.
+
+**Vocabulaire des `event_type`.** Posés par le chantier « Activité » : `login`, `page_viewed`,
+`lesson_viewed`, `fiche_viewed`, `quiz_attempted`, `eli5_requested`, `review_attempted`.
+Préexistants et **réutilisés tels quels** plutôt que dupliqués : `reverse_eli5` (verbalisation
+ELI5), `mission_verdict` (émis là où la mission passe à `completed`, et lu par
+`evidence.recent_verdicts`), `mission_step_view`. Émettre en plus un `eli5_reverse` ou un
+`mission_completed` créerait deux événements pour un seul acte.
+
+Le journal est **auto-suffisant** : un hook qui accompagne un crédit d'XP recopie le montant
+dans `payload_json.xp`, ce qui évite tout rapprochement par horodatage entre les deux tables.
 
 ### SpacedReviewCard
 

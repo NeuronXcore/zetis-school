@@ -1,3 +1,18 @@
+export {
+  type ActivityDayDetail,
+  type ActivityEntry,
+  type ActivityHeatmap,
+  type ActivityHeatmapDay,
+  type ActivitySession,
+  type ActivitySessionDay,
+  type ActivitySessions,
+  type ConsolidatedSkill,
+  type DashboardKpis,
+  type KpiCount,
+  type KpiValue,
+  type OpenGap,
+  type PageViewRequest,
+} from "./activity";
 export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
   type FicheDefinition,

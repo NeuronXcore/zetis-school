@@ -8,10 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.modules.activity.events import EVENT_LESSON_VIEWED, log_view_once_per_day
 from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.curriculum import get_curriculum_provider, service
+from app.modules.eli5.service import get_default_student
 from app.modules.notions import service as notions_service
 from app.modules.notions.schemas import NotionRequestOut, NotionRequestPatch
 from app.modules.curriculum.schemas import (
@@ -35,6 +37,7 @@ from app.modules.curriculum.schemas import (
     StudentNotionsSummaryOut,
     SubjectNotionsOut,
 )
+from app.modules.subjects.resolver import subject_id_for_lesson
 
 router = APIRouter(prefix="/api", tags=["curriculum"], dependencies=[Depends(require_parent)])
 
@@ -338,7 +341,21 @@ def student_cours(subject_slug: str, db: Session = Depends(get_db)) -> dict:
 @student_router.get("/lessons/{lesson_id}/cours", response_model=StudentLessonContentOut)
 def student_lesson_cours(lesson_id: int, db: Session = Depends(get_db)) -> dict:
     """Cours (markdown) d'une leçon validée — 404 sinon, sans fuite des brouillons."""
-    return service.student_lesson_content(db, lesson_id)
+    content = service.student_lesson_content(db, lesson_id)
+    # Journal d'activité : consultation tracée AU PLUS une fois par (élève, leçon, jour Paris)
+    # — un rafraîchissement de page n'est pas une activité. Après le service : une leçon
+    # introuvable (404) n'entre jamais dans le journal.
+    log_view_once_per_day(
+        db,
+        student_id=get_default_student(db).id,
+        event_type=EVENT_LESSON_VIEWED,
+        payload_key="lesson_id",
+        payload_value=lesson_id,
+        subject_id=subject_id_for_lesson(db, lesson_id),
+        payload={"lesson_id": lesson_id, "lesson_title": content["title"]},
+    )
+    db.commit()
+    return content
 
 
 @student_router.get("/notions/summary", response_model=StudentNotionsSummaryOut)

@@ -31,7 +31,6 @@ from app.db.models import (
     SchoolYearSubject,
     Skill,
     Subject,
-    Theme,
 )
 from app.modules.ai.canonical_context import (
     CanonicalContext,
@@ -41,6 +40,7 @@ from app.modules.ai.canonical_context import (
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.eli5.service import get_default_student
 from app.modules.fiches.schemas import FicheSpec
+from app.modules.subjects.resolver import subject_of_lesson
 from app.prompts import fiche
 
 logger = logging.getLogger(__name__)
@@ -99,26 +99,6 @@ def _chapter_of(db: Session, lesson: Lesson) -> Chapter | None:
     return db.get(Chapter, lesson.chapter_id)
 
 
-def _subject_of(db: Session, lesson: Lesson) -> Subject | None:
-    """Matière d'une leçon via `chapter → (school_year_subject | theme) → subject`.
-
-    Le rattachement d'un chapitre est branché (§ modèle `Chapter`) : soit à une matière d'année
-    (`school_year_subject_id`), soit directement à un thème (`theme_id`). On essaie les deux.
-    """
-    chapter = _chapter_of(db, lesson)
-    if chapter is None:
-        return None
-    if chapter.school_year_subject_id is not None:
-        sys_row = db.get(SchoolYearSubject, chapter.school_year_subject_id)
-        if sys_row is not None:
-            return db.get(Subject, sys_row.subject_id)
-    if chapter.theme_id is not None:
-        theme = db.get(Theme, chapter.theme_id)
-        if theme is not None:
-            return db.get(Subject, theme.subject_id)
-    return None
-
-
 def _level_for(skills: list[Skill]) -> str:
     return next((s.level for s in skills if s.level), None) or DEFAULT_LEVEL
 
@@ -173,7 +153,7 @@ def _generate_spec(
     """
     skills = _lesson_skills(db, lesson.id)
     sections = _fiche_sections(db, embedder, lesson, skills)
-    subject = _subject_of(db, lesson)
+    subject = subject_of_lesson(db, lesson)
     chapter = _chapter_of(db, lesson)
     system, prompt = fiche.build_prompt(
         sections=sections,
@@ -357,7 +337,7 @@ def fiche_out(db: Session, row: Fiche, *, seen: bool = False) -> dict:
     """Sérialise une fiche pour Papa/Massimo (spec complet + matière/chapitre résolus)."""
     lesson = db.get(Lesson, row.lesson_id)
     chapter = _chapter_of(db, lesson) if lesson else None
-    subject = _subject_of(db, lesson) if lesson else None
+    subject = subject_of_lesson(db, lesson)
     spec = row.spec_json if isinstance(row.spec_json, dict) else {}
     return {
         "id": row.id,

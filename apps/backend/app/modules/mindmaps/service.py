@@ -37,7 +37,6 @@ from app.db.models import (
     Skill,
     StudentProfile,
     Subject,
-    Theme,
 )
 from app.modules.ai.canonical_context import (
     CanonicalContext,
@@ -51,6 +50,7 @@ from app.modules.mindmaps.schemas import (
     MindmapNodeEval,
     MindmapNodePlacement,
 )
+from app.modules.subjects.resolver import subject_of_lesson
 from app.prompts import mindmap
 
 logger = logging.getLogger(__name__)
@@ -109,22 +109,6 @@ def _chapter_of(db: Session, lesson: Lesson) -> Chapter | None:
     return db.get(Chapter, lesson.chapter_id)
 
 
-def _subject_of(db: Session, lesson: Lesson) -> Subject | None:
-    """Matière d'une leçon via `chapter → (school_year_subject | theme) → subject`."""
-    chapter = _chapter_of(db, lesson)
-    if chapter is None:
-        return None
-    if chapter.school_year_subject_id is not None:
-        sys_row = db.get(SchoolYearSubject, chapter.school_year_subject_id)
-        if sys_row is not None:
-            return db.get(Subject, sys_row.subject_id)
-    if chapter.theme_id is not None:
-        theme = db.get(Theme, chapter.theme_id)
-        if theme is not None:
-            return db.get(Subject, theme.subject_id)
-    return None
-
-
 def _level_for(skills: list[Skill]) -> str:
     return next((s.level for s in skills if s.level), None) or DEFAULT_LEVEL
 
@@ -175,7 +159,7 @@ def _generate_spec(
     """
     skills = _lesson_skills(db, lesson.id)
     sections = _mindmap_sections(db, embedder, lesson, skills)
-    subject = _subject_of(db, lesson)
+    subject = subject_of_lesson(db, lesson)
     chapter = _chapter_of(db, lesson)
     system, prompt = mindmap.build_prompt(
         sections=sections,
@@ -320,7 +304,7 @@ def mindmap_out(db: Session, row: Mindmap) -> dict:
     """Sérialise une carte pour Papa/Massimo (json complet + matière/chapitre résolus)."""
     lesson = db.get(Lesson, row.lesson_id)
     chapter = _chapter_of(db, lesson) if lesson else None
-    subject = _subject_of(db, lesson) if lesson else None
+    subject = subject_of_lesson(db, lesson)
     mm = row.mindmap_json if isinstance(row.mindmap_json, dict) else {}
     return {
         "id": row.id,
@@ -671,7 +655,7 @@ def record_attempt(
     db.add(attempt)
 
     lesson = db.get(Lesson, row.lesson_id)
-    subject = _subject_of(db, lesson) if lesson else None
+    subject = subject_of_lesson(db, lesson)
     xp = mindmap_reconstruction_xp(score, failed_attempts)
     award_xp(
         db,
