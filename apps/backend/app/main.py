@@ -16,6 +16,7 @@ from app.modules.diagnostics.router import router as diagnostics_router
 from app.modules.eli5.router import router as eli5_router
 from app.modules.fiches.router import router as fiches_router
 from app.modules.fiches.router import student_router as fiches_student_router
+from app.modules.galaxy.router import student_router as galaxy_student_router
 from app.modules.gamification.router import router as gamification_router
 from app.modules.memory.router import parent_router as cards_parent_router
 from app.modules.memory.router import router as memory_router
@@ -82,3 +83,5 @@ app.include_router(progress_router)
 # Motivation (Massimo) : régularité douce + engagement hebdomadaire choisi par l'enfant.
 app.include_router(motivation_router)
 app.include_router(production_router)
+# ZETIS Galaxy (Massimo) : graphe des connaissances, contenu de la page Progression (ADR-0024).
+app.include_router(galaxy_student_router)
