@@ -16,18 +16,34 @@ chacun est autonome et revertable seul, ce qui comptait surtout pour `chore(asse
 ⚠️ **Ne pas ré-implémenter** la Couverture : elle est complète et sur `main` — backend
 (`production` + `engagement` + provenance), page Papa, passe visuelle, convention d'assets.
 
-### Branches restantes — toutes vérifiées, toutes fusionnées (2026-07-28)
+### Dépôt nettoyé (2026-07-28) — 4 branches et 2 stashes, rien de perdu
 
-Quatre branches subsistent dans le dépôt. **Aucune ne porte de travail absent de `main`** — c'est
-vérifié, pas supposé. Elles peuvent être supprimées sans risque ; elles ne l'ont pas été faute de
-demande.
+**État : `main` seule, local et distant. Zéro branche, zéro stash.**
 
-| Branche | Preuve | |
+Les 4 branches supprimées étaient toutes vérifiées fusionnées **avant** suppression, et leurs tips
+restent restituables à vie par les refs de PR que GitHub conserve
+(`git fetch origin refs/pull/<n>/head`) :
+
+| Branche supprimée | Preuve | Tip archivé |
 |---|---|---|
-| `feat/activite-backend` (local + `origin`) | PR #52 · SHA fusionné `1284deb` = tip | ✅ |
-| `feat/motivation-massimo` (local + `origin`) | PR #53 · SHA fusionné `befe91e` = tip | ✅ |
-| `origin/mindmap` | tip ancêtre de `main` | ✅ |
-| `origin/mission` | PR #46 · tip ancêtre de `main` | ✅ |
+| `feat/activite-backend` | PR #52 · SHA fusionné = tip | `refs/pull/52/head` → `1284deb` |
+| `feat/motivation-massimo` | PR #53 · SHA fusionné = tip | `refs/pull/53/head` → `befe91e` |
+| `mindmap` | tip ancêtre de `main` | `refs/pull/51/head` → `3d2b499` |
+| `mission` | PR #46 · tip ancêtre de `main` | `refs/pull/46/head` → `cb3d581` |
+
+**Les 2 stashes ont été récupérés avant d'être vidés** (commits `08c5723` + `d1b70ba`) :
+
+- `stash@{1}` (4 semaines, `feat/design-system`) portait **deux specs jamais atterries** —
+  `docs/frontend-massimo/navigation.md` et `zetis-galaxy.md`, 265 lignes. Vérifié : « galaxy »
+  n'existait nulle part ailleurs dans le dépôt. ⚠️ Elles arrivent avec un **bandeau de réserve** :
+  elles se déclarent normatives alors qu'elles n'ont jamais été confrontées au code, et 4 semaines
+  de développement ont passé. **Ne pas les faire appliquer sans les vérifier ligne à ligne.**
+  ZETIS Galaxy reste une conception **non implémentée**.
+- `stash@{0}` (24 h) enrichissait l'index des ADR. Repris : les descriptions 0001→0005 et les
+  amendements ADR-0017. Le reste (0012→0019) existait déjà dans `main` sous une formulation plus
+  récente — sa version de `DECISIONS.md` était antérieure à l'ADR-0023, la restaurer en bloc aurait
+  fait régresser le fichier. Écart connu et assumé : pour ADR-0018 et ADR-0019, la ligne d'index du
+  stash était plus longue que celle de `main` ; les ADR eux-mêmes sont intacts.
 
 ⚠️ **Deux pièges de diagnostic**, à connaître avant de refaire ce contrôle :
 
