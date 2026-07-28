@@ -149,3 +149,59 @@
   à la **création** de la mission ; une carte validée *après* coup n'est pas rétro-ajoutée. → **régénérer
   le parcours** (`POST /missions/{id}/regenerate`, planned seulement — une mission `active` refuse,
   409). Pas besoin de générer si la carte existe déjà.
+
+## Chantier `couverture` (ADR-0023) — pièges rencontrés
+
+### Le serveur dev sert un code antérieur, sans le dire
+
+**Symptôme** : une route existe dans le fichier, l'appel renvoie `404`. Ou pire — un champ
+ajouté au modèle de lecture arrive vide, et l'UI qui en dépend paraît inerte.
+
+**Cause** : `.claude/launch.json` lançait `backend-dev`/`backend-dev2` **sans `--reload`**.
+Le processus gardait le code de son démarrage.
+
+**Diagnostic en une commande** — comparer le code au processus :
+
+```bash
+curl -s localhost:8002/openapi.json | python3 -c "import sys,json;print([p for p in json.load(sys.stdin)['paths'] if 'ma-route' in p])"
+```
+
+Corrigé : `--reload` ajouté aux deux configs. **Réflexe à garder** : vérifier ses ajouts backend
+contre le serveur que l'humain utilise, pas seulement par les tests et des appels directs à la base.
+
+### `fiches` / `mindmaps` : horodatages nullable sans défaut serveur
+
+**Symptôme** : une fiche générée n'apparaît jamais dans la matrice (cellule `+` permanente), et
+chaque clic en crée une de plus. Cinq doublons avant qu'on comprenne.
+
+**Cause** : ces deux tables ont été créées avec `created_at`/`updated_at` **nullable et sans
+`DEFAULT now()`**, contrairement à `quizzes`/`capsules`. Le `TimestampMixin` déclare pourtant le
+défaut : la migration de création ne l'a jamais suivi. Toute ligne insérée sans horodatage
+explicite naissait à `NULL`.
+
+**Vérifier** :
+
+```sql
+select table_name, column_name, column_default, is_nullable from information_schema.columns
+where column_name in ('created_at','updated_at') and table_name in ('fiches','mindmaps','quizzes','capsules');
+```
+
+Corrigé par `e6f7a8b9c0d1`. **Leçon de conception** : ne jamais déduire l'absence d'un objet
+d'une date manquante. `absent` se déduit de l'existence de la ligne ; une date nulle rend
+seulement le *périmé* indécidable, ce qui est un défaut acceptable, pas un mensonge.
+
+### Une capsule créée sans `skill_id` ne compte nulle part
+
+La Couverture compte les capsules **par notion** (`Capsule.skill_id`). Le compositeur de la page
+Capsules IA n'envoyait pas ce champ : les capsules créées là n'étaient rattachées à aucune notion
+et restaient invisibles dans les fractions, quel que soit le travail fourni.
+
+### Les tests de page cassent quand on ajoute `useSearchParams`
+
+`ProgrammePage.test.tsx` rendait `<ProgrammePage />` nu ; le hook exige un Router (26 tests
+tombés d'un coup). Passer par un helper `renderPage(route)` qui enveloppe dans `<MemoryRouter>` —
+c'est d'ailleurs plus fidèle à l'app réelle.
+
+Autre piège du même ordre : **jsdom n'implémente pas `scrollIntoView`**. L'appeler dans un
+`useEffect` jette et démonte l'arbre. Toujours `ref.current?.scrollIntoView?.({...})` — sur la
+méthode aussi, pas seulement sur la ref.

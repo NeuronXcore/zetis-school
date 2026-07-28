@@ -10,6 +10,7 @@ import { MissionsPage } from "./pages/MissionsPage";
 import { DiagnosticsPapaPage } from "./pages/DiagnosticsPapaPage";
 import { ConseilClasseIAPage } from "./pages/ConseilClasseIAPage";
 import { CahierBordPage } from "./pages/CahierBordPage";
+import { CouverturePage } from "./pages/CouverturePage";
 import { AnneesScolairesPage } from "./pages/AnneesScolairesPage";
 import { MatieresPapaPage } from "./pages/MatieresPage";
 import { ProgrammePage } from "./pages/ProgrammePage";
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/diagnostics" element={<DiagnosticsPapaPage />} />
         <Route path="/conseil" element={<ConseilClasseIAPage />} />
         <Route path="/cahier" element={<CahierBordPage />} />
+        <Route path="/couverture" element={<CouverturePage />} />
         <Route path="/annees" element={<AnneesScolairesPage />} />
         <Route path="/programme" element={<ProgrammePage />} />
         <Route path="/cartes-revision" element={<CartesRevisionPage />} />

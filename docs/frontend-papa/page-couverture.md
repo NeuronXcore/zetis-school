@@ -198,3 +198,32 @@ silencieusement**.
 
 File de relecture · production en lot (ADR-0023) · suppression et réattachement des orphelins ·
 filtre par moteur d'inférence · tout agrégat de provenance · toute surface Massimo.
+
+---
+
+## Écarts d'implémentation (2026-07-28)
+
+Ce que la page fait **en plus** de la spec ci-dessus, décidé en cours de chantier avec le user :
+
+- **Chaque cellule renseignée est un lien** vers son objet, sur la page de pilotage du type :
+  convention `?subject=<id>&focus=<object_id>` (le cours garde le format Programme,
+  `subject`+`chapter`+`lesson`). Défilement + anneau émeraude à l'arrivée. Le quiz et la mindmap
+  **ouvrent directement leur modale** (c'est là que vit leur contenu) ; la fiche se contente du
+  surlignage — sa modale est un ÉDITEUR, l'ouvrir d'office mettrait Papa en édition sans l'avoir
+  demandé.
+- **Badge sur la ligne** au lieu d'une sous-ligne : « À valider → » (ambre, cliquable, mène à
+  Programme) pour une leçon en brouillon ; « Cours à rédiger » (bleu, non cliquable — l'action
+  est dans la colonne Cours). Vocabulaire repris de `badges.tsx`, que Papa connaît déjà.
+- **Validation en lot des leçons d'un chapitre** — bouton ACTIF dans l'en-tête de chapitre,
+  à côté du bouton de production en lot qui reste désactivé. La distinction est volontaire :
+  valider ne génère rien, ça lève un gate. Confirmation `tone="important"` + provenance
+  `parent_bulk`.
+- **Colonnes notion-centrées actionnables** : la fraction ouvre le détail par notion. Cartes →
+  génération en un clic ; capsules → compositeur pré-rempli (l'instruction reste à Papa) ; notion
+  déjà couverte → lien vers ses cartes, aperçu déplié.
+
+Un point de **vocabulaire** fixé au passage : dire « Mindmap », **jamais « carte mentale »** —
+la colonne voisine s'appelle « Cartes » (de révision), et les deux objets n'ont aucun rapport.
+
+**Non vérifié à l'écran de bout en bout** : la session de test a expiré côté agent. Les défauts
+trouvés par le user sont consignés dans `TROUBLESHOOTING.md` § chantier `couverture`.

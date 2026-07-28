@@ -1,0 +1,131 @@
+import { describe, expect, it } from "vitest";
+import { type CoverageCell, type CoverageLesson, type CoverageSubject } from "@zetis/types";
+import { filterCounts, filterCoverage, matchesFilter, matchesSearch } from "./coverageFilters";
+
+function cell(state: CoverageCell["state"]): CoverageCell {
+  return { state, derived_at: null, validated_by: null, object_id: null };
+}
+
+function lesson(
+  id: number,
+  title: string,
+  row_state: CoverageLesson["row_state"],
+  states: Partial<Record<"cours" | "quiz" | "fiche" | "mindmap", CoverageCell["state"]>> = {},
+): CoverageLesson {
+  return {
+    id,
+    title,
+    row_state,
+    cells: {
+      cours: cell(states.cours ?? "validated"),
+      quiz: cell(states.quiz ?? "validated"),
+      fiche: cell(states.fiche ?? "validated"),
+      mindmap: cell(states.mindmap ?? "validated"),
+    },
+    notions: { cards: { covered: 0, total: 0 }, capsules: { covered: 0, total: 0 }, items: [] },
+  };
+}
+
+// Jeu mixte : une de chaque situation, pour que la table de vérité ait du sens.
+const COMPLETE = lesson(1, "Complète", "complete");
+const READY = lesson(2, "Prête", "ready", { fiche: "absent" });
+const PENDING = lesson(3, "À relire", "ready", { fiche: "pending" });
+const STALE = lesson(4, "Périmée", "ready", { quiz: "stale" });
+const BLOCKED_LESSON = lesson(5, "Brouillon", "blocked_lesson", { cours: "blocked" });
+const BLOCKED_COURSE = lesson(6, "Sans cours", "blocked_no_course", { cours: "absent" });
+const ALL = [COMPLETE, READY, PENDING, STALE, BLOCKED_LESSON, BLOCKED_COURSE];
+
+describe("matchesFilter — table de vérité des pilules", () => {
+  it("« Tout » ne filtre rien", () => {
+    expect(ALL.every((l) => matchesFilter(l, "all"))).toBe(true);
+  });
+
+  it("« Bloquées » couvre les DEUX causes de blocage", () => {
+    expect(ALL.filter((l) => matchesFilter(l, "blocked"))).toEqual([
+      BLOCKED_LESSON,
+      BLOCKED_COURSE,
+    ]);
+  });
+
+  it("« Prêtes, incomplètes » ne retient que row_state=ready", () => {
+    expect(ALL.filter((l) => matchesFilter(l, "ready"))).toEqual([READY, PENDING, STALE]);
+    expect(matchesFilter(COMPLETE, "ready")).toBe(false);
+  });
+
+  it("« À relire » regarde les DÉRIVÉS, pas la ligne", () => {
+    expect(ALL.filter((l) => matchesFilter(l, "pending"))).toEqual([PENDING]);
+  });
+
+  it("« Périmés » idem", () => {
+    expect(ALL.filter((l) => matchesFilter(l, "stale"))).toEqual([STALE]);
+  });
+
+  it("le COURS n'entre dans aucun compte de dérivé — il est la condition, pas un dérivé", () => {
+    const staleCourse = lesson(9, "Cours seul", "ready", { cours: "stale" });
+    expect(matchesFilter(staleCourse, "stale")).toBe(false);
+  });
+});
+
+describe("matchesSearch", () => {
+  it("vide → tout passe ; sinon insensible à la casse et aux espaces", () => {
+    expect(matchesSearch(READY, "")).toBe(true);
+    expect(matchesSearch(READY, "  ")).toBe(true);
+    expect(matchesSearch(READY, "prÊt")).toBe(true);
+    expect(matchesSearch(READY, "absente")).toBe(false);
+  });
+});
+
+describe("filterCoverage", () => {
+  const subjects: CoverageSubject[] = [
+    {
+      id: 1,
+      name: "Français",
+      slug: "francais",
+      chapters: [
+        { id: 10, title: "Ch. 1", lessons: [COMPLETE, PENDING] },
+        { id: 11, title: "Ch. 2", lessons: [BLOCKED_LESSON] },
+      ],
+    },
+  ];
+
+  it("retire les chapitres vidés par le filtre mais GARDE la matière", () => {
+    const filtered = filterCoverage(subjects, "pending", "");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].chapters).toHaveLength(1);
+    expect(filtered[0].chapters[0].lessons).toEqual([PENDING]);
+  });
+
+  it("une matière sans aucune leçon retenue reste PRÉSENTE, avec zéro chapitre", () => {
+    // La masquer se lirait « rien à produire ici », ce qui serait faux.
+    const filtered = filterCoverage(subjects, "stale", "");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].chapters).toEqual([]);
+  });
+
+  it("combine pilule et recherche", () => {
+    expect(filterCoverage(subjects, "all", "complète")[0].chapters[0].lessons).toEqual([COMPLETE]);
+  });
+});
+
+describe("filterCounts", () => {
+  it("compte sur TOUTES les leçons, jamais sur le filtre courant", () => {
+    const counts = filterCounts({
+      school_year: { id: 1, label: "2026-2027", level: "4e" },
+      totals: {
+        lessons: 6,
+        lessons_validated: 4,
+        courses_written: 4,
+        derivatives_percent: 50,
+        pending_count: 1,
+        stale_count: 1,
+        orphan_count: 0,
+      },
+      subjects: [{ id: 1, name: "F", slug: "f", chapters: [{ id: 1, title: "C", lessons: ALL }] }],
+    });
+    expect(counts).toEqual({ all: 6, blocked: 2, ready: 3, pending: 1, stale: 1 });
+  });
+
+  it("sans couverture, tout est à zéro (pas de NaN affiché sur les pilules)", () => {
+    expect(filterCounts(null)).toEqual({ all: 0, blocked: 0, ready: 0, pending: 0, stale: 0 });
+  });
+});

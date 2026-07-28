@@ -133,6 +133,16 @@ def validate_all_chapters(
     return {"validated_count": count}
 
 
+@router.post("/chapters/{chapter_id}/lessons/validate-all", response_model=BatchValidationResult)
+def validate_all_lessons(chapter_id: int, db: Session = Depends(get_db)) -> dict:
+    """Validation par lot des leçons `draft` d'un chapitre.
+
+    Provenance `parent_bulk` (addendum ADR-0011 §F.3) : Papa approuve, sans avoir ouvert
+    chaque leçon — et la page Couverture le montrera, objet par objet."""
+    count = service.validate_all_lessons(db, chapter_id)
+    return {"validated_count": count}
+
+
 @router.post("/school-years/active/chapters/validate-all", response_model=BatchValidationResult)
 def validate_all_active_year(db: Session = Depends(get_db)) -> dict:
     """Validation par lot : tous les `pending` de l'année active, toutes matières."""

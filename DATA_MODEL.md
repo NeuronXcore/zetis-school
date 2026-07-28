@@ -577,6 +577,9 @@ spec_json                # FicheSpec typé (JSON) : essentiel, definitions≤4, 
 validation_status        # pending | validated | rejected (gate `validated` avant tout accès Massimo)
 validated_at optional      # horodatage de la validation (addendum ADR-0011 §F)
 validated_by optional      # parent | parent_bulk | system — QUI a laissé passer ; NULL = non validé, ou antérieur à la traçabilité (aucune rétro-attribution)
+created_at / updated_at    # DEFAULT now() NOT NULL depuis `e6f7a8b9c0d1` — étaient nullable sans
+                           # défaut serveur (divergence avec le TimestampMixin) : une fiche naissait
+                           # à NULL et la Couverture la lisait « absente ».
 source                   # generated | manual
 program_version optional # version de programme (traçabilité, ex: 2020)
 created_at

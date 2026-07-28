@@ -15,9 +15,12 @@ import { LessonRow } from "./LessonRow";
 export function LessonsPanel({
   chapter,
   data,
+  focusLessonId,
 }: {
   chapter: CurriculumChapter;
   data: CurriculumData;
+  /** Leçon ciblée par un lien profond — signalée visuellement, jamais modifiée. */
+  focusLessonId?: number | null;
 }) {
   const state = data.lessonsByChapter[chapter.id];
   const [adding, setAdding] = useState(false);
@@ -101,6 +104,7 @@ export function LessonsPanel({
               {visible.map((lesson, i) => (
                 <LessonRow
                   key={lesson.id}
+                  focused={lesson.id === focusLessonId}
                   lesson={lesson}
                   isFirst={i === 0}
                   isLast={i === visible.length - 1}

@@ -56,6 +56,7 @@ def test_is_stale_truth_table() -> None:
 def _cell(**kwargs):
     base = {
         "lesson_servable": True,
+        "exists": True,
         "derived_at": _t(0),
         "validation_status": "validated",
         "content_updated_at": _t(0),
@@ -65,12 +66,12 @@ def _cell(**kwargs):
 
 def test_cell_state_truth_table() -> None:
     assert _cell(lesson_servable=False) == "blocked"
-    assert _cell(derived_at=None) == "absent"
+    assert _cell(exists=False, derived_at=None) == "absent"
     assert _cell(validation_status="pending") == "pending"
     assert _cell() == "validated"
     assert _cell(content_updated_at=_t(5)) == "stale"
     # `blocked` domine : une leçon non servable n'a pas de dérivé générable, quoi qu'il existe.
-    assert _cell(lesson_servable=False, derived_at=None) == "blocked"
+    assert _cell(lesson_servable=False, exists=False) == "blocked"
     # `stale` l'emporte sur `validated` : c'est l'information que le ✓ ne doit pas masquer.
     assert _cell(validation_status="validated", content_updated_at=_t(5)) == "stale"
 
@@ -79,8 +80,21 @@ def test_quiz_has_no_pending_state() -> None:
     """ADR-0014 §2 : servi sans gate → `absent` | `validated` | `stale`, jamais `pending`."""
     assert _cell(gated=False, validation_status=None) == "validated"
     assert _cell(gated=False, validation_status="pending") == "validated"
-    assert _cell(gated=False, validation_status=None, derived_at=None) == "absent"
+    assert _cell(gated=False, validation_status=None, exists=False) == "absent"
     assert _cell(gated=False, validation_status=None, content_updated_at=_t(5)) == "stale"
+
+
+def test_a_derivative_without_timestamp_is_never_read_as_absent() -> None:
+    """VERROU : une fiche existante SANS `updated_at` ne doit pas passer pour absente.
+
+    C'est le bug qui a fait empiler 5 fiches sur la même leçon : `fiches.updated_at` était
+    nullable sans défaut serveur (corrigé par `e6f7a8b9c0d1`), la cellule affichait « + », et
+    chaque clic créait un doublon de plus. `absent` se déduit de l'EXISTENCE, jamais d'une date.
+    """
+    assert _cell(exists=True, derived_at=None, validation_status="validated") == "validated"
+    assert _cell(exists=True, derived_at=None, validation_status="pending") == "pending"
+    # Sans date, le périmé est indécidable — on ne l'invente pas, on ne crie pas au loup.
+    assert _cell(exists=True, derived_at=None, content_updated_at=_t(9)) == "validated"
 
 
 def test_row_state_distinguishes_the_two_blocking_causes() -> None:
@@ -286,6 +300,46 @@ def test_notion_fractions_count_only_consumable_objects(client_db) -> None:
     assert notions["capsules"] == {"covered": 1, "total": 3}
 
 
+def test_notion_items_say_which_notion_lacks_what(client_db) -> None:
+    """Le détail par notion : agir depuis la matrice suppose de savoir SUR QUOI agir."""
+    client, TestSession = client_db
+    db = TestSession()
+    student, subject, chapter = _seed_year(db)
+    lesson = _seed_lesson(db, chapter)
+    covered = db.scalar(select(m.Skill))
+    bare = m.Skill(subject_id=subject.id, name="Notion nue", level="4e")
+    db.add(bare)
+    db.flush()
+    for skill in (covered, bare):
+        db.add(m.LessonSkill(lesson_id=lesson.id, skill_id=skill.id))
+    db.add(
+        m.SpacedReviewCard(
+            student_id=student.id,
+            skill_id=covered.id,
+            front_markdown="r",
+            back_markdown="v",
+            status="scheduled",
+        )
+    )
+    db.commit()
+    db.close()
+
+    _as(PAPA)
+    notions = client.get("/api/production/coverage").json()["subjects"][0]["chapters"][0][
+        "lessons"
+    ][0]["notions"]
+
+    by_name = {item["name"]: item for item in notions["items"]}
+    assert len(by_name) == 2
+    assert by_name["Nombres relatifs"]["has_card"] is True
+    assert by_name["Notion nue"]["has_card"] is False
+    assert all(item["has_capsule"] is False for item in notions["items"])
+    # Les fractions restent cohérentes avec le détail dont elles se déduisent.
+    assert notions["cards"] == {"covered": 1, "total": 2}
+    # Chaque item porte son `skill_id` : c'est la cible de la génération.
+    assert all(isinstance(item["skill_id"], int) for item in notions["items"])
+
+
 def test_lesson_without_any_notion_yields_zero_over_zero(client_db) -> None:
     """0/0, sans erreur ni division — une leçon peut n'avoir aucune notion rattachée."""
     client, TestSession = client_db
@@ -410,6 +464,40 @@ def test_validate_all_is_parent_bulk(client_db) -> None:
     row = db.get(m.Chapter, chapter_id)
     assert row.validation_status == "validated"
     assert row.validated_by == "parent_bulk" and row.validated_at is not None
+    db.close()
+
+
+def test_batch_lesson_validation_is_parent_bulk(client_db) -> None:
+    """Validation en lot des leçons d'un chapitre : `parent_bulk`, et rien d'autre n'y touche."""
+    client, TestSession = client_db
+    db = TestSession()
+    _student, _subject, chapter = _seed_year(db)
+    draft_a = _seed_lesson(db, chapter, title="Brouillon A", validated=False)
+    draft_b = _seed_lesson(db, chapter, title="Brouillon B", validated=False)
+    already = _seed_lesson(db, chapter, title="Déjà validée")
+    already.validated_by = "parent"  # relue pièce à pièce auparavant
+    archived = _seed_lesson(db, chapter, title="Archivée", validated=False)
+    archived.status = "archived"
+    db.commit()
+    ids = (draft_a.id, draft_b.id, already.id, archived.id)
+    chapter_id = chapter.id
+    db.close()
+
+    _as(PAPA)
+    resp = client.post(f"/api/chapters/{chapter_id}/lessons/validate-all")
+    assert resp.status_code == 200
+    assert resp.json()["validated_count"] == 2, "seules les `draft` sont validées"
+
+    db = TestSession()
+    for lesson_id in ids[:2]:
+        row = db.get(m.Lesson, lesson_id)
+        assert row.status == "validated"
+        assert row.validated_by == "parent_bulk" and row.validated_at is not None
+    # Une leçon DÉJÀ validée n'est pas re-tamponnée : écraser `parent` par `parent_bulk`
+    # perdrait l'information qu'elle a bien été relue.
+    assert db.get(m.Lesson, ids[2]).validated_by == "parent"
+    # Une leçon archivée reste écartée du flux.
+    assert db.get(m.Lesson, ids[3]).status == "archived"
     db.close()
 
 

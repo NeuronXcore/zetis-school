@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { type SrsCardContent, type SrsCardUpdate, type SrsNotion } from "@zetis/types";
+import { FOCUS_RING, useFocusTarget } from "../../hooks/useFocusTarget";
 import { Badge, Button, ConfirmDialog, Spinner } from "@zetis/ui";
 
 // Rendu markdown compact des cartes (gras + listes lisibles, pas d'astérisques bruts).
@@ -198,6 +199,9 @@ function CardPreview({
 }
 
 export interface NotionRowProps {
+  /** Cible d'un lien profond (« ✓ couverte → » depuis la Couverture) : la ligne se signale
+   *  et se met à portée de regard. Purement visuel. */
+  focused?: boolean;
   notion: SrsNotion;
   busy: boolean;
   previewOpen: boolean;
@@ -212,6 +216,7 @@ export interface NotionRowProps {
 
 export function NotionRow({
   notion,
+  focused,
   busy,
   previewOpen,
   previewCards,
@@ -223,8 +228,14 @@ export function NotionRow({
   onDeleteCard,
 }: NotionRowProps) {
   const suspended = notion.state === "suspended";
+  const rowRef = useFocusTarget<HTMLLIElement>(Boolean(focused));
   return (
-    <li className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+    <li
+      ref={rowRef}
+      className={`rounded-lg border px-3 py-2 transition-[border-color,box-shadow,background-color] duration-500 ${
+        focused ? FOCUS_RING : "border-border bg-muted/30"
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm text-foreground">{notion.name}</span>

@@ -350,6 +350,29 @@ def create_manual_chapter(
     return chapter
 
 
+def validate_all_lessons(db: Session, chapter_id: int) -> int:
+    """Passe en `validated` toutes les leçons `draft` d'un chapitre. Renvoie le compte.
+
+    Même geste que `validate_all_chapters` un étage plus bas : un raccourci de la validation
+    unitaire, pas une décision différente. Seules les `draft` sont touchées — une leçon
+    `archived` reste écartée, une leçon déjà validée n'est pas re-tamponnée (sa provenance
+    d'origine, éventuellement `parent`, serait écrasée par `parent_bulk` : ce serait perdre de
+    l'information, pas en gagner).
+
+    Provenance `parent_bulk` **sans exception** (addendum ADR-0011 §F.3) : Papa a bien approuvé,
+    mais il n'a pas ouvert chaque leçon. La colonne Cours de la page Couverture le rendra
+    visible, objet par objet — c'est le prix, assumé, de la commodité.
+    """
+    _chapter_or_404(db, chapter_id)
+    lessons = db.scalars(
+        select(Lesson).where(Lesson.chapter_id == chapter_id, Lesson.status == "draft")
+    ).all()
+    for lesson in lessons:
+        mark_validated(lesson, PARENT_BULK, field="status")
+    db.commit()
+    return len(lessons)
+
+
 def validate_all_chapters(db: Session, school_year_subject_id: int) -> int:
     """Passe en `validated` tous les chapitres `pending` de la matière.
 

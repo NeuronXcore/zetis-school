@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import capsuleAiIcon from "../assets/app/capsule-AI.png";
 import { DifficultyBadge } from "../components/DifficultyBadge";
 import { PageHeader } from "../components/PageHeader";
@@ -116,6 +117,10 @@ export function CapsulesPilotagePage() {
   const [error, setError] = useState<string | null>(null);
   // Modales : création (formulaire) et édition JSON.
   const [creating, setCreating] = useState(false);
+  // Notion visée par un lien profond venu de la Couverture. INDISPENSABLE : sans `skill_id`,
+  // la capsule n'est rattachée à aucune notion et ne comptera jamais dans la matrice.
+  const [skillId, setSkillId] = useState<number | null>(null);
+  const [skillName, setSkillName] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
@@ -153,6 +158,25 @@ export function CapsulesPilotagePage() {
     }
   }
 
+  // Lien profond « composer une capsule pour cette notion » (page Couverture) :
+  // ?subject=&chapter=&skill=&compose=1 → formulaire pré-rempli, modale ouverte.
+  // L'INSTRUCTION reste vide : c'est la seule chose que ZETIS n'écrit pas à la place de Papa.
+  const [params] = useSearchParams();
+  useEffect(() => {
+    if (params.get("compose") !== "1") return;
+    const subject = Number(params.get("subject")) || null;
+    const chapter = Number(params.get("chapter")) || null;
+    const skill = Number(params.get("skill")) || null;
+    if (subject) setSubjectId(subject);
+    if (chapter) setChapterId(chapter);
+    setSkillId(skill);
+    // Le nom voyage dans le lien : la Couverture le connaît déjà, inutile d'un aller-retour
+    // serveur pour un libellé.
+    setSkillName(params.get("name"));
+    setInstruction("");
+    setCreating(true);
+  }, [params]);
+
   // Au changement de matière du formulaire : réinitialise le chapitre et charge ses chapitres.
   useEffect(() => {
     if (subjectId != null) {
@@ -181,6 +205,7 @@ export function CapsulesPilotagePage() {
       generateCapsule({
         subject_id: subjectId,
         instruction: instruction.trim(),
+        skill_id: skillId ?? undefined,
         chapter_id: chapterId,
         visual,
         duration,
@@ -626,6 +651,14 @@ export function CapsulesPilotagePage() {
                 ✕
               </button>
             </div>
+            {skillId !== null && (
+              <p className="mb-3 rounded-lg border border-papa-accent/40 bg-papa-accent/10 px-3 py-2 text-xs leading-relaxed">
+                Capsule rattachée à la notion{" "}
+                <b>{skillName ?? `#${skillId}`}</b> — elle comptera dans la Couverture une fois
+                validée <b>et rendue en MP4</b>. À toi d'écrire l'instruction : c'est la seule
+                chose que ZETIS n'invente pas à ta place.
+              </p>
+            )}
             <div className="space-y-3">
               <label className="block text-sm">
                 <span className="text-papa-muted">Matière</span>

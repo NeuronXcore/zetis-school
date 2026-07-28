@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { type SrsNotion } from "@zetis/types";
 import { Button, ConfirmDialog, EmptyState, Spinner } from "@zetis/ui";
@@ -19,6 +20,31 @@ interface DeleteTarget {
 export function CartesRevisionPage() {
   const cards = useSrsCards();
   const [confirm, setConfirm] = useState<DeleteTarget | null>(null);
+
+  // Lien profond depuis la Couverture : ?focus=<skill_id>. On DÉPLIE l'aperçu de la notion
+  // visée — arriver sur la bonne ligne sans voir les cartes obligerait à cliquer encore.
+  const [params] = useSearchParams();
+  const focusSubjectId = Number(params.get("subject")) || null;
+  const focusSkillId = Number(params.get("focus")) || null;
+  const openedRef = useRef<number | null>(null);
+  const { overview, togglePreview, previewOpen, expanded, toggleSubject } = cards;
+  useEffect(() => {
+    if (focusSkillId === null || !overview) return;
+    if (openedRef.current === focusSkillId) return; // une seule ouverture : replier doit replier
+    // DÉPLIER LA MATIÈRE D'ABORD : les sections sont repliées par défaut, la ligne visée
+    // n'existerait même pas dans le DOM — ni aperçu, ni défilement, rien à voir.
+    if (focusSubjectId !== null && !expanded.has(focusSubjectId)) toggleSubject(focusSubjectId);
+    openedRef.current = focusSkillId;
+    if (!previewOpen.has(focusSkillId)) togglePreview(focusSkillId);
+  }, [
+    focusSkillId,
+    focusSubjectId,
+    overview,
+    togglePreview,
+    previewOpen,
+    expanded,
+    toggleSubject,
+  ]);
 
   const totals = cards.overview?.totals;
   const subjects = cards.overview?.subjects ?? [];
@@ -88,6 +114,7 @@ export function CartesRevisionPage() {
                 busySubject={cards.busySubject.has(subject.subject_id)}
                 isBusySkill={(id) => cards.busySkill.has(id)}
                 isPreviewOpen={(id) => cards.previewOpen.has(id)}
+                focusSkillId={focusSkillId}
                 previewCards={(id) => cards.previews[id]}
                 onToggle={() => cards.toggleSubject(subject.subject_id)}
                 onGenerateSubject={() => void cards.generateSubject(subject.subject_id)}

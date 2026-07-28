@@ -30,6 +30,7 @@ from app.db.models import (
     Quiz,
     SchoolYear,
     SchoolYearSubject,
+    Skill,
     SpacedReviewCard,
     Subject,
 )
@@ -51,6 +52,7 @@ DERIVATIVE_KEYS = ("quiz", "fiche", "mindmap")
 def cell_state(
     *,
     lesson_servable: bool,
+    exists: bool,
     derived_at: datetime | None,
     validation_status: str | None,
     content_updated_at: datetime | None,
@@ -64,10 +66,16 @@ def cell_state(
     L'ordre des tests porte le sens : `blocked` domine tout (rien n'est générable), puis
     `absent` (rien à qualifier), puis `stale` AVANT `validated` — un dérivé périmé est validé,
     et c'est précisément l'information qu'il ne faut pas laisser masquer par le ✓.
+
+    **`absent` se déduit de l'EXISTENCE de la ligne, jamais d'une date.** Un dérivé sans
+    horodatage existe quand même : le lire « absent » invite Papa à le régénérer indéfiniment
+    et empile les doublons — c'est exactement ce qui s'est produit avec les horodatages nuls de
+    `fiches` (migration `e6f7a8b9c0d1`). La date ne sert qu'à la FRAÎCHEUR, et son absence rend
+    seulement le périmé indécidable — ce qui est un défaut acceptable, pas un mensonge.
     """
     if not lesson_servable:
         return "blocked"
-    if derived_at is None:
+    if not exists:
         return "absent"
     if gated and validation_status != "validated":
         return "pending"
@@ -124,11 +132,14 @@ def _lesson_rows(db: Session, subject_id: int, year_id: int) -> list[tuple]:
                 func.max(Fiche.updated_at),
                 func.max(Fiche.validation_status),
                 func.max(Fiche.validated_by),
+                func.max(Fiche.id),
                 func.max(Mindmap.updated_at),
                 func.max(Mindmap.validation_status),
                 func.max(Mindmap.validated_by),
+                func.max(Mindmap.id),
                 func.max(Quiz.updated_at),
                 func.max(Quiz.validated_by),
+                func.max(Quiz.id),
             )
             .select_from(Chapter)
             .join(Lesson, Lesson.chapter_id == Chapter.id)
@@ -161,8 +172,8 @@ def _lesson_rows(db: Session, subject_id: int, year_id: int) -> list[tuple]:
     )
 
 
-def _notion_fractions(db: Session, lesson_ids: list[int]) -> dict[int, dict[str, dict[str, int]]]:
-    """Fractions `covered/total` des colonnes NOTION-centrées (cartes SRS, capsules).
+def _notion_details(db: Session, lesson_ids: list[int]) -> dict[int, dict]:
+    """Colonnes NOTION-centrées : le détail par notion, et les fractions qui s'en déduisent.
 
     Ces deux objets ne dérivent pas d'une leçon mais d'une notion (§E.5) : d'où une fraction et
     **aucun état de fraîcheur**. Ne pas en ajouter, même si ça paraît symétrique — la source
@@ -173,23 +184,32 @@ def _notion_fractions(db: Session, lesson_ids: list[int]) -> dict[int, dict[str,
     ou archivée ne tombe jamais en révision) ; capsule validée ET rendue en MP4 — même
     prédicat que `capsules.service.list_published`, car une capsule sans voix ni vidéo ne se
     regarde pas.
+
+    Le détail par notion existe pour que Papa puisse AGIR depuis la matrice : sans lui, un clic
+    sur une fraction générerait à l'aveugle, sans dire sur quoi. **Une seule requête** pour
+    toutes les leçons de la matière — la granularité fine ne coûte pas un N+1.
     """
-    empty: dict[str, dict[str, int]] = {
-        "cards": {"covered": 0, "total": 0},
-        "capsules": {"covered": 0, "total": 0},
+    out: dict[int, dict] = {
+        lesson_id: {
+            "cards": {"covered": 0, "total": 0},
+            "capsules": {"covered": 0, "total": 0},
+            "items": [],
+        }
+        for lesson_id in lesson_ids
     }
-    out: dict[int, dict[str, dict[str, int]]] = {lid: _deep_copy(empty) for lid in lesson_ids}
     if not lesson_ids:
         return out
 
     rows = db.execute(
         select(
             LessonSkill.lesson_id,
-            func.count(func.distinct(LessonSkill.skill_id)),
-            func.count(func.distinct(SpacedReviewCard.skill_id)),
-            func.count(func.distinct(Capsule.skill_id)),
+            Skill.id,
+            Skill.name,
+            func.count(func.distinct(SpacedReviewCard.id)),
+            func.count(func.distinct(Capsule.id)),
         )
         .select_from(LessonSkill)
+        .join(Skill, Skill.id == LessonSkill.skill_id)
         .outerjoin(
             SpacedReviewCard,
             (SpacedReviewCard.skill_id == LessonSkill.skill_id)
@@ -202,18 +222,26 @@ def _notion_fractions(db: Session, lesson_ids: list[int]) -> dict[int, dict[str,
             & Capsule.video_url.is_not(None),
         )
         .where(LessonSkill.lesson_id.in_(lesson_ids))
-        .group_by(LessonSkill.lesson_id)
+        .group_by(LessonSkill.lesson_id, Skill.id, Skill.name)
+        .order_by(LessonSkill.lesson_id, Skill.id)
     )
-    for lesson_id, total, cards, capsules in rows:
-        out[lesson_id] = {
-            "cards": {"covered": cards or 0, "total": total or 0},
-            "capsules": {"covered": capsules or 0, "total": total or 0},
-        }
+    for lesson_id, skill_id, name, cards, capsules in rows:
+        entry = out[lesson_id]
+        entry["items"].append(
+            {
+                "skill_id": skill_id,
+                "name": name,
+                "has_card": bool(cards),
+                "has_capsule": bool(capsules),
+            }
+        )
+        entry["cards"]["total"] += 1
+        entry["capsules"]["total"] += 1
+        if cards:
+            entry["cards"]["covered"] += 1
+        if capsules:
+            entry["capsules"]["covered"] += 1
     return out
-
-
-def _deep_copy(fractions: dict[str, dict[str, int]]) -> dict[str, dict[str, int]]:
-    return {key: dict(value) for key, value in fractions.items()}
 
 
 def _cells_for(row) -> dict[str, dict]:
@@ -232,11 +260,14 @@ def _cells_for(row) -> dict[str, dict]:
         fiche_at,
         fiche_status,
         fiche_by,
+        fiche_id,
         mindmap_at,
         mindmap_status,
         mindmap_by,
+        mindmap_id,
         quiz_at,
         quiz_by,
+        quiz_id,
     ) = row
 
     lesson_validated = lesson_status == "validated"
@@ -253,14 +284,19 @@ def _cells_for(row) -> dict[str, dict]:
         cours = "validated"
 
     return {
+        # `object_id` = cible d'un « Régénérer » côté Papa. Pour le cours, c'est la leçon
+        # elle-même. Pour les dérivés, `MAX(id)` = le plus récemment créé : une leçon porte 0..1
+        # fiche/mindmap, et pour les 0..N quiz d'une leçon c'est le dernier généré qui fait foi.
         "cours": {
             "state": cours,
             "derived_at": content_updated_at,
             "validated_by": lesson_validated_by,
+            "object_id": _lesson_id,
         },
         "quiz": {
             "state": cell_state(
                 lesson_servable=servable,
+                exists=quiz_id is not None,
                 derived_at=quiz_at,
                 validation_status=None,
                 content_updated_at=content_updated_at,
@@ -268,26 +304,31 @@ def _cells_for(row) -> dict[str, dict]:
             ),
             "derived_at": quiz_at,
             "validated_by": quiz_by,
+            "object_id": quiz_id,
         },
         "fiche": {
             "state": cell_state(
                 lesson_servable=servable,
+                exists=fiche_id is not None,
                 derived_at=fiche_at,
                 validation_status=fiche_status,
                 content_updated_at=content_updated_at,
             ),
             "derived_at": fiche_at,
             "validated_by": fiche_by,
+            "object_id": fiche_id,
         },
         "mindmap": {
             "state": cell_state(
                 lesson_servable=servable,
+                exists=mindmap_id is not None,
                 derived_at=mindmap_at,
                 validation_status=mindmap_status,
                 content_updated_at=content_updated_at,
             ),
             "derived_at": mindmap_at,
             "validated_by": mindmap_by,
+            "object_id": mindmap_id,
         },
     }
 
@@ -316,7 +357,7 @@ def coverage(db: Session, subject_id: int | None = None) -> dict:
     out_subjects = []
     for subject in subjects:
         rows = _lesson_rows(db, subject.id, year.id)
-        fractions = _notion_fractions(db, [row[3] for row in rows])
+        fractions = _notion_details(db, [row[3] for row in rows])
         chapters: dict[int, dict] = {}
         for row in rows:
             chapter_id, chapter_name = row[0], row[1]

@@ -16,6 +16,9 @@ class CellOut(BaseModel):
     # `NULL` se lit « provenance inconnue » (antérieure à la traçabilité), jamais « non validé » :
     # l'état est déjà porté par `state`.
     validated_by: ValidatedBy | None = None
+    # Cible d'un « Régénérer » côté Papa : id du dérivé (leçon pour la colonne Cours). `None`
+    # quand la cellule est `absent` ou `blocked` — il n'y a rien à régénérer.
+    object_id: int | None = None
 
 
 class FractionOut(BaseModel):
@@ -25,9 +28,22 @@ class FractionOut(BaseModel):
     total: int
 
 
+class NotionItemOut(BaseModel):
+    """Une notion de la leçon, et ce qu'elle porte de CONSOMMABLE.
+
+    Sert à agir depuis la matrice : sans ce détail, un clic sur une fraction générerait à
+    l'aveugle. Aucun état de fraîcheur ici non plus (§E.5)."""
+
+    skill_id: int
+    name: str
+    has_card: bool
+    has_capsule: bool
+
+
 class NotionsOut(BaseModel):
     cards: FractionOut
     capsules: FractionOut
+    items: list[NotionItemOut] = []
 
 
 class CellsOut(BaseModel):
