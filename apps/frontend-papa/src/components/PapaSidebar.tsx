@@ -43,7 +43,17 @@ export function PapaSidebar() {
               ].join(" ")
             }
           >
-            <span className="text-base">{item.icon}</span>
+            {item.iconUrl ? (
+              // Décoratif : le libellé de l'entrée est juste à côté.
+              <img
+                src={item.iconUrl}
+                alt=""
+                aria-hidden
+                className="h-5 w-5 shrink-0 rounded-[22%] object-contain"
+              />
+            ) : (
+              <span className="text-base">{item.icon}</span>
+            )}
             <span className="flex-1">{item.label}</span>
             {item.to === "/missions" && pending > 0 && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-300">

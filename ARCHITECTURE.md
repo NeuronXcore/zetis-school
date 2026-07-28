@@ -95,7 +95,8 @@ Design system commun (tokens sémantiques mappés par chaque app sur sa palette)
 d'entrée :
 
 - **`@zetis/ui`** (racine) — boutons, cartes, `ConfirmDialog`, `GenerationProgress`,
-  `ContentLifecycleActions`, célébration… Léger, importé partout.
+  `ContentLifecycleActions`, célébration, `SubjectFilterChips` / `SubjectPictogram`… Léger,
+  importé partout.
 - **`@zetis/ui/mindmap`** — **brique de canvas mindmap** (`MindmapWorkspace` + 3 modes + moteur de
   layout elk + nœuds React Flow). Export **en sous-chemin délibérément séparé** : elle embarque
   `@xyflow/react` et `elkjs` (~1,6 Mo), qui n'ont rien à faire dans le bundle des pages qui ne

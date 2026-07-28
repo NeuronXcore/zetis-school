@@ -11,7 +11,16 @@ interface KpiCardProps {
   /** Rend la carte cliquable (dépliage du détail). Sans handler, la carte reste une simple
    *  vignette : une carte sans détail disponible ne doit pas faire semblant d'être interactive. */
   onClick?: () => void;
+  /** État actif : carte dépliée (mode `expand`) ou filtre appliqué (mode `filter`). */
   expanded?: boolean;
+  /** Nature du clic — change à la fois la sémantique ARIA et l'affordance affichée.
+   *  `expand` (défaut) : la carte déplie un détail SOUS elle → `aria-expanded`.
+   *  `filter` : la carte bascule un filtre AILLEURS dans la page (la matrice de Couverture) →
+   *  `aria-pressed`. Rien n'est déplié dans ce cas : annoncer `aria-expanded` mentirait au
+   *  lecteur d'écran, qui chercherait une zone révélée qui n'existe pas. */
+  mode?: "expand" | "filter";
+  /** Affordance affichée sous la valeur en mode `filter` (ex. « Voir · 51 → »). */
+  actionLabel?: string;
 }
 
 export function KpiCard({
@@ -22,6 +31,8 @@ export function KpiCard({
   deltaDirection,
   onClick,
   expanded = false,
+  mode = "expand",
+  actionLabel,
 }: KpiCardProps) {
   const content = (
     <>
@@ -48,11 +59,21 @@ export function KpiCard({
     return <div className={`${base} border-papa-border`}>{content}</div>;
   }
 
+  const affordance =
+    mode === "filter"
+      ? expanded
+        ? "Filtre actif · tout afficher"
+        : actionLabel
+      : expanded
+        ? "Masquer le détail"
+        : "Voir le détail →";
+
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-expanded={expanded}
+      aria-expanded={mode === "expand" ? expanded : undefined}
+      aria-pressed={mode === "filter" ? expanded : undefined}
       className={`${base} w-full text-left transition-colors ${
         expanded
           ? "border-papa-accent ring-1 ring-papa-accent"
@@ -60,9 +81,13 @@ export function KpiCard({
       }`}
     >
       {content}
-      <span className="mt-1 block text-xs text-papa-muted">
-        {expanded ? "Masquer le détail" : "Voir le détail →"}
-      </span>
+      {affordance && (
+        <span
+          className={`mt-1 block text-xs ${expanded ? "text-papa-accent" : "text-papa-muted"}`}
+        >
+          {affordance}
+        </span>
+      )}
     </button>
   );
 }

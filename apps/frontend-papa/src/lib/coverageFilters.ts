@@ -11,7 +11,12 @@ import {
   type CoverageSubject,
 } from "@zetis/types";
 
-export type CoverageFilter = "all" | "blocked" | "ready" | "pending" | "stale";
+// Les DEUX causes de blocage ont leur propre pilule (`no_lesson` / `no_course`) au lieu d'un
+// « Bloquées » unique : le backend les distingue déjà parce que l'action à mener diffère (agir
+// dans Programme vs rédiger le cours ici), et surtout deux KPI pointent maintenant l'un sur
+// l'une, l'autre sur l'autre — « Leçons validées » ne peut pas ouvrir un ensemble qui contient
+// des leçons validées (`no_course` en est plein).
+export type CoverageFilter = "all" | "no_lesson" | "no_course" | "ready" | "pending" | "stale";
 
 /** Les quatre colonnes leçon-centrées, dans l'ordre d'affichage. */
 export const CELL_KEYS: CoverageCellKey[] = ["cours", "quiz", "fiche", "mindmap"];
@@ -27,8 +32,10 @@ export function matchesFilter(lesson: CoverageLesson, filter: CoverageFilter): b
   switch (filter) {
     case "all":
       return true;
-    case "blocked":
-      return lesson.row_state === "blocked_lesson" || lesson.row_state === "blocked_no_course";
+    case "no_lesson":
+      return lesson.row_state === "blocked_lesson";
+    case "no_course":
+      return lesson.row_state === "blocked_no_course";
     case "ready":
       return lesson.row_state === "ready";
     case "pending":
@@ -70,7 +77,8 @@ export function filterCoverage(
 export function filterCounts(coverage: Coverage | null): Record<CoverageFilter, number> {
   const counts: Record<CoverageFilter, number> = {
     all: 0,
-    blocked: 0,
+    no_lesson: 0,
+    no_course: 0,
     ready: 0,
     pending: 0,
     stale: 0,
@@ -82,6 +90,36 @@ export function filterCounts(coverage: Coverage | null): Record<CoverageFilter, 
         for (const filter of Object.keys(counts) as CoverageFilter[]) {
           if (matchesFilter(lesson, filter)) counts[filter] += 1;
         }
+      }
+    }
+  }
+  return counts;
+}
+
+/** Les quatre anomalies rappelées dans l'en-tête d'une matière repliée. `ready` en est exclu :
+ *  une leçon prête et incomplète n'est pas une anomalie, c'est du travail normal qui reste. */
+export type AnomalyKey = Exclude<CoverageFilter, "all" | "ready">;
+
+export const ANOMALY_KEYS: AnomalyKey[] = ["no_lesson", "no_course", "pending", "stale"];
+
+/** Compteurs d'anomalies d'UNE matière.
+ *
+ * À appeler sur la matière ENTIÈRE, jamais sur la matrice déjà filtrée : sous filtre
+ * « ⚠ Périmés », toutes les autres anomalies tomberaient à zéro et l'en-tête affirmerait
+ * « aucune leçon bloquée ici », ce qui serait faux. Ce sont des COMPTES et rien d'autre — pas de
+ * pourcentage, pas de barre : la page s'interdit un score par matière (un classement des matières
+ * les plus incomplètes n'est pas un critère pédagogique). */
+export function subjectAnomalies(subject: CoverageSubject): Record<AnomalyKey, number> {
+  const counts: Record<AnomalyKey, number> = {
+    no_lesson: 0,
+    no_course: 0,
+    pending: 0,
+    stale: 0,
+  };
+  for (const chapter of subject.chapters) {
+    for (const lesson of chapter.lessons) {
+      for (const key of ANOMALY_KEYS) {
+        if (matchesFilter(lesson, key)) counts[key] += 1;
       }
     }
   }

@@ -1,8 +1,8 @@
 // La matrice : un tableau par matière, lignes groupées par chapitre, une ligne = une leçon.
 import { Link } from "react-router-dom";
-import { Badge } from "@zetis/ui";
+import { Badge, SubjectPictogram } from "@zetis/ui";
 import { type CoverageCellKey, type CoverageLesson, type CoverageSubject } from "@zetis/types";
-import { CELL_KEYS, lessonCount } from "../../lib/coverageFilters";
+import { type AnomalyKey, CELL_KEYS, lessonCount } from "../../lib/coverageFilters";
 import { pilotageLink } from "../../lib/pilotageLinks";
 import { CoverageCellView, CoverageFractionView } from "./CoverageCellView";
 
@@ -50,8 +50,22 @@ function rowMarker(lesson: CoverageLesson): {
   }
 }
 
+// Rappel d'anomalies de l'en-tête replié — mêmes pictogrammes et même vocabulaire que les
+// pilules de filtre, pour qu'un « ⏳ 2 » ici et la pilule « ⏳ À relire » se lisent comme la même
+// chose. Un marqueur à zéro n'est pas affiché : une matière saine doit se voir à ce qu'elle ne
+// porte AUCUN marqueur, pas à une rangée de zéros à déchiffrer.
+const ANOMALY_MARKERS: { key: AnomalyKey; icon: string; label: string; className: string }[] = [
+  { key: "no_lesson", icon: "🔒", label: "non validées", className: "text-papa-muted" },
+  { key: "no_course", icon: "📝", label: "sans cours", className: "text-papa-muted" },
+  { key: "pending", icon: "⏳", label: "à relire", className: "text-amber-300" },
+  { key: "stale", icon: "⚠", label: "périmés", className: "text-red-300" },
+];
+
 export function CoverageMatrix({
   subject,
+  anomalies,
+  open,
+  onToggle,
   busyCell,
   onGenerate,
   onStale,
@@ -60,6 +74,10 @@ export function CoverageMatrix({
   validatingChapterId,
 }: {
   subject: CoverageSubject;
+  /** Comptes calculés sur la matière ENTIÈRE — surtout pas sur `subject`, qui arrive filtré. */
+  anomalies: Record<AnomalyKey, number>;
+  open: boolean;
+  onToggle: () => void;
   busyCell: { lessonId: number; key: CoverageCellKey } | null;
   onGenerate: (key: CoverageCellKey, lessonId: number) => void;
   onStale: (key: CoverageCellKey, lesson: CoverageLesson, href: string | null) => void;
@@ -68,18 +86,57 @@ export function CoverageMatrix({
   validatingChapterId: number | null;
 }) {
   const total = lessonCount(subject);
+  const regionId = `couverture-matiere-${subject.id}`;
 
   return (
     <section className="mb-6">
-      <h2 className="mb-2 px-0.5 text-sm font-bold">
-        {subject.name}
-        <span className="ml-2 text-xs font-normal text-papa-muted">
-          — {total} leçon{total > 1 ? "s" : ""} · {subject.chapters.length} chapitre
-          {subject.chapters.length > 1 ? "s" : ""}
-        </span>
+      {/* Le pictogramme est le MÊME composant que celui des pastilles de filtre en haut de page :
+          la matière qu'on vient de cliquer se retrouve à l'identique sur la matrice, sans avoir à
+          relire son nom. Deux rendus distincts du même pictogramme se liraient comme deux objets
+          différents. */}
+      <h2 className="mb-2.5">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={regionId}
+          className={`flex w-full items-center gap-3 rounded-xl border bg-papa-surface px-3 py-2.5 text-left transition-colors ${
+            open ? "border-papa-border" : "border-papa-border hover:border-papa-accent/60"
+          }`}
+        >
+          <span
+            aria-hidden
+            className={`text-papa-muted transition-transform ${open ? "rotate-90" : ""}`}
+          >
+            ▸
+          </span>
+          <SubjectPictogram
+            slug={subject.slug}
+            name={subject.name}
+            size="md"
+            className="ring-1 ring-papa-border"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-base font-bold leading-tight">{subject.name}</span>
+            <span className="mt-0.5 block text-xs font-normal text-papa-muted">
+              {total} leçon{total > 1 ? "s" : ""} · {subject.chapters.length} chapitre
+              {subject.chapters.length > 1 ? "s" : ""}
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2.5 text-[12.5px] font-semibold">
+            {ANOMALY_MARKERS.filter((marker) => anomalies[marker.key] > 0).map((marker) => (
+              <span key={marker.key} className={marker.className}>
+                <span aria-hidden>{marker.icon}</span> {anomalies[marker.key]}
+                {/* Le pictogramme seul ne dit rien à un lecteur d'écran — le mot le suit. */}
+                <span className="sr-only"> {marker.label}</span>
+              </span>
+            ))}
+          </span>
+        </button>
       </h2>
 
-      {subject.chapters.length === 0 ? (
+      <div id={regionId} hidden={!open}>
+        {subject.chapters.length === 0 ? (
         <p className="rounded-xl border border-papa-border bg-papa-surface px-4 py-6 text-center text-sm text-papa-muted">
           Aucune leçon ne correspond au filtre pour cette matière.
         </p>
@@ -137,8 +194,9 @@ export function CoverageMatrix({
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

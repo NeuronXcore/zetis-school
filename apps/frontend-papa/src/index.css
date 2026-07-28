@@ -73,6 +73,39 @@
   background: var(--color-papa-accent);
 }
 
+/* Respiration de l'icône de la Couverture (en-tête de page uniquement).
+   Le halo enfle et retombe en 4 s, l'icône flotte de 2 px : assez lent pour ne jamais attirer
+   l'œil pendant qu'on lit la matrice, assez présent pour que le néon de l'image ait l'air vivant.
+   Aucune information n'y est portée — c'est une respiration, pas un signal : rien ne se perd si
+   elle est coupée. */
+/* Halo en `box-shadow`, PAS en `drop-shadow` : le PNG livré est opaque (fond noir aplati), donc
+   une ombre portée épouserait son rectangle plein et resterait cachée DERRIÈRE lui. Le
+   `box-shadow` se dessine à l'extérieur de la boîte, en suivant le `border-radius` qui rogne les
+   coins noirs de l'image. */
+@keyframes couverture-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 8px 0 color-mix(in srgb, #4f7cff 45%, transparent);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 0 26px 4px color-mix(in srgb, #7c5cff 65%, transparent);
+    transform: translateY(-2px);
+  }
+}
+
+.couverture-breathe {
+  animation: couverture-breathe 4s ease-in-out infinite;
+}
+
+/* Mouvement réduit : on garde le halo, on retire le battement et le flottement. */
+@media (prefers-reduced-motion: reduce) {
+  .couverture-breathe {
+    animation: none;
+    box-shadow: 0 0 10px 0 color-mix(in srgb, #4f7cff 45%, transparent);
+  }
+}
+
 html,
 body,
 #root {

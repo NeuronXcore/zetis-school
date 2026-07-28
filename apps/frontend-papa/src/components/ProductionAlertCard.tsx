@@ -8,6 +8,7 @@
 // Masquée quand les deux compteurs sont nuls : une alerte à zéro n'est pas une alerte.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { CouvertureIcon } from "./CouvertureIcon";
 import { fetchCoverage } from "../lib/production";
 
 export function ProductionAlertCard() {
@@ -28,7 +29,7 @@ export function ProductionAlertCard() {
       to="/couverture"
       className="mt-4 flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-500/5 px-4 py-3 text-sm transition-colors hover:bg-amber-500/10"
     >
-      <span className="text-lg">🗺️</span>
+      <CouvertureIcon size="inline" />
       <span className="flex-1">
         <b className="text-amber-300">{counts.pending}</b> objet
         {counts.pending > 1 ? "s" : ""} attend{counts.pending > 1 ? "ent" : ""} ta relecture ·{" "}

@@ -32,14 +32,35 @@ scope, pour les actions de lot).
 
 ### En-tête
 
-Titre + sous-titre, sélecteur d'année scolaire à droite.
+Pictogramme + titre + sous-titre, sélecteur d'année scolaire à droite.
 
-### KPI (4)
+Le pictogramme est `CouvertureIcon` (56 px), animé d'une **respiration lumineuse** de 4 s
+(`.couverture-breathe` dans `index.css`). L'animation ne porte **aucune information** — rien ne se
+perd si elle est coupée, et elle l'est sous `prefers-reduced-motion`. Le même pictogramme désigne
+la Couverture dans la sidebar (20 px) et sur le relais du Dashboard (24 px), sans animation : à
+cette taille, un halo qui pulse devient un clignotement parasite.
+
+### KPI (4) — cliquables
 
 Leçons validées · cours rédigés `n/total` · % de dérivés produits · périmés.
 
 Le cours **n'entre pas** dans le pourcentage de dérivés : il en est la condition, pas un
 dérivé. Le compter serait une faute de logique.
+
+**Chaque KPI ouvre son COMPLÉMENT, pas ce qu'il compte** : depuis « 27 cours rédigés sur 78 », ce
+qui se pilote ce sont les 51 restants. Un chiffre atteint ne se travaille pas.
+
+| KPI | Filtre appliqué |
+|---|---|
+| Leçons validées | 🔒 Non validées |
+| Cours rédigés `n/total` | 📝 Sans cours |
+| Dérivés produits `%` | 🟢 Prêtes, incomplètes |
+| Périmés | ⚠ Périmés |
+
+Un second clic revient à « Tout » : une carte qui ne sait qu'allumer un filtre obligerait à aller
+l'éteindre ailleurs. Les cartes restent cliquables même à zéro (choix du user, 2026-07-28).
+Sémantique ARIA `aria-pressed` et **non** `aria-expanded` : rien n'est déplié sous la carte, le
+filtre agit sur la matrice plus bas.
 
 ### Bandeaux d'anomalie (2, côte à côte, masqués si compteur nul)
 
@@ -52,13 +73,47 @@ actionnable qu'une case vide.
 
 ### Filtres
 
-Pilules : Tout · 🔒 Bloquées · 🟢 Prêtes, incomplètes · ⏳ À relire · ⚠ Périmés.
-Filtrage **client** sur les données déjà chargées. Plus un sélecteur de matière et une
-recherche de leçon.
+**Rangée 1 — matière** : pastilles à pictogramme (`SubjectFilterChips` de `@zetis/ui`, la même
+brique que le dashboard et le cahier de bord), « Toutes les matières » en tête. Elle a remplacé un
+`<select>` : les huit matières tiennent sur une ligne, et un pictogramme se reconnaît d'un coup
+d'œil là où un libellé replié dans un menu demandait de l'ouvrir.
+
+> La requête `GET /coverage?subject_id=` restreint **aussi** la liste des matières renvoyée. La
+> page mémorise donc celle du chargement non filtré, sinon les pastilles s'effondreraient à une
+> seule au premier clic. Cf. `TROUBLESHOOTING.md`.
+
+**Rangée 2 — état** : Tout · 🔒 Non validées · 📝 Sans cours · 🟢 Prêtes, incomplètes ·
+⏳ À relire · ⚠ Périmés, plus la recherche de leçon.
+
+Les **deux causes de blocage ont chacune leur pilule** au lieu d'un « 🔒 Bloquées » unique : le
+backend les distingue déjà (`row_state`) parce que l'action à mener diffère — agir dans Programme
+vs rédiger le cours ici — et surtout deux KPI pointent l'un sur l'une, l'autre sur l'autre.
+« Leçons validées » ne peut pas ouvrir un ensemble dont `blocked_no_course` (= des leçons
+validées) fait partie.
+
+Filtrage **client** sur les données déjà chargées, fonctions pures dans `lib/coverageFilters.ts`.
 
 ### Matrice
 
 Un tableau par matière, lignes groupées par chapitre, **une ligne = une leçon**.
+
+Chaque matière est un **expander**. En vue d'ensemble (toutes matières, aucun filtre d'état) elles
+arrivent **repliées** : les huit tiennent dans un écran. Dès qu'on demande quelque chose
+d'explicite — une pilule d'état, une matière — tout se déplie : on ne cache jamais ce qui vient
+d'être demandé. Les ouvertures manuelles sont oubliées au changement de contexte, sinon un repli
+fait sous « Périmés » resterait actif alors qu'il n'a plus de sens.
+
+L'en-tête replié porte pictogramme + nom + `N leçons · N chapitres` + un **rappel des anomalies**
+de la matière : `🔒 4`, `📝 2`, `⏳ 1`, `⚠ 1`. Un marqueur à zéro **n'est pas affiché** — une
+matière saine se reconnaît à ce qu'elle n'en porte aucun, pas à une rangée de zéros à déchiffrer.
+
+Ces compteurs sont calculés sur la matière **entière** (`subjectAnomalies`), jamais sur la matrice
+filtrée : sous filtre « ⚠ Périmés », toutes les autres anomalies tomberaient à zéro et l'en-tête
+affirmerait « aucune leçon bloquée ici », ce qui serait faux.
+
+Ce sont des **comptes**, jamais un pourcentage ni une barre : la page s'interdit un score par
+matière (cf. Principes — un classement des matières les plus incomplètes n'est pas un critère
+pédagogique).
 
 | Colonne | Ancrage | Ce qui compte comme « couvert » |
 |---|---|---|
@@ -227,3 +282,20 @@ la colonne voisine s'appelle « Cartes » (de révision), et les deux objets n'o
 
 **Non vérifié à l'écran de bout en bout** : la session de test a expiré côté agent. Les défauts
 trouvés par le user sont consignés dans `TROUBLESHOOTING.md` § chantier `couverture`.
+
+## Passe visuelle (2026-07-28, session 2)
+
+Retours du user sur la page réelle, et ce qui en a découlé :
+
+- « Les KPI ne sont pas actifs » → KPI cliquables (voir §KPI), pilule « Bloquées » scindée en ses
+  deux causes.
+- « Où sont passés les pictogrammes par matière ? » → ils étaient absents de cette page seule,
+  alors que Matières, Fiches, Mindmaps, Capsules et Conseil de classe les affichent tous. Ajoutés
+  sur les en-têtes de matière **et** sur le sélecteur, via `SubjectPictogram` extrait de
+  `SubjectFilterChips` (un seul rendu du même pictogramme sur une même page).
+- « Il faudrait des expanders par matière pour garder une vue globale » → voir §Matrice.
+- « Je veux cette icône pour Couverture, avec une animation » → voir §En-tête.
+
+**Toujours pas de vérification de bout en bout par l'agent** : le navigateur intégré n'est pas
+connecté et l'agent ne saisit pas de mot de passe. L'icône et son animation ont en revanche été
+vérifiées sur un banc d'essai isolé (rendu + `getAnimations()`), pas seulement supposées.

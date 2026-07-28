@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { type CoverageCell, type CoverageLesson, type CoverageSubject } from "@zetis/types";
-import { filterCounts, filterCoverage, matchesFilter, matchesSearch } from "./coverageFilters";
+import {
+  filterCounts,
+  filterCoverage,
+  matchesFilter,
+  matchesSearch,
+  subjectAnomalies,
+} from "./coverageFilters";
 
 function cell(state: CoverageCell["state"]): CoverageCell {
   return { state, derived_at: null, validated_by: null, object_id: null };
@@ -40,11 +46,12 @@ describe("matchesFilter — table de vérité des pilules", () => {
     expect(ALL.every((l) => matchesFilter(l, "all"))).toBe(true);
   });
 
-  it("« Bloquées » couvre les DEUX causes de blocage", () => {
-    expect(ALL.filter((l) => matchesFilter(l, "blocked"))).toEqual([
-      BLOCKED_LESSON,
-      BLOCKED_COURSE,
-    ]);
+  it("les DEUX causes de blocage ont chacune leur pilule, et ne se recouvrent pas", () => {
+    // Le verrou du câblage des KPI : « Leçons validées » ouvre `no_lesson`, et cet ensemble ne
+    // doit JAMAIS contenir une leçon validée — or `blocked_no_course` n'est que des validées.
+    expect(ALL.filter((l) => matchesFilter(l, "no_lesson"))).toEqual([BLOCKED_LESSON]);
+    expect(ALL.filter((l) => matchesFilter(l, "no_course"))).toEqual([BLOCKED_COURSE]);
+    expect(matchesFilter(BLOCKED_COURSE, "no_lesson")).toBe(false);
   });
 
   it("« Prêtes, incomplètes » ne retient que row_state=ready", () => {
@@ -63,6 +70,39 @@ describe("matchesFilter — table de vérité des pilules", () => {
   it("le COURS n'entre dans aucun compte de dérivé — il est la condition, pas un dérivé", () => {
     const staleCourse = lesson(9, "Cours seul", "ready", { cours: "stale" });
     expect(matchesFilter(staleCourse, "stale")).toBe(false);
+  });
+});
+
+describe("subjectAnomalies", () => {
+  const subject: CoverageSubject = {
+    id: 1,
+    name: "Français",
+    slug: "francais",
+    chapters: [
+      { id: 10, title: "Ch. 1", lessons: [COMPLETE, READY, PENDING] },
+      { id: 11, title: "Ch. 2", lessons: [STALE, BLOCKED_LESSON, BLOCKED_COURSE] },
+    ],
+  };
+
+  it("compte les quatre anomalies sur toute la matière, chapitres confondus", () => {
+    expect(subjectAnomalies(subject)).toEqual({
+      no_lesson: 1,
+      no_course: 1,
+      pending: 1,
+      stale: 1,
+    });
+  });
+
+  it("une matière saine ne porte AUCUN marqueur (et non des zéros)", () => {
+    // L'en-tête n'affiche que les compteurs non nuls : c'est ce qui permet de repérer d'un coup
+    // d'œil la matière qui demande du travail parmi huit.
+    const healthy = { ...subject, chapters: [{ id: 10, title: "Ch. 1", lessons: [COMPLETE] }] };
+    expect(Object.values(subjectAnomalies(healthy)).every((n) => n === 0)).toBe(true);
+  });
+
+  it("« prête, incomplète » n'est PAS une anomalie — c'est du travail normal qui reste", () => {
+    const onlyReady = { ...subject, chapters: [{ id: 10, title: "Ch. 1", lessons: [READY] }] };
+    expect(Object.values(subjectAnomalies(onlyReady)).every((n) => n === 0)).toBe(true);
   });
 });
 
@@ -122,10 +162,24 @@ describe("filterCounts", () => {
       },
       subjects: [{ id: 1, name: "F", slug: "f", chapters: [{ id: 1, title: "C", lessons: ALL }] }],
     });
-    expect(counts).toEqual({ all: 6, blocked: 2, ready: 3, pending: 1, stale: 1 });
+    expect(counts).toEqual({
+      all: 6,
+      no_lesson: 1,
+      no_course: 1,
+      ready: 3,
+      pending: 1,
+      stale: 1,
+    });
   });
 
-  it("sans couverture, tout est à zéro (pas de NaN affiché sur les pilules)", () => {
-    expect(filterCounts(null)).toEqual({ all: 0, blocked: 0, ready: 0, pending: 0, stale: 0 });
+  it("sans couverture, tout est à zéro (pas de NaN affiché sur les pilules ni sur les KPI)", () => {
+    expect(filterCounts(null)).toEqual({
+      all: 0,
+      no_lesson: 0,
+      no_course: 0,
+      ready: 0,
+      pending: 0,
+      stale: 0,
+    });
   });
 });

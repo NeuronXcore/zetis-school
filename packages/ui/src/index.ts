@@ -31,6 +31,7 @@ export {
   type SubjectFilterChipsProps,
   type SubjectFilterOption,
 } from "./components/subject-filter-chips";
+export { SubjectPictogram, type SubjectPictogramProps } from "./components/subject-pictogram";
 export { ActivityEventIcon, type ActivityEventIconProps } from "./components/activity-icons";
 // Célébration « mini-victoire » (capsule créée / nouvelle) + réglage son partagé.
 export {

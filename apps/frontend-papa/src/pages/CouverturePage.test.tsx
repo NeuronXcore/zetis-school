@@ -98,6 +98,18 @@ function renderPage() {
   );
 }
 
+/** En vue d'ensemble, les matières arrivent REPLIÉES : le contenu de la matrice sort de l'arbre
+ *  d'accessibilité, donc tout test qui l'interroge PAR RÔLE doit d'abord l'ouvrir. Le bouton
+ *  d'en-tête se distingue de la pastille de filtre homonyme par ses compteurs de leçons. */
+async function expandSubject(name = "Français") {
+  fireEvent.click(await screen.findByRole("button", { name: new RegExp(`${name}.*leçon`) }));
+}
+
+/** Les pastilles de filtre, à l'exclusion des en-têtes de matière du même nom. */
+function chips() {
+  return within(screen.getByRole("group", { name: "Filtrer par matière" }));
+}
+
 beforeEach(() => {
   vi.mocked(fetchOrphans).mockResolvedValue([]);
 });
@@ -154,6 +166,7 @@ describe("CouverturePage — badge de déblocage", () => {
     vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([BLOCKED]));
     renderPage();
     const title = await screen.findByText("Bloquée");
+    await expandSubject();
 
     const link = screen.getByRole("link", { name: /À valider/ });
     // Même cellule que le titre = même ligne à l'écran (et non une sous-ligne).
@@ -192,6 +205,7 @@ describe("CouverturePage — validation en lot", () => {
     vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([BLOCKED, FIVE_STATES]));
     renderPage();
     await screen.findByText("Bloquée");
+    await expandSubject();
 
     fireEvent.click(screen.getByRole("button", { name: /Valider les 1 leçons/ }));
     // Rien n'est parti tant que la confirmation n'est pas donnée.
@@ -319,6 +333,109 @@ describe("CouverturePage — bandeaux d'anomalie", () => {
     // Ni compteur, ni filtre, ni relance sur « validé en lot » / « jamais relu ».
     expect(screen.queryByText(/validés en lot/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /jamais relu/i })).toBeNull();
+  });
+});
+
+describe("CouverturePage — pastilles de matière", () => {
+  const MATHS = {
+    id: 2,
+    name: "Mathématiques",
+    slug: "mathematiques",
+    chapters: [{ id: 20, title: "Ch. A", lessons: [FIVE_STATES] }],
+  };
+
+  it("les matières SURVIVENT au filtrage serveur, qui n'en renvoie plus qu'une", async () => {
+    // Le piège : `GET /coverage?subject_id=` restreint aussi `subjects`. Sans mémorisation de la
+    // liste non filtrée, on ne pourrait plus passer d'une matière à l'autre sans repasser par
+    // « Toutes ».
+    const both = coverageWith([FIVE_STATES]);
+    vi.mocked(fetchCoverage)
+      .mockResolvedValueOnce({ ...both, subjects: [...both.subjects, MATHS] })
+      .mockResolvedValue({ ...both, subjects: [MATHS] });
+
+    renderPage();
+    // Scopé au groupe de pastilles : l'en-tête de la matrice porte le même nom, et il apparaît
+    // AVANT la pastille (la liste des matières est posée par un effet, un cran plus tard).
+    await waitFor(() => expect(chips().getByRole("button", { name: /Mathématiques/ })).toBeTruthy());
+    const mathsChip = chips().getByRole("button", { name: /Mathématiques/ });
+    fireEvent.click(mathsChip);
+
+    await waitFor(() => expect(mathsChip.getAttribute("aria-pressed")).toBe("true"));
+    expect(chips().getByRole("button", { name: /Français/ })).toBeTruthy();
+    expect(chips().getByRole("button", { name: /Toutes les matières/ })).toBeTruthy();
+  });
+});
+
+describe("CouverturePage — expanders par matière", () => {
+  function header(name = "Français") {
+    return screen.getByRole("button", { name: new RegExp(`${name}.*leçon`) });
+  }
+
+  it("en vue d'ensemble tout est REPLIÉ, et l'en-tête rappelle les anomalies", async () => {
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([BLOCKED, FIVE_STATES]));
+    renderPage();
+    await screen.findByText("Bloquée");
+
+    expect(header().getAttribute("aria-expanded")).toBe("false");
+    // Une leçon non validée, une périmée, une à relire — comptées sur la matière entière.
+    expect(header().textContent).toContain("🔒 1");
+    expect(header().textContent).toContain("⚠ 1");
+    expect(header().textContent).toContain("⏳ 1");
+
+    fireEvent.click(header());
+    expect(header().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("un filtre d'état DÉPLIE tout — on ne cache pas ce qui vient d'être demandé", async () => {
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([BLOCKED, FIVE_STATES]));
+    renderPage();
+    await screen.findByText("Bloquée");
+    expect(header().getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: /Périmés \(/ }));
+    await waitFor(() => expect(header().getAttribute("aria-expanded")).toBe("true"));
+  });
+
+  it("changer de contexte rend la main au défaut, sans garder un repli devenu absurde", async () => {
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([BLOCKED, FIVE_STATES]));
+    renderPage();
+    await screen.findByText("Bloquée");
+
+    fireEvent.click(header()); // ouverture manuelle…
+    expect(header().getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /À relire \(/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Tout \(/ }));
+    // …oubliée au retour en vue d'ensemble : tout est replié à nouveau.
+    await waitFor(() => expect(header().getAttribute("aria-expanded")).toBe("false"));
+  });
+});
+
+describe("CouverturePage — KPI cliquables", () => {
+  it("un KPI filtre la matrice sur son COMPLÉMENT, et un second clic la rouvre", async () => {
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([FIVE_STATES, BLOCKED]));
+    renderPage();
+    await screen.findByText("Toutes les couleurs");
+
+    const kpi = screen.getByRole("button", { name: /Leçons validées/ });
+    expect(kpi.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(kpi);
+    // « Leçons validées » ouvre les NON validées : la ligne bloquée reste, l'autre part.
+    await waitFor(() => expect(screen.queryByText("Toutes les couleurs")).toBeNull());
+    expect(screen.getByText("Bloquée")).toBeTruthy();
+    expect(kpi.getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(kpi);
+    await waitFor(() => expect(screen.getByText("Toutes les couleurs")).toBeTruthy());
+  });
+
+  it("un KPI qui filtre n'annonce PAS `aria-expanded` — rien n'est déplié sous lui", async () => {
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([FIVE_STATES]));
+    renderPage();
+    await screen.findByText("Toutes les couleurs");
+    expect(
+      screen.getByRole("button", { name: /Cours rédigés/ }).hasAttribute("aria-expanded"),
+    ).toBe(false);
   });
 });
 

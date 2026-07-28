@@ -1,4 +1,4 @@
-import { subjectIconFor } from "../lib/subjectIcons";
+import { SubjectPictogram } from "./subject-pictogram";
 import { cn } from "../lib/cn";
 
 // Rangée de pastilles « Toutes + matières » filtrant une vue par matière. Partagée par le bloc
@@ -9,7 +9,7 @@ import { cn } from "../lib/cn";
 // filtre, et ne déclenche aucun fetch. L'appelant décide ce que « matière sélectionnée » veut
 // dire pour lui.
 //
-// Pictogrammes via `subjectIconFor` (repli sur l'initiale si l'asset manque) — jamais d'emoji
+// Pictogrammes via `SubjectPictogram` (repli sur l'initiale si l'asset manque) — jamais d'emoji
 // ni de chemin d'asset codé en dur, cf. design-system.md §Pictogrammes de matière.
 
 export interface SubjectFilterOption {
@@ -26,21 +26,6 @@ export interface SubjectFilterChipsProps {
   /** Libellé de la pastille « tout afficher ». */
   allLabel?: string;
   className?: string;
-}
-
-function Pictogram({ slug, name }: { slug: string; name: string }) {
-  const icon = subjectIconFor(slug);
-  return (
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-      {icon ? (
-        // Décoratif : le nom de la matière est déjà lisible juste à côté, un alt le doublerait
-        // pour les lecteurs d'écran.
-        <img src={icon} alt="" aria-hidden className="h-full w-full object-cover" />
-      ) : (
-        <span className="text-[11px] font-semibold uppercase">{name.slice(0, 1)}</span>
-      )}
-    </span>
-  );
 }
 
 export function SubjectFilterChips({
@@ -80,7 +65,7 @@ export function SubjectFilterChips({
           className={chip(value === subject.id)}
           title={subject.name}
         >
-          <Pictogram slug={subject.slug} name={subject.name} />
+          <SubjectPictogram slug={subject.slug} name={subject.name} />
           {subject.name}
         </button>
       ))}
