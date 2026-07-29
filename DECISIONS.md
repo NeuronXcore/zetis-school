@@ -41,10 +41,11 @@
   traçabilité **non probante** (`agenda_item_created|done`, jamais de `missed` — « l'absence
   n'est pas un événement »), zéro XP, zéro impact sur `evidence/service.py` ; **règle de
   datation** — seul l'exogène est daté, le flux ZETIS ne l'est que par héritage d'une
-  échéance réelle ; **bande glissante** 7 jours (3 avant / 3 après), asymétrie passé/futur
+  échéance réelle ; **bande glissante** 14 jours (3 avant / 10 après — révisée le 2026-07-29,
+  tout l'horizon vers l'avant), asymétrie passé/futur
   serveur, **traces positives sans réceptacle vide** (conformité `adr-0024 §5`) ; concilié
   avec `adr-0018 §1` — l'invariant protège d'un compte à rebours *inventé*, pas *subi* —
-  Proposé (2026-07-29)
+  Accepté (2026-07-29)
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :

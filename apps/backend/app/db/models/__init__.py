@@ -1,7 +1,9 @@
+from app.db.models.agenda import AgendaItem
 from app.db.models.ai import AIJob
 from app.db.models.assessment import Quiz, QuizAnswer, QuizAttempt, QuizQuestion
 from app.db.models.content import Capsule, Fiche, Mindmap, MindmapAttempt
 from app.db.models.rag import RagChunk, RagDocument
+from app.db.models.settings import AppSetting
 from app.db.models.reports import CouncilReport
 from app.db.models.progress import (
     CapsuleView,
@@ -66,4 +68,6 @@ __all__ = [
     "RagDocument",
     "RagChunk",
     "CouncilReport",
+    "AgendaItem",
+    "AppSetting",
 ]

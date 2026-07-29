@@ -1201,16 +1201,20 @@ Tout utilisateur authentifié (rôle `child` inclus). Schéma `AgendaItemStudent
 
 #### GET `/week?anchor=YYYY-MM-DD`
 
-Bande **glissante** : 3 jours avant l'ancre (défaut : aujourd'hui), l'ancre, 3 jours après.
-Jamais alignée sur la semaine calendaire.
+Bande **glissante** : 3 jours avant l'ancre (défaut : aujourd'hui), l'ancre, 10 jours après
+(`AGENDA_BAND_DAYS_BEFORE` / `_AFTER`). Jamais alignée sur la semaine calendaire.
+
+**Asymétrie volontaire** : tout l'horizon va vers l'avant, le regard en arrière reste borné à
+3 jours. Le client ne présume jamais le nombre de colonnes — il rend ce qu'il reçoit.
 
 ```txt
 days[]: { date, offset, traces, fixed_items[], plan_steps[] }
 ```
 
 - `traces` : 0–3, **uniquement si `date <= today`** ; `null` sinon (jamais `0` sur un jour à
-  venir). Nombre d'activités distinctes du jour, plafonné — pas une durée, pas un score.
-  `traces = 0` et « pas de donnée » sont **le même état**.
+  venir). Nombre de **natures d'activité distinctes** du jour (types d'événement, navigation
+  exclue), plafonné à `AGENDA_TRACES_CAP` — pas une durée, pas un score. Une rafale de révision
+  vaut 1. `traces = 0` et « pas de donnée » sont **le même état**.
 - `fixed_items[]` : **uniquement si `date >= today`**, `[]` sinon.
 - `plan_steps[]` : toujours `[]` en Lot 1 (champ au contrat, rempli au Lot 2).
 
@@ -1226,6 +1230,10 @@ Liste plate.
 #### POST `/items`
 
 `created_by` **forcé à `student` côté serveur** (jamais lu du corps).
+
+**Verrou de phase (ADR-0025 §10)** : **403** tant que `AGENDA_STUDENT_ENTRY_ENABLED` (défaut
+`false`) est fermé. Le verrou est serveur — une UI cachée n'est pas une règle. `done`, `undone`
+et `dismiss` ne sont **jamais** concernés : Massimo coche et masque dès la phase 0.
 
 #### PATCH `/items/{id}`
 
@@ -1249,13 +1257,19 @@ Archivés inclus, marqués.
 
 #### POST `/items`
 
-`created_by` forcé à `parent`. **Accepte un corps en lot** (liste d'items en une requête).
+`created_by` forcé à `parent`. **Corps en lot obligatoire** : `{ "items": [ … ] }` → **201** avec
+la liste créée. Papa relève l'ENT du dimanche soir en une requête.
+
+#### POST `/items/single`
+
+Confort : un item unique, sans enveloppe `items`. Même règles, même forçage de `created_by`.
 
 #### PATCH `/items/{id}`
 
 Sur un item `created_by='student'`, le service renseigne **automatiquement**
 `edited_by_parent_at`. Toute tentative d'écrire `done_at` → **403** — refus d'autorité, pas de
-validation (déc. ADR-0025 §2b : seul Massimo coche).
+validation (déc. ADR-0025 §2b : seul Massimo coche). Le champ est **déclaré au schéma exprès**
+pour que le refus soit explicite : silencieusement ignoré, il laisserait croire que ça a marché.
 
 #### PUT `/items/{id}/note`
 
@@ -1263,4 +1277,22 @@ validation (déc. ADR-0025 §2b : seul Massimo coche).
 
 #### DELETE `/items/{id}`
 
-**Archivage** (`dismissed_at`), la ligne reste en base.
+**Archivage** (`dismissed_at`), la ligne reste en base. Répond **200 avec l'item archivé** (et
+non 204) : la réponse dit ce qui s'est réellement passé.
+
+#### GET · PUT `/settings`
+
+`{ student_entry_enabled: bool }` — verrou de phase de l'ADR-0025 §10, persisté dans
+`app_settings` (la variable d'environnement reste la valeur par défaut tant qu'aucune ligne
+n'existe).
+
+Le `PUT` est un **geste explicite de Papa**. Aucune bascule automatique n'existe côté serveur :
+la déclencher sur un seuil de coches observé ferait dépendre un droit d'une surveillance.
+
+### Événements non probants
+
+L'agenda émet exactement deux `learning_events` — `agenda_item_created` (avec la source) et
+`agenda_item_done` — regroupés dans `NON_ACTIVITY_EVENTS` et **exclus de toutes les projections
+d'activité** (heatmap, minutes actives, sessions, Cahier de bord, jours de venue). `evidence`
+n'a besoin d'aucune garde : sa seule lecture du journal est filtrée sur `mission_verdict`.
+`agenda_item_missed` n'existe pas. Aucun XP n'est crédité.

@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.health import router as health_router
 from app.core.config import settings
 from app.modules.activity.router import parent_router as activity_parent_router
+from app.modules.agenda.router import router as agenda_router
+from app.modules.agenda.router import student_router as agenda_student_router
 from app.modules.activity.router import telemetry_router
 from app.modules.ai.router import router as ai_router
 from app.modules.auth.router import router as auth_router
@@ -85,3 +87,7 @@ app.include_router(motivation_router)
 app.include_router(production_router)
 # ZETIS Galaxy (Massimo) : graphe des connaissances, contenu de la page Progression (ADR-0024).
 app.include_router(galaxy_student_router)
+# Agenda scolaire (ADR-0025) : source exogène co-éditée. Deux routeurs, deux schémas — la
+# frontière Massimo/Papa est tenue par le serveur, jamais par l'UI.
+app.include_router(agenda_student_router)
+app.include_router(agenda_router)

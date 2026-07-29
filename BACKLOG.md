@@ -94,8 +94,11 @@
 
   ### Agenda scolaire (ADR-0025)
 
-- Lot 1 — l'objet : table `agenda_items`, co-édition, bande glissante, « ce qui arrive »,
-  page Massimo + page Papa. *(à faire — 3 slices, aucun appel LLM)*
+- ~~Lot 1 — l'objet~~ : **FAIT (2026-07-29)** — table `agenda_items`, co-édition, bande
+  glissante, « ce qui arrive », page Papa, page Massimo. Vérifié à l'écran de bout en bout.
+  Deux ajouts non prévus par le cadrage : le frozenset `NON_ACTIVITY_EVENTS` (trois lecteurs de
+  `learning_events` n'étaient pas filtrés par `event_type`) et la table `app_settings` (le
+  verrou de phase devait être un geste de Papa, pas une variable d'env).
 - Lot 1 bis — ouverture de la saisie élève : composer + garde-fou doublon, derrière
   `AGENDA_STUDENT_ENTRY_ENABLED`, + interrupteur côté Papa. *(sur décision, pas sur calendrier —
   revue de la phase 0 à 4 semaines)*

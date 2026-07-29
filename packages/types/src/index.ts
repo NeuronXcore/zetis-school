@@ -24,6 +24,19 @@ export {
   type WelcomeCode,
   type WrapUpCode,
 } from "./motivation";
+export {
+  type AgendaCreator,
+  type AgendaDay,
+  type AgendaItemDraft,
+  type AgendaItemPatch,
+  type AgendaItemPilot,
+  type AgendaItemStudent,
+  type AgendaKind,
+  type AgendaSettings,
+  type AgendaSubjectRef,
+  type AgendaUpcomingItem,
+  type AgendaWeek,
+} from "./agenda";
 export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
   type FicheDefinition,

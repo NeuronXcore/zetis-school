@@ -1,5 +1,40 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.27.0 — Agenda scolaire : ZETIS apprend ce que le collège demande
+
+Date : 2026-07-29 · ADR-0025 · branche `feat/agenda-scolaire`
+
+> Tout ce que ZETIS savait planifier, il l'avait inventé lui-même. L'agenda est sa première
+> source **exogène** : les dates viennent du collège, jamais de ZETIS — et ce qui est
+> déclaratif le reste, sans jamais devenir une preuve.
+
+- **Backend** : table `agenda_items` (migration `a1b2c3d4e5f7`) + module `agenda`. Deux
+  routeurs, deux schémas jamais mélangés (`/api/student/agenda` et `/api/agenda`). Co-édition
+  sous quatre règles serveur : seul Massimo coche (403 explicite côté Papa), corrections
+  marquées (`edited_by_parent_at` posé par le service), archivage jamais suppression, doublons
+  tolérés. Traçabilité **non probante** : deux `learning_events`, pas d'`agenda_item_missed`
+  (« l'absence n'est pas un événement »), zéro XP, zéro effet sur l'évidence (test-verrou).
+- **Étanchéité des projections** : trois lecteurs de `learning_events` ne filtraient pas par
+  `event_type` (heatmap/minutes/sessions, décrochage, jours de venue) — sans garde, cocher un
+  devoir aurait compté comme du travail. Frozenset `NON_ACTIVITY_EVENTS` appliqué aux trois.
+- **Page Papa `/agenda`** : saisie **en lot** (matière · chapitre du référentiel · intitulé ·
+  date · type, un seul envoi), charge de la semaine en 7 colonnes, panneau de détail, note
+  privée jamais servie à Massimo, archivage sous ConfirmDialog, filtres. **Aucune case à
+  cocher, nulle part** — et l'UI énonce les trois refus. Interrupteur d'ouverture de la saisie
+  élève **persisté en base** (table `app_settings`, migration `b2c3d4e5f8a0`) : la bascule est
+  un geste de Papa, jamais un seuil calculé.
+- **Page Massimo `/agenda`** : bande **glissante** 14 jours (3 passés / aujourd'hui / 10 à
+  venir — tout l'horizon va vers l'avant), traces positives sans réceptacle vide, sections
+  Aujourd'hui / Demain / la suite / Ce qui arrive / À reprendre (3 max, sans compteur), coche
+  optimiste **sans XP ni célébration**. Entrée de sidebar en position 2 + résumé sur l'Accueil
+  au-dessus du canvas Galaxy. Phase 0 : ni composer, ni bouton grisé — l'ouverture de la
+  saisie sera un événement positif, pas la fin d'une privation affichée.
+- **Vérifié à l'écran de bout en bout** : saisie Papa → apparition chez Massimo (« ajouté par
+  papa » en émeraude) → coche persistée → « cochés par Massimo : 1 » côté Papa. 560 tests
+  backend · 224 Papa · 167 Massimo.
+- Hors périmètre tenu : composer élève (Lot 1 bis, derrière le verrou), plan de préparation et
+  analyse par chapitre (Lot 3), bottom bar mobile (arbitrage ouvert).
+
 ## 0.26.0 — ZETIS Galaxy : la progression de Massimo devient une galaxie
 
 Date : 2026-07-28

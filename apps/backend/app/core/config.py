@@ -127,6 +127,35 @@ class Settings(BaseSettings):
         default=30, validation_alias="MISSION_CHAMPION_XP_PER_NOTION"
     )
 
+    # --- Agenda scolaire (ADR-0025) : première source exogène, déclarative et NON PROBANTE. ---
+    # Verrou de phase (§10). Phase 0 : Papa écrit, Massimo LIT, COCHE et MASQUE. La saisie élève
+    # s'ouvre en phase 1, sur un geste de Papa — jamais automatiquement, jamais sur un seuil de
+    # coches observé (ce serait faire dépendre un droit d'une surveillance).
+    # Le verrou est SERVEUR : une UI cachée n'est pas une règle. `done`/`dismiss` ne sont jamais
+    # concernés par ce flag.
+    agenda_student_entry_enabled: bool = Field(
+        default=False, validation_alias="AGENDA_STUDENT_ENTRY_ENABLED"
+    )
+    # Bande glissante (§6) : JAMAIS alignée sur la semaine calendaire (elle passerait de 6 jours
+    # d'horizon le lundi à 0 le dimanche).
+    #
+    # **Asymétrie volontaire — 3 jours en arrière, 10 en avant** (élargie de 7 à 14 jours le
+    # 2026-07-29). Tout l'élargissement va vers l'AVANT : l'ADR borne le regard en arrière à
+    # 3 jours (« scroll arrière au-delà » est hors périmètre), parce qu'un passé qu'on parcourt
+    # rend les trous visibles — le motif même qui a fait écarter la vue mois. L'anticipation,
+    # elle, n'a pas cet inconvénient.
+    agenda_band_days_before: int = Field(default=3, validation_alias="AGENDA_BAND_DAYS_BEFORE")
+    agenda_band_days_after: int = Field(default=10, validation_alias="AGENDA_BAND_DAYS_AFTER")
+    # Traces d'un jour passé : nombre d'activités distinctes, PLAFONNÉ. Comptage grossier et
+    # généreux — surtout pas une durée, surtout pas un score (§7, point ouvert n°3 tranché ici).
+    agenda_traces_cap: int = Field(default=3, validation_alias="AGENDA_TRACES_CAP")
+    # « Ce qui arrive » (§6) : contrôles et rendus seulement, horizon court, liste bornée — la
+    # section ne grossit jamais, quel qu'en soit le nombre réel.
+    agenda_upcoming_horizon_days: int = Field(
+        default=21, validation_alias="AGENDA_UPCOMING_HORIZON_DAYS"
+    )
+    agenda_upcoming_max: int = Field(default=4, validation_alias="AGENDA_UPCOMING_MAX")
+
     # --- Activité (journal `learning_events`) : les SESSIONS NE SONT PAS STOCKÉES, elles sont
     # reconstruites à la lecture (event sourcing : le journal est la vérité brute, la session une
     # projection). Changer une constante recalcule tout l'historique — aucune migration, pas de

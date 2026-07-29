@@ -4,6 +4,7 @@ import { MassimoLayout } from "./layouts/MassimoLayout";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { AccueilMassimoPage } from "./pages/AccueilMassimoPage";
+import { AgendaPage } from "./pages/AgendaPage";
 import { MatieresPage } from "./pages/MatieresPage";
 import { MatiereDetailPage } from "./pages/MatiereDetailPage";
 import { CoursPage } from "./pages/CoursPage";
@@ -35,6 +36,10 @@ export default function App() {
         }
       >
         <Route index element={<AccueilMassimoPage />} />
+        {/* Agenda (ADR-0025) : DEUX accès, décidés par le commanditaire le 2026-07-29 —
+            entrée de sidebar en position 2 ET résumé sur l'Accueil. La spec de page prévoyait
+            l'accès par le seul bandeau en phase 0 ; cf. son §Accès, mis à jour. */}
+        <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/matieres" element={<MatieresPage />} />
         <Route path="/subjects/:slug" element={<MatiereDetailPage />} />
         <Route path="/subjects/:slug/cours" element={<CoursPage />} />

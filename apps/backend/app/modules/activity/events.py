@@ -50,6 +50,27 @@ EVENT_ELI5_REVERSE = "reverse_eli5"
 EVENT_MISSION_COMPLETED = "mission_verdict"
 EVENT_MISSION_STEP_VIEW = "mission_step_view"
 
+# --- Événements NON PROBANTS (agenda scolaire, ADR-0025 §3) -----------------------------------
+# L'agenda est DÉCLARATIF : cocher ne prouve rien, ne pas cocher ne prouve rien. Ses deux
+# événements vivent dans le même journal (une seule table, une seule vérité brute) mais sont
+# exclus de toute PROJECTION pédagogique : heatmap, minutes actives, sessions, KPI, Cahier de
+# bord, jours de venue. Sans cette exclusion, cocher une case gonflerait le temps de travail de
+# Massimo — l'agenda remonterait dans le Dashboard et le Cahier de bord, que l'ADR met
+# explicitement hors périmètre.
+#
+# `evidence/service.py` n'a besoin d'aucune garde : sa seule lecture du journal est filtrée sur
+# `mission_verdict` (vérifié en read-before-code, test-verrou dans `test_agenda.py`).
+# `galaxy/service.py` non plus : il groupe sur `skill_id IS NOT NULL`, or un item d'agenda ne
+# porte aucune notion.
+#
+# `agenda_item_missed` N'EXISTE PAS et n'existera pas : l'absence n'est pas un événement (même
+# jurisprudence que `StudentWeeklyGoal`, sans colonne d'atteinte — rien de punitif n'est
+# persistable). Aucune tâche périodique, aucun balayage.
+EVENT_AGENDA_ITEM_CREATED = "agenda_item_created"
+EVENT_AGENDA_ITEM_DONE = "agenda_item_done"
+
+NON_ACTIVITY_EVENTS = frozenset({EVENT_AGENDA_ITEM_CREATED, EVENT_AGENDA_ITEM_DONE})
+
 
 def log_learning_event(
     db: Session,

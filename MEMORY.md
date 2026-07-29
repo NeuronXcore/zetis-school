@@ -7,8 +7,57 @@
 
 ## État à la reprise
 
-**Branche : `feat/galaxy`** (depuis `main`, 2026-07-28) — chantier **ZETIS Galaxy COMPLET**,
-cadrage **et** implémentation, poussé sur `origin`. ⚠️ **PR à ouvrir, rien n'est mergé.**
+**Branche : `feat/agenda-scolaire`** (depuis `main`, 2026-07-29) — chantier **Agenda scolaire
+(ADR-0025)**. Le cadrage (maquettes → specs → ADR-0025 → 3 prompts de slice) est **sur `main`**,
+commit `8be1e0a`. **Slice A backend FAITE** sur la branche, non commitée au moment d'écrire :
+
+- table `agenda_items` + migration `a1b2c3d4e5f7` **appliquée sur le vrai Postgres de dev** ;
+- module `app/modules/agenda/` (schémas séparés Student/Pilot, service, 2 routers) ;
+- **559 tests verts** (+17), dont les invariants de l'ADR (Papa ne coche pas → 403,
+  `parent_note` jamais côté élève, asymétrie de la bande, aucune mission/SRS dans une surface
+  datée, évidence inchangée par une coche) ;
+**Slice C (page Papa) FAITE** : route `/agenda` + entrée de sidebar après Dashboard, saisie en
+lot (matière · chapitre · intitulé · date · type, un seul envoi), charge de la semaine en
+7 colonnes, panneau de détail, note privée, archivage sous `ConfirmDialog`, filtres. **Aucune
+case à cocher.** A demandé un **ajout backend décidé avec le user** : table `app_settings`
+(migration `b2c3d4e5f8a0`, appliquée) + `GET`/`PUT /api/agenda/settings`, parce que
+l'interrupteur d'ouverture de la saisie élève doit être « un geste de Papa sur sa page »
+(ADR-0025 §10) — une variable d'env ne peut pas l'être. L'env reste la valeur par défaut.
+
+**Slice B (page Massimo) FAITE** : route `/agenda`, bande glissante 7 jours (traces allumées
+sans réceptacle, halo cyan sur aujourd'hui, anneau fuchsia sur un contrôle, emplacement ✦ du
+plan laissé vide), sections Aujourd'hui / Demain / suite repliée / Ce qui arrive / À reprendre
+(3 max, sans compteur), coche optimiste, résumé d'Accueil au-dessus du canvas Galaxy.
+
+**Accès à l'agenda : DEUX portes, tranché par le user le 2026-07-29** — entrée de sidebar en
+position 2 (après Accueil, avant Matières) **et** résumé sur l'Accueil. La spec de page
+prévoyait le bandeau seul en phase 0 ; elle a été mise à jour, elle ne contredit plus le code.
+Bottom-nav mobile inchangée (arbitrage toujours ouvert, lié à `navigation.md` au BACKLOG).
+
+**Vérification live FAITE (2026-07-29)** — saisie en lot Papa (3 échéances, chapitres du vrai
+référentiel) → apparition chez Massimo → coche persistée après rechargement → « cochés par
+Massimo : 1 » côté Papa. Elle a rapporté **un bug** (item passé visible dans la bande : la
+liste vivante court-circuitait l'asymétrie serveur — corrigé côté client, commit `7cfc7e4`) et
+**une décision** : bande élargie à **14 jours, tout vers l'avant** (3 passés / 10 à venir,
+réglages `AGENDA_BAND_DAYS_*`, plus rien ne fige l'amplitude). ADR passé **Accepté**,
+CHANGELOG 0.27.0 écrit, docs réconciliées (READMEs des deux frontends, modules.md,
+DATA_MODEL §AppSetting, API_SPEC §settings, BACKLOG Lot 1 barré).
+
+⚠️ Données de test en base de dev : 3 `agenda_items` (dont 1 coché) + 1 ligne `app_settings`
+possible. À purger ou assumer avant la démo.
+
+- **prochain pas : PR vers `main`.** Le composer élève (Lot 1 bis) et le plan de préparation
+  (Lot 3) restent fermés — sur décision, pas sur calendrier (revue phase 0 à 4 semaines).
+
+⚠️ **Découverte de la slice A, à ne pas re-débattre** : trois lecteurs de `learning_events`
+n'étaient **pas** filtrés par `event_type` — `activity._load_events`,
+`activity._trailing_inactive_days`, `motivation._active_days`. Sans exclusion, cocher un devoir
+aurait gonflé la heatmap, les minutes actives et les jours de venue. D'où le frozenset
+`NON_ACTIVITY_EVENTS` (`activity/events.py`) appliqué à ces trois endroits. `evidence` était
+déjà propre (filtré sur `mission_verdict`), `galaxy` aussi (groupé sur `skill_id NOT NULL`).
+
+**Chantier précédent — ZETIS Galaxy : MERGÉ** dans `main` (PR #55, merge `af039d0`).
+La section ci-dessous est conservée pour ses pièges, pas pour son état.
 
 Le chantier a été ouvert comme un cadrage (maquette → spec → ADR-0024 → prompts), puis le user a
 demandé d'enchaîner l'exécution dans la même session. Les deux slices y sont : backend `galaxy`

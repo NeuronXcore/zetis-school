@@ -4,6 +4,7 @@ import { PapaLayout } from "./layouts/PapaLayout";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { AgendaPapaPage } from "./pages/AgendaPapaPage";
 import { ProgressionPage } from "./pages/ProgressionPage";
 import { LacunesPage } from "./pages/LacunesPage";
 import { MissionsPage } from "./pages/MissionsPage";
@@ -36,6 +37,7 @@ export default function App() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="/agenda" element={<AgendaPapaPage />} />
         <Route path="/progression" element={<ProgressionPage />} />
         <Route path="/lacunes" element={<LacunesPage />} />
         <Route path="/missions" element={<MissionsPage />} />

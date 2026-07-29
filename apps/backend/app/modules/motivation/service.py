@@ -41,6 +41,7 @@ from app.modules.activity.events import (
     EVENT_MISSION_COMPLETED,
     EVENT_MISSION_STEP_VIEW,
     EVENT_REVIEW_ATTEMPTED,
+    NON_ACTIVITY_EVENTS,
 )
 from app.modules.activity.timeutils import (
     day_bounds_utc,
@@ -66,13 +67,19 @@ MAX_TARGET_DAYS = 7
 
 
 def _active_days(db: Session, *, student_id: int, monday: date) -> set[date]:
-    """Jours Europe/Paris de la semaine portant au moins un événement d'activité."""
+    """Jours Europe/Paris de la semaine portant au moins un événement d'activité.
+
+    Les événements non probants (agenda, ADR-0025 §3) sont exclus. Aucune venue n'est perdue
+    pour autant : ouvrir l'app journalise déjà `login` et `page_viewed`, qui marquent le jour.
+    L'exclusion évite seulement qu'une coche postée depuis un autre contexte fasse exister une
+    journée d'engagement sans présence — l'engagement se tient en venant, pas en déclarant."""
     start, end = range_bounds_utc(monday, monday + timedelta(days=6))
     moments = db.scalars(
         select(LearningEvent.created_at).where(
             LearningEvent.student_id == student_id,
             LearningEvent.created_at >= start,
             LearningEvent.created_at < end,
+            LearningEvent.event_type.not_in(NON_ACTIVITY_EVENTS),
         )
     ).all()
     return {local_day(moment) for moment in moments}

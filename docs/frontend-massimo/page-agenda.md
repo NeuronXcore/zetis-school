@@ -22,27 +22,29 @@ Routes :
 /agenda/:id/preparer        → écran de préparation (LOT 2 — ne pas créer en Lot 1)
 ```
 
-### Accès (phase 0) — par l'Accueil, sans onglet de navigation
+### Accès — deux portes dès le Lot 1
 
-**En Lot 1, l'agenda n'obtient ni entrée de sidebar, ni entrée de bottom-nav.** L'accès unique
-est le **bandeau de l'Accueil** (« Aujourd'hui / Demain »), qui ouvre `/agenda`. La route
-existe et est atteignable directement.
+> **Révisé le 2026-07-29 par le commanditaire.** Cette section prévoyait initialement l'accès
+> par le seul bandeau d'Accueil en phase 0, l'entrée de navigation n'arrivant qu'avec le
+> pouvoir d'écrire (Lot 1 bis). Arbitrage retenu : **les deux, tout de suite.**
 
-Trois raisons :
+1. **Entrée de sidebar en position 2**, juste après Accueil, avant Matières. Contre-intuitif
+   vis-à-vis du flux d'apprentissage, et assumé : l'agenda est le **déclencheur en amont**, pas
+   une étape. Ce qui vient du collège doit être atteignable sans rebond.
+2. **Résumé sur l'Accueil** (« Aujourd'hui / Demain », 3 items max, aucune date), qui ouvre
+   `/agenda`.
 
-1. **L'agenda n'est pas un verbe.** La navigation Massimo est en verbes d'action ; « Agenda »
-   est un nom, et il ne se range sous aucun des verbes existants. Ce n'est pas une activité,
-   c'est un **contexte** — ce qui est précisément le rôle de l'Accueil.
-2. **Précédent ADR-0024** : la Galaxy n'a **pas** obtenu de 6ᵉ onglet, elle est devenue le
-   contenu d'une route existante. Une surface où Massimo ne fait que lire et cocher gagne
-   encore moins un emplacement permanent.
-3. **Aucun coût de découvrabilité** : l'Accueil est le launcher, il est le point d'arrivée par
-   défaut. Passer par lui n'ajoute pas de friction, il en retire (l'information utile est déjà
-   dans le bandeau).
+Les deux ne font pas double emploi : la sidebar est un **chemin** (j'y vais quand je le
+décide), le résumé est une **information** (je la vois sans y aller).
 
-**Phase 1 (Lot 1 bis)** : quand la saisie s'ouvre, l'agenda devient une destination à part
-entière et gagne son entrée. C'est le bon moment — l'entrée arrive avec le pouvoir d'écrire,
-pas avant.
+**Aucune pastille de compteur sur l'entrée**, sous aucune forme : un compte d'items non faits
+contournerait par l'affichage l'invariant « non probant » tenu serveur (ADR-0025 §3).
+
+**Bottom-nav mobile : inchangée.** L'arbitrage « Agenda y entre-t-il, et à la place de quoi ? »
+reste ouvert et lié à la réconciliation de `navigation.md`, restée au BACKLOG.
+
+> ⚠️ `docs/frontend-massimo/navigation.md` porte l'avertissement **BROUILLON NON RÉCONCILIÉ**
+> (modèle 5 verbes jamais confronté au code, cf. ADR-0024). **La sidebar réelle fait foi.**
 
 > ⚠️ `docs/frontend-massimo/navigation.md` porte l'avertissement **BROUILLON NON RÉCONCILIÉ**
 > (modèle 5 verbes jamais confronté au code, cf. ADR-0024). **La sidebar réelle fait foi.**
@@ -89,9 +91,12 @@ Ordre vertical imposé :
 
 ### 1. Bande glissante (`AgendaWeekStrip`)
 
-**3 jours avant aujourd'hui · aujourd'hui · 3 jours après.** Jamais alignée sur lundi–dimanche :
-une bande calendaire passerait de 6 jours d'horizon le lundi à 0 le dimanche soir, au pire
-moment.
+**3 jours avant aujourd'hui · aujourd'hui · 10 jours après** (14 colonnes, révisé le
+2026-07-29 — cf. ADR-0025 §6). Jamais alignée sur lundi–dimanche : une bande calendaire
+passerait de 6 jours d'horizon le lundi à 0 le dimanche soir, au pire moment.
+
+L'amplitude est un **réglage serveur** : le client rend le nombre de jours qu'il reçoit, il ne
+le présume jamais. Sur téléphone, la grille se replie en **deux rangées de 7**.
 
 | Zone | Contenu | Interdits |
 |---|---|---|

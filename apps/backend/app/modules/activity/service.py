@@ -33,6 +33,7 @@ from app.modules.activity.events import (
     EVENT_PAGE_VIEWED,
     EVENT_QUIZ_ATTEMPTED,
     EVENT_REVIEW_ATTEMPTED,
+    NON_ACTIVITY_EVENTS,
 )
 from app.modules.progress import service as progress_service
 from app.modules.activity.timeutils import (
@@ -197,11 +198,16 @@ def _load_events(
     end: datetime,
     subject_id: int | None = None,
 ) -> list[LearningEvent]:
-    """Événements de la fenêtre [start, end[, filtrés matière si demandé."""
+    """Événements de la fenêtre [start, end[, filtrés matière si demandé.
+
+    Les événements NON PROBANTS (agenda, ADR-0025 §3) sont exclus de TOUTES les projections
+    d'activité — minutes, sessions, heatmap, journal, KPI. Cocher un devoir est un acte
+    déclaratif : le compter comme du travail ferait mentir le temps de travail affiché à Papa."""
     query = select(LearningEvent).where(
         LearningEvent.student_id == student_id,
         LearningEvent.created_at >= start,
         LearningEvent.created_at < end,
+        LearningEvent.event_type.not_in(NON_ACTIVITY_EVENTS),
     )
     if subject_id is not None:
         query = query.where(LearningEvent.subject_id == subject_id)
@@ -280,7 +286,12 @@ def _trailing_inactive_days(db: Session, *, student_id: int, last_day: date) -> 
     information sur l'enfant, pas sur une matière — un filtre actif ne doit pas la fausser."""
     last = db.scalars(
         select(LearningEvent)
-        .where(LearningEvent.student_id == student_id)
+        # Même exclusion que `_load_events` : cocher un devoir ne doit pas remettre le
+        # décrochage à zéro — ce serait déclarer Massimo actif sans qu'il ait rien travaillé.
+        .where(
+            LearningEvent.student_id == student_id,
+            LearningEvent.event_type.not_in(NON_ACTIVITY_EVENTS),
+        )
         .order_by(LearningEvent.created_at.desc(), LearningEvent.id.desc())
         .limit(1)
     ).first()

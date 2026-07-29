@@ -107,6 +107,30 @@ objet ne devient validé sans provenance (test-verrou §F.3). `parent` = relu pi
 `parent_bulk` = action groupée (sans exception) ; `system` = servi sans relecture par doctrine,
 **strictement réservé au quiz**.
 
+## Agenda (ADR-0025)
+
+Première source **exogène** du produit : les dates viennent du collège, jamais de ZETIS. Objet
+volontairement distinct de `Mission` — déclaratif et **invérifiable**, là où une mission est
+composée sur des preuves et vérifiée serveur.
+
+Deux routeurs, deux schémas, **jamais mélangés** (patron `MissionStudentOut`/`MissionPilotOut`) :
+`/api/student/agenda` (bande glissante, « ce qui arrive », coche, masquage) et `/api/agenda`
+(saisie en lot, correction, note privée, archivage, réglages).
+
+Quatre règles tenues **serveur** : seul Massimo écrit `done_at` (**403** explicite côté Papa —
+le champ est déclaré au schéma exprès pour que le refus ne soit pas un silence) ;
+`edited_by_parent_at` posé par le service, jamais par le client ; archivage jamais suppression ;
+doublons tolérés, jamais fusionnés.
+
+**Non probant, par construction.** Deux `learning_events` seulement (`agenda_item_created`,
+`agenda_item_done`), regroupés dans `NON_ACTIVITY_EVENTS` (`activity/events.py`) et **exclus de
+toutes les projections d'activité** — heatmap, minutes actives, sessions, cahier de bord, jours
+de venue. `agenda_item_missed` n'existe pas : l'absence n'est pas un événement. Aucun XP, aucun
+effet sur `evidence/service.py` (test-verrou).
+
+Le module ne lit **ni** `missions`, **ni** les cartes SRS : le calendrier n'accueille que ce qui
+a une date dans le monde réel (règle de datation §4, test-verrou).
+
 ## Engagement (invariants de lecture des dérivés)
 
 Substrat neutre, read-only : « cette ressource est-elle la cible d'une étape d'une mission

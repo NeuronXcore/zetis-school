@@ -2,7 +2,8 @@
 
 ## Statut
 
-Proposé — 2026-07-29.
+Accepté — 2026-07-29 (proposé et accepté le même jour : le commanditaire a validé les quatre
+décisions structurantes puis fait exécuter le Lot 1 dans la foulée, vérifié à l'écran).
 
 > **Numérotation** : 0018 est pris (« Commander une mission »), 0024 est le dernier
 > accepté. Cet ADR est donc 0025.
@@ -183,8 +184,17 @@ pas de ce que le collège demande.*
 | Ce qui arrive | bas de `/agenda` | contrôles et rendus **seulement**, max 4, horizon 21 j |
 
 **La bande est glissante, jamais alignée sur la semaine calendaire** : 3 jours avant
-aujourd'hui, aujourd'hui, 3 jours après. Une bande calendaire passerait de 6 jours d'horizon
-le lundi à 0 le dimanche — l'écran deviendrait un pur rétroviseur au pire moment.
+aujourd'hui, aujourd'hui, puis les jours à venir. Une bande calendaire passerait de 6 jours
+d'horizon le lundi à 0 le dimanche — l'écran deviendrait un pur rétroviseur au pire moment.
+
+> **Amplitude révisée le 2026-07-29** (commanditaire, après lecture de la page avec de vraies
+> données) : **3 jours en arrière, 10 en avant — 14 colonnes**, au lieu de 3/3.
+> **Tout l'élargissement va vers l'avant.** Le regard en arrière reste borné à 3 jours : un
+> passé qu'on parcourt rend les trous visibles, motif qui a fait écarter la vue mois
+> (§Alternatives) et qui met « le scroll arrière au-delà » hors périmètre. L'amplitude est un
+> réglage (`AGENDA_BAND_DAYS_BEFORE` / `_AFTER`) ; ni le client ni les tests ne la figent.
+> Sur téléphone, la grille se replie en deux rangées de 7 — 14 colonnes à 380 px seraient
+> illisibles au doigt.
 
 **Asymétrie passé / futur, calculée serveur** : les jours passés ne portent que des traces
 d'activité ; les jours à venir ne portent que les points fixes. Un jour à venir n'a pas de
@@ -265,6 +275,10 @@ ouvert **en deux phases**.
 1. **Le verrou est serveur.** `POST /api/student/agenda/items` renvoie **403** tant que le
    flag `AGENDA_STUDENT_ENTRY_ENABLED` (config, défaut `false`, versionné) est fermé. Une UI
    cachée n'est pas une règle.
+   *Précision d'implémentation (slice C, 2026-07-29)* : pour que la règle 2 soit tenable —
+   un interrupteur sur la page de Papa, pas une édition de `.env` + redémarrage — le verrou
+   est **persisté en base** (table `app_settings`, routes `GET`/`PUT /api/agenda/settings`).
+   La variable d'environnement reste la valeur par défaut tant qu'aucune ligne n'existe.
 2. **La bascule est un geste de Papa**, un interrupteur sur sa page. **Jamais automatique** :
    la déclencher sur un seuil de coches observé ferait dépendre un droit d'une surveillance.
 3. **Aucun composer grisé.** ADR-0024 §4 (panoplie complète, indisponible grisé) **ne
@@ -399,9 +413,12 @@ dans le Dashboard, le Cahier de bord ou le contexte d'évidence du Conseil de cl
 2. **Thème de la page Papa** : la maquette est en clair (convention
    `maquette-papa-quiz-pilotage.html`) ; ADR-0024 §Suivi évoque un « style sombre `papa-*` ».
    Laquelle fait foi ? → Slice C.
-3. **Définition de `traces`** : nombre d'activités distinctes plafonné à 3 (proposé, grossier
-   et généreux) vs temps actif reconstruit (plus juste, mais réintroduit une mesure d'effort).
-   → Slice A.
+3. ~~**Définition de `traces`**~~ — **tranché en slice A (2026-07-29)** : nombre de **natures
+   d'activité distinctes** du jour (types d'événement), plafonné à `AGENDA_TRACES_CAP = 3`, la
+   navigation (`login`, `page_viewed`) exclue. Le temps actif reconstruit est écarté : il
+   réintroduirait exactement la mesure d'effort que la doctrine évite. Conséquence assumée :
+   une rafale de révision vaut **1**, pas 12 — le comptage mesure la variété d'une journée, pas
+   son volume.
 4. **Écran « Préparer » : page ou modale ?** Proposé en sous-route `/agenda/:id/preparer`, pour
    que le retour physique mobile fonctionne (patron `/revision/session`). → Lot 2.
 

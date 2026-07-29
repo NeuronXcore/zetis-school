@@ -22,6 +22,11 @@ export interface NavItem {
 
 export const PAPA_NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: "📊" },
+  // Agenda juste après le Dashboard (ADR-0025) : en phase 0 Papa est la SEULE source d'items et
+  // vient ici pour ÉCRIRE, de façon répétée et hors de tout parcours. Une surface de saisie
+  // régulière atteinte par rebond serait sautée. Aucun badge de compteur : un compteur d'items
+  // non faits contournerait l'invariant « non probant » par l'affichage.
+  { to: "/agenda", label: "Agenda", icon: "🗓️" },
   { to: "/progression", label: "Progression", icon: "📈" },
   { to: "/lacunes", label: "Lacunes", icon: "🧩" },
   { to: "/missions", label: "Missions", icon: "🎯" },

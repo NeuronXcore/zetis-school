@@ -402,6 +402,32 @@ Schémas séparés côté serveur, patron `MissionStudentOut` / `MissionPilotOut
 notions s'en résolvent au moment de l'analyse (fonction pure, la même que la matrice de
 couverture — un substrat, deux consommateurs).
 
+### AppSetting
+
+> Créée par le chantier Agenda (ADR-0025, slice C). Table clé/valeur **volontairement
+> minimale**, née d'un besoin précis : certains réglages sont des **gestes de Papa**, pas des
+> choix de déploiement.
+
+```txt
+key    # PK, ex. "agenda_student_entry_enabled"
+value  # texte ; "true" | "false" pour le seul consommateur actuel
+created_at / updated_at
+```
+
+Premier (et pour l'instant unique) réglage : `agenda_student_entry_enabled` — le verrou de
+phase de l'ADR-0025 §10. L'ADR exige que la bascule soit « un interrupteur sur la page de
+Papa » ; une variable d'environnement demanderait d'éditer un fichier et de redémarrer, ce
+n'est pas un geste.
+
+**La variable d'environnement reste la valeur par défaut** : tant qu'aucune ligne n'existe,
+c'est elle qui répond ; la première bascule depuis l'UI crée la ligne, qui prime ensuite. Aucun
+back-fill — l'absence de ligne EST l'état « valeur par défaut ».
+
+⚠️ **Ne pas transformer cette table en fourre-tout** : un réglage qui ne change jamais en
+production appartient à `core/config.py`. Les trois toggles de la page Paramètres restent
+aujourd'hui des mocks non persistés, et les brancher ici serait un chantier à part (ils n'ont
+aucun consommateur backend).
+
 ### MissionStep
 
 ```txt
