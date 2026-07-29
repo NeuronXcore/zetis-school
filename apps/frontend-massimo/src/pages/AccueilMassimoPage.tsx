@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@zetis/auth";
 import { useAccueil } from "../hooks/useAccueil";
 import { useMotivationWeek } from "../hooks/useMotivationWeek";
+import { HomeAgendaBanner } from "../components/agenda/HomeAgendaBanner";
 import { HomeGalaxyPreview } from "../components/galaxy/HomeGalaxyPreview";
 import { ZetisMessageCard } from "../components/motivation/ZetisMessageCard";
 import { WeekDots } from "../components/motivation/WeekDots";
@@ -42,7 +43,16 @@ export function AccueilMassimoPage() {
     <div className="mx-auto max-w-7xl">
       <h1 className="text-2xl font-bold">Bonjour{name ? ` ${name}` : ""} 👋</h1>
 
-      <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
+      {/* Agenda — placé AU-DESSUS de la grille, donc avant le canvas Galaxy (~1,37 Mo en
+          `lazy()`, ADR-0024 §6) : l'actionnable doit être peint et utilisable avant l'arrivée
+          de Three.js, sur toutes les tailles d'écran. C'est aussi le SEUL accès à `/agenda` en
+          phase 0 — l'agenda n'a pas d'entrée de navigation tant que Massimo ne peut pas y
+          écrire (ADR-0025). */}
+      <div className="mt-4">
+        <HomeAgendaBanner />
+      </div>
+
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         {/* Colonne gauche — la galaxie. `lg:sticky` : elle reste visible pendant qu'on
             parcourt les actions de droite. */}
         <div className="order-2 lg:order-1 lg:sticky lg:top-4">

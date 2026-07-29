@@ -7,8 +7,46 @@
 
 ## État à la reprise
 
-**Branche : `feat/galaxy`** (depuis `main`, 2026-07-28) — chantier **ZETIS Galaxy COMPLET**,
-cadrage **et** implémentation, poussé sur `origin`. ⚠️ **PR à ouvrir, rien n'est mergé.**
+**Branche : `feat/agenda-scolaire`** (depuis `main`, 2026-07-29) — chantier **Agenda scolaire
+(ADR-0025)**. Le cadrage (maquettes → specs → ADR-0025 → 3 prompts de slice) est **sur `main`**,
+commit `8be1e0a`. **Slice A backend FAITE** sur la branche, non commitée au moment d'écrire :
+
+- table `agenda_items` + migration `a1b2c3d4e5f7` **appliquée sur le vrai Postgres de dev** ;
+- module `app/modules/agenda/` (schémas séparés Student/Pilot, service, 2 routers) ;
+- **559 tests verts** (+17), dont les invariants de l'ADR (Papa ne coche pas → 403,
+  `parent_note` jamais côté élève, asymétrie de la bande, aucune mission/SRS dans une surface
+  datée, évidence inchangée par une coche) ;
+**Slice C (page Papa) FAITE** : route `/agenda` + entrée de sidebar après Dashboard, saisie en
+lot (matière · chapitre · intitulé · date · type, un seul envoi), charge de la semaine en
+7 colonnes, panneau de détail, note privée, archivage sous `ConfirmDialog`, filtres. **Aucune
+case à cocher.** A demandé un **ajout backend décidé avec le user** : table `app_settings`
+(migration `b2c3d4e5f8a0`, appliquée) + `GET`/`PUT /api/agenda/settings`, parce que
+l'interrupteur d'ouverture de la saisie élève doit être « un geste de Papa sur sa page »
+(ADR-0025 §10) — une variable d'env ne peut pas l'être. L'env reste la valeur par défaut.
+
+**Slice B (page Massimo) FAITE** : route `/agenda` **sans entrée de navigation** (voir écart
+ci-dessous), bande glissante 7 jours (traces allumées sans réceptacle, halo cyan sur
+aujourd'hui, anneau fuchsia sur un contrôle, emplacement ✦ du plan laissé vide), sections
+Aujourd'hui / Demain / suite repliée / Ce qui arrive / À reprendre (3 max, sans compteur),
+coche optimiste, bandeau d'Accueil au-dessus du canvas Galaxy.
+
+⚠️ **Écart prompt vs spec tranché en faveur de la spec** : le prompt de slice B demandait une
+entrée de sidebar « en position 2 » ; `docs/frontend-massimo/page-agenda.md` §Accès dit
+l'inverse pour le Lot 1 (ni sidebar, ni bottom-nav ; accès par le bandeau d'Accueil, l'entrée
+arrive avec le pouvoir d'écrire). La spec fait foi sur le fond — c'est écrit dans son en-tête.
+
+- **prochain pas : vérification live à trois écrans, puis PR.** Le composer élève (Lot 1 bis)
+  et le plan de préparation (Lot 2/3) restent fermés.
+
+⚠️ **Découverte de la slice A, à ne pas re-débattre** : trois lecteurs de `learning_events`
+n'étaient **pas** filtrés par `event_type` — `activity._load_events`,
+`activity._trailing_inactive_days`, `motivation._active_days`. Sans exclusion, cocher un devoir
+aurait gonflé la heatmap, les minutes actives et les jours de venue. D'où le frozenset
+`NON_ACTIVITY_EVENTS` (`activity/events.py`) appliqué à ces trois endroits. `evidence` était
+déjà propre (filtré sur `mission_verdict`), `galaxy` aussi (groupé sur `skill_id NOT NULL`).
+
+**Chantier précédent — ZETIS Galaxy : MERGÉ** dans `main` (PR #55, merge `af039d0`).
+La section ci-dessous est conservée pour ses pièges, pas pour son état.
 
 Le chantier a été ouvert comme un cadrage (maquette → spec → ADR-0024 → prompts), puis le user a
 demandé d'enchaîner l'exécution dans la même session. Les deux slices y sont : backend `galaxy`

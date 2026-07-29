@@ -4,6 +4,7 @@ import { MassimoLayout } from "./layouts/MassimoLayout";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { AccueilMassimoPage } from "./pages/AccueilMassimoPage";
+import { AgendaPage } from "./pages/AgendaPage";
 import { MatieresPage } from "./pages/MatieresPage";
 import { MatiereDetailPage } from "./pages/MatiereDetailPage";
 import { CoursPage } from "./pages/CoursPage";
@@ -35,6 +36,10 @@ export default function App() {
         }
       >
         <Route index element={<AccueilMassimoPage />} />
+        {/* Agenda (ADR-0025) : la route existe et est atteignable directement, mais elle n'a
+            PAS d'entrée de navigation en phase 0 — l'accès passe par le bandeau de l'Accueil.
+            L'entrée arrivera avec le pouvoir d'écrire (Lot 1 bis), pas avant. */}
+        <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/matieres" element={<MatieresPage />} />
         <Route path="/subjects/:slug" element={<MatiereDetailPage />} />
         <Route path="/subjects/:slug/cours" element={<CoursPage />} />

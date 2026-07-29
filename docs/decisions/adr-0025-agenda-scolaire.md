@@ -399,9 +399,12 @@ dans le Dashboard, le Cahier de bord ou le contexte d'évidence du Conseil de cl
 2. **Thème de la page Papa** : la maquette est en clair (convention
    `maquette-papa-quiz-pilotage.html`) ; ADR-0024 §Suivi évoque un « style sombre `papa-*` ».
    Laquelle fait foi ? → Slice C.
-3. **Définition de `traces`** : nombre d'activités distinctes plafonné à 3 (proposé, grossier
-   et généreux) vs temps actif reconstruit (plus juste, mais réintroduit une mesure d'effort).
-   → Slice A.
+3. ~~**Définition de `traces`**~~ — **tranché en slice A (2026-07-29)** : nombre de **natures
+   d'activité distinctes** du jour (types d'événement), plafonné à `AGENDA_TRACES_CAP = 3`, la
+   navigation (`login`, `page_viewed`) exclue. Le temps actif reconstruit est écarté : il
+   réintroduirait exactement la mesure d'effort que la doctrine évite. Conséquence assumée :
+   une rafale de révision vaut **1**, pas 12 — le comptage mesure la variété d'une journée, pas
+   son volume.
 4. **Écran « Préparer » : page ou modale ?** Proposé en sous-route `/agenda/:id/preparer`, pour
    que le retour physique mobile fonctionne (patron `/revision/session`). → Lot 2.
 
