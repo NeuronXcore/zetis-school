@@ -1190,3 +1190,77 @@ FastAPI doit exposer :
 - `/docs` en dev ;
 - `/redoc` en dev ;
 - désactivation possible en production.
+## Agenda scolaire (ADR-0025)
+
+Deux préfixes, deux schémas, **jamais mélangés**. Toute règle de visibilité est appliquée
+**serveur** : le client ne filtre rien.
+
+### Lecture et saisie élève — `/api/student/agenda`
+
+Tout utilisateur authentifié (rôle `child` inclus). Schéma `AgendaItemStudentOut`.
+
+#### GET `/week?anchor=YYYY-MM-DD`
+
+Bande **glissante** : 3 jours avant l'ancre (défaut : aujourd'hui), l'ancre, 3 jours après.
+Jamais alignée sur la semaine calendaire.
+
+```txt
+days[]: { date, offset, traces, fixed_items[], plan_steps[] }
+```
+
+- `traces` : 0–3, **uniquement si `date <= today`** ; `null` sinon (jamais `0` sur un jour à
+  venir). Nombre d'activités distinctes du jour, plafonné — pas une durée, pas un score.
+  `traces = 0` et « pas de donnée » sont **le même état**.
+- `fixed_items[]` : **uniquement si `date >= today`**, `[]` sinon.
+- `plan_steps[]` : toujours `[]` en Lot 1 (champ au contrat, rempli au Lot 2).
+
+#### GET `/upcoming`
+
+`kind ∈ (controle, rendu)`, non fait, non archivé, horizon 21 jours, **max 4**, trié par date.
+→ `{ id, label, subject, due_on, days_left, has_plan }`.
+
+#### GET `/items?from=&to=`
+
+Liste plate.
+
+#### POST `/items`
+
+`created_by` **forcé à `student` côté serveur** (jamais lu du corps).
+
+#### PATCH `/items/{id}`
+
+`label` / `subject_id` / `due_on` / `kind`, **uniquement sur ses propres items** — **403** sinon.
+
+#### POST `/items/{id}/done` · POST `/items/{id}/undone`
+
+Bascule `done_at`. Autorisé sur **tous** les items, y compris ceux de Papa.
+
+#### POST `/items/{id}/dismiss`
+
+Masque un item, y compris de Papa. Le masquage reste visible côté pilotage.
+
+### Pilotage Papa — `/api/agenda`
+
+`require_parent`. Schéma `AgendaItemPilotOut`.
+
+#### GET `/items?from=&to=`
+
+Archivés inclus, marqués.
+
+#### POST `/items`
+
+`created_by` forcé à `parent`. **Accepte un corps en lot** (liste d'items en une requête).
+
+#### PATCH `/items/{id}`
+
+Sur un item `created_by='student'`, le service renseigne **automatiquement**
+`edited_by_parent_at`. Toute tentative d'écrire `done_at` → **403** — refus d'autorité, pas de
+validation (déc. ADR-0025 §2b : seul Massimo coche).
+
+#### PUT `/items/{id}/note`
+
+`parent_note`. Jamais servie à Massimo.
+
+#### DELETE `/items/{id}`
+
+**Archivage** (`dismissed_at`), la ligne reste en base.

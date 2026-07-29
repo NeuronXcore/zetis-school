@@ -363,6 +363,44 @@ created_by         # ai | parent | system
 available_from
 completed_at
 ```
+### AgendaItem
+
+> Créée par le chantier Agenda (ADR-0025, Lot 1). **Objet déclaratif** : sa complétion n'est
+> pas vérifiable serveur, contrairement à `Mission` (preuve par étape, ADR-0017 §5). Il
+> n'alimente **ni** `skill_mastery`, **ni** le SRS, **ni** `evidence/service.py`, **ni** l'XP.
+
+```txt
+id
+student_id          # FK student_profiles
+subject_id          # FK subjects — NULLABLE (saisie sans matière autorisée)
+chapter_id          # FK chapters — NULLABLE. Sélectionné par Papa dans le référentiel.
+                    # C'est la clé de toute l'analyse (ADR-0025 §11) : {chapter_id, due_on}
+                    # est l'entrée exacte de la porte « échéance » du Commander (ADR-0018 §1).
+                    # Zéro embedding, zéro parsing — Papa choisit dans un menu.
+due_on              # Date (pas datetime : une échéance est un jour)
+label               # texte brut, tel que saisi — JAMAIS réécrit par le serveur
+kind                # devoir | controle | rendu
+created_by          # student | parent — IMMUABLE après création
+created_at / updated_at
+edited_by_parent_at # nullable — renseigné automatiquement par le service, jamais par le client
+done_at             # nullable — écrit UNIQUEMENT par une route élève (403 côté Papa)
+dismissed_at        # nullable — archivage ; aucune suppression physique
+parent_note         # nullable — JAMAIS servi à Massimo (schémas séparés)
+```
+
+Index `(student_id, due_on)`.
+
+**Nommage volontaire — `due_on`, surtout pas `due_date`.** Sur les missions, `due_date` porte
+la sémantique **inverse** : informationnelle, Papa-only, jamais exposée à l'élève (ADR-0018
+§1). Les deux ne doivent pas se confondre en relecture.
+
+Schémas séparés côté serveur, patron `MissionStudentOut` / `MissionPilotOut` :
+`AgendaItemStudentOut` (sans `parent_note`, avec `edited_by_parent` booléen dérivé) et
+`AgendaItemPilotOut` (tout).
+
+**Pas de `skill_id`, pas de table de plan.** Le scope pédagogique passe par `chapter_id` ; les
+notions s'en résolvent au moment de l'analyse (fonction pure, la même que la matrice de
+couverture — un substrat, deux consommateurs).
 
 ### MissionStep
 

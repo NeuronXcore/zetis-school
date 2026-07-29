@@ -92,6 +92,19 @@
   (1× max, sans effet SRS, XP réduit, détection consolidation côté serveur). **(Backend
   FAIT 2026-07-04** : consolidation détectée serveur, XP +2 ; le « 1× max » reste côté UI.)
 
+  ### Agenda scolaire (ADR-0025)
+
+- Lot 1 — l'objet : table `agenda_items`, co-édition, bande glissante, « ce qui arrive »,
+  page Massimo + page Papa. *(à faire — 3 slices, aucun appel LLM)*
+- Lot 1 bis — ouverture de la saisie élève : composer + garde-fou doublon, derrière
+  `AGENDA_STUDENT_ENTRY_ENABLED`, + interrupteur côté Papa. *(sur décision, pas sur calendrier —
+  revue de la phase 0 à 4 semaines)*
+- Lot 3 — l'analyse (ADR-0025 §11) : `chapter_id` + sélection référentiel, panneau d'analyse
+  Papa, pont vers le Commander, session de révision sans écriture SRS, quiz blanc.
+  *(ne dépend que du Lot 1)*
+- ~~Lot 2 — parsing~~ : **supprimé** (ADR-0025 §Périmètre). À rouvrir uniquement si la saisie
+  élève est ouverte.
+
 ## Priorité P2 — IA avancée
 
 ### RAG
@@ -201,3 +214,14 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
 - UI Massimo trop infantilisante ou trop chargée.
 - Gamification addictive.
 - Capsules trop coûteuses en temps de rendu.
+- **La bascule en phase 1 n'arrive jamais** : si Papa remplit correctement, personne ne ressent
+  le besoin de changer et l'agenda reste une liste imposée (risque produit n°1). Revue à date
+  fixée, pas « quand il sera prêt ».
+- **Phase 0 : la qualité de l'agenda dépend à 100 % de la régularité de Papa.** Un dimanche
+  soir sauté = page vide toute la semaine, aucun filet.
+- **Session pré-contrôle (ADR-0025 §11.2)** : le non-scheduling existe (`is_consolidation`,
+  même jour seulement) mais il manque un deck `{chapter}` et l'extension hors du même-jour.
+  Sans ces deux ajouts, une révision avant contrôle **reprogrammerait** les cartes et
+  dégraderait la mesure d'oubli sur des mois. Slice dédiée dans le Lot 3.
+- Un compteur d'items non faits réintroduit par l'UI (côté Papa comme côté Massimo) →
+  contournerait par l'affichage l'invariant tenu serveur (`agenda_item_missed` n'existe pas).

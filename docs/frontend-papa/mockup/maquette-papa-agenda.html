@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS Papa — Agenda / cahier de texte (maquette)</title>
+<style>
+  :root{
+    --papa:#10b981; --papa-dark:#059669; --papa-50:#ecfdf5; --papa-100:#d1fae5;
+    --bg:#f8fafc; --card:#ffffff; --border:#e2e8f0; --fg:#0f172a; --muted:#64748b;
+    --violet-bg:#ede9fe; --violet-fg:#6d28d9;
+    --ambre-bg:#fef3c7; --ambre-fg:#b45309;
+    --bleu-bg:#dbeafe; --bleu-fg:#1d4ed8;
+    --indigo-bg:#e0e7ff; --indigo-fg:#4338ca;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,-apple-system,sans-serif}
+  body{background:var(--bg);color:var(--fg);font-size:14px}
+  .layout{display:flex;min-height:100vh}
+
+  .sidebar{width:200px;background:#0f172a;color:#94a3b8;padding:20px 12px;flex-shrink:0}
+  .sidebar .logo{font-weight:800;letter-spacing:.2em;color:var(--papa);font-size:15px;margin-bottom:24px;padding-left:8px}
+  .sidebar a{display:block;padding:8px 10px;border-radius:8px;color:#94a3b8;text-decoration:none;font-size:13px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(16,185,129,.15);color:var(--papa)}
+
+  main{flex:1;padding:28px 32px;max-width:1080px}
+  .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+  h1{font-size:22px;font-weight:700}
+  .subtitle{color:var(--muted);font-size:13px;margin-top:4px;max-width:620px;line-height:1.5}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .kpi .val{font-size:22px;font-weight:700}
+  .kpi .lbl{color:var(--muted);font-size:12px;margin-top:2px}
+  .kpi.accent .val{color:var(--papa-dark)}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:22px}
+  .card h2{font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+  .card .hint{color:var(--muted);font-size:12px;font-weight:400;line-height:1.5;margin-bottom:14px}
+
+  /* ── saisie en lot ─────────────────────────────── */
+  .batch-row{display:grid;grid-template-columns:150px 1fr 130px 130px 34px;gap:10px;align-items:center;margin-bottom:8px}
+  .batch-head{color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+  select,input[type=text],input[type=date]{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:13px;color:var(--fg)}
+  input:focus,select:focus{outline:none;border-color:var(--papa)}
+  .row-del{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;border-radius:8px;height:32px}
+  .row-del:hover{background:#f1f5f9;color:#b91c1c}
+  .batch-actions{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+  .batch-actions .spacer{flex:1}
+
+  .btn{border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--papa);color:#fff}
+  .btn-primary:hover{background:var(--papa-dark)}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--fg)}
+  .btn-ghost:hover{background:#f1f5f9}
+  .btn-sm{padding:5px 10px;font-size:12px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  /* ── filtres ───────────────────────────────────── */
+  .filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .pill{padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:13px;color:var(--muted)}
+  .pill.active{background:var(--papa);border-color:var(--papa);color:#fff;font-weight:600}
+
+  /* ── vue charge de la semaine ──────────────────── */
+  .week{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .col{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 9px;min-height:150px}
+  .col.today{border-color:var(--papa);box-shadow:0 0 0 2px var(--papa-100)}
+  .col h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:2px}
+  .col.today h3{color:var(--papa-dark)}
+  .col .dnum{font-size:16px;font-weight:700;margin-bottom:9px}
+  .col .load{height:3px;border-radius:2px;background:#f1f5f9;margin-bottom:10px;overflow:hidden}
+  .col .load i{display:block;height:100%;background:var(--papa);opacity:.55}
+
+  .it{border:1px solid var(--border);border-left:3px solid var(--indigo-fg);border-radius:9px;padding:7px 8px;margin-bottom:6px;cursor:pointer}
+  .it:hover{background:#f8fafc}
+  .it .t{font-size:12px;font-weight:600;line-height:1.3}
+  .it .m{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}
+  .it.dimmed{opacity:.5}
+
+  .badge{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:600;white-space:nowrap}
+  .b-massimo{background:var(--bleu-bg);color:var(--bleu-fg)}
+  .b-papa{background:var(--papa-100);color:#065f46}
+  .b-eval{background:var(--violet-bg);color:var(--violet-fg)}
+  .b-done{background:var(--papa-50);color:var(--papa-dark)}
+  .b-open{background:#f1f5f9;color:#475569;font-weight:500}
+  .b-hidden{background:var(--ambre-bg);color:var(--ambre-fg)}
+  .b-edited{background:#f1f5f9;color:#475569;font-weight:500}
+
+  /* ── panneau de détail ─────────────────────────── */
+  .detail{position:fixed;top:0;right:0;width:380px;height:100vh;background:var(--card);border-left:1px solid var(--border);padding:24px;box-shadow:-8px 0 24px rgba(15,23,42,.06);display:none;overflow-y:auto}
+  .detail.on{display:block}
+  .detail .close{float:right;border:none;background:transparent;font-size:18px;color:var(--muted);cursor:pointer}
+  .detail h2{font-size:16px;font-weight:700;margin-bottom:4px;padding-right:20px}
+  .detail .sub{color:var(--muted);font-size:12.5px;margin-bottom:18px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:5px}
+  textarea{width:100%;min-height:70px;padding:9px 10px;border-radius:8px;border:1px solid var(--border);font-size:13px;font-family:inherit;resize:vertical}
+  textarea:focus{outline:none;border-color:var(--papa)}
+
+  .notice{border-radius:9px;padding:10px 12px;font-size:12.5px;line-height:1.5;margin-bottom:14px}
+  .notice.warn{background:var(--ambre-bg);color:#78350f;border:1px solid #fde68a}
+  .notice.info{background:var(--papa-50);color:#065f46;border:1px solid var(--papa-100)}
+
+  .state-readonly{display:flex;align-items:center;gap:9px;background:#f8fafc;border:1px dashed var(--border);border-radius:9px;padding:10px 12px;font-size:12.5px;color:var(--muted);line-height:1.45}
+  .state-readonly .dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);flex:none}
+  .state-readonly .dot.on{background:var(--papa);border-color:var(--papa)}
+
+  .detail-actions{display:flex;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+
+  /* ── notes ─────────────────────────────────────── */
+  details.notes{margin-top:32px;border-top:1px solid var(--border);padding-top:16px}
+  details.notes summary{cursor:pointer;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+  details.notes ul{margin:14px 0 0 18px;display:flex;flex-direction:column;gap:9px}
+  details.notes li{font-size:13px;line-height:1.55;color:var(--muted)}
+  details.notes li b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="logo">ZETIS</div>
+    <a href="#">Dashboard</a>
+    <a href="#" class="active">Agenda</a>
+    <a href="#">Progression</a>
+    <a href="#">Lacunes</a>
+    <a href="#">Missions</a>
+    <a href="#">Conseil de classe IA</a>
+    <a href="#">Cahier de bord IA</a>
+    <a href="#">Couverture</a>
+    <a href="#">Programme</a>
+    <a href="#">Paramètres</a>
+  </nav>
+
+  <main>
+    <div class="page-header">
+      <div>
+        <h1>Agenda — cahier de texte</h1>
+        <div class="subtitle">
+          Ce que le collège demande à Massimo. Vous et lui y écrivez tous les deux ;
+          <b>lui seul coche</b>. Vos corrections apparaissent dans son agenda, jamais en silence.
+        </div>
+      </div>
+      <button class="btn btn-ghost">Exporter la semaine</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="val">6</div><div class="lbl">échéances cette semaine</div></div>
+      <div class="kpi accent"><div class="val">2</div><div class="lbl">contrôles à venir</div></div>
+      <div class="kpi"><div class="val">4 / 2</div><div class="lbl">saisis par Massimo / par vous</div></div>
+      <div class="kpi"><div class="val">3</div><div class="lbl">cochés par Massimo</div></div>
+    </div>
+
+    <!-- ══ SAISIE EN LOT ══ -->
+    <div class="card">
+      <h2>Ajouter des échéances</h2>
+      <div class="hint">
+        Une ligne par échéance, tout part en une fois — pensé pour relever une semaine d'ENT
+        d'un coup, pas pour saisir au fil de l'eau.
+      </div>
+
+      <div class="batch-row batch-head">
+        <div>Matière</div><div>Intitulé</div><div>Date</div><div>Type</div><div></div>
+      </div>
+
+      <div id="rows"></div>
+
+      <div class="batch-actions">
+        <button class="btn btn-ghost btn-sm" onclick="addRow()">+ Ajouter une ligne</button>
+        <div class="spacer"></div>
+        <span style="color:var(--muted);font-size:12px" id="rowCount">3 lignes</span>
+        <button class="btn btn-primary" onclick="alert('POST /api/agenda/items — corps en lot')">Enregistrer</button>
+      </div>
+    </div>
+
+    <!-- ══ CHARGE DE LA SEMAINE ══ -->
+    <div class="filters">
+      <span class="pill active">Semaine en cours</span>
+      <span class="pill">Semaine suivante</span>
+      <span class="pill">Tout à venir</span>
+      <span class="pill">Archivés</span>
+      <select style="width:auto;margin-left:auto"><option>Toutes les matières</option><option>Mathématiques</option><option>Français</option></select>
+    </div>
+
+    <div class="week" id="week"></div>
+
+    <details class="notes">
+      <summary>Notes de maquette — non normatives, reprises de l'ADR-0025</summary>
+      <ul>
+        <li><b>Aucune case à cocher sur cette page.</b> L'état « fait » est une pastille en lecture seule. Si l'affordance existait, la coche deviendrait une validation parentale et l'objet basculerait du côté du contrôle.</li>
+        <li><b>L'écart déclaré / fait se lit, il n'alerte pas.</b> Pas de rouge, pas de badge « en retard », pas de compteur d'arriéré. L'ADR interdit d'émettre un événement d'échec — l'UI ne doit pas le réintroduire par la couleur.</li>
+        <li><b>Éditer un item de Massimo prévient.</b> Le panneau affiche explicitement que la correction portera la mention « complété par papa » dans son agenda. Pas de modification silencieuse.</li>
+        <li><b>La note parent n'est jamais servie à Massimo</b> — schéma `AgendaItemPilotOut` séparé, testé côté serveur, et rappelé dans l'UI pour lever le doute.</li>
+        <li><b>Archiver, pas supprimer.</b> Un item de Massimo n'est jamais effacé : il est masqué, récupérable, et reste visible sous le filtre « Archivés ».</li>
+        <li><b>Un item masqué par Massimo reste visible ici</b>, atténué. Asymétrie assumée : le parent voit tout, l'enfant voit ce qui le concerne.</li>
+        <li><b>Barre de charge, pas de score.</b> Le trait sous chaque jour indique le nombre d'échéances, jamais une performance.</li>
+      </ul>
+    </details>
+  </main>
+</div>
+
+<!-- ══ PANNEAU DE DÉTAIL ══ -->
+<aside class="detail" id="detail">
+  <button class="close" onclick="closeDetail()">✕</button>
+  <h2 id="dTitle">Contrôle — nombres relatifs</h2>
+  <div class="sub" id="dSub">Mathématiques · jeudi 30 juillet</div>
+
+  <div id="dNotice"></div>
+
+  <div class="field">
+    <label>Intitulé</label>
+    <input type="text" id="dLabel" value="Contrôle — nombres relatifs">
+  </div>
+  <div class="batch-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+    <div class="field" style="margin:0">
+      <label>Date</label>
+      <input type="date" value="2026-07-30">
+    </div>
+    <div class="field" style="margin:0">
+      <label>Type</label>
+      <select><option>Contrôle</option><option>Devoir</option><option>Rendu</option></select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>État</label>
+    <div class="state-readonly">
+      <span class="dot" id="dDot"></span>
+      <span id="dState">Pas encore coché — <b>seul Massimo peut cocher</b>. Vous ne pouvez pas marquer cette échéance comme faite à sa place.</span>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Note privée</label>
+    <textarea placeholder="Visible par vous seul.">Prévenir la prof si ça se passe mal — troisième contrôle d'affilée sur les relatifs.</textarea>
+    <div style="color:var(--muted);font-size:11.5px;margin-top:5px">🔒 Jamais servie à l'interface de Massimo.</div>
+  </div>
+
+  <div class="detail-actions">
+    <button class="btn btn-primary" onclick="alert('PATCH /api/agenda/items/{id}')">Enregistrer</button>
+    <button class="btn btn-ghost" onclick="alert('ConfirmDialog → archivage (dismissed_at)')">Archiver</button>
+  </div>
+</aside>
+
+<script>
+  const SUBJECTS = {
+    maths:{n:"Mathématiques",c:"#0891b2"}, francais:{n:"Français",c:"#c026d3"},
+    hg:{n:"Histoire-Géo",c:"#d97706"}, svt:{n:"SVT",c:"#059669"}, anglais:{n:"Anglais",c:"#4f46e5"}
+  };
+
+  /* saisie en lot */
+  let rows = 3;
+  function addRow(){ rows++; renderRows(); }
+  function renderRows(){
+    const opts = Object.entries(SUBJECTS).map(([k,v])=>`<option>${v.n}</option>`).join("");
+    document.getElementById("rows").innerHTML = Array.from({length:rows}).map((_,i)=>`
+      <div class="batch-row">
+        <select><option value="">— matière —</option>${opts}</select>
+        <input type="text" placeholder="ex. Exercices 12 à 15 p. 45">
+        <input type="date">
+        <select><option>Devoir</option><option>Contrôle</option><option>Rendu</option></select>
+        <button class="row-del" onclick="rows=Math.max(1,rows-1);renderRows()">✕</button>
+      </div>`).join("");
+    document.getElementById("rowCount").textContent = rows + (rows>1?" lignes":" ligne");
+  }
+
+  /* charge de la semaine */
+  const WEEK = [
+    { d:"lun", n:27, past:true, items:[
+      { s:"francais", t:"Lire le chapitre 3", by:"massimo", done:true } ]},
+    { d:"mar", n:28, past:true, items:[] },
+    { d:"mer", n:29, today:true, items:[
+      { s:"francais", t:"Relever les temps du récit", by:"massimo", done:false },
+      { s:"anglais",  t:"Verbes irréguliers 1 à 20", by:"massimo", done:true } ]},
+    { d:"jeu", n:30, items:[
+      { s:"maths", t:"Contrôle — nombres relatifs", by:"papa", eval:true, done:false },
+      { s:"maths", t:"ex 12 p. 45", by:"massimo", edited:true, done:false } ]},
+    { d:"ven", n:31, items:[
+      { s:"hg", t:"Fiche de révision Europe", by:"papa", done:false, hidden:true } ]},
+    { d:"sam", n:1, items:[] },
+    { d:"dim", n:2, items:[] }
+  ];
+
+  function renderWeek(){
+    const max = Math.max(1, ...WEEK.map(d=>d.items.length));
+    document.getElementById("week").innerHTML = WEEK.map(day=>{
+      const items = day.items.map(it=>{
+        const s = SUBJECTS[it.s];
+        const tags = [
+          it.eval ? '<span class="badge b-eval">contrôle</span>' : "",
+          it.by === "papa" ? '<span class="badge b-papa">par vous</span>' : '<span class="badge b-massimo">par Massimo</span>',
+          it.edited ? '<span class="badge b-edited">corrigé</span>' : "",
+          it.hidden ? '<span class="badge b-hidden">masqué par Massimo</span>' : "",
+          it.done ? '<span class="badge b-done">✓ fait</span>' : '<span class="badge b-open">à faire</span>'
+        ].filter(Boolean).join(" ");
+        return `<div class="it ${it.hidden?"dimmed":""}" style="border-left-color:${s.c}" onclick="openDetail('${it.t}','${s.n}','${day.d}. ${day.n}',${!!it.done},'${it.by}')">
+                  <div class="t">${it.t}</div><div class="m">${tags}</div>
+                </div>`;
+      }).join("");
+      return `<div class="col ${day.today?"today":""}">
+                <h3>${day.d}</h3><div class="dnum">${day.n}</div>
+                <div class="load"><i style="width:${(day.items.length/max)*100}%"></i></div>
+                ${items}
+              </div>`;
+    }).join("");
+  }
+
+  function openDetail(title, subject, when, done, by){
+    document.getElementById("dTitle").textContent = title;
+    document.getElementById("dSub").textContent = subject + " · " + when;
+    document.getElementById("dLabel").value = title;
+    document.getElementById("dDot").className = "dot" + (done ? " on" : "");
+    document.getElementById("dState").innerHTML = done
+      ? "Coché par Massimo. <b>Vous ne pouvez pas décocher</b> à sa place."
+      : "Pas encore coché — <b>seul Massimo peut cocher</b>. Vous ne pouvez pas marquer cette échéance comme faite à sa place.";
+    document.getElementById("dNotice").innerHTML = by === "massimo"
+      ? `<div class="notice warn">✎ Cette échéance a été saisie par Massimo. Si vous la modifiez, elle portera la mention « <b>complété par papa</b> » dans son agenda — il verra que vous y avez touché.</div>`
+      : `<div class="notice info">Échéance que vous avez ajoutée. Elle apparaît chez Massimo avec la mention « ajouté par papa ».</div>`;
+    document.getElementById("detail").classList.add("on");
+  }
+  function closeDetail(){ document.getElementById("detail").classList.remove("on"); }
+
+  renderRows(); renderWeek();
+</script>
+</body>
+</html>

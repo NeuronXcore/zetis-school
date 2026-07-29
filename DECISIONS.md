@@ -33,6 +33,18 @@
 
 - `docs/decisions/adr-0024-zetis-galaxy-progression.md` — **ZETIS Galaxy : la page Progression rendue en graphe 3D des connaissances** — *premier ADR sur la progression et la gamification* (ces décisions vivaient éparpillées entre `MEMORY.md`, specs de page et commentaires de code) ; cadrage d'un brouillon de fin juin **jamais confronté au code**, dont le read-before-code a invalidé **trois hypothèses** : `prerequisite_skill_ids` **n'existe pas** (et `parent_skill_id` est NULL partout — les « liens stellaires » n'avaient aucune source), `GET /progress/skills` **n'existe pas** (module `progress` Papa-only), et `/progression` **est déjà un onglet**. **Décisions** : la Galaxy **devient le contenu de `/progression`** (pas de 6ᵉ onglet ; la section « par matière » **mockée** disparaît) ; **arêtes dérivées de la structure réelle seule** (`Skill ← lesson_skills → Lesson → Chapter`, type `structure`, zéro donnée inventée, **aucune migration**) ; **rendu 3D `react-force-graph-3d`** en `lazy()` — **revirement assumé** : `@xyflow/react` retenu en début de cadrage puis disqualifié par l'exigence 3D + drag élastique, d'où **deux moteurs graphe coexistants** (React Flow reste celui des mindmaps, **ADR-0016 non rouvert**) ; **clic → panneau d'actions** adossé à une 3ᵉ route élève (constat : **seul ELI5 est notion-adressable par URL**, et aucune fonction backend ne dit « pour ce `skill_id`, quels contenus validés existent » — `production/coverage.py` est leçon-centrée **et** Papa-only), règle ferme « **une action sans contenu validé n'est pas proposée** » (jamais grisée) ; **6ᵉ consommateur du service d'évidence**, non modifié (patron ADR-0011 §1). **Doctrine figée rétroactivement** : pas de rouge, **aucun score ni pourcentage par matière** (un **compte** d'étoiles allumées), **aucun capital perdable** (pas de streak — une étoile allumée ne s'éteint pas), `mastery_score` jamais affiché (**0–100**, pas 0–1), et le **6ᵉ statut réel `in_progress`** doit être mappé (→ `learning`) sous peine d'être manqué en silence. **Conditions de livraison** : `prefers-reduced-motion`, **repli sans WebGL** (liste par chapitre), plafond `GALAXY_MAX_NODES = 60`. **Coût assumé** : un second moteur graphe (~600 Ko-1 Mo, isolé par `lazy()` + export en sous-chemin) et un **risque de perf 3D sur iPhone**, la cible de Massimo — à vérifier sur un vrai téléphone. **Hors v1** : graphe de prérequis (chantier pédagogique à part), aperçu Accueil, annonce « +1 étoile », animation temps réel, réconciliation de `navigation.md` — Accepté (2026-07-28)
 
+- `docs/decisions/adr-0025-agenda-scolaire.md` — **Agenda scolaire** : première **source
+  exogène** du produit (les dates viennent du collège, jamais de ZETIS) ; objet **distinct
+  de `Mission`** (déclaratif et invérifiable vs composé sur preuves) ; **co-édition
+  Massimo/Papa** sous quatre règles — aucune réécriture silencieuse, **seul Massimo coche**
+  (403 côté Papa), archivage jamais suppression, doublons signalés non fusionnés ;
+  traçabilité **non probante** (`agenda_item_created|done`, jamais de `missed` — « l'absence
+  n'est pas un événement »), zéro XP, zéro impact sur `evidence/service.py` ; **règle de
+  datation** — seul l'exogène est daté, le flux ZETIS ne l'est que par héritage d'une
+  échéance réelle ; **bande glissante** 7 jours (3 avant / 3 après), asymétrie passé/futur
+  serveur, **traces positives sans réceptacle vide** (conformité `adr-0024 §5`) ; concilié
+  avec `adr-0018 §1` — l'invariant protège d'un compte à rebours *inventé*, pas *subi* —
+  Proposé (2026-07-29)
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :
