@@ -56,7 +56,9 @@ pas un confort, c'est la condition de survie de l'objet.
 
 **Interrupteur d'ouverture** — un réglage discret (pas un KPI, pas une bannière) :
 *« Autoriser Massimo à ajouter ses propres échéances »*, qui bascule
-`AGENDA_STUDENT_ENTRY_ENABLED`. **Jamais automatique** : le déclencher sur un seuil de coches
+`AGENDA_STUDENT_ENTRY_ENABLED` — persisté en base (`app_settings`, `GET`/`PUT
+/api/agenda/settings`), la variable d'env restant la valeur par défaut tant qu'aucune ligne
+n'existe. **Jamais automatique** : le déclencher sur un seuil de coches
 observé ferait dépendre un droit d'une surveillance. Le geste est celui de Papa, à la date
 qu'il juge bonne — revue prévue à 4 semaines (ADR-0025 §Suivi).
 

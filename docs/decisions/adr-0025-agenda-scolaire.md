@@ -2,7 +2,8 @@
 
 ## Statut
 
-Proposé — 2026-07-29.
+Accepté — 2026-07-29 (proposé et accepté le même jour : le commanditaire a validé les quatre
+décisions structurantes puis fait exécuter le Lot 1 dans la foulée, vérifié à l'écran).
 
 > **Numérotation** : 0018 est pris (« Commander une mission »), 0024 est le dernier
 > accepté. Cet ADR est donc 0025.
@@ -274,6 +275,10 @@ ouvert **en deux phases**.
 1. **Le verrou est serveur.** `POST /api/student/agenda/items` renvoie **403** tant que le
    flag `AGENDA_STUDENT_ENTRY_ENABLED` (config, défaut `false`, versionné) est fermé. Une UI
    cachée n'est pas une règle.
+   *Précision d'implémentation (slice C, 2026-07-29)* : pour que la règle 2 soit tenable —
+   un interrupteur sur la page de Papa, pas une édition de `.env` + redémarrage — le verrou
+   est **persisté en base** (table `app_settings`, routes `GET`/`PUT /api/agenda/settings`).
+   La variable d'environnement reste la valeur par défaut tant qu'aucune ligne n'existe.
 2. **La bascule est un geste de Papa**, un interrupteur sur sa page. **Jamais automatique** :
    la déclencher sur un seuil de coches observé ferait dépendre un droit d'une surveillance.
 3. **Aucun composer grisé.** ADR-0024 §4 (panoplie complète, indisponible grisé) **ne

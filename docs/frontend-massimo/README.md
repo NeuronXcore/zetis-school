@@ -9,25 +9,31 @@ Le frontend Massimo est l’interface enfant de ZETIS. Elle doit aider Massimo �
 Sidebar desktop :
 
 1. Accueil
-2. Matières
-3. Cours
-4. Révision
-5. Fiches
-6. Diagnostic
-7. ELI5
-8. Capsules IA
-9. Missions
-10. Quiz
-11. Progression
-12. Mindmaps
-13. Chat ZETIS
-14. Paramètres simples
+2. Agenda (ADR-0025 — position assumée avant Matières : l'agenda est le **déclencheur en
+   amont**, pas une étape du flux d'apprentissage. Aucune pastille de compteur : un compte
+   d'items non faits contournerait par l'affichage l'invariant « non probant » du serveur)
+3. Matières
+4. Cours
+5. Révision
+6. Fiches
+7. Diagnostic
+8. ELI5
+9. Capsules IA
+10. Missions
+11. Quiz
+12. Progression
+13. Mindmaps
+14. Chat ZETIS
+15. Paramètres simples
 
 La sidebar suit le flux d'apprentissage : j'apprends (Cours) → j'ancre (Révision)
 → je me situe (Diagnostic). Icônes Lucide (chrome UI) ; Phosphor reste réservé
 aux pictogrammes de matières.
 
 Sur iPhone, convertir la navigation en bottom bar avec accès rapide : Accueil, Révision, Missions, ELI5, Profil.
+
+> ⚠️ La bottom bar **n'a pas été touchée** par l'ADR-0025 : « Agenda y entre-t-il, et à la place
+> de quoi ? » reste un arbitrage ouvert, lié à la réconciliation de `navigation.md` (BACKLOG).
 
 ## Ton UX
 

@@ -34,8 +34,20 @@ position 2 (après Accueil, avant Matières) **et** résumé sur l'Accueil. La s
 prévoyait le bandeau seul en phase 0 ; elle a été mise à jour, elle ne contredit plus le code.
 Bottom-nav mobile inchangée (arbitrage toujours ouvert, lié à `navigation.md` au BACKLOG).
 
-- **prochain pas : vérification live à trois écrans, puis PR.** Le composer élève (Lot 1 bis)
-  et le plan de préparation (Lot 2/3) restent fermés.
+**Vérification live FAITE (2026-07-29)** — saisie en lot Papa (3 échéances, chapitres du vrai
+référentiel) → apparition chez Massimo → coche persistée après rechargement → « cochés par
+Massimo : 1 » côté Papa. Elle a rapporté **un bug** (item passé visible dans la bande : la
+liste vivante court-circuitait l'asymétrie serveur — corrigé côté client, commit `7cfc7e4`) et
+**une décision** : bande élargie à **14 jours, tout vers l'avant** (3 passés / 10 à venir,
+réglages `AGENDA_BAND_DAYS_*`, plus rien ne fige l'amplitude). ADR passé **Accepté**,
+CHANGELOG 0.27.0 écrit, docs réconciliées (READMEs des deux frontends, modules.md,
+DATA_MODEL §AppSetting, API_SPEC §settings, BACKLOG Lot 1 barré).
+
+⚠️ Données de test en base de dev : 3 `agenda_items` (dont 1 coché) + 1 ligne `app_settings`
+possible. À purger ou assumer avant la démo.
+
+- **prochain pas : PR vers `main`.** Le composer élève (Lot 1 bis) et le plan de préparation
+  (Lot 3) restent fermés — sur décision, pas sur calendrier (revue phase 0 à 4 semaines).
 
 ⚠️ **Découverte de la slice A, à ne pas re-débattre** : trois lecteurs de `learning_events`
 n'étaient **pas** filtrés par `event_type` — `activity._load_events`,

@@ -7,18 +7,21 @@ Le frontend Papa est le cockpit de pilotage pédagogique. Il doit permettre de c
 ## Navigation principale
 
 1. Dashboard
-2. Progression
-3. Lacunes
-4. Missions
-5. Diagnostics
-6. Conseil de classe IA
-7. Cahier de bord IA
-8. Années scolaires
-9. Matières (hiérarchie persistante matière → thème → chapitre ; le référentiel annuel avec leçons vit dans « Programme »)
-10. Sources de cours (upload + validation RAG)
-11. Capsules IA
-12. Mode focus
-13. Paramètres
+2. Agenda (ADR-0025 — surface de **saisie**, placée près du Dashboard : en phase 0 Papa est la
+   seule source d'items et vient y écrire de façon répétée. Ni dans le Dashboard, ni dans le
+   Cahier de bord. **Aucune case à cocher** : seul Massimo coche)
+3. Progression
+4. Lacunes
+5. Missions
+6. Diagnostics
+7. Conseil de classe IA
+8. Cahier de bord IA
+9. Années scolaires
+10. Matières (hiérarchie persistante matière → thème → chapitre ; le référentiel annuel avec leçons vit dans « Programme »)
+11. Sources de cours (upload + validation RAG)
+12. Capsules IA
+13. Mode focus
+14. Paramètres
 
 ## Ton UX
 

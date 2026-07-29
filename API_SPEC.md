@@ -1280,6 +1280,15 @@ pour que le refus soit explicite : silencieusement ignoré, il laisserait croire
 **Archivage** (`dismissed_at`), la ligne reste en base. Répond **200 avec l'item archivé** (et
 non 204) : la réponse dit ce qui s'est réellement passé.
 
+#### GET · PUT `/settings`
+
+`{ student_entry_enabled: bool }` — verrou de phase de l'ADR-0025 §10, persisté dans
+`app_settings` (la variable d'environnement reste la valeur par défaut tant qu'aucune ligne
+n'existe).
+
+Le `PUT` est un **geste explicite de Papa**. Aucune bascule automatique n'existe côté serveur :
+la déclencher sur un seuil de coches observé ferait dépendre un droit d'une surveillance.
+
 ### Événements non probants
 
 L'agenda émet exactement deux `learning_events` — `agenda_item_created` (avec la source) et
