@@ -187,7 +187,11 @@ def test_band_asymmetry_past_traces_future_items(papa: TestClient) -> None:
 
     _as_massimo()
     band = papa.get(f"{STUDENT}/week").json()
-    assert len(band["days"]) == 7
+    # Amplitude lue dans la config, jamais figée : elle est réglable (3 avant / 10 après
+    # depuis le 2026-07-29), et un test qui la fige interdirait de la régler.
+    assert len(band["days"]) == (
+        settings.agenda_band_days_before + settings.agenda_band_days_after + 1
+    )
     for day in band["days"]:
         day_date = date.fromisoformat(day["date"])
         if day_date > today:
@@ -208,8 +212,12 @@ def test_band_is_sliding_not_calendar(papa: TestClient) -> None:
     assert sunday.weekday() == 6
     band = papa.get(f"{STUDENT}/week", params={"anchor": sunday.isoformat()}).json()
     offsets = [day["offset"] for day in band["days"]]
-    assert offsets == [-3, -2, -1, 0, 1, 2, 3]
-    assert date.fromisoformat(band["days"][-1]["date"]) == sunday + timedelta(days=3)
+    before, after = settings.agenda_band_days_before, settings.agenda_band_days_after
+    assert offsets == list(range(-before, after + 1))
+    # Le point du test : un dimanche garde tout son horizon futur. Une bande calendaire en
+    # donnerait 0 ce jour-là — l'écran deviendrait un pur rétroviseur au pire moment.
+    assert after > 0
+    assert date.fromisoformat(band["days"][-1]["date"]) == sunday + timedelta(days=after)
 
 
 # ── 7. Règle de datation : aucune mission, aucune carte SRS dans une surface datée (§4) ──

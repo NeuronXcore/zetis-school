@@ -42,18 +42,21 @@ export function useAgenda(): UseAgenda {
   const [today] = useState(() => new Date());
 
   const load = useCallback(async () => {
-    // Fenêtre volontairement bornée à la bande : Massimo ne remonte pas plus loin que ses
-    // 3 jours passés (§Hors périmètre — aucun scroll arrière au-delà).
-    const from = isoDay(addDays(today, -3));
-    const to = isoDay(addDays(today, 3));
-    const [weekData, upcomingData, itemsData] = await Promise.all([
+    const [weekData, upcomingData] = await Promise.all([
       fetchAgendaWeek().catch(() => null),
       fetchAgendaUpcoming().catch(() => [] as AgendaUpcomingItem[]),
-      fetchAgendaItems(from, to).catch(() => [] as AgendaItemStudent[]),
     ]);
     setWeek(weekData);
     setUpcoming(upcomingData);
-    setItems(itemsData);
+
+    // La fenêtre des items est DÉRIVÉE de la bande servie, jamais recalculée ici : l'amplitude
+    // est un réglage serveur (`AGENDA_BAND_DAYS_*`), et la dupliquer côté client garantissait
+    // qu'elles divergent au premier changement. Repli sur ±3 jours seulement si `/week` a
+    // échoué — Massimo ne remonte de toute façon jamais au-delà de ses 3 jours passés.
+    const days = weekData?.days ?? [];
+    const from = days[0]?.date ?? isoDay(addDays(today, -3));
+    const to = days[days.length - 1]?.date ?? isoDay(addDays(today, 3));
+    setItems(await fetchAgendaItems(from, to).catch(() => [] as AgendaItemStudent[]));
     setLoading(false);
   }, [today]);
 

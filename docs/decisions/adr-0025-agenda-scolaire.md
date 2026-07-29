@@ -183,8 +183,17 @@ pas de ce que le collège demande.*
 | Ce qui arrive | bas de `/agenda` | contrôles et rendus **seulement**, max 4, horizon 21 j |
 
 **La bande est glissante, jamais alignée sur la semaine calendaire** : 3 jours avant
-aujourd'hui, aujourd'hui, 3 jours après. Une bande calendaire passerait de 6 jours d'horizon
-le lundi à 0 le dimanche — l'écran deviendrait un pur rétroviseur au pire moment.
+aujourd'hui, aujourd'hui, puis les jours à venir. Une bande calendaire passerait de 6 jours
+d'horizon le lundi à 0 le dimanche — l'écran deviendrait un pur rétroviseur au pire moment.
+
+> **Amplitude révisée le 2026-07-29** (commanditaire, après lecture de la page avec de vraies
+> données) : **3 jours en arrière, 10 en avant — 14 colonnes**, au lieu de 3/3.
+> **Tout l'élargissement va vers l'avant.** Le regard en arrière reste borné à 3 jours : un
+> passé qu'on parcourt rend les trous visibles, motif qui a fait écarter la vue mois
+> (§Alternatives) et qui met « le scroll arrière au-delà » hors périmètre. L'amplitude est un
+> réglage (`AGENDA_BAND_DAYS_BEFORE` / `_AFTER`) ; ni le client ni les tests ne la figent.
+> Sur téléphone, la grille se replie en deux rangées de 7 — 14 colonnes à 380 px seraient
+> illisibles au doigt.
 
 **Asymétrie passé / futur, calculée serveur** : les jours passés ne portent que des traces
 d'activité ; les jours à venir ne portent que les points fixes. Un jour à venir n'a pas de

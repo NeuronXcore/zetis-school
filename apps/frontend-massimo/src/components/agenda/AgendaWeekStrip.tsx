@@ -1,9 +1,14 @@
 import { type AgendaDay, type AgendaItemStudent } from "@zetis/types";
 import { subjectIconFor } from "../../lib/subjectIcons";
 
-// Bande GLISSANTE de 7 jours : 3 jours avant aujourd'hui, aujourd'hui, 3 jours après.
-// Jamais alignée sur lundi–dimanche — une bande calendaire passerait de 6 jours d'horizon le
-// lundi à 0 le dimanche soir, au pire moment.
+// Bande GLISSANTE : 3 jours avant aujourd'hui, aujourd'hui, 10 après (14 colonnes, réglables
+// serveur). Jamais alignée sur lundi–dimanche — une bande calendaire passerait de 6 jours
+// d'horizon le lundi à 0 le dimanche soir, au pire moment.
+//
+// Le nombre de colonnes n'est JAMAIS présumé ici : la bande rend ce que le serveur envoie.
+// D'où une grille de 7 colonnes qui se replie naturellement en deux rangées sur téléphone —
+// 14 colonnes à 380 px feraient 27 px chacune, illisibles au doigt (ADR-0024 §6 : trois
+// appareils, pas un).
 //
 // **La bande est un INDEX, pas une seconde liste** : un tap fait défiler vers les items du
 // jour, il n'ouvre rien.
@@ -26,12 +31,19 @@ const DAY_NAMES = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
 
 export function AgendaWeekStrip({ days, itemsByDate, onPickDay }: Props) {
   return (
-    <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+    <div
+      className="grid grid-cols-7 gap-1.5 sm:gap-2 xl:grid-cols-[repeat(auto-fit,minmax(0,1fr))] xl:grid-flow-col"
+    >
       {days.map((day) => {
         const [year, month, date] = day.date.split("-").map(Number);
         const jsDate = new Date(year, month - 1, date);
         const isToday = day.offset === 0;
-        const items = itemsByDate[day.date] ?? [];
+        // Asymétrie passé/futur : un jour PASSÉ n'a plus d'échéance à annoncer (§6).
+        // Le serveur la tient déjà (`fixed_items: []` sur le passé) — mais la bande lit la
+        // liste vivante pour que la coche optimiste s'y reflète, ce qui court-circuiterait la
+        // règle si on ne la rejouait pas ici. Vu à l'écran le 2026-07-29 : un item passé
+        // apparaissait dans la bande, à côté de ses traces.
+        const items = day.offset >= 0 ? (itemsByDate[day.date] ?? []) : [];
         return (
           <button
             key={day.date}

@@ -109,7 +109,9 @@ export function AgendaPage() {
               onClick={() => setLaterOpen((open) => !open)}
               className="w-full rounded-2xl border border-zetis-border bg-zetis-surface px-4 py-2.5 text-sm text-zetis-muted transition-colors hover:text-white motion-reduce:transition-none"
             >
-              {laterOpen ? "Replier la suite ▴" : `La suite de la semaine · ${later.length} ▾`}
+              {/* « La suite », pas « la suite de la semaine » : la bande porte 14 jours, elle
+                  déborde la semaine. Un compte de ce qui ARRIVE n'est pas un compte d'arriéré. */}
+              {laterOpen ? "Replier la suite ▴" : `La suite · ${later.length} ▾`}
             </button>
             {laterOpen && (
               <div className="mt-2 flex flex-col gap-2">

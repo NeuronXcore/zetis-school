@@ -91,9 +91,12 @@ Ordre vertical imposé :
 
 ### 1. Bande glissante (`AgendaWeekStrip`)
 
-**3 jours avant aujourd'hui · aujourd'hui · 3 jours après.** Jamais alignée sur lundi–dimanche :
-une bande calendaire passerait de 6 jours d'horizon le lundi à 0 le dimanche soir, au pire
-moment.
+**3 jours avant aujourd'hui · aujourd'hui · 10 jours après** (14 colonnes, révisé le
+2026-07-29 — cf. ADR-0025 §6). Jamais alignée sur lundi–dimanche : une bande calendaire
+passerait de 6 jours d'horizon le lundi à 0 le dimanche soir, au pire moment.
+
+L'amplitude est un **réglage serveur** : le client rend le nombre de jours qu'il reçoit, il ne
+le présume jamais. Sur téléphone, la grille se replie en **deux rangées de 7**.
 
 | Zone | Contenu | Interdits |
 |---|---|---|

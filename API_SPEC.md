@@ -1201,8 +1201,11 @@ Tout utilisateur authentifié (rôle `child` inclus). Schéma `AgendaItemStudent
 
 #### GET `/week?anchor=YYYY-MM-DD`
 
-Bande **glissante** : 3 jours avant l'ancre (défaut : aujourd'hui), l'ancre, 3 jours après.
-Jamais alignée sur la semaine calendaire.
+Bande **glissante** : 3 jours avant l'ancre (défaut : aujourd'hui), l'ancre, 10 jours après
+(`AGENDA_BAND_DAYS_BEFORE` / `_AFTER`). Jamais alignée sur la semaine calendaire.
+
+**Asymétrie volontaire** : tout l'horizon va vers l'avant, le regard en arrière reste borné à
+3 jours. Le client ne présume jamais le nombre de colonnes — il rend ce qu'il reçoit.
 
 ```txt
 days[]: { date, offset, traces, fixed_items[], plan_steps[] }

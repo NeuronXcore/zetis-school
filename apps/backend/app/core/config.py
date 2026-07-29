@@ -136,10 +136,16 @@ class Settings(BaseSettings):
     agenda_student_entry_enabled: bool = Field(
         default=False, validation_alias="AGENDA_STUDENT_ENTRY_ENABLED"
     )
-    # Bande glissante (§6) : 3 jours avant l'ancre, l'ancre, 3 jours après. JAMAIS alignée sur la
-    # semaine calendaire (elle passerait de 6 jours d'horizon le lundi à 0 le dimanche).
+    # Bande glissante (§6) : JAMAIS alignée sur la semaine calendaire (elle passerait de 6 jours
+    # d'horizon le lundi à 0 le dimanche).
+    #
+    # **Asymétrie volontaire — 3 jours en arrière, 10 en avant** (élargie de 7 à 14 jours le
+    # 2026-07-29). Tout l'élargissement va vers l'AVANT : l'ADR borne le regard en arrière à
+    # 3 jours (« scroll arrière au-delà » est hors périmètre), parce qu'un passé qu'on parcourt
+    # rend les trous visibles — le motif même qui a fait écarter la vue mois. L'anticipation,
+    # elle, n'a pas cet inconvénient.
     agenda_band_days_before: int = Field(default=3, validation_alias="AGENDA_BAND_DAYS_BEFORE")
-    agenda_band_days_after: int = Field(default=3, validation_alias="AGENDA_BAND_DAYS_AFTER")
+    agenda_band_days_after: int = Field(default=10, validation_alias="AGENDA_BAND_DAYS_AFTER")
     # Traces d'un jour passé : nombre d'activités distinctes, PLAFONNÉ. Comptage grossier et
     # généreux — surtout pas une durée, surtout pas un score (§7, point ouvert n°3 tranché ici).
     agenda_traces_cap: int = Field(default=3, validation_alias="AGENDA_TRACES_CAP")
