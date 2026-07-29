@@ -15,6 +15,13 @@ export interface NavItem {
 
 export const MASSIMO_NAV: NavItem[] = [
   { to: "/", label: "Accueil", icon: "🏠" },
+  // Agenda en position 2, juste après l'Accueil et AVANT Matières (ADR-0025).
+  // Contre-intuitif vis-à-vis du flux d'apprentissage, et assumé : l'agenda est le déclencheur
+  // en amont, pas une étape. Il double le résumé de l'Accueil plutôt que de le remplacer — ce
+  // qui vient du collège doit être atteignable sans passer par un rebond.
+  // AUCUNE pastille de compteur ici : un compte d'items non faits contournerait par l'affichage
+  // l'invariant « non probant » tenu serveur (ADR-0025 §3).
+  { to: "/agenda", label: "Agenda", icon: "🗓️" },
   { to: "/matieres", label: "Matières", icon: "📚" },
   // « Révision » après le bloc « apprendre » (Cours vit sous Matières) : j'apprends → j'ancre.
   // Icône de marque SRS-cards (comme ELI5) ; repli emoji 🗂️ si l'asset manque.

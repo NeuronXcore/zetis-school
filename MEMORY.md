@@ -24,16 +24,15 @@ case à cocher.** A demandé un **ajout backend décidé avec le user** : table 
 l'interrupteur d'ouverture de la saisie élève doit être « un geste de Papa sur sa page »
 (ADR-0025 §10) — une variable d'env ne peut pas l'être. L'env reste la valeur par défaut.
 
-**Slice B (page Massimo) FAITE** : route `/agenda` **sans entrée de navigation** (voir écart
-ci-dessous), bande glissante 7 jours (traces allumées sans réceptacle, halo cyan sur
-aujourd'hui, anneau fuchsia sur un contrôle, emplacement ✦ du plan laissé vide), sections
-Aujourd'hui / Demain / suite repliée / Ce qui arrive / À reprendre (3 max, sans compteur),
-coche optimiste, bandeau d'Accueil au-dessus du canvas Galaxy.
+**Slice B (page Massimo) FAITE** : route `/agenda`, bande glissante 7 jours (traces allumées
+sans réceptacle, halo cyan sur aujourd'hui, anneau fuchsia sur un contrôle, emplacement ✦ du
+plan laissé vide), sections Aujourd'hui / Demain / suite repliée / Ce qui arrive / À reprendre
+(3 max, sans compteur), coche optimiste, résumé d'Accueil au-dessus du canvas Galaxy.
 
-⚠️ **Écart prompt vs spec tranché en faveur de la spec** : le prompt de slice B demandait une
-entrée de sidebar « en position 2 » ; `docs/frontend-massimo/page-agenda.md` §Accès dit
-l'inverse pour le Lot 1 (ni sidebar, ni bottom-nav ; accès par le bandeau d'Accueil, l'entrée
-arrive avec le pouvoir d'écrire). La spec fait foi sur le fond — c'est écrit dans son en-tête.
+**Accès à l'agenda : DEUX portes, tranché par le user le 2026-07-29** — entrée de sidebar en
+position 2 (après Accueil, avant Matières) **et** résumé sur l'Accueil. La spec de page
+prévoyait le bandeau seul en phase 0 ; elle a été mise à jour, elle ne contredit plus le code.
+Bottom-nav mobile inchangée (arbitrage toujours ouvert, lié à `navigation.md` au BACKLOG).
 
 - **prochain pas : vérification live à trois écrans, puis PR.** Le composer élève (Lot 1 bis)
   et le plan de préparation (Lot 2/3) restent fermés.

@@ -36,9 +36,9 @@ export default function App() {
         }
       >
         <Route index element={<AccueilMassimoPage />} />
-        {/* Agenda (ADR-0025) : la route existe et est atteignable directement, mais elle n'a
-            PAS d'entrée de navigation en phase 0 — l'accès passe par le bandeau de l'Accueil.
-            L'entrée arrivera avec le pouvoir d'écrire (Lot 1 bis), pas avant. */}
+        {/* Agenda (ADR-0025) : DEUX accès, décidés par le commanditaire le 2026-07-29 —
+            entrée de sidebar en position 2 ET résumé sur l'Accueil. La spec de page prévoyait
+            l'accès par le seul bandeau en phase 0 ; cf. son §Accès, mis à jour. */}
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/matieres" element={<MatieresPage />} />
         <Route path="/subjects/:slug" element={<MatiereDetailPage />} />

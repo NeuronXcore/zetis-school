@@ -5,17 +5,19 @@ import { fetchAgendaItems } from "../../lib/agenda";
 import { addDays, bannerItems, isoDay, splitSections } from "../../lib/agendaSections";
 import { subjectIconFor } from "../../lib/subjectIcons";
 
-// Bandeau « Aujourd'hui / Demain » de l'Accueil — **le seul accès à l'agenda en phase 0**
-// (ADR-0025, spec Massimo §Accès) : l'agenda n'obtient ni entrée de sidebar ni bottom-nav tant
-// que Massimo ne peut pas y écrire. L'entrée arrivera avec le pouvoir d'écrire, pas avant.
+// Résumé « Aujourd'hui / Demain » sur l'Accueil (ADR-0025).
+//
+// L'agenda a DEUX accès (décision du commanditaire, 2026-07-29) : l'entrée de sidebar pour y
+// aller quand on le décide, ce résumé pour le voir sans y aller. Les deux ne font pas double
+// emploi — la sidebar est un chemin, ceci est une information.
 //
 // **Aucune date affichée** : l'Accueil porte l'horizon « maintenant ». 3 items au maximum.
 //
-// S'il n'y a rien : une ligne calme — JAMAIS « ajoute tes devoirs ». En phase 0 il ne le peut
-// pas, et l'y inviter serait une impasse.
+// S'il n'y a rien : une ligne calme — JAMAIS « ajoute tes devoirs ». En phase 0 Massimo ne le
+// peut pas, et l'y inviter serait une impasse.
 //
-// Rendu inconditionnel (jamais masqué quand c'est vide) : le bandeau est le chemin d'accès à la
-// page, le faire disparaître rendrait l'agenda introuvable exactement quand il est vide.
+// Rendu inconditionnel (jamais masqué quand c'est vide) : un résumé qui disparaît quand il n'a
+// rien à dire apprend à ne plus le regarder.
 
 export function HomeAgendaBanner() {
   const [items, setItems] = useState<AgendaItemStudent[]>([]);
