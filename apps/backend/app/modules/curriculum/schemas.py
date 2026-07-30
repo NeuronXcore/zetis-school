@@ -209,6 +209,25 @@ class LessonManualCreate(BaseModel):
     )
 
 
+class NotionRequestAddToProgram(BaseModel):
+    """Pont « Ajouter au programme » (addendum ADR-0027) : Papa choisit la matière d'accueil
+    d'une notion hors-programme demandée par Massimo (le niveau vient de l'année active)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    subject_id: int
+
+
+class NotionRequestCreateLesson(BaseModel):
+    """Pont « Créer la leçon » (addendum ADR-0027) : Papa choisit le chapitre d'accueil (matière +
+    niveau en découlent) ; `generate_course` rédige le cours dans la foulée (moteur local)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    chapter_id: int
+    generate_course: bool = False
+
+
 class LessonPatch(BaseModel):
     """Édition partielle : `notions` fournie = remplace le rattachement (upsert des
     nouvelles ; les `Skill` elles-mêmes ne sont jamais supprimées — référentiel).

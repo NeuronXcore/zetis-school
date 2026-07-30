@@ -7,6 +7,7 @@ from app.db.models.settings import AppSetting
 from app.db.models.reports import CouncilReport
 from app.db.models.progress import (
     CapsuleView,
+    ContentRequest,
     FicheView,
     Gap,
     LearningEvent,
@@ -51,6 +52,7 @@ __all__ = [
     "SkillMastery",
     "Gap",
     "NotionRequest",
+    "ContentRequest",
     "Mission",
     "MissionStep",
     "XPEvent",

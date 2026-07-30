@@ -207,11 +207,13 @@ valeur est prouvée. Diagnostic. Streaming de la réponse.
    (notion) — la désambiguïsation est au LLM ; prévoir un repli matière si la notion ne résout pas.
 3. **Quiz par notion** (hors v1) : mérite un pré-fetch `fetchQuizById` + `navigate(state)` — à cadrer
    si le besoin est prouvé.
-4. **Mécanisme de la demande de contenu à Papa** (§3, différé par le commanditaire) : extension de
-   `notion_requests` (ajout `skill_id`, `kind`) **ou** nouvelle petite table `content_requests
-   {student_id, skill_id, kind, status}` ; surface Papa de traitement (réutiliser/étendre
-   `NotionRequestsPanel`) ; dédup. → à cadrer avant la slice qui l'implémente. **Hors Lot 1 minimal**
-   (Lot 1 = honnêteté ; la demande structurée vient avec son mécanisme).
+4. **Mécanisme de la demande de contenu à Papa** (§3, différé par le commanditaire) — **TRANCHÉ
+   (2026-07-30), voir `adr-0027-addendum-content-requests.md`** : **nouvelle table `content_requests
+   {student_id, skill_id (NOT NULL), content_kind, status, source}`** avec `UniqueConstraint(student,
+   skill, kind)` (dédup forte), distincte de `notion_requests` (deux sémantiques) ; le chat émet sur
+   deux déclencheurs (type manquant ; notion vide → cours) ; surface Papa = **badge sur la
+   Couverture** (fusion client par `skill_id`, `production` non touché ; mutations hors `production`).
+   **Amende le « zéro table » de cet ADR** (+1 table, +1 migration, assumés).
 
 ## Décisions du commanditaire — VALIDÉES le 2026-07-30
 1. **Intent typé + ancrage serveur** (§1) — le chat ne route que vers des cibles construites depuis un

@@ -76,6 +76,23 @@
   différé, Point ouvert n°4) ; **aucun nouvel event** (réutilise `chat_tool_response`, zéro XP) ;
   **rappel≠relance**. Réalise le « routage outils » que l'ADR-0026 remettait à un chantier dédié ;
   **zéro table, zéro migration** — **4 décisions VALIDÉES le 2026-07-30** (Proposé jusqu'au commit sur `main`)
+  - `docs/decisions/adr-0027-addendum-content-requests.md` — **Addendum ADR-0027 — liste d'attente de
+    contenus pour Papa** : résout le **Point ouvert n°4** (mécanisme de la demande de contenu) et
+    **amende le « zéro table »**. Nouvelle table **`content_requests {student_id, skill_id (NOT NULL),
+    content_kind, status, source}`** + `UniqueConstraint(student, skill, kind)` (dédup forte, « ×5 » =
+    1 ligne, `create` idempotent qui **ré-active** une ligne triée) — **distincte de `notion_requests`**
+    (notion hors programme, texte libre) : deux sémantiques. Le chat **émet** (best-effort, aveugle au
+    contenu §1c, jamais bloquant) sur deux déclencheurs : type précis manquant → `(skill, kind)` ;
+    notion résolue mais **vide** → `(skill, cours)`. Papa la voit en **badge « ⭐ réclamé » sur la
+    Couverture** (agrégat lu par le module `content_requests`, **fusion client par `skill_id`** via
+    `CoverageNotionItem` — `production/coverage.py` **non touché**, invariant read-only préservé ;
+    mutations `done`/`dismissed` **hors `production`**). **+ Volet HORS-PROGRAMME** : notion PAS au
+    programme → chat émet en **OPT-IN** une carte `request_notion` (le tap crée un `notion_request`,
+    producteur ELI5) ; **inbox Papa `/demandes` UNIFIÉE** (2 sections + pastille sommée) ; **2 ponts de
+    création réels** `add-to-program` (→ Skill) / `create-lesson` (→ Skill+Leçon+cours optionnel) —
+    « ✓ Ajoutée » ne créait rien auparavant. **+ correctifs live** : `notion_panel` cours honnête
+    (`content_markdown`), prompt `chat_v2` (« jamais générer » porté), seuil résolveur 0.55→0.72,
+    ELI5 non routé sans cours validé — Accepté (2026-07-30)
 
 ## Quand créer un ADR ?
 

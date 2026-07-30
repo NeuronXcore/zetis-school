@@ -8,6 +8,7 @@ import { AddChapterForm } from "../components/programme/AddChapterForm";
 import { ChapterRow } from "../components/programme/ChapterRow";
 import { LessonsPanel } from "../components/programme/LessonsPanel";
 import { NotionRequestsPanel } from "../components/programme/NotionRequestsPanel";
+import { OrphanNotionsPanel } from "../components/programme/OrphanNotionsPanel";
 import { SkillsBackfillModal } from "../components/programme/SkillsBackfillModal";
 import { SubjectBatchBar } from "../components/programme/SubjectBatchBar";
 import { SubjectPills } from "../components/programme/SubjectPills";
@@ -208,6 +209,14 @@ export function ProgrammePage() {
             onAdd={() => setAdding(true)}
             focusChapterId={focusChapterId}
             focusLessonId={focusLessonId}
+          />
+          {/* Notions du référentiel sans leçon (Rattrapage / « Ajouter au programme ») — sinon
+              invisibles dans l'arbre leçon-centré. */}
+          <OrphanNotionsPanel
+            subjectId={
+              data.year.subjects.find((s) => s.id === data.selectedSysId)?.subject_id ?? null
+            }
+            chapters={data.chapters}
           />
           <p className="text-xs text-papa-muted">
             ⓘ La régénération ne touche jamais les chapitres manuels ni validés. Chaque

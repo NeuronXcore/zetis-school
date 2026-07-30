@@ -47,6 +47,13 @@ def create_request(db: Session, student: StudentProfile, text: str) -> dict:
     return _out(req)
 
 
+def pending_count(db: Session) -> int:
+    """Nombre de demandes de notions en attente (pastille de notification Papa)."""
+    return db.scalar(
+        select(func.count(NotionRequest.id)).where(NotionRequest.status == "pending")
+    ) or 0
+
+
 def list_requests(db: Session, status_filter: str | None = "pending") -> list[dict]:
     """Liste les demandes (récentes d'abord), filtrables par statut."""
     query = select(NotionRequest).order_by(

@@ -64,3 +64,11 @@ def test_papa_route_requires_parent(client_db) -> None:
     """Le rôle child (conftest) est refusé sur la route Papa."""
     client, _ = client_db
     assert client.get("/api/notion-requests").status_code == 403
+
+
+def test_pending_count_feeds_notification(client_db) -> None:
+    """La pastille inbox somme les demandes de notions en attente (route `/count`)."""
+    client, _ = client_db
+    client.post("/api/ai/eli5/request-notion", json={"text": "Pythagore"})
+    _as_papa()
+    assert client.get("/api/notion-requests/count").json() == {"pending": 1}

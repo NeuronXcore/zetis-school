@@ -1,7 +1,12 @@
 // La matrice : un tableau par matière, lignes groupées par chapitre, une ligne = une leçon.
 import { Link } from "react-router-dom";
 import { Badge, SubjectPictogram } from "@zetis/ui";
-import { type CoverageCellKey, type CoverageLesson, type CoverageSubject } from "@zetis/types";
+import {
+  type ContentRequest,
+  type CoverageCellKey,
+  type CoverageLesson,
+  type CoverageSubject,
+} from "@zetis/types";
 import { type AnomalyKey, CELL_KEYS, lessonCount } from "../../lib/coverageFilters";
 import { pilotageLink } from "../../lib/pilotageLinks";
 import { CoverageCellView, CoverageFractionView } from "./CoverageCellView";
@@ -61,6 +66,25 @@ const ANOMALY_MARKERS: { key: AnomalyKey; icon: string; label: string; className
   { key: "stale", icon: "⚠", label: "périmés", className: "text-red-300" },
 ];
 
+/** Demandes de Massimo portant sur les notions d'une leçon (fusion par `skill_id`, dédupe par id).
+ * `coverage.py` n'est pas touché : la fusion est purement cliente (addendum ADR-0027). */
+export function lessonRequestsOf(
+  lesson: CoverageLesson,
+  requestsBySkill: Map<number, ContentRequest[]>,
+): ContentRequest[] {
+  const seen = new Set<number>();
+  const out: ContentRequest[] = [];
+  for (const item of lesson.notions.items) {
+    for (const req of requestsBySkill.get(item.skill_id) ?? []) {
+      if (!seen.has(req.id)) {
+        seen.add(req.id);
+        out.push(req);
+      }
+    }
+  }
+  return out;
+}
+
 export function CoverageMatrix({
   subject,
   anomalies,
@@ -70,6 +94,8 @@ export function CoverageMatrix({
   onGenerate,
   onStale,
   onNotions,
+  onRequested,
+  requestsBySkill,
   onValidateChapter,
   validatingChapterId,
 }: {
@@ -82,6 +108,8 @@ export function CoverageMatrix({
   onGenerate: (key: CoverageCellKey, lessonId: number) => void;
   onStale: (key: CoverageCellKey, lesson: CoverageLesson, href: string | null) => void;
   onNotions: (column: "cards" | "capsules", lesson: CoverageLesson, chapterId: number) => void;
+  onRequested: (lesson: CoverageLesson) => void;
+  requestsBySkill: Map<number, ContentRequest[]>;
   onValidateChapter: (chapterId: number, count: number) => void;
   validatingChapterId: number | null;
 }) {
@@ -188,6 +216,8 @@ export function CoverageMatrix({
                   onGenerate={onGenerate}
                   onStale={onStale}
                   onNotions={onNotions}
+                  onRequested={onRequested}
+                  requestsBySkill={requestsBySkill}
                   onValidateChapter={onValidateChapter}
                   validatingChapterId={validatingChapterId}
                 />
@@ -210,6 +240,8 @@ function ChapterGroup({
   onGenerate,
   onStale,
   onNotions,
+  onRequested,
+  requestsBySkill,
   onValidateChapter,
   validatingChapterId,
 }: {
@@ -221,6 +253,8 @@ function ChapterGroup({
   onGenerate: (key: CoverageCellKey, lessonId: number) => void;
   onStale: (key: CoverageCellKey, lesson: CoverageLesson, href: string | null) => void;
   onNotions: (column: "cards" | "capsules", lesson: CoverageLesson, chapterId: number) => void;
+  onRequested: (lesson: CoverageLesson) => void;
+  requestsBySkill: Map<number, ContentRequest[]>;
   onValidateChapter: (chapterId: number, count: number) => void;
   validatingChapterId: number | null;
 }) {
@@ -274,6 +308,7 @@ function ChapterGroup({
 
       {lessons.map((lesson) => {
         const marker = rowMarker(lesson);
+        const requested = lessonRequestsOf(lesson, requestsBySkill);
         const blockedReason =
           lesson.row_state === "blocked_lesson"
             ? "la leçon elle-même n'est pas validée"
@@ -312,6 +347,18 @@ function ChapterGroup({
                         <Badge variant={marker.badge.variant}>{marker.badge.label}</Badge>
                       </span>
                     ))}
+                  {/* Badge « réclamé par Massimo » : un repère de priorité sur les trous, cliquable
+                      pour voir quelle notion + quel type, et trier. N'affiche RIEN à zéro. */}
+                  {requested.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onRequested(lesson)}
+                      title={`${requested.length} contenu(s) réclamé(s) par Massimo — voir le détail`}
+                      className="shrink-0 rounded-full transition-opacity hover:opacity-80"
+                    >
+                      <Badge variant="info">⭐ réclamé ({requested.length})</Badge>
+                    </button>
+                  )}
                 </div>
               </div>
             </td>

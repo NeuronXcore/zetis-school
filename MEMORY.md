@@ -7,12 +7,119 @@
 
 ## État à la reprise
 
-**Branche : `feat/chat-orchestrateur`** (depuis `main`, 2026-07-30) — chantier **Chat orchestrateur
-(ADR-0027)**. Le chantier **Chat mémoire+voix (ADR-0026) est COMPLET et MERGÉ sur `main`** (FF, 4
-commits `d03918c`→`6672df9`, `main` devant `origin/main` de 4 ; push = geste user). Le cadrage
-ADR-0027 est aussi sur `main` (`6672df9`).
+**Branche : `feat/content-requests`** (depuis `main`, 2026-07-30) — chantier **Étape 2 : liste
+d'attente de contenus pour Papa** (+ correctifs orchestrateur + volet hors-programme + panneau
+orphelines). **✅ TOUT FAIT, TESTÉ LIVE, COMMITÉ `1db357b`** (53 fichiers ; migration
+`c3d4e5f6a1b2` appliquée sur Postgres dev). **NON poussé, pas de PR** — reste : vérif humaine
+(tests+diff) → push + PR vers `main`.
 
-**Orchestrateur — Slice A backend COMMITÉE (`ff353b6`) + Slice B frontend FAITE (non commitée).**
+**✅ TOUT LE CHAT EST MERGÉ SUR `main` ET POUSSÉ** (`origin/main` = `1d3d66a`) :
+- **ADR-0026** (mémoire éphémère Redis + texte/avatar `@zetis/ui/avatar` + voix STT Whisper/TTS Piper
+  locale) — commits `d03918c`→`6672df9`.
+- **ADR-0027 orchestrateur** (intent typé **ancré serveur** + exécuteur voix→direct/clavier→carte +
+  données inline agenda/reviews/missions + menu de notion + repli robuste) — `ff353b6`, `4fce7d6`,
+  `1d3d66a`. Branches `feat/chat-memoire` + `feat/chat-orchestrateur` **supprimées** (local+remote).
+  **NE PAS RÉ-IMPLÉMENTER.**
+
+### 🎯 ÉTAPE 2 — `content_requests` : FAIT (non commité), à tester en UP live
+Massimo réclame un contenu qui MANQUE → **liste d'attente DÉDUPLIQUÉE** que Papa traite. Résout le
+**Point ouvert n°4 ADR-0027**. **Décisions figées** : `docs/decisions/adr-0027-addendum-content-requests.md`
+(Accepté) + ligne `DECISIONS.md` + `adr-0027 §Points ouverts n°4` (tranché) + `page-chat.md §Garde-fous`
+(« différé » → « content_requests ») + prompt `prompts/claude-code/prompt-content-requests.md`.
+
+**Backend (module `content_requests`, patron `notions/`)** : modèle `ContentRequest`
+(`db/models/progress.py`, à côté de `NotionRequest`) — `skill_id` **NOT NULL** (≠ notion_requests),
+`content_kind`/`status`/`source`, `UniqueConstraint(student, skill, kind)`. Migration
+**`c3d4e5f6a1b2`** (down `b2c3d4e5f8a0`) **appliquée + réversible sur Postgres dev**. Service
+`create_request` **idempotent + RÉ-ACTIVANT** (une ligne triée redevient `pending`), `list_requests`
+(jointure Skill → skill_name/subject_id), `set_status`, `pending_count`. Router `GET·PATCH
+/api/content-requests` (`require_parent`, monté dans `main.py`, **aucune route enfant**). ✅ route
+live = **401 sans token** (montée + protégée).
+
+**Émission chat** (aveugle au contenu §1c, **best-effort non bloquant**) : `chat/actions.py` pose
+`ActionResult.meta["content_request"]={skill_id, content_kind}` — mapping `_TOOL_TO_CONTENT_KIND`
+(`fiche→fiche, mindmap→mindmap, cours/eli5→cours, revision→card`) sur (a) `_open_notion` contenu non
+`available`, (b) `_notion_menu` vide → `cours`. `chat/service.py` : `content_signal` capté sur
+`action_result.meta` **ET sur le repli** (`fallback.meta` quand LLM=intent none + notion vide) →
+`_maybe_request_content` (try/except qui n'échoue JAMAIS le tour ; `create_request` fait `flush`, pas
+`commit`).
+
+**Papa = BADGE Couverture** : `production/coverage.py` **NON TOUCHÉ** (invariant read-only). Nouveau
+type `@zetis/types` `ContentRequest`, lib `contentRequests.ts` (fetch/patch), `useCoverage` charge la
+file en +3e `Promise.all` → `requestsBySkill: Map<skill_id, ContentRequest[]>` + `setRequestStatus`
+**optimiste**. `CoverageMatrix.lessonRequestsOf(lesson, map)` fusionne par `skill_id` via
+`lesson.notions.items` → badge **« ⭐ réclamé (n) »** (jamais à zéro) → `RequestedPopover` (notion +
+type, Fait/Ignorer). Mutations via `content_requests`, **PAS `production`**.
+
+**Tests** : **597 back** (+16) + round-trip **live Postgres** + 226 Papa (+2 badge) + tsc -b + build
+**verts**. **Test live end-to-end JOUÉ ET VERT** (backend redémarré, Ollama réel) : émission path (a)
+fiche manquante, dédup, triage Papa `done`, ré-activation — tous prouvés.
+
+**⚠️ 4 CORRECTIFS + 1 AJOUT après 2 tests live (2026-07-30), tous validés user + VÉRIFIÉS LIVE
+(backend redémarré, Ollama réel, UI Papa)** — détail `TROUBLESHOOTING.md` §content_requests + addendum
+ADR §Correctifs :
+- **n°2 — `galaxy.notion_panel` mentait sur le cours** (`available = lesson_id is not None` →
+  `content_markdown IS NOT NULL`). Leçon validée sans cours rédigé annoncée dispo → porte vide +
+  aucune demande. + signal « notion vide → cours » sur **tous** les chemins via `DURABLE_NOTION_TOOLS`.
+- **n°3 — le chat GÉNÉRAIT le contenu dans `reply`** (qwen3 écrivait la leçon). `CHAT_SYSTEM`/
+  `CHAT_TURN_PROMPT` durcis (« jamais écrire le cours, oriente »), `CHAT_PROMPT_VERSION → chat_v2`.
+  Mitigation (petit moteur), pas garantie dure — le LLM ouvre encore parfois « Voici ta fiche… »
+  mais la note honnête + l'action portent la vérité.
+- **n°1 FAIT (2e test live) — résolveur strict** : `chat_skill_resolution_min_score` **0.55 → 0.72**
+  (`config.py`). `nomic` donnait ~0.68 à des requêtes SANS RAPPORT (« espagnol » → « Registre de
+  langue »), vrais matchs à 0.83+ ; la MARGE ne sépare pas, le score absolu si. Prouvé live :
+  « verbe être en espagnol » → `skill_id null` → « je ne le trouve pas », **fini le mauvais contenu**.
+- **ELI5-orchestrateur** : ELI5 dégrade vers le MODÈLE sans cours (ADR-0011) → l'orchestrateur ne
+  route plus vers ELI5 quand AUCUN cours validé (il inventerait) ; honnête + demande de cours. ELI5
+  offert **seulement si `cours` available** (`_notion_menu`/`_open_notion`, `chat/actions.py`). ELI5
+  l'outil (galaxie) intouché.
+- **AJOUT (2e message user) — Papa : NOTIFICATIONS + LISTE des demandes** : endpoint
+  `GET /api/content-requests/count`, `subject_name` ajouté à la liste, **pastille de notification**
+  sidebar (`PapaSidebar` sur `/demandes`, event `CONTENT_REQUESTS_CHANGED_EVENT`), **page inbox
+  `/demandes` (`DemandesPage`)** groupée par matière + Fait/Ignorer + lien Couverture. **Vérifié UI
+  live** (badge 1→0, triage, boucle chat→Papa).
+
+**⚠️ VOLET HORS-PROGRAMME AJOUTÉ (2026-07-30, 3e demande user)** — ferme la moitié symétrique du Point
+ouvert n°4 (« notion PAS au programme »). Détail addendum ADR §Volet hors-programme :
+- **Chat émet en OPT-IN** : `resolve_skill`→None → action **`request_notion`** (carte « Demander à
+  Papa d'ajouter « X » », `confirm`) ; le tap → `POST /api/ai/eli5/request-notion` (producteur ELI5
+  existant). `chat/actions.py` `_open_notion` branche None + `fallback_text`=message ; `ChatAction`
+  `+kind request_notion +text`. Massimo : carte + confirmation dans `ChatPage.tsx`.
+- **Découverte** : « ✓ Ajoutée » ne faisait QUE le statut — **aucune création**. Deux **ponts** neufs
+  (réutilisent `_upsert_skills` / `create_manual_lesson`) : `POST /api/notion-requests/{id}/add-to-program
+  {subject_id}` (→ Skill) et `/create-lesson {chapter_id, generate_course?}` (→ Skill+Leçon+lien,
+  cours local optionnel → leçon `draft`). Une notion hors-programme n'a pas de matière → **modale**
+  Papa (matière/chapitre).
+- **Inbox `/demandes` UNIFIÉE** : 2 sections (« À ajouter au programme » `notion_requests` + « Contenu
+  à créer » `content_requests`) ; **pastille sommée** (`GET /api/notion-requests/count` +
+  `fetchContentRequestsCount`, event `DEMANDES_CHANGED_EVENT` partagé, `lib/demandesEvents.ts`).
+- **VÉRIFIÉ LIVE** (UI Papa) : chat espagnol → carte → notion_request → inbox → « Créer la leçon »
+  (Français/Grammaire) → leçon 83 + Skill créées + `added` (nettoyé après).
+
+- **Correctif UX notions orphelines** : « Ajouter au programme » (comme skills-backfill) crée une
+  `Skill` SANS leçon → invisible dans la page Programme (leçon-centrée). Panneau **« 🧩 Notions sans
+  leçon »** par matière (`GET /api/subjects/{id}/orphan-notions`, `OrphanNotionsPanel` dans
+  `ProgrammePage`) → répare aussi le trou pré-existant du skills-backfill. **Vérifié live** (« les
+  nombres complexes » visible sous Maths).
+
+**⚠️ ULTRAREVIEW PR #57 (2026-07-30) : 5 findings `nit`, TOUS confirmés et CORRIGÉS** (commit de
+suivi) — détail addendum ADR §Correctifs de revue : (1) fausse promesse « je le note pour Papa » sur
+un outil hors mapping (quiz/capsule/halluciné) → repli `cours` obligatoire ; (2) fausse confirmation
+Massimo si `requestNotion` échoue → confirmation dans le `try`, carte conservée ; (3) demande
+réactivée non remontée → tri `updated_at` ; (4) doublon de leçon au retry après panne Ollama →
+`added` marqué AVANT la rédaction + garde d'idempotence + `course_error` ; (5) émission sans rollback
+→ **SAVEPOINT** `begin_nested`. 5 tests-verrous ajoutés (dont une **vraie** `IntegrityError`).
+⚠️ piège test : `func.now()` a une granularité d'1 s sur SQLite → poser les dates explicitement.
+
+**Tests : 610 back + 231 Papa + 182 Massimo + tsc + builds VERTS.** **✅ COMMITÉ `1db357b` sur
+`feat/content-requests`** (53 fichiers, +2949 ; commit unique car tranches entrelacées, chaque étape
+testée verte). **NON poussé, pas de PR** — NEXT = vérif humaine (tests+diff) → push + PR vers `main`.
+⚠️ données de test en DB dev (notion orpheline « Nombres relatifs » Maths + notion_requests `added`
+résiduelles ; migration `c3d4e5f6a1b2` appliquée). Perso : [[chat-orchestrateur-adr0027]].
+
+---
+
+### Historique — Orchestrateur (ADR-0027, MERGÉ), détail conservé pour les pièges :
 - **A (backend)** : le chat produit un **intent typé** que le serveur **ancre** — `resolve_action`
   (`app/modules/chat/actions.py`) : `resolve_skill` → `galaxy.notion_panel(skill_id)` (matière +
   contenus `available` + ids) → route depuis un id **validé** (fiche→`/fiches/<slug>`,

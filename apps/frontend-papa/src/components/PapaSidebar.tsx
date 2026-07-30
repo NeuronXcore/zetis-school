@@ -2,6 +2,9 @@ import { Fragment, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { PAPA_NAV } from "../lib/navigation";
 import { MISSIONS_PENDING_EVENT, fetchPilotSummary } from "../lib/missionsPilotage";
+import { fetchContentRequestsCount } from "../lib/contentRequests";
+import { fetchNotionRequestsCount } from "../lib/notionRequests";
+import { DEMANDES_CHANGED_EVENT } from "../lib/demandesEvents";
 
 // Sidebar temporaire de l'interface Papa (Étape 3) — cockpit de pilotage.
 export function PapaSidebar() {
@@ -16,6 +19,20 @@ export function PapaSidebar() {
     void refresh();
     window.addEventListener(MISSIONS_PENDING_EVENT, refresh);
     return () => window.removeEventListener(MISSIONS_PENDING_EVENT, refresh);
+  }, []);
+
+  // Pastille de NOTIFICATION « Demandes de Massimo » (addendum ADR-0027) = SOMME des deux files :
+  // contenu à créer (`content_requests`) + notion hors-programme à ajouter (`notion_requests`).
+  // Rafraîchie à chaque triage, quelle qu'en soit la surface (event unifié).
+  const [requests, setRequests] = useState(0);
+  useEffect(() => {
+    const refresh = () =>
+      Promise.all([fetchContentRequestsCount(), fetchNotionRequestsCount()])
+        .then(([content, notion]) => setRequests(content + notion))
+        .catch(() => undefined);
+    void refresh();
+    window.addEventListener(DEMANDES_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(DEMANDES_CHANGED_EVENT, refresh);
   }, []);
 
   return (
@@ -58,6 +75,12 @@ export function PapaSidebar() {
             {item.to === "/missions" && pending > 0 && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-300">
                 {pending}
+              </span>
+            )}
+            {item.to === "/demandes" && requests > 0 && (
+              // Accent (pas ambre) : c'est une NOUVELLE demande à traiter, pas une file de validation.
+              <span className="rounded-full bg-papa-accent/20 px-2 py-0.5 text-xs font-bold text-papa-accent">
+                {requests}
               </span>
             )}
             </NavLink>

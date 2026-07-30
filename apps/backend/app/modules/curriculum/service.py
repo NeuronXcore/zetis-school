@@ -32,6 +32,7 @@ from app.db.models import (
     Chapter,
     Lesson,
     LessonSkill,
+    NotionRequest,
     SchoolYear,
     SchoolYearSubject,
     Skill,
@@ -892,6 +893,139 @@ def create_manual_lesson(
     db.commit()
     db.refresh(lesson)
     return lesson
+
+
+# --- Ponts « demande de notion hors-programme → programme » (addendum ADR-0027) --------------
+# Le chat de Massimo crée une `notion_request` (texte libre, hors-programme). Papa la traite depuis
+# l'inbox « Demandes de Massimo » : soit il ajoute la NOTION (Skill), soit il crée directement la
+# LEÇON. Réutilise `_upsert_skills` / `create_manual_lesson` — aucun nouveau moteur.
+
+
+def orphan_notions(db: Session, subject_id: int) -> list[dict]:
+    """Notions du référentiel (Skill) d'une matière, au niveau de l'année active, **rattachées à
+    AUCUNE leçon** — donc invisibles dans la page Programme (leçon-centrée). Elles proviennent du
+    skills-backfill (« Rattrapage ») ou du pont « Ajouter au programme » (addendum ADR-0027). Les
+    faire voir ici évite le « je l'ai ajoutée mais je ne la vois nulle part »."""
+    year = _active_year_or_404(db)
+    linked = select(LessonSkill.skill_id).distinct()
+    skills = db.scalars(
+        select(Skill)
+        .where(
+            Skill.subject_id == subject_id,
+            Skill.level == year.level,
+            Skill.id.not_in(linked),
+        )
+        .order_by(Skill.name)
+    ).all()
+    return [{"skill_id": s.id, "name": s.name} for s in skills]
+
+
+def delete_orphan_skill(db: Session, skill_id: int) -> dict:
+    """Supprime une notion (Skill) **orpheline** ajoutée par erreur (ex. notion de lycée). Refuse
+    (409) si elle est rattachée à une leçon OU utilisée ailleurs (mastery, cartes, capsule… =
+    historique de Massimo) : on n'efface jamais un travail de Massimo pour faire propre (patron
+    `production.orphans` `has_history`). L'erreur FK est captée → 409, sans énumérer les tables."""
+    from sqlalchemy.exc import IntegrityError
+
+    skill = db.get(Skill, skill_id)
+    if skill is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notion introuvable.")
+    linked = db.scalar(
+        select(func.count()).select_from(LessonSkill).where(LessonSkill.skill_id == skill_id)
+    )
+    if linked:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cette notion est rattachée à une leçon — supprime la leçon d'abord.",
+        )
+    try:
+        db.delete(skill)
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cette notion a un historique (Massimo l'a déjà travaillée) — non supprimée.",
+        ) from exc
+    return {"deleted": True}
+
+
+def _notion_request_or_404(db: Session, request_id: int) -> NotionRequest:
+    req = db.get(NotionRequest, request_id)
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demande introuvable.")
+    return req
+
+
+def add_notion_to_program(db: Session, request_id: int, subject_id: int) -> dict:
+    """« Ajouter au programme » : la notion demandée devient une `Skill` (matière choisie par Papa,
+    niveau de l'année active), puis la demande passe `added`. Une notion hors-programme n'a pas de
+    matière — Papa la fournit. La leçon/le cours suivent via les outils habituels.
+
+    **Idempotent** : une demande déjà traitée n'est pas rejouée (un retry avec une AUTRE matière
+    écraserait sinon `req.subject_id` en silence)."""
+    req = _notion_request_or_404(db, request_id)
+    if req.status == "added":
+        return {"skill_created": 0, "subject_id": req.subject_id, "status": "added", "already_processed": True}
+    subject = db.get(Subject, subject_id)
+    if subject is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matière introuvable.")
+    year = _active_year_or_404(db)
+    _, created = _upsert_skills(db, subject_id, year.level, [req.text])
+    req.status = "added"
+    req.subject_id = subject_id  # trace la matière retenue
+    db.commit()
+    return {"skill_created": created, "subject_id": subject_id, "status": "added"}
+
+
+def create_lesson_from_request(
+    db: Session,
+    llm: LLMProvider,
+    request_id: int,
+    chapter_id: int,
+    generate_course: bool = False,
+) -> dict:
+    """« Créer la leçon » : échafaude une leçon pour la notion demandée dans un chapitre choisi par
+    Papa (matière/niveau dérivés du chapitre) — la notion `Skill` est créée + liée en une passe
+    (`create_manual_lesson`). Option `generate_course` : rédige le cours (moteur LOCAL) — la leçon
+    repasse alors en `draft` (un cours généré non relu ne se sert pas, gate ADR-0009) ; sans cours,
+    la leçon est `validated` mais son cours reste à écrire (visible dans la Couverture). Demande → `added`.
+
+    **Idempotent** : une demande déjà `added` ne recrée rien. `create_manual_lesson` committe la
+    leçon, et la rédaction du cours qui suit est longue et faillible (panne Ollama) — on marque donc
+    la demande traitée AVANT de la lancer, sinon un retour d'erreur laissait la demande `pending` et
+    le second clic de Papa créait une DEUXIÈME leçon du même titre (rien ne déduplique
+    `(chapter_id, title)`). Un échec de rédaction n'est pas fatal : la leçon existe, son cours
+    manquant est visible dans la Couverture et se rédige là — il est remonté dans `course_error`."""
+    req = _notion_request_or_404(db, request_id)
+    if req.status == "added":  # déjà traitée (retry, double-clic) → aucun doublon
+        return {
+            "lesson_id": None,
+            "lesson_status": None,
+            "course_written": False,
+            "status": "added",
+            "already_processed": True,
+        }
+    text = req.text
+    lesson = create_manual_lesson(db, chapter_id, title=text, notions=[text])  # commit interne
+    req = db.get(NotionRequest, request_id)  # re-fetch (la session a committé)
+    req.status = "added"
+    db.commit()  # la leçon EXISTE : la demande est traitée, quoi qu'il advienne du cours
+
+    course_error: str | None = None
+    if generate_course:
+        try:
+            lesson = generate_lesson_content(db, llm, lesson.id)  # repasse en draft
+        except CurriculumGenerationError as exc:  # cours à rédiger depuis la Couverture
+            course_error = str(exc)
+    db.refresh(lesson)
+    return {
+        "lesson_id": lesson.id,
+        "lesson_status": lesson.status,  # validated (sans cours) | draft (cours à valider)
+        "course_written": generate_course and course_error is None,
+        "course_error": course_error,
+        "status": "added",
+    }
 
 
 def update_lesson(

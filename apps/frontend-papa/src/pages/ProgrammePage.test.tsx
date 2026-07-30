@@ -67,6 +67,8 @@ vi.mock("../lib/curriculum", () => ({
   generateLessonContent: vi.fn(),
   generateSkillsBackfill: vi.fn(),
   confirmSkillsBackfill: vi.fn(),
+  fetchOrphanNotions: vi.fn(() => Promise.resolve([])),
+  deleteOrphanNotion: vi.fn(),
 }));
 
 import {

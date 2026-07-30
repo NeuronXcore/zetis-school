@@ -208,9 +208,10 @@ l'existant validé, et renvoie une **action** concrète (`ChatMessageOut.action`
 - **Orienter vers l'existant VALIDÉ uniquement** : router seulement vers un contenu `available`
   (déclaré par `galaxy/notion`). Contenu absent → honnêteté (« je ne l'ai pas encore pour cette
   notion »), **jamais** « je te le prépare » (le contenu passe par la validation Papa) — **et ZETIS
-  enregistre une demande à Papa** (précédent `notion_requests` / « Dis à Papa d'ajouter » ; mécanisme
-  de la demande de contenu `{skill_id, kind}` **différé**, ADR-0027 §Points ouverts n°4). Lot 1 =
-  honnêteté ; la demande structurée arrive avec son mécanisme.
+  enregistre une demande à Papa** : la demande de contenu `{skill_id, content_kind}` est **écrite dans
+  `content_requests`** (table dédiée, dédupliquée ; addendum ADR-0027) et Papa la voit en **badge sur
+  la Couverture**. Deux déclencheurs : type précis manquant → `(skill, kind)` ; notion résolue mais
+  vide → `(skill, cours)`. Notion **hors programme** (non résolue) → `notion_requests` (autre geste).
 - **Aucune route hallucinée** : le serveur ne renvoie qu'une action construite depuis un id validé ;
   une cible non ancrable → `action = null`.
 - **Aucun nouvel événement** : le geste sur une action réutilise `chat_tool_response` (zéro XP,

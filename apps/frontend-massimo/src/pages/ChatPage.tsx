@@ -8,7 +8,7 @@ import {
 } from "@zetis/ui/avatar";
 import { splitKaraoke, type KaraokeWord } from "../lib/karaoke";
 import { isDictationSupported, startRecording, type Recording } from "../lib/dictation";
-import { Eli5SttUnavailable, transcribeEli5 } from "../lib/eli5";
+import { Eli5SttUnavailable, requestNotion, transcribeEli5 } from "../lib/eli5";
 import {
   ChatQuotaReached,
   ChatSessionExpired,
@@ -57,6 +57,7 @@ export function ChatPage() {
   const [wordIdx, setWordIdx] = useState(-1);
   const [tool, setTool] = useState<ChatToolType | null>(null);
   const [action, setAction] = useState<ChatAction | null>(null);
+  const [requestedNotion, setRequestedNotion] = useState<string | null>(null); // « demandé à Papa »
   const [skillId, setSkillId] = useState<number | null>(null);
   const [transparency, setTransparency] = useState(FIXED_TRANSPARENCY);
   const [quota, setQuota] = useState(false);
@@ -159,6 +160,35 @@ export function ChatPage() {
     [navigate],
   );
 
+  // Notion HORS-PROGRAMME (request_notion) : le tap enregistre une demande à Papa (précédent ELI5) —
+  // ZETIS ne fabrique rien, il transmet. Trace `chat_tool_response` (journal, zéro XP), puis remercie.
+  const askPapaToAdd = useCallback(
+    async (text: string) => {
+      const sid = sessionRef.current;
+      if (sid) {
+        try {
+          await sendChatMessage(sid, {
+            tool_response: { tool_type: "request_notion", accepted: true },
+          });
+        } catch {
+          /* best-effort */
+        }
+      }
+      // La demande à Papa est l'ACTION PRINCIPALE du geste, pas de la télémétrie : on ne confirme
+      // QUE si elle est réellement enregistrée (patron `useEli5.ts`). Sinon la carte RESTE affichée
+      // et ZETIS le dit — jamais un « c'est noté » alors que rien n'est parti (backend éteint,
+      // session expirée, réseau).
+      try {
+        await requestNotion(text);
+        setAction(null);
+        setRequestedNotion(text);
+      } catch {
+        setError("Je n'ai pas réussi à prévenir Papa — réessaie dans un instant.");
+      }
+    },
+    [],
+  );
+
   const finishSpeaking = useCallback(() => {
     clearTimers();
     stopVoice();
@@ -250,6 +280,7 @@ export function ChatPage() {
       setAwake(true);
       setTool(null);
       setAction(null);
+      setRequestedNotion(null);
       clearTimers();
       stopVoice();
       setWords([]);
@@ -457,6 +488,26 @@ export function ChatPage() {
           openLabel={DATA_OPEN_LABEL[action.data]}
           onOpen={() => runAction(action)}
         />
+      )}
+      {/* Notion hors-programme : ZETIS ne l'a pas → carte OPT-IN pour demander à Papa de l'ajouter
+          (jamais une génération). Le tap enregistre la demande ; ZETIS remercie. */}
+      {!speaking && action?.kind === "request_notion" && action.text && (
+        <div className="chat-offer" role="group" aria-label="Demander à Papa">
+          <div className="chat-offer-row">
+            <button
+              type="button"
+              className="chat-tool"
+              onClick={() => askPapaToAdd(action.text as string)}
+            >
+              📩 {action.label}
+            </button>
+          </div>
+        </div>
+      )}
+      {!speaking && requestedNotion && (
+        <p className="chat-quota" role="status">
+          📩 C'est noté&nbsp;! Papa verra ta demande pour «&nbsp;{requestedNotion}&nbsp;».
+        </p>
       )}
 
       {!speaking && !action && tool && (

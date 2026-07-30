@@ -14,8 +14,13 @@ from app.modules.galaxy.service import normalize_status
 
 
 def _seed_svt(TestSession, *, lesson_status: str = "validated",
-              chapter_validation: str = "validated") -> dict:
-    """Une matière SVT de l'année active : 1 chapitre, 1 leçon, 2 notions."""
+              chapter_validation: str = "validated",
+              lesson_content: str | None = "# Mitose\n\nLa cellule se divise…") -> dict:
+    """Une matière SVT de l'année active : 1 chapitre, 1 leçon, 2 notions.
+
+    `lesson_content` = le cours rédigé (`content_markdown`). Défaut : un cours présent — car
+    « cours disponible » exige désormais un contenu réel, pas seulement une leçon validée. Passer
+    `None` reproduit le cas « leçon validée mais cours jamais écrit »."""
     db = TestSession()
     student_id = db.scalar(select(m.StudentProfile.id).order_by(m.StudentProfile.id))
 
@@ -40,7 +45,8 @@ def _seed_svt(TestSession, *, lesson_status: str = "validated",
     db.flush()
 
     lesson = m.Lesson(
-        chapter_id=chapter.id, title="Mitose", status=lesson_status, created_by="parent"
+        chapter_id=chapter.id, title="Mitose", status=lesson_status, created_by="parent",
+        content_markdown=lesson_content,
     )
     db.add(lesson)
     db.flush()
@@ -250,11 +256,23 @@ def test_la_panoplie_complete_est_toujours_renvoyee(client_db):
         "quiz",
     ]
     dispo = {a["kind"]: a["available"] for a in actions}
-    # Le cours existe (c'est lui qui rend la notion visible) et ELI5 ne dépend de rien.
+    # Le cours est RÉDIGÉ (le seed pose un content_markdown) et ELI5 ne dépend de rien.
     assert dispo["cours"] is True
     assert dispo["eli5"] is True
     # Rien d'autre n'a été créé dans ce jeu de données.
     assert not any(dispo[k] for k in ("fiche", "capsule", "mindmap", "revision", "quiz"))
+
+
+def test_cours_indisponible_si_lecon_validee_sans_contenu_redige(client_db):
+    """Correctif 2026-07-30 : une leçon validée SANS `content_markdown` n'a pas de cours à servir.
+    `notion_panel` ne doit pas prétendre le contraire (sinon porte vide + demande à Papa jamais
+    enregistrée)."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession, lesson_content=None)  # leçon validée, cours jamais écrit
+    actions = client.get(f"/api/student/galaxy/notion/{ids['mitose_id']}").json()["actions"]
+    dispo = {a["kind"]: a["available"] for a in actions}
+    assert dispo["cours"] is False  # ← le mensonge corrigé
+    assert dispo["eli5"] is True  # ELI5 reste offert (génératif à la volée)
 
 
 def test_une_fiche_validee_rend_l_action_disponible(client_db):

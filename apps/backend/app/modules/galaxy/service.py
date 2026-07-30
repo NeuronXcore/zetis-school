@@ -470,6 +470,13 @@ def notion_panel(db: Session, skill_id: int) -> dict:
     # La panoplie COMPLÈTE, dans un ordre pédagogique stable : comprendre, puis mémoriser,
     # puis se tester. Chaque entrée porte sa disponibilité — le client grise le reste.
     lesson_id = notion["lesson_id"]
+    # « Cours disponible » = un cours RÉELLEMENT RÉDIGÉ, pas seulement une leçon validée : une
+    # leçon peut être validée sans `content_markdown` (le cours reste à écrire). Sans ce contrôle,
+    # `notion_panel` prétendait qu'un cours existe dès que la notion est visible — un mensonge qui
+    # ouvrait une porte vide ET empêchait le chat d'enregistrer la demande à Papa (addendum ADR-0027).
+    has_course = lesson_id is not None and bool(
+        db.scalar(select(Lesson.content_markdown.is_not(None)).where(Lesson.id == lesson_id))
+    )
     fiche_id = _validated_fiche_id(db, lesson_id) if lesson_id is not None else None
     quiz_id = _resolve_mission_quiz_id(db, skill_id)
     mindmap_id = _resolve_mission_mindmap_id(db, skill_id)
@@ -477,7 +484,7 @@ def notion_panel(db: Session, skill_id: int) -> dict:
     has_cards = _has_review_cards(db, student_id=student.id, skill_id=skill_id)
 
     actions: list[dict] = [
-        {"kind": "cours", "available": lesson_id is not None, "lesson_id": lesson_id},
+        {"kind": "cours", "available": has_course, "lesson_id": lesson_id},
         # ELI5 ne dépend d'aucun contenu préexistant : c'est la seule action toujours offerte.
         {"kind": "eli5", "available": True},
         {"kind": "fiche", "available": fiche_id is not None, "fiche_id": fiche_id},

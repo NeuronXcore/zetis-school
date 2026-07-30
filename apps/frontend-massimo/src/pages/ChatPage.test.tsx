@@ -35,7 +35,7 @@ vi.mock("../lib/dictation", () => ({
 
 vi.mock("../lib/eli5", async (orig) => {
   const actual = await orig<typeof import("../lib/eli5")>();
-  return { ...actual, transcribeEli5: vi.fn() };
+  return { ...actual, transcribeEli5: vi.fn(), requestNotion: vi.fn() };
 });
 
 // `useNavigate` mocké pour observer les navigations d'action (voix directe, carte tapée).
@@ -56,7 +56,7 @@ vi.mock("../components/ChatDataCard", () => ({
 import { ChatPage } from "./ChatPage";
 import { ChatQuotaReached, createChatSession, sendChatMessage, type ChatReply } from "../lib/chat";
 import { isDictationSupported, startRecording } from "../lib/dictation";
-import { transcribeEli5 } from "../lib/eli5";
+import { requestNotion, transcribeEli5 } from "../lib/eli5";
 
 const mockCreate = vi.mocked(createChatSession);
 const mockSend = vi.mocked(sendChatMessage);
@@ -184,6 +184,58 @@ describe("ChatPage", () => {
     expect(mockSend).toHaveBeenCalledWith("s1", {
       tool_response: { tool_type: "fiche", accepted: true },
     });
+  });
+
+  it("action request_notion (notion hors-programme) → carte « Demander à Papa » → enregistre + remercie", async () => {
+    const mockRequest = vi.mocked(requestNotion);
+    mockRequest.mockResolvedValue({} as never);
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      skill_id: null,
+      tool_suggestion: null,
+      action: {
+        kind: "request_notion",
+        label: "Demander à Papa d'ajouter « le verbe être en espagnol »",
+        text: "le verbe être en espagnol",
+        confirm: true,
+      },
+    });
+    renderPage();
+    ask("le verbe être en espagnol");
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("idle"));
+    fireEvent.click(screen.getByRole("button", { name: /Demander à Papa/ }));
+    // Enregistre la demande (précédent ELI5), PAS une génération.
+    await waitFor(() =>
+      expect(mockRequest).toHaveBeenCalledWith("le verbe être en espagnol"),
+    );
+    // Confirmation affichée, carte retirée.
+    expect(await screen.findByText(/C'est noté/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Demander à Papa/ })).toBeNull();
+  });
+
+  it("request_notion en ÉCHEC → jamais de « c'est noté », la carte reste (anti-régression review)", async () => {
+    const mockRequest = vi.mocked(requestNotion);
+    mockRequest.mockRejectedValue(new Error("backend éteint"));
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      skill_id: null,
+      tool_suggestion: null,
+      action: {
+        kind: "request_notion",
+        label: "Demander à Papa d'ajouter « les nombres complexes »",
+        text: "les nombres complexes",
+        confirm: true,
+      },
+    });
+    renderPage();
+    ask("les nombres complexes");
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("idle"));
+    fireEvent.click(screen.getByRole("button", { name: /Demander à Papa/ }));
+    await waitFor(() => expect(mockRequest).toHaveBeenCalled());
+    // Rien n'est parti → pas de fausse confirmation, et la carte reste tapable pour réessayer.
+    expect(screen.queryByText(/C'est noté/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Demander à Papa/ })).toBeTruthy();
+    expect(await screen.findByText(/pas réussi à prévenir Papa/)).toBeTruthy();
   });
 
   it("voix + action navigate → navigation DIRECTE, sans carte", async () => {

@@ -54,14 +54,17 @@ class ChatAction(BaseModel):
     ex. `/eli5?skill_id=3`). `show_data` : le **front** récupère l'endpoint existant et rend une
     carte inline (`data ∈ agenda|reviews|missions`) — le backend reste aveugle au contenu (§1c).
     `notion_menu` : la LISTE de ce qui existe pour une notion (`items`), quand Massimo la nomme sans
-    préciser d'outil — chaque entrée est une route ancrée."""
+    préciser d'outil — chaque entrée est une route ancrée. `request_notion` : la notion N'EST PAS au
+    programme (résolution échouée) → carte OPT-IN « Demander à Papa d'ajouter « X » » ; le tap crée
+    un `notion_request` (précédent ELI5). `text` porte la notion à demander."""
 
-    kind: Literal["navigate", "show_data", "notion_menu"]
+    kind: Literal["navigate", "show_data", "notion_menu", "request_notion"]
     label: str
     route: str | None = None
     data: str | None = None
     name: str | None = None  # notion_menu : nom de la notion
     items: list[ChatMenuItem] | None = None  # notion_menu : contenus disponibles
+    text: str | None = None  # request_notion : la notion hors-programme à proposer à Papa
     # `confirm=True` : offre IMPLICITE (ZETIS propose parce que Massimo a nommé une notion) →
     # toujours une carte à taper, même à la voix. `confirm=False` : demande EXPLICITE
     # (« montre/ouvre ») → auto-navigation autorisée à la voix. (ADR-0027, correctif 2026-07-30.)
