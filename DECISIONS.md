@@ -63,6 +63,20 @@
   module partagé) promue de différé ELI5 à **prérequis dur** ; **zéro table, zéro
   migration** — Proposé (2026-07-29)
 
+  - `docs/decisions/adr-0027-chat-orchestrateur.md` — **Chat ZETIS orchestrateur : intent typé,
+  ancré, orienté vers l'existant** : le chat pilote toute l'app en langage naturel (« montre mes
+  fiches sur les fractions », « c'est quoi mes devoirs »). Le LLM propose un **intent** typé, le
+  **serveur l'ancre** (patron `reports._anchor`) — `resolve_skill` (slice A) → `galaxy/notion/{skill_id}`
+  (matière + contenus **`available`**) → route construite depuis un id **validé** ; une cible non
+  ancrable → `action=null` (**jamais de route hallucinée**). `ChatMessageOut.action` = `navigate` |
+  `show_data` | `null`. **Navigation modale** : voix → navigue direct, clavier → carte-action à taper.
+  **Données affichées dans le chat** (carte + bouton) ; le front fetch (pipeline **aveugle au
+  contenu**, ADR-0026 §1c). **Orienter vers l'existant validé, jamais générer** (contournerait Papa) —
+  **contenu absent → ZETIS enregistre une demande à Papa** (précédent `notion_requests` ; mécanisme
+  différé, Point ouvert n°4) ; **aucun nouvel event** (réutilise `chat_tool_response`, zéro XP) ;
+  **rappel≠relance**. Réalise le « routage outils » que l'ADR-0026 remettait à un chantier dédié ;
+  **zéro table, zéro migration** — **4 décisions VALIDÉES le 2026-07-30** (Proposé jusqu'au commit sur `main`)
+
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :

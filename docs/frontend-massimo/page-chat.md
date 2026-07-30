@@ -154,7 +154,64 @@ en est le repli de référence et son contrat d'entrée doit survivre à la migr
   (provider Kokoro visé) ; le karaoké passera alors aux bornes de mots réelles.
 - Streaming SSE (remplace le polling ; décision d'architecture à part).
 - Barge-in audio réel, AnalyserNode → flux d'articulation réel.
-- Routage outils complet (mindmap, fiches, révision en deep-link).
+- ~~Routage outils complet (mindmap, fiches, révision en deep-link).~~ → **spécifié par
+  l'ADR-0027** (« chat orchestrateur »), voir §Orchestration ci-dessous.
 - Migration Rive de l'avatar (ADR à ouvrir avec les capsules).
 - Réglage « animations réduites » dans les réglages Massimo (peut venir avec ce lot si
   trivial, sinon suivant).
+
+## Orchestration — naviguer & consulter l'app en langage naturel (ADR-0027)
+
+> Étend le § « Proposition d'outils » : de « 1 outil proposé » à un **orchestrateur** qui route vers
+> **N surfaces** et **affiche des données**, sans jamais halluciner une destination ni générer de
+> contenu. Réf. décisions figées : `adr-0027-chat-orchestrateur.md`.
+
+### Principe
+
+Massimo parle/écrit en langage naturel ; ZETIS produit un **intent** que le **serveur ancre** contre
+l'existant validé, et renvoie une **action** concrète (`ChatMessageOut.action`) que le front exécute :
+
+- `navigate { route, state?, label }` — une destination **construite serveur depuis un id validé**
+  (jamais une route inventée). Ex. « explique-moi les fractions » → `resolve_skill` → `skill_id` →
+  `galaxy/notion/{skill_id}` → `/eli5?skill_id=<id>&name=<nom>`.
+- `show_data { data, label }` — `data ∈ agenda|reviews|missions`. Le **front** récupère l'endpoint
+  existant et rend une **carte inline** (le backend reste aveugle au contenu, ADR-0026 §1c).
+- `null` — conversation pure.
+
+### Comportement (décisions commanditaire 2026-07-30)
+
+1. **Navigation modale sur l'entrée** :
+   - message dit à la **voix (micro)** → ZETIS **navigue directement** (mains libres, il attend l'action) ;
+   - message **écrit (clavier)** → **carte-action à taper** (« → Tes fiches de maths »), pas de saut de
+     page brutal. Politique **front** (il connaît l'origine du tour).
+2. **Données affichées DANS le chat** : « c'est quoi mes devoirs ? » → carte compacte (ex. « Aujourd'hui :
+   maths p.42, expo SVT ») **+ bouton** « Ouvrir l'agenda → ». La question appelle une réponse, pas un renvoi.
+3. **Carte-action** = généralisation du bloc `.chat-offer` : **≤ 2 propositions + une sortie**, vocabulaire
+   bienveillant, une action principale.
+
+### Adressabilité des surfaces (ce que l'action peut cibler)
+
+| Intention | Route/action | Granularité |
+|---|---|---|
+| « Explique-moi X » | `/eli5?skill_id=<id>&name=<nom>` | **notion** ✅ |
+| « Reconstruis la carte C » | `/mindmaps/reconstruire/<mindmapId>` | **carte** ✅ |
+| « Mes fiches / cours / mindmaps / révision / progression de M » | `/fiches/<slug>`, `/subjects/<slug>/cours`, `/mindmaps/<slug>`, `/revision?subject=<slug>`, `/progression?subject=<slug>` | **matière** (fiche exacte non ciblable — l'UI le dit sans mentir) |
+| « Mon agenda / mes devoirs » | carte inline (`/agenda/week`+`splitSections`) + bouton `/agenda` | **données** |
+| « Qu'est-ce que je dois réviser » | carte inline (`/reviews/summary`) + bouton `/revision` | **données** |
+| « Mes missions » | carte inline (`/missions/today`) + bouton `/missions` | **données** |
+
+**Hors v1** (tracé, non inventé) : quiz par notion, révision-session, mission précise (cibles
+`location.state`, pas d'URL) ; Diagnostic (jamais routé de façon anxiogène).
+
+### Garde-fous (repris de l'ADR)
+
+- **Orienter vers l'existant VALIDÉ uniquement** : router seulement vers un contenu `available`
+  (déclaré par `galaxy/notion`). Contenu absent → honnêteté (« je ne l'ai pas encore pour cette
+  notion »), **jamais** « je te le prépare » (le contenu passe par la validation Papa) — **et ZETIS
+  enregistre une demande à Papa** (précédent `notion_requests` / « Dis à Papa d'ajouter » ; mécanisme
+  de la demande de contenu `{skill_id, kind}` **différé**, ADR-0027 §Points ouverts n°4). Lot 1 =
+  honnêteté ; la demande structurée arrive avec son mécanisme.
+- **Aucune route hallucinée** : le serveur ne renvoie qu'une action construite depuis un id validé ;
+  une cible non ancrable → `action = null`.
+- **Aucun nouvel événement** : le geste sur une action réutilise `chat_tool_response` (zéro XP,
+  non probant). **Rappel ≠ relance** : aucune action poussée entre deux sessions.
