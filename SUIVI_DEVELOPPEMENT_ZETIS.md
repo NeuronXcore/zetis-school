@@ -1474,6 +1474,27 @@ git add .
 git commit -m "feat(auth): unified ZETIS login/landing screen with profile redirect"
 ```
 
+## Addendum — 2026-07-30 : intro plein écran + une page par profil
+
+L'étape reste ✅, mais l'écran a été refondu (branche `feat/login-intro-avatars`, CHANGELOG 0.29.0).
+Ce qui change par rapport à la description ci-dessus :
+
+```txt
+Intro      l'animation ZETIS quitte la colonne de gauche → composant BrandIntro
+           (packages/auth), overlay PLEIN ÉCRAN au-dessus du login déjà monté.
+           Jouée 1× par session et par espace (sessionStorage `zetis_intro_seen`,
+           cloisonné par origine → un drapeau par port). Coupable : clic, touche,
+           bouton « Passer » ; sautée si prefers-reduced-motion.
+           Ne bloque jamais la connexion (repli poster + garde-fou 8 s).
+Profils    le sélecteur à 2 tuiles est SUPPRIMÉ (l'auth est par app : la seconde
+           tuile n'était qu'un lien vers l'autre port). Chaque page affiche
+           l'avatar de SON profil en héros + nom + espace + accroche par rôle.
+           VITE_MASSIMO_URL / VITE_PAPA_URL supprimées (LoginPage + Dockerfile).
+Tests      packages/auth/src/introGate.test.ts (4 cas, env node, sans DOM).
+Vérifié    live sur les deux ports : mauvais mot de passe → message ; papa/massimo
+           → leurs dashboards. 1280 px et 375 px, zéro erreur console.
+```
+
 ---
 
 # ÉTAPE 19 — Extension navigateur `zetis-clip` (capture RAG, côté Papa) — Lot 1

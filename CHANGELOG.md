@@ -1,5 +1,36 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.29.0 — Connexion : une intro de marque, puis la porte de chacun
+
+Date : 2026-07-30 · branche `feat/login-intro-avatars`
+
+> La page de connexion faisait trois choses à la fois : jouer l'animation ZETIS dans une demi-colonne,
+> proposer un choix de profil que l'app ne pouvait pas honorer, et connecter. On sépare les moments :
+> **la marque d'abord, l'identité ensuite**.
+
+- **Intro de marque plein écran (`BrandIntro`, `packages/auth`)** : l'animation `zetis-logo.mp4` sort
+  de la colonne et prend tout l'écran, fondu vers le wordmark puis fondu de sortie qui révèle le login
+  déjà monté derrière. **Jouée une fois par session et par espace** (`sessionStorage`, cloisonné par
+  origine) — pas de rejeu après une erreur de mot de passe ou un retour sur `/login`.
+- **Coupable à tout moment** : clic, n'importe quelle touche, ou bouton « Passer ». `prefers-reduced-motion`
+  la saute d'office.
+- **L'intro ne peut jamais empêcher de se connecter** : autoplay refusé, onglet en arrière-plan, mp4
+  absent ou vidéo bloquée → repli sur le poster puis sortie (garde-fou 8 s). Le double `play()` du
+  StrictMode en dev (AbortError) est neutralisé.
+- **Une page de connexion par profil** : `/login` de Papa affiche **l'avatar de Papa**, celle de Massimo
+  **l'avatar de Massimo**, en héros — avec le nom, l'espace et une accroche propre au rôle. Les deux
+  espaces restent sur **deux ports distincts** (Massimo 5173, Papa 5174).
+- **Retrait du sélecteur croisé** : l'auth étant par app, la tuile « autre profil » n'était qu'un lien
+  vers l'autre port. Les variables `VITE_MASSIMO_URL` / `VITE_PAPA_URL` disparaissent (wrappers
+  `LoginPage` et `infra/docker/frontend.Dockerfile`).
+- **Correctifs d'affichage** : le masque radial du wordmark est resserré (plus de bord rectangulaire
+  visible sur le fond noir) ; « Se souvenir de moi » et « Mot de passe oublié ? » ne se chevauchent
+  plus à 375 px.
+- **Vérifié** : 7 tests `@zetis/auth` (dont 4 sur le portail d'intro) · 182 Massimo · 231 Papa,
+  `tsc -b` + `vite build` verts ; **connexion live jouée de bout en bout sur les deux ports**
+  (mauvais mot de passe → message, puis `papa` et `massimo` → leurs dashboards), rendu contrôlé en
+  1280 px et 375 px, zéro erreur console. Aucun changement backend, aucune migration.
+
 ## 0.28.0 — Chat ZETIS : un compagnon incarné, qui se souvient et qui parle
 
 Date : 2026-07-30 · ADR-0026 · branche `feat/chat-memoire`

@@ -1,50 +1,47 @@
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
+import { BrandIntro } from "./BrandIntro";
+import { markIntroSeen, shouldPlayIntro } from "./introGate";
 
-// Écran de démarrage + connexion ZETIS, partagé par les deux frontends.
-// L'auth étant par app (chaque app n'accepte que son rôle), le sélecteur de profil
-// REDIRIGE vers l'autre frontend (`otherAppUrl`) au lieu de tenter une connexion locale.
+// Écran de connexion ZETIS. Le composant est partagé par les deux frontends, mais la
+// page rendue est propre à un seul profil : chaque app n'accepte que son rôle, donc
+// elle affiche l'avatar de ce profil et ignore l'autre espace (pas de sélecteur).
+// L'animation de marque est jouée par-dessus, une fois par session (cf. `introGate`).
 
 interface LoginScreenProps {
   role: "massimo" | "papa";
-  /** URL du frontend de l'autre profil (redirection croisée). */
-  otherAppUrl: string;
 }
 
 const ROLES = {
-  massimo: { name: "MASSIMO", sub: "ESPACE ÉLÈVE", user: "massimo" },
-  papa: { name: "PAPA", sub: "ESPACE PARENT", user: "papa" },
+  massimo: {
+    name: "MASSIMO",
+    sub: "ESPACE ÉLÈVE",
+    user: "massimo",
+    avatar: "/massimo-avatar.png",
+    tagline: "Connecte-toi pour accéder à ton espace d'apprentissage intelligent.",
+  },
+  papa: {
+    name: "PAPA",
+    sub: "ESPACE PARENT",
+    user: "papa",
+    avatar: "/papa-avatar.png",
+    tagline: "Connectez-vous pour accéder à votre espace de pilotage.",
+  },
 } as const;
 
-// Les lettres atteignent leur pic de netteté vers 5,9 s puis l'animation les efface
-// en fondu. On enchaîne en fondu doux vers le poster (= cette même image) à cet instant,
-// pour que le wordmark ZETIS reste affiché. (Le poster est la frame ~177.)
-const FREEZE_AT_SECONDS = 5.9;
-
-export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
+export function LoginScreen({ role }: LoginScreenProps) {
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const me = ROLES[role];
-  const otherKey = role === "massimo" ? "papa" : "massimo";
-  const other = ROLES[otherKey];
 
   const [username, setUsername] = useState<string>(me.user);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [settled, setSettled] = useState(false); // fondu final vers le poster
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Joue l'animation de marque une fois à l'arrivée sur la page.
-  useEffect(() => {
-    const v = videoRef.current;
-    if (v) {
-      v.currentTime = 0;
-      v.play().catch(() => {});
-    }
-  }, []);
+  // L'intro ne rejoue pas après une erreur de connexion ou un retour sur /login.
+  const [introDone, setIntroDone] = useState(() => !shouldPlayIntro());
 
   if (user) return <Navigate to="/" replace />;
 
@@ -68,37 +65,27 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
       <div className="pointer-events-none absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-indigo-600/20 blur-[120px]" />
       <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-fuchsia-600/20 blur-[120px]" />
 
-      <div className="relative flex w-full max-w-7xl flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:justify-center lg:gap-12">
-        {/* Panneau de marque — animation ZETIS jouée une fois à l'arrivée, puis fondu
-            doux vers le poster (image nette des lettres) pour finir en douceur. */}
-        <div className="flex w-full items-center justify-center lg:flex-1">
-          <div className="relative w-full max-w-md lg:h-full lg:max-w-none">
-            <video
-              ref={videoRef}
-              src="/zetis-logo.mp4"
-              poster="/zetis-logo.png"
-              autoPlay
-              muted
-              playsInline
-              preload="auto"
-              onTimeUpdate={(e) => {
-                // Avant le fondu final de l'animation, on enchaîne en douceur sur le poster.
-                if (!settled && e.currentTarget.currentTime >= FREEZE_AT_SECONDS) {
-                  setSettled(true);
-                  e.currentTarget.pause();
-                }
-              }}
-              onEnded={() => setSettled(true)}
-              aria-label="ZETIS — ton savoir, ton évolution"
-              className={`block h-full w-full object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(120%_72%_at_50%_50%,black_76%,transparent_100%)] transition-opacity duration-700 ease-in-out ${settled ? "opacity-0" : "opacity-100"}`}
-            />
-            {/* Poster figé (lettres nettes) en fondu d'entrée. */}
-            <img
-              src="/zetis-logo.png"
-              alt="ZETIS — ton savoir, ton évolution"
-              className={`pointer-events-none absolute inset-0 h-full w-full object-contain drop-shadow-[0_0_45px_rgba(99,102,241,0.3)] [mask-image:radial-gradient(120%_72%_at_50%_50%,black_76%,transparent_100%)] transition-opacity duration-700 ease-in-out ${settled ? "opacity-100" : "opacity-0"}`}
-            />
+      <div
+        className={`relative flex w-full max-w-6xl flex-col items-center gap-8 transition-opacity duration-500 ease-in-out lg:flex-row lg:items-center lg:justify-center lg:gap-16 ${
+          introDone ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        {/* Panneau d'identité — l'avatar du profil porte la page. */}
+        <div className="flex w-full flex-col items-center gap-5 lg:flex-1">
+          <img
+            src={me.avatar}
+            alt={`Avatar de ${me.name.toLowerCase()}`}
+            className="h-40 w-40 shrink-0 rounded-full object-cover ring-2 ring-cyan-400/40 drop-shadow-[0_0_45px_rgba(99,102,241,0.35)] md:h-52 md:w-52"
+          />
+          <div className="text-center">
+            <p className="text-2xl font-semibold tracking-[0.2em] text-slate-100">{me.name}</p>
+            <p className="mt-1 text-xs tracking-[0.25em] text-slate-400">{me.sub}</p>
           </div>
+          <img
+            src="/zetis-logo.png"
+            alt="ZETIS — ton savoir, ton évolution"
+            className="w-full max-w-[220px] object-contain opacity-70 [mask-image:radial-gradient(66%_44%_at_50%_50%,black_26%,transparent_100%)]"
+          />
         </div>
 
         {/* Carte de connexion */}
@@ -109,35 +96,9 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
               ZETIS
             </span>
           </h2>
-          <p className="mt-2 text-center text-sm text-slate-400">
-            Connecte-toi pour accéder à ton espace d'apprentissage intelligent.
-          </p>
+          <p className="mt-2 text-center text-sm text-slate-400">{me.tagline}</p>
 
-          {/* Sélecteur de profil */}
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <div
-              aria-current="true"
-              className="flex items-center gap-3 rounded-xl border border-cyan-400/50 bg-cyan-400/10 px-4 py-3"
-            >
-              <ProfileVisual roleKey={role} active />
-              <div className="text-left">
-                <p className="text-sm font-semibold">{me.name}</p>
-                <p className="text-[10px] tracking-wider text-slate-400">{me.sub}</p>
-              </div>
-            </div>
-            <a
-              href={otherAppUrl}
-              className="flex items-center gap-3 rounded-xl border border-white/10 px-4 py-3 transition-colors hover:border-white/25 hover:bg-white/5"
-            >
-              <ProfileVisual roleKey={otherKey} />
-              <div className="text-left">
-                <p className="text-sm font-semibold text-slate-200">{other.name}</p>
-                <p className="text-[10px] tracking-wider text-slate-500">{other.sub}</p>
-              </div>
-            </a>
-          </div>
-
-          <form onSubmit={onSubmit} className="mt-5 space-y-3">
+          <form onSubmit={onSubmit} className="mt-6 space-y-3">
             <Field icon={<PersonIcon className="h-4 w-4" />}>
               <input
                 value={username}
@@ -171,7 +132,8 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
               />
             </Field>
 
-            <div className="flex items-center justify-between text-sm">
+            {/* `flex-wrap` : les deux libellés se chevauchent sinon sur un écran de 375 px. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
               <label className="flex items-center gap-2 text-slate-400">
                 <input type="checkbox" defaultChecked className="accent-cyan-400" />
                 Se souvenir de moi
@@ -217,6 +179,15 @@ export function LoginScreen({ role, otherAppUrl }: LoginScreenProps) {
           </p>
         </div>
       </div>
+
+      {!introDone && (
+        <BrandIntro
+          onDone={() => {
+            markIntroSeen();
+            setIntroDone(true);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -238,23 +209,6 @@ function Field({
       <div className="flex-1">{children}</div>
       {trailing}
     </div>
-  );
-}
-
-// Visuel du profil : avatar dédié pour chaque profil.
-const PROFILE_AVATARS: Record<"massimo" | "papa", string> = {
-  massimo: "/massimo-avatar.png",
-  papa: "/papa-avatar.png",
-};
-
-function ProfileVisual({ roleKey, active }: { roleKey: "massimo" | "papa"; active?: boolean }) {
-  return (
-    <img
-      src={PROFILE_AVATARS[roleKey]}
-      alt=""
-      aria-hidden
-      className={`h-9 w-9 shrink-0 rounded-full object-cover ring-1 ${active ? "ring-cyan-400/60" : "ring-white/15"}`}
-    />
   );
 }
 
@@ -301,4 +255,3 @@ function AppleIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
