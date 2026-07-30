@@ -290,6 +290,16 @@ _DEFAULT_QUIZ_SELFCHECK = {
 }
 
 
+# Tour de chat déterministe (ADR-0026) renvoyé quand le schéma `fmt` a la propriété `reply`.
+# Défaut : aucune difficulté déclarée, aucun outil proposé. Les tests passent un `chat` custom
+# pour exercer la difficulté déclarée (→ event + règle Gap) et la proposition d'outil.
+_DEFAULT_CHAT = {
+    "reply": "Bonne question ! On regarde ça ensemble, étape par étape.",
+    "declared_difficulty": {"declared": False, "kind": ""},
+    "tool_suggestion": "",
+}
+
+
 # Jugement `open` déterministe (ADR-0014 Lot 2) renvoyé quand le schéma `fmt` a la propriété
 # `criteria`. Défaut : deux critères acquis, juge confiant → réponse créditée. Les tests de
 # calibrage passent un `quiz_judge` custom (critère non acquis, juge non confiant → ambiguïté…).
@@ -321,6 +331,7 @@ class FakeLLMProvider:
         quiz_selfcheck: dict | None = None,
         quiz_judge: dict | None = None,
         council: dict | None = None,
+        chat: dict | None = None,
     ) -> None:
         self._feedback = feedback
         self._score = score
@@ -335,6 +346,7 @@ class FakeLLMProvider:
         self._quiz_selfcheck = quiz_selfcheck
         self._quiz_judge = quiz_judge
         self._council = council
+        self._chat = chat
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         # Sortie structurée demandée (fmt) → objet déterministe selon le schéma :
@@ -365,6 +377,10 @@ class FakeLLMProvider:
         if isinstance(request.fmt, dict) and "criteria" in request.fmt.get("properties", {}):
             verdict = self._quiz_judge or _DEFAULT_QUIZ_JUDGE
             return LLMResponse(text=json.dumps(verdict), model="fake", duration_ms=1)
+        # Chat ZETIS (ADR-0026) : schéma repéré par sa propriété `reply`. AVANT le fallback capsule.
+        if isinstance(request.fmt, dict) and "reply" in request.fmt.get("properties", {}):
+            chat = self._chat or _DEFAULT_CHAT
+            return LLMResponse(text=json.dumps(chat), model="fake", duration_ms=1)
         # Fiche de révision (ADR-0015) : schéma repéré par sa propriété `essentiel`. AVANT le
         # fallback capsule (qui capte tout `fmt` restant), sinon la fiche recevrait un CapsuleSpec.
         if isinstance(request.fmt, dict) and "essentiel" in request.fmt.get("properties", {}):

@@ -71,6 +71,19 @@ EVENT_AGENDA_ITEM_DONE = "agenda_item_done"
 
 NON_ACTIVITY_EVENTS = frozenset({EVENT_AGENDA_ITEM_CREATED, EVENT_AGENDA_ITEM_DONE})
 
+# --- Chat ZETIS (ADR-0026 §2) : le chat n'a PAS de mémoire propre, il écrit dans ce journal. ---
+# Vocabulaire FERMÉ, trois types EXACTEMENT, émis CÔTÉ SERVEUR (l'orchestrateur), jamais par le
+# client. NON PROBANTS par construction : `evidence/service.py` ne lit que `mission_verdict`
+# (test-verrou), donc aucun de ces trois n'entre dans un chemin de verdict, de maîtrise ou de
+# scoring. Aucun XP n'est crédité par une conversation (parler n'est pas une performance).
+#
+# `chat_topic_missed` / `chat_abandoned` N'EXISTENT PAS et n'existeront pas : l'absence n'est pas
+# un événement (même jurisprudence qu'`agenda_item_missed`, ADR-0025 §3). Un acte = un événement :
+# pas de paire offered/accepted — `chat_tool_response` porte l'offre dans son payload.
+EVENT_CHAT_TOPIC = "chat_topic"  # {skill_id} — dédupe 1/(élève, skill, jour Paris)
+EVENT_CHAT_TOOL_RESPONSE = "chat_tool_response"  # {tool_type, skill_id, accepted} — aucune dédupe
+EVENT_CHAT_DIFFICULTY_DECLARED = "chat_difficulty_declared"  # {skill_id, kind} — dédupe 1/jour
+
 
 def log_learning_event(
     db: Session,

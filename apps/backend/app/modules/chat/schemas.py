@@ -1,0 +1,42 @@
+"""Schémas d'entrée/sortie du chat (ADR-0026, slice A).
+
+Aucun schéma ne transporte de verbatim vers une couche durable : ce sont des DTO de requête HTTP.
+La réponse d'un tour porte le texte que ZETIS vient de dire — il vit dans Redis, pas en base.
+"""
+
+from pydantic import BaseModel, Field
+
+
+class ChatSessionOut(BaseModel):
+    """Ouverture de session. `transparency` = la phrase FIXE de l'asymétrie (§5), affichée par
+    l'UI (slice B) : Massimo sait ce qui est retenu."""
+
+    session_id: str
+    transparency: str
+
+
+class ChatToolResponse(BaseModel):
+    """Réponse de Massimo à une proposition d'outil — un ACTE, tracé tel quel (§2)."""
+
+    tool_type: str
+    accepted: bool
+
+
+class ChatMessageIn(BaseModel):
+    """Un tour. Soit un message texte, soit une réponse à une proposition d'outil (ou les deux :
+    Massimo peut accepter une fiche ET continuer à parler)."""
+
+    text: str | None = Field(default=None, max_length=4000)
+    tool_response: ChatToolResponse | None = None
+
+
+class ChatMessageOut(BaseModel):
+    """Réponse d'un tour. `skill_id` = notion ancrée (None si non résolue — best-effort §6).
+    `tool_suggestion` = outil proposé par ZETIS (vide si aucun)."""
+
+    session_id: str
+    turn_index: int
+    reply: str
+    skill_id: int | None = None
+    tool_suggestion: str | None = None
+    difficulty_declared: bool = False

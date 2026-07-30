@@ -11,6 +11,7 @@ from app.db.base import Base, get_db
 from app.main import app
 from app.modules.ai import get_embedder, get_provider
 from app.modules.auth.deps import get_current_user
+from app.modules.chat.store import InMemoryChatStore, get_chat_store
 from app.modules.curriculum import get_curriculum_provider
 from app.modules.rag.transcript import get_transcript_fetcher
 from app.modules.stt import get_stt
@@ -55,6 +56,11 @@ def client_db() -> Iterator[tuple[TestClient, sessionmaker]]:
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: {"username": "massimo", "role": "child"}
     app.dependency_overrides[get_provider] = lambda: FakeLLMProvider()
+    # Chat (ADR-0026) : store Redis remplacé par un InMemoryChatStore PARTAGÉ (aucun Redis en CI).
+    # Partagé = une seule instance sur toute la durée du client, pour que les sessions survivent
+    # entre requêtes (create → messages → close). `chat_store` exposé pour les assertions de TTL.
+    chat_store = InMemoryChatStore()
+    app.dependency_overrides[get_chat_store] = lambda: chat_store
     # Curriculum (ADR-0009) : provider dédié, mocké lui aussi (aucun appel Anthropic).
     app.dependency_overrides[get_curriculum_provider] = lambda: FakeLLMProvider()
     app.dependency_overrides[get_embedder] = lambda: FakeEmbeddingProvider()

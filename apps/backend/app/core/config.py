@@ -156,6 +156,35 @@ class Settings(BaseSettings):
     )
     agenda_upcoming_max: int = Field(default=4, validation_alias="AGENDA_UPCOMING_MAX")
 
+    # --- Chat ZETIS mémoire (ADR-0026) : le verbatim est ÉPHÉMÈRE PAR CONSTRUCTION. ---
+    # M1 (les messages du tour) vit dans Redis, JAMAIS en PostgreSQL/MinIO : la confidentialité
+    # n'est pas une politique, c'est une impossibilité structurelle (§1). TTL glissant, rafraîchi
+    # à chaque tour, purge explicite à la clôture. Constantes VERSIONNÉES (comme le scoring de
+    # mission) : tout changement de comportement mémoire = bump tracé.
+    chat_session_ttl_minutes: int = Field(
+        default=120, validation_alias="CHAT_SESSION_TTL_MINUTES"
+    )
+    # Anti-spam (§Points ouverts 3) : plafond de tours par session (clé Redis dédiée). Au-delà,
+    # 429 — un chat n'est pas un puits sans fond, et le moteur local a un coût.
+    chat_max_turns_per_session: int = Field(
+        default=40, validation_alias="CHAT_MAX_TURNS_PER_SESSION"
+    )
+    # Budget de contexte injecté par tour (§6) : borné pour que la sélection d'évidence reste
+    # ciblée. Estimé en tokens (~4 caractères/token) ; le contexte composé est tronqué à ce budget.
+    chat_context_token_budget: int = Field(
+        default=300, validation_alias="CHAT_CONTEXT_TOKEN_BUDGET"
+    )
+    # Résolution question libre → skill_id (§6, module partagé) : seuil de confiance cosinus
+    # en-deçà duquel on N'ANCRE PAS (best-effort — pas de `chat_topic`, pas de contexte ciblé,
+    # jamais un mauvais ancrage). Versionné : c'est le curseur qualité de la mémoire.
+    chat_skill_resolution_min_score: float = Field(
+        default=0.55, validation_alias="CHAT_SKILL_RESOLUTION_MIN_SCORE"
+    )
+    # Fenêtre du « rappel » d'ouverture (§2) : notions récentes de chat rappelées en début de
+    # session. Rappel, JAMAIS relance (§4) — aucune notification, uniquement dans une session
+    # que Massimo a ouverte.
+    chat_recall_window_days: int = Field(default=7, validation_alias="CHAT_RECALL_WINDOW_DAYS")
+
     # --- Activité (journal `learning_events`) : les SESSIONS NE SONT PAS STOCKÉES, elles sont
     # reconstruites à la lecture (event sourcing : le journal est la vérité brute, la session une
     # projection). Changer une constante recalcule tout l'historique — aucune migration, pas de

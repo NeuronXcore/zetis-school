@@ -7,54 +7,56 @@
 
 ## État à la reprise
 
-**Branche : `feat/agenda-scolaire`** (depuis `main`, 2026-07-29) — chantier **Agenda scolaire
-(ADR-0025)**. Le cadrage (maquettes → specs → ADR-0025 → 3 prompts de slice) est **sur `main`**,
-commit `8be1e0a`. **Slice A backend FAITE** sur la branche, non commitée au moment d'écrire :
+**Branche : `feat/chat-memoire`** (depuis `main`, 2026-07-30) — chantier **Chat ZETIS mémoire
+(ADR-0026)**. Le cadrage (maquette → spec → ADR-0026 → 2 prompts de slice) est **sur `main`**,
+commit `165c780`. **Slice A backend FAITE, NON commitée** au moment d'écrire (tests verts, à
+committer après vérif humaine) :
 
-- table `agenda_items` + migration `a1b2c3d4e5f7` **appliquée sur le vrai Postgres de dev** ;
-- module `app/modules/agenda/` (schémas séparés Student/Pilot, service, 2 routers) ;
-- **559 tests verts** (+17), dont les invariants de l'ADR (Papa ne coche pas → 403,
-  `parent_note` jamais côté élève, asymétrie de la bande, aucune mission/SRS dans une surface
-  datée, évidence inchangée par une coche) ;
-**Slice C (page Papa) FAITE** : route `/agenda` + entrée de sidebar après Dashboard, saisie en
-lot (matière · chapitre · intitulé · date · type, un seul envoi), charge de la semaine en
-7 colonnes, panneau de détail, note privée, archivage sous `ConfirmDialog`, filtres. **Aucune
-case à cocher.** A demandé un **ajout backend décidé avec le user** : table `app_settings`
-(migration `b2c3d4e5f8a0`, appliquée) + `GET`/`PUT /api/agenda/settings`, parce que
-l'interrupteur d'ouverture de la saisie élève doit être « un geste de Papa sur sa page »
-(ADR-0025 §10) — une variable d'env ne peut pas l'être. L'env reste la valeur par défaut.
+- **Zéro table, zéro migration** (invariant de l'ADR : le verbatim est éphémère par construction).
+- **`app/modules/chat/`** : `store.py` (sessions Redis, TTL glissant `chat:{student}:{session}`,
+  `InMemoryChatStore` pour les tests + dépendance `get_chat_store`), `service.py` (orchestrateur
+  d'un tour), `schemas.py`, `router.py` (3 routes `require_child` sous `/api/student/chat` —
+  sessions / messages / close ; **aucune route parent, aucune méthode GET**).
+- **Module PARTAGÉ** `app/modules/ai/skill_resolution.py` : texte libre → `skill_id` par cosinus
+  d'embeddings (nomic-embed-text, notions de l'année active + repli sur toutes), best-effort
+  absolu (ne lève jamais). ELI5 en héritera (différé promu prérequis, ADR-0026 §6).
+- **3 `learning_events`** dans `activity/events.py` (`chat_topic`, `chat_tool_response`,
+  `chat_difficulty_declared`), émis serveur, non probants, **zéro XP**.
+- **Règle Gap §3** : `source=ai_observation` (1er producteur), `severity=low` toujours,
+  corroboration = `SkillMastery ∈ {unknown,weak,learning}` **et ligne existante** (sans ligne →
+  pas de Gap), lacune ouverte → rien, jamais d'escalade.
+- **`ai_jobs` de métadonnées seules** pour un tour (`chat_turn`) : `input=`{session,index},
+  `output=`{skill_id,kind,tool_type,duration} — **jamais un texte** (pipeline aveugle §1c).
+- Constantes versionnées dans `core/config.py` (`CHAT_SESSION_TTL_MINUTES=120`,
+  `CHAT_MAX_TURNS_PER_SESSION=40`, `CHAT_CONTEXT_TOKEN_BUDGET=300`,
+  `CHAT_SKILL_RESOLUTION_MIN_SCORE=0.55`, `CHAT_RECALL_WINDOW_DAYS=7`). Prompt versionné
+  `app/prompts/chat.py` (`chat_v1`, sortie structurée — point ouvert n°1 tranché en JSON).
+- **`app/tests/test_chat.py` : 16 tests d'invariants verts** (metadata sans table chat, ai_jobs
+  sans verbatim, dédupes, matrice Gap, TTL, purge, anti-spam 429, zéro XP, frontière parent).
+  **Suite complète : 576 back verts, zéro régression.** App démarre (40 routers).
 
-**Slice B (page Massimo) FAITE** : route `/agenda`, bande glissante 7 jours (traces allumées
-sans réceptacle, halo cyan sur aujourd'hui, anneau fuchsia sur un contrôle, emplacement ✦ du
-plan laissé vide), sections Aujourd'hui / Demain / suite repliée / Ce qui arrive / À reprendre
-(3 max, sans compteur), coche optimiste, résumé d'Accueil au-dessus du canvas Galaxy.
+- **prochain pas : vérif humaine (tests + diff) → commit unique de la slice → PR vers `main`.**
+  Puis **slices UI du chantier chat** (hors ADR-0026) : streaming SSE, page Massimo, STT/TTS
+  temps réel, avatar, routage réel vers les outils. Le classifieur de difficulté est en place
+  (structuré), pas encore éprouvé sur le vrai 4B (Ollama).
 
-**Accès à l'agenda : DEUX portes, tranché par le user le 2026-07-29** — entrée de sidebar en
-position 2 (après Accueil, avant Matières) **et** résumé sur l'Accueil. La spec de page
-prévoyait le bandeau seul en phase 0 ; elle a été mise à jour, elle ne contredit plus le code.
-Bottom-nav mobile inchangée (arbitrage toujours ouvert, lié à `navigation.md` au BACKLOG).
+⚠️ **Écarts read-before-code du chat, à ne pas re-débattre** :
+- **`ai_jobs` n'est PAS asynchrone** (ni worker ni polling) : ELI5 exécute le LLM en synchrone
+  dans le POST. Le chat suit ce patron synchrone — d'où « aveugle au contenu » trivial.
+- **Aucun embedding stocké par `Skill`**, pas de lien direct Skill→année active : la résolution
+  vectorise les notions candidates à la volée (jointure SchoolYear active → LessonSkill → Skill,
+  repli toutes notions si vide).
+- **Redis n'avait aucune convention session/TTL** (seul RQ média l'utilisait) : `store.py` la
+  crée (doctrinalement prévu, ARCHITECTURE §Redis).
 
-**Vérification live FAITE (2026-07-29)** — saisie en lot Papa (3 échéances, chapitres du vrai
-référentiel) → apparition chez Massimo → coche persistée après rechargement → « cochés par
-Massimo : 1 » côté Papa. Elle a rapporté **un bug** (item passé visible dans la bande : la
-liste vivante court-circuitait l'asymétrie serveur — corrigé côté client, commit `7cfc7e4`) et
-**une décision** : bande élargie à **14 jours, tout vers l'avant** (3 passés / 10 à venir,
-réglages `AGENDA_BAND_DAYS_*`, plus rien ne fige l'amplitude). ADR passé **Accepté**,
-CHANGELOG 0.27.0 écrit, docs réconciliées (READMEs des deux frontends, modules.md,
-DATA_MODEL §AppSetting, API_SPEC §settings, BACKLOG Lot 1 barré).
-
-⚠️ Données de test en base de dev : 3 `agenda_items` (dont 1 coché) + 1 ligne `app_settings`
-possible. À purger ou assumer avant la démo.
-
-- **prochain pas : PR vers `main`.** Le composer élève (Lot 1 bis) et le plan de préparation
-  (Lot 3) restent fermés — sur décision, pas sur calendrier (revue phase 0 à 4 semaines).
-
-⚠️ **Découverte de la slice A, à ne pas re-débattre** : trois lecteurs de `learning_events`
-n'étaient **pas** filtrés par `event_type` — `activity._load_events`,
-`activity._trailing_inactive_days`, `motivation._active_days`. Sans exclusion, cocher un devoir
-aurait gonflé la heatmap, les minutes actives et les jours de venue. D'où le frozenset
-`NON_ACTIVITY_EVENTS` (`activity/events.py`) appliqué à ces trois endroits. `evidence` était
-déjà propre (filtré sur `mission_verdict`), `galaxy` aussi (groupé sur `skill_id NOT NULL`).
+⚠️ **Chantier précédent — Agenda scolaire (ADR-0025) : COMPLET, MERGÉ `main` PR #56** (squash
+`f8c5e28`), branche supprimée. Backend + page Papa + page Massimo. **Ne pas ré-implémenter.**
+Piège hérité, toujours vrai et réutilisé par le chat : trois lecteurs de `learning_events`
+n'étaient **pas** filtrés par `event_type` (`activity._load_events`,
+`activity._trailing_inactive_days`, `motivation._active_days`) → frozenset `NON_ACTIVITY_EVENTS`
+(`activity/events.py`). Les 3 événements de chat sont **non probants** parce qu'`evidence` ne lit
+que `mission_verdict` (test-verrou) — pas besoin de les ajouter au frozenset (qui ne concerne que
+les projections d'activité, pas l'évidence).
 
 **Chantier précédent — ZETIS Galaxy : MERGÉ** dans `main` (PR #55, merge `af039d0`).
 La section ci-dessous est conservée pour ses pièges, pas pour son état.
