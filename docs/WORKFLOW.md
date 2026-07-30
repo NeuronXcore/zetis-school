@@ -1,8 +1,9 @@
 # WORKFLOW.md — Méthode de dev agentique ZETIS
 
-> À relire avant chaque nouveau chantier. Les textes-types (§6) se collent tels quels dans
-> Claude Code. Réfs internes : `CLAUDE.md` (Graphify, garde-fous), convention 7 fichiers
-> (`MEMORY.md`…), `DECISIONS.md` (rituel ADR), discipline mono-chantier.
+> À relire avant chaque nouveau chantier. Le geste git d'ouverture (§2bis) et les
+> textes-types (§6) se collent tels quels. Réfs internes : `CLAUDE.md` (Graphify,
+> garde-fous), convention 7 fichiers (`MEMORY.md`…), `DECISIONS.md` (rituel ADR),
+> discipline mono-chantier.
 
 ## 1. Principe directeur
 
@@ -16,12 +17,17 @@ dans le dépôt, pas dans le contexte de l'agent.**
 
 ## 2. La boucle, par chantier (un seul à la fois)
 
-1. **Cadrer** — rituel `mockup → spec → ADR → prompt`. Chaque décision est écrite *avant* la
-   moindre ligne. *Pourquoi :* une décision figée ne se re-discute pas à chaque session,
+1. **Cadrer** — rituel de cadrage : **décisions (ADR) et exploration (maquette)** d'abord —
+   l'ordre entre les deux varie selon le chantier (la maquette peut précéder l'ADR quand elle
+   sert à décider, l'ADR précède quand la décision commande la forme) — puis la **spec**
+   (jamais avant la maquette qu'elle référence), puis le **prompt** (toujours en dernier).
+   Côté Papa : références Mobbin en amont de la maquette. Chaque décision est écrite *avant*
+   la moindre ligne. *Pourquoi :* une décision figée ne se re-discute pas à chaque session,
    l'agent la relit au lieu de la rouvrir. Le cadrage se rembourse 10× en exécution.
-2. **Isoler** — mono-chantier + `git switch -c feat/<chantier>` + un **hors-périmètre
-   explicite** dans le prompt. *Pourquoi :* le mode d'échec n°1 d'un agent est la dérive
-   (« tant qu'on y est… »). Le hors-périmètre est une clôture, pas une correction après coup.
+2. **Isoler** — mono-chantier + branche dédiée + un **hors-périmètre explicite** dans le
+   prompt (geste git complet : §2bis). *Pourquoi :* le mode d'échec n°1 d'un agent est la
+   dérive (« tant qu'on y est… »). Le hors-périmètre est une clôture, pas une correction
+   après coup.
 3. **Exécuter** — l'agent tourne dans une cage : `graphify update .` → **read-before-code** →
    build → **stop-on-blocker**. *Pourquoi :* le read-before-code empêche l'agent d'**inventer**
    une API ; le stop-on-blocker le force à **s'arrêter et signaler** au lieu de coder autour.
@@ -35,6 +41,46 @@ dans le dépôt, pas dans le contexte de l'agent.**
 6. **Intégrer** — PR → revue du diff → merge → `git pull` sur `main` → chantier suivant depuis
    un `main` à jour. *Pourquoi la PR même en solo :* c'est la porte de revue matérialisée,
    *avant* que le code n'entre dans `main`.
+
+## 2bis. Ouvrir un chantier — le geste git standard
+
+Deux phrases à retenir ; tout le reste s'en déduit :
+
+> **Les décisions vont sur `main`. Le travail va sur une branche.**
+> **Et une branche commence toujours par ses documents.**
+
+| Artefact | Où | Pourquoi |
+|---|---|---|
+| ADR (+ ligne `DECISIONS.md`) | **`main`**, avant la branche | une loi vaut pour tout le dépôt, pas pour un chantier ; et deux branches qui éditent `DECISIONS.md` = conflit garanti |
+| Spec de page, maquette, prompts | **la branche**, en **premier commit** | ils ne servent qu'à ce chantier et doivent être dans le dépôt avant la première session d'agent |
+| Code | la branche, sessions suivantes | jamais dans le commit des specs |
+
+Le geste, toujours identique (seul vocabulaire git dont ce workflow a besoin) :
+
+```bash
+# 1. Les décisions, sur un main à jour
+git switch main && git pull
+# … copier ADR dans docs/decisions/ + ligne dans DECISIONS.md …
+git add -A && git commit -m "docs: ADR-00XX (<sujet>) + index" && git push
+
+# 2. La branche, qui naît avec ses documents
+git switch -c feat/<chantier>
+# … copier spec → docs/frontend-<x>/ ; maquette → idem ; prompts → prompts/claude-code/ …
+git add -A && git commit -m "docs(<chantier>): spec + maquette + prompts (ADR-00XX)" && git push -u origin feat/<chantier>
+
+# 3. Ouvrir Claude Code sur la branche, coller le prompt de slice. C'est tout.
+```
+
+Règles annexes :
+
+- **Une branche part toujours de `main`**, jamais d'une autre branche — chaque chantier part
+  de la dernière vérité stable, pas du travail non fini d'un voisin.
+- Deux chantiers cadrés en même temps : la seconde branche peut être créée et « parquée »
+  avec ses docs, mais **une seule branche reçoit du code** (mono-chantier).
+- Conventions de nommage : `feat/<chantier>` ; maquettes `mockup-page-<x>.html` (Massimo) /
+  `maquette-papa-<x>.html` (Papa) ; prompts `prompt-<chantier>-slice-<a>-<cible>.md`.
+- Le **bâton d'autorité** ne concerne que PostgreSQL/MinIO : les commits de documentation
+  n'y touchent pas ; il redevient pertinent dès que l'agent exécute (tests, base, Redis).
 
 ## 3. Les deux mémoires (ne pas les confondre)
 
@@ -50,8 +96,8 @@ Trois canaux persistent la mémoire de session :
   est le code ».
 - **`MEMORY.md`** = mémoire du **raisonnement** (fait / en cours / à-faire / décisions actives /
   prochain pas). Écrit pour un lecteur sans contexte : la prochaine session.
-- **ADR / specs** = mémoire des **décisions** figées. C'est la raison d'être du rituel
-  `mockup→spec→ADR` : externaliser la décision hors du contexte volatil.
+- **ADR / specs** = mémoire des **décisions** figées. C'est la raison d'être du rituel de
+  cadrage (ADR/maquette → spec → prompt) : externaliser la décision hors du contexte volatil.
 
 **Graphify n'est pas de la mémoire — c'est de l'orientation.** Il ne « garde » rien qui se
 perd ; il **réduit le coût de reconstruction** du contexte-code après un reset : une session

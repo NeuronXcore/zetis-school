@@ -46,6 +46,23 @@
   serveur, **traces positives sans réceptacle vide** (conformité `adr-0024 §5`) ; concilié
   avec `adr-0018 §1` — l'invariant protège d'un compte à rebours *inventé*, pas *subi* —
   Accepté (2026-07-29)
+  
+  - `docs/decisions/adr-0026-chat-zetis-memoire.md` — **Chat ZETIS : mémoire éphémère,
+  traçabilité typée, signal déclaratif** : le verbatim de conversation est **éphémère par
+  construction** — M1 en Redis (TTL `CHAT_SESSION_TTL_MINUTES=120`, purge à la clôture),
+  jamais PostgreSQL/MinIO, pipeline `ai_jobs` **aveugle au contenu** (le job porte une
+  référence, jamais un texte) → la question « journal lisible par Papa ? » se **dissout :
+  il n'y a pas de journal** ; le chat **écrit dans le journal commun** : trois
+  `learning_events` exactement (`chat_topic`, `chat_tool_response`,
+  `chat_difficulty_declared`), émis serveur, non probants, **zéro XP**, jamais de
+  `chat_topic_missed` (doctrine `adr-0025 §3`) ; **signal déclaratif = signal faible** —
+  premier producteur de `Gap.source=ai_observation`, `severity=low` toujours,
+  **corroboration comportementale requise** (mastery `unknown|weak|learning`), jamais
+  d'escalade ; **rappel jamais relance** (mémoire en session ouverte par Massimo
+  uniquement) + phrase de transparence ; résolution question → `skill_id` (embeddings,
+  module partagé) promue de différé ELI5 à **prérequis dur** ; **zéro table, zéro
+  migration** — Proposé (2026-07-29)
+
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :
