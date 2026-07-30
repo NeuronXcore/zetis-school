@@ -7,10 +7,28 @@
 
 ## État à la reprise
 
-**Branche : `feat/chat-memoire`** (depuis `main`, 2026-07-30) — chantier **Chat ZETIS mémoire
-(ADR-0026)**. Le cadrage (maquette → spec → ADR-0026 → 2 prompts de slice) est **sur `main`**,
-commit `165c780`. **Slice A backend FAITE, NON commitée** au moment d'écrire (tests verts, à
-committer après vérif humaine) :
+**Branche : `feat/chat-orchestrateur`** (depuis `main`, 2026-07-30) — chantier **Chat orchestrateur
+(ADR-0027)**. Le chantier **Chat mémoire+voix (ADR-0026) est COMPLET et MERGÉ sur `main`** (FF, 4
+commits `d03918c`→`6672df9`, `main` devant `origin/main` de 4 ; push = geste user). Le cadrage
+ADR-0027 est aussi sur `main` (`6672df9`).
+
+**Slice A backend de l'ORCHESTRATEUR FAITE, NON commitée** (tests verts) : le chat produit un
+**intent typé** que le serveur **ancre** — `resolve_action` (`app/modules/chat/actions.py`) :
+`resolve_skill` → `galaxy.notion_panel(skill_id)` (matière + contenus `available` + ids) → route
+construite **depuis un id validé** (fiche→`/fiches/<slug>`, mindmap→`/mindmaps/reconstruire/<id>`,
+eli5→`/eli5?skill_id=`, révision→`/revision?subject=<slug>`) ; cible non ancrable → `action=None`
+**et ZETIS le dit** ; contenu absent → note « je le note pour Papa » (mécanisme différé). `show_data`
+(agenda/reviews/missions) = le front fetch. `ChatMessageOut.action` = navigate|show_data|None ;
+`chat_turn_schema` gagne `intent` ; `ai_jobs` métadonnées seules (+clé `action`, jamais de texte).
+**581 tests backend verts** (4 neufs, dont test-verrou « jamais de route hallucinée »). **NEXT =
+slice B frontend** (exécuteur : voix→navigate direct, clavier→carte, `show_data`→carte inline) via
+`prompt-chat-orchestrateur-slice-b-frontend.md`.
+
+---
+
+### Historique (chantier chat mémoire+voix ADR-0026, MERGÉ) — conservé pour les pièges
+
+**Slice A backend FAITE** (commit `d03918c`) :
 
 - **Zéro table, zéro migration** (invariant de l'ADR : le verbatim est éphémère par construction).
 - **`app/modules/chat/`** : `store.py` (sessions Redis, TTL glissant `chat:{student}:{session}`,

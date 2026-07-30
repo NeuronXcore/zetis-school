@@ -94,7 +94,13 @@ def test_ai_jobs_of_a_turn_carry_no_message_text(client_db) -> None:
         blob = json.dumps(job.input_json or {}) + json.dumps(job.output_json or {})
         assert marker not in blob, "aucun texte de message ne doit entrer dans ai_jobs"
         assert set((job.input_json or {}).keys()) <= {"session_id", "turn_index"}
-        assert set((job.output_json or {}).keys()) <= {"skill_id", "kind", "tool_type", "duration_ms"}
+        assert set((job.output_json or {}).keys()) <= {
+            "skill_id",
+            "kind",
+            "tool_type",
+            "duration_ms",
+            "action",  # métadonnées d'orchestration (route/skill_id/tool), jamais un message
+        }
     db.close()
 
 
@@ -142,6 +148,91 @@ def test_tool_response_logged_without_dedupe(client_db) -> None:
     _say(client, sid, tool_response={"tool_type": "fiche", "accepted": True})
     _say(client, sid, tool_response={"tool_type": "fiche", "accepted": True})
     assert _count(TestSession, LearningEvent, event_type=EVENT_CHAT_TOOL_RESPONSE) == 2
+
+
+# --- Orchestration : intent typé → action ANCRÉE serveur (ADR-0027) ------------------------
+
+
+def _chat_intent(intent: dict, reply: str = "D'accord !") -> dict:
+    return {
+        "reply": reply,
+        "declared_difficulty": {"declared": False, "kind": ""},
+        "tool_suggestion": "",
+        "intent": intent,
+    }
+
+
+def test_intent_show_data_returns_show_data_action(client_db) -> None:
+    """§2 : « c'est quoi mes devoirs » → action show_data (le front récupère l'agenda)."""
+    client, _ = client_db
+    _use_chat_llm(_chat_intent({"kind": "show_data", "data": "agenda"}, "Voici tes devoirs !"))
+    sid = _open(client)
+    resp = _say(client, sid, text="c'est quoi mes devoirs")
+    assert resp.status_code == 200
+    action = resp.json()["action"]
+    assert action and action["kind"] == "show_data" and action["data"] == "agenda"
+
+
+def test_intent_open_subject_navigates_to_anchored_route(client_db) -> None:
+    """§1/§2 : « on révise les maths » → route matière ANCRÉE (slug de la vraie matière seedée)."""
+    client, _ = client_db
+    _use_chat_llm(
+        _chat_intent({"kind": "open_subject", "subject_query": "maths", "tool": "revision"})
+    )
+    sid = _open(client)
+    resp = _say(client, sid, text="on révise les maths")
+    action = resp.json()["action"]
+    assert action and action["kind"] == "navigate"
+    assert action["route"] == "/revision?subject=mathematiques"
+
+
+def test_intent_open_notion_unavailable_never_hallucinates_a_route(client_db) -> None:
+    """§1/§3 : notion non visible dans le programme → AUCUNE action + ZETIS le DIT (pas de route inventée)."""
+    client, _ = client_db
+    _use_chat_llm(_chat_intent({"kind": "open_notion", "notion_query": "fractions", "tool": "fiche"}))
+    sid = _open(client)
+    resp = _say(client, sid, text="montre mes fiches sur les fractions")
+    body = resp.json()
+    assert body["action"] is None  # jamais de route hallucinée
+    assert "programme" in body["reply"] or "Papa" in body["reply"]  # honnêteté (§3)
+
+
+def test_resolve_action_anchors_only_available_content(client_db, monkeypatch) -> None:
+    """§1/§3 (unité) : l'action est construite depuis `galaxy.notion_panel` ; un contenu non
+    `available` ne produit AUCUNE route (et annonce une demande à Papa)."""
+    from app.modules.chat import actions
+    from app.tests.fakes import FakeEmbeddingProvider
+
+    _, TestSession = client_db
+    db = TestSession()
+    panel = {
+        "skill_id": 42,
+        "name": "Les fractions",
+        "status": "weak",
+        "chapter_title": "Nombres",
+        "subject_slug": "mathematiques",
+        "subject_name": "Mathématiques",
+        "actions": [
+            {"kind": "eli5", "available": True},
+            {"kind": "fiche", "available": True, "fiche_id": 7},
+            {"kind": "mindmap", "available": True, "mindmap_id": 5},
+            {"kind": "cours", "available": False, "lesson_id": None},
+        ],
+    }
+    monkeypatch.setattr(actions, "notion_panel", lambda db, skill_id: panel)
+    emb = FakeEmbeddingProvider()
+
+    def resolve(tool: str):
+        return actions.resolve_action(
+            db, emb, student_id=1, intent={"kind": "open_notion", "tool": tool}, fallback_skill_id=42
+        )
+
+    assert resolve("fiche").action.route == "/fiches/mathematiques"
+    assert resolve("mindmap").action.route == "/mindmaps/reconstruire/5"  # ciblage par id de carte
+    assert resolve("eli5").action.route.startswith("/eli5?skill_id=42")  # seule surface par-notion
+    cours = resolve("cours")  # contenu absent → pas d'action + demande à Papa
+    assert cours.action is None and "Papa" in (cours.note or "")
+    db.close()
 
 
 # --- Règle de corroboration du signal déclaratif (§3) ----------------------------------------

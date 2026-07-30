@@ -4,6 +4,8 @@ Aucun schéma ne transporte de verbatim vers une couche durable : ce sont des DT
 La réponse d'un tour porte le texte que ZETIS vient de dire — il vit dans Redis, pas en base.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -37,9 +39,23 @@ class ChatSpeechIn(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
 
 
+class ChatAction(BaseModel):
+    """Action d'orchestration (ADR-0027) — **ancrée serveur, jamais hallucinée**.
+
+    `navigate` : une destination construite serveur depuis un id VALIDÉ (`route` = chemin d'app,
+    ex. `/eli5?skill_id=3`). `show_data` : le **front** récupère l'endpoint existant et rend une
+    carte inline (`data ∈ agenda|reviews|missions`) — le backend reste aveugle au contenu (§1c)."""
+
+    kind: Literal["navigate", "show_data"]
+    label: str
+    route: str | None = None
+    data: str | None = None
+
+
 class ChatMessageOut(BaseModel):
     """Réponse d'un tour. `skill_id` = notion ancrée (None si non résolue — best-effort §6).
-    `tool_suggestion` = outil proposé par ZETIS (vide si aucun)."""
+    `tool_suggestion` = outil proposé par ZETIS (vide si aucun). `action` = orchestration ancrée
+    (navigate/show_data) ou None (ADR-0027)."""
 
     session_id: str
     turn_index: int
@@ -47,3 +63,4 @@ class ChatMessageOut(BaseModel):
     skill_id: int | None = None
     tool_suggestion: str | None = None
     difficulty_declared: bool = False
+    action: ChatAction | None = None

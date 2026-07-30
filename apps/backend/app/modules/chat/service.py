@@ -27,7 +27,8 @@ from app.modules.activity.events import (
 from app.modules.ai.canonical_context import build_canonical_sections, resolve_canonical_context
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.ai.skill_resolution import resolve_skill
-from app.modules.chat.schemas import ChatMessageIn, ChatMessageOut, ChatSessionOut
+from app.modules.chat.actions import resolve_action
+from app.modules.chat.schemas import ChatAction, ChatMessageIn, ChatMessageOut, ChatSessionOut
 from app.modules.tts.provider import TtsProvider, TtsRequest
 from app.modules.chat.store import ROLE_ASSISTANT, ROLE_USER, ChatStore
 from app.modules.progress.service import OPEN_GAP_STATUSES
@@ -90,6 +91,15 @@ def _sanitize(text: str) -> str:
     if any(word in lowered for word in _BANNED_WORDS):
         return _SAFE_REPLY
     return text or _SAFE_REPLY
+
+
+def _append_note(reply: str, note: str) -> str:
+    """Ajoute une phrase honnête au `reply` (§3 : « pas de cible → ZETIS le dit »)."""
+    reply = reply.strip()
+    if not reply:
+        return note
+    sep = " " if reply.endswith((".", "!", "?", "…")) else ". "
+    return f"{reply}{sep}{note}"
 
 
 def open_session(db: Session, store: ChatStore) -> ChatSessionOut:
@@ -292,6 +302,7 @@ def handle_message(
     reply = ""
     tool_suggestion = ""
     difficulty_declared = False
+    action: ChatAction | None = None
 
     if text:
         resolution = resolve_skill(db, embedder, student_id=student.id, text=text)
@@ -322,6 +333,20 @@ def handle_message(
         diff = parsed.get("declared_difficulty") or {}
         difficulty_declared = bool(diff.get("declared"))
         kind = str(diff.get("kind") or "autre")[:40]
+
+        # --- Orchestration (ADR-0027) : intent proposé par le LLM → action ANCRÉE serveur ---
+        raw_intent = parsed.get("intent")
+        action_result = resolve_action(
+            db,
+            embedder,
+            student_id=student.id,
+            intent=raw_intent if isinstance(raw_intent, dict) else None,
+            fallback_skill_id=resolved_skill_id,
+            fallback_skill=skill,
+        )
+        action = action_result.action
+        if action_result.note:  # « pas de cible → ZETIS le dit » (§1/§3)
+            reply = _append_note(reply, action_result.note)
 
         # --- Événement de sujet (dédupe 1/élève/skill/jour) ---
         if resolved_skill_id is not None and skill is not None:
@@ -358,6 +383,8 @@ def handle_message(
                 "kind": kind if difficulty_declared else None,
                 "tool_type": tool_suggestion or None,
                 "duration_ms": job.duration_ms,
+                # Orchestration : références/classifications seules (route = chemin d'app, pas un message).
+                "action": action_result.meta or None,
             }
 
         store.append_turn(student.id, session_id, role=ROLE_USER, text=text)
@@ -387,4 +414,5 @@ def handle_message(
         skill_id=resolved_skill_id,
         tool_suggestion=tool_suggestion or None,
         difficulty_declared=difficulty_declared,
+        action=action,
     )

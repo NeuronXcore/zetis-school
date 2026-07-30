@@ -44,6 +44,17 @@ Réponds à Massimo. Puis :
   (confusion, doute, fatigue, frustration, ou autre) ; sinon declared = false.
 - si un outil aiderait vraiment maintenant, mets tool_suggestion à l'un de :
   eli5, fiche, mindmap, revision ; sinon laisse tool_suggestion vide ("").
+- INTENT (orchestration) : si Massimo demande à ALLER quelque part ou à VOIR quelque chose,
+  remplis `intent`. Exemples :
+  - « montre-moi mes fiches sur les fractions » → kind=open_notion, notion_query="fractions", tool=fiche
+  - « explique-moi les nombres relatifs » → kind=open_notion, notion_query="nombres relatifs", tool=eli5
+  - « on révise les maths » → kind=open_subject, subject_query="maths", tool=revision
+  - « c'est quoi mon agenda / mes devoirs » → kind=show_data, data=agenda
+  - « qu'est-ce que je dois réviser » → kind=show_data, data=reviews
+  - « mes missions » → kind=show_data, data=missions
+  - sinon (conversation pure) → kind=none.
+  N'INVENTE jamais une destination : contente-toi de nommer la notion/matière et l'outil ; c'est
+  le serveur qui construit le lien réel (et il te contredira si ça n'existe pas).
 """
 
 
@@ -67,6 +78,16 @@ def chat_turn_schema() -> dict:
                 "required": ["declared"],
             },
             "tool_suggestion": {"type": "string"},
+            "intent": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string"},  # open_notion|open_subject|show_data|none
+                    "notion_query": {"type": "string"},
+                    "subject_query": {"type": "string"},
+                    "tool": {"type": "string"},  # eli5|fiche|mindmap|cours|revision
+                    "data": {"type": "string"},  # agenda|reviews|missions
+                },
+            },
         },
         "required": ["reply", "declared_difficulty"],
     }
