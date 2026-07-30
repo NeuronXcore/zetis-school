@@ -16,11 +16,21 @@ export type ChatDataKind = "agenda" | "reviews" | "missions";
 /** Action d'orchestration ANCRÉE serveur (ADR-0027) — jamais hallucinée. `navigate` porte une
  *  route réelle (construite depuis un id validé) ; `show_data` = le front récupère l'endpoint et
  *  rend une carte inline. */
+/** Une entrée du menu d'une notion (contenu disponible + route ancrée). */
+export interface ChatMenuItem {
+  kind: string;
+  route: string;
+  label: string;
+}
+
 export interface ChatAction {
-  kind: "navigate" | "show_data";
+  kind: "navigate" | "show_data" | "notion_menu";
   label: string;
   route?: string | null;
   data?: ChatDataKind | null;
+  /** notion_menu : nom de la notion + liste des contenus disponibles (chacun tapable → navigation). */
+  name?: string | null;
+  items?: ChatMenuItem[] | null;
   /** `true` : offre IMPLICITE (Massimo a nommé une notion) → toujours une carte à taper, même à la
    *  voix. `false`/absent : demande EXPLICITE → auto-navigation vocale autorisée. */
   confirm?: boolean;

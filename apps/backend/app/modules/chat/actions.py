@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Subject
 from app.modules.ai.provider import EmbeddingProvider
 from app.modules.ai.skill_resolution import resolve_skill
-from app.modules.chat.schemas import ChatAction
+from app.modules.chat.schemas import ChatAction, ChatMenuItem
 from app.modules.galaxy.service import notion_panel
 
 DATA_KINDS = ("agenda", "reviews", "missions")
@@ -95,8 +95,58 @@ def _notion_route(
     return None, ""  # quiz & autres : hors v1
 
 
+# Libellés du MENU de notion (Q1) — bienveillants, patron des libellés de `NotionActionPanel`.
+_MENU_LABEL = {
+    "cours": "📖 Voir le cours",
+    "eli5": "💡 Fais-moi comprendre",
+    "fiche": "🗒️ Lire la fiche",
+    "mindmap": "🧠 Reconstruire la carte",
+    "revision": "🗂️ Réviser mes cartes",
+}
+
+
+def _notion_menu(db: Session, skill_id: int) -> ActionResult:
+    """Q1 : la LISTE de ce qui EXISTE pour une notion (quand Massimo la nomme sans préciser d'outil).
+
+    Construit depuis `notion_panel(skill_id).actions` filtrées `available`, chaque entrée via
+    `_notion_route` (SEULE source de routes). 1 seul contenu → carte simple ; ≥2 → menu. Offre
+    implicite → `confirm=True` (carte à taper, jamais d'auto-nav vocale)."""
+    try:
+        panel = notion_panel(db, skill_id)
+    except HTTPException:
+        return ActionResult(
+            note="Ça, je ne le trouve pas encore dans ton programme.",
+            meta={"intent": "notion_menu", "skill_id": skill_id, "visible": False},
+        )
+    name, slug, subject_name = panel["name"], panel["subject_slug"], panel["subject_name"]
+    items: list[ChatMenuItem] = []
+    for act in panel["actions"]:
+        kind = act["kind"]
+        if kind not in NOTION_TOOLS or not act.get("available"):
+            continue
+        route, _label = _notion_route(
+            kind, skill_id=skill_id, name=name, slug=slug, subject_name=subject_name, action=act
+        )
+        if route:
+            items.append(ChatMenuItem(kind=kind, route=route, label=_MENU_LABEL.get(kind, kind)))
+    if not items:
+        return ActionResult(meta={"intent": "notion_menu", "skill_id": skill_id, "items": 0})
+    if len(items) == 1:
+        only = items[0]
+        return ActionResult(
+            action=ChatAction(kind="navigate", label=only.label, route=only.route, confirm=True),
+            meta={"intent": "notion_menu", "skill_id": skill_id, "tool": only.kind, "route": only.route},
+        )
+    return ActionResult(
+        action=ChatAction(
+            kind="notion_menu", label=f"Sur « {name} », tu peux :", name=name, items=items, confirm=True
+        ),
+        meta={"intent": "notion_menu", "skill_id": skill_id, "items": [i.kind for i in items]},
+    )
+
+
 def _open_notion(db, embedder, *, student_id, intent, fallback_skill_id, fallback_skill) -> ActionResult:
-    tool = str(intent.get("tool") or "").strip().lower() or "eli5"
+    tool = str(intent.get("tool") or "").strip().lower()
     # Notion : `notion_query` si fournie (résolution dédiée), sinon la notion déjà résolue du message.
     query = str(intent.get("notion_query") or "").strip()
     skill_id = fallback_skill_id
@@ -109,6 +159,9 @@ def _open_notion(db, embedder, *, student_id, intent, fallback_skill_id, fallbac
             note="Ça, je ne le trouve pas encore dans ton programme.",
             meta={"intent": "open_notion", "skill_id": None},
         )
+    # Pas d'outil précis → MENU de ce qui existe pour la notion (Q1).
+    if not tool:
+        return _notion_menu(db, skill_id)
     try:
         panel = notion_panel(db, skill_id)  # ancrage : matière + contenus `available`
     except HTTPException:

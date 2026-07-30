@@ -354,11 +354,13 @@ def handle_message(
         # Offre IMPLICITE → `confirm=True` (carte à taper, jamais d'auto-nav vocale) ; AUCUNE note
         # d'échec (ZETIS propose, il ne s'excuse pas).
         if action is None and resolved_skill_id is not None:
+            # Intent sans outil → MENU de ce qui existe pour la notion (Q1) : ZETIS propose la LISTE
+            # (cours/fiche/carte/révision…), pas une seule porte devinée.
             fallback = resolve_action(
                 db,
                 embedder,
                 student_id=student.id,
-                intent={"kind": "open_notion", "tool": "eli5"},
+                intent={"kind": "open_notion"},
                 fallback_skill_id=resolved_skill_id,
                 fallback_skill=skill,
             )

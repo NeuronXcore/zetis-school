@@ -260,6 +260,38 @@ def test_named_notion_offers_a_card_even_without_llm_intent(client_db, monkeypat
     assert action["confirm"] is True  # offre implicite → carte, jamais d'auto-nav vocale
 
 
+def test_named_notion_shows_menu_of_available_content(client_db, monkeypatch) -> None:
+    """Q1 (2026-07-30) : notion nommée sans outil précis → MENU des contenus DISPONIBLES (pas une
+    porte devinée), chaque entrée ancrée ; les indisponibles n'y sont pas."""
+    from app.modules.chat import actions
+
+    client, _ = client_db
+    panel = {
+        "skill_id": 1,
+        "name": "Les fractions",
+        "status": "weak",
+        "chapter_title": "Nombres",
+        "subject_slug": "mathematiques",
+        "subject_name": "Mathématiques",
+        "actions": [
+            {"kind": "eli5", "available": True},
+            {"kind": "fiche", "available": True, "fiche_id": 7},
+            {"kind": "mindmap", "available": True, "mindmap_id": 5},
+            {"kind": "cours", "available": False, "lesson_id": None},
+        ],
+    }
+    monkeypatch.setattr(actions, "notion_panel", lambda db, skill_id: panel)
+    _use_chat_llm(_chat_intent({"kind": "none"}, "Les fractions, chouette !"))
+    sid = _open(client)
+    resp = _say(client, sid, text="addition et soustraction de fractions")
+    action = resp.json()["action"]
+    assert action and action["kind"] == "notion_menu"
+    kinds = [i["kind"] for i in action["items"]]
+    assert "eli5" in kinds and "fiche" in kinds and "mindmap" in kinds
+    assert "cours" not in kinds  # non disponible → absent du menu (jamais grisé côté chat)
+    assert all(i["route"] for i in action["items"])  # chaque entrée est ancrée
+
+
 # --- Règle de corroboration du signal déclaratif (§3) ----------------------------------------
 
 

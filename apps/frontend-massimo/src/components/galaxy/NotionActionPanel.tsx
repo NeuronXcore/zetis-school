@@ -8,16 +8,9 @@ import { useNavigate } from "react-router-dom";
 import type { GalaxyAction, GalaxyNotion } from "@zetis/types";
 import { starStyle } from "@zetis/ui/galaxy";
 import { fetchQuizById } from "../../lib/quiz";
-
-const ACTION_UI: Record<GalaxyAction["kind"], { icon: string; label: string }> = {
-  cours: { icon: "📖", label: "Voir le cours" },
-  eli5: { icon: "💡", label: "Fais-moi comprendre" },
-  fiche: { icon: "🗒️", label: "Lire la fiche" },
-  capsule: { icon: "🎬", label: "Regarder la capsule" },
-  mindmap: { icon: "🧠", label: "Reconstruire la carte" },
-  revision: { icon: "🗂️", label: "Réviser mes cartes" },
-  quiz: { icon: "🎯", label: "Me tester" },
-};
+// Table d'habillage partagée (aussi utilisée par le menu de notion du chat) — module léger, pas
+// de duplication. `GalaxyAction` reste importé pour le typage des actions rendues.
+import { ACTION_UI } from "../../lib/notionActionUi";
 
 export interface NotionActionPanelProps {
   notion: GalaxyNotion;

@@ -243,6 +243,31 @@ describe("ChatPage", () => {
     await waitFor(() => expect(screen.getByTestId("datacard").dataset.data).toBe("agenda"));
   });
 
+  it("action notion_menu → menu de contenus disponibles, chaque bouton navigue + trace", async () => {
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      tool_suggestion: null,
+      action: {
+        kind: "notion_menu",
+        label: "Sur « Les fractions », tu peux :",
+        name: "Les fractions",
+        confirm: true,
+        items: [
+          { kind: "eli5", route: "/eli5?skill_id=1", label: "💡 Fais-moi comprendre" },
+          { kind: "fiche", route: "/fiches/mathematiques", label: "🗒️ Lire la fiche" },
+        ],
+      },
+    });
+    renderPage();
+    ask("addition et soustraction de fractions");
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("idle"));
+    fireEvent.click(await screen.findByRole("button", { name: /Lire la fiche/ }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/fiches/mathematiques"));
+    expect(mockSend).toHaveBeenCalledWith("s1", {
+      tool_response: { tool_type: "fiche", accepted: true },
+    });
+  });
+
   it("test-verrou : aucune API vocale navigateur, aucun stockage local de conversation", () => {
     const files = [
       "./ChatPage.tsx",

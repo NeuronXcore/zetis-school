@@ -50,7 +50,7 @@ Réponds à Massimo. Puis :
   - « explique-moi les nombres relatifs » → kind=open_notion, notion_query="nombres relatifs", tool=eli5
   - un sujet NOMMÉ seul, sans verbe (ex. « addition et soustraction de fractions », « le théorème
     de Pythagore ») = une envie de travailler cette notion → kind=open_notion,
-    notion_query=<le sujet>, tool=eli5
+    notion_query=<le sujet>, SANS `tool` (laisse-le vide) : ZETIS montrera le MENU de ce qui existe.
   - « on révise les maths » → kind=open_subject, subject_query="maths", tool=revision
   - « c'est quoi mon agenda / mes devoirs » → kind=show_data, data=agenda
   - « qu'est-ce que je dois réviser » → kind=show_data, data=reviews

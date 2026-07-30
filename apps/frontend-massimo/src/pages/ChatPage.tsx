@@ -18,10 +18,12 @@ import {
   sendChatMessage,
   synthesizeChatSpeech,
   type ChatAction,
+  type ChatMenuItem,
   type ChatToolType,
 } from "../lib/chat";
 import { DATA_OPEN_LABEL, DATA_ROUTE, surfaceOf } from "../lib/chatActions";
 import { ChatDataCard } from "../components/ChatDataCard";
+import { ACTION_UI } from "../lib/notionActionUi";
 import { isVoicePlaybackSupported, playSpeech, primeAudio, type VoicePlayback } from "../lib/voice";
 import "./chat.css";
 
@@ -136,6 +138,23 @@ export function ChatPage() {
       }
       const route = act.kind === "show_data" && act.data ? DATA_ROUTE[act.data] : act.route;
       if (route) navigate(route);
+    },
+    [navigate],
+  );
+
+  // Une entrée du menu de notion (Q1) : trace `chat_tool_response` (surface = type de contenu) puis
+  // navigue vers sa route ancrée (construite serveur — le front n'invente rien).
+  const goMenuItem = useCallback(
+    async (item: ChatMenuItem) => {
+      const sid = sessionRef.current;
+      if (sid) {
+        try {
+          await sendChatMessage(sid, { tool_response: { tool_type: item.kind, accepted: true } });
+        } catch {
+          /* best-effort */
+        }
+      }
+      navigate(item.route);
     },
     [navigate],
   );
@@ -409,6 +428,26 @@ export function ChatPage() {
             <button type="button" className="chat-tool" onClick={() => runAction(action)}>
               {action.label} →
             </button>
+          </div>
+        </div>
+      )}
+      {!speaking && action?.kind === "notion_menu" && action.items && (
+        <div className="chat-offer" role="group" aria-label={action.label}>
+          <div className="chat-offer-head">{action.label}</div>
+          <div className="chat-offer-row">
+            {action.items.map((item) => {
+              const ui = ACTION_UI[item.kind as keyof typeof ACTION_UI];
+              return (
+                <button
+                  key={item.kind}
+                  type="button"
+                  className="chat-tool"
+                  onClick={() => goMenuItem(item)}
+                >
+                  {ui ? `${ui.icon} ${ui.label}` : item.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

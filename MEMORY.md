@@ -34,8 +34,13 @@ ADR-0027 est aussi sur `main` (`6672df9`).
   (`confirm=True`) ; (c) drapeau `confirm` → offre implicite = carte même à la voix, **auto-nav vocale
   réservée aux demandes explicites** ; (d) exemple dans le prompt. Vérifié : « fractions » → skill 127 →
   action `/eli5?skill_id=127`. 582 back + 179 Massimo verts.
-- **NEXT = commit slice B (+ correctif) → PR `feat/chat-orchestrateur` → merge.** Le mécanisme « demande
-  de contenu à Papa » (Point ouvert n°4) reste à cadrer avant sa slice. Live re-testable par le user.
+- **Slice B + correctif COMMITÉS** (`4fce7d6`). **Q1 « menu de notion » FAIT (non commité)** : notion
+  nommée sans outil → `notion_panel` → action **`notion_menu{name, items:[{kind,route,label}]}`** (contenus
+  `available` seulement, chacun ancré via `_notion_route`) ; 1 item → carte simple, ≥2 → menu. Front :
+  `ACTION_UI` extrait dans **`lib/notionActionUi.ts`** (module léger — NE PAS importer `NotionActionPanel`
+  dans le chat, ça traînerait three.js) ; rendu boutons + `goMenuItem` (trace `chat_tool_response`). 583 back
+  + 180 front + build verts (chat sans three). **NEXT = commit Q1 → Étape 2 : file `content_requests`**
+  (nouvelle table + migration + émission chat + badge Couverture Papa + addendum ADR-0027 = Point ouvert n°4).
 
 ---
 

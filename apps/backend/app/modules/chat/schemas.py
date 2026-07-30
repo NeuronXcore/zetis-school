@@ -39,17 +39,29 @@ class ChatSpeechIn(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
 
 
+class ChatMenuItem(BaseModel):
+    """Une entrée du menu d'une notion : un contenu DISPONIBLE + sa route ancrée."""
+
+    kind: str  # cours|eli5|fiche|mindmap|revision
+    route: str
+    label: str
+
+
 class ChatAction(BaseModel):
     """Action d'orchestration (ADR-0027) — **ancrée serveur, jamais hallucinée**.
 
     `navigate` : une destination construite serveur depuis un id VALIDÉ (`route` = chemin d'app,
     ex. `/eli5?skill_id=3`). `show_data` : le **front** récupère l'endpoint existant et rend une
-    carte inline (`data ∈ agenda|reviews|missions`) — le backend reste aveugle au contenu (§1c)."""
+    carte inline (`data ∈ agenda|reviews|missions`) — le backend reste aveugle au contenu (§1c).
+    `notion_menu` : la LISTE de ce qui existe pour une notion (`items`), quand Massimo la nomme sans
+    préciser d'outil — chaque entrée est une route ancrée."""
 
-    kind: Literal["navigate", "show_data"]
+    kind: Literal["navigate", "show_data", "notion_menu"]
     label: str
     route: str | None = None
     data: str | None = None
+    name: str | None = None  # notion_menu : nom de la notion
+    items: list[ChatMenuItem] | None = None  # notion_menu : contenus disponibles
     # `confirm=True` : offre IMPLICITE (ZETIS propose parce que Massimo a nommé une notion) →
     # toujours une carte à taper, même à la voix. `confirm=False` : demande EXPLICITE
     # (« montre/ouvre ») → auto-navigation autorisée à la voix. (ADR-0027, correctif 2026-07-30.)
