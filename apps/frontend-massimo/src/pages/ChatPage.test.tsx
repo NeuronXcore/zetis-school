@@ -213,6 +213,31 @@ describe("ChatPage", () => {
     expect(screen.queryByRole("button", { name: /Demander à Papa/ })).toBeNull();
   });
 
+  it("request_notion en ÉCHEC → jamais de « c'est noté », la carte reste (anti-régression review)", async () => {
+    const mockRequest = vi.mocked(requestNotion);
+    mockRequest.mockRejectedValue(new Error("backend éteint"));
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      skill_id: null,
+      tool_suggestion: null,
+      action: {
+        kind: "request_notion",
+        label: "Demander à Papa d'ajouter « les nombres complexes »",
+        text: "les nombres complexes",
+        confirm: true,
+      },
+    });
+    renderPage();
+    ask("les nombres complexes");
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("idle"));
+    fireEvent.click(screen.getByRole("button", { name: /Demander à Papa/ }));
+    await waitFor(() => expect(mockRequest).toHaveBeenCalled());
+    // Rien n'est parti → pas de fausse confirmation, et la carte reste tapable pour réessayer.
+    expect(screen.queryByText(/C'est noté/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Demander à Papa/ })).toBeTruthy();
+    expect(await screen.findByText(/pas réussi à prévenir Papa/)).toBeTruthy();
+  });
+
   it("voix + action navigate → navigation DIRECTE, sans carte", async () => {
     mockSupported.mockReturnValue(true);
     mockRecord.mockResolvedValue({

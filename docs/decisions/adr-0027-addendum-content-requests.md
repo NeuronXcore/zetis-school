@@ -211,6 +211,30 @@ cours ; le texte de la demande n'allait nulle part). Décisions commanditaire :
   `LessonSkill` ; `OrphanNotionsPanel`). Répare aussi le trou **pré-existant** du skills-backfill.
   Vérifié live (« les nombres complexes » visible sous Mathématiques).
 
+## Correctifs de revue (ultrareview PR #57, 2026-07-30)
+
+Cinq défauts (tous `nit`, tous confirmés dans le code) corrigés avant merge — trois touchaient
+directement le **contrat d'honnêteté** que cet addendum existe pour établir :
+
+- **Fausse promesse** (`chat/actions.py`) : un outil hors mapping (`quiz`/`capsule`, que `notion_panel`
+  expose pourtant, ou une valeur hallucinée) produisait « je le note pour Papa » **sans rien
+  enregistrer**. → repli **obligatoire** sur `cours` (`_TOOL_TO_CONTENT_KIND.get(tool, "cours")`).
+- **Fausse confirmation** (`ChatPage.tsx`) : « C'est noté ! » s'affichait même si `requestNotion`
+  échouait (backend éteint…). → confirmation **dans** le `try` ; en cas d'échec la carte reste et
+  ZETIS le dit (patron `useEli5.ts`).
+- **Demande réactivée non remontée** (`content_requests/service.py`) : tri par `created_at` → une
+  demande redemandée restait enterrée, contredisant « on le remonte en file ». → tri `updated_at`.
+- **Doublon de leçon** (`curriculum/service.py`) : `create_manual_lesson` committe, puis la rédaction
+  du cours pouvait échouer (Ollama) en laissant la demande `pending` → le retry de Papa créait une
+  **2e leçon** du même titre. → demande marquée `added` **avant** la rédaction + garde d'idempotence
+  (`add_notion_to_program` aussi) ; l'échec du cours est remonté (`course_error`), pas un 500 muet.
+- **Session invalidée** (`chat/service.py`) : l'émission best-effort avalait l'exception **sans
+  rollback** — une erreur SQL réelle cassait tout le tour (`PendingRollbackError`). → **SAVEPOINT**
+  (`begin_nested`).
+
+Chacun a son test-verrou (dont un rejouant une **vraie** `IntegrityError`, là où le test initial ne
+levait qu'un `RuntimeError` inoffensif pour la Session).
+
 ## Suivi
 - **Docs** : ligne `DECISIONS.md` ; met à jour l'ADR-0027 §Points ouverts n°4 (« tranché : voir
   addendum ») et `page-chat.md §Garde-fous` (« mécanisme différé » → « enregistré dans

@@ -174,13 +174,17 @@ export function ChatPage() {
           /* best-effort */
         }
       }
+      // La demande à Papa est l'ACTION PRINCIPALE du geste, pas de la télémétrie : on ne confirme
+      // QUE si elle est réellement enregistrée (patron `useEli5.ts`). Sinon la carte RESTE affichée
+      // et ZETIS le dit — jamais un « c'est noté » alors que rien n'est parti (backend éteint,
+      // session expirée, réseau).
       try {
         await requestNotion(text);
+        setAction(null);
+        setRequestedNotion(text);
       } catch {
-        /* best-effort : la demande d'ajout ne doit pas casser le chat */
+        setError("Je n'ai pas réussi à prévenir Papa — réessaie dans un instant.");
       }
-      setAction(null);
-      setRequestedNotion(text);
     },
     [],
   );

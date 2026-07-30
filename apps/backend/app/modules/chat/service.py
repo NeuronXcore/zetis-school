@@ -221,16 +221,23 @@ def _maybe_request_content(db: Session, *, student_id: int, signal: dict | None)
 
     BEST-EFFORT : toute exception est avalée — la file de demandes ne doit JAMAIS faire échouer un
     tour de chat. `create_request` fait un `flush` (pas de commit) : la demande participe à la
-    transaction du tour, committée avec le reste."""
+    transaction du tour, committée avec le reste.
+
+    Le flush passe par un **SAVEPOINT** (`begin_nested`) : une erreur SQL (violation de l'unicité
+    `(student, skill, kind)` sur deux tours concurrents, FK si la notion vient d'être supprimée…)
+    invaliderait sinon la Session, et TOUTES les écritures suivantes du tour (événements, Gap,
+    `ai_jobs`, commit final) lèveraient `PendingRollbackError` → 500 alors que la réponse est déjà
+    générée. Le SAVEPOINT annule la seule demande et laisse la transaction du tour intacte."""
     if not isinstance(signal, dict):
         return
     try:
-        content_requests_service.create_request(
-            db,
-            student_id=student_id,
-            skill_id=signal["skill_id"],
-            content_kind=signal["content_kind"],
-        )
+        with db.begin_nested():
+            content_requests_service.create_request(
+                db,
+                student_id=student_id,
+                skill_id=signal["skill_id"],
+                content_kind=signal["content_kind"],
+            )
     except Exception:  # noqa: BLE001 — best-effort : jamais bloquant pour la conversation.
         pass
 

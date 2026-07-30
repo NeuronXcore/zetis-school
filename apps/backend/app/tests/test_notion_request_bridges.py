@@ -146,6 +146,58 @@ def test_delete_orphan_notion_removes_it(client_db) -> None:
     assert client.delete(f"/api/skills/{linked_id}").status_code == 409
 
 
+def test_create_lesson_is_idempotent_after_course_failure(client_db, monkeypatch) -> None:
+    """Anti-régression (review) : la rédaction du cours est longue et faillible (panne Ollama). Si
+    elle échoue, la leçon est DÉJÀ committée — la demande doit quand même passer `added`, et un
+    retry de Papa ne doit PAS créer une deuxième leçon du même titre."""
+    from app.modules.curriculum import service as curriculum_service
+
+    client, Session = client_db
+    _, chapter_id = _seed_year_and_chapter(Session)
+    req_id = _make_request(client, "Théorème de Pythagore")
+
+    def _ollama_down(db, llm, lesson_id):
+        raise curriculum_service.CurriculumGenerationError("Ollama indisponible")
+
+    monkeypatch.setattr(curriculum_service, "generate_lesson_content", _ollama_down)
+    _as_papa()
+    first = client.post(
+        f"/api/notion-requests/{req_id}/create-lesson",
+        json={"chapter_id": chapter_id, "generate_course": True},
+    )
+    # La leçon existe, la demande est traitée, l'échec du cours est REMONTÉ (pas un 500 muet).
+    assert first.status_code == 200
+    assert first.json()["status"] == "added" and first.json()["course_written"] is False
+    assert "Ollama" in (first.json()["course_error"] or "")
+
+    # Retry de Papa → aucun doublon.
+    second = client.post(
+        f"/api/notion-requests/{req_id}/create-lesson",
+        json={"chapter_id": chapter_id, "generate_course": False},
+    )
+    assert second.status_code == 200 and second.json()["already_processed"] is True
+    db = Session()
+    lessons = db.query(m.Lesson).filter(m.Lesson.title == "Théorème de Pythagore").all()
+    assert len(lessons) == 1  # ← une seule leçon, jamais deux
+    db.close()
+
+
+def test_add_to_program_is_idempotent(client_db) -> None:
+    """Anti-régression (review) : un retry ne doit pas réécrire `subject_id` avec une autre matière."""
+    client, Session = client_db
+    subject_id, _ = _seed_year_and_chapter(Session)
+    req_id = _make_request(client, "Nombres premiers")
+    _as_papa()
+    client.post(f"/api/notion-requests/{req_id}/add-to-program", json={"subject_id": subject_id})
+    again = client.post(
+        f"/api/notion-requests/{req_id}/add-to-program", json={"subject_id": 999999}
+    )
+    assert again.json()["already_processed"] is True
+    db = Session()
+    assert db.get(m.NotionRequest, req_id).subject_id == subject_id  # matière d'origine préservée
+    db.close()
+
+
 def test_bridges_require_parent(client_db) -> None:
     """Le rôle child (conftest) est refusé sur les ponts."""
     client, Session = client_db

@@ -82,15 +82,20 @@ def create_request(
 
 
 def list_requests(db: Session, status_filter: str | None = "pending") -> list[dict]:
-    """Liste les demandes (récentes d'abord), enrichies du nom de notion + matière (jointure).
+    """Liste les demandes (les plus FRAÎCHES d'abord), enrichies du nom de notion + matière.
 
     Le nom de notion et la matière rendent le badge Papa lisible sans re-fetch : « ⭐ Fractions —
-    carte ». `subject_id` sert à la fusion côté client avec la Couverture."""
+    carte ». `subject_id` sert à la fusion côté client avec la Couverture.
+
+    Tri par `updated_at` et NON `created_at` : une demande triée puis **redemandée** est réactivée
+    (`create_request`) sans changer sa date de création — la trier par `created_at` la laisserait
+    enterrée sous des demandes plus récentes, alors que le besoin vient de revenir. Le filtre par
+    défaut (`pending`) écarte les lignes que Papa vient de trier, dont `updated_at` bouge aussi."""
     query = (
         select(ContentRequest, Skill.name, Skill.subject_id, Subject.name)
         .outerjoin(Skill, Skill.id == ContentRequest.skill_id)
         .outerjoin(Subject, Subject.id == Skill.subject_id)
-        .order_by(ContentRequest.created_at.desc(), ContentRequest.id.desc())
+        .order_by(ContentRequest.updated_at.desc(), ContentRequest.id.desc())
     )
     if status_filter:
         query = query.where(ContentRequest.status == status_filter)

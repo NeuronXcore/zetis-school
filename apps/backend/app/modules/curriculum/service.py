@@ -960,8 +960,13 @@ def _notion_request_or_404(db: Session, request_id: int) -> NotionRequest:
 def add_notion_to_program(db: Session, request_id: int, subject_id: int) -> dict:
     """« Ajouter au programme » : la notion demandée devient une `Skill` (matière choisie par Papa,
     niveau de l'année active), puis la demande passe `added`. Une notion hors-programme n'a pas de
-    matière — Papa la fournit. La leçon/le cours suivent via les outils habituels."""
+    matière — Papa la fournit. La leçon/le cours suivent via les outils habituels.
+
+    **Idempotent** : une demande déjà traitée n'est pas rejouée (un retry avec une AUTRE matière
+    écraserait sinon `req.subject_id` en silence)."""
     req = _notion_request_or_404(db, request_id)
+    if req.status == "added":
+        return {"skill_created": 0, "subject_id": req.subject_id, "status": "added", "already_processed": True}
     subject = db.get(Subject, subject_id)
     if subject is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matière introuvable.")
@@ -984,20 +989,41 @@ def create_lesson_from_request(
     Papa (matière/niveau dérivés du chapitre) — la notion `Skill` est créée + liée en une passe
     (`create_manual_lesson`). Option `generate_course` : rédige le cours (moteur LOCAL) — la leçon
     repasse alors en `draft` (un cours généré non relu ne se sert pas, gate ADR-0009) ; sans cours,
-    la leçon est `validated` mais son cours reste à écrire (visible dans la Couverture). Demande → `added`."""
+    la leçon est `validated` mais son cours reste à écrire (visible dans la Couverture). Demande → `added`.
+
+    **Idempotent** : une demande déjà `added` ne recrée rien. `create_manual_lesson` committe la
+    leçon, et la rédaction du cours qui suit est longue et faillible (panne Ollama) — on marque donc
+    la demande traitée AVANT de la lancer, sinon un retour d'erreur laissait la demande `pending` et
+    le second clic de Papa créait une DEUXIÈME leçon du même titre (rien ne déduplique
+    `(chapter_id, title)`). Un échec de rédaction n'est pas fatal : la leçon existe, son cours
+    manquant est visible dans la Couverture et se rédige là — il est remonté dans `course_error`."""
     req = _notion_request_or_404(db, request_id)
+    if req.status == "added":  # déjà traitée (retry, double-clic) → aucun doublon
+        return {
+            "lesson_id": None,
+            "lesson_status": None,
+            "course_written": False,
+            "status": "added",
+            "already_processed": True,
+        }
     text = req.text
     lesson = create_manual_lesson(db, chapter_id, title=text, notions=[text])  # commit interne
-    if generate_course:
-        lesson = generate_lesson_content(db, llm, lesson.id)  # repasse en draft
     req = db.get(NotionRequest, request_id)  # re-fetch (la session a committé)
     req.status = "added"
-    db.commit()
+    db.commit()  # la leçon EXISTE : la demande est traitée, quoi qu'il advienne du cours
+
+    course_error: str | None = None
+    if generate_course:
+        try:
+            lesson = generate_lesson_content(db, llm, lesson.id)  # repasse en draft
+        except CurriculumGenerationError as exc:  # cours à rédiger depuis la Couverture
+            course_error = str(exc)
     db.refresh(lesson)
     return {
         "lesson_id": lesson.id,
         "lesson_status": lesson.status,  # validated (sans cours) | draft (cours à valider)
-        "course_written": generate_course,
+        "course_written": generate_course and course_error is None,
+        "course_error": course_error,
         "status": "added",
     }
 

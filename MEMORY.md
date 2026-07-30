@@ -102,7 +102,16 @@ ouvert n°4 (« notion PAS au programme »). Détail addendum ADR §Volet hors-p
   `ProgrammePage`) → répare aussi le trou pré-existant du skills-backfill. **Vérifié live** (« les
   nombres complexes » visible sous Maths).
 
-**Tests : 605 back + 231 Papa + 181 Massimo + tsc + builds VERTS.** **✅ COMMITÉ `1db357b` sur
+**⚠️ ULTRAREVIEW PR #57 (2026-07-30) : 5 findings `nit`, TOUS confirmés et CORRIGÉS** (commit de
+suivi) — détail addendum ADR §Correctifs de revue : (1) fausse promesse « je le note pour Papa » sur
+un outil hors mapping (quiz/capsule/halluciné) → repli `cours` obligatoire ; (2) fausse confirmation
+Massimo si `requestNotion` échoue → confirmation dans le `try`, carte conservée ; (3) demande
+réactivée non remontée → tri `updated_at` ; (4) doublon de leçon au retry après panne Ollama →
+`added` marqué AVANT la rédaction + garde d'idempotence + `course_error` ; (5) émission sans rollback
+→ **SAVEPOINT** `begin_nested`. 5 tests-verrous ajoutés (dont une **vraie** `IntegrityError`).
+⚠️ piège test : `func.now()` a une granularité d'1 s sur SQLite → poser les dates explicitement.
+
+**Tests : 610 back + 231 Papa + 182 Massimo + tsc + builds VERTS.** **✅ COMMITÉ `1db357b` sur
 `feat/content-requests`** (53 fichiers, +2949 ; commit unique car tranches entrelacées, chaque étape
 testée verte). **NON poussé, pas de PR** — NEXT = vérif humaine (tests+diff) → push + PR vers `main`.
 ⚠️ données de test en DB dev (notion orpheline « Nombres relatifs » Maths + notion_requests `added`

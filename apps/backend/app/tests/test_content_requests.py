@@ -288,6 +288,70 @@ def test_chat_eli5_offered_when_cours_exists(client_db, monkeypatch) -> None:
     db.close()
 
 
+def test_chat_never_promises_papa_without_recording(client_db, monkeypatch) -> None:
+    """Anti-régression (review) : un outil HORS mapping (`quiz`/`capsule`, que `notion_panel` expose
+    bel et bien, ou une valeur hallucinée) promettait « je le note pour Papa » SANS rien enregistrer.
+    La promesse doit toujours être tenue → repli sur `cours`."""
+    client, Session = client_db
+    skill_id = _skill_id(Session)
+    monkeypatch.setattr(
+        actions,
+        "notion_panel",
+        lambda db, sid: _panel(
+            skill_id,
+            [
+                {"kind": "cours", "available": True, "lesson_id": 3},
+                {"kind": "fiche", "available": True, "fiche_id": 9},
+                {"kind": "quiz", "available": False},
+            ],
+        ),
+    )
+    _use_chat_llm(_chat_intent({"kind": "open_notion", "tool": "quiz"}))
+    sid = _open(client)
+    body = _say(client, sid, text=RESOLVING).json()
+    assert "Papa" in body["reply"]  # la promesse est faite…
+    db = Session()
+    rows = db.query(m.ContentRequest).all()
+    assert len(rows) == 1 and rows[0].content_kind == "cours"  # … et elle est TENUE
+    db.close()
+
+
+def test_reactivated_request_resurfaces_first(client_db) -> None:
+    """Anti-régression (review) : une demande triée puis REDEMANDÉE doit remonter en tête de la file
+    Papa (tri `updated_at`), sinon elle reste enterrée sous des demandes plus récentes.
+
+    Les dates sont posées EXPLICITEMENT (scénario réel : la vieille demande date de 3 semaines) —
+    `func.now()` a une granularité d'une seconde sur SQLite, un test « en temps réel » y serait
+    indécidable."""
+    from datetime import datetime, timedelta, timezone
+
+    _, Session = client_db
+    skill_id = _skill_id(Session)
+    db = Session()
+    try:
+        old = service.create_request(db, student_id=1, skill_id=skill_id, content_kind="fiche")
+        recent = service.create_request(db, student_id=1, skill_id=skill_id, content_kind="mindmap")
+        db.commit()
+        now = datetime.now(timezone.utc)
+        # La fiche : demandée il y a 3 semaines, puis écartée par Papa.
+        old_row = db.get(m.ContentRequest, old["id"])
+        old_row.created_at = old_row.updated_at = now - timedelta(days=21)
+        old_row.status = "dismissed"
+        # La mindmap : demandée hier, toujours en attente.
+        recent_row = db.get(m.ContentRequest, recent["id"])
+        recent_row.created_at = recent_row.updated_at = now - timedelta(days=1)
+        db.commit()
+
+        # Massimo redemande la fiche aujourd'hui → réactivation (updated_at bumpé à maintenant).
+        service.create_request(db, student_id=1, skill_id=skill_id, content_kind="fiche")
+        db.commit()
+
+        rows = service.list_requests(db)
+        assert [r["content_kind"] for r in rows] == ["fiche", "mindmap"]  # la réactivée est en tête
+    finally:
+        db.close()
+
+
 def test_chat_emission_never_breaks_the_turn(client_db, monkeypatch) -> None:
     """Best-effort : une exception à l'émission n'échoue PAS le tour de chat."""
     client, Session = client_db
@@ -304,3 +368,34 @@ def test_chat_emission_never_breaks_the_turn(client_db, monkeypatch) -> None:
     sid = _open(client)
     resp = _say(client, sid, text=RESOLVING)
     assert resp.status_code == 200  # la conversation continue malgré la file en panne
+
+def test_chat_survives_a_real_sql_failure_in_the_queue(client_db, monkeypatch) -> None:
+    """Anti-régression (review) : une VRAIE erreur SQL (pas un simple RuntimeError) invalidait la
+    Session — toutes les écritures suivantes du tour (événements, ai_jobs, commit final) levaient
+    alors `PendingRollbackError` → 500 alors que la réponse était déjà générée. Le SAVEPOINT doit
+    absorber l'échec ET laisser le tour committer (événement `chat_topic` bien écrit)."""
+    from sqlalchemy.exc import IntegrityError
+
+    client, Session = client_db
+    skill_id = _skill_id(Session)
+    monkeypatch.setattr(
+        actions,
+        "notion_panel",
+        lambda db, sid: _panel(skill_id, [{"kind": "fiche", "available": False}]),
+    )
+
+    def _sql_boom(db, **kwargs):
+        db.flush()  # la session est bien vivante avant l'échec
+        raise IntegrityError("INSERT ...", {}, Exception("duplicate key"))
+
+    monkeypatch.setattr(service, "create_request", _sql_boom)
+    _use_chat_llm(_chat_intent({"kind": "open_notion", "tool": "fiche"}))
+    sid = _open(client)
+    resp = _say(client, sid, text=RESOLVING)
+    assert resp.status_code == 200  # le tour aboutit malgré l'échec SQL
+
+    # …et la transaction du tour a bien été committée (l'événement de sujet existe).
+    db = Session()
+    events = db.query(m.LearningEvent).filter(m.LearningEvent.event_type == "chat_topic").count()
+    db.close()
+    assert events == 1

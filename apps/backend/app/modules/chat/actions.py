@@ -233,12 +233,19 @@ def _open_notion(
     if entry is None or not entry.get("available"):
         # Contenu absent → honnêteté + DEMANDE À PAPA (ADR-0027 §3, mécanisme tranché par l'addendum
         # content_requests). Le signal `content_request` (métadonnée pure, aveugle au contenu §1c)
-        # est émis par le service ; ici on l'expose seulement. `content_kind=None` si l'outil n'a pas
-        # de contenu réclamable (ex. hors mapping) → pas de demande.
-        content_kind = _TOOL_TO_CONTENT_KIND.get(tool)
-        meta = {"intent": "open_notion", "skill_id": skill_id, "tool": tool, "available": False}
-        if content_kind is not None:
-            meta["content_request"] = {"skill_id": skill_id, "content_kind": content_kind}
+        # est émis par le service ; ici on l'expose seulement.
+        # Repli `cours` OBLIGATOIRE pour un outil hors mapping (quiz/capsule — que `notion_panel`
+        # expose bel et bien — ou une valeur hallucinée par le LLM) : sans lui la note promettait
+        # « je le note pour Papa » SANS rien enregistrer. La promesse doit toujours être tenue, et le
+        # cours est la porte des dérivés (même raison que le déclencheur b « notion vide »).
+        content_kind = _TOOL_TO_CONTENT_KIND.get(tool, "cours")
+        meta = {
+            "intent": "open_notion",
+            "skill_id": skill_id,
+            "tool": tool,
+            "available": False,
+            "content_request": {"skill_id": skill_id, "content_kind": content_kind},
+        }
         return ActionResult(
             note=f"Je n'ai pas encore de {_TOOL_WORD.get(tool, 'contenu')} sur « {name} » — je le note pour Papa.",
             meta=meta,
