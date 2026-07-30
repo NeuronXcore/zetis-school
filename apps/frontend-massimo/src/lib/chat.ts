@@ -24,13 +24,15 @@ export interface ChatMenuItem {
 }
 
 export interface ChatAction {
-  kind: "navigate" | "show_data" | "notion_menu";
+  kind: "navigate" | "show_data" | "notion_menu" | "request_notion";
   label: string;
   route?: string | null;
   data?: ChatDataKind | null;
   /** notion_menu : nom de la notion + liste des contenus disponibles (chacun tapable → navigation). */
   name?: string | null;
   items?: ChatMenuItem[] | null;
+  /** request_notion : la notion HORS-PROGRAMME à proposer à Papa (le tap crée un notion_request). */
+  text?: string | null;
   /** `true` : offre IMPLICITE (Massimo a nommé une notion) → toujours une carte à taper, même à la
    *  voix. `false`/absent : demande EXPLICITE → auto-navigation vocale autorisée. */
   confirm?: boolean;

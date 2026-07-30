@@ -22,6 +22,13 @@ vi.mock("../lib/production", async () => {
 
 import { fetchCoverage, fetchOrphans } from "../lib/production";
 
+vi.mock("../lib/contentRequests", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/contentRequests")>()),
+  fetchContentRequests: vi.fn(),
+  setContentRequestStatus: vi.fn(),
+}));
+import { fetchContentRequests, setContentRequestStatus } from "../lib/contentRequests";
+
 vi.mock("../lib/srsCards", () => ({ generateSkillCards: vi.fn() }));
 import { generateSkillCards } from "../lib/srsCards";
 
@@ -112,6 +119,7 @@ function chips() {
 
 beforeEach(() => {
   vi.mocked(fetchOrphans).mockResolvedValue([]);
+  vi.mocked(fetchContentRequests).mockResolvedValue([]);
 });
 
 describe("CouverturePage — matrice", () => {
@@ -456,5 +464,52 @@ describe("CouverturePage — états", () => {
     });
     renderPage();
     await waitFor(() => expect(screen.getByText(/Aucune année scolaire active/)).toBeTruthy());
+  });
+});
+
+describe("CouverturePage — badge « réclamé par Massimo » (addendum ADR-0027)", () => {
+  it("affiche le badge sur la leçon d'une notion réclamée, sans badge à zéro", async () => {
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([FIVE_STATES]));
+    vi.mocked(fetchContentRequests).mockResolvedValue([
+      {
+        id: 7,
+        skill_id: 42, // = « Notion nue » dans les items de la leçon → fusion par skill_id
+        skill_name: "Notion nue",
+        subject_id: 1,
+        subject_name: "Français",
+        content_kind: "fiche",
+        status: "pending",
+        source: "chat_orchestrator",
+        created_at: "2026-07-30T10:00:00Z",
+      },
+    ]);
+    renderPage();
+    await expandSubject();
+    expect(await screen.findByRole("button", { name: /réclamé/i })).toBeTruthy();
+  });
+
+  it("trie une demande via le module content_requests (jamais production)", async () => {
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([FIVE_STATES]));
+    vi.mocked(fetchContentRequests).mockResolvedValue([
+      {
+        id: 7,
+        skill_id: 42,
+        skill_name: "Notion nue",
+        subject_id: 1,
+        subject_name: "Français",
+        content_kind: "fiche",
+        status: "pending",
+        source: "chat_orchestrator",
+        created_at: "2026-07-30T10:00:00Z",
+      },
+    ]);
+    vi.mocked(setContentRequestStatus).mockResolvedValue({} as never);
+    renderPage();
+    await expandSubject();
+    fireEvent.click(await screen.findByRole("button", { name: /réclamé/i }));
+    // Le popover nomme la notion ET le type (lève l'ambiguïté du badge notion-centré).
+    expect(await screen.findByText(/Notion nue/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Fait" }));
+    expect(setContentRequestStatus).toHaveBeenCalledWith(7, "done");
   });
 });

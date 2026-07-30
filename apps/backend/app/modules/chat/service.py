@@ -28,6 +28,7 @@ from app.modules.ai.canonical_context import build_canonical_sections, resolve_c
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.ai.skill_resolution import resolve_skill
 from app.modules.chat.actions import resolve_action
+from app.modules.content_requests import service as content_requests_service
 from app.modules.chat.schemas import ChatAction, ChatMessageIn, ChatMessageOut, ChatSessionOut
 from app.modules.tts.provider import TtsProvider, TtsRequest
 from app.modules.chat.store import ROLE_ASSISTANT, ROLE_USER, ChatStore
@@ -215,6 +216,25 @@ def _maybe_open_gap(db: Session, *, student: StudentProfile, skill: Skill) -> No
     )
 
 
+def _maybe_request_content(db: Session, *, student_id: int, signal: dict | None) -> None:
+    """Enregistre une demande de contenu à Papa si `resolve_action` a posé le signal (§3, addendum).
+
+    BEST-EFFORT : toute exception est avalée — la file de demandes ne doit JAMAIS faire échouer un
+    tour de chat. `create_request` fait un `flush` (pas de commit) : la demande participe à la
+    transaction du tour, committée avec le reste."""
+    if not isinstance(signal, dict):
+        return
+    try:
+        content_requests_service.create_request(
+            db,
+            student_id=student_id,
+            skill_id=signal["skill_id"],
+            content_kind=signal["content_kind"],
+        )
+    except Exception:  # noqa: BLE001 — best-effort : jamais bloquant pour la conversation.
+        pass
+
+
 def _recent_topic_skill_id(db: Session, *, student_id: int) -> int | None:
     """Notion du dernier `chat_topic` de l'élève — ancre un `chat_tool_response` sans texte à la
     notion en cours (la mémoire est le journal, pas un état de session persistant)."""
@@ -343,8 +363,13 @@ def handle_message(
             intent=raw_intent if isinstance(raw_intent, dict) else None,
             fallback_skill_id=resolved_skill_id,
             fallback_skill=skill,
+            fallback_text=text,  # libellé de l'offre `request_notion` (notion hors-programme)
         )
         action = action_result.action
+        # Signal de demande de contenu (addendum ADR-0027) : posé par `resolve_action` quand un
+        # contenu est absent. Le repli ci-dessous peut en produire un autre (notion résolue mais
+        # VIDE alors que le LLM n'avait rempli aucun intent) — on garde le premier, sinon celui-là.
+        content_signal = action_result.meta.get("content_request")
         if action_result.note:  # « pas de cible → ZETIS le dit » (§1/§3)
             reply = _append_note(reply, action_result.note)
 
@@ -367,6 +392,18 @@ def handle_message(
             if fallback.action is not None:
                 fallback.action.confirm = True
                 action = fallback.action
+            if content_signal is None:
+                content_signal = fallback.meta.get("content_request")
+            # Notion résolue mais SANS contenu validé à offrir (le repli n'a pas d'action) : ZETIS
+            # est honnête plutôt que muet — on remonte sa note. Uniquement si aucune note n'a déjà
+            # été posée (évite un doublon quand l'intent primaire portait la même honnêteté).
+            if action is None and fallback.note and not action_result.note:
+                reply = _append_note(reply, fallback.note)
+
+        # --- Demande de contenu à Papa (addendum ADR-0027) : contenu absent → file dédupliquée ---
+        # Best-effort et JAMAIS bloquant : une file en erreur ne doit pas casser une conversation.
+        # Le signal est une métadonnée pure (skill_id + content_kind), posée par `resolve_action`.
+        _maybe_request_content(db, student_id=student.id, signal=content_signal)
 
         # --- Événement de sujet (dédupe 1/élève/skill/jour) ---
         if resolved_skill_id is not None and skill is not None:

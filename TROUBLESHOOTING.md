@@ -4,6 +4,50 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `content_requests` (addendum ADR-0027) — 3 constats au test live (2026-07-30)
+
+Test live « le verbe être en espagnol » (notion sans cours) : ZETIS **a généré une leçon ser/estar
+dans sa réponse**. Diagnostic (`ai_jobs`) → **3 causes distinctes**, dont 2 corrigées :
+
+- **[CORRIGÉ n°2] `galaxy.notion_panel` mentait sur le cours** : `cours available = lesson_id is not
+  None` — il confondait « leçon validée » et « cours rédigé ». Une leçon validée **sans
+  `content_markdown`** (ex. skill 121 « Registre de langue », leçon 42) était annoncée `cours: True`.
+  Conséquence directe : le chat proposait une **porte vide** ET n'enregistrait **aucune** demande
+  (l'émission fait confiance à `available`). → `available = content_markdown IS NOT NULL`
+  (`galaxy/service.py`, patron `coverage.py`). ELI5 reste **toujours** `available` (génératif à la
+  volée, décision ADR-0024). Test : `test_cours_indisponible_si_lecon_validee_sans_contenu_redige`.
+- **[CORRIGÉ n°2bis] Le signal « notion vide → cours » ne valait que dans le menu** : quand le LLM
+  propose `tool=eli5` (chemin `_open_notion`, ELI5 dispo), on routait sans jamais réclamer le cours.
+  → `content_request(cours)` posé sur **tous** les chemins dès qu'aucun contenu **durable**
+  (`DURABLE_NOTION_TOOLS` = cours/fiche/mindmap/revision) n'existe — ELI5 ne compte pas.
+- **[CORRIGÉ n°3] Le chat GÉNÉRAIT du contenu dans `reply`** : l'orchestrateur ancre l'ACTION mais le
+  `reply` restait du texte LLM brut → qwen3 écrivait la leçon. → Garde-fou « jamais générer » (ADR-0027
+  §3) **porté dans le prompt** : `CHAT_SYSTEM`/`CHAT_TURN_PROMPT` durcis (« tu n'écris jamais le cours/
+  les définitions/la conjugaison ; tu orientes vers ELI5 ou une ressource validée »), `CHAT_PROMPT_
+  VERSION → chat_v2`. **Mitigation, pas garantie dure** (petit moteur local) ; prouvé live : la
+  réponse est passée d'une leçon ser/estar complète à « je t'oriente vers une ressource validée ».
+- **[CORRIGÉ n°1] `resolve_skill` matchait une notion SANS RAPPORT** : « verbe être en espagnol » →
+  skill 121 « Registre de langue ». Seuil relevé **0.55 → 0.72** (`config.chat_skill_resolution_min_score`).
+  `nomic` donne ~0.68 à des requêtes sans rapport (langue/domaine communs), vrais matchs à 0.83+ ; la
+  MARGE top-1/top-2 ne sépare pas (cluster de notions proches), seul le score absolu le fait. Prouvé
+  live : « verbe être en espagnol » et « les nombres complexes » → `None` (hors-programme).
+
+### Volet hors-programme (addendum ADR-0027) — le piège « Ajouter ne créait rien »
+
+- **`notion_requests` « ✓ Ajoutée » ne faisait QUE `status='added'`** — zéro création (ni Skill, ni
+  leçon, ni cours ; le `text` n'allait nulle part). Papa devait tout refaire à la main (skills-backfill
+  puis chaîne ADR-0009), sans lien. → **2 ponts réels** ajoutés (`add-to-program` = `_upsert_skills` ;
+  `create-lesson` = `create_manual_lesson` + cours local optionnel). Une notion hors-programme n'ayant
+  **pas de matière**, Papa la fournit (modale matière/chapitre) — sans quoi rien n'est plaçable.
+- **`generate_lesson_content` repasse la leçon en `draft`** (gate ADR-0009 : un cours généré non relu
+  ne se sert pas). Donc « Créer la leçon » **+ cours** → leçon `draft` à valider ; **sans** cours →
+  leçon `validated` mais cours à écrire (visible Couverture). Assumé, pas d'auto-validation.
+- **Test fake-embedder fragile** : `FakeEmbeddingProvider` est basé sur `hash()` ; un texte NON égal au
+  nom de la Skill donne un cosinus pseudo-aléatoire. Après le passage du seuil à 0.72, les tests chat
+  qui envoyaient « addition et soustraction de fractions » ont cassé → utiliser le **nom EXACT** de la
+  Skill seedée (`RESOLVING = "Nombres relatifs"`, cosinus 1.0) quand le test porte sur l'orchestrateur,
+  pas sur la résolution.
+
 ## Chantier `mindmap` (ADR-0016)
 
 ### Données / backend

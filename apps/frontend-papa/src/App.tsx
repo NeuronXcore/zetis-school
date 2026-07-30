@@ -12,6 +12,7 @@ import { DiagnosticsPapaPage } from "./pages/DiagnosticsPapaPage";
 import { ConseilClasseIAPage } from "./pages/ConseilClasseIAPage";
 import { CahierBordPage } from "./pages/CahierBordPage";
 import { CouverturePage } from "./pages/CouverturePage";
+import { DemandesPage } from "./pages/DemandesPage";
 import { AnneesScolairesPage } from "./pages/AnneesScolairesPage";
 import { MatieresPapaPage } from "./pages/MatieresPage";
 import { ProgrammePage } from "./pages/ProgrammePage";
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/conseil" element={<ConseilClasseIAPage />} />
         <Route path="/cahier" element={<CahierBordPage />} />
         <Route path="/couverture" element={<CouverturePage />} />
+        <Route path="/demandes" element={<DemandesPage />} />
         <Route path="/annees" element={<AnneesScolairesPage />} />
         <Route path="/programme" element={<ProgrammePage />} />
         <Route path="/cartes-revision" element={<CartesRevisionPage />} />

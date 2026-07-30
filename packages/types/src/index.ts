@@ -186,6 +186,11 @@ export {
   type ValidatedBy,
 } from "./production";
 export {
+  type ContentRequest,
+  type ContentRequestKind,
+  type ContentRequestStatus,
+} from "./contentRequests";
+export {
   type GalaxyAction,
   type GalaxyActionKind,
   type GalaxyConstellation,

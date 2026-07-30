@@ -37,6 +37,10 @@ export const PAPA_NAV: NavItem[] = [
   // pilotages par type (Programme, Quiz, Fiches, Mindmaps, Cartes, Capsules), pas une vue
   // partielle de plus.
   { to: "/couverture", label: "Couverture", icon: "🗺️", iconUrl: couvertureIcon, startsGroup: true },
+  // Boîte de réception des contenus réclamés par Massimo dans le chat (addendum ADR-0027). Pastille
+  // de notification (compteur en attente) — c'est une file de TRAVAIL de Papa, pas un signal
+  // d'activité de Massimo : le compteur y est légitime (contrairement à l'Agenda, cf. plus haut).
+  { to: "/demandes", label: "Demandes de Massimo", icon: "📥" },
   { to: "/annees", label: "Années scolaires", icon: "🗓️" },
   { to: "/programme", label: "Programme", icon: "📖" },
   { to: "/cartes-revision", label: "Cartes de révision", icon: "🗂️" },

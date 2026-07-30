@@ -1,0 +1,158 @@
+"""Ponts « demande de notion hors-programme → programme » (addendum ADR-0027).
+
+Papa traite une `notion_request` depuis l'inbox : soit il AJOUTE la notion (Skill), soit il CRÉE la
+leçon (Skill + Lesson + lien). Réutilise `_upsert_skills` / `create_manual_lesson`. Couvre : création
+de la Skill + statut `added` ; création de la leçon (validée, cours à écrire) + Skill liée + `added` ;
+garde parent.
+"""
+
+from sqlalchemy import select
+
+import app.db.models as m
+from app.main import app
+from app.modules.auth.deps import get_current_user
+
+
+def _as_papa() -> None:
+    app.dependency_overrides[get_current_user] = lambda: {"username": "papa", "role": "papa"}
+
+
+def _seed_year_and_chapter(Session) -> tuple[int, int]:
+    """Année active + Mathématiques rattachée + 1 chapitre. Renvoie (subject_id, chapter_id)."""
+    db = Session()
+    student_id = db.scalar(select(m.StudentProfile.id).order_by(m.StudentProfile.id))
+    subject = db.scalar(select(m.Subject).where(m.Subject.slug == "mathematiques"))
+    year = m.SchoolYear(student_id=student_id, label="2026-2027", level="4e", status="active")
+    db.add(year)
+    db.flush()
+    sys_row = m.SchoolYearSubject(school_year_id=year.id, subject_id=subject.id)
+    db.add(sys_row)
+    db.flush()
+    chapter = m.Chapter(
+        school_year_subject_id=sys_row.id, name="Géométrie", sort_order=1,
+        validation_status="validated",
+    )
+    db.add(chapter)
+    db.commit()
+    ids = (subject.id, chapter.id)
+    db.close()
+    return ids
+
+
+def _make_request(client, text: str) -> int:
+    return client.post("/api/ai/eli5/request-notion", json={"text": text}).json()["id"]
+
+
+def test_add_to_program_creates_skill_and_marks_added(client_db) -> None:
+    client, Session = client_db
+    subject_id, _ = _seed_year_and_chapter(Session)
+    req_id = _make_request(client, "Théorème de Pythagore")
+
+    _as_papa()
+    resp = client.post(
+        f"/api/notion-requests/{req_id}/add-to-program", json={"subject_id": subject_id}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["skill_created"] == 1 and resp.json()["status"] == "added"
+
+    db = Session()
+    skill = db.scalar(select(m.Skill).where(m.Skill.name == "Théorème de Pythagore"))
+    assert skill is not None and skill.subject_id == subject_id and skill.level == "4e"
+    req = db.get(m.NotionRequest, req_id)
+    assert req.status == "added" and req.subject_id == subject_id
+    db.close()
+
+
+def test_create_lesson_scaffolds_lesson_and_skill(client_db) -> None:
+    client, Session = client_db
+    _, chapter_id = _seed_year_and_chapter(Session)
+    req_id = _make_request(client, "Théorème de Pythagore")
+
+    _as_papa()
+    resp = client.post(
+        f"/api/notion-requests/{req_id}/create-lesson",
+        json={"chapter_id": chapter_id, "generate_course": False},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "added" and body["course_written"] is False
+    assert body["lesson_status"] == "validated"  # sans cours généré → validée d'office
+
+    db = Session()
+    lesson = db.get(m.Lesson, body["lesson_id"])
+    assert lesson.title == "Théorème de Pythagore" and lesson.chapter_id == chapter_id
+    # La notion Skill a été créée ET liée à la leçon.
+    link = db.scalar(select(m.LessonSkill).where(m.LessonSkill.lesson_id == lesson.id))
+    assert link is not None
+    skill = db.get(m.Skill, link.skill_id)
+    assert skill.name == "Théorème de Pythagore"
+    assert db.get(m.NotionRequest, req_id).status == "added"
+    db.close()
+
+
+def test_orphan_notions_surface_added_skill(client_db) -> None:
+    """« Ajouter au programme » crée une Skill SANS leçon → elle doit apparaître dans les notions
+    orphelines de la matière (sinon invisible dans la page Programme, leçon-centrée)."""
+    client, Session = client_db
+    subject_id, _ = _seed_year_and_chapter(Session)
+    req_id = _make_request(client, "Théorème de Pythagore")
+    _as_papa()
+    client.post(f"/api/notion-requests/{req_id}/add-to-program", json={"subject_id": subject_id})
+    orphans = client.get(f"/api/subjects/{subject_id}/orphan-notions").json()["notions"]
+    assert any(n["name"] == "Théorème de Pythagore" for n in orphans)
+
+
+def test_create_lesson_notion_is_not_orphan(client_db) -> None:
+    """« Créer la leçon » lie la notion à une leçon → elle N'EST PAS orpheline."""
+    client, Session = client_db
+    subject_id, chapter_id = _seed_year_and_chapter(Session)
+    req_id = _make_request(client, "Aire du triangle")
+    _as_papa()
+    client.post(
+        f"/api/notion-requests/{req_id}/create-lesson",
+        json={"chapter_id": chapter_id, "generate_course": False},
+    )
+    orphans = client.get(f"/api/subjects/{subject_id}/orphan-notions").json()["notions"]
+    assert not any(n["name"] == "Aire du triangle" for n in orphans)
+
+
+def test_delete_orphan_notion_removes_it(client_db) -> None:
+    """Une notion orpheline ajoutée par erreur se supprime ; refuse si rattachée à une leçon."""
+    client, Session = client_db
+    subject_id, chapter_id = _seed_year_and_chapter(Session)
+    # orpheline (add-to-program) → supprimable
+    orphan_id = _make_request(client, "Nombres complexes")
+    _as_papa()
+    client.post(f"/api/notion-requests/{orphan_id}/add-to-program", json={"subject_id": subject_id})
+    db = Session()
+    skill = db.scalar(select(m.Skill).where(m.Skill.name == "Nombres complexes"))
+    orphan_skill_id = skill.id
+    db.close()
+    assert client.delete(f"/api/skills/{orphan_skill_id}").status_code == 200
+    db = Session()
+    assert db.get(m.Skill, orphan_skill_id) is None
+    db.close()
+
+    # rattachée à une leçon → 409
+    lesson_req = _make_request(client, "Aire du triangle")
+    client.post(
+        f"/api/notion-requests/{lesson_req}/create-lesson",
+        json={"chapter_id": chapter_id, "generate_course": False},
+    )
+    db = Session()
+    linked = db.scalar(select(m.Skill).where(m.Skill.name == "Aire du triangle"))
+    linked_id = linked.id
+    db.close()
+    assert client.delete(f"/api/skills/{linked_id}").status_code == 409
+
+
+def test_bridges_require_parent(client_db) -> None:
+    """Le rôle child (conftest) est refusé sur les ponts."""
+    client, Session = client_db
+    subject_id, chapter_id = _seed_year_and_chapter(Session)
+    assert client.post(
+        "/api/notion-requests/1/add-to-program", json={"subject_id": subject_id}
+    ).status_code == 403
+    assert client.post(
+        "/api/notion-requests/1/create-lesson", json={"chapter_id": chapter_id}
+    ).status_code == 403

@@ -24,9 +24,10 @@ import { CouvertureIcon } from "../components/CouvertureIcon";
 import { KpiCard } from "../components/KpiCard";
 import { PageHeader } from "../components/PageHeader";
 import { CoverageFootnotes, CoverageLegend } from "../components/couverture/CoverageLegend";
-import { CoverageMatrix } from "../components/couverture/CoverageMatrix";
+import { CoverageMatrix, lessonRequestsOf } from "../components/couverture/CoverageMatrix";
 import { OrphansPanel } from "../components/couverture/OrphansPanel";
 import { NotionsPopover } from "../components/couverture/NotionsPopover";
+import { RequestedPopover } from "../components/couverture/RequestedPopover";
 import { StalePopover } from "../components/couverture/StalePopover";
 import { useCoverage } from "../hooks/useCoverage";
 import {
@@ -75,10 +76,13 @@ export function CouverturePage() {
     subjectId: number;
     chapterId: number;
   } | null>(null);
+  const [requested, setRequested] = useState<CoverageLesson | null>(null);
 
   const {
     coverage,
     orphans,
+    requestsBySkill,
+    setRequestStatus,
     loading,
     error,
     generating,
@@ -342,6 +346,8 @@ export function CouverturePage() {
           onNotions={(column, lesson, chapterId) =>
             setNotions({ column, lesson, subjectId: subject.id, chapterId })
           }
+          onRequested={(lesson) => setRequested(lesson)}
+          requestsBySkill={requestsBySkill}
           onValidateChapter={(chapterId, count) => setToValidate({ chapterId, count })}
           validatingChapterId={validatingChapterId}
         />
@@ -406,6 +412,19 @@ export function CouverturePage() {
           busySkillId={generatingSkillId}
           onGenerateCards={(skillId) => void generateCards(skillId)}
           onClose={() => setNotions(null)}
+        />
+      )}
+
+      {requested && (
+        <RequestedPopover
+          lessonTitle={requested.title}
+          requests={lessonRequestsOf(requested, requestsBySkill)}
+          onSetStatus={(id, status) => {
+            void setRequestStatus(id, status);
+            // Referme quand la dernière demande de la leçon vient d'être triée.
+            if (lessonRequestsOf(requested, requestsBySkill).length <= 1) setRequested(null);
+          }}
+          onClose={() => setRequested(null)}
         />
       )}
 

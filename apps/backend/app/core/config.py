@@ -177,8 +177,16 @@ class Settings(BaseSettings):
     # Résolution question libre → skill_id (§6, module partagé) : seuil de confiance cosinus
     # en-deçà duquel on N'ANCRE PAS (best-effort — pas de `chat_topic`, pas de contexte ciblé,
     # jamais un mauvais ancrage). Versionné : c'est le curseur qualité de la mémoire.
+    #
+    # Relevé 0.55 → 0.72 le 2026-07-30 après un test live : `nomic-embed-text` donne ~0.68 à des
+    # requêtes SANS RAPPORT partageant seulement la langue/le domaine (« verbe être en espagnol » →
+    # « Registre de langue » 0.68 ; « conjugaison espagnol » → « Contre-exemple » 0.68), pendant que
+    # les vrais matchs sont à 0.83+. La MARGE top-1/top-2 ne sépare pas (un cluster de notions
+    # proches l'aplatit) ; seul le score absolu le fait. 0.72 rejette les faux positifs (≤ 0.684) et
+    # garde les vrais (≥ 0.839). Doctrine du module : mieux vaut « je ne le trouve pas » qu'un
+    # mauvais ancrage — un faux positif MONTRE du contenu erroné avec aplomb (bien pire).
     chat_skill_resolution_min_score: float = Field(
-        default=0.55, validation_alias="CHAT_SKILL_RESOLUTION_MIN_SCORE"
+        default=0.72, validation_alias="CHAT_SKILL_RESOLUTION_MIN_SCORE"
     )
     # Fenêtre du « rappel » d'ouverture (§2) : notions récentes de chat rappelées en début de
     # session. Rappel, JAMAIS relance (§4) — aucune notification, uniquement dans une session

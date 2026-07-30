@@ -28,6 +28,8 @@ from app.modules.curriculum.schemas import (
     LessonPatch,
     LessonReorderRequest,
     LessonSuggestionOut,
+    NotionRequestAddToProgram,
+    NotionRequestCreateLesson,
     SkillsBackfillConfirmRequest,
     SkillsBackfillConfirmResult,
     SkillsBackfillGenerateRequest,
@@ -405,9 +407,53 @@ def list_notion_requests(
     return notions_service.list_requests(db, status)
 
 
+@router.get("/notion-requests/count")
+def notion_requests_count(db: Session = Depends(get_db)) -> dict:
+    """Nombre de demandes de notions en attente — alimente la pastille de notification (sommée
+    avec les demandes de contenu dans l'inbox « Demandes de Massimo »)."""
+    return {"pending": notions_service.pending_count(db)}
+
+
 @router.patch("/notion-requests/{request_id}", response_model=NotionRequestOut)
 def patch_notion_request(
     request_id: int, body: NotionRequestPatch, db: Session = Depends(get_db)
 ) -> dict:
     """Triage : marquer une demande added (ajoutée au programme) ou dismissed (ignorée)."""
     return notions_service.set_status(db, request_id, body.status)
+
+
+@router.get("/subjects/{subject_id}/orphan-notions")
+def subject_orphan_notions(subject_id: int, db: Session = Depends(get_db)) -> dict:
+    """Notions du référentiel (matière, niveau année active) SANS leçon rattachée — visibles nulle
+    part dans la page Programme sinon (leçon-centrée). Alimente le panneau « Notions sans leçon »."""
+    return {"notions": service.orphan_notions(db, subject_id)}
+
+
+@router.delete("/skills/{skill_id}", status_code=status.HTTP_200_OK)
+def delete_orphan_skill(skill_id: int, db: Session = Depends(get_db)) -> dict:
+    """Supprime une notion orpheline ajoutée par erreur (409 si rattachée à une leçon ou avec
+    historique de Massimo — jamais d'effacement d'un travail existant)."""
+    return service.delete_orphan_skill(db, skill_id)
+
+
+@router.post("/notion-requests/{request_id}/add-to-program")
+def add_notion_request_to_program(
+    request_id: int, body: NotionRequestAddToProgram, db: Session = Depends(get_db)
+) -> dict:
+    """Pont « Ajouter au programme » (addendum ADR-0027) : la notion demandée devient une `Skill`
+    dans la matière choisie (niveau = année active) ; la demande passe `added`."""
+    return service.add_notion_to_program(db, request_id, body.subject_id)
+
+
+@router.post("/notion-requests/{request_id}/create-lesson")
+def create_lesson_from_notion_request(
+    request_id: int,
+    body: NotionRequestCreateLesson,
+    db: Session = Depends(get_db),
+    llm: LLMProvider = Depends(get_provider),  # cours LOCAL (jamais la dérogation cloud)
+) -> dict:
+    """Pont « Créer la leçon » (addendum ADR-0027) : échafaude une leçon (notion + lien) dans le
+    chapitre choisi ; option `generate_course` = rédige le cours (leçon → `draft`, à valider)."""
+    return service.create_lesson_from_request(
+        db, llm, request_id, body.chapter_id, body.generate_course
+    )

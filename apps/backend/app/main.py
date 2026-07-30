@@ -34,6 +34,7 @@ from app.modules.quizzes.router import student_router as quizzes_student_router
 from app.modules.motivation.router import router as motivation_router
 from app.modules.progress.router import router as progress_router
 from app.modules.rag.router import router as rag_router
+from app.modules.content_requests.router import router as content_requests_router
 from app.modules.production.router import router as production_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
@@ -86,6 +87,7 @@ app.include_router(progress_router)
 # Motivation (Massimo) : régularité douce + engagement hebdomadaire choisi par l'enfant.
 app.include_router(motivation_router)
 app.include_router(production_router)
+app.include_router(content_requests_router)
 # ZETIS Galaxy (Massimo) : graphe des connaissances, contenu de la page Progression (ADR-0024).
 app.include_router(galaxy_student_router)
 # Agenda scolaire (ADR-0025) : source exogène co-éditée. Deux routeurs, deux schémas — la

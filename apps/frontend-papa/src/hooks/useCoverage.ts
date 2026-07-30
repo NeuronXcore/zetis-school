@@ -2,14 +2,21 @@
 //
 // Ne déclenche AUCUNE génération de lui-même : `generate` n'est appelé que par un clic explicite
 // sur une cellule `absent`. Rien sur cette page ne se produit automatiquement, jamais.
-import { useCallback, useEffect, useState } from "react";
-import { type Coverage, type CoverageCellKey, type ProductionOrphan } from "@zetis/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ContentRequest,
+  type ContentRequestStatus,
+  type Coverage,
+  type CoverageCellKey,
+  type ProductionOrphan,
+} from "@zetis/types";
 import {
   fetchCoverage,
   fetchOrphans,
   generateForCell,
   regenerateForCell,
 } from "../lib/production";
+import { fetchContentRequests, setContentRequestStatus } from "../lib/contentRequests";
 import { generateSkillCards } from "../lib/srsCards";
 import { validateAllLessons } from "../lib/curriculum";
 
@@ -21,6 +28,9 @@ export interface GeneratingCell {
 export function useCoverage(subjectId: number | null) {
   const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [orphans, setOrphans] = useState<ProductionOrphan[]>([]);
+  // Demandes de contenu de Massimo (addendum ADR-0027) — chargées EN PLUS de la matrice, fusionnées
+  // par `skill_id` côté client (`coverage.py` non touché : invariant lecture seule préservé).
+  const [requests, setRequests] = useState<ContentRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<GeneratingCell | null>(null);
@@ -28,15 +38,43 @@ export function useCoverage(subjectId: number | null) {
   const reload = useCallback(async () => {
     setError(null);
     try {
-      const [next, orphanRows] = await Promise.all([fetchCoverage(subjectId), fetchOrphans()]);
+      const [next, orphanRows, requestRows] = await Promise.all([
+        fetchCoverage(subjectId),
+        fetchOrphans(),
+        fetchContentRequests("pending"),
+      ]);
       setCoverage(next);
       setOrphans(orphanRows);
+      setRequests(requestRows);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Chargement de la couverture échoué");
     } finally {
       setLoading(false);
     }
   }, [subjectId]);
+
+  /** Demandes en attente indexées par `skill_id` — le badge Couverture fusionne dessus. */
+  const requestsBySkill = useMemo(() => {
+    const map = new Map<number, ContentRequest[]>();
+    for (const req of requests) {
+      const list = map.get(req.skill_id);
+      if (list) list.push(req);
+      else map.set(req.skill_id, [req]);
+    }
+    return map;
+  }, [requests]);
+
+  /** Triage d'une demande (Fait/Ignorer) — mutation OPTIMISTE (retire la ligne) puis confirme.
+   * Passe par le module `content_requests`, JAMAIS par `production` (invariant read-only). */
+  const setRequestStatus = useCallback(async (id: number, status: ContentRequestStatus) => {
+    setRequests((current) => current.filter((req) => req.id !== id));
+    try {
+      await setContentRequestStatus(id, status);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Triage de la demande échoué");
+      await reload(); // échec → on rétablit l'état réel
+    }
+  }, [reload]);
 
   useEffect(() => {
     setLoading(true);
@@ -127,6 +165,8 @@ export function useCoverage(subjectId: number | null) {
   return {
     coverage,
     orphans,
+    requestsBySkill,
+    setRequestStatus,
     loading,
     error,
     generating,

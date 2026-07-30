@@ -186,14 +186,20 @@ def test_intent_open_subject_navigates_to_anchored_route(client_db) -> None:
     assert action["route"] == "/revision?subject=mathematiques"
 
 
-def test_intent_open_notion_unavailable_never_hallucinates_a_route(client_db) -> None:
-    """§1/§3 : notion non visible dans le programme → AUCUNE action + ZETIS le DIT (pas de route inventée)."""
+def test_intent_open_notion_unavailable_never_hallucinates_a_route(client_db, monkeypatch) -> None:
+    """§1/§3 : notion HORS PROGRAMME → jamais de route inventée ; ZETIS est honnête ET propose de
+    DEMANDER À PAPA de l'ajouter (action opt-in `request_notion`, jamais une navigation)."""
     client, _ = client_db
-    _use_chat_llm(_chat_intent({"kind": "open_notion", "notion_query": "fractions", "tool": "fiche"}))
+    # Seuil inatteignable → « fractions » ne résout pas (hors-programme déterministe).
+    monkeypatch.setattr(settings, "chat_skill_resolution_min_score", 2.0)
+    _use_chat_llm(_chat_intent({"kind": "open_notion", "notion_query": "les fractions", "tool": "fiche"}))
     sid = _open(client)
     resp = _say(client, sid, text="montre mes fiches sur les fractions")
     body = resp.json()
-    assert body["action"] is None  # jamais de route hallucinée
+    action = body["action"]
+    assert action and action["kind"] == "request_notion"  # offre d'ajout, pas une route
+    assert action["route"] is None and action["confirm"] is True
+    assert "fractions" in action["text"]
     assert "programme" in body["reply"] or "Papa" in body["reply"]  # honnêteté (§3)
 
 
@@ -213,10 +219,11 @@ def test_resolve_action_anchors_only_available_content(client_db, monkeypatch) -
         "subject_slug": "mathematiques",
         "subject_name": "Mathématiques",
         "actions": [
+            {"kind": "cours", "available": True, "lesson_id": 3},  # cours validé → ELI5 s'y ancre
             {"kind": "eli5", "available": True},
             {"kind": "fiche", "available": True, "fiche_id": 7},
             {"kind": "mindmap", "available": True, "mindmap_id": 5},
-            {"kind": "cours", "available": False, "lesson_id": None},
+            {"kind": "revision", "available": False},  # contenu absent (probe « demande à Papa »)
         ],
     }
     monkeypatch.setattr(actions, "notion_panel", lambda db, skill_id: panel)
@@ -229,15 +236,16 @@ def test_resolve_action_anchors_only_available_content(client_db, monkeypatch) -
 
     assert resolve("fiche").action.route == "/fiches/mathematiques"
     assert resolve("mindmap").action.route == "/mindmaps/reconstruire/5"  # ciblage par id de carte
-    assert resolve("eli5").action.route.startswith("/eli5?skill_id=42")  # seule surface par-notion
-    cours = resolve("cours")  # contenu absent → pas d'action + demande à Papa
-    assert cours.action is None and "Papa" in (cours.note or "")
+    assert resolve("eli5").action.route.startswith("/eli5?skill_id=42")  # cours validé → ELI5 offert
+    rev = resolve("revision")  # contenu absent → pas d'action + demande à Papa
+    assert rev.action is None and "Papa" in (rev.note or "")
     db.close()
 
 
 def test_named_notion_offers_a_card_even_without_llm_intent(client_db, monkeypatch) -> None:
     """Correctif 2026-07-30 : Massimo NOMME une notion résolue mais le LLM dit intent=none → le
-    serveur propose quand même une porte d'entrée (ELI5), marquée `confirm` (offre implicite)."""
+    serveur propose quand même une porte d'entrée VALIDÉE, marquée `confirm` (offre implicite).
+    Ici la notion n'a qu'une fiche (pas de cours) → ELI5 non offert (il inventerait), la fiche l'est."""
     from app.modules.chat import actions
 
     client, _ = client_db
@@ -248,15 +256,18 @@ def test_named_notion_offers_a_card_even_without_llm_intent(client_db, monkeypat
         "chapter_title": "Nombres",
         "subject_slug": "mathematiques",
         "subject_name": "Mathématiques",
-        "actions": [{"kind": "eli5", "available": True}],
+        "actions": [
+            {"kind": "fiche", "available": True, "fiche_id": 7},
+            {"kind": "cours", "available": False},  # pas de cours → ELI5 exclu
+        ],
     }
     monkeypatch.setattr(actions, "notion_panel", lambda db, skill_id: panel)
     _use_chat_llm(_chat_intent({"kind": "none"}, "Les fractions, chouette sujet !"))
     sid = _open(client)
-    resp = _say(client, sid, text="addition et soustraction de fractions")
+    resp = _say(client, sid, text=RESOLVING)
     action = resp.json()["action"]
     assert action and action["kind"] == "navigate"
-    assert action["route"].startswith("/eli5?skill_id=")
+    assert action["route"] == "/fiches/mathematiques"  # porte VALIDÉE (pas d'ELI5 génératif)
     assert action["confirm"] is True  # offre implicite → carte, jamais d'auto-nav vocale
 
 
@@ -274,21 +285,22 @@ def test_named_notion_shows_menu_of_available_content(client_db, monkeypatch) ->
         "subject_slug": "mathematiques",
         "subject_name": "Mathématiques",
         "actions": [
+            {"kind": "cours", "available": True, "lesson_id": 3},  # cours validé → ELI5 offert
             {"kind": "eli5", "available": True},
             {"kind": "fiche", "available": True, "fiche_id": 7},
             {"kind": "mindmap", "available": True, "mindmap_id": 5},
-            {"kind": "cours", "available": False, "lesson_id": None},
+            {"kind": "revision", "available": False},  # indisponible → absent du menu
         ],
     }
     monkeypatch.setattr(actions, "notion_panel", lambda db, skill_id: panel)
     _use_chat_llm(_chat_intent({"kind": "none"}, "Les fractions, chouette !"))
     sid = _open(client)
-    resp = _say(client, sid, text="addition et soustraction de fractions")
+    resp = _say(client, sid, text=RESOLVING)
     action = resp.json()["action"]
     assert action and action["kind"] == "notion_menu"
     kinds = [i["kind"] for i in action["items"]]
-    assert "eli5" in kinds and "fiche" in kinds and "mindmap" in kinds
-    assert "cours" not in kinds  # non disponible → absent du menu (jamais grisé côté chat)
+    assert "eli5" in kinds and "fiche" in kinds and "mindmap" in kinds and "cours" in kinds
+    assert "revision" not in kinds  # non disponible → absent du menu (jamais grisé côté chat)
     assert all(i["route"] for i in action["items"])  # chaque entrée est ancrée
 
 

@@ -74,6 +74,36 @@ class NotionRequest(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(15), default="pending")  # pending|added|dismissed
 
 
+class ContentRequest(Base, TimestampMixin):
+    """Demande de CONTENU sur une notion qui EXISTE — file d'attente dédupliquée pour Papa.
+
+    Sémantique **inverse** de `NotionRequest` (addendum ADR-0027) : ici la notion est résolue
+    (`skill_id` connu, NOT NULL), ce qui manque est un **type de contenu** (fiche/mindmap/cours…).
+    Émise par le chat orchestrateur quand Massimo réclame un contenu absent sur une notion validée
+    (ADR-0027 §3 : orienter vers l'existant, jamais générer ; le geste « demande à Papa » devient une
+    trace). `UniqueConstraint(student, skill, kind)` = dédup FORTE : « fractions × 5 » ⇒ une ligne
+    (le service `create` est idempotent et ré-active une ligne triée quand Massimo redemande).
+
+    Ne PAS confondre avec `notion_requests` (notion hors programme, texte libre, `skill_id=None`).
+    """
+
+    __tablename__ = "content_requests"
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id", "skill_id", "content_kind", name="uq_content_request_student_skill_kind"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"), index=True)
+    skill_id: Mapped[int] = mapped_column(ForeignKey("skills.id"))  # la notion EXISTE (NOT NULL)
+    # cours | fiche | mindmap | quiz | capsule | card — vocabulaire fermé (service.CONTENT_KINDS)
+    content_kind: Mapped[str] = mapped_column(String(15))
+    status: Mapped[str] = mapped_column(String(15), default="pending")  # pending|done|dismissed
+    # Origine de la demande (traçabilité) ; en v1 seul le chat émet.
+    source: Mapped[str] = mapped_column(String(30), default="chat_orchestrator")
+
+
 class Mission(Base, TimestampMixin):
     __tablename__ = "missions"
 

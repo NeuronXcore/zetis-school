@@ -22,6 +22,30 @@ export async function fetchActiveSchoolYear(): Promise<ActiveSchoolYear> {
   );
 }
 
+export interface OrphanNotion {
+  skill_id: number;
+  name: string;
+}
+
+/** Notions du référentiel d'une matière (niveau année active) SANS leçon rattachée — ajoutées via
+ *  « Rattrapage » ou le pont « Ajouter au programme », donc invisibles dans l'arbre leçon-centré. */
+export async function fetchOrphanNotions(subjectId: number): Promise<OrphanNotion[]> {
+  const body = await asJson<{ notions: OrphanNotion[] }>(
+    await fetch(`${API_URL}/api/subjects/${subjectId}/orphan-notions`, { headers: authHeader() }),
+  );
+  return body.notions;
+}
+
+/** Supprime une notion orpheline ajoutée par erreur. 409 si rattachée à une leçon ou avec historique
+ *  (Massimo l'a déjà travaillée) — jamais d'effacement d'un travail existant. */
+export async function deleteOrphanNotion(skillId: number): Promise<void> {
+  const res = await fetch(`${API_URL}/api/skills/${skillId}`, {
+    method: "DELETE",
+    headers: authHeader(),
+  });
+  if (!res.ok) await asJson(res); // remonte le `detail` (409) en message d'erreur
+}
+
 export async function fetchChapters(sysId: number): Promise<CurriculumChapter[]> {
   return asJson(
     await fetch(`${API_URL}/api/school-year-subjects/${sysId}/chapters`, {

@@ -30,6 +30,20 @@ DATA_KINDS = ("agenda", "reviews", "missions")
 # quiz passe par `location.state` (pas d'URL par id) — hors v1 (ADR-0027 §Périmètre).
 NOTION_TOOLS = ("eli5", "cours", "fiche", "mindmap", "revision")
 SUBJECT_TOOLS = ("cours", "fiche", "mindmap", "revision")
+# Contenus DURABLES d'une notion (≠ ELI5, génératif à la volée et toujours offert). Leur absence
+# totale = « notion vide » → on réclame le cours à Papa (addendum ADR-0027, déclencheur b).
+DURABLE_NOTION_TOOLS = ("cours", "fiche", "mindmap", "revision")
+
+# Outil demandé → type de contenu à réclamer à Papa (addendum ADR-0027). `eli5` se dérive du cours
+# canonique : pas d'ELI5 ⇒ pas de cours validé ⇒ la vraie demande est le cours. `revision` = carte
+# SRS. `quiz` non émis en v1 (hors routage). Alignés sur `content_requests.service.CONTENT_KINDS`.
+_TOOL_TO_CONTENT_KIND = {
+    "eli5": "cours",
+    "cours": "cours",
+    "fiche": "fiche",
+    "mindmap": "mindmap",
+    "revision": "card",
+}
 
 _TOOL_WORD = {
     "eli5": "explication",
@@ -119,33 +133,57 @@ def _notion_menu(db: Session, skill_id: int) -> ActionResult:
             meta={"intent": "notion_menu", "skill_id": skill_id, "visible": False},
         )
     name, slug, subject_name = panel["name"], panel["subject_slug"], panel["subject_name"]
+    by_kind = {a["kind"]: a for a in panel["actions"]}
+    # ELI5 dégrade vers le MODÈLE quand il n'y a pas de cours validé (ADR-0011) : l'offrir sur une
+    # notion sans cours = router Massimo vers du contenu NON validé — ce que l'orchestrateur refuse
+    # (ADR-0027 §3, décision 2026-07-30 après test live). ELI5 n'est donc offert QUE si un cours
+    # validé existe (là, il s'ancre dessus). Sans cours, ZETIS est honnête et enregistre la demande.
+    has_course = bool(by_kind.get("cours", {}).get("available"))
     items: list[ChatMenuItem] = []
     for act in panel["actions"]:
         kind = act["kind"]
         if kind not in NOTION_TOOLS or not act.get("available"):
             continue
+        if kind == "eli5" and not has_course:
+            continue  # pas de cours → ELI5 inventerait : on ne l'offre pas
         route, _label = _notion_route(
             kind, skill_id=skill_id, name=name, slug=slug, subject_name=subject_name, action=act
         )
         if route:
             items.append(ChatMenuItem(kind=kind, route=route, label=_MENU_LABEL.get(kind, kind)))
+
+    # Notion « vide » = aucun contenu DURABLE (cours/fiche/carte/révision) — ELI5 ne compte pas :
+    # il se génère à la volée, il n'est jamais la preuve qu'un contenu existe. Sans contenu durable →
+    # réclamer le COURS à Papa (la porte des dérivés). Signal best-effort, aveugle au contenu (§1c),
+    # émis par le service (addendum ADR-0027, déclencheur b).
+    has_durable = any(i.kind != "eli5" for i in items)
+    meta: dict = {"intent": "notion_menu", "skill_id": skill_id}
+    if not has_durable:
+        meta["content_request"] = {"skill_id": skill_id, "content_kind": "cours"}
+
     if not items:
-        return ActionResult(meta={"intent": "notion_menu", "skill_id": skill_id, "items": 0})
+        # Rien de validé à offrir → honnêteté (ZETIS ne fabrique pas, il oriente vers l'existant).
+        return ActionResult(
+            note=f"Je n'ai pas encore de contenu validé sur « {name} » — je le note pour Papa.",
+            meta={**meta, "items": 0},
+        )
     if len(items) == 1:
         only = items[0]
         return ActionResult(
             action=ChatAction(kind="navigate", label=only.label, route=only.route, confirm=True),
-            meta={"intent": "notion_menu", "skill_id": skill_id, "tool": only.kind, "route": only.route},
+            meta={**meta, "tool": only.kind, "route": only.route},
         )
     return ActionResult(
         action=ChatAction(
             kind="notion_menu", label=f"Sur « {name} », tu peux :", name=name, items=items, confirm=True
         ),
-        meta={"intent": "notion_menu", "skill_id": skill_id, "items": [i.kind for i in items]},
+        meta={**meta, "items": [i.kind for i in items]},
     )
 
 
-def _open_notion(db, embedder, *, student_id, intent, fallback_skill_id, fallback_skill) -> ActionResult:
+def _open_notion(
+    db, embedder, *, student_id, intent, fallback_skill_id, fallback_skill, fallback_text=None
+) -> ActionResult:
     tool = str(intent.get("tool") or "").strip().lower()
     # Notion : `notion_query` si fournie (résolution dédiée), sinon la notion déjà résolue du message.
     query = str(intent.get("notion_query") or "").strip()
@@ -155,6 +193,21 @@ def _open_notion(db, embedder, *, student_id, intent, fallback_skill_id, fallbac
         if res.skill_id is not None:
             skill_id = res.skill_id
     if skill_id is None:
+        # Notion HORS PROGRAMME (rien ne résout) → carte OPT-IN « Demander à Papa d'ajouter » (le tap
+        # crée un notion_request, précédent ELI5). Libellé = la notion nommée (notion_query), sinon le
+        # message. Sans libellé exploitable → note seule (rien à proposer d'ajouter).
+        label_text = (query or str(fallback_text or "").strip())[:160]
+        if label_text:
+            return ActionResult(
+                action=ChatAction(
+                    kind="request_notion",
+                    label=f"Demander à Papa d'ajouter « {label_text} »",
+                    text=label_text,
+                    confirm=True,
+                ),
+                note="Ça, je ne le trouve pas encore dans ton programme.",
+                meta={"intent": "open_notion", "skill_id": None, "request_notion": True},
+            )
         return ActionResult(
             note="Ça, je ne le trouve pas encore dans ton programme.",
             meta={"intent": "open_notion", "skill_id": None},
@@ -172,13 +225,23 @@ def _open_notion(db, embedder, *, student_id, intent, fallback_skill_id, fallbac
 
     name, slug, subject_name = panel["name"], panel["subject_slug"], panel["subject_name"]
     actions = {a["kind"]: a for a in panel["actions"]}
+    # ELI5 sans cours validé → il inventerait (ADR-0011) : on NE route pas vers lui (ADR-0027 §3).
+    # On délègue au menu, qui offre l'existant validé (fiche/carte…) ou reste honnête + demande Papa.
+    if tool == "eli5" and not bool(actions.get("cours", {}).get("available")):
+        return _notion_menu(db, skill_id)
     entry = actions.get(tool)
     if entry is None or not entry.get("available"):
-        # Contenu absent → honnêteté. La DEMANDE À PAPA est une décision figée (ADR-0027 §3) dont le
-        # mécanisme est différé (Point ouvert n°4) : non enregistrée ici, seulement annoncée.
+        # Contenu absent → honnêteté + DEMANDE À PAPA (ADR-0027 §3, mécanisme tranché par l'addendum
+        # content_requests). Le signal `content_request` (métadonnée pure, aveugle au contenu §1c)
+        # est émis par le service ; ici on l'expose seulement. `content_kind=None` si l'outil n'a pas
+        # de contenu réclamable (ex. hors mapping) → pas de demande.
+        content_kind = _TOOL_TO_CONTENT_KIND.get(tool)
+        meta = {"intent": "open_notion", "skill_id": skill_id, "tool": tool, "available": False}
+        if content_kind is not None:
+            meta["content_request"] = {"skill_id": skill_id, "content_kind": content_kind}
         return ActionResult(
             note=f"Je n'ai pas encore de {_TOOL_WORD.get(tool, 'contenu')} sur « {name} » — je le note pour Papa.",
-            meta={"intent": "open_notion", "skill_id": skill_id, "tool": tool, "available": False},
+            meta=meta,
         )
     route, label = _notion_route(
         tool, skill_id=skill_id, name=name, slug=slug, subject_name=subject_name, action=entry
@@ -188,9 +251,16 @@ def _open_notion(db, embedder, *, student_id, intent, fallback_skill_id, fallbac
             note="Ça, je ne peux pas encore te l'ouvrir directement — mais on peut en parler !",
             meta={"intent": "open_notion", "skill_id": skill_id, "tool": tool, "route": None},
         )
+    result_meta = {"intent": "open_notion", "skill_id": skill_id, "tool": tool, "route": route}
+    # « Notion vide » (déclencheur b) : on route (souvent vers ELI5, toujours dispo), mais AUCUN
+    # contenu DURABLE n'existe (cours/fiche/carte/révision) → on réclame le COURS à Papa. ELI5 seul
+    # ne prouve rien (génératif à la volée). Vaut sur TOUS les chemins, pas seulement le menu :
+    # sinon un intent `tool=eli5` sur une notion sans cours n'enregistrerait jamais la demande.
+    if not any(actions.get(k, {}).get("available") for k in DURABLE_NOTION_TOOLS):
+        result_meta["content_request"] = {"skill_id": skill_id, "content_kind": "cours"}
     return ActionResult(
         action=ChatAction(kind="navigate", route=route, label=label),
-        meta={"intent": "open_notion", "skill_id": skill_id, "tool": tool, "route": route},
+        meta=result_meta,
     )
 
 
@@ -224,8 +294,12 @@ def resolve_action(
     intent: dict | None,
     fallback_skill_id: int | None = None,
     fallback_skill=None,
+    fallback_text: str | None = None,
 ) -> ActionResult:
-    """Ancre l'intent proposé par le LLM en une `ChatAction` réelle, ou rien. Ne lève jamais."""
+    """Ancre l'intent proposé par le LLM en une `ChatAction` réelle, ou rien. Ne lève jamais.
+
+    `fallback_text` (= le message de Massimo) sert de libellé à l'offre `request_notion` quand la
+    notion est hors-programme et que le LLM n'a pas isolé de `notion_query`."""
     if not intent:
         return ActionResult()
     kind = str(intent.get("kind") or "").strip().lower()
@@ -247,6 +321,7 @@ def resolve_action(
             intent=intent,
             fallback_skill_id=fallback_skill_id,
             fallback_skill=fallback_skill,
+            fallback_text=fallback_text,
         )
 
     if kind == "open_subject":
