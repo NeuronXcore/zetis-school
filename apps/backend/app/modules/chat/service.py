@@ -28,6 +28,7 @@ from app.modules.ai.canonical_context import build_canonical_sections, resolve_c
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.ai.skill_resolution import resolve_skill
 from app.modules.chat.schemas import ChatMessageIn, ChatMessageOut, ChatSessionOut
+from app.modules.tts.provider import TtsProvider, TtsRequest
 from app.modules.chat.store import ROLE_ASSISTANT, ROLE_USER, ChatStore
 from app.modules.progress.service import OPEN_GAP_STATUSES
 from app.prompts.chat import (
@@ -52,6 +53,25 @@ _GAP_ELIGIBLE_MASTERY = ("unknown", "weak", "learning")
 # Garde-fou pédagogique (CLAUDE.md) : aucun feedback humiliant, même venu du moteur.
 _BANNED_WORDS = ("nul", "échec", "echec", "grosse lacune")
 _SAFE_REPLY = "On regarde ça ensemble — c'est une notion à renforcer, et tu progresses."
+
+
+def synthesize_speech(tts: TtsProvider, text: str) -> bytes:
+    """Voix de ZETIS (Lot 2) — synthèse LOCALE (Piper) de la réponse, à la volée, JAMAIS persistée.
+
+    C'est la parole de ZETIS, pas un propos de Massimo : rien de privé n'est vocalisé. Une panne
+    du moteur (Piper absent) → 503, et le client dégrade proprement vers le karaoké muet (comme le
+    micro se masque sur un STT 503). Aucun `ai_jobs`, aucun fichier : l'audio vit le temps de la
+    réponse HTTP."""
+    clean = (text or "").strip()
+    if not clean:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Texte vide.")
+    try:
+        return tts.synthesize(TtsRequest(text=clean)).audio_wav
+    except Exception as exc:  # noqa: BLE001 — dégradation propre : 503, jamais 500.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Voix indisponible.",
+        ) from exc
 
 
 def _current_student(db: Session) -> StudentProfile:

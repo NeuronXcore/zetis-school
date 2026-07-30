@@ -35,10 +35,61 @@ committer après vérif humaine) :
   sans verbatim, dédupes, matrice Gap, TTL, purge, anti-spam 429, zéro XP, frontière parent).
   **Suite complète : 576 back verts, zéro régression.** App démarre (40 routers).
 
-- **prochain pas : vérif humaine (tests + diff) → commit unique de la slice → PR vers `main`.**
-  Puis **slices UI du chantier chat** (hors ADR-0026) : streaming SSE, page Massimo, STT/TTS
-  temps réel, avatar, routage réel vers les outils. Le classifieur de difficulté est en place
-  (structuré), pas encore éprouvé sur le vrai 4B (Ollama).
+**Slice B FRONTEND FAITE (Lot 1 texte + avatar), NON commitée** — même branche `feat/chat-memoire` :
+- **Brique `@zetis/ui/avatar`** (sous-chemin dédié, patron `@zetis/ui/mindmap`) : `AvatarCanvas.tsx`
+  (moteur canvas transposé de la maquette — bruit apériodique, spectre radial, coquilles
+  directionnelles, horloges indépendantes iris/paupières/mâchoire), `constants.ts` calibrées,
+  `phonetics.ts` (flux gelé `[ouverture, grave, médium, aigu]`), `avatar.css`, image webp extraite
+  de la maquette en asset réel (`assets/zetis-face.webp`). Contrat : zéro fetch, zéro métier.
+- **Page `/chat`** (`ChatPage.tsx` + `chat.css` + `lib/chat.ts` + `lib/karaoke.ts`) : états 1→5,
+  karaoké piloté par la pseudo-phonétique, tap-pour-couper, carte outils APRÈS la parole seulement,
+  phrase de transparence fixe, 429 doux, toggle « animations réduites », deep-link ELI5 seul câblé.
+- ⚠️ **Patron réseau = INLINE, PAS le polling `/ai/jobs`** : la réponse revient dans le POST
+  `messages` (la spec/prompt supposaient ELI5-polling, impossible ici car `ai_jobs.output_json`
+  est durable + lisible sans contrôle → violerait §1c). Stop-on-blocker tranché par l'ADR.
+- ⚠️ **Recall chip d'ouverture NON fait** : slice A n'expose aucune route « notions récentes »
+  (le rappel est composé serveur pour le LLM, pas renvoyé au client). Différé, pas inventé.
+- **Vérifs** : `tsc -b` propre, **173 tests Massimo verts** (6 sur `ChatPage`, dont test-verrou
+  source = aucune API vocale navigateur ni stockage local), `vite build` vert. Avatar **non vu
+  à l'écran** (canvas nul en jsdom ; verif live = user une fois loggé).
+
+**Slice B Lot 1 COMMITÉE** (`71f8094`). **Lot 2 VOIX FAIT, NON commité** (même branche) — voix
+complète 100 % locale, zéro nouvelle dépendance :
+- **Entrée (STT)** : bouton micro appui-pour-parler → réutilise l'endpoint ELI5 Whisper
+  (`/api/ai/eli5/transcribe`, local) → texte → tour de chat. `lib/dictation.ts` (MediaRecorder)
+  réutilisé. Micro masqué si non supporté ou STT 503.
+- **Sortie (TTS)** : route backend **`POST /api/student/chat/tts`** (Piper local, `service.synthesize_speech`,
+  audio éphémère jamais persisté, 503→repli muet). Front `lib/voice.ts` : lit le WAV via un
+  **`AnalyserNode`** qui pilote la bouche de l'avatar depuis le VRAI audio (la source promise du flux
+  d'articulation — le consommateur `AvatarCanvas` n'a pas changé). Karaoké calé sur la durée réelle.
+- Repli propre : sans `AudioContext` (jsdom/ancien navigateur) ou sur 503 → karaoké muet du Lot 1.
+  iOS : `primeAudio()` sur geste (envoi/micro).
+- **Vérifs** : `tsc -b` + **175 tests Massimo** + `vite build` verts ; **577 back** (test route TTS) ;
+  **TTS prouvé LIVE** (`POST /tts` → HTTP 200 audio/wav 148 Ko, Piper réel). UI voix/micro **non vue**
+  (canvas + audio nuls en jsdom ; login = user).
+
+- **prochain pas : vérif humaine (tests + diff) + essai live voix/micro par le user → commit Lot 2
+  → PR `feat/chat-memoire`.** Puis lots restants (hors ADR-0026) : streaming SSE, bornes de mots
+  réelles pour le karaoké (TTS à timestamps), migration Rive.
+  Classifieur de difficulté pas encore éprouvé sur le vrai 4B (Ollama).
+
+**CHANTIER SUIVANT CADRÉ (docs, non commité) — Chat ORCHESTRATEUR (ADR-0027, Proposé)** : le chat
+pilote toute l'app en langage naturel (« montre mes fiches sur les fractions », « c'est quoi mes
+devoirs »). Cadrage écrit ce jour (fichiers **neufs**, pas de chevauchement avec le code voix) :
+`docs/decisions/adr-0027-chat-orchestrateur.md`, addendum `page-chat.md §Orchestration`, 2 prompts
+`prompt-chat-orchestrateur-slice-{a-backend,b-frontend}.md`, ligne `DECISIONS.md`. Cœur : intent LLM
+typé **ancré serveur** (`resolve_skill` → `galaxy/notion/{skill_id}` → route depuis un id **validé** ;
+cible non ancrable → `action=null`, jamais de route hallucinée) ; `ChatMessageOut.action` =
+navigate|show_data|null ; **nav modale** (voix→direct, clavier→carte) ; **données dans le chat** (front
+fetch, pipeline aveugle §1c) ; **orienter vers l'existant validé jamais générer** ; réutilise
+`chat_tool_response` (aucun event neuf). **4 décisions à VALIDER par le user avant slices.**
+Séquencement : merge chat voix d'abord → cadrage sur `main` → implémenter sur `feat/chat-orchestrateur`.
+
+⚠️ **Piège dev (2026-07-30)** : « impossible de se loguer sur Massimo, `massimo1234` ne marche
+plus » = **backend éteint**, PAS un mot de passe changé. Le front pointe `VITE_API_URL=:8000` ;
+sans backend, le login échoue avec une erreur d'auth trompeuse. Fix : relancer
+`uv run uvicorn app.main:app --port 8000` depuis `apps/backend`. Aucun override `MASSIMO_*` en
+`.env` — le mot de passe reste `massimo1234` (dev_users, `config.py`).
 
 ⚠️ **Écarts read-before-code du chat, à ne pas re-débattre** :
 - **`ai_jobs` n'est PAS asynchrone** (ni worker ni polling) : ELI5 exécute le LLM en synchrone

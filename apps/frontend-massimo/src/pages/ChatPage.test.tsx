@@ -4,14 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-// Avatar mocké : stub déterministe exposant l'état, l'éveil et le mode réduit — évite canvas/asset
-// en jsdom et rend les assertions d'état lisibles.
+// Avatar mocké : stub déterministe (évite canvas/asset en jsdom).
 vi.mock("@zetis/ui/avatar", () => ({
-  AvatarCanvas: (props: {
-    state: string;
-    awake: boolean;
-    reducedMotion?: boolean;
-  }) => (
+  AvatarCanvas: (props: { state: string; awake: boolean; reducedMotion?: boolean }) => (
     <div
       data-testid="avatar"
       data-state={props.state}
@@ -25,23 +20,34 @@ vi.mock("@zetis/ui/avatar", () => ({
 vi.mock("../lib/chat", async (orig) => {
   const actual = await orig<typeof import("../lib/chat")>();
   return {
-    ...actual, // garde ChatQuotaReached / ChatSessionExpired (instanceof) et les types
+    ...actual, // garde les classes d'erreur (instanceof) et les types
     createChatSession: vi.fn(),
     sendChatMessage: vi.fn(),
     closeChatSession: vi.fn(),
+    synthesizeChatSpeech: vi.fn(),
   };
 });
 
+vi.mock("../lib/dictation", () => ({
+  isDictationSupported: vi.fn(() => false),
+  startRecording: vi.fn(),
+}));
+
+vi.mock("../lib/eli5", async (orig) => {
+  const actual = await orig<typeof import("../lib/eli5")>();
+  return { ...actual, transcribeEli5: vi.fn() };
+});
+
 import { ChatPage } from "./ChatPage";
-import {
-  ChatQuotaReached,
-  createChatSession,
-  sendChatMessage,
-  type ChatReply,
-} from "../lib/chat";
+import { ChatQuotaReached, createChatSession, sendChatMessage, type ChatReply } from "../lib/chat";
+import { isDictationSupported, startRecording } from "../lib/dictation";
+import { transcribeEli5 } from "../lib/eli5";
 
 const mockCreate = vi.mocked(createChatSession);
 const mockSend = vi.mocked(sendChatMessage);
+const mockSupported = vi.mocked(isDictationSupported);
+const mockRecord = vi.mocked(startRecording);
+const mockTranscribe = vi.mocked(transcribeEli5);
 
 const REPLY: ChatReply = {
   session_id: "s1",
@@ -67,7 +73,11 @@ function ask(text: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockCreate.mockResolvedValue({ session_id: "s1", transparency: "ZETIS retient les notions que tu travailles, pas tes mots." });
+  mockSupported.mockReturnValue(false); // micro masqué par défaut (jsdom sans MediaRecorder)
+  mockCreate.mockResolvedValue({
+    session_id: "s1",
+    transparency: "ZETIS retient les notions que tu travailles, pas tes mots.",
+  });
 });
 
 describe("ChatPage", () => {
@@ -83,11 +93,9 @@ describe("ChatPage", () => {
     renderPage();
     ask("bonjour");
 
-    // Pendant la parole : l'avatar est en `speaking` et aucune carte d'outil n'est rendue.
     await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("speaking"));
     expect(screen.queryByText("🧠 Réexplique-moi")).not.toBeInTheDocument();
 
-    // Après le karaoké : retour au repos, la carte apparaît.
     await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("idle"));
     expect(screen.getByText("🧠 Réexplique-moi")).toBeInTheDocument();
     expect(screen.getByText("Non, je réessaie tout seul")).toBeInTheDocument();
@@ -113,19 +121,45 @@ describe("ChatPage", () => {
     renderPage();
     ask("encore");
     await waitFor(() =>
-      expect(
-        screen.getByText(/On a beaucoup parlé aujourd'hui/),
-      ).toBeInTheDocument(),
+      expect(screen.getByText(/On a beaucoup parlé aujourd'hui/)).toBeInTheDocument(),
     );
-    // Le champ de saisie disparaît (état, pas blocage brutal).
     expect(screen.queryByLabelText("Écris à ZETIS")).not.toBeInTheDocument();
   });
 
-  it("test-verrou : aucune API vocale navigateur, aucun localStorage de conversation", () => {
+  it("micro masqué si la dictée n'est pas supportée par le navigateur", () => {
+    mockSupported.mockReturnValue(false);
+    renderPage();
+    expect(screen.queryByRole("button", { name: /Appuie pour parler/ })).not.toBeInTheDocument();
+  });
+
+  it("micro : appui-pour-parler → transcription locale → tour de chat", async () => {
+    mockSupported.mockReturnValue(true);
+    mockRecord.mockResolvedValue({
+      stop: () => Promise.resolve(new Blob(["x"], { type: "audio/webm" })),
+      cancel: () => {},
+      analyser: null,
+    });
+    mockTranscribe.mockResolvedValue({ transcript: "les fractions", duration_seconds: 1 });
+    mockSend.mockResolvedValue({ ...REPLY, tool_suggestion: null });
+
+    renderPage();
+    const mic = screen.getByRole("button", { name: /Appuie pour parler/ });
+
+    fireEvent.pointerDown(mic);
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("listening"));
+    fireEvent.pointerUp(mic);
+
+    // La transcription part au backend, puis un tour de chat (avatar parle sa réponse).
+    await waitFor(() => expect(mockTranscribe).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mockSend).toHaveBeenCalledWith("s1", { text: "les fractions" }));
+  });
+
+  it("test-verrou : aucune API vocale navigateur, aucun stockage local de conversation", () => {
     const files = [
       "./ChatPage.tsx",
       "../lib/chat.ts",
       "../lib/karaoke.ts",
+      "../lib/voice.ts",
       "../../../../packages/ui/src/components/avatar/AvatarCanvas.tsx",
       "../../../../packages/ui/src/components/avatar/phonetics.ts",
     ];

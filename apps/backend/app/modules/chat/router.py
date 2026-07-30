@@ -13,8 +13,10 @@ from app.modules.ai import get_embedder, get_provider
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import require_child
 from app.modules.chat import service
-from app.modules.chat.schemas import ChatMessageIn, ChatMessageOut, ChatSessionOut
+from app.modules.chat.schemas import ChatMessageIn, ChatMessageOut, ChatSessionOut, ChatSpeechIn
 from app.modules.chat.store import ChatStore, get_chat_store
+from app.modules.tts import get_tts
+from app.modules.tts.provider import TtsProvider
 
 student_router = APIRouter(prefix="/api/student/chat", tags=["chat"])
 
@@ -41,6 +43,18 @@ def post_message(
     return service.handle_message(
         db, store, provider, embedder, session_id=session_id, body=body
     )
+
+
+@student_router.post("/tts")
+def synthesize(
+    body: ChatSpeechIn,
+    tts: TtsProvider = Depends(get_tts),
+    _: dict = Depends(require_child),
+) -> Response:
+    # Voix de ZETIS (Lot 2) : synthèse LOCALE à la volée, jamais persistée. 503 si le moteur
+    # est absent → le client dégrade vers le karaoké muet (Lot 1). WAV renvoyé tel quel.
+    wav = service.synthesize_speech(tts, body.text)
+    return Response(content=wav, media_type="audio/wav")
 
 
 @student_router.post("/sessions/{session_id}/close", status_code=status.HTTP_204_NO_CONTENT)

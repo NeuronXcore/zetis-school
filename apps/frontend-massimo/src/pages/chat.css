@@ -156,6 +156,34 @@
   opacity: 0.5;
   cursor: default;
 }
+.chat-mic {
+  width: 100%;
+  padding: 15px 20px;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 15.5px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #22d3ee);
+  box-shadow: 0 8px 28px rgba(99, 102, 241, 0.28);
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+.chat-mic:active {
+  transform: scale(0.985);
+}
+.chat-mic.chat-recording {
+  background: linear-gradient(135deg, #22d3ee, #0ea5b7);
+  box-shadow: 0 8px 34px rgba(34, 211, 238, 0.45);
+}
+.chat-mic:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .chat-quota {
   text-align: center;
   padding: 14px;

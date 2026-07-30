@@ -7,22 +7,24 @@ import {
   type AvatarState,
 } from "@zetis/ui/avatar";
 import { splitKaraoke, type KaraokeWord } from "../lib/karaoke";
+import { isDictationSupported, startRecording, type Recording } from "../lib/dictation";
+import { Eli5SttUnavailable, transcribeEli5 } from "../lib/eli5";
 import {
   ChatQuotaReached,
   ChatSessionExpired,
+  ChatVoiceUnavailable,
   closeChatSession,
   createChatSession,
   sendChatMessage,
+  synthesizeChatSpeech,
   type ChatToolType,
 } from "../lib/chat";
+import { isVoicePlaybackSupported, playSpeech, primeAudio, type VoicePlayback } from "../lib/voice";
 import "./chat.css";
 
-// Phrase FIXE de l'asymétrie (ADR-0026 §5) : toujours visible, non fermable. Affichée avant même
-// la première session (constante), puis confirmée par la valeur serveur (même texte).
+// Phrase FIXE de l'asymétrie (ADR-0026 §5) : toujours visible, non fermable.
 const FIXED_TRANSPARENCY = "ZETIS retient les notions que tu travailles, pas tes mots.";
 
-// Outils que ZETIS peut proposer. Seul ELI5 est réellement adressable par URL (`/eli5?skill_id=`) ;
-// le reste est NON-NAVIGANT en V1 (pas de deep-link stable — ne pas inventer de route).
 const TOOL_LABEL: Record<ChatToolType, string> = {
   eli5: "🧠 Réexplique-moi",
   fiche: "🗂️ Fais-moi une fiche",
@@ -49,26 +51,47 @@ export function ChatPage() {
   const [transparency, setTransparency] = useState(FIXED_TRANSPARENCY);
   const [quota, setQuota] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [sttGone, setSttGone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reducedManual, setReducedManual] = useState(false);
+
+  const micSupported = isDictationSupported();
 
   const sessionRef = useRef<string | null>(null);
   const timersRef = useRef<number[]>([]);
   const speechRef = useRef<Speech>({ words: [], idx: -1, wordStart: 0, suggested: null });
   const avatarStateRef = useRef(avatarState);
   avatarStateRef.current = avatarState;
+  const recRef = useRef<Recording | null>(null);
+  const voiceRef = useRef<VoicePlayback | null>(null); // audio en cours → pilote la bouche
+  const voiceGoneRef = useRef(false); // le serveur n'a pas de TTS : on cesse d'essayer
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
   }, []);
 
-  useEffect(() => () => clearTimers(), [clearTimers]);
+  const stopVoice = useCallback(() => {
+    if (voiceRef.current) {
+      voiceRef.current.stop();
+      voiceRef.current = null;
+    }
+  }, []);
 
-  // SOURCE du flux d'articulation (contrat gelé) : la pseudo-phonétique du mot courant. Lue chaque
-  // frame par la brique avatar ; renvoie null hors parole (bouche close). Remplacée par un
-  // AnalyserNode au lot TTS — sans toucher au consommateur.
+  useEffect(
+    () => () => {
+      clearTimers();
+      stopVoice();
+      recRef.current?.cancel();
+    },
+    [clearTimers, stopVoice],
+  );
+
+  // SOURCE du flux d'articulation. En parole VOIX : dérivé du spectre audio réel (AnalyserNode).
+  // En repli MUET : pseudo-phonétique du texte. Le consommateur (brique avatar) ne le sait pas.
   const getArticulation = useCallback((ts: number): Articulation | null => {
+    if (voiceRef.current) return voiceRef.current.getArticulation(ts);
     const sp = speechRef.current;
     if (avatarStateRef.current !== "speaking" || sp.idx < 0) return null;
     const w = sp.words[sp.idx];
@@ -84,51 +107,83 @@ export function ChatPage() {
 
   const finishSpeaking = useCallback(() => {
     clearTimers();
+    stopVoice();
     const sp = speechRef.current;
     sp.idx = -1;
-    setWordIdx(sp.words.length); // tous « dits »
+    setWordIdx(sp.words.length);
     setAvatarState("idle");
     if (sp.suggested) setTool(sp.suggested); // carte outils APRÈS la parole, jamais pendant
-  }, [clearTimers]);
+  }, [clearTimers, stopVoice]);
 
-  // État 3 : parole = karaoké mot à mot (minuté en Lot 1, cf. lib/karaoke).
-  const speak = useCallback(
-    (text: string, suggested: ChatToolType | null) => {
+  // État 3 : parole. Tente la VOIX serveur (Piper) ; à défaut, karaoké MUET (Lot 1).
+  const speakReply = useCallback(
+    async (text: string, suggested: ChatToolType | null) => {
       const w = splitKaraoke(text);
       speechRef.current = { words: w, idx: -1, wordStart: performance.now(), suggested };
+      clearTimers();
+      stopVoice();
+
+      let playback: VoicePlayback | null = null;
+      if (!voiceGoneRef.current && isVoicePlaybackSupported()) {
+        try {
+          const buf = await synthesizeChatSpeech(text);
+          playback = await playSpeech(buf);
+        } catch (e) {
+          if (e instanceof ChatVoiceUnavailable) voiceGoneRef.current = true; // inutile de réessayer
+          playback = null;
+        }
+      }
+
       setWords(w);
       setWordIdx(-1);
       setTool(null);
       setAvatarState("speaking");
-      clearTimers();
-      let acc = 0;
-      w.forEach((word, i) => {
-        timersRef.current.push(window.setTimeout(() => markWord(i), acc));
-        acc += word.dur;
-      });
-      timersRef.current.push(window.setTimeout(finishSpeaking, acc + 260));
+
+      if (playback) {
+        voiceRef.current = playback;
+        // Karaoké calé sur la DURÉE RÉELLE de l'audio (les bornes de mots viendront d'un TTS
+        // à timestamps plus tard ; ici on étire les durées estimées pour finir avec le son).
+        const totalMs = playback.duration * 1000;
+        const sumDur = w.reduce((s, x) => s + x.dur, 0) || 1;
+        const scale = totalMs / sumDur;
+        let acc = 0;
+        w.forEach((word, i) => {
+          timersRef.current.push(window.setTimeout(() => markWord(i), acc * scale));
+          acc += word.dur;
+        });
+        void playback.ended.then(() => finishSpeaking());
+      } else {
+        // Repli muet : karaoké minuté (Lot 1).
+        let acc = 0;
+        w.forEach((word, i) => {
+          timersRef.current.push(window.setTimeout(() => markWord(i), acc));
+          acc += word.dur;
+        });
+        timersRef.current.push(window.setTimeout(finishSpeaking, acc + 260));
+      }
     },
-    [clearTimers, finishSpeaking, markWord],
+    [clearTimers, stopVoice, finishSpeaking, markWord],
   );
 
-  // Tap sur la scène pendant la parole = barge-in : coupe l'animation, texte entier (états 3).
   const cut = useCallback(() => {
-    if (avatarStateRef.current === "speaking") finishSpeaking();
+    if (avatarStateRef.current === "speaking") finishSpeaking(); // barge-in : coupe voix + anim
   }, [finishSpeaking]);
 
   const send = useCallback(
     async (text: string) => {
       const msg = text.trim();
       if (!msg || busy || quota) return;
+      primeAudio(); // geste utilisateur → débloque l'audio (iOS) pour la voix à venir
       setInput("");
       setError(null);
       setAwake(true);
       setTool(null);
       clearTimers();
+      stopVoice();
       setWords([]);
       setWordIdx(-1);
       setBusy(true);
-      setAvatarState("thinking"); // état 2 : la latence du moteur est absorbée par la giration
+      setAvatarState("thinking"); // la giration absorbe la latence (moteur + synthèse voix)
       try {
         if (!sessionRef.current) {
           const s = await createChatSession();
@@ -137,7 +192,7 @@ export function ChatPage() {
         }
         const reply = await sendChatMessage(sessionRef.current, { text: msg });
         setSkillId(reply.skill_id);
-        speak(reply.reply, reply.tool_suggestion);
+        await speakReply(reply.reply, reply.tool_suggestion);
       } catch (e) {
         if (e instanceof ChatQuotaReached) {
           setQuota(true);
@@ -154,19 +209,60 @@ export function ChatPage() {
         setBusy(false);
       }
     },
-    [busy, quota, clearTimers, speak],
+    [busy, quota, clearTimers, stopVoice, speakReply],
   );
+
+  // Micro : appui-pour-parler → Whisper LOCAL (endpoint ELI5) → texte → tour de chat.
+  const startMic = useCallback(async () => {
+    if (!micSupported || sttGone || busy || recRef.current) return;
+    primeAudio(); // geste → débloque aussi l'audio de sortie
+    setError(null);
+    setAwake(true);
+    try {
+      const rec = await startRecording();
+      recRef.current = rec;
+      setRecording(true);
+      setAvatarState("listening");
+    } catch {
+      setError("Je n'ai pas pu ouvrir le micro. Tu peux m'écrire !");
+    }
+  }, [micSupported, sttGone, busy]);
+
+  const stopMic = useCallback(async () => {
+    const rec = recRef.current;
+    recRef.current = null;
+    if (!rec) return;
+    setRecording(false);
+    setAvatarState("thinking");
+    let blob: Blob;
+    try {
+      blob = await rec.stop();
+    } catch {
+      setAvatarState("idle");
+      return;
+    }
+    try {
+      const { transcript } = await transcribeEli5(blob);
+      if (transcript.trim()) await send(transcript);
+      else setAvatarState("idle");
+    } catch (e) {
+      setAvatarState("idle");
+      if (e instanceof Eli5SttUnavailable) {
+        setSttGone(true);
+        setError("La dictée n'est pas dispo pour l'instant. Écris-moi !");
+      } else {
+        setError("Je n'ai pas bien entendu — réessaie, ou écris-moi.");
+      }
+    }
+  }, [send]);
 
   const respondTool = useCallback(async (t: ChatToolType, accepted: boolean) => {
     setTool(null);
-    // La réponse à une proposition est un ACTE : le serveur émet `chat_tool_response`.
     if (sessionRef.current) {
       try {
-        await sendChatMessage(sessionRef.current, {
-          tool_response: { tool_type: t, accepted },
-        });
+        await sendChatMessage(sessionRef.current, { tool_response: { tool_type: t, accepted } });
       } catch {
-        /* best-effort : ne bloque pas l'orientation */
+        /* best-effort */
       }
     }
   }, []);
@@ -174,35 +270,39 @@ export function ChatPage() {
   const acceptTool = useCallback(
     async (t: ChatToolType) => {
       await respondTool(t, true);
-      // Seul câblage réel : deep-link ELI5 par notion résolue. Les autres outils sont
-      // NON-NAVIGANTS en V1 (TODO : deep-links fiche/mindmap/révision quand ils existeront).
       if (t === "eli5" && skillId != null) navigate(`/eli5?skill_id=${skillId}`);
+      // Autres outils : non-navigants en V1 (TODO deep-links fiche/mindmap/révision).
     },
     [respondTool, skillId, navigate],
   );
 
   const endSession = useCallback(async () => {
     clearTimers();
+    stopVoice();
+    recRef.current?.cancel();
+    recRef.current = null;
     const s = sessionRef.current;
     sessionRef.current = null;
     if (s) {
       try {
         await closeChatSession(s);
       } catch {
-        /* best-effort : le TTL serveur purge de toute façon */
+        /* best-effort : le TTL serveur purge */
       }
     }
     setAwake(false);
     setAvatarState("idle");
+    setRecording(false);
     setWords([]);
     setWordIdx(-1);
     setTool(null);
     setQuota(false);
     setInput("");
     setError(null);
-  }, [clearTimers]);
+  }, [clearTimers, stopVoice]);
 
   const speaking = avatarState === "speaking";
+  const showMic = micSupported && !sttGone;
 
   return (
     <div className="chat-page">
@@ -247,8 +347,6 @@ export function ChatPage() {
 
       {error && <p className="chat-quota">{error}</p>}
 
-      {/* Carte d'outil : APRÈS la parole seulement (jamais pendant `speaking`). 1 proposition
-          + une sortie « je réessaie tout seul » (2 max, ADR-0026 slice B). */}
       {!speaking && tool && (
         <div className="chat-offer" role="group" aria-label="ZETIS te propose">
           <div className="chat-offer-head">On continue comment&nbsp;?</div>
@@ -271,26 +369,46 @@ export function ChatPage() {
         {quota ? (
           <p className="chat-quota">On a beaucoup parlé aujourd'hui ! On se reparle demain&nbsp;?</p>
         ) : (
-          <form
-            className="chat-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              send(input);
-            }}
-          >
-            <input
-              className="chat-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onFocus={() => setAwake(true)}
-              placeholder="Écris à ZETIS…"
-              aria-label="Écris à ZETIS"
-              autoComplete="off"
-            />
-            <button className="chat-send" type="submit" disabled={busy || !input.trim()}>
-              Envoyer
-            </button>
-          </form>
+          <>
+            <form
+              className="chat-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                send(input);
+              }}
+            >
+              <input
+                className="chat-input"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onFocus={() => setAwake(true)}
+                placeholder="Écris à ZETIS…"
+                aria-label="Écris à ZETIS"
+                autoComplete="off"
+              />
+              <button className="chat-send" type="submit" disabled={busy || !input.trim()}>
+                Envoyer
+              </button>
+            </form>
+
+            {showMic && (
+              <button
+                type="button"
+                className={`chat-mic${recording ? " chat-recording" : ""}`}
+                disabled={busy && !recording}
+                onPointerDown={startMic}
+                onPointerUp={stopMic}
+                onPointerLeave={() => {
+                  if (recRef.current) void stopMic();
+                }}
+                onPointerCancel={() => {
+                  if (recRef.current) void stopMic();
+                }}
+              >
+                {recording ? "🎙️ Je t'écoute… relâche quand tu as fini" : "🎤 Appuie pour parler"}
+              </button>
+            )}
+          </>
         )}
 
         {sessionRef.current && (

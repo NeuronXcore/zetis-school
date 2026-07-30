@@ -41,6 +41,14 @@ export class ChatSessionExpired extends Error {
   }
 }
 
+/** Levée sur 503 : moteur TTS absent côté serveur → l'UI retombe sur le karaoké muet (Lot 1). */
+export class ChatVoiceUnavailable extends Error {
+  constructor() {
+    super("Voix indisponible");
+    this.name = "ChatVoiceUnavailable";
+  }
+}
+
 function headers(): HeadersInit {
   const token = authClient.getToken();
   const base: HeadersInit = { "Content-Type": "application/json" };
@@ -74,6 +82,18 @@ export async function sendChatMessage(
       body: JSON.stringify(body),
     }),
   );
+}
+
+/** Voix de ZETIS (Lot 2) : synthèse LOCALE du texte de réponse → WAV. 503 → karaoké muet. */
+export async function synthesizeChatSpeech(text: string): Promise<ArrayBuffer> {
+  const res = await fetch(`${API_URL}/api/student/chat/tts`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ text }),
+  });
+  if (res.status === 503) throw new ChatVoiceUnavailable();
+  if (!res.ok) throw new Error(`Erreur ${res.status}`);
+  return res.arrayBuffer();
 }
 
 export async function closeChatSession(sessionId: string): Promise<void> {

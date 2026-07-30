@@ -30,6 +30,13 @@ class ChatMessageIn(BaseModel):
     tool_response: ChatToolResponse | None = None
 
 
+class ChatSpeechIn(BaseModel):
+    """Texte à synthétiser en voix (Lot 2). C'est la réponse de ZETIS (jamais un propos de
+    Massimo) — pas une donnée privée. L'audio est produit à la volée et JAMAIS persisté."""
+
+    text: str = Field(min_length=1, max_length=2000)
+
+
 class ChatMessageOut(BaseModel):
     """Réponse d'un tour. `skill_id` = notion ancrée (None si non résolue — best-effort §6).
     `tool_suggestion` = outil proposé par ZETIS (vide si aucun)."""

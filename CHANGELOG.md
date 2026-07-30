@@ -1,5 +1,38 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.28.0 — Chat ZETIS : un compagnon incarné, qui se souvient et qui parle
+
+Date : 2026-07-30 · ADR-0026 · branche `feat/chat-memoire`
+
+> ZETIS devient un compagnon. Il se souvient de ce que Massimo **travaille** — jamais de ses
+> **mots** — et, désormais, il l'écoute et lui répond à voix haute. Toute la voix reste **locale** :
+> celle de l'enfant ne quitte jamais la machine.
+
+- **Mémoire éphémère par construction (backend, §1)** : le verbatim de conversation vit dans **Redis**
+  (TTL glissant, purge à la clôture), **jamais** en PostgreSQL/MinIO. Le pipeline est **aveugle au
+  contenu** : un tour ne trace qu'un `ai_jobs` de métadonnées, jamais un message. La question « le
+  journal de chat est-il lisible par Papa ? » se dissout — **il n'y a pas de journal**.
+- **Le chat n'a pas de mémoire propre, il écrit dans le journal commun** : trois `learning_events`
+  exactement (`chat_topic`, `chat_tool_response`, `chat_difficulty_declared`), non probants, **zéro
+  XP**. Premier producteur de `Gap.source=ai_observation` — **signal faible** (`severity=low`,
+  corroboration par la maîtrise, jamais d'escalade).
+- **Résolution notion partagée** : `ai/skill_resolution.py` (texte libre → `skill_id` par embeddings),
+  promue de différé ELI5 à **prérequis** — ELI5 en héritera.
+- **Page Massimo `/chat` — avatar vivant** : brique partagée **`@zetis/ui/avatar`** (rig canvas —
+  paupières, iris or, mâchoire, onde spectrale, horloges indépendantes), machine à états
+  repos/écoute/réflexion/parole, sous-titres karaoké, phrase de transparence fixe (« ZETIS retient
+  les notions que tu travailles, pas tes mots »), quota doux.
+- **Voix complète, 100 % locale (Lot 2)** : entrée **micro appui-pour-parler** transcrite par
+  **Whisper local** (réutilise la dictée ELI5) ; sortie **voix Piper** via `POST /api/student/chat/tts`
+  (audio éphémère, jamais persisté). La **bouche de l'avatar est pilotée par le vrai audio** (un
+  `AnalyserNode` remplace la pseudo-phonétique — le contrat de flux d'articulation était fait pour ça).
+  Aucune API vocale du navigateur (la voix de l'enfant reste local-first). Repli propre vers le
+  karaoké muet si le moteur manque.
+- **Vérifié** : 577 tests backend · 175 Massimo, `tsc -b` + `vite build` verts ; voix serveur **prouvée
+  en live** (Piper, WAV réel). Zéro table, zéro migration.
+- Reportés (chantier chat) : streaming SSE, karaoké aux bornes de mots réelles, migration Rive de
+  l'avatar. Le **routage/orchestration** (« montre mes fiches sur X ») est **cadré** par l'ADR-0027.
+
 ## 0.27.0 — Agenda scolaire : ZETIS apprend ce que le collège demande
 
 Date : 2026-07-29 · ADR-0025 · branche `feat/agenda-scolaire`

@@ -277,6 +277,16 @@ def test_message_on_unknown_session_is_404(client_db) -> None:
     assert _say(client, "inexistante", text="Coucou").status_code == 404
 
 
+def test_tts_returns_audio(client_db) -> None:
+    """Lot 2 : la voix de ZETIS est synthétisée à la volée (Piper mocké) et renvoyée en WAV.
+    Aucune persistance — c'est un flux HTTP éphémère."""
+    client, _ = client_db
+    resp = client.post("/api/student/chat/tts", json={"text": "Bonjour Massimo, on y va ?"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("audio/")
+    assert len(resp.content) > 0
+
+
 def test_anti_spam_quota_returns_429(client_db, monkeypatch) -> None:
     """§Points ouverts 3 : au-delà du plafond de tours, 429."""
     client, _ = client_db
