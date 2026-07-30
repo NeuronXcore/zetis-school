@@ -21,6 +21,7 @@ import { MindmapSubjectPage } from "./pages/MindmapSubjectPage";
 import { CapsulesIAPage } from "./pages/CapsulesIAPage";
 import { MissionsPage } from "./pages/MissionsPage";
 import { ProgressionPage } from "./pages/ProgressionPage";
+import { ChatPage } from "./pages/ChatPage";
 
 // Routes Massimo (Étape 7) : login public + espace protégé avec les premières pages.
 // Quiz / Chat restent des placeholders (étapes ultérieures) ; Missions est branché (Étape 15).
@@ -58,7 +59,9 @@ export default function App() {
         <Route path="/quiz" element={<QuizPage />} />
         <Route path="/quiz/session" element={<QuizSessionPage />} />
         <Route path="/missions" element={<MissionsPage />} />
-        <Route path="/chat" element={<PlaceholderPage title="Chat ZETIS" icon="💬" />} />
+        {/* Chat ZETIS (ADR-0026 slice B, Lot 1 texte + avatar). Réponse INLINE (pas de polling
+            /ai/jobs : le verbatim ne transite jamais par une couche durable, §1c). */}
+        <Route path="/chat" element={<ChatPage />} />
         <Route path="*" element={<PlaceholderPage title="Page introuvable" icon="🔍" />} />
       </Route>
     </Routes>

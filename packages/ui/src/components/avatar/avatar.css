@@ -1,0 +1,245 @@
+/* Rig de l'avatar ZETIS — transposé de mockup-page-chat.html (ADR-0026 slice B).
+   Classes préfixées `za-` et scopées sous `.zetis-avatar` : la brique ne fuit pas de style.
+   Les variables pilotées par le moteur canvas : --state (teinte d'état), --eye-o/--eye-s (iris),
+   --lid (paupières), --jaw/--cav-o (mâchoire), --ascale (cadrage). */
+
+.zetis-avatar {
+  position: relative;
+  width: 100%;
+  height: 340px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  --state: #6366f1;
+}
+
+.za-wave {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.za-avatar-wrap {
+  position: relative;
+  width: 196px;
+  height: 196px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.za-glow {
+  position: absolute;
+  inset: -34px;
+  border-radius: 50%;
+  background: var(--state);
+  filter: blur(38px);
+  opacity: 0.28;
+  transition: background 0.5s ease;
+}
+.za-avatar-wrap.za-breathe .za-glow {
+  animation: za-breathe 4.2s ease-in-out infinite;
+}
+@keyframes za-breathe {
+  0%, 100% { opacity: 0.2; transform: scale(0.96); }
+  50% { opacity: 0.36; transform: scale(1.04); }
+}
+
+.za-clip {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.za-scale {
+  position: absolute;
+  inset: 0;
+  transform: scale(var(--ascale, 1.13));
+  --lip: 55.1%;
+  --jaw: 0px;
+  --cav-o: 0;
+  -webkit-mask-image: radial-gradient(circle closest-side at 50% 47%, #000 55%, rgba(0, 0, 0, 0.55) 71%, transparent 87%);
+  mask-image: radial-gradient(circle closest-side at 50% 47%, #000 55%, rgba(0, 0, 0, 0.55) 71%, transparent 87%);
+}
+.za-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* cavité : largeur/centre relevés sur la rangée de dents */
+.za-cavity {
+  position: absolute;
+  left: 49.6%;
+  top: var(--lip);
+  width: 10.5%;
+  height: calc(var(--jaw) + 1.5px);
+  transform: translateX(-50%);
+  border-radius: 50% / 26% 26% 100% 100%;
+  background: linear-gradient(to bottom, rgba(5, 8, 28, 0) 0%, #05081c 34%, #090f28 66%, rgba(255, 150, 40, 0.3) 100%);
+  filter: blur(1.3px);
+  opacity: var(--cav-o);
+  pointer-events: none;
+}
+
+/* mâchoire : copie masquée du visage qui descend avec --jaw */
+.za-jaw {
+  position: absolute;
+  inset: 0;
+  background-image: var(--face);
+  background-size: cover;
+  background-position: center;
+  clip-path: inset(calc(var(--lip) - 0.6%) 0 0 0);
+  -webkit-mask-image: linear-gradient(to bottom, transparent calc(var(--lip) - 0.6%), #000 calc(var(--lip) + 1.2%) 66%, rgba(0, 0, 0, 0.4) 75%, transparent 83%);
+  mask-image: linear-gradient(to bottom, transparent calc(var(--lip) - 0.6%), #000 calc(var(--lip) + 1.2%) 66%, rgba(0, 0, 0, 0.4) 75%, transparent 83%);
+  transform: translateY(var(--jaw));
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* yeux — étincelle or limitée au disque de l'iris */
+.za-eye {
+  position: absolute;
+  top: 40.2%;
+  width: 3.6%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(var(--eye-s, 1));
+  background: radial-gradient(circle, rgba(255, 241, 196, 1) 0%, rgba(255, 206, 80, 0.92) 30%, rgba(255, 152, 40, 0.42) 62%, transparent 82%);
+  filter: blur(0.6px);
+  mix-blend-mode: screen;
+  opacity: var(--eye-o, 0);
+  pointer-events: none;
+}
+.za-eye::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34%;
+  height: 34%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdf4 0%, rgba(255, 226, 130, 0.9) 55%, transparent 85%);
+}
+.za-eye::after {
+  content: "";
+  position: absolute;
+  inset: -55%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 170, 50, 0.26) 0%, transparent 62%);
+  filter: blur(3px);
+}
+.za-eye.za-l { left: 41.2%; }
+.za-eye.za-r { left: 57.8%; }
+
+/* paupières — scaleY(--lid) : 0 = ouvert, 1 = clos (origine haute) */
+.za-lid {
+  position: absolute;
+  top: 38.6%;
+  width: 6.8%;
+  height: 3.9%;
+  transform: translateX(-50%) scaleY(var(--lid, 1));
+  transform-origin: top center;
+  border-radius: 50% / 42% 42% 58% 58%;
+  background: linear-gradient(to bottom, rgb(1, 44, 172) 0%, rgb(2, 52, 196) 78%, rgb(6, 60, 208) 100%);
+  filter: blur(0.35px);
+  pointer-events: none;
+}
+.za-lid::after {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(140, 200, 255, 0.85), rgba(90, 150, 255, 0.25) 70%, transparent);
+  filter: blur(0.5px);
+}
+.za-lid.za-l { left: 41.2%; }
+.za-lid.za-r { left: 57.8%; }
+
+/* noyau hexagonal du front — cœur d'état */
+.za-core {
+  position: absolute;
+  top: 27%;
+  left: 50%;
+  width: 30px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0.95;
+}
+.za-core svg { width: 100%; height: 100%; display: block; }
+.za-core path { fill: none; stroke: #eaffff; stroke-width: 1.4; }
+.za-core-halo {
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  background: var(--state);
+  filter: blur(12px);
+  opacity: 0.55;
+  transition: background 0.5s ease;
+}
+.zetis-avatar.za-is-thinking .za-core {
+  animation: za-core-think 1.15s ease-in-out infinite;
+}
+@keyframes za-core-think {
+  0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(0.9); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+}
+
+/* pastille d'état (couleur + point + texte : lisible sans mouvement) */
+.za-pastille {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #eef0ff;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 7px 15px;
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.za-pastille.za-on { opacity: 1; }
+.za-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--state);
+  box-shadow: 0 0 10px var(--state);
+}
+.zetis-avatar.za-is-thinking .za-dot,
+.zetis-avatar.za-is-listening .za-dot {
+  animation: za-dot-pulse 1.1s ease-in-out infinite;
+}
+@keyframes za-dot-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (max-width: 400px) {
+  .zetis-avatar { height: 300px; }
+  .za-avatar-wrap { width: 168px; height: 168px; }
+}
+
+/* Mouvement réduit : l'état reste lisible (couleur + pastille + texte), rien ne bouge. */
+.zetis-avatar.za-reduced *,
+.zetis-avatar.za-reduced {
+  animation: none !important;
+  transition: none !important;
+}

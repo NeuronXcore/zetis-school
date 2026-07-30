@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./mindmap": "./src/components/mindmap/index.ts",
     "./galaxy": "./src/components/galaxy/index.ts",
-    "./galaxy/canvas": "./src/components/galaxy/GalaxyCanvas.tsx"
+    "./galaxy/canvas": "./src/components/galaxy/GalaxyCanvas.tsx",
+    "./avatar": "./src/components/avatar/index.ts"
   },
   "dependencies": {
     "@xyflow/react": "12.11.1",
