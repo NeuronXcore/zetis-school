@@ -235,6 +235,31 @@ def test_resolve_action_anchors_only_available_content(client_db, monkeypatch) -
     db.close()
 
 
+def test_named_notion_offers_a_card_even_without_llm_intent(client_db, monkeypatch) -> None:
+    """Correctif 2026-07-30 : Massimo NOMME une notion résolue mais le LLM dit intent=none → le
+    serveur propose quand même une porte d'entrée (ELI5), marquée `confirm` (offre implicite)."""
+    from app.modules.chat import actions
+
+    client, _ = client_db
+    panel = {
+        "skill_id": 1,
+        "name": "Les fractions",
+        "status": "weak",
+        "chapter_title": "Nombres",
+        "subject_slug": "mathematiques",
+        "subject_name": "Mathématiques",
+        "actions": [{"kind": "eli5", "available": True}],
+    }
+    monkeypatch.setattr(actions, "notion_panel", lambda db, skill_id: panel)
+    _use_chat_llm(_chat_intent({"kind": "none"}, "Les fractions, chouette sujet !"))
+    sid = _open(client)
+    resp = _say(client, sid, text="addition et soustraction de fractions")
+    action = resp.json()["action"]
+    assert action and action["kind"] == "navigate"
+    assert action["route"].startswith("/eli5?skill_id=")
+    assert action["confirm"] is True  # offre implicite → carte, jamais d'auto-nav vocale
+
+
 # --- Règle de corroboration du signal déclaratif (§3) ----------------------------------------
 
 

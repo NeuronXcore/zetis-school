@@ -114,6 +114,36 @@
   margin-top: 9px;
 }
 
+/* carte de données inline (orchestration : « c'est quoi mes devoirs ») */
+.chat-datacard {
+  margin-top: 8px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  backdrop-filter: blur(10px);
+}
+.chat-datacard-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--zetis-fg, #eef0ff);
+  margin-bottom: 8px;
+}
+.chat-datacard-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.chat-datacard-line {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: rgba(238, 240, 255, 0.86);
+}
+
 /* barre d'action (clavier — pas de micro en Lot 1) */
 .chat-actions {
   margin-top: auto;

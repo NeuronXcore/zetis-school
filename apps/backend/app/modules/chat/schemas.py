@@ -50,6 +50,10 @@ class ChatAction(BaseModel):
     label: str
     route: str | None = None
     data: str | None = None
+    # `confirm=True` : offre IMPLICITE (ZETIS propose parce que Massimo a nommé une notion) →
+    # toujours une carte à taper, même à la voix. `confirm=False` : demande EXPLICITE
+    # (« montre/ouvre ») → auto-navigation autorisée à la voix. (ADR-0027, correctif 2026-07-30.)
+    confirm: bool = False
 
 
 class ChatMessageOut(BaseModel):

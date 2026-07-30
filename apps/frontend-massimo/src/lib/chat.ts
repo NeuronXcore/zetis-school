@@ -11,6 +11,21 @@ export interface ChatSession {
 
 export type ChatToolType = "eli5" | "fiche" | "mindmap" | "revision";
 
+export type ChatDataKind = "agenda" | "reviews" | "missions";
+
+/** Action d'orchestration ANCRÉE serveur (ADR-0027) — jamais hallucinée. `navigate` porte une
+ *  route réelle (construite depuis un id validé) ; `show_data` = le front récupère l'endpoint et
+ *  rend une carte inline. */
+export interface ChatAction {
+  kind: "navigate" | "show_data";
+  label: string;
+  route?: string | null;
+  data?: ChatDataKind | null;
+  /** `true` : offre IMPLICITE (Massimo a nommé une notion) → toujours une carte à taper, même à la
+   *  voix. `false`/absent : demande EXPLICITE → auto-navigation vocale autorisée. */
+  confirm?: boolean;
+}
+
 export interface ChatReply {
   session_id: string;
   turn_index: number;
@@ -18,6 +33,7 @@ export interface ChatReply {
   skill_id: number | null;
   tool_suggestion: ChatToolType | null;
   difficulty_declared: boolean;
+  action?: ChatAction | null;
 }
 
 export interface ChatToolResponse {

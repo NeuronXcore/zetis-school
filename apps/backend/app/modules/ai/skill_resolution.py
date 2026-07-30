@@ -67,13 +67,22 @@ def active_year_skills(db: Session, *, student_id: int) -> list[Skill]:
     rattachée (installation fraîche, référentiel non construit), on résout contre TOUTES les
     notions — mieux vaut un candidat imparfait que zéro mémoire au démarrage. Le repli est
     borné par le seuil de confiance, qui écarte de toute façon un mauvais ancrage."""
+    # Même chaîne de VISIBILITÉ que `galaxy._visible_notions` / `notion_panel` (chapitre ET leçon
+    # validés) : sans ces deux filtres, la résolution renvoie des notions que `notion_panel` juge
+    # invisibles → l'ancrage 404 et ZETIS dit « pas dans ton programme » APRÈS avoir parlé du sujet
+    # (incohérent). Résolution et ancrage doivent voir le même référentiel.
     subq = (
         select(LessonSkill.skill_id)
         .join(Lesson, Lesson.id == LessonSkill.lesson_id)
         .join(Chapter, Chapter.id == Lesson.chapter_id)
         .join(SchoolYearSubject, SchoolYearSubject.id == Chapter.school_year_subject_id)
         .join(SchoolYear, SchoolYear.id == SchoolYearSubject.school_year_id)
-        .where(SchoolYear.student_id == student_id, SchoolYear.status == "active")
+        .where(
+            SchoolYear.student_id == student_id,
+            SchoolYear.status == "active",
+            Chapter.validation_status == "validated",
+            Lesson.status == "validated",
+        )
     )
     candidates = db.scalars(select(Skill).where(Skill.id.in_(subq))).all()
     if candidates:

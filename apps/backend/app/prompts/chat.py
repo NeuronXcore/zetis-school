@@ -48,6 +48,9 @@ Réponds à Massimo. Puis :
   remplis `intent`. Exemples :
   - « montre-moi mes fiches sur les fractions » → kind=open_notion, notion_query="fractions", tool=fiche
   - « explique-moi les nombres relatifs » → kind=open_notion, notion_query="nombres relatifs", tool=eli5
+  - un sujet NOMMÉ seul, sans verbe (ex. « addition et soustraction de fractions », « le théorème
+    de Pythagore ») = une envie de travailler cette notion → kind=open_notion,
+    notion_query=<le sujet>, tool=eli5
   - « on révise les maths » → kind=open_subject, subject_query="maths", tool=revision
   - « c'est quoi mon agenda / mes devoirs » → kind=show_data, data=agenda
   - « qu'est-ce que je dois réviser » → kind=show_data, data=reviews

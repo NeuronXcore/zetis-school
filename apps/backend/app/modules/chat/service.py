@@ -348,6 +348,24 @@ def handle_message(
         if action_result.note:  # « pas de cible → ZETIS le dit » (§1/§3)
             reply = _append_note(reply, action_result.note)
 
+        # Repli d'orchestration (correctif 2026-07-30) : Massimo a NOMMÉ une notion résolue mais le
+        # LLM n'a produit aucune action (qwen3 traite souvent un sujet nu comme de la conversation).
+        # ZETIS propose alors une porte d'entrée — ELI5, toujours disponible pour une notion visible.
+        # Offre IMPLICITE → `confirm=True` (carte à taper, jamais d'auto-nav vocale) ; AUCUNE note
+        # d'échec (ZETIS propose, il ne s'excuse pas).
+        if action is None and resolved_skill_id is not None:
+            fallback = resolve_action(
+                db,
+                embedder,
+                student_id=student.id,
+                intent={"kind": "open_notion", "tool": "eli5"},
+                fallback_skill_id=resolved_skill_id,
+                fallback_skill=skill,
+            )
+            if fallback.action is not None:
+                fallback.action.confirm = True
+                action = fallback.action
+
         # --- Événement de sujet (dédupe 1/élève/skill/jour) ---
         if resolved_skill_id is not None and skill is not None:
             log_view_once_per_day(

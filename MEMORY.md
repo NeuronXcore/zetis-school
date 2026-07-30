@@ -12,17 +12,30 @@
 commits `d03918c`→`6672df9`, `main` devant `origin/main` de 4 ; push = geste user). Le cadrage
 ADR-0027 est aussi sur `main` (`6672df9`).
 
-**Slice A backend de l'ORCHESTRATEUR FAITE, NON commitée** (tests verts) : le chat produit un
-**intent typé** que le serveur **ancre** — `resolve_action` (`app/modules/chat/actions.py`) :
-`resolve_skill` → `galaxy.notion_panel(skill_id)` (matière + contenus `available` + ids) → route
-construite **depuis un id validé** (fiche→`/fiches/<slug>`, mindmap→`/mindmaps/reconstruire/<id>`,
-eli5→`/eli5?skill_id=`, révision→`/revision?subject=<slug>`) ; cible non ancrable → `action=None`
-**et ZETIS le dit** ; contenu absent → note « je le note pour Papa » (mécanisme différé). `show_data`
-(agenda/reviews/missions) = le front fetch. `ChatMessageOut.action` = navigate|show_data|None ;
-`chat_turn_schema` gagne `intent` ; `ai_jobs` métadonnées seules (+clé `action`, jamais de texte).
-**581 tests backend verts** (4 neufs, dont test-verrou « jamais de route hallucinée »). **NEXT =
-slice B frontend** (exécuteur : voix→navigate direct, clavier→carte, `show_data`→carte inline) via
-`prompt-chat-orchestrateur-slice-b-frontend.md`.
+**Orchestrateur — Slice A backend COMMITÉE (`ff353b6`) + Slice B frontend FAITE (non commitée).**
+- **A (backend)** : le chat produit un **intent typé** que le serveur **ancre** — `resolve_action`
+  (`app/modules/chat/actions.py`) : `resolve_skill` → `galaxy.notion_panel(skill_id)` (matière +
+  contenus `available` + ids) → route depuis un id **validé** (fiche→`/fiches/<slug>`,
+  mindmap→`/mindmaps/reconstruire/<id>`, eli5→`/eli5?skill_id=`, révision→`/revision?subject=<slug>`) ;
+  cible non ancrable → `action=None` **et ZETIS le dit** ; contenu absent → note « je le note pour
+  Papa » (mécanisme différé). `show_data` = le front fetch. `ChatMessageOut.action` =
+  navigate|show_data|None ; `chat_turn_schema` +`intent` ; `ai_jobs` métadonnées seules (+`action`,
+  jamais de texte). **581 back verts** (test-verrou « jamais de route hallucinée »).
+- **B (frontend)** : `ChatPage.tsx` exécuteur — **voix→`navigate()` direct**, **clavier→carte-action
+  à taper**, **`show_data`→carte inline** (`components/ChatDataCard.tsx` récupère agenda/reviews/
+  missions). `lib/chatActions.ts` (`surfaceOf`, `DATA_ROUTE`), `ChatReply.action`. Le geste émet
+  `chat_tool_response` (surface dérivée de la route, zéro nouvel event). **178 Massimo + tsc + build
+  verts** (3 neufs : voix→navigate, clavier→carte→navigate+trace, show_data→carte). Backend relancé
+  `:8000` avec l'orchestrateur.
+- **Correctif post-test live (2026-07-30)** : « nommer une notion » (ex. « addition et soustraction de
+  fractions ») ne redirigeait pas — qwen3 classait `intent=none`. Fix : (a) `skill_resolution` aligné sur
+  la VISIBILITÉ (`Chapter`/`Lesson` validés) — évite les « pas dans ton programme » contradictoires ;
+  (b) **repli serveur** : notion résolue + aucune action LLM → ZETIS **propose une carte ELI5**
+  (`confirm=True`) ; (c) drapeau `confirm` → offre implicite = carte même à la voix, **auto-nav vocale
+  réservée aux demandes explicites** ; (d) exemple dans le prompt. Vérifié : « fractions » → skill 127 →
+  action `/eli5?skill_id=127`. 582 back + 179 Massimo verts.
+- **NEXT = commit slice B (+ correctif) → PR `feat/chat-orchestrateur` → merge.** Le mécanisme « demande
+  de contenu à Papa » (Point ouvert n°4) reste à cadrer avant sa slice. Live re-testable par le user.
 
 ---
 

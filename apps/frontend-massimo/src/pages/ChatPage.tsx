@@ -17,10 +17,15 @@ import {
   createChatSession,
   sendChatMessage,
   synthesizeChatSpeech,
+  type ChatAction,
   type ChatToolType,
 } from "../lib/chat";
+import { DATA_OPEN_LABEL, DATA_ROUTE, surfaceOf } from "../lib/chatActions";
+import { ChatDataCard } from "../components/ChatDataCard";
 import { isVoicePlaybackSupported, playSpeech, primeAudio, type VoicePlayback } from "../lib/voice";
 import "./chat.css";
+
+type Origin = "voice" | "text";
 
 // Phrase FIXE de l'asymétrie (ADR-0026 §5) : toujours visible, non fermable.
 const FIXED_TRANSPARENCY = "ZETIS retient les notions que tu travailles, pas tes mots.";
@@ -37,6 +42,8 @@ interface Speech {
   idx: number;
   wordStart: number;
   suggested: ChatToolType | null;
+  action: ChatAction | null;
+  origin: Origin;
 }
 
 export function ChatPage() {
@@ -47,6 +54,7 @@ export function ChatPage() {
   const [words, setWords] = useState<KaraokeWord[]>([]);
   const [wordIdx, setWordIdx] = useState(-1);
   const [tool, setTool] = useState<ChatToolType | null>(null);
+  const [action, setAction] = useState<ChatAction | null>(null);
   const [skillId, setSkillId] = useState<number | null>(null);
   const [transparency, setTransparency] = useState(FIXED_TRANSPARENCY);
   const [quota, setQuota] = useState(false);
@@ -60,7 +68,14 @@ export function ChatPage() {
 
   const sessionRef = useRef<string | null>(null);
   const timersRef = useRef<number[]>([]);
-  const speechRef = useRef<Speech>({ words: [], idx: -1, wordStart: 0, suggested: null });
+  const speechRef = useRef<Speech>({
+    words: [],
+    idx: -1,
+    wordStart: 0,
+    suggested: null,
+    action: null,
+    origin: "text",
+  });
   const avatarStateRef = useRef(avatarState);
   avatarStateRef.current = avatarState;
   const recRef = useRef<Recording | null>(null);
@@ -105,6 +120,26 @@ export function ChatPage() {
     setWordIdx(i);
   }, []);
 
+  // Exécute une action ANCRÉE : trace `chat_tool_response` (journal, zéro XP) puis navigue vers la
+  // route (le backend l'a construite depuis un id validé ; le front ne fabrique aucune destination).
+  const runAction = useCallback(
+    async (act: ChatAction) => {
+      const sid = sessionRef.current;
+      if (sid) {
+        try {
+          await sendChatMessage(sid, {
+            tool_response: { tool_type: surfaceOf(act), accepted: true },
+          });
+        } catch {
+          /* best-effort */
+        }
+      }
+      const route = act.kind === "show_data" && act.data ? DATA_ROUTE[act.data] : act.route;
+      if (route) navigate(route);
+    },
+    [navigate],
+  );
+
   const finishSpeaking = useCallback(() => {
     clearTimers();
     stopVoice();
@@ -113,13 +148,30 @@ export function ChatPage() {
     setWordIdx(sp.words.length);
     setAvatarState("idle");
     if (sp.suggested) setTool(sp.suggested); // carte outils APRÈS la parole, jamais pendant
-  }, [clearTimers, stopVoice]);
+    // Orchestration (ADR-0027) : voix → navigation DIRECTE ; clavier → carte à taper ; données → carte inline.
+    if (sp.action) {
+      // Auto-navigation vocale RÉSERVÉE aux demandes explicites (`!confirm`) : une offre implicite
+      // (notion nommée) reste une carte à taper, même à la voix (correctif 2026-07-30).
+      if (sp.action.kind === "navigate" && sp.origin === "voice" && !sp.action.confirm) {
+        void runAction(sp.action);
+      } else {
+        setAction(sp.action);
+      }
+    }
+  }, [clearTimers, stopVoice, runAction]);
 
   // État 3 : parole. Tente la VOIX serveur (Piper) ; à défaut, karaoké MUET (Lot 1).
   const speakReply = useCallback(
-    async (text: string, suggested: ChatToolType | null) => {
+    async (text: string, suggested: ChatToolType | null, act: ChatAction | null, origin: Origin) => {
       const w = splitKaraoke(text);
-      speechRef.current = { words: w, idx: -1, wordStart: performance.now(), suggested };
+      speechRef.current = {
+        words: w,
+        idx: -1,
+        wordStart: performance.now(),
+        suggested,
+        action: act,
+        origin,
+      };
       clearTimers();
       stopVoice();
 
@@ -170,7 +222,7 @@ export function ChatPage() {
   }, [finishSpeaking]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, origin: Origin) => {
       const msg = text.trim();
       if (!msg || busy || quota) return;
       primeAudio(); // geste utilisateur → débloque l'audio (iOS) pour la voix à venir
@@ -178,6 +230,7 @@ export function ChatPage() {
       setError(null);
       setAwake(true);
       setTool(null);
+      setAction(null);
       clearTimers();
       stopVoice();
       setWords([]);
@@ -192,7 +245,7 @@ export function ChatPage() {
         }
         const reply = await sendChatMessage(sessionRef.current, { text: msg });
         setSkillId(reply.skill_id);
-        await speakReply(reply.reply, reply.tool_suggestion);
+        await speakReply(reply.reply, reply.tool_suggestion, reply.action ?? null, origin);
       } catch (e) {
         if (e instanceof ChatQuotaReached) {
           setQuota(true);
@@ -243,7 +296,7 @@ export function ChatPage() {
     }
     try {
       const { transcript } = await transcribeEli5(blob);
-      if (transcript.trim()) await send(transcript);
+      if (transcript.trim()) await send(transcript, "voice"); // voix → navigation directe
       else setAvatarState("idle");
     } catch (e) {
       setAvatarState("idle");
@@ -296,6 +349,7 @@ export function ChatPage() {
     setWords([]);
     setWordIdx(-1);
     setTool(null);
+    setAction(null);
     setQuota(false);
     setInput("");
     setError(null);
@@ -347,7 +401,26 @@ export function ChatPage() {
 
       {error && <p className="chat-quota">{error}</p>}
 
-      {!speaking && tool && (
+      {/* Orchestration (ADR-0027) : action ANCRÉE. Voix a déjà navigué ; clavier → carte à taper,
+          données → carte inline. */}
+      {!speaking && action?.kind === "navigate" && (
+        <div className="chat-offer" role="group" aria-label="ZETIS peut t'ouvrir ça">
+          <div className="chat-offer-row">
+            <button type="button" className="chat-tool" onClick={() => runAction(action)}>
+              {action.label} →
+            </button>
+          </div>
+        </div>
+      )}
+      {!speaking && action?.kind === "show_data" && action.data && (
+        <ChatDataCard
+          data={action.data}
+          openLabel={DATA_OPEN_LABEL[action.data]}
+          onOpen={() => runAction(action)}
+        />
+      )}
+
+      {!speaking && !action && tool && (
         <div className="chat-offer" role="group" aria-label="ZETIS te propose">
           <div className="chat-offer-head">On continue comment&nbsp;?</div>
           <div className="chat-offer-row">
@@ -374,7 +447,7 @@ export function ChatPage() {
               className="chat-form"
               onSubmit={(e) => {
                 e.preventDefault();
-                send(input);
+                send(input, "text"); // clavier → carte-action à taper
               }}
             >
               <input

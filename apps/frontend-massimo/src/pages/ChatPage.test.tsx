@@ -38,6 +38,21 @@ vi.mock("../lib/eli5", async (orig) => {
   return { ...actual, transcribeEli5: vi.fn() };
 });
 
+// `useNavigate` mocké pour observer les navigations d'action (voix directe, carte tapée).
+const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
+vi.mock("react-router-dom", async (orig) => {
+  const actual = await orig<typeof import("react-router-dom")>();
+  return { ...actual, useNavigate: () => mockNavigate };
+});
+// Carte de données stubée (évite les fetch réels agenda/reviews/missions en jsdom).
+vi.mock("../components/ChatDataCard", () => ({
+  ChatDataCard: (p: { data: string; openLabel: string; onOpen: () => void }) => (
+    <div data-testid="datacard" data-data={p.data}>
+      <button onClick={p.onOpen}>{p.openLabel}</button>
+    </div>
+  ),
+}));
+
 import { ChatPage } from "./ChatPage";
 import { ChatQuotaReached, createChatSession, sendChatMessage, type ChatReply } from "../lib/chat";
 import { isDictationSupported, startRecording } from "../lib/dictation";
@@ -152,6 +167,80 @@ describe("ChatPage", () => {
     // La transcription part au backend, puis un tour de chat (avatar parle sa réponse).
     await waitFor(() => expect(mockTranscribe).toHaveBeenCalledOnce());
     await waitFor(() => expect(mockSend).toHaveBeenCalledWith("s1", { text: "les fractions" }));
+  });
+
+  it("clavier + action navigate → carte à taper, puis navigation ancrée + trace", async () => {
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      tool_suggestion: null,
+      action: { kind: "navigate", route: "/fiches/mathematiques", label: "Tes fiches de maths" },
+    });
+    renderPage();
+    ask("montre mes fiches de maths"); // origine CLAVIER
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("idle"));
+    fireEvent.click(screen.getByRole("button", { name: /Tes fiches de maths/ }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/fiches/mathematiques"));
+    // le geste trace chat_tool_response (surface dérivée de la route), zéro nouvel event
+    expect(mockSend).toHaveBeenCalledWith("s1", {
+      tool_response: { tool_type: "fiche", accepted: true },
+    });
+  });
+
+  it("voix + action navigate → navigation DIRECTE, sans carte", async () => {
+    mockSupported.mockReturnValue(true);
+    mockRecord.mockResolvedValue({
+      stop: () => Promise.resolve(new Blob(["x"], { type: "audio/webm" })),
+      cancel: () => {},
+      analyser: null,
+    });
+    mockTranscribe.mockResolvedValue({ transcript: "montre mes fiches", duration_seconds: 1 });
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      tool_suggestion: null,
+      action: { kind: "navigate", route: "/fiches/mathematiques", label: "Tes fiches" },
+    });
+    renderPage();
+    const mic = screen.getByRole("button", { name: /Appuie pour parler/ });
+    fireEvent.pointerDown(mic);
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("listening"));
+    fireEvent.pointerUp(mic);
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/fiches/mathematiques"));
+    expect(screen.queryByRole("button", { name: /Tes fiches/ })).not.toBeInTheDocument();
+  });
+
+  it("offre implicite (confirm) → carte même à la voix, jamais de navigation directe", async () => {
+    mockSupported.mockReturnValue(true);
+    mockRecord.mockResolvedValue({
+      stop: () => Promise.resolve(new Blob(["x"], { type: "audio/webm" })),
+      cancel: () => {},
+      analyser: null,
+    });
+    mockTranscribe.mockResolvedValue({ transcript: "les fractions", duration_seconds: 1 });
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      tool_suggestion: null,
+      action: { kind: "navigate", route: "/eli5?skill_id=1", label: "T'expliquer les fractions", confirm: true },
+    });
+    renderPage();
+    const mic = screen.getByRole("button", { name: /Appuie pour parler/ });
+    fireEvent.pointerDown(mic);
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("listening"));
+    fireEvent.pointerUp(mic);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /T'expliquer les fractions/ })).toBeInTheDocument(),
+    );
+    expect(mockNavigate).not.toHaveBeenCalled(); // offre → carte, pas de téléportation vocale
+  });
+
+  it("action show_data → carte de données inline (le front récupère l'agenda)", async () => {
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      tool_suggestion: null,
+      action: { kind: "show_data", data: "agenda", label: "Ouvrir ton agenda" },
+    });
+    renderPage();
+    ask("c'est quoi mes devoirs");
+    await waitFor(() => expect(screen.getByTestId("datacard").dataset.data).toBe("agenda"));
   });
 
   it("test-verrou : aucune API vocale navigateur, aucun stockage local de conversation", () => {
