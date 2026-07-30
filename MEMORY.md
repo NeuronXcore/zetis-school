@@ -7,13 +7,18 @@
 
 ## État à la reprise
 
-**Branche : `feat/content-requests`** (depuis `main`, 2026-07-30) — chantier **Étape 2 : liste
-d'attente de contenus pour Papa** (+ correctifs orchestrateur + volet hors-programme + panneau
-orphelines). **✅ TOUT FAIT, TESTÉ LIVE, COMMITÉ `1db357b`** (53 fichiers ; migration
-`c3d4e5f6a1b2` appliquée sur Postgres dev). **NON poussé, pas de PR** — reste : vérif humaine
-(tests+diff) → push + PR vers `main`.
+**Branche : `main`** — chantier **Étape 2 (content_requests + correctifs orchestrateur + volet
+hors-programme + panneau notions orphelines)** : **✅ COMPLET, ULTRAREVIEWÉ, MERGÉ ET POUSSÉ.**
+**PR [#57](https://github.com/NeuronXcore/zetis-school/pull/57) mergée en squash → `origin/main` =
+`9b53af1`** (2026-07-30) ; branche `feat/content-requests` **supprimée** (local + remote).
+Migration **`c3d4e5f6a1b2`** appliquée sur Postgres dev (`alembic current` = head) — elle se rejoue
+seule au démarrage (entrypoint Docker / `scripts/dev.sh`). **NE PAS RÉ-IMPLÉMENTER.**
 
-**✅ TOUT LE CHAT EST MERGÉ SUR `main` ET POUSSÉ** (`origin/main` = `1d3d66a`) :
+> ⚠️ **Déploiement : il n'y a AUCUNE CI ni environnement distant.** Merger ne teste et ne déploie
+> rien. Les migrations passent au (re)démarrage du backend. Variable de DB = **`ZETIS_DATABASE_URL`**
+> (préfixe `ZETIS_`) — `DATABASE_URL` de `.env.example`/`DEPLOYMENT.md` est **ignoré**.
+
+**✅ TOUT LE CHAT EST MERGÉ SUR `main` ET POUSSÉ** (`origin/main` = `9b53af1`) :
 - **ADR-0026** (mémoire éphémère Redis + texte/avatar `@zetis/ui/avatar` + voix STT Whisper/TTS Piper
   locale) — commits `d03918c`→`6672df9`.
 - **ADR-0027 orchestrateur** (intent typé **ancré serveur** + exécuteur voix→direct/clavier→carte +
@@ -21,7 +26,7 @@ orphelines). **✅ TOUT FAIT, TESTÉ LIVE, COMMITÉ `1db357b`** (53 fichiers ; m
   `1d3d66a`. Branches `feat/chat-memoire` + `feat/chat-orchestrateur` **supprimées** (local+remote).
   **NE PAS RÉ-IMPLÉMENTER.**
 
-### 🎯 ÉTAPE 2 — `content_requests` : FAIT (non commité), à tester en UP live
+### ÉTAPE 2 — `content_requests` : MERGÉ (détail conservé pour les pièges)
 Massimo réclame un contenu qui MANQUE → **liste d'attente DÉDUPLIQUÉE** que Papa traite. Résout le
 **Point ouvert n°4 ADR-0027**. **Décisions figées** : `docs/decisions/adr-0027-addendum-content-requests.md`
 (Accepté) + ligne `DECISIONS.md` + `adr-0027 §Points ouverts n°4` (tranché) + `page-chat.md §Garde-fous`
@@ -111,11 +116,16 @@ réactivée non remontée → tri `updated_at` ; (4) doublon de leçon au retry 
 → **SAVEPOINT** `begin_nested`. 5 tests-verrous ajoutés (dont une **vraie** `IntegrityError`).
 ⚠️ piège test : `func.now()` a une granularité d'1 s sur SQLite → poser les dates explicitement.
 
-**Tests : 610 back + 231 Papa + 182 Massimo + tsc + builds VERTS.** **✅ COMMITÉ `1db357b` sur
-`feat/content-requests`** (53 fichiers, +2949 ; commit unique car tranches entrelacées, chaque étape
-testée verte). **NON poussé, pas de PR** — NEXT = vérif humaine (tests+diff) → push + PR vers `main`.
-⚠️ données de test en DB dev (notion orpheline « Nombres relatifs » Maths + notion_requests `added`
-résiduelles ; migration `c3d4e5f6a1b2` appliquée). Perso : [[chat-orchestrateur-adr0027]].
+**Tests : 610 back + 231 Papa + 182 Massimo + tsc + builds VERTS.** **✅ MERGÉ `main` via PR #57**
+(squash `9b53af1`) — 2 commits d'origine (`2ba1a1b` chantier, `b52fb77` correctifs de revue).
+⚠️ données de test en DB dev : notion orpheline « Nombres relatifs » (Maths, **non supprimable** car
+historique Massimo) + quelques `notion_requests` `added` résiduelles.
+Perso : [[chat-orchestrateur-adr0027]].
+
+### NEXT (prochain chantier, à décider)
+Rien n'est en cours. Pistes ouvertes tracées : production **en lot** depuis l'inbox/la Couverture
+(« ⚡ Compléter le chapitre » est encore désactivé) ; suppression du `NotionRequestsPanel` de la page
+Programme (doublon avec l'inbox `/demandes`) ; quiz par notion (hors v1 ADR-0027, `location.state`).
 
 ---
 
