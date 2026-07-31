@@ -31,21 +31,10 @@ export const ALERTS: Alert[] = [
 
 export const RECOMMENDATIONS = ["Créer mission", "Générer capsule", "Lancer diagnostic court"];
 
-export interface Gap {
-  subject: string;
-  notion: string;
-  detectedOn: string;
-  severity: "faible" | "moyenne" | "forte";
-  status: "ouverte" | "en cours";
-}
-
-export const GAPS: Gap[] = [
-  { subject: "Mathématiques", notion: "Nombres relatifs", detectedOn: "29/06", severity: "forte", status: "ouverte" },
-  { subject: "Français", notion: "Temps du récit", detectedOn: "28/06", severity: "moyenne", status: "en cours" },
-  { subject: "SVT", notion: "Nutrition végétale", detectedOn: "26/06", severity: "moyenne", status: "ouverte" },
-  { subject: "Anglais", notion: "Prétérit", detectedOn: "24/06", severity: "faible", status: "en cours" },
-  { subject: "Histoire-Géo", notion: "Repères chronologiques", detectedOn: "22/06", severity: "faible", status: "ouverte" },
-];
+// `Gap` / `GAPS` supprimés : les pages Lacunes et Mode focus lisent désormais les vraies notions
+// via `GET /api/parent/progress/gaps`. Leur vocabulaire de façade (« forte », « en cours ») ne
+// correspondait à aucune valeur du backend (`high`, `in_progress`) — le mock ne pouvait donc pas
+// être branché tel quel, il fallait le remplacer.
 
 export interface Mission {
   subject: string;
