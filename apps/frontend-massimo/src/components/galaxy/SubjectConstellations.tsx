@@ -22,33 +22,61 @@ const SPIN_SECONDS = [11, 14, 9, 15, 12, 13];
 export interface SubjectConstellationsProps {
   subjects: GalaxySubject[];
   onOpen: (slug: string) => void;
+  /** `"grid"` : l'écran d'attente / le repli sans WebGL. `"band"` : le bandeau au-dessus du
+   *  système solaire, où les planètes servent à VISER une matière dans le graphe. */
+  variant?: "grid" | "band";
+  /** Matière visée dans le bandeau — reçoit un anneau. */
+  selectedSlug?: string | null;
 }
 
-export function SubjectConstellations({ subjects, onOpen }: SubjectConstellationsProps) {
+export function SubjectConstellations({
+  subjects,
+  onOpen,
+  variant = "grid",
+  selectedSlug = null,
+}: SubjectConstellationsProps) {
   return (
-    <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <ul
+      className={
+        variant === "band"
+          ? // UNE SEULE LIGNE, sans défilement : les planètes se partagent la largeur
+            // (`flex-1`) et rétrécissent avec leur nombre. Un bandeau qui défile cacherait
+            // les dernières matières, et un bandeau qui se replie repousserait le graphe hors
+            // de l'écran — dans les deux cas, la carte de l'année cesse d'être une carte.
+            "flex gap-2"
+          : "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+      }
+    >
       {subjects.map((subject, i) => {
         const accent = ACCENTS[i % ACCENTS.length];
         const empty = subject.total === 0;
         const ratio = empty ? 0 : subject.lit / subject.total;
         const icon = subjectIconFor(subject.slug);
         return (
-          <li key={subject.slug}>
+          <li key={subject.slug} className={variant === "band" ? "min-w-0 flex-1" : undefined}>
             {/* ⚠️ `cursor-pointer` est EXPLICITE : la préflight de Tailwind v4 pose
                 `cursor: default` sur les <button> (changement par rapport à v3). Sans cette
                 classe, survoler une planète cliquable ne montre aucune main. */}
             <button
               type="button"
-              disabled={empty}
+              // Dans le BANDEAU, une matière vide reste cliquable : viser sa planète dans le
+              // système solaire est une action légitime (« montre-moi où elle est »), là où
+              // OUVRIR sa constellation ne mènerait qu'à un écran d'attente.
+              disabled={empty && variant === "grid"}
               onClick={() => onOpen(subject.slug)}
               aria-label={
                 empty
                   ? `${subject.name} — les étoiles arrivent bientôt`
                   : `${subject.name} — ${subject.lit} étoiles allumées sur ${subject.total}`
               }
+              aria-pressed={variant === "band" ? selectedSlug === subject.slug : undefined}
               className={
-                "group flex w-full flex-col items-center gap-2.5 rounded-2xl p-3 transition disabled:opacity-45 " +
-                (empty ? "cursor-default" : "cursor-pointer hover:-translate-y-0.5")
+                "group flex w-full flex-col items-center rounded-2xl transition disabled:opacity-45 " +
+                (variant === "band" ? "gap-1 p-1.5 " : "gap-2.5 p-3 ") +
+                (empty && variant === "grid" ? "cursor-default" : "cursor-pointer hover:-translate-y-0.5") +
+                (selectedSlug === subject.slug
+                  ? " bg-zetis-surface-2 ring-2 ring-zetis-accent-2"
+                  : "")
               }
               style={
                 {
@@ -63,7 +91,9 @@ export function SubjectConstellations({ subjects, onOpen }: SubjectConstellation
               <span
                 aria-hidden
                 className={
-                  "relative block h-20 w-20 overflow-hidden rounded-full shadow-[0_0_34px_var(--glow)] transition-[box-shadow,filter,transform] duration-300 " +
+                  "relative mx-auto block overflow-hidden rounded-full " +
+                  (variant === "band" ? "h-11 w-11 " : "h-20 w-20 ") +
+                  " shadow-[0_0_34px_var(--glow)] transition-[box-shadow,filter,transform] duration-300 " +
                   (empty
                     ? ""
                     : "group-hover:scale-[1.07] group-hover:shadow-[0_0_66px_var(--glow-strong)] group-hover:brightness-125")
@@ -127,7 +157,9 @@ export function SubjectConstellations({ subjects, onOpen }: SubjectConstellation
                       aria-hidden
                       // Assez grand pour identifier la matière, assez petit pour laisser voir
                       // la surface tourner autour : sinon l'emblème masque la planète.
-                      className="h-10 w-10 object-contain"
+                      className={
+                        variant === "band" ? "h-6 w-6 object-contain" : "h-10 w-10 object-contain"
+                      }
                       style={{ filter: "drop-shadow(0 2px 6px rgba(3,6,18,.75))" }}
                     />
                   ) : (
@@ -155,13 +187,28 @@ export function SubjectConstellations({ subjects, onOpen }: SubjectConstellation
                   }}
                 />
               </span>
-              <span className="text-sm font-bold">{subject.name}</span>
-              <span className="text-xs text-zetis-muted">
+              {/* Dans le bandeau, le nom est tronqué plutôt que replié : une hauteur de ligne
+                  variable ferait sauter le graphe d'un rendu à l'autre. Le compte se réduit à
+                  son nombre — l'`aria-label` du bouton porte la phrase complète. */}
+              <span
+                className={
+                  variant === "band"
+                    ? "w-full truncate text-center text-[11px] font-bold leading-tight"
+                    : "text-sm font-bold"
+                }
+              >
+                {subject.name}
+              </span>
+              <span
+                className={variant === "band" ? "text-[10px] text-zetis-muted" : "text-xs text-zetis-muted"}
+              >
                 {empty
                   ? "Bientôt"
-                  : `${subject.lit} étoile${subject.lit > 1 ? "s" : ""} allumée${
-                      subject.lit > 1 ? "s" : ""
-                    }`}
+                  : variant === "band"
+                    ? `${subject.lit} ★`
+                    : `${subject.lit} étoile${subject.lit > 1 ? "s" : ""} allumée${
+                        subject.lit > 1 ? "s" : ""
+                      }`}
               </span>
             </button>
           </li>

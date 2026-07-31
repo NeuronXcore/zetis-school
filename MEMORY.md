@@ -33,10 +33,17 @@ déterministe), plan aplati, caméra en surplomb à ~35°.
   inchangé.**
 - La rotation lente était **déjà acquise** (`controls.autoRotate`, coupée par
   `prefers-reduced-motion`) — rien à écrire.
-- ⚠️ **Question ouverte** : une matière vide est aujourd'hui rendue **exactement comme** une
-  matière travaillée. Les distinguer (planète plus sombre, comme l'état « à découvrir » de la
-  rampe §5) aiderait la lecture — mais n'a pas été demandé, et frôle le « voici ce que tu n'as
-  pas fait ». À trancher avec le user.
+- **Bandeau de planètes CSS au-dessus du graphe** (`SubjectConstellations variant="band"`) :
+  **une seule ligne, sans défilement** — les planètes se partagent la largeur (`flex-1`) et
+  rétrécissent avec leur nombre (globe 44 px, emblème 24 px, nom tronqué). Un bandeau qui défile
+  cacherait les dernières matières ; un bandeau qui se replie repousserait le graphe hors écran.
+- **Double geste** : 1ᵉʳ tap = **viser** (la caméra vole sur la planète via `matchedIds` →
+  `zoomToFit`, + anneau `selectedId`) ; 2ᵉ tap sur la même = **entrer** dans la constellation.
+  « Montre-moi où elle est » et « emmène-moi dedans » sont deux intentions différentes.
+- **`SubjectKpiRow` SUPPRIMÉ** : le bandeau rend le même service et montre en plus les matières
+  vides, que les puces filtraient (`s.total > 0`). Deux rangées encadraient le graphe pour rien.
+- Une matière vide est **cliquable dans le bandeau** (viser est légitime) mais son ouverture
+  mène à l'écran d'attente honnête ; elle affiche « Bientôt » au lieu d'un compte.
 
 ### Chantier « Accueil vivant » (2ᵉ addendum ADR-0024) — FAIT, non poussé
 

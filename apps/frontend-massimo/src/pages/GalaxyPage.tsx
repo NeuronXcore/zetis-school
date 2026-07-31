@@ -8,7 +8,6 @@ import { NotionActionPanel } from "../components/galaxy/NotionActionPanel";
 import { SearchEmptyToast } from "../components/galaxy/SearchEmptyToast";
 import { ProgressSparkline } from "../components/galaxy/ProgressSparkline";
 import { SubjectConstellations } from "../components/galaxy/SubjectConstellations";
-import { SubjectKpiRow } from "../components/galaxy/SubjectKpiRow";
 import { useGalaxy } from "../hooks/useGalaxy";
 import { REASON_LABEL } from "../lib/gamification";
 import type { GalaxyStatus } from "@zetis/types";
@@ -55,6 +54,13 @@ export function GalaxyPage() {
   // Plein écran : les constellations vont se densifier, une vignette ne suffira plus.
   const [fullscreen, setFullscreen] = useState(false);
   const [query, setQuery] = useState("");
+  // Matière VISÉE dans le bandeau (≠ constellation ouverte). Premier tap : la caméra vole
+  // jusqu'à sa planète et l'entoure. Second tap sur la même : on entre.
+  //
+  // Ce double geste remplace le rail de puces : il garde l'accès au doigt (viser une sphère
+  // dans le graphe est difficile) SANS quitter le système solaire au premier contact —
+  // « montre-moi où elle est » et « emmène-moi dedans » sont deux intentions différentes.
+  const [aimedSlug, setAimedSlug] = useState<string | null>(null);
   const [viewport, setViewport] = useState(() => ({
     w: typeof window === "undefined" ? 1280 : window.innerWidth,
     h: typeof window === "undefined" ? 900 : window.innerHeight,
@@ -226,6 +232,18 @@ export function GalaxyPage() {
     return { nodes, edges };
   }, [fullGraph, galaxy.subjects]);
 
+  /** La planète visée, au format des ids de nœud — `matchedIds` déclenche le `zoomToFit`. */
+  const aimedNodeIds = useMemo(() => {
+    const subject = galaxy.subjects?.find((s) => s.slug === aimedSlug);
+    return subject ? new Set([`subject-${subject.subject_id}`]) : EMPTY_MATCHES;
+  }, [galaxy.subjects, aimedSlug]);
+
+  /** Bandeau : on VISE d'abord, on entre au second tap sur la même matière. */
+  function aimOrOpen(slug: string) {
+    if (aimedSlug === slug) galaxy.openSubject(slug);
+    else setAimedSlug(slug);
+  }
+
   // En plein écran, le canvas prend tout ce qui reste sous le titre et au-dessus des KPI.
   // En plein écran, la hauteur disponible = fenêtre − bandeau (112) − chrome de la modale.
   const canvasHeight = fullscreen
@@ -349,7 +367,9 @@ export function GalaxyPage() {
       {!constellation && (
         <section className="mt-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-zetis-muted">
-            Ta galaxie — touche une matière pour entrer dedans
+            {aimedSlug
+              ? "Touche à nouveau la même planète pour entrer dedans"
+              : "Ta galaxie — touche une matière pour la viser"}
           </h3>
 
           {galaxy.subjects !== null && galaxy.subjects.length === 0 ? (
@@ -358,6 +378,21 @@ export function GalaxyPage() {
             </p>
           ) : (
             <>
+              {/* Bandeau de planètes — les mêmes sphères CSS que l'écran d'attente, en ligne.
+                  Elles servent à VISER une matière dans le système solaire : au doigt, une
+                  planète de quelques pixels perdue dans le graphe est inatteignable.
+                  Aucun chunk 3D ici : ces globes sont en CSS pur. */}
+              {galaxy.subjects && galaxy.subjects.length > 0 && (
+                <div className="mb-3">
+                  <SubjectConstellations
+                    subjects={galaxy.subjects}
+                    onOpen={aimOrOpen}
+                    variant="band"
+                    selectedSlug={aimedSlug}
+                  />
+                </div>
+              )}
+
               <div className="overflow-hidden rounded-2xl border border-zetis-border bg-zetis-surface">
                 {webgl && solarSystem && solarSystem.nodes.length > 0 ? (
                   <Suspense fallback={planets}>
@@ -367,9 +402,11 @@ export function GalaxyPage() {
                       // Les matières sont POSÉES sur leurs orbites, pas placées par un moteur
                       // de forces : c'est une composition, pas un équilibre.
                       layout="orbit"
-                      matchedIds={EMPTY_MATCHES}
+                      // La matière visée depuis le bandeau : `matchedIds` la met en avant ET
+                      // amène la caméra dessus (`zoomToFit`), `selectedId` lui pose son anneau.
+                      matchedIds={aimedNodeIds}
                       highlightStatus={null}
-                      selectedId={null}
+                      selectedId={[...aimedNodeIds][0] ?? null}
                       // Dans la galaxie entière, TOUT mène à une matière : un amas ou le
                       // soleil ne sont pas des destinations, mais chaque nœud porte son
                       // `subject_slug` — un clic ouvre la bonne constellation sans second
@@ -388,13 +425,10 @@ export function GalaxyPage() {
                 )}
               </div>
 
-              {/* Entrée directe par matière : viser une sphère au doigt dans une galaxie dense
-                  est difficile, une puce ne l'est pas. */}
-              {galaxy.subjects && galaxy.subjects.length > 0 && (
-                <div className="mt-3">
-                  <SubjectKpiRow subjects={galaxy.subjects} onOpen={galaxy.openSubject} />
-                </div>
-              )}
+              {/* Le rail de puces qui vivait ici a été RETIRÉ : le bandeau de planètes au-dessus
+                  rend le même service (entrée par matière au doigt) et montre en plus les
+                  matières encore vides, que les puces filtraient. Deux rangées pour la même
+                  intention encadraient le graphe sans rien ajouter. */}
 
               {/* La frise suit le graphe : c'est un élément de progression, sa place est ici. */}
               {timeline && timeline.points.length > 1 && (
