@@ -352,14 +352,27 @@ def _build_revision_steps(
     db: Session, skill_id: int | None, skill_name: str
 ) -> list[tuple[str, str, int | None]]:
     """Template `revision` (ADR-0017 §5) : RAPPEL d'abord (récupération active — [reconstruire] →
-    [mini-quiz]) puis relecture de consolidation. Notion déjà vue → on teste le rappel avant de
-    relire (effet de test). La reconstruction (ADR-0019) est une récupération plus forte que la
-    relecture passive ; via le verdict option B elle peut tenir lieu de signal de rappel sans quiz."""
+    [mini-quiz]), relecture de consolidation, puis RÉEXPLICATION. Notion déjà vue → on teste le
+    rappel avant de relire (effet de test). La reconstruction (ADR-0019) est une récupération plus
+    forte que la relecture passive ; via le verdict option B elle peut tenir lieu de signal de
+    rappel sans quiz.
+
+    **L'étape de réexplication est ce qui permet à la boucle de se FERMER.** Elle manquait, et son
+    absence rendait le relais du §5bis inopérant : le verdict exige un `reverse_score` (voir
+    `_complete_mission`), or `STEP_ELI5` est une étape de CONSULTATION qui n'émet aucun
+    `reverse_eli5`. Une mission `revision` rendait donc toujours `review_later` — la notion que
+    l'ADR-0017 promet de « vérifier dans le temps » ne pouvait jamais être déclarée acquise, et sa
+    lacune restait `in_progress` à vie.
+
+    Conséquence assumée : les TYPES d'étape coïncident désormais avec ceux de `remediation`. Les
+    deux templates restent distincts par ce qui compte — la source (carte SRS due vs lacune), la
+    formulation des consignes, le plafond `mission_revision_top_n` et la priorité."""
     recall = _recall_steps(db, skill_id, skill_name)
-    relire: list[tuple[str, str, int | None]] = [
+    consolider: list[tuple[str, str, int | None]] = [
         (STEP_ELI5, f"Relis et rappelle-toi « {skill_name} ».", skill_id),
+        (STEP_VOCAL, f"Réexplique « {skill_name} » avec tes mots à ZETIS.", skill_id),
     ]
-    return recall + relire
+    return recall + consolider
 
 
 def _skill_has_active_mission(db: Session, *, student_id: int, skill_id: int) -> bool:
@@ -875,7 +888,10 @@ def _apply_verdict(
     if skill_id is None:
         return
     now = datetime.now(timezone.utc)
-    measured = float(reverse_score) if reverse_score is not None else 0.0
+    # `None` = AUCUNE réexplication mesurée, ce qui n'est pas la même chose qu'un score de 0.
+    # Le distinguer est indispensable : un parcours sans étape vocale (éditeur de steps de Papa,
+    # notion d'une champion croisée) écrasait sinon la maîtrise avec un zéro fabriqué.
+    measured = float(reverse_score) if reverse_score is not None else None
     mastery = db.scalar(
         select(SkillMastery).where(
             SkillMastery.student_id == student.id, SkillMastery.skill_id == skill_id
@@ -893,8 +909,11 @@ def _apply_verdict(
     )
     mastery.last_seen_at = now
     if verdict == "acquired":
-        mastery.mastery_score = max(mastery.mastery_score or 0.0, measured)
-        mastery.confidence_score = max(mastery.confidence_score or 0.0, measured)
+        # `acquired` exige un `reverse_score` non nul par construction (cf. `_complete_mission`) :
+        # `measured` ne peut pas être `None` dans cette branche.
+        gained = measured or 0.0
+        mastery.mastery_score = max(mastery.mastery_score or 0.0, gained)
+        mastery.confidence_score = max(mastery.confidence_score or 0.0, gained)
         record_mastery_transition(db, mastery, "mastered", now)
         if gap is not None:
             gap.status = "resolved"
@@ -905,8 +924,14 @@ def _apply_verdict(
     else:
         # review_later : mastery mise à jour honnêtement, lacune rouverte en cours, et la notion
         # revient d'elle-même via une carte SRS (la boucle qui vérifie l'acquisition dans le temps).
-        mastery.mastery_score = measured
-        mastery.confidence_score = measured
+        #
+        # « Honnêtement » veut dire : on n'écrit QUE ce qu'on a mesuré. Sans réexplication, on ne
+        # sait pas où en est la notion — écrire 0 ferait s'effondrer la maîtrise de Massimo au
+        # moment précis où il vient de travailler, et replanifierait la carte au plus court
+        # intervalle (score 0 → 1 jour) en punissant l'effort d'une révision.
+        if measured is not None:
+            mastery.mastery_score = measured
+            mastery.confidence_score = measured
         record_mastery_transition(db, mastery, "in_progress", now)
         if gap is not None:
             # Volontairement SANS horodatage : cette branche peut réécrire `in_progress` sur une
@@ -914,11 +939,15 @@ def _apply_verdict(
             # serait re-tamponnée à chaque verdict `review_later` et ne voudrait plus rien dire.
             gap.status = "in_progress"
         skill_name = _skill_name(db, skill_id)
+        # Faute de mesure fraîche, l'intervalle se calcule sur la maîtrise CONNUE plutôt que sur un
+        # zéro fabriqué : une notion déjà solide ne revient pas dès demain parce que le parcours
+        # n'avait pas d'étape vocale.
+        basis = measured if measured is not None else (mastery.mastery_score or 0.0)
         schedule_review(
             db,
             student_id=student.id,
             skill_id=skill_id,
-            interval=interval_from_score(int(measured)),
+            interval=interval_from_score(int(basis)),
             front=f"Réexplique : {skill_name}",
             back="Reprends cette notion tranquillement — tu y reviens bientôt.",
         )

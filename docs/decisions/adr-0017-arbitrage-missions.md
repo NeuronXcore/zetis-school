@@ -248,6 +248,27 @@ reproductible et non anxiogène.
      être prouvé par le quiz **ou** par une reconstruction de mindmap
      (`acquired = reverse≥t ET (quiz≥t OU mindmap≥t)`). La réexplication reste
      toujours requise. Bump `MISSION_SCORING_VERSION` v2→v3.
+   - **⚠️ Amendement du 2026-07-31 — le relais désigné ci-dessus était
+     INOPÉRANT.** Le template `revision` composait `[carte] → [quiz] → relire`,
+     **sans étape de réexplication**, alors que le verdict l'exige
+     (`reverse≥t` est une condition ET) et que `eli5` est une étape de
+     *consultation* qui n'émet aucun `reverse_eli5`. Conséquence : une mission
+     `revision` rendait **toujours** `review_later`. La notion que ce §5bis
+     promet de « vérifier dans le temps » ne pouvait donc jamais être déclarée
+     acquise, et sa lacune restait `in_progress` à vie. Pire, la branche
+     `review_later` écrivait `mastery_score = 0` faute de mesure : Massimo
+     faisait sa révision et sa maîtrise s'effondrait, la carte revenant au plus
+     court intervalle. La contradiction était figée par un test qui asserait
+     « pas de verbalisation ».
+     **Corrections** : (a) le template `revision` reçoit l'étape de
+     réexplication — ses *types* d'étape coïncident désormais avec ceux de
+     `remediation`, la distinction restant la source, la formulation, le plafond
+     et la priorité ; (b) **une absence de mesure n'est plus écrite comme un
+     zéro** — sans `reverse_score`, la maîtrise n'est pas touchée et l'intervalle
+     SRS se calcule sur la maîtrise connue. Bump `MISSION_SCORING_VERSION`
+     v3→v4. Le générateur de remédiation n'est **pas** élargi aux lacunes
+     `in_progress` : le relais reste le SRS, comme écrit ici — il fonctionne
+     enfin. Constat d'origine remonté par `adr-0028 §10`.
    - **Formulation enfant : deux issues, toutes deux positives.** « Mission
      terminée ! +60 XP — la notion est bien en place ✓ » ou « Mission
      terminée ! +60 XP — on la reverra bientôt, tranquille. » Jamais de refus
