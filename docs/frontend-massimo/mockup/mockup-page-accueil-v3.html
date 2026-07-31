@@ -62,23 +62,25 @@
   }
 
   /* ══ MON CIEL — la heatmap RETOURNÉE ═══════════════════════════════
-     Une étoile par JOUR OÙ IL S'EST PASSÉ QUELQUE CHOSE. Rien d'autre n'est dessiné :
-     ni grille, ni axe de temps, donc aucun intervalle vide à lire. */
+     Une case par JOUR OÙ IL S'EST PASSÉ QUELQUE CHOSE, posée sur un CALENDRIER.
+     AUCUNE case vide n'est dessinée : un jour sans gain n'a aucun élément. */
   .sky {
-    position: relative; overflow: hidden; min-height: 200px;
+    position: relative; overflow: hidden;
     background:
       radial-gradient(560px 240px at 76% 16%, rgba(217,70,239,.13), transparent 68%),
       radial-gradient(460px 220px at 18% 88%, rgba(34,211,238,.12), transparent 70%),
       var(--zetis-glass);
     border: 1px solid var(--zetis-glass-border); border-radius: 20px; padding: 20px 22px;
   }
-  .sky-canvas { position: relative; height: 150px; margin-top: 6px; }
-  .star {
-    position: absolute; border-radius: 50%; transform: translate(-50%, -50%);
-    animation: twinkle 5s ease-in-out infinite;
-  }
-  @keyframes twinkle { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .star { animation: none; opacity: .8; } }
+  .sky-cal { display: flex; gap: 8px; margin-top: 16px; overflow-x: auto; }
+  .sky-dow { display: grid; grid-template-rows: repeat(7, 14px); row-gap: 3px; margin-top: 16px; font-size: 9px; color: var(--zetis-muted); }
+  .sky-dow span { display: flex; align-items: center; }
+  .sky-months { position: relative; height: 12px; margin-bottom: 4px; font-size: 9px; color: var(--zetis-muted); }
+  .sky-months span { position: absolute; top: 0; }
+  .sky-grid { display: grid; grid-template-rows: repeat(7, 14px); gap: 3px; }
+  .sky-grid i { border-radius: 3px; animation: twinkle 5s ease-in-out infinite; }
+  @keyframes twinkle { 0%,100% { opacity: .62; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .sky-grid i { animation: none; opacity: .85; } }
   .sky-legend { font-size: 13.5px; margin-top: 4px; }
   .sky-legend b { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
   .sky-sub { font-size: 12.5px; color: var(--zetis-muted); margin-top: 2px; }
@@ -165,7 +167,13 @@
     <div class="label">Mon ciel</div>
     <div class="sky-legend"><b>34</b> jours d'apprentissage depuis la rentrée</div>
     <div class="sky-sub">Chaque jour où tu travailles allume une étoile de plus. Elles restent.</div>
-    <div class="sky-canvas" id="sky"></div>
+    <div class="sky-cal">
+      <div class="sky-dow" id="dow"></div>
+      <div>
+        <div class="sky-months" id="months"></div>
+        <div class="sky-grid" id="sky"></div>
+      </div>
+    </div>
   </div>
 
   <div class="duo">
@@ -233,9 +241,10 @@
 <details class="notes" open>
   <summary>Notes de maquette — ce que la composition applique</summary>
   <ul>
-    <li><b>« Mon ciel » est une heatmap RETOURNÉE, pas une heatmap.</b> On ne dessine QUE les jours où il s'est passé quelque chose. <b>Aucune grille, aucun axe de temps</b> : sans axe, il n'y a pas d'intervalle vide à lire. C'est ce qui la distingue d'une grille type GitHub, où les cases vides <em>sont</em> la mesure de l'absence — interdite par <code>CLAUDE.md</code> (« décompte de jours manqués, sous quelque forme que ce soit »).</li>
-    <li><b>Le placement des étoiles est DÉTERMINISTE</b>, dérivé de la date : la carte ne doit pas bouger d'un rendu à l'autre. Un ciel qui se réarrange à chaque visite ne serait pas le sien.</li>
-    <li><b>Éclat et taille ∝ XP du jour</b>, sur la rampe indigo → cyan → blanc de l'ADR-0024 §5. Aucun rouge, aucun vert d'échec.</li>
+    <li><b>« Mon ciel » est une heatmap RETOURNÉE, pas une heatmap.</b> Même calendrier que chez Papa — semaines en colonnes, jours en lignes — mais <b>aucune case vide n'est dessinée</b> : un jour sans gain n'a aucun élément dans le DOM. Chez Papa, la case grise <em>est</em> l'information d'absence, et elle y est légitime (c'est du pilotage) ; ici, l'absence n'existe ni dans les données ni dans le rendu. C'est ce qui tient la règle de <code>CLAUDE.md</code> (« décompte de jours manqués, sous quelque forme que ce soit »).</li>
+    <li><b>Assumé</b> : sur un calendrier, l'œil perçoit les intervalles par la <b>position</b>, même sans case dessinée. C'est le prix du repère temporel — la version précédente de cette maquette posait les jours en constellation libre, sans repère, et c'était précisément ce repère qui manquait.</li>
+    <li><b>La grille commence au premier jour d'activité</b>, jamais avant l'histoire de l'élève, et s'étend toute seule avec le temps.</li>
+    <li><b>Intensité ∝ XP du jour</b>, sur la rampe indigo → cyan → blanc de l'ADR-0024 §5. Aucun rouge, aucun vert d'échec.</li>
     <li><b>La légende est un compte qui ne peut que monter</b> : « 34 jours d'apprentissage ». Jamais un pourcentage, jamais un « il te reste ».</li>
     <li><b>Une seule action accentuée</b> : « Commencer ». Tout ce qui est ajouté ici se REGARDE, ne se clique pas — sauf « Ma galaxie », qui est une porte, pas une action.</li>
     <li><b>« Tes derniers gains » ne coûte rien</b> : <code>badges</code> et <code>recent</code> sont déjà servis par <code>/api/gamification/summary</code>, que le bandeau XP appelle déjà sur cette page. Ils n'étaient rendus nulle part.</li>
@@ -260,24 +269,54 @@
     ["2026-07-29", 55], ["2026-07-31", 120],
   ];
 
-  // Hachage stable de la date → position. Deux rendus successifs donnent le même ciel.
-  function hash(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; }
+  // Placement sur le CALENDRIER : semaines en colonnes, jours en lignes (lundi en haut).
+  // On ne crée un élément QUE pour les jours reçus — aucune case de remplissage n'existe.
+  const MONTHS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+  const CELL = 14, GAP = 3, WEEK_MS = 604800000;
+  const monday = (d) => {
+    const c = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    c.setDate(c.getDate() - ((c.getDay() + 6) % 7));
+    return c;
+  };
+
+  const today = new Date(DAYS[DAYS.length - 1][0] + "T00:00:00");
+  const first = monday(new Date(DAYS[0][0] + "T00:00:00"));
+  const weeks = Math.floor((monday(today) - first) / WEEK_MS) + 1;
+  const maxXp = Math.max(...DAYS.map(([, xp]) => xp));
+
+  document.getElementById("dow").innerHTML =
+    ["L", "", "M", "", "V", "", "D"].map((l) => "<span>" + l + "</span>").join("");
+
+  // Un libellé de mois au changement, ET seulement s'il reste au moins 3 colonnes : sinon deux
+  // mois voisins s'écrivent l'un sur l'autre (constaté au rendu réel).
+  const monthsEl = document.getElementById("months");
+  monthsEl.style.width = weeks * (CELL + GAP) + "px";
+  let prevMonth = -1, lastLabel = -3;
+  for (let w = 0; w < weeks; w += 1) {
+    const col = new Date(first);
+    col.setDate(first.getDate() + w * 7);
+    if (col.getMonth() === prevMonth) continue;
+    prevMonth = col.getMonth();
+    if (w - lastLabel < 3) continue;
+    lastLabel = w;
+    const span = document.createElement("span");
+    span.style.left = w * (CELL + GAP) + "px";
+    span.textContent = MONTHS[prevMonth];
+    monthsEl.appendChild(span);
+  }
 
   const sky = document.getElementById("sky");
-  const maxXp = Math.max(...DAYS.map(([, xp]) => xp));
-  DAYS.forEach(([date, xp], i) => {
+  sky.style.gridTemplateColumns = "repeat(" + weeks + ", " + CELL + "px)";
+  DAYS.forEach(([date, xp]) => {
+    const d = new Date(date + "T00:00:00");
     const t = xp / maxXp;
-    const el = document.createElement("span");
-    el.className = "star";
-    // Un peu de structure : l'ancienneté pousse vers la gauche, le reste vient du hachage.
-    const drift = i / (DAYS.length - 1);
-    el.style.left = (6 + drift * 88 + (hash(date) - .5) * 9).toFixed(2) + "%";
-    el.style.top = (12 + hash(date + "y") * 76).toFixed(2) + "%";
-    const size = 3 + t * 6;
-    el.style.width = el.style.height = size.toFixed(1) + "px";
-    el.style.background = t > .75 ? "#ffffff" : t > .4 ? "#22d3ee" : "#8b7bff";
-    el.style.boxShadow = `0 0 ${(4 + t * 12).toFixed(0)}px ${t > .75 ? "rgba(255,255,255,.7)" : "rgba(34,211,238,.55)"}`;
-    el.style.animationDelay = (hash(date + "d") * 5).toFixed(2) + "s";
+    const color = t > 0.66 ? "#ffffff" : t > 0.33 ? "#22d3ee" : "#8b7bff";
+    const el = document.createElement("i");
+    el.style.gridColumn = Math.floor((monday(d) - first) / WEEK_MS) + 1;
+    el.style.gridRow = ((d.getDay() + 6) % 7) + 1;
+    el.style.background = color;
+    el.style.boxShadow = "0 0 " + Math.round(3 + t * 9) + "px " + color + "99";
+    el.style.animationDelay = ((d.getDate() % 9) * 0.4).toFixed(1) + "s";
     sky.appendChild(el);
   });
 </script>

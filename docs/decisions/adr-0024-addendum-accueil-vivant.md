@@ -93,17 +93,33 @@ GET /api/gamification/history?days=90
 
 ### B. « Mon ciel » — la heatmap retournée
 
-Une **étoile par jour où Massimo a gagné du XP**. Rien d'autre n'est dessiné.
+Une **case par jour où Massimo a gagné du XP**, posée sur un **calendrier** : semaines en
+colonnes, jours en lignes, comme la heatmap de Papa. Rien d'autre n'est dessiné.
 
-- **Aucune grille, aucun axe de temps.** Les étoiles sont posées en constellation, à une position
-  **déterministe dérivée de la date**. Sans axe, il n'y a **pas d'intervalle vide à lire** : c'est
-  ce qui distingue cette carte d'une heatmap, et ce n'est pas un choix graphique — c'est le
-  mécanisme même par lequel elle ne peut pas devenir punitive.
-- **Déterministe, jamais aléatoire** : un ciel qui se réarrange à chaque visite ne serait pas le
-  sien. (Contrainte accessoire mais réelle : c'est aussi ce qui le rend testable.)
-- Éclat et taille ∝ XP du jour, sur la rampe indigo → cyan → blanc du §5. **Pas de rouge.**
-- Légende = un **compte qui ne peut que monter** : « 34 jours d'apprentissage depuis la rentrée ».
+> **Révisé le 2026-07-31, après un premier rendu.** La première version posait les jours en
+> **constellation libre**, sans repère temporel — c'était le moyen le plus direct d'éviter toute
+> lecture des intervalles. Le user a redemandé la heatmap : ce qui manquait n'était pas la
+> densité, c'était le **repère de temps**. La constellation est donc remplacée par un calendrier,
+> et l'interdit est reporté d'un cran — de la géométrie vers le **rendu**.
+
+- **Aucune case vide n'est dessinée.** Pas de carré gris, pas de bordure, aucun élément dans le
+  DOM pour un jour sans gain. Chaque case est placée en `grid-column`/`grid-row` explicites, donc
+  la grille n'a jamais besoin de remplissage. C'est ce qui la sépare d'une heatmap : chez Papa la
+  case grise **est** l'information d'absence, et elle y est légitime — c'est du pilotage.
+- **Ce qui est assumé** : sur un calendrier, l'œil perçoit les intervalles par la **position**,
+  même sans case dessinée. C'est le prix du repère temporel, et il est payé en connaissance de
+  cause. Ce que `CLAUDE.md` interdit — un **décompte**, une iconographie du vide — reste absent.
+- Libellés de mois seulement quand le mois change **et** que la place le permet.
+- Intensité ∝ XP du jour, rampe indigo → cyan → blanc du §5. **Pas de rouge.**
+- Légende = un **compte qui ne peut que monter** : « 34 jours d'apprentissage ».
+- La grille commence **au premier jour d'activité** — jamais une période antérieure à l'histoire
+  de l'élève. Elle s'étend toute seule avec le temps.
 - `prefers-reduced-motion` coupe le scintillement.
+
+**Brique partagée** : `buildSparseCalendar` (`packages/ui/src/lib/calendarGrid.ts`), avec
+`toLocalIso` et `startOfWeek` **remontés depuis `heatmap.ts` de Papa** — deux `startOfWeek` dans
+un même dépôt finiraient par diverger sur les bords de semaine. Ce qui n'est **pas** partagé :
+`buildHeatmapGrid`, qui reconstruit les jours vides.
 
 **Ce que la carte ne fera jamais** : afficher une date manquée, un « depuis N jours », une
 moyenne, un objectif de jours, ou une comparaison entre deux périodes.

@@ -23,9 +23,24 @@ l'ADR-0028 et vivant dans un agrégat `require_parent` ; `CLAUDE.md` interdit le
 manqués « sous quelque forme que ce soit » ; `WeekDots.test.tsx:32` le verrouille). Ne pas la
 redemander sans rouvrir ces trois-là.
 
-**Ce qui la remplace** : « Mon ciel », la même idée **retournée** — une étoile par jour de gain,
-**sans grille ni axe de temps**. Sans axe, aucun intervalle vide à lire : la carte ne PEUT PAS
-devenir punitive, même mal réutilisée. C'est le mécanisme, pas une précaution d'UI.
+**Ce qui la remplace** : « Mon ciel », la même idée **retournée** — une case par jour de gain sur
+un **calendrier** (semaines en colonnes, jours en lignes, comme chez Papa), mais **aucune case
+vide n'est dessinée** : un jour sans gain n'a **aucun élément dans le DOM**. Chez Papa la case
+grise **est** l'information d'absence et elle y est légitime (c'est du pilotage) ; ici l'absence
+n'existe ni dans les données ni dans le rendu.
+
+> ⚠️ **Révisé le jour même, après un premier rendu.** La v1 posait les jours en **constellation
+> libre**, sans repère temporel. Le user a redemandé la heatmap : ce qui manquait n'était **pas
+> la densité, c'était le repère de TEMPS**. D'où le calendrier — l'interdit passe de la
+> **géométrie** vers le **rendu**. Ce qui est assumé : sur un calendrier, l'œil perçoit les
+> intervalles par la **position**. Ce que `CLAUDE.md` bannit — un décompte, une iconographie du
+> vide — reste absent. **Ne pas re-proposer la constellation** : elle a déjà été essayée.
+
+**Brique partagée créée** : `packages/ui/src/lib/calendarGrid.ts` (`buildSparseCalendar`, +
+`toLocalIso`/`startOfWeek` **remontés depuis `heatmap.ts` de Papa**, qui les ré-exporte). Deux
+`startOfWeek` dans un même dépôt finiraient par diverger sur les bords de semaine.
+`buildHeatmapGrid` **reste chez Papa** — c'est lui qui reconstruit les jours vides, et cela ne se
+partage pas.
 
 **La décision qui compte, et pourquoi elle tient** : `GET /api/gamification/history` marche sur
 un refus déjà écrit (`motivation/router.py:38` : « un historique d'objectifs manqués serait le
@@ -42,7 +57,13 @@ donc aucun client futur ne peut dessiner une case vide sans avoir lu l'ADR. Rout
 - regrouper les XP **en Europe/Paris** (`local_day`), pas en UTC : c'est exactement le défaut
   relevé sur le streak retiré ;
 - les pastilles portant leur compte ont créé plusieurs « 0 » à l'écran → un test existant visait
-  `getByText("0")`, réécrit sur l'`aria-label` de la carte (précisé, pas assoupli).
+  `getByText("0")`, réécrit sur l'`aria-label` de la carte (précisé, pas assoupli) ;
+- **jsdom garde `grid-column`, le navigateur le normalise en `grid-area`** : un test qui
+  sélectionnait sur le style passait en test et trouvait 0 case en vrai → ancrage `data-day` ;
+- **trois défauts visibles seulement au rendu réel, avec les VRAIES données** (6 jours, pas 34) :
+  libellés de mois superposés, grille minuscule dans une carte large, initiales de jours
+  désalignées. Un composant dont la mise en page dépend de tailles en pixels ne se valide pas en
+  jsdom — il faut l'ouvrir.
 
 **Décisions actives, à ne pas rouvrir** : la frise est REVENUE sur l'Accueil (le §B du 1ᵉʳ
 addendum voulait sortir **Three.js**, pas du SVG maison) ; aucune date n'est affichée nulle part

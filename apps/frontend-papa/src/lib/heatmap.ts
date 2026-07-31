@@ -5,7 +5,17 @@
 // couleur. Aucun chiffre n'est inventé, rien n'est ré-agrégé.
 //
 // Fonctions pures, sans React ni DOM : testables directement.
+//
+// `toLocalIso` et `startOfWeek` vivaient ici ; elles sont montées dans `@zetis/ui` le 2026-07-31,
+// quand « Mon ciel » (Massimo) a eu besoin du même calcul de dates. Elles restent RÉ-EXPORTÉES
+// d'ici pour ne rien casser chez les appelants et pour que les tests de ce fichier continuent de
+// les couvrir. Ce qui n'est PAS partagé reste ici : `buildHeatmapGrid` reconstruit les jours
+// vides — c'est légitime côté Papa (l'absence est une information de pilotage) et interdit côté
+// Massimo.
+import { startOfWeek, toLocalIso } from "@zetis/ui";
 import type { ActivityHeatmapDay } from "@zetis/types";
+
+export { startOfWeek, toLocalIso };
 
 /** 0 = aucune activité, 1→4 = intensité croissante. Paliers de la spec : <10 / 10–20 / 20–40 / 40+. */
 export type HeatLevel = 0 | 1 | 2 | 3 | 4;
@@ -41,22 +51,6 @@ export interface HeatmapCell {
   /** Jour postérieur à aujourd'hui : case transparente, non cliquable. */
   future: boolean;
   level: HeatLevel;
-}
-
-/** `AAAA-MM-JJ` d'une date, en heure LOCALE (jamais `toISOString`, qui bascule en UTC et
- *  décalerait tout d'un jour en soirée française). */
-export function toLocalIso(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
-/** Lundi de la semaine contenant `date` (semaines lun→dim, comme côté serveur). */
-export function startOfWeek(date: Date): Date {
-  const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const isoDow = (copy.getDay() + 6) % 7; // 0 = lundi
-  copy.setDate(copy.getDate() - isoDow);
-  return copy;
 }
 
 /**

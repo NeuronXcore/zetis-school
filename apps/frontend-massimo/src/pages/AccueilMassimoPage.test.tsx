@@ -63,13 +63,32 @@ const SUBJECTS: GalaxySubject[] = [
   { subject_id: 2, name: "SVT", slug: "svt", lit: 18, total: 26 },
 ];
 
+/** `AAAA-MM-JJ` d'il y a N jours, en heure locale — la grille dépend d'« aujourd'hui », donc la
+ *  fixture ne doit pas dépendre de l'horloge de la machine (une date figée dans le futur serait
+ *  ignorée par `buildSparseCalendar`, et le test deviendrait flaky au fil du temps). */
+function ilYA(jours: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - jours);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const XP_HISTORY = {
   days: [
-    { date: "2026-07-27", xp: 60 },
-    { date: "2026-07-29", xp: 25 },
-    { date: "2026-07-31", xp: 120 },
+    { date: ilYA(9), xp: 60 },
+    { date: ilYA(4), xp: 25 },
+    { date: ilYA(0), xp: 120 },
   ],
 };
+
+/** Les cases du calendrier — une par jour qui a eu lieu.
+ *
+ * On sélectionne sur `data-day` et NON sur le style : le navigateur normalise
+ * `gridColumn`/`gridRow` en `grid-area`, là où jsdom les conserve. Un sélecteur de style aurait
+ * donc mesuré une chose en test et une autre en vrai. */
+function skyCells(): NodeListOf<Element> {
+  const sky = screen.getByText("Mon ciel").closest("section") as HTMLElement;
+  return sky.querySelectorAll("[data-day]");
+}
 
 const GAMIFICATION = {
   total_xp: 205,
@@ -181,13 +200,20 @@ describe("Accueil — composition", () => {
 });
 
 describe("Accueil — « Mon ciel » et les derniers gains", () => {
-  it("ne rend RIEN pour un jour sans activité — le pendant du test WeekDots", () => {
-    // LE test-verrou de ce chantier. La série est creuse (3 jours sur 5 possibles) : le ciel
-    // doit contenir exactement 3 étoiles. S'il en contenait 5, c'est qu'une case vide aurait
-    // été reconstruite quelque part — la grille de jours manqués qu'on vient d'interdire.
+  it("ne dessine AUCUNE case vide — le pendant du test WeekDots, sur un calendrier", () => {
+    // LE test-verrou de ce chantier, et le seul qui distingue « Mon ciel » d'une heatmap.
+    // La série couvre 10 jours mais n'en porte que 3 : la grille doit contenir exactement
+    // 3 cases. S'il y en avait 10 — ou 7 par semaine — c'est qu'un jour sans gain aurait été
+    // reconstruit, et la carte serait redevenue un décompte de jours manqués.
+    renderPage();
+    expect(skyCells()).toHaveLength(XP_HISTORY.days.length);
+  });
+
+  it("porte quand même un repère temporel : les mois sont libellés", () => {
+    // C'est ce qui en fait un calendrier et non un damier — le point de la demande.
     renderPage();
     const sky = screen.getByText("Mon ciel").closest("section") as HTMLElement;
-    expect(sky.querySelectorAll("span[style]")).toHaveLength(XP_HISTORY.days.length);
+    expect(sky.textContent).toMatch(/janv\.|févr\.|mars|avr\.|mai|juin|juil\.|août|sept\.|oct\.|nov\.|déc\./);
   });
 
   it("annonce un COMPTE qui ne peut que monter, jamais un manque", () => {

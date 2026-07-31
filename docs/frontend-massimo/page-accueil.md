@@ -127,22 +127,29 @@ aucune grille et ne calcule aucune date.
 
 ### Mon ciel (la heatmap retournée)
 
-Ajouté le 2026-07-31 (addendum « Accueil vivant » §B). **Une étoile par jour où Massimo a gagné
-du XP. Rien d'autre n'est dessiné.**
+Ajouté le 2026-07-31 (addendum « Accueil vivant » §B). **Une case par jour où Massimo a gagné du
+XP, posée sur un calendrier** — semaines en colonnes, jours en lignes. Rien d'autre n'est dessiné.
 
-- **Aucune grille, aucun axe de temps.** Les étoiles sont posées en constellation, à une position
-  **déterministe dérivée de la date**. Sans axe, il n'y a **pas d'intervalle vide à lire** — c'est
-  le mécanisme même par lequel cette carte ne peut pas devenir punitive, pas un choix graphique.
-  Une grille type GitHub est **interdite** : ses cases vides *sont* le décompte des jours manqués
-  que bannit `CLAUDE.md`.
-- Le placement est déterministe et **jamais aléatoire** : un ciel qui se réarrange à chaque visite
-  ne serait pas le sien.
-- Éclat et taille ∝ XP du jour, rampe indigo → cyan → blanc (ADR-0024 §5). **Aucun rouge.**
-- Légende = un **compte qui ne peut que monter** : « 34 jours d'apprentissage depuis la rentrée ».
+- **Aucune case vide n'est dessinée** : pas de carré gris, pas de bordure, **aucun élément dans le
+  DOM** pour un jour sans gain. Les cases sont placées en `grid-column`/`grid-row` explicites, donc
+  la grille n'a jamais besoin de remplissage. C'est ce qui la sépare d'une heatmap — chez Papa, la
+  case grise **est** l'information d'absence, et elle y est légitime (c'est du pilotage).
+- **Assumé** : sur un calendrier, l'œil perçoit les intervalles par la **position**, même sans case
+  dessinée. C'est le prix du repère temporel, payé en connaissance de cause. Ce que `CLAUDE.md`
+  interdit — un **décompte**, une iconographie du vide — reste absent.
+- La grille commence **au premier jour d'activité**, jamais avant l'histoire de l'élève.
+- Libellés de mois au changement de mois, **et seulement si la place le permet** (deux mois à une
+  colonne d'écart se chevauchent — constaté).
+- Intensité ∝ XP du jour, rampe indigo → cyan → blanc (ADR-0024 §5). **Aucun rouge.**
+- Légende = un **compte qui ne peut que monter** : « 6 jours d'apprentissage ».
 - `prefers-reduced-motion` coupe le scintillement.
 
-**Ce que la carte n'affichera jamais** : une date manquée, un « depuis N jours », une moyenne, un
-objectif de jours, une comparaison entre deux périodes.
+> **Historique** : la première version posait les jours en **constellation libre**, sans repère
+> temporel. Ce qui manquait n'était pas la densité mais le **repère de temps** — d'où le passage
+> au calendrier, l'interdit étant reporté de la géométrie vers le **rendu**.
+
+**Ce que la carte n'affichera jamais** : une date lisible, un « depuis N jours », une moyenne, un
+objectif de jours, une comparaison entre deux périodes, un fond quadrillé.
 
 ### Mon chemin (frise cumulative)
 

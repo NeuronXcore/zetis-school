@@ -4,6 +4,37 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `Accueil vivant` — passage au calendrier — 2026-07-31
+
+### jsdom garde `grid-column`, le navigateur le normalise en `grid-area`
+
+Le test de « Mon ciel » sélectionnait les cases par `span[style*="grid-column"]`. **Vert en test,
+0 case trouvée en vrai** : React écrit bien `gridColumn`/`gridRow`, jsdom les conserve tels quels,
+mais le navigateur les fusionne en `grid-area: 2 / 1`.
+
+Le test n'était pas faussement vert (il aurait échoué sur le compte), mais il mesurait **une chose
+en test et une autre en production** — ce qui revient à ne rien garantir. Corrigé par un ancrage
+explicite `data-day` sur chaque case : identique dans les deux environnements, et il dit ce que
+le test veut dire (« un élément par jour qui a eu lieu »).
+
+**Règle générale** : ne jamais sélectionner sur une propriété CSS que le navigateur peut
+raccourcir (`grid-area`, `background`, `margin`, `font`…). jsdom ne normalise presque rien.
+
+### Trois défauts que seul le rendu réel pouvait montrer
+
+Aucun n'était détectable en test — ils tiennent tous à des tailles en pixels :
+
+- **Libellés de mois superposés** : « juin » et « juil. » à une colonne d'écart (11 px)
+  s'écrivaient l'un sur l'autre. `buildSparseCalendar` saute désormais un libellé à moins de
+  3 colonnes du précédent — mieux vaut un repère de moins qu'un repère illisible.
+- **Grille perdue dans sa carte** : 5 semaines × 11 px = 70 px dans une carte de 480. La taille
+  des cases suit maintenant le nombre de semaines (22 / 16 / 11 px).
+- **Initiales de jours désalignées** : la colonne « L M M J V S D » ne compensait pas la ligne
+  des libellés de mois, qui ne surmonte que la grille. `marginTop` explicite.
+
+Leçon : un composant dont la mise en page dépend de dimensions fixes ne se valide pas en jsdom.
+Le voir avec **les vraies données** (6 jours, pas 34) est ce qui a révélé les trois.
+
 ## Chantier `Accueil vivant` (2ᵉ addendum ADR-0024) — 2026-07-31
 
 ### Un mapping de libellés incomplet, invisible tant que rien ne l'affiche

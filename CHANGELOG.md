@@ -14,11 +14,22 @@ Date : 2026-07-31 · branche `feat/accueil-vivant` · addendum ADR-0024 « Accue
   jours manqués, sous quelque forme que ce soit », et les cases vides d'une grille **sont** ce
   décompte ; `WeekDots.test.tsx:32` le verrouille par un test. Écrit dans l'ADR pour ne pas être
   redemandé dans six mois.
-- **« Mon ciel » — la heatmap retournée** : une étoile par jour où Massimo a gagné du XP,
-  **sans grille et sans axe de temps**. Sans axe, il n'y a aucun intervalle vide à lire : la
-  carte ne *peut pas* devenir punitive, même mal réutilisée. Placement **déterministe** dérivé
-  de la date (jamais `Math.random`) — un ciel qui se réarrange à chaque visite ne serait pas le
-  sien. Éclat ∝ XP du jour, rampe indigo → cyan → blanc, `prefers-reduced-motion` respecté.
+- **« Mon ciel » — la heatmap retournée** : une case par jour où Massimo a gagné du XP, sur un
+  **calendrier** (semaines en colonnes, jours en lignes, comme chez Papa) — mais **aucune case
+  vide n'est dessinée** : un jour sans gain n'a **aucun élément dans le DOM**. Chez Papa la case
+  grise *est* l'information d'absence et elle y est légitime (c'est du pilotage) ; ici l'absence
+  n'existe ni dans les données ni dans le rendu. Intensité ∝ XP du jour, rampe indigo → cyan →
+  blanc, libellés de mois posés seulement s'ils ne se chevauchent pas,
+  `prefers-reduced-motion` respecté. La grille démarre au **premier jour d'activité**.
+  > La première version posait les jours en **constellation libre**, sans repère temporel. Ce qui
+  > manquait n'était pas la densité mais le **repère de temps** : l'interdit est reporté de la
+  > géométrie vers le **rendu**. Ce que `CLAUDE.md` bannit — un décompte, une iconographie du
+  > vide — reste absent ; ce qui est assumé, c'est que l'œil perçoive les intervalles par la
+  > position.
+- **Brique partagée `buildSparseCalendar`** (`packages/ui`), avec `toLocalIso` et `startOfWeek`
+  **remontés depuis la heatmap de Papa** : deux `startOfWeek` dans un même dépôt finiraient par
+  diverger sur les bords de semaine. `buildHeatmapGrid` reste chez Papa — c'est lui qui
+  reconstruit les jours vides, et cela ne se partage pas.
 - **`GET /api/gamification/history` — première route élève d'historique.** Les **jours sans XP
   sont OMIS** du payload, jamais renvoyés à zéro : le garde-fou est dans le **contrat**, pas dans
   l'UI, donc aucun client futur ne pourra dessiner une case vide sans avoir lu l'ADR. Aucune
