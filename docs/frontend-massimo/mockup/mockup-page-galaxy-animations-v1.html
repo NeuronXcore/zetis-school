@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZETIS — Maquette : animation d'arrivée /galaxy + rejeu depuis root</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070a16;
+    --bg-2:#0b1022;
+    --glass:rgba(255,255,255,.045);
+    --stroke:rgba(255,255,255,.10);
+    --stroke-2:rgba(255,255,255,.18);
+    --ink:#e8ecff;
+    --ink-2:#9aa4cc;
+    --ink-3:#5f6890;
+    --indigo:#6366f1;
+    --cyan:#22d3ee;
+    --fuchsia:#d946ef;
+    --gold:#ffcf47;
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(900px 600px at 18% -10%, rgba(99,102,241,.22), transparent 60%),
+      radial-gradient(700px 520px at 92% 8%, rgba(217,70,239,.14), transparent 60%),
+      radial-gradient(800px 600px at 50% 110%, rgba(34,211,238,.10), transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+    min-height:100vh;
+    padding:28px 20px 64px;
+  }
+  .wrap{max-width:1140px;margin:0 auto}
+
+  header.top{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+  .wordmark{font-family:Syncopate,ui-sans-serif,sans-serif;font-weight:700;letter-spacing:.16em;font-size:17px;
+    background:linear-gradient(90deg,var(--cyan),var(--indigo) 55%,var(--fuchsia));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .top h1{font-size:15px;font-weight:600;margin:0;color:var(--ink-2)}
+  .meta{color:var(--ink-3);font-size:12.5px;margin:0 0 20px}
+
+  .tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  .tab{appearance:none;background:var(--glass);border:1px solid var(--stroke);color:var(--ink-2);
+    padding:9px 15px;border-radius:999px;font-size:13.5px;cursor:pointer;transition:.18s}
+  .tab:hover{border-color:var(--stroke-2);color:var(--ink)}
+  .tab[aria-selected="true"]{color:#fff;border-color:rgba(99,102,241,.65);
+    background:linear-gradient(180deg,rgba(99,102,241,.28),rgba(99,102,241,.10))}
+  .tab:focus-visible,.btn:focus-visible,.toggle:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+  .screen{display:none}
+  .screen.on{display:block}
+
+  .panel{background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));
+    border:1px solid var(--stroke);border-radius:var(--radius);backdrop-filter:blur(14px);overflow:hidden}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px;
+    padding:14px 18px;border-bottom:1px solid var(--stroke);flex-wrap:wrap}
+  .panel-title{font-size:14px;font-weight:600;letter-spacing:.01em}
+  .panel-sub{font-size:12.5px;color:var(--ink-3)}
+  .stage{position:relative;background:radial-gradient(620px 420px at 50% 45%,rgba(99,102,241,.10),transparent 70%)}
+  svg{display:block;width:100%;height:auto}
+
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{appearance:none;cursor:pointer;font-size:13px;padding:8px 14px;border-radius:999px;
+    background:transparent;border:1px solid var(--stroke-2);color:var(--ink);transition:.18s}
+  .btn:hover{border-color:rgba(99,102,241,.7);background:rgba(99,102,241,.12)}
+  .toggle{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2);
+    background:transparent;border:1px solid var(--stroke);border-radius:999px;padding:7px 12px;cursor:pointer}
+  .toggle[aria-pressed="true"]{color:#fff;border-color:rgba(34,211,238,.6);background:rgba(34,211,238,.12)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-3)}
+  .toggle[aria-pressed="true"] .dot{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+
+  .readout{display:flex;align-items:baseline;gap:10px;padding:0 18px 4px}
+  .readout .n{font-family:Syncopate,sans-serif;font-weight:700;font-size:22px;color:var(--gold);
+    text-shadow:0 0 18px rgba(255,207,71,.35)}
+  .readout .lab{font-size:13px;color:var(--ink-2)}
+  .frise-wrap{padding:2px 18px 16px}
+
+  .notes{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:12px}
+  .note{background:var(--glass);border:1px solid var(--stroke);border-radius:14px;padding:13px 15px}
+  .note h4{margin:0 0 7px;font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .note p{margin:0 0 7px;font-size:13px;color:var(--ink-2)}
+  .note p:last-child{margin-bottom:0}
+  .k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--cyan)}
+  .no{color:#ff9db1}
+  .yes{color:#7ee7c7}
+
+  footer.legal{margin-top:26px;color:var(--ink-3);font-size:12px;border-top:1px solid var(--stroke);padding-top:14px}
+  @media (max-width:640px){ body{padding:18px 12px 48px} .readout{padding:0 12px 4px} .frise-wrap{padding:2px 12px 14px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <span class="wordmark">ZETIS</span>
+    <h1>Maquette animée — arrivée de la galaxie &amp; construction du rejeu</h1>
+  </header>
+  <p class="meta">
+    Deux chorégraphies à valider avant rédaction des addenda (ADR-0024 §6 · ADR-0029).
+    Rendu 2D volontaire : ce qu'on valide ici, c'est l'<strong>ordre</strong>, le <strong>rythme</strong> et
+    les <strong>constantes</strong> — pas le rendu 3D, qui reste celui de <span class="k">GalaxyCanvas</span>.
+  </p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-screen="a">A — Arrivée · vue par défaut /galaxy</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="b">B — Rejeu · construction depuis root</button>
+  </div>
+
+  <!-- ================= ÉCRAN A ================= -->
+  <section class="screen on" id="screen-a">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Vue par défaut de <span class="k">/galaxy</span> — le système solaire s'installe</div>
+          <div class="panel-sub">Le cerveau d'abord · les matières naissent au centre · l'orbite se trace derrière la planète arrivée</div>
+        </div>
+        <div class="controls">
+          <button class="btn" id="a-replay">Rejouer l'arrivée</button>
+          <button class="toggle" id="a-rm" aria-pressed="false"><span class="dot"></span>prefers-reduced-motion</button>
+        </div>
+      </div>
+      <div class="stage">
+        <svg id="svg-a" viewBox="0 0 760 520" aria-label="Animation d'arrivée de la vue par défaut de la galaxie"></svg>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="note">
+        <h4>Constantes proposées</h4>
+        <p><span class="k">CORE_IN = 420 ms</span> — apparition du cerveau, seul.</p>
+        <p><span class="k">PLANET_STAGGER = 80 ms</span> · <span class="k">PLANET_TRAVEL = 700 ms</span>, <span class="k">easeOutCubic</span>.</p>
+        <p><span class="k">ORBIT_DRAW = 600 ms</span>, démarré à l'arrivée de la <em>première</em> planète de cette orbite.</p>
+        <p>Total ≈ <strong>1,3 s</strong>. Puis rotation lente déjà acquise (<span class="k">autoRotate</span>, ~50 s/tour).</p>
+      </div>
+      <div class="note">
+        <h4>Ce que l'ordre encode</h4>
+        <p>Les matières arrivent dans l'<strong>ordre du programme</strong> — jamais par ancienneté ni par nombre d'étoiles.</p>
+        <p class="no">Un ordre chronologique ferait de cet écran un mini-rejeu et introduirait un classement implicite (ADR-0024 §5).</p>
+      </div>
+      <div class="note">
+        <h4>Une fois par visite</h4>
+        <p>L'arrivée joue à l'entrée sur <span class="k">/galaxy</span>, <strong>pas au retour d'une constellation</strong>.</p>
+        <p class="no">Rejouer la même chorégraphie à chaque aller-retour, c'est l'animation subie bannie partout ailleurs.</p>
+      </div>
+      <div class="note">
+        <h4>Piège technique</h4>
+        <p>Si le placement orbital fixe <span class="k">fx/fy/fz</span>, le nœud est <strong>téléporté</strong> : aucun trajet possible.</p>
+        <p>N'affecter <span class="k">fx/fy/fz</span> qu'<strong>à l'arrivée</strong> ; animer <span class="k">x/y/z</span> avant. Le moteur reste éteint (<span class="k">cooldownTicks = 0</span>) : c'est un tween, pas une convergence.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ÉCRAN B ================= -->
+  <section class="screen" id="screen-b">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Modale de rejeu — « Revoir ma galaxie grandir »</div>
+          <div class="panel-sub">Tout part de <span class="k">root</span> · une étoile à la fois · à la fin, ça ne se fige pas</div>
+        </div>
+        <div class="controls">
+          <button class="btn" id="b-replay">Revoir</button>
+          <button class="toggle" id="b-rm" aria-pressed="false"><span class="dot"></span>prefers-reduced-motion</button>
+        </div>
+      </div>
+      <div class="stage">
+        <svg id="svg-b" viewBox="0 0 760 500" aria-label="Construction animée de la galaxie depuis le nœud racine"></svg>
+      </div>
+      <div class="readout">
+        <span class="n" id="b-count">0</span><span class="lab">étoiles allumées</span>
+      </div>
+      <div class="frise-wrap">
+        <svg id="svg-frise" viewBox="0 0 760 96" aria-label="Frise cumulative, témoin de la construction"></svg>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="note">
+        <h4>Constantes proposées</h4>
+        <p><span class="k">STAR_CADENCE = 120 ms</span> — une notion à la fois, ordre = <span class="k">first_lit</span>.</p>
+        <p><span class="k">ANCESTOR_LEAD = 60 ms</span> — matière puis chapitre naissent juste avant leur première notion.</p>
+        <p><span class="k">BIRTH = 480 ms</span> depuis la position du parent, <span class="k">easeOutCubic</span>.</p>
+        <p>37 étoiles ≈ <strong>5 s</strong>. Puis état vivant permanent.</p>
+      </div>
+      <div class="note">
+        <h4>Correction à ce que j'ai proposé</h4>
+        <p>Une frise « cumul vs rang » serait une <strong>droite</strong> : chaque cran ajoute exactement 1.</p>
+        <p class="yes">Donc l'axe X de la frise reste le <strong>jour actif</strong> (espacement uniforme, série creuse). Le curseur avance en fraction du jour : une journée à 6 notions monte en marche d'escalier, et c'est ça l'information.</p>
+      </div>
+      <div class="note">
+        <h4>Règle « pas de marionnette »</h4>
+        <p>Chaque étoile a sa propre horloge apériodique de dérive, avec un seul point d'accroche au signal principal.</p>
+        <p>La rotation d'ensemble et les particules dorées sont celles de <span class="k">/galaxy</span> — rien de neuf à écrire.</p>
+      </div>
+      <div class="note">
+        <h4>Interdits tenus</h4>
+        <p class="no">Aucune date lisible · aucune période vide · aucune comparaison · aucun pourcentage.</p>
+        <p class="no">Plus de curseur : <strong>§3 de l'ADR-0029 tombe</strong>. Un seul bouton, « Revoir ».</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="legal">
+    Maquette de travail — <span class="k">mockup-page-galaxy-animations-v1.html</span>.
+    Données factices (37 notions sur 14 jours actifs) : rien n'est branché.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var NS="http://www.w3.org/2000/svg";
+  function el(n,a){var e=document.createElementNS(NS,n);for(var k in a){if(a[k]!==null&&a[k]!==undefined)e.setAttribute(k,a[k]);}return e;}
+  function easeOutCubic(p){return 1-Math.pow(1-p,3);}
+  function clamp01(v){return v<0?0:v>1?1:v;}
+
+  /* ---------- onglets ---------- */
+  var tabs=[].slice.call(document.querySelectorAll(".tab"));
+  tabs.forEach(function(t){
+    t.addEventListener("click",function(){
+      tabs.forEach(function(o){o.setAttribute("aria-selected",String(o===t));});
+      document.getElementById("screen-a").classList.toggle("on",t.dataset.screen==="a");
+      document.getElementById("screen-b").classList.toggle("on",t.dataset.screen==="b");
+    });
+  });
+
+  var SUBJECTS=[
+    {slug:"francais",   name:"Français",        color:"#a78bfa"},
+    {slug:"maths",      name:"Mathématiques",   color:"#22d3ee"},
+    {slug:"hg",         name:"Histoire-Géo",    color:"#fb7185"},
+    {slug:"svt",        name:"SVT",             color:"#4ade80"},
+    {slug:"anglais",    name:"Anglais",         color:"#60a5fa"},
+    {slug:"espagnol",   name:"Espagnol",        color:"#f472b6"},
+    {slug:"pc",         name:"Physique-Chimie", color:"#818cf8"},
+    {slug:"techno",     name:"Technologie",     color:"#2dd4bf"}
+  ];
+
+  /* ======================================================================
+     ÉCRAN A — arrivée du système solaire
+     ====================================================================== */
+  (function screenA(){
+    var svg=document.getElementById("svg-a");
+    var W=760,H=520,CX=380,CY=258;
+    var FLAT=0.42;                 // plan aplati vu en surplomb
+    var CORE_IN=420, STAGGER=80, TRAVEL=700, ORBIT_DRAW=600;
+    var ROT=(2*Math.PI)/50;        // ~50 s par tour, comme autoRotate
+
+    var ORBITS=[{rx:158,ry:158*FLAT},{rx:262,ry:262*FLAT}];
+    var planets=SUBJECTS.map(function(s,i){
+      var ring=i%2, idxInRing=Math.floor(i/2);
+      return {s:s, ring:ring, a0:(idxInRing*(Math.PI/2))+(ring?Math.PI/4:0)};
+    });
+
+    var defs=el("defs");
+    var g1=el("radialGradient",{id:"a-core"});
+    g1.appendChild(el("stop",{offset:"0%","stop-color":"#fff7dd"}));
+    g1.appendChild(el("stop",{offset:"45%","stop-color":"#ffcf47"}));
+    g1.appendChild(el("stop",{offset:"100%","stop-color":"#c9821b","stop-opacity":".25"}));
+    defs.appendChild(g1);
+    var blur=el("filter",{id:"a-glow",x:"-60%",y:"-60%",width:"220%",height:"220%"});
+    blur.appendChild(el("feGaussianBlur",{stdDeviation:"7",result:"b"}));
+    var m=el("feMerge"); m.appendChild(el("feMergeNode",{in:"b"})); m.appendChild(el("feMergeNode",{in:"SourceGraphic"}));
+    blur.appendChild(m); defs.appendChild(blur);
+    svg.appendChild(defs);
+
+    var gOrbits=el("g"), gBodies=el("g");
+    svg.appendChild(gOrbits); svg.appendChild(gBodies);
+
+    var orbitEls=ORBITS.map(function(o){
+      var C=Math.PI*(3*(o.rx+o.ry)-Math.sqrt((3*o.rx+o.ry)*(o.rx+3*o.ry)));
+      var e=el("ellipse",{cx:CX,cy:CY,rx:o.rx,ry:o.ry,fill:"none",stroke:"rgba(255,255,255,.16)",
+        "stroke-width":1,"stroke-dasharray":C,"stroke-dashoffset":C});
+      gOrbits.appendChild(e);
+      return {node:e,C:C};
+    });
+
+    var coreHalo=el("circle",{cx:CX,cy:CY,r:44,fill:"url(#a-core)",opacity:0,filter:"url(#a-glow)"});
+    var core=el("circle",{cx:CX,cy:CY,r:19,fill:"#ffe08a",opacity:0});
+    var coreLabel=el("text",{x:CX,y:CY+58,"text-anchor":"middle",fill:"#9aa4cc","font-size":11.5,opacity:0});
+    coreLabel.textContent="ZETIS";
+    gBodies.appendChild(coreHalo); gBodies.appendChild(core); gBodies.appendChild(coreLabel);
+
+    var bodies=planets.map(function(p){
+      var g=el("g",{opacity:0});
+      var halo=el("circle",{r:22,fill:p.s.color,opacity:.16,filter:"url(#a-glow)"});
+      var disc=el("circle",{r:12,fill:p.s.color});
+      var shade=el("circle",{r:12,fill:"#05060f",opacity:.34});
+      var lbl=el("text",{"text-anchor":"middle",fill:"#c9d1f5","font-size":11});
+      lbl.textContent=p.s.name;
+      g.appendChild(halo); g.appendChild(disc); g.appendChild(shade); g.appendChild(lbl);
+      gBodies.appendChild(g);
+      return {p:p,g:g,halo:halo,disc:disc,shade:shade,lbl:lbl};
+    });
+
+    var t0=performance.now(), reduced=false;
+    document.getElementById("a-replay").addEventListener("click",function(){t0=performance.now();});
+    var rmBtn=document.getElementById("a-rm");
+    rmBtn.addEventListener("click",function(){
+      reduced=!reduced; rmBtn.setAttribute("aria-pressed",String(reduced)); t0=performance.now();
+    });
+
+    function frame(now){
+      var t=now-t0;
+      var rot=reduced?0:((now/1000)*ROT);
+
+      var cp=reduced?1:clamp01(t/CORE_IN);
+      var ce=easeOutCubic(cp);
+      coreHalo.setAttribute("opacity",(0.9*ce).toFixed(3));
+      coreHalo.setAttribute("r",(30+14*ce).toFixed(2));
+      core.setAttribute("opacity",ce.toFixed(3));
+      core.setAttribute("r",(6+13*ce).toFixed(2));
+      coreLabel.setAttribute("opacity",(ce*0.85).toFixed(3));
+
+      var drawn=[false,false];
+      var order=[];
+      bodies.forEach(function(b,i){
+        var start=CORE_IN+i*STAGGER;
+        var p=reduced?1:clamp01((t-start)/TRAVEL);
+        var e=easeOutCubic(p);
+        var o=ORBITS[b.p.ring];
+        var a=b.p.a0+rot;
+        var tx=CX+o.rx*Math.cos(a), ty=CY+o.ry*Math.sin(a);
+        var x=CX+(tx-CX)*e, y=CY+(ty-CY)*e;
+        var depth=(Math.sin(a)+1)/2;                 // 0 = derrière, 1 = devant
+        var sc=(0.78+0.22*depth)*(0.4+0.6*e);
+        b.g.setAttribute("opacity",(p<=0?0:Math.min(1,p*1.6)).toFixed(3));
+        b.halo.setAttribute("cx",x); b.halo.setAttribute("cy",y); b.halo.setAttribute("r",(22*sc).toFixed(2));
+        b.disc.setAttribute("cx",x); b.disc.setAttribute("cy",y); b.disc.setAttribute("r",(12*sc).toFixed(2));
+        b.shade.setAttribute("cx",(x+3.2*sc).toFixed(2)); b.shade.setAttribute("cy",(y-2.4*sc).toFixed(2));
+        b.shade.setAttribute("r",(12*sc).toFixed(2));
+        b.lbl.setAttribute("x",x.toFixed(2)); b.lbl.setAttribute("y",(y+22*sc+9).toFixed(2));
+        b.lbl.setAttribute("opacity",(e*0.92).toFixed(3));
+        b.disc.setAttribute("opacity",(0.55+0.45*depth).toFixed(3));
+        if(p>=1&&!drawn[b.p.ring]){drawn[b.p.ring]=true;
+          var od=reduced?1:clamp01((t-(start+TRAVEL))/ORBIT_DRAW);
+          orbitEls[b.p.ring].node.setAttribute("stroke-dashoffset",(orbitEls[b.p.ring].C*(1-easeOutCubic(od))).toFixed(1));
+        }
+        order.push({y:y,g:b.g});
+      });
+      order.sort(function(u,v){return u.y-v.y;}).forEach(function(o){gBodies.appendChild(o.g);});
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+
+  /* ======================================================================
+     ÉCRAN B — rejeu : construction depuis root
+     ====================================================================== */
+  (function screenB(){
+    var DAYS=[
+      [["maths","Fractions","Additionner des fractions"],["maths","Fractions","Simplifier une fraction"]],
+      [["svt","La cellule","La mitose"]],
+      [["maths","Fractions","Comparer des fractions"],["maths","Proportionnalité","Le coefficient"],["maths","Proportionnalité","Le pourcentage"],["svt","La cellule","Le noyau"]],
+      [["francais","Le récit","Le narrateur"]],
+      [["francais","Le récit","Le point de vue"],["francais","Le récit","Les temps du récit"],["hg","La Révolution","L'été 1789"],["hg","La Révolution","La Terreur"],["anglais","Le prétérit","Les verbes réguliers"]],
+      [["maths","Proportionnalité","L'échelle"],["svt","La cellule","Les organites"]],
+      [["hg","La Révolution","La Déclaration"],["hg","L'Empire","Le sacre"],["francais","Le récit","Le schéma narratif"]],
+      [["anglais","Le prétérit","Les verbes irréguliers"]],
+      [["maths","Géométrie","Le théorème de Pythagore"],["maths","Géométrie","La réciproque"],["maths","Géométrie","Le cercle"],["svt","La nutrition","La digestion"],["svt","La nutrition","Les nutriments"],["anglais","Le prétérit","La forme négative"]],
+      [["francais","La poésie","Les rimes"],["francais","La poésie","Le vers"]],
+      [["maths","Géométrie","Les triangles"],["hg","L'Empire","Le Code civil"],["svt","La nutrition","La respiration"],["anglais","Le futur","Will"]],
+      [["francais","La poésie","Les figures de style"],["maths","Statistiques","La moyenne"],["hg","L'Empire","Waterloo"]],
+      [["svt","La nutrition","Le sang"]],
+      [["maths","Statistiques","La médiane"],["anglais","Le futur","Going to"]]
+    ];
+
+    var svg=document.getElementById("svg-b"), frise=document.getElementById("svg-frise");
+    var W=760,H=500,CX=380,CY=246;
+    var R_SUB=96,R_CHAP=166,R_SKILL=228;
+    var CADENCE=120, LEAD=60, BIRTH=480;
+    var ROT=(2*Math.PI)/50;
+
+    /* --- construction de l'arbre + calendrier des naissances --- */
+    var nodes={}, order=[], seq=[], t=0, litCount=0, dayMarks=[];
+    function ensure(id,kind,parent,label,color){
+      if(nodes[id])return nodes[id];
+      var n={id:id,kind:kind,parent:parent,label:label,color:color,children:[],born:null,
+             phase:Math.random()*Math.PI*2, freq:0.11+Math.random()*0.26,
+             phase2:Math.random()*Math.PI*2, freq2:0.09+Math.random()*0.22};
+      nodes[id]=n; order.push(n);
+      if(parent)nodes[parent].children.push(n);
+      return n;
+    }
+    ensure("root","root",null,"",null);
+    DAYS.forEach(function(day,di){
+      dayMarks.push({day:di,from:litCount});
+      day.forEach(function(row){
+        var slug=row[0],chap=row[1],skill=row[2];
+        var sub=SUBJECTS.filter(function(s){return s.slug===slug;})[0];
+        var sid="s:"+slug, cid="c:"+slug+":"+chap, kid="k:"+slug+":"+chap+":"+skill;
+        var births=[];
+        if(!nodes[sid]){ensure(sid,"subject","root",sub.name,sub.color);births.push(sid);}
+        if(!nodes[cid]){ensure(cid,"chapter",sid,chap,sub.color);births.push(cid);}
+        ensure(kid,"skill",cid,skill,sub.color);
+        var base=t;
+        births.forEach(function(id,k){seq.push({id:id,at:base-((births.length-k)*LEAD)});});
+        litCount++;
+        seq.push({id:kid,at:base,lit:litCount,day:di,inDay:day.length,idxInDay:day.indexOf(row)+1});
+        t+=CADENCE;
+      });
+      dayMarks[dayMarks.length-1].to=litCount;
+    });
+    var TOTAL=litCount, DURATION=t+900;
+    nodes["root"].at=-600;
+    seq.unshift({id:"root",at:-420});
+    var seqById={}; seq.forEach(function(s){ if(seqById[s.id]===undefined)seqById[s.id]=s; });
+
+    /* --- disposition radiale (secteur par matière) --- */
+    var subs=order.filter(function(n){return n.kind==="subject";});
+    subs.forEach(function(s,i){
+      var span=(2*Math.PI)/subs.length, a0=i*span-Math.PI/2;
+      s.a=a0+span/2; s.r=R_SUB;
+      s.children.forEach(function(c,j){
+        var cspan=span*0.82/s.children.length;
+        c.a=a0+span*0.09+cspan*(j+0.5); c.r=R_CHAP;
+        c.children.forEach(function(k,m){
+          var kspan=cspan*0.86/c.children.length;
+          k.a=a0+span*0.09+cspan*j+cspan*0.07+kspan*(m+0.5); k.r=R_SKILL;
+        });
+      });
+    });
+    nodes["root"].a=0; nodes["root"].r=0;
+
+    var defs=el("defs");
+    var gg=el("radialGradient",{id:"b-core"});
+    gg.appendChild(el("stop",{offset:"0%","stop-color":"#fff7dd"}));
+    gg.appendChild(el("stop",{offset:"50%","stop-color":"#ffcf47"}));
+    gg.appendChild(el("stop",{offset:"100%","stop-color":"#c9821b","stop-opacity":".2"}));
+    defs.appendChild(gg);
+    var f=el("filter",{id:"b-glow",x:"-70%",y:"-70%",width:"240%",height:"240%"});
+    f.appendChild(el("feGaussianBlur",{stdDeviation:"5",result:"b"}));
+    var mm=el("feMerge"); mm.appendChild(el("feMergeNode",{in:"b"})); mm.appendChild(el("feMergeNode",{in:"SourceGraphic"}));
+    f.appendChild(mm); defs.appendChild(f);
+    svg.appendChild(defs);
+
+    var gLinks=el("g"),gParts=el("g"),gNodes=el("g"),gLabels=el("g");
+    svg.appendChild(gLinks);svg.appendChild(gParts);svg.appendChild(gNodes);svg.appendChild(gLabels);
+
+    order.forEach(function(n){
+      if(n.parent){
+        n.linkEl=el("line",{stroke:"rgba(255,255,255,.10)","stroke-width":1,opacity:0});
+        gLinks.appendChild(n.linkEl);
+        n.partEl=el("circle",{r:1.7,fill:"#ffcf47",opacity:0});
+        gParts.appendChild(n.partEl);
+      }
+      var r=n.kind==="root"?16:n.kind==="subject"?9:n.kind==="chapter"?5.5:3.6;
+      n.R=r;
+      n.haloEl=el("circle",{r:r*2.1,fill:n.color||"#ffcf47",opacity:0,filter:"url(#b-glow)"});
+      n.el=el("circle",{r:r,fill:n.kind==="root"?"url(#b-core)":(n.color||"#fff"),opacity:0});
+      gNodes.appendChild(n.haloEl);gNodes.appendChild(n.el);
+      if(n.kind==="subject"){
+        n.lbl=el("text",{"text-anchor":"middle",fill:"#c9d1f5","font-size":10.5,opacity:0});
+        n.lbl.textContent=n.label; gLabels.appendChild(n.lbl);
+      }
+    });
+
+    /* --- frise témoin : X = jour actif (série creuse), Y = cumul --- */
+    var FW=760,FH=96,PL=6,PR=6,PT=14,PB=20;
+    var pts=dayMarks.map(function(d,i){
+      return {x:PL+(FW-PL-PR)*(i/(dayMarks.length-1)), y:FH-PB-(FH-PT-PB)*(d.to/TOTAL), from:d.from, to:d.to};
+    });
+    var axis=el("line",{x1:PL,y1:FH-PB+.5,x2:FW-PR,y2:FH-PB+.5,stroke:"rgba(255,255,255,.10)"});
+    frise.appendChild(axis);
+    var dAll="M"+pts.map(function(p){return p.x.toFixed(1)+","+p.y.toFixed(1);}).join(" L");
+    var ghost=el("path",{d:dAll,fill:"none",stroke:"rgba(255,255,255,.10)","stroke-width":1.5});
+    var live=el("path",{fill:"none",stroke:"#22d3ee","stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round"});
+    var head=el("circle",{r:3.4,fill:"#22d3ee",opacity:0});
+    frise.appendChild(ghost);frise.appendChild(live);frise.appendChild(head);
+    var cap=el("text",{x:PL,y:FH-4,fill:"#5f6890","font-size":10.5});
+    cap.textContent="chaque point = un jour où quelque chose s'est allumé — aucune date, aucun intervalle vide";
+    frise.appendChild(cap);
+
+    var countEl=document.getElementById("b-count");
+    var t0=performance.now(), reduced=false;
+    document.getElementById("b-replay").addEventListener("click",function(){t0=performance.now();});
+    var rmB=document.getElementById("b-rm");
+    rmB.addEventListener("click",function(){reduced=!reduced;rmB.setAttribute("aria-pressed",String(reduced));t0=performance.now();});
+
+    function pos(n,now,tt){
+      if(n.kind==="root")return{x:CX,y:CY};
+      var rot=reduced?0:(now/1000)*ROT;
+      var a=n.a+rot;
+      var x=CX+n.r*Math.cos(a), y=CY+n.r*Math.sin(a)*0.86;
+      if(!reduced&&n.bornAt!==undefined){
+        var age=(now-n.bornAt)/1000;
+        x+=Math.sin(age*n.freq*2*Math.PI+n.phase)*(n.kind==="skill"?3.2:1.8);
+        y+=Math.cos(age*n.freq2*2*Math.PI+n.phase2)*(n.kind==="skill"?2.6:1.4);
+      }
+      return{x:x,y:y};
+    }
+
+    function frame(now){
+      var tt=now-t0;
+      var lit=0;
+      seq.forEach(function(s){ if(reduced||tt>=s.at){ if(nodes[s.id].bornAt===undefined)nodes[s.id].bornAt=t0+Math.max(0,s.at); if(s.lit)lit=Math.max(lit,s.lit);} });
+      if(reduced)lit=TOTAL;
+      countEl.textContent=lit;
+
+      order.forEach(function(n){
+        var s=seqById[n.id];
+        var p=reduced?1:clamp01((tt-(s?s.at:0))/BIRTH);
+        var e=easeOutCubic(p);
+        var target=pos(n,now,tt);
+        var par=n.parent?pos(nodes[n.parent],now,tt):target;
+        var x=par.x+(target.x-par.x)*e, y=par.y+(target.y-par.y)*e;
+        n.cx=x;n.cy=y;n.vis=p;
+        var sc=0.35+0.65*e;
+        n.el.setAttribute("cx",x.toFixed(2));n.el.setAttribute("cy",y.toFixed(2));
+        n.el.setAttribute("r",(n.R*sc).toFixed(2));n.el.setAttribute("opacity",(p<=0?0:Math.min(1,p*1.5)).toFixed(3));
+        n.haloEl.setAttribute("cx",x.toFixed(2));n.haloEl.setAttribute("cy",y.toFixed(2));
+        n.haloEl.setAttribute("r",(n.R*2.1*sc).toFixed(2));
+        n.haloEl.setAttribute("opacity",(p<=0?0:(n.kind==="skill"?.30:.22)*Math.min(1,p*1.5)).toFixed(3));
+        if(n.lbl){
+          n.lbl.setAttribute("x",x.toFixed(2));n.lbl.setAttribute("y",(y-n.R*1.9-5).toFixed(2));
+          n.lbl.setAttribute("opacity",(e*0.9).toFixed(3));
+        }
+        if(n.linkEl){
+          var pp=nodes[n.parent];
+          n.linkEl.setAttribute("x1",pp.cx!==undefined?pp.cx.toFixed(2):x);
+          n.linkEl.setAttribute("y1",pp.cy!==undefined?pp.cy.toFixed(2):y);
+          n.linkEl.setAttribute("x2",x.toFixed(2));n.linkEl.setAttribute("y2",y.toFixed(2));
+          n.linkEl.setAttribute("opacity",(p<=0?0:0.55*e).toFixed(3));
+          n.linkEl.setAttribute("stroke",p>=1?"rgba(255,207,71,.42)":"rgba(255,255,255,.14)");
+          if(!reduced&&p>=1){
+            var ph=((now/1000)*0.35+(n.phase/6))%1;
+            var pxx=(pp.cx||x)+(x-(pp.cx||x))*ph, pyy=(pp.cy||y)+(y-(pp.cy||y))*ph;
+            n.partEl.setAttribute("cx",pxx.toFixed(2));n.partEl.setAttribute("cy",pyy.toFixed(2));
+            n.partEl.setAttribute("opacity",.75);
+          } else { n.partEl.setAttribute("opacity",0); }
+        }
+      });
+
+      /* frise : curseur en fraction de jour */
+      var idx=0;
+      for(var i=0;i<dayMarks.length;i++){ if(lit>=dayMarks[i].to)idx=i+1; }
+      var frac=0;
+      if(idx<dayMarks.length){var d=dayMarks[idx];frac=(lit-d.from)/(d.to-d.from);}
+      var seg=[],xEnd=pts[0].x,yEnd=pts[0].y;
+      for(var j=0;j<=Math.min(idx,pts.length-1);j++){seg.push(pts[j].x.toFixed(1)+","+pts[j].y.toFixed(1));xEnd=pts[j].x;yEnd=pts[j].y;}
+      if(idx<pts.length-1&&frac>0){
+        var a=pts[idx],b=pts[idx+1];
+        xEnd=a.x+(b.x-a.x)*frac; yEnd=a.y+(b.y-a.y)*frac;
+        seg.push(xEnd.toFixed(1)+","+yEnd.toFixed(1));
+      }
+      if(seg.length>1){live.setAttribute("d","M"+seg.join(" L"));head.setAttribute("opacity",1);}
+      else{live.setAttribute("d","");head.setAttribute("opacity",0);}
+      head.setAttribute("cx",xEnd.toFixed(1));head.setAttribute("cy",yEnd.toFixed(1));
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+})();
+</script>
+</body>
+</html>
