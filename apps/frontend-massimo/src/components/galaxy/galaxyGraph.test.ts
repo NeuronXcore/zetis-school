@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { GalaxyEdge, GalaxyNode } from "@zetis/types";
 import {
+  MAX_PARTICLES_PER_LINK,
+  PARTICLE_BUDGET,
   dim,
   linkKey,
   litLinkIds,
+  particleAllowance,
   particlesFor,
   searchMatches,
   statusCounts,
@@ -157,5 +160,44 @@ describe("dim — atténuer sans jamais virer au rouge", () => {
   it("ne touche à rien avec un montant nul, et n'explose pas sur une entrée invalide", () => {
     expect(dim("#22d3ee", 0)).toBe("#22d3ee");
     expect(dim("rgba(0,0,0,0)", 0.5)).toBe("rgba(0,0,0,0)");
+  });
+});
+
+describe("budget de particules — la garde qui a remplacé le plafond de nœuds", () => {
+  // Addendum ADR-0024 §2 : ce qui coûte par image, c'est un objet animé PAR LIEN, pas une
+  // sphère posée. On dégrade donc le décor, jamais la progression de Massimo.
+
+  it("une petite galaxie a droit au flux plein", () => {
+    expect(particleAllowance(10)).toBe(MAX_PARTICLES_PER_LINK);
+  });
+
+  it("le flux s'amincit quand les liens allumés se multiplient", () => {
+    const many = particleAllowance(PARTICLE_BUDGET);
+    expect(many).toBe(1);
+    expect(many).toBeLessThan(particleAllowance(10));
+  });
+
+  it("il s'éteint plutôt que de dépasser le budget", () => {
+    expect(particleAllowance(PARTICLE_BUDGET * 2)).toBe(0);
+  });
+
+  it("le total reste sous le budget, quel que soit le nombre de liens", () => {
+    for (const links of [1, 8, 40, 79, 80, 81, 160, 161, 400, 5_000]) {
+      expect(links * particleAllowance(links)).toBeLessThanOrEqual(PARTICLE_BUDGET);
+    }
+  });
+
+  it("l'appareil qui décroche coupe le flux, PAS les étoiles", () => {
+    expect(particleAllowance(10, { degraded: true })).toBe(0);
+    // Rien ici ne retire un nœud : la garde ne porte que sur les particules.
+    expect(particlesFor(true, false, particleAllowance(10, { degraded: true }))).toBe(0);
+  });
+
+  it("prefers-reduced-motion coupe tout, budget ou pas", () => {
+    expect(particleAllowance(1, { reducedMotion: true })).toBe(0);
+  });
+
+  it("une galaxie sans lien allumé n'anime rien", () => {
+    expect(particleAllowance(0)).toBe(0);
   });
 });

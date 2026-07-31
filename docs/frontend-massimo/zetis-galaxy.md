@@ -216,10 +216,43 @@ précis) ; l'iPhone est la **contrainte** à honorer, pas la cible unique.
 - **Une constellation par matière.** Jamais un graphe global de toutes les matières en
   force-directed : illisible partout, et lourd même sur MacBook.
 - La vue d'ensemble affiche les matières, pas leurs notions.
-- **Plafond de nœuds adaptatif** par classe d'appareil — compact 40 / tablette 90 / desktop 150
-  (ADR-0024 §6). ⚠️ Valeurs **provisoires, non mesurées** : la slice B les confirme ou les corrige
-  sur les trois appareils réels. Au-delà, on n'affiche que les amas et on déplie un chapitre à la
-  demande.
+- **Plus de plafond de nœuds.** `GALAXY_MAX_NODES` (40 / 90 / 150) et son repli ont été
+  **supprimés** le 2026-07-31 (addendum ADR-0024 « Galaxie animée » §1) : le plafond cachait à
+  Massimo une partie de sa propre progression selon un critère matériel, et ses valeurs n'avaient
+  jamais été mesurées. **Trois gardes** le remplacent, et elles visent le vrai coût par image :
+
+  | garde | où | ce qu'elle fait |
+  |---|---|---|
+  | budget de **particules** | `galaxyGraph.ts` — `particleAllowance()` | répartit `PARTICLE_BUDGET` (160) sur les liens allumés : 2 → 1 → 0 par fil. C'est un objet animé **par lien à chaque frame** qui coûte, pas une sphère posée |
+  | coupure sous **34 FPS** | `GalaxyCanvas` — `PARTICLE_FPS_FLOOR` | mesure le framerate réel sur une seconde pleine et éteint le flux doré. Sans retour en arrière : un seuil franchi dans les deux sens ferait clignoter le décor |
+  | moteur **arrêté** | `cooldownTicks` | la simulation s'arrête une fois stabilisée ; la rotation caméra continue, elle est quasi gratuite |
+
+  ⚠️ **Ce qui borne la vue par défaut n'est pas — et n'a jamais été — le plafond**, mais le filtre
+  `root` + `subject` du §C (`lib/solarSystem.ts`, testé). Les deux ont été confondus une fois. Le
+  filtre reste : c'est une décision de composition prise sur rendu réel.
+
+  ⚠️ **Écart doc/code relevé le 2026-07-31** : l'addendum supposait le repli « amas + dépliage »
+  probablement jamais écrit. **Il existait bel et bien** — `GalaxyPage` ne rendait plus que les
+  chapitres au-delà du seuil et affichait « Beaucoup d'étoiles ici », et la modale de rejeu
+  retirait **toutes les étoiles**, c'est-à-dire l'objet même du rejeu. Les deux sont partis avec le
+  plafond.
+
+- **Arrivée de la vue par défaut** — le cerveau apparaît seul (`CORE_IN` 420 ms), puis les matières
+  naissent au centre et rejoignent leur créneau (`PLANET_STAGGER` 80, `PLANET_TRAVEL` 700,
+  `easeOutCubic`), l'anneau se traçant **derrière** sa planète (`ORBIT_DRAW` 600). Ordre du
+  **programme**, jamais chronologique ni par volume. **Une fois par visite** (`sessionStorage`) :
+  le retour d'une constellation restitue la composition d'emblée. `prefers-reduced-motion` →
+  composition finale immédiate. Rythme et invariants : `arrivalTween.ts`, testés.
+
+  ⚠️ **Écart assumé avec la lettre de l'addendum** (§3 : « animer `x/y/z`, n'affecter `fx/fy/fz`
+  qu'à l'arrivée »). En mode orbite le moteur est éteint, et la lib ne recopie `x/y/z` vers les
+  objets 3D **que pendant un tick de simulation** : un `x` animé sur un moteur arrêté ne déplace
+  rien. On écrit donc les trois sur la position **courante** du tween. L'interdit réel est
+  respecté — ce qui téléporte, c'est d'épingler la position **finale**.
+
+- **Dette ouverte** : la mesure sur les **trois appareils** reste due, sur un **pire cas semé**
+  (référentiel validé complet), pas sur les ~37 étoiles d'aujourd'hui. L'iPhone tranche. S'il ne
+  suit pas, ce sont les **particules** qui tombent, jamais les nœuds.
 - La mise en page suit les trois formats : panneau **latéral** sur desktop et tablette en paysage,
   **feuille basse** en portrait et sur téléphone.
 
@@ -247,7 +280,16 @@ précis) ; l'iPhone est la **contrainte** à honorer, pas la cible unique.
   `autoRotate` doit donc dépendre de `width`, sinon il s'exécute avant le montage, ne trouve aucun
   contrôle, n'est jamais rejoué — et la rotation ne démarre jamais (bug réel, corrigé).
 - **Flux doré** — les liens menant à une notion **travaillée** (statut ≠ `unknown`) sont dorés et
-  parcourus de particules ; les autres restent sombres et immobiles. L'or est une **information**,
+  parcourus de particules ; les autres restent sombres et immobiles. Le **nombre** de particules
+  par fil est réparti sous le budget global (§9) et tombe à zéro si l'appareil décroche : c'est le
+  **décor** qui se dégrade, jamais une étoile de Massimo.
+  ⚠️ **`graphData` n'est PAS exposée sur le ref** de `react-force-graph-3d` 1.29.1 : `methodNames`
+  en lie 18, et celle-ci n'y figure pas. Conséquence constatée le 2026-07-31 —
+  `handleEngineStop` tente de déclouer le soleil via `graphRef.current?.graphData?.()`, l'appel est
+  avalé par l'optionnel, et **le soleil n'a jamais été déclouté** depuis le 2026-07-28. Laissé en
+  l'état (le rendre effectif changerait un comportement en place, hors périmètre) — mais consigné
+  ici pour que personne ne perde une heure à comprendre pourquoi le code semble faire ce qu'il ne
+  fait pas. Corollaire : tout placement voyage par les **données**, jamais par l'API du ref. L'or est une **information**,
   pas un décor : la galaxie se remplit d'or à mesure que Massimo progresse, et la règle §2
   (« l'animation récompense un événement réel ») tient **sans amendement**.
   ⚠️ Un lien `subject → chapter` est doré **ssi** l'amas contient au moins une étoile allumée —

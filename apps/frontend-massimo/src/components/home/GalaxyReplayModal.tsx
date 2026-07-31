@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import type { GalaxyFullGraph, GalaxyTimeline } from "@zetis/types";
-import { hasWebGL, maxNodesFor } from "@zetis/ui/galaxy";
+import { hasWebGL } from "@zetis/ui/galaxy";
 import { fetchFullGraph, fetchGalaxyTimelineWithSkills } from "../../lib/galaxy";
 import { CloseFullscreenButton } from "../galaxy/CloseFullscreenButton";
 import { ProgressSparkline } from "../galaxy/ProgressSparkline";
@@ -45,9 +45,6 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
   );
   const [progress, setProgress] = useState(0); // 0 → 1
   const [playing, setPlaying] = useState(false);
-  const [width, setWidth] = useState(() =>
-    typeof window === "undefined" ? 1280 : window.innerWidth,
-  );
 
   useEffect(() => {
     let active = true;
@@ -61,11 +58,10 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
       setProgress(1);
       setPlaying(false);
     });
-    const onResize = () => setWidth(window.innerWidth);
-    window.addEventListener("resize", onResize);
+    // La largeur n'est plus suivie : elle ne servait qu'au plafond de nœuds, supprimé le
+    // 2026-07-31 (addendum ADR-0024 §1).
     return () => {
       active = false;
-      window.removeEventListener("resize", onResize);
     };
   }, []);
 
@@ -111,27 +107,25 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
     return new Set(skills.slice(0, count).map((s) => `skill-${s.skill_id}`));
   }, [timeline, progress]);
 
-  /** Le graphe au temps `progress` : les étoiles pas encore nées sont RETIRÉES, pas éteintes. */
+  /**
+   * Le graphe au temps `progress` : les étoiles pas encore nées sont RETIRÉES, pas éteintes.
+   *
+   * Le rejeu rend le graphe COMPLET, avec ses notions. Il y avait ici un repli qui, au-delà
+   * de `maxNodesFor(width)`, retirait toutes les étoiles pour ne garder que matières et
+   * chapitres — un rejeu de galaxie SANS ÉTOILE, ce que la modale existe précisément pour
+   * montrer. Supprimé avec le plafond le 2026-07-31 (addendum ADR-0024 §1).
+   */
   const shown = useMemo(() => {
     if (!graph) return null;
-    const capped =
-      graph.nodes.length <= maxNodesFor(width)
-        ? graph
-        : {
-            nodes: graph.nodes.filter((n) => n.kind !== "skill"),
-            edges: graph.edges.filter(
-              (e) => !e.source.startsWith("skill-") && !e.target.startsWith("skill-"),
-            ),
-          };
-    if (!litSkillIds) return capped;
+    if (!litSkillIds) return graph;
     const keep = new Set(
-      capped.nodes.filter((n) => n.kind !== "skill" || litSkillIds.has(n.id)).map((n) => n.id),
+      graph.nodes.filter((n) => n.kind !== "skill" || litSkillIds.has(n.id)).map((n) => n.id),
     );
     return {
-      nodes: capped.nodes.filter((n) => keep.has(n.id)),
-      edges: capped.edges.filter((e) => keep.has(e.source) && keep.has(e.target)),
+      nodes: graph.nodes.filter((n) => keep.has(n.id)),
+      edges: graph.edges.filter((e) => keep.has(e.source) && keep.has(e.target)),
     };
-  }, [graph, litSkillIds, width]);
+  }, [graph, litSkillIds]);
 
   const litCount = litSkillIds
     ? litSkillIds.size

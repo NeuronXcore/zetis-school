@@ -9,7 +9,7 @@
  * - sans WebGL, on ne rend RIEN ici — l'appelant affiche son repli en liste ;
  * - le drag de nœud est actif : Massimo peut étirer une étoile, les liens suivent.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ForceGraph3D from "react-force-graph-3d";
 import {
   AdditiveBlending,
@@ -27,7 +27,19 @@ import SpriteText from "three-spritetext";
 import type { GalaxyEdge, GalaxyNode, GalaxyStatus } from "@zetis/types";
 import { BRAIN_LOBE, BRAIN_LOBES, BRAIN_LOBE_SCALE } from "./brainGeometry";
 import { orbitLayout } from "./orbitLayout";
-import { linkKey, litLinkIds, particlesFor } from "./galaxyGraph";
+import {
+  PARTICLE_FPS_FLOOR,
+  linkKey,
+  litLinkIds,
+  particleAllowance,
+  particlesFor,
+} from "./galaxyGraph";
+import {
+  arrivalDuration,
+  planetIsBorn,
+  planetPosition,
+  ringOpacity,
+} from "./arrivalTween";
 import {
   CHAPTER_COLOR,
   GOLD,
@@ -69,6 +81,35 @@ export interface GalaxyCanvasProps {
 /** Force du fondu appliqué à ce qui n'est pas concerné par le filtre. */
 const DIM_AMOUNT = 0.82;
 
+/** Opacité pleine d'un trait d'orbite : présent, jamais appuyé — c'est du décor. */
+const RING_OPACITY = 0.16;
+
+/**
+ * Clé de session : l'arrivée joue UNE FOIS PAR VISITE.
+ *
+ * Revoir la même chorégraphie à chaque aller-retour vers une constellation, ce serait
+ * l'animation subie qu'on bannit partout ailleurs (addendum ADR-0024 §3). `sessionStorage`
+ * et non `localStorage` : à la visite suivante, la galaxie a le droit de renaître.
+ */
+const ARRIVAL_KEY = "zetis.galaxy.arrival";
+
+function arrivalAlreadyPlayed(): boolean {
+  try {
+    return window.sessionStorage?.getItem(ARRIVAL_KEY) === "1";
+  } catch {
+    // Navigation privée, stockage refusé : on rejoue l'arrivée plutôt que de planter.
+    return false;
+  }
+}
+
+function rememberArrival(): void {
+  try {
+    window.sessionStorage?.setItem(ARRIVAL_KEY, "1");
+  } catch {
+    /* sans stockage, l'arrivée rejouera — c'est le défaut le moins grave. */
+  }
+}
+
 // Volumes des repères. En construisant nous-mêmes les sphères, `nodeVal` et `nodeRelSize`
 // ne s'appliquent plus : on reproduit ici la formule de la lib (`∛volume × rayon de base`),
 // sinon les étoiles rapetissent d'un coup et redeviennent inatteignables au doigt.
@@ -101,8 +142,46 @@ export function GalaxyCanvas({
 }: GalaxyCanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
+  /** Les anneaux d'orbite, partagés entre l'effet qui les crée et celui qui les trace. */
+  const ringsRef = useRef<Mesh[]>([]);
   const [width, setWidth] = useState(0);
   const reduced = useMemo(prefersReducedMotion, []);
+
+  // ── Garde de perf n°1 : le flux doré s'éteint si l'appareil décroche ────────────────
+  //
+  // Remplace le plafond de nœuds supprimé le 2026-07-31 (addendum ADR-0024 §2). On mesure
+  // le framerate réel plutôt que de deviner la puissance de l'appareil d'après la largeur
+  // de son écran — c'est précisément la supposition qui rendait l'ancien plafond
+  // indéfendable. Et ce qui tombe, c'est le DÉCOR, jamais une étoile de Massimo.
+  //
+  // Sans retour en arrière : une fois dégradé, on y reste pour la durée de la vue. Un seuil
+  // qu'on repasse dans les deux sens ferait clignoter le flux, ce qui est pire que son
+  // absence.
+  const [degraded, setDegraded] = useState(false);
+  useEffect(() => {
+    if (reduced || degraded) return;
+    let frames = 0;
+    let since = performance.now();
+    let raf = 0;
+    const tick = () => {
+      frames += 1;
+      const now = performance.now();
+      const span = now - since;
+      // On juge sur une seconde pleine : un à-coup isolé (un GC, un onglet qui reprend la
+      // main) ne doit pas éteindre le flux pour de bon.
+      if (span >= 1000) {
+        if ((frames * 1000) / span < PARTICLE_FPS_FLOOR) {
+          setDegraded(true);
+          return;
+        }
+        frames = 0;
+        since = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [reduced, degraded]);
 
 
   useEffect(() => {
@@ -168,7 +247,11 @@ export function GalaxyCanvas({
         new MeshBasicMaterial({
           color: "#6d8bff",
           transparent: true,
-          opacity: 0.16,
+          // Naît INVISIBLE : l'anneau se trace derrière sa planète, à son arrivée, jamais
+          // avant (addendum ADR-0024 §3 et §4). C'est l'effet d'arrivée qui le fait monter
+          // jusqu'à `RING_OPACITY` — et qui l'y met d'emblée quand il n'y a pas d'arrivée
+          // à jouer (mouvement réduit, ou retour d'une constellation).
+          opacity: 0,
           side: DoubleSide,
           depthWrite: false,
         }),
@@ -178,8 +261,10 @@ export function GalaxyCanvas({
       scene.add(ring);
       return ring;
     });
+    ringsRef.current = rings;
 
     return () => {
+      ringsRef.current = [];
       for (const ring of rings) {
         scene.remove(ring);
         ring.geometry.dispose();
@@ -435,6 +520,14 @@ export function GalaxyCanvas({
     // L'ancrage du soleil ne sert qu'à LA MISE EN PLACE : une fois la constellation posée,
     // on le relâche pour qu'il redevienne déplaçable comme n'importe quelle étoile. Il ne
     // bouge pas pour autant — il est déjà à sa place, il n'est simplement plus cloué.
+    //
+    // ⚠️ INERTE, constaté au read-before-code du 2026-07-31 : `graphData` ne fait PAS partie
+    // des méthodes liées au ref par `react-force-graph-3d` 1.29.1 (`methodNames` en expose
+    // 18, celle-ci n'y est pas). `graphRef.current.graphData` vaut donc `undefined`, le `?.`
+    // avale l'appel, et la boucle tourne sur un tableau vide : le soleil n'a jamais été
+    // déclouté. Laissé en l'état — le rendre effectif changerait un comportement en place
+    // depuis le 2026-07-28, ce qui n'est pas au périmètre de ce chantier. Écart consigné
+    // dans `zetis-galaxy.md`.
     const all = graphRef.current?.graphData?.()?.nodes ?? [];
     const anchor = all.some((n: any) => n.kind === "root") ? "root" : "subject";
     for (const node of all) {
@@ -525,6 +618,16 @@ export function GalaxyCanvas({
   // Liens parcourus par l'or : calculé une fois, en dehors du rendu.
   const lit = useMemo(() => litLinkIds(nodes, edges), [nodes, edges]);
 
+  // ── Garde de perf n°2 : le budget de particules ─────────────────────────────────────
+  //
+  // Réparti sur toute la scène, pas décidé lien par lien : c'est le TOTAL par image qui
+  // coûte. Une galaxie très fournie voit son flux s'amincir (2 → 1 → 0) pendant que ses
+  // étoiles, elles, restent toutes là (addendum ADR-0024 §2).
+  const allowance = useMemo(
+    () => particleAllowance(lit.size, { reducedMotion: reduced, degraded }),
+    [lit, reduced, degraded],
+  );
+
   const data = useMemo(
     () => ({
       // Le cœur de matière est ÉPINGLÉ à l'origine (`fx/fy/fz`) : c'est le soleil, tout
@@ -546,8 +649,107 @@ export function GalaxyCanvas({
       }),
       links: edges.map((e) => ({ source: e.source, target: e.target })),
     }),
-    [nodes, edges],
+    // `orbits` fait partie des dépendances : sans lui, basculer en mode orbite sans que
+    // `nodes` change laisserait les placements de la vue précédente.
+    [nodes, edges, orbits],
   );
+
+  // ── L'arrivée de la vue par défaut (addendum ADR-0024 §3) ───────────────────────────
+  //
+  // Le cerveau apparaît seul, puis les matières naissent au centre et rejoignent leur
+  // créneau ; l'anneau se trace derrière sa planète. Rythme et invariants : `arrivalTween.ts`.
+  //
+  // ⚠️ ÉCART ASSUMÉ AVEC LA LETTRE DE L'ADDENDUM, constaté à l'exécution. Le §3 prescrit
+  // « n'affecter `fx/fy/fz` qu'à l'arrivée, animer `x/y/z` avant ». Ça ne marche pas ici :
+  // en mode orbite le moteur est éteint (forces à zéro, `cooldownTicks` atteint), et la lib
+  // ne recopie `x/y/z` vers les objets 3D que pendant un tick de simulation — un `x` animé
+  // sur un moteur arrêté ne déplace rien. On écrit donc les trois à la fois, sur la position
+  // COURANTE du tween : l'objet 3D bouge tout de suite, et si un tick survient il repose la
+  // planète exactement là où on l'a mise, au lieu de la ramener à son créneau.
+  //
+  // Ce que le §3 interdit vraiment reste respecté : ce qui téléporte, c'est d'épingler la
+  // position FINALE dès l'affectation. Ici on n'épingle jamais que l'instant présent.
+  //
+  // Aucun `refresh()` dans la boucle : il reconstruit tous les objets de la scène. À
+  // 60 images par seconde ce serait le remède pire que le mal.
+  const arrivalRef = useRef(false);
+  useLayoutEffect(() => {
+    if (layout !== "orbit" || width === 0) return;
+    const graph = graphRef.current;
+    if (!graph) return;
+
+    // L'ORDRE DU PROGRAMME, celui dans lequel les matières nous sont servies. Ni ancienneté
+    // ni nombre d'étoiles : l'un ferait un mini-rejeu, l'autre un palmarès (ADR-0024 §5).
+    const planets: { node: any; slot: { x: number; y: number; z: number } }[] = [];
+    for (const node of data.nodes as any[]) {
+      const slot = orbits.get(node.id);
+      if (slot) planets.push({ node, slot });
+    }
+    if (planets.length === 0) return;
+
+    const place = (node: any, at: { x: number; y: number; z: number }) => {
+      node.x = node.fx = at.x;
+      node.y = node.fy = at.y;
+      node.z = node.fz = at.z;
+      node.__threeObj?.position?.set(at.x, at.y, at.z);
+    };
+
+    /** La composition finale : c'est aussi l'état de repli quand il n'y a rien à jouer. */
+    const settle = () => {
+      for (const { node, slot } of planets) {
+        place(node, slot);
+        if (node.__threeObj) node.__threeObj.visible = true;
+      }
+      for (const ring of ringsRef.current) {
+        (ring.material as MeshBasicMaterial).opacity = RING_OPACITY;
+      }
+    };
+
+    // `prefers-reduced-motion` → composition finale immédiate, aucun trajet. Idem au retour
+    // d'une constellation : l'arrivée ne joue qu'UNE FOIS PAR VISITE.
+    if (reduced || arrivalRef.current || arrivalAlreadyPlayed()) {
+      settle();
+      return;
+    }
+    arrivalRef.current = true;
+    rememberArrival();
+
+    const total = arrivalDuration(planets.length);
+    const apply = (elapsed: number) => {
+      planets.forEach(({ node, slot }, index) => {
+        place(node, planetPosition(elapsed, index, slot));
+        // Avant de partir, la matière attend DANS le cerveau : invisible, sinon huit
+        // planètes empilées à l'origine se liraient comme un défaut d'affichage.
+        if (node.__threeObj) node.__threeObj.visible = planetIsBorn(elapsed, index);
+      });
+      ringsRef.current.forEach((ring, index) => {
+        (ring.material as MeshBasicMaterial).opacity = ringOpacity(
+          elapsed,
+          index,
+          RING_OPACITY,
+        );
+      });
+    };
+
+    // L'état à t=0 est posé AVANT la première peinture (`useLayoutEffect`) : sans lui, la
+    // première image montrerait les planètes déjà à leur créneau — un flash à l'arrivée,
+    // suivi d'un retour au centre.
+    apply(0);
+
+    let raf = 0;
+    const start = performance.now();
+    const frame = (now: number) => {
+      const elapsed = now - start;
+      if (elapsed >= total) {
+        settle();
+        return;
+      }
+      apply(elapsed);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [layout, width, data, orbits, reduced]);
 
   // Un lien reste franc s'il mène à une étoile de l'état filtré ; sinon il s'efface.
   const linkIsFocused = useCallback(
@@ -619,9 +821,10 @@ export function GalaxyCanvas({
           linkDirectionalParticles={(link: any) => {
             if (!linkIsFocused(link)) return 0;
             // Un train de particules sur les nerfs : plusieurs impulsions se suivent le long
-            // de la fibre, comme une salve de potentiels d'action.
-            if (isNerve(link)) return reduced ? 0 : 5;
-            return particlesFor(isLitLink(link), reduced);
+            // de la fibre, comme une salve de potentiels d'action. Il s'éteint avec le
+            // budget — mouvement réduit, ou appareil qui décroche.
+            if (isNerve(link)) return allowance > 0 ? 5 : 0;
+            return particlesFor(isLitLink(link), reduced, allowance);
           }}
           linkDirectionalParticleColor={(link: any) =>
             isNerve(link) ? NERVE_BRIGHT : GOLD_BRIGHT
