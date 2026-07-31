@@ -1,6 +1,8 @@
 import { ConfirmDialog } from "@zetis/ui";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/PageHeader";
+import { FOCUS_RING, useFocusTarget } from "../hooks/useFocusTarget";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { type Equipping, useCouncilClass } from "../hooks/useCouncilClass";
 import { type CouncilRecommendation, reportToMarkdown } from "../lib/councilClass";
@@ -109,6 +111,36 @@ function EquipProgress({ equipping }: { equipping: Equipping }) {
 }
 
 /** Logo circulaire de matière (icône PNG ronde qu'on a créée, repli emoji), grande taille. */
+/** Bloc d'une matière, avec sa cible de lien profond.
+ *
+ *  Arriver « quelque part » depuis le nuage « Où agir » ne sert à rien si la matière visée est la
+ *  sixième de la liste : le bloc est amené au centre de l'écran et entouré. Purement visuel —
+ *  aucune action n'est déclenchée sur la matière ciblée (ADR-0028 §7 : le clic n'ouvre jamais une
+ *  génération). */
+function SubjectBlock({
+  subject,
+  focused,
+  children,
+}: {
+  subject: Subject | undefined;
+  focused: boolean;
+  children: ReactNode;
+}) {
+  const ref = useFocusTarget<HTMLDivElement>(focused);
+  return (
+    <div ref={ref} className="flex items-start gap-3">
+      <SubjectDisc subject={subject} />
+      <div
+        className={`flex-1 rounded-xl border bg-papa-surface p-4 transition-colors motion-reduce:transition-none ${
+          focused ? FOCUS_RING : "border-papa-border"
+        }`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function SubjectDisc({ subject }: { subject: Subject | undefined }) {
   const url = subject ? subjectIconFor(subject.slug) : undefined;
   const frame = "h-[72px] w-[72px] shrink-0 rounded-full border-2 border-amber-400";
@@ -225,9 +257,27 @@ function downloadMarkdown(filename: string, content: string): void {
   URL.revokeObjectURL(url);
 }
 
+/** Libellé de période correspondant au lien profond venu du dashboard (`?period=7|30|90`).
+ *
+ *  Le deep-link porte la période parce que sans elle, le Conseil raconterait un trimestre quand
+ *  Papa regardait sept jours (ADR-0028 §7). Ce n'est qu'une PRÉSÉLECTION : le champ reste libre,
+ *  et rien n'est généré à l'arrivée. */
+const PERIOD_FROM_DASHBOARD: Record<string, string> = {
+  "7": "7 derniers jours",
+  "30": "30 derniers jours",
+  "90": "Trimestre",
+};
+
 export function ConseilClasseIAPage() {
   const c = useCouncilClass();
-  const [period, setPeriod] = useState("Trimestre 1");
+  // Lien profond depuis le nuage « Où agir » du dashboard. Périmètre STRICT (ADR-0028 §7) :
+  // lecture de l'URL et présélection, rien d'autre. Ni la génération, ni le cycle de vie, ni les
+  // routes backend du Conseil ne sont touchés — l'ADR-0020 n'est pas rouvert.
+  const [searchParams] = useSearchParams();
+  const focusedSubjectSlug = searchParams.get("subject");
+  const [period, setPeriod] = useState(
+    () => PERIOD_FROM_DASHBOARD[searchParams.get("period") ?? ""] ?? "Trimestre 1",
+  );
   const [pendingReco, setPendingReco] = useState<CouncilRecommendation | null>(null);
   const [pendingChampion, setPendingChampion] = useState(false);
   const [showDone, setShowDone] = useState(false);
@@ -382,9 +432,14 @@ export function ConseilClasseIAPage() {
           ) : (
             <div className="space-y-3">
               {c.report.subjects.map((s) => (
-                <div key={s.subject_id} className="flex items-start gap-3">
-                  <SubjectDisc subject={subjectById.get(s.subject_id)} />
-                  <div className="flex-1 rounded-xl border border-papa-border bg-papa-surface p-4">
+                <SubjectBlock
+                  key={s.subject_id}
+                  subject={subjectById.get(s.subject_id)}
+                  focused={
+                    focusedSubjectSlug !== null &&
+                    subjectById.get(s.subject_id)?.slug === focusedSubjectSlug
+                  }
+                >
                   <p className="font-semibold">{s.subject_name}</p>
                   {s.strengths && (
                     <p className="mt-1 text-sm">
@@ -413,8 +468,7 @@ export function ConseilClasseIAPage() {
                       onCreate={() => setPendingReco(r)}
                     />
                   ))}
-                  </div>
-                </div>
+                </SubjectBlock>
               ))}
             </div>
           )}
