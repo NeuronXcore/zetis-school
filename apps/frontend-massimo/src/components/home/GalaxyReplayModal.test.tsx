@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GalaxyFullGraph, GalaxyTimeline } from "@zetis/types";
 
@@ -39,20 +39,71 @@ vi.mock("../../lib/galaxy", () => ({
   fetchGalaxyTimelineWithSkills: () => Promise.resolve(TIMELINE),
 }));
 
-// Le canvas tire Three.js : hors sujet ici, et impossible à monter sous jsdom.
+// jsdom n'a pas de contexte WebGL : sans ce mock, la modale rend son repli « il faut un écran
+// qui sait dessiner en 3D » et le canvas n'est jamais monté. Tout le reste est le vrai module —
+// horloge de rang et arbre radial compris.
+vi.mock("@zetis/ui/galaxy", async (actual) => ({
+  ...((await actual()) as object),
+  hasWebGL: () => true,
+}));
+
+// Le canvas tire Three.js : hors sujet ici, et impossible à monter sous jsdom. On enregistre
+// au passage les tableaux de nœuds reçus — c'est ce qui permet de vérifier qu'on ne réassigne
+// pas les données à chaque image.
+const received: unknown[] = [];
 vi.mock("@zetis/ui/galaxy/canvas", () => ({
-  GalaxyCanvas: () => <div data-testid="canvas" />,
+  GalaxyCanvas: ({ nodes }: { nodes: unknown }) => {
+    received.push(nodes);
+    return <div data-testid="canvas" />;
+  },
 }));
 
 import { GalaxyReplayModal } from "./GalaxyReplayModal";
 
 beforeEach(() => {
+  received.length = 0;
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: false,
     media: query,
     addEventListener: () => {},
     removeEventListener: () => {},
   }));
+});
+
+describe("les données ne sont réassignées qu'aux NAISSANCES", () => {
+  // ⚠️ Test-verrou d'une régression réelle. Le rejeu se recalculait sur `elapsed`, qui avance à
+  // chaque image : le graphe était réassigné 60 fois par seconde, et `three-forcegraph` fait
+  // `stop().alpha(1)` à chaque assignation. Résultat : le graphe se réinitialisait en boucle et
+  // ne s'affichait jamais. Rien ne le voyait — d'où ce test.
+  //
+  // Le temps est piloté à la main : `requestAnimationFrame` n'avance pas tout seul ici, et un
+  // test qui dort n'aurait prouvé qu'une chose — que rien ne s'était passé.
+  it("le canvas reçoit le MÊME tableau de nœuds entre deux étoiles", async () => {
+    const frames: FrameRequestCallback[] = [];
+    let now = 0;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => frames.push(cb));
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+
+    render(<GalaxyReplayModal onClose={() => {}} />);
+    await waitFor(() => expect(received.length).toBeGreaterThan(0));
+
+    // ~25 images de 16 ms : deux notions naissent (cadence 120 ms), donc quelques paliers.
+    for (let i = 0; i < 25; i += 1) {
+      now += 16;
+      const pending = frames.splice(0, frames.length);
+      await act(async () => {
+        for (const frame of pending) frame(now);
+      });
+    }
+
+    const distinct = new Set(received).size;
+    // Plusieurs rendus ont bien eu lieu — sans quoi le test passerait pour rien.
+    expect(received.length).toBeGreaterThan(10);
+    // ...mais très peu de tableaux DISTINCTS : un par naissance, pas un par image.
+    expect(distinct).toBeLessThanOrEqual(6);
+    expect(received.length).toBeGreaterThan(distinct * 2);
+  });
 });
 
 describe("la frise est témoin, plus commande", () => {

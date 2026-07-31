@@ -129,19 +129,51 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
     };
   }, [graph, orderedSkillIds, schedule, reduced, run]);
 
+  /**
+   * Combien de nœuds sont nés. Change par PALIERS — toutes les `STAR_CADENCE`, pas à chaque
+   * image.
+   *
+   * ⚠️ C'EST LA CLÉ DE TOUT LE REJEU, et son absence l'avait cassé net. `elapsed` avance à
+   * chaque frame ; si le graphe rendu se recalcule sur `elapsed`, on réassigne `graphData` 60
+   * fois par seconde — et `three-forcegraph` fait `stop().alpha(1)` à CHAQUE assignation. Le
+   * graphe passait sa vie à se réinitialiser et ne s'affichait jamais. C'est précisément le
+   * défaut que l'addendum décrit, réintroduit par la porte de derrière.
+   *
+   * En dérivant un compte discret, `shown` garde la même identité entre deux naissances, et la
+   * lib ne voit un changement de données que quand il y en a vraiment un.
+   */
+  const bornCount = useMemo(() => {
+    if (elapsed === null) return -1;
+    let count = 0;
+    for (const born of schedule.at.values()) {
+      if (born <= elapsed) count += 1;
+    }
+    return count;
+  }, [elapsed, schedule]);
+
+  // `elapsed` au moment du dernier palier — lu sans être une dépendance, pour que `shown` ne se
+  // recalcule qu'aux naissances.
+  const elapsedRef = useRef(0);
+  elapsedRef.current = elapsed ?? 0;
+  const started = elapsed !== null;
+
   /** Le graphe à cet instant : ce qui n'est pas encore né est RETIRÉ, pas éteint. */
   const shown = useMemo(() => {
     if (!graph) return null;
-    if (elapsed === null || orderedSkillIds.length === 0) return graph;
+    if (!started || orderedSkillIds.length === 0) return graph;
+    const now = elapsedRef.current;
     const keep = new Set<string>();
     for (const [id, born] of schedule.at) {
-      if (born <= elapsed) keep.add(id);
+      if (born <= now) keep.add(id);
     }
     return {
       nodes: graph.nodes.filter((n) => keep.has(n.id)),
       edges: graph.edges.filter((e) => keep.has(e.source) && keep.has(e.target)),
     };
-  }, [graph, elapsed, schedule, orderedSkillIds]);
+    // `elapsed` volontairement absent : c'est `bornCount` qui décide, et il ne bouge qu'aux
+    // paliers. Le relire ici rendrait le graphe instable à chaque image (voir ci-dessus).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graph, bornCount, started, schedule, orderedSkillIds]);
 
   const litCount =
     elapsed === null || orderedSkillIds.length === 0
