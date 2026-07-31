@@ -1,5 +1,52 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.35.0 — Tout voir, et voir ça arriver
+
+Date : 2026-07-31 · branche `feat/galaxy-animations` · addenda ADR-0024 « Galaxie animée » et
+ADR-0029 « Construction depuis root »
+
+> Le prompt de chantier annonçait `0.34.0` : ce numéro était déjà pris par le système solaire,
+> livré le même jour. Corrigé ici plutôt que dans le prompt, qui est daté.
+
+**Le plafond de nœuds est supprimé.**
+
+- `GALAXY_MAX_NODES` (40 / 90 / 150), `maxNodesFor()` et leur repli **disparaissent**. Un plafond
+  cachait à Massimo une partie de **sa propre progression** selon un critère qui n'a rien de
+  pédagogique — la taille de son écran — et ses valeurs n'avaient **jamais été mesurées**.
+- ⚠️ Le repli **existait bel et bien** en code, là où l'addendum le supposait « probablement
+  jamais écrit » : `GalaxyPage` ne rendait plus que les chapitres au-delà du seuil, et la modale
+  de rejeu retirait **toutes les étoiles** — un rejeu de galaxie sans étoile, c'est-à-dire
+  l'inverse de son objet.
+- **Trois gardes** le remplacent, qui visent le coût réel **par image** : budget de particules
+  réparti sur la scène (2 → 1 → 0 par fil), coupure du flux doré sous **34 FPS** mesurés sur une
+  seconde pleine et **sans retour en arrière** (un seuil qui oscille ferait clignoter le décor),
+  moteur arrêté après stabilisation. Ce qui se dégrade est le **décor**, jamais une étoile.
+
+**`/galaxy` a une entrée en matière.** Le cerveau apparaît seul, puis les matières naissent au
+centre et rejoignent leur créneau, l'anneau se traçant **derrière** sa planète. Ordre du
+**programme**, jamais chronologique ni par volume. **Une fois par visite** : revoir la même
+chorégraphie à chaque aller-retour serait l'animation subie bannie partout ailleurs.
+
+**Le rejeu se construit depuis `root`** au lieu de défiler. Les étoiles s'allument une par une à
+cadence fixe, dans l'ordre de leur première fois ; matières et chapitres naissent juste avant leur
+première notion, **dérivés côté client**. La frise devient **témoin** : plus de curseur, plus de
+drag, un seul bouton « Revoir » — mais son axe X reste le **jour actif**, un axe de rang donnerait
+une droite.
+
+**Le §2 de l'addendum ADR-0029 a été réécrit en cours de chantier**, pas contourné. Il prescrivait
+`d3ReheatSimulation` « à alpha bas, jamais `alpha(1)` » ; or `three-forcegraph` 1.43.4 fait
+exactement `alpha(1)` dans cette méthode, n'expose pas `d3AlphaTarget`, et **réchauffe à
+`alpha(1)` à chaque changement de `graphData`**. La voie était fermée par la bibliothèque. Les
+positions sont donc **calculées** (arbre radial déterministe) et les nœuds **épinglés**, moteur
+neutralisé — le mécanisme déjà éprouvé par l'animation d'arrivée.
+
+**Écarts doc/code consignés** : `graphData` n'est pas exposée sur le ref de
+`react-force-graph-3d` 1.29.1, ce qui rend inerte le déclouage du soleil dans `handleEngineStop`
+depuis le 2026-07-28 ; laissé en l'état, hors périmètre.
+
+**Zéro backend** : aucune route, aucun schéma, aucune migration. `API_SPEC.md` et `DATA_MODEL.md`
+inchangés.
+
 ## 0.34.0 — La galaxie devient un système solaire
 
 Date : 2026-07-31 · branche `feat/accueil-vivant` · addendum ADR-0024 §C (révisé)

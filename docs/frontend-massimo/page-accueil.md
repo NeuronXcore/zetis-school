@@ -152,7 +152,14 @@ XP, posée sur un calendrier** — semaines en colonnes, jours en lignes. Rien d
 objectif de jours, une comparaison entre deux périodes, un fond quadrillé.
 
 **Une action secondaire** : « Revoir ma galaxie grandir → » ouvre le **rejeu animé** (ADR-0029).
-Bordure, jamais plein — la seule action accentuée de la page reste « Commencer ».
+Bordure, jamais plein — la seule action accentuée de la page reste « Commencer ». Le libellé est
+**inchangé** depuis l'addendum « Construction depuis root » : c'est bien ce qu'il annonce qui a
+changé, pas la promesse. Dans la modale, la galaxie se **construit** depuis le cerveau au lieu de
+défiler ; il n'y a plus de barre de lecture, seulement un bouton « Revoir ».
+
+⚠️ **Sur l'Accueil, la frise reste telle quelle** — elle se lit d'un coup d'œil sans rien ouvrir.
+Elle n'a jamais été une barre de lecture ici, et elle ne le devient pas : c'est dans la modale,
+et seulement là, qu'elle se trace en synchronisation avec les étoiles.
 
 ⚠️ **`GalaxyReplayModal` ne doit JAMAIS être importée statiquement par l'Accueil.** Elle est
 montée en `lazy()`, et charge elle-même le canvas en `lazy()`. Ce **double `lazy()`** est ce qui

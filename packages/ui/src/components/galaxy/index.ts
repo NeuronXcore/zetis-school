@@ -15,6 +15,16 @@ export { GalaxyLegend } from "./GalaxyLegend";
 export type { GalaxyLegendProps } from "./GalaxyLegend";
 export { hasWebGL } from "./webgl";
 export {
+  ANCESTOR_LEAD,
+  BIRTH,
+  STAR_CADENCE,
+  bornAt,
+  litCountAt,
+  radialTreeLayout,
+  revealSchedule,
+} from "./replayLayout";
+export type { RevealSchedule, Vec3 } from "./replayLayout";
+export {
   CORE_IN,
   ORBIT_DRAW,
   PLANET_STAGGER,

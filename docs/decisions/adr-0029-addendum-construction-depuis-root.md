@@ -58,13 +58,46 @@ réel n'est **pas à l'échelle**.
 d'annoncer une période vide : une horloge calendaire ferait exactement les deux — elle traverserait
 les vacances en ne montrant rien, ce qui **est** l'annonce d'une période vide.
 
-### 2. Le graphe est **muté en place**, jamais réassigné
+### 2. Le graphe est **posé**, pas convergé — §2 RÉÉCRIT le 2026-07-31
 
-Même tableau, mêmes objets nœuds ; on ne fait qu'**ajouter**. Chaque nouveau nœud naît **aux
-coordonnées de son parent** — sinon il arrive de l'origine en traversant l'écran. Puis
-`d3ReheatSimulation` à **alpha bas** (~0.2).
+> **Rédaction d'origine** : « mutation en place, puis `d3ReheatSimulation` à alpha bas (~0.2),
+> ⚠️ jamais `alpha(1)` ». **Impossible à tenir** — non par difficulté, mais parce que la
+> bibliothèque épinglée ne l'expose pas. Constaté au read-before-code, réécrit le jour même
+> plutôt que contourné en silence.
 
-⚠️ **Jamais `alpha(1)`** : alpha plein, c'est la ré-explosion — exactement le défaut qu'on corrige.
+**Ce que le code de `three-forcegraph` 1.43.4 dit, vérifié ligne à ligne :**
+
+- `d3ReheatSimulation()` ne prend **aucun argument** et exécute `d3ForceLayout.alpha(1)`. La
+  seule méthode de réchauffe exposée fait **exactement** ce que l'ancien §2 interdisait en gras.
+- `d3AlphaTarget` **existe** comme prop du kapsule (c'est le patron « keep engine running at low
+  intensity » du drag) mais **n'est relayé** ni par `3d-force-graph` ni par
+  `react-force-graph-3d` : ni prop React, ni méthode du ref. Inatteignable.
+- **Le coup de grâce** : `graphData.onChange` exécute `stop().alpha(1)` — « re-heat the
+  simulation », dit le commentaire de la lib. **Toute** modification des données réchauffe à
+  fond, qu'on préserve ou non l'identité des nœuds.
+
+Ce dernier point ferme la voie pour de bon. L'ancien §2 pariait sur « ajouter à une simulation
+déjà en cours, doucement réchauffée » — cette simulation n'existe pas : la lib la relance à
+plein régime à chaque étoile. Préserver l'identité des objets aurait sauvé les **positions de
+départ**, pas empêché la ré-explosion.
+
+**Nouveau mécanisme.** La position de chaque nœud est **calculée**, jamais cherchée :
+
+- un **arbre radial déterministe** est calculé une fois pour le graphe complet — c'est
+  exactement ce que fait la maquette, que l'ADR d'origine opposait à la modale ;
+- chaque nœud naît **aux coordonnées de son parent** et rejoint sa place en `BIRTH` ms,
+  `easeOutCubic` — le trajet reste ce qu'il devait être ;
+- les positions sont **épinglées** (`fx/fy/fz`) et les forces **mises à zéro**, comme la vue en
+  système solaire. Le moteur ne travaille pas, donc il ne peut pas ré-exploser ;
+- **déterministe** : la galaxie de Massimo se construit de la même façon à chaque visite, sinon
+  ce n'est pas la sienne.
+
+C'est le mécanisme **déjà éprouvé** par l'addendum ADR-0024 §3, livré le même jour : mêmes
+fonctions pures, mêmes invariants testables. Une technique de moins à maintenir, pas une de plus.
+
+⚠️ **Ne pas « rétablir » le reheat** en croyant revenir à l'intention d'origine. L'intention
+d'origine était *ne pas ré-exploser* ; le reheat en était le moyen supposé, et ce moyen produit
+précisément le défaut qu'on corrige.
 
 ### 3. La naissance des ancêtres est **dérivée côté client**
 
@@ -151,6 +184,12 @@ tout le référentiel.
 3. **`react-force-graph-3d` conserve-t-il l'identité des nœuds** avec la version épinglée ?
    Vérifier `d3ReheatSimulation` / `d3AlphaTarget` sur l'API réellement exposée avant d'écrire la
    mutation en place.
+
+   > **RÉPONDU le 2026-07-31, et la réponse a réécrit le §2.** `d3ReheatSimulation` = `alpha(1)`,
+   > `d3AlphaTarget` inatteignable, et `graphData.onChange` réchauffe à `alpha(1)` de toute façon.
+   > Question annexe tranchée au passage : `graphData` **n'est pas** exposée sur le ref (18
+   > méthodes liées, pas celle-là) — ce qui rend inerte, depuis le 2026-07-28, le déclouage du
+   > soleil dans `handleEngineStop`. Consigné dans `zetis-galaxy.md`.
 
 **Stop-on-blocker** : si la modale monte le canvas via le composant de page de `/galaxy` plutôt
 que directement, le §7 devient un refactor et non un réglage — remonter pour arbitrage.

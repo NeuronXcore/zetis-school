@@ -36,10 +36,12 @@ import {
 } from "./galaxyGraph";
 import {
   arrivalDuration,
+  easeOutCubic,
   planetIsBorn,
   planetPosition,
   ringOpacity,
 } from "./arrivalTween";
+import { BIRTH } from "./replayLayout";
 import {
   CHAPTER_COLOR,
   GOLD,
@@ -66,6 +68,18 @@ export interface GalaxyCanvasProps {
   /** Ids d'étoiles trouvées par la recherche : mises en avant, et la caméra les cadre. */
   matchedIds?: Set<string> | null;
   /**
+   * Positions IMPOSÉES, par id — le rejeu construit depuis `root` (addendum ADR-0029 §2).
+   *
+   * Quand elle est fournie, le moteur de forces est neutralisé et chaque nœud est épinglé à sa
+   * place calculée. Un nœud qui APPARAÎT naît aux coordonnées de son parent et rejoint la
+   * sienne en `BIRTH` ms : c'est ce qui fait lire une croissance et non un surgissement.
+   *
+   * Pourquoi imposer plutôt que laisser converger : `three-forcegraph` réchauffe la simulation
+   * à `alpha(1)` à CHAQUE changement de `graphData`, et n'expose aucun moyen de l'en empêcher.
+   * Une croissance nœud par nœud sur simulation vivante ré-explose donc à chaque étoile.
+   */
+  pinned?: Map<string, { x: number; y: number; z: number }> | null;
+  /**
    * `"force"` (défaut) : simulation de forces — le rendu d'une constellation, où l'on ne sait
    * pas d'avance combien d'étoiles il y aura.
    *
@@ -80,6 +94,15 @@ export interface GalaxyCanvasProps {
 
 /** Force du fondu appliqué à ce qui n'est pas concerné par le filtre. */
 const DIM_AMOUNT = 0.82;
+
+interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** Le centre : là où naît `root`, et le repli quand un nœud n'a pas de parent connu. */
+const ORIGIN: Vec3 = { x: 0, y: 0, z: 0 };
 
 /** Opacité pleine d'un trait d'orbite : présent, jamais appuyé — c'est du décor. */
 const RING_OPACITY = 0.16;
@@ -138,12 +161,17 @@ export function GalaxyCanvas({
   highlightStatus = null,
   matchedIds = null,
   layout = "force",
+  pinned = null,
   height = 540,
 }: GalaxyCanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
   /** Les anneaux d'orbite, partagés entre l'effet qui les crée et celui qui les trace. */
   const ringsRef = useRef<Mesh[]>([]);
+  /** Objets nœuds réutilisés d'un rendu à l'autre — c'est leur IDENTITÉ qui porte la position. */
+  const nodeCacheRef = useRef(new Map<string, any>());
+  /** Ce qui était déjà à l'écran, pour distinguer une NAISSANCE d'un simple re-rendu. */
+  const seenRef = useRef(new Set<string>());
   const [width, setWidth] = useState(0);
   const reduced = useMemo(prefersReducedMotion, []);
 
@@ -204,7 +232,9 @@ export function GalaxyCanvas({
     // En orbite, on ne cherche pas un équilibre : les positions sont IMPOSÉES (`fx/fy/fz`
     // ci-dessous), donc les forces n'ont rien à faire — les laisser actives ferait vibrer les
     // planètes autour de leur point fixe.
-    if (layout === "orbit") {
+    // Positions imposées — orbite, ou rejeu construit depuis `root` : les forces n'ont rien à
+    // faire. Les laisser actives ferait vibrer les nœuds autour de leur point fixe.
+    if (layout === "orbit" || pinned) {
       graph.d3Force("charge")?.strength(0);
       graph.d3Force("link")?.distance(0);
       return;
@@ -638,14 +668,37 @@ export function GalaxyCanvas({
       // En mode ORBITE, chaque matière reçoit en plus sa position imposée : le placement
       // voyage dans les DONNÉES, pas par l'API du ref (`graphData()` n'est pas exposée par
       // cette version de la lib — constaté à l'exécution).
+      // ⚠️ L'IDENTITÉ DES OBJETS NŒUDS EST PRÉSERVÉE d'un rendu à l'autre (cache par id).
+      //
+      // Un `{...n}` neuf à chaque changement de données perd les positions calculées par le
+      // moteur : le graphe se réorganise entièrement dès qu'on ajoute un nœud. C'est la
+      // deuxième cause du rejeu saccadé diagnostiquée par l'addendum ADR-0029, et c'est aussi
+      // ce qui permet à une naissance en cours de survivre au pas de rejeu suivant (120 ms,
+      // là où un trajet en dure 480).
+      //
+      // Le tableau, lui, est neuf : c'est ce que la lib regarde pour détecter un changement.
       nodes: nodes.map((n) => {
         const anchor = nodes.some((x) => x.kind === "root") ? "root" : "subject";
-        if (n.kind === anchor) return { ...n, fx: 0, fy: 0, fz: 0 };
-        const placement = orbits.get(n.id);
-        if (placement) {
-          return { ...n, ...placement, fx: placement.x, fy: placement.y, fz: placement.z };
+        const node: any = nodeCacheRef.current.get(n.id) ?? {};
+        // Libellé et statut sont rafraîchis ; `x/y/z` et `__threeObj` survivent — `GalaxyNode`
+        // ne porte aucune coordonnée, la copie ne peut donc pas les écraser.
+        Object.assign(node, n);
+        const placement = pinned?.get(n.id) ?? orbits.get(n.id);
+        if (n.kind === anchor && !placement) {
+          node.fx = 0;
+          node.fy = 0;
+          node.fz = 0;
+        } else if (placement) {
+          node.x = node.fx = placement.x;
+          node.y = node.fy = placement.y;
+          node.z = node.fz = placement.z;
+        } else {
+          // Sans placement imposé, on DÉCLOUE : un `fx` hérité d'une vue précédente figerait
+          // le nœud là où il n'a plus rien à faire.
+          node.fx = node.fy = node.fz = undefined;
         }
-        return { ...n };
+        nodeCacheRef.current.set(n.id, node);
+        return node;
       }),
       links: edges.map((e) => ({ source: e.source, target: e.target })),
     }),
@@ -750,6 +803,75 @@ export function GalaxyCanvas({
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
   }, [layout, width, data, orbits, reduced]);
+
+  // ── La naissance d'une étoile, depuis son parent (addendum ADR-0029 §2 réécrit) ─────
+  //
+  // Un nœud qui apparaît ne surgit pas à sa place : il naît AUX COORDONNÉES DE SON PARENT et
+  // rejoint la sienne en `BIRTH` ms. Sans ça, chaque étoile arriverait de l'origine en
+  // traversant l'écran — ou pire, apparaîtrait d'un coup, ce qui ne se lit pas comme une
+  // croissance.
+  //
+  // Rien ici ne réchauffe la simulation : tout est épinglé, le moteur est neutralisé. C'est
+  // précisément ce qui remplace le `d3ReheatSimulation` à alpha bas que la lib n'expose pas.
+  useLayoutEffect(() => {
+    const current = data.nodes as any[];
+    if (!pinned) {
+      // Hors rejeu, on mémorise sans animer : au retour, rien ne doit « renaître ».
+      seenRef.current = new Set(current.map((n) => n.id));
+      return;
+    }
+
+    const parentOf = new Map<string, string>();
+    for (const edge of edges) {
+      if (!parentOf.has(edge.target)) parentOf.set(edge.target, edge.source);
+    }
+
+    const newborns: { node: any; from: Vec3; to: Vec3 }[] = [];
+    for (const node of current) {
+      if (seenRef.current.has(node.id)) continue;
+      const to = pinned.get(node.id);
+      if (!to) continue;
+      const parentId = parentOf.get(node.id);
+      // `root` n'a pas de parent : il naît chez lui, au centre. C'est le point de départ.
+      newborns.push({ node, from: (parentId && pinned.get(parentId)) || ORIGIN, to });
+    }
+    for (const node of current) seenRef.current.add(node.id);
+
+    // `prefers-reduced-motion` → état final d'emblée, aucune construction.
+    if (newborns.length === 0 || reduced) return;
+
+    const put = (node: any, at: Vec3) => {
+      node.x = node.fx = at.x;
+      node.y = node.fy = at.y;
+      node.z = node.fz = at.z;
+      node.__threeObj?.position?.set(at.x, at.y, at.z);
+    };
+    const apply = (elapsed: number) => {
+      const k = easeOutCubic(Math.min(1, elapsed / BIRTH));
+      for (const { node, from, to } of newborns) {
+        put(node, {
+          x: from.x + (to.x - from.x) * k,
+          y: from.y + (to.y - from.y) * k,
+          z: from.z + (to.z - from.z) * k,
+        });
+      }
+    };
+
+    apply(0);
+    let raf = 0;
+    const start = performance.now();
+    const frame = (now: number) => {
+      const elapsed = now - start;
+      if (elapsed >= BIRTH) {
+        for (const { node, to } of newborns) put(node, to);
+        return;
+      }
+      apply(elapsed);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [data, pinned, edges, reduced]);
 
   // Un lien reste franc s'il mène à une étoile de l'état filtré ; sinon il s'efface.
   const linkIsFocused = useCallback(

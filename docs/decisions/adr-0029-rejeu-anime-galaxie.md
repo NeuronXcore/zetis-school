@@ -81,6 +81,12 @@ GET /api/student/galaxy/timeline?with_skills=true
 
 ### 3. La frise devient la **barre de lecture**
 
+> ⚠️ **RÉVISÉ le 2026-07-31** par `adr-0029-addendum-construction-depuis-root.md` §4. La frise
+> n'est plus une commande mais un **témoin** : elle se trace en synchronisation avec les étoiles,
+> et il n'y a **plus ni curseur ni drag** — un seul bouton, « Revoir ». On ne peut donc plus
+> revenir en arrière dans le temps ; c'est le prix assumé de la fluidité, et le curseur n'était
+> de toute façon utilisable qu'à la souris. Ce qui suit décrit l'état **d'avant**.
+
 « Mon chemin » ne disparaît pas et ne se dédouble pas : dans la modale, la même courbe sert de
 piste de lecture. Le curseur avance avec le rejeu ; Massimo peut le tirer pour revenir en
 arrière.
@@ -89,6 +95,13 @@ Sur l'Accueil, la frise **reste telle quelle** — elle se lit d'un coup d'œil 
 et c'est une information passive qu'on ne veut pas perdre.
 
 ### 4. Ce que le rejeu ne fera jamais
+
+> ⚠️ **REFORMULÉ le 2026-07-31** par l'addendum « Construction depuis root » §6, sur **un seul
+> point** : l'interdit d'autoplay visait l'animation **subie sur la page d'atterrissage**. Dans
+> une modale que Massimo vient d'ouvrir exprès, le démarrage immédiat **est** l'objet du clic.
+> Nouvelle rédaction : *aucune animation ne démarre sur une surface que Massimo n'a pas ouverte
+> pour elle.* Le repli `prefers-reduced-motion` devient **état final d'emblée** — l'ancienne
+> formulation renvoyait à un curseur qui n'existe plus. Les autres interdits sont **intacts**.
 
 - **Aucune date lisible pendant le rejeu.** Un curseur, des mois — jamais « 12 juillet », jamais
   « il y a N jours ». La page entière tient déjà cette règle.
