@@ -8,7 +8,8 @@ rendrait le compteur faux sans jamais lever d'erreur.
 from datetime import datetime, timedelta, timezone
 
 import app.db.models as m
-from app.modules.progress.mastery import set_mastery_status
+from app.modules.activity.timeutils import to_utc
+from app.modules.progress.mastery import record_mastery_transition, set_mastery_status
 from app.modules.progress.service import consolidated_this_week, gaps_closed_this_week
 
 UTC = timezone.utc
@@ -64,6 +65,97 @@ class TestSetMasteryStatus:
             row = _mastery("mastered", mastered_at=T1)
             set_mastery_status(row, target, T2)
             assert row.mastered_at is None, f"date survivante sur {target}"
+
+
+class TestRecordMasteryTransition:
+    """Journal des bascules (`adr-0028 §3 ter`) — la source de la courbe des notions fragiles.
+
+    Le test qui compte ici est le même que celui du chantier précédent, transposé : `scoring.py`
+    rejoue à CHAQUE quiz de fin de cours, donc l'anti-doublon est ce qui sépare un historique
+    exploitable d'une table qui enfle sans rien dire.
+    """
+
+    def _skill(self, db) -> tuple[int, int]:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        skill = m.Skill(subject_id=subject.id, name="Relatifs", level="4e")
+        db.add(skill)
+        db.flush()
+        return student.id, skill.id
+
+    def _history(self, db, student_id: int) -> list[m.SkillMasteryHistory]:
+        return list(
+            db.query(m.SkillMasteryHistory)
+            .filter(m.SkillMasteryHistory.student_id == student_id)
+            .order_by(m.SkillMasteryHistory.id)
+        )
+
+    def test_une_bascule_ecrit_une_ligne_avec_le_score(self, client_db) -> None:
+        _, TestSession = client_db
+        with TestSession() as db:
+            student_id, skill_id = self._skill(db)
+            row = m.SkillMastery(student_id=student_id, skill_id=skill_id, status="learning")
+            row.mastery_score = 92
+            db.add(row)
+
+            assert record_mastery_transition(db, row, "mastered", T1) is True
+            db.commit()
+
+            (entry,) = self._history(db, student_id)
+            # `to_utc` : SQLite (tests) perd le tzinfo au relire, PostgreSQL le conserve.
+            # C'est le normalisateur canonique du dépôt pour ce cas, pas un contournement local.
+            assert (entry.status, entry.mastery_score) == ("mastered", 92)
+            assert to_utc(entry.changed_at) == T1
+            assert entry.skill_id == skill_id
+
+    def test_statut_rejoue_n_ecrit_RIEN(self, client_db) -> None:
+        """LE test de cette slice. Sans lui, chaque quiz de fin de cours ajouterait une ligne
+        identique et la courbe des fragiles compterait des « bascules » qui n'en sont pas."""
+        _, TestSession = client_db
+        with TestSession() as db:
+            student_id, skill_id = self._skill(db)
+            row = m.SkillMastery(student_id=student_id, skill_id=skill_id, status="learning")
+            db.add(row)
+
+            assert record_mastery_transition(db, row, "learning", T1) is False
+            record_mastery_transition(db, row, "learning", T2)
+            db.commit()
+
+            assert self._history(db, student_id) == []
+
+    def test_ligne_NEUVE_journalisee_sans_flush_prealable(self, client_db) -> None:
+        """La maîtrise est souvent créée dans la même transaction que la bascule : son `id`
+        n'existe pas encore. C'est pourquoi l'historique s'adosse à (student_id, skill_id)."""
+        _, TestSession = client_db
+        with TestSession() as db:
+            student_id, skill_id = self._skill(db)
+            row = m.SkillMastery(student_id=student_id, skill_id=skill_id)
+            db.add(row)
+            assert row.id is None  # pas de flush : le helper ne doit pas en dépendre
+
+            assert record_mastery_transition(db, row, "weak", T1) is True
+            db.commit()
+
+            (entry,) = self._history(db, student_id)
+            # `mastery_score` non renseigné → défaut applicatif non encore appliqué (None).
+            assert (entry.status, entry.mastery_score) == ("weak", 0)
+
+    def test_regression_puis_reconsolidation_laisse_DEUX_lignes(self, client_db) -> None:
+        """L'aller-retour est exactement ce que `skill_mastery` seul ne sait pas raconter."""
+        _, TestSession = client_db
+        with TestSession() as db:
+            student_id, skill_id = self._skill(db)
+            row = m.SkillMastery(student_id=student_id, skill_id=skill_id, status="mastered")
+            row.mastered_at = T1
+            db.add(row)
+
+            record_mastery_transition(db, row, "learning", T1)
+            record_mastery_transition(db, row, "mastered", T2)
+            db.commit()
+
+            assert [e.status for e in self._history(db, student_id)] == ["learning", "mastered"]
+            # La règle d'horodatage de `set_mastery_status` reste appliquée à travers le wrapper.
+            assert to_utc(row.mastered_at) == T2
 
 
 class TestCompteursHebdomadaires:

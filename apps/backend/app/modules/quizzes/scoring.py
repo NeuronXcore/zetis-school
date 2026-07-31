@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import SkillMastery
-from app.modules.progress.mastery import set_mastery_status
+from app.modules.progress.mastery import record_mastery_transition
 
 # Poids « signal faible » d'un quiz de fin de cours / post-capsule : la nouvelle mesure ne
 # déplace la maîtrise que partiellement (récence surévalue le score juste après le cours).
@@ -55,8 +55,9 @@ def _apply_weak_signal(
         mastery.last_seen_at = now
         # Passe par le helper : ce site s'exécute à CHAQUE quiz de fin de cours, et un
         # re-tamponnage de `mastered_at` ferait recompter éternellement les mêmes notions
-        # dans « consolidées cette semaine ».
-        set_mastery_status(mastery, _status_from_score(mastery.mastery_score), now)
+        # dans « consolidées cette semaine ». Pour la même raison, le helper ne journalise la
+        # bascule que si le statut change vraiment.
+        record_mastery_transition(db, mastery, _status_from_score(mastery.mastery_score), now)
         updated.append(
             {
                 "skill_id": skill_id,

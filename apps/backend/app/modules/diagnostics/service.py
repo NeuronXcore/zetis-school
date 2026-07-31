@@ -26,7 +26,7 @@ from app.db.models import (
 )
 from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.gamification.service import XP_DIAGNOSTIC, award_xp
-from app.modules.progress.mastery import set_mastery_status
+from app.modules.progress.mastery import record_mastery_transition
 from app.prompts.diagnostic import (
     DIAGNOSTIC_GEN_PROMPT_V1,
     DIAGNOSTIC_SYSTEM,
@@ -372,7 +372,7 @@ def _upsert_skill_mastery(
     mastery.mastery_score = score
     mastery.confidence_score = score
     mastery.last_seen_at = now
-    set_mastery_status(mastery, _status_from_score(score), now)
+    record_mastery_transition(db, mastery, _status_from_score(score), now)
 
 
 def latest_results(db: Session, student: StudentProfile, limit: int = 10) -> list[dict]:

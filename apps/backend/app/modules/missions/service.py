@@ -42,7 +42,7 @@ from app.db.models import (
 )
 from app.modules.gamification.service import award_xp
 from app.modules.memory.service import interval_from_score, schedule_review
-from app.modules.progress.mastery import set_mastery_status
+from app.modules.progress.mastery import record_mastery_transition
 from app.modules.progress.service import OPEN_GAP_STATUSES
 
 # Notions considérées « en place » (ne relancent pas de progression). Aligné sur les paliers
@@ -844,7 +844,7 @@ def _apply_verdict(
     if verdict == "acquired":
         mastery.mastery_score = max(mastery.mastery_score or 0.0, measured)
         mastery.confidence_score = max(mastery.confidence_score or 0.0, measured)
-        set_mastery_status(mastery, "mastered", now)
+        record_mastery_transition(db, mastery, "mastered", now)
         if gap is not None:
             gap.status = "resolved"
             # Seule transition qui horodate : la requête ci-dessus filtre `open|in_progress`,
@@ -856,7 +856,7 @@ def _apply_verdict(
         # revient d'elle-même via une carte SRS (la boucle qui vérifie l'acquisition dans le temps).
         mastery.mastery_score = measured
         mastery.confidence_score = measured
-        set_mastery_status(mastery, "in_progress", now)
+        record_mastery_transition(db, mastery, "in_progress", now)
         if gap is not None:
             # Volontairement SANS horodatage : cette branche peut réécrire `in_progress` sur une
             # lacune qui l'est déjà (le filtre accepte les deux statuts). Toute date posée ici

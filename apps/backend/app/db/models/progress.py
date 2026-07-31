@@ -37,6 +37,44 @@ class SkillMastery(Base):
     mastered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class SkillMasteryHistory(Base):
+    """Journal des BASCULES de statut d'une notion — une ligne par changement, jamais par passage.
+
+    `SkillMastery` ne garde que l'état courant : une notion qui redescend de `mastered` à
+    `learning` écrase son statut sans laisser de trace. `mastered_at` ne date que l'entrée dans
+    `mastered` — impossible d'en tirer la courbe des notions FRAGILES, qui est justement le signal
+    de régression qu'un parent a besoin de voir tôt (`adr-0028 §3 ter`).
+
+    Écrit par `progress/mastery.py::record_mastery_transition` et par lui seul, dans la même
+    session que l'appelant, sans commit — même convention que `log_learning_event`.
+
+    Volontairement adossée à `student_id` / `skill_id` et NON à `skill_mastery.id` : la ligne de
+    maîtrise est souvent créée dans la même transaction et n'a pas encore d'`id` au moment de la
+    bascule. Une FK vers elle imposerait un `flush()` à chaque appel.
+
+    Historique antérieur : le backfill de la migration ne reconstruit que les entrées dans
+    `mastered` déductibles de `mastered_at`. Les régressions passées sont perdues et le restent —
+    la courbe ambre démarre à la mise en service plutôt que de raconter une histoire inventée.
+    """
+
+    __tablename__ = "skill_mastery_history"
+    __table_args__ = (
+        Index("ix_skill_mastery_history_student_changed", "student_id", "changed_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"))
+    skill_id: Mapped[int] = mapped_column(ForeignKey("skills.id"))
+    # Statut APRÈS la bascule. Six valeurs réelles : mastered|solid|learning|weak|in_progress|
+    # unknown (`in_progress` est écrit par `missions/service.py` et ne sort d'aucun
+    # `_status_from_score` — piège déjà signalé par `adr-0024`).
+    status: Mapped[str] = mapped_column(String(20))
+    # Score au moment de la bascule, sur 0–100 (échelle de `SkillMastery.mastery_score`).
+    # Conservé pour l'audit ; les lecteurs raisonnent sur `status`, jamais sur ce nombre.
+    mastery_score: Mapped[float] = mapped_column(Float, default=0)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class Gap(Base):
     __tablename__ = "gaps"
 
