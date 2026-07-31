@@ -58,6 +58,13 @@ la notion.
 
 ### 1. La Galaxy **est** la page Progression
 
+> ⚠️ **Révisé le 2026-07-31 sur le NOM DE LA ROUTE SEULEMENT** — cf. l'addendum
+> `adr-0024-addendum-galaxie-page-dediee.md` §A. La route est **`/galaxy`** et le libellé de
+> sidebar **« Ma Galaxie »**, à la même position ; `/progression` ne survit qu'en **redirection
+> permanente**. Ce qui suit reste vrai mot pour mot — c'est un **renommage**, pas un ajout, et la
+> surface de progression reste **unique**, ce que ce paragraphe protégeait. Lire `/galaxy`
+> partout où ce document écrit `/progression`.
+
 Elle devient le contenu de `/progression` : même route, même entrée de sidebar, **pas de 6ᵉ
 onglet**. La section « par matière » aujourd'hui **mockée** (`ProgressionPage.tsx`, commentaire
 « reste indicative (mock) en attendant la maîtrise par matière ») disparaît — la Galaxy est
@@ -252,3 +259,29 @@ resté au `BACKLOG.md` — il n'est pas ouvert ici.
 Graphe de prérequis ; aperçu sur l'Accueil ; annonce « +1 étoile » en fin de mission ; animation
 temps réel poussée par événement ; persistance des positions de nœuds ; réconciliation de
 `navigation.md`.
+
+## Amendements et addendum
+
+Cet ADR a été **amendé trois fois le 2026-07-28**, le jour de sa livraison, puis complété par un
+**addendum le 2026-07-31**. Le chantier Galaxy aura été cadré en marchant ; c'est écrit ici pour
+que ce soit lisible plus tard, pas pour être répété.
+
+- **2026-07-28, §4 révisé** — la règle « une action sans contenu validé n'est pas proposée » est
+  remplacée par : panoplie **complète** renvoyée, `available` calculé serveur, l'indisponible
+  **grisé et non cliquable**. Une fiche manquante n'est pas un échec de l'enfant, c'est du
+  contenu que Papa n'a pas encore produit.
+- **2026-07-28, §6 révisé** — `GALAXY_MAX_NODES` devient **adaptatif** : 40 / 90 / 150
+  (compact / tablette / desktop). **Valeurs provisoires, mesurées sur aucun appareil réel** —
+  dette ouverte, seul le MacBook a été vérifié.
+- **2026-07-28, §6 amendé** — un graphe global 3D est posé sur l'Accueil
+  (`GET /api/student/galaxy/all`), coût de démarrage assumé par écrit. → **RÉVOQUÉ le
+  2026-07-31.**
+- **2026-07-31 — `adr-0024-addendum-galaxie-page-dediee.md`** : la Galaxy prend sa route,
+  l'Accueil cesse de payer la 3D. Renomme `/progression` en **`/galaxy`** (§A, révise le §1
+  ci-dessus **sur le seul nom**), **révoque** l'amendement du 28 et remplace l'aperçu par une
+  **carte-bouton statique** (§B), **migre** le graphe global vers `/galaxy` dont il devient la
+  **vue par défaut** (§C), et impose la **continuité de la télémétrie** côté Papa (§D).
+  **Ne rouvre pas** les §2, §3, §5, ni le reste du §6. Aucune migration, aucune route backend.
+
+`zetis-galaxy.md §13` (« hors v1 : aperçu sur l'Accueil ») avait été contredit par l'amendement
+du 28 sans être corrigé ; il **redevient exact** — dans le document comme dans le code.

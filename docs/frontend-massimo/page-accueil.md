@@ -221,9 +221,8 @@ Les routes réelles sont :
 - `GET`/`PUT /api/student/motivation/week` — la semaine et l'engagement.
 - `GET /api/student/galaxy` — les matières et, **par matière**, le **compte** `lit` d'étoiles
   allumées (+ `total`). La route existe déjà (module `galaxy`, livré le 2026-07-28) ; **aucun
-  travail backend dans ce chantier**. `GET /api/student/galaxy/all` alimentera la **vue par
-  défaut** de `/galaxy` et ne sera **plus appelée depuis cette page** (état cible : le retrait
-  de `HomeGalaxyPreview` est la slice B).
+  travail backend dans ce chantier**. `GET /api/student/galaxy/all` alimente désormais la **vue
+  par défaut** de `/galaxy` et n'est **plus appelée depuis cette page**.
 
   > **Corrigé le 2026-07-31 au read-before-code.** Cette ligne annonçait
   > `GET /api/student/galaxy/overview` : **cette route n'existe pas**, et elle n'aurait pas

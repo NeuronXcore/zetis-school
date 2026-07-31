@@ -156,8 +156,11 @@ jamais de manque** — une notion non vue est une étoile pas encore née, pas u
 
 Décisions prises (détail et justifications dans l'ADR) :
 
-- **Emplacement** — la Galaxy **devient le contenu de `/progression`** (même route, même onglet).
-  La section « par matière » **mockée** disparaît.
+- **Emplacement** — la Galaxy est la **surface unique** de progression, sur **`/galaxy`** (même
+  onglet, renommé « Ma Galaxie » le 2026-07-31 ; `/progression` redirige). La section « par
+  matière » **mockée** disparaît. Depuis le 2026-07-31, `/galaxy` s'ouvre sur la **galaxie
+  complète, toutes matières** — l'Accueil, lui, n'en porte qu'une **carte-bouton statique** et ne
+  charge plus Three.js (addendum ADR-0024).
 - **Moteur de rendu** — **`react-force-graph-3d`**, en `lazy()`. Le user a demandé un graphe **3D
   animé, aux nœuds étirables** : `@xyflow/react` (canvas 2D) est techniquement disqualifié. Deux
   moteurs graphe coexistent désormais — React Flow reste celui des mindmaps (ADR-0016, non rouvert).

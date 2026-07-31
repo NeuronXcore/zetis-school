@@ -162,6 +162,11 @@ jamais un silence ni un faux lien (précision commanditaire 2026-07-30).
 **Surfaces câblées en v1** : ELI5 (notion), fiches/cours/mindmaps/révision/progression (matière),
 reconstruction mindmap (carte) ; données agenda/révisions/missions.
 
+> **Note du 2026-07-31** : « progression » n'a en réalité **jamais été câblée** — `chat/actions.py`
+> construit `eli5`, `cours`, `fiches`, `revision`, `mindmaps` et `subjects`, jamais cette
+> surface-là. Si elle l'est un jour, la route est **`/galaxy?subject=<slug>`** : `/progression` a
+> été renommée (addendum ADR-0024 §A) et ne survit qu'en redirection.
+
 **Hors v1 (tracé, non inventé)** : cibles `location.state` non-URL (quiz-session par id,
 révision-session, mission précise) — nécessitent un pré-fetch + `navigate(state)` ; à câbler quand la
 valeur est prouvée. Diagnostic. Streaming de la réponse.
