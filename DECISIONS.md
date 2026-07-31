@@ -94,6 +94,48 @@
     (`content_markdown`), prompt `chat_v2` (« jamais générer » porté), seuil résolveur 0.55→0.72,
     ELI5 non routé sans cours validé — Accepté (2026-07-30)
 
+  - `docs/decisions/adr-0028-dashboard-papa-agregat-unique.md` — **Dashboard Papa : agrégat unique,
+    dérivation client, KPI actifs**. La maquette historique contredisait **sept** décisions déjà
+    prises (panneau Obsidian vs `adr-0001` ; KPI XP / Niveau / **Série** vs `adr-0024` « aucun capital
+    perdable » ; récompenses adossées au temps d'écran ; « taux de réussite 78 % » vs verdict découplé
+    `adr-0017 §5bis` ; radar de compétences **sans source dans le modèle** ; générateur de quiz par
+    formulaire vs `adr-0011`/`adr-0014` ; palette de Massimo). **Décisions** : `GET /api/parent/dashboard`
+    devient **la seule requête du premier rendu** et renvoie les **trois fenêtres** (7/30/90) **non
+    filtrées**, séries **par matière jamais pré-agrégées** (« Toutes » = somme client) → changer de
+    période, de matière ou de focus **ne déclenche aucun appel réseau** (~1 500 entiers assumés,
+    mono-élève par construction) ; **zéro état de chargement après le premier rendu**, exception unique
+    et assumée du drill-down jour ; **les 4 KPI deviennent des filtres de focus** (`data-scope`), ce
+    qui est la **carte de dépendance entre une mesure et ses preuves** et la seule chose qui rend huit
+    diagrammes praticables sur une page ; **une seule carte heatmap à deux vues** (Calendrier =
+    *est-ce régulier ?* / Créneaux = *quand travaille-t-il ?*), **échelle émeraude unique — pas de
+    gradient vers le rouge** : une case dense n'est pas une bonne note ; nuage « Où agir » (temps ×
+    consolidation) qui **repère** l'anomalie là où le Conseil de classe l'**explique**. **Read-before-code
+    du 2026-07-31 : 2 vérifications sur 4 sont tombées**, d'où quatre amendements — **§3 bis** :
+    « consolidée » **avait déjà** une définition serveur (`SkillMastery.status == "mastered"`, ≥ 90) et
+    ce n'était **pas** « intervalle SRS long atteint » ; « fragile » n'en avait **aucune** → mapping
+    figé sur les **6** statuts réels (`in_progress` inclus, même piège que `adr-0024`) et constante
+    `FRAGILE_STATUSES`, ce qui fait que la page **n'hérite pas** du bug d'échelle `mastery_score` 0–100
+    vs 0–1 (dette antérieure, hors périmètre) ; **§3 ter** : la courbe « fragiles » **n'était pas
+    reconstructible** (aucun horodatage de bascule) → table **`skill_mastery_history`** + migration,
+    ce qui **annule le « aucune migration attendue »** initial et donnera au Conseil de classe et aux
+    missions la notion de **régression** qui leur manque ; **§6** : créneaux **8 h → 24 h** (8 h → 22 h
+    ne faisait que 7 lignes) et minutes de nuit renvoyées à part plutôt qu'escamotées ; **§7** :
+    `generated_at` **n'existe pas** (c'est `created_at`), la route est **`/conseil`**, et la page ne lit
+    aucun param → **extension bornée** de `ConseilClasseIAPage` aux query params, en commit révocable
+    seul, plutôt qu'un CTA inerte (`adr-0020` non rouvert ; bandeau de fraîcheur hors v1). Également
+    constaté : `GET /api/parent/dashboard` **existait déjà** (réécriture **cassante**, un seul
+    consommateur) ; `/api/parent/activity/heatmap` **n'a aucun consommateur hors dashboard** (le Cahier
+    de bord utilise `/activity/sessions`) → supprimée, **mais** `DayDetailPanel` doit être re-monté
+    sinon `/activity/days/{date}` devient orpheline ; les **quiz ne peuvent pas** entrer dans la file
+    « À valider » (pas de `validation_status`, doctrine `adr-0014 §2`) ; **5ᵉ `kind="demande"`** ajouté
+    (`notion_requests` + `content_requests` existaient déjà et attendaient Papa) ; **ni react-query ni
+    lib de graphes** dans le dépôt → hook maison + SVG inline, **zéro dépendance ajoutée**.
+    **§9** : la doctrine `adr-0024` (pas de rouge, aucun pourcentage) régit **l'interface de Massimo** ;
+    côté Papa les pourcentages **par matière** restent légitimes — instrument d'analyse, pas bulletin —
+    seule la **note globale unique** est bannie. Invariants maintenus : **rien du dashboard ne remonte
+    chez Massimo**, **aucune notification push** (le décrochage se lit à la consultation) — Accepté
+    (2026-07-31)
+
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :
