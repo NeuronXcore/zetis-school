@@ -7,8 +7,98 @@
 
 ## État à la reprise
 
-**Branche : `main`** — chantier **Étape 2 (content_requests + correctifs orchestrateur + volet
-hors-programme + panneau notions orphelines)** : **✅ COMPLET, ULTRAREVIEWÉ, MERGÉ ET POUSSÉ.**
+**Branche : `feat/dashboard-papa-v2`** (créée depuis `main` = `467e095`) — chantier **Dashboard
+Papa v2 (ADR-0028)** : **✅ COMPLET, 11 commits, RIEN DE POUSSÉ, aucune PR.** Working tree propre.
+**Prochain pas = pousser + ouvrir la PR** (voir §PROCHAIN PAS).
+
+> ⚠️ La branche `feat/login-intro-avatars` (commit `0d1c9ce`, intro de marque + login par profil)
+> est **intacte et non poussée** elle aussi. Elle n'a rien à voir avec ce chantier : les fichiers du
+> dashboard y avaient été déposés par erreur, ils ont été transférés proprement.
+
+### Chantier « Dashboard Papa v2 » (ADR-0028) — COMPLET, à pousser
+
+`b758580` doc · `6479985` historique de maîtrise · `7b63f62` agrégat · `ae4fd42` temps hors matière
+· `bd82fe5` front · `6518094` Conseil query params · `6682aeb` nettoyage · `3fa8baa` mission
+proposée · `bdbe5f4` **relais SRS réparé** · `0353507` **/lacunes réelle** · `ee3a2f4` **/focus réel**.
+
+**Ce que ça fait** : `GET /api/parent/dashboard` devient l'**unique requête du premier rendu** et
+sert les **trois fenêtres** (7/30/90) **non filtrées**, séries **par matière** — « toutes matières »
+est une somme client. Conséquence : changer de période, de matière ou de focus **ne déclenche aucune
+requête** (prouvé dans l'onglet Réseau : 5 gestes, 10 requêtes avant, 10 après). Les 4 KPI
+deviennent des **filtres de focus** (§5) ; 8 visualisations en **SVG maison** (zéro dépendance
+ajoutée : ni react-query, ni lib de graphes).
+
+**Migration `a9b8c7d6e5f4`** (`skill_mastery_history`) **appliquée sur Postgres dev**. Backfill
+partiel assumé (seules les bascules `mastered` datables) — il a rendu 0 ligne en dev, c'est correct :
+les 15 lignes de `skill_mastery` ont toutes `mastered_at` à NULL.
+
+**Read-before-code : 2 vérifications sur 4 sont tombées**, + 6 écarts non anticipés par l'ADR (tous
+reportés dans l'ADR et la spec) :
+- « consolidée » avait **déjà** une définition serveur (`SkillMastery.status == "mastered"`), pas
+  celle qu'écrivait l'ADR ; « fragile » n'en avait **aucune** → mapping figé sur les **6** statuts
+  réels (`in_progress` inclus, écrit par `missions/service.py`, absent de tout `_status_from_score`) ;
+- `GET /api/parent/dashboard` **existait déjà** → réécriture **cassante** (un seul consommateur) ;
+- Conseil : `generated_at` **n'existe pas** (c'est `created_at`), route **`/conseil`** (pas
+  `/conseil-classe`), aucun query param → étendue en commit révocable seul ;
+- les **quiz ne peuvent pas** entrer dans la file « À valider » (`quizzes` n'a pas de
+  `validation_status`, doctrine ADR-0014 §2) ; `lessons` utilise `status`, les autres
+  `validation_status` — **deux conventions coexistent en base** ;
+- `/api/parent/activity/heatmap` **sans consommateur hors dashboard** → **supprimée** (le Cahier de
+  bord utilise `/activity/sessions`).
+
+**Deux contradictions que seul le rendu réel a révélées** (invisibles en test) : le donut totalisait
+42 min à côté d'un KPI annonçant 7 h 05 → champ **`unattributed_minutes`** + part « Hors matière »
+(connexion, navigation, chat portent du temps sans `subject_id` — 90 % du total en dev) ; et le KPI
+des lacunes portait le **même libellé** que le segment « fragiles » des cartes voisines, affichant
+« 1 » à côté de « 9 » pour deux mesures différentes → « Lacunes ouvertes ».
+
+### Le vrai défaut trouvé en creusant (le plus important de ce chantier)
+
+Parti d'un symptôme — « 1 notion à renforcer sans mission active » à côté d'une carte qui ne
+proposait rien — le diagnostic « `generate_remediation` ne reprend que les lacunes `open` » était
+**exact mais superficiel**.
+
+**Le relais que l'`adr-0017 §5bis` désigne était INOPÉRANT.** Le template `revision` composait
+`[carte] → [quiz] → relire` **sans étape de réexplication**, alors que le verdict exige
+`reverse_score` — et `STEP_ELI5` est une étape de **consultation** qui n'en produit aucun. ⇒ une
+mission `revision` rendait **toujours** `review_later` : la lacune restait `in_progress` à vie.
+Pire, sans mesure la branche écrivait **`mastery_score = 0`** et replanifiait la carte à 1 jour :
+Massimo faisait sa révision et sa maîtrise s'effondrait. **La contradiction était figée par un
+test** qui assertait « pas de verbalisation ».
+
+Corrigé (`bdbe5f4`) : (a) `vocal_explain` ajouté au template `revision` — ses *types* d'étape
+coïncident désormais avec `remediation`, assumé (la distinction reste la source, la formulation, le
+plafond, la priorité) ; (b) **une absence de mesure n'est plus écrite comme un zéro**. **Bump
+`MISSION_SCORING_VERSION` v3 → v4.** Le générateur de remédiation n'est **PAS** élargi aux lacunes
+`in_progress` : la doctrine tenait, elle ne fonctionnait pas.
+
+⚠️ **Deux surfaces se contredisaient** : le KPI `without_mission` ne comptait que les missions
+`remediation` → une notion couverte par une mission **`manual` commandée par Papa** était annoncée
+« sans mission active ». Définition unique désormais :
+`progress.service.skills_with_active_mission` (tous types), partagée dashboard + `/lacunes`.
+
+**Deux pages ont cessé d'être des mocks** : `/lacunes` (sépare « jamais travaillée » → consolidation
+de « revenue par la révision » → révision, via les **deux générateurs existants**) et `/focus`, qui
+promettait « ZETIS priorisera missions, capsules et révisions » alors qu'**aucun état « focus »
+n'existe côté backend** (zéro occurrence) et que le bouton n'écrivait qu'un `useState`. Réécrite sur
+le seul levier réel, **`Mission.force_priority`** (plancher de score du sélecteur, ADR-0018), via
+`commandConfirm` déjà écrit. ⚠️ La route Commander **n'a pas de garde d'idempotence** → les notions
+déjà couvertes ne sont pas proposées.
+
+**Vérifications faites** : 641 backend + 265 papa + 182 massimo verts ; typecheck et build verts ;
+**zéro requête sur un geste de filtrage prouvé dans le navigateur** ; Cahier de bord non régressé.
+Les manipulations de la base de dev (bascules de statut pour voir les branches actives) ont toutes
+été **annulées** — 50 missions avant, 50 après.
+
+**Hors v1, assumé** : bandeau de fraîcheur du Conseil ; bug d'échelle `mastery_score` 0–100 traité
+comme 0–1 (antérieur, `missions/command.py`, `champion.py`, `reports/service.py` + 2 modales).
+
+---
+
+## Historique — chantier précédent
+
+**Étape 2 (content_requests + correctifs orchestrateur + volet hors-programme + panneau notions
+orphelines)** : **✅ COMPLET, ULTRAREVIEWÉ, MERGÉ ET POUSSÉ.**
 **PR [#57](https://github.com/NeuronXcore/zetis-school/pull/57) mergée en squash → `origin/main` =
 `9b53af1`** (2026-07-30) ; branche `feat/content-requests` **supprimée** (local + remote).
 Migration **`c3d4e5f6a1b2`** appliquée sur Postgres dev (`alembic current` = head) — elle se rejoue
@@ -123,9 +213,12 @@ historique Massimo) + quelques `notion_requests` `added` résiduelles.
 Perso : [[chat-orchestrateur-adr0027]].
 
 ### NEXT (prochain chantier, à décider)
-Rien n'est en cours. Pistes ouvertes tracées : production **en lot** depuis l'inbox/la Couverture
-(« ⚡ Compléter le chapitre » est encore désactivé) ; suppression du `NotionRequestsPanel` de la page
-Programme (doublon avec l'inbox `/demandes`) ; quiz par notion (hors v1 ADR-0027, `location.state`).
+Le chantier **Dashboard Papa v2** est complet mais **non poussé** — c'est lui le prochain pas.
+Pistes ouvertes ensuite : production **en lot** depuis l'inbox/la Couverture (« ⚡ Compléter le
+chapitre » est encore désactivé) ; suppression du `NotionRequestsPanel` de la page Programme
+(doublon avec l'inbox `/demandes`) ; quiz par notion (hors v1 ADR-0027, `location.state`) ;
+**correction du bug d'échelle `mastery_score`** (0–100 traité comme 0–1) ; `/progression` est encore
+100 % mockée alors que `/api/parent/progress/*` existe.
 
 ---
 
@@ -535,6 +628,12 @@ utile sur du visuel.
   Pour l'essayer : Réglages Système → Accessibilité → Affichage → Réduire les animations.
 
 ### PROCHAIN PAS
+
+**0 bis. POUSSER `feat/dashboard-papa-v2` ET OUVRIR LA PR** — 11 commits, rien n'est poussé, aucune
+PR n'existe. Tests, typecheck et build sont verts, et le comportement a été vérifié à l'écran.
+Restent à la charge du user, que l'agent ne peut pas faire : relire l'**amendement de l'ADR-0017
+§5bis** (c'est un changement de doctrine du moteur de missions, pas un correctif d'affichage) et
+décider du sort de `feat/login-intro-avatars`, non poussée elle aussi.
 
 0. **Ouvrir la PR de `feat/galaxy`** — la branche est poussée, rien n'est mergé.
    Vérifications à la charge du user, que l'agent ne peut pas faire : **MacBook ✅ fait**,

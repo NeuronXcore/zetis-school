@@ -74,6 +74,15 @@ Date : 2026-07-31 · amendement `ADR-0017 §5bis` · branche `feat/dashboard-pap
   regardait que les missions de *remédiation*, si bien qu'une notion déjà couverte par une mission
   commandée par Papa était annoncée « sans mission active ». Définition unique et partagée
   désormais — n'importe quelle mission active répond à la question « reste-t-il un geste à faire ? ».
+- **Le mode focus fait enfin ce qu'il annonce.** La page promettait que « ZETIS priorisera les
+  missions, capsules et révisions sur cette notion jusqu'à sa consolidation » ; son bouton
+  n'écrivait qu'un état local, et **aucun état « focus » n'existe côté backend**. Elle s'appuie
+  maintenant sur le seul levier réel — `Mission.force_priority`, le plancher de score du sélecteur
+  (ADR-0018) — via la route Commander déjà en place. La promesse est réécrite pour dire exactement
+  ce que le moteur fait : *« sa mission passera devant les autres »*, ni plus ni moins.
+- Les entrées mortes de `data/mock.ts` (`Gap`, `GAPS`) disparaissent : plus aucun consommateur. Leur
+  vocabulaire de façade (« forte », « en cours ») ne correspondait de toute façon à aucune valeur du
+  backend (`high`, `in_progress`) — le mock ne pouvait pas être branché tel quel.
 
 ## 0.28.0 — Chat ZETIS : un compagnon incarné, qui se souvient et qui parle
 
