@@ -271,6 +271,41 @@ def test_les_quiz_ne_sont_pas_dans_la_file_de_validation(client_db) -> None:
     assert validation == [] or "quiz" not in (validation[0]["detail"] or "").lower()
 
 
+def test_le_temps_par_matiere_PLUS_le_hors_matiere_egale_le_kpi(client_db) -> None:
+    """Le donut et le KPI « temps actif » doivent totaliser LE MÊME temps.
+
+    Sans `unattributed_minutes`, la page affichait 42 min au centre du donut à côté d'un KPI
+    annonçant 7 h 05 — deux chiffres du même écran qui se contredisaient. La connexion, la
+    navigation et le chat portent du temps de présence réel qui n'appartient à aucune matière.
+    """
+    client, TestSession = client_db
+    with TestSession() as db:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        now = datetime.now(UTC)
+        # Deux événements SANS matière (login, navigation) et deux AVEC.
+        for minutes_ago, subject_id in ((40, None), (38, None), (20, subject.id), (18, subject.id)):
+            db.add(
+                m.LearningEvent(
+                    student_id=student.id,
+                    subject_id=subject_id,
+                    event_type="page_viewed" if subject_id is None else "lesson_viewed",
+                    created_at=now - timedelta(minutes=minutes_ago),
+                )
+            )
+        db.commit()
+    _as_papa()
+
+    body = client.get("/api/parent/dashboard").json()
+
+    for window in ("7", "30", "90"):
+        by_subject = sum(s["minutes"][window] for s in body["subjects"])
+        assert (
+            by_subject + body["unattributed_minutes"][window]
+            == body["periods"][window]["kpis"]["active_minutes"]["value"]
+        ), f"fenêtre {window} : le donut et le KPI ne totalisent pas le même temps"
+
+
 def test_la_charge_de_revision_couvre_quatorze_jours(client_db) -> None:
     client, TestSession = client_db
     _seed(TestSession)

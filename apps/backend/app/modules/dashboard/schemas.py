@@ -134,6 +134,10 @@ class DashboardOut(BaseModel):
     last_activity_at: str | None = None
     days_inactive: int
     inbox: list[InboxItem]
+    # Temps actif non imputable à une matière (connexion, navigation, chat). Servi à part pour que
+    # la somme des parts du donut égale le KPI « temps actif » — sans lui, les deux chiffres se
+    # contredisaient sur le même écran.
+    unattributed_minutes: dict[str, int]
     periods: dict[str, PeriodOut]
     subjects: list[SubjectOut]
     content_chain: list[ContentStage]

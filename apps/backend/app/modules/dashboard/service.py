@@ -621,8 +621,24 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         subjects=subjects,
     )
 
+    # Temps actif SANS matière : connexion, navigation, chat, étapes de mission non imputées.
+    # Sans ce champ, le donut « Répartition du temps » totalisait 42 min à côté d'un KPI affichant
+    # 7 h 05 — deux chiffres du même écran qui se contredisent (constaté au premier rendu réel).
+    # On le nomme plutôt que de le taire : c'est du temps de présence mesuré, il n'appartient
+    # simplement à aucune matière.
+    unattributed = {
+        str(period): sum(
+            minutes
+            for event, minutes in pairs
+            if event.subject_id is None
+            and p.period_window(period, today)[0] <= local_day(event.created_at) <= today
+        )
+        for period in p.PERIODS
+    }
+
     last_event = ordered[-1] if ordered else None
     return {
+        "unattributed_minutes": unattributed,
         "school_year": (
             {"level": year.level, "label": year.label, "program_version": None} if year else None
         ),
