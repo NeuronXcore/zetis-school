@@ -1,62 +1,63 @@
 # Page Massimo — Accueil
 
+> **Réécrite le 2026-07-31** (addendum ADR-0024 du même jour). Deux dettes réglées au passage :
+> le wireframe décrivait encore la composition de juin 2026, et la version précédente **n'a
+> jamais documenté l'aperçu Galaxy 3D livré le 2026-07-28** — la spec était en retard sur le code
+> avant même ce chantier.
+
 ## Objectif
 
-Donner à Massimo un point d’entrée simple : quoi faire maintenant, pourquoi, et quelle récompense il peut obtenir.
+Donner à Massimo un point d'entrée simple : quoi faire maintenant, pourquoi, et où il en est.
+La page doit peindre vite et rester calme : c'est la page la plus visitée et la première au
+réveil de l'app.
 
 ## Wireframe
 
 ```txt
-┌──────────────────────────────────────────────────────────────┐
-│ ZETIS        Bonjour Massimo 👋       Niveau 7 · 1240 XP     │
-├────────────┬─────────────────────────────────────────────────┤
-│ Accueil    │ ┌─────────────────────────────────────────────┐ │
-│ Matières   │ │ Mission du jour                            │ │
-│ Cours      │ │ Renforcer les nombres relatifs              │ │
-│ Diagnostic │ │ 15 min · +60 XP · Mathématiques             │ │
-│ ELI5       │ │ [Commencer]                                 │ │
-│ Capsules   │ └─────────────────────────────────────────────┘ │
-│ Missions   │                                                 │
-│ Quiz       │ ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │
-│ Progression│ │ Révision    │ │ Capsule IA  │ │ ELI5 rapide│ │
-│ Mindmaps   │ │ 3 cartes    │ │ SVT 4 min   │ │ Une notion │ │
-│ Chat       │ └─────────────┘ └─────────────┘ └────────────┘ │
-│            │                                                 │
-│            │ ┌─────────────────────────────────────────────┐ │
-│            │ │ Message ZETIS                               │ │
-│            │ │ Aujourd’hui, on fait court mais efficace.   │ │
-│            │ └─────────────────────────────────────────────┘ │
-└────────────┴─────────────────────────────────────────────────┘
+┌──────────────┬───────────────────────────────────────────────────────┐
+│ Sidebar      │ Bandeau XP · Niveau 18 · barre → /galaxy              │
+│ (globale)    ├───────────────────────────────────────────────────────┤
+│ Accueil ◀    │ 🙂  Salut Massimo 👋                                   │
+│ Matières     │     « message ZETIS, servi et rendu verbatim »        │
+│ Cours        │                                                       │
+│ Révision     │ ┌───────────────────────────────────────────────────┐ │
+│ Fiches       │ │ MISSION DU JOUR                                   │ │
+│ ELI5         │ │ Français — Les temps du récit                     │ │
+│ Capsules IA  │ │ « parce que cette notion revient bientôt »        │ │
+│ Missions     │ │ [Français] [15 min] [+60 XP]      ▓ Commencer ▓   │ │
+│ Quiz         │ └───────────────────────────────────────────────────┘ │
+│ Ma Galaxie   │ ┌────────────────────────┬──────────────────────────┐ │
+│ Mindmaps     │ │ MA SEMAINE             │ MA GALAXIE               │ │
+│ Chat ZETIS   │ │ ● ● ● ○ ○ ○ ○          │ 47 étoiles allumées      │ │
+│ Paramètres   │ │ 3 jours cette semaine  │ ○ ○ ○ ○  (matières, CSS) │ │
+│              │ │ engagement : 1…7       │ Ouvrir ma galaxie →      │ │
+│              │ └────────────────────────┴──────────────────────────┘ │
+│              │ ┌──────────┐ ┌──────────┐ ┌──────────┐               │
+│              │ │ Révision │ │ Capsule  │ │ ELI5     │               │
+│              │ │ éclair·5 │ │ SVT·4min │ │          │               │
+│              │ └──────────┘ └──────────┘ └──────────┘               │
+│              │ ┌───────────────────────────────────────────────────┐ │
+│              │ │ ∿∿∿  Je suis ZETIS      [ Discuter avec ZETIS ]   │ │
+│              │ │ ↑ SLOT — structuré, non rendu avant le Groupe 1   │ │
+│              │ └───────────────────────────────────────────────────┘ │
+└──────────────┴───────────────────────────────────────────────────────┘
 ```
+
+Cinq blocs sous le bandeau. **Une seule action accentuée sur la page** : « Commencer ».
+Maquette de référence : `docs/frontend-massimo/mockup/mockup-page-accueil-v2.html`.
 
 ## Sections
 
-### Header
+### Bandeau XP (global, `MassimoBannerHeader`)
 
-- Bonjour Massimo.
-- Niveau global.
-- XP.
-- Avatar ZETIS.
+Monté dans `MassimoLayout`, présent sur toutes les pages — il n'appartient pas à cette spec.
+Un seul point la concerne : il est **cliquable vers `/galaxy`** (et non plus `/progression`,
+addendum ADR-0024 §A).
 
-### Mission du jour
+Le niveau et l'XP ne sont affichés **qu'ici**. La composition précédente les répétait dans une
+carte de profil et dans deux KPI : trois emplacements pour une même donnée.
 
-Carte principale avec :
-
-- titre ;
-- matière ;
-- durée estimée ;
-- XP ;
-- bouton commencer ;
-- raison simple : “parce que cette notion revient bientôt”.
-
-### Raccourcis
-
-- Révision rapide.
-- Capsule IA.
-- ELI5.
-- Continuer un cours.
-
-### Message ZETIS
+### Salutation + message ZETIS
 
 Message court, bienveillant, contextualisé — **composé SERVEUR et déterministe** (aucun LLM,
 aucun aléa : deux affichages sur le même état donnent la même phrase). Le client rend `title` et
@@ -70,6 +71,21 @@ avant tout compteur, et l'invitation à s'engager avant la félicitation.
 **Le nombre de jours d'absence n'est JAMAIS affiché.** Il existe dans le contexte pour choisir une
 illustration. Si l'appel échoue, la carte n'est pas rendue — **aucune phrase de secours** : une
 phrase fabriquée côté client serait le mensonge que cette page a précisément cessé d'afficher.
+
+**Aucun bandeau motivationnel générique** ne peut être ajouté à côté (« garde le cap »,
+« chaque jour est une opportunité ») : ce serait exactement la phrase fabriquée que le contrat
+serveur interdit, et « garde le cap » est en outre une relance.
+
+### Mission du jour
+
+Carte héro, seul chemin guidé de la page :
+
+- titre, matière, durée estimée, XP ;
+- la **raison** servie par le serveur, jamais recomposée (« parce que cette notion revient
+  bientôt ») ;
+- un unique bouton plein : **« Commencer »**.
+
+`elected: null` = état serein, voir §États.
 
 ### Ma semaine (régularité + engagement)
 
@@ -86,16 +102,70 @@ aucune grille et ne calcule aucune date.
   sans confirmation ni rappel de l'ancienne valeur.
 - Rien n'est affiché quand l'objectif n'est pas atteint : le contrat serveur ne porte aucune
   donnée de manque.
+- **Aucune série (« streak »)**, sous aucune forme (ADR-0024 §5). Une flamme et un compteur de
+  jours consécutifs sont un capital perdable : ils font venir par peur de perdre.
+
+### Ma Galaxie (carte-bouton statique)
+
+Porte d'entrée vers `/galaxy`. Contrat **fermé** — addendum ADR-0024 §B :
+
+- **compte d'étoiles allumées**, toutes matières confondues ;
+- **pastilles de matières** en CSS pur (pictogrammes `subjectIconFor`, **jamais d'emoji**) ;
+- la carte entière est la cible de clic ; libellé d'action explicite.
+
+**Interdits, par héritage de l'ADR-0024 §5** : aucun pourcentage, aucun classement de matières,
+aucune couleur d'échec, aucune notion nommée comme manquante, aucun `mastery_score`.
+
+**Contrainte technique ferme** : **zéro import de `@zetis/ui/galaxy/canvas`** depuis cette page,
+direct ou transitif. Le canvas 3D et la frise de progression **ont quitté l'Accueil**
+(révocation de l'amendement du 2026-07-28) ; un test de budget de bundle constate la sortie de
+Three.js, sans quoi la régression reviendrait sans bruit — 3,6 Mo mesurés en juillet.
+
+### Raccourcis
+
+Trois, pas plus, tous secondaires (bordure, jamais plein) :
+
+- **Révision éclair** — affiche `flash_size`, **plafonné serveur**. **Jamais `total_due`** : un
+  compteur de retard sur l'écran d'accueil est la pression quotidienne anxiogène interdite par
+  `CLAUDE.md`.
+- **Capsule IA** — la capsule recommandée, avec sa matière et sa durée.
+- **ELI5** — une notion expliquée simplement.
+
+Un raccourci sans contenu disponible **n'est pas rendu** : la ligne se resserre. Pas de carte
+grisée ici (contrairement au panneau d'actions de la Galaxy, où le grisé documente le catalogue).
+
+### Héros ZETIS
+
+Onde vocale en état **`idle`** + accroche + bouton **fantôme** « Discuter avec ZETIS ».
+C'est la porte d'entrée du chat (ADR-0026).
+
+**C'est un slot, pas un bloc.** Sa place est structurée par la refonte (slice B) mais il n'est
+**pas rendu** tant que le chat n'existe pas — pas de porte vers du vide. Le Groupe 1 le remplit
+sans rouvrir la composition de la page : c'est ce qui évite de retoucher `AccueilPage.tsx` de
+fond en comble deux fois.
+
+L'or `#ffcf47` est **réservé à l'état « ZETIS parle »** : sur l'Accueil, ZETIS ne parle pas.
+L'onde est en indigo/cyan, et aucun élément de cette page n'est doré.
+
+## Ce que l'Accueil ne fait plus
+
+- **Canvas Galaxy 3D et frise de progression** → déplacés dans `/galaxy` (addendum §B, §C).
+- **Grille des 8 matières** → doublon de l'entrée sidebar « Matières » ; la carte Galaxie répond
+  mieux à « où j'en suis ».
+- **KPI XP Total / Niveau** → le bandeau global les porte déjà.
+- **Compteur de révisions dues** (`total_due`) → remplacé par `flash_size`.
 
 ## États
 
 ### Aucune mission
 
-Afficher : “Tu n’as rien d’obligatoire maintenant. Tu peux choisir une matière ou faire une révision rapide.”
+`elected: null`. Afficher : « Tu n'as rien d'obligatoire maintenant. Tu peux choisir une matière
+ou faire une révision rapide. » La carte héro perd son bouton plein ; **aucun autre bloc ne
+devient accentué à sa place** — une page sans action accentuée est un état valide.
 
 ### Mission en retard
 
-Ne pas culpabiliser. Dire : “On reprend tranquillement.”
+Ne pas culpabiliser. Dire : « On reprend tranquillement. » Aucun décompte de retard.
 
 ### Très bonne progression
 
@@ -113,6 +183,12 @@ arrêté : … ». Aucune illustration évoquant le temps écoulé (ni ⏰, ni �
 Le reconnaître une fois, dans le message. **Pas de badge** : un badge conditionné à l'engagement
 rendrait l'échec visible et transformerait une déclaration d'autonomie en épreuve.
 
+### Galaxie vide
+
+Aucune étoile allumée (rentrée scolaire, premier jour). La carte affiche `0` et une phrase
+d'invitation — **pas un état vide**, pas un message d'erreur : une galaxie qui n'a pas encore
+commencé est le point de départ normal.
+
 ## Données API
 
 Les quatre routes listées ici auparavant (`/progress/summary`, `/progress/xp`,
@@ -121,11 +197,45 @@ Les routes réelles sont :
 
 - `GET /api/missions/today` — mission élue + sa **raison** (texte servi, jamais recomposé) ;
   `elected: null` = état serein.
-- `GET /api/student/reviews/summary` — l'accueil affiche `flash_size` (plafonné serveur) et
-  **non** `total_due` : un compteur de retard sur l'écran d'accueil serait la pression
-  quotidienne anxiogène interdite par CLAUDE.md.
+- `GET /api/student/reviews/summary` — l'Accueil affiche `flash_size` (plafonné serveur) et
+  **non** `total_due`.
 - `GET /api/student/motivation/welcome` — le message de ZETIS.
 - `GET`/`PUT /api/student/motivation/week` — la semaine et l'engagement.
+- `GET /api/student/galaxy` — les matières et, **par matière**, le **compte** `lit` d'étoiles
+  allumées (+ `total`). La route existe déjà (module `galaxy`, livré le 2026-07-28) ; **aucun
+  travail backend dans ce chantier**. `GET /api/student/galaxy/all` alimentera la **vue par
+  défaut** de `/galaxy` et ne sera **plus appelée depuis cette page** (état cible : le retrait
+  de `HomeGalaxyPreview` est la slice B).
+
+  > **Corrigé le 2026-07-31 au read-before-code.** Cette ligne annonçait
+  > `GET /api/student/galaxy/overview` : **cette route n'existe pas**, et elle n'aurait pas
+  > seulement renvoyé 404 — `/overview` serait capturé par `GET /student/galaxy/{subject_slug}`
+  > et rendrait « matière inconnue ». Le chemin réel est `/api/student/galaxy` (chemin vide) ;
+  > le client l'appelle déjà correctement, c'est la **fonction** qui s'appelle
+  > `fetchGalaxyOverview`. Second écart : le contrat ne porte **aucun compte global** — le
+  > « compte d'étoiles allumées toutes matières confondues » de la carte est la **somme client**
+  > des `lit`, une addition de présentation, sans appel supplémentaire.
 
 Les blocs sont chargés en `Promise.allSettled` : un appel qui échoue rend son bloc silencieux,
 les autres restent à l'écran. **Aucun message technique n'est affiché à l'enfant.**
+
+## Navigation
+
+- Bandeau XP → `/galaxy`.
+- Carte Ma Galaxie → `/galaxy`.
+- « Commencer » → la mission élue.
+- Raccourcis → `/revision` (session éclair par `location.state`), `/capsules`, `/eli5`.
+- Héros ZETIS → surface de chat du Groupe 1 (ADR-0026).
+
+`/progression` reste servie en **redirection permanente** vers `/galaxy` — les liens et les
+signets antérieurs ne cassent pas.
+
+## Hors périmètre
+
+La sidebar et le bandeau XP (chrome global, `MassimoLayout`) ; le contenu de `/galaxy` ; la
+composition interne du chat ; la réconciliation de `navigation.md`, qui décrit un Accueil
+**sans sidebar** en « Modèle A » — brouillon non réconcilié, **l'existant prime**.
+
+**Divergence à vérifier au read-before-code** : « Diagnostic » figure dans la sidebar du
+`README` frontend-massimo, alors que `navigation.md §9` en fait une mission spéciale et non un
+item de menu. Ce chantier ne tranche pas ; il ne doit ni ajouter ni retirer l'entrée.

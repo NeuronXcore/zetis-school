@@ -105,7 +105,7 @@ qui a été construit ce jour-là n'est jeté ; c'est son emplacement qui était
 ouverture. C'est la raison d'être de la page. Tout le gain du §B consistait à sortir ce coût de la
 page d'atterrissage, pas à le supprimer du produit.
 
-Maquette : `docs/frontend-massimo/mockup-page-galaxy-v1.html` (trois écrans : galaxie complète,
+Maquette : `docs/frontend-massimo/mockup/mockup-page-galaxy-v1.html` (trois écrans : galaxie complète,
 constellation + panneau d'actions, attente / repli sans WebGL).
 
 Conséquence maintenue : **aucun travail backend.** Pas de route supprimée, pas de schéma touché.
@@ -151,7 +151,7 @@ chantier qui touche la surface Papa.
 - **`docs/frontend-massimo/page-accueil.md` n'a jamais documenté l'aperçu Galaxy livré le
   2026-07-28.** La spec était déjà en retard sur le code avant ce chantier. Elle est **réécrite**
   (nouvelle composition de l'Accueil), et la dette est réglée au passage. Maquette de référence :
-  `docs/frontend-massimo/mockup-page-accueil-v2.html`.
+  `docs/frontend-massimo/mockup/mockup-page-accueil-v2.html`.
 - `zetis-galaxy.md` : route, libellé, et §13 à corriger.
 - `navigation.md` reste **non réconcilié** — ce chantier ne l'ouvre pas. Il contredisait déjà
   l'existant sur l'onglet Progression ; il le contredit désormais sur son nom.

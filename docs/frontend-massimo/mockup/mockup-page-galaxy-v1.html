@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS — Mockup Ma Galaxie (Massimo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --zetis-bg: #0a0d1c;
+    --zetis-primary: #6366f1;
+    --zetis-cyan: #22d3ee;
+    --zetis-fuchsia: #d946ef;
+    --zetis-fg: #eef0ff;
+    --zetis-muted: #8b91b8;
+    --zetis-glass: rgba(255, 255, 255, 0.055);
+    --zetis-glass-border: rgba(255, 255, 255, 0.12);
+    /* Rampe d'états — indigo → cyan → blanc. AUCUN rouge, AUCUN vert d'échec. */
+    --s-undiscovered: #333a5e;
+    --s-learning:     #6366f1;
+    --s-building:     #8b7bff;
+    --s-acquired:     #22d3ee;
+    --s-mastered:     #dff2ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #05060f; color: var(--zetis-fg); padding: 26px 20px 60px;
+  }
+
+  /* ══ Chrome de maquette (hors produit) ══ */
+  .mock-bar { max-width: 1420px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .mock-title { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: #5b628a; font-weight: 700; }
+  .mock-switch { display: flex; gap: 6px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); padding: 4px; border-radius: 12px; }
+  .mock-switch button { font-family: inherit; font-size: 12.5px; font-weight: 700; color: #7b82ab; background: none; border: none; padding: 7px 13px; border-radius: 9px; cursor: pointer; }
+  .mock-switch button.on { background: rgba(99,102,241,.22); color: var(--zetis-fg); }
+
+  /* ══ Cadre ══ */
+  .frame {
+    position: relative; max-width: 1420px; margin: 0 auto;
+    display: grid; grid-template-columns: 244px 1fr;
+    background: var(--zetis-bg); border: 1px solid rgba(255,255,255,.09);
+    border-radius: 22px; overflow: hidden; min-height: 940px;
+  }
+  .neon { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+  .neon::before, .neon::after { content: ""; position: absolute; border-radius: 50%; filter: blur(130px); }
+  .neon::before { width: 560px; height: 560px; top: -160px; left: 220px; background: var(--zetis-primary); opacity: .26; }
+  .neon::after  { width: 480px; height: 480px; bottom: -180px; right: -40px; background: var(--zetis-fuchsia); opacity: .13; }
+
+  /* ══ Sidebar ══ */
+  .sidebar { position: relative; z-index: 1; border-right: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.018); padding: 24px 14px; }
+  .wordmark { font-family: "Syncopate", sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .34em; text-align: center; margin: 4px 0 22px; opacity: .92; }
+  .wordmark span { color: var(--zetis-cyan); }
+  .nav { display: flex; flex-direction: column; gap: 1px; }
+  .nav a { display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: 10px; text-decoration: none; color: var(--zetis-muted); font-size: 13.5px; font-weight: 600; }
+  .nav a svg { width: 17px; height: 17px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .nav a.active { background: rgba(99,102,241,.16); color: var(--zetis-fg); }
+
+  /* ══ Bandeau ══ */
+  .main { position: relative; z-index: 1; display: flex; flex-direction: column; }
+  .banner { display: flex; align-items: center; justify-content: space-between; padding: 14px 30px; border-bottom: 1px solid rgba(255,255,255,.07); }
+  .emblem { width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 34% 30%, rgba(255,255,255,.14), transparent 62%), var(--zetis-bg); border: 1px solid rgba(34,211,238,.4); box-shadow: 0 0 18px rgba(34,211,238,.22); }
+  .xp { display: flex; align-items: center; gap: 12px; }
+  .xp b { font-size: 13.5px; }
+  .xp-bar { width: 132px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.09); overflow: hidden; }
+  .xp-bar i { display: block; height: 100%; width: 62%; background: linear-gradient(90deg, var(--zetis-primary), var(--zetis-cyan)); }
+
+  .content { padding: 24px 30px 34px; display: flex; flex-direction: column; gap: 18px; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  .head h1 { font-size: 25px; font-weight: 800; }
+  .head .count { font-size: 14px; color: var(--zetis-muted); margin-top: 3px; }
+  .search { display: flex; align-items: center; gap: 9px; background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); border-radius: 13px; padding: 10px 15px; min-width: 260px; }
+  .search svg { width: 16px; height: 16px; stroke: var(--zetis-muted); fill: none; stroke-width: 1.9; }
+  .search input { background: none; border: none; outline: none; color: var(--zetis-fg); font-family: inherit; font-size: 14px; width: 100%; }
+  .search input::placeholder { color: #5f668f; }
+
+  /* ══ KPI d'états (cliquables, filtrent) ══ */
+  .kpis { display: flex; gap: 10px; flex-wrap: wrap; }
+  .kpi {
+    display: flex; align-items: center; gap: 9px; cursor: pointer; font-family: inherit;
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    border-radius: 999px; padding: 8px 15px 8px 12px; color: var(--zetis-fg);
+  }
+  .kpi:hover { border-color: rgba(255,255,255,.26); }
+  .kpi.on { border-color: var(--zetis-cyan); background: rgba(34,211,238,.1); }
+  .kpi .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+  .kpi .txt { font-size: 13px; font-weight: 600; }
+  .kpi .n { font-size: 13px; font-weight: 800; color: var(--zetis-muted); }
+
+  /* ══ Canvas ══ */
+  .stage { position: relative; border: 1px solid var(--zetis-glass-border); border-radius: 20px; overflow: hidden; background: radial-gradient(900px 420px at 50% 45%, rgba(99,102,241,.10), transparent 72%), rgba(255,255,255,.02); }
+  .stage svg.graph { display: block; width: 100%; height: auto; }
+  .fs-btn { position: absolute; top: 14px; right: 14px; z-index: 3; font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--zetis-fg); background: rgba(10,13,28,.7); border: 1px solid var(--zetis-glass-border); border-radius: 10px; padding: 8px 13px; cursor: pointer; }
+  .hint { position: absolute; left: 16px; bottom: 14px; z-index: 3; font-size: 11.5px; color: #6d75a0; }
+
+  .node-label { font-size: 11px; font-weight: 700; fill: #c8cef0; }
+  .node-label.sun { font-size: 12.5px; fill: #e6eaff; }
+  .link { stroke: rgba(255,255,255,.14); stroke-width: 1; }
+  .link.core { stroke: rgba(255,255,255,.09); }
+  .star { cursor: pointer; }
+  @keyframes breathe { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+  .halo { animation: breathe 6s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .halo { animation: none; opacity: .8; } }
+
+  /* ══ Panneau d'actions ══ */
+  .panel {
+    position: absolute; top: 0; right: 0; bottom: 0; z-index: 4; width: 330px;
+    background: rgba(8,11,24,.94); border-left: 1px solid var(--zetis-glass-border);
+    padding: 22px; display: none; flex-direction: column; gap: 4px;
+  }
+  .panel.open { display: flex; }
+  .panel .close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--zetis-muted); font-size: 19px; cursor: pointer; font-family: inherit; }
+  .panel h3 { font-size: 18px; font-weight: 800; padding-right: 26px; }
+  .panel .breadcrumb { font-size: 11.5px; color: var(--zetis-muted); margin-top: 4px; }
+  .state-chip { display: inline-flex; align-items: center; gap: 7px; margin-top: 12px; font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px; background: rgba(34,211,238,.12); border: 1px solid rgba(34,211,238,.35); align-self: flex-start; }
+  .acts { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .act {
+    display: flex; align-items: center; gap: 11px; font-family: inherit; text-align: left;
+    padding: 12px 14px; border-radius: 13px; font-size: 14px; font-weight: 700; cursor: pointer;
+    color: var(--zetis-fg); background: rgba(255,255,255,.05); border: 1px solid var(--zetis-glass-border);
+  }
+  .act.primary { background: linear-gradient(135deg, var(--zetis-primary), var(--zetis-cyan)); border-color: transparent; color: #fff; box-shadow: 0 6px 20px rgba(34,211,238,.22); }
+  .act[disabled] { cursor: not-allowed; opacity: .42; }
+  .act .soon { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--zetis-muted); }
+  .act svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ══ Rail matières ══ */
+  .rail { display: flex; gap: 10px; flex-wrap: wrap; }
+  .subject-badge {
+    display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: inherit;
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    border-radius: 14px; padding: 9px 14px 9px 10px; color: var(--zetis-fg);
+  }
+  .subject-badge:hover { border-color: currentColor; }
+  .subject-badge .orb { width: 26px; height: 26px; border-radius: 50%; flex: none; background: radial-gradient(circle at 32% 28%, rgba(255,255,255,.2), rgba(255,255,255,.02) 62%), #131735; border: 1px solid currentColor; }
+  .subject-badge b { font-size: 13.5px; font-weight: 700; color: var(--zetis-fg); }
+  .subject-badge i { font-style: normal; font-size: 11.5px; color: var(--zetis-muted); }
+
+  /* ══ Frise ══ */
+  .bottom { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; }
+  .card { background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); border-radius: 18px; padding: 20px 22px; }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: .17em; text-transform: uppercase; color: var(--zetis-muted); margin-bottom: 14px; }
+  .badges { display: flex; gap: 10px; flex-wrap: wrap; }
+  .badge { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; padding: 8px 13px; border-radius: 12px; background: rgba(255,255,255,.05); border: 1px solid var(--zetis-glass-border); }
+  .badge .b-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--zetis-cyan); }
+
+  /* ══ Repli / attente ══ */
+  .planets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; padding: 26px; }
+  .planet-cell { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .planet {
+    width: 84px; height: 84px; border-radius: 50%; position: relative;
+    background: radial-gradient(circle at 30% 26%, rgba(255,255,255,.2), rgba(255,255,255,.02) 60%), #12162f;
+    border: 1px solid var(--zetis-glass-border); overflow: hidden;
+  }
+  .planet::after { content: ""; position: absolute; inset: -30% -10%; background: repeating-linear-gradient(115deg, rgba(255,255,255,.07) 0 8px, transparent 8px 22px); animation: roll 14s linear infinite; }
+  @keyframes roll { to { transform: translateX(40%); } }
+  @media (prefers-reduced-motion: reduce) { .planet::after { animation: none; } }
+  .planet-pic { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; }
+  .planet-pic svg { width: 30px; height: 30px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .planet-cell b { font-size: 13px; }
+  .planet-cell i { font-style: normal; font-size: 11.5px; color: var(--zetis-muted); }
+  .fallback-list { border-top: 1px solid rgba(255,255,255,.07); padding: 22px 26px; }
+  .fallback-list h4 { font-size: 14px; margin-bottom: 12px; }
+  .fallback-list ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .fallback-list li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: #c2c8ea; }
+  .fallback-list .st { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .fallback-list .lbl { margin-left: auto; font-size: 11.5px; color: var(--zetis-muted); }
+
+  .screen { display: none; }
+  .screen.on { display: flex; flex-direction: column; gap: 18px; }
+
+  /* ══ Notes ══ */
+  .notes { max-width: 1420px; margin: 22px auto 0; }
+  .notes summary { cursor: pointer; font-size: 12.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #5b628a; padding: 12px 0; }
+  .notes ul { margin: 6px 0 0 20px; display: flex; flex-direction: column; gap: 9px; }
+  .notes li { font-size: 13.5px; color: #99a0c6; line-height: 1.5; }
+  .notes li b { color: #cdd3f5; }
+  .notes code { font-size: 12.5px; color: var(--zetis-cyan); background: rgba(34,211,238,.08); padding: 1px 6px; border-radius: 5px; }
+
+  @media (max-width: 1180px) { .frame { grid-template-columns: 1fr; } .sidebar { display: none; } .bottom { grid-template-columns: 1fr; } .planets { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+<div class="mock-bar">
+  <div class="mock-title">ZETIS — /galaxy · maquette v1 · addendum ADR-0024 §C</div>
+  <div class="mock-switch">
+    <button class="on" onclick="show(0,this)">Galaxie complète (défaut)</button>
+    <button onclick="show(1,this)">Constellation + panneau</button>
+    <button onclick="show(2,this)">Attente / repli sans WebGL</button>
+  </div>
+</div>
+
+<div class="frame">
+  <div class="neon"></div>
+
+  <aside class="sidebar">
+    <div class="wordmark">ZET<span>I</span>S</div>
+    <nav class="nav">
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V21H3z"/></svg>Accueil</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/></svg>Matières</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M9 12h6M9 16h4"/></svg>Cours</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>Révision</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>Fiches</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.5V15H8v-1.5A6 6 0 0 1 12 3"/></svg>ELI5</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg>Capsules IA</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 5h13l-2.5 4L18 13H5"/></svg>Missions</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 1 1 3 3.5V15"/><path d="M12 18h.01"/></svg>Quiz</a>
+      <a href="#" class="active"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="4.6" transform="rotate(-28 12 12)"/></svg>Ma Galaxie</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="12" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8.5 7.2 15.6 11M15.6 13 8.5 16.8"/></svg>Mindmaps</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></svg>Chat ZETIS</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2"/><circle cx="10" cy="16" r="2"/></svg>Paramètres</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="banner">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="emblem"></div>
+        <div style="font-size:13px;color:var(--zetis-muted)">Mercredi 25 juin</div>
+      </div>
+      <div class="xp"><div><b>Niveau 18</b><div style="font-size:11px;color:var(--zetis-muted)">2 480 XP</div></div><div class="xp-bar"><i></i></div></div>
+    </div>
+
+    <div class="content">
+      <div class="head">
+        <div>
+          <h1 id="title">Ma galaxie</h1>
+          <div class="count" id="subtitle">47 étoiles allumées · 8 constellations</div>
+        </div>
+        <div class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input placeholder="Chercher une notion…">
+        </div>
+      </div>
+
+      <div class="kpis">
+        <button class="kpi"><span class="dot" style="background:var(--s-undiscovered)"></span><span class="txt">À découvrir</span><span class="n">61</span></button>
+        <button class="kpi"><span class="dot" style="background:var(--s-learning)"></span><span class="txt">On commence</span><span class="n">14</span></button>
+        <button class="kpi"><span class="dot" style="background:var(--s-building)"></span><span class="txt">En construction</span><span class="n">18</span></button>
+        <button class="kpi on"><span class="dot" style="background:var(--s-acquired)"></span><span class="txt">Bien acquis</span><span class="n">9</span></button>
+        <button class="kpi"><span class="dot" style="background:var(--s-mastered)"></span><span class="txt">Maîtrisé</span><span class="n">6</span></button>
+      </div>
+
+      <!-- ══════ Écran 1 — galaxie complète ══════ -->
+      <div class="screen on" id="s0">
+        <div class="stage">
+          <button class="fs-btn">Plein écran</button>
+          <svg class="graph" id="g-all" viewBox="0 0 1000 600" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div class="hint">Touche une étoile pour l'ouvrir · tire un nœud pour étirer la constellation</div>
+        </div>
+
+        <div class="rail" id="rail"></div>
+
+        <div class="bottom">
+          <div class="card">
+            <div class="label">Ma progression</div>
+            <svg viewBox="0 0 620 130" style="width:100%;height:auto">
+              <defs><linearGradient id="fr" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#22d3ee" stop-opacity=".34"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+              </linearGradient></defs>
+              <polyline points="10,120 90,116 170,104 250,101 330,84 410,70 490,48 600,30" fill="none" stroke="url(#fr)" stroke-width="0"/>
+              <path d="M10,120 90,116 170,104 250,101 330,84 410,70 490,48 600,30 L600,130 L10,130 Z" fill="url(#fr)"/>
+              <polyline points="10,120 90,116 170,104 250,101 330,84 410,70 490,48 600,30" fill="none" stroke="#22d3ee" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+              <circle cx="600" cy="30" r="4.5" fill="#dff2ff"/>
+            </svg>
+            <div style="font-size:12.5px;color:var(--zetis-muted);margin-top:6px">Cette courbe ne peut que monter — elle compte ce qui a été allumé, jamais ce qui manque.</div>
+          </div>
+          <div class="card">
+            <div class="label">Mes badges</div>
+            <div class="badges">
+              <div class="badge"><span class="b-dot"></span>Première étoile</div>
+              <div class="badge"><span class="b-dot"></span>Constellation SVT</div>
+              <div class="badge"><span class="b-dot"></span>10 notions acquises</div>
+              <div class="badge"><span class="b-dot"></span>Explorateur</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ Écran 2 — constellation + panneau ══════ -->
+      <div class="screen" id="s1">
+        <div class="stage">
+          <button class="fs-btn">Plein écran</button>
+          <svg class="graph" id="g-one" viewBox="0 0 1000 600" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div class="hint">← Retour à la galaxie complète</div>
+
+          <div class="panel open">
+            <button class="close">×</button>
+            <h3>L'accord du participe passé</h3>
+            <div class="breadcrumb">Français · Le récit au passé</div>
+            <div class="state-chip"><span style="width:9px;height:9px;border-radius:50%;background:var(--s-acquired)"></span>Bien acquis</div>
+            <div class="acts">
+              <button class="act primary"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M9 12h6M9 16h4"/></svg>Relire le cours</button>
+              <button class="act"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.5V15H8v-1.5A6 6 0 0 1 12 3"/></svg>ELI5</button>
+              <button class="act"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>Ma fiche</button>
+              <button class="act"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>Réviser</button>
+              <button class="act" disabled><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg>Capsule<span class="soon">bientôt</span></button>
+              <button class="act" disabled><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="12" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8.5 7.2 15.6 11M15.6 13 8.5 16.8"/></svg>Mindmap<span class="soon">bientôt</span></button>
+              <button class="act" disabled><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 1 1 3 3.5V15"/><path d="M12 18h.01"/></svg>Quiz<span class="soon">bientôt</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ Écran 3 — attente / repli ══════ -->
+      <div class="screen" id="s2">
+        <div class="stage">
+          <div class="planets" id="planets"></div>
+          <div class="fallback-list">
+            <h4>Français · Le récit au passé</h4>
+            <ul>
+              <li><span class="st" style="background:var(--s-mastered)"></span>L'imparfait<span class="lbl">Maîtrisé</span></li>
+              <li><span class="st" style="background:var(--s-acquired)"></span>Le passé simple<span class="lbl">Bien acquis</span></li>
+              <li><span class="st" style="background:var(--s-building)"></span>L'accord du participe passé<span class="lbl">En construction</span></li>
+              <li><span class="st" style="background:var(--s-learning)"></span>Le plus-que-parfait<span class="lbl">On commence</span></li>
+              <li><span class="st" style="background:var(--s-undiscovered)"></span>La concordance des temps<span class="lbl">À découvrir</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<details class="notes" open>
+  <summary>Notes de maquette — ce que la composition applique</summary>
+  <ul>
+    <li><b>Vue par défaut = la galaxie complète</b>, toutes matières (<code>GET /api/student/galaxy/all</code>). C'est la brique livrée le 2026-07-28 pour l'Accueil, <b>déplacée</b>, pas réécrite (addendum §C).</li>
+    <li><b>Les planètes CSS ne sont plus un écran</b> : elles sont l'état d'attente pendant le chargement du chunk 3D, et le repli sans WebGL — accompagnées de la liste des notions par chapitre, pour que la progression reste accessible.</li>
+    <li><b>Plafond adaptatif</b> (40 / 90 / 150) : quand il mord, la galaxie complète replie sur matières + chapitres ; les notions restent atteignables en entrant dans une constellation. Valeurs <b>provisoires, non mesurées</b> — dette ouverte de l'ADR-0024 §6, hors de ce chantier.</li>
+    <li><b>Rampe d'états indigo → cyan → blanc.</b> Aucun rouge, aucun vert d'échec. « À découvrir » est une étoile pas encore née, pas un manque.</li>
+    <li><b>Un compte, jamais un pourcentage</b> : « 47 étoiles allumées », et un compte par matière sur les badges du rail. Aucun score, aucun classement de matières, <code>mastery_score</code> jamais affiché.</li>
+    <li><b>Panneau d'actions : panoplie complète</b>, l'indisponible <b>grisé et non cliquable</b>, libellé « bientôt » — jamais « manquant » ni « raté ». L'accent va à la <b>première activité réellement faisable</b>, pas à la première de la liste.</li>
+    <li><b>Frise monotone</b> : dérivée de <code>learning_events</code> (append-only), pas de <code>SkillMastery</code> qui peut régresser. La courbe ne peut que monter.</li>
+    <li><b>Aucun or.</b> <code>#ffcf47</code> reste réservé à l'état « ZETIS parle ».</li>
+    <li><b>Le rendu réel est en <code>react-force-graph-3d</code></b> ; ce SVG figé n'en est qu'un tenant-lieu de composition. Positions, profondeur et drag élastique viennent du moteur de forces.</li>
+  </ul>
+</details>
+
+<script>
+  const SUBJECTS = [
+    { n: "Français",        c: "#8b7bff", lit: 9 },
+    { n: "Maths",           c: "#22d3ee", lit: 7 },
+    { n: "Histoire-Géo",    c: "#4ade80", lit: 6 },
+    { n: "SVT",             c: "#34d399", lit: 8 },
+    { n: "Physique-Chimie", c: "#60a5fa", lit: 5 },
+    { n: "Anglais",         c: "#f472b6", lit: 6 },
+    { n: "Espagnol",        c: "#fb923c", lit: 4 },
+    { n: "Technologie",     c: "#a78bfa", lit: 2 },
+  ];
+  const STATES = ["undiscovered","learning","building","acquired","mastered"];
+  const COL = s => getComputedStyle(document.documentElement).getPropertyValue("--s-" + s).trim();
+  // Suite déterministe : une maquette doit être identique à chaque ouverture.
+  let seed = 7;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+
+  function star(cx, cy, r, state) {
+    const c = COL(state);
+    return `<circle class="halo" cx="${cx}" cy="${cy}" r="${r * 3}" fill="${c}" opacity="${state === 'undiscovered' ? .05 : .16}"/>
+            <circle class="star" cx="${cx}" cy="${cy}" r="${r}" fill="${c}"/>`;
+  }
+
+  function buildAll() {
+    const W = 1000, H = 600, cx = W / 2, cy = H / 2;
+    let links = "", nodes = "";
+    SUBJECTS.forEach((s, i) => {
+      const a = (i / SUBJECTS.length) * Math.PI * 2 - Math.PI / 2;
+      const sx = cx + Math.cos(a) * 208, sy = cy + Math.sin(a) * 172;
+      links += `<line class="link core" x1="${cx}" y1="${cy}" x2="${sx}" y2="${sy}"/>`;
+      for (let k = 0; k < 3; k++) {
+        const ca = a + (k - 1) * 0.42, cr = 66 + rnd() * 16;
+        const chx = sx + Math.cos(ca) * cr, chy = sy + Math.sin(ca) * cr * .82;
+        links += `<line class="link" x1="${sx}" y1="${sy}" x2="${chx}" y2="${chy}"/>`;
+        nodes += `<circle cx="${chx}" cy="${chy}" r="4" fill="#5a628f"/>`;
+        const nb = 3 + Math.floor(rnd() * 3);
+        for (let j = 0; j < nb; j++) {
+          const na = ca + (j - nb / 2) * 0.5, nr = 26 + rnd() * 12;
+          const nx = chx + Math.cos(na) * nr, ny = chy + Math.sin(na) * nr * .8;
+          links += `<line class="link" x1="${chx}" y1="${chy}" x2="${nx}" y2="${ny}"/>`;
+          nodes += star(nx, ny, 2.6, STATES[Math.floor(rnd() * 5)]);
+        }
+      }
+      nodes += `<circle class="halo" cx="${sx}" cy="${sy}" r="26" fill="${s.c}" opacity=".18"/>
+                <circle cx="${sx}" cy="${sy}" r="9" fill="${s.c}"/>
+                <text class="node-label sun" x="${sx}" y="${sy + 26}" text-anchor="middle">${s.n}</text>`;
+    });
+    nodes += `<circle class="halo" cx="${cx}" cy="${cy}" r="34" fill="#eef0ff" opacity=".12"/>
+              <circle cx="${cx}" cy="${cy}" r="13" fill="#dff2ff"/>`;
+    document.getElementById("g-all").innerHTML = links + nodes;
+  }
+
+  function buildOne() {
+    const W = 1000, H = 600, cx = W / 2 - 130, cy = H / 2;
+    let links = "", nodes = "";
+    const chapters = ["Le récit au passé", "La description", "Le dialogue", "Le point de vue"];
+    chapters.forEach((ch, k) => {
+      const a = (k / chapters.length) * Math.PI * 2 - Math.PI / 2;
+      const chx = cx + Math.cos(a) * 168, chy = cy + Math.sin(a) * 138;
+      links += `<line class="link core" x1="${cx}" y1="${cy}" x2="${chx}" y2="${chy}"/>`;
+      nodes += `<circle cx="${chx}" cy="${chy}" r="6" fill="#5a628f"/>
+                <text class="node-label" x="${chx}" y="${chy - 14}" text-anchor="middle">${ch}</text>`;
+      const nb = 5;
+      for (let j = 0; j < nb; j++) {
+        const na = a + (j - nb / 2) * 0.36, nr = 62 + rnd() * 26;
+        const nx = chx + Math.cos(na) * nr, ny = chy + Math.sin(na) * nr * .82;
+        links += `<line class="link" x1="${chx}" y1="${chy}" x2="${nx}" y2="${ny}"/>`;
+        nodes += star(nx, ny, 4.2, STATES[Math.floor(rnd() * 5)]);
+      }
+    });
+    nodes += `<circle class="halo" cx="${cx}" cy="${cy}" r="40" fill="#8b7bff" opacity=".2"/>
+              <circle cx="${cx}" cy="${cy}" r="15" fill="#8b7bff"/>
+              <text class="node-label sun" x="${cx}" y="${cy + 34}" text-anchor="middle">Français</text>`;
+    document.getElementById("g-one").innerHTML = links + nodes;
+  }
+
+  const PIC = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16"/></svg>`;
+  document.getElementById("rail").innerHTML = SUBJECTS.map(s =>
+    `<button class="subject-badge" style="color:${s.c}">
+       <span class="orb"></span><span><b>${s.n}</b><br><i>${s.lit} étoiles allumées</i></span>
+     </button>`).join("");
+  document.getElementById("planets").innerHTML = SUBJECTS.map(s =>
+    `<div class="planet-cell" style="color:${s.c}">
+       <div class="planet"><span class="planet-pic">${PIC}</span></div>
+       <b>${s.n}</b><i>${s.lit} étoiles allumées</i>
+     </div>`).join("");
+
+  buildAll(); buildOne();
+
+  const TITLES = [
+    ["Ma galaxie", "47 étoiles allumées · 8 constellations"],
+    ["Français", "9 étoiles allumées · 4 amas"],
+    ["Ma galaxie", "Chargement de la vue 3D…"],
+  ];
+  function show(i, btn) {
+    document.querySelectorAll(".screen").forEach((s, k) => s.classList.toggle("on", k === i));
+    document.querySelectorAll(".mock-switch button").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    document.getElementById("title").textContent = TITLES[i][0];
+    document.getElementById("subtitle").textContent = TITLES[i][1];
+  }
+</script>
+</body>
+</html>
