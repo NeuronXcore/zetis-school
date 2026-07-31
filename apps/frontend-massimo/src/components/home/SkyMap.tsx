@@ -49,10 +49,12 @@ export interface SkyMapProps {
   days: XpHistoryDay[];
   /** Injectable pour les tests : la grille dépend d'« aujourd'hui ». */
   today?: Date;
+  /** Ouvre le rejeu animé (ADR-0029). Absent → aucune action n'est proposée. */
+  onReplay?: () => void;
   className?: string;
 }
 
-export function SkyMap({ days, today = new Date(), className = "" }: SkyMapProps) {
+export function SkyMap({ days, today = new Date(), onReplay, className = "" }: SkyMapProps) {
   // Un ciel vide n'est pas un état d'erreur, mais il n'a rien à montrer : la carte ne se rend
   // pas plutôt que d'afficher un cadre vide (la page décide, cf. `AccueilMassimoPage`).
   if (days.length === 0) return null;
@@ -154,6 +156,18 @@ export function SkyMap({ days, today = new Date(), className = "" }: SkyMapProps
           </div>
         </div>
       </div>
+
+      {/* Action SECONDAIRE (bordure, jamais plein) : la seule action accentuée de la page reste
+          « Commencer ». Le rejeu se regarde, il n'est pas le chemin guidé du jour. */}
+      {onReplay && (
+        <button
+          type="button"
+          onClick={onReplay}
+          className="mt-4 min-h-11 rounded-xl border border-zetis-border bg-zetis-surface-2 px-4 text-sm font-bold hover:border-zetis-accent-2"
+        >
+          Revoir ma galaxie grandir →
+        </button>
+      )}
     </section>
   );
 }

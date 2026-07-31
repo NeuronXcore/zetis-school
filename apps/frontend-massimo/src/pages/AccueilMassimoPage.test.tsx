@@ -251,3 +251,32 @@ describe("Accueil — « Mon ciel » et les derniers gains", () => {
     expect(document.body.textContent).not.toMatch(/erreur|impossible|réessay/i);
   });
 });
+
+describe("Accueil — rejeu animé de la galaxie (ADR-0029)", () => {
+  it("propose « Revoir ma galaxie grandir » depuis « Mon ciel »", () => {
+    renderPage();
+    expect(screen.getByText(/Revoir ma galaxie grandir/)).toBeTruthy();
+  });
+
+  it("ne monte PAS la modale au chargement — c'est ce qui garde l'Accueil sans Three.js", () => {
+    // LE test qui protège le budget de bundle sur ce chantier. `accueil.bundle.test.ts` ne
+    // parcourt que les imports STATIQUES : il ne voit donc pas la modale (c'est correct, elle
+    // est en `lazy()`). Ce qu'il ne peut pas voir, c'est un montage au premier rendu — qui
+    // déclencherait le chargement du chunk 3D exactement comme le 2026-07-28.
+    renderPage();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("le rejeu n'ajoute AUCUNE action accentuée : « Commencer » reste la seule", () => {
+    renderPage();
+    const accented = accentedActions();
+    expect(accented).toHaveLength(1);
+    expect(accented[0].textContent).toContain("Commencer");
+  });
+
+  it("sans jour de gain, ni le ciel ni son action ne sont proposés", () => {
+    accueil.value = state({ xpHistory: { days: [] } });
+    renderPage();
+    expect(screen.queryByText(/Revoir ma galaxie grandir/)).toBeNull();
+  });
+});

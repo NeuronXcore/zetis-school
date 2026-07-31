@@ -151,6 +151,16 @@ XP, posée sur un calendrier** — semaines en colonnes, jours en lignes. Rien d
 **Ce que la carte n'affichera jamais** : une date lisible, un « depuis N jours », une moyenne, un
 objectif de jours, une comparaison entre deux périodes, un fond quadrillé.
 
+**Une action secondaire** : « Revoir ma galaxie grandir → » ouvre le **rejeu animé** (ADR-0029).
+Bordure, jamais plein — la seule action accentuée de la page reste « Commencer ».
+
+⚠️ **`GalaxyReplayModal` ne doit JAMAIS être importée statiquement par l'Accueil.** Elle est
+montée en `lazy()`, et charge elle-même le canvas en `lazy()`. Ce **double `lazy()`** est ce qui
+garde l'Accueil à **zéro Three.js au premier paint** : `accueil.bundle.test.ts` ne parcourt que
+les imports **statiques**, donc un import statique d'ici remettrait 1,37 Mo sur la page
+d'atterrissage **sans qu'aucun test ne le voie**. Un second test constate que la modale **n'est
+pas montée au chargement**.
+
 ### Mon chemin (frise cumulative)
 
 `GET /api/student/galaxy/timeline`, en SVG maison. Elle avait quitté l'Accueil le matin même,

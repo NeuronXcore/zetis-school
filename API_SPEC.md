@@ -1206,9 +1206,23 @@ un id inconnu ne révèle rien.
 > n'est pas proposée ». On renvoie désormais **tout**, avec `available` — une activité manquante
 > n'est pas un échec de Massimo, c'est du contenu que Papa n'a pas encore produit.
 
-### GET `/student/galaxy/timeline`
+### GET `/student/galaxy/timeline?with_skills=false`
 
 Frise de progression, **MONOTONE par construction**.
+
+> **`with_skills=true` (ADR-0029)** ajoute `skills: [{ skill_id, date }]` — **quelle** notion
+> s'est allumée **quel jour**, pour le rejeu animé. C'est le **même calcul** : la requête
+> produisait déjà le `skill_id` (`func.min(created_at).group_by(skill_id)`), on cessait
+> simplement de le renvoyer. Aucune requête supplémentaire, aucune table.
+>
+> **Opt-in strict** : sans le paramètre, la clé est **absente** de la réponse (et non `null`) —
+> les consommateurs actuels de la frise ne voient aucun changement de charge utile, ce qu'un
+> test verrouille.
+>
+> Ce qui n'est **jamais** servi : l'état de maîtrise à une date passée. Il existe
+> (`skill_mastery_history`) mais il est **Papa-only** et il **régresse** — un rejeu bâti dessus
+> montrerait des étoiles **s'éteindre**. Le rejeu ne connaît que deux états : pas encore née,
+> et allumée.
 
 ```json
 { "points": [{ "date": "2026-07-01", "lit": 2 }, { "date": "2026-07-08", "lit": 5 }], "total": 5 }

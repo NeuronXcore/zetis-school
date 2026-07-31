@@ -138,6 +138,34 @@
     chez Massimo**, **aucune notification push** (le décrochage se lit à la consultation) — Accepté
     (2026-07-31)
 
+- `docs/decisions/adr-0029-rejeu-anime-galaxie.md` — **Rejeu animé de la galaxie : voir son chemin,
+    pas seulement son état** — *nouvel ADR plutôt qu'un 3ᵉ addendum à l'`adr-0024`, qui n'y révise
+    rien* : l'ADR-0024 décide **comment la galaxie est rendue**, celui-ci ajoute une **capacité**
+    qui n'existait pas — rejouer le temps. **Constat du read-before-code : la donnée était déjà
+    calculée** — `galaxy/service.py:394` faisait déjà `min(created_at).group_by(skill_id)`, soit
+    « quand chaque notion a été allumée pour la première fois », puis **jetait le `skill_id`** pour
+    ne garder qu'un compte ; rien à calculer, seulement à cesser de jeter (`?with_skills=true`,
+    **opt-in strict** : sans le paramètre la clé est **absente** et non `null`, un test le
+    verrouille — aucune table, aucune migration, aucune requête de plus). **Décisions** : le rejeu
+    vit dans une **modale ouverte depuis « Mon ciel »**, en **DOUBLE `lazy()`** — la modale l'est,
+    et elle seule charge le canvas, également en `lazy()` — parce que le graphe d'imports
+    **statiques** de l'Accueil ne doit atteindre **ni l'une ni l'autre** : c'est ce qui garde la
+    page d'atterrissage à **zéro Three.js au premier paint**, et un import statique d'ici
+    remettrait 1,37 Mo **sans qu'aucun test ne le voie** (`accueil.bundle.test.ts` ne parcourt que
+    le statique, précisément pour mesurer le premier paint) → un test constate en plus que **la
+    modale n'est pas montée au chargement** ; **rejeu 3D EN DIRECT** (aucune image stockée : une
+    capture périmerait dès la notion suivante ; le rendu vidéo `worker-media`/MinIO est **écarté**,
+    réévaluable si un jour on veut *partager* le rejeu) ; **la frise devient la barre de lecture**,
+    tout en **restant telle quelle sur l'Accueil** (information passive qu'on ne veut pas perdre).
+    **Deux états seulement** — pas encore née, et allumée : l'état de maîtrise passé existe
+    (`skill_mastery_history`, `adr-0028`) mais il est **Papa-only** et il **RÉGRESSE**, un rejeu
+    bâti dessus montrerait des étoiles **s'éteindre** ; dérivé de `learning_events` **append-only**,
+    le rejeu ne peut donc que monter. **Interdits** : aucune date lisible, aucune période vide
+    annoncée, **aucun autoplay**, aucune comparaison entre périodes ; `prefers-reduced-motion` →
+    état final + curseur manipulable. **Coûts assumés** : un clic pour y accéder, et une
+    **troisième surface** qui monte `GalaxyCanvas`. **Vérifié en vrai** : 0 chunk 3D avant le clic,
+    canvas monté après, curseur 0 → 11 → 22 → 37 étoiles — Accepté (2026-07-31)
+
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :

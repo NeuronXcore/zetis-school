@@ -496,3 +496,92 @@ def test_aucune_route_galaxy_nexige_le_role_parent():
     for route in student_router.routes:
         guards.update(d.dependency for d in getattr(route, "dependencies", []))
     assert require_parent not in guards
+
+
+# --- Rejeu animé : `?with_skills=true` (ADR-0029) ------------------------------------------
+
+
+def test_frise_ne_sert_pas_les_notions_sans_qu_on_le_demande(client_db):
+    """L'ADR-0029 promet que les consommateurs actuels ne voient AUCUN changement de charge
+    utile. `skills` doit être absent, pas présent à `null`."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+
+    db = TestSession()
+    db.add(
+        m.LearningEvent(
+            student_id=ids["student_id"],
+            skill_id=ids["mitose_id"],
+            event_type="quiz_attempted",
+            created_at=datetime(2026, 7, 1, 9, 0, tzinfo=timezone.utc),
+        )
+    )
+    db.commit()
+    db.close()
+
+    assert "skills" not in client.get("/api/student/galaxy/timeline").json()
+
+
+def test_with_skills_sert_la_date_de_premiere_fois_par_notion(client_db):
+    """Le rejeu a besoin de savoir QUELLE étoile s'allume quand — pas seulement combien."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+
+    db = TestSession()
+    base = datetime(2026, 7, 1, 9, 0, tzinfo=timezone.utc)
+    for offset, skill in enumerate((ids["mitose_id"], ids["adn_id"])):
+        db.add(
+            m.LearningEvent(
+                student_id=ids["student_id"],
+                skill_id=skill,
+                event_type="quiz_attempted",
+                created_at=base + timedelta(days=offset),
+            )
+        )
+    # Une SECONDE trace sur la même notion : elle ne doit rien changer — c'est la PREMIÈRE
+    # fois qui compte, sinon une étoile se rallumerait à chaque révision.
+    db.add(
+        m.LearningEvent(
+            student_id=ids["student_id"],
+            skill_id=ids["mitose_id"],
+            event_type="review_attempted",
+            created_at=base + timedelta(days=20),
+        )
+    )
+    db.commit()
+    db.close()
+
+    skills = client.get("/api/student/galaxy/timeline?with_skills=true").json()["skills"]
+
+    assert [s["skill_id"] for s in skills] == [ids["mitose_id"], ids["adn_id"]]
+    assert [s["date"] for s in skills] == ["2026-07-01", "2026-07-02"]
+    assert [s["date"] for s in skills] == sorted(s["date"] for s in skills), "ordre chronologique"
+
+
+def test_with_skills_ne_sert_aucun_etat_de_maitrise(client_db):
+    """Deux états seulement dans le rejeu : pas encore née, et allumée.
+
+    Servir l'état de maîtrise permettrait un rejeu où des étoiles S'ÉTEIGNENT — `SkillMastery`
+    régresse. C'est le cadrage de perte que ZETIS bannit."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+
+    db = TestSession()
+    db.add(
+        m.LearningEvent(
+            student_id=ids["student_id"],
+            skill_id=ids["mitose_id"],
+            event_type="quiz_attempted",
+            created_at=datetime(2026, 7, 1, 9, 0, tzinfo=timezone.utc),
+        )
+    )
+    db.add(
+        m.SkillMastery(
+            student_id=ids["student_id"], skill_id=ids["mitose_id"], status="weak", mastery_score=10
+        )
+    )
+    db.commit()
+    db.close()
+
+    skills = client.get("/api/student/galaxy/timeline?with_skills=true").json()["skills"]
+    assert set(skills[0]) == {"skill_id", "date"}

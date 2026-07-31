@@ -1,3 +1,4 @@
+import { Suspense, lazy, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@zetis/auth";
 import { useAccueil } from "../hooks/useAccueil";
@@ -42,6 +43,14 @@ function displayName(username: string): string {
   return username ? username.charAt(0).toUpperCase() + username.slice(1) : "";
 }
 
+// ⚠️ `lazy()` OBLIGATOIRE, et c'est une contrainte d'architecture (ADR-0029 §1) : la modale de
+// rejeu charge Three.js. Un import statique ici remettrait 1,37 Mo sur la page d'atterrissage
+// sans qu'aucun test ne le voie — `accueil.bundle.test.ts` ne parcourt que les imports
+// STATIQUES, précisément pour mesurer ce qui est téléchargé au premier paint.
+const GalaxyReplayModal = lazy(() =>
+  import("../components/home/GalaxyReplayModal").then((m) => ({ default: m.GalaxyReplayModal })),
+);
+
 const SHORTCUT_CLASS =
   "rounded-2xl border border-zetis-border bg-zetis-surface p-4 transition-transform hover:scale-[1.02] motion-reduce:transition-none motion-reduce:hover:scale-100";
 
@@ -69,6 +78,10 @@ export function AccueilMassimoPage() {
   // catalogue de ce que Papa pourra produire.
   const hasFlash = (reviews?.flash_size ?? 0) > 0;
   const hasCapsules = (capsules?.total ?? 0) > 0;
+
+  // La modale n'est montée qu'après un clic : c'est ce qui garde l'Accueil à zéro Three.js au
+  // premier paint, malgré le rejeu 3D qu'elle contient.
+  const [replaying, setReplaying] = useState(false);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -143,7 +156,17 @@ export function AccueilMassimoPage() {
           Une étoile par jour de gain. Voir `SkyMap` : l'absence de grille n'est pas un choix
           graphique, c'est ce qui rend la carte incapable de désigner un jour manqué. */}
       {xpHistory && xpHistory.days.length > 0 && (
-        <SkyMap days={xpHistory.days} className="mt-4" />
+        <SkyMap
+          days={xpHistory.days}
+          onReplay={() => setReplaying(true)}
+          className="mt-4"
+        />
+      )}
+
+      {replaying && (
+        <Suspense fallback={null}>
+          <GalaxyReplayModal onClose={() => setReplaying(false)} />
+        </Suspense>
       )}
 
       {/* ── 4. Ma semaine · Ma Galaxie ─────────────────────────────────────────────────

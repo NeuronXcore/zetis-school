@@ -1,5 +1,31 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.33.0 — Revoir sa galaxie grandir
+
+Date : 2026-07-31 · branche `feat/accueil-vivant` · ADR-0029
+
+> « Mon ciel » et « Mon chemin » disent *combien*, jamais *comment c'est arrivé*. Le rejeu animé
+> montre la galaxie s'allumer étoile par étoile, du premier jour à aujourd'hui.
+
+- **« Revoir ma galaxie grandir »** depuis « Mon ciel » : une modale plein écran qui rejoue la
+  galaxie en 3D. Bouton Lecture / Rejouer, et **la frise devient la barre de lecture** — Massimo
+  peut la tirer pour revenir en arrière.
+- **`?with_skills=true` sur `/api/student/galaxy/timeline`** : le même calcul cessait simplement
+  de renvoyer le `skill_id` qu'il produisait déjà. **Aucune table, aucune migration, aucune
+  requête de plus.** Opt-in strict : sans le paramètre, la clé est **absente** — la frise ne voit
+  aucun changement de charge utile, et un test le verrouille.
+- **DOUBLE `lazy()`** : la modale l'est, et elle seule charge le canvas, également en `lazy()`.
+  C'est ce qui garde l'Accueil à **zéro Three.js au premier paint** — vérifié en vrai : aucun
+  chunk 3D avant le clic, canvas monté après.
+- **Deux états seulement** — pas encore née, allumée. L'état de maîtrise passé existe
+  (`skill_mastery_history`) mais il **régresse** : un rejeu bâti dessus montrerait des étoiles
+  s'éteindre. Dérivé de `learning_events` (append-only), le rejeu ne peut que monter.
+- **Aucune date lisible, aucun autoplay, aucune comparaison entre périodes.**
+  `prefers-reduced-motion` → état final et curseur manipulable à la main.
+
+649 tests backend + 220 Massimo, `tsc -b` et build verts. Rejeu vérifié dans le navigateur :
+curseur 0 → 11 → 22 → 37 étoiles.
+
 ## 0.32.0 — Un Accueil vivant, sans cadrage de perte
 
 Date : 2026-07-31 · branche `feat/accueil-vivant` · addendum ADR-0024 « Accueil vivant »
