@@ -229,6 +229,43 @@
     tient, l'Accueil reste à zéro Three.js au premier paint. Zéro backend, zéro table, zéro
     migration, zéro requête — Accepté (2026-07-31)
 
+- `docs/decisions/adr-0024-addendum-galaxie-sur-accueil.md` — **La galaxie revient sur l'Accueil :
+    la vie vaut son prix** — **quatrième** addendum à l'`adr-0024` dans la même journée, et il
+    **RÉVOQUE le §B** du premier, écrit le matin même. Motif **produit, pas technique** : voir la
+    galaxie se construire donne à la page une vie qu'un compte statique ne donne pas — ce qui était
+    déjà l'intention de l'addendum « Accueil vivant », écrit le même jour et qui, faute de mieux,
+    s'était rabattu sur « Mon ciel » et « Tes derniers gains ». Deux décisions du même jour tiraient
+    en sens inverse : l'une voulait un Accueil vivant, l'autre lui retirait ce qu'il avait de plus
+    vivant. **Le coût est ASSUMÉ, pas redécouvert** : c'est le même 1,37 Mo qu'au matin, mis en
+    balance avec autre chose et tranché autrement. **Ce qui sépare cette décision de la régression
+    du 2026-07-28** : le canvas n'est **jamais monté au premier rendu** — la carte statique EST la
+    première peinture, le ciel arrive ensuite à `requestIdleCallback` (repli `setTimeout` 600 ms,
+    car **Safari ne l'expose pas** et c'est le navigateur de l'iPhone et de l'iPad de Massimo : le
+    repli est le cas COURANT, pas un cas de bord). **L'Accueil rend le cerveau et les matières, pas
+    le graphe complet** — deux raisons dirimantes : les matières sont **déjà chargées** par la page
+    (zéro requête de plus sur la page d'atterrissage) et c'est la **même composition** que la vue
+    par défaut de `/galaxy`, donc la même animation d'arrivée, aucune chorégraphie nouvelle ; portée
+    de session **distincte** (`accueil` / `galaxy`) sans quoi l'Accueil consommerait le « une fois
+    par visite » de `/galaxy`. **3D CONTEMPLATIVE** (`pointer-events-none`, `aria-hidden`) : toute
+    la carte reste **une seule cible de clic** — décision du §B qu'on garde parce qu'elle vaut
+    (viser un lien de fin de carte est un geste de précision inutile sur iPhone), et sans quoi un
+    drag de nœud **dans un lien** déclencherait la navigation au relâchement ;
+    `prefers-reduced-motion` ou absence de WebGL → **carte statique, point**. **Le test de budget
+    CHANGE DE NATURE sans disparaître** : l'interdit de tout `import()` devient une **liste
+    blanche** (`HomeGalaxyCard`), les quatre autres cas sont **inchangés** (aucun import synchrone,
+    aucun fichier atteignant `three`, contre-épreuve sur `/galaxy`, garde-fou du test lui-même) et
+    un cas est **AJOUTÉ** — le point de montage autorisé doit le faire en `import()`, jamais en
+    synchrone. Ce qu'il protège encore, et qui est l'essentiel : qu'un **TROISIÈME** point de
+    montage n'apparaisse pas sans que personne ne le voie, mode exact de la régression de juillet.
+    **Alternative écartée par Papa** : animer la carte CSS existante (zéro Three.js, aucun ADR à
+    rouvrir) — une pastille qui glisse n'est pas une galaxie qui naît. **Coûts assumés** : 1,37 Mo
+    repartent vers l'Accueil (différés, jamais bloquants pour le premier rendu, mais téléchargés),
+    une décision du matin révoquée le soir, une **troisième surface** montant `GalaxyCanvas` — donc
+    trois endroits à vérifier à chaque changement du canvas — et un garde-fou **plus faible**, une
+    liste blanche se rallongeant plus facilement qu'un zéro ne se franchit. Dette de mesure sur les
+    trois appareils **inchangée et plus pressante** : l'iPhone doit maintenant tenir la 3D sur sa
+    page d'entrée — Accepté (2026-07-31, soir)
+
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :

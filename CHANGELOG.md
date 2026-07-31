@@ -40,6 +40,34 @@ exactement `alpha(1)` dans cette méthode, n'expose pas `d3AlphaTarget`, et **r�
 positions sont donc **calculées** (arbre radial déterministe) et les nœuds **épinglés**, moteur
 neutralisé — le mécanisme déjà éprouvé par l'animation d'arrivée.
 
+**La galaxie revient sur l'Accueil**, et le §B du matin est **révoqué** — décision prise sur
+constat d'usage : voir la galaxie se construire donne à la page une vie qu'un compte statique ne
+donne pas, ce qui était déjà l'intention de l'addendum « Accueil vivant » écrit le même jour.
+
+- Le canvas n'est **jamais monté au premier rendu** : la carte statique est la première peinture,
+  le ciel arrive ensuite à `requestIdleCallback` (repli `setTimeout` — **Safari n'a pas
+  `requestIdleCallback`, et c'est le navigateur de l'iPhone et de l'iPad de Massimo**, donc le
+  repli est le cas courant). C'est ce qui sépare cette décision de la régression du 2026-07-28,
+  où le montage était immédiat et non voulu.
+- L'Accueil rend **le cerveau et les matières**, pas le graphe complet : **zéro requête de plus**
+  sur la page d'atterrissage, et c'est la même arrivée que `/galaxy`, réemployée.
+- 3D **contemplative** (`pointer-events-none`, `aria-hidden`) : toute la carte reste une seule
+  cible de clic. `prefers-reduced-motion` ou pas de WebGL → carte statique, point.
+- **Coût assumé** : 1,37 Mo repartent vers l'Accueil, différés mais téléchargés. Et une troisième
+  surface monte `GalaxyCanvas`.
+- `accueil.bundle.test.ts` **change de nature sans disparaître** : l'interdit d'`import()` devient
+  une **liste blanche**, les quatre autres cas sont inchangés, et un cas est **ajouté** (le point
+  de montage doit le faire en `import()`, jamais en synchrone). Ce qu'il protège encore, et qui
+  est l'essentiel : qu'un **troisième** point de montage n'apparaisse pas sans que personne ne le
+  voie — le mode exact de la régression de juillet.
+
+**Correctif en cours de chantier** : le rejeu ne se voyait pas se construire. Le graphe rendu se
+recalculait sur l'horloge, donc `graphData` était réassigné **60 fois par seconde**, et
+`three-forcegraph` fait `stop().alpha(1)` à chaque assignation — le graphe se réinitialisait en
+boucle. C'est le défaut même que l'addendum corrige, réintroduit par la porte de derrière. Un
+compte discret de nœuds nés sert désormais de clé, et un test-verrou pilote le temps à la main
+pour compter les réassignations.
+
 **Écarts doc/code consignés** : `graphData` n'est pas exposée sur le ref de
 `react-force-graph-3d` 1.29.1, ce qui rend inerte le déclouage du soleil dans `handleEngineStop`
 depuis le 2026-07-28 ; laissé en l'état, hors périmètre.

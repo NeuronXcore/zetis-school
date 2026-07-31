@@ -1,25 +1,50 @@
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import type { GalaxySubject } from "@zetis/types";
+import type { GalaxyEdge, GalaxyNode, GalaxySubject } from "@zetis/types";
+import { hasWebGL } from "@zetis/ui/galaxy";
 import { subjectIconFor } from "../../lib/subjectIcons";
 
-// Carte-bouton d'entrée vers `/galaxy`, sur l'Accueil (addendum ADR-0024 §B).
+// Carte d'entrée vers `/galaxy`, sur l'Accueil.
 //
-// Elle REMPLACE le canvas 3D posé ici le 2026-07-28. Trois jours d'usage ont montré que
-// l'Accueil était le mauvais endroit : c'est la page la plus visitée et la première peinte au
-// réveil de l'app, et elle chargeait 1,37 Mo (368 Ko gzip) pour une vue contemplative dont aucun
-// élément n'est la prochaine action de Massimo. Le coût n'est pas atténué ici, il est ANNULÉ —
-// la galaxie se paie à l'ouverture de `/galaxy`, ce qui est sa raison d'être.
+// ── Histoire de cette carte, en trois temps ────────────────────────────────────────────
 //
-// ⚠️ CONTRAINTE FERME : ZÉRO import de `@zetis/ui/galaxy/canvas`, direct ou transitif. Un test
-// de budget de bundle le vérifie (`accueil.bundle.test.ts`) — sans lui la régression reviendrait
-// sans bruit, comme les 3,6 Mo mesurés en juillet quand le canvas passait par le baril.
+// 2026-07-28 : un canvas 3D est posé ici. Il coûte 1,37 Mo (368 Ko gzip) sur la page la plus
+// visitée, celle qui est peinte la première au réveil de l'app.
+//
+// 2026-07-31 matin (addendum ADR-0024 §B) : le canvas est RETIRÉ, remplacé par cette carte en
+// CSS pur. Le coût n'est pas atténué, il est annulé.
+//
+// 2026-07-31 soir (addendum « la galaxie revient sur l'Accueil ») : le §B est RÉVOQUÉ. Le motif
+// n'est pas technique — voir une galaxie se construire donne à la page une vie qu'un compte
+// statique ne donne pas, et c'est l'intention même de l'addendum « Accueil vivant » écrit le
+// même jour. Le coût est ASSUMÉ, pas découvert.
+//
+// ⚠️ CE QUI N'EST PAS REVENU AVEC : le canvas n'est plus monté au premier rendu. La carte
+// statique ci-dessous EST la première peinture ; le canvas arrive après, une fois la page à
+// l'écran, et se glisse derrière. Massimo voit sa page tout de suite, puis sa galaxie se
+// construit. C'est ce qui distingue cette décision de la régression du 28, où le montage était
+// immédiat et non voulu.
+//
+// ⚠️ La 3D ici est CONTEMPLATIVE : `pointer-events-none`. Toute la carte reste une seule cible
+// de clic vers `/galaxy` — viser un lien de fin de carte est un geste de précision inutile sur
+// iPhone, et un drag de nœud dans un lien déclencherait la navigation au relâchement.
 //
 // Contrat FERMÉ, par héritage de l'ADR-0024 §5 : un COMPTE d'étoiles allumées, des pastilles de
-// matières en CSS pur. Aucun pourcentage, aucun classement de matières, aucune couleur d'échec,
-// aucune notion nommée comme manquante, aucun `mastery_score`.
+// matières. Aucun pourcentage, aucun classement de matières, aucune couleur d'échec, aucune
+// notion nommée comme manquante, aucun `mastery_score`.
+
+// ⚠️ Le sous-chemin `/canvas` est indispensable : importer depuis `@zetis/ui/galaxy` (le baril
+// léger) embarquerait Three.js dans le bundle de départ malgré le `lazy()` — 3,6 Mo mesurés en
+// juillet. `accueil.bundle.test.ts` interdit toujours toute forme SYNCHRONE.
+const GalaxyCanvas = lazy(() =>
+  import("@zetis/ui/galaxy/canvas").then((m) => ({ default: m.GalaxyCanvas })),
+);
 
 /** Pastilles affichées au maximum : au-delà, la ligne se replierait et la carte grandirait. */
 const MAX_PLANETS = 6;
+
+/** Hauteur du ciel, sur l'Accueil. Assez pour lire une galaxie, pas assez pour manger la page. */
+const SKY_HEIGHT = 190;
 
 export interface HomeGalaxyCardProps {
   /** `null` tant que l'appel n'a pas répondu — la carte n'est alors pas rendue par la page. */
@@ -34,6 +59,52 @@ export function HomeGalaxyCard({ subjects }: HomeGalaxyCardProps) {
   // Une matière sans rien de validé n'a pas de constellation : sa pastille n'irait nulle part.
   const planets = subjects.filter((subject) => subject.total > 0).slice(0, MAX_PLANETS);
 
+  // ── Le ciel, monté APRÈS la première peinture ──────────────────────────────────────
+  //
+  // `requestIdleCallback` plutôt qu'un montage direct : la carte statique s'affiche d'abord,
+  // le navigateur finit son travail d'atterrissage, et le chunk 3D ne part qu'ensuite. Sans
+  // ce report, on retomberait exactement sur la régression du 2026-07-28.
+  const [reduced] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
+  );
+  const [sky, setSky] = useState(false);
+  useEffect(() => {
+    // Mouvement réduit → la carte reste ce qu'elle était. Pas de 3D, pas de rotation : ce n'est
+    // pas un réglage de confort (ADR-0024 §6). Sans WebGL non plus, évidemment.
+    if (reduced || !hasWebGL()) return;
+    const idle = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    if (idle) {
+      const handle = idle(() => setSky(true), { timeout: 1500 });
+      return () => (window as any).cancelIdleCallback?.(handle);
+    }
+    // Safari n'a pas `requestIdleCallback` — et c'est le navigateur de l'iPhone et de l'iPad
+    // de Massimo, donc le repli n'est pas un cas de bord ici, c'est le cas courant.
+    const timer = window.setTimeout(() => setSky(true), 600);
+    return () => window.clearTimeout(timer);
+  }, [reduced]);
+
+  /**
+   * Le cerveau et les matières — rien d'autre.
+   *
+   * Construit à partir des matières DÉJÀ chargées par la page : aucune requête de plus sur la
+   * page d'atterrissage. C'est la même composition que la vue par défaut de `/galaxy`, donc la
+   * même animation d'arrivée, sans avoir à connaître le graphe complet.
+   */
+  const graph = useMemo(() => {
+    const nodes: GalaxyNode[] = [{ id: "root", kind: "root", label: "ZETIS" }];
+    const edges: GalaxyEdge[] = [];
+    for (const subject of subjects) {
+      const id = `subject-${subject.subject_id}`;
+      nodes.push({ id, kind: "subject", label: subject.name, subject_slug: subject.slug });
+      edges.push({ source: "root", target: id, type: "structure" });
+    }
+    return { nodes, edges };
+  }, [subjects]);
+
   return (
     <Link
       to="/galaxy"
@@ -43,7 +114,8 @@ export function HomeGalaxyCard({ subjects }: HomeGalaxyCardProps) {
       aria-label={`Ma galaxie : ${lit} étoiles allumées — ouvrir`}
     >
       {/* Étoiles décoratives, en CSS pur. `motion-reduce` les fige : elles scintillent pour
-          faire joli, jamais pour porter une information. */}
+          faire joli, jamais pour porter une information. Elles restent SOUS le ciel 3D : quand
+          il arrive, elles font le fond lointain. */}
       <span aria-hidden className="pointer-events-none absolute inset-0">
         {STARS.map((star, i) => (
           <span
@@ -54,52 +126,78 @@ export function HomeGalaxyCard({ subjects }: HomeGalaxyCardProps) {
         ))}
       </span>
 
-      <p className="text-xs font-semibold uppercase tracking-wide text-zetis-accent-2">
-        Ma galaxie
-      </p>
-
-      <p className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-bold tabular-nums">{lit}</span>
-        <span className="text-sm">étoile{lit > 1 ? "s" : ""} allumée{lit > 1 ? "s" : ""}</span>
-      </p>
-
-      {/* Zéro étoile n'est PAS un état vide : une galaxie qui n'a pas encore commencé est le
-          point de départ normal (rentrée, premier jour). Pas d'`EmptyState`, pas d'erreur. */}
-      <p className="mt-1 text-sm text-zetis-muted">
-        {lit === 0
-          ? "Ta galaxie t'attend : chaque notion travaillée allume une étoile."
-          : "Chaque notion travaillée allume une étoile."}
-      </p>
-
-      {planets.length > 0 && (
-        // Chaque pastille porte SON COMPTE depuis le 2026-07-31 (addendum « Accueil vivant » §C).
-        // Un COMPTE, jamais un pourcentage ; l'ordre est celui du programme, PAS un classement —
-        // trier par `lit` transformerait la carte en palmarès de matières, que l'ADR-0024 §5
-        // interdit.
-        <ul className="mt-4 flex flex-wrap gap-2" aria-hidden>
-          {planets.map((subject) => {
-            const icon = subjectIconFor(subject.slug);
-            return (
-              <li
-                key={subject.slug}
-                // Pictogramme de marque, JAMAIS un emoji (design-system.md §Pictogrammes).
-                className="flex items-center gap-1.5 rounded-full border border-zetis-border bg-zetis-surface-2 py-1 pl-1 pr-2.5 text-xs font-bold"
-              >
-                {icon ? (
-                  <img src={icon} alt="" className="h-6 w-6 rounded-full object-cover" />
-                ) : (
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-zetis-surface text-[10px] text-zetis-muted">
-                    {subject.name.charAt(0).toUpperCase()}
-                  </span>
-                )}
-                <span className="text-zetis-muted">{subject.lit}</span>
-              </li>
-            );
-          })}
-        </ul>
+      {/* Le ciel. `aria-hidden` et `pointer-events-none` : c'est du décor animé, et tout ce
+          qu'il montre est déjà dit en toutes lettres par le compte et les pastilles. */}
+      {sky && graph.nodes.length > 1 && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 opacity-70"
+          style={{ height: SKY_HEIGHT }}
+        >
+          <Suspense fallback={null}>
+            <GalaxyCanvas
+              nodes={graph.nodes}
+              edges={graph.edges}
+              layout="orbit"
+              // Portée distincte : sans elle, l'Accueil consommerait l'arrivée de `/galaxy`,
+              // qui s'afficherait alors composée d'emblée.
+              arrivalScope="accueil"
+              height={SKY_HEIGHT}
+            />
+          </Suspense>
+        </span>
       )}
 
-      <p className="mt-4 text-sm font-bold text-zetis-accent-2">Ouvrir ma galaxie →</p>
+      {/* Le contenu passe AU-DESSUS du ciel : positionné, et postérieur dans le DOM. Sans
+          ça, un canvas à 70 % d'opacité laverait le compte et les pastilles. */}
+      <span className="relative block">
+        <p className="text-xs font-semibold uppercase tracking-wide text-zetis-accent-2">
+          Ma galaxie
+        </p>
+
+        <p className="mt-2 flex items-baseline gap-2">
+          <span className="text-3xl font-bold tabular-nums">{lit}</span>
+          <span className="text-sm">étoile{lit > 1 ? "s" : ""} allumée{lit > 1 ? "s" : ""}</span>
+        </p>
+
+        {/* Zéro étoile n'est PAS un état vide : une galaxie qui n'a pas encore commencé est le
+            point de départ normal (rentrée, premier jour). Pas d'`EmptyState`, pas d'erreur. */}
+        <p className="mt-1 text-sm text-zetis-muted">
+          {lit === 0
+            ? "Ta galaxie t'attend : chaque notion travaillée allume une étoile."
+            : "Chaque notion travaillée allume une étoile."}
+        </p>
+
+        {planets.length > 0 && (
+          // Chaque pastille porte SON COMPTE depuis le 2026-07-31 (addendum « Accueil vivant » §C).
+          // Un COMPTE, jamais un pourcentage ; l'ordre est celui du programme, PAS un classement —
+          // trier par `lit` transformerait la carte en palmarès de matières, que l'ADR-0024 §5
+          // interdit.
+          <ul className="mt-4 flex flex-wrap gap-2" aria-hidden>
+            {planets.map((subject) => {
+              const icon = subjectIconFor(subject.slug);
+              return (
+                <li
+                  key={subject.slug}
+                  // Pictogramme de marque, JAMAIS un emoji (design-system.md §Pictogrammes).
+                  className="flex items-center gap-1.5 rounded-full border border-zetis-border bg-zetis-surface-2 py-1 pl-1 pr-2.5 text-xs font-bold"
+                >
+                  {icon ? (
+                    <img src={icon} alt="" className="h-6 w-6 rounded-full object-cover" />
+                  ) : (
+                    <span className="grid h-6 w-6 place-items-center rounded-full bg-zetis-surface text-[10px] text-zetis-muted">
+                      {subject.name.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="text-zetis-muted">{subject.lit}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <p className="mt-4 text-sm font-bold text-zetis-accent-2">Ouvrir ma galaxie →</p>
+      </span>
     </Link>
   );
 }

@@ -70,6 +70,19 @@ faisait pas partie.
 
 ### B. L'Accueil rend une **carte-bouton statique** — l'amendement du 2026-07-28 est révoqué
 
+> ⚠️ **CE §B EST LUI-MÊME RÉVOQUÉ**, le soir du même jour, par
+> `adr-0024-addendum-galaxie-sur-accueil.md`. La galaxie **revient sur l'Accueil** : voir la
+> galaxie se construire donne à la page une vie qu'un compte statique ne donne pas — ce qui est
+> l'intention de l'addendum « Accueil vivant », écrit le matin même. Deux décisions du même jour
+> tiraient en sens inverse.
+>
+> **Ce qui survit de ce §B**, et qui n'est pas jeté avec lui : un montage 3D **immédiat** sur la
+> page d'atterrissage reste indéfendable. Le canvas revient **différé** (`requestIdleCallback`,
+> repli `setTimeout`), derrière la carte statique qui reste la **première peinture**. Le test de
+> budget change de nature — liste blanche au lieu de zéro — mais ne disparaît pas.
+>
+> Ce qui suit décrit l'état **d'avant**.
+
 Le `GalaxyCanvas` et la frise de progression **quittent l'Accueil**. À leur place, une carte
 d'entrée dont le contrat est fermé :
 

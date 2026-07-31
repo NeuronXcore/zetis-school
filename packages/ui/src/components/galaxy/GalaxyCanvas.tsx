@@ -89,6 +89,14 @@ export interface GalaxyCanvasProps {
    * le cœur était à moitié enseveli.
    */
   layout?: "force" | "orbit";
+  /**
+   * Portée du « une fois par visite » de l'animation d'arrivée.
+   *
+   * Deux surfaces montent la vue en orbite — `/galaxy` et la carte d'Accueil — et elles ne
+   * doivent pas se voler leur arrivée : sans portée distincte, ouvrir l'Accueil consommerait
+   * celle de `/galaxy`, qui s'afficherait alors composée d'emblée.
+   */
+  arrivalScope?: string;
   height?: number;
 }
 
@@ -116,18 +124,18 @@ const RING_OPACITY = 0.16;
  */
 const ARRIVAL_KEY = "zetis.galaxy.arrival";
 
-function arrivalAlreadyPlayed(): boolean {
+function arrivalAlreadyPlayed(scope: string): boolean {
   try {
-    return window.sessionStorage?.getItem(ARRIVAL_KEY) === "1";
+    return window.sessionStorage?.getItem(`${ARRIVAL_KEY}.${scope}`) === "1";
   } catch {
     // Navigation privée, stockage refusé : on rejoue l'arrivée plutôt que de planter.
     return false;
   }
 }
 
-function rememberArrival(): void {
+function rememberArrival(scope: string): void {
   try {
-    window.sessionStorage?.setItem(ARRIVAL_KEY, "1");
+    window.sessionStorage?.setItem(`${ARRIVAL_KEY}.${scope}`, "1");
   } catch {
     /* sans stockage, l'arrivée rejouera — c'est le défaut le moins grave. */
   }
@@ -162,6 +170,7 @@ export function GalaxyCanvas({
   matchedIds = null,
   layout = "force",
   pinned = null,
+  arrivalScope = "galaxy",
   height = 540,
 }: GalaxyCanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -760,12 +769,12 @@ export function GalaxyCanvas({
 
     // `prefers-reduced-motion` → composition finale immédiate, aucun trajet. Idem au retour
     // d'une constellation : l'arrivée ne joue qu'UNE FOIS PAR VISITE.
-    if (reduced || arrivalRef.current || arrivalAlreadyPlayed()) {
+    if (reduced || arrivalRef.current || arrivalAlreadyPlayed(arrivalScope)) {
       settle();
       return;
     }
     arrivalRef.current = true;
-    rememberArrival();
+    rememberArrival(arrivalScope);
 
     const total = arrivalDuration(planets.length);
     const apply = (elapsed: number) => {
@@ -802,7 +811,7 @@ export function GalaxyCanvas({
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [layout, width, data, orbits, reduced]);
+  }, [layout, width, data, orbits, reduced, arrivalScope]);
 
   // ── La naissance d'une étoile, depuis son parent (addendum ADR-0029 §2 réécrit) ─────
   //

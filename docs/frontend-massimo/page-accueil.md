@@ -161,6 +161,21 @@ défiler ; il n'y a plus de barre de lecture, seulement un bouton « Revoir ».
 Elle n'a jamais été une barre de lecture ici, et elle ne le devient pas : c'est dans la modale,
 et seulement là, qu'elle se trace en synchronisation avec les étoiles.
 
+⚠️ **La carte porte un ciel 3D depuis le 2026-07-31 au soir**
+(`adr-0024-addendum-galaxie-sur-accueil.md`, qui **révoque le §B** du matin). Le cerveau et les
+matières s'y construisent — la même arrivée que `/galaxy`, avec les matières **déjà chargées par
+la page**, donc **aucune requête de plus**.
+
+Trois conditions, qui sont la décision elle-même :
+
+- le canvas n'est **jamais monté au premier rendu** — la carte statique est la première peinture,
+  le ciel arrive à `requestIdleCallback` (repli `setTimeout` : **Safari ne l'a pas**, et c'est le
+  navigateur de l'iPhone et de l'iPad) ;
+- la 3D est **contemplative** — `pointer-events-none`, `aria-hidden` : toute la carte reste une
+  seule cible de clic, et un drag de nœud dans un lien déclencherait la navigation au
+  relâchement ;
+- `prefers-reduced-motion` ou pas de WebGL → **carte statique, point**.
+
 ⚠️ **`GalaxyReplayModal` ne doit JAMAIS être importée statiquement par l'Accueil.** Elle est
 montée en `lazy()`, et charge elle-même le canvas en `lazy()`. Ce **double `lazy()`** est ce qui
 garde l'Accueil à **zéro Three.js au premier paint** : `accueil.bundle.test.ts` ne parcourt que
