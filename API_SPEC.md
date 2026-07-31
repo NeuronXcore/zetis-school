@@ -1122,7 +1122,11 @@ jamais un pourcentage (aucun score par matière, ADR-0024 §5).
 
 ### GET `/student/galaxy/all`
 
-**Toutes** les matières dans un seul graphe (Accueil) : `root` → matières → chapitres → notions.
+**Toutes** les matières dans un seul graphe : `root` → matières → chapitres → notions.
+
+> **Consommateur changé le 2026-07-31** (addendum ADR-0024 §C) : cette route alimentait l'aperçu
+> de l'**Accueil**, elle alimente désormais la **vue par défaut de `/galaxy`**. **Contrat
+> inchangé** — rien n'est ajouté, rien n'est retiré, aucune migration.
 
 Le nœud `root` n'est pas décoratif : sans lui chaque matière forme une composante **isolée** que
 le moteur de forces éloigne, et la galaxie se disloque. Chaque nœud porte son `subject_slug`, ce

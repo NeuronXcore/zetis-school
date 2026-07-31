@@ -12,9 +12,16 @@
 ## 1. Objet
 
 ZETIS Galaxy est la représentation animée des connaissances de Massimo, pensée pour motiver.
-Elle **devient le contenu de la page Progression** (`/progression`) : même route, même entrée de
-sidebar. Ce n'est pas une page de plus, c'est la page existante qui change de forme — et qui perd
-au passage sa section « par matière » aujourd'hui **mockée**.
+Elle **devient le contenu de la page Progression** : même entrée de sidebar, même position. Ce
+n'est pas une page de plus, c'est la page existante qui change de forme — et qui perd au passage
+sa section « par matière » aujourd'hui **mockée**.
+
+> **Route renommée le 2026-07-31** (addendum ADR-0024 §A) : `/progression` est devenue
+> **`/galaxy`**, et le libellé de sidebar **« Ma Galaxie »**, à la même position. L'URL et le
+> libellé décrivaient encore l'ancien contenu, alors que cette page ne mesure plus rien.
+> `/progression` ne survit qu'en **redirection permanente**, jamais en page. La surface de
+> progression reste **unique** — c'est ce que l'ADR-0024 protégeait ; le nom n'en faisait pas
+> partie.
 
 ## 2. Métaphore et cadrage
 
@@ -172,9 +179,10 @@ Réutiliser les résolveurs déjà écrits, ne pas en refaire :
 
 ## 7. Accès
 
-1. **L'onglet Progression** — accès principal, il existe déjà.
+1. **L'onglet « Ma Galaxie »** — accès principal, il existe déjà (renommé le 2026-07-31, même
+   position).
 2. **Le bandeau XP** (`MassimoBannerHeader.tsx`, présent sur toutes les pages) devient
-   **cliquable** → `/progression`. Coût quasi nul.
+   **cliquable** → `/galaxy`. Coût quasi nul.
 3. **Hors v1** : l'aperçu sur l'Accueil et l'annonce discrète « +1 étoile » en fin de mission.
    Bonnes idées, mais elles touchent deux autres pages — cf. §13.
 
@@ -208,7 +216,7 @@ précis) ; l'iPhone est la **contrainte** à honorer, pas la cible unique.
 ## 10. Techno
 
 - **`react-force-graph-3d`** (Three.js encapsulé), chargé en **`lazy()`** sur la seule page
-  `/progression`. Il fournit nativement le rendu 3D animé, le drag de nœud avec élasticité des
+  `/galaxy`. Il fournit nativement le rendu 3D animé, le drag de nœud avec élasticité des
   liens, `onNodeClick`, le halo par nœud et la caméra orbitale.
 - Composant **`@zetis/ui/galaxy`**, exporté en **sous-chemin** — exactement la raison pour laquelle
   React Flow n'est pas ré-exporté à la racine de `packages/ui` (`package.json:9-12`) : ne pas
@@ -294,14 +302,19 @@ précis) ; l'iPhone est la **contrainte** à honorer, pas la cible unique.
 
 `docs/frontend-massimo/navigation.md` vient du même stash et **n'est pas réconcilié**. Il décrit une
 navigation à 5 verbes et interdit un onglet Progression. Le code en a 12 depuis quatre semaines, et
-Progression **est** un onglet. **L'existant prime** (ADR-0024). Réconcilier `navigation.md` est un
-autre chantier, resté au `BACKLOG.md`.
+cet onglet **existe** — il s'appelle « Ma Galaxie » depuis le 2026-07-31. **L'existant prime**
+(ADR-0024). Réconcilier `navigation.md` est un autre chantier, resté au `BACKLOG.md` : il
+contredisait déjà l'existant sur l'onglet, il le contredit désormais aussi sur son nom.
 
 ## 13. Hors v1 (explicite)
 
 - Graphe de **prérequis** entre notions — la donnée n'existe pas, la créer est un chantier
   pédagogique en soi.
 - **Aperçu sur l'Accueil** et **annonce « +1 étoile »** en fin de mission.
+  > Cette ligne a été **contredite sans être corrigée** par l'amendement du 2026-07-28, qui a posé
+  > un graphe global 3D sur l'Accueil. L'addendum du 2026-07-31 **révoque** cet amendement, et la
+  > slice B l'a appliqué : `HomeGalaxyPreview` est **supprimé**, l'Accueil rend une carte-bouton
+  > statique. La ligne **redevient exacte, dans le document comme dans le code**.
 - **Animation temps réel** poussée par un événement.
 - Persistance des positions de nœuds.
 - Toute agrégation par matière autre qu'un **compte** d'étoiles allumées.

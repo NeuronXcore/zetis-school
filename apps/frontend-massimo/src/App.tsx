@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { RequireAuth } from "@zetis/auth";
 import { MassimoLayout } from "./layouts/MassimoLayout";
 import { LoginPage } from "./pages/LoginPage";
@@ -20,7 +20,7 @@ import { MindmapsPage } from "./pages/MindmapsPage";
 import { MindmapSubjectPage } from "./pages/MindmapSubjectPage";
 import { CapsulesIAPage } from "./pages/CapsulesIAPage";
 import { MissionsPage } from "./pages/MissionsPage";
-import { ProgressionPage } from "./pages/ProgressionPage";
+import { GalaxyPage } from "./pages/GalaxyPage";
 import { ChatPage } from "./pages/ChatPage";
 
 // Routes Massimo (Étape 7) : login public + espace protégé avec les premières pages.
@@ -55,7 +55,12 @@ export default function App() {
         <Route path="/mindmaps/reconstruire/:mindmapId" element={<MindmapSubjectPage />} />
         <Route path="/mindmaps/:slug" element={<MindmapSubjectPage />} />
         <Route path="/capsules" element={<CapsulesIAPage />} />
-        <Route path="/progression" element={<ProgressionPage />} />
+        <Route path="/galaxy" element={<GalaxyPage />} />
+        {/* Renommage (addendum ADR-0024 §A) : `/progression` était un mot d'adulte hérité du
+            mock que cette page a remplacé. C'est un RENOMMAGE, pas un ajout — `/progression`
+            n'est plus JAMAIS une page, seulement une redirection permanente, pour que les liens
+            et les signets antérieurs au 2026-07-31 ne cassent pas. */}
+        <Route path="/progression" element={<Navigate to="/galaxy" replace />} />
         <Route path="/quiz" element={<QuizPage />} />
         <Route path="/quiz/session" element={<QuizSessionPage />} />
         <Route path="/missions" element={<MissionsPage />} />

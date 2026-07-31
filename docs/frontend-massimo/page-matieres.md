@@ -23,7 +23,7 @@ dans le style visuel du login (glassmorphique / néon).
 > pas dans la page Matières.
 
 1. **Bandeau « Progression globale »** : niveau, XP, barre vers le niveau suivant,
-   bouton « Voir ma progression → » (vers `/progression`).
+   bouton « Voir ma galaxie → » (vers `/galaxy`).
 2. **Carte « Capsule IA dispo »** (mise en avant) : notion, durée, matière, bouton « Regarder ».
 3. **Grille des 8 matières**.
 4. **Bande « Cette semaine »** : série en cours, objectifs de la semaine (mini-barre),
@@ -55,6 +55,6 @@ Clic sur une carte → page dédiée `/subjects/:slug`.
 
 ## Liens (routes réelles uniquement)
 
-- « Voir ma progression → » → `/progression`.
+- « Voir ma galaxie → » → `/galaxy` (renommée le 2026-07-31, addendum ADR-0024 §A).
 - Clic matière → `/subjects/:slug`.
 - « Regarder » (capsule) → `/capsules` (pas de route de lecture par capsule ; repli signalé).

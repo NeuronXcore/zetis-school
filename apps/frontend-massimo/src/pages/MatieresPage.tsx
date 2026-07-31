@@ -45,8 +45,8 @@ function GlobalProgress({ progression }: { progression: Progression }) {
             {progression.level + 1}
           </p>
         </div>
-        <Link to="/progression" className={NEON_BUTTON}>
-          Voir ma progression →
+        <Link to="/galaxy" className={NEON_BUTTON}>
+          Voir ma galaxie →
         </Link>
       </div>
       <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">

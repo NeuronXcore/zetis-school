@@ -35,7 +35,9 @@ export const MASSIMO_NAV: NavItem[] = [
   { to: "/fiches", label: "Fiches", icon: "🗂️" },
   // Icône de marque quiz.png (comme ELI5/SRS) ; repli emoji ✅ si l'asset manque.
   { to: "/quiz", label: "Quiz", icon: "✅", image: quizIcon },
-  { to: "/progression", label: "Progression", icon: "📈" },
+  // « Ma Galaxie » à la MÊME position qu'avant (addendum ADR-0024 §A) : le renommage ne doit pas
+  // se transformer en 6ᵉ onglet, ce que l'ADR-0024 §1 interdit. Le nombre d'entrées ne bouge pas.
+  { to: "/galaxy", label: "Ma Galaxie", icon: "🌌" },
   { to: "/missions", label: "Missions", icon: "🎯" },
   { to: "/chat", label: "Chat ZETIS", icon: "💬" },
 ];

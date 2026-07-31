@@ -1,11 +1,27 @@
-// État de la page Progression / ZETIS Galaxy (ADR-0024).
+// État de la page « Ma Galaxie » (`/galaxy`) — ZETIS Galaxy (ADR-0024).
 //
-// Deux écrans (vue d'ensemble → constellation) + le panneau d'actions d'une notion.
+// Deux écrans (galaxie complète → constellation) + le panneau d'actions d'une notion.
 // `Promise.allSettled` et jamais `all` : une source en panne ne doit pas emporter la page —
 // Massimo doit toujours voir sa progression, même dégradée.
+//
+// `fullGraph` et `timeline` sont arrivés ici le 2026-07-31 (addendum ADR-0024 §C) : ils
+// alimentaient l'aperçu de l'Accueil, qui a été révoqué. La brique n'a pas été supprimée, elle
+// a CHANGÉ D'ADRESSE — c'est son emplacement qui était faux, pas son contenu.
 import { useCallback, useEffect, useState } from "react";
-import type { GalaxyConstellation, GalaxyNotion, GalaxySubject } from "@zetis/types";
-import { fetchConstellation, fetchGalaxyOverview, fetchNotionPanel } from "../lib/galaxy";
+import type {
+  GalaxyConstellation,
+  GalaxyFullGraph,
+  GalaxyNotion,
+  GalaxySubject,
+  GalaxyTimeline,
+} from "@zetis/types";
+import {
+  fetchConstellation,
+  fetchFullGraph,
+  fetchGalaxyOverview,
+  fetchGalaxyTimeline,
+  fetchNotionPanel,
+} from "../lib/galaxy";
 import {
   type GamificationSummary,
   fetchGamificationSummary,
@@ -14,6 +30,11 @@ import { fetchWelcome } from "../lib/motivation";
 
 export interface GalaxyState {
   subjects: GalaxySubject[] | null;
+  /** La galaxie COMPLÈTE, toutes matières (`root` → matières → chapitres → notions) : c'est la
+   *  vue par défaut de `/galaxy` depuis le 2026-07-31 (addendum ADR-0024 §C). */
+  fullGraph: GalaxyFullGraph | null;
+  /** Frise de progression, MONOTONE par construction — elle ne peut que monter. */
+  timeline: GalaxyTimeline | null;
   summary: GamificationSummary | null;
   consolidated: number | null;
   constellation: GalaxyConstellation | null;
@@ -28,6 +49,8 @@ export interface GalaxyState {
 
 export function useGalaxy(): GalaxyState {
   const [subjects, setSubjects] = useState<GalaxySubject[] | null>(null);
+  const [fullGraph, setFullGraph] = useState<GalaxyFullGraph | null>(null);
+  const [timeline, setTimeline] = useState<GalaxyTimeline | null>(null);
   const [summary, setSummary] = useState<GamificationSummary | null>(null);
   const [consolidated, setConsolidated] = useState<number | null>(null);
   const [constellation, setConstellation] = useState<GalaxyConstellation | null>(null);
@@ -37,18 +60,25 @@ export function useGalaxy(): GalaxyState {
 
   useEffect(() => {
     let active = true;
-    Promise.allSettled([fetchGalaxyOverview(), fetchGamificationSummary(), fetchWelcome()]).then(
-      ([overview, gamification, welcome]) => {
-        if (!active) return;
-        if (overview.status === "fulfilled") setSubjects(overview.value.subjects);
-        // Pas d'année active → pas de galaxie, mais ce n'est pas une erreur à afficher :
-        // la page montre un état d'attente positif.
-        else setSubjects([]);
-        if (gamification.status === "fulfilled") setSummary(gamification.value);
-        if (welcome.status === "fulfilled")
-          setConsolidated(welcome.value.context.consolidated_this_week);
-      },
-    );
+    Promise.allSettled([
+      fetchGalaxyOverview(),
+      fetchGamificationSummary(),
+      fetchWelcome(),
+      fetchFullGraph(),
+      fetchGalaxyTimeline(),
+    ]).then(([overview, gamification, welcome, graph, frise]) => {
+      if (!active) return;
+      if (overview.status === "fulfilled") setSubjects(overview.value.subjects);
+      // Pas d'année active → pas de galaxie, mais ce n'est pas une erreur à afficher :
+      // la page montre un état d'attente positif.
+      else setSubjects([]);
+      if (gamification.status === "fulfilled") setSummary(gamification.value);
+      if (welcome.status === "fulfilled")
+        setConsolidated(welcome.value.context.consolidated_this_week);
+      // Une frise en panne ne doit pas emporter le graphe, ni l'inverse.
+      if (graph.status === "fulfilled") setFullGraph(graph.value);
+      if (frise.status === "fulfilled") setTimeline(frise.value);
+    });
     return () => {
       active = false;
     };
@@ -82,6 +112,8 @@ export function useGalaxy(): GalaxyState {
 
   return {
     subjects,
+    fullGraph,
+    timeline,
     summary,
     consolidated,
     constellation,

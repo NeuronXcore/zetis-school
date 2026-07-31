@@ -56,7 +56,7 @@ export function NotionActionPanel({ notion, onClose }: NotionActionPanelProps) {
             state: {
               quiz,
               label: `${notion.subject_name} · ${notion.name}`,
-              returnTo: "/progression",
+              returnTo: "/galaxy",
             },
           });
         } catch {
