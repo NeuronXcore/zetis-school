@@ -49,8 +49,14 @@ donne pas, ce qui était déjà l'intention de l'addendum « Accueil vivant » �
   `requestIdleCallback`, et c'est le navigateur de l'iPhone et de l'iPad de Massimo**, donc le
   repli est le cas courant). C'est ce qui sépare cette décision de la régression du 2026-07-28,
   où le montage était immédiat et non voulu.
-- L'Accueil rend **le cerveau et les matières**, pas le graphe complet : **zéro requête de plus**
-  sur la page d'atterrissage, et c'est la même arrivée que `/galaxy`, réemployée.
+- L'Accueil rend la **croissance complète**, étoile par étoile — la même que la modale, via un
+  hook partagé (`useGalaxyGrowth`), et **rejouée à chaque visite de la page**. Une première
+  version ne montrait que le cerveau et les matières, pour économiser deux requêtes : livré puis
+  regardé, ça ne faisait pas l'effet, et l'animation ne jouant qu'une fois par session la page
+  redevenait inerte dès la deuxième visite. Corrigé au vu du rendu.
+- **Coût révisé** : deux requêtes de plus (`galaxy/all` et la frise), tirées **après la première
+  peinture**, en même temps que le chunk 3D. La page d'atterrissage ne paie toujours **rien**
+  avant d'être lisible — et un test le vérifie.
 - 3D **contemplative** (`pointer-events-none`, `aria-hidden`) : toute la carte reste une seule
   cible de clic. `prefers-reduced-motion` ou pas de WebGL → carte statique, point.
 - **Coût assumé** : 1,37 Mo repartent vers l'Accueil, différés mais téléchargés. Et une troisième

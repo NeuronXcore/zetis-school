@@ -1,7 +1,8 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import type { GalaxyFullGraph, GalaxyTimeline } from "@zetis/types";
-import { hasWebGL, litCountAt, radialTreeLayout, revealSchedule } from "@zetis/ui/galaxy";
+import { hasWebGL } from "@zetis/ui/galaxy";
 import { fetchFullGraph, fetchGalaxyTimelineWithSkills } from "../../lib/galaxy";
+import { useGalaxyGrowth } from "../../hooks/useGalaxyGrowth";
 import { CloseFullscreenButton } from "../galaxy/CloseFullscreenButton";
 import { ProgressSparkline } from "../galaxy/ProgressSparkline";
 
@@ -45,10 +46,6 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
   );
-  /** Instant du rejeu, en ms de RANG. `null` tant qu'il n'y a rien à construire. */
-  const [elapsed, setElapsed] = useState<number | null>(null);
-  /** Incrémenté par « Revoir » : c'est ce qui relance la construction. */
-  const [run, setRun] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -74,113 +71,10 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
     };
   }, [onClose]);
 
-  /** Les notions dans l'ordre de leur PREMIÈRE fois — c'est l'ordre de la construction. */
-  const orderedSkillIds = useMemo(
-    () => (timeline?.skills ?? []).map((s) => `skill-${s.skill_id}`),
-    [timeline],
-  );
-
-  /** Qui descend de qui : sert à DÉRIVER la naissance des ancêtres côté client. Une matière
-   *  naît avec sa première notion — aucun appel réseau de plus, `?with_skills=true` suffit. */
-  const parentOf = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const edge of graph?.edges ?? []) {
-      if (!map.has(edge.target)) map.set(edge.target, edge.source);
-    }
-    return map;
-  }, [graph]);
-
-  const schedule = useMemo(
-    () => revealSchedule(orderedSkillIds, parentOf),
-    [orderedSkillIds, parentOf],
-  );
-
-  /** L'arbre radial du graphe COMPLET, calculé une fois. Déterministe : la galaxie de Massimo
-   *  se construit de la même façon à chaque visite, sinon ce n'est pas la sienne. */
-  const pinned = useMemo(
-    () => (graph ? radialTreeLayout(graph.nodes.map((n) => n.id), graph.edges) : null),
-    [graph],
-  );
-
-  // L'horloge de rang. Le §6 de l'addendum REFORMULE l'interdit d'autoplay : il visait
-  // l'animation subie sur la page d'atterrissage. Dans une modale que Massimo vient d'ouvrir
-  // exprès, le démarrage immédiat EST l'objet du clic.
-  const rafRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!graph || orderedSkillIds.length === 0) return;
-    if (reduced) {
-      setElapsed(schedule.total);
-      return;
-    }
-    setElapsed(0);
-    const start = performance.now();
-    const step = (now: number) => {
-      const value = now - start;
-      if (value >= schedule.total) {
-        setElapsed(schedule.total);
-        return;
-      }
-      setElapsed(value);
-      rafRef.current = requestAnimationFrame(step);
-    };
-    rafRef.current = requestAnimationFrame(step);
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [graph, orderedSkillIds, schedule, reduced, run]);
-
-  /**
-   * Combien de nœuds sont nés. Change par PALIERS — toutes les `STAR_CADENCE`, pas à chaque
-   * image.
-   *
-   * ⚠️ C'EST LA CLÉ DE TOUT LE REJEU, et son absence l'avait cassé net. `elapsed` avance à
-   * chaque frame ; si le graphe rendu se recalcule sur `elapsed`, on réassigne `graphData` 60
-   * fois par seconde — et `three-forcegraph` fait `stop().alpha(1)` à CHAQUE assignation. Le
-   * graphe passait sa vie à se réinitialiser et ne s'affichait jamais. C'est précisément le
-   * défaut que l'addendum décrit, réintroduit par la porte de derrière.
-   *
-   * En dérivant un compte discret, `shown` garde la même identité entre deux naissances, et la
-   * lib ne voit un changement de données que quand il y en a vraiment un.
-   */
-  const bornCount = useMemo(() => {
-    if (elapsed === null) return -1;
-    let count = 0;
-    for (const born of schedule.at.values()) {
-      if (born <= elapsed) count += 1;
-    }
-    return count;
-  }, [elapsed, schedule]);
-
-  // `elapsed` au moment du dernier palier — lu sans être une dépendance, pour que `shown` ne se
-  // recalcule qu'aux naissances.
-  const elapsedRef = useRef(0);
-  elapsedRef.current = elapsed ?? 0;
-  const started = elapsed !== null;
-
-  /** Le graphe à cet instant : ce qui n'est pas encore né est RETIRÉ, pas éteint. */
-  const shown = useMemo(() => {
-    if (!graph) return null;
-    if (!started || orderedSkillIds.length === 0) return graph;
-    const now = elapsedRef.current;
-    const keep = new Set<string>();
-    for (const [id, born] of schedule.at) {
-      if (born <= now) keep.add(id);
-    }
-    return {
-      nodes: graph.nodes.filter((n) => keep.has(n.id)),
-      edges: graph.edges.filter((e) => keep.has(e.source) && keep.has(e.target)),
-    };
-    // `elapsed` volontairement absent : c'est `bornCount` qui décide, et il ne bouge qu'aux
-    // paliers. Le relire ici rendrait le graphe instable à chaque image (voir ci-dessus).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph, bornCount, started, schedule, orderedSkillIds]);
-
-  const litCount =
-    elapsed === null || orderedSkillIds.length === 0
-      ? (graph?.nodes.filter((n) => n.kind === "skill").length ?? 0)
-      : litCountAt(orderedSkillIds, elapsed);
-
-  const done = elapsed === null || elapsed >= schedule.total;
+  // Toute la mécanique de croissance vit dans `useGalaxyGrowth`, partagée avec la carte
+  // d'Accueil depuis le 2026-07-31 au soir. Elle est pleine de pièges — le principal étant de
+  // ne PAS recalculer le graphe sur l'horloge — et on ne veut pas y retomber en la dupliquant.
+  const { shown, pinned, litCount, done, replay } = useGalaxyGrowth(graph, timeline, { reduced });
 
   return (
     <div
@@ -236,8 +130,8 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
           <div className="mt-2 flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setRun((r) => r + 1)}
-              disabled={!done || reduced || orderedSkillIds.length === 0}
+              onClick={replay}
+              disabled={!done || reduced || !timeline?.skills?.length}
               className="shrink-0 rounded-xl border border-zetis-border bg-zetis-surface px-4 py-2 text-sm font-bold hover:border-zetis-accent-2 disabled:opacity-40"
             >
               Revoir

@@ -76,18 +76,39 @@ geste de précision inutile sur iPhone. Et sans ça, un drag de nœud à l'inté
 Rien de ce que montre le ciel n'est une information que le texte ne dit pas déjà : c'est du décor
 animé, et il est annoncé comme tel aux lecteurs d'écran.
 
-### 4. Ce que l'Accueil rend : **le cerveau et les matières**, rien d'autre
+### 4. Ce que l'Accueil rend : la **croissance complète**, étoile par étoile
 
-Pas le graphe complet. Deux raisons, toutes deux dirimantes :
+> **Ce §4 a été CORRIGÉ dans la même session, au vu du rendu.** Première rédaction : « le cerveau
+> et les matières, rien d'autre », au motif qu'il n'y aurait ainsi **aucune requête de plus** et
+> qu'on réemploierait l'animation d'arrivée telle quelle. Livré, puis regardé : **ça ne fait pas
+> l'effet.** Deux planètes qui glissent dans une bande de 190 px ne sont pas une galaxie qui
+> grandit, et l'arrivée ne jouant qu'**une fois par session**, la page redevenait inerte dès la
+> deuxième visite — exactement ce que cet addendum voulait corriger. Le raisonnement était
+> économe et le résultat manquait la cible.
 
-- **Aucune requête de plus sur la page d'atterrissage.** Les matières sont **déjà chargées** par
-  la page ; le graphe complet demanderait un appel supplémentaire là où on cherche justement à
-  alléger.
-- C'est la **même composition** que la vue par défaut de `/galaxy`, donc la **même animation
-  d'arrivée** — celle livrée par l'addendum « Galaxie animée » §3. Aucune chorégraphie nouvelle.
+L'Accueil rend la **même construction que la modale** : les étoiles s'allument une par une depuis
+`root`, matières et chapitres naissant juste avant leur première notion.
 
-⚠️ **Portée de session distincte** (`accueil` / `galaxy`) : sans elle, ouvrir l'Accueil
-consommerait le « une fois par visite » de `/galaxy`, qui s'afficherait alors composé d'emblée.
+- **Une seule implémentation**, le hook `useGalaxyGrowth`, partagée avec la modale. Le rejeu est
+  plein de pièges déjà payés — le principal étant de **ne pas recalculer le graphe sur
+  l'horloge** — et les dupliquer serait les repayer.
+- **Elle rejoue à chaque montage de l'Accueil**, et c'est l'objet même de la décision : une
+  animation qui ne joue qu'une fois par session ne rend pas une page vivante.
+
+⚠️ **Tension assumée avec le §6 de l'addendum ADR-0029** (« aucune animation ne démarre sur une
+surface que Massimo n'a pas ouverte pour elle »). L'Accueil est l'**exception**, et elle est
+écrite ici pour ne pas être découverte comme une incohérence dans six mois. Ce qui rend
+l'exception tenable : le mouvement dure ~5 s, ne masque rien, ne demande rien, et n'a rien à
+fermer.
+
+⚠️ **Coût révisé : DEUX requêtes de plus** (`galaxy/all` et la frise avec `?with_skills=true`).
+Elles partent **après la première peinture**, en même temps que le chunk 3D, et ne retardent donc
+rien de ce que Massimo lit. La promesse « zéro requête de plus » de la première rédaction **ne
+tient plus** — elle est remplacée par « rien avant la première peinture », qui est vérifié par
+test.
+
+⚠️ **Portée de session distincte** (`accueil` / `galaxy`) : conservée pour l'animation d'arrivée
+de `/galaxy`, que l'Accueil ne doit pas consommer.
 
 ### 5. `prefers-reduced-motion` et absence de WebGL → **la carte statique, point**
 

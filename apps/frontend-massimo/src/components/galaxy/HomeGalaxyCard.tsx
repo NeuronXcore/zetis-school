@@ -1,7 +1,9 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { GalaxyEdge, GalaxyNode, GalaxySubject } from "@zetis/types";
+import type { GalaxyFullGraph, GalaxySubject, GalaxyTimeline } from "@zetis/types";
 import { hasWebGL } from "@zetis/ui/galaxy";
+import { fetchFullGraph, fetchGalaxyTimelineWithSkills } from "../../lib/galaxy";
+import { useGalaxyGrowth } from "../../hooks/useGalaxyGrowth";
 import { subjectIconFor } from "../../lib/subjectIcons";
 
 // Carte d'entrée vers `/galaxy`, sur l'Accueil.
@@ -43,8 +45,9 @@ const GalaxyCanvas = lazy(() =>
 /** Pastilles affichées au maximum : au-delà, la ligne se replierait et la carte grandirait. */
 const MAX_PLANETS = 6;
 
-/** Hauteur du ciel, sur l'Accueil. Assez pour lire une galaxie, pas assez pour manger la page. */
-const SKY_HEIGHT = 190;
+/** Hauteur du ciel, sur l'Accueil. Assez pour lire une galaxie qui pousse — 190 px ne
+ *  suffisaient pas, la construction s'y voyait à peine. */
+const SKY_HEIGHT = 260;
 
 export interface HomeGalaxyCardProps {
   /** `null` tant que l'appel n'a pas répondu — la carte n'est alors pas rendue par la page. */
@@ -87,23 +90,37 @@ export function HomeGalaxyCard({ subjects }: HomeGalaxyCardProps) {
     return () => window.clearTimeout(timer);
   }, [reduced]);
 
-  /**
-   * Le cerveau et les matières — rien d'autre.
-   *
-   * Construit à partir des matières DÉJÀ chargées par la page : aucune requête de plus sur la
-   * page d'atterrissage. C'est la même composition que la vue par défaut de `/galaxy`, donc la
-   * même animation d'arrivée, sans avoir à connaître le graphe complet.
-   */
-  const graph = useMemo(() => {
-    const nodes: GalaxyNode[] = [{ id: "root", kind: "root", label: "ZETIS" }];
-    const edges: GalaxyEdge[] = [];
-    for (const subject of subjects) {
-      const id = `subject-${subject.subject_id}`;
-      nodes.push({ id, kind: "subject", label: subject.name, subject_slug: subject.slug });
-      edges.push({ source: "root", target: id, type: "structure" });
-    }
-    return { nodes, edges };
-  }, [subjects]);
+  // Le graphe COMPLET, chargé seulement quand le ciel s'allume.
+  //
+  // ⚠️ C'est DEUX REQUÊTES DE PLUS sur la page d'atterrissage, et l'addendum du soir disait
+  // d'abord « zéro requête de plus » en se contentant du cerveau et des matières. Corrigé au
+  // vu du rendu : une arrivée de planètes n'est pas une galaxie qui grandit, et c'est la
+  // croissance qui fait l'effet. Les deux appels partent APRÈS la première peinture, en même
+  // temps que le chunk 3D — ils ne retardent donc rien de ce que Massimo lit.
+  const [graph, setGraph] = useState<GalaxyFullGraph | null>(null);
+  const [timeline, setTimeline] = useState<GalaxyTimeline | null>(null);
+  useEffect(() => {
+    if (!sky) return;
+    let active = true;
+    // `allSettled` : une frise en panne ne doit pas emporter le graphe, ni l'inverse.
+    Promise.allSettled([fetchFullGraph(), fetchGalaxyTimelineWithSkills()]).then(([g, t]) => {
+      if (!active) return;
+      if (g.status === "fulfilled") setGraph(g.value);
+      if (t.status === "fulfilled") setTimeline(t.value);
+    });
+    return () => {
+      active = false;
+    };
+  }, [sky]);
+
+  // La MÊME croissance que la modale, au mot près : même hook, mêmes pièges déjà payés.
+  //
+  // ⚠️ Elle rejoue à chaque montage de l'Accueil, et c'est VOULU — c'est tout l'objet de la
+  // décision. Le §6 de l'addendum ADR-0029 dit « aucune animation ne démarre sur une surface
+  // que Massimo n'a pas ouverte pour elle » : cette page est l'exception assumée, écrite dans
+  // l'addendum « la galaxie revient sur l'Accueil ». Le mouvement dure ~5 s puis la galaxie
+  // continue de tourner doucement ; il n'y a rien à fermer et rien à attendre.
+  const { shown, pinned } = useGalaxyGrowth(graph, timeline, { reduced, enabled: sky });
 
   return (
     <Link
@@ -128,20 +145,18 @@ export function HomeGalaxyCard({ subjects }: HomeGalaxyCardProps) {
 
       {/* Le ciel. `aria-hidden` et `pointer-events-none` : c'est du décor animé, et tout ce
           qu'il montre est déjà dit en toutes lettres par le compte et les pastilles. */}
-      {sky && graph.nodes.length > 1 && (
+      {sky && shown && shown.nodes.length > 0 && (
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 opacity-70"
+          className="pointer-events-none absolute inset-x-0 bottom-0 opacity-80"
           style={{ height: SKY_HEIGHT }}
         >
           <Suspense fallback={null}>
             <GalaxyCanvas
-              nodes={graph.nodes}
-              edges={graph.edges}
-              layout="orbit"
-              // Portée distincte : sans elle, l'Accueil consommerait l'arrivée de `/galaxy`,
-              // qui s'afficherait alors composée d'emblée.
-              arrivalScope="accueil"
+              nodes={shown.nodes}
+              edges={shown.edges}
+              // Positions IMPOSÉES : chaque étoile naît sur son parent puis rejoint sa place.
+              pinned={pinned}
               height={SKY_HEIGHT}
             />
           </Suspense>

@@ -162,9 +162,10 @@ Elle n'a jamais été une barre de lecture ici, et elle ne le devient pas : c'es
 et seulement là, qu'elle se trace en synchronisation avec les étoiles.
 
 ⚠️ **La carte porte un ciel 3D depuis le 2026-07-31 au soir**
-(`adr-0024-addendum-galaxie-sur-accueil.md`, qui **révoque le §B** du matin). Le cerveau et les
-matières s'y construisent — la même arrivée que `/galaxy`, avec les matières **déjà chargées par
-la page**, donc **aucune requête de plus**.
+(`adr-0024-addendum-galaxie-sur-accueil.md`, qui **révoque le §B** du matin). La galaxie s'y
+**construit étoile par étoile**, comme dans la modale et par le même hook (`useGalaxyGrowth`) —
+et elle **rejoue à chaque visite de la page** : une animation qui ne joue qu'une fois par session
+ne rend pas une page vivante.
 
 Trois conditions, qui sont la décision elle-même :
 
@@ -174,7 +175,10 @@ Trois conditions, qui sont la décision elle-même :
 - la 3D est **contemplative** — `pointer-events-none`, `aria-hidden` : toute la carte reste une
   seule cible de clic, et un drag de nœud dans un lien déclencherait la navigation au
   relâchement ;
-- `prefers-reduced-motion` ou pas de WebGL → **carte statique, point**.
+- `prefers-reduced-motion` ou pas de WebGL → **carte statique, point** — et dans ce cas, pas même
+  les deux requêtes du graphe complet ;
+- le graphe complet (`galaxy/all` + la frise) n'est demandé **qu'avec le ciel** : la page
+  d'atterrissage ne paie **rien** avant d'être lisible, ni octets de code ni aller-retour réseau.
 
 ⚠️ **`GalaxyReplayModal` ne doit JAMAIS être importée statiquement par l'Accueil.** Elle est
 montée en `lazy()`, et charge elle-même le canvas en `lazy()`. Ce **double `lazy()`** est ce qui

@@ -241,10 +241,17 @@
     du 2026-07-28** : le canvas n'est **jamais monté au premier rendu** — la carte statique EST la
     première peinture, le ciel arrive ensuite à `requestIdleCallback` (repli `setTimeout` 600 ms,
     car **Safari ne l'expose pas** et c'est le navigateur de l'iPhone et de l'iPad de Massimo : le
-    repli est le cas COURANT, pas un cas de bord). **L'Accueil rend le cerveau et les matières, pas
-    le graphe complet** — deux raisons dirimantes : les matières sont **déjà chargées** par la page
-    (zéro requête de plus sur la page d'atterrissage) et c'est la **même composition** que la vue
-    par défaut de `/galaxy`, donc la même animation d'arrivée, aucune chorégraphie nouvelle ; portée
+    repli est le cas COURANT, pas un cas de bord). **L'Accueil rend la CROISSANCE COMPLÈTE**, étoile
+    par étoile, via le hook partagé `useGalaxyGrowth` et **rejouée à chaque visite** — le §4 a été
+    **corrigé dans la même session, au vu du rendu** : sa première rédaction ne montrait que le
+    cerveau et les matières pour économiser deux requêtes, mais deux planètes qui glissent ne sont
+    pas une galaxie qui grandit, et l'arrivée ne jouant qu'**une fois par session** la page
+    **redevenait inerte dès la deuxième visite** — exactement ce que l'addendum voulait corriger ;
+    **coût révisé assumé** : deux requêtes de plus (`galaxy/all` et la frise), tirées APRÈS la
+    première peinture, la promesse « zéro requête de plus » étant remplacée par « rien avant la
+    première peinture », vérifiée par test ; **tension assumée avec le §6 de l'ADR-0029** (« aucune
+    animation ne démarre sur une surface que Massimo n'a pas ouverte pour elle ») — l'Accueil est
+    l'exception, écrite ici pour ne pas être découverte comme une incohérence dans six mois ; portée
     de session **distincte** (`accueil` / `galaxy`) sans quoi l'Accueil consommerait le « une fois
     par visite » de `/galaxy`. **3D CONTEMPLATIVE** (`pointer-events-none`, `aria-hidden`) : toute
     la carte reste **une seule cible de clic** — décision du §B qu'on garde parce qu'elle vaut
