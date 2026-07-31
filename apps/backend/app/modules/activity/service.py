@@ -17,7 +17,7 @@ Les fonctions de la première section sont PURES (aucun accès DB) et testées i
 from collections import OrderedDict
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -35,7 +35,6 @@ from app.modules.activity.events import (
     EVENT_REVIEW_ATTEMPTED,
     NON_ACTIVITY_EVENTS,
 )
-from app.modules.progress import service as progress_service
 from app.modules.activity.timeutils import (
     day_bounds_utc,
     local_day,
@@ -214,33 +213,11 @@ def _load_events(
     return list(db.scalars(query.order_by(LearningEvent.created_at, LearningEvent.id)).all())
 
 
-def _xp_by_day(
-    db: Session,
-    *,
-    student_id: int,
-    start: datetime,
-    end: datetime,
-    subject_id: int | None = None,
-) -> dict[date, int]:
-    """XP par jour Europe/Paris, sommé depuis `xp_events`.
-
-    Métrique SÉPARÉE du journal d'activité : jamais d'UNION avec `learning_events` (les deux
-    tables comptent des choses différentes, les mélanger double-compterait). Le bucketing par
-    jour se fait en Python pour rester en Europe/Paris sans dépendre du fuseau du serveur SQL."""
-    query = select(XPEvent).where(
-        XPEvent.student_id == student_id,
-        XPEvent.created_at >= start,
-        XPEvent.created_at < end,
-    )
-    if subject_id is not None:
-        # Filtre matière actif : le XP non imputé à une matière (missions croisées « champion »)
-        # sort du total, par cohérence avec la ligne affichée.
-        query = query.where(XPEvent.subject_id == subject_id)
-    totals: dict[date, int] = {}
-    for event in db.scalars(query):
-        day = local_day(event.created_at)
-        totals[day] = totals.get(day, 0) + event.amount
-    return totals
+# `_xp_by_day` supprimée avec `heatmap()` (ADR-0028) : plus aucune surface de pilotage parent
+# n'affiche le XP par jour. La règle qu'elle protégeait reste entière et n'a pas d'autre lecteur :
+# **jamais d'UNION entre `learning_events` et `xp_events`** — les deux journaux comptent des
+# choses différentes. Le Cahier de bord lit le XP d'une ligne dans le payload de son propre
+# événement, sans jamais rapprocher les deux tables par horodatage.
 
 
 def _subject_slugs(db: Session) -> dict[int, str]:
@@ -279,7 +256,7 @@ def _entries(
     return entries
 
 
-def _trailing_inactive_days(db: Session, *, student_id: int, last_day: date) -> int:
+def trailing_inactive_days(db: Session, *, student_id: int, last_day: date) -> int:
     """Jours consécutifs SANS aucun événement, en fin de série (toutes matières confondues).
 
     Toujours calculé sans filtre matière : « Massimo n'a rien fait depuis 5 jours » est une
@@ -301,41 +278,10 @@ def _trailing_inactive_days(db: Session, *, student_id: int, last_day: date) -> 
     return max(0, delta)
 
 
-def heatmap(
-    db: Session, *, student_id: int, weeks: int, subject_id: int | None = None
-) -> dict:
-    """Minutes actives par jour sur N semaines + décrochage.
-
-    Les jours vides sont OMIS du payload : le client reconstruit la grille (présentation)."""
-    bounded = max(1, min(settings.activity_max_weeks, weeks))
-    last_day = today_local()
-    # Semaines pleines lundi→dimanche : on remonte au lundi de la semaine la plus ancienne.
-    first_day = week_start(last_day) - timedelta(weeks=bounded - 1)
-    start, end = range_bounds_utc(first_day, last_day)
-
-    events = _load_events(
-        db, student_id=student_id, start=start, end=end, subject_id=subject_id
-    )
-    xp_by_day = _xp_by_day(
-        db, student_id=student_id, start=start, end=end, subject_id=subject_id
-    )
-
-    days = []
-    buckets = bucket_days(events)
-    for day in sorted(set(buckets) | set(xp_by_day)):
-        day_events = buckets.get(day, [])
-        days.append(
-            {
-                "date": day.isoformat(),
-                "active_minutes": active_minutes(day_events),
-                "events": len(day_events),
-                "xp": xp_by_day.get(day, 0),
-            }
-        )
-    return {
-        "days": days,
-        "days_inactive": _trailing_inactive_days(db, student_id=student_id, last_day=last_day),
-    }
+# `heatmap()` supprimée avec sa route (ADR-0028) : la grille est servie PAR MATIÈRE par le module
+# `dashboard`, et « toutes matières » est une somme client. `_xp_by_day` est partie avec elle — le
+# XP quitte le pilotage parent (§5) et le journal du Cahier de bord lit son XP dans le payload de
+# chaque événement, sans jamais croiser `xp_events`.
 
 
 def day_detail(
@@ -397,69 +343,8 @@ def sessions_range(
     return {"days": days}
 
 
-# ==============================================================================================
-# 4. KPI hebdomadaires du dashboard
-# ==============================================================================================
-
-
-def _week_metrics(
-    db: Session, *, student_id: int, monday: date
-) -> dict[str, int]:
-    """Métriques brutes d'une semaine lundi→dimanche (Europe/Paris)."""
-    start, end = range_bounds_utc(monday, monday + timedelta(days=6))
-    events = _load_events(db, student_id=student_id, start=start, end=end)
-    xp_total = db.scalar(
-        select(func.coalesce(func.sum(XPEvent.amount), 0)).where(
-            XPEvent.student_id == student_id,
-            XPEvent.created_at >= start,
-            XPEvent.created_at < end,
-        )
-    )
-    sessions = sum(len(build_sessions(day_events)) for day_events in bucket_days(events).values())
-    return {
-        "sessions": sessions,
-        "active_minutes": sum(
-            active_minutes(day_events) for day_events in bucket_days(events).values()
-        ),
-        "xp": int(xp_total or 0),
-        "missions_completed": sum(
-            1 for event in events if event.event_type == EVENT_MISSION_COMPLETED
-        ),
-    }
-
-
-def dashboard_kpis(db: Session, *, student_id: int) -> dict:
-    """KPI du dashboard : 4 FLUX hebdomadaires en `{value, delta}` + 2 STOCKS en `{value}`.
-
-    Les deltas sont calculés SERVEUR (le client n'invente aucun chiffre). Semaine lundi→dimanche
-    en Europe/Paris, conformément à la spec des deltas hebdomadaires.
-
-    **Pourquoi les lacunes et les notions consolidées n'ont PAS de delta.** Ce sont des stocks,
-    pas des flux : « 5 lacunes ouvertes » décrit l'état d'aujourd'hui. Reconstituer le stock d'il
-    y a une semaine exigerait de savoir QUAND chaque lacune a été résolue et quand chaque notion
-    est passée à `mastered` — or `gaps` ne porte que `first_detected_at` (pas de `resolved_at`)
-    et `skill_mastery` aucun horodatage de bascule. Afficher un écart calculé sur autre chose
-    (les lacunes OUVERTES cette semaine, par exemple) sous le même nom que les autres deltas
-    serait un chiffre faux. On sert donc la valeur seule ; ajouter les deux horodatages
-    manquants est un chantier de modèle, pas un contournement d'affichage.
-    """
-    monday = week_start(today_local())
-    current = _week_metrics(db, student_id=student_id, monday=monday)
-    previous = _week_metrics(db, student_id=student_id, monday=monday - timedelta(days=7))
-    return {
-        "week_start": monday.isoformat(),
-        "sessions": {"value": current["sessions"], "delta": current["sessions"] - previous["sessions"]},
-        "active_minutes": {
-            "value": current["active_minutes"],
-            "delta": current["active_minutes"] - previous["active_minutes"],
-        },
-        "xp": {"value": current["xp"], "delta": current["xp"] - previous["xp"]},
-        "missions_completed": {
-            "value": current["missions_completed"],
-            "delta": current["missions_completed"] - previous["missions_completed"],
-        },
-        "open_gaps": {"value": progress_service.open_gap_count(db, student_id=student_id)},
-        "consolidated_skills": {
-            "value": progress_service.consolidated_count(db, student_id=student_id)
-        },
-    }
+# La section « KPI hebdomadaires du dashboard » a quitté ce module avec la route (ADR-0028 §1).
+# `dashboard_kpis` et `_week_metrics` servaient un contrat remplacé : `sessions`, `xp` et
+# `missions_completed` ne sont plus des KPI de pilotage, et `active_days` (régularité) les
+# remplace. L'agrégat vit désormais dans `modules/dashboard`, qui réutilise les projections
+# pures de la section 1 ci-dessus au lieu de les redéfinir.

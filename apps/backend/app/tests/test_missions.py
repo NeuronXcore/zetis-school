@@ -260,6 +260,113 @@ def test_review_later_reopens_gap_and_schedules_srs(client_db) -> None:
         assert card is not None and card.status == "scheduled" and card.due_at is not None
 
 
+# --- Le relais du §5bis peut enfin se refermer (addendum ADR-0017, scoring v4) --------------
+
+
+def test_une_revision_peut_refermer_la_lacune(client_db, monkeypatch) -> None:
+    """LE test de la réparation : une mission `revision` menée jusqu'au bout PEUT conclure.
+
+    Avant, c'était structurellement impossible. Le template `revision` composait
+    `[carte] → [quiz] → relire` sans étape de réexplication, alors que le verdict exige un
+    `reverse_score` — et `eli5` est une étape de CONSULTATION qui n'en produit aucun. Toute
+    révision rendait donc `review_later`, et la lacune que l'ADR-0017 §5bis promet de « vérifier
+    dans le temps » restait `in_progress` à vie.
+    """
+    from app.modules.missions import service
+
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        # Notion revenue par le SRS après un premier « à revoir ».
+        db.add(
+            m.Gap(
+                student_id=student.id,
+                skill_id=skill.id,
+                subject_id=subject.id,
+                status="in_progress",
+            )
+        )
+        quiz = m.Quiz(subject_id=subject.id, title="Quiz révision", quiz_type="mission", status="ready")
+        db.add(quiz)
+        db.commit()
+        quiz_id = quiz.id
+
+    # Signal de RAPPEL disponible (le fixture n'a ni leçon ni carte : on isole le template, pas la
+    # résolution des ressources — même procédé que `test_step_order_depends_on_mission_type`).
+    monkeypatch.setattr(service, "_resolve_mission_quiz_id", lambda db, sid: quiz_id)
+    monkeypatch.setattr(service, "_resolve_mission_mindmap_id", lambda db, sid: None)
+
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        # Le parcours est celui que le générateur compose RÉELLEMENT — pas une liste écrite à la
+        # main : c'est le template lui-même qui est sous test.
+        steps = [
+            (step_type, resource)
+            for step_type, _instruction, resource in service._build_revision_steps(
+                db, skill.id, skill.name
+            )
+        ]
+        assert "vocal_explain" in [s[0] for s in steps], "le template doit pouvoir être mesuré"
+        mid = _make_mission(db, student=student, skill=skill, subject=subject, steps=steps)
+
+    client.post(f"/api/missions/{mid}/start")
+    with Session() as db:
+        student, skill, _ = _seeded(db)
+        started = db.get(m.Mission, mid).started_at
+        after = started + timedelta(seconds=1)
+        # Réexplication au-dessus du seuil : Massimo sait redire la notion. Plus le rappel.
+        _add_reverse_event(db, student=student, skill=skill, score=95, at=after)
+        _add_mission_quiz_attempt(db, student=student, quiz_id=quiz_id, score=85, at=after)
+
+    rendered = _steps_of(client, mid)
+    for step in rendered[:-1]:
+        client.post(f"/api/missions/{mid}/steps/{step['id']}/complete")
+    verdict = client.post(f"/api/missions/{mid}/steps/{rendered[-1]['id']}/complete").json()["verdict"]
+
+    assert verdict == "acquired"
+    with Session() as db:
+        _, skill, _ = _seeded(db)
+        gap = db.scalar(select(m.Gap).where(m.Gap.skill_id == skill.id))
+        assert gap is not None and gap.status == "resolved"
+        assert gap.resolved_at is not None
+
+
+def test_sans_mesure_la_maitrise_n_est_PAS_ecrasee(client_db) -> None:
+    """Une absence de réexplication n'est pas un score de 0.
+
+    Un parcours sans étape vocale (éditeur de steps de Papa, notion d'une champion croisée)
+    écrasait `mastery_score` avec 0 : Massimo faisait son travail et sa maîtrise mesurée
+    s'effondrait, tandis que la carte SRS était replanifiée au plus court intervalle.
+    """
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        mastery = m.SkillMastery(student_id=student.id, skill_id=skill.id, status="solid")
+        mastery.mastery_score = 80
+        mastery.confidence_score = 80
+        db.add(mastery)
+        db.commit()
+        # Parcours volontairement SANS étape vocale : rien ne mesurera la réexplication.
+        mid = _make_mission(
+            db, student=student, skill=skill, subject=subject, steps=[("eli5", skill.id)]
+        )
+
+    client.post(f"/api/missions/{mid}/start")
+    steps = _steps_of(client, mid)
+    res = client.post(f"/api/missions/{mid}/steps/{steps[0]['id']}/complete").json()
+
+    # L'acquisition n'est pas prouvée — le verdict reste honnête.
+    assert res["verdict"] == "review_later"
+    with Session() as db:
+        _, skill, _ = _seeded(db)
+        mastery = db.scalar(select(m.SkillMastery).where(m.SkillMastery.skill_id == skill.id))
+        assert mastery.mastery_score == 80, "la maîtrise a été écrasée par une mesure absente"
+        assert mastery.confidence_score == 80
+        # Et l'intervalle SRS se calcule sur la maîtrise connue (80 → 7 j), pas sur un 0 → 1 j.
+        card = db.scalar(select(m.SpacedReviewCard).where(m.SpacedReviewCard.skill_id == skill.id))
+        assert card is not None and card.interval_days == 7
+
+
 # --- Verdict acquired (quiz + reverse au-dessus des seuils) → lacune résolue ---------------
 
 
@@ -467,8 +574,12 @@ def test_step_order_depends_on_mission_type(client_db, monkeypatch) -> None:
     assert prog == ["eli5", "vocal_explain", "mindmap", "quiz"]
     # Notion DÉJÀ VUE (remediation) → rappel d'abord, ELI5 ensuite.
     assert remed == ["mindmap", "quiz", "eli5", "vocal_explain"]
-    # Révision → rappel d'abord, relecture ensuite (pas de verbalisation).
-    assert rev == ["mindmap", "quiz", "eli5"]
+    # Révision → rappel, relecture, PUIS réexplication.
+    #
+    # Cette dernière assertion disait « pas de verbalisation » et figeait une contradiction : le
+    # verdict exige un `reverse_score`, que seule l'étape `vocal_explain` produit. Une mission
+    # `revision` ne pouvait donc jamais conclure `acquired` (addendum ADR-0017 §5bis, scoring v4).
+    assert rev == ["mindmap", "quiz", "eli5", "vocal_explain"]
 
 
 def test_step_order_identical_without_recall_resources(client_db, monkeypatch) -> None:

@@ -68,9 +68,12 @@ class Settings(BaseSettings):
     # Pondérations et seuils vivent ICI, jamais dans le code du service. ---
     # v2 (ADR-0018) : le facteur `forced_priority` lit le flag `mission.force_priority` au lieu du
     # type `manual`. v3 (ADR-0019) : le parcours généré peut inclure un step `mindmap`, et le
-    # verdict admet la reconstruction comme signal de rappel (option B). Le versionnage couvre
-    # formule ET templates de parcours — tout changement = bump tracé.
-    mission_scoring_version: str = Field(default="v3", validation_alias="MISSION_SCORING_VERSION")
+    # verdict admet la reconstruction comme signal de rappel (option B). v4 (addendum ADR-0017
+    # §5bis) : le template `revision` reçoit l'étape de RÉEXPLICATION qui lui manquait — sans elle
+    # le verdict ne pouvait jamais conclure `acquired`, donc la boucle SRS que le §5bis désigne
+    # comme relais ne se refermait jamais. Le versionnage couvre formule ET templates de parcours —
+    # tout changement = bump tracé.
+    mission_scoring_version: str = Field(default="v4", validation_alias="MISSION_SCORING_VERSION")
     mission_weight_severity: float = Field(default=1.0, validation_alias="MISSION_WEIGHT_SEVERITY")
     mission_weight_due_pressure: float = Field(
         default=0.8, validation_alias="MISSION_WEIGHT_DUE_PRESSURE"

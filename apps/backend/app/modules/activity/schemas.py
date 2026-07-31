@@ -23,18 +23,9 @@ class PageViewRequest(BaseModel):
 # --- Lectures parent --------------------------------------------------------------------------
 
 
-class HeatmapDay(BaseModel):
-    date: str
-    active_minutes: int
-    events: int
-    xp: int
-
-
-class HeatmapOut(BaseModel):
-    days: list[HeatmapDay]
-    # Jours consécutifs sans activité en fin de série, TOUTES matières (un filtre matière actif
-    # ne fausse pas le signal de décrochage). Le badge Papa apparaît à partir de 4.
-    days_inactive: int
+# `HeatmapDay` et `HeatmapOut` sont partis avec la route `/activity/heatmap` (ADR-0028). La grille
+# est désormais servie par matière dans le contrat du module `dashboard`, où `days_inactive` reste
+# calculé TOUTES matières — un filtre ne doit pas fausser le signal de décrochage.
 
 
 class ActivityEntry(BaseModel):
@@ -76,29 +67,6 @@ class SessionsOut(BaseModel):
     days: list[SessionDay]
 
 
-class KpiValue(BaseModel):
-    """KPI hebdomadaire : valeur de la semaine en cours + écart vs semaine précédente."""
-
-    value: int
-    delta: int
-
-
-class KpiCount(BaseModel):
-    """KPI de STOCK : valeur du jour, sans écart hebdomadaire.
-
-    Les lacunes et les notions consolidées décrivent un état, pas un flux de la semaine ; le
-    modèle ne porte pas les horodatages qui permettraient de reconstituer l'état d'il y a sept
-    jours (cf. `activity/service.dashboard_kpis`). Un type distinct de `KpiValue` rend
-    l'absence de delta explicite au lieu d'un `delta: 0` trompeur."""
-
-    value: int
-
-
-class DashboardKpisOut(BaseModel):
-    week_start: str
-    sessions: KpiValue
-    active_minutes: KpiValue
-    xp: KpiValue
-    missions_completed: KpiValue
-    open_gaps: KpiCount
-    consolidated_skills: KpiCount
+# Les schémas de KPI du dashboard ont quitté ce module avec la route (ADR-0028 §1) : le nouveau
+# contrat vit dans `modules/dashboard/schemas.py`. `sessions`, `xp` et `missions_completed` n'y
+# figurent plus — un KPI de pilotage doit être décisionnel, et l'XP reste sur Progression (§5).

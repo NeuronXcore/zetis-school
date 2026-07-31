@@ -42,7 +42,7 @@ from app.db.models import (
 )
 from app.modules.gamification.service import award_xp
 from app.modules.memory.service import interval_from_score, schedule_review
-from app.modules.progress.mastery import set_mastery_status
+from app.modules.progress.mastery import record_mastery_transition
 from app.modules.progress.service import OPEN_GAP_STATUSES
 
 # Notions considérées « en place » (ne relancent pas de progression). Aligné sur les paliers
@@ -291,6 +291,57 @@ def generate_remediation(db: Session, student: StudentProfile) -> list[dict]:
     return [_to_out(db, m) for m in created]
 
 
+def preview_remediation(db: Session, student: StudentProfile) -> dict | None:
+    """Compose la PROCHAINE mission de remédiation **sans rien écrire** (patron ADR-0010).
+
+    C'est le pendant lecture de `generate_remediation` : mêmes lacunes, même moteur d'étapes,
+    même ordre — mais aucune ligne créée. Le dashboard Papa l'affiche comme proposition, et la
+    mission n'existe qu'après confirmation explicite, via la route de création déjà en place
+    (`POST /api/missions/pilot/generate-remediation`). Aucune surface d'écriture n'est ajoutée.
+
+    **Les deux fonctions doivent voir exactement les mêmes lacunes**, sinon la carte proposerait
+    une notion que le bouton ne créerait pas : d'où le même filtre `status == "open"` (et non
+    `OPEN_GAP_STATUSES` — une lacune déjà `in_progress` est prise en charge) et la même exclusion
+    des notions déjà couvertes par une remédiation active.
+
+    Renvoie la plus SÉVÈRE des lacunes non couvertes, ou `None` s'il n'y en a aucune — auquel cas
+    la carte ne propose rien plutôt que d'inventer un travail à faire.
+    """
+    candidates = [
+        gap
+        for gap in db.scalars(
+            select(Gap)
+            .where(Gap.student_id == student.id, Gap.status == "open")
+            .order_by(Gap.id)
+        )
+        if not _has_active_remediation(db, student_id=student.id, skill_id=gap.skill_id)
+    ]
+    if not candidates:
+        return None
+
+    # Même hiérarchie de sévérité que la priorité posée à la création : la proposition porte sur
+    # ce qui sortirait en tête, pas sur la première ligne venue.
+    gap = max(candidates, key=lambda g: (_PRIORITY_BY_SEVERITY.get(g.severity, 1), -g.id))
+    skill_name = _skill_name(db, gap.skill_id)
+    steps = _build_steps(db, gap.skill_id, skill_name, mission_type="remediation")
+
+    return {
+        "skill_id": gap.skill_id,
+        "skill_name": skill_name,
+        "title": f"Renforcer : {skill_name}",
+        "steps": [
+            {"step_type": step_type, "instruction": instruction}
+            for step_type, instruction, _resource_id in steps
+        ],
+        "estimated_minutes": max(
+            5, sum(_STEP_MINUTES.get(step_type, 4) for step_type, _i, _r in steps)
+        ),
+        # `remediation` place le RAPPEL avant la ré-explication (récupération active) : la carte
+        # peut le dire sans reformuler la doctrine, elle lit l'ordre réellement composé.
+        "mission_type": "remediation",
+    }
+
+
 # --- Générateurs par source (idempotents, tous → pending ; templates purs versionnés) ------
 #
 # Le vocabulaire de scoring/templates est versionné par `MISSION_SCORING_VERSION` : un
@@ -301,14 +352,27 @@ def _build_revision_steps(
     db: Session, skill_id: int | None, skill_name: str
 ) -> list[tuple[str, str, int | None]]:
     """Template `revision` (ADR-0017 §5) : RAPPEL d'abord (récupération active — [reconstruire] →
-    [mini-quiz]) puis relecture de consolidation. Notion déjà vue → on teste le rappel avant de
-    relire (effet de test). La reconstruction (ADR-0019) est une récupération plus forte que la
-    relecture passive ; via le verdict option B elle peut tenir lieu de signal de rappel sans quiz."""
+    [mini-quiz]), relecture de consolidation, puis RÉEXPLICATION. Notion déjà vue → on teste le
+    rappel avant de relire (effet de test). La reconstruction (ADR-0019) est une récupération plus
+    forte que la relecture passive ; via le verdict option B elle peut tenir lieu de signal de
+    rappel sans quiz.
+
+    **L'étape de réexplication est ce qui permet à la boucle de se FERMER.** Elle manquait, et son
+    absence rendait le relais du §5bis inopérant : le verdict exige un `reverse_score` (voir
+    `_complete_mission`), or `STEP_ELI5` est une étape de CONSULTATION qui n'émet aucun
+    `reverse_eli5`. Une mission `revision` rendait donc toujours `review_later` — la notion que
+    l'ADR-0017 promet de « vérifier dans le temps » ne pouvait jamais être déclarée acquise, et sa
+    lacune restait `in_progress` à vie.
+
+    Conséquence assumée : les TYPES d'étape coïncident désormais avec ceux de `remediation`. Les
+    deux templates restent distincts par ce qui compte — la source (carte SRS due vs lacune), la
+    formulation des consignes, le plafond `mission_revision_top_n` et la priorité."""
     recall = _recall_steps(db, skill_id, skill_name)
-    relire: list[tuple[str, str, int | None]] = [
+    consolider: list[tuple[str, str, int | None]] = [
         (STEP_ELI5, f"Relis et rappelle-toi « {skill_name} ».", skill_id),
+        (STEP_VOCAL, f"Réexplique « {skill_name} » avec tes mots à ZETIS.", skill_id),
     ]
-    return recall + relire
+    return recall + consolider
 
 
 def _skill_has_active_mission(db: Session, *, student_id: int, skill_id: int) -> bool:
@@ -824,7 +888,10 @@ def _apply_verdict(
     if skill_id is None:
         return
     now = datetime.now(timezone.utc)
-    measured = float(reverse_score) if reverse_score is not None else 0.0
+    # `None` = AUCUNE réexplication mesurée, ce qui n'est pas la même chose qu'un score de 0.
+    # Le distinguer est indispensable : un parcours sans étape vocale (éditeur de steps de Papa,
+    # notion d'une champion croisée) écrasait sinon la maîtrise avec un zéro fabriqué.
+    measured = float(reverse_score) if reverse_score is not None else None
     mastery = db.scalar(
         select(SkillMastery).where(
             SkillMastery.student_id == student.id, SkillMastery.skill_id == skill_id
@@ -842,9 +909,12 @@ def _apply_verdict(
     )
     mastery.last_seen_at = now
     if verdict == "acquired":
-        mastery.mastery_score = max(mastery.mastery_score or 0.0, measured)
-        mastery.confidence_score = max(mastery.confidence_score or 0.0, measured)
-        set_mastery_status(mastery, "mastered", now)
+        # `acquired` exige un `reverse_score` non nul par construction (cf. `_complete_mission`) :
+        # `measured` ne peut pas être `None` dans cette branche.
+        gained = measured or 0.0
+        mastery.mastery_score = max(mastery.mastery_score or 0.0, gained)
+        mastery.confidence_score = max(mastery.confidence_score or 0.0, gained)
+        record_mastery_transition(db, mastery, "mastered", now)
         if gap is not None:
             gap.status = "resolved"
             # Seule transition qui horodate : la requête ci-dessus filtre `open|in_progress`,
@@ -854,20 +924,30 @@ def _apply_verdict(
     else:
         # review_later : mastery mise à jour honnêtement, lacune rouverte en cours, et la notion
         # revient d'elle-même via une carte SRS (la boucle qui vérifie l'acquisition dans le temps).
-        mastery.mastery_score = measured
-        mastery.confidence_score = measured
-        set_mastery_status(mastery, "in_progress", now)
+        #
+        # « Honnêtement » veut dire : on n'écrit QUE ce qu'on a mesuré. Sans réexplication, on ne
+        # sait pas où en est la notion — écrire 0 ferait s'effondrer la maîtrise de Massimo au
+        # moment précis où il vient de travailler, et replanifierait la carte au plus court
+        # intervalle (score 0 → 1 jour) en punissant l'effort d'une révision.
+        if measured is not None:
+            mastery.mastery_score = measured
+            mastery.confidence_score = measured
+        record_mastery_transition(db, mastery, "in_progress", now)
         if gap is not None:
             # Volontairement SANS horodatage : cette branche peut réécrire `in_progress` sur une
             # lacune qui l'est déjà (le filtre accepte les deux statuts). Toute date posée ici
             # serait re-tamponnée à chaque verdict `review_later` et ne voudrait plus rien dire.
             gap.status = "in_progress"
         skill_name = _skill_name(db, skill_id)
+        # Faute de mesure fraîche, l'intervalle se calcule sur la maîtrise CONNUE plutôt que sur un
+        # zéro fabriqué : une notion déjà solide ne revient pas dès demain parce que le parcours
+        # n'avait pas d'étape vocale.
+        basis = measured if measured is not None else (mastery.mastery_score or 0.0)
         schedule_review(
             db,
             student_id=student.id,
             skill_id=skill_id,
-            interval=interval_from_score(int(measured)),
+            interval=interval_from_score(int(basis)),
             front=f"Réexplique : {skill_name}",
             back="Reprends cette notion tranquillement — tu y reviens bientôt.",
         )

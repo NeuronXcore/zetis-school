@@ -4,6 +4,86 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `Dashboard Papa v2` (ADR-0028) — 2026-07-31
+
+### Un test peut verrouiller une contradiction
+
+Le pire piège du chantier. `test_step_order_depends_on_mission_type` assertait
+`rev == ["mindmap","quiz","eli5"]` avec le commentaire « pas de verbalisation ». Or le verdict
+(`_complete_mission`) exige `reverse_score is not None`, que **seule** l'étape `vocal_explain`
+produit — `STEP_ELI5` est une étape de *consultation* (`_CONSULT_STEPS`) qui n'émet qu'un
+`mission_step_view`. Une mission `revision` ne pouvait donc **jamais** conclure `acquired`.
+
+Le test passait au vert en décrivant fidèlement un comportement faux. **Un test qui fige un
+template doit être confronté à ce qui LIT ce template.** Corrigé par l'amendement `adr-0017 §5bis`.
+
+### Absence de mesure ≠ zéro
+
+Corollaire du précédent : `_apply_verdict` faisait `measured = float(reverse_score) if ... else 0.0`
+puis écrasait `mastery_score` avec ce 0. Un parcours sans étape vocale (éditeur de steps de Papa,
+notion d'une champion croisée) faisait donc **s'effondrer la maîtrise** de l'élève au moment précis
+où il venait de travailler, et replanifiait la carte SRS à 1 jour (intervalle du score 0).
+Distinguer « pas mesuré » de « mesuré à 0 » est la règle.
+
+### Deux définitions de « lacune traitée » qui divergeaient en silence
+
+`dashboard._gaps_without_mission` ne comptait que les missions `mission_type == "remediation"`,
+alors que la page Lacunes regardait **tous** les types. Une notion couverte par une mission `manual`
+(commandée par Papa lui-même) était annoncée « sans mission active » sur le dashboard et « prise en
+charge » sur `/lacunes`. Source unique désormais :
+`progress.service.skills_with_active_mission`.
+
+⚠️ À ne pas confondre avec l'écart **voulu** entre `OPEN_GAP_STATUSES` (`open` + `in_progress`, ce
+que comptent tous les affichages) et le filtre `status == "open"` du générateur de remédiation :
+celui-là est doctrinal (`adr-0017 §5bis` — une lacune `in_progress` revient par la **révision**).
+`preview_remediation` et `generate_remediation` **doivent** filtrer à l'identique, sinon la carte
+du dashboard propose une notion que le bouton ne créera pas. Test-verrou en place.
+
+### Deux conventions de statut de validation coexistent en base
+
+`lessons` utilise **`status`** (`draft|validated|archived`) ; `fiches`, `mindmaps`, `capsules`,
+`chapters` utilisent **`validation_status`** (`pending|validated|rejected`). Interroger la mauvaise
+colonne rend un ensemble vide **sans lever d'erreur**. Et `quizzes` n'a **ni l'une ni l'autre** —
+servis sans gate par doctrine (`adr-0014 §2`), donc impossibles à mettre dans une file « à valider ».
+
+### Un composant qui semble exclusif à une page ne l'est pas (piège rencontré deux fois)
+
+`KpiBreakdown` / `lib/kpiBreakdown` paraissaient propres au dashboard : ils sont consommés par
+`CahierBordPage`. `GAPS` de `data/mock.ts` paraissait propre à `/lacunes` : `ModeFocusPage` le
+lisait aussi. **Toujours grep le symbole dans tout `src/` avant de supprimer**, pas seulement dans
+la page qu'on refait.
+
+### Une fenêtre de chargement peut tronquer un signal global
+
+Le dashboard déduisait `days_inactive` de la liste d'événements bornée aux **26 semaines** du
+calendrier. Un dernier événement plus ancien rendait la liste vide, donc un décrochage à **0** —
+soit « tout va bien » au moment précis où il faut alerter. Délégué à
+`activity.trailing_inactive_days`, qui interroge le dernier événement sans borne.
+
+### Ce que seul le rendu réel révèle
+
+Deux chiffres du même écran se contredisaient, et **aucun test ne pouvait le voir** : le donut
+totalisait 42 min à côté d'un KPI annonçant 7 h 05 (le temps sans `subject_id` — connexion,
+navigation, chat — n'était compté nulle part : 90 % du total en dev), et le KPI des lacunes portait
+le même libellé que le segment « fragiles » des cartes voisines. **Assembler la page et la lire**
+reste une étape de vérification à part entière.
+
+### Le mode focus ne faisait rien
+
+`ModeFocusPage` promettait « ZETIS priorisera les missions, capsules et révisions » ; son bouton
+n'écrivait qu'un `useState` local. **Aucun état « focus » n'existe côté backend** (zéro occurrence).
+Le seul levier de priorité réel est `Mission.force_priority` (plancher de score du sélecteur,
+ADR-0018). ⚠️ La route Commander qui le pose **n'a pas de garde d'idempotence**, contrairement aux
+générateurs : un second clic crée un doublon.
+
+### Divers
+
+- **Collision d'identifiant Alembic** : `d4e5f6a7b8c9` existait déjà. Toujours vérifier l'unicité
+  avant d'écrire une révision — la collision se manifeste par un `CycleDetected` illisible sur tout
+  le graphe, pas par un message clair.
+- Le test `ProgrammePage` (barre de progression temporisée) reste **flaky sous charge parallèle** :
+  il passe seul, échoue parfois dans la suite complète. Déjà connu, non causé par ce chantier.
+
 ## Chantier `content_requests` (addendum ADR-0027) — 3 constats au test live (2026-07-30)
 
 Test live « le verbe être en espagnol » (notion sans cours) : ZETIS **a généré une leçon ser/estar

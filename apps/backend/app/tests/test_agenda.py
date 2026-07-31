@@ -327,9 +327,14 @@ def test_no_missed_event_is_ever_emitted(papa: TestClient, client_db) -> None:
 
 
 def test_agenda_events_stay_out_of_activity_projections(papa: TestClient, client_db) -> None:
-    """Corollaire de §3 et du hors-périmètre : l'agenda ne remonte ni dans la heatmap, ni dans
-    le Cahier de bord, ni dans les minutes actives. Cocher n'est pas travailler."""
+    """Corollaire de §3 et du hors-périmètre : l'agenda ne remonte ni dans le dashboard, ni dans
+    le Cahier de bord, ni dans les minutes actives. Cocher n'est pas travailler.
+
+    La heatmap est désormais servie par l'agrégat du module `dashboard` (ADR-0028) : c'est donc
+    lui qu'on interroge ici. Le piège reste le même, et il est déjà tombé trois fois — tout
+    nouveau lecteur de `learning_events` doit exclure `NON_ACTIVITY_EVENTS`."""
     from app.modules.activity import service as activity
+    from app.modules.dashboard import service as dashboard
 
     _, SessionLocal = client_db
     item = _create_parent_item(papa)
@@ -339,11 +344,14 @@ def test_agenda_events_stay_out_of_activity_projections(papa: TestClient, client
     db = SessionLocal()
     try:
         student = db.query(m.StudentProfile).first()
-        heat = activity.heatmap(db, student_id=student.id, weeks=4)
+        payload = dashboard.build_dashboard(db, student_id=student.id)
         detail = activity.day_detail(db, student_id=student.id, day=today_local())
     finally:
         db.close()
-    assert heat["days"] == []
+
+    assert all(subject["calendar"] == [] for subject in payload["subjects"])
+    assert payload["periods"]["7"]["kpis"]["active_minutes"]["value"] == 0
+    assert payload["unattributed_minutes"]["7"] == 0
     assert detail["events"] == []
 
 

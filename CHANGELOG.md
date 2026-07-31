@@ -1,5 +1,89 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.29.0 — Dashboard Papa : un cockpit, pas un bulletin
+
+Date : 2026-07-31 · ADR-0028 · branche `feat/dashboard-papa-v2`
+
+> La maquette historique du dashboard contredisait **sept décisions déjà prises**. Elle est
+> remplacée par une page qui répond à trois questions dans l'ordre : *qu'est-ce qui attend une
+> décision de moi ?*, *où en est Massimo ?*, *qu'est-ce que ZETIS propose ?*
+
+- **Un agrégat unique, zéro requête au filtrage (§1, §2)** : `GET /api/parent/dashboard` renvoie les
+  **trois fenêtres** (7/30/90) **non filtrées**, séries livrées **par matière** — « toutes matières »
+  est une somme que le client calcule. Changer de période, de matière ou de focus ne touche plus le
+  réseau. Vérifié dans l'onglet Réseau : cinq gestes, dix requêtes avant, dix après.
+- **Les KPI deviennent des contrôles (§5)** : cliquer un KPI conserve les cartes qui **répondent à
+  cette question** et atténue les autres. Ce n'est pas décoratif — c'est la carte de dépendance
+  entre une mesure et ses preuves, et c'est ce qui rend huit diagrammes praticables sur une page.
+- **L'XP quitte le pilotage parent** : un KPI de Papa doit être décisionnel. L'XP reste le levier
+  de Massimo, sur Progression. Partent avec lui : « sessions », « missions terminées », le
+  « taux de réussite » global, le radar de compétences (aucune source dans le modèle) et le
+  panneau Obsidian.
+- **Une seule carte heatmap, deux vues** : *Calendrier* (est-ce régulier ?) et *Créneaux* (quand
+  travaille-t-il ?), **échelle émeraude unique — pas de gradient vers le rouge**. Une case dense
+  n'est pas une bonne note, une case vide n'est pas une faute.
+- **Historique de maîtrise (§3 ter, migration `a9b8c7d6e5f4`)** : `skill_mastery` n'écrivait que
+  l'état courant, rendant la courbe des régressions impossible à tracer. La table
+  `skill_mastery_history` la rend calculable — et donnera au Conseil de classe la notion de
+  régression qui lui manque.
+- **Read-before-code : deux vérifications sur quatre sont tombées**, plus six écarts non anticipés.
+  « Consolidée » avait **déjà** une définition serveur, différente de celle de l'ADR ; « fragile »
+  n'en avait **aucune** — les deux sont désormais figées sur les **six** statuts réels.
+  `GET /api/parent/dashboard` **existait déjà** (réécriture cassante), les quiz **ne peuvent pas**
+  entrer dans la file de validation (pas de `validation_status`, doctrine ADR-0014), et
+  `/activity/heatmap` **n'avait aucun consommateur** hors du dashboard → supprimée.
+- **Deux contradictions que seul le rendu réel a révélées** : le donut totalisait 42 min à côté
+  d'un KPI annonçant 7 h 05 (le temps sans matière — connexion, navigation, chat — n'était compté
+  nulle part) ; et le KPI des lacunes portait le même libellé que le segment « fragiles » des
+  cartes voisines, affichant « 1 » à côté de « 9 » pour deux mesures différentes.
+- **Zéro dépendance ajoutée** : ni react-query, ni lib de graphes. Les huit diagrammes sont en SVG
+  inline et CSS Grid. Deux briques rejoignent `@zetis/ui` : `Sparkline` et `subjectColorFor`.
+- **Mission proposée, sans qu'un affichage n'écrive (§10)** : la carte compose son parcours **en
+  lecture** via le moteur de missions (patron preview/confirm, ADR-0010) et la confirmation appelle
+  la route de création **déjà en place** — aucune surface d'écriture ajoutée. Prévisualisation et
+  création voient les mêmes lacunes, sinon la carte proposerait une notion que le bouton ne
+  créerait pas.
+- **Hors v1, assumé** : le bandeau de fraîcheur du Conseil de classe.
+
+## 0.29.1 — La boucle de révision peut enfin se refermer
+
+Date : 2026-07-31 · amendement `ADR-0017 §5bis` · branche `feat/dashboard-papa-v2`
+
+> Parti d'un symptôme du dashboard — « 1 notion à renforcer sans mission active » à côté d'une carte
+> qui ne proposait rien — l'enquête a trouvé un défaut de fond du moteur de missions.
+
+- **Le relais désigné par la doctrine était inopérant.** `adr-0017 §5bis` promet qu'après un verdict
+  « à revoir » la notion **revient d'elle-même** par le SRS. Or le template `revision` composait
+  `[carte] → [quiz] → relire` **sans étape de réexplication**, alors que le verdict l'exige — et
+  `eli5` est une étape de *consultation* qui n'émet aucune trace de réexplication. Une mission de
+  révision rendait donc **toujours** « à revoir » : la lacune restait ouverte à vie. La
+  contradiction était figée par un test qui asserait « pas de verbalisation ».
+- **Et elle abîmait la mesure à chaque passage** : sans réexplication mesurée, le verdict écrivait
+  `mastery_score = 0`. Massimo faisait sa révision, sa maîtrise s'effondrait, et la carte revenait
+  le lendemain (intervalle du score 0). Désormais, **une absence de mesure n'est plus un zéro** :
+  on n'écrit que ce qu'on a mesuré, et l'intervalle se calcule sur la maîtrise connue. Filet qui
+  couvre aussi les parcours édités par Papa sans étape vocale.
+- **Le générateur de remédiation n'est pas élargi** aux lacunes `in_progress` : la doctrine
+  désignait le SRS, elle tient — il fallait le réparer, pas le contourner. Bump
+  `MISSION_SCORING_VERSION` v3 → v4 (le versionnage couvre les templates de parcours).
+- **`/lacunes` devient la surface de décision qu'elle prétendait être** : la page était un mock
+  inerte alors que le dashboard y renvoyait. Elle sépare maintenant ce qui appelle une
+  consolidation (notion jamais travaillée) de ce qui revient par la révision, et n'utilise que les
+  deux générateurs existants — aucune route nouvelle.
+- **Deux surfaces qui se contredisaient, réconciliées** : le KPI « lacunes sans mission » ne
+  regardait que les missions de *remédiation*, si bien qu'une notion déjà couverte par une mission
+  commandée par Papa était annoncée « sans mission active ». Définition unique et partagée
+  désormais — n'importe quelle mission active répond à la question « reste-t-il un geste à faire ? ».
+- **Le mode focus fait enfin ce qu'il annonce.** La page promettait que « ZETIS priorisera les
+  missions, capsules et révisions sur cette notion jusqu'à sa consolidation » ; son bouton
+  n'écrivait qu'un état local, et **aucun état « focus » n'existe côté backend**. Elle s'appuie
+  maintenant sur le seul levier réel — `Mission.force_priority`, le plancher de score du sélecteur
+  (ADR-0018) — via la route Commander déjà en place. La promesse est réécrite pour dire exactement
+  ce que le moteur fait : *« sa mission passera devant les autres »*, ni plus ni moins.
+- Les entrées mortes de `data/mock.ts` (`Gap`, `GAPS`) disparaissent : plus aucun consommateur. Leur
+  vocabulaire de façade (« forte », « en cours ») ne correspondait de toute façon à aucune valeur du
+  backend (`high`, `in_progress`) — le mock ne pouvait pas être branché tel quel.
+
 ## 0.28.0 — Chat ZETIS : un compagnon incarné, qui se souvient et qui parle
 
 Date : 2026-07-30 · ADR-0026 · branche `feat/chat-memoire`
