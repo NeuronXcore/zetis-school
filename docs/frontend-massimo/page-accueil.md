@@ -4,12 +4,22 @@
 > le wireframe décrivait encore la composition de juin 2026, et la version précédente **n'a
 > jamais documenté l'aperçu Galaxy 3D livré le 2026-07-28** — la spec était en retard sur le code
 > avant même ce chantier.
+>
+> **Complétée le 2026-07-31** par l'addendum « **Accueil vivant** »
+> (`adr-0024-addendum-accueil-vivant.md`) : la page recomposée le matin était calme mais **pauvre**
+> — hors la mission du jour, Massimo n'y lisait qu'une semaine de sept cases. S'ajoutent
+> **« Mon ciel »**, **« Mon chemin »** (la frise, qui revient) et **« Tes derniers gains »**.
+> Maquette : `mockup/mockup-page-accueil-v3.html`.
 
 ## Objectif
 
 Donner à Massimo un point d'entrée simple : quoi faire maintenant, pourquoi, et où il en est.
 La page doit peindre vite et rester calme : c'est la page la plus visitée et la première au
 réveil de l'app.
+
+**Calme ne veut pas dire nue.** Ce qui doit rester rare, c'est l'**action** — une seule accentuée.
+Ce qui se **regarde** peut être riche : le chemin parcouru n'appelle aucun geste, il ne se
+dispute donc pas avec « Commencer ».
 
 ## Wireframe
 
@@ -115,12 +125,53 @@ aucune grille et ne calcule aucune date.
 - **Aucune série (« streak »)**, sous aucune forme (ADR-0024 §5). Une flamme et un compteur de
   jours consécutifs sont un capital perdable : ils font venir par peur de perdre.
 
+### Mon ciel (la heatmap retournée)
+
+Ajouté le 2026-07-31 (addendum « Accueil vivant » §B). **Une étoile par jour où Massimo a gagné
+du XP. Rien d'autre n'est dessiné.**
+
+- **Aucune grille, aucun axe de temps.** Les étoiles sont posées en constellation, à une position
+  **déterministe dérivée de la date**. Sans axe, il n'y a **pas d'intervalle vide à lire** — c'est
+  le mécanisme même par lequel cette carte ne peut pas devenir punitive, pas un choix graphique.
+  Une grille type GitHub est **interdite** : ses cases vides *sont* le décompte des jours manqués
+  que bannit `CLAUDE.md`.
+- Le placement est déterministe et **jamais aléatoire** : un ciel qui se réarrange à chaque visite
+  ne serait pas le sien.
+- Éclat et taille ∝ XP du jour, rampe indigo → cyan → blanc (ADR-0024 §5). **Aucun rouge.**
+- Légende = un **compte qui ne peut que monter** : « 34 jours d'apprentissage depuis la rentrée ».
+- `prefers-reduced-motion` coupe le scintillement.
+
+**Ce que la carte n'affichera jamais** : une date manquée, un « depuis N jours », une moyenne, un
+objectif de jours, une comparaison entre deux périodes.
+
+### Mon chemin (frise cumulative)
+
+`GET /api/student/galaxy/timeline`, en SVG maison. Elle avait quitté l'Accueil le matin même,
+emportée par association avec le canvas 3D ; le §D de l'addendum « Accueil vivant » la ramène —
+le coût à annuler était **Three.js**, pas quelques lignes de SVG.
+
+⚠️ **La série est CREUSE** : un point seulement les jours de progrès. Le composant espace ses
+points uniformément, donc **son axe X n'est pas le temps**. Acceptable pour une courbe d'allure,
+à condition de **ne jamais l'annoter d'une date**. Écrit ici pour que personne ne le « corrige »
+en croyant à un bug.
+
+### Tes derniers gains
+
+`recent` (les 5 derniers événements XP, horodatés) et le dernier `badges` de
+`GET /api/gamification/summary`. **Coût nul** : cette route est déjà appelée sur cette page par le
+bandeau XP, et ces deux champs n'étaient rendus nulle part dans l'app.
+
+Positif par construction — un événement XP est toujours un gain. Le libellé de chaque `reason`
+doit être **traduit** : sans quoi Massimo lit `mission_champion` en brut.
+
 ### Ma Galaxie (carte-bouton statique)
 
 Porte d'entrée vers `/galaxy`. Contrat **fermé** — addendum ADR-0024 §B :
 
 - **compte d'étoiles allumées**, toutes matières confondues ;
-- **pastilles de matières** en CSS pur (pictogrammes `subjectIconFor`, **jamais d'emoji**) ;
+- **pastilles de matières** en CSS pur (pictogrammes `subjectIconFor`, **jamais d'emoji**),
+  portant **leur compte** d'étoiles depuis le 2026-07-31 — un **compte**, jamais un pourcentage,
+  et l'ordre est celui du programme, **pas un classement** ;
 - la carte entière est la cible de clic ; libellé d'action explicite.
 
 **Interdits, par héritage de l'ADR-0024 §5** : aucun pourcentage, aucun classement de matières,
@@ -219,6 +270,13 @@ Les routes réelles sont :
   **non** `total_due`.
 - `GET /api/student/motivation/welcome` — le message de ZETIS.
 - `GET`/`PUT /api/student/motivation/week` — la semaine et l'engagement.
+- `GET /api/gamification/summary` — **déjà appelée** par le bandeau XP : niveau et XP pour lui,
+  `badges` et `recent` pour « Tes derniers gains ». Aucune requête ajoutée, la donnée est partagée.
+- `GET /api/gamification/history?days=90` — **« Mon ciel »**. Les **jours sans XP sont OMIS** du
+  payload, jamais renvoyés à zéro : la donnée d'absence n'existe pas, aucun client ne peut donc
+  dessiner une case vide (addendum « Accueil vivant » §A).
+- `GET /api/student/galaxy/timeline` — **« Mon chemin »**. Série **creuse**, bornée à 60 jours
+  côté serveur, non paramétrable.
 - `GET /api/student/galaxy` — les matières et, **par matière**, le **compte** `lit` d'étoiles
   allumées (+ `total`). La route existe déjà (module `galaxy`, livré le 2026-07-28) ; **aucun
   travail backend dans ce chantier**. `GET /api/student/galaxy/all` alimente désormais la **vue
