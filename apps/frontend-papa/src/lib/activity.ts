@@ -5,7 +5,6 @@ import type {
   ActivityHeatmap,
   ActivitySessions,
   ConsolidatedSkill,
-  DashboardKpis,
   OpenGap,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
@@ -53,11 +52,9 @@ export async function fetchSessions(
   return asJson<ActivitySessions>(res);
 }
 
-/** KPI du dashboard : flux hebdomadaires `{value, delta}` + stocks `{value}`, calculés serveur. */
-export async function fetchDashboardKpis(): Promise<DashboardKpis> {
-  const res = await fetch(`${API_URL}/api/parent/dashboard`, { headers: authHeader() });
-  return asJson<DashboardKpis>(res);
-}
+// `fetchDashboardKpis` a disparu avec le contrat qu'il servait (ADR-0028 §1) : l'agrégat unique
+// du dashboard vit dans `lib/dashboard.ts`. Les deux fonctions ci-dessous restent : elles servent
+// le détail des lacunes et des notions consolidées, indépendamment du dashboard.
 
 /** Détail du KPI « lacunes ouvertes » : les plus sévères d'abord. */
 export async function fetchOpenGaps(): Promise<OpenGap[]> {

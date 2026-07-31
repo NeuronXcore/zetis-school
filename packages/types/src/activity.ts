@@ -86,37 +86,11 @@ export interface ActivitySessions {
   days: ActivitySessionDay[];
 }
 
-/** KPI hebdomadaire : valeur de la semaine en cours + écart vs semaine précédente. */
-export interface KpiValue {
-  value: number;
-  /** Positif = progression, négatif = recul, 0 = stable (le client n'affiche rien à 0). */
-  delta: number;
-}
-
-/**
- * KPI de STOCK : valeur du jour, sans écart hebdomadaire.
- *
- * Lacunes et notions consolidées décrivent un ÉTAT, pas un flux de la semaine. Reconstituer
- * l'état d'il y a sept jours exigerait de savoir quand chaque lacune a été résolue et quand
- * chaque notion est passée à « maîtrisée » — le modèle ne porte aucun de ces horodatages. Un
- * type distinct de `KpiValue` rend l'absence de delta explicite, là où un `delta: 0` laisserait
- * croire à une semaine stable.
- */
-export interface KpiCount {
-  value: number;
-}
-
-/** `GET /api/parent/dashboard` — KPI du dashboard, semaine lundi→dimanche Europe/Paris. */
-export interface DashboardKpis {
-  /** Lundi de la semaine courante, `AAAA-MM-JJ`. */
-  week_start: string;
-  sessions: KpiValue;
-  active_minutes: KpiValue;
-  xp: KpiValue;
-  missions_completed: KpiValue;
-  open_gaps: KpiCount;
-  consolidated_skills: KpiCount;
-}
+// `KpiValue`, `KpiCount` et `DashboardKpis` ont quitté ce fichier avec le contrat qu'ils
+// décrivaient (ADR-0028 §1). `GET /api/parent/dashboard` sert désormais un agrégat complet, typé
+// dans `./dashboard` : `sessions`, `xp` et `missions_completed` ne sont plus des KPI de pilotage,
+// et les deux stocks portent enfin un delta — les horodatages de bascule dont leur absence de
+// delta dépendait ont été ajoutés depuis (`mastered_at`, `resolved_at`, `skill_mastery_history`).
 
 /** Une lacune ouverte (`GET /api/parent/progress/gaps`). Formulation bienveillante côté UI :
  *  « notion à renforcer », jamais « échec » (CLAUDE.md §pédagogie). */
