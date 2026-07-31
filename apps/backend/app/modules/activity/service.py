@@ -17,7 +17,7 @@ Les fonctions de la première section sont PURES (aucun accès DB) et testées i
 from collections import OrderedDict
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -35,7 +35,6 @@ from app.modules.activity.events import (
     EVENT_REVIEW_ATTEMPTED,
     NON_ACTIVITY_EVENTS,
 )
-from app.modules.progress import service as progress_service
 from app.modules.activity.timeutils import (
     day_bounds_utc,
     local_day,
@@ -397,69 +396,8 @@ def sessions_range(
     return {"days": days}
 
 
-# ==============================================================================================
-# 4. KPI hebdomadaires du dashboard
-# ==============================================================================================
-
-
-def _week_metrics(
-    db: Session, *, student_id: int, monday: date
-) -> dict[str, int]:
-    """Métriques brutes d'une semaine lundi→dimanche (Europe/Paris)."""
-    start, end = range_bounds_utc(monday, monday + timedelta(days=6))
-    events = _load_events(db, student_id=student_id, start=start, end=end)
-    xp_total = db.scalar(
-        select(func.coalesce(func.sum(XPEvent.amount), 0)).where(
-            XPEvent.student_id == student_id,
-            XPEvent.created_at >= start,
-            XPEvent.created_at < end,
-        )
-    )
-    sessions = sum(len(build_sessions(day_events)) for day_events in bucket_days(events).values())
-    return {
-        "sessions": sessions,
-        "active_minutes": sum(
-            active_minutes(day_events) for day_events in bucket_days(events).values()
-        ),
-        "xp": int(xp_total or 0),
-        "missions_completed": sum(
-            1 for event in events if event.event_type == EVENT_MISSION_COMPLETED
-        ),
-    }
-
-
-def dashboard_kpis(db: Session, *, student_id: int) -> dict:
-    """KPI du dashboard : 4 FLUX hebdomadaires en `{value, delta}` + 2 STOCKS en `{value}`.
-
-    Les deltas sont calculés SERVEUR (le client n'invente aucun chiffre). Semaine lundi→dimanche
-    en Europe/Paris, conformément à la spec des deltas hebdomadaires.
-
-    **Pourquoi les lacunes et les notions consolidées n'ont PAS de delta.** Ce sont des stocks,
-    pas des flux : « 5 lacunes ouvertes » décrit l'état d'aujourd'hui. Reconstituer le stock d'il
-    y a une semaine exigerait de savoir QUAND chaque lacune a été résolue et quand chaque notion
-    est passée à `mastered` — or `gaps` ne porte que `first_detected_at` (pas de `resolved_at`)
-    et `skill_mastery` aucun horodatage de bascule. Afficher un écart calculé sur autre chose
-    (les lacunes OUVERTES cette semaine, par exemple) sous le même nom que les autres deltas
-    serait un chiffre faux. On sert donc la valeur seule ; ajouter les deux horodatages
-    manquants est un chantier de modèle, pas un contournement d'affichage.
-    """
-    monday = week_start(today_local())
-    current = _week_metrics(db, student_id=student_id, monday=monday)
-    previous = _week_metrics(db, student_id=student_id, monday=monday - timedelta(days=7))
-    return {
-        "week_start": monday.isoformat(),
-        "sessions": {"value": current["sessions"], "delta": current["sessions"] - previous["sessions"]},
-        "active_minutes": {
-            "value": current["active_minutes"],
-            "delta": current["active_minutes"] - previous["active_minutes"],
-        },
-        "xp": {"value": current["xp"], "delta": current["xp"] - previous["xp"]},
-        "missions_completed": {
-            "value": current["missions_completed"],
-            "delta": current["missions_completed"] - previous["missions_completed"],
-        },
-        "open_gaps": {"value": progress_service.open_gap_count(db, student_id=student_id)},
-        "consolidated_skills": {
-            "value": progress_service.consolidated_count(db, student_id=student_id)
-        },
-    }
+# La section « KPI hebdomadaires du dashboard » a quitté ce module avec la route (ADR-0028 §1).
+# `dashboard_kpis` et `_week_metrics` servaient un contrat remplacé : `sessions`, `xp` et
+# `missions_completed` ne sont plus des KPI de pilotage, et `active_days` (régularité) les
+# remplace. L'agrégat vit désormais dans `modules/dashboard`, qui réutilise les projections
+# pures de la section 1 ci-dessus au lieu de les redéfinir.

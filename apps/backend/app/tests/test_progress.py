@@ -97,19 +97,9 @@ def test_consolidated_counts_mastered_only(client_db) -> None:
     assert body[0]["mastery_score"] == 95
 
 
-def test_dashboard_serves_both_counts_without_delta(client_db) -> None:
-    """Les stocks sont servis SANS delta : le modèle ne permet pas de reconstituer l'état
-    d'il y a une semaine (ni `resolved_at`, ni horodatage de bascule `mastered`)."""
-    client, TestSession = client_db
-    _seed(TestSession)
-    _as_papa()
-
-    body = client.get("/api/parent/dashboard").json()
-
-    assert body["open_gaps"] == {"value": 2}
-    assert body["consolidated_skills"] == {"value": 1}
-    # Les flux hebdomadaires, eux, gardent leur écart.
-    assert set(body["sessions"]) == {"value", "delta"}
+# Le dashboard consommait ces deux compteurs sous `open_gaps` / `consolidated_skills` ; il les lit
+# désormais par matière dans son propre agrégat (ADR-0028 §2). Les couvertures correspondantes
+# vivent dans `test_dashboard.py` ; ce fichier reste sur les deux routes `/api/parent/progress/*`.
 
 
 def test_progress_routes_are_forbidden_for_child(client_db) -> None:
@@ -126,6 +116,3 @@ def test_empty_state_is_clean(client_db) -> None:
 
     assert client.get("/api/parent/progress/gaps").json() == []
     assert client.get("/api/parent/progress/consolidated").json() == []
-    body = client.get("/api/parent/dashboard").json()
-    assert body["open_gaps"]["value"] == 0
-    assert body["consolidated_skills"]["value"] == 0

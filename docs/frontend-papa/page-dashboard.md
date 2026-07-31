@@ -168,8 +168,13 @@ Segments et statuts `SkillMastery` correspondants (`adr-0028 §3 bis`, définiti
 
 Le client **empile des compteurs déjà décidés** ; il ne rejoue aucun seuil (`adr-0028 §3`).
 
-Une matière sans référentiel affiche une barre vide et le libellé « référentiel non généré » + lien
+Une matière sans notion affiche une barre vide et le libellé « référentiel non généré » + lien
 vers le Programme — **le trou est nommé, pas masqué**.
+
+⚠️ Le déclencheur de la barre vide est **`notions.total === 0`**, pas `has_referentiel`. Les deux
+états existent et diffèrent : une matière peut avoir ses chapitres sans qu'aucune notion y soit
+rattachée (chapitres générés, rattrapage des notions pas encore fait) — cas observé sur la base de
+dev. `has_referentiel: false` signale l'absence de chapitre et oriente vers le Programme.
 
 ### 5. Où agir — nuage temps × consolidation
 

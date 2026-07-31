@@ -428,23 +428,6 @@ def test_heatmap_separates_xp_from_activity(client_db) -> None:
     assert today[0]["xp"] == 30
 
 
-def test_dashboard_kpis_expose_value_and_delta(client_db) -> None:
-    """Chaque KPI porte son écart avec la semaine précédente (calculé serveur)."""
-    client, TestSession = client_db
-    now = datetime.now(UTC)
-    _seed_events(
-        TestSession,
-        [
-            (now - timedelta(minutes=10), "login", None),
-            (now - timedelta(minutes=8), "quiz_attempted", None),
-        ],
-    )
-    _as_papa()
-
-    body = client.get("/api/parent/dashboard").json()
-
-    for key in ("sessions", "active_minutes", "xp", "missions_completed"):
-        assert set(body[key]) == {"value", "delta"}
-    assert body["sessions"]["value"] >= 1
-    # Aucune activité la semaine précédente : le delta vaut la valeur courante.
-    assert body["sessions"]["delta"] == body["sessions"]["value"]
+# Les KPI du dashboard ont quitté ce module avec la route (ADR-0028 §1) : ils sont désormais
+# testés dans `test_dashboard.py`, contre le nouveau contrat (`active_days` remplace `sessions`,
+# l'XP quitte les KPI parent). Ce fichier ne couvre plus que les projections d'activité.

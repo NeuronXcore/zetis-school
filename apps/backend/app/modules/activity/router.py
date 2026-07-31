@@ -20,7 +20,6 @@ from app.modules.activity.events import (
     log_learning_event,
 )
 from app.modules.activity.schemas import (
-    DashboardKpisOut,
     DayDetailOut,
     HeatmapOut,
     PageViewRequest,
@@ -136,13 +135,6 @@ def activity_sessions(
     )
 
 
-@parent_router.get("/dashboard", response_model=DashboardKpisOut)
-def dashboard(db: Session = Depends(get_db)) -> dict:
-    """KPI du dashboard : 4 flux hebdomadaires `{value, delta}` + 2 stocks `{value}`.
-
-    Surface NEUVE : la page Dashboard n'avait pas d'endpoint côté backend. Elle porte les 4 KPI
-    de régularité du chantier « Activité », plus les lacunes ouvertes et les notions consolidées
-    (comptées par le module `progress` ; leur détail vit sur `/api/parent/progress/*`). Les
-    routes `/gaps` et `/progress/summary` de la spec n'ont jamais existé en code — le compteur
-    passe donc par ici. Reste hors payload : « prochaine révision »."""
-    return service.dashboard_kpis(db, student_id=get_default_student(db).id)
+# `GET /api/parent/dashboard` a quitté ce module (ADR-0028 §1) : l'agrégat traverse cinq domaines
+# (activity, progress, missions, memory, rag) et vit désormais dans `modules/dashboard`. Le loger
+# ici aurait fait de `activity` le point de dépendance de tout le backend.
