@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { GalaxyFullGraph } from "@zetis/types";
 import { solarSystemOf } from "./solarSystem";
 
-// Non-régression du §C (addendum ADR-0024, 2026-07-31) : la vue par défaut de `/galaxy`
-// rend le cerveau et les matières, RIEN D'AUTRE.
+// La vue par défaut de `/galaxy` rend la galaxie ENTIÈRE depuis le 2026-07-31 au soir.
 //
-// Ce test existe parce que l'addendum « Galaxie animée » supprime le plafond de nœuds le
-// même jour, et que les deux ont déjà été confondus une fois. Supprimer ce filtre en
-// croyant « finir le ménage » ferait revenir l'amas corrigé au rendu réel.
+// ⚠️ Ce fichier testait l'INVERSE quelques heures plus tôt : « ne rend que root + subject »,
+// non-régression du §C. Ces cas sont SUPPRIMÉS, pas assouplis — le filtre est révoqué, et un
+// test qui décrit un comportement disparu ne protège rien, il induit en erreur.
+//
+// Ce qui reste vrai et testé : aucune notion ne se perd, et une matière encore vide a quand
+// même sa planète.
 
 const GRAPH: GalaxyFullGraph = {
   nodes: [
@@ -25,23 +27,41 @@ const GRAPH: GalaxyFullGraph = {
   ],
 } as GalaxyFullGraph;
 
-describe("la vue par défaut ne rend que le cerveau et les matières", () => {
-  it("aucun chapitre, aucune notion", () => {
+describe("la vue par défaut rend TOUT le graphe", () => {
+  it("les chapitres et les notions ne sont plus retirés", () => {
     const solar = solarSystemOf(GRAPH, [])!;
-    expect(solar.nodes.map((n) => n.id)).toEqual(["root", "subject-1"]);
-    expect(solar.nodes.every((n) => n.kind === "root" || n.kind === "subject")).toBe(true);
+    expect(solar.nodes.map((n) => n.id)).toEqual([
+      "root",
+      "subject-1",
+      "chapter-3",
+      "skill-7",
+      "skill-8",
+    ]);
   });
 
-  it("les liens vers ce qui n'est plus rendu partent avec", () => {
+  it("les liens qui les portent restent, eux aussi", () => {
     const solar = solarSystemOf(GRAPH, [])!;
-    expect(solar.edges).toEqual([{ source: "root", target: "subject-1", type: "structure" }]);
+    expect(solar.edges).toHaveLength(4);
+    expect(solar.edges).toContainEqual({
+      source: "chapter-3",
+      target: "skill-7",
+      type: "structure",
+    });
   });
 
-  it("une notion travaillée ne fait PAS revenir son chapitre", () => {
-    // `skill-7` est en `solid` : le filtre ne doit pas faire d'exception pour les étoiles
-    // allumées, sinon la vue se re-densifie à mesure que Massimo progresse.
+  it("une notion PAS ENCORE travaillée est rendue comme les autres", () => {
+    // `skill-8` est en `unknown`. Une étoile pas encore née se montre : c'est la carte du
+    // programme, pas le tableau des acquis.
     const solar = solarSystemOf(GRAPH, [])!;
-    expect(solar.nodes.some((n) => n.id === "chapter-3")).toBe(false);
+    expect(solar.nodes.some((n) => n.id === "skill-8")).toBe(true);
+  });
+
+  it("le graphe n'est pas muté au passage", () => {
+    // La fonction copie : `GRAPH` est partagé entre les tests, et une matière ajoutée par
+    // effet de bord se retrouverait dans le suivant.
+    const before = GRAPH.nodes.length;
+    solarSystemOf(GRAPH, [{ subject_id: 42, name: "Latin", slug: "latin" }]);
+    expect(GRAPH.nodes).toHaveLength(before);
   });
 });
 
@@ -53,7 +73,7 @@ describe("les matières encore vides ont quand même leur planète", () => {
       { subject_id: 1, name: "SVT", slug: "svt" },
       { subject_id: 9, name: "Anglais", slug: "anglais" },
     ])!;
-    expect(solar.nodes.map((n) => n.id)).toEqual(["root", "subject-1", "subject-9"]);
+    expect(solar.nodes.some((n) => n.id === "subject-9")).toBe(true);
     expect(solar.edges).toContainEqual({
       source: "root",
       target: "subject-9",

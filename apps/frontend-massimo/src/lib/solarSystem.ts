@@ -1,21 +1,16 @@
 /**
- * La charge utile de la VUE PAR DÉFAUT de `/galaxy` — le système solaire.
+ * La charge utile de la VUE PAR DÉFAUT de `/galaxy` — la galaxie ENTIÈRE.
  *
- * Le cerveau au centre, les matières en orbite, RIEN D'AUTRE. Décidé au vu du rendu réel le
- * 2026-07-31 (addendum ADR-0024 §C) : le graphe complet posé par simulation de forces
- * produisait un amas où le cœur était à moitié enseveli et les libellés se chevauchaient.
+ * Le cerveau, les matières, leurs chapitres et leurs notions : tout est rendu, posé en orbites
+ * emboîtées par `constellationLayout`.
  *
- * ⚠️ CE FILTRE N'EST PAS LE PLAFOND DE NŒUDS. Le plafond (`GALAXY_MAX_NODES`) a été supprimé
- * le même jour — il cachait la progression de Massimo selon la taille de son écran. Celui-ci
- * reste : c'est une décision de COMPOSITION prise sur rendu réel, pas une supposition de
- * perf. Les deux ont été confondus une fois ; l'addendum « Galaxie animée » §1 le dit en
- * toutes lettres. Ne pas « finir le ménage » en le supprimant aussi.
+ * ⚠️ Cette fonction FILTRAIT, jusqu'au 2026-07-31 au soir : elle ne gardait que `root` et
+ * `subject` (§C, décidé au vu du rendu réel). Le filtre est **révoqué** — voir le corps de la
+ * fonction pour le motif, qui tient en une phrase : la cause de l'amas était la CONVERGENCE,
+ * et il n'y a plus de convergence.
  *
- * Les notions ne disparaissent pas : elles restent atteignables en ENTRANT dans une
- * constellation. Elles cessent seulement d'être servies toutes en même temps.
- *
- * Extrait de `GalaxyPage` le 2026-07-31 pour être testable hors du canvas — l'invariant
- * « root + subject uniquement » est le genre de chose qu'un refactor bien intentionné casse.
+ * Ce qu'elle fait encore, et qui n'a jamais eu de rapport avec la perf : donner sa planète à
+ * chaque matière, y compris celles que le graphe n'a pas parce qu'elles sont encore vides.
  */
 import type { GalaxyEdge, GalaxyFullGraph, GalaxyNode } from "@zetis/types";
 
@@ -37,11 +32,18 @@ export function solarSystemOf(
 ): SolarSystem | null {
   if (!fullGraph) return null;
 
-  const keep = new Set(
-    fullGraph.nodes.filter((n) => n.kind === "root" || n.kind === "subject").map((n) => n.id),
-  );
-  const nodes = fullGraph.nodes.filter((n) => keep.has(n.id));
-  const edges = fullGraph.edges.filter((e) => keep.has(e.source) && keep.has(e.target));
+  // ⚠️ IL N'Y A PLUS DE FILTRE ICI. Jusqu'au 2026-07-31 au soir, cette fonction ne gardait que
+  // `root` et `subject` (§C). Ce filtre existait parce que servir tout le graphe à une
+  // SIMULATION DE FORCES produisait un amas — le cœur à moitié enseveli, les libellés
+  // superposés. La cause était la convergence, pas le nombre de nœuds.
+  //
+  // Depuis, les positions sont CALCULÉES et épinglées (`constellationLayout`), moteur
+  // neutralisé : l'amas ne peut plus se produire, et le filtre perdait sa raison d'être. Il
+  // reste à cette fonction son autre rôle, qui n'a jamais eu de rapport avec la perf : donner
+  // sa planète à chaque matière, même vide.
+  const keep = new Set(fullGraph.nodes.map((n) => n.id));
+  const nodes = [...fullGraph.nodes];
+  const edges = [...fullGraph.edges];
 
   // Les matières ENCORE VIDES ont aussi leur planète.
   //

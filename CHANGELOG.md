@@ -67,6 +67,26 @@ donne pas, ce qui était déjà l'intention de l'addendum « Accueil vivant » �
   est l'essentiel : qu'un **troisième** point de montage n'apparaisse pas sans que personne ne le
   voie — le mode exact de la régression de juillet.
 
+**`/galaxy` montre enfin TOUTE la galaxie**, et le §C est **révoqué** à son tour : le cerveau,
+les matières, leurs chapitres et leurs notions, sur **trois anneaux concentriques** autour du
+cerveau (matières 150, chapitres 260, notions 370). Chaque matière reçoit un **secteur
+angulaire** et ses descendants y restent : la hiérarchie se lit en **rayon**, l'appartenance en
+**angle**. Une première version posait des orbites **emboîtées** — illisible, on ne voyait plus
+le centre. L'arrivée sort chaque
+constellation **d'un seul tenant** — tout ce qui descend d'une matière porte son rang, sans quoi
+elle se disloquerait en vol.
+
+- **Le §C n'était pas une erreur** : son amas était réel, mais il venait de la **convergence**,
+  pas du nombre de nœuds. Les positions étant désormais calculées et épinglées, moteur éteint, le
+  filtre protégeait contre un défaut disparu. ⚠️ Ne pas rallumer les forces « maintenant qu'on
+  sait faire » — c'est parce qu'on ne les rallume pas que tout peut être montré.
+- Une **incohérence disparaît** : on avait supprimé un plafond parce qu'il cachait la progression
+  de Massimo, tout en gardant un filtre qui en cachait davantage.
+- **Contrat serveur inchangé** : `galaxy/all` servait déjà tout le graphe, le filtre était client.
+- ⚠️ **Dette de mesure devenue critique** : l'iPhone doit tenir la galaxie complète sur `/galaxy`,
+  et l'Accueil en montre déjà une. La lisibilité à plusieurs centaines de notions **n'a pas été
+  vue en vrai**.
+
 **Correctif en cours de chantier** : le rejeu ne se voyait pas se construire. Le graphe rendu se
 recalculait sur l'horloge, donc `graphData` était réassigné **60 fois par seconde**, et
 `three-forcegraph` fait `stop().alpha(1)` à chaque assignation — le graphe se réinitialisait en

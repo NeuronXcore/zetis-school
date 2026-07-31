@@ -273,6 +273,48 @@
     trois appareils **inchangée et plus pressante** : l'iPhone doit maintenant tenir la 3D sur sa
     page d'entrée — Accepté (2026-07-31, soir)
 
+- `docs/decisions/adr-0024-addendum-constellations-completes.md` — **Constellations complètes : tout
+    est là, et tout est posé** — **cinquième** addendum à l'`adr-0024` dans la journée, et le
+    **deuxième à révoquer une décision prise le matin même** : le **§C** (vue par défaut réduite à
+    `root` + `subject`) tombe, `/galaxy` rend désormais la galaxie **ENTIÈRE**. **Le §C n'était pas
+    une erreur de jugement** — c'était une décision correcte sous une contrainte qui n'existe plus,
+    et c'est ce qui rend la révocation défendable plutôt qu'inconstante : son amas était **réel**,
+    constaté au rendu, mais il venait de la **CONVERGENCE** et non du nombre de nœuds — un moteur de
+    forces tasse les nœuds là où les forces s'annulent, sans égard pour la lisibilité, quel que soit
+    leur nombre. Deux livraisons du même jour ont retiré cette contrainte (« Galaxie animée » §3 :
+    matières posées sur orbites calculées, moteur éteint ; ADR-0029 §2 réécrit : positions calculées
+    et nœuds **épinglés** pour que le rejeu pousse sans ré-exploser), si bien que le filtre
+    protégeait contre un défaut **qui ne peut plus se produire**. **Trois anneaux CONCENTRIQUES
+    autour du cerveau** — matières 150, chapitres 260, notions 370 — **corrigés au vu du rendu dans
+    la même session** : une première version posait des orbites **emboîtées** (chapitres autour de
+    leur matière, notions autour de leur chapitre), lisible sur le papier et **illisible à
+    l'écran**, on ne voyait plus le centre mais des petits amas dispersés. Ce qui garde l'arbre
+    lisible malgré des anneaux **communs** : chaque matière reçoit un **SECTEUR ANGULAIRE** et tous
+    ses descendants y restent — on lit une part de tarte par matière, du centre vers le bord, la
+    **hiérarchie en RAYON** et l'**appartenance en ANGLE** ; 78 % du secteur occupé, le reste étant
+    la respiration sans laquelle deux matières voisines se touchent. ⚠️ Le nombre d'anneaux ne
+    dépend **PAS** du nombre de matières : trois, toujours, un par étage — c'est ce qui distingue
+    cette vue du système solaire du §C où chaque matière avait son orbite. Ordre des matières =
+    celui du **programme**, jamais un classement ; **déterministe**, aucun `Math.random`.
+    **L'arrivée sort chaque constellation d'un seul tenant** : tout ce qui descend d'une matière
+    porte **le rang de sa matière** (`arrivalOrder`) — sans quoi les nœuds sortiraient du centre un
+    par un et la constellation se **disloquerait en vol** — et la durée se compte en **rangs
+    distincts**, pas en nœuds, donc cent notions d'une même matière n'allongent pas la chorégraphie
+    d'un cran chacune. **Alternative écartée, et c'est LE piège** : tout afficher en rallumant le
+    moteur de forces « maintenant qu'on maîtrise mieux » — c'est littéralement l'amas du §C, et le
+    raisonnement est **inverse** : c'est parce qu'on ne rallume pas les forces que tout peut être
+    montré. **Une incohérence disparaît au passage** : on avait supprimé un plafond de nœuds *parce
+    qu'il cachait la progression de Massimo*, tout en gardant un filtre qui en cachait davantage.
+    **Contrat serveur inchangé** — `galaxy/all` servait **déjà** tout le graphe, le filtre était
+    **client** : zéro route, zéro schéma, zéro migration. **Coûts assumés** : beaucoup plus de nœuds
+    à l'écran sur la vue par défaut et une **lisibilité à plusieurs centaines de notions JAMAIS VUE
+    EN VRAI** (le point à regarder en premier), une deuxième décision du matin révoquée le soir, et
+    une **dette de mesure devenue critique** — l'iPhone doit tenir la galaxie complète sur `/galaxy`
+    alors que l'Accueil en montre déjà une ; si ça ne passe pas, ce sont les **particules** qui
+    tombent, pas les nœuds. **Hors périmètre, et à ne pas décider avant d'avoir regardé** : le
+    niveau de détail adaptatif (notions révélées au-delà d'un certain zoom), qui serait la vraie
+    réponse si la lisibilité ne tenait pas — Accepté (2026-07-31, soir)
+
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :

@@ -15,6 +15,7 @@ import type { GalaxyStatus } from "@zetis/types";
 import {
   GalaxyFallbackList,
   GalaxyLegend,
+  constellationLayout,
   hasWebGL,
   searchMatches,
   statusCounts,
@@ -208,16 +209,24 @@ export function GalaxyPage() {
   // (« probablement jamais écrit ») — il était atteint et rendu. Constat consigné dans
   // `zetis-galaxy.md`.
 
-  // La vue par défaut : le cerveau et les matières en orbite, RIEN D'AUTRE (addendum
-  // ADR-0024 §C, décidé au vu du rendu réel). Le filtre lui-même vit dans `lib/solarSystem`,
-  // où il est testable hors du canvas.
+  // La vue par défaut : la galaxie ENTIÈRE, en orbites emboîtées — le cerveau, les matières,
+  // leurs chapitres et leurs notions (addendum « constellations complètes », 2026-07-31 soir,
+  // qui RÉVOQUE le filtre `root` + `subject` du §C).
   //
-  // ⚠️ Ce filtre n'est PAS le plafond de nœuds supprimé le même jour : le plafond cachait la
-  // progression de Massimo selon la taille de son écran, celui-ci est une composition. Les
-  // deux ont déjà été confondus une fois.
+  // ⚠️ Ce que le §C avait vu était réel : servir tout le graphe à une SIMULATION DE FORCES
+  // produisait un amas. Mais la cause était la convergence, pas le nombre de nœuds — et il n'y
+  // a plus de convergence : `constellationLayout` calcule chaque position, `pinned` les épingle,
+  // le moteur est neutralisé. Ne pas « rallumer les forces maintenant qu'on sait faire » : c'est
+  // parce qu'on ne les rallume pas que tout peut être montré.
   const solarSystem = useMemo(
     () => solarSystemOf(fullGraph, galaxy.subjects),
     [fullGraph, galaxy.subjects],
+  );
+
+  /** Les positions imposées de la galaxie entière, et le rang d'arrivée de chaque nœud. */
+  const constellations = useMemo(
+    () => (solarSystem ? constellationLayout(solarSystem.nodes, solarSystem.edges) : null),
+    [solarSystem],
   );
 
   /**
@@ -440,9 +449,17 @@ export function GalaxyPage() {
                     <GalaxyCanvas
                       nodes={solarSystem.nodes}
                       edges={solarSystem.edges}
-                      // Les matières sont POSÉES sur leurs orbites, pas placées par un moteur
-                      // de forces : c'est une composition, pas un équilibre.
+                      // Tout est POSÉ, rien n'est convergé : c'est une composition, pas un
+                      // équilibre. `layout="orbit"` coupe les forces et dessine les anneaux
+                      // des matières ; `pinned` place chaque nœud, jusqu'aux notions.
                       layout="orbit"
+                      pinned={constellations?.positions ?? null}
+                      // Chaque constellation sort du centre d'un seul tenant : tout ce qui
+                      // descend d'une matière porte SON rang d'arrivée.
+                      arrivalOrder={constellations?.order ?? null}
+                      // Anneaux CONCENTRIQUES : un par étage (matières, chapitres, notions),
+                      // et non plus un par matière.
+                      orbitRings={constellations?.rings ?? null}
                       matchedIds={EMPTY_MATCHES}
                       highlightStatus={null}
                       selectedId={null}

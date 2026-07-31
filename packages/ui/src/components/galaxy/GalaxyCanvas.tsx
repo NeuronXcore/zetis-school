@@ -97,6 +97,21 @@ export interface GalaxyCanvasProps {
    * celle de `/galaxy`, qui s'afficherait alors composée d'emblée.
    */
   arrivalScope?: string;
+  /**
+   * Rang d'arrivée par nœud — tout ce qui descend d'une matière porte LE rang de sa matière.
+   *
+   * Sans lui, l'animation d'arrivée sortirait les nœuds un par un dans l'ordre où ils arrivent :
+   * une constellation se disloquerait en vol. Avec lui, chaque matière emmène ses chapitres et
+   * ses notions d'un seul tenant.
+   */
+  arrivalOrder?: Map<string, number> | null;
+  /**
+   * Rayons des anneaux d'orbite à dessiner, du plus proche au plus lointain.
+   *
+   * Sans lui, un anneau est tracé par MATIÈRE (le système solaire du §C). Avec lui, les anneaux
+   * sont **concentriques** et marquent les étages — matières, chapitres, notions.
+   */
+  orbitRings?: number[] | null;
   height?: number;
 }
 
@@ -171,6 +186,8 @@ export function GalaxyCanvas({
   layout = "force",
   pinned = null,
   arrivalScope = "galaxy",
+  arrivalOrder = null,
+  orbitRings = null,
   height = 540,
 }: GalaxyCanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -271,16 +288,23 @@ export function GalaxyCanvas({
     const graph = graphRef.current;
     if (layout !== "orbit" || typeof graph?.scene !== "function" || width === 0) return;
 
-    const placements = orbitLayout(nodes.filter((n) => n.kind === "subject").map((n) => n.id));
+    // Deux façons de tracer les anneaux, et elles ne disent pas la même chose : un anneau PAR
+    // MATIÈRE (chacune sur son orbite), ou des anneaux CONCENTRIQUES marquant les étages —
+    // matières, chapitres, notions. Le second est celui de la galaxie complète.
+    const radii =
+      orbitRings ??
+      orbitLayout(nodes.filter((n) => n.kind === "subject").map((n) => n.id)).map(
+        (p) => p.radius,
+      );
 
     // La caméra est placée EN SURPLOMB, pas dans le plan : vue par la tranche, un système
     // solaire se lit comme une ligne droite et les anneaux disparaissent (constaté au rendu).
     // ~35° d'élévation, l'angle auquel un disque se lit comme un disque.
-    const far = (placements.at(-1)?.radius ?? 200) * 2.1;
+    const far = (radii.at(-1) ?? 200) * 2.1;
     graph.cameraPosition?.({ x: 0, y: far * 0.62, z: far }, { x: 0, y: 0, z: 0 }, 0);
 
     const scene = graph.scene();
-    const rings = placements.map(({ radius }) => {
+    const rings = radii.map((radius) => {
       const ring = new Mesh(
         new RingGeometry(radius - 0.6, radius + 0.6, 96),
         new MeshBasicMaterial({
@@ -310,7 +334,7 @@ export function GalaxyCanvas({
         (ring.material as { dispose: () => void }).dispose();
       }
     };
-  }, [layout, nodes, width]);
+  }, [layout, nodes, width, orbitRings]);
 
   // Rotation de la constellation. `controlType="orbit"` expose `autoRotate` ; le moteur de
   // rendu appelle déjà `controls.update(delta)` à chaque frame, donc aucune boucle
@@ -742,12 +766,28 @@ export function GalaxyCanvas({
 
     // L'ORDRE DU PROGRAMME, celui dans lequel les matières nous sont servies. Ni ancienneté
     // ni nombre d'étoiles : l'un ferait un mini-rejeu, l'autre un palmarès (ADR-0024 §5).
-    const planets: { node: any; slot: { x: number; y: number; z: number } }[] = [];
+    //
+    // Les positions viennent de `pinned` quand il est fourni (galaxie complète en orbites
+    // emboîtées) et de `orbits` sinon (matières seules). Le RANG vient de `arrivalOrder` : tout
+    // ce qui descend d'une matière porte le rang de sa matière, donc chaque constellation sort
+    // du centre d'un seul tenant au lieu de se disloquer en vol.
+    const slots = pinned ?? orbits;
+    const planets: {
+      node: any;
+      slot: { x: number; y: number; z: number };
+      rank: number;
+    }[] = [];
     for (const node of data.nodes as any[]) {
-      const slot = orbits.get(node.id);
-      if (slot) planets.push({ node, slot });
+      const slot = slots.get(node.id);
+      // `root` est le point de départ : il ne voyage pas, il est déjà chez lui.
+      if (!slot || node.kind === "root") continue;
+      planets.push({ node, slot, rank: arrivalOrder?.get(node.id) ?? planets.length });
     }
     if (planets.length === 0) return;
+
+    // La durée se compte en RANGS distincts, pas en nœuds : cent notions d'une même matière
+    // arrivent ensemble, elles n'allongent pas la chorégraphie d'un cran chacune.
+    const rankCount = new Set(planets.map((p) => p.rank)).size;
 
     const place = (node: any, at: { x: number; y: number; z: number }) => {
       node.x = node.fx = at.x;
@@ -776,13 +816,13 @@ export function GalaxyCanvas({
     arrivalRef.current = true;
     rememberArrival(arrivalScope);
 
-    const total = arrivalDuration(planets.length);
+    const total = arrivalDuration(rankCount);
     const apply = (elapsed: number) => {
-      planets.forEach(({ node, slot }, index) => {
-        place(node, planetPosition(elapsed, index, slot));
+      planets.forEach(({ node, slot, rank }) => {
+        place(node, planetPosition(elapsed, rank, slot));
         // Avant de partir, la matière attend DANS le cerveau : invisible, sinon huit
         // planètes empilées à l'origine se liraient comme un défaut d'affichage.
-        if (node.__threeObj) node.__threeObj.visible = planetIsBorn(elapsed, index);
+        if (node.__threeObj) node.__threeObj.visible = planetIsBorn(elapsed, rank);
       });
       ringsRef.current.forEach((ring, index) => {
         (ring.material as MeshBasicMaterial).opacity = ringOpacity(
@@ -811,7 +851,7 @@ export function GalaxyCanvas({
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [layout, width, data, orbits, reduced, arrivalScope]);
+  }, [layout, width, data, orbits, pinned, arrivalOrder, reduced, arrivalScope]);
 
   // ── La naissance d'une étoile, depuis son parent (addendum ADR-0029 §2 réécrit) ─────
   //

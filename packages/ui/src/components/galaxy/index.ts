@@ -14,6 +14,8 @@ export type { GalaxyFallbackListProps } from "./GalaxyFallbackList";
 export { GalaxyLegend } from "./GalaxyLegend";
 export type { GalaxyLegendProps } from "./GalaxyLegend";
 export { hasWebGL } from "./webgl";
+export { constellationLayout } from "./constellationLayout";
+export type { ConstellationLayout } from "./constellationLayout";
 export {
   ANCESTOR_LEAD,
   BIRTH,

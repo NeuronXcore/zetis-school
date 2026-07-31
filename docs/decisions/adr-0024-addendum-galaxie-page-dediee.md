@@ -100,6 +100,19 @@ Three.js ; sans lui la régression reviendrait sans bruit, comme les 3,6 Mo mesu
 
 ### C. Le graphe global **migre** de l'Accueil vers `/galaxy`, dont il devient la vue par défaut
 
+> ⚠️ **La RÉDUCTION décidée ici — `root` + `subject` seulement — est RÉVOQUÉE** le soir du même
+> jour par `adr-0024-addendum-constellations-completes.md`. La vue par défaut rend désormais la
+> galaxie **entière**, en orbites emboîtées.
+>
+> **Ce §C n'était pas une erreur** : son constat, fait au vu du rendu réel, était juste. Ce qu'il
+> attribuait au **nombre de nœuds** venait en fait de la **convergence** — un moteur de forces
+> tasse les nœuds là où les forces s'annulent, sans égard pour la lisibilité. Les positions étant
+> désormais **calculées et épinglées**, moteur éteint, l'amas ne peut plus se produire et le
+> filtre protégeait contre un défaut disparu.
+>
+> ⚠️ **Ne pas en conclure qu'on peut rallumer les forces.** C'est parce qu'on ne les rallume pas
+> que tout peut être montré. La **migration** décidée par ce §C, elle, tient sans changement.
+
 La brique livrée le 2026-07-28 pour l'Accueil — graphe global en deux colonnes, badges de matières
 cliquables, frise de progression — n'est **pas supprimée**. Elle **change d'adresse**. Rien de ce
 qui a été construit ce jour-là n'est jeté ; c'est son emplacement qui était faux, pas son contenu.

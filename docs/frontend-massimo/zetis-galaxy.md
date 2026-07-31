@@ -215,7 +215,16 @@ précis) ; l'iPhone est la **contrainte** à honorer, pas la cible unique.
 
 - **Une constellation par matière.** Jamais un graphe global de toutes les matières en
   force-directed : illisible partout, et lourd même sur MacBook.
-- La vue d'ensemble affiche les matières, pas leurs notions.
+- **La vue d'ensemble affiche TOUT**, depuis le 2026-07-31 au soir (addendum « constellations
+  complètes », qui **révoque le §C**) : le cerveau, les matières, leurs chapitres et leurs
+  notions, sur **trois anneaux concentriques** autour du cerveau — matières 150, chapitres 260,
+  notions 370. Chaque matière reçoit un **secteur angulaire** et ses descendants y restent : la
+  hiérarchie se lit en **rayon**, l'appartenance en **angle**. Positions **calculées** par
+  `constellationLayout` et **épinglées**, moteur de forces éteint.
+  ⚠️ Le nombre d'anneaux ne dépend PAS du nombre de matières — il y en a trois, un par étage.
+  ⚠️ Le §C ne gardait que `root` + `subject` parce que le graphe complet produisait un **amas**.
+  Ce constat était juste, mais la cause était la **convergence**, pas le nombre de nœuds. **Ne pas
+  rallumer les forces** : c'est parce qu'elles restent éteintes que tout peut être montré.
 - **Plus de plafond de nœuds.** `GALAXY_MAX_NODES` (40 / 90 / 150) et son repli ont été
   **supprimés** le 2026-07-31 (addendum ADR-0024 « Galaxie animée » §1) : le plafond cachait à
   Massimo une partie de sa propre progression selon un critère matériel, et ses valeurs n'avaient
