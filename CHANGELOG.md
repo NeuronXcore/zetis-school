@@ -1,5 +1,31 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.34.0 — La galaxie devient un système solaire
+
+Date : 2026-07-31 · branche `feat/accueil-vivant` · addendum ADR-0024 §C (révisé)
+
+> Servir tout le graphe d'un coup à une simulation de forces produisait un **amas** : le cœur
+> à moitié enseveli sous les sphères, des libellés qui se chevauchent, aucune lecture possible.
+
+- **`/galaxy` s'ouvre sur un système solaire** : le **cerveau de Massimo au centre** (deux lobes
+  à circonvolutions, générés par le code, aplatis) et les **matières seules**, chacune **posée**
+  sur une orbite dessinée, dans un plan aplati vu en surplomb à ~35°.
+- **Un placement calculé, pas un équilibre** : un moteur de forces cherche une position stable,
+  pas une composition. `orbitLayout` (brique partagée, pure et **déterministe**) pose les orbites ;
+  l'ordre reste celui du programme, **jamais un classement**.
+- **Les matières encore VIDES ont aussi leur planète.** `galaxy/all` les exclut volontairement —
+  ce raisonnement valait pour un graphe dense ; dans un système solaire il s'inverse : une
+  matière absente se lirait comme une matière **qui n'existe pas**, une planète éteinte se lit
+  comme **« pas encore »**. Le clic reste honnête (« 🌱 Les étoiles de cette matière arrivent
+  bientôt »).
+- **Rien n'est perdu** : les notions restent atteignables en entrant dans une constellation —
+  elles cessent seulement d'être servies toutes en même temps. **Contrat serveur inchangé.**
+- Effet de bord heureux : ~10 planètes au lieu de 60 nœuds, le **plafond adaptatif ne mord plus**
+  sur cet écran (la dette ADR-0024 §6 subsiste pour les constellations).
+
+La rotation lente était déjà acquise (`controls.autoRotate`, coupée par `prefers-reduced-motion`).
+649 tests backend + 220 Massimo, `tsc -b` et build verts.
+
 ## 0.33.0 — Revoir sa galaxie grandir
 
 Date : 2026-07-31 · branche `feat/accueil-vivant` · ADR-0029

@@ -14,16 +14,19 @@ import ForceGraph3D from "react-force-graph-3d";
 import {
   AdditiveBlending,
   BackSide,
+  DoubleSide,
   Group,
   Mesh,
   MeshBasicMaterial,
   MeshPhongMaterial,
+  RingGeometry,
   SphereGeometry,
   type Object3D,
 } from "three";
 import SpriteText from "three-spritetext";
 import type { GalaxyEdge, GalaxyNode, GalaxyStatus } from "@zetis/types";
 import { BRAIN_LOBE, BRAIN_LOBES, BRAIN_LOBE_SCALE } from "./brainGeometry";
+import { orbitLayout } from "./orbitLayout";
 import { linkKey, litLinkIds, particlesFor } from "./galaxyGraph";
 import {
   CHAPTER_COLOR,
@@ -50,6 +53,16 @@ export interface GalaxyCanvasProps {
   highlightStatus?: GalaxyStatus | null;
   /** Ids d'étoiles trouvées par la recherche : mises en avant, et la caméra les cadre. */
   matchedIds?: Set<string> | null;
+  /**
+   * `"force"` (défaut) : simulation de forces — le rendu d'une constellation, où l'on ne sait
+   * pas d'avance combien d'étoiles il y aura.
+   *
+   * `"orbit"` : les matières sont POSÉES sur des orbites autour du cœur, dans un plan aplati,
+   * et chaque orbite est dessinée. C'est la vue d'arrivée de `/galaxy` — une composition, pas
+   * un équilibre : avec le cerveau et huit matières, le moteur de forces produisait un amas où
+   * le cœur était à moitié enseveli.
+   */
+  layout?: "force" | "orbit";
   height?: number;
 }
 
@@ -83,6 +96,7 @@ export function GalaxyCanvas({
   selectedId = null,
   highlightStatus = null,
   matchedIds = null,
+  layout = "force",
   height = 540,
 }: GalaxyCanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -108,10 +122,71 @@ export function GalaxyCanvas({
   useEffect(() => {
     const graph = graphRef.current;
     if (!graph?.d3Force) return;
+    // En orbite, on ne cherche pas un équilibre : les positions sont IMPOSÉES (`fx/fy/fz`
+    // ci-dessous), donc les forces n'ont rien à faire — les laisser actives ferait vibrer les
+    // planètes autour de leur point fixe.
+    if (layout === "orbit") {
+      graph.d3Force("charge")?.strength(0);
+      graph.d3Force("link")?.distance(0);
+      return;
+    }
     graph.d3Force("charge")?.strength(-190);
     graph.d3Force("link")?.distance(62);
     graph.d3ReheatSimulation?.();
-  }, [nodes, edges]);
+  }, [nodes, edges, layout]);
+
+  // ── Vue en orbite : les positions des matières, imposées ────────────────────────────
+  //
+  // Le placement est calculé ici et injecté dans `data` (plus bas) : c'est le seul chemin
+  // fiable, `graphData()` n'étant pas exposée par cette version de la lib.
+  const orbits = useMemo(() => {
+    if (layout !== "orbit") return new Map<string, { x: number; y: number; z: number }>();
+    const subjects = nodes.filter((n) => n.kind === "subject").map((n) => n.id);
+    return new Map(orbitLayout(subjects).map((p) => [p.id, { x: p.x, y: p.y, z: p.z }]));
+  }, [layout, nodes]);
+
+  // ── Les anneaux d'orbite ────────────────────────────────────────────────────────────
+  //
+  // Ajoutés directement à la scène : ce ne sont pas des nœuds du graphe (ils ne se cliquent
+  // pas, ne portent aucune donnée), seulement le décor qui rend l'idée d'orbite lisible.
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (layout !== "orbit" || typeof graph?.scene !== "function" || width === 0) return;
+
+    const placements = orbitLayout(nodes.filter((n) => n.kind === "subject").map((n) => n.id));
+
+    // La caméra est placée EN SURPLOMB, pas dans le plan : vue par la tranche, un système
+    // solaire se lit comme une ligne droite et les anneaux disparaissent (constaté au rendu).
+    // ~35° d'élévation, l'angle auquel un disque se lit comme un disque.
+    const far = (placements.at(-1)?.radius ?? 200) * 2.1;
+    graph.cameraPosition?.({ x: 0, y: far * 0.62, z: far }, { x: 0, y: 0, z: 0 }, 0);
+
+    const scene = graph.scene();
+    const rings = placements.map(({ radius }) => {
+      const ring = new Mesh(
+        new RingGeometry(radius - 0.6, radius + 0.6, 96),
+        new MeshBasicMaterial({
+          color: "#6d8bff",
+          transparent: true,
+          opacity: 0.16,
+          side: DoubleSide,
+          depthWrite: false,
+        }),
+      );
+      // Le `RingGeometry` naît dans le plan XY : on le couche pour qu'il devienne l'écliptique.
+      ring.rotation.x = Math.PI / 2;
+      scene.add(ring);
+      return ring;
+    });
+
+    return () => {
+      for (const ring of rings) {
+        scene.remove(ring);
+        ring.geometry.dispose();
+        (ring.material as { dispose: () => void }).dispose();
+      }
+    };
+  }, [layout, nodes, width]);
 
   // Rotation de la constellation. `controlType="orbit"` expose `autoRotate` ; le moteur de
   // rendu appelle déjà `controls.update(delta)` à chaque frame, donc aucune boucle
@@ -156,7 +231,9 @@ export function GalaxyCanvas({
       // Ce n'est pas une destination — c'est le point qui empêche les matières de se
       // disperser, et l'image de ce que la galaxie représente.
       if (n.kind === "root") {
-        const radius = radiusOf(NODE_VOLUME.subject) * 0.85;
+        // En orbite, le cerveau est le SOLEIL : à la taille d'une matière il se lit comme un
+        // nœud parmi d'autres, alors que tout est censé graviter autour de lui.
+        const radius = radiusOf(NODE_VOLUME.subject) * (layout === "orbit" ? 2.4 : 0.85);
         const material = new MeshPhongMaterial({
           color: "#a9b6ff",
           // Émission FAIBLE : au-delà, les plis s'auto-éclairent uniformément et le cerveau
@@ -336,7 +413,7 @@ export function GalaxyCanvas({
 
       return group;
     },
-    [selectedId, highlightStatus, matchedIds],
+    [selectedId, highlightStatus, matchedIds, layout],
   );
 
   // Cadre TOUTES les correspondances d'un coup : Massimo voit du même regard combien il y
@@ -455,9 +532,17 @@ export function GalaxyCanvas({
       // constellation n'a plus de centre lisible.
       // Dans une constellation c'est la matière qui fait soleil ; dans le graphe global,
       // c'est la racine. On épingle celui des deux qui est présent.
+      // En mode ORBITE, chaque matière reçoit en plus sa position imposée : le placement
+      // voyage dans les DONNÉES, pas par l'API du ref (`graphData()` n'est pas exposée par
+      // cette version de la lib — constaté à l'exécution).
       nodes: nodes.map((n) => {
         const anchor = nodes.some((x) => x.kind === "root") ? "root" : "subject";
-        return n.kind === anchor ? { ...n, fx: 0, fy: 0, fz: 0 } : { ...n };
+        if (n.kind === anchor) return { ...n, fx: 0, fy: 0, fz: 0 };
+        const placement = orbits.get(n.id);
+        if (placement) {
+          return { ...n, ...placement, fx: placement.x, fy: placement.y, fz: placement.z };
+        }
+        return { ...n };
       }),
       links: edges.map((e) => ({ source: e.source, target: e.target })),
     }),

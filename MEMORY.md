@@ -15,6 +15,29 @@
 de la frise + pastilles porteuses de leur compte. 646 back + 206 Massimo verts.
 **Prochain pas = vérification humaine dans le navigateur, puis push + les deux PR.**
 
+### `/galaxy` = système solaire (révision de l'addendum §C) — FAIT, non poussé
+
+**La vue d'arrivée n'affiche plus tout le graphe.** Servir `root` + matières + chapitres +
+notions à une simulation de forces produisait un **amas** : cerveau à moitié enseveli, libellés
+superposés. Désormais : **cerveau au centre** (il existait déjà — `brainGeometry.ts`, deux lobes
+à circonvolutions générés par le code, grossi ×2.4 en mode orbite pour faire soleil) et
+**matières seules**, chacune **posée** sur une orbite dessinée (`orbitLayout`, pure et
+déterministe), plan aplati, caméra en surplomb à ~35°.
+
+- **Un placement, pas un équilibre** : `GalaxyCanvas` gagne `layout="orbit"` — forces à zéro,
+  positions imposées via `fx/fy/fz` **dans les données** (⚠️ `graphData()` n'est PAS exposée par
+  cette version de la lib — constaté à l'exécution, l'API du ref ne marche pas pour ça).
+- **Les matières VIDES ont aussi leur planète** : `galaxy/all` les exclut volontairement, mais la
+  vue les rajoute depuis l'overview (déjà chargé). Une matière absente se lirait comme une
+  matière qui n'existe pas ; une planète éteinte se lit « pas encore ». **Contrat serveur
+  inchangé.**
+- La rotation lente était **déjà acquise** (`controls.autoRotate`, coupée par
+  `prefers-reduced-motion`) — rien à écrire.
+- ⚠️ **Question ouverte** : une matière vide est aujourd'hui rendue **exactement comme** une
+  matière travaillée. Les distinguer (planète plus sombre, comme l'état « à découvrir » de la
+  rampe §5) aiderait la lecture — mais n'a pas été demandé, et frôle le « voici ce que tu n'as
+  pas fait ». À trancher avec le user.
+
 ### Chantier « Accueil vivant » (2ᵉ addendum ADR-0024) — FAIT, non poussé
 
 **La demande** : un Accueil plus vivant, avec la **heatmap de Papa** en référence.

@@ -95,6 +95,21 @@ qui a été construit ce jour-là n'est jeté ; c'est son emplacement qui était
   (`GET /api/student/galaxy/all` — `root` → matières → chapitres → notions). Le plafond adaptatif
   de l'ADR-0024 §6 s'applique tel quel : dès qu'il mord, la vue **replie sur matières +
   chapitres**, et les notions restent atteignables en entrant dans une constellation.
+
+  > ⚠️ **Révisé le 2026-07-31, au vu du rendu réel.** Servir **tout** le graphe d'un coup à une
+  > simulation de forces produisait un **amas** : le cœur (cerveau) à moitié enseveli sous les
+  > sphères, des libellés qui se chevauchent, et aucune lecture possible.
+  >
+  > La vue d'arrivée devient un **système solaire** — le **cerveau au centre** et les
+  > **matières seules**, chacune **posée** sur une orbite dessinée, dans un plan aplati vu en
+  > surplomb. Un placement calculé, pas un équilibre : un moteur de forces cherche une
+  > position stable, pas une composition.
+  >
+  > **Rien n'est perdu** : les notions restent atteignables en entrant dans une constellation —
+  > elles cessent seulement d'être servies **toutes en même temps**. Le contrat
+  > `GET /api/student/galaxy/all` est **inchangé**, c'est le client qui ne garde que `root` et
+  > `subject`. Effet de bord heureux : 8 planètes au lieu de 60 nœuds, le **plafond adaptatif ne
+  > mord plus jamais** sur cet écran (la dette §6 subsiste pour les constellations).
 - **Clic sur une matière** → sa constellation, comportement inchangé.
 - **Les planètes CSS cessent d'être un écran.** Elles deviennent l'**état d'attente** pendant le
   chargement du chunk 3D, et le **repli sans WebGL**. Elles gardent ainsi leur raison d'être

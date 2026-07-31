@@ -188,15 +188,43 @@ export function GalaxyPage() {
   // atteignables en ENTRANT dans une constellation, elles ne disparaissent pas.
   // ⚠️ Les valeurs (40 / 90 / 150) sont provisoires et mesurées sur aucun appareil réel : c'est
   // une dette ouverte de l'ADR-0024 §6, hors de ce chantier. Ne pas les « ajuster » au jugé.
-  const cappedFull = useMemo(() => {
+  // ⚠️ Remplacé le 2026-07-31 : la vue d'arrivée n'affiche plus TOUT le graphe.
+  //
+  // Elle montre le **système solaire** — le cœur (cerveau) et les matières en orbite, rien
+  // d'autre. Le graphe complet posé par simulation de forces produisait un amas où le cerveau
+  // était à moitié enseveli et les libellés se chevauchaient (constaté au rendu réel). Les
+  // notions restent atteignables en ENTRANT dans une constellation : elles ne disparaissent
+  // pas, elles cessent d'être servies toutes en même temps.
+  //
+  // Effet de bord heureux : 8 planètes au lieu de 60 nœuds — le plafond adaptatif
+  // (`GALAXY_MAX_NODES`, dette ADR-0024 §6) ne mord plus jamais sur cet écran.
+  const solarSystem = useMemo(() => {
     if (!fullGraph) return null;
-    if (fullGraph.nodes.length <= maxNodesFor(width)) return fullGraph;
-    const keep = new Set(fullGraph.nodes.filter((n) => n.kind !== "skill").map((n) => n.id));
-    return {
-      nodes: fullGraph.nodes.filter((n) => keep.has(n.id)),
-      edges: fullGraph.edges.filter((e) => keep.has(e.source) && keep.has(e.target)),
-    };
-  }, [fullGraph, width]);
+    const keep = new Set(
+      fullGraph.nodes.filter((n) => n.kind === "root" || n.kind === "subject").map((n) => n.id),
+    );
+    const nodes = fullGraph.nodes.filter((n) => keep.has(n.id));
+    const edges = fullGraph.edges.filter((e) => keep.has(e.source) && keep.has(e.target));
+
+    // Les matières ENCORE VIDES ont aussi leur planète.
+    //
+    // `GET /api/student/galaxy/all` les exclut volontairement (« un soleil sans planète
+    // n'apprend rien et encombre la vue ») — ce raisonnement valait pour un graphe dense. Dans
+    // un système solaire il s'inverse : la carte de l'année doit montrer TOUTES les planètes,
+    // y compris celles qui ne sont pas encore allumées. Une matière absente se lirait comme
+    // une matière qui n'existe pas ; une planète éteinte se lit comme « pas encore ».
+    //
+    // `GET /api/student/galaxy` (overview), déjà chargé, les sert toutes — `0/0` compris. Le
+    // clic reste honnête : la constellation d'une matière vide annonce « 🌱 Les étoiles de
+    // cette matière arrivent bientôt. »
+    for (const subject of galaxy.subjects ?? []) {
+      const id = `subject-${subject.subject_id}`;
+      if (keep.has(id)) continue;
+      nodes.push({ id, kind: "subject", label: subject.name, subject_slug: subject.slug });
+      edges.push({ source: "root", target: id, type: "structure" });
+    }
+    return { nodes, edges };
+  }, [fullGraph, galaxy.subjects]);
 
   // En plein écran, le canvas prend tout ce qui reste sous le titre et au-dessus des KPI.
   // En plein écran, la hauteur disponible = fenêtre − bandeau (112) − chrome de la modale.
@@ -331,11 +359,14 @@ export function GalaxyPage() {
           ) : (
             <>
               <div className="overflow-hidden rounded-2xl border border-zetis-border bg-zetis-surface">
-                {webgl && cappedFull && cappedFull.nodes.length > 0 ? (
+                {webgl && solarSystem && solarSystem.nodes.length > 0 ? (
                   <Suspense fallback={planets}>
                     <GalaxyCanvas
-                      nodes={cappedFull.nodes}
-                      edges={cappedFull.edges}
+                      nodes={solarSystem.nodes}
+                      edges={solarSystem.edges}
+                      // Les matières sont POSÉES sur leurs orbites, pas placées par un moteur
+                      // de forces : c'est une composition, pas un équilibre.
+                      layout="orbit"
                       matchedIds={EMPTY_MATCHES}
                       highlightStatus={null}
                       selectedId={null}
