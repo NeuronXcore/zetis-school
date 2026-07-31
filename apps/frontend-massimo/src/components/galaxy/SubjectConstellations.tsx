@@ -7,7 +7,18 @@
 // La planète s'éclaire à mesure que Massimo progresse. Le libellé dessous est un COMPTE
 // d'étoiles allumées — jamais un pourcentage, jamais un classement.
 import type { GalaxySubject } from "@zetis/types";
+import { GOLD, GOLD_BRIGHT } from "@zetis/ui/galaxy";
 import { subjectIconFor } from "../../lib/subjectIcons";
+
+/** Opacité de la couronne solaire, en hexa — de discrète à franche selon la progression.
+ *
+ * Un plancher à `0x1c` : une matière tout juste commencée doit déjà être touchée par l'or,
+ * sinon le halo n'apparaît qu'à mi-parcours et ne récompense rien. */
+function goldAlpha(ratio: number): string {
+  return Math.round(0x1c + ratio * (0x8c - 0x1c))
+    .toString(16)
+    .padStart(2, "0");
+}
 
 const ACCENTS = ["#6366f1", "#d946ef", "#22d3ee", "#a78bfa", "#34d399", "#f59e0b"];
 
@@ -52,6 +63,12 @@ export function SubjectConstellations({
         const empty = subject.total === 0;
         const ratio = empty ? 0 : subject.lit / subject.total;
         const icon = subjectIconFor(subject.slug);
+        // Le relief est dessiné pour un globe de 80 px ; sur le bandeau (44 px) tout est
+        // ramené à l'échelle — tuile ET taches. Sans ça, une seule tache remplit la sphère
+        // et sa dérive ne se lit plus comme une rotation.
+        const k = variant === "band" ? 0.55 : 1;
+        const px = (value: number) => `${(value * k).toFixed(1)}px`;
+        const tile = px(160);
         return (
           <li key={subject.slug} className={variant === "band" ? "min-w-0 flex-1" : undefined}>
             {/* ⚠️ `cursor-pointer` est EXPLICITE : la préflight de Tailwind v4 pose
@@ -71,7 +88,9 @@ export function SubjectConstellations({
               }
               aria-pressed={variant === "band" ? selectedSlug === subject.slug : undefined}
               className={
-                "group flex w-full flex-col items-center rounded-2xl transition disabled:opacity-45 " +
+                // `relative` : c'est le repère de la couronne solaire, posée en absolu. Sans
+                // lui, elle se cale sur un ancêtre lointain et flotte à côté de la planète.
+                "group relative flex w-full flex-col items-center rounded-2xl transition disabled:opacity-45 " +
                 (variant === "band" ? "gap-1 p-1.5 " : "gap-2.5 p-3 ") +
                 (empty && variant === "grid" ? "cursor-default" : "cursor-pointer hover:-translate-y-0.5") +
                 (selectedSlug === subject.slug
@@ -88,6 +107,26 @@ export function SubjectConstellations({
                 } as React.CSSProperties
               }
             >
+              {/* Couronne SOLAIRE dorée, DERRIÈRE le globe — elle déborde, c'est ce qui en
+                  fait un halo et non un anneau.
+                  ⚠️ L'or n'est pas un décor. Le canvas pose déjà la règle (« l'or ne coule que
+                  vers ce que Massimo a vraiment travaillé ») et la maquette galaxie dit « aucun
+                  or ». Le halo suit donc `ratio` : une matière vide n'en a AUCUN, une matière
+                  bien avancée rayonne. Doré ≠ joli, doré = travaillé. */}
+              {!empty && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-full motion-safe:animate-[zetis-nebula_6s_ease-in-out_infinite]"
+                  style={{
+                    width: variant === "band" ? "72px" : "128px",
+                    height: variant === "band" ? "72px" : "128px",
+                    // Centré sur le GLOBE, pas sur le bouton : padding + moitié du globe −
+                    // moitié du halo. Bandeau : 6 + 22 − 36. Grille : 12 + 40 − 64.
+                    marginTop: variant === "band" ? "-8px" : "-12px",
+                    background: `radial-gradient(circle, ${GOLD_BRIGHT}${goldAlpha(ratio)} 0%, ${GOLD}1f 44%, transparent 68%)`,
+                  }}
+                />
+              )}
               <span
                 aria-hidden
                 className={
@@ -114,13 +153,16 @@ export function SubjectConstellations({
                   style={
                     {
                       "--spin": `${SPIN_SECONDS[i % SPIN_SECONDS.length]}s`,
+                      // `--tile` est lue par `@keyframes zetis-planet-spin` : le déplacement
+                      // DOIT valoir exactement la largeur de la tuile, sinon la boucle saute.
+                      "--tile": tile,
                       backgroundImage: `
-                        radial-gradient(26px 17px at 18px 24px, ${accent}, transparent 70%),
-                        radial-gradient(20px 26px at 62px 56px, ${accent}dd, transparent 70%),
-                        radial-gradient(30px 15px at 104px 18px, ${accent}, transparent 70%),
-                        radial-gradient(18px 22px at 138px 54px, ${accent}cc, transparent 70%),
-                        radial-gradient(14px 12px at 86px 70px, ${accent}ee, transparent 70%)`,
-                      backgroundSize: "160px 80px",
+                        radial-gradient(${px(26)} ${px(17)} at ${px(18)} ${px(24)}, ${accent}, transparent 70%),
+                        radial-gradient(${px(20)} ${px(26)} at ${px(62)} ${px(56)}, ${accent}dd, transparent 70%),
+                        radial-gradient(${px(30)} ${px(15)} at ${px(104)} ${px(18)}, ${accent}, transparent 70%),
+                        radial-gradient(${px(18)} ${px(22)} at ${px(138)} ${px(54)}, ${accent}cc, transparent 70%),
+                        radial-gradient(${px(14)} ${px(12)} at ${px(86)} ${px(70)}, ${accent}ee, transparent 70%)`,
+                      backgroundSize: `${tile} ${px(80)}`,
                       backgroundRepeat: "repeat",
                       // La planète s'éclaire avec la progression, mais garde un plancher :
                       // une matière peu travaillée doit être sobre, pas immobile.
@@ -135,10 +177,11 @@ export function SubjectConstellations({
                   style={
                     {
                       "--haze": `${SPIN_SECONDS[i % SPIN_SECONDS.length] * 1.9}s`,
+                      "--tile": tile,
                       backgroundImage: `
-                        radial-gradient(34px 12px at 46px 34px, rgba(255,255,255,.3), transparent 75%),
-                        radial-gradient(28px 10px at 122px 62px, rgba(255,255,255,.26), transparent 75%)`,
-                      backgroundSize: "160px 80px",
+                        radial-gradient(${px(34)} ${px(12)} at ${px(46)} ${px(34)}, rgba(255,255,255,.3), transparent 75%),
+                        radial-gradient(${px(28)} ${px(10)} at ${px(122)} ${px(62)}, rgba(255,255,255,.26), transparent 75%)`,
+                      backgroundSize: `${tile} ${px(80)}`,
                       backgroundRepeat: "repeat",
                       opacity: 0.55,
                     } as React.CSSProperties

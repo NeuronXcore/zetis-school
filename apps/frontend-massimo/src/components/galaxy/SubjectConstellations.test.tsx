@@ -8,8 +8,23 @@ const subjects: GalaxySubject[] = [
   { subject_id: 2, name: "Espagnol", slug: "espagnol", lit: 0, total: 0 },
 ];
 
+/** Les couches de TEXTURE d'une planète (relief + voile).
+ *
+ * On les reconnaît à `--tile` — le pas du keyframe — et non à `animate-` : la couronne solaire
+ * est animée elle aussi, et un sélecteur trop large la comptait comme une texture. */
 function planetLayers(container: HTMLElement): HTMLElement[] {
-  return [...container.querySelectorAll<HTMLElement>('span[class*="animate-"]')];
+  return [...container.querySelectorAll<HTMLElement>("span[style]")].filter((s) =>
+    s.style.getPropertyValue("--tile"),
+  );
+}
+
+/** Dimensions de la tuile, en NOMBRES.
+ *
+ * Comparer la chaîne serait fragile : le navigateur normalise `88.0px` en `88px`, là où jsdom
+ * la conserve telle quelle — un test qui mesurerait une chose en test et une autre en vrai
+ * (même piège que `grid-column` → `grid-area`, cf. TROUBLESHOOTING.md). */
+function tileOf(layer: HTMLElement): number[] {
+  return layer.style.backgroundSize.split(" ").map(parseFloat);
 }
 
 describe("planètes des matières", () => {
@@ -22,13 +37,27 @@ describe("planètes des matières", () => {
     for (const layer of layers) expect(layer.className).toContain("motion-safe:animate-");
   });
 
-  it("garde la tuile à 160px — la largeur DOIT égaler le trajet du keyframe", () => {
-    // Invariant fragile et déjà cassé une fois : avec une tuile de 80px (= la sphère), aucun
-    // relief n'entre ni ne sort du champ, le motif paraît figé et rien ne semble tourner.
-    // Le keyframe `zetis-planet-spin` va de 0 à -160px : les deux doivent rester d'accord.
+  it("garde la tuile au DOUBLE du globe — sinon rien ne semble tourner", () => {
+    // Invariant fragile et déjà cassé DEUX fois : avec une tuile égale à la sphère, aucun
+    // relief n'entre ni ne sort du champ et le motif paraît figé ; avec une tuile de 160px sur
+    // un globe de 44px (le bandeau), une seule tache remplit la sphère et sa dérive se lit
+    // comme une variation de luminosité.
     const { container } = render(<SubjectConstellations subjects={subjects} onOpen={() => {}} />);
     for (const layer of planetLayers(container)) {
-      expect(layer.style.backgroundSize).toBe("160px 80px");
+      expect(tileOf(layer)).toEqual([160, 80]);
+    }
+  });
+
+  it("met la tuile À L'ÉCHELLE du bandeau, et `--tile` suit — sinon la boucle saute", () => {
+    // `@keyframes zetis-planet-spin` se déplace de `--tile` exactement : si la variable et la
+    // largeur de tuile divergent, le motif saute à chaque tour au lieu de boucler.
+    const { container } = render(
+      <SubjectConstellations subjects={subjects} onOpen={() => {}} variant="band" />,
+    );
+    for (const layer of planetLayers(container)) {
+      expect(tileOf(layer)).toEqual([88, 44]);
+      // `--tile` DOIT valoir la largeur de la tuile — c'est le trajet du keyframe.
+      expect(parseFloat(layer.style.getPropertyValue("--tile"))).toBe(88);
     }
   });
 
@@ -73,7 +102,9 @@ describe("planètes des matières", () => {
       <SubjectConstellations subjects={subjects} onOpen={() => {}} />,
     );
     const [svt, espagnol] = [...container.querySelectorAll("button")];
-    const sphere = (b: Element) => b.querySelector("span")!.className;
+    // Le GLOBE, et non le premier span venu : la couronne solaire le précède désormais dans
+    // le DOM (elle est posée derrière lui).
+    const sphere = (b: Element) => b.querySelector('span[class*="overflow-hidden"]')!.className;
     expect(sphere(svt)).toContain("group-hover:brightness-125");
     expect(sphere(svt)).toContain("group-hover:shadow-");
     expect(sphere(espagnol)).not.toContain("group-hover:");

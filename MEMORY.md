@@ -7,13 +7,23 @@
 
 ## État à la reprise
 
-**Branche : `feat/accueil-vivant`** — chantier **Accueil vivant** (2ᵉ addendum ADR-0024 du
-2026-07-31), **ouverte PAR-DESSUS `feat/accueil-galaxy`** qui n'est ni poussée ni mergée.
-⚠️ **Les deux PR devront partir dans l'ordre** : `feat/accueil-galaxy` d'abord.
+**Branche : `feat/accueil-vivant`** — **ouverte PAR-DESSUS `feat/accueil-galaxy`**, qui n'est ni
+poussée ni mergée. ⚠️ **Les deux PR devront partir dans l'ordre** : `feat/accueil-galaxy` d'abord.
 
-**FAIT** : route `GET /api/gamification/history` + « Mon ciel » + « Tes derniers gains » + retour
-de la frise + pastilles porteuses de leur compte. 646 back + 206 Massimo verts.
-**Prochain pas = vérification humaine dans le navigateur, puis push + les deux PR.**
+**FAIT dans cette branche, dans l'ordre** : « Accueil vivant » (route
+`GET /api/gamification/history`, « Mon ciel », « Tes derniers gains », retour de la frise) →
+**« Mon ciel » devient un calendrier** sans cases vides → **rejeu animé** (ADR-0029) →
+**`/galaxy` devient un système solaire** (cerveau au centre, matières en orbite, matières vides
+comprises) → **bandeau de planètes** au fond spatial, couronne solaire dorée.
+**649 tests backend + 221 Massimo, `tsc -b` et builds verts. Tout vérifié dans le vrai
+navigateur** (session de Massimo, Chrome du user).
+
+**Prochain pas = push + les deux PR.** Rien n'est poussé.
+
+> ⚠️ **Reste dû, jamais vérifié en vrai** : le **cahier de bord de Papa** — le mapping
+> `routeLabels` qui doit rendre le même libellé pour `/progression` et `/galaxy`. Couvert par
+> 5 tests unitaires ; l'app Papa n'a pas de serveur branché sur `:8003`, dont le CORS n'autorise
+> que `:5179`. Demande un port de plus.
 
 ### `/galaxy` = système solaire (révision de l'addendum §C) — FAIT, non poussé
 
@@ -33,17 +43,25 @@ déterministe), plan aplati, caméra en surplomb à ~35°.
   inchangé.**
 - La rotation lente était **déjà acquise** (`controls.autoRotate`, coupée par
   `prefers-reduced-motion`) — rien à écrire.
-- **Bandeau de planètes CSS au-dessus du graphe** (`SubjectConstellations variant="band"`) :
-  **une seule ligne, sans défilement** — les planètes se partagent la largeur (`flex-1`) et
-  rétrécissent avec leur nombre (globe 44 px, emblème 24 px, nom tronqué). Un bandeau qui défile
-  cacherait les dernières matières ; un bandeau qui se replie repousserait le graphe hors écran.
-- **Double geste** : 1ᵉʳ tap = **viser** (la caméra vole sur la planète via `matchedIds` →
-  `zoomToFit`, + anneau `selectedId`) ; 2ᵉ tap sur la même = **entrer** dans la constellation.
-  « Montre-moi où elle est » et « emmène-moi dedans » sont deux intentions différentes.
+- **Bandeau de planètes CSS PERMANENT au-dessus du graphe** (`SubjectConstellations
+  variant="band"`), présent sur la galaxie **et** dans une constellation — c'est aussi le
+  **sélecteur de matière** : la planète ouverte porte son anneau. **Une seule ligne, sans
+  défilement** — les planètes se partagent la largeur (`flex-1`) et rétrécissent avec leur nombre
+  (globe 44 px, emblème 24 px, nom tronqué, tuile de relief mise à l'échelle via `--tile`).
+- ⚠️ **UN SEUL CLIC ouvre la matière.** Une version intermédiaire demandait un 1ᵉʳ tap pour
+  « viser » puis un 2ᵉ pour entrer : geste que personne n'avait demandé, et toucher une matière
+  sans voir son graphe se lit comme un clic qui n'a pas marché. **Ne pas réintroduire.**
 - **`SubjectKpiRow` SUPPRIMÉ** : le bandeau rend le même service et montre en plus les matières
-  vides, que les puces filtraient (`s.total > 0`). Deux rangées encadraient le graphe pour rien.
-- Une matière vide est **cliquable dans le bandeau** (viser est légitime) mais son ouverture
-  mène à l'écran d'attente honnête ; elle affiche « Bientôt » au lieu d'un compte.
+  vides, que les puces filtraient (`s.total > 0`).
+- **Cadre au fond spatial animé** : nébuleuses qui respirent, bande laiteuse en diagonale, deux
+  champs d'étoiles à vitesses différentes — **seul le champ proche scintille** (si tout clignote
+  ensemble, le fond respire d'un bloc et vole l'attention aux planètes). Tout en CSS, zéro 3D.
+- **Couronne solaire dorée** ∝ étoiles allumées, **absente sur une matière vide** : le canvas
+  pose déjà la règle (« l'or ne coule que vers ce que Massimo a vraiment travaillé ») et la
+  maquette galaxie dit « aucun or ». **Doré = travaillé, jamais « joli »** — ne pas l'étendre
+  aux planètes vides.
+- Une matière vide affiche « Bientôt » au lieu d'un compte ; l'ouvrir mène à l'écran d'attente
+  honnête (« 🌱 Les étoiles de cette matière arrivent bientôt »).
 
 ### Chantier « Accueil vivant » (2ᵉ addendum ADR-0024) — FAIT, non poussé
 

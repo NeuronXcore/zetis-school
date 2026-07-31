@@ -45,6 +45,31 @@ const GalaxyCanvas = lazy(() =>
  *  parmi toutes les matières renverrait des étoiles qu'on ne peut pas atteindre d'ici. */
 const EMPTY_MATCHES = new Set<string>();
 
+/** Un point d'étoile. Positions ÉCRITES À LA MAIN et non générées : un semis aléatoire produit
+ *  des grumeaux et des trous, là où un ciel se compose. */
+const star = (x: number, y: number, r: number, color: string) =>
+  `radial-gradient(${r}px ${r}px at ${x}px ${y}px, ${color}, transparent)`;
+
+/** Champ LOINTAIN — dense, fin, il dérive lentement et ne scintille pas. */
+const STARS_FAR = [
+  star(30, 24, 1.6, "rgba(255,255,255,.85)"), star(128, 62, 1.1, "rgba(255,255,255,.6)"),
+  star(206, 18, 2, "rgba(200,220,255,.9)"), star(84, 96, 1.2, "rgba(255,255,255,.55)"),
+  star(232, 104, 1.5, "rgba(220,235,255,.7)"), star(172, 44, 1, "rgba(255,255,255,.5)"),
+  star(12, 78, 1.3, "rgba(255,255,255,.6)"), star(58, 52, 1, "rgba(210,225,255,.5)"),
+  star(100, 12, 1.4, "rgba(255,255,255,.7)"), star(150, 112, 1.1, "rgba(235,242,255,.55)"),
+  star(190, 80, 1.7, "rgba(255,255,255,.75)"), star(248, 40, 1.2, "rgba(215,230,255,.6)"),
+  star(66, 122, 1, "rgba(255,255,255,.45)"), star(118, 88, 1.5, "rgba(240,246,255,.65)"),
+  star(216, 66, 1, "rgba(255,255,255,.5)"), star(44, 8, 1.2, "rgba(225,236,255,.6)"),
+].join(",");
+
+/** Champ PROCHE — moins nombreux, plus gros, et c'est lui qui scintille. */
+const STARS_NEAR = [
+  star(22, 40, 2.2, "rgba(255,255,255,.95)"), star(96, 74, 1.8, "rgba(226,238,255,.9)"),
+  star(158, 20, 2.4, "rgba(255,255,255,1)"), star(74, 12, 1.6, "rgba(210,228,255,.8)"),
+  star(140, 86, 2, "rgba(255,255,255,.9)"), star(182, 56, 1.7, "rgba(235,243,255,.85)"),
+  star(48, 90, 2.1, "rgba(255,255,255,.9)"),
+].join(",");
+
 export function GalaxyPage() {
   const galaxy = useGalaxy();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -54,13 +79,6 @@ export function GalaxyPage() {
   // Plein écran : les constellations vont se densifier, une vignette ne suffira plus.
   const [fullscreen, setFullscreen] = useState(false);
   const [query, setQuery] = useState("");
-  // Matière VISÉE dans le bandeau (≠ constellation ouverte). Premier tap : la caméra vole
-  // jusqu'à sa planète et l'entoure. Second tap sur la même : on entre.
-  //
-  // Ce double geste remplace le rail de puces : il garde l'accès au doigt (viser une sphère
-  // dans le graphe est difficile) SANS quitter le système solaire au premier contact —
-  // « montre-moi où elle est » et « emmène-moi dedans » sont deux intentions différentes.
-  const [aimedSlug, setAimedSlug] = useState<string | null>(null);
   const [viewport, setViewport] = useState(() => ({
     w: typeof window === "undefined" ? 1280 : window.innerWidth,
     h: typeof window === "undefined" ? 900 : window.innerHeight,
@@ -232,17 +250,86 @@ export function GalaxyPage() {
     return { nodes, edges };
   }, [fullGraph, galaxy.subjects]);
 
-  /** La planète visée, au format des ids de nœud — `matchedIds` déclenche le `zoomToFit`. */
-  const aimedNodeIds = useMemo(() => {
-    const subject = galaxy.subjects?.find((s) => s.slug === aimedSlug);
-    return subject ? new Set([`subject-${subject.subject_id}`]) : EMPTY_MATCHES;
-  }, [galaxy.subjects, aimedSlug]);
-
-  /** Bandeau : on VISE d'abord, on entre au second tap sur la même matière. */
-  function aimOrOpen(slug: string) {
-    if (aimedSlug === slug) galaxy.openSubject(slug);
-    else setAimedSlug(slug);
-  }
+  /**
+   * Le bandeau de planètes, rendu AU-DESSUS du graphe quel que soit l'écran.
+   *
+   * Il est permanent — et pas seulement sur le système solaire — parce qu'il sert deux fois :
+   * entrer dans une matière depuis la galaxie, et **changer de matière** sans repasser par
+   * elle. La planète de la matière ouverte porte son anneau : le bandeau dit aussi où on est.
+   *
+   * ⚠️ UN SEUL CLIC ouvre la constellation. Une version intermédiaire demandait un premier tap
+   * pour « viser » puis un second pour entrer : ça ajoutait un geste que personne n'avait
+   * demandé, et toucher une matière sans voir son graphe se lit comme un clic qui n'a pas
+   * marché.
+   */
+  const subjectBand =
+    galaxy.subjects && galaxy.subjects.length > 0 ? (
+      // Cadre au fond SPATIAL : les planètes flottent dans l'espace, elles ne sont pas posées
+      // sur un panneau d'interface. Trois couches — nébuleuses, champ d'étoiles qui dérive,
+      // et le contenu par-dessus. Tout est en CSS pur : aucun chunk 3D pour un décor.
+      <div className="relative mb-3 overflow-hidden rounded-2xl border border-zetis-border bg-zetis-bg p-3">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 motion-safe:animate-[zetis-nebula_14s_ease-in-out_infinite]"
+          style={{
+            background: `
+              radial-gradient(420px 180px at 12% 20%, rgba(99,102,241,.30), transparent 70%),
+              radial-gradient(380px 170px at 68% 85%, rgba(217,70,239,.22), transparent 70%),
+              radial-gradient(300px 150px at 92% 15%, rgba(34,211,238,.20), transparent 72%)`,
+          }}
+        />
+        {/* Bande laiteuse : une diagonale plus dense que le reste du champ. C'est elle qui fait
+            lire « Voie lactée » plutôt que « ciel uniforme » — un semis régulier n'a pas de
+            structure, donc pas de galaxie. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(104deg, transparent 26%, rgba(214,228,255,.14) 44%, rgba(236,240,255,.2) 52%, rgba(214,228,255,.12) 60%, transparent 76%)",
+            filter: "blur(6px)",
+          }}
+        />
+        {/* Deux champs d'étoiles à vitesses différentes : la parallaxe donne la profondeur.
+            Le second SCINTILLE (opacité pulsée), le premier non — si tout clignote ensemble,
+            le fond se met à respirer d'un bloc et attire l'œil plus que les planètes. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-80 motion-safe:animate-[zetis-starfield_90s_linear_infinite]"
+          style={{
+            // Étoiles de tailles inégales : à points identiques, le champ se lit comme une
+            // trame imprimée et non comme un ciel.
+            backgroundImage: STARS_FAR,
+            // ⚠️ La largeur DOIT égaler le trajet du keyframe (`-260px`), sinon la boucle saute.
+            backgroundSize: "260px 130px",
+            backgroundRepeat: "repeat",
+          }}
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 motion-safe:animate-[zetis-twinkle_3.4s_ease-in-out_infinite]"
+          style={{
+            backgroundImage: STARS_NEAR,
+            backgroundSize: "190px 95px",
+            backgroundRepeat: "repeat",
+          }}
+        />
+        <div className="relative">
+          {/* Le titre est DANS le cadre : dehors, il flottait au-dessus d'un bloc spatial sans
+              lui appartenir. Il reste vrai dans les deux écrans — depuis une constellation,
+              toucher une autre matière y entre aussi. */}
+          <p className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-zetis-muted">
+            Ta galaxie — touche une matière pour entrer dedans
+          </p>
+          <SubjectConstellations
+            subjects={galaxy.subjects}
+            onOpen={galaxy.openSubject}
+            variant="band"
+            selectedSlug={constellation?.subject.slug ?? null}
+          />
+        </div>
+      </div>
+    ) : null;
 
   // En plein écran, le canvas prend tout ce qui reste sous le titre et au-dessus des KPI.
   // En plein écran, la hauteur disponible = fenêtre − bandeau (112) − chrome de la modale.
@@ -366,32 +453,16 @@ export function GalaxyPage() {
           §B consistait à sortir ce coût de la page d'ATTERRISSAGE, pas du produit. */}
       {!constellation && (
         <section className="mt-6">
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-zetis-muted">
-            {aimedSlug
-              ? "Touche à nouveau la même planète pour entrer dedans"
-              : "Ta galaxie — touche une matière pour la viser"}
-          </h3>
-
           {galaxy.subjects !== null && galaxy.subjects.length === 0 ? (
             <p className="rounded-2xl border border-zetis-border bg-zetis-surface p-5 text-sm text-zetis-muted">
               🌱 Tes premières étoiles arriveront avec tes premières leçons.
             </p>
           ) : (
             <>
-              {/* Bandeau de planètes — les mêmes sphères CSS que l'écran d'attente, en ligne.
-                  Elles servent à VISER une matière dans le système solaire : au doigt, une
-                  planète de quelques pixels perdue dans le graphe est inatteignable.
-                  Aucun chunk 3D ici : ces globes sont en CSS pur. */}
-              {galaxy.subjects && galaxy.subjects.length > 0 && (
-                <div className="mb-3">
-                  <SubjectConstellations
-                    subjects={galaxy.subjects}
-                    onOpen={aimOrOpen}
-                    variant="band"
-                    selectedSlug={aimedSlug}
-                  />
-                </div>
-              )}
+              {/* Les mêmes sphères CSS que l'écran d'attente, en ligne. Au doigt, une planète
+                  de quelques pixels perdue dans le graphe est inatteignable — le bandeau est
+                  la cible large. Aucun chunk 3D ici : ces globes sont en CSS pur. */}
+              {subjectBand}
 
               <div className="overflow-hidden rounded-2xl border border-zetis-border bg-zetis-surface">
                 {webgl && solarSystem && solarSystem.nodes.length > 0 ? (
@@ -402,11 +473,9 @@ export function GalaxyPage() {
                       // Les matières sont POSÉES sur leurs orbites, pas placées par un moteur
                       // de forces : c'est une composition, pas un équilibre.
                       layout="orbit"
-                      // La matière visée depuis le bandeau : `matchedIds` la met en avant ET
-                      // amène la caméra dessus (`zoomToFit`), `selectedId` lui pose son anneau.
-                      matchedIds={aimedNodeIds}
+                      matchedIds={EMPTY_MATCHES}
                       highlightStatus={null}
-                      selectedId={[...aimedNodeIds][0] ?? null}
+                      selectedId={null}
                       // Dans la galaxie entière, TOUT mène à une matière : un amas ou le
                       // soleil ne sont pas des destinations, mais chaque nœud porte son
                       // `subject_slug` — un clic ouvre la bonne constellation sans second
@@ -444,6 +513,11 @@ export function GalaxyPage() {
           rien, et le navigateur en limite le nombre. */}
       {constellation && capped && !fullscreen && (
         <section className="mt-6">
+          {/* Le bandeau reste ici : c'est le sélecteur de matière. Sans lui, changer de matière
+              obligerait à revenir à la galaxie d'abord — un aller-retour pour un geste que
+              Massimo fait souvent. La planète ouverte porte son anneau. */}
+          {subjectBand}
+
           <div className="mb-3 flex items-center gap-3">
             <button
               type="button"

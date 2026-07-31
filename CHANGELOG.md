@@ -23,8 +23,22 @@ Date : 2026-07-31 · branche `feat/accueil-vivant` · addendum ADR-0024 §C (ré
 - Effet de bord heureux : ~10 planètes au lieu de 60 nœuds, le **plafond adaptatif ne mord plus**
   sur cet écran (la dette ADR-0024 §6 subsiste pour les constellations).
 
+- **Bandeau de planètes permanent au-dessus du graphe** — les mêmes sphères CSS que l'écran
+  d'attente, sur **une seule ligne** (elles se partagent la largeur et rétrécissent avec leur
+  nombre). **Un seul clic** ouvre la matière ; la planète ouverte porte son anneau, si bien que
+  le bandeau sert aussi à **changer de matière** sans repasser par la galaxie.
+  `SubjectKpiRow` disparaît : le bandeau rend le même service et montre en plus les matières
+  vides, que les puces filtraient.
+- **Cadre au fond spatial animé** : nébuleuses qui respirent, **bande laiteuse** en diagonale et
+  **deux champs d'étoiles** à vitesses différentes — seul le champ proche scintille (si tout
+  clignote ensemble, le fond respire d'un bloc et vole l'attention aux planètes).
+- **Couronne solaire dorée** autour des planètes, d'intensité proportionnelle aux étoiles
+  allumées et **absente sur une matière vide** : le canvas pose déjà la règle — *« l'or ne coule
+  que vers ce que Massimo a vraiment travaillé »* — et doré doit continuer à vouloir dire
+  **travaillé**, pas **joli**.
+
 La rotation lente était déjà acquise (`controls.autoRotate`, coupée par `prefers-reduced-motion`).
-649 tests backend + 220 Massimo, `tsc -b` et build verts.
+649 tests backend + 221 Massimo, `tsc -b` et build verts.
 
 ## 0.33.0 — Revoir sa galaxie grandir
 

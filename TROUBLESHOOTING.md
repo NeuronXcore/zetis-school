@@ -4,6 +4,44 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `/galaxy` — système solaire et bandeau — 2026-07-31
+
+### `graphData()` n'est pas exposée par cette version de `react-force-graph-3d`
+
+Pour imposer des positions (vue en orbite), le réflexe est de lire les nœuds vivants par
+`graph.graphData()` et d'y écrire `fx/fy/fz`. **`TypeError: graph.graphData is not a function`.**
+Les positions voyagent donc **dans les données** passées à `graphData={...}` — chaque nœud porte
+son `fx/fy/fz`, et la lib les respecte. Vérifier ce qu'expose réellement le ref avant de bâtir
+dessus : `scene()`, `cameraPosition()`, `d3Force()` et `zoomToFit()` existent, `graphData()` non.
+
+### Une tuile de relief qui ne suit pas la taille du globe fige la rotation
+
+Les planètes CSS ont une tuile de **160 px pour un globe de 80** : il faut que du relief entre et
+sorte du champ. Réduites à 44 px dans le bandeau **sans toucher la tuile**, une seule tache
+remplissait la sphère et sa dérive se lisait comme une **variation de luminosité**, pas comme une
+rotation. Tuile, taches et pas du keyframe sont maintenant mis à l'échelle ensemble via
+`--tile` — le déplacement DOIT valoir exactement la largeur de la tuile, sinon la boucle saute.
+
+C'est la **deuxième** fois que cet invariant casse. Le test qui le garde a été réécrit pour
+couvrir les deux tailles.
+
+### Un halo en `absolute` sans ancêtre `relative` part ailleurs
+
+La couronne solaire des planètes flottait **à côté** des sphères : le bouton n'était pas
+`relative`, donc le halo se calait sur un ancêtre lointain. Centrage à la main ensuite (padding +
+demi-globe − demi-halo) — un `top-1/2 -translate-y-1/2` aurait visé le centre du **bouton**,
+libellé compris, pas celui du globe.
+
+### Deux sélecteurs de test devenus faux en silence
+
+Ajouter une couche animée (le halo) a cassé quatre tests d'un coup : le helper sélectionnait
+`span[class*="animate-"]`, ce qui attrapait désormais le halo comme s'il était une texture de
+planète. Et un `b.querySelector("span")` visait « la sphère » — devenue le **second** span depuis
+que le halo la précède.
+
+**Leçon** : un sélecteur de test doit désigner ce qu'il veut dire (`--tile` pour une texture,
+`overflow-hidden` pour le globe), jamais « le premier élément qui ressemble ».
+
 ## Chantier `Accueil vivant` — passage au calendrier — 2026-07-31
 
 ### jsdom garde `grid-column`, le navigateur le normalise en `grid-area`
