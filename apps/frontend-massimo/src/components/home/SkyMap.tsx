@@ -14,11 +14,32 @@ import type { XpHistoryDay } from "../../lib/gamification";
 //
 // La série arrive CREUSE du serveur (jours sans gain absents). Ne la complétez pas.
 
-/** Cadre de placement, en pourcentage — les étoiles sont positionnées en absolu par-dessus. */
-const MARGIN_X = 6;
-const SPREAD_X = 88;
+/** Bornes du cadre de placement, en pourcentage. Voir `spreadFor` pour le choix de la largeur. */
+const MAX_SPREAD_X = 88;
 const MARGIN_Y = 12;
 const SPREAD_Y = 76;
+
+/**
+ * Largeur occupée par le ciel, selon le nombre d'étoiles — et centrée sur ce qu'elle occupe.
+ *
+ * ⚠️ Corrigé après vérification sur données réelles : à largeur fixe, six jours s'étiraient d'un
+ * bord à l'autre d'un grand cadre sombre, et la carte se lisait comme « il ne s'est presque rien
+ * passé ». C'est exactement le contresens que ce bloc doit éviter — un début n'est pas un vide.
+ *
+ * En faisant croître l'étendue AVEC le nombre de jours, la densité reste à peu près constante :
+ * peu de jours donnent un petit amas serré, beaucoup donnent une vraie galaxie.
+ */
+function spreadFor(count: number): { margin: number; spread: number } {
+  const spread = Math.min(MAX_SPREAD_X, 14 + count * 6);
+  return { margin: (100 - spread) / 2, spread };
+}
+
+/** Hauteur du cadre : elle suit la même logique que l'étendue, pour la même raison. */
+function heightClass(count: number): string {
+  if (count <= 6) return "h-16";
+  if (count <= 14) return "h-24";
+  return "h-32";
+}
 
 /**
  * Hachage stable d'une chaîne → [0, 1[ (FNV-1a).
@@ -55,6 +76,7 @@ export function SkyMap({ days, className = "" }: SkyMapProps) {
   if (days.length === 0) return null;
 
   const maxXp = Math.max(...days.map((day) => day.xp));
+  const { margin, spread } = spreadFor(days.length);
 
   return (
     <section
@@ -72,14 +94,16 @@ export function SkyMap({ days, className = "" }: SkyMapProps) {
         Chaque jour où tu travailles allume une étoile de plus. Elles restent.
       </p>
 
-      <div aria-hidden className="relative mt-3 h-32">
+      <div aria-hidden className={`relative mt-3 ${heightClass(days.length)}`}>
         {days.map((day, index) => {
           const intensity = maxXp > 0 ? day.xp / maxXp : 0;
-          const size = 3 + intensity * 6;
+          // Taille relevée après vérification réelle : à 3 px, les étoiles d'un petit ciel
+          // étaient à la limite du visible.
+          const size = 4 + intensity * 7;
           // L'ancienneté pousse vers la gauche — assez pour que le ciel ait un sens de lecture,
           // pas assez pour redevenir un axe : la dérive du hachage brouille tout intervalle.
           const drift = days.length > 1 ? index / (days.length - 1) : 0.5;
-          const left = MARGIN_X + drift * SPREAD_X + (hash(day.date) - 0.5) * 9;
+          const left = margin + drift * spread + (hash(day.date) - 0.5) * 9;
           const top = MARGIN_Y + hash(`${day.date}y`) * SPREAD_Y;
           const color = starColor(intensity);
 
