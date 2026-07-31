@@ -147,10 +147,34 @@ export interface DashboardPayload {
   subjects: DashboardSubject[];
   content_chain: DashboardContentStage[];
   reading: DashboardReadingItem[];
-  /** Hors v1 (ADR-0028) : composer une mission suppose d'appeler le moteur de missions, ce qu'un
-   *  GET ne doit pas faire. Le champ existe pour que le client n'ait pas à changer de forme le
-   *  jour où il sera rempli. */
-  proposed_mission: null;
+  /** `null` = aucune lacune découverte. La carte ne propose alors rien, plutôt que d'inventer
+   *  un travail à faire. */
+  proposed_mission: ProposedMission | null;
+}
+
+export type ProposedStepType = "eli5" | "vocal_explain" | "mindmap" | "quiz" | "lesson";
+
+export interface ProposedStep {
+  step_type: ProposedStepType;
+  instruction: string;
+}
+
+/**
+ * Mission composée EN LECTURE par le moteur de missions (patron preview/confirm, ADR-0010).
+ *
+ * Le GET qui la sert n'écrit rien : la mission n'existe qu'après confirmation explicite de Papa,
+ * sur la surface Missions. Proposition et création voient exactement les mêmes lacunes — sinon la
+ * carte proposerait une notion que le bouton ne créerait pas.
+ */
+export interface ProposedMission {
+  skill_id: number | null;
+  skill_name: string;
+  title: string;
+  steps: ProposedStep[];
+  estimated_minutes: number;
+  mission_type: string;
+  /** Où Papa va confirmer. La création reste un geste explicite, jamais un effet d'affichage. */
+  confirm_href: string;
 }
 
 /** Les quatre KPI, qui sont aussi les quatre focus possibles de la page (ADR-0028 §5). */

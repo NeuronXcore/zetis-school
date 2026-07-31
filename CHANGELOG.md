@@ -38,8 +38,16 @@ Date : 2026-07-31 · ADR-0028 · branche `feat/dashboard-papa-v2`
   cartes voisines, affichant « 1 » à côté de « 9 » pour deux mesures différentes.
 - **Zéro dépendance ajoutée** : ni react-query, ni lib de graphes. Les huit diagrammes sont en SVG
   inline et CSS Grid. Deux briques rejoignent `@zetis/ui` : `Sparkline` et `subjectColorFor`.
-- **Hors v1, assumé** : `proposed_mission` reste `null` (composer une mission suppose d'appeler le
-  moteur de missions, ce qu'un GET ne doit pas faire), et le bandeau de fraîcheur du Conseil.
+- **Mission proposée, sans qu'un affichage n'écrive (§10)** : la carte compose son parcours **en
+  lecture** via le moteur de missions (patron preview/confirm, ADR-0010) et la confirmation appelle
+  la route de création **déjà en place** — aucune surface d'écriture ajoutée. Prévisualisation et
+  création voient les mêmes lacunes, sinon la carte proposerait une notion que le bouton ne
+  créerait pas.
+- **Trouvaille du chantier** : une lacune `in_progress` (notion travaillée, verdict « à revoir »)
+  sort du champ de `generate_remediation` — elle n'a **aucun chemin automatique** même sans mission
+  active. Le dashboard le **dit** au lieu de rassurer à tort ; élargir le générateur est une
+  décision de doctrine du moteur de missions, pas une correction d'affichage.
+- **Hors v1, assumé** : le bandeau de fraîcheur du Conseil de classe.
 
 ## 0.28.0 — Chat ZETIS : un compagnon incarné, qui se souvient et qui parle
 

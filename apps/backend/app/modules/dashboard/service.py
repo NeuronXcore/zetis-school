@@ -35,9 +35,11 @@ from app.db.models import (
     SkillMastery,
     SkillMasteryHistory,
     SpacedReviewCard,
+    StudentProfile,
     Subject,
 )
 from app.modules.activity import service as activity_service
+from app.modules.missions import service as missions_service
 from app.modules.activity.timeutils import (
     local_day,
     range_bounds_utc,
@@ -655,10 +657,33 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         "subjects": subjects,
         "content_chain": _content_chain(db),
         "reading": _reading(db, student_id, subjects, ordered),
-        # Hors v1, assumé : composer une mission suppose d'appeler le moteur de missions, ce que
-        # le mono-chantier interdit et qu'un GET ne doit pas faire (la composition écrit). La
-        # carte « Lecture ZETIS » se rend avec ses constats seuls (adr-0028 §Hors v1).
-        "proposed_mission": None,
+        # Proposition composée EN LECTURE par le moteur de missions (`preview_remediation`,
+        # patron preview/confirm ADR-0010). Le GET n'écrit rien : la mission n'existe qu'après
+        # confirmation explicite de Papa, sur la route de création déjà en place. `None` quand
+        # aucune lacune n'est découverte — la carte ne propose alors rien plutôt que d'inventer
+        # un travail à faire.
+        "proposed_mission": _proposed_mission(db, student_id),
+    }
+
+
+def _proposed_mission(db: Session, student_id: int) -> dict | None:
+    """Passe-plat vers le moteur de missions, enrichi du lien de confirmation.
+
+    Le dashboard ne compose PAS lui-même : il demande au module qui détient la doctrine des
+    parcours (ADR-0017 §5). Recomposer ici un « eli5 → quiz » à la main aurait produit une
+    proposition qui diverge du jour où l'ordre des étapes change.
+    """
+    student = db.get(StudentProfile, student_id)
+    if student is None:
+        return None
+    proposal = missions_service.preview_remediation(db, student)
+    if proposal is None:
+        return None
+    return {
+        **proposal,
+        # Où va Papa pour confirmer. La création reste un POST explicite sur la surface Missions,
+        # jamais un effet de bord de l'affichage.
+        "confirm_href": "/missions",
     }
 
 

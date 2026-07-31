@@ -346,6 +346,98 @@ def test_la_charge_de_revision_couvre_quatorze_jours(client_db) -> None:
         assert len(subject["review_load"]) == 14
 
 
+class TestMissionProposee:
+    """La carte « Lecture ZETIS » propose une mission, sans que l'affichage ne crée quoi que ce
+    soit. C'est le patron preview/confirm (ADR-0010) : le GET compose, Papa confirme ailleurs."""
+
+    def _gap(self, db, *, severity: str, name: str):
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        skill = m.Skill(subject_id=subject.id, name=name, level="4e")
+        db.add(skill)
+        db.flush()
+        db.add(
+            m.Gap(
+                student_id=student.id,
+                skill_id=skill.id,
+                subject_id=subject.id,
+                status="open",
+                severity=severity,
+            )
+        )
+        return skill
+
+    def test_aucune_lacune_ne_propose_RIEN(self, client_db) -> None:
+        """Inventer un travail à faire serait pire que de ne rien proposer."""
+        client, _ = client_db
+        _as_papa()
+
+        assert client.get("/api/parent/dashboard").json()["proposed_mission"] is None
+
+    def test_compose_un_parcours_reel_et_son_estimation(self, client_db) -> None:
+        client, TestSession = client_db
+        with TestSession() as db:
+            self._gap(db, severity="high", name="Comparaison de relatifs")
+            db.commit()
+        _as_papa()
+
+        proposal = client.get("/api/parent/dashboard").json()["proposed_mission"]
+
+        assert proposal["title"] == "Renforcer : Comparaison de relatifs"
+        assert proposal["mission_type"] == "remediation"
+        assert [s["step_type"] for s in proposal["steps"]] == ["eli5", "vocal_explain"]
+        assert proposal["estimated_minutes"] == 10
+        assert proposal["confirm_href"] == "/missions"
+
+    def test_la_plus_severe_passe_devant(self, client_db) -> None:
+        client, TestSession = client_db
+        with TestSession() as db:
+            self._gap(db, severity="low", name="Notion mineure")
+            self._gap(db, severity="high", name="Notion urgente")
+            db.commit()
+        _as_papa()
+
+        proposal = client.get("/api/parent/dashboard").json()["proposed_mission"]
+
+        assert proposal["skill_name"] == "Notion urgente"
+
+    def test_l_AFFICHAGE_ne_cree_aucune_mission(self, client_db) -> None:
+        """LE test de cette slice : un GET qui écrirait ferait naître des missions à chaque
+        ouverture du dashboard."""
+        client, TestSession = client_db
+        with TestSession() as db:
+            self._gap(db, severity="high", name="Comparaison de relatifs")
+            db.commit()
+        _as_papa()
+
+        for _ in range(3):
+            assert client.get("/api/parent/dashboard").json()["proposed_mission"] is not None
+
+        with TestSession() as db:
+            assert db.query(m.Mission).count() == 0
+            assert db.query(m.MissionStep).count() == 0
+
+    def test_la_proposition_et_la_CREATION_voient_la_meme_lacune(self, client_db) -> None:
+        """Sans cet accord, la carte proposerait une notion que le bouton ne créerait pas.
+
+        `generate_remediation` ne regarde que les lacunes `open` (une lacune `in_progress` est
+        déjà prise en charge) : la prévisualisation doit filtrer à l'identique.
+        """
+        client, TestSession = client_db
+        with TestSession() as db:
+            self._gap(db, severity="high", name="Comparaison de relatifs")
+            db.commit()
+        _as_papa()
+
+        proposed = client.get("/api/parent/dashboard").json()["proposed_mission"]
+        created = client.post("/api/missions/generate-remediation").json()
+
+        assert len(created["missions"]) == 1
+        assert created["missions"][0]["title"] == proposed["title"]
+        # Et la proposition s'efface une fois la mission créée : elle est désormais couverte.
+        assert client.get("/api/parent/dashboard").json()["proposed_mission"] is None
+
+
 def test_etat_vide_ne_casse_pas(client_db) -> None:
     """Première ouverture : la page doit se rendre structurée, jamais blanche."""
     client, _ = client_db

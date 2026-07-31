@@ -1002,8 +1002,11 @@ Règles de contrat :
   les deux états existent et diffèrent. La matière **reste dans le tableau** dans les deux cas — le
   trou est une information.
 - `reading[].evidence` est **obligatoire** : un constat sans preuve adressable n'est pas émis.
-- `proposed_mission` est `null` en v1 : composer une mission suppose d'appeler le moteur de
-  missions, ce qu'un GET ne doit pas faire.
+- `proposed_mission` est composé **en lecture** par le moteur de missions
+  (`preview_remediation`) : **ce GET n'écrit rien**. La création reste un POST explicite sur
+  `/api/missions/generate-remediation`, route déjà en place. Prévisualisation et création voient
+  **exactement les mêmes lacunes** (`status == "open"`, notions déjà couvertes exclues) — sinon la
+  carte proposerait une notion que le bouton ne créerait pas. `null` = aucune lacune découverte.
 - **Jamais d'UNION avec `xp_events`**, et les événements d'agenda (`NON_ACTIVITY_EVENTS`) sont
   exclus de toutes les projections d'activité.
 

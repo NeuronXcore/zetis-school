@@ -128,6 +128,28 @@ class ReadingItem(BaseModel):
     evidence: Evidence
 
 
+class ProposedStep(BaseModel):
+    step_type: str  # eli5 | vocal_explain | mindmap | quiz | lesson
+    instruction: str
+
+
+class ProposedMission(BaseModel):
+    """Mission composée EN LECTURE par le moteur de missions (patron preview/confirm ADR-0010).
+
+    Rien n'est créé par le GET qui la sert : Papa confirme sur la surface Missions, et c'est la
+    route de création déjà en place qui écrit. La proposition et la création voient exactement
+    les mêmes lacunes — sinon la carte proposerait une notion que le bouton ne créerait pas.
+    """
+
+    skill_id: int | None = None
+    skill_name: str
+    title: str
+    steps: list[ProposedStep]
+    estimated_minutes: int
+    mission_type: str
+    confirm_href: str
+
+
 class DashboardOut(BaseModel):
     school_year: SchoolYearOut | None = None
     generated_at: str
@@ -142,7 +164,6 @@ class DashboardOut(BaseModel):
     subjects: list[SubjectOut]
     content_chain: list[ContentStage]
     reading: list[ReadingItem]
-    # Hors v1 (adr-0028) : composer une mission suppose d'appeler le moteur de missions, ce qu'un
-    # GET ne doit pas faire. Le champ existe pour que le client n'ait pas à changer de forme le
-    # jour où il sera rempli.
-    proposed_mission: None = None
+    # `null` = aucune lacune découverte. La carte ne propose alors rien, plutôt que d'inventer
+    # un travail à faire.
+    proposed_mission: ProposedMission | None = None

@@ -30,6 +30,9 @@ export {
   type KpiGaps,
   type KpiOutOf,
   type KpiValue,
+  type ProposedMission,
+  type ProposedStep,
+  type ProposedStepType,
   type ReadingTrend,
 } from "./dashboard";
 export {

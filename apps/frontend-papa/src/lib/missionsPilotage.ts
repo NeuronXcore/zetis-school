@@ -324,6 +324,18 @@ export function setMissionSteps(id: number, stepTypes: string[]): Promise<Missio
   }).then((r) => asJson<MissionPilot>(r));
 }
 
+/** Crée une mission de remédiation par lacune ouverte non couverte — idempotent côté serveur.
+ *
+ *  Route DÉJÀ EN PLACE, réutilisée telle quelle par la carte « Mission proposée » du dashboard :
+ *  celle-ci compose sa proposition en lecture, et c'est ce POST — donc un geste explicite de
+ *  Papa — qui écrit. Aucune surface d'écriture n'a été ajoutée pour cette carte. */
+export function generateRemediation(): Promise<{ created: number }> {
+  return fetch(`${API_URL}/api/missions/generate-remediation`, {
+    method: "POST",
+    headers: headers(),
+  }).then((r) => asJson<{ created: number }>(r));
+}
+
 // Signal (sans store global) : la page émet après validate/reject, la sidebar réécoute pour
 // rafraîchir le compteur ambré « à valider » sur l'entrée Missions.
 export const MISSIONS_PENDING_EVENT = "zetis:missions-pending-changed";

@@ -291,6 +291,25 @@ Invariant maintenu des deux côtés : **rien du dashboard ne remonte dans l'inte
 (pas d'auto-surveillance), et **aucune notification push** — le décrochage se lit à la
 consultation.
 
+### §10 — La mission proposée : composer en lecture, créer sur confirmation
+
+La carte « Lecture ZETIS » propose une mission. **Le GET qui la sert n'écrit rien** : la
+composition passe par `missions/service.preview_remediation`, pendant lecture de
+`generate_remediation` — mêmes lacunes, même moteur d'étapes, même ordre, aucune ligne créée.
+C'est le patron preview/confirm déjà posé par `adr-0010` et employé par le Commander.
+
+**Aucune surface d'écriture n'est ajoutée** : la confirmation appelle la route de création qui
+existait déjà (`POST /api/missions/generate-remediation`). Le dashboard ne crée pas
+unilatéralement — il propose, Papa tranche, et la mission naît `pending` comme toute autre.
+
+Invariant à tenir : **la prévisualisation et la création doivent voir exactement les mêmes
+lacunes**. Sans cet accord, la carte proposerait une notion que le bouton ne créerait pas. D'où le
+même filtre `status == "open"` de part et d'autre — et, en corollaire, l'état vide **honnête**
+décrit au §Hors v1 quand des lacunes existent que le générateur ne reprend pas.
+
+Créer une mission depuis cette carte est la seule **invalidation métier réelle** de la page : c'est
+le seul cas où l'agrégat est rechargé (§1). Un geste de filtrage, jamais.
+
 ## Conséquences
 
 **Positives** — Une seule requête au montage ; filtrage instantané ; les KPI cessent d'être
@@ -331,6 +350,12 @@ Conseil de classe reçoit un point d'entrée contextualisé au lieu d'être atte
 - Second élève / multi-profils.
 - **Bandeau de fraîcheur du Conseil de classe** (§7) : demande un comptage serveur des
   `learning_events` postérieurs à `created_at`, donc une extension du module `reports`.
+- **Relance automatique d'une lacune `in_progress`** : `generate_remediation` ne reprend que les
+  lacunes `open`. Une notion travaillée dont le verdict fut « à revoir » passe en `in_progress` et
+  sort de son champ — elle n'a alors **aucun chemin automatique**, même sans mission active.
+  Constaté en base pendant ce chantier. Le dashboard le **dit** (§10) au lieu de rassurer à tort,
+  mais élargir le générateur est une décision de doctrine du moteur de missions (`adr-0017`), pas
+  une correction d'affichage.
 - **Correction du bug d'échelle `mastery_score`** (0–100 traité comme 0–1 dans `missions/command.py`,
   `champion.py`, `reports/service.py` et deux modales Papa). Dette **antérieure** à ce chantier ; le
   §3 bis fait que le dashboard ne l'hérite pas, ce qui la rend traitable séparément.

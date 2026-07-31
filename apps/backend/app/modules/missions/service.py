@@ -291,6 +291,57 @@ def generate_remediation(db: Session, student: StudentProfile) -> list[dict]:
     return [_to_out(db, m) for m in created]
 
 
+def preview_remediation(db: Session, student: StudentProfile) -> dict | None:
+    """Compose la PROCHAINE mission de remédiation **sans rien écrire** (patron ADR-0010).
+
+    C'est le pendant lecture de `generate_remediation` : mêmes lacunes, même moteur d'étapes,
+    même ordre — mais aucune ligne créée. Le dashboard Papa l'affiche comme proposition, et la
+    mission n'existe qu'après confirmation explicite, via la route de création déjà en place
+    (`POST /api/missions/pilot/generate-remediation`). Aucune surface d'écriture n'est ajoutée.
+
+    **Les deux fonctions doivent voir exactement les mêmes lacunes**, sinon la carte proposerait
+    une notion que le bouton ne créerait pas : d'où le même filtre `status == "open"` (et non
+    `OPEN_GAP_STATUSES` — une lacune déjà `in_progress` est prise en charge) et la même exclusion
+    des notions déjà couvertes par une remédiation active.
+
+    Renvoie la plus SÉVÈRE des lacunes non couvertes, ou `None` s'il n'y en a aucune — auquel cas
+    la carte ne propose rien plutôt que d'inventer un travail à faire.
+    """
+    candidates = [
+        gap
+        for gap in db.scalars(
+            select(Gap)
+            .where(Gap.student_id == student.id, Gap.status == "open")
+            .order_by(Gap.id)
+        )
+        if not _has_active_remediation(db, student_id=student.id, skill_id=gap.skill_id)
+    ]
+    if not candidates:
+        return None
+
+    # Même hiérarchie de sévérité que la priorité posée à la création : la proposition porte sur
+    # ce qui sortirait en tête, pas sur la première ligne venue.
+    gap = max(candidates, key=lambda g: (_PRIORITY_BY_SEVERITY.get(g.severity, 1), -g.id))
+    skill_name = _skill_name(db, gap.skill_id)
+    steps = _build_steps(db, gap.skill_id, skill_name, mission_type="remediation")
+
+    return {
+        "skill_id": gap.skill_id,
+        "skill_name": skill_name,
+        "title": f"Renforcer : {skill_name}",
+        "steps": [
+            {"step_type": step_type, "instruction": instruction}
+            for step_type, instruction, _resource_id in steps
+        ],
+        "estimated_minutes": max(
+            5, sum(_STEP_MINUTES.get(step_type, 4) for step_type, _i, _r in steps)
+        ),
+        # `remediation` place le RAPPEL avant la ré-explication (récupération active) : la carte
+        # peut le dire sans reformuler la doctrine, elle lit l'ordre réellement composé.
+        "mission_type": "remediation",
+    }
+
+
 # --- Générateurs par source (idempotents, tous → pending ; templates purs versionnés) ------
 #
 # Le vocabulaire de scoring/templates est versionné par `MISSION_SCORING_VERSION` : un

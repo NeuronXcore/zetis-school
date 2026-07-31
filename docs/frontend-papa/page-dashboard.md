@@ -213,8 +213,18 @@ pointillée. Note : *« Un pic se lisse en avançant une révision, pas en la su
   fondent. Un constat sans preuve n'est pas affiché.
 - Constat de non-conclusion explicite quand le volume est insuffisant (« trop peu d'activité sur la
   période pour conclure ») — préférable au silence.
-- Mission proposée : `Prévisualiser` / `Écarter`. **Papa ne crée pas unilatéralement** : ZETIS
-  compose depuis les preuves, la mission n'existe qu'après confirmation.
+- Mission proposée : `Créer la mission` (sous `ConfirmDialog`) / `Écarter`. **Papa ne crée pas
+  unilatéralement, et l'affichage ne crée rien du tout** : le parcours est composé **en lecture**
+  par le moteur de missions (`preview_remediation`, `adr-0028 §10`), et la confirmation appelle la
+  route de création **déjà en place**. Aucune surface d'écriture n'a été ajoutée.
+- L'encart affiche le parcours **réellement composé** (types d'étape dans l'ordre du moteur) et son
+  estimation — il ne reformule pas la doctrine, il la lit.
+- **Deux états vides distincts**, et le second est celui qui compte : *aucune lacune* → « chaque
+  notion à renforcer est déjà prise en charge » ; *des lacunes sans mission active, mais hors du
+  champ du générateur* (lacune `in_progress`, déjà travaillée) → on le **dit**, avec un lien vers
+  `/lacunes`. Écrire « tout est pris en charge » dans ce cas serait faux.
+- `Écarter` masque l'encart **pour la session** : le persister demanderait une table, et la lacune,
+  elle, est toujours là au rechargement.
 
 ## Contrat API
 
@@ -269,8 +279,10 @@ projections client (`adr-0028 §1`, §2).
     { "trend": "up|flat|watch", "text": "…",
       "evidence": { "count": 5, "kind": "quiz", "href": "/cahier-bord?events=…" } }
   ],
-  "proposed_mission": { "title": "…", "summary": "…", "steps": 3, "estimated_minutes": 15,
-                        "preview_href": "/missions/preview?draft=…" }
+  "proposed_mission": { "skill_id": 7, "skill_name": "…", "title": "Renforcer : …",
+                        "steps": [ { "step_type": "eli5", "instruction": "…" } ],
+                        "estimated_minutes": 10, "mission_type": "remediation",
+                        "confirm_href": "/missions" }
 }
 ```
 

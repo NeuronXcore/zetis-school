@@ -12,8 +12,13 @@ import { DashboardPage } from "./DashboardPage";
 
 vi.mock("../lib/dashboard", () => ({ fetchDashboard: vi.fn() }));
 vi.mock("../components/BackendStatus", () => ({ BackendStatus: () => null }));
+vi.mock("../lib/missionsPilotage", () => ({
+  generateRemediation: vi.fn(),
+  notifyPendingChanged: vi.fn(),
+}));
 
 import { fetchDashboard } from "../lib/dashboard";
+import { generateRemediation } from "../lib/missionsPilotage";
 
 function subject(overrides: Partial<DashboardSubject> = {}): DashboardSubject {
   const zeros = () => Array.from({ length: 8 }, () => Array.from({ length: 7 }, () => 0));
@@ -82,7 +87,18 @@ const PAYLOAD: DashboardPayload = {
       evidence: { count: 3, kind: "notion", href: "/lacunes?subject=maths" },
     },
   ],
-  proposed_mission: null,
+  proposed_mission: {
+    skill_id: 7,
+    skill_name: "Comparaison de relatifs",
+    title: "Renforcer : Comparaison de relatifs",
+    steps: [
+      { step_type: "eli5", instruction: "Demande à ZETIS de t'expliquer…" },
+      { step_type: "vocal_explain", instruction: "Réexplique avec tes mots…" },
+    ],
+    estimated_minutes: 10,
+    mission_type: "remediation",
+    confirm_href: "/missions",
+  },
 };
 
 function renderPage(initialEntry = "/") {
@@ -95,6 +111,9 @@ function renderPage(initialEntry = "/") {
 
 beforeEach(() => {
   vi.mocked(fetchDashboard).mockReset().mockResolvedValue(PAYLOAD);
+  // Sans ce reset, les compteurs d'appel s'accumulent d'un test à l'autre et les assertions
+  // « n'a rien créé » passeraient à côté d'une écriture non voulue.
+  vi.mocked(generateRemediation).mockReset().mockResolvedValue({ created: 1 });
 });
 
 describe("agrégat unique", () => {
@@ -203,6 +222,83 @@ describe("file « À décider »", () => {
 
     expect(queue).not.toBeNull();
     expect(within(queue as HTMLElement).getAllByRole("listitem")).toHaveLength(1);
+  });
+});
+
+describe("mission proposée", () => {
+  it("affiche le parcours composé et son estimation, sans rien créer", async () => {
+    renderPage();
+    await screen.findByText(/Mission proposée/);
+
+    expect(
+      screen.getByText(/2 étapes composées depuis les traces mesurées/),
+    ).toHaveTextContent("Explication ELI5 → Reformulation orale. ~10 min.");
+    // LE verrou : ouvrir le dashboard ne crée aucune mission.
+    expect(generateRemediation).not.toHaveBeenCalled();
+  });
+
+  it("ne crée qu'après confirmation explicite, puis recharge l'agrégat", async () => {
+    renderPage();
+    await screen.findByText(/Mission proposée/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Créer la mission" }));
+    // Le premier clic ouvre la confirmation — il n'écrit toujours rien.
+    expect(generateRemediation).not.toHaveBeenCalled();
+    expect(screen.getByText("Créer cette mission de consolidation ?")).toBeInTheDocument();
+
+    // Deux boutons portent alors ce libellé : celui de l'encart et celui de la modale. C'est le
+    // second qui engage.
+    const buttons = screen.getAllByRole("button", { name: "Créer la mission" });
+    fireEvent.click(buttons[buttons.length - 1]);
+    await waitFor(() => expect(generateRemediation).toHaveBeenCalledTimes(1));
+    // Créer une mission est une invalidation métier réelle : c'est le seul cas où l'agrégat est
+    // rechargé (ADR-0028 §1).
+    await waitFor(() => expect(fetchDashboard).toHaveBeenCalledTimes(2));
+  });
+
+  it("« Écarter » masque la proposition sans rien créer", async () => {
+    renderPage();
+    await screen.findByText(/Mission proposée/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Écarter" }));
+
+    expect(screen.queryByText(/Mission proposée/)).toBeNull();
+    expect(generateRemediation).not.toHaveBeenCalled();
+  });
+
+  it("sans aucune lacune découverte, la carte le dit au lieu d'inventer un travail", async () => {
+    const kpis = PAYLOAD.periods["7"].kpis;
+    vi.mocked(fetchDashboard).mockResolvedValue({
+      ...PAYLOAD,
+      proposed_mission: null,
+      periods: {
+        ...PAYLOAD.periods,
+        "7": {
+          ...PAYLOAD.periods["7"],
+          kpis: { ...kpis, open_gaps: { ...kpis.open_gaps, without_mission: 0 } },
+        },
+      },
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(/chaque notion à renforcer est déjà prise en charge/),
+    ).toBeInTheDocument();
+  });
+
+  it("des lacunes sans mission mais hors du générateur : la carte ne rassure PAS à tort", async () => {
+    // Cas réel constaté en base : une notion travaillée dont le verdict fut « à revoir » passe
+    // en `in_progress` et sort du champ de `generate_remediation`. Elle n'a pas de mission
+    // active, et pourtant rien ne la reprendra — écrire « tout est pris en charge » mentirait.
+    vi.mocked(fetchDashboard).mockResolvedValue({ ...PAYLOAD, proposed_mission: null });
+    renderPage();
+
+    expect(await screen.findByText(/ZETIS ne relance pas seul/)).toBeInTheDocument();
+    expect(screen.queryByText(/déjà prise en charge/)).toBeNull();
+    expect(screen.getByRole("link", { name: /Décider quoi en faire/ })).toHaveAttribute(
+      "href",
+      "/lacunes",
+    );
   });
 });
 

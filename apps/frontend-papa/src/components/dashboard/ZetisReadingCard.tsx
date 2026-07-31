@@ -1,6 +1,12 @@
 import { Link } from "react-router-dom";
-import type { DashboardFocus, DashboardReadingItem, ReadingTrend } from "@zetis/types";
+import type {
+  DashboardFocus,
+  DashboardReadingItem,
+  ProposedMission,
+  ReadingTrend,
+} from "@zetis/types";
 import { DashboardCard } from "./DashboardCard";
+import { ProposedMissionPanel } from "./ProposedMissionPanel";
 
 // « Lecture ZETIS » — constats adossés à leurs traces.
 //
@@ -23,10 +29,19 @@ const TREND_ICON: Record<ReadingTrend, { glyph: string; className: string; label
 
 interface ZetisReadingCardProps {
   items: DashboardReadingItem[];
+  proposal: ProposedMission | null;
+  withoutMission: number;
   focus: DashboardFocus | null;
+  onMissionCreated: () => void;
 }
 
-export function ZetisReadingCard({ items, focus }: ZetisReadingCardProps) {
+export function ZetisReadingCard({
+  items,
+  proposal,
+  withoutMission,
+  focus,
+  onMissionCreated,
+}: ZetisReadingCardProps) {
   return (
     <DashboardCard
       card="lecture"
@@ -36,13 +51,14 @@ export function ZetisReadingCard({ items, focus }: ZetisReadingCardProps) {
       className="xl:col-span-12"
       note="Rien de ce cadre n'apparaît dans l'interface de Massimo."
     >
+      <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
       {items.length === 0 ? (
         <p className="py-4 text-sm italic text-papa-muted">
           Pas encore assez de traces mesurées pour formuler un constat. Rien n'est affiché tant
           qu'aucune preuve ne le fonde.
         </p>
       ) : (
-        <ul className="grid gap-x-8 md:grid-cols-2">
+        <ul>
           {items.map((item, index) => {
             const trend = TREND_ICON[item.trend];
             return (
@@ -67,6 +83,13 @@ export function ZetisReadingCard({ items, focus }: ZetisReadingCardProps) {
           })}
         </ul>
       )}
+
+        <ProposedMissionPanel
+          proposal={proposal}
+          withoutMission={withoutMission}
+          onCreated={onMissionCreated}
+        />
+      </div>
     </DashboardCard>
   );
 }

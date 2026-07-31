@@ -243,7 +243,13 @@ export function DashboardPage() {
         />
         <ReviewLoadCard load={sumReviewLoad(visibleSubjects)} focus={focus} />
         <ContentChainCard stages={data.content_chain} focus={focus} />
-        <ZetisReadingCard items={data.reading} focus={focus} />
+        <ZetisReadingCard
+          items={data.reading}
+          proposal={data.proposed_mission}
+          withoutMission={kpis.open_gaps.without_mission}
+          focus={focus}
+          onMissionCreated={dash.reload}
+        />
       </div>
     </div>
   );
