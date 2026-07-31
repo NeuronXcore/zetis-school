@@ -6,7 +6,9 @@ import { CloseFullscreenButton } from "../components/galaxy/CloseFullscreenButto
 import { GalaxySearch } from "../components/galaxy/GalaxySearch";
 import { NotionActionPanel } from "../components/galaxy/NotionActionPanel";
 import { SearchEmptyToast } from "../components/galaxy/SearchEmptyToast";
+import { ProgressSparkline } from "../components/galaxy/ProgressSparkline";
 import { SubjectConstellations } from "../components/galaxy/SubjectConstellations";
+import { SubjectKpiRow } from "../components/galaxy/SubjectKpiRow";
 import { useGalaxy } from "../hooks/useGalaxy";
 import { REASON_LABEL } from "../lib/gamification";
 import type { GalaxyStatus } from "@zetis/types";
@@ -39,6 +41,10 @@ import {
 const GalaxyCanvas = lazy(() =>
   import("@zetis/ui/galaxy/canvas").then((m) => ({ default: m.GalaxyCanvas })),
 );
+
+/** La recherche porte sur une constellation ouverte, jamais sur la galaxie entière : chercher
+ *  parmi toutes les matières renverrait des étoiles qu'on ne peut pas atteindre d'ici. */
+const EMPTY_MATCHES = new Set<string>();
 
 export function GalaxyPage() {
   const galaxy = useGalaxy();
@@ -76,7 +82,7 @@ export function GalaxyPage() {
     };
   }, [fullscreen]);
 
-  const { summary, consolidated, constellation, notion } = galaxy;
+  const { summary, consolidated, constellation, notion, fullGraph, timeline } = galaxy;
   const levelProgress = summary
     ? Math.round((summary.xp_into_level / summary.xp_for_next) * 100)
     : 0;
@@ -176,6 +182,22 @@ export function GalaxyPage() {
     return { ...constellation, nodes: chapters, edges: [], truncated: true };
   }, [constellation, width]);
 
+  // Le MÊME plafond, appliqué à la galaxie complète (addendum ADR-0024 §C : « il s'applique tel
+  // quel »). Un graphe global rassemble bien plus de nœuds qu'une constellation : il mord
+  // beaucoup plus tôt. Au-delà, on replie sur matières + chapitres — les notions restent
+  // atteignables en ENTRANT dans une constellation, elles ne disparaissent pas.
+  // ⚠️ Les valeurs (40 / 90 / 150) sont provisoires et mesurées sur aucun appareil réel : c'est
+  // une dette ouverte de l'ADR-0024 §6, hors de ce chantier. Ne pas les « ajuster » au jugé.
+  const cappedFull = useMemo(() => {
+    if (!fullGraph) return null;
+    if (fullGraph.nodes.length <= maxNodesFor(width)) return fullGraph;
+    const keep = new Set(fullGraph.nodes.filter((n) => n.kind !== "skill").map((n) => n.id));
+    return {
+      nodes: fullGraph.nodes.filter((n) => keep.has(n.id)),
+      edges: fullGraph.edges.filter((e) => keep.has(e.source) && keep.has(e.target)),
+    };
+  }, [fullGraph, width]);
+
   // En plein écran, le canvas prend tout ce qui reste sous le titre et au-dessus des KPI.
   // En plein écran, la hauteur disponible = fenêtre − bandeau (112) − chrome de la modale.
   const canvasHeight = fullscreen
@@ -228,6 +250,18 @@ export function GalaxyPage() {
       </div>
     ) : null;
 
+  // Planètes CSS : ÉTAT D'ATTENTE du chunk 3D et REPLI sans WebGL (addendum ADR-0024 §C).
+  // Elles ne disparaissent pas du code — elles cessent d'être un écran à part entière.
+  const planets = (
+    <div className="p-4">
+      {galaxy.subjects === null ? (
+        <p className="text-sm text-zetis-muted">Ta galaxie se dessine…</p>
+      ) : (
+        <SubjectConstellations subjects={galaxy.subjects} onOpen={galaxy.openSubject} />
+      )}
+    </div>
+  );
+
   const search = (
     <GalaxySearch
       value={query}
@@ -279,20 +313,63 @@ export function GalaxyPage() {
         </div>
       </section>
 
-      {/* ── Écran 1 : la galaxie (constellations par matière) ── */}
+      {/* ── Écran 1 : LA GALAXIE COMPLÈTE, toutes matières ──
+          Vue par défaut depuis le 2026-07-31 (addendum ADR-0024 §C). C'est la brique livrée le
+          2026-07-28 pour l'Accueil : elle n'a pas été supprimée, elle a changé d'adresse.
+          `/galaxy` paie donc Three.js à l'ouverture — c'est sa raison d'être. Tout le gain du
+          §B consistait à sortir ce coût de la page d'ATTERRISSAGE, pas du produit. */}
       {!constellation && (
         <section className="mt-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-zetis-muted">
-            Choisis une constellation
+            Ta galaxie — touche une matière pour entrer dedans
           </h3>
-          {galaxy.subjects === null ? (
-            <p className="text-sm text-zetis-muted">Ta galaxie se dessine…</p>
-          ) : galaxy.subjects.length === 0 ? (
+
+          {galaxy.subjects !== null && galaxy.subjects.length === 0 ? (
             <p className="rounded-2xl border border-zetis-border bg-zetis-surface p-5 text-sm text-zetis-muted">
               🌱 Tes premières étoiles arriveront avec tes premières leçons.
             </p>
           ) : (
-            <SubjectConstellations subjects={galaxy.subjects} onOpen={galaxy.openSubject} />
+            <>
+              <div className="overflow-hidden rounded-2xl border border-zetis-border bg-zetis-surface">
+                {webgl && cappedFull && cappedFull.nodes.length > 0 ? (
+                  <Suspense fallback={planets}>
+                    <GalaxyCanvas
+                      nodes={cappedFull.nodes}
+                      edges={cappedFull.edges}
+                      matchedIds={EMPTY_MATCHES}
+                      highlightStatus={null}
+                      selectedId={null}
+                      // Dans la galaxie entière, TOUT mène à une matière : un amas ou le
+                      // soleil ne sont pas des destinations, mais chaque nœud porte son
+                      // `subject_slug` — un clic ouvre la bonne constellation sans second
+                      // aller-retour serveur.
+                      onNodeClick={(n) => n.subject_slug && galaxy.openSubject(n.subject_slug)}
+                      onBackgroundClick={() => {}}
+                      height={canvasHeight}
+                    />
+                  </Suspense>
+                ) : (
+                  // Les planètes CSS ne sont plus un ÉCRAN : elles sont l'état d'attente
+                  // pendant le chargement du chunk 3D, et le repli sans WebGL. Elles gardent
+                  // ainsi leur raison d'être d'origine — ne pas payer Three.js — là où elle a
+                  // encore un sens.
+                  planets
+                )}
+              </div>
+
+              {/* Entrée directe par matière : viser une sphère au doigt dans une galaxie dense
+                  est difficile, une puce ne l'est pas. */}
+              {galaxy.subjects && galaxy.subjects.length > 0 && (
+                <div className="mt-3">
+                  <SubjectKpiRow subjects={galaxy.subjects} onOpen={galaxy.openSubject} />
+                </div>
+              )}
+
+              {/* La frise suit le graphe : c'est un élément de progression, sa place est ici. */}
+              {timeline && timeline.points.length > 1 && (
+                <ProgressSparkline timeline={timeline} className="mt-3" />
+              )}
+            </>
           )}
         </section>
       )}

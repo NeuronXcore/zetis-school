@@ -4,6 +4,58 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `Accueil & Galaxie` — slice B (addendum ADR-0024) — 2026-07-31
+
+### Le test de budget qui n'aurait PAS attrapé la régression qu'il vise
+
+Réflexe naturel : vérifier qu'aucun import statique de l'Accueil n'atteint Three.js. Ce test
+serait passé **avant comme après** le chantier — et n'aurait donc rien protégé.
+
+Le canvas était **déjà** code-splitté le 2026-07-28 :
+`lazy(() => import("@zetis/ui/galaxy/canvas"))`. Le coût ne venait pas d'un import synchrone mais
+d'un **MONTAGE** : l'Accueil montait `HomeGalaxyPreview`, qui déclenchait le chargement du chunk
+à l'atterrissage. Massimo téléchargeait 1,37 Mo malgré le `lazy()`.
+
+`accueil.bundle.test.ts` interdit donc les **deux formes** — `import ... from` **et** `import()` —
+sur tout fichier atteignable depuis la page. Il porte en plus deux garde-fous, parce qu'un test
+de budget qui passe pour de mauvaises raisons est pire que pas de test : un minimum de fichiers
+analysés (une résolution cassée rendrait le graphe vide, donc vert), et une **contre-épreuve** qui
+vérifie que le détecteur voit bien le déclenchement légitime de `GalaxyPage`.
+
+Vérifié en réintroduisant la régression : le test échoue. Puis retirée.
+
+### Deux choses que la spec demandait et que le backend ne sert pas
+
+- **« La capsule recommandée, avec sa matière et sa durée »** : `/api/capsules/library` ne porte
+  **aucune durée**, et « recommandée » n'existe nulle part. La calculer côté client serait une
+  règle métier dans la page, que la slice interdit explicitement. Le raccourci affiche donc
+  `new_count` (`/api/capsules/stats`) et n'est pas rendu si `total === 0`.
+- **Le compte global d'étoiles** de la carte Galaxie : `GET /api/student/galaxy` sert `lit` et
+  `total` **par matière**. Le total est une **somme de présentation** — la seule addition tolérée
+  dans une page qui refuse tout calcul métier.
+
+### Le bandeau Agenda : une régression fonctionnelle à un cheveu
+
+La spec réécrite et la maquette v2 composent l'Accueil en cinq blocs, **sans** `HomeAgendaBanner`.
+Le suivre à la lettre aurait rendu `/agenda` **inatteignable** : en phase 0 l'agenda n'a pas
+d'entrée de sidebar, et ce bandeau est son seul accès (ADR-0025).
+
+C'est exactement la dette que l'addendum reprochait à la version précédente de cette même spec —
+elle était en retard sur le code, à trois jours d'intervalle et sur le même fichier. Le bandeau
+est conservé, la spec et la maquette corrigées.
+
+### La « brique à déplacer » du §C était deux implémentations concurrentes
+
+L'addendum décrit un « graphe global deux colonnes + badges + frise » à déplacer tel quel.
+`HomeGalaxyPreview.tsx` (~420 lignes) était en réalité une **expérience Galaxy complète** :
+canvas, recherche, `SubjectKpiRow`, frise, légende, panneau d'actions **et son propre plein écran
+à deux niveaux** — soit un doublon de ce que `GalaxyPage` fait déjà.
+
+Le « déplacement » est donc une **fusion** : `GalaxyPage` a absorbé la galaxie complète comme vue
+par défaut (via `useGalaxy`, qui tire maintenant `fetchFullGraph` et `fetchGalaxyTimeline`), les
+composants ont été réutilisés tels quels, et `HomeGalaxyPreview` a été **supprimé** — c'est son
+orchestration en double qui disparaît, pas son contenu.
+
 ## Chantier `Accueil & Galaxie` — slice A (addendum ADR-0024) — 2026-07-31
 
 ### Une route qui n'existe pas et qui ne renvoie même pas le bon 404

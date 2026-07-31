@@ -19,9 +19,11 @@ réveil de l'app.
 │ (globale)    ├───────────────────────────────────────────────────────┤
 │ Accueil ◀    │ 🙂  Salut Massimo 👋                                   │
 │ Matières     │     « message ZETIS, servi et rendu verbatim »        │
-│ Cours        │                                                       │
-│ Révision     │ ┌───────────────────────────────────────────────────┐ │
-│ Fiches       │ │ MISSION DU JOUR                                   │ │
+│ Cours        │ ┌───────────────────────────────────────────────────┐ │
+│ Agenda       │ │ MON AGENDA          (ADR-0025)            Voir → │ │
+│ Révision     │ └───────────────────────────────────────────────────┘ │
+│ Fiches       │ ┌───────────────────────────────────────────────────┐ │
+│              │ │ MISSION DU JOUR                                   │ │
 │ ELI5         │ │ Français — Les temps du récit                     │ │
 │ Capsules IA  │ │ « parce que cette notion revient bientôt »        │ │
 │ Missions     │ │ [Français] [15 min] [+60 XP]      ▓ Commencer ▓   │ │
@@ -43,8 +45,16 @@ réveil de l'app.
 └──────────────┴───────────────────────────────────────────────────────┘
 ```
 
-Cinq blocs sous le bandeau. **Une seule action accentuée sur la page** : « Commencer ».
-Maquette de référence : `docs/frontend-massimo/mockup/mockup-page-accueil-v2.html`.
+Cinq blocs sous le bandeau, **plus le bandeau Agenda**. **Une seule action accentuée sur la
+page** : « Commencer ». Maquette de référence :
+`docs/frontend-massimo/mockup/mockup-page-accueil-v2.html`.
+
+> **Bandeau Agenda — ajouté à cette spec le 2026-07-31, au read-before-code.** Il était **déjà
+> dans le code** (ADR-0025) et absent de cette spec comme de la maquette v2 : la même dette que
+> celle réglée plus haut, à trois lignes d'intervalle. Il est **conservé**, et c'est la spec qui
+> est corrigée — en phase 0, `HomeAgendaBanner` est le seul endroit où Massimo **voit** ce qui
+> vient du collège sans y aller. Le retirer « pour coller à la maquette » aurait été une
+> régression fonctionnelle silencieuse.
 
 ## Sections
 
@@ -128,8 +138,16 @@ Trois, pas plus, tous secondaires (bordure, jamais plein) :
 - **Révision éclair** — affiche `flash_size`, **plafonné serveur**. **Jamais `total_due`** : un
   compteur de retard sur l'écran d'accueil est la pression quotidienne anxiogène interdite par
   `CLAUDE.md`.
-- **Capsule IA** — la capsule recommandée, avec sa matière et sa durée.
-- **ELI5** — une notion expliquée simplement.
+- **Capsule IA** — le nombre de capsules **nouvelles** (`GET /api/capsules/stats`, champ
+  `new_count`). Rendu seulement si `total > 0`.
+  > **Corrigé le 2026-07-31 au read-before-code.** Cette ligne annonçait « la capsule
+  > **recommandée**, avec sa matière et sa **durée** ». Aucune des deux n'est servable :
+  > `/api/capsules/library` ne porte **pas de durée**, et « recommandée » n'existe nulle part —
+  > la calculer côté client serait une règle métier dans la page, que la slice B interdit. Le
+  > « SVT · 4 min » de la maquette est donc décoratif. Servir une capsule recommandée demanderait
+  > du **backend**, hors du périmètre annoncé.
+- **ELI5** — une notion expliquée simplement. **Toujours proposée** : elle ne dépend d'aucun
+  contenu préexistant (même règle que côté serveur dans le panneau d'actions de la Galaxy).
 
 Un raccourci sans contenu disponible **n'est pas rendu** : la ligne se resserre. Pas de carte
 grisée ici (contrairement au panneau d'actions de la Galaxy, où le grisé documente le catalogue).

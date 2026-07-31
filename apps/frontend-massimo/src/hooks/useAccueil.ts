@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import type { MissionTodayResponse, MotivationWelcome, ReviewsSummary } from "@zetis/types";
+import type { GalaxySubject, MissionTodayResponse, MotivationWelcome, ReviewsSummary } from "@zetis/types";
+import { type CapsuleStats, fetchCapsuleStats } from "../lib/capsules";
+import { fetchGalaxyOverview } from "../lib/galaxy";
 import { fetchToday } from "../lib/missions";
 import { fetchWelcome } from "../lib/motivation";
 import { fetchReviewsSummary } from "../lib/reviews";
@@ -18,6 +20,10 @@ export interface AccueilData {
   welcome: MotivationWelcome | null;
   today: MissionTodayResponse | null;
   reviews: ReviewsSummary | null;
+  capsules: CapsuleStats | null;
+  /** Matières et leur COMPTE `lit` d'étoiles allumées — la carte « Ma Galaxie ».
+   *  ⚠️ Aucun compte global n'est servi : le total est une somme de présentation. */
+  subjects: GalaxySubject[] | null;
   loading: boolean;
   /** Recharge le seul message de ZETIS — à appeler quand l'engagement change, sinon la phrase
    *  reste sur « engagement tenu » et contredit la carte « Ma semaine » juste en dessous. */
@@ -28,22 +34,30 @@ export function useAccueil(): AccueilData {
   const [welcome, setWelcome] = useState<MotivationWelcome | null>(null);
   const [today, setToday] = useState<MissionTodayResponse | null>(null);
   const [reviews, setReviews] = useState<ReviewsSummary | null>(null);
+  const [capsules, setCapsules] = useState<CapsuleStats | null>(null);
+  const [subjects, setSubjects] = useState<GalaxySubject[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
 
-    void Promise.allSettled([fetchWelcome(), fetchToday(), fetchReviewsSummary()]).then(
-      ([welcomeResult, todayResult, reviewsResult]) => {
-        if (!active) return;
-        // Un rejet laisse la valeur à `null` : le bloc concerné se tait, les autres s'affichent.
-        // Aucune erreur n'est remontée à l'écran de l'enfant (cf. la page).
-        if (welcomeResult.status === "fulfilled") setWelcome(welcomeResult.value);
-        if (todayResult.status === "fulfilled") setToday(todayResult.value);
-        if (reviewsResult.status === "fulfilled") setReviews(reviewsResult.value);
-        setLoading(false);
-      },
-    );
+    void Promise.allSettled([
+      fetchWelcome(),
+      fetchToday(),
+      fetchReviewsSummary(),
+      fetchCapsuleStats(),
+      fetchGalaxyOverview(),
+    ]).then(([welcomeResult, todayResult, reviewsResult, capsulesResult, galaxyResult]) => {
+      if (!active) return;
+      // Un rejet laisse la valeur à `null` : le bloc concerné se tait, les autres s'affichent.
+      // Aucune erreur n'est remontée à l'écran de l'enfant (cf. la page).
+      if (welcomeResult.status === "fulfilled") setWelcome(welcomeResult.value);
+      if (todayResult.status === "fulfilled") setToday(todayResult.value);
+      if (reviewsResult.status === "fulfilled") setReviews(reviewsResult.value);
+      if (capsulesResult.status === "fulfilled") setCapsules(capsulesResult.value);
+      if (galaxyResult.status === "fulfilled") setSubjects(galaxyResult.value.subjects);
+      setLoading(false);
+    });
 
     return () => {
       active = false;
@@ -58,5 +72,5 @@ export function useAccueil(): AccueilData {
       });
   }, []);
 
-  return { welcome, today, reviews, loading, refreshWelcome };
+  return { welcome, today, reviews, capsules, subjects, loading, refreshWelcome };
 }

@@ -97,10 +97,15 @@ describe("useAccueil", () => {
     // « Tu as consolidé N notions » ne peut réapparaître côté client.
     const { result } = renderHook(() => useAccueil());
     await waitFor(() => expect(result.current.loading).toBe(false));
+    // La liste reste EXHAUSTIVE : c'est elle qui interdit d'ajouter un champ dérivé en douce.
+    // `capsules` et `subjects` sont des payloads serveur bruts, ajoutés le 2026-07-31 par la
+    // refonte de l'Accueil (raccourci Capsule et carte « Ma Galaxie »).
     expect(Object.keys(result.current).sort()).toEqual([
+      "capsules",
       "loading",
       "refreshWelcome",
       "reviews",
+      "subjects",
       "today",
       "welcome",
     ]);

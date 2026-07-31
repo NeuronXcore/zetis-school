@@ -8,9 +8,14 @@
 ## État à la reprise
 
 **Branche : `feat/accueil-galaxy`** — chantier **Accueil & Galaxie** (addendum ADR-0024 du
-2026-07-31). **Slice A (renommage de route) FAITE**, non poussée. **Prochain pas = slice B**
-(refonte de l'Accueil), prompt `prompts/claude-code/prompt-accueil-galaxy-slice-b-accueil.md`.
-Une seule PR à la fin, slices A et B ensemble.
+2026-07-31). **Slices A ET B FAITES**, non poussées. **Prochain pas = vérification humaine dans
+le navigateur, puis push + PR** (une seule PR, les deux slices ensemble).
+
+> ⚠️ **Ce qui n'a PAS été vérifié en vrai** : `/galaxy` et l'Accueil sont derrière
+> `RequireAuth`, et la session de développement n'a pas ouvert de session Massimo. Tout est
+> couvert par des tests (200 Massimo + 270 Papa, builds et `tsc -b` verts), mais **le rendu réel
+> n'a été vu par personne** — en particulier : la galaxie complète en vue par défaut, la
+> bascule planètes CSS → canvas, et la carte « Ma Galaxie » sur l'Accueil.
 
 > ✅ **Connexion MERGÉE** — PR [#59](https://github.com/NeuronXcore/zetis-school/pull/59) et
 > **Dashboard Papa v2** PR [#60](https://github.com/NeuronXcore/zetis-school/pull/60) sont
@@ -46,17 +51,30 @@ sur le code) :
 5. **Ni outillage de bundle, ni CI** (`.github/workflows` absent) : le « test de budget » de la
    slice B est **à concevoir de zéro** (Vitest sur le graphe d'imports).
 
-**Décisions prises pendant ce cadrage, à ne pas rouvrir :**
+**Slice B — refonte de l'Accueil. FAITE.** `HomeGalaxyPreview` **supprimé** ; Accueil recomposé
+(salutation verbatim → bandeau Agenda → mission du jour → « Ma semaine » + carte « Ma Galaxie »
+côte à côte → 3 raccourcis → **slot** du héros ZETIS non rendu) ; `useGalaxy` tire maintenant
+`fetchFullGraph` + `fetchGalaxyTimeline`, et `/galaxy` s'ouvre sur la **galaxie complète**, les
+planètes CSS devenues **état d'attente + repli sans WebGL**. 200 tests Massimo + 270 Papa verts.
 
-- **`HomeAgendaBanner` RESTE sur l'Accueil** en slice B. La spec réécrite et la maquette v2 ne le
-  montrent pas, mais c'est le **seul accès à `/agenda`** en phase 0 (l'agenda n'a pas d'entrée de
-  sidebar, ADR-0025). Ce sont **la spec et la maquette** qui seront corrigées.
-- **La « brique » du §C est bien plus grosse que l'addendum ne le dit.** `HomeGalaxyPreview.tsx`
-  (~420 lignes) n'est pas un graphe : c'est une **expérience Galaxy complète** (canvas `lazy()`,
-  recherche, `SubjectKpiRow`, frise, légende, panneau d'actions, **son propre plein écran à deux
-  niveaux**). `GalaxyPage` a **son propre** écran d'ensemble, sa constellation et son plein écran.
-  Le §4 de la slice B est donc une **FUSION de deux implémentations concurrentes**, pas un
-  déplacement — **à arbitrer avant d'écrire une ligne** (le prompt prévoit ce stop).
+**Décisions prises pendant ce chantier, à ne pas rouvrir :**
+
+- **`HomeAgendaBanner` RESTE sur l'Accueil.** La spec réécrite et la maquette v2 ne le montrent
+  pas, mais c'est le **seul accès à `/agenda`** en phase 0 (l'agenda n'a pas d'entrée de sidebar,
+  ADR-0025). **La spec et la maquette ont été corrigées**, pas le code.
+- **Le §C n'était pas un déplacement mais une FUSION.** `HomeGalaxyPreview.tsx` (~420 lignes)
+  n'était pas un graphe : c'était une **expérience Galaxy complète** (canvas `lazy()`, recherche,
+  `SubjectKpiRow`, frise, légende, panneau d'actions, **son propre plein écran à deux niveaux**),
+  soit un doublon de ce que `GalaxyPage` fait déjà. Arbitrage retenu : **`GalaxyPage` absorbe la
+  galaxie complète**, les composants sont réutilisés tels quels, et c'est l'**orchestration en
+  double** qui disparaît — pas le contenu.
+- **Le test de budget interdit les `import()` autant que les imports statiques.** Le canvas était
+  DÉJÀ code-splitté le 2026-07-28 : ce qui coûtait, c'était le **montage**. Un test limité aux
+  imports synchrones serait passé avant comme après, donc n'aurait rien protégé. Contre-épreuve
+  incluse dans le fichier (`accueil.bundle.test.ts`), et vérifiée en réintroduisant la régression.
+- **Deux choses que la spec demandait et que le backend ne sert pas** : la « capsule recommandée
+  avec sa durée » (aucune durée dans `/api/capsules/library`, aucune notion de recommandation) →
+  remplacée par `new_count` ; et le **compte global** d'étoiles → **somme client** des `lit`.
 
 **Pièges de renommage (vérifiés, ne pas y toucher)** : Papa a **sa propre route `/progression`**
 (`frontend-papa/src/App.tsx:42`, `lib/navigation.ts:30`) — homonyme ; et

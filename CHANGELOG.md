@@ -1,5 +1,46 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.31.0 — La Galaxy prend sa route, l'Accueil cesse de payer la 3D
+
+Date : 2026-07-31 · branche `feat/accueil-galaxy` · addendum ADR-0024
+
+> Trois jours après la livraison de la Galaxy, deux décisions du même ADR sont rouvertes. L'URL
+> et le libellé décrivaient encore l'ancien contenu, et l'aperçu 3D posé sur l'Accueil le
+> 2026-07-28 s'était installé au mauvais endroit : la page la plus visitée, la première peinte au
+> réveil de l'app, chargeait **1,37 Mo (368 Ko gzip)** pour une vue contemplative dont aucun
+> élément n'est la prochaine action de Massimo. Le coût est **annulé, pas atténué**.
+
+- **`/progression` devient `/galaxy`** — un **renommage**, pas un ajout : `/progression` ne
+  survit qu'en **redirection permanente**, jamais en page. Libellé de sidebar « **Ma Galaxie** »
+  🌌 **à la même position** ; le nombre d'entrées ne bouge pas (l'ADR-0024 §1 interdit une 6ᵉ).
+  Bandeau XP, page Matières et panneau d'actions repointés. `ProgressionPage.tsx` est renommé
+  `GalaxyPage.tsx` (`git mv` — l'historique suit).
+- **L'Accueil ne charge plus Three.js**, ni directement ni transitivement. Le canvas 3D et la
+  frise **quittent la page** au profit d'une **carte-bouton statique** : un **compte** d'étoiles
+  allumées et des pastilles de matières en CSS pur, la carte entière cliquable vers `/galaxy`.
+- **Un test de budget de bundle** constate la sortie du moteur 3D. ⚠️ Il vérifie les `import()`
+  **autant que** les imports statiques : le canvas était **déjà** code-splitté le 2026-07-28 — ce
+  qui coûtait, c'était le **montage**. Un test qui n'aurait regardé que les imports synchrones
+  n'aurait pas attrapé la régression qu'il est censé prévenir. Contre-épreuve incluse.
+- **Le graphe global change d'adresse, il n'est pas supprimé** : `GET /api/student/galaxy/all`
+  alimente désormais la **vue par défaut de `/galaxy`** — la galaxie complète, toutes matières.
+  Clic sur une matière → sa constellation. Les **planètes CSS cessent d'être un écran** : elles
+  deviennent l'**état d'attente** du chunk 3D et le **repli sans WebGL**. La frise suit le graphe.
+- **Accueil recomposé** : salutation + message ZETIS verbatim, mission du jour (**seule action
+  accentuée** de la page), « Ma semaine » et « Ma Galaxie » côte à côte, trois raccourcis, et un
+  **slot** pour le héros ZETIS — structuré mais **non rendu** tant que le chat n'existe pas ici,
+  pour que le Groupe 1 (ADR-0026) le remplisse sans rouvrir la composition.
+- **Continuité de télémétrie côté Papa** : `lib/routeLabels.ts` traduit enfin les routes en mots
+  (« Navigation · Ma Galaxie » au lieu de « Navigation · /eli5 »), et rend **le même libellé**
+  pour `/progression` et `/galaxy`. `learning_events` est append-only : sans cela, trois jours de
+  fréquentation réelle seraient devenus une page distincte, pour toujours.
+- **Zéro backend, zéro migration** : aucune route API créée, renommée ni supprimée.
+
+**Écarts assumés** (documentés dans `TROUBLESHOOTING.md`) : le **bandeau Agenda reste** sur
+l'Accueil — la spec et la maquette ne le montraient pas, mais c'est le seul accès à `/agenda` en
+phase 0 ; et le raccourci **Capsule** affiche un **compte de nouveautés** et non « la capsule
+recommandée avec sa durée », qu'aucune route ne sert.
+
 ## 0.30.0 — Connexion : une intro de marque, puis la porte de chacun
 
 Date : 2026-07-30, mergée le 2026-07-31 · branche `feat/login-intro-avatars`

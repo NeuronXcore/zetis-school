@@ -312,10 +312,9 @@ contredisait déjà l'existant sur l'onglet, il le contredit désormais aussi su
   pédagogique en soi.
 - **Aperçu sur l'Accueil** et **annonce « +1 étoile »** en fin de mission.
   > Cette ligne a été **contredite sans être corrigée** par l'amendement du 2026-07-28, qui a posé
-  > un graphe global 3D sur l'Accueil. L'addendum du 2026-07-31 **révoque** cet amendement : elle
-  > redevient exacte. ⚠️ **Elle ne l'est pas encore dans le code** — le retrait de
-  > `HomeGalaxyPreview` est la **slice B** du chantier `feat/accueil-galaxy`. Tant qu'elle n'est
-  > pas passée, ce document décrit l'intention, pas l'état.
+  > un graphe global 3D sur l'Accueil. L'addendum du 2026-07-31 **révoque** cet amendement, et la
+  > slice B l'a appliqué : `HomeGalaxyPreview` est **supprimé**, l'Accueil rend une carte-bouton
+  > statique. La ligne **redevient exacte, dans le document comme dans le code**.
 - **Animation temps réel** poussée par un événement.
 - Persistance des positions de nœuds.
 - Toute agrégation par matière autre qu'un **compte** d'étoiles allumées.

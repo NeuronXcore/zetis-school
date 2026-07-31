@@ -348,6 +348,20 @@
         </div>
       </div>
 
+      <!-- ── 1 bis. Bandeau Agenda (ADR-0025) ──────────────
+           AJOUTÉ le 2026-07-31 : il était déjà dans le code et absent de cette maquette. En
+           phase 0, c'est le SEUL accès à /agenda — l'agenda n'a pas d'entrée de sidebar. -->
+      <a class="glass" href="#" style="display:block;text-decoration:none;color:inherit">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div class="label" style="margin:0">Mon agenda</div>
+          <span style="font-size:12px;color:var(--zetis-muted)">Voir →</span>
+        </div>
+        <ul style="margin-top:10px;display:flex;flex-direction:column;gap:6px;list-style:none">
+          <li style="font-size:14px">Maths — exercices 12 à 15</li>
+          <li style="font-size:14px">Français — lire le chapitre 3</li>
+        </ul>
+      </a>
+
       <!-- ── 2. Mission du jour — SEULE action accentuée ── -->
       <div class="mission">
         <div class="mission-body">
@@ -450,6 +464,8 @@
     <li><b>Aucun or.</b> <code>#ffcf47</code> reste réservé à l'état « ZETIS parle » ; l'onde du héros est en état <em>idle</em>, donc cyan/indigo.</li>
     <li><b>Ma semaine</b> : jeudi (à venir) et un jour passé sans activité seraient rendus <b>à l'identique</b>. Aucun compteur de manque, aucun pourcentage, aucune série.</li>
     <li><b>Révision éclair · 5</b> — c'est <code>flash_size</code>, jamais <code>total_due</code>. Le « 23 à revoir » de la référence est un compteur de retard, interdit sur l'Accueil.</li>
+    <li><b>Bandeau Agenda ajouté le 2026-07-31</b> : il était déjà dans le code (ADR-0025) et manquait à cette maquette. En phase 0 il est le <b>seul accès à <code>/agenda</code></b> — le retirer pour « coller à la maquette » aurait rendu la page inatteignable pour Massimo.</li>
+    <li><b>« Capsule IA · SVT · 4 min » est décoratif</b> : aucune route ne sert de durée de capsule ni de capsule « recommandée » (<code>/api/capsules/library</code> n'a pas de durée). Le raccourci réel affiche le nombre de <b>nouvelles</b> capsules (<code>new_count</code>), et n'est pas rendu s'il n'y en a aucune.</li>
     <li><b>Carte Galaxie</b> : un <b>compte</b> d'étoiles allumées, quatre pastilles de matières en CSS pur. <b>Zéro import de <code>@zetis/ui/galaxy/canvas</code></b> — le chunk 1,37 Mo ne doit plus entrer sur la page d'atterrissage (addendum §B).</li>
     <li><b>Message ZETIS</b> rendu verbatim depuis <code>/api/student/motivation/welcome</code>. Aucune phrase de secours, aucun bandeau motivationnel fabriqué côté client.</li>
     <li><b>Le héros ZETIS est un slot</b> : sa place est structurée par la slice B, mais le bloc n'est <b>pas rendu</b> tant que le chat (ADR-0026) n'existe pas. Le Groupe 1 le remplira sans rouvrir la composition de la page.</li>
