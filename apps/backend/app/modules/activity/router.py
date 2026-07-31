@@ -19,13 +19,7 @@ from app.modules.activity.events import (
     last_event_of_type,
     log_learning_event,
 )
-from app.modules.activity.schemas import (
-    DashboardKpisOut,
-    DayDetailOut,
-    HeatmapOut,
-    PageViewRequest,
-    SessionsOut,
-)
+from app.modules.activity.schemas import DayDetailOut, PageViewRequest, SessionsOut
 from app.modules.activity.timeutils import today_local
 from app.modules.auth.deps import require_child, require_parent
 from app.modules.eli5.service import get_default_student
@@ -69,19 +63,9 @@ def pageview(
 # --- Lectures de pilotage (Papa) ---------------------------------------------------------------
 
 
-@parent_router.get("/activity/heatmap", response_model=HeatmapOut)
-def activity_heatmap(
-    weeks: int = Query(default=26, ge=1, le=settings.activity_max_weeks),
-    subject_id: int | None = Query(default=None),
-    db: Session = Depends(get_db),
-) -> dict:
-    """Minutes actives par jour (intensité de la heatmap) + décrochage.
-
-    L'intensité est le TEMPS ACTIF, pas le nombre d'événements : une lecture de cours de 20 min
-    vaut plus qu'un clic, et compter les événements biaiserait en faveur des révisions SRS."""
-    return service.heatmap(
-        db, student_id=get_default_student(db).id, weeks=weeks, subject_id=subject_id
-    )
+# `GET /activity/heatmap` supprimée (ADR-0028) : audit du 2026-07-31, aucun consommateur hors du
+# dashboard. La heatmap est désormais servie PAR MATIÈRE dans l'agrégat `/api/parent/dashboard`,
+# et « toutes matières » est une somme client — c'est ce qui permet de filtrer sans requête.
 
 
 @parent_router.get("/activity/days/{day}", response_model=DayDetailOut)
@@ -136,13 +120,6 @@ def activity_sessions(
     )
 
 
-@parent_router.get("/dashboard", response_model=DashboardKpisOut)
-def dashboard(db: Session = Depends(get_db)) -> dict:
-    """KPI du dashboard : 4 flux hebdomadaires `{value, delta}` + 2 stocks `{value}`.
-
-    Surface NEUVE : la page Dashboard n'avait pas d'endpoint côté backend. Elle porte les 4 KPI
-    de régularité du chantier « Activité », plus les lacunes ouvertes et les notions consolidées
-    (comptées par le module `progress` ; leur détail vit sur `/api/parent/progress/*`). Les
-    routes `/gaps` et `/progress/summary` de la spec n'ont jamais existé en code — le compteur
-    passe donc par ici. Reste hors payload : « prochaine révision »."""
-    return service.dashboard_kpis(db, student_id=get_default_student(db).id)
+# `GET /api/parent/dashboard` a quitté ce module (ADR-0028 §1) : l'agrégat traverse cinq domaines
+# (activity, progress, missions, memory, rag) et vit désormais dans `modules/dashboard`. Le loger
+# ici aurait fait de `activity` le point de dépendance de tout le backend.

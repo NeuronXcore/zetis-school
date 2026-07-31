@@ -21,11 +21,15 @@ export {
   type ContentStatus,
 } from "./components/content-lifecycle-actions";
 export { Spinner } from "./components/spinner";
+// Sparkline générique (SVG inline, zéro dépendance) — chantier « Dashboard Papa v2 ».
+export { Sparkline, type SparklineProps } from "./components/sparkline";
 export { EmptyState } from "./components/empty-state";
 // Pictogrammes de matière : résolveur + assets partagés (les `lib/subjectIcons.ts` des deux apps
 // ré-exportent ceci). Chantier « Activité » : pastilles de filtre et icônes d'événements,
 // communes au dashboard (slice B) et au cahier de bord (slice C).
 export { subjectIconFor } from "./lib/subjectIcons";
+// Couleur de matière : `Subject.color` fait autorité, ceci n'est qu'un repli déterministe.
+export { subjectColorFor } from "./lib/subjectColors";
 export {
   SubjectFilterChips,
   type SubjectFilterChipsProps,

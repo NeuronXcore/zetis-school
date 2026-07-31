@@ -13,7 +13,7 @@ from app.modules.eli5.schemas import ELI5ExplainRequest, ELI5ReverseRequest
 from app.modules.stt.provider import SttProvider, SttRequest, SttUnavailable
 from app.modules.gamification.service import XP_ELI5_REVERSE, award_xp
 from app.modules.memory.service import interval_from_score, schedule_review
-from app.modules.progress.mastery import set_mastery_status
+from app.modules.progress.mastery import record_mastery_transition
 from app.prompts.eli5 import (
     ELI5_EXPLAIN_PROMPT_V2,
     ELI5_EXPLAIN_PROMPT_VERSION,
@@ -303,7 +303,7 @@ def reverse_evaluate(db: Session, provider: LLMProvider, req: ELI5ReverseRequest
     mastery.confidence_score = score
     mastery.last_seen_at = now
     mastery.next_review_at = now + timedelta(days=interval)
-    set_mastery_status(mastery, _mastery_status(score), now)
+    record_mastery_transition(db, mastery, _mastery_status(score), now)
 
     # Une carte de révision (intervalle fixe selon le score).
     schedule_review(

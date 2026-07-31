@@ -2,27 +2,15 @@
 // Contrats : `@zetis/types` (`packages/types/src/activity.ts`) — rien n'est redéclaré ici.
 import type {
   ActivityDayDetail,
-  ActivityHeatmap,
   ActivitySessions,
   ConsolidatedSkill,
-  DashboardKpis,
   OpenGap,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader } from "./httpClient";
 
-/** Heatmap de régularité. `weeks` et les bornes sont validés serveur. */
-export async function fetchHeatmap(
-  weeks = 26,
-  subjectId?: number | null,
-): Promise<ActivityHeatmap> {
-  const params = new URLSearchParams({ weeks: String(weeks) });
-  if (subjectId != null) params.set("subject_id", String(subjectId));
-  const res = await fetch(`${API_URL}/api/parent/activity/heatmap?${params}`, {
-    headers: authHeader(),
-  });
-  return asJson<ActivityHeatmap>(res);
-}
+// `fetchHeatmap` est partie avec sa route (ADR-0028) : la grille vient désormais de l'agrégat
+// `GET /api/parent/dashboard`, par matière, et « toutes matières » est une somme client.
 
 /** Journal d'un jour (`AAAA-MM-JJ`) — chargé paresseusement, au clic sur une case. */
 export async function fetchDayDetail(
@@ -53,11 +41,9 @@ export async function fetchSessions(
   return asJson<ActivitySessions>(res);
 }
 
-/** KPI du dashboard : flux hebdomadaires `{value, delta}` + stocks `{value}`, calculés serveur. */
-export async function fetchDashboardKpis(): Promise<DashboardKpis> {
-  const res = await fetch(`${API_URL}/api/parent/dashboard`, { headers: authHeader() });
-  return asJson<DashboardKpis>(res);
-}
+// `fetchDashboardKpis` a disparu avec le contrat qu'il servait (ADR-0028 §1) : l'agrégat unique
+// du dashboard vit dans `lib/dashboard.ts`. Les deux fonctions ci-dessous restent : elles servent
+// le détail des lacunes et des notions consolidées, indépendamment du dashboard.
 
 /** Détail du KPI « lacunes ouvertes » : les plus sévères d'abord. */
 export async function fetchOpenGaps(): Promise<OpenGap[]> {

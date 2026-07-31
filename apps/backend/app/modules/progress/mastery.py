@@ -15,12 +15,16 @@ connue. Les lignes antérieures à la migration restent à `NULL` : « consolid�
 dater ». Elles comptent dans le STOCK de notions consolidées, jamais dans une SEMAINE — ce qui
 évite de gonfler le premier compteur affiché à Massimo avec des acquis anciens.
 
-Fonction pure : aucun accès DB, aucun commit. L'appelant possède déjà sa ligne et son `now`.
+`set_mastery_status` est une **fonction pure** : aucun accès DB, aucun commit. L'appelant possède
+déjà sa ligne et son `now`. `record_mastery_transition` en est le pendant qui touche la session —
+la séparation est volontaire, elle garde la règle d'horodatage testable sans base.
 """
 
 from datetime import datetime
 
-from app.db.models import SkillMastery
+from sqlalchemy.orm import Session
+
+from app.db.models import SkillMastery, SkillMasteryHistory
 
 MASTERED = "mastered"
 
@@ -43,3 +47,37 @@ def set_mastery_status(mastery: SkillMastery, status: str, now: datetime) -> Non
         mastery.mastered_at = None
 
     mastery.status = status
+
+
+def record_mastery_transition(
+    db: Session, mastery: SkillMastery, status: str, now: datetime
+) -> bool:
+    """Applique le statut ET journalise la bascule si le statut change réellement.
+
+    C'est ce que les quatre modules évaluatifs doivent appeler : `set_mastery_status` reste
+    disponible pour les tests de la règle d'horodatage, mais un appel direct depuis un service
+    laisserait un trou dans l'historique.
+
+    **Une ligne par changement, jamais par passage.** `quizzes/scoring.py` réévalue la maîtrise à
+    chaque quiz de fin de cours ; sans ce garde-fou, l'historique enflerait d'une ligne identique
+    par quiz et la courbe des fragiles compterait des « bascules » qui n'en sont pas.
+
+    Ajout à la session sans commit — l'appelant commite (convention `log_learning_event`). Renvoie
+    `True` si une bascule a été journalisée, pour que les tests aient une prise directe.
+    """
+    previous = mastery.status
+    set_mastery_status(mastery, status, now)
+    if previous == status:
+        return False
+    db.add(
+        SkillMasteryHistory(
+            student_id=mastery.student_id,
+            skill_id=mastery.skill_id,
+            status=status,
+            # `or 0.0` : la ligne peut être neuve et non encore flushée, auquel cas le défaut de
+            # colonne n'est pas appliqué et l'attribut vaut None.
+            mastery_score=mastery.mastery_score or 0.0,
+            changed_at=now,
+        )
+    )
+    return True

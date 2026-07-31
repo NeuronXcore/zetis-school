@@ -1,300 +1,256 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { SubjectFilterOption } from "@zetis/ui";
-import type {
-  ActivityHeatmap,
-  ActivitySessions,
-  ConsolidatedSkill,
-  DashboardKpis,
-  KpiValue,
-  OpenGap,
-} from "@zetis/types";
+import { useMemo } from "react";
+import { SubjectFilterChips } from "@zetis/ui";
+import type { DashboardPeriod } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
-import { KpiCard } from "../components/KpiCard";
 import { BackendStatus } from "../components/BackendStatus";
-import { ProductionAlertCard } from "../components/ProductionAlertCard";
-import { RegularityCard } from "../components/activity/RegularityCard";
-import { KpiBreakdown } from "../components/activity/KpiBreakdown";
+import { DecisionQueue } from "../components/dashboard/DecisionQueue";
+import { KpiFocusCard } from "../components/dashboard/KpiFocusCard";
+import { WorkRhythmCard } from "../components/dashboard/WorkRhythmCard";
+import { TimeSplitCard } from "../components/dashboard/TimeSplitCard";
+import { MemoryTrendCard } from "../components/dashboard/MemoryTrendCard";
+import { NotionsStackCard } from "../components/dashboard/NotionsStackCard";
+import { WhereToActCard } from "../components/dashboard/WhereToActCard";
+import { ReviewLoadCard } from "../components/dashboard/ReviewLoadCard";
+import { ContentChainCard } from "../components/dashboard/ContentChainCard";
+import { ZetisReadingCard } from "../components/dashboard/ZetisReadingCard";
+import { useDashboard } from "../hooks/useDashboard";
+import { formatDelta, formatMinutes } from "../lib/heatmap";
 import {
-  fetchConsolidatedSkills,
-  fetchDashboardKpis,
-  fetchHeatmap,
-  fetchOpenGaps,
-  fetchSessions,
-} from "../lib/activity";
-import { fetchSubjects } from "../lib/subjects";
-import { formatDelta, formatMinutes, toLocalIso } from "../lib/heatmap";
-import {
-  activeMinutesByDay,
-  completedMissions,
-  consolidatedRows,
-  openGapRows,
-  sessionsByDay,
-  xpByDay,
-  type BreakdownRow,
-} from "../lib/kpiBreakdown";
-import { ALERTS, KPIS, PERIOD_LABEL, RECOMMENDATIONS, STUDENT } from "../data/mock";
+  KPI_FOCUS_HINTS,
+  KPI_LABELS,
+  sumReviewLoad,
+  sumSeries,
+} from "../lib/dashboardDerive";
 
-// Dashboard Papa (Étape 8) — état pédagogique en une page.
+// Dashboard Papa (ADR-0028) — le cockpit, en UNE requête.
 //
-// Six KPI, tous réels et tous dépliables sur leur détail :
-// - quatre FLUX hebdomadaires (sessions, temps actif, XP, missions) avec leur écart vs semaine
-//   précédente, servis par le module `activity` ;
-// - deux STOCKS (lacunes ouvertes, notions consolidées) servis SANS delta par le module
-//   `progress` — le modèle ne porte pas les horodatages qui permettraient de reconstituer
-//   l'état d'il y a une semaine, et un `+0` laisserait croire à une semaine stable.
+// Il répond à trois questions, dans cet ordre :
+//   1. qu'est-ce qui attend une décision de moi ?  → file « À décider »
+//   2. où en est Massimo ?                          → KPI, heatmap, diagrammes
+//   3. qu'est-ce que ZETIS propose ?                → Lecture ZETIS
 //
-// Le mock `KPIS` ne sert plus que de repli d'affichage si le backend est injoignable.
+// L'invariant à ne jamais casser : **changer de période, de matière ou de focus ne déclenche
+// aucune requête**. Tout est projeté sur un payload déjà en mémoire. La seule exception assumée
+// est le drill-down d'un jour, dans la carte heatmap.
+//
+// Non-objectifs : noter Massimo, produire un bulletin, déclencher une génération depuis ici.
 
-type KpiKey =
-  | "sessions"
-  | "active_minutes"
-  | "xp"
-  | "missions"
-  | "open_gaps"
-  | "consolidated";
-
-/** Le payload porte-t-il bien tous les KPI attendus ? Garde contre un backend d'une version
- *  antérieure : mieux vaut retomber sur les vignettes de repli que blanchir la page. */
-export function isCompleteKpis(payload: DashboardKpis | null | undefined): payload is DashboardKpis {
-  if (!payload) return false;
-  const flows = [payload.sessions, payload.active_minutes, payload.xp, payload.missions_completed];
-  const stocks = [payload.open_gaps, payload.consolidated_skills];
-  return (
-    typeof payload.week_start === "string" &&
-    flows.every((kpi) => typeof kpi?.value === "number" && typeof kpi?.delta === "number") &&
-    stocks.every((kpi) => typeof kpi?.value === "number")
-  );
-}
-
-/** Repli mock, affiché seulement si `/api/parent/dashboard` ne répond pas ou répond incomplet. */
-const FALLBACK_LABELS = [
-  "Sessions (semaine)",
-  "Temps actif",
-  "XP (semaine)",
-  "Missions terminées",
-  "Lacunes ouvertes",
-  "Notions consolidées",
-];
+const PERIOD_LABELS: Record<DashboardPeriod, string> = {
+  "7": "7 jours",
+  "30": "30 jours",
+  "90": "Trimestre",
+};
 
 export function DashboardPage() {
-  const [kpis, setKpis] = useState<DashboardKpis | null>(null);
-  const [subjects, setSubjects] = useState<SubjectFilterOption[]>([]);
-  const [openKpi, setOpenKpi] = useState<KpiKey | null>(null);
+  const dash = useDashboard();
+  const { data, period, focus, activeSubject, visibleSubjects } = dash;
 
-  // Données du détail, chargées PARESSEUSEMENT au premier dépliage puis conservées : rouvrir
-  // une carte ne doit pas relancer une requête.
-  const [weekDays, setWeekDays] = useState<ActivityHeatmap | null>(null);
-  const [weekSessions, setWeekSessions] = useState<ActivitySessions | null>(null);
-  const [gaps, setGaps] = useState<OpenGap[] | null>(null);
-  const [consolidated, setConsolidated] = useState<ConsolidatedSkill[] | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const chipOptions = useMemo(
+    () => (data?.subjects ?? []).map((s) => ({ id: s.id, slug: s.slug, name: s.name })),
+    [data],
+  );
+  const subjectNames = useMemo(
+    () => new Map((data?.subjects ?? []).map((s) => [s.slug, s.name])),
+    [data],
+  );
 
-  useEffect(() => {
-    // Échec silencieux : le dashboard reste lisible même si l'activité n'est pas joignable.
-    // Le payload est aussi VÉRIFIÉ avant usage : un backend d'une version antérieure (qui ne
-    // sert pas encore les deux stocks) renvoie un objet incomplet, et lire `.value` dessus
-    // faisait mourir toute la page en écran blanc. Décalage de version = repli, pas de crash.
-    fetchDashboardKpis()
-      .then((payload) => setKpis(isCompleteKpis(payload) ? payload : null))
-      .catch(() => setKpis(null));
-    fetchSubjects()
-      .then((rows) => setSubjects(rows.map((s) => ({ id: s.id, slug: s.slug, name: s.name }))))
-      .catch(() => setSubjects([]));
-  }, []);
-
-  const weekStart = kpis?.week_start ?? null;
-
-  /** Détail des KPI de la SEMAINE (flux). Deux requêtes, une seule fois. */
-  const loadWeekDetail = useCallback(async () => {
-    if (!weekStart || (weekDays && weekSessions)) return;
-    setDetailLoading(true);
-    try {
-      // `weeks=1` = la semaine courante seule : la même route que la heatmap, bornée au strict
-      // nécessaire plutôt qu'un second scan de 26 semaines.
-      const [heatmap, sessions] = await Promise.all([
-        fetchHeatmap(1),
-        fetchSessions(weekStart, toLocalIso(new Date())),
-      ]);
-      setWeekDays(heatmap);
-      setWeekSessions(sessions);
-    } catch {
-      // Le détail reste vide et le dit ; les KPI eux-mêmes restent affichés.
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [weekStart, weekDays, weekSessions]);
-
-  /** Détail des KPI de STOCK (progression). Chargé séparément : ouvrir « lacunes » n'a aucune
-   *  raison de déclencher un scan de la semaine, et réciproquement. */
-  const loadProgressDetail = useCallback(async () => {
-    if (gaps && consolidated) return;
-    setDetailLoading(true);
-    try {
-      const [openGaps, consolidatedSkills] = await Promise.all([
-        fetchOpenGaps(),
-        fetchConsolidatedSkills(),
-      ]);
-      setGaps(openGaps);
-      setConsolidated(consolidatedSkills);
-    } catch {
-      setGaps([]);
-      setConsolidated([]);
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [gaps, consolidated]);
-
-  function toggle(key: KpiKey) {
-    setOpenKpi((current) => (current === key ? null : key));
-    if (key === "open_gaps" || key === "consolidated") {
-      void loadProgressDetail();
-    } else {
-      void loadWeekDetail();
-    }
-  }
-
-  const subjectNames = useMemo(() => new Map(subjects.map((s) => [s.slug, s.name])), [subjects]);
-  const weekEnd = toLocalIso(new Date());
-
-  const detail: Record<KpiKey, { title: string; rows: BreakdownRow[]; empty: string }> = {
-    sessions: {
-      title: "Sessions de la semaine, jour par jour",
-      rows: sessionsByDay(weekSessions?.days ?? []),
-      empty: "Aucune session cette semaine.",
-    },
-    active_minutes: {
-      title: "Temps actif par jour",
-      rows: weekStart ? activeMinutesByDay(weekDays?.days ?? [], weekStart, weekEnd) : [],
-      empty: "Aucune minute active cette semaine.",
-    },
-    xp: {
-      title: "XP gagné par jour",
-      rows: weekStart ? xpByDay(weekDays?.days ?? [], weekStart, weekEnd) : [],
-      empty: "Aucun XP gagné cette semaine.",
-    },
-    missions: {
-      title: "Missions terminées cette semaine",
-      rows: completedMissions(weekSessions?.days ?? [], subjectNames),
-      empty: "Aucune mission terminée cette semaine.",
-    },
-    open_gaps: {
-      title: "Notions à renforcer, les plus urgentes d'abord",
-      rows: openGapRows(gaps ?? []),
-      empty: "Aucune notion à renforcer pour le moment.",
-    },
-    consolidated: {
-      title: "Notions consolidées (maîtrise ≥ 90 %)",
-      rows: consolidatedRows(consolidated ?? []),
-      empty: "Aucune notion consolidée pour le moment.",
-    },
-  };
-
-  function card(
-    key: KpiKey,
-    label: string,
-    kpi: KpiValue,
-    format: (n: number) => string,
-    unit = "",
-  ) {
+  if (dash.loading) {
     return (
-      <KpiCard
-        key={label}
-        label={label}
-        value={format(kpi.value)}
-        delta={formatDelta(kpi.delta, unit)}
-        deltaDirection={kpi.delta < 0 ? "down" : "up"}
-        onClick={() => toggle(key)}
-        expanded={openKpi === key}
-      />
+      <div className="mx-auto max-w-[1560px]">
+        <PageHeader title="Tableau de bord" subtitle="Chargement…" actions={<BackendStatus />} />
+        {/* Skeleton global, UNE seule fois au montage. Aucun spinner ne réapparaît ensuite. */}
+        <div className="mt-4 space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-papa-surface motion-reduce:animate-none" />
+          ))}
+        </div>
+      </div>
     );
   }
 
+  if (dash.error || !data) {
+    // Pas de rendu partiel : des cartes vides se liraient comme des zéros mesurés.
+    return (
+      <div className="mx-auto max-w-[1560px]">
+        <PageHeader title="Tableau de bord" actions={<BackendStatus />} />
+        <div className="mt-4 rounded-xl border border-papa-warn/30 bg-papa-warn/5 p-5">
+          <p className="text-sm text-papa-warn">
+            {dash.error ?? "Le tableau de bord n'a pas pu être chargé."}
+          </p>
+          <button
+            type="button"
+            onClick={dash.reload}
+            className="mt-3 rounded-lg border border-papa-border px-3.5 py-2 text-sm font-semibold hover:border-papa-accent"
+          >
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const kpis = data.periods[period].kpis;
+  const sparks = data.periods[period].sparks;
+  const year = data.school_year;
+
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-[1560px]">
       <PageHeader
-        title="Dashboard"
-        subtitle={`${STUDENT} · ${PERIOD_LABEL}`}
-        actions={<BackendStatus />}
+        title="Tableau de bord"
+        subtitle={
+          year
+            ? `Année active ${year.level} · ${year.label}${
+                data.last_activity_at
+                  ? ` · dernière activité ${new Intl.DateTimeFormat("fr-FR", {
+                      dateStyle: "long",
+                      timeStyle: "short",
+                    }).format(new Date(data.last_activity_at))}`
+                  : ""
+              }`
+            : "Aucune année scolaire active"
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="inline-flex gap-0.5 rounded-lg border border-papa-border bg-papa-surface p-0.5">
+              {(Object.keys(PERIOD_LABELS) as DashboardPeriod[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={period === value}
+                  onClick={() => dash.setPeriod(value)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                    period === value ? "bg-papa-accent text-[#042f1f]" : "text-papa-muted"
+                  }`}
+                >
+                  {PERIOD_LABELS[value]}
+                </button>
+              ))}
+            </div>
+            <BackendStatus />
+          </div>
+        }
       />
 
-      {/* Le Dashboard SIGNALE, la Couverture TRAITE : une ligne, une action, rien de plus. */}
-      <ProductionAlertCard />
+      <DecisionQueue items={data.inbox} />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        {kpis ? (
-          <>
-            {card("sessions", "Sessions (semaine)", kpis.sessions, String)}
-            {card("active_minutes", "Temps actif", kpis.active_minutes, formatMinutes, "min")}
-            {card("xp", "XP (semaine)", kpis.xp, (n) => `+${n}`)}
-            {card("missions", "Missions terminées", kpis.missions_completed, String)}
-            {/* Stocks : pas de delta à passer, la carte n'en affiche donc aucun. */}
-            <KpiCard
-              label="Lacunes ouvertes"
-              value={String(kpis.open_gaps.value)}
-              onClick={() => toggle("open_gaps")}
-              expanded={openKpi === "open_gaps"}
-            />
-            <KpiCard
-              label="Notions consolidées"
-              value={String(kpis.consolidated_skills.value)}
-              onClick={() => toggle("consolidated")}
-              expanded={openKpi === "consolidated"}
-            />
-          </>
-        ) : (
-          // Backend injoignable : on retombe sur les vignettes mock, non cliquables — mieux vaut
-          // une page lisible qu'un écran vide, mais rien ne doit se faire passer pour du réel.
-          KPIS.filter((k) => FALLBACK_LABELS.includes(k.label)).map((k) => (
-            <KpiCard key={k.label} label={k.label} value={k.value} />
-          ))
-        )}
+      <div className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <KpiFocusCard
+          focus="active_minutes"
+          label={KPI_LABELS.active_minutes}
+          value={formatMinutes(kpis.active_minutes.value)}
+          delta={formatDelta(kpis.active_minutes.delta, "min")}
+          deltaDirection={kpis.active_minutes.delta < 0 ? "down" : "up"}
+          hint="vs période précédente"
+          info="Heuristique de présence reconstruite depuis le journal d'activité — pas une mesure d'attention."
+          spark={sparks.active_minutes}
+          active={focus === "active_minutes"}
+          focusHint={KPI_FOCUS_HINTS.active_minutes}
+          onToggle={dash.toggleFocus}
+        />
+        <KpiFocusCard
+          focus="active_days"
+          label={KPI_LABELS.active_days}
+          value={String(kpis.active_days.value)}
+          unit={` / ${kpis.active_days.of} j`}
+          delta={formatDelta(kpis.active_days.delta)}
+          deltaDirection={kpis.active_days.delta < 0 ? "down" : "up"}
+          hint="Séances courtes, réparties"
+          spark={sparks.active_days}
+          active={focus === "active_days"}
+          focusHint={KPI_FOCUS_HINTS.active_days}
+          onToggle={dash.toggleFocus}
+        />
+        <KpiFocusCard
+          focus="consolidated"
+          label={KPI_LABELS.consolidated}
+          value={String(kpis.consolidated.value)}
+          unit={` / ${kpis.consolidated.of}`}
+          delta={formatDelta(kpis.consolidated.delta)}
+          deltaDirection="up"
+          hint="sur la période"
+          spark={sparks.consolidated}
+          active={focus === "consolidated"}
+          focusHint={KPI_FOCUS_HINTS.consolidated}
+          onToggle={dash.toggleFocus}
+        />
+        <KpiFocusCard
+          focus="open_gaps"
+          label={KPI_LABELS.open_gaps}
+          value={String(kpis.open_gaps.value)}
+          hint={
+            kpis.open_gaps.without_mission > 0
+              ? `${kpis.open_gaps.without_mission} sans mission`
+              : "toutes prises en charge"
+          }
+          spark={sparks.open_gaps}
+          active={focus === "open_gaps"}
+          focusHint={KPI_FOCUS_HINTS.open_gaps}
+          onToggle={dash.toggleFocus}
+        />
       </div>
 
-      {openKpi && (
-        <KpiBreakdown
-          title={detail[openKpi].title}
-          rows={detail[openKpi].rows}
-          emptyLabel={detail[openKpi].empty}
-          loading={detailLoading}
-          onClose={() => setOpenKpi(null)}
-        />
+      {chipOptions.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-papa-muted">
+            Matière
+          </span>
+          <SubjectFilterChips
+            subjects={chipOptions}
+            value={activeSubject?.id ?? null}
+            onChange={(id) =>
+              dash.toggleSubject(id === null ? null : (chipOptions.find((s) => s.id === id)?.slug ?? null))
+            }
+          />
+        </div>
       )}
 
-      <RegularityCard subjects={subjects} />
-
-      <section className="mt-6 rounded-xl border border-papa-border bg-papa-surface p-5">
-        <p className="font-semibold text-papa-warn">Alertes prioritaires</p>
-        <ul className="mt-3 space-y-2">
-          {ALERTS.map((a) => (
-            <li
-              key={a.subject}
-              className="flex items-center justify-between gap-3 rounded-lg bg-papa-surface-2 px-4 py-2.5 text-sm"
-            >
-              <span>
-                <strong>{a.subject}</strong> — {a.text}
-              </span>
-              <button type="button" className="shrink-0 text-papa-accent hover:underline">
-                {a.action} →
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="mt-4 rounded-xl border border-papa-border bg-papa-surface p-5">
-        <p className="font-semibold text-papa-accent-2">Recommandations ZETIS</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {RECOMMENDATIONS.map((r) => (
-            <button
-              key={r}
-              type="button"
-              className="rounded-lg border border-papa-border px-4 py-2 text-sm font-medium hover:border-papa-accent"
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      </section>
+      {/* Les huit cartes. Chacune porte sa clé de `CARD_SCOPES` : c'est elle qui décide si la
+          carte répond au KPI en focus, ou si elle s'atténue. */}
+      <div className="mt-3 grid grid-cols-1 items-start gap-3 xl:grid-cols-12">
+        <WorkRhythmCard
+          subjects={visibleSubjects}
+          activeSubject={activeSubject}
+          period={period}
+          focus={focus}
+          daysInactive={data.days_inactive}
+          subjectNames={subjectNames}
+        />
+        <TimeSplitCard
+          allSubjects={data.subjects}
+          unattributed={data.unattributed_minutes[period] ?? 0}
+          period={period}
+          focus={focus}
+          selectedSlug={dash.subject}
+          onSelect={dash.toggleSubject}
+        />
+        <MemoryTrendCard
+          series={sumSeries(visibleSubjects, period)}
+          period={period}
+          focus={focus}
+        />
+        <NotionsStackCard
+          subjects={data.subjects}
+          focus={focus}
+          selectedSlug={dash.subject}
+          onSelect={dash.toggleSubject}
+        />
+        <WhereToActCard
+          subjects={data.subjects}
+          period={period}
+          focus={focus}
+          selected={activeSubject}
+          onSelect={dash.toggleSubject}
+        />
+        <ReviewLoadCard load={sumReviewLoad(visibleSubjects)} focus={focus} />
+        <ContentChainCard stages={data.content_chain} focus={focus} />
+        <ZetisReadingCard
+          items={data.reading}
+          proposal={data.proposed_mission}
+          withoutMission={kpis.open_gaps.without_mission}
+          focus={focus}
+          onMissionCreated={dash.reload}
+        />
+      </div>
     </div>
   );
 }

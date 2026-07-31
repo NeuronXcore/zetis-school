@@ -434,7 +434,14 @@ validées `planned|active` sont candidates.
 
 ## Progression
 
-### GET `/progress/summary?student_id=`
+> ⚠️ **Section documentée mais JAMAIS implémentée** (constat du read-before-code ADR-0028,
+> 2026-07-31). Aucune de ces quatre routes n'existe en code. Les seules routes de progression
+> réellement servies sont `GET /api/parent/progress/gaps` et `/consolidated`, décrites plus bas.
+> Ce qui manque ici est repris autrement : le résumé global et la progression par matière sont
+> servis par `GET /api/parent/dashboard` (agrégat, par matière), et la vue élève par le module
+> `galaxy`. Ne pas coder contre cette section.
+
+### GET `/progress/summary?student_id=` — *n'existe pas*
 
 Résumé global.
 
@@ -881,23 +888,18 @@ Seule écriture cliente autorisée dans le journal. Entrée `{ route }` (1–200
 silencieusement. Réponse `204` dans tous les cas de succès. Déclaratif observationnel :
 n'influence ni XP, ni score, ni verdict.
 
-### GET `/api/parent/activity/heatmap?weeks=26&subject_id=` (Papa)
+### ~~GET `/api/parent/activity/heatmap?weeks=26&subject_id=`~~ — **supprimée (ADR-0028)**
 
-`weeks` borné serveur (1 à 53, défaut 26). Les jours **sans activité sont omis** et reconstruits
-côté client.
-
-```json
-{
-  "days": [{ "date": "2026-07-15", "active_minutes": 24, "events": 9, "xp": 30 }],
-  "days_inactive": 0
-}
-```
-
-`active_minutes` = intensité de la case (pas le nombre d'événements). `days_inactive` = jours
-consécutifs sans activité en fin de série, **toutes matières**, même quand `subject_id` filtre le
-reste de la réponse : le décrochage renseigne sur l'enfant, pas sur une matière.
+Audit du 2026-07-31 : ses deux seuls appelants étaient la carte de régularité du dashboard et le
+dashboard lui-même. Le Cahier de bord, qu'on croyait consommateur, utilise `/activity/sessions`. La
+heatmap est désormais servie **par matière** dans l'agrégat `GET /api/parent/dashboard`, et
+« toutes matières » est une somme client.
 
 ### GET `/api/parent/activity/days/{date}?subject_id=` (Papa)
+
+**Conservée** — c'est l'unique exception au « zéro état de chargement » du dashboard (ADR-0028 §4) :
+une descente vers un détail non borné, qu'on ne peut pas précharger pour 26 semaines × 8 matières.
+Consommateur : `DayDetailPanel`, monté sous la heatmap de la carte « Quand Massimo travaille ».
 
 `404` si la date n'est pas au format `AAAA-MM-JJ`. Journal trié, `review_attempted` consécutifs
 **agrégés côté serveur** en une ligne, `minutes` fourni par événement (le client ne recalcule
@@ -916,6 +918,10 @@ rien).
 ```
 
 ### GET `/api/parent/activity/sessions?from=&to=&subject_id=` (Papa)
+
+**Conservée — consommateur nommé : le Cahier de bord** (`CahierBordPage`, vue Sessions du mois).
+Ce n'est pas le dashboard qui l'appelle, contrairement à ce que l'audit ADR-0028 supposait au
+départ.
 
 Sessions **reconstruites** (coupure à `SESSION_GAP_MINUTES` = 15), jamais stockées. Période
 bornée serveur (défaut : 7 derniers jours ; amplitude maximale `ACTIVITY_MAX_RANGE_DAYS`). Jours
@@ -938,31 +944,74 @@ contredire le `time` des événements de la même carte.
 }
 ```
 
-### GET `/api/parent/dashboard` (Papa)
+### GET `/api/parent/dashboard` (Papa) — agrégat unique, **module `dashboard`**
 
-KPI de régularité en `{ value, delta }` — semaine **lundi→dimanche Europe/Paris** contre la
-précédente, delta calculé serveur.
+> **Réécriture cassante (ADR-0028, 2026-07-31).** La route servait auparavant six KPI hebdomadaires
+> (`week_start`, `sessions`, `xp`, `missions_completed`, `open_gaps`, `consolidated_skills`).
+> Acceptable parce qu'elle n'avait qu'un seul consommateur, la page qu'on refaisait. `sessions`,
+> `xp` et `missions_completed` **ne sont plus des KPI de pilotage** — un KPI parent doit être
+> décisionnel, et l'XP est le levier de Massimo, qui reste sur Progression (§5).
 
-```json
+**L'unique requête du premier rendu.** Aucun query param de filtrage, volontairement : période,
+matière et focus sont des projections client sur un payload déjà en mémoire. En ajouter un
+ramènerait un aller-retour par clic de pastille — exactement ce que l'ADR supprime.
+
+Contrat complet : `docs/frontend-papa/page-dashboard.md §Contrat API`. Forme :
+
+```jsonc
 {
-  "week_start": "2026-07-13",
-  "sessions": { "value": 4, "delta": 1 },
-  "active_minutes": { "value": 96, "delta": 18 },
-  "xp": { "value": 180, "delta": -20 },
-  "missions_completed": { "value": 3, "delta": 0 },
-  "open_gaps": { "value": 5 },
-  "consolidated_skills": { "value": 3 }
+  "school_year": { "level": "4e", "label": "2025-2026", "program_version": null },
+  "generated_at": "...", "last_activity_at": "...", "days_inactive": 0,
+  "inbox": [{ "kind": "validation|gap|demande|referentiel|source", "count": 6,
+              "label": "…", "detail": "…", "href": "/couverture" }],
+  "periods": { "7": { "kpis": { "active_minutes": {"value":200,"delta":35},
+                                "active_days":    {"value":5,"of":7,"delta":1},
+                                "consolidated":   {"value":12,"of":46,"delta":3},
+                                "open_gaps":      {"value":3,"delta":0,"without_mission":1} },
+                      "sparks": { /* 4 × 12 points */ } },
+               "30": {…}, "90": {…} },
+  "subjects": [{ "slug": "maths", "color": "#60a5fa",
+                 "minutes": {"7":65,"30":255,"90":690},
+                 "calendar": [{"date":"2026-07-28","active_minutes":42}],  // 26 sem., vides omis
+                 "slots": {"7": [[/*7 j*/], /* × 8 créneaux, 8h→24h */]},
+                 "slots_outside_minutes": {"7":0},                          // activité 0h–8h
+                 "notions": {"consolidated":4,"fragile":3,"in_progress":2,"total":13},
+                 "series": {"7": {"covered":[],"consolidated":[],"fragile":[]}},
+                 "review_load": [/* 14 entiers, J+0 → J+13 */],
+                 "gaps_open": 2, "has_referentiel": true }],
+  "content_chain": [{ "stage": "cours_valides", "label": "Cours validés", "value": 30, "target": 38 }],
+  "reading": [{ "trend": "up|flat|watch", "text": "…",
+                "evidence": { "count": 5, "kind": "notion", "href": "…" } }],
+  "proposed_mission": null
 }
 ```
 
-Quatre **flux** hebdomadaires en `{value, delta}` et deux **stocks** en `{value}` seul. Les stocks
-n'ont pas de delta parce qu'il serait faux : reconstituer l'état d'il y a une semaine exigerait de
-savoir quand chaque lacune a été résolue et quand chaque notion est passée à `mastered`, or `gaps`
-ne porte que `first_detected_at` et `skill_mastery` aucun horodatage de bascule. Les ajouter est un
-chantier de modèle, pas un contournement d'affichage.
+Règles de contrat :
 
-Surface neuve : la page Dashboard n'avait pas d'endpoint. Les routes `/gaps` et `/progress/summary`
-citées par la spec produit n'ont jamais existé en code. Reste hors payload : « prochaine révision ».
+- **Séries livrées par matière, jamais pré-agrégées.** Pas de ligne « toutes matières » côté
+  serveur : c'est une somme que le client calcule, et c'est la condition technique du §1.
+- Les **trois fenêtres** (7 / 30 / 90) sont dans la même réponse. `calendar` porte 26 semaines
+  **quelle que soit la période** : la grille sert la tendance longue, seul le filtre matière
+  l'affecte.
+- `slots` : matrice `8 × 7`, **8 h → 24 h**, Europe/Paris. L'activité de 0 h à 8 h ressort dans
+  `slots_outside_minutes` plutôt que d'être repliée dans un créneau qui la daterait faussement.
+- `notions` suit le mapping des six statuts réels de `SkillMastery` (ADR-0028 §3 bis) :
+  consolidées = `mastered` · fragiles = `weak` + `learning` · en cours = `solid` + `in_progress` ·
+  non abordées = pas de ligne.
+- `has_referentiel: false` = matière **sans chapitre**. À ne pas confondre avec `notions.total: 0` :
+  les deux états existent et diffèrent. La matière **reste dans le tableau** dans les deux cas — le
+  trou est une information.
+- `reading[].evidence` est **obligatoire** : un constat sans preuve adressable n'est pas émis.
+- `proposed_mission` est composé **en lecture** par le moteur de missions
+  (`preview_remediation`) : **ce GET n'écrit rien**. La création reste un POST explicite sur
+  `/api/missions/generate-remediation`, route déjà en place. Prévisualisation et création voient
+  **exactement les mêmes lacunes** (`status == "open"`, notions déjà couvertes exclues) — sinon la
+  carte proposerait une notion que le bouton ne créerait pas. `null` = aucune lacune découverte.
+- **Jamais d'UNION avec `xp_events`**, et les événements d'agenda (`NON_ACTIVITY_EVENTS`) sont
+  exclus de toutes les projections d'activité.
+
+Les routes `/gaps` et `/progress/summary` citées par la spec produit **n'ont jamais existé en
+code**.
 
 ## Progression (module `progress`, Papa)
 
@@ -970,14 +1019,23 @@ Détail des deux KPI de stock. Analyses parentales : jamais servies à Massimo.
 
 ### GET `/api/parent/progress/gaps`
 
-Lacunes ouvertes (`status ∈ open | in_progress`, même définition que le générateur de missions de
-remédiation), les plus sévères d'abord. L'UI les formule en « notions à renforcer » — jamais de
-vocabulaire d'échec (CLAUDE.md §pédagogie).
+Lacunes ouvertes (`status ∈ open | in_progress`), les plus sévères d'abord. L'UI les formule en
+« notions à renforcer » — jamais de vocabulaire d'échec (CLAUDE.md §pédagogie).
+
+⚠️ Cette définition est **plus large que celle du générateur de remédiation**, qui ne reprend que
+les lacunes `open`. Ce n'est pas une incohérence : une lacune `in_progress` a déjà été travaillée et
+revient par la **révision**, pas par une seconde consolidation (`adr-0017 §5bis`, amendé le
+2026-07-31). La page Lacunes s'appuie sur `status` pour proposer le bon générateur.
+
+`has_active_mission` dit si une mission `planned|active` — **de n'importe quel type** — couvre déjà
+la notion. C'est ce qui sépare ce qui attend une décision de ce qui est en route ; le dashboard
+(`open_gaps.without_mission`) et la page Lacunes s'appuient sur la **même** fonction, après avoir
+divergé (le KPI ne regardait que les missions de remédiation et sur-comptait).
 
 ```json
 [{ "skill_id": 12, "skill_name": "Temps du récit", "subject_slug": "francais",
    "subject_name": "Français", "severity": "high", "status": "in_progress",
-   "first_detected_at": "2026-07-01T08:00:00+00:00" }]
+   "first_detected_at": "2026-07-01T08:00:00+00:00", "has_active_mission": true }]
 ```
 
 ### GET `/api/parent/progress/consolidated`

@@ -274,9 +274,15 @@ mastery_score      # 0-100
 confidence_score   # 0-100
 last_seen_at
 next_review_at
-status             # unknown | weak | learning | solid | mastered
+status             # unknown | weak | learning | solid | mastered | in_progress
 mastered_at        # instant de bascule vers `mastered` (nullable)
 ```
+
+⚠️ **Six valeurs de `status`, pas cinq.** `in_progress` est écrit par `missions/service.py` au
+verdict `review_later` et ne sort d'aucun `_status_from_score()` — un lecteur qui n'énumère que les
+cinq paliers de score le manque en silence (piège déjà signalé par `adr-0024`). Regroupement
+canonique retenu par `adr-0028 §3 bis` : **consolidées** = `mastered` · **fragiles** = `weak` +
+`learning` · **en cours** = `solid` + `in_progress` · **non abordées** = pas de ligne du tout.
 
 **`mastered_at` — invariant et règle d'écriture.** `mastered_at IS NOT NULL` ⟺ `status ==
 "mastered"`. Écrit UNIQUEMENT par `progress/mastery.set_mastery_status`, seul point de passage des
@@ -290,6 +296,40 @@ quatre modules qui écrivent le statut (diagnostic, quiz, ELI5 reverse, mission)
 
 `NULL` sur une ligne `mastered` = consolidée avant la migration `f1a2b3c4d5e6`, date inconnue.
 Ces lignes comptent dans le **stock** de notions consolidées, jamais dans une **semaine**.
+
+### SkillMasteryHistory
+
+```txt
+id
+student_id
+skill_id
+status             # statut APRÈS la bascule (mêmes six valeurs que SkillMastery.status)
+mastery_score      # 0-100, au moment de la bascule — audit seulement
+changed_at
+```
+
+Migration `a9b8c7d6e5f4` (`adr-0028 §3 ter`). Index `(student_id, changed_at)`.
+
+**Pourquoi.** `SkillMastery` ne garde que l'état **courant** : une notion qui redescend de
+`mastered` à `learning` écrase son statut sans laisser de trace, et `mastered_at` ne date que
+l'entrée dans `mastered`. La courbe des notions **fragiles** du dashboard Papa n'était donc pas
+reconstructible — or c'est le signal de régression qu'un parent a besoin de voir tôt.
+
+**Une ligne par CHANGEMENT, jamais par passage.** Écrit uniquement par
+`progress/mastery.record_mastery_transition`, qui enveloppe `set_mastery_status` et ne journalise
+que si le statut change réellement. Sans ce garde-fou, `quizzes/scoring.py` — qui réévalue la
+maîtrise à chaque quiz de fin de cours — ajouterait un doublon par quiz et la courbe compterait des
+« bascules » qui n'en sont pas.
+
+**Pas de FK vers `skill_mastery.id`**, volontairement : la ligne de maîtrise est souvent créée dans
+la même transaction et n'a pas encore d'`id` au moment de la bascule ; une FK imposerait un
+`flush()` à chaque appel. `(student_id, skill_id)` suffit, l'unicité étant déjà portée par
+`skill_mastery`.
+
+**Backfill partiel.** La migration ne reconstruit que les entrées dans `mastered` déductibles de
+`mastered_at`. Les lignes `mastered` héritées sans date restent hors historique, et les régressions
+passées sont perdues : la courbe des fragiles démarre à la mise en service plutôt que de raconter
+une histoire inventée — même doctrine que `f1a2b3c4d5e6`.
 
 ### Gap / Lacune
 
@@ -755,6 +795,7 @@ Quiz 1─N QuizQuestion
 Quiz 1─N QuizAttempt
 QuizAttempt 1─N QuizAnswer
 Skill 1─N SkillMastery
+Skill 1─N SkillMasteryHistory
 Skill 1─N Gap
 Mission 1─N MissionStep
 DocumentSource 1─N RAGChunk
@@ -825,6 +866,9 @@ Les contenus IA ont un statut. Les contenus critiques ou durables doivent pouvoi
 ## Index recommandés
 
 - `skill_mastery(student_id, skill_id)` unique.
+- `skill_mastery_history(student_id, changed_at)` — **existe** (migration `a9b8c7d6e5f4`) : toutes
+  les lectures balaient une fenêtre temporelle pour un élève donné, même motif que
+  `learning_events(student_id, created_at)`.
 - `gap(student_id, status, severity)`.
 - `mission(student_id, status, priority)`.
 - `quiz_attempt(student_id, completed_at)`.
