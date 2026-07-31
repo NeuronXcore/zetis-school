@@ -45,9 +45,12 @@ const GalaxyCanvas = lazy(() =>
 /** Pastilles affichées au maximum : au-delà, la ligne se replierait et la carte grandirait. */
 const MAX_PLANETS = 6;
 
-/** Hauteur du ciel, sur l'Accueil. Assez pour lire une galaxie qui pousse — 190 px ne
- *  suffisaient pas, la construction s'y voyait à peine. */
-const SKY_HEIGHT = 260;
+/** Hauteur du ciel, sur l'Accueil.
+ *
+ *  190 px au premier jet : la construction s'y voyait à peine. 260 ensuite, dans une colonne
+ *  étroite. Depuis que la carte est REMONTÉE en pleine largeur et que le ciel a sa propre
+ *  bande, il peut respirer. */
+const SKY_HEIGHT = 300;
 
 export interface HomeGalaxyCardProps {
   /** `null` tant que l'appel n'a pas répondu — la carte n'est alors pas rendue par la page. */
@@ -130,88 +133,94 @@ export function HomeGalaxyCard({ subjects }: HomeGalaxyCardProps) {
       className="group relative block overflow-hidden rounded-2xl border border-zetis-border bg-zetis-surface p-5 transition-colors hover:border-zetis-accent-2 motion-reduce:transition-none"
       aria-label={`Ma galaxie : ${lit} étoiles allumées — ouvrir`}
     >
-      {/* Étoiles décoratives, en CSS pur. `motion-reduce` les fige : elles scintillent pour
-          faire joli, jamais pour porter une information. Elles restent SOUS le ciel 3D : quand
-          il arrive, elles font le fond lointain. */}
-      <span aria-hidden className="pointer-events-none absolute inset-0">
-        {STARS.map((star, i) => (
-          <span
-            key={i}
-            className="absolute h-[3px] w-[3px] rounded-full bg-white/70 motion-safe:animate-pulse"
-            style={{ top: star.top, left: star.left, animationDelay: star.delay }}
-          />
-        ))}
+      {/* ── En-tête : le texte, dans des BADGES ────────────────────────────────────────
+          Il était posé PAR-DESSUS le ciel, en calque. Deux défauts, tous deux réels : la
+          galaxie passait derrière des paragraphes, et le texte se lisait sur un fond qui
+          bouge. Depuis le 2026-07-31, chacun a sa bande — plus aucune superposition. */}
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full border border-zetis-accent-2/40 bg-zetis-accent-2/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zetis-accent-2">
+          Ma galaxie
+        </span>
+        <span className="flex items-baseline gap-1.5 rounded-full border border-zetis-border bg-zetis-surface-2 px-3 py-1">
+          <span className="text-base font-bold tabular-nums">{lit}</span>
+          <span className="text-xs text-zetis-muted">
+            étoile{lit > 1 ? "s" : ""} allumée{lit > 1 ? "s" : ""}
+          </span>
+        </span>
+
+        {planets.length > 0 &&
+          // Chaque pastille porte SON COMPTE (addendum « Accueil vivant » §C). Un COMPTE, jamais
+          // un pourcentage ; l'ordre est celui du programme, PAS un classement — trier par `lit`
+          // ferait de la carte un palmarès de matières, que l'ADR-0024 §5 interdit.
+          planets.map((subject) => {
+            const icon = subjectIconFor(subject.slug);
+            return (
+              <span
+                key={subject.slug}
+                aria-hidden
+                // Pictogramme de marque, JAMAIS un emoji (design-system.md §Pictogrammes).
+                className="flex items-center gap-1.5 rounded-full border border-zetis-border bg-zetis-surface-2 py-1 pl-1 pr-2.5 text-xs font-bold"
+              >
+                {icon ? (
+                  <img src={icon} alt="" className="h-6 w-6 rounded-full object-cover" />
+                ) : (
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-zetis-surface text-[10px] text-zetis-muted">
+                    {subject.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className="text-zetis-muted">{subject.lit}</span>
+              </span>
+            );
+          })}
       </span>
 
-      {/* Le ciel. `aria-hidden` et `pointer-events-none` : c'est du décor animé, et tout ce
-          qu'il montre est déjà dit en toutes lettres par le compte et les pastilles. */}
-      {sky && shown && shown.nodes.length > 0 && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 opacity-80"
-          style={{ height: SKY_HEIGHT }}
-        >
-          <Suspense fallback={null}>
-            <GalaxyCanvas
-              nodes={shown.nodes}
-              edges={shown.edges}
-              // Positions IMPOSÉES : chaque étoile naît sur son parent puis rejoint sa place.
-              pinned={pinned}
-              height={SKY_HEIGHT}
+      {/* ── Le ciel : sa propre bande, rien par-dessus ─────────────────────────────────
+          Dans le FLUX, plus en calque absolu : c'est ce qui garantit qu'aucun texte ne
+          viendra s'y superposer, même si la carte grandit un jour. */}
+      <span
+        aria-hidden
+        className="relative mt-3 block overflow-hidden rounded-xl bg-zetis-bg"
+        style={{ height: SKY_HEIGHT }}
+      >
+        {/* Étoiles décoratives en CSS pur, CONFINÉES au ciel depuis qu'il a sa bande. Elles
+            scintillent pour faire joli, jamais pour porter une information ; `motion-reduce`
+            les fige. Sans le ciel 3D, elles sont tout ce qu'il y a — et ça suffit. */}
+        <span className="pointer-events-none absolute inset-0">
+          {STARS.map((star, i) => (
+            <span
+              key={i}
+              className="absolute h-[3px] w-[3px] rounded-full bg-white/70 motion-safe:animate-pulse"
+              style={{ top: star.top, left: star.left, animationDelay: star.delay }}
             />
-          </Suspense>
+          ))}
         </span>
-      )}
 
-      {/* Le contenu passe AU-DESSUS du ciel : positionné, et postérieur dans le DOM. Sans
-          ça, un canvas à 70 % d'opacité laverait le compte et les pastilles. */}
-      <span className="relative block">
-        <p className="text-xs font-semibold uppercase tracking-wide text-zetis-accent-2">
-          Ma galaxie
-        </p>
+        {/* `pointer-events-none` : la 3D est contemplative, toute la carte reste une seule
+            cible de clic — et un drag de nœud dans un lien déclencherait la navigation. */}
+        {sky && shown && shown.nodes.length > 0 && (
+          <span className="pointer-events-none absolute inset-0">
+            <Suspense fallback={null}>
+              <GalaxyCanvas
+                nodes={shown.nodes}
+                edges={shown.edges}
+                // Positions IMPOSÉES : chaque étoile naît sur son parent puis rejoint sa place.
+                pinned={pinned}
+                height={SKY_HEIGHT}
+              />
+            </Suspense>
+          </span>
+        )}
+      </span>
 
-        <p className="mt-2 flex items-baseline gap-2">
-          <span className="text-3xl font-bold tabular-nums">{lit}</span>
-          <span className="text-sm">étoile{lit > 1 ? "s" : ""} allumée{lit > 1 ? "s" : ""}</span>
-        </p>
-
-        {/* Zéro étoile n'est PAS un état vide : une galaxie qui n'a pas encore commencé est le
-            point de départ normal (rentrée, premier jour). Pas d'`EmptyState`, pas d'erreur. */}
-        <p className="mt-1 text-sm text-zetis-muted">
+      {/* Zéro étoile n'est PAS un état vide : une galaxie qui n'a pas encore commencé est le
+          point de départ normal (rentrée, premier jour). Pas d'`EmptyState`, pas d'erreur. */}
+      <span className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-sm text-zetis-muted">
           {lit === 0
             ? "Ta galaxie t'attend : chaque notion travaillée allume une étoile."
             : "Chaque notion travaillée allume une étoile."}
-        </p>
-
-        {planets.length > 0 && (
-          // Chaque pastille porte SON COMPTE depuis le 2026-07-31 (addendum « Accueil vivant » §C).
-          // Un COMPTE, jamais un pourcentage ; l'ordre est celui du programme, PAS un classement —
-          // trier par `lit` transformerait la carte en palmarès de matières, que l'ADR-0024 §5
-          // interdit.
-          <ul className="mt-4 flex flex-wrap gap-2" aria-hidden>
-            {planets.map((subject) => {
-              const icon = subjectIconFor(subject.slug);
-              return (
-                <li
-                  key={subject.slug}
-                  // Pictogramme de marque, JAMAIS un emoji (design-system.md §Pictogrammes).
-                  className="flex items-center gap-1.5 rounded-full border border-zetis-border bg-zetis-surface-2 py-1 pl-1 pr-2.5 text-xs font-bold"
-                >
-                  {icon ? (
-                    <img src={icon} alt="" className="h-6 w-6 rounded-full object-cover" />
-                  ) : (
-                    <span className="grid h-6 w-6 place-items-center rounded-full bg-zetis-surface text-[10px] text-zetis-muted">
-                      {subject.name.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                  <span className="text-zetis-muted">{subject.lit}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <p className="mt-4 text-sm font-bold text-zetis-accent-2">Ouvrir ma galaxie →</p>
+        </span>
+        <span className="text-sm font-bold text-zetis-accent-2">Ouvrir ma galaxie →</span>
       </span>
     </Link>
   );

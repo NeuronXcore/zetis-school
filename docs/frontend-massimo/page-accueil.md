@@ -161,6 +161,11 @@ défiler ; il n'y a plus de barre de lecture, seulement un bouton « Revoir ».
 Elle n'a jamais été une barre de lecture ici, et elle ne le devient pas : c'est dans la modale,
 et seulement là, qu'elle se trace en synchronisation avec les étoiles.
 
+⚠️ **Placement** : la carte est **juste sous « Mission du jour »**, en **pleine largeur** (et non
+plus en bas, dans une colonne étroite à côté de « Ma semaine »). **Composition** : le texte —
+« Ma galaxie », le compte, les pastilles de matières — forme une bande de **badges au-dessus** du
+ciel, qui a sa propre bande. **Aucune superposition texte / graphe.**
+
 ⚠️ **La carte porte un ciel 3D depuis le 2026-07-31 au soir**
 (`adr-0024-addendum-galaxie-sur-accueil.md`, qui **révoque le §B** du matin). La galaxie s'y
 **construit étoile par étoile**, comme dans la modale et par le même hook (`useGalaxyGrowth`) —

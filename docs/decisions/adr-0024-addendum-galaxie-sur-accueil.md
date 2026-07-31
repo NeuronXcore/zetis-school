@@ -110,6 +110,19 @@ test.
 ⚠️ **Portée de session distincte** (`accueil` / `galaxy`) : conservée pour l'animation d'arrivée
 de `/galaxy`, que l'Accueil ne doit pas consommer.
 
+### 4 bis. **Placement et composition** — corrigés au vu du rendu, eux aussi
+
+- **La carte remonte** juste sous « Mission du jour », et passe en **pleine largeur**. Elle était
+  en bas de page, dans une colonne étroite à côté de « Ma semaine » : la galaxie qui s'y
+  construisait se voyait à peine. **Une animation qu'il faut chercher ne donne pas de vie à une
+  page** — c'est l'objet même de cet addendum, et le placement le contredisait.
+- **Le texte quitte le calque et passe en BADGES** : « Ma galaxie », le compte d'étoiles et les
+  pastilles de matières forment une bande au-dessus du ciel. Plus **aucune superposition**.
+  Deux défauts réels sont corrigés d'un coup : la galaxie passait derrière des paragraphes, et
+  le texte se lisait sur un fond qui bouge.
+- **Le ciel a sa propre bande**, dans le flux (300 px) et non plus en calque absolu. C'est ce qui
+  garantit qu'aucun texte ne viendra s'y superposer, même si la carte grandit un jour.
+
 ### 5. `prefers-reduced-motion` et absence de WebGL → **la carte statique, point**
 
 Aucun canvas monté du tout. Ce n'est pas un réglage de confort (ADR-0024 §6).
