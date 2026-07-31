@@ -109,6 +109,19 @@ export interface GalaxyTimelinePoint {
 export interface GalaxyTimeline {
   points: GalaxyTimelinePoint[];
   total: number;
+  /** Renseigné SEULEMENT avec `?with_skills=true` (ADR-0029), pour le rejeu animé. Absent —
+   *  et non `null` — quand il n'est pas demandé : la frise ne voit aucun changement. */
+  skills?: GalaxySkillFirstLit[];
+}
+
+/** Le jour où une notion a été allumée pour la PREMIÈRE fois (ADR-0029 §2).
+ *
+ *  Deux états seulement dans le rejeu : pas encore née, et allumée. L'état de maîtrise à une
+ *  date passée n'est JAMAIS servi — il régresse, et un rejeu bâti dessus montrerait des étoiles
+ *  s'éteindre. */
+export interface GalaxySkillFirstLit {
+  skill_id: number;
+  date: string;
 }
 
 /** Une activité de ZETIS pour cette notion, disponible ou non.

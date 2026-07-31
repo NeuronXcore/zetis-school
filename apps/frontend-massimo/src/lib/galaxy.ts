@@ -46,6 +46,16 @@ export async function fetchGalaxyTimeline(): Promise<GalaxyTimeline> {
   return asJson(await fetch(`${API_URL}/api/student/galaxy/timeline`, { headers: headers() }));
 }
 
+/** La frise AVEC le détail par notion — pour le rejeu animé (ADR-0029).
+ *
+ * Appelée seulement à l'ouverture de la modale de rejeu, jamais au chargement de l'Accueil :
+ * c'est une charge utile plus lourde, et personne n'en a besoin avant le clic. */
+export async function fetchGalaxyTimelineWithSkills(): Promise<GalaxyTimeline> {
+  return asJson(
+    await fetch(`${API_URL}/api/student/galaxy/timeline?with_skills=true`, { headers: headers() }),
+  );
+}
+
 /** Panneau d'actions d'une notion — toute la panoplie, avec sa disponibilité. */
 export async function fetchNotionPanel(skillId: number): Promise<GalaxyNotion> {
   return asJson(

@@ -262,9 +262,9 @@ temps réel poussée par événement ; persistance des positions de nœuds ; ré
 
 ## Amendements et addendum
 
-Cet ADR a été **amendé trois fois le 2026-07-28**, le jour de sa livraison, puis complété par un
-**addendum le 2026-07-31**. Le chantier Galaxy aura été cadré en marchant ; c'est écrit ici pour
-que ce soit lisible plus tard, pas pour être répété.
+Cet ADR a été **amendé trois fois le 2026-07-28**, le jour de sa livraison, puis complété par
+**deux addenda le 2026-07-31**. Le chantier Galaxy aura été cadré en marchant ; c'est écrit ici
+pour que ce soit lisible plus tard, pas pour être répété.
 
 - **2026-07-28, §4 révisé** — la règle « une action sans contenu validé n'est pas proposée » est
   remplacée par : panoplie **complète** renvoyée, `available` calculé serveur, l'indisponible
@@ -282,6 +282,14 @@ que ce soit lisible plus tard, pas pour être répété.
   **carte-bouton statique** (§B), **migre** le graphe global vers `/galaxy` dont il devient la
   **vue par défaut** (§C), et impose la **continuité de la télémétrie** côté Papa (§D).
   **Ne rouvre pas** les §2, §3, §5, ni le reste du §6. Aucune migration, aucune route backend.
+- **2026-07-31 — `adr-0024-addendum-accueil-vivant.md`** : un Accueil vivant, sans cadrage de
+  perte. Refuse la **heatmap** par écrit (trois murs indépendants, dont un test-verrou), et pose
+  à la place la **carte du ciel** — une étoile par jour de gain, **sans grille ni axe de temps**,
+  donc sans intervalle vide à lire. Crée la **première route élève d'historique**
+  (`GET /api/gamification/history`), dont les **jours sans XP sont omis du payload** : la donnée
+  d'absence n'existe pas, aucun client futur ne peut en dessiner une. **Rouvre le §B du premier
+  addendum** sur un seul point — la **frise** revient sur l'Accueil (SVG maison, le canvas 3D
+  reste banni et le test de budget reste le gardien). Aucune migration.
 
 `zetis-galaxy.md §13` (« hors v1 : aperçu sur l'Accueil ») avait été contredit par l'amendement
 du 28 sans être corrigé ; il **redevient exact** — dans le document comme dans le code.

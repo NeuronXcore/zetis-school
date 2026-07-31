@@ -181,6 +181,16 @@ Réutiliser les résolveurs déjà écrits, ne pas en refaire :
 
 1. **L'onglet « Ma Galaxie »** — accès principal, il existe déjà (renommé le 2026-07-31, même
    position).
+
+> **Vue d'arrivée, révisée le 2026-07-31** : `/galaxy` s'ouvre sur un **système solaire** — le
+> **cerveau au centre** et les **matières seules**, chacune posée sur une orbite dessinée, dans
+> un plan aplati vu en surplomb. Servir tout le graphe à une simulation de forces produisait un
+> amas où le cœur était enseveli. Les **matières encore vides ont aussi leur planète** : une
+> matière absente se lirait comme une matière qui n'existe pas.
+>
+> Un **bandeau de planètes CSS** surmonte le graphe (fond spatial animé, couronne solaire dorée
+> ∝ étoiles allumées). **Un seul clic** ouvre la matière ; il reste affiché dans une
+> constellation et sert alors de **sélecteur de matière**.
 2. **Le bandeau XP** (`MassimoBannerHeader.tsx`, présent sur toutes les pages) devient
    **cliquable** → `/galaxy`. Coût quasi nul.
 3. **Hors v1** : l'aperçu sur l'Accueil et l'annonce discrète « +1 étoile » en fin de mission.

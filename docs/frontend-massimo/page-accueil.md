@@ -4,12 +4,22 @@
 > le wireframe décrivait encore la composition de juin 2026, et la version précédente **n'a
 > jamais documenté l'aperçu Galaxy 3D livré le 2026-07-28** — la spec était en retard sur le code
 > avant même ce chantier.
+>
+> **Complétée le 2026-07-31** par l'addendum « **Accueil vivant** »
+> (`adr-0024-addendum-accueil-vivant.md`) : la page recomposée le matin était calme mais **pauvre**
+> — hors la mission du jour, Massimo n'y lisait qu'une semaine de sept cases. S'ajoutent
+> **« Mon ciel »**, **« Mon chemin »** (la frise, qui revient) et **« Tes derniers gains »**.
+> Maquette : `mockup/mockup-page-accueil-v3.html`.
 
 ## Objectif
 
 Donner à Massimo un point d'entrée simple : quoi faire maintenant, pourquoi, et où il en est.
 La page doit peindre vite et rester calme : c'est la page la plus visitée et la première au
 réveil de l'app.
+
+**Calme ne veut pas dire nue.** Ce qui doit rester rare, c'est l'**action** — une seule accentuée.
+Ce qui se **regarde** peut être riche : le chemin parcouru n'appelle aucun geste, il ne se
+dispute donc pas avec « Commencer ».
 
 ## Wireframe
 
@@ -115,12 +125,70 @@ aucune grille et ne calcule aucune date.
 - **Aucune série (« streak »)**, sous aucune forme (ADR-0024 §5). Une flamme et un compteur de
   jours consécutifs sont un capital perdable : ils font venir par peur de perdre.
 
+### Mon ciel (la heatmap retournée)
+
+Ajouté le 2026-07-31 (addendum « Accueil vivant » §B). **Une case par jour où Massimo a gagné du
+XP, posée sur un calendrier** — semaines en colonnes, jours en lignes. Rien d'autre n'est dessiné.
+
+- **Aucune case vide n'est dessinée** : pas de carré gris, pas de bordure, **aucun élément dans le
+  DOM** pour un jour sans gain. Les cases sont placées en `grid-column`/`grid-row` explicites, donc
+  la grille n'a jamais besoin de remplissage. C'est ce qui la sépare d'une heatmap — chez Papa, la
+  case grise **est** l'information d'absence, et elle y est légitime (c'est du pilotage).
+- **Assumé** : sur un calendrier, l'œil perçoit les intervalles par la **position**, même sans case
+  dessinée. C'est le prix du repère temporel, payé en connaissance de cause. Ce que `CLAUDE.md`
+  interdit — un **décompte**, une iconographie du vide — reste absent.
+- La grille commence **au premier jour d'activité**, jamais avant l'histoire de l'élève.
+- Libellés de mois au changement de mois, **et seulement si la place le permet** (deux mois à une
+  colonne d'écart se chevauchent — constaté).
+- Intensité ∝ XP du jour, rampe indigo → cyan → blanc (ADR-0024 §5). **Aucun rouge.**
+- Légende = un **compte qui ne peut que monter** : « 6 jours d'apprentissage ».
+- `prefers-reduced-motion` coupe le scintillement.
+
+> **Historique** : la première version posait les jours en **constellation libre**, sans repère
+> temporel. Ce qui manquait n'était pas la densité mais le **repère de temps** — d'où le passage
+> au calendrier, l'interdit étant reporté de la géométrie vers le **rendu**.
+
+**Ce que la carte n'affichera jamais** : une date lisible, un « depuis N jours », une moyenne, un
+objectif de jours, une comparaison entre deux périodes, un fond quadrillé.
+
+**Une action secondaire** : « Revoir ma galaxie grandir → » ouvre le **rejeu animé** (ADR-0029).
+Bordure, jamais plein — la seule action accentuée de la page reste « Commencer ».
+
+⚠️ **`GalaxyReplayModal` ne doit JAMAIS être importée statiquement par l'Accueil.** Elle est
+montée en `lazy()`, et charge elle-même le canvas en `lazy()`. Ce **double `lazy()`** est ce qui
+garde l'Accueil à **zéro Three.js au premier paint** : `accueil.bundle.test.ts` ne parcourt que
+les imports **statiques**, donc un import statique d'ici remettrait 1,37 Mo sur la page
+d'atterrissage **sans qu'aucun test ne le voie**. Un second test constate que la modale **n'est
+pas montée au chargement**.
+
+### Mon chemin (frise cumulative)
+
+`GET /api/student/galaxy/timeline`, en SVG maison. Elle avait quitté l'Accueil le matin même,
+emportée par association avec le canvas 3D ; le §D de l'addendum « Accueil vivant » la ramène —
+le coût à annuler était **Three.js**, pas quelques lignes de SVG.
+
+⚠️ **La série est CREUSE** : un point seulement les jours de progrès. Le composant espace ses
+points uniformément, donc **son axe X n'est pas le temps**. Acceptable pour une courbe d'allure,
+à condition de **ne jamais l'annoter d'une date**. Écrit ici pour que personne ne le « corrige »
+en croyant à un bug.
+
+### Tes derniers gains
+
+`recent` (les 5 derniers événements XP, horodatés) et le dernier `badges` de
+`GET /api/gamification/summary`. **Coût nul** : cette route est déjà appelée sur cette page par le
+bandeau XP, et ces deux champs n'étaient rendus nulle part dans l'app.
+
+Positif par construction — un événement XP est toujours un gain. Le libellé de chaque `reason`
+doit être **traduit** : sans quoi Massimo lit `mission_champion` en brut.
+
 ### Ma Galaxie (carte-bouton statique)
 
 Porte d'entrée vers `/galaxy`. Contrat **fermé** — addendum ADR-0024 §B :
 
 - **compte d'étoiles allumées**, toutes matières confondues ;
-- **pastilles de matières** en CSS pur (pictogrammes `subjectIconFor`, **jamais d'emoji**) ;
+- **pastilles de matières** en CSS pur (pictogrammes `subjectIconFor`, **jamais d'emoji**),
+  portant **leur compte** d'étoiles depuis le 2026-07-31 — un **compte**, jamais un pourcentage,
+  et l'ordre est celui du programme, **pas un classement** ;
 - la carte entière est la cible de clic ; libellé d'action explicite.
 
 **Interdits, par héritage de l'ADR-0024 §5** : aucun pourcentage, aucun classement de matières,
@@ -219,6 +287,13 @@ Les routes réelles sont :
   **non** `total_due`.
 - `GET /api/student/motivation/welcome` — le message de ZETIS.
 - `GET`/`PUT /api/student/motivation/week` — la semaine et l'engagement.
+- `GET /api/gamification/summary` — **déjà appelée** par le bandeau XP : niveau et XP pour lui,
+  `badges` et `recent` pour « Tes derniers gains ». Aucune requête ajoutée, la donnée est partagée.
+- `GET /api/gamification/history?days=90` — **« Mon ciel »**. Les **jours sans XP sont OMIS** du
+  payload, jamais renvoyés à zéro : la donnée d'absence n'existe pas, aucun client ne peut donc
+  dessiner une case vide (addendum « Accueil vivant » §A).
+- `GET /api/student/galaxy/timeline` — **« Mon chemin »**. Série **creuse**, bornée à 60 jours
+  côté serveur, non paramétrable.
 - `GET /api/student/galaxy` — les matières et, **par matière**, le **compte** `lit` d'étoiles
   allumées (+ `total`). La route existe déjà (module `galaxy`, livré le 2026-07-28) ; **aucun
   travail backend dans ce chantier**. `GET /api/student/galaxy/all` alimente désormais la **vue

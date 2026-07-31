@@ -8,7 +8,6 @@ import { NotionActionPanel } from "../components/galaxy/NotionActionPanel";
 import { SearchEmptyToast } from "../components/galaxy/SearchEmptyToast";
 import { ProgressSparkline } from "../components/galaxy/ProgressSparkline";
 import { SubjectConstellations } from "../components/galaxy/SubjectConstellations";
-import { SubjectKpiRow } from "../components/galaxy/SubjectKpiRow";
 import { useGalaxy } from "../hooks/useGalaxy";
 import { REASON_LABEL } from "../lib/gamification";
 import type { GalaxyStatus } from "@zetis/types";
@@ -45,6 +44,31 @@ const GalaxyCanvas = lazy(() =>
 /** La recherche porte sur une constellation ouverte, jamais sur la galaxie entière : chercher
  *  parmi toutes les matières renverrait des étoiles qu'on ne peut pas atteindre d'ici. */
 const EMPTY_MATCHES = new Set<string>();
+
+/** Un point d'étoile. Positions ÉCRITES À LA MAIN et non générées : un semis aléatoire produit
+ *  des grumeaux et des trous, là où un ciel se compose. */
+const star = (x: number, y: number, r: number, color: string) =>
+  `radial-gradient(${r}px ${r}px at ${x}px ${y}px, ${color}, transparent)`;
+
+/** Champ LOINTAIN — dense, fin, il dérive lentement et ne scintille pas. */
+const STARS_FAR = [
+  star(30, 24, 1.6, "rgba(255,255,255,.85)"), star(128, 62, 1.1, "rgba(255,255,255,.6)"),
+  star(206, 18, 2, "rgba(200,220,255,.9)"), star(84, 96, 1.2, "rgba(255,255,255,.55)"),
+  star(232, 104, 1.5, "rgba(220,235,255,.7)"), star(172, 44, 1, "rgba(255,255,255,.5)"),
+  star(12, 78, 1.3, "rgba(255,255,255,.6)"), star(58, 52, 1, "rgba(210,225,255,.5)"),
+  star(100, 12, 1.4, "rgba(255,255,255,.7)"), star(150, 112, 1.1, "rgba(235,242,255,.55)"),
+  star(190, 80, 1.7, "rgba(255,255,255,.75)"), star(248, 40, 1.2, "rgba(215,230,255,.6)"),
+  star(66, 122, 1, "rgba(255,255,255,.45)"), star(118, 88, 1.5, "rgba(240,246,255,.65)"),
+  star(216, 66, 1, "rgba(255,255,255,.5)"), star(44, 8, 1.2, "rgba(225,236,255,.6)"),
+].join(",");
+
+/** Champ PROCHE — moins nombreux, plus gros, et c'est lui qui scintille. */
+const STARS_NEAR = [
+  star(22, 40, 2.2, "rgba(255,255,255,.95)"), star(96, 74, 1.8, "rgba(226,238,255,.9)"),
+  star(158, 20, 2.4, "rgba(255,255,255,1)"), star(74, 12, 1.6, "rgba(210,228,255,.8)"),
+  star(140, 86, 2, "rgba(255,255,255,.9)"), star(182, 56, 1.7, "rgba(235,243,255,.85)"),
+  star(48, 90, 2.1, "rgba(255,255,255,.9)"),
+].join(",");
 
 export function GalaxyPage() {
   const galaxy = useGalaxy();
@@ -188,15 +212,124 @@ export function GalaxyPage() {
   // atteignables en ENTRANT dans une constellation, elles ne disparaissent pas.
   // ⚠️ Les valeurs (40 / 90 / 150) sont provisoires et mesurées sur aucun appareil réel : c'est
   // une dette ouverte de l'ADR-0024 §6, hors de ce chantier. Ne pas les « ajuster » au jugé.
-  const cappedFull = useMemo(() => {
+  // ⚠️ Remplacé le 2026-07-31 : la vue d'arrivée n'affiche plus TOUT le graphe.
+  //
+  // Elle montre le **système solaire** — le cœur (cerveau) et les matières en orbite, rien
+  // d'autre. Le graphe complet posé par simulation de forces produisait un amas où le cerveau
+  // était à moitié enseveli et les libellés se chevauchaient (constaté au rendu réel). Les
+  // notions restent atteignables en ENTRANT dans une constellation : elles ne disparaissent
+  // pas, elles cessent d'être servies toutes en même temps.
+  //
+  // Effet de bord heureux : 8 planètes au lieu de 60 nœuds — le plafond adaptatif
+  // (`GALAXY_MAX_NODES`, dette ADR-0024 §6) ne mord plus jamais sur cet écran.
+  const solarSystem = useMemo(() => {
     if (!fullGraph) return null;
-    if (fullGraph.nodes.length <= maxNodesFor(width)) return fullGraph;
-    const keep = new Set(fullGraph.nodes.filter((n) => n.kind !== "skill").map((n) => n.id));
-    return {
-      nodes: fullGraph.nodes.filter((n) => keep.has(n.id)),
-      edges: fullGraph.edges.filter((e) => keep.has(e.source) && keep.has(e.target)),
-    };
-  }, [fullGraph, width]);
+    const keep = new Set(
+      fullGraph.nodes.filter((n) => n.kind === "root" || n.kind === "subject").map((n) => n.id),
+    );
+    const nodes = fullGraph.nodes.filter((n) => keep.has(n.id));
+    const edges = fullGraph.edges.filter((e) => keep.has(e.source) && keep.has(e.target));
+
+    // Les matières ENCORE VIDES ont aussi leur planète.
+    //
+    // `GET /api/student/galaxy/all` les exclut volontairement (« un soleil sans planète
+    // n'apprend rien et encombre la vue ») — ce raisonnement valait pour un graphe dense. Dans
+    // un système solaire il s'inverse : la carte de l'année doit montrer TOUTES les planètes,
+    // y compris celles qui ne sont pas encore allumées. Une matière absente se lirait comme
+    // une matière qui n'existe pas ; une planète éteinte se lit comme « pas encore ».
+    //
+    // `GET /api/student/galaxy` (overview), déjà chargé, les sert toutes — `0/0` compris. Le
+    // clic reste honnête : la constellation d'une matière vide annonce « 🌱 Les étoiles de
+    // cette matière arrivent bientôt. »
+    for (const subject of galaxy.subjects ?? []) {
+      const id = `subject-${subject.subject_id}`;
+      if (keep.has(id)) continue;
+      nodes.push({ id, kind: "subject", label: subject.name, subject_slug: subject.slug });
+      edges.push({ source: "root", target: id, type: "structure" });
+    }
+    return { nodes, edges };
+  }, [fullGraph, galaxy.subjects]);
+
+  /**
+   * Le bandeau de planètes, rendu AU-DESSUS du graphe quel que soit l'écran.
+   *
+   * Il est permanent — et pas seulement sur le système solaire — parce qu'il sert deux fois :
+   * entrer dans une matière depuis la galaxie, et **changer de matière** sans repasser par
+   * elle. La planète de la matière ouverte porte son anneau : le bandeau dit aussi où on est.
+   *
+   * ⚠️ UN SEUL CLIC ouvre la constellation. Une version intermédiaire demandait un premier tap
+   * pour « viser » puis un second pour entrer : ça ajoutait un geste que personne n'avait
+   * demandé, et toucher une matière sans voir son graphe se lit comme un clic qui n'a pas
+   * marché.
+   */
+  const subjectBand =
+    galaxy.subjects && galaxy.subjects.length > 0 ? (
+      // Cadre au fond SPATIAL : les planètes flottent dans l'espace, elles ne sont pas posées
+      // sur un panneau d'interface. Trois couches — nébuleuses, champ d'étoiles qui dérive,
+      // et le contenu par-dessus. Tout est en CSS pur : aucun chunk 3D pour un décor.
+      <div className="relative mb-3 overflow-hidden rounded-2xl border border-zetis-border bg-zetis-bg p-3">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 motion-safe:animate-[zetis-nebula_14s_ease-in-out_infinite]"
+          style={{
+            background: `
+              radial-gradient(420px 180px at 12% 20%, rgba(99,102,241,.30), transparent 70%),
+              radial-gradient(380px 170px at 68% 85%, rgba(217,70,239,.22), transparent 70%),
+              radial-gradient(300px 150px at 92% 15%, rgba(34,211,238,.20), transparent 72%)`,
+          }}
+        />
+        {/* Bande laiteuse : une diagonale plus dense que le reste du champ. C'est elle qui fait
+            lire « Voie lactée » plutôt que « ciel uniforme » — un semis régulier n'a pas de
+            structure, donc pas de galaxie. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(104deg, transparent 26%, rgba(214,228,255,.14) 44%, rgba(236,240,255,.2) 52%, rgba(214,228,255,.12) 60%, transparent 76%)",
+            filter: "blur(6px)",
+          }}
+        />
+        {/* Deux champs d'étoiles à vitesses différentes : la parallaxe donne la profondeur.
+            Le second SCINTILLE (opacité pulsée), le premier non — si tout clignote ensemble,
+            le fond se met à respirer d'un bloc et attire l'œil plus que les planètes. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-80 motion-safe:animate-[zetis-starfield_90s_linear_infinite]"
+          style={{
+            // Étoiles de tailles inégales : à points identiques, le champ se lit comme une
+            // trame imprimée et non comme un ciel.
+            backgroundImage: STARS_FAR,
+            // ⚠️ La largeur DOIT égaler le trajet du keyframe (`-260px`), sinon la boucle saute.
+            backgroundSize: "260px 130px",
+            backgroundRepeat: "repeat",
+          }}
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 motion-safe:animate-[zetis-twinkle_3.4s_ease-in-out_infinite]"
+          style={{
+            backgroundImage: STARS_NEAR,
+            backgroundSize: "190px 95px",
+            backgroundRepeat: "repeat",
+          }}
+        />
+        <div className="relative">
+          {/* Le titre est DANS le cadre : dehors, il flottait au-dessus d'un bloc spatial sans
+              lui appartenir. Il reste vrai dans les deux écrans — depuis une constellation,
+              toucher une autre matière y entre aussi. */}
+          <p className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-zetis-muted">
+            Ta galaxie — touche une matière pour entrer dedans
+          </p>
+          <SubjectConstellations
+            subjects={galaxy.subjects}
+            onOpen={galaxy.openSubject}
+            variant="band"
+            selectedSlug={constellation?.subject.slug ?? null}
+          />
+        </div>
+      </div>
+    ) : null;
 
   // En plein écran, le canvas prend tout ce qui reste sous le titre et au-dessus des KPI.
   // En plein écran, la hauteur disponible = fenêtre − bandeau (112) − chrome de la modale.
@@ -320,22 +453,26 @@ export function GalaxyPage() {
           §B consistait à sortir ce coût de la page d'ATTERRISSAGE, pas du produit. */}
       {!constellation && (
         <section className="mt-6">
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-zetis-muted">
-            Ta galaxie — touche une matière pour entrer dedans
-          </h3>
-
           {galaxy.subjects !== null && galaxy.subjects.length === 0 ? (
             <p className="rounded-2xl border border-zetis-border bg-zetis-surface p-5 text-sm text-zetis-muted">
               🌱 Tes premières étoiles arriveront avec tes premières leçons.
             </p>
           ) : (
             <>
+              {/* Les mêmes sphères CSS que l'écran d'attente, en ligne. Au doigt, une planète
+                  de quelques pixels perdue dans le graphe est inatteignable — le bandeau est
+                  la cible large. Aucun chunk 3D ici : ces globes sont en CSS pur. */}
+              {subjectBand}
+
               <div className="overflow-hidden rounded-2xl border border-zetis-border bg-zetis-surface">
-                {webgl && cappedFull && cappedFull.nodes.length > 0 ? (
+                {webgl && solarSystem && solarSystem.nodes.length > 0 ? (
                   <Suspense fallback={planets}>
                     <GalaxyCanvas
-                      nodes={cappedFull.nodes}
-                      edges={cappedFull.edges}
+                      nodes={solarSystem.nodes}
+                      edges={solarSystem.edges}
+                      // Les matières sont POSÉES sur leurs orbites, pas placées par un moteur
+                      // de forces : c'est une composition, pas un équilibre.
+                      layout="orbit"
                       matchedIds={EMPTY_MATCHES}
                       highlightStatus={null}
                       selectedId={null}
@@ -357,13 +494,10 @@ export function GalaxyPage() {
                 )}
               </div>
 
-              {/* Entrée directe par matière : viser une sphère au doigt dans une galaxie dense
-                  est difficile, une puce ne l'est pas. */}
-              {galaxy.subjects && galaxy.subjects.length > 0 && (
-                <div className="mt-3">
-                  <SubjectKpiRow subjects={galaxy.subjects} onOpen={galaxy.openSubject} />
-                </div>
-              )}
+              {/* Le rail de puces qui vivait ici a été RETIRÉ : le bandeau de planètes au-dessus
+                  rend le même service (entrée par matière au doigt) et montre en plus les
+                  matières encore vides, que les puces filtraient. Deux rangées pour la même
+                  intention encadraient le graphe sans rien ajouter. */}
 
               {/* La frise suit le graphe : c'est un élément de progression, sa place est ici. */}
               {timeline && timeline.points.length > 1 && (
@@ -379,6 +513,11 @@ export function GalaxyPage() {
           rien, et le navigateur en limite le nombre. */}
       {constellation && capped && !fullscreen && (
         <section className="mt-6">
+          {/* Le bandeau reste ici : c'est le sélecteur de matière. Sans lui, changer de matière
+              obligerait à revenir à la galaxie d'abord — un aller-retour pour un geste que
+              Massimo fait souvent. La planète ouverte porte son anneau. */}
+          {subjectBand}
+
           <div className="mb-3 flex items-center gap-3">
             <button
               type="button"

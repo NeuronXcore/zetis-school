@@ -368,7 +368,7 @@ def _has_review_cards(db: Session, *, student_id: int, skill_id: int) -> bool:
     )
 
 
-def timeline(db: Session, *, days: int = 60) -> dict:
+def timeline(db: Session, *, days: int = 60, with_skills: bool = False) -> dict:
     """Frise de progression : combien d'étoiles Massimo a allumées, jour après jour.
 
     ⚠️ **Monotone par construction, et c'est le cœur de la décision.** `SkillMastery` peut
@@ -396,9 +396,25 @@ def timeline(db: Session, *, days: int = 60) -> dict:
         .group_by(LearningEvent.skill_id)
     ).all()
 
+    # `with_skills` (ADR-0029) : on cesse simplement de JETER le `skill_id` que la requête
+    # ci-dessus calcule déjà. Le rejeu animé a besoin de savoir quelle étoile s'allume quand ;
+    # la frise, elle, n'a jamais eu besoin que du compte. Aucune requête supplémentaire.
+    skills = (
+        sorted(
+            (
+                {"skill_id": skill_id, "date": created_at.date().isoformat()}
+                for skill_id, created_at in rows
+                if created_at is not None
+            ),
+            key=lambda item: (item["date"], item["skill_id"]),
+        )
+        if with_skills
+        else None
+    )
+
     first_seen = sorted(created_at.date() for _, created_at in rows if created_at is not None)
     if not first_seen:
-        return {"points": [], "total": 0}
+        return {"points": [], "total": 0, "skills": [] if with_skills else None}
 
     # Les notions travaillées AVANT la fenêtre ne sont pas perdues : elles forment le socle
     # de départ, sinon la courbe repartirait de zéro et nierait le travail déjà fait.
@@ -416,7 +432,7 @@ def timeline(db: Session, *, days: int = 60) -> dict:
         else:
             points.append({"date": day.isoformat(), "lit": running})
 
-    return {"points": points, "total": running}
+    return {"points": points, "total": running, "skills": skills}
 
 
 def _validated_fiche_id(db: Session, lesson_id: int) -> int | None:

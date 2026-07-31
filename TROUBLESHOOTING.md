@@ -4,6 +4,112 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `/galaxy` — système solaire et bandeau — 2026-07-31
+
+### `graphData()` n'est pas exposée par cette version de `react-force-graph-3d`
+
+Pour imposer des positions (vue en orbite), le réflexe est de lire les nœuds vivants par
+`graph.graphData()` et d'y écrire `fx/fy/fz`. **`TypeError: graph.graphData is not a function`.**
+Les positions voyagent donc **dans les données** passées à `graphData={...}` — chaque nœud porte
+son `fx/fy/fz`, et la lib les respecte. Vérifier ce qu'expose réellement le ref avant de bâtir
+dessus : `scene()`, `cameraPosition()`, `d3Force()` et `zoomToFit()` existent, `graphData()` non.
+
+### Une tuile de relief qui ne suit pas la taille du globe fige la rotation
+
+Les planètes CSS ont une tuile de **160 px pour un globe de 80** : il faut que du relief entre et
+sorte du champ. Réduites à 44 px dans le bandeau **sans toucher la tuile**, une seule tache
+remplissait la sphère et sa dérive se lisait comme une **variation de luminosité**, pas comme une
+rotation. Tuile, taches et pas du keyframe sont maintenant mis à l'échelle ensemble via
+`--tile` — le déplacement DOIT valoir exactement la largeur de la tuile, sinon la boucle saute.
+
+C'est la **deuxième** fois que cet invariant casse. Le test qui le garde a été réécrit pour
+couvrir les deux tailles.
+
+### Un halo en `absolute` sans ancêtre `relative` part ailleurs
+
+La couronne solaire des planètes flottait **à côté** des sphères : le bouton n'était pas
+`relative`, donc le halo se calait sur un ancêtre lointain. Centrage à la main ensuite (padding +
+demi-globe − demi-halo) — un `top-1/2 -translate-y-1/2` aurait visé le centre du **bouton**,
+libellé compris, pas celui du globe.
+
+### Deux sélecteurs de test devenus faux en silence
+
+Ajouter une couche animée (le halo) a cassé quatre tests d'un coup : le helper sélectionnait
+`span[class*="animate-"]`, ce qui attrapait désormais le halo comme s'il était une texture de
+planète. Et un `b.querySelector("span")` visait « la sphère » — devenue le **second** span depuis
+que le halo la précède.
+
+**Leçon** : un sélecteur de test doit désigner ce qu'il veut dire (`--tile` pour une texture,
+`overflow-hidden` pour le globe), jamais « le premier élément qui ressemble ».
+
+## Chantier `Accueil vivant` — passage au calendrier — 2026-07-31
+
+### jsdom garde `grid-column`, le navigateur le normalise en `grid-area`
+
+Le test de « Mon ciel » sélectionnait les cases par `span[style*="grid-column"]`. **Vert en test,
+0 case trouvée en vrai** : React écrit bien `gridColumn`/`gridRow`, jsdom les conserve tels quels,
+mais le navigateur les fusionne en `grid-area: 2 / 1`.
+
+Le test n'était pas faussement vert (il aurait échoué sur le compte), mais il mesurait **une chose
+en test et une autre en production** — ce qui revient à ne rien garantir. Corrigé par un ancrage
+explicite `data-day` sur chaque case : identique dans les deux environnements, et il dit ce que
+le test veut dire (« un élément par jour qui a eu lieu »).
+
+**Règle générale** : ne jamais sélectionner sur une propriété CSS que le navigateur peut
+raccourcir (`grid-area`, `background`, `margin`, `font`…). jsdom ne normalise presque rien.
+
+### Trois défauts que seul le rendu réel pouvait montrer
+
+Aucun n'était détectable en test — ils tiennent tous à des tailles en pixels :
+
+- **Libellés de mois superposés** : « juin » et « juil. » à une colonne d'écart (11 px)
+  s'écrivaient l'un sur l'autre. `buildSparseCalendar` saute désormais un libellé à moins de
+  3 colonnes du précédent — mieux vaut un repère de moins qu'un repère illisible.
+- **Grille perdue dans sa carte** : 5 semaines × 11 px = 70 px dans une carte de 480. La taille
+  des cases suit maintenant le nombre de semaines (22 / 16 / 11 px).
+- **Initiales de jours désalignées** : la colonne « L M M J V S D » ne compensait pas la ligne
+  des libellés de mois, qui ne surmonte que la grille. `marginTop` explicite.
+
+Leçon : un composant dont la mise en page dépend de dimensions fixes ne se valide pas en jsdom.
+Le voir avec **les vraies données** (6 jours, pas 34) est ce qui a révélé les trois.
+
+## Chantier `Accueil vivant` (2ᵉ addendum ADR-0024) — 2026-07-31
+
+### Un mapping de libellés incomplet, invisible tant que rien ne l'affiche
+
+`lib/gamification.ts` traduisait **3 `reason` sur 8**. Aucun symptôme pendant des mois : `recent`
+était servi par `/api/gamification/summary` mais **rendu nulle part**. Dès qu'on l'affiche
+(« Tes derniers gains »), Massimo lit `mission_champion` en brut.
+
+Les huit valeurs réellement écrites par `award_xp` : `mission_remediation`, `mission_champion`,
+`eli5_reverse`, `diagnostic`, `review`, `review_consolidation`, `quiz_completed`,
+`mindmap_reconstruction`. Un repli neutre a été ajouté — un identifiant technique ne doit jamais
+atteindre l'écran de l'enfant, même si une neuvième valeur apparaît demain.
+
+**Leçon générale** : un champ servi mais jamais rendu ne prouve rien sur sa présentabilité. Avant
+d'afficher une donnée qui dormait dans un contrat, vérifier ce qu'elle contient *réellement* en
+base, pas ce que le type promet.
+
+### Regrouper par jour en UTC, le défaut qu'on venait déjà de corriger une fois
+
+`xp_history` bucketise en **Europe/Paris** via `activity.timeutils.local_day`, pas en UTC. C'est
+précisément le défaut relevé sur le **streak retiré** (`gamification/service.py`, docstring) : un
+travail à 23h30 heure française tombait la veille.
+
+Le module `activity` est importé pour cette seule fonction — pure, sans DB, sans domaine. Ce
+n'est pas une entorse à la doctrine de séparation : ce qui est interdit, c'est de faire remonter
+son **tracking** chez Massimo, pas de réutiliser son utilitaire de fuseau.
+
+### Un test qui visait un texte trop générique
+
+`AccueilMassimoPage.test.tsx` vérifiait la galaxie à zéro par `getByText("0")`. Dès que les
+pastilles de matières ont porté leur propre compte, plusieurs « 0 » ont coexisté légitimement à
+l'écran et le test est tombé sur « Found multiple elements ».
+
+Réécrit sur l'`aria-label` de la carte (`Ma galaxie : 0 étoiles allumées`) : **plus précis**, pas
+plus permissif. Un test qui échoue parce que l'écran s'est enrichi n'est pas forcément un test à
+assouplir — souvent c'est une assertion qui n'avait jamais désigné ce qu'elle croyait désigner.
+
 ## Chantier `Accueil & Galaxie` — slice B (addendum ADR-0024) — 2026-07-31
 
 ### Le test de budget qui n'aurait PAS attrapé la régression qu'il vise

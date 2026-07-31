@@ -7,9 +7,115 @@
 
 ## État à la reprise
 
-**Branche : `feat/accueil-galaxy`** — chantier **Accueil & Galaxie** (addendum ADR-0024 du
-2026-07-31). **Slices A ET B FAITES**, non poussées. **Prochain pas = vérification humaine dans
-le navigateur, puis push + PR** (une seule PR, les deux slices ensemble).
+**Branche : `feat/accueil-vivant`** — **ouverte PAR-DESSUS `feat/accueil-galaxy`**, qui n'est ni
+poussée ni mergée. ⚠️ **Les deux PR devront partir dans l'ordre** : `feat/accueil-galaxy` d'abord.
+
+**FAIT dans cette branche, dans l'ordre** : « Accueil vivant » (route
+`GET /api/gamification/history`, « Mon ciel », « Tes derniers gains », retour de la frise) →
+**« Mon ciel » devient un calendrier** sans cases vides → **rejeu animé** (ADR-0029) →
+**`/galaxy` devient un système solaire** (cerveau au centre, matières en orbite, matières vides
+comprises) → **bandeau de planètes** au fond spatial, couronne solaire dorée.
+**649 tests backend + 221 Massimo, `tsc -b` et builds verts. Tout vérifié dans le vrai
+navigateur** (session de Massimo, Chrome du user).
+
+**Prochain pas = push + les deux PR.** Rien n'est poussé.
+
+> ⚠️ **Reste dû, jamais vérifié en vrai** : le **cahier de bord de Papa** — le mapping
+> `routeLabels` qui doit rendre le même libellé pour `/progression` et `/galaxy`. Couvert par
+> 5 tests unitaires ; l'app Papa n'a pas de serveur branché sur `:8003`, dont le CORS n'autorise
+> que `:5179`. Demande un port de plus.
+
+### `/galaxy` = système solaire (révision de l'addendum §C) — FAIT, non poussé
+
+**La vue d'arrivée n'affiche plus tout le graphe.** Servir `root` + matières + chapitres +
+notions à une simulation de forces produisait un **amas** : cerveau à moitié enseveli, libellés
+superposés. Désormais : **cerveau au centre** (il existait déjà — `brainGeometry.ts`, deux lobes
+à circonvolutions générés par le code, grossi ×2.4 en mode orbite pour faire soleil) et
+**matières seules**, chacune **posée** sur une orbite dessinée (`orbitLayout`, pure et
+déterministe), plan aplati, caméra en surplomb à ~35°.
+
+- **Un placement, pas un équilibre** : `GalaxyCanvas` gagne `layout="orbit"` — forces à zéro,
+  positions imposées via `fx/fy/fz` **dans les données** (⚠️ `graphData()` n'est PAS exposée par
+  cette version de la lib — constaté à l'exécution, l'API du ref ne marche pas pour ça).
+- **Les matières VIDES ont aussi leur planète** : `galaxy/all` les exclut volontairement, mais la
+  vue les rajoute depuis l'overview (déjà chargé). Une matière absente se lirait comme une
+  matière qui n'existe pas ; une planète éteinte se lit « pas encore ». **Contrat serveur
+  inchangé.**
+- La rotation lente était **déjà acquise** (`controls.autoRotate`, coupée par
+  `prefers-reduced-motion`) — rien à écrire.
+- **Bandeau de planètes CSS PERMANENT au-dessus du graphe** (`SubjectConstellations
+  variant="band"`), présent sur la galaxie **et** dans une constellation — c'est aussi le
+  **sélecteur de matière** : la planète ouverte porte son anneau. **Une seule ligne, sans
+  défilement** — les planètes se partagent la largeur (`flex-1`) et rétrécissent avec leur nombre
+  (globe 44 px, emblème 24 px, nom tronqué, tuile de relief mise à l'échelle via `--tile`).
+- ⚠️ **UN SEUL CLIC ouvre la matière.** Une version intermédiaire demandait un 1ᵉʳ tap pour
+  « viser » puis un 2ᵉ pour entrer : geste que personne n'avait demandé, et toucher une matière
+  sans voir son graphe se lit comme un clic qui n'a pas marché. **Ne pas réintroduire.**
+- **`SubjectKpiRow` SUPPRIMÉ** : le bandeau rend le même service et montre en plus les matières
+  vides, que les puces filtraient (`s.total > 0`).
+- **Cadre au fond spatial animé** : nébuleuses qui respirent, bande laiteuse en diagonale, deux
+  champs d'étoiles à vitesses différentes — **seul le champ proche scintille** (si tout clignote
+  ensemble, le fond respire d'un bloc et vole l'attention aux planètes). Tout en CSS, zéro 3D.
+- **Couronne solaire dorée** ∝ étoiles allumées, **absente sur une matière vide** : le canvas
+  pose déjà la règle (« l'or ne coule que vers ce que Massimo a vraiment travaillé ») et la
+  maquette galaxie dit « aucun or ». **Doré = travaillé, jamais « joli »** — ne pas l'étendre
+  aux planètes vides.
+- Une matière vide affiche « Bientôt » au lieu d'un compte ; l'ouvrir mène à l'écran d'attente
+  honnête (« 🌱 Les étoiles de cette matière arrivent bientôt »).
+
+### Chantier « Accueil vivant » (2ᵉ addendum ADR-0024) — FAIT, non poussé
+
+**La demande** : un Accueil plus vivant, avec la **heatmap de Papa** en référence.
+**La heatmap est REFUSÉE par écrit**, avec ses trois murs **indépendants** (route supprimée par
+l'ADR-0028 et vivant dans un agrégat `require_parent` ; `CLAUDE.md` interdit le décompte de jours
+manqués « sous quelque forme que ce soit » ; `WeekDots.test.tsx:32` le verrouille). Ne pas la
+redemander sans rouvrir ces trois-là.
+
+**Ce qui la remplace** : « Mon ciel », la même idée **retournée** — une case par jour de gain sur
+un **calendrier** (semaines en colonnes, jours en lignes, comme chez Papa), mais **aucune case
+vide n'est dessinée** : un jour sans gain n'a **aucun élément dans le DOM**. Chez Papa la case
+grise **est** l'information d'absence et elle y est légitime (c'est du pilotage) ; ici l'absence
+n'existe ni dans les données ni dans le rendu.
+
+> ⚠️ **Révisé le jour même, après un premier rendu.** La v1 posait les jours en **constellation
+> libre**, sans repère temporel. Le user a redemandé la heatmap : ce qui manquait n'était **pas
+> la densité, c'était le repère de TEMPS**. D'où le calendrier — l'interdit passe de la
+> **géométrie** vers le **rendu**. Ce qui est assumé : sur un calendrier, l'œil perçoit les
+> intervalles par la **position**. Ce que `CLAUDE.md` bannit — un décompte, une iconographie du
+> vide — reste absent. **Ne pas re-proposer la constellation** : elle a déjà été essayée.
+
+**Brique partagée créée** : `packages/ui/src/lib/calendarGrid.ts` (`buildSparseCalendar`, +
+`toLocalIso`/`startOfWeek` **remontés depuis `heatmap.ts` de Papa**, qui les ré-exporte). Deux
+`startOfWeek` dans un même dépôt finiraient par diverger sur les bords de semaine.
+`buildHeatmapGrid` **reste chez Papa** — c'est lui qui reconstruit les jours vides, et cela ne se
+partage pas.
+
+**La décision qui compte, et pourquoi elle tient** : `GET /api/gamification/history` marche sur
+un refus déjà écrit (`motivation/router.py:38` : « un historique d'objectifs manqués serait le
+streak déguisé »). Ce refus est **maintenu** — un **objectif** porte un attendu, donc son
+historique est un relevé d'échecs ; un **XP** est un gain obtenu, et un jour sans gain n'est pas
+un jour raté. **Le garde-fou est dans le CONTRAT** : les jours sans XP sont **omis du payload**,
+donc aucun client futur ne peut dessiner une case vide sans avoir lu l'ADR. Route dans
+`gamification` et **surtout pas** dans `activity`, dont le module porte la doctrine inverse
+(« un enfant chronométré travaille pour le chronomètre »).
+
+**Pièges rencontrés** :
+- le mapping `REASON_LABEL` ne couvrait que **3 `reason` sur 8** — invisible tant que `recent`
+  n'était affiché nulle part, à l'écran de l'enfant dès qu'on l'affiche ;
+- regrouper les XP **en Europe/Paris** (`local_day`), pas en UTC : c'est exactement le défaut
+  relevé sur le streak retiré ;
+- les pastilles portant leur compte ont créé plusieurs « 0 » à l'écran → un test existant visait
+  `getByText("0")`, réécrit sur l'`aria-label` de la carte (précisé, pas assoupli) ;
+- **jsdom garde `grid-column`, le navigateur le normalise en `grid-area`** : un test qui
+  sélectionnait sur le style passait en test et trouvait 0 case en vrai → ancrage `data-day` ;
+- **trois défauts visibles seulement au rendu réel, avec les VRAIES données** (6 jours, pas 34) :
+  libellés de mois superposés, grille minuscule dans une carte large, initiales de jours
+  désalignées. Un composant dont la mise en page dépend de tailles en pixels ne se valide pas en
+  jsdom — il faut l'ouvrir.
+
+**Décisions actives, à ne pas rouvrir** : la frise est REVENUE sur l'Accueil (le §B du 1ᵉʳ
+addendum voulait sortir **Three.js**, pas du SVG maison) ; aucune date n'est affichée nulle part
+sur cette page ; les matières ne sont **jamais** triées par étoiles (ce serait un palmarès).
 
 > ⚠️ **Ce qui n'a PAS été vérifié en vrai** : `/galaxy` et l'Accueil sont derrière
 > `RequireAuth`, et la session de développement n'a pas ouvert de session Massimo. Tout est

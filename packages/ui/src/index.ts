@@ -23,6 +23,17 @@ export {
 export { Spinner } from "./components/spinner";
 // Sparkline générique (SVG inline, zéro dépendance) — chantier « Dashboard Papa v2 ».
 export { Sparkline, type SparklineProps } from "./components/sparkline";
+
+// Placement de jours sur une grille calendrier (fonctions pures). Partagé par la heatmap de Papa
+// et « Mon ciel » de Massimo — deux `startOfWeek` dans un même dépôt finiraient par diverger.
+// ⚠️ `buildSparseCalendar` ne fabrique JAMAIS de jour vide : cf. son docstring.
+export {
+  buildSparseCalendar,
+  startOfWeek,
+  toLocalIso,
+  type CalendarSlot,
+  type SparseCalendar,
+} from "./lib/calendarGrid";
 export { EmptyState } from "./components/empty-state";
 // Pictogrammes de matière : résolveur + assets partagés (les `lib/subjectIcons.ts` des deux apps
 // ré-exportent ceci). Chantier « Activité » : pastilles de filtre et icônes d'événements,

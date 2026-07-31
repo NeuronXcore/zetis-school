@@ -41,10 +41,22 @@ def galaxy_full(db: Session = Depends(get_db)) -> dict:
     return service.full_graph(db)
 
 
-@student_router.get("/timeline", response_model=GalaxyTimelineOut)
-def galaxy_timeline(db: Session = Depends(get_db)) -> dict:
-    """Frise de progression, MONOTONE : les notions comptées au jour de leur première fois."""
-    return service.timeline(db)
+@student_router.get(
+    "/timeline",
+    response_model=GalaxyTimelineOut,
+    # `skills` DISPARAÎT de la réponse quand il n'est pas demandé, au lieu d'y figurer à `null` :
+    # l'ADR-0029 promet que les consommateurs actuels de la frise ne voient aucun changement de
+    # charge utile, et un test existant vérifie l'objet exact.
+    response_model_exclude_none=True,
+)
+def galaxy_timeline(with_skills: bool = False, db: Session = Depends(get_db)) -> dict:
+    """Frise de progression, MONOTONE : les notions comptées au jour de leur première fois.
+
+    `with_skills=true` (ADR-0029) ajoute `skills` — quelle notion s'est allumée quel jour, pour
+    le rejeu animé. C'est le MÊME calcul : la requête produisait déjà le `skill_id`, on cessait
+    simplement de le renvoyer. Opt-in, pour ne pas alourdir la frise qui n'en a pas besoin.
+    """
+    return service.timeline(db, with_skills=with_skills)
 
 
 @student_router.get("/notion/{skill_id}", response_model=GalaxyNotionOut)

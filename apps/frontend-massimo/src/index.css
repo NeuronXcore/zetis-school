@@ -243,15 +243,17 @@
    (l'écran d'ensemble ne doit PAS charger le chunk 3D).
 
    ⚠️ Le déplacement DOIT valoir exactement la largeur de la tuile, sinon la boucle saute.
-   Tuile = 160px pour une sphère de 80px : il faut que du relief entre et sorte du champ,
-   sinon on ne voit qu'un motif figé et rien ne semble tourner (constaté).
+   D'où `--tile`, posée par le composant : la tuile SUIT la taille du globe (160px pour 80px,
+   88px pour les 44px du bandeau). À tuile fixe sur un petit globe, une seule tache géante
+   remplit la sphère et dérive — ça se lit comme une variation de luminosité, pas comme une
+   rotation (constaté sur le bandeau).
    Utilisé via motion-safe: → neutralisé sous prefers-reduced-motion. */
 @keyframes zetis-planet-spin {
   from {
     background-position: 0 0;
   }
   to {
-    background-position: -160px 0;
+    background-position: calc(-1 * var(--tile, 160px)) 0;
   }
 }
 
@@ -261,7 +263,7 @@
     background-position: 0 0;
   }
   to {
-    background-position: -160px 0;
+    background-position: calc(-1 * var(--tile, 160px)) 0;
   }
 }
 
@@ -281,3 +283,44 @@ body {
 /* L'impression de la fiche ne passe PLUS par un @media print du shell (hauteur fixe + scroll
    interne → page blanche). Elle se fait via un rendu clair A5 dédié capturé en image (FicheA5 +
    lib/ficheExport) : téléchargement PNG ou document A5 autonome à imprimer. */
+
+/* Fond spatial du bandeau de matières (page « Ma Galaxie »).
+   Deux couches qui dérivent à des vitesses différentes : la parallaxe est ce qui donne la
+   profondeur — une seule couche glisserait comme un papier peint.
+   ⚠️ Le déplacement DOIT valoir la largeur de la tuile (`background-size`), sinon la boucle
+   saute. Utilisé via motion-safe: → neutralisé sous prefers-reduced-motion. */
+@keyframes zetis-starfield {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -260px 0;
+  }
+}
+
+/* Nébuleuse : respiration lente, sans déplacement — c'est le fond, il ne doit pas attirer
+   l'œil plus que les planètes posées dessus. */
+@keyframes zetis-nebula {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06);
+  }
+}
+
+/* Scintillement du champ d'étoiles PROCHE. Le champ lointain, lui, ne clignote pas : si tout
+   scintille ensemble, le fond respire d'un bloc et attire l'œil plus que les planètes posées
+   dessus. Neutralisé sous prefers-reduced-motion (motion-safe:). */
+@keyframes zetis-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}

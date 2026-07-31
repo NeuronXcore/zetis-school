@@ -1,5 +1,123 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.34.0 — La galaxie devient un système solaire
+
+Date : 2026-07-31 · branche `feat/accueil-vivant` · addendum ADR-0024 §C (révisé)
+
+> Servir tout le graphe d'un coup à une simulation de forces produisait un **amas** : le cœur
+> à moitié enseveli sous les sphères, des libellés qui se chevauchent, aucune lecture possible.
+
+- **`/galaxy` s'ouvre sur un système solaire** : le **cerveau de Massimo au centre** (deux lobes
+  à circonvolutions, générés par le code, aplatis) et les **matières seules**, chacune **posée**
+  sur une orbite dessinée, dans un plan aplati vu en surplomb à ~35°.
+- **Un placement calculé, pas un équilibre** : un moteur de forces cherche une position stable,
+  pas une composition. `orbitLayout` (brique partagée, pure et **déterministe**) pose les orbites ;
+  l'ordre reste celui du programme, **jamais un classement**.
+- **Les matières encore VIDES ont aussi leur planète.** `galaxy/all` les exclut volontairement —
+  ce raisonnement valait pour un graphe dense ; dans un système solaire il s'inverse : une
+  matière absente se lirait comme une matière **qui n'existe pas**, une planète éteinte se lit
+  comme **« pas encore »**. Le clic reste honnête (« 🌱 Les étoiles de cette matière arrivent
+  bientôt »).
+- **Rien n'est perdu** : les notions restent atteignables en entrant dans une constellation —
+  elles cessent seulement d'être servies toutes en même temps. **Contrat serveur inchangé.**
+- Effet de bord heureux : ~10 planètes au lieu de 60 nœuds, le **plafond adaptatif ne mord plus**
+  sur cet écran (la dette ADR-0024 §6 subsiste pour les constellations).
+
+- **Bandeau de planètes permanent au-dessus du graphe** — les mêmes sphères CSS que l'écran
+  d'attente, sur **une seule ligne** (elles se partagent la largeur et rétrécissent avec leur
+  nombre). **Un seul clic** ouvre la matière ; la planète ouverte porte son anneau, si bien que
+  le bandeau sert aussi à **changer de matière** sans repasser par la galaxie.
+  `SubjectKpiRow` disparaît : le bandeau rend le même service et montre en plus les matières
+  vides, que les puces filtraient.
+- **Cadre au fond spatial animé** : nébuleuses qui respirent, **bande laiteuse** en diagonale et
+  **deux champs d'étoiles** à vitesses différentes — seul le champ proche scintille (si tout
+  clignote ensemble, le fond respire d'un bloc et vole l'attention aux planètes).
+- **Couronne solaire dorée** autour des planètes, d'intensité proportionnelle aux étoiles
+  allumées et **absente sur une matière vide** : le canvas pose déjà la règle — *« l'or ne coule
+  que vers ce que Massimo a vraiment travaillé »* — et doré doit continuer à vouloir dire
+  **travaillé**, pas **joli**.
+
+La rotation lente était déjà acquise (`controls.autoRotate`, coupée par `prefers-reduced-motion`).
+649 tests backend + 221 Massimo, `tsc -b` et build verts.
+
+## 0.33.0 — Revoir sa galaxie grandir
+
+Date : 2026-07-31 · branche `feat/accueil-vivant` · ADR-0029
+
+> « Mon ciel » et « Mon chemin » disent *combien*, jamais *comment c'est arrivé*. Le rejeu animé
+> montre la galaxie s'allumer étoile par étoile, du premier jour à aujourd'hui.
+
+- **« Revoir ma galaxie grandir »** depuis « Mon ciel » : une modale plein écran qui rejoue la
+  galaxie en 3D. Bouton Lecture / Rejouer, et **la frise devient la barre de lecture** — Massimo
+  peut la tirer pour revenir en arrière.
+- **`?with_skills=true` sur `/api/student/galaxy/timeline`** : le même calcul cessait simplement
+  de renvoyer le `skill_id` qu'il produisait déjà. **Aucune table, aucune migration, aucune
+  requête de plus.** Opt-in strict : sans le paramètre, la clé est **absente** — la frise ne voit
+  aucun changement de charge utile, et un test le verrouille.
+- **DOUBLE `lazy()`** : la modale l'est, et elle seule charge le canvas, également en `lazy()`.
+  C'est ce qui garde l'Accueil à **zéro Three.js au premier paint** — vérifié en vrai : aucun
+  chunk 3D avant le clic, canvas monté après.
+- **Deux états seulement** — pas encore née, allumée. L'état de maîtrise passé existe
+  (`skill_mastery_history`) mais il **régresse** : un rejeu bâti dessus montrerait des étoiles
+  s'éteindre. Dérivé de `learning_events` (append-only), le rejeu ne peut que monter.
+- **Aucune date lisible, aucun autoplay, aucune comparaison entre périodes.**
+  `prefers-reduced-motion` → état final et curseur manipulable à la main.
+
+649 tests backend + 220 Massimo, `tsc -b` et build verts. Rejeu vérifié dans le navigateur :
+curseur 0 → 11 → 22 → 37 étoiles.
+
+## 0.32.0 — Un Accueil vivant, sans cadrage de perte
+
+Date : 2026-07-31 · branche `feat/accueil-vivant` · addendum ADR-0024 « Accueil vivant »
+
+> L'Accueil recomposé le matin même était calme — c'était le but — mais **pauvre** : hors la
+> mission du jour, Massimo n'y lisait qu'une semaine de sept cases. La demande était une page
+> plus vivante, avec la **heatmap de Papa** en référence. Elle est **refusée par écrit**, et
+> remplacée par la même idée retournée.
+
+- **La heatmap est refusée, avec ses trois murs indépendants** : sa route a été supprimée
+  (ADR-0028) et vit dans un agrégat `require_parent` ; `CLAUDE.md` interdit le « décompte de
+  jours manqués, sous quelque forme que ce soit », et les cases vides d'une grille **sont** ce
+  décompte ; `WeekDots.test.tsx:32` le verrouille par un test. Écrit dans l'ADR pour ne pas être
+  redemandé dans six mois.
+- **« Mon ciel » — la heatmap retournée** : une case par jour où Massimo a gagné du XP, sur un
+  **calendrier** (semaines en colonnes, jours en lignes, comme chez Papa) — mais **aucune case
+  vide n'est dessinée** : un jour sans gain n'a **aucun élément dans le DOM**. Chez Papa la case
+  grise *est* l'information d'absence et elle y est légitime (c'est du pilotage) ; ici l'absence
+  n'existe ni dans les données ni dans le rendu. Intensité ∝ XP du jour, rampe indigo → cyan →
+  blanc, libellés de mois posés seulement s'ils ne se chevauchent pas,
+  `prefers-reduced-motion` respecté. La grille démarre au **premier jour d'activité**.
+  > La première version posait les jours en **constellation libre**, sans repère temporel. Ce qui
+  > manquait n'était pas la densité mais le **repère de temps** : l'interdit est reporté de la
+  > géométrie vers le **rendu**. Ce que `CLAUDE.md` bannit — un décompte, une iconographie du
+  > vide — reste absent ; ce qui est assumé, c'est que l'œil perçoive les intervalles par la
+  > position.
+- **Brique partagée `buildSparseCalendar`** (`packages/ui`), avec `toLocalIso` et `startOfWeek`
+  **remontés depuis la heatmap de Papa** : deux `startOfWeek` dans un même dépôt finiraient par
+  diverger sur les bords de semaine. `buildHeatmapGrid` reste chez Papa — c'est lui qui
+  reconstruit les jours vides, et cela ne se partage pas.
+- **`GET /api/gamification/history` — première route élève d'historique.** Les **jours sans XP
+  sont OMIS** du payload, jamais renvoyés à zéro : le garde-fou est dans le **contrat**, pas dans
+  l'UI, donc aucun client futur ne pourra dessiner une case vide sans avoir lu l'ADR. Aucune
+  minute, aucune session, aucun `event_type` — on ne chronomètre pas l'enfant. Regroupement en
+  **Europe/Paris**, le défaut exact qui avait été relevé sur le streak retiré. Fenêtre bornée
+  serveur. **Aucune migration.**
+- **« Tes derniers gains », à coût nul** : `recent` et `badges` étaient déjà servis par
+  `/api/gamification/summary` — que le bandeau XP appelle **déjà sur cette page** — et n'étaient
+  **rendus nulle part**. Aucune requête ajoutée. Le mapping des `reason` passe de **3 à 8** : il
+  ne couvrait qu'un tiers des valeurs, sans conséquence tant que rien ne les affichait.
+- **La frise revient sur l'Accueil.** Elle en était partie le matin même, emportée par
+  association avec le canvas 3D — le coût à annuler était **Three.js**, pas quelques lignes de
+  SVG. Le motif tient : le test de budget de bundle reste vert, aucun moteur 3D ne revient.
+- **Les pastilles de matières portent leur compte.** Un **compte**, jamais un pourcentage ;
+  l'ordre reste celui du programme — trier par étoiles en ferait un palmarès.
+
+**Test-verrou de la slice** : le ciel ne rend **aucun élément** pour un jour sans activité — le
+pendant, sur la nouvelle surface, de l'invariant `WeekDots`. Aucune date n'est affichée nulle
+part : une date rendrait le temps lisible, et les intervalles vides avec lui.
+
+646 tests backend + 206 Massimo, `tsc -b` et build verts.
+
 ## 0.31.0 — La Galaxy prend sa route, l'Accueil cesse de payer la 3D
 
 Date : 2026-07-31 · branche `feat/accueil-galaxy` · addendum ADR-0024

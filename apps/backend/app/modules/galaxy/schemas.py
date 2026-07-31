@@ -110,6 +110,22 @@ class GalaxyTimelineOut(BaseModel):
 
     points: list[GalaxyTimelinePoint]
     total: int
+    # Renseigné SEULEMENT avec `?with_skills=true` (ADR-0029) : le rejeu animé a besoin de savoir
+    # QUELLE étoile s'allume à quelle date, là où la frise ne veut qu'un compte. Opt-in pour ne
+    # pas alourdir la charge utile des consommateurs existants.
+    skills: list["GalaxySkillFirstLit"] | None = None
+
+
+class GalaxySkillFirstLit(BaseModel):
+    """Le jour où une notion a été travaillée pour la PREMIÈRE fois (ADR-0029 §2).
+
+    Deux états seulement dans le rejeu : pas encore née, et allumée. On ne sert JAMAIS l'état de
+    maîtrise à une date passée — il existe (`skill_mastery_history`) mais il est Papa-only et il
+    RÉGRESSE : un rejeu bâti dessus montrerait des étoiles s'éteindre.
+    """
+
+    skill_id: int
+    date: str
 
 
 class GalaxyAction(BaseModel):
