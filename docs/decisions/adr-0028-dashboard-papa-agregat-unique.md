@@ -350,12 +350,12 @@ Conseil de classe reçoit un point d'entrée contextualisé au lieu d'être atte
 - Second élève / multi-profils.
 - **Bandeau de fraîcheur du Conseil de classe** (§7) : demande un comptage serveur des
   `learning_events` postérieurs à `created_at`, donc une extension du module `reports`.
-- **Relance automatique d'une lacune `in_progress`** : `generate_remediation` ne reprend que les
-  lacunes `open`. Une notion travaillée dont le verdict fut « à revoir » passe en `in_progress` et
-  sort de son champ — elle n'a alors **aucun chemin automatique**, même sans mission active.
-  Constaté en base pendant ce chantier. Le dashboard le **dit** (§10) au lieu de rassurer à tort,
-  mais élargir le générateur est une décision de doctrine du moteur de missions (`adr-0017`), pas
-  une correction d'affichage.
+> ~~Relance automatique d'une lacune `in_progress`~~ — **traité le 2026-07-31**, autrement que
+> prévu. L'enquête a montré que le manque n'était pas dans `generate_remediation` : `adr-0017 §5bis`
+> désigne le SRS comme relais, mais ce relais était **inopérant** (template `revision` sans étape de
+> réexplication, alors que le verdict l'exige). Le relais est réparé, le générateur de remédiation
+> n'est **pas** élargi — la doctrine tient, elle ne fonctionnait simplement pas. Cf. l'amendement du
+> `adr-0017 §5bis`.
 - **Correction du bug d'échelle `mastery_score`** (0–100 traité comme 0–1 dans `missions/command.py`,
   `champion.py`, `reports/service.py` et deux modales Papa). Dette **antérieure** à ce chantier ; le
   §3 bis fait que le dashboard ne l'hérite pas, ce qui la rend traitable séparément.

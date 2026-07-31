@@ -336,6 +336,18 @@ export function generateRemediation(): Promise<{ created: number }> {
   }).then((r) => asJson<{ created: number }>(r));
 }
 
+/** Crée les missions de révision des notions dont la carte SRS est due — plafonnées à
+ *  `MISSION_REVISION_TOP_N` côté serveur.
+ *
+ *  C'est le relais que l'ADR-0017 §5bis désigne après un verdict « à revoir » : la notion revient
+ *  d'elle-même par le SRS. Route déjà en place, réutilisée par la page Lacunes. */
+export function generateRevision(): Promise<{ created: number }> {
+  return fetch(`${API_URL}/api/missions/generate-revision`, {
+    method: "POST",
+    headers: headers(),
+  }).then((r) => asJson<{ created: number }>(r));
+}
+
 // Signal (sans store global) : la page émet après validate/reject, la sidebar réécoute pour
 // rafraîchir le compteur ambré « à valider » sur l'entrée Missions.
 export const MISSIONS_PENDING_EVENT = "zetis:missions-pending-changed";

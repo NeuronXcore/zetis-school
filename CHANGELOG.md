@@ -43,11 +43,37 @@ Date : 2026-07-31 · ADR-0028 · branche `feat/dashboard-papa-v2`
   la route de création **déjà en place** — aucune surface d'écriture ajoutée. Prévisualisation et
   création voient les mêmes lacunes, sinon la carte proposerait une notion que le bouton ne
   créerait pas.
-- **Trouvaille du chantier** : une lacune `in_progress` (notion travaillée, verdict « à revoir »)
-  sort du champ de `generate_remediation` — elle n'a **aucun chemin automatique** même sans mission
-  active. Le dashboard le **dit** au lieu de rassurer à tort ; élargir le générateur est une
-  décision de doctrine du moteur de missions, pas une correction d'affichage.
 - **Hors v1, assumé** : le bandeau de fraîcheur du Conseil de classe.
+
+## 0.29.1 — La boucle de révision peut enfin se refermer
+
+Date : 2026-07-31 · amendement `ADR-0017 §5bis` · branche `feat/dashboard-papa-v2`
+
+> Parti d'un symptôme du dashboard — « 1 notion à renforcer sans mission active » à côté d'une carte
+> qui ne proposait rien — l'enquête a trouvé un défaut de fond du moteur de missions.
+
+- **Le relais désigné par la doctrine était inopérant.** `adr-0017 §5bis` promet qu'après un verdict
+  « à revoir » la notion **revient d'elle-même** par le SRS. Or le template `revision` composait
+  `[carte] → [quiz] → relire` **sans étape de réexplication**, alors que le verdict l'exige — et
+  `eli5` est une étape de *consultation* qui n'émet aucune trace de réexplication. Une mission de
+  révision rendait donc **toujours** « à revoir » : la lacune restait ouverte à vie. La
+  contradiction était figée par un test qui asserait « pas de verbalisation ».
+- **Et elle abîmait la mesure à chaque passage** : sans réexplication mesurée, le verdict écrivait
+  `mastery_score = 0`. Massimo faisait sa révision, sa maîtrise s'effondrait, et la carte revenait
+  le lendemain (intervalle du score 0). Désormais, **une absence de mesure n'est plus un zéro** :
+  on n'écrit que ce qu'on a mesuré, et l'intervalle se calcule sur la maîtrise connue. Filet qui
+  couvre aussi les parcours édités par Papa sans étape vocale.
+- **Le générateur de remédiation n'est pas élargi** aux lacunes `in_progress` : la doctrine
+  désignait le SRS, elle tient — il fallait le réparer, pas le contourner. Bump
+  `MISSION_SCORING_VERSION` v3 → v4 (le versionnage couvre les templates de parcours).
+- **`/lacunes` devient la surface de décision qu'elle prétendait être** : la page était un mock
+  inerte alors que le dashboard y renvoyait. Elle sépare maintenant ce qui appelle une
+  consolidation (notion jamais travaillée) de ce qui revient par la révision, et n'utilise que les
+  deux générateurs existants — aucune route nouvelle.
+- **Deux surfaces qui se contredisaient, réconciliées** : le KPI « lacunes sans mission » ne
+  regardait que les missions de *remédiation*, si bien qu'une notion déjà couverte par une mission
+  commandée par Papa était annoncée « sans mission active ». Définition unique et partagée
+  désormais — n'importe quelle mission active répond à la question « reste-t-il un geste à faire ? ».
 
 ## 0.28.0 — Chat ZETIS : un compagnon incarné, qui se souvient et qui parle
 

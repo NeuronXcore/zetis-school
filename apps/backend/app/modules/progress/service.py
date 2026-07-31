@@ -35,6 +35,31 @@ MASTERED_STATUS = "mastered"
 _SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
 
 
+def skills_with_active_mission(db: Session, *, student_id: int) -> set[int]:
+    """Notions couvertes par une mission `planned|active`, TOUS types confondus.
+
+    Volontairement plus large que `missions._has_active_remediation` (qui ne regarde que les
+    missions de remédiation) : ici la question de Papa est « ai-je encore quelque chose à décider
+    pour cette notion ? ». Une mission de révision en cours y répond tout autant — c'est même le
+    relais que l'`adr-0017 §5bis` désigne après un verdict « à revoir ».
+
+    Import local : `missions` importe déjà `progress`, une dépendance en tête de module la rendrait
+    circulaire.
+    """
+    from app.db.models import Mission
+
+    return {
+        skill_id
+        for (skill_id,) in db.execute(
+            select(Mission.skill_id).where(
+                Mission.student_id == student_id,
+                Mission.status.in_(("planned", "active")),
+                Mission.skill_id.is_not(None),
+            )
+        ).all()
+    }
+
+
 def open_gaps(db: Session, *, student_id: int) -> list[dict]:
     """Lacunes ouvertes de l'élève, les plus sévères d'abord.
 
@@ -46,6 +71,7 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
         .outerjoin(Subject, Subject.id == Gap.subject_id)
         .where(Gap.student_id == student_id, Gap.status.in_(OPEN_GAP_STATUSES))
     ).all()
+    covered = skills_with_active_mission(db, student_id=student_id)
 
     gaps = [
         {
@@ -58,6 +84,7 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
             "first_detected_at": (
                 gap.first_detected_at.isoformat() if gap.first_detected_at else None
             ),
+            "has_active_mission": gap.skill_id in covered,
         }
         for gap, skill, subject in rows
     ]

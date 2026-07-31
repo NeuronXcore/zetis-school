@@ -59,15 +59,15 @@ export function ProposedMissionPanel({
             Massimo.
           </p>
         ) : withoutMission > 0 ? (
-          // Vide TROMPEUR si on n'y prend pas garde : il reste des notions découvertes sans
-          // mission, mais le générateur automatique ne reprend que les lacunes encore `open`.
-          // Une notion déjà travaillée dont le verdict fut « à revoir » passe en `in_progress`
-          // et sort de son champ — elle demande une décision de Papa, pas un automatisme.
-          // Écrire « tout est pris en charge » ici serait faux.
+          // Vide TROMPEUR si on n'y prend pas garde : il reste des notions sans mission active,
+          // mais le générateur de consolidation ne reprend que les lacunes encore `open`. Une
+          // notion déjà travaillée dont le verdict fut « à revoir » revient par la RÉVISION
+          // (adr-0017 §5bis), pas par une seconde consolidation. Écrire « tout est pris en
+          // charge » serait faux ; ne rien nommer laisserait croire à un trou.
           <p className="text-sm text-papa-muted">
-            {withoutMission} notion{withoutMission > 1 ? "s" : ""} à renforcer n'
-            {withoutMission > 1 ? "ont" : "a"} pas de mission active, mais {withoutMission > 1 ? "elles ont" : "elle a"}{" "}
-            déjà été travaillée{withoutMission > 1 ? "s" : ""} : ZETIS ne relance pas seul.{" "}
+            {withoutMission} notion{withoutMission > 1 ? "s" : ""} à renforcer sans mission active.
+            {" "}Celles déjà travaillées reviennent par la <b>révision</b>, pas par une nouvelle
+            consolidation.{" "}
             <Link to="/lacunes" className="text-papa-accent hover:underline">
               Décider quoi en faire →
             </Link>

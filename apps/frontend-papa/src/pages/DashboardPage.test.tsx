@@ -288,12 +288,13 @@ describe("mission proposée", () => {
 
   it("des lacunes sans mission mais hors du générateur : la carte ne rassure PAS à tort", async () => {
     // Cas réel constaté en base : une notion travaillée dont le verdict fut « à revoir » passe
-    // en `in_progress` et sort du champ de `generate_remediation`. Elle n'a pas de mission
-    // active, et pourtant rien ne la reprendra — écrire « tout est pris en charge » mentirait.
+    // en `in_progress` et sort du champ de `generate_remediation`. Écrire « tout est pris en
+    // charge » mentirait — et se taire laisserait croire à un trou, alors que la révision est
+    // bien le relais prévu (adr-0017 §5bis).
     vi.mocked(fetchDashboard).mockResolvedValue({ ...PAYLOAD, proposed_mission: null });
     renderPage();
 
-    expect(await screen.findByText(/ZETIS ne relance pas seul/)).toBeInTheDocument();
+    expect(await screen.findByText(/reviennent par la/)).toBeInTheDocument();
     expect(screen.queryByText(/déjà prise en charge/)).toBeNull();
     expect(screen.getByRole("link", { name: /Décider quoi en faire/ })).toHaveAttribute(
       "href",

@@ -102,6 +102,9 @@ export interface OpenGap {
   severity: "low" | "medium" | "high";
   status: "open" | "in_progress";
   first_detected_at?: string | null;
+  /** Une mission `planned|active` (tous types) couvre-t-elle déjà cette notion ? Sépare ce qui
+   *  attend une décision de Papa de ce qui est déjà en route. Calculé serveur. */
+  has_active_mission?: boolean;
 }
 
 /** Une notion consolidée (`GET /api/parent/progress/consolidated`) — `mastered`, score ≥ 90. */

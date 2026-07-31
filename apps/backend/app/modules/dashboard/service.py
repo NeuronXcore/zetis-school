@@ -48,7 +48,7 @@ from app.modules.activity.timeutils import (
     week_start,
 )
 from app.modules.dashboard import projections as p
-from app.modules.progress.service import OPEN_GAP_STATUSES
+from app.modules.progress.service import OPEN_GAP_STATUSES, skills_with_active_mission
 
 # Fenêtre de la heatmap calendrier — indépendante du sélecteur de période, qui ne pilote que les
 # KPI et les séries. La grille est là pour la tendance longue (adr-0028 §6).
@@ -362,25 +362,21 @@ def _inbox(db: Session, student_id: int, year_id: int | None) -> list[dict]:
 def _gaps_without_mission(db: Session, student_id: int) -> list[str]:
     """Notions à renforcer qu'aucune mission active ne prend en charge.
 
-    Reprend la définition de `missions.service._has_active_remediation` (mission de remédiation
-    `planned` ou `active` sur la même notion) : deux lectures divergentes de « lacune traitée »
-    dans la même app seraient un piège.
+    Délégué à `progress.service._skills_with_active_mission` — SOURCE UNIQUE, partagée avec la page
+    Lacunes. Ce comptage regardait auparavant les seules missions de **remédiation** : une notion
+    déjà couverte par une mission `manual` (Papa l'a commandée) ou `revision` était donc annoncée
+    « sans mission active » sur le dashboard, alors que la page Lacunes la disait prise en charge.
+    Constaté en base : deux surfaces qui se contredisaient sur la même notion.
+
+    La question posée par le KPI est « reste-t-il un geste à faire ? » — et n'importe quelle
+    mission active y répond, quel que soit son type.
     """
     rows = db.execute(
         select(Gap.skill_id, Skill.name)
         .outerjoin(Skill, Skill.id == Gap.skill_id)
         .where(Gap.student_id == student_id, Gap.status.in_(OPEN_GAP_STATUSES))
     ).all()
-    covered = {
-        skill_id
-        for (skill_id,) in db.execute(
-            select(Mission.skill_id).where(
-                Mission.student_id == student_id,
-                Mission.mission_type == "remediation",
-                Mission.status.in_(_ACTIVE_MISSION_STATUSES),
-            )
-        ).all()
-    }
+    covered = skills_with_active_mission(db, student_id=student_id)
     return [name or "Notion" for skill_id, name in rows if skill_id not in covered]
 
 

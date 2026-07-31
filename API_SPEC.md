@@ -1019,14 +1019,23 @@ Détail des deux KPI de stock. Analyses parentales : jamais servies à Massimo.
 
 ### GET `/api/parent/progress/gaps`
 
-Lacunes ouvertes (`status ∈ open | in_progress`, même définition que le générateur de missions de
-remédiation), les plus sévères d'abord. L'UI les formule en « notions à renforcer » — jamais de
-vocabulaire d'échec (CLAUDE.md §pédagogie).
+Lacunes ouvertes (`status ∈ open | in_progress`), les plus sévères d'abord. L'UI les formule en
+« notions à renforcer » — jamais de vocabulaire d'échec (CLAUDE.md §pédagogie).
+
+⚠️ Cette définition est **plus large que celle du générateur de remédiation**, qui ne reprend que
+les lacunes `open`. Ce n'est pas une incohérence : une lacune `in_progress` a déjà été travaillée et
+revient par la **révision**, pas par une seconde consolidation (`adr-0017 §5bis`, amendé le
+2026-07-31). La page Lacunes s'appuie sur `status` pour proposer le bon générateur.
+
+`has_active_mission` dit si une mission `planned|active` — **de n'importe quel type** — couvre déjà
+la notion. C'est ce qui sépare ce qui attend une décision de ce qui est en route ; le dashboard
+(`open_gaps.without_mission`) et la page Lacunes s'appuient sur la **même** fonction, après avoir
+divergé (le KPI ne regardait que les missions de remédiation et sur-comptait).
 
 ```json
 [{ "skill_id": 12, "skill_name": "Temps du récit", "subject_slug": "francais",
    "subject_name": "Français", "severity": "high", "status": "in_progress",
-   "first_detected_at": "2026-07-01T08:00:00+00:00" }]
+   "first_detected_at": "2026-07-01T08:00:00+00:00", "has_active_mission": true }]
 ```
 
 ### GET `/api/parent/progress/consolidated`

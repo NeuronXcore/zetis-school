@@ -417,6 +417,39 @@ class TestMissionProposee:
             assert db.query(m.Mission).count() == 0
             assert db.query(m.MissionStep).count() == 0
 
+    def test_une_mission_manual_compte_comme_prise_en_charge(self, client_db) -> None:
+        """Le dashboard et la page Lacunes doivent dire la MÊME chose d'une même notion.
+
+        Le KPI ne regardait que les missions de `remediation` : une notion déjà couverte par une
+        mission `manual` (Papa l'a commandée) était annoncée « sans mission active » sur le
+        dashboard pendant que la page Lacunes la disait prise en charge. Constaté en base.
+        """
+        client, TestSession = client_db
+        with TestSession() as db:
+            skill = self._gap(db, severity="high", name="Temps du récit")
+            db.flush()
+            student = db.query(m.StudentProfile).first()
+            db.add(
+                m.Mission(
+                    student_id=student.id,
+                    subject_id=skill.subject_id,
+                    skill_id=skill.id,
+                    title="Travailler : Temps du récit",
+                    mission_type="manual",
+                    status="planned",
+                    validation_status="validated",
+                )
+            )
+            db.commit()
+        _as_papa()
+
+        body = client.get("/api/parent/dashboard").json()
+        gaps = client.get("/api/parent/progress/gaps").json()
+
+        assert body["periods"]["7"]["kpis"]["open_gaps"]["without_mission"] == 0
+        assert gaps[0]["has_active_mission"] is True
+        assert [i for i in body["inbox"] if i["kind"] == "gap"] == []
+
     def test_la_proposition_et_la_CREATION_voient_la_meme_lacune(self, client_db) -> None:
         """Sans cet accord, la carte proposerait une notion que le bouton ne créerait pas.
 
