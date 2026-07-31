@@ -1,5 +1,46 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.29.0 — Dashboard Papa : un cockpit, pas un bulletin
+
+Date : 2026-07-31 · ADR-0028 · branche `feat/dashboard-papa-v2`
+
+> La maquette historique du dashboard contredisait **sept décisions déjà prises**. Elle est
+> remplacée par une page qui répond à trois questions dans l'ordre : *qu'est-ce qui attend une
+> décision de moi ?*, *où en est Massimo ?*, *qu'est-ce que ZETIS propose ?*
+
+- **Un agrégat unique, zéro requête au filtrage (§1, §2)** : `GET /api/parent/dashboard` renvoie les
+  **trois fenêtres** (7/30/90) **non filtrées**, séries livrées **par matière** — « toutes matières »
+  est une somme que le client calcule. Changer de période, de matière ou de focus ne touche plus le
+  réseau. Vérifié dans l'onglet Réseau : cinq gestes, dix requêtes avant, dix après.
+- **Les KPI deviennent des contrôles (§5)** : cliquer un KPI conserve les cartes qui **répondent à
+  cette question** et atténue les autres. Ce n'est pas décoratif — c'est la carte de dépendance
+  entre une mesure et ses preuves, et c'est ce qui rend huit diagrammes praticables sur une page.
+- **L'XP quitte le pilotage parent** : un KPI de Papa doit être décisionnel. L'XP reste le levier
+  de Massimo, sur Progression. Partent avec lui : « sessions », « missions terminées », le
+  « taux de réussite » global, le radar de compétences (aucune source dans le modèle) et le
+  panneau Obsidian.
+- **Une seule carte heatmap, deux vues** : *Calendrier* (est-ce régulier ?) et *Créneaux* (quand
+  travaille-t-il ?), **échelle émeraude unique — pas de gradient vers le rouge**. Une case dense
+  n'est pas une bonne note, une case vide n'est pas une faute.
+- **Historique de maîtrise (§3 ter, migration `a9b8c7d6e5f4`)** : `skill_mastery` n'écrivait que
+  l'état courant, rendant la courbe des régressions impossible à tracer. La table
+  `skill_mastery_history` la rend calculable — et donnera au Conseil de classe la notion de
+  régression qui lui manque.
+- **Read-before-code : deux vérifications sur quatre sont tombées**, plus six écarts non anticipés.
+  « Consolidée » avait **déjà** une définition serveur, différente de celle de l'ADR ; « fragile »
+  n'en avait **aucune** — les deux sont désormais figées sur les **six** statuts réels.
+  `GET /api/parent/dashboard` **existait déjà** (réécriture cassante), les quiz **ne peuvent pas**
+  entrer dans la file de validation (pas de `validation_status`, doctrine ADR-0014), et
+  `/activity/heatmap` **n'avait aucun consommateur** hors du dashboard → supprimée.
+- **Deux contradictions que seul le rendu réel a révélées** : le donut totalisait 42 min à côté
+  d'un KPI annonçant 7 h 05 (le temps sans matière — connexion, navigation, chat — n'était compté
+  nulle part) ; et le KPI des lacunes portait le même libellé que le segment « fragiles » des
+  cartes voisines, affichant « 1 » à côté de « 9 » pour deux mesures différentes.
+- **Zéro dépendance ajoutée** : ni react-query, ni lib de graphes. Les huit diagrammes sont en SVG
+  inline et CSS Grid. Deux briques rejoignent `@zetis/ui` : `Sparkline` et `subjectColorFor`.
+- **Hors v1, assumé** : `proposed_mission` reste `null` (composer une mission suppose d'appeler le
+  moteur de missions, ce qu'un GET ne doit pas faire), et le bandeau de fraîcheur du Conseil.
+
 ## 0.28.0 — Chat ZETIS : un compagnon incarné, qui se souvient et qui parle
 
 Date : 2026-07-30 · ADR-0026 · branche `feat/chat-memoire`

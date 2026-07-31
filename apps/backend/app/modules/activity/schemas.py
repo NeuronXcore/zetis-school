@@ -23,18 +23,9 @@ class PageViewRequest(BaseModel):
 # --- Lectures parent --------------------------------------------------------------------------
 
 
-class HeatmapDay(BaseModel):
-    date: str
-    active_minutes: int
-    events: int
-    xp: int
-
-
-class HeatmapOut(BaseModel):
-    days: list[HeatmapDay]
-    # Jours consécutifs sans activité en fin de série, TOUTES matières (un filtre matière actif
-    # ne fausse pas le signal de décrochage). Le badge Papa apparaît à partir de 4.
-    days_inactive: int
+# `HeatmapDay` et `HeatmapOut` sont partis avec la route `/activity/heatmap` (ADR-0028). La grille
+# est désormais servie par matière dans le contrat du module `dashboard`, où `days_inactive` reste
+# calculé TOUTES matières — un filtre ne doit pas fausser le signal de décrochage.
 
 
 class ActivityEntry(BaseModel):

@@ -213,33 +213,11 @@ def _load_events(
     return list(db.scalars(query.order_by(LearningEvent.created_at, LearningEvent.id)).all())
 
 
-def _xp_by_day(
-    db: Session,
-    *,
-    student_id: int,
-    start: datetime,
-    end: datetime,
-    subject_id: int | None = None,
-) -> dict[date, int]:
-    """XP par jour Europe/Paris, sommé depuis `xp_events`.
-
-    Métrique SÉPARÉE du journal d'activité : jamais d'UNION avec `learning_events` (les deux
-    tables comptent des choses différentes, les mélanger double-compterait). Le bucketing par
-    jour se fait en Python pour rester en Europe/Paris sans dépendre du fuseau du serveur SQL."""
-    query = select(XPEvent).where(
-        XPEvent.student_id == student_id,
-        XPEvent.created_at >= start,
-        XPEvent.created_at < end,
-    )
-    if subject_id is not None:
-        # Filtre matière actif : le XP non imputé à une matière (missions croisées « champion »)
-        # sort du total, par cohérence avec la ligne affichée.
-        query = query.where(XPEvent.subject_id == subject_id)
-    totals: dict[date, int] = {}
-    for event in db.scalars(query):
-        day = local_day(event.created_at)
-        totals[day] = totals.get(day, 0) + event.amount
-    return totals
+# `_xp_by_day` supprimée avec `heatmap()` (ADR-0028) : plus aucune surface de pilotage parent
+# n'affiche le XP par jour. La règle qu'elle protégeait reste entière et n'a pas d'autre lecteur :
+# **jamais d'UNION entre `learning_events` et `xp_events`** — les deux journaux comptent des
+# choses différentes. Le Cahier de bord lit le XP d'une ligne dans le payload de son propre
+# événement, sans jamais rapprocher les deux tables par horodatage.
 
 
 def _subject_slugs(db: Session) -> dict[int, str]:
@@ -278,7 +256,7 @@ def _entries(
     return entries
 
 
-def _trailing_inactive_days(db: Session, *, student_id: int, last_day: date) -> int:
+def trailing_inactive_days(db: Session, *, student_id: int, last_day: date) -> int:
     """Jours consécutifs SANS aucun événement, en fin de série (toutes matières confondues).
 
     Toujours calculé sans filtre matière : « Massimo n'a rien fait depuis 5 jours » est une
@@ -300,41 +278,10 @@ def _trailing_inactive_days(db: Session, *, student_id: int, last_day: date) -> 
     return max(0, delta)
 
 
-def heatmap(
-    db: Session, *, student_id: int, weeks: int, subject_id: int | None = None
-) -> dict:
-    """Minutes actives par jour sur N semaines + décrochage.
-
-    Les jours vides sont OMIS du payload : le client reconstruit la grille (présentation)."""
-    bounded = max(1, min(settings.activity_max_weeks, weeks))
-    last_day = today_local()
-    # Semaines pleines lundi→dimanche : on remonte au lundi de la semaine la plus ancienne.
-    first_day = week_start(last_day) - timedelta(weeks=bounded - 1)
-    start, end = range_bounds_utc(first_day, last_day)
-
-    events = _load_events(
-        db, student_id=student_id, start=start, end=end, subject_id=subject_id
-    )
-    xp_by_day = _xp_by_day(
-        db, student_id=student_id, start=start, end=end, subject_id=subject_id
-    )
-
-    days = []
-    buckets = bucket_days(events)
-    for day in sorted(set(buckets) | set(xp_by_day)):
-        day_events = buckets.get(day, [])
-        days.append(
-            {
-                "date": day.isoformat(),
-                "active_minutes": active_minutes(day_events),
-                "events": len(day_events),
-                "xp": xp_by_day.get(day, 0),
-            }
-        )
-    return {
-        "days": days,
-        "days_inactive": _trailing_inactive_days(db, student_id=student_id, last_day=last_day),
-    }
+# `heatmap()` supprimée avec sa route (ADR-0028) : la grille est servie PAR MATIÈRE par le module
+# `dashboard`, et « toutes matières » est une somme client. `_xp_by_day` est partie avec elle — le
+# XP quitte le pilotage parent (§5) et le journal du Cahier de bord lit son XP dans le payload de
+# chaque événement, sans jamais croiser `xp_events`.
 
 
 def day_detail(

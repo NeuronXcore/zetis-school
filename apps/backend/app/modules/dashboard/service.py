@@ -37,7 +37,7 @@ from app.db.models import (
     SpacedReviewCard,
     Subject,
 )
-from app.modules.activity.service import active_minutes, bucket_days, event_minutes
+from app.modules.activity import service as activity_service
 from app.modules.activity.timeutils import (
     local_day,
     range_bounds_utc,
@@ -644,7 +644,12 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         ),
         "generated_at": _now_iso(),
         "last_activity_at": to_utc(last_event.created_at).isoformat() if last_event else None,
-        "days_inactive": (today - local_day(last_event.created_at)).days if last_event else 0,
+        # Délégué à `activity`, et NON déduit de `ordered` : celui-ci est borné aux 26 semaines
+        # du calendrier. Un dernier événement plus ancien aurait rendu la liste vide et le
+        # décrochage aurait valu 0 — soit « tout va bien » au moment précis où il faut alerter.
+        "days_inactive": activity_service.trailing_inactive_days(
+            db, student_id=student_id, last_day=today
+        ),
         "inbox": _inbox(db, student_id, year.id if year else None),
         "periods": periods,
         "subjects": subjects,

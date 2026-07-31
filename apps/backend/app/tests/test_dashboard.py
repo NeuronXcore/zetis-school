@@ -271,6 +271,35 @@ def test_les_quiz_ne_sont_pas_dans_la_file_de_validation(client_db) -> None:
     assert validation == [] or "quiz" not in (validation[0]["detail"] or "").lower()
 
 
+def test_le_decrochage_regarde_AU_DELA_de_la_fenetre_du_calendrier(client_db) -> None:
+    """`days_inactive` ne doit pas être déduit des 26 semaines chargées pour le calendrier.
+
+    Piège corrigé au nettoyage : une dernière activité plus ancienne que la grille aurait rendu
+    la liste d'événements vide, donc un décrochage à 0 — soit « tout va bien » au moment précis
+    où il faut alerter. Le comptage est délégué à `activity`, qui interroge le dernier événement
+    sans borne de fenêtre.
+    """
+    client, TestSession = client_db
+    with TestSession() as db:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        db.add(
+            m.LearningEvent(
+                student_id=student.id,
+                subject_id=subject.id,
+                event_type="lesson_viewed",
+                # Bien au-delà des 26 semaines du calendrier.
+                created_at=datetime.now(UTC) - timedelta(days=400),
+            )
+        )
+        db.commit()
+    _as_papa()
+
+    body = client.get("/api/parent/dashboard").json()
+
+    assert body["days_inactive"] >= 399, "le décrochage a été tronqué à la fenêtre du calendrier"
+
+
 def test_le_temps_par_matiere_PLUS_le_hors_matiere_egale_le_kpi(client_db) -> None:
     """Le donut et le KPI « temps actif » doivent totaliser LE MÊME temps.
 

@@ -278,7 +278,8 @@ def _seed_events(TestSession, rows: list[tuple[datetime, str, int | None]]) -> N
 def test_parent_routes_are_forbidden_for_child(client_db) -> None:
     """Le rôle enfant (défaut du conftest) ne voit aucune lecture de pilotage."""
     client, _ = client_db
-    assert client.get("/api/parent/activity/heatmap").status_code == 403
+    # `/activity/heatmap` a été supprimée (ADR-0028) ; la garde de rôle de l'agrégat qui la
+    # remplace est testée dans `test_dashboard.py`.
     assert client.get("/api/parent/activity/days/2026-07-15").status_code == 403
     assert client.get("/api/parent/activity/sessions").status_code == 403
     assert client.get("/api/parent/dashboard").status_code == 403
@@ -353,8 +354,12 @@ def test_sessions_are_reconstructed_and_empty_days_kept(client_db) -> None:
     assert sessions[0]["started_at"].startswith("2026-07-15T08:00")
 
 
-def test_subject_filter_applies_to_reads_but_never_to_days_inactive(client_db) -> None:
-    """`subject_id` filtre heatmap et sessions ; le décrochage reste toutes matières."""
+def test_subject_filter_applies_to_sessions(client_db) -> None:
+    """`subject_id` filtre bien les sessions du Cahier de bord.
+
+    Le volet « et jamais le décrochage » de ce test est parti avec `/activity/heatmap`
+    (ADR-0028) ; il vit désormais dans `test_dashboard.py`, contre l'agrégat qui sert
+    `days_inactive`."""
     client, TestSession = client_db
     with TestSession() as db:
         maths = db.query(m.Subject).first()
@@ -363,69 +368,19 @@ def test_subject_filter_applies_to_reads_but_never_to_days_inactive(client_db) -
         db.commit()
         maths_id, other_id = maths.id, other.id
 
-    # Dernière activité il y a 3 jours, en MATHS uniquement. Le décalage est indispensable :
-    # avec une activité du jour, `days_inactive` vaudrait 0 partout et le test passerait même
-    # si le filtre matière était (à tort) appliqué au décrochage.
     three_days_ago = datetime.now(UTC).replace(
         hour=8, minute=0, second=0, microsecond=0
     ) - timedelta(days=3)
     _seed_events(TestSession, [(three_days_ago, "lesson_viewed", maths_id)])
     _as_papa()
 
-    maths_view = client.get(
-        "/api/parent/activity/heatmap", params={"subject_id": maths_id}
-    ).json()
-    other_view = client.get(
-        "/api/parent/activity/heatmap", params={"subject_id": other_id}
-    ).json()
-
-    assert sum(d["events"] for d in maths_view["days"]) == 1
-    assert sum(d["events"] for d in other_view["days"]) == 0
-    # Le filtre vide la grille du français, mais Massimo a bien travaillé il y a 3 jours :
-    # le décrochage est une information sur l'ENFANT, pas sur une matière. Une implémentation
-    # qui filtrerait aussi le décrochage renverrait 0 ici (aucun événement en français).
-    assert maths_view["days_inactive"] == 3
-    assert other_view["days_inactive"] == 3
-
     sessions = client.get(
         "/api/parent/activity/sessions", params={"subject_id": other_id}
     ).json()
     assert all(day["sessions"] == [] for day in sessions["days"])
 
-
-def test_heatmap_bounds_weeks(client_db) -> None:
-    """Le client choisit une fenêtre, pas l'ampleur du scan."""
-    client, _ = client_db
-    _as_papa()
-    assert client.get("/api/parent/activity/heatmap", params={"weeks": 999}).status_code == 422
-    assert client.get("/api/parent/activity/heatmap", params={"weeks": 0}).status_code == 422
-
-
-def test_heatmap_separates_xp_from_activity(client_db) -> None:
-    """`xp` vient de `xp_events`, les minutes de `learning_events` — jamais d'UNION."""
-    client, TestSession = client_db
-    now = datetime.now(UTC).replace(hour=8, minute=0, second=0, microsecond=0)
-    _seed_events(TestSession, [(now, "lesson_viewed", None)])
-    with TestSession() as db:
-        student = db.query(m.StudentProfile).first()
-        db.add(
-            m.XPEvent(
-                student_id=student.id,
-                subject_id=None,
-                amount=30,
-                reason="quiz_completed",
-                created_at=now,
-            )
-        )
-        db.commit()
-    _as_papa()
-
-    days = client.get("/api/parent/activity/heatmap").json()["days"]
-    today = [d for d in days if d["date"] == local_day(now).isoformat()]
-    assert len(today) == 1
-    # Un seul événement d'activité, mais 30 XP : les deux journaux ne se confondent pas.
-    assert today[0]["events"] == 1
-    assert today[0]["xp"] == 30
+    kept = client.get("/api/parent/activity/sessions", params={"subject_id": maths_id}).json()
+    assert any(day["sessions"] for day in kept["days"])
 
 
 # Les KPI du dashboard ont quitté ce module avec la route (ADR-0028 §1) : ils sont désormais

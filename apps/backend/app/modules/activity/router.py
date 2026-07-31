@@ -19,12 +19,7 @@ from app.modules.activity.events import (
     last_event_of_type,
     log_learning_event,
 )
-from app.modules.activity.schemas import (
-    DayDetailOut,
-    HeatmapOut,
-    PageViewRequest,
-    SessionsOut,
-)
+from app.modules.activity.schemas import DayDetailOut, PageViewRequest, SessionsOut
 from app.modules.activity.timeutils import today_local
 from app.modules.auth.deps import require_child, require_parent
 from app.modules.eli5.service import get_default_student
@@ -68,19 +63,9 @@ def pageview(
 # --- Lectures de pilotage (Papa) ---------------------------------------------------------------
 
 
-@parent_router.get("/activity/heatmap", response_model=HeatmapOut)
-def activity_heatmap(
-    weeks: int = Query(default=26, ge=1, le=settings.activity_max_weeks),
-    subject_id: int | None = Query(default=None),
-    db: Session = Depends(get_db),
-) -> dict:
-    """Minutes actives par jour (intensité de la heatmap) + décrochage.
-
-    L'intensité est le TEMPS ACTIF, pas le nombre d'événements : une lecture de cours de 20 min
-    vaut plus qu'un clic, et compter les événements biaiserait en faveur des révisions SRS."""
-    return service.heatmap(
-        db, student_id=get_default_student(db).id, weeks=weeks, subject_id=subject_id
-    )
+# `GET /activity/heatmap` supprimée (ADR-0028) : audit du 2026-07-31, aucun consommateur hors du
+# dashboard. La heatmap est désormais servie PAR MATIÈRE dans l'agrégat `/api/parent/dashboard`,
+# et « toutes matières » est une somme client — c'est ce qui permet de filtrer sans requête.
 
 
 @parent_router.get("/activity/days/{day}", response_model=DayDetailOut)

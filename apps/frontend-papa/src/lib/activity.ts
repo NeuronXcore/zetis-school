@@ -2,7 +2,6 @@
 // Contrats : `@zetis/types` (`packages/types/src/activity.ts`) — rien n'est redéclaré ici.
 import type {
   ActivityDayDetail,
-  ActivityHeatmap,
   ActivitySessions,
   ConsolidatedSkill,
   OpenGap,
@@ -10,18 +9,8 @@ import type {
 import { API_URL } from "./authClient";
 import { asJson, authHeader } from "./httpClient";
 
-/** Heatmap de régularité. `weeks` et les bornes sont validés serveur. */
-export async function fetchHeatmap(
-  weeks = 26,
-  subjectId?: number | null,
-): Promise<ActivityHeatmap> {
-  const params = new URLSearchParams({ weeks: String(weeks) });
-  if (subjectId != null) params.set("subject_id", String(subjectId));
-  const res = await fetch(`${API_URL}/api/parent/activity/heatmap?${params}`, {
-    headers: authHeader(),
-  });
-  return asJson<ActivityHeatmap>(res);
-}
+// `fetchHeatmap` est partie avec sa route (ADR-0028) : la grille vient désormais de l'agrégat
+// `GET /api/parent/dashboard`, par matière, et « toutes matières » est une somme client.
 
 /** Journal d'un jour (`AAAA-MM-JJ`) — chargé paresseusement, au clic sur une case. */
 export async function fetchDayDetail(
