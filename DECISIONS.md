@@ -166,6 +166,69 @@
     **troisième surface** qui monte `GalaxyCanvas`. **Vérifié en vrai** : 0 chunk 3D avant le clic,
     canvas monté après, curseur 0 → 11 → 22 → 37 étoiles — Accepté (2026-07-31)
 
+- `docs/decisions/adr-0024-addendum-galaxie-animee.md` — **Galaxie animée : tout voir, et voir ça
+    arriver** — troisième addendum à l'`adr-0024` en une journée, après quatre amendements : il
+    révise le §6 (plafond de nœuds) et complète le §C du premier addendum — celui-ci décide ce qui
+    est rendu sur la vue par défaut, celui-ci comment ça arrive. **Constat du read-before-code** :
+    deux limites distinctes étaient confondues. `GALAXY_MAX_NODES` borne les constellations ; ce qui
+    borne la vue par défaut, c'est le filtre client `root` + `subject` posé par le §C au vu du rendu
+    réel — supprimer le plafond n'y change rien. **Décisions** : `GALAXY_MAX_NODES` est **SUPPRIMÉ**
+    avec son repli « amas + dépliage » (valeurs jamais mesurées — « seul le MacBook a été vérifié »
+    — repli absent des livrables de la slice B, donc probablement jamais écrit ; et surtout un
+    plafond cache à Massimo une partie de sa propre progression selon un critère matériel, ce qui
+    n'a jamais été défendable) ; trois gardes le remplacent, et elles visent le vrai coût — plafond
+    sur les particules du flux doré (un objet animé par lien à chaque frame, c'est ça qui tue le
+    framerate, pas des sphères statiques), `cooldownTicks` (moteur arrêté après stabilisation, la
+    rotation caméra étant quasi gratuite), repli sans WebGL intact ; animation d'arrivée de la vue
+    par défaut — le cerveau seul, puis les matières naissent au centre et rejoignent leur créneau,
+    l'orbite se traçant derrière la planète (`CORE_IN=420`, `PLANET_STAGGER=80`, `PLANET_TRAVEL=700`
+    `easeOutCubic`, `ORBIT_DRAW=600`, total ≈ 1,3 s), ordre du **PROGRAMME** (un ordre chronologique
+    ferait de cet écran un mini-rejeu et introduirait un classement implicite, §5), une seule fois
+    par visite (rejouer à chaque retour de constellation serait l'animation subie bannie partout
+    ailleurs), `prefers-reduced-motion` → composition finale immédiate. C'est un **TWEEN**, pas une
+    convergence : le §C pose que les planètes sont posées sur des orbites dessinées, « un placement
+    calculé, pas un équilibre » — rallumer le moteur de forces rendrait l'amas refusé le matin même
+    ⚠️ si le placement fixe `fx/fy/fz` le nœud est téléporté, n'affecter `fx/fy/fz` qu'à l'arrivée.
+    Le filtre `root` + `subject` **N'EST PAS TOUCHÉ**. **Dette §6 reformulée, pas éteinte** : la
+    mesure sur les trois appareils reste due, et sur un pire cas semé (référentiel validé complet) —
+    l'iPhone tranche, et s'il ne suit pas ce sont les particules qui tombent, pas les nœuds. **Coût
+    assumé** : on passe d'un plafond dur (qui n'a jamais servi) à des gardes qualitatives. Aucune
+    route, aucun schéma, aucune migration — Accepté (2026-07-31)
+
+- `docs/decisions/adr-0029-addendum-construction-depuis-root.md` — **Construction depuis `root` :
+    une croissance, pas une lecture** — addendum à l'`adr-0029` écrit le même jour : il révise le §3
+    (la frise servait de barre de lecture) et reformule le §4 (autoplay). **Diagnostic du saccadé**,
+    deux causes, aucune n'est un réglage : (1) le pas de temps est la donnée elle-même — la série
+    `timeline` est creuse, une journée de mission allume 5 ou 10 notions dans la même frame ; (2)
+    chaque cran relance le moteur — réassigner `graphData` perd l'identité des objets nœuds, donc
+    leurs positions (`react-force-graph-3d` n'est pas un composant contrôlé, l'`adr-0024` le note
+    déjà). **Décisions** : horloge de **RANG**, une notion à la fois dans l'ordre de `first_lit`
+    (`STAR_CADENCE=120`, `ANCESTOR_LEAD=60`, `BIRTH=480`) — choix doctrinal avant d'être technique,
+    une horloge calendaire violerait les deux interdits du §4 (elle traverserait les vacances en ne
+    montrant rien, ce qui est l'annonce d'une période vide) ; graphe **MUTÉ EN PLACE**, jamais
+    réassigné, chaque nœud naissant aux coordonnées de son parent, `d3ReheatSimulation` à alpha bas
+    (~0.2) ⚠️ jamais `alpha(1)`, c'est la ré-explosion qu'on corrige ; naissance des ancêtres
+    dérivée côté client (une matière naît quand sa première notion descendante s'allume) — aucun
+    changement d'API, `?with_skills=true` suffit déjà ; la frise devient **TÉMOIN** et non commande
+    — plus de curseur, plus de drag, un seul bouton « Revoir » ⚠️ son axe X reste le **JOUR ACTIF**
+    : une première rédaction proposait un axe de rang par cohérence avec l'horloge, c'était faux —
+    cumul contre rang donne une droite, chaque cran ajoutant exactement 1, et la courbe n'aurait
+    plus rien dit ; avec l'axe « jour », une journée à six notions monte en marche d'escalier et
+    c'est ça l'information (écrit dans l'ADR pour que personne ne l'« unifie ») ; à la fin ça ne se
+    fige pas — `autoRotate` et flux doré à particules, comportements déjà en place sur `/galaxy`,
+    rien de nouveau à écrire, et une horloge apériodique par étoile (règle « pas de marionnette ») ;
+    le §4 « aucun autoplay » est **REFORMULÉ**, pas supprimé — l'interdit visait l'animation subie
+    sur la page d'atterrissage, or dans une modale ouverte exprès le démarrage immédiat est l'objet
+    du clic ; nouvelle rédaction : aucune animation ne démarre sur une surface que Massimo n'a pas
+    ouverte pour elle ; la modale rend le graphe **COMPLET** avec ses notions et ne peut donc pas
+    réutiliser la configuration de la vue par défaut, qui en a été explicitement amputée (filtre
+    `root` + `subject`) — l'amas ne se reproduit pas ici parce que la lisibilité vient de l'ordre
+    d'arrivée, pas d'un plafond. **Coûts assumés** : on ne peut plus revenir en arrière dans le
+    temps (le curseur n'était de toute façon utilisable qu'à la souris), et le temps n'est plus à
+    l'échelle dans le canvas — la frise porte seule le relief temporel. Le double `lazy()` du §1
+    tient, l'Accueil reste à zéro Three.js au premier paint. Zéro backend, zéro table, zéro
+    migration, zéro requête — Accepté (2026-07-31)
+
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :
