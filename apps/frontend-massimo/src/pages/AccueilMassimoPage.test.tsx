@@ -63,6 +63,27 @@ const SUBJECTS: GalaxySubject[] = [
   { subject_id: 2, name: "SVT", slug: "svt", lit: 18, total: 26 },
 ];
 
+const XP_HISTORY = {
+  days: [
+    { date: "2026-07-27", xp: 60 },
+    { date: "2026-07-29", xp: 25 },
+    { date: "2026-07-31", xp: 120 },
+  ],
+};
+
+const GAMIFICATION = {
+  total_xp: 205,
+  level: 3,
+  xp_into_level: 5,
+  xp_for_next: 100,
+  regularity: null,
+  badges: [{ code: "explainer", label: "10 notions acquises", icon: "🌟" }],
+  recent: [
+    { amount: 60, reason: "mission_remediation", created_at: "2026-07-31T10:00:00Z" },
+    { amount: 25, reason: "mission_champion", created_at: "2026-07-29T10:00:00Z" },
+  ],
+};
+
 function state(over: Record<string, unknown> = {}) {
   return {
     welcome: null,
@@ -70,6 +91,9 @@ function state(over: Record<string, unknown> = {}) {
     reviews: REVIEWS,
     capsules: { total: 4, seen_count: 1, new_count: 3, view_count: 1 },
     subjects: SUBJECTS,
+    xpHistory: XP_HISTORY,
+    timeline: { points: [{ date: "2026-07-01", lit: 2 }, { date: "2026-07-31", lit: 47 }], total: 47 },
+    gamification: GAMIFICATION,
     loading: false,
     refreshWelcome: vi.fn(),
     ...over,
@@ -124,7 +148,9 @@ describe("Accueil — composition", () => {
       subjects: [{ subject_id: 1, name: "Français", slug: "francais", lit: 0, total: 40 }],
     });
     renderPage();
-    expect(screen.getByText("0")).toBeTruthy();
+    // Cible l'aria-label de la carte plutôt que le texte « 0 » : depuis que les pastilles de
+    // matières portent LEUR compte, plusieurs « 0 » coexistent légitimement à l'écran.
+    expect(screen.getByLabelText(/Ma galaxie : 0 étoiles allumées/)).toBeTruthy();
     expect(screen.getByText(/Ta galaxie t'attend/)).toBeTruthy();
     // Une galaxie qui n'a pas encore commencé est le point de départ normal : pas d'erreur.
     expect(document.body.textContent).not.toMatch(/erreur|impossible|réessay/i);
@@ -151,5 +177,51 @@ describe("Accueil — composition", () => {
     renderPage();
     // Une porte vers du vide est pire que pas de porte : le slot est structuré, non rendu.
     expect(screen.queryByText(/Discuter avec ZETIS/)).toBeNull();
+  });
+});
+
+describe("Accueil — « Mon ciel » et les derniers gains", () => {
+  it("ne rend RIEN pour un jour sans activité — le pendant du test WeekDots", () => {
+    // LE test-verrou de ce chantier. La série est creuse (3 jours sur 5 possibles) : le ciel
+    // doit contenir exactement 3 étoiles. S'il en contenait 5, c'est qu'une case vide aurait
+    // été reconstruite quelque part — la grille de jours manqués qu'on vient d'interdire.
+    renderPage();
+    const sky = screen.getByText("Mon ciel").closest("section") as HTMLElement;
+    expect(sky.querySelectorAll("span[style]")).toHaveLength(XP_HISTORY.days.length);
+  });
+
+  it("annonce un COMPTE qui ne peut que monter, jamais un manque", () => {
+    renderPage();
+    const sky = screen.getByText("Mon ciel").closest("section") as HTMLElement;
+    expect(sky.textContent).toContain("3");
+    expect(sky.textContent).toMatch(/jours d'apprentissage/);
+    expect(sky.textContent).not.toMatch(/%|raté|manqué|perdu|restant|série|depuis \d+ jours/i);
+  });
+
+  it("n'affiche AUCUNE date : ni sous une étoile, ni dans les gains", () => {
+    // Une date rendrait le temps lisible, et donc les intervalles vides avec lui.
+    renderPage();
+    expect(document.body.textContent).not.toMatch(/2026-07-\d\d/);
+    expect(document.body.textContent).not.toMatch(/il y a \d+ jour/i);
+  });
+
+  it("traduit chaque raison d'XP — jamais un identifiant brut à l'écran", () => {
+    renderPage();
+    expect(screen.getByText("Mission terminée")).toBeTruthy();
+    expect(screen.getByText("Défi champion relevé")).toBeTruthy();
+    expect(document.body.textContent).not.toContain("mission_champion");
+  });
+
+  it("ces blocs n'ajoutent AUCUNE action accentuée", () => {
+    // Ce qui est ajouté se regarde. La règle d'or de la page tient toujours.
+    renderPage();
+    expect(accentedActions()).toHaveLength(1);
+  });
+
+  it("un ciel vide ne rend pas la carte — ce n'est pas un état d'erreur", () => {
+    accueil.value = state({ xpHistory: { days: [] } });
+    renderPage();
+    expect(screen.queryByText("Mon ciel")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/erreur|impossible|réessay/i);
   });
 });

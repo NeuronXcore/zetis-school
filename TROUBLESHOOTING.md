@@ -4,6 +4,43 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `Accueil vivant` (2ᵉ addendum ADR-0024) — 2026-07-31
+
+### Un mapping de libellés incomplet, invisible tant que rien ne l'affiche
+
+`lib/gamification.ts` traduisait **3 `reason` sur 8**. Aucun symptôme pendant des mois : `recent`
+était servi par `/api/gamification/summary` mais **rendu nulle part**. Dès qu'on l'affiche
+(« Tes derniers gains »), Massimo lit `mission_champion` en brut.
+
+Les huit valeurs réellement écrites par `award_xp` : `mission_remediation`, `mission_champion`,
+`eli5_reverse`, `diagnostic`, `review`, `review_consolidation`, `quiz_completed`,
+`mindmap_reconstruction`. Un repli neutre a été ajouté — un identifiant technique ne doit jamais
+atteindre l'écran de l'enfant, même si une neuvième valeur apparaît demain.
+
+**Leçon générale** : un champ servi mais jamais rendu ne prouve rien sur sa présentabilité. Avant
+d'afficher une donnée qui dormait dans un contrat, vérifier ce qu'elle contient *réellement* en
+base, pas ce que le type promet.
+
+### Regrouper par jour en UTC, le défaut qu'on venait déjà de corriger une fois
+
+`xp_history` bucketise en **Europe/Paris** via `activity.timeutils.local_day`, pas en UTC. C'est
+précisément le défaut relevé sur le **streak retiré** (`gamification/service.py`, docstring) : un
+travail à 23h30 heure française tombait la veille.
+
+Le module `activity` est importé pour cette seule fonction — pure, sans DB, sans domaine. Ce
+n'est pas une entorse à la doctrine de séparation : ce qui est interdit, c'est de faire remonter
+son **tracking** chez Massimo, pas de réutiliser son utilitaire de fuseau.
+
+### Un test qui visait un texte trop générique
+
+`AccueilMassimoPage.test.tsx` vérifiait la galaxie à zéro par `getByText("0")`. Dès que les
+pastilles de matières ont porté leur propre compte, plusieurs « 0 » ont coexisté légitimement à
+l'écran et le test est tombé sur « Found multiple elements ».
+
+Réécrit sur l'`aria-label` de la carte (`Ma galaxie : 0 étoiles allumées`) : **plus précis**, pas
+plus permissif. Un test qui échoue parce que l'écran s'est enrichi n'est pas forcément un test à
+assouplir — souvent c'est une assertion qui n'avait jamais désigné ce qu'elle croyait désigner.
+
 ## Chantier `Accueil & Galaxie` — slice B (addendum ADR-0024) — 2026-07-31
 
 ### Le test de budget qui n'aurait PAS attrapé la régression qu'il vise

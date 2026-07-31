@@ -98,16 +98,20 @@ describe("useAccueil", () => {
     const { result } = renderHook(() => useAccueil());
     await waitFor(() => expect(result.current.loading).toBe(false));
     // La liste reste EXHAUSTIVE : c'est elle qui interdit d'ajouter un champ dérivé en douce.
-    // `capsules` et `subjects` sont des payloads serveur bruts, ajoutés le 2026-07-31 par la
-    // refonte de l'Accueil (raccourci Capsule et carte « Ma Galaxie »).
+    // Tous les ajouts du 2026-07-31 sont des payloads serveur BRUTS — `capsules` et `subjects`
+    // (refonte de l'Accueil), puis `xpHistory`, `timeline` et `gamification` (Accueil vivant).
+    // Aucun n'est un chiffre composé côté client, et c'est ce que ce test protège.
     expect(Object.keys(result.current).sort()).toEqual([
       "capsules",
+      "gamification",
       "loading",
       "refreshWelcome",
       "reviews",
       "subjects",
+      "timeline",
       "today",
       "welcome",
+      "xpHistory",
     ]);
   });
 

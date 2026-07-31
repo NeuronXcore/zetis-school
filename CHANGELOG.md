@@ -1,5 +1,46 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.32.0 — Un Accueil vivant, sans cadrage de perte
+
+Date : 2026-07-31 · branche `feat/accueil-vivant` · addendum ADR-0024 « Accueil vivant »
+
+> L'Accueil recomposé le matin même était calme — c'était le but — mais **pauvre** : hors la
+> mission du jour, Massimo n'y lisait qu'une semaine de sept cases. La demande était une page
+> plus vivante, avec la **heatmap de Papa** en référence. Elle est **refusée par écrit**, et
+> remplacée par la même idée retournée.
+
+- **La heatmap est refusée, avec ses trois murs indépendants** : sa route a été supprimée
+  (ADR-0028) et vit dans un agrégat `require_parent` ; `CLAUDE.md` interdit le « décompte de
+  jours manqués, sous quelque forme que ce soit », et les cases vides d'une grille **sont** ce
+  décompte ; `WeekDots.test.tsx:32` le verrouille par un test. Écrit dans l'ADR pour ne pas être
+  redemandé dans six mois.
+- **« Mon ciel » — la heatmap retournée** : une étoile par jour où Massimo a gagné du XP,
+  **sans grille et sans axe de temps**. Sans axe, il n'y a aucun intervalle vide à lire : la
+  carte ne *peut pas* devenir punitive, même mal réutilisée. Placement **déterministe** dérivé
+  de la date (jamais `Math.random`) — un ciel qui se réarrange à chaque visite ne serait pas le
+  sien. Éclat ∝ XP du jour, rampe indigo → cyan → blanc, `prefers-reduced-motion` respecté.
+- **`GET /api/gamification/history` — première route élève d'historique.** Les **jours sans XP
+  sont OMIS** du payload, jamais renvoyés à zéro : le garde-fou est dans le **contrat**, pas dans
+  l'UI, donc aucun client futur ne pourra dessiner une case vide sans avoir lu l'ADR. Aucune
+  minute, aucune session, aucun `event_type` — on ne chronomètre pas l'enfant. Regroupement en
+  **Europe/Paris**, le défaut exact qui avait été relevé sur le streak retiré. Fenêtre bornée
+  serveur. **Aucune migration.**
+- **« Tes derniers gains », à coût nul** : `recent` et `badges` étaient déjà servis par
+  `/api/gamification/summary` — que le bandeau XP appelle **déjà sur cette page** — et n'étaient
+  **rendus nulle part**. Aucune requête ajoutée. Le mapping des `reason` passe de **3 à 8** : il
+  ne couvrait qu'un tiers des valeurs, sans conséquence tant que rien ne les affichait.
+- **La frise revient sur l'Accueil.** Elle en était partie le matin même, emportée par
+  association avec le canvas 3D — le coût à annuler était **Three.js**, pas quelques lignes de
+  SVG. Le motif tient : le test de budget de bundle reste vert, aucun moteur 3D ne revient.
+- **Les pastilles de matières portent leur compte.** Un **compte**, jamais un pourcentage ;
+  l'ordre reste celui du programme — trier par étoiles en ferait un palmarès.
+
+**Test-verrou de la slice** : le ciel ne rend **aucun élément** pour un jour sans activité — le
+pendant, sur la nouvelle surface, de l'invariant `WeekDots`. Aucune date n'est affichée nulle
+part : une date rendrait le temps lisible, et les intervalles vides avec lui.
+
+646 tests backend + 206 Massimo, `tsc -b` et build verts.
+
 ## 0.31.0 — La Galaxy prend sa route, l'Accueil cesse de payer la 3D
 
 Date : 2026-07-31 · branche `feat/accueil-galaxy` · addendum ADR-0024

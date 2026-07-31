@@ -4,6 +4,9 @@ import { useAccueil } from "../hooks/useAccueil";
 import { useMotivationWeek } from "../hooks/useMotivationWeek";
 import { HomeAgendaBanner } from "../components/agenda/HomeAgendaBanner";
 import { HomeGalaxyCard } from "../components/galaxy/HomeGalaxyCard";
+import { ProgressSparkline } from "../components/galaxy/ProgressSparkline";
+import { RecentGains } from "../components/home/RecentGains";
+import { SkyMap } from "../components/home/SkyMap";
 import { ZetisHeroSlot } from "../components/home/ZetisHeroSlot";
 import { ZetisMessageCard } from "../components/motivation/ZetisMessageCard";
 import { WeekDots } from "../components/motivation/WeekDots";
@@ -16,15 +19,19 @@ import { WeekGoalPicker } from "../components/motivation/WeekGoalPicker";
 // « Commencer » sans handler : ZETIS félicitait Massimo pour des chiffres qui n'existaient pas.
 // Tout ce qui est affiché ici vient du serveur, ou n'est pas affiché.
 //
-// Ce que l'Accueil ne fait PLUS depuis le 2026-07-31 : le canvas Galaxy 3D et la frise de
-// progression (partis dans `/galaxy` — l'Accueil ne charge plus Three.js, ni directement ni
-// transitivement), et le compteur de révisions en retard (`total_due`, remplacé par
-// `flash_size`) — un compteur de retard sur l'écran d'accueil est la pression quotidienne
-// anxiogène qu'interdit `CLAUDE.md`.
+// Ce que l'Accueil ne fait PLUS depuis le 2026-07-31 : le canvas Galaxy 3D (parti dans
+// `/galaxy` — l'Accueil ne charge plus Three.js, ni directement ni transitivement) et le
+// compteur de révisions en retard (`total_due`, remplacé par `flash_size`) — un compteur de
+// retard sur l'écran d'accueil est la pression quotidienne anxiogène qu'interdit `CLAUDE.md`.
+//
+// Enrichie le même jour (addendum « Accueil vivant ») : « Mon ciel », « Mon chemin » et « Tes
+// derniers gains ». La frise, elle, REVIENT — elle avait été emportée par association avec le
+// canvas, alors que le coût à annuler était Three.js et pas quelques lignes de SVG.
 //
 // UNE SEULE ACTION ACCENTUÉE sur la page : « Commencer ». Tout le reste est secondaire ou une
 // simple porte. Quand il n'y a pas de mission, la page n'a AUCUNE action accentuée — et c'est
-// un état valide, pas un défaut à compenser.
+// un état valide, pas un défaut à compenser. Ce qui est ajouté ici se REGARDE : le chemin
+// parcouru n'appelle aucun geste, il ne se dispute donc pas avec « Commencer ».
 //
 // Règle de tenue : AUCUN message technique à l'écran de l'enfant. Un appel qui échoue rend un
 // bloc silencieux ou un état serein — jamais un code d'erreur, jamais du rouge.
@@ -40,7 +47,18 @@ const SHORTCUT_CLASS =
 
 export function AccueilMassimoPage() {
   const { user } = useAuth();
-  const { welcome, today, reviews, capsules, subjects, loading, refreshWelcome } = useAccueil();
+  const {
+    welcome,
+    today,
+    reviews,
+    capsules,
+    subjects,
+    xpHistory,
+    timeline,
+    gamification,
+    loading,
+    refreshWelcome,
+  } = useAccueil();
   // Changer d'engagement change ce que ZETIS a à dire : on le recharge.
   const week = useMotivationWeek(refreshWelcome);
   const elected = today?.elected ?? null;
@@ -121,7 +139,14 @@ export function AccueilMassimoPage() {
         )}
       </section>
 
-      {/* ── 3. Ma semaine · Ma Galaxie ─────────────────────────────────────────────────
+      {/* ── 3. Mon ciel — le chemin parcouru, sans grille ni axe de temps ──────────────
+          Une étoile par jour de gain. Voir `SkyMap` : l'absence de grille n'est pas un choix
+          graphique, c'est ce qui rend la carte incapable de désigner un jour manqué. */}
+      {xpHistory && xpHistory.days.length > 0 && (
+        <SkyMap days={xpHistory.days} className="mt-4" />
+      )}
+
+      {/* ── 4. Ma semaine · Ma Galaxie ─────────────────────────────────────────────────
           Côte à côte à partir du grand écran (1.15fr / 1fr) : ce qu'on a fait cette semaine,
           et où on en est globalement. En dessous, empilé — l'ordre de lecture est conservé. */}
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.15fr_1fr]">
@@ -148,7 +173,29 @@ export function AccueilMassimoPage() {
         {subjects && <HomeGalaxyCard subjects={subjects} />}
       </div>
 
-      {/* ── 4. Trois raccourcis, tous SECONDAIRES (bordure, jamais plein) ──────────────── */}
+      {/* ── 5. Mon chemin · Tes derniers gains ─────────────────────────────────────────
+          Deux lectures du même acquis : la courbe pour l'allure, la liste pour le détail
+          immédiat. Les deux se REGARDENT, aucune n'est une action. */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+        {timeline && timeline.points.length > 1 && (
+          <section className="rounded-2xl border border-zetis-border bg-zetis-surface p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zetis-accent-2">
+              Mon chemin
+            </p>
+            {/* ⚠️ SVG maison, AUCUN Three.js : c'est ce qui permet à la frise de revenir ici
+                sans rouvrir le motif du §B (test de budget de bundle).
+                ⚠️ La série est CREUSE — le composant espace ses points uniformément, donc son
+                axe X n'est PAS le temps. Ne jamais l'annoter d'une date. */}
+            <ProgressSparkline timeline={timeline} className="mt-3" />
+          </section>
+        )}
+
+        {gamification && (
+          <RecentGains recent={gamification.recent} badges={gamification.badges} />
+        )}
+      </div>
+
+      {/* ── 6. Trois raccourcis, tous SECONDAIRES (bordure, jamais plein) ──────────────── */}
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {hasFlash && (
           <Link to="/revision" className={SHORTCUT_CLASS}>

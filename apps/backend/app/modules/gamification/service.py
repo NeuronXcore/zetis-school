@@ -10,14 +10,20 @@ par la régularité douce du module `motivation`, un compte hebdomadaire qui ne 
 La composition de `regularity` dans la réponse vit dans le ROUTEUR — ce service reste le grand
 livre de l'économie XP et n'a pas à connaître un module de plus haut niveau."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import StudentProfile, XPEvent
+from app.modules.activity.timeutils import local_day
 
 XP_PER_LEVEL = 100
+
+# Fenêtre de `xp_history`. Bornée SERVEUR : le client choisit une fenêtre, pas l'ampleur du scan
+# (même règle que `/activity/sessions`).
+XP_HISTORY_DEFAULT_DAYS = 90
+XP_HISTORY_MAX_DAYS = 365
 
 # Récompenses par action (le crédit mission vit dans le module missions : +20).
 XP_ELI5_REVERSE = 10
@@ -111,6 +117,47 @@ def _badges(
     if total_xp >= 500:
         add("xp_500", "500 XP", "🌟")
     return earned
+
+
+def xp_history(
+    db: Session, student: StudentProfile, *, days: int = XP_HISTORY_DEFAULT_DAYS
+) -> dict:
+    """Les jours où Massimo a GAGNÉ du XP, du plus ancien au plus récent.
+
+    **Les jours sans gain sont ABSENTS du résultat** — jamais à zéro. C'est le garde-fou de
+    l'addendum ADR-0024 « Accueil vivant » §A : la donnée d'absence n'existe pas, donc rien en
+    aval ne peut en dessiner une. Cf. le docstring de `XpHistoryOut`.
+
+    Pourquoi c'est ici et pas dans `activity` : ce module est le grand livre des RÉCOMPENSES.
+    `activity` porte une doctrine inverse — rien de son tracking ne descend chez Massimo, « un
+    enfant chronométré travaille pour le chronomètre ». Aucune minute, aucune session, aucun
+    `event_type` ne sort d'ici. Et **jamais d'UNION `xp_events`/`learning_events`** : ce serait
+    un double comptage (cf. `LearningEvent`).
+
+    Le regroupement se fait en **Europe/Paris** via `local_day`, pas en UTC. C'est exactement le
+    défaut qui avait été relevé sur le streak retiré : bucketiser en UTC décalait un travail de
+    23h30 sur la veille.
+    """
+    window = max(1, min(days, XP_HISTORY_MAX_DAYS))
+    since = datetime.now(timezone.utc) - timedelta(days=window)
+
+    per_day: dict[date, int] = {}
+    for event in db.scalars(
+        select(XPEvent).where(XPEvent.student_id == student.id, XPEvent.created_at >= since)
+    ):
+        day = local_day(event.created_at)
+        per_day[day] = per_day.get(day, 0) + event.amount
+
+    # `> 0` et non `!= 0` : une journée dont le solde retombe à zéro n'a pas d'étoile à allumer,
+    # et surtout ne doit pas apparaître comme un jour « à zéro » — ce serait la case vide qu'on
+    # vient d'interdire, réintroduite par la porte de derrière.
+    return {
+        "days": [
+            {"date": day.isoformat(), "xp": total}
+            for day, total in sorted(per_day.items())
+            if total > 0
+        ]
+    }
 
 
 def summary(db: Session, student: StudentProfile) -> dict:

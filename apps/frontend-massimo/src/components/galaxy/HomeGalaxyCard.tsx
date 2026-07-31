@@ -72,22 +72,27 @@ export function HomeGalaxyCard({ subjects }: HomeGalaxyCardProps) {
       </p>
 
       {planets.length > 0 && (
-        <ul className="mt-4 flex flex-wrap gap-2.5" aria-hidden>
+        // Chaque pastille porte SON COMPTE depuis le 2026-07-31 (addendum « Accueil vivant » §C).
+        // Un COMPTE, jamais un pourcentage ; l'ordre est celui du programme, PAS un classement —
+        // trier par `lit` transformerait la carte en palmarès de matières, que l'ADR-0024 §5
+        // interdit.
+        <ul className="mt-4 flex flex-wrap gap-2" aria-hidden>
           {planets.map((subject) => {
             const icon = subjectIconFor(subject.slug);
             return (
               <li
                 key={subject.slug}
                 // Pictogramme de marque, JAMAIS un emoji (design-system.md §Pictogrammes).
-                className="grid h-10 w-10 place-items-center rounded-full border border-zetis-border bg-zetis-surface-2"
+                className="flex items-center gap-1.5 rounded-full border border-zetis-border bg-zetis-surface-2 py-1 pl-1 pr-2.5 text-xs font-bold"
               >
                 {icon ? (
-                  <img src={icon} alt="" className="h-7 w-7 rounded-full object-cover" />
+                  <img src={icon} alt="" className="h-6 w-6 rounded-full object-cover" />
                 ) : (
-                  <span className="text-xs font-bold text-zetis-muted">
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-zetis-surface text-[10px] text-zetis-muted">
                     {subject.name.charAt(0).toUpperCase()}
                   </span>
                 )}
+                <span className="text-zetis-muted">{subject.lit}</span>
               </li>
             );
           })}

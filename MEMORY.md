@@ -7,9 +7,46 @@
 
 ## État à la reprise
 
-**Branche : `feat/accueil-galaxy`** — chantier **Accueil & Galaxie** (addendum ADR-0024 du
-2026-07-31). **Slices A ET B FAITES**, non poussées. **Prochain pas = vérification humaine dans
-le navigateur, puis push + PR** (une seule PR, les deux slices ensemble).
+**Branche : `feat/accueil-vivant`** — chantier **Accueil vivant** (2ᵉ addendum ADR-0024 du
+2026-07-31), **ouverte PAR-DESSUS `feat/accueil-galaxy`** qui n'est ni poussée ni mergée.
+⚠️ **Les deux PR devront partir dans l'ordre** : `feat/accueil-galaxy` d'abord.
+
+**FAIT** : route `GET /api/gamification/history` + « Mon ciel » + « Tes derniers gains » + retour
+de la frise + pastilles porteuses de leur compte. 646 back + 206 Massimo verts.
+**Prochain pas = vérification humaine dans le navigateur, puis push + les deux PR.**
+
+### Chantier « Accueil vivant » (2ᵉ addendum ADR-0024) — FAIT, non poussé
+
+**La demande** : un Accueil plus vivant, avec la **heatmap de Papa** en référence.
+**La heatmap est REFUSÉE par écrit**, avec ses trois murs **indépendants** (route supprimée par
+l'ADR-0028 et vivant dans un agrégat `require_parent` ; `CLAUDE.md` interdit le décompte de jours
+manqués « sous quelque forme que ce soit » ; `WeekDots.test.tsx:32` le verrouille). Ne pas la
+redemander sans rouvrir ces trois-là.
+
+**Ce qui la remplace** : « Mon ciel », la même idée **retournée** — une étoile par jour de gain,
+**sans grille ni axe de temps**. Sans axe, aucun intervalle vide à lire : la carte ne PEUT PAS
+devenir punitive, même mal réutilisée. C'est le mécanisme, pas une précaution d'UI.
+
+**La décision qui compte, et pourquoi elle tient** : `GET /api/gamification/history` marche sur
+un refus déjà écrit (`motivation/router.py:38` : « un historique d'objectifs manqués serait le
+streak déguisé »). Ce refus est **maintenu** — un **objectif** porte un attendu, donc son
+historique est un relevé d'échecs ; un **XP** est un gain obtenu, et un jour sans gain n'est pas
+un jour raté. **Le garde-fou est dans le CONTRAT** : les jours sans XP sont **omis du payload**,
+donc aucun client futur ne peut dessiner une case vide sans avoir lu l'ADR. Route dans
+`gamification` et **surtout pas** dans `activity`, dont le module porte la doctrine inverse
+(« un enfant chronométré travaille pour le chronomètre »).
+
+**Pièges rencontrés** :
+- le mapping `REASON_LABEL` ne couvrait que **3 `reason` sur 8** — invisible tant que `recent`
+  n'était affiché nulle part, à l'écran de l'enfant dès qu'on l'affiche ;
+- regrouper les XP **en Europe/Paris** (`local_day`), pas en UTC : c'est exactement le défaut
+  relevé sur le streak retiré ;
+- les pastilles portant leur compte ont créé plusieurs « 0 » à l'écran → un test existant visait
+  `getByText("0")`, réécrit sur l'`aria-label` de la carte (précisé, pas assoupli).
+
+**Décisions actives, à ne pas rouvrir** : la frise est REVENUE sur l'Accueil (le §B du 1ᵉʳ
+addendum voulait sortir **Three.js**, pas du SVG maison) ; aucune date n'est affichée nulle part
+sur cette page ; les matières ne sont **jamais** triées par étoiles (ce serait un palmarès).
 
 > ⚠️ **Ce qui n'a PAS été vérifié en vrai** : `/galaxy` et l'Accueil sont derrière
 > `RequireAuth`, et la session de développement n'a pas ouvert de session Massimo. Tout est

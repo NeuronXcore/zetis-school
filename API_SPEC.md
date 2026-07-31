@@ -465,8 +465,37 @@ L'XP est crédité aux moments clés (mission +50 — ADR-0017 §5bis, verbalisa
 ### GET `/gamification/summary`
 
 Synthèse de progression de l'élève :
-`{ total_xp, level, xp_into_level, xp_for_next, streak_days, active_today, badges: [{ code, label, icon }], recent: [{ amount, reason, created_at }] }`.
-Niveau = `total_xp // 100 + 1` ; streak = jours consécutifs d'activité (tolérance d'un jour).
+`{ total_xp, level, xp_into_level, xp_for_next, regularity, badges: [{ code, label, icon }], recent: [{ amount, reason, created_at }] }`.
+Niveau = `total_xp // 100 + 1`. `recent` = les **5 derniers** événements XP, non paramétrable.
+
+> `streak_days` / `active_today` ont été **retirés** avec le streak : ils tombaient à zéro après
+> un seul jour manqué. `regularity` (module `motivation`) les remplace — un compte hebdomadaire
+> qui ne peut pas casser.
+
+### GET `/gamification/history?days=90` (élève)
+
+Les jours où Massimo a **gagné** du XP, du plus ancien au plus récent. Jour **Europe/Paris**.
+
+```json
+{ "days": [{ "date": "2026-07-29", "xp": 60 }, { "date": "2026-07-31", "xp": 120 }] }
+```
+
+⚠️ **Les jours sans XP sont OMIS.** Jamais renvoyés à zéro, jamais complétés côté serveur — et
+il ne faut **jamais** les reconstruire côté client. Ce n'est pas une optimisation de payload :
+c'est le garde-fou de l'addendum ADR-0024 « Accueil vivant » §A. La donnée d'absence **n'existe
+pas**, donc aucun consommateur ne peut dessiner une case vide, une grille de présence ou un
+« depuis N jours » — le décompte de jours manqués qu'interdit `CLAUDE.md`.
+
+Ce que cette route **ne sert pas**, et ne servira pas : aucune minute, aucune session, aucun
+`event_type`. On ne chronomètre pas l'enfant (cf. la doctrine du module `activity`). Et **jamais
+d'UNION `xp_events` / `learning_events`** : ce serait un double comptage.
+
+Distinction avec le refus de `motivation` (« un historique d'objectifs manqués serait le streak
+déguisé ») : un **objectif** porte un attendu, donc son historique est un relevé d'échecs ; un
+**XP** est un gain obtenu, et un jour sans gain n'est pas un jour raté.
+
+Fenêtre bornée serveur : `1 ≤ days ≤ 365`, **422** hors bornes. Consommateur : « Mon ciel » sur
+l'Accueil. Aucune table, aucune migration — `xp_events` existe depuis l'étape 16.
 
 ## Révision (spaced memory)
 
