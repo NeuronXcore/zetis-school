@@ -29,6 +29,17 @@ describe("usePageviewTelemetry", () => {
     expect(sendPageview).toHaveBeenCalledTimes(1);
   });
 
+  it("n'envoie rien pour une route qui ne fait que rediriger", () => {
+    // `/progression` ne rend aucune page depuis le 2026-07-31 : la compter ferait apparaître
+    // DEUX visites dans le cahier de bord de Papa là où Massimo n'en a fait qu'une.
+    mockPathname.value = "/progression";
+    const { rerender } = renderHook(() => usePageviewTelemetry());
+    mockPathname.value = "/galaxy";
+    rerender();
+
+    expect(vi.mocked(sendPageview).mock.calls.map(([route]) => route)).toEqual(["/galaxy"]);
+  });
+
   it("envoie à chaque VRAI changement de route, retour compris", () => {
     const { rerender } = renderHook(() => usePageviewTelemetry());
 

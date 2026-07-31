@@ -19,11 +19,15 @@ import {
   statusCounts,
 } from "@zetis/ui/galaxy";
 
-// Page Progression Massimo = ZETIS Galaxy (ADR-0024).
+// Page Ma Galaxie (`/galaxy`) = ZETIS Galaxy (ADR-0024, renommée par l'addendum du 2026-07-31).
 //
-// La Galaxy n'est pas une page de plus : elle EST la page de progression. L'ancienne section
+// La Galaxy n'est pas une page de plus : elle EST la surface de progression. L'ancienne section
 // « par matière », qui affichait des pourcentages MOCKÉS, a disparu — la galaxie est la donnée
 // réelle qu'elle attendait. XP, badges et activité récente sont conservés autour du canvas.
+//
+// La route s'appelait `/progression` jusqu'au 2026-07-31 : un mot d'adulte hérité du mock que
+// cette page remplaçait, alors qu'elle ne mesure rien. Renommage, pas ajout — `/progression`
+// ne survit qu'en redirection permanente (`App.tsx`), et la surface reste UNIQUE.
 //
 // Ce que cette page ne fera jamais : un pourcentage de maîtrise, un classement de matières,
 // une couleur d'échec, ou un capital qu'on peut perdre. Une étoile allumée ne s'éteint pas
@@ -36,7 +40,7 @@ const GalaxyCanvas = lazy(() =>
   import("@zetis/ui/galaxy/canvas").then((m) => ({ default: m.GalaxyCanvas })),
 );
 
-export function ProgressionPage() {
+export function GalaxyPage() {
   const galaxy = useGalaxy();
   const [searchParams, setSearchParams] = useSearchParams();
   const [webgl] = useState(hasWebGL);

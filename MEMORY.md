@@ -7,14 +7,63 @@
 
 ## État à la reprise
 
-**Branche : `feat/login-intro-avatars`** — chantier **connexion** (intro de marque plein écran +
-une page de login par profil), **PR [#59](https://github.com/NeuronXcore/zetis-school/pull/59)
-ouverte**, `main` rapatriée dedans et conflit `CHANGELOG` résolu. **Prochain pas = merger #59.**
+**Branche : `feat/accueil-galaxy`** — chantier **Accueil & Galaxie** (addendum ADR-0024 du
+2026-07-31). **Slice A (renommage de route) FAITE**, non poussée. **Prochain pas = slice B**
+(refonte de l'Accueil), prompt `prompts/claude-code/prompt-accueil-galaxy-slice-b-accueil.md`.
+Une seule PR à la fin, slices A et B ensemble.
 
-> ✅ **Dashboard Papa v2 MERGÉ** — PR [#60](https://github.com/NeuronXcore/zetis-school/pull/60)
-> en squash → `origin/main` = **`04b6814`** (2026-07-31), branche `feat/dashboard-papa-v2`
-> supprimée. **NE PAS RÉ-IMPLÉMENTER.** Migration **`a9b8c7d6e5f4`** (`skill_mastery_history`)
-> appliquée sur Postgres dev — elle se rejoue seule au démarrage.
+> ✅ **Connexion MERGÉE** — PR [#59](https://github.com/NeuronXcore/zetis-school/pull/59) et
+> **Dashboard Papa v2** PR [#60](https://github.com/NeuronXcore/zetis-school/pull/60) sont
+> **toutes deux mergées** : `origin/main` = **`96becd8`** (2026-07-31). **NE PAS RÉ-IMPLÉMENTER.**
+> Migration **`a9b8c7d6e5f4`** (`skill_mastery_history`) appliquée sur Postgres dev — elle se
+> rejoue seule au démarrage.
+
+### Chantier en cours — Accueil & Galaxie (addendum ADR-0024, 2026-07-31)
+
+**Slice A — renommage `/progression` → `/galaxy`. FAITE.** `git mv ProgressionPage.tsx →
+GalaxyPage.tsx`, `/progression` réduite à `<Navigate to="/galaxy" replace />` (**premier
+`<Route element={<Navigate>}>` du repo côté Massimo**), sidebar « **Ma Galaxie** » 🌌 **à la même
+position** (11ᵉ sur 13 — le renommage ne devient PAS une 6ᵉ entrée, ADR-0024 §1), bandeau XP,
+`MatieresPage`, `motivationVisuals.ROUTES` (**la clé reste `progression`** : c'est un `target`
+servi par le backend, pas une URL) et `NotionActionPanel.returnTo` repointés.
+188 tests Massimo + 270 Papa + les 2 builds **verts**.
+
+**Cinq écarts réels trouvés au read-before-code** (les documents étaient en avance ou en retard
+sur le code) :
+
+1. **`GET /api/student/galaxy/overview` n'existe pas** — c'est `GET /api/student/galaxy` (chemin
+   vide, `galaxy/router.py:29`). Et `/overview` **serait capturé** par
+   `GET /student/galaxy/{subject_slug}` : 404 « matière inconnue », pas 404 de route. La fonction
+   client s'appelle `fetchGalaxyOverview`, d'où la confusion. `page-accueil.md` corrigée.
+2. **Le contrat ne porte aucun compte GLOBAL** d'étoiles : `lit`/`total` sont **par matière**.
+   La carte Galaxie de la slice B devra **sommer côté client**.
+3. **`ProgressionPage.test.tsx` n'existait pas** — le prompt de slice A supposait de le déplacer.
+   Couverture indirecte seulement (`components/galaxy/*.test.tsx`).
+4. **Le mapping route → libellé du §D n'existait NULLE PART** (ni Papa, ni serveur) : le serveur
+   sert la route **brute** comme `detail` (`activity/service.py:_detail_for`) et Papa la rendait
+   **verbatim**. Il n'y avait rien à étendre — il y avait quelque chose à **créer**. Fait côté
+   client Papa (`lib/routeLabels.ts`), donc **« zéro backend » tient**.
+5. **Ni outillage de bundle, ni CI** (`.github/workflows` absent) : le « test de budget » de la
+   slice B est **à concevoir de zéro** (Vitest sur le graphe d'imports).
+
+**Décisions prises pendant ce cadrage, à ne pas rouvrir :**
+
+- **`HomeAgendaBanner` RESTE sur l'Accueil** en slice B. La spec réécrite et la maquette v2 ne le
+  montrent pas, mais c'est le **seul accès à `/agenda`** en phase 0 (l'agenda n'a pas d'entrée de
+  sidebar, ADR-0025). Ce sont **la spec et la maquette** qui seront corrigées.
+- **La « brique » du §C est bien plus grosse que l'addendum ne le dit.** `HomeGalaxyPreview.tsx`
+  (~420 lignes) n'est pas un graphe : c'est une **expérience Galaxy complète** (canvas `lazy()`,
+  recherche, `SubjectKpiRow`, frise, légende, panneau d'actions, **son propre plein écran à deux
+  niveaux**). `GalaxyPage` a **son propre** écran d'ensemble, sa constellation et son plein écran.
+  Le §4 de la slice B est donc une **FUSION de deux implémentations concurrentes**, pas un
+  déplacement — **à arbitrer avant d'écrire une ligne** (le prompt prévoit ce stop).
+
+**Pièges de renommage (vérifiés, ne pas y toucher)** : Papa a **sa propre route `/progression`**
+(`frontend-papa/src/App.tsx:42`, `lib/navigation.ts:30`) — homonyme ; et
+`backend/modules/dashboard/service.py:472` fabrique `href: /progression?subject=…` qui pointe la
+route **Papa** (dashboard `/api/parent/dashboard` → `ZetisReadingCard.tsx:75`). `packages/ui` ne
+contient **aucune** référence à la route. `interface Progression` de `hooks/useMatieres.ts` et
+`mission_type='progression'` sont des homonymes de domaine.
 
 > ⚠️ **Versions du CHANGELOG** : les deux chantiers avançaient en parallèle et revendiquaient tous
 > deux `0.29.0`. Le dashboard ayant été mergé en premier garde `0.29.0` (+ `0.29.1` pour le

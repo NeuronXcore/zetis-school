@@ -195,7 +195,7 @@ l'existant validé, et renvoie une **action** concrète (`ChatMessageOut.action`
 |---|---|---|
 | « Explique-moi X » | `/eli5?skill_id=<id>&name=<nom>` | **notion** ✅ |
 | « Reconstruis la carte C » | `/mindmaps/reconstruire/<mindmapId>` | **carte** ✅ |
-| « Mes fiches / cours / mindmaps / révision / progression de M » | `/fiches/<slug>`, `/subjects/<slug>/cours`, `/mindmaps/<slug>`, `/revision?subject=<slug>`, `/progression?subject=<slug>` | **matière** (fiche exacte non ciblable — l'UI le dit sans mentir) |
+| « Mes fiches / cours / mindmaps / révision / progression de M » | `/fiches/<slug>`, `/subjects/<slug>/cours`, `/mindmaps/<slug>`, `/revision?subject=<slug>`, `/galaxy?subject=<slug>` | **matière** (fiche exacte non ciblable — l'UI le dit sans mentir) |
 | « Mon agenda / mes devoirs » | carte inline (`/agenda/week`+`splitSections`) + bouton `/agenda` | **données** |
 | « Qu'est-ce que je dois réviser » | carte inline (`/reviews/summary`) + bouton `/revision` | **données** |
 | « Mes missions » | carte inline (`/missions/today`) + bouton `/missions` | **données** |

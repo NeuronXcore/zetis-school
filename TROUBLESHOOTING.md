@@ -4,6 +4,47 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `Accueil & Galaxie` — slice A (addendum ADR-0024) — 2026-07-31
+
+### Une route qui n'existe pas et qui ne renvoie même pas le bon 404
+
+La spec de page annonçait `GET /api/student/galaxy/overview`. Le vrai chemin est
+`GET /api/student/galaxy` — **chemin vide** (`galaxy/router.py:29`), la fonction cliente
+s'appelant `fetchGalaxyOverview`, d'où la confusion.
+
+Le piège n'est pas le 404, c'est **lequel** : `/overview` serait absorbé par
+`@student_router.get("/{subject_slug}")`, déclarée en dernier. On aurait donc obtenu
+« matière inconnue » — un message qui envoie chercher un bug de données là où c'est le **chemin**
+qui est faux. L'ordre de déclaration des routes de ce module est *load-bearing* et commenté comme
+tel : toute route littérale doit passer **avant** `/{subject_slug}`.
+
+Second écart du même contrat : il ne porte **aucun compte global** d'étoiles, seulement `lit` et
+`total` **par matière**. Tout affichage « toutes matières confondues » est une somme client.
+
+### Une redirection compte comme une page vue, et fabrique un doublon dans le cahier de bord
+
+`usePageviewTelemetry` envoie le `pathname` à chaque changement de route, et ne dédupe que les
+routes **consécutives identiques** (le serveur fait pareil, sur la route brute). Une redirection
+`<Navigate to="/galaxy" replace />` posée sur `/progression` traverse donc **deux** routes
+différentes pour **une** visite : Papa aurait vu la même page deux fois de suite dans son cahier
+de bord, sans rien pour l'expliquer.
+
+Correctif : `REDIRECT_ONLY_ROUTES` dans le hook — une route qui ne rend aucune page n'est pas une
+page vue. À alimenter si une autre redirection est ajoutée un jour.
+
+### Le mapping route → libellé côté Papa n'existait pas — il n'y avait rien à « étendre »
+
+L'addendum §D demandait de faire accepter **deux** valeurs à un mapping supposé existant. Il
+n'existait **nulle part** : le serveur sert la route **brute** comme `detail`
+(`activity/service.py:_detail_for`) et `ActivityEntryRow` la rendait **verbatim** — Papa lisait
+« Navigation · /eli5 ».
+
+Conséquence à ne pas sous-estimer : `learning_events` est **append-only** et rien ne réécrit
+l'historique. Sans traduction, les visites d'avant le renommage (`/progression`, du 2026-07-28 au
+2026-07-31) et celles d'après (`/galaxy`) resteraient **deux pages distinctes pour toujours**.
+Créé en `apps/frontend-papa/src/lib/routeLabels.ts` — donc **sans backend**, comme annoncé, mais
+c'est du travail **neuf**, pas une extension.
+
 ## Chantier `Dashboard Papa v2` (ADR-0028) — 2026-07-31
 
 ### Un test peut verrouiller une contradiction

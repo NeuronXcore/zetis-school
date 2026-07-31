@@ -181,7 +181,7 @@ export function HomeGalaxyPreview() {
         />
       </Suspense>
     ) : (
-      <p className="p-6 text-sm text-zetis-muted">🌱 Ta galaxie t'attend dans Progression.</p>
+      <p className="p-6 text-sm text-zetis-muted">🌱 Ta galaxie t'attend dans Ma Galaxie.</p>
     );
 
   const notionCount = graph.nodes.filter((n) => n.kind === "skill").length;

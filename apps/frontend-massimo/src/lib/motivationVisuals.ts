@@ -41,7 +41,9 @@ const ROUTES: Record<string, string> = {
   mindmaps: "/mindmaps",
   eli5: "/eli5",
   capsules: "/capsules",
-  progression: "/progression",
+  // La CLÉ reste `progression` : c'est un `target` servi par le backend (énuméré du contrat
+  // motivation), pas une URL. Seule la destination est renommée (addendum ADR-0024 §A).
+  progression: "/galaxy",
   accueil: "/",
 };
 

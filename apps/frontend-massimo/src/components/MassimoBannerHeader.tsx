@@ -66,7 +66,7 @@ export function MassimoBannerHeader() {
           {/* Le niveau ouvre la galaxie (ADR-0024 §7) : le bandeau est présent sur toutes
               les pages, c'est l'accès permanent à la progression. */}
           <Link
-            to="/progression"
+            to="/galaxy"
             className="rounded-lg px-1 py-0.5 text-left transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
             aria-label={`Massimo, niveau ${level}, ${totalXp} XP — voir ma galaxie`}
           >
