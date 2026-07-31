@@ -5,13 +5,9 @@
 # --- Étape 1 : build du bundle Vite (monorepo pnpm) ---
 FROM node:20-bookworm-slim AS build
 ARG APP
-# URL du backend/frontends bakées au build (défaut = ports miroir du dev, cf. authClient/LoginPage).
+# URL du backend bakée au build (défaut = port miroir du dev, cf. authClient).
 ARG VITE_API_URL=http://localhost:8000
-ARG VITE_MASSIMO_URL=http://localhost:5173
-ARG VITE_PAPA_URL=http://localhost:5174
-ENV VITE_API_URL=${VITE_API_URL} \
-    VITE_MASSIMO_URL=${VITE_MASSIMO_URL} \
-    VITE_PAPA_URL=${VITE_PAPA_URL}
+ENV VITE_API_URL=${VITE_API_URL}
 RUN corepack enable
 WORKDIR /repo
 COPY . /repo

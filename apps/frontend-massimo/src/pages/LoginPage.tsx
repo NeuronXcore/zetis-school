@@ -1,9 +1,7 @@
 import { LoginScreen } from "@zetis/auth";
 
-// Page de connexion Massimo (Étape 18) — écran ZETIS partagé, profil « massimo ».
-// Le sélecteur « Papa » redirige vers le frontend Papa.
-const PAPA_URL = import.meta.env.VITE_PAPA_URL ?? "http://localhost:5174";
-
+// Page de connexion de l'espace Massimo (port 5173). L'écran est propre à ce profil :
+// l'auth est par app, chaque frontend n'accepte que son rôle.
 export function LoginPage() {
-  return <LoginScreen role="massimo" otherAppUrl={PAPA_URL} />;
+  return <LoginScreen role="massimo" />;
 }

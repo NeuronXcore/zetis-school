@@ -7,15 +7,20 @@
 
 ## État à la reprise
 
-**Branche : `feat/dashboard-papa-v2`** (créée depuis `main` = `467e095`) — chantier **Dashboard
-Papa v2 (ADR-0028)** : **✅ COMPLET, 11 commits, RIEN DE POUSSÉ, aucune PR.** Working tree propre.
-**Prochain pas = pousser + ouvrir la PR** (voir §PROCHAIN PAS).
+**Branche : `feat/login-intro-avatars`** — chantier **connexion** (intro de marque plein écran +
+une page de login par profil), **PR [#59](https://github.com/NeuronXcore/zetis-school/pull/59)
+ouverte**, `main` rapatriée dedans et conflit `CHANGELOG` résolu. **Prochain pas = merger #59.**
 
-> ⚠️ La branche `feat/login-intro-avatars` (commit `0d1c9ce`, intro de marque + login par profil)
-> est **intacte et non poussée** elle aussi. Elle n'a rien à voir avec ce chantier : les fichiers du
-> dashboard y avaient été déposés par erreur, ils ont été transférés proprement.
+> ✅ **Dashboard Papa v2 MERGÉ** — PR [#60](https://github.com/NeuronXcore/zetis-school/pull/60)
+> en squash → `origin/main` = **`04b6814`** (2026-07-31), branche `feat/dashboard-papa-v2`
+> supprimée. **NE PAS RÉ-IMPLÉMENTER.** Migration **`a9b8c7d6e5f4`** (`skill_mastery_history`)
+> appliquée sur Postgres dev — elle se rejoue seule au démarrage.
 
-### Chantier « Dashboard Papa v2 » (ADR-0028) — COMPLET, à pousser
+> ⚠️ **Versions du CHANGELOG** : les deux chantiers avançaient en parallèle et revendiquaient tous
+> deux `0.29.0`. Le dashboard ayant été mergé en premier garde `0.29.0` (+ `0.29.1` pour le
+> correctif du relais SRS) ; la connexion est **renumérotée `0.30.0`**.
+
+### Chantier « Dashboard Papa v2 » (ADR-0028) — MERGÉ, détail conservé pour les pièges
 
 `b758580` doc · `6479985` historique de maîtrise · `7b63f62` agrégat · `ae4fd42` temps hors matière
 · `bd82fe5` front · `6518094` Conseil query params · `6682aeb` nettoyage · `3fa8baa` mission
@@ -629,11 +634,14 @@ utile sur du visuel.
 
 ### PROCHAIN PAS
 
-**0 bis. POUSSER `feat/dashboard-papa-v2` ET OUVRIR LA PR** — 11 commits, rien n'est poussé, aucune
-PR n'existe. Tests, typecheck et build sont verts, et le comportement a été vérifié à l'écran.
-Restent à la charge du user, que l'agent ne peut pas faire : relire l'**amendement de l'ADR-0017
-§5bis** (c'est un changement de doctrine du moteur de missions, pas un correctif d'affichage) et
-décider du sort de `feat/login-intro-avatars`, non poussée elle aussi.
+**0 bis. MERGER LA PR [#59](https://github.com/NeuronXcore/zetis-school/pull/59)** (connexion) —
+`main` est rapatriée dans la branche, le conflit `CHANGELOG` est résolu et la version renumérotée
+en `0.30.0`. C'est la dernière PR ouverte.
+
+> ~~Pousser `feat/dashboard-papa-v2` et ouvrir la PR~~ → **fait, mergé** (PR #60, `04b6814`).
+> Reste à la charge du user, que l'agent ne peut pas faire : relire l'**amendement de l'ADR-0017
+> §5bis** — c'est un changement de **doctrine** du moteur de missions, pas un correctif
+> d'affichage.
 
 0. **Ouvrir la PR de `feat/galaxy`** — la branche est poussée, rien n'est mergé.
    Vérifications à la charge du user, que l'agent ne peut pas faire : **MacBook ✅ fait**,

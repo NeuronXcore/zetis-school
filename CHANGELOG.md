@@ -1,5 +1,79 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.30.0 — Connexion : une intro de marque, puis la porte de chacun
+
+Date : 2026-07-30, mergée le 2026-07-31 · branche `feat/login-intro-avatars`
+
+> Renumérotée de 0.29.0 à 0.30.0 : ce chantier et le Dashboard Papa v2 avançaient en parallèle et
+> revendiquaient tous deux 0.29.0. Le dashboard ayant été mergé en premier, il garde le numéro ;
+> deux chantiers distincts ne peuvent pas porter la même version.
+
+> La page de connexion faisait trois choses à la fois : jouer l'animation ZETIS dans une demi-colonne,
+> proposer un choix de profil que l'app ne pouvait pas honorer, et connecter. On sépare les moments :
+> **la marque d'abord, l'identité ensuite**.
+
+- **Intro de marque plein écran (`BrandIntro`, `packages/auth`)** : l'animation `zetis-logo.mp4` sort
+  de la colonne et prend tout l'écran, fondu vers le wordmark puis fondu de sortie qui révèle le login
+  déjà monté derrière. **Jouée une fois par session et par espace** (`sessionStorage`, cloisonné par
+  origine) — pas de rejeu après une erreur de mot de passe ou un retour sur `/login`.
+- **Coupable à tout moment** : clic, n'importe quelle touche, ou bouton « Passer ». `prefers-reduced-motion`
+  la saute d'office.
+- **L'intro ne peut jamais empêcher de se connecter** : autoplay refusé, onglet en arrière-plan, mp4
+  absent ou vidéo bloquée → repli sur le poster puis sortie (garde-fou 8 s). Le double `play()` du
+  StrictMode en dev (AbortError) est neutralisé.
+- **Une page de connexion par profil** : `/login` de Papa affiche **l'avatar de Papa**, celle de Massimo
+  **l'avatar de Massimo**, en héros — avec le nom, l'espace et une accroche propre au rôle. Les deux
+  espaces restent sur **deux ports distincts** (Massimo 5173, Papa 5174).
+- **Retrait du sélecteur croisé** : l'auth étant par app, la tuile « autre profil » n'était qu'un lien
+  vers l'autre port. Les variables `VITE_MASSIMO_URL` / `VITE_PAPA_URL` disparaissent (wrappers
+  `LoginPage` et `infra/docker/frontend.Dockerfile`).
+- **Correctifs d'affichage** : le masque radial du wordmark est resserré (plus de bord rectangulaire
+  visible sur le fond noir) ; « Se souvenir de moi » et « Mot de passe oublié ? » ne se chevauchent
+  plus à 375 px.
+- **Vérifié** : 7 tests `@zetis/auth` (dont 4 sur le portail d'intro) · 182 Massimo · 231 Papa,
+  `tsc -b` + `vite build` verts ; **connexion live jouée de bout en bout sur les deux ports**
+  (mauvais mot de passe → message, puis `papa` et `massimo` → leurs dashboards), rendu contrôlé en
+  1280 px et 375 px, zéro erreur console. Aucun changement backend, aucune migration.
+
+## 0.29.1 — La boucle de révision peut enfin se refermer
+
+Date : 2026-07-31 · amendement `ADR-0017 §5bis` · branche `feat/dashboard-papa-v2`
+
+> Parti d'un symptôme du dashboard — « 1 notion à renforcer sans mission active » à côté d'une carte
+> qui ne proposait rien — l'enquête a trouvé un défaut de fond du moteur de missions.
+
+- **Le relais désigné par la doctrine était inopérant.** `adr-0017 §5bis` promet qu'après un verdict
+  « à revoir » la notion **revient d'elle-même** par le SRS. Or le template `revision` composait
+  `[carte] → [quiz] → relire` **sans étape de réexplication**, alors que le verdict l'exige — et
+  `eli5` est une étape de *consultation* qui n'émet aucune trace de réexplication. Une mission de
+  révision rendait donc **toujours** « à revoir » : la lacune restait ouverte à vie. La
+  contradiction était figée par un test qui asserait « pas de verbalisation ».
+- **Et elle abîmait la mesure à chaque passage** : sans réexplication mesurée, le verdict écrivait
+  `mastery_score = 0`. Massimo faisait sa révision, sa maîtrise s'effondrait, et la carte revenait
+  le lendemain (intervalle du score 0). Désormais, **une absence de mesure n'est plus un zéro** :
+  on n'écrit que ce qu'on a mesuré, et l'intervalle se calcule sur la maîtrise connue. Filet qui
+  couvre aussi les parcours édités par Papa sans étape vocale.
+- **Le générateur de remédiation n'est pas élargi** aux lacunes `in_progress` : la doctrine
+  désignait le SRS, elle tient — il fallait le réparer, pas le contourner. Bump
+  `MISSION_SCORING_VERSION` v3 → v4 (le versionnage couvre les templates de parcours).
+- **`/lacunes` devient la surface de décision qu'elle prétendait être** : la page était un mock
+  inerte alors que le dashboard y renvoyait. Elle sépare maintenant ce qui appelle une
+  consolidation (notion jamais travaillée) de ce qui revient par la révision, et n'utilise que les
+  deux générateurs existants — aucune route nouvelle.
+- **Deux surfaces qui se contredisaient, réconciliées** : le KPI « lacunes sans mission » ne
+  regardait que les missions de *remédiation*, si bien qu'une notion déjà couverte par une mission
+  commandée par Papa était annoncée « sans mission active ». Définition unique et partagée
+  désormais — n'importe quelle mission active répond à la question « reste-t-il un geste à faire ? ».
+- **Le mode focus fait enfin ce qu'il annonce.** La page promettait que « ZETIS priorisera les
+  missions, capsules et révisions sur cette notion jusqu'à sa consolidation » ; son bouton
+  n'écrivait qu'un état local, et **aucun état « focus » n'existe côté backend**. Elle s'appuie
+  maintenant sur le seul levier réel — `Mission.force_priority`, le plancher de score du sélecteur
+  (ADR-0018) — via la route Commander déjà en place. La promesse est réécrite pour dire exactement
+  ce que le moteur fait : *« sa mission passera devant les autres »*, ni plus ni moins.
+- Les entrées mortes de `data/mock.ts` (`Gap`, `GAPS`) disparaissent : plus aucun consommateur. Leur
+  vocabulaire de façade (« forte », « en cours ») ne correspondait de toute façon à aucune valeur du
+  backend (`high`, `in_progress`) — le mock ne pouvait pas être branché tel quel.
+
 ## 0.29.0 — Dashboard Papa : un cockpit, pas un bulletin
 
 Date : 2026-07-31 · ADR-0028 · branche `feat/dashboard-papa-v2`
@@ -44,45 +118,6 @@ Date : 2026-07-31 · ADR-0028 · branche `feat/dashboard-papa-v2`
   création voient les mêmes lacunes, sinon la carte proposerait une notion que le bouton ne
   créerait pas.
 - **Hors v1, assumé** : le bandeau de fraîcheur du Conseil de classe.
-
-## 0.29.1 — La boucle de révision peut enfin se refermer
-
-Date : 2026-07-31 · amendement `ADR-0017 §5bis` · branche `feat/dashboard-papa-v2`
-
-> Parti d'un symptôme du dashboard — « 1 notion à renforcer sans mission active » à côté d'une carte
-> qui ne proposait rien — l'enquête a trouvé un défaut de fond du moteur de missions.
-
-- **Le relais désigné par la doctrine était inopérant.** `adr-0017 §5bis` promet qu'après un verdict
-  « à revoir » la notion **revient d'elle-même** par le SRS. Or le template `revision` composait
-  `[carte] → [quiz] → relire` **sans étape de réexplication**, alors que le verdict l'exige — et
-  `eli5` est une étape de *consultation* qui n'émet aucune trace de réexplication. Une mission de
-  révision rendait donc **toujours** « à revoir » : la lacune restait ouverte à vie. La
-  contradiction était figée par un test qui asserait « pas de verbalisation ».
-- **Et elle abîmait la mesure à chaque passage** : sans réexplication mesurée, le verdict écrivait
-  `mastery_score = 0`. Massimo faisait sa révision, sa maîtrise s'effondrait, et la carte revenait
-  le lendemain (intervalle du score 0). Désormais, **une absence de mesure n'est plus un zéro** :
-  on n'écrit que ce qu'on a mesuré, et l'intervalle se calcule sur la maîtrise connue. Filet qui
-  couvre aussi les parcours édités par Papa sans étape vocale.
-- **Le générateur de remédiation n'est pas élargi** aux lacunes `in_progress` : la doctrine
-  désignait le SRS, elle tient — il fallait le réparer, pas le contourner. Bump
-  `MISSION_SCORING_VERSION` v3 → v4 (le versionnage couvre les templates de parcours).
-- **`/lacunes` devient la surface de décision qu'elle prétendait être** : la page était un mock
-  inerte alors que le dashboard y renvoyait. Elle sépare maintenant ce qui appelle une
-  consolidation (notion jamais travaillée) de ce qui revient par la révision, et n'utilise que les
-  deux générateurs existants — aucune route nouvelle.
-- **Deux surfaces qui se contredisaient, réconciliées** : le KPI « lacunes sans mission » ne
-  regardait que les missions de *remédiation*, si bien qu'une notion déjà couverte par une mission
-  commandée par Papa était annoncée « sans mission active ». Définition unique et partagée
-  désormais — n'importe quelle mission active répond à la question « reste-t-il un geste à faire ? ».
-- **Le mode focus fait enfin ce qu'il annonce.** La page promettait que « ZETIS priorisera les
-  missions, capsules et révisions sur cette notion jusqu'à sa consolidation » ; son bouton
-  n'écrivait qu'un état local, et **aucun état « focus » n'existe côté backend**. Elle s'appuie
-  maintenant sur le seul levier réel — `Mission.force_priority`, le plancher de score du sélecteur
-  (ADR-0018) — via la route Commander déjà en place. La promesse est réécrite pour dire exactement
-  ce que le moteur fait : *« sa mission passera devant les autres »*, ni plus ni moins.
-- Les entrées mortes de `data/mock.ts` (`Gap`, `GAPS`) disparaissent : plus aucun consommateur. Leur
-  vocabulaire de façade (« forte », « en cours ») ne correspondait de toute façon à aucune valeur du
-  backend (`high`, `in_progress`) — le mock ne pouvait pas être branché tel quel.
 
 ## 0.28.0 — Chat ZETIS : un compagnon incarné, qui se souvient et qui parle
 
