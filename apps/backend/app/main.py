@@ -38,6 +38,9 @@ from app.modules.motivation.router import router as motivation_router
 from app.modules.progress.router import router as progress_router
 from app.modules.rag.router import router as rag_router
 from app.modules.content_requests.router import router as content_requests_router
+from app.modules.content_requests.router import (
+    student_router as content_requests_student_router,
+)
 from app.modules.production.router import router as production_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
@@ -93,6 +96,8 @@ app.include_router(progress_router)
 app.include_router(motivation_router)
 app.include_router(production_router)
 app.include_router(content_requests_router)
+# Écriture SEULE côté enfant (addendum ADR-0027) : Massimo demande, il ne lit pas la file.
+app.include_router(content_requests_student_router)
 # ZETIS Galaxy (Massimo) : graphe des connaissances, contenu de la page Progression (ADR-0024).
 app.include_router(galaxy_student_router)
 # Second rendu du MÊME modèle, en liste : l'index de notions de la page matière (addendum

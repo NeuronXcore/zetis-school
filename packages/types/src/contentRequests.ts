@@ -18,7 +18,27 @@ export interface ContentRequest {
   subject_name: string | null;
   content_kind: ContentRequestKind;
   status: ContentRequestStatus;
-  /** Origine (en v1, toujours `chat_orchestrator`). */
+  /** Origine : `chat_orchestrator` (effet de bord d'un tour de chat) ou `subject_page` (geste
+   *  explicite de Massimo sur une pastille grisée). La distinction n'est pas cosmétique — elle
+   *  sépare le SUBI du CHOISI, et c'est ce qui donne sa valeur de priorité à la file de Papa. */
   source: string;
   created_at: string;
+}
+
+/** `POST /api/student/content-requests` (addendum ADR-0027) — corps de la demande de Massimo.
+ *
+ *  Plusieurs `content_kinds` en un appel : « demander à Papa tout ce qui manque » est UN geste
+ *  de l'enfant, il ne doit pas devenir sept lignes de file émises séparément. */
+export interface StudentContentRequestBody {
+  skill_id: number;
+  content_kinds: ContentRequestKind[];
+}
+
+/** Réponse de la même route. **Écriture seule** : les types pris en compte, rien d'autre.
+ *
+ *  Il n'existe **pas** de `GET` élève, et il ne faut pas en ajouter un : Massimo ne lit pas la
+ *  file de Papa. Aucun statut, aucun délai, aucun rappel — ZETIS transmet la demande, il ne
+ *  fabrique rien et ne promet rien. */
+export interface StudentContentRequestResult {
+  requested: ContentRequestKind[];
 }

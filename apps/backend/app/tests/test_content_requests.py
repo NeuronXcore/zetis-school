@@ -4,6 +4,11 @@ Couvre : dédup forte `(student, skill, kind)` = une ligne, `create` idempotent 
 ligne triée, `content_kind` invalide ignoré (best-effort), liste enrichie (skill_name) + triage
 Papa, garde parent (403 child) ; ÉMISSION depuis le chat sur les deux déclencheurs (type manquant ;
 notion résolue mais vide → cours) et caractère NON bloquant de l'émission.
+
+Depuis le 2026-08-01, couvre aussi la **route enfant en écriture** (`POST
+/api/student/content-requests`, addendum ADR-0027) : ses trois garde-fous (vocabulaire fermé,
+plafond, visibilité de la notion) et l'**absence** de toute route de lecture ou de triage côté
+élève — cette absence est une décision, pas un oubli de v1.
 """
 
 import app.db.models as m
@@ -11,8 +16,10 @@ from app.main import app
 from app.modules.auth.deps import get_current_user
 from app.modules.chat import actions
 from app.modules.content_requests import service
+from app.modules.content_requests.schemas import ContentKind
 from app.tests.fakes import FakeLLMProvider
 from app.modules.ai import get_provider
+from app.tests.test_galaxy import _seed_svt
 
 
 def _as_papa() -> None:
@@ -408,3 +415,156 @@ def test_chat_survives_a_real_sql_failure_in_the_queue(client_db, monkeypatch) -
     events = db.query(m.LearningEvent).filter(m.LearningEvent.event_type == "chat_topic").count()
     db.close()
     assert events == 1
+
+
+# --- Route ENFANT en écriture (addendum ADR-0027) ----------------------------------------
+#
+# Décision de SÉCURITÉ : un module jusqu'ici `require_parent` s'ouvre en écriture à l'enfant.
+# Les trois garde-fous ci-dessous sont la contrepartie de cette ouverture, et le troisième
+# (visibilité) est le seul qui empêche la route de devenir un oracle d'existence sur les
+# brouillons de Papa.
+
+_ROUTE = "/api/student/content-requests"
+
+
+def _rows(Session) -> list:
+    db = Session()
+    try:
+        return db.query(m.ContentRequest).all()
+    finally:
+        db.close()
+
+
+def test_le_vocabulaire_du_schema_suit_celui_du_service() -> None:
+    """Test-verrou : le `Literal` du schéma et `service.CONTENT_KINDS` doivent rester alignés.
+
+    Le premier produit le 422, le second garde `create_request`. S'ils divergent, un type serait
+    accepté par la route et jeté en silence par le service — une demande perdue sans erreur."""
+    from typing import get_args
+
+    assert set(get_args(ContentKind)) == set(service.CONTENT_KINDS)
+
+
+def test_une_notion_invisible_rend_404_et_ne_cree_aucune_ligne(client_db) -> None:
+    """LE garde-fou de sécurité. Sans lui, un `skill_id` au hasard répondrait « créé » ou
+    « pas créé » — la route dirait à qui la sonde ce qui existe dans les brouillons de Papa."""
+    client, Session = client_db
+    _seed_svt(Session)
+    invisible = _skill_id(Session)  # « Nombres relatifs » : aucune leçon validée ne la porte
+
+    resp = client.post(_ROUTE, json={"skill_id": invisible, "content_kinds": ["fiche"]})
+    assert resp.status_code == 404
+    assert _rows(Session) == [], "aucune ligne ne doit être créée avant le contrôle"
+
+
+def test_un_skill_id_inexistant_rend_404(client_db) -> None:
+    client, Session = client_db
+    _seed_svt(Session)
+    assert client.post(_ROUTE, json={"skill_id": 999_999, "content_kinds": ["cours"]}).status_code == 404
+    assert _rows(Session) == []
+
+
+def test_un_type_de_contenu_hors_vocabulaire_rend_422(client_db) -> None:
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    resp = client.post(_ROUTE, json={"skill_id": ids["mitose_id"], "content_kinds": ["poster"]})
+    assert resp.status_code == 422
+    assert _rows(Session) == []
+
+
+def test_au_dela_du_plafond_la_demande_est_refusee(client_db) -> None:
+    """`CONTENT_REQUEST_MAX_KINDS` borne la TAILLE de la charge utile (v1 = 7).
+
+    ⚠️ Le vocabulaire ne compte que six types demandables : le plafond ne peut donc être franchi
+    qu'avec des répétitions. C'est bien ce qu'il protège — pas le contenu (rôle du vocabulaire),
+    mais l'ampleur d'un appel."""
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    trop = ["cours", "fiche", "mindmap", "quiz", "capsule", "card", "cours", "fiche"]
+    assert len(trop) > 7
+    resp = client.post(_ROUTE, json={"skill_id": ids["mitose_id"], "content_kinds": trop})
+    assert resp.status_code == 422
+    assert _rows(Session) == []
+
+
+def test_tout_ce_qui_manque_tient_en_un_seul_appel(client_db) -> None:
+    """Le geste « demander à Papa tout ce qui manque » est UN geste : il ne doit pas se
+    fragmenter en six lignes émises séparément."""
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    tout = list(service.CONTENT_KINDS)
+
+    body = client.post(_ROUTE, json={"skill_id": ids["mitose_id"], "content_kinds": tout}).json()
+
+    assert body["requested"] == tout
+    rows = _rows(Session)
+    assert len(rows) == len(tout)
+    assert all(r.status == "pending" for r in rows)
+
+
+def test_la_demande_porte_la_source_de_la_page_matiere(client_db) -> None:
+    """`subject_page` ≠ `chat_orchestrator` : le CHOISI ne se confond pas avec le SUBI, et Papa
+    lit la différence dans sa file."""
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    client.post(_ROUTE, json={"skill_id": ids["mitose_id"], "content_kinds": ["fiche"]})
+    assert _rows(Session)[0].source == "subject_page"
+
+
+def test_deux_demandes_identiques_ne_font_qu_une_ligne(client_db) -> None:
+    """La dédup de `create_request` (non modifié) borne structurellement la répétition : taper
+    dix fois sur « demander » ne noie pas la file de Papa."""
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    payload = {"skill_id": ids["mitose_id"], "content_kinds": ["fiche"]}
+    client.post(_ROUTE, json=payload)
+    client.post(_ROUTE, json=payload)
+    assert len(_rows(Session)) == 1
+
+
+def test_une_demande_triee_est_reactivee_quand_massimo_redemande(client_db) -> None:
+    """Papa avait écarté la demande, le besoin revient → la ligne repasse `pending`, sans doublon."""
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    client.post(_ROUTE, json={"skill_id": ids["mitose_id"], "content_kinds": ["card"]})
+
+    db = Session()
+    service.set_status(db, _rows(Session)[0].id, "dismissed")
+    db.close()
+
+    client.post(_ROUTE, json={"skill_id": ids["mitose_id"], "content_kinds": ["card"]})
+    rows = _rows(Session)
+    assert len(rows) == 1 and rows[0].status == "pending"
+
+
+def test_aucune_route_de_lecture_ni_de_triage_cote_eleve(client_db) -> None:
+    """Écriture SEULE. Un `GET` exposerait `dismissed` à l'enfant et ferait d'une file de travail
+    parent un écran d'attente ; un `PATCH` lui donnerait la main sur le travail de Papa.
+
+    Vérifié sur le CONTRAT DÉCLARÉ (OpenAPI), pas sur des codes HTTP : une 405 pourrait masquer
+    une route montée plus tard sous un autre verbe, et une 403 masquerait une route bien réelle."""
+    client, _ = client_db
+    declare = {
+        (chemin, verbe.upper())
+        for chemin, operations in app.openapi()["paths"].items()
+        if chemin.startswith("/api/student/content-requests")
+        for verbe in operations
+    }
+    assert declare == {("/api/student/content-requests", "POST")}
+
+
+def test_papa_ne_peut_pas_ecrire_sur_la_surface_de_l_enfant(client_db) -> None:
+    """Symétrique de la garde `require_parent` : la file ne se remplit pas depuis l'espace Papa,
+    sinon `source` ne voudrait plus rien dire."""
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    _as_papa()
+    try:
+        resp = client.post(_ROUTE, json={"skill_id": ids["mitose_id"], "content_kinds": ["fiche"]})
+    finally:
+        app.dependency_overrides[get_current_user] = lambda: {
+            "username": "massimo",
+            "role": "child",
+        }
+    assert resp.status_code == 403
+    assert _rows(Session) == []

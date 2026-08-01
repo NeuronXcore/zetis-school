@@ -212,6 +212,8 @@ export {
   type ContentRequest,
   type ContentRequestKind,
   type ContentRequestStatus,
+  type StudentContentRequestBody,
+  type StudentContentRequestResult,
 } from "./contentRequests";
 export {
   type GalaxyAction,
