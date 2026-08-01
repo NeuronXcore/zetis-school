@@ -121,6 +121,22 @@ def student_dismiss(item_id: int, db: Session = Depends(get_db)) -> dict:
     return service.student_out(item, service.subjects_index(db))
 
 
+@student_router.post("/seen", status_code=status.HTTP_204_NO_CONTENT)
+def student_mark_seen(db: Session = Depends(get_db)) -> None:
+    """Massimo a regardé ce qui est arrivé — pose le high-water mark (addendum §12.3).
+
+    Appelée depuis l'ouverture de `/agenda` ET depuis le rendu du bandeau d'Accueil : les deux
+    surfaces où Massimo lit ce qui vient du collège.
+
+    Ne renvoie RIEN — pas même l'horodatage écrit. Le client n'a aucun usage du watermark, et le
+    servir en ferait une donnée lisible, donc traçable ; le témoin sort en NOMBRE (via
+    `/api/student/news/summary`), jamais en date.
+
+    Route élève uniquement : aucune route Papa n'écrit ce watermark.
+    """
+    service.mark_agenda_seen(db, student_id=get_default_student(db).id)
+
+
 # ── Papa ────────────────────────────────────────────────────────────────────────
 
 

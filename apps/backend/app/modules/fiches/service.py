@@ -491,6 +491,20 @@ def fiches_summary(db: Session) -> dict:
     return {"subjects": out}
 
 
+def new_fiches_count(db: Session, student_id: int) -> int:
+    """Fiches validées JAMAIS OUVERTES — témoin de nouveauté de navigation (adr-0030 §3).
+
+    Délègue à `fiches_summary` plutôt que de recomposer une requête : une SECONDE définition de
+    « fiche nouvelle » finirait par diverger de celle que voit la grille de decks, et le badge
+    de navigation mentirait sur ce que la page affiche. Un test d'égalité verrouille les deux.
+
+    `student_id` est ignoré : `fiches_summary` résout l'élève par `get_default_student` (MVP
+    mono-enfant). Le paramètre est là pour l'uniformité du registre `NEWS_SOURCES` et pour que
+    la signature n'ait pas à bouger le jour du multi-enfant.
+    """
+    return sum(s["new_count"] for s in fiches_summary(db)["subjects"])
+
+
 def get_student_fiche(db: Session, fiche_id: int) -> dict:
     """La fiche pour Massimo — 404 si absente OU non `validated` (aucune fuite de brouillon)."""
     row = db.get(Fiche, fiche_id)

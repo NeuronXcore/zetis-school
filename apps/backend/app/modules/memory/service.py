@@ -126,6 +126,13 @@ def get_reviews_summary(db: Session, student: StudentProfile) -> dict:
 
     Compteurs EXACTS : le « 15+ » est de la présentation (slice UI). `flash_size` = nombre
     de cartes que servirait le « Mélange éclair ».
+
+    ⚠️ Le `new_count` renvoyé ici porte une clause d'ÉCHÉANCE (`due_at <= now`) et n'est donc
+    **pas servable en navigation** : `schedule_review` pose `due_at = now + intervalle`, si bien
+    qu'une carte fraîchement générée y entrerait 1 à 7 jours plus tard, SANS aucun geste de
+    Massimo — un compteur qui grossit par écoulement du temps (adr-0030 §1). La clause est
+    légitime ICI (le deck ne montre que ce qui est servable) et interdite là-bas. Le badge de
+    navigation utilise `new_cards_count`, plus bas.
     """
     now = _now()
     # Cartes ACTIVES (servables) par matière, indépendamment de l'échéance : on compte à part
@@ -179,6 +186,36 @@ def get_reviews_summary(db: Session, student: StudentProfile) -> dict:
         "flash_size": min(REVIEW_SESSION_FLASH, total_due),
         "new_count": sum(s["new_count"] for s in subjects),
     }
+
+
+def new_cards_count(db: Session, student_id: int) -> int:
+    """Cartes JAMAIS RÉVISÉES — témoin de nouveauté de navigation (adr-0030 §3).
+
+    **Diverge volontairement de `get_reviews_summary()["new_count"]`**, qui ajoute une clause
+    d'échéance. Le raisonnement, parce qu'il se perd vite : `schedule_review` crée les cartes
+    avec une échéance dans le FUTUR (`now + intervalle`) ; exiger que l'échéance soit atteinte
+    ferait entrer la carte dans le compteur plusieurs jours après sa génération, sans que
+    Massimo ait rien fait. C'est littéralement la colonne « arriéré » du §1 — un badge qui
+    grossit tout seul — et le test-verrou `test_news_doctrine.py` le vérifie sur le CORPS de
+    cette fonction. C'est pourquoi on n'écrit ici aucune garde de nullité sur l'échéance, même
+    inoffensive : la règle est plus facile à tenir qu'à nuancer.
+
+    Le filtre de statut suffit à écarter les cartes non servables — `pending` (générée sans
+    cours validé), `suspended` (orpheline), `archived` (réserve).
+
+    Naît d'une génération par Papa, meurt du PREMIER passage (`last_reviewed_at` posé), et une
+    carte notée « re-tour » ne revient jamais dans le compteur (ce champ n'est plus remis à NULL).
+    """
+    return (
+        db.scalar(
+            select(func.count(SpacedReviewCard.id)).where(
+                SpacedReviewCard.student_id == student_id,
+                SpacedReviewCard.last_reviewed_at.is_(None),
+                SpacedReviewCard.status.not_in(INACTIVE_CARD_STATUSES),
+            )
+        )
+        or 0
+    )
 
 
 def interleave(cards: list, key: Callable[[object], str]) -> list:

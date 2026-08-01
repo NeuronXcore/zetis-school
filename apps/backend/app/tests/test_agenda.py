@@ -498,3 +498,77 @@ def test_traces_are_capped_and_count_natures_not_volume(papa: TestClient, client
     by_offset = {day["offset"]: day for day in band["days"]}
     assert by_offset[-1]["traces"] == 1
     assert by_offset[-2]["traces"] == 0  # « 0 » et « pas de donnée » sont le même état.
+
+
+# ── 9. Le watermark de nouveauté ne fuit nulle part (addendum §12.3) ─────────────
+
+
+def test_agenda_last_seen_at_never_leaks(papa: TestClient) -> None:
+    """`agenda_last_seen_at` est la trace du REGARD de Massimo. Elle ne sort d'aucune route.
+
+    Symétrique exact de `parent_note` : là c'est Papa qui écrit et Massimo qui ne doit pas lire,
+    ici c'est Massimo qui écrit et Papa qui ne doit pas lire. Le motif est le même dans les deux
+    sens — l'asymétrie de visibilité du §2c serait une surveillance par la porte de service, et
+    « vu le 12, jamais fait » est précisément l'objet que l'addendum §12.3 refuse de fabriquer.
+
+    Assertion sur le JSON SÉRIALISÉ et sur les schémas : un champ présent dans la réponse réseau
+    est un champ exposé, quoi qu'en fasse l'UI.
+    """
+    from app.modules.agenda.schemas import AgendaItemPilotOut, AgendaItemStudentOut
+
+    # a) Les schémas de sortie ne le portent pas — ni côté Papa, ni côté Massimo.
+    assert "agenda_last_seen_at" not in AgendaItemPilotOut.model_fields
+    assert "agenda_last_seen_at" not in AgendaItemStudentOut.model_fields
+
+    item = _create_parent_item(papa)
+    today = today_local()
+    window = {
+        "from": (today - timedelta(days=30)).isoformat(),
+        "to": (today + timedelta(days=30)).isoformat(),
+    }
+
+    # b) Massimo pose le watermark, puis on balaie TOUTES les sorties des deux interfaces.
+    _as_massimo()
+    assert papa.post(f"{STUDENT}/seen").status_code == 204
+
+    bodies = [
+        papa.get(f"{STUDENT}/week").text,
+        papa.get(f"{STUDENT}/upcoming").text,
+        papa.get(f"{STUDENT}/items", params=window).text,
+        papa.post(f"{STUDENT}/items/{item['id']}/done").text,
+        papa.get("/api/student/news/summary").text,
+    ]
+    app.dependency_overrides[get_current_user] = lambda: PAPA
+    bodies += [
+        papa.get(f"{PILOT}/items", params=window).text,
+        papa.get(f"{PILOT}/settings").text,
+        papa.patch(f"{PILOT}/items/{item['id']}", json={"label": "DM révisé"}).text,
+        papa.put(f"{PILOT}/items/{item['id']}/note", json={"parent_note": "vu"}).text,
+    ]
+    for body in bodies:
+        assert "agenda_last_seen_at" not in body
+        assert "last_seen" not in body
+
+    # c) Le témoin sort en NOMBRE, jamais en date : c'est ce qui le rend non traçable.
+    _as_massimo()
+    summary = papa.get("/api/student/news/summary").json()
+    assert isinstance(summary["agenda"], int)
+
+
+def test_only_massimo_writes_the_watermark(papa: TestClient) -> None:
+    """Le regard est un geste de Massimo : aucune route Papa ne pose le watermark.
+
+    Vérifié sur le SOURCE du routeur, parce que la fuite qu'on redoute n'est pas une réponse
+    HTTP mais un appel ajouté au mauvais endroit — invisible dans les payloads.
+    """
+    import inspect
+
+    from app.modules.agenda import router as agenda_router
+
+    source = inspect.getsource(agenda_router)
+    assert source.count("mark_agenda_seen") == 1, "un second appelant est apparu : le vérifier"
+    # La section Papa du routeur commence à ce séparateur ; l'unique appel doit être AVANT.
+    assert source.index("mark_agenda_seen") < source.index("# ── Papa")
+
+    # Et la route n'existe pas sous le préfixe Papa.
+    assert papa.post(f"{PILOT}/seen").status_code == 404

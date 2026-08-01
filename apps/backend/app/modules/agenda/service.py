@@ -12,11 +12,11 @@ lui-même). Il ne crédite aucun XP et ne touche aucune table de progression.
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import AgendaItem, AppSetting, LearningEvent, Subject
+from app.db.models import AgendaItem, AppSetting, LearningEvent, StudentProfile, Subject
 from app.modules.activity.events import (
     EVENT_AGENDA_ITEM_CREATED,
     EVENT_AGENDA_ITEM_DONE,
@@ -267,6 +267,33 @@ def list_pilot_items(db: Session, *, student_id: int, first: date, last: date) -
     return [pilot_out(item, subjects) for item in items]
 
 
+def new_agenda_count(db: Session, student_id: int) -> int:
+    """Items ARRIVÉS depuis le dernier regard de Massimo (addendum §12, adr-0030 §3).
+
+    Témoin de NOUVEAUTÉ, jamais compteur d'arriéré : il naît d'un geste de Papa et meurt d'un
+    REGARD. Ni `due_on` ni `done_at` n'entrent dans cette requête, et c'est le point entier —
+    une échéance qui franchit sa date ne le bouge pas, cocher un item ne le bouge pas non plus.
+    Le compteur d'items NON FAITS reste interdit sous toute forme (§3, §7, §12.4) : il
+    grossirait quand Massimo ne vient pas, et c'est la définition d'une relance.
+
+    Watermark NULL (personne n'a encore rien regardé depuis que le témoin existe) → tout est
+    nouveau. C'est l'état correct, pas un cas dégradé : le badge retombera au premier regard.
+
+    `dismissed_at IS NULL` écarte ce que Massimo a lui-même masqué. C'est un geste de l'enfant
+    sur sa propre page, pas une échéance — la seule raison pour laquelle une date figure ici.
+    """
+    watermark = db.scalar(
+        select(StudentProfile.agenda_last_seen_at).where(StudentProfile.id == student_id)
+    )
+    conditions = [
+        AgendaItem.student_id == student_id,
+        AgendaItem.dismissed_at.is_(None),
+    ]
+    if watermark is not None:
+        conditions.append(AgendaItem.created_at > watermark)
+    return db.scalar(select(func.count(AgendaItem.id)).where(*conditions)) or 0
+
+
 # --- Écritures --------------------------------------------------------------------------------
 
 
@@ -437,3 +464,34 @@ def archive(db: Session, *, student_id: int, item_id: int) -> AgendaItem:
     """« Suppression » côté Papa = archivage. La ligne reste en base : Papa n'efface jamais un
     item de Massimo."""
     return dismiss(db, student_id=student_id, item_id=item_id)
+
+
+def mark_agenda_seen(db: Session, *, student_id: int) -> None:
+    """Massimo a regardé ce qui est arrivé — pose le high-water mark (addendum §12.3).
+
+    Deux appelants côté client, et il en faut deux : l'ouverture de `/agenda` ET le rendu du
+    bandeau d'Accueil. N'en retenir qu'un ferait mentir le témoin sur ce qui a déjà été lu.
+
+    Idempotent, sans lecture préalable. **Geste de Massimo seul** : aucune route Papa n'appelle
+    cette fonction, et la lecture du badge (`/api/student/news/summary`) non plus — sans quoi le
+    compteur retomberait à zéro au montage du layout, avant tout regard.
+
+    `func.now()` et non `_now()` : `AgendaItem.created_at` vient d'un `server_default=func.now()`
+    (`db/base.py`), et la comparaison `created_at > agenda_last_seen_at` doit avoir la MÊME
+    horloge des deux côtés. Un `datetime.now(timezone.utc)` Python se sérialise sur SQLite avec
+    un suffixe `+00:00` qui trie après le naïf du server_default à instant égal — un item créé et
+    vu dans la même seconde compterait comme nouveau.
+
+    Résolution assumée : la comparaison est STRICTE (`>`), donc un item créé dans la même
+    graduation d'horloge que le regard est considéré comme vu. En production (Postgres, `now()`
+    à la microseconde) le cas ne se produit pas ; sur SQLite `CURRENT_TIMESTAMP` est à la
+    seconde, et c'est pour ça que les tests datent explicitement les items « arrivés après ».
+    Un `>=` échangerait ce cas de bord contre un pire : le badge ne retomberait pas à zéro pour
+    les items regardés dans leur seconde de création.
+    """
+    db.execute(
+        update(StudentProfile)
+        .where(StudentProfile.id == student_id)
+        .values(agenda_last_seen_at=func.now())
+    )
+    db.commit()

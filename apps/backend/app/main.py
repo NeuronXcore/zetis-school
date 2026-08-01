@@ -7,6 +7,7 @@ from app.modules.activity.router import parent_router as activity_parent_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.agenda.router import router as agenda_router
 from app.modules.agenda.router import student_router as agenda_student_router
+from app.modules.news.router import student_router as news_student_router
 from app.modules.activity.router import telemetry_router
 from app.modules.ai.router import router as ai_router
 from app.modules.auth.router import router as auth_router
@@ -97,6 +98,7 @@ app.include_router(galaxy_student_router)
 # frontière Massimo/Papa est tenue par le serveur, jamais par l'UI.
 app.include_router(agenda_student_router)
 app.include_router(agenda_router)
+app.include_router(news_student_router)
 # Chat ZETIS (ADR-0026) : substrat de mémoire éphémère. Route élève SEULE (`require_child`) —
 # aucune route parent ne sert un verbatim (§5). Le verbatim vit dans Redis, jamais en base.
 app.include_router(chat_student_router)
