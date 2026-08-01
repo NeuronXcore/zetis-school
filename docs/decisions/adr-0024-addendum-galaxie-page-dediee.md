@@ -70,6 +70,19 @@ faisait pas partie.
 
 ### B. L'Accueil rend une **carte-bouton statique** — l'amendement du 2026-07-28 est révoqué
 
+> ⚠️ **CE §B EST LUI-MÊME RÉVOQUÉ**, le soir du même jour, par
+> `adr-0024-addendum-galaxie-sur-accueil.md`. La galaxie **revient sur l'Accueil** : voir la
+> galaxie se construire donne à la page une vie qu'un compte statique ne donne pas — ce qui est
+> l'intention de l'addendum « Accueil vivant », écrit le matin même. Deux décisions du même jour
+> tiraient en sens inverse.
+>
+> **Ce qui survit de ce §B**, et qui n'est pas jeté avec lui : un montage 3D **immédiat** sur la
+> page d'atterrissage reste indéfendable. Le canvas revient **différé** (`requestIdleCallback`,
+> repli `setTimeout`), derrière la carte statique qui reste la **première peinture**. Le test de
+> budget change de nature — liste blanche au lieu de zéro — mais ne disparaît pas.
+>
+> Ce qui suit décrit l'état **d'avant**.
+
 Le `GalaxyCanvas` et la frise de progression **quittent l'Accueil**. À leur place, une carte
 d'entrée dont le contrat est fermé :
 
@@ -86,6 +99,19 @@ vérifiable au build. Un test de budget de bundle sur la page d'entrée constate
 Three.js ; sans lui la régression reviendrait sans bruit, comme les 3,6 Mo mesurés en juillet.
 
 ### C. Le graphe global **migre** de l'Accueil vers `/galaxy`, dont il devient la vue par défaut
+
+> ⚠️ **La RÉDUCTION décidée ici — `root` + `subject` seulement — est RÉVOQUÉE** le soir du même
+> jour par `adr-0024-addendum-constellations-completes.md`. La vue par défaut rend désormais la
+> galaxie **entière**, en orbites emboîtées.
+>
+> **Ce §C n'était pas une erreur** : son constat, fait au vu du rendu réel, était juste. Ce qu'il
+> attribuait au **nombre de nœuds** venait en fait de la **convergence** — un moteur de forces
+> tasse les nœuds là où les forces s'annulent, sans égard pour la lisibilité. Les positions étant
+> désormais **calculées et épinglées**, moteur éteint, l'amas ne peut plus se produire et le
+> filtre protégeait contre un défaut disparu.
+>
+> ⚠️ **Ne pas en conclure qu'on peut rallumer les forces.** C'est parce qu'on ne les rallume pas
+> que tout peut être montré. La **migration** décidée par ce §C, elle, tient sans changement.
 
 La brique livrée le 2026-07-28 pour l'Accueil — graphe global en deux colonnes, badges de matières
 cliquables, frise de progression — n'est **pas supprimée**. Elle **change d'adresse**. Rien de ce

@@ -14,18 +14,47 @@ export type { GalaxyFallbackListProps } from "./GalaxyFallbackList";
 export { GalaxyLegend } from "./GalaxyLegend";
 export type { GalaxyLegendProps } from "./GalaxyLegend";
 export { hasWebGL } from "./webgl";
+export { constellationLayout } from "./constellationLayout";
+export type { ConstellationLayout } from "./constellationLayout";
 export {
+  ANCESTOR_LEAD,
+  BIRTH,
+  STAR_CADENCE,
+  bornAt,
+  litCountAt,
+  radialTreeLayout,
+  revealSchedule,
+} from "./replayLayout";
+export type { RevealSchedule, Vec3 } from "./replayLayout";
+export {
+  CORE_IN,
+  ORBIT_DRAW,
+  PLANET_STAGGER,
+  PLANET_TRAVEL,
+  arrivalDuration,
+  coreOpacity,
+  easeOutCubic,
+  planetBirth,
+  planetIsBorn,
+  planetPosition,
+  planetProgress,
+  ringOpacity,
+} from "./arrivalTween";
+export {
+  MAX_PARTICLES_PER_LINK,
+  PARTICLE_BUDGET,
+  PARTICLE_FPS_FLOOR,
   isLit,
   linkKey,
   litLinkIds,
   normalizeSearch,
+  particleAllowance,
   particlesFor,
   searchMatches,
   statusCounts,
 } from "./galaxyGraph";
 export {
   CHAPTER_COLOR,
-  GALAXY_MAX_NODES,
   GOLD,
   GOLD_BRIGHT,
   LINK_DIM,
@@ -33,7 +62,6 @@ export {
   STATUS_ORDER,
   SUBJECT_COLOR,
   dim,
-  maxNodesFor,
   starStyle,
 } from "./galaxyTheme";
 export type { StarStyle } from "./galaxyTheme";

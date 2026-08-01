@@ -7,23 +7,103 @@
 
 ## État à la reprise
 
-**Branche : `feat/accueil-vivant`** — **ouverte PAR-DESSUS `feat/accueil-galaxy`**, qui n'est ni
-poussée ni mergée. ⚠️ **Les deux PR devront partir dans l'ordre** : `feat/accueil-galaxy` d'abord.
+**Branche : `feat/galaxy-animations`**, 9 commits, **PR [#63](https://github.com/NeuronXcore/zetis-school/pull/63) ouverte**.
+`main` est à `cb5bb5d` (poussé). **Les 8 commits de code ne sont PAS poussés** — seul le commit
+de cadrage l'est.
 
-**FAIT dans cette branche, dans l'ordre** : « Accueil vivant » (route
-`GET /api/gamification/history`, « Mon ciel », « Tes derniers gains », retour de la frise) →
-**« Mon ciel » devient un calendrier** sans cases vides → **rejeu animé** (ADR-0029) →
-**`/galaxy` devient un système solaire** (cerveau au centre, matières en orbite, matières vides
-comprises) → **bandeau de planètes** au fond spatial, couronne solaire dorée.
-**649 tests backend + 221 Massimo, `tsc -b` et builds verts. Tout vérifié dans le vrai
-navigateur** (session de Massimo, Chrome du user).
+**Chantier : la galaxie s'anime.** Cadré par deux addenda, puis **élargi trois fois en cours de
+route** par le user, au vu du rendu. Chaque élargissement a son addendum.
 
-**Prochain pas = push + les deux PR.** Rien n'est poussé.
+**FAIT, dans l'ordre :**
 
-> ⚠️ **Reste dû, jamais vérifié en vrai** : le **cahier de bord de Papa** — le mapping
-> `routeLabels` qui doit rendre le même libellé pour `/progression` et `/galaxy`. Couvert par
-> 5 tests unitaires ; l'app Papa n'a pas de serveur branché sur `:8003`, dont le CORS n'autorise
-> que `:5179`. Demande un port de plus.
+1. **Slice A** — `GALAXY_MAX_NODES` **supprimé** avec son repli (il cachait la progression de
+   Massimo selon la taille de son écran, valeurs jamais mesurées). **Trois gardes** le remplacent
+   et visent le coût réel *par image* : budget de particules réparti sur la scène (2 → 1 → 0 par
+   fil), coupure du flux doré sous **34 FPS** mesurés sur une seconde pleine et **sans retour en
+   arrière**, `cooldownTicks`. Animation d'arrivée de `/galaxy` en **tween**.
+2. **Slice B** — le rejeu **se construit depuis `root`** au lieu de défiler. Horloge de rang,
+   naissance des ancêtres dérivée client, frise **témoin** (plus de curseur, un bouton « Revoir »,
+   axe X = **jour actif**).
+3. **L'Accueil** — la galaxie y **revient** (§B révoqué), puis y **grandit** vraiment, puis
+   **remonte** en pleine largeur avec le texte en **badges** hors du ciel.
+4. **`/galaxy`** — rend la **galaxie entière** (§C révoqué), sur **trois anneaux concentriques**
+   autour du cerveau.
+
+**286 tests Massimo + 270 Papa, deux `typecheck`, build — tous verts.** Backend **pas touché**
+du tout (zéro route, zéro schéma, zéro migration) : ses tests n'ont pas été relancés, rien n'a
+bougé.
+
+> ⚠️ **JAMAIS VÉRIFIÉ EN VRAI, et c'est le premier point de la reprise.** Le user a regardé
+> l'Accueil et a fait corriger trois défauts de rendu, mais **personne n'a validé** : la
+> lisibilité de `/galaxy` **à plusieurs centaines de notions** (les rayons 150/260/370 et les
+> 78 % de secteur sont des **suppositions**, pas des mesures), ni la **tenue sur les trois
+> appareils**. **L'iPhone est devenu critique** : il doit tenir la galaxie complète sur `/galaxy`
+> **et** une galaxie sur l'Accueil. Si ça ne passe pas, ce sont les **particules** qui tombent,
+> jamais les nœuds.
+
+**Prochain pas** = vérifier dans le navigateur, puis **pousser la branche** et **renommer la
+PR #63** (son titre est `docs(galaxy): cadrage…`, alors qu'elle porte maintenant tout le code —
+elle doit passer en `feat(…)` avant merge).
+
+> ⚠️ **En suspens, sans rapport avec le chantier** : `docs/frontend-massimo/mockup/mockup-page-eli5-v2.html`
+> est **supprimée dans l'arbre de travail**, hors de tout commit. Elle a disparu après le commit
+> de cadrage ; je n'y ai pas touché. `git restore` la ramène si c'est involontaire.
+
+### ⚠️ Ce que la bibliothèque 3D permet vraiment — vérifié ligne à ligne, à ne pas re-chercher
+
+C'est le constat le plus coûteux de la session, et il a **réécrit un ADR**. Dans
+`three-forcegraph` 1.43.4 / `react-force-graph-3d` 1.29.1 :
+
+| fait | conséquence |
+|---|---|
+| `d3ReheatSimulation()` = `d3ForceLayout.alpha(1)`, **sans argument** | « réchauffer à alpha bas » est **impossible** |
+| `d3AlphaTarget` existe dans le kapsule mais **n'est relayé nulle part** | ni prop React, ni méthode du ref |
+| `graphData.onChange` fait `stop().alpha(1)` | **tout** changement de données réchauffe à fond |
+| `graphData` **n'est pas** dans les 18 méthodes liées au ref | `graphRef.current.graphData` vaut `undefined` |
+
+**Conséquence directe** : une croissance nœud par nœud sur simulation vivante ré-explose à chaque
+étoile, quoi qu'on fasse. D'où **positions calculées et épinglées, moteur neutralisé** partout
+(`pinned`). ⚠️ **Ne pas « rallumer les forces »** en croyant simplifier : c'est parce qu'elles
+restent éteintes que tout peut être montré.
+
+**Effet de bord constaté** : le déclouage du soleil dans `handleEngineStop` est **inerte depuis
+le 2026-07-28** (l'optionnel avale l'appel). Laissé en l'état, hors périmètre, consigné dans
+`zetis-galaxy.md`.
+
+### ⚠️ Trois pièges rencontrés, tous corrigés — ne pas les réintroduire
+
+1. **Réassigner `graphData` à chaque image.** Le rejeu se recalculait sur l'horloge : 60
+   réassignations par seconde, donc 60 `stop().alpha(1)`, donc un graphe qui ne s'affichait
+   jamais. Corrigé par un **compte discret** de nœuds nés (`bornCount`) servant de clé de
+   mémoïsation. **Test-verrou** qui pilote le temps à la main et compte les tableaux distincts.
+2. **`zoomToFit` à chaque naissance.** `onEngineStop` se déclenche à chaque changement de
+   données : la galaxie naissait **en gros plan** puis reculait par à-coups. Sur un graphe
+   épinglé, la caméra est posée **une fois** pour l'étendue finale, connue d'avance.
+3. **`hasWebGL()` est faux sous jsdom.** Un test de la modale passait **sans rien exercer** : le
+   composant rendait son repli « il faut un écran 3D ». Mocker `hasWebGL` dès qu'un test doit
+   monter le canvas.
+
+### Décisions prises ce jour — 5 addenda à l'ADR-0024, 2 révocations
+
+⚠️ **Le chantier Galaxy aura été cadré en marchant.** C'est écrit dans les ADR eux-mêmes pour
+être lisible, pas répété. Les deux révocations sont **motivées, pas velléitaires** :
+
+- **§B révoqué** (canvas retiré de l'Accueil le matin) : le motif est **produit** — voir la
+  galaxie se construire donne à la page une vie qu'un compte statique ne donne pas. Le coût est
+  **le même** qu'au matin, mis en balance autrement. **Ce qui survit** : aucun montage 3D au
+  premier rendu, le canvas arrive à `requestIdleCallback` (repli `setTimeout` — **Safari ne l'a
+  pas**, donc c'est le cas courant sur iPhone/iPad).
+- **§C révoqué** (vue par défaut réduite à `root` + `subject`) : son amas était **réel**, mais
+  venait de la **convergence**, pas du nombre de nœuds. Plus de convergence → plus d'amas.
+- **ADR-0029 §2 réécrit** : sa prescription était **impossible** (voir tableau ci-dessus).
+- `accueil.bundle.test.ts` **change de nature sans disparaître** : l'interdit d'`import()` devient
+  une **liste blanche**, et un cas est **ajouté**. Ce qu'il protège encore : qu'un **troisième**
+  point de montage n'apparaisse pas sans que personne ne le voie.
+
+### Historique — chantier précédent (MERGÉ dans `main` via PR #62)
+
+Ce qui suit décrit `feat/accueil-vivant` / `feat/accueil-galaxy`, **désormais dans `main`**
+(`a73e8e5`). Conservé pour les pièges.
 
 ### `/galaxy` = système solaire (révision de l'addendum §C) — FAIT, non poussé
 

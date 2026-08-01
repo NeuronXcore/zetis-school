@@ -80,19 +80,22 @@ export function starStyle(status: GalaxyStatus | null | undefined): StarStyle {
   return STAR_STYLES[status as GalaxyStatus] ?? STAR_STYLES.unknown;
 }
 
-/**
- * Plafond de nœuds par constellation, par classe d'appareil (ADR-0024 §6).
- *
- * Massimo travaille sur trois postes — iPhone, iPad, MacBook dédié à l'école — et un
- * plafond unique serait à la fois trop lâche sur téléphone et absurdement bas sur MacBook.
- *
- * ⚠️ Valeurs PROVISOIRES : elles n'ont été mesurées sur aucun appareil réel. À confirmer
- * ou corriger sur les trois postes, le chiffre mesuré l'emportant sur celui-ci.
- */
-export const GALAXY_MAX_NODES = { compact: 40, tablet: 90, desktop: 150 } as const;
-
-export function maxNodesFor(width: number): number {
-  if (width < 640) return GALAXY_MAX_NODES.compact;
-  if (width < 1024) return GALAXY_MAX_NODES.tablet;
-  return GALAXY_MAX_NODES.desktop;
-}
+// ── Plus de plafond de nœuds ─────────────────────────────────────────────────────────
+//
+// `GALAXY_MAX_NODES` (40 / 90 / 150) et `maxNodesFor()` ont été SUPPRIMÉS le 2026-07-31
+// (addendum ADR-0024 « Galaxie animée » §1). Trois motifs, chacun suffisant :
+//
+//   - le plafond CACHAIT À MASSIMO une partie de sa propre progression, selon un critère
+//     qui n'a rien de pédagogique — la taille de son écran ;
+//   - ses valeurs n'ont JAMAIS été mesurées (« seul le MacBook a été vérifié ») : ce
+//     n'était pas une protection éprouvée, c'était une supposition ;
+//   - il ne mordait plus sur la vue par défaut depuis la refonte en système solaire.
+//
+// Ce qui protège le framerate désormais, ce sont TROIS GARDES qui visent le vrai coût par
+// frame, et non un nombre de nœuds : le plafond de PARTICULES (`particleBudget`, dans
+// `galaxyGraph.ts` — un objet animé par lien à chaque frame, c'est ça qui coûte, pas des
+// sphères statiques), l'arrêt du moteur après stabilisation (`cooldownTicks`) et le repli
+// sans WebGL.
+//
+// ⚠️ Ne pas réintroduire un plafond de nœuds « pour la perf » sans rouvrir l'addendum : si
+// un appareil décroche, ce sont les PARTICULES qui tombent, jamais les étoiles.

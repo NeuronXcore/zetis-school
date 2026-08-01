@@ -152,6 +152,13 @@ export function AccueilMassimoPage() {
         )}
       </section>
 
+      {/* ── 3. Ma Galaxie — REMONTÉE ICI et passée en PLEINE LARGEUR le 2026-07-31 ────
+          Elle était en bas, dans une colonne étroite à côté de « Ma semaine » : la galaxie qui
+          s'y construisait se voyait à peine. Une animation qu'il faut chercher ne donne pas de
+          vie à une page — c'était tout l'objet de l'addendum « la galaxie revient sur
+          l'Accueil ». Elle est donc haute, large, et juste après la seule action de la page. */}
+      {subjects && <HomeGalaxyCard subjects={subjects} />}
+
       {/* ── 3. Mon ciel — le chemin parcouru, sans grille ni axe de temps ──────────────
           Une étoile par jour de gain. Voir `SkyMap` : l'absence de grille n'est pas un choix
           graphique, c'est ce qui rend la carte incapable de désigner un jour manqué. */}
@@ -169,10 +176,10 @@ export function AccueilMassimoPage() {
         </Suspense>
       )}
 
-      {/* ── 4. Ma semaine · Ma Galaxie ─────────────────────────────────────────────────
-          Côte à côte à partir du grand écran (1.15fr / 1fr) : ce qu'on a fait cette semaine,
-          et où on en est globalement. En dessous, empilé — l'ordre de lecture est conservé. */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1.15fr_1fr]">
+      {/* ── 4. Ma semaine ──────────────────────────────────────────────────────────────
+          Seule depuis le 2026-07-31 : « Ma Galaxie » lui tenait compagnie ici, elle est
+          remontée plus haut pour qu'on la voie. */}
+      <div className="mt-4">
         {/* La grille et le geste d'engagement dans la MÊME carte : l'action et son effet au
             même endroit. Sept cases servies par le serveur — le client ne construit aucune
             grille et ne calcule aucune date. */}
@@ -193,7 +200,6 @@ export function AccueilMassimoPage() {
           </section>
         )}
 
-        {subjects && <HomeGalaxyCard subjects={subjects} />}
       </div>
 
       {/* ── 5. Mon chemin · Tes derniers gains ─────────────────────────────────────────

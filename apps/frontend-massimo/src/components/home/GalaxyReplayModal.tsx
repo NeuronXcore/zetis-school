@@ -1,11 +1,13 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import type { GalaxyFullGraph, GalaxyTimeline } from "@zetis/types";
-import { hasWebGL, maxNodesFor } from "@zetis/ui/galaxy";
+import { hasWebGL } from "@zetis/ui/galaxy";
 import { fetchFullGraph, fetchGalaxyTimelineWithSkills } from "../../lib/galaxy";
+import { useGalaxyGrowth } from "../../hooks/useGalaxyGrowth";
 import { CloseFullscreenButton } from "../galaxy/CloseFullscreenButton";
 import { ProgressSparkline } from "../galaxy/ProgressSparkline";
 
-// « Revoir ma galaxie grandir » — rejeu animé (ADR-0029).
+// « Revoir ma galaxie grandir » — la galaxie se CONSTRUIT depuis `root` (ADR-0029 et son
+// addendum « Construction depuis root », §2 réécrit le 2026-07-31).
 //
 // ⚠️ CE FICHIER NE DOIT JAMAIS ÊTRE IMPORTÉ STATIQUEMENT PAR L'ACCUEIL.
 //
@@ -19,14 +21,15 @@ import { ProgressSparkline } from "../galaxy/ProgressSparkline";
 // Le rejeu ne connaît que DEUX états : pas encore née, et allumée. Il se dérive de
 // `learning_events` (append-only) et non de `SkillMastery` (qui régresse) : une étoile allumée
 // ne s'éteint jamais en cours de rejeu.
+//
+// Une CROISSANCE, pas une lecture. Plus de curseur, plus de barre de lecture : les étoiles
+// s'allument une par une à cadence fixe, et la frise se trace avec elles. Le temps réel n'est
+// PAS à l'échelle — c'est un rang. Une horloge calendaire traverserait les vacances en ne
+// montrant rien, ce qui EST l'annonce d'une période vide, interdite par le §4.
 
 const GalaxyCanvas = lazy(() =>
   import("@zetis/ui/galaxy/canvas").then((m) => ({ default: m.GalaxyCanvas })),
 );
-
-/** Durée d'un rejeu complet, quelle que soit la longueur de l'histoire. Un rejeu proportionnel
- *  au nombre de jours durerait dix secondes en septembre et deux minutes en juin. */
-const REPLAY_MS = 9000;
 
 export interface GalaxyReplayModalProps {
   onClose: () => void;
@@ -36,17 +39,12 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
   const [graph, setGraph] = useState<GalaxyFullGraph | null>(null);
   const [timeline, setTimeline] = useState<GalaxyTimeline | null>(null);
   const [webgl] = useState(hasWebGL);
-  // `prefers-reduced-motion` : on n'anime pas, on montre l'état final — et le curseur reste
-  // manipulable à la main, pour que le rejeu reste accessible sans mouvement subi.
+  // `prefers-reduced-motion` : état final d'emblée, aucune construction, aucune animation
+  // continue. Ce n'est pas un réglage de confort (ADR-0024 §6).
   const [reduced] = useState(
     () =>
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
-  );
-  const [progress, setProgress] = useState(0); // 0 → 1
-  const [playing, setPlaying] = useState(false);
-  const [width, setWidth] = useState(() =>
-    typeof window === "undefined" ? 1280 : window.innerWidth,
   );
 
   useEffect(() => {
@@ -56,16 +54,9 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
       if (!active) return;
       if (g.status === "fulfilled") setGraph(g.value);
       if (t.status === "fulfilled") setTimeline(t.value);
-      // Le rejeu ne démarre JAMAIS tout seul quand le mouvement est refusé : on ouvre alors
-      // directement sur la galaxie complète.
-      setProgress(1);
-      setPlaying(false);
     });
-    const onResize = () => setWidth(window.innerWidth);
-    window.addEventListener("resize", onResize);
     return () => {
       active = false;
-      window.removeEventListener("resize", onResize);
     };
   }, []);
 
@@ -80,62 +71,10 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
     };
   }, [onClose]);
 
-  // Lecture : `requestAnimationFrame` plutôt qu'un `setInterval`, pour que le rejeu suive le
-  // rafraîchissement de l'écran et s'arrête quand l'onglet passe en arrière-plan.
-  const rafRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!playing) return;
-    let start: number | null = null;
-    const from = progress >= 1 ? 0 : progress;
-    const step = (now: number) => {
-      if (start === null) start = now;
-      const next = Math.min(1, from + (now - start) / (REPLAY_MS * (1 - from || 1)));
-      setProgress(next);
-      if (next < 1) rafRef.current = requestAnimationFrame(step);
-      else setPlaying(false);
-    };
-    rafRef.current = requestAnimationFrame(step);
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-    // `progress` volontairement hors des dépendances : le relire relancerait la boucle à chaque
-    // image. Il n'est lu qu'au démarrage d'une lecture.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing]);
-
-  /** Notions allumées à l'instant `progress` du rejeu, dans l'ordre de leur première fois. */
-  const litSkillIds = useMemo(() => {
-    const skills = timeline?.skills ?? [];
-    if (skills.length === 0) return null; // pas de rejeu possible → galaxie complète
-    const count = Math.round(progress * skills.length);
-    return new Set(skills.slice(0, count).map((s) => `skill-${s.skill_id}`));
-  }, [timeline, progress]);
-
-  /** Le graphe au temps `progress` : les étoiles pas encore nées sont RETIRÉES, pas éteintes. */
-  const shown = useMemo(() => {
-    if (!graph) return null;
-    const capped =
-      graph.nodes.length <= maxNodesFor(width)
-        ? graph
-        : {
-            nodes: graph.nodes.filter((n) => n.kind !== "skill"),
-            edges: graph.edges.filter(
-              (e) => !e.source.startsWith("skill-") && !e.target.startsWith("skill-"),
-            ),
-          };
-    if (!litSkillIds) return capped;
-    const keep = new Set(
-      capped.nodes.filter((n) => n.kind !== "skill" || litSkillIds.has(n.id)).map((n) => n.id),
-    );
-    return {
-      nodes: capped.nodes.filter((n) => keep.has(n.id)),
-      edges: capped.edges.filter((e) => keep.has(e.source) && keep.has(e.target)),
-    };
-  }, [graph, litSkillIds, width]);
-
-  const litCount = litSkillIds
-    ? litSkillIds.size
-    : (graph?.nodes.filter((n) => n.kind === "skill").length ?? 0);
+  // Toute la mécanique de croissance vit dans `useGalaxyGrowth`, partagée avec la carte
+  // d'Accueil depuis le 2026-07-31 au soir. Elle est pleine de pièges — le principal étant de
+  // ne PAS recalculer le graphe sur l'horloge — et on ne veut pas y retomber en la dupliquant.
+  const { shown, pinned, litCount, done, replay } = useGalaxyGrowth(graph, timeline, { reduced });
 
   return (
     <div
@@ -165,6 +104,10 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
               matchedIds={EMPTY}
               highlightStatus={null}
               selectedId={null}
+              // Positions IMPOSÉES : chaque étoile naît sur son parent puis rejoint sa place.
+              // Le moteur de forces est neutralisé — il réchaufferait à `alpha(1)` à chaque
+              // ajout, ce qui est exactement la ré-explosion qu'on corrige.
+              pinned={pinned}
               onNodeClick={() => {}}
               onBackgroundClick={() => {}}
               height={Math.max(280, window.innerHeight - 280)}
@@ -179,38 +122,26 @@ export function GalaxyReplayModal({ onClose }: GalaxyReplayModalProps) {
         )}
       </div>
 
-      {/* La frise devient la BARRE DE LECTURE (ADR-0029 §3) : plus de redondance avec l'Accueil,
-          et la courbe gagne une raison d'être interactive. Aucune date n'est affichée. */}
+      {/* La frise est TÉMOIN, plus commande (addendum ADR-0029 §3) : elle se trace en
+          synchronisation avec les étoiles. Aucun curseur, aucun drag, aucune date. */}
       {timeline && timeline.points.length > 1 && (
         <div className="shrink-0">
-          <ProgressSparkline timeline={timeline} />
+          <ProgressSparkline timeline={timeline} lit={litCount} />
           <div className="mt-2 flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setPlaying((p) => !p)}
-              disabled={!litSkillIds}
+              onClick={replay}
+              disabled={!done || reduced || !timeline?.skills?.length}
               className="shrink-0 rounded-xl border border-zetis-border bg-zetis-surface px-4 py-2 text-sm font-bold hover:border-zetis-accent-2 disabled:opacity-40"
             >
-              {playing ? "Pause" : progress >= 1 ? "Rejouer" : "Lecture"}
+              Revoir
             </button>
-            <input
-              type="range"
-              min={0}
-              max={1000}
-              value={Math.round(progress * 1000)}
-              onChange={(e) => {
-                setPlaying(false);
-                setProgress(Number(e.target.value) / 1000);
-              }}
-              aria-label="Avancer dans le temps"
-              className="h-11 w-full accent-zetis-accent-2"
-            />
+            {reduced && (
+              <p className="text-xs text-zetis-muted">
+                Le mouvement est réduit sur ton appareil : voici ta galaxie entière.
+              </p>
+            )}
           </div>
-          {reduced && (
-            <p className="mt-1 text-xs text-zetis-muted">
-              Le mouvement est réduit sur ton appareil : tire la barre pour avancer toi-même.
-            </p>
-          )}
         </div>
       )}
     </div>

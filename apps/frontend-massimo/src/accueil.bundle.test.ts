@@ -135,15 +135,37 @@ describe("budget de bundle — page d'entrée (Accueil)", () => {
     expect([...bare].filter(isForbidden)).toEqual([]);
   });
 
-  it("ne DÉCLENCHE le moteur 3D par aucun `import()` non plus", () => {
-    // LE test de la slice. C'est cette forme-là qui avait fait entrer 1,37 Mo sur la page
-    // d'atterrissage le 2026-07-28 : `HomeGalaxyPreview` chargeait le canvas en `lazy()`, donc
-    // dans un chunk séparé — mais l'Accueil le MONTAIT, et Massimo le téléchargeait quand même.
+  it("ne DÉCLENCHE le moteur 3D que depuis les points de montage AUTORISÉS", () => {
+    // ⚠️ CE CAS A CHANGÉ DE NATURE LE 2026-07-31 AU SOIR, et c'est une décision, pas un
+    // assouplissement de confort.
+    //
+    // Il interdisait tout `import()` du moteur 3D depuis l'Accueil. C'est cette forme-là qui
+    // avait fait entrer 1,37 Mo sur la page d'atterrissage le 2026-07-28 : le canvas était
+    // code-splitté, mais l'Accueil le MONTAIT, donc Massimo le téléchargeait quand même.
+    //
+    // L'addendum « la galaxie revient sur l'Accueil » rétablit ce montage — **volontairement**,
+    // pour donner à la page la vie qu'un compte statique ne donne pas. L'interdit absolu n'a
+    // donc plus de sens ; ce qui en garde, c'est que le montage reste **rare, nommé et
+    // différé**. D'où une liste blanche plutôt qu'un zéro.
+    //
+    // Ce que ce cas protège encore, et qui est l'essentiel : qu'un TROISIÈME point de montage
+    // n'apparaisse pas sans que personne ne le voie. C'était le mode de la régression de juillet.
+    const ALLOWED = ["HomeGalaxyCard.tsx"];
     const triggering = [...files]
       .map((file) => ({ file, hits: dynamicImports(readFileSync(file, "utf8")).filter(isForbidden) }))
       .filter(({ hits }) => hits.length > 0)
-      .map(({ file }) => file);
-    expect(triggering).toEqual([]);
+      .map(({ file }) => file.split("/").pop() as string);
+    expect(triggering.sort()).toEqual(ALLOWED);
+  });
+
+  it("le point de montage autorisé le fait en `import()`, JAMAIS en synchrone", () => {
+    // La liste blanche ci-dessus autorise un montage, pas un import statique : Three.js doit
+    // rester hors du bundle de départ. C'est ce qui fait que la carte statique est peinte
+    // d'abord et que le chunk 3D ne part qu'ensuite, à l'`idle`.
+    const card = resolve(HERE, "components/galaxy/HomeGalaxyCard.tsx");
+    const source = readFileSync(card, "utf8");
+    expect(staticImports(source).filter(isForbidden)).toEqual([]);
+    expect(dynamicImports(source).filter(isForbidden)).toEqual(["@zetis/ui/galaxy/canvas"]);
   });
 
   it("n'atteint aucun fichier qui importe `three`", () => {

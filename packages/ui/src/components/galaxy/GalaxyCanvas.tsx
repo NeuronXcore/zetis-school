@@ -9,7 +9,7 @@
  * - sans WebGL, on ne rend RIEN ici — l'appelant affiche son repli en liste ;
  * - le drag de nœud est actif : Massimo peut étirer une étoile, les liens suivent.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ForceGraph3D from "react-force-graph-3d";
 import {
   AdditiveBlending,
@@ -27,7 +27,21 @@ import SpriteText from "three-spritetext";
 import type { GalaxyEdge, GalaxyNode, GalaxyStatus } from "@zetis/types";
 import { BRAIN_LOBE, BRAIN_LOBES, BRAIN_LOBE_SCALE } from "./brainGeometry";
 import { orbitLayout } from "./orbitLayout";
-import { linkKey, litLinkIds, particlesFor } from "./galaxyGraph";
+import {
+  PARTICLE_FPS_FLOOR,
+  linkKey,
+  litLinkIds,
+  particleAllowance,
+  particlesFor,
+} from "./galaxyGraph";
+import {
+  arrivalDuration,
+  easeOutCubic,
+  planetIsBorn,
+  planetPosition,
+  ringOpacity,
+} from "./arrivalTween";
+import { BIRTH } from "./replayLayout";
 import {
   CHAPTER_COLOR,
   GOLD,
@@ -54,6 +68,18 @@ export interface GalaxyCanvasProps {
   /** Ids d'étoiles trouvées par la recherche : mises en avant, et la caméra les cadre. */
   matchedIds?: Set<string> | null;
   /**
+   * Positions IMPOSÉES, par id — le rejeu construit depuis `root` (addendum ADR-0029 §2).
+   *
+   * Quand elle est fournie, le moteur de forces est neutralisé et chaque nœud est épinglé à sa
+   * place calculée. Un nœud qui APPARAÎT naît aux coordonnées de son parent et rejoint la
+   * sienne en `BIRTH` ms : c'est ce qui fait lire une croissance et non un surgissement.
+   *
+   * Pourquoi imposer plutôt que laisser converger : `three-forcegraph` réchauffe la simulation
+   * à `alpha(1)` à CHAQUE changement de `graphData`, et n'expose aucun moyen de l'en empêcher.
+   * Une croissance nœud par nœud sur simulation vivante ré-explose donc à chaque étoile.
+   */
+  pinned?: Map<string, { x: number; y: number; z: number }> | null;
+  /**
    * `"force"` (défaut) : simulation de forces — le rendu d'une constellation, où l'on ne sait
    * pas d'avance combien d'étoiles il y aura.
    *
@@ -63,11 +89,72 @@ export interface GalaxyCanvasProps {
    * le cœur était à moitié enseveli.
    */
   layout?: "force" | "orbit";
+  /**
+   * Portée du « une fois par visite » de l'animation d'arrivée.
+   *
+   * Deux surfaces montent la vue en orbite — `/galaxy` et la carte d'Accueil — et elles ne
+   * doivent pas se voler leur arrivée : sans portée distincte, ouvrir l'Accueil consommerait
+   * celle de `/galaxy`, qui s'afficherait alors composée d'emblée.
+   */
+  arrivalScope?: string;
+  /**
+   * Rang d'arrivée par nœud — tout ce qui descend d'une matière porte LE rang de sa matière.
+   *
+   * Sans lui, l'animation d'arrivée sortirait les nœuds un par un dans l'ordre où ils arrivent :
+   * une constellation se disloquerait en vol. Avec lui, chaque matière emmène ses chapitres et
+   * ses notions d'un seul tenant.
+   */
+  arrivalOrder?: Map<string, number> | null;
+  /**
+   * Rayons des anneaux d'orbite à dessiner, du plus proche au plus lointain.
+   *
+   * Sans lui, un anneau est tracé par MATIÈRE (le système solaire du §C). Avec lui, les anneaux
+   * sont **concentriques** et marquent les étages — matières, chapitres, notions.
+   */
+  orbitRings?: number[] | null;
   height?: number;
 }
 
 /** Force du fondu appliqué à ce qui n'est pas concerné par le filtre. */
 const DIM_AMOUNT = 0.82;
+
+interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** Le centre : là où naît `root`, et le repli quand un nœud n'a pas de parent connu. */
+const ORIGIN: Vec3 = { x: 0, y: 0, z: 0 };
+
+/** Opacité pleine d'un trait d'orbite : présent, jamais appuyé — c'est du décor. */
+const RING_OPACITY = 0.16;
+
+/**
+ * Clé de session : l'arrivée joue UNE FOIS PAR VISITE.
+ *
+ * Revoir la même chorégraphie à chaque aller-retour vers une constellation, ce serait
+ * l'animation subie qu'on bannit partout ailleurs (addendum ADR-0024 §3). `sessionStorage`
+ * et non `localStorage` : à la visite suivante, la galaxie a le droit de renaître.
+ */
+const ARRIVAL_KEY = "zetis.galaxy.arrival";
+
+function arrivalAlreadyPlayed(scope: string): boolean {
+  try {
+    return window.sessionStorage?.getItem(`${ARRIVAL_KEY}.${scope}`) === "1";
+  } catch {
+    // Navigation privée, stockage refusé : on rejoue l'arrivée plutôt que de planter.
+    return false;
+  }
+}
+
+function rememberArrival(scope: string): void {
+  try {
+    window.sessionStorage?.setItem(`${ARRIVAL_KEY}.${scope}`, "1");
+  } catch {
+    /* sans stockage, l'arrivée rejouera — c'est le défaut le moins grave. */
+  }
+}
 
 // Volumes des repères. En construisant nous-mêmes les sphères, `nodeVal` et `nodeRelSize`
 // ne s'appliquent plus : on reproduit ici la formule de la lib (`∛volume × rayon de base`),
@@ -97,12 +184,61 @@ export function GalaxyCanvas({
   highlightStatus = null,
   matchedIds = null,
   layout = "force",
+  pinned = null,
+  arrivalScope = "galaxy",
+  arrivalOrder = null,
+  orbitRings = null,
   height = 540,
 }: GalaxyCanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
+  /** Les anneaux d'orbite, partagés entre l'effet qui les crée et celui qui les trace. */
+  const ringsRef = useRef<Mesh[]>([]);
+  /** Objets nœuds réutilisés d'un rendu à l'autre — c'est leur IDENTITÉ qui porte la position. */
+  const nodeCacheRef = useRef(new Map<string, any>());
+  /** Ce qui était déjà à l'écran, pour distinguer une NAISSANCE d'un simple re-rendu. */
+  const seenRef = useRef(new Set<string>());
+  /** Lu par `handleEngineStop`, dont les dépendances sont vides par construction. */
+  const pinnedRef = useRef(pinned);
+  pinnedRef.current = pinned;
   const [width, setWidth] = useState(0);
   const reduced = useMemo(prefersReducedMotion, []);
+
+  // ── Garde de perf n°1 : le flux doré s'éteint si l'appareil décroche ────────────────
+  //
+  // Remplace le plafond de nœuds supprimé le 2026-07-31 (addendum ADR-0024 §2). On mesure
+  // le framerate réel plutôt que de deviner la puissance de l'appareil d'après la largeur
+  // de son écran — c'est précisément la supposition qui rendait l'ancien plafond
+  // indéfendable. Et ce qui tombe, c'est le DÉCOR, jamais une étoile de Massimo.
+  //
+  // Sans retour en arrière : une fois dégradé, on y reste pour la durée de la vue. Un seuil
+  // qu'on repasse dans les deux sens ferait clignoter le flux, ce qui est pire que son
+  // absence.
+  const [degraded, setDegraded] = useState(false);
+  useEffect(() => {
+    if (reduced || degraded) return;
+    let frames = 0;
+    let since = performance.now();
+    let raf = 0;
+    const tick = () => {
+      frames += 1;
+      const now = performance.now();
+      const span = now - since;
+      // On juge sur une seconde pleine : un à-coup isolé (un GC, un onglet qui reprend la
+      // main) ne doit pas éteindre le flux pour de bon.
+      if (span >= 1000) {
+        if ((frames * 1000) / span < PARTICLE_FPS_FLOOR) {
+          setDegraded(true);
+          return;
+        }
+        frames = 0;
+        since = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [reduced, degraded]);
 
 
   useEffect(() => {
@@ -125,7 +261,9 @@ export function GalaxyCanvas({
     // En orbite, on ne cherche pas un équilibre : les positions sont IMPOSÉES (`fx/fy/fz`
     // ci-dessous), donc les forces n'ont rien à faire — les laisser actives ferait vibrer les
     // planètes autour de leur point fixe.
-    if (layout === "orbit") {
+    // Positions imposées — orbite, ou rejeu construit depuis `root` : les forces n'ont rien à
+    // faire. Les laisser actives ferait vibrer les nœuds autour de leur point fixe.
+    if (layout === "orbit" || pinned) {
       graph.d3Force("charge")?.strength(0);
       graph.d3Force("link")?.distance(0);
       return;
@@ -153,22 +291,33 @@ export function GalaxyCanvas({
     const graph = graphRef.current;
     if (layout !== "orbit" || typeof graph?.scene !== "function" || width === 0) return;
 
-    const placements = orbitLayout(nodes.filter((n) => n.kind === "subject").map((n) => n.id));
+    // Deux façons de tracer les anneaux, et elles ne disent pas la même chose : un anneau PAR
+    // MATIÈRE (chacune sur son orbite), ou des anneaux CONCENTRIQUES marquant les étages —
+    // matières, chapitres, notions. Le second est celui de la galaxie complète.
+    const radii =
+      orbitRings ??
+      orbitLayout(nodes.filter((n) => n.kind === "subject").map((n) => n.id)).map(
+        (p) => p.radius,
+      );
 
     // La caméra est placée EN SURPLOMB, pas dans le plan : vue par la tranche, un système
     // solaire se lit comme une ligne droite et les anneaux disparaissent (constaté au rendu).
     // ~35° d'élévation, l'angle auquel un disque se lit comme un disque.
-    const far = (placements.at(-1)?.radius ?? 200) * 2.1;
+    const far = (radii.at(-1) ?? 200) * 2.1;
     graph.cameraPosition?.({ x: 0, y: far * 0.62, z: far }, { x: 0, y: 0, z: 0 }, 0);
 
     const scene = graph.scene();
-    const rings = placements.map(({ radius }) => {
+    const rings = radii.map((radius) => {
       const ring = new Mesh(
         new RingGeometry(radius - 0.6, radius + 0.6, 96),
         new MeshBasicMaterial({
           color: "#6d8bff",
           transparent: true,
-          opacity: 0.16,
+          // Naît INVISIBLE : l'anneau se trace derrière sa planète, à son arrivée, jamais
+          // avant (addendum ADR-0024 §3 et §4). C'est l'effet d'arrivée qui le fait monter
+          // jusqu'à `RING_OPACITY` — et qui l'y met d'emblée quand il n'y a pas d'arrivée
+          // à jouer (mouvement réduit, ou retour d'une constellation).
+          opacity: 0,
           side: DoubleSide,
           depthWrite: false,
         }),
@@ -178,15 +327,17 @@ export function GalaxyCanvas({
       scene.add(ring);
       return ring;
     });
+    ringsRef.current = rings;
 
     return () => {
+      ringsRef.current = [];
       for (const ring of rings) {
         scene.remove(ring);
         ring.geometry.dispose();
         (ring.material as { dispose: () => void }).dispose();
       }
     };
-  }, [layout, nodes, width]);
+  }, [layout, nodes, width, orbitRings]);
 
   // Rotation de la constellation. `controlType="orbit"` expose `autoRotate` ; le moteur de
   // rendu appelle déjà `controls.update(delta)` à chaque frame, donc aucune boucle
@@ -435,6 +586,14 @@ export function GalaxyCanvas({
     // L'ancrage du soleil ne sert qu'à LA MISE EN PLACE : une fois la constellation posée,
     // on le relâche pour qu'il redevienne déplaçable comme n'importe quelle étoile. Il ne
     // bouge pas pour autant — il est déjà à sa place, il n'est simplement plus cloué.
+    //
+    // ⚠️ INERTE, constaté au read-before-code du 2026-07-31 : `graphData` ne fait PAS partie
+    // des méthodes liées au ref par `react-force-graph-3d` 1.29.1 (`methodNames` en expose
+    // 18, celle-ci n'y est pas). `graphRef.current.graphData` vaut donc `undefined`, le `?.`
+    // avale l'appel, et la boucle tourne sur un tableau vide : le soleil n'a jamais été
+    // déclouté. Laissé en l'état — le rendre effectif changerait un comportement en place
+    // depuis le 2026-07-28, ce qui n'est pas au périmètre de ce chantier. Écart consigné
+    // dans `zetis-galaxy.md`.
     const all = graphRef.current?.graphData?.()?.nodes ?? [];
     const anchor = all.some((n: any) => n.kind === "root") ? "root" : "subject";
     for (const node of all) {
@@ -444,6 +603,14 @@ export function GalaxyCanvas({
         node.fz = undefined;
       }
     }
+    // ⚠️ AUCUN RECADRAGE quand les positions sont épinglées.
+    //
+    // `onEngineStop` se déclenche à CHAQUE changement de données, donc à chaque naissance
+    // pendant une construction. Recadrer là-dessus donnait le défaut constaté : la galaxie se
+    // construisait « en grand » — trois étoiles cadrées serré — puis dézoomait par à-coups à
+    // mesure qu'elle poussait. La caméra est posée une fois pour l'étendue FINALE (effet
+    // ci-dessous), qu'on connaît d'avance puisque la disposition est calculée.
+    if (pinnedRef.current) return;
     graphRef.current?.zoomToFit?.(600, fitPadding);
   }, []);
 
@@ -513,10 +680,33 @@ export function GalaxyCanvas({
   // Recadre quand la surface change (passage en plein écran, rotation d'écran) : sans cela,
   // la constellation reste au cadrage de la vignette et laisse la moitié de la page vide.
   useEffect(() => {
-    if (!graphRef.current?.zoomToFit) return;
+    // Même motif : sur un graphe épinglé, c'est l'effet de caméra ci-dessous qui recadre, et il
+    // dépend déjà de `width`/`height`.
+    if (pinned || !graphRef.current?.zoomToFit) return;
     const timer = window.setTimeout(() => graphRef.current?.zoomToFit?.(500, fitPadding), 120);
     return () => window.clearTimeout(timer);
-  }, [width, height]);
+  }, [width, height, pinned]);
+
+  // ── La caméra, posée UNE FOIS pour l'étendue FINALE ────────────────────────────────
+  //
+  // Quand les positions sont épinglées, on connaît d'avance jusqu'où va la galaxie : on cadre
+  // donc tout de suite pour l'état d'arrivée, et plus rien ne bouge ensuite. Les premières
+  // étoiles apparaissent petites au centre et la galaxie se remplit vers l'extérieur — au lieu
+  // de naître en gros plan et de reculer.
+  useLayoutEffect(() => {
+    const graph = graphRef.current;
+    if (!pinned || pinned.size === 0 || width === 0 || typeof graph?.cameraPosition !== "function")
+      return;
+    let far = 0;
+    for (const at of pinned.values()) {
+      far = Math.max(far, Math.hypot(at.x, at.y, at.z));
+    }
+    if (far === 0) return;
+    // Même cadrage en surplomb (~35°) que la vue en orbite : vu par la tranche, un disque se
+    // lit comme une ligne droite.
+    const distance = far * 2.4;
+    graph.cameraPosition({ x: 0, y: distance * 0.62, z: distance }, { x: 0, y: 0, z: 0 }, 0);
+  }, [pinned, width, height]);
 
   // Marge de cadrage proportionnée au cadre : 90 px sur un aperçu de 340 px laisserait plus
   // de vide que de galaxie.
@@ -524,6 +714,16 @@ export function GalaxyCanvas({
 
   // Liens parcourus par l'or : calculé une fois, en dehors du rendu.
   const lit = useMemo(() => litLinkIds(nodes, edges), [nodes, edges]);
+
+  // ── Garde de perf n°2 : le budget de particules ─────────────────────────────────────
+  //
+  // Réparti sur toute la scène, pas décidé lien par lien : c'est le TOTAL par image qui
+  // coûte. Une galaxie très fournie voit son flux s'amincir (2 → 1 → 0) pendant que ses
+  // étoiles, elles, restent toutes là (addendum ADR-0024 §2).
+  const allowance = useMemo(
+    () => particleAllowance(lit.size, { reducedMotion: reduced, degraded }),
+    [lit, reduced, degraded],
+  );
 
   const data = useMemo(
     () => ({
@@ -535,19 +735,226 @@ export function GalaxyCanvas({
       // En mode ORBITE, chaque matière reçoit en plus sa position imposée : le placement
       // voyage dans les DONNÉES, pas par l'API du ref (`graphData()` n'est pas exposée par
       // cette version de la lib — constaté à l'exécution).
+      // ⚠️ L'IDENTITÉ DES OBJETS NŒUDS EST PRÉSERVÉE d'un rendu à l'autre (cache par id).
+      //
+      // Un `{...n}` neuf à chaque changement de données perd les positions calculées par le
+      // moteur : le graphe se réorganise entièrement dès qu'on ajoute un nœud. C'est la
+      // deuxième cause du rejeu saccadé diagnostiquée par l'addendum ADR-0029, et c'est aussi
+      // ce qui permet à une naissance en cours de survivre au pas de rejeu suivant (120 ms,
+      // là où un trajet en dure 480).
+      //
+      // Le tableau, lui, est neuf : c'est ce que la lib regarde pour détecter un changement.
       nodes: nodes.map((n) => {
         const anchor = nodes.some((x) => x.kind === "root") ? "root" : "subject";
-        if (n.kind === anchor) return { ...n, fx: 0, fy: 0, fz: 0 };
-        const placement = orbits.get(n.id);
-        if (placement) {
-          return { ...n, ...placement, fx: placement.x, fy: placement.y, fz: placement.z };
+        const node: any = nodeCacheRef.current.get(n.id) ?? {};
+        // Libellé et statut sont rafraîchis ; `x/y/z` et `__threeObj` survivent — `GalaxyNode`
+        // ne porte aucune coordonnée, la copie ne peut donc pas les écraser.
+        Object.assign(node, n);
+        const placement = pinned?.get(n.id) ?? orbits.get(n.id);
+        if (n.kind === anchor && !placement) {
+          node.fx = 0;
+          node.fy = 0;
+          node.fz = 0;
+        } else if (placement) {
+          node.x = node.fx = placement.x;
+          node.y = node.fy = placement.y;
+          node.z = node.fz = placement.z;
+        } else {
+          // Sans placement imposé, on DÉCLOUE : un `fx` hérité d'une vue précédente figerait
+          // le nœud là où il n'a plus rien à faire.
+          node.fx = node.fy = node.fz = undefined;
         }
-        return { ...n };
+        nodeCacheRef.current.set(n.id, node);
+        return node;
       }),
       links: edges.map((e) => ({ source: e.source, target: e.target })),
     }),
-    [nodes, edges],
+    // `orbits` fait partie des dépendances : sans lui, basculer en mode orbite sans que
+    // `nodes` change laisserait les placements de la vue précédente.
+    [nodes, edges, orbits],
   );
+
+  // ── L'arrivée de la vue par défaut (addendum ADR-0024 §3) ───────────────────────────
+  //
+  // Le cerveau apparaît seul, puis les matières naissent au centre et rejoignent leur
+  // créneau ; l'anneau se trace derrière sa planète. Rythme et invariants : `arrivalTween.ts`.
+  //
+  // ⚠️ ÉCART ASSUMÉ AVEC LA LETTRE DE L'ADDENDUM, constaté à l'exécution. Le §3 prescrit
+  // « n'affecter `fx/fy/fz` qu'à l'arrivée, animer `x/y/z` avant ». Ça ne marche pas ici :
+  // en mode orbite le moteur est éteint (forces à zéro, `cooldownTicks` atteint), et la lib
+  // ne recopie `x/y/z` vers les objets 3D que pendant un tick de simulation — un `x` animé
+  // sur un moteur arrêté ne déplace rien. On écrit donc les trois à la fois, sur la position
+  // COURANTE du tween : l'objet 3D bouge tout de suite, et si un tick survient il repose la
+  // planète exactement là où on l'a mise, au lieu de la ramener à son créneau.
+  //
+  // Ce que le §3 interdit vraiment reste respecté : ce qui téléporte, c'est d'épingler la
+  // position FINALE dès l'affectation. Ici on n'épingle jamais que l'instant présent.
+  //
+  // Aucun `refresh()` dans la boucle : il reconstruit tous les objets de la scène. À
+  // 60 images par seconde ce serait le remède pire que le mal.
+  const arrivalRef = useRef(false);
+  useLayoutEffect(() => {
+    if (layout !== "orbit" || width === 0) return;
+    const graph = graphRef.current;
+    if (!graph) return;
+
+    // L'ORDRE DU PROGRAMME, celui dans lequel les matières nous sont servies. Ni ancienneté
+    // ni nombre d'étoiles : l'un ferait un mini-rejeu, l'autre un palmarès (ADR-0024 §5).
+    //
+    // Les positions viennent de `pinned` quand il est fourni (galaxie complète en orbites
+    // emboîtées) et de `orbits` sinon (matières seules). Le RANG vient de `arrivalOrder` : tout
+    // ce qui descend d'une matière porte le rang de sa matière, donc chaque constellation sort
+    // du centre d'un seul tenant au lieu de se disloquer en vol.
+    const slots = pinned ?? orbits;
+    const planets: {
+      node: any;
+      slot: { x: number; y: number; z: number };
+      rank: number;
+    }[] = [];
+    for (const node of data.nodes as any[]) {
+      const slot = slots.get(node.id);
+      // `root` est le point de départ : il ne voyage pas, il est déjà chez lui.
+      if (!slot || node.kind === "root") continue;
+      planets.push({ node, slot, rank: arrivalOrder?.get(node.id) ?? planets.length });
+    }
+    if (planets.length === 0) return;
+
+    // La durée se compte en RANGS distincts, pas en nœuds : cent notions d'une même matière
+    // arrivent ensemble, elles n'allongent pas la chorégraphie d'un cran chacune.
+    const rankCount = new Set(planets.map((p) => p.rank)).size;
+
+    const place = (node: any, at: { x: number; y: number; z: number }) => {
+      node.x = node.fx = at.x;
+      node.y = node.fy = at.y;
+      node.z = node.fz = at.z;
+      node.__threeObj?.position?.set(at.x, at.y, at.z);
+    };
+
+    /** La composition finale : c'est aussi l'état de repli quand il n'y a rien à jouer. */
+    const settle = () => {
+      for (const { node, slot } of planets) {
+        place(node, slot);
+        if (node.__threeObj) node.__threeObj.visible = true;
+      }
+      for (const ring of ringsRef.current) {
+        (ring.material as MeshBasicMaterial).opacity = RING_OPACITY;
+      }
+    };
+
+    // `prefers-reduced-motion` → composition finale immédiate, aucun trajet. Idem au retour
+    // d'une constellation : l'arrivée ne joue qu'UNE FOIS PAR VISITE.
+    if (reduced || arrivalRef.current || arrivalAlreadyPlayed(arrivalScope)) {
+      settle();
+      return;
+    }
+    arrivalRef.current = true;
+    rememberArrival(arrivalScope);
+
+    const total = arrivalDuration(rankCount);
+    const apply = (elapsed: number) => {
+      planets.forEach(({ node, slot, rank }) => {
+        place(node, planetPosition(elapsed, rank, slot));
+        // Avant de partir, la matière attend DANS le cerveau : invisible, sinon huit
+        // planètes empilées à l'origine se liraient comme un défaut d'affichage.
+        if (node.__threeObj) node.__threeObj.visible = planetIsBorn(elapsed, rank);
+      });
+      ringsRef.current.forEach((ring, index) => {
+        (ring.material as MeshBasicMaterial).opacity = ringOpacity(
+          elapsed,
+          index,
+          RING_OPACITY,
+        );
+      });
+    };
+
+    // L'état à t=0 est posé AVANT la première peinture (`useLayoutEffect`) : sans lui, la
+    // première image montrerait les planètes déjà à leur créneau — un flash à l'arrivée,
+    // suivi d'un retour au centre.
+    apply(0);
+
+    let raf = 0;
+    const start = performance.now();
+    const frame = (now: number) => {
+      const elapsed = now - start;
+      if (elapsed >= total) {
+        settle();
+        return;
+      }
+      apply(elapsed);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [layout, width, data, orbits, pinned, arrivalOrder, reduced, arrivalScope]);
+
+  // ── La naissance d'une étoile, depuis son parent (addendum ADR-0029 §2 réécrit) ─────
+  //
+  // Un nœud qui apparaît ne surgit pas à sa place : il naît AUX COORDONNÉES DE SON PARENT et
+  // rejoint la sienne en `BIRTH` ms. Sans ça, chaque étoile arriverait de l'origine en
+  // traversant l'écran — ou pire, apparaîtrait d'un coup, ce qui ne se lit pas comme une
+  // croissance.
+  //
+  // Rien ici ne réchauffe la simulation : tout est épinglé, le moteur est neutralisé. C'est
+  // précisément ce qui remplace le `d3ReheatSimulation` à alpha bas que la lib n'expose pas.
+  useLayoutEffect(() => {
+    const current = data.nodes as any[];
+    if (!pinned) {
+      // Hors rejeu, on mémorise sans animer : au retour, rien ne doit « renaître ».
+      seenRef.current = new Set(current.map((n) => n.id));
+      return;
+    }
+
+    const parentOf = new Map<string, string>();
+    for (const edge of edges) {
+      if (!parentOf.has(edge.target)) parentOf.set(edge.target, edge.source);
+    }
+
+    const newborns: { node: any; from: Vec3; to: Vec3 }[] = [];
+    for (const node of current) {
+      if (seenRef.current.has(node.id)) continue;
+      const to = pinned.get(node.id);
+      if (!to) continue;
+      const parentId = parentOf.get(node.id);
+      // `root` n'a pas de parent : il naît chez lui, au centre. C'est le point de départ.
+      newborns.push({ node, from: (parentId && pinned.get(parentId)) || ORIGIN, to });
+    }
+    for (const node of current) seenRef.current.add(node.id);
+
+    // `prefers-reduced-motion` → état final d'emblée, aucune construction.
+    if (newborns.length === 0 || reduced) return;
+
+    const put = (node: any, at: Vec3) => {
+      node.x = node.fx = at.x;
+      node.y = node.fy = at.y;
+      node.z = node.fz = at.z;
+      node.__threeObj?.position?.set(at.x, at.y, at.z);
+    };
+    const apply = (elapsed: number) => {
+      const k = easeOutCubic(Math.min(1, elapsed / BIRTH));
+      for (const { node, from, to } of newborns) {
+        put(node, {
+          x: from.x + (to.x - from.x) * k,
+          y: from.y + (to.y - from.y) * k,
+          z: from.z + (to.z - from.z) * k,
+        });
+      }
+    };
+
+    apply(0);
+    let raf = 0;
+    const start = performance.now();
+    const frame = (now: number) => {
+      const elapsed = now - start;
+      if (elapsed >= BIRTH) {
+        for (const { node, to } of newborns) put(node, to);
+        return;
+      }
+      apply(elapsed);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [data, pinned, edges, reduced]);
 
   // Un lien reste franc s'il mène à une étoile de l'état filtré ; sinon il s'efface.
   const linkIsFocused = useCallback(
@@ -619,9 +1026,10 @@ export function GalaxyCanvas({
           linkDirectionalParticles={(link: any) => {
             if (!linkIsFocused(link)) return 0;
             // Un train de particules sur les nerfs : plusieurs impulsions se suivent le long
-            // de la fibre, comme une salve de potentiels d'action.
-            if (isNerve(link)) return reduced ? 0 : 5;
-            return particlesFor(isLitLink(link), reduced);
+            // de la fibre, comme une salve de potentiels d'action. Il s'éteint avec le
+            // budget — mouvement réduit, ou appareil qui décroche.
+            if (isNerve(link)) return allowance > 0 ? 5 : 0;
+            return particlesFor(isLitLink(link), reduced, allowance);
           }}
           linkDirectionalParticleColor={(link: any) =>
             isNerve(link) ? NERVE_BRIGHT : GOLD_BRIGHT

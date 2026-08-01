@@ -77,12 +77,6 @@ export function statusCounts(nodes: GalaxyNode[]): Record<GalaxyStatus, number> 
 }
 
 /**
- * Nombre de particules sur un lien.
- *
- * `prefers-reduced-motion` coupe TOUT mouvement, allumé ou non : c'est une obligation de
- * l'ADR-0024 §6, pas un réglage de confort.
- */
-/**
  * Normalisation pour la recherche : minuscules, sans accents.
  *
  * Massimo tape « elyse », pas « Élysée », et rarement avec la bonne casse. Comparer les
@@ -114,7 +108,51 @@ export function searchMatches(nodes: GalaxyNode[], query: string): Set<string> {
   return found;
 }
 
-export function particlesFor(lit: boolean, reducedMotion: boolean): number {
+// ── La garde de perf : les PARTICULES, jamais les nœuds ──────────────────────────────
+//
+// Remplace le plafond de nœuds supprimé le 2026-07-31 (addendum ADR-0024 §2), et vise le
+// vrai coût : `linkDirectionalParticles` anime un objet PAR LIEN À CHAQUE FRAME, là où une
+// sphère posée ne coûte plus rien une fois la scène stabilisée. Doubler les étoiles ne
+// double pas le travail par image ; doubler les particules, si.
+//
+// ⚠️ Ce budget ne doit JAMAIS servir à masquer des étoiles. S'il faut dégrader, on dégrade
+// le décor (l'or qui coule), pas la progression de Massimo.
+
+/** Particules simultanées tolérées sur toute la scène, toutes fibres confondues. */
+export const PARTICLE_BUDGET = 160;
+
+/** Au-delà, un lien ne gagne rien à être plus chargé : on ne lit plus un flux, mais un trait. */
+export const MAX_PARTICLES_PER_LINK = 2;
+
+/** Sous ce framerate, le flux doré s'éteint. Au-dessous, l'animation nuit plus qu'elle ne dit. */
+export const PARTICLE_FPS_FLOOR = 34;
+
+/**
+ * Particules autorisées SUR CHAQUE lien allumé, une fois le budget réparti.
+ *
+ * Calculé une fois par graphe, pas par lien : c'est une propriété de la scène entière.
+ * Une galaxie très fournie retombe naturellement à 1 particule par fil, puis à 0 — le flux
+ * s'amincit avant de disparaître, et les étoiles ne bougent pas.
+ */
+export function particleAllowance(
+  litLinkCount: number,
+  { reducedMotion = false, degraded = false } = {},
+): number {
+  if (reducedMotion || degraded || litLinkCount <= 0) return 0;
+  return Math.min(MAX_PARTICLES_PER_LINK, Math.floor(PARTICLE_BUDGET / litLinkCount));
+}
+
+/**
+ * Nombre de particules sur un lien donné.
+ *
+ * `prefers-reduced-motion` coupe TOUT mouvement, allumé ou non : c'est une obligation de
+ * l'ADR-0024 §6, pas un réglage de confort.
+ */
+export function particlesFor(
+  lit: boolean,
+  reducedMotion: boolean,
+  allowance: number = MAX_PARTICLES_PER_LINK,
+): number {
   if (reducedMotion) return 0;
-  return lit ? 2 : 0;
+  return lit ? allowance : 0;
 }

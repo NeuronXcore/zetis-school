@@ -2,11 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { GalaxyEdge, GalaxyNode, GalaxyStatus } from "@zetis/types";
 import {
-  GALAXY_MAX_NODES,
   GalaxyFallbackList,
   GalaxyLegend,
   STATUS_ORDER,
-  maxNodesFor,
   starStyle,
 } from "@zetis/ui/galaxy";
 
@@ -83,15 +81,6 @@ describe("KPI cliquables", () => {
     expect(
       screen.getAllByRole("button").every((b) => b.hasAttribute("disabled")),
     ).toBe(true);
-  });
-});
-
-describe("plafond adaptatif de nœuds", () => {
-  it("suit la classe d'appareil — Massimo a trois postes, pas un", () => {
-    expect(maxNodesFor(390)).toBe(GALAXY_MAX_NODES.compact); // iPhone
-    expect(maxNodesFor(768)).toBe(GALAXY_MAX_NODES.tablet); // iPad
-    expect(maxNodesFor(1440)).toBe(GALAXY_MAX_NODES.desktop); // MacBook
-    expect(GALAXY_MAX_NODES.compact).toBeLessThan(GALAXY_MAX_NODES.desktop);
   });
 });
 

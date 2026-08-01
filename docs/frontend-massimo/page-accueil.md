@@ -152,7 +152,38 @@ XP, posée sur un calendrier** — semaines en colonnes, jours en lignes. Rien d
 objectif de jours, une comparaison entre deux périodes, un fond quadrillé.
 
 **Une action secondaire** : « Revoir ma galaxie grandir → » ouvre le **rejeu animé** (ADR-0029).
-Bordure, jamais plein — la seule action accentuée de la page reste « Commencer ».
+Bordure, jamais plein — la seule action accentuée de la page reste « Commencer ». Le libellé est
+**inchangé** depuis l'addendum « Construction depuis root » : c'est bien ce qu'il annonce qui a
+changé, pas la promesse. Dans la modale, la galaxie se **construit** depuis le cerveau au lieu de
+défiler ; il n'y a plus de barre de lecture, seulement un bouton « Revoir ».
+
+⚠️ **Sur l'Accueil, la frise reste telle quelle** — elle se lit d'un coup d'œil sans rien ouvrir.
+Elle n'a jamais été une barre de lecture ici, et elle ne le devient pas : c'est dans la modale,
+et seulement là, qu'elle se trace en synchronisation avec les étoiles.
+
+⚠️ **Placement** : la carte est **juste sous « Mission du jour »**, en **pleine largeur** (et non
+plus en bas, dans une colonne étroite à côté de « Ma semaine »). **Composition** : le texte —
+« Ma galaxie », le compte, les pastilles de matières — forme une bande de **badges au-dessus** du
+ciel, qui a sa propre bande. **Aucune superposition texte / graphe.**
+
+⚠️ **La carte porte un ciel 3D depuis le 2026-07-31 au soir**
+(`adr-0024-addendum-galaxie-sur-accueil.md`, qui **révoque le §B** du matin). La galaxie s'y
+**construit étoile par étoile**, comme dans la modale et par le même hook (`useGalaxyGrowth`) —
+et elle **rejoue à chaque visite de la page** : une animation qui ne joue qu'une fois par session
+ne rend pas une page vivante.
+
+Trois conditions, qui sont la décision elle-même :
+
+- le canvas n'est **jamais monté au premier rendu** — la carte statique est la première peinture,
+  le ciel arrive à `requestIdleCallback` (repli `setTimeout` : **Safari ne l'a pas**, et c'est le
+  navigateur de l'iPhone et de l'iPad) ;
+- la 3D est **contemplative** — `pointer-events-none`, `aria-hidden` : toute la carte reste une
+  seule cible de clic, et un drag de nœud dans un lien déclencherait la navigation au
+  relâchement ;
+- `prefers-reduced-motion` ou pas de WebGL → **carte statique, point** — et dans ce cas, pas même
+  les deux requêtes du graphe complet ;
+- le graphe complet (`galaxy/all` + la frise) n'est demandé **qu'avec le ciel** : la page
+  d'atterrissage ne paie **rien** avant d'être lisible, ni octets de code ni aller-retour réseau.
 
 ⚠️ **`GalaxyReplayModal` ne doit JAMAIS être importée statiquement par l'Accueil.** Elle est
 montée en `lazy()`, et charge elle-même le canvas en `lazy()`. Ce **double `lazy()`** est ce qui

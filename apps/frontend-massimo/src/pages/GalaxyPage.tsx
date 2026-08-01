@@ -9,13 +9,14 @@ import { SearchEmptyToast } from "../components/galaxy/SearchEmptyToast";
 import { ProgressSparkline } from "../components/galaxy/ProgressSparkline";
 import { SubjectConstellations } from "../components/galaxy/SubjectConstellations";
 import { useGalaxy } from "../hooks/useGalaxy";
+import { solarSystemOf } from "../lib/solarSystem";
 import { REASON_LABEL } from "../lib/gamification";
 import type { GalaxyStatus } from "@zetis/types";
 import {
   GalaxyFallbackList,
   GalaxyLegend,
+  constellationLayout,
   hasWebGL,
-  maxNodesFor,
   searchMatches,
   statusCounts,
 } from "@zetis/ui/galaxy";
@@ -196,59 +197,37 @@ export function GalaxyPage() {
     if (!constellation) setFullscreen(false);
   }, [constellation]);
 
-  // Plafond adaptatif (ADR-0024 §6) : au-delà, on ne rend que les amas et Massimo déplie
-  // un chapitre à la demande. Les valeurs sont provisoires, à mesurer sur les 3 appareils.
-  const capped = useMemo(() => {
-    if (!constellation) return null;
-    const limit = maxNodesFor(width);
-    if (constellation.nodes.length <= limit) return { ...constellation, truncated: false };
-    const chapters = constellation.nodes.filter((n) => n.kind === "chapter");
-    return { ...constellation, nodes: chapters, edges: [], truncated: true };
-  }, [constellation, width]);
-
-  // Le MÊME plafond, appliqué à la galaxie complète (addendum ADR-0024 §C : « il s'applique tel
-  // quel »). Un graphe global rassemble bien plus de nœuds qu'une constellation : il mord
-  // beaucoup plus tôt. Au-delà, on replie sur matières + chapitres — les notions restent
-  // atteignables en ENTRANT dans une constellation, elles ne disparaissent pas.
-  // ⚠️ Les valeurs (40 / 90 / 150) sont provisoires et mesurées sur aucun appareil réel : c'est
-  // une dette ouverte de l'ADR-0024 §6, hors de ce chantier. Ne pas les « ajuster » au jugé.
-  // ⚠️ Remplacé le 2026-07-31 : la vue d'arrivée n'affiche plus TOUT le graphe.
+  // ── Plus de plafond : la constellation est rendue ENTIÈRE ───────────────────────────
   //
-  // Elle montre le **système solaire** — le cœur (cerveau) et les matières en orbite, rien
-  // d'autre. Le graphe complet posé par simulation de forces produisait un amas où le cerveau
-  // était à moitié enseveli et les libellés se chevauchaient (constaté au rendu réel). Les
-  // notions restent atteignables en ENTRANT dans une constellation : elles ne disparaissent
-  // pas, elles cessent d'être servies toutes en même temps.
+  // Il y avait ici un repli qui, au-delà de `maxNodesFor(width)`, ne rendait plus que les
+  // chapitres et affichait « Beaucoup d'étoiles ici — touche un chapitre pour l'ouvrir ».
+  // Supprimé le 2026-07-31 (addendum ADR-0024 §1) : ce repli cachait à Massimo une partie
+  // de sa propre progression selon la taille de son écran, et son seuil n'avait jamais été
+  // mesuré sur aucun appareil.
   //
-  // Effet de bord heureux : 8 planètes au lieu de 60 nœuds — le plafond adaptatif
-  // (`GALAXY_MAX_NODES`, dette ADR-0024 §6) ne mord plus jamais sur cet écran.
-  const solarSystem = useMemo(() => {
-    if (!fullGraph) return null;
-    const keep = new Set(
-      fullGraph.nodes.filter((n) => n.kind === "root" || n.kind === "subject").map((n) => n.id),
-    );
-    const nodes = fullGraph.nodes.filter((n) => keep.has(n.id));
-    const edges = fullGraph.edges.filter((e) => keep.has(e.source) && keep.has(e.target));
+  // ⚠️ Ce repli EXISTAIT BIEN en code, contrairement à ce que supposait l'addendum
+  // (« probablement jamais écrit ») — il était atteint et rendu. Constat consigné dans
+  // `zetis-galaxy.md`.
 
-    // Les matières ENCORE VIDES ont aussi leur planète.
-    //
-    // `GET /api/student/galaxy/all` les exclut volontairement (« un soleil sans planète
-    // n'apprend rien et encombre la vue ») — ce raisonnement valait pour un graphe dense. Dans
-    // un système solaire il s'inverse : la carte de l'année doit montrer TOUTES les planètes,
-    // y compris celles qui ne sont pas encore allumées. Une matière absente se lirait comme
-    // une matière qui n'existe pas ; une planète éteinte se lit comme « pas encore ».
-    //
-    // `GET /api/student/galaxy` (overview), déjà chargé, les sert toutes — `0/0` compris. Le
-    // clic reste honnête : la constellation d'une matière vide annonce « 🌱 Les étoiles de
-    // cette matière arrivent bientôt. »
-    for (const subject of galaxy.subjects ?? []) {
-      const id = `subject-${subject.subject_id}`;
-      if (keep.has(id)) continue;
-      nodes.push({ id, kind: "subject", label: subject.name, subject_slug: subject.slug });
-      edges.push({ source: "root", target: id, type: "structure" });
-    }
-    return { nodes, edges };
-  }, [fullGraph, galaxy.subjects]);
+  // La vue par défaut : la galaxie ENTIÈRE, en orbites emboîtées — le cerveau, les matières,
+  // leurs chapitres et leurs notions (addendum « constellations complètes », 2026-07-31 soir,
+  // qui RÉVOQUE le filtre `root` + `subject` du §C).
+  //
+  // ⚠️ Ce que le §C avait vu était réel : servir tout le graphe à une SIMULATION DE FORCES
+  // produisait un amas. Mais la cause était la convergence, pas le nombre de nœuds — et il n'y
+  // a plus de convergence : `constellationLayout` calcule chaque position, `pinned` les épingle,
+  // le moteur est neutralisé. Ne pas « rallumer les forces maintenant qu'on sait faire » : c'est
+  // parce qu'on ne les rallume pas que tout peut être montré.
+  const solarSystem = useMemo(
+    () => solarSystemOf(fullGraph, galaxy.subjects),
+    [fullGraph, galaxy.subjects],
+  );
+
+  /** Les positions imposées de la galaxie entière, et le rang d'arrivée de chaque nœud. */
+  const constellations = useMemo(
+    () => (solarSystem ? constellationLayout(solarSystem.nodes, solarSystem.edges) : null),
+    [solarSystem],
+  );
 
   /**
    * Le bandeau de planètes, rendu AU-DESSUS du graphe quel que soit l'écran.
@@ -348,7 +327,7 @@ export function GalaxyPage() {
   };
 
   const graphBox =
-    constellation && capped ? (
+    constellation ? (
       <div className="min-h-0 overflow-hidden rounded-2xl border border-zetis-border bg-zetis-surface">
         {constellation.nodes.length === 0 ? (
           <p className="p-6 text-sm text-zetis-muted">
@@ -359,8 +338,8 @@ export function GalaxyPage() {
             fallback={<p className="p-6 text-sm text-zetis-muted">Ta constellation arrive…</p>}
           >
             <GalaxyCanvas
-              nodes={capped.nodes}
-              edges={capped.edges}
+              nodes={constellation.nodes}
+              edges={constellation.edges}
               selectedId={notion ? `skill-${notion.skill_id}` : null}
               highlightStatus={searching ? null : highlightStatus}
               matchedIds={matchedIds}
@@ -470,9 +449,17 @@ export function GalaxyPage() {
                     <GalaxyCanvas
                       nodes={solarSystem.nodes}
                       edges={solarSystem.edges}
-                      // Les matières sont POSÉES sur leurs orbites, pas placées par un moteur
-                      // de forces : c'est une composition, pas un équilibre.
+                      // Tout est POSÉ, rien n'est convergé : c'est une composition, pas un
+                      // équilibre. `layout="orbit"` coupe les forces et dessine les anneaux
+                      // des matières ; `pinned` place chaque nœud, jusqu'aux notions.
                       layout="orbit"
+                      pinned={constellations?.positions ?? null}
+                      // Chaque constellation sort du centre d'un seul tenant : tout ce qui
+                      // descend d'une matière porte SON rang d'arrivée.
+                      arrivalOrder={constellations?.order ?? null}
+                      // Anneaux CONCENTRIQUES : un par étage (matières, chapitres, notions),
+                      // et non plus un par matière.
+                      orbitRings={constellations?.rings ?? null}
                       matchedIds={EMPTY_MATCHES}
                       highlightStatus={null}
                       selectedId={null}
@@ -511,7 +498,7 @@ export function GalaxyPage() {
       {/* ── Écran 2 : une constellation ──
           Masqué en plein écran : deux `GalaxyCanvas` montés = deux contextes WebGL pour
           rien, et le navigateur en limite le nombre. */}
-      {constellation && capped && !fullscreen && (
+      {constellation && !fullscreen && (
         <section className="mt-6">
           {/* Le bandeau reste ici : c'est le sélecteur de matière. Sans lui, changer de matière
               obligerait à revenir à la galaxie d'abord — un aller-retour pour un geste que
@@ -538,12 +525,6 @@ export function GalaxyPage() {
             {notion && <NotionActionPanel notion={notion} onClose={galaxy.closeNotion} />}
           </div>
 
-          {capped.truncated && (
-            <p className="mt-3 text-xs text-zetis-muted">
-              Beaucoup d'étoiles ici — touche un chapitre pour l'ouvrir.
-            </p>
-          )}
-
           {legend}
           <p className="mt-3 text-sm text-zetis-muted">
             {highlightStatus
@@ -554,7 +535,7 @@ export function GalaxyPage() {
       )}
 
       {/* ── Plein écran : la constellation prend toute la page, les KPI restent ── */}
-      {fullscreen && constellation && capped && (
+      {fullscreen && constellation && (
         <div
           // Plein écran DANS LA PAGE : la sidebar et le bandeau restent visibles, Massimo
           // garde ses repères et peut partir ailleurs sans d'abord refermer.

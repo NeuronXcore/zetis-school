@@ -175,6 +175,20 @@ Ces règles étaient dispersées ; elles deviennent opposables.
 
 ### 6. Trois appareils, pas un — et un plafond adaptatif
 
+> ⚠️ **RÉVISÉ le 2026-07-31** par `adr-0024-addendum-galaxie-animee.md` §1 : **le plafond de
+> nœuds est SUPPRIMÉ**, avec son repli. Trois motifs, chacun suffisant — il cachait à Massimo une
+> partie de sa propre progression selon un critère matériel ; ses valeurs n'ont jamais été
+> mesurées (« seul le MacBook a été vérifié », ci-dessous) ; il ne mordait plus sur la vue par
+> défaut depuis la refonte en système solaire. Trois **gardes** le remplacent, qui visent le coût
+> réel par image et non un nombre de nœuds : budget de particules, coupure sous 34 FPS, moteur
+> arrêté après stabilisation.
+>
+> **Ce qui reste vrai de ce §6** : les trois appareils, et la dette de mesure — reformulée, pas
+> éteinte. Elle doit se faire sur un **pire cas semé**, et **l'iPhone tranche**. S'il ne suit pas,
+> ce sont les **particules** qui tombent, jamais les étoiles.
+>
+> Le tableau des paliers ci-dessous est **caduc**. Conservé pour la lisibilité de l'historique.
+
 Massimo ne travaille pas que sur iPhone : **iPad et MacBook dédié à l'école** sont des postes au
 moins aussi fréquents, et ce sont eux qui donnent son sens à une vue 3D (surface d'écran, GPU,
 pointeur précis pour étirer un nœud). `CLAUDE.md` le dit déjà — « responsive desktop / tablette /
