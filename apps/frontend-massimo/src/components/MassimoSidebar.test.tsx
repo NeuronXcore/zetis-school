@@ -19,15 +19,16 @@ afterEach(() => {
 
 describe("MassimoSidebar — témoins de nouveauté (ADR-0030)", () => {
   it("rend un badge par entrée qui en a un, avec son compte", () => {
-    // Cinq valeurs DISTINCTES : le libellé accessible porte le nombre, deux entrées au même
+    // Six valeurs DISTINCTES : le libellé accessible porte le nombre, deux entrées au même
     // compte seraient indiscernables et le test ne prouverait pas que chacune a le sien.
-    renderSidebar({ agenda: 2, fiches: 1, capsules: 3, revision: 5, missions: 7 });
+    renderSidebar({ agenda: 2, fiches: 1, capsules: 3, revision: 5, missions: 7, mindmaps: 4 });
 
     expect(screen.getByLabelText("2 nouveaux")).toHaveTextContent("2");
     expect(screen.getByLabelText("1 nouveau")).toBeInTheDocument();
     expect(screen.getByLabelText("3 nouveaux")).toHaveTextContent("3");
     expect(screen.getByLabelText("5 nouveaux")).toHaveTextContent("5");
     expect(screen.getByLabelText("7 nouveaux")).toHaveTextContent("7");
+    expect(screen.getByLabelText("4 nouveaux")).toHaveTextContent("4");
   });
 
   it("ne rend RIEN à zéro — pas de « 0 », pas de réceptacle vide", () => {

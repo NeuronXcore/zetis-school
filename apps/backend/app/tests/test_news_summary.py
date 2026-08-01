@@ -1,4 +1,4 @@
-"""Témoins de nouveauté en navigation — comportement des cinq compteurs (ADR-0030).
+"""Témoins de nouveauté en navigation — comportement des six compteurs (ADR-0030).
 
 Chaque compteur doit naître d'un geste de Papa ou du système, et **mourir d'un regard** de
 Massimo. Les tests sont écrits dans cet ordre : on constate l'arrivée, puis on fait le geste de
@@ -18,7 +18,7 @@ from app.tests.test_fiche_service import _seed_validated_lesson
 from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
 
 SUMMARY = "/api/student/news/summary"
-KEYS = {"agenda", "fiches", "capsules", "revision", "missions"}
+KEYS = {"agenda", "fiches", "capsules", "revision", "missions", "mindmaps"}
 
 
 # --- helpers de seed ------------------------------------------------------------------------
@@ -105,8 +105,8 @@ def _summary(client) -> dict:
 # --- 1. Contrat de sortie -------------------------------------------------------------------
 
 
-def test_summary_serves_five_keys_and_nothing_else(client_db) -> None:
-    """Le contrat est fermé : cinq entiers, et surtout AUCUN champ d'échéance ou de total.
+def test_summary_serves_six_keys_and_nothing_else(client_db) -> None:
+    """Le contrat est fermé : six entiers, et surtout AUCUN champ d'échéance ou de total.
 
     Un `due_count` servi « pour information » finirait branché sur un badge — c'est la pression
     durable que l'ADR nomme dans ses coûts. La frontière tient dans le schéma, pas dans l'UI.
@@ -285,3 +285,50 @@ def test_revision_ignores_non_servable_cards(client_db) -> None:
             _card(db, due_at=now - timedelta(days=1), status=status)
 
     assert _summary(client)["revision"] == 0
+
+
+# --- 4. Mindmaps : la dette du no-op, soldée -------------------------------------------------
+
+
+def _mindmap(db, *, validated=True) -> int:
+    """Mindmap rattachée à une leçon validée (même socle que les fiches)."""
+    lesson = _seed_validated_lesson(db)
+    row = m.Mindmap(
+        lesson_id=lesson.id,
+        mindmap_json={"center": "Nombres relatifs", "children": []},
+        validation_status="validated" if validated else "pending",
+    )
+    db.add(row)
+    db.commit()
+    return row.id
+
+
+def test_mindmaps_witness_falls_to_zero_when_opened(client_db) -> None:
+    """`POST /mindmaps/{id}/seen` répondait 204 sans rien persister depuis l'ADR-0016 (« placeholder
+    Slice A »). Ce test est ce qui empêche la route de redevenir un no-op silencieux."""
+    client, Session = client_db
+    with Session() as db:
+        _mindmap(db, validated=False)
+    assert _summary(client)["mindmaps"] == 0, "une carte non validée n'est pas arrivée"
+
+    with Session() as db:
+        mindmap_id = _mindmap(db)
+    assert _summary(client)["mindmaps"] == 1
+
+    assert client.post(f"/api/student/mindmaps/{mindmap_id}/seen").status_code == 204
+    assert _summary(client)["mindmaps"] == 0
+
+
+def test_marking_a_mindmap_seen_is_idempotent(client_db) -> None:
+    """Rejouer le geste ne crée pas de seconde ligne : « vu » est un état, pas un compteur."""
+    client, Session = client_db
+    with Session() as db:
+        mindmap_id = _mindmap(db)
+
+    for _ in range(3):
+        assert client.post(f"/api/student/mindmaps/{mindmap_id}/seen").status_code == 204
+
+    with Session() as db:
+        views = db.query(m.MindmapView).filter(m.MindmapView.mindmap_id == mindmap_id).count()
+    assert views == 1
+    assert _summary(client)["mindmaps"] == 0

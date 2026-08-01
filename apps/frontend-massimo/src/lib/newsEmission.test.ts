@@ -45,6 +45,12 @@ describe("émission de NEWS_CHANGED_EVENT", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it("part quand une mindmap est ouverte", async () => {
+    const { markMindmapSeen } = await import("./mindmaps");
+    await markMindmapSeen(1);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it("part quand une mission démarre", async () => {
     const { startMission } = await import("./missions");
     await startMission(1);

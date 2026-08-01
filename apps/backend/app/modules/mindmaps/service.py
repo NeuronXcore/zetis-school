@@ -32,6 +32,7 @@ from app.db.models import (
     LessonSkill,
     Mindmap,
     MindmapAttempt,
+    MindmapView,
     SchoolYear,
     SchoolYearSubject,
     Skill,
@@ -690,11 +691,46 @@ def record_attempt(
 
 
 def mark_seen(db: Session, student_id: int, mindmap_id: int) -> None:
-    """Marque la carte vue (idempotent). 404 si la carte n'est pas `validated`.
+    """Marque la carte vue (idempotent). 404 si la carte n'est pas servable.
 
-    **Placeholder Slice A** : la persistance des vues (badge « Nouveau ») est différée — le
-    périmètre de cette slice ne prévoit pas de table `mindmap_views` (ADR-0016 §3). On valide
-    seulement l'existence/visibilité de la carte pour que le client Slice B puisse appeler la route
-    sans 404 ; le suivi réel des vues arrivera avec le badge.
+    Persistée depuis le 2026-08-01 (ADR-0030 §4) : cette fonction était un **placeholder** depuis
+    la slice A de l'ADR-0016 — elle validait la visibilité de la carte et ne stockait rien, si
+    bien que la route répondait 204 sans rien retenir. Mindmaps était donc la seule famille de
+    dérivés sans témoin de nouveauté.
+
+    Idempotent par la ligne, pas par un compteur : « vu » = la ligne existe. Relire une carte
+    n'est pas une information pédagogique, et un compteur qu'on n'affiche nulle part finit par
+    être affiché quelque part.
     """
     _servable_mindmap_or_404(db, mindmap_id)
+    existing = db.scalar(
+        select(MindmapView).where(
+            MindmapView.student_id == student_id,
+            MindmapView.mindmap_id == mindmap_id,
+        )
+    )
+    if existing is None:
+        db.add(MindmapView(student_id=student_id, mindmap_id=mindmap_id, seen_at=_now()))
+        db.commit()
+
+
+def new_mindmaps_count(db: Session, student_id: int) -> int:
+    """Mindmaps validées JAMAIS OUVERTES — témoin de nouveauté de navigation (ADR-0030 §3).
+
+    Naît de la validation par Papa, meurt du premier `seen`. Aucune date n'entre dans ce
+    compteur : ni l'ancienneté de la carte, ni celle de sa leçon.
+
+    On ne réutilise pas le filtre `is_engaged_in_active_mission` de `_servable_mindmap_or_404` :
+    une carte rendue accessible par une mission en cours est du travail en cours, pas un cadeau
+    qui arrive. Seul le gate `validated` compte ici.
+    """
+    seen = select(MindmapView.mindmap_id).where(MindmapView.student_id == student_id)
+    return (
+        db.scalar(
+            select(func.count(Mindmap.id)).where(
+                Mindmap.validation_status == "validated",
+                Mindmap.id.not_in(seen),
+            )
+        )
+        or 0
+    )

@@ -30,7 +30,7 @@ describe("sidebar Massimo — entrée de la Galaxy", () => {
 // Témoins de nouveauté (ADR-0030). Ce qui est verrouillé ici, c'est la LISTE : une entrée n'est
 // éligible que si elle a une trace de VUE côté serveur, et les absences sont des décisions.
 describe("sidebar Massimo — témoins de nouveauté", () => {
-  it("porte un témoin sur exactement cinq entrées", () => {
+  it("porte un témoin sur exactement six entrées", () => {
     const withBadge = Object.fromEntries(
       MASSIMO_NAV.filter((item) => item.newsKey).map((item) => [item.to, item.newsKey]),
     );
@@ -40,6 +40,7 @@ describe("sidebar Massimo — témoins de nouveauté", () => {
       "/capsules": "capsules",
       "/revision": "revision",
       "/missions": "missions",
+      "/mindmaps": "mindmaps",
     });
   });
 
@@ -48,16 +49,19 @@ describe("sidebar Massimo — témoins de nouveauté", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("laisse ELI5 et Mindmaps SANS témoin, et ce n'est pas un oubli", () => {
-    // ELI5 : son `new_count` est un critère de RÉCENCE (leçon créée dans les 7 jours). Il
-    // décroîtrait tout seul et allumerait une entrée fraîchement visitée — un badge qui ment sur
-    // ce qu'on a lu ne se répare pas (ADR-0030 §2).
-    // Mindmaps : `POST /seen` est un no-op en V1 (ADR-0016), la donnée n'existe pas. Différé, et
-    // l'asymétrie est datée au BACKLOG (§4).
-    // Ce test existe pour qu'une prochaine session ne « complète » pas la liste par symétrie.
-    for (const route of ["/eli5", "/mindmaps"]) {
-      expect(MASSIMO_NAV.find((item) => item.to === route)?.newsKey).toBeUndefined();
-    }
+  it("laisse ELI5 SANS témoin, et ce n'est pas un oubli", () => {
+    // ELI5 a bien un `new_count`, mais c'est un critère de RÉCENCE (leçon porteuse créée dans les
+    // 7 jours), pas de vue. Il décroîtrait tout seul et allumerait une entrée fraîchement
+    // visitée — un badge qui ment sur ce qu'on a lu ne se répare pas (ADR-0030 §2).
+    // Ce test existe pour qu'une prochaine session ne « complète » pas la liste par symétrie
+    // avec les autres dérivés.
+    expect(MASSIMO_NAV.find((item) => item.to === "/eli5")?.newsKey).toBeUndefined();
+  });
+
+  it("laisse Quiz SANS témoin : il n'y a aucun moment « ça arrive »", () => {
+    // La table `quizzes` n'a pas de `validation_status` (ADR-0014 §2) : un quiz se produit à la
+    // demande sur le cours qu'on vient de lire. Pas « pas encore branché » — pas d'objet.
+    expect(MASSIMO_NAV.find((item) => item.to === "/quiz")?.newsKey).toBeUndefined();
   });
 
   it("laisse sans témoin toute entrée sans contenu qui « arrive »", () => {

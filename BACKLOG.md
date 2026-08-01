@@ -144,12 +144,11 @@
 - Reproduction par Massimo.
 - Export image/JSON.
 - Score de restitution.
-- **Suivi de vue réel** — `POST /api/student/mindmaps/{id}/seen` est un **no-op en V1**
-  (ADR-0016) : la route existe, la donnée non. Le rendre réel demande une table de vues miroir de
-  `capsule_views` et sa migration. Écarté du chantier navigation par discipline mono-chantier
-  (ADR-0030 §4). Tant que ce suivi n'existe pas, **mindmaps est la seule famille de dérivés sans
-  témoin de nouveauté** : l'asymétrie est assumée et datée (2026-08-01), elle n'est pas un badge
-  manquant.
+- **Suivi de vue réel** — `POST /api/student/mindmaps/{id}/seen` était un **no-op** (ADR-0016) :
+  la route existait, la donnée non. **FAIT le 2026-08-01** (ADR-0030 §4) : table `mindmap_views`
+  calquée sur `fiche_views`, migration `d2e3f4a5b6c7`, `service.mark_seen` persiste désormais.
+  Mindmaps porte son témoin de nouveauté en navigation ; plus aucune famille de dérivés n'en est
+  dépourvue.
 
 ### ZETIS Galaxy — vue graphe des connaissances (Massimo)
 

@@ -24,6 +24,7 @@ export const EMPTY_NEWS: NewsSummary = {
   capsules: 0,
   revision: 0,
   missions: 0,
+  mindmaps: 0,
 };
 
 /** `GET /api/student/news/summary` — monté UNE fois, dans `MassimoLayout`.

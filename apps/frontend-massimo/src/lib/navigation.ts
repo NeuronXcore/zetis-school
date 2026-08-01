@@ -15,12 +15,15 @@ export interface NavItem {
   /** Témoin de nouveauté servi par `GET /api/student/news/summary` (ADR-0030).
    *
    *  ABSENT = pas de badge, et ce n'est jamais un oubli. Une entrée n'est éligible que si elle a
-   *  une trace de VUE côté serveur : Matières, Cours, Quiz, Diagnostic, Ma Galaxie, Chat et
-   *  Paramètres n'en ont aucune et n'ont aucun contenu qui « arrive ». **ELI5 non plus** — son
-   *  `new_count` est un critère de RÉCENCE (leçon créée dans les 7 jours), il décroîtrait tout
-   *  seul et allumerait une entrée qu'on vient de visiter. **Mindmaps est différé** : son
-   *  `POST /seen` est un no-op en V1 (ADR-0016), c'est la seule famille de dérivés sans témoin
-   *  et l'asymétrie est datée, pas oubliée. Un test verrouille cette liste. */
+   *  une trace de VUE côté serveur, et les absences ont chacune leur raison :
+   *  - **Matières** est un hub — ce qui arrive (fiches, capsules, cartes) a déjà son entrée ;
+   *  - **Quiz** n'a pas de `validation_status` du tout (ADR-0014 §2) : un quiz se produit à la
+   *    demande sur le cours qu'on vient de lire, il n'y a aucun moment « ça arrive » ;
+   *  - **ELI5** a bien un `new_count`, mais c'est un critère de RÉCENCE (leçon créée dans les 7
+   *    jours) : il décroîtrait tout seul et allumerait une entrée qu'on vient de visiter ;
+   *  - Cours, Diagnostic, Ma Galaxie, Chat et Paramètres n'ont ni trace de vue ni contenu
+   *    entrant.
+   *  Un test verrouille cette liste, pour qu'elle ne se « complète » pas par symétrie apparente. */
   newsKey?: NewsKey;
 }
 
@@ -49,7 +52,9 @@ export const MASSIMO_NAV: NavItem[] = [
   { to: "/diagnostic", label: "Diagnostic", icon: "🧭" },
   { to: "/eli5", label: "ELI5", icon: "💡", image: eli5Icon },
   // Icône de marque mindmaps.png (comme ELI5/SRS/Quiz) ; repli emoji 🕸️ si l'asset manque.
-  { to: "/mindmaps", label: "Mindmaps", icon: "🕸️", image: mindmapsIcon },
+  // Témoin ajouté le 2026-08-01 : `POST /mindmaps/{id}/seen` existait depuis l'ADR-0016 mais ne
+  // persistait rien (« placeholder Slice A »). La table `mindmap_views` solde cette dette.
+  { to: "/mindmaps", label: "Mindmaps", icon: "🕸️", image: mindmapsIcon, newsKey: "mindmaps" },
   // Témoin spécifié dès `page-capsules-ia.md`, jamais livré en navigation jusqu'ici.
   { to: "/capsules", label: "Capsules IA", icon: "🎬", newsKey: "capsules" },
   // Fiches de révision (résumé d'une leçon sur une page) — dérivé du cours validé.

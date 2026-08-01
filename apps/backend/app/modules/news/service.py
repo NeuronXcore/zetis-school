@@ -17,6 +17,7 @@ from app.modules.agenda import service as agenda_service
 from app.modules.capsules import service as capsules_service
 from app.modules.fiches import service as fiches_service
 from app.modules.memory import service as memory_service
+from app.modules.mindmaps import service as mindmaps_service
 from app.modules.missions import service as missions_service
 
 #: Les cinq sources du témoin, nommées et inspectables.
@@ -34,6 +35,7 @@ NEWS_SOURCES = {
     "capsules": capsules_service.new_capsules_count,
     "revision": memory_service.new_cards_count,
     "missions": missions_service.new_missions_count,
+    "mindmaps": mindmaps_service.new_mindmaps_count,
 }
 
 

@@ -24,3 +24,4 @@ class NewsSummary(BaseModel):
     capsules: int
     revision: int
     missions: int
+    mindmaps: int

@@ -10,7 +10,7 @@ vi.mock("../lib/news", async () => {
   return { ...actual, fetchNewsSummary: () => fetchNewsSummary() };
 });
 
-const SUMMARY = { agenda: 1, fiches: 2, capsules: 0, revision: 3, missions: 0 };
+const SUMMARY = { agenda: 1, fiches: 2, capsules: 0, revision: 3, missions: 0, mindmaps: 5 };
 
 beforeEach(() => {
   fetchNewsSummary.mockReset();
@@ -79,6 +79,7 @@ describe("useNewsSummary (ADR-0030 §5)", () => {
       capsules: 0,
       revision: 0,
       missions: 0,
+      mindmaps: 0,
     });
   });
 });

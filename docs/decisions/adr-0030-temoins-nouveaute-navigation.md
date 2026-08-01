@@ -107,7 +107,7 @@ fraîchement visitée et s'éteindrait sans avoir été lu.
 Conséquence directe : **ELI5 n'a pas de badge de navigation**. Son `new_count` reste ce qu'il est,
 un signal de récence, et reste où il est utile — sur les decks, en page.
 
-### 3. Périmètre : cinq entrées, une différée
+### 3. Périmètre : six entrées
 
 | Entrée | Source | Statut |
 |---|---|---|
@@ -116,10 +116,18 @@ un signal de récence, et reste où il est utile — sur les decks, en page.
 | **Capsules IA** | `capsules/stats.new_count` | ✅ existant, **spécifié dès `page-capsules-ia.md`**, jamais livré en navigation |
 | **Révision** | `reviews/summary.new_count` — cartes **jamais révisées** | ✅ existant, **et surtout pas `due_count`** |
 | **Missions** | missions `validated` jamais démarrées | ⚠️ `new_count` à créer |
-| **Mindmaps** | — | ⏸ **différé** (§4) |
+| **Mindmaps** | `mindmap_views` (table créée le 2026-08-01) | ✅ **livré** — le `/seen` no-op est soldé (§4) |
 
-Sans badge, et ce n'est pas un oubli : Matières, Cours, Quiz, Diagnostic, Ma Galaxie, Chat ZETIS,
-Paramètres. Aucune n'a de trace de vue, et aucune n'a de contenu qui « arrive ».
+Sans badge, et ce n'est pas un oubli — chaque absence a sa raison :
+
+- **Matières** est un hub : ce qui arrive (fiches, capsules, cartes) a déjà son entrée, un badge
+  ici doublerait les autres ;
+- **Quiz** n'a **pas de `validation_status` du tout** (`adr-0014 §2`) : un quiz se produit à la
+  demande sur le cours qu'on vient de lire, il n'existe aucun moment « Papa valide → ça arrive ».
+  Ce n'est pas « pas encore branché », c'est qu'il n'y a pas d'objet ;
+- **Cours, Diagnostic, Ma Galaxie, Chat ZETIS, Paramètres** n'ont ni trace de vue ni contenu
+  entrant ;
+- **ELI5** a un `new_count`, mais de récence (§2).
 
 **Révision est le cas le plus exposé** : `due_count` est à portée de main, il est déjà servi par le
 même endpoint, et il répondrait mieux à « qu'est-ce que j'ai à faire ». C'est précisément le
@@ -143,7 +151,7 @@ compteur interdit — une carte due depuis cinq jours est « à revoir », jamai
 > génération de masse). C'est la sémantique voulue — « Papa vient de te préparer des cartes » — et
 > le badge meurt au premier passage.
 
-### 4. Mindmaps : différé, et la dette est nommée
+### 4. Mindmaps : différé, puis livré le jour même
 
 Rendre `POST /seen` réel demande une table de vues miroir de `capsule_views` et sa migration —
 du travail backend qui n'a rien à voir avec la navigation. L'inclure ferait porter au chantier
@@ -152,6 +160,23 @@ du travail backend qui n'a rien à voir avec la navigation. L'inclure ferait por
 Mindmaps reste donc **la seule famille de dérivés sans témoin de nouveauté**. C'est écrit ici pour
 que l'asymétrie soit visible et datée, pas pour être oubliée : elle rejoint le BACKLOG en tant que
 telle, et non en tant que « badge manquant ».
+
+> *(levé le 2026-08-01, à la demande, juste après la livraison des cinq autres)* — la table
+> `mindmap_views` (migration `d2e3f4a5b6c7`) est le calque exact de `fiche_views` : unicité
+> `(student_id, mindmap_id)`, un horodatage, **aucun compteur** — relire une mindmap n'est pas une
+> information pédagogique, contrairement au revisionnage d'une capsule, et un compteur qu'on
+> n'affiche nulle part finit par être affiché quelque part. `service.mark_seen` cesse d'être le
+> placeholder qui répondait 204 sans rien retenir.
+>
+> **Le report était le bon appel, et le lever après coup aussi** : la brique a été jugée sur ses
+> mérites une fois le chantier navigation clos, au lieu d'être avalée par lui. **Aucun backfill**
+> — les vues passées n'ont jamais été enregistrées, donc les 14 cartes validées comptent toutes
+> comme nouvelles au premier chargement. Marquer tout comme vu pour éviter un `9+` le premier jour
+> effacerait du contenu que Massimo n'a effectivement jamais ouvert.
+>
+> Le périmètre du §3 passe donc à **six entrées**, et **plus aucune famille de dérivés n'est sans
+> témoin**. Le compteur ignore délibérément le filtre `is_engaged_in_active_mission` : une carte
+> rendue accessible par une mission en cours est du travail en cours, pas un cadeau qui arrive.
 
 ### 5. Un seul appel, aucune horloge
 
@@ -211,8 +236,7 @@ est écrite avec son test, donc opposable ; un seul appel réseau sur la page la
 langage visuel nouveau à maintenir.
 
 **Négatives / coûts** — un endpoint agrégé de plus, qui devra être étendu à chaque famille de
-contenu future (le prix de l'appel unique) ; un `new_count` à créer côté missions ; mindmaps reste
-sans témoin, et l'asymétrie sera visible ; deux phrases de spec à réécrire (`page-agenda.md`,
+contenu future (le prix de l'appel unique) ; un `new_count` à créer côté missions ; deux phrases de spec à réécrire (`page-agenda.md`,
 `page-dashboard.md`) ; et une pression durable, qu'aucun test ne clôt définitivement, pour brancher
 ces badges sur les files — c'est la version utile, et c'est la version interdite.
 

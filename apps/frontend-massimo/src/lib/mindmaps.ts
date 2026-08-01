@@ -11,6 +11,7 @@ import {
   type MindmapReconstructionResult,
   type MindmapsSummary,
 } from "@zetis/types";
+import { notifyNewsChanged } from "./newsEvents";
 import { API_URL, authClient } from "./authClient";
 
 function headers(): HeadersInit {
@@ -56,6 +57,7 @@ export async function fetchMindmap(id: number): Promise<MindmapDetail> {
 /** `POST /api/student/mindmaps/{id}/seen` — marque la carte vue (placeholder V1). */
 export async function markMindmapSeen(id: number): Promise<void> {
   await fetch(`${API_URL}/api/student/mindmaps/${id}/seen`, { method: "POST", headers: headers() });
+  notifyNewsChanged(); // le témoin de navigation doit retomber (ADR-0030 §5)
 }
 
 /**

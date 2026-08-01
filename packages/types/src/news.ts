@@ -6,9 +6,15 @@
 
 /** Entrées de navigation portant un témoin. Une entrée n'est éligible que si elle a une trace de
  *  VUE côté serveur : un compteur de récence décroîtrait tout seul et allumerait une entrée
- *  fraîchement visitée. C'est pourquoi ELI5 n'est pas dans cette liste, et pourquoi Mindmaps est
- *  différé (son `POST /seen` est un no-op en V1). */
-export type NewsKey = "agenda" | "fiches" | "capsules" | "revision" | "missions";
+ *  fraîchement visitée. C'est pourquoi ELI5 n'est pas dans cette liste — son `new_count` est un
+ *  critère de récence à 7 jours, pas de vue. */
+export type NewsKey =
+  | "agenda"
+  | "fiches"
+  | "capsules"
+  | "revision"
+  | "missions"
+  | "mindmaps";
 
 /** `GET /api/student/news/summary` — un seul appel pour toute la navigation.
  *
