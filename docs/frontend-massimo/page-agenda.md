@@ -37,8 +37,26 @@ Routes :
 Les deux ne font pas double emploi : la sidebar est un **chemin** (j'y vais quand je le
 décide), le résumé est une **information** (je la vois sans y aller).
 
-**Aucune pastille de compteur sur l'entrée**, sous aucune forme : un compte d'items non faits
-contournerait par l'affichage l'invariant « non probant » tenu serveur (ADR-0025 §3).
+**Badge de nouveauté autorisé sur l'entrée — compteur d'arriéré toujours interdit.**
+*Révisé le 2026-08-01 : l'interdiction antérieure (« aucune pastille de compteur, sous aucune
+forme ») est révoquée par l'addendum ADR-0025 §12, qui la remplace par la distinction ci-dessous.*
+
+- **Autorisé** — un badge chiffré comptant les items **arrivés depuis la dernière ouverture**
+  (`agenda_last_seen_at`, high-water mark par élève, jamais servi à Papa). Il naît d'un geste de
+  Papa et meurt d'un **regard** de Massimo. Forme identique aux autres entrées (ADR-0030) :
+  plafonné `9+`, absent à zéro, sans pulsation, sans rouge.
+- **Interdit** — tout compte d'items **non faits**, d'échéances non cochées ou d'arriéré, sous
+  quelque forme que ce soit. Il ne décroîtrait que par le **travail** et contournerait par
+  l'affichage l'invariant « non probant » tenu serveur (`agenda_item_missed` n'existe pas,
+  ADR-0025 §3 et §7).
+
+Le test qui sépare les deux : *une date qui passe sans que Massimo agisse change-t-elle le
+compteur ?* Arriéré : oui. Nouveauté : non.
+
+> Le badge **ne répond pas** à « qu'est-ce que j'ai à étudier ». Il retombe à zéro dès l'ouverture
+> et y reste toute la semaine, échéances en cours comprises — c'est sa définition, pas un défaut à
+> corriger (addendum §12.5). Cette question est servie par le résumé d'Accueil et par la bande
+> glissante ci-dessous ; aucune évolution de la navigation ne doit y répondre.
 
 **Bottom-nav mobile : inchangée.** L'arbitrage « Agenda y entre-t-il, et à la place de quoi ? »
 reste ouvert et lié à la réconciliation de `navigation.md`, restée au BACKLOG.

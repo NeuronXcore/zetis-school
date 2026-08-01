@@ -48,6 +48,34 @@
   serveur, **traces positives sans réceptacle vide** (conformité `adr-0024 §5`) ; concilié
   avec `adr-0018 §1` — l'invariant protège d'un compte à rebours *inventé*, pas *subi* —
   Accepté (2026-07-29)
+
+  - `docs/decisions/adr-0025-addendum-temoin-nouveaute-agenda.md` — **Addendum ADR-0025 §12 —
+  témoin de nouveauté ≠ compteur d'arriéré** : **révoque une interdiction explicite** de
+  `page-agenda.md` (« aucune pastille de compteur sur l'entrée, sous aucune forme ») dont le motif
+  était juste mais la portée trop large — elle visait l'**arriéré** et attrapait au passage le
+  **témoin de nouveauté** du chantier `adr-0030`. **Test qui sépare les deux objets** : *une date
+  qui passe sans que Massimo agisse change-t-elle le compteur ?* — arriéré **oui** (naît d'une date
+  franchie, ne meurt que par le **travail**, grossit quand Massimo ne vient pas), nouveauté **non**
+  (naît d'un geste de Papa, meurt d'un **regard**). **Badge chiffré**, pas la pastille muette
+  d'abord proposée : celle-ci est une alarme sans quantité, **plus** anxiogène qu'un nombre, et
+  refuser le chiffre là où le §1 autorise déjà la **date** d'une échéance subie était incohérent.
+  **Décision structurante — la granularité de la donnée** : `agenda_last_seen_at`, **un
+  horodatage par élève** (high-water mark, écrit à l'ouverture de `/agenda` **et** au rendu du
+  bandeau d'Accueil), **jamais un `seen_at` par item** — joint à `done_at`, celui-ci fabriquerait
+  la donnée persistée « **vu le 12, jamais fait** », lisible côté Papa par l'asymétrie de
+  visibilité (§2c) : la surveillance par la porte de service que §2a et §2b condamnent, et un objet
+  **pire** que le compteur qu'on évitait ; absent de `AgendaItemPilotOut` et de toute sortie
+  `/api/agenda` (**symétrique exact de `parent_note`**, test de non-fuite). **Non révoqué et
+  réaffirmé dans le même paragraphe** : `agenda_item_missed` n'existe pas (§3), aucun compteur
+  d'arriéré sur les surfaces Massimo (§7), aucun compteur d'items non faits en KPI Papa (§9) — les
+  deux règles se ressemblent assez pour devoir être **lues côte à côte**, les séparer garantirait
+  qu'une prochaine session tranche au hasard. **Limite assumée et écrite (§12.5)** : le badge
+  retombe à zéro dès l'ouverture et **y reste toute la semaine**, échéances en cours comprises — un
+  témoin de nouveauté est **structurellement incapable** d'être un plan de travail, et le rendre
+  capable reviendrait exactement à en faire un compteur d'arriéré ; la question « qu'est-ce que
+  j'ai à étudier » reste servie par le bandeau d'Accueil et la bande glissante. **Test-verrou** :
+  le badge ne bouge ni quand une échéance franchit sa date, ni quand un item est coché.
+  Implémentation **dans le lot `adr-0030`**, jamais isolément — Accepté (2026-08-01)
   
   - `docs/decisions/adr-0026-chat-zetis-memoire.md` — **Chat ZETIS : mémoire éphémère,
   traçabilité typée, signal déclaratif** : le verbatim de conversation est **éphémère par
