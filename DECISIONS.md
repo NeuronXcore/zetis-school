@@ -343,6 +343,46 @@
     niveau de détail adaptatif (notions révélées au-delà d'un certain zoom), qui serait la vraie
     réponse si la lisibilité ne tenait pas — Accepté (2026-07-31, soir)
 
+- `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` — **Témoins de nouveauté en
+    navigation** — *nouvel ADR plutôt qu'un addendum : la règle est **transverse** (elle touche
+    `adr-0007`, `0013`, `0015`, `0016`, `0017`, `0025`), elle décrit un mécanisme qui n'existait
+    pas, et elle a de vraies alternatives à documenter.* **Constat** : cinq surfaces portent déjà
+    un badge « ✨ nouveau » **en page**, aucune ne le remonte en navigation — un contenu validé par
+    Papa n'existe pour Massimo que s'il visite la page **au hasard**, ce qui vide de son sens le
+    geste de validation. **La règle, en une phrase** : *un badge de navigation compte ce qui est
+    **NOUVEAU**, jamais ce qui est **DÛ*** — nouveauté = naît d'un geste de Papa, meurt d'un
+    **regard** ; arriéré = naît d'une date franchie, ne meurt que par le **travail**, **grossit
+    quand Massimo ne vient pas** (c'est la définition d'une relance, interdite sur les deux
+    interfaces). **Corollaire non négociable — un badge exige un `seen`** : un compteur de
+    **récence** décroît par le temps et non par le regard, il allumerait une entrée fraîchement
+    visitée et s'éteindrait sans avoir été lu → **ELI5 n'a pas de badge** (son `new_count` est un
+    critère de récence à 7 jours sur `Lesson.created_at`, faute d'horodatage sur `Skill`), il reste
+    sur ses decks. **Périmètre** : Agenda (`agenda_last_seen_at`, cf. addendum `adr-0025 §12` —
+    seule entrée ayant exigé la révocation d'une interdiction écrite) · Fiches · Capsules
+    (**spécifié dès `page-capsules-ia.md`, jamais livré en navigation**) · Révision — `new_count`
+    **et surtout pas `due_count`**, à portée de main sur le même endpoint et précisément le
+    compteur interdit (`adr-0013` : une carte due depuis 5 jours est « à revoir », jamais « en
+    retard ») · Missions (`new_count` à créer : `validated` jamais démarrées). **Mindmaps différé
+    et la dette est nommée** : `POST /seen` est un **no-op en V1** (`adr-0016`), le rendre réel
+    demande une table miroir de `capsule_views` + migration — du backend étranger au chantier
+    navigation ; mindmaps reste **la seule famille de dérivés sans témoin**, écrit ici pour que
+    l'asymétrie soit datée et non oubliée. **Transport** : **un seul appel**
+    `GET /api/student/news/summary` monté une fois dans `MassimoLayout`, invalidé par
+    `NEWS_CHANGED_EVENT` (patron `CONTENT_REQUESTS_CHANGED_EVENT`, éprouvé en live) —
+    **aucun polling, aucune horloge** : un compteur qui change sans que Massimo ait rien fait
+    **est** une notification. **Forme** : le badge `DeckDisc` existant, `9+`, absent à zéro, sans
+    pulsation ; **l'or reste à ZETIS qui parle**, l'ambre aux files de validation Papa.
+    **§7 — la doctrine Papa est clarifiée, pas changée** : `page-dashboard.md` interdisait « tout
+    badge de compteur en navigation » alors que la sidebar Papa en porte un (Missions `pending`) et
+    que la pastille `/demandes` est livrée — deux objets distincts, une **file de validation**
+    (travail que Papa a demandé) n'est pas un témoin de nouveauté, et ce dernier **ne s'applique
+    pas à l'interface Papa**. **Coûts assumés** : un endpoint agrégé à étendre à chaque famille
+    future, un `new_count` missions à créer, l'asymétrie mindmaps, et une **pression durable** pour
+    brancher ces badges sur les files — c'est la version utile, et c'est la version interdite.
+    **Test-verrou** : aucun badge ne consomme `due_count` / `due_at` / `done_at` / une échéance, et
+    aucun écoulement du temps ne l'augmente. Exécution **après la Slice A du Groupe 1**
+    (`adr-0026`) — mono-chantier, dépendance nulle dans les deux sens — Proposé (2026-08-01)
+
 ## Quand créer un ADR ?
 
 Créer un ADR si la décision :

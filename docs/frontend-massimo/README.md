@@ -10,8 +10,8 @@ Sidebar desktop :
 
 1. Accueil
 2. Agenda (ADR-0025 — position assumée avant Matières : l'agenda est le **déclencheur en
-   amont**, pas une étape du flux d'apprentissage. Aucune pastille de compteur : un compte
-   d'items non faits contournerait par l'affichage l'invariant « non probant » du serveur)
+   amont**, pas une étape du flux d'apprentissage. **Badge de nouveauté autorisé** depuis le
+   2026-08-01, cf. addendum ADR-0025 §12 ; le compte d'items **non faits** reste interdit)
 3. Matières
 4. Cours
 5. Révision
@@ -29,6 +29,36 @@ Sidebar desktop :
 La sidebar suit le flux d'apprentissage : j'apprends (Cours) → j'ancre (Révision)
 → je me situe (Diagnostic). Icônes Lucide (chrome UI) ; Phosphor reste réservé
 aux pictogrammes de matières.
+
+### Badges de nouveauté (ADR-0030)
+
+Cinq entrées portent un compteur : **Agenda · Fiches · Capsules IA · Révision · Missions**.
+Mindmaps est différé — son `POST /seen` est un **no-op en V1** (ADR-0016), c'est donc la seule
+famille de dérivés sans témoin de nouveauté ; l'asymétrie est nommée, pas oubliée.
+
+> **Un badge compte ce qui est NOUVEAU, jamais ce qui est DÛ.**
+> Test : *une date qui passe sans que Massimo agisse change-t-elle le compteur ?* — **non** pour
+> une nouveauté (elle naît d'un geste de Papa et meurt d'un **regard**), **oui** pour un arriéré
+> (il ne meurt que par le **travail**, et grossit quand Massimo ne vient pas). La seconde colonne
+> est la définition d'une relance : interdite.
+
+Deux conséquences qui se lisent mal sans la règle :
+
+- **Révision** consomme `new_count` (cartes **jamais révisées**), **jamais `due_count`** — servi
+  par le même endpoint, à portée de main, et précisément le compteur interdit. Une carte due
+  depuis cinq jours est « à revoir », jamais « en retard » (ADR-0013).
+- **ELI5 n'a pas de badge** : son `new_count` est un critère de **récence** (leçon porteuse créée
+  dans les 7 jours), pas de vue. Il s'allumerait sur une entrée fraîchement visitée et
+  s'éteindrait sans avoir été lu. Il reste sur ses decks, en page.
+
+Sans badge, et ce n'est pas un oubli : Matières, Cours, Quiz, Diagnostic, Ma Galaxie, Chat ZETIS,
+Paramètres — aucune trace de vue, aucun contenu qui « arrive ».
+
+Source unique : `GET /api/student/news/summary`, monté **une fois** dans `MassimoLayout`, invalidé
+par `NEWS_CHANGED_EVENT` (patron `CONTENT_REQUESTS_CHANGED_EVENT`). **Aucun polling, aucune
+horloge** — un compteur qui change sans que Massimo ait rien fait est une notification. Forme
+`DeckDisc` : `9+`, **absent à zéro**, sans pulsation ni rouge ; ni or (réservé à ZETIS qui parle)
+ni ambre (files de validation Papa).
 
 Sur iPhone, convertir la navigation en bottom bar avec accès rapide : Accueil, Révision, Missions, ELI5, Profil.
 
@@ -74,7 +104,8 @@ Les effets sont en CSS + SVG et respectent `prefers-reduced-motion`.
 - `MissionCard`
 - `Eli5Panel`
 - `QuizCard`
-- `DeckDisc` (deck circulaire : illustration matière, effet pile, anneau, badge compteur)
+- `DeckDisc` (deck circulaire : illustration matière, effet pile, anneau, badge compteur —
+  son badge « ✨ nouveau » est la forme reprise à l'identique par les badges de sidebar, ADR-0030)
 - `FlipCard` (carte de révision recto/verso, flip 3D)
 - `SessionEndPopup` (fin de session à 3 paliers : célébration / encouragement / re-tour)
 - `ProgressRing`
