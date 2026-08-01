@@ -91,6 +91,12 @@
 - Popups de fin de session à 3 paliers *(à faire — UI)* + re-tour des cartes fragiles
   (1× max, sans effet SRS, XP réduit, détection consolidation côté serveur). **(Backend
   FAIT 2026-07-04** : consolidation détectée serveur, XP +2 ; le « 1× max » reste côté UI.)
+- **Unifier ou renommer les deux `new_count` de `memory`** — `get_reviews_summary()["new_count"]`
+  (cartes dues **et** jamais révisées, badge des decks EN PAGE) et `new_cards_count` (jamais
+  révisées, témoin de NAVIGATION) portent le même mot pour deux choses. La divergence est
+  volontaire, et documentée dans les deux docstrings (ADR-0030 §3) — mais deux fonctions voisines
+  au même nom se font fusionner au premier refactor. Un renommage suffirait probablement.
+  *(ouvert le 2026-08-01)*
 
   ### Agenda scolaire (ADR-0025)
 

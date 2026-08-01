@@ -2,7 +2,10 @@
 
 ## Statut
 
-Proposé — 2026-08-01.
+**Accepté — 2026-08-01**, livré le jour même (slices A et B). Trois passages corrigés **au vu du
+code** pendant le read-before-code ; ils sont signalés en place par *(corrigé à
+l'implémentation)* plutôt que réécrits silencieusement — l'écart entre ce qui était supposé et ce
+qui existait est la partie utile.
 
 > **Numérotation** : 0029 est le dernier accepté (« Rejeu animé galaxie »). Cet ADR est donc 0030.
 >
@@ -20,6 +23,14 @@ Cinq surfaces de Massimo portent déjà un badge « ✨ nouveau » **à l'intér
 les decks de fiches, la bibliothèque de capsules, les decks de révision, les decks ELI5. Aucune
 ne le remonte dans la navigation. Conséquence : un contenu validé par Papa n'existe pour Massimo
 que s'il visite la page **au hasard**.
+
+> *(corrigé à l'implémentation, 2026-08-01)* — « aucune ne le remonte dans la navigation » était
+> **faux**. `MassimoSidebar.tsx` portait déjà **deux** pastilles, sur Capsules et sur Révision,
+> chacune avec son propre `fetch` au montage et une comparaison en dur sur `item.to`. Le lot
+> n'ajoute donc pas cinq badges : il **unifie deux badges ad hoc et en ajoute trois**. Ça ne
+> change aucune décision — ça la renforce, puisque le patron « un fetch par pastille » était déjà
+> en train de se répandre entrée par entrée, et que c'est précisément ce que l'appel unique du §5
+> arrête.
 
 C'est le contraire de l'intention du produit. Papa valide, donc quelque chose arrive ; ce quelque
 chose est un cadeau, et un cadeau qu'on ne découvre que par hasard n'a pas été offert.
@@ -115,6 +126,23 @@ même endpoint, et il répondrait mieux à « qu'est-ce que j'ai à faire ». C'
 compteur interdit — une carte due depuis cinq jours est « à revoir », jamais « en retard »
 (`adr-0013`). Le badge compte les cartes **jamais vues**, point.
 
+> *(corrigé à l'implémentation, 2026-08-01)* — **le `new_count` existant n'était pas réutilisable,
+> et il violait déjà cette règle en production.** `reviews/summary.new_count` exige
+> `due_at <= now` en plus de `last_reviewed_at IS NULL`, alors que `schedule_review` crée les
+> cartes avec `due_at = now + intervalle` : une carte fraîchement générée n'entrait dans le
+> compteur que **1 à 7 jours plus tard, sans aucun geste de Massimo**. C'est la colonne « arriéré »
+> du §1, et la pastille Révision déjà livrée en sidebar la consommait.
+>
+> Le badge de navigation utilise donc une expression **dédiée**, `memory/service.py::new_cards_count`,
+> sans aucune clause d'échéance. La clause reste légitime dans `get_reviews_summary` (le deck ne
+> montre que ce qui est servable) — les deux fonctions sont voisines, portent le même mot pour deux
+> choses, et chacune renvoie à l'autre en docstring.
+>
+> **Conséquence visible, assumée** : le badge s'allume dès la génération par Papa au lieu
+> d'attendre l'échéance, donc plus tôt et sur des volumes plus gros (`9+` d'un coup après une
+> génération de masse). C'est la sémantique voulue — « Papa vient de te préparer des cartes » — et
+> le badge meurt au premier passage.
+
 ### 4. Mindmaps : différé, et la dette est nommée
 
 Rendre `POST /seen` réel demande une table de vues miroir de `capsule_views` et sa migration —
@@ -135,14 +163,26 @@ telle, et non en tant que « badge manquant ».
   `CONTENT_REQUESTS_CHANGED_EVENT`.
 - **Aucun polling, aucun websocket, aucune horloge.** Un badge qui bouge sans que Massimo ait rien
   fait est une notification.
-- Le plafonnement `9+` est **de présentation** ; le serveur sert le compte exact (même convention
-  que le « 15+ » de la page Révision).
+- Le plafonnement `9+` est **de présentation** ; le serveur sert le compte exact.
+
+> *(précisé à l'implémentation, 2026-08-01)* — la rédaction initiale disait « même convention que
+> le 15+ de la page Révision », ce qui se contredisait. Ce sont **deux helpers distincts, et ils
+> doivent le rester** : `cappedCount` (15+, `hooks/useReviewSession.ts`) plafonne un deck de cartes
+> **à réviser**, `capNewsBadge` (9+, `lib/news.ts`) plafonne un témoin de **nouveauté**. Les
+> unifier ferait ressembler l'un à l'autre — exactement ce que cet ADR sépare. Un test croise les
+> deux pour empêcher la fusion.
 
 ### 6. Forme — aucun langage visuel nouveau
 
 Le badge « ✨ nouveau » des `DeckDisc`, repris à l'identique. Plafonné `9+`, **absent à zéro** (pas
 de `0` affiché, pas de réceptacle vide — `adr-0024 §5`), **aucune pulsation ni animation
 d'apparition**, aucun rouge.
+
+> *(précisé à l'implémentation, 2026-08-01)* — « repris à l'identique » était ambigu : `DeckDisc`
+> porte **deux** badges, un booléen `✨ new` en emerald translucide et un **compteur** en dégradé
+> indigo→cyan. Retenu : la **teinte du premier**, le **nombre du second**, et **surtout pas le
+> dégradé** — c'est le badge du compte de cartes **dues**, et lui emprunter sa forme ferait
+> ressembler visuellement un témoin de nouveauté à un compteur d'arriéré.
 
 Deux couleurs restent hors d'atteinte : **l'or** (`#ffcf47`, réservé à l'état « ZETIS parle ») et
 **l'ambre** (couleur des files de validation Papa — un badge enfant ne doit pas emprunter la
