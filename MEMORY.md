@@ -7,9 +7,13 @@
 
 ## État à la reprise
 
-**Branche : `feat/galaxy-animations`**, 9 commits, **PR [#63](https://github.com/NeuronXcore/zetis-school/pull/63) ouverte**.
-`main` est à `cb5bb5d` (poussé). **Les 8 commits de code ne sont PAS poussés** — seul le commit
-de cadrage l'est.
+**MERGÉ dans `main`** — squash `9be0e6f`, PR
+[#63](https://github.com/NeuronXcore/zetis-school/pull/63), le 2026-08-01. Branche
+`feat/galaxy-animations` **supprimée** (locale et distante). **Rien à pousser, rien à reprendre
+côté Git.** 286 tests Massimo revérifiés **sur `main` après merge**.
+
+⚠️ **Ne pas ré-implémenter** ce qui suit : c'est de l'histoire, gardée pour ses pièges et ses
+motifs de décision.
 
 **Chantier : la galaxie s'anime.** Cadré par deux addenda, puis **élargi trois fois en cours de
 route** par le user, au vu du rendu. Chaque élargissement a son addendum.
@@ -41,13 +45,21 @@ bougé.
 > **et** une galaxie sur l'Accueil. Si ça ne passe pas, ce sont les **particules** qui tombent,
 > jamais les nœuds.
 
-**Prochain pas** = vérifier dans le navigateur, puis **pousser la branche** et **renommer la
-PR #63** (son titre est `docs(galaxy): cadrage…`, alors qu'elle porte maintenant tout le code —
-elle doit passer en `feat(…)` avant merge).
+**Prochain pas = la vérification en vrai**, seule chose réellement en suspens. Elle porte sur les
+deux points de l'encadré ci-dessus, et **elle peut faire rouvrir des réglages** :
 
-> ⚠️ **En suspens, sans rapport avec le chantier** : `docs/frontend-massimo/mockup/mockup-page-eli5-v2.html`
-> est **supprimée dans l'arbre de travail**, hors de tout commit. Elle a disparu après le commit
-> de cadrage ; je n'y ai pas touché. `git restore` la ramène si c'est involontaire.
+- si la lisibilité ne tient pas à plusieurs centaines de notions, la réponse **prévue et écrite**
+  est un **niveau de détail adaptatif** (notions révélées au-delà d'un certain zoom) — pas un
+  retour du plafond, pas un rallumage des forces ;
+- si l'iPhone décroche, ce sont les **particules** qui tombent (le budget existe déjà), **jamais
+  les nœuds**.
+
+Ces deux réponses sont figées dans les addenda : les appliquer n'est pas une nouvelle décision,
+les contourner en serait une.
+
+> ✅ **Résolu le 2026-08-01** : `mockup-page-eli5-v2.html` avait disparu de l'arbre de travail en
+> cours de session, hors de tout commit. **Restaurée** (`git restore`), hash vérifié identique à
+> `HEAD`. Rien n'a été perdu.
 
 ### ⚠️ Ce que la bibliothèque 3D permet vraiment — vérifié ligne à ligne, à ne pas re-chercher
 
