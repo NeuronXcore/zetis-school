@@ -7,8 +7,16 @@
 
 ## État à la reprise
 
-**Chantier : les témoins de nouveauté en navigation (ADR-0030).** Branche **`feat/news-badges`**,
-**5 commits, NON POUSSÉS**, arbre propre. `main` est à jour et poussé (`8e09278`).
+**Chantier : les témoins de nouveauté en navigation (ADR-0030).**
+
+**✅ MERGÉ dans `main`** — squash **`86464b4`**, PR
+[#64](https://github.com/NeuronXcore/zetis-school/pull/64), le 2026-08-01. Branche
+`feat/news-badges` **supprimée** (locale et distante). **Rien à pousser, rien à reprendre côté
+Git.** Les deux migrations sont **appliquées sur la base de dev** et se rejouent seules au
+redémarrage du backend.
+
+⚠️ **Ne pas ré-implémenter** ce qui suit : c'est de l'histoire, gardée pour ses pièges et ses
+motifs de décision.
 
 **FAIT, et vérifié en vrai :**
 
@@ -62,7 +70,10 @@ toute la session ; mindmaps 14 → 13 après un regard, inchangé au rejeu. Les 
 
 ### Prochain pas
 
-**Pousser `feat/news-badges` et ouvrir la PR.** Rien d'autre n'est en attente sur ce chantier.
+**Aucun chantier en cours.** Le lot ADR-0030 est clos et mergé ; `main` est à jour et poussé.
+Le prochain chantier reste à choisir — candidats déjà cadrés au BACKLOG : Lot 3 de l'agenda
+(ADR-0025 §11, analyse et pont vers le Commander), unification des deux `new_count` de `memory`,
+ou la dette de mesure de la galaxie sur iPhone/iPad (jamais vérifiée, cf. historique plus bas).
 
 > ⚠️ **À regarder avant de juger le résultat** : sur la base de dev, `revision: 137`,
 > `missions: 35` et `mindmaps: 14` → trois badges affichent `9+` en permanence. Les 35 missions
