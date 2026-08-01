@@ -175,6 +175,11 @@ def get_reviews_summary(db: Session, student: StudentProfile) -> dict:
                 "name": name,
                 "due_count": due,
                 "new_count": new,
+                # Ce que servirait RÉELLEMENT le deck de cette matière — le plafond, pas
+                # l'arriéré. Calculé ici parce que `REVIEW_SESSION_MAX_SUBJECT` vit ici : une
+                # surface qui recopierait la constante mentirait le jour où elle bouge, sans
+                # que rien ne le signale. `flash_size` ne convient pas, il est GLOBAL.
+                "session_size": min(REVIEW_SESSION_MAX_SUBJECT, due),
                 "has_cards": sid in with_cards,
             }
         )
