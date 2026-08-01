@@ -162,6 +162,7 @@ export {
   type MissionTodayResponse,
   type StepCompleteResult,
 } from "./mission";
+export { type NewsKey, type NewsSummary } from "./news";
 export {
   type ReviewAttemptRequest,
   type ReviewAttemptResult,

@@ -1352,6 +1352,18 @@ Bascule `done_at`. Autorisé sur **tous** les items, y compris ceux de Papa.
 
 Masque un item, y compris de Papa. Le masquage reste visible côté pilotage.
 
+#### POST `/seen` → 204
+
+Massimo a **regardé** ce qui est arrivé (addendum ADR-0025 §12.3). Pose
+`student_profiles.agenda_last_seen_at` à `now()`. Idempotent, sans corps, **sans réponse**.
+
+Deux appelants côté client, et il en faut deux : l'ouverture de `/agenda` **et** le rendu du
+bandeau d'Accueil. N'en retenir qu'un ferait mentir le témoin sur ce qui a déjà été lu.
+
+**Route élève uniquement** — aucune route Papa n'écrit ce watermark, et il ne sort d'aucune
+réponse (test de non-fuite dédié). Le témoin sort en **nombre**, via `/api/student/news/summary`,
+jamais en date.
+
 ### Pilotage Papa — `/api/agenda`
 
 `require_parent`. Schéma `AgendaItemPilotOut`.
@@ -1401,3 +1413,58 @@ L'agenda émet exactement deux `learning_events` — `agenda_item_created` (avec
 d'activité** (heatmap, minutes actives, sessions, Cahier de bord, jours de venue). `evidence`
 n'a besoin d'aucune garde : sa seule lecture du journal est filtrée sur `mission_verdict`.
 `agenda_item_missed` n'existe pas. Aucun XP n'est crédité.
+
+## Témoins de nouveauté en navigation (Massimo, ADR-0030)
+
+### GET `/api/student/news/summary`
+
+Les six compteurs de la sidebar Massimo, en **un seul appel**. Monté une fois dans
+`MassimoLayout` ; l'alternative (un appel par famille) faisait six allers-retours sur la page la
+plus visitée, pour un objet décoratif.
+
+```txt
+{ agenda, fiches, capsules, revision, missions, mindmaps }   # entiers bruts
+```
+
+**La règle que ce contrat encode :**
+
+> Un badge de navigation compte ce qui est **NOUVEAU** (naît d'un geste de Papa ou du système,
+> meurt d'un **regard** de Massimo), **jamais** ce qui est **DÛ** (naît d'une date franchie, ne
+> meurt que du **travail**, et **grossit quand Massimo ne vient pas**).
+
+La seconde colonne est la définition d'une relance : interdite. Le schéma est donc **fermé** —
+aucun champ d'échéance, aucun total, aucune date. Avant d'ajouter une clé, lui appliquer le test
+du §1 : *une date qui passe sans que Massimo agisse change-t-elle ce nombre ?*
+
+| clé | compte | meurt de | source |
+|---|---|---|---|
+| `agenda` | items arrivés depuis le dernier regard | `POST /student/agenda/seen` | `agenda_last_seen_at` |
+| `fiches` | fiches validées jamais ouvertes | `POST /student/fiches/{id}/seen` | `fiche_views` |
+| `capsules` | capsules publiées jamais vues | `POST /capsules/{id}/view` | `capsule_views` |
+| `revision` | cartes **jamais révisées** | 1er passage (`last_reviewed_at`) | `spaced_review_cards` |
+| `missions` | missions `validated` jamais démarrées | `POST /missions/{id}/start` | `started_at` |
+| `mindmaps` | mindmaps validées jamais ouvertes | `POST /student/mindmaps/{id}/seen` | `mindmap_views` |
+
+⚠️ **`revision` n'utilise PAS le `new_count` de `/reviews/summary`.** Celui-ci exige
+`due_at <= now` alors que les cartes naissent avec une échéance **future** : une carte fraîchement
+générée y entrerait 1 à 7 jours plus tard, **sans aucun geste de Massimo**. L'expression dédiée est
+`memory/service.py::new_cards_count`, sans clause d'échéance. `due_count` est le compteur interdit.
+
+**Sans témoin, et ce n'est pas un oubli** : Matières (hub — ce qui arrive a déjà son entrée), Quiz
+(pas de `validation_status` du tout, ADR-0014 §2 : aucun moment « ça arrive »), ELI5 (son
+`new_count` est un critère de **récence**, il décroîtrait tout seul), Cours, Diagnostic, Ma
+Galaxie, Chat ZETIS, Paramètres.
+
+**Lecture pure, aucun effet de bord** : consulter le badge n'est pas le regarder. Le geste qui
+consomme une nouveauté vit sur la surface qui montre réellement le contenu.
+
+**Côté client** : rafraîchi par un événement (`NEWS_CHANGED_EVENT`) émis à chaque geste de
+consultation, **jamais par polling** — un compteur qui change sans que Massimo ait rien fait est
+une notification. Le plafond « 9+ » est de présentation ; le serveur sert le compte exact.
+
+**Deux test-verrous** (`app/tests/test_news_doctrine.py`) : aucune source ne lit `due_at` /
+`due_on` / `due_date` / `done_at` (vérifié sur le **source** des six fonctions, la sortie étant un
+entier qui ne trahit pas sa provenance), et aucun écoulement du temps n'augmente un compteur.
+
+**Ne s'applique pas à l'interface Papa** : Papa n'a pas de contenu qui « arrive » sans qu'il l'ait
+demandé. Ce que porte sa sidebar est une **file de validation**, objet distinct.

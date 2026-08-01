@@ -38,10 +38,30 @@ user_id
 first_name
 school_level_current
 birth_year optional
-preferences_json
+agenda_last_seen_at optional   # high-water mark du témoin de nouveauté agenda (ADR-0030)
 created_at
 updated_at
 ```
+
+> `preferences_json` figurait ici jusqu'au 2026-08-01 : cette colonne **n'a jamais existé**, ni en
+> modèle ni en migration. Retirée plutôt que créée — rien ne la lit.
+
+**`agenda_last_seen_at`** (addendum ADR-0025 §12.3, migration `c1d2e3f4a5b6`) — l'instant du
+dernier regard de Massimo sur son agenda. Écrit à l'ouverture de `/agenda` **et** au rendu du
+bandeau d'Accueil, par `agenda/service.py::mark_agenda_seen` et lui seul, avec `func.now()`
+(horloge SQL des deux côtés de la comparaison avec `agenda_items.created_at`).
+
+Deux propriétés qui sont des décisions, pas des détails :
+
+- **Un horodatage par ÉLÈVE, jamais un `seen_at` par item.** Joint à `done_at`, un marqueur par
+  item fabriquerait la donnée persistée « vu le 12, jamais fait » — la surveillance par la porte
+  de service que l'ADR-0025 §2 condamne, et un objet pire que le compteur qu'on évitait.
+- **Ne sort d'aucune route.** Absent d'`AgendaItemPilotOut` comme de toute réponse `/api/agenda`
+  et `/api/student/agenda` (test de non-fuite dédié, symétrique de `parent_note`). Le témoin sort
+  en **nombre**, jamais en date.
+
+`NULL` = personne n'a encore regardé depuis que le témoin existe → tout compte comme nouveau.
+Aucun backfill à la migration : poser `now()` aurait marqué comme vus des items jamais ouverts.
 
 ### SchoolYear
 
@@ -758,6 +778,30 @@ implémentation ne « corrige » l'XP :
 
 L'agrégat `attempt_count` / `avg_score` de ces tentatives n'est exposé que sur la route de
 pilotage Papa — il alimente la métrique de liste et le signal avant destruction des confirmations.
+
+### MindmapView (ADR-0030 §4)
+
+Carte vue par un élève. **« Vu » = la ligne existe** — il n'y a rien d'autre à savoir.
+
+```txt
+id
+student_id         # FK student_profiles, index
+mindmap_id         # FK mindmaps, index
+seen_at            # premier (et seul) regard
+                   # unique(student_id, mindmap_id)
+```
+
+Calque exact de `fiche_views`, et **sans compteur** contrairement à `capsule_views` : un
+revisionnage de vidéo est une information pédagogique, relire une mindmap ne l'est pas, et un
+compteur qu'on n'affiche nulle part finit par être affiché quelque part.
+
+**Créée le 2026-08-01** (migration `d2e3f4a5b6c7`) pour solder une dette nommée : la route
+`POST /api/student/mindmaps/{id}/seen` existait depuis la slice A de l'ADR-0016 et répondait 204
+**sans rien persister** (`mark_seen` était un placeholder qui vérifiait seulement la visibilité de
+la carte). Mindmaps était de ce fait la seule famille de dérivés sans témoin de nouveauté.
+
+Aucun backfill : les vues passées n'ont jamais été enregistrées, donc toutes les cartes validées
+comptent comme nouvelles au premier chargement.
 
 ### CouncilReport (ADR-0020)
 

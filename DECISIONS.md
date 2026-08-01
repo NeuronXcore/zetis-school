@@ -380,8 +380,30 @@
     future, un `new_count` missions à créer, l'asymétrie mindmaps, et une **pression durable** pour
     brancher ces badges sur les files — c'est la version utile, et c'est la version interdite.
     **Test-verrou** : aucun badge ne consomme `due_count` / `due_at` / `done_at` / une échéance, et
-    aucun écoulement du temps ne l'augmente. Exécution **après la Slice A du Groupe 1**
-    (`adr-0026`) — mono-chantier, dépendance nulle dans les deux sens — Proposé (2026-08-01)
+    aucun écoulement du temps ne l'augmente. **LIVRÉ le jour même** (branche `feat/news-badges`),
+    avec quatre écarts au cadrage, tous constatés au vu du code : (1) le §Constat était **faux** —
+    la sidebar portait **déjà** deux pastilles avec un `fetch` chacune, le lot en unifie deux et en
+    ajoute quatre ; (2) **`reviews/summary.new_count` était inutilisable ET violait déjà la règle en
+    production** — il exige `due_at <= now` alors que `schedule_review` crée les cartes avec une
+    échéance **future**, si bien qu'une carte fraîchement générée entrait dans le compteur 1 à
+    7 jours plus tard **sans aucun geste** ; expression dédiée `new_cards_count`, et le badge
+    Révision s'allume désormais dès la génération (conséquence visible assumée) ; (3) « le badge
+    `DeckDisc` repris à l'identique » était ambigu — `DeckDisc` en porte **deux**, dont un compteur
+    de cartes **dues** dont il ne fallait surtout pas emprunter le dégradé ; teinte emerald +
+    plafond `9+` via `capNewsBadge`, **distinct** de `cappedCount` (15+) et un test croise les deux ;
+    (4) **mindmaps n'est plus différé** — la dette du §4 a été levée dans la foulée à la demande :
+    table `mindmap_views` (migration `d2e3f4a5b6c7`, calque de `fiche_views`, **sans compteur**),
+    `mark_seen` cesse d'être le placeholder qui répondait 204 sans rien retenir, **plus aucune
+    famille de dérivés n'est sans témoin** et le périmètre passe à **six entrées**.
+    **Corollaire produit, tranché dans la même session** : un badge est **un nombre sans date** et
+    ne peut donc pas répondre à « quand ai-je des choses à étudier » — le faire compter les items
+    **non faits** en aurait fait le compteur d'arriéré interdit. La réponse est allée sur la bonne
+    surface : le bandeau d'Accueil gagne une section **« À préparer »** alimentée par
+    `/agenda/upcoming` (livré au Lot 1, jamais remonté), **avec les dates**, plafonnée à 2 — une
+    échéance venue du collège est un fait **subi**, jamais un compte à rebours fabriqué par ZETIS
+    (`adr-0025 §1`), et c'est l'argument même qui avait autorisé le badge chiffré. Zéro backend.
+    668 tests back + 319 Massimo, E2E live vérifié (badges, retombée sans rechargement, aucun appel
+    périodique, 14 → 13 mindmaps après un regard) — Accepté (2026-08-01)
 
 ## Quand créer un ADR ?
 

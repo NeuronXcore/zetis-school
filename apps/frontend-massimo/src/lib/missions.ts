@@ -8,6 +8,7 @@ import {
   type MissionTodayResponse,
   type StepCompleteResult,
 } from "@zetis/types";
+import { notifyNewsChanged } from "./newsEvents";
 import { API_URL, authClient } from "./authClient";
 
 export type { CompletedMission, Mission, MissionStep, MissionTodayResponse, StepCompleteResult } from "@zetis/types";
@@ -48,12 +49,14 @@ export async function fetchCompletedToday(): Promise<CompletedMission[]> {
 }
 
 export async function startMission(missionId: number): Promise<Mission> {
-  return asJson(
+  const mission = await asJson<Mission>(
     await fetch(`${API_URL}/api/missions/${missionId}/start`, {
       method: "POST",
       headers: headers(),
     }),
   );
+  notifyNewsChanged(); // la mission n'est plus « jamais démarrée » (ADR-0030 §5)
+  return mission;
 }
 
 export async function completeStep(

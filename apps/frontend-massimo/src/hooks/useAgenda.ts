@@ -5,6 +5,7 @@ import {
   fetchAgendaItems,
   fetchAgendaUpcoming,
   fetchAgendaWeek,
+  markAgendaSeen,
   setAgendaItemDone,
 } from "../lib/agenda";
 import { type AgendaSections, addDays, isoDay, splitSections } from "../lib/agendaSections";
@@ -63,6 +64,13 @@ export function useAgenda(): UseAgenda {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Ouvrir `/agenda` EST le regard (addendum ADR-0025 §12.3) : le témoin de nouveauté retombe.
+  // Effet séparé et sans dépendance, donc UNE fois à l'ouverture — le mettre dans `load()` le
+  // rejouerait à chaque coche, ce qui marcherait mais confondrait « regarder » et « agir ».
+  useEffect(() => {
+    void markAgendaSeen();
+  }, []);
 
   const sections = useMemo(
     () => (items.length === 0 ? EMPTY : splitSections(items, today)),

@@ -9,6 +9,7 @@
 //
 // `parent_note` n'existe pas dans ces réponses : le serveur sert un schéma séparé.
 import { type AgendaItemStudent, type AgendaUpcomingItem, type AgendaWeek } from "@zetis/types";
+import { notifyNewsChanged } from "./newsEvents";
 import { API_URL, authClient } from "./authClient";
 
 const BASE = `${API_URL}/api/student/agenda`;
@@ -64,7 +65,26 @@ export async function setAgendaItemDone(
 
 /** Masque un item — y compris un item de Papa. Le masquage reste visible côté pilotage. */
 export async function dismissAgendaItem(id: number): Promise<AgendaItemStudent> {
-  return asJson(
+  const item = await asJson<AgendaItemStudent>(
     await fetch(`${BASE}/items/${id}/dismiss`, { method: "POST", headers: headers() }),
   );
+  notifyNewsChanged(); // un item masqué n'est plus « arrivé » (ADR-0030 §5)
+  return item;
+}
+
+/** `POST /api/student/agenda/seen` — Massimo a regardé ce qui est arrivé (addendum §12.3).
+ *
+ *  Appelée depuis DEUX surfaces, et il en faut deux : l'ouverture de `/agenda` et le rendu du
+ *  bandeau d'Accueil. N'en retenir qu'une ferait mentir le témoin sur ce qui a déjà été lu.
+ *
+ *  Ne renvoie rien : le watermark ne redescend jamais côté client, seul le NOMBRE circule. Échec
+ *  silencieux — rater un marquage laisse un badge de trop, ce qui est sans gravité ; afficher une
+ *  erreur pour ça ne l'est pas. */
+export async function markAgendaSeen(): Promise<void> {
+  try {
+    await fetch(`${BASE}/seen`, { method: "POST", headers: headers() });
+    notifyNewsChanged();
+  } catch {
+    // réseau indisponible : le témoin se corrigera au prochain regard
+  }
 }

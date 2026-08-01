@@ -506,6 +506,16 @@ def capsule_stats(db: Session, student_id: int) -> dict:
     }
 
 
+def new_capsules_count(db: Session, student_id: int) -> int:
+    """Capsules publiées JAMAIS VUES — témoin de nouveauté de navigation (adr-0030 §3).
+
+    Délègue à `capsule_stats` : `capsule_views` est la trace de vue, et une seule définition de
+    « capsule nouvelle » doit exister dans le module. Aucune date n'entre dans ce compteur — il
+    naît d'une publication par Papa et meurt du visionnage.
+    """
+    return capsule_stats(db, student_id)["new_count"]
+
+
 def synthesize_voice(db: Session, tts: TtsProvider, capsule_id: int) -> Capsule:
     """Synthétise la narration de chaque scène (Piper), cale la durée sur la voix et
     renseigne `audioUrl`. « La voix pilote la durée » : chaque scène narrée dure au moins le

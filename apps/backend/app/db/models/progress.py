@@ -271,6 +271,22 @@ class FicheView(Base):
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class MindmapView(Base):
+    """Mindmap vue par un élève (ADR-0016 §3, livré par l'ADR-0030 §4). Unique(student, mindmap)
+    → « vu » = la ligne existe. Calquée sur `FicheView`, sans compteur : on ne veut savoir que si
+    Massimo l'a regardée une fois, jamais combien de fois."""
+
+    __tablename__ = "mindmap_views"
+    __table_args__ = (
+        UniqueConstraint("student_id", "mindmap_id", name="uq_mindmap_views_student_mindmap"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"), index=True)
+    mindmap_id: Mapped[int] = mapped_column(ForeignKey("mindmaps.id"), index=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class SpacedReviewCard(Base):
     __tablename__ = "spaced_review_cards"
 

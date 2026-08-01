@@ -1,4 +1,5 @@
 // Capsules IA côté Massimo (Lot 2) : bibliothèque des capsules validées + rendues (MP4).
+import { notifyNewsChanged } from "./newsEvents";
 import { API_URL, authClient } from "./authClient";
 
 export type Difficulty = "facile" | "moyen" | "difficile";
@@ -43,6 +44,7 @@ export async function fetchCapsuleStats(): Promise<CapsuleStats> {
 /** Marque une capsule comme vue (au démarrage de la lecture). Idempotent côté backend. */
 export async function recordCapsuleView(id: number): Promise<void> {
   await fetch(`${API_URL}/api/capsules/${id}/view`, { method: "POST", headers: headers() });
+  notifyNewsChanged(); // le témoin de navigation doit retomber (ADR-0030 §5)
 }
 
 /** URL absolue du MP4 (chemin relatif renvoyé par le backend + token en query pour <video>). */

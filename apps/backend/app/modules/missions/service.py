@@ -625,6 +625,33 @@ def list_missions(db: Session, student: StudentProfile) -> list[dict]:
     return [_to_out(db, m) for m in missions]
 
 
+def new_missions_count(db: Session, student_id: int) -> int:
+    """Missions validées JAMAIS DÉMARRÉES — témoin de nouveauté de navigation (adr-0030 §3).
+
+    Deux conditions plutôt qu'une, et c'est délibéré : `started_at IS NULL` est la définition
+    doctrinale (cet horodatage fait foi pour la preuve des étapes, ADR-0017), et `planned`
+    écarte une mission qui aurait quitté cet état autrement. `start_mission` pose les deux
+    atomiquement — l'écart est vide aujourd'hui, la conjonction reste juste si l'un dérive.
+
+    `Mission.due_date` n'apparaît PAS : une mission dont l'échéance est passée n'est pas plus
+    « nouvelle » qu'une autre. Ce compteur naît de la validation et meurt du démarrage — il ne
+    compte jamais les missions EN COURS ni les missions en retard, qui seraient un arriéré.
+
+    Le gate `validated` est dans la requête, comme partout ailleurs dans ce module (§5ter).
+    """
+    return (
+        db.scalar(
+            select(func.count(Mission.id)).where(
+                Mission.student_id == student_id,
+                Mission.validation_status == "validated",
+                Mission.started_at.is_(None),
+                Mission.status == "planned",
+            )
+        )
+        or 0
+    )
+
+
 def today_election(db: Session, student: StudentProfile) -> dict:
     """Mission du jour ÉLUE + raison (contrat cassant ADR-0017 §3). Vue student (sans scores).
 

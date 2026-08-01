@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { type AgendaItemStudent } from "@zetis/types";
-import { fetchAgendaItems } from "../../lib/agenda";
-import { addDays, bannerItems, isoDay, splitSections } from "../../lib/agendaSections";
+import { type AgendaItemStudent, type AgendaUpcomingItem } from "@zetis/types";
+import { fetchAgendaItems, fetchAgendaUpcoming, markAgendaSeen } from "../../lib/agenda";
+import {
+  addDays,
+  bannerItems,
+  bannerUpcoming,
+  daysLeftLabel,
+  isoDay,
+  shortDayLabel,
+  splitSections,
+} from "../../lib/agendaSections";
 import { subjectIconFor } from "../../lib/subjectIcons";
 
 // Résumé « Aujourd'hui / Demain » sur l'Accueil (ADR-0025).
@@ -11,7 +19,14 @@ import { subjectIconFor } from "../../lib/subjectIcons";
 // aller quand on le décide, ce résumé pour le voir sans y aller. Les deux ne font pas double
 // emploi — la sidebar est un chemin, ceci est une information.
 //
-// **Aucune date affichée** : l'Accueil porte l'horizon « maintenant ». 3 items au maximum.
+// **Aucune date dans la liste du haut** : l'Accueil porte l'horizon « maintenant ». 3 items max.
+//
+// Depuis le 2026-08-01, une seconde section **« À préparer »** remonte « ce qui arrive »
+// (`/agenda/upcoming`, contrôles et rendus, déjà borné serveur), plafonnée à 2 — celle-ci PORTE
+// une date. Motif : un contrôle de jeudi était invisible depuis l'Accueil jusqu'à mercredi, et
+// Massimo doit savoir quand il a des choses à étudier. Le badge de nouveauté de la sidebar ne
+// pouvait pas y répondre : c'est un nombre sans date, et le faire compter les items NON FAITS en
+// aurait fait le compteur d'arriéré que l'ADR-0025 §3/§7 interdit.
 //
 // S'il n'y a rien : une ligne calme — JAMAIS « ajoute tes devoirs ». En phase 0 Massimo ne le
 // peut pas, et l'y inviter serait une impasse.
@@ -21,15 +36,30 @@ import { subjectIconFor } from "../../lib/subjectIcons";
 
 export function HomeAgendaBanner() {
   const [items, setItems] = useState<AgendaItemStudent[]>([]);
+  const [upcoming, setUpcoming] = useState<AgendaUpcomingItem[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const today = new Date();
-    fetchAgendaItems(isoDay(today), isoDay(addDays(today, 1)))
-      .then((rows) => setItems(bannerItems(splitSections(rows, today))))
-      // Échec silencieux : aucun message technique à l'écran de l'enfant.
-      .catch(() => setItems([]))
-      .finally(() => setLoaded(true));
+    Promise.all([
+      fetchAgendaItems(isoDay(today), isoDay(addDays(today, 1)))
+        .then((rows) => setItems(bannerItems(splitSections(rows, today))))
+        // Échec silencieux : aucun message technique à l'écran de l'enfant.
+        .catch(() => setItems([])),
+      fetchAgendaUpcoming()
+        .then((rows) => setUpcoming(bannerUpcoming(rows)))
+        .catch(() => setUpcoming([])),
+    ])
+      .finally(() => {
+        setLoaded(true);
+        // Rendre ce bandeau EST un regard (addendum ADR-0025 §12.3) : le témoin de l'entrée
+        // Agenda retombe. Conséquence assumée, pas un défaut — Massimo arrive sur l'Accueil par
+        // défaut, donc le badge Agenda n'y vit que quelques centaines de millisecondes. Ne
+        // marquer qu'à l'ouverture de `/agenda` ferait mentir le témoin sur ce qui a déjà été
+        // lu ici même ; l'utilité du badge est le cas où Papa saisit pendant que Massimo est
+        // déjà dans l'app.
+        void markAgendaSeen();
+      });
   }, []);
 
   if (!loaded) return null;
@@ -46,8 +76,10 @@ export function HomeAgendaBanner() {
         <span className="text-xs text-zetis-muted">Voir →</span>
       </div>
 
-      {items.length === 0 ? (
+      {items.length === 0 && upcoming.length === 0 ? (
         <p className="mt-2 text-sm text-zetis-muted">Rien de noté pour aujourd'hui ni demain.</p>
+      ) : items.length === 0 ? (
+        <p className="mt-2 text-sm text-zetis-muted">Rien pour aujourd'hui ni demain.</p>
       ) : (
         <ul className="mt-2 flex flex-col gap-1.5">
           {items.map((item) => (
@@ -72,6 +104,42 @@ export function HomeAgendaBanner() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* « À préparer » — répond à QUAND, là où le badge de sidebar répond à « il y a du
+          nouveau » (ADR-0030 §1). Deux objets, deux questions : un badge est un nombre sans
+          date, il ne peut pas dire « contrôle jeudi ».
+
+          La DATE est ici légitime et c'est le point : une échéance qui vient du collège est un
+          fait SUBI (ADR-0025 §1), pas un compte à rebours fabriqué par ZETIS. C'est ce qui
+          sépare cette section d'un compteur d'arriéré — elle ne montre que des contrôles et des
+          rendus À VENIR, bornés serveur, et ne s'allonge jamais. */}
+      {upcoming.length > 0 && (
+        <div className="mt-3 border-t border-zetis-border pt-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-zetis-muted">
+            À préparer
+          </p>
+          <ul className="mt-1.5 flex flex-col gap-1.5">
+            {upcoming.map((item) => (
+              <li key={item.id} className="flex items-center gap-2 text-sm">
+                {item.subject && (
+                  <img
+                    src={subjectIconFor(item.subject.slug)}
+                    alt=""
+                    aria-hidden
+                    className="h-4 w-4 shrink-0 rounded-[22%] object-contain"
+                  />
+                )}
+                <span className="truncate">{item.label}</span>
+                {/* Chiffre neutre, jamais une jauge qui change de couleur à l'approche : le
+                    signal d'urgence est ce qui rend un rappel anxiogène (ADR-0025 §6). */}
+                <span className="ml-auto shrink-0 text-[11px] text-zetis-muted">
+                  {shortDayLabel(item.due_on)} · {daysLeftLabel(item.days_left)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </Link>
   );
