@@ -2102,3 +2102,70 @@ jusqu'à la clôture.
   `completed_today` bucketisé en Paris.
 
 ---
+
+# ÉTAPE — Témoins de nouveauté en navigation (ADR-0030)
+
+## Statut
+
+FAIT (backend + frontend + docs + vérification live) — 2026-08-01.
+Branche `feat/news-badges` (part de `main`), **5 commits**, de `6bc44bd` à `3b5bc96`.
+**Non poussée.** Deux migrations appliquées sur la base de dev.
+
+## Décision produit
+
+Un contenu validé par Papa n'existait pour Massimo que s'il visitait la page **au hasard** — ce
+qui vidait de son sens le geste de validation. Les témoins remontent en navigation, sous une règle
+unique et opposable :
+
+> Un badge compte ce qui est **NOUVEAU** (naît d'un geste de Papa ou du système, meurt d'un
+> **regard**), **jamais** ce qui est **DÛ** (naît d'une date franchie, ne meurt que du **travail**,
+> et **grossit quand Massimo ne vient pas**).
+
+La seconde colonne est la définition d'une relance. C'est la version *utile* du badge, et c'est la
+version interdite — d'où deux test-verrous plutôt qu'un commentaire.
+
+## Ce qui a été fait
+
+- **Backend** : module `news` en **lecture pure** (aucune requête SQL — il compose six compteurs
+  qui vivent chez le propriétaire de leur donnée), `GET /api/student/news/summary`.
+  `POST /api/student/agenda/seen` + colonne `agenda_last_seen_at` (migration `c1d2e3f4a5b6`).
+  Table `mindmap_views` (migration `d2e3f4a5b6c7`).
+- **Frontend Massimo** : un seul appel monté dans `MassimoLayout`, `NEWS_CHANGED_EVENT` émis dans
+  `lib/` à côté de l'écriture réseau. La sidebar **ne fait plus aucun appel** (test dédié).
+  Badges emerald, plafond `9+`, **absents à zéro**, sans pulsation ni rouge.
+- **Bandeau d'Accueil** : section **« À préparer »** (`/agenda/upcoming`), **avec les dates**,
+  plafonnée à 2. Zéro backend — la route existait depuis le Lot 1 de l'ADR-0025.
+
+## Divergences tranchées (stop-on-blocker)
+
+1. **Le §Constat de l'ADR était faux** : la sidebar portait **déjà** deux pastilles, chacune avec
+   son `fetch` au montage. Le lot en unifie deux et en ajoute quatre.
+2. **La pastille Révision livrée violait la règle de l'ADR.** `reviews/summary.new_count` exige
+   `due_at <= now` alors que `schedule_review` pose une échéance **future** : une carte fraîchement
+   générée entrait dans le compteur 1 à 7 jours plus tard, **sans aucun geste**. Expression dédiée
+   `new_cards_count`. Conséquence visible assumée : le badge s'allume dès la génération.
+3. **« Le badge DeckDisc repris à l'identique » était ambigu** — il y en a deux, dont un compteur
+   de cartes **dues**. Teinte emerald + `capNewsBadge` (9+), distinct de `cappedCount` (15+).
+4. **Mindmaps, différé au cadrage, livré à la demande** : `POST /seen` répondait 204 sans rien
+   persister depuis l'ADR-0016. Périmètre passé à six entrées.
+5. **Le badge ne peut pas répondre à « quand ai-je des choses à étudier »** — c'est un nombre sans
+   date. La réponse est allée sur la bonne surface (bandeau d'Accueil), pas dans le badge.
+
+## Tests
+
+668 back · 319 Massimo. Build et typecheck verts. **E2E live joué** : les six badges correspondent
+à l'API, retombent **sans rechargement de page**, trois requêtes sur toute la session (dont deux de
+double-montage StrictMode) et **aucun appel périodique** ; mindmaps 14 → 13 après un regard,
+inchangé au rejeu. Les deux verrous ont été **mutés** pour vérifier qu'ils mordent.
+
+## Reste à faire
+
+- **Pousser la branche + ouvrir la PR** (rien à coder).
+- **À regarder avant de juger** : `revision: 137`, `missions: 35`, `mindmaps: 14` sur la base de
+  dev → trois badges à `9+` en permanence, les 35 missions datant des 5-6 juillet. Conforme à la
+  doctrine (aucun ne grossit avec le temps), mais un badge toujours allumé ne dit plus rien. Se
+  tranche en regardant l'app tourner, pas en raisonnant.
+- Différés : unifier ou renommer les deux `new_count` de `memory` (au BACKLOG) ; badge « papa t'a
+  écrit » (hors périmètre, ce serait un canal de message et non un témoin de contenu).
+
+---

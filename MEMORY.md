@@ -7,6 +7,78 @@
 
 ## État à la reprise
 
+**Chantier : les témoins de nouveauté en navigation (ADR-0030).** Branche **`feat/news-badges`**,
+**5 commits, NON POUSSÉS**, arbre propre. `main` est à jour et poussé (`8e09278`).
+
+**FAIT, et vérifié en vrai :**
+
+1. **Slice A backend** — module `app/modules/news/` en **lecture pure** (aucune requête SQL : il
+   compose six compteurs qui vivent chacun chez le propriétaire de leur donnée), route
+   `GET /api/student/news/summary`. Migration **`c1d2e3f4a5b6`** (`student_profiles.agenda_last_seen_at`)
+   + route `POST /api/student/agenda/seen`, **appliquées sur la base de dev**.
+2. **Slice B frontend** — un seul appel monté dans `MassimoLayout`, invalidé par
+   `NEWS_CHANGED_EVENT` émis depuis `lib/` (à côté de l'écriture réseau, pour qu'aucun appelant
+   futur ne puisse l'oublier). **La sidebar ne fait plus aucun appel réseau** et un test l'interdit.
+3. **Mindmaps** — migration **`d2e3f4a5b6c7`** (`mindmap_views`), appliquée. La dette du `/seen`
+   no-op est soldée ; **plus aucune famille de dérivés n'est sans témoin**.
+4. **Bandeau d'Accueil** — section **« À préparer »** (`/agenda/upcoming`, déjà livré au Lot 1 et
+   jamais remonté), **avec les dates**, plafonnée à 2. Zéro backend.
+
+**668 tests backend + 319 Massimo, build et typecheck verts.** E2E live joué : les six badges
+correspondent à l'API, retombent **sans rechargement de page**, **aucun appel périodique** sur
+toute la session ; mindmaps 14 → 13 après un regard, inchangé au rejeu. Les deux test-verrous ont
+été **mutés** pour vérifier qu'ils mordent (ils attrapent bien la violation qu'ils visent).
+
+### Les quatre pièges de ce chantier, qui valent pour la suite
+
+1. ⚠️ **`reviews/summary.new_count` n'est PAS servable en navigation.** Il exige `due_at <= now`
+   alors que `schedule_review` crée les cartes avec une échéance **future** : une carte fraîchement
+   générée y entre 1 à 7 jours plus tard, **sans aucun geste**. C'est un compteur d'arriéré déguisé,
+   et la pastille Révision livrée avant ce chantier le consommait. Expression dédiée :
+   `memory/service.py::new_cards_count`. **Deux `new_count` voisins portent le même mot pour deux
+   choses** — ligne ouverte au BACKLOG pour les renommer.
+2. ⚠️ **`func.now()` des deux côtés** de `created_at > agenda_last_seen_at`. `created_at` vient d'un
+   `server_default=func.now()` ; un `datetime.now(timezone.utc)` Python se sérialise sur SQLite avec
+   un `+00:00` qui trie **après** le naïf du server_default à instant égal. Et sur SQLite
+   `CURRENT_TIMESTAMP` est à la **seconde** : les tests datent explicitement les items « arrivés
+   après » plutôt que d'enchaîner regard puis création.
+3. ⚠️ **Le registre `NEWS_SOURCES` existe POUR ÊTRE LU PAR UN TEST.** L'aplatir en six appels
+   directs rendrait le verrou n°1 aveugle (il lit le **source** des compteurs, la sortie étant un
+   entier qui ne trahit pas sa provenance).
+4. ⚠️ **Un badge est un nombre SANS DATE.** Il ne peut pas répondre à « quand ai-je des choses à
+   étudier » ; le faire compter les items **non faits** en ferait le compteur d'arriéré interdit.
+   C'est une **autre surface** qui répond — le bandeau d'Accueil.
+
+### Décisions actives à ne pas rouvrir
+
+- Un badge compte ce qui est **NOUVEAU** (meurt d'un **regard**), jamais ce qui est **DÛ** (meurt
+  du **travail**, grossit quand Massimo ne vient pas). Deux test-verrous le tiennent.
+- **Aucun polling, aucune horloge.** Un compteur qui bouge sans geste est une notification.
+- `agenda_last_seen_at` = **un horodatage par élève**, jamais un `seen_at` par item (joint à
+  `done_at`, il fabriquerait « vu le 12, jamais fait »). Ne sort d'aucune route.
+- **Sans badge et ce n'est pas un oubli** : Matières (hub), Quiz (pas de `validation_status` du
+  tout, ADR-0014 §2), ELI5 (critère de **récence**, pas de vue). Un test verrouille la liste.
+- `capNewsBadge` (9+) et `cappedCount` (15+) sont **deux objets distincts** et doivent le rester.
+
+### Prochain pas
+
+**Pousser `feat/news-badges` et ouvrir la PR.** Rien d'autre n'est en attente sur ce chantier.
+
+> ⚠️ **À regarder avant de juger le résultat** : sur la base de dev, `revision: 137`,
+> `missions: 35` et `mindmaps: 14` → trois badges affichent `9+` en permanence. Les 35 missions
+> « validées jamais démarrées » datent toutes des **5-6 juillet**. Doctrinalement conforme (aucun
+> ne grossit avec le temps, les verrous passent), mais un badge toujours allumé ne dit plus rien.
+> C'est probablement du résidu de tests des chantiers précédents — **ça se tranche en regardant
+> l'app tourner quelques jours, pas en raisonnant**.
+
+> **Données de test laissées dans la base de dev** : 6 items d'agenda créés pour la vérification
+> live (« Contrôle de maths », « DM SVT », « Exposé anglais », « Poésie à apprendre », « Contrôle
+> histoire », « Contrôle de géométrie »), et 1 `mindmap_views` (carte 1 marquée vue).
+
+---
+
+## Historique — chantier de la galaxie animée (2026-07-31)
+
 **MERGÉ dans `main`** — squash `9be0e6f`, PR
 [#63](https://github.com/NeuronXcore/zetis-school/pull/63), le 2026-08-01. Branche
 `feat/galaxy-animations` **supprimée** (locale et distante). **Rien à pousser, rien à reprendre

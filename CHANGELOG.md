@@ -1,5 +1,58 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.36.0 — Ce qui est nouveau, et ce qui arrive
+
+Date : 2026-08-01 · branche `feat/news-badges` · ADR-0030 « Témoins de nouveauté en navigation »
++ addendum ADR-0025 §12
+
+**Six entrées de la sidebar Massimo portent un témoin de nouveauté** — Agenda, Fiches, Capsules,
+Révision, Missions, Mindmaps — servis par **un seul appel** `GET /api/student/news/summary`, monté
+une fois dans `MassimoLayout`.
+
+La règle tient en une phrase : *un badge compte ce qui est **NOUVEAU** (meurt d'un **regard**),
+jamais ce qui est **DÛ** (meurt du **travail**, et grossit quand Massimo ne vient pas)*. La seconde
+colonne est la définition d'une relance. Deux test-verrous la tiennent : aucune source ne lit
+d'échéance (vérifié sur le **source** des six compteurs), et aucun écoulement du temps n'augmente
+un badge.
+
+**Quatre écarts au cadrage, tous constatés au vu du code :**
+
+- ⚠️ Le constat de départ était **faux** : la sidebar portait **déjà** deux pastilles, chacune avec
+  son `fetch` au montage. Le lot en **unifie deux et en ajoute quatre** ; la sidebar ne fait plus
+  aucun appel réseau, et un test l'interdit.
+- ⚠️ **La pastille Révision déjà livrée violait la règle.** `reviews/summary.new_count` exige
+  `due_at <= now` alors que `schedule_review` crée les cartes avec une échéance **future** : une
+  carte fraîchement générée entrait dans le compteur **1 à 7 jours plus tard, sans aucun geste**.
+  Expression dédiée `new_cards_count`, sans clause d'échéance — le badge s'allume désormais dès la
+  génération par Papa (conséquence visible, assumée).
+- « Le badge `DeckDisc` repris à l'identique » était ambigu : `DeckDisc` en porte **deux**, dont un
+  compteur de cartes **dues**. Retenu : la teinte emerald, le plafond `9+` (`capNewsBadge`), et
+  **pas** le dégradé indigo/cyan — lui ressembler ferait passer un témoin pour un arriéré.
+  `cappedCount` (15+) reste un autre objet, un test croise les deux.
+- **Mindmaps n'est plus différé.** `POST /mindmaps/{id}/seen` répondait 204 **sans rien persister**
+  depuis la slice A de l'ADR-0016. Table `mindmap_views` (calque de `fiche_views`, **sans
+  compteur** : relire une carte n'est pas une information pédagogique). Plus aucune famille de
+  dérivés n'est sans témoin.
+
+**Le badge ne dit pas *quand*, et une autre surface s'en charge.** Un badge est un nombre sans
+date : « 3 » ne dit pas « contrôle jeudi ». Le bandeau d'Accueil ne demandait au serveur
+qu'aujourd'hui et demain — un contrôle de jeudi restait invisible jusqu'à mercredi. Il gagne une
+section **« À préparer »** alimentée par `/agenda/upcoming` (livré au Lot 1, jamais remonté),
+**avec les dates**, plafonnée à 2. Zéro backend. La date est légitime : une échéance venue du
+collège est un fait **subi**, jamais un compte à rebours fabriqué par ZETIS.
+
+**Aucun polling, aucune horloge.** Rafraîchi par `NEWS_CHANGED_EVENT`, émis dans `lib/` à côté de
+l'écriture réseau — jamais par les pages, pour qu'aucun appelant futur ne puisse l'oublier.
+
+**Migrations** : `c1d2e3f4a5b6` (`student_profiles.agenda_last_seen_at` — un horodatage par élève,
+jamais un `seen_at` par item, qui joint à `done_at` fabriquerait « vu le 12, jamais fait ») et
+`d2e3f4a5b6c7` (`mindmap_views`). Aucun backfill sur l'une comme sur l'autre.
+
+**Vérifié** : 668 tests backend, 319 Massimo, build et typecheck verts. E2E live — les six badges
+correspondent à l'API, retombent **sans rechargement de page**, trois requêtes sur toute la session
+(dont deux de double-montage StrictMode) et **aucun appel périodique** ; mindmaps 14 → 13 après un
+regard, inchangé au rejeu. Les verrous ont été **mutés** pour vérifier qu'ils mordent.
+
 ## 0.35.0 — Tout voir, et voir ça arriver
 
 Date : 2026-07-31 · branche `feat/galaxy-animations` · addenda ADR-0024 « Galaxie animée » et
