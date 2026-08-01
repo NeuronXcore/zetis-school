@@ -3,6 +3,7 @@
 // @zetis/types (`packages/types/src/fiche.ts`) — aucun type redéclaré ici. Le serveur ne
 // sert QUE des fiches `validated` (gate côté backend) : le client n'a aucune logique métier.
 import { type FicheDetail, type FicheListItem, type FichesSummary } from "@zetis/types";
+import { notifyNewsChanged } from "./newsEvents";
 import { API_URL, authClient } from "./authClient";
 
 function headers(): HeadersInit {
@@ -44,4 +45,5 @@ export async function fetchFiche(id: number): Promise<FicheDetail> {
 /** `POST /api/student/fiches/{id}/seen` — marque la fiche vue (retrait du badge « Nouveau »). */
 export async function markFicheSeen(id: number): Promise<void> {
   await fetch(`${API_URL}/api/student/fiches/${id}/seen`, { method: "POST", headers: headers() });
+  notifyNewsChanged(); // le témoin de navigation doit retomber (ADR-0030 §5)
 }

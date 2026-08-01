@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { type AgendaItemStudent } from "@zetis/types";
-import { fetchAgendaItems } from "../../lib/agenda";
+import { fetchAgendaItems, markAgendaSeen } from "../../lib/agenda";
 import { addDays, bannerItems, isoDay, splitSections } from "../../lib/agendaSections";
 import { subjectIconFor } from "../../lib/subjectIcons";
 
@@ -29,7 +29,16 @@ export function HomeAgendaBanner() {
       .then((rows) => setItems(bannerItems(splitSections(rows, today))))
       // Échec silencieux : aucun message technique à l'écran de l'enfant.
       .catch(() => setItems([]))
-      .finally(() => setLoaded(true));
+      .finally(() => {
+        setLoaded(true);
+        // Rendre ce bandeau EST un regard (addendum ADR-0025 §12.3) : le témoin de l'entrée
+        // Agenda retombe. Conséquence assumée, pas un défaut — Massimo arrive sur l'Accueil par
+        // défaut, donc le badge Agenda n'y vit que quelques centaines de millisecondes. Ne
+        // marquer qu'à l'ouverture de `/agenda` ferait mentir le témoin sur ce qui a déjà été
+        // lu ici même ; l'utilité du badge est le cas où Papa saisit pendant que Massimo est
+        // déjà dans l'app.
+        void markAgendaSeen();
+      });
   }, []);
 
   if (!loaded) return null;

@@ -1,28 +1,18 @@
-import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { fetchCapsuleStats } from "../lib/capsules";
-import { fetchReviewsSummary } from "../lib/reviews";
+import { type NewsSummary } from "@zetis/types";
 import { MASSIMO_NAV } from "../lib/navigation";
+import { capNewsBadge, EMPTY_NEWS } from "../lib/news";
 import zetisAvatar from "../assets/brand/zetis-avatar_256.png";
 import zetisWordmark from "../assets/brand/zetis-texte.png";
 
 // Sidebar temporaire de l'interface Massimo (Étape 2).
-export function MassimoSidebar() {
-  // Pastille « nouvelles capsules » (non vues). Récupérée au montage ; la page Capsules
-  // reste la source à jour après visionnage.
-  const [newCapsules, setNewCapsules] = useState(0);
-  // Pastille « nouvelles cartes » : cartes dues jamais révisées (fraîchement générées par
-  // Papa). Se vide dès que Massimo les révise (1er passage → `last_reviewed_at` posé).
-  const [newCards, setNewCards] = useState(0);
-  useEffect(() => {
-    fetchCapsuleStats()
-      .then((s) => setNewCapsules(s.new_count))
-      .catch(() => {});
-    fetchReviewsSummary()
-      .then((s) => setNewCards(s.new_count))
-      .catch(() => {});
-  }, []);
-
+//
+// **Ce composant ne fait AUCUN appel réseau** (ADR-0030 §5). Il portait auparavant deux pastilles
+// codées en dur, chacune avec son propre fetch au montage ; les compteurs arrivent désormais en
+// prop depuis `MassimoLayout`, qui les récupère en un seul appel. Un test vérifie qu'aucun
+// `fetch` ne repart d'ici — c'est ce qui empêche le double fetch de réapparaître entrée par
+// entrée.
+export function MassimoSidebar({ news = EMPTY_NEWS }: { news?: NewsSummary }) {
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-zetis-border bg-[#000010]">
       <style>{ZLOGO_CSS}</style>
@@ -73,14 +63,16 @@ export function MassimoSidebar() {
               <span className="text-2xl leading-none">{item.icon}</span>
             )}
             {item.label}
-            {item.to === "/capsules" && newCapsules > 0 && (
-              <span className="ml-auto rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                {newCapsules}
-              </span>
-            )}
-            {item.to === "/revision" && newCards > 0 && (
-              <span className="ml-auto rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                {newCards}
+            {/* Témoin de nouveauté (ADR-0030 §6) : forme reprise du badge « ✨ new » des decks.
+                ABSENT à zéro — pas de « 0 » affiché, aucun réceptacle vide. Aucune pulsation,
+                aucune animation d'apparition, aucun rouge : ce badge informe, il n'alerte pas.
+                Ni or (réservé à « ZETIS parle ») ni ambre (files de validation Papa). */}
+            {item.newsKey && news[item.newsKey] > 0 && (
+              <span
+                className="ml-auto rounded-full border border-emerald-300/50 bg-emerald-400/20 px-2 py-0.5 text-[11px] font-bold text-emerald-100"
+                aria-label={`${news[item.newsKey]} nouveau${news[item.newsKey] > 1 ? "x" : ""}`}
+              >
+                {capNewsBadge(news[item.newsKey])}
               </span>
             )}
           </NavLink>

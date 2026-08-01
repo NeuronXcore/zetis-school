@@ -10,6 +10,7 @@ import {
   type ReviewRating,
   type ReviewsSummary,
 } from "@zetis/types";
+import { notifyNewsChanged } from "./newsEvents";
 import { API_URL, authClient } from "./authClient";
 
 function headers(withBody = false): HeadersInit {
@@ -59,11 +60,15 @@ export async function submitReviewAttempt(
   cardId: number,
   rating: ReviewRating,
 ): Promise<ReviewAttemptResult> {
-  return asJson(
+  const result = await asJson<ReviewAttemptResult>(
     await fetch(`${API_URL}/api/student/reviews/cards/${cardId}/attempt`, {
       method: "POST",
       headers: headers(true),
       body: JSON.stringify({ rating }),
     }),
   );
+  // Une carte qui vient d'être vue pour la première fois quitte le témoin. Émis à CHAQUE
+  // passage : le serveur seul sait si c'était le premier, et le hook coalesce les rafales.
+  notifyNewsChanged();
+  return result;
 }
