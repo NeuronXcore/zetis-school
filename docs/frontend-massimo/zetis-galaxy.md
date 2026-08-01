@@ -222,6 +222,12 @@ précis) ; l'iPhone est la **contrainte** à honorer, pas la cible unique.
   hiérarchie se lit en **rayon**, l'appartenance en **angle**. Positions **calculées** par
   `constellationLayout` et **épinglées**, moteur de forces éteint.
   ⚠️ Le nombre d'anneaux ne dépend PAS du nombre de matières — il y en a trois, un par étage.
+  ⚠️ **Piège du recadrage, corrigé le 2026-07-31.** `onEngineStop` se déclenche à CHAQUE
+  changement de données, donc à chaque naissance pendant une construction. Y brancher
+  `zoomToFit` faisait naître la galaxie **en gros plan** — trois étoiles cadrées serré — puis
+  reculer par à-coups à mesure qu'elle poussait. Sur un graphe **épinglé**, la caméra est posée
+  **une seule fois** pour l'étendue FINALE, qu'on connaît d'avance puisque la disposition est
+  calculée. Ne pas rétablir un `zoomToFit` par naissance.
   ⚠️ Le §C ne gardait que `root` + `subject` parce que le graphe complet produisait un **amas**.
   Ce constat était juste, mais la cause était la **convergence**, pas le nombre de nœuds. **Ne pas
   rallumer les forces** : c'est parce qu'elles restent éteintes que tout peut être montré.

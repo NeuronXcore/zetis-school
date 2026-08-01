@@ -198,6 +198,9 @@ export function GalaxyCanvas({
   const nodeCacheRef = useRef(new Map<string, any>());
   /** Ce qui était déjà à l'écran, pour distinguer une NAISSANCE d'un simple re-rendu. */
   const seenRef = useRef(new Set<string>());
+  /** Lu par `handleEngineStop`, dont les dépendances sont vides par construction. */
+  const pinnedRef = useRef(pinned);
+  pinnedRef.current = pinned;
   const [width, setWidth] = useState(0);
   const reduced = useMemo(prefersReducedMotion, []);
 
@@ -600,6 +603,14 @@ export function GalaxyCanvas({
         node.fz = undefined;
       }
     }
+    // ⚠️ AUCUN RECADRAGE quand les positions sont épinglées.
+    //
+    // `onEngineStop` se déclenche à CHAQUE changement de données, donc à chaque naissance
+    // pendant une construction. Recadrer là-dessus donnait le défaut constaté : la galaxie se
+    // construisait « en grand » — trois étoiles cadrées serré — puis dézoomait par à-coups à
+    // mesure qu'elle poussait. La caméra est posée une fois pour l'étendue FINALE (effet
+    // ci-dessous), qu'on connaît d'avance puisque la disposition est calculée.
+    if (pinnedRef.current) return;
     graphRef.current?.zoomToFit?.(600, fitPadding);
   }, []);
 
@@ -669,10 +680,33 @@ export function GalaxyCanvas({
   // Recadre quand la surface change (passage en plein écran, rotation d'écran) : sans cela,
   // la constellation reste au cadrage de la vignette et laisse la moitié de la page vide.
   useEffect(() => {
-    if (!graphRef.current?.zoomToFit) return;
+    // Même motif : sur un graphe épinglé, c'est l'effet de caméra ci-dessous qui recadre, et il
+    // dépend déjà de `width`/`height`.
+    if (pinned || !graphRef.current?.zoomToFit) return;
     const timer = window.setTimeout(() => graphRef.current?.zoomToFit?.(500, fitPadding), 120);
     return () => window.clearTimeout(timer);
-  }, [width, height]);
+  }, [width, height, pinned]);
+
+  // ── La caméra, posée UNE FOIS pour l'étendue FINALE ────────────────────────────────
+  //
+  // Quand les positions sont épinglées, on connaît d'avance jusqu'où va la galaxie : on cadre
+  // donc tout de suite pour l'état d'arrivée, et plus rien ne bouge ensuite. Les premières
+  // étoiles apparaissent petites au centre et la galaxie se remplit vers l'extérieur — au lieu
+  // de naître en gros plan et de reculer.
+  useLayoutEffect(() => {
+    const graph = graphRef.current;
+    if (!pinned || pinned.size === 0 || width === 0 || typeof graph?.cameraPosition !== "function")
+      return;
+    let far = 0;
+    for (const at of pinned.values()) {
+      far = Math.max(far, Math.hypot(at.x, at.y, at.z));
+    }
+    if (far === 0) return;
+    // Même cadrage en surplomb (~35°) que la vue en orbite : vu par la tranche, un disque se
+    // lit comme une ligne droite.
+    const distance = far * 2.4;
+    graph.cameraPosition({ x: 0, y: distance * 0.62, z: distance }, { x: 0, y: 0, z: 0 }, 0);
+  }, [pinned, width, height]);
 
   // Marge de cadrage proportionnée au cadre : 90 px sur un aperçu de 340 px laisserait plus
   // de vide que de galaxie.
