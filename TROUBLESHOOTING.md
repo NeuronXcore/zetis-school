@@ -4,6 +4,70 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/page-matiere` — index de notions, slice B — 2026-08-01
+
+### `normalizeSearch` change la LONGUEUR de la chaîne : on ne peut pas surligner avec ses index
+
+`normalizeSearch` (`packages/ui/.../galaxyGraph.ts:85`) fait `NFD` puis supprime les
+diacritiques. « è » devient « e » + accent combinant, puis « e » : la chaîne pliée n'a plus la
+même longueur que l'originale, et un index trouvé dedans **ne désigne pas le bon caractère**.
+
+La galaxie ne s'en apercevait pas : elle ALLUME des étoiles, elle n'a rien à surligner. Dès
+qu'on veut un `<mark>`, le décalage apparaît — **d'un cran par accent**, donc précisément sur
+les mots que Massimo tape sans accent.
+
+Parade : plier **point de code par point de code** en tenant une carte d'offsets
+(`lib/searchFold.ts`). `for…of` sur la chaîne et non un index numérique : un caractère hors BMP
+compte pour 2 unités UTF-16 et couperait le pli en deux.
+
+⚠️ Le **filtre** et le **surlignage** doivent partager le même pli. Le pli global et le pli par
+caractère peuvent diverger (réordonnancement canonique, sigma final grec) : si le filtre
+utilisait `normalizeSearch` et le surlignage `fold`, une notion pourrait apparaître dans les
+résultats **sans être surlignée**. Un test-verrou compare les deux sur un corpus accentué.
+
+### `staticImports` du moteur de budget prend `export const X = "from"` pour un import
+
+Sa regex est `/(?:^|\n)\s*(?:import|export)[^;\n]*?from\s*["']([^"']+)["']/g`. Sur
+
+```ts
+export const SUBJECT_BACK_PARAM = "from";
+```
+
+elle matche `export … from "` et capture tout jusqu'au guillemet suivant — souvent une
+apostrophe dans un commentaire français, d'où des captures absurdes.
+
+**Ne pas corriger le moteur** : il est partagé, et le modifier changerait le comportement du
+budget de l'Accueil (dont le vert est la preuve que l'extraction était neutre). Vérifier
+autrement, comme le fait `matiere.bundle.test.ts` pour la pureté de `notionRoutes.ts`.
+
+### `NotionActionPanel` ne tire PAS three.js — le prompt de slice l'affirmait à tort
+
+Chaîne tracée : le baril `@zetis/ui/galaxy` ré-exporte 8 modules, **zéro occurrence de `three`**
+dans leur fermeture transitive. Three vit derrière `@zetis/ui/galaxy/canvas` (sous-chemin dédié)
+et `brainGeometry.ts`, **tous deux hors baril** — et le baril le documente explicitement.
+
+Conséquence : `normalizeSearch` et `starStyle` s'importent depuis `@zetis/ui/galaxy` sans coût
+3D. Le baril reste léger en three.js, **pas en octets** (il traîne `GalaxyFallbackList`,
+`constellationLayout`, `replayLayout`…). Si le poids gêne un jour, la sortie propre est un
+sous-chemin `@zetis/ui/galaxy/search` — jamais une recopie de `normalizeSearch`.
+
+### Le rétrolien d'ELI5 était annoncé bloquant : il ne l'est pas
+
+`/eli5?skill_id=` porte une notion, et ni l'URL ni la réponse serveur ne gardent le slug de
+matière. Mais les deux nettoyages d'URL de la page **ne suppriment que leurs propres clés** :
+`Eli5Page.tsx` retire `skill_id`+`name`, `useEli5Page.ts` retire `subject`, et tous deux
+reconstruisent depuis `new URLSearchParams(searchParams)`.
+
+Un paramètre tiers survit donc aux deux. `?from=` était libre (l'app ne lisait que `name`,
+`skill`, `skill_id`, `subject`). **Pas `?subject=`** : il est déjà lu sur `/eli5` et
+`/revision`, où il DÉCLENCHE une action — le réutiliser ferait d'un retour un lancement.
+
+### Modèles : deux noms de colonnes qui ne sont pas ceux qu'on suppose
+
+Ils échouent en `TypeError` à la construction, pas en erreur SQL :
+`SpacedReviewCard` → **`front_markdown` / `back_markdown`** (statut actif : `scheduled`) ;
+`Capsule` → **`subject_id` requis** en plus de `skill_id`.
+
 ## Chantier `feat/page-matiere` — index de notions, slice A — 2026-08-01
 
 ### `app.routes` n'est pas à plat : un test « cette route n'existe pas » passe **à vide**
@@ -36,14 +100,6 @@ atteindre 7 — le garde-fou était inatteignable, donc intestable, donc décora
 
 Le plafond est mesuré sur la charge **brute**, avant dédup : il borne la **taille** de l'appel,
 là où le vocabulaire borne son **contenu**. Deux garde-fous, deux risques différents.
-
-### Modèles : les noms de colonnes qui ne sont pas ceux qu'on suppose
-
-Pièges rencontrés en semant des fixtures (ils échouent en `TypeError`, pas en erreur SQL) :
-
-- `SpacedReviewCard` → **`front_markdown` / `back_markdown`** (pas `front`/`back`), et le statut
-  actif est `scheduled` (`INACTIVE_CARD_STATUSES` définit le reste) ;
-- `Capsule` → **`subject_id` est requis** en plus de `skill_id`.
 
 ## Chantier `feat/galaxy-animations` — galaxie animée — 2026-07-31 (soir)
 

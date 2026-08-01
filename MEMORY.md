@@ -9,9 +9,10 @@
 
 **Chantier : la page matière devient un index de notions (addenda ADR-0024 + ADR-0027).**
 
-Branche **`feat/page-matiere`**, créée depuis `main`. **3 commits, NON POUSSÉS, pas de PR.**
+Branche **`feat/page-matiere`**, créée depuis `main`. **Slices A et B FAITES — 8 commits,
+NON POUSSÉS, pas de PR.**
 
-### ⛔ Trois documents de cadrage MANQUENT au dépôt
+### ⛔ Deux ADR MANQUENT encore au dépôt
 
 Le chantier a été ouvert avec ses entrées `DECISIONS.md` mais **sans les fichiers qu'elles
 référencent**. Rien ne les remplace :
@@ -26,9 +27,65 @@ référencent**. Rien ne les remplace :
 `main` **avec** les ADR (règle `WORKFLOW.md` §2bis — deux branches qui éditent `DECISIONS.md` =
 conflit garanti). Ne pas le committer sur la branche.
 
-⚠️ **La maquette est BLOQUANTE pour la slice B** : le prompt la déclare « contrat visuel et
-interactif » (recherche, accordéon, panneau, demandes, états). Sans elle, coder la page revient à
-inventer le rendu — exactement ce que le read-before-code existe pour empêcher.
+La **maquette** avait été signalée bloquante pour la slice B (le prompt la déclare « contrat
+visuel et interactif »). Le user a tranché : **on code d'après la spec**, qui décrit la
+recherche, l'accordéon, le panneau, les demandes et les états avec assez de précision. Le rendu
+suit donc la spec + les conventions des pages Massimo existantes, **pas** une maquette.
+
+### FAIT — slice B (frontend Massimo), 5 commits
+
+**La page `/subjects/:slug` est écrite et testée.** 690 back · 418 Massimo · 270 Papa ·
+2 typecheck · build — tous verts.
+
+1. **`session_size` par matière** (`3fd4f22`) — petit ajout backend : `ReviewSubjectDue`
+   expose `min(REVIEW_SESSION_MAX_SUBJECT, due_count)`. `flash_size` était GLOBAL, `due_count`
+   est l'arriéré. Le calcul vit là où vit la constante.
+2. **Table `kind → route` extraite** (`6c112ad`) — `lib/notionRoutes.ts`, PUR (zéro import de
+   valeur) + `useOpenNotionAction`. Le `returnTo` figé à « /galaxy » devient un paramètre.
+3. **Moteur de budget + pliage NFD** (`0cc6534`) — `src/test/bundleGraph.ts` partagé,
+   `lib/searchFold.ts` avec carte d'offsets.
+4. **La page** (`e8b61b8`) — `lib/panoply.ts`, `useSubjectPanoply` (TOUTE la règle métier),
+   `components/matiere/*`, `matiere.bundle.test.ts`, 28 tests de page.
+5. **Rétrolien partagé** (`cc36c3d`) — `SubjectBackLink` monté sur les 5 surfaces filles.
+
+**⚠️ LA PAGE N'A PAS ÉTÉ VUE À L'ÉCRAN.** Le navigateur intégré n'est pas connecté. Tout est
+prouvé par test, rien par l'œil. Restent à vérifier en vrai : la recherche à la frappe
+(accents, surlignage, `Échap`), l'accordéon, le panneau, le toast de demande, le seuil 620 px
+où la panoplie se masque, et les 5 rétroliens dont celui d'ELI5 après rechargement.
+
+### Les décisions de la slice B (prises avec le user, ne pas les rouvrir)
+
+- **La carte « Reprendre » est DESCOPÉE.** Aucune route ne sert « dernier contenu ouvert »
+  (`last_notion` est global, sans lien, fenêtre 30 j). La spec dit « deux cartes AU PLUS,
+  jamais rendues à vide » : on en rend une. À rouvrir avec un vrai endpoint, pas avant.
+- **Le nombre de « Prêt à revoir » vient du SERVEUR** (`session_size`), jamais d'un `8` recopié
+  dans le front.
+- **Le rétrolien passe par `?from=`**, pas `?subject=` — ce dernier est déjà lu sur `/eli5` et
+  `/revision`, où il DÉCLENCHE une action.
+- La panoplie ouvre `/revision?subject=X&from=X` : deux paramètres parce que deux rôles.
+
+### Les pièges de la slice B
+
+1. ⚠️ **La table `kind → route` n'était couverte par AUCUN test.** 9 cas de caractérisation
+   écrits d'abord ; 7 intacts après extraction, 2 changés exprès (`eli5`/`revision` gagnent
+   `&from=`). Ne pas refaire un refactor de routage sans ce filet.
+2. ⚠️ **`normalizeSearch` change la LONGUEUR de la chaîne** (NFD décompose puis supprime) : ses
+   index ne mappent pas 1:1 sur l'original. Surligner d'après eux décale le `<mark>` d'un cran
+   PAR ACCENT. D'où `fold()` et sa carte d'offsets. Filtre et surlignage partagent le même pli.
+3. ⚠️ **`NotionActionPanel` NE tire PAS three.js** — le prompt de slice l'affirmait, c'est faux.
+   Le baril `@zetis/ui/galaxy` est léger ; three vit derrière `@zetis/ui/galaxy/canvas` et
+   `brainGeometry.ts`, tous deux hors baril. La page ne l'importe quand même pas, mais pour une
+   autre raison (elle partage la table, pas le composant) — et un test le verrouille.
+4. ⚠️ **`staticImports` du moteur de budget a un faux positif** : `export const X = "from"`
+   ressemble à un `export … from "…"`. Ne pas « corriger » le moteur (ça changerait le test de
+   l'Accueil) — vérifier autrement, comme le fait `matiere.bundle.test.ts`.
+5. ⚠️ **`cours` et `eli5` sont TOUJOURS indisponibles ensemble** et se demandent tous deux comme
+   `cours`. Sans dédup, « tout ce qui manque » annoncerait 7 — le vocabulaire n'a que 6 entrées.
+   **Un `(7)` affiché EST ce bug.**
+6. ⚠️ **`/revision?subject=` ne s'arrête jamais sur la page** : elle relance la session dès que
+   le résumé arrive (sauf matière introuvable). Le rétrolien n'y sert que les arrivées sans deck.
+7. ⚠️ **Seul le PREMIER chapitre est ouvert au chargement** — une notion des suivants n'est pas
+   dans le DOM tant qu'on n'a pas déplié. Piège classique des tests de cette page.
 
 ### FAIT — slice A (backend), 688 tests verts
 
@@ -86,12 +143,16 @@ inventer le rendu — exactement ce que le read-before-code existe pour empêche
 
 ### PROCHAIN PAS
 
-1. **Obtenir la maquette + les deux ADR** (voir le tableau ci-dessus), poser les ADR et
-   `DECISIONS.md` sur `main`.
-2. Pousser `feat/page-matiere` et ouvrir la PR de la slice A.
-3. **Slice B** (page Massimo) — `prompts/claude-code/prompt-page-matiere-slice-b-frontend.md`.
-   Son point à risque est déjà identifié : le **rétrolien d'ELI5** (`/eli5?skill_id=` porte une
-   notion, pas une matière) — à trancher au read-before-code, sans inventer d'état de navigation.
+1. **VOIR LA PAGE EN VRAI** — c'est la seule chose réellement en suspens (liste ci-dessus).
+   Lancer backend `:8000` + front Massimo, ouvrir `/subjects/svt`.
+2. **Obtenir les deux ADR** (voir le tableau plus haut) et les poser sur `main` avec
+   `DECISIONS.md`, qui attend, non commité, exprès. La maquette n'est plus bloquante — la page
+   est écrite d'après la spec — mais elle reste le contrat visuel si tu veux comparer.
+3. Pousser `feat/page-matiere` (8 commits) et ouvrir la PR.
+
+> Dette repérée en passant, **pas** traitée : `notionRouteFor` ignore `action.capsule_id` et
+> ouvre `/capsules` à plat — le libellé « Regarder la capsule » sur-promet donc déjà. C'est
+> pré-existant (hérité de `NotionActionPanel`), à corriger quand `/capsules/:id` existera.
 
 ---
 
