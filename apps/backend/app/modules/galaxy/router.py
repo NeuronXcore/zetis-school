@@ -17,6 +17,7 @@ from app.modules.galaxy.schemas import (
     GalaxyNotionOut,
     GalaxyOverviewOut,
     GalaxyTimelineOut,
+    SubjectPanoplyOut,
 )
 
 student_router = APIRouter(
@@ -24,6 +25,25 @@ student_router = APIRouter(
     tags=["galaxy-student"],
     dependencies=[Depends(get_current_user)],
 )
+
+# L'index de notions n'est pas servi sous `/galaxy` : il vit à côté de
+# `/api/student/subjects/{slug}/notions` (module `curriculum`), là où le client va chercher ce
+# qui concerne une matière. Le CALCUL, lui, reste dans `galaxy` — c'est là qu'habite le prédicat
+# de disponibilité, et il ne doit exister qu'une fois (addendum ADR-0024).
+subjects_router = APIRouter(
+    prefix="/api/student/subjects",
+    tags=["galaxy-student"],
+    dependencies=[Depends(get_current_user)],
+)
+
+
+@subjects_router.get("/{subject_slug}/panoply", response_model=SubjectPanoplyOut)
+def subject_panoply(subject_slug: str, db: Session = Depends(get_db)) -> dict:
+    """Index des notions d'une matière : chapitres validés → notions, chacune avec sa panoplie.
+
+    404 si la matière est inconnue ou hors année active ; `chapters: []` si rien n'est validé.
+    """
+    return service.subject_panoply(db, subject_slug)
 
 
 @student_router.get("", response_model=GalaxyOverviewOut)

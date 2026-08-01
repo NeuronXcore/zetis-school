@@ -13,6 +13,7 @@ Ce lot la remplace :
 Vocabulaire bienveillant (CLAUDE.md) : « renforcer », « consolidation », jamais d'échec — les
 deux issues du verdict sont positives (la machine change, pas le discours)."""
 
+from collections.abc import Sequence
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -73,6 +74,35 @@ _STEP_MINUTES = {STEP_LESSON: 5, STEP_ELI5: 5, STEP_VOCAL: 5, STEP_MINDMAP: 6, S
 # --- Cibles réelles des étapes ------------------------------------------------------------
 
 
+# ⚠️ Les versions ENSEMBLISTES sont les seules à porter la requête ; les versions mono en sont
+# des enveloppes. C'est l'inverse de l'écriture naturelle, et c'est délibéré : la page matière
+# (addendum ADR-0024) résout la panoplie de N notions d'un coup, et deux requêtes rédigées
+# séparément divergeraient au premier correctif — le mal exact que le prédicat partagé existe
+# pour empêcher. Une règle, une requête, deux granularités d'appel.
+
+
+def _resolve_mission_quiz_ids(db: Session, skill_ids: Sequence[int]) -> dict[int, int]:
+    """`skill_id` → id du quiz de mission PRÊT le plus récent, pour un lot de notions.
+
+    Une seule requête quel que soit le nombre de notions. `MAX(Quiz.id)` groupé par notion
+    reproduit exactement l'`ORDER BY id DESC LIMIT 1` de la version mono (l'id le plus grand
+    est le plus récent), y compris quand la jointure duplique les lignes."""
+    ids = [s for s in skill_ids if s is not None]
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(LessonSkill.skill_id, func.max(Quiz.id))
+        .join(Quiz, Quiz.lesson_id == LessonSkill.lesson_id)
+        .where(
+            Quiz.quiz_type == "mission",
+            Quiz.status == "ready",
+            LessonSkill.skill_id.in_(ids),
+        )
+        .group_by(LessonSkill.skill_id)
+    ).all()
+    return {skill_id: quiz_id for skill_id, quiz_id in rows if quiz_id is not None}
+
+
 def _resolve_mission_quiz_id(db: Session, skill_id: int | None) -> int | None:
     """Un quiz de mission déjà PRÊT couvrant la notion (via la leçon qui la porte), sinon None.
 
@@ -82,17 +112,28 @@ def _resolve_mission_quiz_id(db: Session, skill_id: int | None) -> int | None:
     (la notion revient via SRS). L'auto-génération relève du Lot 2."""
     if skill_id is None:
         return None
-    return db.scalar(
-        select(Quiz.id)
-        .join(LessonSkill, LessonSkill.lesson_id == Quiz.lesson_id)
+    return _resolve_mission_quiz_ids(db, [skill_id]).get(skill_id)
+
+
+def _resolve_mission_mindmap_ids(db: Session, skill_ids: Sequence[int]) -> dict[int, int]:
+    """`skill_id` → id de la mindmap VALIDÉE la plus récente, pour un lot de notions.
+
+    Même construction (et même justification) que `_resolve_mission_quiz_ids`."""
+    ids = [s for s in skill_ids if s is not None]
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(LessonSkill.skill_id, func.max(Mindmap.id))
+        .join(Mindmap, Mindmap.lesson_id == LessonSkill.lesson_id)
+        .join(Lesson, Lesson.id == Mindmap.lesson_id)
         .where(
-            Quiz.quiz_type == "mission",
-            Quiz.status == "ready",
-            LessonSkill.skill_id == skill_id,
+            Mindmap.validation_status == "validated",
+            Lesson.status == "validated",
+            LessonSkill.skill_id.in_(ids),
         )
-        .order_by(Quiz.id.desc())
-        .limit(1)
-    )
+        .group_by(LessonSkill.skill_id)
+    ).all()
+    return {skill_id: mindmap_id for skill_id, mindmap_id in rows if mindmap_id is not None}
 
 
 def _resolve_mission_mindmap_id(db: Session, skill_id: int | None) -> int | None:
@@ -102,18 +143,7 @@ def _resolve_mission_mindmap_id(db: Session, skill_id: int | None) -> int | None
     réutilisable, l'étape mindmap est simplement omise du parcours — elle est OPTIONNELLE."""
     if skill_id is None:
         return None
-    return db.scalar(
-        select(Mindmap.id)
-        .join(Lesson, Lesson.id == Mindmap.lesson_id)
-        .join(LessonSkill, LessonSkill.lesson_id == Mindmap.lesson_id)
-        .where(
-            Mindmap.validation_status == "validated",
-            Lesson.status == "validated",
-            LessonSkill.skill_id == skill_id,
-        )
-        .order_by(Mindmap.id.desc())
-        .limit(1)
-    )
+    return _resolve_mission_mindmap_ids(db, [skill_id]).get(skill_id)
 
 
 def _recall_steps(

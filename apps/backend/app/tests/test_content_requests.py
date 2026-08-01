@@ -222,14 +222,19 @@ def test_chat_empty_notion_is_honest_and_requests_cours_without_offering_eli5(
 ) -> None:
     """Déclencheur (b) + décision 2026-07-30 : la notion n'a AUCUN contenu validé (pas de cours).
     ELI5 inventerait → on ne l'offre PAS. ZETIS est honnête (« je le note pour Papa ») et enregistre
-    une demande de `cours`. Aucune action (rien de validé à ouvrir)."""
+    une demande de `cours`. Aucune action (rien de validé à ouvrir).
+
+    ⚠️ FIXTURE mise à jour le 2026-08-01 (les assertions, elles, sont inchangées) : le faux
+    panneau posait `eli5 available=True` avec `cours available=False`, un couple que
+    `resolve_panoply` ne peut PLUS produire depuis que la règle ELI5 y est descendue. Le laisser
+    aurait fait passer le test sur un état impossible en production."""
     client, Session = client_db
     skill_id = _skill_id(Session)
     monkeypatch.setattr(
         actions,
         "notion_panel",
         lambda db, sid: _panel(
-            skill_id, [{"kind": "eli5", "available": True}, {"kind": "cours", "available": False}]
+            skill_id, [{"kind": "eli5", "available": False}, {"kind": "cours", "available": False}]
         ),
     )
     _use_chat_llm(_chat_intent({"kind": "none"}, "Chouette !"))
@@ -246,14 +251,18 @@ def test_chat_empty_notion_is_honest_and_requests_cours_without_offering_eli5(
 
 def test_chat_eli5_intent_on_cousless_notion_does_not_generate(client_db, monkeypatch) -> None:
     """Cas réel post-`chat_v2` + décision : le LLM propose `tool=eli5` sur une notion SANS cours.
-    ELI5 inventerait → on refuse de router vers lui ; honnêteté + demande de `cours`. Aucune action."""
+    ELI5 inventerait → on refuse de router vers lui ; honnêteté + demande de `cours`. Aucune action.
+
+    ⚠️ FIXTURE mise à jour le 2026-08-01 (assertions inchangées), même motif que le test
+    précédent : `eli5 available=True` sans cours est devenu un état que le prédicat partagé
+    n'émet plus."""
     client, Session = client_db
     skill_id = _skill_id(Session)
     monkeypatch.setattr(
         actions,
         "notion_panel",
         lambda db, sid: _panel(
-            skill_id, [{"kind": "eli5", "available": True}, {"kind": "cours", "available": False}]
+            skill_id, [{"kind": "eli5", "available": False}, {"kind": "cours", "available": False}]
         ),
     )
     _use_chat_llm(_chat_intent({"kind": "open_notion", "tool": "eli5"}))

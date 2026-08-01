@@ -227,4 +227,7 @@ export {
   type GalaxyStatus,
   type GalaxySubject,
   type GalaxySubjectRef,
+  type PanoplyChapter,
+  type PanoplyNotion,
+  type SubjectPanoply,
 } from "./galaxy";

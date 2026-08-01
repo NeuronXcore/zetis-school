@@ -133,19 +133,16 @@ def _notion_menu(db: Session, skill_id: int) -> ActionResult:
             meta={"intent": "notion_menu", "skill_id": skill_id, "visible": False},
         )
     name, slug, subject_name = panel["name"], panel["subject_slug"], panel["subject_name"]
-    by_kind = {a["kind"]: a for a in panel["actions"]}
-    # ELI5 dégrade vers le MODÈLE quand il n'y a pas de cours validé (ADR-0011) : l'offrir sur une
-    # notion sans cours = router Massimo vers du contenu NON validé — ce que l'orchestrateur refuse
-    # (ADR-0027 §3, décision 2026-07-30 après test live). ELI5 n'est donc offert QUE si un cours
-    # validé existe (là, il s'ancre dessus). Sans cours, ZETIS est honnête et enregistre la demande.
-    has_course = bool(by_kind.get("cours", {}).get("available"))
+    # ⚠️ Le filtre « ELI5 seulement si un cours validé existe » vivait ICI (correctif live du
+    # 2026-07-30). Il a été SUPPRIMÉ le 2026-08-01, non pas abandonné : la règle est descendue
+    # dans `galaxy.resolve_panoply`, qui rend désormais `eli5.available = False` sans cours. Le
+    # filtre `available` ci-dessous la porte donc déjà. La garder ici en aurait fait une règle
+    # écrite à deux endroits — exactement ce que l'addendum ADR-0024 interdit.
     items: list[ChatMenuItem] = []
     for act in panel["actions"]:
         kind = act["kind"]
         if kind not in NOTION_TOOLS or not act.get("available"):
             continue
-        if kind == "eli5" and not has_course:
-            continue  # pas de cours → ELI5 inventerait : on ne l'offre pas
         route, _label = _notion_route(
             kind, skill_id=skill_id, name=name, slug=slug, subject_name=subject_name, action=act
         )
@@ -227,7 +224,11 @@ def _open_notion(
     actions = {a["kind"]: a for a in panel["actions"]}
     # ELI5 sans cours validé → il inventerait (ADR-0011) : on NE route pas vers lui (ADR-0027 §3).
     # On délègue au menu, qui offre l'existant validé (fiche/carte…) ou reste honnête + demande Papa.
-    if tool == "eli5" and not bool(actions.get("cours", {}).get("available")):
+    # ⚠️ La condition lit `eli5.available` — le prédicat partagé — et non plus `cours.available`
+    # qu'elle redérivait. Ce branchement n'est PAS la règle de disponibilité (elle est portée par
+    # `resolve_panoply`) : c'est un choix de ROUTAGE, qui préfère montrer les alternatives réelles
+    # plutôt que la branche « contenu absent ». Comportement éprouvé live, conservé tel quel.
+    if tool == "eli5" and not bool(actions.get("eli5", {}).get("available")):
         return _notion_menu(db, skill_id)
     entry = actions.get(tool)
     if entry is None or not entry.get("available"):

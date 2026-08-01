@@ -158,3 +158,37 @@ class GalaxyNotionOut(BaseModel):
     subject_slug: str
     subject_name: str
     actions: list[GalaxyAction]
+
+
+class PanoplyNotionOut(BaseModel):
+    """Une notion dans l'index de matière : son état, et ce que ZETIS sait en faire.
+
+    ⚠️ **Aucun `mastery_score`, aucun `intensity`, aucun pourcentage.** `status` seul
+    (ADR-0024 §5). Une valeur numérique servie ici finirait affichée : la page matière ne note
+    pas Massimo, elle décrit le catalogue.
+    """
+
+    skill_id: int
+    name: str
+    status: GalaxyStatus
+    actions: list[GalaxyAction]
+
+
+class PanoplyChapterOut(BaseModel):
+    """Un chapitre de l'index — dans l'ordre du référentiel, jamais un classement."""
+
+    chapter_id: int
+    title: str
+    notions: list[PanoplyNotionOut]
+
+
+class SubjectPanoplyOut(BaseModel):
+    """`GET /api/student/subjects/{subject_slug}/panoply` — l'index de notions d'une matière.
+
+    Même modèle que la constellation, rendu en liste : c'est le repli sans WebGL de
+    `zetis-galaxy.md §11`. `chapters: []` si la matière n'a encore rien de validé — un état
+    positif, pas une erreur.
+    """
+
+    subject: GalaxySubjectRef
+    chapters: list[PanoplyChapterOut]

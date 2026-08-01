@@ -14,6 +14,7 @@ La maîtrise vient du service d'évidence (`evidence.mastery_by_skill`), jamais 
 ici : un substrat, plusieurs consommateurs (ADR-0011 §1).
 """
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
@@ -41,9 +42,11 @@ from app.modules.memory.service import INACTIVE_CARD_STATUSES
 # existe pour empêcher). ⚠️ Dette connue : ce sont des fonctions privées d'un autre module ;
 # leur extraction vers un module neutre est le bon geste, mais elle modifierait `missions`,
 # hors périmètre de cette slice.
+# On importe les variantes ENSEMBLISTES : les versions mono de `missions` en sont désormais des
+# enveloppes, donc la requête reste unique et partagée (aucune divergence possible).
 from app.modules.missions.service import (
-    _resolve_mission_mindmap_id,
-    _resolve_mission_quiz_id,
+    _resolve_mission_mindmap_ids,
+    _resolve_mission_quiz_ids,
 )
 
 # Les cinq états rendus par la Galaxy (ADR-0024 §5).
@@ -352,22 +355,6 @@ def constellation(db: Session, subject_slug: str) -> dict:
     return {"subject": subject_ref, "nodes": nodes, "edges": edges}
 
 
-def _has_review_cards(db: Session, *, student_id: int, skill_id: int) -> bool:
-    """Au moins une carte SRS ACTIVE pour ce couple élève/notion."""
-    return (
-        db.scalar(
-            select(SpacedReviewCard.id)
-            .where(
-                SpacedReviewCard.student_id == student_id,
-                SpacedReviewCard.skill_id == skill_id,
-                SpacedReviewCard.status.not_in(INACTIVE_CARD_STATUSES),
-            )
-            .limit(1)
-        )
-        is not None
-    )
-
-
 def timeline(db: Session, *, days: int = 60, with_skills: bool = False) -> dict:
     """Frise de progression : combien d'étoiles Massimo a allumées, jour après jour.
 
@@ -435,27 +422,165 @@ def timeline(db: Session, *, days: int = 60, with_skills: bool = False) -> dict:
     return {"points": points, "total": running, "skills": skills}
 
 
-def _validated_fiche_id(db: Session, lesson_id: int) -> int | None:
-    """Fiche de révision VALIDÉE de la leçon qui porte la notion (ADR-0015), sinon None."""
-    return db.scalar(
-        select(Fiche.id)
-        .where(Fiche.lesson_id == lesson_id, Fiche.validation_status == "validated")
-        .order_by(Fiche.id.desc())
-        .limit(1)
-    )
+def _validated_fiche_ids(db: Session, lesson_ids: Sequence[int]) -> dict[int, int]:
+    """`lesson_id` → id de la fiche VALIDÉE la plus récente (ADR-0015), pour un lot de leçons.
+
+    `MAX(Fiche.id)` groupé reproduit exactement l'`ORDER BY id DESC LIMIT 1` de la version
+    mono d'origine. Une requête, quel que soit le nombre de leçons.
+    """
+    ids = [lesson_id for lesson_id in lesson_ids if lesson_id is not None]
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(Fiche.lesson_id, func.max(Fiche.id))
+        .where(Fiche.lesson_id.in_(ids), Fiche.validation_status == "validated")
+        .group_by(Fiche.lesson_id)
+    ).all()
+    return {lesson_id: fiche_id for lesson_id, fiche_id in rows if fiche_id is not None}
 
 
-def _validated_capsule_id(db: Session, skill_id: int) -> int | None:
-    """Capsule IA VALIDÉE portant la notion (ADR-0005/0007), sinon None.
+def _validated_capsule_ids(db: Session, skill_ids: Sequence[int]) -> dict[int, int]:
+    """`skill_id` → id de la capsule IA VALIDÉE la plus récente (ADR-0005/0007).
 
     Contrairement à la fiche, la capsule est notion-centrée : elle porte `skill_id`.
     """
-    return db.scalar(
-        select(Capsule.id)
-        .where(Capsule.skill_id == skill_id, Capsule.validation_status == "validated")
-        .order_by(Capsule.id.desc())
-        .limit(1)
+    ids = [skill_id for skill_id in skill_ids if skill_id is not None]
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(Capsule.skill_id, func.max(Capsule.id))
+        .where(Capsule.skill_id.in_(ids), Capsule.validation_status == "validated")
+        .group_by(Capsule.skill_id)
+    ).all()
+    return {skill_id: capsule_id for skill_id, capsule_id in rows if capsule_id is not None}
+
+
+def _skills_with_review_cards(
+    db: Session, *, student_id: int, skill_ids: Sequence[int]
+) -> set[int]:
+    """Les notions du lot qui ont au moins une carte SRS ACTIVE pour cet élève."""
+    ids = [skill_id for skill_id in skill_ids if skill_id is not None]
+    if not ids:
+        return set()
+    return set(
+        db.scalars(
+            select(SpacedReviewCard.skill_id)
+            .where(
+                SpacedReviewCard.student_id == student_id,
+                SpacedReviewCard.skill_id.in_(ids),
+                SpacedReviewCard.status.not_in(INACTIVE_CARD_STATUSES),
+            )
+            .distinct()
+        ).all()
     )
+
+
+def _course_lessons_by_skill(db: Session, skill_ids: Sequence[int]) -> dict[int, tuple[int, bool]]:
+    """`skill_id` → (`lesson_id` retenue, un cours y est-il RÉDIGÉ ?), pour un lot de notions.
+
+    La leçon retenue est la MÊME que celle de `_visible_notions` : la plus récente des leçons
+    validées d'un chapitre validé de l'année active (`updated_at desc`, `id` en départage). Elle
+    est résolue **ici**, et non déduite du contexte de l'appelant, pour que `notion_panel` et la
+    page matière désignent toujours la même leçon — une notion enseignée dans deux matières
+    donnerait sinon deux réponses selon le chemin d'appel.
+
+    « Cours disponible » = un cours RÉELLEMENT RÉDIGÉ, pas seulement une leçon validée : une leçon
+    peut être validée sans `content_markdown` (le cours reste à écrire). Sans ce contrôle,
+    `notion_panel` prétendait qu'un cours existe dès que la notion est visible — un mensonge qui
+    ouvrait une porte vide ET empêchait le chat d'enregistrer la demande à Papa (addendum ADR-0027).
+    """
+    ids = [skill_id for skill_id in skill_ids if skill_id is not None]
+    if not ids:
+        return {}
+    year = _active_year_or_404(db)
+    rows = db.execute(
+        select(
+            LessonSkill.skill_id,
+            Lesson.id,
+            Lesson.updated_at,
+            Lesson.content_markdown.is_not(None),
+        )
+        .join(Lesson, Lesson.id == LessonSkill.lesson_id)
+        .join(Chapter, Chapter.id == Lesson.chapter_id)
+        .join(SchoolYearSubject, SchoolYearSubject.id == Chapter.school_year_subject_id)
+        .where(
+            LessonSkill.skill_id.in_(ids),
+            SchoolYearSubject.school_year_id == year.id,
+            Chapter.validation_status == "validated",
+            Lesson.status == "validated",
+        )
+    ).all()
+
+    best: dict[int, tuple[tuple, int, bool]] = {}
+    for skill_id, lesson_id, updated_at, has_course in rows:
+        recency = (updated_at, lesson_id)
+        current = best.get(skill_id)
+        if current is not None and recency <= current[0]:
+            continue
+        best[skill_id] = (recency, lesson_id, bool(has_course))
+    return {skill_id: (lesson_id, has_course) for skill_id, (_, lesson_id, has_course) in best.items()}
+
+
+def resolve_panoply(
+    db: Session, *, student_id: int, skill_ids: Sequence[int]
+) -> dict[int, list[dict]]:
+    """LE prédicat de disponibilité de ZETIS : pour chaque notion, la panoplie complète.
+
+    **Un seul prédicat dans le dépôt** (addendum ADR-0024). `notion_panel` en est le consommateur
+    mono-notion, la page matière le consommateur en lot. Le correctif du 2026-07-30 a déjà prouvé
+    ce qu'un second coûte : le cours était annoncé disponible sur `lesson_id is not None` d'un
+    côté et sur `content_markdown IS NOT NULL` de l'autre — une porte ouverte sur du vide.
+
+    Le **nombre de requêtes est constant**, indépendant du nombre de notions : chaque résolveur
+    travaille en `IN (:skill_ids)` puis regroupe en mémoire. C'est ce qui rend la page matière
+    tenable sur une matière entière (référence `production/coverage.py` : 69 leçons, 18 requêtes).
+
+    L'ordre des activités est **pédagogique et stable** — comprendre, puis mémoriser, puis se
+    tester — et il est porté ici, pas par le client : les deux surfaces le rendent identique.
+    """
+    ids = [skill_id for skill_id in skill_ids if skill_id is not None]
+    if not ids:
+        return {}
+
+    lessons = _course_lessons_by_skill(db, ids)
+    fiches = _validated_fiche_ids(db, [lesson_id for lesson_id, _ in lessons.values()])
+    capsules = _validated_capsule_ids(db, ids)
+    mindmaps = _resolve_mission_mindmap_ids(db, ids)
+    quizzes = _resolve_mission_quiz_ids(db, ids)
+    with_cards = _skills_with_review_cards(db, student_id=student_id, skill_ids=ids)
+
+    out: dict[int, list[dict]] = {}
+    for skill_id in ids:
+        lesson_id, has_course = lessons.get(skill_id, (None, False))
+        fiche_id = fiches.get(lesson_id) if lesson_id is not None else None
+        capsule_id = capsules.get(skill_id)
+        mindmap_id = mindmaps.get(skill_id)
+        quiz_id = quizzes.get(skill_id)
+        out[skill_id] = [
+            {"kind": "cours", "available": has_course, "lesson_id": lesson_id},
+            # ELI5 se génère à la volée, mais il n'invente pas : il s'ancre sur le cours canonique
+            # (ADR-0011) et DÉGRADE vers le modèle quand il n'y en a pas. L'offrir sans cours
+            # validé, c'est router Massimo vers du non-validé — ce que l'orchestrateur refusait
+            # déjà de son côté (2026-07-30). La règle vit désormais ICI, pour les deux surfaces :
+            # portée par la page, elle se serait redédoublée un cran plus haut.
+            {"kind": "eli5", "available": has_course},
+            {"kind": "fiche", "available": fiche_id is not None, "fiche_id": fiche_id},
+            {"kind": "capsule", "available": capsule_id is not None, "capsule_id": capsule_id},
+            {"kind": "mindmap", "available": mindmap_id is not None, "mindmap_id": mindmap_id},
+            {"kind": "revision", "available": skill_id in with_cards},
+            {"kind": "quiz", "available": quiz_id is not None, "quiz_id": quiz_id},
+        ]
+    return out
+
+
+def is_notion_visible(db: Session, skill_id: int) -> bool:
+    """Cette notion est-elle visible de Massimo (année active, chapitre ET leçon validés) ?
+
+    Même chaîne que `_visible_notions` — c'est le point d'entrée public pour les modules qui
+    doivent la vérifier sans construire de panneau (addendum ADR-0027 : sans ce contrôle, la
+    route de demande devient un oracle d'existence sur les brouillons de Papa).
+    """
+    return any(n["skill_id"] == skill_id for n in _visible_notions(db))
 
 
 def notion_panel(db: Session, skill_id: int) -> dict:
@@ -466,6 +591,9 @@ def notion_panel(db: Session, skill_id: int) -> dict:
     Renvoie la panoplie COMPLÈTE de ZETIS, chaque activité portant sa disponibilité
     (révision de l'ADR-0024 §4, décidée le 2026-07-28) : Massimo voit tout ce qu'on sait
     faire d'une notion, et ce qui n'existe pas encore est grisé côté client.
+
+    Consommateur **mono-notion** de `resolve_panoply` : il ne calcule aucune disponibilité
+    lui-même. Toute règle ajoutée ici et non là-bas rouvrirait la divergence.
     """
     from fastapi import HTTPException, status as http_status
 
@@ -482,33 +610,7 @@ def notion_panel(db: Session, skill_id: int) -> dict:
     student = get_default_student(db)
     mastery = evidence.mastery_by_skill(db, student_id=student.id)
     entry = mastery.get(skill_id) or {}
-
-    # La panoplie COMPLÈTE, dans un ordre pédagogique stable : comprendre, puis mémoriser,
-    # puis se tester. Chaque entrée porte sa disponibilité — le client grise le reste.
-    lesson_id = notion["lesson_id"]
-    # « Cours disponible » = un cours RÉELLEMENT RÉDIGÉ, pas seulement une leçon validée : une
-    # leçon peut être validée sans `content_markdown` (le cours reste à écrire). Sans ce contrôle,
-    # `notion_panel` prétendait qu'un cours existe dès que la notion est visible — un mensonge qui
-    # ouvrait une porte vide ET empêchait le chat d'enregistrer la demande à Papa (addendum ADR-0027).
-    has_course = lesson_id is not None and bool(
-        db.scalar(select(Lesson.content_markdown.is_not(None)).where(Lesson.id == lesson_id))
-    )
-    fiche_id = _validated_fiche_id(db, lesson_id) if lesson_id is not None else None
-    quiz_id = _resolve_mission_quiz_id(db, skill_id)
-    mindmap_id = _resolve_mission_mindmap_id(db, skill_id)
-    capsule_id = _validated_capsule_id(db, skill_id)
-    has_cards = _has_review_cards(db, student_id=student.id, skill_id=skill_id)
-
-    actions: list[dict] = [
-        {"kind": "cours", "available": has_course, "lesson_id": lesson_id},
-        # ELI5 ne dépend d'aucun contenu préexistant : c'est la seule action toujours offerte.
-        {"kind": "eli5", "available": True},
-        {"kind": "fiche", "available": fiche_id is not None, "fiche_id": fiche_id},
-        {"kind": "capsule", "available": capsule_id is not None, "capsule_id": capsule_id},
-        {"kind": "mindmap", "available": mindmap_id is not None, "mindmap_id": mindmap_id},
-        {"kind": "revision", "available": has_cards},
-        {"kind": "quiz", "available": quiz_id is not None, "quiz_id": quiz_id},
-    ]
+    actions = resolve_panoply(db, student_id=student.id, skill_ids=[skill_id])[skill_id]
 
     return {
         "skill_id": skill_id,
@@ -519,3 +621,77 @@ def notion_panel(db: Session, skill_id: int) -> dict:
         "subject_name": notion["subject_name"],
         "actions": actions,
     }
+
+
+def subject_panoply(db: Session, subject_slug: str) -> dict:
+    """Index des notions d'une matière : chapitres → notions, chacune avec sa panoplie.
+
+    Le **second rendu du modèle galaxie** (addendum ADR-0024) : mêmes données que la
+    constellation, en liste — c'est le repli sans WebGL promis par `zetis-galaxy.md §11`.
+
+    404 si la matière est inconnue ou hors année active. `chapters: []` (pas une erreur) si elle
+    existe mais n'a encore rien de validé — le front a un état positif.
+
+    ⚠️ **`mastery_score` n'entre pas dans cette charge utile.** `status` seul (ADR-0024 §5) : un
+    pourcentage par matière est précisément ce que cette page n'affiche pas, et une valeur servie
+    finit toujours par être affichée.
+    """
+    from fastapi import HTTPException, status as http_status
+
+    subject = db.scalars(select(Subject).where(Subject.slug == subject_slug)).first()
+    if subject is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject_slug} » inconnue.",
+        )
+    year = _active_year_or_404(db)
+    in_year = db.scalar(
+        select(SchoolYearSubject.id).where(
+            SchoolYearSubject.school_year_id == year.id,
+            SchoolYearSubject.subject_id == subject.id,
+        )
+    )
+    if in_year is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject.name} » absente de l'année active.",
+        )
+
+    subject_ref = {"subject_id": subject.id, "name": subject.name, "slug": subject.slug}
+    notions = _visible_notions(db, subject_id=subject.id)
+    if not notions:
+        return {"subject": subject_ref, "chapters": []}
+
+    student = get_default_student(db)
+    mastery = evidence.mastery_by_skill(db, student_id=student.id)
+    panoply = resolve_panoply(
+        db, student_id=student.id, skill_ids=[n["skill_id"] for n in notions]
+    )
+
+    # Ordre du référentiel pour les chapitres, alphabétique pour les notions — jamais un
+    # classement par maîtrise : l'index décrit le catalogue, il ne trie pas Massimo.
+    notions.sort(key=lambda n: (n["chapter_rank"], n["chapter_id"], n["name"].casefold()))
+
+    chapters: list[dict] = []
+    by_chapter: dict[int, dict] = {}
+    for notion in notions:
+        chapter = by_chapter.get(notion["chapter_id"])
+        if chapter is None:
+            chapter = {
+                "chapter_id": notion["chapter_id"],
+                "title": notion["chapter_title"],
+                "notions": [],
+            }
+            by_chapter[notion["chapter_id"]] = chapter
+            chapters.append(chapter)
+        entry = mastery.get(notion["skill_id"]) or {}
+        chapter["notions"].append(
+            {
+                "skill_id": notion["skill_id"],
+                "name": notion["name"],
+                "status": normalize_status(entry.get("status")),
+                "actions": panoply.get(notion["skill_id"], []),
+            }
+        )
+
+    return {"subject": subject_ref, "chapters": chapters}
