@@ -8,7 +8,7 @@
 //    qui s'allonge à l'écran est un compteur d'arriéré déguisé.
 // 2. **Aucun total, aucun compteur de retard** n'est calculé ici. Ce qui n'est pas fait ne se
 //    compte pas.
-import { type AgendaItemStudent } from "@zetis/types";
+import { type AgendaItemStudent, type AgendaUpcomingItem } from "@zetis/types";
 
 /** Plafond d'affichage de « À reprendre » (ADR-0025 §7). Les autres sont omis EN SILENCE. */
 export const RESUME_MAX = 3;
@@ -85,4 +85,21 @@ export function shortDayLabel(isoDate: string): string {
  *  **Aucune date n'y est affichée** : l'Accueil porte l'horizon « maintenant » (§6). */
 export function bannerItems(sections: AgendaSections, max = 3): AgendaItemStudent[] {
   return [...sections.today, ...sections.tomorrow].slice(0, max);
+}
+
+/** Les 2 échéances les plus proches pour la section « À préparer » du bandeau d'Accueil.
+ *
+ *  Le serveur borne DÉJÀ « ce qui arrive » (horizon + `agenda_upcoming_max`) ; ce second plafond
+ *  est celui du bandeau, plus serré que celui de la page. C'est délibéré : l'Accueil dit *qu'il y
+ *  a quelque chose à préparer et quand*, la page `/agenda` dit *tout*. Un bandeau qui s'allonge
+ *  redeviendrait la liste de dette que l'ADR-0025 §6 refuse d'afficher.
+ *
+ *  ⚠️ Contrairement à `bannerItems`, ces lignes PORTENT une date — l'horizon n'est plus
+ *  « maintenant » mais « bientôt », et une échéance qui vient du collège est un fait subi, jamais
+ *  un compte à rebours fabriqué par ZETIS (§1). C'est ce qui la distingue d'un compteur d'arriéré. */
+export function bannerUpcoming(
+  items: AgendaUpcomingItem[],
+  max = 2,
+): AgendaUpcomingItem[] {
+  return items.slice(0, max);
 }

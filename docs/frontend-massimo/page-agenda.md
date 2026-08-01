@@ -55,7 +55,8 @@ compteur ?* Arriéré : oui. Nouveauté : non.
 
 > Le badge **ne répond pas** à « qu'est-ce que j'ai à étudier ». Il retombe à zéro dès l'ouverture
 > et y reste toute la semaine, échéances en cours comprises — c'est sa définition, pas un défaut à
-> corriger (addendum §12.5). Cette question est servie par le résumé d'Accueil et par la bande
+> corriger (addendum §12.5). Cette question est servie par la section « À préparer » du résumé
+> d'Accueil — ajoutée le 2026-08-01 précisément pour ça, avec les dates — et par la bande
 > glissante ci-dessous ; aucune évolution de la navigation ne doit y répondre.
 
 **Bottom-nav mobile : inchangée.** L'arbitrage « Agenda y entre-t-il, et à la place de quoi ? »
@@ -168,11 +169,36 @@ soit le nombre. La section ne grossit pas : c'est le mécanisme anti-dette.
 
 ## Bandeau Accueil
 
-Sur `AccueilMassimoPage` : « Aujourd'hui / Demain », **3 items maximum**, **aucune date
-affichée**, lien vers `/agenda`.
+Sur `AccueilMassimoPage`, **deux sections** et lien vers `/agenda` :
+
+1. **« Aujourd'hui / Demain »** — 3 items maximum, **aucune date affichée** : l'horizon est
+   « maintenant ».
+2. **« À préparer »** — *ajoutée le 2026-08-01* — contrôles et rendus à venir
+   (`GET /agenda/upcoming`, déjà borné serveur), **2 items maximum**, et **avec leur date**.
+
+**Pourquoi la seconde section, et pourquoi elle porte une date.** Le bandeau ne demandait au
+serveur qu'aujourd'hui et demain : un contrôle de jeudi restait invisible depuis l'Accueil
+jusqu'à mercredi, alors que Massimo doit savoir quand il a des choses à étudier.
+
+Le **badge de nouveauté** de la sidebar (ADR-0030) ne pouvait pas y répondre, et c'est structurel :
+un badge est **un nombre sans date** — « 3 » ne dit pas « contrôle jeudi ». Le faire compter les
+items **non faits** en aurait fait le compteur d'arriéré interdit (§3, §7, addendum §12.4) : il
+grossirait quand Massimo ne vient pas. **Deux objets, deux questions** — le badge dit *il y a du
+nouveau*, cette section dit *quand*.
+
+La **date est légitime** ici : une échéance qui vient du collège est un fait **subi**, jamais un
+compte à rebours fabriqué par ZETIS (§1). C'est exactement l'argument qui a servi à autoriser le
+badge chiffré dans l'addendum §12 — refuser le chiffre là où la date était déjà permise était
+incohérent.
+
+**Le plafond à 2 est le mécanisme anti-dette**, plus serré que celui de la page (4, serveur) :
+une section qui s'allonge redevient la liste d'arriéré que le §6 refuse d'afficher. Aucun
+« et N autres ». Chiffre neutre, jamais de jauge qui change de couleur à l'approche.
 
 **Placé au-dessus du canvas Galaxy** (ADR-0024 §6 : l'Accueil porte le graphe global en
 `lazy()`, ~1,37 Mo). L'actionnable doit être peint et utilisable avant l'arrivée de Three.js.
+La seconde requête (`/upcoming`) part **en parallèle** de la première et après la peinture —
+la promesse « rien avant le premier rendu » est tenue.
 
 ## Données API
 
