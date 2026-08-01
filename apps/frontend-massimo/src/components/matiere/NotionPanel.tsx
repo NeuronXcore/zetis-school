@@ -1,0 +1,117 @@
+import type { ContentRequestKind, GalaxyAction, GalaxyActionKind, PanoplyNotion } from "@zetis/types";
+import { ACTION_UI } from "../../lib/notionActionUi";
+import { REQUESTABLE_KIND, SCOPE_NOTE } from "../../lib/notionRoutes";
+
+export interface NotionPanelProps {
+  notion: PanoplyNotion;
+  /** Celle qui porte l'accent — la première FAISABLE, pas la première de la liste. */
+  primaryKind: GalaxyActionKind | null;
+  /** Ce qui manque, en vocabulaire de demande, déjà dédupliqué. */
+  missingKinds: ContentRequestKind[];
+  busy: boolean;
+  isRequested: (kind: ContentRequestKind) => boolean;
+  onOpen: (action: GalaxyAction) => void;
+  onRequest: (kinds: ContentRequestKind[]) => void;
+}
+
+/** Les sept activités en boutons. Composant PUREMENT présentationnel : aucune règle ne se
+ *  décide ici, tout vient du hook.
+ *
+ *  Deux principes de la spec s'y voient : une activité indisponible est **grisée, non
+ *  cliquable, « bientôt »** — jamais « manquant », qui ferait d'un contenu que Papa n'a pas
+ *  produit un échec de Massimo ; et l'accent va à la première activité **réellement faisable**,
+ *  parce qu'une action mise en avant doit pouvoir être faite. */
+export function NotionPanel({
+  notion,
+  primaryKind,
+  missingKinds,
+  busy,
+  isRequested,
+  onOpen,
+  onRequest,
+}: NotionPanelProps) {
+  return (
+    <div className="mt-1 rounded-xl border border-zetis-border bg-zetis-surface p-3">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {notion.actions.map((action) => {
+          const ui = ACTION_UI[action.kind];
+          const scope = SCOPE_NOTE[action.kind];
+          const kind = REQUESTABLE_KIND[action.kind];
+          const asked = isRequested(kind);
+          return (
+            <div key={action.kind} className="flex items-stretch gap-1">
+              <button
+                type="button"
+                disabled={busy || !action.available}
+                onClick={() => onOpen(action)}
+                className={
+                  "flex min-h-11 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition motion-reduce:transition-none " +
+                  (!action.available
+                    ? "cursor-default border border-dashed border-zetis-border bg-transparent text-zetis-muted opacity-60"
+                    : action.kind === primaryKind
+                      ? "cursor-pointer bg-gradient-to-br from-zetis-accent to-zetis-accent-2 text-white"
+                      : "cursor-pointer border border-zetis-border bg-zetis-surface-2 hover:border-zetis-accent-2")
+                }
+              >
+                <span aria-hidden className={"text-lg " + (action.available ? "" : "grayscale")}>
+                  {ui.icon}
+                </span>
+                <span className="min-w-0 flex-1">
+                  {ui.label}
+                  {/* `quiz` et `revision` ne sont pas adressables par notion : ils ouvrent la
+                      surface MATIÈRE. Le dire ici plutôt que de promettre la notion. */}
+                  {scope && (
+                    <span className="block text-[11px] font-normal text-zetis-muted">{scope}</span>
+                  )}
+                </span>
+                {!action.available && (
+                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider">
+                    bientôt
+                  </span>
+                )}
+              </button>
+
+              {!action.available && (
+                <button
+                  type="button"
+                  disabled={asked}
+                  onClick={() => onRequest([kind])}
+                  aria-label={
+                    asked
+                      ? `${ui.label} — déjà demandé à Papa`
+                      : `Demander ${ui.label} à Papa`
+                  }
+                  className={
+                    "min-h-11 shrink-0 rounded-xl border border-zetis-border px-2 text-[11px] font-semibold " +
+                    (asked
+                      ? "cursor-default text-zetis-accent-2"
+                      : "cursor-pointer text-zetis-muted hover:border-zetis-accent-2 hover:text-zetis-text")
+                  }
+                >
+                  {asked ? "demandé" : "demander"}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {missingKinds.length > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => onRequest(missingKinds)}
+            className="min-h-11 w-full rounded-xl border border-zetis-border bg-zetis-surface-2 px-3 py-2 text-sm font-bold hover:border-zetis-accent-2"
+          >
+            Demander à Papa tout ce qui manque ({missingKinds.length})
+          </button>
+          {/* Phrase fixe. ZETIS transmet — il ne dit jamais « je te le prépare », parce qu'il
+              ne fabrique rien tout seul et qu'une promesse non tenue se retient. */}
+          <p className="mt-2 text-[11px] leading-relaxed text-zetis-muted">
+            ZETIS transmet la demande. Il ne fabrique rien tout seul.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
