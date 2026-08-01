@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { type FicheDetail, type FicheListItem } from "@zetis/types";
 import { FicheCard } from "../components/FicheCard";
 import { CoursPanel } from "../components/CoursPanel";
 import { NeonBackdrop } from "../components/glass";
+import { SubjectBackLink, prettifySlug } from "../components/SubjectBackLink";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { fetchFiche, fetchSubjectFiches, markFicheSeen } from "../lib/fiches";
@@ -12,15 +13,9 @@ import { fetchFiche, fetchSubjectFiches, markFicheSeen } from "../lib/fiches";
 // reste en mémoire → le feuilletage est instantané. À l'ouverture d'une fiche : POST /seen
 // (retrait du badge « Nouveau »). Aucune logique métier : le serveur ne sert que le validé.
 
-function prettifySlug(slug: string): string {
-  const s = slug.replace(/-/g, " ");
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 export function FicheSubjectPage() {
   const { slug = "" } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const subjectName = (location.state as { name?: string } | null)?.name ?? prettifySlug(slug);
 
   const [list, setList] = useState<FicheListItem[] | null>(null);
@@ -167,13 +162,9 @@ export function FicheSubjectPage() {
       <NeonBackdrop />
       <div className="relative">
         <div className="mb-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigate("/fiches")}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300 hover:border-cyan-400/40"
-          >
-            ← Mes decks
-          </button>
+          {/* Remontait vers `/fiches` (le deck) alors que Massimo arrive de sa MATIÈRE — il ne
+              pouvait donc pas y revenir. La brique dérive la destination du slug de l'URL. */}
+          <SubjectBackLink name={subjectName} className="mb-0" />
           {heading}
         </div>
 

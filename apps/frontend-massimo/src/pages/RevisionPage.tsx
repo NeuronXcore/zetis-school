@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { type ReviewsSummary } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
+import { SubjectBackLink } from "../components/SubjectBackLink";
 import { DeckDisc } from "../components/DeckDisc";
 import { SubjectDeckGrid } from "../components/SubjectDeckGrid";
 import { SpacedMemoryHero } from "../components/SpacedMemoryHero";
@@ -82,6 +83,10 @@ export function RevisionPage() {
     <div className="relative mx-auto max-w-3xl">
       <NeonBackdrop />
       <div className="relative">
+        {/* Rétrolien via `?from=` uniquement — `?subject=` est déjà pris ici, et il LANCE une
+            session. Il ne s'affiche donc que sur les arrivées sans deck (et au retour de
+            session), là où la page est réellement habitée. */}
+        <SubjectBackLink />
         <PageHeader title="🔁 Révision" subtitle="Ancre tes notions, une carte à la fois." />
 
         <SpacedMemoryHero />

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import {
   type StudentCours,
@@ -8,6 +8,7 @@ import {
   type StudentQuiz,
 } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
+import { SubjectBackLink } from "../components/SubjectBackLink";
 import { fetchStudentCours, fetchStudentLessonCours } from "../lib/cours";
 import { fetchSubjectQuizzes } from "../lib/quiz";
 import { type QuizSessionState } from "./QuizSessionPage";
@@ -97,9 +98,9 @@ export function CoursPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Link to={`/subjects/${slug}`} className="mb-4 inline-block text-sm text-zetis-accent-2">
-        ← Retour à la matière
-      </Link>
+      {/* Seul rétrolien du dépôt qui visait déjà la bonne destination — il passe à la brique
+          partagée pour que les cinq surfaces filles se ressemblent. */}
+      <SubjectBackLink name={cours?.subject_name} />
       <PageHeader
         title={`📘 Cours${cours ? ` — ${cours.subject_name}` : ""}`}
         subtitle={cours ? `Niveau ${cours.level}` : undefined}
