@@ -90,7 +90,13 @@ Première carte de la page, la seule à bordure ambre. Agrège les items **actio
   `gap` — une lacune mesurée prime sur une demande exprimée — mais avant le référentiel et les
   sources, parce que quelqu'un attend une réponse.
 - La page `/demandes` reste la surface de traitement ; la file n'en est que le rappel.
-- Aucun badge de compteur en navigation qui clignoterait ; le nombre est affiché, pas alerté.
+- **La file affiche un nombre, elle n'alerte pas** : aucun clignotement, aucune pulsation, aucun
+  rouge. *Reformulé le 2026-08-01 (ADR-0030 §7) : la rédaction antérieure — « aucun badge de
+  compteur en navigation » — interdisait ce qui est déjà livré, à savoir le badge `pending` sur
+  « Missions » (`page-missions-pilotage.md`) et la pastille `/demandes`.* Ces badges signalent une
+  **file de validation**, c'est-à-dire du travail que Papa a lui-même demandé au système de
+  préparer : objet distinct du **témoin de nouveauté** de Massimo, lequel **ne s'applique pas à
+  l'interface Papa** — Papa n'a pas de contenu qui « arrive » sans qu'il l'ait demandé.
 
 ## ② KPI actifs
 
