@@ -3,14 +3,15 @@
 // Règle ferme : on rend EXACTEMENT les actions renvoyées par le serveur, dans l'ordre reçu.
 // Aucune n'est ajoutée, aucune n'est grisée, aucune règle de repli n'est inventée ici —
 // une activité sans contenu validé n'est pas proposée du tout, jamais promise puis refusée.
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import type { GalaxyAction, GalaxyNotion } from "@zetis/types";
+import type { GalaxyNotion } from "@zetis/types";
 import { starStyle } from "@zetis/ui/galaxy";
-import { fetchQuizById } from "../../lib/quiz";
+import { useOpenNotionAction } from "../../hooks/useOpenNotionAction";
 // Table d'habillage partagée (aussi utilisée par le menu de notion du chat) — module léger, pas
 // de duplication. `GalaxyAction` reste importé pour le typage des actions rendues.
 import { ACTION_UI } from "../../lib/notionActionUi";
+// La table `kind → route` a quitté ce fichier le 2026-08-01 : la page matière rend le même
+// modèle et a besoin des mêmes destinations. Une recopie aurait divergé au premier correctif.
+import { notionRouteFor } from "../../lib/notionRoutes";
 
 export interface NotionActionPanelProps {
   notion: GalaxyNotion;
@@ -18,58 +19,18 @@ export interface NotionActionPanelProps {
 }
 
 export function NotionActionPanel({ notion, onClose }: NotionActionPanelProps) {
-  const navigate = useNavigate();
-  const [busy, setBusy] = useState(false);
+  const { open, busy } = useOpenNotionAction();
   const style = starStyle(notion.status);
 
-  async function go(action: GalaxyAction) {
-    switch (action.kind) {
-      case "cours":
-        navigate(`/subjects/${notion.subject_slug}/cours`);
-        return;
-      case "eli5":
-        // Seule surface réellement adressable PAR NOTION en URL aujourd'hui.
-        navigate(
-          `/eli5?skill_id=${notion.skill_id}&name=${encodeURIComponent(notion.name)}`,
-        );
-        return;
-      case "fiche":
-        navigate(`/fiches/${notion.subject_slug}`, { state: { name: notion.subject_name } });
-        return;
-      case "capsule":
-        navigate("/capsules");
-        return;
-      case "mindmap":
-        navigate(`/mindmaps/reconstruire/${action.mindmap_id}`);
-        return;
-      case "revision":
-        navigate(`/revision?subject=${notion.subject_slug}`);
-        return;
-      case "quiz": {
-        // `/quiz/session` attend le quiz COMPLET dans `location.state` (il n'est pas
-        // adressable par id en URL) : on le charge avant de naviguer.
-        if (!action.quiz_id) return;
-        setBusy(true);
-        try {
-          const quiz = await fetchQuizById(action.quiz_id);
-          navigate("/quiz/session", {
-            state: {
-              quiz,
-              label: `${notion.subject_name} · ${notion.name}`,
-              returnTo: "/galaxy",
-            },
-          });
-        } catch {
-          // Le quiz a disparu entre l'affichage et le clic : on retombe sur la liste,
-          // sans message d'échec — ce n'est pas la faute de Massimo.
-          navigate("/quiz");
-        } finally {
-          setBusy(false);
-        }
-        return;
-      }
-    }
-  }
+  // Le `returnTo` était codé en dur dans la closure ; il est maintenant DIT à l'appel — c'est
+  // ce qui permet à la page matière de renvoyer vers elle-même plutôt que vers la galaxie.
+  const routeContext = {
+    skillId: notion.skill_id,
+    name: notion.name,
+    subjectSlug: notion.subject_slug,
+    subjectName: notion.subject_name,
+    returnTo: "/galaxy",
+  };
 
   return (
     <aside
@@ -120,7 +81,7 @@ export function NotionActionPanel({ notion, onClose }: NotionActionPanelProps) {
               disabled={busy || !action.available}
               // Le titre dit ce qui manque sans jamais dire que Massimo a raté quelque chose.
               title={action.available ? undefined : "Pas encore créé"}
-              onClick={() => void go(action)}
+              onClick={() => open(notionRouteFor(action, routeContext))}
               className={
                 "flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-bold transition " +
                 (!action.available
