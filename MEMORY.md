@@ -7,6 +7,96 @@
 
 ## État à la reprise
 
+**Chantier : la page matière devient un index de notions (addenda ADR-0024 + ADR-0027).**
+
+Branche **`feat/page-matiere`**, créée depuis `main`. **3 commits, NON POUSSÉS, pas de PR.**
+
+### ⛔ Trois documents de cadrage MANQUENT au dépôt
+
+Le chantier a été ouvert avec ses entrées `DECISIONS.md` mais **sans les fichiers qu'elles
+référencent**. Rien ne les remplace :
+
+| Référencé par | Fichier attendu |
+|---|---|
+| prompts A + B, spec | `docs/decisions/adr-0024-addendum-page-matiere-index-notions.md` |
+| prompts A + B | `docs/decisions/adr-0027-addendum-demandes-surface-eleve.md` |
+| **prompt B §1**, spec | `docs/frontend-massimo/mockup/mockup-page-matiere-v1.html` |
+
+⚠️ `DECISIONS.md` est **modifié mais NON COMMITÉ**, volontairement : ses deux entrées vont sur
+`main` **avec** les ADR (règle `WORKFLOW.md` §2bis — deux branches qui éditent `DECISIONS.md` =
+conflit garanti). Ne pas le committer sur la branche.
+
+⚠️ **La maquette est BLOQUANTE pour la slice B** : le prompt la déclare « contrat visuel et
+interactif » (recherche, accordéon, panneau, demandes, états). Sans elle, coder la page revient à
+inventer le rendu — exactement ce que le read-before-code existe pour empêcher.
+
+### FAIT — slice A (backend), 688 tests verts
+
+1. **`resolve_panoply(db, student_id=…, skill_ids=[…])`** dans `galaxy/service.py` : LE prédicat
+   de disponibilité, en version ensembliste. `notion_panel` en est devenu le **consommateur
+   mono-notion** et ne calcule plus rien. Les résolveurs mono de `missions` sont désormais des
+   **enveloppes** de variantes `_ids` ensemblistes — une règle, une requête, deux granularités.
+2. **`GET /api/student/subjects/{slug}/panoply`** (`get_current_user`), routeur `subjects_router`
+   dans le module `galaxy` : matière → chapitres validés → notions → panoplie des 7 activités.
+   **Aucun `mastery_score` sérialisé** (test-verrou sur la réponse brute).
+3. **`POST /api/student/content-requests`** (`require_child`) — commit **séparé**, c'est une
+   décision de sécurité. Écriture seule, trois garde-fous testés.
+4. Types `SubjectPanoply` / `PanoplyChapter` / `PanoplyNotion` +
+   `StudentContentRequest{Body,Result}` dans `packages/types/`.
+
+**Zéro table, zéro migration.**
+
+### Les cinq constats du read-before-code (ce que la doc supposait vs le code réel)
+
+1. ⚠️ **Le prompt A se contredisait** : §2.1 exigeait que les tests de `notion_panel` passent
+   **sans modification**, §2.3 exigeait de rendre `eli5.available` faux sans cours — or
+   `test_galaxy.py` affirmait `dispo["eli5"] is True` **sur ce cas exact**. Tranché en séparant
+   les deux temps : extraction d'abord (**668 tests verts, zéro modifié** — preuve jouée), puis
+   bascule ELI5 qui a fait tomber **exactement une** assertion, retournée avec son motif.
+2. ⚠️ **Deux fixtures de `test_content_requests` posaient `eli5 available=True` avec
+   `cours available=False`** — un état que le prédicat **ne peut plus produire**. Corrigées
+   **sans toucher à leurs assertions de comportement**.
+3. ⚠️ **La règle ELI5 vivait en DEUX endroits dans `chat/actions.py`.** Le filtre de
+   `_notion_menu` était une vraie duplication → **supprimé**. Celui de `_open_notion` **n'en est
+   pas une** : c'est un choix de **routage** (déléguer au menu plutôt que tomber dans la branche
+   « contenu absent »), éprouvé live. Conservé, mais il lit maintenant `eli5.available` au lieu
+   de redériver depuis `cours.available`.
+4. ⚠️ **Le plafond `CONTENT_REQUEST_MAX_KINDS = 7` est décrit comme « la panoplie entière »,
+   mais le vocabulaire ne compte que SIX types demandables** (`eli5` se demande comme `cours`,
+   `revision` comme `card`). Appliqué après dédup, il ne bornerait **rien**. Il est donc mesuré
+   sur la charge **brute** : le plafond borne la TAILLE de l'appel, le vocabulaire borne son
+   CONTENU.
+5. ⚠️ **`app.routes` n'est PAS à plat** dans cette version de FastAPI (des `_IncludedRouter`, pas
+   des `APIRoute`). Un test « telle route n'existe pas » écrit dessus passe **toujours**, à vide.
+   Vérifier sur `app.openapi()["paths"]`.
+
+### Chiffres mesurés
+
+**14 requêtes SQL pour 3, 30 et 100 notions** — constant, mesuré (le test compare 3 vs 30).
+
+### Décisions actives à ne pas rouvrir
+
+- **Un seul prédicat de disponibilité dans le dépôt.** Si le test
+  `test_la_route_en_lot_et_le_panneau_disent_la_meme_chose` casse, **ne pas l'ajuster** : aller
+  chercher la duplication qui vient de réapparaître.
+- **ELI5 n'est pas offert sans cours validé** — il s'ancre sur le cours canonique et dégraderait
+  vers le modèle. La règle vit dans le prédicat, jamais dans une page.
+- **Aucun `GET`/`PATCH` élève sur `content_requests`.** L'absence est la décision.
+- **`mastery_score` ne sort pas de la route de matière.** `status` seul.
+
+### PROCHAIN PAS
+
+1. **Obtenir la maquette + les deux ADR** (voir le tableau ci-dessus), poser les ADR et
+   `DECISIONS.md` sur `main`.
+2. Pousser `feat/page-matiere` et ouvrir la PR de la slice A.
+3. **Slice B** (page Massimo) — `prompts/claude-code/prompt-page-matiere-slice-b-frontend.md`.
+   Son point à risque est déjà identifié : le **rétrolien d'ELI5** (`/eli5?skill_id=` porte une
+   notion, pas une matière) — à trancher au read-before-code, sans inventer d'état de navigation.
+
+---
+
+## Historique — témoins de nouveauté en navigation (ADR-0030)
+
 **Chantier : les témoins de nouveauté en navigation (ADR-0030).**
 
 **✅ MERGÉ dans `main`** — squash **`86464b4`**, PR
@@ -68,10 +158,10 @@ toute la session ; mindmaps 14 → 13 après un regard, inchangé au rejeu. Les 
   tout, ADR-0014 §2), ELI5 (critère de **récence**, pas de vue). Un test verrouille la liste.
 - `capNewsBadge` (9+) et `cappedCount` (15+) sont **deux objets distincts** et doivent le rester.
 
-### Prochain pas
+### Suite donnée (à la clôture de ce chantier)
 
-**Aucun chantier en cours.** Le lot ADR-0030 est clos et mergé ; `main` est à jour et poussé.
-Le prochain chantier reste à choisir — candidats déjà cadrés au BACKLOG : Lot 3 de l'agenda
+Le lot ADR-0030 est clos et mergé ; `main` était à jour et poussé. Candidats alors au BACKLOG,
+toujours ouverts : Lot 3 de l'agenda
 (ADR-0025 §11, analyse et pont vers le Commander), unification des deux `new_count` de `memory`,
 ou la dette de mesure de la galaxie sur iPhone/iPad (jamais vérifiée, cf. historique plus bas).
 

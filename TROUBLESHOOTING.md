@@ -4,6 +4,47 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/page-matiere` — index de notions, slice A — 2026-08-01
+
+### `app.routes` n'est pas à plat : un test « cette route n'existe pas » passe **à vide**
+
+**Symptôme** : le test qui vérifie l'absence de `GET`/`PATCH` élève sur `content_requests`
+échouait en trouvant… **rien du tout**, pas même le `POST` qui fonctionne pourtant dans les
+tests voisins.
+
+**Cause** : dans cette version de FastAPI, `app.include_router()` ne déplie pas les routes dans
+`app.routes` — il y range un objet **`_IncludedRouter`** sans attribut `path`. Sur les 45 entrées
+de `app.routes`, 41 sont de ce type.
+
+```python
+# ❌ Ce filtre renvoie TOUJOURS un ensemble vide — donc un test d'absence toujours vert.
+{r.path for r in app.routes if getattr(r, "path", "").startswith("/api/student/…")}
+```
+
+**Danger réel** : écrit dans l'autre sens (« la route interdite n'est pas là »), ce test **passe
+même si la route existe**. Il ne protège de rien tout en donnant l'impression du contraire.
+
+**Solution** : interroger le contrat déclaré, `app.openapi()["paths"]`. C'est aussi la bonne
+source sémantiquement — une 403 ou une 405 masquerait une route bel et bien montée.
+
+### Le plafond d'un vocabulaire fermé ne borne rien s'il est appliqué après déduplication
+
+`CONTENT_REQUEST_MAX_KINDS = 7` est décrit comme « la panoplie entière ». Mais la panoplie
+affiche **7 activités** alors que `CONTENT_KINDS` n'en compte que **6** : `eli5` se demande sous
+la forme `cours`, `revision` sous la forme `card`. Une liste dédupliquée ne peut donc jamais
+atteindre 7 — le garde-fou était inatteignable, donc intestable, donc décoratif.
+
+Le plafond est mesuré sur la charge **brute**, avant dédup : il borne la **taille** de l'appel,
+là où le vocabulaire borne son **contenu**. Deux garde-fous, deux risques différents.
+
+### Modèles : les noms de colonnes qui ne sont pas ceux qu'on suppose
+
+Pièges rencontrés en semant des fixtures (ils échouent en `TypeError`, pas en erreur SQL) :
+
+- `SpacedReviewCard` → **`front_markdown` / `back_markdown`** (pas `front`/`back`), et le statut
+  actif est `scheduled` (`INACTIVE_CARD_STATUSES` définit le reste) ;
+- `Capsule` → **`subject_id` est requis** en plus de `skill_id`.
+
 ## Chantier `feat/galaxy-animations` — galaxie animée — 2026-07-31 (soir)
 
 ### Ce que `react-force-graph-3d` 1.29.1 permet vraiment — vérifié ligne à ligne
