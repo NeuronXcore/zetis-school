@@ -284,6 +284,24 @@ précis) ; l'iPhone est la **contrainte** à honorer, pas la cible unique.
   Deux moteurs graphe coexistent : un arbre 2D éditable d'un côté, une galaxie 3D contemplative de
   l'autre. C'est assumé, cf. ADR-0024.
 
+## 10 bis. Les TROIS surfaces qui montent `GalaxyCanvas`
+
+Au 2026-07-31 au soir, trois endroits montent le canvas — chaque changement du composant se
+vérifie donc **à trois endroits** :
+
+| surface | ce qu'elle rend | montage |
+|---|---|---|
+| `/galaxy` | la galaxie **entière**, trois anneaux concentriques | direct, `lazy()` |
+| carte de l'**Accueil** | la galaxie qui **pousse**, étoile par étoile | **différé** (`requestIdleCallback`, repli `setTimeout`) — jamais au premier rendu |
+| modale « Revoir ma galaxie grandir » | le rejeu complet | **double `lazy()`** depuis l'Accueil |
+
+⚠️ La 3D de l'Accueil est **contemplative** : `pointer-events-none`, `aria-hidden`. Toute la carte
+reste **une seule cible de clic** vers `/galaxy` — et sans ça, un drag de nœud **à l'intérieur
+d'un lien** déclencherait la navigation au relâchement.
+
+⚠️ `accueil.bundle.test.ts` autorise ce montage par **liste blanche**, pas par principe. Ce qu'il
+protège : qu'un **quatrième** point de montage n'apparaisse pas sans que personne ne le voie.
+
 ## 11. Interaction et accessibilité
 
 - **Rotation** — `controlType="orbit"` (et non le `trackball` par défaut : c'est le seul type de

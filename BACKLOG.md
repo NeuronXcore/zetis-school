@@ -213,6 +213,20 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
 
 ## Bugs / risques à surveiller
 
+- **Tenue de la 3D sur les trois appareils de Massimo — dette OUVERTE et devenue critique le
+  2026-07-31.** Le plafond de nœuds a été supprimé (il cachait sa progression selon la taille de
+  son écran) et remplacé par trois gardes qualitatives. Depuis le même soir, `/galaxy` rend la
+  galaxie **complète** et l'**Accueil** en monte une seconde. **L'iPhone tranche** : il doit tenir
+  les deux. La mesure doit se faire sur un **pire cas semé** — référentiel validé complet,
+  plusieurs centaines de notions — et non sur les ~37 étoiles d'aujourd'hui.
+  ⚠️ Si ça ne passe pas, ce sont les **particules** qui tombent (budget déjà en place), **jamais
+  les nœuds** : remettre un plafond rouvrirait l'addendum « Galaxie animée » §1.
+- **Lisibilité de `/galaxy` à plusieurs centaines de notions — jamais vue en vrai.** Les rayons
+  des trois anneaux (150 / 260 / 370) et la part de secteur occupée (78 %) sont des
+  **suppositions**, pas des mesures. Réponse prévue si ça ne tient pas : un **niveau de détail
+  adaptatif** (notions révélées au-delà d'un certain zoom) — à ne **pas** décider avant d'avoir
+  regardé.
+
 - Trop de pages avant le cycle pédagogique complet.
 - Données mockées qui ne sont jamais reliées au backend.
 - IA utilisée sans traces ni sources.

@@ -4,6 +4,71 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/galaxy-animations` — galaxie animée — 2026-07-31 (soir)
+
+### Ce que `react-force-graph-3d` 1.29.1 permet vraiment — vérifié ligne à ligne
+
+**Le constat le plus coûteux du chantier : il a réécrit le §2 d'un ADR.** À ne pas re-chercher.
+
+| fait, dans `three-forcegraph` 1.43.4 | conséquence |
+|---|---|
+| `d3ReheatSimulation()` = `d3ForceLayout.alpha(1)`, **sans argument** | « réchauffer à alpha bas » est **impossible** |
+| `d3AlphaTarget` existe dans le kapsule (patron du drag) mais **n'est relayé nulle part** | ni prop React, ni méthode du ref |
+| `graphData.onChange` fait `stop().alpha(1)` — « re-heat the simulation » dit la lib | **tout** changement de données réchauffe à fond |
+| `graphData` n'est **pas** dans les 18 méthodes liées au ref (`methodNames`) | `graphRef.current.graphData` vaut `undefined` |
+
+**Conséquence** : une croissance nœud par nœud sur simulation vivante ré-explose à chaque étoile,
+quoi qu'on fasse. Préserver l'identité des objets nœuds sauve les **positions de départ**, pas la
+convergence. D'où la solution retenue partout : **positions calculées, nœuds épinglés
+(`pinned`), moteur neutralisé**.
+
+⚠️ **Ne pas « rallumer les forces » en croyant simplifier.** C'est parce qu'elles restent
+éteintes que toute la galaxie peut être affichée.
+
+### Réassigner `graphData` à chaque image → le graphe ne s'affiche jamais
+
+**Symptôme** : le rejeu ne se voyait pas se construire. Rien dans la console.
+
+**Cause** : le graphe rendu se recalculait sur l'horloge (`elapsed`), qui avance à chaque frame.
+60 réassignations de `graphData` par seconde, donc 60 `stop().alpha(1)` : le graphe passait sa
+vie à se réinitialiser. **C'est le défaut même que l'ADR corrige, réintroduit par la porte de
+derrière.**
+
+**Solution** : un **compte discret** de nœuds nés (`bornCount`) sert de clé de mémoïsation ; le
+graphe garde la même identité entre deux naissances. Test-verrou dans
+`GalaxyReplayModal.test.tsx` : le temps est piloté à la main (rAF stubé, `performance.now`
+mocké) et on compte les tableaux de nœuds **distincts** reçus par le canvas sur 25 images.
+
+### `zoomToFit` à chaque naissance → la galaxie naît en gros plan puis recule
+
+**Symptôme** : sur l'Accueil, la galaxie se construisait « en grand » puis dézoomait par à-coups.
+
+**Cause** : `onEngineStop` se déclenche à **chaque changement de données**, donc à chaque
+naissance. Au début il n'y a que trois étoiles : cadrées serré, puis la caméra recule.
+
+**Solution** : sur un graphe **épinglé**, l'étendue finale est connue d'avance — la caméra est
+posée **une seule fois**. Les trois recadrages (`onEngineStop`, redimensionnement) sont
+neutralisés quand `pinned` est fourni. Hors graphe épinglé, comportement inchangé.
+
+### `hasWebGL()` est faux sous jsdom → un test qui passe sans rien exercer
+
+**Symptôme** : un test de la modale de rejeu passait, mais n'enregistrait **aucun** rendu du
+canvas.
+
+**Cause** : sans contexte WebGL, la modale rend son repli « il faut un écran qui sait dessiner en
+3D » et ne monte jamais `GalaxyCanvas`.
+
+**Solution** : mocker `hasWebGL` **en gardant le reste du module réel**
+(`vi.mock("@zetis/ui/galaxy", async (actual) => ({ ...(await actual()), hasWebGL: () => true }))`)
+dès qu'un test doit monter le canvas.
+
+### Le repli du plafond de nœuds existait — contrairement à ce que supposait l'ADR
+
+L'addendum le disait « probablement jamais écrit ». **Il était atteint et rendu** : `GalaxyPage`
+ne rendait plus que les chapitres au-delà du seuil (bannière « Beaucoup d'étoiles ici »), et la
+modale de rejeu retirait **toutes les étoiles** — un rejeu de galaxie sans étoile. Les deux sont
+partis avec le plafond. **Leçon : vérifier la présomption d'un ADR avant de s'y fier.**
+
 ## Chantier `/galaxy` — système solaire et bandeau — 2026-07-31
 
 ### `graphData()` n'est pas exposée par cette version de `react-force-graph-3d`
