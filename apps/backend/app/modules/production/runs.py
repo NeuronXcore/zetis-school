@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import Chapter, Fiche, Mindmap, ProductionRun, StudentProfile
+from app.db.models import Chapter, Fiche, Mindmap, ProductionRun, Skill, StudentProfile
 from app.db.models.production import EMITTED_AUTHORIZED_BY, EMITTED_TRIGGERS
 
 # Les dérivés qui attendent une relecture de Papa — et ils ne sont que DEUX.
@@ -95,3 +95,42 @@ def get_run(db: Session, run_id: int) -> ProductionRun:
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Lot introuvable.")
     return run
+
+
+def preview(db: Session, *, chapter_id: int) -> dict:
+    """Ce qu'un lot ferait sur ce chapitre, SANS rien créer (ADR-0031 slice C).
+
+    Le gate doit être visible **avant** le clic. Sans cet aperçu, Papa presse un bouton et reçoit
+    « rien produit » sur un chapitre neuf : il lirait un échec là où il y a un gate qui fonctionne.
+
+    Lecture pure — `scope.plan` + `runner.select_notions`, déjà écrits et testés. Rien n'est
+    réimplémenté ici, et surtout aucun run n'est créé.
+    """
+    from app.modules.production import runner, scope
+
+    chapter = db.get(Chapter, chapter_id)
+    if chapter is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapitre introuvable.")
+
+    eligible_ids, blocked = runner.select_notions(db, scope.plan(db, chapter_id=chapter_id))
+
+    # Le NOM en plus de l'id : une liste d'ids ne se lit pas.
+    names = dict(
+        db.execute(
+            select(Skill.id, Skill.name).where(
+                Skill.id.in_(eligible_ids + [b["skill_id"] for b in blocked])
+            )
+        ).all()
+    )
+    backlog = pending_backlog(db)
+    return {
+        "chapter_id": chapter_id,
+        "eligible": [{"skill_id": i, "name": names.get(i, f"notion {i}")} for i in eligible_ids],
+        "blocked": [
+            {"skill_id": b["skill_id"], "name": names.get(b["skill_id"], ""), "reason": b["reason"]}
+            for b in blocked
+        ],
+        # Pour que le bouton puisse dire POURQUOI il refuse, avant d'essayer.
+        "pending_backlog": backlog,
+        "max_pending": settings.production_max_pending,
+    }

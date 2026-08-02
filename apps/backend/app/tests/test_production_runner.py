@@ -188,3 +188,50 @@ def test_un_run_neuf_est_manual_et_parent_direct(client_db) -> None:
 
     assert (trigger, authorized_by, status_) == ("manual", "parent_direct", "queued")
     assert run_chapter == chapter_id
+
+
+# --- L'aperçu : le gate visible AVANT le clic (slice C) ------------------------------------------
+
+
+def test_lapercu_ne_cree_rien(client_db) -> None:
+    """Lecture pure : un aperçu qui créerait un run ferait de chaque survol une production."""
+    _, Session = client_db
+    with Session() as db:
+        _, subject, chapter = _seed_year(db)
+        lesson = _seed_lesson(db, chapter)
+        _attach(db, lesson, _skill(db, subject, "Notion prête"))
+        db.commit()
+
+        runs.preview(db, chapter_id=chapter.id)
+        assert db.scalars(select(m.ProductionRun)).all() == []
+
+
+def test_lapercu_nomme_les_notions_bloquees_et_leur_motif(client_db) -> None:
+    """Jamais un compte nu. « 13 en attente » ne dit pas lesquelles ni pourquoi — donc ne dit
+    pas à Papa ce qu'il doit valider pour débloquer son lot."""
+    _, Session = client_db
+    with Session() as db:
+        _, subject, chapter = _seed_year(db)
+        draft = _seed_lesson(db, chapter, title="Brouillon", validated=False, course=False)
+        _attach(db, draft, _skill(db, subject, "Fractions"))
+        db.commit()
+
+        out = runs.preview(db, chapter_id=chapter.id)
+
+    assert out["eligible"] == []
+    assert out["blocked"][0]["name"] == "Fractions"
+    assert out["blocked"][0]["reason"] == BLOCKED_COURSE_PENDING
+
+
+def test_lapercu_porte_larriere_et_son_plafond(client_db) -> None:
+    """Pour que le bouton dise POURQUOI il refuse, avant d'essayer plutôt qu'après un 409."""
+    from app.core.config import settings
+
+    _, Session = client_db
+    with Session() as db:
+        _, _, chapter = _seed_year(db)
+        db.commit()
+        out = runs.preview(db, chapter_id=chapter.id)
+
+    assert out["max_pending"] == settings.production_max_pending
+    assert out["pending_backlog"] == 0

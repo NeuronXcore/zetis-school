@@ -12,7 +12,7 @@ from app.core.queue import enqueue_production
 from app.db.base import get_db
 from app.modules.auth.deps import require_parent
 from app.modules.production import runs
-from app.modules.production.schemas import ProductionRunOut
+from app.modules.production.schemas import ProductionPreviewOut, ProductionRunOut
 
 router = APIRouter(
     prefix="/api/production/runs", tags=["production"], dependencies=[Depends(require_parent)]
@@ -28,6 +28,13 @@ def create(chapter_id: int, db: Session = Depends(get_db)) -> dict:
     run = runs.create_run(db, chapter_id=chapter_id)
     enqueue_production(run.id)
     return runs.run_out(db, run)
+
+
+# Déclarée AVANT `/{run_id}` : sinon « preview » serait capté comme un {run_id} (→ 422).
+@router.get("/preview", response_model=ProductionPreviewOut)
+def preview(chapter_id: int, db: Session = Depends(get_db)) -> dict:
+    """Ce qu'un lot ferait, sans rien créer. Le gate doit être visible AVANT le clic."""
+    return runs.preview(db, chapter_id=chapter_id)
 
 
 @router.get("/{run_id}", response_model=ProductionRunOut)

@@ -122,3 +122,26 @@ class ProductionRunOut(BaseModel):
     chapter_id: int | None
     created_at: datetime
     finished_at: datetime | None
+
+
+class ProductionNotion(BaseModel):
+    """Une notion dans l'aperçu d'un lot. Le NOM en plus de l'id : une liste d'ids ne se lit pas."""
+
+    skill_id: int
+    name: str
+    reason: str | None = None
+
+
+class ProductionPreviewOut(BaseModel):
+    """Ce qu'un lot ferait, sans rien créer (ADR-0031 slice C).
+
+    `blocked` n'est jamais un simple compte : chaque notion porte son motif. Une notion
+    silencieusement omise se lirait comme un échec de production, alors que c'est le gate du §7
+    qui fonctionne.
+    """
+
+    chapter_id: int
+    eligible: list[ProductionNotion]
+    blocked: list[ProductionNotion]
+    pending_backlog: int
+    max_pending: int
