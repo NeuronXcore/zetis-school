@@ -21,6 +21,17 @@ export interface PanoplyChapterView {
   /** Notions DÉJÀ filtrées par la recherche. */
   notions: PanoplyNotion[];
   open: boolean;
+  /** Combien de ces notions ont AU MOINS une activité faisable — « ce chapitre est déjà
+   *  alimenté ». Un COMPTE, jamais un ratio : « 2 sur 3 » serait un score, et l'ADR-0024 §5
+   *  n'en veut nulle part. `0` → aucun témoin n'est rendu, et le chapitre garde exactement
+   *  l'apparence des autres (l'absence de contenu n'est pas un manque de l'enfant). */
+  readyCount: number;
+}
+
+/** Une notion est « prête » dès qu'UNE de ses activités est faisable — c'est la question que
+ *  Massimo se pose avant d'ouvrir un chapitre : y a-t-il quelque chose à faire là-dedans ? */
+function countReady(notions: PanoplyNotion[]): number {
+  return notions.filter((notion) => notion.actions.some((action) => action.available)).length;
 }
 
 export interface UseSubjectPanoply {
@@ -123,17 +134,24 @@ export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
 
   const chapters = useMemo<PanoplyChapterView[]>(() => {
     if (!searching) {
-      return rawChapters.map((c) => ({ ...c, open: openIds?.has(c.chapter_id) ?? false }));
+      return rawChapters.map((c) => ({
+        ...c,
+        open: openIds?.has(c.chapter_id) ?? false,
+        readyCount: countReady(c.notions),
+      }));
     }
     // En recherche, l'arbre obéit aux résultats : un chapitre porteur s'OUVRE, un chapitre
     // sans trouvaille DISPARAÎT (il ne se contente pas de se replier — le laisser afficherait
     // du bruit entre les réponses).
+    //
+    // Le compte de notions prêtes suit le FILTRE, comme le compte de notions juste à côté :
+    // pendant une recherche, l'en-tête décrit ce qui est trouvé, pas le chapitre entier. Les
+    // deux nombres doivent parler du même ensemble, sinon ils se contredisent.
     return rawChapters
-      .map((c) => ({
-        ...c,
-        notions: c.notions.filter((n) => matchesQuery(n.name, query)),
-        open: true,
-      }))
+      .map((c) => {
+        const notions = c.notions.filter((n) => matchesQuery(n.name, query));
+        return { ...c, notions, open: true, readyCount: countReady(notions) };
+      })
       .filter((c) => c.notions.length > 0);
   }, [rawChapters, openIds, query, searching]);
 

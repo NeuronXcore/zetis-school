@@ -168,6 +168,22 @@ export function MatiereDetailPage() {
                   <span className="min-w-0 flex-1 truncate font-bold">{chapter.title}</span>
                   <span className="shrink-0 text-xs text-zetis-muted">
                     {chapter.notions.length} notion{chapter.notions.length > 1 ? "s" : ""}
+                    {/* Témoin « ce chapitre est déjà alimenté ». Un COMPTE, jamais un ratio :
+                        « 2 sur 3 » serait un score (ADR-0024 §5). Cyan, comme les activités
+                        disponibles ailleurs sur la page — même sens, même couleur.
+
+                        À zéro, RIEN n'est rendu et le chapitre garde exactement l'apparence
+                        des autres : ni grisé, ni relégué. L'absence de contenu est l'état du
+                        catalogue de Papa, pas un manque de Massimo — et un chapitre entier
+                        atténué se lirait comme un reproche. */}
+                    {chapter.readyCount > 0 && (
+                      <>
+                        {" · "}
+                        <span className="text-zetis-accent-2">
+                          {chapter.readyCount} prête{chapter.readyCount > 1 ? "s" : ""}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </button>
 

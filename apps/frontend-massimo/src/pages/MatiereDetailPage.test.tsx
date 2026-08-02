@@ -223,6 +223,82 @@ describe("MatiereDetailPage — en-tête et états", () => {
   });
 });
 
+// --- Témoin « chapitre déjà alimenté » ---------------------------------------------------
+
+describe("MatiereDetailPage — quels chapitres ont déjà de quoi travailler", () => {
+  it("un chapitre alimenté annonce COMBIEN de ses notions sont prêtes", async () => {
+    // « La cellule » : Mitose (panoplie complète) + Photosynthèse (une fiche) → 2 prêtes.
+    // « Nutrition végétale » : Racines (cours + ELI5) → 1 prête.
+    renderPage();
+    const cellule = await screen.findByRole("button", { name: /La cellule/ });
+    expect(cellule.textContent).toContain("2 notions");
+    expect(cellule.textContent).toContain("2 prêtes");
+    expect(screen.getByRole("button", { name: /Nutrition végétale/ }).textContent).toContain(
+      "1 prête",
+    );
+  });
+
+  it("c'est un COMPTE, jamais un ratio — un « 2 sur 3 » serait un score", async () => {
+    // ⚠️ TEST-VERROU (ADR-0024 §5). La Galaxy compte des étoiles allumées, elle ne note pas
+    // Massimo ; cet en-tête suit la même règle. Un dénominateur transformerait le témoin en
+    // barre de progression déguisée.
+    const { container } = renderPage();
+    await screen.findByRole("button", { name: /La cellule/ });
+    expect(container.textContent).not.toMatch(/\bsur \d|\d\s*\/\s*\d|%/);
+  });
+
+  it("un chapitre sans RIEN de prêt reste identique aux autres — ni témoin, ni grisé", async () => {
+    // L'absence de contenu est l'état du catalogue de Papa, pas un manque de l'enfant. Un
+    // chapitre entier atténué se lirait comme un reproche.
+    vi.mocked(fetchSubjectPanoply).mockResolvedValue({
+      ...PANOPLY,
+      chapters: [
+        {
+          chapter_id: 30,
+          title: "Respiration",
+          notions: [
+            {
+              skill_id: 9,
+              name: "Poumons",
+              status: "unknown",
+              actions: [
+                { kind: "cours", available: false },
+                { kind: "eli5", available: false },
+                { kind: "fiche", available: false },
+                { kind: "capsule", available: false },
+                { kind: "mindmap", available: false },
+                { kind: "revision", available: false },
+                { kind: "quiz", available: false },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    renderPage();
+
+    const chapitre = await screen.findByRole("button", { name: /Respiration/ });
+    expect(chapitre.textContent).toContain("1 notion");
+    expect(chapitre.textContent).not.toMatch(/prête/);
+    // Aucune atténuation : il se rend comme n'importe quel autre chapitre.
+    expect(chapitre.className).not.toMatch(/opacity|grayscale/);
+  });
+
+  it("pendant une recherche, le témoin décrit ce qui est TROUVÉ", async () => {
+    // Les deux nombres de l'en-tête doivent parler du même ensemble, sinon ils se
+    // contredisent : « 1 notion · 2 prêtes » n'aurait aucun sens.
+    renderPage();
+    await screen.findByRole("heading", { name: "SVT" });
+    fireEvent.change(screen.getByLabelText("Cherche une notion"), {
+      target: { value: "photosynthese" },
+    });
+
+    const cellule = screen.getByRole("button", { name: /La cellule/ });
+    expect(cellule.textContent).toContain("1 notion");
+    expect(cellule.textContent).toContain("1 prête");
+  });
+});
+
 // --- Recherche ---------------------------------------------------------------------------
 
 describe("MatiereDetailPage — recherche locale", () => {

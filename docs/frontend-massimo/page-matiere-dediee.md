@@ -101,7 +101,24 @@ jours, aucun capital perdable.
 
 ### 4. Chapitres → notions
 
-Accordéon par chapitre. Chaque ligne de notion porte, de gauche à droite :
+Accordéon par chapitre, **tous repliés à l'ouverture** (2026-08-01) : la page présente la
+matière, pas le contenu d'un chapitre choisi pour Massimo. C'est lui qui décide où il entre.
+La recherche, elle, ouvre d'office ce qu'elle trouve — rien ne reste caché quand on cherche.
+
+**Témoin « déjà alimenté »** sur l'en-tête replié : « La cellule · 3 notions · **2 prêtes** »,
+en cyan, où *prête* = la notion a **au moins une** activité faisable. C'est la question que
+Massimo se pose avant d'ouvrir un chapitre : *y a-t-il quelque chose à faire là-dedans ?*
+
+- C'est un **COMPTE**, comme les étoiles allumées de la Galaxy — jamais un ratio. « 2 sur 3 »
+  serait un score, et l'ADR-0024 §5 n'en veut nulle part. Un test-verrou interdit tout
+  dénominateur.
+- Pendant une recherche, il décrit **ce qui est trouvé**, comme le compte de notions à côté :
+  les deux nombres parlent du même ensemble, sinon ils se contredisent.
+- **À zéro, aucun témoin n'est rendu et le chapitre garde l'apparence des autres** — ni grisé,
+  ni relégué. L'absence de contenu est l'état du catalogue de Papa ; un chapitre entier atténué
+  se lirait comme un reproche.
+
+Chaque ligne de notion porte, de gauche à droite :
 
 - **la pastille d'état** — 5 états, libellés d'enfant, **aucun rouge** : `À découvrir` ·
   `On commence` · `En construction` · `Bien acquis` · `Maîtrisé`. `mastery_score` n'est jamais
