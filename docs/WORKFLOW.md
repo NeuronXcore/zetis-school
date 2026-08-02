@@ -31,6 +31,9 @@ dans le dépôt, pas dans le contexte de l'agent.**
 3. **Exécuter** — l'agent tourne dans une cage : `graphify update .` → **read-before-code** →
    build → **stop-on-blocker**. *Pourquoi :* le read-before-code empêche l'agent d'**inventer**
    une API ; le stop-on-blocker le force à **s'arrêter et signaler** au lieu de coder autour.
+   → **`/slice <prompt>`** porte cette cage. Elle est identique à chaque fois : les prompts n'ont
+   donc plus à la répéter dans un §0, ils ne portent que ce qui est propre au chantier. Un prompt
+   qui la redit n'est pas faux, il est redondant.
 4. **Vérifier** — **toi** : tu lances les tests (jamais confiance au « c'est vert »), tu relis
    le diff, tu vérifies que le périmètre a tenu. *Pourquoi :* c'est la seule étape non
    délégable. Point critique récurrent : la **non-régression** (un test existant *modifié* pour
