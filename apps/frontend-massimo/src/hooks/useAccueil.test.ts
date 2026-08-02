@@ -43,7 +43,6 @@ const today = {
     description: null,
     mission_type: "remediation",
     status: "planned",
-    origin: "zetis",
     priority: 1,
     estimated_minutes: 15,
     xp_reward: 60,

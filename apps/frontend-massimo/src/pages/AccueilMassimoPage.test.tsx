@@ -39,7 +39,6 @@ const ELECTED: MissionTodayResponse = {
     description: null,
     mission_type: "revision",
     status: "pending",
-    origin: "zetis",
     priority: 1,
     estimated_minutes: 15,
     xp_reward: 60,

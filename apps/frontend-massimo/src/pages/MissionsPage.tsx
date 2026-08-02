@@ -35,12 +35,16 @@ function stepMeta(type: string) {
   return STEP_META[type] ?? { icon: "•", label: "Étape", action: "Continuer", sub: "" };
 }
 
-// mission_type → pastille enfant (jamais le jargon de source).
-const TYPE_META: Record<string, { label: string; cls: string }> = {
+// mission_type → pastille enfant (jamais le jargon de source). EXPORTÉ pour son test-verrou :
+// ces libellés disent ce que Massimo FAIT, jamais qui a produit la mission.
+export const TYPE_META: Record<string, { label: string; cls: string }> = {
   remediation: { label: "Renforcer", cls: "bg-indigo-500/18 text-indigo-200" },
   revision: { label: "Réviser", cls: "bg-cyan-500/15 text-cyan-200" },
   progression: { label: "Découvrir", cls: "bg-fuchsia-500/15 text-fuchsia-200" },
-  manual: { label: "Mission de Papa", cls: "bg-amber-500/15 text-amber-100" },
+  // « Mission de Papa » jusqu'au 2026-08-02 : c'était le seul de ces cinq libellés à nommer un
+  // AUTEUR au lieu de dire ce que Massimo fait. « Sur mesure » dit que la mission a été choisie
+  // pour lui sans dire par qui — et reste vrai le jour où ZETIS la commande tout seul.
+  manual: { label: "Sur mesure", cls: "bg-amber-500/15 text-amber-100" },
   champion: { label: "🏆 Défi champion", cls: "bg-amber-500/20 text-amber-100" },
 };
 
@@ -340,7 +344,9 @@ function MissionRow({ mission, onClick }: { mission: Mission; onClick: () => voi
               ✨ new
             </span>
           )}
-          <span>{mission.origin === "papa" ? "👤 par Papa" : "🤖 par ZETIS"}</span>
+          {/* Aucune signature d'auteur (retiré le 2026-08-02) : une mission arrive dans la voix
+              de ZETIS, quel que soit qui l'a créée. « 👤 par Papa » aurait dû changer d'auteur le
+              jour où ZETIS produit seul — la voix du monde de Massimo doit tenir dans le temps. */}
           <span>⏱ {mission.estimated_minutes} min</span>
           <span className="font-semibold text-amber-300">+{mission.xp_reward} XP</span>
           <MiniParcours steps={mission.steps} />

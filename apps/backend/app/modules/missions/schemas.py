@@ -40,9 +40,12 @@ class MissionStudentOut(BaseModel):
     description: str | None
     mission_type: str
     status: str
-    # « Qui a généré la mission » côté enfant : champ d'AFFICHAGE dérivé (`papa`/`zetis`), pas
-    # le `created_by` interne (qui reste pilot-only) — frontière §3 préservée.
-    origin: str
+    # ⚠️ Aucun champ d'AUTEUR ici — retiré le 2026-08-02. Ce schéma portait `origin` (`papa`/
+    # `zetis`), affiché tel quel par Massimo (« 👤 par Papa » / « 🤖 par ZETIS »). Une seule voix
+    # côté Massimo : le contenu scolaire l'atteint dans la voix de ZETIS, sans auteur nommé. La
+    # raison est de tenue dans le temps, pas d'esthétique — le jour où ZETIS produira seul, il
+    # faudrait sinon changer l'auteur du monde de Massimo. `created_by` reste en base et sur
+    # `MissionPilotOut` (pilotage Papa). Un test-verrou interdit le retour d'un tel champ.
     priority: int
     # Affichage enfant : durée estimée (dérivée des étapes, déterministe) et XP d'effort
     # (constante `mission_xp_reward`). Ni score ni facteur — l'XP est l'unique nombre montré,

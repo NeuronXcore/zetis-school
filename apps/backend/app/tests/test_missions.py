@@ -516,6 +516,33 @@ def test_student_mission_exposes_minutes_and_xp_without_scores(client_db) -> Non
     assert leaked.isdisjoint(mission.keys())
 
 
+def test_student_mission_names_no_author(client_db) -> None:
+    """Une seule voix côté Massimo : rien de ce qu'il voit ne désigne un auteur.
+
+    `MissionStudentOut` exposait `origin` (`papa`/`zetis`), rendu tel quel par la page Missions
+    (« 👤 par Papa » / « 🤖 par ZETIS »). Le motif du retrait est la TENUE DANS LE TEMPS, pas
+    l'esthétique : le contenu scolaire doit atteindre Massimo dans la voix de ZETIS, quel que soit
+    son producteur réel. Signer « par Papa » aujourd'hui obligerait à changer l'auteur du monde de
+    Massimo le jour où ZETIS produira seul.
+
+    Papa ne perd rien : `created_by` reste en base ET sur `MissionPilotOut` — c'est une
+    information de pilotage, elle ne traverse simplement plus la frontière.
+    """
+    from app.modules.missions.schemas import MissionPilotOut, MissionStudentOut
+
+    client, Session = client_db
+    with Session() as db:
+        student, skill, subject = _seeded(db)
+        _make_mission(db, student=student, skill=skill, subject=subject, steps=[("eli5", skill.id)])
+    mission = client.get("/api/missions").json()[0]
+
+    authorship = {"origin", "created_by", "author", "made_by", "source"}
+    assert authorship.isdisjoint(mission.keys()), "un auteur est nommé à Massimo"
+    assert authorship.isdisjoint(MissionStudentOut.model_fields.keys())
+    # La contrepartie : l'information n'est pas perdue, elle est restée du côté du pilotage.
+    assert "created_by" in MissionPilotOut.model_fields
+
+
 # --- « Terminées aujourd'hui » : verdict + XP relus des events, sans score ------------------
 
 

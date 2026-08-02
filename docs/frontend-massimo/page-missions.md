@@ -24,7 +24,14 @@ Route : `/missions`.
 
 - Vocabulaire des pastilles de type (traduction enfant du `mission_type`) :
   `remediation` → **Renforcer** · `revision` → **Réviser** · `progression` →
-  **Découvrir** · `manual` → **Mission de Papa**. Jamais de jargon de source.
+  **Découvrir** · `manual` → **Sur mesure**. Jamais de jargon de source.
+- **Aucune pastille ne nomme un auteur** (corrigé le 2026-08-02 ; `manual` disait
+  « Mission de Papa », et le champ `origin` affichait « 👤 par Papa » / « 🤖 par
+  ZETIS »). Les cinq libellés disent ce que Massimo **fait**, jamais qui a produit.
+  Le motif est la tenue dans le temps : le contenu scolaire doit atteindre Massimo
+  dans la voix de ZETIS, quel que soit son producteur réel, sinon il faudra changer
+  l'auteur de son monde le jour où ZETIS produira seul. Papa reste présent ailleurs
+  — dans l'agenda co-édité, et dans la maison.
 - **Aucune notion de retard** : pas de compteur de retard, pas d'état « en
   retard », pas de rouge. Les badges compteurs comptent les missions
   **disponibles**.

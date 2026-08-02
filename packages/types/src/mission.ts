@@ -34,8 +34,9 @@ export interface Mission {
   mission_type: string;
   /** "planned" | "active" | "completed". */
   status: string;
-  /** « Qui a généré la mission » (affichage enfant) : "papa" ou "zetis". */
-  origin: string;
+  // ⚠️ Pas de champ d'auteur — `origin` ("papa"/"zetis") retiré le 2026-08-02. Une seule voix
+  // côté Massimo : le contenu scolaire l'atteint sans auteur nommé, pour que cette voix reste
+  // la même le jour où ZETIS produira seul. Le pilotage Papa garde `created_by`.
   priority: number;
   estimated_minutes: number;
   xp_reward: number;
