@@ -62,6 +62,36 @@ l'observation fait remonter est ailleurs :
 
 ⚠️ **À trancher avant d'écrire l'ADR-0032**, et ce n'est plus la question que l'ADR-0031 posait.
 
+### ▶ PROCHAIN CHANTIER (décidé) : les réglages et paliers de l'autonomisation
+
+L'ADR-0031 interdisait d'écrire l'ADR-0032 avant la réponse à son observation. **Elle est là, donc
+c'est débloqué** — mais elle change le cahier des charges du panneau, et c'est le piège de ce
+chantier :
+
+> Le §8 du cadrage décrit un panneau qui **fait monter Papa d'un palier**. L'observation montre
+> qu'il est **déjà au palier 3** pour les dérivés, sans l'avoir choisi : 31 objets sur 33 servis
+> par `parent_bulk` / `system` / sans gate.
+>
+> **Le premier travail du panneau n'est donc pas de laisser Papa monter. C'est de lui montrer où
+> il est déjà.** Un écran qui propose « Laisser ZETIS servir » sur une classe qui sert déjà sans
+> relecture serait un mensonge de plus.
+
+Trois conséquences à tenir dans l'ADR-0032 :
+
+1. **La matrice classe × palier du §G doit être RELUE au réel avant d'être codée.** A0a est censé
+   viser le palier 3 « plus tard » ; il y est. A0b (cartes SRS) aussi — 20 cartes servies sans
+   aucun gate de validation.
+2. **Le régulateur reste le chantier**, pas la matrice (déjà noté au §G : le §F.4 avait acté que
+   `parent_bulk` couvre l'auto-validation ; ce qui change au palier 3, c'est la disparition du
+   geste par lot). L'observation le confirme : le geste par lot est aujourd'hui **le seul frein**.
+3. ⚠️ **Dette du §G à solder dans la même passe** : `CoverageCellView` rend `null` **comme**
+   `parent_bulk` — provenance inconnue et validation groupée indistinguables. Ajouter la teinte
+   `parent_rule` sans corriger ça laisserait trois valeurs sur quatre se ressembler.
+
+Rappel du §8 : six clés plates dans `app_settings`, **jamais un blob JSON** ; routes actuelles
+namespacées `/api/agenda/settings` → **un routeur de settings neutre est à créer** ; les deux
+classes figées (A1 cours, A4 destructif) sont **lisibles et non écrivables**, refus côté serveur.
+
 ### Deux défauts trouvés PARCE QUE le lot tournait, invisibles en test
 
 1. **`massimo_is_active` laissait sa transaction ouverte.** Le worker restait `idle in
