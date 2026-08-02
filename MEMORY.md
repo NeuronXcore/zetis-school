@@ -7,33 +7,32 @@
 
 ## État à la reprise
 
-**Chantier : les paliers d'autonomie de ZETIS (ADR-0032) — CODE LIVRÉ, PAS ENCORE MERGÉ.**
+**Chantier : les paliers d'autonomie de ZETIS (ADR-0032) — CLOS ET MERGÉ.**
+**Cadrage suivant (ADR-0035, le déclencheur automatique) — ÉCRIT ET POUSSÉ.**
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Branche | `feat/paliers-autonomie`, **1 commit `a54af0b`**, **poussée** (`origin/feat/paliers-autonomie` à jour) |
-| Décisions | `b57b5df` sur **`main`** (ADR-0032 + `DECISIONS.md`) — **poussé** (`origin/main` = `b57b5df`) |
-| PR | **[#69](https://github.com/NeuronXcore/zetis-school/pull/69)**, ouverte le 2026-08-02 à la demande du user — **en attente de sa vérification, pas encore mergée** |
-| Arbre | propre |
+| Paliers (ADR-0032) | **MERGÉ `main`** — squash **`b8f2a02`**, PR #69, 2026-08-02. Branche `feat/paliers-autonomie` **supprimée** en local et chez `origin`. ⚠️ Ne pas ré-implémenter. |
+| ADR-0032 (la décision) | `b57b5df` sur `main` |
+| ADR-0035 (cadrage de l'axe 2) | **`4bd4d8e`** sur `main` — **écrit et poussé AVANT le merge**, voir la section « axe 2 » plus bas |
+| `origin/main` | **`b8f2a02`**, local = distant |
+| Arbre | propre, sur `main` |
 
-⚠️ **L'ADR-0032 doit être chez `origin` avant toute PR** — sinon elle se baserait sur un `main`
-distant qui **ne contient pas la décision qui la justifie**. Poussé le 2026-08-02 **sans changer de
-branche**, avec `git push origin main:main` : le refspec explicite évite l'aller-retour
-`switch main` / `switch feat/…`, qui promène l'arbre de travail pour rien.
+> ⚠️ **Un ADR doit être chez `origin` avant la PR qui s'en réclame**, sinon elle se baserait sur un
+> `main` distant qui **ne contient pas la décision qui la justifie**. Geste retenu, joué deux fois :
+> `git push origin main:main` — le refspec explicite évite l'aller-retour `switch main` /
+> `switch feat/…`, qui promène l'arbre de travail pour rien.
+>
+> **Leçon payée le 2026-08-02** : une version de ce fichier disait « poussé » dans un paragraphe
+> pendant que son tableau disait *NON POUSSÉ*. **Ne jamais écrire un geste Git au passé avant de
+> l'avoir joué** — la mémoire décrit le dépôt, elle ne le programme pas.
 
-> ⚠️ **Ce paragraphe a décrit un geste qui n'avait PAS eu lieu.** La clôture l'a écrit à l'infinitif
-> (« poussé, avec `git push origin main:main` ») alors que `main` était encore en avance de 1 sur
-> `origin/main` ; la ligne du tableau, elle, disait *NON POUSSÉ*. Le fichier portait les deux
-> réponses à la fois. Le push a été fait le 2026-08-02 en fin de session et les deux lignes disent
-> maintenant la même chose. **Leçon : ne jamais écrire un geste Git au passé avant de l'avoir
-> joué** — la mémoire décrit le dépôt, elle ne le programme pas.
-
-**747 backend · 287 Papa · `tsc -b` · `vite build` · typecheck Massimo — tous verts** (lancés
-pendant la session ; le user relance avant de merger). **Aucune migration** : `app_settings`
-existait déjà. **Aucun test existant modifié**, sauf les deux verrous de `ParametresPage.test.tsx`
-**remplacés** (voir plus bas — c'est une décision, pas un ajustement).
+**Tests relancés avant le merge, sur la branche, tous verts** : **747 backend · 287 Papa ·
+453 Massimo · typecheck Massimo · `tsc -b && vite build` Papa**. **Aucune migration** :
+`app_settings` existait déjà. **Aucun test existant modifié**, sauf les deux verrous de
+`ParametresPage.test.tsx` **remplacés** (voir plus bas — c'est une décision, pas un ajustement).
 
 ### Ce que ce chantier a livré
 
@@ -127,24 +126,18 @@ par trois tests sous un serveur simulé « après le Journal ».
 
 ### ▶ PROCHAIN PAS
 
-> **La PR [#69](https://github.com/NeuronXcore/zetis-school/pull/69) est OUVERTE** (2026-08-02, à la
-> demande explicite du user — la clôture avait d'abord décidé l'inverse). **Elle n'est pas mergée**
-> et le merge appartient au user, qui relance les tests et relit le diff avant. Ne pas merger,
-> ne pas rebaser, ne pas pousser de correctif dessus sans qu'il le demande.
+> **Rien n'est en attente côté Git.** PR #69 **mergée** (squash `b8f2a02`), branche supprimée,
+> `main` local = `origin/main` = `b8f2a02`, arbre propre. **Étape 4bis faite** — c'est ce fichier.
 
-1. **Rien à basculer côté Git.** `origin/feat/paliers-autonomie` est à jour ; l'ADR-0032 est chez
-   `origin/main` (`b57b5df`), poussé **sans changer de branche** (`git push origin main:main`).
-2. **Reprendre ici.** Le code est complet et vérifié en vrai ; la PR #69 est ouverte. Ce qui reste
-   côté user : relancer les tests, relire le diff, merger.
-3. ⚠️ **Si le chantier suivant démarre : ne pas l'écrire sur CETTE branche.** Elle porte un
-   chantier clos et vérifié ; y superposer le Journal mélangerait deux chantiers dans une seule
-   revue (règle mono-chantier, `WORKFLOW.md §2`). Merger d'abord, ou brancher depuis `main`.
-4. Le jour du merge : **étape 4bis** — remettre ce fichier au réel (squash, n° de PR, branche
-   supprimée), sinon il décrira un dépôt qui n'existe plus.
-5. **Chantier suivant, DÉCIDÉ par le user : le Journal complet** (ex-« chantier 3 ») — c'est **le
-   point de départ de la prochaine session**, et c'est lui qui ouvre le régime *Autonome*. Détail
-   ci-dessous.
-6. **Chantier d'après** : la page Demandes en deux colonnes, `trigger='request'`, scope notion,
+1. **Ne rien ré-implémenter des paliers ni du cadrage de l'axe 2.** Les deux sont sur `main`.
+2. **CHANTIER SUIVANT : le Journal complet — ADR-0034**, numéro **tranché** par le user le
+   2026-08-02 (0033 reste réservé à l'indicateur d'autonomie de Massimo). **Le cadrage reste à
+   écrire** : c'est le point de départ de la prochaine session. Recette ci-dessous.
+3. ⚠️ **Brancher depuis `main`** (`feat/journal-production` ou équivalent), après un cadrage
+   ADR-0034 écrit et poussé — règle mono-chantier, `WORKFLOW.md §2`.
+4. **L'axe 2 est DÉJÀ cadré** (ADR-0035, `4bd4d8e`), et il se livre **après** le Journal. Lire
+   l'ADR avant de dessiner le Journal : il change ce que le Journal doit rendre lisible.
+5. **Chantier d'après** : la page Demandes en deux colonnes, `trigger='request'`, scope notion,
    auto-close par disponibilité.
 
 ### ▶▶ POINT DE DÉPART DE LA PROCHAINE SESSION — ouvrir le mode « full autonomie »
@@ -163,9 +156,10 @@ préréglage *Autonome* compris. Le régime accessible aujourd'hui est **Semi-au
 
 **La recette, dans l'ordre — et la dernière ligne est la plus petite du chantier :**
 
-1. **Cadrage d'abord, session à part, sur `main`, sans une ligne de code.** ⚠️ **Numéro d'ADR à
-   trancher** : `MEMORY.md` réserve 0033 à l'indicateur d'autonomie de Massimo → le Journal serait
-   **ADR-0034**.
+1. **Cadrage d'abord, session à part, sur `main`, sans une ligne de code.** ✅ **Numéro tranché par
+   le user : ADR-0034** (0033 reste réservé à l'indicateur d'autonomie de Massimo). ⚠️ **Lire
+   l'ADR-0035 avant d'écrire ce cadrage** : le Journal devra rendre lisibles des lots que
+   **personne n'a demandés**, et c'est pour ça que l'axe 2 a été cadré en premier.
 2. `production_events` + **la persistance de ce que `equip_notion` renvoie DÉJÀ** (`generated` /
    `skipped` / `errors` par pièce) et que `runner.execute` **jette** aujourd'hui — c'est la demande
    « voir exactement ce que fait le worker ».
@@ -184,11 +178,36 @@ préréglage *Autonome* compris. Le régime accessible aujourd'hui est **Semi-au
    vérifier à l'écran une fois le drapeau levé.
 
 > ⚠️ **« Full autonome » recouvre DEUX choses, et le palier n'en couvre qu'une.** Le palier dit
-> *« ZETIS ne me demande plus de valider »* ; le **déclencheur** dirait *« ZETIS travaille sans que
-> je clique »* — et **il n'existe pas** : tout lot part encore d'un clic de Papa. Même
-> `VETO_SURFACE_AVAILABLE = True` et A1 = 3, ZETIS ne produira rien de lui-même. C'est ce second
-> axe qui fera enfin émettre `parent_rule`, et c'est là que le régulateur de volume devient
-> obligatoire (ADR-0032 §5, différé avec sa condition d'ouverture nommée).
+> *« ZETIS ne me demande plus de valider »* ; le **déclencheur** dit *« ZETIS travaille sans que
+> je clique »* — et **il n'existe toujours pas dans le code** : tout lot part encore d'un clic de
+> Papa. Même `VETO_SURFACE_AVAILABLE = True` et A1 = 3, ZETIS ne produira rien de lui-même.
+
+### ▶▶▶ L'AXE 2 EST CADRÉ — ADR-0035, `4bd4d8e` sur `main` (2026-08-02)
+
+**Écrit AVANT l'ADR-0034 et livré APRÈS lui**, sur décision du user : dessiner le Journal en
+sachant qu'il devra rendre lisibles des lots que **personne n'a demandés** évite de le construire
+deux fois. **Ne pas re-cadrer, ne pas rouvrir — relire.**
+
+Ce que le read-before-code a établi, et qui change l'estimation du chantier :
+
+- **Aucune migration, aucune dépendance nouvelle.** `production_runs` porte déjà `TRIGGERS` (six
+  valeurs), `AUTHORIZED_BY`, les FK typées et `TRIGGER_REFERENCE`.
+- **`authority_for` est déjà écrite pour l'axe 2** : `parent_rule` s'émettra **sans qu'une ligne du
+  runner change**. Vérifié dans le code.
+- ⚠️ **`production_worker.py` porte `with_scheduler=False` AVEC son motif écrit** (« aucun cron…
+  "tous les dimanches, produire quelque chose" »). L'ADR-0035 **révoque** cette ligne et
+  **satisfait** l'objection au lieu de la contourner : le scan se réveille pour **regarder** si le
+  monde réel a demandé quelque chose, il ne produit sur aucun calendrier.
+- ⚠️ **Le régulateur actuel sera AVEUGLE au palier 3** : `pending_backlog` compte `Fiche`+`Mindmap`
+  en `pending`, or plus rien n'est `pending` au palier 3 → le compteur resterait à **zéro** dans le
+  seul régime où il serait vital. **C'est la seule chose vraiment à construire.**
+
+Décisions figées (détail dans l'ADR) : déclencheur v1 = **`agenda` seul**, `kind='controle'`,
+cinq conditions ; **`evidence` écarté** (il ferait décider ZETIS sur sa propre mesure) ;
+**idempotence par la référence**, jamais par un `produced_at` sur l'agenda ; régulateur = **N lots
+automatiques par fenêtre glissante (défaut 2), et il REFUSE** ; **7ᵉ clé indépendante du palier**,
+**hors d'`AUTONOMY_CLASSES`** pour qu'un préréglage n'arme jamais le déclencheur ; **pas de
+démarrage pendant que Massimo travaille**.
 
 ---
 
