@@ -9,18 +9,21 @@
 
 **Chantier : le retour de demande se ferme dans le chat (addendum ADR-0026).**
 
-**Branche `feat/chat-retour-demandes` POUSSÉE, 2 commits — AUCUNE PR ouverte.** L'addendum ADR est
-sur `main` et poussé (`66edd88`). **Le prochain pas est d'ouvrir la PR** ; rien d'autre n'est en
-attente côté code.
-
-```
-main                66edd88  docs(decisions): addendum ADR-0026
-feat/chat-…demandes 2bdea9b  feat(chat): backend — composeur + migration + ancrage
-                    3acb86b  feat(chat): front — l'annonce s'affiche, avatar endormi
-```
+**✅ MERGÉ dans `main`** — squash **`e1d1b06`**, PR
+[#66](https://github.com/NeuronXcore/zetis-school/pull/66), le 2026-08-02. Branche
+`feat/chat-retour-demandes` **supprimée** (locale et distante). **Rien à pousser, rien à reprendre
+côté Git.** L'addendum ADR est sur `main` à part (`66edd88`, poussé avant la PR).
 
 **703 backend · 451 Massimo · tsc — verts** (backend stable sur plusieurs `PYTHONHASHSEED`, ce
 n'est pas décoratif : voir piège 3). **Migration `e3f4a5b6c7d8` APPLIQUÉE sur la base de dev.**
+
+⚠️ **Ne pas ré-implémenter** ce qui suit : c'est de l'histoire, gardée pour ses pièges et ses
+motifs de décision.
+
+⚠️ **Le squash a dissous les trois messages de commit** (backend / front / mémoire), qui portaient
+chacun leurs motifs de décision. Ils restent lisibles dans le corps de la PR #66 et dans l'addendum
+— mais une révocation isolée d'une des trois parties demanderait de reconstruire le diff à la main.
+Même effet qu'à la PR #65, et c'est le style de la maison depuis la #60.
 
 ### Le problème que ce lot résout
 
@@ -80,6 +83,34 @@ la session.
 - **Vérifié en session réelle** (Chrome connecté, backend + Postgres réels) : annonce affichée,
   avatar endormi, tap → route ancrée, trace sur la **bonne** notion, extinction au rechargement,
   et la contre-épreuve du gate (demande `done` sans contenu → ni annonce ni tampon).
+
+### Prochain pas — le chantier d'autonomisation
+
+Ce lot est le **document 3** d'un cadrage plus large (« Autonomisation progressive de ZETIS »,
+paliers 1→2→3), livré en premier parce qu'il ne dépendait de rien et réparait une dette d'honnêteté
+active. Le cadrage a été **vérifié dans le code** avant rédaction ; ce qu'il faut en retenir :
+
+1. **`ADR-0030` est PRIS** (témoins de nouveauté). Le cadrage l'attribuait à `production_runs` —
+   décaler : `production_runs` → **ADR-0031**, palier 3 → **ADR-0032**, indicateur d'autonomie de
+   Massimo → **ADR-0033**.
+2. **`batch_id` et `PRODUCTION_MAX_PENDING` n'existent QUE dans la prose de l'ADR-0023.** Donc
+   `production_runs` est une **création**, la Slice B de l'ADR-0023 fusionne avec ce chantier, et
+   le plafond de relecture n'a jamais été armé (le §6 du cadrage dit « désarmé » : à corriger).
+3. **Il n'y a AUCUNE file d'exécution IA.** `apps/worker-ai/` est un README de deux lignes ; la
+   seule `Queue` RQ (`core/queue.py`) sert le worker-**media**. Toute la génération est
+   **synchrone dans le backend**, un seul Ollama, un seul GPU. Le §7 du cadrage (« départ au plus
+   tard », « Massimo passe devant ») suppose une exécution préemptible qui n'existe pas —
+   **prérequis dur absent du §12**, plus lourd que `system_state`.
+4. **Le « trou » fiches/mindmaps du §5 n'existe pas** : `fiche_views` et `mindmap_views` (colonnes
+   `seen_at`) tracent déjà la consommation des quatre objets. Le cadrage a été induit en erreur par
+   un docstring périmé — `mindmaps/router.py` dit encore « placeholder Slice A, vues non
+   persistées », c'est **faux** depuis l'ADR-0030 §4.
+
+**Lot de corrections identifié, non fait** (petit, transverse, débloque la Slice A de l'ADR-0023) :
+`MissionStudentOut.origin` expose littéralement `papa`/`zetis` à Massimo (viole « une seule voix
+côté Massimo ») ; le docstring périmé ci-dessus ; et la page Paramètres Papa **100 % morte** —
+3 toggles mock **plus** un `<select>` « Fournisseur IA » qui propose OpenAI, en contradiction avec
+l'ADR-0008/0009.
 
 ---
 
