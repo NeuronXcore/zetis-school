@@ -4,9 +4,20 @@
 // faire transiter le verbatim par `ai_jobs` violerait « aveugle au contenu », ADR-0026 §1c).
 import { API_URL, authClient } from "./authClient";
 
+/** Réponse aux demandes que Massimo avait formulées (addendum ADR-0026). Composée SERVEUR, en
+ *  Python, déterministe — jamais par le LLM. `actions` peut être vide (une notion tout juste
+ *  ajoutée au programme s'annonce même quand son contenu n'existe pas encore). */
+export interface ChatAnnouncement {
+  text: string;
+  actions: ChatAction[];
+}
+
 export interface ChatSession {
   session_id: string;
   transparency: string;
+  /** Présente uniquement quand une demande triée est RÉELLEMENT servable. « Fait » côté Papa ne
+   *  suffit pas : le serveur vérifie la disponibilité, jamais le statut. */
+  announcement?: ChatAnnouncement | null;
 }
 
 export type ChatToolType = "eli5" | "fiche" | "mindmap" | "revision";
@@ -31,6 +42,8 @@ export interface ChatAction {
   /** notion_menu : nom de la notion + liste des contenus disponibles (chacun tapable → navigation). */
   name?: string | null;
   items?: ChatMenuItem[] | null;
+  /** Notion portée par l'action, quand elle en porte une : sert à ancrer la trace du tap. */
+  skill_id?: number | null;
   /** request_notion : la notion HORS-PROGRAMME à proposer à Papa (le tap crée un notion_request). */
   text?: string | null;
   /** `true` : offre IMPLICITE (Massimo a nommé une notion) → toujours une carte à taper, même à la
@@ -51,6 +64,9 @@ export interface ChatReply {
 export interface ChatToolResponse {
   tool_type: string;
   accepted: boolean;
+  /** Notion portée par la carte tapée, réémise telle que le serveur l'avait donnée. Le serveur la
+   *  REVALIDE avant de l'écrire au journal — le front ne décide de rien, il rend ce qu'il a reçu. */
+  skill_id?: number | null;
 }
 
 /** Levée sur 429 : quota de tours de la session atteint → l'UI affiche un état doux, pas une punition. */

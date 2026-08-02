@@ -216,3 +216,61 @@ l'existant validé, et renvoie une **action** concrète (`ChatMessageOut.action`
   une cible non ancrable → `action = null`.
 - **Aucun nouvel événement** : le geste sur une action réutilise `chat_tool_response` (zéro XP,
   non probant). **Rappel ≠ relance** : aucune action poussée entre deux sessions.
+
+## Le retour de demande — la boucle se ferme ici (addendum ADR-0026)
+
+`content_requests` et `notion_requests` sont les **deux seuls endroits où Massimo parle en son nom
+propre**, et les deux seules boucles asynchrones qui n'avaient **aucun retour** : ZETIS disait « je
+le note pour Papa », et rien ne revenait jamais. Cette section décrit ce qui ferme la boucle.
+
+> **« Rappel ≠ relance » interdit le *push*, pas la *réponse*.** La boucle se ferme **là où elle
+> s'est ouverte** : dans le chat, en **pull**, **une seule fois**.
+
+### Comportement
+
+- **La session naît au MONTAGE de la page**, plus au premier message. Ouvrir le chat **est** le
+  geste de Massimo ; c'est le seul moment où le « contexte d'ouverture » de l'ADR-0026 §4 peut se
+  dire. Le pull reste strict : hors de cette session, l'annonce n'existe nulle part.
+- `POST /api/student/chat/sessions` rend `announcement: { text, actions[] } | null`. `text` est
+  composé **serveur, en Python, déterministe — jamais par le LLM** (un fait, pas une génération) et
+  **ne nomme aucun auteur** : « Tu m'avais demandé ta fiche sur les fractions. C'est prêt. »
+- **L'annonce s'AFFICHE, elle ne se parle pas.** Un bloc : le texte, puis les cartes s'il y en a.
+  Aucune synthèse, aucun karaoké, **l'avatar reste endormi** — l'arrivée sur la page ne le réveille
+  pas (§États 1), et faire parler ZETIS au chargement serait un message poussé. *(Écart corrigé au
+  test live du 2026-08-02 : `playSpeech` attend un `AudioContext` débloqué par un geste
+  utilisateur ; au montage, la promesse ne se résout jamais et rien ne s'affichait.)*
+- Les cartes portent des routes **ancrées serveur** (`_notion_route`) et `confirm=true` : une offre
+  se tape, elle ne s'auto-navigue jamais. `actions` peut être **vide** — une notion tout juste
+  ajoutée au programme s'annonce même quand son contenu n'existe pas encore.
+- Le tap réutilise **`chat_tool_response`** — aucun `event_type` neuf, zéro XP.
+- Massimo envoie un message → l'annonce s'efface. Elle a été dite.
+
+### Ce que ça ne devient pas
+
+- **Aucun badge, aucun compteur, aucune pastille.** Le §5 des États de la page (« pas de badge
+  non-lu, rien ») reste vrai **au mot près** : l'annonce vit dans la conversation, nulle part
+  ailleurs.
+- **Aucune file.** Au plus **2 items nommés**, mais **tout le lot éligible est tamponné** — sinon le
+  reliquat s'empile et redevient une pression. Rien ne dit jamais « et 3 autres ».
+- **Auto-extinctive** : dite une fois, éteinte. Ne pas venir chercher sa fiche n'accumule rien
+  (l'absence n'est pas un événement).
+
+### Deux asymétries assumées — ne pas « compléter la symétrie »
+
+- **Le refus n'a pas de canal.** Papa fait « Ignorer » → Massimo n'apprend rien. **Jamais.** Un
+  refus est un acte parental ; faire porter le « non » par la machine l'abîme des deux côtés. Le
+  dégradé correct est le silence + la redemande toujours gratuite (déjà gérée par l'idempotence
+  ré-activante de `content_requests`).
+- **Produire sans demande n'annonce rien.** Massimo n'a rien réclamé, il n'y a aucune promesse à
+  honorer, et lui pousser du contenu non sollicité serait la relance interdite.
+
+### Le piège, et ce qui l'évite
+
+Dans l'inbox Papa, **« Fait » ne fait que changer un statut** — il ne prouve pas que le contenu
+existe. L'annonce est donc conditionnée à la **disponibilité réelle** (`resolve_panoply`, le même
+prédicat que `galaxy/notion`), jamais au statut : une demande `done` dont le contenu n'est pas
+servable **ne s'annonce pas et n'est pas tamponnée**. Sans cette règle, on reconstruirait exactement
+le mensonge corrigé le 2026-07-30 (`notion_panel` annonçait un cours absent).
+
+`quiz` et `capsule` ne s'annoncent pas : `_notion_route` n'a pas leur branche. Pas de route ⇒ pas de
+carte ⇒ pas d'annonce ⇒ pas de tampon. Ils redeviendront annonçables quand la branche existera.

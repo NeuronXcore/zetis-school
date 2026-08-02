@@ -57,6 +57,10 @@ export function ChatPage() {
   const [wordIdx, setWordIdx] = useState(-1);
   const [tool, setTool] = useState<ChatToolType | null>(null);
   const [action, setAction] = useState<ChatAction | null>(null);
+  // Annonce d'ouverture (addendum ADR-0026) — état SÉPARÉ d'`action` : elle précède la
+  // conversation et ne doit pas être écrasée par la première réponse de ZETIS.
+  const [announceText, setAnnounceText] = useState<string | null>(null);
+  const [announceActions, setAnnounceActions] = useState<ChatAction[]>([]);
   const [requestedNotion, setRequestedNotion] = useState<string | null>(null); // « demandé à Papa »
   const [skillId, setSkillId] = useState<number | null>(null);
   const [transparency, setTransparency] = useState(FIXED_TRANSPARENCY);
@@ -70,6 +74,9 @@ export function ChatPage() {
   const micSupported = isDictationSupported();
 
   const sessionRef = useRef<string | null>(null);
+  // L'ouverture est UNIQUE : l'annonce est auto-extinctive côté serveur, donc un double montage
+  // (StrictMode en dev) la consommerait au premier passage et n'afficherait rien au second.
+  const openedRef = useRef(false);
   const timersRef = useRef<number[]>([]);
   const speechRef = useRef<Speech>({
     words: [],
@@ -131,7 +138,16 @@ export function ChatPage() {
       if (sid) {
         try {
           await sendChatMessage(sid, {
-            tool_response: { tool_type: surfaceOf(act), accepted: true },
+            // `skill_id` réémis tel que le serveur l'avait donné : il ancre la trace sur la notion
+            // de la carte. Sans lui, un tap qui ouvre la session (annonce) était attribué au
+            // dernier `chat_topic` de l'élève, parfois vieux de plusieurs jours.
+            // Omis — et non `null` — quand l'action n'en porte pas : le payload des actions
+            // existantes reste alors IDENTIQUE, et leurs tests n'ont pas à être retouchés.
+            tool_response: {
+              tool_type: surfaceOf(act),
+              accepted: true,
+              ...(act.skill_id != null ? { skill_id: act.skill_id } : {}),
+            },
           });
         } catch {
           /* best-effort */
@@ -266,6 +282,43 @@ export function ChatPage() {
     [clearTimers, stopVoice, finishSpeaking, markWord],
   );
 
+  // Ouverture de session AU MONTAGE (addendum ADR-0026). La session naissait au premier message :
+  // le « contexte d'ouverture » de l'ADR-0026 §4 n'avait alors aucun moment où se dire, et une
+  // annonce serait arrivée APRÈS que Massimo ait parlé. Ouvrir le chat EST son geste — le pull
+  // reste strict : hors de cette session, l'annonce n'existe nulle part.
+  //
+  // ⚠️ L'annonce s'AFFICHE, elle ne se PARLE pas — écart trouvé au test live du 2026-08-02, et
+  // deux raisons de le graver :
+  //  1. « L'arrivée sur la page ne réveille PAS l'avatar » (page-chat.md §États 1). Faire parler
+  //     ZETIS au chargement est un message poussé, exactement ce que l'ADR interdit.
+  //  2. `playSpeech` fait `await ctx.resume()` : sans geste utilisateur préalable, le navigateur
+  //     laisse la promesse EN ATTENTE POUR TOUJOURS. Un `speakReply` au montage se bloque avant
+  //     `setWords`, et l'annonce n'apparaît jamais. C'est ce qui s'est produit en vrai.
+  // ⚠️ AUCUN drapeau `cancelled` ici, et c'est délibéré (bug du 2026-08-02, trouvé en vrai) :
+  // sous `StrictMode`, l'effet joue, se démonte, rejoue. Le garde `openedRef` bloque le SECOND
+  // passage — donc si le cleanup du premier posait `cancelled`, la réponse du seul fetch réellement
+  // parti serait JETÉE. L'annonce était consommée côté serveur (tamponnée) et perdue côté client :
+  // deux garde-fous corrects qui s'annulent. React 18 ignore silencieusement un setState après
+  // démontage ; `openedRef` suffit à garantir l'appel unique, qui est le seul invariant qui compte.
+  useEffect(() => {
+    if (openedRef.current) return;
+    openedRef.current = true;
+    void (async () => {
+      try {
+        const s = await createChatSession();
+        sessionRef.current = s.session_id;
+        setTransparency(s.transparency);
+        if (s.announcement) {
+          setAnnounceText(s.announcement.text);
+          setAnnounceActions(s.announcement.actions ?? []);
+        }
+      } catch {
+        // Best-effort : `send` rouvre une session si celle-ci a échoué. Un retour manqué ne vaut
+        // pas un chat inutilisable — l'annonce reste éligible tant qu'elle n'est pas tamponnée.
+      }
+    })();
+  }, []);
+
   const cut = useCallback(() => {
     if (avatarStateRef.current === "speaking") finishSpeaking(); // barge-in : coupe voix + anim
   }, [finishSpeaking]);
@@ -285,6 +338,9 @@ export function ChatPage() {
       stopVoice();
       setWords([]);
       setWordIdx(-1);
+      // Massimo passe à autre chose : l'annonce a été lue, elle s'efface.
+      setAnnounceText(null);
+      setAnnounceActions([]);
       setBusy(true);
       setAvatarState("thinking"); // la giration absorbe la latence (moteur + synthèse voix)
       try {
@@ -450,6 +506,30 @@ export function ChatPage() {
       )}
 
       {error && <p className="chat-quota">{error}</p>}
+
+      {/* Retour de demande (addendum ADR-0026) : ce que Massimo avait réclamé et qui est
+          RÉELLEMENT servable. AFFICHÉ, jamais parlé — l'arrivée sur la page ne réveille pas
+          l'avatar. `actions` peut être vide : une notion ajoutée s'annonce même sans contenu.
+          Routes ancrées serveur — le front n'en fabrique aucune. */}
+      {!speaking && announceText && (
+        <div className="chat-offer" role="group" aria-label="Ce que tu avais demandé">
+          <p className="chat-announce">{announceText}</p>
+          {announceActions.length > 0 && (
+            <div className="chat-offer-row">
+              {announceActions.map((act) => (
+                <button
+                  key={act.route ?? act.label}
+                  type="button"
+                  className="chat-tool"
+                  onClick={() => runAction(act)}
+                >
+                  {act.label} →
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Orchestration (ADR-0027) : action ANCRÉE. Voix a déjà navigué ; clavier → carte à taper,
           données → carte inline. */}

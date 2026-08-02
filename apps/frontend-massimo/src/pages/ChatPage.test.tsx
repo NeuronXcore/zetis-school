@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -54,12 +55,19 @@ vi.mock("../components/ChatDataCard", () => ({
 }));
 
 import { ChatPage } from "./ChatPage";
-import { ChatQuotaReached, createChatSession, sendChatMessage, type ChatReply } from "../lib/chat";
+import {
+  ChatQuotaReached,
+  createChatSession,
+  sendChatMessage,
+  synthesizeChatSpeech,
+  type ChatReply,
+} from "../lib/chat";
 import { isDictationSupported, startRecording } from "../lib/dictation";
 import { requestNotion, transcribeEli5 } from "../lib/eli5";
 
 const mockCreate = vi.mocked(createChatSession);
 const mockSend = vi.mocked(sendChatMessage);
+const mockSynthesize = vi.mocked(synthesizeChatSpeech);
 const mockSupported = vi.mocked(isDictationSupported);
 const mockRecord = vi.mocked(startRecording);
 const mockTranscribe = vi.mocked(transcribeEli5);
@@ -318,6 +326,102 @@ describe("ChatPage", () => {
     expect(mockSend).toHaveBeenCalledWith("s1", {
       tool_response: { tool_type: "fiche", accepted: true },
     });
+  });
+
+  // --- Retour de demande à l'ouverture (addendum ADR-0026) ---------------------------------
+
+  it("ferme la boucle : ce que Massimo avait demandé est annoncé dès l'ouverture", async () => {
+    mockCreate.mockResolvedValue({
+      session_id: "s1",
+      transparency: "ZETIS retient les notions que tu travailles, pas tes mots.",
+      announcement: {
+        text: "Tu m'avais demandé ta fiche sur les nombres relatifs. C'est prêt.",
+        actions: [
+          {
+            kind: "navigate",
+            label: "Tes fiches de Mathématiques",
+            route: "/fiches/mathematiques",
+            confirm: true,
+            skill_id: 126,
+          },
+        ],
+      },
+    });
+    renderPage();
+
+    // L'annonce s'AFFICHE immédiatement — texte ET carte. Pas de karaoké, pas d'attente.
+    expect(
+      await screen.findByText(/Tu m'avais demandé ta fiche sur les nombres relatifs/),
+    ).toBeInTheDocument();
+    const card = await screen.findByRole("button", { name: /Tes fiches de Mathématiques/ });
+    fireEvent.click(card);
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/fiches/mathematiques"));
+    // La trace porte la notion de LA CARTE. Un tap d'annonce est souvent le premier acte de la
+    // session : sans ce `skill_id`, le serveur retombait sur le dernier `chat_topic` de l'élève —
+    // parfois vieux de plusieurs jours, donc attribué à la mauvaise notion (observé le 2026-08-02).
+    expect(mockSend).toHaveBeenCalledWith("s1", {
+      tool_response: { tool_type: "fiche", accepted: true, skill_id: 126 },
+    });
+  });
+
+  it("test-verrou : l'annonce s'AFFICHE, elle ne se parle pas — et l'avatar reste endormi", async () => {
+    // Le bug du 2026-08-02 : l'annonce passait par `speakReply` → `playSpeech` → `ctx.resume()`
+    // sur un AudioContext SUSPENDU (aucun geste utilisateur au montage). Le navigateur laisse
+    // cette promesse en attente POUR TOUJOURS et le texte n'apparaissait jamais.
+    //
+    // Ce qui verrouille ici, c'est **`state === "idle"`** : aucun cycle de parole ne doit
+    // démarrer au montage. L'assertion sur la synthèse est une ceinture — jsdom n'ayant pas
+    // d'AudioContext, elle ne se serait pas déclenchée même avec le code fautif. C'est
+    // précisément pourquoi la première version des tests n'a rien vu, et pourquoi le verrou
+    // porte sur l'état de l'avatar, observable dans les deux environnements.
+    mockCreate.mockResolvedValue({
+      session_id: "s1",
+      transparency: "ZETIS retient les notions que tu travailles, pas tes mots.",
+      // `actions: []` = le cas réellement rencontré : des notions ajoutées au programme dont le
+      // contenu n'est pas encore produit. Sans texte affiché, l'écran est vide.
+      announcement: { text: "Tu m'avais demandé « pourcentages ». C'est dans ton programme maintenant.", actions: [] },
+    });
+    renderPage();
+
+    expect(await screen.findByText(/pourcentages/)).toBeInTheDocument();
+    expect(mockSynthesize).not.toHaveBeenCalled();
+    // « L'arrivée sur la page ne réveille PAS l'avatar » (page-chat.md §États 1).
+    expect(screen.getByTestId("avatar").dataset.state).toBe("idle");
+    expect(screen.getByTestId("avatar").dataset.awake).toBe("false");
+  });
+
+  it("test-verrou : l'annonce survit au double montage de StrictMode", async () => {
+    // Second bug du 2026-08-02, trouvé en vrai et invisible ici parce que `renderPage` ne monte
+    // PAS sous StrictMode alors que l'app, si (`main.tsx`). Sous StrictMode : l'effet joue, se
+    // démonte, rejoue. Le garde d'appel-unique bloque le second passage — donc un drapeau
+    // `cancelled` posé par le cleanup du premier JETAIT la réponse du seul fetch réellement parti.
+    // L'annonce était consommée côté serveur (tamponnée, donc PERDUE POUR TOUJOURS) et n'arrivait
+    // jamais à l'écran. Ce test monte comme l'app monte.
+    mockCreate.mockResolvedValue({
+      session_id: "s1",
+      transparency: "ZETIS retient les notions que tu travailles, pas tes mots.",
+      announcement: { text: "Tu m'avais demandé « pourcentages ». C'est prêt.", actions: [] },
+    });
+    render(
+      <StrictMode>
+        <MemoryRouter>
+          <ChatPage />
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    expect(await screen.findByText(/pourcentages/)).toBeInTheDocument();
+    // L'appel reste UNIQUE : une annonce est auto-extinctive, la consommer deux fois la perdrait.
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("sans annonce, l'ouverture est identique à avant (non-régression)", async () => {
+    renderPage();
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("group", { name: "Ce que tu avais demandé" }),
+    ).not.toBeInTheDocument();
   });
 
   it("test-verrou : aucune API vocale navigateur, aucun stockage local de conversation", () => {
