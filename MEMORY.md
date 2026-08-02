@@ -9,10 +9,10 @@
 
 **Chantier : la page matière devient un index de notions (addenda ADR-0024 + ADR-0027).**
 
-Branche **`feat/page-matiere`**, créée depuis `main`. **Slices A et B FAITES, plus 6 tours
-d'affinage au vu de l'écran — 15 commits, NON POUSSÉS, pas de PR.**
+Branche **`feat/page-matiere`**, créée depuis `main`. **Slices A et B FAITES, plus 7 tours
+d'affinage au vu de l'écran — 19 commits, NON POUSSÉS, pas de PR.**
 
-**690 backend · 442 Massimo · 270 Papa · 2 typecheck · build — tous verts.**
+**690 backend · 447 Massimo · 270 Papa · 2 typecheck · build — tous verts.**
 
 ### ⛔ Deux ADR MANQUENT encore au dépôt
 
@@ -34,7 +34,7 @@ visuel et interactif »). Le user a tranché : **on code d'après la spec**, qui
 recherche, l'accordéon, le panneau, les demandes et les états avec assez de précision. Le rendu
 suit donc la spec + les conventions des pages Massimo existantes, **pas** une maquette.
 
-### FAIT — affinage au vu de l'écran (6 commits, après la slice B)
+### FAIT — affinage au vu de l'écran (7 commits, après la slice B)
 
 Le user a lancé l'app et fait évoluer la page. **Chacun de ces tours a sa décision, et plusieurs
 divergent de l'ADR — c'est écrit, pas subi.**
@@ -59,8 +59,14 @@ divergent de l'ADR — c'est écrit, pas subi.**
    interdit maintenant « je te le prépare », tout délai, tout statut.
 6. **Bande « ce que ZETIS a pour cette matière »** (`457ca5d`) — remplace la carte « N cartes à
    revoir », qui n'annonçait qu'un type sur six. **Zéro requête ajoutée** : la panoplie porte
-   déjà les ids. Capsule et quiz : compte affiché **non cliquable** (aucune route par matière).
-   `eli5` absent (il ne stocke rien, ce n'est pas un produit du catalogue).
+   déjà les ids. `eli5` absent (il ne stocke rien, ce n'est pas un produit du catalogue).
+7. **Le quiz devient cliquable, et l'inerte devient visible** (`104ccde`) — signalement du user :
+   « le KPI 1 quiz dans mathématiques ne marche pas ». **Audit de la base : le compte était
+   juste** (mathématiques a bien 1 quiz, les 8 matières vérifiées). Ce qui ne marchait pas, c'est
+   le **clic** : `quiz` était non cliquable par décision, mais rendu **comme une pastille
+   normale**. `/quiz` accepte désormais **`?subject=`** (patron de `/revision` et `/eli5`) et
+   porte le rétrolien ; et **toute pastille non ouvrable est visiblement inerte** (pointillés,
+   atténuation, `aria-label` qui le dit). Ne reste dans ce cas que `capsule`.
 
 ### FAIT — slice B (frontend Massimo), 5 commits
 
@@ -124,6 +130,12 @@ où la panoplie se masque, et les 5 rétroliens dont celui d'ELI5 après recharg
 9. ⚠️ **Dans les tests, `/Voir le cours/` matche DEUX boutons** : l'activité et le « demander
    Voir le cours à ZETIS » voisin. Utiliser le helper `activite("…")`, qui ancre en début de
    libellé.
+10. ⚠️ **Un test qui lit `window.location` sous `MemoryRouter` est vert À VIDE** — le routeur
+    mémoire n'y touche pas. Pour vérifier une URL, monter une **sonde** qui lit
+    `useSearchParams`. J'ai failli livrer ce faux positif sur la survie de `?from=`.
+11. ⚠️ **Le compte peut être juste et la pastille cassée quand même.** Devant « ça ne marche
+    pas », auditer la **donnée** avant de toucher au calcul : ici le compte était bon (audit
+    des 8 matières), c'est l'**affordance** qui mentait.
 
 ### FAIT — slice A (backend), 688 tests verts
 
@@ -184,8 +196,10 @@ où la panoplie se masque, et les 5 rétroliens dont celui d'ELI5 après recharg
   contre 8 précisément pour que le verrou puisse mordre.
 - **L'orange de la demande se rend plus LUMINEUX, jamais plus VIF** (l'or est à 18°, le rouge est
   banni : la teinte n'a pas de marge).
-- **Capsule et quiz ne sont pas cliquables** depuis la bande tant que `/capsules/:slug` et
-  `/quiz/:slug` n'existent pas.
+- **Une pastille qui ne mène nulle part doit être visiblement INERTE** (pointillés, atténuation,
+  `aria-label` explicite). Sinon elle se lit comme une panne — c'est arrivé avec le quiz le
+  2026-08-01. **Une chose qui ressemble à un lien doit être un lien.** Seule `capsule` est encore
+  dans ce cas (`/capsules` est global, aucun `/capsules/:slug`).
 
 ### ⚠️ Divergences ASSUMÉES avec les ADR — à porter dans un addendum
 

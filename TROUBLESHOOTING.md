@@ -6,6 +6,45 @@
 
 ## Chantier `feat/page-matiere` — affinage au vu de l'écran — 2026-08-01
 
+### Un test qui lit `window.location` sous `MemoryRouter` est vert À VIDE
+
+`MemoryRouter` garde l'historique **en mémoire** : il ne touche jamais `window.location`. Un test
+qui vérifie une URL par ce biais lit donc une chaîne **vide**, et passe pour de mauvaises raisons.
+
+```tsx
+// ❌ Vert quoi qu'il arrive — window.location.search vaut "" sous MemoryRouter.
+const params = new URLSearchParams(window.location.search);
+expect(params.get("subject")).toBeNull();
+```
+
+Parade : monter une **sonde** dans le routeur, qui lit l'URL par `useSearchParams` et la rend.
+
+```tsx
+function Sonde() {
+  const [params] = useSearchParams();
+  return <output data-testid="url">{params.toString()}</output>;
+}
+```
+
+Rencontré en vérifiant que le nettoyage d'URL de `QuizPage` ne mange que `subject` et laisse
+`from` (le rétrolien). Le faux positif est passé à un cheveu d'être livré.
+
+### « Ça ne marche pas » : auditer la DONNÉE avant de toucher au calcul
+
+Signalement : « le KPI 1 quiz dans mathématiques ne marche pas ». Le réflexe est de suspecter le
+comptage. Un audit lecture seule de la base — en appelant le **vrai** service, pas une
+reconstitution — a montré que **le compte était juste** sur les 8 matières.
+
+Ce qui était cassé, c'était l'**affordance** : la pastille était non cliquable **par décision**
+(aucune route par matière n'existait alors pour `quiz`), mais rendue exactement comme les
+cliquables. **Une chose qui ressemble à un lien doit être un lien** — sinon elle se lit comme une
+panne, et le signalement est justifié même quand le code fait ce qui était prévu.
+
+Deux corollaires : une pastille inerte doit se **distinguer à l'œil** (pointillés, atténuation,
+`aria-label` qui le dit) ; et quand une route par matière manque, la question à se poser est
+« peut-on l'ajouter ? » avant « comment afficher qu'elle manque ? ». Ici `?subject=` existait déjà
+comme patron sur `/revision` et `/eli5` : il suffisait de l'appliquer à `/quiz`.
+
 ### Compter depuis la panoplie : deux pièges qui gonflent les nombres
 
 La charge utile `/subjects/{slug}/panoply` porte les ids de chaque activité disponible, ce qui

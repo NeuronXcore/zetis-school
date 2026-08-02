@@ -48,7 +48,13 @@ une** assertion, retournée avec son motif. Même méthode pour la table `kind �
   **orange électrique** `#ff7a1a` qui **rayonne** plutôt qu'il ne crie — la teinte n'a aucune
   marge (l'or est à 18°, le rouge est banni), donc l'axe est la **luminosité** ;
 - une **bande « ce que ZETIS a pour cette matière »** remplace la carte « N cartes à revoir », qui
-  n'annonçait qu'un type sur six. **Zéro requête ajoutée** : la panoplie porte déjà les ids.
+  n'annonçait qu'un type sur six. **Zéro requête ajoutée** : la panoplie porte déjà les ids ;
+- **`/quiz` accepte `?subject=`**, à la suite d'un signalement — « le KPI 1 quiz ne marche pas ».
+  L'audit de la base a montré que **le compte était juste** sur les 8 matières : ce qui était
+  cassé, c'était l'**affordance**. La pastille était non cliquable par décision (aucune route par
+  matière), mais rendue comme les cliquables. **Une chose qui ressemble à un lien doit être un
+  lien** — d'où le lien profond, et d'où le fait qu'une pastille inerte se distingue désormais à
+  l'œil (il ne reste que `capsule` dans ce cas).
 
 **Deux divergences ASSUMÉES avec l'addendum ADR-0027**, écrites dans la spec avec leur motif : le
 libellé « à Papa » devenu « à ZETIS », et la phrase « ZETIS transmet la demande. Il ne fabrique
@@ -59,11 +65,12 @@ de livraison.
 **⚠️ Trois pièges à ne pas re-découvrir**, tous dans `TROUBLESHOOTING.md` : `app.routes` n'est pas
 à plat (un test « cette route n'existe pas » y passe **à vide**, donc ne protège de rien) ;
 `normalizeSearch` change la **longueur** de la chaîne, donc surligner avec ses index décale le
-`<mark>` d'un cran par accent ; et la panoplie n'expose que la ressource **la plus récente par
+`<mark>` d'un cran par accent ; la panoplie n'expose que la ressource **la plus récente par
 leçon**, si bien qu'une matière peut afficher « 1 fiche » ici et « 3 fiches » sur `/fiches` — les
-deux nombres sont justes, ils ne répondent pas à la même question.
+deux nombres sont justes, ils ne répondent pas à la même question ; et un test qui lit
+`window.location` sous `MemoryRouter` est **vert à vide** (le routeur mémoire n'y touche pas).
 
-**690 tests backend · 442 Massimo · 270 Papa · 2 typecheck · build.** Zéro table, zéro migration.
+**690 tests backend · 447 Massimo · 270 Papa · 2 typecheck · build.** Zéro table, zéro migration.
 
 **Reste dû** : la page **n'a jamais été vue à l'écran par l'agent** (navigateur non connecté de
 son côté) ; les deux ADR addenda manquent encore au dépôt, avec les deux divergences à y porter.
