@@ -172,7 +172,7 @@ def _lesson_rows(db: Session, subject_id: int, year_id: int) -> list[tuple]:
     )
 
 
-def _notion_details(db: Session, lesson_ids: list[int]) -> dict[int, dict]:
+def notions_by_lesson(db: Session, lesson_ids: list[int]) -> dict[int, dict]:
     """Colonnes NOTION-centrées : le détail par notion, et les fractions qui s'en déduisent.
 
     Ces deux objets ne dérivent pas d'une leçon mais d'une notion (§E.5) : d'où une fraction et
@@ -357,7 +357,7 @@ def coverage(db: Session, subject_id: int | None = None) -> dict:
     out_subjects = []
     for subject in subjects:
         rows = _lesson_rows(db, subject.id, year.id)
-        fractions = _notion_details(db, [row[3] for row in rows])
+        fractions = notions_by_lesson(db, [row[3] for row in rows])
         chapters: dict[int, dict] = {}
         for row in rows:
             chapter_id, chapter_name = row[0], row[1]
