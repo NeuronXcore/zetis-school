@@ -76,7 +76,14 @@
     revoir » — laquelle n'annonçait qu'un type sur six — **sans une requête de plus** (la panoplie
     porte déjà les identifiants), `eli5` **absent** (il ne stocke rien : capacité, pas produit) et
     `capsule`/`quiz` **non cliquables** (aucune route par matière n'existe ; les envoyer vers la
-    liste globale serait la trahison que le rétrolien corrige ailleurs). **Quatre constats du
+    liste globale serait la trahison que le rétrolien corrige ailleurs) — **décision RÉVISÉE le
+    soir même** sur signalement (« le KPI 1 quiz ne marche pas ») : l'audit a montré que **le
+    compte était juste** sur les 8 matières et que c'était l'**affordance** qui mentait, la
+    pastille inerte étant rendue **comme une cliquable** ; d'où **`?subject=` ajouté à `/quiz`**
+    (la bonne question devant une route manquante est « peut-on l'ajouter ? » avant « comment
+    afficher qu'elle manque ? ») et la règle générale **une pastille non ouvrable doit se
+    DISTINGUER à l'œil** — *une chose qui ressemble à un lien doit être un lien* — ne laissant
+    que `capsule` dans ce cas. **Quatre constats du
     read-before-code ont invalidé le cadrage** : le prompt **se contredisait** (tests de
     `notion_panel` « sans modification » ET bascule ELI5 — tranché en deux temps, 668 verts zéro
     modifié, puis **exactement une** assertion retournée) ; `NotionActionPanel` **ne tire PAS

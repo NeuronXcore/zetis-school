@@ -160,6 +160,22 @@ Le user a lancé l'app et fait évoluer la page. Chaque tour a sa raison :
    n'existe pour eux. Les envoyer vers la liste globale depuis une page de matière serait la
    trahison même que le rétrolien corrige ailleurs.
 
+7. **RÉVISION de la décision 6, le soir même.** Le user a signalé « le KPI 1 quiz dans
+   mathématiques ne marche pas ». L'audit de la base a montré que **le compte était juste** sur
+   les 8 matières — ce qui était cassé, c'était l'**affordance** : la pastille était inerte par
+   décision, mais **rendue exactement comme les cliquables**. Le signalement était fondé même si
+   le code faisait ce qui était prévu.
+
+   Deux corrections, parce que le défaut était double :
+
+   - **`/quiz` accepte désormais `?subject=`** (patron déjà établi par `/revision` et `/eli5`), et
+     porte le rétrolien. La bonne question devant une route manquante est **« peut-on
+     l'ajouter ? »** avant « comment afficher qu'elle manque ? ».
+   - **Une pastille non ouvrable doit se DISTINGUER À L'ŒIL** — bordure pointillée, atténuation,
+     `aria-label` explicite. **Une chose qui ressemble à un lien doit être un lien.** Ne reste
+     dans ce cas que `capsule` (`/capsules` est global, il n'existe ni `/capsules/:slug` ni
+     `/capsules/:id`).
+
 > ⚠️ **Piège de comptage, à ne pas « corriger ».** Les résolveurs serveur prennent `MAX(id)`
 > groupé **par leçon** : la panoplie n'expose que la ressource la **plus récente** de chaque
 > leçon, et plusieurs notions d'une même leçon portent le **même** `fiche_id`. Une leçon avec 3
