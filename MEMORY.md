@@ -7,6 +7,83 @@
 
 ## État à la reprise
 
+**Chantier : autonomisation progressive de ZETIS — phase de DÉCISION terminée, implémentation à
+lancer.**
+
+`main` = **`466b4f2`**, poussé, arbre propre, **aucune branche active**. Trois lots mergés et deux
+ADR posés ; rien n'est en attente côté Git.
+
+```
+466b4f2  ADR-0031 remplace l'ADR-0023 — produire un chapitre, pour de vrai
+5441af7  Addendum ADR-0011 §G — parent_rule et le veto paresseux
+12e4a2f  Lot de corrections (PR #67, squash)
+e1d1b06  Retour de demande dans le chat (PR #66, squash)
+```
+
+**704 backend · 453 Massimo · 274 Papa · tsc — verts.**
+
+### Le prochain pas : implémenter l'ADR-0031
+
+Et **rien d'autre**. L'ADR-0031 interdit explicitement d'écrire l'ADR-0032 (déclencheurs,
+régulateur autonome, panneau des paliers) avant d'avoir la réponse à son observation.
+
+> **« 15 objets d'un coup sont-ils relisables ? »** — L'ADR-0023 avait déjà tranché ce qu'on en
+> ferait : si c'est non, le chantier suivant n'est **ni le cron ni les déclencheurs**, c'est la
+> **file de relecture**. L'observation est un livrable au même titre que le code.
+
+Découpage plausible (à confirmer à l'ouverture) : (A) extraction de l'orchestrateur + `plan(scope)`
+— refactor à comportement constant ; (B) exécution asynchrone (endpoint 202, file RQ `production`,
+worker) + migration `production_runs` ; (C) surface Couverture (le bouton s'active) + l'observation.
+
+### ⚠️ Ce que la vérification a trouvé, et qui commande tout
+
+**L'ADR-0023 a été accepté le 2026-07-28 et JAMAIS implémenté.** Vérifié pièce par pièce :
+`equip_notion` est toujours dans `reports/` (son §1 exigeait l'extraction), `plan(scope)` n'existe
+pas, il n'y a ni endpoint 202 ni worker, le bouton « ⚡ Compléter le chapitre » est encore
+désactivé, `batch_id` et `PRODUCTION_MAX_PENDING` ne sont jamais sortis de la prose. Il est passé
+**Remplacé** par l'ADR-0031 — le **plan d'exécution** est remplacé, pas la doctrine.
+
+**Et le prérequis manquant de tout le chantier, listé nulle part : il n'existe AUCUNE file
+d'exécution IA.** `apps/worker-ai/` est un README de deux lignes ; la seule `Queue` RQ
+(`core/queue.py`) sert **worker-media** ; toute la génération est **synchrone**, sur un seul Ollama
+et un seul GPU. « Départ au plus tard », « Massimo passe devant », lot interruptible — les trois
+supposaient une exécution différable et préemptible qui n'existe pas.
+
+Deux conséquences écrites dans l'ADR-0031 plutôt que laissées supposer : **« Massimo passe devant »
+se décide ENTRE deux pièces, jamais pendant** (un appel LLM n'est pas préemptible ; prétendre
+l'interrompre serait un mensonge d'architecture), et **la concurrence 1 n'est pas provisoire** (un
+seul GPU : deux jobs ne produiraient pas plus vite, ils ralentiraient Massimo).
+
+### Les décisions posées, à relire et non à rouvrir
+
+**Addendum ADR-0011 §G** (`adr-0011-addendum-autorite-paliers.md`) :
+
+- **`parent_rule` = une VALEUR de plus sur `validated_by`, pas une colonne.** `parent` (pièce) →
+  `parent_bulk` (lot) → `parent_rule` (règle). Une colonne `authority` donnerait deux réponses à
+  une seule question. **Légale et NON ÉMISE** en l'état.
+- ⚠️ **Le §F.4 avait DÉJÀ acté que `parent_bulk` couvre l'auto-validation de l'équipement.** Ce qui
+  est nouveau au palier 3 n'est donc **pas** « du contenu non relu atteint Massimo » — c'est déjà
+  vrai — mais la disparition du **geste par lot**, aujourd'hui seul régulateur de volume existant.
+  **Ça déplace le poids du chantier vers le régulateur**, pas vers la matrice.
+- **Matrice classe × palier** : A0a dérivés inertes → 3 ; **A0b cartes SRS séparées** (leur erreur
+  ne dort pas, elle se compose) → 3 ; A1 cours → **2 FIGÉ** ; A2 référentiel → 1 ; A3 création de
+  mission → 2 (**élire ≠ créer**) ; A4 terminal → **jamais**.
+- **Veto passif et paresseux** : la **consommation**, pas l'horloge, ferme la fenêtre. Traçable
+  pour les **quatre** familles — le « trou » fiches/mindmaps n'existait pas.
+- ⚠️ **Deux coûts nommés** : le veto est un **droit sans notification** (point ouvert de
+  l'ADR-0032) ; et le nuancier Papa (`CoverageCellView`) rend déjà `null` **comme** `parent_bulk`,
+  à corriger avant d'ajouter une 4ᵉ teinte.
+
+**ADR-0031** (`adr-0031-production-en-lot-et-journal.md`) : extraction, `plan(scope)` pure et
+partagée avec la matrice, endpoint 202 + file RQ + worker, `production_runs` (`trigger` sur le
+**lot** jamais sur la pièce, **FK typées jamais polymorphes**, aucune rétro-attribution),
+`PRODUCTION_MAX_PENDING` enfin écrit (**régulateur du palier 2 seulement**), bouton Couverture
+activé. **Seuls `trigger='manual'` + `authorized_by='parent_direct'` sont émis.**
+
+---
+
+## Historique — le retour de demande se ferme dans le chat (addendum ADR-0026)
+
 **Chantier : le retour de demande se ferme dans le chat (addendum ADR-0026).**
 
 **✅ MERGÉ dans `main`** — squash **`e1d1b06`**, PR
@@ -84,9 +161,14 @@ la session.
   avatar endormi, tap → route ancrée, trace sur la **bonne** notion, extinction au rechargement,
   et la contre-épreuve du gate (demande `done` sans contenu → ni annonce ni tampon).
 
-### Prochain pas — le chantier d'autonomisation
+### Les constats de vérification du cadrage — TOUS ACTÉS DEPUIS
 
-Ce lot est le **document 3** d'un cadrage plus large (« Autonomisation progressive de ZETIS »,
+> ⚠️ Ce n'est plus une consigne : les quatre points ci-dessous ont été traités (renumérotation
+> faite, ADR-0023 passé **Remplacé**, absence de file d'exécution érigée en décision par
+> l'ADR-0031, lot de corrections mergé PR #67). Conservés pour leurs **motifs** — voir l'état à la
+> reprise en tête de fichier pour ce qui est vivant.
+
+Ce lot était le **document 3** d'un cadrage plus large (« Autonomisation progressive de ZETIS »,
 paliers 1→2→3), livré en premier parce qu'il ne dépendait de rien et réparait une dette d'honnêteté
 active. Le cadrage a été **vérifié dans le code** avant rédaction ; ce qu'il faut en retenir :
 
