@@ -262,3 +262,18 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* Annonce d'ouverture (addendum ADR-0026) : c'est une PHRASE de ZETIS, pas un libellé de section.
+   `.chat-offer-head` est calibré pour « On continue comment ? » — capitales + interlettrage sur
+   une phrase entière la rend illisible, et la fait crier. Ici : casse normale, taille de lecture,
+   la même voix que le reste de ce que ZETIS dit. */
+.chat-announce {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--zetis-text, #e8ebff);
+  margin-bottom: 12px;
+  text-wrap: pretty;
+}

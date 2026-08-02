@@ -11,17 +11,26 @@ from pydantic import BaseModel, Field
 
 class ChatSessionOut(BaseModel):
     """Ouverture de session. `transparency` = la phrase FIXE de l'asymétrie (§5), affichée par
-    l'UI (slice B) : Massimo sait ce qui est retenu."""
+    l'UI (slice B) : Massimo sait ce qui est retenu. `announcement` = la réponse aux demandes qu'il
+    avait formulées, quand il y en a une (addendum ADR-0026)."""
 
     session_id: str
     transparency: str
+    announcement: "ChatAnnouncement | None" = None
 
 
 class ChatToolResponse(BaseModel):
-    """Réponse de Massimo à une proposition d'outil — un ACTE, tracé tel quel (§2)."""
+    """Réponse de Massimo à une proposition d'outil — un ACTE, tracé tel quel (§2).
+
+    `skill_id` : la notion que portait la carte tapée, **renvoyée telle que le serveur l'avait
+    émise** (`ChatAction.skill_id`). Elle n'est PAS crue sur parole — le serveur la revalide
+    (`is_notion_visible`) avant de l'écrire au journal, et elle ne remplace jamais une notion
+    résolue dans le même tour : elle ne se substitue qu'au repli sur le dernier `chat_topic`.
+    """
 
     tool_type: str
     accepted: bool
+    skill_id: int | None = None
 
 
 class ChatMessageIn(BaseModel):
@@ -61,6 +70,11 @@ class ChatAction(BaseModel):
     kind: Literal["navigate", "show_data", "notion_menu", "request_notion"]
     label: str
     route: str | None = None
+    # Notion que porte l'action, quand elle en porte une. Sert UNIQUEMENT à ancrer la trace
+    # `chat_tool_response` du tap : sans elle, un tap qui est le PREMIER acte d'une session (le cas
+    # d'une annonce d'ouverture) retombait sur le dernier `chat_topic` de l'élève — parfois vieux
+    # de plusieurs jours, donc attribué à la mauvaise notion.
+    skill_id: int | None = None
     data: str | None = None
     name: str | None = None  # notion_menu : nom de la notion
     items: list[ChatMenuItem] | None = None  # notion_menu : contenus disponibles
@@ -83,3 +97,24 @@ class ChatMessageOut(BaseModel):
     tool_suggestion: str | None = None
     difficulty_declared: bool = False
     action: ChatAction | None = None
+
+
+class ChatAnnouncement(BaseModel):
+    """Réponse aux demandes de Massimo, portée par le contexte d'ouverture (addendum ADR-0026).
+
+    `text` est composé SERVEUR, en Python, déterministe — jamais par le LLM (§4 : deux voix de
+    ZETIS sur le même état, dont une hallucinée, détruiraient la confiance). Il ne nomme aucun
+    auteur : le contenu scolaire atteint Massimo dans la voix de ZETIS.
+
+    `actions` : uniquement des `navigate` ancrées par `_notion_route`, `confirm=True` (une offre,
+    jamais un ordre). Peut être VIDE — une notion tout juste ajoutée au programme s'annonce même
+    quand son contenu n'existe pas encore.
+    """
+
+    text: str
+    actions: list[ChatAction] = []
+
+
+# `ChatSessionOut` référence `ChatAnnouncement` avant sa définition (l'ouverture de session est le
+# premier schéma du fichier, la carte d'action le dernier) : la référence différée se résout ici.
+ChatSessionOut.model_rebuild()

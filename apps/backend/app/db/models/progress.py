@@ -110,6 +110,11 @@ class NotionRequest(Base, TimestampMixin):
     text: Mapped[str] = mapped_column(String(160))
     subject_id: Mapped[int | None] = mapped_column(ForeignKey("subjects.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(15), default="pending")  # pending|added|dismissed
+    # Retour vers Massimo (addendum ADR-0026) : horodatage de l'annonce dans le chat. `NULL` = pas
+    # encore annoncé. Sans `skill_id`, `added` est INVÉRIFIABLE : l'annonce rejoue `resolve_skill`
+    # sur `text` et ne tamponne QUE si la notion résout et est visible — le résolveur avait échoué
+    # à la création (c'est pourquoi cette ligne existe), qu'il réussisse EST la preuve de l'ajout.
+    announced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ContentRequest(Base, TimestampMixin):
@@ -140,6 +145,10 @@ class ContentRequest(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(15), default="pending")  # pending|done|dismissed
     # Origine de la demande (traçabilité) ; en v1 seul le chat émet.
     source: Mapped[str] = mapped_column(String(30), default="chat_orchestrator")
+    # Retour vers Massimo (addendum ADR-0026) : horodatage de l'annonce dans le chat. `NULL` = pas
+    # encore annoncé. ⚠️ Le tampon suit la DISPONIBILITÉ réelle (`resolve_panoply`), jamais le
+    # statut : « done » est un geste de Papa, il ne prouve pas que le contenu existe.
+    announced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Mission(Base, TimestampMixin):

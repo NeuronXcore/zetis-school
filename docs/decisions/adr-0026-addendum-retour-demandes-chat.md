@@ -169,6 +169,54 @@ pull reste strict : hors de cette session, l'annonce n'existe nulle part.
 **Zéro `event_type` neuf.** Le tap d'une carte réutilise `chat_tool_response`, déjà câblé côté
 front (`surfaceOf`). Zéro XP : recevoir une réponse n'est pas une performance.
 
+### 8. L'annonce s'AFFICHE, elle ne se parle pas *(écart trouvé au test live, 2026-08-02)*
+
+La première rédaction de cet addendum prévoyait de jouer l'annonce par le karaoké et la voix
+existants. **C'est faux, pour deux raisons indépendantes** — et la seconde a cassé en vrai :
+
+1. **Doctrine.** `page-chat.md §États 1` : *« L'arrivée sur la page ne le réveille PAS ; c'est le
+   premier geste de Massimo qui ouvre les yeux. »* Faire parler ZETIS au chargement est un message
+   poussé — exactement ce que le §1 de cet addendum interdit.
+2. **Technique.** `voice.playSpeech` fait `await ctx.resume()`. Sans geste utilisateur préalable,
+   le navigateur laisse cette promesse **en attente indéfiniment** : `speakReply` se bloque avant
+   `setWords`, et **rien ne s'affiche**. Observé en session réelle : l'annonce avait été composée
+   et tamponnée côté serveur, l'écran était vide.
+
+> L'annonce est un **bloc affiché** : le texte, puis les cartes s'il y en a. Aucune synthèse,
+> aucun karaoké, aucun réveil d'avatar. Elle reste visible jusqu'au premier message de Massimo.
+
+Cas qui rendait le défaut total : une notion tout juste ajoutée au programme s'annonce avec
+`actions: []` (§3). Sans texte affiché, il n'y avait **rien** à voir — ni carte, ni parole.
+
+**Pourquoi les tests ne l'ont pas vu** : jsdom n'a pas d'`AudioContext`, donc
+`isVoicePlaybackSupported()` est faux et le repli muet s'exécutait proprement. Le verrou ajouté
+porte donc sur l'**état de l'avatar au montage** (`idle`, jamais `speaking`), observable dans les
+deux environnements — pas sur l'appel de synthèse, qui ne se déclenchait pas en test.
+
+### 9. L'action porte sa notion — le tap ne s'ancre plus sur un vieux sujet
+
+`chat_tool_response` s'ancrait par `resolved_skill_id or _recent_topic_skill_id(...)`, ce dernier
+étant la notion du **dernier `chat_topic` de l'élève**. Tant qu'un tap suivait forcément un tour de
+conversation dans la même session, ce repli tombait juste.
+
+**L'annonce ouvre un chemin neuf : le tap peut être le tout premier acte d'une session.** Le repli
+va alors chercher une conversation d'il y a plusieurs jours. Observé en session réelle le
+2026-08-02 : une fiche ouverte sur la notion 126 (« Addition de fractions ») était tracée
+`skill_id=102` (« Théorème de Pythagore »).
+
+> `ChatAction` porte un `skill_id`. Le client le **réémet tel quel** dans `tool_response` ; le
+> serveur le **revalide** (`is_notion_visible`) avant de l'écrire. Il s'insère **avant** le repli
+> et **après** une résolution du tour : si Massimo parle d'autre chose dans le même message, c'est
+> ce qu'il dit qui fait foi, pas la carte.
+
+Deux garde-fous, tous deux testés :
+
+- **Un id invisible ou inventé est rejeté** et le repli reprend la main. Sans ce contrôle, un
+  payload pourrait attribuer l'activité de Massimo à n'importe quelle notion — même famille de
+  risque que l'oracle d'existence écarté par l'addendum ADR-0027.
+- **`skill_id` est omis, jamais `null`**, quand l'action n'en porte pas : le payload des actions
+  existantes reste identique **au bit près**, donc leurs tests n'ont pas eu à être retouchés.
+
 ## Périmètre
 
 **Dans le lot** : deux colonnes `announced_at` (`content_requests`, `notion_requests`) + une

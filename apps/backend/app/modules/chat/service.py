@@ -8,6 +8,7 @@ de MÉTADONNÉES (jamais un texte de message). Aucun XP n'est crédité (§2).
 """
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -28,6 +29,7 @@ from app.modules.ai.canonical_context import build_canonical_sections, resolve_c
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.ai.skill_resolution import resolve_skill
 from app.modules.chat.actions import resolve_action
+from app.modules.chat.announce import compose_announcement
 from app.modules.content_requests import service as content_requests_service
 from app.modules.chat.schemas import ChatAction, ChatMessageIn, ChatMessageOut, ChatSessionOut
 from app.modules.tts.provider import TtsProvider, TtsRequest
@@ -40,6 +42,8 @@ from app.prompts.chat import (
     CHAT_TURN_PROMPT,
     chat_turn_schema,
 )
+
+logger = logging.getLogger(__name__)
 
 # La phrase FIXE de l'asymétrie (§5) : Massimo sait ce qui est retenu. Invariant d'interface,
 # pas une ligne de CGU — l'UI (slice B) l'affiche telle quelle.
@@ -103,11 +107,26 @@ def _append_note(reply: str, note: str) -> str:
     return f"{reply}{sep}{note}"
 
 
-def open_session(db: Session, store: ChatStore) -> ChatSessionOut:
-    """Ouvre une session (TTL posé à la création) et rend la phrase de transparence."""
+def open_session(
+    db: Session, store: ChatStore, embedder: EmbeddingProvider | None = None
+) -> ChatSessionOut:
+    """Ouvre une session (TTL posé à la création), rend la transparence et, s'il y en a une, la
+    réponse aux demandes que Massimo avait formulées (addendum ADR-0026).
+
+    L'annonce est **best-effort** : elle ne doit jamais empêcher d'ouvrir une conversation. Un
+    embedder absent ou en panne prive du retour, il ne prive pas du chat — même doctrine que
+    l'émission des `content_requests`, qui n'échoue jamais un tour."""
     student = _current_student(db)
     session_id = store.create_session(student.id)
-    return ChatSessionOut(session_id=session_id, transparency=TRANSPARENCY)
+    announcement = None
+    if embedder is not None:
+        try:
+            announcement = compose_announcement(db, embedder, student_id=student.id)
+        except Exception:  # noqa: BLE001 — un retour manqué ne vaut pas une session refusée
+            logger.exception("chat: composition de l'annonce d'ouverture échouée")
+    return ChatSessionOut(
+        session_id=session_id, transparency=TRANSPARENCY, announcement=announcement
+    )
 
 
 def close_session(db: Session, store: ChatStore, session_id: str) -> None:
@@ -249,6 +268,21 @@ def _recent_topic_skill_id(db: Session, *, student_id: int) -> int | None:
     if last is None:
         return None
     return (last.payload_json or {}).get("skill_id")
+
+
+def _anchored_client_skill_id(db: Session, skill_id: int | None) -> int | None:
+    """Notion renvoyée par le client avec un tap, REVALIDÉE — jamais crue sur parole.
+
+    Le client ne fait que réémettre ce que le serveur lui avait donné (`ChatAction.skill_id`), mais
+    un payload reste un payload : on repasse par `is_notion_visible`, le contrôle qui empêche déjà
+    la route de demande de devenir un oracle d'existence sur les brouillons de Papa. Un id inconnu,
+    invisible ou fantaisiste est simplement ignoré — le repli existant reprend la main.
+    """
+    if skill_id is None:
+        return None
+    from app.modules.galaxy.service import is_notion_visible
+
+    return skill_id if is_notion_visible(db, skill_id) else None
 
 
 def _run_turn_llm(
@@ -457,7 +491,14 @@ def handle_message(
     # --- Réponse de Massimo à une proposition d'outil : un ACTE, tracé (aucune dédupe) ---
     if body.tool_response is not None:
         tr = body.tool_response
-        tr_skill_id = resolved_skill_id or _recent_topic_skill_id(db, student_id=student.id)
+        # Ordre d'ancrage, du plus précis au plus vague. La notion de la carte s'insère AVANT le
+        # repli sur le dernier `chat_topic` et APRÈS une résolution du tour : si Massimo parle
+        # d'autre chose dans le même message, c'est ce qu'il dit qui fait foi, pas la carte.
+        tr_skill_id = (
+            resolved_skill_id
+            or _anchored_client_skill_id(db, tr.skill_id)
+            or _recent_topic_skill_id(db, student_id=student.id)
+        )
         log_learning_event(
             db,
             student_id=student.id,
