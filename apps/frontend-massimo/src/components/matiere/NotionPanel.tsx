@@ -82,10 +82,13 @@ export function NotionPanel({
                       : `Demander ${ui.label} à ZETIS`
                   }
                   className={
-                    "min-h-11 shrink-0 rounded-xl border px-2 text-[11px] font-semibold transition-colors motion-reduce:transition-none " +
+                    // Le halo, et non la teinte, est ce qui rend la demande « électrique » —
+                    // même grammaire que les étoiles de la galaxie. Une fois demandé, le
+                    // bouton s'apaise (plus de lueur) : le geste est fait, il n'appelle plus.
+                    "min-h-11 shrink-0 rounded-xl border px-2 text-[11px] font-semibold transition motion-reduce:transition-none " +
                     (asked
-                      ? "cursor-default border-zetis-request/60 bg-zetis-request/15 text-zetis-request"
-                      : "cursor-pointer border-zetis-request/40 text-zetis-request hover:border-zetis-request hover:bg-zetis-request/15")
+                      ? "cursor-default border-zetis-request/50 bg-zetis-request/10 text-zetis-request-lit"
+                      : "cursor-pointer border-zetis-request bg-zetis-request/10 text-zetis-request-lit shadow-request hover:bg-zetis-request/20")
                   }
                 >
                   {asked ? "demandé" : "demander"}
@@ -101,7 +104,7 @@ export function NotionPanel({
           <button
             type="button"
             onClick={() => onRequest(missingKinds)}
-            className="min-h-11 w-full rounded-xl border border-zetis-request/50 bg-zetis-request/10 px-3 py-2 text-sm font-bold text-zetis-request transition-colors hover:border-zetis-request hover:bg-zetis-request/20 motion-reduce:transition-none"
+            className="min-h-11 w-full rounded-xl border border-zetis-request bg-zetis-request/10 px-3 py-2 text-sm font-bold text-zetis-request-lit shadow-request transition hover:bg-zetis-request/20 motion-reduce:transition-none"
           >
             Demander à ZETIS tout ce qui manque ({missingKinds.length})
           </button>

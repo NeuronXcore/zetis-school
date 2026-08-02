@@ -148,10 +148,19 @@ ZETIS tout ce qui manque (n) »** — un seul appel, `n` jamais nul (le bouton d
 - Sous le bouton, une phrase fixe : « ZETIS transmet la demande. Il ne fabrique rien tout seul. »
   ⚠️ **Elle n'est pas décorative, et elle l'est encore moins depuis le changement de libellé** :
   « demander à ZETIS » pourrait se lire « ZETIS va le faire ». C'est cette phrase qui l'empêche.
-- **Couleur : orange électrique** (`--color-zetis-request`, `#ff7a1a`). Une teinte à part, qui ne
-  se confond ni avec l'indigo/cyan des actions faisables ni avec l'or `#ffcf47` de « ZETIS parle ».
-  Ce n'est **pas** une couleur d'alerte : demander est la seule chose que Massimo puisse faire
-  face à un contenu absent, donc c'est un geste positif. (Aucun rouge, ADR-0024 §5.)
+- **Couleur : orange électrique** (`--color-zetis-request`, `#ff7a1a`) — **avec son halo**
+  (`--shadow-request`). Ce n'est **pas** une couleur d'alerte : demander est la seule chose que
+  Massimo puisse faire face à un contenu absent, donc c'est un geste positif. (Aucun rouge,
+  ADR-0024 §5.)
+
+  ⚠️ **« Électrique » se dit par la LUEUR, pas par la teinte** — et c'est une contrainte, pas
+  une préférence : l'or `#ffcf47` de « ZETIS parle » n'est qu'à **18° de teinte** et le rouge est
+  banni, donc la teinte n'a aucune marge. L'axe libre est la luminosité, et c'est déjà la
+  grammaire de l'app (`NeonBackdrop`, `starStyle.glow`, `NEON_TEXT`). Un futur ajustement doit
+  rendre cet orange plus **lumineux**, jamais plus **vif**.
+
+  Le bouton **rayonne tant que le geste reste à faire**, et **s'apaise une fois demandé** : une
+  lueur sur une demande déjà transmise inviterait à la refaire. Deux tests le tiennent.
 - **Aucun statut, aucun délai, aucun rappel.** Massimo ne lit pas la file de Papa.
 - **Aucun XP, aucun événement.** Demander n'est pas apprendre ; la ligne de file est la trace.
 

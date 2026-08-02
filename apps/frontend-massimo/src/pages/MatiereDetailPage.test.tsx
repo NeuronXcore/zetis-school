@@ -378,19 +378,40 @@ describe("MatiereDetailPage — demander à ZETIS", () => {
     expect(screen.getByText(/ne fabrique rien tout seul/)).toBeInTheDocument();
   });
 
-  it("la demande porte l'orange électrique, et lui seul", async () => {
+  it("la demande porte l'orange électrique — teinte ET halo", async () => {
     // L'orange `zetis-request` distingue le geste de demande des actions faisables (indigo /
     // cyan). Ce n'est pas une couleur d'alerte : demander est la seule chose que Massimo
     // puisse faire face à un contenu absent, donc c'est positif.
+    //
+    // ⚠️ Le HALO fait partie de la décision, pas de la décoration. La teinte n'a presque
+    // aucune marge (l'or est à 18°, le rouge est banni) : « électrique » se dit donc par la
+    // LUEUR, comme partout ailleurs dans l'app. Sans `shadow-request`, l'orange redevient un
+    // aplat saturé qui lit « attention » au lieu de « demande ».
     renderPage();
     await ouvrirNotion(/Nutrition végétale/, /Racines/);
 
-    expect(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ }).className)
-      .toContain("zetis-request");
-    expect(screen.getByRole("button", { name: /tout ce qui manque/ }).className)
-      .toContain("zetis-request");
+    const demander = screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ });
+    expect(demander.className).toContain("zetis-request");
+    expect(demander.className).toContain("shadow-request");
+
+    const tout = screen.getByRole("button", { name: /tout ce qui manque/ });
+    expect(tout.className).toContain("zetis-request");
+    expect(tout.className).toContain("shadow-request");
+
     // Une activité DISPONIBLE ne porte jamais l'orange : elle n'est pas à demander.
     expect(activite("Voir le cours").className).not.toContain("zetis-request");
+  });
+
+  it("une fois demandé, le bouton s'APAISE — il n'appelle plus", async () => {
+    // Le halo attire vers un geste à faire. Le geste fait, il n'a plus lieu d'être : garder la
+    // lueur ferait clignoter une demande déjà transmise, donc réclamer deux fois.
+    renderPage();
+    await ouvrirNotion(/Nutrition végétale/, /Racines/);
+    fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ }));
+
+    const demande = await screen.findByRole("button", { name: /déjà demandé à ZETIS/ });
+    expect(demande.className).toContain("zetis-request");
+    expect(demande.className).not.toContain("shadow-request");
   });
 
   it("un échec réseau revient en arrière EN SILENCE, sans écran d'erreur", async () => {
