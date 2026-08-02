@@ -137,6 +137,10 @@ export interface ProductionRun {
   trigger: string;
   authorized_by: string;
   chapter_id: number | null;
+  total_notions: number | null;
+  done_notions: number | null;
+  /** Avancement RÉEL (0-100), calculé serveur — jamais une estimation de durée côté client. */
+  progress_pct: number;
   created_at: string;
   finished_at: string | null;
 }

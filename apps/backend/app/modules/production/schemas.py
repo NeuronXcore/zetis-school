@@ -120,6 +120,10 @@ class ProductionRunOut(BaseModel):
     trigger: str
     authorized_by: str
     chapter_id: int | None
+    total_notions: int | None
+    done_notions: int | None
+    #: Avancement réel (0-100), calculé serveur — jamais une estimation de durée côté client.
+    progress_pct: int
     created_at: datetime
     finished_at: datetime | None
 

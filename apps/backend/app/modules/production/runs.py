@@ -85,6 +85,16 @@ def run_out(db: Session, run: ProductionRun) -> dict:
         "trigger": run.trigger,
         "authorized_by": run.authorized_by,
         "chapter_id": run.chapter_id,
+        "total_notions": run.total_notions,
+        "done_notions": run.done_notions,
+        # Pourcentage RÉEL, calculé serveur. L'estimation client (`KIT_MS_PER_NOTION`) mentait
+        # d'un facteur 2 — mesuré le 2026-08-02 : 69 s par notion contre 150 s estimées. Une barre
+        # qui progresse au vrai rythme vaut mieux qu'une barre qui devine.
+        "progress_pct": (
+            round(100 * (run.done_notions or 0) / run.total_notions)
+            if run.total_notions
+            else (100 if run.status == "done" else 0)
+        ),
         "created_at": run.created_at,
         "finished_at": run.finished_at,
     }
@@ -134,3 +144,19 @@ def preview(db: Session, *, chapter_id: int) -> dict:
         "pending_backlog": backlog,
         "max_pending": settings.production_max_pending,
     }
+
+
+def active_run(db: Session) -> ProductionRun | None:
+    """Le lot en cours, s'il y en a un. `None` sinon.
+
+    ⚠️ Rend un **processus**, jamais un **stock**. L'indicateur qui le consomme ne doit à aucun
+    moment devenir un compteur d'arriéré : « 12 contenus non contrôlés » affiché en permanence est
+    exactement ce que l'addendum ADR-0011 §F.2 interdit — la provenance est un fait, jamais un
+    reproche, et elle ne se totalise pas. Ici on dit « ça travaille », pas « vous êtes en retard ».
+    """
+    return db.scalar(
+        select(ProductionRun)
+        .where(ProductionRun.status.in_(("queued", "running")))
+        .order_by(ProductionRun.id.desc())
+        .limit(1)
+    )

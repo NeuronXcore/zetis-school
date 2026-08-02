@@ -99,6 +99,7 @@ export function CoverageMatrix({
   onValidateChapter,
   validatingChapterId,
   onCompleteChapter,
+  highlightChapterId,
 }: {
   subject: CoverageSubject;
   /** Comptes calculés sur la matière ENTIÈRE — surtout pas sur `subject`, qui arrive filtré. */
@@ -114,6 +115,8 @@ export function CoverageMatrix({
   onValidateChapter: (chapterId: number, count: number) => void;
   validatingChapterId: number | null;
   onCompleteChapter: (chapterId: number) => void;
+  /** Chapitre à mettre en évidence, arrivé par la pastille d'en-tête. */
+  highlightChapterId: number | null;
 }) {
   const total = lessonCount(subject);
   const regionId = `couverture-matiere-${subject.id}`;
@@ -223,6 +226,7 @@ export function CoverageMatrix({
                   onValidateChapter={onValidateChapter}
                   validatingChapterId={validatingChapterId}
                   onCompleteChapter={onCompleteChapter}
+                  highlightChapterId={highlightChapterId}
                 />
               ))}
             </tbody>
@@ -248,6 +252,7 @@ function ChapterGroup({
   onValidateChapter,
   validatingChapterId,
   onCompleteChapter,
+  highlightChapterId,
 }: {
   subjectId: number;
   chapterId: number;
@@ -262,6 +267,8 @@ function ChapterGroup({
   onValidateChapter: (chapterId: number, count: number) => void;
   validatingChapterId: number | null;
   onCompleteChapter: (chapterId: number) => void;
+  /** Chapitre à mettre en évidence, arrivé par la pastille d'en-tête. */
+  highlightChapterId: number | null;
 }) {
   const ready = lessons.filter((lesson) => lesson.row_state === "ready").length;
   const blocked = lessons.filter((lesson) => lesson.row_state.startsWith("blocked")).length;
@@ -277,7 +284,16 @@ function ChapterGroup({
   return (
     <>
       <tr>
-        <td colSpan={7} className="bg-papa-surface-2/60 px-4 py-2">
+        <td
+          colSpan={7}
+          // Mise en évidence du chapitre en cours de production : sans elle, la pastille
+          // d'en-tête ouvrait la Couverture entière et laissait Papa chercher lequel travaille.
+          className={
+            highlightChapterId === chapterId
+              ? "bg-papa-accent/15 px-4 py-2 ring-1 ring-inset ring-papa-accent/50"
+              : "bg-papa-surface-2/60 px-4 py-2"
+          }
+        >
           <div className="flex items-center gap-3">
             <span className="text-[12.5px] font-bold">{title}</span>
             <span className="text-[11.5px] text-papa-muted">

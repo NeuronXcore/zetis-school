@@ -12,9 +12,12 @@ import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
 // et lirait un échec là où le gate fonctionne.
 
 export function ChapterProductionModal({ prod }: { prod: UseChapterProduction }) {
-  // Estimation : un kit complet par notion équipable (opération LLM longue, local).
   const eligible = prod.preview?.eligible ?? [];
-  const pct = useEstimatedProgress(prod.busy, Math.max(1, eligible.length) * KIT_MS_PER_NOTION);
+  // Estimation de repli, utilisée UNIQUEMENT tant qu'aucun run n'existe. Dès qu'il y en a un,
+  // c'est `progress_pct` du serveur qui fait foi : il compte des notions équipées, pas des
+  // secondes écoulées. L'estimation d'origine mentait d'un facteur 2 (mesuré le 2026-08-02).
+  const estimated = useEstimatedProgress(prod.busy, Math.max(1, eligible.length) * KIT_MS_PER_NOTION);
+  const pct = prod.run ? prod.run.progress_pct : estimated;
   if (prod.chapterId === null) return null;
 
   const blocked = prod.preview?.blocked ?? [];
@@ -79,7 +82,14 @@ export function ChapterProductionModal({ prod }: { prod: UseChapterProduction })
 
         {prod.busy && (
           <div className="mt-4">
-            <ProgressBar pct={pct} label={`Équipement de ${eligible.length} notions…`} />
+            <ProgressBar
+              pct={pct}
+              label={
+                prod.run?.total_notions
+                  ? `Notion ${(prod.run.done_notions ?? 0) + 1} sur ${prod.run.total_notions}`
+                  : `Équipement de ${eligible.length} notions…`
+              }
+            />
             <p className="mt-2 text-xs text-papa-muted">
               Vous pouvez fermer cette fenêtre : le lot continue. Il se met en pause si Massimo
               travaille — entre deux notions, jamais au milieu d'une.

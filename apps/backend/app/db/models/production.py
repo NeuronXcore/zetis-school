@@ -12,7 +12,7 @@ au modèle, quatre émises) et `parent_rule` (addendum ADR-0011 §G).
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -84,6 +84,13 @@ class ProductionRun(Base):
         ForeignKey("council_reports.id"), nullable=True
     )
     skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
+
+    # --- Avancement : où en est le lot ----------------------------------------------------------
+    # Le journal doit savoir où il en est, pas seulement s'il tourne. Deux compteurs plutôt qu'une
+    # table d'étapes : l'ORDRE de `scope.plan` est déterministe et testé, donc « les N premières
+    # notions sont faites » suffit à reconstituer le détail sans le persister.
+    total_notions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    done_notions: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -30,7 +30,16 @@ def create(chapter_id: int, db: Session = Depends(get_db)) -> dict:
     return runs.run_out(db, run)
 
 
-# Déclarée AVANT `/{run_id}` : sinon « preview » serait capté comme un {run_id} (→ 422).
+# Déclarées AVANT `/{run_id}` : sinon « preview » / « active » seraient captés comme des
+# {run_id} (→ 422). Même piège que `/mindmaps/summary`.
+@router.get("/active", response_model=ProductionRunOut | None)
+def get_active(db: Session = Depends(get_db)) -> dict | None:
+    """Le lot en cours, ou `null`. Alimente l'indicateur d'en-tête — un PROCESSUS, pas un stock."""
+    run = runs.active_run(db)
+    return runs.run_out(db, run) if run else None
+
+
+
 @router.get("/preview", response_model=ProductionPreviewOut)
 def preview(chapter_id: int, db: Session = Depends(get_db)) -> dict:
     """Ce qu'un lot ferait, sans rien créer. Le gate doit être visible AVANT le clic."""

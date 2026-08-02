@@ -122,7 +122,20 @@ export async function fetchProductionRun(runId: number): Promise<ProductionRun> 
   return asJson(await fetch(`${API}/runs/${runId}`, { headers: authHeader() }));
 }
 
-/** Durée estimée d'un kit complet par notion (cours + fiche + SRS + quiz + mindmap), pour la
- *  barre de progression. Somme des `GENERATION_MS`, arrondie large : une estimation qui finit
- *  trop tôt est pire qu'une estimation prudente. */
-export const KIT_MS_PER_NOTION = 150000;
+/** Durée d'un kit complet par notion, **mesurée** le 2026-08-02 sur le chapitre « Fractions » :
+ *  11 notions en 12 min 35 s, soit 69 s. La valeur estimée d'origine (150 s) mentait d'un facteur
+ *  2 — la barre traînait à mi-course alors que le lot était fini.
+ *
+ *  ⚠️ Ne sert plus qu'à l'aperçu AVANT lancement (aucun run, donc aucun avancement réel). Dès
+ *  qu'un run existe, c'est `progress_pct` du serveur qui fait foi. */
+export const KIT_MS_PER_NOTION = 69000;
+
+/** Le lot en cours, ou `null`. Alimente l'indicateur d'en-tête.
+ *
+ *  ⚠️ Un PROCESSUS, jamais un stock. Cet indicateur ne doit à aucun moment devenir un compteur
+ *  d'arriéré : « 12 contenus non contrôlés » en permanence dans le header est exactement ce que
+ *  l'addendum ADR-0011 §F.2 interdit — la provenance est un fait, jamais un reproche. Il dit
+ *  « ça travaille », pas « vous êtes en retard ». */
+export async function fetchActiveProductionRun(): Promise<ProductionRun | null> {
+  return asJson(await fetch(`${API}/runs/active`, { headers: authHeader() }));
+}

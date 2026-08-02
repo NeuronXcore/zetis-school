@@ -73,21 +73,31 @@ def massimo_is_active(db: Session, *, student_id: int) -> bool:
 
     `NON_ACTIVITY_EVENTS` est exclu : cocher une case d'agenda n'est pas une session de travail
     (ADR-0025 §3). Sans cette exclusion, un geste déclaratif suffirait à suspendre une production.
+
+    ⚠️ **La transaction est refermée avant de rendre**, et ce n'est pas de l'hygiène décorative.
+    Observé en vrai le 2026-08-02 : sans ce `rollback`, la session du worker reste `idle in
+    transaction` entre deux notions, garde un `AccessShareLock` sur les tables lues, et **un
+    `ALTER TABLE` attend derrière — puis TOUTES les autres requêtes s'empilent derrière l'ALTER**.
+    Un lot d'une heure gelait ainsi toute migration et, en cascade, le sondage de l'en-tête Papa.
+    Une lecture qui n'écrit rien ne doit pas laisser de transaction ouverte.
     """
     since = datetime.now(timezone.utc) - timedelta(
         minutes=settings.production_pause_if_active_minutes
     )
-    return bool(
-        db.scalar(
-            select(LearningEvent.id)
-            .where(
-                LearningEvent.student_id == student_id,
-                LearningEvent.created_at >= since,
-                LearningEvent.event_type.not_in(tuple(NON_ACTIVITY_EVENTS)),
+    try:
+        return bool(
+            db.scalar(
+                select(LearningEvent.id)
+                .where(
+                    LearningEvent.student_id == student_id,
+                    LearningEvent.created_at >= since,
+                    LearningEvent.event_type.not_in(tuple(NON_ACTIVITY_EVENTS)),
+                )
+                .limit(1)
             )
-            .limit(1)
         )
-    )
+    finally:
+        db.rollback()  # lecture pure : on ne garde aucun verrou entre deux notions
 
 
 def _wait_for_massimo(db: Session, *, student_id: int) -> None:
@@ -148,6 +158,13 @@ def execute(
     eligible, blocked = select_notions(db, notions)
     results: list[dict] = []
 
+    # Avancement : le total est connu APRÈS le gate — c'est le nombre de notions qu'on va
+    # réellement équiper, pas celui du plan. Afficher « 3/31 » quand 20 sont bloquées ferait lire
+    # un lot en panne là où il a fini.
+    run.total_notions = len(eligible)
+    run.done_notions = 0
+    db.commit()
+
     try:
         for skill_id in eligible:
             # Entre deux notions — le grain de la préemption (ADR-0031 §3).
@@ -158,6 +175,7 @@ def execute(
                 db, skill_id=skill_id, llm=llm, embedder=embedder
             )
             result["pieces_stamped"] = _stamp(db, watermark, run_id)
+            run.done_notions = (run.done_notions or 0) + 1
             db.commit()
             results.append(result)
         run.status = "done"
