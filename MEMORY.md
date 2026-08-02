@@ -15,7 +15,7 @@
 |---|---|
 | Branche | `feat/paliers-autonomie`, **1 commit `a54af0b`**, **poussée** (`origin/feat/paliers-autonomie` à jour) |
 | Décisions | `b57b5df` sur **`main`** (ADR-0032 + `DECISIONS.md`) — **poussé** (`origin/main` = `b57b5df`) |
-| PR | **aucune, et c'est voulu** — le user reste sur la branche pour la session suivante |
+| PR | **[#69](https://github.com/NeuronXcore/zetis-school/pull/69)**, ouverte le 2026-08-02 à la demande du user — **en attente de sa vérification, pas encore mergée** |
 | Arbre | propre |
 
 ⚠️ **L'ADR-0032 doit être chez `origin` avant toute PR** — sinon elle se baserait sur un `main`
@@ -127,14 +127,15 @@ par trois tests sous un serveur simulé « après le Journal ».
 
 ### ▶ PROCHAIN PAS
 
-> **La branche RESTE ACTIVE — choix explicite du user à la clôture du 2026-08-02.** Pas de PR, pas
-> de merge pour l'instant : **la prochaine session reprend sur `feat/paliers-autonomie`**. Ne pas
-> « finir le travail » en ouvrant la PR à sa place.
+> **La PR [#69](https://github.com/NeuronXcore/zetis-school/pull/69) est OUVERTE** (2026-08-02, à la
+> demande explicite du user — la clôture avait d'abord décidé l'inverse). **Elle n'est pas mergée**
+> et le merge appartient au user, qui relance les tests et relit le diff avant. Ne pas merger,
+> ne pas rebaser, ne pas pousser de correctif dessus sans qu'il le demande.
 
 1. **Rien à basculer côté Git.** `origin/feat/paliers-autonomie` est à jour ; l'ADR-0032 est chez
    `origin/main` (`b57b5df`), poussé **sans changer de branche** (`git push origin main:main`).
-2. **Reprendre ici.** Le code est complet et vérifié en vrai ; ce qui reste est au choix — ouvrir
-   la PR, ou enchaîner.
+2. **Reprendre ici.** Le code est complet et vérifié en vrai ; la PR #69 est ouverte. Ce qui reste
+   côté user : relancer les tests, relire le diff, merger.
 3. ⚠️ **Si le chantier suivant démarre : ne pas l'écrire sur CETTE branche.** Elle porte un
    chantier clos et vérifié ; y superposer le Journal mélangerait deux chantiers dans une seule
    revue (règle mono-chantier, `WORKFLOW.md §2`). Merger d'abord, ou brancher depuis `main`.
