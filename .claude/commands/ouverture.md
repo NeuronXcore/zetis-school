@@ -10,6 +10,12 @@ disable-model-invocation: true
 Conforme à `docs/WORKFLOW.md` §2 (la boucle) et §2bis (le geste git).
 Tu ne committes PAS et tu ne push PAS : le commit de documentation est mon geste.
 
+> **Cette commande n'est PAS le cadrage.** Elle vérifie qu'il a **déjà eu lieu**. Le cadrage
+> (ADR → maquette/spec → prompt) est une **session à part**, sur `main`, sans une ligne de code —
+> un ADR écrit dans la session qui code cesse d'être une contrainte pour devenir une
+> justification. Si tu es appelée avant que l'ADR existe, dis-le et arrête-toi : il n'y a rien à
+> ouvrir.
+
 ## État réel du dépôt (lis avant toute chose)
 
 - Branche : !`git branch --show-current`
@@ -23,13 +29,25 @@ Tu ne committes PAS et tu ne push PAS : le commit de documentation est mon geste
 
 ### 1. Le dépôt est-il en état de partir ?
 
-Trois conditions, toutes obligatoires :
+Trois conditions :
 
 - on est sur **`main`** (une branche part TOUJOURS de `main`, jamais d'une autre — chaque
   chantier part de la dernière vérité stable, pas du travail non fini d'un voisin) ;
-- l'arbre est **propre** ;
 - `main` n'est **pas en retard** sur `origin`. S'il l'est, dis-le-moi et arrête-toi : c'est à moi
-  de lancer `git pull`.
+  de lancer `git pull` ;
+- l'arbre ne contient **aucune modification de CODE**.
+
+> ⚠️ **« Propre » ne veut pas dire vide.** À la sortie d'une session de cadrage, la spec, la
+> maquette et les prompts du chantier sont **normalement là, non commités** — c'est ce qui fait
+> que « la branche naît avec ses documents » (§3). Les attendre serait une erreur ; les refuser
+> bloquerait le geste que cette commande sert à exécuter.
+>
+> Donc : sous `docs/` et `prompts/`, des fichiers **nouveaux** sont **attendus** — liste-les-moi
+> pour que je confirme qu'ils appartiennent bien à ce chantier. Sous `apps/` ou `packages/`,
+> **toute** modification est un reste de travail précédent : **arrête-toi et signale-le**.
+>
+> `DECISIONS.md` modifié est un cas à part : il n'a **pas** été commité sur `main` pendant le
+> cadrage. Arrête-toi — il se committe là-bas, avec l'ADR, JAMAIS sur la branche.
 
 ### 2. ⛔ LE CONTRÔLE QUI JUSTIFIE CETTE COMMANDE — le cadrage existe-t-il VRAIMENT ?
 
