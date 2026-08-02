@@ -106,11 +106,17 @@ active. Le cadrage a été **vérifié dans le code** avant rédaction ; ce qu'i
    un docstring périmé — `mindmaps/router.py` dit encore « placeholder Slice A, vues non
    persistées », c'est **faux** depuis l'ADR-0030 §4.
 
-**Lot de corrections identifié, non fait** (petit, transverse, débloque la Slice A de l'ADR-0023) :
-`MissionStudentOut.origin` expose littéralement `papa`/`zetis` à Massimo (viole « une seule voix
-côté Massimo ») ; le docstring périmé ci-dessus ; et la page Paramètres Papa **100 % morte** —
-3 toggles mock **plus** un `<select>` « Fournisseur IA » qui propose OpenAI, en contradiction avec
-l'ADR-0008/0009.
+**✅ Lot de corrections FAIT** — squash `12e4a2f`, PR
+[#67](https://github.com/NeuronXcore/zetis-school/pull/67), le 2026-08-02 ; branche
+`fix/lot-corrections` supprimée. Les trois items sont soldés : `MissionStudentOut.origin` retiré,
+le docstring de `mindmaps/router.py` remis au réel, la page Paramètres Papa remplacée par un état
+honnête.
+
+⚠️ **Un quatrième défaut n'a été trouvé QU'À L'ÉCRAN**, après le retrait d'`origin` : le badge de
+type `manual` disait « Mission de Papa » — une seconde signature d'auteur, qui ne venait pas du
+même champ et que le cadrage n'avait pas vue. Elle **divergeait de `page-missions.md`**, qui la
+mandatait : arrêt, arbitrage du commanditaire, puis spec corrigée. Devenue « Sur mesure ».
+**Sans le passage dans le navigateur, la moitié du défaut serait restée.**
 
 ---
 
