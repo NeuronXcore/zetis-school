@@ -28,6 +28,12 @@ class Quiz(Base, TimestampMixin):
     # (test dédié) : sans ce verrou, une future auto-validation pourrait s'y déguiser sans ADR.
     validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     validated_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Lot de production qui a produit cette pièce (ADR-0031 §4). `NULL` = produit hors lot,
+    # ou antérieur au journal — **aucune rétro-attribution** (doctrine §F.4).
+    production_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("production_runs.id"), nullable=True
+    )
+
 
 
 class QuizQuestion(Base):

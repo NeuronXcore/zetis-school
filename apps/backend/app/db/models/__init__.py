@@ -5,6 +5,7 @@ from app.db.models.content import Capsule, Fiche, Mindmap, MindmapAttempt
 from app.db.models.rag import RagChunk, RagDocument
 from app.db.models.settings import AppSetting
 from app.db.models.reports import CouncilReport
+from app.db.models.production import ProductionRun
 from app.db.models.progress import (
     CapsuleView,
     ContentRequest,
@@ -74,6 +75,7 @@ __all__ = [
     "RagDocument",
     "RagChunk",
     "CouncilReport",
+    "ProductionRun",
     "AgendaItem",
     "AppSetting",
 ]

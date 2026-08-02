@@ -313,6 +313,12 @@ class SpacedReviewCard(Base):
     # l'élève (la mécanique SRS est invisible).
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(15), default="new")
+    # Lot de production qui a produit cette pièce (ADR-0031 §4). `NULL` = produit hors lot,
+    # ou antérieur au journal — **aucune rétro-attribution** (doctrine §F.4).
+    production_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("production_runs.id"), nullable=True
+    )
+
 
 
 class SpacedReviewAttempt(Base):
