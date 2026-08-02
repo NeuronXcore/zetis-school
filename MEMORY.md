@@ -7,8 +7,16 @@
 
 ## État à la reprise
 
-**Chantier : produire un chapitre en une fois (ADR-0031) — CODE LIVRÉ ET OBSERVATION MENÉE.
-Le chantier est CLOS ; ce qui reste est une décision, pas du code.**
+**Chantier : produire un chapitre en une fois (ADR-0031) — CLOS. Code livré, observation menée.
+Ce qui reste est une DÉCISION, pas du code.**
+
+**✅ MERGÉ dans `main`** — squash **`731394b`**, PR
+[#68](https://github.com/NeuronXcore/zetis-school/pull/68), le 2026-08-02. Branche
+`feat/production-en-lot` **supprimée** (locale et distante). **Rien à pousser, rien à reprendre
+côté Git.** Les décisions (ADR-0031 + son addendum, addendum §G) sont sur `main` à part.
+
+⚠️ Le squash a dissous **12 messages de commit** qui portaient chacun leurs motifs — read-before-code
+slice par slice. Ils restent lisibles dans la PR #68 et dans les ADR.
 
 **728 backend · 278 Papa · 453 Massimo · tsc — verts. Aucun test existant modifié sur les trois
 slices** (c'était le critère du refactor de la slice A, et il a tenu jusqu'au bout).
