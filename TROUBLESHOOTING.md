@@ -4,6 +4,52 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/page-matiere` — affinage au vu de l'écran — 2026-08-01
+
+### Compter depuis la panoplie : deux pièges qui gonflent les nombres
+
+La charge utile `/subjects/{slug}/panoply` porte les ids de chaque activité disponible, ce qui
+permet de compter les ressources d'une matière **sans requête**. Deux réserves, toutes deux
+vérifiées dans le code :
+
+**1. Plusieurs notions partagent la même leçon.** `_course_lessons_by_skill` renvoie
+`skill_id → lesson_id` : rien n'empêche deux notions de retomber sur la même leçon, et
+`_validated_fiche_ids` est indexé **par leçon**. Le même `fiche_id` sort donc sur chaque notion
+de cette leçon. Compter les notions « fiche disponible » gonfle le nombre d'autant de notions que
+la leçon enseigne. **Dédupliquer par `Set` sur l'id, jamais compter les notions.**
+
+**2. `MAX(id)` ne rend qu'UNE ressource par clé.** Les quatre résolveurs
+(`galaxy/service.py:436,452`, `missions/service.py:94,126`) utilisent `func.max(...)` groupé, pour
+reproduire l'`ORDER BY id DESC LIMIT 1` d'origine. Si une leçon a **3 fiches validées**, la
+panoplie n'expose que **la plus récente**.
+
+⚠️ **Conséquence : une matière affichera « 1 fiche » sur la page matière et « 3 fiches » sur
+`/fiches`.** Les deux nombres sont **justes** — « ce que je peux ouvrir depuis mes notions »
+contre « ce que le catalogue contient ». **Ne pas “corriger” l'écart** : le premier est le bon
+pour la page matière, puisqu'il annonce exactement ce que Massimo trouvera en dépliant ses
+chapitres juste en dessous.
+
+Corollaire moins visible : une leçon validée **sans aucune `LessonSkill`** n'apparaît jamais dans
+la panoplie — sa fiche est donc invisible du comptage dérivé, alors que `fiches/summary` la compte.
+
+### La teinte de la demande n'a pas de marge : bouger la LUMINOSITÉ, pas la teinte
+
+L'or `#ffcf47` de « ZETIS parle » est à **18° de teinte** de l'orange de la demande, et le rouge
+est banni (ADR-0024 §5). Chercher un orange « plus électrique » revient donc à choisir laquelle
+des deux frontières franchir : plus clair glisse vers l'or, plus foncé frôle le rouge.
+
+L'axe libre est la **luminosité**, et c'est déjà la grammaire de l'app (`NeonBackdrop`,
+`starStyle.glow`, `NEON_TEXT`) : le cyan ne paraît pas électrique parce qu'il est saturé, mais
+parce qu'il **brille** sur du bleu nuit. D'où `--shadow-request`, un halo en `color-mix` sur le
+token — une seule source de vérité, déplacer la couleur déplace sa lueur.
+
+### Un libellé accessible en matche un autre : `getByRole` trouve deux boutons
+
+Dans le panneau de notion, le bouton d'activité (« Voir le cours ») et son bouton de demande
+(« Demander Voir le cours à ZETIS ») contiennent le même texte. `getByRole("button", { name:
+/Voir le cours/ })` lève « found multiple elements ». Ancrer la regex en début de libellé
+(`^Voir le cours`) — c'est ce que fait le helper `activite()` de `MatiereDetailPage.test.tsx`.
+
 ## Chantier `feat/page-matiere` — index de notions, slice B — 2026-08-01
 
 ### `normalizeSearch` change la LONGUEUR de la chaîne : on ne peut pas surligner avec ses index

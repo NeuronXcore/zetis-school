@@ -1,5 +1,73 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.37.0 — La page matière devient un index de notions
+
+Date : 2026-08-01 · branche `feat/page-matiere` · addenda ADR-0024 (index de notions) et ADR-0027
+(demandes depuis une surface élève)
+
+**`/subjects/:slug` cesse d'être une maquette.** Elle était encore sur `data/mock.ts` : un
+launcher au grain matière (« Niveau 5 · 320 XP », quatre tuiles dont trois inertes, un « Faire un
+quiz » sans `onClick`), antérieur à la doctrine ADR-0024 §5 et la contredisant sur trois points.
+Rien n'en est repris **sauf la route**.
+
+Elle devient l'**index des notions** : recherche locale à la frappe (accents pliés, surlignage,
+`Échap`), accordéon par chapitre, **panoplie de 7 pastilles** par notion, panneau d'activités, et
+demande à ZETIS de ce qui manque. Elle rend le même modèle que la constellation, en liste — elle
+**EST** le repli sans WebGL promis par `zetis-galaxy.md §11`, et un test de budget lui interdit
+tout chunk 3D **dans les deux formes** (`import` et `import()`).
+
+**Backend — un seul prédicat de disponibilité dans le dépôt.** `resolve_panoply` le porte en
+version ensembliste ; `notion_panel` en devient le consommateur mono-notion et ne calcule plus
+rien. Le correctif du 2026-07-30 avait déjà prouvé ce que coûte un second prédicat (le cours
+annoncé disponible sur `lesson_id is not None` d'un côté, sur `content_markdown IS NOT NULL` de
+l'autre — une porte ouverte sur du vide). **14 requêtes, constantes de 3 à 100 notions.**
+
+**Deux routes neuves** : `GET /api/student/subjects/{slug}/panoply` et — en commit séparé, parce
+que c'est une décision de sécurité — `POST /api/student/content-requests`, première **écriture
+enfant** sur un module jusqu'ici `require_parent`. Trois garde-fous testés, dont le seul qui
+compte vraiment : un `skill_id` invisible rend **404 sans créer de ligne**, sinon la route devient
+un **oracle d'existence** sur les brouillons de Papa. **Aucun `GET`, aucun `PATCH` élève** — la
+file de Papa n'est pas une surface de l'enfant.
+
+**Changement de comportement assumé : `eli5` n'est plus toujours disponible.** Il suit le cours
+validé. ELI5 s'ancre sur le cours canonique et dégrade vers le modèle en son absence ; le chat
+refusait déjà d'y router de son côté, donc la règle vivait **en double**. Elle est descendue dans
+le prédicat, et la duplication a été retirée du chat.
+
+**Preuve de non-régression, en deux temps.** L'extraction seule (avec `eli5` inchangé) a passé les
+**668 tests sans qu'un seul soit modifié** ; la bascule ELI5 a ensuite fait tomber **exactement
+une** assertion, retournée avec son motif. Même méthode pour la table `kind → route` extraite de
+`NotionActionPanel` : **aucun test ne couvrait les destinations** — 9 cas de caractérisation
+écrits d'abord, 7 intacts après extraction, 2 changés exprès.
+
+**Six tours d'affinage au vu de l'écran**, chacun avec sa décision :
+
+- chapitres **repliés** à l'ouverture (la page présente la matière, pas un chapitre choisi pour
+  Massimo) — et un témoin « **N prêtes** » sur l'en-tête replié, un COMPTE jamais un ratio ;
+- « demander à **ZETIS** » (l'interlocuteur de l'enfant, Papa restant le destinataire), en
+  **orange électrique** `#ff7a1a` qui **rayonne** plutôt qu'il ne crie — la teinte n'a aucune
+  marge (l'or est à 18°, le rouge est banni), donc l'axe est la **luminosité** ;
+- une **bande « ce que ZETIS a pour cette matière »** remplace la carte « N cartes à revoir », qui
+  n'annonçait qu'un type sur six. **Zéro requête ajoutée** : la panoplie porte déjà les ids.
+
+**Deux divergences ASSUMÉES avec l'addendum ADR-0027**, écrites dans la spec avec leur motif : le
+libellé « à Papa » devenu « à ZETIS », et la phrase « ZETIS transmet la demande. Il ne fabrique
+rien tout seul. » **supprimée** — ZETIS produira bientôt du contenu, la phrase deviendrait fausse.
+Le test qui la vérifiait a été **remplacé**, pas supprimé : il interdit désormais toute promesse
+de livraison.
+
+**⚠️ Trois pièges à ne pas re-découvrir**, tous dans `TROUBLESHOOTING.md` : `app.routes` n'est pas
+à plat (un test « cette route n'existe pas » y passe **à vide**, donc ne protège de rien) ;
+`normalizeSearch` change la **longueur** de la chaîne, donc surligner avec ses index décale le
+`<mark>` d'un cran par accent ; et la panoplie n'expose que la ressource **la plus récente par
+leçon**, si bien qu'une matière peut afficher « 1 fiche » ici et « 3 fiches » sur `/fiches` — les
+deux nombres sont justes, ils ne répondent pas à la même question.
+
+**690 tests backend · 442 Massimo · 270 Papa · 2 typecheck · build.** Zéro table, zéro migration.
+
+**Reste dû** : la page **n'a jamais été vue à l'écran par l'agent** (navigateur non connecté de
+son côté) ; les deux ADR addenda manquent encore au dépôt, avec les deux divergences à y porter.
+
 ## 0.36.0 — Ce qui est nouveau, et ce qui arrive
 
 Date : 2026-08-01 · branche `feat/news-badges` · ADR-0030 « Témoins de nouveauté en navigation »

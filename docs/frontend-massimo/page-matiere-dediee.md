@@ -44,20 +44,26 @@ Route : `/subjects/:slug`.
 ├──────────────────────────────────────────────────────────┤
 │ 🔍 Cherche une notion…            3 notions trouvées  esc│
 ├──────────────────────────────────────────────────────────┤
-│ ┌ REPRENDRE ───────────┐ ┌ PRÊT À REVOIR ──────────────┐ │
-│ │ Nutrition végétale   │ │ 4 cartes en SVT             │ │
-│ │ — le cours           │ │                             │ │
-│ └──────────────────────┘ └─────────────────────────────┘ │
+│ 📖 4 cours  🗒️ 3 fiches  🎬 1 capsule  🧠 2 cartes        │
+│ 🗂️ 8 à revoir  🎯 2 quiz                                  │
 ├──────────────────────────────────────────────────────────┤
 │ CHAPITRES                                                │
-│ ▼ La cellule                                  3 notions  │
+│ ▸ La cellule                       3 notions · 2 prêtes  │
+│ ▸ Nutrition végétale               3 notions · 1 prête   │
+│ ▸ Reproduction sexuée                         3 notions  │
+└──────────────────────────────────────────────────────────┘
+
+   … un chapitre déplié :
+
+│ ▾ La cellule                       3 notions · 2 prêtes  │
 │   ● Mitose            En construction   ▣▣□□▣□▣          │
 │   ○ Membrane          On commence       ▣▣□□□□□          │
 │   ● Noyau et ADN      Bien acquis       ▣▣▣▣▣▣▣          │
-│ ▶ Nutrition végétale                          3 notions  │
-│ ▶ Reproduction sexuée                         3 notions  │
-└──────────────────────────────────────────────────────────┘
 ```
+
+**Tous les chapitres sont repliés à l'ouverture** : la page présente la matière, pas le contenu
+d'un chapitre choisi pour Massimo. Le troisième n'a rien de prêt — il n'a donc **pas** de témoin,
+et **garde l'apparence des autres**.
 
 ### 1. En-tête matière
 
@@ -235,9 +241,15 @@ retour physique iPhone.
   chapitres validés → notions, chacune avec `status` et sa panoplie `[{kind, available, …ids}]`.
   Adossée au **prédicat de disponibilité extrait de `galaxy.notion_panel`** — un seul prédicat, deux
   consommateurs. 404 matière inconnue ou hors année active ; `chapters: []` si rien n'est validé.
-- `GET /api/student/reviews/summary` — filtré matière, pour la carte « Prêt à revoir ».
+  **14 requêtes SQL, constantes** de 3 à 100 notions.
+- `GET /api/student/reviews/summary` — pour la pastille de révision de la bande. On y lit
+  **`session_size`** de la matière (champ ajouté le 2026-08-01, calculé serveur là où vit
+  `REVIEW_SESSION_MAX_SUBJECT`) — **jamais `due_count`**.
 - `POST /api/student/content-requests` — **nouvelle** (addendum ADR-0027), `require_child`, écriture
-  seule.
+  seule. Aucun `GET`, aucun `PATCH` élève.
+
+**Deux appels, et deux seulement.** Les comptes de la bande (§3) sont **dérivés** de la panoplie,
+pas d'appels supplémentaires — voir la réserve sur `MAX(id)` au §3.
 
 Aucune donnée pédagogique durable stockée côté front. Toute la logique vit dans un hook
 (`useSubjectPanoply`) ; le composant ne calcule aucune règle métier.
@@ -248,7 +260,8 @@ Aucune donnée pédagogique durable stockée côté front. Toute la logique vit 
   validation, pas de badge `IA`/`Manuel`, pas d'action d'édition).
 - **Aucun rouge, aucun vocabulaire d'échec**, nulle part.
 - **L'or `#ffcf47` n'apparaît pas** : il est réservé à l'état « ZETIS parle » dans toute l'interface
-  Massimo.
+  Massimo. La page n'a que **deux** couleurs porteuses de sens : le **cyan** du disponible, et
+  l'**orange** `--color-zetis-request` de la demande.
 - `prefers-reduced-motion` : accordéon et surlignage restent lisibles sans mouvement.
 - Cibles de touche ≥ 44 px ; rien d'essentiel ne dépend du survol (il n'existe pas au tactile).
 - `aria-label` sur chaque pastille d'état (« nom de la notion — libellé d'état ») et sur chaque

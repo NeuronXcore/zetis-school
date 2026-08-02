@@ -9,8 +9,10 @@
 
 **Chantier : la page matière devient un index de notions (addenda ADR-0024 + ADR-0027).**
 
-Branche **`feat/page-matiere`**, créée depuis `main`. **Slices A et B FAITES — 8 commits,
-NON POUSSÉS, pas de PR.**
+Branche **`feat/page-matiere`**, créée depuis `main`. **Slices A et B FAITES, plus 6 tours
+d'affinage au vu de l'écran — 15 commits, NON POUSSÉS, pas de PR.**
+
+**690 backend · 442 Massimo · 270 Papa · 2 typecheck · build — tous verts.**
 
 ### ⛔ Deux ADR MANQUENT encore au dépôt
 
@@ -32,10 +34,37 @@ visuel et interactif »). Le user a tranché : **on code d'après la spec**, qui
 recherche, l'accordéon, le panneau, les demandes et les états avec assez de précision. Le rendu
 suit donc la spec + les conventions des pages Massimo existantes, **pas** une maquette.
 
+### FAIT — affinage au vu de l'écran (6 commits, après la slice B)
+
+Le user a lancé l'app et fait évoluer la page. **Chacun de ces tours a sa décision, et plusieurs
+divergent de l'ADR — c'est écrit, pas subi.**
+
+1. **Chapitres repliés à l'ouverture** (`2775e6a`) — le premier s'ouvrait d'office ; la page
+   présentait donc le contenu d'un chapitre choisi POUR Massimo. La recherche, elle, ouvre
+   toujours d'office ce qu'elle trouve.
+2. **« Demander à ZETIS », en orange électrique** (`cd2588f`) — le libellé disait « à Papa ».
+   L'interlocuteur de Massimo est ZETIS (le même que dans le chat) ; Papa reste le
+   **destinataire** (`source: "subject_page"` inchangé). Token `--color-zetis-request` `#ff7a1a`.
+3. **La demande RAYONNE au lieu de crier** (`d2d07ba`) — la teinte n'a aucune marge (l'or de
+   « ZETIS parle » est à **18°**, le rouge est banni) : l'axe libre est la **luminosité**, et
+   c'est déjà la grammaire de l'app. ⚠️ **Un futur ajustement doit rendre cet orange plus
+   LUMINEUX, jamais plus VIF.** Le halo s'éteint une fois demandé (une lueur sur une demande
+   transmise inviterait à la refaire).
+4. **Les chapitres repliés disent « N prêtes »** (`2311b34`) — sinon il fallait tout déplier pour
+   trouver où travailler. Un COMPTE, jamais un ratio : un test interdit tout dénominateur. À
+   zéro, aucun témoin et **aucune atténuation** (un chapitre grisé se lirait comme un reproche).
+5. **Phrase « ZETIS ne fabrique rien tout seul » SUPPRIMÉE** (`fcd4eba`) — **divergence assumée
+   avec l'addendum ADR-0027**, qui l'exigeait. Motif : ZETIS produira bientôt du contenu, la
+   phrase deviendrait fausse. Le test qui la vérifiait a été **remplacé**, pas supprimé : il
+   interdit maintenant « je te le prépare », tout délai, tout statut.
+6. **Bande « ce que ZETIS a pour cette matière »** (`457ca5d`) — remplace la carte « N cartes à
+   revoir », qui n'annonçait qu'un type sur six. **Zéro requête ajoutée** : la panoplie porte
+   déjà les ids. Capsule et quiz : compte affiché **non cliquable** (aucune route par matière).
+   `eli5` absent (il ne stocke rien, ce n'est pas un produit du catalogue).
+
 ### FAIT — slice B (frontend Massimo), 5 commits
 
-**La page `/subjects/:slug` est écrite et testée.** 690 back · 418 Massimo · 270 Papa ·
-2 typecheck · build — tous verts.
+**La page `/subjects/:slug` est écrite et testée.**
 
 1. **`session_size` par matière** (`3fd4f22`) — petit ajout backend : `ReviewSubjectDue`
    expose `min(REVIEW_SESSION_MAX_SUBJECT, due_count)`. `flash_size` était GLOBAL, `due_count`
@@ -84,8 +113,17 @@ où la panoplie se masque, et les 5 rétroliens dont celui d'ELI5 après recharg
    **Un `(7)` affiché EST ce bug.**
 6. ⚠️ **`/revision?subject=` ne s'arrête jamais sur la page** : elle relance la session dès que
    le résumé arrive (sauf matière introuvable). Le rétrolien n'y sert que les arrivées sans deck.
-7. ⚠️ **Seul le PREMIER chapitre est ouvert au chargement** — une notion des suivants n'est pas
-   dans le DOM tant qu'on n'a pas déplié. Piège classique des tests de cette page.
+7. ⚠️ **TOUS les chapitres sont repliés au chargement** — une notion n'est pas dans le DOM tant
+   qu'on n'a pas déplié son chapitre. Piège classique des tests de cette page (le helper
+   `ouvrirNotion(chapitre, notion)` l'impose).
+8. ⚠️ **La panoplie n'expose que la ressource la PLUS RÉCENTE par leçon** (`MAX(id)` serveur), et
+   plusieurs notions d'une même leçon portent le **même** `fiche_id`. Une leçon avec 3 fiches
+   validées compte **1** dans la bande et **3** sur `/fiches`. **Les deux sont justes** — ne pas
+   « corriger » l'écart. Corollaire : dédupliquer par `Set` est obligatoire, sinon le compte
+   gonfle d'autant de notions que la leçon enseigne.
+9. ⚠️ **Dans les tests, `/Voir le cours/` matche DEUX boutons** : l'activité et le « demander
+   Voir le cours à ZETIS » voisin. Utiliser le helper `activite("…")`, qui ancre en début de
+   libellé.
 
 ### FAIT — slice A (backend), 688 tests verts
 
@@ -140,15 +178,40 @@ où la panoplie se masque, et les 5 rétroliens dont celui d'ELI5 après recharg
   vers le modèle. La règle vit dans le prédicat, jamais dans une page.
 - **Aucun `GET`/`PATCH` élève sur `content_requests`.** L'absence est la décision.
 - **`mastery_score` ne sort pas de la route de matière.** `status` seul.
+- **Un COMPTE, jamais un ratio.** Vaut pour « N prêtes » par chapitre comme pour la bande. Un
+  dénominateur ferait un score (ADR-0024 §5) ; deux tests l'interdisent.
+- **`session_size` et jamais `due_count`** sur toute surface enfant. Le fixture de test pose 42
+  contre 8 précisément pour que le verrou puisse mordre.
+- **L'orange de la demande se rend plus LUMINEUX, jamais plus VIF** (l'or est à 18°, le rouge est
+  banni : la teinte n'a pas de marge).
+- **Capsule et quiz ne sont pas cliquables** depuis la bande tant que `/capsules/:slug` et
+  `/quiz/:slug` n'existent pas.
+
+### ⚠️ Divergences ASSUMÉES avec les ADR — à porter dans un addendum
+
+Le code s'écarte sciemment de deux points écrits. **Ce n'est pas de la dérive, c'est une décision
+du user prise au vu de l'écran** — mais tant qu'aucun ADR ne l'enregistre, l'ADR et le code se
+contredisent :
+
+1. **« Demander à Papa » → « demander à ZETIS »** (addendum ADR-0027 §Geste).
+2. **Phrase « ZETIS transmet la demande. Il ne fabrique rien tout seul. » SUPPRIMÉE** — l'addendum
+   ADR-0027 l'exigeait. Motif : ZETIS produira bientôt du contenu lui-même.
+
+La spec `page-matiere-dediee.md` porte les deux, avec leur motif. **Point ouvert qui en découle** :
+le jour où ZETIS génère, faut-il que la demande déclenche la génération, ou passe-t-elle toujours
+par la validation de Papa ? `CLAUDE.md` (« aucune réponse IA n'est vérité absolue, validation Papa
+avant activation ») penche pour la seconde. **C'est une décision d'ADR, pas d'UI.**
 
 ### PROCHAIN PAS
 
-1. **VOIR LA PAGE EN VRAI** — c'est la seule chose réellement en suspens (liste ci-dessus).
-   Lancer backend `:8000` + front Massimo, ouvrir `/subjects/svt`.
-2. **Obtenir les deux ADR** (voir le tableau plus haut) et les poser sur `main` avec
-   `DECISIONS.md`, qui attend, non commité, exprès. La maquette n'est plus bloquante — la page
-   est écrite d'après la spec — mais elle reste le contrat visuel si tu veux comparer.
-3. Pousser `feat/page-matiere` (8 commits) et ouvrir la PR.
+1. **VOIR LA PAGE EN VRAI.** Le user a lancé l'app et fait corriger six points, mais **l'agent
+   n'a jamais vu la page à l'écran** (session restée sur `/login` de son côté). Paire de dev
+   cadrée : `backend-galaxy` (`:8003`) + `massimo-galaxy` (`:5179`), CORS appairé — cf.
+   `.claude/launch.json`. ⚠️ Les serveurs lancés par l'agent **meurent avec la session** ; pour
+   inspecter tranquillement, les lancer depuis un terminal.
+2. **Obtenir les deux ADR** (tableau plus haut) et les poser sur `main` avec `DECISIONS.md`, qui
+   attend non commité exprès. **Y porter les deux divergences ci-dessus.**
+3. Pousser `feat/page-matiere` (15 commits) et ouvrir la PR.
 
 > Dette repérée en passant, **pas** traitée : `notionRouteFor` ignore `action.capsule_id` et
 > ouvre `/capsules` à plat — le libellé « Regarder la capsule » sur-promet donc déjà. C'est
