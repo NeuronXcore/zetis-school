@@ -1,9 +1,12 @@
-// Retour visuel d'une demande à Papa (addendum ADR-0027). Même patron que `SearchEmptyToast`.
+// Retour visuel d'une demande de contenu (addendum ADR-0027). Même patron que
+// `SearchEmptyToast`.
 //
-// Le texte est figé et il compte : « C'est noté pour Papa », JAMAIS « je te le prépare ».
-// ZETIS transmet une demande, il ne fabrique rien — et il n'annonce ni statut, ni délai, ni
-// rappel. Massimo ne lit pas la file de Papa ; lui promettre une échéance ferait de cette
-// page un écran d'attente.
+// Le texte est figé et il compte : « C'est noté par ZETIS », JAMAIS « je te le prépare ». Il
+// dit qu'une demande est ENREGISTRÉE — sans promettre qui la traitera ni quand, ce qui reste
+// vrai que le contenu vienne de Papa ou, demain, de ZETIS lui-même.
+//
+// Aucun statut, aucun délai, aucun rappel : Massimo ne lit pas la file de Papa, et lui
+// promettre une échéance ferait de cette page un écran d'attente.
 export interface RequestToastProps {
   message: string;
 }

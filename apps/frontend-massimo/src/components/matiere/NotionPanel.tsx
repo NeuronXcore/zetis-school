@@ -101,6 +101,16 @@ export function NotionPanel({
 
       {missingKinds.length > 0 && (
         <div className="mt-3">
+          {/* ⚠️ La phrase « ZETIS transmet la demande. Il ne fabrique rien tout seul. » a été
+              RETIRÉE le 2026-08-01, et c'est une divergence assumée avec l'addendum ADR-0027
+              qui l'exigeait. Motif : ZETIS produira bientôt du contenu lui-même, et la phrase
+              deviendrait un mensonge — on ne fige pas dans l'UI une limite qu'on s'apprête à
+              lever.
+
+              Ce qui reste tient l'honnêteté sans elle : « C'est noté par ZETIS » dit qu'une
+              demande est ENREGISTRÉE, sans promettre ni qui la traitera ni quand. Vrai dans
+              les deux mondes. Ce qui reste interdit, en revanche, ne bouge pas : jamais
+              « je te le prépare », aucun statut, aucun délai, aucun rappel. */}
           <button
             type="button"
             onClick={() => onRequest(missingKinds)}
@@ -108,13 +118,6 @@ export function NotionPanel({
           >
             Demander à ZETIS tout ce qui manque ({missingKinds.length})
           </button>
-          {/* ⚠️ Phrase FIXE, et elle n'a jamais compté autant que depuis que le bouton dit
-              « demander à ZETIS » : c'est elle qui empêche l'enfant de comprendre que ZETIS
-              va fabriquer le contenu. Il transmet. Il ne dit JAMAIS « je te le prépare » —
-              une promesse non tenue, ça se retient. Ne pas la retirer. */}
-          <p className="mt-2 text-[11px] leading-relaxed text-zetis-muted">
-            ZETIS transmet la demande. Il ne fabrique rien tout seul.
-          </p>
         </div>
       )}
     </div>

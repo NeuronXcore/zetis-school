@@ -161,10 +161,17 @@ ZETIS tout ce qui manque (n) »** — un seul appel, `n` jamais nul (le bouton d
 > **destinataire** (la demande atterrit dans sa file, `source: "subject_page"`), mais l'enfant
 > s'adresse à l'app, pas à son père par-dessus l'épaule de l'app.
 
-- Retour : **« C'est noté par ZETIS »**. Jamais « je te le prépare ».
-- Sous le bouton, une phrase fixe : « ZETIS transmet la demande. Il ne fabrique rien tout seul. »
-  ⚠️ **Elle n'est pas décorative, et elle l'est encore moins depuis le changement de libellé** :
-  « demander à ZETIS » pourrait se lire « ZETIS va le faire ». C'est cette phrase qui l'empêche.
+- Retour : **« C'est noté par ZETIS »**. Jamais « je te le prépare ». La formule dit qu'une
+  demande est **enregistrée**, sans promettre qui la traitera ni quand — vrai que le contenu
+  vienne de Papa ou, demain, de ZETIS lui-même.
+
+> **Retrait du 2026-08-01 — divergence assumée avec l'addendum ADR-0027.** La phrase fixe
+> « ZETIS transmet la demande. Il ne fabrique rien tout seul. » a été **supprimée**. L'addendum
+> l'exigeait, et elle était le garde-fou du passage à « demander à ZETIS » (elle empêchait de
+> lire « ZETIS va le faire »). Motif du retrait : **ZETIS produira bientôt du contenu
+> lui-même**, et la phrase deviendrait un mensonge — on ne fige pas dans l'UI une limite qu'on
+> s'apprête à lever. Ce qui reste interdit ne bouge pas, et un test le vérifie : jamais
+> « je te le prépare », aucun statut, aucun délai, aucun rappel.
 - **Couleur : orange électrique** (`--color-zetis-request`, `#ff7a1a`) — **avec son halo**
   (`--shadow-request`). Ce n'est **pas** une couleur d'alerte : demander est la seule chose que
   Massimo puisse faire face à un contenu absent, donc c'est un geste positif. (Aucun rouge,

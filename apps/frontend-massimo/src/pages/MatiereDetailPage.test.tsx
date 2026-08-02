@@ -442,16 +442,31 @@ describe("MatiereDetailPage — demander à ZETIS", () => {
     expect(await screen.findByRole("button", { name: /déjà demandé à ZETIS/ })).toBeInTheDocument();
   });
 
-  it("le retour est « C'est noté par ZETIS » — jamais « je te le prépare »", async () => {
-    // ⚠️ La seconde assertion est la plus importante des deux. Depuis que le bouton dit
-    // « demander à ZETIS », c'est cette phrase qui empêche l'enfant de comprendre que ZETIS
-    // va fabriquer le contenu. Elle transforme une promesse en transmission.
+  it("le retour dit qu'une demande est ENREGISTRÉE, sans promettre de contenu", async () => {
+    // « C'est noté par ZETIS » ne promet ni qui traitera la demande ni quand — vrai que le
+    // contenu vienne de Papa ou, demain, de ZETIS lui-même.
+    //
+    // ⚠️ Ce test vérifiait aussi la phrase « ZETIS transmet la demande. Il ne fabrique rien
+    // tout seul. », retirée le 2026-08-01 : ZETIS produira bientôt du contenu, et la phrase
+    // serait devenue fausse. Ce qui reste interdit, lui, est toujours vérifié ci-dessous.
     renderPage();
     await ouvrirNotion(/Nutrition végétale/, /Racines/);
     fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ }));
 
     expect(await screen.findByText("C'est noté par ZETIS")).toBeInTheDocument();
-    expect(screen.getByText(/ne fabrique rien tout seul/)).toBeInTheDocument();
+  });
+
+  it("ne promet JAMAIS de préparer le contenu, ni délai, ni statut", async () => {
+    // Le garde-fou qui survit au retrait de la phrase fixe. Une promesse non tenue, ça se
+    // retient : ZETIS enregistre, il n'annonce pas de livraison.
+    const { container } = renderPage();
+    await ouvrirNotion(/Nutrition végétale/, /Racines/);
+    fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ }));
+    await screen.findByText("C'est noté par ZETIS");
+
+    expect(container.textContent).not.toMatch(
+      /je te le prépare|je m'en occupe|en cours de|bientôt prêt|d'ici|dans \d|en attente/i,
+    );
   });
 
   it("la demande porte l'orange électrique — teinte ET halo", async () => {
