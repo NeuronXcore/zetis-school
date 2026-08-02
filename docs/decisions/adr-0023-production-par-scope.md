@@ -2,7 +2,22 @@
 
 ## Statut
 
-Accepté — 2026-07-28.
+**Remplacé — 2026-08-02, par l'[ADR-0031](adr-0031-production-en-lot-et-journal.md).**
+Accepté le 2026-07-28, **jamais implémenté** : cinq semaines plus tard, aucune de ses décisions
+n'existait en code — `equip_notion` était toujours dans `reports/`, `plan(scope)` n'existait pas,
+il n'y avait ni endpoint 202 ni worker, le bouton « ⚡ Compléter le chapitre » était encore
+désactivé, et `batch_id` comme `PRODUCTION_MAX_PENDING` n'ont jamais quitté cette prose.
+
+> **Ce qui est remplacé est le PLAN D'EXÉCUTION, pas la doctrine.** L'ADR-0031 reprend les cinq
+> décisions validées ci-dessous **telles quelles** et les exécute. Ce document reste la référence
+> pour leurs motifs — en particulier le §7 (deux passes non fusionnables, gate humain sur la
+> rédaction de cours « qui ne bouge pas ») et l'observation du §Suivi, que l'ADR-0031 érige en
+> livrable.
+>
+> Il est conservé et non supprimé pour une raison précise : **une décision acceptée puis restée
+> lettre morte cinq semaines est en soi une information**, et le découpage en slices qui n'ont
+> jamais été livrées explique pourquoi le chantier d'autonomisation a été cadré sur un socle
+> qu'il croyait exister.
 
 > S'appuie sur : `adr-0021` (orchestrateur d'équipement — cours/fiche/SRS/quiz/mindmap par
 > notion, auto-validation bornée, dégradation leçon-centrée, `try/except` par pièce),
