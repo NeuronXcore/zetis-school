@@ -5,18 +5,21 @@ ses endpoints, elle n'en invente aucun).
 
 ---
 
-## 0. Protocole
+## 0. Cadre
 
-1. **Graphify** à jour d'abord.
-2. **Read-before-code** (§1) : lis les fichiers réels avant d'écrire. Les constats ci-dessous sont
-   des hypothèses issues de la doc.
-3. **Stop-on-blocker** — notamment sur le §4 (rétrolien d'ELI5), qui a une vraie chance d'être
-   bloquant.
-4. **9 points de clôture** en fin de session.
+Protocole d'exécution : **`/slice`** (graphify, read-before-code avec rapport, stop-on-blocker,
+hors-périmètre, non-régression). Il ne se répète plus ici.
+
+⚠️ **Point de vigilance propre à cette slice**, à ne pas perdre : le **§4 (rétrolien d'ELI5)** a
+une vraie chance d'être bloquant.
 
 Références :
 - Maquette : `docs/frontend-massimo/mockup/mockup-page-matiere-v1.html` — **lis-la, elle est le
   contrat visuel et interactif** (recherche, accordéon, panneau, demandes, états).
+  > ⚠️ **Ce fichier n'a JAMAIS existé dans le dépôt.** Constaté à l'exécution le 2026-08-01 :
+  > signalé comme bloquant, puis tranché par le user — **codé d'après la spec**, qui décrivait la
+  > recherche, l'accordéon, le panneau, les demandes et les états avec assez de précision. Ne pas
+  > le chercher.
 - Spec : `docs/frontend-massimo/page-matiere-dediee.md`.
 - Décisions : addenda ADR-0024 (page matière) et ADR-0027 (demandes élève).
 

@@ -6,14 +6,10 @@ isolable dans l'historique.
 
 ---
 
-## 0. Protocole
+## 0. Cadre
 
-1. **Mets Graphify à jour** avant toute lecture.
-2. **Read-before-code obligatoire** (§1). Ne écris aucune ligne avant d'avoir lu ces fichiers **dans
-   le dépôt**, pas de mémoire.
-3. **Stop-on-blocker** : si un constat du §1 est faux dans le code réel, **arrête-toi et remonte-le**.
-   Ne contourne pas, n'invente pas de variante.
-4. **9 points de clôture** en fin de session, comme d'habitude.
+Protocole d'exécution : **`/slice`** (graphify, read-before-code avec rapport, stop-on-blocker,
+hors-périmètre, non-régression). Il ne se répète plus ici.
 
 Décisions de fond, à lire aussi :
 `docs/decisions/adr-0024-addendum-page-matiere-index-notions.md` et
