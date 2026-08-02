@@ -163,6 +163,11 @@ Journal ; aucun autre lien sortant.
 ## Hors périmètre
 
 - Le **Journal** et sa page — donc le régime Autonome reste indisponible en phase 1.
+  > **Comment il s'ouvrira** : le refus est porté par `VETO_SURFACE_AVAILABLE = False`
+  > (`app/modules/settings/service.py`), qui réduit les `choices` d'A1 à « Vous validez ». Une fois
+  > le Journal livré **avec son geste *Retirer***, ce drapeau passe à `True` — et c'est **le seul
+  > geste à faire** : le serveur rouvre le palier, le front suit sans modification. Recette
+  > complète et ordonnée : `MEMORY.md`, « point de départ de la prochaine session ».
 - La liste des contenus servis, le geste *Retirer*, le geste *Corriger*.
 - Le **gate de validation des cartes SRS** (A0b reste verrouillé) et l'action « Corriger » renforcée
   du §G.3.
