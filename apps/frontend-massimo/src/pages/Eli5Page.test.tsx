@@ -172,4 +172,25 @@ describe("Eli5Page — entrée v2 par decks", () => {
     // On est bien sur l'écran matière (bouton retour « Matières »).
     expect(screen.getByRole("button", { name: /Matières/ })).toBeInTheDocument();
   });
+
+  it("le rétrolien ?from= SURVIT au nettoyage d'URL du deep-link notion", async () => {
+    // ⚠️ LE test qui protège le rétrolien d'ELI5 (addendum ADR-0024 §7).
+    //
+    // `/eli5?skill_id=` porte une NOTION, pas une matière : ni l'URL ni la réponse serveur ne
+    // gardent le slug, et la page RETIRE `skill_id`+`name` en `replace` dès le premier rendu
+    // (`useEli5Page` en fait autant avec `subject`). Un paramètre tiers échappe aux deux —
+    // c'est tout ce sur quoi repose le retour vers la matière.
+    //
+    // S'il casse : quelqu'un a ajouté un nettoyage plus large, et Massimo ne peut plus revenir.
+    renderAt("/eli5?skill_id=7&name=Mitose&from=svt");
+    const retour = await screen.findByRole("link", { name: /Svt/ });
+    expect(retour.getAttribute("href")).toBe("/subjects/svt");
+  });
+
+  it("sans ?from=, aucun rétrolien n'est inventé", async () => {
+    // Arrivée par la sidebar : il n'y a pas de matière d'où l'on vient.
+    renderAt("/eli5");
+    await screen.findByRole("button", { name: /Mathématiques/ });
+    expect(screen.queryByRole("link", { name: /^←/ })).toBeNull();
+  });
 });

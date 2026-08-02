@@ -7,6 +7,234 @@
 
 ## État à la reprise
 
+**Chantier : la page matière devient un index de notions (addenda ADR-0024 + ADR-0027).**
+
+Branche **`feat/page-matiere`**, créée depuis `main`. **Slices A et B FAITES, plus 7 tours
+d'affinage au vu de l'écran — 19 commits, NON POUSSÉS, pas de PR.**
+
+**690 backend · 447 Massimo · 270 Papa · 2 typecheck · build — tous verts.**
+
+### ⛔ Deux ADR MANQUENT encore au dépôt
+
+Le chantier a été ouvert avec ses entrées `DECISIONS.md` mais **sans les fichiers qu'elles
+référencent**. Rien ne les remplace :
+
+| Référencé par | Fichier attendu |
+|---|---|
+| prompts A + B, spec | `docs/decisions/adr-0024-addendum-page-matiere-index-notions.md` |
+| prompts A + B | `docs/decisions/adr-0027-addendum-demandes-surface-eleve.md` |
+| **prompt B §1**, spec | `docs/frontend-massimo/mockup/mockup-page-matiere-v1.html` |
+
+⚠️ `DECISIONS.md` est **modifié mais NON COMMITÉ**, volontairement : ses deux entrées vont sur
+`main` **avec** les ADR (règle `WORKFLOW.md` §2bis — deux branches qui éditent `DECISIONS.md` =
+conflit garanti). Ne pas le committer sur la branche.
+
+La **maquette** avait été signalée bloquante pour la slice B (le prompt la déclare « contrat
+visuel et interactif »). Le user a tranché : **on code d'après la spec**, qui décrit la
+recherche, l'accordéon, le panneau, les demandes et les états avec assez de précision. Le rendu
+suit donc la spec + les conventions des pages Massimo existantes, **pas** une maquette.
+
+### FAIT — affinage au vu de l'écran (7 commits, après la slice B)
+
+Le user a lancé l'app et fait évoluer la page. **Chacun de ces tours a sa décision, et plusieurs
+divergent de l'ADR — c'est écrit, pas subi.**
+
+1. **Chapitres repliés à l'ouverture** (`2775e6a`) — le premier s'ouvrait d'office ; la page
+   présentait donc le contenu d'un chapitre choisi POUR Massimo. La recherche, elle, ouvre
+   toujours d'office ce qu'elle trouve.
+2. **« Demander à ZETIS », en orange électrique** (`cd2588f`) — le libellé disait « à Papa ».
+   L'interlocuteur de Massimo est ZETIS (le même que dans le chat) ; Papa reste le
+   **destinataire** (`source: "subject_page"` inchangé). Token `--color-zetis-request` `#ff7a1a`.
+3. **La demande RAYONNE au lieu de crier** (`d2d07ba`) — la teinte n'a aucune marge (l'or de
+   « ZETIS parle » est à **18°**, le rouge est banni) : l'axe libre est la **luminosité**, et
+   c'est déjà la grammaire de l'app. ⚠️ **Un futur ajustement doit rendre cet orange plus
+   LUMINEUX, jamais plus VIF.** Le halo s'éteint une fois demandé (une lueur sur une demande
+   transmise inviterait à la refaire).
+4. **Les chapitres repliés disent « N prêtes »** (`2311b34`) — sinon il fallait tout déplier pour
+   trouver où travailler. Un COMPTE, jamais un ratio : un test interdit tout dénominateur. À
+   zéro, aucun témoin et **aucune atténuation** (un chapitre grisé se lirait comme un reproche).
+5. **Phrase « ZETIS ne fabrique rien tout seul » SUPPRIMÉE** (`fcd4eba`) — **divergence assumée
+   avec l'addendum ADR-0027**, qui l'exigeait. Motif : ZETIS produira bientôt du contenu, la
+   phrase deviendrait fausse. Le test qui la vérifiait a été **remplacé**, pas supprimé : il
+   interdit maintenant « je te le prépare », tout délai, tout statut.
+6. **Bande « ce que ZETIS a pour cette matière »** (`457ca5d`) — remplace la carte « N cartes à
+   revoir », qui n'annonçait qu'un type sur six. **Zéro requête ajoutée** : la panoplie porte
+   déjà les ids. `eli5` absent (il ne stocke rien, ce n'est pas un produit du catalogue).
+7. **Le quiz devient cliquable, et l'inerte devient visible** (`104ccde`) — signalement du user :
+   « le KPI 1 quiz dans mathématiques ne marche pas ». **Audit de la base : le compte était
+   juste** (mathématiques a bien 1 quiz, les 8 matières vérifiées). Ce qui ne marchait pas, c'est
+   le **clic** : `quiz` était non cliquable par décision, mais rendu **comme une pastille
+   normale**. `/quiz` accepte désormais **`?subject=`** (patron de `/revision` et `/eli5`) et
+   porte le rétrolien ; et **toute pastille non ouvrable est visiblement inerte** (pointillés,
+   atténuation, `aria-label` qui le dit). Ne reste dans ce cas que `capsule`.
+
+### FAIT — slice B (frontend Massimo), 5 commits
+
+**La page `/subjects/:slug` est écrite et testée.**
+
+1. **`session_size` par matière** (`3fd4f22`) — petit ajout backend : `ReviewSubjectDue`
+   expose `min(REVIEW_SESSION_MAX_SUBJECT, due_count)`. `flash_size` était GLOBAL, `due_count`
+   est l'arriéré. Le calcul vit là où vit la constante.
+2. **Table `kind → route` extraite** (`6c112ad`) — `lib/notionRoutes.ts`, PUR (zéro import de
+   valeur) + `useOpenNotionAction`. Le `returnTo` figé à « /galaxy » devient un paramètre.
+3. **Moteur de budget + pliage NFD** (`0cc6534`) — `src/test/bundleGraph.ts` partagé,
+   `lib/searchFold.ts` avec carte d'offsets.
+4. **La page** (`e8b61b8`) — `lib/panoply.ts`, `useSubjectPanoply` (TOUTE la règle métier),
+   `components/matiere/*`, `matiere.bundle.test.ts`, 28 tests de page.
+5. **Rétrolien partagé** (`cc36c3d`) — `SubjectBackLink` monté sur les 5 surfaces filles.
+
+**⚠️ LA PAGE N'A PAS ÉTÉ VUE À L'ÉCRAN.** Le navigateur intégré n'est pas connecté. Tout est
+prouvé par test, rien par l'œil. Restent à vérifier en vrai : la recherche à la frappe
+(accents, surlignage, `Échap`), l'accordéon, le panneau, le toast de demande, le seuil 620 px
+où la panoplie se masque, et les 5 rétroliens dont celui d'ELI5 après rechargement.
+
+### Les décisions de la slice B (prises avec le user, ne pas les rouvrir)
+
+- **La carte « Reprendre » est DESCOPÉE.** Aucune route ne sert « dernier contenu ouvert »
+  (`last_notion` est global, sans lien, fenêtre 30 j). La spec dit « deux cartes AU PLUS,
+  jamais rendues à vide » : on en rend une. À rouvrir avec un vrai endpoint, pas avant.
+- **Le nombre de « Prêt à revoir » vient du SERVEUR** (`session_size`), jamais d'un `8` recopié
+  dans le front.
+- **Le rétrolien passe par `?from=`**, pas `?subject=` — ce dernier est déjà lu sur `/eli5` et
+  `/revision`, où il DÉCLENCHE une action.
+- La panoplie ouvre `/revision?subject=X&from=X` : deux paramètres parce que deux rôles.
+
+### Les pièges de la slice B
+
+1. ⚠️ **La table `kind → route` n'était couverte par AUCUN test.** 9 cas de caractérisation
+   écrits d'abord ; 7 intacts après extraction, 2 changés exprès (`eli5`/`revision` gagnent
+   `&from=`). Ne pas refaire un refactor de routage sans ce filet.
+2. ⚠️ **`normalizeSearch` change la LONGUEUR de la chaîne** (NFD décompose puis supprime) : ses
+   index ne mappent pas 1:1 sur l'original. Surligner d'après eux décale le `<mark>` d'un cran
+   PAR ACCENT. D'où `fold()` et sa carte d'offsets. Filtre et surlignage partagent le même pli.
+3. ⚠️ **`NotionActionPanel` NE tire PAS three.js** — le prompt de slice l'affirmait, c'est faux.
+   Le baril `@zetis/ui/galaxy` est léger ; three vit derrière `@zetis/ui/galaxy/canvas` et
+   `brainGeometry.ts`, tous deux hors baril. La page ne l'importe quand même pas, mais pour une
+   autre raison (elle partage la table, pas le composant) — et un test le verrouille.
+4. ⚠️ **`staticImports` du moteur de budget a un faux positif** : `export const X = "from"`
+   ressemble à un `export … from "…"`. Ne pas « corriger » le moteur (ça changerait le test de
+   l'Accueil) — vérifier autrement, comme le fait `matiere.bundle.test.ts`.
+5. ⚠️ **`cours` et `eli5` sont TOUJOURS indisponibles ensemble** et se demandent tous deux comme
+   `cours`. Sans dédup, « tout ce qui manque » annoncerait 7 — le vocabulaire n'a que 6 entrées.
+   **Un `(7)` affiché EST ce bug.**
+6. ⚠️ **`/revision?subject=` ne s'arrête jamais sur la page** : elle relance la session dès que
+   le résumé arrive (sauf matière introuvable). Le rétrolien n'y sert que les arrivées sans deck.
+7. ⚠️ **TOUS les chapitres sont repliés au chargement** — une notion n'est pas dans le DOM tant
+   qu'on n'a pas déplié son chapitre. Piège classique des tests de cette page (le helper
+   `ouvrirNotion(chapitre, notion)` l'impose).
+8. ⚠️ **La panoplie n'expose que la ressource la PLUS RÉCENTE par leçon** (`MAX(id)` serveur), et
+   plusieurs notions d'une même leçon portent le **même** `fiche_id`. Une leçon avec 3 fiches
+   validées compte **1** dans la bande et **3** sur `/fiches`. **Les deux sont justes** — ne pas
+   « corriger » l'écart. Corollaire : dédupliquer par `Set` est obligatoire, sinon le compte
+   gonfle d'autant de notions que la leçon enseigne.
+9. ⚠️ **Dans les tests, `/Voir le cours/` matche DEUX boutons** : l'activité et le « demander
+   Voir le cours à ZETIS » voisin. Utiliser le helper `activite("…")`, qui ancre en début de
+   libellé.
+10. ⚠️ **Un test qui lit `window.location` sous `MemoryRouter` est vert À VIDE** — le routeur
+    mémoire n'y touche pas. Pour vérifier une URL, monter une **sonde** qui lit
+    `useSearchParams`. J'ai failli livrer ce faux positif sur la survie de `?from=`.
+11. ⚠️ **Le compte peut être juste et la pastille cassée quand même.** Devant « ça ne marche
+    pas », auditer la **donnée** avant de toucher au calcul : ici le compte était bon (audit
+    des 8 matières), c'est l'**affordance** qui mentait.
+
+### FAIT — slice A (backend), 688 tests verts
+
+1. **`resolve_panoply(db, student_id=…, skill_ids=[…])`** dans `galaxy/service.py` : LE prédicat
+   de disponibilité, en version ensembliste. `notion_panel` en est devenu le **consommateur
+   mono-notion** et ne calcule plus rien. Les résolveurs mono de `missions` sont désormais des
+   **enveloppes** de variantes `_ids` ensemblistes — une règle, une requête, deux granularités.
+2. **`GET /api/student/subjects/{slug}/panoply`** (`get_current_user`), routeur `subjects_router`
+   dans le module `galaxy` : matière → chapitres validés → notions → panoplie des 7 activités.
+   **Aucun `mastery_score` sérialisé** (test-verrou sur la réponse brute).
+3. **`POST /api/student/content-requests`** (`require_child`) — commit **séparé**, c'est une
+   décision de sécurité. Écriture seule, trois garde-fous testés.
+4. Types `SubjectPanoply` / `PanoplyChapter` / `PanoplyNotion` +
+   `StudentContentRequest{Body,Result}` dans `packages/types/`.
+
+**Zéro table, zéro migration.**
+
+### Les cinq constats du read-before-code (ce que la doc supposait vs le code réel)
+
+1. ⚠️ **Le prompt A se contredisait** : §2.1 exigeait que les tests de `notion_panel` passent
+   **sans modification**, §2.3 exigeait de rendre `eli5.available` faux sans cours — or
+   `test_galaxy.py` affirmait `dispo["eli5"] is True` **sur ce cas exact**. Tranché en séparant
+   les deux temps : extraction d'abord (**668 tests verts, zéro modifié** — preuve jouée), puis
+   bascule ELI5 qui a fait tomber **exactement une** assertion, retournée avec son motif.
+2. ⚠️ **Deux fixtures de `test_content_requests` posaient `eli5 available=True` avec
+   `cours available=False`** — un état que le prédicat **ne peut plus produire**. Corrigées
+   **sans toucher à leurs assertions de comportement**.
+3. ⚠️ **La règle ELI5 vivait en DEUX endroits dans `chat/actions.py`.** Le filtre de
+   `_notion_menu` était une vraie duplication → **supprimé**. Celui de `_open_notion` **n'en est
+   pas une** : c'est un choix de **routage** (déléguer au menu plutôt que tomber dans la branche
+   « contenu absent »), éprouvé live. Conservé, mais il lit maintenant `eli5.available` au lieu
+   de redériver depuis `cours.available`.
+4. ⚠️ **Le plafond `CONTENT_REQUEST_MAX_KINDS = 7` est décrit comme « la panoplie entière »,
+   mais le vocabulaire ne compte que SIX types demandables** (`eli5` se demande comme `cours`,
+   `revision` comme `card`). Appliqué après dédup, il ne bornerait **rien**. Il est donc mesuré
+   sur la charge **brute** : le plafond borne la TAILLE de l'appel, le vocabulaire borne son
+   CONTENU.
+5. ⚠️ **`app.routes` n'est PAS à plat** dans cette version de FastAPI (des `_IncludedRouter`, pas
+   des `APIRoute`). Un test « telle route n'existe pas » écrit dessus passe **toujours**, à vide.
+   Vérifier sur `app.openapi()["paths"]`.
+
+### Chiffres mesurés
+
+**14 requêtes SQL pour 3, 30 et 100 notions** — constant, mesuré (le test compare 3 vs 30).
+
+### Décisions actives à ne pas rouvrir
+
+- **Un seul prédicat de disponibilité dans le dépôt.** Si le test
+  `test_la_route_en_lot_et_le_panneau_disent_la_meme_chose` casse, **ne pas l'ajuster** : aller
+  chercher la duplication qui vient de réapparaître.
+- **ELI5 n'est pas offert sans cours validé** — il s'ancre sur le cours canonique et dégraderait
+  vers le modèle. La règle vit dans le prédicat, jamais dans une page.
+- **Aucun `GET`/`PATCH` élève sur `content_requests`.** L'absence est la décision.
+- **`mastery_score` ne sort pas de la route de matière.** `status` seul.
+- **Un COMPTE, jamais un ratio.** Vaut pour « N prêtes » par chapitre comme pour la bande. Un
+  dénominateur ferait un score (ADR-0024 §5) ; deux tests l'interdisent.
+- **`session_size` et jamais `due_count`** sur toute surface enfant. Le fixture de test pose 42
+  contre 8 précisément pour que le verrou puisse mordre.
+- **L'orange de la demande se rend plus LUMINEUX, jamais plus VIF** (l'or est à 18°, le rouge est
+  banni : la teinte n'a pas de marge).
+- **Une pastille qui ne mène nulle part doit être visiblement INERTE** (pointillés, atténuation,
+  `aria-label` explicite). Sinon elle se lit comme une panne — c'est arrivé avec le quiz le
+  2026-08-01. **Une chose qui ressemble à un lien doit être un lien.** Seule `capsule` est encore
+  dans ce cas (`/capsules` est global, aucun `/capsules/:slug`).
+
+### ⚠️ Divergences ASSUMÉES avec les ADR — à porter dans un addendum
+
+Le code s'écarte sciemment de deux points écrits. **Ce n'est pas de la dérive, c'est une décision
+du user prise au vu de l'écran** — mais tant qu'aucun ADR ne l'enregistre, l'ADR et le code se
+contredisent :
+
+1. **« Demander à Papa » → « demander à ZETIS »** (addendum ADR-0027 §Geste).
+2. **Phrase « ZETIS transmet la demande. Il ne fabrique rien tout seul. » SUPPRIMÉE** — l'addendum
+   ADR-0027 l'exigeait. Motif : ZETIS produira bientôt du contenu lui-même.
+
+La spec `page-matiere-dediee.md` porte les deux, avec leur motif. **Point ouvert qui en découle** :
+le jour où ZETIS génère, faut-il que la demande déclenche la génération, ou passe-t-elle toujours
+par la validation de Papa ? `CLAUDE.md` (« aucune réponse IA n'est vérité absolue, validation Papa
+avant activation ») penche pour la seconde. **C'est une décision d'ADR, pas d'UI.**
+
+### PROCHAIN PAS
+
+1. **VOIR LA PAGE EN VRAI.** Le user a lancé l'app et fait corriger six points, mais **l'agent
+   n'a jamais vu la page à l'écran** (session restée sur `/login` de son côté). Paire de dev
+   cadrée : `backend-galaxy` (`:8003`) + `massimo-galaxy` (`:5179`), CORS appairé — cf.
+   `.claude/launch.json`. ⚠️ Les serveurs lancés par l'agent **meurent avec la session** ; pour
+   inspecter tranquillement, les lancer depuis un terminal.
+2. **Obtenir les deux ADR** (tableau plus haut) et les poser sur `main` avec `DECISIONS.md`, qui
+   attend non commité exprès. **Y porter les deux divergences ci-dessus.**
+3. Pousser `feat/page-matiere` (15 commits) et ouvrir la PR.
+
+> Dette repérée en passant, **pas** traitée : `notionRouteFor` ignore `action.capsule_id` et
+> ouvre `/capsules` à plat — le libellé « Regarder la capsule » sur-promet donc déjà. C'est
+> pré-existant (hérité de `NotionActionPanel`), à corriger quand `/capsules/:id` existera.
+
+---
+
+## Historique — témoins de nouveauté en navigation (ADR-0030)
+
 **Chantier : les témoins de nouveauté en navigation (ADR-0030).**
 
 **✅ MERGÉ dans `main`** — squash **`86464b4`**, PR
@@ -68,10 +296,10 @@ toute la session ; mindmaps 14 → 13 après un regard, inchangé au rejeu. Les 
   tout, ADR-0014 §2), ELI5 (critère de **récence**, pas de vue). Un test verrouille la liste.
 - `capNewsBadge` (9+) et `cappedCount` (15+) sont **deux objets distincts** et doivent le rester.
 
-### Prochain pas
+### Suite donnée (à la clôture de ce chantier)
 
-**Aucun chantier en cours.** Le lot ADR-0030 est clos et mergé ; `main` est à jour et poussé.
-Le prochain chantier reste à choisir — candidats déjà cadrés au BACKLOG : Lot 3 de l'agenda
+Le lot ADR-0030 est clos et mergé ; `main` était à jour et poussé. Candidats alors au BACKLOG,
+toujours ouverts : Lot 3 de l'agenda
 (ADR-0025 §11, analyse et pont vers le Commander), unification des deux `new_count` de `memory`,
 ou la dette de mesure de la galaxie sur iPhone/iPad (jamais vérifiée, cf. historique plus bas).
 

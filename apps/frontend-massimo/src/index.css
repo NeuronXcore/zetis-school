@@ -15,6 +15,24 @@
   --color-zetis-accent: #6366f1;
   --color-zetis-accent-2: #22d3ee;
 
+  /* Orange électrique — la DEMANDE (« demander à ZETIS », page matière). Une teinte à part,
+     qui ne se confond ni avec l'indigo/cyan des actions faisables ni avec l'or `#ffcf47`
+     réservé à « ZETIS parle ». Ce n'est PAS une couleur d'alerte : demander est un geste
+     positif, la seule chose que Massimo puisse faire face à un contenu qui n'existe pas
+     encore. Aucun rouge ici — la doctrine ADR-0024 §5 l'interdit partout.
+
+     ⚠️ La teinte n'a presque aucune marge : l'or est à 18° d'écart et le rouge est banni.
+     C'est pourquoi « électrique » se dit ici par le HALO et non par la teinte — la grammaire
+     de l'app tout entière (`NeonBackdrop`, `starStyle.glow`, `NEON_TEXT`). Ne pas chercher à
+     rendre cet orange plus vif : le rendre plus LUMINEUX. */
+  --color-zetis-request: #ff7a1a;
+  /* Version éclaircie, pour le TEXTE sur fond sombre : #ff7a1a en aplat de texte manque de
+     contraste sur #131a2e. La bordure et le fond gardent la teinte pure. */
+  --color-zetis-request-lit: #ffa059;
+  /* Le halo. `color-mix` plutôt qu'un hex à alpha recopié : une seule source de vérité —
+     changer `--color-zetis-request` suffit à déplacer la couleur ET sa lueur. */
+  --shadow-request: 0 0 14px color-mix(in srgb, var(--color-zetis-request) 40%, transparent);
+
   /* Tokens sémantiques consommés par @zetis/ui (mappés sur la palette Massimo). */
   --color-background: var(--color-zetis-bg);
   --color-foreground: var(--color-zetis-text);

@@ -11,10 +11,13 @@ Deux propriétés clés :
   `done`/`dismissed` **repasse `pending`** quand Massimo redemande (le besoin est revenu).
 """
 
+from collections.abc import Sequence
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.models import ContentRequest, Skill, Subject
 
 # Vocabulaire fermé, aligné sur les surfaces de contenu de ZETIS. Le chat n'émet que
@@ -22,7 +25,11 @@ from app.db.models import ContentRequest, Skill, Subject
 # d'autres origines futures sans migration.
 CONTENT_KINDS = ("cours", "fiche", "mindmap", "quiz", "capsule", "card")
 _ALLOWED_STATUS = ("pending", "done", "dismissed")
+# Origine de la demande. Elle distingue le CHOISI du SUBI : dans le chat, l'émission est un effet
+# de bord dont Massimo n'a pas conscience ; depuis la page matière, c'est un geste explicite sur
+# une pastille grisée. Papa lit la différence, elle change la priorité qu'il accorde à la ligne.
 SOURCE_CHAT = "chat_orchestrator"
+SOURCE_SUBJECT_PAGE = "subject_page"
 
 
 def _out(
@@ -79,6 +86,65 @@ def create_request(
     db.add(req)
     db.flush()
     return _out(req)
+
+
+def create_student_requests(
+    db: Session, *, student_id: int, skill_id: int, content_kinds: Sequence[str]
+) -> list[str]:
+    """Demandes émises par Massimo depuis une surface élève (addendum ADR-0027).
+
+    **Trois garde-fous**, dans cet ordre :
+
+    1. *vocabulaire fermé* — porté par le schéma (`ContentKind`), donc déjà appliqué en `422`
+       quand on arrive ici ;
+    2. *plafond* `CONTENT_REQUEST_MAX_KINDS` — au-delà de la panoplie, il n'y a rien de plus à
+       demander sur une notion ; un appel plus gros est un abus, pas un besoin ;
+    3. *visibilité* — la notion doit être visible de l'élève. **Sans ce contrôle, la route
+       devient un oracle d'existence sur les brouillons de Papa** : un `skill_id` au hasard
+       répondrait « créé » ou « pas créé », révélant ce qui existe en base sans être publié.
+
+    Un `skill_id` invisible rend **404 et ne crée AUCUNE ligne** — la vérification précède
+    strictement la première écriture.
+
+    Aucun XP, aucun `event_type`, aucune trace d'événement : demander n'est pas apprendre, et la
+    **ligne de file EST la trace**. `create_request` n'est pas modifié — son idempotence borne
+    structurellement la répétition.
+    """
+    from app.modules.galaxy.service import is_notion_visible
+
+    max_kinds = settings.content_request_max_kinds
+    # ⚠️ Le plafond se mesure sur la liste BRUTE, avant déduplication — sinon il ne bornerait
+    # rien : le vocabulaire fermé ne compte que SIX types demandables (`eli5` se demande comme
+    # `cours`, `revision` comme `card`), donc une liste dédupliquée ne peut pas atteindre 7. Ce
+    # que le plafond borne, c'est la TAILLE de la charge utile ; ce que le vocabulaire borne,
+    # c'est son contenu. Les deux garde-fous ne protègent pas de la même chose.
+    if len(content_kinds) > max_kinds:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Trop de contenus demandés en une fois (maximum {max_kinds}).",
+        )
+    # Dédup en préservant l'ordre : « tout ce qui manque » peut arriver avec des répétitions,
+    # elles ne doivent pas créer de lignes en double (la contrainte DB les refuserait de toute
+    # façon — autant ne pas les tenter).
+    kinds = list(dict.fromkeys(content_kinds))
+    if not is_notion_visible(db, skill_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notion introuvable.",
+        )
+
+    requested: list[str] = []
+    for kind in kinds:
+        if create_request(
+            db,
+            student_id=student_id,
+            skill_id=skill_id,
+            content_kind=kind,
+            source=SOURCE_SUBJECT_PAGE,
+        ):
+            requested.append(kind)
+    db.commit()
+    return requested
 
 
 def list_requests(db: Session, status_filter: str | None = "pending") -> list[dict]:

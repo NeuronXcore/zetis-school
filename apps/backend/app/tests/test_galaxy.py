@@ -256,7 +256,7 @@ def test_la_panoplie_complete_est_toujours_renvoyee(client_db):
         "quiz",
     ]
     dispo = {a["kind"]: a["available"] for a in actions}
-    # Le cours est RÉDIGÉ (le seed pose un content_markdown) et ELI5 ne dépend de rien.
+    # Le cours est RÉDIGÉ (le seed pose un content_markdown), donc ELI5 a de quoi s'ancrer.
     assert dispo["cours"] is True
     assert dispo["eli5"] is True
     # Rien d'autre n'a été créé dans ce jeu de données.
@@ -272,7 +272,13 @@ def test_cours_indisponible_si_lecon_validee_sans_contenu_redige(client_db):
     actions = client.get(f"/api/student/galaxy/notion/{ids['mitose_id']}").json()["actions"]
     dispo = {a["kind"]: a["available"] for a in actions}
     assert dispo["cours"] is False  # ← le mensonge corrigé
-    assert dispo["eli5"] is True  # ELI5 reste offert (génératif à la volée)
+    # ⚠️ Assertion RETOURNÉE le 2026-08-01 (addendum ADR-0024 §Panoplie). Elle affirmait
+    # « ELI5 reste offert (génératif à la volée) ». C'était le seul point où `notion_panel` et
+    # l'orchestrateur se contredisaient : le chat refusait DÉJÀ de router vers ELI5 sans cours
+    # validé (correctif live du 2026-07-30), parce qu'ELI5 s'ancre sur le cours canonique et
+    # DÉGRADE vers le modèle en son absence — donc inventerait. La règle est descendue dans le
+    # prédicat partagé, où les deux surfaces la lisent au lieu de la redériver chacune.
+    assert dispo["eli5"] is False
 
 
 def test_une_fiche_validee_rend_l_action_disponible(client_db):
@@ -585,3 +591,186 @@ def test_with_skills_ne_sert_aucun_etat_de_maitrise(client_db):
 
     skills = client.get("/api/student/galaxy/timeline?with_skills=true").json()["skills"]
     assert set(skills[0]) == {"skill_id", "date"}
+
+
+# --- Index de matière : le SECOND rendu du même modèle (addendum ADR-0024) ----------------
+#
+# Ces tests protègent une chose avant le contrat : qu'il n'existe qu'UN prédicat de
+# disponibilité. Le correctif du 2026-07-30 a montré ce que coûte un second — le cours annoncé
+# disponible sur `lesson_id is not None` d'un côté, sur `content_markdown IS NOT NULL` de
+# l'autre, donc une porte ouverte sur du vide.
+
+
+def _add_notions(TestSession, ids: dict, count: int) -> list[int]:
+    """`count` notions supplémentaires sur la leçon SVT déjà semée."""
+    db = TestSession()
+    skills = [
+        m.Skill(subject_id=ids["subject_id"], name=f"Notion {i:02d}", level="4e")
+        for i in range(count)
+    ]
+    db.add_all(skills)
+    db.flush()
+    db.add_all([m.LessonSkill(lesson_id=ids["lesson_id"], skill_id=s.id) for s in skills])
+    db.commit()
+    out = [s.id for s in skills]
+    db.close()
+    return out
+
+
+def _count_queries(TestSession, call) -> int:
+    """Nombre de requêtes SQL réellement exécutées pendant `call()`."""
+    from sqlalchemy import event
+
+    engine = TestSession.kw["bind"]
+    seen = []
+
+    def _before(conn, cursor, statement, parameters, context, executemany):
+        seen.append(statement)
+
+    event.listen(engine, "before_cursor_execute", _before)
+    try:
+        call()
+    finally:
+        event.remove(engine, "before_cursor_execute", _before)
+    return len(seen)
+
+
+def test_la_route_en_lot_et_le_panneau_disent_la_meme_chose(client_db):
+    """LE test-verrou de ce chantier : pour un même `skill_id`, la route de matière et
+    `notion_panel` renvoient le MÊME `available` sur les 7 activités.
+
+    S'il casse, c'est qu'un second prédicat est réapparu quelque part — ne pas l'ajuster,
+    aller chercher la duplication."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+
+    db = TestSession()
+    db.add(m.Fiche(lesson_id=ids["lesson_id"], validation_status="validated"))
+    db.add(
+        m.Capsule(
+            subject_id=ids["subject_id"],
+            skill_id=ids["mitose_id"],
+            title="Mitose",
+            validation_status="validated",
+        )
+    )
+    db.add(
+        m.SpacedReviewCard(
+            student_id=ids["student_id"],
+            skill_id=ids["adn_id"],
+            front_markdown="Recto",
+            back_markdown="Verso",
+            status="scheduled",
+        )
+    )
+    db.commit()
+    db.close()
+
+    chapters = client.get("/api/student/subjects/svt/panoply").json()["chapters"]
+    en_lot = {
+        notion["skill_id"]: {a["kind"]: a["available"] for a in notion["actions"]}
+        for chapter in chapters
+        for notion in chapter["notions"]
+    }
+    assert set(en_lot) == {ids["mitose_id"], ids["adn_id"]}
+
+    for skill_id, lot in en_lot.items():
+        panel = client.get(f"/api/student/galaxy/notion/{skill_id}").json()["actions"]
+        mono = {a["kind"]: a["available"] for a in panel}
+        assert lot == mono, f"divergence sur la notion {skill_id}"
+        assert len(lot) == 7
+
+
+def test_le_nombre_de_requetes_ne_depend_pas_du_nombre_de_notions(client_db):
+    """3 notions ou 30 : le même nombre de requêtes. Un N+1 rendrait la page matière
+    inutilisable sur une vraie matière (référence : `coverage.py`, 69 leçons en 18 requêtes)."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _add_notions(TestSession, ids, 1)  # 2 notions semées + 1 = 3
+
+    avec_3 = _count_queries(TestSession, lambda: client.get("/api/student/subjects/svt/panoply"))
+
+    _add_notions(TestSession, ids, 27)  # 30 au total
+    avec_30 = _count_queries(TestSession, lambda: client.get("/api/student/subjects/svt/panoply"))
+
+    notions = [
+        n
+        for c in client.get("/api/student/subjects/svt/panoply").json()["chapters"]
+        for n in c["notions"]
+    ]
+    assert len(notions) == 30, "le jeu de données doit bien avoir grossi"
+    assert avec_3 == avec_30, f"N+1 : {avec_3} requêtes pour 3 notions, {avec_30} pour 30"
+
+
+def test_aucun_mastery_score_ne_sort_de_la_route_de_matiere(client_db):
+    """ADR-0024 §5 : `status` seul. Une valeur numérique servie finit toujours par être
+    affichée — et la page matière ne note pas Massimo."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _set_mastery(TestSession, ids["student_id"], ids["mitose_id"], "solid", 82.0)
+
+    brut = client.get("/api/student/subjects/svt/panoply").text
+    for interdit in ("mastery_score", "mastery", "intensity", "confidence", "82"):
+        assert interdit not in brut, f"« {interdit} » ne doit pas sortir"
+
+
+def test_une_lecon_draft_ne_produit_aucune_notion_dans_l_index(client_db):
+    """Pas même « à découvrir » : même chaîne de visibilité que les autres routes élève."""
+    client, TestSession = client_db
+    _seed_svt(TestSession, lesson_status="draft")
+    assert client.get("/api/student/subjects/svt/panoply").json()["chapters"] == []
+
+
+def test_un_chapitre_non_valide_ne_produit_aucune_notion_dans_l_index(client_db):
+    client, TestSession = client_db
+    _seed_svt(TestSession, chapter_validation="pending")
+    assert client.get("/api/student/subjects/svt/panoply").json()["chapters"] == []
+
+
+def test_eli5_n_est_pas_offert_sans_cours_valide_dans_l_index(client_db):
+    """La règle vit dans le prédicat partagé, donc elle s'applique ICI sans une ligne de plus.
+
+    ELI5 s'ancre sur le cours canonique (ADR-0011) et dégrade vers le modèle sans lui : l'offrir
+    sur une notion sans cours, c'est envoyer Massimo vers du contenu que personne n'a validé."""
+    client, TestSession = client_db
+    _seed_svt(TestSession, lesson_content=None)  # leçon validée, cours jamais écrit
+
+    notion = client.get("/api/student/subjects/svt/panoply").json()["chapters"][0]["notions"][0]
+    dispo = {a["kind"]: a["available"] for a in notion["actions"]}
+    assert dispo["cours"] is False
+    assert dispo["eli5"] is False
+
+
+def test_l_ordre_des_activites_est_pedagogique_et_porte_par_le_serveur(client_db):
+    """Comprendre → mémoriser → se tester. L'ordre est le même sur les deux surfaces, et le
+    client n'a rien à réordonner."""
+    client, TestSession = client_db
+    _seed_svt(TestSession)
+
+    notion = client.get("/api/student/subjects/svt/panoply").json()["chapters"][0]["notions"][0]
+    assert [a["kind"] for a in notion["actions"]] == [
+        "cours",
+        "eli5",
+        "fiche",
+        "capsule",
+        "mindmap",
+        "revision",
+        "quiz",
+    ]
+
+
+def test_matiere_inconnue_ou_hors_annee_active_rend_404(client_db):
+    client, TestSession = client_db
+    _seed_svt(TestSession)
+    assert client.get("/api/student/subjects/latin/panoply").status_code == 404
+    # « Mathématiques » existe (fixture) mais n'est PAS rattachée à l'année active.
+    assert client.get("/api/student/subjects/mathematiques/panoply").status_code == 404
+
+
+def test_une_matiere_sans_rien_de_valide_rend_un_etat_positif(client_db):
+    """`chapters: []`, jamais une erreur : l'absence de contenu n'est pas un manque de l'enfant."""
+    client, TestSession = client_db
+    _seed_svt(TestSession, chapter_validation="pending")
+    body = client.get("/api/student/subjects/svt/panoply").json()
+    assert body["chapters"] == []
+    assert body["subject"]["slug"] == "svt"

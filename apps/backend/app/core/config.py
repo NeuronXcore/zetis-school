@@ -218,6 +218,14 @@ class Settings(BaseSettings):
         default=200, validation_alias="TELEMETRY_ROUTE_MAX_LENGTH"
     )
 
+    # --- Demandes de contenu depuis une surface élève (addendum ADR-0027) ---
+    # Plafond de types de contenu demandables en UN appel. v1 = 7 = la panoplie entière, pour que
+    # « demander tout ce qui manque » tienne en une requête sans jamais devenir un robinet : au-delà
+    # de la panoplie, il n'y a rien de plus à demander sur une notion.
+    content_request_max_kinds: int = Field(
+        default=7, validation_alias="CONTENT_REQUEST_MAX_KINDS"
+    )
+
     # --- RAG (Étape 11) : embeddings locaux + récupération sémantique pgvector ---
     # Découplé de `llm_provider` : les embeddings restent sur ollama même si la
     # génération passe sur MLX (évite toute migration pgvector). Cf. ADR-0008.

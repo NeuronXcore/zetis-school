@@ -212,6 +212,8 @@ export {
   type ContentRequest,
   type ContentRequestKind,
   type ContentRequestStatus,
+  type StudentContentRequestBody,
+  type StudentContentRequestResult,
 } from "./contentRequests";
 export {
   type GalaxyAction,
@@ -227,4 +229,7 @@ export {
   type GalaxyStatus,
   type GalaxySubject,
   type GalaxySubjectRef,
+  type PanoplyChapter,
+  type PanoplyNotion,
+  type SubjectPanoply,
 } from "./galaxy";

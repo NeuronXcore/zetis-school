@@ -4,6 +4,7 @@ import { type MindmapDetail, type MindmapListItem } from "@zetis/types";
 import { MindmapWorkspace, type MindmapMode } from "@zetis/ui/mindmap";
 import { FicheSidePanel } from "../components/mindmap/FicheSidePanel";
 import { NeonBackdrop } from "../components/glass";
+import { SubjectBackLink, prettifySlug } from "../components/SubjectBackLink";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import {
@@ -15,11 +16,6 @@ import {
 
 // Écrans 2 (liste des cartes d'une matière) + 3 (la carte interactive). À l'ouverture d'une carte :
 // POST /seen. Aucune logique métier : le serveur ne sert que le validé et évalue la reconstruction.
-
-function prettifySlug(slug: string): string {
-  const s = slug.replace(/-/g, " ");
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 export function MindmapSubjectPage() {
   const { slug = "", mindmapId } = useParams();
@@ -115,6 +111,9 @@ export function MindmapSubjectPage() {
         <NeonBackdrop />
         <div className="relative">
           <div className="mb-4 flex items-center justify-between">
+            {/* En mission, « ← Retour à ma mission » reste PRIORITAIRE : une action principale
+                par écran, et la mission est le fil que Massimo est en train de suivre. Hors
+                mission, le retour referme la carte (on reste sur la page). */}
             <button
               type="button"
               onClick={() => (reconstruire ? navigate("/missions") : setOpenIdx(null))}
@@ -197,13 +196,11 @@ export function MindmapSubjectPage() {
       <NeonBackdrop />
       <div className="relative">
         <div className="mb-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigate("/mindmaps")}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300 hover:border-cyan-400/40"
-          >
-            ← Mes decks
-          </button>
+          {/* Remontait vers `/mindmaps` (le deck) alors que Massimo arrive de sa MATIÈRE.
+              `slug` est passé explicitement : sur le deep-link `/mindmaps/reconstruire/:id`
+              l'URL ne porte pas la matière, elle vient de la carte résolue CÔTÉ SERVEUR —
+              c'est une donnée, pas un état de navigation. */}
+          <SubjectBackLink slug={effSlug} name={subjectName} className="mb-0" />
           {heading}
         </div>
 

@@ -1,8 +1,22 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GalaxyNotion } from "@zetis/types";
 import { NotionActionPanel } from "./NotionActionPanel";
+
+const navigateMock = vi.hoisted(() => vi.fn());
+vi.mock("react-router-dom", async (orig) => {
+  const actual = await orig<typeof import("react-router-dom")>();
+  return { ...actual, useNavigate: () => navigateMock };
+});
+
+vi.mock("../../lib/quiz", () => ({ fetchQuizById: vi.fn() }));
+import { fetchQuizById } from "../../lib/quiz";
+
+beforeEach(() => {
+  navigateMock.mockReset();
+  vi.mocked(fetchQuizById).mockReset();
+});
 
 function panel(notion: Partial<GalaxyNotion> = {}) {
   const full: GalaxyNotion = {
@@ -83,5 +97,92 @@ describe("NotionActionPanel", () => {
     const { container } = panel({ status: "solid" });
     expect(screen.getByText("Bien acquis")).toBeTruthy();
     expect(container.textContent).not.toMatch(/solid|mastery|%/);
+  });
+});
+
+// --- Destinations : le filet de l'extraction (2026-08-01) --------------------------------
+//
+// Ces cas ont été écrits AVANT de sortir la table `kind → route` de la closure `go()`, et
+// contre le code d'alors. Ils n'ont pas bougé pendant l'extraction : leur vert est la preuve
+// que `notionRoutes.ts` envoie Massimo exactement là où le panneau l'envoyait.
+//
+// ⚠️ Avant eux, AUCUN test ne couvrait les destinations — seulement les libellés, le `disabled`
+// et l'accent. Un refactor de routage se serait fait sans filet.
+
+describe("NotionActionPanel — destinations", () => {
+  // ⚠️ DEUX lignes de ce tableau ont changé à l'extraction, et deux seulement : `eli5` et
+  // `revision` gagnent `&from=<slug>`. Ce n'est pas une dérive du refactor, c'est l'ajout
+  // délibéré du rétrolien — ces deux surfaces sont les seules dont le CHEMIN ne porte pas la
+  // matière, donc les seules incapables de savoir d'où Massimo vient. Les cinq autres
+  // destinations sont identiques au caractère près.
+  const CAS: Array<[string, GalaxyNotion["actions"][number], string, RegExp]> = [
+    ["cours", { kind: "cours", available: true, lesson_id: 3 }, "/subjects/svt/cours", /Voir le cours/],
+    [
+      "eli5",
+      { kind: "eli5", available: true },
+      "/eli5?skill_id=12&name=Mitose&from=svt",
+      /Fais-moi comprendre/,
+    ],
+    ["fiche", { kind: "fiche", available: true, fiche_id: 5 }, "/fiches/svt", /Lire la fiche/],
+    ["capsule", { kind: "capsule", available: true, capsule_id: 7 }, "/capsules", /Regarder la capsule/],
+    [
+      "mindmap",
+      { kind: "mindmap", available: true, mindmap_id: 44 },
+      "/mindmaps/reconstruire/44",
+      /Reconstruire la carte/,
+    ],
+    [
+      "revision",
+      { kind: "revision", available: true },
+      // `?subject=` LANCE la session, `?from=` sert le retour. Deux paramètres parce que ce
+      // sont deux rôles : les confondre ferait d'un lien de retour un lancement.
+      "/revision?subject=svt&from=svt",
+      /Réviser mes cartes/,
+    ],
+  ];
+
+  it.each(CAS)("« %s » ouvre sa surface réelle", (_kind, action, route, label) => {
+    panel({ actions: [action] });
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    expect(navigateMock.mock.calls[0][0]).toBe(route);
+  });
+
+  it("la fiche transporte le NOM de la matière (l'URL ne porte qu'un slug)", () => {
+    panel({ actions: [{ kind: "fiche", available: true, fiche_id: 5 }] });
+    fireEvent.click(screen.getByRole("button", { name: /Lire la fiche/ }));
+    expect(navigateMock.mock.calls[0][1]).toEqual({ state: { name: "SVT" } });
+  });
+
+  it("le quiz charge le quiz COMPLET puis navigue avec returnTo=/galaxy", async () => {
+    // `/quiz/session` n'est pas adressable par id : il attend le quiz dans `location.state`.
+    // C'est la seule activité asynchrone, et le `returnTo` est ce que l'extraction paramètre.
+    vi.mocked(fetchQuizById).mockResolvedValue({ id: 9 } as never);
+    panel({ actions: [{ kind: "quiz", available: true, quiz_id: 9 }] });
+    fireEvent.click(screen.getByRole("button", { name: /Me tester/ }));
+
+    await waitFor(() => expect(navigateMock).toHaveBeenCalled());
+    expect(fetchQuizById).toHaveBeenCalledWith(9);
+    expect(navigateMock.mock.calls[0][0]).toBe("/quiz/session");
+    expect(navigateMock.mock.calls[0][1].state).toMatchObject({
+      quiz: { id: 9 },
+      label: "SVT · Mitose",
+      returnTo: "/galaxy",
+    });
+  });
+
+  it("un quiz disparu retombe sur la liste, SANS message d'échec", async () => {
+    // Ce n'est pas la faute de Massimo : on ne lui montre pas d'erreur, on l'emmène ailleurs.
+    vi.mocked(fetchQuizById).mockRejectedValue(new Error("404"));
+    const { container } = panel({ actions: [{ kind: "quiz", available: true, quiz_id: 9 }] });
+    fireEvent.click(screen.getByRole("button", { name: /Me tester/ }));
+
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/quiz"));
+    expect(container.textContent).not.toMatch(/erreur|échec|introuvable/i);
+  });
+
+  it("une activité indisponible ne navigue NULLE PART", () => {
+    panel({ actions: [{ kind: "fiche", available: false }] });
+    fireEvent.click(screen.getByRole("button", { name: /Lire la fiche/ }));
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 });

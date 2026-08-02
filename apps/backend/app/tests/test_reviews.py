@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 
 import app.db.models as m
 import app.modules.memory.service as srv
-from app.modules.memory.service import interleave
+from app.modules.memory.service import REVIEW_SESSION_MAX_SUBJECT, interleave
 
 
 # --- helpers de seed ---------------------------------------------------------------
@@ -322,6 +322,54 @@ def test_summary_aggregates_due_by_subject(client_db):
     assert [s["slug"] for s in body["subjects"]] == ["mathematiques", "francais"]
     # les deux ont des cartes actives → non grisées.
     assert all(s["has_cards"] for s in body["subjects"])
+
+
+def test_session_size_est_le_plafond_de_la_matiere_jamais_l_arriere(client_db):
+    """`session_size` est le nombre qu'une surface enfant affiche — ce que la session servira
+    VRAIMENT — là où `due_count` est l'arriéré (la pression quotidienne interdite).
+
+    Le calcul vit ici parce que `REVIEW_SESSION_MAX_SUBJECT` vit ici : recopié dans un front,
+    il mentirait silencieusement le jour où le plafond bouge."""
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        maths = _subject(db, "mathematiques", "Maths", sort_order=0)
+        fr = _subject(db, "francais", "Français", sort_order=1)
+        for _ in range(REVIEW_SESSION_MAX_SUBJECT + 7):  # bien au-delà du plafond
+            _card(db, student, maths, due_at=now - timedelta(days=1))
+        for _ in range(2):  # en deçà : le plafond ne gonfle rien
+            _card(db, student, fr, due_at=now - timedelta(days=1))
+        db.commit()
+
+    subjects = {s["slug"]: s for s in client.get("/api/student/reviews/summary").json()["subjects"]}
+    assert subjects["mathematiques"]["session_size"] == REVIEW_SESSION_MAX_SUBJECT
+    assert subjects["mathematiques"]["due_count"] == REVIEW_SESSION_MAX_SUBJECT + 7
+    assert subjects["francais"]["session_size"] == 2
+
+    for subject in subjects.values():
+        assert subject["session_size"] <= REVIEW_SESSION_MAX_SUBJECT
+        assert subject["session_size"] <= subject["due_count"]
+
+
+def test_session_size_annonce_exactement_ce_que_la_session_sert(client_db):
+    """Le contrat qui compte : le nombre annoncé et le nombre de cartes servies sont le MÊME.
+    Deux calculs séparés dériveraient, et Massimo verrait une promesse non tenue."""
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        maths = _subject(db, "mathematiques", "Maths", sort_order=0)
+        for _ in range(REVIEW_SESSION_MAX_SUBJECT + 4):
+            _card(db, student, maths, due_at=now - timedelta(days=1))
+        db.commit()
+
+    summary = client.get("/api/student/reviews/summary").json()
+    annonce = next(s for s in summary["subjects"] if s["slug"] == "mathematiques")["session_size"]
+    servies = client.post(
+        "/api/student/reviews/session", json={"deck": {"subject": "mathematiques"}}
+    ).json()
+    assert len(servies) == annonce
 
 
 def test_summary_subject_with_cards_but_none_due_is_up_to_date(client_db):

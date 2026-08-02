@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { DeckDisc } from "../components/DeckDisc";
 import { SubjectDeckGrid, type SubjectDeck } from "../components/SubjectDeckGrid";
 import { NeonBackdrop, GlassPanel, NEON_BUTTON } from "../components/glass";
+import { SubjectBackLink } from "../components/SubjectBackLink";
 import { type Eli5Chip, useEli5 } from "../hooks/useEli5";
 import { useEli5Page } from "../hooks/useEli5Page";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -44,6 +45,11 @@ export function Eli5Page() {
     <div className="relative mx-auto max-w-3xl">
       <NeonBackdrop />
       <div className="relative">
+        {/* Rétrolien via `?from=` : `/eli5?skill_id=` porte une NOTION, pas une matière, et ni
+            l'URL (nettoyée dès le premier rendu) ni la réponse serveur ne gardent le slug. Le
+            paramètre est ajouté par l'appelant, et il survit aux deux `replace` de cette page
+            (qui ne suppriment que `skill_id`/`name` et `subject`). */}
+        <SubjectBackLink />
         {page.screen === "home" && <HomeScreen page={page} />}
         {page.screen === "subject" && <SubjectScreen page={page} eli5={eli5} />}
         {page.screen === "session" && <Eli5Session eli5={eli5} onBack={page.backFromSession} />}

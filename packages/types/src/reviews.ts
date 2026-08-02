@@ -19,6 +19,13 @@ export interface ReviewSubjectDue {
   due_count: number;
   /** Cartes dues jamais révisées (fraîchement générées) de cette matière — badge « nouveau ». */
   new_count: number;
+  /** Ce que servirait le deck de cette matière : `min(REVIEW_SESSION_MAX_SUBJECT, due_count)`,
+   *  calculé par le serveur (là où vit le plafond).
+   *
+   *  ⚠️ C'est CE nombre qu'une surface enfant affiche, jamais `due_count` — qui est l'arriéré,
+   *  donc la pression quotidienne que `CLAUDE.md` interdit. La page Révision lit encore
+   *  `due_count` pour son badge historique ; aucune nouvelle surface ne doit le faire. */
+  session_size: number;
   /** `false` → aucune carte active générée : matière GRISÉE (« pas encore de cartes »), non lançable. */
   has_cards: boolean;
 }

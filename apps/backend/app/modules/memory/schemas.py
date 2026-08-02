@@ -16,6 +16,10 @@ class SubjectDue(BaseModel):
     name: str
     due_count: int
     new_count: int = 0  # cartes dues jamais révisées (fraîchement générées) de cette matière
+    # Plafond de session de CETTE matière (`min(REVIEW_SESSION_MAX_SUBJECT, due_count)`) —
+    # c'est le nombre qu'une surface doit afficher. `due_count` est l'ARRIÉRÉ : l'afficher à
+    # Massimo serait la pression quotidienne que `CLAUDE.md` interdit.
+    session_size: int = 0
     has_cards: bool = True  # False → aucune carte active : matière grisée (« pas encore de cartes »)
 
 

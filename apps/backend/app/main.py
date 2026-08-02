@@ -22,6 +22,7 @@ from app.modules.eli5.router import router as eli5_router
 from app.modules.fiches.router import router as fiches_router
 from app.modules.fiches.router import student_router as fiches_student_router
 from app.modules.galaxy.router import student_router as galaxy_student_router
+from app.modules.galaxy.router import subjects_router as galaxy_subjects_router
 from app.modules.gamification.router import router as gamification_router
 from app.modules.memory.router import parent_router as cards_parent_router
 from app.modules.memory.router import router as memory_router
@@ -37,6 +38,9 @@ from app.modules.motivation.router import router as motivation_router
 from app.modules.progress.router import router as progress_router
 from app.modules.rag.router import router as rag_router
 from app.modules.content_requests.router import router as content_requests_router
+from app.modules.content_requests.router import (
+    student_router as content_requests_student_router,
+)
 from app.modules.production.router import router as production_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
@@ -92,8 +96,13 @@ app.include_router(progress_router)
 app.include_router(motivation_router)
 app.include_router(production_router)
 app.include_router(content_requests_router)
+# Écriture SEULE côté enfant (addendum ADR-0027) : Massimo demande, il ne lit pas la file.
+app.include_router(content_requests_student_router)
 # ZETIS Galaxy (Massimo) : graphe des connaissances, contenu de la page Progression (ADR-0024).
 app.include_router(galaxy_student_router)
+# Second rendu du MÊME modèle, en liste : l'index de notions de la page matière (addendum
+# ADR-0024). Il partage le prédicat de disponibilité de la Galaxy, d'où son module.
+app.include_router(galaxy_subjects_router)
 # Agenda scolaire (ADR-0025) : source exogène co-éditée. Deux routeurs, deux schémas — la
 # frontière Massimo/Papa est tenue par le serveur, jamais par l'UI.
 app.include_router(agenda_student_router)

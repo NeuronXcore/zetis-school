@@ -1,7 +1,17 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+// Moteur d'analyse extrait le 2026-08-01 (la page matière en a besoin avec une règle plus
+// dure). Aucun cas de cette suite n'a changé : son vert prouve que l'extraction est neutre.
+import {
+  dynamicImports,
+  filesImportingThree,
+  isForbidden,
+  reachable,
+  staticImports,
+  triggeringFiles,
+} from "./test/bundleGraph";
 
 // BUDGET DE BUNDLE DE LA PAGE D'ENTRÉE (addendum ADR-0024 §B).
 //
@@ -28,88 +38,6 @@ import { describe, expect, it } from "vitest";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENTRY = resolve(HERE, "pages/AccueilMassimoPage.tsx");
-
-/** Ce que l'Accueil ne doit atteindre par AUCUN chemin synchrone. */
-const FORBIDDEN = ["@zetis/ui/galaxy/canvas", "react-force-graph-3d", "three", "three-spritetext"];
-
-/** Racine du monorepo, pour résoudre les imports `@zetis/*` consommés EN SOURCE (workspace). */
-const REPO = resolve(HERE, "../../..");
-const WORKSPACE: Record<string, string> = {
-  "@zetis/ui": resolve(REPO, "packages/ui/src/index.ts"),
-  "@zetis/ui/galaxy": resolve(REPO, "packages/ui/src/components/galaxy/index.ts"),
-  "@zetis/ui/mindmap": resolve(REPO, "packages/ui/src/components/mindmap/index.ts"),
-  "@zetis/ui/avatar": resolve(REPO, "packages/ui/src/components/avatar/index.ts"),
-  "@zetis/auth": resolve(REPO, "packages/auth/src/index.ts"),
-  "@zetis/types": resolve(REPO, "packages/types/src/index.ts"),
-};
-
-const EXTENSIONS = [".ts", ".tsx", "/index.ts", "/index.tsx"];
-
-function resolveFile(candidate: string): string | null {
-  if (existsSync(candidate) && !candidate.endsWith("/")) {
-    // Un dossier existant n'est pas un module : on laisse les suffixes trancher.
-    try {
-      if (readFileSync(candidate).length >= 0 && /\.[a-z]+$/.test(candidate)) return candidate;
-    } catch {
-      /* c'est un dossier */
-    }
-  }
-  for (const ext of EXTENSIONS) {
-    const withExt = candidate + ext;
-    if (existsSync(withExt)) return withExt;
-  }
-  return null;
-}
-
-/** Spécificateurs importés SYNCHRONEMENT — c'est par eux qu'on parcourt le graphe. */
-function staticImports(source: string): string[] {
-  const withoutDynamic = source.replace(/import\s*\(/g, "IMPORT_DYNAMIQUE(");
-  const found: string[] = [];
-  const re = /(?:^|\n)\s*(?:import|export)[^;\n]*?from\s*["']([^"']+)["']/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(withoutDynamic)) !== null) found.push(match[1]);
-  return found;
-}
-
-/** Spécificateurs chargés en `import(...)` — code-splittés, mais DÉCLENCHÉS au montage. */
-function dynamicImports(source: string): string[] {
-  const found: string[] = [];
-  const re = /import\s*\(\s*["']([^"']+)["']\s*\)/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(source)) !== null) found.push(match[1]);
-  return found;
-}
-
-function isForbidden(specifier: string): boolean {
-  return FORBIDDEN.some((pkg) => specifier === pkg || specifier.startsWith(`${pkg}/`));
-}
-
-/** Tous les fichiers atteignables depuis `entry` par des imports synchrones, + les paquets nus. */
-function reachable(entry: string): { files: Set<string>; bare: Set<string> } {
-  const files = new Set<string>();
-  const bare = new Set<string>();
-  const queue = [entry];
-
-  while (queue.length > 0) {
-    const file = queue.pop() as string;
-    if (files.has(file)) continue;
-    files.add(file);
-
-    for (const specifier of staticImports(readFileSync(file, "utf8"))) {
-      if (specifier.startsWith(".")) {
-        const resolved = resolveFile(resolve(dirname(file), specifier));
-        // Un import non résolu est un asset (png, css) : sans intérêt pour ce budget.
-        if (resolved) queue.push(resolved);
-        continue;
-      }
-      bare.add(specifier);
-      const workspace = WORKSPACE[specifier];
-      if (workspace && existsSync(workspace)) queue.push(workspace);
-    }
-  }
-
-  return { files, bare };
-}
 
 describe("budget de bundle — page d'entrée (Accueil)", () => {
   const { files, bare } = reachable(ENTRY);
@@ -151,11 +79,7 @@ describe("budget de bundle — page d'entrée (Accueil)", () => {
     // Ce que ce cas protège encore, et qui est l'essentiel : qu'un TROISIÈME point de montage
     // n'apparaisse pas sans que personne ne le voie. C'était le mode de la régression de juillet.
     const ALLOWED = ["HomeGalaxyCard.tsx"];
-    const triggering = [...files]
-      .map((file) => ({ file, hits: dynamicImports(readFileSync(file, "utf8")).filter(isForbidden) }))
-      .filter(({ hits }) => hits.length > 0)
-      .map(({ file }) => file.split("/").pop() as string);
-    expect(triggering.sort()).toEqual(ALLOWED);
+    expect(triggeringFiles(files)).toEqual(ALLOWED);
   });
 
   it("le point de montage autorisé le fait en `import()`, JAMAIS en synchrone", () => {
@@ -171,12 +95,6 @@ describe("budget de bundle — page d'entrée (Accueil)", () => {
   it("n'atteint aucun fichier qui importe `three`", () => {
     // Filet transitif : `brainGeometry.ts` importe `three` sans être exporté par le baril
     // `@zetis/ui/galaxy` — c'est la fuite la plus probable si quelqu'un l'importe un jour.
-    const leaking = [...files].filter((file) => {
-      const source = readFileSync(file, "utf8");
-      return [...staticImports(source), ...dynamicImports(source)].some(
-        (s) => s === "three" || s.startsWith("three/"),
-      );
-    });
-    expect(leaking).toEqual([]);
+    expect(filesImportingThree(files)).toEqual([]);
   });
 });

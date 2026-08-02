@@ -151,3 +151,38 @@ export interface GalaxyNotion {
   subject_name: string;
   actions: GalaxyAction[];
 }
+
+/** Une notion dans l'index de matière (`/subjects/:slug`).
+ *
+ *  ⚠️ Il n'y a **ni `mastery_score`, ni `intensity`, ni pourcentage** — et il ne faut pas en
+ *  ajouter : `status` seul (ADR-0024 §5). La page matière décrit le catalogue, elle ne note pas
+ *  Massimo. Une valeur numérique servie finit toujours par être affichée. */
+export interface PanoplyNotion {
+  skill_id: number;
+  name: string;
+  status: GalaxyStatus;
+  /** La panoplie complète, TOUJOURS les 7 activités, dans l'ordre pédagogique du serveur
+   *  (`cours · eli5 · fiche · capsule · mindmap · revision · quiz`). Le client rend dans
+   *  l'ordre reçu et grise ce qui n'est pas disponible — il ne réordonne rien. */
+  actions: GalaxyAction[];
+}
+
+/** Un chapitre de l'index — ordre du référentiel, jamais un classement par maîtrise. */
+export interface PanoplyChapter {
+  chapter_id: number;
+  title: string;
+  notions: PanoplyNotion[];
+}
+
+/** `GET /api/student/subjects/{slug}/panoply` — l'index de notions d'une matière
+ *  (addendum ADR-0024).
+ *
+ *  Même modèle que la constellation, rendu en liste : c'est le repli sans WebGL de
+ *  `zetis-galaxy.md §11`. La page qui consomme ce contrat ne doit donc importer **aucun**
+ *  chunk 3D, ni statiquement ni par `import()`.
+ *
+ *  `chapters: []` quand la matière n'a encore rien de validé — un état positif, pas une erreur. */
+export interface SubjectPanoply {
+  subject: GalaxySubjectRef;
+  chapters: PanoplyChapter[];
+}

@@ -1,196 +1,138 @@
 # PROJECT_STRUCTURE.md — Structure du dépôt ZETIS
 
----
+> **Ce document décrit l'arborescence RÉELLE**, relevée le 2026-08-01, et non une cible.
+> Avant cette date il portait une « structure cible » du bootstrap qui n'avait jamais été
+> appliquée aux frontends (`app/`, `features/`, `routes/`, `services/`, `styles/`) — et un
+> fragment du prompt qui l'avait généré. Un agent qui s'y fiait cherchait des dossiers absents.
+>
+> Quand le code et ce fichier divergent, **c'est ce fichier qu'on corrige** (règle `CLAUDE.md`
+> n°10). La convention des frontends, en particulier, est celle décrite ici : `pages/` et non
+> `routes/`, `lib/` et non `services/`.
 
-### 2. `PROJECT_STRUCTURE.md`
-
-Tu mets un texte orienté arborescence :
-
-```md
 ## Lecture du projet avec Graphify
 
-Claude Code doit utiliser Graphify pour comprendre l’arborescence du projet avant de créer ou modifier des fichiers.
-
-Commande à utiliser à la racine :
+Claude Code doit utiliser Graphify pour comprendre l'arborescence avant de créer ou modifier des
+fichiers. Le graphe est déjà construit (`graphify-out/`) :
 
 ```bash
-/graphify .
+graphify query "<question>"
 ```
-## Structure cible
+
+`graphify explain "<concept>"` pour une zone, `graphify path "<A>" "<B>"` pour une relation, et
+`graphify update .` après avoir modifié du code. Détail dans `CLAUDE.md`.
+
+## Arborescence
 
 ```txt
 zetis/
-├── README.md
-├── CLAUDE.md
-├── ARCHITECTURE.md
-├── TECH_STACK.md
-├── ROADMAP.md
-├── BACKLOG.md
-├── PRODUCT_SPEC.md
-├── DATA_MODEL.md
-├── API_SPEC.md
-├── SECURITY.md
-├── DEPLOYMENT.md
-├── CONTRIBUTING.md
-├── CHANGELOG.md
-├── DECISIONS.md
-├── GLOSSARY.md
+├── *.md                     # doc racine (voir « Racine du projet » plus bas)
 ├── .env.example
-├── docker-compose.yml
+├── docker-compose.yml · .prod.yml · .example.yml
+├── package.json             # workspace pnpm
+├── .claude/                 # outillage Claude Code
+│   ├── commands/            # /cloture, /reprise…
+│   ├── launch.json          # serveurs de dev appairés (backend + front, CORS)
+│   └── settings.json · settings.local.json
 ├── apps/
-│   ├── frontend-massimo/
-│   │   ├── package.json
-│   │   ├── index.html
-│   │   ├── vite.config.ts
+│   ├── frontend-massimo/    # interface enfant (React + Vite)
+│   │   ├── index.html · vite.config.ts · package.json
 │   │   └── src/
-│   │       ├── app/
-│   │       ├── components/
-│   │       ├── features/
-│   │       ├── hooks/
-│   │       ├── routes/
-│   │       ├── services/
-│   │       └── styles/
-│   ├── frontend-papa/
-│   │   ├── package.json
-│   │   ├── index.html
-│   │   ├── vite.config.ts
-│   │   └── src/
-│   │       ├── app/
-│   │       ├── components/
-│   │       ├── features/
-│   │       ├── hooks/
-│   │       ├── routes/
-│   │       ├── services/
-│   │       └── styles/
-│   ├── backend/
-│   │   ├── pyproject.toml
-│   │   ├── alembic.ini
+│   │       ├── assets/
+│   │       ├── components/  # un sous-dossier par domaine : agenda/ brand/ eli5/ galaxy/
+│   │       │                # home/ matiere/ mindmap/ missions/ motivation/ quiz/
+│   │       ├── data/        # mocks résiduels (`mock.ts`) — en voie d'extinction
+│   │       ├── hooks/       # un hook par page (useSubjectPanoply, useGalaxy…)
+│   │       ├── layouts/     # MassimoLayout
+│   │       ├── lib/         # clients HTTP + logique pure (notionRoutes, searchFold…)
+│   │       ├── pages/       # une page par route, + son `.test.tsx` à côté
+│   │       └── test/        # setup Vitest + helpers (bundleGraph.ts)
+│   ├── frontend-papa/       # interface parent — même structure, plus :
+│   │   └── src/remotion/    # compositions vidéo des capsules
+│   ├── backend/             # API FastAPI
+│   │   ├── pyproject.toml · alembic.ini
 │   │   └── app/
-│   │       ├── main.py
-│   │       ├── api/
-│   │       ├── core/
-│   │       ├── db/         # modèles SQLAlchemy + migrations Alembic
-│   │       ├── modules/    # auth, ai, eli5, memory
-│   │       ├── prompts/    # prompts IA versionnés
+│   │       ├── main.py      # montage des routeurs
+│   │       ├── api/ · core/ # dépendances transverses, config
+│   │       ├── db/          # modèles SQLAlchemy + migrations Alembic
+│   │       ├── modules/     # ~31 modules métier (voir plus bas)
+│   │       ├── prompts/     # prompts IA versionnés
 │   │       └── tests/
-│   ├── worker-ai/
-│   └── worker-media/
-├── packages/
-│   ├── auth/        # @zetis/auth : logique auth + client API partagée
-│   ├── ui/
-│   ├── types/
-│   └── prompts/
+│   ├── extension-zetis-clip/  # extension navigateur Papa (MV3) — capture web/PDF/vidéo → RAG
+│   ├── worker-ai/           # tâches IA asynchrones
+│   └── worker-media/        # rendu audio/vidéo (RQ + Remotion)
+├── packages/                # code partagé entre les deux frontends
+│   ├── auth/                # @zetis/auth — auth + client API
+│   ├── types/               # @zetis/types — contrats API (source de vérité TS)
+│   ├── ui/                  # @zetis/ui — composants + sous-chemins lourds (galaxy, mindmap…)
+│   └── prompts/             # réservé (README seul ; les prompts IA vivent côté backend)
 ├── infra/
 │   ├── docker/
-│   ├── nginx/
-│   └── scripts/
+│   └── nginx/
 ├── docs/
-│   ├── frontend-massimo/
-│   ├── frontend-papa/
-│   ├── ai/
-│   ├── backend/
-│   ├── school/
-│   ├── design/
-│   ├── devops/
-│   └── decisions/
-├── prompts/
-│   └── claude-code/
-├── scripts/
-└── tests/
+│   ├── frontend-massimo/ · frontend-papa/   # une spec par page (+ mockup/)
+│   ├── ai/ · backend/ · school/ · design/ · devops/
+│   ├── decisions/           # les ADR
+│   └── WORKFLOW.md          # méthode de dev agentique
+├── prompts/claude-code/     # prompts de slice, un par chantier
+├── assets/                  # sources de marque (logos, pictogrammes de matières)
+├── scripts/                 # dev.sh, bench_llm.py
+├── storage/                 # uploads / généré / exports — JAMAIS indexé, JAMAIS commité
+└── graphify-out/            # graphe de code — gitignoré, reconstruit par `graphify update .`
 ```
+
+⚠️ Pas de `tests/` à la racine : les tests vivent **à côté du code** (`app/tests/` côté backend,
+`*.test.ts(x)` à côté du fichier testé côté frontends).
+
+## Les modules backend
+
+`apps/backend/app/modules/` porte la logique métier, un dossier par domaine. Au 2026-08-01 :
+
+```txt
+activity · agenda · ai · auth · capsules · chat · content_requests · curriculum · dashboard
+diagnostics · eli5 · engagement · evidence · fiches · galaxy · gamification · memory · mindmaps
+missions · motivation · news · notions · production · progress · quizzes · rag · reports · school
+stt · subjects · tts
+```
+
+Chaque module suit le même patron : `router.py` (routes + garde de rôle), `schemas.py` (Pydantic),
+`service.py` (métier). Les routes **élève** et **parent** vivent dans des routeurs séparés du même
+module — la frontière Massimo/Papa est tenue par le serveur, jamais par l'UI.
 
 ## Racine du projet
 
-### `README.md`
+| Fichier | Rôle |
+|---|---|
+| `README.md` | présentation, stack, démarrage, ordre de lecture |
+| `CLAUDE.md` | instructions opérationnelles pour Claude Code — **le plus important** |
+| `docs/WORKFLOW.md` | méthode de dev par chantier (cadrage → exécution → clôture) |
+| `MEMORY.md` | mémoire de **reprise** : fait / en cours / prochain pas, pour une session sans contexte |
+| `TROUBLESHOOTING.md` | écarts réels rencontrés, avec leur cause et la parade |
+| `ARCHITECTURE.md` | services, flux, responsabilités |
+| `TECH_STACK.md` | stack retenue et justification |
+| `PRODUCT_SPEC.md` | personas, parcours, modules, critères de succès |
+| `DATA_MODEL.md` | entités, relations, règles métier pédagogiques |
+| `API_SPEC.md` | contrats API |
+| `DECISIONS.md` | index des ADR |
+| `ROADMAP.md` · `BACKLOG.md` · `SUIVI_DEVELOPPEMENT_ZETIS.md` | phases, priorités, suivi |
+| `SECURITY.md` · `DEPLOYMENT.md` · `CONTRIBUTING.md` · `GLOSSARY.md` · `CHANGELOG.md` | — |
+| `FRONTEND_ROADMAP.md` | découpage des chantiers frontend |
 
-Présentation du projet, objectif, stack, démarrage rapide, ordre de lecture.
+## Pourquoi deux frontends
 
-### `CLAUDE.md`
+Massimo et Papa n'ont ni les mêmes besoins, ni les mêmes permissions, ni le même langage, ni la
+même charge cognitive. Deux apps évitent une interface hybride confuse — et la séparation est
+**tenue par le serveur** (routeurs `require_child` / `require_parent`), pas seulement par l'UI.
 
-Instructions opérationnelles pour Claude Code. C’est le fichier le plus important pour le développement assisté.
+## Conventions de code frontend
 
-### `ARCHITECTURE.md`
-
-Vue globale des services, flux, responsabilités et décisions structurantes.
-
-### `TECH_STACK.md`
-
-Stack technique retenue et justification.
-
-### `ROADMAP.md`
-
-Phases de développement.
-
-### `BACKLOG.md`
-
-Liste des fonctionnalités à construire par priorité.
-
-### `PRODUCT_SPEC.md`
-
-Spécification produit : personas, parcours, modules, critères de succès.
-
-### `DATA_MODEL.md`
-
-Entités principales, relations, règles métier pédagogiques.
-
-### `API_SPEC.md`
-
-Contrats API principaux.
-
-### `SECURITY.md`
-
-Sécurité, rôles, confidentialité, accès distant.
-
-### `DEPLOYMENT.md`
-
-Lancement local, Docker, stratégie VPS éventuelle.
-
-### `CONTRIBUTING.md`
-
-Règles de contribution, style, tests, documentation.
-
-### `CHANGELOG.md`
-
-Historique des changements.
-
-### `DECISIONS.md`
-
-Index des ADR.
-
-### `GLOSSARY.md`
-
-Glossaire commun.
-
-## Dossier `apps/`
-
-Contient toutes les applications déployables : les deux frontends et les services backend.
-
-- `frontend-massimo` : interface enfant (React + Vite).
-- `frontend-papa` : interface parent (React + Vite).
-- `backend` : API principale FastAPI.
-- `worker-ai` : tâches IA.
-- `worker-media` : audio/vidéo.
-
-### Pourquoi deux frontends ?
-
-Massimo et Papa n’ont pas les mêmes besoins, pas les mêmes permissions, pas le même langage et pas la même charge cognitive. Deux apps permettent d’éviter une interface hybride confuse.
-
-## Dossier `packages/`
-
-Code partagé.
-
-- `auth` : `@zetis/auth` — logique d'auth + client API partagée entre les deux frontends (créé à la refacto post-Étape 7).
-- `ui` : composants communs si nécessaire.
-- `types` : types TypeScript générés ou maintenus.
-- `prompts` : prompts versionnés (les prompts IA backend vivent dans `apps/backend/app/prompts`).
-
-## Dossier `docs/`
-
-Documentation détaillée. Les fichiers racine donnent la vision et les décisions globales. Les fichiers dans `docs/` détaillent les modules.
-
-## Dossier `prompts/`
-
-Prompts destinés à Claude Code pour coder étape par étape.
+- **Une page par route**, dans `pages/`, avec son test à côté.
+- **Aucune règle métier dans un composant** : elle vit dans un hook (`hooks/`) ou dans un module
+  pur (`lib/`). Les composants rendent ce qu'on leur donne.
+- **`lib/` mélange deux choses volontairement** : les clients HTTP (patron `headers()` +
+  `asJson<T>()` recopié par module, pas de client abstrait) et la **logique pure** testable hors
+  React. Un module pur ne doit importer aucune valeur — c'est ce qui permet de le partager entre
+  une page légère et une page qui paie Three.js.
+- **Les types d'API vivent dans `packages/types`**, jamais redéclarés dans une app.
 
 ## Règle de maintenance
 
@@ -198,6 +140,7 @@ Quand une fonctionnalité change :
 
 1. mettre à jour le code ;
 2. mettre à jour le test ;
-3. mettre à jour le document module ;
-4. mettre à jour l’API spec si nécessaire ;
-5. mettre à jour le backlog/roadmap si statut changé.
+3. mettre à jour le document de module (`docs/…`) ;
+4. mettre à jour `API_SPEC.md` si un contrat bouge ;
+5. mettre à jour `BACKLOG.md` / `ROADMAP.md` si un statut change ;
+6. `graphify update .` pour que la carte du code suive.

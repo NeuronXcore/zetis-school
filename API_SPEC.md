@@ -509,10 +509,21 @@ entrelacement des matières sont décidés côté serveur.
 
 **Toutes les matières** de l'élève, avec leurs cartes dues agrégées (compteurs exacts, le
 « 15+ » est de la présentation) :
-`{ subjects: [{ slug, name, due_count, new_count, has_cards }], total_due, flash_size, new_count }`.
+`{ subjects: [{ slug, name, due_count, new_count, session_size, has_cards }], total_due,
+flash_size, new_count }`.
 `has_cards=false` → matière sans carte active : grisée « pas encore de cartes » côté Massimo,
 non lançable (l'UI affiche l'emoji de la matière). `has_cards=true` avec `due_count=0` = « à
 jour ✓ ». `new_count` = cartes dues jamais révisées (badge « nouveau »).
+
+> **`session_size` (2026-08-01)** = `min(REVIEW_SESSION_MAX_SUBJECT, due_count)` — ce que le deck
+> de cette matière servira **réellement**. C'est **CE** nombre qu'une surface enfant affiche.
+> `flash_size` ne convenait pas (il est **global**, `min(5, total_due)`), et `due_count` est
+> l'**arriéré** — donc la pression quotidienne que `CLAUDE.md` interdit. Le calcul vit là où vit
+> la constante : recopier `8` dans un front l'aurait fait mentir le jour où le plafond bouge. Un
+> test vérifie que le nombre **annoncé** et le nombre de cartes **servies** sont le même.
+>
+> La page Révision lit encore `due_count` pour son badge historique ; **aucune nouvelle surface
+> ne doit le faire**.
 
 ### POST `/student/reviews/session`
 
@@ -1198,13 +1209,74 @@ Panneau d'actions — **toute la panoplie ZETIS**, chaque activité portant sa d
               { "kind": "quiz", "available": true, "quiz_id": 77 }] }
 ```
 
-Ordre pédagogique stable : comprendre → mémoriser → se tester. `eli5` est **toujours** disponible
-(elle ne dépend d'aucun contenu préexistant). 404 pour une notion hors des matières de l'élève —
-un id inconnu ne révèle rien.
+Ordre pédagogique stable : comprendre → mémoriser → se tester. 404 pour une notion hors des
+matières de l'élève — un id inconnu ne révèle rien.
 
 > Révision de l'ADR-0024 §4 (2026-07-28) : la règle initiale était « une action sans contenu
 > n'est pas proposée ». On renvoie désormais **tout**, avec `available` — une activité manquante
 > n'est pas un échec de Massimo, c'est du contenu que Papa n'a pas encore produit.
+
+> ⚠️ **Correctif du 2026-08-01 : `eli5` n'est PLUS toujours disponible.** Il suit désormais le
+> cours validé (`available = has_course`). ELI5 s'ancre sur le cours canonique (ADR-0011) et
+> **dégrade vers le modèle** en son absence : l'offrir sans cours, c'est router Massimo vers du
+> contenu que personne n'a validé. L'orchestrateur de chat refusait déjà d'y router de son côté
+> (correctif live du 2026-07-30) — la règle vit maintenant dans le **prédicat partagé**, une
+> seule fois.
+
+> **Ce panneau n'est plus l'unique consommateur du prédicat.** `resolve_panoply` (galaxy) le
+> porte en version **ensembliste** ; ce panneau en est le consommateur mono-notion, l'index de
+> matière ci-dessous le consommateur en lot. **Interdiction d'un second prédicat** : un
+> test-verrou vérifie que les deux surfaces renvoient le même `available` sur les 7 kinds.
+
+### GET `/student/subjects/{subject_slug}/panoply`
+
+**Index de notions d'une matière** (addendum ADR-0024) — le même modèle que la constellation,
+rendu en liste. C'est le **repli sans WebGL** de `zetis-galaxy.md §11`.
+
+```json
+{ "subject": { "subject_id": 3, "name": "SVT", "slug": "svt" },
+  "chapters": [{ "chapter_id": 10, "title": "La cellule",
+                 "notions": [{ "skill_id": 88, "name": "Mitose", "status": "learning",
+                               "actions": [ /* les 7, comme ci-dessus */ ] }] }] }
+```
+
+- Même chaîne de visibilité que les autres routes élève ; **404** matière inconnue ou hors année
+  active ; `chapters: []` si elle existe mais n'a rien de validé (état positif, pas une erreur).
+- ⚠️ **Aucun `mastery_score`, aucun `intensity`, aucun pourcentage.** `status` seul (ADR-0024 §5) —
+  une valeur numérique servie finit toujours par être affichée.
+- **Nombre de requêtes CONSTANT**, indépendant du nombre de notions : **14**, mesuré pour 3, 30 et
+  100 notions. Chaque résolveur travaille en `IN (:skill_ids)`.
+
+> ⚠️ **Piège de comptage pour les consommateurs.** Les résolveurs prennent `MAX(id)` groupé **par
+> leçon** : la panoplie n'expose que la ressource la **plus récente** de chaque leçon, et
+> plusieurs notions d'une même leçon portent le **même** `fiche_id`. Une leçon avec 3 fiches
+> validées donnera donc **1** ici et **3** sur `/student/fiches/summary`. Les deux nombres sont
+> justes et ne répondent pas à la même question : « ce que je peux ouvrir depuis mes notions »
+> contre « ce que le catalogue contient ». Dédupliquer par `Set` est obligatoire.
+
+### POST `/student/content-requests`
+
+**Écriture SEULE, `require_child`** (addendum ADR-0027) — Massimo demande un ou plusieurs contenus
+sur une notion qu'il voit. Corps `{ skill_id, content_kinds: ["fiche", "mindmap"] }`, réponse
+`{ requested: ["fiche", "mindmap"] }`.
+
+Trois garde-fous, tous testés :
+
+1. **Vocabulaire fermé** `cours|fiche|mindmap|quiz|capsule|card`, porté par le schéma → **422**
+   avant d'atteindre le service ;
+2. **Plafond** `CONTENT_REQUEST_MAX_KINDS` (v1 = 7), mesuré sur la charge **brute** — le
+   vocabulaire ne comptant que 6 types, un plafond appliqué après dédup ne bornerait rien : celui-ci
+   borne la **taille** de l'appel, le vocabulaire borne son **contenu** ;
+3. **Visibilité** — `skill_id` invisible de l'élève → **404 et AUCUNE ligne créée**. Sans ce
+   contrôle, la route devient un **oracle d'existence** sur les brouillons de Papa.
+
+`source = "subject_page"` (le chat garde `"chat_orchestrator"`) — le **choisi** contre le **subi**.
+Aucun XP, aucun `event_type`, aucune trace d'événement : la **ligne de file EST la trace**.
+
+> ⚠️ **Aucun `GET`, aucun `PATCH` élève, et ce n'est pas un manque de v1.** La file de Papa n'est
+> pas une surface de l'enfant : un « refusé » visible serait le vocabulaire d'échec interdit, et
+> une liste d'attente ferait d'une file de travail un écran d'attente. Un test vérifie l'absence
+> **sur le contrat OpenAPI**, pas sur des codes HTTP (une 403 masquerait une route bien montée).
 
 ### GET `/student/galaxy/timeline?with_skills=false`
 

@@ -4,6 +4,203 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/page-matiere` — affinage au vu de l'écran — 2026-08-01
+
+### `prettifySlug` ampute les accents — et ça se voit comme une faute de frappe
+
+`prettifySlug("mathematiques")` rend **« Mathematiques »**. Sur un slug anglais ou court le repli
+passe inaperçu (« Svt ») ; sur un mot français, il produit un mot mal orthographié, en gros, dans
+un titre de page. Un enfant qui apprend l'orthographe lit ça.
+
+Constaté en vrai sur QUATRE surfaces à la fois — `/fiches/:slug`, `/mindmaps/:slug`, `/revision`
+et `/quiz` — parce que la bande de la page matière naviguait avec un simple slug d'URL. Aucun
+test ne l'attrapait : ils vérifiaient la DESTINATION du lien, jamais le mot affiché.
+
+**Règle** : un slug ne se ré-humanise pas. Le nom doit voyager — soit dans le `state` du lien
+(les pages fiches/mindmaps le lisent déjà), soit résolu depuis une liste déjà chargée
+(`/revision` a `summary.subjects`, `/quiz` a `subjects`). `prettifySlug` reste le dernier repli,
+pour l'arrivée par URL partagée — et là, un accent manquant vaut mieux qu'un titre vide.
+
+### Un test qui lit `window.location` sous `MemoryRouter` est vert À VIDE
+
+`MemoryRouter` garde l'historique **en mémoire** : il ne touche jamais `window.location`. Un test
+qui vérifie une URL par ce biais lit donc une chaîne **vide**, et passe pour de mauvaises raisons.
+
+```tsx
+// ❌ Vert quoi qu'il arrive — window.location.search vaut "" sous MemoryRouter.
+const params = new URLSearchParams(window.location.search);
+expect(params.get("subject")).toBeNull();
+```
+
+Parade : monter une **sonde** dans le routeur, qui lit l'URL par `useSearchParams` et la rend.
+
+```tsx
+function Sonde() {
+  const [params] = useSearchParams();
+  return <output data-testid="url">{params.toString()}</output>;
+}
+```
+
+Rencontré en vérifiant que le nettoyage d'URL de `QuizPage` ne mange que `subject` et laisse
+`from` (le rétrolien). Le faux positif est passé à un cheveu d'être livré.
+
+### « Ça ne marche pas » : auditer la DONNÉE avant de toucher au calcul
+
+Signalement : « le KPI 1 quiz dans mathématiques ne marche pas ». Le réflexe est de suspecter le
+comptage. Un audit lecture seule de la base — en appelant le **vrai** service, pas une
+reconstitution — a montré que **le compte était juste** sur les 8 matières.
+
+Ce qui était cassé, c'était l'**affordance** : la pastille était non cliquable **par décision**
+(aucune route par matière n'existait alors pour `quiz`), mais rendue exactement comme les
+cliquables. **Une chose qui ressemble à un lien doit être un lien** — sinon elle se lit comme une
+panne, et le signalement est justifié même quand le code fait ce qui était prévu.
+
+Deux corollaires : une pastille inerte doit se **distinguer à l'œil** (pointillés, atténuation,
+`aria-label` qui le dit) ; et quand une route par matière manque, la question à se poser est
+« peut-on l'ajouter ? » avant « comment afficher qu'elle manque ? ». Ici `?subject=` existait déjà
+comme patron sur `/revision` et `/eli5` : il suffisait de l'appliquer à `/quiz`.
+
+### Compter depuis la panoplie : deux pièges qui gonflent les nombres
+
+La charge utile `/subjects/{slug}/panoply` porte les ids de chaque activité disponible, ce qui
+permet de compter les ressources d'une matière **sans requête**. Deux réserves, toutes deux
+vérifiées dans le code :
+
+**1. Plusieurs notions partagent la même leçon.** `_course_lessons_by_skill` renvoie
+`skill_id → lesson_id` : rien n'empêche deux notions de retomber sur la même leçon, et
+`_validated_fiche_ids` est indexé **par leçon**. Le même `fiche_id` sort donc sur chaque notion
+de cette leçon. Compter les notions « fiche disponible » gonfle le nombre d'autant de notions que
+la leçon enseigne. **Dédupliquer par `Set` sur l'id, jamais compter les notions.**
+
+**2. `MAX(id)` ne rend qu'UNE ressource par clé.** Les quatre résolveurs
+(`galaxy/service.py:436,452`, `missions/service.py:94,126`) utilisent `func.max(...)` groupé, pour
+reproduire l'`ORDER BY id DESC LIMIT 1` d'origine. Si une leçon a **3 fiches validées**, la
+panoplie n'expose que **la plus récente**.
+
+⚠️ **Conséquence : une matière affichera « 1 fiche » sur la page matière et « 3 fiches » sur
+`/fiches`.** Les deux nombres sont **justes** — « ce que je peux ouvrir depuis mes notions »
+contre « ce que le catalogue contient ». **Ne pas “corriger” l'écart** : le premier est le bon
+pour la page matière, puisqu'il annonce exactement ce que Massimo trouvera en dépliant ses
+chapitres juste en dessous.
+
+Corollaire moins visible : une leçon validée **sans aucune `LessonSkill`** n'apparaît jamais dans
+la panoplie — sa fiche est donc invisible du comptage dérivé, alors que `fiches/summary` la compte.
+
+### La teinte de la demande n'a pas de marge : bouger la LUMINOSITÉ, pas la teinte
+
+L'or `#ffcf47` de « ZETIS parle » est à **18° de teinte** de l'orange de la demande, et le rouge
+est banni (ADR-0024 §5). Chercher un orange « plus électrique » revient donc à choisir laquelle
+des deux frontières franchir : plus clair glisse vers l'or, plus foncé frôle le rouge.
+
+L'axe libre est la **luminosité**, et c'est déjà la grammaire de l'app (`NeonBackdrop`,
+`starStyle.glow`, `NEON_TEXT`) : le cyan ne paraît pas électrique parce qu'il est saturé, mais
+parce qu'il **brille** sur du bleu nuit. D'où `--shadow-request`, un halo en `color-mix` sur le
+token — une seule source de vérité, déplacer la couleur déplace sa lueur.
+
+### Un libellé accessible en matche un autre : `getByRole` trouve deux boutons
+
+Dans le panneau de notion, le bouton d'activité (« Voir le cours ») et son bouton de demande
+(« Demander Voir le cours à ZETIS ») contiennent le même texte. `getByRole("button", { name:
+/Voir le cours/ })` lève « found multiple elements ». Ancrer la regex en début de libellé
+(`^Voir le cours`) — c'est ce que fait le helper `activite()` de `MatiereDetailPage.test.tsx`.
+
+## Chantier `feat/page-matiere` — index de notions, slice B — 2026-08-01
+
+### `normalizeSearch` change la LONGUEUR de la chaîne : on ne peut pas surligner avec ses index
+
+`normalizeSearch` (`packages/ui/.../galaxyGraph.ts:85`) fait `NFD` puis supprime les
+diacritiques. « è » devient « e » + accent combinant, puis « e » : la chaîne pliée n'a plus la
+même longueur que l'originale, et un index trouvé dedans **ne désigne pas le bon caractère**.
+
+La galaxie ne s'en apercevait pas : elle ALLUME des étoiles, elle n'a rien à surligner. Dès
+qu'on veut un `<mark>`, le décalage apparaît — **d'un cran par accent**, donc précisément sur
+les mots que Massimo tape sans accent.
+
+Parade : plier **point de code par point de code** en tenant une carte d'offsets
+(`lib/searchFold.ts`). `for…of` sur la chaîne et non un index numérique : un caractère hors BMP
+compte pour 2 unités UTF-16 et couperait le pli en deux.
+
+⚠️ Le **filtre** et le **surlignage** doivent partager le même pli. Le pli global et le pli par
+caractère peuvent diverger (réordonnancement canonique, sigma final grec) : si le filtre
+utilisait `normalizeSearch` et le surlignage `fold`, une notion pourrait apparaître dans les
+résultats **sans être surlignée**. Un test-verrou compare les deux sur un corpus accentué.
+
+### `staticImports` du moteur de budget prend `export const X = "from"` pour un import
+
+Sa regex est `/(?:^|\n)\s*(?:import|export)[^;\n]*?from\s*["']([^"']+)["']/g`. Sur
+
+```ts
+export const SUBJECT_BACK_PARAM = "from";
+```
+
+elle matche `export … from "` et capture tout jusqu'au guillemet suivant — souvent une
+apostrophe dans un commentaire français, d'où des captures absurdes.
+
+**Ne pas corriger le moteur** : il est partagé, et le modifier changerait le comportement du
+budget de l'Accueil (dont le vert est la preuve que l'extraction était neutre). Vérifier
+autrement, comme le fait `matiere.bundle.test.ts` pour la pureté de `notionRoutes.ts`.
+
+### `NotionActionPanel` ne tire PAS three.js — le prompt de slice l'affirmait à tort
+
+Chaîne tracée : le baril `@zetis/ui/galaxy` ré-exporte 8 modules, **zéro occurrence de `three`**
+dans leur fermeture transitive. Three vit derrière `@zetis/ui/galaxy/canvas` (sous-chemin dédié)
+et `brainGeometry.ts`, **tous deux hors baril** — et le baril le documente explicitement.
+
+Conséquence : `normalizeSearch` et `starStyle` s'importent depuis `@zetis/ui/galaxy` sans coût
+3D. Le baril reste léger en three.js, **pas en octets** (il traîne `GalaxyFallbackList`,
+`constellationLayout`, `replayLayout`…). Si le poids gêne un jour, la sortie propre est un
+sous-chemin `@zetis/ui/galaxy/search` — jamais une recopie de `normalizeSearch`.
+
+### Le rétrolien d'ELI5 était annoncé bloquant : il ne l'est pas
+
+`/eli5?skill_id=` porte une notion, et ni l'URL ni la réponse serveur ne gardent le slug de
+matière. Mais les deux nettoyages d'URL de la page **ne suppriment que leurs propres clés** :
+`Eli5Page.tsx` retire `skill_id`+`name`, `useEli5Page.ts` retire `subject`, et tous deux
+reconstruisent depuis `new URLSearchParams(searchParams)`.
+
+Un paramètre tiers survit donc aux deux. `?from=` était libre (l'app ne lisait que `name`,
+`skill`, `skill_id`, `subject`). **Pas `?subject=`** : il est déjà lu sur `/eli5` et
+`/revision`, où il DÉCLENCHE une action — le réutiliser ferait d'un retour un lancement.
+
+### Modèles : deux noms de colonnes qui ne sont pas ceux qu'on suppose
+
+Ils échouent en `TypeError` à la construction, pas en erreur SQL :
+`SpacedReviewCard` → **`front_markdown` / `back_markdown`** (statut actif : `scheduled`) ;
+`Capsule` → **`subject_id` requis** en plus de `skill_id`.
+
+## Chantier `feat/page-matiere` — index de notions, slice A — 2026-08-01
+
+### `app.routes` n'est pas à plat : un test « cette route n'existe pas » passe **à vide**
+
+**Symptôme** : le test qui vérifie l'absence de `GET`/`PATCH` élève sur `content_requests`
+échouait en trouvant… **rien du tout**, pas même le `POST` qui fonctionne pourtant dans les
+tests voisins.
+
+**Cause** : dans cette version de FastAPI, `app.include_router()` ne déplie pas les routes dans
+`app.routes` — il y range un objet **`_IncludedRouter`** sans attribut `path`. Sur les 45 entrées
+de `app.routes`, 41 sont de ce type.
+
+```python
+# ❌ Ce filtre renvoie TOUJOURS un ensemble vide — donc un test d'absence toujours vert.
+{r.path for r in app.routes if getattr(r, "path", "").startswith("/api/student/…")}
+```
+
+**Danger réel** : écrit dans l'autre sens (« la route interdite n'est pas là »), ce test **passe
+même si la route existe**. Il ne protège de rien tout en donnant l'impression du contraire.
+
+**Solution** : interroger le contrat déclaré, `app.openapi()["paths"]`. C'est aussi la bonne
+source sémantiquement — une 403 ou une 405 masquerait une route bel et bien montée.
+
+### Le plafond d'un vocabulaire fermé ne borne rien s'il est appliqué après déduplication
+
+`CONTENT_REQUEST_MAX_KINDS = 7` est décrit comme « la panoplie entière ». Mais la panoplie
+affiche **7 activités** alors que `CONTENT_KINDS` n'en compte que **6** : `eli5` se demande sous
+la forme `cours`, `revision` sous la forme `card`. Une liste dédupliquée ne peut donc jamais
+atteindre 7 — le garde-fou était inatteignable, donc intestable, donc décoratif.
+
+Le plafond est mesuré sur la charge **brute**, avant dédup : il borne la **taille** de l'appel,
+là où le vocabulaire borne son **contenu**. Deux garde-fous, deux risques différents.
+
 ## Chantier `feat/galaxy-animations` — galaxie animée — 2026-07-31 (soir)
 
 ### Ce que `react-force-graph-3d` 1.29.1 permet vraiment — vérifié ligne à ligne
