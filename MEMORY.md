@@ -29,6 +29,21 @@ de dev**.
 `queued` indéfiniment. Un run tué avec son worker reste `running` pour toujours : c'est un zombie
 qui fait clignoter la pastille d'en-tête. Aucun garde-fou n'existe encore contre ça.
 
+### Résidus de clôture — ce qui reste dans l'environnement
+
+- ⚠️ **La base de dev n'est PAS vierge.** Le lot d'observation y a laissé **33 objets réels** sur
+  le chapitre « Fractions » (4 fiches, 4 cartes mentales, 5 quiz, 20 cartes SRS), dont **2 en
+  attente de relecture de Papa**. Ce n'est pas du déchet de test : c'est du contenu que Massimo
+  verra. Les chiffres de l'observation ci-dessous décrivent donc aussi l'**état actuel de la
+  base**, pas seulement une mesure passée.
+- **Runs en base** : `2` (chapitre Grammaire, 0 pièce), `3` (l'observation, `done`), `6`
+  (interrompu, marqué `failed` à 0/3 — un run tué avec son worker resterait `running` à vie
+  sinon).
+- **Voir l'app tourner** : la marche à suivre et ses deux pièges vivent dans
+  `docs/WORKFLOW.md §5bis` (paires appairées de `.claude/launch.json`, et les serveurs lancés par
+  l'agent meurent avec sa session). Ce renvoi est ici exprès : il survit à la réécriture de ce
+  fichier au chantier suivant.
+
 ### ✅ L'OBSERVATION A ÉTÉ MENÉE — et sa réponse change la feuille de route
 
 **Lot réel : chapitre « Fractions », 11 notions, 12 min 35 s — 69 s par notion, 0 erreur.**
