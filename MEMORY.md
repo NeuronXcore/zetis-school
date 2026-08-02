@@ -7,6 +7,193 @@
 
 ## État à la reprise
 
+**Chantier : les paliers d'autonomie de ZETIS (ADR-0032) — CODE LIVRÉ, PAS ENCORE MERGÉ.**
+
+### Où est le code, exactement
+
+| | |
+|---|---|
+| Branche | `feat/paliers-autonomie`, **1 commit `a54af0b`**, **poussée** (`origin/feat/paliers-autonomie` à jour) |
+| Décisions | `b57b5df` sur **`main`** (ADR-0032 + `DECISIONS.md`) — **poussé** (`origin/main` = `b57b5df`) |
+| PR | **[#69](https://github.com/NeuronXcore/zetis-school/pull/69)**, ouverte le 2026-08-02 à la demande du user — **en attente de sa vérification, pas encore mergée** |
+| Arbre | propre |
+
+⚠️ **L'ADR-0032 doit être chez `origin` avant toute PR** — sinon elle se baserait sur un `main`
+distant qui **ne contient pas la décision qui la justifie**. Poussé le 2026-08-02 **sans changer de
+branche**, avec `git push origin main:main` : le refspec explicite évite l'aller-retour
+`switch main` / `switch feat/…`, qui promène l'arbre de travail pour rien.
+
+> ⚠️ **Ce paragraphe a décrit un geste qui n'avait PAS eu lieu.** La clôture l'a écrit à l'infinitif
+> (« poussé, avec `git push origin main:main` ») alors que `main` était encore en avance de 1 sur
+> `origin/main` ; la ligne du tableau, elle, disait *NON POUSSÉ*. Le fichier portait les deux
+> réponses à la fois. Le push a été fait le 2026-08-02 en fin de session et les deux lignes disent
+> maintenant la même chose. **Leçon : ne jamais écrire un geste Git au passé avant de l'avoir
+> joué** — la mémoire décrit le dépôt, elle ne le programme pas.
+
+**747 backend · 287 Papa · `tsc -b` · `vite build` · typecheck Massimo — tous verts** (lancés
+pendant la session ; le user relance avant de merger). **Aucune migration** : `app_settings`
+existait déjà. **Aucun test existant modifié**, sauf les deux verrous de `ParametresPage.test.tsx`
+**remplacés** (voir plus bas — c'est une décision, pas un ajustement).
+
+### Ce que ce chantier a livré
+
+**Slice A backend** — module `app/modules/settings/` (routeur **neutre** `/api/settings/autonomy`,
+`require_parent`, **aucune route élève**), six clés plates dans `app_settings`, le palier branché
+dans `runner.select_notions`, `authority` en paramètre d'`equip_notion`, et la **réparation d'un
+défaut de provenance** (ci-dessous).
+
+**Slice B Papa** — la section « ⚡ Autonomie de ZETIS » de `ParametresPage` : état des lieux →
+régime (3 préréglages) → détail dépliable (6 classes) → veto ; `ConfirmDialog tone="important"`
+réutilisé pour la révocation d'A1 ; `CoverageCellView` gagne la teinte `parent_rule` **et** cesse
+de rendre `null` comme `parent_bulk` (dette §G constat 5 soldée).
+
+### ⚠️ LE DÉFAUT RÉPARÉ — à ne pas réintroduire
+
+`equip_notion` auto-validait le cours via `set_lesson_validation`, qui écrivait **`parent`** —
+« relu pièce à pièce par Papa » — **sur un cours que personne n'avait ouvert**. Violation directe
+du §F.3, invisible du verrou existant (il ne teste que la NON-NULLITÉ de la provenance).
+
+- Réparé par un paramètre `by=` explicite ; la route humaine garde `PARENT` par défaut.
+- **Verrou n°4 ajouté** (`test_aucune_auto_validation_necrit_parent`), **contre-épreuve jouée** :
+  défaut réintroduit → le test tombe → code restauré.
+- ⚠️ **13 leçons en base de dev portent encore `parent` à tort**, mêlées aux vraies relectures de
+  Papa. **Aucune rétro-attribution** (doctrine §F.4) : on ne réécrit pas l'histoire pour la rendre
+  propre.
+
+### ⚠️ UNE HYPOTHÈSE DE L'ADR ÉTAIT FAUSSE — corrigée dans l'ADR le jour même
+
+L'ADR-0032 disait « au palier 3, la provenance est `parent_rule`, jamais `parent_bulk` ». **Faux** :
+le §G.1 définit `parent_rule` par l'**absence de clic** (« ni cliqué pour ce lot »), or un lot lancé
+depuis la Couverture **est** un clic.
+
+> **Deux questions, deux sources** : le **palier** dit si ZETIS a le droit de servir sans
+> relecture ; **`production_runs.authorized_by`** dit qui a autorisé CE lot. `authority_for(run)`
+> les combine.
+
+**Conséquence : `parent_rule` reste LÉGALE et NON ÉMISE.** Elle s'écrira le jour où un lot
+démarrera sans que personne l'ait demandé — c'est-à-dire quand un déclencheur non humain existera.
+L'ADR et `DECISIONS.md` portent la correction (§2 borne 2 et verrou n°2).
+
+### Décisions actives — à relire, pas à rouvrir
+
+1. **Le préréglage n'est PAS stocké.** Six clés plates ; `preset_of()` le **dérive**. Un mode
+   stocké *plus* six clés donnerait deux réponses à une seule question (le mal que le §G.1 a évité
+   en refusant une colonne `authority`).
+2. **L'autorité est un PARAMÈTRE d'`equip_notion`, jamais une lecture des réglages.** Un service
+   qui lirait le palier deviendrait inappelable par le Conseil de classe et la composition
+   champion, dont l'autorité reste `parent_bulk` **quel que soit le palier**.
+3. **Le palier se branche dans la SÉLECTION** (`select_notions`), jamais dans l'orchestrateur —
+   c'est ce que l'addendum ADR-0031 avait préservé, et ça rend le palier 3 possible sans rouvrir
+   l'ADR-0021 §2.
+4. **`choices` EST le verrou, et il vient du serveur.** Le front n'a aucune liste de paliers en
+   dur : le jour où le veto obtient sa surface, le serveur rouvre le palier 3 d'A1 et *Autonome*
+   redevient offert **sans qu'une ligne du front change**.
+5. **A0b (cartes SRS) est verrouillé à 3, et ce n'est pas une doctrine — c'est un constat** :
+   `spaced_review_cards` n'a ni `validation_status` ni `validated_by`. « Vous validez » serait un
+   réglage sans effet. **Descendre A0b suppose de construire son gate d'abord.**
+6. **Monotonie** : A1 = 3 force A0a = 3. On ne sert pas un cours non relu tout en relisant les
+   fiches qui en dérivent.
+7. **Aucun compteur, aucun ratio de provenance** sur cette page (§F.2). Le seul chiffre est celui
+   de l'observation du 2 août, **daté et non recalculé**.
+8. **`VETO_SURFACE_AVAILABLE = False`** (`settings/service.py`) : le palier 3 d'A1 est refusé
+   serveur tant que le veto n'a pas d'écran. **Une seule ligne à basculer**, à la fin du chantier
+   du Journal — et trois tests décrivent déjà le monde d'après.
+
+### Les deux test-verrous REMPLACÉS (et pourquoi ce n'est pas un ajustement)
+
+`ParametresPage.test.tsx` interdisait **tout bouton** (`queryAllByRole("button")).toHaveLength(0)`),
+écrit le 2026-08-02 avec ce motif : *« une page où des commandes ne font rien est un piège le jour
+où d'autres engagent l'autonomie de ZETIS »*. **Ce jour était celui-ci.**
+
+- « aucune commande qui ne fait rien » → **« toute commande est branchée, ou verrouillée AVEC son
+  motif »** : le test **clique chaque bouton activé** et exige un effet observable. Plus strict
+  qu'avant.
+- « autonomie indisponible avec son motif » → **« le régime *Autonome* est indisponible avec son
+  motif »** : même doctrine, déplacée du placeholder vers le régime que le serveur refuse.
+
+### Vérifié EN VRAI (backend + Postgres réels, `:8002` / `:5178`)
+
+Chargement → *Semi-autonome*, *Autonome* grisé avec son motif, 5 lignes verrouillées motif visible ;
+clic « Vous validez » → régime dérivé *Manuel*, boutons activés, **aucun appel réseau** ; clic
+`Enregistrer` → **`PUT` 200 + six lignes plates en base** ; **rechargement complet** → l'état vient
+du serveur ; retour à *Semi-autonome* → `a0a` repasse à `'3'`.
+
+⚠️ **Un défaut n'a été vu QU'À L'ÉCRAN** : les descriptions d'A3 et A4 répétaient mot pour mot le
+motif renvoyé par le serveur — la ligne disait deux fois la même phrase. Corrigé : le front dit
+**ce que la classe est**, le serveur dit **pourquoi elle est verrouillée**.
+
+**Non vérifiable en vrai** : la modale de révocation d'A1 (le serveur refuse le palier 3). Couverte
+par trois tests sous un serveur simulé « après le Journal ».
+
+### ▶ PROCHAIN PAS
+
+> **La PR [#69](https://github.com/NeuronXcore/zetis-school/pull/69) est OUVERTE** (2026-08-02, à la
+> demande explicite du user — la clôture avait d'abord décidé l'inverse). **Elle n'est pas mergée**
+> et le merge appartient au user, qui relance les tests et relit le diff avant. Ne pas merger,
+> ne pas rebaser, ne pas pousser de correctif dessus sans qu'il le demande.
+
+1. **Rien à basculer côté Git.** `origin/feat/paliers-autonomie` est à jour ; l'ADR-0032 est chez
+   `origin/main` (`b57b5df`), poussé **sans changer de branche** (`git push origin main:main`).
+2. **Reprendre ici.** Le code est complet et vérifié en vrai ; la PR #69 est ouverte. Ce qui reste
+   côté user : relancer les tests, relire le diff, merger.
+3. ⚠️ **Si le chantier suivant démarre : ne pas l'écrire sur CETTE branche.** Elle porte un
+   chantier clos et vérifié ; y superposer le Journal mélangerait deux chantiers dans une seule
+   revue (règle mono-chantier, `WORKFLOW.md §2`). Merger d'abord, ou brancher depuis `main`.
+4. Le jour du merge : **étape 4bis** — remettre ce fichier au réel (squash, n° de PR, branche
+   supprimée), sinon il décrira un dépôt qui n'existe plus.
+5. **Chantier suivant, DÉCIDÉ par le user : le Journal complet** (ex-« chantier 3 ») — c'est **le
+   point de départ de la prochaine session**, et c'est lui qui ouvre le régime *Autonome*. Détail
+   ci-dessous.
+6. **Chantier d'après** : la page Demandes en deux colonnes, `trigger='request'`, scope notion,
+   auto-close par disponibilité.
+
+### ▶▶ POINT DE DÉPART DE LA PROCHAINE SESSION — ouvrir le mode « full autonomie »
+
+**État au 2026-08-02 : le mode *Autonome* NE PEUT PAS être activé, et ce n'est pas un oubli.** Le
+serveur le refuse — `VETO_SURFACE_AVAILABLE = False` dans
+`apps/backend/app/modules/settings/service.py` réduit les `choices` d'A1 à `(VALIDATE,)`, donc un
+`PUT /api/settings/autonomy` demandant `zetis_autonomy_a1_course: 3` répond **422 avec son motif**,
+préréglage *Autonome* compris. Le régime accessible aujourd'hui est **Semi-autonome** (défaut) ou
+**Manuel** ; le seul mouvement offert est vers le bas.
+
+> **Pourquoi ce refus est la bonne réponse et pas une dette** : le palier 3 promet à Papa un droit
+> de **veto** (retirer un contenu tant que Massimo ne l'a pas ouvert). Ce droit n'a aucun écran.
+> Livrer le palier sans la surface, ce serait vendre un droit qui n'existe pas — **verrou n°5 de
+> l'ADR-0032**. Le palier 3 et son veto se livrent **ensemble ou pas du tout**.
+
+**La recette, dans l'ordre — et la dernière ligne est la plus petite du chantier :**
+
+1. **Cadrage d'abord, session à part, sur `main`, sans une ligne de code.** ⚠️ **Numéro d'ADR à
+   trancher** : `MEMORY.md` réserve 0033 à l'indicateur d'autonomie de Massimo → le Journal serait
+   **ADR-0034**.
+2. `production_events` + **la persistance de ce que `equip_notion` renvoie DÉJÀ** (`generated` /
+   `skipped` / `errors` par pièce) et que `runner.execute` **jette** aujourd'hui — c'est la demande
+   « voir exactement ce que fait le worker ».
+3. `current_skill_id`, `started_at` / `heartbeat_at` → expiration des lots zombies.
+4. **`spaced_review_cards.created_at`** — les cartes sont indatables aujourd'hui, donc absentes
+   d'un journal chronologique.
+5. `GET /api/production/journal` : *quand · quoi · notion · produit par · validé par · demandé par*.
+6. Page `/journal`, **et le veto dessus** : le geste *Retirer* tant que Massimo n'a pas ouvert.
+   C'est **ça**, la surface qui manque — le reste du chantier n'existe que pour la rendre honnête.
+7. **Puis `VETO_SURFACE_AVAILABLE = True`.** Une ligne. Le serveur rouvre alors le palier 3 d'A1 et
+   le régime *Autonome* redevient offert **sans qu'une ligne du front change** (décision active
+   n°4 : `choices` vient du serveur, le front n'a aucune liste en dur). **Trois tests décrivent
+   déjà le monde d'après** — ils passent sous un serveur simulé et deviendront réels ce jour-là.
+8. Effet de bord à ne pas oublier : la **monotonie** (A1 = 3 force A0a = 3) et la **modale de
+   révocation d'A1**, écrite et testée mais **jamais vue en vrai** — c'est la première chose à
+   vérifier à l'écran une fois le drapeau levé.
+
+> ⚠️ **« Full autonome » recouvre DEUX choses, et le palier n'en couvre qu'une.** Le palier dit
+> *« ZETIS ne me demande plus de valider »* ; le **déclencheur** dirait *« ZETIS travaille sans que
+> je clique »* — et **il n'existe pas** : tout lot part encore d'un clic de Papa. Même
+> `VETO_SURFACE_AVAILABLE = True` et A1 = 3, ZETIS ne produira rien de lui-même. C'est ce second
+> axe qui fera enfin émettre `parent_rule`, et c'est là que le régulateur de volume devient
+> obligatoire (ADR-0032 §5, différé avec sa condition d'ouverture nommée).
+
+---
+
+## Historique — produire un chapitre en une fois (ADR-0031)
+
 **Chantier : produire un chapitre en une fois (ADR-0031) — CLOS. Code livré, observation menée.
 Ce qui reste est une DÉCISION, pas du code.**
 

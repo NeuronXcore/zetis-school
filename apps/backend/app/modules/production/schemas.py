@@ -7,7 +7,10 @@ from pydantic import BaseModel
 
 CellState = Literal["absent", "pending", "validated", "stale", "blocked"]
 RowState = Literal["blocked_lesson", "blocked_no_course", "ready", "complete"]
-ValidatedBy = Literal["parent", "parent_bulk", "system"]
+# Aligné sur `provenance.ValidatedBy` — `parent_rule` y est LÉGALE et non émise (§G.1, ADR-0032).
+# Le Literal doit l'accepter avant qu'une ligne la porte, sinon la matrice tomberait en 500 le jour
+# de la première écriture, très loin d'ici.
+ValidatedBy = Literal["parent", "parent_bulk", "parent_rule", "system"]
 
 
 class CellOut(BaseModel):

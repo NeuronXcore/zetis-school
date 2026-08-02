@@ -4,6 +4,75 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/paliers-autonomie` — les paliers d'autonomie (ADR-0032) — 2026-08-02
+
+### `set_lesson_validation` tamponnait `parent` sur un cours que personne n'avait ouvert
+
+`equip_notion` auto-valide le cours en appelant `set_lesson_validation(db, id, "validate")`, et
+cette fonction écrivait `mark_validated(lesson, PARENT, field="status")`. Résultat : une leçon
+validée **par la machine** repartait marquée « relu pièce à pièce par Papa ».
+
+**Pourquoi personne ne l'a vu pendant cinq semaines** : le verrou §F.3
+(`test_no_validated_row_without_provenance`) vérifie qu'aucun `validated` n'est **sans**
+provenance — pas qu'elle est la **bonne**. Une valeur fausse le satisfait parfaitement.
+
+**Solution** : `by=` explicite sur la fonction (défaut `PARENT` pour la route humaine, qui ne
+change pas), et `equip_notion` passe son `authority`. Verrou comportemental ajouté
+(`test_aucune_auto_validation_necrit_parent`).
+
+⚠️ **Ne pas écrire ce verrou comme `test_system_is_reserved_to_quizzes`** : celui-là est un **scan
+statique de source**, et il aurait flaggé `curriculum/service.py`, qui écrit `parent`
+**légitimement** pour la route humaine. Le seul verrou correct ici est comportemental : équiper une
+notion, puis lire la provenance de sa leçon.
+
+### Un fixture `autouse` s'exécute AVANT le fixture qu'il croit suivre → 403 partout
+
+```python
+# ❌ tous les appels Papa répondent 403 : `client_db` s'exécute APRÈS et réécrit l'override
+@pytest.fixture(autouse=True)
+def _papa() -> None:
+    _as(PAPA)
+
+# ✅ la dépendance impose l'ordre
+@pytest.fixture(autouse=True)
+def _papa(client_db) -> None:
+    _as(PAPA)
+```
+
+`conftest.client_db` pose `app.dependency_overrides[get_current_user]` sur le rôle **`child`**. Un
+`autouse` sans dépendance passe avant lui et se fait écraser. Symptôme : **12 tests d'un coup en
+403**, ce qui ressemble à un problème d'authentification alors que c'est un problème d'ordre.
+
+### `vite build` ne typecheck rien — seul `tsc -b` le fait
+
+Le script `build` de `frontend-papa` est `tsc -b && vite build`. Lancer `vite build` seul passe au
+vert avec un paramètre inutilisé, une prop manquante, un type faux. **Lancer `pnpm --filter
+@zetis/frontend-papa build`**, jamais `vite build` seul. (Corollaire déjà noté ailleurs :
+`tsc --noEmit` à la racine ne vérifie rien non plus.)
+
+### Le front répétait mot pour mot le motif renvoyé par le serveur
+
+`ClassRow` portait une table `DESCRIPTION` par classe, et le serveur envoie `reason` par classe. Sur
+A3 et A4 les deux disaient la même phrase : la ligne s'affichait **deux fois**. Invisible en test
+(chaque source est correcte prise seule), évident à l'écran en une seconde.
+
+**Règle retenue** : le front dit **ce que la classe EST**, le serveur dit **pourquoi elle est
+verrouillée**. Une idée, une source.
+
+### Remonter le DOM avec `.closest("div").parentElement` pour cibler une ligne
+
+Fragile et faux dès que la balise change : `getByText("Rédaction de cours").closest("div")`
+attrapait un conteneur qui englobait plusieurs lignes, d'où des `getByRole` multiples. **Poser
+`role="group"` + `aria-label`** sur la ligne et la cibler par son nom — utile au lecteur d'écran
+autant qu'au test.
+
+### Cliquer « Enregistrer » dans le même tick que le changement d'état ne fait rien
+
+En vérification live, `preset.click(); save.click();` dans le même script : React n'a pas encore
+re-rendu, le bouton est **encore `disabled`**, le second clic est un no-op silencieux. Attendre un
+tour (`await new Promise(r => setTimeout(r, 250))`) avant de lire ou cliquer ce qui dépend du
+rendu. Ce n'est pas un défaut de l'app — c'est un piège de scénario de vérification.
+
 ## Chantier `feat/page-matiere` — affinage au vu de l'écran — 2026-08-01
 
 ### `prettifySlug` ampute les accents — et ça se voit comme une faute de frappe

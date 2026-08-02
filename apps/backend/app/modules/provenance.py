@@ -21,10 +21,18 @@ choisi de ne pas faire n'est pas un outil.
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-ValidatedBy = Literal["parent", "parent_bulk", "system"]
+ValidatedBy = Literal["parent", "parent_bulk", "parent_rule", "system"]
 
 PARENT: ValidatedBy = "parent"
 PARENT_BULK: ValidatedBy = "parent_bulk"
+# `parent_rule` — aucun humain n'a ouvert la pièce NI CLIQUÉ POUR CE LOT ; un humain a autorisé la
+# règle permanente qui l'a produite (addendum §G.1). Un cran de plus sur la même échelle.
+#
+# ⚠️ **LÉGALE ET NON ÉMISE** en l'état, et le motif n'est pas celui qu'on croit : ce n'est pas le
+# palier 3 qui la déclenche, c'est l'ABSENCE DE CLIC. Tant que tout lot part d'un geste de Papa
+# (`production_runs.authorized_by = 'parent_direct'`), la provenance juste reste `parent_bulk`,
+# même à A1 = 3. Elle s'émettra le jour où un lot démarrera sans que personne l'ait demandé.
+PARENT_RULE: ValidatedBy = "parent_rule"
 SYSTEM: ValidatedBy = "system"
 
 

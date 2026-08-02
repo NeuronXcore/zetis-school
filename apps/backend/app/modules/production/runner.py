@@ -115,12 +115,23 @@ def _wait_for_massimo(db: Session, *, student_id: int) -> None:
         db.expire_all()  # sans ça, la session relirait son cache et n'verrait jamais la fin
 
 
-def select_notions(db: Session, skill_ids: list[int]) -> tuple[list[int], list[dict]]:
+def select_notions(
+    db: Session, skill_ids: list[int], *, require_validated_course: bool = True
+) -> tuple[list[int], list[dict]]:
     """LE GATE DU §7 (addendum ADR-0031). Sépare ce qui est équipable de ce qui est bloqué.
 
     Équipable = la notion a une leçon `validated` AVEC contenu. Tout le reste est **rendu**, avec
     son motif : une notion silencieusement omise se lirait comme un échec de production, alors que
     c'est un gate qui fonctionne.
+
+    `require_validated_course=False` (palier 3 d'A1, ADR-0032) **retire le gate, et rien d'autre**.
+    Les notions sans cours validé redeviennent éligibles ; `equip_notion` retrouve alors ses deux
+    chemins de rédaction/validation, qui n'ont jamais été supprimés — seulement rendus
+    inatteignables. **Aucune ligne de l'orchestrateur ne bouge**, ce qui est exactement ce que
+    l'addendum avait préservé.
+
+    ⚠️ Une notion **sans aucune leçon** reste bloquée à tous les paliers : il n'y a rien à quoi
+    rattacher un cours. Ce n'est pas un gate, c'est une absence de support.
     """
     eligible: list[int] = []
     blocked: list[dict] = []
@@ -134,11 +145,39 @@ def select_notions(db: Session, skill_ids: list[int]) -> tuple[list[int], list[d
         )
         if lesson is None:
             blocked.append({"skill_id": skill_id, "reason": BLOCKED_NO_LESSON})
-        elif not (lesson.status == "validated" and lesson.content_markdown):
+        elif require_validated_course and not (
+            lesson.status == "validated" and lesson.content_markdown
+        ):
             blocked.append({"skill_id": skill_id, "reason": BLOCKED_COURSE_PENDING})
         else:
             eligible.append(skill_id)
     return eligible, blocked
+
+
+def authority_for(db: Session, run: ProductionRun) -> "str | None":
+    """La provenance à écrire sur ce lot — et elle ne dépend PAS que du palier.
+
+    ⚠️ **Correction d'une hypothèse de l'ADR-0032**, trouvée au read-before-code. L'ADR annonçait
+    « au palier 3, la provenance est `parent_rule` ». C'est faux tant que Papa clique : le §G.1
+    définit `parent_rule` comme « aucun humain n'a ouvert la pièce **ni cliqué pour ce lot** ». Un
+    lot lancé depuis la Couverture EST un clic — sa provenance juste reste `parent_bulk`, même à
+    A1 = 3.
+
+    Deux questions, deux sources, et c'est déjà modélisé :
+
+    - **le palier** dit si ZETIS a le droit de servir sans relecture (`A0a`, `A1`) ;
+    - **`run.authorized_by`** dit qui a autorisé CE lot — `parent_direct` (un clic) ou
+      `parent_rule` (une règle permanente, non émise à ce jour).
+
+    Conséquence : `parent_rule` reste **légale et non émise**, exactement comme le §G l'a posée.
+    Elle s'écrira le jour où un lot démarrera sans que personne l'ait demandé.
+    """
+    from app.modules.provenance import PARENT_BULK, PARENT_RULE
+    from app.modules.settings import service as settings_service
+
+    if not settings_service.derivatives_are_served(db):
+        return None  # A0a = 2 : ZETIS produit, Papa valide. Rien n'est tamponné.
+    return PARENT_RULE if run.authorized_by == "parent_rule" else PARENT_BULK
 
 
 def execute(
@@ -154,8 +193,16 @@ def execute(
     run.status = "running"
     db.commit()
 
+    from app.modules.settings import service as settings_service
+
+    # Les deux paliers se lisent UNE FOIS, au départ du lot (ADR-0032). Les relire entre deux
+    # notions ferait changer les règles au milieu d'une partie : un lot doit s'exécuter sous le
+    # régime qui l'a autorisé, même si Papa change d'avis pendant qu'il tourne.
+    gate = settings_service.course_gate_enabled(db)
+    authority = authority_for(db, run)
+
     notions = scope.plan(db, chapter_id=run.chapter_id)
-    eligible, blocked = select_notions(db, notions)
+    eligible, blocked = select_notions(db, notions, require_validated_course=gate)
     results: list[dict] = []
 
     # Avancement : le total est connu APRÈS le gate — c'est le nombre de notions qu'on va
@@ -172,7 +219,7 @@ def execute(
 
             watermark = _max_ids(db)
             result = equipment.equip_notion(
-                db, skill_id=skill_id, llm=llm, embedder=embedder
+                db, skill_id=skill_id, llm=llm, embedder=embedder, authority=authority
             )
             result["pieces_stamped"] = _stamp(db, watermark, run_id)
             run.done_notions = (run.done_notions or 0) + 1

@@ -40,7 +40,7 @@ from app.db.models import (
     StudentProfile,
     Subject,
 )
-from app.modules.provenance import PARENT, PARENT_BULK, mark_validated
+from app.modules.provenance import PARENT, PARENT_BULK, ValidatedBy, mark_validated
 from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.curriculum.schemas import (
     GeneratedChapter,
@@ -1068,11 +1068,23 @@ def update_lesson(
     return lesson
 
 
-def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
+def set_lesson_validation(
+    db: Session, lesson_id: int, action: str, *, by: ValidatedBy = PARENT
+) -> Lesson:
     """`validate`/`reject` — uniquement pertinents sur une leçon `draft` (§3).
 
     Rejet → `archived` : l'énuméré documenté de `lessons.status` n'a pas de `rejected` ;
     la leçon sort du flux sans suppression. Cascade indépendante : le chapitre ne bouge pas.
+
+    ⚠️ **`by` existe parce que cette fonction avait DEUX appelants qui ne disent pas la même
+    chose.** Le défaut, trouvé le 2026-08-02 : `equip_notion` passait par ici pour auto-valider
+    un cours, et la leçon repartait tamponnée `parent` — « relu pièce à pièce par Papa » sur un
+    cours que personne n'a ouvert (violation du §F.3, que le verrou existant ne voyait pas : il
+    ne teste que la NON-NULLITÉ de la provenance). 13 leçons en base en portent la trace, et on
+    ne peut plus les distinguer des vraies. **Aucune rétro-attribution** (§F.4).
+
+    Le défaut n'était pas dans la valeur écrite ici — `parent` est juste pour la route humaine,
+    qui reste le défaut — mais dans le fait que l'appelant ne pouvait pas dire autre chose.
     """
     lesson = _lesson_or_404(db, lesson_id)
     if lesson.status != "draft":
@@ -1082,7 +1094,7 @@ def set_lesson_validation(db: Session, lesson_id: int, action: str) -> Lesson:
             "seule une leçon 'draft' peut être validée ou rejetée.",
         )
     if action == "validate":
-        mark_validated(lesson, PARENT, field="status")
+        mark_validated(lesson, by, field="status")
     else:
         lesson.status = "archived"
     db.commit()

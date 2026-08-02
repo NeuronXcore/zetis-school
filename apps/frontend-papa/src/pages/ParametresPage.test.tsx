@@ -1,8 +1,60 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { type Autonomy, type AutonomyClass, type AutonomyLevel } from "@zetis/types";
 
 import { ParametresPage } from "./ParametresPage";
+
+vi.mock("../lib/settings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/settings")>()),
+  fetchAutonomy: vi.fn(),
+  saveAutonomy: vi.fn(),
+}));
+import { fetchAutonomy, saveAutonomy } from "../lib/settings";
+
+const A0A = "zetis_autonomy_a0a_derives";
+const A1 = "zetis_autonomy_a1_course";
+
+function cls(
+  key: string,
+  code: string,
+  label: string,
+  value: AutonomyLevel,
+  choices: AutonomyLevel[],
+  reason: string | null = null,
+): AutonomyClass {
+  return { key, code, label, value, choices, locked: choices.length === 1, reason };
+}
+
+/** Le régime RÉEL d'aujourd'hui, tel que le serveur le rend en phase 1 (veto non livré). */
+function autonomy(overrides: Partial<Autonomy> = {}): Autonomy {
+  return {
+    classes: [
+      cls(A0A, "A0a", "Dérivés inertes", 3, [2, 3]),
+      cls(
+        "zetis_autonomy_a0b_cards",
+        "A0b",
+        "Cartes de révision",
+        3,
+        [3],
+        "Aucune étape de validation n'existe pour les cartes de révision.",
+      ),
+      cls(
+        A1,
+        "A1",
+        "Rédaction de cours",
+        2,
+        [2],
+        "« ZETIS sert » sera disponible avec le Journal — sans lui, le retrait n'existe pas.",
+      ),
+      cls("zetis_autonomy_a2_curriculum", "A2", "Programme", 1, [1], "Redessine la carte."),
+      cls("zetis_autonomy_a3_missions", "A3", "Création de missions", 2, [2], "Élire ≠ créer."),
+      cls("zetis_autonomy_a4_terminal", "A4", "Supprimer, archiver", 0, [0], "Définitif."),
+    ],
+    preset: "semi",
+    ...overrides,
+  };
+}
 
 function renderPage() {
   return render(
@@ -12,39 +64,217 @@ function renderPage() {
   );
 }
 
+async function renderLoaded() {
+  const view = renderPage();
+  await screen.findByText("Régime");
+  return view;
+}
+
+beforeEach(() => {
+  vi.mocked(fetchAutonomy).mockResolvedValue(autonomy());
+  vi.mocked(saveAutonomy).mockImplementation(async (values) => {
+    const base = autonomy();
+    return {
+      ...base,
+      classes: base.classes.map((c) =>
+        values[c.key] !== undefined ? { ...c, value: values[c.key] } : c,
+      ),
+    };
+  });
+});
+
 describe("ParametresPage", () => {
-  it("test-verrou : aucune commande qui ne fait rien", () => {
-    // La page portait 3 interrupteurs en `useState` non persisté et un `<select>` « Fournisseur
-    // IA » sans handler. Le danger n'était pas l'inutilité mais la CONFIANCE : une page où des
-    // commandes ne font rien est un piège le jour où d'autres engagent l'autonomie de ZETIS.
-    // Ce verrou interdit qu'une commande revienne ici avant d'être réellement branchée.
-    renderPage();
-    expect(screen.queryAllByRole("switch")).toHaveLength(0);
-    expect(screen.queryAllByRole("combobox")).toHaveLength(0);
-    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
-    // Seul un bouton réellement câblé aurait sa place — aucun aujourd'hui.
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  it("test-verrou : toute commande est branchée, ou verrouillée AVEC son motif", async () => {
+    // Remplace (et durcit) le verrou du 2026-08-02 « aucune commande qui ne fait rien », qui
+    // interdisait tout bouton. Son intention n'était pas « aucune commande » mais « aucune
+    // commande SANS EFFET » — la page engage désormais l'autonomie de ZETIS, elle a des
+    // commandes, et chacune doit prouver qu'elle sert à quelque chose.
+    await renderLoaded();
+    fireEvent.click(screen.getByText("Détail par type de contenu"));
+
+    for (const button of screen.getAllByRole("button")) {
+      if ((button as HTMLButtonElement).disabled) {
+        expect(button.getAttribute("title") ?? "").not.toBe("");
+        continue;
+      }
+      const before = document.body.innerHTML;
+      fireEvent.click(button);
+      const changed = document.body.innerHTML !== before;
+      expect(
+        changed || vi.mocked(saveAutonomy).mock.calls.length > 0,
+        `« ${button.textContent?.trim()} » ne fait rien`,
+      ).toBe(true);
+    }
   });
 
-  it("ne propose aucun fournisseur IA tiers (ADR-0008 : 100 % local)", () => {
-    // Le sélecteur retiré proposait « OpenAI » comme réglage global, ce qui laissait croire que
-    // les données de Massimo pouvaient y partir. La seule dérogation cloud est `curriculum_*`
-    // (Anthropic), bornée par l'ADR-0009 et sans aucune donnée de Massimo.
-    const { container } = renderPage();
+  it("ne propose aucun fournisseur IA tiers (ADR-0008 : 100 % local)", async () => {
+    const { container } = await renderLoaded();
     expect(container.textContent).not.toMatch(/OpenAI|Fournisseur IA/i);
   });
 
-  it("oriente vers le seul réglage réel, sur la page où la décision se prend", () => {
-    renderPage();
+  it("oriente vers le seul réglage qui vit ailleurs, sur la page où la décision se prend", async () => {
+    await renderLoaded();
     expect(screen.getByRole("link", { name: "Agenda" })).toHaveAttribute("href", "/agenda");
   });
 
-  it("annonce l'autonomie comme indisponible, avec son motif — jamais absente", () => {
-    // Convention Papa : une capacité indisponible est grisée AVEC son motif (patron « File de
-    // relecture » sur la Couverture). La doctrine « aucun composer grisé » protège Massimo d'une
-    // privation affichée ; elle ne protège pas Papa d'une information.
+  it("le régime Autonome est indisponible AVEC son motif — jamais absent", async () => {
+    // Déplacement du verrou « indisponible avec son motif » : il vérifiait le placeholder de la
+    // section, il vérifie maintenant le régime que le serveur refuse tant que le Journal n'existe
+    // pas. Même doctrine, même exigence — une capacité absente se dit, elle ne s'escamote pas.
+    await renderLoaded();
+    const autonome = screen.getByRole("button", { name: /Autonome/ });
+    expect(autonome).toBeDisabled();
+    expect(autonome).toHaveTextContent(/Journal/);
+  });
+
+  it("montre où Papa en est AVANT de proposer de changer quoi que ce soit", async () => {
+    const { container } = await renderLoaded();
+    const text = container.textContent ?? "";
+    expect(text).toContain("Où vous en êtes aujourd'hui");
+    expect(text).toContain("2 contenus sur 33");
+    // L'ordre est la décision : l'état des lieux précède le régime.
+    expect(text.indexOf("Où vous en êtes")).toBeLessThan(text.indexOf("Régime"));
+  });
+
+  it("n'affiche AUCUN total de provenance (§F.2 — un fait, jamais un reproche)", async () => {
+    const { container } = await renderLoaded();
+    // Le seul chiffre de la page est celui de l'observation, daté. Pas de « N en attente »,
+    // pas de ratio, pas de pourcentage de délégation.
+    expect(container.textContent).not.toMatch(/\d+\s*%/);
+    expect(container.textContent).not.toMatch(/en attente de (relecture|validation)/i);
+  });
+
+  it("le front n'a aucune liste de paliers en dur : il rend ce que le serveur envoie", async () => {
+    // A0a arrive avec un seul choix → la ligne devient un cadenas, sans qu'une ligne du front
+    // change. C'est ce qui permettra au serveur de rouvrir A1 le jour du Journal.
+    vi.mocked(fetchAutonomy).mockResolvedValue(
+      autonomy({
+        classes: autonomy().classes.map((c) =>
+          c.key === A0A ? { ...c, choices: [3], locked: true, reason: "Verrouillé par le serveur." } : c,
+        ),
+      }),
+    );
+    await renderLoaded();
+    fireEvent.click(screen.getByText("Détail par type de contenu"));
+
+    const row = screen.getByRole("group", { name: "Dérivés inertes" });
+    expect(within(row).queryByRole("button")).toBeNull();
+    expect(row.textContent).toContain("Verrouillé par le serveur.");
+  });
+
+  it("n'enregistre rien sans geste explicite, et « Annuler » revient à l'état serveur", async () => {
+    await renderLoaded();
+    fireEvent.click(screen.getByText("Détail par type de contenu"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Vous validez" }));
+    expect(saveAutonomy).not.toHaveBeenCalled(); // aucun auto-save
+
+    fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Semi-autonome/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() => expect(saveAutonomy).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(saveAutonomy).mock.calls[0][0][A0A]).toBe(2);
+  });
+
+  it("un refus du serveur est relayé tel quel, et le brouillon refusé disparaît", async () => {
+    // Un brouillon refusé qui resterait à l'écran laisserait croire qu'il est actif.
+    vi.mocked(saveAutonomy).mockRejectedValue(new Error("Définitif. Aucun réglage ne l'ouvrira."));
+    await renderLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await screen.findByText("Définitif. Aucun réglage ne l'ouvrira.");
+    expect(screen.getByRole("button", { name: /Semi-autonome/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("à l'erreur de lecture, aucun réglage n'est affiché — pas de défaut inventé", async () => {
+    vi.mocked(fetchAutonomy).mockRejectedValue(new Error("réseau"));
     renderPage();
-    expect(screen.getByText("Autonomie de ZETIS")).toBeInTheDocument();
-    expect(screen.getByTitle(/non livré/i)).toBeInTheDocument();
+
+    await screen.findByText(/Réglages illisibles/);
+    expect(screen.queryByText("Régime")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Enregistrer" })).toBeNull();
+  });
+
+  describe("quand le serveur rouvre le palier 3 du cours (après le Journal)", () => {
+    beforeEach(() => {
+      vi.mocked(fetchAutonomy).mockResolvedValue(
+        autonomy({
+          classes: autonomy().classes.map((c) =>
+            c.key === A1 ? { ...c, choices: [2, 3], locked: false, reason: null } : c,
+          ),
+        }),
+      );
+    });
+
+    it("le passage du cours en « ZETIS sert » demande une confirmation explicite", async () => {
+      await renderLoaded();
+      fireEvent.click(screen.getByText("Détail par type de contenu"));
+
+      const row = screen.getByRole("group", { name: "Rédaction de cours" });
+      fireEvent.click(within(row).getByRole("button", { name: "ZETIS sert" }));
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent("Vous retirez le dernier contrôle humain");
+      expect(dialog).toHaveTextContent(/ça ne retire pas ce qui est déjà servi/);
+
+      fireEvent.click(screen.getByRole("button", { name: "Garder mon contrôle" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(within(row).getByRole("button", { name: "Vous validez" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+
+    it("confirmer applique la monotonie : servir un cours force les dérivés", async () => {
+      await renderLoaded();
+      fireEvent.click(screen.getByText("Détail par type de contenu"));
+      const derives = screen.getByRole("group", { name: "Dérivés inertes" });
+      fireEvent.click(within(derives).getByRole("button", { name: "Vous validez" }));
+
+      const cours = screen.getByRole("group", { name: "Rédaction de cours" });
+      fireEvent.click(within(cours).getByRole("button", { name: "ZETIS sert" }));
+      fireEvent.click(await screen.findByRole("button", { name: /laisser ZETIS servir/ }));
+
+      await waitFor(() =>
+        expect(within(derives).getByRole("button", { name: "ZETIS sert" })).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        ),
+      );
+      expect(screen.getByRole("button", { name: /Autonome/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+
+    it("le retour au contrôle n'a AUCUNE friction", async () => {
+      await renderLoaded();
+      fireEvent.click(screen.getByText("Détail par type de contenu"));
+      const cours = screen.getByRole("group", { name: "Rédaction de cours" });
+
+      fireEvent.click(within(cours).getByRole("button", { name: "ZETIS sert" }));
+      fireEvent.click(await screen.findByRole("button", { name: /laisser ZETIS servir/ }));
+      await waitFor(() =>
+        expect(within(cours).getByRole("button", { name: "ZETIS sert" })).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        ),
+      );
+
+      fireEvent.click(within(cours).getByRole("button", { name: "Vous validez" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
   });
 });

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS Papa — Paramètres / Autonomie de ZETIS (maquette ADR-0032)</title>
+<style>
+  /* Thème RÉEL de l'app Papa (apps/frontend-papa/src/index.css) — sombre.
+     ⚠️ Les maquettes Papa antérieures (agenda, couverture…) sont en thème CLAIR : elles
+     précèdent la bascule. Suivre celle-ci, pas elles. */
+  :root{
+    --bg:#0a0f1a; --surface:#111a28; --surface2:#18243a; --border:#243348;
+    --text:#e6edf6; --muted:#8595ac; --accent:#10b981; --accent2:#38bdf8; --warn:#f59e0b;
+    --danger:#f43f5e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,-apple-system,sans-serif}
+  body{background:var(--bg);color:var(--text);font-size:14px}
+  .layout{display:flex;min-height:100vh}
+
+  .sidebar{width:210px;background:#070b13;border-right:1px solid var(--border);padding:20px 12px;flex-shrink:0}
+  .sidebar .logo{font-weight:800;letter-spacing:.2em;color:var(--accent);font-size:15px;margin-bottom:22px;padding-left:8px}
+  .sidebar a{display:flex;gap:9px;padding:7px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:12.5px;margin-bottom:1px}
+  .sidebar a.active{background:rgba(16,185,129,.13);color:var(--accent);font-weight:600}
+  .sidebar .sep{height:1px;background:var(--border);margin:10px 6px}
+
+  main{flex:1;padding:26px 30px;max-width:900px}
+  h1{font-size:21px;font-weight:700}
+  .subtitle{color:var(--muted);font-size:13px;margin-top:4px;line-height:1.5}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:18px}
+  .card h2{font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .card .hint{color:var(--muted);font-size:12.5px;line-height:1.55;margin-top:5px}
+  .muted{color:var(--muted)}
+  .sm{font-size:12px}
+
+  /* ── état des lieux ───────────────────────────── */
+  .regime{border:1px solid var(--border);border-radius:11px;background:var(--bg);padding:2px 14px;margin-top:14px}
+  .regime .line{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+  .regime .line:last-child{border-bottom:none}
+  .regime .what{flex:1;min-width:0}
+  .regime .what b{font-weight:600;font-size:13px}
+  .regime .what p{color:var(--muted);font-size:11.5px;margin-top:2px;line-height:1.45}
+  .chip{flex-shrink:0;border-radius:999px;padding:4px 11px;font-size:11px;font-weight:600;white-space:nowrap}
+  .chip.you{background:rgba(16,185,129,.14);color:#6ee7b7}
+  .chip.bulk{background:rgba(16,185,129,.05);color:#bef264;box-shadow:inset 0 0 0 1px rgba(163,230,53,.35)}
+  .chip.none{background:rgba(148,163,184,.14);color:#cbd5e1}
+  .chip.doctrine{background:rgba(148,163,184,.14);color:#cbd5e1}
+
+  .callout{margin-top:14px;border-radius:11px;padding:12px 14px;font-size:12.5px;line-height:1.6}
+  .callout.amber{border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.06);color:#fcd34d}
+  .callout.info{border:1px solid var(--border);background:var(--bg);color:var(--muted)}
+  .callout b{color:var(--text)}
+
+  /* ── préréglages ──────────────────────────────── */
+  .presets{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+  .preset{position:relative;text-align:left;border:1px solid var(--border);background:var(--bg);border-radius:12px;padding:14px;cursor:pointer;color:var(--text)}
+  .preset:hover{border-color:#33475f}
+  .preset.on{border-color:var(--accent);background:rgba(16,185,129,.07);box-shadow:0 0 0 1px var(--accent) inset}
+  .preset .t{font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:7px}
+  .preset .d{color:var(--muted);font-size:11.5px;line-height:1.5;margin-top:6px}
+  .preset .tick{position:absolute;top:12px;right:12px;color:var(--accent);font-size:13px;display:none}
+  .preset.on .tick{display:block}
+  .preset.locked{opacity:.5;cursor:not-allowed}
+  .preset .lockmsg{display:none;margin-top:8px;font-size:11px;color:var(--warn)}
+  .preset.locked .lockmsg{display:block}
+  .badge-custom{display:none;margin-left:8px;border-radius:999px;padding:3px 9px;font-size:10.5px;font-weight:700;background:rgba(56,189,248,.14);color:#7dd3fc}
+  .badge-custom.on{display:inline-block}
+
+  /* ── détail par classe ────────────────────────── */
+  details.detail{margin-top:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}
+  details.detail summary{cursor:pointer;padding:12px 15px;font-size:12.5px;font-weight:600;color:var(--muted);list-style:none}
+  details.detail summary::-webkit-details-marker{display:none}
+  details.detail summary::before{content:"▸ ";color:var(--accent)}
+  details.detail[open] summary::before{content:"▾ "}
+  .rows{padding:0 15px 6px}
+  .row{display:flex;align-items:center;gap:14px;padding:13px 0;border-top:1px solid var(--border)}
+  .row .lbl{flex:1;min-width:0}
+  .row .lbl b{font-size:13px;font-weight:600}
+  .row .lbl .code{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.06em;margin-right:6px}
+  .row .lbl p{color:var(--muted);font-size:11.5px;margin-top:3px;line-height:1.45}
+  .seg{display:flex;flex-shrink:0;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+  .seg button{border:none;background:transparent;color:var(--muted);font-size:11.5px;font-weight:600;padding:7px 11px;cursor:pointer}
+  .seg button+button{border-left:1px solid var(--border)}
+  .seg button.on{background:rgba(16,185,129,.16);color:#6ee7b7}
+  .seg button:disabled{cursor:not-allowed;opacity:.55}
+  .lock{flex-shrink:0;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);border:1px dashed var(--border);border-radius:9px;padding:6px 11px}
+
+  /* ── veto ─────────────────────────────────────── */
+  .veto{display:flex;gap:14px;align-items:flex-start;margin-top:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg);padding:14px}
+  .veto .ico{font-size:19px;line-height:1}
+  .link{color:var(--accent);font-weight:600;text-decoration:none}
+  .link:hover{text-decoration:underline}
+
+  .btn{border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--accent);color:#04120c}
+  .btn-warn{background:var(--warn);color:#241703}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+  .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+
+  /* ── modale de confirmation ───────────────────── */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+  .overlay.on{display:flex}
+  .modal{width:520px;max-width:100%;background:var(--surface);border:1px solid rgba(245,158,11,.45);border-radius:16px;padding:20px 22px;box-shadow:0 0 0 1px rgba(245,158,11,.18),0 24px 60px rgba(0,0,0,.5)}
+  .modal h3{font-size:15px;font-weight:700;color:#fcd34d}
+  .modal p{font-size:12.8px;line-height:1.6;color:var(--muted);margin-top:10px}
+  .modal p b{color:var(--text)}
+  .modal ul{margin:10px 0 0 16px;font-size:12.5px;line-height:1.7;color:var(--muted)}
+
+  .notes{margin:26px 0 40px;border-top:1px solid var(--border);padding-top:14px;color:var(--muted);font-size:11.5px;line-height:1.75}
+  .notes b{color:var(--text)}
+  .notes li{margin-left:16px}
+  .flagrow{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:11.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="logo">ZETIS</div>
+    <a href="#">📊 Dashboard</a>
+    <a href="#">🗺️ Couverture</a>
+    <a href="#">📥 Demandes de Massimo</a>
+    <a href="#">📓 Journal de production</a>
+    <div class="sep"></div>
+    <a href="#">📖 Programme</a>
+    <a href="#">🎯 Missions</a>
+    <a href="#">🗂️ Cartes de révision</a>
+    <a href="#">🧠 Mindmaps</a>
+    <div class="sep"></div>
+    <a href="#" class="active">⚙️ Paramètres</a>
+  </nav>
+
+  <main>
+    <h1>Paramètres</h1>
+    <p class="subtitle">Ce qui se règle ici, et ce qui se règle là où la décision se prend.</p>
+
+    <!-- ══ 1. Réglages actifs (existant, inchangé) ══ -->
+    <section class="card">
+      <h2>Réglages actifs</h2>
+      <p class="hint">
+        Les réglages de ZETIS vivent à l'endroit où vous prenez la décision, pas dans un panneau
+        séparé. L'accès de Massimo à la saisie de l'agenda reste sur la page
+        <a href="#" class="link">Agenda</a>.
+      </p>
+    </section>
+
+    <!-- ══ 2. Autonomie de ZETIS ══ -->
+    <section class="card">
+      <h2>⚡ Autonomie de ZETIS <span id="badgeCustom" class="badge-custom">Sur mesure</span></h2>
+      <p class="hint">
+        Jusqu'où ZETIS produit le contenu de Massimo tout seul. Le réglage se dose
+        <b style="color:var(--text)">par type de contenu</b> — le coût d'une erreur n'est pas le
+        même sur une fiche et sur un cours.
+      </p>
+
+      <!-- 2a. L'ÉTAT DES LIEUX — avant toute proposition de changement -->
+      <p style="margin-top:18px;font-size:12.5px;font-weight:700">Où vous en êtes aujourd'hui</p>
+      <div class="regime">
+        <div class="line">
+          <span class="what"><b>Fiches et cartes mentales</b>
+            <p>Produites en lot, servies à Massimo sans que vous les ouvriez.</p></span>
+          <span class="chip bulk">validation groupée</span>
+        </div>
+        <div class="line">
+          <span class="what"><b>Cartes de révision</b>
+            <p>Servies sans aucune étape de validation — il n'en existe pas dans le dispositif.</p></span>
+          <span class="chip none">aucun contrôle</span>
+        </div>
+        <div class="line">
+          <span class="what"><b>Quiz</b>
+            <p>Servis sans relecture, par doctrine (ADR-0014).</p></span>
+          <span class="chip doctrine">par doctrine</span>
+        </div>
+        <div class="line">
+          <span class="what"><b>Cours</b>
+            <p>Vous seul les validez. C'est aujourd'hui le seul contenu qui passe devant vous.</p></span>
+          <span class="chip you">vous</span>
+        </div>
+      </div>
+
+      <div class="callout amber">
+        ⚠️ Sur le chapitre produit le 2 août, <b>2 contenus sur 33</b> vous sont arrivés en
+        relecture. <b>Ce n'est pas un retard</b> — c'est le régime ci-dessus. Le réglage ne fait
+        pas que vous en donner plus : il vous dit d'abord où vous êtes.
+      </div>
+
+      <!-- 2b. LES PRÉRÉGLAGES -->
+      <p style="margin-top:22px;font-size:12.5px;font-weight:700">Régime</p>
+      <div class="presets" id="presets">
+        <button class="preset" data-preset="manuel">
+          <span class="tick">✓</span>
+          <div class="t">🔒 Manuel</div>
+          <div class="d">ZETIS produit, <b style="color:var(--text)">vous validez tout</b> avant
+            que Massimo le voie — fiches et cartes mentales comprises.</div>
+        </button>
+        <button class="preset on" data-preset="semi">
+          <span class="tick">✓</span>
+          <div class="t">⚖️ Semi-autonome</div>
+          <div class="d">ZETIS sert les dérivés seul. <b style="color:var(--text)">Les cours
+            passent toujours par vous.</b></div>
+        </button>
+        <button class="preset" data-preset="autonome" id="presetAutonome">
+          <span class="tick">✓</span>
+          <div class="t">🚀 Autonome</div>
+          <div class="d">ZETIS rédige et sert <b style="color:var(--text)">y compris les
+            cours</b>. Vous pouvez retirer, tant que Massimo n'a pas ouvert.</div>
+          <div class="lockmsg">⏳ Disponible quand le Journal sera livré — sans lui, le retrait
+            n'existe pas.</div>
+        </button>
+      </div>
+
+      <!-- 2c. LE DÉTAIL -->
+      <details class="detail">
+        <summary>Détail par type de contenu</summary>
+        <div class="rows">
+
+          <div class="row">
+            <span class="lbl"><b><span class="code">A0a</span>Dérivés inertes</b>
+              <p>Fiches, cartes mentales, quiz, capsules — l'erreur dort jusqu'à ce qu'on ouvre.</p></span>
+            <span class="seg" data-key="a0a">
+              <button data-v="2">Vous validez</button>
+              <button data-v="3" class="on">ZETIS sert</button>
+            </span>
+          </div>
+
+          <div class="row">
+            <span class="lbl"><b><span class="code">A0b</span>Cartes de révision</b>
+              <p>⚠️ Verrouillé faute de gate : <b style="color:var(--text)">aucune étape de
+                validation n'existe</b> pour les cartes. « Vous validez » serait un mensonge tant
+                qu'elle n'est pas construite.</p></span>
+            <span class="lock">🔒 ZETIS sert</span>
+          </div>
+
+          <div class="row">
+            <span class="lbl"><b><span class="code">A1</span>Rédaction de cours</b>
+              <p>Le seul contenu que Massimo lit vraiment — et, depuis le 2 août, le dernier qui
+                passe devant un humain.</p></span>
+            <span class="seg" data-key="a1">
+              <button data-v="2" class="on">Vous validez</button>
+              <button data-v="3">ZETIS sert</button>
+            </span>
+          </div>
+
+          <div class="row">
+            <span class="lbl"><b><span class="code">A2</span>Programme</b>
+              <p>Notions, leçons, chapitres. Une erreur ici <b style="color:var(--text)">redessine
+                la carte</b> : ZETIS propose, vous tranchez.</p></span>
+            <span class="lock">🔒 ZETIS propose</span>
+          </div>
+
+          <div class="row">
+            <span class="lbl"><b><span class="code">A3</span>Création de missions</b>
+              <p>Élire n'est pas créer : le sélecteur quotidien est déjà autonome, la
+                <i>création</i> ne l'est pas.</p></span>
+            <span class="lock">🔒 Vous validez</span>
+          </div>
+
+          <div class="row">
+            <span class="lbl"><b><span class="code">A4</span>Supprimer, archiver, dévalider</b>
+              <p>Définitif. Aucun réglage ne l'ouvrira.</p></span>
+            <span class="lock">🚫 Jamais</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- 2d. LE VETO -->
+      <div class="veto">
+        <span class="ico">↩️</span>
+        <div>
+          <b style="font-size:13px">Vous pouvez retirer ce que ZETIS a servi</b>
+          <p class="hint" style="margin-top:5px">
+            Tant que Massimo ne l'a pas ouvert, un contenu se retire <b style="color:var(--text)">sans
+            trace et sans qu'il le sache</b>. Une fois ouvert, il ne se retire plus — il se corrige.
+            Rien à faire pour accepter : le silence vaut accord.
+          </p>
+          <p style="margin-top:9px"><a href="#" class="link">📓 Voir ce que ZETIS a servi →</a></p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-ghost">Annuler</button>
+        <button class="btn btn-primary">Enregistrer</button>
+      </div>
+
+      <div class="flagrow">
+        <input type="checkbox" id="phase1"> <label for="phase1">Vue « phase 1 » — avant livraison
+          du Journal (le régime Autonome est indisponible)</label>
+      </div>
+    </section>
+
+    <div class="notes">
+      <b>Notes de maquette — ce que l'écran doit tenir</b>
+      <ul>
+        <li><b>L'état des lieux vient AVANT le réglage.</b> Papa est déjà au régime le plus haut
+          pour trois familles sur quatre ; lui proposer de « monter » sans le dire serait un
+          mensonge de plus.</li>
+        <li><b>Aucun compteur, aucun ratio.</b> Le bloc « où vous en êtes » décrit un
+          <i>régime</i>, pas un score de délégation (addendum §F.2 : la provenance est un fait,
+          jamais un reproche, et elle ne se totalise pas). Le seul chiffre de la page est celui de
+          l'observation du 2 août, daté et non répété.</li>
+        <li><b>Le préréglage n'est pas stocké.</b> Six clés plates en base ; l'étiquette du régime
+          est <i>dérivée</i>. « Sur mesure » s'affiche si les six valeurs ne correspondent à aucun
+          régime — inatteignable en v1 (deux réglages libres seulement), mais l'état existe.</li>
+        <li><b>A1 = « ZETIS sert » exige une confirmation explicite</b> (modale ci-contre) : c'est
+          la révocation d'une décision écrite, pas un interrupteur ordinaire.</li>
+        <li><b>Monotonie :</b> on ne sert pas un cours sans relecture tout en relisant les fiches
+          qui en dérivent. Passer A1 à 3 force A0a à 3.</li>
+        <li><b>Rien de tout ceci n'existe côté Massimo</b> (invariant V1 : un retrait doit rester
+          invisible).</li>
+      </ul>
+    </div>
+  </main>
+</div>
+
+<!-- ══ Modale : confirmation de la levée du gel d'A1 ══ -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3>⚠️ Vous retirez le dernier contrôle humain</h3>
+    <p>
+      Aujourd'hui, le cours est <b>le seul contenu de ZETIS qui passe devant vous</b> avant
+      d'atteindre Massimo. Les fiches, les cartes, les quiz partent déjà sans relecture.
+    </p>
+    <p>En passant les cours en « ZETIS sert » :</p>
+    <ul>
+      <li>ZETIS rédige <b>et</b> publie le cours ; Massimo peut le lire dans la minute ;</li>
+      <li>chaque cours reste marqué <b>« servi par une règle que vous avez posée »</b> ;</li>
+      <li>vous pouvez le retirer <b>tant que Massimo ne l'a pas ouvert</b>, sans trace ;</li>
+      <li>revenir en arrière arrête la suite — <b>ça ne retire pas ce qui est déjà servi</b>.</li>
+    </ul>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="closeModal(false)">Garder mon contrôle</button>
+      <button class="btn btn-warn" onclick="closeModal(true)">Je comprends, laisser ZETIS servir</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Maquette interactive : deux réglages libres (a0a, a1), les quatre autres sont verrouillés.
+  const PRESETS = {
+    manuel:   { a0a: 2, a1: 2 },
+    semi:     { a0a: 3, a1: 2 },
+    autonome: { a0a: 3, a1: 3 },
+  };
+  let state = { a0a: 3, a1: 2 };   // l'état initial = le régime RÉEL d'aujourd'hui
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+  function presetOf(s) {
+    return Object.keys(PRESETS).find(k => PRESETS[k].a0a === s.a0a && PRESETS[k].a1 === s.a1) || null;
+  }
+
+  function render() {
+    const p = presetOf(state);
+    $$('.preset').forEach(b => b.classList.toggle('on', b.dataset.preset === p));
+    $('#badgeCustom').classList.toggle('on', p === null);
+    $$('.seg').forEach(seg => {
+      const key = seg.dataset.key;
+      $$('button', seg).forEach(b => b.classList.toggle('on', Number(b.dataset.v) === state[key]));
+    });
+  }
+
+  function set(next, viaPreset) {
+    // Monotonie : servir un cours sans relecture force les dérivés au même régime.
+    if (next.a1 === 3) next.a0a = 3;
+    const raising = next.a1 === 3 && state.a1 !== 3;
+    if (raising) { pending = next; $('#overlay').classList.add('on'); return; }
+    state = next; render();
+  }
+
+  let pending = null;
+  function closeModal(ok) {
+    $('#overlay').classList.remove('on');
+    if (ok && pending) state = pending;
+    pending = null; render();
+  }
+
+  $$('.preset').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.classList.contains('locked')) return;
+    set({ ...PRESETS[btn.dataset.preset] }, true);
+  }));
+
+  $$('.seg button').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    const key = btn.closest('.seg').dataset.key;
+    set({ ...state, [key]: Number(btn.dataset.v) }, false);
+  }));
+
+  // Vue « phase 1 » : le régime Autonome est indisponible tant que le Journal n'est pas livré.
+  $('#phase1').addEventListener('change', e => {
+    const off = e.target.checked;
+    $('#presetAutonome').classList.toggle('locked', off);
+    $$('.seg[data-key="a1"] button[data-v="3"]').forEach(b => b.disabled = off);
+    if (off && state.a1 === 3) { state = { ...PRESETS.semi }; }
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>
