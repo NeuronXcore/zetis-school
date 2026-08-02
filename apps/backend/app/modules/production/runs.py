@@ -117,12 +117,20 @@ def preview(db: Session, *, chapter_id: int) -> dict:
     réimplémenté ici, et surtout aucun run n'est créé.
     """
     from app.modules.production import runner, scope
+    from app.modules.settings import service as settings_service
 
     chapter = db.get(Chapter, chapter_id)
     if chapter is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapitre introuvable.")
 
-    eligible_ids, blocked = runner.select_notions(db, scope.plan(db, chapter_id=chapter_id))
+    # Le MÊME gate que l'exécution (ADR-0032). Un aperçu qui appliquerait le gate quand le lot ne
+    # l'applique pas annoncerait « rien à produire » sur un chapitre que ZETIS équiperait
+    # entièrement — c'est la seule façon pour cet écran de mentir.
+    eligible_ids, blocked = runner.select_notions(
+        db,
+        scope.plan(db, chapter_id=chapter_id),
+        require_validated_course=settings_service.course_gate_enabled(db),
+    )
 
     # Le NOM en plus de l'id : une liste d'ids ne se lit pas.
     names = dict(

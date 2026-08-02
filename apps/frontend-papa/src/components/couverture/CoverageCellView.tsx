@@ -15,18 +15,32 @@ const CELL_LABEL: Record<CoverageCellKey, string> = {
 
 /** Nuancier de provenance (§F) : un ✓ ne dit pas COMMENT l'objet est passé.
  *
- * `null` sur un objet validé est rendu comme `parent_bulk` : il date d'avant la traçabilité, et
- * la prudence est de ne pas le faire passer pour une relecture qu'on ne peut pas attester. */
+ * ⚠️ **`null` a sa propre teinte depuis l'ADR-0032**, et c'est une correction. Il était rendu
+ * COMME `parent_bulk` (« la prudence est de ne pas le faire passer pour une relecture qu'on ne
+ * peut pas attester ») — sauf qu'une provenance *inconnue* et une validation *groupée* devenaient
+ * indistinguables à l'œil, alors que le texte du `title` les distinguait déjà. Le §G l'avait
+ * signalé comme une dette à solder AVANT d'ajouter une quatrième valeur : sans ça, trois teintes
+ * sur quatre se seraient ressemblé.
+ *
+ * L'échelle `parent` → `parent_bulk` → `parent_rule` est celle du §G.1 : une décision humaine à
+ * attention décroissante. La couleur suit cette décroissance (plein → cerné → pointillé) ; `null`
+ * en sort par le gris, parce qu'il ne dit rien. */
 function provenanceClass(by: ValidatedBy | null): string {
   if (by === "parent") return "bg-emerald-500/15 text-emerald-300";
+  if (by === "parent_bulk")
+    return "bg-emerald-500/5 text-lime-300 ring-1 ring-inset ring-lime-400/40";
+  if (by === "parent_rule")
+    return "bg-emerald-500/5 text-lime-200 ring-1 ring-inset ring-dashed ring-lime-400/50";
   if (by === "system") return "bg-slate-500/15 text-slate-300";
-  return "bg-emerald-500/5 text-lime-300 ring-1 ring-inset ring-lime-400/40";
+  return "bg-slate-500/10 text-slate-400 ring-1 ring-inset ring-slate-400/25";
 }
 
 function provenanceText(by: ValidatedBy | null): string {
   if (by === "parent") return "relu pièce à pièce par Papa";
   if (by === "system") return "servi sans relecture, par doctrine (quiz, ADR-0014)";
   if (by === "parent_bulk") return "validation groupée ou équipement — jamais ouvert pièce à pièce";
+  if (by === "parent_rule")
+    return "servi par une règle que vous avez posée — personne n'a cliqué pour ce lot";
   return "provenance inconnue (antérieure à la traçabilité)";
 }
 

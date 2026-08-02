@@ -28,7 +28,7 @@ from app.db.models import (
     SpacedReviewCard,
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
-from app.modules.provenance import PARENT_BULK
+from app.modules.provenance import PARENT_BULK, ValidatedBy
 
 
 # --- Équipement pédagogique d'une notion (ADR-0021) ----------------------------------------
@@ -88,10 +88,26 @@ def _has_srs_cards(db: Session, skill_id: int) -> bool:
 
 
 def equip_notion(
-    db: Session, *, skill_id: int, llm: LLMProvider, embedder: EmbeddingProvider
+    db: Session,
+    *,
+    skill_id: int,
+    llm: LLMProvider,
+    embedder: EmbeddingProvider,
+    authority: ValidatedBy | None = PARENT_BULK,
 ) -> dict:
     """Génère + auto-valide le kit pédagogique d'UNE notion (ADR-0021). Résumé typé, jamais
-    d'exception qui remonte : chaque pièce est isolée, l'échec est reporté."""
+    d'exception qui remonte : chaque pièce est isolée, l'échec est reporté.
+
+    `authority` (ADR-0032) — **un paramètre, jamais une lecture des réglages**. Un service qui
+    irait lire lui-même le palier deviendrait inappelable par ses deux autres consommateurs : le
+    Conseil de classe et la composition champion équipent sur un **geste explicite de Papa**, leur
+    autorité est `parent_bulk` quel que soit le palier, et elle doit le rester. D'où le défaut par
+    défaut : les appelants existants ne changent pas d'un caractère.
+
+    - une valeur → les pièces produites sont validées avec cette provenance ;
+    - `None` → **rien n'est auto-validé** ; les dérivés restent `pending` et Papa les relit
+      (c'est le palier 2 de la classe A0a).
+    """
     # Imports paresseux : évite tout cycle avec les modules générateurs (qui n'importent pas reports).
     from app.modules.curriculum.service import generate_lesson_content, set_lesson_validation
     from app.modules.fiches.service import generate_fiche, validate_fiche
@@ -120,14 +136,20 @@ def equip_notion(
 
     # 1) Cours (leçon canonique). Un cours DÉJÀ RÉDIGÉ (manuel Papa ou antérieur) n'est jamais
     #    régénéré — juste validé s'il est encore en brouillon, pour rendre les dérivés possibles.
+    # ⚠️ `by=` explicite sur les deux chemins : sans lui, la leçon repartait tamponnée `parent`,
+    # c'est-à-dire « relue pièce à pièce par Papa » sur un cours que personne n'a ouvert. Défaut
+    # trouvé le 2026-08-02 (ADR-0032, constat n°3) ; `course_authority` ne peut pas être `None`
+    # ici, la monotonie interdit A0a=2 avec A1=3.
+    course_authority = authority or PARENT_BULK
     try:
         if lesson.content_markdown:
             if lesson.status == "draft":
-                set_lesson_validation(db, lesson_id, "validate")  # brouillon existant → validé
+                # Brouillon existant → validé. C'est une validation EN LOT, jamais une relecture.
+                set_lesson_validation(db, lesson_id, "validate", by=course_authority)
             skipped.append("cours")
         else:
             generate_lesson_content(db, llm, lesson_id)  # écrit le contenu, repasse en `draft`
-            set_lesson_validation(db, lesson_id, "validate")  # draft → validated
+            set_lesson_validation(db, lesson_id, "validate", by=course_authority)
             generated.append("cours")
     except Exception as exc:  # noqa: BLE001 — on isole chaque pièce
         errors.append({"piece": "cours", "message": str(exc)})
@@ -150,13 +172,14 @@ def equip_notion(
     try:
         existing_fiche = _existing_fiche(db, lesson_id)
         if existing_fiche is not None:
-            if existing_fiche.validation_status == "pending":
-                # Valide un brouillon PRÉEXISTANT de Papa : `parent_bulk` sans exception (§F.4).
-                validate_fiche(db, existing_fiche.id, by=PARENT_BULK)
+            if existing_fiche.validation_status == "pending" and authority is not None:
+                # Valide un brouillon PRÉEXISTANT de Papa : provenance de lot sans exception (§F.4).
+                validate_fiche(db, existing_fiche.id, by=authority)
             skipped.append("fiche")
         else:
             fiche = generate_fiche(db, llm, embedder, lesson_id=lesson_id)
-            validate_fiche(db, fiche.id, by=PARENT_BULK)
+            if authority is not None:
+                validate_fiche(db, fiche.id, by=authority)
             generated.append("fiche")
     except Exception as exc:  # noqa: BLE001
         errors.append({"piece": "fiche", "message": str(exc)})
@@ -192,13 +215,14 @@ def equip_notion(
     try:
         existing_mindmap = _existing_mindmap(db, lesson_id)
         if existing_mindmap is not None:
-            if existing_mindmap.validation_status == "pending":
+            if existing_mindmap.validation_status == "pending" and authority is not None:
                 # Idem fiche : brouillon préexistant validé en lot (§F.4).
-                validate_mindmap(db, existing_mindmap.id, by=PARENT_BULK)
+                validate_mindmap(db, existing_mindmap.id, by=authority)
             skipped.append("mindmap")
         else:
             mindmap = generate_mindmap(db, llm, embedder, lesson_id=lesson_id)
-            validate_mindmap(db, mindmap.id, by=PARENT_BULK)
+            if authority is not None:
+                validate_mindmap(db, mindmap.id, by=authority)
             generated.append("mindmap")
     except Exception as exc:  # noqa: BLE001
         errors.append({"piece": "mindmap", "message": str(exc)})

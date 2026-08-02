@@ -213,6 +213,12 @@ export {
   type ValidatedBy,
 } from "./production";
 export {
+  type Autonomy,
+  type AutonomyClass,
+  type AutonomyLevel,
+  type AutonomyPreset,
+} from "./settings";
+export {
   type ContentRequest,
   type ContentRequestKind,
   type ContentRequestStatus,

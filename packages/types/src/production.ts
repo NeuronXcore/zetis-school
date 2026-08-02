@@ -11,8 +11,15 @@ export type CellState = "absent" | "pending" | "validated" | "stale" | "blocked"
 export type RowState = "blocked_lesson" | "blocked_no_course" | "ready" | "complete";
 
 /** QUI a laissé passer le contenu (§F) — jamais totalisé, jamais transformé en relance.
- * `null` sur un objet validé = antérieur à la traçabilité (« provenance inconnue »). */
-export type ValidatedBy = "parent" | "parent_bulk" | "system";
+ * `null` sur un objet validé = antérieur à la traçabilité (« provenance inconnue »).
+ *
+ * L'échelle `parent` → `parent_bulk` → `parent_rule` est celle du §G.1 : une décision humaine à
+ * granularité d'attention décroissante (la pièce, le lot, la règle). `system` n'est pas dessus —
+ * il dit « servi sans relecture PAR DOCTRINE », et reste réservé au quiz.
+ *
+ * ⚠️ `parent_rule` est **légale et non émise** (ADR-0032) : elle suppose un lot que personne n'a
+ * demandé, ce qui n'existe pas encore. Le type l'accepte avant que la donnée la porte. */
+export type ValidatedBy = "parent" | "parent_bulk" | "parent_rule" | "system";
 
 export interface CoverageCell {
   state: CellState;
