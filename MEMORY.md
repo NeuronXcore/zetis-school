@@ -7,6 +7,84 @@
 
 ## État à la reprise
 
+**Chantier : le retour de demande se ferme dans le chat (addendum ADR-0026).**
+
+**Branche `feat/chat-retour-demandes` POUSSÉE, 2 commits — AUCUNE PR ouverte.** L'addendum ADR est
+sur `main` et poussé (`66edd88`). **Le prochain pas est d'ouvrir la PR** ; rien d'autre n'est en
+attente côté code.
+
+```
+main                66edd88  docs(decisions): addendum ADR-0026
+feat/chat-…demandes 2bdea9b  feat(chat): backend — composeur + migration + ancrage
+                    3acb86b  feat(chat): front — l'annonce s'affiche, avatar endormi
+```
+
+**703 backend · 451 Massimo · tsc — verts** (backend stable sur plusieurs `PYTHONHASHSEED`, ce
+n'est pas décoratif : voir piège 3). **Migration `e3f4a5b6c7d8` APPLIQUÉE sur la base de dev.**
+
+### Le problème que ce lot résout
+
+`content_requests` et `notion_requests` sont les **deux seuls endroits où Massimo parle en son nom
+propre**, et étaient les deux seules boucles asynchrones **sans retour** : ZETIS disait « je le
+note pour Papa » et rien ne revenait jamais, même une fois le contenu produit. La boucle se ferme
+maintenant **là où elle s'est ouverte** : dans le chat, en pull, une seule fois, à l'ouverture de
+la session.
+
+### Décisions actives — à relire, pas à rouvrir
+
+1. **Le gate est la DISPONIBILITÉ, jamais le statut.** « Fait » côté Papa ne change qu'une colonne.
+   L'annonce passe par `resolve_panoply`. Une demande `done` non servable **ne s'annonce pas ET
+   n'est pas tamponnée**. Sans ça on reconstruit le mensonge tué le 2026-07-30.
+2. **Pour `notion_requests`, le résolveur EST la preuve.** La table n'a pas de `skill_id`, donc
+   `added` est invérifiable. On rejoue `resolve_skill` sur le texte : il avait échoué à la création
+   — c'est pourquoi la ligne existe — donc qu'il réussisse **prouve** l'ajout au programme.
+3. **Nommer 2, tamponner TOUT.** Tamponner seulement ce qu'on nomme ferait s'empiler le reliquat.
+4. **Le tampon se pose à la composition**, pas à l'affichage : une annonce jamais lue est perdue.
+   Prix assumé de « aucune file qui grossit ».
+5. **Le refus n'a pas de canal** (« Ignorer » → silence, jamais un « non » porté par la machine) et
+   **la route 1 reste muette** (produire sans demande n'annonce rien). Deux asymétries **gravées**,
+   pour que personne ne « complète la symétrie ».
+6. **L'annonce s'AFFICHE, elle ne se parle pas** (§8 de l'addendum, écart trouvé en vrai).
+7. **`quiz` et `capsule` ne s'annoncent pas** : `_notion_route` n'a pas leur branche. Pas de route
+   ⇒ pas de carte ⇒ pas d'annonce ⇒ **pas de tampon**. Ils redeviendront annonçables quand la
+   branche existera — ne pas construire de route dans `announce.py`.
+
+### ⚠️ Trois pièges payés en vrai — tous invisibles en test
+
+1. **`playSpeech` se bloque pour toujours au montage.** Il fait `await ctx.resume()` sur un
+   `AudioContext` suspendu ; sans geste utilisateur préalable la promesse **ne se résout jamais**.
+   Tout code qui veut parler au chargement d'une page tombera dedans. jsdom n'a pas d'AudioContext
+   → le repli muet masque le défaut en test.
+2. **StrictMode + garde d'appel-unique + drapeau `cancelled` = résultat jeté.** L'effet joue, se
+   démonte, rejoue ; le garde bloque le second passage, donc le `cancelled` du cleanup du premier
+   détruit la réponse du seul fetch réellement parti. **Deux garde-fous corrects qui s'annulent.**
+   `renderPage()` des tests ne monte PAS sous StrictMode — un verrou dédié le fait désormais.
+3. **`FakeEmbeddingProvider` n'est PAS déterministe.** Il dérive ses vecteurs de `hash()`,
+   randomisé par processus : deux textes quelconques y sont souvent colinéaires. Tout test qui
+   dépend d'une **non-résolution** est flaky ~50 %. Utiliser `_ExactMatchEmbedder`
+   (`test_chat_announce.py`, crc32) — réutilisable pour tout futur test de résolution.
+
+> **Méthode qui a payé** : pour chacun de ces défauts, la contre-épreuve a été faite — code fautif
+> réintroduit, test vérifié tombant, puis restauré. Trois tests écrits avant cette discipline
+> validaient un chemin que le navigateur ne prend jamais.
+
+### Résidus de clôture
+
+- **Données de dev consommées** : les 4 `notion_requests` `added` et la `content_request` de la
+  notion 126 sont maintenant **tamponnées** (`announced_at` non nul). Pour rejouer la démo, remettre
+  `announced_at = NULL` (une ligne de Python, cf. fin de la conversation du 2026-08-02).
+- **Non écrit dans l'ADR, et ça mériterait une phrase** : pour les `notion_requests`, « tamponner
+  tout le lot » est borné par `MAX_NOTION_REQUESTS_SCANNED = 3`. Une file de 5 notions ajoutées se
+  draine donc en **deux ouvertures**, pas une. Observé en vrai, conforme au plafond décidé, mais un
+  lecteur croira le drain complet en une fois.
+- **Vérifié en session réelle** (Chrome connecté, backend + Postgres réels) : annonce affichée,
+  avatar endormi, tap → route ancrée, trace sur la **bonne** notion, extinction au rechargement,
+  et la contre-épreuve du gate (demande `done` sans contenu → ni annonce ni tampon).
+
+---
+
+## Historique — la page matière devient un index de notions (ADR-0024 + ADR-0027)
+
 **Chantier : la page matière devient un index de notions (addenda ADR-0024 + ADR-0027).**
 
 **✅ MERGÉ dans `main`** — squash **`600aef4`**, PR
