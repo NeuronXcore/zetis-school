@@ -102,28 +102,77 @@ def _consumed_sets(db: Session, buckets: dict[str, list[int]]) -> dict[str, set[
     return out
 
 
+def _lesson_titles(db: Session, lesson_ids: set[int]) -> dict[int, str]:
+    """Les titres des leçons concernées — UNE requête, pas une par pièce."""
+    if not lesson_ids:
+        return {}
+    return {
+        row.id: row.title
+        for row in db.scalars(select(Lesson).where(Lesson.id.in_(lesson_ids))).all()
+    }
+
+
 def _pieces_of_run(db: Session, run_id: int) -> list[dict]:
-    """Les pièces réellement produites par ce lot, tamponnées par le filigrane (ADR-0031)."""
+    """Les pièces réellement produites par ce lot, tamponnées par le filigrane (ADR-0031).
+
+    ⚠️ **`Fiche` et `Mindmap` n'ont AUCUNE colonne `title`** — vérifié en base le 2026-08-03,
+    après avoir vu le Journal afficher « fiche #18 ». Elles sont **leçon-centrées** par
+    construction (ADR-0015/0016 : une fiche = une leçon = une page), donc leur identité est celle
+    de leur leçon. `Quiz` en a un, `Lesson` aussi. Une pièce nommée par son id ne se lit pas :
+    Papa doit reconnaître ce qu'il retire.
+    """
     pieces: list[dict] = []
 
-    for kind, model, title_attr in (
-        ("cours", Lesson, "title"),
-        ("fiche", Fiche, "title"),
-        ("mindmap", Mindmap, "title"),
-        ("quiz", Quiz, "title"),
-    ):
-        for row in db.scalars(
-            select(model).where(model.production_run_id == run_id).order_by(model.id)
-        ).all():
+    lessons = db.scalars(
+        select(Lesson).where(Lesson.production_run_id == run_id).order_by(Lesson.id)
+    ).all()
+    for row in lessons:
+        pieces.append(
+            {
+                "kind": "cours",
+                "id": row.id,
+                "label": row.title,
+                "validated_by": row.validated_by,
+                "skill_id": None,
+            }
+        )
+
+    # Les deux dérivés leçon-centrés : leur libellé EST celui de leur leçon.
+    derived = {
+        "fiche": db.scalars(
+            select(Fiche).where(Fiche.production_run_id == run_id).order_by(Fiche.id)
+        ).all(),
+        "mindmap": db.scalars(
+            select(Mindmap).where(Mindmap.production_run_id == run_id).order_by(Mindmap.id)
+        ).all(),
+    }
+    titles = _lesson_titles(
+        db, {row.lesson_id for rows in derived.values() for row in rows if row.lesson_id}
+    )
+    for kind, rows in derived.items():
+        for row in rows:
             pieces.append(
                 {
                     "kind": kind,
                     "id": row.id,
-                    "label": getattr(row, title_attr, None) or f"{kind} #{row.id}",
-                    "validated_by": getattr(row, "validated_by", None),
+                    "label": titles.get(row.lesson_id) or f"Leçon #{row.lesson_id}",
+                    "validated_by": row.validated_by,
                     "skill_id": None,
                 }
             )
+
+    for row in db.scalars(
+        select(Quiz).where(Quiz.production_run_id == run_id).order_by(Quiz.id)
+    ).all():
+        pieces.append(
+            {
+                "kind": "quiz",
+                "id": row.id,
+                "label": row.title,
+                "validated_by": row.validated_by,
+                "skill_id": None,
+            }
+        )
 
     # Les cartes SRS portent un `skill_id` : elles se rattachent à la notion, pas à la leçon.
     for card in db.scalars(
