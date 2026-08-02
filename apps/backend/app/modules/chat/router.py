@@ -25,9 +25,13 @@ student_router = APIRouter(prefix="/api/student/chat", tags=["chat"])
 def create_session(
     db: Session = Depends(get_db),
     store: ChatStore = Depends(get_chat_store),
+    embedder: EmbeddingProvider = Depends(get_embedder),
     _: dict = Depends(require_child),
 ) -> ChatSessionOut:
-    return service.open_session(db, store)
+    # L'embedder sert à rejouer `resolve_skill` sur les `notion_requests` triées : sans `skill_id`
+    # sur la table, c'est la SEULE façon de vérifier qu'une notion est vraiment entrée au
+    # programme plutôt que de croire son statut (addendum ADR-0026 §3).
+    return service.open_session(db, store, embedder)
 
 
 @student_router.post("/sessions/{session_id}/messages", response_model=ChatMessageOut)
