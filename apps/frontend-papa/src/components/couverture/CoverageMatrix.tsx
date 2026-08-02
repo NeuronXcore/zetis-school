@@ -98,6 +98,7 @@ export function CoverageMatrix({
   requestsBySkill,
   onValidateChapter,
   validatingChapterId,
+  onCompleteChapter,
 }: {
   subject: CoverageSubject;
   /** Comptes calculés sur la matière ENTIÈRE — surtout pas sur `subject`, qui arrive filtré. */
@@ -112,6 +113,7 @@ export function CoverageMatrix({
   requestsBySkill: Map<number, ContentRequest[]>;
   onValidateChapter: (chapterId: number, count: number) => void;
   validatingChapterId: number | null;
+  onCompleteChapter: (chapterId: number) => void;
 }) {
   const total = lessonCount(subject);
   const regionId = `couverture-matiere-${subject.id}`;
@@ -220,6 +222,7 @@ export function CoverageMatrix({
                   requestsBySkill={requestsBySkill}
                   onValidateChapter={onValidateChapter}
                   validatingChapterId={validatingChapterId}
+                  onCompleteChapter={onCompleteChapter}
                 />
               ))}
             </tbody>
@@ -244,6 +247,7 @@ function ChapterGroup({
   requestsBySkill,
   onValidateChapter,
   validatingChapterId,
+  onCompleteChapter,
 }: {
   subjectId: number;
   chapterId: number;
@@ -257,6 +261,7 @@ function ChapterGroup({
   requestsBySkill: Map<number, ContentRequest[]>;
   onValidateChapter: (chapterId: number, count: number) => void;
   validatingChapterId: number | null;
+  onCompleteChapter: (chapterId: number) => void;
 }) {
   const ready = lessons.filter((lesson) => lesson.row_state === "ready").length;
   const blocked = lessons.filter((lesson) => lesson.row_state.startsWith("blocked")).length;
@@ -292,13 +297,21 @@ function ChapterGroup({
                 {validating ? "Validation…" : `✅ Valider les ${drafts} leçons`}
               </button>
             )}
-            {/* Marque l'emplacement de la production en lot SANS la promettre — même
-                convention que le bouton en lot déjà désactivé sur la page Quiz. */}
+            {/* Production en lot (ADR-0031). Le compte affiché est celui des TROUS, pas des
+                notions équipables — c'est l'aperçu, à l'ouverture, qui dit ce que le gate du §7
+                laissera passer. Annoncer un chiffre d'équipables ici coûterait un appel par
+                chapitre au rendu de la page ; le patron preview/confirm le paie une fois, au
+                moment du geste. */}
             <button
               type="button"
-              disabled
-              title="Production en lot — chantier ultérieur (ADR-0023)"
-              className={`${drafts > 0 ? "" : "ml-auto"} cursor-not-allowed rounded-lg border border-papa-border px-2.5 py-1 text-xs font-semibold text-papa-muted opacity-45`}
+              onClick={() => onCompleteChapter(chapterId)}
+              disabled={missing === 0}
+              title={
+                missing === 0
+                  ? "Rien à compléter dans ce chapitre"
+                  : "Produire les contenus manquants — ZETIS ne validera aucun cours à votre place"
+              }
+              className={`${drafts > 0 ? "" : "ml-auto"} rounded-lg border border-papa-accent/50 bg-papa-accent/10 px-2.5 py-1 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/20 disabled:cursor-not-allowed disabled:border-papa-border disabled:text-papa-muted disabled:opacity-45`}
             >
               ⚡ Compléter le chapitre ({missing})
             </button>

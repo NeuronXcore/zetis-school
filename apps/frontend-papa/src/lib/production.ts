@@ -1,7 +1,21 @@
-// Client API de la page Papa « Couverture de production » (ADR-0023).
-// LECTURE SEULE : ce module ne crée aucun endpoint. Les générations passent par les clients
-// EXISTANTS de chaque module (fiche, mindmap, quiz, cours) — cf. `generateForCell` plus bas.
-import { type Coverage, type CoverageCellKey, type ProductionOrphan } from "@zetis/types";
+// Client API de la page Papa « Couverture de production ».
+//
+// La matrice reste en LECTURE SEULE (ADR-0023) : `fetchCoverage` / `fetchOrphans` n'écrivent
+// rien, et les générations pièce à pièce passent par les clients EXISTANTS de chaque module
+// (fiche, mindmap, quiz, cours) — cf. `generateForCell` plus bas.
+//
+// ⚠️ La production EN LOT (ADR-0031) fait exception, et elle est isolée exprès : elle appelle un
+// routeur d'écriture DISTINCT (`/api/production/runs`), jamais celui de la Couverture. L'en-tête
+// disait « ce module ne crée aucun endpoint » jusqu'au 2026-08-02 ; le laisser tel quel en
+// branchant le bouton en aurait fait un commentaire faux — exactement la dette que le lot de
+// corrections vient de solder.
+import {
+  type Coverage,
+  type CoverageCellKey,
+  type ProductionOrphan,
+  type ProductionPreview,
+  type ProductionRun,
+} from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader } from "./httpClient";
 import { generateFiche, regenerateFiche } from "./fiches";
@@ -83,3 +97,32 @@ export async function regenerateForCell(
   }
   await regenerateQuiz(objectId);
 }
+
+// --- Production en lot (ADR-0031) --------------------------------------------------------------
+
+/** Ce qu'un lot ferait sur ce chapitre, sans rien créer. */
+export async function previewChapterProduction(chapterId: number): Promise<ProductionPreview> {
+  return asJson(
+    await fetch(`${API}/runs/preview?chapter_id=${chapterId}`, { headers: authHeader() }),
+  );
+}
+
+/** Lance un lot : 202, le worker le prendra. Lève sur 409 (arriéré de relecture au plafond). */
+export async function startChapterProduction(chapterId: number): Promise<ProductionRun> {
+  return asJson(
+    await fetch(`${API}/runs?chapter_id=${chapterId}`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
+/** État d'un lot — pour le suivi pendant l'exécution. */
+export async function fetchProductionRun(runId: number): Promise<ProductionRun> {
+  return asJson(await fetch(`${API}/runs/${runId}`, { headers: authHeader() }));
+}
+
+/** Durée estimée d'un kit complet par notion (cours + fiche + SRS + quiz + mindmap), pour la
+ *  barre de progression. Somme des `GENERATION_MS`, arrondie large : une estimation qui finit
+ *  trop tôt est pire qu'une estimation prudente. */
+export const KIT_MS_PER_NOTION = 150000;

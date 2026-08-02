@@ -25,6 +25,8 @@ import { KpiCard } from "../components/KpiCard";
 import { PageHeader } from "../components/PageHeader";
 import { CoverageFootnotes, CoverageLegend } from "../components/couverture/CoverageLegend";
 import { CoverageMatrix, lessonRequestsOf } from "../components/couverture/CoverageMatrix";
+import { ChapterProductionModal } from "../components/couverture/ChapterProductionModal";
+import { useChapterProduction } from "../hooks/useChapterProduction";
 import { OrphansPanel } from "../components/couverture/OrphansPanel";
 import { NotionsPopover } from "../components/couverture/NotionsPopover";
 import { RequestedPopover } from "../components/couverture/RequestedPopover";
@@ -92,7 +94,11 @@ export function CouverturePage() {
     generateCards,
     validatingChapterId,
     validateChapterLessons,
+    reload,
   } = useCoverage(subjectId);
+  // Production en lot (ADR-0031) : patron preview → confirm. La matrice se relit à la fin du lot
+  // — sans ça, Papa verrait ses trous inchangés alors que le contenu vient d'arriver.
+  const production = useChapterProduction(() => void reload());
   const pct = useEstimatedProgress(generating !== null, generating ? GENERATION_MS[generating.key] : 30000);
 
   const counts = useMemo(() => filterCounts(coverage), [coverage]);
@@ -350,9 +356,11 @@ export function CouverturePage() {
           requestsBySkill={requestsBySkill}
           onValidateChapter={(chapterId, count) => setToValidate({ chapterId, count })}
           validatingChapterId={validatingChapterId}
+          onCompleteChapter={(chapterId) => production.open(chapterId)}
         />
       ))}
 
+      <ChapterProductionModal prod={production} />
       <OrphansPanel orphans={orphans} />
       <CoverageFootnotes />
 

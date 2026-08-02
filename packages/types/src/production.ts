@@ -108,3 +108,35 @@ export interface ProductionOrphan {
   /** Vrai → suppression désactivée : on n'efface pas l'historique de Massimo pour faire propre. */
   has_history: boolean;
 }
+
+// --- Production en lot (ADR-0031) --------------------------------------------------------------
+
+/** Une notion dans l'aperçu d'un lot. `reason` renseigné = bloquée par le gate du §7. */
+export interface ProductionNotion {
+  skill_id: number;
+  name: string;
+  reason?: string | null;
+}
+
+/** Ce qu'un lot ferait, SANS rien créer. Le gate doit être visible AVANT le clic : sans lui, un
+ *  chapitre neuf rendrait « rien produit », que Papa lirait comme un échec. */
+export interface ProductionPreview {
+  chapter_id: number;
+  eligible: ProductionNotion[];
+  blocked: ProductionNotion[];
+  pending_backlog: number;
+  max_pending: number;
+}
+
+export type ProductionRunStatus = "queued" | "running" | "done" | "failed";
+
+/** État d'un lot. Un ÉTAT, jamais du contenu. */
+export interface ProductionRun {
+  id: number;
+  status: ProductionRunStatus;
+  trigger: string;
+  authorized_by: string;
+  chapter_id: number | null;
+  created_at: string;
+  finished_at: string | null;
+}
