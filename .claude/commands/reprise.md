@@ -1,7 +1,7 @@
 ---
 description: Reprise de session ZETIS (contexte perdu) — réoriente, relit la doc, reprend sans recoder l'existant.
 argument-hint: [zone à reprendre, ex. "génération de fiches" ou "service mindmap"]
-allowed-tools: Read, Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git branch:*), Bash(graphify:*)
+allowed-tools: Read, Grep, Glob, Edit, Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git branch:*), Bash(graphify:*)
 disable-model-invocation: true
 ---
 
@@ -31,10 +31,10 @@ Conforme à `docs/WORKFLOW.md` §5–6.
    dis-le-moi. (`docs/WORKFLOW.md §5`, étape 4bis — c'est arrivé deux fois.)
 2. Relis l'ADR et le prompt de référence du chantier en cours — les DÉCISIONS ACTIVES ne se
    rediscutent pas.
-3. `graphify explain "$ARGUMENTS"` (ou la zone du PROCHAIN PAS) pour comprendre vite, sans
-   relire tous les fichiers.
-4. Vérifie dans le code ce qui existe DÉJÀ. **Ce qui est fait ne se recode pas. Ce qui est
-   décidé ne se re-décide pas.**
+3. `graphify explain "<zone>"` — la zone demandée ci-dessus si elle est renseignée, **sinon**
+   celle du PROCHAIN PAS de `MEMORY.md`. (Ne lance pas la commande avec une chaîne vide.)
+4. Vérifie dans le code ce qui existe DÉJÀ — `Grep`/`Glob` après l'orientation graphify.
+   **Ce qui est fait ne se recode pas. Ce qui est décidé ne se re-décide pas.**
 5. Confirme-moi en 3 lignes : où on en est, quelle est la prochaine action, quelles décisions
    sont verrouillées.
 

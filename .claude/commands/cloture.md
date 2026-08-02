@@ -1,7 +1,7 @@
 ---
 description: Clôture de session ZETIS — met à jour la doc de reprise et rend la checklist 9 points. Ne committe pas.
 argument-hint: [note libre sur l'état, ex. "service à moitié fait, instable"]
-allowed-tools: Read, Edit, Write, Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git branch:*)
+allowed-tools: Read, Grep, Glob, Edit, Write, Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git branch:*), Bash(graphify:*)
 disable-model-invocation: true
 ---
 
@@ -33,11 +33,24 @@ Tu ne committes PAS et tu ne push PAS : je le fais moi-même après avoir vérif
 3. **`ARCHITECTURE.md`** — UNIQUEMENT si une structure a été ajoutée (table, module, endpoint).
 4. **Ne touche PAS** : `CHANGELOG.md` (sauf si cette session termine une slice livrable),
    `ROADMAP.md`, `CLAUDE.md`.
+5. **`graphify update .`** — la carte du code doit suivre (`WORKFLOW.md §5`, étape 2). Sans ça,
+   la prochaine session s'oriente sur un graphe périmé.
 
 ## Rends-moi enfin la checklist 9 points
 
 1. Étape traitée · 2. Résumé · 3. Fichiers créés · 4. Fichiers modifiés · 5. Commandes lancées ·
-6. Tests (résultat réel, pas « ça devrait passer ») · 7. Points non traités volontairement ·
-8. Prochaine étape recommandée · 9. Message de commit suggéré — que **je** lancerai moi-même.
+6. Tests · 7. Points non traités volontairement · 8. Prochaine étape recommandée ·
+9. Message de commit suggéré — que **je** lancerai moi-même.
+
+⚠️ **Point 6 : tu ne lances PAS les tests ici** (c'est mon rôle, `WORKFLOW.md §2.4` — je ne fais
+jamais confiance à un « c'est vert » rapporté). Rapporte donc le résultat **réel des tests lancés
+pendant la session**, avec les chiffres. Si aucun n'a été lancé depuis les dernières
+modifications, écris-le : **« non relancés depuis <telle modification> »**. Ne dis jamais « ça
+devrait passer ».
 
 Puis ARRÊTE-TOI. Ne committe pas, ne push pas.
+
+> **Après le merge** (donc hors de cette commande) : reviens remettre `MEMORY.md` au réel —
+> squash, n° de PR, branche supprimée, « rien à pousser », et les **résidus** de clôture. C'est
+> l'étape **4bis** de `WORKFLOW.md §5`. Ce fichier a déjà survécu deux fois à son propre
+> chantier ; ce que tu écris ici sera **faux** dès que la PR sera mergée.
