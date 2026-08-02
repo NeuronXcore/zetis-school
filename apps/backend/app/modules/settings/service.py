@@ -42,11 +42,18 @@ from app.db.models import AppSetting
 # 3 — ZETIS produit ET sert ; Papa dispose d'un veto tant que Massimo n'a pas consommé
 NEVER, PROPOSE, VALIDATE, SERVE = 0, 1, 2, 3
 
-# ⚠️ Le palier 3 d'A1 est refusé TANT QUE LE VETO N'A PAS DE SURFACE (ADR-0032, verrou n°5).
-# Laisser ZETIS servir des cours sans écran pour les retirer, ce serait livrer un droit qui
-# n'existe pas. Le jour où le Journal est livré, ce drapeau passe à `True` — et c'est le seul
-# geste à faire ici.
-VETO_SURFACE_AVAILABLE = False
+# Le palier 3 d'A1 était refusé TANT QUE LE VETO N'AVAIT PAS DE SURFACE (ADR-0032, verrou n°5) :
+# laisser ZETIS servir des cours sans écran pour les retirer, c'eût été livrer un droit qui
+# n'existe pas.
+#
+# ✅ **Levé le 2026-08-03, à la livraison du Journal (ADR-0034).** La surface existe : page Papa
+# `/journal`, geste *Retirer* par pièce, refus motivé dès que Massimo a ouvert — et, pour un cours,
+# refus dès qu'un de ses dérivés est ouvert (invariant V1).
+#
+# ⚠️ **Ce drapeau reste, il ne se supprime pas.** Il dit *pourquoi* le palier 3 est ouvert : parce
+# qu'un écran le rend exerçable. Le jour où quelqu'un démonterait le Journal, le remettre à `False`
+# est le geste correct — et il doit rester à une ligne.
+VETO_SURFACE_AVAILABLE = True
 
 
 @dataclass(frozen=True)

@@ -162,13 +162,14 @@ Journal ; aucun autre lien sortant.
 
 ## Hors périmètre
 
-- Le **Journal** et sa page — donc le régime Autonome reste indisponible en phase 1.
-  > **Comment il s'ouvrira** : le refus est porté par `VETO_SURFACE_AVAILABLE = False`
-  > (`app/modules/settings/service.py`), qui réduit les `choices` d'A1 à « Vous validez ». Une fois
-  > le Journal livré **avec son geste *Retirer***, ce drapeau passe à `True` — et c'est **le seul
-  > geste à faire** : le serveur rouvre le palier, le front suit sans modification. Recette
-  > complète et ordonnée : `MEMORY.md`, « point de départ de la prochaine session ».
-- La liste des contenus servis, le geste *Retirer*, le geste *Corriger*.
+- ~~Le **Journal** et sa page — donc le régime Autonome reste indisponible en phase 1.~~
+  > ✅ **LEVÉ le 2026-08-03** (ADR-0034). Le Journal est livré **avec son geste *Retirer***, donc
+  > `VETO_SURFACE_AVAILABLE = True` : le serveur rouvre le palier 3 d'A1 et le régime *Autonome*
+  > est offert. **Aucune ligne du front n'a changé** — `choices` vient du serveur, comme prévu.
+  > Vérifié à l'écran le jour même : *Autonome* sélectionnable, modale de révocation affichée pour
+  > la première fois, monotonie appliquée (A1 = 3 a forcé A0a = 3), `PUT` accepté et relu en base.
+- ~~La liste des contenus servis, le geste *Retirer*~~ — livrés par l'ADR-0034 (page `/journal`).
+  Reste hors périmètre : le geste *Corriger*.
 - Le **gate de validation des cartes SRS** (A0b reste verrouillé) et l'action « Corriger » renforcée
   du §G.3.
 - Le régulateur de volume du palier 3 (différé, ADR-0032 §5).
