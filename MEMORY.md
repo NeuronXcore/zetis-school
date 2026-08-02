@@ -7,52 +7,63 @@
 
 ## État à la reprise
 
-**Chantier : autonomisation progressive de ZETIS — phase de DÉCISION terminée, implémentation à
-lancer.**
+**Chantier : produire un chapitre en une fois (ADR-0031) — CODE LIVRÉ, PR #68 ouverte.
+L'OBSERVATION reste à mener, et c'est un geste humain.**
 
-`main` = **`466b4f2`**, poussé, arbre propre, **aucune branche active**. Trois lots mergés et deux
-ADR posés ; rien n'est en attente côté Git.
+Branche **`feat/production-en-lot`**, poussée, 10 commits, PR
+[#68](https://github.com/NeuronXcore/zetis-school/pull/68) **ouverte, non mergée**. `main` =
+`db8a407`. Arbre propre.
 
+**728 backend · 278 Papa · 453 Massimo · tsc — verts. Aucun test existant modifié sur les trois
+slices** (c'était le critère du refactor de la slice A, et il a tenu jusqu'au bout).
+
+Migration **`f4a5b6c7d8e9` appliquée sur la base de dev**.
+
+### ⛔ LE PROCHAIN PAS EST UNE MESURE, PAS DU CODE
+
+```bash
+cd apps/backend && .venv/bin/python -m app.production_worker
 ```
-466b4f2  ADR-0031 remplace l'ADR-0023 — produire un chapitre, pour de vrai
-5441af7  Addendum ADR-0011 §G — parent_rule et le veto paresseux
-12e4a2f  Lot de corrections (PR #67, squash)
-e1d1b06  Retour de demande dans le chat (PR #66, squash)
-```
 
-**704 backend · 453 Massimo · 274 Papa · tsc — verts.**
+Puis, sur `/couverture`, presser « ⚡ Compléter le chapitre » et noter : **temps réel** par leçon
+et pour le lot, **taux de dégradation** leçon-centrée, et surtout —
 
-### Le prochain pas : implémenter l'ADR-0031
-
-Et **rien d'autre**. L'ADR-0031 interdit explicitement d'écrire l'ADR-0032 (déclencheurs,
-régulateur autonome, panneau des paliers) avant d'avoir la réponse à son observation.
-
-> **« 15 objets d'un coup sont-ils relisables ? »** — L'ADR-0023 avait déjà tranché ce qu'on en
+> **« 15 objets d'un coup sont-ils relisables ? »** L'ADR-0023 a **déjà tranché** ce qu'on en
 > ferait : si c'est non, le chantier suivant n'est **ni le cron ni les déclencheurs**, c'est la
-> **file de relecture**. L'observation est un livrable au même titre que le code.
+> **file de relecture**.
 
-Découpage plausible (à confirmer à l'ouverture) : (A) extraction de l'orchestrateur + `plan(scope)`
-— refactor à comportement constant ; (B) exécution asynchrone (endpoint 202, file RQ `production`,
-worker) + migration `production_runs` ; (C) surface Couverture (le bouton s'active) + l'observation.
+Je ne l'ai pas menée : produire 18 notions écrit des heures de contenu dans la base. Sur le
+chapitre Français de dev, l'aperçu annonce **18 équipables / 13 bloquées** — de quoi mesurer sans
+y passer la nuit.
 
-### ⚠️ Ce que la vérification a trouvé, et qui commande tout
+⚠️ **L'ADR-0031 interdit d'écrire l'ADR-0032** (déclencheurs, régulateur autonome, panneau des
+paliers) avant d'avoir cette réponse.
 
-**L'ADR-0023 a été accepté le 2026-07-28 et JAMAIS implémenté.** Vérifié pièce par pièce :
-`equip_notion` est toujours dans `reports/` (son §1 exigeait l'extraction), `plan(scope)` n'existe
-pas, il n'y a ni endpoint 202 ni worker, le bouton « ⚡ Compléter le chapitre » est encore
-désactivé, `batch_id` et `PRODUCTION_MAX_PENDING` ne sont jamais sortis de la prose. Il est passé
-**Remplacé** par l'ADR-0031 — le **plan d'exécution** est remplacé, pas la doctrine.
+### Ce qui a été livré, et ce que chaque slice a corrigé de l'ADR
 
-**Et le prérequis manquant de tout le chantier, listé nulle part : il n'existe AUCUNE file
-d'exécution IA.** `apps/worker-ai/` est un README de deux lignes ; la seule `Queue` RQ
-(`core/queue.py`) sert **worker-media** ; toute la génération est **synchrone**, sur un seul Ollama
-et un seul GPU. « Départ au plus tard », « Massimo passe devant », lot interruptible — les trois
-supposaient une exécution différable et préemptible qui n'existe pas.
+**L'ADR-0023, accepté le 2026-07-28, n'avait JAMAIS été implémenté** — il est passé **Remplacé**
+par l'ADR-0031 (le *plan d'exécution*, pas la doctrine). Et le prérequis manquant de tout le
+chantier, listé nulle part : **il n'existait aucune file d'exécution IA**.
 
-Deux conséquences écrites dans l'ADR-0031 plutôt que laissées supposer : **« Massimo passe devant »
-se décide ENTRE deux pièces, jamais pendant** (un appel LLM n'est pas préemptible ; prétendre
-l'interrompre serait un mensonge d'architecture), et **la concurrence 1 n'est pas provisoire** (un
-seul GPU : deux jobs ne produiraient pas plus vite, ils ralentiraient Massimo).
+| Slice | Livré | Constat du read-before-code |
+|---|---|---|
+| **A** | extraction de `equip_notion` vers `production/`, `plan(scope)` | deux appelants et non trois ; le motif des imports paresseux a changé (plus un cycle : le coût d'import) ; **le filtre `validated` ne peut pas vivre dans le résolveur** → a produit l'addendum |
+| **B** | `production_runs` + migration, file RQ dédiée, worker, endpoint 202, gate, régulateur | le sandbox de `worker-media` **ne transfère pas** (Ollama est sur l'hôte) ; **ce n'est pas un paquet séparé** (worker-media l'est par son *runtime* node:20) ; **le §4 n'a aucune colonne de scope** → `chapter_id` ; `Quiz` et `Lesson` **hors arriéré** de relecture |
+| **C** | aperçu du gate, bouton actif, modale preview → confirm | **les deux passes étaient déjà à moitié à l'écran** : « ✅ Valider les N leçons » **EST** la passe 1 — rien à dessiner, un ordre à rendre lisible |
+
+**Trois choses à ne pas redécouvrir :**
+
+- **`plan(scope)` n'est pas une seconde résolution** : il appelle `coverage.notions_by_lesson`. La
+  page affiche ce que la production exécutera **par construction**, pas par coïncidence surveillée.
+- **Le gate du §7 est une SÉLECTION**, pas une modification d'orchestrateur : on n'équipe que les
+  notions dont la leçon est validée avec contenu. `equip_notion` **n'est pas modifié** — ses deux
+  chemins d'auto-validation du cours deviennent inatteignables depuis un lot. Verrou n°1 :
+  *un lot sur un chapitre entièrement en brouillon ne valide AUCUNE leçon*.
+- **« Massimo passe devant » se décide ENTRE deux notions, jamais pendant** (un appel LLM n'est pas
+  préemptible), et **la concurrence 1 n'est pas provisoire** (un seul GPU).
+
+⚠️ **Le tamponnage `production_run_id` se fait par filigrane d'id** (max id avant/après chaque
+notion) : exact, et ça évite de toucher `equip_notion`, que l'addendum interdit de modifier.
 
 ### Les décisions posées, à relire et non à rouvrir
 
@@ -79,6 +90,23 @@ partagée avec la matrice, endpoint 202 + file RQ + worker, `production_runs` (`
 **lot** jamais sur la pièce, **FK typées jamais polymorphes**, aucune rétro-attribution),
 `PRODUCTION_MAX_PENDING` enfin écrit (**régulateur du palier 2 seulement**), bouton Couverture
 activé. **Seuls `trigger='manual'` + `authorized_by='parent_direct'` sont émis.**
+
+**Addendum ADR-0031** (`adr-0031-addendum-deux-passes-et-gate-cours.md`) — **la décision à ne
+surtout pas rouvrir** :
+
+- Le §7 de l'ADR-0023 (« le seul gate humain obligatoire et bloquant, et il ne bouge pas »)
+  **n'avait jamais été implémenté** : `equip_notion` valide le cours lui-même par **deux chemins**
+  — un brouillon que Papa avait peut-être délibérément laissé en attente, et un cours qu'il n'a
+  jamais vu.
+- **Ce n'est pas un bug** : à l'échelle d'UNE notion c'est la soupape §5ter de l'ADR-0021,
+  « ouverte étroitement », que le §F.4 assume et trace en `parent_bulk`. **C'est l'ÉCHELLE qui la
+  rend inacceptable** — un clic sur un chapitre ferait rédiger et auto-valider quinze cours.
+- **Le gate vit dans la SÉLECTION, pas dans l'orchestrateur.** `equip_notion` ne change pas :
+  toucher l'orchestrateur régresserait le Conseil de classe et la composition champion, et
+  rouvrirait l'ADR-0021 §2 que personne n'a demandé à rouvrir.
+- ⚠️ **Un chapitre neuf ne produira RIEN**, et l'écran doit le dire. C'est le point que l'addendum
+  désigne comme le plus facile à rater ; la modale d'aperçu écrit explicitement « ce n'est pas une
+  erreur ».
 
 ---
 
