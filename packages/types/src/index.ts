@@ -204,7 +204,11 @@ export {
   type CoverageTotals,
   type CellState,
   type OrphanType,
+  type ProductionNotion,
   type ProductionOrphan,
+  type ProductionPreview,
+  type ProductionRun,
+  type ProductionRunStatus,
   type RowState,
   type ValidatedBy,
 } from "./production";

@@ -68,6 +68,12 @@ class Fiche(Base, TimestampMixin):
     )  # parent | parent_bulk | system
     source: Mapped[str] = mapped_column(String(20), default="generated")  # generated | manual
     program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
+    # Lot de production qui a produit cette pièce (ADR-0031 §4). `NULL` = produit hors lot,
+    # ou antérieur au journal — **aucune rétro-attribution** (doctrine §F.4).
+    production_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("production_runs.id"), nullable=True
+    )
+
 
 
 class Mindmap(Base, TimestampMixin):
@@ -96,6 +102,12 @@ class Mindmap(Base, TimestampMixin):
     )  # parent | parent_bulk | system
     source: Mapped[str] = mapped_column(String(20), default="generated")  # generated | manual
     program_version: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ex: 2020
+    # Lot de production qui a produit cette pièce (ADR-0031 §4). `NULL` = produit hors lot,
+    # ou antérieur au journal — **aucune rétro-attribution** (doctrine §F.4).
+    production_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("production_runs.id"), nullable=True
+    )
+
 
 
 class MindmapAttempt(Base, TimestampMixin):

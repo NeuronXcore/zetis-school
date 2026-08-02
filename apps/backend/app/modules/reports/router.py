@@ -12,6 +12,7 @@ from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import require_parent
 from app.modules.eli5.service import get_default_student
 from app.modules.missions.schemas import MissionPilotOut
+from app.modules.production import equipment
 from app.modules.reports import service
 from app.modules.reports.schemas import (
     CouncilReportListItem,
@@ -56,7 +57,9 @@ def equip_notion(
     embedder: EmbeddingProvider = Depends(get_embedder),
 ) -> dict:
     """Génère + auto-valide le kit pédagogique d'une notion (ADR-0021), avant création mission."""
-    return service.equip_notion(db, skill_id=payload.skill_id, llm=provider, embedder=embedder)
+    # L'orchestrateur vit dans `production` depuis l'ADR-0031 §1 : le Conseil de classe n'en est
+    # qu'un appelant. Signature d'appel inchangée — c'est un déplacement, pas une refonte.
+    return equipment.equip_notion(db, skill_id=payload.skill_id, llm=provider, embedder=embedder)
 
 
 @router.post("/class-council/create-missions", response_model=list[MissionPilotOut])

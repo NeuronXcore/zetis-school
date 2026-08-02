@@ -110,3 +110,42 @@ class OrphanOut(BaseModel):
     # Vrai → l'UI désactive la suppression : un score n'a plus de sens sans l'objet qui l'a
     # produit, mais on n'efface pas l'histoire de Massimo pour faire propre.
     has_history: bool
+
+
+class ProductionRunOut(BaseModel):
+    """État d'un lot de production (ADR-0031 §3). Un ÉTAT, jamais du contenu."""
+
+    id: int
+    status: str
+    trigger: str
+    authorized_by: str
+    chapter_id: int | None
+    total_notions: int | None
+    done_notions: int | None
+    #: Avancement réel (0-100), calculé serveur — jamais une estimation de durée côté client.
+    progress_pct: int
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class ProductionNotion(BaseModel):
+    """Une notion dans l'aperçu d'un lot. Le NOM en plus de l'id : une liste d'ids ne se lit pas."""
+
+    skill_id: int
+    name: str
+    reason: str | None = None
+
+
+class ProductionPreviewOut(BaseModel):
+    """Ce qu'un lot ferait, sans rien créer (ADR-0031 slice C).
+
+    `blocked` n'est jamais un simple compte : chaque notion porte son motif. Une notion
+    silencieusement omise se lirait comme un échec de production, alors que c'est le gate du §7
+    qui fonctionne.
+    """
+
+    chapter_id: int
+    eligible: list[ProductionNotion]
+    blocked: list[ProductionNotion]
+    pending_backlog: int
+    max_pending: int

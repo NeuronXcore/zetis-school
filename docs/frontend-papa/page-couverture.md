@@ -176,12 +176,26 @@ de valeur, puisque le cours est le seul contenu qu'il lit vraiment.
   endpoint.
 - Clic sur `stale` → popover : rappel que l'objet est servi dans une version obsolète,
   Régénérer · Inspecter (navigation vers le pilotage du type).
-- **« ⚡ Compléter le chapitre (N) »** en tête de chaque chapitre : **désactivé** en V1, avec
-  `title="Production en lot — ADR-0023"`. Marque l'emplacement sans le promettre — même
-  convention que le bouton en lot déjà désactivé sur la page Quiz.
+- **« ⚡ Compléter le chapitre (N) »** en tête de chaque chapitre : **ACTIF depuis l'ADR-0031**
+  (livré le 2026-08-02 ; il était désactivé depuis l'ADR-0023, jamais implémenté). `N` reste le
+  nombre de **trous** — le nombre de notions réellement équipables est dit par l'aperçu, à
+  l'ouverture. L'annoncer sur le bouton coûterait un appel par chapitre au rendu de la page ; le
+  patron **preview → confirm** (ADR-0010/0018) le paie une fois, au moment du geste.
 
-Quand l'ADR-0023 sera livré, ce bouton ouvrira les **deux passes** de son §7 : rédiger les cours
-manquants (→ validation Papa obligatoire), puis équiper. Elles ne fusionnent pas.
+**Les deux passes du §7 ne fusionnent pas, et elles sont déjà toutes les deux à l'écran :**
+
+1. **« ✅ Valider les N leçons »** (bouton voisin, préexistant) = la passe 1 — lever le gate. Il
+   ne génère rien, il valide des brouillons (`parent_bulk`, §F.3).
+2. **« ⚡ Compléter le chapitre »** = la passe 2 — équiper. Elle n'équipe **que** les notions dont
+   la leçon est déjà validée avec contenu (addendum ADR-0031 : *le gate vit dans la sélection*).
+
+> ⚠️ **Un chapitre neuf ne produira rien, et l'écran doit le DIRE.** La modale d'aperçu nomme
+> chaque notion bloquée et son motif, et écrit explicitement que ce n'est pas une erreur. Sans ça,
+> Papa lirait un échec de production là où le gate fonctionne — c'est le point que l'addendum
+> désigne comme le plus facile à rater.
+
+L'aperçu porte aussi l'**arriéré de relecture** et son plafond : le bouton de lancement dit
+*pourquoi* il refuse avant d'essayer, plutôt qu'après un 409.
 
 ### Encart orphelins (hors matrice, bas de page)
 

@@ -157,6 +157,12 @@ class Lesson(Base, TimestampMixin):
     validated_by: Mapped[str | None] = mapped_column(
         String(20), nullable=True
     )  # parent | parent_bulk | system
+    # Lot de production qui a produit cette pièce (ADR-0031 §4). `NULL` = produit hors lot,
+    # ou antérieur au journal — **aucune rétro-attribution** (doctrine §F.4).
+    production_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("production_runs.id"), nullable=True
+    )
+
 
 
 class LessonSkill(Base):

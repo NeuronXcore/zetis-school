@@ -11,7 +11,7 @@
 // - AUCUN TRI, AUCUN SCORE PAR MATIÈRE, AUCUN GRAPHE — une matrice à cases vides invite déjà
 //   assez à tout remplir ; l'envie de compléter n'est pas un critère pédagogique.
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate , useSearchParams } from "react-router-dom";
 import {
   ConfirmDialog,
   GenerationProgress,
@@ -25,6 +25,8 @@ import { KpiCard } from "../components/KpiCard";
 import { PageHeader } from "../components/PageHeader";
 import { CoverageFootnotes, CoverageLegend } from "../components/couverture/CoverageLegend";
 import { CoverageMatrix, lessonRequestsOf } from "../components/couverture/CoverageMatrix";
+import { ChapterProductionModal } from "../components/couverture/ChapterProductionModal";
+import { useChapterProduction } from "../hooks/useChapterProduction";
 import { OrphansPanel } from "../components/couverture/OrphansPanel";
 import { NotionsPopover } from "../components/couverture/NotionsPopover";
 import { RequestedPopover } from "../components/couverture/RequestedPopover";
@@ -92,7 +94,15 @@ export function CouverturePage() {
     generateCards,
     validatingChapterId,
     validateChapterLessons,
+    reload,
   } = useCoverage(subjectId);
+  // Production en lot (ADR-0031) : patron preview → confirm. La matrice se relit à la fin du lot
+  // — sans ça, Papa verrait ses trous inchangés alors que le contenu vient d'arriver.
+  const [searchParams] = useSearchParams();
+  const production = useChapterProduction(() => void reload());
+  // Chapitre mis en évidence, arrivé par la pastille d'en-tête « ZETIS produit un chapitre ».
+  // Sans lui, le clic ouvrait la Couverture entière et laissait Papa chercher lequel travaille.
+  const highlightChapterId = Number(searchParams.get("chapitre")) || null;
   const pct = useEstimatedProgress(generating !== null, generating ? GENERATION_MS[generating.key] : 30000);
 
   const counts = useMemo(() => filterCounts(coverage), [coverage]);
@@ -119,7 +129,19 @@ export function CouverturePage() {
   const [openOverrides, setOpenOverrides] = useState<Record<number, boolean>>({});
   const openByDefault = filter !== "all" || subjectId !== null;
   useEffect(() => setOpenOverrides({}), [filter, subjectId]);
-  const isOpen = (id: number) => openOverrides[id] ?? openByDefault;
+  // La matière qui CONTIENT le chapitre mis en évidence s'ouvre d'office. Sans ça, le clic sur
+  // « Voir le chapitre » depuis la pastille arrivait sur une Couverture repliée : le surlignage
+  // existait, caché dans une matière fermée — donc invisible, donc inutile.
+  const highlightedSubjectId = useMemo(() => {
+    if (highlightChapterId === null) return null;
+    for (const subject of coverage?.subjects ?? []) {
+      if (subject.chapters.some((c) => c.id === highlightChapterId)) return subject.id;
+    }
+    return null;
+  }, [coverage, highlightChapterId]);
+
+  const isOpen = (id: number) =>
+    openOverrides[id] ?? (id === highlightedSubjectId ? true : openByDefault);
 
   // Comptes d'anomalies pris sur la couverture NON filtrée : `subjects` (plus bas) est déjà passé
   // au filtre, ses compteurs ne diraient plus l'état réel de la matière.
@@ -350,9 +372,12 @@ export function CouverturePage() {
           requestsBySkill={requestsBySkill}
           onValidateChapter={(chapterId, count) => setToValidate({ chapterId, count })}
           validatingChapterId={validatingChapterId}
+          onCompleteChapter={(chapterId) => production.open(chapterId)}
+          highlightChapterId={highlightChapterId}
         />
       ))}
 
+      <ChapterProductionModal prod={production} />
       <OrphansPanel orphans={orphans} />
       <CoverageFootnotes />
 

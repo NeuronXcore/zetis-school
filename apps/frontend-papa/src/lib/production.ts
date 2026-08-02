@@ -1,7 +1,21 @@
-// Client API de la page Papa « Couverture de production » (ADR-0023).
-// LECTURE SEULE : ce module ne crée aucun endpoint. Les générations passent par les clients
-// EXISTANTS de chaque module (fiche, mindmap, quiz, cours) — cf. `generateForCell` plus bas.
-import { type Coverage, type CoverageCellKey, type ProductionOrphan } from "@zetis/types";
+// Client API de la page Papa « Couverture de production ».
+//
+// La matrice reste en LECTURE SEULE (ADR-0023) : `fetchCoverage` / `fetchOrphans` n'écrivent
+// rien, et les générations pièce à pièce passent par les clients EXISTANTS de chaque module
+// (fiche, mindmap, quiz, cours) — cf. `generateForCell` plus bas.
+//
+// ⚠️ La production EN LOT (ADR-0031) fait exception, et elle est isolée exprès : elle appelle un
+// routeur d'écriture DISTINCT (`/api/production/runs`), jamais celui de la Couverture. L'en-tête
+// disait « ce module ne crée aucun endpoint » jusqu'au 2026-08-02 ; le laisser tel quel en
+// branchant le bouton en aurait fait un commentaire faux — exactement la dette que le lot de
+// corrections vient de solder.
+import {
+  type Coverage,
+  type CoverageCellKey,
+  type ProductionOrphan,
+  type ProductionPreview,
+  type ProductionRun,
+} from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader } from "./httpClient";
 import { generateFiche, regenerateFiche } from "./fiches";
@@ -82,4 +96,46 @@ export async function regenerateForCell(
     return;
   }
   await regenerateQuiz(objectId);
+}
+
+// --- Production en lot (ADR-0031) --------------------------------------------------------------
+
+/** Ce qu'un lot ferait sur ce chapitre, sans rien créer. */
+export async function previewChapterProduction(chapterId: number): Promise<ProductionPreview> {
+  return asJson(
+    await fetch(`${API}/runs/preview?chapter_id=${chapterId}`, { headers: authHeader() }),
+  );
+}
+
+/** Lance un lot : 202, le worker le prendra. Lève sur 409 (arriéré de relecture au plafond). */
+export async function startChapterProduction(chapterId: number): Promise<ProductionRun> {
+  return asJson(
+    await fetch(`${API}/runs?chapter_id=${chapterId}`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
+/** État d'un lot — pour le suivi pendant l'exécution. */
+export async function fetchProductionRun(runId: number): Promise<ProductionRun> {
+  return asJson(await fetch(`${API}/runs/${runId}`, { headers: authHeader() }));
+}
+
+/** Durée d'un kit complet par notion, **mesurée** le 2026-08-02 sur le chapitre « Fractions » :
+ *  11 notions en 12 min 35 s, soit 69 s. La valeur estimée d'origine (150 s) mentait d'un facteur
+ *  2 — la barre traînait à mi-course alors que le lot était fini.
+ *
+ *  ⚠️ Ne sert plus qu'à l'aperçu AVANT lancement (aucun run, donc aucun avancement réel). Dès
+ *  qu'un run existe, c'est `progress_pct` du serveur qui fait foi. */
+export const KIT_MS_PER_NOTION = 69000;
+
+/** Le lot en cours, ou `null`. Alimente l'indicateur d'en-tête.
+ *
+ *  ⚠️ Un PROCESSUS, jamais un stock. Cet indicateur ne doit à aucun moment devenir un compteur
+ *  d'arriéré : « 12 contenus non contrôlés » en permanence dans le header est exactement ce que
+ *  l'addendum ADR-0011 §F.2 interdit — la provenance est un fait, jamais un reproche. Il dit
+ *  « ça travaille », pas « vous êtes en retard ». */
+export async function fetchActiveProductionRun(): Promise<ProductionRun | null> {
+  return asJson(await fetch(`${API}/runs/active`, { headers: authHeader() }));
 }
