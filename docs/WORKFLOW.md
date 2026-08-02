@@ -58,6 +58,11 @@ Deux phrases à retenir ; tout le reste s'en déduit :
 | Spec de page, maquette, prompts | **la branche**, en **premier commit** | ils ne servent qu'à ce chantier et doivent être dans le dépôt avant la première session d'agent |
 | Code | la branche, sessions suivantes | jamais dans le commit des specs |
 
+> **Raccourci : `/ouverture <chantier> <ADR>`** exécute la vérification de ce geste — `main`
+> propre et à jour, **fichiers ADR réellement présents** (pas seulement leur ligne d'index), spec
+> et prompts en place — puis crée la branche et fait poser le hors-périmètre. Elle **s'arrête**
+> si un ADR manque : c'est arrivé le 2026-08-01, et il a fallu écrire les ADR après la livraison.
+
 Le geste, toujours identique (seul vocabulaire git dont ce workflow a besoin) :
 
 ```bash

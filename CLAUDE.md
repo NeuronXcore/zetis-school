@@ -121,7 +121,8 @@ Le process de travail par chantier est décrit dans **`docs/WORKFLOW.md`** — s
 
 Raccourcis Claude Code (`.claude/commands/`) :
 
-- **`/cloture`** — fin de session (encore lucide) : met à jour `MEMORY.md` (+ `TROUBLESHOOTING.md` / `ARCHITECTURE.md` si nécessaire) et rend la checklist 9 points. **Ne committe pas** : l’humain vérifie (tests, diff) puis committe.
+- **`/ouverture`** — nouveau chantier, depuis un `main` propre : vérifie que le cadrage **existe vraiment** (le fichier ADR, pas seulement sa ligne dans `DECISIONS.md`), crée `feat/<chantier>`, et fait poser **périmètre et hors-périmètre** avant la moindre ligne. **Ne committe pas.** S’arrête si un ADR manque — c’est arrivé le 2026-08-01.
+- **`/cloture`** — fin de session (encore lucide) : met à jour `MEMORY.md` (+ `TROUBLESHOOTING.md` / `ARCHITECTURE.md` si nécessaire), remet la carte Graphify à jour, et rend la checklist 9 points. **Ne committe pas** : l’humain vérifie (tests, diff) puis committe. ⚠️ Après le merge, revenir remettre `MEMORY.md` au réel (étape **4bis**, `docs/WORKFLOW.md §5`).
 - **`/reprise`** — nouvelle session, contexte perdu : réoriente via Graphify, relit `MEMORY.md` et `git log`, reprend au « prochain pas » **sans recoder l’existant ni re-décider**.
 
 ## Objectif produit
