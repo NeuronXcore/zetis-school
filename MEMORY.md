@@ -7,8 +7,122 @@
 
 ## État à la reprise
 
-**Chantier : les paliers d'autonomie de ZETIS (ADR-0032) — CLOS ET MERGÉ.**
-**Cadrage suivant (ADR-0035, le déclencheur automatique) — ÉCRIT ET POUSSÉ.**
+**Chantier : le Journal de production et le veto (ADR-0034) — COMPLET, §1 → §8. NON POUSSÉ.**
+
+### Où est le code, exactement
+
+| | |
+|---|---|
+| Branche | `feat/journal-production`, **3 commits** (`57628bb` slice A backend, `c84a50f` slice B Papa, `a3b89c6` le drapeau) — **NON POUSSÉE**, aucune PR |
+| Base `main` | `81375c2` (ADR-0034 + ADR-0035 + 4bis des paliers), local = `origin/main` |
+| Migration | **`b6c7d8e9f0a1` APPLIQUÉE sur la base de dev** et vérifiée table par table |
+| Arbre | propre |
+
+**757 backend · 295 Papa · build Papa · typecheck Massimo — verts**, lancés pendant la session ;
+le user relance avant de merger. **Un seul test existant remplacé** (voir plus bas) — aucun autre
+touché.
+
+### Ce que ce chantier a livré
+
+**Slice A backend** — `production_events` (une ligne par pièce, **même transaction que l'acte**,
+patron `log_learning_event`) ; `started_at` / `heartbeat_at` / `current_skill_id` sur
+`production_runs` ; `spaced_review_cards.created_at` ; table **`lesson_views`** ; service `journal`
+(consommation résolue en **5 requêtes quel que soit N**) ; service `veto` ; **troisième routeur**
+`/api/production/journal` (`require_parent`, aucune route élève).
+
+**Slice B Papa** — page `/journal` + entrée sidebar 📜 après « Demandes », client `lib/journal.ts`,
+types partagés.
+
+**§8** — `VETO_SURFACE_AVAILABLE = True`. Le régime *Autonome* est offert.
+
+### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT — pas au cadrage
+
+1. **`Lesson.production_run_id` n'était JAMAIS écrit.** Le filigrane `_stamp` n'attribue que les
+   lignes **nées** ; `equip_notion` écrit dans une leçon **préexistante**. Donc **le veto sur le
+   cours n'aurait identifié aucun cours** — la classe même dont le palier 3 justifie le chantier.
+   Réparé par `_stamp_course`, appelé **seulement** si `generated` contient `cours`.
+   **Contre-épreuve jouée** : correctif retiré → 2 verrous tombent ; restauré → 10/10.
+2. **`Fiche` et `Mindmap` n'ont aucune colonne `title`** — vu à l'écran (« fiche #18 »). Leur
+   identité est celle de leur **leçon**.
+3. **SQLite naïf vs Postgres aware** dans `is_stale` — ne se manifeste que d'un côté à la fois.
+4. **Un lot sans pièce ni événement s'affichait vide**, ce qui se lit comme une panne.
+
+> Détail et remèdes : `TROUBLESHOOTING.md`, chantier `feat/journal-production`.
+
+### Décisions actives — à relire, pas à rouvrir
+
+1. **Le veto est au grain de la PIÈCE**, mais retirer un **cours** emporte ses dérivés **et se
+   refuse si l'un d'eux est consommé**. Refuser est plus honnête que retirer à moitié : sinon
+   Massimo garde une fiche dont la source a disparu (**V1**).
+2. **Suppression FRANCHE, pas archivage** — à rebours de l'ADR-0025 sur l'agenda. L'agenda est
+   **co-édité** par Massimo ; ici la pièce n'a jamais existé pour lui.
+3. **`stale` est une LECTURE, jamais un état stocké.** Aucun balayage, aucun ordonnanceur (le §G.3
+   avait écarté la quarantaine temporelle pour cette raison). Le seul écrivain est
+   `close_stale_runs`, appelé **avant** une création de lot.
+4. **Portée v1 = ce qui vient d'un LOT**, et la page le DIT. Le Conseil de classe et le champion
+   équipent hors lot (`production_run_id = NULL`).
+5. **`lesson_views` ET `lesson_viewed` coexistent.** La table sert le veto, l'événement sert la
+   heatmap. Deux lecteurs, deux besoins, aucune fusion.
+6. **Aucun total, aucun ratio** sur le Journal (§F.2) — deux tests le verrouillent, back et front.
+7. **`VETO_SURFACE_AVAILABLE` RESTE dans le code** : il dit *pourquoi* le palier 3 est ouvert. Le
+   remettre à `False` est le geste correct si le Journal disparaissait.
+
+### Le test-verrou REMPLACÉ (et pourquoi ce n'est pas un ajustement)
+
+`test_a1_au_palier_3_est_refuse_tant_que_le_veto_na_pas_decran` exigeait
+`VETO_SURFACE_AVAILABLE is False` et un 422. **Son propre docstring annonçait sa péremption.**
+
+Le remplaçant est **plus strict** : l'ancien vérifiait qu'une porte était fermée ; le nouveau
+vérifie que **si elle est ouverte, c'est parce que les deux routes du geste *Retirer* existent
+vraiment**. Retourner l'assertion en `is True` aurait fait d'un verrou de doctrine une tautologie.
+
+### Vérifié EN VRAI (backend `:8000` + Postgres, Papa `:5174`)
+
+Le Journal affiche **les 33 pièces du vrai lot du 2 août** avec leur provenance réelle
+(`parent_bulk` sur les dérivés, « servi sans relecture » sur les quiz, **rien** sur les cartes SRS —
+elles n'ont aucune étape de validation) ; la modale de retrait s'ouvre ; **zéro erreur console**.
+Puis, après le drapeau : *Autonome* sélectionnable, **modale de révocation d'A1 affichée pour la
+première fois**, **monotonie visible** (A1 = 3 a fait passer A0a à 3), `PUT` accepté et relu en base
+(`preset: autonome`), descente vers *Semi-autonome* acceptée.
+
+⚠️ **Le retrait n'a PAS été confirmé** : on ne supprime pas des données réelles pour valider un
+bouton. **Non vérifié en vrai** : le refus de retirer un cours dont un dérivé est consommé — il
+aurait fallu fabriquer une fausse lecture de Massimo. Couvert par 2 tests backend (contre-épreuve
+jouée) et 1 test front.
+
+⚠️ **Le régime de la base de dev a été REMIS sur *Semi-autonome*.** Livrer la *possibilité* du
+palier 3 était le chantier ; l'activer est une décision de Papa, en un clic sur `/parametres`.
+
+### ▶ PROCHAIN PAS
+
+1. **Relire le diff, relancer les tests, pousser, ouvrir la PR.** Rien n'est chez `origin`.
+2. Après le merge : **étape 4bis** — remettre ce fichier au réel (squash, n° de PR, branche
+   supprimée), sinon il décrira un dépôt qui n'existe plus. **Ce fichier a déjà survécu trois fois
+   à son propre chantier.**
+3. **CHANTIER SUIVANT : coder l'ADR-0035** (le déclencheur automatique) — **déjà cadré**, sur
+   `main` (`4bd4d8e`). Ne pas le re-cadrer. Son read-before-code annonce **aucune migration,
+   aucune dépendance nouvelle** : quatre verrous déjà écrits à lever, plus le régulateur de volume
+   par fenêtre glissante, seule chose vraiment à construire.
+4. **Chantier d'après** : la page Demandes en deux colonnes, `trigger='request'`, scope notion.
+
+### ▶▶ OÙ EN EST « FULL AUTONOMIE »
+
+| Axe | Ce qu'il dit | État |
+|---|---|---|
+| **1 — le palier** | « ZETIS ne me demande plus de valider » | ✅ **LIVRÉ** — le régime *Autonome* existe et son veto a un écran |
+| **2 — le déclencheur** | « ZETIS travaille sans que je clique » | **cadré (ADR-0035), PAS CODÉ** |
+
+⚠️ **Tant que l'axe 2 n'est pas codé, ZETIS ne produit RIEN de lui-même** : tout lot part encore
+d'un clic de Papa. C'est l'axe 2 qui fera enfin émettre **`parent_rule`** — la colonne « demandé
+par » du Journal l'attend déjà — et c'est là que le **régulateur de volume** devient obligatoire.
+
+---
+
+## Historique — les paliers d'autonomie (ADR-0032)
+
+**CLOS ET MERGÉ** (squash `b8f2a02`, PR #69, 2026-08-02). Conservé pour ses décisions actives
+et son défaut de provenance réparé — le « prochain pas » de l'époque est fait : c'était le
+cadrage de l'ADR-0034, livré le 2026-08-03.
 
 ### Où est le code, exactement
 
@@ -124,78 +238,6 @@ motif renvoyé par le serveur — la ligne disait deux fois la même phrase. Cor
 **Non vérifiable en vrai** : la modale de révocation d'A1 (le serveur refuse le palier 3). Couverte
 par trois tests sous un serveur simulé « après le Journal ».
 
-### ▶ PROCHAIN PAS
-
-> **Rien n'est en attente côté Git.** PR #69 **mergée** (squash `b8f2a02`), branche supprimée,
-> `main` local = `origin/main` = `b8f2a02`, arbre propre. **Étape 4bis faite** — c'est ce fichier.
-
-1. **Ne rien ré-implémenter, et ne rien re-cadrer.** Les paliers sont **en code** sur `main` ;
-   l'ADR-0034 (Journal) et l'ADR-0035 (déclencheur) sont **cadrés et écrits**. Les relire, pas les
-   rouvrir.
-2. **CHANTIER SUIVANT : CODER le Journal — ADR-0034, cadrage FAIT.** Il ne reste plus de décision
-   à prendre : la recette est dans l'ADR, §1 → §8, et la §8 est la ligne
-   `VETO_SURFACE_AVAILABLE = True`.
-3. ⚠️ **Brancher depuis `main`** (`feat/journal-production` ou équivalent) — règle mono-chantier,
-   `WORKFLOW.md §2`. Le cadrage est déjà sur `main`, rien à pousser avant.
-4. **Ordre de livraison : ADR-0034 (Journal) PUIS ADR-0035 (déclencheur).** Le second dépend du
-   premier — un dispositif qui agit sans témoin est une source de surprise.
-5. **Chantier d'après** : la page Demandes en deux colonnes, `trigger='request'`, scope notion,
-   auto-close par disponibilité.
-
-> ⚠️ **Ce que le read-before-code de l'ADR-0034 a trouvé et qui n'était écrit nulle part** : le
-> **§G.3 dit « quatre familles » et il en OUBLIE une — le COURS**, alors qu'A1 est précisément la
-> classe dont le palier 3 justifie tout le chantier. Le signal existe (`EVENT_LESSON_VIEWED`) mais
-> dans une **cinquième forme** — `payload_json->>'lesson_id'`, **non indexé**. D'où la table
-> `lesson_views`, décidée dans l'ADR-0034 §4. **Sans elle, le veto sur le cours n'a aucun signal.**
-
-### ▶▶ POINT DE DÉPART DE LA PROCHAINE SESSION — ouvrir le mode « full autonomie »
-
-**État au 2026-08-02 : le mode *Autonome* NE PEUT PAS être activé, et ce n'est pas un oubli.** Le
-serveur le refuse — `VETO_SURFACE_AVAILABLE = False` dans
-`apps/backend/app/modules/settings/service.py` réduit les `choices` d'A1 à `(VALIDATE,)`, donc un
-`PUT /api/settings/autonomy` demandant `zetis_autonomy_a1_course: 3` répond **422 avec son motif**,
-préréglage *Autonome* compris. Le régime accessible aujourd'hui est **Semi-autonome** (défaut) ou
-**Manuel** ; le seul mouvement offert est vers le bas.
-
-> **Pourquoi ce refus est la bonne réponse et pas une dette** : le palier 3 promet à Papa un droit
-> de **veto** (retirer un contenu tant que Massimo ne l'a pas ouvert). Ce droit n'a aucun écran.
-> Livrer le palier sans la surface, ce serait vendre un droit qui n'existe pas — **verrou n°5 de
-> l'ADR-0032**. Le palier 3 et son veto se livrent **ensemble ou pas du tout**.
-
-**La recette, dans l'ordre — et la dernière ligne est la plus petite du chantier :**
-
-1. ✅ **Cadrage FAIT — `docs/decisions/adr-0034-journal-production-et-veto.md`**, écrit sur `main`
-   le 2026-08-02 après un read-before-code de huit constats. **La recette ci-dessous est celle de
-   la mémoire ; l'ADR est la source, et il la CORRIGE sur deux points** (le trou du cours,
-   ci-dessus, et la nuance sur les cartes SRS, point 4). **En cas de désaccord, l'ADR fait foi.**
-2. `production_events` + **la persistance de ce que `equip_notion` renvoie DÉJÀ** (`generated` /
-   `skipped` / `errors` par pièce) et que `runner.execute` **jette** aujourd'hui — c'est la demande
-   « voir exactement ce que fait le worker ».
-3. `current_skill_id`, `started_at` / `heartbeat_at` → expiration des lots zombies.
-4. **`spaced_review_cards.created_at`** — seule table de contenu sans horodatage. ⚠️ **Corrigé par
-   l'ADR-0034** : une carte **issue d'un lot** est datable **par son lot** (`production_run_id`) ;
-   le trou ne concerne que les cartes produites **hors lot**. La colonne reste utile, elle est
-   moins urgente que la recette ne le disait.
-4bis. **`lesson_views`** — étape que cette recette ne connaissait pas, ajoutée par l'ADR-0034 §4 :
-   sans elle, **le veto sur le cours n'a aucun signal de consommation** (voir l'encadré plus haut).
-5. `GET /api/production/journal` : *quand · quoi · notion · produit par · validé par · demandé par*.
-   **Portée v1 = ce qui vient d'un lot, et la page le DIT** (le Conseil de classe et le champion
-   équipent hors lot — `production_run_id = NULL`).
-6. Page `/journal`, **et le veto dessus** : le geste *Retirer* tant que Massimo n'a pas ouvert.
-   C'est **ça**, la surface qui manque — le reste du chantier n'existe que pour la rendre honnête.
-7. **Puis `VETO_SURFACE_AVAILABLE = True`.** Une ligne. Le serveur rouvre alors le palier 3 d'A1 et
-   le régime *Autonome* redevient offert **sans qu'une ligne du front change** (décision active
-   n°4 : `choices` vient du serveur, le front n'a aucune liste en dur). **Trois tests décrivent
-   déjà le monde d'après** — ils passent sous un serveur simulé et deviendront réels ce jour-là.
-8. Effet de bord à ne pas oublier : la **monotonie** (A1 = 3 force A0a = 3) et la **modale de
-   révocation d'A1**, écrite et testée mais **jamais vue en vrai** — c'est la première chose à
-   vérifier à l'écran une fois le drapeau levé.
-
-> ⚠️ **« Full autonome » recouvre DEUX choses, et le palier n'en couvre qu'une.** Le palier dit
-> *« ZETIS ne me demande plus de valider »* ; le **déclencheur** dit *« ZETIS travaille sans que
-> je clique »* — et **il n'existe toujours pas dans le code** : tout lot part encore d'un clic de
-> Papa. Même `VETO_SURFACE_AVAILABLE = True` et A1 = 3, ZETIS ne produira rien de lui-même.
-
 ### ▶▶▶ L'AXE 2 EST CADRÉ — ADR-0035, `4bd4d8e` sur `main` (2026-08-02)
 
 **Écrit AVANT l'ADR-0034 et livré APRÈS lui**, sur décision du user : dessiner le Journal en
@@ -222,6 +264,10 @@ cinq conditions ; **`evidence` écarté** (il ferait décider ZETIS sur sa propr
 automatiques par fenêtre glissante (défaut 2), et il REFUSE** ; **7ᵉ clé indépendante du palier**,
 **hors d'`AUTONOMY_CLASSES`** pour qu'un préréglage n'arme jamais le déclencheur ; **pas de
 démarrage pendant que Massimo travaille**.
+
+> Le « prochain pas » et la recette d'ouverture du mode Autonome ont été RETIRÉS de ce
+> bloc le 2026-08-03 : ils sont **exécutés**. Les garder ferait relire une consigne périmée
+> comme une consigne active — c'est exactement l'erreur que ce fichier a déjà payée deux fois.
 
 ---
 

@@ -1,5 +1,44 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.38.0 — Le Journal de production, et « Autonome » devient possible
+
+Date : 2026-08-03 · branche `feat/journal-production` · ADR-0034
+
+**Le lot cessait de dire ce qu'il faisait.** `runner.execute` calculait le détail par pièce
+(`generated` / `skipped` / `errors`, notion par notion) et le retournait au job RQ — **dont personne
+ne lit le retour**. Seul `done_notions` survivait. La donnée demandée existait déjà en mémoire ; il
+manquait une table pour la retenir. `production_events` la retient, **dans la même transaction que
+l'acte qu'elle trace**, et **sans instrumenter aucun générateur** (ce que l'addendum ADR-0031
+interdit). Une notion écartée par le gate du §7 y écrit sa ligne avec son motif : une notion omise
+en silence se lisait comme un échec de production.
+
+**Le veto devient un geste.** Page Papa `/journal` : les lots du plus récent au plus ancien, leurs
+pièces, leur provenance **par objet**, et *Retirer* tant que Massimo n'a pas ouvert. Suppression
+franche — aucune trace, aucun signal (invariant V1) — à rebours de l'ADR-0025 sur l'agenda, parce
+que l'agenda est **co-édité** par Massimo et qu'ici la pièce n'a jamais existé pour lui.
+
+**Retirer un cours emporte ses dérivés, et SE REFUSE si l'un d'eux est consommé.** Retirer quand
+même ferait disparaître, sous les yeux de Massimo, la source d'une fiche qu'il a lue — le trou
+inexpliqué que V1 interdit. **Refuser est plus honnête que retirer à moitié.**
+
+**Deux défauts que le cadrage n'avait pas vus.** `Lesson.production_run_id` n'était **jamais**
+écrit : le filigrane n'attribue que les lignes *nées*, or `equip_notion` écrit dans une leçon
+préexistante — le veto sur le cours n'aurait identifié **aucun** cours. Et le §G.3 énumérait quatre
+familles consommables **en oubliant le COURS**, d'où la table `lesson_views`, quatrième du patron.
+
+**`VETO_SURFACE_AVAILABLE = True`.** Une ligne : le serveur rouvre le palier 3 d'A1, le régime
+*Autonome* est offert, **aucune ligne du front n'a changé** — `choices` vient du serveur, comme
+l'ADR-0032 l'avait prévu. Vérifié à l'écran, dont deux choses jamais vues : la **modale de
+révocation d'A1** et la **monotonie** (A1 = 3 force A0a = 3).
+
+**Une migration** (`b6c7d8e9f0a1`) pour quatre changements de schéma. **757 tests backend ·
+295 Papa.** Le régime réel reste sur *Semi-autonome* : livrer la possibilité du palier 3 est le
+chantier, l'activer est une décision de Papa.
+
+> **Ce qui reste hors de ce lot** : le déclencheur automatique (ADR-0035, cadré, non codé). Tant
+> qu'aucun lot ne part sans clic, `parent_rule` reste **légale et non émise** — la colonne
+> « demandé par » du Journal l'attend déjà.
+
 ## 0.37.0 — La page matière devient un index de notions
 
 Date : 2026-08-01 · branche `feat/page-matiere` · addenda ADR-0024 (index de notions) et ADR-0027
