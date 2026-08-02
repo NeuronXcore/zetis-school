@@ -129,16 +129,24 @@ par trois tests sous un serveur simulé « après le Journal ».
 > **Rien n'est en attente côté Git.** PR #69 **mergée** (squash `b8f2a02`), branche supprimée,
 > `main` local = `origin/main` = `b8f2a02`, arbre propre. **Étape 4bis faite** — c'est ce fichier.
 
-1. **Ne rien ré-implémenter des paliers ni du cadrage de l'axe 2.** Les deux sont sur `main`.
-2. **CHANTIER SUIVANT : le Journal complet — ADR-0034**, numéro **tranché** par le user le
-   2026-08-02 (0033 reste réservé à l'indicateur d'autonomie de Massimo). **Le cadrage reste à
-   écrire** : c'est le point de départ de la prochaine session. Recette ci-dessous.
-3. ⚠️ **Brancher depuis `main`** (`feat/journal-production` ou équivalent), après un cadrage
-   ADR-0034 écrit et poussé — règle mono-chantier, `WORKFLOW.md §2`.
-4. **L'axe 2 est DÉJÀ cadré** (ADR-0035, `4bd4d8e`), et il se livre **après** le Journal. Lire
-   l'ADR avant de dessiner le Journal : il change ce que le Journal doit rendre lisible.
+1. **Ne rien ré-implémenter, et ne rien re-cadrer.** Les paliers sont **en code** sur `main` ;
+   l'ADR-0034 (Journal) et l'ADR-0035 (déclencheur) sont **cadrés et écrits**. Les relire, pas les
+   rouvrir.
+2. **CHANTIER SUIVANT : CODER le Journal — ADR-0034, cadrage FAIT.** Il ne reste plus de décision
+   à prendre : la recette est dans l'ADR, §1 → §8, et la §8 est la ligne
+   `VETO_SURFACE_AVAILABLE = True`.
+3. ⚠️ **Brancher depuis `main`** (`feat/journal-production` ou équivalent) — règle mono-chantier,
+   `WORKFLOW.md §2`. Le cadrage est déjà sur `main`, rien à pousser avant.
+4. **Ordre de livraison : ADR-0034 (Journal) PUIS ADR-0035 (déclencheur).** Le second dépend du
+   premier — un dispositif qui agit sans témoin est une source de surprise.
 5. **Chantier d'après** : la page Demandes en deux colonnes, `trigger='request'`, scope notion,
    auto-close par disponibilité.
+
+> ⚠️ **Ce que le read-before-code de l'ADR-0034 a trouvé et qui n'était écrit nulle part** : le
+> **§G.3 dit « quatre familles » et il en OUBLIE une — le COURS**, alors qu'A1 est précisément la
+> classe dont le palier 3 justifie tout le chantier. Le signal existe (`EVENT_LESSON_VIEWED`) mais
+> dans une **cinquième forme** — `payload_json->>'lesson_id'`, **non indexé**. D'où la table
+> `lesson_views`, décidée dans l'ADR-0034 §4. **Sans elle, le veto sur le cours n'a aucun signal.**
 
 ### ▶▶ POINT DE DÉPART DE LA PROCHAINE SESSION — ouvrir le mode « full autonomie »
 
@@ -156,17 +164,23 @@ préréglage *Autonome* compris. Le régime accessible aujourd'hui est **Semi-au
 
 **La recette, dans l'ordre — et la dernière ligne est la plus petite du chantier :**
 
-1. **Cadrage d'abord, session à part, sur `main`, sans une ligne de code.** ✅ **Numéro tranché par
-   le user : ADR-0034** (0033 reste réservé à l'indicateur d'autonomie de Massimo). ⚠️ **Lire
-   l'ADR-0035 avant d'écrire ce cadrage** : le Journal devra rendre lisibles des lots que
-   **personne n'a demandés**, et c'est pour ça que l'axe 2 a été cadré en premier.
+1. ✅ **Cadrage FAIT — `docs/decisions/adr-0034-journal-production-et-veto.md`**, écrit sur `main`
+   le 2026-08-02 après un read-before-code de huit constats. **La recette ci-dessous est celle de
+   la mémoire ; l'ADR est la source, et il la CORRIGE sur deux points** (le trou du cours,
+   ci-dessus, et la nuance sur les cartes SRS, point 4). **En cas de désaccord, l'ADR fait foi.**
 2. `production_events` + **la persistance de ce que `equip_notion` renvoie DÉJÀ** (`generated` /
    `skipped` / `errors` par pièce) et que `runner.execute` **jette** aujourd'hui — c'est la demande
    « voir exactement ce que fait le worker ».
 3. `current_skill_id`, `started_at` / `heartbeat_at` → expiration des lots zombies.
-4. **`spaced_review_cards.created_at`** — les cartes sont indatables aujourd'hui, donc absentes
-   d'un journal chronologique.
+4. **`spaced_review_cards.created_at`** — seule table de contenu sans horodatage. ⚠️ **Corrigé par
+   l'ADR-0034** : une carte **issue d'un lot** est datable **par son lot** (`production_run_id`) ;
+   le trou ne concerne que les cartes produites **hors lot**. La colonne reste utile, elle est
+   moins urgente que la recette ne le disait.
+4bis. **`lesson_views`** — étape que cette recette ne connaissait pas, ajoutée par l'ADR-0034 §4 :
+   sans elle, **le veto sur le cours n'a aucun signal de consommation** (voir l'encadré plus haut).
 5. `GET /api/production/journal` : *quand · quoi · notion · produit par · validé par · demandé par*.
+   **Portée v1 = ce qui vient d'un lot, et la page le DIT** (le Conseil de classe et le champion
+   équipent hors lot — `production_run_id = NULL`).
 6. Page `/journal`, **et le veto dessus** : le geste *Retirer* tant que Massimo n'a pas ouvert.
    C'est **ça**, la surface qui manque — le reste du chantier n'existe que pour la rendre honnête.
 7. **Puis `VETO_SURFACE_AVAILABLE = True`.** Une ligne. Le serveur rouvre alors le palier 3 d'A1 et
