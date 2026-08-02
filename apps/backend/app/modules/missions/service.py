@@ -247,8 +247,11 @@ def _to_out(db: Session, mission: Mission) -> dict:
         "description": mission.description,
         "mission_type": mission.mission_type,
         "status": mission.status,
-        # Affichage enfant « qui a généré » : dérivé de created_by (jamais l'enum interne).
-        "origin": "papa" if mission.created_by == "parent" else "zetis",
+        # PAS de champ d'auteur ici, et c'est une règle : ce que Massimo voit ne doit JAMAIS
+        # désigner un auteur. Le contenu scolaire l'atteint dans la voix de ZETIS, quel que soit
+        # son producteur réel — Papa, ZETIS validé, ou ZETIS autonome demain. Signer « par Papa »
+        # obligerait à changer l'auteur du monde de Massimo le jour où ZETIS produira seul.
+        # `created_by` reste en base et sur `MissionPilotOut` : c'est une information de PILOTAGE.
         "priority": mission.priority,
         "estimated_minutes": max(5, sum(_STEP_MINUTES.get(s.step_type, 4) for s in steps)),
         "xp_reward": xp_reward,

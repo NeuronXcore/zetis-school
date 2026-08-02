@@ -376,12 +376,16 @@ stricte (§3) : **deux schémas, deux routers** — `MissionStudentOut` (Massimo
 ### Frontière student (Massimo)
 
 - **GET `/missions`** → `[MissionStudentOut]` (validées de l'élève). `MissionStudentOut = { id,
-  subject, skill_id, skill_name, title, description, mission_type, status, origin, priority,
+  subject, skill_id, skill_name, title, description, mission_type, status, priority,
   estimated_minutes, xp_reward, steps: [{ id, step_type, instruction, resource_id, sort_order,
   status }] }`. `estimated_minutes` (durée estimée dérivée des étapes) + `xp_reward` (XP d'effort
-  constant) = **affichage enfant, aucun score**. `origin` (`papa`/`zetis`) = champ d'affichage
-  « qui a généré la mission », dérivé de `created_by` (l'enum interne `created_by` reste **pilot-only**,
-  frontière §3). Le client marque « ✨ new » les missions `status="planned"`. **L'ordre des étapes (`sort_order`) dépend du
+  constant) = **affichage enfant, aucun score**. ⚠️ **Aucun champ d'auteur** : `origin`
+  (`papa`/`zetis`) a été **retiré le 2026-08-02** — il était rendu tel quel par la page Missions
+  (« 👤 par Papa » / « 🤖 par ZETIS »). Une seule voix côté Massimo : le contenu scolaire l'atteint
+  dans la voix de ZETIS, quel que soit son producteur réel, pour que cette voix tienne le jour où
+  ZETIS produira seul. `created_by` reste en base et sur `MissionPilotOut` (**pilot-only**,
+  frontière §3) ; un test-verrou interdit le retour de tout champ d'auteur côté élève.
+  Le client marque « ✨ new » les missions `status="planned"`. **L'ordre des étapes (`sort_order`) dépend du
   type** (§5 amendé) : `progression` = découverte d'abord (`eli5 → vocal_explain → [mindmap] →
   [quiz]`) ; `remediation`/`revision` = **rappel d'abord** (`[mindmap] → [quiz] → eli5 [→ vocal]`).
 - **GET `/missions/today`** — **contrat cassant** (ex-liste) : `{ elected: MissionStudentOut | null,

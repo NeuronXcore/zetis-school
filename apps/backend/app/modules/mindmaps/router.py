@@ -166,6 +166,12 @@ def student_attempt(
 
 @student_router.post("/mindmaps/{mindmap_id}/seen", status_code=status.HTTP_204_NO_CONTENT)
 def student_mindmap_seen(mindmap_id: int, db: Session = Depends(get_db)) -> Response:
-    """Marque la carte vue (placeholder Slice A — vues non persistées, cf. service.mark_seen)."""
+    """Marque la carte vue — PERSISTÉ (`mindmap_views`) depuis l'ADR-0030 §4.
+
+    Ce commentaire disait « placeholder Slice A — vues non persistées » **quatre mois après** que
+    la table existe. Il a coûté une décision : le cadrage d'autonomisation en a conclu que les
+    mindmaps n'émettaient rien à la consultation, et a inventé une dette qui n'existait pas.
+    Un commentaire périmé n'est pas neutre — il est cru.
+    """
     service.mark_seen(db, get_default_student(db).id, mindmap_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
