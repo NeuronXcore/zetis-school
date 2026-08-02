@@ -152,6 +152,27 @@
   uniquement) + phrase de transparence ; résolution question → `skill_id` (embeddings,
   module partagé) promue de différé ELI5 à **prérequis dur** ; **zéro table, zéro
   migration** — Proposé (2026-07-29)
+  - `docs/decisions/adr-0026-addendum-retour-demandes-chat.md` — **Addendum ADR-0026 — le retour de
+    demande se ferme dans le chat** : `content_requests` et `notion_requests` sont les **deux seuls
+    endroits où Massimo parle en son nom propre**, et les deux seules boucles asynchrones **sans
+    retour** — « je le note pour Papa » est un cul-de-sac. La boucle se ferme **là où elle s'est
+    ouverte** : dans le chat, en **pull**, **une seule fois**, porté par le **contexte d'ouverture**
+    (`ChatSessionOut.announcement`), **composé en Python, déterministe, jamais par le LLM**.
+    **Le gate est la DISPONIBILITÉ, jamais le statut** — « Fait » ne change qu'une colonne ;
+    l'annonce passe par **`resolve_panoply`** (prédicat unique, addendum ADR-0024), sinon on
+    reconstruit le mensonge tué le 2026-07-30 ; `quiz`/`capsule` **non annonçables** (`_notion_route`
+    n'a pas leur branche → **pas de route, pas de carte, pas de tampon**). **Pour `notion_requests`,
+    le résolveur EST la preuve** : la table n'a **pas de `skill_id`**, donc on **rejoue `resolve_skill`**
+    (0.72) sur le texte — il avait échoué à la création, qu'il réussisse **prouve** que la notion est
+    entrée au programme (3 lignes max/ouverture, coût embedding borné). **Nommer 2, tamponner tout**
+    (sinon le reliquat s'empile et redevient une pression) ; **tampon posé à la composition**, une
+    annonce jamais lue est perdue — prix assumé de « aucune file qui grossit ». **Deux asymétries
+    gravées** : le **refus n'a pas de canal** (jamais — le silence + la redemande gratuite, que
+    l'idempotence de `create_request` gère déjà) et la **route 1 reste muette** (produire sans
+    demande n'annonce rien : aucune promesse, donc aucune dette). **`adr-0026 §4` n'est pas amendé,
+    il est APPLIQUÉ** ; corollaire : la session naît au **montage de `/chat`** (elle naissait au
+    premier message). **Zéro table, zéro `event_type`, zéro composant** — deux colonnes
+    `announced_at` + un composeur — Proposé (2026-08-02)
 
   - `docs/decisions/adr-0027-chat-orchestrateur.md` — **Chat ZETIS orchestrateur : intent typé,
   ancré, orienté vers l'existant** : le chat pilote toute l'app en langage naturel (« montre mes
