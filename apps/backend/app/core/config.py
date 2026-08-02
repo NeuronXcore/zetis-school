@@ -311,6 +311,12 @@ class Settings(BaseSettings):
     production_max_wait_minutes: int = Field(
         default=30, validation_alias="PRODUCTION_MAX_WAIT_MINUTES"
     )
+    # Battement de cœur (ADR-0034 §2) : un lot `running` muet depuis plus longtemps que ça est
+    # considéré comme mort. Le seuil doit dépasser LARGEMENT l'attente maximale ci-dessus, sinon
+    # un lot qui attend Massimo se ferait déclarer zombie alors qu'il fait exactement son travail.
+    production_heartbeat_timeout_minutes: int = Field(
+        default=90, validation_alias="PRODUCTION_HEARTBEAT_TIMEOUT_MINUTES"
+    )
 
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [

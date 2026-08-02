@@ -12,7 +12,7 @@ au modèle, quatre émises) et `parent_rule` (addendum ADR-0011 §G).
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -37,6 +37,17 @@ TRIGGER_REFERENCE = {
     "council": "council_report_id",
     "derived": "skill_id",
 }
+
+
+# --- Vocabulaire du JOURNAL (ADR-0034 §1) ------------------------------------------------------
+
+# Les cinq pièces d'un kit, dans l'ordre où `equip_notion` les produit.
+PIECES = ("cours", "fiche", "srs", "quiz", "mindmap")
+
+# `blocked` porte sur la NOTION, pas sur une pièce : le gate du §7 l'a écartée avant tout
+# équipement. Sa ligne a `piece = NULL` — une notion silencieusement omise se lirait comme un échec
+# de production, alors que c'est un gate qui fonctionne (addendum ADR-0031).
+OUTCOMES = ("generated", "skipped", "error", "blocked")
 
 
 class ProductionRun(Base):
@@ -91,6 +102,46 @@ class ProductionRun(Base):
     # notions sont faites » suffit à reconstituer le détail sans le persister.
     total_notions: Mapped[int | None] = mapped_column(Integer, nullable=True)
     done_notions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Où il en est MAINTENANT — ce que `done_notions` ne dit pas (ADR-0034 §2).
+    current_skill_id: Mapped[int | None] = mapped_column(
+        ForeignKey("skills.id"), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # ⚠️ `created_at` n'est PAS l'heure de démarrage : le job attend en file (concurrence 1, un
+    # seul GPU). Sans cette colonne, la durée d'un lot inclut son attente et ne mesure rien.
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Battement de cœur, écrit à chaque notion (il y a déjà un commit par notion : coût nul).
+    # Un lot `running` dont le battement a expiré est rendu `stale` PAR LA LECTURE — aucun
+    # balayage périodique, aucun ordonnanceur (ADR-0034 §2, doctrine §G.3).
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ProductionEvent(Base):
+    """Ce que le lot a fait, pièce par pièce (ADR-0034 §1).
+
+    **La donnée existait déjà et partait à la poubelle** : `equip_notion` renvoie
+    `generated` / `skipped` / `errors` par pièce, `runner.execute` assemblait le tout dans un
+    `results` retourné au job RQ — dont personne ne lit le retour. Seul `done_notions` survivait.
+    Cette table retient ce qui était déjà calculé ; elle n'instrumente aucun générateur.
+
+    ⚠️ **Écrite dans la MÊME transaction que l'acte qu'elle trace** — patron `log_learning_event`.
+    Un lot interrompu garde le détail de ce qu'il avait fait : le journal d'un crash est
+    exactement ce pour quoi on l'écrit.
+    """
+
+    __tablename__ = "production_events"
+    # Toutes les lectures partent d'un lot et suivent l'ordre de production.
+    __table_args__ = (Index("ix_production_events_run_created", "run_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("production_runs.id"), index=True)
+    # Nullable : un lot peut échouer avant d'avoir touché la moindre notion.
+    skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
+    # NULL quand l'événement porte sur la notion entière (`outcome='blocked'`).
+    piece: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(10))
+    # Message d'erreur, motif de saut, ou motif de blocage rendu par `select_notions`.
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -5,14 +5,22 @@ Séparé de `coverage.py`, qui reste **strictement en lecture seule** : l'invari
 qu'on ajoute de l'écriture au module.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import Chapter, Fiche, Mindmap, ProductionRun, Skill, StudentProfile
+from app.db.models import (
+    Chapter,
+    Fiche,
+    Mindmap,
+    ProductionEvent,
+    ProductionRun,
+    Skill,
+    StudentProfile,
+)
 from app.db.models.production import EMITTED_AUTHORIZED_BY, EMITTED_TRIGGERS
 
 # Les dérivés qui attendent une relecture de Papa — et ils ne sont que DEUX.
@@ -37,12 +45,72 @@ def pending_backlog(db: Session) -> int:
     return total
 
 
+def is_stale(run: ProductionRun, *, now: datetime | None = None) -> bool:
+    """Un lot `running` dont le battement a expiré — le worker est mort sans le dire.
+
+    ⚠️ **C'est une LECTURE, jamais un état stocké** (ADR-0034 §2). Le §G.3 a écarté la quarantaine
+    temporelle précisément parce qu'elle exigeait un ordonnanceur pour libérer à expiration, et
+    l'ADR-0023 l'avait refusé. Le seul écrivain est `close_stale_runs`, appelé de façon
+    OPPORTUNISTE avant de créer un lot — jamais périodiquement.
+
+    Un lot sans `heartbeat_at` n'est pas zombie : il est antérieur au journal (aucune
+    rétro-attribution, doctrine §F.4).
+    """
+    if run.status != "running" or run.heartbeat_at is None:
+        return False
+    deadline = timedelta(minutes=settings.production_heartbeat_timeout_minutes)
+    # ⚠️ SQLite relit un datetime NAÏF là où Postgres rend un datetime AWARE. Comparer les deux
+    # lève un `TypeError` — en test seulement, ce qui en fait un piège : le code passerait en prod
+    # et tomberait en CI, ou l'inverse selon quel moteur voit le cas en premier.
+    seen = run.heartbeat_at
+    if seen.tzinfo is None:
+        seen = seen.replace(tzinfo=timezone.utc)
+    return (now or datetime.now(timezone.utc)) - seen > deadline
+
+
+def close_stale_runs(db: Session) -> int:
+    """Referme les lots dont le worker est mort. Renvoie le nombre de lots refermés.
+
+    Appelé avant chaque création : c'est le seul moment où l'on sait qu'un humain regarde. Un lot
+    zombie laissé `running` bloquerait `GET /active` et ferait croire à une production en cours.
+    """
+    closed = 0
+    now = datetime.now(timezone.utc)
+    for run in db.scalars(select(ProductionRun).where(ProductionRun.status == "running")).all():
+        if not is_stale(run, now=now):
+            continue
+        # ⚠️ Lu AVANT d'être effacé : c'est la seule trace de l'endroit où le lot est mort, et
+        # c'est précisément l'information qu'on vient chercher dans le journal.
+        died_on = run.current_skill_id
+        run.status = "failed"
+        run.finished_at = now
+        run.current_skill_id = None
+        db.add(
+            ProductionEvent(
+                run_id=run.id,
+                skill_id=died_on,
+                piece=None,
+                outcome="error",
+                detail="Lot interrompu : le worker n'a plus donné signe de vie.",
+                created_at=now,
+            )
+        )
+        closed += 1
+    if closed:
+        db.commit()
+    return closed
+
+
 def create_run(db: Session, *, chapter_id: int) -> ProductionRun:
     """Crée un lot `manual`/`parent_direct` sur un chapitre. Refuse si l'arriéré déborde.
 
     Le régulateur REFUSE et le DIT — il ne tronque pas silencieusement. Une production qui dépasse
     durablement la capacité de relecture fabrique une dette qui tue le dispositif (ADR-0023 §5).
     """
+    # Ménage opportuniste AVANT tout le reste : un lot zombie fausserait `GET /active` et ferait
+    # croire à une production en cours (ADR-0034 §2).
+    close_stale_runs(db)
+
     chapter = db.get(Chapter, chapter_id)
     if chapter is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapitre introuvable.")

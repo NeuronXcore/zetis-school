@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -280,6 +281,35 @@ class FicheView(Base):
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class LessonView(Base):
+    """Cours lu par un élève (ADR-0034 §4). Quatrième table du patron `*_views`.
+
+    ⚠️ **Le §G.3 énumérait QUATRE familles consommables et oubliait celle-ci** — alors que le
+    cours (classe A1) est précisément l'objet dont le palier 3 justifie tout le chantier
+    d'autonomisation. Sans ce signal, le veto sur un cours ne peut pas dire s'il est encore
+    rétractable : Papa se verrait promettre un droit inexerçable.
+
+    **Pourquoi une table alors que le signal existait déjà** : `EVENT_LESSON_VIEWED` est bien émis
+    dans `learning_events`, mais sous la forme `payload_json->>'lesson_id'` — **non indexé**, et
+    surtout d'une cinquième forme différente des quatre autres familles. Le veto aurait résolu
+    une famille sur cinq autrement que les autres, à chaque évolution.
+
+    **Les deux coexistent, et c'est voulu** : `lesson_viewed` sert la heatmap, les sessions et le
+    Cahier de bord ; cette table sert le veto. Deux lecteurs, deux besoins, aucune fusion — même
+    règle qui interdit d'unir `learning_events` et `xp_events`.
+    """
+
+    __tablename__ = "lesson_views"
+    __table_args__ = (
+        UniqueConstraint("student_id", "lesson_id", name="uq_lesson_views_student_lesson"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"), index=True)
+    lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id"), index=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class MindmapView(Base):
     """Mindmap vue par un élève (ADR-0016 §3, livré par l'ADR-0030 §4). Unique(student, mindmap)
     → « vu » = la ligne existe. Calquée sur `FicheView`, sans compteur : on ne veut savoir que si
@@ -313,6 +343,16 @@ class SpacedReviewCard(Base):
     # l'élève (la mécanique SRS est invisible).
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(15), default="new")
+    # Seule table de contenu sans horodatage jusqu'ici — `Lesson`, `Fiche`, `Mindmap` et `Quiz`
+    # portent tous `TimestampMixin` (ADR-0034 §3). Nullable, **aucune rétro-attribution** : on ne
+    # date pas après coup ce qu'on n'a pas horodaté (doctrine §F.4).
+    #
+    # ⚠️ Le trou est plus petit que la recette ne le disait : une carte issue d'un LOT porte
+    # `production_run_id`, donc elle est datable PAR SON LOT. Cette colonne sert les cartes
+    # produites hors lot (page « Cartes SRS », génération par matière).
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, server_default=func.now()
+    )
     # Lot de production qui a produit cette pièce (ADR-0031 §4). `NULL` = produit hors lot,
     # ou antérieur au journal — **aucune rétro-attribution** (doctrine §F.4).
     production_run_id: Mapped[int | None] = mapped_column(

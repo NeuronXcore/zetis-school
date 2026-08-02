@@ -354,12 +354,17 @@ def student_cours(subject_slug: str, db: Session = Depends(get_db)) -> dict:
 def student_lesson_cours(lesson_id: int, db: Session = Depends(get_db)) -> dict:
     """Cours (markdown) d'une leçon validée — 404 sinon, sans fuite des brouillons."""
     content = service.student_lesson_content(db, lesson_id)
+    student_id = get_default_student(db).id
+    # Signal de CONSOMMATION du veto (ADR-0034 §4) — distinct du journal d'activité juste après.
+    # Sans lui, le veto sur un cours ne peut pas dire s'il est encore rétractable, et le palier 3
+    # d'A1 promettrait un droit inexerçable.
+    service.mark_lesson_seen(db, student_id, lesson_id)
     # Journal d'activité : consultation tracée AU PLUS une fois par (élève, leçon, jour Paris)
     # — un rafraîchissement de page n'est pas une activité. Après le service : une leçon
     # introuvable (404) n'entre jamais dans le journal.
     log_view_once_per_day(
         db,
-        student_id=get_default_student(db).id,
+        student_id=student_id,
         event_type=EVENT_LESSON_VIEWED,
         payload_key="lesson_id",
         payload_value=lesson_id,
