@@ -266,7 +266,7 @@ def create_champion_mission(
     Retourne la mission (schéma pilot) + le résumé d'équipement par notion."""
     unique_ids, _skills = _validate_champion(db, skill_ids, flavor)  # valider AVANT d'équiper
     # Équiper chaque notion AVANT de composer (ADR-0021 déc. 4). Import paresseux → pas de cycle.
-    from app.modules.reports.service import equip_notion
+    from app.modules.production.equipment import equip_notion
 
     equipment = [
         equip_notion(db, skill_id=sid, llm=llm, embedder=embedder) for sid in unique_ids
