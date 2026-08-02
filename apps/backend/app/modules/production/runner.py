@@ -30,6 +30,7 @@ from app.db.models import (
     Lesson,
     LessonSkill,
     Mindmap,
+    ProductionEvent,
     ProductionRun,
     Quiz,
     SpacedReviewCard,
@@ -66,6 +67,85 @@ def _stamp(db: Session, watermark: dict[str, int], run_id: int) -> int:
             row.production_run_id = run_id
             stamped += 1
     return stamped
+
+
+def _stamp_course(db: Session, *, skill_id: int, run_id: int) -> None:
+    """Attribue au lot le COURS que ZETIS vient de rédiger — ce que le filigrane ne peut pas voir.
+
+    ⚠️ **Trou trouvé le 2026-08-02, en écrivant les tests du Journal.** `_stamp` attribue les
+    lignes **nées** depuis le filigrane ; or `equip_notion` ne crée jamais de `Lesson` — il écrit
+    du contenu dans une ligne **préexistante** (le référentiel a créé la leçon bien avant). `Lesson`
+    figurait donc dans `_PRODUCED` sans jamais pouvoir y être attribuée.
+
+    Sans ce tamponnage, **le veto sur le cours n'aurait identifié aucun cours** — c'est-à-dire
+    exactement la classe (A1) dont le palier 3 justifie tout le chantier d'autonomisation.
+
+    Appelé **uniquement** quand `equip_notion` a rapporté `cours` dans `generated` : c'est la seule
+    situation où ZETIS a écrit le texte. Un cours que Papa avait rédigé, ou seulement validé en
+    lot, n'appartient à aucun lot — et ne doit pas être retirable par le veto.
+    """
+    lesson = db.scalar(
+        select(Lesson)
+        .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
+        .where(LessonSkill.skill_id == skill_id, Lesson.status != "archived")
+        .order_by(Lesson.id.desc())
+        .limit(1)
+    )
+    if lesson is not None and lesson.production_run_id is None:
+        lesson.production_run_id = run_id
+
+
+def _record(
+    db: Session,
+    *,
+    run_id: int,
+    skill_id: int | None,
+    piece: str | None,
+    outcome: str,
+    detail: str | None = None,
+) -> None:
+    """Ajoute une ligne au journal. **Pas de commit** — l'appelant commite (ADR-0034 §1).
+
+    Le patron vient de `log_learning_event` : l'événement vit dans la MÊME transaction que l'acte
+    qu'il trace. Commiter ici ferait survivre un journal à un acte annulé, ou l'inverse.
+    """
+    db.add(
+        ProductionEvent(
+            run_id=run_id,
+            skill_id=skill_id,
+            piece=piece,
+            outcome=outcome,
+            detail=detail,
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+
+
+def _record_notion(db: Session, *, run_id: int, result: dict) -> None:
+    """Traduit UN retour d'`equip_notion` en lignes de journal.
+
+    ⚠️ Aucune information nouvelle n'est calculée ici : `generated` / `skipped` / `errors` sont
+    exactement ce que l'orchestrateur renvoyait déjà et que `execute` jetait. Le `reason` de
+    niveau notion (« Aucune leçon rattachée », « Cours indisponible ») remplit le `detail` des
+    pièces qu'il explique — une seule forme de ligne, jamais deux.
+    """
+    skill_id = result.get("skill_id")
+    reason = result.get("reason")
+    for piece in result.get("generated", []):
+        _record(db, run_id=run_id, skill_id=skill_id, piece=piece, outcome="generated")
+    for piece in result.get("skipped", []):
+        _record(
+            db, run_id=run_id, skill_id=skill_id, piece=piece, outcome="skipped", detail=reason
+        )
+    for err in result.get("errors", []):
+        _record(
+            db,
+            run_id=run_id,
+            skill_id=skill_id,
+            piece=err.get("piece"),
+            outcome="error",
+            detail=err.get("message"),
+        )
 
 
 def massimo_is_active(db: Session, *, student_id: int) -> bool:
@@ -191,6 +271,10 @@ def execute(
         raise ValueError(f"production_run {run_id} introuvable")
 
     run.status = "running"
+    # ⚠️ `created_at` n'est pas l'heure de démarrage : le job a attendu en file (concurrence 1).
+    # Sans `started_at`, la durée d'un lot inclurait son attente et ne mesurerait rien.
+    run.started_at = datetime.now(timezone.utc)
+    run.heartbeat_at = run.started_at
     db.commit()
 
     from app.modules.settings import service as settings_service
@@ -210,6 +294,17 @@ def execute(
     # un lot en panne là où il a fini.
     run.total_notions = len(eligible)
     run.done_notions = 0
+    # Les notions écartées par le gate entrent au journal AVANT toute production (ADR-0034 §1) :
+    # un lot interrompu à la première notion doit quand même dire ce qu'il n'allait pas faire.
+    for item in blocked:
+        _record(
+            db,
+            run_id=run_id,
+            skill_id=item["skill_id"],
+            piece=None,
+            outcome="blocked",
+            detail=item["reason"],
+        )
     db.commit()
 
     try:
@@ -217,21 +312,41 @@ def execute(
             # Entre deux notions — le grain de la préemption (ADR-0031 §3).
             _wait_for_massimo(db, student_id=run.student_id)
 
+            run.current_skill_id = skill_id
             watermark = _max_ids(db)
             result = equipment.equip_notion(
                 db, skill_id=skill_id, llm=llm, embedder=embedder, authority=authority
             )
             result["pieces_stamped"] = _stamp(db, watermark, run_id)
+            if "cours" in result.get("generated", []):
+                _stamp_course(db, skill_id=skill_id, run_id=run_id)
             run.done_notions = (run.done_notions or 0) + 1
+            # Le battement et le détail vivent dans LE MÊME commit que l'avancement : un lot tué
+            # entre les deux laisserait un journal qui ment sur ce qu'il a fait.
+            run.heartbeat_at = datetime.now(timezone.utc)
+            _record_notion(db, run_id=run_id, result=result)
             db.commit()
             results.append(result)
         run.status = "done"
-    except Exception:  # noqa: BLE001 — un lot qui échoue doit le DIRE, pas disparaître
+    except Exception as exc:  # noqa: BLE001 — un lot qui échoue doit le DIRE, pas disparaître
         logger.exception("production: lot %s interrompu", run_id)
         run.status = "failed"
+        # L'échec lui-même entre au journal. `skill_id` = la notion en cours, s'il y en avait une :
+        # « le lot a échoué » sans dire OÙ oblige à relire les logs du worker.
+        _record(
+            db,
+            run_id=run_id,
+            skill_id=run.current_skill_id,
+            piece=None,
+            outcome="error",
+            detail=str(exc),
+        )
         raise
     finally:
         run.finished_at = datetime.now(timezone.utc)
+        # Plus rien n'est en cours — laisser la dernière notion affichée ferait lire un lot fini
+        # comme un lot bloqué dessus.
+        run.current_skill_id = None
         db.commit()
 
     return {"run_id": run_id, "equipped": results, "blocked": blocked}

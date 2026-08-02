@@ -4,6 +4,64 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/journal-production` — le Journal et le veto (ADR-0034) — 2026-08-03
+
+### `Lesson.production_run_id` n'était JAMAIS écrit — le filigrane ne peut structurellement pas le voir
+
+`_stamp` attribue au lot **les lignes NÉES depuis le filigrane** (`model.id > watermark`). Or
+`equip_notion` **ne crée aucune `Lesson`** : il écrit `content_markdown` dans une ligne que le
+référentiel a créée bien avant. `Lesson` figurait donc dans `_PRODUCED` sans jamais pouvoir y être
+attribuée.
+
+**Conséquence, trouvée en écrivant les tests et pas au cadrage : le veto sur le cours n'aurait
+identifié AUCUN cours** — c'est-à-dire exactement la classe (A1) dont le palier 3 justifie tout le
+chantier d'autonomisation.
+
+Réparé par `_stamp_course`, appelé **uniquement** quand `equip_notion` rapporte `cours` dans
+`generated` : c'est la seule situation où ZETIS a écrit le texte. Un cours rédigé par Papa, ou
+seulement validé en lot, n'appartient à aucun lot et **ne doit pas être retirable**.
+
+> **Corollaire à ne pas oublier** : un cours n'appartient à un lot **qu'au palier 3** (au palier 2
+> le gate ne laisse passer que les notions dont le cours existe déjà). Les tests du veto sur le
+> cours doivent donc écrire `a1 = 3` directement en base — l'API l'accepte depuis le 2026-08-03,
+> mais le scénario reste celui du palier 3.
+
+### `Fiche` et `Mindmap` n'ont AUCUNE colonne `title`
+
+Vu seulement à l'écran : le Journal affichait « fiche #18 ». Les deux dérivés sont **leçon-centrés
+par construction** (ADR-0015/0016 : une fiche = une leçon = une page), donc leur identité est celle
+de leur **leçon**. `Quiz` a bien un `title`, `Lesson` aussi. Résoudre les titres **en une requête**
+(`_lesson_titles`), jamais une par pièce.
+
+### SQLite rend un datetime NAÏF là où Postgres rend un datetime AWARE
+
+`is_stale` comparait `datetime.now(timezone.utc)` à `run.heartbeat_at` relu de la base :
+`TypeError: can't subtract offset-naive and offset-aware datetimes`. **Le piège est qu'il ne se
+manifeste que d'un côté** — en test (SQLite) ou en prod (Postgres) selon lequel voit le cas en
+premier. Normaliser en `tzinfo=utc` avant toute soustraction sur une valeur relue.
+
+### Le §G.3 énumérait « quatre familles » consommables et oubliait le COURS
+
+Sa liste — `SpacedReviewAttempt`, `QuizAttempt`, `CapsuleView`, `fiche_views` / `mindmap_views` —
+ne couvrait pas `Lesson`. Le signal existait pourtant (`EVENT_LESSON_VIEWED`, émis par
+`student_lesson_cours`) mais sous une **cinquième forme** : `payload_json->>'lesson_id'`, **non
+indexé** (l'index de `learning_events` est `(student_id, created_at)`). D'où la table
+`lesson_views`, quatrième du patron. **`lesson_viewed` continue d'être émis en parallèle** — il
+sert la heatmap et les sessions, pas le veto.
+
+### `app.routes` ne rend rien d'introspectable dans cette version de FastAPI
+
+`[r.path for r in app.routes]` lève `AttributeError: '_IncludedRouter' object has no attribute
+'path'`, et le filtre `isinstance(r, APIRoute)` renvoie **0**. Pour vérifier qu'une route est bien
+montée, passer par `/openapi.json` (ou un `TestClient`), pas par l'introspection de `app.routes`.
+
+### Le bouton « Passer » de l'écran de login n'appartient pas à ZETIS
+
+Cherché dans `apps/frontend-papa/src` : introuvable. C'est un élément du navigateur (gestionnaire
+de mots de passe), pas un contournement d'authentification de l'app. Pour vérifier une page Papa
+sans saisir de mot de passe : forger un jeton avec `create_access_token('papa','papa')` et le
+poser dans `localStorage` sous la clé **`zetis_papa_token`** (`authClient.ts`).
+
 ## Chantier `feat/paliers-autonomie` — les paliers d'autonomie (ADR-0032) — 2026-08-02
 
 ### `set_lesson_validation` tamponnait `parent` sur un cours que personne n'avait ouvert

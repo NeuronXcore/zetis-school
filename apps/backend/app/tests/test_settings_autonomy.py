@@ -113,18 +113,34 @@ def test_les_classes_verrouillees_refusent_lecriture(client_db, key: str, value:
     assert _values(client.get(API).json())[key] == svc.BY_KEY[key].default
 
 
-def test_a1_au_palier_3_est_refuse_tant_que_le_veto_na_pas_decran(client_db) -> None:
-    """VERROU n°5 : le palier 3 d'A1 et son veto se livrent ensemble, ou pas du tout.
+def test_a1_au_palier_3_nest_ouvert_que_parce_que_le_veto_a_un_ecran(client_db) -> None:
+    """VERROU n°5, dans sa forme d'après le Journal — REMPLACE, ne supprime pas.
 
-    Laisser ZETIS servir des cours sans surface pour les retirer, ce serait livrer un droit qui
-    n'existe pas. Le jour où le Journal est livré, `VETO_SURFACE_AVAILABLE` passe à `True`.
+    L'ancienne version exigeait `VETO_SURFACE_AVAILABLE is False` et un 422. Son propre docstring
+    annonçait sa péremption : *« le jour où le Journal est livré, ce drapeau passe à True »*. Ce
+    jour est le 2026-08-03.
+
+    **Le remplacement est plus strict que l'original.** L'ancien vérifiait qu'une porte était
+    fermée ; celui-ci vérifie que si elle est ouverte, c'est parce que la surface qui la justifie
+    EXISTE VRAIMENT. Se contenter de retourner l'assertion (`is True`) aurait transformé un verrou
+    de doctrine en constat tautologique.
+
+    Le jour où quelqu'un démonterait le Journal sans remettre le drapeau à `False`, ce test tombe —
+    et c'est exactement ce qu'on lui demande.
     """
     client, _ = client_db
-    assert svc.VETO_SURFACE_AVAILABLE is False
 
+    # 1) Le palier 3 est réellement acceptable.
     response = client.put(API, json={"values": {svc.A1: svc.SERVE}})
-    assert response.status_code == 422
-    assert "Journal" in response.json()["detail"]
+    assert response.status_code == 200, response.text
+    assert _values(client.get(API).json())[svc.A1] == svc.SERVE
+
+    # 2) …et il ne l'est QUE parce que le veto a une surface exerçable. Les deux routes du geste
+    #    doivent exister : sans elles, « Retirer » est un mot sur un écran.
+    assert svc.VETO_SURFACE_AVAILABLE is True
+    missing = client.delete("/api/production/journal/pieces/fiche/999999")
+    assert missing.status_code == 404, "la route de retrait n'existe pas — le droit est vide"
+    assert client.get("/api/production/journal").status_code == 200
 
 
 def test_la_monotonie_est_une_regle_pas_une_preference() -> None:

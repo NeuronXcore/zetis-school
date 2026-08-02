@@ -41,6 +41,11 @@ export const PAPA_NAV: NavItem[] = [
   // de notification (compteur en attente) — c'est une file de TRAVAIL de Papa, pas un signal
   // d'activité de Massimo : le compteur y est légitime (contrairement à l'Agenda, cf. plus haut).
   { to: "/demandes", label: "Demandes de Massimo", icon: "📥" },
+  // Journal de production (ADR-0034). Placé juste après la Couverture, dont il est le REVERS :
+  // la Couverture dit « qu'est-ce qui manque » (matrice d'état), le Journal dit « qu'est-ce que
+  // ZETIS a fait » (flux daté). Aucun badge, aucun compteur : ce serait un ratio de délégation,
+  // que le §F.2 interdit — la provenance est un fait, jamais un reproche.
+  { to: "/journal", label: "Journal de production", icon: "📜" },
   { to: "/annees", label: "Années scolaires", icon: "🗓️" },
   { to: "/programme", label: "Programme", icon: "📖" },
   { to: "/cartes-revision", label: "Cartes de révision", icon: "🗂️" },

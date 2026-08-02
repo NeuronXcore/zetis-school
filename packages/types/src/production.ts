@@ -151,3 +151,74 @@ export interface ProductionRun {
   created_at: string;
   finished_at: string | null;
 }
+
+// --- Journal de production et veto (ADR-0034) ---------------------------------------------------
+
+/** ⚠️ `stale` est RENDU par le serveur, jamais stocké : un lot dont le battement de cœur a expiré.
+ *  La base ne connaît que quatre statuts, l'écran en montre cinq. */
+export type JournalRunStatus = ProductionRunStatus | "stale";
+
+export type PieceKind = "cours" | "fiche" | "mindmap" | "quiz" | "srs";
+
+/** `blocked` porte sur la NOTION (`piece: null`) : le gate du §7 l'a écartée avant production.
+ *  Une notion silencieusement omise se lirait comme un échec, alors que c'est un gate qui marche. */
+export type EventOutcome = "generated" | "skipped" | "error" | "blocked";
+
+export interface JournalEvent {
+  skill_id: number | null;
+  skill_name: string | null;
+  piece: PieceKind | null;
+  outcome: EventOutcome;
+  detail: string | null;
+  created_at: string;
+}
+
+export interface JournalPiece {
+  kind: PieceKind;
+  id: number;
+  label: string;
+  /** `null` sur les cartes SRS : aucune étape de validation n'existe pour elles (constat de code,
+   *  pas un oubli — c'est pourquoi A0b est verrouillée au palier 3). Jamais « non validé ». */
+  validated_by: ValidatedBy | null;
+  skill_id: number | null;
+  skill_name: string | null;
+  /** LA question du veto : la consommation ferme la fenêtre, pas l'horloge. */
+  consumed: boolean;
+}
+
+export interface JournalRun {
+  id: number;
+  status: JournalRunStatus;
+  trigger: string;
+  authorized_by: string;
+  chapter_id: number | null;
+  total_notions: number | null;
+  done_notions: number | null;
+  current_skill_id: number | null;
+  current_skill_name: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  events: JournalEvent[];
+  pieces: JournalPiece[];
+}
+
+/** ⚠️ Aucun total de provenance, aucun ratio ZETIS/Papa (§F.2) : la provenance est un fait,
+ *  jamais un reproche — elle s'affiche par objet et ne se totalise pas. */
+export interface Journal {
+  runs: JournalRun[];
+  has_more: boolean;
+}
+
+/** Ce qu'un retrait emporterait. `removable: false` porte TOUJOURS son motif : un refus muet se
+ *  lit comme une panne. */
+export interface VetoPreview {
+  removable: boolean;
+  reason: string | null;
+  /** Ce que le retrait d'un COURS emporte — il est la source canonique de ses dérivés. */
+  cascade: Partial<Record<PieceKind, number[]>>;
+}
+
+export interface VetoRemoval {
+  removed: Partial<Record<PieceKind, number>>;
+}

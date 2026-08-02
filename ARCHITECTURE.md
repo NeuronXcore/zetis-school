@@ -87,6 +87,9 @@ Fonctions principales :
 - validation contenus générés ;
 - pilotage capsules IA ;
 - **pilotage mindmaps avec aperçu de fidélité** (voir ci-dessous) ;
+- **journal de production et veto** (`/journal`, ADR-0034) : ce que ZETIS a produit lot par lot,
+  pièce par pièce, et le geste *Retirer* tant que Massimo n'a pas ouvert. C'est la surface qui rend
+  le palier 3 d'autonomie exerçable — sans elle, le droit de veto n'existerait pas ;
 - paramètres sécurité et IA.
 
 ### `packages/ui` — briques partagées Massimo + Papa

@@ -203,7 +203,14 @@ export {
   type CoverageSubject,
   type CoverageTotals,
   type CellState,
+  type EventOutcome,
+  type Journal,
+  type JournalEvent,
+  type JournalPiece,
+  type JournalRun,
+  type JournalRunStatus,
   type OrphanType,
+  type PieceKind,
   type ProductionNotion,
   type ProductionOrphan,
   type ProductionPreview,
@@ -211,6 +218,8 @@ export {
   type ProductionRunStatus,
   type RowState,
   type ValidatedBy,
+  type VetoPreview,
+  type VetoRemoval,
 } from "./production";
 export {
   type Autonomy,

@@ -152,3 +152,81 @@ class ProductionPreviewOut(BaseModel):
     blocked: list[ProductionNotion]
     pending_backlog: int
     max_pending: int
+
+
+# --- Journal de production (ADR-0034) -----------------------------------------------------------
+
+RunStatus = Literal["queued", "running", "done", "failed", "stale"]
+# `stale` est RENDU, jamais stocké : un lot dont le battement a expiré (ADR-0034 §2). L'ajouter au
+# Literal du rendu sans l'ajouter au vocabulaire de la table est délibéré — la base ne connaît que
+# quatre statuts, l'écran en montre cinq.
+PieceKind = Literal["cours", "fiche", "mindmap", "quiz", "srs"]
+EventOutcome = Literal["generated", "skipped", "error", "blocked"]
+
+
+class JournalEventOut(BaseModel):
+    """Une ligne du détail : ce que le lot a fait d'une pièce, ou pourquoi il n'a rien fait.
+
+    `piece = None` + `outcome = 'blocked'` porte sur la NOTION : le gate du §7 l'a écartée. Une
+    notion silencieusement omise se lirait comme un échec de production.
+    """
+
+    skill_id: int | None = None
+    skill_name: str | None = None
+    piece: PieceKind | None = None
+    outcome: EventOutcome
+    detail: str | None = None
+    created_at: datetime
+
+
+class JournalPieceOut(BaseModel):
+    """Une pièce produite par le lot, et si elle est encore rétractable."""
+
+    kind: PieceKind
+    id: int
+    label: str
+    # `None` pour les cartes SRS : `spaced_review_cards` n'a NI `validation_status` NI
+    # `validated_by`. Se lit « aucune étape de validation n'existe », jamais « non validé ».
+    validated_by: ValidatedBy | None = None
+    skill_id: int | None = None
+    skill_name: str | None = None
+    # LA question du veto : la consommation ferme la fenêtre, pas l'horloge (§G.3).
+    consumed: bool
+
+
+class JournalRunOut(BaseModel):
+    id: int
+    status: RunStatus
+    trigger: str
+    authorized_by: str
+    chapter_id: int | None = None
+    total_notions: int | None = None
+    done_notions: int | None = None
+    current_skill_id: int | None = None
+    current_skill_name: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    events: list[JournalEventOut] = []
+    pieces: list[JournalPieceOut] = []
+
+
+class JournalOut(BaseModel):
+    """⚠️ Aucun total de provenance, aucun ratio ZETIS/Papa (§F.2) : la provenance est un fait,
+    jamais un reproche — elle s'affiche par objet et ne se totalise pas."""
+
+    runs: list[JournalRunOut] = []
+    has_more: bool = False
+
+
+class VetoPreviewOut(BaseModel):
+    """Ce qu'un retrait emporterait. `removable=False` porte TOUJOURS son motif."""
+
+    removable: bool
+    reason: str | None = None
+    # Ce que le retrait d'un cours emporte : le cours est la source canonique de ses dérivés.
+    cascade: dict[str, list[int]] = {}
+
+
+class VetoRemovalOut(BaseModel):
+    removed: dict[str, int] = {}

@@ -779,6 +779,72 @@ implémentation ne « corrige » l'XP :
 L'agrégat `attempt_count` / `avg_score` de ces tentatives n'est exposé que sur la route de
 pilotage Papa — il alimente la métrique de liste et le signal avant destruction des confirmations.
 
+### LessonView (ADR-0034 §4)
+
+Cours lu par un élève. **Quatrième table du patron `*_views`**, calque exact de `fiche_views`.
+
+```txt
+id
+student_id         # FK student_profiles, index
+lesson_id          # FK lessons, index
+seen_at            # premier (et seul) regard
+                   # unique(student_id, lesson_id)
+```
+
+⚠️ **Créée pour combler un trou du §G.3**, qui énumérait *quatre* familles consommables et
+oubliait le **COURS** — alors que c'est la classe (A1) dont le palier 3 justifie tout le chantier
+d'autonomisation. Sans ce signal, le veto sur un cours ne peut pas dire s'il est encore
+rétractable, et le palier 3 promettrait un droit inexerçable.
+
+**Le signal existait déjà, sous une cinquième forme** : `EVENT_LESSON_VIEWED` dans
+`learning_events`, avec le `lesson_id` dans `payload_json` — **non indexé** (l'index est
+`(student_id, created_at)`). Une famille sur cinq résolue autrement que les quatre autres se
+serait payée à chaque évolution du veto.
+
+**Les deux coexistent, délibérément** : `lesson_viewed` sert la heatmap, les sessions et le Cahier
+de bord (il se dédoublonne par JOUR) ; cette table répond à « Massimo a-t-il ouvert ce cours, une
+fois », de façon indexée. Deux lecteurs, deux besoins, aucune fusion — même règle qui interdit
+d'unir `learning_events` et `xp_events`.
+
+Créée le 2026-08-03 (migration `b6c7d8e9f0a1`).
+
+### ProductionEvent (ADR-0034 §1)
+
+Ce qu'un lot de production a fait, **pièce par pièce**.
+
+```txt
+id
+run_id             # FK production_runs, index ; + index (run_id, created_at)
+skill_id           # FK skills, nullable — un lot peut échouer avant toute notion
+piece              # cours | fiche | srs | quiz | mindmap — NULL si l'événement porte sur la notion
+outcome            # generated | skipped | error | blocked
+detail             # message d'erreur, motif de saut, ou motif de blocage — nullable
+created_at
+```
+
+**La donnée existait déjà et partait à la poubelle** : `equip_notion` renvoie
+`generated` / `skipped` / `errors` par pièce, et `runner.execute` assemblait le tout dans un
+`results` retourné au job RQ — dont personne ne lit le retour. Seul `done_notions` survivait. Cette
+table retient ce qui était déjà calculé ; **elle n'instrumente aucun générateur** (ce que l'addendum
+ADR-0031 interdit).
+
+⚠️ **Écrite dans la MÊME transaction que l'acte qu'elle trace** — patron `log_learning_event`. Un
+lot interrompu garde le détail de ce qu'il avait fait : le journal d'un crash est exactement ce
+pour quoi on l'écrit.
+
+**Une notion BLOQUÉE écrit sa ligne** (`piece = NULL`, `outcome = 'blocked'`, motif dans `detail`) :
+une notion silencieusement omise se lirait comme un échec de production, alors que c'est le gate du
+§7 qui fonctionne.
+
+Créée le 2026-08-03 (migration `b6c7d8e9f0a1`), avec **trois colonnes ajoutées à
+`production_runs`** dans la même migration — `started_at` (⚠️ `created_at` n'est pas l'heure de
+démarrage : le job attend en file), `heartbeat_at` et `current_skill_id` — et
+**`spaced_review_cards.created_at`**, seule table de contenu qui n'avait aucun horodatage.
+
+> Un lot `running` dont le battement a expiré est rendu **`stale` par la LECTURE**, jamais par un
+> balayage : le §G.3 avait écarté la quarantaine temporelle précisément parce qu'elle exigeait un
+> ordonnanceur. Le seul écrivain est `close_stale_runs`, appelé **avant** une création de lot.
+
 ### MindmapView (ADR-0030 §4)
 
 Carte vue par un élève. **« Vu » = la ligne existe** — il n'y a rien d'autre à savoir.

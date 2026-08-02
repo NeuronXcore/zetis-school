@@ -1224,6 +1224,38 @@ def student_lesson_content(db: Session, lesson_id: int) -> dict:
     }
 
 
+def mark_lesson_seen(db: Session, student_id: int, lesson_id: int) -> None:
+    """Marque le cours lu (idempotent) — le signal de consommation du veto (ADR-0034 §4).
+
+    Patron copié de `fiches.service.mark_seen`, à la lettre : test d'existence puis insert. La
+    contrainte d'unicité `(student_id, lesson_id)` est le vrai garde-fou ; ce test évite l'erreur
+    d'intégrité dans le cas courant.
+
+    ⚠️ **Distinct de `EVENT_LESSON_VIEWED`, qui continue d'être émis à côté.** L'événement sert la
+    heatmap, les sessions et le Cahier de bord (il se dédoublonne par JOUR) ; cette table répond à
+    une seule question, « Massimo a-t-il ouvert ce cours, une fois », et elle y répond de façon
+    indexée. Deux lecteurs, deux besoins, aucune fusion.
+
+    **Pas de commit** : l'appelant commite déjà pour l'événement d'activité — les deux écritures
+    doivent vivre ou tomber ensemble.
+    """
+    from app.db.models import LessonView
+
+    existing = db.scalar(
+        select(LessonView).where(
+            LessonView.student_id == student_id, LessonView.lesson_id == lesson_id
+        )
+    )
+    if existing is None:
+        db.add(
+            LessonView(
+                student_id=student_id,
+                lesson_id=lesson_id,
+                seen_at=datetime.now(timezone.utc),
+            )
+        )
+
+
 # Fenêtre de « fraîcheur » d'une notion (badge ✨ new des decks ELI5) : une notion est
 # NOUVELLE tant qu'une leçon validée qui l'enseigne a été créée dans cet intervalle.
 # Signal GLOBAL (récence de création, pas par-enfant) — `Skill`/`Chapter` n'ont pas
