@@ -9,30 +9,35 @@
 
 **Chantier : la page matière devient un index de notions (addenda ADR-0024 + ADR-0027).**
 
-Branche **`feat/page-matiere`**, créée depuis `main`. **Slices A et B FAITES, plus 7 tours
-d'affinage au vu de l'écran — 19 commits, NON POUSSÉS, pas de PR.**
+**✅ MERGÉ dans `main`** — squash **`600aef4`**, PR
+[#65](https://github.com/NeuronXcore/zetis-school/pull/65), le 2026-08-02. Branche
+`feat/page-matiere` **supprimée** (locale et distante). **Rien à pousser, rien à reprendre côté
+Git.** Les deux ADR addenda sont sur `main` (`b06123c`, `6c99dc1`).
 
 **690 backend · 447 Massimo · 270 Papa · 2 typecheck · build — tous verts.**
+**Zéro table, zéro migration.**
 
-### ⛔ Deux ADR MANQUENT encore au dépôt
+⚠️ **Ne pas ré-implémenter** ce qui suit : c'est de l'histoire, gardée pour ses pièges et ses
+motifs de décision.
 
-Le chantier a été ouvert avec ses entrées `DECISIONS.md` mais **sans les fichiers qu'elles
-référencent**. Rien ne les remplace :
+### Ce qui restait ouvert à la clôture
 
-| Référencé par | Fichier attendu |
-|---|---|
-| prompts A + B, spec | `docs/decisions/adr-0024-addendum-page-matiere-index-notions.md` |
-| prompts A + B | `docs/decisions/adr-0027-addendum-demandes-surface-eleve.md` |
-| **prompt B §1**, spec | `docs/frontend-massimo/mockup/mockup-page-matiere-v1.html` |
-
-⚠️ `DECISIONS.md` est **modifié mais NON COMMITÉ**, volontairement : ses deux entrées vont sur
-`main` **avec** les ADR (règle `WORKFLOW.md` §2bis — deux branches qui éditent `DECISIONS.md` =
-conflit garanti). Ne pas le committer sur la branche.
-
-La **maquette** avait été signalée bloquante pour la slice B (le prompt la déclare « contrat
-visuel et interactif »). Le user a tranché : **on code d'après la spec**, qui décrit la
-recherche, l'accordéon, le panneau, les demandes et les états avec assez de précision. Le rendu
-suit donc la spec + les conventions des pages Massimo existantes, **pas** une maquette.
+1. **Le seuil 620 px** (où la panoplie de 7 pastilles se masque) n'a **jamais été vu** se masquer.
+   La règle est bien compilée (`@media(min-width:620px)` dans le CSS construit), mais le
+   redimensionnement de fenêtre n'a pas changé le viewport capturé. **À regarder sur iPhone.**
+2. **Le toast** « C'est noté par ZETIS » (2,8 s) n'a pas été capturé — le bouton passe bien à
+   « demandé » et sa lueur s'éteint, donc le chemin est prouvé, mais pas le toast lui-même.
+3. ⚠️ **5 lignes de test en base de dev** : `content_requests` **#9 à #13**,
+   `source=subject_page`, créées pendant la vérification live. Elles apparaissent dans la file de
+   Papa (page Couverture) — à écarter là-bas.
+4. **La maquette `mockup-page-matiere-v1.html` n'a jamais existé** dans le dépôt. Signalée
+   bloquante, puis tranchée par le user : **codé d'après la spec**, qui décrivait la recherche,
+   l'accordéon, le panneau, les demandes et les états avec assez de précision. Le rendu suit donc
+   la spec + les conventions Massimo, **pas** une maquette.
+5. ⚠️ **La décision de sécurité n'est plus isolable dans l'historique.** L'addendum ADR-0027
+   exigeait un « commit séparé, isolable » ; le **squash** l'a dissoute (choix du user, conforme
+   aux PR #60-#64). Elle reste traçable par l'ADR et le corps de la PR #65, mais une révocation
+   isolée demanderait de reconstruire le diff à la main.
 
 ### FAIT — affinage au vu de l'écran (7 commits, après la slice B)
 
@@ -218,14 +223,32 @@ avant activation ») penche pour la seconde. **C'est une décision d'ADR, pas d'
 
 ### PROCHAIN PAS
 
-1. **VOIR LA PAGE EN VRAI.** Le user a lancé l'app et fait corriger six points, mais **l'agent
-   n'a jamais vu la page à l'écran** (session restée sur `/login` de son côté). Paire de dev
-   cadrée : `backend-galaxy` (`:8003`) + `massimo-galaxy` (`:5179`), CORS appairé — cf.
-   `.claude/launch.json`. ⚠️ Les serveurs lancés par l'agent **meurent avec la session** ; pour
-   inspecter tranquillement, les lancer depuis un terminal.
-2. **Obtenir les deux ADR** (tableau plus haut) et les poser sur `main` avec `DECISIONS.md`, qui
-   attend non commité exprès. **Y porter les deux divergences ci-dessus.**
-3. Pousser `feat/page-matiere` (15 commits) et ouvrir la PR.
+**Aucun chantier en cours.** Le lot page-matière est clos et mergé ; `main` est à jour et poussé,
+l'arbre est propre. Le prochain chantier reste à choisir.
+
+Ce que ce chantier laisse comme suites naturelles, par ordre de maturité :
+
+1. **Vérifier les deux points non vus** (620 px sur iPhone, toast) — 5 minutes, et ça ferme
+   proprement le lot.
+2. **Le mécanisme « ZETIS génère »** — c'est le **point ouvert de l'addendum ADR-0027**, et il est
+   déjà cadré comme une question : la demande déclenche-t-elle la génération, ou passe-t-elle
+   toujours par la validation de Papa ? `CLAUDE.md` (« aucune réponse IA n'est vérité absolue ;
+   validation Papa avant activation ») penche pour la seconde. **Décision d'ADR, pas d'UI** — à
+   trancher AVANT d'écrire une ligne. C'est ce qui a motivé le retrait de la phrase « ZETIS ne
+   fabrique rien tout seul ».
+3. **`/capsules/:slug`** — la seule pastille de la bande qui reste inerte. La leçon du quiz vaut
+   ici : la bonne question est « peut-on ajouter la route ? » avant « comment afficher qu'elle
+   manque ? ».
+4. Candidats plus anciens, toujours au BACKLOG : Lot 3 de l'agenda (ADR-0025 §11), unification des
+   deux `new_count` de `memory`, mesure de la galaxie sur iPhone/iPad.
+
+> **Serveurs de dev** : paire `backend-galaxy` (`:8003`) + `massimo-galaxy` (`:5179`), CORS
+> appairé — cf. `.claude/launch.json`. ⚠️ Ceux que l'agent lance **meurent avec la session** ;
+> pour inspecter tranquillement, les lancer depuis un terminal.
+>
+> **Vérification à l'écran** : le panneau d'aperçu a son **propre** stockage — la session de
+> l'utilisateur n'y est pas. Pour voir une page derrière `RequireAuth`, passer par
+> `claude-in-chrome` (le vrai Chrome, avec sa session).
 
 > Dette repérée en passant, **pas** traitée : `notionRouteFor` ignore `action.capsule_id` et
 > ouvre `/capsules` à plat — le libellé « Regarder la capsule » sur-promet donc déjà. C'est
