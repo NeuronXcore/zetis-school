@@ -226,6 +226,12 @@ avant activation ») penche pour la seconde. **C'est une décision d'ADR, pas d'
 **Aucun chantier en cours.** Le lot page-matière est clos et mergé ; `main` est à jour et poussé,
 l'arbre est propre. Le prochain chantier reste à choisir.
 
+> ⚠️ **Si tu lis ceci et que le chantier décrit plus haut a été mergé entre-temps : remets ce
+> fichier au réel AVANT de reprendre.** C'est l'étape **4bis** de `docs/WORKFLOW.md §5`, ajoutée
+> le 2026-08-02 précisément parce que ce fichier a survécu **deux fois** à son propre chantier
+> (`8618b78`, `c16719c`). Le symptôme : `MEMORY.md` parle d'une branche que `git branch -r` ne
+> montre plus. Le test : *ce fichier décrit-il encore le dépôt tel qu'il est ?*
+
 Ce que ce chantier laisse comme suites naturelles, par ordre de maturité :
 
 1. **Vérifier les deux points non vus** (620 px sur iPhone, toast) — 5 minutes, et ça ferme
@@ -241,6 +247,17 @@ Ce que ce chantier laisse comme suites naturelles, par ordre de maturité :
    manque ? ».
 4. Candidats plus anciens, toujours au BACKLOG : Lot 3 de l'agenda (ADR-0025 §11), unification des
    deux `new_count` de `memory`, mesure de la galaxie sur iPhone/iPad.
+
+### Décision de process prise à la clôture (2026-08-02)
+
+**`docs/WORKFLOW.md` gagne une étape 4bis** : *remettre `MEMORY.md` au réel après le merge*.
+Ajoutée au §2 (boucle, étape « Intégrer ») **et** à la timeline du §5, avec son motif.
+
+Le défaut est structurel, pas un oubli : `MEMORY.md` s'écrit **avant** le merge et rien ne le
+réveille après. Ce que 4bis doit consigner — squash + n° de PR, branche supprimée, « rien à
+pousser », et surtout les **résidus** de clôture (vérifications non faites, données de test en
+base, décisions différées). Ces résidus ne vivent nulle part ailleurs : ni Git ni les ADR ne les
+portent.
 
 > **Serveurs de dev** : paire `backend-galaxy` (`:8003`) + `massimo-galaxy` (`:5179`), CORS
 > appairé — cf. `.claude/launch.json`. ⚠️ Ceux que l'agent lance **meurent avec la session** ;

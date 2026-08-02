@@ -38,9 +38,12 @@ dans le dépôt, pas dans le contexte de l'agent.**
 5. **Mémoriser** — l'agent écrit la reprise (`MEMORY.md`) **pendant qu'il est lucide**, puis
    commit. *Pourquoi :* pour que la doc voyage *dans* le commit. La conversation est volatile,
    le dépôt est permanent.
-6. **Intégrer** — PR → revue du diff → merge → `git pull` sur `main` → chantier suivant depuis
-   un `main` à jour. *Pourquoi la PR même en solo :* c'est la porte de revue matérialisée,
-   *avant* que le code n'entre dans `main`.
+6. **Intégrer** — PR → revue du diff → merge → `git pull` sur `main` → **remettre `MEMORY.md` au
+   réel** → chantier suivant depuis un `main` à jour. *Pourquoi la PR même en solo :* c'est la
+   porte de revue matérialisée, *avant* que le code n'entre dans `main`. *Pourquoi `MEMORY.md`
+   ici :* il a été écrit à l'étape 5, donc **avant** le merge — il annonce encore une branche
+   vivante et des commits à pousser. C'est arrivé **deux fois** (`8618b78`, `c16719c`), et à
+   chaque fois la session suivante a failli refaire du travail déjà fait.
 
 ## 2bis. Ouvrir un chantier — le geste git standard
 
@@ -127,6 +130,8 @@ FIN DE SESSION (l'agent est encore lucide)
   2. [code]       graphify update .          → carte du code à jour
   3. [vérif]      TU vérifies la reprise      → contrôle de MEMORY.md
   4. [décisions]  commit wip + push           → l'état du code est figé
+  ── si le chantier est fini : PR → merge ──
+  4bis.[décisions] MEMORY.md AU RÉEL          → mergé, branche supprimée, rien à pousser
 ─────────────  coupure — le contexte est perdu  ─────────────
 NOUVELLE SESSION (amnésique, repart de zéro)
   5. [code]       graphify update / explain   → réorientation, sans tout relire
@@ -134,6 +139,20 @@ NOUVELLE SESSION (amnésique, repart de zéro)
   7. [vérif]      vérifie l'existant           → ne recode rien de fait
   8. →            reprends au « prochain pas »  → le chantier continue
 ```
+
+⚠️ **L'étape 4bis est celle qu'on oublie, et c'est structurel.** `MEMORY.md` est écrit à
+l'étape 1 — donc **avant** le merge — et rien ne le réveille après. Il survit à son propre
+chantier en annonçant une branche vivante, des commits « NON POUSSÉS » et un « prochain pas »
+déjà fait. La session suivante lit ça et repart travailler sur du travail terminé.
+
+Le symptôme est reconnaissable : `MEMORY.md` parle d'une branche que `git branch -r` ne montre
+plus. **C'est arrivé deux fois** (`8618b78`, `c16719c`). Le remède tient en une question à se
+poser juste après le merge : *« ce fichier décrit-il encore le dépôt tel qu'il est ? »*
+
+Ce que 4bis doit consigner, au minimum : le **squash** et le numéro de PR, la **suppression de
+la branche**, « rien à pousser », et surtout ce que la clôture **laisse ouvert** — vérifications
+non faites, données de test restées en base, décisions différées. Ces résidus-là ne vivent nulle
+part ailleurs : ni Git ni les ADR ne les portent.
 
 ## 6. Textes-types (à coller dans Claude Code)
 

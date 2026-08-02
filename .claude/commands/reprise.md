@@ -24,6 +24,11 @@ Conforme à `docs/WORKFLOW.md` §5–6.
 ## Ta tâche, dans cet ordre — AVANT d'écrire une ligne
 
 1. Lis `MEMORY.md` § "Reprise" : FAIT / EN COURS / À FAIRE / DÉCISIONS ACTIVES / PROCHAIN PAS.
+   **Puis CONFRONTE-le à l'état réel affiché ci-dessus** — branche, `git log`, `git status`.
+   `MEMORY.md` est écrit AVANT le merge : s'il annonce une branche que tu n'es pas dessus, des
+   commits « non poussés » déjà dans `main`, ou un « prochain pas » que le `git log` montre
+   comme fait, **il a survécu à son propre chantier**. Remets-le au réel AVANT de reprendre, et
+   dis-le-moi. (`docs/WORKFLOW.md §5`, étape 4bis — c'est arrivé deux fois.)
 2. Relis l'ADR et le prompt de référence du chantier en cours — les DÉCISIONS ACTIVES ne se
    rediscutent pas.
 3. `graphify explain "$ARGUMENTS"` (ou la zone du PROCHAIN PAS) pour comprendre vite, sans
