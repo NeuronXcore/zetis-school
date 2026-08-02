@@ -165,7 +165,7 @@ describe("MatiereDetailPage — ce que la page ne dit JAMAIS", () => {
     // ⚠️ TEST-VERROU. `due_count = 42` est l'arriéré : l'afficher serait la pression
     // quotidienne que `CLAUDE.md` interdit. `session_size = 8` est ce que la session servira.
     const { container } = renderPage();
-    await screen.findByText(/8 cartes à revoir/);
+    await screen.findByLabelText("8 cartes à revoir en SVT");
     expect(container.textContent).not.toContain("42");
   });
 
@@ -220,6 +220,137 @@ describe("MatiereDetailPage — en-tête et états", () => {
     expect(await screen.findByRole("heading", { name: "SVT" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /La cellule/ }));
     expect(screen.getByRole("button", { name: /Mitose/ })).toBeInTheDocument();
+  });
+});
+
+// --- La bande « ce que ZETIS a pour cette matière » ---------------------------------------
+
+describe("MatiereDetailPage — ce que ZETIS a pour la matière", () => {
+  it("annonce chaque type de contenu, avec son compte", async () => {
+    // Fixture SVT : Mitose a tout (cours l.3, fiche 5, capsule 6, mindmap 7, quiz 8),
+    // Photosynthèse a une fiche (9), Racines un cours (leçon 4). Plus 8 cartes à revoir.
+    renderPage();
+    expect(await screen.findByLabelText("2 cours en SVT")).toBeInTheDocument();
+    expect(screen.getByLabelText("2 fiches en SVT")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 capsule en SVT")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 carte en SVT")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 quiz en SVT")).toBeInTheDocument();
+    expect(screen.getByLabelText("8 cartes à revoir en SVT")).toBeInTheDocument();
+  });
+
+  it("compte des RESSOURCES, pas des notions — deux notions d'une même leçon font UNE fiche", async () => {
+    // ⚠️ LE test de ce lot. Plusieurs notions partagent la même leçon, donc la même fiche et le
+    // même cours : le serveur renvoie le MÊME `fiche_id` sur chacune. Sans déduplication, le
+    // compte serait gonflé d'autant de fois que la leçon enseigne de notions.
+    vi.mocked(fetchSubjectPanoply).mockResolvedValue({
+      ...PANOPLY,
+      chapters: [
+        {
+          chapter_id: 10,
+          title: "La cellule",
+          notions: [1, 2, 3].map((skill_id) => ({
+            skill_id,
+            name: `Notion ${skill_id}`,
+            status: "weak" as const,
+            actions: [
+              // Même leçon, même fiche : trois notions, UNE ressource de chaque.
+              { kind: "cours" as const, available: true, lesson_id: 77 },
+              { kind: "fiche" as const, available: true, fiche_id: 88 },
+            ],
+          })),
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByLabelText("1 cours en SVT")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 fiche en SVT")).toBeInTheDocument();
+    // Le piège qu'on évite : « 3 cours · 3 fiches ».
+    expect(screen.queryByLabelText(/3 cours/)).toBeNull();
+    expect(screen.queryByLabelText(/3 fiches/)).toBeNull();
+  });
+
+  it("les types adressables sont des liens vers leur surface MATIÈRE", async () => {
+    renderPage();
+    const lien = (label: string) => screen.getByLabelText(label).getAttribute("href");
+    await screen.findByLabelText("2 cours en SVT");
+
+    expect(lien("2 cours en SVT")).toBe("/subjects/svt/cours");
+    expect(lien("2 fiches en SVT")).toBe("/fiches/svt");
+    expect(lien("1 carte en SVT")).toBe("/mindmaps/svt");
+    expect(lien("8 cartes à revoir en SVT")).toBe("/revision?subject=svt&from=svt");
+  });
+
+  it("capsule et quiz affichent leur compte SANS être cliquables", async () => {
+    // Aucune route par matière n'existe pour eux. Les envoyer sur la liste globale depuis une
+    // page de SVT serait une petite trahison — on montre le nombre, sans promettre la porte.
+    renderPage();
+    const capsule = await screen.findByLabelText("1 capsule en SVT");
+    const quiz = screen.getByLabelText("1 quiz en SVT");
+
+    expect(capsule.tagName).not.toBe("A");
+    expect(quiz.tagName).not.toBe("A");
+    expect(capsule.textContent).toContain("1");
+    expect(quiz.textContent).toContain("1");
+  });
+
+  it("un type sans rien n'a PAS de pastille", async () => {
+    vi.mocked(fetchSubjectPanoply).mockResolvedValue({
+      ...PANOPLY,
+      chapters: [
+        {
+          chapter_id: 10,
+          title: "La cellule",
+          notions: [
+            {
+              skill_id: 1,
+              name: "Mitose",
+              status: "weak",
+              actions: [{ kind: "cours", available: true, lesson_id: 3 }],
+            },
+          ],
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByLabelText("1 cours en SVT")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/fiche/)).toBeNull();
+    expect(screen.queryByLabelText(/capsule/)).toBeNull();
+    expect(screen.queryByLabelText(/quiz/)).toBeNull();
+  });
+
+  it("la bande DISPARAÎT quand la matière n'a encore rien", async () => {
+    // Une matière vide n'affiche pas six zéros : ce serait dresser la liste de ce qui manque.
+    vi.mocked(fetchSubjectPanoply).mockResolvedValue({ ...PANOPLY, chapters: [] });
+    vi.mocked(fetchReviewsSummary).mockResolvedValue({
+      ...SUMMARY,
+      subjects: [{ ...SUMMARY.subjects[0], due_count: 0, session_size: 0 }],
+    });
+    renderPage();
+
+    await screen.findByText(/arrivent bientôt/);
+    expect(screen.queryByLabelText(/en SVT/)).toBeNull();
+  });
+
+  it("les nombres ne bougent PAS pendant une recherche", async () => {
+    // La bande décrit la MATIÈRE, pas les résultats : elle est calculée sur les chapitres
+    // bruts, jamais sur les chapitres filtrés.
+    renderPage();
+    await screen.findByLabelText("2 fiches en SVT");
+    fireEvent.change(screen.getByLabelText("Cherche une notion"), {
+      target: { value: "photosynthese" },
+    });
+    expect(screen.getByLabelText("2 fiches en SVT")).toBeInTheDocument();
+    expect(screen.getByLabelText("2 cours en SVT")).toBeInTheDocument();
+  });
+
+  it("ELI5 n'est PAS dans la bande — ce n'est pas un produit du catalogue", async () => {
+    // Il ne stocke rien : il se génère à la volée. Le compter n'aurait aucun sens, et le
+    // serveur ne lui donne d'ailleurs aucun identifiant.
+    renderPage();
+    await screen.findByLabelText("2 cours en SVT");
+    expect(screen.queryByLabelText(/explication/)).toBeNull();
   });
 });
 

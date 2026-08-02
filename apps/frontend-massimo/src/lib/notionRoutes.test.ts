@@ -5,6 +5,7 @@ import {
   SUBJECT_BACK_PARAM,
   missingRequestKinds,
   notionRouteFor,
+  subjectRouteFor,
 } from "./notionRoutes";
 
 const CTX = {
@@ -149,6 +150,41 @@ describe("missingRequestKinds", () => {
     const kinds = missingRequestKinds(TOUTES.map((kind) => ({ kind, available: false })));
     expect(kinds).toHaveLength(6);
     expect(new Set(kinds).size).toBe(6);
+  });
+});
+
+describe("subjectRouteFor — la table SŒUR, au grain matière", () => {
+  it.each([
+    ["cours", "/subjects/svt/cours"],
+    ["fiche", "/fiches/svt"],
+    ["mindmap", "/mindmaps/svt"],
+    ["revision", "/revision?subject=svt&from=svt"],
+  ] as const)("« %s » a une surface matière", (kind, route) => {
+    expect(subjectRouteFor(kind, "svt")).toBe(route);
+  });
+
+  it("la mindmap ouvre le DECK, pas une carte en reconstruction", () => {
+    // Différence avec la route par notion (`/mindmaps/reconstruire/:id`) : depuis un compte
+    // agrégé, on n'a aucune carte précise à ouvrir.
+    expect(subjectRouteFor("mindmap", "svt")).toBe("/mindmaps/svt");
+    expect(notionRouteFor({ kind: "mindmap", available: true, mindmap_id: 44 }, CTX)).toEqual({
+      mode: "navigate",
+      to: "/mindmaps/reconstruire/44",
+    });
+  });
+
+  it.each(["capsule", "quiz", "eli5"] as const)(
+    "« %s » n'a AUCUNE surface matière — et ce n'est pas un oubli",
+    (kind) => {
+      // `/capsules` est une liste globale (aucun `/capsules/:slug`), `/quiz` garde la matière
+      // en état interne, et ELI5 n'est adressable que par notion. Renvoyer `null` oblige
+      // l'appelant à ne pas les rendre cliquables, plutôt qu'à inventer une destination.
+      expect(subjectRouteFor(kind, "svt")).toBeNull();
+    },
+  );
+
+  it("encode le slug", () => {
+    expect(subjectRouteFor("fiche", "histoire géo")).toBe("/fiches/histoire%20g%C3%A9o");
   });
 });
 

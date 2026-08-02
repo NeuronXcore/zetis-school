@@ -13,7 +13,12 @@ import type {
 import { PanoplyError, createContentRequest, fetchSubjectPanoply } from "../lib/panoply";
 import { fetchReviewsSummary } from "../lib/reviews";
 import { matchesQuery } from "../lib/searchFold";
-import { type NotionRoute, missingRequestKinds, notionRouteFor } from "../lib/notionRoutes";
+import {
+  type NotionRoute,
+  missingRequestKinds,
+  notionRouteFor,
+  subjectRouteFor,
+} from "../lib/notionRoutes";
 
 export interface PanoplyChapterView {
   chapter_id: number;
@@ -34,6 +39,83 @@ function countReady(notions: PanoplyNotion[]): number {
   return notions.filter((notion) => notion.actions.some((action) => action.available)).length;
 }
 
+/** Un type de contenu que ZETIS a pour cette matière, et combien il en a. */
+export interface SubjectCatalogueEntry {
+  kind: GalaxyActionKind;
+  count: number;
+  /** `null` → le compte s'affiche mais ne mène nulle part (capsule, quiz : aucune route par
+   *  matière n'existe). L'appelant ne doit PAS inventer de destination. */
+  route: string | null;
+}
+
+/** Champ d'identifiant porté par chaque activité — c'est lui qui permet de compter des
+ *  RESSOURCES et non des notions. `eli5` et `revision` n'y figurent pas : le premier ne stocke
+ *  rien, le second n'expose ni id ni compte (voir `subjectCatalogue`). */
+const ID_FIELD = {
+  cours: "lesson_id",
+  fiche: "fiche_id",
+  capsule: "capsule_id",
+  mindmap: "mindmap_id",
+  quiz: "quiz_id",
+} as const satisfies Partial<Record<GalaxyActionKind, keyof GalaxyAction>>;
+
+/** Combien de ressources DISTINCTES de ce type la matière met à disposition.
+ *
+ *  ⚠️ La déduplication par `Set` n'est pas une optimisation, c'est la correction : plusieurs
+ *  notions partagent la même leçon, donc le même cours, la même fiche, la même carte et le même
+ *  quiz. Compter les notions « fiche disponible » donnerait un nombre gonflé — autant de fois
+ *  que la leçon enseigne de notions.
+ */
+function countDistinct(notions: PanoplyNotion[], kind: keyof typeof ID_FIELD): number {
+  const field = ID_FIELD[kind];
+  const ids = new Set<number>();
+  for (const notion of notions) {
+    for (const action of notion.actions) {
+      if (action.kind !== kind || !action.available) continue;
+      const id = action[field];
+      if (typeof id === "number") ids.add(id);
+    }
+  }
+  return ids.size;
+}
+
+/** Ce que ZETIS a pour cette matière, dans l'ordre pédagogique du serveur.
+ *
+ *  ⚠️ **Ces nombres mesurent ce qui est OUVRABLE DEPUIS LES NOTIONS, pas le catalogue.** Les
+ *  résolveurs serveur prennent `MAX(id)` groupé par leçon : la panoplie n'expose que la
+ *  ressource la PLUS RÉCENTE de chaque leçon. Une leçon portant 3 fiches validées compte donc
+ *  **1** ici et **3** sur la page `/fiches`.
+ *
+ *  Les deux nombres sont justes et ne répondent pas à la même question. Ne pas « corriger »
+ *  l'écart : ce compte-ci est le bon pour cette page, parce qu'il annonce exactement ce que
+ *  Massimo trouvera en dépliant ses chapitres, juste en dessous.
+ *
+ *  - `revision` ne se dérive PAS : la panoplie ne porte ni id ni compte de cartes (juste un
+ *    booléen par notion). Il vient du résumé de révision, en plafond de session — jamais
+ *    `due_count`, qui est l'arriéré.
+ *  - `eli5` est ABSENT, et ce n'est pas un oubli : il n'a pas d'id parce qu'il ne stocke rien.
+ *    Il se génère à la volée. Ce n'est pas un produit du catalogue, c'est une capacité.
+ */
+function subjectCatalogue(
+  notions: PanoplyNotion[],
+  subjectSlug: string,
+  reviewSessionSize: number,
+): SubjectCatalogueEntry[] {
+  const counts: Array<[GalaxyActionKind, number]> = [
+    ["cours", countDistinct(notions, "cours")],
+    ["fiche", countDistinct(notions, "fiche")],
+    ["capsule", countDistinct(notions, "capsule")],
+    ["mindmap", countDistinct(notions, "mindmap")],
+    ["revision", reviewSessionSize],
+    ["quiz", countDistinct(notions, "quiz")],
+  ];
+  return counts.map(([kind, count]) => ({
+    kind,
+    count,
+    route: subjectRouteFor(kind, subjectSlug),
+  }));
+}
+
 export interface UseSubjectPanoply {
   loading: boolean;
   /** 404 : matière inconnue ou hors année active. */
@@ -45,9 +127,14 @@ export interface UseSubjectPanoply {
   chapterCount: number;
   notionCount: number;
 
-  /** Ce que servirait la session de révision de cette matière. `0` → la carte ne se rend pas.
+  /** Ce que servirait la session de révision de cette matière. `0` → aucune pastille.
    *  JAMAIS `due_count` : un compteur d'arriéré est la pression quotidienne interdite. */
   reviewSessionSize: number;
+
+  /** Ce que ZETIS a pour cette matière, par type. Insensible au filtre de recherche : la bande
+   *  décrit la MATIÈRE, elle ne rétrécit pas pendant qu'on cherche. Une entrée à `0` n'est pas
+   *  rendue par le composant. */
+  catalogue: SubjectCatalogueEntry[];
 
   query: string;
   setQuery: (q: string) => void;
@@ -160,6 +247,19 @@ export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
     [chapters, searching],
   );
 
+  // Sur `rawChapters` et NON sur les chapitres filtrés : la bande décrit la matière, pas les
+  // résultats d'une recherche. Elle ne doit pas rétrécir pendant qu'on tape — même règle que le
+  // décompte « N chapitres · N notions » de l'en-tête.
+  const catalogue = useMemo(
+    () =>
+      subjectCatalogue(
+        rawChapters.flatMap((c) => c.notions),
+        subject?.slug ?? "",
+        reviewSessionSize,
+      ),
+    [rawChapters, subject, reviewSessionSize],
+  );
+
   const notionCount = useMemo(
     () => rawChapters.reduce((sum, c) => sum + c.notions.length, 0),
     [rawChapters],
@@ -241,6 +341,7 @@ export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
     chapterCount: rawChapters.length,
     notionCount,
     reviewSessionSize,
+    catalogue,
     query,
     setQuery,
     clearQuery,

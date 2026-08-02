@@ -108,6 +108,42 @@ export function notionRouteFor(action: GalaxyAction, ctx: NotionRouteContext): N
   }
 }
 
+/** Route de niveau MATIÈRE pour un type d'activité, ou `null` s'il n'y en a pas.
+ *
+ *  Table SŒUR de `notionRouteFor`, et non un repli : celle-ci part d'une notion et refuse tout
+ *  si son activité n'est pas disponible, ce qui n'a aucun sens quand on veut ouvrir « les fiches
+ *  de SVT » depuis un compte agrégé.
+ *
+ *  ⚠️ Trois types rendent `null`, et ce n'est pas un oubli :
+ *  - `capsule` — `/capsules` est une liste GLOBALE, il n'existe ni `/capsules/:slug` ni
+ *    `/capsules/:id` ;
+ *  - `quiz` — `/quiz` garde la matière en état interne, elle n'est pas dans l'URL ;
+ *  - `eli5` — il n'est adressable que par notion (`?skill_id=`), jamais par matière.
+ *
+ *  L'appelant DOIT rendre ces trois-là non cliquables. Les envoyer vers la liste globale depuis
+ *  une page de matière serait une petite trahison — exactement ce que le rétrolien corrige
+ *  ailleurs. Ils redeviendront cliquables le jour où ces routes existeront.
+ */
+export function subjectRouteFor(kind: GalaxyActionKind, subjectSlug: string): string | null {
+  const slug = encodeURIComponent(subjectSlug);
+  switch (kind) {
+    case "cours":
+      return `/subjects/${slug}/cours`;
+    case "fiche":
+      return `/fiches/${slug}`;
+    case "mindmap":
+      // ⚠️ Cette route existe (`App.tsx`), et diffère de la route par NOTION, qui ouvre une
+      // carte précise en reconstruction (`/mindmaps/reconstruire/:id`). Ici on ouvre le deck.
+      return `/mindmaps/${slug}`;
+    case "revision":
+      return `/revision?subject=${slug}&${backParam(subjectSlug)}`;
+    case "capsule":
+    case "quiz":
+    case "eli5":
+      return null;
+  }
+}
+
 /** Portée réelle d'une activité, quand elle est plus large que la notion.
  *
  *  `quiz` et `revision` n'ont AUCUN identifiant par notion (hors v1 ADR-0027, cibles

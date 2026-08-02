@@ -19,6 +19,7 @@ import { GlassPanel, NeonBackdrop } from "../components/glass";
 import { NotionPanel } from "../components/matiere/NotionPanel";
 import { NotionRow } from "../components/matiere/NotionRow";
 import { RequestToast } from "../components/matiere/RequestToast";
+import { SubjectCatalogueBand } from "../components/matiere/SubjectCatalogueBand";
 import { useOpenNotionAction } from "../hooks/useOpenNotionAction";
 import { useSubjectPanoply } from "../hooks/useSubjectPanoply";
 
@@ -106,25 +107,15 @@ export function MatiereDetailPage() {
           )}
         </div>
 
-        {/* --- Prêt à revoir --------------------------------------------------------
-            Une seule carte, jamais rendue à vide. La carte « Reprendre » (dernier contenu
-            ouvert) n'existe pas en v1 : aucune route ne sert cette donnée, et l'inventer
-            aurait menti. On affiche `session_size` — ce que la session servira vraiment — et
-            JAMAIS `due_count`, qui est l'arriéré, donc la pression quotidienne interdite. */}
-        {page.reviewSessionSize > 0 && (
-          <Link
-            to={`/revision?subject=${encodeURIComponent(slug ?? "")}&from=${encodeURIComponent(slug ?? "")}`}
-            className="mt-4 flex min-h-11 items-center gap-3 rounded-2xl border border-zetis-border bg-zetis-surface px-4 py-3 text-sm hover:border-zetis-accent-2"
-          >
-            <span aria-hidden className="text-lg">
-              🗂️
-            </span>
-            <span className="font-bold">
-              {page.reviewSessionSize} carte{page.reviewSessionSize > 1 ? "s" : ""} à revoir en{" "}
-              {subjectName}
-            </span>
-          </Link>
-        )}
+        {/* --- Ce que ZETIS a pour cette matière -------------------------------------
+            Remplace la carte « N cartes à revoir », qui n'annonçait qu'un type de contenu sur
+            six. La révision y devient une pastille parmi les autres, avec le MÊME nombre —
+            `session_size`, ce que la session servira vraiment, et jamais `due_count` qui est
+            l'arriéré (donc la pression quotidienne interdite).
+
+            La carte « Reprendre » (dernier contenu ouvert) n'existe toujours pas : aucune
+            route ne sert cette donnée, et l'inventer aurait menti. */}
+        <SubjectCatalogueBand catalogue={page.catalogue} subjectName={subjectName} />
 
         {/* --- Chapitres → notions --------------------------------------------------- */}
         <section className="mt-5">

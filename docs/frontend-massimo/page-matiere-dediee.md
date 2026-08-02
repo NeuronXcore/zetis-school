@@ -87,14 +87,45 @@ requête, réponse à la frappe.
 **Ce qui n'est pas fait ici** : la recherche sémantique. `resolve_skill` reste au chat seul
 (addendum ADR-0024 §3).
 
-### 3. Reprendre
+### 3. Ce que ZETIS a pour cette matière
 
-Deux cartes au plus, jamais rendues à vide :
+Une bande de pastilles sous la recherche : « 📖 4 cours · 🗒️ 3 fiches · 🎬 1 capsule · 🧠 2 cartes ·
+🗂️ 8 à revoir · 🎯 2 quiz ». Chacune ouvre la surface **matière** de son type.
 
-- **Reprendre** — le dernier contenu ouvert dans cette matière.
-- **Prêt à revoir** — les cartes dues pour cette matière, en **plafond de session** (patron
-  `flash_size` de l'Accueil). **Jamais `total_due`** : un compteur de retard est la pression
-  quotidienne interdite par `CLAUDE.md`.
+Avant elle, la page n'annonçait qu'un type sur six (les cartes à revoir) : tout le reste
+n'existait que notion par notion, et il fallait déplier un chapitre puis taper sur une notion
+pour découvrir qu'il y avait trois fiches dans la matière.
+
+**Les nombres sont dérivés de la panoplie déjà chargée** — zéro requête supplémentaire.
+
+> ⚠️ **Ils mesurent ce qui est OUVRABLE DEPUIS LES NOTIONS, pas le catalogue.** Les résolveurs
+> serveur prennent `MAX(id)` groupé par leçon : la panoplie n'expose que la ressource la **plus
+> récente** de chaque leçon. Une leçon portant 3 fiches validées compte donc **1** ici et **3**
+> sur `/fiches`. Les deux nombres sont justes et ne répondent pas à la même question — **ne pas
+> « corriger » l'écart**. Celui-ci est le bon pour cette page : il annonce exactement ce que
+> Massimo trouvera en dépliant ses chapitres, juste en dessous.
+>
+> Corollaire : la déduplication par `Set` sur les identifiants est **obligatoire**. Plusieurs
+> notions partagent la même leçon, donc le même cours et la même fiche ; compter les notions
+> « fiche disponible » gonflerait le nombre. Un test le verrouille.
+
+- **`revision` ne se dérive pas** : la panoplie ne porte ni id ni compte de cartes (juste un
+  booléen par notion). Il vient du résumé de révision, en **plafond de session** — **jamais
+  `due_count`**, qui est l'arriéré, donc la pression quotidienne interdite par `CLAUDE.md`.
+- **`eli5` est absent, et ce n'est pas un oubli** : il ne stocke rien, il se génère à la volée.
+  Ce n'est pas un produit du catalogue, c'est une capacité.
+- **`capsule` et `quiz` affichent leur compte sans être cliquables** : aucune route par matière
+  n'existe pour eux (`/capsules` est une liste globale, `/quiz` garde la matière en état
+  interne). Les y envoyer depuis une page de matière serait une petite trahison — exactement ce
+  que le rétrolien (§7) corrige ailleurs. Ils redeviendront cliquables le jour où ces routes
+  existeront.
+- **Une entrée à zéro n'est pas rendue, et la bande entière disparaît si tout est à zéro.** Une
+  matière vide n'affiche pas six zéros : ce serait dresser la liste de ce qui manque.
+- **Les nombres ne bougent pas pendant une recherche** : la bande décrit la matière, pas les
+  résultats.
+
+**Hors périmètre** : la carte « Reprendre » (dernier contenu ouvert). Aucune route ne sert cette
+donnée — `last_notion` est global, sans lien, sur une fenêtre de 30 jours. L'inventer aurait menti.
 
 C'est du *pull* : Massimo est déjà entré dans la matière. Aucune notification, aucun décompte de
 jours, aucun capital perdable.
