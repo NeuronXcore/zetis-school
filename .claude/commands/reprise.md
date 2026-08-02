@@ -40,3 +40,9 @@ Conforme à `docs/WORKFLOW.md` §5–6.
 
 Puis reprends au **PROCHAIN PAS** du `MEMORY.md`. Même discipline : read-before-code,
 stop-on-blocker.
+
+> **Ne démarre PAS les serveurs par réflexe.** La plupart des reprises n'en ont pas besoin. Si —
+> et seulement si — le prochain pas demande de VOIR l'app, lis `docs/WORKFLOW.md §5bis` : les
+> serveurs vont par **paires appairées** (`.claude/launch.json`), ceux que tu lances **meurent
+> avec la session**, et le panneau d'aperçu a son **propre** stockage — pour une page derrière
+> `RequireAuth`, il faut passer par `claude-in-chrome`.

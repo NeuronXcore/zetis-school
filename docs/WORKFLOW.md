@@ -154,6 +154,31 @@ la branche**, « rien à pousser », et surtout ce que la clôture **laisse ouve
 non faites, données de test restées en base, décisions différées. Ces résidus-là ne vivent nulle
 part ailleurs : ni Git ni les ADR ne les portent.
 
+## 5bis. Voir l'app tourner (quand le chantier le demande)
+
+**Seulement quand la vérification est visuelle.** Un refactor backend, une passe de tests ou de
+doc n'ouvre pas de navigateur — démarrer les serveurs par réflexe coûte deux processus pour rien.
+
+Les serveurs se lancent **par paires appairées** (`.claude/launch.json`) : chaque front pointe un
+backend précis, et ce backend n'autorise en CORS que ce front. Lancer un front sans son backend,
+ou deux paires croisées, donne un écran qui charge sans fin. Paire de référence :
+**`backend-galaxy` (`:8003`) + `massimo-galaxy` (`:5179`)**.
+
+⚠️ **Deux pièges, tous deux rencontrés le 2026-08-02 :**
+
+- **Les serveurs lancés par l'agent meurent avec la session.** Pour inspecter tranquillement,
+  les lancer depuis un terminal à soi.
+- **Le panneau d'aperçu a son PROPRE stockage.** Être connecté dans son navigateur ne connecte
+  pas l'onglet que l'agent pilote — et l'agent ne saisit pas de mot de passe. Pour voir une page
+  derrière `RequireAuth`, il doit passer par **`claude-in-chrome`** (le vrai navigateur, avec sa
+  session). Sans ça, il tourne en rond sur `/login`.
+
+**Ce que les tests ne verront jamais.** Deux défauts de cette journée n'étaient détectables qu'à
+l'écran : une pastille au compte **juste** mais non cliquable (l'affordance mentait), et quatre
+surfaces affichant « Mathematiques » sans accent (les tests vérifiaient la *destination* des
+liens, jamais le mot affiché). **Une slice d'interface n'est pas finie tant que personne ne l'a
+regardée.**
+
 ## 6. Textes-types (à coller dans Claude Code)
 
 ### 6.1 Ouverture de session (nouveau chantier)

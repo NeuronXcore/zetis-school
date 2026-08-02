@@ -259,13 +259,12 @@ pousser », et surtout les **résidus** de clôture (vérifications non faites, 
 base, décisions différées). Ces résidus ne vivent nulle part ailleurs : ni Git ni les ADR ne les
 portent.
 
-> **Serveurs de dev** : paire `backend-galaxy` (`:8003`) + `massimo-galaxy` (`:5179`), CORS
-> appairé — cf. `.claude/launch.json`. ⚠️ Ceux que l'agent lance **meurent avec la session** ;
-> pour inspecter tranquillement, les lancer depuis un terminal.
->
-> **Vérification à l'écran** : le panneau d'aperçu a son **propre** stockage — la session de
-> l'utilisateur n'y est pas. Pour voir une page derrière `RequireAuth`, passer par
-> `claude-in-chrome` (le vrai Chrome, avec sa session).
+> **Voir l'app tourner** : la marche à suivre et ses deux pièges vivent désormais dans
+> `docs/WORKFLOW.md §5bis` — donc ils survivront à la réécriture de ce fichier au prochain
+> chantier. En bref : paires appairées (`.claude/launch.json`, référence `backend-galaxy` `:8003`
+> + `massimo-galaxy` `:5179`), les serveurs de l'agent meurent avec la session, et le panneau
+> d'aperçu a son propre stockage.
+
 
 > Dette repérée en passant, **pas** traitée : `notionRouteFor` ignore `action.capsule_id` et
 > ouvre `/capsules` à plat — le libellé « Regarder la capsule » sur-promet donc déjà. C'est
