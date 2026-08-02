@@ -34,6 +34,59 @@
 - `docs/decisions/adr-0024-zetis-galaxy-progression.md` — **ZETIS Galaxy : la page Progression rendue en graphe 3D des connaissances** — *premier ADR sur la progression et la gamification* (ces décisions vivaient éparpillées entre `MEMORY.md`, specs de page et commentaires de code) ; cadrage d'un brouillon de fin juin **jamais confronté au code**, dont le read-before-code a invalidé **trois hypothèses** : `prerequisite_skill_ids` **n'existe pas** (et `parent_skill_id` est NULL partout — les « liens stellaires » n'avaient aucune source), `GET /progress/skills` **n'existe pas** (module `progress` Papa-only), et `/progression` **est déjà un onglet**. **Décisions** : la Galaxy est la **surface unique** de progression (pas de 6ᵉ onglet ; la section « par matière » **mockée** disparaît) — **route renommée `/galaxy` le 2026-07-31**, cf. addendum ; **arêtes dérivées de la structure réelle seule** (`Skill ← lesson_skills → Lesson → Chapter`, type `structure`, zéro donnée inventée, **aucune migration**) ; **rendu 3D `react-force-graph-3d`** en `lazy()` — **revirement assumé** : `@xyflow/react` retenu en début de cadrage puis disqualifié par l'exigence 3D + drag élastique, d'où **deux moteurs graphe coexistants** (React Flow reste celui des mindmaps, **ADR-0016 non rouvert**) ; **clic → panneau d'actions** adossé à une 3ᵉ route élève (constat : **seul ELI5 est notion-adressable par URL**, et aucune fonction backend ne dit « pour ce `skill_id`, quels contenus validés existent » — `production/coverage.py` est leçon-centrée **et** Papa-only), ~~règle ferme « une action sans contenu validé n'est pas proposée »~~ **RÉVISÉE le 2026-07-28** : panoplie **complète** renvoyée avec `available` calculé serveur, l'indisponible **grisé et non cliquable** (une fiche manquante n'est pas un échec de l'enfant, c'est du contenu que Papa n'a pas encore produit) ; **6ᵉ consommateur du service d'évidence**, non modifié (patron ADR-0011 §1). **Doctrine figée rétroactivement** : pas de rouge, **aucun score ni pourcentage par matière** (un **compte** d'étoiles allumées), **aucun capital perdable** (pas de streak — une étoile allumée ne s'éteint pas), `mastery_score` jamais affiché (**0–100**, pas 0–1), et le **6ᵉ statut réel `in_progress`** doit être mappé (→ `learning`) sous peine d'être manqué en silence. **Conditions de livraison** : `prefers-reduced-motion`, **repli sans WebGL** (liste par chapitre), plafond **adaptatif** `GALAXY_MAX_NODES` **40 / 90 / 150** (compact / tablette / desktop) — **valeurs provisoires, mesurées sur aucun appareil réel**. **Coût assumé** : un second moteur graphe (~600 Ko-1 Mo, isolé par `lazy()` + export en sous-chemin) et un **risque de perf 3D sur iPhone** — poste le plus **contraint** de Massimo, **pas sa cible unique** (iPhone + iPad + MacBook dédié à l'école) ; **MacBook vérifié le 2026-07-28**, iPhone, iPad et `prefers-reduced-motion` restent dus. **Hors v1** : graphe de prérequis (chantier pédagogique à part), annonce « +1 étoile », animation temps réel, réconciliation de `navigation.md` ; ~~aperçu Accueil~~ **AMENDÉ le 2026-07-28** (graphe global sur l'Accueil, `GET /api/student/galaxy/all`) puis **RÉVOQUÉ le 2026-07-31** (cf. addendum) — Accepté (2026-07-28), **livré** ; **3 amendements le jour même**, puis addendum le 2026-07-31
   - `docs/decisions/adr-0024-addendum-galaxie-page-dediee.md` — **Addendum ADR-0024 — la Galaxy prend sa route ; l'Accueil cesse de payer la 3D** : **renommage** `/progression` → **`/galaxy`** (redirection permanente, libellé de sidebar « Ma Galaxie » **à la même position** — c'est un **renommage**, pas l'ajout de la 6ᵉ entrée que l'ADR interdit, et l'alternative écartée en juillet « `/galaxy` **à côté de** `/progression` » reste écartée : **une seule surface de progression**) ; **révocation de l'amendement du 2026-07-28** — canvas 3D et frise **quittent l'Accueil**, remplacés par une **carte-bouton statique** (un **compte** d'étoiles allumées + pastilles de matières en CSS pur, **zéro import de `@zetis/ui/galaxy/canvas`** direct ou transitif, **test de budget de bundle**) : le coût assumé en juillet (« le moteur 3D arrive sur la page d'atterrissage », chunk 1,37 Mo / 368 Ko gzip) est **annulé, pas atténué** ; le **graphe global** livré le 28 pour l'Accueil (deux colonnes + badges matières cliquables + frise) n'est **pas supprimé, il change d'adresse** : `GET /api/student/galaxy/all` alimente désormais la **vue par défaut de `/galaxy`** — la **galaxie complète, toutes matières**, plafond adaptatif inchangé (replie sur matières + chapitres quand il mord), clic matière → constellation, et les **planètes CSS cessent d'être un écran** pour devenir l'**état d'attente** du chunk 3D et le **repli sans WebGL** ; `/galaxy` paie donc Three.js à l'ouverture — **c'est sa raison d'être**, le gain visait la page d'atterrissage, pas le produit → **zéro travail backend**, aucune route créée ni supprimée, aucune migration ; **continuité de télémétrie** : `POST /api/telemetry/pageview` enregistre la **route brute** depuis le 2026-07-28, le mapping route → libellé côté Papa doit accepter **les deux** valeurs sous **le même libellé**, sinon trois jours de fréquentation réelle de Massimo disparaîtraient de l'historique ou y apparaîtraient comme deux pages (**l'historique ne se réécrit pas, il s'interprète**) — seule surface Papa touchée, et **hypothèse à vérifier** : si ce mapping vit côté serveur (`parent/activity`), l'annonce « zéro backend » tombe — **TRANCHÉ à l'exécution (2026-07-31) : ce mapping n'existait NULLE PART**, ni client ni serveur ; le serveur servait la route **brute** comme `detail` (`activity/service.py:_detail_for`) et Papa la rendait **verbatim** (« Navigation · /eli5 »). Il n'y avait donc rien à **étendre**, il y avait quelque chose à **créer** : `frontend-papa/src/lib/routeLabels.ts`. « Zéro backend » **tient**, mais c'était du travail neuf ; **coûts assumés** : un clic de plus pour voir la galaxie, une redirection et un mapping à deux entrées à maintenir, et **deux décisions du même ADR rouvertes en trois jours** (4 amendements au total — le chantier Galaxy aura été cadré en marchant, c'est écrit pour être lisible, pas répété) ; **corollaires doc** : `page-accueil.md` **réécrite** — elle n'avait **jamais** documenté l'aperçu livré le 28, la spec était en retard sur le code **avant** ce chantier — maquette `mockup/mockup-page-accueil-v2.html`, et `zetis-galaxy.md §13` **redevient exact** ; **chantier autonome**, branche `feat/accueil-galaxy` (correction datée : une première rédaction le rattachait au Groupe 1/ADR-0026), **slice A** (renommage) → **slice B** (refonte de l'Accueil — héros ZETIS livré en **slot non rendu**, pour que le Groupe 1 le remplisse sans rouvrir la composition) — Accepté (2026-07-31), **les deux slices LIVRÉES le jour même**. **Trois écarts trouvés à l'exécution, tous documentés** : `GET /api/student/galaxy/overview` **n'existe pas** (c'est `/api/student/galaxy`, chemin vide — et `/overview` serait absorbé par `/{subject_slug}`, rendant « matière inconnue » plutôt qu'un 404 de route) et ne sert **aucun compte global** (somme client des `lit`) ; le **bandeau Agenda**, absent de la spec réécrite et de la maquette, est **CONSERVÉ** — c'est le seul accès à `/agenda` en phase 0 (ADR-0025), le suivre à la lettre aurait été une régression silencieuse, **la doc a été corrigée, pas le code** ; et la « brique à déplacer » du §C était en fait **deux implémentations concurrentes** (`HomeGalaxyPreview` ~420 lignes = expérience Galaxy complète, doublon de `GalaxyPage`) → **fusion** assumée, `GalaxyPage` absorbe la vue globale, l'orchestration en double disparaît. **Le test de budget interdit les `import()` autant que les imports statiques** : le canvas était **déjà** code-splitté le 28, ce qui coûtait c'était le **MONTAGE** — un test limité aux imports synchrones serait passé avant comme après, donc n'aurait rien protégé (contre-épreuve incluse, vérifiée en réintroduisant la régression)
   - `docs/decisions/adr-0024-addendum-accueil-vivant.md` — **Addendum ADR-0024 — un Accueil vivant, sans cadrage de perte** : la demande était une page plus vivante avec la **heatmap de Papa** en référence ; elle est **REFUSÉE par écrit**, avec ses **trois murs indépendants** (route supprimée par l ADR-0028 et vivant dans un agrégat `require_parent` ; `CLAUDE.md` interdit le « décompte de jours manqués, **sous quelque forme que ce soit** », et les cases vides d une grille **SONT** ce décompte ; `WeekDots.test.tsx:32` le verrouille par un test) — écrit pour ne pas être redemandé dans six mois. **À la place, la même idée RETOURNÉE** : « **Mon ciel** », une étoile par jour où Massimo a **gagné** du XP, **sans grille et sans axe de temps** — sans axe, il n y a **aucun intervalle vide à lire**, donc la carte ne **peut pas** devenir punitive même mal réutilisée (c est le mécanisme, pas une précaution d UI) ; placement **déterministe** dérivé de la date (jamais `Math.random` — un ciel qui se réarrange à chaque visite ne serait pas le sien), éclat ∝ XP du jour sur la rampe indigo → cyan → blanc, `prefers-reduced-motion` respecté. **La décision centrale** : `GET /api/gamification/history` est la **première route élève d historique**, et elle marche sur un refus **déjà écrit** (`motivation/router.py:38` : « un historique d objectifs manqués serait le streak déguisé ») — ce refus est **MAINTENU**, la distinction est de **nature** et non de degré : un **objectif** porte un attendu, donc son historique est un relevé d échecs ; un **XP** est un **gain obtenu**, et un jour sans gain n est pas un jour raté mais un jour dont il n y a **rien à dire**. **Le garde-fou est dans le CONTRAT, pas dans l UI** : les jours sans XP sont **OMIS du payload**, jamais renvoyés à zéro — la donnée d absence **n existe pas**, donc aucun client futur (qui n aura pas lu cet ADR) ne peut en dessiner une. Route dans `gamification` et **surtout pas** dans `activity`, dont le module porte la doctrine inverse (« un enfant chronométré travaille pour le chronomètre ») ; **aucune minute, aucune session, aucun `event_type`**, regroupement en **Europe/Paris** (le défaut exact relevé sur le streak retiré), fenêtre bornée serveur, **aucune migration**. **À coût nul** : « Tes derniers gains » réutilise `recent` et `badges`, **déjà servis** par `/api/gamification/summary` que le bandeau XP appelle **déjà sur cette page**, et **rendus nulle part** jusqu ici — le mapping des `reason` passe au passage de **3 à 8** (invisible tant que rien ne les affichait). **Rouvre le §B du 1ᵉʳ addendum sur un seul point** : la **frise revient** sur l Accueil — elle en avait été emportée **par association** avec le canvas, alors que le coût à annuler était **Three.js** et pas quelques lignes de SVG ; le motif tient, le **test de budget reste vert**. **Test-verrou** : le ciel ne rend **aucun élément** pour un jour sans activité — le pendant de l invariant `WeekDots` sur la nouvelle surface ; et **aucune date** n est affichée nulle part sur la page, une date rendrait le temps lisible et les intervalles vides avec lui. **Coûts assumés** : une route de plus, un second lecteur de `xp_events`, une page plus chargée (le calme du matin est partiellement rendu), et le **§B rouvert le jour même de son écriture** — branche `feat/accueil-vivant`, ouverte **par-dessus** `feat/accueil-galaxy` non mergée — Accepté (2026-07-31)
+  - `docs/decisions/adr-0024-addendum-page-matiere-index-notions.md` — **Addendum ADR-0024 — la page
+    matière est un index de notions, second rendu du modèle galaxie** : `/subjects/:slug` cesse d'être
+    un launcher au grain matière (spec de Phase 1, **antérieure à la doctrine §5** et la contredisant
+    sur trois points) et devient l'**index des notions** de la matière — la page matière **EST** le
+    repli sans WebGL promis par `zetis-galaxy.md §11`, jusqu'ici une promesse ; contrainte dure :
+    **aucun chunk 3D**, test de budget interdisant les `import()` autant que les imports statiques
+    (leçon du 2026-07-31 : ce qui coûtait, c'était le **MONTAGE**). Nouvelle route élève
+    `GET /api/student/subjects/{slug}/panoply` adossée au **prédicat de disponibilité EXTRAIT de
+    `galaxy.notion_panel` en version ENSEMBLISTE** — `notion_panel` en devient le consommateur
+    mono-notion, **interdiction d'un second prédicat** (le correctif n°2 du 2026-07-30 a déjà prouvé
+    qu'il diverge : cours annoncé dispo sur `lesson_id is not None` au lieu de `content_markdown IS
+    NOT NULL`, porte ouverte sur du vide) ; **test-verrou de cohérence croisée** (même `skill_id` →
+    même `available` sur les 7 kinds) et nombre de requêtes **indépendant du nombre de notions**
+    (référence `coverage.py` : 69 leçons / 18 requêtes / 79 ms). **Recherche locale et lexicale**
+    (client-side sur l'index déjà chargé, accents pliés, zéro requête) — la recherche **sémantique**
+    reste **au chat seul** : la dédoubler diviserait `resolve_skill` entre deux chemins et imposerait
+    d'accorder deux seuils. **Rétrolien DÉRIVÉ du slug d'URL**, jamais d'un `location.state` (robuste
+    au refresh, au partage d'URL et au retour physique iPhone) — ⚠️ hypothèse à vérifier sur ELI5,
+    notion-adressable et non matière-adressable. **Panoplie entière avec l'indisponible grisé**
+    (§4 révisé le 2026-07-28), **l'accent allant à la première activité FAISABLE**, **sauf ELI5 :
+    non offerte sans cours validé** — résolution d'une contradiction réelle entre `notion_panel`
+    (`eli5` toujours `available`) et l'orchestrateur (qui refuse d'y router sans cours, ELI5 dégradant
+    vers le modèle) ; la règle vit **dans le prédicat partagé**, pas dans la page, sinon la divergence
+    se reproduit un cran plus haut ; asymétrie assumée (routage ≠ outil). **Retirés de la spec de
+    Phase 1** : niveau/XP par matière, « Notions à renforcer » (expose les manques de l'**enfant**,
+    pas du **catalogue**), série en cours (streak retiré le 2026-07-27), « meilleure matière » (mise
+    en concurrence). **Amende l'ADR-0017** : les activités notion-centrées s'ouvrent **en pleine
+    page**, pas en modale — l'arbitrage 0017/0019 ouvert de longue date est tranché, la Galaxy l'ayant
+    déjà tranché **de fait** avec son `navigate()`. Maquette `mockup/mockup-page-matiere-v1.html`,
+    spec `page-matiere-dediee.md` **réécrite intégralement** ; branche `feat/page-matiere`, slice A
+    (backend) → slice B (frontend). **Zéro table, zéro migration** — Accepté (2026-08-01), **les
+    deux slices LIVRÉES le jour même**, puis **six amendements au vu de l'écran** : chapitres
+    **tous repliés** à l'ouverture (la page présente la matière, pas un chapitre choisi POUR
+    Massimo), **témoin « N prêtes »** sur l'en-tête replié (un COMPTE, jamais un ratio — un
+    dénominateur ferait un score, un test l'interdit ; à zéro **ni témoin ni atténuation**, un
+    chapitre grisé se lirait comme un reproche), **`session_size` par matière** ajouté à
+    `/reviews/summary` (`flash_size` est GLOBAL et `due_count` est l'arriéré interdit ; le calcul
+    vit là où vit `REVIEW_SESSION_MAX_SUBJECT`, recopier `8` dans un front l'aurait fait mentir),
+    et une **bande « ce que ZETIS a pour cette matière »** qui remplace la carte « N cartes à
+    revoir » — laquelle n'annonçait qu'un type sur six — **sans une requête de plus** (la panoplie
+    porte déjà les identifiants), `eli5` **absent** (il ne stocke rien : capacité, pas produit) et
+    `capsule`/`quiz` **non cliquables** (aucune route par matière n'existe ; les envoyer vers la
+    liste globale serait la trahison que le rétrolien corrige ailleurs). **Quatre constats du
+    read-before-code ont invalidé le cadrage** : le prompt **se contredisait** (tests de
+    `notion_panel` « sans modification » ET bascule ELI5 — tranché en deux temps, 668 verts zéro
+    modifié, puis **exactement une** assertion retournée) ; `NotionActionPanel` **ne tire PAS
+    three.js** (le baril est léger, Three vit hors baril) ; sa table de routes n'était **couverte
+    par aucun test** (9 cas de caractérisation écrits AVANT l'extraction) ; et **`app.routes`
+    n'est pas à plat** — un test « telle route n'existe pas » écrit dessus passe **à vide**, donc
+    vert même si la route existe. ⚠️ **Piège de comptage à ne pas « corriger »** : les résolveurs
+    prennent `MAX(id)` par leçon, donc une leçon à 3 fiches compte **1** sur la page matière et
+    **3** sur `/fiches` — **les deux sont justes**, ils ne répondent pas à la même question.
+    **Point ouvert** : la page **n'a jamais été vue à l'écran par l'agent**
 
 - `docs/decisions/adr-0025-agenda-scolaire.md` — **Agenda scolaire** : première **source
   exogène** du produit (les dates viennent du collège, jamais de ZETIS) ; objet **distinct
@@ -123,6 +176,51 @@
     « ✓ Ajoutée » ne créait rien auparavant. **+ correctifs live** : `notion_panel` cours honnête
     (`content_markdown`), prompt `chat_v2` (« jamais générer » porté), seuil résolveur 0.55→0.72,
     ELI5 non routé sans cours validé — Accepté (2026-07-30)
+  - `docs/decisions/adr-0027-addendum-demandes-surface-eleve.md` — **Addendum ADR-0027 — demander un
+    contenu depuis une surface élève** : lève le « hors lot » de l'addendum `content_requests`
+    (« émission depuis d'autres surfaces que le chat ») et **ouvre une route enfant en ÉCRITURE**
+    (`POST /api/student/content-requests`, `require_child`) sur un module jusqu'ici `require_parent` —
+    décision de **sécurité**, prise en ADR et **pas dans un prompt de slice**, livrée en **commit
+    séparé**. Constat : le chat émet déjà, mais l'émission est un **effet de bord invisible et
+    unitaire** — Massimo la subit, ne sait pas ce qu'il vient de demander, et la surface qui montre
+    *littéralement* ce qui manque (la panoplie grisée) n'a aucun moyen de le demander. **Écriture
+    seule** : aucun `GET`, aucun `PATCH` élève — la file de Papa n'est pas une surface de l'enfant, et
+    un « refusé » visible serait le vocabulaire d'échec interdit. **Trois garde-fous testés** :
+    vocabulaire **fermé** (`422`), **plafond** `CONTENT_REQUEST_MAX_KINDS` (v1 = 7, la panoplie
+    entière — « tout ce qui manque » tient en **un** appel), et **notion VISIBLE de l'élève** via la
+    chaîne de filtrage existante (`skill_id` arbitraire → **404 et aucune ligne créée**, sinon la
+    route devient un **oracle d'existence** sur les brouillons de Papa). `source` distingue
+    `subject_page` de `chat_orchestrator` — le **choisi** du **subi**. Geste **opt-in** (« demander »
+    sur une pastille grisée ; « tout ce qui manque (n) » en un appel), retour « **C'est noté pour
+    Papa** », **jamais** « je te le prépare » ; aucun statut, aucun délai, aucun rappel affiché à
+    l'enfant. **Aucun XP, aucun `event_type` neuf, aucune trace d'événement** — demander n'est pas
+    apprendre, et la **ligne de file EST la trace** (`chat_tool_response` émis hors chat rendrait son
+    nom menteur). `create_request` **non modifié** (idempotent + ré-activant : la dédup borne
+    structurellement l'abus) ; `production/coverage.py` **non touché**. Écartés : réutiliser
+    `notion_requests` (sémantique « hors programme, texte libre, `skill_id = None` » — l'inverse du
+    besoin), un endpoint unifiant les deux files (recolle deux sémantiques séparées à raison), un
+    `GET` élève « mes demandes » (expose `dismissed`, transforme une file de travail parent en écran
+    d'attente d'enfant), et surtout **l'émission automatique à l'affichage d'une panoplie incomplète**
+    (la file se remplirait du **survolé** et non du **voulu** — la demande perdrait son sens de
+    priorité, précisément ce qui la rend utile à Papa). **Zéro table, zéro migration** — Accepté
+    (2026-08-01), **livré le jour même**, puis **amendé DEUX fois le soir**. **(A)** « demander à
+    **Papa** » devient « demander à **ZETIS** » : l'interlocuteur de Massimo est l'app — le même
+    que dans le chat — Papa restant le **destinataire** (`source: "subject_page"` inchangé) ; le
+    retour devient « **C'est noté par ZETIS** ». **(B)** la phrase « ZETIS transmet la demande. Il
+    ne fabrique rien tout seul. » est **SUPPRIMÉE — divergence assumée avec cet ADR même**, qui
+    l'exigeait : elle était le garde-fou de (A) (« demander à ZETIS » pouvait se lire « ZETIS va le
+    faire »), et elle tombe parce que **ZETIS produira bientôt du contenu lui-même** — on ne fige
+    pas dans l'UI une limite qu'on s'apprête à lever. Ce qui reste tient sans elle : « c'est noté »
+    dit une demande **enregistrée**, sans promettre qui la traitera ni quand ; et le test qui
+    vérifiait la phrase est **REMPLACÉ, pas supprimé** — il interdit désormais « je te le prépare »,
+    tout délai et tout statut, de sorte que **le garde-fou change de forme sans disparaître**.
+    ⚠️ **Un constat du read-before-code a invalidé un garde-fou** : le plafond de 7 « la panoplie
+    entière » était **inatteignable donc décoratif** — la panoplie a 7 activités mais le vocabulaire
+    n'a que **6** types (`eli5`→`cours`, `revision`→`card`), donc une liste dédupliquée ne peut
+    jamais l'atteindre ; il est désormais mesuré sur la charge **BRUTE** (le plafond borne la
+    **taille** de l'appel, le vocabulaire borne son **contenu**). **Point ouvert** : le jour où
+    ZETIS génère, la demande déclenche-t-elle la génération ou passe-t-elle toujours par la
+    validation de Papa ? `CLAUDE.md` penche pour la seconde — **décision d'ADR, pas d'UI**
 
   - `docs/decisions/adr-0028-dashboard-papa-agregat-unique.md` — **Dashboard Papa : agrégat unique,
     dérivation client, KPI actifs**. La maquette historique contredisait **sept** décisions déjà
