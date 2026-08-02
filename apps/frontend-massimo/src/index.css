@@ -15,6 +15,13 @@
   --color-zetis-accent: #6366f1;
   --color-zetis-accent-2: #22d3ee;
 
+  /* Orange électrique — la DEMANDE (« demander à ZETIS », page matière). Une teinte à part,
+     qui ne se confond ni avec l'indigo/cyan des actions faisables ni avec l'or `#ffcf47`
+     réservé à « ZETIS parle ». Ce n'est PAS une couleur d'alerte : demander est un geste
+     positif, la seule chose que Massimo puisse faire face à un contenu qui n'existe pas
+     encore. Aucun rouge ici — la doctrine ADR-0024 §5 l'interdit partout. */
+  --color-zetis-request: #ff7a1a;
+
   /* Tokens sémantiques consommés par @zetis/ui (mappés sur la palette Massimo). */
   --color-background: var(--color-zetis-bg);
   --color-foreground: var(--color-zetis-text);

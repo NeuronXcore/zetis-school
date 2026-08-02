@@ -78,14 +78,14 @@ export function NotionPanel({
                   onClick={() => onRequest([kind])}
                   aria-label={
                     asked
-                      ? `${ui.label} — déjà demandé à Papa`
-                      : `Demander ${ui.label} à Papa`
+                      ? `${ui.label} — déjà demandé à ZETIS`
+                      : `Demander ${ui.label} à ZETIS`
                   }
                   className={
-                    "min-h-11 shrink-0 rounded-xl border border-zetis-border px-2 text-[11px] font-semibold " +
+                    "min-h-11 shrink-0 rounded-xl border px-2 text-[11px] font-semibold transition-colors motion-reduce:transition-none " +
                     (asked
-                      ? "cursor-default text-zetis-accent-2"
-                      : "cursor-pointer text-zetis-muted hover:border-zetis-accent-2 hover:text-zetis-text")
+                      ? "cursor-default border-zetis-request/60 bg-zetis-request/15 text-zetis-request"
+                      : "cursor-pointer border-zetis-request/40 text-zetis-request hover:border-zetis-request hover:bg-zetis-request/15")
                   }
                 >
                   {asked ? "demandé" : "demander"}
@@ -101,12 +101,14 @@ export function NotionPanel({
           <button
             type="button"
             onClick={() => onRequest(missingKinds)}
-            className="min-h-11 w-full rounded-xl border border-zetis-border bg-zetis-surface-2 px-3 py-2 text-sm font-bold hover:border-zetis-accent-2"
+            className="min-h-11 w-full rounded-xl border border-zetis-request/50 bg-zetis-request/10 px-3 py-2 text-sm font-bold text-zetis-request transition-colors hover:border-zetis-request hover:bg-zetis-request/20 motion-reduce:transition-none"
           >
-            Demander à Papa tout ce qui manque ({missingKinds.length})
+            Demander à ZETIS tout ce qui manque ({missingKinds.length})
           </button>
-          {/* Phrase fixe. ZETIS transmet — il ne dit jamais « je te le prépare », parce qu'il
-              ne fabrique rien tout seul et qu'une promesse non tenue se retient. */}
+          {/* ⚠️ Phrase FIXE, et elle n'a jamais compté autant que depuis que le bouton dit
+              « demander à ZETIS » : c'est elle qui empêche l'enfant de comprendre que ZETIS
+              va fabriquer le contenu. Il transmet. Il ne dit JAMAIS « je te le prépare » —
+              une promesse non tenue, ça se retient. Ne pas la retirer. */}
           <p className="mt-2 text-[11px] leading-relaxed text-zetis-muted">
             ZETIS transmet la demande. Il ne fabrique rien tout seul.
           </p>

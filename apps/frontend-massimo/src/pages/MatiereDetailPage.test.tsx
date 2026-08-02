@@ -123,7 +123,7 @@ async function ouvrirNotion(chapitre: RegExp, nom: RegExp) {
 }
 
 /** Le bouton d'ACTIVITÉ, et non le bouton « demander » voisin — dont le libellé accessible
- *  (« Demander Lire la fiche à Papa ») contient le même texte. */
+ *  (« Demander Lire la fiche à ZETIS ») contient le même texte. */
 function activite(label: string) {
   return screen.getByRole("button", { name: new RegExp(`^${label}`) });
 }
@@ -330,9 +330,9 @@ describe("MatiereDetailPage — panoplie", () => {
   });
 });
 
-// --- Demandes à Papa ---------------------------------------------------------------------
+// --- Demandes de contenu -----------------------------------------------------------------
 
-describe("MatiereDetailPage — demander à Papa", () => {
+describe("MatiereDetailPage — demander à ZETIS", () => {
   it("« tout ce qui manque » = UN seul appel, avec les kinds DÉDUPLIQUÉS", async () => {
     // ⚠️ Sur Photosynthèse, `cours` ET `eli5` manquent, et tous deux se demandent comme
     // `cours`. Sans dédup, l'appel enverrait deux fois « cours » et le compteur dirait 7 —
@@ -359,20 +359,38 @@ describe("MatiereDetailPage — demander à Papa", () => {
   it("une demande unitaire n'envoie QUE ce type-là, et la pastille passe en « demandé »", async () => {
     renderPage();
     await ouvrirNotion(/Nutrition végétale/, /Racines/);
-    fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à Papa/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ }));
 
     await waitFor(() => expect(createContentRequest).toHaveBeenCalledTimes(1));
     expect(createContentRequest).toHaveBeenCalledWith({ skill_id: 3, content_kinds: ["fiche"] });
-    expect(await screen.findByRole("button", { name: /déjà demandé à Papa/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /déjà demandé à ZETIS/ })).toBeInTheDocument();
   });
 
-  it("le retour est « C'est noté pour Papa » — jamais « je te le prépare »", async () => {
+  it("le retour est « C'est noté par ZETIS » — jamais « je te le prépare »", async () => {
+    // ⚠️ La seconde assertion est la plus importante des deux. Depuis que le bouton dit
+    // « demander à ZETIS », c'est cette phrase qui empêche l'enfant de comprendre que ZETIS
+    // va fabriquer le contenu. Elle transforme une promesse en transmission.
     renderPage();
     await ouvrirNotion(/Nutrition végétale/, /Racines/);
-    fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à Papa/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ }));
 
-    expect(await screen.findByText("C'est noté pour Papa")).toBeInTheDocument();
+    expect(await screen.findByText("C'est noté par ZETIS")).toBeInTheDocument();
     expect(screen.getByText(/ne fabrique rien tout seul/)).toBeInTheDocument();
+  });
+
+  it("la demande porte l'orange électrique, et lui seul", async () => {
+    // L'orange `zetis-request` distingue le geste de demande des actions faisables (indigo /
+    // cyan). Ce n'est pas une couleur d'alerte : demander est la seule chose que Massimo
+    // puisse faire face à un contenu absent, donc c'est positif.
+    renderPage();
+    await ouvrirNotion(/Nutrition végétale/, /Racines/);
+
+    expect(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ }).className)
+      .toContain("zetis-request");
+    expect(screen.getByRole("button", { name: /tout ce qui manque/ }).className)
+      .toContain("zetis-request");
+    // Une activité DISPONIBLE ne porte jamais l'orange : elle n'est pas à demander.
+    expect(activite("Voir le cours").className).not.toContain("zetis-request");
   });
 
   it("un échec réseau revient en arrière EN SILENCE, sans écran d'erreur", async () => {
@@ -381,10 +399,10 @@ describe("MatiereDetailPage — demander à Papa", () => {
     vi.mocked(createContentRequest).mockRejectedValue(new Error("réseau"));
     const { container } = renderPage();
     await ouvrirNotion(/Nutrition végétale/, /Racines/);
-    fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à Papa/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ }));
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Demander Lire la fiche à Papa/ })).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ })).toBeInTheDocument(),
     );
     expect(container.textContent).not.toMatch(/erreur|échec|réessay/i);
   });

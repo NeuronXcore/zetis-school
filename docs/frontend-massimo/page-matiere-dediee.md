@@ -134,14 +134,24 @@ v1 ADR-0027, cibles `location.state`). Depuis la panoplie, ces deux-là ouvrent 
 dégrade vers le modèle sans cours et inventerait). Sa demande porte alors sur `cours`. ELI5 ouverte
 depuis son propre deck reste inchangée.
 
-### 6. Demander à Papa
+### 6. Demander à ZETIS
 
-Sur une pastille grisée, un bouton discret **« demander »**. En pied de panneau, **« Demander à Papa
-tout ce qui manque (n) »** — un seul appel, `n` jamais nul (le bouton disparaît sinon).
+Sur une pastille grisée, un bouton discret **« demander »**. En pied de panneau, **« Demander à
+ZETIS tout ce qui manque (n) »** — un seul appel, `n` jamais nul (le bouton disparaît sinon).
 
-- Retour : **« C'est noté pour Papa »**. Jamais « je te le prépare » — ZETIS transmet, il ne fabrique
-  rien.
+> **Correction du 2026-08-01** : le libellé disait « demander à **Papa** ». L'interlocuteur de
+> Massimo est **ZETIS** — le même que dans le chat, où il réclame déjà des contenus. Papa reste le
+> **destinataire** (la demande atterrit dans sa file, `source: "subject_page"`), mais l'enfant
+> s'adresse à l'app, pas à son père par-dessus l'épaule de l'app.
+
+- Retour : **« C'est noté par ZETIS »**. Jamais « je te le prépare ».
 - Sous le bouton, une phrase fixe : « ZETIS transmet la demande. Il ne fabrique rien tout seul. »
+  ⚠️ **Elle n'est pas décorative, et elle l'est encore moins depuis le changement de libellé** :
+  « demander à ZETIS » pourrait se lire « ZETIS va le faire ». C'est cette phrase qui l'empêche.
+- **Couleur : orange électrique** (`--color-zetis-request`, `#ff7a1a`). Une teinte à part, qui ne
+  se confond ni avec l'indigo/cyan des actions faisables ni avec l'or `#ffcf47` de « ZETIS parle ».
+  Ce n'est **pas** une couleur d'alerte : demander est la seule chose que Massimo puisse faire
+  face à un contenu absent, donc c'est un geste positif. (Aucun rouge, ADR-0024 §5.)
 - **Aucun statut, aucun délai, aucun rappel.** Massimo ne lit pas la file de Papa.
 - **Aucun XP, aucun événement.** Demander n'est pas apprendre ; la ligne de file est la trace.
 

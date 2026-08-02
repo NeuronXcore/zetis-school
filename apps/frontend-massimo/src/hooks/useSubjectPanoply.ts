@@ -60,7 +60,10 @@ export interface UseSubjectPanoply {
 }
 
 const TOAST_MS = 2800;
-export const REQUEST_TOAST = "C'est noté pour Papa";
+// « ZETIS a noté », et non « ZETIS le prépare » : la nuance est la décision de l'addendum
+// ADR-0027. Le destinataire final reste Papa (`source: "subject_page"` dans sa file), mais
+// l'interlocuteur de Massimo est ZETIS — le même que dans le chat.
+export const REQUEST_TOAST = "C'est noté par ZETIS";
 
 export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
   const [loading, setLoading] = useState(true);
