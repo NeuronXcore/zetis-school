@@ -1,69 +1,58 @@
-import { useState } from "react";
+import { Link } from "react-router-dom";
 import { PageHeader } from "../components/PageHeader";
 
-interface Toggle {
-  id: string;
-  label: string;
-  desc: string;
-  on: boolean;
-}
-
-const INITIAL: Toggle[] = [
-  { id: "validate", label: "Validation manuelle des capsules", desc: "Papa valide avant publication à Massimo.", on: true },
-  { id: "sounds", label: "Sons de feedback", desc: "Réussite, gain d'XP, ZETIS parle.", on: true },
-  { id: "autocapsule", label: "Capsules automatiques", desc: "ZETIS propose une capsule quand une notion bloque.", on: false },
-];
-
-// Paramètres Papa (Étape 8) — réglages pédagogiques + IA (mock, non persisté).
+// Paramètres Papa.
+//
+// Cette page portait quatre commandes qui ne faisaient RIEN (retirées le 2026-08-02) : trois
+// interrupteurs en `useState` non persisté (« Validation manuelle des capsules », « Sons de
+// feedback », « Capsules automatiques ») et un sélecteur « Fournisseur IA » sans handler.
+//
+// Aucun des quatre n'avait de sens à brancher, et c'est la vraie raison du retrait :
+//
+//   - « Validation manuelle des capsules » est un INVARIANT (aucun contenu généré n'atteint
+//     Massimo sans validation). En faire un interrupteur, c'est déclarer qu'on peut le couper.
+//   - « Capsules automatiques » est du palier 3 du chantier d'autonomisation, qui n'existe pas
+//     encore et dont l'ADR reste à écrire.
+//   - « Fournisseur IA » contredit l'ADR-0008/0009 : ZETIS est 100 % local via Ollama, avec UNE
+//     dérogation étroite (`curriculum_*` → Anthropic). Un sélecteur global proposant OpenAI
+//     laissait croire l'inverse — et que les données de Massimo pourraient y partir.
+//   - « Sons de feedback » serait le seul légitime, mais rien ne le consomme côté Massimo.
+//
+// Le danger n'était pas l'inutilité, c'était la confiance : une page où trois interrupteurs ne
+// font rien est un piège le jour où six engagent l'autonomie de ZETIS. Le premier toggle sans
+// effet détruit la crédibilité de tous les suivants.
 export function ParametresPage() {
-  const [toggles, setToggles] = useState(INITIAL);
-
-  function flip(id: string) {
-    setToggles((t) => t.map((x) => (x.id === id ? { ...x, on: !x.on } : x)));
-  }
-
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Paramètres" subtitle="Réglages pédagogiques et fournisseur IA." />
+      <PageHeader
+        title="Paramètres"
+        subtitle="Ce qui se règle ici, et ce qui se règle là où la décision se prend."
+      />
 
       <section className="rounded-xl border border-papa-border bg-papa-surface p-5">
-        <p className="mb-3 font-semibold">Fournisseur IA</p>
-        <select className="w-full rounded-lg border border-papa-border bg-papa-bg px-3 py-2 text-sm outline-none focus:border-papa-accent">
-          <option>Anthropic (Claude)</option>
-          <option>OpenAI</option>
-          <option>Ollama (local)</option>
-        </select>
-        <p className="mt-2 text-xs text-papa-muted">
-          Les données de Massimo sont privées : strip des infos inutiles avant envoi (cf. SECURITY.md).
+        <p className="font-semibold">Réglages actifs</p>
+        <p className="mt-2 text-sm text-papa-muted">
+          Les réglages de ZETIS vivent à l'endroit où vous prenez la décision, pas dans un panneau
+          séparé. Aujourd'hui il n'y en a qu'un : l'accès de Massimo à la saisie de l'agenda, sur la
+          page <Link to="/agenda" className="font-semibold text-papa-accent underline">Agenda</Link>.
         </p>
       </section>
 
-      <section className="mt-4 space-y-2">
-        {toggles.map((t) => (
-          <div
-            key={t.id}
-            className="flex items-center justify-between gap-3 rounded-xl border border-papa-border bg-papa-surface px-4 py-3"
+      <section className="mt-4 rounded-xl border border-papa-border bg-papa-surface p-5 opacity-60">
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-semibold">Autonomie de ZETIS</p>
+          <span
+            className="cursor-not-allowed rounded-lg border border-papa-border px-2.5 py-1 text-xs font-semibold text-papa-muted"
+            title="Chantier d'autonomisation — ADR à écrire, non livré"
           >
-            <div>
-              <p className="font-medium">{t.label}</p>
-              <p className="text-xs text-papa-muted">{t.desc}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => flip(t.id)}
-              className={`h-6 w-11 shrink-0 rounded-full p-0.5 transition-colors ${
-                t.on ? "bg-papa-accent" : "bg-papa-surface-2"
-              }`}
-              aria-pressed={t.on}
-            >
-              <span
-                className={`block h-5 w-5 rounded-full bg-white transition-transform ${
-                  t.on ? "translate-x-5" : ""
-                }`}
-              />
-            </button>
-          </div>
-        ))}
+            indisponible
+          </span>
+        </div>
+        <p className="mt-2 text-sm text-papa-muted">
+          Décider, acte par acte, jusqu'où ZETIS produit le contenu de Massimo tout seul. Rien n'est
+          réglable tant que le chantier n'est pas livré — et tant que ce n'est pas le cas, ZETIS ne
+          produit rien sans votre validation.
+        </p>
       </section>
     </div>
   );
