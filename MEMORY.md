@@ -7,20 +7,25 @@
 
 ## État à la reprise
 
-**Chantier : le Journal de production et le veto (ADR-0034) — COMPLET, §1 → §8. NON POUSSÉ.**
+**Chantier : le Journal de production et le veto (ADR-0034) — COMPLET §1 → §8, CLOS ET MERGÉ.**
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Branche | `feat/journal-production`, **3 commits** (`57628bb` slice A backend, `c84a50f` slice B Papa, `a3b89c6` le drapeau) — **NON POUSSÉE**, aucune PR |
-| Base `main` | `81375c2` (ADR-0034 + ADR-0035 + 4bis des paliers), local = `origin/main` |
+| Journal (ADR-0034) | **MERGÉ `main`** — squash **`4d3fc99`**, PR #70, 2026-08-03. Branche `feat/journal-production` **supprimée** en local et chez `origin`. ⚠️ Ne pas ré-implémenter. |
+| `origin/main` | **`4d3fc99`**, local = distant, arbre propre |
 | Migration | **`b6c7d8e9f0a1` APPLIQUÉE sur la base de dev** et vérifiée table par table |
-| Arbre | propre |
+| Cadrage suivant | **ADR-0035 déjà écrit** sur `main` (`4bd4d8e`) — le déclencheur automatique |
 
-**757 backend · 295 Papa · build Papa · typecheck Massimo — verts**, lancés pendant la session ;
-le user relance avant de merger. **Un seul test existant remplacé** (voir plus bas) — aucun autre
-touché.
+**Relancés AVANT le merge, tous verts** : **757 backend · 295 Papa · 453 Massimo · build Papa ·
+build Massimo · typecheck Massimo**. **Un seul test existant remplacé** (voir plus bas) — aucun
+autre touché.
+
+> ✅ **`VETO_SURFACE_AVAILABLE = True` est sur `main`.** Le régime *Autonome* est offert par le
+> serveur. ⚠️ Mais le régime **réel** de la base de dev est resté sur *Semi-autonome* : livrer la
+> **possibilité** du palier 3 était le chantier, l'**activer** est une décision de Papa, en un clic
+> sur `/parametres`.
 
 ### Ce que ce chantier a livré
 
@@ -95,15 +100,27 @@ palier 3 était le chantier ; l'activer est une décision de Papa, en un clic su
 
 ### ▶ PROCHAIN PAS
 
-1. **Relire le diff, relancer les tests, pousser, ouvrir la PR.** Rien n'est chez `origin`.
-2. Après le merge : **étape 4bis** — remettre ce fichier au réel (squash, n° de PR, branche
-   supprimée), sinon il décrira un dépôt qui n'existe plus. **Ce fichier a déjà survécu trois fois
-   à son propre chantier.**
+1. **Rien n'est en attente côté Git.** PR #70 mergée, branche supprimée, `main` = `origin/main` =
+   `4d3fc99`, arbre propre. **Étape 4bis faite** — c'est ce fichier.
+2. **Ne rien ré-implémenter du Journal ni du veto**, et ne pas re-cadrer l'ADR-0035.
 3. **CHANTIER SUIVANT : coder l'ADR-0035** (le déclencheur automatique) — **déjà cadré**, sur
-   `main` (`4bd4d8e`). Ne pas le re-cadrer. Son read-before-code annonce **aucune migration,
-   aucune dépendance nouvelle** : quatre verrous déjà écrits à lever, plus le régulateur de volume
-   par fenêtre glissante, seule chose vraiment à construire.
+   `main` (`4bd4d8e`). Son read-before-code annonce **aucune migration, aucune dépendance
+   nouvelle** : quatre verrous déjà écrits à lever (`with_scheduler`, `EMITTED_TRIGGERS`, la
+   signature de `create_run`, la 7ᵉ clé), plus **le régulateur de volume par fenêtre glissante —
+   seule chose vraiment à construire**. Brancher `feat/declencheur-agenda` depuis `main`.
 4. **Chantier d'après** : la page Demandes en deux colonnes, `trigger='request'`, scope notion.
+
+### ▶ DETTES OUVERTES, nommées à la livraison
+
+- **Le refus de retirer un cours dont un dérivé est consommé n'a JAMAIS été vu à l'écran** — il
+  aurait fallu fabriquer une fausse lecture de Massimo en base. Couvert par 2 tests backend
+  (contre-épreuve jouée) + 1 test front. À vérifier en vrai à la première occasion réelle.
+- **Le geste *Corriger*** (§G.3) reste dû, ainsi que la remise à zéro de la planification d'une
+  carte SRS — sa condition d'ouverture est la première carte retirée après révision.
+- **`has_more` est calculé mais aucun bouton ne le consomme** : le Journal n'a pas de pagination
+  visible tant qu'un lot ne dépasse pas la première page.
+- **Le Journal ne montre que les lots.** Le Conseil de classe et le champion équipent hors lot ;
+  la page le dit, mais l'élargissement reste un chantier.
 
 ### ▶▶ OÙ EN EST « FULL AUTONOMIE »
 
