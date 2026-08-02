@@ -114,15 +114,19 @@ export function notionRouteFor(action: GalaxyAction, ctx: NotionRouteContext): N
  *  si son activité n'est pas disponible, ce qui n'a aucun sens quand on veut ouvrir « les fiches
  *  de SVT » depuis un compte agrégé.
  *
- *  ⚠️ Trois types rendent `null`, et ce n'est pas un oubli :
+ *  ⚠️ Deux types rendent `null`, et ce n'est pas un oubli :
  *  - `capsule` — `/capsules` est une liste GLOBALE, il n'existe ni `/capsules/:slug` ni
  *    `/capsules/:id` ;
- *  - `quiz` — `/quiz` garde la matière en état interne, elle n'est pas dans l'URL ;
  *  - `eli5` — il n'est adressable que par notion (`?skill_id=`), jamais par matière.
  *
- *  L'appelant DOIT rendre ces trois-là non cliquables. Les envoyer vers la liste globale depuis
- *  une page de matière serait une petite trahison — exactement ce que le rétrolien corrige
- *  ailleurs. Ils redeviendront cliquables le jour où ces routes existeront.
+ *  L'appelant DOIT rendre ces deux-là non cliquables — **et visiblement inertes**, sinon ils se
+ *  lisent comme une panne (constaté sur `quiz` le 2026-08-01 : « le KPI ne marche pas »). Les
+ *  envoyer vers la liste globale serait une petite trahison — exactement ce que le rétrolien
+ *  corrige ailleurs.
+ *
+ *  `quiz` en faisait partie jusqu'au 2026-08-01 : `/quiz` gardait la matière en état interne.
+ *  Un lien profond `?subject=` lui a été ajouté (patron de `/revision` et `/eli5`), donc il est
+ *  désormais adressable — et cliquable.
  */
 export function subjectRouteFor(kind: GalaxyActionKind, subjectSlug: string): string | null {
   const slug = encodeURIComponent(subjectSlug);
@@ -137,8 +141,10 @@ export function subjectRouteFor(kind: GalaxyActionKind, subjectSlug: string): st
       return `/mindmaps/${slug}`;
     case "revision":
       return `/revision?subject=${slug}&${backParam(subjectSlug)}`;
-    case "capsule":
     case "quiz":
+      // `?subject=` ouvre les quiz DE LA MATIÈRE, pas la grille de toutes les matières.
+      return `/quiz?subject=${slug}&${backParam(subjectSlug)}`;
+    case "capsule":
     case "eli5":
       return null;
   }

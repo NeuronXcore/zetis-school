@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { type QuizSubjectSummary, type StudentQuiz } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
+import { SubjectBackLink } from "../components/SubjectBackLink";
 import { QuizHero } from "../components/quiz/QuizHero";
 import { fetchQuizSubjects, fetchSubjectQuizzes } from "../lib/quiz";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -19,6 +20,8 @@ function lessonFromTitle(title: string): string {
 
 export function QuizPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkedRef = useRef(false);
   const [subjects, setSubjects] = useState<QuizSubjectSummary[] | null>(null);
   const [selected, setSelected] = useState<QuizSubjectSummary | null>(null);
   const [quizzes, setQuizzes] = useState<StudentQuiz[] | null>(null);
@@ -52,6 +55,24 @@ export function QuizPage() {
     }
   }, []);
 
+  // Lien profond `?subject=slug` → ouvre directement les quiz de la matière (patron de
+  // `/revision?subject=` et `/eli5?subject=`). Sans lui, la page matière ne pouvait envoyer
+  // Massimo que sur la grille de TOUTES les matières — depuis sa page de maths, une petite
+  // trahison. On retire le paramètre en `replace` : le retour ne relance pas l'ouverture.
+  useEffect(() => {
+    if (!subjects || deepLinkedRef.current) return;
+    const slug = searchParams.get("subject");
+    if (!slug) return;
+    const subject = subjects.find((s) => s.slug === slug);
+    deepLinkedRef.current = true;
+    // Matière inconnue ou sans quiz : on reste sur la grille, sans message d'échec — ce n'est
+    // pas la faute de Massimo, et la grille répond déjà à « où y a-t-il des quiz ? ».
+    if (subject) void openSubject(subject);
+    const next = new URLSearchParams(searchParams);
+    next.delete("subject");
+    setSearchParams(next, { replace: true });
+  }, [subjects, searchParams, setSearchParams, openSubject]);
+
   const launch = (quiz: StudentQuiz) => {
     if (!selected) return;
     const state: QuizSessionState = {
@@ -65,6 +86,10 @@ export function QuizPage() {
   if (selected) {
     return (
       <div className="mx-auto max-w-xl">
+        {/* Rétrolien vers la MATIÈRE quand on arrive de sa page (`?from=`). Sans lui, Massimo
+            atterrissait sur ses quiz sans pouvoir revenir d'où il venait. Il ne se rend pas
+            s'il n'y a pas de `from` — une arrivée par la sidebar n'invente pas de retour. */}
+        <SubjectBackLink />
         <button
           type="button"
           onClick={() => {

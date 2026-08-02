@@ -159,6 +159,10 @@ describe("subjectRouteFor — la table SŒUR, au grain matière", () => {
     ["fiche", "/fiches/svt"],
     ["mindmap", "/mindmaps/svt"],
     ["revision", "/revision?subject=svt&from=svt"],
+    // `quiz` a rejoint la liste le 2026-08-01 : `/quiz` gardait la matière en état interne,
+    // donc la pastille de la bande ne menait nulle part — signalé comme une panne. Un lien
+    // profond `?subject=` lui a été ajouté (patron de `/revision` et `/eli5`).
+    ["quiz", "/quiz?subject=svt&from=svt"],
   ] as const)("« %s » a une surface matière", (kind, route) => {
     expect(subjectRouteFor(kind, "svt")).toBe(route);
   });
@@ -173,12 +177,12 @@ describe("subjectRouteFor — la table SŒUR, au grain matière", () => {
     });
   });
 
-  it.each(["capsule", "quiz", "eli5"] as const)(
+  it.each(["capsule", "eli5"] as const)(
     "« %s » n'a AUCUNE surface matière — et ce n'est pas un oubli",
     (kind) => {
-      // `/capsules` est une liste globale (aucun `/capsules/:slug`), `/quiz` garde la matière
-      // en état interne, et ELI5 n'est adressable que par notion. Renvoyer `null` oblige
-      // l'appelant à ne pas les rendre cliquables, plutôt qu'à inventer une destination.
+      // `/capsules` est une liste globale (aucun `/capsules/:slug`) et ELI5 n'est adressable
+      // que par notion. Renvoyer `null` oblige l'appelant à ne pas les rendre cliquables —
+      // ET à les rendre visiblement inertes, sinon ils se lisent comme une panne.
       expect(subjectRouteFor(kind, "svt")).toBeNull();
     },
   );

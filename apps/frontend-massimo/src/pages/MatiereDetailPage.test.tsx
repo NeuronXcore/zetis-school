@@ -232,7 +232,8 @@ describe("MatiereDetailPage — ce que ZETIS a pour la matière", () => {
     renderPage();
     expect(await screen.findByLabelText("2 cours en SVT")).toBeInTheDocument();
     expect(screen.getByLabelText("2 fiches en SVT")).toBeInTheDocument();
-    expect(screen.getByLabelText("1 capsule en SVT")).toBeInTheDocument();
+    // Regex : la capsule n'est pas ouvrable depuis ici, son libellé porte donc un suffixe.
+    expect(screen.getByLabelText(/1 capsule en SVT/)).toBeInTheDocument();
     expect(screen.getByLabelText("1 carte en SVT")).toBeInTheDocument();
     expect(screen.getByLabelText("1 quiz en SVT")).toBeInTheDocument();
     expect(screen.getByLabelText("8 cartes à revoir en SVT")).toBeInTheDocument();
@@ -281,17 +282,27 @@ describe("MatiereDetailPage — ce que ZETIS a pour la matière", () => {
     expect(lien("8 cartes à revoir en SVT")).toBe("/revision?subject=svt&from=svt");
   });
 
-  it("capsule et quiz affichent leur compte SANS être cliquables", async () => {
-    // Aucune route par matière n'existe pour eux. Les envoyer sur la liste globale depuis une
-    // page de SVT serait une petite trahison — on montre le nombre, sans promettre la porte.
+  it("le quiz ouvre les quiz DE LA MATIÈRE, pas la grille de toutes", async () => {
+    // ⚠️ Régression signalée le 2026-08-01 : « le KPI 1 quiz ne marche pas ». Le compte était
+    // juste, mais la pastille ne menait nulle part — `/quiz` gardait la matière en état
+    // interne. Un lien profond `?subject=` a été ajouté à `QuizPage`.
     renderPage();
-    const capsule = await screen.findByLabelText("1 capsule en SVT");
-    const quiz = screen.getByLabelText("1 quiz en SVT");
+    const quiz = await screen.findByLabelText("1 quiz en SVT");
+    expect(quiz.getAttribute("href")).toBe("/quiz?subject=svt&from=svt");
+  });
+
+  it("une pastille non ouvrable est visiblement INERTE, jamais muette", async () => {
+    // La capsule n'a aucune route par matière (`/capsules` est global). Elle doit donc se
+    // distinguer à l'œil — sinon elle se lit comme une panne, ce qui est EXACTEMENT ce qui
+    // s'est produit avec le quiz : ressembler à un lien sans en être un est un bug d'UI.
+    renderPage();
+    const capsule = await screen.findByLabelText(/1 capsule en SVT/);
 
     expect(capsule.tagName).not.toBe("A");
-    expect(quiz.tagName).not.toBe("A");
+    expect(capsule.className).toContain("border-dashed");
+    // Et l'`aria-label` le DIT, au lieu de laisser un lecteur d'écran deviner.
+    expect(capsule.getAttribute("aria-label")).toContain("pas encore ouvrable");
     expect(capsule.textContent).toContain("1");
-    expect(quiz.textContent).toContain("1");
   });
 
   it("un type sans rien n'a PAS de pastille", async () => {

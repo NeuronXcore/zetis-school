@@ -120,11 +120,19 @@ pour découvrir qu'il y avait trois fiches dans la matière.
   `due_count`**, qui est l'arriéré, donc la pression quotidienne interdite par `CLAUDE.md`.
 - **`eli5` est absent, et ce n'est pas un oubli** : il ne stocke rien, il se génère à la volée.
   Ce n'est pas un produit du catalogue, c'est une capacité.
-- **`capsule` et `quiz` affichent leur compte sans être cliquables** : aucune route par matière
-  n'existe pour eux (`/capsules` est une liste globale, `/quiz` garde la matière en état
-  interne). Les y envoyer depuis une page de matière serait une petite trahison — exactement ce
-  que le rétrolien (§7) corrige ailleurs. Ils redeviendront cliquables le jour où ces routes
-  existeront.
+- **`capsule` affiche son compte sans être cliquable** : `/capsules` est une liste globale, il
+  n'existe ni `/capsules/:slug` ni `/capsules/:id`. Y envoyer Massimo depuis sa page de matière
+  serait une petite trahison — exactement ce que le rétrolien (§7) corrige ailleurs.
+
+  > ⚠️ **Une pastille non ouvrable doit se DISTINGUER À L'ŒIL** — bordure pointillée, texte
+  > atténué, `aria-label` qui le dit. Corrigé le 2026-08-01 après un signalement : `quiz` était
+  > rendu comme une pastille normale, le clic ne faisait rien, et **ça s'est lu comme une
+  > panne**. Le compte était pourtant juste. Une chose qui ressemble à un lien doit être un lien.
+
+- **`quiz` est cliquable depuis le 2026-08-01.** `/quiz` gardait la matière en état interne ; un
+  lien profond **`?subject=`** lui a été ajouté (patron de `/revision` et `/eli5`), et la page
+  porte désormais le rétrolien. Le clic ouvre donc les quiz **de la matière**, pas la grille de
+  toutes les matières.
 - **Une entrée à zéro n'est pas rendue, et la bande entière disparaît si tout est à zéro.** Une
   matière vide n'affiche pas six zéros : ce serait dresser la liste de ce qui manque.
 - **Les nombres ne bougent pas pendant une recherche** : la bande décrit la matière, pas les

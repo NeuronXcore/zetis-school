@@ -46,34 +46,45 @@ export function SubjectCatalogueBand({ catalogue, subjectName }: SubjectCatalogu
         const [singulier, pluriel] = NOM[entry.kind];
         const mot = entry.count > 1 ? pluriel : singulier;
         const label = `${entry.count} ${mot} en ${subjectName}`;
+        const ouvrable = entry.route !== null;
         const contenu = (
           <>
-            <span aria-hidden className="text-base">
+            <span aria-hidden className={"text-base " + (ouvrable ? "" : "grayscale")}>
               {ACTION_UI[entry.kind].icon}
             </span>
             <span>
-              <span className="font-bold text-zetis-accent-2">{entry.count}</span> {mot}
+              <span className={"font-bold " + (ouvrable ? "text-zetis-accent-2" : "")}>
+                {entry.count}
+              </span>{" "}
+              {mot}
             </span>
           </>
         );
-        const base =
-          "flex min-h-11 items-center gap-2 rounded-xl border border-zetis-border bg-zetis-surface px-3 py-2 text-sm text-zetis-text";
+        const base = "flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm";
 
-        // `route === null` (capsule, quiz) : aucune route par matière n'existe. On montre le
-        // compte SANS affordance de clic plutôt que d'envoyer Massimo sur une liste globale —
-        // atterrir sur toutes les matières depuis sa page de SVT serait une petite trahison,
-        // exactement ce que le rétrolien corrige ailleurs.
+        // ⚠️ `route === null` (capsule) : aucune route par matière n'existe, la pastille ne mène
+        // nulle part. Elle DOIT alors se distinguer à l'œil — bordure pointillée et texte
+        // atténué, la grammaire du « bientôt » déjà utilisée sur les activités indisponibles.
+        //
+        // Le 2026-08-01, `quiz` était dans ce cas et rendu comme une pastille normale : le user
+        // a cliqué, rien ne s'est passé, et il l'a signalé comme une PANNE. Il avait raison —
+        // une chose qui ressemble à un lien doit être un lien. (`quiz` est depuis devenu
+        // cliquable ; la leçon vaut pour tout futur type non adressable.)
         return entry.route ? (
           <Link
             key={entry.kind}
             to={entry.route}
             aria-label={label}
-            className={`${base} transition-colors hover:border-zetis-accent-2 motion-reduce:transition-none`}
+            className={`${base} border border-zetis-border bg-zetis-surface text-zetis-text transition-colors hover:border-zetis-accent-2 motion-reduce:transition-none`}
           >
             {contenu}
           </Link>
         ) : (
-          <span key={entry.kind} aria-label={label} className={base}>
+          <span
+            key={entry.kind}
+            aria-label={`${label} — pas encore ouvrable depuis ici`}
+            className={`${base} cursor-default border border-dashed border-zetis-border bg-transparent text-zetis-muted`}
+          >
             {contenu}
           </span>
         );
