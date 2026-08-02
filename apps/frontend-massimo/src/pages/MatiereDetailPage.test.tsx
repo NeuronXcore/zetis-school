@@ -111,12 +111,12 @@ function renderPage(slug = "svt") {
   );
 }
 
-/** Attend la fin du chargement, puis ouvre le panneau d'une notion.
+/** Déplie un chapitre, puis ouvre le panneau d'une de ses notions.
  *
- *  ⚠️ Seul le PREMIER chapitre est ouvert au chargement : une notion des suivants n'est pas
- *  rendue tant qu'on ne l'a pas déplié. `chapitre` sert à ça. */
-async function ouvrirNotion(nom: RegExp, chapitre?: RegExp) {
-  if (chapitre) fireEvent.click(await screen.findByRole("button", { name: chapitre }));
+ *  ⚠️ TOUS les chapitres sont repliés au chargement (décision du 2026-08-01) : aucune notion
+ *  n'est dans le DOM tant qu'on n'a pas déplié son chapitre. D'où le paramètre obligatoire. */
+async function ouvrirNotion(chapitre: RegExp, nom: RegExp) {
+  fireEvent.click(await screen.findByRole("button", { name: chapitre }));
   const ligne = await screen.findByRole("button", { name: nom });
   fireEvent.click(ligne);
   return ligne;
@@ -155,7 +155,7 @@ describe("MatiereDetailPage — ce que la page ne dit JAMAIS", () => {
 
   it("ne formule jamais une absence comme un échec", async () => {
     const { container } = renderPage();
-    await ouvrirNotion(/Photosynthèse/);
+    await ouvrirNotion(/La cellule/, /Photosynthèse/);
     // « manque » est autorisé — « tout ce qui manque » est le libellé de la spec. Ce qui est
     // interdit, c'est le vocabulaire qui désigne l'enfant : manquant, raté, échec.
     expect(container.textContent).not.toMatch(/manquant|raté|échec|erreur|retard|nul/i);
@@ -218,6 +218,7 @@ describe("MatiereDetailPage — en-tête et états", () => {
     vi.mocked(fetchReviewsSummary).mockRejectedValue(new Error("réseau"));
     renderPage();
     expect(await screen.findByRole("heading", { name: "SVT" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /La cellule/ }));
     expect(screen.getByRole("button", { name: /Mitose/ })).toBeInTheDocument();
   });
 });
@@ -298,14 +299,14 @@ describe("MatiereDetailPage — panoplie", () => {
     // Sur Photosynthèse, `cours` est le premier kind mais il est indisponible : l'accent doit
     // aller à la fiche. Une action mise en avant doit pouvoir être faite.
     renderPage();
-    await ouvrirNotion(/Photosynthèse/);
+    await ouvrirNotion(/La cellule/, /Photosynthèse/);
     expect(activite("Lire la fiche").className).toContain("from-zetis-accent");
     expect(activite("Voir le cours").className).not.toContain("from-zetis-accent");
   });
 
   it("une activité indisponible n'est pas cliquable et ne navigue nulle part", async () => {
     renderPage();
-    await ouvrirNotion(/Photosynthèse/);
+    await ouvrirNotion(/La cellule/, /Photosynthèse/);
     const cours = activite("Voir le cours");
     expect(cours.hasAttribute("disabled")).toBe(true);
     fireEvent.click(cours);
@@ -315,14 +316,14 @@ describe("MatiereDetailPage — panoplie", () => {
   it("une activité disponible ouvre sa surface en PLEINE PAGE (jamais une modale)", async () => {
     // Amendement ADR-0017, tranché par la Galaxy de fait.
     renderPage();
-    await ouvrirNotion(/Mitose/);
+    await ouvrirNotion(/La cellule/, /Mitose/);
     fireEvent.click(activite("Voir le cours"));
     expect(navigateMock).toHaveBeenCalledWith("/subjects/svt/cours", undefined);
   });
 
   it("dit que quiz et révision ouvrent la MATIÈRE, sans promettre la notion", async () => {
     renderPage();
-    await ouvrirNotion(/Mitose/);
+    await ouvrirNotion(/La cellule/, /Mitose/);
     expect(activite("Me tester").textContent).toContain(
       "toute la matière",
     );
@@ -337,7 +338,7 @@ describe("MatiereDetailPage — demander à Papa", () => {
     // `cours`. Sans dédup, l'appel enverrait deux fois « cours » et le compteur dirait 7 —
     // alors que le vocabulaire n'a que 6 entrées.
     renderPage();
-    await ouvrirNotion(/Photosynthèse/);
+    await ouvrirNotion(/La cellule/, /Photosynthèse/);
 
     const bouton = screen.getByRole("button", { name: /tout ce qui manque \(5\)/ });
     fireEvent.click(bouton);
@@ -351,13 +352,13 @@ describe("MatiereDetailPage — demander à Papa", () => {
 
   it("le bouton « tout ce qui manque » est ABSENT quand la panoplie est complète", async () => {
     renderPage();
-    await ouvrirNotion(/Mitose/);
+    await ouvrirNotion(/La cellule/, /Mitose/);
     expect(screen.queryByRole("button", { name: /tout ce qui manque/ })).toBeNull();
   });
 
   it("une demande unitaire n'envoie QUE ce type-là, et la pastille passe en « demandé »", async () => {
     renderPage();
-    await ouvrirNotion(/Racines/, /Nutrition végétale/);
+    await ouvrirNotion(/Nutrition végétale/, /Racines/);
     fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à Papa/ }));
 
     await waitFor(() => expect(createContentRequest).toHaveBeenCalledTimes(1));
@@ -367,7 +368,7 @@ describe("MatiereDetailPage — demander à Papa", () => {
 
   it("le retour est « C'est noté pour Papa » — jamais « je te le prépare »", async () => {
     renderPage();
-    await ouvrirNotion(/Racines/, /Nutrition végétale/);
+    await ouvrirNotion(/Nutrition végétale/, /Racines/);
     fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à Papa/ }));
 
     expect(await screen.findByText("C'est noté pour Papa")).toBeInTheDocument();
@@ -379,7 +380,7 @@ describe("MatiereDetailPage — demander à Papa", () => {
     // message, lui, se retient.
     vi.mocked(createContentRequest).mockRejectedValue(new Error("réseau"));
     const { container } = renderPage();
-    await ouvrirNotion(/Racines/, /Nutrition végétale/);
+    await ouvrirNotion(/Nutrition végétale/, /Racines/);
     fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à Papa/ }));
 
     await waitFor(() =>
@@ -394,7 +395,8 @@ describe("MatiereDetailPage — demander à Papa", () => {
 describe("MatiereDetailPage — plancher d'accessibilité", () => {
   it("chaque notion porte son état dans son `aria-label`", async () => {
     renderPage();
-    expect(await screen.findByRole("button", { name: "Mitose — Bien acquis" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /La cellule/ }));
+    expect(screen.getByRole("button", { name: "Mitose — Bien acquis" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Nutrition végétale/ }));
     expect(screen.getByRole("button", { name: "Racines — À découvrir" })).toBeInTheDocument();
   });
@@ -410,11 +412,14 @@ describe("MatiereDetailPage — plancher d'accessibilité", () => {
   it("l'accordéon annonce son état et ce qu'il contrôle", async () => {
     renderPage();
     const chapitre = await screen.findByRole("button", { name: /La cellule/ });
-    expect(chapitre.getAttribute("aria-expanded")).toBe("true");
+    // Replié à l'ouverture : la page présente la MATIÈRE, pas le contenu d'un chapitre choisi
+    // pour Massimo. C'est lui qui décide où il entre.
+    expect(chapitre.getAttribute("aria-expanded")).toBe("false");
     expect(chapitre.getAttribute("aria-controls")).toBe("chapitre-10");
+    expect(screen.queryByRole("button", { name: /Mitose/ })).toBeNull();
 
     fireEvent.click(chapitre);
-    expect(chapitre.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByRole("button", { name: /Mitose/ })).toBeNull();
+    expect(chapitre.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: /Mitose/ })).toBeInTheDocument();
   });
 });

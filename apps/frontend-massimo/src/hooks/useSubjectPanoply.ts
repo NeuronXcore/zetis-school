@@ -90,9 +90,11 @@ export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
         if (panoply.status === "fulfilled") {
           setSubject(panoply.value.subject);
           setRawChapters(panoply.value.chapters);
-          // Le premier chapitre s'ouvre : un index entièrement replié ne montre rien de ce
-          // qu'il contient, et Massimo ne saurait pas qu'il y a quelque chose à déplier.
-          setOpenIds(new Set(panoply.value.chapters.slice(0, 1).map((c) => c.chapter_id)));
+          // TOUS les chapitres sont repliés à l'ouverture (décision du 2026-08-01). L'index
+          // s'ouvre donc sur la carte de la matière — la liste des chapitres — et non sur le
+          // contenu de l'un d'eux : Massimo choisit où il entre. La recherche, elle, ouvre
+          // d'office ce qu'elle trouve, donc rien ne reste caché quand on cherche.
+          setOpenIds(new Set());
         } else {
           setNotFound(panoply.reason instanceof PanoplyError && panoply.reason.status === 404);
         }
