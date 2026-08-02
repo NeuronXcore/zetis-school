@@ -7,37 +7,73 @@
 
 ## État à la reprise
 
-**Chantier : produire un chapitre en une fois (ADR-0031) — CODE LIVRÉ, PR #68 ouverte.
-L'OBSERVATION reste à mener, et c'est un geste humain.**
-
-Branche **`feat/production-en-lot`**, poussée, 10 commits, PR
-[#68](https://github.com/NeuronXcore/zetis-school/pull/68) **ouverte, non mergée**. `main` =
-`db8a407`. Arbre propre.
+**Chantier : produire un chapitre en une fois (ADR-0031) — CODE LIVRÉ ET OBSERVATION MENÉE.
+Le chantier est CLOS ; ce qui reste est une décision, pas du code.**
 
 **728 backend · 278 Papa · 453 Massimo · tsc — verts. Aucun test existant modifié sur les trois
 slices** (c'était le critère du refactor de la slice A, et il a tenu jusqu'au bout).
 
-Migration **`f4a5b6c7d8e9` appliquée sur la base de dev**.
+Migrations **`f4a5b6c7d8e9`** (journal) et **`a5b6c7d8e9f0`** (avancement) **appliquées sur la base
+de dev**.
 
-### ⛔ LE PROCHAIN PAS EST UNE MESURE, PAS DU CODE
+⚠️ **Le worker ne tourne PAS en permanence.** Il se lance à la main —
+`cd apps/backend && .venv/bin/python -m app.production_worker` — et sans lui un lot reste
+`queued` indéfiniment. Un run tué avec son worker reste `running` pour toujours : c'est un zombie
+qui fait clignoter la pastille d'en-tête. Aucun garde-fou n'existe encore contre ça.
 
-```bash
-cd apps/backend && .venv/bin/python -m app.production_worker
-```
+### ✅ L'OBSERVATION A ÉTÉ MENÉE — et sa réponse change la feuille de route
 
-Puis, sur `/couverture`, presser « ⚡ Compléter le chapitre » et noter : **temps réel** par leçon
-et pour le lot, **taux de dégradation** leçon-centrée, et surtout —
+**Lot réel : chapitre « Fractions », 11 notions, 12 min 35 s — 69 s par notion, 0 erreur.**
 
-> **« 15 objets d'un coup sont-ils relisables ? »** L'ADR-0023 a **déjà tranché** ce qu'on en
-> ferait : si c'est non, le chantier suivant n'est **ni le cron ni les déclencheurs**, c'est la
-> **file de relecture**.
+| | |
+|---|---|
+| Taux de dégradation | **0 %** — aucun `try/except` déclenché |
+| Généré | 4 fiches · 4 cartes mentales · 5 quiz · 20 cartes SRS = **33 objets** |
+| Sauté (déjà présent) | 11 cours · 7 fiches · 7 cartes · 6 quiz · 4 lots SRS |
+| Cours produits | **0** — le gate du §7 n'a rien eu à bloquer, tout était déjà validé |
 
-Je ne l'ai pas menée : produire 18 notions écrit des heures de contenu dans la base. Sur le
-chapitre Français de dev, l'aperçu annonce **18 équipables / 13 bloquées** — de quoi mesurer sans
-y passer la nuit.
+> **« 15 objets d'un coup sont-ils relisables ? » — LA QUESTION NE SE POSE PAS, et la raison
+> devrait inquiéter plus que rassurer.**
+>
+> Sur 33 objets produits, **2 seulement** arrivent en attente de relecture. Les 31 autres ont
+> atteint Massimo sans qu'aucun humain les voie : 8 auto-validés `parent_bulk` par l'équipement,
+> 5 quiz en `system` (sans relecture **par doctrine**, ADR-0014 §2), 20 cartes SRS **sans aucun
+> gate de validation**.
+>
+> L'ADR-0023 craignait que Papa ne suive pas le rythme. **Il suit très bien : on ne lui demande
+> presque rien.**
 
-⚠️ **L'ADR-0031 interdit d'écrire l'ADR-0032** (déclencheurs, régulateur autonome, panneau des
-paliers) avant d'avoir cette réponse.
+**Conséquence sur le chantier suivant.** La conditionnelle de l'ADR-0023 (« si non relisable → la
+file de relecture ») **ne se déclenche pas** : il n'y a pas d'arriéré. La vraie question que
+l'observation fait remonter est ailleurs :
+
+> **Est-il acceptable que 31 objets sur 33 atteignent Massimo par `parent_bulk` à l'échelle d'un
+> chapitre ?** C'est le débat du §G sur le palier 3 — sauf qu'on découvre qu'on **y est déjà**,
+> sans l'avoir décidé, par la soupape §5ter de l'ADR-0021 appliquée à un scope 11 fois plus large
+> que celui pour lequel elle a été ouverte.
+
+⚠️ **À trancher avant d'écrire l'ADR-0032**, et ce n'est plus la question que l'ADR-0031 posait.
+
+### Deux défauts trouvés PARCE QUE le lot tournait, invisibles en test
+
+1. **`massimo_is_active` laissait sa transaction ouverte.** Le worker restait `idle in
+   transaction` entre deux notions, gardait un `AccessShareLock`, et un `ALTER TABLE` a bloqué
+   derrière — puis **toutes** les requêtes derrière l'ALTER, interface comprise. Un lot d'une heure
+   gelait toute migration. Corrigé (`rollback` dans un `finally`, motif écrit dans le code).
+2. **La barre de progression mentait d'un facteur 2** (150 s estimées contre 69 s réelles). D'où
+   `production_runs.total_notions` / `done_notions` et un `progress_pct` **calculé serveur** : il
+   compte des notions équipées, pas des secondes écoulées.
+
+### L'indicateur d'en-tête Papa (livré le 2026-08-02)
+
+Pastille « ⚡ ZETIS produit un chapitre · 42% » → modale de détail → « Voir le chapitre », qui
+**met le chapitre en évidence** sur la Couverture et **ouvre d'office la matière qui le contient**
+(sans ça le surlignage restait caché dans un accordéon replié).
+
+⚠️ **Un PROCESSUS, jamais un STOCK** — écrit à trois endroits parce que la dérive est facile :
+y ajouter « 12 contenus en attente » ferait de l'en-tête un reproche permanent, ce que le §F.2
+interdit. **Papa seulement** : le refus côté Massimo est documenté dans le hook (le lui montrer
+serait une promesse, donc une relance, et rendrait l'invariant V1 du §G impossible).
 
 ### Ce qui a été livré, et ce que chaque slice a corrigé de l'ADR
 
