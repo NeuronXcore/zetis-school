@@ -6,6 +6,21 @@
 
 ## Chantier `feat/page-matiere` — affinage au vu de l'écran — 2026-08-01
 
+### `prettifySlug` ampute les accents — et ça se voit comme une faute de frappe
+
+`prettifySlug("mathematiques")` rend **« Mathematiques »**. Sur un slug anglais ou court le repli
+passe inaperçu (« Svt ») ; sur un mot français, il produit un mot mal orthographié, en gros, dans
+un titre de page. Un enfant qui apprend l'orthographe lit ça.
+
+Constaté en vrai sur QUATRE surfaces à la fois — `/fiches/:slug`, `/mindmaps/:slug`, `/revision`
+et `/quiz` — parce que la bande de la page matière naviguait avec un simple slug d'URL. Aucun
+test ne l'attrapait : ils vérifiaient la DESTINATION du lien, jamais le mot affiché.
+
+**Règle** : un slug ne se ré-humanise pas. Le nom doit voyager — soit dans le `state` du lien
+(les pages fiches/mindmaps le lisent déjà), soit résolu depuis une liste déjà chargée
+(`/revision` a `summary.subjects`, `/quiz` a `subjects`). `prettifySlug` reste le dernier repli,
+pour l'arrivée par URL partagée — et là, un accent manquant vaut mieux qu'un titre vide.
+
 ### Un test qui lit `window.location` sous `MemoryRouter` est vert À VIDE
 
 `MemoryRouter` garde l'historique **en mémoire** : il ne touche jamais `window.location`. Un test

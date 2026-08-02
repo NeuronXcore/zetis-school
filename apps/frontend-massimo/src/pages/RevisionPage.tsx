@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { type ReviewsSummary } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { SubjectBackLink } from "../components/SubjectBackLink";
+import { SUBJECT_BACK_PARAM } from "../lib/notionRoutes";
 import { DeckDisc } from "../components/DeckDisc";
 import { SubjectDeckGrid } from "../components/SubjectDeckGrid";
 import { SpacedMemoryHero } from "../components/SpacedMemoryHero";
@@ -85,8 +86,13 @@ export function RevisionPage() {
       <div className="relative">
         {/* Rétrolien via `?from=` uniquement — `?subject=` est déjà pris ici, et il LANCE une
             session. Il ne s'affiche donc que sur les arrivées sans deck (et au retour de
-            session), là où la page est réellement habitée. */}
-        <SubjectBackLink />
+            session), là où la page est réellement habitée.
+
+            Le nom vient du résumé déjà chargé : sans lui, `prettifySlug` afficherait
+            « Mathematiques », un mot français amputé de son accent. */}
+        <SubjectBackLink
+          name={summary?.subjects.find((s) => s.slug === searchParams.get(SUBJECT_BACK_PARAM))?.name}
+        />
         <PageHeader title="🔁 Révision" subtitle="Ancre tes notions, une carte à la fois." />
 
         <SpacedMemoryHero />

@@ -74,6 +74,11 @@ export function SubjectCatalogueBand({ catalogue, subjectName }: SubjectCatalogu
           <Link
             key={entry.kind}
             to={entry.route}
+            // Le NOM voyage avec le lien : l'URL ne porte qu'un slug, et `prettifySlug` en
+            // ferait « Mathematiques » — un mot français amputé de son accent, qui se lit
+            // comme une faute de frappe du produit. Ce n'est pas de l'état de NAVIGATION :
+            // les pages cibles ont toutes un repli si on arrive par un lien partagé.
+            state={{ name: subjectName }}
             aria-label={label}
             className={`${base} border border-zetis-border bg-zetis-surface text-zetis-text transition-colors hover:border-zetis-accent-2 motion-reduce:transition-none`}
           >

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { type QuizSubjectSummary, type StudentQuiz } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { SubjectBackLink } from "../components/SubjectBackLink";
+import { SUBJECT_BACK_PARAM } from "../lib/notionRoutes";
 import { QuizHero } from "../components/quiz/QuizHero";
 import { fetchQuizSubjects, fetchSubjectQuizzes } from "../lib/quiz";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -89,7 +90,9 @@ export function QuizPage() {
         {/* Rétrolien vers la MATIÈRE quand on arrive de sa page (`?from=`). Sans lui, Massimo
             atterrissait sur ses quiz sans pouvoir revenir d'où il venait. Il ne se rend pas
             s'il n'y a pas de `from` — une arrivée par la sidebar n'invente pas de retour. */}
-        <SubjectBackLink />
+        <SubjectBackLink
+          name={subjects?.find((s) => s.slug === searchParams.get(SUBJECT_BACK_PARAM))?.name}
+        />
         <button
           type="button"
           onClick={() => {
