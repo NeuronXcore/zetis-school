@@ -110,3 +110,15 @@ class OrphanOut(BaseModel):
     # Vrai → l'UI désactive la suppression : un score n'a plus de sens sans l'objet qui l'a
     # produit, mais on n'efface pas l'histoire de Massimo pour faire propre.
     has_history: bool
+
+
+class ProductionRunOut(BaseModel):
+    """État d'un lot de production (ADR-0031 §3). Un ÉTAT, jamais du contenu."""
+
+    id: int
+    status: str
+    trigger: str
+    authorized_by: str
+    chapter_id: int | None
+    created_at: datetime
+    finished_at: datetime | None

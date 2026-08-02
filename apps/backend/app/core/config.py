@@ -287,6 +287,31 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0", validation_alias="REDIS_URL")
     render_queue: str = Field(default="media", validation_alias="RENDER_QUEUE")
 
+    # --- Production en lot (ADR-0031 §3-§5) : file DÉDIÉE, distincte de `media`. ---
+    # Un rendu vidéo bloqué ne doit pas retarder une production, et l'inverse.
+    production_queue: str = Field(default="production", validation_alias="PRODUCTION_QUEUE")
+    # Un chapitre = jusqu'à ~15 pièces générées par LLM local. Large, mais borné : au-delà, le
+    # job est tué plutôt que de tenir la file indéfiniment.
+    production_job_timeout: int = Field(
+        default=3600, validation_alias="PRODUCTION_JOB_TIMEOUT"
+    )
+    # Régulateur du PALIER 2 (ADR-0031 §5) : au-delà de N objets en attente de relecture, la
+    # production refuse de démarrer. Une production qui dépasse durablement la capacité de
+    # relecture fabrique une dette qui tue le dispositif.
+    production_max_pending: int = Field(
+        default=30, validation_alias="PRODUCTION_MAX_PENDING"
+    )
+    # « Massimo passe devant » : s'il a une activité plus récente que ça, le worker attend —
+    # ENTRE deux notions, jamais pendant (un appel LLM n'est pas préemptible).
+    production_pause_if_active_minutes: int = Field(
+        default=5, validation_alias="PRODUCTION_PAUSE_IF_ACTIVE_MINUTES"
+    )
+    # Borne de l'attente ci-dessus : au-delà, le lot reprend malgré tout. Sans elle, une session
+    # longue de Massimo laisserait un run « running » indéfiniment.
+    production_max_wait_minutes: int = Field(
+        default=30, validation_alias="PRODUCTION_MAX_WAIT_MINUTES"
+    )
+
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [
         "http://localhost:5173",
