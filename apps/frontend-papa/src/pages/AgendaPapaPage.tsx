@@ -1,13 +1,16 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { type AgendaItemPilot } from "@zetis/types";
 import { ConfirmDialog, EmptyState, Spinner } from "@zetis/ui";
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { AgendaBatchEntry } from "../components/agenda/AgendaBatchEntry";
+import { CommandMissionModal } from "../components/CommandMissionModal";
 import { AgendaDetailPanel } from "../components/agenda/AgendaDetailPanel";
 import { AgendaTags, AgendaWeekBoard } from "../components/agenda/AgendaWeekBoard";
 import { StudentEntrySwitch } from "../components/agenda/StudentEntrySwitch";
 import { useAgenda, useAgendaReferential } from "../hooks/useAgenda";
+import { useCommandMission } from "../hooks/useCommandMission";
 import {
   AGENDA_PERIODS,
   addDays,
@@ -30,6 +33,10 @@ export function AgendaPapaPage() {
   const referential = useAgendaReferential();
   const [selected, setSelected] = useState<AgendaItemPilot | null>(null);
   const [toArchive, setToArchive] = useState<AgendaItemPilot | null>(null);
+  // ⚠️ Rien à recharger ICI après création : les missions vivent sur une autre page. Un no-op
+  // laisserait Papa sans retour — on garde le compte et on l'envoie voir.
+  const [commanded, setCommanded] = useState(0);
+  const cmd = useCommandMission(() => setCommanded((n) => n + 1));
 
   // La sélection suit le rechargement : après une correction, l'item du panneau doit être la
   // version fraîche du serveur (c'est lui qui pose `edited_by_parent_at`).
@@ -159,6 +166,21 @@ export function AgendaPapaPage() {
                   saving={agenda.saving}
                   onClose={() => setSelected(null)}
                   onSave={(body) => agenda.updateItem(current.id, body)}
+                  subjects={referential.subjects}
+                  chaptersBySys={referential.chaptersBySys}
+                  chaptersLoading={referential.chaptersLoading}
+                  onNeedChapters={referential.loadChapters}
+                  onCommandMissions={(chapterId) => {
+                    // Le sysId vient du référentiel : le Commander raisonne en
+                    // `school_year_subject_id`, l'échéance en `subject_id`.
+                    // ⚠️ `sysId` est `number | null` : une matière peut exister sans être
+                    // rattachée à l'année active. Sans matière rattachée, il n'y a pas de
+                    // référentiel de chapitres — donc rien à commander.
+                    const sysId =
+                      referential.subjects.find((s) => s.id === current.subject_id)?.sysId ?? null;
+                    if (sysId === null) return;
+                    cmd.openFor({ sysId, chapterId, dueDate: current.due_on });
+                  }}
                   onSaveNote={(note) => agenda.updateNote(current.id, note)}
                   onArchive={() => setToArchive(current)}
                 />
@@ -173,6 +195,19 @@ export function AgendaPapaPage() {
       )}
 
       {/* « Archiver », jamais « supprimer » : la ligne reste en base et reste retrouvable. */}
+      {/* Retour APRÈS création : les missions vivent ailleurs, cette page n'a rien à
+          recharger. Sans cette ligne, le clic n'aurait aucun effet visible ici. */}
+      {commanded > 0 && (
+        <p className="mt-4 rounded-lg border border-emerald-400/40 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-200">
+          Missions commandées.{" "}
+          <Link to="/missions" className="font-semibold underline">
+            Les voir dans Missions →
+          </Link>
+        </p>
+      )}
+
+      <CommandMissionModal cmd={cmd} />
+
       <ConfirmDialog
         open={toArchive !== null}
         title="Archiver cette échéance ?"

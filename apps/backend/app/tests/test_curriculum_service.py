@@ -228,6 +228,36 @@ def test_manual_creation_is_validated_by_default(client_db) -> None:
         assert chapter.metadata_json is None  # sans métadonnées fournies → null (13-bis)
 
 
+def test_aucune_creation_manuelle_ne_valide_sans_provenance(client_db) -> None:
+    """⚠️ VERROU — le §F.3 dit « aucun objet ne devient `validated` sans provenance », et ce chemin
+    l'enfreignait depuis toujours.
+
+    `create_manual_chapter` et `create_manual_lesson` écrivaient `validated` **en littéral**, hors
+    de `mark_validated`. Le verrou existant (`test_production_coverage.py`) ne pouvait pas le voir :
+    il part de lignes `pending` puis appelle les routes de validation — il ne teste jamais la
+    CRÉATION.
+
+    Le défaut était invisible jusqu'au Journal (ADR-0034), qui affiche la provenance **par objet** :
+    les leçons écrites par Papa y apparaissaient « provenance inconnue ». `PARENT` est la valeur
+    juste — écrire une chose, c'est l'avoir vue ; ce n'est ni un lot, ni une doctrine.
+    """
+    from app.modules.curriculum.service import create_manual_lesson
+
+    _, Session = client_db
+    with Session() as db:
+        sys_id = _seed_year_subject(db)
+
+        chapter = create_manual_chapter(db, sys_id, name="Chapitre écrit par Papa")
+        assert chapter.validation_status == "validated"
+        assert chapter.validated_by == "parent", "un chapitre validé sans provenance"
+        assert chapter.validated_at is not None
+
+        lesson = create_manual_lesson(db, chapter.id, title="Leçon écrite par Papa")
+        assert lesson.status == "validated"
+        assert lesson.validated_by == "parent", "une leçon validée sans provenance"
+        assert lesson.validated_at is not None
+
+
 def test_manual_creation_with_optional_metadata(client_db) -> None:
     _, Session = client_db
     with Session() as db:

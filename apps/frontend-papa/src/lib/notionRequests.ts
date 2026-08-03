@@ -47,6 +47,14 @@ export interface AddToProgramResult {
   skill_created: number;
   subject_id: number;
   status: string;
+  /** ⚠️ `true` → la notion existe au programme mais **aucune leçon ne la porte**, donc ZETIS ne
+   *  produira jamais rien pour elle (`equip_notion` renvoie `has_lesson=false`).
+   *
+   *  L'état est légitime — Papa peut vouloir la rattacher plus tard à une leçon existante. Ce qui
+   *  manquait, c'est de le DIRE : le bouton « + Programme » se lit « traité ». Calculé serveur,
+   *  jamais supposé : une notion déjà portée par une leçon ne déclenche aucun avertissement. */
+  needs_lesson: boolean;
+  skill_id: number | null;
 }
 
 /** Pont « Ajouter au programme » : la notion devient une Skill dans la matière choisie. */

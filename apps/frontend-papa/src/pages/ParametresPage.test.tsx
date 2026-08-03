@@ -26,9 +26,13 @@ function cls(
   return { key, code, label, value, choices, locked: choices.length === 1, reason };
 }
 
-/** Le régime RÉEL d'aujourd'hui, tel que le serveur le rend en phase 1 (veto non livré). */
+/** Le régime rendu par le serveur. ⚠️ `A1` y est encore verrouillé avec son motif « phase 1 » :
+ *  ces fixtures décrivent un serveur d'AVANT le Journal, et c'est délibéré — le front n'a aucune
+ *  liste en dur, il doit rendre ce que le serveur envoie, quel qu'il soit. */
 function autonomy(overrides: Partial<Autonomy> = {}): Autonomy {
   return {
+    // Le déclencheur automatique est DÉSARMÉ par défaut (ADR-0035 §5).
+    auto_trigger_enabled: false,
     classes: [
       cls(A0A, "A0a", "Dérivés inertes", 3, [2, 3]),
       cls(
@@ -72,10 +76,13 @@ async function renderLoaded() {
 
 beforeEach(() => {
   vi.mocked(fetchAutonomy).mockResolvedValue(autonomy());
-  vi.mocked(saveAutonomy).mockImplementation(async (values) => {
+  // Le faux serveur ÉCHOTE le déclencheur : un mock qui rendrait toujours `false` ferait passer
+  // un front qui ignore la case.
+  vi.mocked(saveAutonomy).mockImplementation(async (values, autoTrigger) => {
     const base = autonomy();
     return {
       ...base,
+      auto_trigger_enabled: autoTrigger ?? base.auto_trigger_enabled,
       classes: base.classes.map((c) =>
         values[c.key] !== undefined ? { ...c, value: values[c.key] } : c,
       ),
@@ -275,6 +282,55 @@ describe("ParametresPage", () => {
 
       fireEvent.click(within(cours).getByRole("button", { name: "Vous validez" }));
       expect(screen.queryByRole("dialog")).toBeNull();
+    });
+  });
+
+  // --- Le déclencheur automatique (ADR-0035 §5) -----------------------------------------------
+
+  describe("ZETIS peut démarrer sans vous", () => {
+    it("rend l'état du serveur, désarmé par défaut", async () => {
+      await renderLoaded();
+      expect(screen.getByLabelText("Laisser ZETIS démarrer seul")).not.toBeChecked();
+    });
+
+    it("⚠️ un préréglage ne touche le déclencheur DANS AUCUN SENS", async () => {
+      // Verrou de DOCTRINE — deux questions, deux sources. Le palier dit si ZETIS peut SERVIR
+      // sans relecture ; la case dit s'il peut DÉMARRER sans clic. Le jour où quelqu'un les
+      // fusionnera, ce test tombera, et c'est exactement ce qu'on lui demande.
+      //
+      // ⚠️ On part ARMÉ : une version qui vérifiait « toujours décoché » depuis un état décoché
+      // passait trivialement. Ici, un préréglage qui remettrait l'état à son défaut est attrapé.
+      vi.mocked(fetchAutonomy).mockResolvedValue(autonomy({ auto_trigger_enabled: true }));
+      await renderLoaded();
+      const box = screen.getByLabelText("Laisser ZETIS démarrer seul");
+      expect(box).toBeChecked();
+
+      fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+      expect(box).toBeChecked();
+
+      // …et dans l'autre sens : décocher ne change aucun palier.
+      fireEvent.click(box);
+      expect(screen.getByRole("button", { name: /Manuel/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+
+    it("la case part dans SON champ, jamais dans les paliers", async () => {
+      await renderLoaded();
+      fireEvent.click(screen.getByLabelText("Laisser ZETIS démarrer seul"));
+
+      const save = screen.getByRole("button", { name: "Enregistrer" });
+      expect(save).toBeEnabled();
+      fireEvent.click(save);
+
+      await waitFor(() => expect(saveAutonomy).toHaveBeenCalled());
+      const [values, autoTrigger] = vi.mocked(saveAutonomy).mock.calls.at(-1)!;
+      expect(autoTrigger).toBe(true);
+      // Aucune clé de palier n'a bougé : cocher la case ne touche pas les six.
+      expect(values).toEqual(
+        Object.fromEntries(autonomy().classes.map((c) => [c.key, c.value])),
+      );
     });
   });
 });

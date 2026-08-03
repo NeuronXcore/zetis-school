@@ -39,12 +39,21 @@ def _run(db, **kw) -> m.ProductionRun:
 # --- Le verrou : ce que la v1 a le droit d'écrire ----------------------------------------------
 
 
-def test_aucun_chemin_ne_declenche_autre_chose_que_manual() -> None:
+def test_aucun_chemin_nemet_une_valeur_non_decidee() -> None:
     """Patron du verrou `system` (§F), inversé : on cherche les ÉCRITURES, pas les mentions.
 
-    `trigger='agenda'` écrit quelque part signifierait qu'un déclencheur d'agenda produit du
-    contenu — décision de l'ADR-0032, qui n'existe pas. Le modèle l'accepte pour ne pas migrer
-    deux fois ; le code ne doit pas l'émettre.
+    ⚠️ **L'assertion n'a PAS changé le 2026-08-03 — elle n'avait pas à changer.** Elle dérive les
+    interdits d'`EMITTED_TRIGGERS` / `EMITTED_AUTHORIZED_BY` : ouvrir `agenda` et `parent_rule`
+    (ADR-0035) a **automatiquement** rétréci la liste sans toucher une ligne de test. C'est ce
+    qu'on attend d'un verrou bien posé.
+
+    Ce qui a changé : **le nom et le motif**. L'ancienne version disait « autre chose que
+    `manual` » et justifiait ainsi : *« un déclencheur d'agenda produirait du contenu — décision de
+    l'ADR-0032, qui n'existe pas »*. **Cette décision existe depuis l'ADR-0035.** Garder le texte
+    aurait fait lire un verrou de doctrine comme un verrou de phase.
+
+    Ce qu'il protège **aujourd'hui** : `request`, `evidence`, `derived`, `council` — modélisés,
+    non décidés. Le modèle anticipe, le code n'anticipe pas.
     """
     interdits = [t for t in TRIGGERS if t not in EMITTED_TRIGGERS]
     interdits += [a for a in AUTHORIZED_BY if a not in EMITTED_AUTHORIZED_BY]

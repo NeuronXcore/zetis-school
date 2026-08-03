@@ -317,7 +317,14 @@ def create_manual_chapter(
 ) -> Chapter:
     """Écrit par Papa → validé d'office (*écrire* ≠ *choisir*, ADR-0009 §3).
 
-    Métadonnées optionnelles (13-bis) : sans elles, `metadata_json` reste null."""
+    Métadonnées optionnelles (13-bis) : sans elles, `metadata_json` reste null.
+
+    ⚠️ **Provenance réparée le 2026-08-03.** Ce chemin écrivait `validation_status="validated"` en
+    littéral, **sans passer par `mark_validated`** — alors que `provenance.py` se déclare « le SEUL
+    chemin d'écriture […] garantit qu'aucun objet ne devient `validated` sans provenance » (§F.3).
+    Résultat : `validated_by IS NULL` sur un chapitre que Papa venait d'écrire, et le Journal
+    (ADR-0034) l'affichait « provenance inconnue » au lieu de « vous ». `PARENT` est la valeur
+    juste : écrire une chose, c'est l'avoir vue."""
     _sys_or_404(db, school_year_subject_id)
     metadata = None
     if themes is not None or suggested_class is not None or repartition is not None:
@@ -342,9 +349,9 @@ def create_manual_chapter(
         sort_order=next_order,
         status="planned",
         source="manual",
-        validation_status="validated",
         metadata_json=metadata,
     )
+    mark_validated(chapter, PARENT)
     db.add(chapter)
     db.commit()
     db.refresh(chapter)
@@ -864,7 +871,15 @@ def create_manual_lesson(
     summary: str | None = None,
     notions: list[str] | None = None,
 ) -> Lesson:
-    """Écrite par Papa → `created_by='parent'`, `status='validated'` d'office (§3)."""
+    """Écrite par Papa → `created_by='parent'`, `status='validated'` d'office (§3).
+
+    ⚠️ **Provenance réparée le 2026-08-03**, même défaut que `create_manual_chapter` : le `status`
+    passait `validated` en littéral, hors de `mark_validated`, donc `validated_by IS NULL`. Sur une
+    LEÇON, c'est le cas qui coûtait le plus cher — c'est le seul contenu que Massimo lit vraiment,
+    et le Journal montrait les cours de Papa comme d'origine inconnue.
+
+    ⚠️ Le champ de validation d'une leçon s'appelle `status`, pas `validation_status` — d'où le
+    `field=` explicite (cf. `mark_validated`)."""
     chapter = _chapter_or_404(db, chapter_id)
     next_order = (
         db.scalar(
@@ -878,10 +893,10 @@ def create_manual_lesson(
         chapter_id=chapter_id,
         title=title.strip(),
         summary=summary,
-        status="validated",
         created_by="parent",
         sort_order=next_order,
     )
+    mark_validated(lesson, PARENT, field="status")
     db.add(lesson)
     db.flush()
     if notions:
@@ -966,16 +981,40 @@ def add_notion_to_program(db: Session, request_id: int, subject_id: int) -> dict
     écraserait sinon `req.subject_id` en silence)."""
     req = _notion_request_or_404(db, request_id)
     if req.status == "added":
-        return {"skill_created": 0, "subject_id": req.subject_id, "status": "added", "already_processed": True}
+        return {
+            "skill_created": 0,
+            "subject_id": req.subject_id,
+            "status": "added",
+            "already_processed": True,
+            "needs_lesson": False,  # déjà traitée : on ne rejoue aucun diagnostic
+        }
     subject = db.get(Subject, subject_id)
     if subject is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matière introuvable.")
     year = _active_year_or_404(db)
-    _, created = _upsert_skills(db, subject_id, year.level, [req.text])
+    skills_by_key, created = _upsert_skills(db, subject_id, year.level, [req.text])
     req.status = "added"
     req.subject_id = subject_id  # trace la matière retenue
     db.commit()
-    return {"skill_created": created, "subject_id": subject_id, "status": "added"}
+
+    # ⚠️ **La notion créée ici est ORPHELINE** — aucune leçon ne la porte, donc `equip_notion`
+    # renvoie `has_lesson=False` et **ZETIS ne produira jamais rien pour elle** (constat du
+    # 2026-08-03). L'état est légitime et documenté ci-dessus (« la leçon/le cours suivent via les
+    # outils habituels ») ; ce qui manquait, c'est de le DIRE : le bouton se lit « traité ».
+    #
+    # Calculé, jamais supposé : si la notion existait déjà et portait une leçon, il n'y a rien à
+    # signaler. On ne fabrique pas un avertissement pour un problème absent.
+    skill = skills_by_key.get(_normalize_skill_name(req.text))
+    needs_lesson = skill is None or not db.scalar(
+        select(LessonSkill.lesson_id).where(LessonSkill.skill_id == skill.id).limit(1)
+    )
+    return {
+        "skill_created": created,
+        "subject_id": subject_id,
+        "status": "added",
+        "needs_lesson": bool(needs_lesson),
+        "skill_id": skill.id if skill is not None else None,
+    }
 
 
 def create_lesson_from_request(

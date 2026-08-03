@@ -231,6 +231,57 @@ def write_autonomy(db: Session, changes: dict[str, int]) -> dict[str, int]:
 # que chaque appelant réinterprète un entier à sa façon.
 
 
+# --- La 7ᵉ clé : ZETIS a-t-il le droit de DÉMARRER seul ? (ADR-0035 §5) ------------------------
+#
+# **Deux questions, deux sources**, et c'est la même doctrine qui a fait séparer le palier
+# d'`authorized_by` (§G.1) :
+#
+#   le PALIER      dit si ZETIS a le droit de SERVIR sans relecture  → les six clés ci-dessus
+#   le DÉCLENCHEUR dit si ZETIS a le droit de DÉMARRER sans clic     → cette clé
+#
+# Les fusionner rendrait impossible le régime intermédiaire le plus naturel — « ZETIS sert sans
+# relecture, mais il attend que je demande » — et son symétrique « ZETIS démarre seul, mais je
+# relis tout », qui est **le plus sûr des deux**, donc celui par lequel Papa voudra commencer.
+#
+# ⚠️ **Elle ne rejoint PAS `AUTONOMY_CLASSES`, et c'est un constat de code** :
+#   - ce n'est pas un palier `0..3` mais un booléen — `choices`, `locked` et `LEVEL_LABEL` n'ont
+#     aucun sens pour elle ;
+#   - `preset_of()` dérive le régime des seules classes réglables : l'y ajouter ferait qu'un
+#     **préréglage armerait le déclencheur automatique**, exactement la fusion qu'on refuse ;
+#   - `write_autonomy` rejette toute clé hors `BY_KEY` — d'où le **préfixe distinct**, qui la met
+#     hors d'atteinte d'un balayage accidentel.
+#
+# Convention de valeur : `"true"` / `"false"`, comme `agenda_student_entry_enabled`. Le
+# read-before-code du 2026-08-03 a corrigé l'ADR sur ce point, qui annonçait `0|1` : deux
+# conventions pour stocker un booléen dans la même table, c'est une de trop.
+AUTO_TRIGGER_KEY = "zetis_auto_trigger_enabled"
+
+# **Défaut : NON.** Papa doit l'armer explicitement. Un dispositif qui se met à travailler seul
+# après une mise à jour serait une surprise, pas une fonctionnalité.
+AUTO_TRIGGER_DEFAULT = False
+
+
+def auto_trigger_enabled(db: Session) -> bool:
+    """ZETIS a-t-il le droit de démarrer un lot sans que personne clique ?"""
+    row = db.get(AppSetting, AUTO_TRIGGER_KEY)
+    if row is None:
+        return AUTO_TRIGGER_DEFAULT
+    return row.value == "true"
+
+
+def set_auto_trigger_enabled(db: Session, *, enabled: bool) -> bool:
+    """Bascule explicite par Papa. **Jamais appelée automatiquement** — même règle que le verrou
+    de phase de l'agenda : un droit qui s'accorde tout seul n'est pas un droit accordé."""
+    row = db.get(AppSetting, AUTO_TRIGGER_KEY)
+    value = "true" if enabled else "false"
+    if row is None:
+        db.add(AppSetting(key=AUTO_TRIGGER_KEY, value=value))
+    else:
+        row.value = value
+    db.commit()
+    return enabled
+
+
 def course_gate_enabled(db: Session) -> bool:
     """A1 < 3 → la production n'équipe que les notions dont le cours est DÉJÀ validé.
 

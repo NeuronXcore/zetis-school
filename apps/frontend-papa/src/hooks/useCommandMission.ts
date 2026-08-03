@@ -31,6 +31,8 @@ export interface UseCommandMission {
   error: string | null;
   maxSkills: number;
   openModal: () => void;
+  /** Ouvre la modale déjà scopée sur une échéance d'agenda (porte « échéance »). */
+  openFor: (scope: { sysId: number; chapterId: number; dueDate: string }) => void;
   closeModal: () => void;
   setGate: (gate: CommandGate) => void;
   selectSubject: (sysId: number) => void;
@@ -110,20 +112,59 @@ export function useCommandMission(onCreated: () => void): UseCommandMission {
     [],
   );
 
-  const selectSubject = useCallback((nextSysId: number) => {
-    setSysId(nextSysId);
-    setChapterId(null);
-    setPreview(null);
-    setChecked(new Set());
+  /** Charge les chapitres VALIDÉS d'une matière. Extrait de `selectSubject` pour qu'`openFor`
+   *  le réutilise **sans** passer par le reset de `chapterId` qu'il fait, lui, à dessein. */
+  const loadChapters = useCallback(async (nextSysId: number) => {
     setLoadingChapters(true);
-    setError(null);
-    fetchChapters(nextSysId)
-      .then((list) => setChapters(list.filter((c) => c.validation_status === "validated")))
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "Chargement des chapitres impossible"),
-      )
-      .finally(() => setLoadingChapters(false));
+    try {
+      const list = await fetchChapters(nextSysId);
+      setChapters(list.filter((c) => c.validation_status === "validated"));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Chargement des chapitres impossible");
+    } finally {
+      setLoadingChapters(false);
+    }
   }, []);
+
+  const selectSubject = useCallback(
+    (nextSysId: number) => {
+      setSysId(nextSysId);
+      setChapterId(null); // changer de matière invalide le chapitre : il n'y appartient plus
+      setPreview(null);
+      setChecked(new Set());
+      setError(null);
+      void loadChapters(nextSysId);
+    },
+    [loadChapters],
+  );
+
+  /** Ouvre la modale DÉJÀ SCOPÉE sur une échéance d'agenda — la porte « échéance » de
+   *  l'ADR-0025 §11, restée déclarée et jamais alimentée jusqu'au 2026-08-03.
+   *
+   *  ⚠️ **Ne compose PAS `setGate` + `selectSubject` + `selectChapter`**, et c'est le piège de ce
+   *  hook : `selectSubject` remet `chapterId` à `null` (à raison — changer de matière invalide le
+   *  chapitre), et `selectChapter` lit `gate` dans sa FERMETURE, donc il partirait avec la porte
+   *  précédente. On pose l'état d'un bloc et on passe la porte explicitement au preview.
+   *
+   *  `force_priority` est armé : c'est la doctrine de la porte échéance (plancher, jamais
+   *  plafond — ADR-0018 §4). Papa peut le retirer, comme il peut décocher des notions. */
+  const openFor = useCallback(
+    (scope: { sysId: number; chapterId: number; dueDate: string }) => {
+      reset();
+      setGateState("deadline");
+      setForcePriority(true);
+      setOpen(true);
+      setSysId(scope.sysId);
+      setChapterId(scope.chapterId);
+      setDueDate(scope.dueDate);
+      fetchActiveSchoolYear()
+        .then(setYear)
+        .catch(() => setError("Aucune année scolaire active — configurez le programme d'abord."));
+      void loadChapters(scope.sysId);
+      void runPreview("deadline", scope.chapterId);
+    },
+    [reset, loadChapters, runPreview],
+  );
 
   const selectChapter = useCallback(
     (nextChapterId: number) => {
@@ -187,6 +228,7 @@ export function useCommandMission(onCreated: () => void): UseCommandMission {
     error,
     maxSkills: MISSION_COMMAND_MAX_SKILLS,
     openModal,
+    openFor,
     closeModal,
     setGate,
     selectSubject,

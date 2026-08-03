@@ -35,7 +35,7 @@ from app.db.models import (
     Quiz,
     SpacedReviewCard,
 )
-from app.modules.activity.events import NON_ACTIVITY_EVENTS
+from app.modules.activity.events import NON_WORK_EVENTS
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 
 logger = logging.getLogger(__name__)
@@ -151,8 +151,15 @@ def _record_notion(db: Session, *, run_id: int, result: dict) -> None:
 def massimo_is_active(db: Session, *, student_id: int) -> bool:
     """Massimo a-t-il une activité PÉDAGOGIQUE récente ?
 
-    `NON_ACTIVITY_EVENTS` est exclu : cocher une case d'agenda n'est pas une session de travail
-    (ADR-0025 §3). Sans cette exclusion, un geste déclaratif suffirait à suspendre une production.
+    `NON_WORK_EVENTS` est exclu : cocher une case d'agenda n'est pas une session de travail
+    (ADR-0025 §3), **et se connecter ou ouvrir une page non plus**.
+
+    ⚠️ **Corrigé le 2026-08-03.** Cette fonction ne filtrait que `NON_ACTIVITY_EVENTS`, alors que
+    le module agenda avait déjà tranché en privé que la navigation n'est pas du travail. Mesuré en
+    vrai : **un simple `login` suffisait à la faire répondre « il travaille »** pendant cinq
+    minutes. Anodin pour un lot que Papa venait de demander (il attendait entre deux notions) ;
+    bloquant depuis l'ADR-0035 §7, où la réponse décide si un lot AUTOMATIQUE démarre — un réveil
+    entier du scan sautait.
 
     ⚠️ **La transaction est refermée avant de rendre**, et ce n'est pas de l'hygiène décorative.
     Observé en vrai le 2026-08-02 : sans ce `rollback`, la session du worker reste `idle in
@@ -171,7 +178,7 @@ def massimo_is_active(db: Session, *, student_id: int) -> bool:
                 .where(
                     LearningEvent.student_id == student_id,
                     LearningEvent.created_at >= since,
-                    LearningEvent.event_type.not_in(tuple(NON_ACTIVITY_EVENTS)),
+                    LearningEvent.event_type.not_in(tuple(NON_WORK_EVENTS)),
                 )
                 .limit(1)
             )

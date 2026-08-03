@@ -24,7 +24,9 @@ export function NotionRequestActionModal({
 }: {
   request: NotionRequest;
   mode: "add" | "lesson";
-  onDone: () => void;
+  /** Porte le verdict SERVEUR (`needs_lesson`) : la page ne le devine pas, elle le reçoit.
+   *  `false` en mode « lesson » — une leçon vient précisément d'être créée. */
+  onDone: (result?: { needsLesson: boolean; label: string }) => void;
   onClose: () => void;
 }) {
   const [year, setYear] = useState<ActiveSchoolYear | null>(null);
@@ -71,7 +73,9 @@ export function NotionRequestActionModal({
     setError(null);
     try {
       if (mode === "add") {
-        await addNotionToProgram(request.id, selected.subject_id);
+        const out = await addNotionToProgram(request.id, selected.subject_id);
+        onDone({ needsLesson: out.needs_lesson, label: request.text });
+        return;
       } else {
         if (chapterId === null) return;
         await createLessonFromRequest(request.id, chapterId, generateCourse);
@@ -103,6 +107,18 @@ export function NotionRequestActionModal({
           Notion demandée : <b className="text-papa-text">« {request.text} »</b>. Elle n'a pas de
           matière — choisis où l'accueillir.
         </p>
+
+        {/* ⚠️ Dit AVANT le clic, parce que c'est le moment où l'information change la décision :
+            « Ajouter » et « Créer la leçon » ne font pas la même chose, et le premier se lit
+            « traité » alors qu'il laisse la notion inerte. Après coup, la modale est fermée. */}
+        {mode === "add" && (
+          <p className="mb-3 rounded-lg border border-amber-400/40 bg-amber-500/5 px-3 py-2 text-[12px] text-amber-200">
+            La notion entrera au programme, mais{" "}
+            <b className="text-papa-text">tant qu'aucune leçon ne la porte, ZETIS ne produira rien
+            pour elle</b>. Vous pourrez la rattacher plus tard — ou choisir « Créer la leçon » tout
+            de suite.
+          </p>
+        )}
 
         {error && (
           <p className="mb-3 rounded-lg border border-red-400/40 bg-red-500/5 px-3 py-2 text-[12px] text-red-300">

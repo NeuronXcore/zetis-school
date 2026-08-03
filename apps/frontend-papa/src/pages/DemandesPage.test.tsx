@@ -19,9 +19,21 @@ vi.mock("../lib/notionRequests", async (importOriginal) => ({
 import { fetchNotionRequests, resolveNotionRequest } from "../lib/notionRequests";
 
 // La modale charge l'année active/les chapitres — stubée (elle n'est pas le sujet de ces tests).
+// ⚠️ Elle expose quand même `onDone` : c'est par là que remonte le verdict serveur `needs_lesson`,
+// et une modale stubée muette rendrait ce chemin intestable.
 vi.mock("../components/demandes/NotionRequestActionModal", () => ({
-  NotionRequestActionModal: (p: { mode: string }) => (
-    <div data-testid="notion-modal" data-mode={p.mode} />
+  NotionRequestActionModal: (p: {
+    mode: string;
+    onDone: (r?: { needsLesson: boolean; label: string }) => void;
+  }) => (
+    <div data-testid="notion-modal" data-mode={p.mode}>
+      <button type="button" onClick={() => p.onDone({ needsLesson: true, label: "Thalès" })}>
+        stub-done-orpheline
+      </button>
+      <button type="button" onClick={() => p.onDone({ needsLesson: false, label: "Thalès" })}>
+        stub-done-rattachee
+      </button>
+    </div>
   ),
 }));
 
@@ -98,5 +110,43 @@ describe("DemandesPage", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Ignorer" }));
     expect(resolveNotionRequest).toHaveBeenCalledWith(9, "dismissed");
+  });
+
+
+  // --- « + Programme » dit ce qu'il ne fait pas (constat du 2026-08-03) -----------------------
+
+  it("signale une notion ajoutée que ZETIS ne pourra pas produire", async () => {
+    // ⚠️ « + Programme » crée une notion ORPHELINE : aucune leçon ne la porte, donc
+    // `equip_notion` renvoie `has_lesson=false` et rien ne sera JAMAIS généré pour elle. Le
+    // bouton, lui, se lit « traité ». Le constat vient du serveur (`needs_lesson`), pas d'une
+    // déduction du front.
+    vi.mocked(fetchContentRequests).mockResolvedValue([]);
+    vi.mocked(fetchNotionRequests).mockResolvedValue([
+      { id: 9, text: "Thalès", status: "pending", subject_id: null, created_at: "x" },
+    ]);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "+ Programme" }));
+    fireEvent.click(screen.getByRole("button", { name: "stub-done-orpheline" }));
+
+    expect(await screen.findByText(/ZETIS ne produira rien pour elle/)).toBeInTheDocument();
+    // Le geste qui répare est à côté du constat — sinon il désigne un problème sans issue.
+    expect(screen.getByRole("link", { name: /rattacher dans le Programme/ })).toHaveAttribute(
+      "href",
+      "/programme",
+    );
+  });
+
+  it("ne crie pas au loup quand une leçon porte déjà la notion", async () => {
+    // Un avertissement systématique s'apprend à s'ignorer. Le serveur calcule, le front obéit.
+    vi.mocked(fetchContentRequests).mockResolvedValue([]);
+    vi.mocked(fetchNotionRequests).mockResolvedValue([
+      { id: 9, text: "Thalès", status: "pending", subject_id: null, created_at: "x" },
+    ]);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "+ Programme" }));
+    fireEvent.click(screen.getByRole("button", { name: "stub-done-rattachee" }));
+
+    await waitFor(() => expect(screen.queryByTestId("notion-modal")).toBeNull());
+    expect(screen.queryByText(/ZETIS ne produira rien/)).toBeNull();
   });
 });

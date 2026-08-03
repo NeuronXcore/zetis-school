@@ -71,6 +71,21 @@ EVENT_AGENDA_ITEM_DONE = "agenda_item_done"
 
 NON_ACTIVITY_EVENTS = frozenset({EVENT_AGENDA_ITEM_CREATED, EVENT_AGENDA_ITEM_DONE})
 
+# --- Ce qui n'est PAS du travail (partagé) ------------------------------------------------------
+#
+# ⚠️ **Promu depuis `agenda/service.py` le 2026-08-03**, où il vivait en privé sous le nom
+# `_NON_TRACE_EVENTS`, avec ce motif : *« la navigation n'est pas du travail (sans quoi ouvrir la
+# page allumerait une trace) »*.
+#
+# **Il manquait à `production.runner.massimo_is_active`**, qui ne filtrait que `NON_ACTIVITY_EVENTS`
+# alors que son docstring promet une activité *pédagogique*. Conséquence mesurée en vrai :
+# **se connecter suffisait à suspendre la production pendant cinq minutes**, et — depuis le
+# déclencheur automatique (ADR-0035 §7) — à faire sauter un réveil entier du scan.
+#
+# Deux lecteurs de la même question doivent lire la même liste. La dupliquer, c'était la laisser
+# diverger — ce qu'elle avait déjà fait.
+NON_WORK_EVENTS = frozenset({EVENT_LOGIN, EVENT_PAGE_VIEWED}) | NON_ACTIVITY_EVENTS
+
 # --- Chat ZETIS (ADR-0026 §2) : le chat n'a PAS de mémoire propre, il écrit dans ce journal. ---
 # Vocabulaire FERMÉ, trois types EXACTEMENT, émis CÔTÉ SERVEUR (l'orchestrateur), jamais par le
 # client. NON PROBANTS par construction : `evidence/service.py` ne lit que `mission_verdict`

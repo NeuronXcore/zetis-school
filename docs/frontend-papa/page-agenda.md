@@ -105,16 +105,42 @@ réintroduire par la couleur.
 
 ### Panneau de détail
 
-Intitulé · date · type éditables ; **état en lecture seule** ; **note privée** (`parent_note`)
-avec la mention explicite qu'elle n'est jamais servie à Massimo ; actions Enregistrer /
-Archiver.
+Intitulé · date · type · **chapitre** éditables ; **état en lecture seule** ; **note privée**
+(`parent_note`) avec la mention explicite qu'elle n'est jamais servie à Massimo ; actions
+Enregistrer / Archiver.
 
-### Panneau d'analyse (Lot 3, ADR-0025 §11)
+> **Le chapitre est éditable ICI depuis le 2026-08-03** (addendum ADR-0035). Il ne l'était qu'à la
+> saisie en lot : un item mal saisi — ou saisi par Massimo, qui n'a aucun sélecteur — restait
+> **définitivement stérile**, alors que l'API l'acceptait déjà. Sans matière, pas de menu vide mais
+> une phrase qui dit quoi faire.
+>
+> Une échéance **sans chapitre le DIT** : *« ZETIS ne pourra ni préparer cette échéance ni commander
+> de missions dessus »*. Sans ça, le déclencheur paraît en panne. ⚠️ Le message est
+> **indépendant du `kind`** — recopier `TRIGGERING_KINDS` au front en ferait une seconde source de
+> vérité, qui a divergé le jour même où `devoir` y est entré.
 
-Sur une échéance portant un `chapter_id`, un encart alimenté par le **service d'évidence scopé
-au chapitre** : *n notions fragiles · n quiz sous le seuil · n cartes en attente*, suivi du
-bouton **« Commander ces missions »** — le preview/confirm existant (ADR-0018), avec
-`force_priority` par défaut.
+### Panneau d'analyse (Lot 3, ADR-0025 §11) — **partiellement livré**
+
+✅ **Livré le 2026-08-03** : sur une échéance portant un `chapter_id`, le bouton **« 🎯 Commander
+les missions de ce chapitre »** ouvre la modale existante **pré-remplie** (porte `deadline`,
+chapitre de l'item, `due_date` = son échéance, `force_priority` armé).
+
+> **Aucune ligne de backend** : `resolve_chapter_notions` est déjà scopé par chapitre,
+> `create_command_missions` prend déjà `due_date` + `force_priority`, `gate: "deadline"` existait
+> **depuis l'origine** — déclaré et jamais alimenté. L'ADR-0025 avait raison : « le pont ne demande
+> aucun mécanisme neuf ».
+
+⛔ **Pas livré** : l'encart à trois compteurs (*n notions fragiles · n quiz sous le seuil · n cartes
+en attente*). Les deux premiers se composent avec l'existant ; le troisième non —
+`evidence.srs_pressure` est **par matière**, pas par chapitre.
+
+⚠️ **Le Commander n'est PAS idempotent** : commander deux fois la même échéance crée des doublons
+(`Mission` n'a aucune référence à l'agenda). Tolérable tant que c'est un geste manuel ; **obligatoire
+à corriger le jour où le scan suggérerait des missions**.
+
+**Un GESTE de Papa, jamais le scan.** ZETIS **produit du contenu** sans clic (ADR-0035) ; il ne
+**prescrit pas du travail** à Massimo sans clic — `command.py` fonde la validation des missions sur
+« le preview/confirm avec notions décochables EST l'approbation humaine ».
 
 **Papa-side strictement.** Rien de cette analyse n'atteint Massimo : il voit l'échéance et, le
 cas échéant, le travail qui en découle — jamais le diagnostic qui l'a motivé.

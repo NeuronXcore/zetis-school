@@ -21,8 +21,9 @@ router = APIRouter(
 )
 
 
-def _out(values: dict[str, int]) -> dict:
+def _out(db: Session, values: dict[str, int]) -> dict:
     return {
+        "auto_trigger_enabled": service.auto_trigger_enabled(db),
         "classes": [
             {
                 "key": cls.key,
@@ -41,8 +42,11 @@ def _out(values: dict[str, int]) -> dict:
 
 @router.get("/autonomy", response_model=AutonomyOut)
 def get_autonomy(db: Session = Depends(get_db)) -> dict:
-    """Les six paliers, leurs choix et leurs verrous. Aucune écriture, aucun back-fill."""
-    return _out(service.read_autonomy(db))
+    """Les six paliers, leurs choix et leurs verrous, plus le déclencheur automatique.
+
+    Aucune écriture, aucun back-fill.
+    """
+    return _out(db, service.read_autonomy(db))
 
 
 @router.put("/autonomy", response_model=AutonomyOut)
@@ -51,5 +55,12 @@ def set_autonomy(req: AutonomyRequest, db: Session = Depends(get_db)) -> dict:
 
     Le refus est **explicite et motivé** : une classe verrouillée qu'on tenterait de forcer ne
     doit pas échouer en silence ni être tronquée — l'appelant doit pouvoir afficher pourquoi.
+
+    ⚠️ **Le déclencheur se bascule PAR SON PROPRE CHAMP**, jamais par `values` : il n'est pas un
+    palier, et un préréglage ne doit à aucun moment l'armer au passage (ADR-0035 §5). `None` =
+    ne pas y toucher.
     """
-    return _out(service.write_autonomy(db, dict(req.values)))
+    values = service.write_autonomy(db, dict(req.values))
+    if req.auto_trigger_enabled is not None:
+        service.set_auto_trigger_enabled(db, enabled=req.auto_trigger_enabled)
+    return _out(db, values)

@@ -318,6 +318,32 @@ class Settings(BaseSettings):
         default=90, validation_alias="PRODUCTION_HEARTBEAT_TIMEOUT_MINUTES"
     )
 
+    # --- Déclencheur automatique (ADR-0035) ---------------------------------------------------
+    # Le régulateur de VOLUME, qui devient obligatoire dès qu'un lot peut partir sans clic. Il ne
+    # remplace pas `production_max_pending` : celui-là borne l'arriéré de relecture (et reste à
+    # zéro au palier 3, où plus rien n'est `pending`), celui-ci borne ce qui est PRODUIT.
+    #
+    # ⚠️ Calibrage ASSUMÉ et révisable, tiré de la seule mesure réelle disponible : 69 s par
+    # notion (chapitre « Fractions », 11 notions en 12 min 35 s, 2026-08-02). Un chapitre dense de
+    # 31 notions coûte ~36 min. Le défaut prudent fait rater des productions, jamais l'inverse.
+    production_auto_max_runs: int = Field(
+        default=2, validation_alias="PRODUCTION_AUTO_MAX_RUNS"
+    )
+    production_auto_window_days: int = Field(
+        default=7, validation_alias="PRODUCTION_AUTO_WINDOW_DAYS"
+    )
+    # Fenêtre d'anticipation : une échéance plus lointaine ne déclenche pas. Produire trois
+    # semaines à l'avance, c'est produire pour un programme qui aura changé.
+    production_auto_lookahead_days: int = Field(
+        default=7, validation_alias="PRODUCTION_AUTO_LOOKAHEAD_DAYS"
+    )
+    # Période du réveil du scan. Il ne PRODUIT rien : il regarde si le monde réel a demandé
+    # quelque chose. C'est ce qui distingue ce scheduler de celui que `production_worker.py`
+    # refusait — « tous les dimanches, produire » reste interdit.
+    production_scan_interval_minutes: int = Field(
+        default=180, validation_alias="PRODUCTION_SCAN_INTERVAL_MINUTES"
+    )
+
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [
         "http://localhost:5173",

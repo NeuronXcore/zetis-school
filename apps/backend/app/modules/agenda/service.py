@@ -22,7 +22,7 @@ from app.modules.activity.events import (
     EVENT_AGENDA_ITEM_DONE,
     EVENT_LOGIN,
     EVENT_PAGE_VIEWED,
-    NON_ACTIVITY_EVENTS,
+    NON_WORK_EVENTS,
     log_learning_event,
 )
 from app.modules.activity.timeutils import local_day, range_bounds_utc, today_local
@@ -30,7 +30,10 @@ from app.modules.activity.timeutils import local_day, range_bounds_utc, today_lo
 # Événements qui ne comptent pas comme une « activité » d'un jour passé : la navigation n'est pas
 # du travail (sans quoi ouvrir la page allumerait une trace), et l'agenda lui-même est non
 # probant. Le reste compte — le comptage est volontairement grossier et généreux.
-_NON_TRACE_EVENTS = frozenset({EVENT_LOGIN, EVENT_PAGE_VIEWED}) | NON_ACTIVITY_EVENTS
+# Promu dans `activity/events.py` sous le nom `NON_WORK_EVENTS` (2026-08-03) : la production en
+# avait besoin de la MÊME liste, et deux copies avaient déjà divergé. Alias conservé pour ne pas
+# toucher les lecteurs de ce module.
+_NON_TRACE_EVENTS = NON_WORK_EVENTS
 
 # « Ce qui arrive » ne montre QUE ce qui a une échéance qu'on prépare (§6). Un devoir du
 # lendemain n'y a pas sa place : il est déjà dans la bande.
