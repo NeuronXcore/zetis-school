@@ -27,4 +27,13 @@ export interface AutonomyClass {
 export interface Autonomy {
   classes: AutonomyClass[];
   preset: AutonomyPreset | null;
+  /** ZETIS a-t-il le droit de **démarrer** un lot sans que personne clique ? (ADR-0035 §5)
+   *
+   *  ⚠️ **Séparé de `classes`, et ce n'est pas un détail de forme.** Deux questions, deux
+   *  sources : le palier dit si ZETIS peut **servir** sans relecture, ceci dit s'il peut
+   *  **démarrer** sans clic. Le mettre dans `classes` ferait qu'un préréglage l'armerait au
+   *  passage, et rendrait impossible « ZETIS sert seul, mais il attend que je demande ».
+   *
+   *  Défaut : `false`. Papa l'arme explicitement. */
+  auto_trigger_enabled: boolean;
 }

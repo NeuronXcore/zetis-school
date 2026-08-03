@@ -23,9 +23,23 @@ TRIGGERS = ("manual", "request", "agenda", "evidence", "derived", "council")
 AUTHORIZED_BY = ("parent_direct", "parent_rule")
 RUN_STATUSES = ("queued", "running", "done", "failed")
 
-# Ce que la v1 ÉMET réellement. Le reste est modélisé et interdit d'écriture (test-verrou).
-EMITTED_TRIGGERS = ("manual",)
-EMITTED_AUTHORIZED_BY = ("parent_direct",)
+# Ce qui est réellement ÉMIS. Le reste est modélisé et interdit d'écriture (test-verrou).
+#
+# `agenda` ouvert le 2026-08-03 (ADR-0035 §1) : un CONTRÔLE, avec un chapitre rattaché et une
+# échéance proche, déclenche la production de ce chapitre. `devoir` et `rendu` restent légaux et
+# non émis — un devoir reviendrait tous les jours et noierait le régulateur.
+#
+# ⚠️ `evidence` est écarté EN CONNAISSANCE DE CAUSE, pas par manque de temps : l'agenda est la
+# seule source EXOGÈNE du produit, sa légitimité se lit sans modèle (« quelqu'un du monde réel a
+# écrit qu'il y avait un contrôle jeudi »). Un déclencheur `evidence` ferait décider ZETIS sur SA
+# PROPRE mesure — la boucle se refermerait sur elle-même, et une mesure fausse produirait du
+# contenu que rien d'extérieur ne viendrait contredire.
+EMITTED_TRIGGERS = ("manual", "agenda")
+
+# `parent_rule` s'émet enfin (ADR-0035 §6) : un lot né du scan satisfait la définition littérale du
+# §G.1 — **aucun humain n'a ouvert la pièce, NI CLIQUÉ POUR CE LOT**. Elle est restée légale et non
+# émise depuis le 2026-07-28, précisément parce que tout lot partait d'un clic.
+EMITTED_AUTHORIZED_BY = ("parent_direct", "parent_rule")
 
 # `trigger` → la FK de référence qu'il DOIT renseigner, et elle seule. `manual` n'en a aucune :
 # c'est un geste de Papa, il ne référence rien d'autre que lui-même.

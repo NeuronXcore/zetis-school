@@ -23,10 +23,29 @@ from app.core.config import settings
 def main() -> None:
     connection = Redis.from_url(settings.redis_url)
     queue = Queue(settings.production_queue, connection=connection)
-    # `with_scheduler=False` : le déclenchement reste ÉVÉNEMENTIEL (ADR-0023, repris par
-    # l'ADR-0031). Aucun cron, aucune tâche périodique — un scheduler ici ouvrirait la porte à
-    # « tous les dimanches, produire quelque chose », qui n'a pas de sens pédagogique.
-    SimpleWorker([queue], connection=connection).work(with_scheduler=False)
+
+    # ⚠️ **L'objection d'origine est maintenue, et elle est SATISFAITE — pas contournée.**
+    #
+    # Ce fichier a porté `with_scheduler=False` du 2026-08-02 au 2026-08-03, avec ce motif :
+    #
+    #   « le déclenchement reste ÉVÉNEMENTIEL. Aucun cron, aucune tâche périodique — un scheduler
+    #     ici ouvrirait la porte à "tous les dimanches, produire quelque chose", qui n'a pas de
+    #     sens pédagogique. »
+    #
+    # Le motif reste juste, et **rien de ce qu'il interdisait n'est arrivé** : le job périodique
+    # (`jobs.scan_triggers`) ne produit RIEN. Il **regarde** si le monde réel a demandé quelque
+    # chose — un contrôle avec un chapitre rattaché, dans les jours qui viennent (ADR-0035 §1).
+    # « Tous les dimanches, produire » reste interdit ; « tous les trois heures, vérifier s'il y a
+    # un contrôle jeudi » est l'inverse exact.
+    #
+    # Le premier réveil est amorcé ici, et le job se replanifie ensuite lui-même. Sans cet amorçage,
+    # une file vide ne se remplirait jamais.
+    if settings.production_scan_interval_minutes > 0:
+        from app.modules.production.jobs import scan_triggers
+
+        queue.enqueue(scan_triggers)
+
+    SimpleWorker([queue], connection=connection).work(with_scheduler=True)
 
 
 if __name__ == "__main__":

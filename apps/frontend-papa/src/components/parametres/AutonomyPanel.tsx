@@ -62,6 +62,9 @@ export function AutonomyPanel() {
   // Le passage du cours en « ZETIS sert » retire le dernier contrôle humain : il se confirme.
   // Le passage INVERSE n'a aucune friction — on ne freine pas un retour au contrôle.
   const [pending, setPending] = useState<Draft | null>(null);
+  // État PROPRE, jamais mêlé au brouillon des paliers : le fusionner ferait qu'un préréglage
+  // l'armerait au passage — exactement ce que l'ADR-0035 §5 refuse.
+  const [autoTrigger, setAutoTrigger] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -70,6 +73,7 @@ export function AutonomyPanel() {
         if (!alive) return;
         setAutonomy(data);
         setDraft(draftOf(data));
+        setAutoTrigger(data.auto_trigger_enabled);
       })
       .catch(() => alive && setError("Réglages illisibles — rien n'est affiché tant qu'ils le sont."))
       .finally(() => alive && setLoading(false));
@@ -80,8 +84,11 @@ export function AutonomyPanel() {
 
   const preset = useMemo(() => (autonomy ? presetOfDraft(draft) : null), [autonomy, draft]);
   const dirty = useMemo(
-    () => Boolean(autonomy) && Object.entries(draft).some(([k, v]) => draftOf(autonomy!)[k] !== v),
-    [autonomy, draft],
+    () =>
+      Boolean(autonomy) &&
+      (Object.entries(draft).some(([k, v]) => draftOf(autonomy!)[k] !== v) ||
+        autonomy!.auto_trigger_enabled !== autoTrigger),
+    [autonomy, draft, autoTrigger],
   );
 
   const propose = useCallback(
@@ -100,10 +107,11 @@ export function AutonomyPanel() {
     if (!autonomy) return;
     setSaving(true);
     setError(null);
-    saveAutonomy(draft)
+    saveAutonomy(draft, autoTrigger)
       .then((fresh) => {
         setAutonomy(fresh);
         setDraft(draftOf(fresh));
+        setAutoTrigger(fresh.auto_trigger_enabled);
       })
       .catch((cause: unknown) => {
         // Le serveur DIT pourquoi il refuse (422 motivé) : on relaie son message tel quel, et on
@@ -111,9 +119,10 @@ export function AutonomyPanel() {
         // croire qu'il est actif.
         setError(cause instanceof Error ? cause.message : "Enregistrement refusé.");
         setDraft(draftOf(autonomy));
+        setAutoTrigger(autonomy.auto_trigger_enabled);
       })
       .finally(() => setSaving(false));
-  }, [autonomy, draft]);
+  }, [autonomy, draft, autoTrigger]);
 
   return (
     <section className="mt-4 rounded-xl border border-papa-border bg-papa-surface p-5">
@@ -183,8 +192,12 @@ export function AutonomyPanel() {
               {/* La page des réglages RENVOIE, elle n'énumère pas : une liste ici en referait un
                   compteur, et le §F.2 l'interdit. */}
               <p className="mt-2">
+                {/* ⚠️ Pointait vers `/couverture` jusqu'au 2026-08-03 — écrit avant que le Journal
+                    existe, alors que l'ADR-0032 §4 avait DÉJÀ tranché « le veto s'exerce sur le
+                    Journal, pas sur la Couverture ». La Couverture est une matrice d'état
+                    (« qu'est-ce qui manque ») ; le veto a besoin d'un flux daté. */}
                 <Link
-                  to="/couverture"
+                  to="/journal"
                   className="text-[12px] font-semibold text-papa-accent hover:underline"
                 >
                   📓 Voir ce que ZETIS a servi →
@@ -193,12 +206,48 @@ export function AutonomyPanel() {
             </div>
           </div>
 
+          {/* ⚠️ SOUS les six classes, et visuellement SÉPARÉ d'elles : ce n'est pas un septième
+              palier, c'est une autre question (ADR-0035 §5). Le palier dit si ZETIS peut SERVIR
+              sans relecture ; ceci dit s'il peut DÉMARRER sans clic. Les préréglages ne le
+              touchent jamais. */}
+          <div className="mt-4 flex items-start gap-3.5 rounded-xl border border-papa-border bg-papa-bg p-3.5">
+            <span aria-hidden className="text-lg leading-none">
+              ⏰
+            </span>
+            <div className="min-w-0 flex-1">
+              <b className="text-[13px]">ZETIS peut démarrer sans vous</b>
+              <p className="mt-1 text-[12px] leading-relaxed text-papa-muted">
+                Quand un <b className="text-papa-text">contrôle</b> approche et qu'il est rattaché à
+                un chapitre, ZETIS prépare ce chapitre sans attendre votre clic. Il ne démarre
+                jamais pendant que Massimo travaille, et au plus{" "}
+                <b className="text-papa-text">deux fois par semaine</b>.
+              </p>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-papa-muted">
+                C'est une question <b className="text-papa-text">différente</b> des réglages
+                ci-dessus : ceux-là disent ce que ZETIS peut servir sans relecture, celui-ci dit
+                s'il peut se mettre au travail seul.
+              </p>
+              <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-[12px] font-semibold">
+                <input
+                  type="checkbox"
+                  checked={autoTrigger}
+                  disabled={saving}
+                  onChange={(e) => setAutoTrigger(e.target.checked)}
+                />
+                Laisser ZETIS démarrer seul
+              </label>
+            </div>
+          </div>
+
           <div className="mt-5 flex justify-end gap-2">
             <Button
               variant="ghost"
               disabled={!dirty || saving}
               title={dirty ? undefined : "Aucune modification à annuler"}
-              onClick={() => setDraft(draftOf(autonomy))}
+              onClick={() => {
+                setDraft(draftOf(autonomy));
+                setAutoTrigger(autonomy.auto_trigger_enabled);
+              }}
             >
               Annuler
             </Button>

@@ -18,13 +18,24 @@ export async function fetchAutonomy(): Promise<Autonomy> {
   return asJson(await fetch(`${BASE}/autonomy`, { headers: authHeader() }));
 }
 
-/** Écriture partielle : on n'envoie que ce qui change. 422 motivé sur toute valeur refusée. */
-export async function saveAutonomy(values: Record<string, AutonomyLevel>): Promise<Autonomy> {
+/** Écriture partielle : on n'envoie que ce qui change. 422 motivé sur toute valeur refusée.
+ *
+ *  ⚠️ `autoTrigger` voyage dans SON PROPRE CHAMP, jamais dans `values` (ADR-0035 §5) : le serveur
+ *  rejette toute clé hors des six paliers, et le déclencheur n'en est pas un. `undefined` = ne pas
+ *  y toucher — enregistrer un préréglage ne doit à aucun moment armer ZETIS au passage. */
+export async function saveAutonomy(
+  values: Record<string, AutonomyLevel>,
+  autoTrigger?: boolean,
+): Promise<Autonomy> {
   return asJson(
     await fetch(`${BASE}/autonomy`, {
       method: "PUT",
       headers: jsonHeaders(),
-      body: JSON.stringify({ values }),
+      body: JSON.stringify(
+        autoTrigger === undefined
+          ? { values }
+          : { values, auto_trigger_enabled: autoTrigger },
+      ),
     }),
   );
 }

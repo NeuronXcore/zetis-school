@@ -21,7 +21,12 @@ from app.db.models import (
     Skill,
     StudentProfile,
 )
-from app.db.models.production import EMITTED_AUTHORIZED_BY, EMITTED_TRIGGERS
+from app.db.models.production import (
+    AUTHORIZED_BY,
+    EMITTED_TRIGGERS,
+    TRIGGER_REFERENCE,
+    TRIGGERS,
+)
 
 # Les dérivés qui attendent une relecture de Papa — et ils ne sont que DEUX.
 #
@@ -101,12 +106,100 @@ def close_stale_runs(db: Session) -> int:
     return closed
 
 
-def create_run(db: Session, *, chapter_id: int) -> ProductionRun:
-    """Crée un lot `manual`/`parent_direct` sur un chapitre. Refuse si l'arriéré déborde.
+def auto_runs_in_window(db: Session, *, now: datetime | None = None) -> int:
+    """Nombre de lots AUTOMATIQUES sur la fenêtre glissante — le régulateur de l'ADR-0035 §4.
+
+    ⚠️ **Les lots manuels ne comptent pas**, et c'est le cœur de la décision : quand Papa clique,
+    **le geste EST le régulateur** (ADR-0032 §5) — le volume est borné par le nombre de fois où un
+    humain appuie. Les mélanger ferait qu'une session de rattrapage de Papa désarmerait
+    l'automatisme, ou l'inverse.
+
+    ⚠️ **Il ne remplace pas `pending_backlog`, il s'y ajoute.** Deux régulateurs, deux objets : ce
+    compteur borne le VOLUME PRODUIT, l'autre borne l'ARRIÉRÉ DE RELECTURE. Au palier 2 le second
+    mord ; au palier 3, plus rien ne devient `pending` et seul celui-ci mord. C'est voulu — c'est
+    exactement le trou que l'ADR-0031 §5 avait annoncé.
+    """
+    since = (now or datetime.now(timezone.utc)) - timedelta(
+        days=settings.production_auto_window_days
+    )
+    return db.scalar(
+        select(func.count(ProductionRun.id)).where(
+            ProductionRun.trigger != "manual", ProductionRun.created_at >= since
+        )
+    ) or 0
+
+
+def run_exists_for(db: Session, *, trigger: str, reference_id: int) -> bool:
+    """Un lot référence-t-il DÉJÀ cette origine ? (ADR-0035 §3, idempotence)
+
+    Sans cette question, chaque réveil du scan reproduirait le même chapitre jusqu'à l'échéance.
+
+    ⚠️ **L'idempotence se lit ICI, elle ne s'écrit pas sur la source.** Poser un `produced_at` sur
+    `agenda_items` ferait écrire le module production dans une table que **Massimo co-édite**
+    (ADR-0025 §2a : « personne ne réécrit silencieusement l'autre »). « Ce lot a-t-il déjà eu
+    lieu ? » se pose au journal des lots — c'est sa raison d'être.
+    """
+    column = TRIGGER_REFERENCE.get(trigger)
+    if column is None:
+        return False
+    return bool(
+        db.scalar(
+            select(ProductionRun.id)
+            .where(getattr(ProductionRun, column) == reference_id)
+            .limit(1)
+        )
+    )
+
+
+def create_run(
+    db: Session,
+    *,
+    chapter_id: int,
+    trigger: str = "manual",
+    authorized_by: str = "parent_direct",
+    reference_id: int | None = None,
+) -> ProductionRun:
+    """Crée un lot sur un chapitre. Refuse si l'arriéré déborde — ou si le volume auto est atteint.
 
     Le régulateur REFUSE et le DIT — il ne tronque pas silencieusement. Une production qui dépasse
     durablement la capacité de relecture fabrique une dette qui tue le dispositif (ADR-0023 §5).
+
+    `trigger` / `authorized_by` / `reference_id` (ADR-0035 §3) — les défauts sont ceux du geste de
+    Papa : **les appelants existants ne changent pas d'un caractère**.
+
+    ⚠️ **Cette fonction lève des `HTTPException`.** C'est juste dans une requête, ça ne l'est pas
+    dans un job RQ : le scan automatique **rattrape et journalise**, il ne laisse pas remonter un
+    code de statut vers personne (voir `triggers.scan_agenda`).
     """
+    if trigger not in TRIGGERS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Déclencheur inconnu : {trigger}."
+        )
+    if trigger not in EMITTED_TRIGGERS:
+        # Le modèle anticipe, le code n'anticipe pas : une valeur légale mais non émise doit être
+        # refusée tant que son ADR n'existe pas (patron `content_kind`, patron `parent_rule`).
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Le déclencheur « {trigger} » est modélisé mais pas encore émis.",
+        )
+    if authorized_by not in AUTHORIZED_BY:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Autorité inconnue : {authorized_by}."
+        )
+
+    # « Exactement une FK, cohérente avec `trigger` » — la règle que l'ADR-0031 §4 a confiée au
+    # service et qui n'avait aucun cas à valider tant que seul `manual` était émis.
+    column = TRIGGER_REFERENCE[trigger]
+    if column is None and reference_id is not None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Le déclencheur « {trigger} » ne référence rien.",
+        )
+    if column is not None and reference_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Le déclencheur « {trigger} » exige une référence ({column}).",
+        )
     # Ménage opportuniste AVANT tout le reste : un lot zombie fausserait `GET /active` et ferait
     # croire à une production en cours (ADR-0034 §2).
     close_stale_runs(db)
@@ -126,19 +219,33 @@ def create_run(db: Session, *, chapter_id: int) -> ProductionRun:
             ),
         )
 
+    # Le régulateur de VOLUME ne s'applique qu'aux lots que personne n'a demandés (ADR-0035 §4).
+    if trigger != "manual":
+        recent = auto_runs_in_window(db)
+        if recent >= settings.production_auto_max_runs:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail=(
+                    f"{recent} productions automatiques ces "
+                    f"{settings.production_auto_window_days} derniers jours "
+                    f"(plafond : {settings.production_auto_max_runs})."
+                ),
+            )
+
     student = db.scalar(select(StudentProfile).order_by(StudentProfile.id))
     if student is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Aucun profil élève.")
 
     run = ProductionRun(
         student_id=student.id,
-        # v1 : le seul déclencheur et la seule autorité émis (ADR-0031 §4, test-verrou).
-        trigger=EMITTED_TRIGGERS[0],
-        authorized_by=EMITTED_AUTHORIZED_BY[0],
+        trigger=trigger,
+        authorized_by=authorized_by,
         status="queued",
         chapter_id=chapter_id,
         created_at=datetime.now(timezone.utc),
     )
+    if column is not None:
+        setattr(run, column, reference_id)
     db.add(run)
     db.commit()
     db.refresh(run)

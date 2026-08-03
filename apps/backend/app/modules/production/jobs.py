@@ -24,3 +24,34 @@ def run_production(run_id: int) -> dict:
         return runner.execute(db, run_id=run_id, llm=get_provider(), embedder=get_embedder())
     finally:
         db.close()
+
+
+def scan_triggers() -> dict:
+    """Job PÉRIODIQUE du déclencheur automatique (ADR-0035 §2) — il REGARDE, il ne produit pas.
+
+    Il lit l'agenda, applique les conditions, crée les runs — et **se replanifie lui-même**. Les
+    lots créés partent dans la même file et sont exécutés par `run_production`, comme ceux que
+    Papa lance : **un seul chemin d'exécution**, quelle que soit l'origine.
+
+    ⚠️ **La replanification est en `finally`.** Un scan qui échouerait sans se replanifier
+    arrêterait le dispositif **définitivement et en silence** — le pire mode de panne pour une
+    tâche de fond que personne ne regarde.
+    """
+    from app.core.queue import enqueue_production, production_queue
+    from app.core.config import settings
+    from app.db.base import SessionLocal
+    from app.modules.production import triggers
+
+    db = SessionLocal()
+    try:
+        report = triggers.scan_agenda(db)
+        for created in report["created"]:
+            enqueue_production(created["run_id"])
+        return report
+    finally:
+        db.close()
+        from datetime import timedelta
+
+        production_queue().enqueue_in(
+            timedelta(minutes=settings.production_scan_interval_minutes), scan_triggers
+        )
