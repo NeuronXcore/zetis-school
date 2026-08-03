@@ -63,6 +63,55 @@ def test_add_to_program_creates_skill_and_marks_added(client_db) -> None:
     db.close()
 
 
+def test_add_to_program_dit_que_rien_ne_sera_produit_sans_lecon(client_db) -> None:
+    """⚠️ « + Programme » crée une notion ORPHELINE — et le bouton se lit « traité ».
+
+    Constat du 2026-08-03 : sans leçon rattachée, `equip_notion` renvoie `has_lesson=False` et
+    **ZETIS ne produira JAMAIS rien** pour cette notion. L'état est légitime et documenté (« la
+    leçon/le cours suivent via les outils habituels ») ; ce qui manquait, c'est de le dire.
+
+    On ne fusionne pas « + Programme » et « Créer la leçon » : Papa peut vouloir rattacher la
+    notion à une leçon existante. Le défaut n'était pas l'orpheline, c'était le silence.
+    """
+    client, Session = client_db
+    subject_id, _ = _seed_year_and_chapter(Session)
+    req_id = _make_request(client, "Théorème de Thalès")
+
+    _as_papa()
+    body = client.post(
+        f"/api/notion-requests/{req_id}/add-to-program", json={"subject_id": subject_id}
+    ).json()
+    assert body["needs_lesson"] is True, "l'orpheline n'est pas signalée"
+    assert body["skill_id"] is not None, "sans id, l'écran ne peut proposer aucun pont"
+
+
+def test_add_to_program_ne_crie_pas_au_loup_si_la_notion_a_deja_une_lecon(client_db) -> None:
+    """Le signal est CALCULÉ, jamais supposé.
+
+    `_upsert_skills` est idempotent : si la notion existait déjà et portait une leçon, il n'y a
+    rien à signaler. Fabriquer un avertissement pour un problème absent apprend à les ignorer.
+    """
+    from app.modules.curriculum.service import create_manual_lesson
+
+    client, Session = client_db
+    subject_id, chapter_id = _seed_year_and_chapter(Session)
+
+    # ⚠️ La leçon est posée DIRECTEMENT, pas via une seconde `notion_request`. Une première version
+    # de ce test créait deux demandes au texte presque identique en croyant qu'elles seraient
+    # distinctes : `create_request` les déduplique, si bien que le test empruntait la branche
+    # `already_processed` et passait quoi qu'il arrive. La contre-épreuve l'a démasqué.
+    db = Session()
+    create_manual_lesson(db, chapter_id, title="Angles", notions=["Somme des angles"])
+    db.close()
+
+    req_id = _make_request(client, "Somme des angles")
+    _as_papa()
+    body = client.post(
+        f"/api/notion-requests/{req_id}/add-to-program", json={"subject_id": subject_id}
+    ).json()
+    assert body["needs_lesson"] is False, "avertissement émis alors qu'une leçon porte la notion"
+
+
 def test_create_lesson_scaffolds_lesson_and_skill(client_db) -> None:
     client, Session = client_db
     _, chapter_id = _seed_year_and_chapter(Session)

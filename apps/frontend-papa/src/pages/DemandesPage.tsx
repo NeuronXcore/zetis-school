@@ -27,6 +27,9 @@ export function DemandesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ request: NotionRequest; mode: "add" | "lesson" } | null>(null);
+  // Notions entrées au programme mais qu'aucune leçon ne porte : ZETIS ne produira rien pour
+  // elles. Verdict du SERVEUR, jamais déduit ici — une notion déjà rattachée n'y figure pas.
+  const [orphelines, setOrphelines] = useState<string[]>([]);
 
   const reload = useCallback(async () => {
     setError(null);
@@ -93,6 +96,23 @@ export function DemandesPage() {
         <p className="mb-4 rounded-lg border border-red-400/40 bg-red-500/5 px-3 py-2 text-sm text-red-300">
           {error}
         </p>
+      )}
+
+      {/* ⚠️ Verdict SERVEUR, affiché seulement quand il est vrai : une notion déjà portée par une
+          leçon n'y figure pas. Un avertissement systématique s'apprend à s'ignorer.
+          Le geste qui répare est à côté du constat — sinon il désigne un problème sans issue. */}
+      {orphelines.length > 0 && (
+        <div className="mb-6 rounded-xl border border-amber-400/40 bg-amber-500/5 px-4 py-3 text-[12.5px] text-amber-200">
+          <b className="text-papa-text">
+            {orphelines.length === 1 ? "Notion ajoutée" : "Notions ajoutées"} sans leçon :
+          </b>{" "}
+          {orphelines.map((n) => `« ${n} »`).join(", ")}. ZETIS ne produira rien pour{" "}
+          {orphelines.length === 1 ? "elle" : "elles"} tant qu'aucune leçon ne{" "}
+          {orphelines.length === 1 ? "la" : "les"} porte.{" "}
+          <Link to="/programme" className="font-semibold underline">
+            Les rattacher dans le Programme →
+          </Link>
+        </div>
       )}
 
       {loading ? (
@@ -217,7 +237,8 @@ export function DemandesPage() {
           request={modal.request}
           mode={modal.mode}
           onClose={() => setModal(null)}
-          onDone={() => {
+          onDone={(result) => {
+            if (result?.needsLesson) setOrphelines((cur) => [...cur, result.label]);
             setNotions((cur) => cur.filter((r) => r.id !== modal.request.id));
             setModal(null);
           }}
