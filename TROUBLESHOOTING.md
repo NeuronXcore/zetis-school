@@ -4,6 +4,64 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/declencheur-agenda` — le déclencheur automatique (ADR-0035) — 2026-08-03
+
+### `massimo_is_active` comptait un LOGIN comme du travail
+
+Elle ne filtrait que `NON_ACTIVITY_EVENTS` (les deux événements d'agenda), alors que son docstring
+promet une activité **pédagogique**. Or `agenda/service.py` avait déjà tranché la question en
+privé — `_NON_TRACE_EVENTS = {LOGIN, PAGE_VIEWED} | NON_ACTIVITY_EVENTS`, avec ce motif : *« la
+navigation n'est pas du travail (sans quoi ouvrir la page allumerait une trace) »*. **Deux lecteurs
+de la même question lisaient deux listes différentes.**
+
+Mesuré en vrai : **se connecter suffisait à suspendre la production cinq minutes**. Anodin tant que
+Papa cliquait (le lot attendait entre deux notions) ; **bloquant depuis l'ADR-0035 §7**, où cette
+réponse décide si un lot AUTOMATIQUE démarre — un `login` faisait sauter un réveil entier du scan,
+jusqu'à trois heures.
+
+Constante promue en `NON_WORK_EVENTS` (`activity/events.py`) et partagée ; l'agenda la consomme au
+lieu de sa copie.
+
+### `create_run` lève des `HTTPException` — absurde dans un job RQ
+
+Juste dans une requête, sans destinataire dans un worker : le code de statut ne part vers personne.
+Le scan **rattrape et journalise** (`triggers.scan_agenda`), et **un lot refusé ne consomme pas la
+référence** — l'échéance redevient éligible au réveil suivant. Un refus n'est pas une production.
+
+### La convention pour un booléen dans `app_settings` est `"true"`/`"false"`
+
+L'ADR-0035 §5 annonçait `0|1`. `agenda.service.student_entry_enabled` compare `row.value == "true"`
+depuis l'ADR-0025. **Deux conventions pour stocker un booléen dans la même table, c'est une de
+trop** — l'ADR avait tort, l'existant a gagné.
+
+### `SubjectOption.sysId` est `number | null`
+
+Une matière peut exister sans être rattachée à l'année active. Le typecheck l'a rattrapé sur le
+câblage du Commander ; une garde `=== undefined` ne suffit pas.
+
+### ⚠️ Une contre-épreuve peut viser à côté et rassurer à tort
+
+En branchant `openFor` (hook `useCommandMission`), le piège annoncé était : `selectSubject` remet
+`chapterId` à `null`, et `selectChapter` lit `gate` dans sa **fermeture**.
+
+Premier sabotage — réintroduire `selectSubject` dans l'ordre des `setState` : **les 4 tests sont
+restés verts**, parce que React batche et que le dernier `setChapterId` gagnait. J'ai failli
+conclure que le piège n'existait pas.
+
+Second sabotage, sur le vrai mécanisme — remplacer le `runPreview("deadline", …)` explicite par
+`selectChapter(…)` : **les 4 tombent**. C'est cette version-là qui compte.
+
+**Leçon : un sabotage qui ne casse rien ne prouve pas que le code est bon — il prouve que le
+sabotage était mal choisi.**
+
+### ⚠️ `create_request` (notion_requests) déduplique sur `lower(text)`
+
+Un test écrit pour vérifier « pas d'avertissement si la notion a déjà une leçon » créait deux
+demandes au texte presque identique en les croyant distinctes. Elles n'en faisaient qu'une : le
+test empruntait la branche `already_processed` et **passait quoi qu'il arrive**. Pour tester un
+état préexistant, poser la donnée **directement** (`create_manual_lesson`), pas via une seconde
+demande.
+
 ## Chantier `feat/journal-production` — le Journal et le veto (ADR-0034) — 2026-08-03
 
 ### `Lesson.production_run_id` n'était JAMAIS écrit — le filigrane ne peut structurellement pas le voir

@@ -86,9 +86,12 @@ des six valeurs à l'affichage. Un badge **« Sur mesure »** s'affiche si elles
 aucun régime — **inatteignable en v1** (deux réglages libres seulement), mais l'état existe et se
 rend.
 
-⚠️ **Phase 1 (cette livraison) : le régime Autonome est indisponible**, grisé, avec son motif —
-*« Disponible quand le Journal sera livré — sans lui, le retrait n'existe pas. »* Le palier 3 et son
-veto se livrent ensemble ou pas du tout (ADR-0032, verrou n°5).
+~~⚠️ **Phase 1 : le régime Autonome est indisponible**, grisé, avec son motif.~~
+
+✅ **LEVÉ le 2026-08-03** (ADR-0034 §8) : le Journal est livré **avec son geste *Retirer***, donc
+`VETO_SURFACE_AVAILABLE = True` et *Autonome* est offert. Le palier 3 et son veto se sont livrés
+ensemble, comme le verrou n°5 de l'ADR-0032 l'exigeait — **aucune ligne du front n'a changé**,
+`choices` venant du serveur.
 
 #### 3. « Détail par type de contenu » — `<details>` replié par défaut
 
@@ -98,7 +101,7 @@ Six lignes. Deux réglables, quatre verrouillées **avec leur motif visible**.
 |---|---|---|
 | **A0a** | Dérivés inertes — fiches, cartes mentales, quiz, capsules | segmenté **Vous validez / ZETIS sert** |
 | **A0b** | Cartes de révision | 🔒 **ZETIS sert** — *aucune étape de validation n'existe pour les cartes ; « vous validez » serait un mensonge tant qu'elle n'est pas construite* |
-| **A1** | Rédaction de cours | segmenté **Vous validez / ZETIS sert** (⚠️ phase 1 : « ZETIS sert » désactivé) |
+| **A1** | Rédaction de cours | segmenté **Vous validez / ZETIS sert** (✅ les deux offerts depuis le 2026-08-03) |
 | **A2** | Programme — notions, leçons, chapitres | 🔒 **ZETIS propose** — *une erreur ici redessine la carte* |
 | **A3** | Création de missions | 🔒 **Vous validez** — *élire n'est pas créer : le sélecteur est déjà autonome* |
 | **A4** | Supprimer, archiver, dévalider | 🚫 **Jamais** — *définitif* |
@@ -135,12 +138,28 @@ retour au contrôle.
 ## Données API
 
 - `GET /api/settings/autonomy` → les six clés et leurs valeurs, plus, par clé, `locked: bool` et
-  `locked_reason: string | null`. **Le verrou vient du serveur**, jamais d'une liste en dur dans le
+  `locked_reason: string | null` — **et, à part, `auto_trigger_enabled`** (ADR-0035 §5). **Le verrou vient du serveur**, jamais d'une liste en dur dans le
   front : c'est lui qui refuse l'écriture, l'UI ne fait que le rendre lisible.
 - `PUT /api/settings/autonomy` → écrit une ou plusieurs clés. **422/409 sur toute classe
   verrouillée**, y compris via un préréglage. Le message du serveur est relayé tel quel.
+  `auto_trigger_enabled` voyage dans **son propre champ**, jamais dans `values` — le serveur
+  rejette toute clé hors des six paliers, et le déclencheur n'en est pas un.
 - Routeur **neutre** (`/api/settings`), pas `/api/agenda/settings` : un réglage d'autonomie servi
   depuis le routeur de l'agenda serait une dette immédiate.
+
+## Le déclencheur automatique — un bloc à part (ADR-0035 §5, livré le 2026-08-03)
+
+Sous les six classes, visuellement **séparé** d'elles : *« ⏰ ZETIS peut démarrer sans vous »*, une
+case à cocher, **défaut NON**.
+
+> **Deux questions, deux sources.** Le palier dit si ZETIS a le droit de **servir** sans relecture ;
+> cette clé dit s'il a le droit de **démarrer** sans clic. Les fusionner rendrait impossible le
+> régime intermédiaire le plus naturel — « ZETIS sert seul, mais il attend que je demande » — et son
+> symétrique, qui est **le plus sûr des deux**.
+
+⚠️ **Un préréglage ne la touche dans aucun sens** : elle n'est pas dans `AUTONOMY_CLASSES`, sinon
+`preset_of()` ferait qu'un régime armerait le déclencheur au passage. Deux test-verrous le tiennent,
+back et front.
 
 Le bloc « où vous en êtes » est **statique** : ses quatre phrases sont du texte, pas un calcul.
 Rien à interroger, rien qui puisse dériver en compteur.

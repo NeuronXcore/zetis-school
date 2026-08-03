@@ -7,14 +7,141 @@
 
 ## État à la reprise
 
-**Chantier : le Journal de production et le veto (ADR-0034) — COMPLET §1 → §8, CLOS ET MERGÉ.**
+**Chantier : le déclencheur automatique (ADR-0035 + son addendum) — COMPLET. NON POUSSÉ.**
+
+### Où est le code, exactement
+
+| | |
+|---|---|
+| Branche | `feat/declencheur-agenda`, **7 commits** (un par sujet), **NON POUSSÉE**, aucune PR |
+| Base `main` | **`628905f`** (4bis du Journal), local = `origin/main`. ⚠️ `4d3fc99` est le *merge* de la PR #70, pas la tête — le commit de clôture est passé par-dessus |
+| Migration | **AUCUNE** — et aucune dépendance nouvelle |
+| Arbre | propre |
+
+**776 backend · 309 Papa · build Papa** — verts, relancés après le **dernier commit de code**
+(`de3f74f`). **453 Massimo · build Massimo · typecheck Massimo** — verts, mais **non relancés depuis
+`4dc48e8`** : aucun fichier Massimo n'a été touché depuis. Le user relance tout avant de merger.
+
+### Ce que ce chantier a livré, dans l'ordre des commits
+
+1. `4dc48e8` — **le déclencheur** (ADR-0035) : scan d'agenda, régulateur de volume, 7ᵉ clé,
+   `parent_rule` émise pour la première fois.
+2. `dc6a709` — **provenance** des créations manuelles.
+3. `64e41c6` — **`devoir` déclenche** + priorité aux contrôles.
+4. `757df6b` — **« + Programme » dit ce qu'il ne fait pas**.
+5. `2b4cc32` — **chapitre éditable après coup** + indice d'échéance stérile.
+6. `de3f74f` — **porte « échéance » du Commander** (zéro backend).
+7. `c31b43f` — **addendum ADR-0035**.
+
+### Décisions actives — à relire, pas à rouvrir
+
+1. **Le déclencheur v1 est `agenda` seul**, `controle` **et** `devoir` (addendum) ; `rendu`,
+   `evidence`, `derived`, `request`, `council` restent **légaux et non émis**, test-verrou en place.
+2. **Les contrôles passent avant les devoirs**, même plus lointains. Contre-intuitif, voulu, et
+   c'est ce qui rend la révocation du §1 tenable.
+3. **Le régulateur ne compte QUE les lots automatiques** — le clic de Papa est son propre
+   régulateur. Il **s'ajoute** à `pending_backlog`, il ne le remplace pas.
+4. **La 7ᵉ clé n'est pas un palier** et ne rejoint pas `AUTONOMY_CLASSES` : sinon un préréglage
+   armerait le déclencheur. Deux questions, deux sources.
+5. **Le scan REGARDE, il ne produit pas.** C'est ce qui satisfait l'objection écrite dans
+   `production_worker.py` au lieu de la contourner.
+6. **Le Commander est un GESTE de Papa, jamais le scan.** Produire du contenu sans clic est décidé ;
+   prescrire du travail à Massimo sans clic ne l'est pas.
+7. **On ne fusionne pas « + Programme » et « Créer la leçon ».** L'orpheline est un état légitime ;
+   le défaut était le silence.
+
+### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT — pas au cadrage
+
+- **`massimo_is_active` comptait un `login` comme du travail** → un réveil entier du scan sautait.
+  Constante promue en `NON_WORK_EVENTS` et partagée avec l'agenda, qui l'avait déjà en privé.
+- **`create_run` lève des `HTTPException`** — absurde dans un job RQ : le scan rattrape, et un lot
+  refusé **ne consomme pas la référence**.
+- **La convention booléenne d'`app_settings` est `"true"`/`"false"`**, pas `0|1` comme l'ADR le
+  disait.
+- **`create_manual_*` écrivait `validated` hors de `mark_validated`** → le Journal affichait les
+  leçons de Papa « provenance inconnue ».
+- **`SubjectOption.sysId` est `number | null`** (rattrapé par le typecheck).
+
+> Détail et remèdes : `TROUBLESHOOTING.md`, chantier `feat/declencheur-agenda`.
+
+### ⚠️ DEUX FOIS OÙ LES TESTS M'ONT PRIS EN DÉFAUT — à lire avant d'en écrire
+
+1. **Un test passait trivialement.** Il créait deux `notion_requests` au texte presque identique en
+   les croyant distinctes ; `create_request` déduplique sur `lower(text)`, si bien que le test
+   empruntait la branche `already_processed` et passait quoi qu'il arrive. **C'est la contre-épreuve
+   qui l'a démasqué, pas la relecture.**
+2. **Une contre-épreuve visait à côté.** Sur `openFor`, saboter l'ordre des `setState` laissait les
+   4 tests verts (React batche). Le vrai piège est la **fermeture sur `gate`** : en repassant par
+   `selectChapter`, les 4 tombent. **Un sabotage qui ne casse rien ne prouve pas que le code est
+   bon — il prouve que le sabotage était mal choisi.**
+
+### Vérifié EN VRAI (backend `:8000` + Postgres, Papa `:5174`)
+
+Chaîne complète : contrôle créé **sans** chapitre → l'avertissement s'affiche → le sélecteur charge
+les 13 vrais chapitres de Mathématiques → rattachement à « Fractions » persisté (`chapter_id = 6`)
+→ l'avertissement disparaît → l'échéance devient éligible → **le scan crée un lot
+`agenda`/`parent_rule`**, `authority_for` le confirme, second scan idempotent. Puis la modale du
+Commander s'ouvre pré-remplie (porte Échéance, Mathématiques, Fractions, date de l'échéance), le
+serveur résout les **12 vraies notions** du chapitre et pré-coche les 3 plus fragiles.
+
+⚠️ **Non vérifié en vrai, à dessein** : la **confirmation** des missions (créer du travail réel pour
+Massimo pour valider un bouton serait disproportionné — 32 missions avant, 32 après ; le payload est
+verrouillé par le test unitaire). Données de test supprimées (lot puis item, ordre FK).
+
+⚠️ **Tout est resté aux défauts en dev** : régime *Semi-autonome*, **déclencheur désarmé**. Les
+armer est une décision de Papa, deux clics sur `/parametres`.
+
+### ▶ PROCHAIN PAS
+
+1. **Relire le diff (32 fichiers, ~1 780 lignes), relancer les tests, pousser, ouvrir la PR.**
+   Rien n'est chez `origin`. Les 7 commits sont **un par sujet** — la revue peut se faire sujet
+   par sujet.
+2. Après le merge : **étape 4bis**. Ce fichier a survécu **quatre fois** à son propre chantier.
+3. **Chantier suivant** : le pont **demande → production** (`trigger='request'`), le seul des six
+   déclencheurs dont la surface existe déjà et dont la boucle est incomplète (voir dettes).
+
+### ▶ DETTES OUVERTES, nommées à la livraison
+
+- ⚠️ **Le Commander n'est pas idempotent** : Papa peut commander **deux fois** la même échéance —
+  `Mission` n'a aucune référence à l'agenda, et `resolve_chapter_notions` n'exclut pas les notions
+  déjà couvertes (alors que `_skill_has_active_mission` existe). Exigerait
+  `missions.agenda_item_id`, donc **une migration**. **Condition d'ouverture : le jour où le scan
+  suggérerait des missions, ça devient obligatoire.**
+- **Le pont demande → production n'existe pas.** « Fait » sur une `content_request` ne produit
+  **rien** — c'est une déclaration ; le seul garde-fou est en aval (`chat/announce.py` refuse
+  d'annoncer un `done` non servable). `trigger='request'` reste non émis.
+- **`skills-backfill` crée aussi des notions orphelines** (aucune ligne `lesson_skills`).
+- **Le panneau d'analyse à 3 compteurs** (ADR-0025 §11) attend une mesure SRS **scopée chapitre** :
+  `evidence.srs_pressure` est par MATIÈRE.
+- **Un devoir fait produire le chapitre entier** — disproportionné, assumé, à rouvrir si
+  l'observation montre du gaspillage.
+- Report du Journal : le refus de retirer un cours consommé **jamais vu à l'écran** ; le geste
+  *Corriger* toujours dû ; `has_more` sans bouton.
+
+### ▶▶ OÙ EN EST « FULL AUTONOMIE »
+
+| Axe | Ce qu'il dit | État |
+|---|---|---|
+| **1 — le palier** | « ZETIS ne me demande plus de valider » | ✅ **LIVRÉ** (ADR-0032 + 0034) |
+| **2 — le déclencheur** | « ZETIS travaille sans que je clique » | ✅ **LIVRÉ** (ADR-0035 + addendum) |
+
+**Les deux axes sont livrés.** ZETIS peut servir sans relecture *et* se mettre au travail seul.
+⚠️ Mais **rien n'est armé en dev** — et c'est volontaire : livrer la possibilité était le chantier,
+l'activer est une décision de Papa.
+
+---
+
+## Historique — le Journal de production et le veto (ADR-0034)
+
+**CLOS ET MERGÉ** (squash `4d3fc99`, PR #70, 2026-08-03). Conservé pour ses décisions actives
+et ses quatre défauts trouvés en codant. Son « prochain pas » — coder l'ADR-0035 — est FAIT.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
 | Journal (ADR-0034) | **MERGÉ `main`** — squash **`4d3fc99`**, PR #70, 2026-08-03. Branche `feat/journal-production` **supprimée** en local et chez `origin`. ⚠️ Ne pas ré-implémenter. |
-| `origin/main` | **`4d3fc99`**, local = distant, arbre propre |
+| `origin/main` | **`628905f`** — le 4bis lui-même est passé par-dessus le merge `4d3fc99`. ⚠️ La version d'origine de cette ligne disait `4d3fc99` : elle décrivait l'état d'AVANT son propre commit |
 | Migration | **`b6c7d8e9f0a1` APPLIQUÉE sur la base de dev** et vérifiée table par table |
 | Cadrage suivant | **ADR-0035 déjà écrit** sur `main` (`4bd4d8e`) — le déclencheur automatique |
 
@@ -98,40 +225,8 @@ jouée) et 1 test front.
 ⚠️ **Le régime de la base de dev a été REMIS sur *Semi-autonome*.** Livrer la *possibilité* du
 palier 3 était le chantier ; l'activer est une décision de Papa, en un clic sur `/parametres`.
 
-### ▶ PROCHAIN PAS
-
-1. **Rien n'est en attente côté Git.** PR #70 mergée, branche supprimée, `main` = `origin/main` =
-   `4d3fc99`, arbre propre. **Étape 4bis faite** — c'est ce fichier.
-2. **Ne rien ré-implémenter du Journal ni du veto**, et ne pas re-cadrer l'ADR-0035.
-3. **CHANTIER SUIVANT : coder l'ADR-0035** (le déclencheur automatique) — **déjà cadré**, sur
-   `main` (`4bd4d8e`). Son read-before-code annonce **aucune migration, aucune dépendance
-   nouvelle** : quatre verrous déjà écrits à lever (`with_scheduler`, `EMITTED_TRIGGERS`, la
-   signature de `create_run`, la 7ᵉ clé), plus **le régulateur de volume par fenêtre glissante —
-   seule chose vraiment à construire**. Brancher `feat/declencheur-agenda` depuis `main`.
-4. **Chantier d'après** : la page Demandes en deux colonnes, `trigger='request'`, scope notion.
-
-### ▶ DETTES OUVERTES, nommées à la livraison
-
-- **Le refus de retirer un cours dont un dérivé est consommé n'a JAMAIS été vu à l'écran** — il
-  aurait fallu fabriquer une fausse lecture de Massimo en base. Couvert par 2 tests backend
-  (contre-épreuve jouée) + 1 test front. À vérifier en vrai à la première occasion réelle.
-- **Le geste *Corriger*** (§G.3) reste dû, ainsi que la remise à zéro de la planification d'une
-  carte SRS — sa condition d'ouverture est la première carte retirée après révision.
-- **`has_more` est calculé mais aucun bouton ne le consomme** : le Journal n'a pas de pagination
-  visible tant qu'un lot ne dépasse pas la première page.
-- **Le Journal ne montre que les lots.** Le Conseil de classe et le champion équipent hors lot ;
-  la page le dit, mais l'élargissement reste un chantier.
-
-### ▶▶ OÙ EN EST « FULL AUTONOMIE »
-
-| Axe | Ce qu'il dit | État |
-|---|---|---|
-| **1 — le palier** | « ZETIS ne me demande plus de valider » | ✅ **LIVRÉ** — le régime *Autonome* existe et son veto a un écran |
-| **2 — le déclencheur** | « ZETIS travaille sans que je clique » | **cadré (ADR-0035), PAS CODÉ** |
-
-⚠️ **Tant que l'axe 2 n'est pas codé, ZETIS ne produit RIEN de lui-même** : tout lot part encore
-d'un clic de Papa. C'est l'axe 2 qui fera enfin émettre **`parent_rule`** — la colonne « demandé
-par » du Journal l'attend déjà — et c'est là que le **régulateur de volume** devient obligatoire.
+> Prochain pas et dettes RETIRÉS le 2026-08-03 : les uns sont exécutés,
+> les autres ont migré dans l'état courant. Une consigne périmée se relit comme une consigne active.
 
 ---
 

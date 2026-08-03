@@ -1,5 +1,49 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.39.0 — ZETIS se met au travail tout seul, et l'échéance commande ses missions
+
+Date : 2026-08-03 · branche `feat/declencheur-agenda` · ADR-0035 + son addendum
+
+**Le second axe de « full autonomie ».** Le palier disait « ZETIS ne me demande plus de valider » ;
+le déclencheur dit « ZETIS travaille sans que je clique », et il n'existait pas — tout lot partait
+d'un clic de Papa.
+
+**`parent_rule` s'écrit pour la première fois** depuis sa déclaration du 2026-07-28. Le §G.1 la
+définit par l'absence de clic ; un lot né du scan satisfait enfin cette définition. `authority_for`
+n'a pas été touchée : elle attendait ce jour.
+
+**L'objection écrite dans le code est satisfaite, pas contournée.** `production_worker.py` portait
+`with_scheduler=False` au motif qu'un scheduler ouvrirait la porte à « tous les dimanches, produire
+quelque chose ». Le motif reste juste et **rien de ce qu'il interdisait n'arrive** : le job
+périodique ne produit RIEN, il **regarde** si le monde réel a demandé quelque chose. Le commentaire
+est réécrit, pas supprimé.
+
+**Le régulateur qui devenait obligatoire** : N lots automatiques par fenêtre glissante (défaut 2),
+et il REFUSE en le disant. Les lots **manuels ne comptent pas** — quand Papa clique, le geste EST le
+régulateur.
+
+**Puis quatre questions à la relecture ont montré l'écart entre ce que Papa croit déclencher et ce
+qui se passe** (addendum, même jour) :
+
+- ⚠️ **RÉVOCATION du §1** : `devoir` déclenche aussi. Restreint à `controle`, le déclencheur ne se
+  serait presque jamais mis en route — `devoir` est le kind par DÉFAUT. Le contre-motif reste au
+  dossier et il est **traité par le tri** : un contrôle dans 6 jours passe AVANT un devoir de
+  demain.
+- **Le chapitre s'attache après coup**, et une échéance sans chapitre **dit** que ZETIS ne fera
+  rien — sinon le déclencheur paraît en panne.
+- **La porte « échéance » du Commander est branchée** (ADR-0025 §11, décidée le 2026-07-30, jamais
+  implémentée) — **sans une ligne de backend** : `gate: "deadline"` existait depuis l'origine,
+  déclaré et jamais alimenté.
+- **Deux corrections de provenance** : ce que Papa écrit à la main portait `validated_by IS NULL`
+  (le Journal l'affichait « provenance inconnue »), et « + Programme » créait une notion que ZETIS
+  ne pourra jamais servir **sans le dire**.
+
+**776 tests backend · 309 Papa.** **Aucune migration, aucune dépendance nouvelle** — quatre verrous
+déjà écrits levés, plus le régulateur.
+
+> **Les deux axes sont livrés.** ⚠️ Mais en dev, tout est resté aux défauts : régime
+> *Semi-autonome*, déclencheur **désarmé**. Les armer est une décision de Papa, en deux clics.
+
 ## 0.38.0 — Le Journal de production, et « Autonome » devient possible
 
 Date : 2026-08-03 · branche `feat/journal-production` · ADR-0034
