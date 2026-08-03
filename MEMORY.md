@@ -7,27 +7,27 @@
 
 ## État à la reprise
 
-**Chantier : la demande de Massimo devient une production (ADR-0036) — CODÉ, VÉRIFIÉ EN VRAI,
-POUSSÉ, PR OUVERTE, PAS ENCORE MERGÉ.** La dernière boucle ouverte du dispositif se ferme.
+**Chantier : la demande de Massimo devient une production (ADR-0036) — COMPLET, CLOS ET MERGÉ.**
+La dernière boucle ouverte du dispositif se ferme.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Branche | `feat/demande-vers-production` — **poussée sur `origin`**, jamais rebasée |
-| PR | **[#72](https://github.com/NeuronXcore/zetis-school/pull/72)**, `MERGEABLE`, 38 fichiers |
-| Base | `main` = `origin/main` = **`65d5451`** (stable : rien n'a été mergé depuis) |
-| Tête | **volontairement non écrite** — `git log --oneline main..HEAD` dit la vérité |
+| Squash | **`eff83cb`** — PR [#72](https://github.com/NeuronXcore/zetis-school/pull/72), mergée le 2026-08-03, 39 fichiers |
+| Branche | `feat/demande-vers-production` **supprimée**, en local et chez `origin` |
+| À pousser | **rien** |
 | Migration | **`c7d8e9f0a1b2` APPLIQUÉE** sur le Postgres de dev, **aller-retour vérifié** |
 | Cadrage | `docs/decisions/adr-0036-demande-vers-production.md`, **§3 corrigé le jour même** |
 
-> ✅ **Tout est chez `origin`.** Plus rien n'existe uniquement sur cette machine.
->
-> ⚠️ **Ce qui reste au 4bis, et pourquoi ça ne pouvait pas être écrit d'avance** : le **hash du
-> squash**, la **suppression de la branche** et « rien à pousser ». Ces trois faits **n'existent
-> pas tant que la PR n'est pas mergée** — les anticiper serait exactement la faute que le
-> `WORKFLOW.md §5` vient d'interdire. Le n° de PR et le push, eux, sont définitifs : ils sont
-> écrits ici, et le 4bis se réduit donc à **une ligne**.
+> ⚠️ **`main` n'est PAS `eff83cb` — et ce n'est pas une erreur.** Le commit de 4bis (celui qui écrit
+> ces lignes) passe par-dessus le squash. `eff83cb` est le **squash de la PR**, qui ne bougera
+> jamais ; la **tête de `main`**, elle, bouge, donc elle n'est pas écrite ici — `WORKFLOW.md §5`.
+> C'est exactement la distinction qui manquait aux cinq clôtures précédentes.
+
+**Relancés APRÈS le merge, sur `main`, tous verts** : **797 backend · 318 Papa · 453 Massimo**.
+
+⚠️ **Ne rien ré-implémenter.** La branche n'existe plus ; tout ce qui suit est déjà sur `main`.
 
 > ⚠️ **Pourquoi la tête n'est PAS écrite ici — sixième récurrence, corrigée à la racine.**
 >
@@ -177,13 +177,20 @@ leçons, relisables et **rétractables depuis le Journal**.
 
 ### ▶ PROCHAIN PAS
 
-1. **Merger la PR [#72](https://github.com/NeuronXcore/zetis-school/pull/72).** Tout est poussé,
-   `MERGEABLE`, et les quatre suites ont été relancées **après** la dernière modification :
-   **796 backend · 318 Papa · 453 Massimo · build Papa · typecheck Massimo**.
-2. **Juste après le merge, l'étape 4bis** (`WORKFLOW.md §5`) — et elle tient en **une ligne** cette
-   fois, parce que tout ce qui pouvait être écrit d'avance l'a été : il ne manque que le **hash du
-   squash**, la **suppression de la branche** et « rien à pousser ». Trois faits qui n'existent pas
-   avant le merge.
+1. **Rien n'est en attente côté Git.** PR #72 mergée (squash `eff83cb`), branche supprimée des deux
+   côtés, arbre propre. **Étape 4bis faite** — c'est ce fichier, pour la sixième fois. ⚠️ Et pour la
+   première fois elle a tenu en **un geste**, parce que tout ce qui pouvait être écrit d'avance
+   l'avait été : ne manquaient que le squash, la suppression de la branche et « rien à pousser ».
+2. **Ne rien ré-implémenter** des six documents de l'autonomisation, et ne rien re-cadrer.
+3. 🔴 **Le dispositif est ARMÉ en dev** (voir la section dédiée plus haut). Ce n'est pas l'état par
+   défaut des cinq chantiers précédents : **une demande en attente fera écrire et servir du contenu
+   sans relecture** au prochain réveil du scan, **si un worker tourne**. Aucun worker ne tourne à
+   l'heure où ceci est écrit. Le désarmement est deux clics sur `/parametres`.
+4. **CHANTIER SUIVANT — rien n'est cadré.** Les dettes ci-dessous sont les candidates ; la plus
+   mûre est la **double règle de résolution de leçon** (elle a une manifestation observée, pas une
+   crainte). ⚠️ **Cadrage d'abord** (`WORKFLOW.md §2`), sur `main`, sans une ligne de code —
+   prochain numéro d'ADR libre : **0037** (0033 reste réservé à l'indicateur d'autonomie de
+   Massimo).
 
 ### ▶ DETTES OUVERTES, nommées à la livraison
 
