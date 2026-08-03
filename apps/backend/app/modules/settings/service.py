@@ -292,6 +292,22 @@ def course_gate_enabled(db: Session) -> bool:
     return read_autonomy(db)[A1] < SERVE
 
 
+def regime_is_autonomous(db: Session) -> bool:
+    """Le régime nommé est-il ***Autonome*** ? (ADR-0036 §1, première des deux conditions)
+
+    ⚠️ **Lu par `preset_of`, jamais réimplémenté.** Écrire `read_autonomy(db)[A1] == SERVE` ici
+    donnerait le même résultat aujourd'hui — la monotonie force A0a à SERVE dès que A1 y est — et
+    divergerait le jour où un préréglage bougerait. Le régime est un objet du domaine ; il a déjà
+    sa fonction.
+
+    ⚠️ **Ceci ne suffit PAS à déclencher.** Il faut AUSSI `auto_trigger_enabled` : le palier dit si
+    ZETIS peut **servir** sans relecture, l'autre s'il peut **démarrer** sans clic. Deux questions,
+    deux sources (ADR-0035 §5) — et c'est leur ET logique qui ouvre la porte des demandes, ce qui
+    la rend plus RESTRICTIVE, pas plus permissive.
+    """
+    return preset_of(read_autonomy(db)) == "autonome"
+
+
 def derivatives_are_served(db: Session) -> bool:
     """A0a ≥ 3 → les dérivés produits en lot sont validés d'office ; sinon ils restent `pending`."""
     return read_autonomy(db)[A0A] >= SERVE

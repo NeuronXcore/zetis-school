@@ -1,4 +1,9 @@
-"""Le déclencheur automatique (ADR-0035) — ZETIS regarde, puis décide de travailler.
+"""Les déclencheurs automatiques (ADR-0035, ADR-0036) — ZETIS regarde, puis décide de travailler.
+
+Deux sources, deux scans, **deux jeux de conditions** : l'agenda (`scan_agenda`, une échéance
+EXOGÈNE) et la file des demandes de Massimo (`scan_requests`, ENDOGÈNE — d'où une porte plus
+étroite). Les fusionner aurait rendu illisible pourquoi ZETIS n'a rien fait.
+
 
 ## Ce que ce module RÉPOND à l'objection qu'il révoque
 
@@ -28,7 +33,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import AgendaItem, StudentProfile
+from app.db.models import AgendaItem, ContentRequest, StudentProfile
+from app.db.models.production import REQUEST_KIND_TO_PIECE
 from app.modules.production import runner, runs
 
 logger = logging.getLogger(__name__)
@@ -57,6 +63,13 @@ SKIP_NO_STUDENT = "Aucun profil élève."
 SKIP_MASSIMO_ACTIVE = "Massimo travaille — un lot que personne n'a demandé ne lui dispute pas Ollama."
 SKIP_NO_CHAPTER = "Échéance sans chapitre rattaché — rien à produire."
 SKIP_ALREADY = "Un lot référence déjà cette échéance."
+
+# Motifs propres au scan des DEMANDES (ADR-0036 §1).
+SKIP_NOT_AUTONOMOUS = "Le régime n'est pas « Autonome » — la production reste un geste de Papa."
+SKIP_REQUEST_ALREADY = "Un lot référence déjà cette demande."
+SKIP_KIND_NOT_PRODUCIBLE = (
+    "Ce type de contenu ne se produit pas tout seul — il reste un geste de Papa."
+)
 
 
 def eligible_items(db: Session, *, student_id: int, today: date | None = None) -> list[AgendaItem]:
@@ -147,5 +160,108 @@ def scan_agenda(db: Session) -> dict:
             continue
         report["created"].append({"item_id": item.id, "run_id": run.id})
         logger.info("production: lot %s déclenché par l'échéance %s", run.id, item.id)
+
+    return report
+
+
+# --- Le second déclencheur : les demandes de Massimo (ADR-0036 §1) -----------------------------
+
+
+def eligible_requests(db: Session, *, student_id: int) -> list[ContentRequest]:
+    """Les demandes qui MÉRITENT un lot — hors idempotence, lue dans `production_runs`.
+
+    **Premier arrivé, premier servi** (ADR-0036 §6) : aucune priorisation, aucun tri par
+    « urgence ». Mesurer l'urgence d'un désir demanderait un modèle que ce chantier n'a pas, et
+    qui se tromperait sur exactement l'enfant qu'il prétend servir.
+
+    ⚠️ Tri par `updated_at` **croissant**, à l'inverse de `list_requests` qui sert l'inbox de Papa
+    du plus frais au plus ancien. Ce n'est pas une incohérence : une file d'attente se sert par le
+    début, une boîte de réception se lit par la fin. Et c'est `updated_at`, pas `created_at`, parce
+    qu'une demande redemandée est **réactivée** sans changer sa date de création — la trier par
+    création la laisserait enterrée alors que le besoin vient de revenir.
+    """
+    return list(
+        db.scalars(
+            select(ContentRequest)
+            .where(
+                ContentRequest.student_id == student_id,
+                ContentRequest.status == "pending",
+            )
+            .order_by(ContentRequest.updated_at, ContentRequest.id)
+        ).all()
+    )
+
+
+def scan_requests(db: Session) -> dict:
+    """Regarde la file des demandes et crée les lots-pièce qui manquent. **Ne produit rien.**
+
+    ## Deux conditions cumulatives, et ce n'est pas la fusion refusée par l'ADR-0035 §5
+
+    Le §5 refusait qu'un **préréglage arme** le déclencheur — une condition qui aurait rendu le
+    dispositif plus PERMISSIF sans qu'on l'ait demandé. Ici la conjonction exige les **deux**
+    consentements au lieu d'un : elle est plus RESTRICTIVE. Les deux questions restent distinctes ;
+    c'est leur et logique qui ouvre cette porte-ci.
+
+    Hors de ce régime, rien ne change : la demande reste un repère de priorité et la production
+    reste un geste de Papa — l'addendum ADR-0027 continue de s'appliquer mot pour mot.
+
+    Même contrat que `scan_agenda` : un compte rendu, jamais une exception.
+    """
+    report: dict = {"created": [], "skipped": []}
+
+    from app.modules.settings import service as settings_service
+
+    # L'ordre des deux refus n'est pas indifférent : le régime d'abord, parce que c'est la
+    # condition de DOCTRINE (« ZETIS produit-il sans relecture ? »), l'armement ensuite, qui est
+    # la condition de MISE EN MARCHE. Le motif rendu doit être le plus fondamental des deux.
+    if not settings_service.regime_is_autonomous(db):
+        report["skipped"].append({"request_id": None, "reason": SKIP_NOT_AUTONOMOUS})
+        return report
+    if not settings_service.auto_trigger_enabled(db):
+        report["skipped"].append({"request_id": None, "reason": SKIP_DISABLED})
+        return report
+
+    student = db.scalar(select(StudentProfile).order_by(StudentProfile.id))
+    if student is None:
+        report["skipped"].append({"request_id": None, "reason": SKIP_NO_STUDENT})
+        return report
+
+    if runner.massimo_is_active(db, student_id=student.id):
+        report["skipped"].append({"request_id": None, "reason": SKIP_MASSIMO_ACTIVE})
+        return report
+
+    for req in eligible_requests(db, student_id=student.id):
+        piece = REQUEST_KIND_TO_PIECE.get(req.content_kind)
+        if piece is None:
+            # `capsule` : son générateur exige une INSTRUCTION en texte libre que la demande ne
+            # porte pas (ADR-0036 §3). Le refus est DIT ici et affiché sur la page Demandes —
+            # jamais un lot qui échouerait en boucle.
+            report["skipped"].append(
+                {"request_id": req.id, "reason": SKIP_KIND_NOT_PRODUCIBLE}
+            )
+            continue
+        if runs.run_exists_for(db, trigger="request", reference_id=req.id):
+            report["skipped"].append({"request_id": req.id, "reason": SKIP_REQUEST_ALREADY})
+            continue
+        try:
+            run = runs.create_run(
+                db,
+                scope_skill_id=req.skill_id,
+                scope_kind=piece,
+                trigger="request",
+                # Aucun humain n'a ouvert la pièce ni cliqué pour ce lot : c'est la définition
+                # littérale de `parent_rule` (§G.1). La demande de Massimo n'est pas un clic de
+                # Papa — c'est la RÈGLE que Papa a posée qui autorise ce lot.
+                authorized_by="parent_rule",
+                reference_id=req.id,
+            )
+        except HTTPException as exc:
+            # Un refus n'est pas une production : la référence n'est pas consommée, la demande
+            # redeviendra éligible au réveil suivant.
+            report["skipped"].append({"request_id": req.id, "reason": str(exc.detail)})
+            logger.info("production: demande %s non déclenchée — %s", req.id, exc.detail)
+            continue
+        report["created"].append({"request_id": req.id, "run_id": run.id})
+        logger.info("production: lot %s déclenché par la demande %s", run.id, req.id)
 
     return report

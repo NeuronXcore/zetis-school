@@ -29,7 +29,8 @@ def run_production(run_id: int) -> dict:
 def scan_triggers() -> dict:
     """Job PÉRIODIQUE du déclencheur automatique (ADR-0035 §2) — il REGARDE, il ne produit pas.
 
-    Il lit l'agenda, applique les conditions, crée les runs — et **se replanifie lui-même**. Les
+    Il lit l'agenda **et la file des demandes** (ADR-0036 §1), applique les conditions propres à
+    chacun, crée les runs — et **se replanifie lui-même**. Les
     lots créés partent dans la même file et sont exécutés par `run_production`, comme ceux que
     Papa lance : **un seul chemin d'exécution**, quelle que soit l'origine.
 
@@ -44,8 +45,13 @@ def scan_triggers() -> dict:
 
     db = SessionLocal()
     try:
+        # DEUX scans, un par source (ADR-0036 §1). Séparés parce que leurs conditions le sont :
+        # l'agenda demande un déclencheur armé, les demandes exigent EN PLUS le régime *Autonome*.
+        # Un scan unique aurait dû porter les deux jeux de conditions et le dire dans un seul
+        # compte rendu — c'est-à-dire rendre illisible pourquoi il n'a rien fait.
         report = triggers.scan_agenda(db)
-        for created in report["created"]:
+        report["requests"] = triggers.scan_requests(db)
+        for created in report["created"] + report["requests"]["created"]:
             enqueue_production(created["run_id"])
         return report
     finally:

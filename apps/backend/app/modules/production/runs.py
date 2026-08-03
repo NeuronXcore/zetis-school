@@ -107,6 +107,32 @@ def close_stale_runs(db: Session) -> int:
     return closed
 
 
+def _runs_in_window(db: Session, *, triggers: tuple[str, ...], now: datetime | None) -> int:
+    since = (now or datetime.now(timezone.utc)) - timedelta(
+        days=settings.production_auto_window_days
+    )
+    return db.scalar(
+        select(func.count(ProductionRun.id)).where(
+            ProductionRun.trigger.in_(triggers), ProductionRun.created_at >= since
+        )
+    ) or 0
+
+
+def request_runs_in_window(db: Session, *, now: datetime | None = None) -> int:
+    """Nombre de lots nés d'une DEMANDE sur la fenêtre — le régulateur de l'ADR-0036 §5.
+
+    ⚠️ **Compté à part des lots d'échéance, et ce n'est pas une commodité.** Le régulateur de
+    l'ADR-0035 compte des **lots**, pas du **coût** : un lot-pièce (~30 s) y pèse autant qu'un
+    lot-chapitre (~36 min). Sous un plafond commun, **deux fiches demandées empêcheraient de
+    préparer un contrôle** — un soir d'ennui de Massimo priverait son contrôle du jeudi.
+
+    Trois origines, trois natures. La fenêtre est la même (`production_auto_window_days`) : c'est
+    le plafond qui diffère, pas la période — deux périodes différentes n'auraient rien régulé de
+    plus et auraient donné un réglage de plus à comprendre.
+    """
+    return _runs_in_window(db, triggers=("request",), now=now)
+
+
 def auto_runs_in_window(db: Session, *, now: datetime | None = None) -> int:
     """Nombre de lots AUTOMATIQUES sur la fenêtre glissante — le régulateur de l'ADR-0035 §4.
 
@@ -119,15 +145,14 @@ def auto_runs_in_window(db: Session, *, now: datetime | None = None) -> int:
     compteur borne le VOLUME PRODUIT, l'autre borne l'ARRIÉRÉ DE RELECTURE. Au palier 2 le second
     mord ; au palier 3, plus rien ne devient `pending` et seul celui-ci mord. C'est voulu — c'est
     exactement le trou que l'ADR-0031 §5 avait annoncé.
+
+    ⚠️ **`request` en est EXCLU depuis l'ADR-0036 §5.** La condition disait `trigger != "manual"`,
+    ce qui ne désignait que l'agenda tant qu'il était le seul déclencheur automatique. Ouvrir les
+    demandes sous cette condition-là aurait mis deux natures dans le même seau — voir
+    `request_runs_in_window`. Les déclencheurs sont donc nommés, et non plus déduits par
+    soustraction : le prochain qui s'ouvrira devra choisir son seau explicitement.
     """
-    since = (now or datetime.now(timezone.utc)) - timedelta(
-        days=settings.production_auto_window_days
-    )
-    return db.scalar(
-        select(func.count(ProductionRun.id)).where(
-            ProductionRun.trigger != "manual", ProductionRun.created_at >= since
-        )
-    ) or 0
+    return _runs_in_window(db, triggers=("agenda", "evidence", "derived", "council"), now=now)
 
 
 def run_exists_for(db: Session, *, trigger: str, reference_id: int) -> bool:
@@ -254,8 +279,21 @@ def create_run(
             ),
         )
 
-    # Le régulateur de VOLUME ne s'applique qu'aux lots que personne n'a demandés (ADR-0035 §4).
-    if trigger != "manual":
+    # Le régulateur de VOLUME ne s'applique qu'aux lots que personne n'a demandés (ADR-0035 §4) —
+    # et il en existe DEUX, un par nature d'origine (ADR-0036 §5). Quand Papa clique, ni l'un ni
+    # l'autre ne s'applique : le geste EST le régulateur (ADR-0032 §5).
+    if trigger == "request":
+        recent = request_runs_in_window(db)
+        if recent >= settings.production_request_max_runs:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail=(
+                    f"{recent} contenus déjà produits sur demande ces "
+                    f"{settings.production_auto_window_days} derniers jours "
+                    f"(plafond : {settings.production_request_max_runs})."
+                ),
+            )
+    elif trigger != "manual":
         recent = auto_runs_in_window(db)
         if recent >= settings.production_auto_max_runs:
             raise HTTPException(

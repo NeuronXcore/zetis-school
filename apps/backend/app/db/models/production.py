@@ -34,7 +34,14 @@ RUN_STATUSES = ("queued", "running", "done", "failed")
 # écrit qu'il y avait un contrôle jeudi »). Un déclencheur `evidence` ferait décider ZETIS sur SA
 # PROPRE mesure — la boucle se refermerait sur elle-même, et une mesure fausse produirait du
 # contenu que rien d'extérieur ne viendrait contredire.
-EMITTED_TRIGGERS = ("manual", "agenda")
+#
+# `request` ouvert le 2026-08-03 (ADR-0036 §1) : une demande de contenu de Massimo déclenche la
+# production de la pièce demandée — mais sous **DEUX conditions cumulatives**, régime *Autonome*
+# **ET** déclencheur armé. La porte est plus étroite que celle de l'agenda, et le motif est une
+# différence de NATURE : une échéance est **exogène** (quelqu'un du monde réel a écrit qu'il y
+# avait un contrôle), une demande est **endogène** (Massimo peut en poser dix un soir d'ennui).
+# Ce n'est pas un reproche ; c'est ce qui justifie que ZETIS obéisse à l'une plus vite qu'à l'autre.
+EMITTED_TRIGGERS = ("manual", "agenda", "request")
 
 # `parent_rule` s'émet enfin (ADR-0035 §6) : un lot né du scan satisfait la définition littérale du
 # §G.1 — **aucun humain n'a ouvert la pièce, NI CLIQUÉ POUR CE LOT**. Elle est restée légale et non
