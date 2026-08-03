@@ -8,21 +8,26 @@
 ## État à la reprise
 
 **Chantier : la demande de Massimo devient une production (ADR-0036) — CODÉ, VÉRIFIÉ EN VRAI,
-NON POUSSÉ.** La dernière boucle ouverte du dispositif se ferme.
+POUSSÉ, PR OUVERTE, PAS ENCORE MERGÉ.** La dernière boucle ouverte du dispositif se ferme.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Branche | `feat/demande-vers-production` — **jamais poussée**, jamais rebasée |
+| Branche | `feat/demande-vers-production` — **poussée sur `origin`**, jamais rebasée |
+| PR | **[#72](https://github.com/NeuronXcore/zetis-school/pull/72)**, `MERGEABLE`, 38 fichiers |
 | Base | `main` = `origin/main` = **`65d5451`** (stable : rien n'a été mergé depuis) |
 | Tête | **volontairement non écrite** — `git log --oneline main..HEAD` dit la vérité |
 | Migration | **`c7d8e9f0a1b2` APPLIQUÉE** sur le Postgres de dev, **aller-retour vérifié** |
 | Cadrage | `docs/decisions/adr-0036-demande-vers-production.md`, **§3 corrigé le jour même** |
 
-> ⚠️ **Rien n'est chez `origin`.** Le premier geste de reprise est `git push -u origin
-> feat/demande-vers-production` puis l'ouverture de la PR. Tant que ce n'est pas fait, **tous les
-> commits de ce chantier n'existent que sur cette machine**.
+> ✅ **Tout est chez `origin`.** Plus rien n'existe uniquement sur cette machine.
+>
+> ⚠️ **Ce qui reste au 4bis, et pourquoi ça ne pouvait pas être écrit d'avance** : le **hash du
+> squash**, la **suppression de la branche** et « rien à pousser ». Ces trois faits **n'existent
+> pas tant que la PR n'est pas mergée** — les anticiper serait exactement la faute que le
+> `WORKFLOW.md §5` vient d'interdire. Le n° de PR et le push, eux, sont définitifs : ils sont
+> écrits ici, et le 4bis se réduit donc à **une ligne**.
 
 > ⚠️ **Pourquoi la tête n'est PAS écrite ici — sixième récurrence, corrigée à la racine.**
 >
@@ -138,11 +143,13 @@ depuis le Journal** — le veto est exactement la surface pour ça.
 
 ### ▶ PROCHAIN PAS
 
-1. **`git push -u origin feat/demande-vers-production`, puis ouvrir la PR.** Ces commits n'existent
-   que sur cette machine.
-2. **Avant le merge** : relancer les **453 tests Massimo** (non joués cette session).
-3. **Après le merge** : revenir faire l'**étape 4bis** (`WORKFLOW.md §5`) — squash, n° de PR,
-   branche supprimée. **Ce fichier sera faux dès la PR mergée.**
+1. **Merger la PR [#72](https://github.com/NeuronXcore/zetis-school/pull/72).** Tout est poussé,
+   `MERGEABLE`, et les quatre suites ont été relancées **après** la dernière modification :
+   **796 backend · 318 Papa · 453 Massimo · build Papa · typecheck Massimo**.
+2. **Juste après le merge, l'étape 4bis** (`WORKFLOW.md §5`) — et elle tient en **une ligne** cette
+   fois, parce que tout ce qui pouvait être écrit d'avance l'a été : il ne manque que le **hash du
+   squash**, la **suppression de la branche** et « rien à pousser ». Trois faits qui n'existent pas
+   avant le merge.
 
 ### ▶ DETTES OUVERTES, nommées à la livraison
 
