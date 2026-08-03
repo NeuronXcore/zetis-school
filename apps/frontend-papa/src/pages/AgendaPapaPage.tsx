@@ -159,6 +159,10 @@ export function AgendaPapaPage() {
                   saving={agenda.saving}
                   onClose={() => setSelected(null)}
                   onSave={(body) => agenda.updateItem(current.id, body)}
+                  subjects={referential.subjects}
+                  chaptersBySys={referential.chaptersBySys}
+                  chaptersLoading={referential.chaptersLoading}
+                  onNeedChapters={referential.loadChapters}
                   onSaveNote={(note) => agenda.updateNote(current.id, note)}
                   onArchive={() => setToArchive(current)}
                 />
