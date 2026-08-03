@@ -4,6 +4,96 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/demande-vers-production` — la demande devient une production (ADR-0036) — 2026-08-03
+
+### ⚠️ DEUX RÈGLES pour « la leçon de cette notion » — et elles ne donnent pas la même leçon
+
+**Pré-existant, rendu visible par ce chantier.** Une notion peut être rattachée à plusieurs leçons,
+et deux résolveurs du dépôt en choisissent une **différemment** :
+
+| Résolveur | Règle | Filtre |
+|---|---|---|
+| `runner.select_notions`, `equipment._skill_lesson` | `ORDER BY Lesson.id DESC LIMIT 1` | `status != 'archived'` |
+| `galaxy._course_lessons_by_skill` | max sur `(updated_at, id)` | année active, chapitre + leçon `validated` |
+
+**Constaté en vrai le 2026-08-03.** La notion « Discours direct » porte la leçon 5 (validée, **avec**
+cours) et la leçon 12 (validée, **sans** cours). Le lot-pièce a retenu la **12** et s'est bloqué —
+« Cours à valider » — alors que la galaxie considère le cours de cette notion **disponible** et le
+sert à Massimo.
+
+⚠️ **Piège de diagnostic** : une requête SQL qui joint `lessons` en filtrant `content_markdown IS
+NOT NULL` désigne une notion « prête » que le runtime bloquera. Pour reproduire la sélection réelle,
+il faut `DISTINCT ON (skill_id) … ORDER BY skill_id, lesson.id DESC` **sans** filtre de contenu.
+
+Non corrigé : un lot-chapitre a exactement le même comportement, donc ce n'est pas une régression.
+Mérite sa propre décision — voir les dettes de `MEMORY.md`.
+
+### `create_capsule` n'est pas symétrique des cinq autres générateurs
+
+Les cinq générateurs du kit prennent un identifiant et produisent :
+
+```python
+generate_lesson_content(db, llm, lesson_id)          # pas d'embedder
+generate_fiche(db, llm, embedder, *, lesson_id)
+generate_mindmap(db, llm, embedder, *, lesson_id)
+generate_quiz(db, llm, embedder, *, lesson_id, count, difficulty)
+generate_cards_for_skill(db, llm, embedder, *, skill_id)
+```
+
+`create_capsule(db, llm, subject_id, instruction: str, …)` exige en plus une **instruction en texte
+libre** — l'intention pédagogique de Papa. Une demande `(skill_id, content_kind)` ne la porte pas, et
+l'inventer serait produire une vidéo que personne n'a pensée. **Stop-on-blocker joué au
+read-before-code** ; l'ADR-0036 §3 a été corrigé en place le jour même.
+
+⚠️ **Quatre générateurs sur cinq sont LEÇON-centrés, la demande est NOTION-centrée.** La résolution
+existe (`equipment._skill_lesson`) — c'est un partage à faire, pas un mécanisme à écrire.
+
+### Une contrainte SQL neuve peut rendre vert un verrou voisin
+
+`ck_production_runs_exactly_one_scope` fait échouer toute insertion sans scope. Le helper `_run` de
+`test_production_runs.py` n'en posait aucun — donc **le test voisin**, qui attend une
+`IntegrityError` de `ck_production_runs_manual_has_no_reference`, aurait continué à passer **en
+vérifiant une tout autre règle**.
+
+> Quand une contrainte nouvelle touche une table, relire **tous** les tests qui attendent une
+> `IntegrityError` sur cette table : ils ne disent pas laquelle ils attendent.
+
+Le helper pose désormais un chapitre par défaut. ⚠️ Le `conftest` ne sème **aucun** `Chapter` : il
+faut le créer (avec son `Theme`).
+
+### `progress_pct` ne dit rien d'un lot-pièce — et ce n'est pas un bug
+
+Il vaut `done_notions / total_notions`. Un lot-pièce a **une** notion : 0 % pendant toute sa durée,
+puis le lot disparaît. L'indicateur d'en-tête restait donc **figé à 0 %** — constaté à l'écran, pas
+par les tests, qui tournent sur des lots mockés.
+
+Règle retenue : là où le serveur a de la granularité (`total_notions > 1`), il fait foi ; là où il
+n'en a pas, l'affichage bascule sur `useEstimatedProgress`. Le champ ne ment pas — il n'a rien à
+dire.
+
+⚠️ Deux libellés « ZETIS produit **un chapitre** » étaient écrits **en dur** (pastille d'en-tête et
+`ActiveProductionModal`). Faux dès qu'un lot vise une pièce.
+
+### Le sondage d'en-tête était plus lent que les lots qu'il surveille
+
+`useActiveProductionRun` sondait toutes les **20 s**. Un lot-pièce dure **15 à 17 s** (mesuré) :
+l'indicateur pouvait naître et mourir **entre deux sondages**, donc n'apparaître jamais. Ramené à
+4 s — `GET /runs/active` est une requête indexée qui rend un état, pas l'agrégat par page qui avait
+tué le sondage d'en-tête le 2026-08-02.
+
+### Des jobs RQ survivent aux lots qu'ils référencent
+
+Cinq jobs `run_production` attendaient dans Redis en pointant un `production_run` **supprimé** au
+nettoyage du chantier précédent. Un worker relancé les aurait exécutés et fait échouer en série.
+
+> **Nettoyer un lot de test, c'est aussi vider sa file.** Redis n'a aucune clé étrangère.
+
+### `redis-cli` absent ne veut pas dire Redis éteint
+
+`redis-cli ping` échouait ; Redis répondait parfaitement via `redis.Redis.from_url(...).ping()`. Le
+binaire n'est simplement pas installé. Tester le service, jamais son client.
+
+
 ## Chantier `feat/declencheur-agenda` — le déclencheur automatique (ADR-0035) — 2026-08-03
 
 ### `massimo_is_active` comptait un LOGIN comme du travail

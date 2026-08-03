@@ -7,6 +7,157 @@
 
 ## État à la reprise
 
+**Chantier : la demande de Massimo devient une production (ADR-0036) — CODÉ, VÉRIFIÉ EN VRAI,
+NON POUSSÉ.** La dernière boucle ouverte du dispositif se ferme.
+
+### Où est le code, exactement
+
+| | |
+|---|---|
+| Branche | `feat/demande-vers-production`, **6 commits**, HEAD = **`0f86eea`** |
+| Base | `main` = `origin/main` = **`65d5451`** — la branche n'a **jamais été poussée** |
+| Migration | **`c7d8e9f0a1b2` APPLIQUÉE** sur le Postgres de dev, **aller-retour vérifié** |
+| Cadrage | `docs/decisions/adr-0036-demande-vers-production.md`, **§3 corrigé le jour même** |
+
+> ⚠️ **Rien n'est chez `origin`.** Le premier geste de reprise est `git push -u origin
+> feat/demande-vers-production` puis l'ouverture de la PR. Tant que ce n'est pas fait, **six
+> commits n'existent que sur cette machine**.
+
+**Tests relancés après la dernière modification** : **796 backend** (776 avant le chantier) ·
+**318 Papa** (309 avant) · **build Papa** · **typecheck Massimo**. ⚠️ **Les 453 tests Massimo
+n'ont PAS été relancés** — aucun fichier de `frontend-massimo` n'est au diff, et seul le
+typecheck (qui consomme `packages/types`, lui modifié) a été joué. À relancer avant le merge.
+
+### Ce que ce chantier a livré, dans l'ordre des commits
+
+1. `5ccde6f` — **ADR-0036 §3 corrigé** : la capsule reste manuelle, l'hypothèse du cadrage était
+   fausse (voir « défauts » plus bas).
+2. `b599d76` — **le scope PIÈCE** (§2) : `scope_skill_id` + `scope_kind`, contrainte SQL
+   « exactement un scope », migration, **une seule branche** dans `runner.execute`, `equip_piece`.
+3. `93b8a04` — **`trigger='request'` s'émet** (§1) sous **deux conditions cumulatives**, avec son
+   **quota distinct** (§5, livré ici car inséparable) et `scan_requests`.
+4. `63986f3` — **l'auto-fermeture sur la DISPONIBILITÉ** (§4).
+5. `e0dff6f` — **le bouton « Produire »** et le **refus DIT** de la capsule (§3 + §6).
+6. `0f86eea` — **l'avancement à l'écran** : barre de %, annonce de fin, en-tête réparé.
+
+### Décisions actives — à relire, pas à rouvrir
+
+1. **Une demande ne déclenche QUE sous deux conditions cumulatives** : régime ***Autonome*** **ET**
+   déclencheur armé. Ce n'est **pas** la fusion refusée par l'ADR-0035 §5 — celle-là rendait le
+   dispositif plus PERMISSIF, la conjonction est plus RESTRICTIVE. Hors de ce régime, l'addendum
+   ADR-0027 s'applique mot pour mot : la production reste un geste de Papa.
+2. **Le scope est la PIÈCE, et il est EXPLICITE.** Jamais dérivé de `content_request_id`
+   (ADR-0031 §4 : « les colonnes disent POURQUOI, jamais SUR QUOI »), jamais logé dans `skill_id`
+   (déjà référence de déclencheur d'`evidence`/`derived`).
+3. **La capsule reste MANUELLE.** Ce n'est pas un choix de périmètre mais un **constat de code** :
+   `create_capsule` exige une **instruction en texte libre** que la demande ne porte pas.
+   **Condition de réouverture** : le jour où une consigne par défaut aurait un sens pédagogique.
+4. **Le COURS est un prérequis, pas du kit.** Quatre générateurs sur cinq refusent une leçon non
+   validée, donc `equip_piece` écrit le cours s'il manque — et **rien d'autre**. Cela n'ouvre
+   aucune porte que le palier ne fermait : au palier < 3, `select_notions` bloque la notion en
+   amont.
+5. **L'auto-fermeture balaie TOUTES les demandes en attente**, pas seulement celles du lot : ce
+   qui ferme une demande est que le contenu soit là, **pas qu'un lot particulier l'ait produit**.
+6. **Un lot en ÉCHEC ne ferme rien**, même quand la fermeture aurait abouti.
+7. **Trois compteurs, trois natures** : clic de Papa = aucun · échéance = `PRODUCTION_AUTO_MAX_RUNS`
+   (2/sem) · demande = `ZETIS_REQUEST_MAX_RUNS` (10/sem). Le régulateur compte des **lots**, pas du
+   **coût** : sans quota distinct, deux fiches demandées privaient le contrôle du jeudi.
+8. **Le bouton « Produire » émet `manual`, pas `request`.** Le trigger dit QUI a décidé.
+   ⚠️ Conséquence assumée : ce lot ne porte **aucun** `content_request_id` — c'est la
+   DISPONIBILITÉ qui referme la demande, pas un lien vers le lot.
+9. **`equip_notion` n'est pas touché** (addendum ADR-0031). Coût assumé et **écrit dans le code** :
+   les appels aux générateurs existent en double. L'extraction se fera dans son propre chantier,
+   sous contre-épreuve — jamais au détour d'un ajout.
+10. **Les tables d'affichage sont indexées par PIÈCE** (`srs`), jamais par type de demande
+    (`card`) : le lot porte déjà son `scope_kind`, donc aucune surface cliente ne retraduit.
+
+### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT — pas au cadrage
+
+1. **La capsule n'a pas de générateur symétrique.** Trouvé au read-before-code de sa propre slice,
+   **stop-on-blocker joué** : le cadrage écrit une heure plus tôt supposait un générateur comme les
+   autres. §3 corrigé **en place** avec marqueur visible (précédent ADR-0032).
+2. ⚠️ **DEUX RÈGLES pour « la leçon de cette notion »** — divergence **pré-existante**, rendue
+   visible par ce chantier : `select_notions` / `equipment._skill_lesson` prennent la **dernière
+   par id**, `galaxy._course_lessons_by_skill` la **plus récente par `updated_at`**. Constaté en
+   vrai : une notion portée par deux leçons a été **bloquée** (« cours à valider ») alors que la
+   galaxie considère son cours disponible. Un lot-chapitre a le même comportement — ce n'est donc
+   pas une régression, mais ça mérite sa propre décision.
+3. **Un helper de test ne posait aucun scope.** La nouvelle contrainte SQL l'aurait fait échouer à
+   chaque insertion — et surtout aurait fait passer au vert le verrou **voisin**, qui attend une
+   `IntegrityError` d'une **autre** règle. Un test qui passe pour la mauvaise raison ne teste rien.
+4. **L'en-tête restait à 0 %** : `progress_pct` compte des NOTIONS, un lot-pièce n'en a qu'une.
+5. **« ZETIS produit un chapitre » était écrit en dur** — pastille ET modale de détail.
+6. **Le sondage d'en-tête était à 20 s pour des lots de 15 à 17 s** : il pouvait ne jamais voir un
+   lot entier.
+7. **`tsc -b` a rattrapé 3 fixtures** que `vitest` laissait passer — les tests front ne typent rien.
+
+> Détail et remèdes : `TROUBLESHOOTING.md`, chantier `feat/demande-vers-production`.
+
+### Vérifié EN VRAI (Postgres + Ollama, backend `:8000`, Papa `:5174`)
+
+- **Les quatre générateurs par le chemin `equip_piece`** : fiche **15 s**, mindmap **17 s**, quiz
+  **17 s**, cartes **6 s** — **chacun n'a écrit que sa pièce** (0 mindmap là où un kit en aurait
+  créé une), tamponnée `production_run_id`, validée `parent_bulk`.
+- **Le gate du cours** : deux lots **bloqués** avec leur motif au journal, aucun cours écrit.
+- **La double condition, dans ses 4 états** : semi+désarmé, semi+**armé** (refus sur le RÉGIME),
+  autonome+désarmé (refus sur le DÉCLENCHEUR), autonome+armé → **2 lots `request`/`parent_rule`**
+  avec scope de pièce et `content_request_id`. **Second réveil idempotent.**
+- **L'auto-fermeture** : les demandes sont passées `done` **seules**, sur la disponibilité.
+- **La capsule** : 422 côté route, « À écrire toi-même → » côté écran, `producible: false` servi.
+- **L'écran** : barre « En file d'attente… » → « Génération du quiz… 30 % », en-tête « ZETIS
+  produit un quiz · 20 % », modale de fin centrée qui **s'efface seule**.
+
+⚠️ **Tout est resté aux défauts en dev** : régime *Semi-autonome*, **déclencheur désarmé**, aucun
+lot actif, worker arrêté. Les 10 demandes-fixtures inventées pour le test ont été supprimées ; les
+**3 demandes réelles sont intactes**. **Le contenu produit a été CONSERVÉ** (2 fiches, 1 mindmap,
+1 quiz, 3 cartes) : ce sont de vraies pièces sur de vraies leçons, relisables et **rétractables
+depuis le Journal** — le veto est exactement la surface pour ça.
+
+### ▶ PROCHAIN PAS
+
+1. **`git push -u origin feat/demande-vers-production`, puis ouvrir la PR.** Six commits n'existent
+   que sur cette machine.
+2. **Avant le merge** : relancer les **453 tests Massimo** (non joués cette session).
+3. **Après le merge** : revenir faire l'**étape 4bis** (`WORKFLOW.md §5`) — squash, n° de PR,
+   branche supprimée. **Ce fichier sera faux dès la PR mergée.**
+
+### ▶ DETTES OUVERTES, nommées à la livraison
+
+- ⚠️ **Deux règles pour « la leçon d'une notion »** (défaut n°2 ci-dessus). Pré-existant, mais une
+  demande sur une notion à deux leçons peut rester insatisfaite alors que le contenu est servable.
+  **Condition d'ouverture : la première fois que Papa ne comprend pas pourquoi ZETIS refuse.**
+- **Les appels aux générateurs sont écrits deux fois** (`equip_notion` / `equip_piece`), par
+  interdiction explicite de toucher l'orchestrateur. À extraire dans son propre chantier.
+- **`ZETIS_REQUEST_MAX_RUNS` n'est pas dans `.env.example`** — aucun `PRODUCTION_*` de l'ADR-0035
+  n'y est non plus. Corriger pour **tout le groupe**, pas pour une seule clé.
+- **Une demande sur une notion ORPHELINE** (sans leçon) reste insatisfaisable : `equip_piece` le
+  **dit** (« Aucune leçon rattachée »), mais rien ne la répare. Même famille que
+  `skills-backfill`.
+- **Le Commander n'est pas idempotent** (dette de l'addendum ADR-0035, exige
+  `missions.agenda_item_id`, donc une migration).
+- **Le panneau d'analyse à 3 compteurs** (ADR-0025 §11) attend une mesure SRS scopée chapitre.
+- **Un devoir fait produire le chapitre entier** — disproportionné, assumé.
+
+### ▶▶ OÙ EN EST « FULL AUTONOMIE »
+
+| Axe | Ce qu'il dit | État |
+|---|---|---|
+| **1 — le palier** | « ZETIS ne me demande plus de valider » | ✅ **LIVRÉ** (ADR-0032 + 0034) |
+| **2 — le déclencheur** | « ZETIS travaille sans que je clique » | ✅ **LIVRÉ** (ADR-0035 + addendum) |
+| **2b — les sources** | agenda (exogène) **et** demande de Massimo (endogène) | ✅ **CODÉ** (ADR-0036) |
+
+⚠️ **Rien n'est armé en dev**, et c'est volontaire : livrer la possibilité était le chantier,
+l'activer est une décision de Papa — deux clics sur `/parametres`.
+
+---
+
+
+## Historique — le déclencheur automatique (ADR-0035 + addendum)
+
+**CLOS ET MERGÉ** (squash `c4f5e31`, PR #71, 2026-08-03). Conservé pour ses décisions
+actives et ses défauts trouvés en codant. Son « prochain pas » — coder l'ADR-0036 — est FAIT.
+
+
 **Chantier : le déclencheur automatique (ADR-0035 + son addendum) — COMPLET, CLOS ET MERGÉ.**
 **Les DEUX axes de « full autonomie » sont livrés.**
 

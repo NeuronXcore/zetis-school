@@ -1,5 +1,66 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.40.0 — ce que Massimo demande, ZETIS le produit
+
+Date : 2026-08-03 · branche `feat/demande-vers-production` · ADR-0036
+
+**La dernière boucle ouverte du dispositif se ferme.** `notion_requests` (« cette notion n'est pas
+à mon programme ») avait une boucle complète ; `content_requests` (« il manque une fiche ») n'en
+avait aucune. Papa disposait de « Fait » et « Ignorer », et **aucun des deux ne produisait quoi que
+ce soit** : « Fait » était une **déclaration**. Le seul garde-fou vivait en aval — `announce.py`
+refusait d'annoncer à Massimo un `done` non servable.
+
+**`trigger='request'` s'émet enfin**, après avoir été modélisé, migré, contraint et **volontairement
+non écrit**. Mais sous **DEUX conditions cumulatives** : régime ***Autonome*** **ET** déclencheur
+armé. Ce n'est pas la fusion que l'ADR-0035 §5 avait refusée — celle-là rendait le dispositif plus
+**permissif**, la conjonction est plus **restrictive**. Le motif est une différence de nature : une
+échéance est **exogène** (quelqu'un du monde réel a écrit qu'il y avait un contrôle), une demande
+est **endogène** — Massimo peut en poser dix un soir d'ennui.
+
+**Un lot peut désormais viser UNE PIÈCE.** Il ne savait produire qu'un chapitre : brancher la
+demande sans scope de pièce aurait fait produire ~30 objets parce qu'une fiche manque. Deux
+colonnes explicites, une contrainte SQL « exactement un scope », **une seule branche** dans le
+runner — le gate, l'ordre, le journal, le tamponnage et la préemption ne bougent pas.
+⚠️ Le scope n'est **pas** dérivé de `content_request_id` : *« les colonnes disent POURQUOI on a
+produit, jamais SUR QUOI »* (ADR-0031 §4).
+
+**« Fait » cesse d'être une déclaration.** Une demande se referme **toute seule** quand le contenu
+existe **et est servable** — la règle qu'`announce.py` appliquait déjà en lecture, appliquée cette
+fois à l'écriture, via le même prédicat unique (`resolve_panoply`). Le balayage porte sur **toutes**
+les demandes en attente : ce qui ferme une demande est que le contenu soit là, **pas qu'un lot
+particulier l'ait produit**. Papa qui produit un chapitre referme donc aussi ce qu'il satisfait au
+passage. ⚠️ **Un lot en échec ne ferme rien**, même quand la fermeture aurait abouti.
+
+**Un quota distinct pour les demandes.** Le régulateur compte des **lots**, pas du **coût** : un
+lot-pièce (~15 s mesuré) y pesait autant qu'un lot-chapitre (~36 min). Sans compteur séparé, deux
+fiches demandées auraient privé le contrôle du jeudi de sa préparation. Trois compteurs, trois
+natures — clic de Papa (aucun) · échéance (2/sem) · demande (10/sem).
+
+**La capsule reste manuelle, et l'écran le dit.** ⚠️ Ce n'est pas un choix de périmètre mais un
+**constat de code**, trouvé au read-before-code et qui a fait **corriger l'ADR le jour même** :
+`create_capsule` exige une **instruction en texte libre** — l'intention pédagogique de Papa — qu'une
+demande `(notion, type)` ne porte pas. La page affiche « À écrire toi-même → » : un constat avec son
+geste à côté, jamais un bouton grisé.
+
+**Le bouton « Produire » qui manquait.** La page Demandes n'offrait qu'un lien sortant vers la
+Couverture. ⚠️ Il émet `trigger='manual'` : le trigger dit **qui a décidé**, et Papa clique.
+
+**Vu à l'écran, corrigé à l'écran** — trois défauts que 796 tests ne pouvaient pas voir :
+l'indicateur d'en-tête restait **figé à 0 %** (`progress_pct` compte des notions, un lot-pièce n'en
+a qu'une) ; **« ZETIS produit un chapitre » était écrit en dur** à deux endroits ; le **sondage à
+20 s était plus lent que les lots de 15 s** qu'il surveille. S'y ajoutent une barre de pourcentage
+au clic et une carte de fin centrée qui **s'efface seule** — une annonce qui s'empile deviendrait
+un arriéré, c'est-à-dire le « vous êtes en retard » que le §F.2 interdit.
+
+**Migration `c7d8e9f0a1b2`.** **796 backend** (776 avant) · **318 Papa** (309 avant) · build Papa ·
+typecheck Massimo. Vérifié en vrai sur Postgres + Ollama : les quatre générateurs par le chemin
+`equip_piece`, le gate du cours, les quatre états de la double condition, l'idempotence,
+l'auto-fermeture et l'écran.
+
+⚠️ **Rien n'est armé en dev** : régime *Semi-autonome*, déclencheur désarmé. Livrer la possibilité
+était le chantier ; l'activer est une décision de Papa.
+
+
 ## 0.39.0 — ZETIS se met au travail tout seul, et l'échéance commande ses missions
 
 Date : 2026-08-03 · branche `feat/declencheur-agenda` · ADR-0035 + son addendum
