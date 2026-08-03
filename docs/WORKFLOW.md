@@ -172,6 +172,33 @@ la branche**, « rien à pousser », et surtout ce que la clôture **laisse ouve
 non faites, données de test restées en base, décisions différées. Ces résidus-là ne vivent nulle
 part ailleurs : ni Git ni les ADR ne les portent.
 
+### ⚠️ Ne jamais écrire dans `MEMORY.md` la tête de branche qu'il vit
+
+**Une ligne qui nomme le commit qui la contient ne peut pas être vraie.** Écrire « HEAD = `abc123`,
+6 commits » à l'étape 1, c'est décrire l'état d'**avant** le commit de clôture qui porte cette
+ligne. La corriger ne sauve pas : la correction produit à son tour une nouvelle tête. Et
+`git commit --amend` non plus — il change le hash.
+
+Ce n'est donc **pas de l'inattention**, c'est structurel : le fichier est modifié par le geste
+qu'il décrit. **C'est arrivé six fois** (dernières occurrences : `origin/main = 4d3fc99` écrit
+alors que le 4bis passait par-dessus le 2026-08-03 ; « 6 commits, HEAD `0f86eea` » le même jour).
+
+**La règle :**
+
+| Ce qui s'écrit | Ce qui ne s'écrit pas |
+|---|---|
+| le **nom de la branche**, si elle est poussée, si elle a été rebasée | la **tête** (`HEAD`) |
+| la **base** (`main`/`origin/main`) — elle ne bouge pas sous nos pieds | le **nombre de commits** |
+| les hash des commits **de code**, antérieurs à la clôture | le hash du commit de clôture |
+| après le merge (4bis) : le **squash** et le n° de PR — définitifs | |
+
+Et à la place de ce qu'on n'écrit pas, une ligne qui renvoie à la source :
+`git log --oneline main..HEAD` **dit la vérité**, toujours.
+
+> Le principe général est déjà au §3 : `MEMORY.md` porte le **raisonnement**, Git porte l'**état
+> du code**. Recopier dans l'un ce que l'autre sait dire, c'est fabriquer une seconde vérité —
+> et celle-ci se périme au commit suivant.
+
 ## 5bis. Voir l'app tourner (quand le chantier le demande)
 
 **Seulement quand la vérification est visuelle.** Un refactor backend, une passe de tests ou de

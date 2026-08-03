@@ -14,14 +14,29 @@ NON POUSSÉ.** La dernière boucle ouverte du dispositif se ferme.
 
 | | |
 |---|---|
-| Branche | `feat/demande-vers-production`, **6 commits**, HEAD = **`0f86eea`** |
-| Base | `main` = `origin/main` = **`65d5451`** — la branche n'a **jamais été poussée** |
+| Branche | `feat/demande-vers-production` — **jamais poussée**, jamais rebasée |
+| Base | `main` = `origin/main` = **`65d5451`** (stable : rien n'a été mergé depuis) |
+| Tête | **volontairement non écrite** — `git log --oneline main..HEAD` dit la vérité |
 | Migration | **`c7d8e9f0a1b2` APPLIQUÉE** sur le Postgres de dev, **aller-retour vérifié** |
 | Cadrage | `docs/decisions/adr-0036-demande-vers-production.md`, **§3 corrigé le jour même** |
 
 > ⚠️ **Rien n'est chez `origin`.** Le premier geste de reprise est `git push -u origin
-> feat/demande-vers-production` puis l'ouverture de la PR. Tant que ce n'est pas fait, **six
-> commits n'existent que sur cette machine**.
+> feat/demande-vers-production` puis l'ouverture de la PR. Tant que ce n'est pas fait, **tous les
+> commits de ce chantier n'existent que sur cette machine**.
+
+> ⚠️ **Pourquoi la tête n'est PAS écrite ici — sixième récurrence, corrigée à la racine.**
+>
+> Ce tableau annonçait « 6 commits, HEAD `0f86eea` » : l'état d'AVANT le commit de clôture qui
+> l'écrivait. La correction évidente — « 7 commits, HEAD `c641aee` » — **est fausse elle aussi**,
+> puisque la commiter produit une huitième tête. Et `--amend` ne sauve pas : il change le hash.
+>
+> **Une ligne qui nomme le commit qui la contient ne peut pas être vraie.** Le remède n'est donc
+> pas de mieux deviner ni de relire après coup, c'est de **ne pas écrire ici ce que Git sait déjà
+> dire**. Ce fichier porte le RAISONNEMENT ; l'état du code se lit dans Git (`WORKFLOW.md` §3).
+> La ligne « Base » reste, elle : `main` ne bouge pas sous nos pieds.
+>
+> Historique de la même erreur : 2026-08-03, `origin/main = 4d3fc99` écrit alors que le 4bis
+> passait par-dessus (`628905f`).
 
 **Tests relancés après la dernière modification** : **796 backend** (776 avant le chantier) ·
 **318 Papa** (309 avant) · **build Papa** · **typecheck Massimo**. ⚠️ **Les 453 tests Massimo
@@ -29,6 +44,10 @@ n'ont PAS été relancés** — aucun fichier de `frontend-massimo` n'est au dif
 typecheck (qui consomme `packages/types`, lui modifié) a été joué. À relancer avant le merge.
 
 ### Ce que ce chantier a livré, dans l'ordre des commits
+
+> Les six hash ci-dessous sont **stables** : ce sont les commits de CODE, tous antérieurs à la
+> clôture. Les commits de clôture qui suivent ne sont pas listés — un fichier ne peut pas nommer
+> le commit qui l'écrit (encadré ci-dessus).
 
 1. `5ccde6f` — **ADR-0036 §3 corrigé** : la capsule reste manuelle, l'hypothèse du cadrage était
    fausse (voir « défauts » plus bas).
@@ -39,6 +58,10 @@ typecheck (qui consomme `packages/types`, lui modifié) a été joué. À relanc
 4. `63986f3` — **l'auto-fermeture sur la DISPONIBILITÉ** (§4).
 5. `e0dff6f` — **le bouton « Produire »** et le **refus DIT** de la capsule (§3 + §6).
 6. `0f86eea` — **l'avancement à l'écran** : barre de %, annonce de fin, en-tête réparé.
+
+Puis **la clôture** (hash non écrit, cf. ci-dessus) : cette mémoire, sept pièges dans
+`TROUBLESHOOTING.md`, le scope de `production_runs` dans `DATA_MODEL.md`, le 0.40.0 du
+`CHANGELOG.md`, carte Graphify à jour.
 
 ### Décisions actives — à relire, pas à rouvrir
 
@@ -115,7 +138,7 @@ depuis le Journal** — le veto est exactement la surface pour ça.
 
 ### ▶ PROCHAIN PAS
 
-1. **`git push -u origin feat/demande-vers-production`, puis ouvrir la PR.** Six commits n'existent
+1. **`git push -u origin feat/demande-vers-production`, puis ouvrir la PR.** Ces commits n'existent
    que sur cette machine.
 2. **Avant le merge** : relancer les **453 tests Massimo** (non joués cette session).
 3. **Après le merge** : revenir faire l'**étape 4bis** (`WORKFLOW.md §5`) — squash, n° de PR,
