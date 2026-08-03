@@ -20,6 +20,7 @@ from app.modules.content_requests.schemas import ContentKind
 from app.tests.fakes import FakeLLMProvider
 from app.modules.ai import get_provider
 from app.tests.test_galaxy import _seed_svt
+from app.tests.test_production_coverage import _FICHE_SPEC
 
 
 def _as_papa() -> None:
@@ -568,3 +569,169 @@ def test_papa_ne_peut_pas_ecrire_sur_la_surface_de_l_enfant(client_db) -> None:
         }
     assert resp.status_code == 403
     assert _rows(Session) == []
+
+
+# --- L'auto-fermeture sur DISPONIBILITÉ (ADR-0036 §4) -----------------------------------------
+
+
+def _pending(db, *, student_id: int, skill_id: int, kind: str) -> m.ContentRequest:
+    req = m.ContentRequest(
+        student_id=student_id, skill_id=skill_id, content_kind=kind, status="pending"
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+def test_une_demande_se_ferme_quand_le_contenu_est_servable(client_db) -> None:
+    """Le cours de la notion EXISTE et est servable → la demande n'a plus lieu d'attendre.
+
+    C'est le geste que Papa faisait à la main : produire, puis revenir cliquer « Fait ».
+    """
+    _, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        req = _pending(db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="cours")
+
+        assert service.close_available_requests(db) == [req.id]
+        db.refresh(req)
+        assert req.status == "done"
+
+
+def test_une_demande_ne_se_ferme_pas_sur_un_contenu_NON_servable(client_db) -> None:
+    """⚠️ LE test du §4 : le gate est la DISPONIBILITÉ, jamais l'EXISTENCE.
+
+    Une fiche en attente de relecture **existe en base** et n'est **pas servable**. Fermer la
+    demande à ce moment-là annoncerait « c'est prêt » sur une porte que Massimo trouverait close —
+    exactement le mensonge que le correctif du 2026-07-30 a tué, reconstruit du côté écriture.
+
+    Les trois états sont vérifiés dans l'ordre où ils surviennent : rien → brouillon → validé.
+    """
+    _, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        req = _pending(db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="fiche")
+
+        # 1. Aucune fiche.
+        assert service.close_available_requests(db) == []
+
+        # 2. Une fiche existe, mais elle attend la relecture de Papa.
+        fiche = m.Fiche(
+            lesson_id=ids["lesson_id"], spec_json=_FICHE_SPEC, validation_status="pending"
+        )
+        db.add(fiche)
+        db.commit()
+        assert service.close_available_requests(db) == [], "fermée sur un contenu non servable"
+        db.refresh(req)
+        assert req.status == "pending"
+
+        # 3. Papa (ou le palier) la valide → elle devient servable, la demande se referme.
+        fiche.validation_status = "validated"
+        db.commit()
+        assert service.close_available_requests(db) == [req.id]
+        db.refresh(req)
+        assert req.status == "done"
+
+
+def test_une_demande_de_capsule_ne_se_ferme_pas_sur_une_fiche(client_db) -> None:
+    """Chaque demande a son propre outil : produire une fiche ne répond pas à une demande de carte.
+
+    Sans la table `CONTENT_KIND_TO_PANOPLY`, un `content_kind` inconnu du prédicat rendrait
+    `available` sur n'importe quoi — ou sur rien, en silence.
+    """
+    _, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        req = _pending(db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="mindmap")
+        db.add(
+            m.Fiche(
+                lesson_id=ids["lesson_id"], spec_json=_FICHE_SPEC, validation_status="validated"
+            )
+        )
+        db.commit()
+
+        assert service.close_available_requests(db) == []
+        db.refresh(req)
+        assert req.status == "pending"
+
+
+# --- Le bouton « Produire » (ADR-0036 §3 et §6) ------------------------------------------------
+
+
+def test_produire_cree_un_lot_piece_manuel(client_db) -> None:
+    """⚠️ `trigger='manual'`, pas `'request'` : c'est Papa qui clique.
+
+    Conséquence assumée : le lot ne porte **aucun** `content_request_id` — la contrainte l'interdit
+    pour `manual`, à juste titre. La demande n'est pas perdue de vue : c'est la DISPONIBILITÉ qui
+    la referme (§4), pas un lien vers le lot.
+    """
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        req = _pending(db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="fiche")
+        req_id = req.id
+
+    _as_papa()
+    resp = client.post(f"/api/production/runs/from-request?request_id={req_id}")
+    assert resp.status_code == 202, resp.text
+
+    with Session() as db:
+        run = db.get(m.ProductionRun, resp.json()["id"])
+        assert (run.trigger, run.authorized_by) == ("manual", "parent_direct")
+        assert (run.scope_skill_id, run.scope_kind) == (ids["mitose_id"], "fiche")
+        assert run.chapter_id is None
+        assert run.content_request_id is None
+
+
+def test_produire_traduit_le_vocabulaire_de_la_demande(client_db) -> None:
+    """`card` (langue de Massimo) → `srs` (langue des tables). La traduction est SERVEUR."""
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        req_id = _pending(
+            db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="card"
+        ).id
+
+    _as_papa()
+    resp = client.post(f"/api/production/runs/from-request?request_id={req_id}")
+    assert resp.status_code == 202
+    assert resp.json()["scope_kind"] == "srs"
+
+
+def test_produire_refuse_une_capsule_et_le_dit(client_db) -> None:
+    """⚠️ Constat de code (ADR-0036 §3) : `create_capsule` exige une INSTRUCTION en texte libre.
+
+    L'écran n'offre pas ce bouton — mais une route qui compte sur son client pour se protéger
+    n'est pas protégée. Et surtout : **aucun lot n'est créé**, sinon il échouerait en boucle.
+    """
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        req_id = _pending(
+            db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="capsule"
+        ).id
+
+    _as_papa()
+    resp = client.post(f"/api/production/runs/from-request?request_id={req_id}")
+    assert resp.status_code == 422
+    assert "capsule" in resp.json()["detail"]
+
+    with Session() as db:
+        assert db.query(m.ProductionRun).all() == []
+
+
+def test_la_demande_dit_elle_meme_si_elle_est_productible(client_db) -> None:
+    """Le front ne détient AUCUNE liste de types productibles — patron des paliers d'autonomie.
+
+    La dupliquer en TypeScript la ferait diverger au premier générateur ajouté, et l'écran
+    offrirait un bouton qui échoue.
+    """
+    _, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        _pending(db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="fiche")
+        _pending(db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="capsule")
+        par_type = {r["content_kind"]: r["producible"] for r in service.list_requests(db)}
+
+    assert par_type == {"fiche": True, "capsule": False}

@@ -23,17 +23,38 @@ from app.db.models.production import (
 
 
 def _run(db, **kw) -> m.ProductionRun:
+    """Un lot minimal. **Un scope par défaut depuis l'ADR-0036 §2**, et ce n'est pas cosmétique :
+    sans lui, `ck_production_runs_exactly_one_scope` lèverait sur CHAQUE insertion — et le test
+    voisin, qui attend une `IntegrityError` de la contrainte des RÉFÉRENCES, passerait au vert en
+    ayant vérifié une tout autre règle."""
     student = db.scalar(select(m.StudentProfile.id))
+    scoped = "chapter_id" in kw or "scope_skill_id" in kw
     row = m.ProductionRun(
         student_id=student,
         trigger=kw.pop("trigger", "manual"),
         authorized_by=kw.pop("authorized_by", "parent_direct"),
         created_at=datetime.now(timezone.utc),
+        **({} if scoped else {"chapter_id": _chapter_id(db)}),
         **kw,
     )
     db.add(row)
     db.commit()
     return row
+
+
+def _chapter_id(db) -> int:
+    """Un chapitre, créé au besoin — le conftest n'en sème aucun."""
+    existing = db.scalar(select(m.Chapter.id))
+    if existing is not None:
+        return existing
+    subject_id = db.scalar(select(m.Subject.id))
+    theme = m.Theme(subject_id=subject_id, name="Thème")
+    db.add(theme)
+    db.flush()
+    chapter = m.Chapter(theme_id=theme.id, name="Chapitre")
+    db.add(chapter)
+    db.commit()
+    return chapter.id
 
 
 # --- Le verrou : ce que la v1 a le droit d'écrire ----------------------------------------------
@@ -100,6 +121,32 @@ def test_un_run_manuel_porte_son_scope(client_db) -> None:
         assert run.status == "queued"
         assert run.finished_at is None
         assert "chapter_id" in m.ProductionRun.__table__.columns
+
+
+def test_un_lot_porte_exactement_un_scope(client_db) -> None:
+    """La base refuse l'entre-deux (ADR-0036 §2) — aucun scope, ou les deux.
+
+    ⚠️ Tenu **en SQL**, contrairement à la règle des références (confiée au service et à son
+    verrou). L'écart est délibéré : celle-ci ne dépend d'aucun vocabulaire ouvert, donc l'exprimer
+    en base ne la rend ni illisible ni fragile au prochain déclencheur — et un lot sans scope
+    produirait dans le vide quel que soit le chemin d'écriture qui l'a créé.
+    """
+    _, Session = client_db
+    with Session() as db:
+        chapter_id = _chapter_id(db)
+        skill_id = db.scalar(select(m.Skill.id))
+
+        with pytest.raises(IntegrityError):  # aucun scope
+            _run(db, chapter_id=None)
+    with Session() as db:
+        with pytest.raises(IntegrityError):  # les deux à la fois
+            _run(db, chapter_id=chapter_id, scope_skill_id=skill_id, scope_kind="fiche")
+    with Session() as db:
+        with pytest.raises(IntegrityError):  # une notion sans type
+            _run(db, chapter_id=None, scope_skill_id=skill_id)
+    with Session() as db:
+        run = _run(db, chapter_id=None, scope_skill_id=skill_id, scope_kind="fiche")
+        assert run.chapter_id is None and run.scope_kind == "fiche"
 
 
 # --- Aucune rétro-attribution -------------------------------------------------------------------

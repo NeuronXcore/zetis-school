@@ -11,6 +11,9 @@ function prod(preview: Partial<ProductionPreview> | null, extra: Partial<UseChap
     preview: preview
       ? {
           chapter_id: 1,
+    scope_skill_id: null,
+    scope_kind: null,
+    scope_skill_name: null,
           eligible: [],
           blocked: [],
           pending_backlog: 0,
@@ -92,6 +95,9 @@ describe("ChapterProductionModal", () => {
               trigger: "manual",
               authorized_by: "parent_direct",
               chapter_id: 1,
+    scope_skill_id: null,
+    scope_kind: null,
+    scope_skill_name: null,
               total_notions: 4,
               done_notions: 1,
               progress_pct: 25,

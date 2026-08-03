@@ -20,6 +20,9 @@ import {
   type NotionRequest,
 } from "../lib/notionRequests";
 import { NotionRequestActionModal } from "../components/demandes/NotionRequestActionModal";
+import { ProductionProgress } from "../components/demandes/ProductionProgress";
+import { ProgressBar } from "../components/ProgressBar";
+import { produceForRequest } from "../lib/production";
 
 export function DemandesPage() {
   const [content, setContent] = useState<ContentRequest[]>([]);
@@ -59,6 +62,37 @@ export function DemandesPage() {
       setError(cause instanceof Error ? cause.message : "Triage échoué");
       await reload();
     }
+  }, [reload]);
+
+  // Demandes dont la production tourne : `id de demande → id de lot`. ⚠️ **La ligne ne disparaît
+  // PAS** : rien n'est encore fermé. C'est la DISPONIBILITÉ du contenu qui refermera la demande
+  // (ADR-0036 §4). La retirer d'ici rejouerait le mensonge que le §4 tue — « c'est fait » alors
+  // que le worker n'a pas commencé.
+  const [runs, setRuns] = useState<Record<number, { id: number; kind: string } | null>>({});
+
+  const produce = useCallback(async (id: number) => {
+    setError(null);
+    setRuns((cur) => ({ ...cur, [id]: null })); // null = lot demandé, réponse pas encore revenue
+    try {
+      const run = await produceForRequest(id);
+      // ⚠️ On prend le `scope_kind` DU LOT, pas le `content_kind` de la demande : la traduction
+      // `card → srs` vit côté serveur et n'a pas à être recopiée ici.
+      setRuns((cur) => ({ ...cur, [id]: { id: run.id, kind: run.scope_kind ?? "" } }));
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Lancement de la production échoué");
+      setRuns((cur) => {
+        const next = { ...cur };
+        delete next[id];
+        return next;
+      });
+    }
+  }, []);
+
+  // Le lot est fini : on relit la file. Si le contenu est réellement servable, le serveur a déjà
+  // refermé la demande (§4) et la ligne s'en va d'elle-même — sur un FAIT, pas sur un clic.
+  const onRunFinished = useCallback(async () => {
+    await reload();
+    setRuns({});
   }, [reload]);
 
   const dismissNotion = useCallback(async (id: number) => {
@@ -179,7 +213,8 @@ export function DemandesPage() {
             <section>
               <h2 className="mb-1 text-sm font-bold">🗒️ Contenu à créer</h2>
               <p className="mb-3 text-[12px] text-papa-muted">
-                Notions déjà au programme dont un contenu manque. Produis-le dans la Couverture.
+                Notions déjà au programme dont un contenu manque. ZETIS peut le produire d'ici — la
+                demande se refermera d'elle-même quand le contenu sera réellement consultable.
               </p>
               <div className="space-y-4">
                 {contentBySubject.map(([subjectName, group]) => (
@@ -207,10 +242,46 @@ export function DemandesPage() {
                               {" "}— {CONTENT_KIND_LABEL[req.content_kind] ?? req.content_kind}
                             </span>
                           </span>
+                          {/* ⚠️ `producible` est un verdict SERVEUR, jamais déduit du type ici :
+                              la table des générateurs vit en un seul endroit (ADR-0036 §3). */}
+                          {req.id in runs ? (
+                            runs[req.id] ? (
+                              <ProductionProgress
+                                runId={runs[req.id]!.id}
+                                scopeKind={runs[req.id]!.kind}
+                                onFinished={onRunFinished}
+                              />
+                            ) : (
+                              <div className="min-w-[190px] shrink-0">
+                                <ProgressBar pct={1} label="Lancement…" />
+                              </div>
+                            )
+                          ) : req.producible ? (
+                            <button
+                              type="button"
+                              onClick={() => void produce(req.id)}
+                              className="shrink-0 rounded-lg bg-papa-accent px-3 py-1 text-xs font-semibold text-papa-bg transition-opacity hover:opacity-90"
+                              title="ZETIS produit ce contenu maintenant"
+                            >
+                              Produire
+                            </button>
+                          ) : (
+                            /* ⚠️ Un CONSTAT, pas un bouton grisé : une capsule a besoin de ton
+                               intention pédagogique en toutes lettres, que la demande ne porte
+                               pas. Le geste qui répare est à côté du constat. */
+                            <Link
+                              to="/capsules"
+                              className="shrink-0 rounded-lg border border-papa-border px-3 py-1 text-xs font-semibold text-papa-muted hover:bg-papa-surface-2 hover:text-papa-text"
+                              title="Une capsule a besoin de ta consigne — ZETIS ne la devine pas"
+                            >
+                              À écrire toi-même →
+                            </Link>
+                          )}
                           <button
                             type="button"
                             onClick={() => void triageContent(req.id, "done")}
-                            className="shrink-0 rounded-lg bg-papa-accent px-3 py-1 text-xs font-semibold text-papa-bg transition-opacity hover:opacity-90"
+                            className="shrink-0 rounded-lg border border-papa-border px-3 py-1 text-xs font-semibold text-papa-text hover:bg-papa-surface-2"
+                            title="Marquer comme traitée sans production"
                           >
                             Fait
                           </button>

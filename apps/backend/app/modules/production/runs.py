@@ -24,6 +24,7 @@ from app.db.models import (
 from app.db.models.production import (
     AUTHORIZED_BY,
     EMITTED_TRIGGERS,
+    PIECES,
     TRIGGER_REFERENCE,
     TRIGGERS,
 )
@@ -106,6 +107,32 @@ def close_stale_runs(db: Session) -> int:
     return closed
 
 
+def _runs_in_window(db: Session, *, triggers: tuple[str, ...], now: datetime | None) -> int:
+    since = (now or datetime.now(timezone.utc)) - timedelta(
+        days=settings.production_auto_window_days
+    )
+    return db.scalar(
+        select(func.count(ProductionRun.id)).where(
+            ProductionRun.trigger.in_(triggers), ProductionRun.created_at >= since
+        )
+    ) or 0
+
+
+def request_runs_in_window(db: Session, *, now: datetime | None = None) -> int:
+    """Nombre de lots nés d'une DEMANDE sur la fenêtre — le régulateur de l'ADR-0036 §5.
+
+    ⚠️ **Compté à part des lots d'échéance, et ce n'est pas une commodité.** Le régulateur de
+    l'ADR-0035 compte des **lots**, pas du **coût** : un lot-pièce (~30 s) y pèse autant qu'un
+    lot-chapitre (~36 min). Sous un plafond commun, **deux fiches demandées empêcheraient de
+    préparer un contrôle** — un soir d'ennui de Massimo priverait son contrôle du jeudi.
+
+    Trois origines, trois natures. La fenêtre est la même (`production_auto_window_days`) : c'est
+    le plafond qui diffère, pas la période — deux périodes différentes n'auraient rien régulé de
+    plus et auraient donné un réglage de plus à comprendre.
+    """
+    return _runs_in_window(db, triggers=("request",), now=now)
+
+
 def auto_runs_in_window(db: Session, *, now: datetime | None = None) -> int:
     """Nombre de lots AUTOMATIQUES sur la fenêtre glissante — le régulateur de l'ADR-0035 §4.
 
@@ -118,15 +145,14 @@ def auto_runs_in_window(db: Session, *, now: datetime | None = None) -> int:
     compteur borne le VOLUME PRODUIT, l'autre borne l'ARRIÉRÉ DE RELECTURE. Au palier 2 le second
     mord ; au palier 3, plus rien ne devient `pending` et seul celui-ci mord. C'est voulu — c'est
     exactement le trou que l'ADR-0031 §5 avait annoncé.
+
+    ⚠️ **`request` en est EXCLU depuis l'ADR-0036 §5.** La condition disait `trigger != "manual"`,
+    ce qui ne désignait que l'agenda tant qu'il était le seul déclencheur automatique. Ouvrir les
+    demandes sous cette condition-là aurait mis deux natures dans le même seau — voir
+    `request_runs_in_window`. Les déclencheurs sont donc nommés, et non plus déduits par
+    soustraction : le prochain qui s'ouvrira devra choisir son seau explicitement.
     """
-    since = (now or datetime.now(timezone.utc)) - timedelta(
-        days=settings.production_auto_window_days
-    )
-    return db.scalar(
-        select(func.count(ProductionRun.id)).where(
-            ProductionRun.trigger != "manual", ProductionRun.created_at >= since
-        )
-    ) or 0
+    return _runs_in_window(db, triggers=("agenda", "evidence", "derived", "council"), now=now)
 
 
 def run_exists_for(db: Session, *, trigger: str, reference_id: int) -> bool:
@@ -154,15 +180,22 @@ def run_exists_for(db: Session, *, trigger: str, reference_id: int) -> bool:
 def create_run(
     db: Session,
     *,
-    chapter_id: int,
+    chapter_id: int | None = None,
+    scope_skill_id: int | None = None,
+    scope_kind: str | None = None,
     trigger: str = "manual",
     authorized_by: str = "parent_direct",
     reference_id: int | None = None,
 ) -> ProductionRun:
-    """Crée un lot sur un chapitre. Refuse si l'arriéré déborde — ou si le volume auto est atteint.
+    """Crée un lot. Refuse si l'arriéré déborde — ou si le volume auto est atteint.
 
     Le régulateur REFUSE et le DIT — il ne tronque pas silencieusement. Une production qui dépasse
     durablement la capacité de relecture fabrique une dette qui tue le dispositif (ADR-0023 §5).
+
+    **Deux scopes possibles, jamais les deux, jamais aucun** (ADR-0036 §2) : un `chapter_id`, ou la
+    paire `(scope_skill_id, scope_kind)` — une pièce sur une notion. La règle est tenue ICI **et**
+    par une contrainte SQL : le service donne le message, la base garantit l'invariant même si un
+    jour un autre chemin d'écriture apparaît.
 
     `trigger` / `authorized_by` / `reference_id` (ADR-0035 §3) — les défauts sont ceux du geste de
     Papa : **les appelants existants ne changent pas d'un caractère**.
@@ -200,13 +233,40 @@ def create_run(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Le déclencheur « {trigger} » exige une référence ({column}).",
         )
+    # « Exactement un scope » (ADR-0036 §2), refusé AVANT toute écriture. Un lot sans scope
+    # produirait dans le vide ; un lot à deux scopes ferait diverger l'exécution de l'affichage.
+    piece_scope = scope_skill_id is not None or scope_kind is not None
+    if piece_scope and chapter_id is not None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Un lot porte un chapitre OU une pièce, jamais les deux.",
+        )
+    if not piece_scope and chapter_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Un lot doit porter un scope."
+        )
+    if piece_scope and (scope_skill_id is None or scope_kind is None):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Un scope de pièce exige la notion ET le type.",
+        )
+    if piece_scope and scope_kind not in PIECES:
+        # Le lot parle la langue des tables (`PIECES`), pas celle de la demande (`CONTENT_KINDS`).
+        # La traduction est le travail de l'appelant, et `REQUEST_KIND_TO_PIECE` la porte.
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Type de pièce inconnu : {scope_kind}.",
+        )
+
     # Ménage opportuniste AVANT tout le reste : un lot zombie fausserait `GET /active` et ferait
     # croire à une production en cours (ADR-0034 §2).
     close_stale_runs(db)
 
-    chapter = db.get(Chapter, chapter_id)
-    if chapter is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapitre introuvable.")
+    if chapter_id is not None:
+        if db.get(Chapter, chapter_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapitre introuvable.")
+    elif db.get(Skill, scope_skill_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notion introuvable.")
 
     backlog = pending_backlog(db)
     if backlog >= settings.production_max_pending:
@@ -219,8 +279,21 @@ def create_run(
             ),
         )
 
-    # Le régulateur de VOLUME ne s'applique qu'aux lots que personne n'a demandés (ADR-0035 §4).
-    if trigger != "manual":
+    # Le régulateur de VOLUME ne s'applique qu'aux lots que personne n'a demandés (ADR-0035 §4) —
+    # et il en existe DEUX, un par nature d'origine (ADR-0036 §5). Quand Papa clique, ni l'un ni
+    # l'autre ne s'applique : le geste EST le régulateur (ADR-0032 §5).
+    if trigger == "request":
+        recent = request_runs_in_window(db)
+        if recent >= settings.production_request_max_runs:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail=(
+                    f"{recent} contenus déjà produits sur demande ces "
+                    f"{settings.production_auto_window_days} derniers jours "
+                    f"(plafond : {settings.production_request_max_runs})."
+                ),
+            )
+    elif trigger != "manual":
         recent = auto_runs_in_window(db)
         if recent >= settings.production_auto_max_runs:
             raise HTTPException(
@@ -242,6 +315,8 @@ def create_run(
         authorized_by=authorized_by,
         status="queued",
         chapter_id=chapter_id,
+        scope_skill_id=scope_skill_id,
+        scope_kind=scope_kind,
         created_at=datetime.now(timezone.utc),
     )
     if column is not None:
@@ -260,6 +335,17 @@ def run_out(db: Session, run: ProductionRun) -> dict:
         "trigger": run.trigger,
         "authorized_by": run.authorized_by,
         "chapter_id": run.chapter_id,
+        # Le scope de pièce voyage avec le lot : sans lui, un lot-pièce s'afficherait « sans
+        # chapitre », c'est-à-dire comme un lot cassé (ADR-0036 §2).
+        "scope_skill_id": run.scope_skill_id,
+        "scope_kind": run.scope_kind,
+        # Le NOM en plus de l'id — un lot qui annonce « une fiche sur la notion 17 » ne se lit pas.
+        # Une requête, et seulement quand le lot porte un scope de pièce.
+        "scope_skill_name": (
+            db.scalar(select(Skill.name).where(Skill.id == run.scope_skill_id))
+            if run.scope_skill_id
+            else None
+        ),
         "total_notions": run.total_notions,
         "done_notions": run.done_notions,
         # Pourcentage RÉEL, calculé serveur. L'estimation client (`KIT_MS_PER_NOTION`) mentait

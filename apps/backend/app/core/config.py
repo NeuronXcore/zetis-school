@@ -344,6 +344,21 @@ class Settings(BaseSettings):
         default=180, validation_alias="PRODUCTION_SCAN_INTERVAL_MINUTES"
     )
 
+    # --- Demandes de Massimo (ADR-0036 §5) ----------------------------------------------------
+    # ⚠️ **Un compteur DISTINCT, et c'est une décision.** Le régulateur ci-dessus compte des LOTS,
+    # pas du COÛT : un lot-pièce (une fiche, ~30 s) y pèserait autant qu'un lot-chapitre (~36 min).
+    # Sous un plafond commun, **deux fiches demandées empêcheraient de préparer un contrôle**.
+    #
+    # Trois origines, trois natures : Papa clique (aucun régulateur — le geste EST le régulateur) ·
+    # échéance (2/semaine, exogène) · demande de Massimo (endogène — il peut en poser dix un soir
+    # d'ennui). Les mélanger ferait qu'un soir d'ennui prive son contrôle du jeudi.
+    #
+    # Calibrage initial : 10/semaine, plus haut que les lots d'échéance parce qu'une pièce coûte
+    # deux ordres de grandeur de moins qu'un chapitre. **À réviser avec l'observation.**
+    production_request_max_runs: int = Field(
+        default=10, validation_alias="ZETIS_REQUEST_MAX_RUNS"
+    )
+
     # Origines autorisées par CORS — frontends Massimo (5173) et Papa (5174) en local.
     cors_origins: list[str] = [
         "http://localhost:5173",

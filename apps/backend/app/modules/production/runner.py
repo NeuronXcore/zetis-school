@@ -148,6 +148,28 @@ def _record_notion(db: Session, *, run_id: int, result: dict) -> None:
         )
 
 
+def _close_served_requests(db: Session) -> None:
+    """Referme les demandes que ce lot vient de satisfaire (ADR-0036 §4).
+
+    ⚠️ **Appelé UNIQUEMENT sur le chemin de succès.** Un lot en échec ne ferme rien : la demande
+    reste `pending` et redeviendra éligible. C'est la moitié de la décision qui protège Massimo
+    d'un « c'est prêt » sur du vide.
+
+    ⚠️ **Et il n'a pas le droit de faire tomber le lot.** La production a réussi ; une passe de
+    ménage qui échouerait (année scolaire inactive, notion devenue invisible) ne doit pas
+    transformer ce succès en `failed` et effacer du journal ce qui a réellement été produit.
+    """
+    from app.modules.content_requests import service as content_requests
+
+    try:
+        closed = content_requests.close_available_requests(db)
+    except Exception:  # noqa: BLE001 — le ménage ne commande pas le sort du lot
+        logger.exception("production: fermeture des demandes servies impossible")
+        return
+    if closed:
+        logger.info("production: demandes refermées par disponibilité — %s", closed)
+
+
 def massimo_is_active(db: Session, *, student_id: int) -> bool:
     """Massimo a-t-il une activité PÉDAGOGIQUE récente ?
 
@@ -292,7 +314,19 @@ def execute(
     gate = settings_service.course_gate_enabled(db)
     authority = authority_for(db, run)
 
-    notions = scope.plan(db, chapter_id=run.chapter_id)
+    # LE SCOPE — un chapitre, ou une pièce sur une notion (ADR-0036 §2). C'est la seule branche du
+    # runner, et elle ne porte que le PLAN : le gate, l'ordre, le journal, le tamponnage et la
+    # préemption restent littéralement les mêmes en dessous.
+    #
+    # ⚠️ Le gate s'applique AUSSI au lot-pièce, et c'est voulu : une demande de `cours` au palier
+    # < 3 est bloquée ici même, avec son motif au journal. ZETIS n'écrit pas un cours à la place de
+    # Papa parce que Massimo l'a demandé — c'est le palier qui ouvre cette porte, pas la demande.
+    piece_kind = run.scope_kind
+    notions = (
+        [run.scope_skill_id]
+        if piece_kind is not None
+        else scope.plan(db, chapter_id=run.chapter_id)
+    )
     eligible, blocked = select_notions(db, notions, require_validated_course=gate)
     results: list[dict] = []
 
@@ -321,8 +355,19 @@ def execute(
 
             run.current_skill_id = skill_id
             watermark = _max_ids(db)
-            result = equipment.equip_notion(
-                db, skill_id=skill_id, llm=llm, embedder=embedder, authority=authority
+            result = (
+                equipment.equip_piece(
+                    db,
+                    skill_id=skill_id,
+                    kind=piece_kind,
+                    llm=llm,
+                    embedder=embedder,
+                    authority=authority,
+                )
+                if piece_kind is not None
+                else equipment.equip_notion(
+                    db, skill_id=skill_id, llm=llm, embedder=embedder, authority=authority
+                )
             )
             result["pieces_stamped"] = _stamp(db, watermark, run_id)
             if "cours" in result.get("generated", []):
@@ -335,6 +380,7 @@ def execute(
             db.commit()
             results.append(result)
         run.status = "done"
+        _close_served_requests(db)
     except Exception as exc:  # noqa: BLE001 — un lot qui échoue doit le DIRE, pas disparaître
         logger.exception("production: lot %s interrompu", run_id)
         run.status = "failed"

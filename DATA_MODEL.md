@@ -808,6 +808,46 @@ d'unir `learning_events` et `xp_events`.
 
 Créée le 2026-08-03 (migration `b6c7d8e9f0a1`).
 
+### ProductionRun — le SCOPE (ADR-0031 §4, étendu par l'ADR-0036 §2)
+
+Un lot de production dit **pourquoi** il a produit (le déclencheur) **et sur quoi** (le scope). Ce
+sont deux questions distinctes, portées par deux jeux de colonnes qu'il ne faut jamais confondre.
+
+```txt
+-- le SCOPE : sur quoi ce lot produit. EXACTEMENT UN des deux.
+chapter_id         # FK chapters, nullable — v1 : un chapitre entier
+scope_skill_id     # FK skills,   nullable — v2 : une notion…
+scope_kind         # String(10),  nullable — …et UNE pièce : cours|fiche|srs|quiz|mindmap
+
+-- les RÉFÉRENCES DE DÉCLENCHEUR : pourquoi. Une colonne par origine, jamais polymorphe.
+agenda_item_id · content_request_id · council_report_id · skill_id
+```
+
+**Contrainte `ck_production_runs_exactly_one_scope`** — un chapitre, **ou** la paire
+`(scope_skill_id, scope_kind)`, jamais les deux, jamais aucun. ⚠️ Elle est tenue **en SQL**,
+contrairement à la règle des références (confiée au service et à son test-verrou) : celle-ci ne
+dépend d'aucun vocabulaire ouvert, donc l'exprimer en base ne la rend ni illisible ni fragile au
+prochain déclencheur.
+
+⚠️ **Le scope n'est PAS dérivé de `content_request_id`**, bien que ce soit techniquement possible
+(la demande porte `skill_id` et `content_kind`). Motif de l'ADR-0031 §4, toujours valide : *« ses
+colonnes disent POURQUOI on a produit, jamais SUR QUOI »*. Un lot ne doit pas avoir besoin de son
+déclencheur pour savoir ce qu'il a à faire — sans quoi le lot **manuel** lancé depuis la page
+Demandes (bouton « Produire », `trigger='manual'`, donc **aucune** FK de référence) n'aurait aucun
+scope du tout.
+
+⚠️ **Et `skill_id` n'est pas réutilisé** : c'est déjà la référence de déclencheur d'`evidence` et
+`derived`. Une colonne qui vaudrait tantôt « pourquoi » tantôt « sur quoi » serait l'ambiguïté
+exacte qui a fait rejeter `notion_requests` comme support des demandes de contenu.
+
+⚠️ **`scope_kind` parle la langue des TABLES** (`srs`), pas celle des demandes (`card`). La
+correspondance vit **une seule fois**, dans `db/models/production.REQUEST_KIND_TO_PIECE` — qui n'a
+**que cinq entrées sur six** : `capsule` n'y figure pas, son générateur exigeant une instruction en
+texte libre que la demande ne porte pas (ADR-0036 §3).
+
+Colonnes de scope ajoutées le 2026-08-03 (migration `c7d8e9f0a1b2`).
+
+
 ### ProductionEvent (ADR-0034 §1)
 
 Ce qu'un lot de production a fait, **pièce par pièce**.

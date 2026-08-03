@@ -34,7 +34,14 @@ RUN_STATUSES = ("queued", "running", "done", "failed")
 # écrit qu'il y avait un contrôle jeudi »). Un déclencheur `evidence` ferait décider ZETIS sur SA
 # PROPRE mesure — la boucle se refermerait sur elle-même, et une mesure fausse produirait du
 # contenu que rien d'extérieur ne viendrait contredire.
-EMITTED_TRIGGERS = ("manual", "agenda")
+#
+# `request` ouvert le 2026-08-03 (ADR-0036 §1) : une demande de contenu de Massimo déclenche la
+# production de la pièce demandée — mais sous **DEUX conditions cumulatives**, régime *Autonome*
+# **ET** déclencheur armé. La porte est plus étroite que celle de l'agenda, et le motif est une
+# différence de NATURE : une échéance est **exogène** (quelqu'un du monde réel a écrit qu'il y
+# avait un contrôle), une demande est **endogène** (Massimo peut en poser dix un soir d'ennui).
+# Ce n'est pas un reproche ; c'est ce qui justifie que ZETIS obéisse à l'une plus vite qu'à l'autre.
+EMITTED_TRIGGERS = ("manual", "agenda", "request")
 
 # `parent_rule` s'émet enfin (ADR-0035 §6) : un lot né du scan satisfait la définition littérale du
 # §G.1 — **aucun humain n'a ouvert la pièce, NI CLIQUÉ POUR CE LOT**. Elle est restée légale et non
@@ -58,6 +65,28 @@ TRIGGER_REFERENCE = {
 # Les cinq pièces d'un kit, dans l'ordre où `equip_notion` les produit.
 PIECES = ("cours", "fiche", "srs", "quiz", "mindmap")
 
+# --- La demande et le lot ne parlent pas la même langue (ADR-0036 §2) ---------------------------
+#
+# `content_requests.CONTENT_KINDS` en compte six, `PIECES` cinq — et ce n'est pas un décalage de
+# version : ce sont deux vocabulaires nés de deux besoins. Deux écarts, tous deux réels :
+#
+# - **`card` et `srs` désignent la même chose** sous deux noms (la demande parle comme Massimo,
+#   le lot comme les tables) ;
+# - **`capsule` n'a aucun producteur** dans l'équipement. Son générateur exige une INSTRUCTION en
+#   texte libre — l'intention pédagogique de Papa — qu'une demande `(skill_id, content_kind)` ne
+#   porte pas. Constaté au read-before-code du 2026-08-03 ; l'ADR-0036 §3 en a tiré la conséquence :
+#   la capsule reste un geste de Papa.
+#
+# La correspondance est écrite ICI, une fois. Une demande absente de cette table ne se produit pas,
+# et l'écran doit le dire plutôt que d'offrir un bouton qui échouerait.
+REQUEST_KIND_TO_PIECE = {
+    "cours": "cours",
+    "fiche": "fiche",
+    "mindmap": "mindmap",
+    "quiz": "quiz",
+    "card": "srs",
+}
+
 # `blocked` porte sur la NOTION, pas sur une pièce : le gate du §7 l'a écartée avant tout
 # équipement. Sa ligne a `piece = NULL` — une notion silencieusement omise se lirait comme un échec
 # de production, alors que c'est un gate qui fonctionne (addendum ADR-0031).
@@ -79,6 +108,15 @@ class ProductionRun(Base):
             "AND council_report_id IS NULL AND skill_id IS NULL)",
             name="ck_production_runs_manual_has_no_reference",
         ),
+        # « Exactement un scope » (ADR-0036 §2) — un chapitre, OU une pièce sur une notion.
+        # Celle-ci, contrairement à la règle des références ci-dessus, s'exprime entièrement en SQL
+        # sans devenir illisible : elle ne dépend d'aucun vocabulaire ouvert. Un lot sans scope
+        # produirait dans le vide ; un lot à deux scopes ferait diverger l'exécution de l'affichage.
+        CheckConstraint(
+            "(chapter_id IS NOT NULL AND scope_skill_id IS NULL AND scope_kind IS NULL) "
+            "OR (chapter_id IS NULL AND scope_skill_id IS NOT NULL AND scope_kind IS NOT NULL)",
+            name="ck_production_runs_exactly_one_scope",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -94,6 +132,22 @@ class ProductionRun(Base):
     # n'aurait rien porté de son propre périmètre — donc rien à réafficher, rien à rejouer.
     # v1 : le scope est un chapitre (ADR-0031, « v1 = un chapitre »).
     chapter_id: Mapped[int | None] = mapped_column(ForeignKey("chapters.id"), nullable=True)
+
+    # v2 : le scope peut aussi être UNE PIÈCE sur UNE NOTION (ADR-0036 §2). Une fiche demandée
+    # produit une fiche — pas le kit, pas le chapitre.
+    #
+    # ⚠️ **Deux colonnes neuves, et c'est une décision, pas une facilité.** On aurait pu dériver le
+    # scope de `content_request_id`, qui porte déjà la notion et le type. L'ADR-0031 §4 a tranché
+    # l'inverse et son motif tient : « ses colonnes disent POURQUOI on a produit, jamais SUR QUOI ».
+    # Un lot ne doit pas avoir besoin de son déclencheur pour savoir ce qu'il doit faire.
+    #
+    # ⚠️ Et **`skill_id` n'est pas réutilisé** : c'est la référence de déclencheur d'`evidence` et
+    # `derived` (voir `TRIGGER_REFERENCE`). Une colonne qui vaudrait tantôt « pourquoi » tantôt
+    # « sur quoi » serait exactement l'ambiguïté qui a fait rejeter `notion_requests` comme support
+    # des demandes de contenu.
+    scope_skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
+    # Une valeur de `PIECES`, jamais de `CONTENT_KINDS` : le lot parle la langue des tables.
+    scope_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     # --- Les RÉFÉRENCES DE DÉCLENCHEUR : typées, jamais polymorphes ------------------------------
     # Un `trigger_ref_id` générique reproduirait l'ambiguïté qui a fait rejeter `notion_requests`

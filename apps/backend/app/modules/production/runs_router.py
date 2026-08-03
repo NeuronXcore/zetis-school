@@ -5,7 +5,7 @@ documenté « LECTURE SEULE » et un test le garantit. Ajouter un POST là-bas a
 l'invariant de l'ADR-0023 par simple voisinage de fichier.
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.queue import enqueue_production
@@ -26,6 +26,45 @@ def create(chapter_id: int, db: Session = Depends(get_db)) -> dict:
     409 si l'arriéré de relecture déborde — le régulateur refuse et le dit (ADR-0031 §5).
     """
     run = runs.create_run(db, chapter_id=chapter_id)
+    enqueue_production(run.id)
+    return runs.run_out(db, run)
+
+
+@router.post("/from-request", response_model=ProductionRunOut, status_code=status.HTTP_202_ACCEPTED)
+def create_from_request(request_id: int, db: Session = Depends(get_db)) -> dict:
+    """Produit la pièce qu'une demande de Massimo réclame — **sur un clic de Papa** (ADR-0036 §6).
+
+    Ce bouton manquait : la page Demandes n'offrait qu'un lien vers la Couverture, où Papa devait
+    retrouver la notion, relancer la génération à la main, puis revenir cliquer « Fait ».
+
+    ⚠️ **`trigger='manual'`, pas `'request'`**, et ce n'est pas un détail de nommage. Le `trigger`
+    dit **qui a décidé** : ici c'est Papa qui clique, donc aucun régulateur ne s'applique (le geste
+    EST le régulateur, ADR-0032 §5) et aucun régime n'est requis. `'request'` est réservé au lot
+    que **personne** n'a demandé, né du scan sous les deux conditions du §1.
+
+    ⚠️ **Conséquence assumée : le lot ne porte AUCUN `content_request_id`** — la contrainte
+    l'interdit pour `manual`, à juste titre. La demande n'en est pas perdue de vue pour autant :
+    c'est la DISPONIBILITÉ qui la referme (§4), pas le lien vers le lot. C'est exactement pourquoi
+    l'ADR-0031 §4 a refusé de dériver le scope de la référence.
+    """
+    from app.db.models import ContentRequest
+    from app.db.models.production import REQUEST_KIND_TO_PIECE
+
+    req = db.get(ContentRequest, request_id)
+    if req is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Demande introuvable.")
+    piece = REQUEST_KIND_TO_PIECE.get(req.content_kind)
+    if piece is None:
+        # Le même refus que le scan, dit ici aussi : l'écran ne devrait pas offrir ce bouton, mais
+        # une route qui compte sur son client pour se protéger n'est pas protégée.
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"ZETIS ne produit pas « {req.content_kind} » tout seul — "
+                "ce contenu se crée depuis sa propre page."
+            ),
+        )
+    run = runs.create_run(db, scope_skill_id=req.skill_id, scope_kind=piece)
     enqueue_production(run.id)
     return runs.run_out(db, run)
 

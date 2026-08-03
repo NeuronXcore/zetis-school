@@ -40,10 +40,18 @@ def main() -> None:
     #
     # Le premier réveil est amorcé ici, et le job se replanifie ensuite lui-même. Sans cet amorçage,
     # une file vide ne se remplirait jamais.
+    #
+    # ⚠️ **Mais SEULEMENT s'il n'y en a pas déjà un** (correctif du 2026-08-03). Amorçage et
+    # auto-replanification sont justes séparément ; ensemble, **chaque redémarrage ajoutait une
+    # récurrence permanente** — quatre réveils planifiés après quatre démarrages, constaté en vrai.
+    # Bénin en dev ; pas en production, où un worker redémarre à chaque déploiement.
     if settings.production_scan_interval_minutes > 0:
-        from app.modules.production.jobs import scan_triggers
+        from app.modules.production.jobs import scan_already_planned, scan_triggers
 
-        queue.enqueue(scan_triggers)
+        if scan_already_planned(queue):
+            print("production: un réveil du scan est déjà prévu — pas de nouvel amorçage")
+        else:
+            queue.enqueue(scan_triggers)
 
     SimpleWorker([queue], connection=connection).work(with_scheduler=True)
 

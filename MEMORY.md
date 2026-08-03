@@ -7,6 +7,221 @@
 
 ## État à la reprise
 
+**Chantier : la demande de Massimo devient une production (ADR-0036) — CODÉ, VÉRIFIÉ EN VRAI,
+POUSSÉ, PR OUVERTE, PAS ENCORE MERGÉ.** La dernière boucle ouverte du dispositif se ferme.
+
+### Où est le code, exactement
+
+| | |
+|---|---|
+| Branche | `feat/demande-vers-production` — **poussée sur `origin`**, jamais rebasée |
+| PR | **[#72](https://github.com/NeuronXcore/zetis-school/pull/72)**, `MERGEABLE`, 38 fichiers |
+| Base | `main` = `origin/main` = **`65d5451`** (stable : rien n'a été mergé depuis) |
+| Tête | **volontairement non écrite** — `git log --oneline main..HEAD` dit la vérité |
+| Migration | **`c7d8e9f0a1b2` APPLIQUÉE** sur le Postgres de dev, **aller-retour vérifié** |
+| Cadrage | `docs/decisions/adr-0036-demande-vers-production.md`, **§3 corrigé le jour même** |
+
+> ✅ **Tout est chez `origin`.** Plus rien n'existe uniquement sur cette machine.
+>
+> ⚠️ **Ce qui reste au 4bis, et pourquoi ça ne pouvait pas être écrit d'avance** : le **hash du
+> squash**, la **suppression de la branche** et « rien à pousser ». Ces trois faits **n'existent
+> pas tant que la PR n'est pas mergée** — les anticiper serait exactement la faute que le
+> `WORKFLOW.md §5` vient d'interdire. Le n° de PR et le push, eux, sont définitifs : ils sont
+> écrits ici, et le 4bis se réduit donc à **une ligne**.
+
+> ⚠️ **Pourquoi la tête n'est PAS écrite ici — sixième récurrence, corrigée à la racine.**
+>
+> Ce tableau annonçait « 6 commits, HEAD `0f86eea` » : l'état d'AVANT le commit de clôture qui
+> l'écrivait. La correction évidente — « 7 commits, HEAD `c641aee` » — **est fausse elle aussi**,
+> puisque la commiter produit une huitième tête. Et `--amend` ne sauve pas : il change le hash.
+>
+> **Une ligne qui nomme le commit qui la contient ne peut pas être vraie.** Le remède n'est donc
+> pas de mieux deviner ni de relire après coup, c'est de **ne pas écrire ici ce que Git sait déjà
+> dire**. Ce fichier porte le RAISONNEMENT ; l'état du code se lit dans Git (`WORKFLOW.md` §3).
+> La ligne « Base » reste, elle : `main` ne bouge pas sous nos pieds.
+>
+> Historique de la même erreur : 2026-08-03, `origin/main = 4d3fc99` écrit alors que le 4bis
+> passait par-dessus (`628905f`).
+
+**Tests relancés après la dernière modification** : **796 backend** (776 avant le chantier) ·
+**318 Papa** (309 avant) · **build Papa** · **typecheck Massimo**. ⚠️ **Les 453 tests Massimo
+n'ont PAS été relancés** — aucun fichier de `frontend-massimo` n'est au diff, et seul le
+typecheck (qui consomme `packages/types`, lui modifié) a été joué. À relancer avant le merge.
+
+### Ce que ce chantier a livré, dans l'ordre des commits
+
+> Les six hash ci-dessous sont **stables** : ce sont les commits de CODE, tous antérieurs à la
+> clôture. Les commits de clôture qui suivent ne sont pas listés — un fichier ne peut pas nommer
+> le commit qui l'écrit (encadré ci-dessus).
+
+1. `5ccde6f` — **ADR-0036 §3 corrigé** : la capsule reste manuelle, l'hypothèse du cadrage était
+   fausse (voir « défauts » plus bas).
+2. `b599d76` — **le scope PIÈCE** (§2) : `scope_skill_id` + `scope_kind`, contrainte SQL
+   « exactement un scope », migration, **une seule branche** dans `runner.execute`, `equip_piece`.
+3. `93b8a04` — **`trigger='request'` s'émet** (§1) sous **deux conditions cumulatives**, avec son
+   **quota distinct** (§5, livré ici car inséparable) et `scan_requests`.
+4. `63986f3` — **l'auto-fermeture sur la DISPONIBILITÉ** (§4).
+5. `e0dff6f` — **le bouton « Produire »** et le **refus DIT** de la capsule (§3 + §6).
+6. `0f86eea` — **l'avancement à l'écran** : barre de %, annonce de fin, en-tête réparé.
+
+Puis **la clôture** (hash non écrit, cf. ci-dessus) : cette mémoire, sept pièges dans
+`TROUBLESHOOTING.md`, le scope de `production_runs` dans `DATA_MODEL.md`, le 0.40.0 du
+`CHANGELOG.md`, carte Graphify à jour.
+
+### Décisions actives — à relire, pas à rouvrir
+
+1. **Une demande ne déclenche QUE sous deux conditions cumulatives** : régime ***Autonome*** **ET**
+   déclencheur armé. Ce n'est **pas** la fusion refusée par l'ADR-0035 §5 — celle-là rendait le
+   dispositif plus PERMISSIF, la conjonction est plus RESTRICTIVE. Hors de ce régime, l'addendum
+   ADR-0027 s'applique mot pour mot : la production reste un geste de Papa.
+2. **Le scope est la PIÈCE, et il est EXPLICITE.** Jamais dérivé de `content_request_id`
+   (ADR-0031 §4 : « les colonnes disent POURQUOI, jamais SUR QUOI »), jamais logé dans `skill_id`
+   (déjà référence de déclencheur d'`evidence`/`derived`).
+3. **La capsule reste MANUELLE.** Ce n'est pas un choix de périmètre mais un **constat de code** :
+   `create_capsule` exige une **instruction en texte libre** que la demande ne porte pas.
+   **Condition de réouverture** : le jour où une consigne par défaut aurait un sens pédagogique.
+4. **Le COURS est un prérequis, pas du kit.** Quatre générateurs sur cinq refusent une leçon non
+   validée, donc `equip_piece` écrit le cours s'il manque — et **rien d'autre**. Cela n'ouvre
+   aucune porte que le palier ne fermait : au palier < 3, `select_notions` bloque la notion en
+   amont.
+5. **L'auto-fermeture balaie TOUTES les demandes en attente**, pas seulement celles du lot : ce
+   qui ferme une demande est que le contenu soit là, **pas qu'un lot particulier l'ait produit**.
+6. **Un lot en ÉCHEC ne ferme rien**, même quand la fermeture aurait abouti.
+7. **Trois compteurs, trois natures** : clic de Papa = aucun · échéance = `PRODUCTION_AUTO_MAX_RUNS`
+   (2/sem) · demande = `ZETIS_REQUEST_MAX_RUNS` (10/sem). Le régulateur compte des **lots**, pas du
+   **coût** : sans quota distinct, deux fiches demandées privaient le contrôle du jeudi.
+8. **Le bouton « Produire » émet `manual`, pas `request`.** Le trigger dit QUI a décidé.
+   ⚠️ Conséquence assumée : ce lot ne porte **aucun** `content_request_id` — c'est la
+   DISPONIBILITÉ qui referme la demande, pas un lien vers le lot.
+9. **`equip_notion` n'est pas touché** (addendum ADR-0031). Coût assumé et **écrit dans le code** :
+   les appels aux générateurs existent en double. L'extraction se fera dans son propre chantier,
+   sous contre-épreuve — jamais au détour d'un ajout.
+10. **Les tables d'affichage sont indexées par PIÈCE** (`srs`), jamais par type de demande
+    (`card`) : le lot porte déjà son `scope_kind`, donc aucune surface cliente ne retraduit.
+
+### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT — pas au cadrage
+
+1. **La capsule n'a pas de générateur symétrique.** Trouvé au read-before-code de sa propre slice,
+   **stop-on-blocker joué** : le cadrage écrit une heure plus tôt supposait un générateur comme les
+   autres. §3 corrigé **en place** avec marqueur visible (précédent ADR-0032).
+2. ⚠️ **DEUX RÈGLES pour « la leçon de cette notion »** — divergence **pré-existante**, rendue
+   visible par ce chantier : `select_notions` / `equipment._skill_lesson` prennent la **dernière
+   par id**, `galaxy._course_lessons_by_skill` la **plus récente par `updated_at`**. Constaté en
+   vrai : une notion portée par deux leçons a été **bloquée** (« cours à valider ») alors que la
+   galaxie considère son cours disponible. Un lot-chapitre a le même comportement — ce n'est donc
+   pas une régression, mais ça mérite sa propre décision.
+3. **Un helper de test ne posait aucun scope.** La nouvelle contrainte SQL l'aurait fait échouer à
+   chaque insertion — et surtout aurait fait passer au vert le verrou **voisin**, qui attend une
+   `IntegrityError` d'une **autre** règle. Un test qui passe pour la mauvaise raison ne teste rien.
+4. **L'en-tête restait à 0 %** : `progress_pct` compte des NOTIONS, un lot-pièce n'en a qu'une.
+5. **« ZETIS produit un chapitre » était écrit en dur** — pastille ET modale de détail.
+6. **Le sondage d'en-tête était à 20 s pour des lots de 15 à 17 s** : il pouvait ne jamais voir un
+   lot entier.
+7. **`tsc -b` a rattrapé 3 fixtures** que `vitest` laissait passer — les tests front ne typent rien.
+8. 🔴 **Le réveil périodique se dupliquait à chaque redémarrage du worker** — trouvé en faisant
+   tourner le dispositif ARMÉ, jamais par un test. L'amorçage au démarrage et l'auto-replanification
+   en `finally` sont justes séparément ; ensemble, chaque redémarrage ajoutait une récurrence
+   permanente (**4 réveils après 4 démarrages**). Dette de l'**ADR-0035**, **corrigée dans ce
+   chantier** : `jobs.scan_already_planned(queue)` interroge la file **et** le registre planifié, et
+   `production_worker.py` n'amorce que s'il n'y a rien.
+   ⚠️ **Le correctif évident — un `job_id` fixe — était piégeux** : le job se serait replanifié sous
+   son propre identifiant pendant qu'il tourne, et RQ efface le hash du job terminé après son
+   `finally`. L'entrée planifiée aurait pointé vers un job mort.
+   Vérifié en vrai : **3 redémarrages → 1 seul réveil**, et **file vide → l'amorçage a bien lieu**
+   (une garde qui n'amorcerait jamais serait pire que le défaut).
+
+> Détail et remèdes : `TROUBLESHOOTING.md`, chantier `feat/demande-vers-production`.
+
+### Vérifié EN VRAI (Postgres + Ollama, backend `:8000`, Papa `:5174`)
+
+- **Les quatre générateurs par le chemin `equip_piece`** : fiche **15 s**, mindmap **17 s**, quiz
+  **17 s**, cartes **6 s** — **chacun n'a écrit que sa pièce** (0 mindmap là où un kit en aurait
+  créé une), tamponnée `production_run_id`, validée `parent_bulk`.
+- **Le gate du cours** : deux lots **bloqués** avec leur motif au journal, aucun cours écrit.
+- **La double condition, dans ses 4 états** : semi+désarmé, semi+**armé** (refus sur le RÉGIME),
+  autonome+désarmé (refus sur le DÉCLENCHEUR), autonome+armé → **2 lots `request`/`parent_rule`**
+  avec scope de pièce et `content_request_id`. **Second réveil idempotent.**
+- **L'auto-fermeture** : les demandes sont passées `done` **seules**, sur la disponibilité.
+- **La capsule** : 422 côté route, « À écrire toi-même → » côté écran, `producible: false` servi.
+- **L'écran** : barre « En file d'attente… » → « Génération du quiz… 30 % », en-tête « ZETIS
+  produit un quiz · 20 % », modale de fin centrée qui **s'efface seule**.
+
+### 🔴 LE DISPOSITIF EST ARMÉ EN DEV — décision de Papa du 2026-08-03
+
+**Contrairement aux cinq chantiers précédents, l'état de dev n'a PAS été remis aux défauts.**
+
+| Réglage | Valeur |
+|---|---|
+| Régime | ***Autonome*** (A0a = 3, **A1 = 3**) |
+| Déclencheur `zetis_auto_trigger_enabled` | **`true`** |
+| Gate du cours | **tombé** — ZETIS a le droit d'écrire un cours |
+
+⚠️ **Conséquence à connaître avant de toucher quoi que ce soit** : une `content_request` en attente
+sur une notion équipable **fera écrire le contenu et le servira à Massimo sans relecture**, dès le
+prochain réveil du scan (toutes les 3 h) **si un worker tourne**. Sans worker, rien ne se réveille.
+
+**Le chemin automatique complet a été prouvé** (`worker → scheduler RQ → jobs.scan_triggers →
+scan_requests → create_run → enqueue_production → runner.execute`) : deux lots `request` /
+`parent_rule` sont nés **sans qu'aucun humain clique**, ont écrit deux cours (27 s et 15 s, 4 365 et
+3 664 caractères), les ont validés `parent_rule` — **la première fois qu'un contenu tamponné
+« aucun humain ne l'a ouvert ni cliqué pour lui » atteint Massimo** — et les deux demandes se sont
+refermées seules. Les deux cours sont **encore rétractables** (`veto.preview_removal` →
+`removable: True`, aucune consommation).
+
+> **Pour désarmer** : `/parametres` → régime *Semi-autonome* et interrupteur du déclencheur.
+> En base : `zetis_autonomy_a1_course = 2` et `zetis_auto_trigger_enabled = false`.
+
+Les 10 demandes-fixtures inventées pour les tests ont été supprimées. **Le contenu produit a été
+CONSERVÉ** (2 cours, 2 fiches, 1 mindmap, 1 quiz, 3 cartes) : ce sont de vraies pièces sur de vraies
+leçons, relisables et **rétractables depuis le Journal**.
+
+### ▶ PROCHAIN PAS
+
+1. **Merger la PR [#72](https://github.com/NeuronXcore/zetis-school/pull/72).** Tout est poussé,
+   `MERGEABLE`, et les quatre suites ont été relancées **après** la dernière modification :
+   **796 backend · 318 Papa · 453 Massimo · build Papa · typecheck Massimo**.
+2. **Juste après le merge, l'étape 4bis** (`WORKFLOW.md §5`) — et elle tient en **une ligne** cette
+   fois, parce que tout ce qui pouvait être écrit d'avance l'a été : il ne manque que le **hash du
+   squash**, la **suppression de la branche** et « rien à pousser ». Trois faits qui n'existent pas
+   avant le merge.
+
+### ▶ DETTES OUVERTES, nommées à la livraison
+
+- ⚠️ **Deux règles pour « la leçon d'une notion »** (défaut n°2 ci-dessus). Pré-existant, mais une
+  demande sur une notion à deux leçons peut rester insatisfaite alors que le contenu est servable.
+  **Condition d'ouverture : la première fois que Papa ne comprend pas pourquoi ZETIS refuse.**
+- **Les appels aux générateurs sont écrits deux fois** (`equip_notion` / `equip_piece`), par
+  interdiction explicite de toucher l'orchestrateur. À extraire dans son propre chantier.
+- **`ZETIS_REQUEST_MAX_RUNS` n'est pas dans `.env.example`** — aucun `PRODUCTION_*` de l'ADR-0035
+  n'y est non plus. Corriger pour **tout le groupe**, pas pour une seule clé.
+- **Une demande sur une notion ORPHELINE** (sans leçon) reste insatisfaisable : `equip_piece` le
+  **dit** (« Aucune leçon rattachée »), mais rien ne la répare. Même famille que
+  `skills-backfill`.
+- **Le Commander n'est pas idempotent** (dette de l'addendum ADR-0035, exige
+  `missions.agenda_item_id`, donc une migration).
+- **Le panneau d'analyse à 3 compteurs** (ADR-0025 §11) attend une mesure SRS scopée chapitre.
+- **Un devoir fait produire le chapitre entier** — disproportionné, assumé.
+
+### ▶▶ OÙ EN EST « FULL AUTONOMIE »
+
+| Axe | Ce qu'il dit | État |
+|---|---|---|
+| **1 — le palier** | « ZETIS ne me demande plus de valider » | ✅ **LIVRÉ** (ADR-0032 + 0034) |
+| **2 — le déclencheur** | « ZETIS travaille sans que je clique » | ✅ **LIVRÉ** (ADR-0035 + addendum) |
+| **2b — les sources** | agenda (exogène) **et** demande de Massimo (endogène) | ✅ **CODÉ** (ADR-0036) |
+
+⚠️ **Rien n'est armé en dev**, et c'est volontaire : livrer la possibilité était le chantier,
+l'activer est une décision de Papa — deux clics sur `/parametres`.
+
+---
+
+
+## Historique — le déclencheur automatique (ADR-0035 + addendum)
+
+**CLOS ET MERGÉ** (squash `c4f5e31`, PR #71, 2026-08-03). Conservé pour ses décisions
+actives et ses défauts trouvés en codant. Son « prochain pas » — coder l'ADR-0036 — est FAIT.
+
+
 **Chantier : le déclencheur automatique (ADR-0035 + son addendum) — COMPLET, CLOS ET MERGÉ.**
 **Les DEUX axes de « full autonomie » sont livrés.**
 

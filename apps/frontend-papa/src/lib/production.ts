@@ -117,6 +117,64 @@ export async function startChapterProduction(chapterId: number): Promise<Product
   );
 }
 
+// --- Lots-PIÈCE : ce qu'on affiche pendant qu'ils tournent (ADR-0036 §2) ------------------------
+//
+// ⚠️ Ces tables sont indexées par **PIÈCE** (`scope_kind` du lot : `srs`), jamais par type de
+// demande (`card`). C'est délibéré : le lot porte déjà son `scope_kind`, donc aucune surface n'a
+// besoin de traduire `card → srs` côté client. La traduction vit UNE fois, côté serveur
+// (`REQUEST_KIND_TO_PIECE`), et la recopier ici l'aurait dédoublée pour rien.
+
+/** Durée attendue d'un lot-pièce. Adaptateur sur `GENERATION_MS` pour les quatre types que la
+ *  Couverture produit déjà — recopier leurs valeurs les ferait diverger au premier réglage.
+ *
+ *  Mesures réelles du 2026-08-03 (Postgres + Ollama) : une **fiche en 15 s**, une **carte mentale
+ *  en 17 s** — deux fois moins que l'estimation. La courbe étant asymptotique, sur-estimer fait
+ *  terminer la barre en avance ; elle ne traîne jamais après la fin. */
+export const SCOPE_MS: Record<string, number> = {
+  cours: GENERATION_MS.cours,
+  fiche: GENERATION_MS.fiche,
+  mindmap: GENERATION_MS.mindmap,
+  quiz: GENERATION_MS.quiz,
+  srs: 35000,
+};
+
+/** Ce que ZETIS est en train de faire. */
+export const SCOPE_LABEL: Record<string, string> = {
+  cours: GENERATION_LABEL.cours,
+  fiche: GENERATION_LABEL.fiche,
+  mindmap: GENERATION_LABEL.mindmap,
+  quiz: GENERATION_LABEL.quiz,
+  srs: "Génération des cartes de révision…",
+};
+
+/** Ce que le lot produit, au singulier — pour l'indicateur d'en-tête.
+ *
+ *  ⚠️ L'en-tête annonçait « ZETIS produit un chapitre » quel que soit le lot. Faux depuis qu'un
+ *  lot peut viser une pièce, et constaté à l'écran le 2026-08-03. */
+export const SCOPE_NOUN: Record<string, string> = {
+  cours: "un cours",
+  fiche: "une fiche",
+  mindmap: "une carte mentale",
+  quiz: "un quiz",
+  srs: "des cartes de révision",
+};
+
+/** Produit la pièce qu'une demande de Massimo réclame — sur un clic de Papa (ADR-0036 §6).
+ *
+ *  ⚠️ On envoie l'**id de la demande**, pas `(skill_id, kind)`. La traduction du vocabulaire
+ *  (`card` → `srs`) et le refus des types non productibles (`capsule`) vivent côté serveur, en un
+ *  seul endroit. Les recopier ici les ferait diverger au premier générateur ajouté.
+ *
+ *  202 : le lot est accepté, pas exécuté. L'indicateur d'en-tête suit la suite. */
+export async function produceForRequest(requestId: number): Promise<ProductionRun> {
+  return asJson(
+    await fetch(`${API}/runs/from-request?request_id=${requestId}`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
 /** État d'un lot — pour le suivi pendant l'exécution. */
 export async function fetchProductionRun(runId: number): Promise<ProductionRun> {
   return asJson(await fetch(`${API}/runs/${runId}`, { headers: authHeader() }));

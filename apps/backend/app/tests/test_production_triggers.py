@@ -336,6 +336,233 @@ def test_un_lot_refuse_ne_consomme_pas_la_reference(client_db) -> None:
         assert not runs.run_exists_for(db, trigger="agenda", reference_id=item.id)
 
 
+# --- Le second déclencheur : les demandes de Massimo (ADR-0036 §1) ------------------------------
+
+
+def _seed_notion(db) -> m.Skill:
+    """Une notion prête à produire : chapitre + leçon validée avec cours + rattachement."""
+    _, subject, chapter = _seed_year(db)
+    lesson = _seed_lesson(db, chapter, title="Fractions", validated=True, course=True)
+    skill = m.Skill(subject_id=subject.id, name="Additionner des fractions", level="4e")
+    db.add(skill)
+    db.flush()
+    db.add(m.LessonSkill(lesson_id=lesson.id, skill_id=skill.id))
+    db.commit()
+    return skill
+
+
+def _demande(db, skill, *, kind: str = "fiche") -> m.ContentRequest:
+    student = db.scalar(select(m.StudentProfile))
+    req = m.ContentRequest(
+        student_id=student.id, skill_id=skill.id, content_kind=kind, status="pending"
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+def _autonome(db) -> None:
+    """Régime *Autonome* — la monotonie porte A0a avec A1."""
+    svc.write_autonomy(db, {svc.A1: svc.SERVE})
+
+
+def test_une_demande_ne_declenche_rien_sans_les_DEUX_conditions(client_db) -> None:
+    """⚠️ LE verrou du §1. Chaque condition seule laisse la porte fermée.
+
+    Ce n'est **pas** la fusion que l'ADR-0035 §5 a refusée : celle-là aurait rendu le dispositif
+    plus PERMISSIF (un préréglage armant le déclencheur). La conjonction est plus RESTRICTIVE —
+    elle exige les deux consentements au lieu d'un.
+
+    Hors de ce régime, l'addendum ADR-0027 continue de s'appliquer mot pour mot : la demande reste
+    un repère de priorité, la production reste un geste de Papa.
+    """
+    _, Session = client_db
+    with Session() as db:
+        skill = _seed_notion(db)
+        _demande(db, skill)
+
+        # Ni l'un ni l'autre.
+        assert triggers.scan_requests(db)["created"] == []
+
+        # Le déclencheur seul (régime *Semi-autonome* par défaut) : refusé, et le motif est le
+        # RÉGIME — la condition de doctrine passe avant celle de mise en marche.
+        _arm(db)
+        report = triggers.scan_requests(db)
+        assert report["created"] == []
+        assert report["skipped"][0]["reason"] == triggers.SKIP_NOT_AUTONOMOUS
+
+        # Le régime seul : on passe en *Autonome* ET on désarme — l'inverse exact du cas
+        # précédent. ⚠️ Le désarmement est explicite parce que le fixture porte UNE base pour tout
+        # le test : sans lui, les deux conditions seraient réunies et le test prouverait le
+        # contraire de son nom.
+        _autonome(db)
+        svc.set_auto_trigger_enabled(db, enabled=False)
+        report = triggers.scan_requests(db)
+        assert report["created"] == []
+        assert report["skipped"][0]["reason"] == triggers.SKIP_DISABLED
+        assert db.scalars(select(m.ProductionRun)).all() == []
+
+
+def test_les_deux_conditions_reunies_declenchent_un_lot_piece(client_db) -> None:
+    """`trigger='request'` s'écrit pour la première fois — et il porte un scope de PIÈCE.
+
+    ⚠️ `card` → `srs` : la demande parle la langue de Massimo, le lot celle des tables. Si cette
+    traduction manquait, le scope serait refusé par `create_run` et la demande resterait
+    éternellement en attente sans que personne sache pourquoi.
+    """
+    _, Session = client_db
+    with Session() as db:
+        skill = _seed_notion(db)
+        _autonome(db)
+        _arm(db)
+        req = _demande(db, skill, kind="card")
+
+        report = triggers.scan_requests(db)
+        assert len(report["created"]) == 1, report
+
+        run = db.get(m.ProductionRun, report["created"][0]["run_id"])
+        assert run.trigger == "request"
+        assert run.authorized_by == "parent_rule", "aucun humain n'a cliqué pour ce lot"
+        assert run.content_request_id == req.id, "la référence typée n'est pas renseignée"
+        assert (run.scope_skill_id, run.scope_kind) == (skill.id, "srs")
+        assert run.chapter_id is None, "un lot-pièce ne porte pas de chapitre"
+
+
+def test_une_demande_de_capsule_ne_produit_aucun_lot(client_db) -> None:
+    """⚠️ Constat de code, pas choix de périmètre (ADR-0036 §3, corrigé au read-before-code).
+
+    `create_capsule` exige une **instruction en texte libre** — l'intention pédagogique de Papa —
+    qu'une demande `(skill_id, content_kind)` ne porte pas. Le refus est **dit**, et surtout aucun
+    lot n'est créé : un lot qui échouerait consommerait la référence et se répéterait.
+    """
+    _, Session = client_db
+    with Session() as db:
+        skill = _seed_notion(db)
+        _autonome(db)
+        _arm(db)
+        _demande(db, skill, kind="capsule")
+
+        report = triggers.scan_requests(db)
+        assert report["created"] == []
+        assert report["skipped"][0]["reason"] == triggers.SKIP_KIND_NOT_PRODUCIBLE
+        assert db.scalars(select(m.ProductionRun)).all() == []
+
+
+def test_une_demande_ne_produit_quun_seul_lot(client_db) -> None:
+    """Idempotence, lue dans `production_runs` — jamais écrite sur `content_requests`."""
+    _, Session = client_db
+    with Session() as db:
+        skill = _seed_notion(db)
+        _autonome(db)
+        _arm(db)
+        req = _demande(db, skill)
+
+        assert len(triggers.scan_requests(db)["created"]) == 1
+        second = triggers.scan_requests(db)
+        assert second["created"] == []
+        assert second["skipped"][0]["reason"] == triggers.SKIP_REQUEST_ALREADY
+        assert len(db.scalars(select(m.ProductionRun)).all()) == 1
+
+        # La demande n'a pas été touchée par le scan : son statut appartient au §4.
+        db.refresh(req)
+        assert req.status == "pending"
+
+
+def _saturer(db, *, trigger: str, count: int, chapter_id=None, skill_id=None) -> None:
+    """Remplit un quota avec des lots déjà terminés — le passé que le régulateur relit."""
+    now = datetime.now(timezone.utc)
+    student_id = db.scalar(select(m.StudentProfile)).id
+    for i in range(count):
+        db.add(
+            m.ProductionRun(
+                student_id=student_id,
+                trigger=trigger,
+                authorized_by="parent_rule",
+                status="done",
+                chapter_id=chapter_id,
+                scope_skill_id=skill_id,
+                scope_kind="fiche" if skill_id else None,
+                created_at=now - timedelta(hours=i + 1),
+            )
+        )
+    db.commit()
+
+
+# ⚠️ **Deux tests et non un seul, et ce n'est pas de la cosmétique.** La première rédaction tenait
+# les deux sens dans un test à deux blocs `with Session()` — mais le fixture porte UNE base pour
+# tout le test : les lots du premier bloc comptaient encore dans le second, et l'assertion
+# tombait. Un test qui doit être lu deux fois pour savoir ce qu'il mesure ne mesure rien.
+
+
+def test_un_plafond_dechanceance_sature_laisse_passer_une_demande(client_db) -> None:
+    """⚠️ LE verrou du §5, premier sens. Le régulateur compte des **lots**, pas du **coût**.
+
+    Un lot-pièce (~30 s) et un lot-chapitre (~36 min) y pèsent identiquement. Sous un plafond
+    commun, deux échéances préparées fermeraient la porte à la moindre fiche demandée.
+    """
+    _, Session = client_db
+    with Session() as db:
+        skill = _seed_notion(db)
+        _autonome(db)
+        _arm(db)
+        _saturer(
+            db,
+            trigger="agenda",
+            count=settings.production_auto_max_runs,
+            chapter_id=db.scalar(select(m.Chapter.id)),
+        )
+
+        _demande(db, skill)
+        assert len(triggers.scan_requests(db)["created"]) == 1
+        assert runs.request_runs_in_window(db) == 1
+
+
+def test_un_plafond_de_demandes_sature_laisse_passer_une_echeance(client_db) -> None:
+    """⚠️ LE verrou du §5, second sens — celui qui protège le contrôle du jeudi.
+
+    Sans compteur distinct, **un soir d'ennui de Massimo priverait son contrôle de préparation**.
+    C'est la moitié du défaut que le premier test ne voit pas.
+    """
+    _, Session = client_db
+    with Session() as db:
+        skill = _seed_notion(db)
+        chapter = db.get(m.Chapter, db.scalar(select(m.Chapter.id)))
+        _autonome(db)
+        _arm(db)
+        _saturer(
+            db,
+            trigger="request",
+            count=settings.production_request_max_runs,
+            skill_id=skill.id,
+        )
+
+        assert runs.auto_runs_in_window(db) == 0, "les lots de demande comptent dans le quota auto"
+        _controle(db, chapter)
+        assert len(triggers.scan_agenda(db)["created"]) == 1
+
+
+def test_le_plafond_des_demandes_refuse_et_le_dit(client_db) -> None:
+    """Il REFUSE et il le DIT — et un refus ne consomme pas la référence."""
+    _, Session = client_db
+    with Session() as db:
+        skill = _seed_notion(db)
+        _autonome(db)
+        _arm(db)
+        _saturer(
+            db,
+            trigger="request",
+            count=settings.production_request_max_runs,
+            skill_id=skill.id,
+        )
+        req = _demande(db, skill, kind="mindmap")
+
+        report = triggers.scan_requests(db)
+        assert report["created"] == []
+        assert "plafond" in report["skipped"][0]["reason"]
+        assert not runs.run_exists_for(db, trigger="request", reference_id=req.id)
+
+
 # --- La 7ᵉ clé ----------------------------------------------------------------------------------
 
 
@@ -371,3 +598,68 @@ def test_un_preglage_narme_jamais_le_declencheur(client_db) -> None:
     assert body["auto_trigger_enabled"] is True
     # …et basculer le déclencheur n'a touché aucun palier.
     assert body["preset"] == "autonome"
+
+
+# --- Le réveil périodique ne se duplique pas (correctif du 2026-08-03) --------------------------
+
+
+class _JobFactice:
+    def __init__(self, func_name: str) -> None:
+        self.func_name = func_name
+
+
+class _FileFactice:
+    """Une file RQ réduite à ce que `scan_already_planned` lui demande."""
+
+    def __init__(self, en_file: list, planifies: list) -> None:
+        self.jobs = en_file
+        self._planifies = {f"id-{i}": j for i, j in enumerate(planifies)}
+
+    def fetch_job(self, job_id):
+        return self._planifies.get(job_id)
+
+
+def _registre_factice(ids):
+    class _Registre:
+        def __init__(self, queue=None) -> None:
+            self._ids = ids
+
+        def get_job_ids(self):
+            return self._ids
+
+    return _Registre
+
+
+def test_un_reveil_deja_prevu_nest_pas_amorce_une_seconde_fois(monkeypatch) -> None:
+    """⚠️ Verrou d'un défaut CONSTATÉ EN VRAI le 2026-08-03, pas imaginé.
+
+    `production_worker.py` amorce le scan au démarrage ET `scan_triggers` se replanifie en
+    `finally`. Les deux sont justes séparément — l'un remplit une file vide, l'autre survit à un
+    scan qui échoue. **Ensemble, chaque redémarrage ajoutait une récurrence permanente** : quatre
+    réveils planifiés après quatre démarrages dans la journée. Bénin en dev ; en production, un
+    worker redémarre à chaque déploiement.
+
+    Les deux registres comptent : un réveil est **en file** quand son heure est venue, **planifié**
+    le reste du temps. N'en lire qu'un rouvrirait le défaut une fois sur deux.
+    """
+    import rq.registry
+
+    from app.modules.production import jobs
+
+    scan = _JobFactice(jobs.SCAN_JOB_NAME)
+    autre = _JobFactice("app.modules.production.jobs.run_production")
+
+    cas = [
+        ([], [], False, "aucun réveil : il FAUT amorcer, sinon la file reste vide pour toujours"),
+        ([scan], [], True, "un réveil est en file"),
+        ([], [scan], True, "un réveil est planifié"),
+        ([autre], [autre], False, "un lot de production n'est pas un réveil"),
+    ]
+    for en_file, planifies, attendu, motif in cas:
+        monkeypatch.setattr(
+            rq.registry,
+            "ScheduledJobRegistry",
+            _registre_factice([f"id-{i}" for i in range(len(planifies))]),
+        )
+        file = _FileFactice(en_file, planifies)
+        assert jobs.scan_already_planned(file) is attendu, motif

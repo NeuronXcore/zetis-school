@@ -22,6 +22,10 @@ class ContentRequestOut(BaseModel):
     status: str  # pending|done|dismissed
     source: str
     created_at: datetime
+    #: ZETIS sait-il produire ce type tout seul ? (ADR-0036 §3) `False` pour `capsule`, dont le
+    #: générateur exige une INSTRUCTION en texte libre que la demande ne porte pas. **Verdict
+    #: serveur** : l'écran l'affiche, il ne le déduit pas.
+    producible: bool = True
 
 
 class ContentRequestPatch(BaseModel):

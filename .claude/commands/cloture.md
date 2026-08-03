@@ -28,6 +28,11 @@ Tu ne committes PAS et tu ne push PAS : je le fais moi-même après avoir vérif
    - DÉCISIONS ACTIVES (celles à ne pas rouvrir)
    - PIÈGES rencontrés (renvoie vers TROUBLESHOOTING.md)
    - PROCHAIN PAS (la première action de reprise, précise)
+
+   ⚠️ **N'écris NI la tête de branche NI le nombre de commits** — `WORKFLOW.md §5`, « Ne jamais
+   écrire dans `MEMORY.md` la tête de branche qu'il vit ». Une ligne qui nomme le commit qui la
+   contient ne peut pas être vraie ; renvoie à `git log --oneline main..HEAD`. C'est arrivé six
+   fois.
 2. **`TROUBLESHOOTING.md`** — ajoute tout écart réel rencontré (signature d'API inattendue,
    comportement surprenant d'un module, etc.). Rien d'inventé.
 3. **`ARCHITECTURE.md`** — UNIQUEMENT si une structure a été ajoutée (table, module, endpoint).
