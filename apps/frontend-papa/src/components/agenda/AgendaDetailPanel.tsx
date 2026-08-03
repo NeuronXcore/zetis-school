@@ -32,6 +32,9 @@ interface Props {
   chaptersBySys: Record<number, CurriculumChapter[]>;
   chaptersLoading: Set<number>;
   onNeedChapters: (sysId: number) => void;
+  /** Ouvre le Commander scopé sur ce chapitre. Optionnel : le panneau reste montable seul
+   *  (tests, réutilisation) sans exiger le hook des missions. */
+  onCommandMissions?: (chapterId: number) => void;
 }
 
 export function AgendaDetailPanel({
@@ -45,6 +48,7 @@ export function AgendaDetailPanel({
   chaptersBySys,
   chaptersLoading,
   onNeedChapters,
+  onCommandMissions,
 }: Props) {
   const [label, setLabel] = useState(item.label);
   const [dueOn, setDueOn] = useState(item.due_on);
@@ -170,11 +174,29 @@ export function AgendaDetailPanel({
           seconde source de vérité, qui divergerait au premier ADR (le devoir vient d'y entrer le
           2026-08-03). Et c'est exact pour tous les types — le chapitre ouvre AUSSI la porte du
           Commander, qui ne regarde aucun `kind`. */}
-      {chapterId === null && (
+      {chapterId === null ? (
         <p className="rounded-lg border border-amber-400/40 bg-amber-500/5 px-3 py-2 text-xs leading-relaxed text-amber-200">
           Sans chapitre, <b className="text-papa-text">ZETIS ne pourra ni préparer cette échéance
           ni commander de missions dessus</b> — il ne saurait pas sur quoi travailler.
         </p>
+      ) : (
+        /* La porte « échéance » de l'ADR-0025 §11 — déclarée dès l'origine (`gate: "deadline"`
+           existe depuis toujours dans `CommandPreviewRequest`) et jamais alimentée jusqu'ici.
+           ⚠️ AUCUN moteur neuf : `resolve_chapter_notions` est déjà scopé par chapitre et
+           `create_command_missions` prend déjà `due_date` + `force_priority`. C'est un bouton.
+           ⚠️ Et c'est un GESTE de Papa, jamais le scan : produire du contenu sans clic est décidé
+           (ADR-0035), PRESCRIRE du travail à Massimo sans clic ne l'est pas. */
+        <button
+          type="button"
+          disabled={!onCommandMissions}
+          onClick={() => onCommandMissions?.(chapterId)}
+          title={
+            onCommandMissions ? undefined : "Disponible depuis la page Agenda"
+          }
+          className="rounded-lg border border-papa-accent/40 px-3 py-2 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/10 disabled:opacity-40"
+        >
+          🎯 Commander les missions de ce chapitre
+        </button>
       )}
 
       {/* Refus n°1 : l'état est une pastille EN LECTURE SEULE. Aucune affordance de coche
