@@ -52,7 +52,15 @@ a qu'une) ; **« ZETIS produit un chapitre » était écrit en dur** à deux end
 au clic et une carte de fin centrée qui **s'efface seule** — une annonce qui s'empile deviendrait
 un arriéré, c'est-à-dire le « vous êtes en retard » que le §F.2 interdit.
 
-**Migration `c7d8e9f0a1b2`.** **796 backend** (776 avant) · **318 Papa** (309 avant) · build Papa ·
+**Un défaut trouvé en faisant tourner le dispositif ARMÉ, jamais par un test** : le réveil
+périodique se **dupliquait à chaque redémarrage du worker**. L'amorçage au démarrage et
+l'auto-replanification en `finally` sont justes séparément ; ensemble, chaque redémarrage ajoutait
+une récurrence permanente — quatre réveils après quatre démarrages. Bénin en dev, pas en production
+où un worker redémarre à chaque déploiement. Dette de l'ADR-0035, **corrigée ici**.
+⚠️ Le correctif évident — un `job_id` fixe — était piégeux : le job se serait replanifié sous son
+propre identifiant, et RQ efface le hash du job terminé après son `finally`.
+
+**Migration `c7d8e9f0a1b2`.** **797 backend** (776 avant) · **318 Papa** (309 avant) · build Papa ·
 typecheck Massimo. Vérifié en vrai sur Postgres + Ollama : les quatre générateurs par le chemin
 `equip_piece`, le gate du cours, les quatre états de la double condition, l'idempotence,
 l'auto-fermeture et l'écran.

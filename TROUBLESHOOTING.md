@@ -98,8 +98,20 @@ chacun à +180 min de son propre lancement.
 production. Mais c'est une **croissance non bornée** de la cadence, et en production un worker
 redémarre (déploiement, crash, OOM).
 
-**Correctif minimal** : `queue.enqueue(scan_triggers, job_id="production:scan")` — RQ refuse alors
-un doublon, l'amorçage devient idempotent.
+**Correctif retenu** — `jobs.scan_already_planned(queue)` interroge **les deux registres** (la file
+*et* les planifiés : un réveil est en file quand son heure est venue, planifié le reste du temps),
+et `production_worker.py` n'amorce que s'il n'y a rien. **Ni l'amorçage ni l'auto-replanification
+ne sont supprimés** — ils répondent chacun à un mode de panne réel ; on ajoute seulement la question
+qui manquait.
+
+⚠️ **Le correctif ÉVIDENT était piégeux**, et c'est pourquoi il a été écarté : donner au job un
+`job_id` fixe (`queue.enqueue(scan_triggers, job_id="production:scan")`) le ferait se replanifier
+sous **son propre identifiant** pendant qu'il tourne — or RQ efface le hash du job terminé après son
+`finally`, et l'entrée planifiée pointerait vers un job mort. Le dispositif s'arrêterait
+définitivement et en silence, exactement ce que le `finally` existe pour éviter.
+
+Vérifié en vrai : **3 redémarrages → 1 seul réveil planifié**, et **file vide → l'amorçage a bien
+lieu**. Les deux sens comptent — une garde qui n'amorcerait jamais serait pire que le défaut.
 
 ⚠️ **Piège de lecture** : `ScheduledJobRegistry.get_scheduled_time()` rend de l'**UTC**, les logs RQ
 du **local**. Un écart de 2 h fait croire à un mauvais intervalle alors qu'il est juste.

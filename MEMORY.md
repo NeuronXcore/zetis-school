@@ -118,6 +118,17 @@ Puis **la clôture** (hash non écrit, cf. ci-dessus) : cette mémoire, sept pi�
 6. **Le sondage d'en-tête était à 20 s pour des lots de 15 à 17 s** : il pouvait ne jamais voir un
    lot entier.
 7. **`tsc -b` a rattrapé 3 fixtures** que `vitest` laissait passer — les tests front ne typent rien.
+8. 🔴 **Le réveil périodique se dupliquait à chaque redémarrage du worker** — trouvé en faisant
+   tourner le dispositif ARMÉ, jamais par un test. L'amorçage au démarrage et l'auto-replanification
+   en `finally` sont justes séparément ; ensemble, chaque redémarrage ajoutait une récurrence
+   permanente (**4 réveils après 4 démarrages**). Dette de l'**ADR-0035**, **corrigée dans ce
+   chantier** : `jobs.scan_already_planned(queue)` interroge la file **et** le registre planifié, et
+   `production_worker.py` n'amorce que s'il n'y a rien.
+   ⚠️ **Le correctif évident — un `job_id` fixe — était piégeux** : le job se serait replanifié sous
+   son propre identifiant pendant qu'il tourne, et RQ efface le hash du job terminé après son
+   `finally`. L'entrée planifiée aurait pointé vers un job mort.
+   Vérifié en vrai : **3 redémarrages → 1 seul réveil**, et **file vide → l'amorçage a bien lieu**
+   (une garde qui n'amorcerait jamais serait pire que le défaut).
 
 > Détail et remèdes : `TROUBLESHOOTING.md`, chantier `feat/demande-vers-production`.
 
@@ -176,16 +187,6 @@ leçons, relisables et **rétractables depuis le Journal**.
 
 ### ▶ DETTES OUVERTES, nommées à la livraison
 
-- 🔴 **Le réveil périodique se DUPLIQUE à chaque redémarrage du worker.** `production_worker.py`
-  amorce `scan_triggers` au démarrage, et `jobs.scan_triggers` se replanifie lui-même en `finally`.
-  Les deux sont justes séparément ; ensemble, **chaque redémarrage ajoute une récurrence
-  permanente**. Constaté en vrai le 2026-08-03 : **4 réveils planifiés** après 4 démarrages dans la
-  journée, tous à +180 min de leur propre lancement. Bénin en dev, **pas en production** — un
-  worker qui redémarre (déploiement, crash, OOM) multiplie la cadence du scan indéfiniment.
-  ⚠️ **Pas dangereux** (l'idempotence `run_exists_for` et les quotas tiennent), mais c'est une
-  croissance non bornée. Dette de l'**ADR-0035**, pas de l'ADR-0036.
-  **Correctif minimal** : donner au job un `job_id` fixe (`queue.enqueue(scan_triggers,
-  job_id="production:scan")`), ce qui rend l'amorçage **idempotent** — RQ refuse alors un doublon.
 - ⚠️ **Deux règles pour « la leçon d'une notion »** (défaut n°2 ci-dessus). Pré-existant, mais une
   demande sur une notion à deux leçons peut rester insatisfaite alors que le contenu est servable.
   **Condition d'ouverture : la première fois que Papa ne comprend pas pourquoi ZETIS refuse.**

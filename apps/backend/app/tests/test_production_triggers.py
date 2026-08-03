@@ -598,3 +598,68 @@ def test_un_preglage_narme_jamais_le_declencheur(client_db) -> None:
     assert body["auto_trigger_enabled"] is True
     # …et basculer le déclencheur n'a touché aucun palier.
     assert body["preset"] == "autonome"
+
+
+# --- Le réveil périodique ne se duplique pas (correctif du 2026-08-03) --------------------------
+
+
+class _JobFactice:
+    def __init__(self, func_name: str) -> None:
+        self.func_name = func_name
+
+
+class _FileFactice:
+    """Une file RQ réduite à ce que `scan_already_planned` lui demande."""
+
+    def __init__(self, en_file: list, planifies: list) -> None:
+        self.jobs = en_file
+        self._planifies = {f"id-{i}": j for i, j in enumerate(planifies)}
+
+    def fetch_job(self, job_id):
+        return self._planifies.get(job_id)
+
+
+def _registre_factice(ids):
+    class _Registre:
+        def __init__(self, queue=None) -> None:
+            self._ids = ids
+
+        def get_job_ids(self):
+            return self._ids
+
+    return _Registre
+
+
+def test_un_reveil_deja_prevu_nest_pas_amorce_une_seconde_fois(monkeypatch) -> None:
+    """⚠️ Verrou d'un défaut CONSTATÉ EN VRAI le 2026-08-03, pas imaginé.
+
+    `production_worker.py` amorce le scan au démarrage ET `scan_triggers` se replanifie en
+    `finally`. Les deux sont justes séparément — l'un remplit une file vide, l'autre survit à un
+    scan qui échoue. **Ensemble, chaque redémarrage ajoutait une récurrence permanente** : quatre
+    réveils planifiés après quatre démarrages dans la journée. Bénin en dev ; en production, un
+    worker redémarre à chaque déploiement.
+
+    Les deux registres comptent : un réveil est **en file** quand son heure est venue, **planifié**
+    le reste du temps. N'en lire qu'un rouvrirait le défaut une fois sur deux.
+    """
+    import rq.registry
+
+    from app.modules.production import jobs
+
+    scan = _JobFactice(jobs.SCAN_JOB_NAME)
+    autre = _JobFactice("app.modules.production.jobs.run_production")
+
+    cas = [
+        ([], [], False, "aucun réveil : il FAUT amorcer, sinon la file reste vide pour toujours"),
+        ([scan], [], True, "un réveil est en file"),
+        ([], [scan], True, "un réveil est planifié"),
+        ([autre], [autre], False, "un lot de production n'est pas un réveil"),
+    ]
+    for en_file, planifies, attendu, motif in cas:
+        monkeypatch.setattr(
+            rq.registry,
+            "ScheduledJobRegistry",
+            _registre_factice([f"id-{i}" for i in range(len(planifies))]),
+        )
+        file = _FileFactice(en_file, planifies)
+        assert jobs.scan_already_planned(file) is attendu, motif
