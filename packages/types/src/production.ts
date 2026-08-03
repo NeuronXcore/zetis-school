@@ -144,9 +144,22 @@ export interface ProductionRun {
   trigger: string;
   authorized_by: string;
   chapter_id: number | null;
+  /** Scope de PIÈCE (ADR-0036 §2) — exclusif de `chapter_id`. `null` = lot de chapitre. */
+  scope_skill_id: number | null;
+  /** Une valeur de `PIECES` : `cours` | `fiche` | `srs` | `quiz` | `mindmap`.
+   *
+   *  ⚠️ Le vocabulaire des LOTS, pas celui des demandes : ici c'est `srs`, jamais `card`. */
+  scope_kind: string | null;
+  /** Nom de la notion visée (jointure serveur) — « une fiche sur la notion 17 » ne se lit pas. */
+  scope_skill_name: string | null;
   total_notions: number | null;
   done_notions: number | null;
-  /** Avancement RÉEL (0-100), calculé serveur — jamais une estimation de durée côté client. */
+  /** Avancement RÉEL (0-100), calculé serveur.
+   *
+   *  ⚠️ **Il compte des NOTIONS, pas des secondes** — donc il ne dit rien d'utile sur un lot-pièce,
+   *  qui n'en a qu'une : 0 % pendant toute la durée, puis le lot disparaît. Constaté à l'écran le
+   *  2026-08-03. Là où la granularité manque (`total_notions <= 1`), l'affichage doit basculer sur
+   *  une estimation — et le dire. Le champ, lui, ne ment pas : il n'a simplement rien à dire. */
   progress_pct: number;
   created_at: string;
   finished_at: string | null;

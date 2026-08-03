@@ -339,6 +339,13 @@ def run_out(db: Session, run: ProductionRun) -> dict:
         # chapitre », c'est-à-dire comme un lot cassé (ADR-0036 §2).
         "scope_skill_id": run.scope_skill_id,
         "scope_kind": run.scope_kind,
+        # Le NOM en plus de l'id — un lot qui annonce « une fiche sur la notion 17 » ne se lit pas.
+        # Une requête, et seulement quand le lot porte un scope de pièce.
+        "scope_skill_name": (
+            db.scalar(select(Skill.name).where(Skill.id == run.scope_skill_id))
+            if run.scope_skill_id
+            else None
+        ),
         "total_notions": run.total_notions,
         "done_notions": run.done_notions,
         # Pourcentage RÉEL, calculé serveur. L'estimation client (`KIT_MS_PER_NOTION`) mentait

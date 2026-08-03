@@ -20,6 +20,8 @@ import {
   type NotionRequest,
 } from "../lib/notionRequests";
 import { NotionRequestActionModal } from "../components/demandes/NotionRequestActionModal";
+import { ProductionProgress } from "../components/demandes/ProductionProgress";
+import { ProgressBar } from "../components/ProgressBar";
 import { produceForRequest } from "../lib/production";
 
 export function DemandesPage() {
@@ -62,22 +64,36 @@ export function DemandesPage() {
     }
   }, [reload]);
 
-  // Demandes dont la production vient d'être lancée. ⚠️ **La ligne ne disparaît PAS** : rien
-  // n'est encore fermé. C'est la DISPONIBILITÉ du contenu qui refermera la demande (ADR-0036 §4),
-  // au prochain chargement. La retirer d'ici rejouerait le mensonge que le §4 tue — « c'est fait »
-  // alors que le worker n'a pas commencé.
-  const [launched, setLaunched] = useState<number[]>([]);
+  // Demandes dont la production tourne : `id de demande → id de lot`. ⚠️ **La ligne ne disparaît
+  // PAS** : rien n'est encore fermé. C'est la DISPONIBILITÉ du contenu qui refermera la demande
+  // (ADR-0036 §4). La retirer d'ici rejouerait le mensonge que le §4 tue — « c'est fait » alors
+  // que le worker n'a pas commencé.
+  const [runs, setRuns] = useState<Record<number, { id: number; kind: string } | null>>({});
 
   const produce = useCallback(async (id: number) => {
     setError(null);
-    setLaunched((cur) => [...cur, id]);
+    setRuns((cur) => ({ ...cur, [id]: null })); // null = lot demandé, réponse pas encore revenue
     try {
-      await produceForRequest(id);
+      const run = await produceForRequest(id);
+      // ⚠️ On prend le `scope_kind` DU LOT, pas le `content_kind` de la demande : la traduction
+      // `card → srs` vit côté serveur et n'a pas à être recopiée ici.
+      setRuns((cur) => ({ ...cur, [id]: { id: run.id, kind: run.scope_kind ?? "" } }));
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Lancement de la production échoué");
-      setLaunched((cur) => cur.filter((x) => x !== id));
+      setRuns((cur) => {
+        const next = { ...cur };
+        delete next[id];
+        return next;
+      });
     }
   }, []);
+
+  // Le lot est fini : on relit la file. Si le contenu est réellement servable, le serveur a déjà
+  // refermé la demande (§4) et la ligne s'en va d'elle-même — sur un FAIT, pas sur un clic.
+  const onRunFinished = useCallback(async () => {
+    await reload();
+    setRuns({});
+  }, [reload]);
 
   const dismissNotion = useCallback(async (id: number) => {
     setNotions((cur) => cur.filter((r) => r.id !== id));
@@ -228,15 +244,26 @@ export function DemandesPage() {
                           </span>
                           {/* ⚠️ `producible` est un verdict SERVEUR, jamais déduit du type ici :
                               la table des générateurs vit en un seul endroit (ADR-0036 §3). */}
-                          {req.producible ? (
+                          {req.id in runs ? (
+                            runs[req.id] ? (
+                              <ProductionProgress
+                                runId={runs[req.id]!.id}
+                                scopeKind={runs[req.id]!.kind}
+                                onFinished={onRunFinished}
+                              />
+                            ) : (
+                              <div className="min-w-[190px] shrink-0">
+                                <ProgressBar pct={1} label="Lancement…" />
+                              </div>
+                            )
+                          ) : req.producible ? (
                             <button
                               type="button"
-                              disabled={launched.includes(req.id)}
                               onClick={() => void produce(req.id)}
-                              className="shrink-0 rounded-lg bg-papa-accent px-3 py-1 text-xs font-semibold text-papa-bg transition-opacity hover:opacity-90 disabled:opacity-50"
+                              className="shrink-0 rounded-lg bg-papa-accent px-3 py-1 text-xs font-semibold text-papa-bg transition-opacity hover:opacity-90"
                               title="ZETIS produit ce contenu maintenant"
                             >
-                              {launched.includes(req.id) ? "En production…" : "Produire"}
+                              Produire
                             </button>
                           ) : (
                             /* ⚠️ Un CONSTAT, pas un bouton grisé : une capsule a besoin de ton

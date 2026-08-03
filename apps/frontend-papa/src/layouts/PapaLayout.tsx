@@ -4,6 +4,9 @@ import { PapaSidebar } from "../components/PapaSidebar";
 import { useAuth } from "@zetis/auth";
 import { useActiveProductionRun } from "../hooks/useActiveProductionRun";
 import { ActiveProductionModal } from "../components/ActiveProductionModal";
+import { ProductionDoneModal } from "../components/ProductionDoneModal";
+import { useEstimatedProgress } from "../components/ProgressBar";
+import { SCOPE_MS, SCOPE_NOUN } from "../lib/production";
 
 // Layout commun de l'interface Papa : sidebar + header + zone analytique
 // (cf. docs/frontend-papa/README.md § Layout).
@@ -11,8 +14,19 @@ export function PapaLayout() {
   const { user, logout } = useAuth();
   // « ZETIS travaille » : le lot tourne dans un worker séparé, Papa peut fermer la modale et
   // naviguer. Sans cet indicateur, plus rien ne le lui disait.
-  const activeRun = useActiveProductionRun();
+  const { run: activeRun, finished, acknowledge } = useActiveProductionRun();
   const [showRun, setShowRun] = useState(false);
+
+  // ⚠️ **Le % du serveur compte des NOTIONS, pas des secondes.** Sur un lot de chapitre il est
+  // exact et fait foi. Sur un lot-PIÈCE il n'y a qu'une notion : il vaut 0 % du début à la fin,
+  // puis le lot disparaît — l'indicateur restait donc figé à 0 %, constaté à l'écran le
+  // 2026-08-03. Là où le serveur n'a pas de granularité, on estime ; ailleurs on ne touche à rien.
+  const sansGranularite = Boolean(activeRun) && (activeRun?.total_notions ?? 0) <= 1;
+  const estime = useEstimatedProgress(
+    sansGranularite,
+    SCOPE_MS[activeRun?.scope_kind ?? ""] || 30000,
+  );
+  const pct = sansGranularite ? estime : (activeRun?.progress_pct ?? 0);
   return (
     <div className="flex h-full">
       <PapaSidebar />
@@ -25,7 +39,6 @@ export function PapaLayout() {
             <span className="text-papa-muted">Période : 2026 — 4ᵉ</span>
             {activeRun && (
               // Un PROCESSUS, jamais un stock : « ça travaille », pas « vous êtes en retard ».
-              // Le % vient du serveur — il compte des notions, pas des secondes.
               <button
                 type="button"
                 onClick={() => setShowRun(true)}
@@ -33,7 +46,9 @@ export function PapaLayout() {
                 className="inline-flex items-center gap-1.5 rounded-full border border-papa-accent/40 bg-papa-accent/10 px-2.5 py-1 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/20"
               >
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-papa-accent" aria-hidden />
-                ZETIS produit un chapitre · {activeRun.progress_pct}%
+                ZETIS produit {activeRun.scope_kind
+                  ? SCOPE_NOUN[activeRun.scope_kind] ?? "un contenu"
+                  : "un chapitre"} · {pct}%
               </button>
             )}
           </div>
@@ -58,6 +73,8 @@ export function PapaLayout() {
         {activeRun && showRun && (
           <ActiveProductionModal run={activeRun} onClose={() => setShowRun(false)} />
         )}
+        {/* Annonce de fin — s'efface seule, ne laisse aucune trace à traiter. */}
+        {finished && <ProductionDoneModal run={finished} onClose={acknowledge} />}
         <main className="flex-1 overflow-auto p-6">
           <Outlet />
         </main>

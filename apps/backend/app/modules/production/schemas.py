@@ -126,6 +126,8 @@ class ProductionRunOut(BaseModel):
     #: Scope de PIÈCE (ADR-0036 §2) — exclusif de `chapter_id`, jamais renseigné en même temps.
     scope_skill_id: int | None = None
     scope_kind: str | None = None
+    #: Nom de la notion visée — un lot qui annonce « une fiche sur la notion 17 » ne se lit pas.
+    scope_skill_name: str | None = None
     total_notions: int | None
     done_notions: int | None
     #: Avancement réel (0-100), calculé serveur — jamais une estimation de durée côté client.
