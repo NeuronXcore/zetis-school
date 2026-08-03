@@ -276,6 +276,91 @@ def test_un_lot_porte_un_scope_et_un_seul(client_db) -> None:
             assert exc.value.status_code == 422, kwargs
 
 
+# --- L'auto-fermeture des demandes servies (ADR-0036 §4) ---------------------------------------
+
+
+def _demande_de_cours(db, skill) -> m.ContentRequest:
+    req = m.ContentRequest(
+        student_id=db.scalar(select(m.StudentProfile)).id,
+        skill_id=skill.id,
+        content_kind="cours",
+        status="pending",
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+def test_un_lot_en_echec_ne_ferme_aucune_demande(client_db, monkeypatch) -> None:
+    """⚠️ La moitié du §4 qui protège Massimo d'un « c'est prêt » sur du vide.
+
+    Le contenu demandé est **réellement disponible** ici — le test ne prouverait rien sinon, il
+    constaterait juste qu'il n'y avait rien à fermer. Ce qu'il tient, c'est qu'un lot qui échoue ne
+    déclenche pas la passe de fermeture, même quand elle aurait abouti.
+
+    Le lot suivant, lui, referme : la demande n'est pas perdue, seulement pas fermée par un échec.
+    """
+    import pytest
+
+    from app.modules.production import equipment, runner
+
+    _, Session = client_db
+    with Session() as db:
+        _, subject, chapter = _seed_year(db)
+        lesson = _seed_lesson(db, chapter, validated=True, course=True)
+        skill = _skill(db, subject, "Notion prête")
+        _attach(db, lesson, skill)
+        db.commit()
+        req = _demande_de_cours(db, skill)
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("Ollama a coupé")
+
+        monkeypatch.setattr(equipment, "equip_notion", _boom)
+        run = runs.create_run(db, chapter_id=chapter.id)
+        with pytest.raises(RuntimeError):
+            runner.execute(
+                db, run_id=run.id, llm=FakeLLMProvider(), embedder=FakeEmbeddingProvider()
+            )
+
+        db.refresh(req)
+        assert req.status == "pending", "un lot en échec a refermé une demande"
+
+        # …et le lot suivant, qui réussit, la referme.
+        monkeypatch.undo()
+        run2 = runs.create_run(db, chapter_id=chapter.id)
+        runner.execute(db, run_id=run2.id, llm=FakeLLMProvider(), embedder=FakeEmbeddingProvider())
+        db.refresh(req)
+        assert req.status == "done"
+
+
+def test_un_lot_referme_aussi_les_demandes_quil_satisfait_au_passage(client_db) -> None:
+    """⚠️ Le balayage porte sur TOUTES les demandes en attente, pas sur celles du lot.
+
+    Ce qui ferme une demande est que le contenu soit là, **pas qu'un lot particulier l'ait
+    produit** : ici le lot est un lot MANUEL sur un chapitre, sans aucun lien avec la demande, et
+    Papa n'a rien eu à cliquer.
+    """
+    from app.modules.production import runner
+
+    _, Session = client_db
+    with Session() as db:
+        _, subject, chapter = _seed_year(db)
+        lesson = _seed_lesson(db, chapter, validated=True, course=True)
+        skill = _skill(db, subject, "Notion prête")
+        _attach(db, lesson, skill)
+        db.commit()
+        req = _demande_de_cours(db, skill)
+
+        run = runs.create_run(db, chapter_id=chapter.id)  # manual, aucun `content_request_id`
+        runner.execute(db, run_id=run.id, llm=FakeLLMProvider(), embedder=FakeEmbeddingProvider())
+
+        assert db.get(m.ProductionRun, run.id).content_request_id is None
+        db.refresh(req)
+        assert req.status == "done"
+
+
 # --- L'aperçu : le gate visible AVANT le clic (slice C) ------------------------------------------
 
 

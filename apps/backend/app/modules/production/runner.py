@@ -148,6 +148,28 @@ def _record_notion(db: Session, *, run_id: int, result: dict) -> None:
         )
 
 
+def _close_served_requests(db: Session) -> None:
+    """Referme les demandes que ce lot vient de satisfaire (ADR-0036 §4).
+
+    ⚠️ **Appelé UNIQUEMENT sur le chemin de succès.** Un lot en échec ne ferme rien : la demande
+    reste `pending` et redeviendra éligible. C'est la moitié de la décision qui protège Massimo
+    d'un « c'est prêt » sur du vide.
+
+    ⚠️ **Et il n'a pas le droit de faire tomber le lot.** La production a réussi ; une passe de
+    ménage qui échouerait (année scolaire inactive, notion devenue invisible) ne doit pas
+    transformer ce succès en `failed` et effacer du journal ce qui a réellement été produit.
+    """
+    from app.modules.content_requests import service as content_requests
+
+    try:
+        closed = content_requests.close_available_requests(db)
+    except Exception:  # noqa: BLE001 — le ménage ne commande pas le sort du lot
+        logger.exception("production: fermeture des demandes servies impossible")
+        return
+    if closed:
+        logger.info("production: demandes refermées par disponibilité — %s", closed)
+
+
 def massimo_is_active(db: Session, *, student_id: int) -> bool:
     """Massimo a-t-il une activité PÉDAGOGIQUE récente ?
 
@@ -358,6 +380,7 @@ def execute(
             db.commit()
             results.append(result)
         run.status = "done"
+        _close_served_requests(db)
     except Exception as exc:  # noqa: BLE001 — un lot qui échoue doit le DIRE, pas disparaître
         logger.exception("production: lot %s interrompu", run_id)
         run.status = "failed"

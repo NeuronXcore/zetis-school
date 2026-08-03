@@ -31,6 +31,22 @@ _ALLOWED_STATUS = ("pending", "done", "dismissed")
 SOURCE_CHAT = "chat_orchestrator"
 SOURCE_SUBJECT_PAGE = "subject_page"
 
+# `content_kind` → l'outil de la panoplie qui répond « ce contenu est-il SERVABLE ? » (ADR-0036 §4).
+#
+# ⚠️ **Six entrées, alors qu'`announce.py` n'en a que quatre — et les deux tables sont justes.**
+# Celle d'`announce` traduit vers une DESTINATION (`_notion_route` n'a pas de branche `quiz` ni
+# `capsule`, donc pas de carte à taper) ; celle-ci traduit vers une DISPONIBILITÉ, question à
+# laquelle `resolve_panoply` répond pour les six. Les fusionner ferait dépendre la fermeture d'une
+# demande de l'existence d'un écran de chat — deux questions différentes, deux tables.
+CONTENT_KIND_TO_PANOPLY = {
+    "cours": "cours",
+    "fiche": "fiche",
+    "mindmap": "mindmap",
+    "quiz": "quiz",
+    "capsule": "capsule",
+    "card": "revision",
+}
+
 
 def _out(
     req: ContentRequest,
@@ -172,7 +188,12 @@ def list_requests(db: Session, status_filter: str | None = "pending") -> list[di
 
 
 def set_status(db: Session, req_id: int, new_status: str) -> dict:
-    """Triage Papa : done (contenu produit) | dismissed (ignorée) | pending."""
+    """Triage : done (contenu produit) | dismissed (ignorée) | pending.
+
+    **Seul écrivain du statut**, et il en a désormais deux appelants : le geste de Papa (route
+    PATCH) et l'auto-fermeture de `close_available_requests` (ADR-0036 §4). Le statut ne change
+    pas de sens selon l'appelant — `done` dit « il n'y a plus rien à faire pour cette demande ».
+    """
     if new_status not in _ALLOWED_STATUS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -187,6 +208,57 @@ def set_status(db: Session, req_id: int, new_status: str) -> dict:
     subject_id = db.scalar(select(Skill.subject_id).where(Skill.id == req.skill_id))
     skill_name = db.scalar(select(Skill.name).where(Skill.id == req.skill_id))
     return _out(req, skill_name, subject_id)
+
+
+def close_available_requests(db: Session) -> list[int]:
+    """Ferme les demandes dont le contenu EXISTE VRAIMENT et est SERVABLE (ADR-0036 §4).
+
+    ## Le gate est la DISPONIBILITÉ, jamais le statut — appliqué cette fois à l'ÉCRITURE
+
+    `announce.py` porte déjà cette règle en LECTURE : *« dans l'inbox Papa, "Fait" ne fait que
+    changer une colonne — il ne prouve pas que le contenu existe »*. Une demande fermée par ce
+    chemin-ci ne peut pas mentir : elle ne se ferme que sur la réponse de `resolve_panoply`, **le
+    prédicat unique du dépôt**. Réimplémenter ici une seconde lecture « qui donne le même
+    résultat » rejouerait la porte ouverte sur du vide du 2026-07-30.
+
+    ⚠️ **Aucun statut nouveau.** `done` garde son sens ; qu'il vienne d'un clic de Papa ou d'une
+    production réussie ne change pas ce qu'il dit. Et `announce.py` **n'est pas modifié** : il
+    revérifie la disponibilité de son côté, ce qui est très bien — deux vérifications valent mieux
+    qu'une confiance.
+
+    ⚠️ **On balaie TOUTES les demandes en attente, pas seulement celles du lot qui vient de
+    finir**, et c'est le sens de la décision : ce qui ferme une demande est que le contenu soit là,
+    pas qu'un lot particulier l'ait produit. Papa qui produit un chapitre à la main referme donc
+    aussi les demandes qu'il satisfait au passage — sans avoir à cliquer « Fait ».
+
+    Coût : une passe de `resolve_panoply` par élève, à nombre de requêtes CONSTANT quel que soit le
+    nombre de demandes. La file de Papa est petite par construction (dédup forte `(student, skill,
+    kind)`).
+    """
+    from app.modules.galaxy.service import resolve_panoply
+
+    rows = db.scalars(
+        select(ContentRequest).where(ContentRequest.status == "pending")
+    ).all()
+    if not rows:
+        return []
+
+    by_student: dict[int, list[ContentRequest]] = {}
+    for row in rows:
+        by_student.setdefault(row.student_id, []).append(row)
+
+    closed: list[int] = []
+    for student_id, group in by_student.items():
+        panoply = resolve_panoply(
+            db, student_id=student_id, skill_ids=[r.skill_id for r in group]
+        )
+        for row in group:
+            tool = CONTENT_KIND_TO_PANOPLY.get(row.content_kind)
+            actions = panoply.get(row.skill_id) or []
+            if any(a["kind"] == tool and a.get("available") for a in actions):
+                set_status(db, row.id, "done")
+                closed.append(row.id)
+    return closed
 
 
 def pending_count(db: Session) -> int:
