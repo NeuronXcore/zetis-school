@@ -190,6 +190,92 @@ def test_un_run_neuf_est_manual_et_parent_direct(client_db) -> None:
     assert run_chapter == chapter_id
 
 
+# --- Le scope de PIÈCE (ADR-0036 §2) -----------------------------------------------------------
+
+
+def test_un_lot_piece_produit_la_piece_et_rien_dautre(client_db) -> None:
+    """Une fiche demandée → une fiche produite. **Pas le kit, pas le chapitre.**
+
+    Les deux moitiés comptent, et la seconde autant que la première : le chapitre porte une
+    SECONDE notion, prête et éligible, qu'un lot ordinaire aurait équipée. Sans elle, le test ne
+    distinguerait pas « le scope est respecté » de « il n'y avait rien d'autre à faire ».
+    """
+    from app.modules.production import runner
+
+    _, Session = client_db
+    with Session() as db:
+        _, subject, chapter = _seed_year(db)
+        lesson = _seed_lesson(db, chapter, title="Visée", validated=True, course=True)
+        cible = _skill(db, subject, "Notion visée")
+        _attach(db, lesson, cible)
+
+        autre_lecon = _seed_lesson(db, chapter, title="Voisine", validated=True, course=True)
+        _attach(db, autre_lecon, _skill(db, subject, "Notion voisine"))
+        db.commit()
+
+        run = runs.create_run(db, scope_skill_id=cible.id, scope_kind="fiche")
+        runner.execute(db, run_id=run.id, llm=FakeLLMProvider(), embedder=FakeEmbeddingProvider())
+
+        db.expire_all()
+        fiches = db.scalars(select(m.Fiche)).all()
+        assert [f.lesson_id for f in fiches] == [lesson.id], "le scope de pièce n'a pas tenu"
+        # Les quatre autres pièces du kit n'ont pas été produites.
+        assert db.scalar(select(m.Mindmap)) is None
+        assert db.scalar(select(m.Quiz)) is None
+        assert db.scalar(select(m.SpacedReviewCard)) is None
+        assert db.get(m.ProductionRun, run.id).total_notions == 1
+
+
+def test_un_lot_piece_reste_soumis_au_gate_du_cours(client_db) -> None:
+    """Le palier ouvre la porte du cours, **jamais la demande** (ADR-0036 §2).
+
+    Une demande de `cours` sur une notion en brouillon, au palier < 3 : le gate de la SÉLECTION la
+    bloque avant tout appel de générateur, et le motif entre au journal. Le lot-pièce n'a donc
+    ouvert aucune porte que le palier fermait — ce qui est la raison pour laquelle le prérequis
+    « cours » d'`equip_piece` est acceptable.
+    """
+    from app.modules.production import runner
+
+    _, Session = client_db
+    with Session() as db:
+        _, subject, chapter = _seed_year(db)
+        draft = _seed_lesson(db, chapter, title="Brouillon", validated=False, course=False)
+        skill = _skill(db, subject, "Notion en brouillon")
+        _attach(db, draft, skill)
+        db.commit()
+
+        run = runs.create_run(db, scope_skill_id=skill.id, scope_kind="cours")
+        out = runner.execute(
+            db, run_id=run.id, llm=FakeLLMProvider(), embedder=FakeEmbeddingProvider()
+        )
+
+        db.expire_all()
+        assert db.get(m.Lesson, draft.id).status == "draft", "un cours a été écrit sur demande"
+        assert out["blocked"] == [{"skill_id": skill.id, "reason": BLOCKED_COURSE_PENDING}]
+
+
+def test_un_lot_porte_un_scope_et_un_seul(client_db) -> None:
+    """Le service refuse et le DIT, avant la base — un 422 lisible plutôt qu'une `IntegrityError`."""
+    import pytest
+    from fastapi import HTTPException
+
+    _, Session = client_db
+    with Session() as db:
+        _, subject, chapter = _seed_year(db)
+        skill = _skill(db, subject, "Notion")
+        db.commit()
+
+        for kwargs in (
+            {},  # aucun scope
+            {"chapter_id": chapter.id, "scope_skill_id": skill.id, "scope_kind": "fiche"},
+            {"scope_skill_id": skill.id},  # une notion sans type
+            {"scope_skill_id": skill.id, "scope_kind": "capsule"},  # hors `PIECES`
+        ):
+            with pytest.raises(HTTPException) as exc:
+                runs.create_run(db, **kwargs)
+            assert exc.value.status_code == 422, kwargs
+
+
 # --- L'aperçu : le gate visible AVANT le clic (slice C) ------------------------------------------
 
 

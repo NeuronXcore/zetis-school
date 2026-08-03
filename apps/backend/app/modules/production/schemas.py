@@ -123,6 +123,9 @@ class ProductionRunOut(BaseModel):
     trigger: str
     authorized_by: str
     chapter_id: int | None
+    #: Scope de PIÈCE (ADR-0036 §2) — exclusif de `chapter_id`, jamais renseigné en même temps.
+    scope_skill_id: int | None = None
+    scope_kind: str | None = None
     total_notions: int | None
     done_notions: int | None
     #: Avancement réel (0-100), calculé serveur — jamais une estimation de durée côté client.
@@ -200,6 +203,10 @@ class JournalRunOut(BaseModel):
     trigger: str
     authorized_by: str
     chapter_id: int | None = None
+    #: Scope de PIÈCE (ADR-0036 §2) — un lot ciblé n'a pas de chapitre, et ce n'est pas une panne.
+    scope_skill_id: int | None = None
+    scope_kind: str | None = None
+    scope_skill_name: str | None = None
     total_notions: int | None = None
     done_notions: int | None = None
     current_skill_id: int | None = None

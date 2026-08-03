@@ -24,6 +24,7 @@ from app.db.models import (
 from app.db.models.production import (
     AUTHORIZED_BY,
     EMITTED_TRIGGERS,
+    PIECES,
     TRIGGER_REFERENCE,
     TRIGGERS,
 )
@@ -154,15 +155,22 @@ def run_exists_for(db: Session, *, trigger: str, reference_id: int) -> bool:
 def create_run(
     db: Session,
     *,
-    chapter_id: int,
+    chapter_id: int | None = None,
+    scope_skill_id: int | None = None,
+    scope_kind: str | None = None,
     trigger: str = "manual",
     authorized_by: str = "parent_direct",
     reference_id: int | None = None,
 ) -> ProductionRun:
-    """Crée un lot sur un chapitre. Refuse si l'arriéré déborde — ou si le volume auto est atteint.
+    """Crée un lot. Refuse si l'arriéré déborde — ou si le volume auto est atteint.
 
     Le régulateur REFUSE et le DIT — il ne tronque pas silencieusement. Une production qui dépasse
     durablement la capacité de relecture fabrique une dette qui tue le dispositif (ADR-0023 §5).
+
+    **Deux scopes possibles, jamais les deux, jamais aucun** (ADR-0036 §2) : un `chapter_id`, ou la
+    paire `(scope_skill_id, scope_kind)` — une pièce sur une notion. La règle est tenue ICI **et**
+    par une contrainte SQL : le service donne le message, la base garantit l'invariant même si un
+    jour un autre chemin d'écriture apparaît.
 
     `trigger` / `authorized_by` / `reference_id` (ADR-0035 §3) — les défauts sont ceux du geste de
     Papa : **les appelants existants ne changent pas d'un caractère**.
@@ -200,13 +208,40 @@ def create_run(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Le déclencheur « {trigger} » exige une référence ({column}).",
         )
+    # « Exactement un scope » (ADR-0036 §2), refusé AVANT toute écriture. Un lot sans scope
+    # produirait dans le vide ; un lot à deux scopes ferait diverger l'exécution de l'affichage.
+    piece_scope = scope_skill_id is not None or scope_kind is not None
+    if piece_scope and chapter_id is not None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Un lot porte un chapitre OU une pièce, jamais les deux.",
+        )
+    if not piece_scope and chapter_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Un lot doit porter un scope."
+        )
+    if piece_scope and (scope_skill_id is None or scope_kind is None):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Un scope de pièce exige la notion ET le type.",
+        )
+    if piece_scope and scope_kind not in PIECES:
+        # Le lot parle la langue des tables (`PIECES`), pas celle de la demande (`CONTENT_KINDS`).
+        # La traduction est le travail de l'appelant, et `REQUEST_KIND_TO_PIECE` la porte.
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Type de pièce inconnu : {scope_kind}.",
+        )
+
     # Ménage opportuniste AVANT tout le reste : un lot zombie fausserait `GET /active` et ferait
     # croire à une production en cours (ADR-0034 §2).
     close_stale_runs(db)
 
-    chapter = db.get(Chapter, chapter_id)
-    if chapter is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapitre introuvable.")
+    if chapter_id is not None:
+        if db.get(Chapter, chapter_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chapitre introuvable.")
+    elif db.get(Skill, scope_skill_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notion introuvable.")
 
     backlog = pending_backlog(db)
     if backlog >= settings.production_max_pending:
@@ -242,6 +277,8 @@ def create_run(
         authorized_by=authorized_by,
         status="queued",
         chapter_id=chapter_id,
+        scope_skill_id=scope_skill_id,
+        scope_kind=scope_kind,
         created_at=datetime.now(timezone.utc),
     )
     if column is not None:
@@ -260,6 +297,10 @@ def run_out(db: Session, run: ProductionRun) -> dict:
         "trigger": run.trigger,
         "authorized_by": run.authorized_by,
         "chapter_id": run.chapter_id,
+        # Le scope de pièce voyage avec le lot : sans lui, un lot-pièce s'afficherait « sans
+        # chapitre », c'est-à-dire comme un lot cassé (ADR-0036 §2).
+        "scope_skill_id": run.scope_skill_id,
+        "scope_kind": run.scope_kind,
         "total_notions": run.total_notions,
         "done_notions": run.done_notions,
         # Pourcentage RÉEL, calculé serveur. L'estimation client (`KIT_MS_PER_NOTION`) mentait

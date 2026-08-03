@@ -248,6 +248,9 @@ def list_journal(db: Session, *, limit: int = 20, offset: int = 0) -> dict:
     # UN seul aller-retour pour tous les noms de notions de la page — jamais un par événement.
     run_ids = [r.id for r in rows]
     skill_ids: set[int] = {r.current_skill_id for r in rows if r.current_skill_id}
+    # ⚠️ Le scope d'un lot-pièce doit y entrer AUSSI : un lot encore en file n'a ni notion courante
+    # ni événement, donc son nom ne viendrait de nulle part et la page afficherait un id nu.
+    skill_ids.update(r.scope_skill_id for r in rows if r.scope_skill_id)
     if run_ids:
         skill_ids.update(
             _ids(
@@ -278,6 +281,13 @@ def list_journal(db: Session, *, limit: int = 20, offset: int = 0) -> dict:
                 "trigger": run.trigger,
                 "authorized_by": run.authorized_by,
                 "chapter_id": run.chapter_id,
+                # Un lot-pièce n'a PAS de chapitre (ADR-0036 §2) : sans ces deux champs, il se
+                # lirait comme un lot cassé au lieu d'un lot ciblé.
+                "scope_skill_id": run.scope_skill_id,
+                "scope_kind": run.scope_kind,
+                "scope_skill_name": names.get(run.scope_skill_id)
+                if run.scope_skill_id
+                else None,
                 "total_notions": run.total_notions,
                 "done_notions": run.done_notions,
                 "current_skill_id": run.current_skill_id,

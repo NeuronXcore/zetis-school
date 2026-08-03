@@ -292,7 +292,19 @@ def execute(
     gate = settings_service.course_gate_enabled(db)
     authority = authority_for(db, run)
 
-    notions = scope.plan(db, chapter_id=run.chapter_id)
+    # LE SCOPE — un chapitre, ou une pièce sur une notion (ADR-0036 §2). C'est la seule branche du
+    # runner, et elle ne porte que le PLAN : le gate, l'ordre, le journal, le tamponnage et la
+    # préemption restent littéralement les mêmes en dessous.
+    #
+    # ⚠️ Le gate s'applique AUSSI au lot-pièce, et c'est voulu : une demande de `cours` au palier
+    # < 3 est bloquée ici même, avec son motif au journal. ZETIS n'écrit pas un cours à la place de
+    # Papa parce que Massimo l'a demandé — c'est le palier qui ouvre cette porte, pas la demande.
+    piece_kind = run.scope_kind
+    notions = (
+        [run.scope_skill_id]
+        if piece_kind is not None
+        else scope.plan(db, chapter_id=run.chapter_id)
+    )
     eligible, blocked = select_notions(db, notions, require_validated_course=gate)
     results: list[dict] = []
 
@@ -321,8 +333,19 @@ def execute(
 
             run.current_skill_id = skill_id
             watermark = _max_ids(db)
-            result = equipment.equip_notion(
-                db, skill_id=skill_id, llm=llm, embedder=embedder, authority=authority
+            result = (
+                equipment.equip_piece(
+                    db,
+                    skill_id=skill_id,
+                    kind=piece_kind,
+                    llm=llm,
+                    embedder=embedder,
+                    authority=authority,
+                )
+                if piece_kind is not None
+                else equipment.equip_notion(
+                    db, skill_id=skill_id, llm=llm, embedder=embedder, authority=authority
+                )
             )
             result["pieces_stamped"] = _stamp(db, watermark, run_id)
             if "cours" in result.get("generated", []):

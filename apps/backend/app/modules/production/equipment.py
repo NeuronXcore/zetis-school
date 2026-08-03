@@ -236,3 +236,148 @@ def equip_notion(
         "errors": errors,
         "reason": None,
     }
+
+
+def equip_piece(
+    db: Session,
+    *,
+    skill_id: int,
+    kind: str,
+    llm: LLMProvider,
+    embedder: EmbeddingProvider,
+    authority: ValidatedBy | None = PARENT_BULK,
+) -> dict:
+    """Produit UNE pièce sur UNE notion (ADR-0036 §2). Même résumé typé qu'`equip_notion`.
+
+    Une fiche demandée → une fiche produite. **Pas le kit, pas le chapitre.**
+
+    ⚠️ **`equip_notion` n'est pas touché**, et cette fonction ne l'appelle pas : l'addendum
+    ADR-0031 interdit de modifier l'orchestrateur, dont dépendent le Conseil de classe et la
+    composition champion. Le coût est écrit plutôt que masqué : **les appels aux générateurs sont
+    donc écrits deux fois**, ici et là-bas. Le jour où la divergence coûtera plus que le risque de
+    régression, l'extraction se fera dans son propre chantier, sous contre-épreuve — pas au détour
+    d'un ajout de fonctionnalité.
+
+    ## Le COURS est un prérequis, pas du kit
+
+    Quatre des cinq générateurs refusent (409) une leçon non validée : une fiche ne peut donc pas
+    se produire seule sur une notion dont le cours n'est pas écrit. Cette fonction reprend
+    l'étape 1 d'`equip_notion` — écrire le cours s'il manque, valider le brouillon s'il existe —
+    **et rien d'autre** : les quatre autres dérivés ne sont pas produits.
+
+    ⚠️ Cela n'ouvre **aucune porte que le palier ne fermait pas** : le gate du §7 vit dans
+    `runner.select_notions`, en amont. Au palier < 3 la notion est bloquée avant d'arriver ici (le
+    lot journalise « Cours à valider », rien n'est écrit) ; au palier 3 — le seul où une demande
+    déclenche (ADR-0036 §1) — ZETIS a précisément le droit d'écrire un cours, exactement comme un
+    lot-chapitre le ferait sur la même notion.
+    """
+    from app.modules.curriculum.service import generate_lesson_content, set_lesson_validation
+    from app.modules.fiches.service import generate_fiche, validate_fiche
+    from app.modules.memory.generation import generate_cards_for_skill
+    from app.modules.mindmaps.service import generate_mindmap, validate_mindmap
+    from app.modules.quizzes.service import generate_quiz
+
+    skill = db.get(Skill, skill_id)
+    name = skill.name if skill is not None else f"notion {skill_id}"
+    generated: list[str] = []
+    skipped: list[str] = []
+    errors: list[dict] = []
+
+    def out(*, has_lesson: bool, reason: str | None) -> dict:
+        return {
+            "skill_id": skill_id,
+            "skill_name": name,
+            "has_lesson": has_lesson,
+            "generated": generated,
+            "skipped": skipped,
+            "errors": errors,
+            "reason": reason,
+        }
+
+    lesson = _skill_lesson(db, skill_id)
+    if lesson is None:
+        # Notion ORPHELINE : aucune leçon ne la porte, donc aucun générateur leçon-centré ne peut
+        # la servir. Ce n'est pas une panne, c'est une absence de support — et elle se DIT.
+        skipped.append(kind)
+        return out(
+            has_lesson=False,
+            reason="Aucune leçon rattachée à cette notion — rien à produire.",
+        )
+    lesson_id = lesson.id
+
+    # 1) Le prérequis. Identique à l'étape 1 d'`equip_notion`, `by=` explicite sur les deux chemins.
+    course_authority = authority or PARENT_BULK
+    try:
+        if lesson.content_markdown:
+            if lesson.status == "draft":
+                set_lesson_validation(db, lesson_id, "validate", by=course_authority)
+            if kind == "cours":
+                skipped.append("cours")
+        else:
+            generate_lesson_content(db, llm, lesson_id)
+            set_lesson_validation(db, lesson_id, "validate", by=course_authority)
+            generated.append("cours")
+    except Exception as exc:  # noqa: BLE001 — on isole chaque pièce
+        errors.append({"piece": "cours", "message": str(exc)})
+
+    if kind == "cours":
+        return out(has_lesson=True, reason=None)
+
+    db.refresh(lesson)
+    if not (lesson.status == "validated" and lesson.content_markdown):
+        skipped.append(kind)
+        return out(has_lesson=True, reason="Cours indisponible — dérivé non généré.")
+
+    # 2) La pièce demandée, et elle seule. Même règle qu'`equip_notion` : **on ne régénère JAMAIS**
+    #    ce qui existe (même un brouillon de Papa) — on le valide, ce qui suffit à le rendre
+    #    servable, donc à satisfaire la demande.
+    try:
+        if kind == "fiche":
+            existing = _existing_fiche(db, lesson_id)
+            if existing is not None:
+                if existing.validation_status == "pending" and authority is not None:
+                    validate_fiche(db, existing.id, by=authority)
+                skipped.append("fiche")
+            else:
+                fiche = generate_fiche(db, llm, embedder, lesson_id=lesson_id)
+                if authority is not None:
+                    validate_fiche(db, fiche.id, by=authority)
+                generated.append("fiche")
+        elif kind == "mindmap":
+            existing = _existing_mindmap(db, lesson_id)
+            if existing is not None:
+                if existing.validation_status == "pending" and authority is not None:
+                    validate_mindmap(db, existing.id, by=authority)
+                skipped.append("mindmap")
+            else:
+                mindmap = generate_mindmap(db, llm, embedder, lesson_id=lesson_id)
+                if authority is not None:
+                    validate_mindmap(db, mindmap.id, by=authority)
+                generated.append("mindmap")
+        elif kind == "srs":
+            if _has_srs_cards(db, skill_id):
+                skipped.append("srs")
+            else:
+                generate_cards_for_skill(db, llm, embedder, skill_id=skill_id)
+                generated.append("srs")
+        elif kind == "quiz":
+            if _has_mission_quiz(db, skill_id):
+                skipped.append("quiz")
+            else:
+                generate_quiz(
+                    db,
+                    llm,
+                    embedder,
+                    lesson_id=lesson_id,
+                    count=_EQUIP_QUIZ_COUNT,
+                    difficulty=_EQUIP_QUIZ_DIFFICULTY,
+                )
+                generated.append("quiz")
+        else:
+            # Vocabulaire fermé, refusé bien plus tôt par `create_run`. Si on arrive ici, une
+            # troisième voie d'écriture est apparue — et elle doit se voir, pas passer.
+            errors.append({"piece": kind, "message": f"Type de pièce inconnu : {kind}."})
+    except Exception as exc:  # noqa: BLE001
+        errors.append({"piece": kind, "message": str(exc)})
+
+    return out(has_lesson=True, reason=None)
