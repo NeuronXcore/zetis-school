@@ -317,7 +317,14 @@ def create_manual_chapter(
 ) -> Chapter:
     """Écrit par Papa → validé d'office (*écrire* ≠ *choisir*, ADR-0009 §3).
 
-    Métadonnées optionnelles (13-bis) : sans elles, `metadata_json` reste null."""
+    Métadonnées optionnelles (13-bis) : sans elles, `metadata_json` reste null.
+
+    ⚠️ **Provenance réparée le 2026-08-03.** Ce chemin écrivait `validation_status="validated"` en
+    littéral, **sans passer par `mark_validated`** — alors que `provenance.py` se déclare « le SEUL
+    chemin d'écriture […] garantit qu'aucun objet ne devient `validated` sans provenance » (§F.3).
+    Résultat : `validated_by IS NULL` sur un chapitre que Papa venait d'écrire, et le Journal
+    (ADR-0034) l'affichait « provenance inconnue » au lieu de « vous ». `PARENT` est la valeur
+    juste : écrire une chose, c'est l'avoir vue."""
     _sys_or_404(db, school_year_subject_id)
     metadata = None
     if themes is not None or suggested_class is not None or repartition is not None:
@@ -342,9 +349,9 @@ def create_manual_chapter(
         sort_order=next_order,
         status="planned",
         source="manual",
-        validation_status="validated",
         metadata_json=metadata,
     )
+    mark_validated(chapter, PARENT)
     db.add(chapter)
     db.commit()
     db.refresh(chapter)
@@ -864,7 +871,15 @@ def create_manual_lesson(
     summary: str | None = None,
     notions: list[str] | None = None,
 ) -> Lesson:
-    """Écrite par Papa → `created_by='parent'`, `status='validated'` d'office (§3)."""
+    """Écrite par Papa → `created_by='parent'`, `status='validated'` d'office (§3).
+
+    ⚠️ **Provenance réparée le 2026-08-03**, même défaut que `create_manual_chapter` : le `status`
+    passait `validated` en littéral, hors de `mark_validated`, donc `validated_by IS NULL`. Sur une
+    LEÇON, c'est le cas qui coûtait le plus cher — c'est le seul contenu que Massimo lit vraiment,
+    et le Journal montrait les cours de Papa comme d'origine inconnue.
+
+    ⚠️ Le champ de validation d'une leçon s'appelle `status`, pas `validation_status` — d'où le
+    `field=` explicite (cf. `mark_validated`)."""
     chapter = _chapter_or_404(db, chapter_id)
     next_order = (
         db.scalar(
@@ -878,10 +893,10 @@ def create_manual_lesson(
         chapter_id=chapter_id,
         title=title.strip(),
         summary=summary,
-        status="validated",
         created_by="parent",
         sort_order=next_order,
     )
+    mark_validated(lesson, PARENT, field="status")
     db.add(lesson)
     db.flush()
     if notions:
