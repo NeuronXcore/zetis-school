@@ -7,20 +7,26 @@
 
 ## État à la reprise
 
-**Chantier : le déclencheur automatique (ADR-0035 + son addendum) — COMPLET. NON POUSSÉ.**
+**Chantier : le déclencheur automatique (ADR-0035 + son addendum) — COMPLET, CLOS ET MERGÉ.**
+**Les DEUX axes de « full autonomie » sont livrés.**
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Branche | `feat/declencheur-agenda`, **7 commits** (un par sujet), **NON POUSSÉE**, aucune PR |
-| Base `main` | **`628905f`** (4bis du Journal), local = `origin/main`. ⚠️ `4d3fc99` est le *merge* de la PR #70, pas la tête — le commit de clôture est passé par-dessus |
+| Déclencheur (ADR-0035) | **MERGÉ `main`** — squash **`c4f5e31`**, PR #71, 2026-08-03. Branche `feat/declencheur-agenda` **supprimée** en local et chez `origin`. ⚠️ Ne pas ré-implémenter. |
+| `origin/main` | **`c4f5e31`**, local = distant, arbre propre |
 | Migration | **AUCUNE** — et aucune dépendance nouvelle |
-| Arbre | propre |
 
-**776 backend · 309 Papa · build Papa** — verts, relancés après le **dernier commit de code**
-(`de3f74f`). **453 Massimo · build Massimo · typecheck Massimo** — verts, mais **non relancés depuis
-`4dc48e8`** : aucun fichier Massimo n'a été touché depuis. Le user relance tout avant de merger.
+> ⚠️ **Ce tableau décrit le dépôt APRÈS le merge, pas après le commit de 4bis qui l'écrit.** Le
+> 2026-08-03, la ligne équivalente du chantier précédent donnait `origin/main = 4d3fc99` alors que
+> le 4bis lui-même passait par-dessus (`628905f`) — **une tête de branche bouge sous le commit qui
+> la décrit**. C'est la variante subtile de la leçon « ne jamais écrire un geste Git au passé avant
+> de l'avoir joué ». Si vous lisez ceci et que `git rev-parse --short origin/main` ne rend pas
+> `c4f5e31`, c'est normal : d'autres commits ont suivi.
+
+**Relancés INTÉGRALEMENT avant le merge, tous verts** : **776 backend · 309 Papa · 453 Massimo ·
+build Papa · build Massimo · typecheck Massimo**.
 
 ### Ce que ce chantier a livré, dans l'ordre des commits
 
@@ -32,6 +38,7 @@
 5. `2b4cc32` — **chapitre éditable après coup** + indice d'échéance stérile.
 6. `de3f74f` — **porte « échéance » du Commander** (zéro backend).
 7. `c31b43f` — **addendum ADR-0035**.
+8. `5625e1e` — **clôture** (mémoire, pièges, specs vivantes, 0.39.0).
 
 ### Décisions actives — à relire, pas à rouvrir
 
@@ -93,12 +100,20 @@ armer est une décision de Papa, deux clics sur `/parametres`.
 
 ### ▶ PROCHAIN PAS
 
-1. **Relire le diff (32 fichiers, ~1 780 lignes), relancer les tests, pousser, ouvrir la PR.**
-   Rien n'est chez `origin`. Les 7 commits sont **un par sujet** — la revue peut se faire sujet
-   par sujet.
-2. Après le merge : **étape 4bis**. Ce fichier a survécu **quatre fois** à son propre chantier.
-3. **Chantier suivant** : le pont **demande → production** (`trigger='request'`), le seul des six
-   déclencheurs dont la surface existe déjà et dont la boucle est incomplète (voir dettes).
+1. **Rien n'est en attente côté Git.** PR #71 mergée, branche supprimée, `main` = `origin/main`,
+   arbre propre. **Étape 4bis faite** — c'est ce fichier, pour la cinquième fois.
+2. **Ne rien ré-implémenter** des cinq documents de l'autonomisation, et ne rien re-cadrer.
+3. **CHANTIER SUIVANT : le pont demande → production** (`trigger='request'`). C'est le seul des six
+   déclencheurs dont **la surface existe déjà** et dont **la boucle est incomplète** : aujourd'hui
+   « Fait » sur une `content_request` ne produit **RIEN** — c'est une déclaration, et le seul
+   garde-fou est en aval (`chat/announce.py` refuse d'annoncer un `done` non servable). Le rail est
+   modélisé, migré, contraint et **volontairement non émis**, avec test-verrou.
+   ⚠️ **Cadrage d'abord** (`WORKFLOW.md §2`), sur `main`, sans une ligne de code — prochain numéro
+   d'ADR libre : **0036** (0033 reste réservé à l'indicateur d'autonomie de Massimo).
+4. ⚠️ **Décision produit à prendre au cadrage, et elle n'est pas technique** : une demande de
+   Massimo doit-elle déclencher une production **sans clic de Papa** ? Le déclencheur `agenda` a
+   pour lui une source **exogène** (le collège a dit qu'il y avait un contrôle) ; une demande de
+   Massimo, non. C'est la question centrale de ce chantier.
 
 ### ▶ DETTES OUVERTES, nommées à la livraison
 
