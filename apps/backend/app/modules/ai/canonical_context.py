@@ -24,8 +24,9 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Lesson, LessonSkill
+from app.db.models import Lesson
 from app.modules.ai.provider import EmbeddingProvider
+from app.modules.lesson_resolution import lessons_of_skill
 from app.modules.rag.service import retrieve_for_skill
 
 
@@ -73,23 +74,31 @@ def resolve_canonical_context(
     """Résout le contexte canonique d'une notion (cours validé d'abord, RAG en complément).
 
     Cascade de dégradation : cours validé → RAG seul → connaissance du modèle. Le premier
-    cran est ajouté ici, une fois pour tous les dérivés. Le gate `status='validated'` est
-    une clause du SELECT (addendum ADR-0009 §C, verbatim) : impossible de recevoir un cours
-    non validé. `k` réduit quand un cours existe (le RAG n'est plus que complément).
+    cran est ajouté ici, une fois pour tous les dérivés. `k` réduit quand un cours existe
+    (le RAG n'est plus que complément).
+
+    ⚠️ **Le gate `validated` a quitté le SELECT le 2026-08-03** (ADR-0037), et l'addendum ADR-0009
+    §C insistait sur ce point : *« une clause du SELECT — impossible de recevoir un cours non
+    validé »*. **La garantie tient toujours, mais elle tient autrement** : le résolveur partagé rend
+    les leçons de la notion (brouillons compris, parce que la production en a besoin au palier 3),
+    et le filtre est appliqué ici, en un seul endroit, sur le chemin unique par lequel tous les
+    dérivés passent. Ce qui était impossible à contourner par construction reste impossible à
+    contourner par unicité.
+
+    ⚠️ **Et le périmètre s'est resserré à l'ANNÉE ACTIVE.** Un cours porté par une leçon d'une année
+    close n'ancre plus les générateurs — ils dégradent vers le RAG. C'est cohérent : ce qui n'est
+    pas atteignable par Massimo n'a pas à nourrir ce qu'on produit pour lui.
 
     Read-only : aucune écriture, aucune trace, aucun effet de bord.
     """
-    lesson = db.scalars(
-        select(Lesson)
-        .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
-        .where(
-            LessonSkill.skill_id == skill_id,
-            Lesson.status == "validated",  # ← le gate, appliqué DANS la requête
-            Lesson.content_markdown.isnot(None),
-        )
-        .order_by(Lesson.updated_at.desc())
-        .limit(1)
-    ).first()
+    lesson = next(
+        (
+            l
+            for l in lessons_of_skill(db, skill_id)
+            if l.status == "validated" and l.content_markdown is not None
+        ),
+        None,
+    )
     chunks = retrieve_for_skill(
         db,
         embedder,

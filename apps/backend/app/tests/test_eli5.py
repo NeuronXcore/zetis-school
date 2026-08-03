@@ -7,8 +7,17 @@ from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
 
 
 def _add_validated_lesson(db, *, skill_id: int, title: str, content: str) -> m.Lesson:
+    """⚠️ Posait `chapter_id=1` sur un chapitre INEXISTANT (SQLite n'applique pas les FK). Tenait
+    tant que le résolveur ignorait l'année scolaire ; depuis l'ADR-0037 le périmètre est réel.
+    Le décor devient vrai — **aucune assertion n'a bougé**."""
+    from app.tests.test_canonical_context import _chapitre
+
     lesson = m.Lesson(
-        chapter_id=1, title=title, content_markdown=content, status="validated", created_by="ai"
+        chapter_id=_chapitre(db).id,
+        title=title,
+        content_markdown=content,
+        status="validated",
+        created_by="ai",
     )
     db.add(lesson)
     db.flush()

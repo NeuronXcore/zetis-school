@@ -7,6 +7,8 @@ où le quiz consommera le substrat, ce module et ses tests restent verts sans qu
 
 from datetime import datetime, timezone
 
+from sqlalchemy import select
+
 import app.db.models as m
 from app.modules.ai.canonical_context import (
     CanonicalContext,
@@ -18,6 +20,38 @@ from app.tests.fakes import FakeEmbeddingProvider
 _SKILL_ID = 1  # « Nombres relatifs », seedé par conftest
 
 
+def _chapitre(db, *, annee_active: bool = True) -> m.Chapter:
+    """Un chapitre validé, rattaché à une année scolaire. Créé une fois par année demandée.
+
+    ⚠️ **La fixture posait `chapter_id=1` sur un chapitre INEXISTANT** — « SQLite n'applique pas les
+    FK ». Elle tenait tant que le résolveur ignorait l'année scolaire ; depuis l'ADR-0037, le
+    périmètre est réel et la jointure ne trouvait plus rien. **Aucune assertion n'a changé** : c'est
+    le décor qui devient vrai, pas l'attente qui s'assouplit.
+    """
+    statut = "active" if annee_active else "archived"
+    annee = db.scalars(select(m.SchoolYear).where(m.SchoolYear.status == statut)).first()
+    if annee is None:
+        annee = m.SchoolYear(
+            student_id=db.scalar(select(m.StudentProfile.id)),
+            label="2026-2027" if annee_active else "2025-2026",
+            level="4e",
+            status=statut,
+        )
+        db.add(annee)
+        db.flush()
+    sys_row = m.SchoolYearSubject(
+        school_year_id=annee.id, subject_id=db.scalar(select(m.Subject.id))
+    )
+    db.add(sys_row)
+    db.flush()
+    chapter = m.Chapter(
+        school_year_subject_id=sys_row.id, name="Chapitre", validation_status="validated"
+    )
+    db.add(chapter)
+    db.flush()
+    return chapter
+
+
 def _add_lesson(
     db,
     *,
@@ -26,10 +60,11 @@ def _add_lesson(
     content: str | None = "# Cours\n\nContenu canonique.",
     title: str = "Leçon test",
     updated_at: datetime | None = None,
+    annee_active: bool = True,
 ) -> m.Lesson:
-    """Insère une leçon liée à une notion (chapter_id=1 : SQLite n'applique pas les FK)."""
+    """Insère une leçon liée à une notion, dans un chapitre validé d'une année scolaire réelle."""
     lesson = m.Lesson(
-        chapter_id=1,
+        chapter_id=_chapitre(db, annee_active=annee_active).id,
         title=title,
         content_markdown=content,
         status=status,
@@ -55,8 +90,11 @@ def test_validated_lesson_is_resolved(client_db) -> None:
 
 
 def test_gate_excludes_draft_and_archived(client_db) -> None:
-    # Le gate `status='validated'` vit DANS la requête : une leçon non validée n'existe pas
-    # dans ce que le dérivé reçoit — garantie structurelle, pas convention.
+    # Le gate `status='validated'` : une leçon non validée n'existe pas dans ce que le dérivé
+    # reçoit. ⚠️ Il a quitté le SELECT le 2026-08-03 (ADR-0037) — le résolveur partagé rend les
+    # brouillons, dont la production a besoin au palier 3. La garantie tient autrement : le filtre
+    # est appliqué sur le chemin UNIQUE par lequel tous les dérivés passent. Ce test est ce qui
+    # rend ce déplacement sûr, et c'est pourquoi son assertion n'a pas bougé d'un caractère.
     _, Session = client_db
     with Session() as db:
         _add_lesson(db, status="draft")
