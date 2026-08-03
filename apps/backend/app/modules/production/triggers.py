@@ -33,9 +33,22 @@ from app.modules.production import runner, runs
 
 logger = logging.getLogger(__name__)
 
-# ⚠️ `controle` SEUL déclenche. Un `devoir` reviendrait tous les jours et noierait le régulateur ;
-# `rendu` reste légal et non émis, comme le vocabulaire de `trigger` lui-même.
-TRIGGERING_KINDS = ("controle",)
+# ⚠️ **RÉVOCATION du 2026-08-03** (addendum ADR-0035). Le §1 disait `controle` SEUL, au motif qu'un
+# devoir « reviendrait tous les jours et noierait le régulateur ». **L'objection reste juste** — un
+# devoir est le `kind` par DÉFAUT de la saisie et revient plusieurs fois par semaine.
+#
+# Décision du commanditaire : un devoir mérite la même préparation qu'un contrôle. L'objection est
+# traitée par le TRI ci-dessous, pas ignorée : quand le plafond ne laisse passer qu'un lot, c'est
+# le contrôle qui l'obtient.
+#
+# `rendu` reste légal et non émis — le patron « le modèle anticipe, le code n'anticipe pas » tient.
+TRIGGERING_KINDS = ("controle", "devoir")
+
+# Ordre de priorité quand le régulateur est serré. Le scan crée les lots dans l'ordre et s'arrête
+# quand le plafond refuse : trier ici, c'est décider QUI passe en dernier — et ce n'est pas le
+# contrôle. Sans ce tri, trois devoirs saisis le dimanche mangeraient la semaine entière et le
+# contrôle du jeudi partirait bredouille.
+_KIND_PRIORITY = {"controle": 0, "devoir": 1}
 
 # Les motifs de non-déclenchement, nommés. Un scan qui ne fait rien SANS DIRE POURQUOI est
 # indistinguable d'un scan en panne — et il tourne la nuit, quand personne ne regarde.
@@ -58,7 +71,7 @@ def eligible_items(db: Session, *, student_id: int, today: date | None = None) -
     """
     today = today or datetime.now(timezone.utc).date()
     horizon = today + timedelta(days=settings.production_auto_lookahead_days)
-    return list(
+    items = list(
         db.scalars(
             select(AgendaItem)
             .where(
@@ -69,11 +82,17 @@ def eligible_items(db: Session, *, student_id: int, today: date | None = None) -
                 AgendaItem.due_on >= today,
                 AgendaItem.due_on <= horizon,
             )
-            # La plus proche d'abord : si le régulateur ne laisse passer qu'un lot, autant que ce
-            # soit celui du contrôle le plus urgent.
             .order_by(AgendaItem.due_on, AgendaItem.id)
         ).all()
     )
+    # ⚠️ **Les CONTRÔLES d'abord, la date ensuite.** Le tri se fait en Python et non en SQL parce
+    # que la priorité est un vocabulaire du domaine, pas une colonne : l'exprimer en `CASE WHEN`
+    # la dupliquerait en base et la ferait diverger de `_KIND_PRIORITY` au premier `kind` ajouté.
+    #
+    # Conséquence voulue : un contrôle dans 6 jours passe AVANT un devoir demain. C'est le prix de
+    # la révocation du §1 — sans lui, ouvrir les devoirs revenait à fermer les contrôles.
+    items.sort(key=lambda i: (_KIND_PRIORITY.get(i.kind, 9), i.due_on, i.id))
+    return items
 
 
 def scan_agenda(db: Session) -> dict:

@@ -164,7 +164,7 @@ def test_se_connecter_nest_pas_travailler(client_db) -> None:
 @pytest.mark.parametrize(
     "kwargs, motif",
     [
-        ({"kind": "devoir"}, "un devoir reviendrait tous les jours"),
+        ({"kind": "rendu"}, "`rendu` reste légal et NON ÉMIS"),
         ({"chapter_id": None}, "sans chapitre il n'y a rien à produire"),
         ({"days": 60}, "produire deux mois à l'avance, c'est produire pour un programme changé"),
     ],
@@ -177,6 +177,49 @@ def test_les_echeances_hors_conditions_ne_declenchent_rien(client_db, kwargs, mo
         _controle(db, chapter, **kwargs)
 
         assert triggers.scan_agenda(db)["created"] == [], motif
+
+
+def test_un_devoir_declenche_comme_un_controle(client_db) -> None:
+    """⚠️ **Ce cas testait l'INVERSE jusqu'au 2026-08-03**, et le changement est une décision, pas
+    un ajustement.
+
+    L'ADR-0035 §1 excluait `devoir` au motif qu'il « reviendrait tous les jours et noierait le
+    régulateur ». **L'objection reste juste** — c'est le `kind` par défaut de la saisie. Le
+    commanditaire a tranché l'inverse (addendum), et l'objection est traitée par le TRI
+    (`test_un_controle_passe_avant_un_devoir`), pas effacée.
+    """
+    _, Session = client_db
+    with Session() as db:
+        chapter = _seed(db)
+        _arm(db)
+        _controle(db, chapter, kind="devoir")
+
+        report = triggers.scan_agenda(db)
+        assert len(report["created"]) == 1, report
+        run = db.get(m.ProductionRun, report["created"][0]["run_id"])
+        assert run.trigger == "agenda"
+
+
+def test_un_controle_passe_avant_un_devoir(client_db) -> None:
+    """⚠️ LE verrou qui rend la révocation du §1 tenable.
+
+    Le scan crée les lots dans l'ordre et s'arrête quand le plafond refuse. Sans tri par `kind`,
+    des devoirs saisis le dimanche mangeraient la semaine et le contrôle du jeudi partirait
+    bredouille — c'est exactement ce que l'ADR-0035 §1 redoutait.
+
+    Le devoir est ici **plus proche dans le temps** que le contrôle : si le tri par date primait,
+    c'est lui qui passerait.
+    """
+    _, Session = client_db
+    with Session() as db:
+        chapter = _seed(db)
+        _arm(db)
+        devoir = _controle(db, chapter, kind="devoir", days=1)
+        controle = _controle(db, chapter, kind="controle", days=6)
+
+        ordre = [i.id for i in triggers.eligible_items(db, student_id=devoir.student_id)]
+        assert ordre[0] == controle.id, "le devoir de demain a doublé le contrôle de jeudi"
+        assert ordre[1] == devoir.id
 
 
 def test_un_item_archive_ne_declenche_rien(client_db) -> None:
