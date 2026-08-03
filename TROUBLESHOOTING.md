@@ -81,12 +81,40 @@ l'indicateur pouvait naître et mourir **entre deux sondages**, donc n'apparaît
 4 s — `GET /runs/active` est une requête indexée qui rend un état, pas l'agrégat par page qui avait
 tué le sondage d'en-tête le 2026-08-02.
 
+### 🔴 Le réveil périodique se duplique à chaque redémarrage du worker
+
+Deux mécanismes justes séparément, faux ensemble :
+
+- `production_worker.py` **amorce** `scan_triggers` au démarrage (sans quoi une file vide ne se
+  remplirait jamais) ;
+- `jobs.scan_triggers` **se replanifie lui-même** en `finally` (sans quoi un scan qui échoue
+  arrêterait le dispositif définitivement et en silence).
+
+Résultat : **chaque redémarrage ajoute une récurrence permanente**. Constaté en vrai le 2026-08-03 —
+`ScheduledJobRegistry` contenait **4 `scan_triggers`** après quatre démarrages dans la journée,
+chacun à +180 min de son propre lancement.
+
+⚠️ **Pas dangereux** : l'idempotence (`run_exists_for`) et les quotas empêchent la double
+production. Mais c'est une **croissance non bornée** de la cadence, et en production un worker
+redémarre (déploiement, crash, OOM).
+
+**Correctif minimal** : `queue.enqueue(scan_triggers, job_id="production:scan")` — RQ refuse alors
+un doublon, l'amorçage devient idempotent.
+
+⚠️ **Piège de lecture** : `ScheduledJobRegistry.get_scheduled_time()` rend de l'**UTC**, les logs RQ
+du **local**. Un écart de 2 h fait croire à un mauvais intervalle alors qu'il est juste.
+
 ### Des jobs RQ survivent aux lots qu'ils référencent
 
 Cinq jobs `run_production` attendaient dans Redis en pointant un `production_run` **supprimé** au
 nettoyage du chantier précédent. Un worker relancé les aurait exécutés et fait échouer en série.
 
 > **Nettoyer un lot de test, c'est aussi vider sa file.** Redis n'a aucune clé étrangère.
+
+⚠️ **Et vider `queue.jobs` ne suffit pas** : un job en échec part au `FailedJobRegistry`, d'où le
+nettoyage de registres au démarrage du worker peut le ramener. Deux fantômes sont ainsi réapparus
+le 2026-08-03 après une première purge. Balayer **les trois registres** (`Failed`, `Scheduled`,
+`Deferred`) en plus de la file.
 
 ### `redis-cli` absent ne veut pas dire Redis éteint
 

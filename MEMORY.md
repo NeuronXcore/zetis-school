@@ -135,11 +135,34 @@ Puis **la clôture** (hash non écrit, cf. ci-dessus) : cette mémoire, sept pi�
 - **L'écran** : barre « En file d'attente… » → « Génération du quiz… 30 % », en-tête « ZETIS
   produit un quiz · 20 % », modale de fin centrée qui **s'efface seule**.
 
-⚠️ **Tout est resté aux défauts en dev** : régime *Semi-autonome*, **déclencheur désarmé**, aucun
-lot actif, worker arrêté. Les 10 demandes-fixtures inventées pour le test ont été supprimées ; les
-**3 demandes réelles sont intactes**. **Le contenu produit a été CONSERVÉ** (2 fiches, 1 mindmap,
-1 quiz, 3 cartes) : ce sont de vraies pièces sur de vraies leçons, relisables et **rétractables
-depuis le Journal** — le veto est exactement la surface pour ça.
+### 🔴 LE DISPOSITIF EST ARMÉ EN DEV — décision de Papa du 2026-08-03
+
+**Contrairement aux cinq chantiers précédents, l'état de dev n'a PAS été remis aux défauts.**
+
+| Réglage | Valeur |
+|---|---|
+| Régime | ***Autonome*** (A0a = 3, **A1 = 3**) |
+| Déclencheur `zetis_auto_trigger_enabled` | **`true`** |
+| Gate du cours | **tombé** — ZETIS a le droit d'écrire un cours |
+
+⚠️ **Conséquence à connaître avant de toucher quoi que ce soit** : une `content_request` en attente
+sur une notion équipable **fera écrire le contenu et le servira à Massimo sans relecture**, dès le
+prochain réveil du scan (toutes les 3 h) **si un worker tourne**. Sans worker, rien ne se réveille.
+
+**Le chemin automatique complet a été prouvé** (`worker → scheduler RQ → jobs.scan_triggers →
+scan_requests → create_run → enqueue_production → runner.execute`) : deux lots `request` /
+`parent_rule` sont nés **sans qu'aucun humain clique**, ont écrit deux cours (27 s et 15 s, 4 365 et
+3 664 caractères), les ont validés `parent_rule` — **la première fois qu'un contenu tamponné
+« aucun humain ne l'a ouvert ni cliqué pour lui » atteint Massimo** — et les deux demandes se sont
+refermées seules. Les deux cours sont **encore rétractables** (`veto.preview_removal` →
+`removable: True`, aucune consommation).
+
+> **Pour désarmer** : `/parametres` → régime *Semi-autonome* et interrupteur du déclencheur.
+> En base : `zetis_autonomy_a1_course = 2` et `zetis_auto_trigger_enabled = false`.
+
+Les 10 demandes-fixtures inventées pour les tests ont été supprimées. **Le contenu produit a été
+CONSERVÉ** (2 cours, 2 fiches, 1 mindmap, 1 quiz, 3 cartes) : ce sont de vraies pièces sur de vraies
+leçons, relisables et **rétractables depuis le Journal**.
 
 ### ▶ PROCHAIN PAS
 
@@ -153,6 +176,16 @@ depuis le Journal** — le veto est exactement la surface pour ça.
 
 ### ▶ DETTES OUVERTES, nommées à la livraison
 
+- 🔴 **Le réveil périodique se DUPLIQUE à chaque redémarrage du worker.** `production_worker.py`
+  amorce `scan_triggers` au démarrage, et `jobs.scan_triggers` se replanifie lui-même en `finally`.
+  Les deux sont justes séparément ; ensemble, **chaque redémarrage ajoute une récurrence
+  permanente**. Constaté en vrai le 2026-08-03 : **4 réveils planifiés** après 4 démarrages dans la
+  journée, tous à +180 min de leur propre lancement. Bénin en dev, **pas en production** — un
+  worker qui redémarre (déploiement, crash, OOM) multiplie la cadence du scan indéfiniment.
+  ⚠️ **Pas dangereux** (l'idempotence `run_exists_for` et les quotas tiennent), mais c'est une
+  croissance non bornée. Dette de l'**ADR-0035**, pas de l'ADR-0036.
+  **Correctif minimal** : donner au job un `job_id` fixe (`queue.enqueue(scan_triggers,
+  job_id="production:scan")`), ce qui rend l'amorçage **idempotent** — RQ refuse alors un doublon.
 - ⚠️ **Deux règles pour « la leçon d'une notion »** (défaut n°2 ci-dessus). Pré-existant, mais une
   demande sur une notion à deux leçons peut rester insatisfaite alors que le contenu est servable.
   **Condition d'ouverture : la première fois que Papa ne comprend pas pourquoi ZETIS refuse.**
