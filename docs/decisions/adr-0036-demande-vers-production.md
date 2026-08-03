@@ -105,23 +105,50 @@ appelle déjà.
 
 **Une migration**, pour ces deux colonnes.
 
-### 3. La capsule devient productible — SUR DEMANDE, jamais dans le kit
+### 3. La capsule reste MANUELLE — et l'écran le dit
 
-`capsule` cesse d'être un type qu'on peut réclamer sans que rien ne puisse le satisfaire.
+> ⚠️ **CETTE SECTION A ÉTÉ CORRIGÉE LE JOUR MÊME, au read-before-code de sa propre slice.** Elle
+> annonçait *« la capsule devient productible sur demande »*. **L'hypothèse était fausse**, et il
+> faut dire laquelle : elle supposait un générateur symétrique des cinq autres.
 
-⚠️ **Elle n'entre PAS dans `equip_notion`**, et ce refus est le cœur de la décision :
+**Ce que le code dit vraiment :**
+
+```txt
+create_capsule(db, llm, subject_id, instruction: str, level=None,
+               skill_id=None, chapter_id=None, visual=, duration=, difficulty=)
+```
+
+`create_capsule` prend une **`instruction` en texte libre** — la consigne pédagogique que Papa écrit
+lui-même (« explique les fractions comme à un enfant de 10 ans »). `skill_id` y est **optionnel**,
+il n'y a **pas d'embedder**, et la capsule naît `pending`/`draft` : le rendu vidéo est un **second
+geste**. Les cinq autres générateurs prennent un `lesson_id` ou un `skill_id` et rien d'autre.
+
+Or une demande de Massimo porte `(skill_id, content_kind)` et **rien d'autre**.
+
+> **Produire une capsule automatiquement supposerait donc d'inventer l'instruction à la place de
+> Papa. Et pour une capsule, l'instruction EST l'intention pédagogique** — pas un paramètre
+> technique. Une consigne dérivée mécaniquement (« Explique {notion} ») donnerait une capsule
+> plate, que personne n'aurait relue avant un rendu vidéo de plusieurs minutes.
+
+**Décision : les cinq autres types se produisent automatiquement ; `capsule` reste un geste de
+Papa**, et la page Demandes **l'affiche** au lieu d'offrir un bouton qui échouerait — *« une
+commande qui ne fait rien est un piège »*, doctrine tenue depuis la page Paramètres.
+
+**Ce qui ne change pas** : `capsule` reste un type **demandable**. On ne retire pas à Massimo le
+droit de réclamer une explication parce que l'outil ne sait pas encore la fabriquer seul.
+
+**Ce qui reste vrai de la version d'origine** : la capsule n'entre pas dans `equip_notion` — et
+maintenant pour deux raisons cumulées.
 
 - l'addendum ADR-0031 **interdit de toucher l'orchestrateur** — le faire régresserait le Conseil de
   classe (ADR-0021) et la composition champion (ADR-0022), qui l'appellent ;
-- une capsule coûte un **rendu vidéo de plusieurs minutes** (`worker-media`, Remotion), sans commune
-  mesure avec une fiche. Un lot de chapitre de 11 notions rendrait **11 vidéos** ;
-- et personne ne les aurait demandées.
+- une capsule coûte un **rendu vidéo de plusieurs minutes** (`worker-media`, Remotion) : un lot de
+  chapitre de 11 notions rendrait **11 vidéos** que personne n'aurait demandées.
 
-Une capsule ne se produit donc que **quand Massimo l'a réclamée**, par le chemin par type.
-
-> ⚠️ **Conséquence à écrire** : le rendu est **asynchrone** (file `render`, worker séparé). Un lot
-> de capsule est donc « fini » avant que la vidéo existe. Le Journal doit le dire, et
-> l'auto-fermeture du §4 doit attendre la **disponibilité réelle**, pas la fin du lot.
+> **Condition de réouverture, nommée pour qu'on la reconnaisse** : le jour où une demande portera
+> l'intention de Massimo (« je ne comprends pas *pourquoi* on renverse la fraction »), la capsule
+> deviendra productible automatiquement — **et ce jour-là, c'est le §6 qu'il faudra réviser**,
+> puisqu'il interdit toute surface nouvelle côté Massimo.
 
 ### 4. L'auto-fermeture — le gate est la DISPONIBILITÉ, jamais le statut
 
@@ -170,7 +197,7 @@ coûte deux ordres de grandeur de moins qu'un chapitre. À réviser **avec l'obs
 ## Périmètre
 
 **Dans cet ADR** : la double condition d'émission ; les deux colonnes de scope + la branche de
-`runner.execute` ; la capsule productible sur demande ; l'auto-fermeture sur disponibilité ; le
+`runner.execute` ; **le refus explicite et DIT pour la capsule** (§3, corrigé) ; l'auto-fermeture sur disponibilité ; le
 quota distinct ; le bouton « Produire » dans la page Demandes **pour le régime manuel** (il manque
 aujourd'hui — Papa n'a qu'un lien sortant). **Une migration.**
 
@@ -204,8 +231,8 @@ aujourd'hui — Papa n'a qu'un lien sortant). **Une migration.**
   la porte se referme (le régime, pas le code).
 - ⚠️ **Une décision écrite est révoquée** — « la production reste un geste de Papa ». Elle reste
   vraie hors du régime *Autonome*, mais elle n'est plus universelle.
-- ⚠️ **Le rendu d'une capsule est asynchrone** : le lot finit avant la vidéo. Le Journal et
-  l'auto-fermeture doivent le supporter, sinon ils mentiront tous les deux.
+- ⚠️ **Une demande sur cinq types reçoit une réponse automatique, la sixième non.** L'asymétrie
+  est assumée et DITE à l'écran ; elle serait invisible et incompréhensible si elle ne l'était pas.
 - **Trois régulateurs à comprendre** au lieu de deux. Le tableau du §5 existe pour ça.
 - **Une migration**, après deux chantiers qui n'en demandaient aucune.
 
