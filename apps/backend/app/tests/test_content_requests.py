@@ -654,3 +654,84 @@ def test_une_demande_de_capsule_ne_se_ferme_pas_sur_une_fiche(client_db) -> None
         assert service.close_available_requests(db) == []
         db.refresh(req)
         assert req.status == "pending"
+
+
+# --- Le bouton « Produire » (ADR-0036 §3 et §6) ------------------------------------------------
+
+
+def test_produire_cree_un_lot_piece_manuel(client_db) -> None:
+    """⚠️ `trigger='manual'`, pas `'request'` : c'est Papa qui clique.
+
+    Conséquence assumée : le lot ne porte **aucun** `content_request_id` — la contrainte l'interdit
+    pour `manual`, à juste titre. La demande n'est pas perdue de vue : c'est la DISPONIBILITÉ qui
+    la referme (§4), pas un lien vers le lot.
+    """
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        req = _pending(db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="fiche")
+        req_id = req.id
+
+    _as_papa()
+    resp = client.post(f"/api/production/runs/from-request?request_id={req_id}")
+    assert resp.status_code == 202, resp.text
+
+    with Session() as db:
+        run = db.get(m.ProductionRun, resp.json()["id"])
+        assert (run.trigger, run.authorized_by) == ("manual", "parent_direct")
+        assert (run.scope_skill_id, run.scope_kind) == (ids["mitose_id"], "fiche")
+        assert run.chapter_id is None
+        assert run.content_request_id is None
+
+
+def test_produire_traduit_le_vocabulaire_de_la_demande(client_db) -> None:
+    """`card` (langue de Massimo) → `srs` (langue des tables). La traduction est SERVEUR."""
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        req_id = _pending(
+            db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="card"
+        ).id
+
+    _as_papa()
+    resp = client.post(f"/api/production/runs/from-request?request_id={req_id}")
+    assert resp.status_code == 202
+    assert resp.json()["scope_kind"] == "srs"
+
+
+def test_produire_refuse_une_capsule_et_le_dit(client_db) -> None:
+    """⚠️ Constat de code (ADR-0036 §3) : `create_capsule` exige une INSTRUCTION en texte libre.
+
+    L'écran n'offre pas ce bouton — mais une route qui compte sur son client pour se protéger
+    n'est pas protégée. Et surtout : **aucun lot n'est créé**, sinon il échouerait en boucle.
+    """
+    client, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        req_id = _pending(
+            db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="capsule"
+        ).id
+
+    _as_papa()
+    resp = client.post(f"/api/production/runs/from-request?request_id={req_id}")
+    assert resp.status_code == 422
+    assert "capsule" in resp.json()["detail"]
+
+    with Session() as db:
+        assert db.query(m.ProductionRun).all() == []
+
+
+def test_la_demande_dit_elle_meme_si_elle_est_productible(client_db) -> None:
+    """Le front ne détient AUCUNE liste de types productibles — patron des paliers d'autonomie.
+
+    La dupliquer en TypeScript la ferait diverger au premier générateur ajouté, et l'écran
+    offrirait un bouton qui échoue.
+    """
+    _, Session = client_db
+    ids = _seed_svt(Session)
+    with Session() as db:
+        _pending(db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="fiche")
+        _pending(db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="capsule")
+        par_type = {r["content_kind"]: r["producible"] for r in service.list_requests(db)}
+
+    assert par_type == {"fiche": True, "capsule": False}

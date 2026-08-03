@@ -18,6 +18,12 @@ vi.mock("../lib/notionRequests", async (importOriginal) => ({
 }));
 import { fetchNotionRequests, resolveNotionRequest } from "../lib/notionRequests";
 
+vi.mock("../lib/production", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/production")>()),
+  produceForRequest: vi.fn(),
+}));
+import { produceForRequest } from "../lib/production";
+
 // La modale charge l'année active/les chapitres — stubée (elle n'est pas le sujet de ces tests).
 // ⚠️ Elle expose quand même `onDone` : c'est par là que remonte le verdict serveur `needs_lesson`,
 // et une modale stubée muette rendrait ce chemin intestable.
@@ -47,6 +53,7 @@ const REQ: ContentRequest = {
   status: "pending",
   source: "chat_orchestrator",
   created_at: "2026-07-30T10:00:00Z",
+  producible: true,
 };
 
 function renderPage() {
@@ -134,6 +141,50 @@ describe("DemandesPage", () => {
       "href",
       "/programme",
     );
+  });
+
+  // --- « Produire » et le refus DIT de la capsule (ADR-0036 §3 et §6) -------------------------
+
+  it("« Produire » lance la production et NE retire PAS la ligne", async () => {
+    // ⚠️ Le cœur du test est la seconde assertion. Retirer la ligne rejouerait exactement le
+    // mensonge que le §4 tue : rien n'est fermé tant que le contenu n'est pas SERVABLE, et le
+    // worker n'a même pas commencé. La demande disparaîtra d'elle-même, plus tard, sur un fait.
+    vi.mocked(fetchContentRequests).mockResolvedValue([REQ]);
+    vi.mocked(produceForRequest).mockResolvedValue({} as never);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Produire" }));
+    expect(produceForRequest).toHaveBeenCalledWith(5);
+
+    expect(await screen.findByRole("button", { name: "En production…" })).toBeDisabled();
+    expect(screen.getByText("Figure de style")).toBeTruthy();
+    expect(screen.queryByText(/Aucune demande en attente/)).toBeNull();
+  });
+
+  it("une capsule n'offre pas « Produire » — elle dit où l'écrire", async () => {
+    // ⚠️ `producible` vient du SERVEUR : le front ne déduit pas la liste des générateurs du type.
+    // Et c'est un CONSTAT avec son geste à côté, pas un bouton grisé qui désigne un cul-de-sac.
+    vi.mocked(fetchContentRequests).mockResolvedValue([
+      { ...REQ, content_kind: "capsule", producible: false },
+    ]);
+    renderPage();
+
+    expect(await screen.findByText("Figure de style")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Produire" })).toBeNull();
+    expect(screen.getByRole("link", { name: /À écrire toi-même/ })).toHaveAttribute(
+      "href",
+      "/capsules",
+    );
+  });
+
+  it("un lancement en échec le dit et réarme le bouton", async () => {
+    vi.mocked(fetchContentRequests).mockResolvedValue([REQ]);
+    vi.mocked(produceForRequest).mockRejectedValue(new Error("Ollama est éteint"));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Produire" }));
+    expect(await screen.findByText("Ollama est éteint")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Produire" })).not.toBeDisabled();
   });
 
   it("ne crie pas au loup quand une leçon porte déjà la notion", async () => {

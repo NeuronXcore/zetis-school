@@ -20,6 +20,7 @@ import {
   type NotionRequest,
 } from "../lib/notionRequests";
 import { NotionRequestActionModal } from "../components/demandes/NotionRequestActionModal";
+import { produceForRequest } from "../lib/production";
 
 export function DemandesPage() {
   const [content, setContent] = useState<ContentRequest[]>([]);
@@ -60,6 +61,23 @@ export function DemandesPage() {
       await reload();
     }
   }, [reload]);
+
+  // Demandes dont la production vient d'être lancée. ⚠️ **La ligne ne disparaît PAS** : rien
+  // n'est encore fermé. C'est la DISPONIBILITÉ du contenu qui refermera la demande (ADR-0036 §4),
+  // au prochain chargement. La retirer d'ici rejouerait le mensonge que le §4 tue — « c'est fait »
+  // alors que le worker n'a pas commencé.
+  const [launched, setLaunched] = useState<number[]>([]);
+
+  const produce = useCallback(async (id: number) => {
+    setError(null);
+    setLaunched((cur) => [...cur, id]);
+    try {
+      await produceForRequest(id);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Lancement de la production échoué");
+      setLaunched((cur) => cur.filter((x) => x !== id));
+    }
+  }, []);
 
   const dismissNotion = useCallback(async (id: number) => {
     setNotions((cur) => cur.filter((r) => r.id !== id));
@@ -179,7 +197,8 @@ export function DemandesPage() {
             <section>
               <h2 className="mb-1 text-sm font-bold">🗒️ Contenu à créer</h2>
               <p className="mb-3 text-[12px] text-papa-muted">
-                Notions déjà au programme dont un contenu manque. Produis-le dans la Couverture.
+                Notions déjà au programme dont un contenu manque. ZETIS peut le produire d'ici — la
+                demande se refermera d'elle-même quand le contenu sera réellement consultable.
               </p>
               <div className="space-y-4">
                 {contentBySubject.map(([subjectName, group]) => (
@@ -207,10 +226,35 @@ export function DemandesPage() {
                               {" "}— {CONTENT_KIND_LABEL[req.content_kind] ?? req.content_kind}
                             </span>
                           </span>
+                          {/* ⚠️ `producible` est un verdict SERVEUR, jamais déduit du type ici :
+                              la table des générateurs vit en un seul endroit (ADR-0036 §3). */}
+                          {req.producible ? (
+                            <button
+                              type="button"
+                              disabled={launched.includes(req.id)}
+                              onClick={() => void produce(req.id)}
+                              className="shrink-0 rounded-lg bg-papa-accent px-3 py-1 text-xs font-semibold text-papa-bg transition-opacity hover:opacity-90 disabled:opacity-50"
+                              title="ZETIS produit ce contenu maintenant"
+                            >
+                              {launched.includes(req.id) ? "En production…" : "Produire"}
+                            </button>
+                          ) : (
+                            /* ⚠️ Un CONSTAT, pas un bouton grisé : une capsule a besoin de ton
+                               intention pédagogique en toutes lettres, que la demande ne porte
+                               pas. Le geste qui répare est à côté du constat. */
+                            <Link
+                              to="/capsules"
+                              className="shrink-0 rounded-lg border border-papa-border px-3 py-1 text-xs font-semibold text-papa-muted hover:bg-papa-surface-2 hover:text-papa-text"
+                              title="Une capsule a besoin de ta consigne — ZETIS ne la devine pas"
+                            >
+                              À écrire toi-même →
+                            </Link>
+                          )}
                           <button
                             type="button"
                             onClick={() => void triageContent(req.id, "done")}
-                            className="shrink-0 rounded-lg bg-papa-accent px-3 py-1 text-xs font-semibold text-papa-bg transition-opacity hover:opacity-90"
+                            className="shrink-0 rounded-lg border border-papa-border px-3 py-1 text-xs font-semibold text-papa-text hover:bg-papa-surface-2"
+                            title="Marquer comme traitée sans production"
                           >
                             Fait
                           </button>

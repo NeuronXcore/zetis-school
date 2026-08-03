@@ -117,6 +117,22 @@ export async function startChapterProduction(chapterId: number): Promise<Product
   );
 }
 
+/** Produit la pièce qu'une demande de Massimo réclame — sur un clic de Papa (ADR-0036 §6).
+ *
+ *  ⚠️ On envoie l'**id de la demande**, pas `(skill_id, kind)`. La traduction du vocabulaire
+ *  (`card` → `srs`) et le refus des types non productibles (`capsule`) vivent côté serveur, en un
+ *  seul endroit. Les recopier ici les ferait diverger au premier générateur ajouté.
+ *
+ *  202 : le lot est accepté, pas exécuté. L'indicateur d'en-tête suit la suite. */
+export async function produceForRequest(requestId: number): Promise<ProductionRun> {
+  return asJson(
+    await fetch(`${API}/runs/from-request?request_id=${requestId}`, {
+      method: "POST",
+      headers: authHeader(),
+    }),
+  );
+}
+
 /** État d'un lot — pour le suivi pendant l'exécution. */
 export async function fetchProductionRun(runId: number): Promise<ProductionRun> {
   return asJson(await fetch(`${API}/runs/${runId}`, { headers: authHeader() }));

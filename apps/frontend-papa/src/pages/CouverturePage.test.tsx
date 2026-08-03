@@ -481,6 +481,7 @@ describe("CouverturePage — badge « réclamé par Massimo » (addendum ADR-002
         status: "pending",
         source: "chat_orchestrator",
         created_at: "2026-07-30T10:00:00Z",
+        producible: true,
       },
     ]);
     renderPage();
@@ -501,6 +502,7 @@ describe("CouverturePage — badge « réclamé par Massimo » (addendum ADR-002
         status: "pending",
         source: "chat_orchestrator",
         created_at: "2026-07-30T10:00:00Z",
+        producible: true,
       },
     ]);
     vi.mocked(setContentRequestStatus).mockResolvedValue({} as never);

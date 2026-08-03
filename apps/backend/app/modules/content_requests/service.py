@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.models import ContentRequest, Skill, Subject
+from app.db.models.production import REQUEST_KIND_TO_PIECE
 
 # Vocabulaire fermé, aligné sur les surfaces de contenu de ZETIS. Le chat n'émet que
 # cours/fiche/mindmap/card en v1 (ADR-0027 §Périmètre) ; les six sont acceptés pour absorber
@@ -64,6 +65,11 @@ def _out(
         "status": req.status,
         "source": req.source,
         "created_at": req.created_at,
+        # ⚠️ **Le verdict est SERVEUR** (ADR-0036 §3). Le front ne détient aucune liste de types
+        # productibles — patron des paliers d'autonomie (« l'interface ne fait que rendre lisible
+        # ce que le serveur refuse déjà »). Dupliquer la table en TypeScript la ferait diverger au
+        # premier générateur ajouté, et l'écran offrirait un bouton qui échoue.
+        "producible": req.content_kind in REQUEST_KIND_TO_PIECE,
     }
 
 

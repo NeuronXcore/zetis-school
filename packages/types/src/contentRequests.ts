@@ -23,6 +23,15 @@ export interface ContentRequest {
    *  sépare le SUBI du CHOISI, et c'est ce qui donne sa valeur de priorité à la file de Papa. */
   source: string;
   created_at: string;
+  /** ZETIS sait-il produire ce type tout seul ? (ADR-0036 §3)
+   *
+   *  `false` pour `capsule`, dont le générateur exige une **instruction en texte libre** —
+   *  l'intention pédagogique de Papa — qu'une demande `(skill_id, content_kind)` ne porte pas.
+   *
+   *  ⚠️ **Verdict SERVEUR, jamais déduit ici.** Le front ne détient aucune liste de types
+   *  productibles : la dupliquer la ferait diverger au premier générateur ajouté, et l'écran
+   *  offrirait un bouton qui échoue. Même patron que `choices` / `locked` des paliers. */
+  producible: boolean;
 }
 
 /** `POST /api/student/content-requests` (addendum ADR-0027) — corps de la demande de Massimo.
