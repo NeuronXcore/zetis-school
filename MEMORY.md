@@ -21,8 +21,10 @@ d'une demande faite en regardant le premier.
 | Migration · backend | **AUCUNE**, ni l'une ni l'autre. Tout est frontend + doc |
 | ADR | `docs/decisions/adr-0029-addendum-galaxie-dans-le-bandeau.md` (sur la branche galaxie) |
 
-⚠️ **La ligne de cet addendum dans `DECISIONS.md` reste À POSER, sur `main`** — jamais sur une
-branche, c'est la règle de l'ouverture (deux branches qui l'éditent = conflit garanti).
+✅ **Sa ligne dans `DECISIONS.md` est posée, sur `main`** — jamais sur une branche, c'est la règle
+de l'ouverture (deux branches qui l'éditent = conflit garanti). Le fichier ADR lui-même vit sur la
+branche galaxie et arrivera avec le merge de #79 : l'index précède donc le document qu'il indexe,
+et c'est normal.
 
 ⚠️ **Les deux PR ne se croisent pas** : Papa ne touche que `apps/frontend-papa/`, la galaxie que
 `apps/frontend-massimo/` + `docs/`. L'ordre de merge est indifférent.
@@ -99,9 +101,11 @@ appels lourds désormais demandés par deux surfaces.
    le canvas**. À juger : la vitesse de rotation (72 s le tour), le remplissage (~65 % de la
    largeur), la lisibilité du bloc avatar par-dessus.
 2. **Merger #78 et #79**, dans n'importe quel ordre.
-3. **Poser la ligne de l'addendum ADR-0029 dans `DECISIONS.md`, sur `main`.**
-4. Revenir faire l'étape **4bis** (`WORKFLOW.md §5`) : squash, branches supprimées, « rien à
+3. Revenir faire l'étape **4bis** (`WORKFLOW.md §5`) : squash, branches supprimées, « rien à
    pousser ».
+
+> La ligne de l'addendum dans `DECISIONS.md` est **déjà posée** sur `main` — plus rien à faire de
+> ce côté.
 
 ### ▶ DETTES OUVERTES
 

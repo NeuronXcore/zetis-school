@@ -395,6 +395,68 @@
     tient, l'Accueil reste à zéro Three.js au premier paint. Zéro backend, zéro table, zéro
     migration, zéro requête — Accepté (2026-07-31)
 
+- `docs/decisions/adr-0029-addendum-galaxie-dans-le-bandeau.md` — **La galaxie dans le bandeau : le
+    chrome cesse de décorer pour rien** — addendum à l'`adr-0029` : il **étend le §6** (« aucune
+    animation ne démarre sur une surface que Massimo n'a pas ouverte pour elle ») à une surface
+    qu'il n'avait pas envisagée, le **chrome de l'application**, et **transpose en 2D** la
+    construction qui n'existait qu'en 3D. Motif : le header global portait 22 cubes CSS et 8 liens
+    SVG tirés d'un PRNG — joli, sans rapport avec Massimo, et **78 animations infinies** dont une
+    sur `filter` (non composable), soit ~38 éléments repeints à chaque image sur les **21 routes**,
+    en permanence. ⚠️ **UN TROU DE BUDGET DE BUNDLE, TROUVÉ ET DÉMONTRÉ** : `accueil.bundle.test.ts`
+    et `matiere.bundle.test.ts` partent d'une **page**, donc `MassimoLayout` et
+    `MassimoBannerHeader` ne sont dans aucun des deux graphes d'imports — sabotage joué, un
+    `import("@zetis/ui/galaxy/canvas")` dans le header laisse **les deux suites 12/12 vertes** tout
+    en chargeant 1,37 Mo sur les 21 routes, y compris `/subjects/:slug` dont le budget est écrit
+    ZÉRO ; fermé par `layout.bundle.test.ts` (chrome, budget zéro) et `app.bundle.test.ts` (entrée
+    `App.tsx`, **liste épinglée** des points de montage). **Décisions** : rendu **2D maison**, le
+    bandeau consomme de `@zetis/ui/galaxy` ce qui est pur (`revealSchedule`, `easeOutCubic`,
+    `starStyle`, les couleurs) et n'importe **jamais** le canvas 3D ni `three` — la doctrine
+    « aucun chunk 3D pour un décor » devient une règle **vérifiée** ; la pose est en coordonnées de
+    **PLAN** (`u`, `v`, `lift`), l'écran s'obtenant en **tournant** puis en écrasant la profondeur
+    (`FLATTEN=0,035`), car `radialTreeLayout` est inutilisable ici (±312 px dans une bande à 12,5:1
+    → soit un carré de 84 px derrière l'emblème, soit des chapitres écrasés sur 5 px) ; **le cœur se
+    pose au centre exact de l'emblème et n'en bouge à aucun angle** — la galaxie SORT du logo et
+    tourne autour de lui ; ⚠️ **les matières sont réparties sur tout le tour** (angle d'or) — une
+    première version les alternait à gauche et à droite, elles se retrouvaient toutes à l'angle 0 ou
+    π et **la galaxie se repliait sur l'emblème à chaque demi-tour** ; ⚠️ **arbitrage mesuré et
+    contradictoire** : donner les grands rayons aux matières les plus alignées avec la bande porte
+    le remplissage de 65 % à 90 % **à l'arrêt** mais fait s'effondrer la silhouette à **52 %** en
+    tournant — la rotation l'emporte, le bandeau passe sa vie à tourner et six secondes à se
+    construire. **Tout le ciel est dessiné** (§2bis), les notions à découvrir en veilleuse
+    (`unknown`, « À découvrir ») : mesuré à l'écran, le graphe réel fait **202 nœuds pour 47 notions
+    datées**, n'en dessiner que 47 laissait la bande **vide à 77 %** — le plan se protégeait d'une
+    « bouillie » à 350 nœuds, le problème réel était **l'inverse**. **On comprime le TEMPS, jamais le
+    nombre d'étoiles** (`HEADER_TOTAL=7000`, addendum `adr-0024` §1 « Jamais un plafond de nœuds
+    déguisé ») — ce qui se règle sur la densité est la **traînée** de naissance, c'est-à-dire les
+    particules ; ⚠️ le budget de particules se mesure sur le **pic** et non la moyenne, les ancêtres
+    naissant en grappe (34 étoiles en vol pour un budget de 32, constaté puis corrigé par un calcul
+    exact). ⚠️ **À la fin ça ne se fige pas, ça TOURNE** (§4bis, qui **révise ce que ce même addendum
+    disait le matin**) : le gel donnait un bandeau mort, et l'addendum « Construction depuis root »
+    §5 disait déjà l'inverse pour le rejeu ; un tour en 72 s, 24 étoiles qui scintillent,
+    profondeur lisible (devant plus vif que derrière). **Prix explicite et écrit** : dès que tout
+    tourne, le calque posé ne sert plus et **le coût par image redevient proportionnel à N**
+    (~202 blits de sprite à 19 im/s mesurées) — il reste indépendant de N pendant la
+    **construction**, et le calque est libéré au passage (~2 Mo) ; le test qui promettait un coût
+    borné a été **réécrit pour dire vrai**, pas relâché. ⚠️ `ctx.shadowBlur` et `ctx.filter`
+    **interdits dans la boucle** (c'est `hfx-twinkle` réinventé) — la lueur vient de sprites
+    pré-rendus, test-verrou. ⚠️ **Le verrou « déjà joué » se pose à la FIN de la construction** :
+    posé au début, `StrictMode` (monte-démonte-remonte) tue l'animation en mode dev. **Tension avec
+    le §6 tranchée** : il visait l'animation subie et permanente sur une page d'atterrissage — la
+    surface que Massimo ouvre ici n'est ni `/chat` ni `/subjects/:slug`, c'est **l'application**,
+    dont ce bandeau est la porte d'entrée ; une construction par chargement de page, jamais rejouée
+    d'une route à l'autre (vérifié : une navigation SPA laisse le témoin sur `alive`), onglet caché
+    → pas de construction, `prefers-reduced-motion` → `requestAnimationFrame` **jamais appelé**.
+    Réseau : `lib/galaxyShared.ts` déduplique **les requêtes en vol** (fenêtre 5 s) — ⚠️ **pas un
+    cache de session** (une fenêtre longue figerait le graphe et cacherait à Massimo l'étoile qu'il
+    vient d'allumer), et ⚠️ **le jeton fait partie de la clé pour la confidentialité**, `logout()`
+    démontant le layout mais pas le module. **Conséquence hors périmètre** : le header Massimo a
+    enfin des tests, et son absence n'était pas un oubli — `NeuralLinks` construisait un
+    `ResizeObserver` que jsdom n'implémente pas et que `test/setup.ts` ne polyfille pas, donc le
+    monter jetait `ReferenceError`. **Zéro backend, zéro table, zéro migration.** ⚠️ **Dette
+    ouverte, et elle est le point bloquant** : **rien n'a été jugé à l'œil sur un vrai appareil** —
+    tout ce qui est affirmé sur le rendu est mesuré dans le canvas ; `IN_FLIGHT_BUDGET`,
+    `ROTATION_PERIOD` et `FLATTEN` n'ont pas vu le profileur — Accepté (2026-08-04)
+
 - `docs/decisions/adr-0024-addendum-galaxie-sur-accueil.md` — **La galaxie revient sur l'Accueil :
     la vie vaut son prix** — **quatrième** addendum à l'`adr-0024` dans la même journée, et il
     **RÉVOQUE le §B** du premier, écrit le matin même. Motif **produit, pas technique** : voir la
