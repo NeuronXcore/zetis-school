@@ -4,6 +4,82 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/etat-zetis-sidebar` → `refactor/vocabulaire-niveau-palier` — 2026-08-04
+
+### 🔴 Un renommage de clé JSON ne peut PAS être vu par les tests unitaires
+
+Le plus coûteux des cinq, et le plus contre-intuitif. `preset` → `niveau` a été renommé côté
+serveur **et** côté front. À aucun moment les **805 tests backend + 377 front** n'auraient pu voir
+une rupture : le backend se teste contre lui-même, le front **mocke** `fetchAutonomy`. Renommez
+d'un seul côté, tout reste vert — et l'écran retombe silencieusement sur « Sur mesure », un régime
+**faux**, sans la moindre erreur.
+
+**Parade posée** : `packages/types/contracts/autonomy.example.json`, une réponse **capturée** du
+serveur réel, relue par deux tests qui n'ont que ce fichier en commun — côté back « la réponse a
+exactement ces clés », côté front « les composants **rendent** à partir de ce fichier, **sans
+mock** ». Trois contre-épreuves jouées. ⚠️ Le fichier se **capture** ; écrit à la main ce n'est
+qu'un mock de plus. Et seules les **clés** engagent : figer des valeurs le rendrait rouge au premier
+réglage changé en base de dev.
+
+⚠️ **Piège dans le piège** : renommer la clé dans `router.py` seul **ne change rien** à la réponse.
+Pydantic filtre sur les champs du `response_model` — la clé inconnue est **jetée**, l'ancienne
+repasse à `None`. La mutation qui prouve le test doit toucher **`schemas.py`**.
+
+### Un verrou anti-sondage qui ne pouvait pas mordre
+
+`vi.useFakeTimers()` posé **après** `renderHook` ne contrôle **que** les minuteurs créés ensuite.
+Le test « 60 s de timers avancés → un seul appel » passait au vert **avec** un `setInterval(load,
+15000)` ajouté exprès dans le hook. Parade : installer les faux timers **avant** le rendu, attendre
+la promesse par `await act(async () => { await Promise.resolve() })`, puis
+`advanceTimersByTimeAsync`. ⚠️ Ce patron est **copié de `useNewsSummary` (ADR-0030) dans tout le
+dépôt** — les autres copies sont probablement aussi creuses.
+
+### `onMouseLeave` cesse de se déclencher si l'infobulle est FILLE de l'élément survolé
+
+L'infobulle restait ouverte indéfiniment. Son apparition ajoutait un nœud **dans le sous-arbre
+survolé**, et React cessait d'émettre le `leave`. **Trouvé à l'écran, aucun test ne le voyait.**
+Parade : écouter le survol sur un **conteneur** dont l'arbre ne bouge pas, l'infobulle étant sa
+sœur du lien. Un verrou le tient désormais.
+
+### Une infobulle en `absolute` est coupée par le `overflow-hidden` de la sidebar
+
+La colonne **et** son conteneur clippent leur contenu — c'est ce qui permet à la nav de défiler
+seule. Toute surface qui déborde doit être en `position: fixed`, avec sa position mesurée sur
+l'ancre au survol.
+
+### `role="group"` homonyme : quatre tests tombés d'un coup
+
+`NiveauDetail` a repris le `role="group" aria-label={cls.label}` de `ClassRow`, à quelques centaines
+de pixels. **Deux groupes du même nom** rendent les lignes indiscernables pour un lecteur d'écran
+comme pour `getByRole`. Parade : `list`/`listitem` ici — et c'est plus juste, `group` annonçant un
+ensemble de **contrôles** que ces lignes n'ont pas.
+
+### `vi.clearAllMocks()` manquait : les compteurs d'appels étaient CUMULATIFS
+
+Dans `ParametresPage.test.tsx`, toute assertion `toHaveBeenCalledTimes(n)` dépendait de la
+**position du test dans le fichier**. Deux tests écrits ce jour-là sont tombés dessus. Corrigé à la
+source, dans le `beforeEach`.
+
+### Renommage automatique : un regex qui protège les clés protège aussi les déclarations
+
+`(?<!\.)\bpreset\b(?!\s*:)` — écrit pour épargner `{ preset: … }` — épargne **aussi** les
+déclarations de props (`preset: AutonomyNiveau | null;`) et les paramètres annotés
+(`fn(preset: T)`). Il renomme donc les **usages** sans les **déclarations**, et le fichier ne
+compile plus. Les raccourcis d'objet `{ preset }` alimentant un champ réseau ne doivent pas suivre
+non plus. **Les deux ont été rattrapés par `tsc`, jamais par les tests.**
+
+### Erreurs Vite fantômes après suppression de fichiers
+
+Après avoir supprimé `RegimeToday.tsx` et renommé `PresetCards.tsx`, la console montrait
+« Failed to reload » pour ces fichiers — **même après redémarrage du serveur**. Ce sont des entrées
+mortes du **tampon console de l'onglet**. Un **onglet neuf** rend zéro erreur. Ne pas partir en
+chasse : le `build` de production le confirme d'un coup, un module manquant l'aurait fait échouer.
+
+### `sips -c … -Z …` en une passe ne donne pas la taille demandée
+
+`sips -c 900 900 -Z 128` rend du **112 px** : l'échelle est calculée sur la dimension d'origine, pas
+sur le recadrage. Il faut **deux passes** (recadrer, puis réduire).
+
 ## Outillage — graphify (2026-08-04)
 
 ### `graphify explain` ment par omission sur un nom dupliqué

@@ -98,6 +98,26 @@ ni reproche sur une semaine passée. Réviser à la baisse est autorisé, sans c
 **Rien n'est affiché ni stocké quand l'objectif n'est pas atteint** : ni « il te reste N jours »,
 ni historique des semaines passées. Le contrat serveur ne porte aucune donnée de manque.
 
+## Niveau · Palier (autonomie de ZETIS)
+
+**Deux mots, deux objets, et les confondre est l'erreur la plus facile du dossier ADR-0032.**
+Le test qui les sépare : **un niveau se CHOISIT, un palier se SUBIT.**
+
+| | Ce que c'est | Valeurs |
+|---|---|---|
+| **Niveau** (*level*) | l'un des **trois régimes** que Papa choisit | *Manual · Hybrid · Autonom* (clés `manuel · semi · autonome`) |
+| **Palier** | le degré d'autonomie **d'une classe de contenu** | `0` Jamais · `1` ZETIS propose · `2` Vous validez · `3` ZETIS sert |
+
+Un **niveau** décide les **paliers** de deux classes (A0a dérivés, A1 cours) ; les quatre autres
+sont verrouillées et ne l'écoutent pas. Le niveau n'est **jamais stocké** — il se *dérive* des six
+paliers, et vaut `null` (« Sur mesure ») s'ils ne correspondent à aucun régime.
+
+⚠️ Une phrase comme « le niveau de cette classe » est **fautive** : une classe a un *palier*.
+
+> Convention fixée à l'addendum **ADR-0032 §8.0** (2026-08-04), après qu'un même mot a désigné les
+> deux objets dans un même écran. Le code s'y aligne — `AutonomyNiveau`, `AutonomyPalier`,
+> `NIVEAU_LABEL`, `PALIER_LABEL` — et le champ JSON s'appelle `niveau`.
+
 ## Notion consolidée
 
 Notion dont la maîtrise a atteint le palier `mastered` (score ≥ 90, paliers partagés par le

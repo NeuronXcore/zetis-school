@@ -7,69 +7,103 @@
 
 ## État à la reprise
 
-**Chantier : le tiroir de navigation Massimo — COMPLET, CLOS ET MERGÉ.**
-L'interface de Massimo était inutilisable sur téléphone. Elle ne l'est plus.
+**Chantier : l'état de ZETIS visible partout + ZETIS LEVELS — COMPLET, NI POUSSÉ NI MERGÉ.**
+Papa ne savait pas dans quel régime ZETIS travaillait sans ouvrir `/parametres`. Il le sait
+maintenant sur les 22 pages — et la page des réglages dit enfin ce que chaque niveau *fait*.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Squash | **`69d5165`** — PR [#74](https://github.com/NeuronXcore/zetis-school/pull/74), mergée le 2026-08-04 |
-| Branche | `fix/sidebar-massimo-mobile` **supprimée**, en local et chez `origin` |
-| À pousser | **rien** |
-| Migration | **AUCUNE** — correctif CSS |
-| Cadrage | **aucun ADR** : c'est un correctif, et la décision de navigation existait déjà |
+| Branches | **TROIS, empilées, toutes LOCALES** : `feat/etat-zetis-sidebar` → `feat/zetis-levels` → `refactor/vocabulaire-niveau-palier` |
+| Base | **`5462ba8`** — tête de `main`, qui n'a pas bougé |
+| À pousser | **TOUT.** Rien n'est sur `origin`, aucune PR n'existe |
+| Migration | **AUCUNE** — le niveau est *dérivé*, jamais stocké |
+| Cadrage | addenda **ADR-0032 §7** et **§8**, écrits AVANT leur code (deux commits `docs:`) |
 
-> ⚠️ **`main` n'est pas `69d5165`** — le commit de 4bis passe par-dessus le squash. Celui-ci ne
-> bougera jamais ; la tête de `main` bouge, donc elle n'est pas écrite (`WORKFLOW.md §5`).
+> Le compte de commits et la tête de branche ne sont pas écrits ici (`WORKFLOW.md §5`) :
+> `git log --oneline main..HEAD`.
 
-**Relancés APRÈS le merge, sur `main`** : **805 backend · 458 Massimo · typecheck · build** — verts.
-
-⚠️ **Le merge a rendu une erreur, et ce n'était pas grave.** `gh pr merge` a affiché « Pas possible
-d'avancer rapidement » : le merge distant avait réussi, seule la synchro locale échouait parce que
-`main` local portait deux commits de doc que le squash venait de réécrire. **Avant de recaler, les
-11 lignes « uniques » à `main` local ont été lues une par une** — c'étaient exactement les versions
-remplacées. Recaler par réflexe, sans cette lecture, est la façon dont on perd du travail.
+⚠️ **L'empilement est la seule difficulté de la reprise.** Chaque branche descend de la
+précédente : les fichiers de la 2ᵉ n'existent pas sur la 1ʳᵉ. **Merger dans l'ordre**, ou merger la
+dernière seule (elle contient tout). Ne jamais rebaser l'une sans les autres.
 
 ### Ce que ce chantier a livré
 
-Sous `md`, l'`aside` sort du flux (`fixed`) et coulisse derrière un bouton ☰. Au-dessus,
-`md:static md:translate-x-0` annule tout : **le rendu desktop/tablette ne change pas d'un pixel**.
+**En tête de sidebar** — un avatar de 88 px, un badge à cheval, un halo **gradué par le régime**
+(fixe → souffle → souffle + rotation), une infobulle teintée. **Deux axes, deux signes** : l'avatar
+porte le régime, un glyphe ⏸/⚡ porte le déclencheur.
+
+**Sur `/parametres`** — **ZETIS LEVELS** en tête, un panneau **calculé** montrant ce que le niveau
+décide *et* ce qu'aucun niveau ne change, une confirmation qui garde l'**enregistrement** et dont le
+corps est l'**écart** avant→après.
+
+**Vocabulaire unifié** — un *niveau* se choisit, un *palier* se subit ; docs, code **et** clé JSON.
+
+**Un dispositif que le dépôt n'avait pas** — `packages/types/contracts/`, réponses **capturées**,
+relues d'un côté et de l'autre. Seule chose capable de voir un renommage de clé.
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **Un TIROIR, pas la bottom-nav** que `navigation.md` prescrit. Cette spec date de l'étape 2 et ne
-   connaît que **5 verbes** ; la navigation en porte **13**, chacune ajoutée par une décision
-   postérieure. L'appliquer **masquerait 8 sections sur mobile**.
-2. **Rien n'est retiré** : les 13 entrées et les 6 témoins de l'ADR-0030 restent.
-3. ⚠️ **Réconcilier la spec n'est PAS un cadrage** — l'**ADR-0024** l'a tranché il y a quatre
-   semaines (« l'existant prime »), et le chantier est rangé au `BACKLOG.md`. **Aucun ADR à écrire.**
+1. **Deux axes, deux signes** (§7.1). *Autonome + désarmé* ≠ « ZETIS travaille seul » : un signe
+   unique mentirait sur **deux lignes de la table sur quatre**.
+2. **Le halo porte de l'information** (§7.2) — `prefers-reduced-motion` **fige sans retirer**.
+3. **Les mots des AVATARS font foi à l'écran** (§7.7) : *Manual · Hybrid · Autonom*. Les ADR disent
+   toujours *Manuel · Semi-autonome · Autonome* — **c'est écrit et assumé**, ne pas « corriger ».
+4. **Le panneau est CALCULÉ, jamais rédigé** (§8.2) : une prose *classe × niveau* recopierait la
+   matrice du §G.2 **sous une forme que le serveur ne peut pas refuser**.
+5. **Deux révocations, contre-motifs au dossier** : la primauté du constat (§8.1, défendable
+   **uniquement** parce que le §7 existe) et « on ne freine pas un retour au contrôle » (§8.4, le
+   motif survit dans le **ton**).
+6. **Un niveau se choisit, un palier se subit** (§8.0) — entrée ajoutée au `GLOSSARY.md`.
 
 ### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
 
-1. 🔴 **La sidebar n'avait aucun point de rupture** — `w-60 shrink-0`, 240 px pris sur 375, canevas
-   de galaxie à 170 px. Trouvé en vérifiant **autre chose**.
-2. ⚠️ **453 tests ne pouvaient pas le voir** : jsdom n'a pas de viewport, les classes Tailwind n'y
-   sont jamais évaluées. **Une classe CSS absente ne casse aucun test — elle casse l'écran.**
-3. **La spec prescrivait une solution qui aurait cassé trois ADR** — stop-on-blocker joué.
-4. **J'avais écrit que la réconciliation était « un cadrage touchant trois ADR »** : faux, l'ADR-0024
-   l'avait déjà tranchée. Corrigé — la formulation aurait fait rédiger un ADR inutile.
+1. 🔴 **Un renommage de clé JSON est INVISIBLE aux tests unitaires** — backend contre lui-même,
+   front qui mocke : **805 + 377 verts sur un contrat rompu**. Parade posée, trois contre-épreuves.
+2. 🔴 **Un verrou anti-sondage qui ne mordait pas** : faux timers posés *après* le montage. Le
+   patron vient de `useNewsSummary` (ADR-0030) — **les autres copies du dépôt sont suspectes**.
+3. **`onMouseLeave` cesse d'être fiable** si l'infobulle est **fille** de l'élément survolé.
+   Trouvé **à l'écran**, aucun test ne le voyait.
+4. **La sidebar Papa n'était pas clippée** : le *document* grandissait, le body défilait, header et
+   sidebar partaient. « ⚙️ Paramètres » n'était atteignable qu'en scrollant toute la page.
+5. **`role="group"` homonyme** entre deux composants → quatre tests tombés d'un coup.
+6. **`vi.clearAllMocks()` manquait** : tout `toHaveBeenCalledTimes` dépendait de la **position du
+   test dans le fichier**.
+7. **J'ai mal chiffré le refactor deux fois** — « transversal » puis « irréductible ». Les deux fois,
+   **vérifier** a changé la décision. Le chiffrage à vue est le vrai piège.
 
-> Détail et remèdes : `TROUBLESHOOTING.md`, chantier `fix/sidebar-massimo-mobile`.
+> Détail et parades : `TROUBLESHOOTING.md`, chantier `feat/etat-zetis-sidebar → refactor/…`.
 
 ### ▶ PROCHAIN PAS
 
-1. **Rien n'est en attente côté Git.** PR #74 mergée, branche supprimée, arbre propre. **4bis
-   faite** — c'est ce fichier, pour la huitième fois.
-2. 🔴 **La moitié de la dette galaxie reste ouverte, et elle a besoin de TOI** : la tenue sur un
-   **vrai iPhone**. Un viewport n'est pas un appareil. C'est la seule dette que l'agent ne peut pas
-   solder seul.
-3. **CHANTIER SUIVANT — rien n'est cadré.** Les dettes ci-dessous sont les candidates ; la seule à
-   **manifestation observée** vient d'être soldée. Prochain numéro d'ADR libre : **0038**
-   (0033 reste réservé à l'indicateur d'autonomie de Massimo).
-
+1. 🔴 **POUSSER — rien n'est sur `origin`.** C'est le seul vrai risque : 19 commits n'existent que
+   sur ce disque. Ordre : `feat/etat-zetis-sidebar`, puis `feat/zetis-levels`, puis
+   `refactor/vocabulaire-niveau-palier` — ou la dernière seule, qui contient tout.
+2. **Ouvrir la ou les PR**, puis merger. Le chantier est **fini** : rien n'est à moitié écrit.
+3. **Revenir faire l'étape 4bis** (`WORKFLOW.md §5`) : ce fichier sera **faux** dès le merge —
+   squash, n° de PR, branches supprimées, « rien à pousser ».
+4. 👤 **Deux choses que l'agent ne peut pas faire** : juger si **trois animations permanentes** dans
+   le coin de l'œil distraient au bout de 60 s de travail réel (le correctif est décidé — *ralentir*,
+   jamais retirer l'axe) ; et exercer `prefers-reduced-motion` **en vrai**.
 
 ### ▶ DETTES OUVERTES
+
+- 🔴 **Le patron anti-sondage de l'ADR-0030 est SUSPECT partout où il est copié.** Le test
+  « 60 s de timers avancés → un seul appel » ne mord que si `vi.useFakeTimers()` est posé **avant**
+  le montage. Démontré le 2026-08-04 : la version de `useAutonomyState` restait verte **avec** un
+  `setInterval` ajouté exprès. `useNewsSummary` (Massimo) et ses imitations n'ont **jamais** été
+  contre-éprouvées. Une heure de travail, et ça peut réveiller un sondage réel.
+- **Les deux pastilles héritées de `PapaSidebar`** (missions à valider, demandes de Massimo) font
+  toujours leur propre appel réseau depuis le composant — le motif que l'ADR-0030 a supprimé côté
+  Massimo. Elles n'ont **aucun test** : les migrer exige d'écrire leurs verrous d'abord, sinon c'est
+  une régression silencieuse sur deux files porteuses. Le verrou « la sidebar ne fait aucun appel
+  réseau » est **réduit** en attendant, et le dit.
+- **La sidebar Papa n'est toujours pas responsive** : `w-64` sans point de rupture, alors que
+  Massimo a reçu son tiroir le 2026-08-04. Le chantier est le même, déjà mené une fois.
+- **`API_SPEC.md` ne décrit pas `/api/settings/autonomy`** — vérifié le 2026-08-04, l'endpoint n'y a
+  jamais figuré. Ce n'est donc pas une régression de ce chantier, mais le contrat vient de changer
+  (`preset` → `niveau`) et rien dans ce fichier ne le porte.
 
 - 🟡 **LA GALAXIE — vérifiée À MOITIÉ le 2026-08-04.** Ce qui est **mesuré** : **202 nœuds** servis
   (1 racine, 4 matières, 12 chapitres, **185 notions**), **74 FPS** au viewport tablette, **zéro
@@ -132,6 +166,12 @@ Sous `md`, l'`aside` sort du flux (`fixed`) et coulisse derrière un bouton ☰.
   pas, et l'option est désactivée chez Papa — **le chemin où tout doit se figer n'a donc jamais été
   exercé en vrai**. Couvert par des tests unitaires (`particlesFor`) et la variante `motion-safe:`,
   rien de plus.
+  ⚠️ **Élargi le 2026-08-04** : le halo gradué de la sidebar Papa en dépend aussi, et sa garde est
+  plus exigeante que les autres — elle doit **figer sans retirer** (couper le halo effacerait le
+  signal). Vérifié seulement que la règle CSS **existe dans le CSSOM**, jamais qu'elle rend juste.
+  Et **trois animations permanentes** dans le coin de l'œil sur 22 pages n'ont jamais été jugées sur
+  60 s de travail réel : si ça distrait, le correctif décidé est de **ralentir**, jamais de retirer
+  l'axe.
 - 👤 **À la charge de Papa, l'agent ne peut pas le faire** : relire l'**amendement de l'ADR-0017
   §5bis** — c'est un changement de **doctrine** du moteur de missions, pas un correctif d'affichage.
 
@@ -145,7 +185,24 @@ Sous `md`, l'`aside` sort du flux (`fixed`) et coulisse derrière un bouton ☰.
 
 **Vérifié en le FAISANT TOURNER, pas en lisant les réglages** : `scan_agenda` et `scan_requests`
 appelés à vide rendent `créés: []`, avec leurs motifs — *« le déclenchement automatique est
-désarmé »* et *« le régime n'est pas Autonome »*. Aucun worker, aucun serveur de dev en cours.
+désarmé »* et *« le régime n'est pas Autonome »*.
+
+⚠️ **2026-08-04, fin de session — le régime a BEAUCOUP bougé, puis a été remis.** La vérification à
+l'écran des trois niveaux et des deux modales exige d'écrire en base : `manuel`, `autonome`,
+déclencheur armé puis désarmé, une dizaine d'allers-retours.
+
+⚠️ **Et le contrôle de clôture a pris ce fichier en défaut** : j'avais écrit « remis à `semi` », la
+base était sur **`manuel`**. Le dispositif était désarmé dans les deux cas (`A1 = 2`, gate du cours
+actif), mais la phrase était fausse. Corrigé — la base **et** la phrase. **État final relu depuis
+l'API** : `niveau = semi`, `A0a = 3`, `A1 = 2`, `auto_trigger_enabled = false`.
+
+⚠️ **Le vrai piège de cette journée** : j'ai cru trois fois à une « dérive inexpliquée » du régime.
+Il n'y en avait aucune. **Une seule fonction écrit ces clés** (`write_autonomy`, via `PUT`) — les
+bascules venaient de **mes propres clics de vérification** sur la page vivante. Un panneau de
+réglages ouvert *est* un outil d'écriture ; le vérifier à la souris change la base.
+
+⚠️ **Serveurs de dev laissés EN MARCHE** : backend `:8001`, Papa `:5175`, Massimo `:5176`. Ils
+retombent quand le panneau Browser se ferme.
 
 > Il avait été **armé le 2026-08-03** pour prouver le chemin automatique de bout en bout (deux lots
 > `request`/`parent_rule` nés sans clic, deux cours écrits et servis). Cette preuve est faite et
