@@ -50,10 +50,26 @@ consommateur de `GET/PUT /api/settings/autonomy` est `frontend-papa`. Il n'y ava
 externe à protéger, seulement une habitude.
 
 ⚠️ **Ce que ça implique, et qui n'est pas rien** : un renommage de clé JSON est un changement de
-contrat. Il ne se vérifie pas par les tests unitaires — **ils sont mockés des deux côtés et
-passeraient au vert sur un contrat rompu**. La preuve est un appel réel : la réponse ne porte plus
-`preset`, elle porte `niveau`, et l'écran la consomme (lecture ET écriture vérifiées le
-2026-08-04). Aucune migration : rien de tout ça n'est stocké, le niveau est **dérivé** (§2).
+contrat, et **les tests unitaires ne peuvent pas le voir** — le backend se teste contre lui-même,
+le front **mocke** l'appel. Renommez d'un seul côté : les deux suites restent vertes.
+
+**Un dispositif a donc été posé le même jour** — `packages/types/contracts/autonomy.example.json`,
+une réponse **capturée** du serveur réel, relue par **deux** tests :
+
+| Où | Ce qu'il tient | Ce qui le casse |
+|---|---|---|
+| `test_settings_autonomy.py` | la réponse réelle a **exactement** les clés du contrat | un renommage côté serveur |
+| `contrat-autonomy.test.tsx` | les composants **rendent** à partir du contrat, **sans mock** | un contrat re-capturé sans adapter le front |
+
+⚠️ **Le fichier se CAPTURE, il ne s'écrit pas.** Un contrat rédigé à la main n'est qu'un mock de
+plus : il prouverait seulement qu'on est d'accord avec soi-même. Et seules les **clés** engagent —
+figer des valeurs rendrait le test rouge au premier réglage changé en base de dev.
+
+Les trois contre-épreuves ont été jouées : clé renommée côté serveur seul → le premier tombe ;
+contrat mis à jour seul → le second tombe ; clé de classe (`reason`) renommée → le verrou des
+cadenas tombe.
+
+Aucune migration : rien de tout ça n'est stocké, le niveau est **dérivé** (§2).
 
 > **Règle pratique pour la suite** : dans un document, `LEVEL_LABEL[…]` se lit *« le libellé du
 > palier »*, jamais *« le libellé du niveau »*. Et une phrase comme « le niveau de cette classe »
@@ -229,6 +245,9 @@ classe** ; toute évolution serveur — **aucune ligne de backend, aucune migrat
 7. **L'ordre nouveau est verrouillé** : ZETIS LEVELS précède le détail par type de contenu. On ne
    supprime pas le verrou d'ordre révoqué — **on le retourne**.
 8. **Le constat daté survit à la fusion.**
+9. **La réponse réelle a exactement les clés du contrat capturé** — et **les composants rendent à
+   partir de ce même fichier, sans mock**. C'est la seule paire qui peut voir un renommage de clé :
+   tout le reste est mocké d'un côté ou de l'autre.
 
 **Observation attendue** : si Papa change de niveau **sans que le panneau de détail ait été
 déplié du regard** — ce qu'on ne peut pas mesurer, mais qu'une question de sa part révélerait
