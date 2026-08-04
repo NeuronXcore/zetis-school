@@ -63,6 +63,31 @@ de décorer — et c'est pour cette raison qu'elle est graduée et non uniforme.
 le mouvement part. Couper l'animation effacerait le signal ; le parti pris est celui de
 `couverture-breathe`, qui garde son halo et perd son battement.
 
+### 7.2bis — Le bloc prend toute la place du bandeau ; l'identité déménage dans le header
+
+Le bandeau de marque en tête de sidebar faisait deux lignes : *ZETIS **Papa*** en 18 px, puis
+*Cockpit de pilotage*. Le bloc d'état prend **toute** sa place. *Cockpit de pilotage* disparaît :
+c'était la ligne qui n'apprenait rien.
+
+Mais l'identité, elle, ne disparaît pas — **elle passe dans le header**.
+`docs/frontend-papa/README.md` exige que les deux interfaces ne se confondent pas, et **le bloc
+d'état est identique des deux côtés du miroir** : sans ce mot, une capture d'écran de Papa ne se
+distingue plus d'une capture de Massimo, qui garde avatar *et* wordmark.
+
+**Pourquoi le header et non la sidebar** : la sidebar est la colonne rare — 22 entrées à faire
+tenir — et le header, devenu fixe le même jour, ne coûte rien. Une signature d'application est du
+*chrome*, pas de la navigation ; elle était mal placée depuis le début.
+
+**Deux verrous, pas un** : l'un exige le mot dans le header, l'autre exige son **absence** de la
+sidebar — sans le second, quelqu'un l'y remettrait en croyant réparer un oubli, et on aurait la
+signature deux fois.
+
+> **Deux contre-motifs restent au dossier.** (1) *Aucune signature nulle part* : l'avatar porte
+> déjà le sceau ZETIS sur son front, et personne n'ouvre sa propre application en se demandant
+> comment elle s'appelle. Vrai de l'examen d'une interface, faux de la **comparaison** des deux —
+> et c'est la comparaison qui tranche. (2) *La signature au-dessus du bloc, dans la sidebar* :
+> tenue une heure, écartée parce qu'elle consommait ~20 px de la seule colonne qui en manque.
+
 ### 7.3 — La sidebar LIT. Elle ne règle pas.
 
 Le bloc est un **lien vers `/parametres`**, rien d'autre. Aucun réglage ne se change depuis là :
@@ -219,6 +244,10 @@ par événement ; les quatre rendus d'état (chargement, erreur, régime, sur me
    en dur casse.
 7. **La sidebar ne lit jamais l'autonomie elle-même** (verrou réduit, cf. Conséquences), et le
    composant d'état ne fait **aucun** appel réseau, dans aucun de ses états.
+8. **L'identité de l'interface est dans le header** (§7.2bis) — le mot n'a pas d'autre gardien
+   qu'un test, et sa disparition ne casserait rien d'autre.
+8bis. **Et elle n'est PAS dans la sidebar** — sans ce second verrou, on l'y remettrait en croyant
+   réparer un oubli, et la signature apparaîtrait deux fois.
 
 **Observation attendue après livraison** : si Papa cesse d'ouvrir `/parametres` pour vérifier — ce
 qui est le but — alors la page ne sert plus qu'à **changer** le régime, et son bloc « où vous en

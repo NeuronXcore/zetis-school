@@ -189,9 +189,14 @@ veto renvoie au Journal ; aucun autre lien sortant.
 
 ## Le régime se lit aussi dans la sidebar (addendum §7 — 2026-08-04)
 
-En tête de la sidebar Papa, à la place du bandeau de marque : un **bloc de lecture** cliquable qui
-mène ici. Il porte **les deux axes**, jamais un seul — *Autonome + déclencheur désarmé* veut dire
-« ZETIS sert seul mais attend votre clic », et un signe unique le dirait faux (addendum §7.1).
+En tête de la sidebar Papa, **à la place du bandeau de marque** : un **bloc de lecture** cliquable
+qui mène ici. Il porte **les deux axes**, jamais un seul — *Autonome + déclencheur désarmé* veut
+dire « ZETIS sert seul mais attend votre clic », et un signe unique le dirait faux (addendum §7.1).
+
+> La signature `ZETIS Papa` n'a pas disparu : **elle est passée dans le header**, qui est fixe. Le
+> bloc d'état est identique des deux côtés du miroir — sans ce mot, une capture d'écran de Papa ne
+> se distingue plus d'une capture de Massimo (addendum §7.2bis). *Cockpit de pilotage*, lui, ne
+> revient pas.
 
 | État | Avatar | Halo | Ligne 1 | Ligne 2 |
 |---|---|---|---|---|

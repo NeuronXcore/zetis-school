@@ -42,6 +42,15 @@ export function PapaLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-papa-border bg-papa-surface/60 px-6 py-3">
           <div className="flex items-center gap-3 text-sm">
+            {/* La signature de l'interface. Elle a quitté la sidebar le 2026-08-04 : les deux
+                frontends doivent rester discernables (`docs/frontend-papa/README.md`), mais la
+                sidebar est la colonne rare, et ce header — devenu fixe le même jour — ne coûte
+                rien. ⚠️ Verrouillé par un test : sans ce mot, une capture d'écran de Papa ne se
+                distingue plus d'une capture de Massimo. */}
+            <span className="font-bold">
+              ZETIS <span className="text-papa-accent">Papa</span>
+            </span>
+            <span className="h-4 w-px bg-papa-border" role="presentation" />
             <span className="rounded-md bg-papa-surface-2 px-2.5 py-1 font-medium text-papa-text">
               Enfant : Massimo
             </span>

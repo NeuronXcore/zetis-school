@@ -51,9 +51,10 @@ export function PapaSidebar({ autonomy = AUTONOMY_LOADING }: { autonomy?: Autono
     // reste ÉPINGLÉ en haut pendant que les 22 entrées défilent. Le faire scroller avec elles
     // annulerait la feature — un état qu'on doit aller chercher est un état qu'on n'a pas.
     <aside className="flex h-full w-64 shrink-0 flex-col gap-2 overflow-hidden border-r border-papa-border bg-papa-surface p-4">
-      {/* Le bandeau de marque a cédé sa place à l'état de ZETIS : la question « dans quel régime
-          travaille-t-il ? » se pose vingt fois par session, « comment s'appelle cette app ? »
-          jamais. L'identité survit dans l'avatar, qui porte le sceau ZETIS. */}
+      {/* ⚠️ La signature « ZETIS Papa » n'est PAS ici : elle vit dans le header (`PapaLayout`).
+          Les deux interfaces doivent rester discernables (`docs/frontend-papa/README.md`) — mais
+          la sidebar est la colonne rare, et le header, désormais toujours visible, ne coûte rien.
+          Verrouillé par un test là-bas : ne pas la ré-ajouter ici en croyant réparer un oubli. */}
       <EtatZetis state={autonomy} />
 
       {/* `min-h-0` est obligatoire : sans lui, un enfant flex refuse de rétrécir sous sa taille de

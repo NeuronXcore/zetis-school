@@ -67,9 +67,18 @@ describe("PapaSidebar", () => {
     }
   });
 
-  it("le bandeau de marque a cédé sa place, et le bloc ne retire AUCUNE entrée", () => {
+  it("🔒 ne porte PAS la signature de l'interface — elle vit dans le header", () => {
+    // Déplacée dans `PapaLayout` le 2026-08-04 (addendum §7.2bis) : la sidebar est la colonne
+    // rare, 22 entrées à faire tenir. Le verrou d'identité est là-bas ; celui-ci empêche de la
+    // ré-ajouter ici en croyant réparer un oubli.
+    const { container } = show(SEMI);
+    expect(container.querySelector("aside")!.textContent).not.toContain("ZETIS Papa");
+  });
+
+  it("le bandeau a cédé sa place, et le bloc ne retire AUCUNE entrée", () => {
     const { container } = show(SEMI);
 
+    // « Cockpit de pilotage » ne revient pas : c'était la ligne qui n'apprenait rien.
     expect(screen.queryByText("Cockpit de pilotage")).toBeNull();
     // ⚠️ Sélecteur `nav a` obligatoire : le bloc d'état est un `<a>` lui aussi, mais hors du
     // `<nav>`. Un `querySelectorAll("a")` compterait 23 et le test ne prouverait rien.
