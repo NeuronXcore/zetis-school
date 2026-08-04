@@ -226,12 +226,19 @@ export function JournalFilterBar({
 
       {/* Le tri est ENCADRÉ : il ne filtre rien, il réordonne — le confondre avec les pastilles
           au-dessus ferait chercher un critère là où il n'y en a pas.
-          ⚠️ Bleu ciel, et c'est la seule couleur libre : le vert dit « ce filtre est actif »
-          (pastilles, « Tout effacer »), l'ambre dit « ce journal n'est plus chronologique ». Un
-          cadre vert aurait fait lire le tri comme un filtre de plus ; un cadre ambre aurait crié
-          l'avertissement en permanence, y compris quand l'ordre est le bon. */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-sky-400/30 bg-sky-400/[0.05] px-3 py-2 text-xs">
-        <span className={`${ETIQUETTE} text-sky-300`}>Trier par</span>
+
+          ⚠️ **L'or et l'ambre sont voisins, et l'ambre est déjà pris** (l'avertissement « plus
+          chronologique », qui vit DANS ce cadre). Ils sont séparés par la MATIÈRE, pas par la
+          teinte : l'or est **halé** (deux ombres portées, un dégradé), l'alerte reste **plate**.
+          Un aplat doré et un aplat ambre côte à côte auraient été indiscernables.
+
+          ⚠️ **Le halo ne bat pas.** Dans ce dépôt, une animation permanente PORTE de l'information
+          (le halo de régime en sidebar, gradué par le palier). Faire clignoter un cadre qui ne
+          signale rien banaliserait le seul endroit où le mouvement veut dire quelque chose. */}
+      <div
+        className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-[rgba(212,175,55,0.55)] bg-gradient-to-r from-[rgba(212,175,55,0.10)] to-[rgba(212,175,55,0.03)] px-3 py-2 text-xs shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_0_20px_rgba(212,175,55,0.16)]"
+      >
+        <span className={`${ETIQUETTE} text-[#e8c86a]`}>Trier par</span>
         <select
           aria-label="Trier par"
           value={filtre.tri}
