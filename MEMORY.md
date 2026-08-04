@@ -19,11 +19,12 @@ n'était pas lancé.** Tout le reste a été trouvé en tirant ce fil.
 
 | | |
 |---|---|
-| Branche | `fix/production-trois-verites` — voir `git log --oneline main..HEAD` |
+| **MERGÉ `main`** | **PR #80**, squash **`294d0d5`** — branche supprimée, local et `origin` |
 | Base | `270ae5f` |
 | Migration | **`d8e9f0a1b2c3`** — deux colonnes sur `production_runs`, **appliquée en dev** |
 | ADR | `adr-0036-addendum-verdict-de-situation.md` et `adr-0034-addendum-regime-et-destination.md`, indexés |
 | Vérifié à l'écran | **oui, dans le Chrome de l'utilisateur** (session connectée), pas seulement en tests |
+| Vérifié APRÈS le merge | **839 backend · 400 Papa · 525 Massimo**, `tsc -b` propre sur les deux, sur `main` fusionné |
 
 ### Ce que ce chantier a livré
 
@@ -82,8 +83,9 @@ n'était pas lancé.** Tout le reste a été trouvé en tirant ce fil.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est COMPLET.** Prochain pas : **PR puis merge**, et l'étape **4bis** (`WORKFLOW.md
-§5`) pour remettre ce fichier au réel après le squash.
+**Ce chantier est CLOS.** Mergé le 2026-08-04 (PR #80, squash `294d0d5`), branche supprimée des deux
+côtés, `main` == `origin/main`, arbre propre. Suites relancées **sur `main` fusionné** : 839 backend,
+400 Papa, 525 Massimo, `tsc -b` vert. La prochaine session **ouvre un nouveau chantier**.
 
 **Ensuite, chantier suivant — TRI ET FILTRE DU JOURNAL. Les quatre décisions sont DÉJÀ PRISES par
 Papa, ne pas les rouvrir :**
