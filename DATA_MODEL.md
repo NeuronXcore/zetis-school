@@ -201,6 +201,18 @@ Index `ix_lesson_skills_skill` sur `skill_id` : la PK composite est ordonnée
 `(lesson_id, skill_id)` et ne couvre pas les requêtes par notion (résolution du cours
 canonique côté dérivés = `WHERE skill_id = …`).
 
+⚠️ **La liaison est n-n : une notion PEUT être portée par plusieurs leçons**, et c'est un état
+légitime (un référentiel qui évolue, une notion transversale). « **Quelle est LA leçon de cette
+notion ?** » a donc une réponse, et **une seule** — `app/modules/lesson_resolution.py`
+(ADR-0037) : la plus récemment **touchée** (`updated_at`, puis `id`), dans l'**année active**, un
+chapitre `validated`, non archivée. Le **statut de la leçon n'est pas filtré là** : chaque appelant
+applique le sien (la galaxie ne sert que du `validated`, la production accepte un brouillon parce
+que le palier 3 lui donne le droit de rédiger son cours).
+
+> Trois modules répondaient différemment jusqu'au 2026-08-03. Le symptôme visible était un refus de
+> production sur une notion que Massimo consultait ; **le vrai risque était silencieux** — produire
+> sur la leçon que la galaxie n'oriente pas rend le contenu atteignable par personne.
+
 ```txt
 lesson_id          # FK lessons, ON DELETE CASCADE
 skill_id           # FK skills — pas de ON DELETE : suppression d'une Skill bloquée si référencée (elle porte l'historique de maîtrise)

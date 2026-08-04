@@ -35,9 +35,23 @@ Tu ne committes PAS et tu ne push PAS : je le fais moi-même après avoir vérif
    fois.
 2. **`TROUBLESHOOTING.md`** — ajoute tout écart réel rencontré (signature d'API inattendue,
    comportement surprenant d'un module, etc.). Rien d'inventé.
-3. **`ARCHITECTURE.md`** — UNIQUEMENT si une structure a été ajoutée (table, module, endpoint).
-4. **Ne touche PAS** : `CHANGELOG.md` (sauf si cette session termine une slice livrable),
-   `ROADMAP.md`, `CLAUDE.md`.
+3. **Les documents de STRUCTURE, chacun sous SA condition.** ⚠️ Cette liste a longtemps tenu en un
+   seul `ARCHITECTURE.md`, et c'était faux : le dépôt porte 24 documents de projet, et trois
+   d'entre eux se périment en silence quand on ne les nomme pas. **Passe la liste, ne devine pas.**
+
+   | Document | À mettre à jour SI |
+   |---|---|
+   | `ARCHITECTURE.md` | un **service** ou un **flux** change — pas pour un module (il est trop grossier) |
+   | `PROJECT_STRUCTURE.md` | un **module** est ajouté / déplacé / supprimé (il porte un inventaire **daté**) |
+   | `DATA_MODEL.md` | une **table**, une **colonne**, une **contrainte**, ou une **règle de lecture** d'une relation |
+   | `API_SPEC.md` | un **endpoint** naît, change de contrat, ou disparaît |
+   | `.env.example` | une **variable d'environnement** est ajoutée — corrige alors **tout son groupe** |
+   | `docs/frontend-*/page-*.md` | l'écran concerné change de comportement |
+
+4. **Ne touche PAS** : `ROADMAP.md`, `CLAUDE.md`.
+   `CHANGELOG.md` **seulement** si cette session termine une slice livrable — mais alors, fais-le.
+   `DECISIONS.md` est normalement déjà à jour (il s'écrit au **cadrage**, pas à la clôture) :
+   vérifie-le, ne le réécris pas.
 5. **`graphify update .`** — la carte du code doit suivre (`WORKFLOW.md §5`, étape 2). Sans ça,
    la prochaine session s'oriente sur un graphe périmé.
 

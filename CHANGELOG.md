@@ -1,5 +1,44 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.41.0 — « la leçon d'une notion » : trois réponses, une seule désormais
+
+Date : 2026-08-03 · branche `feat/lecon-canonique` · ADR-0037
+
+`lesson_skills` est une liaison **n-n** : une notion peut être portée par plusieurs leçons. Trois
+modules répondaient différemment à « quelle est **LA** leçon de cette notion ? » — la production
+triait par `id` sans aucun filtre d'année, la galaxie par `updated_at` dans l'année active, le
+contexte canonique par `updated_at` sur un cours rédigé.
+
+**Le symptôme visible était bruyant** : la production se bloquait (« Cours à valider ») sur une
+notion dont Massimo consultait le cours — deux leçons validées, l'une avec cours, l'autre sans, et
+les deux modules ne retenaient pas la même.
+
+⚠️ **Le vrai risque était SILENCIEUX** : produire une fiche sur la leçon que la galaxie n'oriente
+pas la rend **atteignable par personne**. Aucune erreur, aucun événement de journal, aucun test
+rouge — du temps GPU payé, du contenu validé, et invisible. Même famille que la porte ouverte sur
+du vide du 2026-07-30.
+
+**Un module PLAT** (`lesson_resolution.py`, patron `provenance.py`) porte désormais **l'ordre et le
+périmètre**. Il ne porte **aucun filtre de statut de leçon**, et c'est le cœur de la décision :
+imposer le `validated` de la galaxie à la production **supprimerait le palier 3**, celui où ZETIS a
+le droit de rédiger puis de valider le cours d'un brouillon. Chaque appelant garde son gate.
+
+⚠️ **Deux changements de comportement assumés** : l'ordre passe de « dernière **créée** » à
+« dernière **touchée** », et la production hérite du périmètre « année active », qu'elle n'avait
+pas — elle pouvait équiper la leçon de l'an dernier.
+
+**Mesuré avant de merger, pas espéré** — sur les 278 notions de la base de dev : **273 inchangées
+(98 %)**, **5 changées** (exactement les notions à deux leçons), **0 devenue inéligible**. Sur les
+5 : **4 gagnent un cours, 1 neutre, 0 en perd**. Accord des trois lecteurs sur les 278 : **0
+désaccord**.
+
+**Corrigé au passage** : `select_notions` faisait **une requête par notion** — 31 allers-retours
+pour un chapitre dense, avant même de produire.
+
+**Aucune migration** : le défaut était une divergence de lecture, pas de modèle.
+**805 backend** (797 avant) · **318 Papa** · **453 Massimo** · build Papa · typecheck Massimo.
+
+
 ## 0.40.0 — ce que Massimo demande, ZETIS le produit
 
 Date : 2026-08-03 · branche `feat/demande-vers-production` · ADR-0036
