@@ -94,11 +94,44 @@ Papa, ne pas les rouvrir :**
 4. **plusieurs clés de tri** (date · matière · mode · statut), inversables. ⚠️ Papa a vu et accepté
    l'avertissement : *un journal qui n'est plus chronologique cesse d'être un journal*.
 
-🔴 **LE POINT DUR, à trancher AVANT de coder** : `zetis_mode` est **déduit en Python** pour les lots
-sans capture — il n'existe dans aucune colonne, donc **il n'est pas filtrable en SQL**. Le statut,
-lui, passe (`stale` = `status='running' AND heartbeat_at < now() - délai`). Deux issues, aucune
-choisie : filtrer le mode sur les seules valeurs **capturées** (+ « inconnu »), ou calculer en
-Python sur un ensemble **borné** — et alors **dire le plafond**, jamais le taire.
+🔴 **LE POINT DUR, ANALYSÉ le 2026-08-04 — à trancher au cadrage, avant tout code.**
+
+⚠️ **Correction d'une affirmation fausse écrite plus tôt dans la journée.** J'avais noté que
+`zetis_mode` « n'est pas filtrable en SQL ». **C'est faux.** Les quatre preuves de la déduction
+vivent toutes en base et s'écrivent toutes en SQL : `trigger='request'` est une colonne ; « a rédigé
+un cours » est un `EXISTS` sur `lessons.production_run_id` ; « dérivé à relire » / « dérivé servi »
+sont des `EXISTS` sur `fiches`/`mindmaps` avec `validated_by`. La déduction est en Python parce que
+les objets étaient **déjà chargés pour l'affichage**, pas parce que SQL ne savait pas la faire.
+
+**Les trois vrais obstacles, eux, tiennent :**
+
+1. **Aucun index sur `production_run_id`**, dans aucune des cinq tables produites (vérifié :
+   `pg_indexes` ne rend rien). Quatre `EXISTS` par lot sans index = balayage complet par page.
+2. 🔴 **La déduction repose sur des artefacts RÉTRACTABLES.** Le veto (ADR-0034) retire des pièces :
+   retirer la fiche `pending` d'un lot efface la preuve « A0a = 2 », et **le régime affiché de ce
+   lot change rétroactivement**. Un historique qui bouge quand on exerce un droit prévu n'est pas
+   fiable — et ce défaut est **indépendant du langage**.
+3. **Traduire la règle en SQL en ferait une DEUXIÈME implémentation** (Python pour l'affichage, SQL
+   pour le filtre) — le défaut exact que l'ADR-0037 a coûté un ADR entier à réparer.
+
+**▶ Correctif proposé (non validé) : arrêter de re-dériver à chaque lecture.**
+
+- une vraie colonne **`zetis_mode_source`** (`capture` | `deduit`) à côté des deux paliers ;
+- un **backfill unique** — un **script**, pas une migration (une migration ne doit pas importer la
+  logique métier) — qui écrit `a0a_level`/`a1_level` **là où les actes le prouvent**, marqués
+  `deduit` ; `runner.execute` continue d'écrire `capture` ; ce que rien ne prouve reste `NULL` ;
+- les **index manquants** sur `production_run_id`.
+
+Le filtre et le tri deviennent alors deux entiers + une source : pur SQL, paginable, et **stable**
+— un veto exercé demain ne réécrit plus l'histoire d'hier.
+
+⚠️ **Cela RÉVOQUE une phrase de l'addendum ADR-0034 §1bis** (« rien n'est stocké »). La distinction
+doit être écrite : le §F.4 interdit de reconstituer le passé **depuis les réglages d'aujourd'hui**,
+qui ont changé ; écrire **une fois** ce que les **actes** prouvent, avec sa provenance, est l'inverse
+— c'est ce qui **fige** l'histoire au lieu de la laisser dériver. **Addendum à écrire au cadrage.**
+
+ℹ️ Le **statut**, lui, ne pose aucun problème : `stale` = `status='running' AND heartbeat_at <
+now() - délai`, exprimable en SQL sans rien stocker.
 
 ⚠️ Ce chantier ajoute une surface d'API → **addendum ADR-0034 attendu au cadrage**, avant le code.
 
