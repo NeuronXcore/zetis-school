@@ -26,6 +26,7 @@ import {
 } from "../../lib/settings";
 import { REGIME_AVATAR, declencheurGlyphe } from "../../lib/regimeVisuals";
 import { ClassRow } from "./ClassRow";
+import { NiveauDetail } from "./NiveauDetail";
 import { PresetCards } from "./PresetCards";
 import { RegimeToday } from "./RegimeToday";
 
@@ -176,6 +177,10 @@ export function AutonomyPanel() {
             current={preset}
             onPick={(picked) => propose({ ...draft, ...levelsForPreset(picked) })}
           />
+          {/* Il suit le BROUILLON, pas l'état enregistré : c'est ce qui en fait une réponse à
+              « qu'est-ce que ce niveau ferait ? ». Au repos, brouillon = état serveur, donc il
+              montre le niveau ACTIF — c'est ce qui a permis d'absorber « Où vous en êtes ». */}
+          <NiveauDetail autonomy={autonomy} preset={preset} />
 
           <details className="mt-4 rounded-xl border border-papa-border bg-papa-bg">
             <summary className="cursor-pointer px-4 py-3 text-[12.5px] font-semibold text-papa-muted">

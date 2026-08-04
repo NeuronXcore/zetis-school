@@ -318,6 +318,14 @@
   background: var(--color-papa-surface-2);
 }
 
+/* ── Le palier qui change dans « ce que fait ce niveau » (addendum §8.2) ─────────────────────────
+   Réutilise le keyframe du fondu d'avatar : le nœud est remonté par sa `key`, donc l'animation
+   rejoue à chaque changement de valeur. Court (220 ms) — c'est un accusé de changement, pas un
+   effet ; deux lignes qui clignoteraient à chaque clic fatigueraient plus qu'elles n'informent. */
+.niveau-valeur {
+  animation: regime-fade-in 220ms ease-out;
+}
+
 /* ── L'infobulle ────────────────────────────────────────────────────────────────────────────────
    Elle porte le libellé du régime, sa description complète, et la phrase du déclencheur.
    ⚠️ Positionnée en `fixed` depuis le composant : la sidebar et son conteneur sont en
@@ -384,7 +392,8 @@
   .regime-orbit,
   .regime-img,
   .regime-img--sortant,
-  .regime-bulle {
+  .regime-bulle,
+  .niveau-valeur {
     animation: none;
   }
 
