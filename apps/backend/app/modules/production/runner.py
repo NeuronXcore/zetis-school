@@ -369,6 +369,11 @@ def execute(
     paliers = settings_service.read_autonomy(db)
     run.a0a_level = paliers[settings_service.A0A]
     run.a1_level = paliers[settings_service.A1]
+    # ⚠️ La provenance s'écrit ICI, avec la valeur, et jamais ailleurs : `capture` veut dire « le
+    # lot l'a enregistré au démarrage », et c'est le seul endroit où c'est vrai. Un lot qui porte
+    # cette marque ne se fait JAMAIS réinterpréter par ses artefacts (script de reprise, verrou de
+    # test) — sinon la capture ne protégerait plus rien.
+    run.zetis_mode_source = "capture"
     gate = settings_service.course_gate_enabled(db)
     authority = authority_for(db, run)
 
