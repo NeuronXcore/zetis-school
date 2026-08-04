@@ -36,6 +36,22 @@ du code incohérent si personne ne l'avait vue.
 
 Ce rapport n'est pas une formalité : c'est le livrable le plus utile de la première heure.
 
+### 1bis. Avant de modifier une fonction PARTAGÉE — `graphify affected`
+
+```bash
+graphify affected "<nom de la fonction>"
+```
+
+Il rend **qui l'appelle**, en une commande, là où on grepait à la main. Sur un helper de module
+neutre (`provenance`, `lesson_resolution`, `canonical_context`, `equipment`), la liste **est** le
+périmètre de non-régression : ce sont ces appelants-là que le point 4 doit prouver intacts.
+
+⚠️ **Et un piège mesuré le 2026-08-04 : n'utilise PAS `graphify explain` pour juger d'une
+duplication.** Sur un nom porté par plusieurs fonctions, il en choisit **une** et répond avec
+assurance **sans dire que les autres existent** — testé sur `_active_year` : 7 nœuds dans le
+graphe, **1 seul rendu**. Pour une question de duplication, c'est `grep -rn "def <nom>"` qui dit
+la vérité.
+
 ## 2. Stop-on-blocker
 
 Toute divergence réelle avec la doc — signature inattendue, module absent, table non réutilisable,

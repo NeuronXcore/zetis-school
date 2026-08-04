@@ -66,3 +66,78 @@ describe("MassimoSidebar — témoins de nouveauté (ADR-0030)", () => {
     expect(screen.getByText("Agenda")).toBeInTheDocument();
   });
 });
+
+describe("MassimoSidebar — tiroir mobile (2026-08-04)", () => {
+  // ⚠️ Défaut MESURÉ, pas supposé : `w-60 shrink-0` sans point de rupture prenait 240 px sur un
+  // écran de 375, laissant 135 px à Massimo et un canevas de galaxie de 170 px de large.
+  // `CLAUDE.md` exige pourtant une version iPhone.
+  const aside = () => document.querySelector("aside")!;
+
+  it("est HORS DU FLUX et escamotée tant que le tiroir est fermé", () => {
+    render(
+      <MemoryRouter>
+        <MassimoSidebar />
+      </MemoryRouter>,
+    );
+    // `fixed` est ce qui rend les 240 px au contenu ; sans lui le tiroir ne répare rien.
+    expect(aside().className).toContain("fixed");
+    expect(aside().className).toContain("-translate-x-full");
+    expect(screen.queryByLabelText("Fermer le menu")).toBeNull();
+  });
+
+  it("coulisse et pose un voile quand il est ouvert", () => {
+    render(
+      <MemoryRouter>
+        <MassimoSidebar open />
+      </MemoryRouter>,
+    );
+    expect(aside().className).toContain("translate-x-0");
+    expect(aside().className).not.toContain("-translate-x-full");
+    // Le voile n'existe QUE tiroir ouvert : laissé en place, il intercepterait les touches.
+    expect(screen.getByLabelText("Fermer le menu")).toBeTruthy();
+  });
+
+  it("⚠️ ne change RIEN à partir de `md` — le desktop n'est pas la cible du correctif", () => {
+    render(
+      <MemoryRouter>
+        <MassimoSidebar />
+      </MemoryRouter>,
+    );
+    // Ces deux-là annulent le comportement mobile au-dessus du point de rupture. Les perdre
+    // ferait disparaître la sidebar sur l'écran où elle a toujours marché — une régression bien
+    // pire que le défaut qu'on répare.
+    expect(aside().className).toContain("md:static");
+    expect(aside().className).toContain("md:translate-x-0");
+  });
+
+  it("refermer : choisir une entrée rappelle `onNavigate`", () => {
+    // Sinon Massimo arrive sur sa page avec le menu par-dessus, et doit faire un second geste
+    // pour voir ce qu'il vient de demander.
+    const onNavigate = vi.fn();
+    render(
+      <MemoryRouter>
+        <MassimoSidebar open onNavigate={onNavigate} />
+      </MemoryRouter>,
+    );
+    screen.getByText("Agenda").click();
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+
+    screen.getByLabelText("Fermer le menu").click();
+    expect(onNavigate).toHaveBeenCalledTimes(2);
+  });
+
+  it("les 13 entrées restent là — le tiroir ne retire RIEN", () => {
+    // ⚠️ Ce n'est pas la bottom-nav des 5 verbes de `navigation.md` : cette spec date de l'étape 2
+    // et appliquer sa lettre masquerait 8 sections, dont l'Agenda que l'ADR-0025 a délibérément
+    // placé en position 2. Le tiroir répare la largeur, il ne rouvre aucune décision.
+    render(
+      <MemoryRouter>
+        <MassimoSidebar open />
+      </MemoryRouter>,
+    );
+    for (const libelle of ["Accueil", "Agenda", "Matières", "Ma Galaxie", "Chat ZETIS"]) {
+      expect(screen.getByText(libelle)).toBeTruthy();
+    }
+    expect(aside().querySelectorAll("nav a")).toHaveLength(13);
+  });
+});

@@ -4,6 +4,84 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Outillage — graphify (2026-08-04)
+
+### `graphify explain` ment par omission sur un nom dupliqué
+
+Mesuré le 2026-08-04. `graphify explain "_active_year"` rend **un seul** nœud —  celui de
+`dashboard/service.py` — présenté comme LA réponse, avec sa source, sa communauté et ses voisins.
+
+Or le graphe en contient **sept** (vérifié dans `graph.json`) : `curriculum`, `mindmaps`,
+`missions`, `dashboard`, `fiches`, `quizzes`, `production.coverage`.
+
+⚠️ **Aucun avertissement, aucune mention des six autres.** C'est le pire comportement possible
+quand la question posée EST la duplication : la commande ne se contente pas de manquer l'info,
+elle **affirme** sur une occurrence arbitraire.
+
+**Parade** : pour une question de duplication, `grep -rn "def <nom>"` dit la vérité. `explain` sert
+à comprendre UN nœud dont on sait déjà qu'il est unique.
+
+> À l'inverse, `graphify query` s'en sort : c'est lui qui a fait apparaître le **3ᵉ** résolveur de
+> leçon (`resolve_canonical_context`) que le cadrage de l'ADR-0037 ignorait — il rend une liste de
+> nœuds, pas une réponse unique.
+
+### `graphify affected` remplace le grep d'impact — et n'était pas utilisé
+
+`graphify affected "<fn>"` rend les appelants d'une fonction, en une commande. Sur les helpers des
+modules neutres (`provenance`, `lesson_resolution`, `canonical_context`, `equipment`), **cette
+liste EST le périmètre de non-régression**.
+
+Six commandes de `graphify --help` n'avaient jamais servi (`affected`, `path`, `explain`,
+`diagnose multigraph`, `save-result`, `reflect`). `affected` est entrée dans `/slice` §1bis le
+2026-08-04.
+
+
+## Chantier `fix/sidebar-massimo-mobile` — le tiroir de navigation — 2026-08-04
+
+### 🔴 La sidebar Massimo n'avait AUCUN point de rupture — l'app était inutilisable sur téléphone
+
+Trouvé en allant vérifier **autre chose** : la dette « la galaxie n'a jamais été vue sur trois
+appareils ». Au premier viewport mobile, ce n'est pas la galaxie qui a cassé.
+
+`MassimoSidebar.tsx:17` portait `className="flex w-60 shrink-0 flex-col …"` — **largeur fixe de
+240 px, jamais repliée, jamais masquée**. Mesuré à 375 px :
+
+| | |
+|---|---|
+| sidebar | **240 px** |
+| reste pour le contenu | **135 px** |
+| canevas de la galaxie | **170 × 800** — un ruban vertical |
+
+⚠️ **`CLAUDE.md` exige pourtant** : *« UI responsive desktop/tablette/mobile. Prévoir une version
+iPhone pour Massimo. »* Le défaut est pré-existant (dernier commit sur le fichier : ADR-0030).
+
+**Pourquoi 453 tests ne l'ont pas vu** : jsdom n'a pas de viewport, les classes Tailwind ne sont
+jamais évaluées, et aucun test ne rendait le layout à une largeur donnée. **Une classe CSS absente
+ne casse aucun test — elle casse l'écran.**
+
+> C'est le seul cas où un test au viewport de navigateur est **concluant** pour un iPhone : le
+> défaut est une largeur fixe en CSS, pas une question de GPU ou de WebGL. Il se comporte donc
+> identiquement sur l'appareil réel. Tout ce qui touche la **performance** (FPS, WebGL) reste, lui,
+> invérifiable sans l'appareil.
+
+### La spec prescrivait la solution — et l'appliquer aurait cassé trois ADR
+
+`docs/frontend-massimo/navigation.md` dit : *« sidebar latérale sur desktop/tablette, bottom-nav
+sur iPhone (les 5 verbes) »*. Décision déjà prise, jamais construite.
+
+**Mais la spec date de l'étape 2 et ne connaît que 5 verbes**, quand la navigation en porte **13** —
+Agenda placé en position 2 par l'ADR-0025, « Ma Galaxie » par l'addendum ADR-0024 §A **qui interdit
+d'en faire un 6ᵉ onglet**, six témoins par l'ADR-0030 avec test-verrou. Appliquer la lettre de la
+spec aurait **masqué 8 sections sur mobile**.
+
+**Stop-on-blocker joué.** Correctif retenu : un **tiroir** — l'`aside` sort du flux (`fixed`) sous
+`md` et coulisse ; `md:static md:translate-x-0` annule tout au-dessus. **Rien n'est retiré**, aucun
+ADR contredit, et l'écart avec la spec est consigné dans la spec elle-même.
+
+> **Une spec qui n'a jamais été construite vieillit sans qu'on s'en aperçoive.** Avant d'appliquer
+> une prescription datée, vérifier ce que les décisions POSTÉRIEURES en ont fait.
+
+
 ## Chantier `feat/lecon-canonique` — la leçon d'une notion (ADR-0037) — 2026-08-03
 
 ### 🔴 DEUX de mes tests passaient pour la MAUVAISE raison — les deux démasqués par la contre-épreuve

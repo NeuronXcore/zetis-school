@@ -121,12 +121,26 @@ Inconvénients :
 
 À éviter au MVP sauf besoin fort.
 
+## ⚠️ Ce que « déployer » veut dire ici — et ce que ça ne veut pas dire
+
+**Il n'existe AUCUNE CI et AUCUN environnement distant.** Merger une PR ne lance aucun test et ne
+déploie rien : `main` est simplement la branche de référence. Les tests sont ceux qu'on lance à la
+main, avant le merge.
+
+**Les migrations passent au (re)démarrage du backend** — entrypoint Docker et `scripts/dev.sh`.
+Il n'y a pas d'étape de déploiement séparée à déclencher.
+
+**La variable de base de données est `ZETIS_DATABASE_URL`**, avec son préfixe. `Settings` déclare
+`env_prefix="ZETIS_"` et `database_url` n'a aucun `validation_alias` : un `DATABASE_URL` nu est
+**ignoré**, et le backend repart en silence sur son défaut (localhost, mot de passe de dev). Ce
+document et `.env.example` l'annonçaient sans préfixe — corrigé le 2026-08-04.
+
 ## Sauvegardes
 
 ### PostgreSQL
 
 ```bash
-pg_dump $DATABASE_URL > backups/zetis_$(date +%F).sql
+pg_dump $ZETIS_DATABASE_URL > backups/zetis_$(date +%F).sql
 ```
 
 ### MinIO
