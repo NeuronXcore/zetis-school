@@ -4,6 +4,67 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/starlette-*` — dépendances et constantes HTTP — 2026-08-04
+
+### 🔴 Une dépréciation qui ne se plaint PAS est la plus dangereuse
+
+`HTTP_413_REQUEST_ENTITY_TOO_LARGE` était déprécié **au même titre** que le 422, mais n'a produit
+**aucun warning** : son chemin (`eli5`, fichier trop lourd à l'upload) n'est exercé par aucun test,
+et la dépréciation ne se déclenche qu'**à l'accès à l'attribut**.
+
+**Parade** — ne pas corriger « ce qui crie ». Demander à la lib installée sa table de renommages :
+
+```bash
+apps/backend/.venv/bin/python -c "
+import inspect, re
+from starlette import status
+for a, b in re.findall(r'\"(HTTP_[A-Z0-9_]+)\": \"(HTTP_[A-Z0-9_]+)\"', inspect.getsource(status)):
+    print(a, '->', b)"
+```
+
+Starlette 1.3.1 en annonce **quatre** ; nous en utilisions deux, dont un muet.
+
+### Un warning qu'on laisse traîner ne fait pas une panne — il fait un fichier incohérent
+
+`curriculum/service.py` portait **déjà** un `HTTP_422_UNPROCESSABLE_CONTENT` au milieu de ses
+dépréciés, hérité d'un chantier antérieur. La lecture suivante croit l'écart intentionnel et le
+recopie. C'est le vrai coût d'une dépréciation ignorée.
+
+### `tsc -b` échoue depuis la racine — et `npx tsc` attrape le mauvais binaire
+
+Deux pièges enchaînés en voulant vérifier le typage :
+
+| Commande | Ce qui se passe |
+|---|---|
+| `npx tsc -b` | attrape le paquet `tsc` du registre, **pas TypeScript** : *« This is not the tsc command you are looking for »* |
+| `./node_modules/.bin/tsc -b` à la racine | `error TS5083: Cannot read file '<racine>/tsconfig.json'` — il n'y a **que** `tsconfig.base.json` |
+
+**Parade** — `pnpm --filter @zetis/frontend-papa typecheck` (idem Massimo). ⚠️ Ici l'outil échoue
+**franchement** au lieu de mentir ; c'est le bon comportement, à ne pas « réparer » en ajoutant un
+`tsconfig.json` racine qui ne compilerait rien.
+
+### `uv lock --resolution lowest-direct` ne tourne pas sur ce dépôt
+
+Voulant **prouver** que le plancher déclaré cassait, la résolution basse échoue pour une raison sans
+rapport : `faster-whisper` (extra `stt`) tire `av==11.0.0`, qui ne compile pas sans `pkg-config`.
+
+**Conséquence assumée** : la casse sous le plancher est **raisonnée, pas démontrée**. C'est écrit
+tel quel dans la PR #77 — ne pas la présenter comme vérifiée.
+
+**Ce qui marche, en revanche**, pour dater l'apparition d'un symbole, sans toucher au projet :
+
+```bash
+uv run --no-project --with "starlette==0.47.3" python -c "from starlette import status; print(hasattr(status,'HTTP_422_UNPROCESSABLE_CONTENT'))"
+```
+
+C'est ainsi que `>=0.48` a été **mesuré** (faux en 0.47.1/2/3, vrai en 0.48.0) plutôt que choisi.
+
+### Graphify n'oriente pas sur une constante lexicale
+
+Interrogé sur `HTTP_422_UNPROCESSABLE_ENTITY`, il a rendu les sections « Statut » des ADR-0005/0007
+— il indexe des **concepts**, pas des identifiants. Le grep est légitime **après** cette tentative,
+pas à sa place.
+
 ## Chantier `feat/etat-zetis-sidebar` → `refactor/vocabulaire-niveau-palier` — 2026-08-04
 
 ### 🔴 Un renommage de clé JSON ne peut PAS être vu par les tests unitaires

@@ -1,5 +1,43 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.43.1 — Le backend cesse de dépendre de noms que Starlette a retirés
+
+Date : 2026-08-04 · **PR #76** (squash `689d136`) et **PR #77** (squash `0ba3915`) · aucun ADR
+
+⚠️ **Entretien pur : rien ne change pour Massimo ni pour Papa.** Consigné quand même, parce que le
+dépôt vient de perdre une garantie sans le dire.
+
+**Les constantes suivent la lib.** Starlette 1.3.1 annonce quatre renommages ; nous en utilisions
+deux — `HTTP_422_UNPROCESSABLE_ENTITY` (24 occurrences, 8 fichiers) et
+`HTTP_413_REQUEST_ENTITY_TOO_LARGE` (1, dans `eli5`), soit **9 fichiers répartis sur 6 modules**.
+
+> ⚠️ Les messages de commit et les deux PR annoncent « 8 **modules** » : c'était le compte des
+> *fichiers* portant le 422. Erreur attrapée au contrôle de clôture, après merge — corrigée ici.
+
+Renommage **strictement lexical** : 422 vaut
+toujours 422, aucune réponse d'API ne change, aucun test n'a eu à être adapté. Warnings de
+dépréciation dans notre code : **15 → 0**.
+
+⚠️ **Le 413 ne se plaignait pas** — son chemin n'est exercé par aucun test, donc sa dépréciation
+n'apparaissait dans aucune sortie. Trouvé en lisant la table de renommages de la version installée,
+pas en suivant les warnings. Et la dérive avait déjà commencé : `curriculum/service.py` portait
+*déjà* un `UNPROCESSABLE_CONTENT` au milieu de ses dépréciés.
+
+**Le plancher dit enfin ce dont le code a besoin.** `pyproject.toml` déclarait `fastapi>=0.115` et
+rien d'autre ; le renommage venait de rendre cette contrainte fausse — sous ce plancher, l'app casse
+**à l'import**, pas au premier appel. `starlette>=0.48` est déclaré en dépendance **directe**, alors
+qu'aucun module ne l'importe : le code fait `from fastapi import status`, mais ces constantes
+appartiennent à starlette, que fastapi ré-exporte. Le plancher porte sur l'**API utilisée**, pas sur
+son emballage. `0.48` est **mesuré** — absent en 0.47.3, présent en 0.48.0 — et non « la version
+qu'on fait tourner », qui aurait interdit sans raison tout ce qui marche.
+
+Coût : deux lignes de métadonnées dans `uv.lock`, **aucun paquet ne bouge**. **807 tests verts.**
+
+**Laissé de côté, avec son motif** : les 22 montées de dépendances (dont `websockets` 16→17,
+`pgvector` 0.4→0.5, `piper-tts` 1.4→1.6), qu'**aucun test ne juge** — elles demandent une
+vérification live de la génération, du RAG et de la dictée. Et le warning `httpx2`, qui ajouterait
+un **second** client HTTP au venv sans en remplacer aucun.
+
 ## 0.43.0 — Papa sait dans quel régime ZETIS travaille, sans quitter sa page
 
 Date : 2026-08-04 · **PR #75, squash `60604a3`** · addenda **ADR-0032 §7 et §8**

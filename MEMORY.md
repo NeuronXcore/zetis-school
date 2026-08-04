@@ -7,86 +7,83 @@
 
 ## État à la reprise
 
-**Chantier : l'état de ZETIS visible partout + ZETIS LEVELS — COMPLET, MERGÉ `main`.**
-Papa ne savait pas dans quel régime ZETIS travaillait sans ouvrir `/parametres`. Il le sait
-maintenant sur les 22 pages — et la page des réglages dit enfin ce que chaque niveau *fait*.
+**Chantier : la dette de dépendances Starlette — COMPLET, MERGÉ `main`.**
+Deux correctifs courts, nés d'un warning aperçu en fin de session précédente. Aucune décision
+produit, aucun ADR : ce sont des **correctifs**, et c'est déclaré comme tel.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Sur `main` | **squash `60604a3`**, PR **#75**, mergée le **2026-08-04** — 20 commits, 46 fichiers |
-| Base du chantier | **`5462ba8`** — l'ancienne tête de `main` |
-| Branches | **les trois sont SUPPRIMÉES**, local et `origin`. `main` == `origin/main`, rien à pousser |
-| Migration | **AUCUNE** — le niveau est *dérivé*, jamais stocké |
-| Cadrage | addenda **ADR-0032 §7** et **§8**, écrits AVANT leur code (deux commits `docs:`) |
+| Sur `main` | **PR #76**, squash `689d136` — les constantes HTTP suivent Starlette |
+| | **PR #77**, squash `0ba3915` — le plancher `starlette>=0.48` |
+| Branches | supprimées, local et `origin`. `main` == `origin/main`, rien à pousser |
+| Migration | **AUCUNE** · Aucune ligne de frontend |
+| ADR | **aucun, volontairement** — un renommage de constante et un plancher de dépendance ne sont pas des décisions produit |
 
-⚠️ **Ne pas ré-implémenter.** Trois chantiers ont été mergés d'un coup — la sidebar, ZETIS LEVELS et
-le vocabulaire — parce que leurs branches étaient **empilées** (chacune descendait de la précédente,
-les fichiers de la 2ᵉ n'existaient pas sur la 1ʳᵉ). Un squash unique était donc le seul merge sûr.
-Conséquence à connaître : `git log` de `main` **ne montre pas** les 20 commits ; ils vivent dans la
-PR #75. Les deux branches intermédiaires ont été supprimées **après** avoir vérifié par `git diff`
-qu'elles ne portaient rien d'absent de `main`.
+⚠️ **Le chantier précédent (PR #75) a été élagué d'ici**, ses quatre contrôles passés : deux addenda
+ADR-0032 (§7, §8), sa section dans `TROUBLESHOOTING.md` (2026-08-04), son entrée `CHANGELOG` 0.43.0,
+et **rien d'ouvert laissé derrière** — ses dettes vivent dans « DETTES OUVERTES » ci-dessous.
 
-### Ce que ce chantier a livré
+### Ce que ces deux correctifs ont livré
 
-**En tête de sidebar** — un avatar de 88 px, un badge à cheval, un halo **gradué par le régime**
-(fixe → souffle → souffle + rotation), une infobulle teintée. **Deux axes, deux signes** : l'avatar
-porte le régime, un glyphe ⏸/⚡ porte le déclencheur.
+**#76 — les constantes HTTP.** Starlette 1.3.1 annonce quatre renommages, nous en utilisions deux :
+`HTTP_422_UNPROCESSABLE_ENTITY` → `..._CONTENT` (**24×, 8 fichiers**) et
+`HTTP_413_REQUEST_ENTITY_TOO_LARGE` → `HTTP_413_CONTENT_TOO_LARGE` (1×, `eli5`) — **9 fichiers,
+6 modules** en tout. **Purement lexical** : 422 vaut toujours 422. Warnings dans notre code :
+**15 → 0**.
 
-**Sur `/parametres`** — **ZETIS LEVELS** en tête, un panneau **calculé** montrant ce que le niveau
-décide *et* ce qu'aucun niveau ne change, une confirmation qui garde l'**enregistrement** et dont le
-corps est l'**écart** avant→après.
+⚠️ Les messages des commits `689d136` / `0ba3915` et les PR #76/#77 disent « 8 **modules** ». C'est
+faux — c'était le nombre de *fichiers* portant le 422. Attrapé au contrôle de clôture ; les commits
+sont mergés, donc l'erreur reste dans l'historique. **Ce fichier-ci fait foi.**
 
-**Vocabulaire unifié** — un *niveau* se choisit, un *palier* se subit ; docs, code **et** clé JSON.
-
-**Un dispositif que le dépôt n'avait pas** — `packages/types/contracts/`, réponses **capturées**,
-relues d'un côté et de l'autre. Seule chose capable de voir un renommage de clé.
+**#77 — le plancher.** `pyproject.toml` déclarait `fastapi>=0.115` sans borne et rien d'autre ;
+le #76 venait de rendre cette contrainte fausse. `starlette>=0.48` déclaré en dépendance **directe**.
+Coût : deux lignes de métadonnées dans `uv.lock`, **aucun paquet ne bouge**.
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **Deux axes, deux signes** (§7.1). *Autonome + désarmé* ≠ « ZETIS travaille seul » : un signe
-   unique mentirait sur **deux lignes de la table sur quatre**.
-2. **Le halo porte de l'information** (§7.2) — `prefers-reduced-motion` **fige sans retirer**.
-3. **Les mots des AVATARS font foi à l'écran** (§7.7) : *Manual · Hybrid · Autonom*. Les ADR disent
-   toujours *Manuel · Semi-autonome · Autonome* — **c'est écrit et assumé**, ne pas « corriger ».
-4. **Le panneau est CALCULÉ, jamais rédigé** (§8.2) : une prose *classe × niveau* recopierait la
-   matrice du §G.2 **sous une forme que le serveur ne peut pas refuser**.
-5. **Deux révocations, contre-motifs au dossier** : la primauté du constat (§8.1, défendable
-   **uniquement** parce que le §7 existe) et « on ne freine pas un retour au contrôle » (§8.4, le
-   motif survit dans le **ton**).
-6. **Un niveau se choisit, un palier se subit** (§8.0) — entrée ajoutée au `GLOSSARY.md`.
+1. **Le plancher porte sur l'API utilisée, pas sur son emballage.** `starlette` est déclaré alors
+   qu'**aucun module ne l'importe** — tout le code fait `from fastapi import status`. Ces constantes
+   appartiennent à starlette, fastapi les ré-exporte. Relever `fastapi>=X` aurait marché aussi, mais
+   dirait *où* on prend la chose, pas *ce dont* on a besoin. **Motif écrit dans le `pyproject.toml`
+   lui-même** — ne pas le « nettoyer » en croyant à une dépendance inutilisée.
+2. **`0.48` est mesuré, pas choisi.** 0.47.1/0.47.2/0.47.3 n'ont pas les constantes, 0.48.0 les a.
+   Ne pas resserrer à `>=1.3.1` (la version qu'on fait tourner) : ça interdirait sans raison tout ce
+   qui marche.
+3. **`httpx2` est refusé pour l'instant, et c'est motivé** — voir DETTES OUVERTES.
+4. **Les 22 montées de dépendances sont différées, et c'est motivé** — voir DETTES OUVERTES.
 
 ### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
 
-1. 🔴 **Un renommage de clé JSON est INVISIBLE aux tests unitaires** — backend contre lui-même,
-   front qui mocke : **805 + 377 verts sur un contrat rompu**. Parade posée, trois contre-épreuves.
-2. 🔴 **Un verrou anti-sondage qui ne mordait pas** : faux timers posés *après* le montage. Le
-   patron vient de `useNewsSummary` (ADR-0030) — **les autres copies du dépôt sont suspectes**.
-3. **`onMouseLeave` cesse d'être fiable** si l'infobulle est **fille** de l'élément survolé.
-   Trouvé **à l'écran**, aucun test ne le voyait.
-4. **La sidebar Papa n'était pas clippée** : le *document* grandissait, le body défilait, header et
-   sidebar partaient. « ⚙️ Paramètres » n'était atteignable qu'en scrollant toute la page.
-5. **`role="group"` homonyme** entre deux composants → quatre tests tombés d'un coup.
-6. **`vi.clearAllMocks()` manquait** : tout `toHaveBeenCalledTimes` dépendait de la **position du
-   test dans le fichier**.
-7. **J'ai mal chiffré le refactor deux fois** — « transversal » puis « irréductible ». Les deux fois,
-   **vérifier** a changé la décision. Le chiffrage à vue est le vrai piège.
+1. 🔴 **Le 413 déprécié ne se plaignait PAS.** Son chemin n'est exercé par aucun test, donc sa
+   dépréciation n'apparaissait dans **aucune sortie**. Trouvé en lisant la table de renommages de la
+   version installée, pas en suivant les warnings. **Corriger « ce qui crie » ne suffit pas.**
+2. **La dérive avait déjà commencé** : `curriculum/service.py` portait *déjà* un
+   `UNPROCESSABLE_CONTENT` au milieu de ses dépréciés. Un warning qu'on laisse traîner ne produit
+   pas une panne, il produit un fichier **incohérent** que la lecture suivante croit intentionnel.
+3. **`tsc -b` ne se lance PAS depuis la racine** — `error TS5083`, il n'y a pas de `tsconfig.json`
+   racine, seulement `tsconfig.base.json`. La commande est `pnpm --filter <app> typecheck`.
+4. **`npx tsc` attrape le mauvais binaire** (paquet `tsc` du registre, pas TypeScript).
+5. **`uv lock --resolution lowest-direct` ne peut pas tourner ici** : `faster-whisper` tire
+   `av==11.0.0`, qui ne compile pas sans `pkg-config`. **La casse sous le plancher n'est donc pas
+   démontrée, seulement raisonnée** — c'est écrit dans la PR #77.
+6. **Graphify n'oriente pas sur une constante lexicale** — interrogé sur `HTTP_422_*`, il est parti
+   sur les sections « Statut » des ADR. Le grep est légitime **après** cette tentative.
 
-> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04** (elle porte encore les noms
-> des branches, qui n'existent plus — le travail est dans la PR #75).
+> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04**.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS — il n'a plus de prochain pas.** Le dépôt est propre : `main` == `origin/main`,
-aucune branche en attente, aucune PR ouverte. La prochaine session **ouvre un nouveau chantier**
-(`/ouverture`) ; ce qui suit n'est pas du travail inachevé, c'est le stock de dettes à arbitrer.
+**Ce chantier est CLOS — il n'a plus de prochain pas.** `main` == `origin/main`, aucune branche,
+aucune PR ouverte, arbre propre. La prochaine session **ouvre un nouveau chantier** (`/ouverture`) ;
+ce qui suit n'est pas du travail inachevé, c'est le stock de dettes à arbitrer.
 
 Ce qu'un nouveau chantier peut prendre, par ordre de ce que ça évite de casser :
 
 1. 🔴 **Contre-éprouver le patron anti-sondage de l'ADR-0030** partout où il est copié (1ʳᵉ dette
    ci-dessous). Une heure, et ça peut réveiller un sondage réel en production.
-2. **Mettre `API_SPEC.md` au réel** pour `/api/settings/autonomy` — son contrat vient de changer.
+2. **Mettre `API_SPEC.md` au réel** pour `/api/settings/autonomy` — son contrat a changé.
 3. **La sidebar Papa responsive** — le chantier a déjà été mené une fois côté Massimo.
 4. 👤 **Deux choses que l'agent ne peut pas faire** : juger si **trois animations permanentes** dans
    le coin de l'œil distraient au bout de 60 s de travail réel (le correctif est décidé — *ralentir*,
@@ -94,6 +91,25 @@ Ce qu'un nouveau chantier peut prendre, par ordre de ce que ça évite de casser
 
 ### ▶ DETTES OUVERTES
 
+- **Les 22 montées de dépendances backend, différées SCIEMMENT** (mesurées le 2026-08-04 par
+  `uv lock --upgrade --dry-run`, qui n'écrit rien). Majoritairement patch/mineures, mais quatre ne
+  sont pas anodines : `websockets` 16 → **17** (majeure), `pgvector` 0.4 → **0.5** (le RAG),
+  `piper-tts` 1.4 → **1.6** (la voix des capsules), `onnxruntime`/`huggingface-hub` (la dictée).
+  ⚠️ **Aucune de ces quatre n'est jugée par la suite de tests** : ces chemins s'exercent **en vrai**
+  ou pas du tout. Les 807 tests passeraient au vert sur une montée qui casse la génération de
+  capsules. Ce n'est donc pas un bump, c'est un chantier avec **vérification live** — génération,
+  RAG, dictée, worker RQ.
+- **Le warning `httpx2` reste, et le refus est motivé.** `starlette/testclient.py` essaie `httpx2`,
+  retombe sur `httpx` en prévenant. Mais `httpx` **n'est pas une dépendance de test chez nous** :
+  trois modules applicatifs l'importent (`ollama_provider`, `anthropic_provider`, `mlx_provider`).
+  Installer `httpx2` n'en remplacerait aucun — il **s'ajouterait**, soit deux clients HTTP dans le
+  venv pour faire taire un avertissement de `TestClient`. Migrer aussi le code applicatif est un
+  changement majeur d'API sur le chemin de **toute la génération**. Le bon moment sera celui où
+  Starlette **retirera le repli** : là ce sera une panne, pas un warning, et la migration aura une
+  raison.
+- **`pyproject.toml` n'a toujours aucune borne haute** (`fastapi>=0.115`, etc.). Le plancher
+  `starlette>=0.48` corrige le seul cas qui cassait *à l'import* ; il ne dit rien d'une montée
+  majeure future. Pas d'action décidée — c'est un constat, pas un TODO.
 - 🔴 **Le patron anti-sondage de l'ADR-0030 est SUSPECT partout où il est copié.** Le test
   « 60 s de timers avancés → un seul appel » ne mord que si `vi.useFakeTimers()` est posé **avant**
   le montage. Démontré le 2026-08-04 : la version de `useAutonomyState` restait verte **avec** un
@@ -182,11 +198,12 @@ Ce qu'un nouveau chantier peut prendre, par ordre de ce que ça évite de casser
 
 ### ✅ LE DISPOSITIF EST DÉSARMÉ (2026-08-04, fin de session)
 
-| Réglage | Valeur |
+| Réglage | Valeur — **lue en base le 2026-08-04, en fin de session** |
 |---|---|
-| Régime | ***Semi-autonome*** (A0a = 3, **A1 = 2**) |
+| Régime dérivé | ***Manuel*** (A0a = 2, **A1 = 2**) |
 | Déclencheur `zetis_auto_trigger_enabled` | **`false`** |
 | Gate du cours | **actif** — ZETIS ne rédige plus un cours à la place de Papa |
+| Base lue | `postgresql://…@localhost:5432/zetis` |
 
 **Vérifié en le FAISANT TOURNER, pas en lisant les réglages** : `scan_agenda` et `scan_requests`
 appelés à vide rendent `créés: []`, avec leurs motifs — *« le déclenchement automatique est
@@ -196,10 +213,31 @@ désarmé »* et *« le régime n'est pas Autonome »*.
 l'écran des trois niveaux et des deux modales exige d'écrire en base : `manuel`, `autonome`,
 déclencheur armé puis désarmé, une dizaine d'allers-retours.
 
-⚠️ **Et le contrôle de clôture a pris ce fichier en défaut** : j'avais écrit « remis à `semi` », la
-base était sur **`manuel`**. Le dispositif était désarmé dans les deux cas (`A1 = 2`, gate du cours
-actif), mais la phrase était fausse. Corrigé — la base **et** la phrase. **État final relu depuis
-l'API** : `niveau = semi`, `A0a = 3`, `A1 = 2`, `auto_trigger_enabled = false`.
+🔴 **Le contrôle de clôture a pris ce fichier en défaut DEUX FOIS, sur la MÊME ligne.**
+
+- 1ʳᵉ fois : j'avais écrit « remis à `semi` », la base était sur `manuel`. J'ai écrit avoir remis à
+  `semi` et relu depuis l'API.
+- 2ᵉ fois, quelques heures plus tard : la base est **de nouveau sur `manuel`** (`A0a = 2`), lue
+  directement via `service.read_autonomy` sur `localhost:5432/zetis`.
+
+⚠️ **Je ne sais pas expliquer l'écart, et je ne l'invente pas.** Deux hypothèses, aucune vérifiée :
+soit la remise à `semi` n'a jamais été persistée, soit quelque chose a réécrit depuis. Rien dans la
+session qui suit n'a touché ces clés — mais c'est exactement ce que j'avais cru la première fois.
+
+**Ce qui est CERTAIN et qui est le seul point qui compte : le dispositif est désarmé** dans les deux
+cas — `auto_trigger_enabled = false`, `A1 = 2`, gate du cours actif. Le régime `manuel` est *plus*
+conservateur que `semi`, jamais moins.
+
+👤 **Pour la prochaine session : ne pas refaire confiance à une ligne d'état de base écrite ici.**
+La relire, toujours :
+
+```bash
+apps/backend/.venv/bin/python -c "
+from app.db.base import SessionLocal
+from app.modules.settings import service
+db = SessionLocal(); v = service.read_autonomy(db)
+print(service.niveau_de(v), v, service.auto_trigger_enabled(db)); db.close()"
+```
 
 ⚠️ **Le vrai piège de cette journée** : j'ai cru trois fois à une « dérive inexpliquée » du régime.
 Il n'y en avait aucune. **Une seule fonction écrit ces clés** (`write_autonomy`, via `PUT`) — les
