@@ -5,9 +5,20 @@ import { MISSIONS_PENDING_EVENT, fetchPilotSummary } from "../lib/missionsPilota
 import { fetchContentRequestsCount } from "../lib/contentRequests";
 import { fetchNotionRequestsCount } from "../lib/notionRequests";
 import { DEMANDES_CHANGED_EVENT } from "../lib/demandesEvents";
+import { AUTONOMY_LOADING, type AutonomyState } from "../hooks/useAutonomyState";
+import { EtatZetis } from "./EtatZetis";
 
 // Sidebar temporaire de l'interface Papa (Étape 3) — cockpit de pilotage.
-export function PapaSidebar() {
+//
+// ⚠️ **Deux motifs cohabitent ici, et c'est une dette DATÉE (2026-08-04).** L'état d'autonomie
+// arrive en PROP depuis `PapaLayout` (motif ADR-0030 : un hook dans le layout, une valeur pour
+// toutes les pages) ; les deux pastilles ci-dessous font encore leur propre appel au montage —
+// exactement le motif que l'ADR-0030 a supprimé côté Massimo. Elles n'ont AUCUN test aujourd'hui :
+// les migrer dans la même tranche que l'état de ZETIS serait refactorer du code non couvert au
+// milieu d'une feature. Chantier nommé, pas oublié (addendum ADR-0032 §Conséquences).
+// Conséquence assumée : le verrou « la sidebar ne fait aucun appel réseau » est ici RÉDUIT à
+// « la sidebar ne lit jamais l'autonomie elle-même » (cf. `PapaSidebar.test.tsx`).
+export function PapaSidebar({ autonomy = AUTONOMY_LOADING }: { autonomy?: AutonomyState }) {
   // Compteur ambré « à valider » sur l'entrée Missions (même motif que les autres files de
   // validation) : chargé au montage, rafraîchi quand la page émet après validate/reject.
   const [pending, setPending] = useState(0);
@@ -37,12 +48,10 @@ export function PapaSidebar() {
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-2 border-r border-papa-border bg-papa-surface p-4">
-      <div className="mb-4 px-1">
-        <p className="text-lg font-bold leading-tight">
-          ZETIS <span className="text-papa-accent">Papa</span>
-        </p>
-        <p className="text-xs text-papa-muted">Cockpit de pilotage</p>
-      </div>
+      {/* Le bandeau de marque a cédé sa place à l'état de ZETIS : la question « dans quel régime
+          travaille-t-il ? » se pose vingt fois par session, « comment s'appelle cette app ? »
+          jamais. L'identité survit dans l'avatar, qui porte le sceau ZETIS. */}
+      <EtatZetis state={autonomy} />
 
       <nav className="flex flex-col gap-1">
         {PAPA_NAV.map((item) => (

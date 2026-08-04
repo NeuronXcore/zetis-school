@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import { PapaSidebar } from "../components/PapaSidebar";
 import { useAuth } from "@zetis/auth";
 import { useActiveProductionRun } from "../hooks/useActiveProductionRun";
+import { useAutonomyState } from "../hooks/useAutonomyState";
 import { ActiveProductionModal } from "../components/ActiveProductionModal";
 import { ProductionDoneModal } from "../components/ProductionDoneModal";
 import { useEstimatedProgress } from "../components/ProgressBar";
@@ -15,6 +16,10 @@ export function PapaLayout() {
   // « ZETIS travaille » : le lot tourne dans un worker séparé, Papa peut fermer la modale et
   // naviguer. Sans cet indicateur, plus rien ne le lui disait.
   const { run: activeRun, finished, acknowledge } = useActiveProductionRun();
+  // L'état d'autonomie se lit ICI et non dans la sidebar (motif ADR-0030) : le layout ne se
+  // démonte pas entre deux routes, donc un seul appel pour les 22 pages. Une lecture dans la
+  // sidebar en referait un par entrée — le mal que l'ADR-0030 a supprimé côté Massimo.
+  const autonomy = useAutonomyState();
   const [showRun, setShowRun] = useState(false);
 
   // ⚠️ **Le % du serveur compte des NOTIONS, pas des secondes.** Sur un lot de chapitre il est
@@ -29,7 +34,7 @@ export function PapaLayout() {
   const pct = sansGranularite ? estime : (activeRun?.progress_pct ?? 0);
   return (
     <div className="flex h-full">
-      <PapaSidebar />
+      <PapaSidebar autonomy={autonomy} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-papa-border bg-papa-surface/60 px-6 py-3">
           <div className="flex items-center gap-3 text-sm">
