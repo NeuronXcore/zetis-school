@@ -10,7 +10,7 @@ vi.mock("../lib/settings", async (importOriginal) => ({
   fetchAutonomy: vi.fn(),
   saveAutonomy: vi.fn(),
 }));
-import { fetchAutonomy, saveAutonomy } from "../lib/settings";
+import { AUTONOMY_CHANGED_EVENT, fetchAutonomy, saveAutonomy } from "../lib/settings";
 
 const A0A = "zetis_autonomy_a0a_derives";
 const A1 = "zetis_autonomy_a1_course";
@@ -203,6 +203,34 @@ describe("ParametresPage", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("🔒 un enregistrement RÉUSSI prévient la sidebar, une fois (addendum §7.4)", async () => {
+    const heard = vi.fn();
+    window.addEventListener(AUTONOMY_CHANGED_EVENT, heard);
+    await renderLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() => expect(heard).toHaveBeenCalledTimes(1));
+    window.removeEventListener(AUTONOMY_CHANGED_EVENT, heard);
+  });
+
+  it("🔒 un enregistrement REFUSÉ n'émet RIEN — un refus ne change pas d'état", async () => {
+    // Le piège : émettre depuis le `.finally`, qui passe aussi après un refus. La sidebar
+    // relirait alors pour apprendre que rien n'a bougé — un appel de plus sans fait de plus.
+    vi.mocked(saveAutonomy).mockRejectedValue(new Error("Définitif. Aucun réglage ne l'ouvrira."));
+    const heard = vi.fn();
+    window.addEventListener(AUTONOMY_CHANGED_EVENT, heard);
+    await renderLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await screen.findByText("Définitif. Aucun réglage ne l'ouvrira.");
+    expect(heard).not.toHaveBeenCalled();
+    window.removeEventListener(AUTONOMY_CHANGED_EVENT, heard);
   });
 
   it("à l'erreur de lecture, aucun réglage n'est affiché — pas de défaut inventé", async () => {

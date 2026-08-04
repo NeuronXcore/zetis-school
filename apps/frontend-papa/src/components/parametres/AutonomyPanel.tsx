@@ -21,6 +21,7 @@ import {
   SERVE,
   fetchAutonomy,
   levelsForPreset,
+  notifyAutonomyChanged,
   saveAutonomy,
 } from "../../lib/settings";
 import { ClassRow } from "./ClassRow";
@@ -112,6 +113,10 @@ export function AutonomyPanel() {
         setAutonomy(fresh);
         setDraft(draftOf(fresh));
         setAutoTrigger(fresh.auto_trigger_enabled);
+        // Le bloc d'état de la sidebar relit (addendum ADR-0032 §7.4). Ici et NULLE PART ailleurs :
+        // ni dans le `.catch` (un refus ne change rien), ni dans le `.finally` (qui passe aussi
+        // après un refus).
+        notifyAutonomyChanged();
       })
       .catch((cause: unknown) => {
         // Le serveur DIT pourquoi il refuse (422 motivé) : on relaie son message tel quel, et on

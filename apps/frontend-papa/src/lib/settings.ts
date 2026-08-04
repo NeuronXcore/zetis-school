@@ -106,3 +106,23 @@ export function presetAvailability(
  *  demande une confirmation explicite. */
 export const A1_COURSE_KEY = "zetis_autonomy_a1_course";
 export const SERVE: AutonomyLevel = 3;
+
+/** « Le régime ou le déclencheur vient de changer » (addendum ADR-0032 §7.4).
+ *
+ *  Émis par le PANNEAU après une écriture RÉUSSIE, écouté par le bloc d'état de la sidebar via
+ *  `useAutonomyState`. Jamais émis sur un refus : un 422 ne change rien, et faire relire la
+ *  sidebar serait un appel de plus sans fait de plus.
+ *
+ *  ⚠️ L'événement est NU, il ne porte pas la réponse fraîche que le panneau tient pourtant déjà.
+ *  La passer en `detail` économiserait un GET, mais ouvrirait DEUX chemins d'écriture dans l'état
+ *  du hook — l'un par le réseau, l'autre par une variable locale d'un composant — pour une seule
+ *  question. C'est exactement ce que le §2 de l'ADR-0032 a refusé en interdisant de stocker un
+ *  mode à côté des six clés. Le coût est un GET par clic sur « Enregistrer », jamais sur horloge.
+ *
+ *  Il vit ici et non dans un fichier d'événements dédié : une seule lib l'alimente (patron de
+ *  `MISSIONS_PENDING_EVENT`) ; `demandesEvents.ts` n'existe que parce que DEUX libs y convergent. */
+export const AUTONOMY_CHANGED_EVENT = "zetis:autonomy-changed";
+
+export function notifyAutonomyChanged(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(AUTONOMY_CHANGED_EVENT));
+}
