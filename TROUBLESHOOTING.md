@@ -4,6 +4,88 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/bandeau-*` — les bandeaux des deux frontends — 2026-08-04
+
+### 🔴 Un test de budget qui part d'une PAGE ne voit pas le LAYOUT
+
+`accueil.bundle.test.ts:40` part de `pages/AccueilMassimoPage.tsx`, `matiere.bundle.test.ts:33` de
+`pages/MatiereDetailPage.tsx`. `reachable()` ne suit que les imports **depuis son entrée** :
+`MassimoLayout.tsx` et `MassimoBannerHeader.tsx` ne sont dans **aucun des deux graphes**.
+
+Un `import("@zetis/ui/galaxy/canvas")` dans le header aurait donc chargé **1,37 Mo sur les 21
+routes** — y compris `/subjects/:slug`, dont le budget est écrit ZÉRO — en laissant **les deux
+suites 12/12 vertes**.
+
+**Démontré, pas supposé.** Sabotage joué : ajout de la ligne, `accueil` et `matiere` restent
+vertes, `layout.bundle.test.ts` et `app.bundle.test.ts` virent au rouge **en nommant
+`MassimoBannerHeader.tsx`**. Puis fichier restauré, `git diff` vide.
+
+**Parade** — le chrome est une unité de sens distincte d'une page : il est payé PARTOUT. Deux
+suites de plus, avec le même moteur `bundleGraph.ts` : `layout.bundle.test.ts` (entrée
+`MassimoLayout.tsx`, budget zéro) et `app.bundle.test.ts` (entrée `App.tsx`, **liste épinglée** des
+points de montage — toute apparition d'un troisième fait échouer le test).
+
+### 🔴 Le header Massimo était INTESTABLE sous jsdom, et ce n'était pas un oubli
+
+Il n'avait **aucun** test, contrairement à `PapaLayout`. La cause : `NeuralLinks.tsx:30` faisait
+`new ResizeObserver(...)`, que jsdom n'implémente pas et que `apps/frontend-massimo/src/test/setup.ts`
+**ne polyfille pas** (il ne contient que `@testing-library/jest-dom/vitest`). Monter le header
+jetait `ReferenceError: ResizeObserver is not defined`.
+
+**Parade** — le remplaçant teste `typeof ResizeObserver === "undefined"` et retombe sur un écouteur
+de `resize`. Le header devient montable, et onze test-verrous ont pu être écrits d'un coup. ⚠️ Ne
+pas polyfiller `ResizeObserver` dans le `setup.ts` global : ça masquerait le même piège ailleurs.
+
+### Un budget de particules calculé sur la MOYENNE est faux
+
+`revealSchedule` place les ancêtres à `born − hauteur × ANCESTOR_LEAD`, donc les naissances
+arrivent **en grappes**. Une durée de traînée dérivée du débit moyen
+(`IN_FLIGHT_BUDGET × durée / naissances`) donnait **34 étoiles en vol pour un budget de 32** —
+attrapé par le test, pas à l'œil.
+
+**Parade** — mesurer le **pic** : `peakInFlight(sorted, window)` en deux pointeurs, puis une
+bissection sur la durée. O(n) par essai, 24 essais, une seule fois. Ne pas revenir à la moyenne
+« parce que c'est plus simple » : elle sous-estime toujours.
+
+### `bg-cover` rogne ; un masque sur `inset-0` ne fond rien
+
+Deux pièges enchaînés sur le bandeau Papa, tous deux vus à l'écran :
+
+1. `bg-cover` met l'image à l'échelle de la **largeur**. Sur un header bien plus large que haut,
+   l'image déborde en hauteur et se fait couper par le haut. `bg-contain` cale sur la **hauteur**.
+2. Le fondu latéral (`maskImage: linear-gradient(90deg, …)`) se mesure sur la largeur du **calque**.
+   Posé sur `inset-0`, ses zones de fondu tombaient **hors de l'image** (qui n'occupe que le centre
+   en `contain`) : le rectangle sombre de l'image se voyait comme une couture. Le calque doit porter
+   l'`aspect-[10/3]` de l'image.
+
+### `StrictMode` tue une animation verrouillée « une seule fois » si le verrou se pose au DÉBUT
+
+`main.tsx` monte l'app dans `<StrictMode>`, qui monte, démonte et remonte chaque effet en dev. Un
+`let alreadyPlayed = false` de module positionné **au démarrage** de l'animation est donc vrai au
+second montage : plus rien ne s'anime en développement, et seulement là.
+
+**Parade** — poser le verrou **à la fin**. Bonus : une construction interrompue (déconnexion,
+remontage) n'est alors pas comptée, ce qui est aussi le bon comportement en production.
+
+### Deux tests réécrits parce que la DÉCISION a changé — et pourquoi ce n'est pas une régression masquée
+
+`la boucle S'ARRÊTE` et `le coût par image est indépendant de N` encodaient fidèlement la
+conception du matin. En cours de session, deux décisions les ont invalidés : la galaxie ne se fige
+plus (elle tourne), donc le calque posé ne sert plus.
+
+**Règle appliquée** — un test qu'on modifie pour qu'il passe est une régression masquée ; un test
+qu'on réécrit parce que la règle a changé doit **encoder la nouvelle règle et dire l'ancienne**.
+Les deux portent désormais un bloc `⚠️ CE CAS A CHANGÉ DE NATURE LE …` qui explique quoi et
+pourquoi. Le second **avoue** que le coût est proportionnel à N — c'est un aveu, pas un
+assouplissement.
+
+### Le témoin d'état existe parce qu'un compte d'images ne prouve plus rien
+
+Tant que la boucle s'arrêtait, « la construction n'a pas rejoué » se vérifiait en comptant les
+`requestAnimationFrame`. Depuis qu'une boucle permanente tourne, ce compte ne distingue plus rien.
+D'où `canvas.dataset.state` (`growing` → `alive`), lu par le test-verrou. ⚠️ Ce n'est pas du
+débogage laissé traîner : c'est la seule surface observable de l'invariant.
+
 ## Chantier `fix/starlette-*` — dépendances et constantes HTTP — 2026-08-04
 
 ### 🔴 Une dépréciation qui ne se plaint PAS est la plus dangereuse

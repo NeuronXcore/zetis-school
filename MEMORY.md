@@ -7,89 +7,128 @@
 
 ## État à la reprise
 
-**Chantier : la dette de dépendances Starlette — COMPLET, MERGÉ `main`.**
-Deux correctifs courts, nés d'un warning aperçu en fin de session précédente. Aucune décision
-produit, aucun ADR : ce sont des **correctifs**, et c'est déclaré comme tel.
+**Chantier : le bandeau des deux frontends — COMPLET, deux PR OUVERTES, rien n'est sur `main`.**
+Une seule session, deux chantiers successifs, tous deux finis, commités et poussés. Le second est né
+d'une demande faite en regardant le premier.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Sur `main` | **PR #76**, squash `689d136` — les constantes HTTP suivent Starlette |
-| | **PR #77**, squash `0ba3915` — le plancher `starlette>=0.48` |
-| Branches | supprimées, local et `origin`. `main` == `origin/main`, rien à pousser |
-| Migration | **AUCUNE** · Aucune ligne de frontend |
-| ADR | **aucun, volontairement** — un renommage de constante et un plancher de dépendance ne sont pas des décisions produit |
+| Papa — le bandeau porte l'emblème ZETIS | branche `feat/bandeau-papa-zetis`, **PR #78 OUVERTE** |
+| Massimo — la galaxie tourne dans le bandeau | branche `feat/galaxie-header-massimo`, **PR #79 OUVERTE** |
+| Base des deux | `46d4333` — elles partent du même point |
+| Migration · backend | **AUCUNE**, ni l'une ni l'autre. Tout est frontend + doc |
+| ADR | `docs/decisions/adr-0029-addendum-galaxie-dans-le-bandeau.md` (sur la branche galaxie) |
 
-⚠️ **Le chantier précédent (PR #75) a été élagué d'ici**, ses quatre contrôles passés : deux addenda
-ADR-0032 (§7, §8), sa section dans `TROUBLESHOOTING.md` (2026-08-04), son entrée `CHANGELOG` 0.43.0,
-et **rien d'ouvert laissé derrière** — ses dettes vivent dans « DETTES OUVERTES » ci-dessous.
+⚠️ **La ligne de cet addendum dans `DECISIONS.md` reste À POSER, sur `main`** — jamais sur une
+branche, c'est la règle de l'ouverture (deux branches qui l'éditent = conflit garanti).
 
-### Ce que ces deux correctifs ont livré
+⚠️ **Les deux PR ne se croisent pas** : Papa ne touche que `apps/frontend-papa/`, la galaxie que
+`apps/frontend-massimo/` + `docs/`. L'ordre de merge est indifférent.
 
-**#76 — les constantes HTTP.** Starlette 1.3.1 annonce quatre renommages, nous en utilisions deux :
-`HTTP_422_UNPROCESSABLE_ENTITY` → `..._CONTENT` (**24×, 8 fichiers**) et
-`HTTP_413_REQUEST_ENTITY_TOO_LARGE` → `HTTP_413_CONTENT_TOO_LARGE` (1×, `eli5`) — **9 fichiers,
-6 modules** en tout. **Purement lexical** : 422 vaut toujours 422. Warnings dans notre code :
-**15 → 0**.
+⚠️ **Sur la branche galaxie, le bandeau Papa n'existe pas.** Elle est née de `main` avant que #78
+soit mergée. Ce n'est pas une perte — c'est le mono-chantier qui fonctionne. Constaté à l'écran en
+cours de session, et c'est une question qui reviendra.
 
-⚠️ Les messages des commits `689d136` / `0ba3915` et les PR #76/#77 disent « 8 **modules** ». C'est
-faux — c'était le nombre de *fichiers* portant le 422. Attrapé au contrôle de clôture ; les commits
-sont mergés, donc l'erreur reste dans l'historique. **Ce fichier-ci fait foi.**
+### Ce que ces deux chantiers ont livré
 
-**#77 — le plancher.** `pyproject.toml` déclarait `fastapi>=0.115` sans borne et rien d'autre ;
-le #76 venait de rendre cette contrainte fausse. `starlette>=0.48` déclaré en dépendance **directe**.
-Coût : deux lignes de métadonnées dans `uv.lock`, **aucun paquet ne bouge**.
+**Papa — l'image entière, jamais rognée.** Le header de coquille (`PapaLayout`) passe de `py-3`
+(~44 px) à `h-28 sm:h-36` et porte l'emblème. Les deux blocs de contenu reçoivent un fond
+translucide : sur un header à fond image, un texte nu devient illisible dès que l'onde passe
+dessous.
+
+**Massimo — sa galaxie, à la place d'un décor qui ne disait rien.** `NeuralCubes` (22 cubes) et
+`NeuralLinks` (8 liens SVG) sont **supprimés** : 78 animations infinies, dont une sur `filter`
+(non composable), soit ~38 éléments repeints à chaque image sur les **21 routes**, pour toujours.
+À la place : les 202 nœuds de son graphe réel, qui se construisent depuis l'emblème en ~5,8 s
+puis **tournent** (un tour en 72 s, 19 im/s mesurées), sous une couronne solaire dorée.
+
+Quatre modules, tous purs sauf le dernier : `headerBandLayout` (la pose, en coordonnées de PLAN),
+`headerGalaxyClock` (compression de l'horloge de rang), `headerGalaxyRenderer` (le dessin, sans
+React), `HeaderGalaxy` (le cycle de vie). Plus `lib/galaxyShared.ts`, qui déduplique les deux
+appels lourds désormais demandés par deux surfaces.
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **Le plancher porte sur l'API utilisée, pas sur son emballage.** `starlette` est déclaré alors
-   qu'**aucun module ne l'importe** — tout le code fait `from fastapi import status`. Ces constantes
-   appartiennent à starlette, fastapi les ré-exporte. Relever `fastapi>=X` aurait marché aussi, mais
-   dirait *où* on prend la chose, pas *ce dont* on a besoin. **Motif écrit dans le `pyproject.toml`
-   lui-même** — ne pas le « nettoyer » en croyant à une dépendance inutilisée.
-2. **`0.48` est mesuré, pas choisi.** 0.47.1/0.47.2/0.47.3 n'ont pas les constantes, 0.48.0 les a.
-   Ne pas resserrer à `>=1.3.1` (la version qu'on fait tourner) : ça interdirait sans raison tout ce
-   qui marche.
-3. **`httpx2` est refusé pour l'instant, et c'est motivé** — voir DETTES OUVERTES.
-4. **Les 22 montées de dépendances sont différées, et c'est motivé** — voir DETTES OUVERTES.
+1. **Aucun moteur 3D dans le chrome.** Le bandeau consomme de `@zetis/ui/galaxy` ce qui est pur
+   (`revealSchedule`, `easeOutCubic`, `starStyle`, les couleurs) et n'importe **jamais**
+   `@zetis/ui/galaxy/canvas`, `three`, `react-force-graph-3d`, `three-spritetext`. Vérifié par
+   `layout.bundle.test.ts` et `app.bundle.test.ts`.
+2. **Tout le ciel est dessiné**, les notions à découvrir en veilleuse. Ne dessiner que les notions
+   travaillées laissait la bande vide à 77 %. Ne pas « optimiser » en les retirant.
+3. **On comprime le TEMPS, jamais le nombre d'étoiles** (addendum ADR-0024 §1 : « Jamais un plafond
+   de nœuds déguisé »). Deux test-verrous nommés le gardent.
+4. **La répartition angulaire est uniforme, et c'est un arbitrage mesuré.** Pousser la masse vers
+   les angles horizontaux remplit la bande à 90 % à l'arrêt, mais la silhouette s'effondre à 52 %
+   en tournant. Le bandeau passe sa vie à tourner et six secondes à se construire.
+5. **`ctx.shadowBlur` et `ctx.filter` sont interdits dans la boucle** — c'est `hfx-twinkle`
+   réinventé. Test-verrou.
+6. **Le verrou « déjà joué » se pose à la FIN de la construction**, jamais au début : `StrictMode`
+   monte-démonte-remonte, donc le poser au début tue l'animation en mode dev.
+7. **Hauteur et cadrage du sprite Massimo sont figés** (`h-24 sm:h-28`, `356px 107px` à
+   `-136px -2px`) : `GalaxyPage.tsx:542` les recopie en dur dans `top-24 sm:top-28`. Test-verrou.
 
 ### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
 
-1. 🔴 **Le 413 déprécié ne se plaignait PAS.** Son chemin n'est exercé par aucun test, donc sa
-   dépréciation n'apparaissait dans **aucune sortie**. Trouvé en lisant la table de renommages de la
-   version installée, pas en suivant les warnings. **Corriger « ce qui crie » ne suffit pas.**
-2. **La dérive avait déjà commencé** : `curriculum/service.py` portait *déjà* un
-   `UNPROCESSABLE_CONTENT` au milieu de ses dépréciés. Un warning qu'on laisse traîner ne produit
-   pas une panne, il produit un fichier **incohérent** que la lecture suivante croit intentionnel.
-3. **`tsc -b` ne se lance PAS depuis la racine** — `error TS5083`, il n'y a pas de `tsconfig.json`
-   racine, seulement `tsconfig.base.json`. La commande est `pnpm --filter <app> typecheck`.
-4. **`npx tsc` attrape le mauvais binaire** (paquet `tsc` du registre, pas TypeScript).
-5. **`uv lock --resolution lowest-direct` ne peut pas tourner ici** : `faster-whisper` tire
-   `av==11.0.0`, qui ne compile pas sans `pkg-config`. **La casse sous le plancher n'est donc pas
-   démontrée, seulement raisonnée** — c'est écrit dans la PR #77.
-6. **Graphify n'oriente pas sur une constante lexicale** — interrogé sur `HTTP_422_*`, il est parti
-   sur les sections « Statut » des ADR. Le grep est légitime **après** cette tentative.
+1. 🔴 **Les budgets de bundle avaient un TROU, et il est démontré.** `accueil.bundle.test.ts` et
+   `matiere.bundle.test.ts` partent d'une **page** : le layout n'est dans aucun des deux graphes.
+   Sabotage joué en vrai — un `import()` du moteur 3D dans le header laisse **les deux suites
+   12/12 vertes**, tout en chargeant 1,37 Mo sur les 21 routes.
+2. 🔴 **Le header Massimo était IMPOSSIBLE à monter sous jsdom**, et ce n'était pas un oubli :
+   `NeuralLinks` construisait un `ResizeObserver` que jsdom n'implémente pas et que
+   `test/setup.ts` ne polyfille pas. C'est pour ça qu'il n'avait aucun test depuis toujours.
+3. **Le problème réel était l'INVERSE de celui redouté.** Le plan se protégeait d'une bouillie à
+   350 nœuds ; le graphe fait 202 nœuds pour 47 notions datées — la vacuité, pas la saturation.
+4. **Un budget de particules calculé sur la MOYENNE est faux.** `revealSchedule` fait naître les
+   ancêtres en grappe : 34 étoiles en vol pour un budget de 32. Corrigé par un calcul de pic exact.
+5. **`bg-cover` rogne, `bg-contain` cale sur la hauteur** — et un masque en dégradé posé sur
+   `inset-0` ne fond rien quand l'image n'occupe que le centre.
+6. **Deux tests ont été RÉÉCRITS parce que la décision a changé**, pas pour qu'ils passent : la
+   boucle ne s'arrête plus (elle tourne), et le coût par image n'est plus indépendant de N.
 
-> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04**.
+> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04 (bandeaux)**.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS — il n'a plus de prochain pas.** `main` == `origin/main`, aucune branche,
-aucune PR ouverte, arbre propre. La prochaine session **ouvre un nouveau chantier** (`/ouverture`) ;
-ce qui suit n'est pas du travail inachevé, c'est le stock de dettes à arbitrer.
+**Les deux chantiers sont FINIS.** Ce qui reste n'est pas du travail inachevé :
 
-Ce qu'un nouveau chantier peut prendre, par ordre de ce que ça évite de casser :
-
-1. 🔴 **Contre-éprouver le patron anti-sondage de l'ADR-0030** partout où il est copié (1ʳᵉ dette
-   ci-dessous). Une heure, et ça peut réveiller un sondage réel en production.
-2. **Mettre `API_SPEC.md` au réel** pour `/api/settings/autonomy` — son contrat a changé.
-3. **La sidebar Papa responsive** — le chantier a déjà été mené une fois côté Massimo.
-4. 👤 **Deux choses que l'agent ne peut pas faire** : juger si **trois animations permanentes** dans
-   le coin de l'œil distraient au bout de 60 s de travail réel (le correctif est décidé — *ralentir*,
-   jamais retirer l'axe) ; et exercer `prefers-reduced-motion` **en vrai**.
+1. 👤 **Regarder le bandeau Massimo en vrai** — c'est le seul point bloquant avant merge, et il ne
+   peut pas être fait par l'agent. **Rien n'a été jugé à l'œil** : le panneau navigateur de la
+   session rendait en taille réduite, donc tout ce qui est affirmé sur le rendu est **mesuré dans
+   le canvas**. À juger : la vitesse de rotation (72 s le tour), le remplissage (~65 % de la
+   largeur), la lisibilité du bloc avatar par-dessus.
+2. **Merger #78 et #79**, dans n'importe quel ordre.
+3. **Poser la ligne de l'addendum ADR-0029 dans `DECISIONS.md`, sur `main`.**
+4. Revenir faire l'étape **4bis** (`WORKFLOW.md §5`) : squash, branches supprimées, « rien à
+   pousser ».
 
 ### ▶ DETTES OUVERTES
+
+> ⚠️ Les cinq dettes qui suivent sont **nées de la session du 2026-08-04 (bandeaux)**. Elles portent
+> toutes sur la même chose : **rien de ce chantier n'a été jugé à l'œil sur un vrai appareil.**
+
+- 🔴 **LE BANDEAU MASSIMO N'A JAMAIS ÉTÉ VU.** Le panneau navigateur de la session rendait en taille
+  réduite : tout ce qui est affirmé sur le rendu est **mesuré dans le canvas** (13–15 bandes sur 20
+  occupées selon l'angle, cœur 9× plus lumineux que la périphérie, 86 % de pixels chauds, 19 im/s),
+  **pas vu**. C'est le seul point bloquant avant de merger #79, et il ne peut pas être fait par
+  l'agent. À juger : vitesse de rotation, remplissage, lisibilité du bloc avatar par-dessus.
+- **`IN_FLIGHT_BUDGET` (32), `ROTATION_PERIOD` (72 s), `FLATTEN` (0,035) et `HEADER_TOTAL` (7 s) ne
+  sont pas passés au profileur.** L'addendum ADR-0024 reproche à `GALAXY_MAX_NODES` que « ses
+  valeurs n'ont JAMAIS été mesurées » — ne pas refaire la même chose. Une capture Safari sur iPhone,
+  jeu semé à ~300 notions. C'est la même dette que « LA GALAXIE — vérifiée à moitié » ci-dessous,
+  et les deux se paient d'un seul coup.
+- ⚠️ **En phase VIVANTE, le coût par image du bandeau est proportionnel à N** (~202 blits de sprite
+  à 19 im/s). C'est le prix explicite de la rotation : dès que tout bouge, le calque posé ne sert
+  plus. Pendant la **construction**, il reste indépendant de N. Écrit dans l'addendum §4bis — c'est
+  sur iPhone que ça se jugera, pas ici.
+- **Le remplissage plafonne à ~65 % de la largeur** à l'arrêt, conséquence directe de l'arbitrage de
+  la répartition angulaire. S'il faut mieux : **ne pas toucher la répartition** (elle porte la
+  rotation), mais le rayon du disque ou la taille des amas.
+- **Le bandeau ne se met pas à jour en cours de session.** Si Massimo travaille une notion, son
+  étoile n'apparaît qu'au rechargement suivant. Assumé (`galaxyShared` a une fenêtre de fraîcheur de
+  5 s, pas un cache), mais jamais éprouvé en usage réel.
+
 
 - **Les 22 montées de dépendances backend, différées SCIEMMENT** (mesurées le 2026-08-04 par
   `uv lock --upgrade --dry-run`, qui n'écrit rien). Majoritairement patch/mineures, mais quatre ne

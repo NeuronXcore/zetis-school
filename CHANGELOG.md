@@ -1,5 +1,52 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.44.0 — Les deux bandeaux portent enfin quelque chose
+
+Date : 2026-08-04 · **PR #78** (Papa) et **PR #79** (Massimo) · addendum **ADR-0029 « La galaxie
+dans le bandeau »** · aucune migration, aucune ligne de backend
+
+**Papa — l'emblème ZETIS, en entier.** Le header de coquille passe de `py-3` (~44 px) à
+`h-28 sm:h-36` et porte la bande de marque. Deux pièges payés à l'écran : `bg-cover` met l'image à
+l'échelle de la **largeur** et la rognait par le haut (`bg-contain` cale sur la hauteur) ; et le
+fondu latéral, posé sur `inset-0`, tombait **hors de l'image** — le rectangle sombre se voyait
+comme une couture. Les 3 test-verrous de `PapaLayout.test.tsx` passent **sans avoir été touchés**.
+
+**Massimo — sa galaxie, à la place d'un décor qui ne disait rien.** `NeuralCubes` (22 cubes) et
+`NeuralLinks` (8 liens SVG) sont **supprimés** : ils maintenaient **78 animations infinies**, dont
+une sur `filter` (propriété non composable), soit ~38 éléments repeints à chaque image, sur les
+**21 routes**, en permanence. À la place, les 202 nœuds de son graphe réel se construisent depuis
+l'emblème en ~5,8 s, puis **tournent** (un tour en 72 s, 19 im/s mesurées), sous une couronne
+solaire dorée. Quatre modules, dont trois purs et testés sans DOM.
+
+⚠️ **UN TROU DE BUDGET DE BUNDLE, TROUVÉ ET DÉMONTRÉ.** `accueil.bundle.test.ts` et
+`matiere.bundle.test.ts` partent d'une **page** : `MassimoLayout` et `MassimoBannerHeader` ne sont
+dans aucun des deux graphes d'imports. Sabotage joué — avec un `import()` du moteur 3D dans le
+header, **les deux suites restent 12/12 vertes** tout en chargeant 1,37 Mo sur les 21 routes.
+Fermé par `layout.bundle.test.ts` (chrome, budget zéro) et `app.bundle.test.ts` (liste épinglée des
+points de montage).
+
+⚠️ **Le header Massimo a enfin des tests, et son absence n'était pas un oubli** : `NeuralLinks`
+construisait un `ResizeObserver` que jsdom n'implémente pas et que `test/setup.ts` ne polyfille pas
+— le monter jetait `ReferenceError`. Sont désormais verrouillés la hauteur `h-24 sm:h-28` (que
+`GalaxyPage.tsx:542` recopie en dur), le cadrage du sprite, le lien `/galaxy` et l'absence de
+« ZETIS Papa ».
+
+**Trois corrections venues de l'écran, pas du plan** : le graphe fait 202 nœuds pour 47 notions
+datées, donc la bande était vide à 77 % — l'inverse de la saturation redoutée ; le budget de
+particules raisonnait sur le débit moyen alors que les ancêtres naissent en grappe (34 en vol pour
+un budget de 32) ; et remplir la bande à 90 % à l'arrêt faisait s'effondrer la silhouette à 52 % en
+tournant.
+
+**Coût assumé** : dès que la galaxie tourne, le calque posé ne sert plus et le coût par image
+redevient **proportionnel à N**. Le test qui promettait un coût borné a été **réécrit pour dire
+vrai**, pas relâché.
+
+**525 tests Massimo + 382 Papa verts**, `tsc -b` propre sur les deux.
+
+**Laissé de côté, avec son motif** : **rien n'a été jugé à l'œil sur un vrai appareil**. Le panneau
+navigateur de la session rendait en taille réduite — tout ce qui précède sur le rendu est mesuré
+dans le canvas. `IN_FLIGHT_BUDGET`, `ROTATION_PERIOD` et `FLATTEN` n'ont pas vu le profileur.
+
 ## 0.43.1 — Le backend cesse de dépendre de noms que Starlette a retirés
 
 Date : 2026-08-04 · **PR #76** (squash `689d136`) et **PR #77** (squash `0ba3915`) · aucun ADR
