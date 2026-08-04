@@ -452,6 +452,29 @@ export function JournalPage() {
     void reload();
   }, [reload]);
 
+  // ⚠️ **Le total de RÉFÉRENCE, quand on arrive déjà filtré.** Vu à l'écran le 2026-08-04 : ouvrir
+  // une URL filtrée affichait « 1 lot » tout court — la page n'ayant jamais fait de lecture non
+  // filtrée, elle n'avait aucun « sur 9 » à montrer. La ligne de synthèse doit se suffire à
+  // elle-même, sinon « 1 lot » se lit comme « ZETIS n'a produit qu'une fois ».
+  //
+  // Une requête de plus, **une seule fois**, et seulement dans ce cas : `limit=1` parce qu'on ne
+  // veut que le compteur, pas les lots.
+  useEffect(() => {
+    if (totalNonFiltre !== null || !filtreActif(filtre)) return;
+    let annule = false;
+    void (async () => {
+      try {
+        const data = await fetchJournal(1, 0);
+        if (!annule) setTotalNonFiltre(data.total);
+      } catch {
+        // Sans lui, la ligne perd son « sur N » — elle reste juste, en disant moins.
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, [filtre, totalNonFiltre]);
+
   // Les matières viennent de l'année active, pas de la réponse du Journal — un appel, une fois.
   useEffect(() => {
     void (async () => {

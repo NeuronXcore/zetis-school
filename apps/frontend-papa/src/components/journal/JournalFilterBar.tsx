@@ -75,6 +75,74 @@ function visageDuMode(mode: ModeFiltre): Visage {
 const LIGNE = "flex flex-wrap items-center gap-2 border-b border-white/10 py-2 last:border-b-0";
 const ETIQUETTE = "w-24 shrink-0 text-[11px] font-bold uppercase tracking-wide text-papa-muted";
 
+interface CritereNomme {
+  cle: string;
+  libelle: string;
+  retirer: (f: JournalFiltre) => JournalFiltre;
+}
+
+/** Ce qui filtre, NOMMÉ, et retirable un par un.
+ *
+ * ⚠️ **La matière y figure aussi**, alors que sa pastille est visible juste au-dessus : la ligne
+ * de synthèse doit se suffire à elle-même. Papa qui lit « 5 lots sur 9 » doit trouver la cause sur
+ * la même ligne, sans remonter des yeux ni déplier quoi que ce soit.
+ *
+ * ⚠️ **Chaque `retirer` ne touche QUE son critère.** Une pastille qui remettrait tout à zéro serait
+ * un « Tout effacer » déguisé — et il existe déjà, à côté. Seule exception assumée : retirer la
+ * matière retire aussi le chapitre, parce qu'un chapitre sans sa matière ne se lit plus (les
+ * chapitres se listent par matière d'année).
+ */
+function criteresNommes(
+  f: JournalFiltre,
+  subjects: SubjectFilterOption[],
+  chapitres: ChapitreOption[],
+): CritereNomme[] {
+  const out: CritereNomme[] = [];
+
+  if (f.subjectId !== null) {
+    const nom = subjects.find((s) => s.id === f.subjectId)?.name ?? "Matière";
+    out.push({
+      cle: "matiere",
+      libelle: nom,
+      retirer: (x) => ({ ...x, subjectId: null, chapterId: null }),
+    });
+  }
+  if (f.chapterId !== null) {
+    const nom = chapitres.find((c) => c.id === f.chapterId)?.name ?? "Chapitre";
+    out.push({ cle: "chapitre", libelle: nom, retirer: (x) => ({ ...x, chapterId: null }) });
+  }
+  if (f.depuis || f.jusquA) {
+    const libelle = f.depuis && f.jusquA
+      ? `du ${f.depuis} au ${f.jusquA}`
+      : f.depuis
+        ? `depuis le ${f.depuis}`
+        : `jusqu'au ${f.jusquA}`;
+    out.push({ cle: "periode", libelle, retirer: (x) => ({ ...x, depuis: "", jusquA: "" }) });
+  }
+  for (const s of f.statuts) {
+    out.push({
+      cle: `statut-${s}`,
+      libelle: STATUT_LABEL[s],
+      retirer: (x) => ({ ...x, statuts: x.statuts.filter((v) => v !== s) }),
+    });
+  }
+  for (const m of f.modes) {
+    out.push({
+      cle: `mode-${m}`,
+      libelle: MODE_LABEL[m],
+      retirer: (x) => ({ ...x, modes: x.modes.filter((v) => v !== m) }),
+    });
+  }
+  for (const p of f.pieces) {
+    out.push({
+      cle: `piece-${p}`,
+      libelle: PIECE_FILTRE_LABEL(p),
+      retirer: (x) => ({ ...x, pieces: x.pieces.filter((v) => v !== p) }),
+    });
+  }
+  return out;
+}
+
 export function JournalFilterBar({
   filtre,
   onChange,
@@ -207,13 +275,39 @@ export function JournalFilterBar({
       )}
 
       {/* ⚠️ TOUJOURS VISIBLE — voir l'en-tête du fichier. */}
-      <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-white/10 pt-2 text-xs">
+      <div
+        data-testid="journal-synthese"
+        className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2 text-xs"
+      >
         <span className="font-bold text-papa-text">
           {total === 0 ? "Aucun lot" : `${total} lot${total > 1 ? "s" : ""}`}
         </span>
         {totalNonFiltre !== null && actif && (
-          <span className="text-papa-muted">sur {totalNonFiltre}</span>
+          <span className="mr-1 text-papa-muted">sur {totalNonFiltre}</span>
         )}
+
+        {/* ⚠️ **Chaque critère actif se NOMME ici, et se retire d'un clic.** Vu à l'écran le
+            2026-08-04 : la barre ne portait que le compte sur le bouton (« Plus de filtres 1 »),
+            qui dit qu'un critère filtre mais jamais LEQUEL. Un journal court dont on ne peut pas
+            lire la cause sans déplier est exactement le défaut que cette ligne existe pour éviter —
+            la règle du §3bis n'était donc tenue qu'à moitié. */}
+        {criteresNommes(filtre, subjects, chapitres).map((c) => (
+          <span
+            key={c.cle}
+            className="inline-flex items-center gap-1.5 rounded-full bg-sky-400/[0.13] px-2.5 py-0.5 font-semibold text-sky-200"
+          >
+            {c.libelle}
+            <button
+              type="button"
+              aria-label={`Retirer le filtre ${c.libelle}`}
+              onClick={() => onChange(c.retirer(filtre))}
+              className="opacity-70 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </span>
+        ))}
+
         {actif && (
           <button type="button" onClick={onReset} className="font-semibold text-primary hover:underline">
             Tout effacer

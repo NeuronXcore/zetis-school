@@ -13,7 +13,7 @@
 // 5. **l'état vide est BAVARD** — un vide muet est indiscernable d'une panne ;
 // 6. **le tri non chronologique se signale et se défait d'un geste**.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { type Journal, type JournalRun } from "@zetis/types";
 import { JournalPage } from "./JournalPage";
@@ -133,6 +133,48 @@ describe("Journal — le filtre", () => {
     expect(plus).toHaveTextContent("2");
     // Et la ligne de synthèse, elle, est là quoi qu'il arrive.
     expect(screen.getByRole("button", { name: "Tout effacer" })).toBeInTheDocument();
+  });
+
+  it("🔒 NOMME chaque critère actif, même replié — le compte ne suffit pas", async () => {
+    // ⚠️ Vu à l'écran le 2026-08-04, et c'est ce qui a fait écrire ce verrou : la barre ne portait
+    // que « Plus de filtres 1 ». Ce compte dit qu'un critère filtre, jamais LEQUEL — un journal
+    // court dont on ne peut pas lire la cause sans déplier est le défaut que cette ligne existe
+    // pour éviter. La règle « un filtre actif ne peut pas se cacher » n'était tenue qu'à moitié.
+    renderPage("/journal?subject_id=2&piece=fiche&statut=done");
+    await screen.findByText(/Lot #7/);
+
+    // ⚠️ Les assertions sont SCOPÉES à la ligne de synthèse : « Mathématiques » existe aussi dans
+    // la rangée de pastilles au-dessus, et un `getByText` global serait vert sans rien prouver.
+    expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument();
+    const synthese = within(screen.getByTestId("journal-synthese"));
+    expect(synthese.getByText("Mathématiques")).toBeInTheDocument();
+    expect(synthese.getByText("📄 Fiche")).toBeInTheDocument();
+    expect(synthese.getByText("Terminé")).toBeInTheDocument();
+  });
+
+  it("🔒 une pastille ne retire QUE son critère", async () => {
+    // Une pastille qui remettrait tout à zéro serait un « Tout effacer » déguisé — et il existe
+    // déjà, juste à côté.
+    renderPage("/journal?subject_id=2&piece=fiche&statut=done");
+    await screen.findByText(/Lot #7/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retirer le filtre 📄 Fiche" }));
+
+    await waitFor(() => expect(dernierFiltre().getAll("piece")).toEqual([]));
+    expect(dernierFiltre().get("subject_id")).toBe("2");
+    expect(dernierFiltre().getAll("statut")).toEqual(["done"]);
+  });
+
+  it("retirer la MATIÈRE emporte le chapitre, et c'est la seule exception", async () => {
+    // Un chapitre sans sa matière ne se lit plus : les chapitres se listent par matière d'année,
+    // il n'existe aucune liste « tous chapitres ».
+    renderPage("/journal?subject_id=2&chapter_id=7");
+    await screen.findByText(/Lot #7/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retirer le filtre Mathématiques" }));
+
+    await waitFor(() => expect(dernierFiltre().get("subject_id")).toBeNull());
+    expect(dernierFiltre().get("chapter_id")).toBeNull();
   });
 
   it("🔒 quand il ne garde RIEN, il dit pourquoi", async () => {
