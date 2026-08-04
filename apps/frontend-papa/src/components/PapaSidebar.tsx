@@ -47,13 +47,18 @@ export function PapaSidebar({ autonomy = AUTONOMY_LOADING }: { autonomy?: Autono
   }, []);
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-2 border-r border-papa-border bg-papa-surface p-4">
+    // `overflow-hidden` sur la colonne, `overflow-y-auto` sur la seule `<nav>` : le bloc d'état
+    // reste ÉPINGLÉ en haut pendant que les 22 entrées défilent. Le faire scroller avec elles
+    // annulerait la feature — un état qu'on doit aller chercher est un état qu'on n'a pas.
+    <aside className="flex h-full w-64 shrink-0 flex-col gap-2 overflow-hidden border-r border-papa-border bg-papa-surface p-4">
       {/* Le bandeau de marque a cédé sa place à l'état de ZETIS : la question « dans quel régime
           travaille-t-il ? » se pose vingt fois par session, « comment s'appelle cette app ? »
           jamais. L'identité survit dans l'avatar, qui porte le sceau ZETIS. */}
       <EtatZetis state={autonomy} />
 
-      <nav className="flex flex-col gap-1">
+      {/* `min-h-0` est obligatoire : sans lui, un enfant flex refuse de rétrécir sous sa taille de
+          contenu et `overflow-y-auto` n'a jamais rien à faire. */}
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {PAPA_NAV.map((item) => (
           <Fragment key={item.to}>
             {item.startsGroup && <div className="my-2 h-px bg-papa-border" role="presentation" />}

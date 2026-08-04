@@ -89,7 +89,7 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
       aria-label={nomAccessible}
       aria-busy={state.status === "loading" || undefined}
       title={preset ? PRESET_DESCRIPTION[preset] : undefined}
-      className="mb-4 flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-papa-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papa-accent"
+      className="mb-4 flex shrink-0 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-papa-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papa-accent"
     >
       <span className="regime-avatar h-11 w-11 shrink-0">
         {/* Le halo est ABSENT du DOM au chargement et à l'erreur — pas un réceptacle vide, rien. */}

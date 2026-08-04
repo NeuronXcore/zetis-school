@@ -33,7 +33,11 @@ export function PapaLayout() {
   );
   const pct = sansGranularite ? estime : (activeRun?.progress_pct ?? 0);
   return (
-    <div className="flex h-full">
+    // `overflow-hidden` n'est pas cosmétique : sans lui, la sidebar (22 entrées, ~1100 px) déborde
+    // du conteneur en `h-full`, le DOCUMENT grandit à sa taille, et c'est le body qui scrolle —
+    // emportant la sidebar ET le header hors de l'écran. On clippe ici, et chaque colonne gère son
+    // propre défilement : la nav dans la sidebar, le contenu dans `main`.
+    <div className="flex h-full overflow-hidden">
       <PapaSidebar autonomy={autonomy} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-papa-border bg-papa-surface/60 px-6 py-3">
