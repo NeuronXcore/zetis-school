@@ -224,8 +224,8 @@ export {
 export {
   type Autonomy,
   type AutonomyClass,
-  type AutonomyLevel,
-  type AutonomyPreset,
+  type AutonomyPalier,
+  type AutonomyNiveau,
 } from "./settings";
 export {
   type ContentRequest,

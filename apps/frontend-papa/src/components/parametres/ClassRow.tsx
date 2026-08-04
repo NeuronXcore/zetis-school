@@ -8,9 +8,9 @@
 //
 // ⚠️ Aucune liste de paliers n'est écrite ici. Le jour où le veto obtient sa surface, le serveur
 // rouvre le palier 3 d'A1 et la ligne devient réglable **sans qu'une ligne de ce fichier change**.
-import { type AutonomyClass, type AutonomyLevel } from "@zetis/types";
+import { type AutonomyClass, type AutonomyPalier } from "@zetis/types";
 
-import { LEVEL_LABEL } from "../../lib/settings";
+import { PALIER_LABEL } from "../../lib/settings";
 
 // ⚠️ **Ce que la classe EST**, jamais pourquoi elle est verrouillée : le motif vient du serveur
 // (`reason`) et s'affiche juste après. Vu à l'écran le 2026-08-02 — les descriptions d'A3 et A4
@@ -31,8 +31,8 @@ export function ClassRow({
   onChange,
 }: {
   cls: AutonomyClass;
-  value: AutonomyLevel;
-  onChange: (level: AutonomyLevel) => void;
+  value: AutonomyPalier;
+  onChange: (level: AutonomyPalier) => void;
 }) {
   return (
     // `group` + `aria-label` : la ligne est adressable par le nom de sa classe, pour un lecteur
@@ -68,7 +68,7 @@ export function ClassRow({
           className="shrink-0 rounded-lg border border-dashed border-papa-border px-2.5 py-1.5 text-[11.5px] text-papa-muted"
           title={cls.reason ?? undefined}
         >
-          <span aria-hidden>{value === 0 ? "🚫" : "🔒"}</span> {LEVEL_LABEL[value]}
+          <span aria-hidden>{value === 0 ? "🚫" : "🔒"}</span> {PALIER_LABEL[value]}
         </span>
       ) : (
         <span className="flex shrink-0 overflow-hidden rounded-lg border border-papa-border">
@@ -85,7 +85,7 @@ export function ClassRow({
                   : "text-papa-muted hover:text-papa-text",
               ].join(" ")}
             >
-              {LEVEL_LABEL[level]}
+              {PALIER_LABEL[level]}
             </button>
           ))}
         </span>

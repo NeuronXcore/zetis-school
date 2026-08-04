@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import { PapaSidebar } from "../components/PapaSidebar";
 import { useAuth } from "@zetis/auth";
 import { useActiveProductionRun } from "../hooks/useActiveProductionRun";
+import { useAutonomyState } from "../hooks/useAutonomyState";
 import { ActiveProductionModal } from "../components/ActiveProductionModal";
 import { ProductionDoneModal } from "../components/ProductionDoneModal";
 import { useEstimatedProgress } from "../components/ProgressBar";
@@ -15,6 +16,10 @@ export function PapaLayout() {
   // « ZETIS travaille » : le lot tourne dans un worker séparé, Papa peut fermer la modale et
   // naviguer. Sans cet indicateur, plus rien ne le lui disait.
   const { run: activeRun, finished, acknowledge } = useActiveProductionRun();
+  // L'état d'autonomie se lit ICI et non dans la sidebar (motif ADR-0030) : le layout ne se
+  // démonte pas entre deux routes, donc un seul appel pour les 22 pages. Une lecture dans la
+  // sidebar en referait un par entrée — le mal que l'ADR-0030 a supprimé côté Massimo.
+  const autonomy = useAutonomyState();
   const [showRun, setShowRun] = useState(false);
 
   // ⚠️ **Le % du serveur compte des NOTIONS, pas des secondes.** Sur un lot de chapitre il est
@@ -28,11 +33,24 @@ export function PapaLayout() {
   );
   const pct = sansGranularite ? estime : (activeRun?.progress_pct ?? 0);
   return (
-    <div className="flex h-full">
-      <PapaSidebar />
+    // `overflow-hidden` n'est pas cosmétique : sans lui, la sidebar (22 entrées, ~1100 px) déborde
+    // du conteneur en `h-full`, le DOCUMENT grandit à sa taille, et c'est le body qui scrolle —
+    // emportant la sidebar ET le header hors de l'écran. On clippe ici, et chaque colonne gère son
+    // propre défilement : la nav dans la sidebar, le contenu dans `main`.
+    <div className="flex h-full overflow-hidden">
+      <PapaSidebar autonomy={autonomy} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-papa-border bg-papa-surface/60 px-6 py-3">
           <div className="flex items-center gap-3 text-sm">
+            {/* La signature de l'interface. Elle a quitté la sidebar le 2026-08-04 : les deux
+                frontends doivent rester discernables (`docs/frontend-papa/README.md`), mais la
+                sidebar est la colonne rare, et ce header — devenu fixe le même jour — ne coûte
+                rien. ⚠️ Verrouillé par un test : sans ce mot, une capture d'écran de Papa ne se
+                distingue plus d'une capture de Massimo. */}
+            <span className="font-bold">
+              ZETIS <span className="text-papa-accent">Papa</span>
+            </span>
+            <span className="h-4 w-px bg-papa-border" role="presentation" />
             <span className="rounded-md bg-papa-surface-2 px-2.5 py-1 font-medium text-papa-text">
               Enfant : Massimo
             </span>

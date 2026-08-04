@@ -106,6 +106,305 @@
   }
 }
 
+/* ═══ État d'autonomie de ZETIS en sidebar (addendum ADR-0032 §7) ════════════════════════════════
+   Le halo est GRADUÉ PAR LE RÉGIME, et c'est le seul endroit du dépôt où une animation porte de
+   l'information : l'échelle du mouvement suit l'échelle qu'elle signale.
+     Manuel        → fixe, rien ne bouge — le régime le plus prudent est le plus silencieux
+     Semi-autonome → un souffle de 4 s
+     Autonome      → le souffle ET une rotation de 6 s
+   Halo en ÉLÉMENT PROPRE et non en `box-shadow` (contrairement à `couverture-breathe` ci-dessus,
+   qui n'a ni dégradé conique ni mise à l'échelle à animer) : ni `conic-gradient` ni `scale` ne
+   s'obtiennent en ombre portée. */
+
+.regime-avatar {
+  position: relative;
+  display: block;
+  isolation: isolate;
+}
+
+/* ── Les images : deux emplacements superposés, fondu ENCHAÎNÉ de 300 ms ────────────────────────
+   Deux ANIMATIONS et non des transitions. ⚠️ Une `transition: opacity` sur un nœud fraîchement
+   monté ne se déclenche pas — la valeur ne change pas, elle NAÎT. Quiconque « simplifie » ceci en
+   `transition-opacity duration-300` supprime le fondu SILENCIEUSEMENT : aucun test ne l'attrapera,
+   les animations CSS n'étant pas observables en jsdom. */
+.regime-img {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  z-index: 2;
+  animation: regime-fade-in 300ms ease-out;
+}
+
+.regime-img--sortant {
+  z-index: 1;
+  animation: regime-fade-out 300ms ease-out forwards;
+}
+
+@keyframes regime-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes regime-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ── Le halo ────────────────────────────────────────────────────────────────────────────────────
+   ⚠️ Rayon en POURCENTAGE, jamais `9999px` : l'avatar est un carré arrondi, pas un disque — un
+   halo circulaire derrière un carré laisse quatre coins nus. */
+.regime-halo {
+  position: absolute;
+  inset: -6px;
+  z-index: 0;
+  border-radius: 30%;
+  filter: blur(8px);
+  opacity: 0.55;
+}
+
+/* Manuel — un halo, et rien qui bouge. */
+.regime-halo--manuel {
+  background: #3b82f6;
+  opacity: 0.4;
+}
+
+/* « Sur mesure » — halo neutre et fixe, à la teinte de la pastille du panneau. Un état légitime,
+   pas une anomalie (ADR-0032 §Conséquences). */
+.regime-halo--sur-mesure {
+  background: #38bdf8;
+  opacity: 0.3;
+}
+
+/* Semi-autonome — un souffle lent. 4 s comme `couverture-breathe` : assez lent pour ne jamais
+   attirer l'œil pendant que Papa lit sa page, et cette sidebar est visible sur TOUTES. */
+.regime-halo--semi {
+  background: linear-gradient(135deg, #3b82f6, #a855f7);
+  animation: regime-breathe 4s ease-in-out infinite;
+}
+
+/* Autonome — le souffle ET la rotation.
+   ⚠️ Deux animations qui écrivent `transform` sur le MÊME élément s'écrasent : la rotation vit
+   donc sur une couche à part, dont le `transform` se compose avec celui du parent.
+   ⚠️ Le halo est indigo→fuchsia et NON rouge, délibérément (addendum §7.6) : l'image, elle, est
+   rouge, mais le rouge de ce dépôt veut dire refus/erreur. Le halo ne le double pas — il le
+   corrige. */
+.regime-halo--autonome {
+  background: linear-gradient(135deg, #6366f1, #d946ef);
+  animation: regime-breathe 4s ease-in-out infinite;
+}
+
+.regime-halo--autonome::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, #22d3ee, #6366f1, #a855f7, #e879f9, #22d3ee);
+  animation: regime-spin 6s linear infinite;
+}
+
+@keyframes regime-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes regime-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Le point qui orbite = DÉCLENCHEUR ARMÉ (`auto_trigger_enabled`, ADR-0035 §5) ────────────────
+   Second axe, second signe : « Autonome + désarmé » ne veut PAS dire que ZETIS travaille seul, et
+   un signe unique mentirait (addendum §7.1). Émeraude, comme la pastille « ZETIS produit » du
+   header — ni ambre (réservée aux files de validation Papa, ADR-0030) ni rouge.
+   Le point n'existe PAS dans le DOM quand le déclencheur est désarmé : pas de réceptacle vide. */
+.regime-orbit {
+  position: absolute;
+  inset: -5px;
+  z-index: 3;
+  pointer-events: none;
+  animation: regime-orbit 7s linear infinite;
+}
+
+.regime-orbit::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  margin-left: -3px;
+  height: 6px;
+  width: 6px;
+  border-radius: 9999px;
+  background: var(--color-papa-accent);
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--color-papa-accent) 70%, transparent);
+}
+
+@keyframes regime-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Le badge, à cheval sur le bas de l'avatar ───────────────────────────────────────────────────
+   Il porte les DEUX axes : le mot du régime — celui du CODE, pas celui cuit dans l'illustration —
+   et le glyphe du déclencheur (⏸ / ⚡). C'est ce qui permet qu'aucun texte ne vive à côté du logo.
+   ⚠️ `white-space: nowrap` + `translate(-50%)` : le badge a le DROIT d'être plus large que
+   l'avatar, il déborde symétriquement. Le brider à la largeur du logo couperait « AUTONOM ». */
+.regime-badge {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  z-index: 4;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  border-radius: 9999px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #fff;
+  /* Le liseré à la couleur du fond de la sidebar : c'est lui qui détache la pastille de l'image
+     et rend le « à cheval » lisible plutôt que sale. */
+  box-shadow: 0 0 0 2px var(--color-papa-surface);
+}
+
+.regime-badge--manuel {
+  background: #3b82f6;
+}
+
+.regime-badge--semi {
+  background: linear-gradient(135deg, #3b82f6, #a855f7);
+}
+
+/* ⚠️ Indigo→fuchsia et NON rouge, comme le halo (§7.6) : l'illustration d'*Autonom* est rouge,
+   mais le rouge de ce dépôt veut dire refus. Le badge ne le double pas, il le corrige. */
+.regime-badge--autonome {
+  background: linear-gradient(135deg, #6366f1, #d946ef);
+}
+
+.regime-badge--sur-mesure {
+  background: #38bdf8;
+}
+
+/* L'erreur est GRISE et muette : si elle était rouge, elle deviendrait indiscernable de
+   l'avatar *Autonom*, qui l'est aussi et ne signale aucun problème. */
+.regime-badge--erreur {
+  background: var(--color-papa-surface-2);
+  color: var(--color-papa-muted);
+}
+
+.regime-badge--squelette {
+  height: 15px;
+  width: 62px;
+  background: var(--color-papa-surface-2);
+}
+
+/* ── Le PALIER qui change dans « ce que fait ce niveau » (addendum §8.2) ─────────────────────────
+   ⚠️ Vocabulaire du §8.0 : un NIVEAU est l'un des trois régimes, un PALIER est le degré 0-3 d'une
+   classe. C'est un palier qui change ici — la classe s'appelait `niveau-valeur` par confusion.
+   Réutilise le keyframe du fondu d'avatar : le nœud est remonté par sa `key`, donc l'animation
+   rejoue à chaque changement de valeur. Court (220 ms) — c'est un accusé de changement, pas un
+   effet ; deux lignes qui clignoteraient à chaque clic fatigueraient plus qu'elles n'informent. */
+.palier-valeur {
+  animation: regime-fade-in 220ms ease-out;
+}
+
+/* ── L'infobulle ────────────────────────────────────────────────────────────────────────────────
+   Elle porte le libellé du régime, sa description complète, et la phrase du déclencheur.
+   ⚠️ Positionnée en `fixed` depuis le composant : la sidebar et son conteneur sont en
+   `overflow-hidden` — le défilement de la nav en dépend — et une infobulle en `absolute` y serait
+   coupée net au bord de la colonne.
+   Son cadre est TEINTÉ PAR LE RÉGIME, comme le halo et le badge : trois surfaces, une seule
+   grammaire de couleur. Un cadre neutre se confondait avec les cartes de la page en dessous. */
+.regime-bulle {
+  animation: regime-bulle-in 120ms ease-out;
+  pointer-events: none;
+  border: 1px solid var(--color-papa-border);
+  background: var(--color-papa-surface-2);
+}
+
+.regime-bulle--manuel {
+  border-color: color-mix(in srgb, #3b82f6 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #3b82f6 25%, transparent),
+    0 0 22px 2px color-mix(in srgb, #3b82f6 35%, transparent),
+    0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.regime-bulle--semi {
+  border-color: color-mix(in srgb, #a855f7 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #a855f7 25%, transparent),
+    0 0 22px 2px color-mix(in srgb, #7c5cff 40%, transparent),
+    0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.regime-bulle--autonome {
+  border-color: color-mix(in srgb, #d946ef 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #d946ef 25%, transparent),
+    0 0 24px 3px color-mix(in srgb, #a855f7 45%, transparent),
+    0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.regime-bulle--neutre {
+  border-color: color-mix(in srgb, #38bdf8 45%, transparent);
+  box-shadow:
+    0 0 18px 2px color-mix(in srgb, #38bdf8 25%, transparent),
+    0 8px 24px rgb(0 0 0 / 45%);
+}
+
+@keyframes regime-bulle-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Mouvement réduit : tout devient FIXE, rien ne DISPARAÎT ─────────────────────────────────────
+   Le halo et le point PORTENT de l'information : les couper effacerait le signal. C'est le
+   MOUVEMENT qu'on retire, pas le signe. Même parti pris que `couverture-breathe` ci-dessus, qui
+   garde son halo et perd son battement. */
+@media (prefers-reduced-motion: reduce) {
+  .regime-halo,
+  .regime-halo--autonome::after,
+  .regime-orbit,
+  .regime-img,
+  .regime-img--sortant,
+  .regime-bulle,
+  .palier-valeur {
+    animation: none;
+  }
+
+  .regime-halo {
+    transform: none;
+    opacity: 0.55;
+  }
+}
+
 html,
 body,
 #root {

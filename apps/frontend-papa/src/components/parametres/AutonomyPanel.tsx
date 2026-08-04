@@ -1,6 +1,13 @@
 // Panneau « ⚡ Autonomie de ZETIS » (ADR-0032, spec `docs/frontend-papa/page-parametres.md`).
 //
-// Quatre blocs, dans cet ordre et pas un autre : état des lieux → régime → détail → veto.
+// Quatre blocs, dans cet ordre : ZETIS LEVELS → détail → veto → déclencheur.
+//
+// ⚠️ L'ordre a CHANGÉ le 2026-08-04 (addendum §8.1). Il était « état des lieux → régime », et
+// c'était une décision : le panneau devait montrer à Papa où il en était AVANT de lui proposer de
+// monter. Le bloc « Où vous en êtes aujourd'hui » a été ABSORBÉ par le panneau de détail, qui
+// montre le niveau sélectionné et, au repos, le niveau actif. On a révoqué la position, pas
+// l'intention — et la révocation n'est défendable QUE parce que le §7 a posé l'état en tête de
+// sidebar, visible sur les 22 pages.
 //
 // Trois refus qui expliquent le code :
 //
@@ -14,20 +21,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, ConfirmDialog } from "@zetis/ui";
-import { type Autonomy, type AutonomyLevel, type AutonomyPreset } from "@zetis/types";
+import { type Autonomy, type AutonomyPalier, type AutonomyNiveau } from "@zetis/types";
 
 import {
   A1_COURSE_KEY,
   SERVE,
   fetchAutonomy,
-  levelsForPreset,
+  NIVEAU_LABEL,
+  paliersPourNiveau,
+  notifyAutonomyChanged,
   saveAutonomy,
 } from "../../lib/settings";
+import { REGIME_AVATAR, declencheurGlyphe } from "../../lib/regimeVisuals";
 import { ClassRow } from "./ClassRow";
-import { PresetCards } from "./PresetCards";
-import { RegimeToday } from "./RegimeToday";
+import { EcartNiveau } from "./EcartNiveau";
+import { NiveauDetail } from "./NiveauDetail";
+import { NiveauCards } from "./NiveauCards";
 
-type Draft = Record<string, AutonomyLevel>;
+type Draft = Record<string, AutonomyPalier>;
 
 /** Miroir client de `apply_monotonicity` : servir un cours sans relecture force les dérivés au
  *  même régime. On ne relit pas un dérivé d'un cours qu'on n'a pas relu. */
@@ -41,14 +52,35 @@ function draftOf(autonomy: Autonomy): Draft {
   return Object.fromEntries(autonomy.classes.map((c) => [c.key, c.value]));
 }
 
+/** Ce que l'enregistrement va faire — c'est ce qui décide du TON de la confirmation.
+ *
+ *  ⚠️ La descente se confirme AUSSI depuis le 2026-08-04, et ça n'a l'air de contredire
+ *  « on ne freine pas un retour au contrôle » que si l'on oublie ce qui a changé : la modale ne
+ *  garde plus le GESTE, elle garde l'ÉCRITURE. Ce n'est plus une friction sur l'intention, c'est
+ *  un récapitulatif de ce qui va être écrit — et un bouton « Enregistrer » qui ouvrirait parfois
+ *  une modale et parfois non serait moins prévisible qu'un bouton qui confirme toujours.
+ *  Le motif d'origine est honoré par le TON : une descente ne s'annonce pas comme un
+ *  avertissement, elle se félicite. */
+type Garde = "cours" | "montee" | "descente";
+
+/** Une MONTÉE porte au moins une classe plus haut qu'elle n'est.
+ *
+ *  ⚠️ Ce n'est pas « le brouillon a changé » : redescendre en change aussi, et une descente ne se
+ *  confirme pas (`page-parametres.md` §Modale — *on ne freine pas un retour au contrôle*). Un
+ *  changement mixte — une classe qui monte, une autre qui descend — compte comme une montée : ce
+ *  qu'on protège, c'est le contrôle retiré, pas le nombre net. */
+function estUneMontee(actuel: Draft, cible: Draft): boolean {
+  return Object.entries(cible).some(([key, niveau]) => niveau > (actuel[key] ?? niveau));
+}
+
 /** Le régime du BROUILLON — dérivé comme le serveur dérive celui de l'état enregistré.
  *
  * Ne prend PAS l'`Autonomy` : un régime se lit dans les valeurs, jamais dans les verrous. Un
  * brouillon reste « Manuel » même si le serveur venait à verrouiller une classe entre-temps. */
-function presetOfDraft(draft: Draft): AutonomyPreset | null {
-  for (const preset of ["manuel", "semi", "autonome"] as AutonomyPreset[]) {
-    const levels = levelsForPreset(preset);
-    if (Object.entries(levels).every(([key, value]) => draft[key] === value)) return preset;
+function niveauDuBrouillon(draft: Draft): AutonomyNiveau | null {
+  for (const niveau of ["manuel", "semi", "autonome"] as AutonomyNiveau[]) {
+    const levels = paliersPourNiveau(niveau);
+    if (Object.entries(levels).every(([key, value]) => draft[key] === value)) return niveau;
   }
   return null;
 }
@@ -59,9 +91,11 @@ export function AutonomyPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Le passage du cours en « ZETIS sert » retire le dernier contrôle humain : il se confirme.
-  // Le passage INVERSE n'a aucune friction — on ne freine pas un retour au contrôle.
-  const [pending, setPending] = useState<Draft | null>(null);
+  // ⚠️ La confirmation garde l'ENREGISTREMENT, pas le brouillon (2026-08-04, révision du §8.4).
+  // Elle se déclenchait au clic sur une carte : Papa confirmait, puis devait encore cliquer
+  // « Enregistrer » — deux validations pour une intention, et la première ne portait sur rien
+  // d'irréversible. Choisir un niveau ne fait plus qu'AFFICHER ce qu'il déciderait.
+  const [aConfirmer, setAConfirmer] = useState<Garde | null>(null);
   // État PROPRE, jamais mêlé au brouillon des paliers : le fusionner ferait qu'un préréglage
   // l'armerait au passage — exactement ce que l'ADR-0035 §5 refuse.
   const [autoTrigger, setAutoTrigger] = useState(false);
@@ -82,7 +116,7 @@ export function AutonomyPanel() {
     };
   }, []);
 
-  const preset = useMemo(() => (autonomy ? presetOfDraft(draft) : null), [autonomy, draft]);
+  const niveau = useMemo(() => (autonomy ? niveauDuBrouillon(draft) : null), [autonomy, draft]);
   const dirty = useMemo(
     () =>
       Boolean(autonomy) &&
@@ -91,17 +125,40 @@ export function AutonomyPanel() {
     [autonomy, draft, autoTrigger],
   );
 
+  // Un brouillon ne coûte rien : toucher un palier ou choisir un niveau met simplement à jour ce
+  // que l'écran montre. La friction est au moment de l'ACTE, pas de l'intention.
   const propose = useCallback(
     (next: Draft) => {
       if (!autonomy) return;
-      const resolved = withMonotonicity(next, autonomy.classes);
-      const raising =
-        resolved[A1_COURSE_KEY] === SERVE && draft[A1_COURSE_KEY] !== SERVE;
-      if (raising) setPending(resolved);
-      else setDraft(resolved);
+      setDraft(withMonotonicity(next, autonomy.classes));
+    },
+    [autonomy],
+  );
+
+  const proposerNiveau = useCallback(
+    (picked: AutonomyNiveau) => {
+      if (!autonomy) return;
+      setDraft(withMonotonicity({ ...draft, ...paliersPourNiveau(picked) }, autonomy.classes));
     },
     [autonomy, draft],
   );
+
+  /** Ce qu'il faut faire confirmer AVANT d'écrire — et rien d'autre.
+   *
+   *  ⚠️ Comparé à l'état SERVEUR, pas au brouillon précédent : ce qu'on protège est l'écart qui
+   *  va être écrit, pas le chemin qui y a mené. Papa peut monter puis redescendre sans jamais
+   *  déclencher quoi que ce soit, et c'est juste — il n'a rien changé.
+   *
+   *  ⚠️ Deux frictions qui ne se confondent PAS. La montée du cours vers « ZETIS sert » garde SA
+   *  modale, forte, parce qu'elle est la seule à révoquer une décision écrite (le gel d'A1) : lui
+   *  donner le ton d'un passage en Hybrid l'effacerait par banalisation. */
+  const aGarder = useMemo<Garde | null>(() => {
+    if (!autonomy) return null;
+    const serveur = draftOf(autonomy);
+    if (JSON.stringify(serveur) === JSON.stringify(draft)) return null; // rien à écrire
+    if (draft[A1_COURSE_KEY] === SERVE && serveur[A1_COURSE_KEY] !== SERVE) return "cours";
+    return estUneMontee(serveur, draft) ? "montee" : "descente";
+  }, [autonomy, draft]);
 
   const persist = useCallback(() => {
     if (!autonomy) return;
@@ -112,6 +169,10 @@ export function AutonomyPanel() {
         setAutonomy(fresh);
         setDraft(draftOf(fresh));
         setAutoTrigger(fresh.auto_trigger_enabled);
+        // Le bloc d'état de la sidebar relit (addendum ADR-0032 §7.4). Ici et NULLE PART ailleurs :
+        // ni dans le `.catch` (un refus ne change rien), ni dans le `.finally` (qui passe aussi
+        // après un refus).
+        notifyAutonomyChanged();
       })
       .catch((cause: unknown) => {
         // Le serveur DIT pourquoi il refuse (422 motivé) : on relaie son message tel quel, et on
@@ -127,8 +188,18 @@ export function AutonomyPanel() {
   return (
     <section className="mt-4 rounded-xl border border-papa-border bg-papa-surface p-5">
       <h2 className="flex items-center gap-2 text-[14.5px] font-bold">
-        <span aria-hidden>⚡</span> Autonomie de ZETIS
-        {preset === null && !loading && autonomy && (
+        {/* ⚠️ Ce titre portait un ⚡ décoratif. Retiré le 2026-08-04 : depuis l'addendum §7.1, le
+            ⚡ VEUT DIRE « ZETIS démarre seul » — le laisser ici faisait lire « ⚡ Autonomie de
+            ZETIS » comme une affirmation sur l'état, à l'endroit même où l'état se règle.
+            L'avatar NEUTRE le remplace : il ne désigne aucun régime, donc il n'affirme rien. */}
+        <img
+          src={REGIME_AVATAR.neutre}
+          alt=""
+          aria-hidden
+          className="h-5 w-5 shrink-0 rounded-[22%] object-cover"
+        />
+        Autonomie de ZETIS
+        {niveau === null && !loading && autonomy && (
           <span className="rounded-full bg-sky-400/15 px-2 py-0.5 text-[10.5px] font-bold text-sky-300">
             Sur mesure
           </span>
@@ -140,10 +211,6 @@ export function AutonomyPanel() {
         même sur une fiche et sur un cours.
       </p>
 
-      <div className="mt-5">
-        <RegimeToday />
-      </div>
-
       {error && (
         <p className="mt-4 rounded-lg border border-red-400/40 bg-red-500/5 px-3 py-2 text-sm text-red-300">
           {error}
@@ -154,12 +221,16 @@ export function AutonomyPanel() {
         <p className="mt-5 text-sm text-papa-muted">Lecture des réglages…</p>
       ) : autonomy ? (
         <>
-          <h3 className="mt-6 text-[12.5px] font-bold">Régime</h3>
-          <PresetCards
+          <h3 className="mt-6 text-[12.5px] font-bold uppercase tracking-wider">ZETIS LEVELS</h3>
+          <NiveauCards
             autonomy={autonomy}
-            current={preset}
-            onPick={(picked) => propose({ ...draft, ...levelsForPreset(picked) })}
+            current={niveau}
+            onPick={proposerNiveau}
           />
+          {/* Il suit le BROUILLON, pas l'état enregistré : c'est ce qui en fait une réponse à
+              « qu'est-ce que ce niveau ferait ? ». Au repos, brouillon = état serveur, donc il
+              montre le niveau ACTIF — c'est ce qui a permis d'absorber « Où vous en êtes ». */}
+          <NiveauDetail autonomy={autonomy} niveau={niveau} />
 
           <details className="mt-4 rounded-xl border border-papa-border bg-papa-bg">
             <summary className="cursor-pointer px-4 py-3 text-[12.5px] font-semibold text-papa-muted">
@@ -211,8 +282,11 @@ export function AutonomyPanel() {
               sans relecture ; ceci dit s'il peut DÉMARRER sans clic. Les préréglages ne le
               touchent jamais. */}
           <div className="mt-4 flex items-start gap-3.5 rounded-xl border border-papa-border bg-papa-bg p-3.5">
+            {/* Le glyphe SUIT la case, et c'est exactement celui de la sidebar (§7.1) : ce que
+                Papa coche ici, il le retrouve en tête de colonne sur les 22 pages. Un ⏰ fixe
+                décrivait la fonctionnalité ; ceci montre l'état. */}
             <span aria-hidden className="text-lg leading-none">
-              ⏰
+              {declencheurGlyphe(autoTrigger)}
             </span>
             <div className="min-w-0 flex-1">
               <b className="text-[13px]">ZETIS peut démarrer sans vous</b>
@@ -254,7 +328,7 @@ export function AutonomyPanel() {
             <Button
               disabled={!dirty || saving}
               title={dirty ? undefined : "Aucune modification à enregistrer"}
-              onClick={persist}
+              onClick={() => (aGarder ? setAConfirmer(aGarder) : persist())}
             >
               {saving ? "Enregistrement…" : "Enregistrer"}
             </Button>
@@ -263,17 +337,29 @@ export function AutonomyPanel() {
       ) : null}
 
       <ConfirmDialog
-        open={pending !== null}
+        open={aConfirmer === "cours"}
         tone="important"
         title="⚠️ Vous retirez le dernier contrôle humain"
-        confirmLabel="Je comprends, laisser ZETIS servir"
+        confirmLabel="Je comprends, enregistrer"
         cancelLabel="Garder mon contrôle"
-        onCancel={() => setPending(null)}
+        busy={saving}
+        onCancel={() => setAConfirmer(null)}
         onConfirm={() => {
-          if (pending) setDraft(pending);
-          setPending(null);
+          setAConfirmer(null);
+          persist();
         }}
       >
+        {/* Le visage du niveau visé — le MÊME que sur la carte et que dans la sidebar. Papa
+            reconnaît ce qu'il s'apprête à devenir avant de lire la phrase. */}
+        <p className="mb-3 flex items-center gap-3">
+          <img
+            src={REGIME_AVATAR.autonome}
+            alt=""
+            aria-hidden
+            className="h-14 w-14 shrink-0 rounded-[22%] object-cover"
+          />
+          <span className="text-[13px] font-bold text-papa-text">{NIVEAU_LABEL.autonome}</span>
+        </p>
         <p>
           Aujourd'hui, le cours est{" "}
           <b className="text-papa-text">le seul contenu de ZETIS qui passe devant vous</b> avant
@@ -291,7 +377,62 @@ export function AutonomyPanel() {
             <b className="text-papa-text">ça ne retire pas ce qui est déjà servi</b>.
           </li>
         </ul>
+        {/* Son poids EST son message et ne s'allège pas — mais elle gagne l'écart, comme les
+            autres : ce qu'on signe doit être sous les yeux. */}
+        {autonomy && <EcartNiveau autonomy={autonomy} draft={draft} />}
       </ConfirmDialog>
+
+      {/* La modale ORDINAIRE des montées (addendum §8.4). `tone="default"` — délibérément sobre :
+          l'ambre et le halo doré appartiennent à celle du dessus, qui protège autre chose.
+          Son corps EST le panneau de détail, appliqué au niveau visé : Papa confirme ce qu'il
+          voit, pas une phrase qui le résume. */}
+      {autonomy && (aConfirmer === "montee" || aConfirmer === "descente") && (
+        <ConfirmDialog
+          open
+          title={niveau ? `Enregistrer le niveau ${NIVEAU_LABEL[niveau]} ?` : "Enregistrer ces réglages ?"}
+          confirmLabel="Enregistrer"
+          cancelLabel="Annuler"
+          busy={saving}
+          onCancel={() => setAConfirmer(null)}
+          onConfirm={() => {
+            setAConfirmer(null);
+            persist();
+          }}
+        >
+          {/* Le visage AVANT les mots : Papa reconnaît le niveau qu'il s'apprête à enregistrer.
+              « Sur mesure » retombe sur l'avatar neutre — aucune image ne lui appartient. */}
+          <p className="mb-3 flex items-center gap-3">
+            <img
+              src={REGIME_AVATAR[niveau ?? "neutre"]}
+              alt=""
+              aria-hidden
+              className="h-14 w-14 shrink-0 rounded-[22%] object-cover"
+            />
+            <span className="text-[13px] font-bold text-papa-text">
+              {niveau ? NIVEAU_LABEL[niveau] : "Sur mesure"}
+            </span>
+          </p>
+          {/* Le TON dit le sens. La descente n'est pas un avertissement : reprendre du contrôle est
+              le mouvement qu'on ne décourage jamais (`page-parametres.md` §Modale). */}
+          <p>
+            {aConfirmer === "descente" ? (
+              <>
+                Ces réglages <b className="text-papa-text">vous rendent du contrôle</b> — voici
+                exactement ce qu'ils déplacent :
+              </>
+            ) : (
+              <>
+                Ces réglages <b className="text-papa-text">retirent du contrôle</b> — voici
+                exactement ce qu'ils déplacent :
+              </>
+            )}
+          </p>
+          {/* ⚠️ L'ÉCART, pas le panneau. La modale reprenait `NiveauDetail` — donc elle répétait
+              mot pour mot ce qui restait affiché derrière elle. Elle dit maintenant la seule
+              chose que la page ne dit pas : l'état d'AVANT. */}
+          <EcartNiveau autonomy={autonomy} draft={draft} />
+        </ConfirmDialog>
+      )}
     </section>
   );
 }

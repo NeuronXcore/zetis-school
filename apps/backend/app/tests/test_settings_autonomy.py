@@ -58,7 +58,7 @@ def test_les_defauts_decrivent_le_regime_reel_daujourdhui(client_db) -> None:
         svc.A3: svc.VALIDATE,
         svc.A4: svc.NEVER,
     }
-    assert body["preset"] == "semi"
+    assert body["niveau"] == "semi"
 
 
 def test_chaque_verrou_porte_son_motif(client_db) -> None:
@@ -83,15 +83,15 @@ def test_le_front_na_aucune_liste_en_dur(client_db) -> None:
 # --- Écriture et refus (verrous n°1, 5, 6bis) ---------------------------------------------------
 
 
-def test_le_preset_se_derive_il_ne_se_stocke_pas(client_db) -> None:
+def test_le_niveau_se_derive_il_ne_se_stocke_pas(client_db) -> None:
     """Descendre A0a suffit à changer le régime affiché. Aucune ligne « mode » n'existe."""
     client, Session = client_db
     body = client.put(API, json={"values": {svc.A0A: svc.VALIDATE}}).json()
-    assert body["preset"] == "manuel"
+    assert body["niveau"] == "manuel"
 
     with Session() as db:
         keys = {row.key for row in db.scalars(select(m.AppSetting))}
-    assert all(not k.endswith("preset") and not k.endswith("mode") for k in keys)
+    assert all(not k.endswith(("preset", "niveau", "mode")) for k in keys)
 
 
 @pytest.mark.parametrize(
@@ -296,3 +296,58 @@ def test_parent_rule_reste_non_emise_tant_que_papa_clique(client_db) -> None:
         db.add(m.AppSetting(key=svc.A0A, value=str(svc.VALIDATE)))
         db.commit()
         assert authority_for(db, run) is None
+
+
+# --- Le contrat avec le front ------------------------------------------------------------------
+#
+# ⚠️ **Ces deux tests sont la SEULE chose qui empêche un renommage de clé de passer inaperçu.**
+# Le reste de ce fichier teste le backend contre lui-même, et le front mocke `fetchAutonomy` :
+# renommez une clé d'un seul côté et **les deux suites restent vertes**. C'est arrivé le
+# 2026-08-04 sur `preset` → `niveau`, et seul un appel réel l'a montré.
+#
+# Le point de contact est `packages/types/contracts/autonomy.example.json`, capturé depuis le
+# serveur réel. Il est relu ICI (la réponse a-t-elle ces clés ?) et LÀ-BAS (l'écran sait-il les
+# lire ?). Renommer côté serveur casse ce test ; mettre le contrat à jour sans toucher au front
+# casse l'autre.
+
+
+def _contrat() -> dict:
+    """Le contrat versionné. ⚠️ Il se CAPTURE, il ne s'écrit pas — cf. le README du dossier."""
+    import json
+    from pathlib import Path
+
+    racine = Path(__file__).resolve().parents[4]
+    return json.loads(
+        (racine / "packages/types/contracts/autonomy.example.json").read_text(encoding="utf-8")
+    )
+
+
+def test_la_reponse_a_exactement_les_cles_du_contrat(client_db) -> None:
+    """La forme de la réponse est le contrat. Une clé en plus est aussi grave qu'une clé en moins :
+    la première dit qu'on a livré sans mettre le contrat à jour, la seconde qu'on a cassé le front.
+    """
+    client, _ = client_db
+    body = client.get(API).json()
+    contrat = _contrat()
+
+    assert sorted(body) == sorted(contrat), (
+        "La racine de la réponse ne correspond plus au contrat capturé. "
+        "Si c'est voulu : re-capturer le fichier ET adapter le front."
+    )
+    assert sorted(body["classes"][0]) == sorted(contrat["classes"][0])
+
+
+def test_le_contrat_couvre_les_six_classes_et_leurs_types(client_db) -> None:
+    """⚠️ Les VALEURS n'engagent rien — seules les clés et leurs TYPES font foi. Figer des valeurs
+    rendrait ce test rouge au premier réglage changé en base de dev, pour une raison qui n'est pas
+    une régression."""
+    contrat = _contrat()
+
+    assert len(contrat["classes"]) == len(svc.AUTONOMY_CLASSES)
+    assert contrat["niveau"] is None or isinstance(contrat["niveau"], str)
+    assert isinstance(contrat["auto_trigger_enabled"], bool)
+    for cls in contrat["classes"]:
+        assert isinstance(cls["value"], int)
+        assert isinstance(cls["choices"], list)
+        assert isinstance(cls["locked"], bool)
+        assert cls["reason"] is None or isinstance(cls["reason"], str)

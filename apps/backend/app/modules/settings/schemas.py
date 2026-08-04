@@ -22,8 +22,12 @@ class AutonomyClassOut(BaseModel):
 
 class AutonomyOut(BaseModel):
     classes: list[AutonomyClassOut]
-    #: Régime DÉRIVÉ des valeurs — jamais stocké. `null` = « sur mesure ».
-    preset: str | None = None
+    #: Le NIVEAU, DÉRIVÉ des valeurs — jamais stocké. `null` = « sur mesure ».
+    #:
+    #: ⚠️ S'appelait `preset` jusqu'au 2026-08-04. Renommé avec le reste du vocabulaire (addendum
+    #: ADR-0032 §8.0) : un NIVEAU est l'un des trois régimes, un PALIER est le degré 0-3 d'une
+    #: classe. Le seul consommateur de cet endpoint est `frontend-papa` — aucun contrat externe.
+    niveau: str | None = None
     #: ⚠️ **Champ SÉPARÉ de `classes`, délibérément** (ADR-0035 §5) : ce n'est pas un palier mais
     #: une autre question — « ZETIS a-t-il le droit de DÉMARRER seul ? » là où les paliers disent
     #: « a-t-il le droit de SERVIR sans relecture ? ». Le mettre dans `classes` ferait qu'un
@@ -34,7 +38,7 @@ class AutonomyOut(BaseModel):
 class AutonomyRequest(BaseModel):
     """Écriture partielle : on n'envoie que ce qui change.
 
-    Pas de champ `preset` : un préréglage est un raccourci d'ÉCRITURE côté client, qui se traduit
+    Pas de champ `niveau` : un niveau est un raccourci d'ÉCRITURE côté client, qui se traduit
     en valeurs. L'accepter ici en ferait un second chemin d'écriture — donc une seconde source de
     vérité pour la même question.
     """

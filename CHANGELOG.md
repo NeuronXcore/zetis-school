@@ -1,5 +1,48 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.43.0 — Papa sait dans quel régime ZETIS travaille, sans quitter sa page
+
+Date : 2026-08-04 · branches `feat/etat-zetis-sidebar` → `feat/zetis-levels` →
+`refactor/vocabulaire-niveau-palier` · addenda **ADR-0032 §7 et §8**
+
+L'ADR-0032 avait livré un régime réglable et un régime dérivé, mais **aucune surface de lecture
+hors de `/parametres`**. Papa change de page vingt fois par session ; savoir où en est ZETIS lui
+coûtait à chaque fois de quitter ce qu'il faisait.
+
+**Le point dur : l'autonomie a DEUX axes, pas un.** Le régime dit ce que ZETIS sert sans relecture ;
+le déclencheur (ADR-0035 §5) dit s'il démarre sans clic. *Autonome + désarmé* = « ZETIS sert seul
+mais attend votre clic ». Un signe unique mentirait sur **deux lignes de la table de vérité sur
+quatre**. D'où : l'avatar porte le régime, un glyphe ⏸/⚡ porte le déclencheur.
+
+**En tête de sidebar** — un avatar de 88 px, un badge à cheval portant les deux axes, un halo
+**gradué par le régime** (fixe → souffle → souffle + rotation : l'échelle du mouvement suit
+l'échelle qu'elle signale), et une infobulle au cadre teinté. `prefers-reduced-motion` **fige tout
+sans rien retirer** — couper le halo effacerait le signal.
+
+**Sur `/parametres`** — la section devient **ZETIS LEVELS** et passe en tête. Sous les cartes, un
+panneau **calculé** (jamais rédigé : une prose *classe × niveau* recopierait la matrice du §G.2 sous
+une forme que le serveur ne peut pas refuser) qui montre ce que le niveau décide **et ce qu'aucun
+niveau ne change** — quatre classes sur six sont verrouillées, les taire promettrait une richesse
+que la donnée n'a pas. La confirmation garde l'**enregistrement**, pas le brouillon, et son corps
+est l'**écart** avant→après : la seule chose que la page ne dit pas.
+
+⚠️ **Deux décisions écrites révoquées, contre-motifs au dossier** : la primauté du constat sur le
+réglage (§8.1 — révoquée *à la lettre*, gardée *en esprit*, et défendable **uniquement** parce que
+le §7 a mis l'état en sidebar) ; et « on ne freine pas un retour au contrôle » (§8.4 — la modale ne
+garde plus le geste mais l'écriture, le motif survit dans le **ton**).
+
+**Vocabulaire unifié de bout en bout** (§8.0) : un **niveau** se choisit (les trois régimes), un
+**palier** se subit (le degré 0-3 d'une classe). Documentation, code **et clé JSON** — `preset` →
+`niveau`, back et front, sans migration : le niveau est **dérivé**, jamais stocké.
+
+⚠️ **Et un dispositif que le dépôt n'avait pas** : `packages/types/contracts/`, des réponses
+**capturées** du serveur réel, relues par un test de chaque côté. C'est la seule chose qui peut voir
+un renommage de clé — les 805 + 382 tests restaient verts sur un contrat rompu.
+
+**Sans rapport mais trouvé en chemin** : la sidebar Papa n'était pas clippée, donc le **document**
+grandissait à sa hauteur et c'est le body qui défilait — header et sidebar partaient à l'écran.
+« ⚙️ Paramètres », dernière des 22 entrées, n'était atteignable qu'en scrollant toute la page.
+
 ## 0.42.0 — Massimo peut enfin ouvrir ZETIS sur un téléphone
 
 Date : 2026-08-04 · branche `fix/sidebar-massimo-mobile` · aucun ADR (correctif)

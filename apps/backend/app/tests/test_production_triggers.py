@@ -570,12 +570,12 @@ def test_la_cle_du_declencheur_nest_pas_un_palier(client_db) -> None:
     """⚠️ Verrou de doctrine — deux questions, deux sources (ADR-0035 §5).
 
     Le palier dit si ZETIS a le droit de **servir** sans relecture ; cette clé dit s'il a le droit
-    de **démarrer** sans clic. Si elle entrait dans `AUTONOMY_CLASSES`, `preset_of()` ferait qu'un
+    de **démarrer** sans clic. Si elle entrait dans `AUTONOMY_CLASSES`, `niveau_de()` ferait qu'un
     **préréglage armerait le déclencheur** — et « ZETIS sert seul mais attend que je demande »
     deviendrait impossible.
     """
     assert svc.AUTO_TRIGGER_KEY not in svc.BY_KEY
-    assert all(svc.AUTO_TRIGGER_KEY not in preset for preset in svc.PRESETS.values())
+    assert all(svc.AUTO_TRIGGER_KEY not in paliers for paliers in svc.NIVEAUX.values())
     # Le préfixe la met hors d'atteinte d'un balayage des six paliers.
     assert not svc.AUTO_TRIGGER_KEY.startswith("zetis_autonomy_")
 
@@ -591,13 +591,13 @@ def test_un_preglage_narme_jamais_le_declencheur(client_db) -> None:
     body = client.put(
         "/api/settings/autonomy", json={"values": {svc.A1: svc.SERVE, svc.A0A: svc.SERVE}}
     ).json()
-    assert body["preset"] == "autonome"
+    assert body["niveau"] == "autonome"
     assert body["auto_trigger_enabled"] is False, "le préréglage a armé le déclencheur"
 
     body = client.put("/api/settings/autonomy", json={"auto_trigger_enabled": True}).json()
     assert body["auto_trigger_enabled"] is True
     # …et basculer le déclencheur n'a touché aucun palier.
-    assert body["preset"] == "autonome"
+    assert body["niveau"] == "autonome"
 
 
 # --- Le réveil périodique ne se duplique pas (correctif du 2026-08-03) --------------------------

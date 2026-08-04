@@ -1,0 +1,142 @@
+// « Ce que fait ce niveau » — le panneau de lecture sous les cartes (addendum ADR-0032 §8.2/§8.3).
+//
+// Deux refus qui expliquent le code :
+//
+// 1. **CALCULÉ, jamais rédigé.** Chaque ligne compose deux données que le serveur envoie déjà :
+//    `cls.label` et le libellé du palier que le niveau lui donnerait. Écrire une prose
+//    *classe × niveau* recopierait la matrice du §G.2 **sous une forme que le serveur ne peut pas
+//    refuser** — un 422 protège une valeur, jamais un texte. `PALIERS_PAR_NIVEAU` n'est toléré que
+//    parce que le serveur arbitre quand même ; un miroir en prose n'aurait pas ce filet.
+// 2. **Les quatre classes verrouillées sont MONTRÉES, pas tues.** Un préréglage n'écrit que deux
+//    clés — les taire promettrait une richesse que la donnée n'a pas, les noyer parmi les autres
+//    ferait croire que tout bouge et Papa chercherait un effet qui n'existe pas.
+//
+// ⚠️ Ce panneau **n'interroge rien** : `autonomy` est déjà en main. Il calcule, mais sur des
+// données acquises — il ne peut donc pas dériver en compteur, ce que le §F.2 interdit. C'est la
+// nuance qui a permis de remplacer l'ancien bloc statique « Où vous en êtes aujourd'hui ».
+import { type Autonomy, type AutonomyClass, type AutonomyNiveau } from "@zetis/types";
+
+import { PALIER_LABEL, paliersPourNiveau } from "../../lib/settings";
+
+/** ⚠️ `palier`, pas `niveau` — convention de l'addendum §8.0 : un NIVEAU est l'un des trois
+ *  régimes, un PALIER est le degré 0-3 d'une classe. Ce fichier les avait confondus : le titre
+ *  disait « ce que ce niveau décide » pendant que la variable juste en dessous portait un palier. */
+type Ligne = { cls: AutonomyClass; palier: AutonomyClass["value"]; bouge: boolean };
+
+/** Ce que le niveau `niveau` ferait de chaque classe.
+ *
+ *  ⚠️ Deux sources, deux rôles, et les confondre serait un défaut :
+ *  - **le GROUPE vient du serveur** (`cls.locked`) — c'est lui qui décide ce qui est réglable, et
+ *    le jour où il rouvre une classe elle passe dans le groupe vivant *sans qu'une ligne d'ici
+ *    change* (même contrat que `ClassRow`) ;
+ *  - **la VALEUR vient du préréglage** (`paliersPourNiveau`), qui ne couvre que les classes qu'un
+ *    régime a le DROIT d'écrire — les verrouillées n'y sont jamais, « sous peine d'en faire une
+ *    porte dérobée sur une décision figée » (`lib/settings.ts`). Elles retombent sur `cls.value`.
+ *
+ *  Prendre `paliersPourNiveau` comme critère de groupe ferait basculer A0a et A1 chez les
+ *  verrouillées dès que `niveau` est nul (« Sur mesure ») — alors qu'elles restent réglables. */
+function lignesPour(autonomy: Autonomy, niveau: AutonomyNiveau | null): Ligne[] {
+  const cibles = niveau ? paliersPourNiveau(niveau) : {};
+  return autonomy.classes.map((cls) => ({
+    cls,
+    palier: cibles[cls.key] ?? cls.value,
+    bouge: !cls.locked,
+  }));
+}
+
+export function NiveauDetail({
+  autonomy,
+  niveau,
+}: {
+  autonomy: Autonomy;
+  /** Le niveau REGARDÉ — le brouillon en cours, ou `null` pour « Sur mesure ». */
+  niveau: AutonomyNiveau | null;
+}) {
+  const lignes = lignesPour(autonomy, niveau);
+  const vivantes = lignes.filter((l) => l.bouge);
+  const figees = lignes.filter((l) => !l.bouge);
+
+  return (
+    <section
+      aria-label="Ce que fait ce niveau"
+      className="mt-3 rounded-xl border border-papa-border bg-papa-bg px-4 py-3"
+    >
+      <h4 className="text-[11px] font-bold uppercase tracking-wider text-papa-muted">
+        Ce que ce niveau décide
+      </h4>
+
+      {/* ⚠️ `list`/`listitem` et NON `group` — bien que `ClassRow` utilise `group` pour la même
+          classe, à quelques centaines de pixels d'ici. Deux `group` portant le même `aria-label`
+          rendraient les lignes indiscernables pour un lecteur d'écran comme pour un test (constaté
+          le 2026-08-04 : quatre tests de page sont tombés d'un coup). Et `group` annonce un
+          ensemble de CONTRÔLES : ces lignes n'en portent aucune, elles se lisent. */}
+      <div role="list" aria-label="Ce que ce niveau décide">
+      {vivantes.map(({ cls, palier }) => (
+        <div key={cls.key} role="listitem" aria-label={cls.label} className="mt-2 flex items-center gap-4">
+          <span className="min-w-0 flex-1 text-[12.5px] font-semibold text-papa-text">
+            <span className="mr-1.5 text-[10.5px] font-bold tracking-wider text-papa-muted">
+              {cls.code}
+            </span>
+            {cls.label}
+          </span>
+          {/* `key` sur le PALIER, pas sur la classe : le nœud est remonté quand la valeur change,
+              donc l'animation rejoue. Sans ça, une transition ne se déclencherait pas — la
+              propriété ne change pas, elle naît (même piège que le fondu des avatars). */}
+          <span
+            key={palier}
+            className="palier-valeur shrink-0 rounded-lg bg-papa-accent/10 px-2.5 py-1 text-[11.5px] font-semibold text-emerald-300"
+          >
+            {PALIER_LABEL[palier]}
+          </span>
+        </div>
+      ))}
+      </div>
+
+      {figees.length > 0 && (
+        <>
+          <h4 className="mt-4 border-t border-papa-border pt-3 text-[11px] font-bold uppercase tracking-wider text-papa-muted">
+            <span aria-hidden>🔒</span> Ce qu'aucun niveau ne change
+          </h4>
+          <div role="list" aria-label="Ce qu'aucun niveau ne change">
+          {figees.map(({ cls, palier }) => (
+            <div
+              key={cls.key}
+              role="listitem"
+              aria-label={cls.label}
+              className="mt-2 flex items-start gap-4 opacity-70"
+            >
+              <span className="min-w-0 flex-1 text-[12px] text-papa-muted">
+                <b className="font-semibold text-papa-text/80">{cls.label}</b>
+                {/* Le motif vient du SERVEUR. Un cadenas muet se lit comme une panne — c'est déjà
+                    un principe de cette page, et il vaut ici comme dans le détail réglable. */}
+                {cls.reason && <span className="block text-[11px] leading-relaxed">{cls.reason}</span>}
+              </span>
+              <span className="shrink-0 rounded-lg border border-dashed border-papa-border px-2.5 py-1 text-[11px] text-papa-muted">
+                {PALIER_LABEL[palier]}
+              </span>
+            </div>
+          ))}
+          </div>
+        </>
+      )}
+
+      {/* ⚠️ **LE SEUL CHIFFRE DE LA PAGE**, et il ne suit PAS le niveau sélectionné. Daté, attaché
+          à une observation, non recalculé : le faire varier avec le brouillon en ferait une
+          projection déguisée en fait, et un compteur vivant ferait de ce bloc un reproche
+          permanent (§F.2). Il vient du bloc « Où vous en êtes aujourd'hui », que ce panneau a
+          absorbé le 2026-08-04 (addendum §8.1). */}
+      <p className="mt-4 rounded-lg border border-sky-400/35 bg-sky-500/5 px-3 py-2.5 text-[12px] leading-relaxed text-sky-200">
+        <span aria-hidden>📊</span> Sur le chapitre produit le 2 août,{" "}
+        <b className="text-papa-text">2 contenus sur 33</b> vous sont arrivés en relecture.{" "}
+        <b className="text-papa-text">Ce n'est pas un retard</b> — c'est le régime ci-dessus.
+      </p>
+
+      {/* Hors matrice, et c'est délibéré : le quiz n'est PAS une classe d'autonomie. Le taire pour
+          une raison de forme perdrait une information vraie (addendum §8, coûts assumés). */}
+      <p className="mt-2 text-[11px] leading-relaxed text-papa-muted">
+        Hors de ce tableau : les <b className="text-papa-text/80">quiz</b> sont servis sans
+        relecture, par doctrine (ADR-0014).
+      </p>
+    </section>
+  );
+}

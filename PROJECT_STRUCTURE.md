@@ -154,6 +154,13 @@ même charge cognitive. Deux apps évitent une interface hybride confuse — et 
   React. Un module pur ne doit importer aucune valeur — c'est ce qui permet de le partager entre
   une page légère et une page qui paie Three.js.
 - **Les types d'API vivent dans `packages/types`**, jamais redéclarés dans une app.
+- **`packages/types/contracts/`** (2026-08-04) — des réponses **capturées** du serveur réel, figées
+  et versionnées, qui servent de **point de contact** entre les deux côtés d'un endpoint. Relues par
+  **deux** tests : un backend (« la réponse a exactement ces clés »), un front (« les composants
+  rendent à partir de ce fichier, **sans mock** »). ⚠️ C'est la seule chose qui peut voir un
+  renommage de clé JSON — le backend se teste contre lui-même et le front mocke, donc les deux
+  suites restent vertes sur un contrat rompu. **Un fichier de ce dossier se CAPTURE, il ne s'écrit
+  pas** (sinon c'est un mock de plus), et seules ses **clés** engagent. Cf. son `README.md`.
 
 ## Règle de maintenance
 

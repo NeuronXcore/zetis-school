@@ -1,0 +1,74 @@
+{
+  "classes": [
+    {
+      "key": "zetis_autonomy_a0a_derives",
+      "code": "A0a",
+      "label": "Dérivés inertes",
+      "value": 3,
+      "choices": [
+        2,
+        3
+      ],
+      "locked": false,
+      "reason": null
+    },
+    {
+      "key": "zetis_autonomy_a0b_cards",
+      "code": "A0b",
+      "label": "Cartes de révision",
+      "value": 3,
+      "choices": [
+        3
+      ],
+      "locked": true,
+      "reason": "Aucune étape de validation n'existe pour les cartes de révision. « Vous validez » serait un réglage sans effet tant qu'elle n'est pas construite."
+    },
+    {
+      "key": "zetis_autonomy_a1_course",
+      "code": "A1",
+      "label": "Rédaction de cours",
+      "value": 2,
+      "choices": [
+        2,
+        3
+      ],
+      "locked": false,
+      "reason": null
+    },
+    {
+      "key": "zetis_autonomy_a2_curriculum",
+      "code": "A2",
+      "label": "Programme",
+      "value": 1,
+      "choices": [
+        1
+      ],
+      "locked": true,
+      "reason": "Une erreur ici redessine la carte : ZETIS propose, vous tranchez."
+    },
+    {
+      "key": "zetis_autonomy_a3_missions",
+      "code": "A3",
+      "label": "Création de missions",
+      "value": 2,
+      "choices": [
+        2
+      ],
+      "locked": true,
+      "reason": "Élire n'est pas créer : le sélecteur quotidien est déjà autonome, la création non."
+    },
+    {
+      "key": "zetis_autonomy_a4_terminal",
+      "code": "A4",
+      "label": "Supprimer, archiver, dévalider",
+      "value": 0,
+      "choices": [
+        0
+      ],
+      "locked": true,
+      "reason": "Définitif. Aucun réglage ne l'ouvrira."
+    }
+  ],
+  "niveau": "semi",
+  "auto_trigger_enabled": false
+}

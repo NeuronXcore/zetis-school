@@ -19,8 +19,18 @@ et §G (autorité, matrice, veto)**, `adr-0031` + son addendum (le gate vit dans
 
 ## Principes
 
-- **L'état des lieux précède le réglage.** Le bloc « où vous en êtes » est au-dessus des
-  préréglages, toujours, et il n'est pas repliable.
+- ~~**L'état des lieux précède le réglage.** Le bloc « où vous en êtes » est au-dessus des
+  préréglages, toujours, et il n'est pas repliable.~~
+  > ⚠️ **RÉVOQUÉ le 2026-08-04** (addendum §8.1). Le réglage passe en tête sous le nom **ZETIS
+  > LEVELS**, et le constat le suit **dans le même objet** : le panneau de détail montre le niveau
+  > sélectionné, et **au repos celui qui est actif**. On révoque la position, on garde l'intention —
+  > Papa voit où il est sans le chercher. Révocation **conditionnée par le §7** : elle n'est
+  > défendable que parce que l'état vit désormais en tête de sidebar, sur les 22 pages. Le
+  > contre-motif reste au dossier dans l'addendum.
+- **Le réglage dit ce qu'il fait.** Choisir un niveau montre **ce qu'il déplace**, classe par
+  classe — calculé depuis les données du serveur, jamais rédigé en dur (addendum §8.2). Et il dit
+  aussi **ce qu'aucun niveau ne change** : quatre classes sur six sont verrouillées, les taire
+  promettrait une richesse que la donnée n'a pas.
 - **Un régime, jamais un score.** La provenance s'affiche par objet et **ne se totalise jamais**
   (§F.2). Cette page décrit *comment ça marche aujourd'hui*, pas *combien Papa a délégué*.
 - **Aucun interrupteur sans effet.** La page précédente en portait quatre ; ils ont été retirés le
@@ -48,38 +58,23 @@ deux options.
 
 ### Section « ⚡ Autonomie de ZETIS » (remplace le placeholder `indisponible`)
 
-Quatre blocs, dans cet ordre et pas un autre.
+Quatre blocs, dans cet ordre — **révisé le 2026-08-04** (addendum §8.1) : le réglage est passé en
+tête, et le bloc « Où vous en êtes aujourd'hui » a **fusionné** avec lui.
 
-#### 1. « Où vous en êtes aujourd'hui »
+#### 1. « ZETIS LEVELS » — les trois niveaux, et ce que chacun fait
 
-Quatre lignes — une par famille visible de Massimo — chacune : un intitulé, une phrase de régime,
-une pastille de provenance.
-
-| Famille | Phrase | Pastille |
-|---|---|---|
-| Fiches et cartes mentales | Produites en lot, servies sans que vous les ouvriez. | `validation groupée` |
-| Cartes de révision | Servies sans aucune étape de validation — il n'en existe pas. | `aucun contrôle` |
-| Quiz | Servis sans relecture, par doctrine (ADR-0014). | `par doctrine` |
-| Cours | Vous seul les validez. Le seul contenu qui passe devant vous. | `vous` |
-
-Puis **un encart ambré**, et c'est la phrase la plus importante de la page :
-
-> Sur le chapitre produit le 2 août, **2 contenus sur 33** vous sont arrivés en relecture.
-> **Ce n'est pas un retard** — c'est le régime ci-dessus.
-
-⚠️ **Le seul chiffre de la page est celui-là** : daté, attaché à une observation, non recalculé et
-non répété. Un compteur vivant ferait de ce bloc un reproche permanent (§F.2). Les faits par objet
-vivent sur le Journal.
-
-#### 2. Le régime — trois préréglages
-
-Trois cartes cliquables, une seule active : **Manuel · Semi-autonome · Autonome**.
+Trois cartes cliquables, une seule active : **Manual · Hybrid · Autonom**.
 
 | Régime | Ce qu'il dit |
 |---|---|
-| 🔒 **Manuel** | ZETIS produit, **vous validez tout** avant que Massimo le voie — fiches et cartes mentales comprises. |
-| ⚖️ **Semi-autonome** | ZETIS sert les dérivés seul. **Les cours passent toujours par vous.** |
-| 🚀 **Autonome** | ZETIS rédige et sert **y compris les cours**. Vous pouvez retirer, tant que Massimo n'a pas ouvert. |
+| 🔒 **Manual** | ZETIS produit, **vous validez tout** avant que Massimo le voie — fiches et cartes mentales comprises. |
+| ⚖️ **Hybrid** | ZETIS sert les dérivés seul. **Les cours passent toujours par vous.** |
+| 🚀 **Autonom** | ZETIS rédige et sert **y compris les cours**. Vous pouvez retirer, tant que Massimo n'a pas ouvert. |
+
+> **Ce sont les mots des avatars, pas ceux des ADR** (décision du 2026-08-04, addendum §7.7). Les
+> documents de décision continuent de dire *Manuel · Semi-autonome · Autonome* — ce sont les mêmes
+> régimes, et les **clés** de l'API (`manuel | semi | autonome`) ne bougent pas. Le nom à l'écran
+> suit l'image ; l'identité de la donnée suit le serveur.
 
 **Le préréglage n'est pas un état stocké.** Six clés plates en base ; l'étiquette est **dérivée**
 des six valeurs à l'affichage. Un badge **« Sur mesure »** s'affiche si elles ne correspondent à
@@ -92,6 +87,62 @@ rend.
 `VETO_SURFACE_AVAILABLE = True` et *Autonome* est offert. Le palier 3 et son veto se sont livrés
 ensemble, comme le verrou n°5 de l'ADR-0032 l'exigeait — **aucune ligne du front n'a changé**,
 `choices` venant du serveur.
+
+##### Sous les cartes — « ce que fait ce niveau »
+
+Un panneau **en lecture seule**, qui suit la carte sélectionnée et, **au repos, montre le niveau
+actif**. C'est lui qui a remplacé le bloc « Où vous en êtes aujourd'hui » (addendum §8.1).
+
+Il est **calculé**, jamais rédigé : pour chaque classe, `label` du serveur → libellé de son
+**palier**. ⚠️ *niveau* = l'un des trois régimes ; *palier* = le degré 0-3 d'une classe. La
+convention est fixée à l'addendum **§8.0**, et elle vaut pour toute cette page.
+Écrire une prose *classe × niveau* recopierait la matrice du §G.2 sous une forme que le serveur ne
+peut pas refuser — un 422 protège une valeur, jamais un texte (addendum §8.2).
+
+**Deux groupes, et le second est une information, pas une omission** (addendum §8.3) :
+
+| Groupe | Contenu |
+|---|---|
+| **Ce que ce niveau décide** | Les **deux** classes libres (A0a, A1). Leur **palier** change à la sélection. |
+| **Ce qu'aucun niveau ne change** | Les **quatre** verrouillées, en retrait, **avec leur motif serveur**. |
+
+En pied, l'observation — **et c'est toujours le seul chiffre de la page** :
+
+> 📊 Sur le chapitre produit le 2 août, **2 contenus sur 33** vous sont arrivés en relecture.
+> **Ce n'est pas un retard** — c'est le régime ci-dessus.
+
+⚠️ Daté, attaché à une observation, **non recalculé et non répété** — et surtout **il ne suit pas le
+niveau sélectionné** : il dirait alors ce qui *serait* arrivé, et deviendrait une projection
+déguisée en fait. Un compteur vivant ferait de ce bloc un reproche permanent (§F.2). Les faits par
+objet vivent sur le Journal.
+
+⚠️ Hors matrice, en note : **les quiz sont servis sans relecture, par doctrine (ADR-0014)**. Le quiz
+n'est pas une classe d'autonomie — le taire pour une raison de forme perdrait une information vraie.
+
+#### 2. Modale de confirmation — à l'ENREGISTREMENT
+
+Choisir un niveau ne fait qu'**afficher** ce qu'il déciderait : aucune friction, Papa compare les
+trois librement. C'est **« Enregistrer »** qui ouvre la modale, et elle montre **ce qui va être
+écrit**, avec **l'avatar du niveau visé**.
+
+Son corps est l'**écart** — un `avant → après` sur les seules classes qui bougent — et non le
+panneau, qui reste affiché derrière elle. ⚠️ **On ne confirme pas ce qui ne change pas** : les
+classes verrouillées n'y figurent pas.
+
+⚠️ **Toute écriture se confirme, descente comprise.** *« On ne freine pas un retour au contrôle »*
+survit dans le **TON**, pas dans l'absence de modale : une descente s'annonce « vous rendent du
+contrôle », sans avertissement. Un « Enregistrer » qui ouvrirait parfois une modale serait moins
+prévisible qu'un qui confirme toujours.
+
+| Enregistrement | Modale |
+|---|---|
+| Rien à écrire | **aucune** — le bouton est désactivé |
+| Descente | sobre, ton positif — « vous rendent du contrôle » |
+| Montée ordinaire | sobre — « retirent du contrôle » |
+| Montée du **cours** vers « ZETIS sert » | **la modale forte, inchangée** (voir plus bas) |
+
+⚠️ Renoncer **n'annule pas le brouillon** : Papa n'a pas retiré son intention, il a refusé de la
+graver. Le bouton « Annuler » de la page reste le seul retour à l'état serveur.
 
 #### 3. « Détail par type de contenu » — `<details>` replié par défaut
 
@@ -158,7 +209,7 @@ case à cocher, **défaut NON**.
 > symétrique, qui est **le plus sûr des deux**.
 
 ⚠️ **Un préréglage ne la touche dans aucun sens** : elle n'est pas dans `AUTONOMY_CLASSES`, sinon
-`preset_of()` ferait qu'un régime armerait le déclencheur au passage. Deux test-verrous le tiennent,
+`niveau_de()` ferait qu'un régime armerait le déclencheur au passage. Deux test-verrous le tiennent,
 back et front.
 
 Le bloc « où vous en êtes » est **statique** : ses quatre phrases sont du texte, pas un calcul.
@@ -167,17 +218,58 @@ Rien à interroger, rien qui puisse dériver en compteur.
 ## États
 
 - **Chargement** : la section entière en squelette ; jamais de préréglage affiché « au hasard »
-  avant la réponse (un régime faux affiché une seconde est un mensonge).
+  avant la réponse (un régime faux affiché une seconde est un mensonge). ⚠️ **Vaut aussi pour le
+  bloc de la sidebar** (addendum §7.4), où le mensonge coûte plus cher : il est visible partout.
 - **Erreur de lecture** : la section affiche l'erreur et **aucun réglage** — pas de valeurs par
-  défaut inventées.
+  défaut inventées. Même règle en sidebar, où le bloc dit « État indisponible » et **rien
+  d'autre** — ni « Manuel » par prudence, ni la dernière valeur connue.
 - **Erreur d'écriture** : l'état revient à la valeur serveur, le message est affiché tel quel.
 - **Enregistrement** : bouton explicite (pas d'auto-save). Un réglage d'autonomie ne se change pas
   par inadvertance au survol.
 
 ## Navigation
 
-Entrée sidebar existante `⚙️ Paramètres` (`/parametres`), en bas, `startsGroup`. Le veto renvoie au
-Journal ; aucun autre lien sortant.
+**Deux** points d'entrée depuis le 2026-08-04 : l'entrée sidebar existante `⚙️ Paramètres`
+(`/parametres`), en bas, `startsGroup` — et le **bloc d'état en tête de sidebar**, ci-dessous. Le
+veto renvoie au Journal ; aucun autre lien sortant.
+
+## Le régime se lit aussi dans la sidebar (addendum §7 — 2026-08-04)
+
+En tête de la sidebar Papa, **à la place du bandeau de marque** : un **bloc de lecture** cliquable
+qui mène ici. Il porte **les deux axes**, jamais un seul — *Autonome + déclencheur désarmé* veut
+dire « ZETIS sert seul mais attend votre clic », et un signe unique le dirait faux (addendum §7.1).
+
+> La signature `ZETIS Papa` n'a pas disparu : **elle est passée dans le header**, qui est fixe. Le
+> bloc d'état est identique des deux côtés du miroir — sans ce mot, une capture d'écran de Papa ne
+> se distingue plus d'une capture de Massimo (addendum §7.2bis). *Cockpit de pilotage*, lui, ne
+> revient pas.
+
+**Aucun texte à côté du logo** : un avatar de 88 px, et un **badge à cheval sur son bas** qui porte
+les deux axes à la fois — le mot du régime et le glyphe du déclencheur.
+
+| État | Avatar | Halo | Badge |
+|---|---|---|---|
+| Chargement | neutre | **aucun** | squelette (aucun mot) |
+| Erreur de lecture | neutre | **aucun** | gris — **ILLISIBLE** |
+| `manuel` | manuel | fixe | bleu — ⏸/⚡ **MANUAL** |
+| `semi` | semi | souffle 4 s | bleu→violet — ⏸/⚡ **HYBRID** |
+| `autonome` | autonome | souffle + rotation 6 s | indigo→fuchsia — ⏸/⚡ **AUTONOM** |
+| `null` | neutre | fixe | cyan — ⏸/⚡ **SUR MESURE** |
+
+Le **glyphe est indépendant du mot** : il lit `auto_trigger_enabled` (⏸ *démarre sur clic* / ⚡
+*démarre seul*), et un point qui orbite l'avatar le double quand le déclencheur est armé.
+
+Au **survol** (et au **focus clavier**) : une infobulle au cadre teinté par le régime, portant le
+libellé, sa description complète et la phrase du déclencheur. Elle est en `position: fixed` — la
+sidebar clippe son contenu pour que la nav défile seule, et une infobulle ancrée y serait coupée.
+
+> **La sidebar LIT, elle ne règle pas.** Aucun réglage ne se change depuis là — le bloc est un lien,
+> rien de plus. Un régime ne doit pas pouvoir bouger d'un clic dans un coin d'écran quand cette
+> page exige elle-même un bouton « Enregistrer ».
+
+Le régime affiché vient **toujours** du serveur (`niveau`) ; le front ne le recalcule jamais.
+Rafraîchi au montage et après un enregistrement réussi — **jamais par sondage** : deux onglets
+ouverts divergent jusqu'au rechargement, et c'est accepté (addendum §7.4).
 
 ## Hors périmètre
 

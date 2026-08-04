@@ -7,39 +7,39 @@
 //
 // Un régime indisponible est GRISÉ AVEC SON MOTIF, jamais escamoté : c'est la convention Papa
 // (« une capacité absente se dit »), et c'est ce que le test-verrou de cette page vérifie.
-import { type Autonomy, type AutonomyPreset } from "@zetis/types";
+import { type Autonomy, type AutonomyNiveau } from "@zetis/types";
 
 import {
-  PRESET_DESCRIPTION,
-  PRESET_ICON,
-  PRESET_LABEL,
-  PRESETS,
-  presetAvailability,
+  NIVEAU_DESCRIPTION,
+  NIVEAU_LABEL,
+  NIVEAUX,
+  niveauDisponible,
 } from "../../lib/settings";
+import { REGIME_AVATAR } from "../../lib/regimeVisuals";
 
-export function PresetCards({
+export function NiveauCards({
   autonomy,
   current,
   onPick,
 }: {
   autonomy: Autonomy;
   /** Régime du BROUILLON en cours — `null` = « sur mesure ». */
-  current: AutonomyPreset | null;
-  onPick: (preset: AutonomyPreset) => void;
+  current: AutonomyNiveau | null;
+  onPick: (niveau: AutonomyNiveau) => void;
 }) {
   return (
     <div className="mt-3 grid gap-3 sm:grid-cols-3">
-      {PRESETS.map((preset) => {
-        const { available, reason } = presetAvailability(autonomy, preset);
-        const active = current === preset;
+      {NIVEAUX.map((niveau) => {
+        const { available, reason } = niveauDisponible(autonomy, niveau);
+        const active = current === niveau;
         return (
           <button
-            key={preset}
+            key={niveau}
             type="button"
             aria-pressed={active}
             disabled={!available}
             title={available ? undefined : (reason ?? "Régime indisponible")}
-            onClick={() => onPick(preset)}
+            onClick={() => onPick(niveau)}
             className={[
               "relative rounded-xl border p-3.5 text-left transition-colors",
               active
@@ -53,12 +53,21 @@ export function PresetCards({
                 ✓
               </span>
             )}
-            <span className="flex items-center gap-2 text-[13.5px] font-bold">
-              <span aria-hidden>{PRESET_ICON[preset]}</span>
-              {PRESET_LABEL[preset]}
+            <span className="flex items-center gap-2.5 text-[13.5px] font-bold">
+              {/* L'AVATAR, pas un emoji : c'est ici qu'on choisit un régime, et c'est le visage
+                  qu'on verra ensuite en tête de sidebar. Décoratif — le libellé est juste à côté.
+                  ⚠️ Ni halo ni animation : trois cartes qui respireraient en même temps seraient
+                  une fête foraine. Le halo est la grammaire de la SIDEBAR, où il n'y en a qu'un. */}
+              <img
+                src={REGIME_AVATAR[niveau]}
+                alt=""
+                aria-hidden
+                className="h-12 w-12 shrink-0 rounded-[22%] object-cover"
+              />
+              {NIVEAU_LABEL[niveau]}
             </span>
             <span className="mt-1.5 block text-[11.5px] leading-relaxed text-papa-muted">
-              {PRESET_DESCRIPTION[preset]}
+              {NIVEAU_DESCRIPTION[niveau]}
             </span>
             {!available && reason && (
               <span className="mt-2 block text-[11px] leading-relaxed text-papa-warn">

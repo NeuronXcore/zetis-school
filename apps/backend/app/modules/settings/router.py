@@ -36,7 +36,7 @@ def _out(db: Session, values: dict[str, int]) -> dict:
             }
             for cls in service.AUTONOMY_CLASSES
         ],
-        "preset": service.preset_of(values),
+        "niveau": service.niveau_de(values),
     }
 
 

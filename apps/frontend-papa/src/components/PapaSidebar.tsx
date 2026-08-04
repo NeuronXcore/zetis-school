@@ -5,9 +5,20 @@ import { MISSIONS_PENDING_EVENT, fetchPilotSummary } from "../lib/missionsPilota
 import { fetchContentRequestsCount } from "../lib/contentRequests";
 import { fetchNotionRequestsCount } from "../lib/notionRequests";
 import { DEMANDES_CHANGED_EVENT } from "../lib/demandesEvents";
+import { AUTONOMY_LOADING, type AutonomyState } from "../hooks/useAutonomyState";
+import { EtatZetis } from "./EtatZetis";
 
 // Sidebar temporaire de l'interface Papa (Étape 3) — cockpit de pilotage.
-export function PapaSidebar() {
+//
+// ⚠️ **Deux motifs cohabitent ici, et c'est une dette DATÉE (2026-08-04).** L'état d'autonomie
+// arrive en PROP depuis `PapaLayout` (motif ADR-0030 : un hook dans le layout, une valeur pour
+// toutes les pages) ; les deux pastilles ci-dessous font encore leur propre appel au montage —
+// exactement le motif que l'ADR-0030 a supprimé côté Massimo. Elles n'ont AUCUN test aujourd'hui :
+// les migrer dans la même tranche que l'état de ZETIS serait refactorer du code non couvert au
+// milieu d'une feature. Chantier nommé, pas oublié (addendum ADR-0032 §Conséquences).
+// Conséquence assumée : le verrou « la sidebar ne fait aucun appel réseau » est ici RÉDUIT à
+// « la sidebar ne lit jamais l'autonomie elle-même » (cf. `PapaSidebar.test.tsx`).
+export function PapaSidebar({ autonomy = AUTONOMY_LOADING }: { autonomy?: AutonomyState }) {
   // Compteur ambré « à valider » sur l'entrée Missions (même motif que les autres files de
   // validation) : chargé au montage, rafraîchi quand la page émet après validate/reject.
   const [pending, setPending] = useState(0);
@@ -36,15 +47,19 @@ export function PapaSidebar() {
   }, []);
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-2 border-r border-papa-border bg-papa-surface p-4">
-      <div className="mb-4 px-1">
-        <p className="text-lg font-bold leading-tight">
-          ZETIS <span className="text-papa-accent">Papa</span>
-        </p>
-        <p className="text-xs text-papa-muted">Cockpit de pilotage</p>
-      </div>
+    // `overflow-hidden` sur la colonne, `overflow-y-auto` sur la seule `<nav>` : le bloc d'état
+    // reste ÉPINGLÉ en haut pendant que les 22 entrées défilent. Le faire scroller avec elles
+    // annulerait la feature — un état qu'on doit aller chercher est un état qu'on n'a pas.
+    <aside className="flex h-full w-64 shrink-0 flex-col gap-2 overflow-hidden border-r border-papa-border bg-papa-surface p-4">
+      {/* ⚠️ La signature « ZETIS Papa » n'est PAS ici : elle vit dans le header (`PapaLayout`).
+          Les deux interfaces doivent rester discernables (`docs/frontend-papa/README.md`) — mais
+          la sidebar est la colonne rare, et le header, désormais toujours visible, ne coûte rien.
+          Verrouillé par un test là-bas : ne pas la ré-ajouter ici en croyant réparer un oubli. */}
+      <EtatZetis state={autonomy} />
 
-      <nav className="flex flex-col gap-1">
+      {/* `min-h-0` est obligatoire : sans lui, un enfant flex refuse de rétrécir sous sa taille de
+          contenu et `overflow-y-auto` n'a jamais rien à faire. */}
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {PAPA_NAV.map((item) => (
           <Fragment key={item.to}>
             {item.startsGroup && <div className="my-2 h-px bg-papa-border" role="presentation" />}
