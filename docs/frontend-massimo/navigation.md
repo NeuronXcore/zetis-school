@@ -62,6 +62,29 @@ Composition type d'une sous-page :
 
 Sur iPhone : la sidebar disparaît au profit de la **bottom-nav** (les 5 verbes en bas), le reste est identique. Cible : phase 11 de la `ROADMAP`.
 
+> ### ⚠️ Ce qui a été LIVRÉ le 2026-08-04 : un TIROIR, pas la bottom-nav
+>
+> **Le défaut réparé, mesuré et non supposé** : la sidebar était `w-60 shrink-0` **sans aucun point
+> de rupture**. Sur 375 px elle en prenait **240**, laissant **135 px** à Massimo et un canevas de
+> galaxie de **170 px** de large. Sous `md`, l'`aside` sort désormais du flux (`fixed`) et coulisse
+> derrière un bouton ☰ ; à partir de `md`, **rien ne change d'un pixel**.
+>
+> **Pourquoi pas la bottom-nav que ce document prescrit** — et c'est un écart assumé, pas un oubli :
+> cette spec date de l'étape 2 et ne connaît que **5 verbes**. La navigation en porte **13**,
+> chacune ajoutée par une décision **postérieure** :
+>
+> | Entrée | Décidée par |
+> |---|---|
+> | **Agenda**, en position 2 | **ADR-0025** — « contre-intuitif et assumé » |
+> | **Ma Galaxie**, à position constante | **addendum ADR-0024 §A**, qui *interdit* d'en faire un 6ᵉ onglet |
+> | six entrées à témoin | **ADR-0030**, avec un test qui verrouille la liste |
+>
+> Appliquer la lettre de ce document **masquerait 8 sections sur mobile**, dont l'Agenda que
+> l'ADR-0025 a délibérément mis en avant. Le tiroir répare la largeur **sans rien retirer**.
+>
+> **Reste donc ouvert** : réconcilier les 5 verbes de cette spec avec les 13 entrées livrées. C'est
+> un chantier de **cadrage** (il touche l'ADR-0024, l'ADR-0025 et l'ADR-0030), pas un correctif.
+
 ## 7. Arborescence des sous-pages par verbe
 
 - **Apprendre** → Matières (par défaut), Cours, ELI5, Mind maps, Capsules.

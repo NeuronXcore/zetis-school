@@ -12,9 +12,54 @@ import zetisWordmark from "../assets/brand/zetis-texte.png";
 // prop depuis `MassimoLayout`, qui les récupère en un seul appel. Un test vérifie qu'aucun
 // `fetch` ne repart d'ici — c'est ce qui empêche le double fetch de réapparaître entrée par
 // entrée.
-export function MassimoSidebar({ news = EMPTY_NEWS }: { news?: NewsSummary }) {
+// ⚠️ **Le tiroir mobile** (2026-08-04). La sidebar était `w-60 shrink-0` **sans aucun point de
+// rupture** : sur un écran de 375 px elle en prenait 240, laissant **135 px** à Massimo et un
+// canevas de galaxie de 170 px de large. Mesuré, pas supposé — et `CLAUDE.md` exige une version
+// iPhone.
+//
+// Sous `md`, l'`aside` sort du flux (`fixed`) et coulisse : la largeur n'est plus volée au
+// contenu. Au-dessus, `md:static` la remet dans le flux et `md:translate-x-0` annule le
+// coulissement — **le rendu desktop/tablette ne change pas d'un pixel**.
+//
+// ⚠️ **Ce n'est PAS la bottom-nav de `navigation.md`**, et c'est délibéré : cette spec date de
+// l'étape 2 et ne connaît que **5 verbes**, alors que la navigation en porte **13**, chacune
+// ajoutée par une décision postérieure (Agenda en position 2 par l'ADR-0025, « Ma Galaxie » par
+// l'addendum ADR-0024 §A qui interdit d'en faire un 6ᵉ onglet, six témoins par l'ADR-0030).
+// Appliquer la spec masquerait 8 sections sur mobile. Le tiroir répare le défaut mesuré **sans
+// rien retirer** ; réconcilier la spec et les ADR est un chantier de cadrage, pas ce correctif.
+export function MassimoSidebar({
+  news = EMPTY_NEWS,
+  open = false,
+  onNavigate,
+}: {
+  news?: NewsSummary;
+  /** Tiroir ouvert ? **Mobile uniquement** — sans effet à partir de `md`. */
+  open?: boolean;
+  /** Appelé quand le tiroir doit se refermer : voile touché, ou entrée choisie. */
+  onNavigate?: () => void;
+}) {
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-zetis-border bg-[#000010]">
+    <>
+      {/* Voile : ferme le tiroir au toucher. Absent du DOM quand il est fermé — un voile
+          transparent qui traîne intercepte les touches sur toute la page. */}
+      {open && (
+        <button
+          type="button"
+          aria-label="Fermer le menu"
+          onClick={onNavigate}
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+        />
+      )}
+      <aside
+        className={[
+          "flex w-60 shrink-0 flex-col border-r border-zetis-border bg-[#000010]",
+          // Mobile : hors du flux, donc les 240 px ne sont plus pris au contenu.
+          "fixed inset-y-0 left-0 z-40 overflow-y-auto transition-transform duration-200",
+          open ? "translate-x-0" : "-translate-x-full",
+          // Desktop/tablette : exactement comme avant.
+          "md:static md:z-auto md:translate-x-0 md:overflow-y-visible",
+        ].join(" ")}
+      >
       <style>{ZLOGO_CSS}</style>
       {/* Bande logo : même hauteur que le header principal → le logo s'aligne sur l'avatar
           de Massimo et la ligne horizontale du header se prolonge à travers la sidebar. */}
@@ -43,6 +88,9 @@ export function MassimoSidebar({ news = EMPTY_NEWS }: { news?: NewsSummary }) {
             key={item.to}
             to={item.to}
             end={item.to === "/"}
+            // Choisir une entrée referme le tiroir : sinon Massimo arrive sur sa page avec le
+            // menu encore par-dessus, et doit faire un second geste pour voir ce qu'il a demandé.
+            onClick={onNavigate}
             className={({ isActive }) =>
               [
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
@@ -78,7 +126,8 @@ export function MassimoSidebar({ news = EMPTY_NEWS }: { news?: NewsSummary }) {
           </NavLink>
         ))}
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }
 

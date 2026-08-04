@@ -101,17 +101,30 @@ notions : **0 désaccord**.
 
 ### ▶ DETTES OUVERTES
 
-- 🔴 **LA GALAXIE N'A JAMAIS ÉTÉ VÉRIFIÉE EN VRAI** — livrée le 2026-08-01 (PR #63), et personne
-  n'a validé **ni** sa lisibilité à plusieurs centaines de notions (les rayons `150/260/370` et les
-  78 % de secteur sont des **suppositions, pas des mesures**), **ni** sa tenue sur les trois
-  appareils. **L'iPhone est le cas critique** : il doit porter la galaxie complète sur `/galaxy`
-  **et** une galaxie sur l'Accueil.
+- 🟡 **LA GALAXIE — vérifiée À MOITIÉ le 2026-08-04.** Ce qui est **mesuré** : **202 nœuds** servis
+  (1 racine, 4 matières, 12 chapitres, **185 notions**), **74 FPS** au viewport tablette, **zéro
+  erreur console**, structure et libellés lisibles en desktop et tablette.
+  ⚠️ **Ce qui reste ouvert, et que je ne peux pas faire** : la **tenue sur un vrai appareil**. Un
+  viewport à 375 px n'est **pas** un iPhone — ni Safari iOS, ni son GPU, ni ses limites WebGL. Les
+  74 FPS sont ceux de ce Mac. **Il faut un iPhone réel.**
+  ⚠️ Et **185 notions n'est pas « plusieurs centaines »** : le seuil que l'addendum redoutait n'est
+  pas atteint, donc le niveau de détail adaptatif n'est **ni prouvé nécessaire ni prouvé inutile**.
   ⚠️ **Les deux réponses sont DÉJÀ DÉCIDÉES** (addenda ADR-0024/0029), les appliquer n'est donc pas
   une nouvelle décision — les contourner en serait une : si la lisibilité ne tient pas → **niveau de
   détail adaptatif**, jamais le retour du plafond ni le rallumage des forces ; si l'iPhone décroche
   → ce sont les **particules** qui tombent, **jamais les nœuds**.
   ⚠️ Cette dette était **enterrée dans l'historique** de ce fichier depuis le 2026-08-01, donc
-  invisible à toute reprise. Remontée ici le 2026-08-04.
+  invisible à toute reprise. Remontée ici le 2026-08-04 — **et sa vérification a immédiatement
+  trouvé plus grave qu'elle** (le point suivant). C'est l'argument le plus net en faveur du 4ᵉ
+  contrôle : une dette qu'on n'a pas sous les yeux ne se paie jamais.
+- ⚠️ **La spec de navigation Massimo et le code ont DIVERGÉ, et ce n'est pas réconcilié.**
+  `docs/frontend-massimo/navigation.md` (étape 2) prescrit **5 verbes** et une **bottom-nav** sur
+  iPhone ; la navigation livrée en porte **13**, chacune ajoutée par une décision postérieure
+  (Agenda position 2 par l'**ADR-0025**, « Ma Galaxie » par l'**addendum ADR-0024 §A** qui interdit
+  d'en faire un 6ᵉ onglet, six témoins par l'**ADR-0030** avec test-verrou).
+  Appliquer la spec **masquerait 8 sections sur mobile**. Le tiroir livré le 2026-08-04 répare la
+  largeur **sans rien retirer** ; réconcilier les deux est un **chantier de cadrage** qui touche
+  trois ADR. L'écart est consigné dans la spec elle-même.
 - **La notion ORPHELINE** (aucune leçon) reste insatisfaisable : `equip_piece` le **dit**, rien ne
   le répare. Touche aussi « + Programme » et `skills-backfill`.
 - **Les appels aux générateurs sont écrits deux fois** (`equip_notion` / `equip_piece`) — refactor
