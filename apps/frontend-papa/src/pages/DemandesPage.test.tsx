@@ -55,6 +55,7 @@ const REQ: ContentRequest = {
   source: "chat_orchestrator",
   created_at: "2026-07-30T10:00:00Z",
   producible: true,
+  blocked_reason: null,
 };
 
 function renderPage() {
@@ -88,6 +89,19 @@ describe("DemandesPage", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Fait" }));
     expect(setContentRequestStatus).toHaveBeenCalledWith(5, "done");
+    await waitFor(() => expect(screen.getByText(/Aucune demande en attente/)).toBeTruthy());
+  });
+
+  it("🔒 relit la file quand Papa REVIENT sur l'onglet", async () => {
+    // Le parcours que cette page crée elle-même : « Écrire le cours → » envoie Papa sur Programme,
+    // il écrit le cours, il revient. Sans cette relecture il retrouvait la MÊME ligne, comme si
+    // son geste n'avait servi à rien — alors que le serveur, lui, a déjà refermé la demande.
+    vi.mocked(fetchContentRequests).mockResolvedValueOnce([REQ]).mockResolvedValueOnce([]);
+    renderPage();
+    expect(await screen.findByText("Figure de style")).toBeTruthy();
+
+    fireEvent(window, new Event("focus"));
+
     await waitFor(() => expect(screen.getByText(/Aucune demande en attente/)).toBeTruthy());
   });
 
@@ -180,6 +194,44 @@ describe("DemandesPage", () => {
     await waitFor(() => expect(screen.getByText(/Aucune demande en attente/)).toBeTruthy(), {
       timeout: 4000,
     });
+  });
+
+  it("🔒 une demande que le palier BLOQUE n'offre pas « Produire » — elle dit pourquoi", async () => {
+    // Le cul-de-sac du 2026-08-04 : « Accord du COD — 📖 Cours » en régime Manuel. Le bouton était
+    // offert, les deux lots ont fini `done` en produisant zéro, et Papa ne l'a appris qu'au
+    // Journal. ⚠️ `producible` reste `true` : c'est bien le TYPE qui est productible et la
+    // SITUATION qui ne l'est pas — si ce test passait avec `producible: false`, il ne prouverait
+    // que l'ancien verdict.
+    vi.mocked(fetchContentRequests).mockResolvedValue([
+      {
+        ...REQ,
+        content_kind: "cours",
+        producible: true,
+        blocked_reason: "Cours à écrire — dans le réglage actuel, c'est vous qui rédigez les cours.",
+      },
+    ]);
+    renderPage();
+
+    expect(await screen.findByText(/Cours à écrire/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Produire" })).toBeNull();
+    // Le geste qui répare, à côté du constat.
+    expect(screen.getByRole("link", { name: /Écrire le cours/ })).toHaveAttribute(
+      "href",
+      "/programme?subject=1",
+    );
+    // ⚠️ Le triage reste offert : Papa doit pouvoir clore une demande qu'il ne servira pas.
+    expect(screen.getByRole("button", { name: "Fait" })).toBeTruthy();
+  });
+
+  it("sans motif de blocage, le bouton est bien là", async () => {
+    // La contre-épreuve : si l'écran retirait « Produire » dans les deux cas, le verrou serait
+    // vert pour la mauvaise raison.
+    vi.mocked(fetchContentRequests).mockResolvedValue([
+      { ...REQ, content_kind: "cours", producible: true, blocked_reason: null },
+    ]);
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Produire" })).toBeTruthy();
   });
 
   it("une capsule n'offre pas « Produire » — elle dit où l'écrire", async () => {

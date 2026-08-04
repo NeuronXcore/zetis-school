@@ -482,6 +482,7 @@ describe("CouverturePage — badge « réclamé par Massimo » (addendum ADR-002
         source: "chat_orchestrator",
         created_at: "2026-07-30T10:00:00Z",
         producible: true,
+        blocked_reason: null,
       },
     ]);
     renderPage();
@@ -503,6 +504,7 @@ describe("CouverturePage — badge « réclamé par Massimo » (addendum ADR-002
         source: "chat_orchestrator",
         created_at: "2026-07-30T10:00:00Z",
         producible: true,
+        blocked_reason: null,
       },
     ]);
     vi.mocked(setContentRequestStatus).mockResolvedValue({} as never);

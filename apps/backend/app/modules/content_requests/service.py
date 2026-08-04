@@ -54,6 +54,7 @@ def _out(
     skill_name: str | None = None,
     subject_id: int | None = None,
     subject_name: str | None = None,
+    blocked_reason: str | None = None,
 ) -> dict:
     return {
         "id": req.id,
@@ -70,6 +71,15 @@ def _out(
         # ce que le serveur refuse déjà »). Dupliquer la table en TypeScript la ferait diverger au
         # premier générateur ajouté, et l'écran offrirait un bouton qui échoue.
         "producible": req.content_kind in REQUEST_KIND_TO_PIECE,
+        # ⚠️ **`producible` répond du TYPE, celui-ci de la SITUATION** (addendum ADR-0036).
+        # « Existe-t-il un générateur pour ce genre de contenu ? » est vrai et insuffisant : un
+        # cours est productible **en général** et ne l'est pas sur une notion dont la leçon est
+        # vide, sous un palier où ZETIS n'a pas le droit de l'écrire. Le 2026-08-04, Papa a cliqué
+        # deux fois sur un bouton qui ne pouvait rien produire, et ne l'a appris qu'au Journal.
+        #
+        # `None` = un lot lancé maintenant produirait quelque chose. Le motif ne BLOQUE rien : la
+        # route reste ouverte, l'écran informe.
+        "blocked_reason": blocked_reason,
     }
 
 
@@ -187,9 +197,30 @@ def list_requests(db: Session, status_filter: str | None = "pending") -> list[di
     )
     if status_filter:
         query = query.where(ContentRequest.status == status_filter)
+    lignes = list(db.execute(query))
+
+    # Le verdict de SITUATION, en UNE passe groupée pour toute la file (addendum ADR-0036 §2).
+    # Un aperçu par ligne aurait fait N requêtes pour un écran — le mal que l'ADR-0030 a supprimé
+    # côté Massimo, et que le sondage de l'en-tête a repayé le 2026-08-02.
+    from app.modules.production.runner import blockers_for
+    from app.modules.settings import service as settings_service
+
+    motifs = blockers_for(
+        db,
+        [req.skill_id for req, *_ in lignes],
+        require_validated_course=settings_service.course_gate_enabled(db),
+    )
     return [
-        _out(req, skill_name, subject_id, subject_name)
-        for req, skill_name, subject_id, subject_name in db.execute(query)
+        _out(
+            req,
+            skill_name,
+            subject_id,
+            subject_name,
+            # Le motif ne vaut que pour ce que ZETIS sait produire : sur une `capsule`, `producible`
+            # dit déjà le refus, et deux constats concurrents sur la même ligne se contrediraient.
+            motifs.get(req.skill_id) if req.content_kind in REQUEST_KIND_TO_PIECE else None,
+        )
+        for req, skill_name, subject_id, subject_name in lignes
     ]
 
 

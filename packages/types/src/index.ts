@@ -205,6 +205,7 @@ export {
   type CellState,
   type EventOutcome,
   type Journal,
+  type BlockedTarget,
   type JournalEvent,
   type JournalPiece,
   type JournalRun,

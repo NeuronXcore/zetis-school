@@ -1258,6 +1258,40 @@ rendu en liste. C'est le **repli sans WebGL** de `zetis-galaxy.md §11`.
 > justes et ne répondent pas à la même question : « ce que je peux ouvrir depuis mes notions »
 > contre « ce que le catalogue contient ». Dédupliquer par `Set` est obligatoire.
 
+### GET `/content-requests` · GET `/content-requests/count` (Papa)
+
+⚠️ **Ces deux lectures FONT LE MÉNAGE** (addendum ADR-0034, 2026-08-04) : elles appellent
+`close_available_requests` avant de répondre, et referment les demandes dont le contenu est devenu
+disponible. Patron de `runs.close_stale_runs` — *« le seul moment où l'on sait qu'un humain
+regarde »*. Aucun ordonnanceur, aucune tâche de fond.
+
+L'ADR-0036 §4 n'avait câblé cette fermeture qu'au **chemin de succès d'un lot** ; or Papa produit
+aussi à la main (un cours depuis Programme, une fiche depuis son pilotage, le Conseil hors lot), et
+la demande restait alors ouverte pour toujours.
+
+- **Borné à `status=pending`** — lire l'historique (`?status=done`) n'écrit rien ;
+- **Ne fait jamais tomber la lecture** : si le ménage échoue, la file s'affiche quand même.
+
+Chaque ligne porte en plus `blocked_reason: string | null` — **pourquoi un lot lancé maintenant ne
+produirait rien** (palier, leçon rattachée, cours rédigé), calculé par `runner.blockers_for`, **le
+code même que le lot exécute**. ⚠️ À distinguer de `producible`, qui répond du **type** et non de la
+**situation** : un cours est productible en général, et ne l'est pas sur une notion dont la leçon
+est vide sous un palier qui interdit à ZETIS de l'écrire. Le verdict **informe**, il ne verrouille
+pas — la route reste ouverte, et il est **daté**.
+
+### GET `/production/journal` — champs ajoutés le 2026-08-04
+
+- `zetis_mode` — `manuel|semi|autonome|sur_mesure|null` : le régime **de ce lot-là** ;
+- `zetis_mode_source` — `capture|deduit|null`. ⚠️ **`deduit` n'est pas `capture`** : reconstitué des
+  **actes** du lot (un cours qu'il a rédigé, un dérivé laissé à relire, une origine `request` que
+  seul le régime *Autonome* peut produire), **jamais** des réglages d'aujourd'hui, qui ont pu
+  changer. L'écran doit marquer la différence ;
+- sur chaque **événement** : `target {lesson_id, chapter_id, subject_id, object_id}` — où aller
+  (le référentiel pour une ligne bloquée, la pièce pour une ligne produite) — et `resolved: bool |
+  null`, qui dit si la cause d'un blocage **tient encore**, sous le palier d'aujourd'hui. Le motif
+  d'origine, lui, n'est **jamais** réécrit (§F.4) ;
+- sur chaque **pièce** : `target`, pour l'ouvrir depuis la liste.
+
 ### POST `/student/content-requests`
 
 **Écriture SEULE, `require_child`** (addendum ADR-0027) — Massimo demande un ou plusieurs contenus

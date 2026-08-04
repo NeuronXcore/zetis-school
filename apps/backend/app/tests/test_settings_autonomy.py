@@ -192,7 +192,7 @@ def test_le_gate_du_cours_suit_a1(client_db) -> None:
 
 def test_le_gate_retire_rend_les_notions_sans_cours_eligibles(client_db) -> None:
     """Palier 3 d'A1 : ce qui était bloqué redevient équipable — et RIEN d'autre ne change."""
-    from app.modules.production.runner import BLOCKED_COURSE_PENDING, select_notions
+    from app.modules.production.runner import BLOCKED_COURSE_MISSING, select_notions
 
     _, Session = client_db
     with Session() as db:
@@ -205,7 +205,7 @@ def test_le_gate_retire_rend_les_notions_sans_cours_eligibles(client_db) -> None
         db.commit()
 
         eligible, blocked = select_notions(db, [skill.id])
-        assert eligible == [] and blocked[0]["reason"] == BLOCKED_COURSE_PENDING
+        assert eligible == [] and blocked[0]["reason"] == BLOCKED_COURSE_MISSING
 
         eligible, blocked = select_notions(db, [skill.id], require_validated_course=False)
         assert eligible == [skill.id] and blocked == []

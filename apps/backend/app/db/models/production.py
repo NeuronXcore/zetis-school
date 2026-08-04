@@ -175,6 +175,24 @@ class ProductionRun(Base):
         ForeignKey("skills.id"), nullable=True
     )
 
+    # --- Le RÉGIME sous lequel ce lot a tourné (addendum ADR-0034) -------------------------------
+    #
+    # ⚠️ **Il se CAPTURE, il ne se lit pas à l'affichage.** Les paliers sont des réglages vivants :
+    # relire ceux d'aujourd'hui pour expliquer un lot d'hier ferait dire au Journal l'exact
+    # contraire de ce qui s'est passé — « produit sans relecture » sur un lot que Papa avait relu.
+    # C'est le même motif qui a fait écrire `authorized_by` sur le lot plutôt que de le déduire.
+    #
+    # ⚠️ **On stocke les deux PALIERS, jamais le nom du régime.** L'ADR-0032 a refusé de persister
+    # le préréglage — « un mode stocké *plus* six clés donnerait deux réponses à une seule
+    # question » — et `niveau_de()` le dérive. La règle vaut ici : on garde les faits, le nom se
+    # redérive à la lecture, avec la MÊME fonction. Deux clés suffisent parce que `NIVEAUX` n'en
+    # nomme que deux : ce sont exactement celles qui commandent la production.
+    #
+    # `NULL` = lot antérieur à cette colonne. **Aucune rétro-attribution** (doctrine §F.4) : le
+    # Journal ne reconstitue pas le passé, il dit « non enregistré ».
+    a0a_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    a1_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # ⚠️ `created_at` n'est PAS l'heure de démarrage : le job attend en file (concurrence 1, un
     # seul GPU). Sans cette colonne, la durée d'un lot inclut son attente et ne mesure rien.

@@ -32,6 +32,18 @@ export interface ContentRequest {
    *  productibles : la dupliquer la ferait diverger au premier générateur ajouté, et l'écran
    *  offrirait un bouton qui échoue. Même patron que `choices` / `locked` des paliers. */
   producible: boolean;
+  /** Pourquoi un lot lancé **maintenant** ne produirait rien — `null` s'il produirait
+   *  (addendum ADR-0036 « verdict de situation »).
+   *
+   *  ⚠️ **`producible` répond du TYPE, celui-ci de la SITUATION.** Un cours est productible en
+   *  général, et ne l'est pas sur une notion dont la leçon est vide sous un palier où ZETIS n'a
+   *  pas le droit de l'écrire. Le 2026-08-04, Papa a cliqué deux fois sur un bouton qui ne
+   *  pouvait rien produire, et ne l'a appris qu'au Journal.
+   *
+   *  ⚠️ **Il informe, il ne verrouille pas** : la route reste ouverte, et le verdict est daté —
+   *  valider un cours dans un autre onglet le rend caduc. L'écran remplace le bouton par le motif
+   *  et le geste qui répare, jamais par un bouton grisé. */
+  blocked_reason: string | null;
 }
 
 /** `POST /api/student/content-requests` (addendum ADR-0027) — corps de la demande de Massimo.

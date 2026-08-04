@@ -12,6 +12,7 @@ from sqlalchemy import select
 import app.db.models as m
 from app.modules.production import runs
 from app.modules.production.runner import (
+    BLOCKED_COURSE_MISSING,
     BLOCKED_COURSE_PENDING,
     BLOCKED_NO_LESSON,
     massimo_is_active,
@@ -63,7 +64,7 @@ def test_un_lot_nauto_valide_aucun_cours(client_db) -> None:
         assert db.scalar(select(m.Fiche)) is None
         assert db.scalar(select(m.Mindmap)) is None
         assert out["equipped"] == []
-        assert out["blocked"] == [{"skill_id": skill.id, "reason": BLOCKED_COURSE_PENDING}]
+        assert out["blocked"] == [{"skill_id": skill.id, "reason": BLOCKED_COURSE_MISSING}]
 
 
 def test_les_notions_bloquees_sont_rendues_avec_leur_motif(client_db) -> None:
@@ -81,7 +82,35 @@ def test_les_notions_bloquees_sont_rendues_avec_leur_motif(client_db) -> None:
         eligible, blocked = select_notions(db, [orpheline.id, bloquee.id])
 
     assert eligible == []
-    assert {b["reason"] for b in blocked} == {BLOCKED_NO_LESSON, BLOCKED_COURSE_PENDING}
+    assert {b["reason"] for b in blocked} == {BLOCKED_NO_LESSON, BLOCKED_COURSE_MISSING}
+
+
+def test_les_deux_motifs_de_cours_ne_disent_pas_la_meme_chose(client_db) -> None:
+    """VIDE ≠ NON VALIDÉ — deux situations, deux motifs (addendum ADR-0036).
+
+    ⚠️ Ce test existe parce que la constante a été SCINDÉE le 2026-08-04, et que les cinq cas
+    déjà couverts portaient tous sur une leçon **vide** : sans lui, la moitié conservée du motif
+    (« à valider ») n'aurait plus aucune preuve. Une leçon rédigée que Papa n'a pas encore validée
+    est le cas où ZETIS a bien un texte sous la main — et n'a pas le droit de le servir.
+    """
+    _, Session = client_db
+    with Session() as db:
+        _, subject, chapter = _seed_year(db)
+        redigee = _seed_lesson(db, chapter, title="Rédigée", validated=False, course=True)
+        vide = _seed_lesson(db, chapter, title="Vide", validated=True, course=False)
+        a_valider = _skill(db, subject, "Cours écrit, non validé")
+        jamais_ecrit = _skill(db, subject, "Cours jamais écrit")
+        _attach(db, redigee, a_valider)
+        _attach(db, vide, jamais_ecrit)
+        db.commit()
+
+        motifs = {
+            b["skill_id"]: b["reason"]
+            for b in select_notions(db, [a_valider.id, jamais_ecrit.id])[1]
+        }
+
+    assert motifs[a_valider.id] == BLOCKED_COURSE_PENDING
+    assert motifs[jamais_ecrit.id] == BLOCKED_COURSE_MISSING
 
 
 def test_une_lecon_validee_avec_contenu_est_equipable(client_db) -> None:
@@ -251,7 +280,7 @@ def test_un_lot_piece_reste_soumis_au_gate_du_cours(client_db) -> None:
 
         db.expire_all()
         assert db.get(m.Lesson, draft.id).status == "draft", "un cours a été écrit sur demande"
-        assert out["blocked"] == [{"skill_id": skill.id, "reason": BLOCKED_COURSE_PENDING}]
+        assert out["blocked"] == [{"skill_id": skill.id, "reason": BLOCKED_COURSE_MISSING}]
 
 
 def test_un_lot_porte_un_scope_et_un_seul(client_db) -> None:
@@ -391,7 +420,7 @@ def test_lapercu_nomme_les_notions_bloquees_et_leur_motif(client_db) -> None:
 
     assert out["eligible"] == []
     assert out["blocked"][0]["name"] == "Fractions"
-    assert out["blocked"][0]["reason"] == BLOCKED_COURSE_PENDING
+    assert out["blocked"][0]["reason"] == BLOCKED_COURSE_MISSING
 
 
 def test_lapercu_porte_larriere_et_son_plafond(client_db) -> None:

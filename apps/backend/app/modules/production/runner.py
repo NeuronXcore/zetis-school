@@ -46,8 +46,29 @@ logger = logging.getLogger(__name__)
 # de toucher `equip_notion` — que l'addendum interdit de modifier.
 _PRODUCED = (Lesson, Fiche, Mindmap, Quiz, SpacedReviewCard)
 
-BLOCKED_NO_LESSON = "Aucune leçon rattachée à cette notion."
-BLOCKED_COURSE_PENDING = "Cours à valider — ZETIS ne valide pas les cours à votre place."
+# Les motifs, dans la forme **état + geste** : ce qui manque en tête, ce qu'il y a à faire ensuite.
+#
+# ⚠️ **Réécrits le 2026-08-04, sur un « pas clair du tout ».** Les précédents disaient POURQUOI
+# ZETIS s'était abstenu, dans son vocabulaire à lui — « à ce palier », « à votre place ». Deux
+# défauts en une phrase : *palier* est un mot d'ADR que l'écran n'emploie nulle part (il dit
+# *Manual · Hybrid · Autonom*), et *à votre place* se lit comme un reproche alors qu'il s'agit d'un
+# réglage que Papa a choisi. Aucun des deux ne disait ce qu'il y avait à FAIRE.
+#
+# ⚠️ **Le régime n'est pas nommé dans le texte**, volontairement : ces phrases sont **écrites au
+# journal** (`production_events.detail`) et n'en bougent plus. Y figer « Manual » ferait mentir la
+# ligne le jour où le nom d'affichage change — il a déjà changé une fois, le 2026-08-04.
+BLOCKED_NO_LESSON = "Notion sans leçon — rien à quoi rattacher un cours."
+BLOCKED_COURSE_PENDING = "Cours à relire — il est écrit, il attend votre validation."
+# ⚠️ **Deux motifs là où il y en avait un** (addendum ADR-0036 « verdict de situation »). L'ancien
+# disait « à valider » d'une leçon souvent DÉJÀ validée — seulement vide. `Lesson.status` porte deux
+# sens : « cette leçon fait partie du programme validé » (ce qu'écrit `validate_all_lessons`, qui
+# passe en `validated` toutes les `draft` d'un chapitre sans regarder s'il y a un texte) et « le
+# texte du cours est validé » (ce que lit la production). Mesuré le 2026-08-04 sur la base de dev :
+# **39 leçons validées sans une ligne de contenu** contre 28 rédigées — le motif était donc faux
+# dans la majorité des cas où il s'affichait.
+BLOCKED_COURSE_MISSING = (
+    "Cours à écrire — dans le réglage actuel, c'est vous qui rédigez les cours."
+)
 
 
 def _max_ids(db: Session) -> dict[str, int]:
@@ -241,24 +262,55 @@ def select_notions(
     ⚠️ Une notion **sans aucune leçon** reste bloquée à tous les paliers : il n'y a rien à quoi
     rattacher un cours. Ce n'est pas un gate, c'est une absence de support.
     """
-    # ⚠️ UNE requête pour tout le lot (ADR-0037), là où il y en avait une PAR NOTION. Un chapitre
-    # de 31 notions coûtait 31 allers-retours avant même de commencer à produire.
-    par_notion = lessons_by_skill(db, skill_ids)
+    motifs = blockers_for(db, skill_ids, require_validated_course=require_validated_course)
 
     eligible: list[int] = []
     blocked: list[dict] = []
     for skill_id in skill_ids:
+        motif = motifs[skill_id]
+        if motif is None:
+            eligible.append(skill_id)
+        else:
+            blocked.append({"skill_id": skill_id, "reason": motif})
+    return eligible, blocked
+
+
+def blockers_for(
+    db: Session, skill_ids: list[int], *, require_validated_course: bool = True
+) -> dict[int, str | None]:
+    """Pour chaque notion : le motif qui l'écarterait d'un lot, ou `None` si elle est équipable.
+
+    ⚠️ **C'est le MÊME code que la sélection du lot** — `select_notions` est écrit par-dessus. C'est
+    la condition pour que l'aperçu ne mente pas : une seconde lecture « qui donne le même résultat »
+    diverge le jour où l'une des deux bouge (leçon de l'ADR-0037, où trois modules répondaient
+    différemment à « quelle est LA leçon de cette notion »).
+
+    Sert deux appelants aux besoins opposés, et c'est pour ça qu'il rend un **dictionnaire** :
+    l'exécution veut deux listes (équipable / bloqué), la page Demandes veut le motif d'UNE notion
+    précise. Aucun des deux ne reformate le travail de l'autre.
+
+    ⚠️ UNE requête pour tout le lot (ADR-0037), là où il y en avait une PAR NOTION. Un chapitre de
+    31 notions coûtait 31 allers-retours avant même de commencer à produire — et la page Demandes
+    en aurait fait un par ligne de la file.
+    """
+    par_notion = lessons_by_skill(db, skill_ids)
+    motifs: dict[int, str | None] = {}
+    for skill_id in skill_ids:
         lecons = par_notion.get(skill_id, [])
         lesson = lecons[0] if lecons else None
         if lesson is None:
-            blocked.append({"skill_id": skill_id, "reason": BLOCKED_NO_LESSON})
-        elif require_validated_course and not (
-            lesson.status == "validated" and lesson.content_markdown
-        ):
-            blocked.append({"skill_id": skill_id, "reason": BLOCKED_COURSE_PENDING})
+            motifs[skill_id] = BLOCKED_NO_LESSON
+        elif not require_validated_course:
+            motifs[skill_id] = None
+        elif not lesson.content_markdown:
+            # Vide AVANT non-validé : une leçon sans texte est vide quel que soit son statut, et
+            # c'est le cas le plus fréquent (39 contre 28 en base de dev).
+            motifs[skill_id] = BLOCKED_COURSE_MISSING
+        elif lesson.status != "validated":
+            motifs[skill_id] = BLOCKED_COURSE_PENDING
         else:
-            eligible.append(skill_id)
-    return eligible, blocked
+            motifs[skill_id] = None
+    return motifs
 
 
 def authority_for(db: Session, run: ProductionRun) -> "str | None":
@@ -309,6 +361,14 @@ def execute(
     # Les deux paliers se lisent UNE FOIS, au départ du lot (ADR-0032). Les relire entre deux
     # notions ferait changer les règles au milieu d'une partie : un lot doit s'exécuter sous le
     # régime qui l'a autorisé, même si Papa change d'avis pendant qu'il tourne.
+    #
+    # ⚠️ Et puisqu'ils sont lus ici, ils sont **ÉCRITS sur le lot** (addendum ADR-0034) : le Journal
+    # doit pouvoir dire sous quel régime ce lot-là a tourné. Relire les réglages à l'affichage
+    # ferait expliquer un lot d'hier par les paliers d'aujourd'hui — un lot que Papa avait relu se
+    # lirait « servi sans relecture ». C'est exactement l'instant où l'information est vraie.
+    paliers = settings_service.read_autonomy(db)
+    run.a0a_level = paliers[settings_service.A0A]
+    run.a1_level = paliers[settings_service.A1]
     gate = settings_service.course_gate_enabled(db)
     authority = authority_for(db, run)
 

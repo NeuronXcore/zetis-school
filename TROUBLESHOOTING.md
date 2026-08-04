@@ -4,6 +4,76 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/production-trois-verites` — la production — 2026-08-04
+
+### 🔴 Patcher `enqueue_production` est VERT et SANS EFFET
+
+`runs_router.py:11` fait `from app.core.queue import enqueue_production` — **au niveau module**. Le
+nom y est lié à l'import : `monkeypatch.setattr(queue_mod, "enqueue_production", …)` ne rebinde
+rien chez lui. Le garde-fou évident passe donc au vert **en laissant fuir**.
+
+`capsules/service.py:390`, lui, importe **dans le corps de la fonction** — c'est pour ça que les
+cinq monkeypatchs de `test_capsule_render` marchent, et ça masque le piège.
+
+**Parade** : greffer sur la **fabrique** (`production_queue` / `render_queue`). `enqueue_production`
+la résout dans les globals de **son** module, **à l'appel** : tous les appelants sont attrapés,
+quelle que soit la façon dont ils ont importé. Fixture `autouse` `file_rq_factice` dans `conftest`,
+plus un `_redis` qui **lève**.
+
+### 🔴 Une contre-épreuve peut viser le mauvais CADRAN
+
+Fixture désarmée pour prouver la fuite → `len(production_queue())` = **0**. Conclusion tentante :
+« il n'y avait pas de fuite ». Faux — **le worker qu'on venait de lancer consommait les jobs à la
+milliseconde**. La preuve était dans `FailedJobRegistry` : **18 → 21**, avec
+`ValueError: production_run 1 introuvable`.
+
+**Parade** : quand un sabotage ne fait rien tomber, se demander d'abord si l'instrument regarde au
+bon endroit. Deuxième occurrence le même jour : le `target` du Journal a **deux gardes** (le filtre
+SQL `outcome == "blocked"` **et** le ternaire) — en casser une seule ne casse rien.
+
+### 🔴 39 leçons `validated` SANS une ligne de contenu
+
+`validate_all_lessons` passe en `validated` **toutes** les leçons `draft` d'un chapitre, sans
+regarder s'il y a un texte. `Lesson.status` porte donc deux sens : « au programme validé » et « le
+cours est relu ». La production lit le second là où le curriculum a écrit le premier — d'où un motif
+qui disait *« Cours à valider »* d'une leçon **déjà validée, seulement vide**, dans la majorité des
+cas où il s'affichait.
+
+**Parade immédiate** : deux motifs (`BLOCKED_COURSE_MISSING` / `BLOCKED_COURSE_PENDING`). **La
+conflation du champ reste entière** — c'est une dette, avec migration.
+
+### ⚠️ Les pièces leçon-centrées n'ont PAS de `skill_id`
+
+`_pieces_of_run` met `skill_id = None` sur cours, fiche, carte mentale et quiz : ces quatre familles
+sont **leçon-centrées**. Seules les cartes SRS portent une notion. Un index `(skill_id, kind)` pour
+rattacher une ligne de journal à sa pièce rend donc `None` **partout**.
+
+**Parade** : clé `(lesson_id, kind)`, et `(skill_id, "srs")` pour les cartes. `lesson_id` ajouté aux
+dicts internes de `_pieces_of_run` — absent de `JournalPieceOut`, donc jamais exposé.
+
+### ⚠️ Le contenu d'un `<details>` FERMÉ reste dans le DOM
+
+`screen.queryByText(/à faire/)` trouve la ligne d'événement même repliée. Un test qui vérifie
+« le résumé ne dit pas *à faire* » passait donc pour la mauvaise raison.
+
+**Parade** : viser ce qui distingue les deux — ici le **chiffre** (`/\d+ à faire/`). Et penser à
+`aria-hidden` sur les icônes dupliquées : deux éléments au même nom accessible cassent
+`getByLabelText`.
+
+### ⚠️ `☐` et `☑` (U+2610/U+2611) sont INVISIBLES sur fond sombre
+
+Rendus en trait d'un demi-pixel par les polices système. Les tests passaient (l'élément existait,
+avec son `aria-label`) et l'écran ne montrait **rien**.
+
+**Parade** : dessiner (SVG, `currentColor`). Règle générale — **un caractère dont l'apparence dépend
+de la police installée n'est pas un élément d'interface.**
+
+### 💡 Vérifier une page Papa à l'écran SANS se connecter
+
+Déposer une page statique dans `apps/frontend-papa/public/`, l'ouvrir via le serveur Vite déjà lancé
+(`localhost:5175/x.html`) — aucun login requis — screenshot, **puis la supprimer** (`public/` part
+dans le build). Sinon : le MCP `claude-in-chrome` utilise la session déjà connectée de Chrome.
+
 ## Chantier `feat/bandeau-*` — les bandeaux des deux frontends — 2026-08-04
 
 ### 🔴 Un test de budget qui part d'une PAGE ne voit pas le LAYOUT

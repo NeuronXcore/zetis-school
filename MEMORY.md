@@ -7,98 +7,160 @@
 
 ## État à la reprise
 
-**Chantier : le bandeau des deux frontends — COMPLET, MERGÉ `main`, branches supprimées.**
-Une seule session, deux chantiers successifs. Le second est né d'une demande faite en regardant le
-premier.
+**Chantier : la production dit enfin la vérité — COMPLET, branche `fix/production-trois-verites`,
+base `270ae5f`.** Une seule session, sept chantiers enchaînés : chacun est né en regardant le
+précédent à l'écran.
+
+Le point de départ n'était pas une revue de code : un lot bloqué à 95 % dans l'en-tête Papa, et
+une demande de Massimo (« Accord du COD — Cours ») qui n'aboutissait pas. **Le worker de production
+n'était pas lancé.** Tout le reste a été trouvé en tirant ce fil.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Papa — le bandeau porte l'emblème ZETIS | **PR #78**, squash `4458574` |
-| Massimo — la galaxie tourne dans le bandeau | **PR #79**, squash `c02a555` |
-| Branches | **supprimées**, local et `origin`. `main` == `origin/main`, rien à pousser |
-| Migration · backend | **AUCUNE**, ni l'une ni l'autre. Tout est frontend + doc |
-| ADR | `docs/decisions/adr-0029-addendum-galaxie-dans-le-bandeau.md`, indexé dans `DECISIONS.md` |
+| Branche | `fix/production-trois-verites` — voir `git log --oneline main..HEAD` |
+| Base | `270ae5f` |
+| Migration | **`d8e9f0a1b2c3`** — deux colonnes sur `production_runs`, **appliquée en dev** |
+| ADR | `adr-0036-addendum-verdict-de-situation.md` et `adr-0034-addendum-regime-et-destination.md`, indexés |
+| Vérifié à l'écran | **oui, dans le Chrome de l'utilisateur** (session connectée), pas seulement en tests |
 
-⚠️ **Les deux chantiers n'ont été sur le même arbre qu'APRÈS le merge.** Vérifié à ce moment-là,
-pas avant : **525 tests Massimo + 382 Papa verts**, `tsc -b` propre sur les deux, sur `main`
-fusionné. Deux branches nées du même point ne garantissent rien tant qu'elles ne se rencontrent pas.
+### Ce que ce chantier a livré
 
-### Ce que ces deux chantiers ont livré
-
-**Papa — l'image entière, jamais rognée.** Le header de coquille (`PapaLayout`) passe de `py-3`
-(~44 px) à `h-28 sm:h-36` et porte l'emblème. Les deux blocs de contenu reçoivent un fond
-translucide : sur un header à fond image, un texte nu devient illisible dès que l'onde passe
-dessous.
-
-**Massimo — sa galaxie, à la place d'un décor qui ne disait rien.** `NeuralCubes` (22 cubes) et
-`NeuralLinks` (8 liens SVG) sont **supprimés** : 78 animations infinies, dont une sur `filter`
-(non composable), soit ~38 éléments repeints à chaque image sur les **21 routes**, pour toujours.
-À la place : les 202 nœuds de son graphe réel, qui se construisent depuis l'emblème en ~5,8 s
-puis **tournent** (un tour en 72 s, 19 im/s mesurées), sous une couronne solaire dorée.
-
-Quatre modules, tous purs sauf le dernier : `headerBandLayout` (la pose, en coordonnées de PLAN),
-`headerGalaxyClock` (compression de l'horloge de rang), `headerGalaxyRenderer` (le dessin, sans
-React), `HeaderGalaxy` (le cycle de vie). Plus `lib/galaxyShared.ts`, qui déduplique les deux
-appels lourds désormais demandés par deux surfaces.
+1. **Les tests n'écrivent plus dans le vrai Redis.** 18 jobs fantômes `run_production(1)` dormaient
+   dans la file de dev (35 la veille). Fixture `autouse` `file_rq_factice`. ⚠️ **Le point de greffe
+   est la FABRIQUE de file, pas `enqueue_*`** — `runs_router` importe au niveau module, donc
+   patcher la fonction serait **vert et sans effet**.
+2. **`useRunProgress`** — une seule lecture d'un lot pour l'en-tête, la modale et la ligne
+   Demandes. On n'estime que ce qui a **démarré** ; `queued` ne rend aucun pourcentage.
+3. **`blocked_reason`** sur chaque demande : le verdict porte sur la **situation** (palier + leçon),
+   pas seulement sur le type. L'écran remplace « Produire » par le motif et le geste qui répare.
+4. **Le régime du lot** (`zetis_mode`) : capturé au démarrage, ou **déduit des actes du lot** quand
+   il est antérieur — jamais lu dans les réglages d'aujourd'hui.
+5. **Les demandes se referment sur le FAIT** : `close_available_requests` est appelée à la lecture
+   de la file (patron `close_stale_runs`), plus seulement à la fin d'un lot.
+6. **Le Journal se lit** : case d'état dessinée, motifs réécrits en « état + geste », annotation
+   « depuis résolu », destination sur chaque ligne et chaque pièce, résumé dans l'en-tête, **un
+   seul pli par lot, fermé**.
+7. **Les trois boucles par level ZETIS** (`test_production_par_niveau.py`) — la table de vérité
+   `manuel / semi / autonome` jouée sur le chemin complet demande → lot → exécution.
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **Aucun moteur 3D dans le chrome.** Le bandeau consomme de `@zetis/ui/galaxy` ce qui est pur
-   (`revealSchedule`, `easeOutCubic`, `starStyle`, les couleurs) et n'importe **jamais**
-   `@zetis/ui/galaxy/canvas`, `three`, `react-force-graph-3d`, `three-spritetext`. Vérifié par
-   `layout.bundle.test.ts` et `app.bundle.test.ts`.
-2. **Tout le ciel est dessiné**, les notions à découvrir en veilleuse. Ne dessiner que les notions
-   travaillées laissait la bande vide à 77 %. Ne pas « optimiser » en les retirant.
-3. **On comprime le TEMPS, jamais le nombre d'étoiles** (addendum ADR-0024 §1 : « Jamais un plafond
-   de nœuds déguisé »). Deux test-verrous nommés le gardent.
-4. **La répartition angulaire est uniforme, et c'est un arbitrage mesuré.** Pousser la masse vers
-   les angles horizontaux remplit la bande à 90 % à l'arrêt, mais la silhouette s'effondre à 52 %
-   en tournant. Le bandeau passe sa vie à tourner et six secondes à se construire.
-5. **`ctx.shadowBlur` et `ctx.filter` sont interdits dans la boucle** — c'est `hfx-twinkle`
-   réinventé. Test-verrou.
-6. **Le verrou « déjà joué » se pose à la FIN de la construction**, jamais au début : `StrictMode`
-   monte-démonte-remonte, donc le poser au début tue l'animation en mode dev.
-7. **Hauteur et cadrage du sprite Massimo sont figés** (`h-24 sm:h-28`, `356px 107px` à
-   `-136px -2px`) : `GalaxyPage.tsx:542` les recopie en dur dans `top-24 sm:top-28`. Test-verrou.
+1. **Le Journal est un REGISTRE.** Une ligne passée ne se réécrit jamais (§F.4). Ce qui change au
+   présent s'**ajoute à côté** : « depuis résolu », `resolved`, `zetis_mode_source`. Deux
+   formulations de motif coexistent donc à l'écran, et c'est le prix assumé.
+2. **On ne devine jamais un régime.** La capture prime ; à défaut on **déduit d'actes** (un cours
+   rédigé, un dérivé laissé à relire, une origine `request`) ; si rien ne prouve → `null`, dit à
+   l'écran. **2 lots sur 9** obtiennent une réponse, et c'est la vérité disponible.
+3. **Un caractère n'est pas un élément d'interface.** `☐`/`☑` étaient invisibles sur le fond sombre.
+   La case est **dessinée** (SVG, `currentColor`). Et ce n'est **pas** un `<input type=checkbox>` :
+   un journal ne se coche pas — test-verrou sur l'absence de `role="checkbox"`.
+4. **Le visage du régime vient de `REGIME_AVATAR`** (`lib/regimeVisuals.ts`), source unique déjà
+   partagée par la sidebar et les réglages. Ne pas refabriquer une table d'icônes.
+5. **`journalLink` traite `srs` à part** : `CoverageCellKey` n'a que quatre colonnes, la branche
+   générique enverrait les cartes sur `/quiz`, et leur page attend un `skill_id` en `focus`.
 
 ### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
 
-1. 🔴 **Les budgets de bundle avaient un TROU, et il est démontré.** `accueil.bundle.test.ts` et
-   `matiere.bundle.test.ts` partent d'une **page** : le layout n'est dans aucun des deux graphes.
-   Sabotage joué en vrai — un `import()` du moteur 3D dans le header laisse **les deux suites
-   12/12 vertes**, tout en chargeant 1,37 Mo sur les 21 routes.
-2. 🔴 **Le header Massimo était IMPOSSIBLE à monter sous jsdom**, et ce n'était pas un oubli :
-   `NeuralLinks` construisait un `ResizeObserver` que jsdom n'implémente pas et que
-   `test/setup.ts` ne polyfille pas. C'est pour ça qu'il n'avait aucun test depuis toujours.
-3. **Le problème réel était l'INVERSE de celui redouté.** Le plan se protégeait d'une bouillie à
-   350 nœuds ; le graphe fait 202 nœuds pour 47 notions datées — la vacuité, pas la saturation.
-4. **Un budget de particules calculé sur la MOYENNE est faux.** `revealSchedule` fait naître les
-   ancêtres en grappe : 34 étoiles en vol pour un budget de 32. Corrigé par un calcul de pic exact.
-5. **`bg-cover` rogne, `bg-contain` cale sur la hauteur** — et un masque en dégradé posé sur
-   `inset-0` ne fond rien quand l'image n'occupe que le centre.
-6. **Deux tests ont été RÉÉCRITS parce que la décision a changé**, pas pour qu'ils passent : la
-   boucle ne s'arrête plus (elle tourne), et le coût par image n'est plus indépendant de N.
+1. 🔴 **Une contre-épreuve a visé à côté DEUX FOIS dans la journée.** (a) fixture Redis désarmée →
+   `len(queue)` = 0 quand même, parce que **le worker consommait les jobs à la milliseconde** ; la
+   preuve était dans `FailedJobRegistry` (18 → 21). (b) le `target` a **deux gardes** : en casser
+   une seule ne fait rien tomber.
+2. 🔴 **`validate_all_lessons` passe en `validated` toutes les leçons `draft` d'un chapitre sans
+   regarder s'il y a un texte** → **39 leçons validées-vides contre 28 rédigées**. `Lesson.status`
+   porte deux sens ; le motif du gate disait « à valider » d'une leçon qui l'était déjà.
+3. **Les pièces leçon-centrées ont `skill_id = None`** par construction : un index `(skill_id, kind)`
+   rendait `None` partout. La clé réelle est `(lesson_id, kind)`.
+4. **Le contenu d'un `<details>` fermé reste dans le DOM** — un test qui cherche un texte le trouve
+   même replié. Les assertions du résumé portent le **chiffre**.
+5. **Les suites front ont flaké sous charge** (papa + massimo + graphify en parallèle,
+   `environment` à 357 s au lieu de 30) : 1 puis 2 échecs, puis trois exécutions séquentielles
+   vertes. **Les noms n'ont pas été capturés** — si ça revient au calme, c'est un vrai défaut.
 
-> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04 (bandeaux)**.
+> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04 (production)**.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS.** `main` == `origin/main`, aucune branche, aucune PR ouverte, arbre propre.
-La prochaine session **ouvre un nouveau chantier** (`/ouverture`).
+**Ce chantier est COMPLET.** Prochain pas : **PR puis merge**, et l'étape **4bis** (`WORKFLOW.md
+§5`) pour remettre ce fichier au réel après le squash.
 
-⚠️ **Une seule chose est due sur ce qui vient d'être mergé, et elle n'est pas du code** :
+**Ensuite, chantier suivant — TRI ET FILTRE DU JOURNAL. Les quatre décisions sont DÉJÀ PRISES par
+Papa, ne pas les rouvrir :**
 
-👤 **REGARDER LE BANDEAU MASSIMO EN VRAI.** Il a été mergé **sans avoir jamais été vu** — le
-panneau navigateur de la session rendait en taille réduite, donc tout ce qui en est affirmé est
-**mesuré dans le canvas**, pas jugé à l'œil. C'était signalé avant le merge et le merge a été
-demandé quand même : ce n'est donc pas un oubli, c'est un arbitrage. Mais ça reste dû. À juger :
-vitesse de rotation (72 s le tour), remplissage (~65 % de la largeur), lisibilité du bloc avatar
-par-dessus. Si quelque chose cloche, les correctifs sont **déjà décidés** — voir DETTES OUVERTES.
+1. un filtre garde des **LOTS ENTIERS** (jamais les pièces à l'intérieur) ;
+2. **côté SERVEUR**, sur toute l'histoire — la pagination s'applique **après** le filtrage ;
+3. critères v1 : **date · matière · chapitre · statut · mode ZETIS · type de contenu** ;
+4. **plusieurs clés de tri** (date · matière · mode · statut), inversables. ⚠️ Papa a vu et accepté
+   l'avertissement : *un journal qui n'est plus chronologique cesse d'être un journal*.
 
+🔴 **LE POINT DUR, ANALYSÉ le 2026-08-04 — à trancher au cadrage, avant tout code.**
+
+⚠️ **Correction d'une affirmation fausse écrite plus tôt dans la journée.** J'avais noté que
+`zetis_mode` « n'est pas filtrable en SQL ». **C'est faux.** Les quatre preuves de la déduction
+vivent toutes en base et s'écrivent toutes en SQL : `trigger='request'` est une colonne ; « a rédigé
+un cours » est un `EXISTS` sur `lessons.production_run_id` ; « dérivé à relire » / « dérivé servi »
+sont des `EXISTS` sur `fiches`/`mindmaps` avec `validated_by`. La déduction est en Python parce que
+les objets étaient **déjà chargés pour l'affichage**, pas parce que SQL ne savait pas la faire.
+
+**Les trois vrais obstacles, eux, tiennent :**
+
+1. **Aucun index sur `production_run_id`**, dans aucune des cinq tables produites (vérifié :
+   `pg_indexes` ne rend rien). Quatre `EXISTS` par lot sans index = balayage complet par page.
+2. 🔴 **La déduction repose sur des artefacts RÉTRACTABLES.** Le veto (ADR-0034) retire des pièces :
+   retirer la fiche `pending` d'un lot efface la preuve « A0a = 2 », et **le régime affiché de ce
+   lot change rétroactivement**. Un historique qui bouge quand on exerce un droit prévu n'est pas
+   fiable — et ce défaut est **indépendant du langage**.
+3. **Traduire la règle en SQL en ferait une DEUXIÈME implémentation** (Python pour l'affichage, SQL
+   pour le filtre) — le défaut exact que l'ADR-0037 a coûté un ADR entier à réparer.
+
+**▶ Correctif proposé (non validé) : arrêter de re-dériver à chaque lecture.**
+
+- une vraie colonne **`zetis_mode_source`** (`capture` | `deduit`) à côté des deux paliers ;
+- un **backfill unique** — un **script**, pas une migration (une migration ne doit pas importer la
+  logique métier) — qui écrit `a0a_level`/`a1_level` **là où les actes le prouvent**, marqués
+  `deduit` ; `runner.execute` continue d'écrire `capture` ; ce que rien ne prouve reste `NULL` ;
+- les **index manquants** sur `production_run_id`.
+
+Le filtre et le tri deviennent alors deux entiers + une source : pur SQL, paginable, et **stable**
+— un veto exercé demain ne réécrit plus l'histoire d'hier.
+
+⚠️ **Cela RÉVOQUE une phrase de l'addendum ADR-0034 §1bis** (« rien n'est stocké »). La distinction
+doit être écrite : le §F.4 interdit de reconstituer le passé **depuis les réglages d'aujourd'hui**,
+qui ont changé ; écrire **une fois** ce que les **actes** prouvent, avec sa provenance, est l'inverse
+— c'est ce qui **fige** l'histoire au lieu de la laisser dériver. **Addendum à écrire au cadrage.**
+
+ℹ️ Le **statut**, lui, ne pose aucun problème : `stale` = `status='running' AND heartbeat_at <
+now() - délai`, exprimable en SQL sans rien stocker.
+
+⚠️ Ce chantier ajoute une surface d'API → **addendum ADR-0034 attendu au cadrage**, avant le code.
 
 ### ▶ DETTES OUVERTES
+
+> ⚠️ Les six dettes qui suivent sont **nées de la session du 2026-08-04 (production)**.
+
+- 🔴 **`Lesson.status` porte DEUX sens** — « la leçon est au programme validé » (ce qu'écrit
+  `validate_all_lessons`, sans regarder s'il y a un texte) et « le texte du cours est validé » (ce
+  que lit la production). **39 leçons validées-vides contre 28 rédigées** en base de dev. Le
+  chantier de séparation exige une **migration** et touche curriculum, galaxie, production et
+  `canonical_context`. Nommé dans l'addendum ADR-0036, jamais ouvert.
+- 🔴 **Les libellés de cartes SRS affichent du LaTeX BRUT** à l'écran du Journal
+  (`Comment calcule-t-on $\frac{2}{5} \times \frac{3}{4}$ ?`). Un `title` au survol a été ajouté
+  pour la troncature en pleine formule, **rien ne rend les maths**. Un moteur (KaTeX) est une
+  dépendance → **ADR**, pas un correctif.
+- ⚠️ **Les suites front ont flaké sous charge le 2026-08-04** (1 puis 2 échecs, `environment` à
+  357 s au lieu de 30, en lançant papa + massimo + graphify en parallèle). Trois exécutions
+  séquentielles ensuite : vertes. **Les noms des tests n'ont pas été capturés.** Si ça revient sur
+  une machine au repos, c'est un vrai défaut de timing, pas la charge.
+- **18 jobs RQ fantômes ont été exécutés** contre le Postgres de dev pendant la contre-épreuve
+  (`run_production(1)`, `ValueError: production_run 1 introuvable`). Ils sont dans
+  `FailedJobRegistry` et n'ont **rien produit**, mais ils y restent — purge non faite.
+- **`_pieces_of_run` interroge cinq tables PAR LOT**, et la résolution des cibles en ajoute une
+  sixième. Borné par `limit`, jamais mesuré. À regarder si le Journal ralentit.
+- **Les lots #21, #22 et #23 ont été SUPPRIMÉS de la base de dev** le 2026-08-04, sur autorisation
+  explicite — trois doublons stériles sur la notion 50, aucune pièce rattachée. C'est une
+  **réécriture d'historique assumée**, mentionnée ici parce qu'elle contredit la doctrine du §F.4 et
+  qu'une session future pourrait s'étonner du trou dans la numérotation.
 
 > ⚠️ Les cinq dettes qui suivent sont **nées de la session du 2026-08-04 (bandeaux)**. Elles portent
 > toutes sur la même chose : **rien de ce chantier n'a été jugé à l'œil sur un vrai appareil.**
@@ -303,6 +365,11 @@ si la file regrossit.
 
 
 ## Historique des chantiers clos
+
+> **2026-08-04 — les deux bandeaux** (PR #78 `4458574`, PR #79 `c02a555`), section retirée à la
+> clôture suivante après les quatre contrôles : ADR `adr-0029-addendum-galaxie-dans-le-bandeau.md`,
+> `TROUBLESHOOTING.md` §bandeaux, `CHANGELOG.md`, et **ce qui restait ouvert remonté ci-dessus** —
+> dont 🔴 *le bandeau Massimo n'a jamais été vu*, qui est toujours dû.
 
 ⚠️ **Il n'y en a plus ici, et c'est une décision** (2026-08-04). Ce fichier portait **2 227 lignes
 d'historique pour 122 lignes de chantier actif** — 94 % du contexte d'une reprise dépensé sur du
