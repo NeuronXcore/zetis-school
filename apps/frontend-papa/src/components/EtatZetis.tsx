@@ -47,7 +47,7 @@ function useCrossfade(visage: Visage): Visage | null {
 
 export function EtatZetis({ state }: { state: AutonomyState }) {
   const pret = state.status === "ready";
-  const niveau = pret ? state.autonomy.preset : null;
+  const niveau = pret ? state.autonomy.niveau : null;
   const arme = pret && state.autonomy.auto_trigger_enabled;
   const visage: Visage = niveau ?? "neutre";
   const sortant = useCrossfade(visage);

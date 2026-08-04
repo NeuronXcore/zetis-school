@@ -32,10 +32,10 @@ export interface AutonomyClass {
 
 export interface Autonomy {
   classes: AutonomyClass[];
-  /** ⚠️ Le champ garde le nom **`preset`** alors que son type dit « niveau » : c'est la clé JSON
+  /** ⚠️ Le champ garde le nom **`niveau`** alors que son type dit « niveau » : c'est la clé JSON
    *  que le serveur envoie (`settings/service.py`). Renommer ici casserait le contrat sans rien
    *  gagner — le TYPE porte le vocabulaire, le CHAMP porte le réseau. */
-  preset: AutonomyNiveau | null;
+  niveau: AutonomyNiveau | null;
   /** ZETIS a-t-il le droit de **démarrer** un lot sans que personne clique ? (ADR-0035 §5)
    *
    *  ⚠️ **Séparé de `classes`, et ce n'est pas un détail de forme.** Deux questions, deux

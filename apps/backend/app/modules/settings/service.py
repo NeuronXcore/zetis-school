@@ -8,7 +8,7 @@ réglage une réécriture de tous les autres, et d'une migration d'un réglage u
 ## Pourquoi le préréglage n'est pas stocké
 
 `Manuel` / `Semi-autonome` / `Autonome` sont un **raccourci d'écriture**, jamais un état. Rien ne
-les persiste : `preset_of()` les **dérive** des six valeurs. Un mode stocké *plus* six clés
+les persiste : `niveau_de()` les **dérive** des six valeurs. Un mode stocké *plus* six clés
 donnerait **deux réponses à une seule question** — exactement le mal que le §G.1 a évité en
 refusant une colonne `authority` à côté de `validated_by`. Le jour où les deux divergent,
 laquelle fait foi ?
@@ -148,7 +148,7 @@ A0A, A0B, A1, A2, A3, A4 = (c.key for c in AUTONOMY_CLASSES)
 
 # Les trois régimes nommés. Ils n'écrivent que les classes réglables : recopier les classes
 # verrouillées ferait d'un préréglage une porte dérobée sur une décision figée.
-PRESETS: dict[str, dict[str, int]] = {
+NIVEAUX: dict[str, dict[str, int]] = {
     "manuel": {A0A: VALIDATE, A1: VALIDATE},
     "semi": {A0A: SERVE, A1: VALIDATE},
     "autonome": {A0A: SERVE, A1: SERVE},
@@ -172,10 +172,10 @@ def read_autonomy(db: Session) -> dict[str, int]:
     return values
 
 
-def preset_of(values: dict[str, int]) -> str | None:
-    """Le nom du régime, DÉRIVÉ. `None` = « sur mesure » — un état rendu, jamais stocké."""
-    for name, preset in PRESETS.items():
-        if all(values[key] == value for key, value in preset.items()):
+def niveau_de(values: dict[str, int]) -> str | None:
+    """Le nom du NIVEAU, DÉRIVÉ. `None` = « sur mesure » — un état rendu, jamais stocké."""
+    for name, paliers in NIVEAUX.items():
+        if all(values[key] == value for key, value in paliers.items()):
             return name
     return None
 
@@ -246,7 +246,7 @@ def write_autonomy(db: Session, changes: dict[str, int]) -> dict[str, int]:
 # ⚠️ **Elle ne rejoint PAS `AUTONOMY_CLASSES`, et c'est un constat de code** :
 #   - ce n'est pas un palier `0..3` mais un booléen — `choices`, `locked` et `LEVEL_LABEL` n'ont
 #     aucun sens pour elle ;
-#   - `preset_of()` dérive le régime des seules classes réglables : l'y ajouter ferait qu'un
+#   - `niveau_de()` dérive le régime des seules classes réglables : l'y ajouter ferait qu'un
 #     **préréglage armerait le déclencheur automatique**, exactement la fusion qu'on refuse ;
 #   - `write_autonomy` rejette toute clé hors `BY_KEY` — d'où le **préfixe distinct**, qui la met
 #     hors d'atteinte d'un balayage accidentel.
@@ -295,7 +295,7 @@ def course_gate_enabled(db: Session) -> bool:
 def regime_is_autonomous(db: Session) -> bool:
     """Le régime nommé est-il ***Autonome*** ? (ADR-0036 §1, première des deux conditions)
 
-    ⚠️ **Lu par `preset_of`, jamais réimplémenté.** Écrire `read_autonomy(db)[A1] == SERVE` ici
+    ⚠️ **Lu par `niveau_de`, jamais réimplémenté.** Écrire `read_autonomy(db)[A1] == SERVE` ici
     donnerait le même résultat aujourd'hui — la monotonie force A0a à SERVE dès que A1 y est — et
     divergerait le jour où un préréglage bougerait. Le régime est un objet du domaine ; il a déjà
     sa fonction.
@@ -305,7 +305,7 @@ def regime_is_autonomous(db: Session) -> bool:
     deux sources (ADR-0035 §5) — et c'est leur ET logique qui ouvre la porte des demandes, ce qui
     la rend plus RESTRICTIVE, pas plus permissive.
     """
-    return preset_of(read_autonomy(db)) == "autonome"
+    return niveau_de(read_autonomy(db)) == "autonome"
 
 
 def derivatives_are_served(db: Session) -> bool:

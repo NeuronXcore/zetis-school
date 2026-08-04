@@ -22,7 +22,7 @@ export const AUTONOMY_LOADING: AutonomyState = { status: "loading" };
  *  Monté **une seule fois**, dans `PapaLayout`. Un appel au montage, puis un refetch uniquement
  *  quand Papa a enregistré un réglage — jamais sur horloge (§7.4, verrou repris de l'ADR-0030).
  *
- *  Retourne l'`Autonomy` ENTIER et ne dérive rien : `preset` est calculé par le serveur, et le
+ *  Retourne l'`Autonomy` ENTIER et ne dérive rien : `niveau` est calculé par le serveur, et le
  *  recalculer ici créerait la seconde source de vérité que l'ADR-0032 §2 a refusée.
  */
 export function useAutonomyState(): AutonomyState {

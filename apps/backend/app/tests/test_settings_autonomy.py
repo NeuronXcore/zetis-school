@@ -58,7 +58,7 @@ def test_les_defauts_decrivent_le_regime_reel_daujourdhui(client_db) -> None:
         svc.A3: svc.VALIDATE,
         svc.A4: svc.NEVER,
     }
-    assert body["preset"] == "semi"
+    assert body["niveau"] == "semi"
 
 
 def test_chaque_verrou_porte_son_motif(client_db) -> None:
@@ -83,15 +83,15 @@ def test_le_front_na_aucune_liste_en_dur(client_db) -> None:
 # --- Écriture et refus (verrous n°1, 5, 6bis) ---------------------------------------------------
 
 
-def test_le_preset_se_derive_il_ne_se_stocke_pas(client_db) -> None:
+def test_le_niveau_se_derive_il_ne_se_stocke_pas(client_db) -> None:
     """Descendre A0a suffit à changer le régime affiché. Aucune ligne « mode » n'existe."""
     client, Session = client_db
     body = client.put(API, json={"values": {svc.A0A: svc.VALIDATE}}).json()
-    assert body["preset"] == "manuel"
+    assert body["niveau"] == "manuel"
 
     with Session() as db:
         keys = {row.key for row in db.scalars(select(m.AppSetting))}
-    assert all(not k.endswith("preset") and not k.endswith("mode") for k in keys)
+    assert all(not k.endswith(("preset", "niveau", "mode")) for k in keys)
 
 
 @pytest.mark.parametrize(

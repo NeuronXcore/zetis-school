@@ -209,7 +209,7 @@ case à cocher, **défaut NON**.
 > symétrique, qui est **le plus sûr des deux**.
 
 ⚠️ **Un préréglage ne la touche dans aucun sens** : elle n'est pas dans `AUTONOMY_CLASSES`, sinon
-`preset_of()` ferait qu'un régime armerait le déclencheur au passage. Deux test-verrous le tiennent,
+`niveau_de()` ferait qu'un régime armerait le déclencheur au passage. Deux test-verrous le tiennent,
 back et front.
 
 Le bloc « où vous en êtes » est **statique** : ses quatre phrases sont du texte, pas un calcul.
@@ -267,7 +267,7 @@ sidebar clippe son contenu pour que la nav défile seule, et une infobulle ancr�
 > rien de plus. Un régime ne doit pas pouvoir bouger d'un clic dans un coin d'écran quand cette
 > page exige elle-même un bouton « Enregistrer ».
 
-Le régime affiché vient **toujours** du serveur (`preset`) ; le front ne le recalcule jamais.
+Le régime affiché vient **toujours** du serveur (`niveau`) ; le front ne le recalcule jamais.
 Rafraîchi au montage et après un enregistrement réussi — **jamais par sondage** : deux onglets
 ouverts divergent jusqu'au rechargement, et c'est accepté (addendum §7.4).
 

@@ -10,7 +10,7 @@ import { EtatZetis } from "./EtatZetis";
 function ready(overrides: Partial<Autonomy> = {}): AutonomyState {
   return {
     status: "ready",
-    autonomy: { auto_trigger_enabled: false, classes: [], preset: "semi", ...overrides },
+    autonomy: { auto_trigger_enabled: false, classes: [], niveau: "semi", ...overrides },
   };
 }
 
@@ -68,13 +68,13 @@ describe("EtatZetis", () => {
       ["semi", "zetis-regime-semi"],
       ["autonome", "zetis-regime-autonome"],
     ] as const) {
-      const { container, unmount } = show(ready({ preset: niveau }));
+      const { container, unmount } = show(ready({ niveau: niveau }));
       expect(avatarAffiche(container)).toContain(fichier);
       unmount();
     }
 
     // « Sur mesure » retombe sur le neutre : aucune image ne lui appartient.
-    const { container } = show(ready({ preset: null }));
+    const { container } = show(ready({ niveau: null }));
     expect(avatarAffiche(container)).toContain("zetis-avatar");
   });
 
@@ -82,13 +82,13 @@ describe("EtatZetis", () => {
     // L'image du régime `semi` porte « HYBRIDE » dans le pixel ; le code dit « Hybrid ». Le badge
     // suit le CODE — c'est toute la décision du §7.7, et sans ce test la divergence remonterait
     // à l'écran au premier copier-coller. Dérivé de la constante, jamais recopié.
-    const { container } = show(ready({ preset: "semi" }));
+    const { container } = show(ready({ niveau: "semi" }));
     expect(badge(container)).toContain(NIVEAU_LABEL.semi.toUpperCase());
     expect(badge(container)).not.toContain("HYBRIDE");
   });
 
   it("🔒 déclencheur DÉSARMÉ : jamais « démarre seul », régime autonome compris", () => {
-    const { container } = show(ready({ preset: "autonome", auto_trigger_enabled: false }));
+    const { container } = show(ready({ niveau: "autonome", auto_trigger_enabled: false }));
 
     // La ligne 3 de la table de vérité : « ZETIS sert seul MAIS il attend votre clic ». C'est
     // exactement ce qu'un signe unique rendrait impossible à dire.
@@ -100,7 +100,7 @@ describe("EtatZetis", () => {
   });
 
   it("🔒 déclencheur ARMÉ sous régime manuel : « démarre seul » ET le point", () => {
-    const { container } = show(ready({ preset: "manuel", auto_trigger_enabled: true }));
+    const { container } = show(ready({ niveau: "manuel", auto_trigger_enabled: true }));
 
     // Le symétrique. Les deux tests ENSEMBLE prouvent que les axes sont indépendants ; l'un seul
     // passerait avec un composant qui déduirait le déclencheur du régime.
@@ -113,7 +113,7 @@ describe("EtatZetis", () => {
   it("🔒 AUCUN texte ne vit à côté du logo — tout tient dans le badge", () => {
     // La décision du 2026-08-04 : le bloc est un logo et une pastille, rien d'autre. Si une ligne
     // de texte revenait à côté, la place gagnée serait reperdue sans que rien ne le signale.
-    const { container } = show(ready({ preset: "autonome", auto_trigger_enabled: true }));
+    const { container } = show(ready({ niveau: "autonome", auto_trigger_enabled: true }));
     const lien = container.querySelector("a")!;
     const sansBadge = lien.textContent!.replace(badge(container), "");
 
@@ -128,19 +128,19 @@ describe("EtatZetis", () => {
       ["semi", "regime-halo--semi"],
       ["autonome", "regime-halo--autonome"],
     ] as const) {
-      const { container, unmount } = show(ready({ preset: niveau }));
+      const { container, unmount } = show(ready({ niveau: niveau }));
       expect(container.querySelector(".regime-halo")!.className).toContain(classe);
       unmount();
     }
 
-    const { container } = show(ready({ preset: "manuel" }));
+    const { container } = show(ready({ niveau: "manuel" }));
     expect(container.querySelector(".regime-halo")!.className).not.toMatch(/semi|autonome/);
   });
 
   it("« Sur mesure » se rend sans ressembler à une anomalie", () => {
     // ⚠️ Cet état est INATTEIGNABLE par l'API (deux classes libres, la monotonie interdit le
     // quatrième couple). Ce test est sa SEULE preuve : ne pas le supprimer en le croyant mort.
-    const { container } = show(ready({ preset: null, auto_trigger_enabled: true }));
+    const { container } = show(ready({ niveau: null, auto_trigger_enabled: true }));
 
     expect(container.querySelector(".regime-halo")!.className).toContain("regime-halo--sur-mesure");
     expect(badge(container)).toContain("SUR MESURE");
@@ -151,14 +151,14 @@ describe("EtatZetis", () => {
 
   describe("l'infobulle", () => {
     it("n'existe PAS tant qu'on ne survole pas", () => {
-      const { container } = show(ready({ preset: "semi" }));
+      const { container } = show(ready({ niveau: "semi" }));
       expect(container.querySelector(".regime-bulle")).toBeNull();
     });
 
     it("🔒 porte le libellé du régime, sa description ET le déclencheur", () => {
       // C'est elle qui rend le libellé lisible maintenant qu'il n'est plus écrit à côté du logo.
       // Si elle perdait l'un des trois, le bloc deviendrait muet sur cet axe.
-      show(ready({ preset: "semi", auto_trigger_enabled: false }));
+      show(ready({ niveau: "semi", auto_trigger_enabled: false }));
       fireEvent.mouseEnter(screen.getByRole("link"));
 
       expect(screen.getByText(NIVEAU_LABEL.semi)).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe("EtatZetis", () => {
       // apparition ajoutait un nœud dans le sous-arbre survolé et `onMouseLeave` cessait de se
       // déclencher — la bulle restait ouverte indéfiniment, constaté à l'écran. Corrigé en la
       // sortant du lien : le survol est écouté par un conteneur dont l'arbre ne bouge pas.
-      const { container } = show(ready({ preset: "semi" }));
+      const { container } = show(ready({ niveau: "semi" }));
       const bloc = container.firstElementChild as HTMLElement;
 
       fireEvent.mouseEnter(bloc);
@@ -182,7 +182,7 @@ describe("EtatZetis", () => {
     });
 
     it("s'ouvre aussi au CLAVIER — un survol souris exclut ceux qui n'en ont pas", () => {
-      const { container } = show(ready({ preset: "semi" }));
+      const { container } = show(ready({ niveau: "semi" }));
       fireEvent.focus(screen.getByRole("link"));
       expect(container.querySelector(".regime-bulle")).not.toBeNull();
 
@@ -192,13 +192,13 @@ describe("EtatZetis", () => {
 
     it("est en `fixed` — sinon l'`overflow-hidden` de la sidebar la couperait", () => {
       // Piège payé en vrai : la colonne ET son conteneur clippent, pour que la nav défile seule.
-      const { container } = show(ready({ preset: "semi" }));
+      const { container } = show(ready({ niveau: "semi" }));
       fireEvent.mouseEnter(screen.getByRole("link"));
       expect(container.querySelector(".regime-bulle")!.className).toContain("fixed");
     });
 
     it("est invisible des lecteurs d'écran — le nom du lien dit déjà tout", () => {
-      const { container } = show(ready({ preset: "semi" }));
+      const { container } = show(ready({ niveau: "semi" }));
       fireEvent.mouseEnter(screen.getByRole("link"));
       expect(container.querySelector(".regime-bulle")).toHaveAttribute("aria-hidden");
     });
@@ -209,10 +209,10 @@ describe("EtatZetis", () => {
     const etats: AutonomyState[] = [
       { status: "loading" },
       { status: "error" },
-      ready({ preset: "manuel" }),
-      ready({ preset: "semi" }),
-      ready({ preset: "autonome", auto_trigger_enabled: true }),
-      ready({ preset: null }),
+      ready({ niveau: "manuel" }),
+      ready({ niveau: "semi" }),
+      ready({ niveau: "autonome", auto_trigger_enabled: true }),
+      ready({ niveau: null }),
     ];
     for (const state of etats) {
       const view = show(state);
@@ -223,7 +223,7 @@ describe("EtatZetis", () => {
   });
 
   it("est un LIEN vers les Paramètres — il lit, il ne règle pas (§7.3)", () => {
-    show(ready({ preset: "semi" }));
+    show(ready({ niveau: "semi" }));
     const lien = screen.getByRole("link");
     expect(lien).toHaveAttribute("href", "/parametres");
     // Aucun bouton : rien ne se change depuis ce bloc.
@@ -231,7 +231,7 @@ describe("EtatZetis", () => {
   });
 
   it("son nom accessible porte les DEUX axes, et l'image n'en porte aucun", () => {
-    const { container } = show(ready({ preset: "autonome", auto_trigger_enabled: true }));
+    const { container } = show(ready({ niveau: "autonome", auto_trigger_enabled: true }));
 
     const lien = screen.getByRole("link", { name: new RegExp(NIVEAU_LABEL.autonome) });
     expect(lien.getAttribute("aria-label")).toMatch(/démarre seul/);

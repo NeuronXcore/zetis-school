@@ -23,7 +23,7 @@ function cls(
 function autonomy(): Autonomy {
   return {
     auto_trigger_enabled: false,
-    preset: "semi",
+    niveau: "semi",
     classes: [
       cls(A0A, "A0a", "Dérivés inertes", 3, [2, 3]),
       cls("zetis_autonomy_a0b_cards", "A0b", "Cartes de révision", 3, [3], "Aucune étape n'existe."),

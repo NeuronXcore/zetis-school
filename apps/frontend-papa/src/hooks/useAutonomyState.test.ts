@@ -14,7 +14,7 @@ function autonomy(overrides: Partial<Autonomy> = {}): Autonomy {
   return {
     auto_trigger_enabled: false,
     classes: [],
-    preset: "semi",
+    niveau: "semi",
     ...overrides,
   };
 }
@@ -35,13 +35,13 @@ describe("useAutonomyState", () => {
   });
 
   it("passe en « ready » avec l'objet du serveur, sans rien recalculer", async () => {
-    const served = autonomy({ preset: "autonome", auto_trigger_enabled: true });
+    const served = autonomy({ niveau: "autonome", auto_trigger_enabled: true });
     vi.mocked(fetchAutonomy).mockResolvedValue(served);
 
     const { result } = renderHook(() => useAutonomyState());
     await waitFor(() => expect(result.current.status).toBe("ready"));
 
-    // Identité de référence : le hook TRANSPORTE, il ne dérive pas. `preset` vient du serveur
+    // Identité de référence : le hook TRANSPORTE, il ne dérive pas. `niveau` vient du serveur
     // (ADR-0032 §2) — un hook qui le recalculerait construirait un nouvel objet.
     expect(result.current).toEqual({ status: "ready", autonomy: served });
   });
@@ -52,7 +52,7 @@ describe("useAutonomyState", () => {
     const { result } = renderHook(() => useAutonomyState());
     await waitFor(() => expect(result.current.status).toBe("error"));
 
-    // Le piège que ce test verrouille : un `catch` qui laisserait passer un `preset` par défaut.
+    // Le piège que ce test verrouille : un `catch` qui laisserait passer un `niveau` par défaut.
     expect(result.current).not.toHaveProperty("autonomy");
   });
 

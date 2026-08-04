@@ -61,7 +61,7 @@ function autonomy(overrides: Partial<Autonomy> = {}): Autonomy {
       cls("zetis_autonomy_a3_missions", "A3", "Création de missions", 2, [2], "Élire ≠ créer."),
       cls("zetis_autonomy_a4_terminal", "A4", "Supprimer, archiver", 0, [0], "Définitif."),
     ],
-    preset: "semi",
+    niveau: "semi",
     ...overrides,
   };
 }

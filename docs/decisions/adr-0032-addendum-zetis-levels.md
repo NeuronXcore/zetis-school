@@ -44,10 +44,16 @@ celui-ci décide les *paliers* de deux classes, et les quatre autres ne l'écout
 `paliersPourNiveau`, `PresetCards` → `NiveauCards`. ~50 occurrences, 15 fichiers, **zéro surface
 d'API** — les 377 tests prouvent la non-régression.
 
-⚠️ **UNE divergence subsiste, et elle est irréductible** : le champ de la réponse serveur s'appelle
-`preset` (`Autonomy.preset: AutonomyNiveau | null`). C'est une **clé JSON**, pas un nom de code —
-la renommer casserait le contrat sans rien gagner. **Le TYPE porte le vocabulaire, le CHAMP porte
-le réseau**, et la note est posée à l'endroit exact où on la rencontre (`packages/types`).
+**La clé JSON a suivi, elle aussi.** Le champ de la réponse serveur s'appelait `preset` des deux
+côtés ; il s'appelle **`niveau`**. Je l'avais d'abord déclaré irréductible — à tort : le SEUL
+consommateur de `GET/PUT /api/settings/autonomy` est `frontend-papa`. Il n'y avait pas de contrat
+externe à protéger, seulement une habitude.
+
+⚠️ **Ce que ça implique, et qui n'est pas rien** : un renommage de clé JSON est un changement de
+contrat. Il ne se vérifie pas par les tests unitaires — **ils sont mockés des deux côtés et
+passeraient au vert sur un contrat rompu**. La preuve est un appel réel : la réponse ne porte plus
+`preset`, elle porte `niveau`, et l'écran la consomme (lecture ET écriture vérifiées le
+2026-08-04). Aucune migration : rien de tout ça n'est stocké, le niveau est **dérivé** (§2).
 
 > **Règle pratique pour la suite** : dans un document, `LEVEL_LABEL[…]` se lit *« le libellé du
 > palier »*, jamais *« le libellé du niveau »*. Et une phrase comme « le niveau de cette classe »
@@ -202,9 +208,9 @@ classe** ; toute évolution serveur — **aucune ligne de backend, aucune migrat
 - **« Quiz — servi sans relecture, par doctrine »** disparaît de la matrice : le quiz **n'est pas
   une classe d'autonomie**, le bloc précédent le décrivait en dur. Repêché en note de pied de
   panneau, hors matrice — sinon on perdrait une information vraie pour une raison de forme.
-- **Collision de vocabulaire, TRANCHÉE puis RÉSORBÉE au §8.0** : documentation **et** code disent
-  maintenant la même chose. Ne reste que la clé JSON `preset`, qui est un contrat réseau — annotée
-  sur place, pas propagée.
+- **Collision de vocabulaire, TRANCHÉE puis RÉSORBÉE au §8.0** : documentation, code **et clé JSON**
+  disent maintenant la même chose — il ne reste aucune divergence. Coût : un changement de contrat,
+  vérifié par un appel réel plutôt que par des tests mockés.
 - **Le renommage casse mécaniquement une vingtaine de tests** qui attendent le titre « Régime » via
   un helper partagé. Coût de bascule, pas de conception.
 
