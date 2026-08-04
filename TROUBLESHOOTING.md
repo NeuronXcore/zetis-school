@@ -4,6 +4,94 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/journal-tri-et-filtre` — tri et filtre du Journal (addendum ADR-0034) — 2026-08-04
+
+### 🔴 `tsc -b` est VERT sur un contrat qu'il n'a pas reconstruit
+
+Après avoir ajouté un champ obligatoire à `Journal` dans `packages/types`, `npm run typecheck` est
+passé **vert** côté Papa. Six littéraux de test étaient pourtant invalides : `tsc -b` compilait
+contre le `.d.ts` **en cache** de `packages/types`, non reconstruit.
+
+**Parade** : après tout changement de `packages/types`, relancer le typecheck **une seconde fois**
+(la première reconstruit le paquet), ou lancer `npm run build`, qui ne peut pas mentir. Et lire le
+**code de sortie**, pas la sortie : `npm run typecheck | tail -4` rend le code de `tail`, donc `0`
+quoi qu'il arrive — le `&&` qui suit s'exécute sur un typecheck rouge.
+
+### 🔴 Un verrou de pagination qui reste VERT quand on retire la queue de tri
+
+Le test vérifiait « aucun doublon, aucun lot disparu » sur deux pages. En **retirant** la queue
+`created_at DESC, id DESC`, il restait vert : un **ensemble** ne dit rien d'un **ordre**, et la base
+rendait par hasard l'ordre d'insertion.
+
+**Parade** : insérer les lots du plus ANCIEN au plus récent (l'ordre d'insertion devient l'inverse
+de l'ordre attendu) et asserter l'**ordre exact**, pas l'ensemble. Vérifié par sabotage : il rougit.
+
+### 🔴 `getByText` global trouve le libellé de la mauvaise zone
+
+Le verrou « la ligne de synthèse NOMME les critères actifs » cherchait `getByText("Mathématiques")`.
+Ce texte existe **aussi** dans la rangée de pastilles de matière juste au-dessus, toujours visible :
+le test aurait été vert sans que la ligne de synthèse existe.
+
+**Parade** : `data-testid` sur la zone, puis `within(screen.getByTestId(...))`. Le test dit alors ce
+qu'il vérifie. Même famille que « `findByRole` attrape le premier arrivé ».
+
+### ⚠️ Une valeur arbitraire Tailwind ne se vérifie pas sur la chaîne qu'on a écrite
+
+`border-[rgba(212,175,55,0.55)]` **est** généré, mais Tailwind écrit `#d4af378c` dans le CSS.
+Chercher `rgba(212,175,55` dans `dist/assets/*.css` ne rend rien et fait conclure — à tort — que la
+règle n'a pas été produite. Deux fausses alertes émises pour cette seule raison.
+
+**Parade** : chercher la forme **hexadécimale** (`d4af37`), ou mieux, lire l'élément **rendu** :
+`getComputedStyle(el).borderTopColor`. ⚠️ Et ne pas tronquer `boxShadow` : Tailwind y place
+d'abord quatre emplacements vides (`rgba(0,0,0,0) 0px 0px 0px 0px`) avant les vraies ombres — une
+troncature à 80 caractères ne montre que le vide.
+
+### ⚠️ Le rechargement d'une maquette en `file://` sert la version en CACHE
+
+Trois corrections successives de la maquette n'apparaissaient pas : `location.reload()` sur une URL
+`file://` rendait l'ancienne page, et les mesures faites dessus décrivaient un état révolu.
+
+**Parade** : naviguer avec un paramètre qui change (`?v=2`, `?v=3`). Un `reload()` ne suffit pas.
+
+### ⚠️ `production_events.piece` est `NULL` sur `outcome='blocked'`
+
+Un filtre par type de contenu ne peut **pas** retenir un lot bloqué avant d'avoir touché une pièce :
+il n'a pas de type à comparer. Ce n'est pas un défaut à réparer, c'est un constat de code
+(`runner.py`, `piece=None, outcome="blocked"`).
+
+⚠️ **Et un second angle mort, mesuré** : les lots **antérieurs à la table** `production_events` n'ont
+aucun événement du tout — le lot #3 de la base de dev porte **4 fiches et 0 événement**, donc aucun
+filtre de type ne le retient. **Parade** : l'état vide de l'écran le DIT ; ne pas « réparer » en
+filtrant les cinq tables de pièces, ce qui perdrait toutes les lignes bloquées, sautées et en erreur.
+
+### ⚠️ `lessons_by_skill` scope l'année par une jointure sur `SchoolYearSubject`
+
+Un `Chapter` rattaché **seulement** par `theme_id` (`school_year_subject_id IS NULL`) n'a aucun
+chemin vers une année scolaire : il est invisible de la production, de la galaxie **et** de
+`canonical_context`. `Theme` porte une matière, **jamais une année** — il n'existe donc aucune
+réparation locale.
+
+**Parade retenue** : fermer la **porte** (`POST /subjects/themes/{id}/chapters` pose désormais aussi
+la matière d'année, ou refuse). ⚠️ Le verrou de test porte sur l'**atteignabilité** (`lessons_by_skill`
+rend la leçon), pas sur la colonne — vérifier `school_year_subject_id is not None` serait un test de
+schéma qui ne prouve rien.
+
+### ⚠️ Le veto SUPPRIME la ligne `Lesson` d'un cours retiré
+
+`veto._delete_one` fait `delete(Lesson).where(id == piece_id)`. Toute logique qui lit
+`Lesson.production_run_id` comme une **preuve** (ici : « ce lot a rédigé un cours ») est donc
+**rétractable** par un geste que le dispositif autorise.
+
+**Parade** : ne pas re-dériver à la lecture ce qu'un veto peut effacer — écrire une fois, marqué de
+sa provenance.
+
+### ⚠️ Un `cd` chaîné ne survit pas à la commande suivante
+
+`cd apps/frontend-papa && npm run build`, puis dans une commande **séparée** `npx vitest ...` a rendu
+`exit 127` (commande introuvable) et un `tsc exit=1` trompeurs. Ce n'étaient pas des pannes.
+
+**Parade** : relancer avec le `cd` explicite avant de conclure quoi que ce soit d'un code de sortie.
+
 ## Chantier `fix/production-trois-verites` — la production — 2026-08-04
 
 ### 🔴 Patcher `enqueue_production` est VERT et SANS EFFET

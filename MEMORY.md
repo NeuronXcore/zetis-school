@@ -7,137 +7,121 @@
 
 ## État à la reprise
 
-**Chantier : la production dit enfin la vérité — COMPLET, branche `fix/production-trois-verites`,
-base `270ae5f`.** Une seule session, sept chantiers enchaînés : chacun est né en regardant le
-précédent à l'écran.
+**Chantier : le Journal se trie et se filtre — COMPLET, branche `feat/journal-tri-et-filtre`,
+base `82fd9c4`.** Cadrage, slice A (backend) et slice B (Papa) dans la même session, plus un
+correctif né d'un stop-on-blocker.
 
-Le point de départ n'était pas une revue de code : un lot bloqué à 95 % dans l'en-tête Papa, et
-une demande de Massimo (« Accord du COD — Cours ») qui n'aboutissait pas. **Le worker de production
-n'était pas lancé.** Tout le reste a été trouvé en tirant ce fil.
+Le point de départ : le Journal ne savait que paginer du plus récent au plus ancien, et *« qu'est-ce
+que ZETIS a fait en maths ce mois-ci »* n'avait d'autre réponse que faire défiler.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR #80**, squash **`294d0d5`** — branche supprimée, local et `origin` |
-| Base | `270ae5f` |
-| Migration | **`d8e9f0a1b2c3`** — deux colonnes sur `production_runs`, **appliquée en dev** |
-| ADR | `adr-0036-addendum-verdict-de-situation.md` et `adr-0034-addendum-regime-et-destination.md`, indexés |
-| Vérifié à l'écran | **oui, dans le Chrome de l'utilisateur** (session connectée), pas seulement en tests |
-| Vérifié APRÈS le merge | **839 backend · 400 Papa · 525 Massimo**, `tsc -b` propre sur les deux, sur `main` fusionné |
+| Branche | `feat/journal-tri-et-filtre`, **poussée** — détail : `git log --oneline main..HEAD` |
+| Base | `82fd9c4` (l'ADR, commité sur `main`) |
+| ⚠️ `main` a AVANCÉ depuis | tête `22b35a6` — correction de l'entrée d'index `DECISIONS.md`. La branche est donc **1 commit derrière `main`**, sans conflit (elle ne touche pas ce fichier) |
+| Migration | **`e9f0a1b2c3d4`** — `zetis_mode_source` + 6 index, **appliquée en dev** |
+| Script de reprise | `apps/backend/scripts/backfill_zetis_mode.py`, **lancé avec `--apply` en dev** |
+| ADR | `adr-0034-addendum-tri-et-filtre-du-journal.md`, indexé |
+| Vérifié à l'écran | **oui, session connectée, sur les 9 lots réels** — 2 points sur 5 restent indémontrables faute de données (cf. DETTES) |
 
 ### Ce que ce chantier a livré
 
-1. **Les tests n'écrivent plus dans le vrai Redis.** 18 jobs fantômes `run_production(1)` dormaient
-   dans la file de dev (35 la veille). Fixture `autouse` `file_rq_factice`. ⚠️ **Le point de greffe
-   est la FABRIQUE de file, pas `enqueue_*`** — `runs_router` importe au niveau module, donc
-   patcher la fonction serait **vert et sans effet**.
-2. **`useRunProgress`** — une seule lecture d'un lot pour l'en-tête, la modale et la ligne
-   Demandes. On n'estime que ce qui a **démarré** ; `queued` ne rend aucun pourcentage.
-3. **`blocked_reason`** sur chaque demande : le verdict porte sur la **situation** (palier + leçon),
-   pas seulement sur le type. L'écran remplace « Produire » par le motif et le geste qui répare.
-4. **Le régime du lot** (`zetis_mode`) : capturé au démarrage, ou **déduit des actes du lot** quand
-   il est antérieur — jamais lu dans les réglages d'aujourd'hui.
-5. **Les demandes se referment sur le FAIT** : `close_available_requests` est appelée à la lecture
-   de la file (patron `close_stale_runs`), plus seulement à la fin d'un lot.
-6. **Le Journal se lit** : case d'état dessinée, motifs réécrits en « état + geste », annotation
-   « depuis résolu », destination sur chaque ligne et chaque pièce, résumé dans l'en-tête, **un
-   seul pli par lot, fermé**.
-7. **Les trois boucles par level ZETIS** (`test_production_par_niveau.py`) — la table de vérité
-   `manuel / semi / autonome` jouée sur le chemin complet demande → lot → exécution.
+1. **Le régime d'un lot cesse d'être re-dérivé.** Il se lit sur le lot (`zetis_mode_source` =
+   `capture` | `deduit` | `NULL`). La déduction a lieu **une fois**, dans le script de reprise.
+2. **Filtrage et tri SERVEUR sur toute l'histoire** (`journal_filters.py`) : `WHERE` → `ORDER BY` →
+   `LIMIT`, six critères, quatre clés de tri inversables.
+3. **La pagination existe enfin à l'écran** — elle manquait **avant** ce chantier : `has_more`
+   voyageait sans être lu par personne, et au-delà de 20 lots la page était muette sans le dire.
+4. **La barre de filtres** : contrôles repliables, critères actifs **nommés et retirables**, état
+   vide **bavard**, cadre or sur le conteneur maître.
+5. **La porte de `subjects` est fermée** : un chapitre créé sous un thème reçoit AUSSI sa matière
+   d'année, ou la création refuse en le disant.
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **Le Journal est un REGISTRE.** Une ligne passée ne se réécrit jamais (§F.4). Ce qui change au
-   présent s'**ajoute à côté** : « depuis résolu », `resolved`, `zetis_mode_source`. Deux
-   formulations de motif coexistent donc à l'écran, et c'est le prix assumé.
-2. **On ne devine jamais un régime.** La capture prime ; à défaut on **déduit d'actes** (un cours
-   rédigé, un dérivé laissé à relire, une origine `request`) ; si rien ne prouve → `null`, dit à
-   l'écran. **2 lots sur 9** obtiennent une réponse, et c'est la vérité disponible.
-3. **Un caractère n'est pas un élément d'interface.** `☐`/`☑` étaient invisibles sur le fond sombre.
-   La case est **dessinée** (SVG, `currentColor`). Et ce n'est **pas** un `<input type=checkbox>` :
-   un journal ne se coche pas — test-verrou sur l'absence de `role="checkbox"`.
-4. **Le visage du régime vient de `REGIME_AVATAR`** (`lib/regimeVisuals.ts`), source unique déjà
-   partagée par la sidebar et les réglages. Ne pas refabriquer une table d'icônes.
-5. **`journalLink` traite `srs` à part** : `CoverageCellKey` n'a que quatre colonnes, la branche
-   générique enverrait les cartes sur `/quiz`, et leur page attend un `skill_id` en `focus`.
+1. **Un filtre garde des LOTS ENTIERS.** Le filtre choisit *quels lots on regarde*, jamais *ce qu'on
+   voit d'un lot* — masquer les autres pièces ferait dire au Journal que le lot n'a produit que ça.
+2. **Écrire une fois ce que les ACTES prouvent n'est pas ce que le §F.4 interdit.** Le §F.4 interdit
+   de reconstituer depuis les **réglages d'aujourd'hui**, qui ont changé. ⚠️ La phrase *« rien n'est
+   stocké »* du §3 de l'addendum précédent **tient toujours** : elle porte sur `resolved`, qui reste
+   une lecture, comme `stale` et `target`.
+3. **Le type de contenu se lit dans `production_events`**, pas dans les cinq tables de pièces :
+   l'événement existe pour le produit, le sauté **et** l'échoué.
+4. **Les hors-échelle (`sur_mesure`, `inconnu`) vont en fin DANS LES DEUX SENS.** Un rang unique ne
+   suffit pas — il les met en tête du tri décroissant, c'est-à-dire au sommet de l'autonomie.
+5. **Toute clé de tri est départagée par `created_at DESC, id DESC`.** Sans cette queue, la
+   pagination perd ou répète des lots **en silence**.
+6. **Aucun filtre actif à l'ouverture, jamais** — y compris « la dernière fois ».
+7. **L'or du cadre est sur le CONTENEUR MAÎTRE**, pas sur la rangée de tri. L'or et l'ambre sont
+   séparés par la **matière** (l'or est halé, l'alerte est plate), et **le halo ne bat pas** : ici
+   une animation permanente *porte* de l'information.
 
 ### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
 
-1. 🔴 **Une contre-épreuve a visé à côté DEUX FOIS dans la journée.** (a) fixture Redis désarmée →
-   `len(queue)` = 0 quand même, parce que **le worker consommait les jobs à la milliseconde** ; la
-   preuve était dans `FailedJobRegistry` (18 → 21). (b) le `target` a **deux gardes** : en casser
-   une seule ne fait rien tomber.
-2. 🔴 **`validate_all_lessons` passe en `validated` toutes les leçons `draft` d'un chapitre sans
-   regarder s'il y a un texte** → **39 leçons validées-vides contre 28 rédigées**. `Lesson.status`
-   porte deux sens ; le motif du gate disait « à valider » d'une leçon qui l'était déjà.
-3. **Les pièces leçon-centrées ont `skill_id = None`** par construction : un index `(skill_id, kind)`
-   rendait `None` partout. La clé réelle est `(lesson_id, kind)`.
-4. **Le contenu d'un `<details>` fermé reste dans le DOM** — un test qui cherche un texte le trouve
-   même replié. Les assertions du résumé portent le **chiffre**.
-5. **Les suites front ont flaké sous charge** (papa + massimo + graphify en parallèle,
-   `environment` à 357 s au lieu de 30) : 1 puis 2 échecs, puis trois exécutions séquentielles
-   vertes. **Les noms n'ont pas été capturés** — si ça revient au calme, c'est un vrai défaut.
+1. 🔴 **Le veto SUPPRIME la ligne `Lesson`** (`veto._delete_one`). La preuve « ce lot a rédigé un
+   cours » — celle qui porte 2 lots sur 9 — était donc **rétractable** : le point dur était plus
+   aigu que cadré, pas moins.
+2. 🔴 **Le trou `theme_id` était un niveau plus bas que cadré** : dans `lessons_by_skill`, pas dans
+   `lesson_targets`. Et il venait d'une **porte**, pas d'une donnée — un bouton fabriquait le cas,
+   un autre y accrochait des leçons, l'aval les ignorait en silence. Le commit 3 de la slice A a été
+   **abandonné** ; l'ADR porte la décision retenue et celle qui est révoquée.
+3. 🔴 **Deux de mes propres verrous ne mordaient pas** — la queue de tri (un ensemble ne dit rien
+   d'un ordre) et les libellés de la ligne de synthèse (un `getByText` global trouvait la pastille
+   de la rangée du dessus). Trouvés **en les sabotant**, pas en les relisant.
+4. 🔴 **La ligne de synthèse ne nommait pas les critères repliés** — trouvé **à l'écran**, pas dans
+   le code : « Plus de filtres 1 » dit qu'un critère filtre, jamais lequel.
+5. ⚠️ **`tsc -b` a été VERT sur un contrat qu'il n'avait pas reconstruit** (cache de
+   `packages/types`) : six littéraux de test étaient invalides sans que rien ne le dise.
 
-> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04 (production)**.
+> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04 (tri et filtre du Journal)**.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS.** Mergé le 2026-08-04 (PR #80, squash `294d0d5`), branche supprimée des deux
-côtés, `main` == `origin/main`, arbre propre. Suites relancées **sur `main` fusionné** : 839 backend,
-400 Papa, 525 Massimo, `tsc -b` vert. La prochaine session **ouvre un nouveau chantier**.
+**Ce chantier est COMPLET.** Arbre propre, branche poussée, `main` == `origin/main`.
 
-**Ensuite, chantier suivant — TRI ET FILTRE DU JOURNAL. Les quatre décisions sont DÉJÀ PRISES par
-Papa, ne pas les rouvrir :**
+**La première action de reprise : ouvrir la PR et merger.**
 
-1. un filtre garde des **LOTS ENTIERS** (jamais les pièces à l'intérieur) ;
-2. **côté SERVEUR**, sur toute l'histoire — la pagination s'applique **après** le filtrage ;
-3. critères v1 : **date · matière · chapitre · statut · mode ZETIS · type de contenu** ;
-4. **plusieurs clés de tri** (date · matière · mode · statut), inversables. ⚠️ Papa a vu et accepté
-   l'avertissement : *un journal qui n'est plus chronologique cesse d'être un journal*.
+```
+gh pr create --base main --head feat/journal-tri-et-filtre
+```
 
-🔴 **LE POINT DUR, ANALYSÉ le 2026-08-04 — à trancher au cadrage, avant tout code.**
+⚠️ **Puis l'étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici le **squash**, le **n° de PR**,
+« branche supprimée », et déplacer cette section dans l'historique après les quatre contrôles.
 
-⚠️ **Correction d'une affirmation fausse écrite plus tôt dans la journée.** J'avais noté que
-`zetis_mode` « n'est pas filtrable en SQL ». **C'est faux.** Les quatre preuves de la déduction
-vivent toutes en base et s'écrivent toutes en SQL : `trigger='request'` est une colonne ; « a rédigé
-un cours » est un `EXISTS` sur `lessons.production_run_id` ; « dérivé à relire » / « dérivé servi »
-sont des `EXISTS` sur `fiches`/`mindmaps` avec `validated_by`. La déduction est en Python parce que
-les objets étaient **déjà chargés pour l'affichage**, pas parce que SQL ne savait pas la faire.
-
-**Les trois vrais obstacles, eux, tiennent :**
-
-1. **Aucun index sur `production_run_id`**, dans aucune des cinq tables produites (vérifié :
-   `pg_indexes` ne rend rien). Quatre `EXISTS` par lot sans index = balayage complet par page.
-2. 🔴 **La déduction repose sur des artefacts RÉTRACTABLES.** Le veto (ADR-0034) retire des pièces :
-   retirer la fiche `pending` d'un lot efface la preuve « A0a = 2 », et **le régime affiché de ce
-   lot change rétroactivement**. Un historique qui bouge quand on exerce un droit prévu n'est pas
-   fiable — et ce défaut est **indépendant du langage**.
-3. **Traduire la règle en SQL en ferait une DEUXIÈME implémentation** (Python pour l'affichage, SQL
-   pour le filtre) — le défaut exact que l'ADR-0037 a coûté un ADR entier à réparer.
-
-**▶ Correctif proposé (non validé) : arrêter de re-dériver à chaque lecture.**
-
-- une vraie colonne **`zetis_mode_source`** (`capture` | `deduit`) à côté des deux paliers ;
-- un **backfill unique** — un **script**, pas une migration (une migration ne doit pas importer la
-  logique métier) — qui écrit `a0a_level`/`a1_level` **là où les actes le prouvent**, marqués
-  `deduit` ; `runner.execute` continue d'écrire `capture` ; ce que rien ne prouve reste `NULL` ;
-- les **index manquants** sur `production_run_id`.
-
-Le filtre et le tri deviennent alors deux entiers + une source : pur SQL, paginable, et **stable**
-— un veto exercé demain ne réécrit plus l'histoire d'hier.
-
-⚠️ **Cela RÉVOQUE une phrase de l'addendum ADR-0034 §1bis** (« rien n'est stocké »). La distinction
-doit être écrite : le §F.4 interdit de reconstituer le passé **depuis les réglages d'aujourd'hui**,
-qui ont changé ; écrire **une fois** ce que les **actes** prouvent, avec sa provenance, est l'inverse
-— c'est ce qui **fige** l'histoire au lieu de la laisser dériver. **Addendum à écrire au cadrage.**
-
-ℹ️ Le **statut**, lui, ne pose aucun problème : `stale` = `status='running' AND heartbeat_at <
-now() - délai`, exprimable en SQL sans rien stocker.
-
-⚠️ Ce chantier ajoute une surface d'API → **addendum ADR-0034 attendu au cadrage**, avant le code.
+⚠️ **Avant de merger, la branche est 1 commit derrière `main`** (`22b35a6`). Aucun conflit attendu :
+`DECISIONS.md` n'est touché que sur `main`, l'ADR n'est touché que sur la branche.
 
 ### ▶ DETTES OUVERTES
+
+> ⚠️ Les six dettes qui suivent sont **nées de la session du 2026-08-04 (tri et filtre du Journal)**.
+
+- 🔴 **Deux des cinq vérifications à l'écran n'ont PAS pu être jouées, faute de données** — et rien
+  ne les rejouera tout seul :
+  - **le tri par mode dans les deux sens** : la base de dev ne porte que 2 lots *Autonom* et 7
+    « régime inconnu ». Aucun *Manual*, aucun *Hybrid* → croissant et décroissant rendent la même
+    chose. Le comportement est verrouillé par un test unitaire, **il n'a pas été vu** ;
+  - **la pagination** : 9 lots pour une page de 20, donc `has_more` est faux et le bouton n'apparaît
+    jamais. À rejouer **dès qu'il y aura 21 lots**.
+- ⚠️ **Le chapitre 10 (« Les fractions ») reste sans matière d'année.** La porte est fermée pour
+  l'avenir (`fix(subjects)`), mais **aucune rétro-attribution** n'a été faite : ce chapitre existe,
+  vide, invisible du résolveur canonique. Une ligne de SQL suffirait, elle n'a pas été écrite —
+  c'est une donnée, pas un défaut de code.
+- ⚠️ **`lesson_targets` n'a pas été touchée**, et c'est cohérent tant que la porte tient : tout
+  chapitre neuf porte sa matière d'année. Si le rattachement par thème SEUL devait redevenir
+  légitime, il faudrait donner une **année** aux thèmes (migration) et étendre `lessons_by_skill` —
+  chantier nommé dans l'ADR, non ouvert.
+- ⚠️ **Le filtre par matière est MONO**, alors que l'ADR décrit tous les critères comme
+  multi-valeur. `SubjectFilterChips` est la brique partagée du Dashboard, de la Couverture et du
+  Cahier de bord, et elle est contrôlée par `value: number | null` : la rendre multi toucherait
+  trois autres pages. **Le serveur accepte déjà une liste** — rien n'est perdu de ce côté.
+- ⚠️ **Les serveurs de dev ont été laissés debout** : `backend-dev2` sur `:8002` et `papa-dev2` sur
+  `:5178`. ⚠️ `:8001` était occupé par le serveur d'une **autre session**.
+- ⚠️ **Deux fausses alertes ont été émises pendant la session** (« l'or n'est pas généré », « l'ombre
+  est transparente »), toutes deux dues à un motif de recherche ou une troncature, pas au code. La
+  parade est écrite dans `TROUBLESHOOTING.md` — vérifier une valeur arbitraire Tailwind se fait sur
+  la **forme hexadécimale** et sur l'élément **rendu**, jamais sur une chaîne devinée.
 
 > ⚠️ Les six dettes qui suivent sont **nées de la session du 2026-08-04 (production)**.
 
