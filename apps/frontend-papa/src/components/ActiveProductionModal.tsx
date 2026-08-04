@@ -3,6 +3,7 @@ import { Button } from "@zetis/ui";
 import { type ProductionRun } from "@zetis/types";
 
 import { ProgressBar } from "./ProgressBar";
+import { useRunProgress } from "../hooks/useRunProgress";
 import { SCOPE_NOUN } from "../lib/production";
 
 // Détail du lot en cours, ouvert depuis la pastille d'en-tête (Papa uniquement).
@@ -23,6 +24,8 @@ export function ActiveProductionModal({
 }) {
   const total = run.total_notions ?? 0;
   const done = run.done_notions ?? 0;
+  // Le MÊME calcul que l'en-tête et que la ligne Demandes — trois écrans, une seule réponse.
+  const { pct, enFile } = useRunProgress(run);
   // ⚠️ Le titre était « un chapitre » en dur. Faux depuis qu'un lot peut viser une PIÈCE
   // (ADR-0036 §2) — constaté à l'écran le 2026-08-03, en même temps que la pastille d'en-tête.
   const quoi = run.scope_kind
@@ -33,12 +36,20 @@ export function ActiveProductionModal({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
       <div className="w-full max-w-md rounded-2xl border border-papa-border bg-papa-surface p-5">
-        <p className="text-base font-bold">⚡ ZETIS produit {quoi}</p>
+        <p className="text-base font-bold">
+          ⚡ {enFile ? "ZETIS va produire" : "ZETIS produit"} {quoi}
+        </p>
 
         <div className="mt-4">
           <ProgressBar
-            pct={run.progress_pct}
-            label={total ? `Notion ${Math.min(done + 1, total)} sur ${total}` : "Démarrage…"}
+            pct={pct ?? 0}
+            label={
+              enFile
+                ? "En file d'attente — rien n'est encore généré"
+                : total
+                  ? `Notion ${Math.min(done + 1, total)} sur ${total}`
+                  : "Démarrage…"
+            }
           />
         </div>
 

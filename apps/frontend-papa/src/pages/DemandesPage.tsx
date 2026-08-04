@@ -23,6 +23,7 @@ import { NotionRequestActionModal } from "../components/demandes/NotionRequestAc
 import { ProductionProgress } from "../components/demandes/ProductionProgress";
 import { ProgressBar } from "../components/ProgressBar";
 import { produceForRequest } from "../lib/production";
+import { notifyDemandesChanged } from "../lib/demandesEvents";
 
 export function DemandesPage() {
   const [content, setContent] = useState<ContentRequest[]>([]);
@@ -41,7 +42,14 @@ export function DemandesPage() {
         fetchContentRequests("pending"),
         fetchNotionRequests("pending"),
       ]);
-      setContent(c);
+      // La file a-t-elle MAIGRI sans que Papa ne trie ? C'est le serveur qui a refermé ce qui est
+      // devenu disponible — la pastille de la sidebar doit suivre, sinon elle annonce « 1 » devant
+      // une page vide. On n'émet que sur un vrai changement : l'événement sert à réveiller, pas à
+      // battre la mesure.
+      setContent((avant) => {
+        if (c.length !== avant.length) notifyDemandesChanged();
+        return c;
+      });
       setNotions(n);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Chargement des demandes échoué");
@@ -52,6 +60,28 @@ export function DemandesPage() {
 
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  // ⚠️ **La file se relit quand Papa REVIENT.** Le serveur referme désormais ce qui est devenu
+  // disponible à chaque ouverture de la file — mais un onglet resté ouvert ne l'apprenait jamais,
+  // et c'est précisément le parcours que cette page crée : « Écrire le cours → » envoie Papa sur
+  // Programme, il écrit, il revient… et il retrouvait la même ligne, comme si son geste n'avait
+  // servi à rien.
+  //
+  // ⚠️ **Sur le RETOUR, pas au chronomètre.** Un sondage ferait travailler une page que personne
+  // ne regarde ; ici l'événement est exactement le moment où la réponse peut avoir changé, et il
+  // ne coûte rien le reste du temps. Un rafraîchissement périodique serait à ajouter le jour où
+  // une production démarrerait seule pendant que Papa regarde l'écran — pas avant.
+  useEffect(() => {
+    const revenir = () => {
+      if (document.visibilityState === "visible") void reload();
+    };
+    window.addEventListener("focus", revenir);
+    document.addEventListener("visibilitychange", revenir);
+    return () => {
+      window.removeEventListener("focus", revenir);
+      document.removeEventListener("visibilitychange", revenir);
+    };
   }, [reload]);
 
   const triageContent = useCallback(async (id: number, status: ContentRequestStatus) => {
@@ -256,6 +286,37 @@ export function DemandesPage() {
                                 <ProgressBar pct={1} label="Lancement…" />
                               </div>
                             )
+                          ) : req.producible && req.blocked_reason ? (
+                            /* ⚠️ Un CONSTAT, pas un bouton grisé — patron du §3, appliqué cette
+                               fois à la SITUATION et non au type. Le 2026-08-04, Papa a cliqué
+                               deux fois sur « Produire » pour un cours que le palier interdisait
+                               d'écrire : les deux lots ont fini `done` en produisant zéro, et il
+                               ne l'a appris qu'au Journal. Le motif vient du serveur, calculé par
+                               le code même que le lot exécute. */
+                            <span
+                              className="flex shrink-0 items-center gap-2"
+                              title="Un lot lancé maintenant ne produirait rien"
+                            >
+                              <span className="max-w-[260px] text-right text-[11.5px] leading-tight text-papa-muted">
+                                {req.blocked_reason}
+                              </span>
+                              {/* Le geste qui répare est à côté du constat, jamais ailleurs.
+                                  ⚠️ **`/programme`, pas `/matieres`** — corrigé le jour même :
+                                  Matières ne fait que LIRE un cours (« cours en préparation »
+                                  quand il manque). C'est le référentiel qui porte « ⚡ Rédiger le
+                                  cours ». Un lien qui mène là où le geste n'existe pas est un
+                                  cul-de-sac de plus, exactement celui qu'on referme ici. */}
+                              <Link
+                                to={
+                                  group.subjectId
+                                    ? `/programme?subject=${group.subjectId}`
+                                    : "/programme"
+                                }
+                                className="rounded-lg border border-papa-border px-3 py-1 text-xs font-semibold text-papa-text hover:bg-papa-surface-2"
+                              >
+                                Écrire le cours →
+                              </Link>
+                            </span>
                           ) : req.producible ? (
                             <button
                               type="button"

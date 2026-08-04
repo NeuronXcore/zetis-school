@@ -1,5 +1,43 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.45.0 — La production dit ce qu'elle a fait, et pourquoi elle ne l'a pas fait
+
+Date : 2026-08-04 · branche `fix/production-trois-verites` · addenda **ADR-0036 « verdict de
+situation »** et **ADR-0034 « régime et destination »** · migration **`d8e9f0a1b2c3`**
+
+**Le point de départ n'était pas une revue de code.** Un lot bloqué à 95 % dans l'en-tête Papa, une
+demande de Massimo qui n'aboutissait pas : le **worker de production n'était pas lancé**. Tout le
+reste a été trouvé en tirant ce fil.
+
+**Les tests n'écrivent plus dans le vrai Redis.** 18 jobs fantômes `run_production(1)` dormaient
+dans la file de dev. La protection existait — cinq monkeypatchs à la main — donc elle manquait là où
+personne n'y avait pensé. Fixture `autouse`, greffée sur la **fabrique de file** : patcher
+`enqueue_production` aurait été vert et sans effet, `runs_router` l'important au niveau module.
+
+**Une seule lecture d'un lot** (`useRunProgress`) pour l'en-tête, la modale et la ligne Demandes :
+on n'estime que ce qui a **démarré**. Un lot resté en file montait jusqu'à 95 % et y restait.
+
+**Le verdict porte sur la situation, plus seulement sur le type.** `blocked_reason` dit pourquoi un
+lot lancé maintenant ne produirait rien, calculé par le code même que le lot exécute. L'écran
+remplace « Produire » par le motif et le geste qui répare. Motifs réécrits en **état + geste** — le
+vocabulaire d'ADR (« à ce palier », « à votre place ») a quitté l'écran.
+
+**Une demande se referme sur le FAIT.** `close_available_requests` est appelée à la lecture de la
+file, plus seulement à la fin d'un lot : Papa qui rédige un cours depuis Programme referme la
+demande sans cliquer « Fait ».
+
+**Le Journal situe.** Le régime de chaque lot — **capturé** au démarrage, ou **déduit de ses actes**
+quand il est antérieur, jamais lu dans les réglages du jour. Une destination sur chaque ligne et
+chaque pièce. Une annotation « depuis résolu » qui parle au présent **sans réécrire** la ligne
+passée. Une case d'état **dessinée** (les glyphes Unicode étaient invisibles sur fond sombre). Un
+résumé dans l'en-tête, et **un seul pli par lot, fermé** — le lot #3 aligne 33 pièces.
+
+**Trois boucles de test, une par level ZETIS** : la table de vérité `manuel / semi / autonome`
+jouée sur le chemin complet demande → lot → exécution. C'est la forme qui aurait attrapé le
+cul-de-sac toute seule.
+
+839 tests backend · 400 Papa · 525 Massimo · `tsc -b` vert. Vérifié à l'écran dans Chrome.
+
 ## 0.44.0 — Les deux bandeaux portent enfin quelque chose
 
 Date : 2026-08-04 · **PR #78** (Papa) et **PR #79** (Massimo) · addendum **ADR-0029 « La galaxie

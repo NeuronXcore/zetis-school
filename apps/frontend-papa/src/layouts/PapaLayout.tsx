@@ -6,8 +6,8 @@ import { useActiveProductionRun } from "../hooks/useActiveProductionRun";
 import { useAutonomyState } from "../hooks/useAutonomyState";
 import { ActiveProductionModal } from "../components/ActiveProductionModal";
 import { ProductionDoneModal } from "../components/ProductionDoneModal";
-import { useEstimatedProgress } from "../components/ProgressBar";
-import { SCOPE_MS, SCOPE_NOUN } from "../lib/production";
+import { EN_FILE_LABEL, useRunProgress } from "../hooks/useRunProgress";
+import { SCOPE_NOUN } from "../lib/production";
 
 // Layout commun de l'interface Papa : sidebar + header + zone analytique
 // (cf. docs/frontend-papa/README.md § Layout).
@@ -22,16 +22,11 @@ export function PapaLayout() {
   const autonomy = useAutonomyState();
   const [showRun, setShowRun] = useState(false);
 
-  // ⚠️ **Le % du serveur compte des NOTIONS, pas des secondes.** Sur un lot de chapitre il est
-  // exact et fait foi. Sur un lot-PIÈCE il n'y a qu'une notion : il vaut 0 % du début à la fin,
-  // puis le lot disparaît — l'indicateur restait donc figé à 0 %, constaté à l'écran le
-  // 2026-08-03. Là où le serveur n'a pas de granularité, on estime ; ailleurs on ne touche à rien.
-  const sansGranularite = Boolean(activeRun) && (activeRun?.total_notions ?? 0) <= 1;
-  const estime = useEstimatedProgress(
-    sansGranularite,
-    SCOPE_MS[activeRun?.scope_kind ?? ""] || 30000,
-  );
-  const pct = sansGranularite ? estime : (activeRun?.progress_pct ?? 0);
+  // ⚠️ **La lecture d'un lot vit dans `useRunProgress`, jamais ici.** Ce bloc calculait son propre
+  // pourcentage et ignorait la règle que `ProductionProgress` portait déjà : un lot `queued` ne
+  // s'estime pas. Un lot resté en file — worker éteint — montait donc à 95 % et y restait pour
+  // toujours, constaté à l'écran le 2026-08-04.
+  const { pct, enFile } = useRunProgress(activeRun);
   return (
     // `overflow-hidden` n'est pas cosmétique : sans lui, la sidebar (22 entrées, ~1100 px) déborde
     // du conteneur en `h-full`, le DOCUMENT grandit à sa taille, et c'est le body qui scrolle —
@@ -91,9 +86,13 @@ export function PapaLayout() {
                   className="inline-flex items-center gap-1.5 rounded-full border border-papa-accent/40 bg-papa-accent/10 px-2.5 py-1 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/20"
                 >
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-papa-accent" aria-hidden />
-                  ZETIS produit {activeRun.scope_kind
+                  {/* ⚠️ Le VERBE aussi suit l'état : « ZETIS produit … en file d'attente » se
+                      contredit tout seul. Tant que le lot n'a pas démarré, ZETIS ne produit rien
+                      — il va le faire. */}
+                  {enFile ? "ZETIS va produire" : "ZETIS produit"}{" "}
+                  {activeRun.scope_kind
                     ? SCOPE_NOUN[activeRun.scope_kind] ?? "un contenu"
-                    : "un chapitre"} · {pct}%
+                    : "un chapitre"} · {enFile ? EN_FILE_LABEL : `${pct}%`}
                 </button>
               )}
             </div>

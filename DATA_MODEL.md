@@ -897,6 +897,20 @@ démarrage : le job attend en file), `heartbeat_at` et `current_skill_id` — et
 > balayage : le §G.3 avait écarté la quarantaine temporelle précisément parce qu'elle exigeait un
 > ordonnanceur. Le seul écrivain est `close_stale_runs`, appelé **avant** une création de lot.
 
+**Le RÉGIME du lot** — `production_runs.a0a_level` et `a1_level`, ajoutées le 2026-08-04 (migration
+`d8e9f0a1b2c3`, addendum ADR-0034 §1). Écrites par `runner.execute` **au démarrage**, à l'instant
+où il lit déjà les paliers pour s'exécuter.
+
+> ⚠️ **Deux paliers, jamais le nom du régime.** L'ADR-0032 a refusé de persister le préréglage
+> (« un mode stocké *plus* six clés donnerait deux réponses à une seule question ») : `niveau_de`
+> le dérive. On garde les **faits**, le nom se redérive à la lecture, avec la même fonction. Deux
+> clés suffisent — `NIVEAUX` ne nomme qu'`A0a` et `A1`, les deux qui commandent la production.
+>
+> ⚠️ **`NULL` = lot antérieur, et rien n'est rétro-attribué** (§F.4). Le Journal **déduit** alors le
+> régime des **actes** du lot (un cours qu'il a rédigé, un dérivé qu'il a laissé à relire, une
+> origine `request`) — jamais des réglages d'aujourd'hui — et **dit** que la réponse est déduite.
+> Quand rien ne le prouve, il répond « inconnu ».
+
 ### MindmapView (ADR-0030 §4)
 
 Carte vue par un élève. **« Vu » = la ligne existe** — il n'y a rien d'autre à savoir.
