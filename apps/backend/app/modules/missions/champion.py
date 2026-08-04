@@ -114,13 +114,13 @@ def resolve_champion_notions(
     """Preview d'un défi champion : notions résolues + proposées cochées, sans rien écrire."""
     if flavor not in _FLAVORS:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Saveur inconnue : {flavor} (attendu : {', '.join(_FLAVORS)}).",
         )
     unique_subjects = list(dict.fromkeys(subject_ids))
     if len(unique_subjects) < 2:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Un défi champion croise au moins 2 matières — sélectionne-en 2.",
         )
 
@@ -182,21 +182,21 @@ def _validate_champion(
     saveur connue, ≥ 1 notion, ≤ plafond, ≥ 2 matières distinctes. Renvoie (ids dédupliqués, skills)."""
     if flavor not in _FLAVORS:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Saveur inconnue : {flavor}."
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Saveur inconnue : {flavor}."
         )
     unique_ids = list(dict.fromkeys(skill_ids))
     max_skills = settings.mission_champion_max_skills
     if not unique_ids:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Aucune notion cochée.")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Aucune notion cochée.")
     if len(unique_ids) > max_skills:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Au plus {max_skills} notions par défi champion.",
         )
     skills = _subjects_of(db, unique_ids)
     if len({s.subject_id for s in skills.values()}) < 2:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Un défi champion croise au moins 2 matières — coche des notions de 2 matières.",
         )
     return unique_ids, skills

@@ -206,18 +206,18 @@ def create_run(
     """
     if trigger not in TRIGGERS:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Déclencheur inconnu : {trigger}."
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Déclencheur inconnu : {trigger}."
         )
     if trigger not in EMITTED_TRIGGERS:
         # Le modèle anticipe, le code n'anticipe pas : une valeur légale mais non émise doit être
         # refusée tant que son ADR n'existe pas (patron `content_kind`, patron `parent_rule`).
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Le déclencheur « {trigger} » est modélisé mais pas encore émis.",
         )
     if authorized_by not in AUTHORIZED_BY:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Autorité inconnue : {authorized_by}."
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Autorité inconnue : {authorized_by}."
         )
 
     # « Exactement une FK, cohérente avec `trigger` » — la règle que l'ADR-0031 §4 a confiée au
@@ -225,12 +225,12 @@ def create_run(
     column = TRIGGER_REFERENCE[trigger]
     if column is None and reference_id is not None:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Le déclencheur « {trigger} » ne référence rien.",
         )
     if column is not None and reference_id is None:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Le déclencheur « {trigger} » exige une référence ({column}).",
         )
     # « Exactement un scope » (ADR-0036 §2), refusé AVANT toute écriture. Un lot sans scope
@@ -238,23 +238,23 @@ def create_run(
     piece_scope = scope_skill_id is not None or scope_kind is not None
     if piece_scope and chapter_id is not None:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Un lot porte un chapitre OU une pièce, jamais les deux.",
         )
     if not piece_scope and chapter_id is None:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Un lot doit porter un scope."
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Un lot doit porter un scope."
         )
     if piece_scope and (scope_skill_id is None or scope_kind is None):
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Un scope de pièce exige la notion ET le type.",
         )
     if piece_scope and scope_kind not in PIECES:
         # Le lot parle la langue des tables (`PIECES`), pas celle de la demande (`CONTENT_KINDS`).
         # La traduction est le travail de l'appelant, et `REQUEST_KIND_TO_PIECE` la porte.
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Type de pièce inconnu : {scope_kind}.",
         )
 

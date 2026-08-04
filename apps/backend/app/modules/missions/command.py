@@ -100,10 +100,10 @@ def create_command_missions(
     max_skills = settings.mission_command_max_skills
     unique_ids = list(dict.fromkeys(skill_ids))  # dédoublonne en préservant l'ordre
     if not unique_ids:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Aucune notion cochée.")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Aucune notion cochée.")
     if len(unique_ids) > max_skills:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Au plus {max_skills} notions par commande.",
         )
 
