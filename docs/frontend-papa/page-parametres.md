@@ -19,8 +19,18 @@ et §G (autorité, matrice, veto)**, `adr-0031` + son addendum (le gate vit dans
 
 ## Principes
 
-- **L'état des lieux précède le réglage.** Le bloc « où vous en êtes » est au-dessus des
-  préréglages, toujours, et il n'est pas repliable.
+- ~~**L'état des lieux précède le réglage.** Le bloc « où vous en êtes » est au-dessus des
+  préréglages, toujours, et il n'est pas repliable.~~
+  > ⚠️ **RÉVOQUÉ le 2026-08-04** (addendum §8.1). Le réglage passe en tête sous le nom **ZETIS
+  > LEVELS**, et le constat le suit **dans le même objet** : le panneau de détail montre le niveau
+  > sélectionné, et **au repos celui qui est actif**. On révoque la position, on garde l'intention —
+  > Papa voit où il est sans le chercher. Révocation **conditionnée par le §7** : elle n'est
+  > défendable que parce que l'état vit désormais en tête de sidebar, sur les 22 pages. Le
+  > contre-motif reste au dossier dans l'addendum.
+- **Le réglage dit ce qu'il fait.** Choisir un niveau montre **ce qu'il déplace**, classe par
+  classe — calculé depuis les données du serveur, jamais rédigé en dur (addendum §8.2). Et il dit
+  aussi **ce qu'aucun niveau ne change** : quatre classes sur six sont verrouillées, les taire
+  promettrait une richesse que la donnée n'a pas.
 - **Un régime, jamais un score.** La provenance s'affiche par objet et **ne se totalise jamais**
   (§F.2). Cette page décrit *comment ça marche aujourd'hui*, pas *combien Papa a délégué*.
 - **Aucun interrupteur sans effet.** La page précédente en portait quatre ; ils ont été retirés le
@@ -48,30 +58,10 @@ deux options.
 
 ### Section « ⚡ Autonomie de ZETIS » (remplace le placeholder `indisponible`)
 
-Quatre blocs, dans cet ordre et pas un autre.
+Quatre blocs, dans cet ordre — **révisé le 2026-08-04** (addendum §8.1) : le réglage est passé en
+tête, et le bloc « Où vous en êtes aujourd'hui » a **fusionné** avec lui.
 
-#### 1. « Où vous en êtes aujourd'hui »
-
-Quatre lignes — une par famille visible de Massimo — chacune : un intitulé, une phrase de régime,
-une pastille de provenance.
-
-| Famille | Phrase | Pastille |
-|---|---|---|
-| Fiches et cartes mentales | Produites en lot, servies sans que vous les ouvriez. | `validation groupée` |
-| Cartes de révision | Servies sans aucune étape de validation — il n'en existe pas. | `aucun contrôle` |
-| Quiz | Servis sans relecture, par doctrine (ADR-0014). | `par doctrine` |
-| Cours | Vous seul les validez. Le seul contenu qui passe devant vous. | `vous` |
-
-Puis **un encart ambré**, et c'est la phrase la plus importante de la page :
-
-> Sur le chapitre produit le 2 août, **2 contenus sur 33** vous sont arrivés en relecture.
-> **Ce n'est pas un retard** — c'est le régime ci-dessus.
-
-⚠️ **Le seul chiffre de la page est celui-là** : daté, attaché à une observation, non recalculé et
-non répété. Un compteur vivant ferait de ce bloc un reproche permanent (§F.2). Les faits par objet
-vivent sur le Journal.
-
-#### 2. Le régime — trois préréglages
+#### 1. « ZETIS LEVELS » — les trois niveaux, et ce que chacun fait
 
 Trois cartes cliquables, une seule active : **Manual · Hybrid · Autonom**.
 
@@ -97,6 +87,48 @@ rend.
 `VETO_SURFACE_AVAILABLE = True` et *Autonome* est offert. Le palier 3 et son veto se sont livrés
 ensemble, comme le verrou n°5 de l'ADR-0032 l'exigeait — **aucune ligne du front n'a changé**,
 `choices` venant du serveur.
+
+##### Sous les cartes — « ce que fait ce niveau »
+
+Un panneau **en lecture seule**, qui suit la carte sélectionnée et, **au repos, montre le niveau
+actif**. C'est lui qui a remplacé le bloc « Où vous en êtes aujourd'hui » (addendum §8.1).
+
+Il est **calculé**, jamais rédigé : pour chaque classe, `label` du serveur → libellé de son palier.
+Écrire une prose *classe × niveau* recopierait la matrice du §G.2 sous une forme que le serveur ne
+peut pas refuser — un 422 protège une valeur, jamais un texte (addendum §8.2).
+
+**Deux groupes, et le second est une information, pas une omission** (addendum §8.3) :
+
+| Groupe | Contenu |
+|---|---|
+| **Ce que ce niveau décide** | Les **deux** classes libres (A0a, A1). Leur palier change à la sélection. |
+| **Ce qu'aucun niveau ne change** | Les **quatre** verrouillées, en retrait, **avec leur motif serveur**. |
+
+En pied, l'observation — **et c'est toujours le seul chiffre de la page** :
+
+> 📊 Sur le chapitre produit le 2 août, **2 contenus sur 33** vous sont arrivés en relecture.
+> **Ce n'est pas un retard** — c'est le régime ci-dessus.
+
+⚠️ Daté, attaché à une observation, **non recalculé et non répété** — et surtout **il ne suit pas le
+niveau sélectionné** : il dirait alors ce qui *serait* arrivé, et deviendrait une projection
+déguisée en fait. Un compteur vivant ferait de ce bloc un reproche permanent (§F.2). Les faits par
+objet vivent sur le Journal.
+
+⚠️ Hors matrice, en note : **les quiz sont servis sans relecture, par doctrine (ADR-0014)**. Le quiz
+n'est pas une classe d'autonomie — le taire pour une raison de forme perdrait une information vraie.
+
+#### 2. Modale de confirmation — au changement de niveau
+
+Changer de niveau ouvre une modale qui montre **ce que ce niveau déplace** (le panneau ci-dessus,
+appliqué au niveau visé). ⚠️ **Sauf en descente** : *on ne freine pas un retour au contrôle*.
+
+| Geste | Modale |
+|---|---|
+| Descente | **aucune** |
+| Montée vers *Hybrid* | sobre — « Passer en Hybrid ? » |
+| Montée vers *Autonom* | **la modale forte, inchangée** (voir plus bas) |
+
+La modale valide le **brouillon**, pas l'enregistrement : « Enregistrer » reste un second geste.
 
 #### 3. « Détail par type de contenu » — `<details>` replié par défaut
 
