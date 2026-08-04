@@ -1,8 +1,16 @@
-/* Effets du header Massimo : halo pulsant autour du cercle + particules de savoir
-   (étincelles qui jaillissent du livre, s'élèvent et scintillent). Couleurs du thème
-   néon (cyan) avec quelques touches chaudes (ambre/violet) pour la joie d'étudier. */
+/* Halo pulsant autour de l'emblème du header Massimo.
+ *
+ * ⚠️ CE FICHIER A ÉTÉ VIDÉ DE SES DEUX TIERS LE 2026-08-04, et c'est le sujet du chantier.
+ *
+ * Il portait `.hfx-cube` (22 cubes montants, 44 animations infinies) et `.hfx-node` / `.hfx-pulse`
+ * (le réseau SVG, 32 animations SMIL). Ce décor ne disait rien et coûtait ~38 éléments repeints à
+ * CHAQUE IMAGE, sur les 21 routes, pour toujours — `hfx-twinkle` animait `filter: drop-shadow`,
+ * qui n'est pas une propriété composable. Il est remplacé par la vraie galaxie de Massimo, qui se
+ * construit une fois puis se fige (`HeaderGalaxy.tsx`).
+ *
+ * Ce qui reste tient en deux animations, sur `opacity` et `transform` — composables, donc
+ * gratuites pour le compositeur. Elles ceignent l'emblème et ne le quittent pas. */
 
-/* — Halo autour du cercle — */
 .hfx-halo-glow,
 .hfx-halo-ring {
   position: absolute;
@@ -52,74 +60,10 @@
   }
 }
 
-/* — Réseau neuronal : nœuds + impulsions qui parcourent les lignes — */
-.hfx-node {
-  opacity: 0.7;
-  filter: drop-shadow(0 0 4px rgba(98, 199, 255, 0.8));
-}
-
-.hfx-pulse {
-  filter: drop-shadow(0 0 5px rgba(150, 220, 255, 0.9));
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hfx-pulse {
-    display: none;
-  }
-}
-
-/* — Cubes neuronaux (petits cubes néon qui montent du livre) — */
-.hfx-cube {
-  position: absolute;
-  background: var(--color);
-  border-radius: 22%;
-  box-shadow:
-    0 0 6px var(--color),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.55);
-  opacity: 0;
-  will-change: transform, opacity;
-  animation:
-    hfx-rise var(--dur) ease-out var(--delay) infinite,
-    hfx-twinkle var(--tw) ease-in-out var(--delay) infinite;
-}
-
-@keyframes hfx-rise {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
-  }
-  12% {
-    opacity: var(--peak);
-  }
-  72% {
-    opacity: var(--peak);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1)
-      rotate(var(--rot));
-  }
-}
-
-@keyframes hfx-twinkle {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 3px var(--color)) brightness(1);
-  }
-  50% {
-    filter: drop-shadow(0 0 9px var(--color)) brightness(1.7);
-  }
-}
-
 /* Respect de l'utilisateur : on fige tout si les animations sont réduites. */
 @media (prefers-reduced-motion: reduce) {
   .hfx-halo-glow,
-  .hfx-halo-ring,
-  .hfx-cube {
+  .hfx-halo-ring {
     animation: none;
-  }
-  .hfx-cube {
-    opacity: calc(var(--peak) * 0.5);
-    filter: drop-shadow(0 0 3px var(--color));
   }
 }
