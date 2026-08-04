@@ -359,24 +359,57 @@ function EventList({ run }: { run: JournalRun }) {
   );
 }
 
+/** Taille d'une page. Le serveur plafonne à 50 : demander plus ne rendrait pas plus. */
+const PAGE = 20;
+
 export function JournalPage() {
   const [runs, setRuns] = useState<JournalRun[]>([]);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<Target | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const reload = useCallback(async () => {
+  /** Recharge depuis le début, en gardant AUTANT de lots qu'on en avait déjà déplié.
+   *
+   * ⚠️ Rien ici ne concerne le veto : c'est le retrait d'une pièce qui rappelle cette fonction, et
+   * repartir à la première page renverrait Papa en haut du journal après chaque geste. On refait
+   * donc la même hauteur de lecture. Au-delà de 50, le serveur tronque — la fin de la liste se
+   * recharge alors d'un clic, ce qui est le pire cas et il est rare. */
+  const reload = useCallback(async (combien = PAGE) => {
     setError(null);
     try {
-      const data = await fetchJournal();
+      const data = await fetchJournal(Math.min(50, Math.max(PAGE, combien)), 0);
       setRuns(data.runs);
+      setTotal(data.total);
+      setHasMore(data.has_more);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Chargement du journal échoué");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  /** La page suivante EMPILE — un journal se lit de haut en bas, il ne se feuillette pas.
+   *
+   * ⚠️ Ce bouton répare un manque ANTÉRIEUR au chantier : `fetchJournal` était appelée sans
+   * argument, donc bornée à 20 lots, et `has_more` voyageait dans la réponse **sans être lu par
+   * personne**. Au-delà de vingt lots, le Journal était muet — et il ne disait pas qu'il l'était. */
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const data = await fetchJournal(PAGE, runs.length);
+      setRuns((precedents) => [...precedents, ...data.runs]);
+      setTotal(data.total);
+      setHasMore(data.has_more);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Chargement des lots plus anciens échoué");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [runs.length]);
 
   useEffect(() => {
     void reload();
@@ -398,14 +431,14 @@ export function JournalPage() {
     try {
       await removePiece(target.piece.kind, target.piece.id);
       setTarget(null);
-      await reload();
+      await reload(runs.length);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Retrait échoué");
       setTarget(null);
     } finally {
       setBusy(false);
     }
-  }, [target, reload]);
+  }, [target, reload, runs.length]);
 
   const cascade = target?.preview.cascade ?? {};
   const cascadeEntries = Object.entries(cascade).filter(([, ids]) => (ids?.length ?? 0) > 0);
@@ -481,6 +514,24 @@ export function JournalPage() {
           </section>
         ))}
       </div>
+
+      {/* ⚠️ Le bouton EMPILE, il ne feuillette pas : un journal se lit de haut en bas. Et il porte
+          ce qui RESTE, pas ce qui est chargé — « 4 plus anciens » répond à la question que Papa se
+          pose devant le bas de la liste. */}
+      {hasMore && (
+        <div className="mt-5 flex justify-center">
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="rounded-lg border border-white/15 px-4 py-2 text-sm text-papa-text hover:border-white/30 disabled:opacity-50"
+          >
+            {loadingMore
+              ? "Chargement…"
+              : `Voir les lots plus anciens (${total - runs.length} restant${total - runs.length > 1 ? "s" : ""})`}
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={target !== null}
