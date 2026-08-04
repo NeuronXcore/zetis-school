@@ -7,21 +7,27 @@
 
 ## État à la reprise
 
-**Chantier : « la leçon d'une notion » (ADR-0037) — CODÉ, VÉRIFIÉ EN VRAI, NON POUSSÉ.**
+**Chantier : « la leçon d'une notion » (ADR-0037) — COMPLET, CLOS ET MERGÉ.**
 Trois modules répondaient différemment à la même question ; il n'y a plus qu'une réponse.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Branche | `feat/lecon-canonique` — **jamais poussée**, jamais rebasée |
-| Base | `main` = `origin/main` = **`0643f2a`** (stable : rien n'a été mergé depuis) |
-| Tête | **volontairement non écrite** — `git log --oneline main..HEAD` (`WORKFLOW.md §5`) |
+| Squash | **`8447382`** — PR [#73](https://github.com/NeuronXcore/zetis-school/pull/73), mergée le 2026-08-04, 15 fichiers |
+| Branche | `feat/lecon-canonique` **supprimée**, en local et chez `origin` |
+| À pousser | **rien** |
 | Migration | **AUCUNE** — le défaut était une divergence de LECTURE, pas de modèle |
 | Cadrage | `docs/decisions/adr-0037-lecon-canonique-d-une-notion.md`, **§1 corrigé le jour même** |
 
-**Relancés après la dernière modification, tous verts** : **805 backend** (797 avant) ·
-**318 Papa** · **453 Massimo** · build Papa · typecheck Massimo.
+> ⚠️ **`main` n'est pas `8447382`** — le commit de 4bis (celui qui écrit ces lignes) passe
+> par-dessus le squash. `8447382` est le **squash de la PR**, qui ne bougera jamais ; la tête de
+> `main` bouge, donc elle n'est pas écrite ici (`WORKFLOW.md §5`).
+
+**Relancés APRÈS le merge, sur `main`, tous verts** : **805 backend** (797 avant le chantier) ·
+**318 Papa** · **453 Massimo** · build Papa.
+
+⚠️ **Ne rien ré-implémenter.** La branche n'existe plus ; tout ce qui suit est déjà sur `main`.
 
 ### Ce que ce chantier a livré
 
@@ -82,8 +88,16 @@ notions : **0 désaccord**.
 
 ### ▶ PROCHAIN PAS
 
-1. **`git push -u origin feat/lecon-canonique`, puis ouvrir la PR.**
-2. **Après le merge, l'étape 4bis** (`WORKFLOW.md §5`) — squash, branche supprimée, rien à pousser.
+1. **Rien n'est en attente côté Git.** PR #73 mergée (squash `8447382`), branche supprimée des deux
+   côtés, arbre propre. **Étape 4bis faite** — c'est ce fichier, pour la septième fois.
+2. **Ne rien ré-implémenter** de l'ADR-0037, et ne rien re-cadrer.
+3. **CHANTIER SUIVANT — rien n'est cadré.** Les dettes ci-dessous sont les candidates. ⚠️ Aucune n'a
+   de **manifestation observée**, contrairement à celle qu'on vient de solder — c'est le critère qui
+   a servi à choisir, et il vaut mieux qu'une intuition de gravité. Prochain numéro d'ADR libre :
+   **0038** (0033 reste réservé à l'indicateur d'autonomie de Massimo).
+4. 🔴 **Le dispositif est ARMÉ en dev** (section dédiée plus bas). C'est l'occasion d'**observer**
+   plutôt que de coder : le devoir qui fait produire un chapitre entier était « à rouvrir si
+   l'observation montre du gaspillage ». Elle est possible maintenant.
 
 ### ▶ DETTES OUVERTES
 
