@@ -7,97 +7,67 @@
 
 ## État à la reprise
 
-**Chantier : « la leçon d'une notion » (ADR-0037) — COMPLET, CLOS ET MERGÉ.**
-Trois modules répondaient différemment à la même question ; il n'y a plus qu'une réponse.
+**Chantier : le tiroir de navigation Massimo — COMPLET, CLOS ET MERGÉ.**
+L'interface de Massimo était inutilisable sur téléphone. Elle ne l'est plus.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Squash | **`8447382`** — PR [#73](https://github.com/NeuronXcore/zetis-school/pull/73), mergée le 2026-08-04, 15 fichiers |
-| Branche | `feat/lecon-canonique` **supprimée**, en local et chez `origin` |
+| Squash | **`69d5165`** — PR [#74](https://github.com/NeuronXcore/zetis-school/pull/74), mergée le 2026-08-04 |
+| Branche | `fix/sidebar-massimo-mobile` **supprimée**, en local et chez `origin` |
 | À pousser | **rien** |
-| Migration | **AUCUNE** — le défaut était une divergence de LECTURE, pas de modèle |
-| Cadrage | `docs/decisions/adr-0037-lecon-canonique-d-une-notion.md`, **§1 corrigé le jour même** |
+| Migration | **AUCUNE** — correctif CSS |
+| Cadrage | **aucun ADR** : c'est un correctif, et la décision de navigation existait déjà |
 
-> ⚠️ **`main` n'est pas `8447382`** — le commit de 4bis (celui qui écrit ces lignes) passe
-> par-dessus le squash. `8447382` est le **squash de la PR**, qui ne bougera jamais ; la tête de
-> `main` bouge, donc elle n'est pas écrite ici (`WORKFLOW.md §5`).
+> ⚠️ **`main` n'est pas `69d5165`** — le commit de 4bis passe par-dessus le squash. Celui-ci ne
+> bougera jamais ; la tête de `main` bouge, donc elle n'est pas écrite (`WORKFLOW.md §5`).
 
-**Relancés APRÈS le merge, sur `main`, tous verts** : **805 backend** (797 avant le chantier) ·
-**318 Papa** · **453 Massimo** · build Papa.
+**Relancés APRÈS le merge, sur `main`** : **805 backend · 458 Massimo · typecheck · build** — verts.
 
-⚠️ **Ne rien ré-implémenter.** La branche n'existe plus ; tout ce qui suit est déjà sur `main`.
+⚠️ **Le merge a rendu une erreur, et ce n'était pas grave.** `gh pr merge` a affiché « Pas possible
+d'avancer rapidement » : le merge distant avait réussi, seule la synchro locale échouait parce que
+`main` local portait deux commits de doc que le squash venait de réécrire. **Avant de recaler, les
+11 lignes « uniques » à `main` local ont été lues une par une** — c'étaient exactement les versions
+remplacées. Recaler par réflexe, sans cette lecture, est la façon dont on perd du travail.
 
 ### Ce que ce chantier a livré
 
-Un module **PLAT** `app/modules/lesson_resolution.py` (patron `provenance.py`) qui porte
-**l'ORDRE et le PÉRIMÈTRE** de « quelle est LA leçon de cette notion ? », et **aucun filtre de
-statut** — c'est là que les trois appelants diffèrent légitimement.
-
-⚠️ **Il ne pouvait PAS vivre dans `curriculum`** : `galaxy` et `production` l'importent tous deux,
-mais `curriculum` importe `ai`, dont `canonical_context` est l'un des appelants → cycle.
+Sous `md`, l'`aside` sort du flux (`fixed`) et coulisse derrière un bouton ☰. Au-dessus,
+`md:static md:translate-x-0` annule tout : **le rendu desktop/tablette ne change pas d'un pixel**.
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **L'ordre est celui de la GALAXIE** — `(updated_at, id)` décroissant, « la dernière touchée ».
-   Motif : c'est elle qui décrit ce que Massimo atteint, et produire ailleurs produit dans le vide.
-2. **Le substrat ne filtre PAS le statut de leçon.** La production doit voir un brouillon, sinon
-   **le palier 3 disparaît** (c'est là qu'`equip_notion` a le droit de rédiger puis valider un
-   cours). Un test le fige.
-3. **Le périmètre « année active » s'applique AUSSI à la production**, qui n'en avait aucun — elle
-   pouvait équiper la leçon de l'an dernier.
-4. **Par LOT d'abord.** `resolve_panoply` promet un nombre de requêtes constant ; une signature
-   mono-notion aurait fait passer la page matière de 18 requêtes à N.
-5. **Pas d'année active → du VIDE, jamais une exception.** Un 404 remonté d'un job RQ ne part vers
-   personne (ADR-0035).
-6. **`equip_notion` n'est pas modifié** : `_skill_lesson` délègue, rien d'autre ne bouge.
+1. **Un TIROIR, pas la bottom-nav** que `navigation.md` prescrit. Cette spec date de l'étape 2 et ne
+   connaît que **5 verbes** ; la navigation en porte **13**, chacune ajoutée par une décision
+   postérieure. L'appliquer **masquerait 8 sections sur mobile**.
+2. **Rien n'est retiré** : les 13 entrées et les 6 témoins de l'ADR-0030 restent.
+3. ⚠️ **Réconcilier la spec n'est PAS un cadrage** — l'**ADR-0024** l'a tranché il y a quatre
+   semaines (« l'existant prime »), et le chantier est rangé au `BACKLOG.md`. **Aucun ADR à écrire.**
 
-### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT — pas au cadrage
+### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
 
-1. **Le cadrage annonçait DEUX règles ; il y en avait TROIS.** Écrit la veille sans inventaire.
-2. **La signature du cadrage était mono-notion** — elle aurait cassé une propriété que
-   `resolve_panoply` promet. ADR corrigé en place.
-3. **Le périmètre passait par `_active_year_or_404`** — un 404 dans un worker. ADR corrigé.
-4. 🔴 **DEUX DE MES PROPRES TESTS PASSAIENT POUR LA MAUVAISE RAISON**, les deux démasqués par la
-   contre-épreuve et jamais par la relecture : le verrou d'année ne seedait aucune année *active*
-   (il passait par la garde, pas par le filtre) ; le test d'accord posait la leçon la plus
-   récemment touchée **en second**, donc avec l'id le plus haut, si bien que les deux tris
-   tombaient d'accord et qu'un appelant débranché ne cassait rien.
-5. **`select_notions` faisait UNE REQUÊTE PAR NOTION** — 31 allers-retours pour un chapitre dense,
-   avant même de produire. Corrigé au passage (une seule requête).
-6. **Deux fixtures posaient `chapter_id=1` sur un chapitre inexistant** (« SQLite n'applique pas
-   les FK ») : 4 tests rouges, aucun défaut de code.
+1. 🔴 **La sidebar n'avait aucun point de rupture** — `w-60 shrink-0`, 240 px pris sur 375, canevas
+   de galaxie à 170 px. Trouvé en vérifiant **autre chose**.
+2. ⚠️ **453 tests ne pouvaient pas le voir** : jsdom n'a pas de viewport, les classes Tailwind n'y
+   sont jamais évaluées. **Une classe CSS absente ne casse aucun test — elle casse l'écran.**
+3. **La spec prescrivait une solution qui aurait cassé trois ADR** — stop-on-blocker joué.
+4. **J'avais écrit que la réconciliation était « un cadrage touchant trois ADR »** : faux, l'ADR-0024
+   l'avait déjà tranchée. Corrigé — la formulation aurait fait rédiger un ADR inutile.
 
-> Détail et remèdes : `TROUBLESHOOTING.md`, chantier `feat/lecon-canonique`.
-
-### Vérifié EN VRAI (Postgres de dev, 278 notions)
-
-| | |
-|---|---|
-| Leçon **inchangée** | **273** (98 %) |
-| Leçon **changée** | **5** — exactement les notions à deux leçons |
-| Devenue **inéligible** | **0** — le périmètre d'année ne coûte rien ici |
-
-Sur les 5 : **4 gagnent un cours, 1 neutre, 0 en perd**. Le cas observé (« Discours direct »)
-retient désormais la leçon 5 et redevient **éligible**. Accord des trois lecteurs sur les 278
-notions : **0 désaccord**.
-
-> ⚠️ **Ce contrôle chiffré est à refaire pour tout chantier qui change une règle de sélection.**
-> Dix minutes, et il remplace une conviction par un nombre.
+> Détail et remèdes : `TROUBLESHOOTING.md`, chantier `fix/sidebar-massimo-mobile`.
 
 ### ▶ PROCHAIN PAS
 
-1. **Rien n'est en attente côté Git.** PR #73 mergée (squash `8447382`), branche supprimée des deux
-   côtés, arbre propre. **Étape 4bis faite** — c'est ce fichier, pour la septième fois.
-2. **Ne rien ré-implémenter** de l'ADR-0037, et ne rien re-cadrer.
-3. **CHANTIER SUIVANT — rien n'est cadré.** Les dettes ci-dessous sont les candidates. ⚠️ Aucune n'a
-   de **manifestation observée**, contrairement à celle qu'on vient de solder — c'est le critère qui
-   a servi à choisir, et il vaut mieux qu'une intuition de gravité. Prochain numéro d'ADR libre :
-   **0038** (0033 reste réservé à l'indicateur d'autonomie de Massimo).
-4. 🔴 **Le dispositif est ARMÉ en dev** (section dédiée plus bas). C'est l'occasion d'**observer**
-   plutôt que de coder : le devoir qui fait produire un chapitre entier était « à rouvrir si
-   l'observation montre du gaspillage ». Elle est possible maintenant.
+1. **Rien n'est en attente côté Git.** PR #74 mergée, branche supprimée, arbre propre. **4bis
+   faite** — c'est ce fichier, pour la huitième fois.
+2. 🔴 **La moitié de la dette galaxie reste ouverte, et elle a besoin de TOI** : la tenue sur un
+   **vrai iPhone**. Un viewport n'est pas un appareil. C'est la seule dette que l'agent ne peut pas
+   solder seul.
+3. **CHANTIER SUIVANT — rien n'est cadré.** Les dettes ci-dessous sont les candidates ; la seule à
+   **manifestation observée** vient d'être soldée. Prochain numéro d'ADR libre : **0038**
+   (0033 reste réservé à l'indicateur d'autonomie de Massimo).
+
 
 ### ▶ DETTES OUVERTES
 

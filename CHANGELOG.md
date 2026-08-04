@@ -1,5 +1,44 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.42.0 — Massimo peut enfin ouvrir ZETIS sur un téléphone
+
+Date : 2026-08-04 · branche `fix/sidebar-massimo-mobile` · aucun ADR (correctif)
+
+**Trouvé en allant vérifier autre chose** : la dette « la galaxie n'a jamais été vue sur trois
+appareils », exhumée de l'historique de `MEMORY.md` le matin même. Au premier viewport mobile,
+**ce n'est pas la galaxie qui a cassé**.
+
+La sidebar portait `w-60 shrink-0` **sans aucun point de rupture** — largeur fixe de 240 px, jamais
+repliée. Sur un écran de 375 px : **135 px** de contenu pour Massimo, et un canevas de galaxie de
+**170 × 800**, un ruban vertical. `CLAUDE.md` exige pourtant une version iPhone.
+
+⚠️ **Pourquoi 453 tests ne l'avaient jamais vu** : jsdom n'a pas de viewport, les classes Tailwind
+n'y sont jamais évaluées, et aucun test ne rendait le layout à une largeur donnée. **Une classe CSS
+absente ne casse aucun test — elle casse l'écran.**
+
+⚠️ **La spec prescrivait la solution, et l'appliquer aurait cassé trois ADR.**
+`docs/frontend-massimo/navigation.md` annonce une **bottom-nav des 5 verbes** sur iPhone — décision
+de l'étape 2, jamais construite. Mais la navigation porte **13 entrées**, chacune ajoutée par une
+décision postérieure : Agenda en position 2 (ADR-0025, « contre-intuitif et assumé »), « Ma Galaxie »
+(addendum ADR-0024 §A, qui **interdit** d'en faire un 6ᵉ onglet), six témoins (ADR-0030,
+test-verrou). **Appliquer la lettre de la spec aurait masqué 8 sections sur mobile.**
+
+**Correctif retenu : un tiroir.** Sous `md`, l'`aside` sort du flux (`fixed`) et coulisse derrière
+un bouton ☰ ; `md:static md:translate-x-0` annule tout au-dessus — **le rendu desktop/tablette ne
+change pas d'un pixel**. Rien n'est retiré, aucun ADR contredit, et l'écart avec la spec est
+consigné dans la spec elle-même.
+
+**Vérifié à l'écran** : fermé → `x = -240` et contenu sur 375 px ; ouvert → `x = 0` avec les
+13 entrées et les 6 témoins intacts ; voile touché → refermé **et retiré du DOM**.
+
+**La dette d'origine ne se referme qu'à moitié** : **202 nœuds** (185 notions) à **74 FPS**, zéro
+erreur console, lisible en desktop et tablette. Mais **un viewport n'est pas un iPhone** — ni Safari
+iOS, ni son GPU — et **185 notions n'est pas « plusieurs centaines »**. La moitié *performance*
+exige un appareil réel.
+
+**453 → 458 tests Massimo**, typecheck et build verts. Aucun test existant modifié.
+
+
 ## 0.41.0 — « la leçon d'une notion » : trois réponses, une seule désormais
 
 Date : 2026-08-03 · branche `feat/lecon-canonique` · ADR-0037
