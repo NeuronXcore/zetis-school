@@ -447,3 +447,48 @@ class FakeTranscriptFetcher:
         if not self._available:
             raise TranscriptError("Transcription désactivée pour cette vidéo.")
         return self._text, self._language
+
+
+class FakeQueue:
+    """File RQ de test : elle ENREGISTRE, elle n'enfile rien — et surtout elle ne parle à aucun Redis.
+
+    ⚠️ **Elle existe parce que la défense d'avant était opt-in.** `test_capsule_render` patchait
+    `enqueue_render` à la main, cinq fois ; le jour où un test a posté sur
+    `/api/production/runs/from-request` sans y penser, **18 jobs `run_production(1)` sont partis
+    dans la vraie file de dev** — constaté le 2026-08-04, récidive des 35 purgés le 2026-08-03.
+    Ils échouaient (`run 1` n'existe pas en base) ; le jour où `run 1` existe, un worker rejoue un
+    vrai lot autant de fois qu'il y a de jobs.
+
+    ⚠️ **Le point de greffe est la FABRIQUE de file, jamais `enqueue_*`.** `runs_router` importe
+    `enqueue_production` au niveau module : le nom y est lié à l'import, donc patcher
+    `app.core.queue.enqueue_production` ne rebinde rien chez lui — un garde-fou vert et sans effet.
+    `enqueue_production`, lui, résout `production_queue` dans les globals de SON module **à
+    l'appel** : remplacer la fabrique attrape tous les appelants, quelle que soit la façon dont ils
+    ont importé. Voir le fixture `file_rq_factice` de `conftest.py`.
+    """
+
+    def __init__(self) -> None:
+        # `(func, args)` — de quoi affirmer ce qui AURAIT été enfilé, sans rien exécuter.
+        self.enqueued: list[tuple] = []
+
+    def _job(self):
+        from types import SimpleNamespace
+
+        # `enqueue_production` rend `job.id` : sans cet attribut, la route tomberait en test pour
+        # une raison qui n'a rien à voir avec ce qu'elle teste.
+        return SimpleNamespace(id=f"fake-job-{len(self.enqueued)}")
+
+    def enqueue(self, func, *args, **kwargs):
+        self.enqueued.append((func, args))
+        return self._job()
+
+    def enqueue_in(self, delay, func, *args, **kwargs):
+        self.enqueued.append((func, args))
+        return self._job()
+
+    @property
+    def jobs(self) -> list:
+        return []
+
+    def fetch_job(self, job_id: str):
+        return None
