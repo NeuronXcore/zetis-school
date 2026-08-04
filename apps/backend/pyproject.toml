@@ -5,6 +5,14 @@ description = "ZETIS backend API (FastAPI)"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
+    # Déclaré alors qu'AUCUN module n'importe `starlette` : le code fait
+    # `from fastapi import status`, mais ces constantes sont celles de starlette, que fastapi
+    # se contente de ré-exporter. Le plancher porte donc sur l'API réellement utilisée, pas
+    # sur son emballage — et il ne dépend pas de la version de fastapi qui la tire.
+    # 0.48 est MESURÉ, pas supposé : 0.47.3 n'a ni HTTP_422_UNPROCESSABLE_CONTENT ni
+    # HTTP_413_CONTENT_TOO_LARGE, 0.48.0 les a. Sous ce plancher, l'app casse à l'IMPORT
+    # (AttributeError), pas au premier appel.
+    "starlette>=0.48",
     "uvicorn[standard]>=0.32",
     "pydantic-settings>=2.6",
     "pyjwt>=2.9",
