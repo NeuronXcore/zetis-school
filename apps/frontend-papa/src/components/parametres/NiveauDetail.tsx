@@ -44,14 +44,10 @@ function lignesPour(autonomy: Autonomy, preset: AutonomyPreset | null): Ligne[] 
 export function NiveauDetail({
   autonomy,
   preset,
-  avecConstat = true,
 }: {
   autonomy: Autonomy;
   /** Le niveau REGARDÉ — le brouillon en cours, ou `null` pour « Sur mesure ». */
   preset: AutonomyPreset | null;
-  /** Le pied de panneau — constat daté et note hors-matrice. `false` dans une modale : ce sont des
-   *  éléments de PAGE, pas de confirmation, et ils y allongeaient l'écran sans rien décider. */
-  avecConstat?: boolean;
 }) {
   const lignes = lignesPour(autonomy, preset);
   const vivantes = lignes.filter((l) => l.bouge);
@@ -121,8 +117,6 @@ export function NiveauDetail({
         </>
       )}
 
-      {avecConstat && (
-        <>
       {/* ⚠️ **LE SEUL CHIFFRE DE LA PAGE**, et il ne suit PAS le niveau sélectionné. Daté, attaché
           à une observation, non recalculé : le faire varier avec le brouillon en ferait une
           projection déguisée en fait, et un compteur vivant ferait de ce bloc un reproche
@@ -140,8 +134,6 @@ export function NiveauDetail({
         Hors de ce tableau : les <b className="text-papa-text/80">quiz</b> sont servis sans
         relecture, par doctrine (ADR-0014).
       </p>
-        </>
-      )}
     </section>
   );
 }

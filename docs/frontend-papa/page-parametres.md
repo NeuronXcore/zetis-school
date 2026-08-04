@@ -123,6 +123,10 @@ Choisir un niveau ne fait qu'**afficher** ce qu'il déciderait : aucune friction
 trois librement. C'est **« Enregistrer »** qui ouvre la modale, et elle montre **ce qui va être
 écrit**, avec **l'avatar du niveau visé**.
 
+Son corps est l'**écart** — un `avant → après` sur les seules classes qui bougent — et non le
+panneau, qui reste affiché derrière elle. ⚠️ **On ne confirme pas ce qui ne change pas** : les
+classes verrouillées n'y figurent pas.
+
 ⚠️ **Toute écriture se confirme, descente comprise.** *« On ne freine pas un retour au contrôle »*
 survit dans le **TON**, pas dans l'absence de modale : une descente s'annonce « vous rendent du
 contrôle », sans avertissement. Un « Enregistrer » qui ouvrirait parfois une modale serait moins

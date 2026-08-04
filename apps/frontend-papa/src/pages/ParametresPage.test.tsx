@@ -464,10 +464,13 @@ describe("ParametresPage", () => {
       fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
       const dialogue = await screen.findByRole("dialog");
       expect(dialogue).toHaveTextContent(`Enregistrer le niveau ${PRESET_LABEL.semi} ?`);
-      // Son corps EST le panneau de la page : Papa confirme ce qu'il a sous les yeux.
-      expect(within(dialogue).getByRole("listitem", { name: "Dérivés inertes" })).toHaveTextContent(
-        LEVEL_LABEL[3],
-      );
+      // 🔒 Son corps est l'ÉCART, pas le panneau : avant ET après, la seule chose que la page ne
+      // dit pas. Reprendre le panneau ferait répéter à la modale ce qui reste affiché derrière.
+      const ligne = within(dialogue).getByRole("listitem", { name: "Dérivés inertes" });
+      expect(ligne).toHaveTextContent(LEVEL_LABEL[2]); // avant
+      expect(ligne).toHaveTextContent(LEVEL_LABEL[3]); // après
+      // Et rien sur ce qui ne change pas : on ne confirme pas l'immobile.
+      expect(within(dialogue).queryByText(/Ce qu'aucun niveau ne change/)).toBeNull();
       // 🔒 Et le VISAGE du niveau visé — le même que sur la carte et dans la sidebar.
       expect(dialogue.querySelector("img")?.getAttribute("src")).toContain("zetis-regime-semi");
     });

@@ -115,9 +115,18 @@ serait **moins prévisible** qu'un bouton qui confirme toujours.
 | Montée du **cours** vers « ZETIS sert » | **la modale forte, inchangée** — « ⚠️ Vous retirez le dernier contrôle humain » |
 
 Chaque modale porte **l'avatar du niveau visé** — le même que sur la carte et dans la sidebar :
-Papa reconnaît ce qu'il s'apprête à devenir avant de lire la phrase. Elle ne reprend PAS le pied de
-panneau (constat daté, note hors-matrice) : ce sont des éléments de **page**, ils allongeaient
-l'écran sans rien décider.
+Papa reconnaît ce qu'il s'apprête à devenir avant de lire la phrase.
+
+**Son corps est l'ÉCART, pas le panneau.** La modale reprenait `NiveauDetail` — donc elle répétait
+mot pour mot ce qui restait affiché **derrière elle**. Elle montre désormais, pour les seules
+classes qui bougent, un **avant → après** : la seule chose que la page ne dit pas, puisque le
+panneau n'affiche que l'état cible.
+
+⚠️ **On ne confirme pas ce qui ne change pas.** Les classes verrouillées et celles qui restent en
+place n'apparaissent nulle part dans la modale : elles sont du contexte de page.
+
+⚠️ L'écart se calcule contre le **serveur**, pas contre un préréglage : le brouillon peut venir des
+cartes **ou** du détail classe par classe, et c'est l'écriture réelle qu'on met sous les yeux.
 
 La modale forte ne se dilue pas dans la nouvelle : elle est la seule qui garde au dossier la
 révocation d'une décision écrite (le gel d'A1). Lui donner le même ton qu'à un passage en *Hybrid*

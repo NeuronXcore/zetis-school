@@ -34,6 +34,7 @@ import {
 } from "../../lib/settings";
 import { REGIME_AVATAR, declencheurGlyphe } from "../../lib/regimeVisuals";
 import { ClassRow } from "./ClassRow";
+import { EcartNiveau } from "./EcartNiveau";
 import { NiveauDetail } from "./NiveauDetail";
 import { PresetCards } from "./PresetCards";
 
@@ -376,6 +377,9 @@ export function AutonomyPanel() {
             <b className="text-papa-text">ça ne retire pas ce qui est déjà servi</b>.
           </li>
         </ul>
+        {/* Son poids EST son message et ne s'allège pas — mais elle gagne l'écart, comme les
+            autres : ce qu'on signe doit être sous les yeux. */}
+        {autonomy && <EcartNiveau autonomy={autonomy} draft={draft} />}
       </ConfirmDialog>
 
       {/* La modale ORDINAIRE des montées (addendum §8.4). `tone="default"` — délibérément sobre :
@@ -423,9 +427,10 @@ export function AutonomyPanel() {
               </>
             )}
           </p>
-          {/* Le corps EST le panneau de la page : Papa confirme ce qu'il a sous les yeux, pas une
-              phrase qui le résume. */}
-          <NiveauDetail autonomy={autonomy} preset={preset} avecConstat={false} />
+          {/* ⚠️ L'ÉCART, pas le panneau. La modale reprenait `NiveauDetail` — donc elle répétait
+              mot pour mot ce qui restait affiché derrière elle. Elle dit maintenant la seule
+              chose que la page ne dit pas : l'état d'AVANT. */}
+          <EcartNiveau autonomy={autonomy} draft={draft} />
         </ConfirmDialog>
       )}
     </section>
