@@ -90,9 +90,21 @@ export function JournalFilterBar({
   const actif = filtreActif(filtre);
 
   return (
+    // Le CONTENEUR MAÎTRE porte l'or — pas la rangée « Trier par », qui n'en est qu'une
+    // subdivision. C'est ce bloc entier qui commande ce que le journal montre et dans quel ordre,
+    // et c'est lui qu'on doit trouver du regard avant de chercher pourquoi la liste est courte.
+    //
+    // ⚠️ **L'or et l'ambre sont voisins, et l'ambre est déjà pris** (l'avertissement « plus
+    // chronologique », qui vit à l'intérieur). Ils sont séparés par la MATIÈRE, pas par la teinte :
+    // l'or est halé (dégradé + deux ombres portées), l'alerte reste plate. Deux aplats côte à côte
+    // auraient été indiscernables.
+    //
+    // ⚠️ **Le halo ne bat pas.** Dans ce dépôt, une animation permanente PORTE de l'information
+    // (le halo de régime en sidebar, gradué par le palier). Faire clignoter un cadre qui ne signale
+    // rien banaliserait le seul endroit où le mouvement veut dire quelque chose.
     <section
       aria-label="Filtrer et trier le journal"
-      className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 pb-3 pt-3"
+      className="mb-4 rounded-xl border border-[rgba(212,175,55,0.7)] bg-gradient-to-b from-[rgba(212,175,55,0.09)] to-[rgba(212,175,55,0.02)] px-4 pb-3 pt-3 shadow-[0_0_0_1px_rgba(212,175,55,0.18),0_0_28px_rgba(212,175,55,0.22)]"
     >
       {/* ⚠️ Pas de libellé sur cette rangée : avec lui, les pastilles passaient à la ligne et la
           rangée valait 116 px au lieu de 47. « Toutes » en tête dit déjà de quoi il s'agit. */}
@@ -224,21 +236,11 @@ export function JournalFilterBar({
         </button>
       </div>
 
-      {/* Le tri est ENCADRÉ : il ne filtre rien, il réordonne — le confondre avec les pastilles
-          au-dessus ferait chercher un critère là où il n'y en a pas.
-
-          ⚠️ **L'or et l'ambre sont voisins, et l'ambre est déjà pris** (l'avertissement « plus
-          chronologique », qui vit DANS ce cadre). Ils sont séparés par la MATIÈRE, pas par la
-          teinte : l'or est **halé** (deux ombres portées, un dégradé), l'alerte reste **plate**.
-          Un aplat doré et un aplat ambre côte à côte auraient été indiscernables.
-
-          ⚠️ **Le halo ne bat pas.** Dans ce dépôt, une animation permanente PORTE de l'information
-          (le halo de régime en sidebar, gradué par le palier). Faire clignoter un cadre qui ne
-          signale rien banaliserait le seul endroit où le mouvement veut dire quelque chose. */}
-      <div
-        className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-[rgba(212,175,55,0.55)] bg-gradient-to-r from-[rgba(212,175,55,0.10)] to-[rgba(212,175,55,0.03)] px-3 py-2 text-xs shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_0_20px_rgba(212,175,55,0.16)]"
-      >
-        <span className={`${ETIQUETTE} text-[#e8c86a]`}>Trier par</span>
+      {/* Le tri est une SUBDIVISION du bloc, pas un bloc à part : c'est le conteneur maître qui
+          porte l'or. Lui donner son propre cadre en ferait un troisième niveau de lecture entre
+          les critères et la ligne de synthèse. */}
+      <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+        <span className={ETIQUETTE}>Trier par</span>
         <select
           aria-label="Trier par"
           value={filtre.tri}

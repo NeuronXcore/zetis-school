@@ -36,7 +36,16 @@
   .scope b{color:var(--text)}
 
   /* ── barre de filtres ─────────────────────────── */
-  .filters{margin-top:16px;border:1px solid var(--border);background:var(--surface);border-radius:14px;padding:14px 16px 12px}
+  /* Le CONTENEUR MAÎTRE porte l'or — c'est lui qui commande ce que le journal montre et dans quel
+     ordre, et c'est lui qu'on doit trouver du regard avant de chercher pourquoi la liste est courte.
+     ⚠️ L'or et l'ambre sont voisins, et l'ambre est déjà pris (l'avertissement « plus
+     chronologique », à l'intérieur). Séparés par la MATIÈRE, pas par la teinte : l'or est halé
+     (dégradé + deux ombres), l'alerte reste plate.
+     ⚠️ Le halo ne bat pas : ici une animation permanente PORTE de l'information (halo de régime en
+     sidebar). Faire clignoter un cadre qui ne signale rien la banaliserait. */
+  .filters{margin-top:16px;border:1px solid rgba(212,175,55,.7);border-radius:14px;padding:14px 16px 12px;
+    background:linear-gradient(180deg,rgba(212,175,55,.09),rgba(212,175,55,.02)),var(--surface);
+    box-shadow:0 0 0 1px rgba(212,175,55,.18), 0 0 28px rgba(212,175,55,.22)}
   .frow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--border)}
   .frow:last-of-type{border-bottom:none}
   /* Les CONTRÔLES se replient ; les critères ACTIFS, eux, restent toujours affichés (.fsum).
@@ -64,18 +73,9 @@
   .tag .x:hover{opacity:1}
   .spacer{flex:1}
 
-  /* Le tri, ENCADRÉ D'OR — il ne se confond pas avec les filtres : il ne filtre rien, il réordonne.
-     ⚠️ L'or et l'ambre sont voisins, et l'ambre est déjà pris (l'avertissement « plus
-     chronologique », qui vit DANS ce cadre). Ils sont séparés par la MATIÈRE, pas par la teinte :
-     l'or est HALÉ (deux ombres portées + un dégradé), l'alerte reste PLATE. Deux aplats côte à
-     côte auraient été indiscernables.
-     ⚠️ Le halo ne bat pas : dans ce dépôt, une animation permanente PORTE de l'information (le
-     halo de régime en sidebar). Faire clignoter un cadre qui ne signale rien la banaliserait. */
-  .sortline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:10px;padding:9px 13px;
-    font-size:12px;border:1px solid rgba(212,175,55,.55);border-radius:11px;
-    background:linear-gradient(90deg,rgba(212,175,55,.10),rgba(212,175,55,.03));
-    box-shadow:0 0 0 1px rgba(212,175,55,.12), 0 0 20px rgba(212,175,55,.16)}
-  .sortline .flabel{color:#e8c86a}
+  /* Le tri est une SUBDIVISION du bloc, pas un bloc à part : c'est le conteneur maître qui porte
+     l'or. Lui donner son propre cadre en ferait un troisième niveau de lecture. */
+  .sortline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 0 0;font-size:12px}
   .invert{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:8px;padding:6px 9px;font-size:11.5px;cursor:pointer}
   .invert:hover{color:var(--text)}
   .warnsort{display:none;align-items:center;gap:8px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.07);color:#fcd34d;border-radius:9px;padding:6px 11px;font-size:11.5px;line-height:1.4}
@@ -389,13 +389,16 @@
           <br>⚠️ <b>Corrige une première version de cette maquette</b>, qui dessinait la liste des
           pièces toujours visible : c'était l'état d'avant le 2026-08-04, où le lot #3 alignait
           <b>33 pièces</b> dépliées et noyait tous les autres lots.</li>
-        <li><b>Le tri est ENCADRÉ D'OR.</b> Il ne filtre rien, il réordonne — le confondre avec les
-          pastilles au-dessus ferait chercher un critère là où il n'y en a pas. Un cadre <b>vert</b>
-          l'aurait fait lire comme un filtre de plus (le vert dit « ce filtre est actif »).
+        <li><b>Le CONTENEUR MAÎTRE est encadré d'or</b> — le bloc entier qui porte les critères, la
+          ligne de synthèse, l'expander « Plus de filtres » et le tri. Pas ses subdivisions : c'est
+          ce bloc qui commande ce que le journal montre et dans quel ordre, et c'est lui qu'on doit
+          trouver du regard avant de chercher pourquoi la liste est courte. Encadrer la seule
+          rangée « Trier par » aurait créé un troisième niveau de lecture entre les critères et la
+          synthèse.
           ⚠️ <b>L'or et l'ambre sont voisins, et l'ambre est déjà pris</b> — l'avertissement « plus
-          chronologique » vit <i>dans</i> ce cadre. Ils sont donc séparés par la <b>matière</b> et
-          non par la teinte : l'or est <b>halé</b> (deux ombres portées, un dégradé), l'alerte reste
-          <b>plate</b>. Changez la clé de tri ci-dessus pour les voir cohabiter.
+          chronologique » vit <i>à l'intérieur</i>. Ils sont donc séparés par la <b>matière</b> et
+          non par la teinte : l'or est <b>halé</b> (dégradé + deux ombres portées), l'alerte reste
+          <b>plate</b>. Changez la clé de tri pour les voir cohabiter.
           ⚠️ <b>Le halo ne bat pas.</b> Dans ce dépôt, une animation permanente <i>porte</i> de
           l'information — le halo de régime en sidebar, gradué par le palier. Faire clignoter un
           cadre qui ne signale rien banaliserait le seul endroit où le mouvement veut dire
