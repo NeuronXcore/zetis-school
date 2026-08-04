@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { type Autonomy, type AutonomyClass, type AutonomyLevel } from "@zetis/types";
+import { type Autonomy, type AutonomyClass, type AutonomyPalier } from "@zetis/types";
 
-import { LEVEL_LABEL } from "../../lib/settings";
+import { PALIER_LABEL } from "../../lib/settings";
 import { EcartNiveau } from "./EcartNiveau";
 
 const A0A = "zetis_autonomy_a0a_derives";
@@ -13,8 +13,8 @@ function cls(
   key: string,
   code: string,
   label: string,
-  value: AutonomyLevel,
-  choices: AutonomyLevel[],
+  value: AutonomyPalier,
+  choices: AutonomyPalier[],
 ): AutonomyClass {
   return { key, code, label, value, choices, locked: choices.length === 1, reason: null };
 }
@@ -33,8 +33,8 @@ function autonomy(): Autonomy {
 }
 
 /** Le brouillon complet, avec les écarts demandés. */
-function draft(over: Record<string, AutonomyLevel> = {}) {
-  return { [A0A]: 3, [A1]: 2, [A4]: 0, ...over } as Record<string, AutonomyLevel>;
+function draft(over: Record<string, AutonomyPalier> = {}) {
+  return { [A0A]: 3, [A1]: 2, [A4]: 0, ...over } as Record<string, AutonomyPalier>;
 }
 
 describe("EcartNiveau", () => {
@@ -53,8 +53,8 @@ describe("EcartNiveau", () => {
     render(<EcartNiveau autonomy={autonomy()} draft={draft({ [A0A]: 2 })} />);
     const ligne = screen.getByRole("listitem", { name: "Dérivés inertes" });
 
-    expect(ligne).toHaveTextContent(LEVEL_LABEL[3]); // avant
-    expect(ligne).toHaveTextContent(LEVEL_LABEL[2]); // après
+    expect(ligne).toHaveTextContent(PALIER_LABEL[3]); // avant
+    expect(ligne).toHaveTextContent(PALIER_LABEL[2]); // après
   });
 
   it("🔒 compare au SERVEUR, pas à un préréglage", () => {
@@ -63,7 +63,7 @@ describe("EcartNiveau", () => {
     render(<EcartNiveau autonomy={autonomy()} draft={draft({ [A1]: 3 })} />);
 
     expect(screen.getByRole("listitem", { name: "Rédaction de cours" })).toHaveTextContent(
-      LEVEL_LABEL[3],
+      PALIER_LABEL[3],
     );
     expect(screen.queryByRole("listitem", { name: "Dérivés inertes" })).toBeNull();
   });

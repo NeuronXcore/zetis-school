@@ -8,7 +8,7 @@
 // ⚠️ Une seule table pour deux surfaces, et c'est la décision : la sidebar montre le visage qu'on
 // vient de choisir sur la page. Deux tables divergeraient au premier ajout de régime, et Papa
 // choisirait un visage pour en voir un autre.
-import { type AutonomyPreset } from "@zetis/types";
+import { type AutonomyNiveau } from "@zetis/types";
 
 import neutre from "../assets/brand/zetis-avatar_128.png";
 import manuel from "../assets/brand/zetis-regime-manuel_128.png";
@@ -18,7 +18,7 @@ import autonome from "../assets/brand/zetis-regime-autonome_128.png";
 /** Quatre visages pour six états : chargement, erreur et « Sur mesure » partagent le NEUTRE, qui
  *  ne désigne aucun régime. C'est ce qui rend l'addendum §7.4 tenable — il n'existe aucune image
  *  « par défaut » qui ressemblerait à un régime. */
-export type Visage = AutonomyPreset | "neutre";
+export type Visage = AutonomyNiveau | "neutre";
 
 export const REGIME_AVATAR: Record<Visage, string> = { manuel, semi, autonome, neutre };
 

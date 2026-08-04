@@ -5,7 +5,7 @@
 // 1. **CALCULÉ, jamais rédigé.** Chaque ligne compose deux données que le serveur envoie déjà :
 //    `cls.label` et le libellé du palier que le niveau lui donnerait. Écrire une prose
 //    *classe × niveau* recopierait la matrice du §G.2 **sous une forme que le serveur ne peut pas
-//    refuser** — un 422 protège une valeur, jamais un texte. `PRESET_LEVELS` n'est toléré que
+//    refuser** — un 422 protège une valeur, jamais un texte. `PALIERS_PAR_NIVEAU` n'est toléré que
 //    parce que le serveur arbitre quand même ; un miroir en prose n'aurait pas ce filet.
 // 2. **Les quatre classes verrouillées sont MONTRÉES, pas tues.** Un préréglage n'écrit que deux
 //    clés — les taire promettrait une richesse que la donnée n'a pas, les noyer parmi les autres
@@ -14,29 +14,29 @@
 // ⚠️ Ce panneau **n'interroge rien** : `autonomy` est déjà en main. Il calcule, mais sur des
 // données acquises — il ne peut donc pas dériver en compteur, ce que le §F.2 interdit. C'est la
 // nuance qui a permis de remplacer l'ancien bloc statique « Où vous en êtes aujourd'hui ».
-import { type Autonomy, type AutonomyClass, type AutonomyPreset } from "@zetis/types";
+import { type Autonomy, type AutonomyClass, type AutonomyNiveau } from "@zetis/types";
 
-import { LEVEL_LABEL, levelsForPreset } from "../../lib/settings";
+import { PALIER_LABEL, paliersPourNiveau } from "../../lib/settings";
 
 /** ⚠️ `palier`, pas `niveau` — convention de l'addendum §8.0 : un NIVEAU est l'un des trois
  *  régimes, un PALIER est le degré 0-3 d'une classe. Ce fichier les avait confondus : le titre
  *  disait « ce que ce niveau décide » pendant que la variable juste en dessous portait un palier. */
 type Ligne = { cls: AutonomyClass; palier: AutonomyClass["value"]; bouge: boolean };
 
-/** Ce que le niveau `preset` ferait de chaque classe.
+/** Ce que le niveau `niveau` ferait de chaque classe.
  *
  *  ⚠️ Deux sources, deux rôles, et les confondre serait un défaut :
  *  - **le GROUPE vient du serveur** (`cls.locked`) — c'est lui qui décide ce qui est réglable, et
  *    le jour où il rouvre une classe elle passe dans le groupe vivant *sans qu'une ligne d'ici
  *    change* (même contrat que `ClassRow`) ;
- *  - **la VALEUR vient du préréglage** (`levelsForPreset`), qui ne couvre que les classes qu'un
+ *  - **la VALEUR vient du préréglage** (`paliersPourNiveau`), qui ne couvre que les classes qu'un
  *    régime a le DROIT d'écrire — les verrouillées n'y sont jamais, « sous peine d'en faire une
  *    porte dérobée sur une décision figée » (`lib/settings.ts`). Elles retombent sur `cls.value`.
  *
- *  Prendre `levelsForPreset` comme critère de groupe ferait basculer A0a et A1 chez les
- *  verrouillées dès que `preset` est nul (« Sur mesure ») — alors qu'elles restent réglables. */
-function lignesPour(autonomy: Autonomy, niveau: AutonomyPreset | null): Ligne[] {
-  const cibles = niveau ? levelsForPreset(niveau) : {};
+ *  Prendre `paliersPourNiveau` comme critère de groupe ferait basculer A0a et A1 chez les
+ *  verrouillées dès que `niveau` est nul (« Sur mesure ») — alors qu'elles restent réglables. */
+function lignesPour(autonomy: Autonomy, niveau: AutonomyNiveau | null): Ligne[] {
+  const cibles = niveau ? paliersPourNiveau(niveau) : {};
   return autonomy.classes.map((cls) => ({
     cls,
     palier: cibles[cls.key] ?? cls.value,
@@ -46,13 +46,13 @@ function lignesPour(autonomy: Autonomy, niveau: AutonomyPreset | null): Ligne[] 
 
 export function NiveauDetail({
   autonomy,
-  preset,
+  niveau,
 }: {
   autonomy: Autonomy;
   /** Le niveau REGARDÉ — le brouillon en cours, ou `null` pour « Sur mesure ». */
-  preset: AutonomyPreset | null;
+  niveau: AutonomyNiveau | null;
 }) {
-  const lignes = lignesPour(autonomy, preset);
+  const lignes = lignesPour(autonomy, niveau);
   const vivantes = lignes.filter((l) => l.bouge);
   const figees = lignes.filter((l) => !l.bouge);
 
@@ -86,7 +86,7 @@ export function NiveauDetail({
             key={palier}
             className="palier-valeur shrink-0 rounded-lg bg-papa-accent/10 px-2.5 py-1 text-[11.5px] font-semibold text-emerald-300"
           >
-            {LEVEL_LABEL[palier]}
+            {PALIER_LABEL[palier]}
           </span>
         </div>
       ))}
@@ -112,7 +112,7 @@ export function NiveauDetail({
                 {cls.reason && <span className="block text-[11px] leading-relaxed">{cls.reason}</span>}
               </span>
               <span className="shrink-0 rounded-lg border border-dashed border-papa-border px-2.5 py-1 text-[11px] text-papa-muted">
-                {LEVEL_LABEL[palier]}
+                {PALIER_LABEL[palier]}
               </span>
             </div>
           ))}

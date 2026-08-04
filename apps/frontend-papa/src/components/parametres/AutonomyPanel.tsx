@@ -21,14 +21,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, ConfirmDialog } from "@zetis/ui";
-import { type Autonomy, type AutonomyLevel, type AutonomyPreset } from "@zetis/types";
+import { type Autonomy, type AutonomyPalier, type AutonomyNiveau } from "@zetis/types";
 
 import {
   A1_COURSE_KEY,
   SERVE,
   fetchAutonomy,
-  PRESET_LABEL,
-  levelsForPreset,
+  NIVEAU_LABEL,
+  paliersPourNiveau,
   notifyAutonomyChanged,
   saveAutonomy,
 } from "../../lib/settings";
@@ -36,9 +36,9 @@ import { REGIME_AVATAR, declencheurGlyphe } from "../../lib/regimeVisuals";
 import { ClassRow } from "./ClassRow";
 import { EcartNiveau } from "./EcartNiveau";
 import { NiveauDetail } from "./NiveauDetail";
-import { PresetCards } from "./PresetCards";
+import { NiveauCards } from "./NiveauCards";
 
-type Draft = Record<string, AutonomyLevel>;
+type Draft = Record<string, AutonomyPalier>;
 
 /** Miroir client de `apply_monotonicity` : servir un cours sans relecture force les dérivés au
  *  même régime. On ne relit pas un dérivé d'un cours qu'on n'a pas relu. */
@@ -77,10 +77,10 @@ function estUneMontee(actuel: Draft, cible: Draft): boolean {
  *
  * Ne prend PAS l'`Autonomy` : un régime se lit dans les valeurs, jamais dans les verrous. Un
  * brouillon reste « Manuel » même si le serveur venait à verrouiller une classe entre-temps. */
-function presetOfDraft(draft: Draft): AutonomyPreset | null {
-  for (const preset of ["manuel", "semi", "autonome"] as AutonomyPreset[]) {
-    const levels = levelsForPreset(preset);
-    if (Object.entries(levels).every(([key, value]) => draft[key] === value)) return preset;
+function niveauDuBrouillon(draft: Draft): AutonomyNiveau | null {
+  for (const niveau of ["manuel", "semi", "autonome"] as AutonomyNiveau[]) {
+    const levels = paliersPourNiveau(niveau);
+    if (Object.entries(levels).every(([key, value]) => draft[key] === value)) return niveau;
   }
   return null;
 }
@@ -116,7 +116,7 @@ export function AutonomyPanel() {
     };
   }, []);
 
-  const preset = useMemo(() => (autonomy ? presetOfDraft(draft) : null), [autonomy, draft]);
+  const niveau = useMemo(() => (autonomy ? niveauDuBrouillon(draft) : null), [autonomy, draft]);
   const dirty = useMemo(
     () =>
       Boolean(autonomy) &&
@@ -136,9 +136,9 @@ export function AutonomyPanel() {
   );
 
   const proposerNiveau = useCallback(
-    (picked: AutonomyPreset) => {
+    (picked: AutonomyNiveau) => {
       if (!autonomy) return;
-      setDraft(withMonotonicity({ ...draft, ...levelsForPreset(picked) }, autonomy.classes));
+      setDraft(withMonotonicity({ ...draft, ...paliersPourNiveau(picked) }, autonomy.classes));
     },
     [autonomy, draft],
   );
@@ -199,7 +199,7 @@ export function AutonomyPanel() {
           className="h-5 w-5 shrink-0 rounded-[22%] object-cover"
         />
         Autonomie de ZETIS
-        {preset === null && !loading && autonomy && (
+        {niveau === null && !loading && autonomy && (
           <span className="rounded-full bg-sky-400/15 px-2 py-0.5 text-[10.5px] font-bold text-sky-300">
             Sur mesure
           </span>
@@ -222,15 +222,15 @@ export function AutonomyPanel() {
       ) : autonomy ? (
         <>
           <h3 className="mt-6 text-[12.5px] font-bold uppercase tracking-wider">ZETIS LEVELS</h3>
-          <PresetCards
+          <NiveauCards
             autonomy={autonomy}
-            current={preset}
+            current={niveau}
             onPick={proposerNiveau}
           />
           {/* Il suit le BROUILLON, pas l'état enregistré : c'est ce qui en fait une réponse à
               « qu'est-ce que ce niveau ferait ? ». Au repos, brouillon = état serveur, donc il
               montre le niveau ACTIF — c'est ce qui a permis d'absorber « Où vous en êtes ». */}
-          <NiveauDetail autonomy={autonomy} preset={preset} />
+          <NiveauDetail autonomy={autonomy} niveau={niveau} />
 
           <details className="mt-4 rounded-xl border border-papa-border bg-papa-bg">
             <summary className="cursor-pointer px-4 py-3 text-[12.5px] font-semibold text-papa-muted">
@@ -358,7 +358,7 @@ export function AutonomyPanel() {
             aria-hidden
             className="h-14 w-14 shrink-0 rounded-[22%] object-cover"
           />
-          <span className="text-[13px] font-bold text-papa-text">{PRESET_LABEL.autonome}</span>
+          <span className="text-[13px] font-bold text-papa-text">{NIVEAU_LABEL.autonome}</span>
         </p>
         <p>
           Aujourd'hui, le cours est{" "}
@@ -389,7 +389,7 @@ export function AutonomyPanel() {
       {autonomy && (aConfirmer === "montee" || aConfirmer === "descente") && (
         <ConfirmDialog
           open
-          title={preset ? `Enregistrer le niveau ${PRESET_LABEL[preset]} ?` : "Enregistrer ces réglages ?"}
+          title={niveau ? `Enregistrer le niveau ${NIVEAU_LABEL[niveau]} ?` : "Enregistrer ces réglages ?"}
           confirmLabel="Enregistrer"
           cancelLabel="Annuler"
           busy={saving}
@@ -403,13 +403,13 @@ export function AutonomyPanel() {
               « Sur mesure » retombe sur l'avatar neutre — aucune image ne lui appartient. */}
           <p className="mb-3 flex items-center gap-3">
             <img
-              src={REGIME_AVATAR[preset ?? "neutre"]}
+              src={REGIME_AVATAR[niveau ?? "neutre"]}
               alt=""
               aria-hidden
               className="h-14 w-14 shrink-0 rounded-[22%] object-cover"
             />
             <span className="text-[13px] font-bold text-papa-text">
-              {preset ? PRESET_LABEL[preset] : "Sur mesure"}
+              {niveau ? NIVEAU_LABEL[niveau] : "Sur mesure"}
             </span>
           </p>
           {/* Le TON dit le sens. La descente n'est pas un avertissement : reprendre du contrôle est

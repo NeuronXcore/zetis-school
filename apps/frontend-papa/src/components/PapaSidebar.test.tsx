@@ -22,7 +22,7 @@ vi.mock("../lib/settings", async (importOriginal) => ({
 }));
 import { fetchAutonomy } from "../lib/settings";
 
-import { PRESET_LABEL } from "../lib/settings";
+import { NIVEAU_LABEL } from "../lib/settings";
 import { PAPA_NAV } from "../lib/navigation";
 import { type AutonomyState } from "../hooks/useAutonomyState";
 import { PapaSidebar } from "./PapaSidebar";
@@ -60,14 +60,14 @@ describe("PapaSidebar", () => {
     // un test rouge pour une bonne raison — et, si on le « réparait » à l'envers, un test creux.
     show(SEMI);
     expect(
-      screen.getByRole("link", { name: new RegExp(PRESET_LABEL.semi) }),
+      screen.getByRole("link", { name: new RegExp(NIVEAU_LABEL.semi) }),
     ).toBeInTheDocument();
   });
 
   it("montée sans prop, ne devine aucun régime", () => {
     // Le repli du défaut est `loading` — jamais un régime, jamais « Manuel » par prudence.
     show();
-    for (const label of [...Object.values(PRESET_LABEL), "Sur mesure"]) {
+    for (const label of [...Object.values(NIVEAU_LABEL), "Sur mesure"]) {
       expect(screen.queryByText(label)).toBeNull();
     }
   });

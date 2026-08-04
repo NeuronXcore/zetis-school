@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 
-import { PRESET_DESCRIPTION, PRESET_ICON, PRESET_LABEL } from "../lib/settings";
+import { NIVEAU_DESCRIPTION, NIVEAU_ICON, NIVEAU_LABEL } from "../lib/settings";
 import {
   REGIME_AVATAR,
   REGIME_BADGE,
@@ -47,15 +47,15 @@ function useCrossfade(visage: Visage): Visage | null {
 
 export function EtatZetis({ state }: { state: AutonomyState }) {
   const pret = state.status === "ready";
-  const preset = pret ? state.autonomy.preset : null;
+  const niveau = pret ? state.autonomy.preset : null;
   const arme = pret && state.autonomy.auto_trigger_enabled;
-  const visage: Visage = preset ?? "neutre";
+  const visage: Visage = niveau ?? "neutre";
   const sortant = useCrossfade(visage);
 
   // ⚠️ Libellé IMPORTÉ, jamais recopié — il ne s'affiche plus au repos (il est dans l'image) mais
   // il porte le tooltip et le nom accessible. Une recopie en dur ferait diverger la sidebar de la
   // page des réglages au premier changement de vocabulaire.
-  const regime = pret ? (preset ? PRESET_LABEL[preset] : "Sur mesure") : null;
+  const regime = pret ? (niveau ? NIVEAU_LABEL[niveau] : "Sur mesure") : null;
   const declencheur = arme ? "démarre seul" : "démarre sur clic";
 
   // Le NOM ACCESSIBLE porte les deux axes. C'est pour cela que l'`<img>` reste `alt=""` : un
@@ -163,10 +163,10 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
           ) : (
             <>
               <span className="block font-bold text-papa-text">
-                {preset && <span>{PRESET_ICON[preset]} </span>}
+                {niveau && <span>{NIVEAU_ICON[niveau]} </span>}
                 {regime}
               </span>
-              {preset && <span className="mt-1 block">{PRESET_DESCRIPTION[preset]}</span>}
+              {niveau && <span className="mt-1 block">{NIVEAU_DESCRIPTION[niveau]}</span>}
               <span className="mt-1.5 block border-t border-papa-border pt-1.5">
                 {arme ? "⚡ Il démarre sans vous." : "⏸ Il attend votre clic pour démarrer."}
               </span>

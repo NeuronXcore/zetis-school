@@ -33,17 +33,21 @@ autre chose. La convention est fixée ici, **une fois**, et vaut pour tout le do
 
 | Mot | Ce qu'il désigne | Valeurs | Où il vit |
 |---|---|---|---|
-| **niveau** (*level*) | l'un des **trois régimes** | `manuel · semi · autonome` → *Manual · Hybrid · Autonom* | à l'écran, et dans le code sous le nom `preset` |
-| **palier** | le degré d'autonomie **d'une classe** | `0` Jamais · `1` ZETIS propose · `2` Vous validez · `3` ZETIS sert | dans les six clés d'`app_settings`, et dans le code sous le nom `level` |
+| **niveau** (*level*) | l'un des **trois régimes** | `manuel · semi · autonome` → *Manual · Hybrid · Autonom* | `AutonomyNiveau`, `NIVEAU_LABEL`, `NIVEAUX` |
+| **palier** | le degré d'autonomie **d'une classe** | `0` Jamais · `1` ZETIS propose · `2` Vous validez · `3` ZETIS sert | `AutonomyPalier`, `PALIER_LABEL`, les six clés d'`app_settings` |
 
 Le test qui les sépare : **un niveau se choisit, un palier se subit.** Papa clique un *niveau* ;
 celui-ci décide les *paliers* de deux classes, et les quatre autres ne l'écoutent pas.
 
-⚠️ **Le code dit l'inverse, et c'est délibérément non touché** : le type TypeScript s'appelle
-`AutonomyLevel` alors qu'il porte un **palier** (0-3), et les trois régimes s'y appellent `preset`.
-Renommer traverserait `packages/types`, le client d'API et toutes les pages de réglage — un refactor
-transversal pour un gain de lecture. **La correspondance est établie ici, et c'est le seul endroit
-où elle a besoin de l'être** — même traitement que le §7.7 pour *Manuel / Manual*.
+**Le code dit désormais la même chose** (2026-08-04) : `AutonomyLevel` → `AutonomyPalier`,
+`AutonomyPreset` → `AutonomyNiveau`, `LEVEL_LABEL` → `PALIER_LABEL`, `levelsForPreset` →
+`paliersPourNiveau`, `PresetCards` → `NiveauCards`. ~50 occurrences, 15 fichiers, **zéro surface
+d'API** — les 377 tests prouvent la non-régression.
+
+⚠️ **UNE divergence subsiste, et elle est irréductible** : le champ de la réponse serveur s'appelle
+`preset` (`Autonomy.preset: AutonomyNiveau | null`). C'est une **clé JSON**, pas un nom de code —
+la renommer casserait le contrat sans rien gagner. **Le TYPE porte le vocabulaire, le CHAMP porte
+le réseau**, et la note est posée à l'endroit exact où on la rencontre (`packages/types`).
 
 > **Règle pratique pour la suite** : dans un document, `LEVEL_LABEL[…]` se lit *« le libellé du
 > palier »*, jamais *« le libellé du niveau »*. Et une phrase comme « le niveau de cette classe »
@@ -198,11 +202,9 @@ classe** ; toute évolution serveur — **aucune ligne de backend, aucune migrat
 - **« Quiz — servi sans relecture, par doctrine »** disparaît de la matrice : le quiz **n'est pas
   une classe d'autonomie**, le bloc précédent le décrivait en dur. Repêché en note de pied de
   panneau, hors matrice — sinon on perdrait une information vraie pour une raison de forme.
-- **Collision de vocabulaire, TRANCHÉE au §8.0** : « niveau/level » nomme les trois régimes,
-  « palier » le degré 0-3 d'une classe. La documentation applique la convention ; le **code** garde
-  ses noms hérités (`AutonomyLevel` porte un palier, `preset` porte un niveau) — les renommer
-  traverserait `packages/types` et toutes les pages de réglage, pour un gain de lecture. La
-  correspondance est établie une fois, au §8.0.
+- **Collision de vocabulaire, TRANCHÉE puis RÉSORBÉE au §8.0** : documentation **et** code disent
+  maintenant la même chose. Ne reste que la clé JSON `preset`, qui est un contrat réseau — annotée
+  sur place, pas propagée.
 - **Le renommage casse mécaniquement une vingtaine de tests** qui attendent le titre « Régime » via
   un helper partagé. Coût de bascule, pas de conception.
 

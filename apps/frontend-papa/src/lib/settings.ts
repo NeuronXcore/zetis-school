@@ -5,9 +5,9 @@
 // vérité, qui divergerait au premier ADR.
 //
 // ⚠️ Aucune fonction ne prend un « préréglage » : un régime est un raccourci d'ÉCRITURE qui se
-// traduit en valeurs (`levelsForPreset`), jamais un état qu'on envoie. Le serveur le DÉRIVE en
+// traduit en valeurs (`paliersPourNiveau`), jamais un état qu'on envoie. Le serveur le DÉRIVE en
 // retour. Deux chemins d'écriture pour la même question, c'est ce que le §G.1 a refusé.
-import { type Autonomy, type AutonomyLevel, type AutonomyPreset } from "@zetis/types";
+import { type Autonomy, type AutonomyPalier, type AutonomyNiveau } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
 
@@ -24,7 +24,7 @@ export async function fetchAutonomy(): Promise<Autonomy> {
  *  rejette toute clé hors des six paliers, et le déclencheur n'en est pas un. `undefined` = ne pas
  *  y toucher — enregistrer un préréglage ne doit à aucun moment armer ZETIS au passage. */
 export async function saveAutonomy(
-  values: Record<string, AutonomyLevel>,
+  values: Record<string, AutonomyPalier>,
   autoTrigger?: boolean,
 ): Promise<Autonomy> {
   return asJson(
@@ -41,7 +41,7 @@ export async function saveAutonomy(
 }
 
 /** Libellé d'un palier, du point de vue de Papa — « qui laisse passer », jamais un numéro. */
-export const LEVEL_LABEL: Record<AutonomyLevel, string> = {
+export const PALIER_LABEL: Record<AutonomyPalier, string> = {
   0: "Jamais",
   1: "ZETIS propose",
   2: "Vous validez",
@@ -57,19 +57,19 @@ export const LEVEL_LABEL: Record<AutonomyLevel, string> = {
  *  ⚠️ Les CLÉS, elles, ne bougent pas : `manuel | semi | autonome` viennent du serveur
  *  (`settings/service.py`) et sont l'identité du régime. Renommer l'affichage n'est pas renommer
  *  la donnée — c'est ici, et seulement ici, que les deux se croisent. */
-export const PRESET_LABEL: Record<AutonomyPreset, string> = {
+export const NIVEAU_LABEL: Record<AutonomyNiveau, string> = {
   manuel: "Manual",
   semi: "Hybrid",
   autonome: "Autonom",
 };
 
-export const PRESET_ICON: Record<AutonomyPreset, string> = {
+export const NIVEAU_ICON: Record<AutonomyNiveau, string> = {
   manuel: "🔒",
   semi: "⚖️",
   autonome: "🚀",
 };
 
-export const PRESET_DESCRIPTION: Record<AutonomyPreset, string> = {
+export const NIVEAU_DESCRIPTION: Record<AutonomyNiveau, string> = {
   manuel:
     "ZETIS produit, vous validez tout avant que Massimo le voie — fiches et cartes mentales comprises.",
   semi: "ZETIS sert les dérivés seul. Les cours passent toujours par vous.",
@@ -78,30 +78,30 @@ export const PRESET_DESCRIPTION: Record<AutonomyPreset, string> = {
 };
 
 /** L'ordre d'affichage des régimes : du plus de contrôle au moins. */
-export const PRESETS: AutonomyPreset[] = ["manuel", "semi", "autonome"];
+export const NIVEAUX: AutonomyNiveau[] = ["manuel", "semi", "autonome"];
 
 /** Les classes qu'un régime écrit — les verrouillées n'y sont jamais, sous peine d'en faire une
- *  porte dérobée sur une décision figée. Miroir de `PRESETS` côté serveur (`settings/service.py`),
+ *  porte dérobée sur une décision figée. Miroir de `NIVEAUX` côté serveur (`settings/service.py`),
  *  et le serveur refuse de toute façon ce qui sortirait des `choices`. */
-const PRESET_LEVELS: Record<AutonomyPreset, Record<string, AutonomyLevel>> = {
+const PALIERS_PAR_NIVEAU: Record<AutonomyNiveau, Record<string, AutonomyPalier>> = {
   manuel: { zetis_autonomy_a0a_derives: 2, zetis_autonomy_a1_course: 2 },
   semi: { zetis_autonomy_a0a_derives: 3, zetis_autonomy_a1_course: 2 },
   autonome: { zetis_autonomy_a0a_derives: 3, zetis_autonomy_a1_course: 3 },
 };
 
-export function levelsForPreset(preset: AutonomyPreset): Record<string, AutonomyLevel> {
-  return { ...PRESET_LEVELS[preset] };
+export function paliersPourNiveau(niveau: AutonomyNiveau): Record<string, AutonomyPalier> {
+  return { ...PALIERS_PAR_NIVEAU[niveau] };
 }
 
 /** Un régime est indisponible dès qu'une des valeurs qu'il écrirait est hors `choices`.
  *
  * Dérivé, jamais codé en dur : le jour où le veto obtient sa surface, le serveur rouvre le palier
  * 3 d'A1 et *Autonome* redevient offert **sans qu'une ligne du front change**. */
-export function presetAvailability(
+export function niveauDisponible(
   autonomy: Autonomy,
-  preset: AutonomyPreset,
+  niveau: AutonomyNiveau,
 ): { available: boolean; reason: string | null } {
-  const levels = levelsForPreset(preset);
+  const levels = paliersPourNiveau(niveau);
   for (const cls of autonomy.classes) {
     const wanted = levels[cls.key];
     if (wanted !== undefined && !cls.choices.includes(wanted)) {
@@ -114,7 +114,7 @@ export function presetAvailability(
 /** La clé du cours — la seule dont la montée retire un contrôle humain, donc la seule qui
  *  demande une confirmation explicite. */
 export const A1_COURSE_KEY = "zetis_autonomy_a1_course";
-export const SERVE: AutonomyLevel = 3;
+export const SERVE: AutonomyPalier = 3;
 
 /** « Le régime ou le déclencheur vient de changer » (addendum ADR-0032 §7.4).
  *

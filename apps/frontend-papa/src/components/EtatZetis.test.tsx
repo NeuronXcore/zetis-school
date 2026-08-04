@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { type Autonomy } from "@zetis/types";
 
-import { PRESET_DESCRIPTION, PRESET_LABEL } from "../lib/settings";
+import { NIVEAU_DESCRIPTION, NIVEAU_LABEL } from "../lib/settings";
 import { type AutonomyState } from "../hooks/useAutonomyState";
 import { EtatZetis } from "./EtatZetis";
 
@@ -63,12 +63,12 @@ describe("EtatZetis", () => {
   });
 
   it("🔒 chaque régime a SON avatar — c'est lui qui porte l'information", () => {
-    for (const [preset, fichier] of [
+    for (const [niveau, fichier] of [
       ["manuel", "zetis-regime-manuel"],
       ["semi", "zetis-regime-semi"],
       ["autonome", "zetis-regime-autonome"],
     ] as const) {
-      const { container, unmount } = show(ready({ preset }));
+      const { container, unmount } = show(ready({ preset: niveau }));
       expect(avatarAffiche(container)).toContain(fichier);
       unmount();
     }
@@ -83,7 +83,7 @@ describe("EtatZetis", () => {
     // suit le CODE — c'est toute la décision du §7.7, et sans ce test la divergence remonterait
     // à l'écran au premier copier-coller. Dérivé de la constante, jamais recopié.
     const { container } = show(ready({ preset: "semi" }));
-    expect(badge(container)).toContain(PRESET_LABEL.semi.toUpperCase());
+    expect(badge(container)).toContain(NIVEAU_LABEL.semi.toUpperCase());
     expect(badge(container)).not.toContain("HYBRIDE");
   });
 
@@ -123,12 +123,12 @@ describe("EtatZetis", () => {
   });
 
   it("gradue le halo par régime — et manuel n'emprunte celui d'aucun autre", () => {
-    for (const [preset, classe] of [
+    for (const [niveau, classe] of [
       ["manuel", "regime-halo--manuel"],
       ["semi", "regime-halo--semi"],
       ["autonome", "regime-halo--autonome"],
     ] as const) {
-      const { container, unmount } = show(ready({ preset }));
+      const { container, unmount } = show(ready({ preset: niveau }));
       expect(container.querySelector(".regime-halo")!.className).toContain(classe);
       unmount();
     }
@@ -161,8 +161,8 @@ describe("EtatZetis", () => {
       show(ready({ preset: "semi", auto_trigger_enabled: false }));
       fireEvent.mouseEnter(screen.getByRole("link"));
 
-      expect(screen.getByText(PRESET_LABEL.semi)).toBeInTheDocument();
-      expect(screen.getByText(PRESET_DESCRIPTION.semi)).toBeInTheDocument();
+      expect(screen.getByText(NIVEAU_LABEL.semi)).toBeInTheDocument();
+      expect(screen.getByText(NIVEAU_DESCRIPTION.semi)).toBeInTheDocument();
       expect(screen.getByText(/attend votre clic/)).toBeInTheDocument();
     });
 
@@ -233,7 +233,7 @@ describe("EtatZetis", () => {
   it("son nom accessible porte les DEUX axes, et l'image n'en porte aucun", () => {
     const { container } = show(ready({ preset: "autonome", auto_trigger_enabled: true }));
 
-    const lien = screen.getByRole("link", { name: new RegExp(PRESET_LABEL.autonome) });
+    const lien = screen.getByRole("link", { name: new RegExp(NIVEAU_LABEL.autonome) });
     expect(lien.getAttribute("aria-label")).toMatch(/démarre seul/);
     // L'image est décorative PARCE QUE le nom du lien est là : un `alt` non vide écraserait ce
     // nom, qui est le seul à dire les deux axes.

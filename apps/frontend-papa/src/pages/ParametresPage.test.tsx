@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { type Autonomy, type AutonomyClass, type AutonomyLevel } from "@zetis/types";
+import { type Autonomy, type AutonomyClass, type AutonomyPalier } from "@zetis/types";
 
 import { ParametresPage } from "./ParametresPage";
 
@@ -12,8 +12,8 @@ vi.mock("../lib/settings", async (importOriginal) => ({
 }));
 import {
   AUTONOMY_CHANGED_EVENT,
-  LEVEL_LABEL,
-  PRESET_LABEL,
+  PALIER_LABEL,
+  NIVEAU_LABEL,
   fetchAutonomy,
   saveAutonomy,
 } from "../lib/settings";
@@ -25,8 +25,8 @@ function cls(
   key: string,
   code: string,
   label: string,
-  value: AutonomyLevel,
-  choices: AutonomyLevel[],
+  value: AutonomyPalier,
+  choices: AutonomyPalier[],
   reason: string | null = null,
 ): AutonomyClass {
   return { key, code, label, value, choices, locked: choices.length === 1, reason };
@@ -161,7 +161,7 @@ describe("ParametresPage", () => {
     // section, il vérifie maintenant le régime que le serveur refuse tant que le Journal n'existe
     // pas. Même doctrine, même exigence — une capacité absente se dit, elle ne s'escamote pas.
     await renderLoaded();
-    const autonome = screen.getByRole("button", { name: new RegExp(PRESET_LABEL.autonome) });
+    const autonome = screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.autonome) });
     expect(autonome).toBeDisabled();
     expect(autonome).toHaveTextContent(/Journal/);
   });
@@ -217,13 +217,13 @@ describe("ParametresPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) })).toHaveAttribute(
+      expect(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.semi) })).toHaveAttribute(
         "aria-pressed",
         "true",
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.manuel) }));
     await enregistrer();
     await waitFor(() => expect(saveAutonomy).toHaveBeenCalledTimes(1));
     expect(vi.mocked(saveAutonomy).mock.calls[0][0][A0A]).toBe(2);
@@ -234,11 +234,11 @@ describe("ParametresPage", () => {
     vi.mocked(saveAutonomy).mockRejectedValue(new Error("Définitif. Aucun réglage ne l'ouvrira."));
     await renderLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.manuel) }));
     await enregistrer();
 
     await screen.findByText("Définitif. Aucun réglage ne l'ouvrira.");
-    expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.semi) })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -249,7 +249,7 @@ describe("ParametresPage", () => {
     window.addEventListener(AUTONOMY_CHANGED_EVENT, heard);
     await renderLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.manuel) }));
     await enregistrer();
 
     await waitFor(() => expect(heard).toHaveBeenCalledTimes(1));
@@ -264,7 +264,7 @@ describe("ParametresPage", () => {
     window.addEventListener(AUTONOMY_CHANGED_EVENT, heard);
     await renderLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.manuel) }));
     await enregistrer();
 
     await screen.findByText("Définitif. Aucun réglage ne l'ouvrira.");
@@ -407,12 +407,12 @@ describe("ParametresPage", () => {
       const box = screen.getByLabelText("Laisser ZETIS démarrer seul");
       expect(box).toBeChecked();
 
-      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.manuel) }));
       expect(box).toBeChecked();
 
       // …et dans l'autre sens : décocher ne change aucun palier.
       fireEvent.click(box);
-      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) })).toHaveAttribute(
+      expect(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.manuel) })).toHaveAttribute(
         "aria-pressed",
         "true",
       );
@@ -442,33 +442,33 @@ describe("ParametresPage", () => {
     it("🔒 choisir un niveau n'ouvre AUCUNE modale — il montre seulement ce qu'il déciderait", async () => {
       // La demande du commanditaire, 2026-08-04 : le clic sur une carte ne fait qu'AFFICHER.
       await renderLoaded();
-      for (const nom of [PRESET_LABEL.manuel, PRESET_LABEL.semi, PRESET_LABEL.manuel]) {
+      for (const nom of [NIVEAU_LABEL.manuel, NIVEAU_LABEL.semi, NIVEAU_LABEL.manuel]) {
         fireEvent.click(screen.getByRole("button", { name: new RegExp(nom) }));
         expect(screen.queryByRole("dialog")).toBeNull();
       }
       // Le panneau, lui, a suivi.
       expect(screen.getByRole("listitem", { name: "Dérivés inertes" })).toHaveTextContent(
-        LEVEL_LABEL[2],
+        PALIER_LABEL[2],
       );
     });
 
     it("🔒 c'est ENREGISTRER qui confirme, et la modale montre ce qui va être écrit", async () => {
       await renderLoaded();
       // Départ Hybrid (a0a=3). On descend en Manual et on enregistre.
-      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.manuel) }));
       await enregistrer();
       await waitFor(() => expect(saveAutonomy).toHaveBeenCalledTimes(1));
 
       // On remonte en Hybrid : la modale change de TON.
-      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.semi) }));
       fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
       const dialogue = await screen.findByRole("dialog");
-      expect(dialogue).toHaveTextContent(`Enregistrer le niveau ${PRESET_LABEL.semi} ?`);
+      expect(dialogue).toHaveTextContent(`Enregistrer le niveau ${NIVEAU_LABEL.semi} ?`);
       // 🔒 Son corps est l'ÉCART, pas le panneau : avant ET après, la seule chose que la page ne
       // dit pas. Reprendre le panneau ferait répéter à la modale ce qui reste affiché derrière.
       const ligne = within(dialogue).getByRole("listitem", { name: "Dérivés inertes" });
-      expect(ligne).toHaveTextContent(LEVEL_LABEL[2]); // avant
-      expect(ligne).toHaveTextContent(LEVEL_LABEL[3]); // après
+      expect(ligne).toHaveTextContent(PALIER_LABEL[2]); // avant
+      expect(ligne).toHaveTextContent(PALIER_LABEL[3]); // après
       // Et rien sur ce qui ne change pas : on ne confirme pas l'immobile.
       expect(within(dialogue).queryByText(/Ce qu'aucun niveau ne change/)).toBeNull();
       // 🔒 Et le VISAGE du niveau visé — le même que sur la carte et dans la sidebar.
@@ -478,8 +478,8 @@ describe("ParametresPage", () => {
     it("🔒 rien à écrire = pas de modale, et le bouton est désactivé", async () => {
       // La garde n'est pas « il y a eu des clics » mais « il y a un écart avec le serveur ».
       await renderLoaded();
-      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
-      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.manuel) }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.semi) }));
 
       // Retour au point de départ : plus rien à enregistrer.
       expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
@@ -488,11 +488,11 @@ describe("ParametresPage", () => {
 
     it("🔒 renoncer à la modale n'écrit RIEN, et garde le brouillon à l'écran", async () => {
       await renderLoaded();
-      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.manuel) }));
       await enregistrer();
       await waitFor(() => expect(saveAutonomy).toHaveBeenCalledTimes(1));
 
-      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.semi) }));
       fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
       const dialogue = await screen.findByRole("dialog");
       fireEvent.click(within(dialogue).getByRole("button", { name: "Annuler" }));
@@ -500,7 +500,7 @@ describe("ParametresPage", () => {
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
       expect(saveAutonomy).toHaveBeenCalledTimes(1); // rien de plus n'est parti
       // Papa n'a pas annulé son intention, il a refusé de la graver : le brouillon reste.
-      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) })).toHaveAttribute(
+      expect(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.semi) })).toHaveAttribute(
         "aria-pressed",
         "true",
       );
@@ -517,12 +517,12 @@ describe("ParametresPage", () => {
         }),
       );
       await renderLoaded();
-      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.autonome) }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL.autonome) }));
       fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       const dialogue = await screen.findByRole("dialog");
       expect(dialogue).toHaveTextContent("Vous retirez le dernier contrôle humain");
-      expect(dialogue).not.toHaveTextContent(`Enregistrer le niveau ${PRESET_LABEL.autonome} ?`);
+      expect(dialogue).not.toHaveTextContent(`Enregistrer le niveau ${NIVEAU_LABEL.autonome} ?`);
     });
   });
 
@@ -533,12 +533,12 @@ describe("ParametresPage", () => {
     it("🔒 chaque carte porte l'AVATAR de son régime, pas un emoji", async () => {
       const { container } = await renderLoaded();
 
-      for (const [preset, fichier] of [
+      for (const [niveau, fichier] of [
         ["manuel", "zetis-regime-manuel"],
         ["semi", "zetis-regime-semi"],
         ["autonome", "zetis-regime-autonome"],
       ] as const) {
-        const carte = screen.getByRole("button", { name: new RegExp(PRESET_LABEL[preset]) });
+        const carte = screen.getByRole("button", { name: new RegExp(NIVEAU_LABEL[niveau]) });
         expect(carte.querySelector("img")?.getAttribute("src")).toContain(fichier);
       }
       // Décoratifs : le libellé est juste à côté, un `alt` non vide le doublerait.
