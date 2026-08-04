@@ -2,8 +2,12 @@
 
 ## 0.43.0 — Papa sait dans quel régime ZETIS travaille, sans quitter sa page
 
-Date : 2026-08-04 · branches `feat/etat-zetis-sidebar` → `feat/zetis-levels` →
-`refactor/vocabulaire-niveau-palier` · addenda **ADR-0032 §7 et §8**
+Date : 2026-08-04 · **PR #75, squash `60604a3`** · addenda **ADR-0032 §7 et §8**
+
+> ⚠️ Trois chantiers en une seule entrée, et c'est le merge qui l'a imposé : les branches
+> `feat/etat-zetis-sidebar` → `feat/zetis-levels` → `refactor/vocabulaire-niveau-palier` étaient
+> **empilées**, chacune descendant de la précédente. Les merger séparément aurait cassé. Elles sont
+> supprimées ; les 20 commits se lisent dans la PR #75, pas dans `git log main`.
 
 L'ADR-0032 avait livré un régime réglable et un régime dérivé, mais **aucune surface de lecture
 hors de `/parametres`**. Papa change de page vingt fois par session ; savoir où en est ZETIS lui

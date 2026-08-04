@@ -7,7 +7,7 @@
 
 ## État à la reprise
 
-**Chantier : l'état de ZETIS visible partout + ZETIS LEVELS — COMPLET, NI POUSSÉ NI MERGÉ.**
+**Chantier : l'état de ZETIS visible partout + ZETIS LEVELS — COMPLET, MERGÉ `main`.**
 Papa ne savait pas dans quel régime ZETIS travaillait sans ouvrir `/parametres`. Il le sait
 maintenant sur les 22 pages — et la page des réglages dit enfin ce que chaque niveau *fait*.
 
@@ -15,18 +15,18 @@ maintenant sur les 22 pages — et la page des réglages dit enfin ce que chaque
 
 | | |
 |---|---|
-| Branches | **TROIS, empilées, toutes LOCALES** : `feat/etat-zetis-sidebar` → `feat/zetis-levels` → `refactor/vocabulaire-niveau-palier` |
-| Base | **`5462ba8`** — tête de `main`, qui n'a pas bougé |
-| À pousser | **TOUT.** Rien n'est sur `origin`, aucune PR n'existe |
+| Sur `main` | **squash `60604a3`**, PR **#75**, mergée le **2026-08-04** — 20 commits, 46 fichiers |
+| Base du chantier | **`5462ba8`** — l'ancienne tête de `main` |
+| Branches | **les trois sont SUPPRIMÉES**, local et `origin`. `main` == `origin/main`, rien à pousser |
 | Migration | **AUCUNE** — le niveau est *dérivé*, jamais stocké |
 | Cadrage | addenda **ADR-0032 §7** et **§8**, écrits AVANT leur code (deux commits `docs:`) |
 
-> Le compte de commits et la tête de branche ne sont pas écrits ici (`WORKFLOW.md §5`) :
-> `git log --oneline main..HEAD`.
-
-⚠️ **L'empilement est la seule difficulté de la reprise.** Chaque branche descend de la
-précédente : les fichiers de la 2ᵉ n'existent pas sur la 1ʳᵉ. **Merger dans l'ordre**, ou merger la
-dernière seule (elle contient tout). Ne jamais rebaser l'une sans les autres.
+⚠️ **Ne pas ré-implémenter.** Trois chantiers ont été mergés d'un coup — la sidebar, ZETIS LEVELS et
+le vocabulaire — parce que leurs branches étaient **empilées** (chacune descendait de la précédente,
+les fichiers de la 2ᵉ n'existaient pas sur la 1ʳᵉ). Un squash unique était donc le seul merge sûr.
+Conséquence à connaître : `git log` de `main` **ne montre pas** les 20 commits ; ils vivent dans la
+PR #75. Les deux branches intermédiaires ont été supprimées **après** avoir vérifié par `git diff`
+qu'elles ne portaient rien d'absent de `main`.
 
 ### Ce que ce chantier a livré
 
@@ -73,16 +73,21 @@ relues d'un côté et de l'autre. Seule chose capable de voir un renommage de cl
 7. **J'ai mal chiffré le refactor deux fois** — « transversal » puis « irréductible ». Les deux fois,
    **vérifier** a changé la décision. Le chiffrage à vue est le vrai piège.
 
-> Détail et parades : `TROUBLESHOOTING.md`, chantier `feat/etat-zetis-sidebar → refactor/…`.
+> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04** (elle porte encore les noms
+> des branches, qui n'existent plus — le travail est dans la PR #75).
 
 ### ▶ PROCHAIN PAS
 
-1. 🔴 **POUSSER — rien n'est sur `origin`.** C'est le seul vrai risque : 19 commits n'existent que
-   sur ce disque. Ordre : `feat/etat-zetis-sidebar`, puis `feat/zetis-levels`, puis
-   `refactor/vocabulaire-niveau-palier` — ou la dernière seule, qui contient tout.
-2. **Ouvrir la ou les PR**, puis merger. Le chantier est **fini** : rien n'est à moitié écrit.
-3. **Revenir faire l'étape 4bis** (`WORKFLOW.md §5`) : ce fichier sera **faux** dès le merge —
-   squash, n° de PR, branches supprimées, « rien à pousser ».
+**Ce chantier est CLOS — il n'a plus de prochain pas.** Le dépôt est propre : `main` == `origin/main`,
+aucune branche en attente, aucune PR ouverte. La prochaine session **ouvre un nouveau chantier**
+(`/ouverture`) ; ce qui suit n'est pas du travail inachevé, c'est le stock de dettes à arbitrer.
+
+Ce qu'un nouveau chantier peut prendre, par ordre de ce que ça évite de casser :
+
+1. 🔴 **Contre-éprouver le patron anti-sondage de l'ADR-0030** partout où il est copié (1ʳᵉ dette
+   ci-dessous). Une heure, et ça peut réveiller un sondage réel en production.
+2. **Mettre `API_SPEC.md` au réel** pour `/api/settings/autonomy` — son contrat vient de changer.
+3. **La sidebar Papa responsive** — le chantier a déjà été mené une fois côté Massimo.
 4. 👤 **Deux choses que l'agent ne peut pas faire** : juger si **trois animations permanentes** dans
    le coin de l'œil distraient au bout de 60 s de travail réel (le correctif est décidé — *ralentir*,
    jamais retirer l'axe) ; et exercer `prefers-reduced-motion` **en vrai**.
