@@ -12,6 +12,7 @@ vi.mock("../lib/settings", async (importOriginal) => ({
 }));
 import {
   AUTONOMY_CHANGED_EVENT,
+  LEVEL_LABEL,
   PRESET_LABEL,
   fetchAutonomy,
   saveAutonomy,
@@ -116,6 +117,17 @@ describe("ParametresPage", () => {
         changed || vi.mocked(saveAutonomy).mock.calls.length > 0,
         `« ${button.textContent?.trim()} » ne fait rien`,
       ).toBe(true);
+
+      // ⚠️ Depuis l'addendum §8.4, une carte de niveau ouvre une MODALE, et le brouillon n'est
+      // appliqué qu'à la confirmation. On CONFIRME — annuler laisserait le brouillon figé, et le
+      // clic suivant deviendrait un no-op légitime que ce verrou accuserait à tort. Confirmer est
+      // la continuation de l'intention du clic ; le chemin « Annuler » a ses propres tests.
+      const dialogue = screen.queryByRole("dialog");
+      if (dialogue) {
+        fireEvent.click(
+          within(dialogue).getByRole("button", { name: /Passer en|Je comprends/ }),
+        );
+      }
     }
   });
 
@@ -364,6 +376,81 @@ describe("ParametresPage", () => {
       expect(values).toEqual(
         Object.fromEntries(autonomy().classes.map((c) => [c.key, c.value])),
       );
+    });
+  });
+
+  // La confirmation des montées (addendum §8.4). Elle protège ce qui RETIRE du contrôle — et rien
+  // d'autre : « on ne freine pas un retour au contrôle » n'est pas rouvert.
+  describe("changer de niveau", () => {
+    it("🔒 MONTER ouvre une modale qui montre ce que le niveau déplace", async () => {
+      await renderLoaded();
+      // Départ : Hybrid (a0a=3, a1=2). On descend d'abord en Manual, sans friction…
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      // …puis on remonte en Hybrid : là, on confirme.
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) }));
+      const dialogue = await screen.findByRole("dialog");
+      expect(dialogue).toHaveTextContent(`Passer en ${PRESET_LABEL.semi} ?`);
+      // Son corps EST le panneau de détail : Papa confirme ce qu'il voit, pas un résumé.
+      expect(within(dialogue).getByRole("listitem", { name: "Dérivés inertes" })).toHaveTextContent(
+        LEVEL_LABEL[3],
+      );
+      // Et il est dit que rien n'est enregistré — sinon « pas d'auto-save » devient un piège.
+      expect(dialogue).toHaveTextContent(/Rien n'est encore enregistré/);
+    });
+
+    it("🔒 DESCENDRE n'ouvre AUCUNE modale, depuis n'importe quel niveau", async () => {
+      // Reprise élargie du verrou d'A1 : la friction protège le contrôle retiré, jamais rendu.
+      await renderLoaded();
+
+      for (const cible of [PRESET_LABEL.manuel, PRESET_LABEL.manuel] as const) {
+        fireEvent.click(screen.getByRole("button", { name: new RegExp(cible) }));
+        expect(screen.queryByRole("dialog")).toBeNull();
+      }
+      // Le brouillon a bien bougé sans confirmation.
+      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+
+    it("🔒 annuler la montée laisse le brouillon INTACT", async () => {
+      await renderLoaded();
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) }));
+
+      const dialogue = await screen.findByRole("dialog");
+      fireEvent.click(within(dialogue).getByRole("button", { name: "Annuler" }));
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      // Le brouillon est resté sur Manual : annuler abandonne, il n'applique pas à moitié.
+      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it("🔒 la montée vers Autonom garde SON texte fort — les deux modales ne fusionnent pas", async () => {
+      // C'est la seule qui révoque une décision écrite (le gel d'A1). Lui donner le ton d'un
+      // passage en Hybrid l'effacerait par banalisation.
+      vi.mocked(fetchAutonomy).mockResolvedValue(
+        autonomy({
+          classes: autonomy().classes.map((c) =>
+            c.key === A1 ? { ...c, choices: [2, 3], locked: false, reason: null } : c,
+          ),
+        }),
+      );
+      await renderLoaded();
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.autonome) }));
+
+      const dialogue = await screen.findByRole("dialog");
+      expect(dialogue).toHaveTextContent("Vous retirez le dernier contrôle humain");
+      expect(dialogue).not.toHaveTextContent(`Passer en ${PRESET_LABEL.autonome} ?`);
     });
   });
 

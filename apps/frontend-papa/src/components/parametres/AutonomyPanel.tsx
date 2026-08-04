@@ -20,6 +20,7 @@ import {
   A1_COURSE_KEY,
   SERVE,
   fetchAutonomy,
+  PRESET_LABEL,
   levelsForPreset,
   notifyAutonomyChanged,
   saveAutonomy,
@@ -44,6 +45,16 @@ function draftOf(autonomy: Autonomy): Draft {
   return Object.fromEntries(autonomy.classes.map((c) => [c.key, c.value]));
 }
 
+/** Une MONTÉE porte au moins une classe plus haut qu'elle n'est.
+ *
+ *  ⚠️ Ce n'est pas « le brouillon a changé » : redescendre en change aussi, et une descente ne se
+ *  confirme pas (`page-parametres.md` §Modale — *on ne freine pas un retour au contrôle*). Un
+ *  changement mixte — une classe qui monte, une autre qui descend — compte comme une montée : ce
+ *  qu'on protège, c'est le contrôle retiré, pas le nombre net. */
+function estUneMontee(actuel: Draft, cible: Draft): boolean {
+  return Object.entries(cible).some(([key, niveau]) => niveau > (actuel[key] ?? niveau));
+}
+
 /** Le régime du BROUILLON — dérivé comme le serveur dérive celui de l'état enregistré.
  *
  * Ne prend PAS l'`Autonomy` : un régime se lit dans les valeurs, jamais dans les verrous. Un
@@ -65,6 +76,10 @@ export function AutonomyPanel() {
   // Le passage du cours en « ZETIS sert » retire le dernier contrôle humain : il se confirme.
   // Le passage INVERSE n'a aucune friction — on ne freine pas un retour au contrôle.
   const [pending, setPending] = useState<Draft | null>(null);
+  // La montée de niveau « ordinaire » — sa modale montre ce que le niveau visé déplace. État
+  // PROPRE de `pending` : les deux modales ne doivent jamais pouvoir s'ouvrir ensemble, et les
+  // fusionner reviendrait à leur donner le même ton.
+  const [montee, setMontee] = useState<{ preset: AutonomyPreset; cible: Draft } | null>(null);
   // État PROPRE, jamais mêlé au brouillon des paliers : le fusionner ferait qu'un préréglage
   // l'armerait au passage — exactement ce que l'ADR-0035 §5 refuse.
   const [autoTrigger, setAutoTrigger] = useState(false);
@@ -102,6 +117,31 @@ export function AutonomyPanel() {
         resolved[A1_COURSE_KEY] === SERVE && draft[A1_COURSE_KEY] !== SERVE;
       if (raising) setPending(resolved);
       else setDraft(resolved);
+    },
+    [autonomy, draft],
+  );
+
+  // Choisir un NIVEAU se confirme (addendum §8.4) — et seulement depuis les cartes. Le détail
+  // classe par classe garde son geste direct : c'est la surface experte, Papa y raisonne déjà
+  // ligne à ligne, et y ajouter une modale n'a pas été demandé.
+  //
+  // ⚠️ Deux frictions qui ne se confondent PAS. La montée d'A1 vers « ZETIS sert » garde SA modale,
+  // forte, parce qu'elle est la seule à révoquer une décision écrite (le gel d'A1) : lui donner le
+  // ton d'un passage en Hybrid l'effacerait par banalisation.
+  const proposerNiveau = useCallback(
+    (picked: AutonomyPreset) => {
+      if (!autonomy) return;
+      const cible = withMonotonicity({ ...draft, ...levelsForPreset(picked) }, autonomy.classes);
+
+      if (cible[A1_COURSE_KEY] === SERVE && draft[A1_COURSE_KEY] !== SERVE) {
+        setPending(cible);
+      } else if (estUneMontee(draft, cible)) {
+        setMontee({ preset: picked, cible });
+      } else {
+        // Descente, ou aucun changement : aucune friction. « On ne freine pas un retour au
+        // contrôle » n'est pas rouvert par cet addendum.
+        setDraft(cible);
+      }
     },
     [autonomy, draft],
   );
@@ -175,7 +215,7 @@ export function AutonomyPanel() {
           <PresetCards
             autonomy={autonomy}
             current={preset}
-            onPick={(picked) => propose({ ...draft, ...levelsForPreset(picked) })}
+            onPick={proposerNiveau}
           />
           {/* Il suit le BROUILLON, pas l'état enregistré : c'est ce qui en fait une réponse à
               « qu'est-ce que ce niveau ferait ? ». Au repos, brouillon = état serveur, donc il
@@ -316,6 +356,36 @@ export function AutonomyPanel() {
           </li>
         </ul>
       </ConfirmDialog>
+
+      {/* La modale ORDINAIRE des montées (addendum §8.4). `tone="default"` — délibérément sobre :
+          l'ambre et le halo doré appartiennent à celle du dessus, qui protège autre chose.
+          Son corps EST le panneau de détail, appliqué au niveau visé : Papa confirme ce qu'il
+          voit, pas une phrase qui le résume. */}
+      {autonomy && montee && (
+        <ConfirmDialog
+          open
+          title={`Passer en ${PRESET_LABEL[montee.preset]} ?`}
+          confirmLabel={`Passer en ${PRESET_LABEL[montee.preset]}`}
+          cancelLabel="Annuler"
+          onCancel={() => setMontee(null)}
+          onConfirm={() => {
+            setDraft(montee.cible);
+            setMontee(null);
+          }}
+        >
+          <p>
+            Ce niveau <b className="text-papa-text">retire du contrôle</b> — voici exactement ce
+            qu'il déplace :
+          </p>
+          <NiveauDetail autonomy={autonomy} preset={montee.preset} />
+          <p className="mt-2">
+            {/* Rappel non négociable : la modale valide le BROUILLON. Sans cette phrase, Papa
+                croirait avoir enregistré, et le §Pas d'auto-save deviendrait un piège. */}
+            Rien n'est encore enregistré : il vous restera à cliquer{" "}
+            <b className="text-papa-text">Enregistrer</b>.
+          </p>
+        </ConfirmDialog>
+      )}
     </section>
   );
 }
