@@ -36,6 +36,33 @@ Six commandes de `graphify --help` n'avaient jamais servi (`affected`, `path`, `
 2026-08-04.
 
 
+### ⚠️ 32 jobs RQ identiques pour un lot supprimé — multiplication NON ÉLUCIDÉE
+
+Constaté au désarmement du 2026-08-04 : la file de production portait **32 exemplaires** de
+`run_production(1)`, plus 3 échoués — pour un `production_run` **supprimé** lors d'un nettoyage
+antérieur. Ils ne pouvaient qu'échouer.
+
+**Ce qui est établi :**
+
+- ils sont arrivés **par paires**, réparties sur **13 heures** ;
+- les deux dernières paires portent les heures **exactes** des merges des PR #73 (`03:21` UTC) et
+  #74 (`04:47` UTC) — donc à des instants où `uvicorn --reload` a redémarré ;
+- **aucun de nos trois appelants** de `enqueue_production` n'est un hook de démarrage
+  (`runs_router` ×2 sur un geste HTTP, `jobs.scan_triggers` sur un lot créé) ;
+- `enqueue_production` ne pose **aucune politique de réessai**.
+
+**Ce qui n'est PAS établi : la cause.** Les paires et la corrélation aux redémarrages suggèrent un
+mécanisme de RQ (nettoyage de registres au démarrage d'un worker ?), mais je ne l'ai pas prouvé.
+**Consigné comme observation, pas comme diagnostic** — inventer une cause plausible serait pire que
+d'admettre le trou.
+
+**Parade appliquée** : purge de tout job dont le `production_run` visé n'existe plus, dans la file
+**et** dans les registres `Failed` / `Deferred`.
+
+> **À re-mesurer si la file regrossit.** Si le motif se reproduit, compter les jobs avant/après un
+> redémarrage isolé d'`uvicorn` tranchera en une minute.
+
+
 ## Chantier `fix/sidebar-massimo-mobile` — le tiroir de navigation — 2026-08-04
 
 ### 🔴 La sidebar Massimo n'avait AUCUN point de rupture — l'app était inutilisable sur téléphone

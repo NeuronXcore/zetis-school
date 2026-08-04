@@ -135,13 +135,32 @@ Sous `md`, l'`aside` sort du flux (`fixed`) et coulisse derrière un bouton ☰.
 - 👤 **À la charge de Papa, l'agent ne peut pas le faire** : relire l'**amendement de l'ADR-0017
   §5bis** — c'est un changement de **doctrine** du moteur de missions, pas un correctif d'affichage.
 
-### 🔴 LE DISPOSITIF EST ARMÉ EN DEV
+### ✅ LE DISPOSITIF EST DÉSARMÉ (2026-08-04, fin de session)
 
-Régime ***Autonome*** (A1 = 3), déclencheur `zetis_auto_trigger_enabled` = **`true`**, gate du
-cours **tombé**. Décision de Papa du 2026-08-03, maintenue à travers ce chantier.
+| Réglage | Valeur |
+|---|---|
+| Régime | ***Semi-autonome*** (A0a = 3, **A1 = 2**) |
+| Déclencheur `zetis_auto_trigger_enabled` | **`false`** |
+| Gate du cours | **actif** — ZETIS ne rédige plus un cours à la place de Papa |
 
-⚠️ Une `content_request` en attente **fera écrire et servir du contenu à Massimo sans relecture**
-au prochain réveil du scan (3 h) **si un worker tourne**. Désarmement : `/parametres`.
+**Vérifié en le FAISANT TOURNER, pas en lisant les réglages** : `scan_agenda` et `scan_requests`
+appelés à vide rendent `créés: []`, avec leurs motifs — *« le déclenchement automatique est
+désarmé »* et *« le régime n'est pas Autonome »*. Aucun worker, aucun serveur de dev en cours.
+
+> Il avait été **armé le 2026-08-03** pour prouver le chemin automatique de bout en bout (deux lots
+> `request`/`parent_rule` nés sans clic, deux cours écrits et servis). Cette preuve est faite et
+> consignée au `CHANGELOG` 0.40.0 ; le réarmer est un geste de Papa, deux clics sur `/parametres`.
+
+⚠️ **Le réveil périodique reste planifié dans Redis, et c'est normal** : il ne produit rien, il
+*regarde* — et désarmé, il rend son motif et repart. Il ne peut de toute façon pas se déclencher
+sans worker.
+
+⚠️ **35 jobs RQ fantômes purgés à la fermeture**, tous visant un `production_run` **supprimé** lors
+d'un nettoyage antérieur — ils ne pouvaient qu'échouer. **Je n'ai pas su expliquer leur
+multiplication** (32 exemplaires du même job, arrivés par paires sur 13 h, dont deux paires aux
+heures exactes des merges des PR #73 et #74). Aucun de nos trois appelants de `enqueue_production`
+n'est un hook de démarrage. **Observation non élucidée, pas une cause identifiée** — à re-mesurer
+si la file regrossit.
 
 ---
 
