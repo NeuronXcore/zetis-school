@@ -366,4 +366,55 @@ describe("ParametresPage", () => {
       );
     });
   });
+
+  // Passe visuelle du 2026-08-04 (addendum §7.2ter) : la page et la sidebar parlent la même
+  // langue. C'est ICI qu'on choisit un régime — c'est ici que son visage doit être celui qu'on
+  // verra ensuite en tête de colonne.
+  describe("la grammaire visuelle des régimes", () => {
+    it("🔒 chaque carte porte l'AVATAR de son régime, pas un emoji", async () => {
+      const { container } = await renderLoaded();
+
+      for (const [preset, fichier] of [
+        ["manuel", "zetis-regime-manuel"],
+        ["semi", "zetis-regime-semi"],
+        ["autonome", "zetis-regime-autonome"],
+      ] as const) {
+        const carte = screen.getByRole("button", { name: new RegExp(PRESET_LABEL[preset]) });
+        expect(carte.querySelector("img")?.getAttribute("src")).toContain(fichier);
+      }
+      // Décoratifs : le libellé est juste à côté, un `alt` non vide le doublerait.
+      expect(container.querySelector("img[alt]:not([alt=''])")).toBeNull();
+    });
+
+    it("🔒 les cartes ne RESPIRENT pas — le halo est la grammaire de la sidebar", async () => {
+      // Trois cartes qui pulseraient en même temps seraient une fête foraine. Le halo n'a de sens
+      // que là où il n'y en a qu'un, et où il signale l'état COURANT.
+      const { container } = await renderLoaded();
+      expect(container.querySelector(".regime-halo")).toBeNull();
+      expect(container.querySelector(".regime-orbit")).toBeNull();
+    });
+
+    it("🔒 le titre du panneau ne porte plus de ⚡ — le glyphe VEUT DIRE quelque chose", async () => {
+      // Depuis l'addendum §7.1, ⚡ = « ZETIS démarre seul ». Le laisser décorer « Autonomie de
+      // ZETIS » faisait lire une affirmation sur l'état à l'endroit même où l'état se règle.
+      await renderLoaded();
+      const titre = screen.getByRole("heading", { name: /Autonomie de ZETIS/ });
+      expect(titre.textContent).not.toContain("⚡");
+    });
+
+    it("🔒 le glyphe du déclencheur SUIT la case, et c'est celui de la sidebar", async () => {
+      const { container } = await renderLoaded();
+      const bloc = screen.getByText("ZETIS peut démarrer sans vous").closest("div")!.parentElement!;
+      const glyphe = () => bloc.querySelector("span[aria-hidden]")!.textContent;
+
+      // Désarmé au départ (ADR-0035 §5) : le même ⏸ que la sidebar affiche.
+      expect(glyphe()).toBe("⏸");
+
+      fireEvent.click(screen.getByRole("checkbox", { name: /Laisser ZETIS démarrer seul/ }));
+      expect(glyphe()).toBe("⚡");
+
+      // Et l'ambre reste interdite ici : c'est la couleur des files de validation (ADR-0030 §6).
+      expect(container.innerHTML).not.toMatch(/amber-/);
+    });
+  });
 });

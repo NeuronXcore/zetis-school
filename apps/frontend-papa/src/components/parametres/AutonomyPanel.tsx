@@ -24,6 +24,7 @@ import {
   notifyAutonomyChanged,
   saveAutonomy,
 } from "../../lib/settings";
+import { REGIME_AVATAR, declencheurGlyphe } from "../../lib/regimeVisuals";
 import { ClassRow } from "./ClassRow";
 import { PresetCards } from "./PresetCards";
 import { RegimeToday } from "./RegimeToday";
@@ -132,7 +133,17 @@ export function AutonomyPanel() {
   return (
     <section className="mt-4 rounded-xl border border-papa-border bg-papa-surface p-5">
       <h2 className="flex items-center gap-2 text-[14.5px] font-bold">
-        <span aria-hidden>⚡</span> Autonomie de ZETIS
+        {/* ⚠️ Ce titre portait un ⚡ décoratif. Retiré le 2026-08-04 : depuis l'addendum §7.1, le
+            ⚡ VEUT DIRE « ZETIS démarre seul » — le laisser ici faisait lire « ⚡ Autonomie de
+            ZETIS » comme une affirmation sur l'état, à l'endroit même où l'état se règle.
+            L'avatar NEUTRE le remplace : il ne désigne aucun régime, donc il n'affirme rien. */}
+        <img
+          src={REGIME_AVATAR.neutre}
+          alt=""
+          aria-hidden
+          className="h-5 w-5 shrink-0 rounded-[22%] object-cover"
+        />
+        Autonomie de ZETIS
         {preset === null && !loading && autonomy && (
           <span className="rounded-full bg-sky-400/15 px-2 py-0.5 text-[10.5px] font-bold text-sky-300">
             Sur mesure
@@ -216,8 +227,11 @@ export function AutonomyPanel() {
               sans relecture ; ceci dit s'il peut DÉMARRER sans clic. Les préréglages ne le
               touchent jamais. */}
           <div className="mt-4 flex items-start gap-3.5 rounded-xl border border-papa-border bg-papa-bg p-3.5">
+            {/* Le glyphe SUIT la case, et c'est exactement celui de la sidebar (§7.1) : ce que
+                Papa coche ici, il le retrouve en tête de colonne sur les 22 pages. Un ⏰ fixe
+                décrivait la fonctionnalité ; ceci montre l'état. */}
             <span aria-hidden className="text-lg leading-none">
-              ⏰
+              {declencheurGlyphe(autoTrigger)}
             </span>
             <div className="min-w-0 flex-1">
               <b className="text-[13px]">ZETIS peut démarrer sans vous</b>

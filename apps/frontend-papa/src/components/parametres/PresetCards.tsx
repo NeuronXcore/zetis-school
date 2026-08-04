@@ -11,11 +11,11 @@ import { type Autonomy, type AutonomyPreset } from "@zetis/types";
 
 import {
   PRESET_DESCRIPTION,
-  PRESET_ICON,
   PRESET_LABEL,
   PRESETS,
   presetAvailability,
 } from "../../lib/settings";
+import { REGIME_AVATAR } from "../../lib/regimeVisuals";
 
 export function PresetCards({
   autonomy,
@@ -53,8 +53,17 @@ export function PresetCards({
                 ✓
               </span>
             )}
-            <span className="flex items-center gap-2 text-[13.5px] font-bold">
-              <span aria-hidden>{PRESET_ICON[preset]}</span>
+            <span className="flex items-center gap-2.5 text-[13.5px] font-bold">
+              {/* L'AVATAR, pas un emoji : c'est ici qu'on choisit un régime, et c'est le visage
+                  qu'on verra ensuite en tête de sidebar. Décoratif — le libellé est juste à côté.
+                  ⚠️ Ni halo ni animation : trois cartes qui respireraient en même temps seraient
+                  une fête foraine. Le halo est la grammaire de la SIDEBAR, où il n'y en a qu'un. */}
+              <img
+                src={REGIME_AVATAR[preset]}
+                alt=""
+                aria-hidden
+                className="h-12 w-12 shrink-0 rounded-[22%] object-cover"
+              />
               {PRESET_LABEL[preset]}
             </span>
             <span className="mt-1.5 block text-[11.5px] leading-relaxed text-papa-muted">

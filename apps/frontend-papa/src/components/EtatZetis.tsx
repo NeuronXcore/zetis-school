@@ -15,40 +15,16 @@
 // 4. **Ce bloc LIT, il ne règle pas.** C'est un lien vers `/parametres`, rien d'autre.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { type AutonomyPreset } from "@zetis/types";
 
 import { PRESET_DESCRIPTION, PRESET_ICON, PRESET_LABEL } from "../lib/settings";
+import {
+  REGIME_AVATAR,
+  REGIME_BADGE,
+  REGIME_HALO,
+  type Visage,
+  declencheurGlyphe,
+} from "../lib/regimeVisuals";
 import { type AutonomyState } from "../hooks/useAutonomyState";
-import neutre from "../assets/brand/zetis-avatar_128.png";
-import manuel from "../assets/brand/zetis-regime-manuel_128.png";
-import semi from "../assets/brand/zetis-regime-semi_128.png";
-import autonome from "../assets/brand/zetis-regime-autonome_128.png";
-
-/** La clé VISUELLE. Quatre images pour six états : chargement, erreur et « Sur mesure » partagent
- *  l'avatar NEUTRE. C'est ce qui rend le §7.4 tenable — il n'existe aucune image « par défaut »
- *  qui ressemblerait à un régime. */
-type Visage = AutonomyPreset | "neutre";
-
-const AVATAR: Record<Visage, string> = { manuel, semi, autonome, neutre };
-
-const HALO: Record<Visage, string> = {
-  manuel: "regime-halo--manuel",
-  semi: "regime-halo--semi",
-  autonome: "regime-halo--autonome",
-  neutre: "regime-halo--sur-mesure",
-};
-
-/** Le texte du badge, en CAPITALES parce qu'il fait 9 px et qu'il doit se lire d'un coup d'œil.
- *
- *  ⚠️ Dérivé de `PRESET_LABEL`, jamais recopié : le badge dit le mot du CODE (`Hybrid`), pas
- *  celui cuit dans l'illustration (`HYBRIDE`). C'est tout l'objet du §7.7 — la divergence
- *  s'arrête à l'image. */
-const BADGE: Record<Visage, string> = {
-  manuel: "regime-badge--manuel",
-  semi: "regime-badge--semi",
-  autonome: "regime-badge--autonome",
-  neutre: "regime-badge--sur-mesure",
-};
 
 /** Garde l'image sortante 300 ms pour que le fondu soit ENCHAÎNÉ.
  *
@@ -125,10 +101,10 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
     >
       <span className="regime-avatar h-[88px] w-[88px] shrink-0">
         {/* Le halo est ABSENT du DOM au chargement et à l'erreur — pas un réceptacle vide, rien. */}
-        {pret && <span className={`regime-halo ${HALO[visage]}`} aria-hidden />}
+        {pret && <span className={`regime-halo ${REGIME_HALO[visage]}`} aria-hidden />}
         {sortant && (
           <img
-            src={AVATAR[sortant]}
+            src={REGIME_AVATAR[sortant]}
             alt=""
             aria-hidden
             className="regime-img regime-img--sortant rounded-[22%] object-cover"
@@ -136,7 +112,7 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
         )}
         <img
           key={visage}
-          src={AVATAR[visage]}
+          src={REGIME_AVATAR[visage]}
           alt=""
           aria-hidden
           decoding="async"
@@ -159,8 +135,8 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
           // et veut dire « ZETIS a tous les droits » (§7.6). Les deux doivent rester discernables.
           <span className="regime-badge regime-badge--erreur">ILLISIBLE</span>
         ) : (
-          <span className={`regime-badge ${BADGE[visage]}`}>
-            <span aria-hidden>{arme ? "⚡" : "⏸"}</span>
+          <span className={`regime-badge ${REGIME_BADGE[visage]}`}>
+            <span aria-hidden>{declencheurGlyphe(arme)}</span>
             {(regime ?? "").toUpperCase()}
           </span>
         )}

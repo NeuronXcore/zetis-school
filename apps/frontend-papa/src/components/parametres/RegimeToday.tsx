@@ -10,12 +10,20 @@
 // provenance est un fait, jamais un reproche ; elle ne se totalise pas »). Le seul chiffre de la
 // page est celui de l'observation — daté, attaché à une mesure, non recalculé.
 
+// La pastille dit QUI, et sa couleur suit la grammaire de l'addendum §7 :
+//   violet  = ZETIS a agi seul      (la teinte des régimes, celle du halo et du badge)
+//   ardoise = aucune étape n'existe  (un fait de structure, pas une décision)
+//   émeraude = vous                  (l'accent Papa)
+// ⚠️ « validation groupée » était en LIME, à un cheveu de l'émeraude qui veut dire « vous ».
+// Corrigé le 2026-08-04 : c'est précisément la ligne où ZETIS a servi SANS que Papa ouvre — lui
+// donner la couleur de Papa était le contresens le plus coûteux des quatre.
+// ⚠️ Jamais d'AMBRE ici : elle est réservée aux files de validation (ADR-0030 §6).
 const LINES: { what: string; detail: string; chip: string; tone: string }[] = [
   {
     what: "Fiches et cartes mentales",
     detail: "Produites en lot, servies à Massimo sans que vous les ouvriez.",
     chip: "validation groupée",
-    tone: "bg-emerald-500/5 text-lime-300 ring-1 ring-inset ring-lime-400/40",
+    tone: "bg-violet-500/15 text-violet-300 ring-1 ring-inset ring-violet-400/30",
   },
   {
     what: "Cartes de révision",
@@ -63,8 +71,13 @@ export function RegimeToday() {
         ))}
       </div>
 
-      <p className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/5 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-200">
-        <span aria-hidden>⚠️</span> Sur le chapitre produit le 2 août,{" "}
+      {/* ⚠️ Cet encadré était AMBRE avec un ⚠️, pour une phrase qui dit « ce n'est pas un
+          retard ». Deux contresens en un : l'ambre est la couleur des files de validation
+          (ADR-0030 §6), et prévenir en signalant une alerte contredit le texte qu'on écrit. Passé
+          en cyan informatif le 2026-08-04 — la teinte de « Sur mesure », celle des faits qui ne
+          demandent rien. Le chiffre, lui, ne bouge pas : daté, mesuré, jamais recalculé. */}
+      <p className="mt-3 rounded-xl border border-sky-400/35 bg-sky-500/5 px-3.5 py-3 text-[12.5px] leading-relaxed text-sky-200">
+        <span aria-hidden>📊</span> Sur le chapitre produit le 2 août,{" "}
         <b className="text-papa-text">2 contenus sur 33</b> vous sont arrivés en relecture.{" "}
         <b className="text-papa-text">Ce n'est pas un retard</b> — c'est le régime ci-dessus. Le
         réglage ne fait pas que vous en donner plus : il vous dit d'abord où vous êtes.

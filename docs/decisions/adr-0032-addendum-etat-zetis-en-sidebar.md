@@ -115,6 +115,37 @@ restait ouverte indéfiniment. Le survol s'écoute sur un conteneur dont l'arbre
 > **Contre-motif au dossier** : une ligne de texte a existé une heure à côté du logo, portant le
 > déclencheur. Écartée — elle bridait le logo à 72 px, et la même information tient dans un glyphe.
 
+### 7.2quater — La page des réglages parle la même langue que la sidebar
+
+C'est sur `/parametres` qu'on **choisit** un régime : c'est là que son visage doit être celui qu'on
+verra ensuite en tête de colonne. Les trois cartes portent donc l'**avatar** du régime, tiré de la
+**même table** que la sidebar (`lib/regimeVisuals.ts`) — deux tables divergeraient au premier ajout
+de régime, et Papa choisirait un visage pour en voir un autre.
+
+⚠️ **Ni halo ni animation sur les cartes.** Le halo est la grammaire de la sidebar, où il n'y en a
+qu'un et où il signale l'état *courant*. Trois cartes qui respireraient en même temps seraient une
+fête foraine.
+
+**Trois incohérences corrigées au passage**, toutes nées du fait que le §7 a donné un sens à des
+signes qui n'en avaient pas :
+
+- Le titre du panneau portait un **⚡ décoratif**. Depuis le §7.1, ⚡ veut dire « ZETIS démarre
+  seul » — le laisser faisait lire une **affirmation sur l'état** à l'endroit même où l'état se
+  règle. Remplacé par l'avatar neutre, qui ne désigne aucun régime donc n'affirme rien.
+- Le bloc du déclencheur portait un **⏰ fixe**, qui décrivait la fonctionnalité. Il porte
+  maintenant **le glyphe de la sidebar, et il suit la case** : ce que Papa coche ici, il le
+  retrouve en tête de colonne sur les 22 pages.
+- La pastille « validation groupée » était en **lime**, à un cheveu de l'émeraude qui veut dire
+  « vous ». C'est précisément la ligne où ZETIS a servi **sans** que Papa ouvre : lui donner la
+  couleur de Papa était le contresens le plus coûteux des quatre. Passée au violet des régimes.
+  La grammaire des pastilles devient : **violet = ZETIS seul · ardoise = aucune étape n'existe ·
+  émeraude = vous**.
+
+Et l'encadré d'observation, **ambre avec un ⚠️ pour une phrase qui dit « ce n'est pas un retard »**,
+passe en cyan informatif : l'ambre appartient aux files de validation (ADR-0030 §6), et prévenir en
+signalant une alerte contredit le texte qu'on écrit. Le chiffre, lui, ne bouge pas — daté, mesuré,
+jamais recalculé (§F.2).
+
 ### 7.3 — La sidebar LIT. Elle ne règle pas.
 
 Le bloc est un **lien vers `/parametres`**, rien d'autre. Aucun réglage ne se change depuis là :
@@ -281,6 +312,10 @@ par événement ; les quatre rendus d'état (chargement, erreur, régime, sur me
    l'écran au premier copier-coller.
 11. **L'infobulle se referme quand le pointeur s'en va** — le défaut du 2026-08-04, qu'aucun test
    ne couvrait et que seul l'écran a montré.
+12. **Chaque carte de régime porte l'avatar de son régime**, tiré de la même table que la sidebar,
+   et **aucune carte ne respire** (§7.2quater).
+13. **Le titre du panneau ne porte plus de ⚡**, et **le glyphe du bloc déclencheur suit la case** —
+   les deux verrous tiennent la même règle : un glyphe qui veut dire quelque chose ne décore plus.
 
 **Observation attendue après livraison** : si Papa cesse d'ouvrir `/parametres` pour vérifier — ce
 qui est le but — alors la page ne sert plus qu'à **changer** le régime, et son bloc « où vous en
