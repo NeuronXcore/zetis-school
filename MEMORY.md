@@ -123,8 +123,14 @@ notions : **0 désaccord**.
   (Agenda position 2 par l'**ADR-0025**, « Ma Galaxie » par l'**addendum ADR-0024 §A** qui interdit
   d'en faire un 6ᵉ onglet, six témoins par l'**ADR-0030** avec test-verrou).
   Appliquer la spec **masquerait 8 sections sur mobile**. Le tiroir livré le 2026-08-04 répare la
-  largeur **sans rien retirer** ; réconcilier les deux est un **chantier de cadrage** qui touche
-  trois ADR. L'écart est consigné dans la spec elle-même.
+  largeur **sans rien retirer**, et l'écart est consigné dans la spec elle-même.
+  ⚠️ **NE PAS écrire d'ADR pour ça — la décision existe déjà.** L'**ADR-0024**, section
+  « Divergence assumée avec `navigation.md` », a tranché il y a quatre semaines : *« L'existant
+  prime. Réconcilier `navigation.md` est un autre chantier, resté au `BACKLOG.md` »*. Ce qui reste
+  est donc **de la documentation** — mettre la spec au réel — et **rien d'autre**.
+  ⚠️ **J'avais écrit ici « un chantier de cadrage qui touche trois ADR ». C'était FAUX**, et ça
+  aurait envoyé la session suivante rédiger un ADR inutile. Corrigé le 2026-08-04 après lecture de
+  l'ADR-0024 — troisième hypothèse de la journée invalidée par le read-before-decide.
 - **La notion ORPHELINE** (aucune leçon) reste insatisfaisable : `equip_piece` le **dit**, rien ne
   le répare. Touche aussi « + Programme » et `skills-backfill`.
 - **Les appels aux générateurs sont écrits deux fois** (`equip_notion` / `equip_piece`) — refactor

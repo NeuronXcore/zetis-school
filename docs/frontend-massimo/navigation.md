@@ -82,8 +82,18 @@ Sur iPhone : la sidebar disparaît au profit de la **bottom-nav** (les 5 verbes 
 > Appliquer la lettre de ce document **masquerait 8 sections sur mobile**, dont l'Agenda que
 > l'ADR-0025 a délibérément mis en avant. Le tiroir répare la largeur **sans rien retirer**.
 >
-> **Reste donc ouvert** : réconcilier les 5 verbes de cette spec avec les 13 entrées livrées. C'est
-> un chantier de **cadrage** (il touche l'ADR-0024, l'ADR-0025 et l'ADR-0030), pas un correctif.
+> **Reste donc ouvert** : réconcilier les 5 verbes de cette spec avec les 13 entrées livrées.
+>
+> ⚠️ **Mais ce n'est PAS un cadrage à faire — la décision est déjà prise.** L'**ADR-0024**, section
+> « Divergence assumée avec `navigation.md` », a tranché il y a quatre semaines :
+>
+> > « Il décrit une navigation à 5 verbes et interdit un onglet Progression ; le code en a 12 depuis
+> > quatre semaines et Progression est un onglet. **L'existant prime.** Réconcilier `navigation.md`
+> > est un autre chantier, resté au `BACKLOG.md` — il n'est pas ouvert ici. »
+>
+> Ce qui reste est donc **de la documentation** : mettre ce fichier au réel (13 entrées, Progression
+> est un onglet, l'Accueil porte la sidebar). **Aucun ADR à écrire, aucune décision à rouvrir** — le
+> chantier est déjà nommé et rangé au `BACKLOG.md`.
 
 ## 7. Arborescence des sous-pages par verbe
 
