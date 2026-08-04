@@ -10,7 +10,12 @@ vi.mock("../lib/settings", async (importOriginal) => ({
   fetchAutonomy: vi.fn(),
   saveAutonomy: vi.fn(),
 }));
-import { AUTONOMY_CHANGED_EVENT, fetchAutonomy, saveAutonomy } from "../lib/settings";
+import {
+  AUTONOMY_CHANGED_EVENT,
+  PRESET_LABEL,
+  fetchAutonomy,
+  saveAutonomy,
+} from "../lib/settings";
 
 const A0A = "zetis_autonomy_a0a_derives";
 const A1 = "zetis_autonomy_a1_course";
@@ -129,7 +134,7 @@ describe("ParametresPage", () => {
     // section, il vérifie maintenant le régime que le serveur refuse tant que le Journal n'existe
     // pas. Même doctrine, même exigence — une capacité absente se dit, elle ne s'escamote pas.
     await renderLoaded();
-    const autonome = screen.getByRole("button", { name: /Autonome/ });
+    const autonome = screen.getByRole("button", { name: new RegExp(PRESET_LABEL.autonome) });
     expect(autonome).toBeDisabled();
     expect(autonome).toHaveTextContent(/Journal/);
   });
@@ -178,13 +183,13 @@ describe("ParametresPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Semi-autonome/ })).toHaveAttribute(
+      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) })).toHaveAttribute(
         "aria-pressed",
         "true",
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
     await waitFor(() => expect(saveAutonomy).toHaveBeenCalledTimes(1));
     expect(vi.mocked(saveAutonomy).mock.calls[0][0][A0A]).toBe(2);
@@ -195,11 +200,11 @@ describe("ParametresPage", () => {
     vi.mocked(saveAutonomy).mockRejectedValue(new Error("Définitif. Aucun réglage ne l'ouvrira."));
     await renderLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await screen.findByText("Définitif. Aucun réglage ne l'ouvrira.");
-    expect(screen.getByRole("button", { name: /Semi-autonome/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -210,7 +215,7 @@ describe("ParametresPage", () => {
     window.addEventListener(AUTONOMY_CHANGED_EVENT, heard);
     await renderLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() => expect(heard).toHaveBeenCalledTimes(1));
@@ -225,7 +230,7 @@ describe("ParametresPage", () => {
     window.addEventListener(AUTONOMY_CHANGED_EVENT, heard);
     await renderLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await screen.findByText("Définitif. Aucun réglage ne l'ouvrira.");
@@ -288,7 +293,7 @@ describe("ParametresPage", () => {
           "true",
         ),
       );
-      expect(screen.getByRole("button", { name: /Autonome/ })).toHaveAttribute(
+      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.autonome) })).toHaveAttribute(
         "aria-pressed",
         "true",
       );
@@ -333,12 +338,12 @@ describe("ParametresPage", () => {
       const box = screen.getByLabelText("Laisser ZETIS démarrer seul");
       expect(box).toBeChecked();
 
-      fireEvent.click(screen.getByRole("button", { name: /Manuel/ }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
       expect(box).toBeChecked();
 
       // …et dans l'autre sens : décocher ne change aucun palier.
       fireEvent.click(box);
-      expect(screen.getByRole("button", { name: /Manuel/ })).toHaveAttribute(
+      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) })).toHaveAttribute(
         "aria-pressed",
         "true",
       );

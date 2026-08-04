@@ -7,7 +7,10 @@ import { PRESET_LABEL } from "../lib/settings";
 import { type AutonomyState } from "../hooks/useAutonomyState";
 import { EtatZetis } from "./EtatZetis";
 
-const REGIMES = ["Manuel", "Semi-autonome", "Autonome", "Sur mesure"];
+// ⚠️ Dérivés de la source unique, jamais recopiés : si les libellés changent encore, ces tests
+// suivent au lieu de casser à côté du problème. « Sur mesure » n'est pas un régime, donc pas
+// dans `PRESET_LABEL` — il s'ajoute à la main.
+const REGIMES = [...Object.values(PRESET_LABEL), "Sur mesure"];
 
 function ready(overrides: Partial<Autonomy> = {}): AutonomyState {
   return {
@@ -129,7 +132,7 @@ describe("EtatZetis", () => {
   it("son nom accessible porte les DEUX axes, et l'image n'en porte aucun", () => {
     const { container } = show(ready({ preset: "autonome", auto_trigger_enabled: true }));
 
-    const lien = screen.getByRole("link", { name: /Autonome/ });
+    const lien = screen.getByRole("link", { name: new RegExp(PRESET_LABEL.autonome) });
     expect(lien.getAttribute("aria-label")).toMatch(/démarre seul/);
     // L'image est décorative PARCE QUE le texte est là : un `alt` non vide écraserait le nom du
     // lien, qui est le seul à dire les deux axes.

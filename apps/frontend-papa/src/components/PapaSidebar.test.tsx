@@ -22,6 +22,7 @@ vi.mock("../lib/settings", async (importOriginal) => ({
 }));
 import { fetchAutonomy } from "../lib/settings";
 
+import { PRESET_LABEL } from "../lib/settings";
 import { PAPA_NAV } from "../lib/navigation";
 import { type AutonomyState } from "../hooks/useAutonomyState";
 import { PapaSidebar } from "./PapaSidebar";
@@ -55,13 +56,13 @@ describe("PapaSidebar", () => {
 
   it("rend l'état reçu en tête", () => {
     show(SEMI);
-    expect(screen.getByText("Semi-autonome")).toBeInTheDocument();
+    expect(screen.getByText(PRESET_LABEL.semi)).toBeInTheDocument();
   });
 
   it("montée sans prop, ne devine aucun régime", () => {
     // Le repli du défaut est `loading` — jamais un régime, jamais « Manuel » par prudence.
     show();
-    for (const label of ["Manuel", "Semi-autonome", "Autonome", "Sur mesure"]) {
+    for (const label of [...Object.values(PRESET_LABEL), "Sur mesure"]) {
       expect(screen.queryByText(label)).toBeNull();
     }
   });

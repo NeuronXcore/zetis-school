@@ -48,10 +48,19 @@ export const LEVEL_LABEL: Record<AutonomyLevel, string> = {
   3: "ZETIS sert",
 };
 
+/** Les noms des trois régimes, à l'écran.
+ *
+ *  ⚠️ Décision du 2026-08-04 : ce sont les mots des AVATARS qui font foi, pas la traduction
+ *  française des ADR (« Manuel · Semi-autonome · Autonome »). Le régime a un visage avant d'avoir
+ *  un mot, et un écran qui nomme autrement ce que l'image montre oblige à traduire mentalement.
+ *
+ *  ⚠️ Les CLÉS, elles, ne bougent pas : `manuel | semi | autonome` viennent du serveur
+ *  (`settings/service.py`) et sont l'identité du régime. Renommer l'affichage n'est pas renommer
+ *  la donnée — c'est ici, et seulement ici, que les deux se croisent. */
 export const PRESET_LABEL: Record<AutonomyPreset, string> = {
-  manuel: "Manuel",
-  semi: "Semi-autonome",
-  autonome: "Autonome",
+  manuel: "Manual",
+  semi: "Hybrid",
+  autonome: "Autonom",
 };
 
 export const PRESET_ICON: Record<AutonomyPreset, string> = {

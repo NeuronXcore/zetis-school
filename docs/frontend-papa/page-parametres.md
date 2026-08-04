@@ -73,13 +73,18 @@ vivent sur le Journal.
 
 #### 2. Le régime — trois préréglages
 
-Trois cartes cliquables, une seule active : **Manuel · Semi-autonome · Autonome**.
+Trois cartes cliquables, une seule active : **Manual · Hybrid · Autonom**.
 
 | Régime | Ce qu'il dit |
 |---|---|
-| 🔒 **Manuel** | ZETIS produit, **vous validez tout** avant que Massimo le voie — fiches et cartes mentales comprises. |
-| ⚖️ **Semi-autonome** | ZETIS sert les dérivés seul. **Les cours passent toujours par vous.** |
-| 🚀 **Autonome** | ZETIS rédige et sert **y compris les cours**. Vous pouvez retirer, tant que Massimo n'a pas ouvert. |
+| 🔒 **Manual** | ZETIS produit, **vous validez tout** avant que Massimo le voie — fiches et cartes mentales comprises. |
+| ⚖️ **Hybrid** | ZETIS sert les dérivés seul. **Les cours passent toujours par vous.** |
+| 🚀 **Autonom** | ZETIS rédige et sert **y compris les cours**. Vous pouvez retirer, tant que Massimo n'a pas ouvert. |
+
+> **Ce sont les mots des avatars, pas ceux des ADR** (décision du 2026-08-04, addendum §7.7). Les
+> documents de décision continuent de dire *Manuel · Semi-autonome · Autonome* — ce sont les mêmes
+> régimes, et les **clés** de l'API (`manuel | semi | autonome`) ne bougent pas. Le nom à l'écran
+> suit l'image ; l'identité de la donnée suit le serveur.
 
 **Le préréglage n'est pas un état stocké.** Six clés plates en base ; l'étiquette est **dérivée**
 des six valeurs à l'affichage. Un badge **« Sur mesure »** s'affiche si elles ne correspondent à
@@ -192,10 +197,10 @@ mène ici. Il porte **les deux axes**, jamais un seul — *Autonome + déclenche
 |---|---|---|---|---|
 | Chargement | neutre | **aucun** | squelette | — |
 | Erreur de lecture | neutre | **aucun** | *État indisponible* | *Ouvrir les Paramètres* |
-| Manuel | manuel | fixe | 🔒 **Manuel** | ⏸ *démarre sur clic* / ⚡ *démarre seul* |
-| Semi-autonome | semi | souffle 4 s | ⚖️ **Semi-autonome** | idem |
-| Autonome | autonome | souffle + rotation 6 s | 🚀 **Autonome** | idem |
-| Sur mesure | neutre | fixe | **Sur mesure** | idem |
+| `manuel` | manuel | fixe | 🔒 **Manual** | ⏸ *démarre sur clic* / ⚡ *démarre seul* |
+| `semi` | semi | souffle 4 s | ⚖️ **Hybrid** | idem |
+| `autonome` | autonome | souffle + rotation 6 s | 🚀 **Autonom** | idem |
+| `null` | neutre | fixe | **Sur mesure** | idem |
 
 La **ligne 2 est indépendante de la ligne 1** : elle lit `auto_trigger_enabled`, et un point qui
 orbite l'avatar la double quand le déclencheur est armé.

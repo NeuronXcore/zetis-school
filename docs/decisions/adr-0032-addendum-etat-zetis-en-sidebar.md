@@ -122,15 +122,33 @@ la décision :
 Échappatoire nommée, si le rouge se lit malgré tout comme une alarme à l'écran : une règle CSS de
 teinte sur la seule image d'Autonome — **réversible, sans retoucher l'asset**.
 
-### 7.7 — Le vocabulaire du code l'emporte sur celui de l'image
+### 7.7 — Le vocabulaire des avatars l'emporte à l'écran ; celui du serveur, dans la donnée
 
-L'image du régime *Semi-autonome* porte le mot **HYBRIDE**, cuit dans le pixel. Illisible à 44 px,
-mais c'est **deux vocabulaires pour un régime**.
+Les images portent leurs propres mots, cuits dans le pixel : **MANUEL**, **HYBRIDE**, **FULL ZETIS
+AUTONOME**. Le §3 de l'ADR-0032, lui, dit *Manuel · Semi-autonome · Autonome*. Deux vocabulaires
+pour trois régimes.
 
-Les fichiers sont donc renommés au vocabulaire du code (`zetis-regime-semi`) : la divergence
-s'arrête à l'illustration et **ne remonte jamais jusqu'à un identifiant**. Les libellés affichés
-restent ceux du §3 — *Manuel · Semi-autonome · Autonome · Sur mesure* — importés d'une source
-unique, jamais recopiés.
+**Décision : à l'écran, ce sont les mots des avatars.** Les trois libellés deviennent **Manual ·
+Hybrid · Autonom**, dans la sidebar **et** sur la page des réglages — une seule constante, donc
+une seule vocabulaire. Motif : le régime a un **visage** avant d'avoir un mot, et un écran qui
+nomme autrement ce que l'image montre oblige à traduire mentalement à chaque coup d'œil.
+
+⚠️ **Les CLÉS ne bougent pas** : `manuel | semi | autonome` viennent du serveur et sont l'identité
+du régime. Renommer l'affichage n'est pas renommer la donnée — les deux ne se croisent qu'en un
+seul point du code, et c'est délibéré. Les fichiers d'images suivent les **clés**
+(`zetis-regime-semi`), pas les libellés : une divergence de vocabulaire ne doit jamais remonter
+jusqu'à un identifiant.
+
+> **Contre-motif maintenu au dossier.** Cette section a d'abord décidé l'inverse, le matin même :
+> *« le vocabulaire du code l'emporte, les libellés restent ceux du §3 »*, au motif qu'un mot
+> illisible à 44 px ne justifie pas de renommer une interface. L'argument reste vrai sur la
+> **sidebar** — et faux partout ailleurs : les mêmes libellés servent la page des réglages, où les
+> cartes sont grandes et où le décalage se voit. Révoqué le 2026-08-04 par le commanditaire.
+>
+> Conséquence assumée : **les documents de décision et l'interface ne disent plus les mêmes mots.**
+> Les ADR continuent d'écrire *Manuel · Semi-autonome · Autonome* — les réécrire reviendrait à
+> corriger des décisions figées, ce que ce dépôt refuse. La correspondance est établie ici, une
+> fois, et c'est le seul endroit où elle a besoin de l'être.
 
 ## Périmètre
 
