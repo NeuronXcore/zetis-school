@@ -139,6 +139,23 @@ inévitable** : `production_events.piece` est `NULL` quand l'événement porte s
 atteint le stade où un type existe. **L'écran doit le dire** dans son état vide, sans quoi le filtre
 donnera l'impression que ces lots n'existent pas.
 
+#### Amendement acté à l'implémentation (2026-08-04) — un second angle mort, mesuré
+
+🔴 **Les lots ANTÉRIEURS à `production_events` ne répondent à aucun filtre de type non plus**, y
+compris quand ils ont produit. La table est née avec l'ADR-0034 ; ce qui la précède n'a laissé
+aucune ligne.
+
+Mesuré sur la base de dev : **2 lots sur 9 n'ont aucun événement**, et l'un d'eux (le lot #3) porte
+**4 fiches**. Filtrer sur *fiche* le laisse donc de côté, alors qu'il en a produit quatre.
+
+**La décision ne change pas**, et son motif tient : filtrer les cinq tables de pièces rendrait ces
+lots-là mais perdrait **toutes** les lignes bloquées, sautées et en erreur — c'est-à-dire l'essentiel
+de ce qu'on cherche dans un journal, et une régression bien pire. Le coût est nommé, pas masqué.
+
+⚠️ **Conséquence pour la slice B** : l'état vide ne peut pas se contenter de compter les lots
+bloqués. Il doit aussi dire *« N lots sont antérieurs au détail par pièce »* — sans quoi Papa lira
+« ZETIS n'a jamais fait de fiches » devant un lot qui en a fait quatre.
+
 ### 5. 🔴 Le régime CESSE d'être re-dérivé — une écriture unique, marquée, et l'histoire se fige
 
 **C'est la décision qui commande le chantier.**

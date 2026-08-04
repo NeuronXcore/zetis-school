@@ -162,6 +162,10 @@ existent **par construction** et doivent être nommés :
 
 - un **filtre de type** écarte les lots **bloqués avant d'avoir touché une pièce** — `piece` est
   `NULL` sur un événement `blocked`, il n'y a pas de type à comparer ;
+- un **filtre de type** écarte aussi les lots **antérieurs au détail par pièce** (`production_events`
+  est née avec l'ADR-0034). ⚠️ Mesuré : **2 lots sur 9** en dev, dont un qui porte **4 fiches**.
+  Sans cette phrase, Papa lira « ZETIS n'a jamais fait de fiches » devant un lot qui en a fait
+  quatre ;
 - un **filtre de mode** écarte les lots dont le régime n'a jamais été enregistré et dont les actes
   ne le prouvent pas.
 

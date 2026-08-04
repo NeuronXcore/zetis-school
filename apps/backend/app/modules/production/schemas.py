@@ -262,6 +262,10 @@ class JournalOut(BaseModel):
 
     runs: list[JournalRunOut] = []
     has_more: bool = False
+    # Le compte des lots RETENUS par le filtre — un compteur de pagination, pas un compteur de
+    # provenance : le §F.2 vise les totaux « ZETIS vs Papa », qui jugeraient. Celui-ci dit
+    # seulement combien de lots il reste à lire.
+    total: int = 0
 
 
 class VetoPreviewOut(BaseModel):

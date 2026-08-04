@@ -22,7 +22,7 @@ ferait N requêtes pour une page qui en liste N — le motif qui a tué le sonda
 2026-08-02.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 
 from sqlalchemy import func, select
@@ -43,7 +43,7 @@ from app.db.models import (
     SpacedReviewAttempt,
     SpacedReviewCard,
 )
-from app.modules.production import runs
+from app.modules.production import journal_filters, runs
 
 # Les cinq familles vetoables, et ce qui les rend « consommées ».
 #
@@ -535,18 +535,29 @@ def zetis_mode(run: ProductionRun) -> str | None:
     return niveau_de({A0A: run.a0a_level, A1: run.a1_level}) or "sur_mesure"
 
 
-def list_journal(db: Session, *, limit: int = 20, offset: int = 0) -> dict:
-    """Le flux, du lot le plus récent au plus ancien.
+def list_journal(
+    db: Session,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    filtre: journal_filters.JournalFiltre | None = None,
+    now: datetime | None = None,
+) -> dict:
+    """Le flux, du lot le plus récent au plus ancien — filtré et trié SERVEUR.
 
     Pagination explicite : un journal qui grossit sans borne finit par charger toute l'histoire
     du dispositif à chaque ouverture de page.
+
+    ⚠️ **`WHERE` puis `ORDER BY` puis `LIMIT`, dans cet ordre** (addendum « tri et filtre » §2).
+    Filtrer les lots déjà chargés répondrait « rien en maths » alors que les lots de maths sont
+    page 4 — un défaut qui ne ressemble pas à un défaut. `total` et `has_more` portent donc tous
+    deux sur l'ensemble **filtré**.
     """
-    total = db.scalar(select(func.count(ProductionRun.id))) or 0
+    filtre = filtre or journal_filters.JournalFiltre()
+    maintenant = now or datetime.now(timezone.utc)
+    total = journal_filters.compter(db, filtre, maintenant=maintenant)
     rows = db.scalars(
-        select(ProductionRun)
-        .order_by(ProductionRun.created_at.desc(), ProductionRun.id.desc())
-        .limit(limit)
-        .offset(offset)
+        journal_filters.selectionner(db, filtre, maintenant=maintenant).limit(limit).offset(offset)
     ).all()
 
     # UN seul aller-retour pour tous les noms de notions de la page — jamais un par événement.
@@ -674,4 +685,7 @@ def list_journal(db: Session, *, limit: int = 20, offset: int = 0) -> dict:
         # jamais un reproche — elle s'affiche par objet et ne se totalise pas). Ce compteur-ci est
         # celui des LOTS, pour la pagination, et rien d'autre.
         "has_more": offset + len(rows) < total,
+        # ⚠️ Le total de l'ensemble FILTRÉ, pas de l'histoire. « 7 sur 23 » est juste ; « 7 sur 7 »
+        # cacherait qu'il existe autre chose, et l'état vide n'aurait plus rien à dire.
+        "total": total,
     }
