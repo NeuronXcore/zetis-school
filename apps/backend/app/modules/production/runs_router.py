@@ -58,7 +58,7 @@ def create_from_request(request_id: int, db: Session = Depends(get_db)) -> dict:
         # Le même refus que le scan, dit ici aussi : l'écran ne devrait pas offrir ce bouton, mais
         # une route qui compte sur son client pour se protéger n'est pas protégée.
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"ZETIS ne produit pas « {req.content_kind} » tout seul — "
                 "ce contenu se crée depuis sa propre page."

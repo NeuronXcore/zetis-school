@@ -194,7 +194,7 @@ def transcribe(db: Session, stt: SttProvider, file: UploadFile) -> dict:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Audio vide.")
     if len(raw) > _MAX_AUDIO_BYTES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="Dictée trop longue.",
         )
 

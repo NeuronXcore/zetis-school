@@ -1377,13 +1377,13 @@ def set_mission_steps(
         )
     ordered = list(dict.fromkeys(step_types))  # dédoublonne en préservant l'ordre (1 type = 1 étape)
     if not ordered:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Au moins une étape.")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Au moins une étape.")
     skill_name = _skill_name(db, mission.skill_id)
     specs: list[tuple[str, str, int | None]] = []
     for step_type in ordered:
         if step_type not in _STEP_PALETTE:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Type d'étape inconnu : {step_type}."
+                status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Type d'étape inconnu : {step_type}."
             )
         resource_id = _resolve_step_resource(db, step_type, mission.skill_id)
         if step_type in (STEP_MINDMAP, STEP_QUIZ) and resource_id is None:

@@ -487,7 +487,7 @@ def _lesson_context(db: Session, chapter: Chapter) -> tuple[Subject, str, str]:
     `school_year_subject_id`) n'a pas de niveau : erreur métier explicite."""
     if chapter.school_year_subject_id is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"Chapitre {chapter.id} non rattaché à une matière d'année scolaire : "
                 "impossible de résoudre le niveau pour générer des leçons."

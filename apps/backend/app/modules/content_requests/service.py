@@ -142,7 +142,7 @@ def create_student_requests(
     # c'est son contenu. Les deux garde-fous ne protègent pas de la même chose.
     if len(content_kinds) > max_kinds:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Trop de contenus demandés en une fois (maximum {max_kinds}).",
         )
     # Dédup en préservant l'ordre : « tout ce qui manque » peut arriver avec des répétitions,

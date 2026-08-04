@@ -188,7 +188,7 @@ def _reject(key: str, value: int) -> None:
     detail = cls.reason or (
         f"Palier {value} indisponible pour « {cls.label} »."
     )
-    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
+    raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
 
 
 def apply_monotonicity(values: dict[str, int]) -> dict[str, int]:
@@ -207,7 +207,7 @@ def write_autonomy(db: Session, changes: dict[str, int]) -> dict[str, int]:
     unknown = sorted(set(changes) - set(BY_KEY))
     if unknown:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Réglage inconnu : {unknown[0]}."
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Réglage inconnu : {unknown[0]}."
         )
 
     target = apply_monotonicity({**read_autonomy(db), **changes})
