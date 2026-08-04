@@ -415,7 +415,8 @@ describe("JournalPage — la pagination, qui manquait", () => {
     // l'index 1 supposerait qu'aucun autre appel n'a lieu au montage, ce qui est une hypothèse
     // sur React, pas sur la page.
     const appels = vi.mocked(fetchJournal).mock.calls;
-    expect(appels[appels.length - 1]).toEqual([20, 1]);
+    // Le 3ᵉ argument porte le filtre (vide ici) : on n'assert que la borne et le décalage.
+    expect(appels[appels.length - 1]?.slice(0, 2)).toEqual([20, 1]);
     expect(screen.queryByRole("button", { name: /plus anciens/ })).not.toBeInTheDocument();
   });
 });
