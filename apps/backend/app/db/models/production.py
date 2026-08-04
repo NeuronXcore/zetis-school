@@ -193,6 +193,21 @@ class ProductionRun(Base):
     a0a_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     a1_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # D'où vient la réponse : `capture` (le lot l'a enregistré au démarrage, il fait foi) ou
+    # `deduit` (reconstitué **une fois** de ce que le lot a FAIT). `NULL` = rien ne le prouve.
+    #
+    # ⚠️ **Ce champ voyageait déjà dans l'API — il était CALCULÉ à chaque lecture** (addendum
+    # ADR-0034 §1bis). Le figer est la décision de l'addendum « tri et filtre », et son motif tient
+    # en une phrase : la déduction lit des artefacts que **le veto peut retirer**. `veto._delete_one`
+    # supprime la ligne `Lesson` d'un cours retiré — donc la preuve « ce lot a rédigé un cours »
+    # disparaît avec elle, et le régime affiché d'un lot d'hier changerait. Un historique qui bouge
+    # quand on exerce un droit prévu n'est pas un historique.
+    #
+    # ⚠️ **Ce n'est PAS ce que le §F.4 interdit.** Le §F.4 interdit de reconstituer le passé depuis
+    # les réglages d'AUJOURD'HUI, qui ont changé. Écrire une fois ce que les ACTES prouvent, avec sa
+    # provenance, est le geste inverse : c'est ce qui fige l'histoire au lieu de la laisser dériver.
+    zetis_mode_source: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # ⚠️ `created_at` n'est PAS l'heure de démarrage : le job attend en file (concurrence 1, un
     # seul GPU). Sans cette colonne, la durée d'un lot inclut son attente et ne mesure rien.
