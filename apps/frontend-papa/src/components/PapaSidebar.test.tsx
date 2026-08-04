@@ -55,8 +55,13 @@ describe("PapaSidebar", () => {
   });
 
   it("rend l'état reçu en tête", () => {
+    // ⚠️ Le libellé n'est plus ÉCRIT (il est dans l'illustration, cf. §7.2bis) : on vérifie le
+    // nom accessible du lien, qui lui porte les deux axes. Chercher le texte à l'écran donnerait
+    // un test rouge pour une bonne raison — et, si on le « réparait » à l'envers, un test creux.
     show(SEMI);
-    expect(screen.getByText(PRESET_LABEL.semi)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: new RegExp(PRESET_LABEL.semi) }),
+    ).toBeInTheDocument();
   });
 
   it("montée sans prop, ne devine aucun régime", () => {

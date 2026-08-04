@@ -261,6 +261,119 @@
   }
 }
 
+/* ── Le badge, à cheval sur le bas de l'avatar ───────────────────────────────────────────────────
+   Il porte les DEUX axes : le mot du régime — celui du CODE, pas celui cuit dans l'illustration —
+   et le glyphe du déclencheur (⏸ / ⚡). C'est ce qui permet qu'aucun texte ne vive à côté du logo.
+   ⚠️ `white-space: nowrap` + `translate(-50%)` : le badge a le DROIT d'être plus large que
+   l'avatar, il déborde symétriquement. Le brider à la largeur du logo couperait « AUTONOM ». */
+.regime-badge {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  z-index: 4;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  border-radius: 9999px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #fff;
+  /* Le liseré à la couleur du fond de la sidebar : c'est lui qui détache la pastille de l'image
+     et rend le « à cheval » lisible plutôt que sale. */
+  box-shadow: 0 0 0 2px var(--color-papa-surface);
+}
+
+.regime-badge--manuel {
+  background: #3b82f6;
+}
+
+.regime-badge--semi {
+  background: linear-gradient(135deg, #3b82f6, #a855f7);
+}
+
+/* ⚠️ Indigo→fuchsia et NON rouge, comme le halo (§7.6) : l'illustration d'*Autonom* est rouge,
+   mais le rouge de ce dépôt veut dire refus. Le badge ne le double pas, il le corrige. */
+.regime-badge--autonome {
+  background: linear-gradient(135deg, #6366f1, #d946ef);
+}
+
+.regime-badge--sur-mesure {
+  background: #38bdf8;
+}
+
+/* L'erreur est GRISE et muette : si elle était rouge, elle deviendrait indiscernable de
+   l'avatar *Autonom*, qui l'est aussi et ne signale aucun problème. */
+.regime-badge--erreur {
+  background: var(--color-papa-surface-2);
+  color: var(--color-papa-muted);
+}
+
+.regime-badge--squelette {
+  height: 15px;
+  width: 62px;
+  background: var(--color-papa-surface-2);
+}
+
+/* ── L'infobulle ────────────────────────────────────────────────────────────────────────────────
+   Elle porte le libellé du régime, sa description complète, et la phrase du déclencheur.
+   ⚠️ Positionnée en `fixed` depuis le composant : la sidebar et son conteneur sont en
+   `overflow-hidden` — le défilement de la nav en dépend — et une infobulle en `absolute` y serait
+   coupée net au bord de la colonne.
+   Son cadre est TEINTÉ PAR LE RÉGIME, comme le halo et le badge : trois surfaces, une seule
+   grammaire de couleur. Un cadre neutre se confondait avec les cartes de la page en dessous. */
+.regime-bulle {
+  animation: regime-bulle-in 120ms ease-out;
+  pointer-events: none;
+  border: 1px solid var(--color-papa-border);
+  background: var(--color-papa-surface-2);
+}
+
+.regime-bulle--manuel {
+  border-color: color-mix(in srgb, #3b82f6 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #3b82f6 25%, transparent),
+    0 0 22px 2px color-mix(in srgb, #3b82f6 35%, transparent),
+    0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.regime-bulle--semi {
+  border-color: color-mix(in srgb, #a855f7 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #a855f7 25%, transparent),
+    0 0 22px 2px color-mix(in srgb, #7c5cff 40%, transparent),
+    0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.regime-bulle--autonome {
+  border-color: color-mix(in srgb, #d946ef 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #d946ef 25%, transparent),
+    0 0 24px 3px color-mix(in srgb, #a855f7 45%, transparent),
+    0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.regime-bulle--neutre {
+  border-color: color-mix(in srgb, #38bdf8 45%, transparent);
+  box-shadow:
+    0 0 18px 2px color-mix(in srgb, #38bdf8 25%, transparent),
+    0 8px 24px rgb(0 0 0 / 45%);
+}
+
+@keyframes regime-bulle-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* ── Mouvement réduit : tout devient FIXE, rien ne DISPARAÎT ─────────────────────────────────────
    Le halo et le point PORTENT de l'information : les couper effacerait le signal. C'est le
    MOUVEMENT qu'on retire, pas le signe. Même parti pris que `couverture-breathe` ci-dessus, qui
@@ -270,7 +383,8 @@
   .regime-halo--autonome::after,
   .regime-orbit,
   .regime-img,
-  .regime-img--sortant {
+  .regime-img--sortant,
+  .regime-bulle {
     animation: none;
   }
 

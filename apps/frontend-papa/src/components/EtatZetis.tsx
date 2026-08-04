@@ -1,16 +1,19 @@
 // Bloc d'état en tête de la sidebar Papa (addendum ADR-0032 §7).
 //
-// Trois refus qui expliquent le code :
+// Quatre refus qui expliquent le code :
 //
-// 1. **Deux axes, deux signes.** L'avatar porte le RÉGIME, la seconde ligne porte le DÉCLENCHEUR,
+// 1. **Deux axes, deux signes.** L'avatar porte le RÉGIME, la ligne de texte porte le DÉCLENCHEUR,
 //    doublé d'un point qui orbite. « Autonome + désarmé » veut dire « ZETIS sert seul mais attend
 //    votre clic » : un signe unique mentirait sur deux lignes de la table de vérité sur quatre.
-// 2. **Aucun régime avant la réponse du serveur, aucun repli à l'erreur.** Le chargement et
+// 2. **Aucun texte à côté du logo** (2026-08-04) : tout tient dans un BADGE à cheval sur le bas de
+//    l'avatar. Il porte le régime — en toutes lettres, parce que le mot cuit dans l'illustration
+//    n'est pas dans le vocabulaire du code — ET le glyphe du déclencheur, qui n'est dans aucune
+//    image. Les deux axes tiennent en une pastille ; la phrase complète est dans l'infobulle.
+// 3. **Aucun régime avant la réponse du serveur, aucun repli à l'erreur.** Le chargement et
 //    l'erreur montrent l'avatar NEUTRE, qui ne désigne aucun régime — un régime faux affiché une
 //    seconde est un mensonge, et la sidebar est visible sur les 22 pages.
-// 3. **Ce bloc LIT, il ne règle pas.** C'est un lien vers `/parametres`, rien d'autre : un régime
-//    ne doit pas pouvoir bouger d'un clic dans un coin d'écran.
-import { useEffect, useRef, useState } from "react";
+// 4. **Ce bloc LIT, il ne règle pas.** C'est un lien vers `/parametres`, rien d'autre.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { type AutonomyPreset } from "@zetis/types";
 
@@ -33,6 +36,18 @@ const HALO: Record<Visage, string> = {
   semi: "regime-halo--semi",
   autonome: "regime-halo--autonome",
   neutre: "regime-halo--sur-mesure",
+};
+
+/** Le texte du badge, en CAPITALES parce qu'il fait 9 px et qu'il doit se lire d'un coup d'œil.
+ *
+ *  ⚠️ Dérivé de `PRESET_LABEL`, jamais recopié : le badge dit le mot du CODE (`Hybrid`), pas
+ *  celui cuit dans l'illustration (`HYBRIDE`). C'est tout l'objet du §7.7 — la divergence
+ *  s'arrête à l'image. */
+const BADGE: Record<Visage, string> = {
+  manuel: "regime-badge--manuel",
+  semi: "regime-badge--semi",
+  autonome: "regime-badge--autonome",
+  neutre: "regime-badge--sur-mesure",
 };
 
 /** Garde l'image sortante 300 ms pour que le fondu soit ENCHAÎNÉ.
@@ -61,17 +76,10 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
   const visage: Visage = preset ?? "neutre";
   const sortant = useCrossfade(visage);
 
-  // ⚠️ Libellés IMPORTÉS, jamais recopiés : une recopie en dur (« Semi-auto ») ferait diverger la
-  // sidebar de la page au premier changement de vocabulaire. Verrouillé par un test.
-  const titre =
-    state.status === "loading"
-      ? null
-      : state.status === "error"
-        ? "État indisponible"
-        : preset
-          ? PRESET_LABEL[preset]
-          : "Sur mesure";
-
+  // ⚠️ Libellé IMPORTÉ, jamais recopié — il ne s'affiche plus au repos (il est dans l'image) mais
+  // il porte le tooltip et le nom accessible. Une recopie en dur ferait diverger la sidebar de la
+  // page des réglages au premier changement de vocabulaire.
+  const regime = pret ? (preset ? PRESET_LABEL[preset] : "Sur mesure") : null;
   const declencheur = arme ? "démarre seul" : "démarre sur clic";
 
   // Le NOM ACCESSIBLE porte les deux axes. C'est pour cela que l'`<img>` reste `alt=""` : un
@@ -81,17 +89,41 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
       ? "ZETIS — état d'autonomie en cours de lecture"
       : state.status === "error"
         ? "ZETIS — état d'autonomie indisponible. Ouvrir les Paramètres"
-        : `ZETIS — régime ${titre}, ${declencheur}. Ouvrir les Paramètres`;
+        : `ZETIS — régime ${regime}, ${declencheur}. Ouvrir les Paramètres`;
+
+  // ⚠️ Le tooltip est en `position: fixed`, et ce n'est pas un caprice : la sidebar ET son
+  // conteneur sont en `overflow-hidden` (le défilement de la nav en dépend), donc une infobulle
+  // en `absolute` serait COUPÉE au bord de la colonne. `fixed` sort du flux d'ancrage — mais il
+  // faut alors lui donner sa position, d'où la mesure de l'ancre au survol.
+  const ancre = useRef<HTMLAnchorElement>(null);
+  const [bulle, setBulle] = useState<{ top: number; left: number } | null>(null);
+
+  const montrer = useCallback(() => {
+    const rect = ancre.current?.getBoundingClientRect();
+    if (rect) setBulle({ top: rect.top, left: rect.right + 10 });
+  }, []);
+  const cacher = useCallback(() => setBulle(null), []);
 
   return (
+    // ⚠️ Le survol est écouté par ce CONTENEUR, et l'infobulle est sa fille — pas celle du lien.
+    // Payé en vrai le 2026-08-04 : une infobulle enfant du `<a>` fait apparaître un nœud DANS le
+    // sous-arbre survolé, et `onMouseLeave` cesse de se déclencher de façon fiable. Le lien garde
+    // seulement `onFocus`/`onBlur`, qui portent sur LUI.
+    <div
+      className="relative mb-3 shrink-0"
+      onMouseEnter={montrer}
+      onMouseLeave={cacher}
+    >
     <NavLink
+      ref={ancre}
       to="/parametres"
       aria-label={nomAccessible}
       aria-busy={state.status === "loading" || undefined}
-      title={preset ? PRESET_DESCRIPTION[preset] : undefined}
-      className="mb-4 flex shrink-0 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-papa-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papa-accent"
+      onFocus={montrer}
+      onBlur={cacher}
+      className="flex justify-center rounded-xl px-2 pb-4 pt-2 transition-colors hover:bg-papa-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papa-accent"
     >
-      <span className="regime-avatar h-11 w-11 shrink-0">
+      <span className="regime-avatar h-[88px] w-[88px] shrink-0">
         {/* Le halo est ABSENT du DOM au chargement et à l'erreur — pas un réceptacle vide, rien. */}
         {pret && <span className={`regime-halo ${HALO[visage]}`} aria-hidden />}
         {sortant && (
@@ -110,41 +142,62 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
           decoding="async"
           className="regime-img rounded-[22%] object-cover"
         />
-        {/* Second axe. Absent du DOM quand le déclencheur est désarmé, jamais seulement invisible. */}
+        {/* Second axe, doublé en ambiance. Absent du DOM quand le déclencheur est désarmé,
+            jamais seulement invisible. */}
         {arme && <span className="regime-orbit" aria-hidden />}
-      </span>
 
-      <span className="min-w-0 flex-1">
-        {titre === null ? (
-          // Squelette STATIQUE : une pulsation en tête de chaque page devient un clignotement
-          // parasite dans le coin de l'œil (même motif que `CouvertureIcon`, qui refuse de
-          // respirer en sidebar).
-          <>
-            <span className="block h-3 w-24 rounded bg-papa-surface-2" aria-hidden />
-            <span className="mt-1.5 block h-2.5 w-20 rounded bg-papa-surface-2" aria-hidden />
-          </>
+        {/* LE BADGE, à cheval sur le bas de l'avatar. Il porte les DEUX axes : le mot du régime
+            (celui du CODE, pas celui cuit dans l'illustration) et le glyphe du déclencheur.
+            ⚠️ Au chargement il n'y en a PAS : un régime affiché avant la réponse serveur serait
+            un mensonge, et c'est ici qu'il se dirait le plus fort. */}
+        {state.status === "loading" ? (
+          // Squelette STATIQUE, à la place et à la taille exactes du badge : une pulsation en
+          // tête de chaque page devient un clignotement parasite (motif de `CouvertureIcon`).
+          <span className="regime-badge regime-badge--squelette" aria-hidden />
+        ) : state.status === "error" ? (
+          // Gris muet, aucune classe rouge : le rouge de ce bloc est celui de l'avatar *Autonom*
+          // et veut dire « ZETIS a tous les droits » (§7.6). Les deux doivent rester discernables.
+          <span className="regime-badge regime-badge--erreur">ILLISIBLE</span>
         ) : (
-          <>
-            <span className="block truncate text-[13px] font-bold leading-tight text-papa-text">
-              {preset && <span aria-hidden>{PRESET_ICON[preset]} </span>}
-              {titre}
-            </span>
-            <span className="mt-0.5 block whitespace-nowrap text-[11px] leading-tight text-papa-muted">
-              {state.status === "error" ? (
-                // Gris muet, aucune classe rouge : le rouge de ce bloc est celui de l'avatar
-                // *Autonome*, et il veut dire « ZETIS a tous les droits » (§7.6). Les deux
-                // messages doivent rester discernables.
-                "Ouvrir les Paramètres"
-              ) : (
-                <>
-                  <span aria-hidden>{arme ? "⚡" : "⏸"} </span>
-                  {declencheur}
-                </>
-              )}
-            </span>
-          </>
+          <span className={`regime-badge ${BADGE[visage]}`}>
+            <span aria-hidden>{arme ? "⚡" : "⏸"}</span>
+            {(regime ?? "").toUpperCase()}
+          </span>
         )}
       </span>
     </NavLink>
+
+      {/* L'infobulle DUPLIQUE le nom accessible du lien : elle est donc `aria-hidden`, sinon un
+          lecteur d'écran annoncerait deux fois la même chose. Elle s'ouvre aussi au FOCUS clavier
+          — un survol qui n'existe qu'à la souris exclut ceux qui n'en utilisent pas. */}
+      {bulle && (
+        <span
+          role="presentation"
+          aria-hidden
+          style={{ top: bulle.top, left: bulle.left }}
+          // Le cadre est TEINTÉ PAR LE RÉGIME, comme le halo de l'avatar et le badge : trois
+          // surfaces, une seule grammaire de couleur. Sur une page dense, un cadre neutre se
+          // confondait avec les cartes du contenu.
+          className={`regime-bulle regime-bulle--${visage} fixed z-50 w-64 rounded-xl p-3 text-[12px] leading-snug text-papa-muted`}
+        >
+          {state.status === "loading" ? (
+            "Lecture de l'état d'autonomie…"
+          ) : state.status === "error" ? (
+            "État d'autonomie illisible. Ouvrir les Paramètres pour réessayer."
+          ) : (
+            <>
+              <span className="block font-bold text-papa-text">
+                {preset && <span>{PRESET_ICON[preset]} </span>}
+                {regime}
+              </span>
+              {preset && <span className="mt-1 block">{PRESET_DESCRIPTION[preset]}</span>}
+              <span className="mt-1.5 block border-t border-papa-border pt-1.5">
+                {arme ? "⚡ Il démarre sans vous." : "⏸ Il attend votre clic pour démarrer."}
+              </span>
+            </>
+          )}
+        </span>
+      )}
+    </div>
   );
 }

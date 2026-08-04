@@ -42,10 +42,14 @@ partira sans son clic** — c'est exactement le mensonge d'écran que `page-para
 proscrit sur la page des réglages, et il coûte ici plus cher, parce que la sidebar est visible
 partout.
 
-**Donc :** l'avatar porte le **régime**, un micro-témoin textuel porte le **déclencheur**, et un
-point qui orbite l'avatar le double visuellement. **Aucun des deux ne se déduit de l'autre**, et
-c'est la raison d'être de la séparation — la même que celle du §5 de l'ADR-0035 (« deux questions,
-deux sources »), rendue visible.
+**Donc :** l'avatar porte le **régime**, et un **glyphe distinct** porte le **déclencheur** —
+⏸ ou ⚡, dans le badge à cheval sur l'avatar (§7.2ter) — doublé d'un point qui orbite quand il est
+armé. **Aucun des deux ne se déduit de l'autre**, et c'est la raison d'être de la séparation : la
+même que celle du §5 de l'ADR-0035 (« deux questions, deux sources »), rendue visible.
+
+⚠️ **Le glyphe seul ne suffit pas à un lecteur d'écran** : le nom accessible du lien porte les
+deux axes en toutes lettres, et l'infobulle les redonne en phrases. Un pictogramme est un raccourci
+pour l'œil, jamais l'unique porteur d'une information.
 
 ### 7.2 — Le halo est gradué par le régime
 
@@ -87,6 +91,29 @@ signature deux fois.
 > comment elle s'appelle. Vrai de l'examen d'une interface, faux de la **comparaison** des deux —
 > et c'est la comparaison qui tranche. (2) *La signature au-dessus du bloc, dans la sidebar* :
 > tenue une heure, écartée parce qu'elle consommait ~20 px de la seule colonne qui en manque.
+
+### 7.2ter — Un logo et un badge, aucun texte à côté
+
+Le bloc est **un avatar de 88 px et une pastille à cheval sur son bas**. Rien d'autre. La colonne
+fait 256 px : toute ligne de texte posée à côté du logo le bride à une vignette où l'illustration
+devient bouillie.
+
+Le badge porte **les deux axes en une pastille** — le mot du régime, et le glyphe ⏸/⚡ du
+déclencheur. Le mot est celui du **code**, pas celui cuit dans l'illustration (§7.7) : c'est le
+seul endroit de l'écran où la divergence pourrait remonter, et c'est là qu'un test la verrouille.
+
+**Le détail vit dans l'infobulle** — libellé, description complète, phrase du déclencheur — au
+survol **et au focus clavier**. Son cadre est teinté par le régime, comme le halo et le badge :
+trois surfaces, une seule grammaire de couleur. ⚠️ Elle est en `position: fixed`, parce que la
+sidebar et son conteneur clippent leur contenu pour que la nav défile seule ; ancrée, elle serait
+coupée net au bord de la colonne.
+
+⚠️ **L'infobulle n'est pas fille du lien** — piège payé le 2026-08-04 : une infobulle qui apparaît
+*dans* le sous-arbre survolé empêche `onMouseLeave` de se déclencher de façon fiable, et la bulle
+restait ouverte indéfiniment. Le survol s'écoute sur un conteneur dont l'arbre ne bouge pas.
+
+> **Contre-motif au dossier** : une ligne de texte a existé une heure à côté du logo, portant le
+> déclencheur. Écartée — elle bridait le logo à 72 px, et la même information tient dans un glyphe.
 
 ### 7.3 — La sidebar LIT. Elle ne règle pas.
 
@@ -248,6 +275,12 @@ par événement ; les quatre rendus d'état (chargement, erreur, régime, sur me
    qu'un test, et sa disparition ne casserait rien d'autre.
 8bis. **Et elle n'est PAS dans la sidebar** — sans ce second verrou, on l'y remettrait en croyant
    réparer un oubli, et la signature apparaîtrait deux fois.
+9. **Aucun texte ne vit à côté du logo** (§7.2ter) : tout le texte du bloc est celui du badge.
+10. **Le badge dit le mot du CODE, pas celui de l'illustration** — l'image `semi` porte « HYBRIDE »
+   dans le pixel, le badge dit « HYBRID ». Sans ce verrou, la divergence du §7.7 remonterait à
+   l'écran au premier copier-coller.
+11. **L'infobulle se referme quand le pointeur s'en va** — le défaut du 2026-08-04, qu'aucun test
+   ne couvrait et que seul l'écran a montré.
 
 **Observation attendue après livraison** : si Papa cesse d'ouvrir `/parametres` pour vérifier — ce
 qui est le but — alors la page ne sert plus qu'à **changer** le régime, et son bloc « où vous en

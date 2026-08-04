@@ -198,17 +198,24 @@ dire « ZETIS sert seul mais attend votre clic », et un signe unique le dirait 
 > se distingue plus d'une capture de Massimo (addendum §7.2bis). *Cockpit de pilotage*, lui, ne
 > revient pas.
 
-| État | Avatar | Halo | Ligne 1 | Ligne 2 |
-|---|---|---|---|---|
-| Chargement | neutre | **aucun** | squelette | — |
-| Erreur de lecture | neutre | **aucun** | *État indisponible* | *Ouvrir les Paramètres* |
-| `manuel` | manuel | fixe | 🔒 **Manual** | ⏸ *démarre sur clic* / ⚡ *démarre seul* |
-| `semi` | semi | souffle 4 s | ⚖️ **Hybrid** | idem |
-| `autonome` | autonome | souffle + rotation 6 s | 🚀 **Autonom** | idem |
-| `null` | neutre | fixe | **Sur mesure** | idem |
+**Aucun texte à côté du logo** : un avatar de 88 px, et un **badge à cheval sur son bas** qui porte
+les deux axes à la fois — le mot du régime et le glyphe du déclencheur.
 
-La **ligne 2 est indépendante de la ligne 1** : elle lit `auto_trigger_enabled`, et un point qui
-orbite l'avatar la double quand le déclencheur est armé.
+| État | Avatar | Halo | Badge |
+|---|---|---|---|
+| Chargement | neutre | **aucun** | squelette (aucun mot) |
+| Erreur de lecture | neutre | **aucun** | gris — **ILLISIBLE** |
+| `manuel` | manuel | fixe | bleu — ⏸/⚡ **MANUAL** |
+| `semi` | semi | souffle 4 s | bleu→violet — ⏸/⚡ **HYBRID** |
+| `autonome` | autonome | souffle + rotation 6 s | indigo→fuchsia — ⏸/⚡ **AUTONOM** |
+| `null` | neutre | fixe | cyan — ⏸/⚡ **SUR MESURE** |
+
+Le **glyphe est indépendant du mot** : il lit `auto_trigger_enabled` (⏸ *démarre sur clic* / ⚡
+*démarre seul*), et un point qui orbite l'avatar le double quand le déclencheur est armé.
+
+Au **survol** (et au **focus clavier**) : une infobulle au cadre teinté par le régime, portant le
+libellé, sa description complète et la phrase du déclencheur. Elle est en `position: fixed` — la
+sidebar clippe son contenu pour que la nav défile seule, et une infobulle ancrée y serait coupée.
 
 > **La sidebar LIT, elle ne règle pas.** Aucun réglage ne se change depuis là — le bloc est un lien,
 > rien de plus. Un régime ne doit pas pouvoir bouger d'un clic dans un coin d'écran quand cette
