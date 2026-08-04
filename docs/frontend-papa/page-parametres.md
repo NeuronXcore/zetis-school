@@ -167,17 +167,46 @@ Rien à interroger, rien qui puisse dériver en compteur.
 ## États
 
 - **Chargement** : la section entière en squelette ; jamais de préréglage affiché « au hasard »
-  avant la réponse (un régime faux affiché une seconde est un mensonge).
+  avant la réponse (un régime faux affiché une seconde est un mensonge). ⚠️ **Vaut aussi pour le
+  bloc de la sidebar** (addendum §7.4), où le mensonge coûte plus cher : il est visible partout.
 - **Erreur de lecture** : la section affiche l'erreur et **aucun réglage** — pas de valeurs par
-  défaut inventées.
+  défaut inventées. Même règle en sidebar, où le bloc dit « État indisponible » et **rien
+  d'autre** — ni « Manuel » par prudence, ni la dernière valeur connue.
 - **Erreur d'écriture** : l'état revient à la valeur serveur, le message est affiché tel quel.
 - **Enregistrement** : bouton explicite (pas d'auto-save). Un réglage d'autonomie ne se change pas
   par inadvertance au survol.
 
 ## Navigation
 
-Entrée sidebar existante `⚙️ Paramètres` (`/parametres`), en bas, `startsGroup`. Le veto renvoie au
-Journal ; aucun autre lien sortant.
+**Deux** points d'entrée depuis le 2026-08-04 : l'entrée sidebar existante `⚙️ Paramètres`
+(`/parametres`), en bas, `startsGroup` — et le **bloc d'état en tête de sidebar**, ci-dessous. Le
+veto renvoie au Journal ; aucun autre lien sortant.
+
+## Le régime se lit aussi dans la sidebar (addendum §7 — 2026-08-04)
+
+En tête de la sidebar Papa, à la place du bandeau de marque : un **bloc de lecture** cliquable qui
+mène ici. Il porte **les deux axes**, jamais un seul — *Autonome + déclencheur désarmé* veut dire
+« ZETIS sert seul mais attend votre clic », et un signe unique le dirait faux (addendum §7.1).
+
+| État | Avatar | Halo | Ligne 1 | Ligne 2 |
+|---|---|---|---|---|
+| Chargement | neutre | **aucun** | squelette | — |
+| Erreur de lecture | neutre | **aucun** | *État indisponible* | *Ouvrir les Paramètres* |
+| Manuel | manuel | fixe | 🔒 **Manuel** | ⏸ *démarre sur clic* / ⚡ *démarre seul* |
+| Semi-autonome | semi | souffle 4 s | ⚖️ **Semi-autonome** | idem |
+| Autonome | autonome | souffle + rotation 6 s | 🚀 **Autonome** | idem |
+| Sur mesure | neutre | fixe | **Sur mesure** | idem |
+
+La **ligne 2 est indépendante de la ligne 1** : elle lit `auto_trigger_enabled`, et un point qui
+orbite l'avatar la double quand le déclencheur est armé.
+
+> **La sidebar LIT, elle ne règle pas.** Aucun réglage ne se change depuis là — le bloc est un lien,
+> rien de plus. Un régime ne doit pas pouvoir bouger d'un clic dans un coin d'écran quand cette
+> page exige elle-même un bouton « Enregistrer ».
+
+Le régime affiché vient **toujours** du serveur (`preset`) ; le front ne le recalcule jamais.
+Rafraîchi au montage et après un enregistrement réussi — **jamais par sondage** : deux onglets
+ouverts divergent jusqu'au rechargement, et c'est accepté (addendum §7.4).
 
 ## Hors périmètre
 
