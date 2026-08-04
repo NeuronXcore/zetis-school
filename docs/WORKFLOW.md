@@ -92,6 +92,33 @@ git add -A && git commit -m "docs(<chantier>): spec + maquette + prompts (ADR-00
 # 3. Ouvrir Claude Code sur la branche, coller le prompt de slice. C'est tout.
 ```
 
+### La dérive avec `main` — la mesurer à chaque reprise, la rattraper dans un seul sens
+
+Une branche qui vit plusieurs sessions prend du **retard** sur `main` (les décisions y sont
+commitées, et un autre chantier a pu y être mergé). Ce retard ne coûte que deux choses : des
+**conflits** à la fin, et surtout **coder contre une base périmée** — une API qui a changé, et on
+le découvre au merge, quand le travail est fait.
+
+**La règle :**
+
+1. **`/reprise` mesure**, après un `git fetch` — avance ET retard. Tant que le retard est `0`,
+   aucun geste : la discipline mono-chantier fait que `main` bouge peu.
+2. **Retard > 0 → on tire `main` VERS la branche**, avant de coder :
+
+   ```bash
+   git merge origin/main
+   ```
+
+   **Pas d'aller-retour sur `main`.** On ne quitte pas la branche, on ne rejoue rien.
+
+⚠️ **Et surtout pas de `rebase`.** Ce dépôt merge en **squash** : l'historique de la branche est
+**jeté** au merge. Rebaser paierait donc le risque — réécriture de commits déjà poussés, force-push
+— pour un bénéfice strictement nul. Le merge, lui, ne réécrit rien ; ses commits de fusion
+disparaissent au squash de toute façon.
+
+> **Le meilleur remède reste de ne pas dériver** : une branche qui vit une à deux sessions ne
+> dérive pas. Le rattrapage est le filet, pas le plan.
+
 Règles annexes :
 
 - **Une branche part toujours de `main`**, jamais d'une autre branche — chaque chantier part
@@ -125,6 +152,24 @@ perd ; il **réduit le coût de reconstruction** du contexte-code après un rese
 neuve interroge la carte (`graphify explain "<zone>"`) au lieu de relire 40 fichiers. D'où
 `graphify` en tête de chaque prompt, **puis** read-before-code (la carte oriente, le code réel
 vérifie).
+
+**Les trois usages qui servent vraiment**, mesurés le 2026-08-04 :
+
+| Commande | Quand | Ce qu'elle a apporté |
+|---|---|---|
+| `query "<question>"` | s'orienter sur une zone | c'est elle qui a fait apparaître le **3ᵉ** résolveur de leçon que le cadrage de l'ADR-0037 ignorait |
+| `affected "<fn>"` | **avant de modifier une fonction partagée** | la liste des appelants **est** le périmètre de non-régression |
+| `update .` | à chaque clôture | sans quoi la session suivante s'oriente sur un graphe périmé |
+
+⚠️ **Et une limite à connaître : `explain` ment par omission sur un nom dupliqué.** Testé sur
+`_active_year` — **7 nœuds dans le graphe, 1 seul rendu**, sans le moindre avertissement. Il répond
+donc avec assurance sur une occurrence arbitraire, ce qui est le pire comportement possible quand
+la question EST la duplication. Pour celle-là, `grep -rn "def <nom>"` dit la vérité.
+
+> **Un graphe statique ne trouve pas tout, et il ne faut pas lui en demander plus.** Des sept
+> défauts du 2026-08-04, il en couvrait **un** : deux tests qui passaient pour la mauvaise raison,
+> un `progress_pct` figé, un réveil qui se duplique, des hash faux — seule l'**exécution** les
+> trouve.
 
 ## 4. Les trois leviers d'optimisation
 
@@ -171,6 +216,35 @@ Ce que 4bis doit consigner, au minimum : le **squash** et le numéro de PR, la *
 la branche**, « rien à pousser », et surtout ce que la clôture **laisse ouvert** — vérifications
 non faites, données de test restées en base, décisions différées. Ces résidus-là ne vivent nulle
 part ailleurs : ni Git ni les ADR ne les portent.
+
+### ⚠️ `MEMORY.md` ne garde QUE le chantier actif — les quatre contrôles avant d'élaguer
+
+**Constat du 2026-08-04** : le fichier portait **2 227 lignes d'historique pour 122 lignes de
+chantier actif**. 94 % du contexte d'une reprise dépensé sur du travail terminé — **l'instrument
+censé économiser le contexte en était devenu le premier consommateur**. Après élagage : 181 lignes.
+
+**La règle : à la clôture, on retire la section du chantier PRÉCÉDENT.** Pas de fichier d'archive —
+ce serait une quatrième copie d'un contenu déjà écrit trois fois.
+
+**Mais jamais sans ces quatre contrôles :**
+
+| # | Vérifier que… | Où |
+|---|---|---|
+| 1 | les **décisions** y sont | l'ADR du chantier existe (`docs/decisions/`) |
+| 2 | les **pièges** y sont | `TROUBLESHOOTING.md` a la section du chantier |
+| 3 | le **livré** y est | `CHANGELOG.md` a son entrée de version |
+| 4 | 🔴 **rien n'y reste OUVERT** | sinon **remonter** dans « DETTES OUVERTES » de la section active |
+
+⚠️ **Le 4ᵉ n'est pas décoratif, et c'est celui qu'on oublie.** L'élagage du 2026-08-04 a exhumé
+**cinq dettes vivantes** qui dormaient dans l'historique — dont la galaxie **jamais vérifiée sur
+trois appareils** (livrée le 2026-08-01) et un `ZETIS_DATABASE_URL` que `.env.example` **et**
+`DEPLOYMENT.md` annonçaient sans son préfixe, donc **ignoré par le backend**. Un élagage aveugle les
+aurait effacées.
+
+> **L'historique s'était mis à servir de cimetière à dettes** : ce qu'on ne savait pas où ranger y
+> tombait, et devenait invisible à la reprise suivante. Le 4ᵉ contrôle existe pour ça.
+
+Pour retrouver une section retirée : `git log -p MEMORY.md` (56 révisions au moment de l'élagage).
 
 ### ⚠️ Ne jamais écrire dans `MEMORY.md` la tête de branche qu'il vit
 
@@ -253,7 +327,7 @@ Reprise — <chantier> Slice <A/B> (feat/<chantier>). Contexte précédent perdu
 NE REPARS PAS de zéro. Dans cet ordre, AVANT d'écrire :
 1. `graphify update .`
 2. `git log --oneline -8` — l'état réel du code.
-3. Lis MEMORY.md § "Reprise" — fait / en cours / à-faire + décisions actives.
+3. Lis MEMORY.md, section « État à la reprise » (la première ; les « Historique — … » sont clos).
 4. Relis <ADR> + <prompt de référence> — les décisions ne se rediscutent pas.
 5. `graphify explain "<zone>"` — comprends la zone à reprendre sans tout relire.
 6. Vérifie dans le code ce qui existe déjà — ce qui est fait ne se recode pas.
