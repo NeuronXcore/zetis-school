@@ -117,18 +117,26 @@ objet vivent sur le Journal.
 ⚠️ Hors matrice, en note : **les quiz sont servis sans relecture, par doctrine (ADR-0014)**. Le quiz
 n'est pas une classe d'autonomie — le taire pour une raison de forme perdrait une information vraie.
 
-#### 2. Modale de confirmation — au changement de niveau
+#### 2. Modale de confirmation — à l'ENREGISTREMENT
 
-Changer de niveau ouvre une modale qui montre **ce que ce niveau déplace** (le panneau ci-dessus,
-appliqué au niveau visé). ⚠️ **Sauf en descente** : *on ne freine pas un retour au contrôle*.
+Choisir un niveau ne fait qu'**afficher** ce qu'il déciderait : aucune friction, Papa compare les
+trois librement. C'est **« Enregistrer »** qui ouvre la modale, et elle montre **ce qui va être
+écrit**, avec **l'avatar du niveau visé**.
 
-| Geste | Modale |
+⚠️ **Toute écriture se confirme, descente comprise.** *« On ne freine pas un retour au contrôle »*
+survit dans le **TON**, pas dans l'absence de modale : une descente s'annonce « vous rendent du
+contrôle », sans avertissement. Un « Enregistrer » qui ouvrirait parfois une modale serait moins
+prévisible qu'un qui confirme toujours.
+
+| Enregistrement | Modale |
 |---|---|
-| Descente | **aucune** |
-| Montée vers *Hybrid* | sobre — « Passer en Hybrid ? » |
-| Montée vers *Autonom* | **la modale forte, inchangée** (voir plus bas) |
+| Rien à écrire | **aucune** — le bouton est désactivé |
+| Descente | sobre, ton positif — « vous rendent du contrôle » |
+| Montée ordinaire | sobre — « retirent du contrôle » |
+| Montée du **cours** vers « ZETIS sert » | **la modale forte, inchangée** (voir plus bas) |
 
-La modale valide le **brouillon**, pas l'enregistrement : « Enregistrer » reste un second geste.
+⚠️ Renoncer **n'annule pas le brouillon** : Papa n'a pas retiré son intention, il a refusé de la
+graver. Le bouton « Annuler » de la page reste le seul retour à l'état serveur.
 
 #### 3. « Détail par type de contenu » — `<details>` replié par défaut
 

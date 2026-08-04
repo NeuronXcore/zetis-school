@@ -82,28 +82,53 @@ Les taire ferait promettre à l'écran une richesse que la donnée n'a pas. Les 
 ferait croire que tout bouge, et Papa chercherait un effet qui n'existe pas. Un cadenas dit
 pourquoi — c'est déjà un principe de cette page.
 
-### 8.4 — La modale confirme les MONTÉES, jamais les descentes
+### 8.4 — La modale garde l'ENREGISTREMENT, jamais le brouillon
 
-Changer de niveau ouvre une modale de confirmation qui montre **ce que ce niveau déplace** — le même
-panneau que le §8.2, appliqué au niveau visé.
+**Choisir un niveau ne fait qu'afficher ce qu'il déciderait.** Aucune friction : un brouillon ne
+coûte rien, et Papa doit pouvoir comparer les trois niveaux librement avant de trancher.
 
-⚠️ **Sauf en descente.** *« On ne freine pas un retour au contrôle »* est une décision écrite du
-§Modale, et elle n'est pas rouverte : revenir vers plus de relecture n'ouvre **rien**.
+C'est **« Enregistrer »** qui ouvre la modale, et elle montre **ce qui va être écrit** — le panneau
+du §8.2, tel qu'il est à l'écran.
 
-**Deux niveaux de friction, et ils ne se confondent pas :**
+> **Première version révoquée le jour même.** La modale s'ouvrait au clic sur une carte. Papa
+> confirmait, puis devait *encore* cliquer « Enregistrer » : **deux validations pour une intention**,
+> dont la première ne portait sur **rien d'irréversible**. Une confirmation qui garde un brouillon
+> ne garde rien.
 
-| Geste | Modale |
+⚠️ La garde compare au **serveur**, pas au brouillon précédent : ce qu'on protège est l'écart qui va
+être écrit, pas le chemin qui y a mené. Monter puis redescendre avant d'enregistrer ne déclenche
+rien, et c'est juste — rien n'a changé.
+
+⚠️ **TOUTE écriture se confirme, descente comprise** — et ça ne contredit *« on ne freine pas un
+retour au contrôle »* que si l'on oublie ce qui a changé : la modale ne garde plus le **geste**,
+elle garde l'**écriture**. Ce n'est plus une friction sur l'intention, c'est un récapitulatif de ce
+qui va être écrit. Et un bouton « Enregistrer » qui ouvrirait parfois une modale et parfois non
+serait **moins prévisible** qu'un bouton qui confirme toujours.
+
+**Le motif d'origine est honoré par le TON, pas par l'absence :**
+
+| Enregistrement | Modale |
 |---|---|
-| Descente | **aucune** |
-| Montée vers *Hybrid* | sobre — « Passer en Hybrid ? », corps = ce que ça déplace |
-| Montée vers *Autonom* | **la modale forte existante, inchangée** — « ⚠️ Vous retirez le dernier contrôle humain » |
+| Rien à écrire | **aucune** — le bouton est désactivé |
+| Descente | sobre — « Ces réglages **vous rendent du contrôle** ». Aucun ⚠️, aucune mise en garde |
+| Montée ordinaire | sobre — « Ces réglages **retirent du contrôle** » |
+| Montée du **cours** vers « ZETIS sert » | **la modale forte, inchangée** — « ⚠️ Vous retirez le dernier contrôle humain » |
+
+Chaque modale porte **l'avatar du niveau visé** — le même que sur la carte et dans la sidebar :
+Papa reconnaît ce qu'il s'apprête à devenir avant de lire la phrase. Elle ne reprend PAS le pied de
+panneau (constat daté, note hors-matrice) : ce sont des éléments de **page**, ils allongeaient
+l'écran sans rien décider.
 
 La modale forte ne se dilue pas dans la nouvelle : elle est la seule qui garde au dossier la
 révocation d'une décision écrite (le gel d'A1). Lui donner le même ton qu'à un passage en *Hybrid*
 reviendrait à l'effacer par banalisation.
 
-⚠️ La modale valide le **brouillon**, pas l'enregistrement. Le bouton « Enregistrer » reste un
-second geste explicite — *pas d'auto-save* n'est pas rouvert.
+⚠️ *Pas d'auto-save* n'est pas rouvert : rien ne part sans que Papa clique « Enregistrer ». La
+modale est le dernier pas de ce geste, pas un geste de plus.
+
+⚠️ **Renoncer n'annule pas le brouillon** : Papa n'a pas retiré son intention, il a refusé de la
+graver. L'écran garde ce qu'il avait choisi ; « Annuler » (le bouton de la page) reste le seul
+moyen de revenir à l'état serveur.
 
 ### 8.5 — Ce que ce panneau ne fera jamais
 

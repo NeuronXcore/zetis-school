@@ -82,7 +82,20 @@ async function renderLoaded() {
   return view;
 }
 
+/** Clique « Enregistrer » et confirme la modale — depuis le 2026-08-04, TOUTE écriture passe par
+ *  elle (addendum §8.4). Le helper existe pour que les tests qui portent sur autre chose ne
+ *  répètent pas ce geste ; ceux qui portent SUR la modale ne l'utilisent pas. */
+async function enregistrer() {
+  fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+  const dialogue = await screen.findByRole("dialog");
+  fireEvent.click(within(dialogue).getByRole("button", { name: /^Enregistrer$|Je comprends/ }));
+}
+
 beforeEach(() => {
+  // ⚠️ Le compteur d'appels n'était PAS réinitialisé entre les tests : toute assertion du type
+  // `toHaveBeenCalledTimes(n)` était donc cumulative, et seule sa position dans le fichier la
+  // rendait vraie. Deux tests écrits le 2026-08-04 sont tombés dessus avant d'être corrigés ici.
+  vi.clearAllMocks();
   vi.mocked(fetchAutonomy).mockResolvedValue(autonomy());
   // Le faux serveur ÉCHOTE le déclencheur : un mock qui rendrait toujours `false` ferait passer
   // un front qui ignore la case.
@@ -211,7 +224,7 @@ describe("ParametresPage", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
-    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await enregistrer();
     await waitFor(() => expect(saveAutonomy).toHaveBeenCalledTimes(1));
     expect(vi.mocked(saveAutonomy).mock.calls[0][0][A0A]).toBe(2);
   });
@@ -222,7 +235,7 @@ describe("ParametresPage", () => {
     await renderLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
-    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await enregistrer();
 
     await screen.findByText("Définitif. Aucun réglage ne l'ouvrira.");
     expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) })).toHaveAttribute(
@@ -237,7 +250,7 @@ describe("ParametresPage", () => {
     await renderLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
-    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await enregistrer();
 
     await waitFor(() => expect(heard).toHaveBeenCalledTimes(1));
     window.removeEventListener(AUTONOMY_CHANGED_EVENT, heard);
@@ -252,7 +265,7 @@ describe("ParametresPage", () => {
     await renderLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
-    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await enregistrer();
 
     await screen.findByText("Définitif. Aucun réglage ne l'ouvrira.");
     expect(heard).not.toHaveBeenCalled();
@@ -269,36 +282,61 @@ describe("ParametresPage", () => {
   });
 
   describe("quand le serveur rouvre le palier 3 du cours (après le Journal)", () => {
+    /** Le serveur d'APRÈS le Journal : A1 est réglable. */
+    const rouvert = (over: Partial<Autonomy> = {}): Autonomy =>
+      autonomy({
+        classes: autonomy().classes.map((c) =>
+          c.key === A1 ? { ...c, choices: [2, 3], locked: false, reason: null } : c,
+        ),
+        ...over,
+      });
+
     beforeEach(() => {
-      vi.mocked(fetchAutonomy).mockResolvedValue(
-        autonomy({
-          classes: autonomy().classes.map((c) =>
-            c.key === A1 ? { ...c, choices: [2, 3], locked: false, reason: null } : c,
+      vi.mocked(fetchAutonomy).mockResolvedValue(rouvert());
+      // ⚠️ Le faux serveur doit rester COHÉRENT avec lui-même : sans cette surcharge, la réponse
+      // à l'écriture repartait de la fixture de base — A1 y est verrouillé — et la ligne se
+      // re-verrouillait après enregistrement. L'écran devenait faux pour une raison de fixture.
+      vi.mocked(saveAutonomy).mockImplementation(async (values, autoTrigger) => {
+        const base = rouvert();
+        return {
+          ...base,
+          auto_trigger_enabled: autoTrigger ?? base.auto_trigger_enabled,
+          classes: base.classes.map((c) =>
+            values[c.key] !== undefined ? { ...c, value: values[c.key] } : c,
           ),
-        }),
-      );
+        };
+      });
     });
 
-    it("le passage du cours en « ZETIS sert » demande une confirmation explicite", async () => {
+    it("🔒 le passage du cours en « ZETIS sert » se confirme À L'ENREGISTREMENT", async () => {
+      // ⚠️ La modale gardait le BROUILLON jusqu'au 2026-08-04 : elle s'ouvrait au clic sur le
+      // palier, puis Papa devait encore cliquer « Enregistrer ». Deux validations pour une
+      // intention, dont la première ne portait sur rien d'irréversible. Elle garde désormais
+      // l'ACTE — toucher un palier ne fait plus qu'afficher ce qu'il déciderait.
       await renderLoaded();
       fireEvent.click(screen.getByText("Détail par type de contenu"));
 
       const row = screen.getByRole("group", { name: "Rédaction de cours" });
       fireEvent.click(within(row).getByRole("button", { name: "ZETIS sert" }));
+      expect(screen.queryByRole("dialog")).toBeNull(); // le brouillon est libre
 
+      fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
       const dialog = await screen.findByRole("dialog");
       expect(dialog).toHaveTextContent("Vous retirez le dernier contrôle humain");
       expect(dialog).toHaveTextContent(/ça ne retire pas ce qui est déjà servi/);
 
       fireEvent.click(screen.getByRole("button", { name: "Garder mon contrôle" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-      expect(within(row).getByRole("button", { name: "Vous validez" })).toHaveAttribute(
+      // Renoncer n'écrit RIEN — mais le brouillon, lui, reste à l'écran : Papa n'a pas annulé son
+      // intention, il a refusé de la graver.
+      expect(saveAutonomy).not.toHaveBeenCalled();
+      expect(within(row).getByRole("button", { name: "ZETIS sert" })).toHaveAttribute(
         "aria-pressed",
         "true",
       );
     });
 
-    it("confirmer applique la monotonie : servir un cours force les dérivés", async () => {
+    it("🔒 la monotonie est appliquée AVANT l'écriture : servir un cours force les dérivés", async () => {
       await renderLoaded();
       fireEvent.click(screen.getByText("Détail par type de contenu"));
       const derives = screen.getByRole("group", { name: "Dérivés inertes" });
@@ -306,36 +344,46 @@ describe("ParametresPage", () => {
 
       const cours = screen.getByRole("group", { name: "Rédaction de cours" });
       fireEvent.click(within(cours).getByRole("button", { name: "ZETIS sert" }));
-      fireEvent.click(await screen.findByRole("button", { name: /laisser ZETIS servir/ }));
-
-      await waitFor(() =>
-        expect(within(derives).getByRole("button", { name: "ZETIS sert" })).toHaveAttribute(
-          "aria-pressed",
-          "true",
-        ),
-      );
-      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.autonome) })).toHaveAttribute(
+      // Le brouillon a DÉJÀ remonté les dérivés : on ne relit pas un dérivé d'un cours non relu.
+      expect(within(derives).getByRole("button", { name: "ZETIS sert" })).toHaveAttribute(
         "aria-pressed",
         "true",
       );
+
+      fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+      // ⚠️ Cibler DANS la modale : le bouton de la page s'appelle aussi « Enregistrer ».
+      const dialogue = await screen.findByRole("dialog");
+      fireEvent.click(within(dialogue).getByRole("button", { name: /Je comprends/ }));
+
+      // Et c'est bien ce couple-là qui part au serveur.
+      await waitFor(() => expect(saveAutonomy).toHaveBeenCalled());
+      const [values] = vi.mocked(saveAutonomy).mock.calls.at(-1)!;
+      expect(values[A0A]).toBe(3);
+      expect(values[A1]).toBe(3);
     });
 
-    it("le retour au contrôle n'a AUCUNE friction", async () => {
+    it("🔒 le retour au contrôle se confirme SANS avertir — le ton dit le sens", async () => {
       await renderLoaded();
       fireEvent.click(screen.getByText("Détail par type de contenu"));
       const cours = screen.getByRole("group", { name: "Rédaction de cours" });
 
+      // ⚠️ Ce verrou est le RETOURNEMENT de « le retour au contrôle n'a AUCUNE friction », révoqué
+      // le 2026-08-04. La modale ne garde plus le GESTE mais l'ÉCRITURE : ce n'est plus une
+      // friction sur l'intention, c'est un récapitulatif — et un « Enregistrer » qui ouvrirait
+      // parfois une modale serait moins prévisible qu'un qui confirme toujours. Le motif d'origine
+      // survit dans le TON, et c'est LUI que ce test tient.
       fireEvent.click(within(cours).getByRole("button", { name: "ZETIS sert" }));
-      fireEvent.click(await screen.findByRole("button", { name: /laisser ZETIS servir/ }));
-      await waitFor(() =>
-        expect(within(cours).getByRole("button", { name: "ZETIS sert" })).toHaveAttribute(
-          "aria-pressed",
-          "true",
-        ),
-      );
+      await enregistrer();
+      await waitFor(() => expect(saveAutonomy).toHaveBeenCalledTimes(1));
 
       fireEvent.click(within(cours).getByRole("button", { name: "Vous validez" }));
-      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull(); // le brouillon reste libre
+
+      fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+      const dialogue = await screen.findByRole("dialog");
+      expect(dialogue).toHaveTextContent(/vous rendent du contrôle/);
+      expect(dialogue).not.toHaveTextContent(/retirent du contrôle/);
+      expect(dialogue).not.toHaveTextContent(/⚠️|dernier contrôle humain/);
     });
   });
 
@@ -391,56 +439,67 @@ describe("ParametresPage", () => {
   // La confirmation des montées (addendum §8.4). Elle protège ce qui RETIRE du contrôle — et rien
   // d'autre : « on ne freine pas un retour au contrôle » n'est pas rouvert.
   describe("changer de niveau", () => {
-    it("🔒 MONTER ouvre une modale qui montre ce que le niveau déplace", async () => {
+    it("🔒 choisir un niveau n'ouvre AUCUNE modale — il montre seulement ce qu'il déciderait", async () => {
+      // La demande du commanditaire, 2026-08-04 : le clic sur une carte ne fait qu'AFFICHER.
       await renderLoaded();
-      // Départ : Hybrid (a0a=3, a1=2). On descend d'abord en Manual, sans friction…
-      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
-      expect(screen.queryByRole("dialog")).toBeNull();
+      for (const nom of [PRESET_LABEL.manuel, PRESET_LABEL.semi, PRESET_LABEL.manuel]) {
+        fireEvent.click(screen.getByRole("button", { name: new RegExp(nom) }));
+        expect(screen.queryByRole("dialog")).toBeNull();
+      }
+      // Le panneau, lui, a suivi.
+      expect(screen.getByRole("listitem", { name: "Dérivés inertes" })).toHaveTextContent(
+        LEVEL_LABEL[2],
+      );
+    });
 
-      // …puis on remonte en Hybrid : là, on confirme.
+    it("🔒 c'est ENREGISTRER qui confirme, et la modale montre ce qui va être écrit", async () => {
+      await renderLoaded();
+      // Départ Hybrid (a0a=3). On descend en Manual et on enregistre.
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+      await enregistrer();
+      await waitFor(() => expect(saveAutonomy).toHaveBeenCalledTimes(1));
+
+      // On remonte en Hybrid : la modale change de TON.
       fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) }));
+      fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
       const dialogue = await screen.findByRole("dialog");
-      expect(dialogue).toHaveTextContent(`Passer en ${PRESET_LABEL.semi} ?`);
-      // Son corps EST le panneau de détail : Papa confirme ce qu'il voit, pas un résumé.
+      expect(dialogue).toHaveTextContent(`Enregistrer le niveau ${PRESET_LABEL.semi} ?`);
+      // Son corps EST le panneau de la page : Papa confirme ce qu'il a sous les yeux.
       expect(within(dialogue).getByRole("listitem", { name: "Dérivés inertes" })).toHaveTextContent(
         LEVEL_LABEL[3],
       );
-      // Et il est dit que rien n'est enregistré — sinon « pas d'auto-save » devient un piège.
-      expect(dialogue).toHaveTextContent(/Rien n'est encore enregistré/);
+      // 🔒 Et le VISAGE du niveau visé — le même que sur la carte et dans la sidebar.
+      expect(dialogue.querySelector("img")?.getAttribute("src")).toContain("zetis-regime-semi");
     });
 
-    it("🔒 DESCENDRE n'ouvre AUCUNE modale, depuis n'importe quel niveau", async () => {
-      // Reprise élargie du verrou d'A1 : la friction protège le contrôle retiré, jamais rendu.
-      await renderLoaded();
-
-      for (const cible of [PRESET_LABEL.manuel, PRESET_LABEL.manuel] as const) {
-        fireEvent.click(screen.getByRole("button", { name: new RegExp(cible) }));
-        expect(screen.queryByRole("dialog")).toBeNull();
-      }
-      // Le brouillon a bien bougé sans confirmation.
-      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
-    });
-
-    it("🔒 annuler la montée laisse le brouillon INTACT", async () => {
+    it("🔒 rien à écrire = pas de modale, et le bouton est désactivé", async () => {
+      // La garde n'est pas « il y a eu des clics » mais « il y a un écart avec le serveur ».
       await renderLoaded();
       fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
       fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) }));
 
+      // Retour au point de départ : plus rien à enregistrer.
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("🔒 renoncer à la modale n'écrit RIEN, et garde le brouillon à l'écran", async () => {
+      await renderLoaded();
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) }));
+      await enregistrer();
+      await waitFor(() => expect(saveAutonomy).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) }));
+      fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
       const dialogue = await screen.findByRole("dialog");
       fireEvent.click(within(dialogue).getByRole("button", { name: "Annuler" }));
 
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-      // Le brouillon est resté sur Manual : annuler abandonne, il n'applique pas à moitié.
-      expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.manuel) })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
+      expect(saveAutonomy).toHaveBeenCalledTimes(1); // rien de plus n'est parti
+      // Papa n'a pas annulé son intention, il a refusé de la graver : le brouillon reste.
       expect(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.semi) })).toHaveAttribute(
         "aria-pressed",
-        "false",
+        "true",
       );
     });
 
@@ -456,10 +515,11 @@ describe("ParametresPage", () => {
       );
       await renderLoaded();
       fireEvent.click(screen.getByRole("button", { name: new RegExp(PRESET_LABEL.autonome) }));
+      fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       const dialogue = await screen.findByRole("dialog");
       expect(dialogue).toHaveTextContent("Vous retirez le dernier contrôle humain");
-      expect(dialogue).not.toHaveTextContent(`Passer en ${PRESET_LABEL.autonome} ?`);
+      expect(dialogue).not.toHaveTextContent(`Enregistrer le niveau ${PRESET_LABEL.autonome} ?`);
     });
   });
 

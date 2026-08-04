@@ -51,6 +51,17 @@ function draftOf(autonomy: Autonomy): Draft {
   return Object.fromEntries(autonomy.classes.map((c) => [c.key, c.value]));
 }
 
+/** Ce que l'enregistrement va faire — c'est ce qui décide du TON de la confirmation.
+ *
+ *  ⚠️ La descente se confirme AUSSI depuis le 2026-08-04, et ça n'a l'air de contredire
+ *  « on ne freine pas un retour au contrôle » que si l'on oublie ce qui a changé : la modale ne
+ *  garde plus le GESTE, elle garde l'ÉCRITURE. Ce n'est plus une friction sur l'intention, c'est
+ *  un récapitulatif de ce qui va être écrit — et un bouton « Enregistrer » qui ouvrirait parfois
+ *  une modale et parfois non serait moins prévisible qu'un bouton qui confirme toujours.
+ *  Le motif d'origine est honoré par le TON : une descente ne s'annonce pas comme un
+ *  avertissement, elle se félicite. */
+type Garde = "cours" | "montee" | "descente";
+
 /** Une MONTÉE porte au moins une classe plus haut qu'elle n'est.
  *
  *  ⚠️ Ce n'est pas « le brouillon a changé » : redescendre en change aussi, et une descente ne se
@@ -79,13 +90,11 @@ export function AutonomyPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Le passage du cours en « ZETIS sert » retire le dernier contrôle humain : il se confirme.
-  // Le passage INVERSE n'a aucune friction — on ne freine pas un retour au contrôle.
-  const [pending, setPending] = useState<Draft | null>(null);
-  // La montée de niveau « ordinaire » — sa modale montre ce que le niveau visé déplace. État
-  // PROPRE de `pending` : les deux modales ne doivent jamais pouvoir s'ouvrir ensemble, et les
-  // fusionner reviendrait à leur donner le même ton.
-  const [montee, setMontee] = useState<{ preset: AutonomyPreset; cible: Draft } | null>(null);
+  // ⚠️ La confirmation garde l'ENREGISTREMENT, pas le brouillon (2026-08-04, révision du §8.4).
+  // Elle se déclenchait au clic sur une carte : Papa confirmait, puis devait encore cliquer
+  // « Enregistrer » — deux validations pour une intention, et la première ne portait sur rien
+  // d'irréversible. Choisir un niveau ne fait plus qu'AFFICHER ce qu'il déciderait.
+  const [aConfirmer, setAConfirmer] = useState<Garde | null>(null);
   // État PROPRE, jamais mêlé au brouillon des paliers : le fusionner ferait qu'un préréglage
   // l'armerait au passage — exactement ce que l'ADR-0035 §5 refuse.
   const [autoTrigger, setAutoTrigger] = useState(false);
@@ -115,42 +124,40 @@ export function AutonomyPanel() {
     [autonomy, draft, autoTrigger],
   );
 
+  // Un brouillon ne coûte rien : toucher un palier ou choisir un niveau met simplement à jour ce
+  // que l'écran montre. La friction est au moment de l'ACTE, pas de l'intention.
   const propose = useCallback(
     (next: Draft) => {
       if (!autonomy) return;
-      const resolved = withMonotonicity(next, autonomy.classes);
-      const raising =
-        resolved[A1_COURSE_KEY] === SERVE && draft[A1_COURSE_KEY] !== SERVE;
-      if (raising) setPending(resolved);
-      else setDraft(resolved);
+      setDraft(withMonotonicity(next, autonomy.classes));
     },
-    [autonomy, draft],
+    [autonomy],
   );
 
-  // Choisir un NIVEAU se confirme (addendum §8.4) — et seulement depuis les cartes. Le détail
-  // classe par classe garde son geste direct : c'est la surface experte, Papa y raisonne déjà
-  // ligne à ligne, et y ajouter une modale n'a pas été demandé.
-  //
-  // ⚠️ Deux frictions qui ne se confondent PAS. La montée d'A1 vers « ZETIS sert » garde SA modale,
-  // forte, parce qu'elle est la seule à révoquer une décision écrite (le gel d'A1) : lui donner le
-  // ton d'un passage en Hybrid l'effacerait par banalisation.
   const proposerNiveau = useCallback(
     (picked: AutonomyPreset) => {
       if (!autonomy) return;
-      const cible = withMonotonicity({ ...draft, ...levelsForPreset(picked) }, autonomy.classes);
-
-      if (cible[A1_COURSE_KEY] === SERVE && draft[A1_COURSE_KEY] !== SERVE) {
-        setPending(cible);
-      } else if (estUneMontee(draft, cible)) {
-        setMontee({ preset: picked, cible });
-      } else {
-        // Descente, ou aucun changement : aucune friction. « On ne freine pas un retour au
-        // contrôle » n'est pas rouvert par cet addendum.
-        setDraft(cible);
-      }
+      setDraft(withMonotonicity({ ...draft, ...levelsForPreset(picked) }, autonomy.classes));
     },
     [autonomy, draft],
   );
+
+  /** Ce qu'il faut faire confirmer AVANT d'écrire — et rien d'autre.
+   *
+   *  ⚠️ Comparé à l'état SERVEUR, pas au brouillon précédent : ce qu'on protège est l'écart qui
+   *  va être écrit, pas le chemin qui y a mené. Papa peut monter puis redescendre sans jamais
+   *  déclencher quoi que ce soit, et c'est juste — il n'a rien changé.
+   *
+   *  ⚠️ Deux frictions qui ne se confondent PAS. La montée du cours vers « ZETIS sert » garde SA
+   *  modale, forte, parce qu'elle est la seule à révoquer une décision écrite (le gel d'A1) : lui
+   *  donner le ton d'un passage en Hybrid l'effacerait par banalisation. */
+  const aGarder = useMemo<Garde | null>(() => {
+    if (!autonomy) return null;
+    const serveur = draftOf(autonomy);
+    if (JSON.stringify(serveur) === JSON.stringify(draft)) return null; // rien à écrire
+    if (draft[A1_COURSE_KEY] === SERVE && serveur[A1_COURSE_KEY] !== SERVE) return "cours";
+    return estUneMontee(serveur, draft) ? "montee" : "descente";
+  }, [autonomy, draft]);
 
   const persist = useCallback(() => {
     if (!autonomy) return;
@@ -320,7 +327,7 @@ export function AutonomyPanel() {
             <Button
               disabled={!dirty || saving}
               title={dirty ? undefined : "Aucune modification à enregistrer"}
-              onClick={persist}
+              onClick={() => (aGarder ? setAConfirmer(aGarder) : persist())}
             >
               {saving ? "Enregistrement…" : "Enregistrer"}
             </Button>
@@ -329,17 +336,29 @@ export function AutonomyPanel() {
       ) : null}
 
       <ConfirmDialog
-        open={pending !== null}
+        open={aConfirmer === "cours"}
         tone="important"
         title="⚠️ Vous retirez le dernier contrôle humain"
-        confirmLabel="Je comprends, laisser ZETIS servir"
+        confirmLabel="Je comprends, enregistrer"
         cancelLabel="Garder mon contrôle"
-        onCancel={() => setPending(null)}
+        busy={saving}
+        onCancel={() => setAConfirmer(null)}
         onConfirm={() => {
-          if (pending) setDraft(pending);
-          setPending(null);
+          setAConfirmer(null);
+          persist();
         }}
       >
+        {/* Le visage du niveau visé — le MÊME que sur la carte et que dans la sidebar. Papa
+            reconnaît ce qu'il s'apprête à devenir avant de lire la phrase. */}
+        <p className="mb-3 flex items-center gap-3">
+          <img
+            src={REGIME_AVATAR.autonome}
+            alt=""
+            aria-hidden
+            className="h-14 w-14 shrink-0 rounded-[22%] object-cover"
+          />
+          <span className="text-[13px] font-bold text-papa-text">{PRESET_LABEL.autonome}</span>
+        </p>
         <p>
           Aujourd'hui, le cours est{" "}
           <b className="text-papa-text">le seul contenu de ZETIS qui passe devant vous</b> avant
@@ -363,29 +382,50 @@ export function AutonomyPanel() {
           l'ambre et le halo doré appartiennent à celle du dessus, qui protège autre chose.
           Son corps EST le panneau de détail, appliqué au niveau visé : Papa confirme ce qu'il
           voit, pas une phrase qui le résume. */}
-      {autonomy && montee && (
+      {autonomy && (aConfirmer === "montee" || aConfirmer === "descente") && (
         <ConfirmDialog
           open
-          title={`Passer en ${PRESET_LABEL[montee.preset]} ?`}
-          confirmLabel={`Passer en ${PRESET_LABEL[montee.preset]}`}
+          title={preset ? `Enregistrer le niveau ${PRESET_LABEL[preset]} ?` : "Enregistrer ces réglages ?"}
+          confirmLabel="Enregistrer"
           cancelLabel="Annuler"
-          onCancel={() => setMontee(null)}
+          busy={saving}
+          onCancel={() => setAConfirmer(null)}
           onConfirm={() => {
-            setDraft(montee.cible);
-            setMontee(null);
+            setAConfirmer(null);
+            persist();
           }}
         >
+          {/* Le visage AVANT les mots : Papa reconnaît le niveau qu'il s'apprête à enregistrer.
+              « Sur mesure » retombe sur l'avatar neutre — aucune image ne lui appartient. */}
+          <p className="mb-3 flex items-center gap-3">
+            <img
+              src={REGIME_AVATAR[preset ?? "neutre"]}
+              alt=""
+              aria-hidden
+              className="h-14 w-14 shrink-0 rounded-[22%] object-cover"
+            />
+            <span className="text-[13px] font-bold text-papa-text">
+              {preset ? PRESET_LABEL[preset] : "Sur mesure"}
+            </span>
+          </p>
+          {/* Le TON dit le sens. La descente n'est pas un avertissement : reprendre du contrôle est
+              le mouvement qu'on ne décourage jamais (`page-parametres.md` §Modale). */}
           <p>
-            Ce niveau <b className="text-papa-text">retire du contrôle</b> — voici exactement ce
-            qu'il déplace :
+            {aConfirmer === "descente" ? (
+              <>
+                Ces réglages <b className="text-papa-text">vous rendent du contrôle</b> — voici
+                exactement ce qu'ils déplacent :
+              </>
+            ) : (
+              <>
+                Ces réglages <b className="text-papa-text">retirent du contrôle</b> — voici
+                exactement ce qu'ils déplacent :
+              </>
+            )}
           </p>
-          <NiveauDetail autonomy={autonomy} preset={montee.preset} />
-          <p className="mt-2">
-            {/* Rappel non négociable : la modale valide le BROUILLON. Sans cette phrase, Papa
-                croirait avoir enregistré, et le §Pas d'auto-save deviendrait un piège. */}
-            Rien n'est encore enregistré : il vous restera à cliquer{" "}
-            <b className="text-papa-text">Enregistrer</b>.
-          </p>
+          {/* Le corps EST le panneau de la page : Papa confirme ce qu'il a sous les yeux, pas une
+              phrase qui le résume. */}
+          <NiveauDetail autonomy={autonomy} preset={preset} avecConstat={false} />
         </ConfirmDialog>
       )}
     </section>
