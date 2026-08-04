@@ -224,8 +224,14 @@ export function JournalFilterBar({
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
-        <span className={ETIQUETTE}>Trier par</span>
+      {/* Le tri est ENCADRÉ : il ne filtre rien, il réordonne — le confondre avec les pastilles
+          au-dessus ferait chercher un critère là où il n'y en a pas.
+          ⚠️ Bleu ciel, et c'est la seule couleur libre : le vert dit « ce filtre est actif »
+          (pastilles, « Tout effacer »), l'ambre dit « ce journal n'est plus chronologique ». Un
+          cadre vert aurait fait lire le tri comme un filtre de plus ; un cadre ambre aurait crié
+          l'avertissement en permanence, y compris quand l'ordre est le bon. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-sky-400/30 bg-sky-400/[0.05] px-3 py-2 text-xs">
+        <span className={`${ETIQUETTE} text-sky-300`}>Trier par</span>
         <select
           aria-label="Trier par"
           value={filtre.tri}

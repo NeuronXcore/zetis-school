@@ -37,14 +37,36 @@ présent s'**ajoute à côté** (« depuis résolu »), il ne réécrit pas la l
 `PageHeader` « Journal de production 📜 » + le bandeau de portée (principe 4). Un lot = un bloc,
 du plus récent au plus ancien.
 
-### Le bloc d'un lot
+### Le bloc d'un lot — un en-tête qui raconte, un pli qui détaille
+
+**Au-dessus du pli, toujours visible :**
 
 - **l'en-tête** : statut, déclencheur, autorité, **le régime du lot** (avatar `REGIME_AVATAR`, source
   unique partagée avec la sidebar et les réglages), l'avancement, les dates ;
-- **le résumé** : ce que le lot a fait, en chiffres ;
-- **la liste des pièces**, toujours visible, chacune ouvrable et retirable (veto) ;
-- **le détail par événement**, dans un **repli fermé** — une ligne par pièce touchée, avec sa case
-  d'état, son motif, sa destination et son éventuel « · depuis résolu ».
+- **le résumé** : ce que le lot a laissé, en chiffres — « 1 à faire · 1 produit · 1 depuis résolu ».
+
+**Dans le pli, fermé par défaut** (`Voir le contenu du lot — N pièces`) :
+
+- **la liste des pièces**, chacune ouvrable et retirable (veto) ;
+- **le détail par événement** — une ligne par pièce touchée, avec sa case d'état, son motif, sa
+  destination et son éventuel « · depuis résolu ».
+
+⚠️ **UN seul pli, et il contient les deux.** Les pièces et le détail répondent à la même question
+(*qu'a fait ce lot ?*) ; deux plis imbriqués auraient demandé deux clics.
+
+> **Corrige une description antérieure.** Cette spec a d'abord décrit la liste des pièces comme
+> *« toujours visible »*, et la maquette la dessinait ainsi. C'était l'état d'avant le 2026-08-04 :
+> le lot #3 alignait **33 pièces** dépliées, ce qui noyait tous les autres lots et rendait la page
+> illisible — constaté à l'écran pendant le chantier production, et replié à ce moment-là.
+
+⚠️ **C'est le repli qui a rendu le résumé nécessaire.** Une fois tout dans le pli, les cases, les
+motifs et les liens y dormaient : *« je ne vois aucune checkbox »* (2026-08-04) venait de là. Le
+résumé remonte au-dessus ce que Papa vient chercher — *qu'est-ce qui reste à faire ?* — sans
+demander un clic par lot.
+
+⚠️ **Conséquence pour les tests** : le contenu d'un `<details>` fermé **reste dans le DOM**. Une
+assertion qui cherche un texte le trouve même replié — les assertions du résumé portent donc sur le
+**chiffre** (`/\d+ à faire/`), jamais sur le mot seul.
 
 ### La case d'état
 

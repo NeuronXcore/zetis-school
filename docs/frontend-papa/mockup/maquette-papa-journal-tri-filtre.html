@@ -64,8 +64,13 @@
   .tag .x:hover{opacity:1}
   .spacer{flex:1}
 
-  /* le tri, et sa mention quand il n'est plus chronologique */
-  .sortline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 0 0;font-size:12px}
+  /* Le tri, ENCADRÉ — il ne se confond pas avec les filtres.
+     ⚠️ Bleu ciel, et c'est la seule couleur libre : le vert dit « ce filtre est actif », l'ambre
+     dit « ce journal n'est plus chronologique ». Un cadre vert aurait fait lire le tri comme un
+     filtre de plus ; un cadre ambre aurait crié l'avertissement en permanence. */
+  .sortline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;
+    font-size:12px;border:1px solid rgba(56,189,248,.32);background:rgba(56,189,248,.05);border-radius:11px}
+  .sortline .flabel{color:#7dd3fc}
   .invert{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:8px;padding:6px 9px;font-size:11.5px;cursor:pointer}
   .invert:hover{color:var(--text)}
   .warnsort{display:none;align-items:center;gap:8px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.07);color:#fcd34d;border-radius:9px;padding:6px 11px;font-size:11.5px;line-height:1.4}
@@ -85,7 +90,10 @@
   .st.failed{background:rgba(244,63,94,.14);color:#fda4af}
   .src{border-radius:999px;padding:2px 8px;font-size:10px;font-weight:700;background:rgba(148,163,184,.14);color:#cbd5e1;margin-left:6px}
 
-  .pieces{padding:11px 16px;display:flex;flex-direction:column;gap:7px}
+  /* ⚠️ Les pièces vivent DANS le pli, comme le détail — un seul pli par lot, fermé.
+     La première version de cette maquette les montrait toujours dépliées : c'était l'état d'avant
+     le 2026-08-04, où le lot #3 alignait 33 pièces et noyait tous les autres. */
+  .pieces{padding:0 13px 4px;display:flex;flex-direction:column;gap:7px}
   .piece{display:flex;align-items:center;gap:10px;font-size:12.5px;border:1px solid var(--border);background:var(--bg);border-radius:10px;padding:8px 11px}
   .piece .ico{font-size:14px;line-height:1}
   .piece .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -269,16 +277,15 @@
           <span class="st done">Terminé</span>
         </header>
 
-        <div class="pieces">
-          <div class="piece"><span class="ico">📖</span><span class="nm">Cours — Calculs avec priorités</span><span class="by">Vous, pièce à pièce</span><button class="rm">Retirer</button></div>
-          <div class="piece match"><span class="ico">📄</span><span class="nm">Fiche — Calculs avec priorités</span><span class="by">Vous, en lot</span><button class="rm">Retirer</button></div>
-          <div class="piece"><span class="ico">🧠</span><span class="nm">Carte mentale — Calculs avec priorités</span><span class="by">Vous, en lot</span><button class="rm">Retirer</button></div>
-          <div class="piece"><span class="ico">✅</span><span class="nm">Quiz — Calculs avec priorités</span><span class="by">Servi sans relecture (par doctrine)</span><button class="rm">Retirer</button></div>
-          <div class="piece"><span class="ico">🗂️</span><span class="nm">Carte de révision — Priorité des opérations</span><span class="by">—</span><button class="rm">Retirer</button></div>
-        </div>
-
-        <details class="evt">
-          <summary>Le détail, pièce par pièce (11)</summary>
+        <details class="evt" open>
+          <summary>Voir le contenu du lot — 5 pièces</summary>
+          <div class="pieces">
+            <div class="piece"><span class="ico">📖</span><span class="nm">Cours — Calculs avec priorités</span><span class="by">Vous, pièce à pièce</span><button class="rm">Retirer</button></div>
+            <div class="piece match"><span class="ico">📄</span><span class="nm">Fiche — Calculs avec priorités</span><span class="by">Vous, en lot</span><button class="rm">Retirer</button></div>
+            <div class="piece"><span class="ico">🧠</span><span class="nm">Carte mentale — Calculs avec priorités</span><span class="by">Vous, en lot</span><button class="rm">Retirer</button></div>
+            <div class="piece"><span class="ico">✅</span><span class="nm">Quiz — Calculs avec priorités</span><span class="by">Servi sans relecture (par doctrine)</span><button class="rm">Retirer</button></div>
+            <div class="piece"><span class="ico">🗂️</span><span class="nm">Carte de révision — Priorité des opérations</span><span class="by">—</span><button class="rm">Retirer</button></div>
+          </div>
           <div class="ev">
             <span class="box" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" style="color:#6ee7b7"><rect x="1.5" y="1.5" width="13" height="13" rx="3"/><path d="M4.5 8.3l2.4 2.4 4.6-5"/></svg></span>
             <span class="txt">Priorité des opérations — <b>Fiche</b><span class="why">produit</span></span>
@@ -312,11 +319,11 @@
           </div>
           <span class="st done">Terminé</span>
         </header>
-        <div class="pieces">
-          <div class="piece match"><span class="ico">📄</span><span class="nm">Fiche — Additionner des fractions</span><span class="by">À relire</span><button class="rm">Retirer</button></div>
-          <div class="piece"><span class="ico">🧠</span><span class="nm">Carte mentale — Additionner des fractions</span><span class="by">À relire</span><button class="rm">Retirer</button></div>
-        </div>
-        <details class="evt"><summary>Le détail, pièce par pièce (6)</summary>
+        <details class="evt"><summary>Voir le contenu du lot — 2 pièces</summary>
+          <div class="pieces">
+            <div class="piece match"><span class="ico">📄</span><span class="nm">Fiche — Additionner des fractions</span><span class="by">À relire</span><button class="rm">Retirer</button></div>
+            <div class="piece"><span class="ico">🧠</span><span class="nm">Carte mentale — Additionner des fractions</span><span class="by">À relire</span><button class="rm">Retirer</button></div>
+          </div>
           <div class="ev">
             <span class="box" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" style="color:#8595ac"><rect x="1.5" y="1.5" width="13" height="13" rx="3"/></svg></span>
             <span class="txt">Fractions équivalentes — <b>rien produit</b><span class="why">Aucune leçon rattachée à cette notion</span></span>
@@ -367,6 +374,21 @@
           le cours, la carte mentale, le quiz et la carte de révision restent affichés. Le liseré
           vert signale seulement <i>pourquoi</i> le lot a été retenu. Masquer les autres pièces
           ferait dire au Journal que le lot n'a produit que ça.</li>
+        <li><b>UN seul pli par lot, fermé par défaut</b>, et il contient les pièces <i>et</i> le
+          détail : les deux répondent à la même question (<i>qu'a fait ce lot ?</i>), deux plis
+          imbriqués auraient demandé deux clics. L'en-tête, lui, reste toujours lisible — régime,
+          dates, et le <b>résumé</b> (« 9 produites, 1 déjà présente, 1 à faire »), parce qu'une
+          fois tout dans le pli, ce que Papa vient chercher demandait un clic par lot.
+          ⚠️ <b>Le lot #23 est montré OUVERT à dessein</b>, pour démontrer le point ci-dessus ; le
+          lot #17, lui, est dans son état réel — <b>fermé</b>.
+          <br>⚠️ <b>Corrige une première version de cette maquette</b>, qui dessinait la liste des
+          pièces toujours visible : c'était l'état d'avant le 2026-08-04, où le lot #3 alignait
+          <b>33 pièces</b> dépliées et noyait tous les autres lots.</li>
+        <li><b>Le tri est ENCADRÉ, et en bleu ciel.</b> Il ne filtre rien, il réordonne — le
+          confondre avec les pastilles au-dessus ferait chercher un critère là où il n'y en a pas.
+          La couleur n'est pas un goût : le <b>vert</b> dit « ce filtre est actif », l'<b>ambre</b>
+          dit « ce journal n'est plus chronologique ». Un cadre vert aurait fait lire le tri comme
+          un filtre de plus ; un cadre ambre aurait crié l'avertissement en permanence.</li>
         <li><b>L'état vide est bavard.</b> Vue B : il dit <i>combien</i> de lots ont été écartés,
           <i>pourquoi</i>, et propose le geste qui répare. Un filtre qui rend vide sans s'expliquer
           est indiscernable d'une panne — c'est le signal d'échec nommé par l'ADR.</li>
