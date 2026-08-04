@@ -1,5 +1,37 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.46.0 — Le Journal se trie et se filtre, et pour ça son passé cesse de bouger
+
+### Ajouté
+
+- **Filtrage et tri du Journal, côté SERVEUR sur toute l'histoire** — six critères (date · matière ·
+  chapitre · statut · mode ZETIS · type de contenu), quatre clés de tri inversables. `WHERE` puis
+  `ORDER BY` puis `LIMIT` : filtrer une page déjà paginée aurait répondu « rien en maths » alors que
+  les lots de maths sont page 4.
+- **La pagination existe enfin à l'écran.** Elle manquait **avant** ce chantier : `has_more`
+  voyageait dans la réponse sans être lu par personne, et au-delà de 20 lots la page était muette
+  sans le dire. Le bouton **empile**, il ne feuillette pas.
+- **Une barre de filtres qui ne cache pas ce qu'elle fait** : les contrôles se replient, les
+  critères **actifs** se nomment et se retirent un par un. L'état vide **dit pourquoi** il est vide.
+- **`production_runs.zetis_mode_source`** + six index (migration `e9f0a1b2c3d4`), et
+  `scripts/backfill_zetis_mode.py` (`--dry-run` par défaut).
+
+### Modifié
+
+- **Le régime d'un lot cesse d'être re-dérivé à chaque lecture.** Il se lit sur le lot ; la
+  déduction depuis les actes a lieu **une fois**. Motif : le veto **supprime la ligne `Lesson`**
+  d'un cours retiré, donc la preuve partait avec elle et l'historique bougeait quand Papa exerçait
+  un droit prévu.
+- **Un chapitre créé sous un thème reçoit AUSSI sa matière d'année**, ou la création refuse en le
+  disant. Sans cet ancrage il était invisible de la production, de la galaxie et de
+  `canonical_context` — silencieusement.
+
+### Décisions
+
+- Addendum **ADR-0034 « tri et filtre du Journal »**. ⚠️ Il **corrige sa propre première version** :
+  la décision « un résolveur de matière unique » est abandonnée dans le document, le trou étant un
+  niveau plus bas et sans réparation locale possible.
+
 ## 0.45.0 — La production dit ce qu'elle a fait, et pourquoi elle ne l'a pas fait
 
 Date : 2026-08-04 · branche `fix/production-trois-verites` · addenda **ADR-0036 « verdict de

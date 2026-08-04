@@ -270,6 +270,12 @@ export interface JournalRun {
 export interface Journal {
   runs: JournalRun[];
   has_more: boolean;
+  /** Le nombre de lots RETENUS par le filtre — jamais celui de l'histoire entière.
+   *
+   *  ⚠️ **Ce n'est pas un compteur de provenance** (§F.2, qui vise les totaux « ZETIS vs Papa »,
+   *  lesquels jugeraient) : celui-ci sert la pagination et l'état vide. « 7 sur 23 » est juste ;
+   *  « 7 sur 7 » cacherait qu'il existe autre chose, et l'état vide n'aurait plus rien à dire. */
+  total: number;
 }
 
 /** Ce qu'un retrait emporterait. `removable: false` porte TOUJOURS son motif : un refus muet se

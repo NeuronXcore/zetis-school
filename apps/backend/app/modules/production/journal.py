@@ -22,7 +22,7 @@ ferait N requêtes pour une page qui en liste N — le motif qui a tué le sonda
 2026-08-02.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 
 from sqlalchemy import func, select
@@ -43,7 +43,7 @@ from app.db.models import (
     SpacedReviewAttempt,
     SpacedReviewCard,
 )
-from app.modules.production import runs
+from app.modules.production import journal_filters, runs
 
 # Les cinq familles vetoables, et ce qui les rend « consommées ».
 #
@@ -506,20 +506,27 @@ def deduire_regime(trigger: str, preuves: dict) -> str | None:
 
 
 def zetis_mode(run: ProductionRun) -> str | None:
-    """Le régime sous lequel CE lot a tourné — dérivé de ce qu'il a capturé, jamais des réglages.
+    """Le régime sous lequel CE lot a tourné — lu sur le lot, jamais dans les réglages.
 
     Trois réponses, et les trois disent quelque chose de différent :
 
     - `"manuel" | "semi" | "autonome"` — un régime nommé ;
     - `"sur_mesure"` — des paliers qui ne composent aucun préréglage. `niveau_de` rend déjà `None`
       pour ce cas ; on le NOMME ici, sans quoi il se confondrait avec le suivant ;
-    - `None` — **non enregistré**, lot antérieur à la colonne. Aucune rétro-attribution : les
-      réglages d'aujourd'hui ne disent rien de ceux d'hier (doctrine §F.4).
+    - `None` — **non enregistré** : ni capturé, ni prouvé par les actes du lot au moment de la
+      reprise. Aucune rétro-attribution : les réglages d'aujourd'hui ne disent rien de ceux d'hier
+      (doctrine §F.4).
 
     ⚠️ **`niveau_de` est appelée, jamais réimplémentée.** Comparer les paliers à la main ici
     donnerait le même résultat aujourd'hui et divergerait le jour où un régime serait ajouté à
     `NIVEAUX` — le défaut exact de l'ADR-0037, où trois modules répondaient différemment à une
     même question.
+
+    ⚠️ **Ne déduit plus rien** (addendum « tri et filtre » §5). La déduction est passée du chemin
+    de LECTURE au script de reprise : elle lisait des artefacts que le veto peut retirer —
+    `veto._delete_one` supprime la ligne `Lesson` d'un cours retiré, et la preuve « ce lot a rédigé
+    un cours » partait avec elle. Le régime affiché d'un lot d'hier changeait donc quand Papa
+    exerçait un droit prévu. Ici, on lit deux entiers.
     """
     from app.modules.settings.service import A0A, A1, niveau_de
 
@@ -528,18 +535,29 @@ def zetis_mode(run: ProductionRun) -> str | None:
     return niveau_de({A0A: run.a0a_level, A1: run.a1_level}) or "sur_mesure"
 
 
-def list_journal(db: Session, *, limit: int = 20, offset: int = 0) -> dict:
-    """Le flux, du lot le plus récent au plus ancien.
+def list_journal(
+    db: Session,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    filtre: journal_filters.JournalFiltre | None = None,
+    now: datetime | None = None,
+) -> dict:
+    """Le flux, du lot le plus récent au plus ancien — filtré et trié SERVEUR.
 
     Pagination explicite : un journal qui grossit sans borne finit par charger toute l'histoire
     du dispositif à chaque ouverture de page.
+
+    ⚠️ **`WHERE` puis `ORDER BY` puis `LIMIT`, dans cet ordre** (addendum « tri et filtre » §2).
+    Filtrer les lots déjà chargés répondrait « rien en maths » alors que les lots de maths sont
+    page 4 — un défaut qui ne ressemble pas à un défaut. `total` et `has_more` portent donc tous
+    deux sur l'ensemble **filtré**.
     """
-    total = db.scalar(select(func.count(ProductionRun.id))) or 0
+    filtre = filtre or journal_filters.JournalFiltre()
+    maintenant = now or datetime.now(timezone.utc)
+    total = journal_filters.compter(db, filtre, maintenant=maintenant)
     rows = db.scalars(
-        select(ProductionRun)
-        .order_by(ProductionRun.created_at.desc(), ProductionRun.id.desc())
-        .limit(limit)
-        .offset(offset)
+        journal_filters.selectionner(db, filtre, maintenant=maintenant).limit(limit).offset(offset)
     ).all()
 
     # UN seul aller-retour pour tous les noms de notions de la page — jamais un par événement.
@@ -588,8 +606,10 @@ def list_journal(db: Session, *, limit: int = 20, offset: int = 0) -> dict:
         )
     resolues = causes_resolues(db, bloquees)
 
-    # Les actes de chaque lot — trois requêtes pour la page, jamais une par lot.
-    preuves = lot_evidence(db, run_ids)
+    # ⚠️ **`lot_evidence` n'est PLUS appelée ici** — trois requêtes de moins par page. Elle et
+    # `deduire_regime` n'ont pas disparu : elles sont devenues les fonctions du script de reprise
+    # (`scripts/backfill_zetis_mode.py`), qui les exécute une fois. Les lire à chaque affichage
+    # faisait dépendre l'histoire d'artefacts rétractables et d'un motif d'écran.
 
     out_runs = []
     for run in rows:
@@ -628,15 +648,15 @@ def list_journal(db: Session, *, limit: int = 20, offset: int = 0) -> dict:
                 # résultat lisible : un lot qui n'a rien produit sous *Manual* n'est pas une panne,
                 # c'est un gate qui a fonctionné. Sans ce mot, les deux se ressemblent — et les
                 # lots #21/#22 du 2026-08-04 ont été lus comme des échecs.
-                # Le régime CAPTURÉ fait foi ; à défaut, celui que les actes du lot prouvent. La
-                # provenance de la réponse voyage avec elle : « déduit » n'est pas « enregistré »,
-                # et l'écran ne doit pas pouvoir les confondre.
-                "zetis_mode": zetis_mode(run) or deduire_regime(run.trigger, preuves.get(run.id, {})),
-                "zetis_mode_source": (
-                    "capture"
-                    if zetis_mode(run)
-                    else ("deduit" if deduire_regime(run.trigger, preuves.get(run.id, {})) else None)
-                ),
+                # ⚠️ **Une LECTURE, plus une déduction** (addendum « tri et filtre » §5). Le régime
+                # et sa provenance sont désormais tous deux sur le lot : `zetis_mode` redérive le
+                # NOM depuis les deux paliers (l'ADR-0032 tenue), `zetis_mode_source` dit d'où vient
+                # la réponse. La déduction depuis les actes a lieu UNE FOIS, dans le script de
+                # reprise — ici, elle rendait un régime qui changeait quand le veto retirait une
+                # pièce. La provenance voyage toujours avec la valeur : « déduit » n'est pas
+                # « enregistré », et l'écran ne doit pas pouvoir les confondre.
+                "zetis_mode": zetis_mode(run),
+                "zetis_mode_source": run.zetis_mode_source if zetis_mode(run) else None,
                 "chapter_id": run.chapter_id,
                 # Un lot-pièce n'a PAS de chapitre (ADR-0036 §2) : sans ces deux champs, il se
                 # lirait comme un lot cassé au lieu d'un lot ciblé.
@@ -665,4 +685,7 @@ def list_journal(db: Session, *, limit: int = 20, offset: int = 0) -> dict:
         # jamais un reproche — elle s'affiche par objet et ne se totalise pas). Ce compteur-ci est
         # celui des LOTS, pour la pagination, et rien d'autre.
         "has_more": offset + len(rows) < total,
+        # ⚠️ Le total de l'ensemble FILTRÉ, pas de l'histoire. « 7 sur 23 » est juste ; « 7 sur 7 »
+        # cacherait qu'il existe autre chose, et l'état vide n'aurait plus rien à dire.
+        "total": total,
     }

@@ -8,15 +8,27 @@
 // - **La portée est dite, pas devinée.** Le Journal ne montre que la production EN LOT ; le
 //   Conseil de classe et la composition champion équipent hors lot. Le silence sur eux ne doit
 //   pas se lire comme « rien d'autre n'a été produit ».
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { ConfirmDialog } from "@zetis/ui";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ConfirmDialog, type SubjectFilterOption } from "@zetis/ui";
 import { type JournalPiece, type JournalRun, type PieceKind, type VetoPreview } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
+import {
+  JournalFilterBar,
+  type ChapitreOption,
+} from "../components/journal/JournalFilterBar";
 import { NIVEAU_LABEL } from "../lib/settings";
 import { REGIME_AVATAR } from "../lib/regimeVisuals";
 import { journalLink } from "../lib/pilotageLinks";
 import { SCOPE_NOUN } from "../lib/production";
+import { fetchActiveSchoolYear, fetchChapters } from "../lib/curriculum";
+import {
+  FILTRE_VIDE,
+  depuisUrl,
+  filtreActif,
+  versUrl,
+  type JournalFiltre,
+} from "../lib/journalFilters";
 import {
   AUTHORITY_LABEL,
   PIECE_ICON,
@@ -359,28 +371,152 @@ function EventList({ run }: { run: JournalRun }) {
   );
 }
 
+/** Taille d'une page. Le serveur plafonne à 50 : demander plus ne rendrait pas plus. */
+const PAGE = 20;
+
 export function JournalPage() {
   const [runs, setRuns] = useState<JournalRun[]>([]);
+  const [total, setTotal] = useState(0);
+  /** Le total SANS filtre, retenu au premier chargement — « 7 lots sur 23 » a besoin des deux. */
+  const [totalNonFiltre, setTotalNonFiltre] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<Target | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const reload = useCallback(async () => {
-    setError(null);
+  // Le filtre vit dans l'URL : un journal filtré se rouvre tel quel, et le retour arrière défait
+  // le filtre au lieu de quitter la page.
+  const [params, setParams] = useSearchParams();
+  const filtre = useMemo(() => depuisUrl(params), [params]);
+  const [deplie, setDeplie] = useState(false);
+
+  const [subjects, setSubjects] = useState<SubjectFilterOption[]>([]);
+  const [sysParMatiere, setSysParMatiere] = useState<Record<number, number>>({});
+  const [chapitres, setChapitres] = useState<ChapitreOption[]>([]);
+
+  const majFiltre = useCallback(
+    (suivant: JournalFiltre) => setParams(versUrl(suivant), { replace: true }),
+    [setParams],
+  );
+
+  /** Recharge depuis le début, en gardant AUTANT de lots qu'on en avait déjà déplié.
+   *
+   * ⚠️ Rien ici ne concerne le veto : c'est le retrait d'une pièce qui rappelle cette fonction, et
+   * repartir à la première page renverrait Papa en haut du journal après chaque geste. On refait
+   * donc la même hauteur de lecture. Au-delà de 50, le serveur tronque — la fin de la liste se
+   * recharge alors d'un clic, ce qui est le pire cas et il est rare. */
+  const requete = useMemo(() => versUrl(filtre), [filtre]);
+
+  const reload = useCallback(
+    async (combien = PAGE) => {
+      setError(null);
+      try {
+        const data = await fetchJournal(Math.min(50, Math.max(PAGE, combien)), 0, requete);
+        setRuns(data.runs);
+        setTotal(data.total);
+        setHasMore(data.has_more);
+        // Le total de référence ne se lit QUE sur une réponse non filtrée : le relire sous filtre
+        // ferait afficher « 7 sur 7 », ce qui cacherait qu'il existe autre chose.
+        if (!filtreActif(filtre)) setTotalNonFiltre(data.total);
+      } catch (cause: unknown) {
+        setError(cause instanceof Error ? cause.message : "Chargement du journal échoué");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [requete, filtre],
+  );
+
+  /** La page suivante EMPILE — un journal se lit de haut en bas, il ne se feuillette pas.
+   *
+   * ⚠️ Ce bouton répare un manque ANTÉRIEUR au chantier : `fetchJournal` était appelée sans
+   * argument, donc bornée à 20 lots, et `has_more` voyageait dans la réponse **sans être lu par
+   * personne**. Au-delà de vingt lots, le Journal était muet — et il ne disait pas qu'il l'était. */
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
     try {
-      const data = await fetchJournal();
-      setRuns(data.runs);
+      const data = await fetchJournal(PAGE, runs.length, requete);
+      setRuns((precedents) => [...precedents, ...data.runs]);
+      setTotal(data.total);
+      setHasMore(data.has_more);
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : "Chargement du journal échoué");
+      setError(cause instanceof Error ? cause.message : "Chargement des lots plus anciens échoué");
     } finally {
-      setLoading(false);
+      setLoadingMore(false);
     }
-  }, []);
+  }, [runs.length, requete]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // ⚠️ **Le total de RÉFÉRENCE, quand on arrive déjà filtré.** Vu à l'écran le 2026-08-04 : ouvrir
+  // une URL filtrée affichait « 1 lot » tout court — la page n'ayant jamais fait de lecture non
+  // filtrée, elle n'avait aucun « sur 9 » à montrer. La ligne de synthèse doit se suffire à
+  // elle-même, sinon « 1 lot » se lit comme « ZETIS n'a produit qu'une fois ».
+  //
+  // Une requête de plus, **une seule fois**, et seulement dans ce cas : `limit=1` parce qu'on ne
+  // veut que le compteur, pas les lots.
+  useEffect(() => {
+    if (totalNonFiltre !== null || !filtreActif(filtre)) return;
+    let annule = false;
+    void (async () => {
+      try {
+        const data = await fetchJournal(1, 0);
+        if (!annule) setTotalNonFiltre(data.total);
+      } catch {
+        // Sans lui, la ligne perd son « sur N » — elle reste juste, en disant moins.
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, [filtre, totalNonFiltre]);
+
+  // Les matières viennent de l'année active, pas de la réponse du Journal — un appel, une fois.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const annee = await fetchActiveSchoolYear();
+        setSubjects(
+          annee.subjects.map((s) => ({
+            id: s.subject_id,
+            name: s.subject_name,
+            slug: s.subject_slug,
+          })),
+        );
+        setSysParMatiere(Object.fromEntries(annee.subjects.map((s) => [s.subject_id, s.id])));
+      } catch {
+        // Sans la liste, la rangée matière est vide et le reste de la barre fonctionne. Un journal
+        // qui tomberait parce que ses pastilles n'ont pas chargé serait pire que des pastilles
+        // absentes.
+      }
+    })();
+  }, []);
+
+  // ⚠️ Les chapitres se lisent par MATIÈRE D'ANNÉE (`school_year_subject_id`), pas par matière :
+  // il n'existe aucune liste « tous les chapitres ». Le select dépend donc de la matière choisie.
+  useEffect(() => {
+    const sysId = filtre.subjectId === null ? undefined : sysParMatiere[filtre.subjectId];
+    if (sysId === undefined) {
+      setChapitres([]);
+      return;
+    }
+    let annule = false;
+    void (async () => {
+      try {
+        const liste = await fetchChapters(sysId);
+        if (!annule) setChapitres(liste.map((c) => ({ id: c.id, name: c.name })));
+      } catch {
+        if (!annule) setChapitres([]);
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, [filtre.subjectId, sysParMatiere]);
 
   // La modale annonce la portée AVANT le geste : un veto qui surprend n'est pas exercé deux fois.
   const askRemove = useCallback(async (piece: JournalPiece) => {
@@ -398,14 +534,14 @@ export function JournalPage() {
     try {
       await removePiece(target.piece.kind, target.piece.id);
       setTarget(null);
-      await reload();
+      await reload(runs.length);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Retrait échoué");
       setTarget(null);
     } finally {
       setBusy(false);
     }
-  }, [target, reload]);
+  }, [target, reload, runs.length]);
 
   const cascade = target?.preview.cascade ?? {};
   const cascadeEntries = Object.entries(cascade).filter(([, ids]) => (ids?.length ?? 0) > 0);
@@ -434,12 +570,65 @@ export function JournalPage() {
         </p>
       )}
 
+      <JournalFilterBar
+        filtre={filtre}
+        onChange={majFiltre}
+        onReset={() => majFiltre(FILTRE_VIDE)}
+        subjects={subjects}
+        chapitres={chapitres}
+        total={total}
+        totalNonFiltre={totalNonFiltre}
+        deplie={deplie}
+        onToggleDeplie={() => setDeplie((d) => !d)}
+      />
+
       {loading && <p className="text-sm text-papa-muted">Chargement…</p>}
 
-      {!loading && runs.length === 0 && (
+      {!loading && runs.length === 0 && !filtreActif(filtre) && (
         <p className="text-sm text-papa-muted">
           Aucun lot de production pour l'instant. Lancez-en un depuis la Couverture.
         </p>
+      )}
+
+      {/* ⚠️ **L'état vide filtré est BAVARD, et c'est le signal d'échec nommé par l'addendum** : un
+          filtre qui rend vide sans dire POURQUOI est indiscernable d'une panne. Deux causes
+          existent par construction, et l'écran doit les nommer sans quoi Papa conclura que ZETIS
+          n'a rien fait. */}
+      {!loading && runs.length === 0 && filtreActif(filtre) && (
+        <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.03] px-5 py-8 text-center">
+          <h3 className="text-sm font-bold text-papa-text">Aucun lot ne correspond à ce filtre.</h3>
+          {totalNonFiltre !== null && (
+            <p className="mx-auto mt-2 max-w-xl text-sm text-papa-muted">
+              Le journal compte {totalNonFiltre} lot{totalNonFiltre > 1 ? "s" : ""} au total.
+            </p>
+          )}
+          {filtre.pieces.length > 0 && (
+            <p className="mx-auto mt-3 max-w-xl rounded-lg border border-white/10 bg-papa-bg px-4 py-3 text-left text-sm leading-relaxed text-papa-muted">
+              ⚠️ Un filtre <strong className="text-papa-text">par contenu</strong> écarte deux
+              sortes de lots qui existent pourtant : ceux qui ont été{" "}
+              <strong className="text-papa-text">bloqués avant de produire quoi que ce soit</strong>{" "}
+              — ils n'ont atteint aucun type — et ceux{" "}
+              <strong className="text-papa-text">antérieurs au détail par pièce</strong>, qui n'ont
+              rien laissé à comparer même quand ils ont produit.
+            </p>
+          )}
+          {filtre.modes.length > 0 && (
+            <p className="mx-auto mt-3 max-w-xl rounded-lg border border-white/10 bg-papa-bg px-4 py-3 text-left text-sm leading-relaxed text-papa-muted">
+              ⚠️ Un filtre <strong className="text-papa-text">par mode</strong> écarte les lots dont
+              le régime n'a jamais été enregistré et dont les actes ne le prouvent pas. Ajoutez
+              « Non enregistré » pour les voir.
+            </p>
+          )}
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => majFiltre(FILTRE_VIDE)}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+            >
+              Tout effacer
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="space-y-4">
@@ -481,6 +670,24 @@ export function JournalPage() {
           </section>
         ))}
       </div>
+
+      {/* ⚠️ Le bouton EMPILE, il ne feuillette pas : un journal se lit de haut en bas. Et il porte
+          ce qui RESTE, pas ce qui est chargé — « 4 plus anciens » répond à la question que Papa se
+          pose devant le bas de la liste. */}
+      {hasMore && (
+        <div className="mt-5 flex justify-center">
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="rounded-lg border border-white/15 px-4 py-2 text-sm text-papa-text hover:border-white/30 disabled:opacity-50"
+          >
+            {loadingMore
+              ? "Chargement…"
+              : `Voir les lots plus anciens (${total - runs.length} restant${total - runs.length > 1 ? "s" : ""})`}
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={target !== null}

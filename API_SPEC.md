@@ -1292,6 +1292,36 @@ pas — la route reste ouverte, et il est **daté**.
   d'origine, lui, n'est **jamais** réécrit (§F.4) ;
 - sur chaque **pièce** : `target`, pour l'ouvrir depuis la liste.
 
+### GET `/production/journal` — filtre, tri et total (2026-08-04, addendum « tri et filtre »)
+
+Tous les paramètres sont **optionnels**, et **sans aucun d'eux la réponse est exactement celle
+d'avant** : il n'y a pas de filtre par défaut.
+
+```txt
+subject_id[]  chapter_id[]  depuis  jusqu_a  statut[]  mode[]  piece[]  tri  sens  limit  offset
+```
+
+- `statut` ∈ `queued|running|stale|done|failed`. ⚠️ **`failed`, pas `error`** — `error` est une issue
+  d'**événement**, pas un statut de lot. Et **`running` EXCLUT `stale`** : sans ça un lot zombie
+  répondrait à deux filtres ;
+- `mode` ∈ `manuel|semi|autonome|sur_mesure|inconnu` — traduit en **couples de paliers** lus dans
+  `NIVEAUX`, jamais recopiés ;
+- `piece` ∈ `cours|fiche|mindmap|quiz|srs` — lu dans **`production_events`**, pas dans les cinq
+  tables de pièces : l'événement existe pour le produit, le **sauté** et l'**échoué**. ⚠️ Un lot
+  bloqué avant d'avoir touché une pièce, ou antérieur à `production_events`, ne répond donc à
+  **aucun** filtre de type — l'écran doit le dire ;
+- `tri` ∈ `date|matiere|mode|statut`, `sens` ∈ `desc|asc`. Toute clé est départagée par
+  `created_at DESC, id DESC` — sans cette queue la pagination perd ou répète des lots en silence ;
+- ⚠️ **Une valeur inconnue est IGNORÉE, jamais rejetée** : un 422 sur un vocabulaire d'écran ferait
+  tomber la page entière pour une pilule mal orthographiée dans une URL partagée.
+
+**Réponse** : `total` s'ajoute à `runs` et `has_more`. ⚠️ Il porte sur l'ensemble **filtré** — c'est
+un compteur de **pagination**, pas de provenance (le §F.2 vise les totaux « ZETIS vs Papa »).
+
+⚠️ **`WHERE` → `ORDER BY` → `LIMIT`, dans cet ordre.** Filtrer une page déjà paginée répondrait
+« rien en maths » alors que les lots de maths sont page 4 — un défaut qui ne ressemble pas à un
+défaut.
+
 ### POST `/student/content-requests`
 
 **Écriture SEULE, `require_child`** (addendum ADR-0027) — Massimo demande un ou plusieurs contenus

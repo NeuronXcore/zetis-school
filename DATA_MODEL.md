@@ -906,10 +906,35 @@ où il lit déjà les paliers pour s'exécuter.
 > le dérive. On garde les **faits**, le nom se redérive à la lecture, avec la même fonction. Deux
 > clés suffisent — `NIVEAUX` ne nomme qu'`A0a` et `A1`, les deux qui commandent la production.
 >
-> ⚠️ **`NULL` = lot antérieur, et rien n'est rétro-attribué** (§F.4). Le Journal **déduit** alors le
-> régime des **actes** du lot (un cours qu'il a rédigé, un dérivé qu'il a laissé à relire, une
-> origine `request`) — jamais des réglages d'aujourd'hui — et **dit** que la réponse est déduite.
-> Quand rien ne le prouve, il répond « inconnu ».
+> ⚠️ **`NULL` = lot antérieur, et rien n'est rétro-attribué** (§F.4).
+
+**La PROVENANCE du régime** — `production_runs.zetis_mode_source`, ajoutée le 2026-08-04 (migration
+`e9f0a1b2c3d4`, addendum ADR-0034 « tri et filtre » §5). Trois valeurs : `capture` (écrite par
+`runner.execute` avec les paliers), `deduit` (écrite **une fois** par
+`scripts/backfill_zetis_mode.py`), `NULL` (rien ne le prouve).
+
+> ⚠️ **RÈGLE DE LECTURE CHANGÉE.** La déduction du régime depuis les **actes** du lot (un cours
+> qu'il a rédigé, un dérivé laissé à relire, une origine `request`) se faisait **à chaque lecture**
+> du Journal. Elle n'y est plus : elle a lieu **une fois**, dans le script de reprise.
+>
+> Motif : les preuves sont **rétractables**. `veto._delete_one` **supprime la ligne `Lesson`** d'un
+> cours retiré — la preuve « ce lot a rédigé un cours » partait avec elle, et le régime affiché d'un
+> lot d'hier changeait parce que Papa avait exercé un droit prévu. Une des quatre preuves testait en
+> plus un **motif d'affichage** (`detail.lower().startswith("cours")`), reformulé le même jour.
+>
+> ⚠️ **Ce n'est pas ce que le §F.4 interdit** : il interdit de reconstituer depuis les **réglages
+> d'aujourd'hui**, qui ont changé. Écrire une fois ce que les **actes** prouvent, avec sa provenance,
+> **fige** l'histoire au lieu de la laisser dériver. La capture **prime** toujours : le script ne
+> touche jamais un lot qui porte déjà ses paliers (verrou de test).
+
+**Six index posés dans la même migration** (`e9f0a1b2c3d4`) — mesurés absents : `pg_indexes` ne
+rendait **aucune** ligne contenant `production_run_id`.
+
+```txt
+ix_lessons_production_run_id · ix_fiches_production_run_id · ix_mindmaps_production_run_id
+ix_quizzes_production_run_id · ix_spaced_review_cards_production_run_id
+ix_production_runs_created_at   # la clé de tri par défaut du Journal, qui commande la pagination
+```
 
 ### MindmapView (ADR-0030 §4)
 

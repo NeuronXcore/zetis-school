@@ -11,7 +11,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models.school import Chapter, Subject, Theme
+from app.db.models.school import Chapter, SchoolYearSubject, Subject, Theme
 from app.modules.subjects.schemas import ChapterCreate, SubjectCreate, ThemeCreate
 
 
@@ -160,8 +160,68 @@ def create_theme(db: Session, subject_id: int, data: ThemeCreate) -> dict[str, A
     }
 
 
+def _matiere_dannee_ou_422(db: Session, theme: Theme) -> SchoolYearSubject:
+    """La matière d'année qui ANCRE un chapitre créé sous un thème.
+
+    ## Pourquoi cette fonction existe (addendum ADR-0034, « le trou trouvé en chemin »)
+
+    Un chapitre a **deux** rattachements possibles : `theme_id` (thème → matière) et
+    `school_year_subject_id` (matière d'année → année + matière). Cette route ne posait que le
+    premier. Or le résolveur canonique `lessons_by_skill` (ADR-0037) applique le périmètre « année
+    active » **par une jointure sur `SchoolYearSubject`** : un chapitre sans matière d'année n'a
+    aucun chemin vers une année, et devient invisible de **la production, de la galaxie et de
+    `canonical_context`**.
+
+    ⚠️ **Le défaut n'était pas dans la donnée, il était dans cette porte.** `create_manual_lesson`
+    accepte n'importe quel `chapter_id` sans regarder son rattachement : un bouton fabriquait le
+    chapitre, un autre y accrochait des leçons, et tout l'aval les ignorait **en silence** — aucune
+    erreur, aucun test rouge, du contenu que personne n'atteint. C'est la famille de défaut que
+    l'ADR-0037 appelle « le pire cas est silencieux ».
+
+    ⚠️ **On ne révoque pas « un chapitre peut vivre sous un thème ».** Le thème garde la hiérarchie
+    pédagogique ; la matière d'année ajoute l'ancrage temporel. Les deux colonnes coexistent — c'est
+    le rattachement qui était **incomplet**, pas le modèle qui était faux.
+
+    ⚠️ **On REFUSE plutôt que de créer un chapitre inerte**, et on dit quoi faire. Un 201 qui rend
+    un objet que rien n'atteindra est le mensonge que ce correctif ferme.
+    """
+    from app.modules.lesson_resolution import active_year
+
+    year = active_year(db)
+    if year is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Aucune année scolaire active : un chapitre créé maintenant ne serait rattaché à "
+                "aucune année, et resterait invisible de la production comme de la galaxie. "
+                "Activez une année scolaire d'abord."
+            ),
+        )
+    sys_row = db.scalar(
+        select(SchoolYearSubject).where(
+            SchoolYearSubject.school_year_id == year.id,
+            SchoolYearSubject.subject_id == theme.subject_id,
+        )
+    )
+    if sys_row is None:
+        subject = db.get(Subject, theme.subject_id)
+        nom = subject.name if subject else f"#{theme.subject_id}"
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"« {nom} » n'est pas au programme de l'année {year.label} : un chapitre créé ici "
+                "resterait invisible de la production comme de la galaxie. Ajoutez la matière à "
+                "l'année scolaire d'abord."
+            ),
+        )
+    return sys_row
+
+
 def create_chapter(db: Session, theme_id: int, data: ChapterCreate) -> dict[str, Any]:
-    _theme_or_404(db, theme_id)
+    theme = _theme_or_404(db, theme_id)
+    # ⚠️ L'ancrage se résout AVANT toute écriture : un chapitre à moitié rattaché ne doit pas
+    # exister, même une transaction.
+    sys_row = _matiere_dannee_ou_422(db, theme)
     next_order = (
         db.scalar(
             select(func.coalesce(func.max(Chapter.sort_order), -1)).where(
@@ -172,6 +232,9 @@ def create_chapter(db: Session, theme_id: int, data: ChapterCreate) -> dict[str,
     )
     chapter = Chapter(
         theme_id=theme_id,
+        # Les DEUX rattachements : le thème dit la place pédagogique, la matière d'année dit à
+        # quelle année ce chapitre appartient — et c'est celle-là que lit `lessons_by_skill`.
+        school_year_subject_id=sys_row.id,
         name=data.name.strip(),
         description=data.description,
         period=data.period,

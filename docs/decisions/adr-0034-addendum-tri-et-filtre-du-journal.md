@@ -139,6 +139,23 @@ inévitable** : `production_events.piece` est `NULL` quand l'événement porte s
 atteint le stade où un type existe. **L'écran doit le dire** dans son état vide, sans quoi le filtre
 donnera l'impression que ces lots n'existent pas.
 
+#### Amendement acté à l'implémentation (2026-08-04) — un second angle mort, mesuré
+
+🔴 **Les lots ANTÉRIEURS à `production_events` ne répondent à aucun filtre de type non plus**, y
+compris quand ils ont produit. La table est née avec l'ADR-0034 ; ce qui la précède n'a laissé
+aucune ligne.
+
+Mesuré sur la base de dev : **2 lots sur 9 n'ont aucun événement**, et l'un d'eux (le lot #3) porte
+**4 fiches**. Filtrer sur *fiche* le laisse donc de côté, alors qu'il en a produit quatre.
+
+**La décision ne change pas**, et son motif tient : filtrer les cinq tables de pièces rendrait ces
+lots-là mais perdrait **toutes** les lignes bloquées, sautées et en erreur — c'est-à-dire l'essentiel
+de ce qu'on cherche dans un journal, et une régression bien pire. Le coût est nommé, pas masqué.
+
+⚠️ **Conséquence pour la slice B** : l'état vide ne peut pas se contenter de compter les lots
+bloqués. Il doit aussi dire *« N lots sont antérieurs au détail par pièce »* — sans quoi Papa lira
+« ZETIS n'a jamais fait de fiches » devant un lot qui en a fait quatre.
+
 ### 5. 🔴 Le régime CESSE d'être re-dérivé — une écriture unique, marquée, et l'histoire se fige
 
 **C'est la décision qui commande le chantier.**
@@ -265,19 +282,71 @@ commande la pagination de toutes les lectures.
   part, avec migration.
 - **Rien pour Massimo.** Le Journal reste un écran de Papa.
 
-## Le trou trouvé en chemin, et qui doit être bouché ici
+## Le trou trouvé en chemin — et il était plus bas que prévu
 
 🔴 **`lesson_targets` ne résout la matière d'un chapitre que par `school_year_subject_id`.** Un
 chapitre rattaché par `theme_id` (l'autre rattachement, légitime depuis le module `subjects` :
 Subject → Theme → Chapter) rend `subject_id: None`.
 
-Aujourd'hui, ça coûte un lien manquant. **Avec un filtre par matière, ça coûterait des lots qui
-disparaissent sans que rien ne le dise** — le pire mode d'échec pour un filtre.
+### Ce que le read-before-code a révélé, et pourquoi la première décision était fausse
 
-Décision : **une seule fonction répond à « de quelle matière est ce chapitre »**, couvrant les deux
-rattachements, et `lesson_targets` l'appelle comme le filtre. Ce n'est pas un refactor élargi :
-c'est une extraction, et c'est exactement l'ADR-0037 appliquée une fois de plus — deux réponses à
-une même question finissent toujours par diverger.
+La version initiale de cet addendum décidait : *« une seule fonction répond à quelle matière est ce
+chapitre, et `lesson_targets` l'appelle comme le filtre »*. **Cette décision est abandonnée**, pour
+une raison trouvée en codant :
+
+> **Le trou n'est pas dans `lesson_targets`. Il est dans `lessons_by_skill`** — le résolveur
+> canonique de l'ADR-0037 — qui applique le périmètre « année active » par un **INNER JOIN sur
+> `SchoolYearSubject`**. Un chapitre rattaché seulement par un thème n'a **aucun chemin vers une
+> année scolaire**, et il est donc invisible de **la production, de la galaxie et de
+> `canonical_context`**, pas seulement du filtre.
+
+Et il n'existe **aucune donnée** pour réparer localement : `Theme` porte une matière, jamais une
+année. Corriger `lesson_targets` seul aurait fait résoudre au filtre une matière que le résolveur
+canonique ne sait pas atteindre — **deux réponses à la même question**, exactement ce que
+l'ADR-0037 a coûté un ADR entier à supprimer.
+
+### Le défaut n'était pas dans la donnée, il était dans une PORTE
+
+Mesuré d'abord : **1 chapitre sur 80**, avec 0 leçon, 0 notion, 0 lot. Ce qui donnait l'impression
+d'un accident d'historique. C'est faux — le mécanisme est vivant :
+
+| Ce qui existe | Ce que ça fait |
+|---|---|
+| `POST /subjects/themes/{id}/chapters` | crée un chapitre avec `theme_id` et **`school_year_subject_id = NULL`** — c'est le bouton « ajouter un chapitre » de la page Matières |
+| `create_manual_lesson(db, chapter_id, …)` | accepte **n'importe quel** `chapter_id`, sans regarder son rattachement |
+
+Un bouton fabrique le cas, un autre y accroche des leçons, et tout l'aval les ignore **en silence** :
+aucune erreur, aucun test rouge, du contenu que personne n'atteint. C'est la famille de défaut que
+l'ADR-0037 nomme « le pire cas est silencieux ». Le chapitre trouvé en base est ce qu'a produit ce
+bouton — il est vide **par hasard**, pas par construction.
+
+### Décision : on ferme la porte, on ne répare pas l'aval
+
+**Un chapitre créé sous un thème reçoit AUSSI sa matière d'année**, résolue depuis l'année active et
+`theme.subject_id`. Si elle n'existe pas — pas d'année active, ou matière hors programme de l'année
+— **la création est refusée avec son motif et le geste qui répare**.
+
+⚠️ **Cela ne révoque PAS « un chapitre peut vivre sous un thème »** (module `subjects`). Le thème
+garde la hiérarchie pédagogique ; la matière d'année ajoute l'ancrage temporel. Les deux colonnes
+coexistent, et c'est le **rattachement** qui était incomplet, pas le modèle qui était faux.
+
+⚠️ **On refuse plutôt que de créer un chapitre inerte.** Un 201 qui rend un objet que rien
+n'atteindra est précisément le mensonge que ce correctif ferme.
+
+⚠️ **Le verrou de test porte sur l'ATTEIGNABILITÉ, pas sur la colonne.** Vérifier
+`school_year_subject_id is not None` serait un test de schéma ; le test vérifie que
+`lessons_by_skill` rend bien une leçon de ce chapitre — c'est lui qui décide ce que la production,
+la galaxie et `canonical_context` peuvent atteindre. Contre-épreuve jouée : retirer l'ancrage le
+fait rougir.
+
+⚠️ **`lesson_targets` n'est PAS touchée**, et c'est cohérent : une fois la porte fermée, tout
+chapitre neuf porte sa matière d'année, donc la jointure existante suffit. Ce qui reste en base
+sans ancrage est une **donnée** à corriger, plus un défaut de code.
+
+> **Ce qui reste ouvert** : le chapitre déjà créé sans ancrage (id 10 en base de dev, 0 leçon) n'est
+> pas rattrapé par ce correctif — aucune rétro-attribution automatique. Et **le chantier C reste
+> possible** si le rattachement par thème seul devait redevenir légitime : il faudrait alors donner
+> une année aux thèmes et étendre `lessons_by_skill`, avec migration. Non fait, non nécessaire.
 
 ## Le signal qui dirait qu'on s'est trompé
 

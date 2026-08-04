@@ -80,7 +80,7 @@ const RUN: JournalRun = {
   ],
 };
 
-const JOURNAL: Journal = { runs: [RUN], has_more: false };
+const JOURNAL: Journal = { runs: [RUN], has_more: false, total: 1 };
 
 function renderPage() {
   return render(
@@ -118,6 +118,7 @@ describe("JournalPage", () => {
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, zetis_mode: null, zetis_mode_source: null }],
       has_more: false,
+      total: 1,
     });
     renderPage();
     await screen.findByText(/Lot #7/);
@@ -131,6 +132,7 @@ describe("JournalPage", () => {
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, zetis_mode: "autonome", zetis_mode_source: "deduit" }],
       has_more: false,
+      total: 1,
     });
     renderPage();
     await screen.findByText(/Lot #7/);
@@ -165,6 +167,7 @@ describe("JournalPage", () => {
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, events: [{ ...RUN.events[1]!, resolved: true }] }],
       has_more: false,
+      total: 1,
     });
     renderPage();
     await screen.findByText(/Lot #7/);
@@ -202,6 +205,7 @@ describe("JournalPage", () => {
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, id: 6, events: [], pieces: [] }],
       has_more: false,
+      total: 1,
     });
     renderPage();
     expect(await screen.findByText(/Aucun contenu neuf rattaché à ce lot/)).toBeInTheDocument();
@@ -236,6 +240,7 @@ describe("JournalPage", () => {
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, events: [{ ...RUN.events[1]!, resolved: true }] }],
       has_more: false,
+      total: 1,
     });
     renderPage();
     await screen.findByText(/Lot #7/);
@@ -283,6 +288,7 @@ describe("JournalPage", () => {
         },
       ],
       has_more: false,
+      total: 1,
     });
     renderPage();
     await screen.findByText(/Lot #7/);
@@ -299,6 +305,7 @@ describe("JournalPage", () => {
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, events: [{ ...RUN.events[0]! }] }],
       has_more: false,
+      total: 1,
     });
     renderPage();
     await screen.findByText(/Lot #7/);
@@ -375,5 +382,41 @@ describe("JournalPage", () => {
     expect(body).not.toMatch(/\d+\s*%\s*(par ZETIS|automatis)/i);
     // La provenance PAR OBJET, elle, doit bien être là.
     expect(screen.getAllByText("Vous, en lot").length).toBeGreaterThan(0);
+  });
+});
+
+describe("JournalPage — la pagination, qui manquait", () => {
+  // ⚠️ Ce défaut est ANTÉRIEUR au chantier « tri et filtre » : `fetchJournal` était appelée sans
+  // argument, donc bornée à 20 lots, et `has_more` voyageait dans la réponse SANS ÊTRE LU. Au-delà
+  // de vingt lots, le Journal était muet — et il ne disait pas qu'il l'était.
+  const autre: JournalRun = { ...RUN, id: 8, events: [], pieces: [] };
+
+  it("n'offre AUCUN bouton quand tout est déjà là", async () => {
+    vi.mocked(fetchJournal).mockResolvedValue({ runs: [RUN], has_more: false, total: 1 });
+    renderPage();
+    await screen.findByText(/Lot #7/);
+    expect(screen.queryByRole("button", { name: /plus anciens/ })).not.toBeInTheDocument();
+  });
+
+  it("EMPILE les lots plus anciens et annonce ce qui reste", async () => {
+    // Un journal se lit de haut en bas : la page suivante s'ajoute, elle ne remplace pas.
+    vi.mocked(fetchJournal)
+      .mockResolvedValueOnce({ runs: [RUN], has_more: true, total: 2 })
+      .mockResolvedValueOnce({ runs: [autre], has_more: false, total: 2 });
+
+    renderPage();
+    const bouton = await screen.findByRole("button", { name: /1 restant/ });
+    fireEvent.click(bouton);
+
+    await waitFor(() => expect(screen.getByText(/Lot #8/)).toBeInTheDocument());
+    // ⚠️ LE point du test : le premier lot est TOUJOURS là. Sans empilement, il aurait disparu.
+    expect(screen.getByText(/Lot #7/)).toBeInTheDocument();
+    // La requête suivante part avec le DÉCALAGE, pas avec la même page. On lit le dernier appel :
+    // l'index 1 supposerait qu'aucun autre appel n'a lieu au montage, ce qui est une hypothèse
+    // sur React, pas sur la page.
+    const appels = vi.mocked(fetchJournal).mock.calls;
+    // Le 3ᵉ argument porte le filtre (vide ici) : on n'assert que la borne et le décalage.
+    expect(appels[appels.length - 1]?.slice(0, 2)).toEqual([20, 1]);
+    expect(screen.queryByRole("button", { name: /plus anciens/ })).not.toBeInTheDocument();
   });
 });

@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS Papa — Journal de production / tri et filtre (maquette addendum ADR-0034)</title>
+<style>
+  /* Thème RÉEL de l'app Papa (apps/frontend-papa/src/index.css) — sombre.
+     Reprend la maquette « paramètres / autonomie » : c'est elle qui fait foi depuis la bascule.
+     ⚠️ Aucun libellé n'est inventé ici : statuts = RUN_STATUS_LABEL, pièces = PIECE_LABEL /
+     PIECE_ICON, régimes = NIVEAU_LABEL (Manual · Hybrid · Autonom) + REGIME_AVATAR. */
+  :root{
+    --bg:#0a0f1a; --surface:#111a28; --surface2:#18243a; --border:#243348;
+    --text:#e6edf6; --muted:#8595ac; --accent:#10b981; --accent2:#38bdf8; --warn:#f59e0b;
+    --danger:#f43f5e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,-apple-system,sans-serif}
+  body{background:var(--bg);color:var(--text);font-size:14px}
+  .layout{display:flex;min-height:100vh}
+
+  .sidebar{width:210px;background:#070b13;border-right:1px solid var(--border);padding:20px 12px;flex-shrink:0}
+  .sidebar .logo{font-weight:800;letter-spacing:.2em;color:var(--accent);font-size:15px;margin-bottom:22px;padding-left:8px}
+  .sidebar a{display:flex;gap:9px;padding:7px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:12.5px;margin-bottom:1px}
+  .sidebar a.active{background:rgba(16,185,129,.13);color:var(--accent);font-weight:600}
+  .sidebar .sep{height:1px;background:var(--border);margin:10px 6px}
+
+  main{flex:1;padding:26px 30px;max-width:940px}
+  h1{font-size:21px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .subtitle{color:var(--muted);font-size:13px;margin-top:4px;line-height:1.5}
+  .muted{color:var(--muted)}
+  .sm{font-size:12px}
+  .link{color:var(--accent);font-weight:600;text-decoration:none;cursor:pointer}
+  .link:hover{text-decoration:underline}
+
+  .scope{margin-top:18px;border:1px solid var(--border);background:var(--surface);border-radius:11px;padding:12px 15px;font-size:12.5px;line-height:1.6;color:var(--muted)}
+  .scope b{color:var(--text)}
+
+  /* ── barre de filtres ─────────────────────────── */
+  /* Le CONTENEUR MAÎTRE porte l'or — c'est lui qui commande ce que le journal montre et dans quel
+     ordre, et c'est lui qu'on doit trouver du regard avant de chercher pourquoi la liste est courte.
+     ⚠️ L'or et l'ambre sont voisins, et l'ambre est déjà pris (l'avertissement « plus
+     chronologique », à l'intérieur). Séparés par la MATIÈRE, pas par la teinte : l'or est halé
+     (dégradé + deux ombres), l'alerte reste plate.
+     ⚠️ Le halo ne bat pas : ici une animation permanente PORTE de l'information (halo de régime en
+     sidebar). Faire clignoter un cadre qui ne signale rien la banaliserait. */
+  .filters{margin-top:16px;border:1px solid rgba(212,175,55,.7);border-radius:14px;padding:14px 16px 12px;
+    background:linear-gradient(180deg,rgba(212,175,55,.09),rgba(212,175,55,.02)),var(--surface);
+    box-shadow:0 0 0 1px rgba(212,175,55,.18), 0 0 28px rgba(212,175,55,.22)}
+  .frow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--border)}
+  .frow:last-of-type{border-bottom:none}
+  /* Les CONTRÔLES se replient ; les critères ACTIFS, eux, restent toujours affichés (.fsum).
+     Mesuré : à plat, la barre faisait 385 px et le premier lot commençait à 578 px sur un
+     écran de 720 — plus de la moitié du pli avant d'avoir vu un lot. */
+  #more{display:none}
+  #more.on{display:block}
+  .moretoggle{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:8px;padding:5px 11px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .moretoggle:hover{color:var(--text);border-color:#33475f}
+  .moretoggle .n{background:rgba(56,189,248,.18);color:#7dd3fc;border-radius:999px;padding:1px 7px;font-size:10.5px}
+  .flabel{width:104px;flex-shrink:0;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .pill{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .pill:hover{border-color:#33475f;color:var(--text)}
+  .pill.on{background:rgba(16,185,129,.14);border-color:var(--accent);color:#6ee7b7}
+  .pill img{width:17px;height:17px;border-radius:50%;display:block}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.75}
+  input[type=date],select{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 9px;font-size:11.5px}
+  input[type=date]{color-scheme:dark}
+
+  /* la ligne de synthèse : ce que le filtre garde, et comment en sortir */
+  .fsum{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:11px;padding-top:11px;border-top:1px solid var(--border);font-size:12.5px}
+  .fsum .count{font-weight:700}
+  .tag{border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600;background:rgba(56,189,248,.13);color:#7dd3fc;display:inline-flex;align-items:center;gap:6px}
+  .tag .x{cursor:pointer;opacity:.7;font-weight:700}
+  .tag .x:hover{opacity:1}
+  .spacer{flex:1}
+
+  /* Le tri est une SUBDIVISION du bloc, pas un bloc à part : c'est le conteneur maître qui porte
+     l'or. Lui donner son propre cadre en ferait un troisième niveau de lecture. */
+  .sortline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 0 0;font-size:12px}
+  .invert{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:8px;padding:6px 9px;font-size:11.5px;cursor:pointer}
+  .invert:hover{color:var(--text)}
+  .warnsort{display:none;align-items:center;gap:8px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.07);color:#fcd34d;border-radius:9px;padding:6px 11px;font-size:11.5px;line-height:1.4}
+  .warnsort.on{display:inline-flex}
+  .warnsort a{color:#fcd34d;text-decoration:underline;cursor:pointer;font-weight:700}
+
+  /* ── un lot ───────────────────────────────────── */
+  .run{margin-top:14px;border:1px solid var(--border);background:var(--surface);border-radius:14px;overflow:hidden}
+  .run > header{display:flex;align-items:flex-start;gap:13px;padding:14px 16px;border-bottom:1px solid var(--border)}
+  .avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;border:1px solid var(--border)}
+  .run h3{font-size:13.5px;font-weight:700}
+  .meta{color:var(--muted);font-size:11.5px;line-height:1.6;margin-top:3px}
+  .meta b{color:var(--text);font-weight:600}
+  .st{flex-shrink:0;border-radius:999px;padding:4px 11px;font-size:11px;font-weight:700;white-space:nowrap}
+  .st.done{background:rgba(16,185,129,.14);color:#6ee7b7}
+  .st.stale{background:rgba(148,163,184,.15);color:#cbd5e1}
+  .st.failed{background:rgba(244,63,94,.14);color:#fda4af}
+  .src{border-radius:999px;padding:2px 8px;font-size:10px;font-weight:700;background:rgba(148,163,184,.14);color:#cbd5e1;margin-left:6px}
+
+  /* ⚠️ Les pièces vivent DANS le pli, comme le détail — un seul pli par lot, fermé.
+     La première version de cette maquette les montrait toujours dépliées : c'était l'état d'avant
+     le 2026-08-04, où le lot #3 alignait 33 pièces et noyait tous les autres. */
+  .pieces{padding:0 13px 4px;display:flex;flex-direction:column;gap:7px}
+  .piece{display:flex;align-items:center;gap:10px;font-size:12.5px;border:1px solid var(--border);background:var(--bg);border-radius:10px;padding:8px 11px}
+  .piece .ico{font-size:14px;line-height:1}
+  .piece .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .piece .by{color:var(--muted);font-size:11px;white-space:nowrap}
+  .piece.match{border-color:rgba(16,185,129,.45)}
+  .piece .rm{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:7px;padding:3px 9px;font-size:11px;cursor:pointer}
+  .piece .rm:hover{color:#fda4af;border-color:rgba(244,63,94,.5)}
+
+  details.evt{margin:0 16px 13px;border:1px solid var(--border);border-radius:11px;background:var(--bg)}
+  details.evt summary{cursor:pointer;padding:10px 13px;font-size:12px;font-weight:600;color:var(--muted);list-style:none}
+  details.evt summary::-webkit-details-marker{display:none}
+  details.evt summary::before{content:"▸ ";color:var(--accent)}
+  details.evt[open] summary::before{content:"▾ "}
+  .ev{display:flex;align-items:flex-start;gap:10px;padding:9px 13px;border-top:1px solid var(--border);font-size:12.5px}
+  .box{flex-shrink:0;margin-top:1px}
+  .ev .txt{flex:1;min-width:0;line-height:1.5}
+  .ev .why{color:var(--muted);font-size:11.5px;margin-top:2px}
+  .resolved{color:#6ee7b7;font-weight:600}
+  .goto{flex-shrink:0;color:var(--accent);font-size:11.5px;font-weight:600;text-decoration:none;white-space:nowrap}
+  .goto:hover{text-decoration:underline}
+
+  /* ── état vide BAVARD ─────────────────────────── */
+  .empty{margin-top:16px;border:1px dashed var(--border);border-radius:14px;background:var(--surface);padding:24px 22px;text-align:center}
+  .empty h3{font-size:14.5px;font-weight:700}
+  .empty p{color:var(--muted);font-size:12.5px;line-height:1.65;margin-top:9px;max-width:560px;margin-left:auto;margin-right:auto}
+  .empty .why{margin-top:14px;border:1px solid var(--border);background:var(--bg);border-radius:11px;padding:12px 14px;text-align:left;font-size:12.5px;line-height:1.65;color:var(--muted);max-width:600px;margin-left:auto;margin-right:auto}
+  .empty .why b{color:var(--text)}
+  .empty .acts{display:flex;gap:9px;justify-content:center;margin-top:15px;flex-wrap:wrap}
+
+  .btn{border:none;border-radius:9px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--accent);color:#04120c}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+  .more{display:flex;justify-content:center;margin:18px 0 6px}
+
+  .switcher{display:flex;gap:8px;margin-top:20px;padding:9px 12px;border:1px dashed rgba(56,189,248,.4);border-radius:11px;background:rgba(56,189,248,.05);align-items:center;font-size:11.5px;color:#7dd3fc}
+  .switcher b{color:#bae6fd}
+
+  .notes{margin:26px 0 44px;border-top:1px solid var(--border);padding-top:14px;color:var(--muted);font-size:11.5px;line-height:1.8}
+  .notes b{color:var(--text)}
+  .notes li{margin-left:17px}
+  .notes h4{color:var(--text);font-size:12px;margin:14px 0 5px}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="logo">ZETIS</div>
+    <a href="#">📊 Dashboard</a>
+    <a href="#">🗺️ Couverture</a>
+    <a href="#">📥 Demandes de Massimo</a>
+    <a href="#">📚 Matières</a>
+    <a href="#">🗓️ Agenda</a>
+    <div class="sep"></div>
+    <a href="#" class="active">📜 Journal de production</a>
+    <a href="#">🎓 Conseil de classe</a>
+    <a href="#">🎯 Missions</a>
+    <div class="sep"></div>
+    <a href="#">⚙️ Paramètres</a>
+  </nav>
+
+  <main>
+    <h1><span aria-hidden="true">📜</span> Journal de production</h1>
+    <p class="subtitle">Ce que ZETIS a produit, lot par lot — et ce que vous pouvez encore retirer.</p>
+
+    <div class="scope">
+      Ce journal ne montre que la production <b>en lot</b>. Les contenus créés par le Conseil de
+      classe ou une mission champion n'y figurent pas : vous les avez demandés d'un clic, ils n'ont
+      pas de fenêtre de retrait.
+    </div>
+
+    <!-- ══════════════ BARRE DE FILTRES ══════════════ -->
+    <section class="filters" aria-label="Filtrer et trier le journal">
+
+      <!-- ⚠️ Pas de libellé « Matière » sur cette rangée, et c'est une mesure, pas un goût : avec
+           lui, les neuf pastilles passaient à la ligne et la rangée valait 116 px au lieu de 47.
+           « Toutes » en tête dit déjà de quoi il s'agit. -->
+      <div class="frow">
+        <button class="pill" data-g="mat">Toutes</button>
+        <button class="pill on" data-g="mat">🔢 Maths</button>
+        <button class="pill" data-g="mat">📕 Français</button>
+        <button class="pill" data-g="mat">🌍 Histoire-Géo</button>
+        <button class="pill" data-g="mat">🔬 SVT</button>
+        <button class="pill" data-g="mat">⚗️ Phys-Chimie</button>
+        <button class="pill" data-g="mat">🇬🇧 Anglais</button>
+        <button class="pill" data-g="mat">🇪🇸 Espagnol</button>
+        <button class="pill" data-g="mat">💻 Techno</button>
+      </div>
+
+      <div id="more">
+      <div class="frow">
+        <span class="flabel">Période</span>
+        <label class="muted sm">du</label>
+        <input type="date" value="2026-07-01">
+        <label class="muted sm">au</label>
+        <input type="date" value="2026-08-04">
+        <span class="flabel" style="width:auto;margin-left:14px">Chapitre</span>
+        <select>
+          <option>Tous les chapitres</option>
+          <option selected>Calculs avec priorités</option>
+          <option>Fractions</option>
+          <option>Théorème de Pythagore</option>
+        </select>
+      </div>
+
+      <div class="frow">
+        <span class="flabel">Statut</span>
+        <button class="pill" data-g="st">⏳ En attente</button>
+        <button class="pill" data-g="st">▶ En cours</button>
+        <button class="pill" data-g="st">🕰 Sans réponse</button>
+        <button class="pill" data-g="st">✓ Terminé</button>
+        <button class="pill" data-g="st">✕ Interrompu</button>
+      </div>
+
+      <div class="frow">
+        <span class="flabel">Mode ZETIS</span>
+        <button class="pill" data-g="md"><img src="../../../apps/frontend-papa/src/assets/brand/zetis-regime-manuel_128.png" alt="">Manual</button>
+        <button class="pill" data-g="md"><img src="../../../apps/frontend-papa/src/assets/brand/zetis-regime-semi_128.png" alt="">Hybrid</button>
+        <button class="pill" data-g="md"><img src="../../../apps/frontend-papa/src/assets/brand/zetis-regime-autonome_128.png" alt="">Autonom</button>
+        <button class="pill" data-g="md"><img src="../../../apps/frontend-papa/src/assets/brand/zetis-avatar_128.png" alt="">Sur mesure</button>
+        <button class="pill" data-g="md"><img src="../../../apps/frontend-papa/src/assets/brand/zetis-avatar_128.png" alt="">Non enregistré</button>
+      </div>
+
+      <div class="frow">
+        <span class="flabel">Contenu</span>
+        <button class="pill" data-g="pc">📖 Cours</button>
+        <button class="pill on" data-g="pc">📄 Fiche</button>
+        <button class="pill" data-g="pc">🧠 Carte mentale</button>
+        <button class="pill" data-g="pc">✅ Quiz</button>
+        <button class="pill" data-g="pc">🗂️ Carte de révision</button>
+      </div>
+      </div><!-- /#more -->
+
+      <!-- ⚠️ TOUJOURS VISIBLE, même quand les contrôles sont repliés : c'est cette ligne qui
+           répond à « pourquoi mon journal est-il si court ? ». Replier les critères ACTIFS
+           serait exactement le défaut que la spec interdit. -->
+      <div class="fsum">
+        <span class="count" id="fcount">7 lots</span>
+        <span class="muted">sur 23</span>
+        <span id="ftags">
+          <span class="tag">🔢 Maths <span class="x">✕</span></span>
+          <span class="tag">Calculs avec priorités <span class="x">✕</span></span>
+          <span class="tag">📄 Fiche <span class="x">✕</span></span>
+        </span>
+        <a class="link">Tout effacer</a>
+        <span class="spacer"></span>
+        <button class="moretoggle" id="moretoggle">▸ Plus de filtres <span class="n" id="moren">2</span></button>
+      </div>
+
+      <!-- Le tri, et sa mention quand il n'est plus chronologique -->
+      <div class="sortline">
+        <span class="flabel" style="width:auto">Trier par</span>
+        <select id="sortkey">
+          <option value="date" selected>Date</option>
+          <option value="mat">Matière</option>
+          <option value="mode">Mode ZETIS</option>
+          <option value="st">Statut</option>
+        </select>
+        <button class="invert" id="inv">↓ décroissant</button>
+        <span class="warnsort" id="warnsort">
+          ⚠️ Ce journal n'est plus dans l'ordre chronologique.
+          <a id="backchrono">Revenir à l'ordre du temps</a>
+        </span>
+      </div>
+    </section>
+
+    <!-- ══════════════ VUE A — le filtre a gardé des lots ══════════════ -->
+    <div id="viewA">
+
+      <!-- Le lot est rendu ENTIER : le filtre « Fiche » ne masque ni le cours ni le quiz -->
+      <article class="run">
+        <header>
+          <img class="avatar" src="../../../apps/frontend-papa/src/assets/brand/zetis-regime-semi_128.png" alt="Régime Hybrid">
+          <div style="flex:1;min-width:0">
+            <h3>Lot #23 — Calculs avec priorités <span class="muted" style="font-weight:400">· 11 notions</span></h3>
+            <p class="meta">
+              <b>Hybrid</b><span class="src" title="Le lot a enregistré son régime au démarrage">enregistré</span>
+              · Vous l'avez lancé · Servi sans relecture (par doctrine)<br>
+              4 août, 15:18 → 15:52 · <b>9 produites</b>, 1 déjà présente, 1 à faire
+            </p>
+          </div>
+          <span class="st done">Terminé</span>
+        </header>
+
+        <details class="evt" open>
+          <summary>Voir le contenu du lot — 5 pièces</summary>
+          <div class="pieces">
+            <div class="piece"><span class="ico">📖</span><span class="nm">Cours — Calculs avec priorités</span><span class="by">Vous, pièce à pièce</span><button class="rm">Retirer</button></div>
+            <div class="piece match"><span class="ico">📄</span><span class="nm">Fiche — Calculs avec priorités</span><span class="by">Vous, en lot</span><button class="rm">Retirer</button></div>
+            <div class="piece"><span class="ico">🧠</span><span class="nm">Carte mentale — Calculs avec priorités</span><span class="by">Vous, en lot</span><button class="rm">Retirer</button></div>
+            <div class="piece"><span class="ico">✅</span><span class="nm">Quiz — Calculs avec priorités</span><span class="by">Servi sans relecture (par doctrine)</span><button class="rm">Retirer</button></div>
+            <div class="piece"><span class="ico">🗂️</span><span class="nm">Carte de révision — Priorité des opérations</span><span class="by">—</span><button class="rm">Retirer</button></div>
+          </div>
+          <div class="ev">
+            <span class="box" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" style="color:#6ee7b7"><rect x="1.5" y="1.5" width="13" height="13" rx="3"/><path d="M4.5 8.3l2.4 2.4 4.6-5"/></svg></span>
+            <span class="txt">Priorité des opérations — <b>Fiche</b><span class="why">produit</span></span>
+            <a class="goto" href="#">Voir la fiche →</a>
+          </div>
+          <div class="ev">
+            <span class="box" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" style="color:#8595ac"><rect x="1.5" y="1.5" width="13" height="13" rx="3"/><path d="M4.5 8.3l2.4 2.4 4.6-5"/></svg></span>
+            <span class="txt">Distributivité — <b>Quiz</b><span class="why">déjà présent</span></span>
+          </div>
+          <div class="ev">
+            <span class="box" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" style="color:#8595ac"><rect x="1.5" y="1.5" width="13" height="13" rx="3"/></svg></span>
+            <span class="txt">Écritures fractionnaires — <b>rien produit</b>
+              <span class="why">Cours à rédiger — ZETIS n'écrit pas les cours à ce réglage · <span class="resolved">depuis résolu</span></span>
+            </span>
+            <a class="goto" href="#">Ouvrir la leçon →</a>
+          </div>
+        </details>
+      </article>
+
+      <!-- Un lot au régime DÉDUIT : la mention doit être discrète et présente -->
+      <article class="run">
+        <header>
+          <img class="avatar" src="../../../apps/frontend-papa/src/assets/brand/zetis-regime-manuel_128.png" alt="Régime Manual">
+          <div style="flex:1;min-width:0">
+            <h3>Lot #17 — Fractions <span class="muted" style="font-weight:400">· 6 notions</span></h3>
+            <p class="meta">
+              <b>Manual</b><span class="src" title="Reconstitué de ce que le lot a fait, jamais des réglages d'aujourd'hui">déduit</span>
+              · Une échéance de l'agenda · ZETIS, sur votre règle<br>
+              22 juillet, 07:02 → 07:31 · <b>4 produites</b>, 2 à faire
+            </p>
+          </div>
+          <span class="st done">Terminé</span>
+        </header>
+        <details class="evt"><summary>Voir le contenu du lot — 2 pièces</summary>
+          <div class="pieces">
+            <div class="piece match"><span class="ico">📄</span><span class="nm">Fiche — Additionner des fractions</span><span class="by">À relire</span><button class="rm">Retirer</button></div>
+            <div class="piece"><span class="ico">🧠</span><span class="nm">Carte mentale — Additionner des fractions</span><span class="by">À relire</span><button class="rm">Retirer</button></div>
+          </div>
+          <div class="ev">
+            <span class="box" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" style="color:#8595ac"><rect x="1.5" y="1.5" width="13" height="13" rx="3"/></svg></span>
+            <span class="txt">Fractions équivalentes — <b>rien produit</b><span class="why">Aucune leçon rattachée à cette notion</span></span>
+          </div>
+        </details>
+      </article>
+
+      <div class="more"><button class="btn btn-ghost">Voir les lots plus anciens (4 restants)</button></div>
+    </div>
+
+    <!-- ══════════════ VUE B — le filtre ne garde rien, et il DIT pourquoi ══════════════ -->
+    <div id="viewB" style="display:none">
+      <div class="empty">
+        <h3>Aucun lot ne correspond à ce filtre.</h3>
+        <p>Vous cherchez des <b>cartes mentales</b> en <b>Espagnol</b> entre le 1<sup>er</sup> et le
+          4 août. Sur cette période, ZETIS a bien travaillé en Espagnol — mais jamais jusqu'à une
+          carte mentale.</p>
+
+        <div class="why">
+          <b>3 lots ont été écartés, et voici par quoi :</b>
+          <ul style="margin:8px 0 0 17px;line-height:1.75">
+            <li><b>2 lots</b> ont été bloqués <b>avant de produire quoi que ce soit</b> — un lot
+              arrêté sur une notion n'a atteint aucun type de contenu, il ne peut donc répondre à
+              aucun filtre de contenu.</li>
+            <li><b>1 lot</b> a produit, mais des fiches et un quiz — pas de carte mentale.</li>
+          </ul>
+        </div>
+
+        <div class="acts">
+          <button class="btn btn-primary" id="dropKind">Retirer « 🧠 Carte mentale »</button>
+          <button class="btn btn-ghost">Élargir la période</button>
+          <button class="btn btn-ghost">Tout effacer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="switcher">
+      <b>Maquette :</b> deux états de la même page —
+      <button class="btn btn-ghost" id="toA" style="padding:5px 10px">A · le filtre garde</button>
+      <button class="btn btn-ghost" id="toB" style="padding:5px 10px">B · le filtre ne garde rien</button>
+    </div>
+
+    <!-- ══════════════ NOTES — ce que la maquette ENGAGE ══════════════ -->
+    <div class="notes">
+      <h4>Ce que cette maquette engage (addendum ADR-0034 « tri et filtre »)</h4>
+      <ul>
+        <li><b>Un lot retenu s'affiche ENTIER.</b> Vue A, lot #23 : le filtre est sur « Fiche », et
+          le cours, la carte mentale, le quiz et la carte de révision restent affichés. Le liseré
+          vert signale seulement <i>pourquoi</i> le lot a été retenu. Masquer les autres pièces
+          ferait dire au Journal que le lot n'a produit que ça.</li>
+        <li><b>UN seul pli par lot, fermé par défaut</b>, et il contient les pièces <i>et</i> le
+          détail : les deux répondent à la même question (<i>qu'a fait ce lot ?</i>), deux plis
+          imbriqués auraient demandé deux clics. L'en-tête, lui, reste toujours lisible — régime,
+          dates, et le <b>résumé</b> (« 9 produites, 1 déjà présente, 1 à faire »), parce qu'une
+          fois tout dans le pli, ce que Papa vient chercher demandait un clic par lot.
+          ⚠️ <b>Le lot #23 est montré OUVERT à dessein</b>, pour démontrer le point ci-dessus ; le
+          lot #17, lui, est dans son état réel — <b>fermé</b>.
+          <br>⚠️ <b>Corrige une première version de cette maquette</b>, qui dessinait la liste des
+          pièces toujours visible : c'était l'état d'avant le 2026-08-04, où le lot #3 alignait
+          <b>33 pièces</b> dépliées et noyait tous les autres lots.</li>
+        <li><b>Le CONTENEUR MAÎTRE est encadré d'or</b> — le bloc entier qui porte les critères, la
+          ligne de synthèse, l'expander « Plus de filtres » et le tri. Pas ses subdivisions : c'est
+          ce bloc qui commande ce que le journal montre et dans quel ordre, et c'est lui qu'on doit
+          trouver du regard avant de chercher pourquoi la liste est courte. Encadrer la seule
+          rangée « Trier par » aurait créé un troisième niveau de lecture entre les critères et la
+          synthèse.
+          ⚠️ <b>L'or et l'ambre sont voisins, et l'ambre est déjà pris</b> — l'avertissement « plus
+          chronologique » vit <i>à l'intérieur</i>. Ils sont donc séparés par la <b>matière</b> et
+          non par la teinte : l'or est <b>halé</b> (dégradé + deux ombres portées), l'alerte reste
+          <b>plate</b>. Changez la clé de tri pour les voir cohabiter.
+          ⚠️ <b>Le halo ne bat pas.</b> Dans ce dépôt, une animation permanente <i>porte</i> de
+          l'information — le halo de régime en sidebar, gradué par le palier. Faire clignoter un
+          cadre qui ne signale rien banaliserait le seul endroit où le mouvement veut dire
+          quelque chose.</li>
+        <li><b>L'état vide est bavard.</b> Vue B : il dit <i>combien</i> de lots ont été écartés,
+          <i>pourquoi</i>, et propose le geste qui répare. Un filtre qui rend vide sans s'expliquer
+          est indiscernable d'une panne — c'est le signal d'échec nommé par l'ADR.</li>
+        <li><b>Un lot bloqué avant toute pièce ne répond à aucun filtre de contenu.</b> Ce n'est pas
+          un défaut : <code>piece</code> est <code>NULL</code> sur un événement <code>blocked</code>.
+          C'est pour ça que la vue B le dit en toutes lettres.</li>
+        <li><b>Le tri non chronologique se signale et se défait d'un geste.</b> Changez la clé de tri
+          ci-dessus : le bandeau ambre apparaît. C'est la seule protection qui reste après
+          l'avertissement accepté au cadrage — <i>un journal qui n'est plus chronologique cesse
+          d'être un journal</i>.</li>
+        <li><b>« enregistré » et « déduit » ne se confondent pas.</b> Lot #23 vs lot #17 : la
+          pastille grise dit d'où vient le régime. Une reconstitution qui se ferait passer pour un
+          fait serait pire que l'absence qu'elle remplace.</li>
+        <li><b>La pagination existe enfin.</b> « Voir les lots plus anciens » : aujourd'hui la page
+          charge 20 lots et n'offre aucun moyen d'aller plus loin — <code>has_more</code> voyage
+          dans la réponse sans être lu par personne.</li>
+      </ul>
+
+      <h4>Ce qui n'est PAS inventé ici</h4>
+      <ul>
+        <li>Statuts : <code>RUN_STATUS_LABEL</code> — En attente · En cours · <b>Sans réponse</b> ·
+          Terminé · <b>Interrompu</b>. Pas « erreur » : <code>error</code> est une issue
+          d'<i>événement</i>, pas un statut de lot.</li>
+        <li>Contenus : <code>PIECE_LABEL</code> / <code>PIECE_ICON</code> — 📖 Cours · 📄 Fiche ·
+          🧠 Carte mentale · ✅ Quiz · 🗂️ Carte de révision.</li>
+        <li>Régimes : <code>NIVEAU_LABEL</code> (Manual · Hybrid · Autonom) et
+          <code>REGIME_AVATAR</code>. Les clés serveur (<code>manuel/semi/autonome</code>) ne
+          remontent jamais à l'écran.</li>
+        <li>Provenance : <code>AUTHORITY_LABEL</code> · déclencheurs : <code>TRIGGER_LABEL</code>.</li>
+        <li>Matières : <code>SubjectFilterChips</code> de <code>@zetis/ui</code>, la brique du
+          Dashboard, de la Couverture et du Cahier de bord.</li>
+      </ul>
+
+      <h4>Ce que la maquette ne montre pas, volontairement</h4>
+      <ul>
+        <li>La modale de veto — livrée, inchangée par ce chantier.</li>
+        <li>Aucun compteur ni ratio par régime (§F.2) : le seul chiffre est celui des lots filtrés.</li>
+        <li>Aucun filtre actif à l'ouverture, jamais — y compris « la dernière fois ».</li>
+      </ul>
+    </div>
+  </main>
+</div>
+
+<script>
+  // Pilules : un groupe multi-valeur, sauf « Toutes » qui vide son groupe.
+  document.querySelectorAll('.pill').forEach(function (p) {
+    p.addEventListener('click', function () {
+      var groupe = p.dataset.g;
+      if (p.textContent.trim() === 'Toutes') {
+        document.querySelectorAll('.pill[data-g="' + groupe + '"]').forEach(function (o) { o.classList.remove('on'); });
+        p.classList.add('on');
+        return;
+      }
+      document.querySelectorAll('.pill[data-g="' + groupe + '"]').forEach(function (o) {
+        if (o.textContent.trim() === 'Toutes') o.classList.remove('on');
+      });
+      p.classList.toggle('on');
+    });
+  });
+
+  // Le tri : dès qu'il quitte la date, le bandeau ambre apparaît.
+  var cle = document.getElementById('sortkey');
+  var warn = document.getElementById('warnsort');
+  function majTri() { warn.classList.toggle('on', cle.value !== 'date'); }
+  cle.addEventListener('change', majTri);
+  document.getElementById('backchrono').addEventListener('click', function () {
+    cle.value = 'date';
+    document.getElementById('inv').textContent = '↓ décroissant';
+    majTri();
+  });
+  document.getElementById('inv').addEventListener('click', function () {
+    this.textContent = this.textContent.indexOf('↓') === 0 ? '↑ croissant' : '↓ décroissant';
+  });
+
+  // Les deux états de la page. La ligne de synthèse suit l'état montré : une maquette dont
+  // l'en-tête dit « Maths / Fiche » au-dessus d'un vide qui parle d'Espagnol ne prouverait rien.
+  var a = document.getElementById('viewA'), b = document.getElementById('viewB');
+  var fcount = document.getElementById('fcount'), ftags = document.getElementById('ftags');
+  var TAGS = {
+    A: '<span class="tag">🔢 Maths <span class="x">✕</span></span>'
+     + '<span class="tag">Calculs avec priorités <span class="x">✕</span></span>'
+     + '<span class="tag">📄 Fiche <span class="x">✕</span></span>',
+    B: '<span class="tag">🇪🇸 Espagnol <span class="x">✕</span></span>'
+     + '<span class="tag">1<sup>er</sup>–4 août <span class="x">✕</span></span>'
+     + '<span class="tag">🧠 Carte mentale <span class="x">✕</span></span>'
+  };
+  function montrer(vue) {
+    var vide = vue === 'B';
+    a.style.display = vide ? 'none' : '';
+    b.style.display = vide ? '' : 'none';
+    fcount.textContent = vide ? 'Aucun lot' : '7 lots';
+    ftags.innerHTML = TAGS[vue];
+    // Les pastilles suivent aussi : un filtre affiché en haut et pas allumé en bas serait un
+    // écran qui se contredit — précisément ce que la maquette doit permettre de repérer.
+    var actif = vide ? 'Espagnol' : 'Maths', actifPiece = vide ? 'Carte mentale' : 'Fiche';
+    document.querySelectorAll('.pill[data-g="mat"]').forEach(function (p) {
+      p.classList.toggle('on', p.textContent.indexOf(actif) !== -1);
+    });
+    document.querySelectorAll('.pill[data-g="pc"]').forEach(function (p) {
+      p.classList.toggle('on', p.textContent.indexOf(actifPiece) !== -1);
+    });
+    ftags.querySelectorAll('.x').forEach(function (x) {
+      x.addEventListener('click', function () { x.parentElement.remove(); });
+    });
+  }
+  document.getElementById('toA').addEventListener('click', function () { montrer('A'); });
+  document.getElementById('toB').addEventListener('click', function () { montrer('B'); });
+  document.getElementById('dropKind').addEventListener('click', function () { montrer('A'); });
+
+  document.querySelectorAll('.tag .x').forEach(function (x) {
+    x.addEventListener('click', function () { x.parentElement.remove(); });
+  });
+
+  // Les contrôles se replient ; les critères actifs, jamais. Le compte sur le bouton dit
+  // combien de critères repliés sont ACTIFS — un filtre actif ne doit pas pouvoir se cacher.
+  var more = document.getElementById('more'), mt = document.getElementById('moretoggle');
+  mt.addEventListener('click', function () {
+    var ouvert = more.classList.toggle('on');
+    mt.firstChild.textContent = (ouvert ? '▾' : '▸') + ' Plus de filtres ';
+  });
+</script>
+</body>
+</html>

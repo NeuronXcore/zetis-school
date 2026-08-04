@@ -402,17 +402,123 @@ class TestRegimeDeduit:
 
         assert (lot["zetis_mode"], lot["zetis_mode_source"]) == ("manuel", "capture")
 
-    def test_un_lot_sans_capture_rend_son_regime_DEDUIT_et_le_dit(self, client_db) -> None:
-        """Bout en bout : le lot du palier 3 a rédigé son cours, donc il était *Autonome*."""
+    def test_la_LECTURE_ne_deduit_plus_rien_avant_la_reprise(self, client_db) -> None:
+        """⚠️ **Changement de contrat assumé** (addendum « tri et filtre » §5).
+
+        Le même lot rendait *(autonome, deduit)* : `list_journal` refaisait la déduction à chaque
+        affichage. Elle n'a pas disparu — elle a lieu **une fois**, dans le script de reprise. Tant
+        qu'il n'est pas passé, le Journal dit « non enregistré », ce qui est la vérité.
+        """
         _, Session = client_db
         with Session() as db:
             run, _, _ = _run_at_palier_3(db)
-            run.a0a_level, run.a1_level = None, None  # antérieur à la colonne
+            run.a0a_level, run.a1_level = None, None  # antérieur à la capture
             db.commit()
 
             lot = journal.list_journal(db)["runs"][0]
 
+        assert (lot["zetis_mode"], lot["zetis_mode_source"]) == (None, None)
+
+    def test_le_script_de_reprise_ECRIT_le_regime_deduit_et_le_dit(self, client_db) -> None:
+        """Bout en bout : le lot du palier 3 a rédigé son cours, donc il était *Autonome*."""
+        from scripts.backfill_zetis_mode import reprendre
+
+        _, Session = client_db
+        with Session() as db:
+            run, _, _ = _run_at_palier_3(db)
+            run.a0a_level, run.a1_level = None, None
+            db.commit()
+
+            assert reprendre(db, apply=True)["ecrits"] == 1
+            lot = journal.list_journal(db)["runs"][0]
+
         assert (lot["zetis_mode"], lot["zetis_mode_source"]) == ("autonome", "deduit")
+
+    def test_le_dry_run_n_ecrit_RIEN(self, client_db) -> None:
+        """Un script de reprise qui écrit par défaut se lance une fois de trop, et l'histoire ne se
+        remet pas en arrière. Le compte rendu annonce ce qu'il ferait ; la base ne bouge pas."""
+        from scripts.backfill_zetis_mode import reprendre
+
+        _, Session = client_db
+        with Session() as db:
+            run, _, _ = _run_at_palier_3(db)
+            run.a0a_level, run.a1_level = None, None
+            db.commit()
+
+            assert reprendre(db, apply=False)["ecrits"] == 1
+            db.expire_all()
+            assert journal.list_journal(db)["runs"][0]["zetis_mode"] is None
+
+    def test_le_script_ne_TOUCHE_PAS_un_lot_deja_capture(self, client_db) -> None:
+        """La capture prime, et le script ne peut pas la réécrire.
+
+        ⚠️ Sans ce verrou, un lot capturé *Manuel* qui aurait produit sous une règle plus permissive
+        serait réinterprété par ses artefacts — l'inverse exact de ce que la capture protège.
+        """
+        from scripts.backfill_zetis_mode import reprendre
+
+        _, Session = client_db
+        with Session() as db:
+            run, _, _ = _run_at_palier_3(db)
+            run.a0a_level, run.a1_level = 2, 2  # capturé : Manuel, malgré des actes d'Autonome
+            run.zetis_mode_source = "capture"
+            db.commit()
+
+            assert reprendre(db, apply=True)["examines"] == 0  # il n'est même pas candidat
+            lot = journal.list_journal(db)["runs"][0]
+
+        assert (lot["zetis_mode"], lot["zetis_mode_source"]) == ("manuel", "capture")
+
+    def test_RETIRER_LA_PREUVE_apres_la_reprise_ne_change_plus_le_regime(self, client_db) -> None:
+        """🔴 **LE verrou du chantier** — celui pour lequel tout le reste existe.
+
+        Le veto supprime la ligne `Lesson` d'un cours retiré (`veto._delete_one`). Tant que le
+        régime se déduisait à la lecture, ce geste **réécrivait l'histoire** : un lot lu *Autonome*
+        hier devenait « non enregistré » aujourd'hui, parce que sa preuve avait disparu.
+
+        On simule exactement ce geste et on vérifie que le régime ne bouge plus.
+        """
+        from scripts.backfill_zetis_mode import reprendre
+
+        _, Session = client_db
+        with Session() as db:
+            run, _, _ = _run_at_palier_3(db)
+            run.a0a_level, run.a1_level = None, None
+            run.trigger = "manual"  # sinon `trigger=request` porterait seul la preuve
+            db.commit()
+            reprendre(db, apply=True)
+
+            avant = journal.list_journal(db)["runs"][0]
+            assert avant["zetis_mode"] == "autonome"
+
+            # Le veto passe : la leçon rédigée par ce lot n'existe plus.
+            lecon = db.scalar(select(m.Lesson).where(m.Lesson.production_run_id == run.id))
+            assert lecon is not None, "sans cours rédigé, ce test ne prouverait rien"
+            db.delete(lecon)
+            db.commit()
+
+            apres = journal.list_journal(db)["runs"][0]
+
+        assert (apres["zetis_mode"], apres["zetis_mode_source"]) == ("autonome", "deduit")
+
+    def test_contre_epreuve_le_verrou_ci_dessus_TOMBE_par_l_ancienne_voie(self, client_db) -> None:
+        """⚠️ Un verrou vert ne prouve rien tant qu'on n'a pas montré ce qui le fait rougir.
+
+        Ici : la déduction refaite **à la lecture** sur un lot dont la preuve vient d'être retirée.
+        C'est littéralement l'ancien chemin, et il rend `None` — la ligne que le test précédent
+        interdit désormais. (Contrôle payé le 2026-08-04 : deux contre-épreuves avaient visé à côté.)
+        """
+        _, Session = client_db
+        with Session() as db:
+            run, _, _ = _run_at_palier_3(db)
+            db.commit()
+            lecon = db.scalar(select(m.Lesson).where(m.Lesson.production_run_id == run.id))
+            db.delete(lecon)
+            db.commit()
+
+            preuves = journal.lot_evidence(db, [run.id])[run.id]
+
+        assert journal.deduire_regime("manual", preuves) is None
 
 
 # --- LE VERROU DU VETO --------------------------------------------------------------------------

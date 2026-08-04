@@ -15,11 +15,21 @@ import { asJson, authHeader } from "./httpClient";
 
 const API = `${API_URL}/api/production/journal`;
 
-/** Le flux des lots, du plus récent au plus ancien. */
-export async function fetchJournal(limit = 20, offset = 0): Promise<Journal> {
-  return asJson(
-    await fetch(`${API}?limit=${limit}&offset=${offset}`, { headers: authHeader() }),
-  );
+/** Le flux des lots, filtré et trié SERVEUR sur toute l'histoire, puis paginé.
+ *
+ * ⚠️ `params` porte le filtre déjà sérialisé (`journalFilters.versUrl`) : ce client ne connaît pas
+ * le vocabulaire des critères, et n'a pas à le connaître. Sans lui, la réponse est exactement
+ * celle d'avant — aucun filtre par défaut, jamais.
+ */
+export async function fetchJournal(
+  limit = 20,
+  offset = 0,
+  params?: URLSearchParams,
+): Promise<Journal> {
+  const query = new URLSearchParams(params);
+  query.set("limit", String(limit));
+  query.set("offset", String(offset));
+  return asJson(await fetch(`${API}?${query}`, { headers: authHeader() }));
 }
 
 /** Ce que le retrait emporterait, sans rien supprimer — la modale l'annonce AVANT le geste. */
