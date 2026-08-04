@@ -89,14 +89,28 @@ Sur iPhone, convertir la navigation en bottom bar avec accès rapide : Accueil, 
 
 Le header est **global** (`MassimoBannerHeader`, monté dans `MassimoLayout`) et présent
 sur toutes les pages. Il affiche le niveau/XP **en direct** (gamification, repli `PROFILE`).
-Les effets sont en CSS + SVG et respectent `prefers-reduced-motion`.
+
+Son décor est **la galaxie de Massimo** (`HeaderGalaxy`, addendum ADR-0029 « La galaxie dans le
+bandeau ») : les notions qu'il a réellement travaillées, qui poussent depuis le centre de
+l'emblème comme un graphe Obsidian, **une seule fois par chargement de page** (~5,8 s), puis
+**tournent lentement** (un tour en 72 s, 20 im/s), avec 24 étoiles qui scintillent et une couronne
+solaire dorée qui pulse à la même horloge. Le ciel entier est dessiné : les notions à découvrir en
+veilleuse, celles de Massimo vives — sans quoi la bande resterait vide à 77 %. L'emblème est à
+65 % d'opacité pour qu'on voie la galaxie en sortir. Canvas 2D, **jamais de moteur 3D dans le
+chrome** — c'est vérifié par `layout.bundle.test.ts`. `prefers-reduced-motion` → état final
+immobile d'emblée, aucune boucle armée.
+
+> Le décor génératif d'avant (`NeuralCubes`, `NeuralLinks`) a été **retiré le 2026-08-04** : il ne
+> disait rien et maintenait 78 animations infinies sur les 21 routes. Ne pas le réintroduire
+> « pour faire vivant ». `headerFx.css` ne garde que les deux halos de l'emblème.
 
 ## Composants clés
 
 - `MassimoLayout`
 - `MassimoSidebar`
-- `MassimoBannerHeader` (header global : emblème + effets)
-- `NeuralCubes` / `NeuralLinks` (effets animés du header, `headerFx.css`)
+- `MassimoBannerHeader` (header global : emblème + galaxie + niveau/XP)
+- `HeaderGalaxy` + ses trois modules purs (`headerBandLayout`, `headerGalaxyClock`,
+  `headerGalaxyRenderer`), et les deux halos restants dans `headerFx.css`
 - `glass` (primitives verre/halos/dégradés extraites du login)
 - `SubjectTile` (carte matière, cadre teinté par matière)
 - `ZetisAvatar`

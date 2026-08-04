@@ -17,11 +17,14 @@ import type {
 } from "@zetis/types";
 import {
   fetchConstellation,
-  fetchFullGraph,
   fetchGalaxyOverview,
   fetchGalaxyTimeline,
   fetchNotionPanel,
 } from "../lib/galaxy";
+// ⚠️ Seul `/galaxy/all` passe par le partage : c'est la ressource lourde (~350 nœuds) que le
+// bandeau du header demande aussi. La frise SANS `with_skills` reste en direct — c'est une autre
+// URL, donc un autre aller-retour, que personne d'autre ne demande.
+import { loadFullGraph } from "../lib/galaxyShared";
 import {
   type GamificationSummary,
   fetchGamificationSummary,
@@ -64,7 +67,7 @@ export function useGalaxy(): GalaxyState {
       fetchGalaxyOverview(),
       fetchGamificationSummary(),
       fetchWelcome(),
-      fetchFullGraph(),
+      loadFullGraph(),
       fetchGalaxyTimeline(),
     ]).then(([overview, gamification, welcome, graph, frise]) => {
       if (!active) return;

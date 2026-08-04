@@ -2,7 +2,9 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { GalaxyFullGraph, GalaxySubject, GalaxyTimeline } from "@zetis/types";
 import { hasWebGL } from "@zetis/ui/galaxy";
-import { fetchFullGraph, fetchGalaxyTimelineWithSkills } from "../../lib/galaxy";
+// Partagé, pas appelé en direct : le bandeau du header demande les MÊMES deux ressources et
+// s'arme dans le même commit React. Sans `galaxyShared`, l'Accueil paierait deux fois ~350 nœuds.
+import { loadFullGraph, loadTimelineWithSkills } from "../../lib/galaxyShared";
 import { useGalaxyGrowth } from "../../hooks/useGalaxyGrowth";
 import { subjectIconFor } from "../../lib/subjectIcons";
 
@@ -106,7 +108,7 @@ export function HomeGalaxyCard({ subjects }: HomeGalaxyCardProps) {
     if (!sky) return;
     let active = true;
     // `allSettled` : une frise en panne ne doit pas emporter le graphe, ni l'inverse.
-    Promise.allSettled([fetchFullGraph(), fetchGalaxyTimelineWithSkills()]).then(([g, t]) => {
+    Promise.allSettled([loadFullGraph(), loadTimelineWithSkills()]).then(([g, t]) => {
       if (!active) return;
       if (g.status === "fulfilled") setGraph(g.value);
       if (t.status === "fulfilled") setTimeline(t.value);
