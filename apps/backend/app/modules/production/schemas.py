@@ -169,6 +169,22 @@ PieceKind = Literal["cours", "fiche", "mindmap", "quiz", "srs"]
 EventOutcome = Literal["generated", "skipped", "error", "blocked"]
 
 
+class BlockedTargetOut(BaseModel):
+    """Où mène une ligne du journal — convention `pilotageLinks`.
+
+    `subject_id` peut manquer si la jointure de matière ne résout pas ; la page sait alors encore
+    ouvrir le chapitre. Un lien partiel vaut mieux qu'aucun.
+    """
+
+    lesson_id: int
+    chapter_id: int
+    subject_id: int | None = None
+    #: L'objet PRODUIT, quand la ligne en a produit un — ce que les pages de pilotage attendent en
+    #: `?focus=`. `None` sur une ligne bloquée (rien n'a été produit) et sur un cours (il EST la
+    #: leçon : `lesson_id` suffit à l'ouvrir).
+    object_id: int | None = None
+
+
 class JournalEventOut(BaseModel):
     """Une ligne du détail : ce que le lot a fait d'une pièce, ou pourquoi il n'a rien fait.
 
@@ -182,6 +198,14 @@ class JournalEventOut(BaseModel):
     outcome: EventOutcome
     detail: str | None = None
     created_at: datetime
+    #: Où aller pour débloquer cette notion — `None` s'il n'y a rien à ouvrir (ligne non bloquée,
+    #: ou notion sans leçon). Résolu SERVEUR : « quelle est la leçon de cette notion » a une seule
+    #: réponse dans le dépôt (ADR-0037), et le front n'a pas à en inventer une deuxième.
+    target: BlockedTargetOut | None = None
+    #: La cause de ce blocage tient-elle ENCORE ? `None` hors d'une ligne bloquée — la question ne
+    #: se pose pas. ⚠️ Calculé à la lecture, sous le palier D'AUJOURD'HUI : « un lot lancé
+    #: maintenant passerait-il ? ». Le motif d'origine, lui, n'est jamais réécrit (§F.4).
+    resolved: bool | None = None
 
 
 class JournalPieceOut(BaseModel):
@@ -193,6 +217,10 @@ class JournalPieceOut(BaseModel):
     # `None` pour les cartes SRS : `spaced_review_cards` n'a NI `validation_status` NI
     # `validated_by`. Se lit « aucune étape de validation n'existe », jamais « non validé ».
     validated_by: ValidatedBy | None = None
+    #: Où ouvrir cette pièce. La liste des pièces est TOUJOURS visible (le détail, lui, est dans un
+    #: repli) et n'offrait aucun lien — Papa voyait « Fiche — Calculs avec priorités » sans pouvoir
+    #: l'ouvrir. `None` si la leçon n'est pas résoluble (hors année active, chapitre non validé).
+    target: BlockedTargetOut | None = None
     skill_id: int | None = None
     skill_name: str | None = None
     # LA question du veto : la consommation ferme la fenêtre, pas l'horloge (§G.3).
@@ -204,6 +232,14 @@ class JournalRunOut(BaseModel):
     status: RunStatus
     trigger: str
     authorized_by: str
+    #: Le régime sous lequel CE lot a tourné — `manuel|semi|autonome|sur_mesure`, ou `None` pour un
+    #: lot antérieur à la capture (addendum ADR-0034). ⚠️ Capturé au démarrage, jamais relu à
+    #: l'affichage : les paliers d'aujourd'hui ne disent rien d'un lot d'hier.
+    zetis_mode: str | None = None
+    #: D'où vient la réponse ci-dessus : `capture` (le lot l'a enregistré au démarrage) ou `deduit`
+    #: (reconstitué de ce que le lot a FAIT — jamais des réglages d'aujourd'hui). `None` quand rien
+    #: ne le prouve. ⚠️ L'écran ne doit pas pouvoir confondre les deux.
+    zetis_mode_source: str | None = None
     chapter_id: int | None = None
     #: Scope de PIÈCE (ADR-0036 §2) — un lot ciblé n'a pas de chapitre, et ce n'est pas une panne.
     scope_skill_id: int | None = None

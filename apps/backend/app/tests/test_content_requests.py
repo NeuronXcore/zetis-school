@@ -599,6 +599,78 @@ def test_une_demande_se_ferme_quand_le_contenu_est_servable(client_db) -> None:
         assert req.status == "done"
 
 
+def test_ouvrir_la_file_referme_ce_qui_a_ete_produit_HORS_lot(client_db) -> None:
+    """🔒 Le cas que l'ADR-0036 §4 promettait et que le code ne tenait pas.
+
+    La fermeture n'était câblée qu'au **chemin de succès d'un lot**. Or Papa produit aussi à la
+    main — un cours écrit depuis Programme, une fiche générée depuis sa page de pilotage, le
+    Conseil de classe qui équipe hors lot. Le contenu existait, la demande restait ouverte **pour
+    toujours**, alors que la page promet qu'elle « se refermera d'elle-même ».
+
+    ⚠️ Ici, **aucun lot n'est joué** : c'est tout l'objet du test. La leçon naît sans cours, le
+    cours est écrit après coup, et c'est la simple OUVERTURE de la file qui doit refermer.
+    """
+    client, Session = client_db
+    ids = _seed_svt(Session, lesson_content=None)
+    with Session() as db:
+        req_id = _pending(
+            db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="cours"
+        ).id
+
+    _as_papa()
+    assert [r["id"] for r in client.get("/api/content-requests").json()] == [req_id]
+
+    # Papa écrit le cours à la main — exactement ce que le lien « Écrire le cours → » lui demande.
+    with Session() as db:
+        lecon = db.get(m.Lesson, ids["lesson_id"])
+        lecon.content_markdown = "# Mitose\n\nLa cellule se divise…"
+        db.commit()
+
+    assert client.get("/api/content-requests").json() == []
+    assert client.get("/api/content-requests/count").json() == {"pending": 0}
+    with Session() as db:
+        assert db.get(m.ContentRequest, req_id).status == "done"
+
+
+def test_ouvrir_la_file_ne_ferme_RIEN_qui_ne_soit_servable(client_db) -> None:
+    """La contre-épreuve : un ménage qui fermerait tout serait vert au test précédent.
+
+    Le cours n'est pas écrit — la demande doit rester, ouverture de file ou pas. Sans cette
+    seconde moitié, « la file se vide toute seule » ne se distingue pas de « la file se vide ».
+    """
+    client, Session = client_db
+    ids = _seed_svt(Session, lesson_content=None)
+    with Session() as db:
+        req_id = _pending(
+            db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="cours"
+        ).id
+
+    _as_papa()
+    client.get("/api/content-requests")
+
+    with Session() as db:
+        assert db.get(m.ContentRequest, req_id).status == "pending"
+
+
+def test_lire_l_HISTORIQUE_ne_referme_rien(client_db) -> None:
+    """Une lecture d'archive n'est pas un moment de ménage — le filtre `status` le dit.
+
+    Sans cette borne, n'importe quelle consultation deviendrait une écriture.
+    """
+    client, Session = client_db
+    ids = _seed_svt(Session)  # le cours EXISTE : la demande serait fermable
+    with Session() as db:
+        req_id = _pending(
+            db, student_id=ids["student_id"], skill_id=ids["mitose_id"], kind="cours"
+        ).id
+
+    _as_papa()
+    client.get("/api/content-requests?status=done")
+
+    with Session() as db:
+        assert db.get(m.ContentRequest, req_id).status == "pending"
+
+
 def test_une_demande_ne_se_ferme_pas_sur_un_contenu_NON_servable(client_db) -> None:
     """⚠️ LE test du §4 : le gate est la DISPONIBILITÉ, jamais l'EXISTENCE.
 

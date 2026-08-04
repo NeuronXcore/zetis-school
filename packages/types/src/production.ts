@@ -177,6 +177,19 @@ export type PieceKind = "cours" | "fiche" | "mindmap" | "quiz" | "srs";
  *  Une notion silencieusement omise se lirait comme un échec, alors que c'est un gate qui marche. */
 export type EventOutcome = "generated" | "skipped" | "error" | "blocked";
 
+/** Où aller pour débloquer une notion écartée — les trois ids de la convention `pilotageLinks`.
+ *
+ *  ⚠️ **Résolus SERVEUR.** « Quelle est la leçon de cette notion » a UNE réponse dans le dépôt
+ *  (ADR-0037) ; la deviner ici à partir d'un `skill_id` en ferait une quatrième. */
+export interface BlockedTarget {
+  lesson_id: number;
+  chapter_id: number;
+  subject_id: number | null;
+  /** L'objet PRODUIT, quand la ligne en a produit un — le `?focus=` des pages de pilotage.
+   *  `null` sur une ligne bloquée (rien n'a été produit) et sur un cours, qui EST la leçon. */
+  object_id: number | null;
+}
+
 export interface JournalEvent {
   skill_id: number | null;
   skill_name: string | null;
@@ -184,6 +197,19 @@ export interface JournalEvent {
   outcome: EventOutcome;
   detail: string | null;
   created_at: string;
+  /** `null` s'il n'y a rien à ouvrir : ligne non bloquée, ou notion sans aucune leçon — auquel cas
+   *  le motif le dit déjà, et un lien qui mènerait quelque part malgré tout serait pire. */
+  target: BlockedTarget | null;
+  /** La cause de ce blocage tient-elle **encore** ? `null` hors d'une ligne bloquée.
+   *
+   *  ⚠️ **Une annotation au PRÉSENT, jamais une correction du passé.** Le motif d'origine reste
+   *  exact — il dit ce qui s'est passé — mais il se lit comme un problème actuel une fois la cause
+   *  levée. Deux temps, deux phrases : « non produit, cours jamais rédigé · **depuis résolu** ».
+   *
+   *  ⚠️ `true` = **plus aucun blocage**, pas « le motif d'origine a disparu ». Une notion passée de
+   *  « jamais rédigé » à « à valider » reste bloquée : annoncer résolu ferait renoncer Papa au
+   *  geste qui reste. */
+  resolved: boolean | null;
 }
 
 export interface JournalPiece {
@@ -193,17 +219,40 @@ export interface JournalPiece {
   /** `null` sur les cartes SRS : aucune étape de validation n'existe pour elles (constat de code,
    *  pas un oubli — c'est pourquoi A0b est verrouillée au palier 3). Jamais « non validé ». */
   validated_by: ValidatedBy | null;
+  /** Où ouvrir cette pièce — la liste des pièces est toujours visible, contrairement au détail.
+   *  `null` si la leçon n'est pas résoluble (hors année active, chapitre non validé). */
+  target: BlockedTarget | null;
   skill_id: number | null;
   skill_name: string | null;
   /** LA question du veto : la consommation ferme la fenêtre, pas l'horloge. */
   consumed: boolean;
 }
 
+/** Le régime nommé, tel qu'il a été CAPTURÉ sur le lot.
+ *
+ *  `"sur_mesure"` = des paliers qui ne composent aucun préréglage — un état légitime, que
+ *  `niveau_de` rend déjà. `null` = lot antérieur à la capture : **non enregistré**, jamais
+ *  reconstitué depuis les réglages d'aujourd'hui (doctrine §F.4). */
+export type JournalZetisMode = "manuel" | "semi" | "autonome" | "sur_mesure";
+
 export interface JournalRun {
   id: number;
   status: JournalRunStatus;
   trigger: string;
   authorized_by: string;
+  /** ⚠️ **Le régime de CE lot, pas celui d'aujourd'hui.** C'est lui qui rend le résultat lisible :
+   *  un lot qui n'a rien produit sous *Manual* n'est pas une panne, c'est un gate qui a
+   *  fonctionné. Sans ce mot, les deux se ressemblent — les lots #21/#22 du 2026-08-04 ont été
+   *  lus comme des échecs. */
+  zetis_mode: JournalZetisMode | null;
+  /** D'où vient `zetis_mode` : `"capture"` (le lot l'a enregistré au démarrage, il fait foi) ou
+   *  `"deduit"` (reconstitué de ce que le lot a **fait** — un cours qu'il a rédigé, un dérivé qu'il
+   *  a laissé à relire, une origine que seul le régime *Autonome* peut produire). `null` quand rien
+   *  ne le prouve.
+   *
+   *  ⚠️ **Jamais lu des réglages d'aujourd'hui** : ceux-là ont pu changer depuis. La déduction ne
+   *  regarde que des actes, qui n'ont pas changé. */
+  zetis_mode_source: "capture" | "deduit" | null;
   chapter_id: number | null;
   total_notions: number | null;
   done_notions: number | null;

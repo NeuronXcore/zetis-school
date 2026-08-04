@@ -26,6 +26,11 @@ class ContentRequestOut(BaseModel):
     #: générateur exige une INSTRUCTION en texte libre que la demande ne porte pas. **Verdict
     #: serveur** : l'écran l'affiche, il ne le déduit pas.
     producible: bool = True
+    #: Pourquoi un lot lancé MAINTENANT ne produirait rien — ou `None` s'il produirait (addendum
+    #: ADR-0036). `producible` répond du TYPE, celui-ci de la SITUATION : palier, leçon rattachée,
+    #: cours rédigé. Calculé par le code même que le lot exécutera (`runner.blockers_for`), sans
+    #: quoi l'aperçu divergerait de l'exécution qu'il annonce.
+    blocked_reason: str | None = None
 
 
 class ContentRequestPatch(BaseModel):

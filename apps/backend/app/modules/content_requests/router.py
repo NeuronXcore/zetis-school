@@ -17,6 +17,8 @@ le geste explicite — d'où cette route, et d'où `source` qui distingue les de
 Les mutations passent par ce module, **jamais** par `production` (invariant read-only préservé).
 """
 
+import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -30,6 +32,8 @@ from app.modules.content_requests.schemas import (
     StudentContentRequestOut,
 )
 from app.modules.eli5.service import get_default_student
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/content-requests",
@@ -66,17 +70,63 @@ def create_student_content_request(
     return {"requested": requested}
 
 
+def _fermer_ce_qui_est_servi(db: Session, status: str | None) -> None:
+    """Ménage OPPORTUNISTE : referme les demandes dont le contenu est devenu disponible.
+
+    ## Pourquoi à la lecture, et pas seulement après un lot
+
+    L'ADR-0036 §4 a posé la règle — *« le gate est la DISPONIBILITÉ, jamais le statut »* — mais ne
+    l'a câblée qu'**au chemin de succès d'un lot** (`runner._close_served_requests`). Or ZETIS n'est
+    pas le seul à produire : Papa rédige un cours depuis Programme, génère une fiche depuis sa page
+    de pilotage, le Conseil de classe équipe hors lot. Dans tous ces cas, le contenu demandé
+    existait **et la demande restait ouverte pour toujours** — alors que la page promet en toutes
+    lettres qu'elle « se refermera d'elle-même quand le contenu sera réellement consultable ».
+
+    Le défaut s'est aggravé le 2026-08-04, quand une demande bloquée s'est mise à renvoyer Papa
+    vers `/programme` pour écrire le cours : on l'envoyait faire le geste qui satisfait la demande,
+    et la demande ne bougeait pas.
+
+    ## Pourquoi c'est une écriture dans un GET, et pourquoi c'est acceptable ici
+
+    Patron de `runs.close_stale_runs`, appelé « de façon OPPORTUNISTE avant de créer un lot —
+    jamais périodiquement », avec ce motif : *« c'est le seul moment où l'on sait qu'un humain
+    regarde »*. Même raisonnement, même forme : pas d'ordonnanceur, pas de tâche de fond, le ménage
+    se fait quand quelqu'un ouvre la file.
+
+    ⚠️ **Aucune règle nouvelle** : on appelle `close_available_requests`, le prédicat unique déjà
+    écrit. Rien n'est recalculé ici, donc rien ne peut diverger de ce que fait un lot.
+
+    ⚠️ **Seulement sur la file `pending`.** Consulter l'historique (`done`, `dismissed`) ne doit
+    rien modifier — une lecture d'archive n'est pas un moment de ménage.
+
+    ⚠️ **Et il ne fait jamais tomber la lecture** : la file de Papa doit s'afficher même si le
+    ménage échoue. Même arbitrage que `_close_served_requests`, pour la même raison.
+    """
+    if status != "pending":
+        return
+    try:
+        service.close_available_requests(db)
+    except Exception:  # noqa: BLE001 — le ménage ne commande pas l'affichage de la file
+        logger.exception("content_requests: fermeture opportuniste impossible")
+
+
 @router.get("", response_model=list[ContentRequestOut])
 def list_content_requests(
     status: str | None = "pending", db: Session = Depends(get_db)
 ) -> list[dict]:
     """Demandes de contenu de l'enfant (par défaut celles en attente), récentes d'abord."""
+    _fermer_ce_qui_est_servi(db, status)
     return service.list_requests(db, status)
 
 
 @router.get("/count")
 def content_requests_count(db: Session = Depends(get_db)) -> dict:
-    """Nombre de demandes en attente — alimente la pastille de notification de la sidebar Papa."""
+    """Nombre de demandes en attente — alimente la pastille de notification de la sidebar Papa.
+
+    Le ménage est fait ici AUSSI : sans lui, la pastille annoncerait « 1 » pendant que la page,
+    elle, n'a plus rien à montrer. Deux surfaces, une seule vérité.
+    """
+    _fermer_ce_qui_est_servi(db, "pending")
     return {"pending": service.pending_count(db)}
 
 
