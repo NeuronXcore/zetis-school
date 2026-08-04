@@ -37,6 +37,7 @@ from app.db.models import (
 )
 from app.modules.activity.events import NON_WORK_EVENTS
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
+from app.modules.lesson_resolution import lessons_by_skill, lessons_of_skill
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +85,11 @@ def _stamp_course(db: Session, *, skill_id: int, run_id: int) -> None:
     situation où ZETIS a écrit le texte. Un cours que Papa avait rédigé, ou seulement validé en
     lot, n'appartient à aucun lot — et ne doit pas être retirable par le veto.
     """
-    lesson = db.scalar(
-        select(Lesson)
-        .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
-        .where(LessonSkill.skill_id == skill_id, Lesson.status != "archived")
-        .order_by(Lesson.id.desc())
-        .limit(1)
-    )
+    # ⚠️ MÊME résolveur que `select_notions` et `equip_notion` (ADR-0037). Trois copies de la même
+    # requête vivaient ici ; si l'une avait dérivé, le tampon serait posé sur une AUTRE leçon que
+    # celle qu'on vient d'écrire — et le veto n'aurait plus rien à retirer.
+    lecons = lessons_of_skill(db, skill_id)
+    lesson = lecons[0] if lecons else None
     if lesson is not None and lesson.production_run_id is None:
         lesson.production_run_id = run_id
 
@@ -242,16 +241,15 @@ def select_notions(
     ⚠️ Une notion **sans aucune leçon** reste bloquée à tous les paliers : il n'y a rien à quoi
     rattacher un cours. Ce n'est pas un gate, c'est une absence de support.
     """
+    # ⚠️ UNE requête pour tout le lot (ADR-0037), là où il y en avait une PAR NOTION. Un chapitre
+    # de 31 notions coûtait 31 allers-retours avant même de commencer à produire.
+    par_notion = lessons_by_skill(db, skill_ids)
+
     eligible: list[int] = []
     blocked: list[dict] = []
     for skill_id in skill_ids:
-        lesson = db.scalar(
-            select(Lesson)
-            .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
-            .where(LessonSkill.skill_id == skill_id, Lesson.status != "archived")
-            .order_by(Lesson.id.desc())
-            .limit(1)
-        )
+        lecons = par_notion.get(skill_id, [])
+        lesson = lecons[0] if lecons else None
         if lesson is None:
             blocked.append({"skill_id": skill_id, "reason": BLOCKED_NO_LESSON})
         elif require_validated_course and not (

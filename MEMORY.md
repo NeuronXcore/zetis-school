@@ -7,6 +7,118 @@
 
 ## État à la reprise
 
+**Chantier : « la leçon d'une notion » (ADR-0037) — CODÉ, VÉRIFIÉ EN VRAI, NON POUSSÉ.**
+Trois modules répondaient différemment à la même question ; il n'y a plus qu'une réponse.
+
+### Où est le code, exactement
+
+| | |
+|---|---|
+| Branche | `feat/lecon-canonique` — **jamais poussée**, jamais rebasée |
+| Base | `main` = `origin/main` = **`0643f2a`** (stable : rien n'a été mergé depuis) |
+| Tête | **volontairement non écrite** — `git log --oneline main..HEAD` (`WORKFLOW.md §5`) |
+| Migration | **AUCUNE** — le défaut était une divergence de LECTURE, pas de modèle |
+| Cadrage | `docs/decisions/adr-0037-lecon-canonique-d-une-notion.md`, **§1 corrigé le jour même** |
+
+**Relancés après la dernière modification, tous verts** : **805 backend** (797 avant) ·
+**318 Papa** · **453 Massimo** · build Papa · typecheck Massimo.
+
+### Ce que ce chantier a livré
+
+Un module **PLAT** `app/modules/lesson_resolution.py` (patron `provenance.py`) qui porte
+**l'ORDRE et le PÉRIMÈTRE** de « quelle est LA leçon de cette notion ? », et **aucun filtre de
+statut** — c'est là que les trois appelants diffèrent légitimement.
+
+⚠️ **Il ne pouvait PAS vivre dans `curriculum`** : `galaxy` et `production` l'importent tous deux,
+mais `curriculum` importe `ai`, dont `canonical_context` est l'un des appelants → cycle.
+
+### Décisions actives — à relire, pas à rouvrir
+
+1. **L'ordre est celui de la GALAXIE** — `(updated_at, id)` décroissant, « la dernière touchée ».
+   Motif : c'est elle qui décrit ce que Massimo atteint, et produire ailleurs produit dans le vide.
+2. **Le substrat ne filtre PAS le statut de leçon.** La production doit voir un brouillon, sinon
+   **le palier 3 disparaît** (c'est là qu'`equip_notion` a le droit de rédiger puis valider un
+   cours). Un test le fige.
+3. **Le périmètre « année active » s'applique AUSSI à la production**, qui n'en avait aucun — elle
+   pouvait équiper la leçon de l'an dernier.
+4. **Par LOT d'abord.** `resolve_panoply` promet un nombre de requêtes constant ; une signature
+   mono-notion aurait fait passer la page matière de 18 requêtes à N.
+5. **Pas d'année active → du VIDE, jamais une exception.** Un 404 remonté d'un job RQ ne part vers
+   personne (ADR-0035).
+6. **`equip_notion` n'est pas modifié** : `_skill_lesson` délègue, rien d'autre ne bouge.
+
+### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT — pas au cadrage
+
+1. **Le cadrage annonçait DEUX règles ; il y en avait TROIS.** Écrit la veille sans inventaire.
+2. **La signature du cadrage était mono-notion** — elle aurait cassé une propriété que
+   `resolve_panoply` promet. ADR corrigé en place.
+3. **Le périmètre passait par `_active_year_or_404`** — un 404 dans un worker. ADR corrigé.
+4. 🔴 **DEUX DE MES PROPRES TESTS PASSAIENT POUR LA MAUVAISE RAISON**, les deux démasqués par la
+   contre-épreuve et jamais par la relecture : le verrou d'année ne seedait aucune année *active*
+   (il passait par la garde, pas par le filtre) ; le test d'accord posait la leçon la plus
+   récemment touchée **en second**, donc avec l'id le plus haut, si bien que les deux tris
+   tombaient d'accord et qu'un appelant débranché ne cassait rien.
+5. **`select_notions` faisait UNE REQUÊTE PAR NOTION** — 31 allers-retours pour un chapitre dense,
+   avant même de produire. Corrigé au passage (une seule requête).
+6. **Deux fixtures posaient `chapter_id=1` sur un chapitre inexistant** (« SQLite n'applique pas
+   les FK ») : 4 tests rouges, aucun défaut de code.
+
+> Détail et remèdes : `TROUBLESHOOTING.md`, chantier `feat/lecon-canonique`.
+
+### Vérifié EN VRAI (Postgres de dev, 278 notions)
+
+| | |
+|---|---|
+| Leçon **inchangée** | **273** (98 %) |
+| Leçon **changée** | **5** — exactement les notions à deux leçons |
+| Devenue **inéligible** | **0** — le périmètre d'année ne coûte rien ici |
+
+Sur les 5 : **4 gagnent un cours, 1 neutre, 0 en perd**. Le cas observé (« Discours direct »)
+retient désormais la leçon 5 et redevient **éligible**. Accord des trois lecteurs sur les 278
+notions : **0 désaccord**.
+
+> ⚠️ **Ce contrôle chiffré est à refaire pour tout chantier qui change une règle de sélection.**
+> Dix minutes, et il remplace une conviction par un nombre.
+
+### ▶ PROCHAIN PAS
+
+1. **`git push -u origin feat/lecon-canonique`, puis ouvrir la PR.**
+2. **Après le merge, l'étape 4bis** (`WORKFLOW.md §5`) — squash, branche supprimée, rien à pousser.
+
+### ▶ DETTES OUVERTES
+
+- **La notion ORPHELINE** (aucune leçon) reste insatisfaisable : `equip_piece` le **dit**, rien ne
+  le répare. Touche aussi « + Programme » et `skills-backfill`.
+- **Les appels aux générateurs sont écrits deux fois** (`equip_notion` / `equip_piece`) — refactor
+  sans décision produit, son propre chantier, contre-épreuves serrées (3 consommateurs).
+- **Le Commander n'est pas idempotent** (exige `missions.agenda_item_id`, donc une migration).
+- ⚠️ **SEPT copies privées de `_active_year`** (`curriculum`, `mindmaps`, `missions`, `dashboard`,
+  `fiches`, `quizzes`, `production.coverage`), dont certaines scopées par élève et d'autres non.
+  `lesson_resolution.active_year` est publique pour **offrir une destination**, pas pour créer une
+  huitième divergence. Les unifier demande de trancher le scope élève — pas ce chantier.
+- **`resolve_canonical_context` reçoit un `skill_id`, les générateurs un `lesson_id`** — piège déjà
+  documenté (patron quiz), jamais rouvert.
+- **Le panneau d'analyse à 3 compteurs** (ADR-0025 §11) attend une mesure SRS scopée chapitre.
+- **Un devoir fait produire le chapitre entier** — assumé ; **le dispositif est armé depuis le
+  2026-08-03, donc c'est maintenant qu'on peut observer** s'il y a gaspillage.
+
+### 🔴 LE DISPOSITIF EST ARMÉ EN DEV
+
+Régime ***Autonome*** (A1 = 3), déclencheur `zetis_auto_trigger_enabled` = **`true`**, gate du
+cours **tombé**. Décision de Papa du 2026-08-03, maintenue à travers ce chantier.
+
+⚠️ Une `content_request` en attente **fera écrire et servir du contenu à Massimo sans relecture**
+au prochain réveil du scan (3 h) **si un worker tourne**. Désarmement : `/parametres`.
+
+---
+
+
+## Historique — la demande de Massimo devient une production (ADR-0036)
+
+**CLOS ET MERGÉ** (squash `eff83cb`, PR #72, 2026-08-03). Conservé pour ses décisions actives
+et ses défauts trouvés en codant. Son « prochain pas » — solder les dettes — est EN COURS.
+
+
 **Chantier : la demande de Massimo devient une production (ADR-0036) — COMPLET, CLOS ET MERGÉ.**
 La dernière boucle ouverte du dispositif se ferme.
 

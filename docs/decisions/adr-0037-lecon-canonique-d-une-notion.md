@@ -76,7 +76,27 @@ jour, mais c'est un fait de code, pas une crainte.
 
 ### 1. Un résolveur unique, qui porte l'ORDRE et le PÉRIMÈTRE — pas le filtre de statut
 
-Un module neutre expose **`lessons_of_skill(db, skill_id) -> list[Lesson]`** :
+> ⚠️ **CETTE SECTION A ÉTÉ CORRIGÉE LE JOUR MÊME, au read-before-code de sa propre slice**
+> (précédent ADR-0032, ADR-0036 §3). Deux hypothèses étaient fausses, et il faut dire lesquelles :
+>
+> 1. **La signature annoncée était MONO-NOTION** — `lessons_of_skill(db, skill_id)`. Or
+>    `_course_lessons_by_skill` est **par LOT**, et `resolve_panoply` en fait une promesse
+>    explicite : *« le nombre de requêtes est constant, indépendant du nombre de notions »*, ce qui
+>    rend la page matière tenable sur une matière entière. L'appeler par notion l'aurait fait passer
+>    à N requêtes. **Le résolveur est donc PAR LOT d'abord**, avec un raccourci mono-notion.
+> 2. **Le périmètre d'année lève un 404.** `_active_year_or_404` porte son comportement dans son
+>    nom. La production n'a aujourd'hui aucun filtre d'année, donc ne lève jamais ; lui faire
+>    adopter ce gate ferait remonter un code HTTP **dans un job RQ** — ce que l'ADR-0035 a déjà
+>    jugé absurde (« le code de statut ne part vers personne »). **Le résolveur rend donc du VIDE
+>    quand il n'y a pas d'année active** ; l'appelant décide si c'est un 404, un blocage journalisé,
+>    ou rien.
+
+Un module neutre expose :
+
+```python
+lessons_by_skill(db, skill_ids) -> dict[int, list[Lesson]]   # par LOT — le contrat de base
+lessons_of_skill(db, skill_id)  -> list[Lesson]              # raccourci, pour un appelant isolé
+```
 
 - **périmètre** : les leçons de l'**année active**, dans un chapitre `validated`, non archivées ;
 - **ordre** : `(updated_at, id)` décroissant — celui de la galaxie, parce que c'est **elle qui

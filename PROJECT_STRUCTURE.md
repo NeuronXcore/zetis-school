@@ -98,6 +98,27 @@ Chaque module suit le même patron : `router.py` (routes + garde de rôle), `sch
 `service.py` (métier). Les routes **élève** et **parent** vivent dans des routeurs séparés du même
 module — la frontière Massimo/Papa est tenue par le serveur, jamais par l'UI.
 
+### Les modules PLATS — un fichier, aucun domaine
+
+⚠️ **Une seconde forme existe, et elle n'était documentée nulle part** : des fichiers seuls
+directement sous `modules/`, sans dossier, sans route, sans schéma. Ils répondent à **une question
+transverse** que plusieurs domaines se posent, et vivre chez l'un d'eux les rendrait inappelables
+par les autres (patron ADR-0011 §1).
+
+```txt
+provenance.py         # « qui a laissé passer ce contenu ? » — SEUL écrivain de `validated_by`
+lesson_resolution.py  # « quelle est LA leçon de cette notion ? » — ADR-0037
+```
+
+**Le critère pour en créer un** : la question a **plusieurs lecteurs** et **une seule bonne
+réponse**. Si deux modules y répondent chacun de leur côté, ils finiront par diverger — c'est
+exactement ce qui a produit `lesson_resolution.py`, après que trois modules eurent donné trois
+réponses différentes à la même question.
+
+⚠️ **Un module plat n'importe aucun module de domaine.** `lesson_resolution` ne touche que
+`app.db.models` : le loger dans `curriculum` aurait créé un cycle avec `ai.canonical_context`, qui
+en est l'un des appelants.
+
 ## Racine du projet
 
 | Fichier | Rôle |

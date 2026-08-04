@@ -34,6 +34,7 @@ from app.db.models import (
 )
 from app.modules.curriculum.service import _active_year_or_404
 from app.modules.eli5.service import get_default_student
+from app.modules.lesson_resolution import lessons_by_skill
 from app.modules.evidence import service as evidence
 from app.modules.memory.service import INACTIVE_CARD_STATUSES
 
@@ -489,36 +490,21 @@ def _course_lessons_by_skill(db: Session, skill_ids: Sequence[int]) -> dict[int,
     `notion_panel` prétendait qu'un cours existe dès que la notion est visible — un mensonge qui
     ouvrait une porte vide ET empêchait le chat d'enregistrer la demande à Papa (addendum ADR-0027).
     """
-    ids = [skill_id for skill_id in skill_ids if skill_id is not None]
-    if not ids:
-        return {}
-    year = _active_year_or_404(db)
-    rows = db.execute(
-        select(
-            LessonSkill.skill_id,
-            Lesson.id,
-            Lesson.updated_at,
-            Lesson.content_markdown.is_not(None),
-        )
-        .join(Lesson, Lesson.id == LessonSkill.lesson_id)
-        .join(Chapter, Chapter.id == Lesson.chapter_id)
-        .join(SchoolYearSubject, SchoolYearSubject.id == Chapter.school_year_subject_id)
-        .where(
-            LessonSkill.skill_id.in_(ids),
-            SchoolYearSubject.school_year_id == year.id,
-            Chapter.validation_status == "validated",
-            Lesson.status == "validated",
-        )
-    ).all()
-
-    best: dict[int, tuple[tuple, int, bool]] = {}
-    for skill_id, lesson_id, updated_at, has_course in rows:
-        recency = (updated_at, lesson_id)
-        current = best.get(skill_id)
-        if current is not None and recency <= current[0]:
-            continue
-        best[skill_id] = (recency, lesson_id, bool(has_course))
-    return {skill_id: (lesson_id, has_course) for skill_id, (_, lesson_id, has_course) in best.items()}
+    # ⚠️ L'ordre et le périmètre ne sont plus écrits ici (ADR-0037) : ils vivent dans
+    # `lesson_resolution`, que la production et `canonical_context` interrogent aussi. Ce module
+    # n'était pas fautif — c'est LUI qui avait raison — mais trois copies de la même question
+    # donnaient trois réponses, dont une qui faisait produire du contenu invisible.
+    #
+    # Ce qui RESTE ici est le gate propre à la galaxie : seules les leçons `validated` sont
+    # atteignables par Massimo. Le résolveur partagé rend aussi les brouillons, parce que la
+    # production en a besoin au palier 3 — le filtrer là-bas supprimerait ce palier.
+    par_notion = lessons_by_skill(db, skill_ids)
+    best: dict[int, tuple[int, bool]] = {}
+    for skill_id, lecons in par_notion.items():
+        validee = next((l for l in lecons if l.status == "validated"), None)
+        if validee is not None:
+            best[skill_id] = (validee.id, validee.content_markdown is not None)
+    return best
 
 
 def resolve_panoply(

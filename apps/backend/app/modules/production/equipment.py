@@ -28,6 +28,7 @@ from app.db.models import (
     SpacedReviewCard,
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
+from app.modules.lesson_resolution import lessons_of_skill
 from app.modules.provenance import PARENT_BULK, ValidatedBy
 
 
@@ -47,14 +48,19 @@ _EQUIP_QUIZ_DIFFICULTY = 2
 
 
 def _skill_lesson(db: Session, skill_id: int) -> Lesson | None:
-    """Leçon la plus récente rattachée à la notion (tout statut sauf archivée), ou None."""
-    return db.scalar(
-        select(Lesson)
-        .join(LessonSkill, LessonSkill.lesson_id == Lesson.id)
-        .where(LessonSkill.skill_id == skill_id, Lesson.status != "archived")
-        .order_by(Lesson.id.desc())
-        .limit(1)
-    )
+    """Leçon de la notion, ou `None`. **Délègue au résolveur partagé** (ADR-0037).
+
+    ⚠️ La règle a changé le 2026-08-03, et il faut dire laquelle : c'était « la dernière CRÉÉE »
+    (`id DESC`), sans aucun filtre d'année ; c'est désormais « la dernière TOUCHÉE », dans
+    l'année active. Motif : la galaxie retenait déjà celle-là, et c'est elle qui décide de ce que
+    Massimo atteint — équiper une autre leçon produisait du contenu que personne ne pouvait ouvrir.
+
+    Le gate propre à la production **reste ici** : on accepte un BROUILLON, parce qu'au palier 3
+    `equip_notion` a précisément le droit de rédiger puis de valider son cours. Filtrer sur
+    `validated` comme la galaxie supprimerait ce palier.
+    """
+    lecons = lessons_of_skill(db, skill_id)
+    return lecons[0] if lecons else None
 
 
 # Existence = « déjà créé » (tout statut, y compris un brouillon de Papa) : on ne régénère JAMAIS,

@@ -4,6 +4,94 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/lecon-canonique` — la leçon d'une notion (ADR-0037) — 2026-08-03
+
+### 🔴 DEUX de mes tests passaient pour la MAUVAISE raison — les deux démasqués par la contre-épreuve
+
+C'est la leçon la plus chère du chantier, et elle est arrivée **deux fois dans la même heure**.
+
+**1. Le verrou du périmètre d'année ne seedait aucune année ACTIVE.** Il créait une année
+`archived` et vérifiait que la notion n'était pas équipable. Vert — mais par la garde *« pas
+d'année active → rendre vide »*, **pas** par le filtre d'année qu'il prétendait tenir. Sabotage :
+filtre d'année supprimé → **805 verts**. Remède : seeder une année active *en plus*, sans leçon
+pour cette notion.
+
+**2. Le test d'accord entre les trois appelants était aveugle.** Il posait deux leçons, la plus
+récemment touchée créée **en second** — donc avec l'id le plus haut. `id DESC` et
+`(updated_at, id) DESC` désignaient alors la **même** leçon : débrancher un appelant du substrat ne
+cassait rien. Sabotage : `_skill_lesson` réécrit avec son ancienne requête → **805 verts**.
+Remède : inverser l'ordre de création pour que **les deux tris se contredisent**, et l'affirmer
+dans le test (`assert ancienne.id > recente.id`).
+
+> **La règle qui en sort** : un test qui compare deux règles doit poser un décor où **elles ne
+> peuvent pas tomber d'accord par hasard**. Sinon il ne teste que la moitié qui marche.
+
+### Trois règles pour « la leçon d'une notion » — l'inventaire, pas la mémoire
+
+Le `MEMORY.md` de la veille en annonçait **deux**. Il y en avait **trois**, trouvées en cherchant
+les jointures qui *résolvent* (et non celles qui vérifient une existence) :
+
+| Module | Ordre | Filtres |
+|---|---|---|
+| `production` (`select_notions`, `_stamp_course`, `_skill_lesson`) | `Lesson.id DESC` | `status != 'archived'`, **aucun filtre d'année** |
+| `galaxy._course_lessons_by_skill` | max `(updated_at, id)` | `validated` + chapitre validé + année active |
+| `ai.resolve_canonical_context` | `updated_at DESC` | `validated` + `content_markdown IS NOT NULL` |
+
+⚠️ **`memory._has_validated_course` partage le prédicat du troisième mais ne résout rien** — c'est
+un test d'existence. Le compter aurait fait chercher un quatrième bug inexistant.
+
+### Le module partagé ne peut PAS vivre dans `curriculum` — cycle d'imports
+
+`galaxy` et `production` importent tous deux `curriculum`, ce qui en faisait le domicile évident.
+Mais `curriculum` importe `ai`, et `ai.canonical_context` est **l'un des trois appelants** :
+`ai → curriculum → ai`.
+
+D'où un **module PLAT** sous `modules/`, patron `provenance.py`, qui n'importe que `app.db.models`.
+Voir `PROJECT_STRUCTURE.md` § « Les modules plats ».
+
+### Une fixture peut cacher un périmètre qui n'existait pas
+
+`test_canonical_context.py` et `test_eli5.py` posaient `chapter_id=1` sur un chapitre
+**inexistant**, avec ce motif écrit : *« SQLite n'applique pas les FK »*. Ça tenait tant qu'aucun
+résolveur ne joignait `Chapter → SchoolYearSubject → SchoolYear`. Le périmètre d'année devenu réel,
+la jointure ne trouvait plus rien : **4 tests rouges, aucun défaut de code**.
+
+> Une fixture qui contourne une contrainte que la base n'applique pas **documente une hypothèse**.
+> Le jour où le code la prend au sérieux, c'est la fixture qui tombe — et on la lit comme une
+> régression.
+
+Remède : un helper `_chapitre()` qui crée une vraie année + un vrai chapitre validé. **Aucune
+assertion modifiée** — c'est le décor qui devient vrai, pas l'attente qui s'assouplit.
+
+### Le gate `validated` de `canonical_context` a quitté le SELECT
+
+L'addendum ADR-0009 §C insistait : *« une clause du SELECT — impossible de recevoir un cours non
+validé »*. Le substrat partagé rend les brouillons (la production en a besoin au palier 3), donc le
+filtre est passé en Python.
+
+**La garantie tient autrement, et il faut savoir laquelle** : ce n'est plus « impossible par
+construction » mais « impossible par **unicité** » — un seul chemin, un seul filtre, un test qui
+n'a pas bougé d'un caractère. Si un second chemin d'accès au cours canonique apparaît un jour, la
+garantie s'évapore sans bruit.
+
+### Mesurer un changement de comportement AVANT de le merger
+
+Une règle de résolution qui change touche potentiellement tout le référentiel. Plutôt que de
+l'espérer borné, on l'a **compté** sur la base de dev (278 notions) :
+
+```txt
+leçon inchangée           : 273   (98 %)
+leçon changée             :   5   ← exactement les notions à deux leçons
+devenue inéligible        :   0   ← le périmètre d'année ne coûte rien ici
+```
+
+Et sur les 5 : **4 gagnent un cours, 1 neutre, 0 en perd**. Puis vérification d'accord des trois
+lecteurs sur les 278 : **0 désaccord**.
+
+> Ce contrôle prend dix minutes et remplace une conviction par un chiffre. À refaire pour tout
+> chantier qui change une règle de sélection.
+
+
 ## Chantier `feat/demande-vers-production` — la demande devient une production (ADR-0036) — 2026-08-03
 
 ### ⚠️ DEUX RÈGLES pour « la leçon de cette notion » — et elles ne donnent pas la même leçon
