@@ -18,9 +18,9 @@ que ZETIS a fait en maths ce mois-ci »* n'avait d'autre réponse que faire déf
 
 | | |
 |---|---|
-| Branche | `feat/journal-tri-et-filtre`, **poussée** — détail : `git log --oneline main..HEAD` |
-| Base | `82fd9c4` (l'ADR, commité sur `main`) |
-| ⚠️ `main` a AVANCÉ depuis | tête `22b35a6` — correction de l'entrée d'index `DECISIONS.md`. La branche est donc **1 commit derrière `main`**, sans conflit (elle ne touche pas ce fichier) |
+| **MERGÉ `main`** | **PR [#81](https://github.com/NeuronXcore/zetis-school/pull/81)**, squash **`e940ba3`** (2026-08-04) — branche **supprimée**, local et `origin` |
+| Base | `82fd9c4` (l'ADR, commité sur `main` au cadrage) |
+| Index `DECISIONS.md` | corrigé à part sur `main` (`22b35a6`), **avant** le merge — la décision abandonnée n'y figure plus |
 | Migration | **`e9f0a1b2c3d4`** — `zetis_mode_source` + 6 index, **appliquée en dev** |
 | Script de reprise | `apps/backend/scripts/backfill_zetis_mode.py`, **lancé avec `--apply` en dev** |
 | ADR | `adr-0034-addendum-tri-et-filtre-du-journal.md`, indexé |
@@ -79,19 +79,20 @@ que ZETIS a fait en maths ce mois-ci »* n'avait d'autre réponse que faire déf
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est COMPLET.** Arbre propre, branche poussée, `main` == `origin/main`.
+**Ce chantier est CLOS et MERGÉ** (PR #81, squash `e940ba3`). Branche supprimée des deux côtés,
+arbre propre, `main` == `origin/main`. **La prochaine session ouvre un nouveau chantier.**
 
-**La première action de reprise : ouvrir la PR et merger.**
+⚠️ **Ce qui reste dû de CELUI-CI ne peut pas être payé par l'agent** — c'est dans les DETTES
+ci-dessous, et deux points en sortent :
 
-```
-gh pr create --base main --head feat/journal-tri-et-filtre
-```
+1. 🔴 **Le tri par mode et la pagination n'ont jamais été VUS**, faute de données. Ils le seront le
+   jour où la base portera un lot *Manual* ou *Hybrid*, et 21 lots. Les tests unitaires les tiennent
+   en attendant — ce n'est pas la même chose.
+2. ⚠️ **Le chapitre 10 reste sans matière d'année.** La porte est fermée pour l'avenir, la donnée
+   existante ne l'est pas.
 
-⚠️ **Puis l'étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici le **squash**, le **n° de PR**,
-« branche supprimée », et déplacer cette section dans l'historique après les quatre contrôles.
-
-⚠️ **Avant de merger, la branche est 1 commit derrière `main`** (`22b35a6`). Aucun conflit attendu :
-`DECISIONS.md` n'est touché que sur `main`, l'ADR n'est touché que sur la branche.
+**Suites relancées APRÈS le merge, sur `main` fusionné** : **855 backend · 414 Papa**, `tsc` vert
+sur les deux frontends. Le squash n'a rien changé aux chiffres d'avant le merge.
 
 ### ▶ DETTES OUVERTES
 
