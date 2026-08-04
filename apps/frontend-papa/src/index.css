@@ -318,11 +318,13 @@
   background: var(--color-papa-surface-2);
 }
 
-/* ── Le palier qui change dans « ce que fait ce niveau » (addendum §8.2) ─────────────────────────
+/* ── Le PALIER qui change dans « ce que fait ce niveau » (addendum §8.2) ─────────────────────────
+   ⚠️ Vocabulaire du §8.0 : un NIVEAU est l'un des trois régimes, un PALIER est le degré 0-3 d'une
+   classe. C'est un palier qui change ici — la classe s'appelait `niveau-valeur` par confusion.
    Réutilise le keyframe du fondu d'avatar : le nœud est remonté par sa `key`, donc l'animation
    rejoue à chaque changement de valeur. Court (220 ms) — c'est un accusé de changement, pas un
    effet ; deux lignes qui clignoteraient à chaque clic fatigueraient plus qu'elles n'informent. */
-.niveau-valeur {
+.palier-valeur {
   animation: regime-fade-in 220ms ease-out;
 }
 
@@ -393,7 +395,7 @@
   .regime-img,
   .regime-img--sortant,
   .regime-bulle,
-  .niveau-valeur {
+  .palier-valeur {
     animation: none;
   }
 

@@ -93,7 +93,9 @@ ensemble, comme le verrou n°5 de l'ADR-0032 l'exigeait — **aucune ligne du fr
 Un panneau **en lecture seule**, qui suit la carte sélectionnée et, **au repos, montre le niveau
 actif**. C'est lui qui a remplacé le bloc « Où vous en êtes aujourd'hui » (addendum §8.1).
 
-Il est **calculé**, jamais rédigé : pour chaque classe, `label` du serveur → libellé de son palier.
+Il est **calculé**, jamais rédigé : pour chaque classe, `label` du serveur → libellé de son
+**palier**. ⚠️ *niveau* = l'un des trois régimes ; *palier* = le degré 0-3 d'une classe. La
+convention est fixée à l'addendum **§8.0**, et elle vaut pour toute cette page.
 Écrire une prose *classe × niveau* recopierait la matrice du §G.2 sous une forme que le serveur ne
 peut pas refuser — un 422 protège une valeur, jamais un texte (addendum §8.2).
 
@@ -101,7 +103,7 @@ peut pas refuser — un 422 protège une valeur, jamais un texte (addendum §8.2
 
 | Groupe | Contenu |
 |---|---|
-| **Ce que ce niveau décide** | Les **deux** classes libres (A0a, A1). Leur palier change à la sélection. |
+| **Ce que ce niveau décide** | Les **deux** classes libres (A0a, A1). Leur **palier** change à la sélection. |
 | **Ce qu'aucun niveau ne change** | Les **quatre** verrouillées, en retrait, **avec leur motif serveur**. |
 
 En pied, l'observation — **et c'est toujours le seul chiffre de la page** :

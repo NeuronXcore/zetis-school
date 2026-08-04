@@ -26,6 +26,29 @@ que le §Contexte n'avait pas vu, parce qu'à l'époque le problème était de *
 
 ## Décision
 
+### 8.0 — Deux mots, deux objets : **niveau** et **palier**
+
+Ce chantier a introduit « ZETIS LEVELS » à l'écran, à côté d'un mot qui existait déjà pour tout
+autre chose. La convention est fixée ici, **une fois**, et vaut pour tout le dossier ADR-0032 :
+
+| Mot | Ce qu'il désigne | Valeurs | Où il vit |
+|---|---|---|---|
+| **niveau** (*level*) | l'un des **trois régimes** | `manuel · semi · autonome` → *Manual · Hybrid · Autonom* | à l'écran, et dans le code sous le nom `preset` |
+| **palier** | le degré d'autonomie **d'une classe** | `0` Jamais · `1` ZETIS propose · `2` Vous validez · `3` ZETIS sert | dans les six clés d'`app_settings`, et dans le code sous le nom `level` |
+
+Le test qui les sépare : **un niveau se choisit, un palier se subit.** Papa clique un *niveau* ;
+celui-ci décide les *paliers* de deux classes, et les quatre autres ne l'écoutent pas.
+
+⚠️ **Le code dit l'inverse, et c'est délibérément non touché** : le type TypeScript s'appelle
+`AutonomyLevel` alors qu'il porte un **palier** (0-3), et les trois régimes s'y appellent `preset`.
+Renommer traverserait `packages/types`, le client d'API et toutes les pages de réglage — un refactor
+transversal pour un gain de lecture. **La correspondance est établie ici, et c'est le seul endroit
+où elle a besoin de l'être** — même traitement que le §7.7 pour *Manuel / Manual*.
+
+> **Règle pratique pour la suite** : dans un document, `LEVEL_LABEL[…]` se lit *« le libellé du
+> palier »*, jamais *« le libellé du niveau »*. Et une phrase comme « le niveau de cette classe »
+> est fautive : une classe a un **palier**.
+
 ### 8.1 — Le réglage passe en tête. Le constat le suit, dans le même objet.
 
 La section devient **« ZETIS LEVELS »** et occupe la **première** place du panneau. Sous les trois
@@ -54,8 +77,8 @@ défendable. On ne déplace le constat que parce qu'il existe désormais ailleur
 Pour chaque classe, l'écran compose deux données que le serveur envoie déjà :
 
 ```
-libellé de la classe (cls.label)  →  libellé du palier (LEVEL_LABEL[niveau])
-niveau = levelsForPreset(regime)[cls.key] ?? cls.value
+libellé de la classe (cls.label)  →  libellé du palier (LEVEL_LABEL[palier])
+palier = levelsForPreset(niveau)[cls.key] ?? cls.value
 ```
 
 **Aucune prose décrivant une classe n'est écrite au front.** Ce n'est pas une préférence de style :
@@ -175,9 +198,11 @@ classe** ; toute évolution serveur — **aucune ligne de backend, aucune migrat
 - **« Quiz — servi sans relecture, par doctrine »** disparaît de la matrice : le quiz **n'est pas
   une classe d'autonomie**, le bloc précédent le décrivait en dur. Repêché en note de pied de
   panneau, hors matrice — sinon on perdrait une information vraie pour une raison de forme.
-- **Collision de vocabulaire assumée** : « level » nommera la section des trois régimes, alors que
-  « palier » désigne déjà l'échelle 0-3 par classe. À l'écran le mot « palier » n'apparaît nulle
-  part — la collision reste **interne au code et aux ADR**. Nommée ici, pas corrigée.
+- **Collision de vocabulaire, TRANCHÉE au §8.0** : « niveau/level » nomme les trois régimes,
+  « palier » le degré 0-3 d'une classe. La documentation applique la convention ; le **code** garde
+  ses noms hérités (`AutonomyLevel` porte un palier, `preset` porte un niveau) — les renommer
+  traverserait `packages/types` et toutes les pages de réglage, pour un gain de lecture. La
+  correspondance est établie une fois, au §8.0.
 - **Le renommage casse mécaniquement une vingtaine de tests** qui attendent le titre « Régime » via
   un helper partagé. Coût de bascule, pas de conception.
 
@@ -185,7 +210,8 @@ classe** ; toute évolution serveur — **aucune ligne de backend, aucune migrat
 
 **Tests-verrous exigés** :
 
-1. **Les deux classes libres suivent le niveau ; les quatre autres affichent la valeur SERVEUR**,
+1. **Les deux classes libres voient leur PALIER suivre le niveau ; les quatre autres affichent la
+   valeur SERVEUR**,
    identique dans les trois niveaux.
 2. **Aucun total de provenance** dans le panneau — reprise du verrou n°7 du §Suivi de l'ADR-0032.
 3. **Les libellés de palier viennent de la constante importée**, jamais recopiés.

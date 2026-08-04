@@ -14,6 +14,9 @@ import { type Autonomy, type AutonomyLevel } from "@zetis/types";
 
 import { LEVEL_LABEL } from "../../lib/settings";
 
+// ⚠️ Convention de l'addendum §8.0 : ce composant montre l'écart de PALIER (0-3) que le changement
+// de NIVEAU (l'un des trois régimes) va écrire. `avant`/`apres` sont donc des paliers.
+
 export function EcartNiveau({
   autonomy,
   draft,

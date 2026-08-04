@@ -18,7 +18,10 @@ import { type Autonomy, type AutonomyClass, type AutonomyPreset } from "@zetis/t
 
 import { LEVEL_LABEL, levelsForPreset } from "../../lib/settings";
 
-type Ligne = { cls: AutonomyClass; niveau: AutonomyClass["value"]; bouge: boolean };
+/** ⚠️ `palier`, pas `niveau` — convention de l'addendum §8.0 : un NIVEAU est l'un des trois
+ *  régimes, un PALIER est le degré 0-3 d'une classe. Ce fichier les avait confondus : le titre
+ *  disait « ce que ce niveau décide » pendant que la variable juste en dessous portait un palier. */
+type Ligne = { cls: AutonomyClass; palier: AutonomyClass["value"]; bouge: boolean };
 
 /** Ce que le niveau `preset` ferait de chaque classe.
  *
@@ -32,11 +35,11 @@ type Ligne = { cls: AutonomyClass; niveau: AutonomyClass["value"]; bouge: boolea
  *
  *  Prendre `levelsForPreset` comme critère de groupe ferait basculer A0a et A1 chez les
  *  verrouillées dès que `preset` est nul (« Sur mesure ») — alors qu'elles restent réglables. */
-function lignesPour(autonomy: Autonomy, preset: AutonomyPreset | null): Ligne[] {
-  const cibles = preset ? levelsForPreset(preset) : {};
+function lignesPour(autonomy: Autonomy, niveau: AutonomyPreset | null): Ligne[] {
+  const cibles = niveau ? levelsForPreset(niveau) : {};
   return autonomy.classes.map((cls) => ({
     cls,
-    niveau: cibles[cls.key] ?? cls.value,
+    palier: cibles[cls.key] ?? cls.value,
     bouge: !cls.locked,
   }));
 }
@@ -68,7 +71,7 @@ export function NiveauDetail({
           le 2026-08-04 : quatre tests de page sont tombés d'un coup). Et `group` annonce un
           ensemble de CONTRÔLES : ces lignes n'en portent aucune, elles se lisent. */}
       <div role="list" aria-label="Ce que ce niveau décide">
-      {vivantes.map(({ cls, niveau }) => (
+      {vivantes.map(({ cls, palier }) => (
         <div key={cls.key} role="listitem" aria-label={cls.label} className="mt-2 flex items-center gap-4">
           <span className="min-w-0 flex-1 text-[12.5px] font-semibold text-papa-text">
             <span className="mr-1.5 text-[10.5px] font-bold tracking-wider text-papa-muted">
@@ -76,14 +79,14 @@ export function NiveauDetail({
             </span>
             {cls.label}
           </span>
-          {/* `key` sur le NIVEAU, pas sur la classe : le nœud est remonté quand la valeur change,
+          {/* `key` sur le PALIER, pas sur la classe : le nœud est remonté quand la valeur change,
               donc l'animation rejoue. Sans ça, une transition ne se déclencherait pas — la
               propriété ne change pas, elle naît (même piège que le fondu des avatars). */}
           <span
-            key={niveau}
-            className="niveau-valeur shrink-0 rounded-lg bg-papa-accent/10 px-2.5 py-1 text-[11.5px] font-semibold text-emerald-300"
+            key={palier}
+            className="palier-valeur shrink-0 rounded-lg bg-papa-accent/10 px-2.5 py-1 text-[11.5px] font-semibold text-emerald-300"
           >
-            {LEVEL_LABEL[niveau]}
+            {LEVEL_LABEL[palier]}
           </span>
         </div>
       ))}
@@ -95,7 +98,7 @@ export function NiveauDetail({
             <span aria-hidden>🔒</span> Ce qu'aucun niveau ne change
           </h4>
           <div role="list" aria-label="Ce qu'aucun niveau ne change">
-          {figees.map(({ cls, niveau }) => (
+          {figees.map(({ cls, palier }) => (
             <div
               key={cls.key}
               role="listitem"
@@ -109,7 +112,7 @@ export function NiveauDetail({
                 {cls.reason && <span className="block text-[11px] leading-relaxed">{cls.reason}</span>}
               </span>
               <span className="shrink-0 rounded-lg border border-dashed border-papa-border px-2.5 py-1 text-[11px] text-papa-muted">
-                {LEVEL_LABEL[niveau]}
+                {LEVEL_LABEL[palier]}
               </span>
             </div>
           ))}

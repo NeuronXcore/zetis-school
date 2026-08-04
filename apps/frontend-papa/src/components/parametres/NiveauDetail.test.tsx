@@ -123,8 +123,8 @@ describe("NiveauDetail", () => {
     const vivante = screen.getByRole("listitem", { name: "Dérivés inertes" });
     const figee = screen.getByRole("listitem", { name: "Programme" });
 
-    expect(vivante.querySelector(".niveau-valeur")).not.toBeNull();
-    expect(figee.querySelector(".niveau-valeur")).toBeNull();
+    expect(vivante.querySelector(".palier-valeur")).not.toBeNull();
+    expect(figee.querySelector(".palier-valeur")).toBeNull();
   });
 
   it("montre le motif SERVEUR de chaque verrou — un cadenas muet se lit comme une panne", () => {
