@@ -116,6 +116,24 @@ export function NiveauDetail({
           </div>
         </>
       )}
+
+      {/* ⚠️ **LE SEUL CHIFFRE DE LA PAGE**, et il ne suit PAS le niveau sélectionné. Daté, attaché
+          à une observation, non recalculé : le faire varier avec le brouillon en ferait une
+          projection déguisée en fait, et un compteur vivant ferait de ce bloc un reproche
+          permanent (§F.2). Il vient du bloc « Où vous en êtes aujourd'hui », que ce panneau a
+          absorbé le 2026-08-04 (addendum §8.1). */}
+      <p className="mt-4 rounded-lg border border-sky-400/35 bg-sky-500/5 px-3 py-2.5 text-[12px] leading-relaxed text-sky-200">
+        <span aria-hidden>📊</span> Sur le chapitre produit le 2 août,{" "}
+        <b className="text-papa-text">2 contenus sur 33</b> vous sont arrivés en relecture.{" "}
+        <b className="text-papa-text">Ce n'est pas un retard</b> — c'est le régime ci-dessus.
+      </p>
+
+      {/* Hors matrice, et c'est délibéré : le quiz n'est PAS une classe d'autonomie. Le taire pour
+          une raison de forme perdrait une information vraie (addendum §8, coûts assumés). */}
+      <p className="mt-2 text-[11px] leading-relaxed text-papa-muted">
+        Hors de ce tableau : les <b className="text-papa-text/80">quiz</b> sont servis sans
+        relecture, par doctrine (ADR-0014).
+      </p>
     </section>
   );
 }

@@ -76,7 +76,9 @@ function renderPage() {
 
 async function renderLoaded() {
   const view = renderPage();
-  await screen.findByText("Régime");
+  // ⚠️ Attendait « Régime » jusqu'au 2026-08-04. La section a été renommée ZETIS LEVELS et
+  // remontée en tête (addendum §8.1) — une vingtaine de tests passent par ce helper.
+  await screen.findByText("ZETIS LEVELS");
   return view;
 }
 
@@ -151,13 +153,20 @@ describe("ParametresPage", () => {
     expect(autonome).toHaveTextContent(/Journal/);
   });
 
-  it("montre où Papa en est AVANT de proposer de changer quoi que ce soit", async () => {
+  it("🔒 le réglage vient EN TÊTE, et il dit ce qu'il fait (addendum §8.1)", async () => {
+    // ⚠️ Ce verrou est le RETOURNEMENT de son prédécesseur, pas sa suppression. Il exigeait
+    // « Où vous en êtes » AVANT « Régime », et son commentaire disait « l'ordre est la décision ».
+    // L'addendum §8.1 a révoqué cette position : le réglage passe en tête, et le constat le suit
+    // DANS le même objet. On ne supprime pas un verrou révoqué — on le retourne, sinon plus rien
+    // ne tient l'ordre nouveau.
     const { container } = await renderLoaded();
     const text = container.textContent ?? "";
-    expect(text).toContain("Où vous en êtes aujourd'hui");
+
+    expect(text.indexOf("ZETIS LEVELS")).toBeLessThan(text.indexOf("Détail par type de contenu"));
+    // Et le constat daté a SURVÉCU à la fusion : c'est la moitié de la décision.
     expect(text).toContain("2 contenus sur 33");
-    // L'ordre est la décision : l'état des lieux précède le régime.
-    expect(text.indexOf("Où vous en êtes")).toBeLessThan(text.indexOf("Régime"));
+    // L'ancien bloc n'existe plus sous son nom — s'il revenait, ce serait un doublon silencieux.
+    expect(screen.queryByText("Où vous en êtes aujourd'hui")).toBeNull();
   });
 
   it("n'affiche AUCUN total de provenance (§F.2 — un fait, jamais un reproche)", async () => {
@@ -255,7 +264,7 @@ describe("ParametresPage", () => {
     renderPage();
 
     await screen.findByText(/Réglages illisibles/);
-    expect(screen.queryByText("Régime")).toBeNull();
+    expect(screen.queryByText("ZETIS LEVELS")).toBeNull();
     expect(screen.queryByRole("button", { name: "Enregistrer" })).toBeNull();
   });
 

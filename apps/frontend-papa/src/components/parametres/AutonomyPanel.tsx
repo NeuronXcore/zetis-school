@@ -1,6 +1,13 @@
 // Panneau « ⚡ Autonomie de ZETIS » (ADR-0032, spec `docs/frontend-papa/page-parametres.md`).
 //
-// Quatre blocs, dans cet ordre et pas un autre : état des lieux → régime → détail → veto.
+// Quatre blocs, dans cet ordre : ZETIS LEVELS → détail → veto → déclencheur.
+//
+// ⚠️ L'ordre a CHANGÉ le 2026-08-04 (addendum §8.1). Il était « état des lieux → régime », et
+// c'était une décision : le panneau devait montrer à Papa où il en était AVANT de lui proposer de
+// monter. Le bloc « Où vous en êtes aujourd'hui » a été ABSORBÉ par le panneau de détail, qui
+// montre le niveau sélectionné et, au repos, le niveau actif. On a révoqué la position, pas
+// l'intention — et la révocation n'est défendable QUE parce que le §7 a posé l'état en tête de
+// sidebar, visible sur les 22 pages.
 //
 // Trois refus qui expliquent le code :
 //
@@ -29,7 +36,6 @@ import { REGIME_AVATAR, declencheurGlyphe } from "../../lib/regimeVisuals";
 import { ClassRow } from "./ClassRow";
 import { NiveauDetail } from "./NiveauDetail";
 import { PresetCards } from "./PresetCards";
-import { RegimeToday } from "./RegimeToday";
 
 type Draft = Record<string, AutonomyLevel>;
 
@@ -197,10 +203,6 @@ export function AutonomyPanel() {
         même sur une fiche et sur un cours.
       </p>
 
-      <div className="mt-5">
-        <RegimeToday />
-      </div>
-
       {error && (
         <p className="mt-4 rounded-lg border border-red-400/40 bg-red-500/5 px-3 py-2 text-sm text-red-300">
           {error}
@@ -211,7 +213,7 @@ export function AutonomyPanel() {
         <p className="mt-5 text-sm text-papa-muted">Lecture des réglages…</p>
       ) : autonomy ? (
         <>
-          <h3 className="mt-6 text-[12.5px] font-bold">Régime</h3>
+          <h3 className="mt-6 text-[12.5px] font-bold uppercase tracking-wider">ZETIS LEVELS</h3>
           <PresetCards
             autonomy={autonomy}
             current={preset}
