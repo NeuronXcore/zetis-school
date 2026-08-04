@@ -7,31 +7,23 @@
 
 ## État à la reprise
 
-**Chantier : le bandeau des deux frontends — COMPLET, deux PR OUVERTES, rien n'est sur `main`.**
-Une seule session, deux chantiers successifs, tous deux finis, commités et poussés. Le second est né
-d'une demande faite en regardant le premier.
+**Chantier : le bandeau des deux frontends — COMPLET, MERGÉ `main`, branches supprimées.**
+Une seule session, deux chantiers successifs. Le second est né d'une demande faite en regardant le
+premier.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| Papa — le bandeau porte l'emblème ZETIS | branche `feat/bandeau-papa-zetis`, **PR #78 OUVERTE** |
-| Massimo — la galaxie tourne dans le bandeau | branche `feat/galaxie-header-massimo`, **PR #79 OUVERTE** |
-| Base des deux | `46d4333` — elles partent du même point |
+| Papa — le bandeau porte l'emblème ZETIS | **PR #78**, squash `4458574` |
+| Massimo — la galaxie tourne dans le bandeau | **PR #79**, squash `c02a555` |
+| Branches | **supprimées**, local et `origin`. `main` == `origin/main`, rien à pousser |
 | Migration · backend | **AUCUNE**, ni l'une ni l'autre. Tout est frontend + doc |
-| ADR | `docs/decisions/adr-0029-addendum-galaxie-dans-le-bandeau.md` (sur la branche galaxie) |
+| ADR | `docs/decisions/adr-0029-addendum-galaxie-dans-le-bandeau.md`, indexé dans `DECISIONS.md` |
 
-✅ **Sa ligne dans `DECISIONS.md` est posée, sur `main`** — jamais sur une branche, c'est la règle
-de l'ouverture (deux branches qui l'éditent = conflit garanti). Le fichier ADR lui-même vit sur la
-branche galaxie et arrivera avec le merge de #79 : l'index précède donc le document qu'il indexe,
-et c'est normal.
-
-⚠️ **Les deux PR ne se croisent pas** : Papa ne touche que `apps/frontend-papa/`, la galaxie que
-`apps/frontend-massimo/` + `docs/`. L'ordre de merge est indifférent.
-
-⚠️ **Sur la branche galaxie, le bandeau Papa n'existe pas.** Elle est née de `main` avant que #78
-soit mergée. Ce n'est pas une perte — c'est le mono-chantier qui fonctionne. Constaté à l'écran en
-cours de session, et c'est une question qui reviendra.
+⚠️ **Les deux chantiers n'ont été sur le même arbre qu'APRÈS le merge.** Vérifié à ce moment-là,
+pas avant : **525 tests Massimo + 382 Papa verts**, `tsc -b` propre sur les deux, sur `main`
+fusionné. Deux branches nées du même point ne garantissent rien tant qu'elles ne se rencontrent pas.
 
 ### Ce que ces deux chantiers ont livré
 
@@ -93,19 +85,18 @@ appels lourds désormais demandés par deux surfaces.
 
 ### ▶ PROCHAIN PAS
 
-**Les deux chantiers sont FINIS.** Ce qui reste n'est pas du travail inachevé :
+**Ce chantier est CLOS.** `main` == `origin/main`, aucune branche, aucune PR ouverte, arbre propre.
+La prochaine session **ouvre un nouveau chantier** (`/ouverture`).
 
-1. 👤 **Regarder le bandeau Massimo en vrai** — c'est le seul point bloquant avant merge, et il ne
-   peut pas être fait par l'agent. **Rien n'a été jugé à l'œil** : le panneau navigateur de la
-   session rendait en taille réduite, donc tout ce qui est affirmé sur le rendu est **mesuré dans
-   le canvas**. À juger : la vitesse de rotation (72 s le tour), le remplissage (~65 % de la
-   largeur), la lisibilité du bloc avatar par-dessus.
-2. **Merger #78 et #79**, dans n'importe quel ordre.
-3. Revenir faire l'étape **4bis** (`WORKFLOW.md §5`) : squash, branches supprimées, « rien à
-   pousser ».
+⚠️ **Une seule chose est due sur ce qui vient d'être mergé, et elle n'est pas du code** :
 
-> La ligne de l'addendum dans `DECISIONS.md` est **déjà posée** sur `main` — plus rien à faire de
-> ce côté.
+👤 **REGARDER LE BANDEAU MASSIMO EN VRAI.** Il a été mergé **sans avoir jamais été vu** — le
+panneau navigateur de la session rendait en taille réduite, donc tout ce qui en est affirmé est
+**mesuré dans le canvas**, pas jugé à l'œil. C'était signalé avant le merge et le merge a été
+demandé quand même : ce n'est donc pas un oubli, c'est un arbitrage. Mais ça reste dû. À juger :
+vitesse de rotation (72 s le tour), remplissage (~65 % de la largeur), lisibilité du bloc avatar
+par-dessus. Si quelque chose cloche, les correctifs sont **déjà décidés** — voir DETTES OUVERTES.
+
 
 ### ▶ DETTES OUVERTES
 
@@ -115,8 +106,11 @@ appels lourds désormais demandés par deux surfaces.
 - 🔴 **LE BANDEAU MASSIMO N'A JAMAIS ÉTÉ VU.** Le panneau navigateur de la session rendait en taille
   réduite : tout ce qui est affirmé sur le rendu est **mesuré dans le canvas** (13–15 bandes sur 20
   occupées selon l'angle, cœur 9× plus lumineux que la périphérie, 86 % de pixels chauds, 19 im/s),
-  **pas vu**. C'est le seul point bloquant avant de merger #79, et il ne peut pas être fait par
-  l'agent. À juger : vitesse de rotation, remplissage, lisibilité du bloc avatar par-dessus.
+  **pas vu**. ⚠️ **Le merge de #79 a eu lieu QUAND MÊME**, sur décision explicite après que le point
+  a été signalé — c'est un arbitrage assumé, pas un oubli, mais la dette n'est pas éteinte pour
+  autant : elle est simplement passée d'« avant merge » à « sur `main` ». Elle ne peut pas être
+  payée par l'agent. À juger : vitesse de rotation, remplissage, lisibilité du bloc avatar
+  par-dessus.
 - **`IN_FLIGHT_BUDGET` (32), `ROTATION_PERIOD` (72 s), `FLATTEN` (0,035) et `HEADER_TOTAL` (7 s) ne
   sont pas passés au profileur.** L'addendum ADR-0024 reproche à `GALAXY_MAX_NODES` que « ses
   valeurs n'ont JAMAIS été mesurées » — ne pas refaire la même chose. Une capture Safari sur iPhone,
