@@ -4,6 +4,38 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Outillage — graphify (2026-08-04)
+
+### `graphify explain` ment par omission sur un nom dupliqué
+
+Mesuré le 2026-08-04. `graphify explain "_active_year"` rend **un seul** nœud —  celui de
+`dashboard/service.py` — présenté comme LA réponse, avec sa source, sa communauté et ses voisins.
+
+Or le graphe en contient **sept** (vérifié dans `graph.json`) : `curriculum`, `mindmaps`,
+`missions`, `dashboard`, `fiches`, `quizzes`, `production.coverage`.
+
+⚠️ **Aucun avertissement, aucune mention des six autres.** C'est le pire comportement possible
+quand la question posée EST la duplication : la commande ne se contente pas de manquer l'info,
+elle **affirme** sur une occurrence arbitraire.
+
+**Parade** : pour une question de duplication, `grep -rn "def <nom>"` dit la vérité. `explain` sert
+à comprendre UN nœud dont on sait déjà qu'il est unique.
+
+> À l'inverse, `graphify query` s'en sort : c'est lui qui a fait apparaître le **3ᵉ** résolveur de
+> leçon (`resolve_canonical_context`) que le cadrage de l'ADR-0037 ignorait — il rend une liste de
+> nœuds, pas une réponse unique.
+
+### `graphify affected` remplace le grep d'impact — et n'était pas utilisé
+
+`graphify affected "<fn>"` rend les appelants d'une fonction, en une commande. Sur les helpers des
+modules neutres (`provenance`, `lesson_resolution`, `canonical_context`, `equipment`), **cette
+liste EST le périmètre de non-régression**.
+
+Six commandes de `graphify --help` n'avaient jamais servi (`affected`, `path`, `explain`,
+`diagnose multigraph`, `save-result`, `reflect`). `affected` est entrée dans `/slice` §1bis le
+2026-08-04.
+
+
 ## Chantier `feat/lecon-canonique` — la leçon d'une notion (ADR-0037) — 2026-08-03
 
 ### 🔴 DEUX de mes tests passaient pour la MAUVAISE raison — les deux démasqués par la contre-épreuve
