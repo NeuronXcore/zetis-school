@@ -245,12 +245,16 @@ export function notAddressed(notions: DashboardNotions): number {
 export const CARD_SCOPES: Record<string, DashboardFocus[]> = {
   heatmap: ["active_minutes", "active_days"],
   repartition: ["active_minutes"],
-  memoire: ["consolidated"],
-  notions: ["consolidated", "open_gaps"],
-  "ou-agir": ["active_minutes", "consolidated", "open_gaps"],
+  memoire: ["consolidated", "fragile"],
+  notions: ["consolidated", "fragile", "open_gaps"],
+  "ou-agir": ["active_minutes", "consolidated", "fragile", "open_gaps"],
   charge: ["active_days", "consolidated"],
   chaine: ["open_gaps"],
-  lecture: ["consolidated", "open_gaps"],
+  // « À renforcer » allume la Lecture ZETIS parce qu'elle énonce littéralement « Français : 8
+  // notions à renforcer » — c'est la preuve du KPI en toutes lettres. Il n'allume PAS `chaine`
+  // (production, pas maîtrise) ni `charge` : un focus qui n'atténue plus rien est un clic qui ne
+  // veut plus rien dire (addendum ADR-0028 §5 quinquies).
+  lecture: ["consolidated", "fragile", "open_gaps"],
 };
 
 /** La carte répond-elle à la question posée par le focus courant ? */
@@ -269,7 +273,10 @@ export const DROPOUT_THRESHOLD = 4;
 export const KPI_ORDER: DashboardFocus[] = [
   "active_minutes",
   "active_days",
+  // Les trois KPI de notions se lisent de gauche à droite dans l'ordre du parcours pédagogique :
+  // ce qui est acquis, ce qui glisse, ce qui attend une décision (addendum ADR-0028 §5 bis).
   "consolidated",
+  "fragile",
   "open_gaps",
 ];
 
@@ -283,14 +290,46 @@ export const KPI_LABELS: Record<DashboardFocus, string> = {
   active_minutes: "Temps actif",
   active_days: "Régularité",
   consolidated: "Notions consolidées",
+  // Mot pour mot le segment ambre de la barre empilée : le KPI et son segment doivent se
+  // reconnaître à l'œil, deux noms fabriqueraient deux mesures (addendum ADR-0028 §5 bis).
+  fragile: "À renforcer",
   open_gaps: "Lacunes ouvertes",
 };
+
+/** L'avertissement d'honnêteté sur la courbe « À renforcer » — et sa date de péremption.
+ *
+ *  `skill_mastery_history` est récente : sur une fenêtre plus longue que l'historique, la courbe
+ *  ambre est plate jusqu'à la mise en service puis monte d'un coup. C'est un artefact, pas une
+ *  dégradation, et il faut le dire — **mais pas pour toujours**. Dès que l'historique couvre la
+ *  fenêtre regardée, la phrase disparaît d'elle-même (addendum ADR-0028 §5 octies).
+ *
+ *  Une phrase figée aurait été juste six mois puis fausse pour le reste de la vie du produit, et
+ *  personne ne serait revenu la retirer : c'est le mécanisme qui la retire, pas la vigilance.
+ */
+export function fragileHistoryNote(
+  historySince: string | null,
+  period: DashboardPeriod,
+  today: Date,
+): string | null {
+  if (!historySince) {
+    return "Aucune bascule n'est encore enregistrée : la courbe est plate faute de trace, pas par stabilité.";
+  }
+  const windowStart = new Date(today);
+  windowStart.setHours(0, 0, 0, 0);
+  windowStart.setDate(windowStart.getDate() - (Number(period) - 1));
+
+  const since = new Date(`${historySince}T00:00:00`);
+  if (Number.isNaN(since.getTime()) || since <= windowStart) return null;
+
+  return `L'historique des bascules ne commence qu'au ${since.toLocaleDateString("fr-FR")} : avant cette date la courbe est plate faute de trace, pas par stabilité.`;
+}
 
 /** Ce que chaque focus donne à voir — affiché sur la carte active, pour que le clic s'explique. */
 export const KPI_FOCUS_HINTS: Record<DashboardFocus, string> = {
   active_minutes: "Filtre actif → quand & sur quoi",
   active_days: "Filtre actif → rythme",
   consolidated: "Filtre actif → mémoire",
+  fragile: "Filtre actif → mémoire & où agir",
   open_gaps: "Filtre actif → où agir",
 };
 

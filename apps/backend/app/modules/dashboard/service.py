@@ -136,6 +136,24 @@ def _entered_fragile_at(db: Session, student_id: int) -> dict[int, date]:
     return {skill_id: local_day(changed_at) for skill_id, changed_at in rows if changed_at}
 
 
+def _history_since(db: Session, student_id: int) -> date | None:
+    """Plus ancienne bascule connue de `skill_mastery_history` — `None` si la table est vide.
+
+    Sert UNIQUEMENT à faire EXPIRER l'avertissement sur la jeunesse de la courbe ambre : le client
+    ne l'affiche que si la fenêtre regardée commence AVANT cette date (addendum ADR-0028 §5 octies).
+
+    ⚠️ Volontairement sur TOUS les statuts, et non sur les seuls fragiles : ce qu'on date ici est
+    la mise en service de l'historique, pas la première régression. Se restreindre aux statuts
+    fragiles rendrait une date plus RÉCENTE que la réalité et retirerait l'avertissement trop tôt.
+    """
+    when = db.scalar(
+        select(func.min(SkillMasteryHistory.changed_at)).where(
+            SkillMasteryHistory.student_id == student_id
+        )
+    )
+    return local_day(when) if when else None
+
+
 def _mastered_at(db: Session, student_id: int) -> dict[int, date]:
     rows = db.execute(
         select(SkillMastery.skill_id, SkillMastery.mastered_at).where(
@@ -624,6 +642,7 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
     covered_at = _covered_at(db)
     mastered_at = _mastered_at(db, student_id)
     fragile_at = _entered_fragile_at(db, student_id)
+    history_since = _history_since(db, student_id)
 
     gaps_by_subject: dict[int, int] = {}
     for (subject_id,) in db.execute(
@@ -720,6 +739,7 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         today=today,
         pairs=pairs,
         mastered_at=mastered_at,
+        fragile_at=fragile_at,
         subjects=subjects,
     )
 
@@ -754,6 +774,7 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         ),
         "inbox": _inbox(db, student_id, year.id if year else None),
         "periods": periods,
+        "history_since": history_since.isoformat() if history_since else None,
         "subjects": subjects,
         "content_chain": _content_chain(db, year.id if year else None),
         "reading": _reading(db, student_id, subjects, ordered, today),
@@ -794,6 +815,7 @@ def _periods(
     today: date,
     pairs: list[tuple[LearningEvent, int]],
     mastered_at: dict[int, date],
+    fragile_at: dict[int, date],
     subjects: list[dict],
 ) -> dict[str, dict]:
     """KPI `{value, delta}` + sparklines de 12 points, par fenêtre.
@@ -812,6 +834,7 @@ def _periods(
 
     total_notions = sum(s["notions"]["total"] for s in subjects)
     consolidated_now = sum(s["notions"]["consolidated"] for s in subjects)
+    fragile_now = sum(s["notions"]["fragile"] for s in subjects)
     open_gaps_now = sum(s["gaps_open"] for s in subjects)
     without_mission = len(_gaps_without_mission(db, student_id))
     gap_opened = _gap_open_dates(db, student_id)
@@ -828,6 +851,17 @@ def _periods(
         prev_days = sum(1 for d in active_days_set if prev_first <= d <= prev_last)
         consolidated_delta = sum(1 for d in mastered_at.values() if first <= d <= last)
 
+        # La courbe ambre est calculée AVANT le KPI qu'elle accompagne, et le delta en est DÉRIVÉ
+        # (`value - series[0]`) plutôt que recompté (addendum ADR-0028 §5 ter). C'est une garantie
+        # de non-contradiction, pas une commodité : le chiffre et la sparkline dessinée trois
+        # millimètres plus bas ne peuvent pas raconter deux histoires différentes.
+        #
+        # ⚠️ Ce delta n'est donc PAS un solde et ne peut jamais être négatif : `reconstruct_series`
+        # projette l'ensemble d'AUJOURD'HUI à rebours, donc une notion réparée pendant la fenêtre
+        # disparaît des deux nombres au lieu d'être soustraite. « +4 » se lit « parmi les 13
+        # fragiles d'aujourd'hui, 4 le sont devenues sur la fenêtre ».
+        fragile_series = p.reconstruct_series(fragile_now, list(fragile_at.values()), marks)
+
         out[str(period)] = {
             "kpis": {
                 "active_minutes": {"value": minutes, "delta": minutes - prev_minutes},
@@ -836,6 +870,10 @@ def _periods(
                     "value": consolidated_now,
                     "of": total_notions,
                     "delta": consolidated_delta,
+                },
+                "fragile": {
+                    "value": fragile_now,
+                    "delta": fragile_now - fragile_series[0],
                 },
                 "open_gaps": {
                     "value": open_gaps_now,
@@ -853,6 +891,7 @@ def _periods(
                 "consolidated": p.reconstruct_series(
                     consolidated_now, list(mastered_at.values()), marks
                 ),
+                "fragile": fragile_series,
                 "open_gaps": p.reconstruct_series(open_gaps_now, gap_opened, marks),
             },
         }

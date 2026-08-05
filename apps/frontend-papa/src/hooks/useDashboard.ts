@@ -22,15 +22,23 @@ import { isDashboardPeriod } from "../lib/dashboardDerive";
 // carte gagne un panneau un jour, elle réutilise le même paramètre d'URL.
 const PANEL_KEY = "ou-agir";
 
-const FOCUSES: DashboardFocus[] = [
-  "active_minutes",
-  "active_days",
-  "consolidated",
-  "open_gaps",
-];
+// ⚠️ `Record<DashboardFocus, true>` et NON `DashboardFocus[]` — et c'est TOUT l'objet de cette
+// table. Un tableau de `DashboardFocus` reste parfaitement valide en étant **incomplet** : en
+// ajoutant le KPI « À renforcer » (addendum ADR-0028), élargir `DashboardKpis` a bien fait tomber
+// `KPI_LABELS` et `KPI_FOCUS_HINTS` — tous deux des `Record` — mais **pas cette liste**. Le clic
+// écrivait `?focus=fragile`, le garde ci-dessous le refusait, la carte ne s'activait jamais, et
+// `tsc` ne voyait rien. Même leçon que `Record<DashboardPeriod, …>` pour la fenêtre « Année » :
+// le filet n'est pas dans l'union, il est dans le `Record` typé PAR l'union.
+const FOCUSES: Record<DashboardFocus, true> = {
+  active_minutes: true,
+  active_days: true,
+  consolidated: true,
+  fragile: true,
+  open_gaps: true,
+};
 
 function isFocus(value: string | null): value is DashboardFocus {
-  return value !== null && (FOCUSES as string[]).includes(value);
+  return value !== null && Object.prototype.hasOwnProperty.call(FOCUSES, value);
 }
 
 export interface UseDashboard {

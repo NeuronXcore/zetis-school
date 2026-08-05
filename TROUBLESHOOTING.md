@@ -4,6 +4,82 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/kpi-a-renforcer` — le 5ᵉ KPI du dashboard Papa — 2026-08-05
+
+> ADR : `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md`, écrit **avant** le code.
+
+### 🔴 Une union qui pilote un comportement, gardée par un TABLEAU — le KPI est né inerte
+
+**Symptôme.** Le nouveau KPI « À renforcer » s'affichait correctement, mais cliquer dessus ne le
+mettait **jamais** en focus : `aria-pressed` restait à `"false"`. Aucune erreur, aucun test rouge,
+`tsc -b` propre.
+
+**Cause.** `useDashboard.ts` validait la valeur d'URL contre une liste blanche typée
+`DashboardFocus[]` :
+
+```ts
+const FOCUSES: DashboardFocus[] = ["active_minutes", "active_days", "consolidated", "open_gaps"];
+```
+
+Élargir `DashboardKpis` (donc `DashboardFocus = keyof DashboardKpis`) a bien fait tomber
+`KPI_LABELS` et `KPI_FOCUS_HINTS` — **des `Record`** — mais **pas cette liste** : un tableau de
+`DashboardFocus` reste parfaitement **valide en étant incomplet**. Le clic écrivait bien
+`?focus=fragile`, `isFocus` le refusait, `focus` retombait à `null`.
+
+**Parade.** Typer la liste blanche en **`Record<DashboardFocus, true>`** et tester l'appartenance
+par `hasOwnProperty` : l'omission devient une erreur de compilation.
+
+> **La règle, à opposer au prochain ajout : le filet n'est pas dans l'union, il est dans le
+> `Record` typé PAR l'union.** Troisième fois que cette leçon se paie ici — `DashboardPeriod`
+> (fenêtre « Année »), `COUNCIL_PERIOD_LABEL` (le Conseil annonçait « Trimestre 1 » pendant que
+> Papa regardait l'année), et celle-ci. Les deux premières étaient des `Record<string, …>` trop
+> larges, celle-ci un tableau — même trou, trois habits.
+
+### 🔴 `response_model` filtre la réponse HTTP en SILENCE
+
+**Symptôme potentiel** (évité de justesse). `GET /api/parent/dashboard` est servie avec
+`response_model=DashboardOut`. Un champ ajouté au dict de `build_dashboard` mais absent de
+`dashboard/schemas.py` est **retiré de la réponse HTTP sans erreur ni avertissement** : le service
+est juste, l'API ne sert rien, et un test qui appelle la fonction de service reste **vert**.
+
+**Parade.** `schemas.py` fait partie du périmètre de tout ajout de champ — l'ADR l'avait oublié,
+c'est le read-before-code qui l'a rattrapé. Et **tout verrou de contrat passe par la réponse HTTP**
+(`client.get(...)`), jamais par le dict du service. Vérifié par sabotage : retirer `fragile` du
+schéma fait tomber **3** tests.
+
+### 🔴 Un verrou qui compare `sum(x)` à `sum(x)` — tautologique, et vert sous n'importe quel sabotage
+
+**Symptôme.** L'ADR spécifiait le verrou « `kpis.fragile.value == Σ subjects[].notions.fragile` ».
+Or `_periods` calcule justement la valeur du KPI **par cette somme même** : l'assertion est vraie
+par construction et **ne peut pas tomber**.
+
+**Parade.** Un verrou n'en est un que par un **ancrage extérieur au payload** : le test pose un
+nombre connu de notions en base et l'écrit **en dur**.
+
+⚠️ **Et l'ancrage doit DISCRIMINER.** Le premier valait `1` — or le fixture `_seed` pose aussi
+**1** notion consolidée et **1** en cours : un KPI branché sur le mauvais segment serait resté
+vert. Porté à **2** (une `weak` + une `learning`), il tombe. **Un ancrage qui coïncide avec une
+autre grandeur du même fixture n'ancre rien.**
+
+Prouvé par trois sabotages, tous rouges : mauvais segment (2 rouges), champ retiré du schéma
+(3 rouges), delta non dérivé de la courbe (1 rouge).
+
+### ⚠️ Une infobulle qui cite un autre KPI rend les noms accessibles AMBIGUS
+
+`getByRole("button", { name: /À renforcer/ })` désigne **deux** boutons : l'infobulle de « Lacunes
+ouvertes » contient la chaîne « À renforcer » — elle explique justement que les deux ne sont pas la
+même mesure. Le nom accessible d'un bouton **concatène** ses descendants, `aria-label` compris.
+
+**Parade.** Ancrer sur le début du libellé : `/^À renforcer/`.
+
+### ⚠️ Le focus transite par l'URL — la bascule n'est pas synchrone au clic
+
+`toggleFocus` écrit dans les `searchParams`. Une assertion sèche juste après `fireEvent.click` lit
+encore l'ancien `aria-pressed`. **Parade** : `await waitFor(() => expect(kpi).toHaveAttribute(…))`,
+l'idiome déjà en place dans `DashboardPage.test.tsx`.
+
+---
+
 ## Chantier `feat/souffle-focus-dashboard` — souffle, donut, créneaux, semaine en cours — 2026-08-05
 
 > ⚠️ **Chantier sans ADR** (quatre demandes directes du user, jamais `/ouverture`). Les décisions

@@ -166,6 +166,10 @@ def test_les_quatre_fenetres_sont_dans_la_MEME_reponse(client_db) -> None:
             "active_minutes",
             "active_days",
             "consolidated",
+            # Cinquième KPI depuis l'addendum ADR-0028 §5 bis. L'ensemble reste une égalité
+            # STRICTE : c'est elle qui a signalé le changement de contrat au lieu de le laisser
+            # passer.
+            "fragile",
             "open_gaps",
         }
 
@@ -253,6 +257,118 @@ def test_le_calendrier_reste_a_26_semaines_malgre_le_chargement_elargi(client_db
     assert all(date.fromisoformat(d) >= limite for d in jours), (
         f"la grille a débordé au-delà de 26 semaines : {jours}"
     )
+
+
+def _seed_seconde_fragile_datee(TestSession) -> None:
+    """Ajoute une SECONDE notion fragile, celle-ci datée dans `skill_mastery_history`.
+
+    ⚠️ Deux fragiles et non une : `_seed` pose 1 consolidée, 1 fragile et 1 en cours, donc un
+    attendu de **1** coïnciderait avec le compte de DEUX autres segments — un KPI branché sur le
+    mauvais segment resterait vert. À 2, l'ancrage discrimine.
+    """
+    with TestSession() as db:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        extra = m.Skill(subject_id=subject.id, name="N-ambre", level="4e")
+        db.add(extra)
+        db.flush()
+        db.add(
+            m.SkillMastery(
+                student_id=student.id, skill_id=extra.id, status="learning", mastery_score=40
+            )
+        )
+        db.add(
+            m.SkillMasteryHistory(
+                student_id=student.id,
+                skill_id=extra.id,
+                status="learning",
+                mastery_score=40,
+                changed_at=datetime.now(UTC) - timedelta(days=3),
+            )
+        )
+        db.commit()
+
+
+def test_le_kpi_a_renforcer_vaut_la_somme_des_segments_ambre(client_db) -> None:
+    """🔴 Le verrou de l'addendum ADR-0028 §5 nonies : un KPI ne peut pas compter autre chose que
+    la carte qu'il éclaire.
+
+    ⚠️ **Le compte attendu est écrit EN DUR**, et surtout pas dérivé du payload. `_periods` calcule
+    justement `fragile_now` PAR cette somme sur `subjects` : opposer `kpis.fragile` à
+    `Σ subjects[].notions.fragile` sans point d'ancrage extérieur reviendrait à comparer `sum(x)` à
+    `sum(x)` — vrai par construction, et vert sous n'importe quel sabotage. C'est le motif du
+    test-verrou qui ne verrouille rien, déjà payé trois fois sur ce dépôt.
+
+    Et il passe par la RÉPONSE HTTP, pas par le dict du service : la route est servie avec
+    `response_model=DashboardOut`, donc un champ absent du schéma Pydantic serait filtré en
+    silence — le service pourrait être juste et l'API ne rien servir.
+    """
+    client, TestSession = client_db
+    _seed(TestSession)
+    _seed_seconde_fragile_datee(TestSession)
+    _as_papa()
+
+    body = client.get("/api/parent/dashboard").json()
+
+    attendu = 2  # une `weak` (`_seed`) + une `learning` — et 1 seule consolidée, 1 seule en cours
+    for period, data in body["periods"].items():
+        assert data["kpis"]["fragile"]["value"] == attendu, f"fenêtre {period}"
+    assert sum(s["notions"]["fragile"] for s in body["subjects"]) == attendu
+
+
+def test_le_delta_a_renforcer_compte_les_ENTREES_de_la_fenetre(client_db) -> None:
+    """Le delta est DÉRIVÉ de la courbe (`value - series[0]`), jamais recompté (§5 ter).
+
+    Ancré sur une bascule réelle : deux notions fragiles, dont une seule est datée par
+    `skill_mastery_history`. La seconde est fragile « depuis avant la mise en service » et compte
+    donc sur toute la fenêtre — elle ne doit PAS gonfler le delta.
+    """
+    client, TestSession = client_db
+    _seed(TestSession)
+    _seed_seconde_fragile_datee(TestSession)
+    _as_papa()
+
+    body = client.get("/api/parent/dashboard").json()
+
+    for period, data in body["periods"].items():
+        kpi = data["kpis"]["fragile"]
+        serie = data["sparks"]["fragile"]
+        assert kpi["value"] == 2, f"fenêtre {period}"
+        assert serie[-1] == kpi["value"], "la courbe finit sur le chiffre affiché à côté d'elle"
+        assert serie[0] == 1, "la notion non datable compte AVANT la bascule, la datée non"
+        assert kpi["delta"] == kpi["value"] - serie[0] == 1, f"fenêtre {period}"
+        assert kpi["delta"] >= 0, "ce delta compte des ENTRÉES, il ne peut pas être un solde"
+
+
+def test_l_avertissement_sur_la_jeunesse_de_la_courbe_peut_EXPIRER(client_db) -> None:
+    """`history_since` date la mise en service de l'historique, pour que la phrase d'honnêteté
+    disparaisse d'elle-même (§5 octies) au lieu de devenir fausse et de rester.
+
+    `_seed` n'écrit aucune bascule : la table est vide, et le champ vaut `null` — pas une date
+    inventée, pas aujourd'hui.
+    """
+    client, TestSession = client_db
+    _seed(TestSession)
+    _as_papa()
+
+    assert client.get("/api/parent/dashboard").json()["history_since"] is None
+
+    with TestSession() as db:
+        student = db.query(m.StudentProfile).first()
+        skill = db.query(m.Skill).first()
+        db.add(
+            m.SkillMasteryHistory(
+                student_id=student.id,
+                skill_id=skill.id,
+                status="weak",
+                mastery_score=30,
+                changed_at=datetime.now(UTC) - timedelta(days=10),
+            )
+        )
+        db.commit()
+
+    attendu = (datetime.now(UTC) - timedelta(days=10)).date().isoformat()
+    assert client.get("/api/parent/dashboard").json()["history_since"] == attendu
 
 
 def test_l_xp_a_quitte_les_kpi(client_db) -> None:

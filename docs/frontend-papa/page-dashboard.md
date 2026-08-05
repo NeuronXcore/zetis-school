@@ -113,9 +113,29 @@ dénominateur « x / N jours » supposent une longueur fixe (addendum `adr-0028`
 > typé **par** l'union. Table partagée : `COUNCIL_PERIOD_LABEL` + garde `isDashboardPeriod`
 > (`lib/dashboardDerive.ts`), source unique du sélecteur, du hook et du lien profond.
 
-Quatre KPI, **cliquables** (`role="button"`, `aria-pressed`) : **Temps actif**, **Régularité**,
-**Notions consolidées**, **Lacunes ouvertes**. Chacun porte `{ value, delta }` (contrat existant,
-delta vs période précédente) et une **sparkline** de 12 points.
+Cinq KPI, **cliquables** (`role="button"`, `aria-pressed`) : **Temps actif**, **Régularité**,
+**Notions consolidées**, **À renforcer**, **Lacunes ouvertes**. Chacun porte `{ value, delta }`
+(contrat existant, delta vs période précédente) et une **sparkline** de 12 points.
+
+> **« À renforcer »** (`weak` + `learning`) est arrivé le 2026-08-05 avec
+> `adr-0028-addendum-kpi-a-renforcer` : c'est le seul signal de **régression** du bandeau, et il ne
+> vivait jusque-là que dans la barre empilée et la courbe ambre. Trois propriétés le distinguent
+> des quatre autres :
+>
+> - **pas de dénominateur** — « 13 / 280 » rapporterait les fragiles au programme entier, non
+>   abordées comprises ;
+> - **son delta est DÉRIVÉ de sa courbe** (`value - sparks.fragile[0]`), jamais recompté : le
+>   chiffre et la sparkline ne peuvent pas se contredire. Il compte donc des **entrées** et n'est
+>   **jamais négatif** — une notion réparée disparaît des deux nombres au lieu d'être soustraite ;
+> - **une hausse est une mauvaise nouvelle**, l'inverse des quatre autres. Le sens passe par la
+>   **couleur** (ambre de bout en bout, le même que son segment dans la barre empilée), jamais par
+>   une flèche inversée. D'où la prop `deltaTone: "good" | "bad"` — et non `deltaDirection`, qui
+>   aurait donné le bon rendu par un chemin faux puisque rien n'y descend.
+>
+> Les trois KPI de notions portent chacun une infobulle : elles sont ce qui empêche « À renforcer »
+> (un palier de maîtrise) et « Lacunes ouvertes » (une décision ouverte, autre table) d'être lus
+> comme deux mesures du même objet. Le payload sert `history_since` pour que l'avertissement sur la
+> jeunesse de `skill_mastery_history` **s'auto-périme**.
 
 Comportement (`adr-0028 §5`) : le clic met la page en focus — les cartes hors périmètre passent à
 `opacity: .32` + désaturation, celles du périmètre reçoivent une bordure émeraude. Second clic =

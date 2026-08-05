@@ -22,11 +22,18 @@ interface KpiFocusCardProps {
   unit?: string;
   /** Écart déjà formaté et signé. `null` = rien à montrer — un « +0 » n'informe de rien. */
   delta?: string | null;
-  deltaDirection?: "up" | "down";
+  /** Le SENS de l'écart, pas sa direction. Sur « À renforcer » une hausse est une mauvaise
+   *  nouvelle : brancher un tel KPI sur un `deltaDirection="down"` aurait donné le bon ambre par un
+   *  chemin faux — rien n'y descend (addendum ADR-0028 §5 quater). */
+  deltaTone?: "good" | "bad";
   hint?: string;
   /** Infobulle d'honnêteté méthodologique, affichée au survol du « i ». */
   info?: string;
   spark: number[];
+  /** Teinte de la mesure elle-même — valeur, courbe et indication de focus. `warn` existe pour
+   *  que « À renforcer » porte le MÊME ambre que son segment dans la barre empilée : c'est ce qui
+   *  fait que le KPI et le segment se reconnaissent (addendum ADR-0028 §5 quater). */
+  tone?: "accent" | "warn";
   active: boolean;
   focusHint: string;
   onToggle: (focus: DashboardFocus) => void;
@@ -38,14 +45,16 @@ export function KpiFocusCard({
   value,
   unit,
   delta,
-  deltaDirection,
+  deltaTone,
   hint,
   info,
   spark,
+  tone = "accent",
   active,
   focusHint,
   onToggle,
 }: KpiFocusCardProps) {
+  const toneClass = tone === "warn" ? "text-papa-warn" : "text-papa-accent";
   return (
     <button
       type="button"
@@ -70,13 +79,17 @@ export function KpiFocusCard({
         )}
       </span>
 
-      <span className="mt-2 block font-mono text-2xl font-semibold tracking-tight">
+      <span
+        className={`mt-2 block font-mono text-2xl font-semibold tracking-tight ${
+          tone === "warn" ? toneClass : ""
+        }`}
+      >
         {value}
         {unit && <span className="text-base text-papa-muted">{unit}</span>}
         {delta && (
           <span
             className={`ml-1.5 text-xs font-semibold ${
-              deltaDirection === "down" ? "text-papa-warn" : "text-papa-accent"
+              deltaTone === "bad" ? "text-papa-warn" : "text-papa-accent"
             }`}
           >
             {delta}
@@ -86,14 +99,14 @@ export function KpiFocusCard({
 
       {hint && <span className="mt-1 block text-xs text-papa-muted">{hint}</span>}
 
-      <span className="mt-2 block text-papa-accent">
+      <span className={`mt-2 block ${toneClass}`}>
         <Sparkline points={spark} label={`${label} — évolution sur la période`} />
       </span>
 
       {/* Réservé même inactif : sans cela, activer un KPI ferait sauter la hauteur de toute la
           rangée, et la page bougerait sous le curseur au moment du clic. */}
       <span
-        className={`mt-1.5 block text-xs font-semibold ${active ? "text-papa-accent" : "text-transparent"}`}
+        className={`mt-1.5 block text-xs font-semibold ${active ? toneClass : "text-transparent"}`}
         aria-hidden={!active}
       >
         {focusHint}

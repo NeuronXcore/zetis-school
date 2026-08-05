@@ -126,11 +126,30 @@ vouloir dire acquis, pas « presque ». L'instant de bascule est horodaté (`ski
 et n'est jamais re-tamponné tant que la notion reste consolidée — sans quoi « consolidées cette
 semaine » recompterait éternellement les mêmes notions.
 
+## Notion à renforcer
+
+Notion dont la maîtrise n'est pas assurée : `SkillMastery.status ∈ {weak, learning}`, définition
+portée par `dashboard/projections.FRAGILE_STATUSES`. Une notion qui **redescend** de `mastered`
+atterrit ici — c'est le seul signal de régression du dashboard, et il est daté par
+`skill_mastery_history` (ADR-0028 §3 ter).
+
+⚠️ **Ce n'est PAS une « lacune ouverte »** (entrée suivante). Une notion peut être `weak` sans avoir jamais produit
+de `Gap` (mauvais score à un quiz de fin de cours, sans diagnostic), et une lacune peut rester
+ouverte alors que la maîtrise est repassée à `solid`. Les deux mesures n'ont **aucune raison
+d'être égales** — relevé en base de dev le 2026-08-05 : **13** notions à renforcer pour **1**
+lacune ouverte. Les fondre sous un mot unique a déjà coûté un bug
+(`adr-0028-addendum-analyse-par-matiere`), puis un affichage de « 1 » à côté de « 9 » sur le même
+écran (`dashboardDerive.ts:276`).
+
 ## Lacune ouverte
 
 Lacune dont le statut est `open` ou `in_progress`. Définition **unique** portée par
-`progress/service.OPEN_GAP_STATUSES` (elle a existé en quatre exemplaires divergents). Formulée
-côté interface en « notion à renforcer » — jamais de vocabulaire d'échec (CLAUDE.md).
+`progress/service.OPEN_GAP_STATUSES` (elle a existé en quatre exemplaires divergents).
+
+Formulée côté interface en « **lacune ouverte** », jamais en « notion à renforcer » : ce libellé-là
+appartient au palier de maîtrise ci-dessus. Une lacune est une **décision ouverte** (diagnostic
+faible, erreurs répétées, marquage de Papa), pas un palier. Le vocabulaire d'échec reste interdit
+dans les deux cas (CLAUDE.md).
 
 ## Session (activité)
 

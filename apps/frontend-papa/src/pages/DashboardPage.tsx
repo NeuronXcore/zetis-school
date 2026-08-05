@@ -18,6 +18,7 @@ import { formatDelta, formatMinutes } from "../lib/heatmap";
 import {
   KPI_FOCUS_HINTS,
   KPI_LABELS,
+  fragileHistoryNote,
   sumReviewLoad,
   sumSeries,
 } from "../lib/dashboardDerive";
@@ -138,13 +139,16 @@ export function DashboardPage() {
 
       <DecisionQueue items={data.inbox} />
 
-      <div className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {/* Cinq colonnes depuis l'addendum ADR-0028 §5 decies. Le palier `md:grid-cols-3` évite le
+          2 + 2 + 1 des tablettes : en dessous, « Lacunes ouvertes » reste seule sur sa ligne, et
+          c'est assumé — cette page est desktop-first. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <KpiFocusCard
           focus="active_minutes"
           label={KPI_LABELS.active_minutes}
           value={formatMinutes(kpis.active_minutes.value)}
           delta={formatDelta(kpis.active_minutes.delta, "min")}
-          deltaDirection={kpis.active_minutes.delta < 0 ? "down" : "up"}
+          deltaTone={kpis.active_minutes.delta < 0 ? "bad" : "good"}
           hint="vs période précédente"
           info="Heuristique de présence reconstruite depuis le journal d'activité — pas une mesure d'attention."
           spark={sparks.active_minutes}
@@ -158,7 +162,7 @@ export function DashboardPage() {
           value={String(kpis.active_days.value)}
           unit={` / ${kpis.active_days.of} j`}
           delta={formatDelta(kpis.active_days.delta)}
-          deltaDirection={kpis.active_days.delta < 0 ? "down" : "up"}
+          deltaTone={kpis.active_days.delta < 0 ? "bad" : "good"}
           hint="Séances courtes, réparties"
           spark={sparks.active_days}
           active={focus === "active_days"}
@@ -171,11 +175,36 @@ export function DashboardPage() {
           value={String(kpis.consolidated.value)}
           unit={` / ${kpis.consolidated.of}`}
           delta={formatDelta(kpis.consolidated.delta)}
-          deltaDirection="up"
+          deltaTone="good"
           hint="sur la période"
+          info="Notions au palier « mastered » (score ≥ 90). Le dénominateur est le programme entier — non abordées comprises —, pas le nombre de notions travaillées."
           spark={sparks.consolidated}
           active={focus === "consolidated"}
           focusHint={KPI_FOCUS_HINTS.consolidated}
+          onToggle={dash.toggleFocus}
+        />
+        <KpiFocusCard
+          focus="fragile"
+          label={KPI_LABELS.fragile}
+          value={String(kpis.fragile.value)}
+          delta={formatDelta(kpis.fragile.delta)}
+          // Constant, et non dérivé du signe : ce delta compte des ENTRÉES en « à renforcer », il
+          // ne peut pas être négatif, et toute valeur non nulle est une mauvaise nouvelle. C'est
+          // la seule entorse à « vert = ça monte » du bandeau, et elle passe par la COULEUR.
+          deltaTone="bad"
+          hint="entrées sur la période"
+          info={[
+            "Notions déjà travaillées dont la maîtrise n'est pas assurée (« weak », « learning »). Une notion qui redescend de « consolidée » atterrit ici.",
+            "Ce n'est PAS le compteur de lacunes : une lacune est une décision ouverte, pas un palier de maîtrise — les deux nombres n'ont aucune raison d'être égaux.",
+            "L'écart compte les entrées de la fenêtre, jamais un solde : une notion réparée n'est pas soustraite, elle disparaît des deux nombres.",
+            fragileHistoryNote(data.history_since, period, new Date()),
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          spark={sparks.fragile}
+          tone="warn"
+          active={focus === "fragile"}
+          focusHint={KPI_FOCUS_HINTS.fragile}
           onToggle={dash.toggleFocus}
         />
         <KpiFocusCard
@@ -187,6 +216,7 @@ export function DashboardPage() {
               ? `${kpis.open_gaps.without_mission} sans mission`
               : "toutes prises en charge"
           }
+          info="Lignes « Gap » ouvertes ou en cours — ouvertes par un diagnostic faible, des erreurs répétées, ou par vous. Compte des décisions à traiter, pas des paliers de maîtrise : ce nombre et « À renforcer » n'ont aucune raison d'être égaux."
           spark={sparks.open_gaps}
           active={focus === "open_gaps"}
           focusHint={KPI_FOCUS_HINTS.open_gaps}

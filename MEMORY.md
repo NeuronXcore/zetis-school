@@ -7,137 +7,171 @@
 
 ## État à la reprise
 
-**Chantier : « le Dashboard Papa dit ce qu'il montre » — COMPLET et MERGÉ.**
-Quatre demandes du user enchaînées dans la même session, chacune née de la précédente en la
-regardant à l'écran. Aucune n'était cadrée à l'avance.
+**Chantier : « le KPI qui manque — À renforcer » (addendum ADR-0028) — COMPLET, vérifié à l'écran,
+prêt à pousser.**
+
+Parti d'une question du user sur les KPI de notions du dashboard Papa, passé par une maquette, un
+addendum d'ADR, puis la slice. Le rituel `mockup → ADR → code` a été tenu **dans l'ordre**, pour la
+première fois depuis plusieurs chantiers.
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR [#89](https://github.com/NeuronXcore/zetis-school/pull/89)**, squash **`045edf2`** (2026-08-05, 13 fichiers) — branche `feat/souffle-focus-dashboard` **supprimée**, locale et distante. `main` == `origin/main`, **rien à pousser** |
-| Base | **`09ce1fe`** (tête de `main` au départ) |
-| ADR | 🔴 **AUCUN** — voir l'écart plus bas. Les décisions vivent dans `docs/frontend-papa/page-dashboard.md` |
-| Migration | **aucune** — pas une colonne, pas un endpoint, pas un type partagé |
-| Suites | **561 Papa** (545 → 561, **+16** : 14 dans `DashboardPage.test.tsx`, 2 dans `dashboardDerive.test.ts`), `tsc -b` propre. Backend et Massimo **non relancés** : pas une ligne touchée |
-| Vérifié à l'écran | **OUI**, sur les VRAIES données, session Papa connectée — sauf `prefers-reduced-motion` et le **mouvement** du souffle |
+| **État** | ✅ **COMPLET.** Code vert, et **le bandeau a été regardé à l'écran par le user** avant toute PR (`WORKFLOW.md §5bis`) — contrairement au bandeau Massimo #79 et au souffle #89, dont les dettes visuelles restent dues. Prochain pas = commit + push + PR |
+| Branche | `feat/kpi-a-renforcer`, **poussée** — `origin/feat/kpi-a-renforcer` est identique au local. Commits : `git log --oneline main..HEAD` |
+| Base | **`5678f06`** (`docs(adr): le KPI qui manque…`) |
+| ⚠️ **État git anormal** | **`main` local a 1 commit d'avance sur `origin/main`.** `5678f06` (l'ADR + le glossaire) n'est arrivé sur le distant **que par la branche**, jamais sur `origin/main`. Après un merge en squash, le `main` local devra être **réaligné** (`git fetch && git reset --hard origin/main`) — un simple `git pull` divergera |
+| ADR | `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md` — écrit **avant** le code, **corrigé pendant** (trois corrections, plus bas) |
+| Migration | **aucune** · Route nouvelle : **aucune** · Requête nouvelle : **une** (`history_since`) |
+| Suites | backend **935 ✅** (`test_dashboard.py` 31 → 34, **+3**) · Papa **563 ✅** (561 → 563, **+2**) · Massimo **525 ✅**, non touché · `tsc -b` propre sur les deux fronts |
+| PR | **aucune** — `gh pr list --head feat/kpi-a-renforcer` rend `[]` |
+| Vérifié à l'écran | ✅ **OUI — par le user**, sur la paire `backend-dev` :8001 + `papa-dev` :5175, session Papa connectée. Cinq points passés : la carte ambre parmi les cinq, le 13 / +4 et sa courbe en marche, les quatre infobulles, le clic (quatre cartes retenues dont la Lecture ZETIS) et les trois paliers de grille. ⚠️ **L'agent, lui, ne l'a jamais vu** — `localStorage` vide après le redémarrage des serveurs, et il ne saisit pas de mot de passe |
 
-Le chantier avait été **découpé en quatre commits, chacun vérifié vert sur son propre état** avant
-d'être écrit. ⚠️ **Ce découpage n'existe plus sur `main`** : le merge est un squash, comme toute PR
-de ce dépôt. Il reste consultable dans la PR #89. La méthode, elle, vaut d'être reprise et vit dans
-`TROUBLESHOOTING.md` : figer tout dans un commit jetable, remettre la branche sur la base,
-reconstruire en avançant, et prouver d'un `git diff <jetable> HEAD` **vide** que rien n'est perdu.
+### FAIT
 
-### Les quatre chantiers, et ce que chacun a trouvé
+Le bandeau du dashboard Papa passe de **quatre à cinq KPI**. Le cinquième, **« À renforcer »**
+(`weak` + `learning`), est le seul signal de **régression** de la page : il ne vivait jusque-là que
+dans la barre empilée et la courbe ambre, à deux cartes du seul endroit qu'on lit tôt.
 
-1. **Le souffle du focus.** Un voile émeraude qui enfle et retombe sous le KPI cliqué et les cartes
-   qui le fondent. ⚠️ Mon premier réglage (13 % de teinte, voile sur 38–54 % de la hauteur) était
-   **purement invisible** sur une carte haute — corrigé après comparaison de quatre variantes à
-   dimensions réelles. Puis renforcé sur demande du user (24→32 % / 20→28 %, cadre des cartes passé
-   de `/50` au plein).
-2. **Le centre du donut ignorait la matière sélectionnée.** Comportement **délibéré et
-   test-verrouillé** — non rouvert : le centre suit la sélection, le total reste dessous, et sans
-   sélection rien ne change (l'ancien verrou reste vert).
-3. **La semaine type ne disait pas à QUOI.** La case devient une barre : longueur = intensité,
-   segments = matières. Infobulle au survol et au focus clavier.
-4. **Une question du user a révélé un nombre trompeur.** *« Nous ne sommes pas encore jeudi ni
-   samedi, pourquoi des cases remplies ? »* Les cases étaient justes — jeudi 30 et samedi 1ᵉʳ, dans
-   la fenêtre glissante — mais des en-têtes `Lun…Dim` se lisent comme un calendrier. Trois réponses :
-   la fenêtre est **datée en clair**, le mot **« moyenne » disparaît sur 7 jours** (le serveur y
-   divise par 1), et une **troisième vue « Semaine en cours »** naît, datée, où un jour à venir est
-   marqué comme tel et **jamais compté à zéro**.
+- **Backend** — `kpis.fragile` et `sparks.fragile` (réemploi de `_entered_fragile_at` et
+  `reconstruct_series`, déjà en place depuis l'ADR-0028 §3 ter), `history_since` au niveau du
+  payload, et les champs correspondants dans `dashboard/schemas.py`.
+- **Types partagés** — `fragile` dans `DashboardKpis` / `DashboardSparks`, `history_since` dans
+  `DashboardPayload`.
+- **Front** — la carte ambre et son focus, `deltaDirection` → **`deltaTone`** (3 sites),
+  `CARD_SCOPES` étendu à quatre cartes, grille `md:grid-cols-3 xl:grid-cols-5`, **quatre
+  infobulles** (les trois KPI de notions + le segment « en cours » de la légende).
+- **Tests** — 3 backend (le verrou, le delta ancré sur une bascule réelle, l'expiration de
+  `history_since`) + 2 front (rendu de la carte, et le focus **qui a trouvé un bug réel**).
+- **Docs** — `page-dashboard.md` (« Quatre KPI » → cinq, + le bloc qui explique les trois
+  propriétés qui distinguent ce KPI), `API_SPEC.md`, `GLOSSARY.md` (entrée « Notion à renforcer »
+  créée, « Lacune ouverte » remise au réel), `CHANGELOG.md`.
 
-### Décisions actives — à relire, pas à rouvrir
+**Vérifié sur la VRAIE base** (`scripts` jetable, base de dev) : `history_since = 2026-07-31`,
+Σ segments ambre = **13** = valeur du KPI, `delta = +4` sur les quatre fenêtres, courbe 30 j
+`[9,9,9,9,9,9,9,9,9,12,13,13]` — exactement celle que la maquette annonçait.
 
-1. **Le souffle DOUBLE le signe, il ne le porte jamais seul.** Bordure et anneau restent porteurs ;
-   rien ne se perd s'il est coupé. C'est ce qui le distingue du halo de régime en sidebar, **seul
-   endroit du dépôt où une animation porte de l'information**. En `prefers-reduced-motion` il se
-   fige à mi-course : le mouvement part, le voile reste.
-2. **Le tracé du donut ne suit PAS le filtre, seul son centre le suit.** Réduit à une matière, le
-   donut occuperait 100 % du disque et ne dirait plus rien de sa part réelle. Le **total reste
-   affiché** sous la valeur filtrée — c'est ce qui le raccorde au KPI du haut.
-3. **La matière sélectionnée se cherche dans `allSubjects`, jamais dans les parts dessinées.** À
-   0 minute elle n'a aucune part : la chercher là la ferait retomber sur le total, et le bug ne se
-   verrait que sur les matières inactives — donc jamais.
-4. **Dans les créneaux, la couleur nomme une MATIÈRE, plus une intensité.** L'intensité passe dans
-   la longueur de la barre. Écart **assumé** avec la vue Calendrier, qui garde son échelle émeraude :
-   là-bas une case est un jour, et un jour n'a pas de composition à montrer.
-5. **L'échelle des barres est RELATIVE au maximum de la grille.** Une semaine type se lit en
-   comparant ses créneaux entre eux ; un seuil fixe écraserait toutes les cases d'un enfant qui
-   travaille par sessions courtes.
-6. **Un jour à venir n'est pas un jour à zéro.** « Il n'a rien fait vendredi » et « on n'est pas
-   encore vendredi » sont deux phrases différentes, et une seule est vraie un mercredi.
-7. **Pas de découpage horaire dans « Semaine en cours »**, et ce n'est pas un oubli : `slots` est
-   replié par jour de semaine côté serveur et a **perdu les dates**. Dit dans la note plutôt que
-   laissé passer pour un manque.
-8. **`sumSlots` est REMPLACÉ par `buildSlotCells`, pas doublé** — un seul appelant, et le garder
-   aurait laissé du code mort avec son test.
+### ▶ EN COURS / À FAIRE
+
+**Rien.** Aucun fichier instable, aucune vérification en attente : la relecture à l'écran est faite,
+il ne reste que le geste git.
+
+### DÉCISIONS ACTIVES — à relire, pas à rouvrir
+
+1. **Le delta de « À renforcer » est DÉRIVÉ de sa courbe** (`value - sparks.fragile[0]`), jamais
+   recompté. Ce n'est pas une commodité : c'est ce qui interdit au chiffre et à la sparkline de se
+   contredire. ⚠️ Il compte donc des **entrées** et n'est **jamais négatif** — une notion réparée
+   disparaît des deux nombres au lieu d'être soustraite. Le vrai solde a été **écarté** : il
+   contredirait la courbe affichée juste en dessous.
+2. **Pas de dénominateur sur ce KPI.** « 13 / 280 » rapporterait les fragiles au programme entier,
+   dont **261 notions jamais abordées**.
+3. **« En cours » reste UN segment** (`solid` ≥ 70 + `in_progress` + non tranché). Fourre-tout
+   **assumé et documenté** dans une infobulle, pas scindé.
+4. **Le sens de lecture passe par la COULEUR**, jamais par une flèche inversée : sur ce KPI une
+   hausse est une mauvaise nouvelle, et c'est la seule entorse à « vert = ça monte » du bandeau.
+5. **« À renforcer » ≠ « Lacunes ouvertes »** — un palier de maîtrise contre une décision ouverte,
+   deux tables. Les infobulles sont ce qui empêche la confusion de revenir ; si elles ne
+   suffisent pas, c'est le **libellé** qu'il faudra changer, pas l'infobulle qu'il faudra rallonger.
+6. **L'avertissement sur la jeunesse de la courbe s'AUTO-PÉRIME** via `history_since` — une phrase
+   figée aurait été juste six mois puis fausse pour toujours.
 
 ### ⚠️ Pièges payés en vrai, à ne pas re-découvrir
 
-1. 🔴 **Un test-verrou évident aurait été vert sans rien vérifier.** `toHaveTextContent("1h05")` sur
-   la carte du donut passe **grâce au `<title>` du segment SVG**, même si le centre n'a pas bougé.
-   Il faut viser les `<text>` du centre. Même famille que les trois occurrences déjà consignées.
-2. 🔴 **`overflow-x: auto` rogne AUSSI en vertical.** Fixer un axe force l'autre à `auto` : une
-   infobulle en absolu dans la grille des créneaux serait coupée en haut et en bas. D'où le
-   `position: fixed`, qui échappe au rognage d'un ancêtre.
-3. ⚠️ **Une fixture de test qui ne remplit qu'une fenêtre casse en silence dès qu'un test change de
-   période.** `slots["7"]` seul → grille vide sur `?period=30`, sans erreur.
-4. ⚠️ **Les coordonnées de `hover` du MCP Chrome sont dans l'espace de la CAPTURE, pas en pixels
-   CSS.** Facteur ×0,817 ici. Un survol envoyé aux coordonnées lues par `getBoundingClientRect`
-   atterrit ailleurs, et l'infobulle « ne marche pas ».
-5. ⚠️ **Le panneau navigateur de la session est un navigateur SÉPARÉ**, avec sa propre session : le
-   user s'était connecté dans son Chrome, et j'ai attendu une connexion qui n'arriverait jamais.
-   Pour voir un écran authentifié, passer par `mcp__claude-in-chrome__*`.
+1. 🔴 **Une union qui pilote un comportement ne se garde JAMAIS par un tableau.** `useDashboard`
+   validait le focus d'URL contre un `DashboardFocus[]` : un tableau **incomplet reste valide**,
+   `tsc` est resté muet, le clic écrivait `?focus=fragile`, le garde le refusait, **et la carte ne
+   s'activait jamais**. Le KPI serait parti **inerte**. Corrigé en `Record<DashboardFocus, true>`.
+   **Troisième occurrence** de cette leçon (`DashboardPeriod`, `COUNCIL_PERIOD_LABEL`, celle-ci).
+2. 🔴 **`response_model=DashboardOut` FILTRE la réponse en silence.** Un champ ajouté au dict du
+   service mais absent du schéma Pydantic **disparaît du HTTP sans erreur**. D'où : tout verrou de
+   contrat passe par la **réponse HTTP**, jamais par le dict du service.
+3. 🔴 **Mon verrou, écrit tel quel dans l'ADR, était TAUTOLOGIQUE** — le service calcule la valeur
+   du KPI **par la somme même** qu'on lui opposait. Un verrou n'en est un que par un **ancrage hors
+   payload**. ⚠️ Et l'ancrage doit **discriminer** : le premier valait `1`, ce qui coïncidait avec
+   le compte des consolidées **et** des « en cours » du même fixture.
+4. ⚠️ **Une infobulle qui cite un autre KPI rend les noms accessibles ambigus.** L'infobulle de
+   « Lacunes ouvertes » contient la chaîne « À renforcer », donc `getByRole("button", {name:
+   /À renforcer/})` désigne **deux** boutons. Ancrer sur le début (`/^À renforcer/`).
+5. ⚠️ **Le focus transite par l'URL : la bascule n'est pas synchrone au clic.** Une assertion sèche
+   après `fireEvent.click` lit l'ancien `aria-pressed`. Utiliser `waitFor`.
 
-Le détail de ces pièges, avec cause et parade, vit dans `TROUBLESHOOTING.md`
-§`feat/souffle-focus-dashboard`.
+Détail, cause et parade : `TROUBLESHOOTING.md` §`feat/kpi-a-renforcer`.
+
+### Ce que le read-before-code a corrigé DANS L'ADR
+
+Trois corrections écrites dans le document lui-même, pour que personne ne les redécouvre :
+`dashboard/schemas.py` manquait au §Coût · « aucune requête de plus » était faux
+(`history_since` en coûte une) · le verrou du §5 nonies était tautologique.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS et MERGÉ** (PR #89, squash `045edf2`). Branche supprimée des deux côtés,
-arbre propre, `main` == `origin/main` — vérifié après le merge. **Étape 4bis faite.**
+**Le commit de la slice est FAIT** (`feat(dashboard): le bandeau nomme enfin ce qui glisse…`,
+16 fichiers, `.claude/launch.json` correctement exclu). La vérification à l'écran est faite.
 
-Le prochain chantier se choisit dans les DETTES ci-dessous, ou se cadre.
+Reste, dans l'ordre : **committer la bascule de ce fichier en COMPLET** (elle a été écrite après le
+commit de la slice) → **push** → **PR** → merge → **4bis**.
 
-> 🗒️ **Note du user à la clôture** : *« on continuera sur dashboard la prochaine session »*. Le
-> **sujet** continue, pas ce chantier-ci. Le prochain se cadre normalement — `/ouverture`, ADR
-> avant le code —, et il devra commencer par le point suivant.
+```bash
+git add MEMORY.md && git commit -m "docs(memory): le bandeau a été vu — chantier COMPLET" && git push -u origin feat/kpi-a-renforcer
+```
 
-🔴 **L'écart de CE chantier, à ne pas reproduire : il n'a AUCUN ADR.** Entré par quatre demandes
-directes, jamais par `/ouverture`. Les trois premières sont des raffinements de l'ADR-0028 §5/§6 et
-s'en accommodent ; **la quatrième ne s'en accommode pas** — « Semaine en cours » est une **surface
-nouvelle**, un troisième onglet que l'ADR-0028 ne décrit nulle part. Elle n'est aujourd'hui figée
-que dans `docs/frontend-papa/page-dashboard.md`. **Premier geste du prochain chantier dashboard :
-un addendum ADR-0028 qui fige la troisième vue**, ou son retrait si elle ne convainc pas à l'usage.
+⚠️ **Au retour de 4bis**, ne pas oublier le réalignement de `main` décrit plus haut : le squash
+n'aura pas `5678f06` pour ancêtre.
 
-⚠️ **Résidus de CE chantier**, qui ne vivent nulle part ailleurs (ni Git, ni les ADR) :
+⚠️ **Résidus de CE chantier**, qui ne vivent nulle part ailleurs :
 
-- 🔴 **`prefers-reduced-motion` n'a jamais été exercé.** La règle est livrée et bâtie comme les deux
-  qui existent déjà dans `index.css`, mais elle n'a pas pu être émulée depuis le navigateur. **Le
-  seul comportement du chantier qui repose uniquement sur de la relecture de CSS.** Depuis le merge,
-  la dette est **sur `main`**.
-- 🔴 **LE SOUFFLE N'A JAMAIS ÉTÉ VU EN MOUVEMENT — et il a été MERGÉ quand même.** Géométrie et
-  intensité vérifiées sur captures figées ; **le rythme, non** — c'est précisément ce qu'une capture
-  ne montre pas. Le point a été signalé **deux fois** avant le merge, et le merge a eu lieu sur
-  décision explicite du user (*« fais la meilleure solution »*). ⚠️ **Arbitrage assumé, pas un
-  oubli** — mais la dette ne s'éteint pas pour autant : elle passe d'« avant merge » à « sur
-  `main` ». Même motif que le bandeau Massimo de la PR #79, qui est **toujours dû**. Elle ne peut
-  pas être payée par l'agent : à juger à l'œil, sur les quatre KPI et sur une carte haute.
-- ⚠️ **La grille des créneaux n'a de données réelles que sur la fenêtre courte.** Sur `?period=365`
-  les 56 cases sont vides (91 % du temps est « hors matière », le reste hors plage 8 h–24 h). Le
-  rendu multicolore n'a donc été vu que sur la fenêtre par défaut.
-- ⚠️ **Rien n'a été vérifié en responsive** — desktop uniquement, sur les trois vues.
-- ⚠️ **Aucune donnée de test laissée en base** : la vérification s'est faite en lecture seule, et
-  l'unique tentative d'injection (interception `fetch`) **n'a pas matché les slugs** et n'a donc
-  rien modifié. Le `window.fetch` patché est mort avec le rechargement de la page.
-- ⚠️ **Le commit 4 retouche le commit 3** (extraction de `CellTooltip`, mot « moyenne », renommage
-  du bouton `Créneaux` → `Semaine type`). L'historique suit l'ordre réel du travail plutôt que
-  d'être réécrit après coup — **choix assumé**, signalé dans la PR.
+- ⚠️ **`.claude/launch.json` est modifié et n'appartient PAS à ce chantier** — `autoPort: false`
+  posé sur les neuf entrées appairées en relançant les serveurs. À sortir du commit, ou à committer
+  à part.
+- ⚠️ **Deux incohérences pré-existantes de `launch.json`, signalées et non traitées** : `massimo`
+  (:5173) et `papa` (:5174) ont `autoPort: true` alors que le `cors_origins` **par défaut** du
+  backend est exactement 5173/5174 (même bug, latent) ; et `massimo-dev2` / `papa-srs` réclament
+  tous deux le port **5177**.
+- ⚠️ **`KPI_ORDER` est un export MORT** (`dashboardDerive.ts`) — lu par aucun fichier. Étendu par
+  cohérence, mais c'est de la dette : un `DashboardFocus[]` incomplet ne fait bouger ni test ni
+  compilateur. Chip de tâche posée.
+- ⚠️ **Deux écarts pré-existants du dashboard, relevés en passant** : le delta de `consolidated`
+  n'est **pas** `value - series[0]` (`reconstruct_series` filtre sur `> mark`, strict, alors que le
+  delta compte `first <= d <= last` — une notion consolidée pile le premier jour de la fenêtre est
+  comptée d'un côté et pas de l'autre) ; et `open_gaps.delta` est **codé en dur à `0`**.
+- ⚠️ **`FRAGILE_STATUSES` n'est pas là où l'ADR-0028 §3 bis l'annonce** (`progress/service.py`) mais
+  dans `dashboard/projections.py:41` — la dépendance va de `progress` **vers** `dashboard`. Constat,
+  pas correction.
+- ⚠️ **Aucune donnée de test laissée en base** : la vérification s'est faite en **lecture seule**
+  (script jetable appelant `build_dashboard`, aucun `commit`).
+- ✅ **Les trois paliers de grille ont été vus sur la vraie page** (5 → 3 → 2 colonnes), pas
+  seulement mesurés sur la maquette. Rien d'autre n'a été exercé en responsive : les huit cartes
+  du bas restent non vérifiées aux largeurs intermédiaires — dette **antérieure**, pas de ce
+  chantier.
 
 ---
 
 ### ▶ DETTES OUVERTES
 
-> ⚠️ **Les trois premières sont REMONTÉES du chantier « file de relecture » lors de son élagage
+> ⚠️ **Les cinq premières sont REMONTÉES du chantier « souffle, donut, créneaux » (PR #89) lors de
+> son élagage (2026-08-05, 4ᵉ contrôle).** Ses trois autres contrôles passaient — section
+> `TROUBLESHOOTING.md` présente, entrée `CHANGELOG.md` présente — mais **le premier a ÉCHOUÉ** : ce
+> chantier n'a **aucun ADR**, et c'est la première de ces dettes.
+
+- 🔴 **« Semaine en cours » n'est figée par AUCUN ADR.** Le chantier PR #89 est entré par quatre
+  demandes directes, jamais par `/ouverture`. Les trois premières sont des raffinements de
+  l'ADR-0028 §5/§6 et s'en accommodent ; **la quatrième non** — c'est une **surface nouvelle**, un
+  troisième onglet que l'ADR-0028 ne décrit nulle part, aujourd'hui figé seulement dans
+  `docs/frontend-papa/page-dashboard.md`. **Premier geste du prochain chantier dashboard** : un
+  addendum qui la fige, ou son retrait si elle ne convainc pas à l'usage.
+- 🔴 **Le souffle du focus n'a JAMAIS été vu en mouvement, et il est sur `main`.** Géométrie et
+  intensité vérifiées sur captures figées ; le **rythme**, non — c'est exactement ce qu'une capture
+  ne montre pas. Merge sur décision explicite du user, **arbitrage assumé** — mais la dette est
+  passée d'« avant merge » à « sur `main` ». Même motif que le bandeau Massimo de la **PR #79, qui
+  est toujours dû**. À juger à l'œil, sur les cinq KPI et sur une carte haute.
+- 🔴 **`prefers-reduced-motion` n'a jamais été exercé.** La règle est livrée et bâtie comme les deux
+  qui existent déjà dans `index.css`, mais elle n'a pas pu être émulée depuis le navigateur. Le
+  seul comportement de ce chantier qui repose uniquement sur de la relecture de CSS.
+- ⚠️ **La grille des créneaux n'a de données réelles que sur la fenêtre courte.** Sur `?period=365`
+  les 56 cases sont vides (91 % du temps est « hors matière », le reste hors plage 8 h–24 h). Le
+  rendu multicolore n'a été vu que sur la fenêtre par défaut.
+- ⚠️ **Les trois vues du dashboard n'ont été vues qu'en desktop** — aucun contrôle responsive.
+
+> ⚠️ **Les trois suivantes sont REMONTÉES du chantier « file de relecture » lors de son élagage
 > (2026-08-05, 4ᵉ contrôle).** Elles étaient enterrées dans ses « résidus » et n'existaient nulle
 > part ailleurs.
 

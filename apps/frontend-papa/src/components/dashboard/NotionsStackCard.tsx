@@ -13,12 +13,25 @@ import { notAddressed } from "../../lib/dashboardDerive";
 // matière peut avoir ses chapitres sans qu'aucune notion y soit rattachée (cas observé en base).
 // Le trou est nommé et mène au Programme — jamais masqué.
 
-const SEGMENTS = [
+const SEGMENTS: readonly {
+  key: string;
+  label: string;
+  className: string;
+  info?: string;
+}[] = [
   { key: "consolidated", label: "consolidées", className: "fill-papa-accent" },
   { key: "fragile", label: "à renforcer", className: "fill-papa-warn" },
-  { key: "in_progress", label: "en cours", className: "fill-papa-accent-2/60" },
+  {
+    key: "in_progress",
+    label: "en cours",
+    className: "fill-papa-accent-2/60",
+    // Le segment n'est PAS scindé (addendum ADR-0028 §5 septies) : `solid` reste avec
+    // `in_progress` et les statuts non tranchés. Le fourre-tout est une décision — on lui demande
+    // seulement de dire ce qu'il contient, plutôt qu'une cinquième couleur sur une barre à quatre.
+    info: "Fourre-tout assumé : presque acquis (score ≥ 70), en cours de mission, ou pas encore tranché.",
+  },
   { key: "rest", label: "non abordées", className: "fill-papa-border" },
-] as const;
+];
 
 interface NotionsStackCardProps {
   subjects: DashboardSubject[];
@@ -105,6 +118,15 @@ export function NotionsStackCard({ subjects, focus, selectedSlug, onSelect }: No
               <rect width={8} height={8} rx={2} className={segment.className} />
             </svg>
             {segment.label}
+            {segment.info && (
+              <span
+                title={segment.info}
+                aria-label={segment.info}
+                className="ml-1.5 inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full border border-papa-border align-[-1px] text-[9px] leading-none"
+              >
+                i
+              </span>
+            )}
           </li>
         ))}
       </ul>

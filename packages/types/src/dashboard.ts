@@ -34,6 +34,10 @@ export interface DashboardKpis {
   active_minutes: KpiValue;
   active_days: KpiOutOf;
   consolidated: KpiOutOf;
+  /** Notions `weak` + `learning` — le seul signal de RÉGRESSION du bandeau (addendum ADR-0028
+   *  §5 bis). Volontairement SANS dénominateur : « 13 / 280 » rapporterait les fragiles au
+   *  programme entier, non abordées comprises, et suggérerait une proportion qui n'existe pas. */
+  fragile: KpiValue;
   open_gaps: KpiGaps;
 }
 
@@ -42,6 +46,7 @@ export interface DashboardSparks {
   active_minutes: number[];
   active_days: number[];
   consolidated: number[];
+  fragile: number[];
   open_gaps: number[];
 }
 
@@ -171,6 +176,12 @@ export interface DashboardPayload {
    *  les deux chiffres se contredisaient sur le même écran. */
   unattributed_minutes: Record<DashboardPeriod, number>;
   periods: Record<DashboardPeriod, DashboardPeriodData>;
+  /** Plus ancienne bascule connue de `skill_mastery_history` (`null` si la table est vide).
+   *
+   *  Sert UNIQUEMENT à faire expirer l'avertissement sur la jeunesse de la courbe ambre : ne
+   *  l'afficher que si la fenêtre regardée commence AVANT cette date. Une phrase figée aurait été
+   *  juste six mois puis fausse pour toujours (addendum ADR-0028 §5 octies). */
+  history_since: string | null;
   subjects: DashboardSubject[];
   content_chain: DashboardContentStage[];
   reading: DashboardReadingItem[];
