@@ -159,12 +159,18 @@ Sélecteur `Calendrier | Créneaux` (`adr-0028 §6`).
   (jamais le nombre d'événements). Paliers, présentation client : `0 / <10 / 10–20 / 20–40 / 40+`.
   Tooltip : date · minutes. Badge ambre « aucune activité depuis N jours » si `days_inactive >= 4`,
   **à la consultation uniquement, jamais de push**.
-- **Créneaux** — semaine type, 8 créneaux de 2 h (**8 h → 24 h**) × 7 jours. Intensité = minutes
-  actives moyennes du créneau sur la fenêtre. Bucketing **Europe/Paris**. Les minutes de 0 h à 8 h
-  sont renvoyées à part (`slots_outside_minutes`) et affichées en note — jamais repliées dans un
-  créneau voisin, ce qui les daterait faussement (`adr-0028 §6`).
-- **Échelle émeraude unique** dans les deux vues. Pas de gradient vers le rouge : une case dense
-  n'est pas une bonne note, une case vide n'est pas une faute.
+- **Créneaux** — semaine type, 8 créneaux de 2 h (**8 h → 24 h**) × 7 jours. Bucketing
+  **Europe/Paris**. Les minutes de 0 h à 8 h sont renvoyées à part (`slots_outside_minutes`) et
+  affichées en note — jamais repliées dans un créneau voisin, ce qui les daterait faussement
+  (`adr-0028 §6`). La case est une **barre**, pas un aplat : sa **longueur** dit l'intensité
+  (pleine = le créneau le plus chargé de la semaine, échelle **relative** à la grille), ses
+  **segments colorés** disent quelles matières s'y partagent le temps. Filtrée sur une matière, la
+  grille ne ventile plus qu'elle et **écrit ses minutes** dans les cases non vides. Survol ou focus
+  clavier d'une case non vide → **infobulle** : le créneau, son total, puis une ligne par matière.
+- **Échelle émeraude unique** dans la vue **Calendrier**, où une case est UN JOUR et n'a pas de
+  composition à montrer. La vue Créneaux s'en écarte assumément : la couleur ne peut pas dire à la
+  fois « combien » et « laquelle ». Pas de gradient vers le rouge nulle part : une case dense n'est
+  pas une bonne note, une case vide n'est pas une faute.
 - Clic sur un jour (vue Calendrier) → **panneau inline** sous la grille, pas de modale ; détail
   chargé paresseusement (`GET /api/parent/activity/days/{date}`) — seule exception au §4 de l'ADR.
 

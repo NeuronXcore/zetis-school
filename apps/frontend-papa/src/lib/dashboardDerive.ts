@@ -42,18 +42,55 @@ export function sumCalendar(subjects: DashboardSubject[]): ActivityHeatmapDay[] 
     .map(([date, active_minutes]) => ({ date, active_minutes, events: 0, xp: 0 }));
 }
 
-/** Matrice 8 × 7 des créneaux, sommée sur les matières visibles. */
-export function sumSlots(subjects: DashboardSubject[], period: DashboardPeriod): number[][] {
-  const matrix = Array.from({ length: 8 }, () => Array.from({ length: 7 }, () => 0));
+/** Une case de la semaine type : son total, et ce que chaque matière y a mis. */
+export interface SlotCell {
+  total: number;
+  /** Matières ayant du temps dans cette case, la plus grosse d'abord. Les zéros sont écartés :
+   *  ils produiraient des segments de largeur nulle, invisibles mais bien présents dans le DOM. */
+  parts: { slug: string; name: string; color: string | null; minutes: number }[];
+}
+
+/** Matrice 8 × 7 des créneaux, VENTILÉE par matière.
+ *
+ *  Remplace une simple somme : la case doit pouvoir se peindre en plusieurs couleurs, donc le
+ *  détail par matière doit survivre jusqu'au rendu. Le total reste porté par la case — c'est lui
+ *  qui donne la longueur de la barre — mais il n'est plus la seule chose qu'on en sait. */
+export function buildSlotCells(
+  subjects: DashboardSubject[],
+  period: DashboardPeriod,
+): SlotCell[][] {
+  const cells: SlotCell[][] = Array.from({ length: 8 }, () =>
+    Array.from({ length: 7 }, () => ({ total: 0, parts: [] as SlotCell["parts"] })),
+  );
+
   for (const subject of subjects) {
     const slots = subject.slots[period] ?? [];
     slots.forEach((row, slot) =>
-      row.forEach((value, day) => {
-        matrix[slot][day] += value;
+      row.forEach((minutes, day) => {
+        if (minutes <= 0) return;
+        const cell = cells[slot][day];
+        cell.total += minutes;
+        cell.parts.push({
+          slug: subject.slug,
+          name: subject.name,
+          color: subject.color,
+          minutes,
+        });
       }),
     );
   }
-  return matrix;
+
+  // Tri décroissant : sans lui, l'ordre des segments suivrait l'ordre d'arrivée des matières,
+  // qui n'est stable ni d'une case à l'autre ni d'un chargement à l'autre. La grille se lirait
+  // comme un damier aléatoire au lieu d'une semaine type.
+  for (const row of cells) for (const cell of row) cell.parts.sort((a, b) => b.minutes - a.minutes);
+
+  return cells;
+}
+
+/** Plus grosse case de la grille — l'échelle des barres. 0 si la semaine est vide. */
+export function maxSlotCell(cells: SlotCell[][]): number {
+  return cells.reduce((max, row) => row.reduce((m, cell) => Math.max(m, cell.total), max), 0);
 }
 
 /** Minutes d'activité hors plage 8 h–24 h, cumulées. Affichées en note, jamais repliées. */

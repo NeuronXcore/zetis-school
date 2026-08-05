@@ -291,6 +291,98 @@ describe("donut « Répartition du temps »", () => {
   });
 });
 
+describe("créneaux — ce que la case montre", () => {
+  // Deux matières qui se partagent Lun 8 h (20 + 5), et une case à maths seul (Jeu 12 h).
+  const avecCreneaux = () => {
+    const maths = subject({ slug: "maths", name: "Mathématiques", color: "#60a5fa" });
+    maths.slots["7"][0][0] = 20;
+    maths.slots["7"][2][3] = 12;
+    const svt = subject({ id: 2, slug: "svt", name: "SVT", color: "#34d399" });
+    svt.slots["7"][0][0] = 5;
+    return { ...PAYLOAD, subjects: [maths, svt] };
+  };
+
+  const ouvrirCreneaux = async () => {
+    await screen.findByRole("button", { name: /Temps actif/ });
+    fireEvent.click(screen.getByRole("button", { name: "Créneaux" }));
+  };
+
+  it("sans filtre, une case partagée porte un segment PAR matière, la plus grosse d'abord", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    const cellule = screen.getByLabelText(/^Lun 8 h — 25 min en moyenne/);
+    const segments = [...cellule.querySelectorAll("span[style*='background']")];
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toHaveStyle({ width: "80%" }); // maths 20/25
+    expect(segments[1]).toHaveStyle({ width: "20%" }); // svt 5/25
+
+    // Aucun nombre sans filtre : un seul chiffre par-dessus deux matières additionnerait des
+    // choses différentes sans le dire.
+    expect(cellule.textContent).toBe("");
+  });
+
+  it("filtré, chaque case non vide porte ses minutes — les cases vides restent nues", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage("/?subject=maths");
+    await ouvrirCreneaux();
+
+    expect(screen.getByLabelText(/^Lun 8 h —/).textContent).toBe("20");
+    expect(screen.getByLabelText(/^Jeu 12 h —/).textContent).toBe("12");
+    // 20 et non 25 : filtrée, la grille ne compte plus que la matière retenue.
+    expect(screen.getByLabelText(/^Lun 8 h —/).getAttribute("aria-label")).toContain(
+      "20 min en moyenne — Mathématiques 20",
+    );
+    expect(screen.getByLabelText("Mar 8 h — aucune séance").textContent).toBe("");
+  });
+
+  it("le survol ouvre le détail par matière, le quitter le referme", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    const cellule = screen.getByLabelText(/^Lun 8 h — 25 min en moyenne/);
+    const bulle = () => screen.queryByText(/^Lun 8 h · 25 min$/);
+
+    expect(bulle()).toBeNull();
+
+    fireEvent.mouseEnter(cellule);
+    const contenu = bulle()!.parentElement!;
+    expect(within(contenu).getByText("Mathématiques")).toBeInTheDocument();
+    expect(within(contenu).getByText("20 min")).toBeInTheDocument();
+    expect(within(contenu).getByText("SVT")).toBeInTheDocument();
+    expect(within(contenu).getByText("5 min")).toBeInTheDocument();
+
+    fireEvent.mouseLeave(cellule);
+    expect(bulle()).toBeNull();
+  });
+
+  it("le `title` natif cède la place sur les cases ouvrables, et reste sur les vides", async () => {
+    // Deux bulles pour la même case — la nôtre tout de suite, celle du navigateur une seconde
+    // plus tard, grise et par-dessus.
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    expect(screen.getByLabelText(/^Lun 8 h — 25 min en moyenne/)).not.toHaveAttribute("title");
+    expect(screen.getByLabelText("Mar 8 h — aucune séance")).toHaveAttribute("title");
+  });
+
+  it("la longueur de la barre compare les créneaux entre eux", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    // La plus grosse case de la grille remplit toute sa piste ; les autres s'y rapportent.
+    const barre = (label: RegExp) =>
+      screen.getByLabelText(label).querySelector("span:not([style*='background'])");
+    expect(barre(/^Lun 8 h —/)).toHaveStyle({ width: "100%" }); // 25/25
+    expect(barre(/^Jeu 12 h —/)).toHaveStyle({ width: "48%" }); // 12/25
+  });
+});
+
 describe("KPI actifs", () => {
   it("expose aria-pressed et bascule au second clic", async () => {
     renderPage();

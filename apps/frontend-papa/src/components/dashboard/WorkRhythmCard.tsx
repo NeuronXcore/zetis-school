@@ -4,7 +4,12 @@ import { DashboardCard } from "./DashboardCard";
 import { SlotGrid } from "./SlotGrid";
 import { ActivityHeatmap } from "../activity/ActivityHeatmap";
 import { DayDetailPanel } from "../activity/DayDetailPanel";
-import { sumCalendar, sumOutsideMinutes, sumSlots, DROPOUT_THRESHOLD } from "../../lib/dashboardDerive";
+import {
+  buildSlotCells,
+  sumCalendar,
+  sumOutsideMinutes,
+  DROPOUT_THRESHOLD,
+} from "../../lib/dashboardDerive";
 
 // « Quand Massimo travaille » — UNE carte, DEUX vues du même journal (ADR-0028 §6).
 //
@@ -40,7 +45,10 @@ export function WorkRhythmCard({
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const days = sumCalendar(subjects);
-  const slots = sumSlots(subjects, period);
+  // `subjects` est DÉJÀ filtré par la matière active (`visibleSubjects`) : filtrée, la grille ne
+  // ventile plus qu'une matière, et chaque case n'a qu'un segment. C'est ce qui rend le nombre
+  // lisible — il ne mélange alors plus rien.
+  const slotCells = buildSlotCells(subjects, period);
   const outside = sumOutsideMinutes(subjects, period);
   const selected = days.find((d) => d.date === selectedDate);
 
@@ -90,7 +98,10 @@ export function WorkRhythmCard({
         ) : (
           <>
             Semaine type sur la période : minutes actives moyennes par créneau de 2 h, fuseau
-            Europe/Paris. Sert à caler une séance, pas à contrôler un emploi du temps.
+            Europe/Paris. Sert à caler une séance, pas à contrôler un emploi du temps.{" "}
+            {activeSubject
+              ? `Les nombres sont les minutes de ${activeSubject.name} dans le créneau.`
+              : "Chaque barre est découpée par matière ; sa longueur compare le créneau au plus chargé de la semaine."}
             {outside > 0 && ` + ${outside} min hors plage (avant 8 h).`}
           </>
         )
@@ -121,7 +132,7 @@ export function WorkRhythmCard({
           )}
         </>
       ) : (
-        <SlotGrid matrix={slots} />
+        <SlotGrid cells={slotCells} showValues={activeSubject !== null} />
       )}
     </DashboardCard>
   );

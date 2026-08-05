@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSubject } from "@zetis/types";
 import {
+  buildSlotCells,
   COUNCIL_PERIOD_LABEL,
   isDashboardPeriod,
   matchesFocus,
+  maxSlotCell,
   notAddressed,
   sumCalendar,
   sumMinutes,
   sumNotions,
   sumReviewLoad,
   sumSeries,
-  sumSlots,
 } from "./dashboardDerive";
 
 // Dérivations client du dashboard — l'enjeu de ces tests est la FRONTIÈRE (ADR-0028 §3) :
@@ -74,11 +75,40 @@ describe("« Toutes matières » est une somme client", () => {
     const b = subject({ slug: "svt" });
     b.slots["7"][3][2] = 5;
 
-    const matrix = sumSlots([a, b], "7");
+    const cells = buildSlotCells([a, b], "7");
 
-    expect(matrix).toHaveLength(8);
-    expect(matrix[0]).toHaveLength(7);
-    expect(matrix[3][2]).toBe(25);
+    expect(cells).toHaveLength(8);
+    expect(cells[0]).toHaveLength(7);
+    expect(cells[3][2].total).toBe(25);
+  });
+
+  it("garde le DÉTAIL par matière dans la case, la plus grosse d'abord", () => {
+    // Le total seul ne suffit plus : la case doit pouvoir se peindre en plusieurs couleurs.
+    const a = subject({ slug: "maths", name: "Mathématiques" });
+    a.slots["7"][3][2] = 20;
+    const b = subject({ slug: "svt", name: "SVT" });
+    b.slots["7"][3][2] = 5;
+    // Une matière PRÉSENTE mais sans temps dans cette case ne doit pas y laisser de segment.
+    const c = subject({ slug: "anglais", name: "Anglais" });
+    c.slots["7"][6][0] = 9;
+
+    const cells = buildSlotCells([b, a, c], "7");
+
+    expect(cells[3][2].parts.map((p) => [p.slug, p.minutes])).toEqual([
+      ["maths", 20],
+      ["svt", 5],
+    ]);
+    expect(cells[6][0].parts.map((p) => p.slug)).toEqual(["anglais"]);
+    expect(cells[0][0]).toEqual({ total: 0, parts: [] });
+  });
+
+  it("l'échelle des barres est la plus grosse case, 0 sur une semaine vide", () => {
+    const a = subject();
+    a.slots["7"][3][2] = 20;
+    a.slots["7"][5][1] = 47;
+
+    expect(maxSlotCell(buildSlotCells([a], "7"))).toBe(47);
+    expect(maxSlotCell(buildSlotCells([subject()], "7"))).toBe(0);
   });
 
   it("somme les trois courbes point à point", () => {
