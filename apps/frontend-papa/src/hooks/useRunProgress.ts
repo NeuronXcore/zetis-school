@@ -53,7 +53,7 @@ export const ARRETE_LABEL = "en attente — aucun moteur de production actif";
 
 type LotLisible = Pick<
   ProductionRun,
-  "status" | "total_notions" | "progress_pct" | "scope_kind"
+  "status" | "total_notions" | "progress_pct" | "scope_kind" | "started_at"
 > & {
   /** Absent (`undefined`) = la question n'a pas été posée, ce qui n'est pas « non ». Seule la
    *  route `/runs/active` la pose ; ailleurs on ne présume pas d'une panne. */
@@ -68,7 +68,15 @@ export function useRunProgress(run: LotLisible | null): RunProgress {
   const sansGranularite = demarre && (run?.total_notions ?? 0) <= 1;
   // ⚠️ Appelé sans condition : un hook ne se saute pas. C'est son argument `active` qui décide,
   // et il est faux tant que le lot n'a pas démarré — donc rien ne monte.
-  const estime = useEstimatedProgress(sansGranularite, SCOPE_MS[run?.scope_kind ?? ""] || 30000);
+  //
+  // ⚠️ **L'estimation s'ancre sur `started_at`, jamais sur le montage.** C'est la différence entre
+  // « ça travaille depuis une minute » et « je viens d'ouvrir cette page » — deux phrases que le
+  // même 0 % racontait indifféremment avant le 2026-08-05.
+  const estime = useEstimatedProgress(
+    sansGranularite,
+    SCOPE_MS[run?.scope_kind ?? ""] || 30000,
+    run?.started_at ? Date.parse(run.started_at) : null,
+  );
 
   if (run === null) return { pct: null, enFile: false, libelle: null, arrete: false };
   if (!demarre) {

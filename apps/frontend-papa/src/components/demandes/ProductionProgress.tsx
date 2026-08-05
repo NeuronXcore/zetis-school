@@ -24,25 +24,39 @@ const POLL_MS = 2000;
 export function ProductionProgress({
   runId,
   scopeKind,
+  initialRun = null,
   onFinished,
 }: {
   runId: number;
   /** Le `scope_kind` DU LOT (`srs`), pas le `content_kind` de la demande (`card`) : le lot porte
    *  déjà la traduction, le client n'a pas à la refaire. */
   scopeKind: string;
+  /** Le lot tel que le SERVEUR le connaît déjà, quand la ligne arrive avec (`active_run`).
+   *
+   *  ⚠️ **Sans lui, revenir sur la page rejouait deux secondes de mensonge** : le composant
+   *  repartait d'un `queued` synthétique et affichait « en file d'attente » sur un lot qui
+   *  tournait depuis une minute, jusqu'au premier sondage. Le cas « je viens de cliquer » n'est
+   *  qu'un cas particulier — celui où le serveur n'a encore rien à dire. */
+  initialRun?: ProductionRun | null;
   /** Appelé UNE fois, quand le serveur dit que le lot est terminé (réussi ou non). */
   onFinished: (status: "done" | "failed") => void;
 }) {
   // ⚠️ Le lot ENTIER est conservé, plus seulement son statut : `useRunProgress` a besoin de la
-  // granularité (`total_notions`) pour savoir s'il doit estimer ou croire le serveur.
-  //
-  // L'état initial est un lot `queued` **synthétique** : entre le clic et le premier sondage, le
-  // composant n'a encore rien reçu, et c'est exactement l'état d'un lot qui vient d'être accepté.
-  const [run, setRun] = useState<ProductionRun | null>(null);
+  // granularité (`total_notions`) pour savoir s'il doit estimer ou croire le serveur, et de
+  // `started_at` pour savoir depuis QUAND.
+  const [run, setRun] = useState<ProductionRun | null>(initialRun);
   const status = run?.status ?? "queued";
   const active = status === "queued" || status === "running";
-  const { pct, enFile } = useRunProgress(
-    run ?? { status: "queued", total_notions: null, progress_pct: 0, scope_kind: scopeKind },
+  // Le repli est un lot `queued` **synthétique** : entre le clic et le premier sondage, le
+  // composant n'a encore rien reçu, et c'est exactement l'état d'un lot qui vient d'être accepté.
+  const { pct, libelle } = useRunProgress(
+    run ?? {
+      status: "queued",
+      total_notions: null,
+      progress_pct: 0,
+      scope_kind: scopeKind,
+      started_at: null,
+    },
   );
 
   // ⚠️ Garde de ré-entrée : en StrictMode l'effet est monté deux fois, et un `onFinished` appelé
@@ -75,10 +89,22 @@ export function ProductionProgress({
 
   return (
     <div className="min-w-[190px] shrink-0">
+      {/* ⚠️ **`pct ?? 0` était le mensonge que tout le reste s'échinait à éviter.** `useRunProgress`
+          rend `null` pour dire « rien n'a commencé, il n'y a rien à mesurer » — et cette ligne
+          retraduisait aussitôt ce refus en un chiffre, le seul que Papa avait sous les yeux. Le
+          2026-08-05, quatre lots arrêtés ont affiché « 0 % » pendant six heures sous un libellé
+          parfaitement honnête. Le libellé disait vrai, la case du pourcentage disait 0, et c'est
+          la case qu'on lit. `null` traverse maintenant jusqu'au rendu. */}
       <ProgressBar
-        pct={pct ?? 0}
-        label={enFile ? "En file d'attente…" : SCOPE_LABEL[scopeKind] || "Production…"}
+        pct={pct}
+        label={libelle ? majuscule(libelle) : SCOPE_LABEL[scopeKind] || "Production…"}
       />
     </div>
   );
+}
+
+/** Les libellés d'état sont écrits en minuscule (ils se lisent à la suite d'une phrase dans
+ *  l'en-tête) ; ici ils ouvrent la ligne. Une seule source, deux positions. */
+function majuscule(texte: string): string {
+  return texte.charAt(0).toUpperCase() + texte.slice(1);
 }

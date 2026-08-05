@@ -55,6 +55,7 @@ def _out(
     subject_id: int | None = None,
     subject_name: str | None = None,
     blocked_reason: str | None = None,
+    active_run: dict | None = None,
 ) -> dict:
     return {
         "id": req.id,
@@ -80,6 +81,21 @@ def _out(
         # `None` = un lot lancé maintenant produirait quelque chose. Le motif ne BLOQUE rien : la
         # route reste ouverte, l'écran informe.
         "blocked_reason": blocked_reason,
+        # ⚠️ **Le lot en cours se REDÉRIVE du serveur, il ne se mémorise pas dans la page.**
+        #
+        # La page Demandes gardait les lots lancés dans un `useState` : quitter la page et revenir
+        # effaçait la barre d'avancement et rendait le bouton « Produire » — comme si rien n'avait
+        # été lancé. Papa recliquait. C'est ainsi que quatre lots identiques sont nés le
+        # 2026-08-05.
+        #
+        # ⚠️ Le lien ne peut PAS passer par une clé étrangère : un lot `manual` ne porte aucun
+        # `content_request_id` (la contrainte l'interdit, et l'ADR-0031 §4 explique pourquoi). Il
+        # se retrouve par ce que les deux tables partagent — la notion et le type de pièce — via
+        # `REQUEST_KIND_TO_PIECE`, la traduction qui existe déjà.
+        #
+        # `None` = aucune production en cours pour cette demande. C'est un ÉTAT lu, jamais une
+        # promesse : un lot qui finit disparaît d'ici au sondage suivant.
+        "active_run": active_run,
     }
 
 
@@ -210,6 +226,7 @@ def list_requests(db: Session, status_filter: str | None = "pending") -> list[di
         [req.skill_id for req, *_ in lignes],
         require_validated_course=settings_service.course_gate_enabled(db),
     )
+    lots = _active_runs_by_scope(db, [req.skill_id for req, *_ in lignes])
     return [
         _out(
             req,
@@ -219,9 +236,47 @@ def list_requests(db: Session, status_filter: str | None = "pending") -> list[di
             # Le motif ne vaut que pour ce que ZETIS sait produire : sur une `capsule`, `producible`
             # dit déjà le refus, et deux constats concurrents sur la même ligne se contrediraient.
             motifs.get(req.skill_id) if req.content_kind in REQUEST_KIND_TO_PIECE else None,
+            lots.get((req.skill_id, REQUEST_KIND_TO_PIECE.get(req.content_kind))),
         )
         for req, skill_name, subject_id, subject_name in lignes
     ]
+
+
+def _active_runs_by_scope(db: Session, skill_ids: list[int]) -> dict[tuple[int, str], dict]:
+    """Les lots en cours qui visent ces notions, indexés `(skill_id, piece)`.
+
+    UNE requête pour tout l'écran — même patron que `blockers_for` juste au-dessus. Un appel par
+    ligne aurait refait les N requêtes par page que l'ADR-0030 a supprimées côté Massimo.
+
+    ⚠️ **Seuls les lots-PIÈCE sont retenus** (`scope_skill_id` non nul). Un lot de chapitre
+    produit aussi la notion, mais il ne répond pas de CETTE demande : afficher son avancement sur
+    la ligne ferait croire qu'une fiche arrive quand le lot en fabrique quinze, dont peut-être pas
+    celle-là. On préfère ne rien dire que dire à peu près.
+
+    ⚠️ Le tri est `id DESC` et le premier gagne : si deux lots visent le même scope (possible pour
+    les lots créés AVANT la garde anti-doublon), on montre le plus récent — le seul dont Papa
+    puisse attendre quelque chose.
+    """
+    if not skill_ids:
+        return {}
+
+    from app.db.models.production import ProductionRun
+    from app.modules.production.runs import run_out
+
+    rows = db.scalars(
+        select(ProductionRun)
+        .where(
+            ProductionRun.status.in_(("queued", "running")),
+            ProductionRun.scope_skill_id.in_(set(skill_ids)),
+            ProductionRun.scope_kind.is_not(None),
+        )
+        .order_by(ProductionRun.id.desc())
+    ).all()
+
+    index: dict[tuple[int, str], dict] = {}
+    for run in rows:
+        index.setdefault((run.scope_skill_id, run.scope_kind), run_out(db, run))
+    return index
 
 
 def set_status(db: Session, req_id: int, new_status: str) -> dict:

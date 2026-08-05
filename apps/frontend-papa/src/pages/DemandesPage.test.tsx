@@ -56,6 +56,7 @@ const REQ: ContentRequest = {
   created_at: "2026-07-30T10:00:00Z",
   producible: true,
   blocked_reason: null,
+  active_run: null,
 };
 
 function renderPage() {
@@ -165,9 +166,15 @@ describe("DemandesPage", () => {
     // mensonge que le §4 tue : rien n'est fermé tant que le contenu n'est pas SERVABLE, et le
     // worker n'a même pas commencé. La demande disparaîtra d'elle-même, plus tard, sur un fait.
     //
-    // ⚠️ Le libellé attendu est « En file d'attente… », pas « Génération… » : un lot part en file
-    // (concurrence 1, un seul GPU) et ZETIS ne génère encore RIEN. La barre montre la vie, le
-    // libellé dit la vérité — c'est cette distinction que le test tient.
+    // ⚠️ Le libellé doit dire l'ATTENTE, pas la génération : un lot part en file (concurrence 1,
+    // un seul GPU) et ZETIS ne génère encore RIEN. La barre montre la vie, le libellé dit la
+    // vérité — c'est cette distinction que le test tient.
+    //
+    // ⚠️ **Assertions sur le SENS, plus sur la chaîne exacte** (2026-08-05). Le texte était recopié
+    // ici (« En file d'attente… ») alors qu'il a désormais une source unique — `EN_FILE_LABEL` —
+    // et une variante (`ARRETE_LABEL`) quand aucun worker n'écoute. Un verrou sur la chaîne aurait
+    // interdit la variante sans rien protéger de plus : ce qui compte est qu'on ne dise jamais
+    // « génération » d'un lot qui n'a pas commencé, et c'est ce que la deuxième assertion tient.
     vi.mocked(fetchContentRequests).mockResolvedValue([REQ]);
     vi.mocked(produceForRequest).mockResolvedValue({ id: 99, status: "queued", scope_kind: "fiche" } as never);
     vi.mocked(fetchProductionRun).mockResolvedValue({ id: 99, status: "queued" } as never);
@@ -176,10 +183,64 @@ describe("DemandesPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Produire" }));
     expect(produceForRequest).toHaveBeenCalledWith(5);
 
-    expect(await screen.findByText("En file d'attente…")).toBeTruthy();
+    expect(await screen.findByText(/en file d'attente/i)).toBeTruthy();
+    expect(screen.queryByText(/génération/i)).toBeNull();
+    // ⚠️ **Aucun pourcentage sur un lot qui n'a pas démarré.** C'est LE défaut du 2026-08-05 :
+    // `pct ?? 0` refabriquait le chiffre que `useRunProgress` refuse de donner, et quatre lots
+    // arrêtés ont affiché « 0 % » six heures durant sous un libellé pourtant honnête. Papa lit la
+    // case du pourcentage avant le libellé.
+    expect(screen.queryByText(/\d+\s*%/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Produire" })).toBeNull();
     expect(screen.getByText("Figure de style")).toBeTruthy();
     expect(screen.queryByText(/Aucune demande en attente/)).toBeNull();
+  });
+
+  it("retrouve un lot en cours au RETOUR sur la page, sans l'avoir mémorisé", async () => {
+    // ⚠️ Le cœur du chantier du 2026-08-05. La page gardait les lots lancés dans son propre état :
+    // la quitter effaçait la barre et rendait le bouton « Produire », comme si rien n'avait été
+    // lancé. Papa recliquait — quatre lots identiques sur la même notion en une matinée.
+    //
+    // Ici, RIEN n'a été cliqué : le composant est monté à froid, exactement comme au retour d'une
+    // navigation. Le lot vient du serveur (`active_run`), et c'est la seule raison pour laquelle
+    // la barre est là. Un état de page ne pourrait pas produire ce rendu.
+    // ⚠️ Le fichier ne remet pas les mocks à zéro entre les cas : sans ce nettoyage, l'assertion
+    // « personne n'a cliqué » compterait l'appel du test précédent et échouerait pour une raison
+    // qui n'a rien à voir avec ce qu'elle vérifie.
+    vi.mocked(produceForRequest).mockClear();
+    vi.mocked(fetchContentRequests).mockResolvedValue([
+      {
+        ...REQ,
+        active_run: {
+          id: 99,
+          status: "running",
+          trigger: "manual",
+          authorized_by: "parent_direct",
+          chapter_id: null,
+          scope_skill_id: 116,
+          scope_kind: "fiche",
+          scope_skill_name: "Figure de style",
+          total_notions: 1,
+          done_notions: 0,
+          progress_pct: 0,
+          created_at: "2026-08-05T09:00:00Z",
+          started_at: new Date(Date.now() - 8000).toISOString(),
+          finished_at: null,
+        },
+      },
+    ]);
+    vi.mocked(fetchProductionRun).mockResolvedValue({ id: 99, status: "running" } as never);
+    renderPage();
+
+    // Pas de bouton « Produire » : une production tourne déjà, le relancer ne produirait rien.
+    expect(await screen.findByText("Figure de style")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Produire" })).toBeNull();
+    expect(produceForRequest).not.toHaveBeenCalled();
+
+    // ⚠️ Et l'avancement REPREND : le lot a démarré il y a 8 s, l'estimation est ancrée sur
+    // `started_at`, pas sur le montage du composant. Un pourcentage à 1 % signifierait qu'elle
+    // repart de zéro — le défaut exact que Papa a signalé (« revenir remet tout à zéro »).
+    const pct = await screen.findByText(/^\d+%$/);
+    expect(Number(pct.textContent!.replace("%", ""))).toBeGreaterThan(10);
   });
 
   it("la fin du lot relit la file — la ligne s'en va sur un FAIT, pas sur le clic", async () => {

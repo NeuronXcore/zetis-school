@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.modules.production.schemas import ProductionRunOut
+
 # Vocabulaire FERMÉ, en dur dans le schéma : une valeur hors liste est rejetée par FastAPI en
 # `422` avant d'atteindre le service. C'est le garde-fou n°1 de l'addendum ADR-0027, et le poser
 # ici plutôt que dans du code impératif le rend impossible à contourner par un futur appelant.
@@ -31,6 +33,11 @@ class ContentRequestOut(BaseModel):
     #: cours rédigé. Calculé par le code même que le lot exécutera (`runner.blockers_for`), sans
     #: quoi l'aperçu divergerait de l'exécution qu'il annonce.
     blocked_reason: str | None = None
+    #: Le lot qui produit CE contenu en ce moment, ou `None`. Redérivé serveur à chaque lecture
+    #: par `(skill_id, piece)` — un lot `manual` ne porte aucune FK vers la demande. C'est lui qui
+    #: permet à l'écran de retrouver sa barre d'avancement après une navigation, au lieu de
+    #: l'oublier avec l'état du composant.
+    active_run: ProductionRunOut | None = None
 
 
 class ContentRequestPatch(BaseModel):

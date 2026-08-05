@@ -98,7 +98,30 @@ export function DemandesPage() {
   // PAS** : rien n'est encore fermé. C'est la DISPONIBILITÉ du contenu qui refermera la demande
   // (ADR-0036 §4). La retirer d'ici rejouerait le mensonge que le §4 tue — « c'est fait » alors
   // que le worker n'a pas commencé.
+  //
+  // ⚠️ **Cet état ne couvre QUE l'instant entre le clic et la réponse du serveur** (2026-08-05).
+  // Il portait auparavant toute la connaissance des lots en cours, et cette page était donc la
+  // seule à savoir qu'une production tournait : la quitter effaçait la barre et rendait le bouton
+  // « Produire », comme si rien n'avait été lancé. Papa recliquait — quatre lots identiques sur la
+  // notion 30 en une matinée. Ce qui dure appartient maintenant au serveur (`req.active_run`), lu
+  // à chaque `reload` ; ce qui ne dure pas (une requête en vol) reste ici.
   const [runs, setRuns] = useState<Record<number, { id: number; kind: string } | null>>({});
+
+  /** Le lot en cours pour cette demande — celui qu'on vient de lancer, sinon celui que le serveur
+   *  a retrouvé. L'ordre compte : la réponse locale est plus fraîche que la dernière lecture. */
+  const lotDe = useCallback(
+    (req: ContentRequest) => {
+      const local = runs[req.id];
+      if (local) return { id: local.id, kind: local.kind, run: null };
+      if (req.id in runs) return null; // lancement en vol, réponse pas encore revenue
+      const serveur = req.active_run;
+      if (serveur) {
+        return { id: serveur.id, kind: serveur.scope_kind ?? "", run: serveur };
+      }
+      return undefined; // rien en cours
+    },
+    [runs],
+  );
 
   const produce = useCallback(async (id: number) => {
     setError(null);
@@ -116,7 +139,7 @@ export function DemandesPage() {
         return next;
       });
     }
-  }, []);
+  }, [reload]);
 
   // Le lot est fini : on relit la file. Si le contenu est réellement servable, le serveur a déjà
   // refermé la demande (§4) et la ligne s'en va d'elle-même — sur un FAIT, pas sur un clic.
@@ -259,7 +282,10 @@ export function DemandesPage() {
                       </Link>
                     </div>
                     <ul className="space-y-2">
-                      {group.items.map((req) => (
+                      {group.items.map((req) => {
+                        // `undefined` = rien en cours · `null` = lancement en vol · objet = lot connu.
+                        const lot = lotDe(req);
+                        return (
                         <li
                           key={req.id}
                           className="flex items-center gap-3 rounded-lg border border-papa-border bg-papa-surface px-4 py-2.5"
@@ -274,11 +300,12 @@ export function DemandesPage() {
                           </span>
                           {/* ⚠️ `producible` est un verdict SERVEUR, jamais déduit du type ici :
                               la table des générateurs vit en un seul endroit (ADR-0036 §3). */}
-                          {req.id in runs ? (
-                            runs[req.id] ? (
+                          {lot !== undefined ? (
+                            lot ? (
                               <ProductionProgress
-                                runId={runs[req.id]!.id}
-                                scopeKind={runs[req.id]!.kind}
+                                runId={lot.id}
+                                scopeKind={lot.kind}
+                                initialRun={lot.run}
                                 onFinished={onRunFinished}
                               />
                             ) : (
@@ -354,7 +381,8 @@ export function DemandesPage() {
                             Ignorer
                           </button>
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
                   </div>
                 ))}
