@@ -250,6 +250,105 @@ Toujours présent (pas de saut de mise en page). Pictogramme via `subjectIconFor
 `SubjectPictogram` (`@zetis/ui`) — **jamais d'emoji codé en dur**. ⚠️ `lib/subjectEmoji.ts` existe
 encore côté Papa et viole déjà cette règle sur deux pages : **ne pas s'en servir ici**.
 
+### 5 bis. Panneau d'analyse d'une matière — *à implémenter*
+
+> Cadré par `adr-0028-addendum-analyse-par-matiere` et `adr-0020-addendum-portee-matiere`
+> (2026-08-05). **Seconde exception** au §4 « zéro état de chargement », après le drill-down d'un
+> jour.
+
+**Déclenchement** : clic sur une bulle du nuage. La matière est sélectionnée **et** le panneau se
+déplie **sous** la carte, séparé par `mt-4 border-t border-papa-border pt-3.5` — patron exact de
+`DayDetailPanel` sous la carte du rythme. Re-cliquer la bulle active referme et désélectionne.
+
+**Ce n'est pas une modale** : ni `role="dialog"`, ni `aria-modal`, ni fermeture par Échap. Un
+bouton « fermer » referme le panneau **sans** désélectionner la matière.
+
+#### État et URL
+
+| Clé | Écrite par | Effet |
+|---|---|---|
+| `?subject=<slug>` | tous les sélecteurs de matière | filtre la page (existant) |
+| `?panel=ou-agir` | **le seul clic sur une bulle** | déplie le panneau |
+
+- `panel` porte la **clé de carte** (`CARD_SCOPES` / `data-card`), pas un vocabulaire neuf.
+- `panel` sans `subject` **connu** → panneau fermé. Un lien périmé n'ouvre pas un vide.
+- 🔴 **Filtrer REFERME le panneau** : pastilles, donut et barres empilées écrivent `panel: null` en
+  même temps que `subject`. Sans cela, un clic de pastille rouvrirait le panneau, donc **un geste
+  de filtrage partirait au réseau**.
+- L'état est dans l'URL et non local **par nécessité** : le lien de preuve de la Lecture ZETIS
+  (même page) est une navigation vers la route courante, qui ne remonte pas `DashboardPage`.
+- `{ replace: true }` conservé — ouvrir un panneau n'est pas naviguer.
+
+#### Contenu — quatre blocs
+
+| Bloc | Source | Détail |
+|---|---|---|
+| **À renforcer** | 🌐 réseau | notions **nommées** : fragiles ∪ lacunes ouvertes. Sévérité, « déjà couverte par une mission », statut de maîtrise. **Non plafonné** |
+| **Déjà en cours** | 🌐 réseau | missions actives (titres), contenus en attente de validation, charge SRS 14 j, retard SRS |
+| **Temps et régularité** | 💾 mémoire | `minutes[period]`, jours actifs, créneaux — depuis `DashboardSubject` |
+| **Couverture** | 💾 mémoire + 🌐 détail | `notions`, `has_referentiel`, chapitres et leçons validés |
+
+> 🔴 **Règle qui décide de tout, champ par champ : le réseau ne sert que ce que l'agrégat ne peut
+> pas porter — des NOMS.** Refaire venir du réseau un chiffre déjà servi fabriquerait une seconde
+> source pour une mesure affichée dans la bulle juste au-dessus.
+>
+> **Corollaire testable** : la réponse ne dépend d'**aucune période**. Changer de période avec le
+> panneau ouvert ne déclenche **rien**. Un `period` dans la signature de l'appel serait la preuve
+> que la règle a été enfreinte.
+
+⚠️ **« À renforcer » n'additionne jamais les deux populations.** Une notion fragile
+(`SkillMastery.status ∈ {weak, learning}`) et une lacune ouverte (ligne `Gap`) sont **deux mesures
+distinctes** — cf. l'avertissement du §2 sur « Lacunes ouvertes » vs « à renforcer ». Chaque entrée
+porte les deux drapeaux séparément ; aucun total unique n'est affiché.
+
+#### Contrat
+
+`GET /api/parent/progress/subjects/{subject_id}/analysis` — dans le module `progress` (dont le
+docstring revendique déjà « le DÉTAIL des KPI du dashboard »), nommée `analysis` et non `focus`
+(qui collisionne avec `DashboardFocus`), indexée par `subject_id` entier (l'identité qu'utilise
+déjà l'ancrage du Conseil).
+
+Deux propriétés à verrouiller par test : la route **n'écrit rien**, et **n'appelle aucun LLM**.
+*L'analyse est l'évidence ; le Conseil est la narration.*
+
+#### États
+
+| État | Rendu |
+|---|---|
+| Chargement | texte discret, **liste précédente PURGÉE** |
+| Erreur | message + « Réessayer », **panneau maintenu ouvert** |
+| Vide | « Aucune notion à renforcer dans cette matière » |
+
+⚠️ La purge avant appel est un **correctif** sur `DayDetailPanel`, qui garde son détail pendant le
+chargement suivant. Toléré pour des minutes ; intenable ici, où les notions de Maths resteraient
+**nommées** sous le titre « SVT ».
+
+#### Largeur
+
+**La carte ne change pas de largeur** (`xl:col-span-5`). Le SVG est en `w-full` : élargir la carte
+déplacerait chaque bulle horizontalement, y compris celle que Papa vient de cliquer, sous son
+curseur. Le contenu s'adapte à ~560 px — liste pleine largeur, blocs chiffrés en deux colonnes.
+
+#### Le bouton de synthèse ciblée
+
+Deux libellés **volontairement distincts**, parce que l'un navigue et l'autre engage 18 s à 4 min
+de génération LLM :
+
+| Contrôle | Libellé | Effet |
+|---|---|---|
+| CTA existant | « Ouvrir le conseil de classe — {matière} » | navigation, **jamais** de génération |
+| Bouton du panneau | « Demander une synthèse écrite sur {matière} » `~18 s` | `ConfirmDialog` puis génération ciblée |
+
+`ProgressBar` à progression estimée (18 s). Au-delà de ~45 s, **le libellé** reprend la parole
+(« plus long que d'habitude ») — la barre sature à 95 % et n'apprend plus rien ; on ne rallonge
+pas l'estimation, ce serait déclarer 4 min pour un appel qui en dure 18 neuf fois sur dix.
+
+⚠️ L'état du run vit **dans la carte**, pas dans le panneau : celui-ci se démonte au clic sur une
+autre bulle, et le bouton redeviendrait cliquable pendant l'appel — deux rapports pour une matière.
+
+**On ne navigue pas au résultat** : après quatre minutes, Papa n'est plus dans la même pensée. La
+synthèse s'affiche en ligne, puis un lien vers `/conseil`.
+
 ### 6. Charge de révision — 14 jours à venir
 
 Cartes SRS dues par jour. Barres au-delà de `REVIEW_LOAD_WARN = 15` en ambre + ligne de seuil
