@@ -63,7 +63,7 @@ Première carte de la page, la seule à bordure ambre. Agrège les items **actio
 
 | `kind` | Source (colonne exacte, vérifiée en base) | Action primaire |
 |---|---|---|
-| `validation` | `lessons.status = 'draft'` · `fiches` / `mindmaps` / `capsules` / `chapters`.`validation_status = 'pending'` · `spaced_review_cards.status = 'pending'` | Relire |
+| `validation` | `lessons.status = 'draft'` · `fiches` / `mindmaps` / `capsules` / `chapters`.`validation_status = 'pending'`, **bornés à l'année active** · ~~`spaced_review_cards`~~ **jamais comptées** (écart de spec corrigé le 2026-08-05 : `_inbox()` ne les a jamais lues) · quiz exclus (`adr-0014 §2`). Source unique : `review_queue.pending_counts` (`adr-0039 §2`) | Relire |
 | `gap` | lacune ouverte **sans mission active** | Proposer une mission |
 | `demande` | `notion_requests.status = 'pending'` + `content_requests.status = 'pending'` | Traiter |
 | `referentiel` | matière de l'année active **sans chapitre généré** | Ouvrir le programme |
@@ -400,8 +400,13 @@ projections client (`adr-0028 §1`, §2).
   "days_inactive": 0,
 
   "inbox": [
-    { "kind": "validation", "count": 6, "label": "4 leçons et 2 fiches…",
-      "detail": "Maths (2) · Français (1) · SVT (3)", "href": "/contenus?status=pending" }
+    { "kind": "validation", "count": 6, "label": "6 contenus en attente de relecture",
+      "detail": "4 cours · 2 fiches",           // repli texte si `breakdown` est ignoré
+      "href": "/relecture",                     // ⚠️ `/contenus?status=pending` n'a JAMAIS existé
+      "breakdown": [                            // adr-0039 §5 — les CINQ familles vont à la file
+        { "kind": "lesson", "count": 4, "label": "4 cours", "href": "/relecture?kind=lesson" },
+        { "kind": "fiche",  "count": 2, "label": "2 fiches", "href": "/relecture?kind=fiche" }
+      ] }
   ],
 
   "periods": {

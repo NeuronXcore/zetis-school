@@ -121,6 +121,26 @@ program_version    # version déclarative du programme (ex: 2020), null pour les
 metadata_json      # JSONB nullable (13-bis) : {themes, suggested_class, repartition, prompt_version} — description reste du texte humain
 ```
 
+> 🔴 **Règle de lecture — la matière d'un chapitre se résout par les DEUX chemins, jamais un seul.**
+>
+> `school_year_subject_id` est **nullable** : un chapitre peut vivre sous `Subject → Theme →
+> Chapter`, sans aucun chemin direct vers une année scolaire. Un `INNER JOIN` sur
+> `SchoolYearSubject` fait alors disparaître le chapitre **et tout ce qui pend dessous**, sans
+> erreur et sans trace.
+>
+> ```sql
+> COALESCE(school_year_subjects.subject_id, themes.subject_id)   -- deux OUTER JOIN, jamais un INNER
+> ```
+>
+> ⚠️ **Ce trou a été trouvé trois fois** : `adr-0037` y a consacré un document entier, l'addendum
+> `adr-0034` l'a retrouvé dans `lessons_by_skill`, et `adr-0039` dans la file de relecture. La porte
+> qui fabriquait le cas (`POST /subjects/themes/{id}/chapters` créant un chapitre sans matière
+> d'année) est fermée depuis l'addendum `adr-0034`, mais **les chapitres déjà créés ainsi n'ont pas
+> été rétro-attribués** — la règle de lecture reste donc nécessaire.
+>
+> Implémentation de référence : `review_queue/service.py::_with_chapter_context` et
+> `_chapter_in_year`.
+
 ### LearningObjective
 
 ```txt

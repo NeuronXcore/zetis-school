@@ -265,7 +265,12 @@ silencieusement**.
 
 ## Hors périmètre
 
-File de relecture · production en lot (ADR-0023) · suppression et réattachement des orphelins ·
+~~File de relecture~~ **livrée** (`adr-0039`, page `/relecture`) : le bouton du bandeau ambre
+n'est plus inerte. ⚠️ Il ne porte **aucun compteur** — `pending_count` compte les dérivés `pending`
+de CETTE matrice, la file en couvre cinq familles dont deux qui n'y figurent pas (capsules,
+chapitres). Annoncer « Relire les 12 » ouvrirait une page qui en montre 32.
+
+Restent hors périmètre : production en lot (ADR-0023) · suppression et réattachement des orphelins ·
 filtre par moteur d'inférence · tout agrégat de provenance · toute surface Massimo.
 
 ---

@@ -1,5 +1,64 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.49.0 — Tout nombre du Dashboard ouvre enfin ce qu'il compte
+
+Deux surfaces du Dashboard annonçaient du travail sans jamais dire lequel. Les deux mentaient, et
+personne ne pouvait s'en apercevoir — précisément parce qu'aucune des deux n'était cliquable.
+
+**La file « À décider »** affichait « 32 contenus en attente », détaillés en « 26 cours · 1 fiche ·
+5 capsules ». Ce détail était une **chaîne de caractères construite au serveur** : non cliquable par
+construction, aucun geste front ne pouvait le rattraper. Et son bouton « Relire » pointait sur
+`/couverture`, qui ne montre **ni** les capsules (absentes de la matrice), **ni** les cours brouillon
+sous sa pilule « À relire » (elle ne filtre que les dérivés).
+
+**La Chaîne de contenus** affichait « ↓ N à produire ». Mesuré à l'écran : elle annonçait **49**
+fiches là où la page ouvrait **10** lignes. Deux causes cumulées, aucune n'étant une faute de
+calcul — la chaîne ignorait l'année scolaire, et une leçon validée **sans cours rédigé** entrait
+dans la soustraction alors qu'aucun dérivé n'y est générable. Un troisième défaut dormait à côté :
+le delta se calculait `stage.value − next.value` alors que chaque marche porte sa propre cible, ce
+qui rendait le nombre sous « Fiches » **faux** et pouvait afficher « ↓ complet » à tort.
+
+### Ce que la version livre
+
+- **Page `/relecture`** — le chantier que le dépôt nommait depuis l'`adr-0023` dans un bouton
+  `disabled`. Cinq familles, deux gestes (valider · rejeter), un lien « Voir → » pour lire avant de
+  trancher, retrait optimiste de la ligne.
+- **Module `review_queue`**, source **unique** du « en attente » : la page et la file du Dashboard
+  en dérivent toutes deux, et un test l'exige famille par famille.
+- **Le détail devient cliquable** : `InboxItem.breakdown` typé, cinq segments qui mènent tous à la
+  file. La file du Dashboard reste du **tri** — une ligne par famille, jamais par contenu.
+- **Les deltas « à produire » deviennent des liens**, et affichent désormais le nombre que leur
+  destination ouvre réellement (`missing_count`), pas une soustraction de marches.
+- **`/couverture` devient adressable** (`?filter=`, `?subject=`, `?manque=`) — utile bien au-delà de
+  ce chantier.
+- **Deux endpoints de rejet créés** (`fiches`, `mindmaps`) : quatre familles sur cinq se rejetaient
+  déjà, l'asymétrie ne s'expliquait pas à l'écran.
+
+### Ce qui change à l'écran, et qu'il faut savoir
+
+⚠️ **Le compteur « à valider » a BAISSÉ** (27 → 26 sur la base de dev). Les comptes sont désormais
+bornés à l'**année active**, comme la Couverture. Ce qui a disparu du compteur est exactement ce
+qu'aucune page ne savait ouvrir.
+
+⚠️ **« leçons » se dit « cours » à l'écran.** La table stocke une leçon, Papa relit un cours. Le
+pluriel est **porté** et non calculé : « cours » est invariable, un `+ "s"` mécanique écrirait
+« 26 courss ».
+
+### Décision revue le jour même
+
+Le segment « cours » devait ouvrir `/couverture?filter=no_lesson` (la validation en lot par chapitre
+y vit). **Revu par le user après l'avoir vu en vrai** : les cinq familles vont à la file. La pilule
+« 🔒 Non validées » de la Couverture **n'est pas retirée** — valider un chapitre entier qu'on vient
+de relire et trancher un cours à la fois sont deux gestes différents.
+
+### Vérifications
+
+931 backend · 545 Papa · 525 Massimo, `tsc -b` propre. **Vérifié à l'écran sur la base réelle** :
+les cinq segments, les trois deltas (38 / 10 / 15 annoncés, 38 / 10 / 15 lignes ouvertes — comptées),
+et l'accord `inbox = file = items servis = 32` lu sur l'API en direct.
+
+Aucune migration. `adr-0039`.
+
 ## 0.48.0 — Une file que personne n'écoute, et un écran qui disait « 0 % »
 
 Signalé par le user : quatre lots (#24 à #27) créés dans la matinée, aucun terminé, l'en-tête figé

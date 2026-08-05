@@ -7,136 +7,114 @@
 
 ## État à la reprise
 
-**Chantier : « une file que personne n'écoute » — COMPLET et MERGÉ.**
-Correctif de bug, signalé par le user : quatre lots créés dans la matinée, aucun terminé, en-tête
-figé à 0 %, et « changer de page et revenir remet tout à zéro ».
-
-⚠️ **Ce chantier n'est PAS né d'un cadrage** — c'est un correctif entré par un signalement. Le récit
-vit dans `TROUBLESHOOTING.md` (section `fix/file-de-production`) et `CHANGELOG.md` 0.48.0.
-
-✅ **Son ADR existe désormais**, écrit **après le merge** : `adr-0036-addendum-file-sans-consommateur.md`.
-Il ne décrit pas un chantier à faire, il **fige cinq règles déjà appliquées** — pour qu'une session
-future qui voudra « simplifier » sache ce qu'elle défait. L'écart au rituel (`mockup → spec → ADR`)
-est écrit **dans le document lui-même**, pas masqué.
-
-### Où est le code, exactement
+**Chantier : « tout nombre du Dashboard ouvre ce qu'il compte » — COMPLET, NON COMMITÉ.**
+Né du signalement du user : *« le badge doit devenir cliquable — 27 leçons, 1 fiche, 5 capsules :
+des liens ciblés vers les data à valider »*, puis *« parfois on peut aussi avoir : à produire,
+appliquer la même logique »*.
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR [#85](https://github.com/NeuronXcore/zetis-school/pull/85)**, squash **`7c3e290`** (2026-08-05) — branche `fix/file-de-production` **supprimée**, locale et distante |
-| Base | **`75022bf`** (tête de `main` au moment du départ) |
+| Branche | **`feat/file-de-relecture`**, partie de `c8e3af5` — **rien n'est commité** |
+| ADR | **`adr-0039-file-de-relecture.md`**, écrit **AVANT le code** (rituel tenu, contrairement au chantier précédent) |
 | Migration | **aucune** — pas une colonne touchée |
-| ADR | **`adr-0036-addendum-file-sans-consommateur.md`** — écrit APRÈS le merge, l'écart est assumé dans le document |
-| Suites | **911 backend (+1 xfailed) · 495 Papa · 525 Massimo**, `tsc -b` propre (papa et massimo) |
-| Vérifié à l'écran | **OUI**, session Papa connectée (MCP Chrome) — quatre écrans, détail plus bas |
+| Suites | **931 backend · 545 Papa · 525 Massimo**, `tsc -b` propre (papa et massimo) |
+| Vérifié à l'écran | **OUI**, session Papa connectée (`:5175` / backend `:8001`), sur la base réelle |
+| **NEXT** | `/cloture`, puis **l'humain vérifie et committe**, push, PR |
 
-### La cause, en une phrase
+### Ce que le chantier a trouvé — trois nombres qui mentaient
 
-`scripts/dev.sh` lançait l'infra, le backend et les deux frontends — **jamais**
-`python -m app.production_worker`. Le backend n'exécute aucun lot (ADR-0031 §3) : il accepte en
-`202` et enfile sur Redis. Sans worker, ZETIS accepte tout et ne produit rien. **Rien n'était en
-panne**, et c'est pourquoi ça a duré six heures et que le correctif de la veille — qui avait rendu
-l'en-tête honnête — n'y avait rien changé.
+Aucun n'était visible **parce qu'aucun n'était cliquable**. Les rendre cliquables les a démasqués.
 
-### Ce que ce chantier a livré
-
-1. **`dev.sh` lance le worker** (étape 4/5) et l'arrête avec la stack ; `pnpm dev:worker` seul.
-2. **Le 0 % a disparu** : `pct ?? 0` supprimé de `ProductionProgress`. `GenerationProgress` accepte
-   `value: number | null` et rend une **barre indéterminée sans chiffre**.
-3. **`worker_alive`** sur `GET /runs/active` → l'en-tête écrit « ZETIS **ne produit pas** … aucun
-   moteur de production actif », en ambre, **sans point qui pulse**.
-4. **`active_run` par demande**, redérivé serveur en une passe groupée → la page Demandes retrouve
-   sa barre après une navigation, sans rien mémoriser.
-5. **`started_at`** voyage avec le lot et ancre l'estimation → l'avancement **reprend** au lieu de
-   repartir de zéro.
-6. **Deux gardes en `409`** dans `create_run` : un lot identique déjà en file · le contenu existe
-   déjà. Le second réutilise les prédicats d'`equip_piece` (verrou d'architecture).
-7. **`components/Toast.tsx`** — le refus part en annonce éphémère, jamais dans le bandeau rouge.
-   `asJson` lève désormais un `HttpError` qui garde son `status`.
+1. **Le détail de la file « À décider » était une CHAÎNE construite au serveur.** Pas « pas encore
+   cliquable » : non cliquable **par construction**. D'où `InboxItem.breakdown` typé.
+2. **La Chaîne de contenus annonçait 49 fiches à produire pour une page qui en ouvrait 10.** Deux
+   causes cumulées, aucune n'étant une faute de calcul : la chaîne ignorait l'année scolaire, et une
+   leçon validée **sans cours rédigé** entrait dans la soustraction alors qu'aucun dérivé n'y est
+   générable. D'où `actionable_gaps()` dans `production/coverage.py`.
+3. **Le delta se calculait `stage.value − next.value`** alors que chaque marche porte sa propre
+   cible : le nombre sous « Fiches » était **faux** et pouvait afficher « ↓ complet » à tort.
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **Un refus n'est pas une panne.** Un `409` de production dit que ZETIS a reconnu la situation et
-   n'a rien détruit. Il part en **toast**, pas dans le bandeau rouge — les mélanger apprendrait que
-   les refus de ZETIS sont des dysfonctionnements.
-2. **Le tri se fait sur le CODE HTTP, jamais sur le texte du message.** Ces messages ont déjà été
-   réécrits une fois (§7 du 2026-08-04) ; un tri sur leurs mots casserait à la reformulation
-   suivante.
-3. **Une barre partiellement remplie EST un pourcentage**, même sans chiffre à côté. Le liseré
-   indéterminé balaie, il ne se remplit jamais. Et on **retire la case** du pourcentage plutôt que
-   d'y mettre « — » ou « ? », qui se lisent encore comme des valeurs.
-4. **« Existe » ne veut pas dire « rien à faire ».** Une fiche `pending` que le régime permet de
-   valider est un lot **utile** — refuser là supprimerait le seul geste restant et laisserait la
-   demande de Massimo ouverte pour toujours. Porté par `piece_deja_produite(peut_valider=…)`.
-5. **La garde anti-doublon n'est PAS de l'idempotence.** `run_exists_for` (ADR-0035) demande « a-t-il
-   déjà été produit ? » sur toute l'histoire ; ici on demande « y en a-t-il un en TRAIN de le
-   faire ? ». Relancer une production terminée reste légitime.
-6. **Les gardes de doublon ne répondent que des lots-PIÈCE.** Un lot de chapitre saute ses notions
-   déjà équipées une par une et produit les autres.
-7. **`worker_alive` n'est demandé que sur un lot `queued`** : un lot `running` a forcément quelqu'un
-   qui l'exécute, et la route est sondée toutes les 4 s sur toutes les pages Papa.
-8. **Le lien demande ↔ lot passe par `(skill_id, piece)`, jamais par une FK** : un lot `manual` ne
-   porte aucun `content_request_id` (contrainte, ADR-0031 §4).
+1. **Une seule table de prédicats** (`review_queue.service`) : la page `/relecture` **et** la file du
+   Dashboard en dérivent. Un test l'exige famille par famille.
+2. **Les comptes sont bornés à l'année active** — le compteur a **baissé** (27 → 26 en dev), et ce
+   qui a disparu est exactement ce qu'aucune page ne savait ouvrir.
+3. **Les CINQ segments mènent à la file.** ⚠️ La décision initiale envoyait les cours sur
+   `/couverture?filter=no_lesson` ; **revue par le user le jour même, après l'avoir vue en vrai**.
+   La pilule « 🔒 Non validées » de la Couverture **n'est pas retirée** : valider un chapitre relu
+   en lot et trancher un cours à la fois sont **deux gestes différents**.
+4. **La file du Dashboard TRIE, elle ne travaille pas** — une ligne par famille, les segments sont
+   de la navigation. Verrouillé par test : c'est la règle la plus facile à défaire par serviabilité.
+5. **`counts` et `subjects` ne sont jamais filtrés.** Leçon déjà payée deux fois dans ce dépôt.
+6. **« leçons » se dit « cours » à l'écran**, et le pluriel est **porté** : « cours » est invariable,
+   un `+ "s"` mécanique écrirait « 26 courss ».
 
-### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
+### ⚠️ Pièges payés en vrai, à ne pas re-découvrir
 
-1. 🔴 **`rq.Worker.count()` MENT, `Worker.all()` dit vrai.** Un worker tué sans nettoyage laisse son
-   NOM dans `rq:workers:<file>` alors que son hash a expiré. **Mesuré ici : aucun processus en vie,
-   `count()` = 1.** Un indicateur bâti dessus aurait affirmé qu'un worker écoutait pendant que rien
-   n'écoutait — exactement le défaut qu'il vient réparer.
-2. 🔴 **Un fixture de test semait un chapitre INATTEIGNABLE** (via un `Theme`). Il existait en base,
-   mais `lessons_by_skill` exige un chapitre `validated` sous un `SchoolYearSubject` de l'année
-   **active** : trois verrous seraient passés au vert **en ne testant rien**. Semer par `_seed_year`
-   / `_seed_lesson`.
-3. ⚠️ **Un test existant empilait 5 lots `queued` sur le même chapitre** — la nouvelle garde le
-   refuse, à raison. Corrigé en terminant chaque lot ; `auto_runs_in_window` compte par
-   **déclencheur**, jamais par statut, donc le verrou est intact.
-4. ⚠️ **Trois de mes tests ont échoué pour cause d'AUTHENTIFICATION**, pas de code : l'autouse
-   `_papa` doit dépendre de `client_db`, sinon le rôle retombe à `child` et tout part en 403.
-5. ⚠️ **Un `grep` de contre-épreuve a été ambigu** : il semblait montrer la ligne sabotée intacte
-   alors que le décalage venait d'une autre branche. Sabotage **relu en diff** avant de conclure.
+1. 🔴 **Mon test-verrou central ne verrouillait RIEN, et il était vert.** `test_la_file_et_l_inbox_
+   comptent_la_MEME_chose` passait alors que j'avais saboté l'inbox pour qu'elle recompte les
+   capsules **sans bornage** — parce que le décor plaçait tout dans l'année active, où les deux
+   formules rendent le même nombre. Corrigé par `_hors_annee()`, qui pose une pièce **de chaque
+   famille** hors année. **Troisième occurrence de ce motif dans le dépôt** (cf.
+   `contre-epreuve-mal-visee`). Un sabotage vert ne prouve rien.
+2. 🔴 **Les tests d'inbox existants passaient À VIDE.** La fixture `client_db` ne crée **ni année
+   scolaire ni chapitre** : `test_les_quiz_ne_sont_pas_dans_la_file_de_validation` s'écrit
+   `validation == [] or …` et était vrai parce qu'il n'y avait **jamais** de ligne `validation`.
+3. 🔴 **`allSubjects` de la Couverture n'était alimenté que si `subjectId === null`.** Rendre la page
+   adressable supprime ce chargement : arriver sur `?subject=3` laissait la liste des pastilles vide
+   **pour toujours**, sans retour possible vers « Toutes ». Correctif : `fetchSubjects()` au montage.
+4. ⚠️ **L'ordre compte dans le rattrapage d'erreur** : `reload()` remet `error` à `null` au départ
+   **et** à l'arrivée. Poser le message avant le rechargement l'efface — la ligne revenait sans que
+   rien n'explique pourquoi.
+5. ⚠️ **`document.querySelectorAll('tbody tr')` compte les en-têtes de chapitre.** Ma première mesure
+   annonçait 17 lignes là où il y en avait 10 : j'ai failli « corriger » un nombre juste.
+6. ⚠️ **`missing_href` de la première marche est mort-né** : un delta se lit toujours ENTRE deux
+   marches, rien ne se trouve au-dessus de la première. Servi à `None`, avec le motif.
+7. ⚠️ **`@testing-library/user-event` n'est pas une dépendance du projet** — la convention est
+   `fireEvent`.
 
-> Détail et parades : `TROUBLESHOOTING.md`, section **`fix/file-de-production` (2026-08-05)**.
-
-### Ce qui a été VU à l'écran (session Papa connectée, MCP Chrome)
-
-1. **Le toast de refus** sur la demande COD — et **aucun lot créé**, vérifié en base.
-2. **L'en-tête moteur éteint** : « ZETIS ne produit pas un chapitre · en attente — aucun moteur de
-   production actif », ambre, point fixe.
-3. **L'en-tête moteur présent** : « ZETIS va produire un chapitre · en file d'attente », point qui bat.
-4. **La ligne Demandes** avec barre indéterminée et **aucun pourcentage**, sur une page atteinte par
-   navigation **sans aucun clic** — c'est la preuve que le lot vient du serveur, pas de la page.
+Le détail de ces sept pièges, avec cause et parade, vit dans `TROUBLESHOOTING.md`
+§`feat/file-de-relecture`.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS et MERGÉ** (PR #85, squash `7c3e290`). Branche supprimée des deux côtés,
-arbre propre, `main` == `origin/main` — vérifié après le merge.
+**Le chantier est FINI** : tous les lots livrés, doc écrite, vérifié à l'écran. Rien n'est commité —
+c'est l'humain qui vérifie (diff + suites) puis committe.
 
-**Aucun chantier suivant n'est cadré.** Le prochain se choisit dans les DETTES ci-dessous. Les deux
-plus mûres restent celles héritées du chantier précédent, parce qu'elles sont déjà bornées :
+1. **Vérifier et committer** (geste humain), puis `git push -u origin feat/file-de-relecture`.
+2. **Ouvrir la PR** vers `main`, puis merger.
+3. 🔴 **Revenir faire l'étape 4bis** (`WORKFLOW.md §5`) : remettre ce fichier au réel — squash, n° de
+   PR, branche supprimée, « rien à pousser » — et **descendre les résidus ci-dessous** dans les
+   dettes. Tout ce qui est écrit ici sur l'état Git devient faux au merge.
 
-1. 🔴 **la fenêtre de la branche `flat`** (730 j du constat contre 366 j de sa cible) — un `xfail`
-   strict l'attend déjà dans `test_reading_evidence.py` ;
-2. 🔴 **les entrées de `CHANGELOG.md` manquantes** pour les PR #82 et #83.
+Aucun chantier suivant n'est cadré ; le prochain se choisit dans les DETTES ci-dessous.
 
-✅ La troisième — l'addendum ADR-0036 qui rendait opposables les décisions prises sans document — a
-été **écrite le jour même**, après le merge.
-
-Les **trois commits** ont chacun été **vérifié sur son propre état** (l'arbre réduit à ce commit-là
-avant de lancer les suites), et non seulement à la fin :
-
-| | Commit | Suites sur cet état |
-|---|---|---|
-| 1 | le worker et son absence visible | 904 back · 492 Papa |
-| 2 | l'avancement cesse de mentir, la page cesse d'oublier | 904 back · 493 Papa |
-| 3 | ZETIS refuse un doublon et le dit (+ doc) | 911 back · 495 Papa · 525 Massimo |
-
-⚠️ **Le découpage a révélé un vrai couplage** : `useRunProgress` demandait `started_at` dans son
-type alors que le commit 1 ne s'en sert pas — `tsc` l'a attrapé sur l'état du commit 1 seul, jamais
-sur l'état final. Le champ a été déplacé au commit 2, avec son usage.
-
+---
 
 ### ▶ DETTES OUVERTES
+
+> ⚠️ **Les quatre premières sont nées du chantier « file de relecture » (2026-08-05).**
+
+- ⚠️ **Le bandeau ambre de la Couverture et la file comptent deux populations différentes**, et c'est
+  assumé : `totals.pending_count` ne voit que les dérivés `pending` **de la matrice** (1 en dev), la
+  file couvre cinq familles dont deux qui n'y figurent pas (32). Le bouton ne porte donc **aucun
+  chiffre**. **Déclencheur de réouverture** : si quelqu'un demande un jour pourquoi le bandeau dit
+  « 1 » et la file « 32 », c'est que le libellé ne suffit plus — il faudra nommer les deux
+  populations à l'écran, jamais inventer un troisième compteur.
+- ⚠️ **Les quiz restent hors de la file de relecture** (`quizzes` n'a pas de `validation_status`,
+  ADR-0014 §2). Les y faire entrer demande **une migration ET un changement de doctrine** — deux
+  décisions, pas une. Verrouillé par test pour que l'absence se lise comme un choix.
+- ⚠️ **Les objets `pending` hors année active ne sont plus comptés nulle part** (décision §3). Sur la
+  base de dev, une leçon a disparu du compteur (27 → 26). **Aucune page ne les atteint** — c'était
+  déjà vrai avant, la différence est qu'on ne les annonce plus. Une commande de rattrapage reste à
+  écrire si des années archivées doivent un jour être relues.
+- ⚠️ **`/relecture` n'offre aucun aperçu du contenu** : Papa doit sortir par « Voir → » pour lire
+  avant de trancher. **Déclencheur de réouverture**, écrit dans l'ADR-0039 : Papa qui ouvre la file
+  et la referme sans rien trancher. La réponse serait alors de rapprocher la lecture de la décision,
+  **jamais** d'ajouter un « tout valider ».
+
+> ⚠️ Les **six suivantes** sont nées du **2026-08-05 (la file de production)** ; suivent celles des
 
 > ⚠️ Les **six premières** sont nées du **2026-08-05 (la file de production)** ; suivent celles des
 > preuves + dépliage, de l'analyse par matière, de la vue à l'année, et du 2026-08-04.
@@ -510,6 +488,16 @@ si la file regrossit.
 
 
 ## Historique des chantiers clos
+
+> **2026-08-05 — une file que personne n'écoute** (PR #85, squash `7c3e290`), section retirée à la
+> clôture du chantier « file de relecture ». Contrôles : ADR
+> `adr-0036-addendum-file-sans-consommateur.md` ✅ · `TROUBLESHOOTING.md` §`fix/file-de-production`
+> ✅ · `CHANGELOG.md` 0.48.0 ✅ · **rien d'ouvert** dans la section retirée — les deux dettes 🔴
+> qu'elle nommait en « prochain pas » (fenêtre de la branche `flat`, `CHANGELOG` muet sur #82/#83)
+> étaient **déjà** dans DETTES OUVERTES, vérifié avant suppression. Ce qui s'y trouvait d'utile et
+> qui ne survit qu'ici : le chantier a été **découpé en trois commits vérifiés chacun sur son propre
+> état**, et ce découpage a révélé un couplage (`useRunProgress` demandait `started_at` au commit 1
+> sans l'utiliser) que la seule vérification finale n'aurait jamais montré.
 
 > **2026-08-05 — le panneau d'analyse par matière** (PR #83, squash `cb59600`), section retirée à
 > la clôture du 2026-08-05. Contrôles : ADR `adr-0028-addendum-analyse-par-matiere.md` ✅ ·
