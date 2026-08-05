@@ -25,6 +25,21 @@ appliquer la même logique »*.
 testé **en isolation** — `git stash` du reste, 931 verts sans une ligne de front. C'est le seul
 découpage où aucun fichier n'est scindé entre deux commits, donc où `git add` au fichier suffit.
 
+### Un second chantier a suivi, le même jour, et il est mergé aussi
+
+**« la fenêtre de la branche `flat` »** — paiement d'une dette, pas une fonctionnalité. PR
+[#87](https://github.com/NeuronXcore/zetis-school/pull/87), squash **`e42dc64`**, un seul commit,
+branche `fix/fenetre-branche-flat` supprimée. **932 backend** (931 + le `xfail` devenu vert).
+
+Le constat *« trop peu d'activité mesurée pour conclure »* comptait sur 730 j ce que sa preuve
+(`/cahier`) n'en servait que 366 — **compté et invisible sur sa propre preuve**. ⚠️ Aucune des deux
+bornes n'était fautive : c'est leur **rencontre** qui mentait. `_reading` **lit** désormais
+`settings.activity_max_range_days` (jamais recopié). Amendement dans l'ADR-0038.
+
+> ✅ **Le `xfail(strict=True)` s'est refermé tout seul** : passé XPASS donc rouge, il a forcé son
+> propre retrait. Première fois ici qu'une dette se rappelle au moment exact où elle est payée —
+> **patron à réutiliser** pour toute divergence connue qu'on choisit de ne pas traiter tout de suite.
+
 **Aucun chantier suivant n'est cadré.** Le prochain se choisit dans les DETTES ci-dessous.
 
 ### Ce que le chantier a trouvé — trois nombres qui mentaient
@@ -92,10 +107,11 @@ Le prochain chantier se choisit dans les DETTES ci-dessous. Les deux plus mûres
 qu'au chantier précédent, parce qu'elles sont déjà bornées et qu'aucun des deux derniers chantiers
 ne les a touchées :
 
-1. ✅ ~~la fenêtre de la branche `flat`~~ — **PAYÉE le 2026-08-05** (branche
-   `fix/fenetre-branche-flat`). Le `xfail` strict est passé XPASS, donc rouge, et a forcé son
-   propre retrait : première dette de ce dépôt à se rappeler toute seule. Amendement dans
-   l'ADR-0038, `CHANGELOG` 0.49.1.
+1. ✅ ~~la fenêtre de la branche `flat`~~ — **PAYÉE ET MERGÉE le 2026-08-05** : PR
+   [#87](https://github.com/NeuronXcore/zetis-school/pull/87), squash **`e42dc64`**, branche
+   `fix/fenetre-branche-flat` **supprimée** des deux côtés. Le `xfail` strict est passé XPASS, donc
+   rouge, et a forcé son propre retrait : première dette de ce dépôt à se rappeler toute seule.
+   Amendement dans l'ADR-0038, `CHANGELOG` 0.49.1, pièges dans `TROUBLESHOOTING.md`.
 2. 🔴 **les entrées de `CHANGELOG.md` manquantes** pour les PR #82 et #83 — désormais la seule des
    deux qui reste.
 
