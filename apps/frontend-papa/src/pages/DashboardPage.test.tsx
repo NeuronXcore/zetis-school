@@ -239,6 +239,58 @@ describe("agrégat unique", () => {
   });
 });
 
+describe("donut « Répartition du temps »", () => {
+  // On lit les `<text>` du CENTRE, pas le texte de la carte : `formatMinutes` sert aussi aux
+  // `<title>` des segments, si bien qu'un `toHaveTextContent("1h05")` passerait au vert sans que
+  // le centre ait bougé d'un pixel.
+  const centre = () =>
+    [...screen.getByRole("img", { name: /Répartition du temps actif/ }).querySelectorAll("text")]
+      .map((t) => t.textContent);
+
+  it("sans filtre, le centre annonce le total de la fenêtre", async () => {
+    renderPage();
+    await screen.findByRole("button", { name: /Temps actif/ });
+
+    expect(centre()).toEqual(["3h20", "temps actif"]);
+  });
+
+  it("le centre suit la matière sélectionnée, et garde le total sous lui", async () => {
+    renderPage("/?subject=maths");
+    await screen.findByRole("button", { name: /Temps actif/ });
+
+    // 65 min de maths dans une fenêtre de 200.
+    expect(centre()).toEqual(["1h05", "Mathématiques", "sur 3h20"]);
+
+    // Le TRACÉ, lui, ne suit pas le filtre : réduit à une matière, le donut occuperait 100 % du
+    // disque et ne dirait plus rien de sa part réelle.
+    const carte = screen.getByRole("img", { name: /Répartition du temps actif/ }).closest("section")!;
+    expect(within(carte).getByText("SVT")).toBeInTheDocument();
+    expect(within(carte).getByText("Hors matière")).toBeInTheDocument();
+  });
+
+  it("une matière SANS temps affiche 0, pas le total de la fenêtre", async () => {
+    // Le cas que le donut ne peut pas montrer : à 0 minute la matière n'a aucune part dessinée.
+    // La chercher parmi les parts la ferait retomber sur le total — un bug qui ne se verrait que
+    // sur les matières inactives, donc jamais.
+    vi.mocked(fetchDashboard).mockResolvedValue({
+      ...PAYLOAD,
+      subjects: [
+        ...PAYLOAD.subjects,
+        subject({
+          id: 3,
+          slug: "anglais",
+          name: "Anglais",
+          minutes: { "7": 0, "30": 0, "90": 0, "365": 0 },
+        }),
+      ],
+    });
+    renderPage("/?subject=anglais");
+    await screen.findByRole("button", { name: /Temps actif/ });
+
+    expect(centre()).toEqual(["0 min", "Anglais", "sur 3h20"]);
+  });
+});
+
 describe("KPI actifs", () => {
   it("expose aria-pressed et bascule au second clic", async () => {
     renderPage();
