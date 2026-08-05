@@ -364,8 +364,14 @@ pointillée. Note : *« Un pic se lisse en avançant une révision, pas en la su
 - En-tête : `moteur local` (**jamais « Claude »** — `adr-0008`).
 - Chaque constat porte un **lien de preuve** (`preuve · n quiz`) vers les `learning_events` qui le
   fondent. Un constat sans preuve n'est pas affiché.
-- Constat de non-conclusion explicite quand le volume est insuffisant (« trop peu d'activité sur la
-  période pour conclure ») — préférable au silence.
+- Constat de non-conclusion explicite quand le volume est insuffisant (« trop peu d'activité
+  **mesurée** pour conclure ») — préférable au silence.
+
+  ⚠️ **Le libellé ne promet AUCUNE fenêtre**, et c'est délibéré : ni « sur la période » (le compte
+  n'est pas celui du sélecteur 7/30/90/365), ni une durée chiffrée. Il compte les traces sur la
+  fenêtre que sa **preuve** sait servir — `/cahier`, borné serveur à `ACTIVITY_MAX_RANGE_DAYS`
+  (366 j). Il a compté sur `HISTORY_DAYS` (730 j) jusqu'au 2026-08-05, ce qui rendait le nombre
+  invérifiable : une trace de plus d'un an était **comptée et invisible sur sa propre preuve**.
 - Mission proposée : `Créer la mission` (sous `ConfirmDialog`) / `Écarter`. **Papa ne crée pas
   unilatéralement, et l'affichage ne crée rien du tout** : le parcours est composé **en lecture**
   par le moteur de missions (`preview_remediation`, `adr-0028 §10`), et la confirmation appelle la

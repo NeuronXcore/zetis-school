@@ -1,5 +1,36 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.49.1 — La branche « flat » cesse de compter ce que sa preuve ne montre pas
+
+Dette inscrite le 2026-08-05 par l'ADR-0038, payée le jour même.
+
+Le constat *« trop peu d'activité mesurée pour conclure »* comptait les traces sur **730 jours**
+(tout l'historique chargé par l'agrégat) ; sa preuve, `/cahier`, est bornée **serveur** à
+**366 jours**. Une trace de plus d'un an était donc **comptée par le constat et invisible sur sa
+propre preuve** — le nombre annoncé n'était pas vérifiable.
+
+Aucune des deux bornes n'était fautive : les 730 j servent à rendre vrais les deltas des KPI, les
+366 j protègent l'ampleur du scan. C'est leur **rencontre** qui mentait.
+
+**Le comptage se borne désormais à la fenêtre de sa preuve** — et il **lit**
+`ACTIVITY_MAX_RANGE_DAYS`, la même source que le routeur qui borne, plutôt que de recopier un 366
+qui aurait divergé au premier changement de réglage.
+
+Conséquence assumée : le constat se déclenche un peu plus souvent, puisqu'il compte moins. C'est le
+comportement juste — s'il n'y a pas trois traces **dans l'année**, il n'y a pas de quoi conclure.
+
+### Ce que le marqueur de dette a prouvé
+
+La divergence vivait en `@pytest.mark.xfail(strict=True)` plutôt qu'en prose. À la correction, le
+test est passé **XPASS(strict)** — donc rouge — et a forcé le retrait du marqueur dans le même
+commit. **Première fois dans ce dépôt qu'une dette se rappelle toute seule au moment exact où elle
+est payée.** Le patron vaut d'être réutilisé.
+
+Le test garde le même corps : ce qui prouvait le défaut verrouille sa correction. Contre-épreuve
+jouée — bornage retiré, le test annonce 2 traces pour 1 servie, exactement la divergence d'origine.
+
+**932 backend** (931 + le `xfail` devenu vert). Aucune migration. `adr-0038` (amendement).
+
 ## 0.49.0 — Tout nombre du Dashboard ouvre enfin ce qu'il compte
 
 Deux surfaces du Dashboard annonçaient du travail sans jamais dire lequel. Les deux mentaient, et

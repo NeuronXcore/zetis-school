@@ -127,8 +127,10 @@ annoncé égale ce que la cible sert.
 
 ## Ce que cet ADR ne fait pas
 
-- **Il ne touche pas à `/cahier`** — la troisième branche mène à une page qui lit son paramètre.
-  Le verrou du §5 la couvrira ; s'il rougit, ce sera un chantier à part.
+- ~~**Il ne touche pas à `/cahier`** — la troisième branche mène à une page qui lit son paramètre.
+  Le verrou du §5 la couvrira ; s'il rougit, ce sera un chantier à part.~~
+  **✅ Le chantier a eu lieu le 2026-08-05**, et il s'est déroulé exactement comme annoncé — voir
+  l'amendement ci-dessous.
 - **Il ne résout pas la divergence `Gap.subject_id` / `Skill.subject_id`**, toujours bornée par un
   test.
 - **Il ne change pas la définition de « consolidée »**, ni celle de « lacune ouverte ».
@@ -145,3 +147,52 @@ annoncé égale ce que la cible sert.
   doublon et il faut la retirer plutôt que l'enrichir.
 - **Le verrou du §5 est contourné plutôt que respecté** — un constat ajouté avec un `href` que
   personne ne sait résoudre. La leçon aura été perdue une troisième fois.
+
+---
+
+## Amendement du 2026-08-05 — la fenêtre de la branche `flat`, et ce que le `xfail` a prouvé
+
+Le §5 posait la règle : *un constat ne peut pas annoncer un nombre que sa preuve ne sert pas*. Il
+laissait une exception connue, écrite plus haut : `/cahier` n'était pas touché, et *« s'il rougit,
+ce sera un chantier à part »*. Il a rougi. Le chantier a eu lieu.
+
+### La divergence, et pourquoi elle n'était pas une faute de calcul
+
+Le constat `flat` comptait les traces sur **tout l'historique chargé** (`p.HISTORY_DAYS`, 730 j —
+le double de la plus longue fenêtre, pour que les deltas des KPI soient vrais). Sa cible `/cahier`
+est bornée **serveur** à `ACTIVITY_MAX_RANGE_DAYS` (366 j), parce que *le client y choisit une
+fenêtre, jamais l'ampleur du scan* (`activity/router.py`).
+
+Les deux bornes sont **justes chez elles**. C'est leur rencontre qui mentait : une trace de plus de
+366 jours était **comptée par le constat et invisible sur sa propre preuve**.
+
+### Décision — la fenêtre d'un constat est celle de sa PREUVE
+
+Le comptage de `flat` se borne à `settings.activity_max_range_days`. On ne fait **pas** l'inverse
+— élargir `/cahier` — parce que sa borne protège l'ampleur du scan, et qu'un constat n'a aucune
+raison de faire décider d'une limite serveur.
+
+⚠️ **La borne est LUE, jamais recopiée** : `_reading` lit `settings.activity_max_range_days`, la
+même source que le routeur qui borne. Un `366` en dur dans le dashboard aurait recréé la divergence
+au premier changement de réglage, et personne ne l'aurait vu.
+
+**Conséquence assumée** : le constat se déclenche un peu plus souvent, puisqu'il compte moins. C'est
+le comportement juste — s'il n'y a pas trois traces **dans l'année**, il n'y a effectivement pas de
+quoi conclure. Et le libellé ne promet toujours **aucune fenêtre** : il en faudrait deux (celle du
+sélecteur, celle du Cahier) pour un constat dont l'intérêt est de dire qu'il n'y a rien à conclure.
+
+### Ce que le marqueur de dette a prouvé
+
+La divergence avait été inscrite en `@pytest.mark.xfail(strict=True)` plutôt que rapportée en prose.
+Le jour de la correction, le test est passé **XPASS(strict)** — donc **rouge** — et a forcé le
+retrait du marqueur dans le même commit.
+
+> **Le patron vaut d'être réutilisé** : une dette qu'on décrit en prose se perd à la session
+> suivante ; une dette écrite en `xfail` strict *se rappelle toute seule au moment exact où elle est
+> payée*. C'est la première fois dans ce dépôt qu'un marqueur de dette se referme de lui-même.
+
+Le test garde **exactement le même corps** : ce qui était la preuve du défaut est devenu le verrou
+de sa correction. Une assertion a été ajoutée (`annonce == 1`) pour que le décor ne puisse pas
+devenir vacuellement vert si la trace hors fenêtre disparaissait du décor.
+
+**Aucune migration.** Un paramètre de fonction (`today`), un prédicat, un marqueur retiré.

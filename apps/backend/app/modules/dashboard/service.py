@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.models import (
     Chapter,
     ContentRequest,
@@ -483,7 +484,13 @@ def _content_chain(db: Session, year_id: int | None) -> list[dict]:
 # ==================================================================================================
 
 
-def _reading(db: Session, student_id: int, subjects: list[dict], events: list[LearningEvent]) -> list[dict]:
+def _reading(
+    db: Session,
+    student_id: int,
+    subjects: list[dict],
+    events: list[LearningEvent],
+    today: date,
+) -> list[dict]:
     """Constats adossés à des traces comptées. **Un constat sans preuve n'est pas émis.**
 
     Version délibérément sobre : aucun appel LLM, aucune interprétation — on énonce ce que les
@@ -540,8 +547,24 @@ def _reading(db: Session, student_id: int, subjects: list[dict], events: list[Le
 
     # Non-conclusion explicite : le silence laisserait croire qu'il n'y a rien à dire, alors que
     # c'est le VOLUME qui manque. Sa preuve est précisément le compte d'événements.
+    # 🔴 **La fenêtre du constat est celle de sa PREUVE, pas celle du chargement** (adr-0038 §5).
+    #
+    # `events` porte tout l'historique chargé (`p.HISTORY_DAYS`, deux ans), mais `/cahier` est borné
+    # SERVEUR à `activity_max_range_days` (366 j) — le client y choisit une fenêtre, jamais
+    # l'ampleur du scan (`activity/router.py`). Compter sur deux ans ce qu'une page en sert un an
+    # rendait le constat littéralement invérifiable : une trace de plus de 366 jours était
+    # **comptée et invisible sur sa propre preuve**. Mesuré, pas supposé, et tenu en `xfail`
+    # strict depuis l'ADR-0038 le temps que ce chantier existe.
+    #
+    # ⚠️ On lit `settings.activity_max_range_days` — la MÊME source que le routeur qui borne, et
+    # non un 366 recopié : deux constantes finiraient par diverger, et personne ne le verrait.
+    cahier_first = today - timedelta(days=settings.activity_max_range_days)
     for subject in subjects:
-        traces = sum(1 for e in events if e.subject_id == subject["id"])
+        traces = sum(
+            1
+            for e in events
+            if e.subject_id == subject["id"] and local_day(e.created_at) >= cahier_first
+        )
         # `notions.total > 0` et non `has_referentiel` : une matière peut avoir des chapitres sans
         # aucune notion (chapitres générés, notions pas encore rattachées). Dire d'elle « trop peu
         # d'activité pour conclure » remplirait la carte de constats sur des matières qui n'ont
@@ -550,12 +573,12 @@ def _reading(db: Session, student_id: int, subjects: list[dict], events: list[Le
             reading.append(
                 {
                     "trend": "flat",
-                    # ⚠️ PAS « sur la période » : `events` est tout l'historique chargé
-                    # (`p.HISTORY_DAYS`, deux ans), pas la fenêtre que Papa a sélectionnée. Le mot
-                    # était déjà impropre quand le chargement valait 26 semaines ; la fenêtre
-                    # « Année » l'a porté à 730 jours et rendu franchement trompeur — une matière
-                    # à deux traces en deux ans s'annonçait « sur la période » alors que Papa
-                    # regardait sept jours. Le constat ne promet donc plus de fenêtre.
+                    # ⚠️ PAS « sur la période » : le compte n'est PAS celui de la fenêtre que Papa
+                    # a sélectionnée (7 / 30 / 90 / 365 j), mais celui que sa preuve sait servir
+                    # (366 j). Nommer une fenêtre ici obligerait à en nommer deux — celle du
+                    # sélecteur et celle du Cahier — pour un constat dont l'intérêt est justement
+                    # de dire qu'il n'y a pas de quoi conclure. Le constat ne promet donc AUCUNE
+                    # fenêtre, et son nombre est exactement ce que le clic ouvre.
                     "text": f"{subject['name']} : trop peu d'activité mesurée pour conclure",
                     "evidence": {
                         "count": traces,
@@ -733,7 +756,7 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         "periods": periods,
         "subjects": subjects,
         "content_chain": _content_chain(db, year.id if year else None),
-        "reading": _reading(db, student_id, subjects, ordered),
+        "reading": _reading(db, student_id, subjects, ordered, today),
         # Proposition composée EN LECTURE par le moteur de missions (`preview_remediation`,
         # patron preview/confirm ADR-0010). Le GET n'écrit rien : la mission n'existe qu'après
         # confirmation explicite de Papa, sur la route de création déjà en place. `None` quand

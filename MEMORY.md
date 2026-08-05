@@ -92,9 +92,12 @@ Le prochain chantier se choisit dans les DETTES ci-dessous. Les deux plus mûres
 qu'au chantier précédent, parce qu'elles sont déjà bornées et qu'aucun des deux derniers chantiers
 ne les a touchées :
 
-1. 🔴 **la fenêtre de la branche `flat`** (730 j du constat contre 366 j de sa cible) — un `xfail`
-   strict l'attend déjà dans `test_reading_evidence.py` ;
-2. 🔴 **les entrées de `CHANGELOG.md` manquantes** pour les PR #82 et #83.
+1. ✅ ~~la fenêtre de la branche `flat`~~ — **PAYÉE le 2026-08-05** (branche
+   `fix/fenetre-branche-flat`). Le `xfail` strict est passé XPASS, donc rouge, et a forcé son
+   propre retrait : première dette de ce dépôt à se rappeler toute seule. Amendement dans
+   l'ADR-0038, `CHANGELOG` 0.49.1.
+2. 🔴 **les entrées de `CHANGELOG.md` manquantes** pour les PR #82 et #83 — désormais la seule des
+   deux qui reste.
 
 ⚠️ **Trois résidus de CE chantier**, qui ne vivent nulle part ailleurs (ni Git, ni les ADR) :
 
@@ -184,12 +187,6 @@ ne les a touchées :
   **pose la question** au bon moment, pas ce que Redis répond. La réponse, elle, a été vérifiée à la
   main sur la vraie file (`Worker.all()` = `[]` pendant que `count()` = 1).
 
-- 🔴 **La branche `flat` de la Lecture ZETIS ment au-delà de 366 jours.** Le constat compte les
-  traces sur `p.HISTORY_DAYS` (730 j) ; sa cible `/cahier` est bornée serveur à
-  `activity_max_range_days` (366 j). Une trace plus ancienne est **comptée et invisible sur sa
-  propre preuve**. Mesuré, pas supposé. Inscrit en `@pytest.mark.xfail(strict=True)` dans
-  `test_reading_evidence.py` : le jour où la fenêtre est corrigée, **le test devient rouge** et
-  force à retirer le marqueur. Chantier à part, nommé par l'ADR-0038.
 - 🔴 **`CHANGELOG.md` saute DEUX chantiers mergés** : les PR **#82** (vue à l'année) et **#83**
   (panneau d'analyse par matière) n'ont **jamais reçu d'entrée**. Constaté en appliquant le 3ᵉ
   contrôle d'élagage — qui a donc **échoué** pour la section retirée. Leur récit vit dans leurs ADR
