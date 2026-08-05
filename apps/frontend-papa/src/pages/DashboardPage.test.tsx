@@ -70,16 +70,34 @@ const PAYLOAD: DashboardPayload = {
       kind: "validation",
       count: 6,
       label: "6 contenus en attente de relecture",
-      detail: "4 leçons · 2 fiches",
-      href: "/couverture",
+      detail: "4 cours · 2 fiches",
+      href: "/relecture",
+      breakdown: [
+        { kind: "lesson", count: 4, label: "4 cours", href: "/relecture?kind=lesson" },
+        { kind: "fiche", count: 2, label: "2 fiches", href: "/relecture?kind=fiche" },
+      ],
     },
   ],
   unattributed_minutes: { "7": 107, "30": 450, "90": 1200, "365": 3900 },
   periods: { "7": period(200), "30": period(825), "90": period(2210), "365": period(7400) },
   subjects: [subject(), subject({ id: 2, slug: "svt", name: "SVT", minutes: { "7": 28, "30": 120, "90": 320, "365": 1100 } })],
   content_chain: [
-    { stage: "cours_valides", label: "Cours validés", value: 30, target: 38 },
-    { stage: "fiches", label: "Fiches", value: 22, target: 30 },
+    {
+      stage: "cours_valides",
+      label: "Cours validés",
+      value: 30,
+      target: 38,
+      missing_href: "/couverture?filter=no_course",
+      missing_count: 8,
+    },
+    {
+      stage: "fiches",
+      label: "Fiches",
+      value: 22,
+      target: 30,
+      missing_href: "/couverture?filter=ready&manque=fiche",
+      missing_count: 5,
+    },
   ],
   reading: [
     {

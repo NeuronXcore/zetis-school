@@ -30,6 +30,7 @@ export {
   type DashboardSubject,
   type InboxItem,
   type InboxKind,
+  type InboxSegment,
   type KpiGaps,
   type KpiOutOf,
   type KpiValue,
@@ -37,7 +38,14 @@ export {
   type ProposedStep,
   type ProposedStepType,
   type ReadingTrend,
+  type ReviewKind,
 } from "./dashboard";
+export {
+  type ReviewCounts,
+  type ReviewItem,
+  type ReviewQueue,
+  type ReviewSubjectRef,
+} from "./reviewQueue";
 export {
   type AnalysisEngagedNotion,
   type AnalysisInProgress,

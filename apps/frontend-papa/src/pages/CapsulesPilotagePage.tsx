@@ -177,6 +177,18 @@ export function CapsulesPilotagePage() {
     setCreating(true);
   }, [params]);
 
+  // Lien profond « ouvre CETTE capsule » : ?focus=<capsule_id>. Aligne la page sur la convention
+  // déjà tenue par /fiches, /mindmaps et /quiz (adr-0039 §5) — sans lui, le lien « Voir » de la
+  // file de relecture déposait Papa en haut d'une liste, à lui de retrouver la capsule.
+  //
+  // ⚠️ Ne dépend QUE de la valeur du paramètre, pas de `params` : l'objet change d'identité à
+  // chaque écriture d'URL, et la capsule se rechargerait sous les doigts de Papa.
+  const focusCapsuleId = Number(params.get("focus")) || null;
+  useEffect(() => {
+    if (focusCapsuleId !== null) void onSelect(focusCapsuleId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusCapsuleId]);
+
   // Au changement de matière du formulaire : réinitialise le chapitre et charge ses chapitres.
   useEffect(() => {
     if (subjectId != null) {

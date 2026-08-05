@@ -60,12 +60,28 @@ export interface DashboardSchoolYear {
  *  priorité pédagogique, pas la chronologie. */
 export type InboxKind = "validation" | "gap" | "demande" | "referentiel" | "source";
 
+/** Les cinq familles d'objets qui attendent une relecture (adr-0039). Les quiz n'en sont pas :
+ *  `quizzes` n'a pas de `validation_status`, il est servi sans gate par doctrine (adr-0014 §2). */
+export type ReviewKind = "lesson" | "fiche" | "mindmap" | "capsule" | "chapter";
+
+/** Une part cliquable du détail d'une ligne de la file. Le `href` vient du SERVEUR, comme celui de
+ *  la ligne : une règle d'adressage n'a rien à faire dans un composant de présentation
+ *  (adr-0028-addendum §6). */
+export interface InboxSegment {
+  kind: ReviewKind;
+  count: number;
+  label: string;
+  href: string;
+}
+
 export interface InboxItem {
   kind: InboxKind;
   count: number;
   label: string;
   detail: string | null;
   href: string;
+  /** Vide pour toute famille autre que `validation` — le front garde son repli sur `detail`. */
+  breakdown: InboxSegment[];
 }
 
 export interface DashboardCalendarDay {
@@ -115,11 +131,18 @@ export interface DashboardSubject {
   has_referentiel: boolean;
 }
 
+/** Une marche de l'entonnoir de production. `missing_href` mène là où se produit ce qui manque
+ *  À CETTE marche — servi par le serveur, comme les `href` de la file (adr-0039 §9). */
 export interface DashboardContentStage {
   stage: string;
   label: string;
   value: number;
   target: number;
+  missing_href: string | null;
+  /** Ce que `missing_href` ouvre RÉELLEMENT — et non `target - value`, qui compte aussi ce qui
+   *  n'est pas encore produisible (une leçon validée sans cours rédigé). Le nombre et le lien
+   *  tiennent ensemble ou n'existent pas. */
+  missing_count: number | null;
 }
 
 export interface DashboardEvidence {

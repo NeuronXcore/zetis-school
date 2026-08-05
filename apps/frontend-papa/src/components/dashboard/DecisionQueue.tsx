@@ -6,6 +6,10 @@ import type { InboxItem, InboxKind } from "@zetis/types";
 // Sa fonction est le TRI, pas le travail : une ligne par famille, jamais une ligne par contenu.
 // Détaillée, elle redeviendrait une liste de tâches et perdrait exactement ce qu'elle apporte.
 //
+// ⚠️ Le `breakdown` (adr-0039) ne défait PAS cette règle : ses puces sont de la NAVIGATION vers
+// la surface qui sait traiter cette famille, jamais des tâches. Aucun bouton d'action n'entre ici
+// — c'est la règle la plus facile à défaire par serviabilité, et un test la garde.
+//
 // L'ordre vient du serveur et n'est pas retrié ici : il encode la priorité pédagogique, pas la
 // chronologie. Un tri par ancienneté ferait remonter les captures à classer devant une notion
 // qui bloque.
@@ -78,8 +82,27 @@ export function DecisionQueue({ items }: DecisionQueueProps) {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm">{item.label}</span>
-                {item.detail && (
-                  <span className="mt-0.5 block text-xs text-papa-muted">{item.detail}</span>
+                {item.breakdown.length > 0 ? (
+                  // Chaque part du détail mène à la surface qui sait la traiter (adr-0039 §5) :
+                  // les leçons à la Couverture (pilule « Non validées » + validation en lot), le
+                  // reste à la file de relecture. Le `href` vient du serveur, jamais d'ici.
+                  <span className="mt-1 flex flex-wrap gap-1.5">
+                    {item.breakdown.map((segment) => (
+                      <Link
+                        key={segment.kind}
+                        to={segment.href}
+                        className="rounded-md border border-papa-border bg-papa-surface-2 px-2 py-0.5 text-xs text-papa-muted hover:border-papa-warn hover:text-papa-text"
+                      >
+                        {segment.label}
+                      </Link>
+                    ))}
+                  </span>
+                ) : (
+                  // Repli : les quatre autres familles n'ont rien à décomposer, et un client qui
+                  // ignorerait `breakdown` garde une ligne lisible.
+                  item.detail && (
+                    <span className="mt-0.5 block text-xs text-papa-muted">{item.detail}</span>
+                  )
                 )}
               </span>
               <Link

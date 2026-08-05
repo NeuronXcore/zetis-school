@@ -35,6 +35,12 @@ import { generateSkillCards } from "../lib/srsCards";
 vi.mock("../lib/curriculum", () => ({ validateAllLessons: vi.fn() }));
 import { validateAllLessons } from "../lib/curriculum";
 
+// Les pastilles de matière ont leur PROPRE source depuis l'adr-0039 : elles se lisaient sur le
+// premier chargement non filtré de la couverture, ce qui ne marche plus dès qu'un lien arrive
+// avec `?subject=`. Cf. le test « les matières survivent… ».
+vi.mock("../lib/subjects", () => ({ fetchSubjects: vi.fn() }));
+import { fetchSubjects } from "../lib/subjects";
+
 function cell(state: CoverageCell["state"], validated_by: ValidatedBy | null = null): CoverageCell {
   return { state, derived_at: "2026-07-20T10:00:00Z", validated_by, object_id: 1 };
 }
@@ -90,6 +96,15 @@ const FIVE_STATES = lesson(1, "Toutes les couleurs", "ready", {
   fiche: cell("pending"),
   mindmap: cell("absent"),
 });
+/** Prête, tout produit SAUF la fiche — la seule que `?manque=fiche` doit garder.
+ *  ⚠️ `FIVE_STATES` a une fiche `pending` : elle EXISTE et attend une relecture, elle n'est pas
+ *  « à produire ». C'est la paire qui rend le test discriminant. */
+const ALL_DONE_BUT_FICHE = lesson(3, "Fiche manquante", "ready", {
+  cours: cell("validated", "parent"),
+  quiz: cell("validated", "parent"),
+  fiche: cell("absent"),
+  mindmap: cell("validated", "parent"),
+});
 const BLOCKED = lesson(2, "Bloquée", "blocked_lesson", {
   cours: cell("blocked"),
   quiz: cell("blocked"),
@@ -97,9 +112,9 @@ const BLOCKED = lesson(2, "Bloquée", "blocked_lesson", {
   mindmap: cell("blocked"),
 });
 
-function renderPage() {
+function renderPage(entree = "/couverture") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[entree]}>
       <CouverturePage />
     </MemoryRouter>,
   );
@@ -120,6 +135,10 @@ function chips() {
 beforeEach(() => {
   vi.mocked(fetchOrphans).mockResolvedValue([]);
   vi.mocked(fetchContentRequests).mockResolvedValue([]);
+  vi.mocked(fetchSubjects).mockResolvedValue([
+    { id: 1, name: "Français", slug: "francais" },
+    { id: 2, name: "Mathématiques", slug: "mathematiques" },
+  ] as never);
 });
 
 describe("CouverturePage — matrice", () => {
@@ -352,9 +371,26 @@ describe("CouverturePage — pastilles de matière", () => {
     chapters: [{ id: 20, title: "Ch. A", lessons: [FIVE_STATES] }],
   };
 
+  it("🔴 les matières survivent à une ARRIVÉE déjà filtrée (?subject=)", async () => {
+    // Le cas que l'adressabilité introduit, et qui aurait cassé la page en silence : la liste des
+    // pastilles se lisait sur le premier chargement NON filtré. Arriver depuis un lien du
+    // Dashboard avec `?subject=2` supprime ce chargement — la liste serait restée vide POUR
+    // TOUJOURS, et Papa n'aurait plus eu aucun moyen de revenir à « Toutes ».
+    const both = coverageWith([FIVE_STATES]);
+    vi.mocked(fetchCoverage).mockResolvedValue({ ...both, subjects: [MATHS] });
+
+    renderPage("/couverture?subject=2");
+
+    await waitFor(() =>
+      expect(chips().getByRole("button", { name: /Mathématiques/ })).toBeTruthy(),
+    );
+    expect(chips().getByRole("button", { name: /Français/ })).toBeTruthy();
+    expect(chips().getByRole("button", { name: /Toutes les matières/ })).toBeTruthy();
+  });
+
   it("les matières SURVIVENT au filtrage serveur, qui n'en renvoie plus qu'une", async () => {
-    // Le piège : `GET /coverage?subject_id=` restreint aussi `subjects`. Sans mémorisation de la
-    // liste non filtrée, on ne pourrait plus passer d'une matière à l'autre sans repasser par
+    // Le piège : `GET /coverage?subject_id=` restreint aussi `subjects`. Sans une source propre
+    // pour les pastilles, on ne pourrait plus passer d'une matière à l'autre sans repasser par
     // « Toutes ».
     const both = coverageWith([FIVE_STATES]);
     vi.mocked(fetchCoverage)
@@ -517,5 +553,48 @@ describe("CouverturePage — badge « réclamé par Massimo » (addendum ADR-002
     expect(await screen.findByText(/Notion nue/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Fait" }));
     expect(setContentRequestStatus).toHaveBeenCalledWith(7, "done");
+  });
+});
+
+describe("CouverturePage — adressable par l'URL (adr-0039 §9)", () => {
+  it("ouvre la pilule annoncée par le lien du Dashboard", async () => {
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([BLOCKED, FIVE_STATES]));
+    renderPage("/couverture?filter=no_lesson");
+
+    await screen.findByText("Bloquée");
+    expect(
+      screen.getByRole("button", { name: /Non validées/ }).getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("retombe sur « Tout » quand ?filter= est inconnu, sans blanchir la matrice", async () => {
+    // Un lien périmé qui viderait la page se lirait comme une panne, alors que la donnée est là.
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([BLOCKED, FIVE_STATES]));
+    renderPage("/couverture?filter=nawak");
+
+    await screen.findByText("Bloquée");
+    expect(screen.getByRole("button", { name: /^Tout \(\d+\)$/ }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+  });
+
+  it("?manque= ne garde que les leçons dont CETTE colonne est vide", async () => {
+    // Sans lui, « ↓ 19 à produire » sous Fiches ouvrirait toutes les leçons incomplètes, quel que
+    // soit le dérivé qui manque — un nombre annoncé que la page ne sert pas.
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([FIVE_STATES, ALL_DONE_BUT_FICHE]));
+    renderPage("/couverture?filter=ready&manque=fiche");
+
+    await screen.findByText("Fiche manquante");
+    expect(screen.queryByText("Toutes les couleurs")).toBeNull();
+  });
+
+  it("le bandeau ambre mène à la file de relecture", async () => {
+    // Le bandeau ne s'affiche que si des objets attendent : c'est là que vivait le bouton inerte
+    // « chantier distinct, non livré » depuis l'adr-0023.
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([FIVE_STATES], { pending_count: 12 }));
+    renderPage();
+
+    const lien = await screen.findByRole("link", { name: "File de relecture" });
+    expect(lien).toHaveAttribute("href", "/relecture");
   });
 });
