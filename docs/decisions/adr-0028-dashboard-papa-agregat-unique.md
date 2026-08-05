@@ -166,6 +166,11 @@ borné ; le charger d'avance pour 90 jours × 6 matières annulerait le §1.
 
 ### §5 — Les KPI sont des filtres de focus
 
+> **Étendu le 2026-08-05** par `adr-0028-addendum-kpi-a-renforcer` : un **cinquième** KPI,
+> « À renforcer » (`weak` + `learning`), et une ligne de plus au tableau de focus ci-dessous.
+> L'addendum corrige aussi ce tableau sur un point — « Lecture ZETIS » répond **aussi** à
+> « Notions consolidées », comme le code le fait depuis toujours (`dashboardDerive.ts:253`).
+
 Les quatre KPI (**temps actif**, **régularité**, **notions consolidées**, **lacunes ouvertes**)
 deviennent des contrôles. Un clic met la page en focus : les cartes qui **répondent à cette
 question** restent en pleine intensité, les autres s'atténuent (`opacity` + désaturation). Second
