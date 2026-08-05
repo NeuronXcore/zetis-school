@@ -7,8 +7,8 @@
 
 ## État à la reprise
 
-**Chantier : « le KPI qui manque — À renforcer » (addendum ADR-0028) — code COMPLET, chantier
-EN COURS : l'écran n'a jamais été regardé.**
+**Chantier : « le KPI qui manque — À renforcer » (addendum ADR-0028) — COMPLET, vérifié à l'écran,
+prêt à pousser.**
 
 Parti d'une question du user sur les KPI de notions du dashboard Papa, passé par une maquette, un
 addendum d'ADR, puis la slice. Le rituel `mockup → ADR → code` a été tenu **dans l'ordre**, pour la
@@ -16,7 +16,7 @@ première fois depuis plusieurs chantiers.
 
 | | |
 |---|---|
-| **État** | 🔴 **EN COURS.** Le code est complet et vert, mais **personne n'a vu le bandeau à l'écran** (`WORKFLOW.md §5bis`). **Ni PR ni merge tant que ce n'est pas fait** — le motif « mergé sans avoir jamais été vu » a déjà été payé deux fois (bandeau Massimo PR #79, souffle PR #89) |
+| **État** | ✅ **COMPLET.** Code vert, et **le bandeau a été regardé à l'écran par le user** avant toute PR (`WORKFLOW.md §5bis`) — contrairement au bandeau Massimo #79 et au souffle #89, dont les dettes visuelles restent dues. Prochain pas = commit + push + PR |
 | Branche | `feat/kpi-a-renforcer`, **poussée** — `origin/feat/kpi-a-renforcer` est identique au local. Commits : `git log --oneline main..HEAD` |
 | Base | **`5678f06`** (`docs(adr): le KPI qui manque…`) |
 | ⚠️ **État git anormal** | **`main` local a 1 commit d'avance sur `origin/main`.** `5678f06` (l'ADR + le glossaire) n'est arrivé sur le distant **que par la branche**, jamais sur `origin/main`. Après un merge en squash, le `main` local devra être **réaligné** (`git fetch && git reset --hard origin/main`) — un simple `git pull` divergera |
@@ -24,7 +24,7 @@ première fois depuis plusieurs chantiers.
 | Migration | **aucune** · Route nouvelle : **aucune** · Requête nouvelle : **une** (`history_since`) |
 | Suites | backend **935 ✅** (`test_dashboard.py` 31 → 34, **+3**) · Papa **563 ✅** (561 → 563, **+2**) · Massimo **525 ✅**, non touché · `tsc -b` propre sur les deux fronts |
 | PR | **aucune** — `gh pr list --head feat/kpi-a-renforcer` rend `[]` |
-| Vérifié à l'écran | 🔴 **NON. C'est le seul point qui reste.** |
+| Vérifié à l'écran | ✅ **OUI — par le user**, sur la paire `backend-dev` :8001 + `papa-dev` :5175, session Papa connectée. Cinq points passés : la carte ambre parmi les cinq, le 13 / +4 et sa courbe en marche, les quatre infobulles, le clic (quatre cartes retenues dont la Lecture ZETIS) et les trois paliers de grille. ⚠️ **L'agent, lui, ne l'a jamais vu** — `localStorage` vide après le redémarrage des serveurs, et il ne saisit pas de mot de passe |
 
 ### FAIT
 
@@ -52,7 +52,8 @@ dans la barre empilée et la courbe ambre, à deux cartes du seul endroit qu'on 
 
 ### ▶ EN COURS / À FAIRE
 
-**Rien n'est instable ni à moitié écrit.** Le seul reste est une vérification humaine.
+**Rien.** Aucun fichier instable, aucune vérification en attente : la relecture à l'écran est faite,
+il ne reste que le geste git.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
@@ -103,16 +104,21 @@ Trois corrections écrites dans le document lui-même, pour que personne ne les 
 
 ### ▶ PROCHAIN PAS
 
-1. 🔴 **REGARDER L'ÉCRAN.** Se connecter sur `http://localhost:5175` (paire `backend-dev` :8001 +
-   `papa-dev` :5175) et juger : la carte ambre parmi les cinq, la sparkline qui monte, les quatre
-   infobulles au survol des « i », et le passage à 2 colonnes en réduisant la fenêtre.
-2. Puis seulement : commit → push → PR → merge → **4bis**.
+**Le commit de la slice est FAIT** (`feat(dashboard): le bandeau nomme enfin ce qui glisse…`,
+16 fichiers, `.claude/launch.json` correctement exclu). La vérification à l'écran est faite.
+
+Reste, dans l'ordre : **committer la bascule de ce fichier en COMPLET** (elle a été écrite après le
+commit de la slice) → **push** → **PR** → merge → **4bis**.
+
+```bash
+git add MEMORY.md && git commit -m "docs(memory): le bandeau a été vu — chantier COMPLET" && git push -u origin feat/kpi-a-renforcer
+```
+
+⚠️ **Au retour de 4bis**, ne pas oublier le réalignement de `main` décrit plus haut : le squash
+n'aura pas `5678f06` pour ancêtre.
 
 ⚠️ **Résidus de CE chantier**, qui ne vivent nulle part ailleurs :
 
-- 🔴 **Le bandeau à cinq KPI n'a été vu par personne.** Rendu en jsdom et vérifié sur le payload
-  réel, jamais à l'écran : `localStorage` était vide après le redémarrage des serveurs et l'agent ne
-  saisit pas de mot de passe. **C'est ce qui rend le chantier EN COURS et non FINI.**
 - ⚠️ **`.claude/launch.json` est modifié et n'appartient PAS à ce chantier** — `autoPort: false`
   posé sur les neuf entrées appairées en relançant les serveurs. À sortir du commit, ou à committer
   à part.
@@ -132,8 +138,10 @@ Trois corrections écrites dans le document lui-même, pour que personne ne les 
   pas correction.
 - ⚠️ **Aucune donnée de test laissée en base** : la vérification s'est faite en **lecture seule**
   (script jetable appelant `build_dashboard`, aucun `commit`).
-- ⚠️ **Rien n'a été vérifié en responsive à l'écran** — le passage `md:grid-cols-3` / 2 colonnes
-  n'a été mesuré que sur la **maquette**, jamais sur la vraie page.
+- ✅ **Les trois paliers de grille ont été vus sur la vraie page** (5 → 3 → 2 colonnes), pas
+  seulement mesurés sur la maquette. Rien d'autre n'a été exercé en responsive : les huit cartes
+  du bas restent non vérifiées aux largeurs intermédiaires — dette **antérieure**, pas de ce
+  chantier.
 
 ---
 
