@@ -7,135 +7,150 @@
 
 ## État à la reprise
 
-**Chantier : « tout nombre du Dashboard ouvre ce qu'il compte » — COMPLET et MERGÉ.**
-Né du signalement du user : *« le badge doit devenir cliquable — 27 leçons, 1 fiche, 5 capsules :
-des liens ciblés vers les data à valider »*, puis *« parfois on peut aussi avoir : à produire,
-appliquer la même logique »*.
+**Chantier : « le Dashboard Papa dit ce qu'il montre » — COMPLET, PR OUVERTE, PAS ENCORE MERGÉ.**
+Quatre demandes du user enchaînées dans la même session, chacune née de la précédente en la
+regardant à l'écran. Aucune n'était cadrée à l'avance.
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR [#86](https://github.com/NeuronXcore/zetis-school/pull/86)**, squash **`d727394`** (2026-08-05, 52 fichiers) — branche `feat/file-de-relecture` **supprimée**, locale et distante |
-| Base | **`c8e3af5`** (tête de `main` au départ) |
-| ADR | **`adr-0039-file-de-relecture.md`**, écrit **AVANT le code** (rituel tenu, contrairement au chantier précédent) |
-| Migration | **aucune** — pas une colonne touchée |
-| Suites | **931 backend · 545 Papa · 525 Massimo**, `tsc -b` propre (papa et massimo) |
-| Vérifié à l'écran | **OUI**, session Papa connectée (`:5175` / backend `:8001`), sur la base réelle |
+| Branche | **`feat/souffle-focus-dashboard`**, **poussée** — `origin` la connaît |
+| PR | **[#89](https://github.com/NeuronXcore/zetis-school/pull/89)** — **OUVERTE**, `MERGEABLE`, jamais mergée |
+| Base | **`09ce1fe`** (tête de `main` au départ ; `main` n'a pas bougé depuis) |
+| ADR | 🔴 **AUCUN** — voir l'écart plus bas. Les décisions vivent dans `docs/frontend-papa/page-dashboard.md` |
+| Migration | **aucune** — pas une colonne, pas un endpoint, pas un type partagé |
+| Suites | **561 Papa** (545 → 561, **+16** : 14 dans `DashboardPage.test.tsx`, 2 dans `dashboardDerive.test.ts`), `tsc -b` propre. Backend et Massimo **non relancés** : pas une ligne touchée |
+| Vérifié à l'écran | **OUI**, sur les VRAIES données, session Papa connectée — sauf `prefers-reduced-motion` |
 
-**Découpé en 3 commits vérifiés** (backend · front+types+ui · docs), et le commit backend a été
-testé **en isolation** — `git stash` du reste, 931 verts sans une ligne de front. C'est le seul
-découpage où aucun fichier n'est scindé entre deux commits, donc où `git add` au fichier suffit.
+Le découpage en commits séparés est fait, **chacun vérifié vert sur son propre état** avant d'être
+écrit (`git log --oneline main..HEAD` pour la liste). Méthode : tout figer d'abord dans un commit
+jetable, remettre la branche sur `main`, puis reconstruire en avançant — ce qui permet de prouver
+d'un `git diff <jetable> HEAD` vide que la découpe n'a rien perdu.
 
-### Un second chantier a suivi, le même jour, et il est mergé aussi
+### Les quatre chantiers, et ce que chacun a trouvé
 
-**« la fenêtre de la branche `flat` »** — paiement d'une dette, pas une fonctionnalité. PR
-[#87](https://github.com/NeuronXcore/zetis-school/pull/87), squash **`e42dc64`**, un seul commit,
-branche `fix/fenetre-branche-flat` supprimée. **932 backend** (931 + le `xfail` devenu vert).
-
-Le constat *« trop peu d'activité mesurée pour conclure »* comptait sur 730 j ce que sa preuve
-(`/cahier`) n'en servait que 366 — **compté et invisible sur sa propre preuve**. ⚠️ Aucune des deux
-bornes n'était fautive : c'est leur **rencontre** qui mentait. `_reading` **lit** désormais
-`settings.activity_max_range_days` (jamais recopié). Amendement dans l'ADR-0038.
-
-> ✅ **Le `xfail(strict=True)` s'est refermé tout seul** : passé XPASS donc rouge, il a forcé son
-> propre retrait. Première fois ici qu'une dette se rappelle au moment exact où elle est payée —
-> **patron à réutiliser** pour toute divergence connue qu'on choisit de ne pas traiter tout de suite.
-
-**Aucun chantier suivant n'est cadré.** Le prochain se choisit dans les DETTES ci-dessous.
-
-### Ce que le chantier a trouvé — trois nombres qui mentaient
-
-Aucun n'était visible **parce qu'aucun n'était cliquable**. Les rendre cliquables les a démasqués.
-
-1. **Le détail de la file « À décider » était une CHAÎNE construite au serveur.** Pas « pas encore
-   cliquable » : non cliquable **par construction**. D'où `InboxItem.breakdown` typé.
-2. **La Chaîne de contenus annonçait 49 fiches à produire pour une page qui en ouvrait 10.** Deux
-   causes cumulées, aucune n'étant une faute de calcul : la chaîne ignorait l'année scolaire, et une
-   leçon validée **sans cours rédigé** entrait dans la soustraction alors qu'aucun dérivé n'y est
-   générable. D'où `actionable_gaps()` dans `production/coverage.py`.
-3. **Le delta se calculait `stage.value − next.value`** alors que chaque marche porte sa propre
-   cible : le nombre sous « Fiches » était **faux** et pouvait afficher « ↓ complet » à tort.
+1. **Le souffle du focus.** Un voile émeraude qui enfle et retombe sous le KPI cliqué et les cartes
+   qui le fondent. ⚠️ Mon premier réglage (13 % de teinte, voile sur 38–54 % de la hauteur) était
+   **purement invisible** sur une carte haute — corrigé après comparaison de quatre variantes à
+   dimensions réelles. Puis renforcé sur demande du user (24→32 % / 20→28 %, cadre des cartes passé
+   de `/50` au plein).
+2. **Le centre du donut ignorait la matière sélectionnée.** Comportement **délibéré et
+   test-verrouillé** — non rouvert : le centre suit la sélection, le total reste dessous, et sans
+   sélection rien ne change (l'ancien verrou reste vert).
+3. **La semaine type ne disait pas à QUOI.** La case devient une barre : longueur = intensité,
+   segments = matières. Infobulle au survol et au focus clavier.
+4. **Une question du user a révélé un nombre trompeur.** *« Nous ne sommes pas encore jeudi ni
+   samedi, pourquoi des cases remplies ? »* Les cases étaient justes — jeudi 30 et samedi 1ᵉʳ, dans
+   la fenêtre glissante — mais des en-têtes `Lun…Dim` se lisent comme un calendrier. Trois réponses :
+   la fenêtre est **datée en clair**, le mot **« moyenne » disparaît sur 7 jours** (le serveur y
+   divise par 1), et une **troisième vue « Semaine en cours »** naît, datée, où un jour à venir est
+   marqué comme tel et **jamais compté à zéro**.
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **Une seule table de prédicats** (`review_queue.service`) : la page `/relecture` **et** la file du
-   Dashboard en dérivent. Un test l'exige famille par famille.
-2. **Les comptes sont bornés à l'année active** — le compteur a **baissé** (27 → 26 en dev), et ce
-   qui a disparu est exactement ce qu'aucune page ne savait ouvrir.
-3. **Les CINQ segments mènent à la file.** ⚠️ La décision initiale envoyait les cours sur
-   `/couverture?filter=no_lesson` ; **revue par le user le jour même, après l'avoir vue en vrai**.
-   La pilule « 🔒 Non validées » de la Couverture **n'est pas retirée** : valider un chapitre relu
-   en lot et trancher un cours à la fois sont **deux gestes différents**.
-4. **La file du Dashboard TRIE, elle ne travaille pas** — une ligne par famille, les segments sont
-   de la navigation. Verrouillé par test : c'est la règle la plus facile à défaire par serviabilité.
-5. **`counts` et `subjects` ne sont jamais filtrés.** Leçon déjà payée deux fois dans ce dépôt.
-6. **« leçons » se dit « cours » à l'écran**, et le pluriel est **porté** : « cours » est invariable,
-   un `+ "s"` mécanique écrirait « 26 courss ».
+1. **Le souffle DOUBLE le signe, il ne le porte jamais seul.** Bordure et anneau restent porteurs ;
+   rien ne se perd s'il est coupé. C'est ce qui le distingue du halo de régime en sidebar, **seul
+   endroit du dépôt où une animation porte de l'information**. En `prefers-reduced-motion` il se
+   fige à mi-course : le mouvement part, le voile reste.
+2. **Le tracé du donut ne suit PAS le filtre, seul son centre le suit.** Réduit à une matière, le
+   donut occuperait 100 % du disque et ne dirait plus rien de sa part réelle. Le **total reste
+   affiché** sous la valeur filtrée — c'est ce qui le raccorde au KPI du haut.
+3. **La matière sélectionnée se cherche dans `allSubjects`, jamais dans les parts dessinées.** À
+   0 minute elle n'a aucune part : la chercher là la ferait retomber sur le total, et le bug ne se
+   verrait que sur les matières inactives — donc jamais.
+4. **Dans les créneaux, la couleur nomme une MATIÈRE, plus une intensité.** L'intensité passe dans
+   la longueur de la barre. Écart **assumé** avec la vue Calendrier, qui garde son échelle émeraude :
+   là-bas une case est un jour, et un jour n'a pas de composition à montrer.
+5. **L'échelle des barres est RELATIVE au maximum de la grille.** Une semaine type se lit en
+   comparant ses créneaux entre eux ; un seuil fixe écraserait toutes les cases d'un enfant qui
+   travaille par sessions courtes.
+6. **Un jour à venir n'est pas un jour à zéro.** « Il n'a rien fait vendredi » et « on n'est pas
+   encore vendredi » sont deux phrases différentes, et une seule est vraie un mercredi.
+7. **Pas de découpage horaire dans « Semaine en cours »**, et ce n'est pas un oubli : `slots` est
+   replié par jour de semaine côté serveur et a **perdu les dates**. Dit dans la note plutôt que
+   laissé passer pour un manque.
+8. **`sumSlots` est REMPLACÉ par `buildSlotCells`, pas doublé** — un seul appelant, et le garder
+   aurait laissé du code mort avec son test.
 
 ### ⚠️ Pièges payés en vrai, à ne pas re-découvrir
 
-1. 🔴 **Mon test-verrou central ne verrouillait RIEN, et il était vert.** `test_la_file_et_l_inbox_
-   comptent_la_MEME_chose` passait alors que j'avais saboté l'inbox pour qu'elle recompte les
-   capsules **sans bornage** — parce que le décor plaçait tout dans l'année active, où les deux
-   formules rendent le même nombre. Corrigé par `_hors_annee()`, qui pose une pièce **de chaque
-   famille** hors année. **Troisième occurrence de ce motif dans le dépôt** (cf.
-   `contre-epreuve-mal-visee`). Un sabotage vert ne prouve rien.
-2. 🔴 **Les tests d'inbox existants passaient À VIDE.** La fixture `client_db` ne crée **ni année
-   scolaire ni chapitre** : `test_les_quiz_ne_sont_pas_dans_la_file_de_validation` s'écrit
-   `validation == [] or …` et était vrai parce qu'il n'y avait **jamais** de ligne `validation`.
-3. 🔴 **`allSubjects` de la Couverture n'était alimenté que si `subjectId === null`.** Rendre la page
-   adressable supprime ce chargement : arriver sur `?subject=3` laissait la liste des pastilles vide
-   **pour toujours**, sans retour possible vers « Toutes ». Correctif : `fetchSubjects()` au montage.
-4. ⚠️ **L'ordre compte dans le rattrapage d'erreur** : `reload()` remet `error` à `null` au départ
-   **et** à l'arrivée. Poser le message avant le rechargement l'efface — la ligne revenait sans que
-   rien n'explique pourquoi.
-5. ⚠️ **`document.querySelectorAll('tbody tr')` compte les en-têtes de chapitre.** Ma première mesure
-   annonçait 17 lignes là où il y en avait 10 : j'ai failli « corriger » un nombre juste.
-6. ⚠️ **`missing_href` de la première marche est mort-né** : un delta se lit toujours ENTRE deux
-   marches, rien ne se trouve au-dessus de la première. Servi à `None`, avec le motif.
-7. ⚠️ **`@testing-library/user-event` n'est pas une dépendance du projet** — la convention est
-   `fireEvent`.
+1. 🔴 **Un test-verrou évident aurait été vert sans rien vérifier.** `toHaveTextContent("1h05")` sur
+   la carte du donut passe **grâce au `<title>` du segment SVG**, même si le centre n'a pas bougé.
+   Il faut viser les `<text>` du centre. Même famille que les trois occurrences déjà consignées.
+2. 🔴 **`overflow-x: auto` rogne AUSSI en vertical.** Fixer un axe force l'autre à `auto` : une
+   infobulle en absolu dans la grille des créneaux serait coupée en haut et en bas. D'où le
+   `position: fixed`, qui échappe au rognage d'un ancêtre.
+3. ⚠️ **Une fixture de test qui ne remplit qu'une fenêtre casse en silence dès qu'un test change de
+   période.** `slots["7"]` seul → grille vide sur `?period=30`, sans erreur.
+4. ⚠️ **Les coordonnées de `hover` du MCP Chrome sont dans l'espace de la CAPTURE, pas en pixels
+   CSS.** Facteur ×0,817 ici. Un survol envoyé aux coordonnées lues par `getBoundingClientRect`
+   atterrit ailleurs, et l'infobulle « ne marche pas ».
+5. ⚠️ **Le panneau navigateur de la session est un navigateur SÉPARÉ**, avec sa propre session : le
+   user s'était connecté dans son Chrome, et j'ai attendu une connexion qui n'arriverait jamais.
+   Pour voir un écran authentifié, passer par `mcp__claude-in-chrome__*`.
 
-Le détail de ces sept pièges, avec cause et parade, vit dans `TROUBLESHOOTING.md`
-§`feat/file-de-relecture`.
+Le détail de ces pièges, avec cause et parade, vit dans `TROUBLESHOOTING.md`
+§`feat/souffle-focus-dashboard`.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS et MERGÉ** (PR #86, squash `d727394`). Branche supprimée des deux côtés,
-arbre propre, `main` == `origin/main` — vérifié après le merge. Étape 4bis faite.
+**Le chantier est FINI. Il reste UN geste, humain : merger la PR [#89](https://github.com/NeuronXcore/zetis-school/pull/89)**,
+après relecture du diff et un coup d'œil au souffle **en mouvement** (une animation ne se juge pas
+sur une capture).
 
-Le prochain chantier se choisit dans les DETTES ci-dessous. Les deux plus mûres restent les mêmes
-qu'au chantier précédent, parce qu'elles sont déjà bornées et qu'aucun des deux derniers chantiers
-ne les a touchées :
+Puis, immédiatement après le merge : **l'étape 4bis** (`WORKFLOW.md §5`) — revenir écrire ici le
+squash, la suppression de la branche, « rien à pousser », et les résidus ci-dessous. Ce fichier
+sera **faux** dès que la PR sera mergée.
 
-1. ✅ ~~la fenêtre de la branche `flat`~~ — **PAYÉE ET MERGÉE le 2026-08-05** : PR
-   [#87](https://github.com/NeuronXcore/zetis-school/pull/87), squash **`e42dc64`**, branche
-   `fix/fenetre-branche-flat` **supprimée** des deux côtés. Le `xfail` strict est passé XPASS, donc
-   rouge, et a forcé son propre retrait : première dette de ce dépôt à se rappeler toute seule.
-   Amendement dans l'ADR-0038, `CHANGELOG` 0.49.1, pièges dans `TROUBLESHOOTING.md`.
-2. ✅ ~~les entrées de `CHANGELOG.md` manquantes pour les PR #82 et #83~~ — **PAYÉE le
-   2026-08-05** : rétro-inscrites en **0.46.1** (#82) et **0.46.2** (#83), à leur place
-   chronologique. Reconstituées **depuis les messages de squash, les ADR et `TROUBLESHOOTING.md`**,
-   jamais de mémoire — c'est précisément pour ça que la dette avait été posée plutôt que comblée
-   à chaud. ⚠️ **Non renumérotées en 0.47.0/0.48.0** : les versions suivantes sont déjà publiées
-   dans l'historique Git ; on rétro-inscrit, on ne renumérote pas ce qui est sorti.
+> 🗒️ **Note du user à la clôture** : *« on continuera sur dashboard la prochaine session »*. Le
+> **sujet** continue, pas ce chantier-ci. Le prochain se cadre normalement — `/ouverture`, ADR
+> avant le code —, et il devra commencer par le point suivant.
 
-**Les deux dettes désignées au dernier bilan sont donc éteintes.** Le prochain chantier se choisit
-plus bas, ou se cadre.
+🔴 **L'écart de CE chantier, à ne pas reproduire : il n'a AUCUN ADR.** Entré par quatre demandes
+directes, jamais par `/ouverture`. Les trois premières sont des raffinements de l'ADR-0028 §5/§6 et
+s'en accommodent ; **la quatrième ne s'en accommode pas** — « Semaine en cours » est une **surface
+nouvelle**, un troisième onglet que l'ADR-0028 ne décrit nulle part. Elle n'est aujourd'hui figée
+que dans `docs/frontend-papa/page-dashboard.md`. **Premier geste du prochain chantier dashboard :
+un addendum ADR-0028 qui fige la troisième vue**, ou son retrait si elle ne convainc pas à l'usage.
 
-⚠️ **Trois résidus de CE chantier**, qui ne vivent nulle part ailleurs (ni Git, ni les ADR) :
+⚠️ **Résidus de CE chantier**, qui ne vivent nulle part ailleurs (ni Git, ni les ADR) :
 
-- **Aucun clic « Valider » / « Rejeter » n'a été joué en vrai** — délibéré, ça aurait muté la base de
-  dev ; la preuve de la source partagée a été faite en comparant les deux API en direct. Le **retrait
-  optimiste**, le **rattrapage d'erreur** et les **deux endpoints `/reject`** ne sont donc couverts
-  **que par des tests**, jamais vus à l'écran. À exercer à la première occasion réelle.
-- **`/relecture` n'a été vue qu'en desktop** — aucun contrôle responsive.
-- **Aucune donnée de test laissée en base**, pour la même raison qu'au premier point.
+- 🔴 **`prefers-reduced-motion` n'a jamais été exercé.** La règle est livrée et bâtie comme les deux
+  qui existent déjà dans `index.css`, mais elle n'a pas pu être émulée depuis le navigateur. **Le
+  seul comportement du chantier qui repose uniquement sur de la relecture de CSS.**
+- ⚠️ **Le souffle n'a été jugé qu'en captures figées.** Géométrie et intensité vérifiées ; **le
+  rythme, non** — c'est précisément ce qu'une capture ne montre pas.
+- ⚠️ **La grille des créneaux n'a de données réelles que sur la fenêtre courte.** Sur `?period=365`
+  les 56 cases sont vides (91 % du temps est « hors matière », le reste hors plage 8 h–24 h). Le
+  rendu multicolore n'a donc été vu que sur la fenêtre par défaut.
+- ⚠️ **Rien n'a été vérifié en responsive** — desktop uniquement, sur les trois vues.
+- ⚠️ **Aucune donnée de test laissée en base** : la vérification s'est faite en lecture seule, et
+  l'unique tentative d'injection (interception `fetch`) **n'a pas matché les slugs** et n'a donc
+  rien modifié. Le `window.fetch` patché est mort avec le rechargement de la page.
+- ⚠️ **Le commit 4 retouche le commit 3** (extraction de `CellTooltip`, mot « moyenne », renommage
+  du bouton `Créneaux` → `Semaine type`). L'historique suit l'ordre réel du travail plutôt que
+  d'être réécrit après coup — **choix assumé**, signalé dans la PR.
 
 ---
 
 ### ▶ DETTES OUVERTES
 
-> ⚠️ **Les quatre premières sont nées du chantier « file de relecture » (2026-08-05).**
+> ⚠️ **Les trois premières sont REMONTÉES du chantier « file de relecture » lors de son élagage
+> (2026-08-05, 4ᵉ contrôle).** Elles étaient enterrées dans ses « résidus » et n'existaient nulle
+> part ailleurs.
+
+- ⚠️ **Aucun clic « Valider » / « Rejeter » de `/relecture` n'a été joué en vrai** — délibéré, ça
+  aurait muté la base de dev. Le **retrait optimiste**, le **rattrapage d'erreur** et les **deux
+  endpoints `/reject`** ne sont donc couverts que par des tests, jamais vus à l'écran. À exercer à
+  la première occasion réelle.
+- ⚠️ **`/relecture` n'a été vue qu'en desktop** — aucun contrôle responsive.
+- ⚠️ **`docs/frontend-papa/page-dashboard.md` L124-125 décrit une implémentation qui n'existe pas** :
+  un attribut `data-scope="temps regularite"` + un sélecteur `[data-scope~="<focus>"]`. Le code
+  utilise `data-card` + la fonction JS `matchesFocus`. Le même paragraphe annonce `opacity: .32` là
+  où le code pose `opacity-40`. Relevé le 2026-08-05 en travaillant juste à côté, **laissé hors
+  périmètre**. (Doublon partiel d'une dette plus bas, qui la nommait déjà parmi quatre divergences
+  doc↔code — celle-ci est la seule à survivre, les trois autres portent sur l'ADR-0028 §7.)
+
+> ⚠️ **Les quatre suivantes sont nées du chantier « file de relecture » (2026-08-05).**
 
 - ⚠️ **Le bandeau ambre de la Couverture et la file comptent deux populations différentes**, et c'est
   assumé : `totals.pending_count` ne voit que les dérivés `pending` **de la matrice** (1 en dev), la
@@ -519,6 +534,16 @@ si la file regrossit.
 
 
 ## Historique des chantiers clos
+
+> **2026-08-05 — la file de relecture + la fenêtre de la branche `flat`** (PR #86 squash `d727394`,
+> PR #87 squash `e42dc64`), section retirée à la clôture du chantier « souffle du focus ».
+> Contrôles : ADR `adr-0039-file-de-relecture.md` ✅ · `TROUBLESHOOTING.md`
+> §`feat/file-de-relecture` ✅ · `CHANGELOG.md` 0.49.0 et 0.49.1 ✅ · **trois résidus REMONTÉS** en
+> tête de « DETTES OUVERTES » (aucun clic Valider/Rejeter joué en vrai, `/relecture` desktop
+> seulement, et la divergence `data-scope` de `page-dashboard.md`) — ils ne vivaient nulle part
+> ailleurs. Ce qui ne survit qu'ici : le `xfail(strict=True)` de la fenêtre `flat` est **passé
+> XPASS donc rouge à la correction**, forçant son propre retrait — première dette du dépôt à se
+> rappeler toute seule au moment exact où elle est payée, **patron à réutiliser**.
 
 > **2026-08-05 — une file que personne n'écoute** (PR #85, squash `7c3e290`), section retirée à la
 > clôture du chantier « file de relecture ». Contrôles : ADR

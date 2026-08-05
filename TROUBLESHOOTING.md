@@ -4,6 +4,120 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/souffle-focus-dashboard` — souffle, donut, créneaux, semaine en cours — 2026-08-05
+
+> ⚠️ **Chantier sans ADR** (quatre demandes directes du user, jamais `/ouverture`). Les décisions
+> sont dans `docs/frontend-papa/page-dashboard.md`.
+
+### 🔴 Un test-verrou évident, vert sans rien vérifier — le `<title>` du SVG l'alimentait
+
+Pour prouver que le centre du donut suit la matière filtrée, l'assertion naturelle est :
+
+```tsx
+expect(carte).toHaveTextContent("1h05");   // ← VERT même si le centre n'a pas bougé
+```
+
+`formatMinutes` sert **aussi** aux `<title>` des segments du donut : `Mathématiques — 1h05 · 33 %`
+est dans le DOM que le centre affiche « 1h05 » ou « 3h20 ». Le test aurait verrouillé le `<title>`
+en croyant verrouiller le centre.
+
+**Parade** : viser les `<text>` du centre, et comparer la LISTE complète, pas une sous-chaîne.
+
+```tsx
+const centre = () =>
+  [...screen.getByRole("img", { name: /Répartition/ }).querySelectorAll("text")]
+    .map((t) => t.textContent);
+expect(centre()).toEqual(["1h05", "Mathématiques", "sur 3h20"]);
+```
+
+> **Quatrième occurrence du motif dans ce dépôt** (cf. `contre-epreuve-mal-visee`). La forme est
+> toujours la même : la valeur cherchée existe **ailleurs** dans le sous-arbre interrogé. Quand une
+> fonction de formatage sert à deux endroits, une assertion textuelle ne distingue pas les deux.
+
+### 🔴 `overflow-x: auto` rogne AUSSI en vertical — une infobulle en absolu y disparaît
+
+La grille des créneaux vit dans un `<div className="overflow-x-auto">`. Par spécification, dès
+qu'un axe n'est pas `visible`, **l'autre est calculé à `auto`** : `overflow-y` devient donc `auto`
+lui aussi, et tout enfant positionné qui dépasse en haut ou en bas est coupé — sans avertissement,
+sans barre de défilement visible si le contenu tient en largeur.
+
+**Parade** : `position: fixed`, qui échappe au rognage — l'`overflow` d'un ancêtre ne clippe jamais
+un descendant fixé. Les coordonnées viennent d'un `getBoundingClientRect()` au moment du survol.
+
+⚠️ **La limite de la parade** : un ancêtre portant `transform`, `filter`, `perspective`, ou
+`will-change` sur ces propriétés **crée un bloc conteneur** et reprend le fixé. Ici la carte reçoit
+`saturate-50` quand elle est atténuée par le focus — la bulle y serait donc bornée à la carte. Cas
+accepté (la carte est atténuée, on n'y survole pas), mais c'est le piège à connaître avant de
+généraliser le patron.
+
+### ⚠️ Une fixture qui ne remplit qu'une fenêtre casse en silence au premier test qui change de période
+
+`slots` est un `Record<DashboardPeriod, number[][]>`. Une fixture qui n'écrit que `slots["7"]`
+donne une grille **vide** dès qu'un test rend `?period=30` — sans erreur, sans exception : juste
+56 cases « aucune séance » et une assertion qui échoue loin de sa cause.
+
+**Parade** : poser la donnée sur les quatre fenêtres.
+
+```ts
+const poser = (s: DashboardSubject, slot: number, day: number, minutes: number) => {
+  for (const p of ["7", "30", "90", "365"] as const) s.slots[p][slot][day] = minutes;
+};
+```
+
+Vaut pour tout champ indexé par `DashboardPeriod` : `minutes`, `slots`, `series`,
+`slots_outside_minutes`.
+
+### ⚠️ Les coordonnées de `hover` du MCP navigateur sont dans l'espace de la CAPTURE
+
+`mcp__claude-in-chrome__computer` avec `action: "hover"` attend des coordonnées dans le repère de
+la **capture d'écran**, pas en pixels CSS. La capture est mise à l'échelle : 1568 px de large pour
+un viewport de 1920 → facteur **×0,817**.
+
+Un survol envoyé aux coordonnées lues par `getBoundingClientRect()` atterrit donc ailleurs, et la
+conclusion naturelle — « l'infobulle ne marche pas » — est fausse.
+
+**Parade** : mesurer en CSS puis multiplier par `largeur_capture / window.innerWidth`, ou repérer la
+cible directement sur la capture. Le `zoom` du même outil prend en revanche `[x0, y0, x1, y1]`, deux
+coins et non une origine plus des dimensions.
+
+### ⚠️ Le panneau navigateur de la session est un navigateur SÉPARÉ de celui du user
+
+`mcp__Claude_Browser__*` pilote un navigateur intégré, avec **sa propre session** : le user peut
+être connecté dans son Chrome sans que ce panneau le soit. Ici, plusieurs minutes ont été perdues à
+attendre une connexion qui n'arriverait jamais sur `:5175` — le user s'était connecté chez lui.
+
+**Parade** : pour voir un écran **authentifié**, passer par `mcp__claude-in-chrome__*`, qui pilote
+le vrai Chrome et hérite de ses sessions. Le panneau intégré reste bon pour tout ce qui ne demande
+pas d'authentification (maquettes injectées, inspection CSS, vérification qu'une règle est livrée).
+
+### ⚠️ La base de dev n'a AUCUNE minute par matière dans la plage 8 h–24 h sur les fenêtres longues
+
+Sur `?period=365`, les 56 cases des créneaux sont vides : 91 % du temps actif est « hors matière »
+(connexion, navigation, chat — sans `subject_id`, donc absent de `subject.slots`), et le reste tombe
+hors de la plage horaire. La fenêtre courte, elle, porte des données.
+
+**Conséquence pour la vérification** : un écran vide n'y prouve **rien** sur le rendu. Vérifier sur
+la fenêtre par défaut, ou fabriquer la donnée — et si on intercepte `fetch` pour l'injecter,
+**vérifier que les slugs matchent** : une interception qui ne matche pas rend la réponse inchangée
+et donne l'illusion d'avoir testé.
+
+### ⚠️ Découper une session en commits cohérents : figer d'abord, reconstruire en avançant
+
+Découper a posteriori un travail qui touche les mêmes fichiers dans plusieurs chantiers n'est pas
+faisable au `git add` par fichier, et `git add -p` est interactif donc indisponible.
+
+**Patron qui marche**, entièrement non interactif et sans risque de perte :
+
+1. `git add -A && git commit` sur un **commit jetable** — tout est dans Git, donc récupérable ;
+2. `git reset --hard <base>` ;
+3. pour chaque commit : `git checkout <jetable> -- <fichiers entiers>`, puis **réduire à la main**
+   les fichiers partagés ; lancer les tests ; committer ;
+4. dernier commit : `git checkout <jetable> -- .` ;
+5. 🔴 **`git diff <jetable> HEAD` doit être VIDE** — c'est la preuve que la découpe n'a rien perdu.
+
+Le point 5 est le seul contrôle qui vaille : il compare l'arbre final à l'état effectivement vérifié
+à l'écran, au bit près.
+
 ## Chantier `fix/fenetre-branche-flat` — la fenêtre du constat `flat` (ADR-0038) — 2026-08-05
 
 ### ✅ Un `xfail(strict=True)` s'est refermé tout seul — le patron vaut d'être réutilisé
