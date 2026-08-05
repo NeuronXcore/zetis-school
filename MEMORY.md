@@ -7,7 +7,7 @@
 
 ## État à la reprise
 
-**Chantier : « une file que personne n'écoute » — COMPLET, NON COMMITÉ.**
+**Chantier : « une file que personne n'écoute » — COMPLET et MERGÉ.**
 Correctif de bug, signalé par le user : quatre lots créés dans la matinée, aucun terminé, en-tête
 figé à 0 %, et « changer de page et revenir remet tout à zéro ».
 
@@ -20,7 +20,7 @@ signalement. Le récit vit dans `TROUBLESHOOTING.md` (section `fix/file-de-produ
 
 | | |
 |---|---|
-| **Branche** | **`fix/file-de-production`** — 3 commits, **non poussée**. `git log --oneline main..HEAD` |
+| **MERGÉ `main`** | **PR [#85](https://github.com/NeuronXcore/zetis-school/pull/85)**, squash **`7c3e290`** (2026-08-05) — branche `fix/file-de-production` **supprimée**, locale et distante |
 | Base | **`75022bf`** (tête de `main` au moment du départ) |
 | Migration | **aucune** — pas une colonne touchée |
 | ADR | **aucun** (correctif de bug ; addendum ADR-0036 à écrire si les décisions doivent tenir) |
@@ -106,15 +106,22 @@ l'en-tête honnête — n'y avait rien changé.
 
 ### ▶ PROCHAIN PAS
 
-**Pousser la branche et ouvrir la PR.**
+**Ce chantier est CLOS et MERGÉ** (PR #85, squash `7c3e290`). Branche supprimée des deux côtés,
+arbre propre, `main` == `origin/main` — vérifié après le merge.
 
-```
-git push -u origin fix/file-de-production
-gh pr create
-```
+**Aucun chantier suivant n'est cadré.** Le prochain se choisit dans les DETTES ci-dessous. Les deux
+plus mûres restent celles héritées du chantier précédent, parce qu'elles sont déjà bornées :
 
-Les **trois commits** sont posés et chacun a été **vérifié sur son propre état** (l'arbre a été
-réduit à ce commit-là avant de lancer les suites), et non seulement à la fin :
+1. 🔴 **la fenêtre de la branche `flat`** (730 j du constat contre 366 j de sa cible) — un `xfail`
+   strict l'attend déjà dans `test_reading_evidence.py` ;
+2. 🔴 **les entrées de `CHANGELOG.md` manquantes** pour les PR #82 et #83.
+
+Née de CE chantier et de même maturité : **l'addendum ADR-0036** qui rendrait opposables les deux
+décisions prises sans document (« un refus n'est pas une panne », « une barre remplie est un
+pourcentage »). C'est de l'écriture seule — le code, lui, est déjà sur `main`.
+
+Les **trois commits** ont chacun été **vérifié sur son propre état** (l'arbre réduit à ce commit-là
+avant de lancer les suites), et non seulement à la fin :
 
 | | Commit | Suites sur cet état |
 |---|---|---|
@@ -140,10 +147,15 @@ sur l'état final. Le champ a été déplacé au commit 2, avec son usage.
 > en contient toujours **21**. Seuls les 3 jobs en double des lots #25/26/27 ont été supprimés, et
 > ce sont deux choses différentes. La dette d'origine reste plus bas, intacte.
 
-- ⚠️ **Le chantier n'est pas passé par `/ouverture`** : il est entré par un signalement de bug, la
-  branche `fix/file-de-production` a été créée **après coup**, au moment de committer. Rien n'est
-  perdu — mais le travail a existé plusieurs heures en non-commité sur `main`, et c'est le genre de
-  fenêtre qu'un `git checkout` malheureux referme mal.
+- ⚠️ **Le chantier n'est pas passé par `/ouverture`** : entré par un signalement de bug, la branche
+  a été créée **après coup**, au moment de committer. Éteint par le merge — mentionné parce que le
+  travail a existé plusieurs heures en non-commité sur `main`, et que c'est le genre de fenêtre
+  qu'un `git checkout` malheureux referme mal.
+- ⚠️ **Le découpage en trois commits a révélé un couplage que l'état final cachait** :
+  `useRunProgress` déclarait `started_at` dans son type alors que le premier commit ne s'en sert
+  pas. Seul `tsc` lancé sur l'état du commit isolé l'a vu. **Vérifier chaque commit sur son propre
+  état, pas seulement la branche entière** — c'est la parade, et elle ne coûte qu'un `git stash
+  push -- <chemins>`.
 - 🔴 **Deux décisions ont été prises SANS document.** « Un refus n'est pas une panne » (toast vs
   bandeau) et « une barre partiellement remplie est un pourcentage » sont écrites dans le code et
   dans `TROUBLESHOOTING.md`, **nulle part sous une forme opposable**. Si elles doivent tenir face à
