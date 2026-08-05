@@ -1,14 +1,18 @@
 // Contrat de `GET /api/parent/dashboard` — agrégat unique du dashboard Papa (ADR-0028).
 //
 // Types DÉRIVÉS de la réponse réelle du backend, pas devinés : les clés de période sont les
-// CHAÎNES "7" | "30" | "90" (JSON n'a pas de clé entière), et `payload.periods[7]` ne
+// CHAÎNES "7" | "30" | "90" | "365" (JSON n'a pas de clé entière), et `payload.periods[7]` ne
 // compilerait pas — ce qui est exactement le piège qu'on veut fermer à la compilation.
 //
 // Tout le payload arrive en UNE requête, non filtré : période et matière sont des projections
 // que le client applique sur ces tableaux, jamais des query params.
 
-/** Les trois fenêtres préchargées. Clé d'objet, donc chaîne. */
-export type DashboardPeriod = "7" | "30" | "90";
+/** Les quatre fenêtres préchargées. Clé d'objet, donc chaîne.
+ *
+ *  Élargir cette union est VOLONTAIREMENT cassant : chaque `Record<DashboardPeriod, …>` du dépôt
+ *  devient incomplet et `tsc` les désigne un par un. C'est le filet qui a évité d'oublier les
+ *  libellés d'axe de la courbe mémoire en ajoutant « Année ». */
+export type DashboardPeriod = "7" | "30" | "90" | "365";
 
 export interface KpiValue {
   value: number;

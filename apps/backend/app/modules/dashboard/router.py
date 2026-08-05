@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/parent", tags=["dashboard"], dependencies=[Depen
 
 @router.get("/dashboard", response_model=DashboardOut)
 def dashboard(db: Session = Depends(get_db)) -> dict:
-    """Agrégat complet et NON FILTRÉ : trois fenêtres (7 / 30 / 90) dans la même réponse.
+    """Agrégat complet et NON FILTRÉ : quatre fenêtres (7 / 30 / 90 / 365) dans la même réponse.
 
     Aucun query param de filtrage, volontairement. Période, matière et focus sont des projections
     que le client applique sur un tableau déjà en mémoire — c'est ce qui fait qu'aucun clic de la

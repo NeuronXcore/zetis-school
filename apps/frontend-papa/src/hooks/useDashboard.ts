@@ -7,6 +7,7 @@ import type {
   DashboardSubject,
 } from "@zetis/types";
 import { fetchDashboard } from "../lib/dashboard";
+import { isDashboardPeriod } from "../lib/dashboardDerive";
 
 // État de la page Dashboard : UN appel au montage, puis plus aucun (ADR-0028 §1, §4).
 //
@@ -17,17 +18,12 @@ import { fetchDashboard } from "../lib/dashboard";
 // La règle qui tient toute la page : **changer de période, de matière ou de focus ne déclenche
 // aucune requête**. Tout ci-dessous est une projection sur un payload déjà en mémoire.
 
-const PERIODS: DashboardPeriod[] = ["7", "30", "90"];
 const FOCUSES: DashboardFocus[] = [
   "active_minutes",
   "active_days",
   "consolidated",
   "open_gaps",
 ];
-
-function isPeriod(value: string | null): value is DashboardPeriod {
-  return value !== null && (PERIODS as string[]).includes(value);
-}
 
 function isFocus(value: string | null): value is DashboardFocus {
   return value !== null && (FOCUSES as string[]).includes(value);
@@ -82,7 +78,11 @@ export function useDashboard(): UseDashboard {
   // L'URL est le miroir de l'état de lecture : `?period=&subject=&focus=` rend la vue
   // rechargeable et partageable. Le rechargement seul refait l'unique appel — le filtrage, lui,
   // ne touche jamais au réseau.
-  const period = isPeriod(searchParams.get("period")) ? (searchParams.get("period") as DashboardPeriod) : "7";
+  // Le `as DashboardPeriod` d'avant a disparu : le prédicat de `isDashboardPeriod` restreint le
+  // type, là où la double lecture de `searchParams` obligeait à réaffirmer à la main ce que la
+  // garde venait de vérifier.
+  const rawPeriod = searchParams.get("period");
+  const period: DashboardPeriod = isDashboardPeriod(rawPeriod) ? rawPeriod : "7";
   const subject = searchParams.get("subject");
   const focus = isFocus(searchParams.get("focus")) ? (searchParams.get("focus") as DashboardFocus) : null;
 

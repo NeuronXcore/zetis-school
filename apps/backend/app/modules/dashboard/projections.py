@@ -12,8 +12,17 @@ from app.modules.activity.timeutils import local_day, to_utc, tz
 
 # --- Fenêtres -----------------------------------------------------------------------------------
 
-PERIODS = (7, 30, 90)
+PERIODS = (7, 30, 90, 365)
 SERIES_POINTS = 12
+
+# Profondeur d'historique que l'agrégat doit charger pour que CHAQUE fenêtre soit vraie.
+#
+# ⚠️ Le facteur 2 n'est pas une marge : les KPI portent un delta calculé contre la fenêtre
+# PRÉCÉDENTE de même longueur (`previous_window`). Charger seulement `max(PERIODS)` jours donnerait
+# une valeur juste et un delta structurellement nul — un écran crédible et faux. C'est ce qui serait
+# arrivé à la fenêtre 365 en la posant sur l'ancien chargement de 26 semaines : 182 jours vus sur
+# 365 annoncés, et « +0 » à vie.
+HISTORY_DAYS = max(PERIODS) * 2
 
 # --- Créneaux horaires --------------------------------------------------------------------------
 

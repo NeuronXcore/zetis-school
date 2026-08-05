@@ -33,6 +33,7 @@ const X_LABELS: Record<DashboardPeriod, string[]> = {
   "7": ["J-6", "J-3", "auj."],
   "30": ["S-4", "S-2", "auj."],
   "90": ["M-3", "M-1", "auj."],
+  "365": ["A-1", "M-6", "auj."],
 };
 
 export function MemoryTrendCard({ series, period, focus }: MemoryTrendCardProps) {

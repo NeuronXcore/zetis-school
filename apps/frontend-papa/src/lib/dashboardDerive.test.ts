@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSubject } from "@zetis/types";
 import {
+  COUNCIL_PERIOD_LABEL,
+  isDashboardPeriod,
   matchesFocus,
   notAddressed,
   sumCalendar,
@@ -22,19 +24,21 @@ function subject(overrides: Partial<DashboardSubject> = {}): DashboardSubject {
     slug: "maths",
     name: "Mathématiques",
     color: null,
-    minutes: { "7": 10, "30": 20, "90": 30 },
+    minutes: { "7": 10, "30": 20, "90": 30, "365": 40 },
     calendar: [],
     slots: {
       "7": Array.from({ length: 8 }, () => Array.from({ length: 7 }, () => 0)),
       "30": Array.from({ length: 8 }, () => Array.from({ length: 7 }, () => 0)),
       "90": Array.from({ length: 8 }, () => Array.from({ length: 7 }, () => 0)),
+      "365": Array.from({ length: 8 }, () => Array.from({ length: 7 }, () => 0)),
     },
-    slots_outside_minutes: { "7": 0, "30": 0, "90": 0 },
+    slots_outside_minutes: { "7": 0, "30": 0, "90": 0, "365": 0 },
     notions: { consolidated: 1, fragile: 2, in_progress: 3, total: 10 },
     series: {
       "7": { covered: [1, 2], consolidated: [0, 1], fragile: [1, 1] },
       "30": { covered: [1, 2], consolidated: [0, 1], fragile: [1, 1] },
       "90": { covered: [1, 2], consolidated: [0, 1], fragile: [1, 1] },
+      "365": { covered: [1, 2], consolidated: [0, 1], fragile: [1, 1] },
     },
     review_load: Array.from({ length: 14 }, () => 1),
     gaps_open: 0,
@@ -132,5 +136,30 @@ describe("focus KPI → cartes", () => {
 
   it("une carte inconnue ne correspond à aucun focus plutôt que de tous les accepter", () => {
     expect(matchesFocus("carte-future", "consolidated")).toBe(false);
+  });
+});
+
+describe("période transmise au Conseil de classe", () => {
+  it("nomme CHAQUE fenêtre du sélecteur, l'année comprise", () => {
+    // Le bug du 2026-08-05 : la page Conseil portait sa propre table, typée
+    // `Record<string, string>`, avec trois clés. Ajouter la fenêtre « Année » au dashboard n'a donc
+    // rien pu y casser — `365` tombait dans le repli et le Conseil annonçait « Trimestre 1 »
+    // pendant que Papa regardait l'année.
+    //
+    // La protection réelle est le TYPE (`Record<DashboardPeriod, string>`) : retirer une clé ne
+    // fait pas tomber ce test, il fait tomber `tsc`. Ce test-ci verrouille l'autre moitié —
+    // qu'aucune fenêtre ne reste sans libellé, et que le sélecteur et le Conseil parlent des
+    // mêmes quatre.
+    expect(Object.keys(COUNCIL_PERIOD_LABEL)).toEqual(["7", "30", "90", "365"]);
+    expect(COUNCIL_PERIOD_LABEL["365"]).toBe("Année scolaire");
+  });
+
+  it("reconnaît les fenêtres connues et rejette le reste", () => {
+    expect(isDashboardPeriod("365")).toBe(true);
+    expect(isDashboardPeriod("7")).toBe(true);
+    // Une valeur aberrante doit bien retomber sur le repli — c'est le bon comportement pour une
+    // entrée invalide, et c'était le mauvais pour une fenêtre légitime.
+    expect(isDashboardPeriod("banane")).toBe(false);
+    expect(isDashboardPeriod(null)).toBe(false);
   });
 });

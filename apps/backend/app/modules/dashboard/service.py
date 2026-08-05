@@ -1,6 +1,6 @@
 """Assemblage de l'agrégat unique du dashboard Papa (ADR-0028 §1, §2).
 
-**Une seule requête HTTP au premier rendu**, trois fenêtres (7 / 30 / 90) dans la même réponse,
+**Une seule requête HTTP au premier rendu**, quatre fenêtres (7 / 30 / 90 / 365) dans la même réponse,
 séries livrées PAR MATIÈRE et jamais pré-agrégées : « toutes matières » est une somme que le
 client calcule. C'est la condition technique pour que changer de période, de matière ou de focus
 ne déclenche aucun aller-retour réseau.
@@ -504,12 +504,18 @@ def _reading(db: Session, student_id: int, subjects: list[dict], events: list[Le
 
 
 def build_dashboard(db: Session, *, student_id: int) -> dict:
-    """Agrégat complet, non filtré, pour les trois fenêtres."""
+    """Agrégat complet, non filtré, pour les quatre fenêtres."""
     today = today_local()
     year = _active_year(db, student_id)
 
     calendar_first = week_start(today) - timedelta(weeks=CALENDAR_WEEKS - 1)
-    events = _events(db, student_id=student_id, first_day=calendar_first, last_day=today)
+    # La profondeur du chargement est celle de la PLUS LONGUE fenêtre et de sa précédente
+    # (`p.HISTORY_DAYS`), et non celle du calendrier. Les deux ont longtemps coïncidé — 26 semaines
+    # couvraient tout juste 90 jours + 90 — et le calendrier bornait le chargement sans le dire.
+    # Depuis la fenêtre 365, il faut charger deux ans : `calendar_first` ne borne plus que la
+    # grille, explicitement, plus bas.
+    history_first = today - timedelta(days=p.HISTORY_DAYS - 1)
+    events = _events(db, student_id=student_id, first_day=history_first, last_day=today)
     # SOURCE UNIQUE des minutes de tout l'agrégat : totaux, créneaux, sparklines et calendrier en
     # dérivent tous. Une seconde façon de compter le temps actif ferait diverger deux chiffres de
     # la même page.
@@ -548,6 +554,11 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         by_day: dict[date, int] = {}
         for event, gained in subject_pairs:
             day = local_day(event.created_at)
+            # Borne explicite : la grille porte 26 semaines quelle que soit la période (adr-0028
+            # §6). Sans ce filtre elle hériterait de la profondeur du chargement, désormais de deux
+            # ans, et rendrait quatre fois plus de jours que la carte n'en dessine.
+            if day < calendar_first:
+                continue
             by_day[day] = by_day.get(day, 0) + gained
         calendar = [
             {"date": day.isoformat(), "active_minutes": total}
@@ -642,9 +653,9 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         ),
         "generated_at": _now_iso(),
         "last_activity_at": to_utc(last_event.created_at).isoformat() if last_event else None,
-        # Délégué à `activity`, et NON déduit de `ordered` : celui-ci est borné aux 26 semaines
-        # du calendrier. Un dernier événement plus ancien aurait rendu la liste vide et le
-        # décrochage aurait valu 0 — soit « tout va bien » au moment précis où il faut alerter.
+        # Délégué à `activity`, et NON déduit de `ordered` : celui-ci reste borné, désormais à
+        # `p.HISTORY_DAYS`. Un dernier événement plus ancien rendrait la liste vide et le
+        # décrochage vaudrait 0 — soit « tout va bien » au moment précis où il faut alerter.
         "days_inactive": activity_service.trailing_inactive_days(
             db, student_id=student_id, last_day=today
         ),
