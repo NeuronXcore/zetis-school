@@ -162,7 +162,29 @@ export interface ProductionRun {
    *  une estimation — et le dire. Le champ, lui, ne ment pas : il n'a simplement rien à dire. */
   progress_pct: number;
   created_at: string;
+  /** Instant de DÉMARRAGE réel — `null` tant que le lot attend son tour.
+   *
+   *  ⚠️ **C'est lui qui rend l'avancement continu d'une page à l'autre.** Là où le serveur n'a
+   *  pas de granularité (lot-pièce), l'écran estime ; une estimation ancrée sur le montage du
+   *  composant repart de zéro à chaque navigation, et Papa revoyait « 0 % » sur une production
+   *  commencée depuis une minute (constaté le 2026-08-05). Ancrée sur cet instant, elle mesure le
+   *  temps écoulé — c'est-à-dire ce qu'elle prétend mesurer. */
+  started_at: string | null;
   finished_at: string | null;
+}
+
+/** `GET /api/production/runs/active` — le lot en cours, augmenté de **qui l'exécute**.
+ *
+ *  ⚠️ Ce champ ne vit que sur cette route : la question coûte un aller-retour Redis, et le
+ *  Journal aligne des dizaines de lots par page. */
+export interface ActiveProductionRun extends ProductionRun {
+  /** Un worker écoute-t-il la file ?
+   *
+   *  ⚠️ **`false` ne veut pas dire « ça va être long », il veut dire « personne ne viendra ».**
+   *  Un lot en file sans consommateur n'attend pas son tour : il est arrêté. Le 2026-08-05,
+   *  quatre lots ont attendu six heures pendant que l'écran affichait « en file d'attente » — une
+   *  vérité littérale qui laissait croire à une file qui avance. */
+  worker_alive: boolean;
 }
 
 // --- Journal de production et veto (ADR-0034) ---------------------------------------------------

@@ -133,7 +133,24 @@ class ProductionRunOut(BaseModel):
     #: Avancement réel (0-100), calculé serveur — jamais une estimation de durée côté client.
     progress_pct: int
     created_at: datetime
+    #: Instant de DÉMARRAGE réel — `None` tant que le lot attend. Il porte la continuité de
+    #: l'avancement estimé d'une navigation à l'autre : sans lui, l'estimation repart de zéro à
+    #: chaque montage de composant (constaté le 2026-08-05).
+    started_at: datetime | None = None
     finished_at: datetime | None
+
+
+class ActiveProductionRunOut(ProductionRunOut):
+    """Le lot en cours, augmenté de **qui l'exécute** (2026-08-05).
+
+    ⚠️ Ce champ ne vit QUE sur `/runs/active`, jamais sur `ProductionRunOut`. La question coûte un
+    aller-retour Redis : la poser dans la sérialisation commune la ferait payer une fois par ligne
+    du Journal, qui en aligne des dizaines. Ici elle est posée une fois toutes les quatre secondes,
+    par le seul écran qui a besoin de la réponse.
+    """
+
+    #: Un worker écoute-t-il la file ? `False` ⇒ le lot n'attend pas son tour, il est **arrêté**.
+    worker_alive: bool = True
 
 
 class ProductionNotion(BaseModel):

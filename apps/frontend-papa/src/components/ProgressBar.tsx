@@ -8,6 +8,8 @@ import { GenerationProgress, useEstimatedProgress } from "@zetis/ui";
 
 export { useEstimatedProgress };
 
-export function ProgressBar({ pct, label }: { pct: number; label: string }) {
+/** ⚠️ `pct` accepte `null` : « rien à mesurer », rendu en barre indéterminée SANS chiffre. Le
+ *  passer à `0` fabriquerait la mesure que l'appelant vient justement de refuser de donner. */
+export function ProgressBar({ pct, label }: { pct: number | null; label: string }) {
   return <GenerationProgress variant="bar" value={pct} label={label} />;
 }

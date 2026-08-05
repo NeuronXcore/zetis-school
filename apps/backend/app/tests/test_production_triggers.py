@@ -302,8 +302,15 @@ def test_les_lots_manuels_ne_comptent_pas_dans_le_plafond(client_db) -> None:
     with Session() as db:
         chapter = _seed(db)
         _arm(db)
+        # ⚠️ **Chaque lot est terminé avant de lancer le suivant** (2026-08-05). Le test empilait
+        # des lots `queued` sur le MÊME chapitre, ce que la garde anti-doublon refuse maintenant —
+        # et elle a raison : personne ne peut faire cliquer Papa cinq fois sur un chapitre déjà en
+        # file. Ce que le test vérifie ne change pas d'un caractère : `auto_runs_in_window` compte
+        # par DÉCLENCHEUR, jamais par statut.
         for _ in range(settings.production_auto_max_runs + 3):
-            runs.create_run(db, chapter_id=chapter.id)  # manual/parent_direct
+            lot = runs.create_run(db, chapter_id=chapter.id)  # manual/parent_direct
+            lot.status = "done"
+            db.commit()
 
         assert runs.auto_runs_in_window(db) == 0
         _controle(db, chapter)

@@ -33,6 +33,35 @@ def production_queue() -> Queue:
     return Queue(settings.production_queue, connection=_redis())
 
 
+def production_worker_alive() -> bool:
+    """Y a-t-il un worker VIVANT pour consommer la file de production ?
+
+    ## Pourquoi cette question existe (2026-08-05)
+
+    Quatre lots identiques ont attendu dans Redis pendant six heures : `scripts/dev.sh` lance
+    l'infra, le backend et les deux frontends, **jamais** `python -m app.production_worker`.
+    L'écran disait « en file d'attente » — la vérité, et une vérité insuffisante : une file sans
+    consommateur n'est pas une attente, c'est un arrêt. Papa a cliqué quatre fois.
+
+    ⚠️ **`Worker.count()` MENT, `Worker.all()` dit vrai.** RQ garde deux choses : un ensemble
+    `rq:workers:<file>` (les noms) et un hash par worker (l'état, avec TTL sur battement de cœur).
+    Un worker tué sans nettoyage laisse son NOM dans l'ensemble alors que son hash a expiré :
+    `count()` compte les noms et rend 1, `all()` charge les hashes et rend `[]`. Mesuré ici même —
+    aucun processus en vie, `count()` = 1. Un indicateur bâti sur `count()` aurait affirmé qu'un
+    worker écoutait pendant que rien n'écoutait, c'est-à-dire exactement le défaut qu'il vient
+    réparer.
+
+    Best-effort : Redis injoignable → `False`. On préfère annoncer un doute qu'affirmer une
+    santé — c'est l'affirmation fausse qui a coûté six heures.
+    """
+    from rq import Worker
+
+    try:
+        return len(Worker.all(queue=production_queue())) > 0
+    except Exception:
+        return False
+
+
 def enqueue_production(run_id: int) -> str:
     """Enfile l'exécution d'un lot et renvoie l'id du job RQ.
 

@@ -8,11 +8,15 @@ l'invariant de l'ADR-0023 par simple voisinage de fichier.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.queue import enqueue_production
+from app.core.queue import enqueue_production, production_worker_alive
 from app.db.base import get_db
 from app.modules.auth.deps import require_parent
 from app.modules.production import runs
-from app.modules.production.schemas import ProductionPreviewOut, ProductionRunOut
+from app.modules.production.schemas import (
+    ActiveProductionRunOut,
+    ProductionPreviewOut,
+    ProductionRunOut,
+)
 
 router = APIRouter(
     prefix="/api/production/runs", tags=["production"], dependencies=[Depends(require_parent)]
@@ -71,11 +75,22 @@ def create_from_request(request_id: int, db: Session = Depends(get_db)) -> dict:
 
 # Déclarées AVANT `/{run_id}` : sinon « preview » / « active » seraient captés comme des
 # {run_id} (→ 422). Même piège que `/mindmaps/summary`.
-@router.get("/active", response_model=ProductionRunOut | None)
+@router.get("/active", response_model=ActiveProductionRunOut | None)
 def get_active(db: Session = Depends(get_db)) -> dict | None:
-    """Le lot en cours, ou `null`. Alimente l'indicateur d'en-tête — un PROCESSUS, pas un stock."""
+    """Le lot en cours, ou `null`. Alimente l'indicateur d'en-tête — un PROCESSUS, pas un stock.
+
+    ⚠️ **La question du worker n'est posée que s'il y a un lot en file.** Un lot `running` a
+    forcément quelqu'un qui l'exécute — le demander à Redis serait un aller-retour pour une
+    réponse connue. Et sans lot du tout, personne ne regarde : l'absence de worker n'est un
+    problème que quand quelque chose attend.
+    """
     run = runs.active_run(db)
-    return runs.run_out(db, run) if run else None
+    if run is None:
+        return None
+    return {
+        **runs.run_out(db, run),
+        "worker_alive": production_worker_alive() if run.status == "queued" else True,
+    }
 
 
 

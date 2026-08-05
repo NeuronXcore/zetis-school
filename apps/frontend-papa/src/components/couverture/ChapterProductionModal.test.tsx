@@ -102,6 +102,7 @@ describe("ChapterProductionModal", () => {
               done_notions: 1,
               progress_pct: 25,
               created_at: "",
+              started_at: null,
               finished_at: null,
             },
           },

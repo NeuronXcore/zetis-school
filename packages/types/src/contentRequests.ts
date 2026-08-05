@@ -2,6 +2,8 @@
 // `GET·PATCH /api/content-requests`. Sémantique INVERSE de `notion_requests` : ici la notion
 // EXISTE (`skill_id` connu), ce qui manque est un type de contenu.
 
+import type { ProductionRun } from "./production";
+
 /** Vocabulaire fermé, aligné sur les surfaces de contenu (backend `service.CONTENT_KINDS`). */
 export type ContentRequestKind = "cours" | "fiche" | "mindmap" | "quiz" | "capsule" | "card";
 
@@ -44,6 +46,17 @@ export interface ContentRequest {
    *  valider un cours dans un autre onglet le rend caduc. L'écran remplace le bouton par le motif
    *  et le geste qui répare, jamais par un bouton grisé. */
   blocked_reason: string | null;
+  /** Le lot qui produit CE contenu en ce moment — `null` si rien n'est en cours.
+   *
+   *  ⚠️ **Redérivé serveur à chaque lecture, jamais mémorisé par la page.** L'écran gardait les
+   *  lots lancés dans son propre état : quitter la page et revenir effaçait la barre et rendait
+   *  le bouton « Produire », comme si rien n'avait été lancé. Papa recliquait — c'est ainsi que
+   *  quatre lots identiques sont nés le 2026-08-05.
+   *
+   *  ⚠️ Le lien ne passe pas par une clé étrangère : un lot `manual` ne porte aucun
+   *  `content_request_id` (la contrainte l'interdit, ADR-0031 §4). Il se retrouve par
+   *  `(skill_id, piece)`, la traduction que `REQUEST_KIND_TO_PIECE` porte déjà. */
+  active_run: ProductionRun | null;
 }
 
 /** `POST /api/student/content-requests` (addendum ADR-0027) — corps de la demande de Massimo.

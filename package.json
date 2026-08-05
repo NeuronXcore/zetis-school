@@ -16,6 +16,7 @@
     "dev:massimo": "pnpm --filter @zetis/frontend-massimo dev",
     "dev:papa": "pnpm --filter @zetis/frontend-papa dev",
     "dev:back": "cd apps/backend && .venv/bin/uvicorn app.main:app --reload --port 8000",
+    "dev:worker": "cd apps/backend && .venv/bin/python -m app.production_worker",
     "prod:up": "docker compose -f docker-compose.prod.yml up --build",
     "prod:down": "docker compose -f docker-compose.prod.yml down",
     "prod:logs": "docker compose -f docker-compose.prod.yml logs -f"

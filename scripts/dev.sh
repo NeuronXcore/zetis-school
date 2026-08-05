@@ -24,11 +24,24 @@ done
 echo "▶ 3/4 Migrations + seed (idempotent)…"
 ( cd "$BACKEND_DIR" && "$VENV_ALEMBIC" upgrade head && "$VENV_PY" -m app.db.seed )
 
-echo "▶ 4/4 Backend (http://localhost:8000) + frontends…"
+echo "▶ 4/5 Worker de production…"
+# ⚠️ **Il manquait ici, et c'est ce qui a fait croire à une panne le 2026-08-05.**
+#
+# Le backend n'exécute JAMAIS un lot : il l'accepte en `202` et l'enfile sur Redis (ADR-0031 §3).
+# Sans ce processus, ZETIS accepte tout et ne produit rien — la file grossit en silence, l'écran
+# affiche « en file d'attente » (littéralement vrai), et Papa reclique. Quatre lots identiques ont
+# attendu six heures avant qu'on cherche du côté du code.
+#
+# Un dispositif dont une pièce doit être lancée à la main finit toujours par tourner sans elle.
+( cd "$BACKEND_DIR" && "$VENV_PY" -m app.production_worker ) &
+WORKER_PID=$!
+
+echo "▶ 5/5 Backend (http://localhost:8000) + frontends…"
 ( cd "$BACKEND_DIR" && "$VENV_UVICORN" app.main:app --reload --port 8000 ) &
 BACKEND_PID=$!
-# Stoppe le backend quand on quitte (Ctrl+C).
-trap 'echo; echo "⏹ Arrêt…"; kill "$BACKEND_PID" 2>/dev/null || true' EXIT INT TERM
+# Stoppe le backend ET le worker quand on quitte (Ctrl+C). Un worker orphelin continuerait de
+# consommer la file avec l'ancien code, ce qui est pire qu'un worker absent : ça marche presque.
+trap 'echo; echo "⏹ Arrêt…"; kill "$BACKEND_PID" "$WORKER_PID" 2>/dev/null || true' EXIT INT TERM
 
 echo "   Massimo → http://localhost:5173   Papa → http://localhost:5174"
 # Les deux frontends en parallèle (au premier plan : garde le terminal vivant).

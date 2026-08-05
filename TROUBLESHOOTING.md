@@ -4,6 +4,123 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/file-de-production` — une file que personne n'écoute (2026-08-05)
+
+### 🔴 Quatre lots identiques ont attendu six heures — le worker n'était pas lancé
+
+Signalé par le user le 2026-08-05 : *« COD a été lancé mais le niveau front est resté bloqué sur
+0 %. Lots #24, 25, 26, 27 créés mais non finis, ils s'accumulent en file d'attente. »*
+
+**La cause est dans `scripts/dev.sh`** : il lançait l'infra, le backend et les deux frontends,
+**jamais** `python -m app.production_worker`. Le backend n'exécute aucun lot (ADR-0031 §3) — il
+accepte en `202` et enfile sur Redis. Sans worker, ZETIS accepte tout et ne produit rien.
+
+```
+ps aux | grep production_worker   → rien
+rq:queue:production               → 4 jobs
+production_runs #24..27           → queued, started_at NULL
+```
+
+> **Un dispositif dont une pièce doit être lancée à la main finit toujours par tourner sans elle.**
+> Le worker est désormais lancé par `dev.sh` (étape 4/5) et arrêté avec lui. Raccourci séparé :
+> `pnpm dev:worker`.
+
+Trois défauts que cette panne a révélés, chacun corrigé :
+
+**1. `pct ?? 0` refabriquait le chiffre que le hook refusait de donner.** `useRunProgress` rend
+`null` pour dire « rien n'a commencé, il n'y a rien à mesurer » — et `ProductionProgress`
+retraduisait aussitôt ce refus en `0`. Le libellé disait « En file d'attente… », la case du
+pourcentage disait « 0 % », **et c'est la case qu'on lit**. `null` traverse maintenant jusqu'au
+rendu : `GenerationProgress` accepte `value: number | null` et rend une barre **indéterminée** (un
+liseré qui balaie, jamais un remplissage partiel) **sans aucun chiffre**.
+
+> Corollaire général : **une barre partiellement remplie EST un pourcentage**, même sans chiffre à
+> côté. Un « — » ou un « ? » dans la case du pourcentage se lit encore comme une valeur ; on retire
+> la case.
+
+**2. « en file d'attente » était vrai et insuffisant.** Une file sans consommateur n'est pas une
+attente, c'est un **arrêt** — et les deux n'appellent pas le même geste. `GET /runs/active` rend
+désormais `worker_alive`, et l'en-tête écrit « ZETIS **ne produit pas** … aucun moteur de
+production actif », en ambre, **sans point qui pulse** (une animation sur une file arrêtée ment
+avant qu'on ait lu le texte).
+
+⚠️ **`rq.Worker.count()` MENT, `Worker.all()` dit vrai.** RQ garde l'ensemble `rq:workers:<file>`
+(les noms) et un hash par worker (l'état, TTL sur battement de cœur). Un worker tué sans nettoyage
+laisse son **nom** dans l'ensemble alors que son hash a expiré. Mesuré ici, aucun processus en
+vie :
+
+```
+Worker.count(queue=q) → 1     ← ment
+Worker.all(queue=q)   → []    ← vrai
+SMEMBERS rq:workers:production → rq:worker:403f06…   (hash absent)
+```
+
+Un indicateur bâti sur `count()` aurait affirmé qu'un worker écoutait pendant que rien n'écoutait —
+exactement le défaut qu'il vient réparer. ⚠️ La question n'est posée **que sur un lot `queued`** :
+un lot `running` a forcément quelqu'un qui l'exécute, et la route est sondée toutes les 4 s sur
+toutes les pages Papa.
+
+**3. La page Demandes mémorisait les lots au lieu de les lire.** `useState` local : quitter la page
+effaçait la barre et rendait le bouton « Produire », comme si rien n'avait été lancé. **C'est ça qui
+a fabriqué les quatre doublons.** Le lot se redérive maintenant côté serveur (`active_run` sur
+chaque demande, une passe groupée — patron `blockers_for`).
+
+⚠️ **Le lien ne peut pas passer par une clé étrangère** : un lot `manual` ne porte aucun
+`content_request_id` (contrainte, ADR-0031 §4). Il se retrouve par `(skill_id, piece)` via
+`REQUEST_KIND_TO_PIECE`. ⚠️ **Seuls les lots-PIÈCE comptent** : un lot de chapitre produit aussi la
+notion mais ne répond pas de CETTE demande — afficher son avancement ferait croire qu'une fiche
+arrive quand le lot en fabrique quinze, dont peut-être pas celle-là.
+
+**Et l'avancement REPREND.** `started_at` voyage avec le lot ; `useEstimatedProgress` accepte un
+instant de départ. Sans lui, l'estimation mesurait **l'âge de l'affichage**, pas celui de
+l'opération — le « revenir remet tout à zéro » du signalement. Le montage d'un composant n'est pas
+le départ d'un travail qui vit dans un worker.
+
+**Garde anti-doublon** (`create_run`) : un lot au même scope `queued`/`running` → `409` qui **nomme
+le lot** existant. ⚠️ Elle vient **après** `close_stale_runs` (sinon un lot zombie interdirait ce
+scope pour toujours) et ce n'est **pas** de l'idempotence : `run_exists_for` demande « a-t-il déjà
+été produit ? » sur toute l'histoire, ici on demande « y en a-t-il un en TRAIN de le faire ? ».
+
+⚠️ **Un test existant empilait 5 lots `queued` sur le même chapitre** pour prouver que les lots
+manuels ne comptent pas dans le quota auto. La garde le refuse — à raison : personne ne peut faire
+cliquer Papa cinq fois sur un chapitre déjà en file. Les lots sont terminés au fur et à mesure ;
+`auto_runs_in_window` compte par **déclencheur**, jamais par statut, donc le verrou est intact.
+
+**Le contenu DÉJÀ produit — refus dit, plus un lot qui tourne pour rien.** Le lot #28, lancé pour
+vérifier ce correctif, a tourné 76 ms et rendu `skipped` : la fiche existait. Comportement juste (on
+ne régénère jamais, ADR-0021) mais **muet** — une ligne de plus au Journal, et Papa qui attend un
+contenu qu'il possède. `create_run` refuse maintenant en `409`, et l'écran l'annonce en **toast**.
+
+⚠️ **« Existe » ne veut pas dire « rien à faire ».** Une fiche `pending` est inexploitable pour
+Massimo, et `equip_piece` la VALIDE quand le régime le permet : ce lot-là produit un vrai
+changement. `piece_deja_produite(peut_valider=…)` porte la nuance, et `peut_valider` vient de la
+même source que le lot (`derivatives_are_served`). Sans elle, on refuserait le seul geste utile qui
+restait — et la demande de Massimo resterait ouverte pour toujours.
+
+⚠️ **Le prédicat RÉUTILISE `_existing_fiche` / `_existing_mindmap` / `_has_srs_cards` /
+`_has_mission_quiz`**, il n'en réécrit aucun, et un test-verrou d'architecture inspecte la source
+pour l'exiger. Une seconde lecture « qui donne le même résultat » diverge au premier générateur
+ajouté (défaut nommé par l'ADR-0037) : l'écran refuserait alors ce que le lot aurait produit.
+⚠️ Lots-**PIÈCE** seulement : un lot de chapitre saute ses notions déjà équipées une par une.
+
+**Le toast n'est pas le bandeau rouge**, et c'est une décision, pas une nuance de style : un refus
+n'est pas une panne — ZETIS a reconnu la situation et n'a rien détruit. Le peindre en rouge à côté
+des vraies erreurs apprendrait que ses refus sont des dysfonctionnements. `components/Toast.tsx`,
+`role="status"` (pas `alert` : on informe, on n'interrompt pas), effacement automatique — patron
+`ProductionDoneModal`, « ne laisse aucune trace à traiter ».
+
+⚠️ **Le tri se fait sur le CODE HTTP, jamais sur le texte** : `asJson` lève désormais un
+`HttpError` qui garde son `status` (additif — il reste une `Error`, tous les appelants existants
+sont intacts). Reconnaître un refus à ses mots casserait à la première reformulation, et ces
+messages ont déjà été réécrits une fois (§7 du 2026-08-04).
+
+⚠️ **Piège de fixture, attrapé par le test lui-même** : une première version semait le chapitre via
+un `Theme`. Il existait en base, mais `lessons_by_skill` exige un chapitre `validated` sous un
+`SchoolYearSubject` de l'année **active** — aucune notion ne le résolvait, `piece_deja_produite`
+rendait `None` faute de leçon, et les verrous seraient passés au vert **en ne testant rien**.
+Semer par `_seed_year` / `_seed_lesson`, jamais à la main.
+
+
 ## Chantier `feat/preuves-vers-le-reel` — les preuves mènent quelque part + dépliage (ADR-0038 + addendum) — 2026-08-05
 
 ### 🔴 Deux contre-épreuves étaient des NO-OP — et deux verrous paraissaient sans dents
