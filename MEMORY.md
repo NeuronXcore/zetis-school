@@ -11,10 +11,13 @@
 Correctif de bug, signalé par le user : quatre lots créés dans la matinée, aucun terminé, en-tête
 figé à 0 %, et « changer de page et revenir remet tout à zéro ».
 
-⚠️ **Ce chantier n'a PAS d'ADR et n'est PAS né d'un cadrage** — c'est un correctif entré par un
-signalement. Le récit vit dans `TROUBLESHOOTING.md` (section `fix/file-de-production`) et
-`CHANGELOG.md` 0.48.0. Deux décisions y ont été prises sans document (voir DÉCISIONS ACTIVES) :
-**si elles doivent devenir opposables, il faut un addendum à l'ADR-0036** — non écrit, cf. dettes.
+⚠️ **Ce chantier n'est PAS né d'un cadrage** — c'est un correctif entré par un signalement. Le récit
+vit dans `TROUBLESHOOTING.md` (section `fix/file-de-production`) et `CHANGELOG.md` 0.48.0.
+
+✅ **Son ADR existe désormais**, écrit **après le merge** : `adr-0036-addendum-file-sans-consommateur.md`.
+Il ne décrit pas un chantier à faire, il **fige cinq règles déjà appliquées** — pour qu'une session
+future qui voudra « simplifier » sache ce qu'elle défait. L'écart au rituel (`mockup → spec → ADR`)
+est écrit **dans le document lui-même**, pas masqué.
 
 ### Où est le code, exactement
 
@@ -23,7 +26,7 @@ signalement. Le récit vit dans `TROUBLESHOOTING.md` (section `fix/file-de-produ
 | **MERGÉ `main`** | **PR [#85](https://github.com/NeuronXcore/zetis-school/pull/85)**, squash **`7c3e290`** (2026-08-05) — branche `fix/file-de-production` **supprimée**, locale et distante |
 | Base | **`75022bf`** (tête de `main` au moment du départ) |
 | Migration | **aucune** — pas une colonne touchée |
-| ADR | **aucun** (correctif de bug ; addendum ADR-0036 à écrire si les décisions doivent tenir) |
+| ADR | **`adr-0036-addendum-file-sans-consommateur.md`** — écrit APRÈS le merge, l'écart est assumé dans le document |
 | Suites | **911 backend (+1 xfailed) · 495 Papa · 525 Massimo**, `tsc -b` propre (papa et massimo) |
 | Vérifié à l'écran | **OUI**, session Papa connectée (MCP Chrome) — quatre écrans, détail plus bas |
 
@@ -116,9 +119,8 @@ plus mûres restent celles héritées du chantier précédent, parce qu'elles so
    strict l'attend déjà dans `test_reading_evidence.py` ;
 2. 🔴 **les entrées de `CHANGELOG.md` manquantes** pour les PR #82 et #83.
 
-Née de CE chantier et de même maturité : **l'addendum ADR-0036** qui rendrait opposables les deux
-décisions prises sans document (« un refus n'est pas une panne », « une barre remplie est un
-pourcentage »). C'est de l'écriture seule — le code, lui, est déjà sur `main`.
+✅ La troisième — l'addendum ADR-0036 qui rendait opposables les décisions prises sans document — a
+été **écrite le jour même**, après le merge.
 
 Les **trois commits** ont chacun été **vérifié sur son propre état** (l'arbre réduit à ce commit-là
 avant de lancer les suites), et non seulement à la fin :
@@ -156,11 +158,20 @@ sur l'état final. Le champ a été déplacé au commit 2, avec son usage.
   pas. Seul `tsc` lancé sur l'état du commit isolé l'a vu. **Vérifier chaque commit sur son propre
   état, pas seulement la branche entière** — c'est la parade, et elle ne coûte qu'un `git stash
   push -- <chemins>`.
-- 🔴 **Deux décisions ont été prises SANS document.** « Un refus n'est pas une panne » (toast vs
-  bandeau) et « une barre partiellement remplie est un pourcentage » sont écrites dans le code et
-  dans `TROUBLESHOOTING.md`, **nulle part sous une forme opposable**. Si elles doivent tenir face à
-  une session future qui voudra « simplifier », il faut un **addendum à l'ADR-0036**. Non écrit : le
-  rituel veut qu'un ADR s'écrive au cadrage, et il n'y a pas eu de cadrage.
+- ⚠️ **L'ADR de ce chantier est écrit APRÈS son code** — dette éteinte, mais l'ordre reste un écart.
+  `adr-0036-addendum-file-sans-consommateur.md` fige cinq règles déjà livrées ; il n'a donc jamais pu
+  **infléchir** la conception, seulement la constater. C'est exactement ce que le rituel
+  `mockup → spec → ADR → prompt` existe pour éviter, et le document le dit dans son propre Statut.
+  ⚠️ **Ne pas en faire un précédent** : ça a marché ici parce que le chantier était petit et
+  entièrement mesuré. Sur un chantier de conception, un ADR écrit après le code n'est plus une
+  décision — c'est une justification.
+- ✅ **Écrire l'addendum a révélé que tout son §1 était SANS VERROU côté écran** — le verbe, l'ambre,
+  le point qui cesse de battre : vrais à l'écran, tenus par rien. `PapaLayout.test.tsx` a gagné deux
+  tests (l'arrêt **et** sa contre-épreuve worker présent), sabotés séparément. ⚠️ Le cœur en est
+  l'assertion sur l'**animation** : le texte se relit, un `className` conditionnel se « simplifie »
+  en silence — et c'est le point qu'on regarde avant la phrase.
+  > **Écrire l'ADR après le code a donc servi à quelque chose de précis** : formuler une règle
+  > oblige à chercher ce qui la tient, et c'est là qu'on voit que rien ne la tient.
 - ⚠️ **Aucun lot n'a été vu TOURNER pour de vrai.** Les quatre écrans vérifiés le sont sur des lots
   `queued` (dont deux lots témoins créés puis supprimés). Le seul lot exécuté de la session (#28) a
   duré **76 ms** — trop court pour observer quoi que ce soit. Donc : la **barre mesurée**, la

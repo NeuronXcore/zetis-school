@@ -85,6 +85,38 @@ describe("PapaLayout", () => {
     expect(header.textContent).toContain("ZETIS va produire");
   });
 
+  it("🔒 un lot en file SANS WORKER dit l'arrêt, et son point cesse de battre", () => {
+    // Addendum ADR-0036 « une file que personne n'écoute » §1. Les règles de cette section vivaient
+    // dans le code et dans un document, **sans aucun verrou** — constaté en écrivant l'addendum.
+    //
+    // ⚠️ Le cœur du test est la DERNIÈRE assertion. Le texte se relit ; l'animation, non — et c'est
+    // elle qu'on regarde en premier. Un point qui pulse sur une file arrêtée ment avant qu'on ait
+    // lu la phrase, et un `className` conditionnel se « simplifie » sans que rien ne rougisse.
+    etat.run = lot({ status: "queued", worker_alive: false });
+    const { container } = show();
+    const header = container.querySelector("header")!;
+
+    expect(header.textContent).toContain("aucun moteur de production actif");
+    // Le VERBE suit l'état : ZETIS ne va pas produire, il ne produit pas.
+    expect(header.textContent).toContain("ZETIS ne produit pas");
+    expect(header.textContent).not.toContain("ZETIS va produire");
+    expect(header.textContent).not.toMatch(/\d+\s?%/);
+    expect(header.querySelector(".animate-pulse")).toBeNull();
+  });
+
+  it("🔒 un worker PRÉSENT laisse l'attente ordinaire — et son point bat", () => {
+    // La contre-épreuve : sans elle, un indicateur qui dirait « arrêté » en permanence passerait
+    // le test précédent au vert. ⚠️ `worker_alive` ABSENT ne vaut pas `false` — seule la route
+    // `/runs/active` pose la question ; ailleurs on ne présume pas d'une panne.
+    etat.run = lot({ status: "queued", worker_alive: true });
+    const { container } = show();
+    const header = container.querySelector("header")!;
+
+    expect(header.textContent).toContain("en file d'attente");
+    expect(header.textContent).not.toContain("aucun moteur");
+    expect(header.querySelector(".animate-pulse")).not.toBeNull();
+  });
+
   it("un lot DÉMARRÉ, lui, affiche bien son avancement", () => {
     // La contre-épreuve du test précédent : si l'indicateur se taisait dans les deux cas, le
     // verrou serait vert pour la mauvaise raison.
