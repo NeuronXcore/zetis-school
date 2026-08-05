@@ -112,8 +112,15 @@ ne les a touchées :
    `fix/fenetre-branche-flat` **supprimée** des deux côtés. Le `xfail` strict est passé XPASS, donc
    rouge, et a forcé son propre retrait : première dette de ce dépôt à se rappeler toute seule.
    Amendement dans l'ADR-0038, `CHANGELOG` 0.49.1, pièges dans `TROUBLESHOOTING.md`.
-2. 🔴 **les entrées de `CHANGELOG.md` manquantes** pour les PR #82 et #83 — désormais la seule des
-   deux qui reste.
+2. ✅ ~~les entrées de `CHANGELOG.md` manquantes pour les PR #82 et #83~~ — **PAYÉE le
+   2026-08-05** : rétro-inscrites en **0.46.1** (#82) et **0.46.2** (#83), à leur place
+   chronologique. Reconstituées **depuis les messages de squash, les ADR et `TROUBLESHOOTING.md`**,
+   jamais de mémoire — c'est précisément pour ça que la dette avait été posée plutôt que comblée
+   à chaud. ⚠️ **Non renumérotées en 0.47.0/0.48.0** : les versions suivantes sont déjà publiées
+   dans l'historique Git ; on rétro-inscrit, on ne renumérote pas ce qui est sorti.
+
+**Les deux dettes désignées au dernier bilan sont donc éteintes.** Le prochain chantier se choisit
+plus bas, ou se cadre.
 
 ⚠️ **Trois résidus de CE chantier**, qui ne vivent nulle part ailleurs (ni Git, ni les ADR) :
 
@@ -203,10 +210,6 @@ ne les a touchées :
   **pose la question** au bon moment, pas ce que Redis répond. La réponse, elle, a été vérifiée à la
   main sur la vraie file (`Worker.all()` = `[]` pendant que `count()` = 1).
 
-- 🔴 **`CHANGELOG.md` saute DEUX chantiers mergés** : les PR **#82** (vue à l'année) et **#83**
-  (panneau d'analyse par matière) n'ont **jamais reçu d'entrée**. Constaté en appliquant le 3ᵉ
-  contrôle d'élagage — qui a donc **échoué** pour la section retirée. Leur récit vit dans leurs ADR
-  et dans `TROUBLESHOOTING.md` ; il n'a pas été reconstitué de mémoire, ce qui aurait été inventer.
 - ⚠️ **DEUX définitions de `has_referentiel` coexistent** : `dashboard._referentiel_subjects` (≥ 1
   **chapitre** dans l'année active) et `progress.analysis._referentiel` (≥ 1 **leçon**, via
   `coverage()`). Progression utilise la première — celle du constat qui pointe vers elle. L'écart
@@ -529,9 +532,10 @@ si la file regrossit.
 
 > **2026-08-05 — le panneau d'analyse par matière** (PR #83, squash `cb59600`), section retirée à
 > la clôture du 2026-08-05. Contrôles : ADR `adr-0028-addendum-analyse-par-matiere.md` ✅ ·
-> `TROUBLESHOOTING.md` §`feat/analyse-matiere` ✅ · **`CHANGELOG.md` ❌ — il n'a jamais reçu son
-> entrée**, remonté en dette ci-dessus · ce qui restait ouvert : **deux dettes PAYÉES** par le
-> chantier suivant, le reste déjà dans « DETTES OUVERTES ».
+> `TROUBLESHOOTING.md` §`feat/analyse-matiere` ✅ · **`CHANGELOG.md` — ❌ à la clôture, ✅ depuis le
+> 2026-08-05** : l'entrée manquante avait été remontée en dette, elle a été **rétro-inscrite en
+> 0.46.2** depuis les sources · ce qui restait ouvert : **deux dettes PAYÉES** par le chantier
+> suivant, le reste déjà dans « DETTES OUVERTES ».
 
 > **2026-08-04 — les deux bandeaux** (PR #78 `4458574`, PR #79 `c02a555`), section retirée à la
 > clôture suivante après les quatre contrôles : ADR `adr-0029-addendum-galaxie-dans-le-bandeau.md`,
