@@ -18,7 +18,6 @@ pendant que la preuve mentait. Un lien vers une route inexistante l'aurait satis
 
 from urllib.parse import parse_qs, urlparse
 
-import pytest
 
 import app.db.models as m
 from app.core.config import settings
@@ -192,26 +191,20 @@ def test_aucun_href_ne_reste_irresolvable(client_db) -> None:
         _ce_que_la_cible_sert(client, TestSession, constat["evidence"]["href"])
 
 
-# --- La divergence CONNUE de la branche `flat` — chantier à part ----------------------------------
+# --- La fenêtre de la branche `flat` — dette PAYÉE le 2026-08-05 ----------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Divergence RÉELLE, mesurée le 2026-08-05 : le constat `flat` compte les traces sur "
-        "`p.HISTORY_DAYS` (730 j), tandis que sa cible `/cahier` est bornée SERVEUR à "
-        "`activity_max_range_days` (366 j). Une trace plus ancienne est comptée par le constat et "
-        "INVISIBLE sur sa propre preuve. L'ADR-0038 l'avait anticipé — « le verrou du §5 la "
-        "couvrira ; s'il rougit, ce sera un chantier à part » — et le hors-périmètre interdit d'y "
-        "toucher ici. `strict=True` : le jour où quelqu'un corrige la fenêtre, CE TEST DEVIENT "
-        "ROUGE et force à retirer ce marqueur. La dette ne peut pas pourrir en silence."
-    ),
-)
 def test_flat_ne_ment_pas_au_dela_de_la_fenetre_du_cahier(client_db) -> None:
-    """Une trace hors de portée du Cahier est quand même comptée par le constat.
+    """Une trace hors de portée du Cahier n'est PAS comptée par le constat.
 
-    Ce test n'est pas un échec de la slice : c'est la dette, écrite là où on ne peut pas ne pas
-    la voir. Le rapporter seulement en prose l'aurait perdue à la prochaine session."""
+    ⚠️ **Ce test a vécu en `xfail(strict=True)`** le temps que le chantier existe : il décrivait
+    une divergence réelle (le constat comptait sur 730 j, sa preuve n'en servait que 366) au lieu
+    de la taire en prose. Le jour où la fenêtre a été bornée, il est passé **XPASS(strict)** —
+    donc rouge — et a forcé le retrait du marqueur. La dette n'a pas pu pourrir en silence.
+
+    Il garde exactement le même corps : ce qui était la preuve du défaut est devenu le verrou de
+    sa correction. Retirer le bornage de `_reading` le fait retomber.
+    """
     from datetime import datetime, timedelta, timezone
 
     client, TestSession = client_db
@@ -248,4 +241,11 @@ def test_flat_ne_ment_pas_au_dela_de_la_fenetre_du_cahier(client_db) -> None:
             f"« {constat['text']} » annonce {annonce} traces, son Cahier en sert {servi} : "
             f"la fenêtre du constat ({p.HISTORY_DAYS} j) dépasse celle de sa preuve "
             f"({settings.activity_max_range_days} j)"
+        )
+        # La trace hors fenêtre existe bel et bien en base : si elle avait simplement disparu du
+        # décor, l'égalité ci-dessus serait vraie sans rien prouver. C'est le piège du décor qui
+        # ne peut pas faire diverger les deux branches — payé trois fois dans ce dépôt.
+        assert annonce == 1, (
+            f"le décor pose 2 traces dont 1 hors fenêtre : le constat doit en compter 1, pas "
+            f"{annonce}"
         )

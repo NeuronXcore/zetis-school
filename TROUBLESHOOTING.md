@@ -4,6 +4,73 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/fenetre-branche-flat` — la fenêtre du constat `flat` (ADR-0038) — 2026-08-05
+
+### ✅ Un `xfail(strict=True)` s'est refermé tout seul — le patron vaut d'être réutilisé
+
+La divergence « le constat compte sur 730 j, sa preuve n'en sert que 366 » avait été inscrite en
+`@pytest.mark.xfail(strict=True)` au lieu d'être rapportée en prose. Au moment de la correction :
+
+```
+[XPASS(strict)] Divergence RÉELLE, mesurée le 2026-08-05 : …
+FAILED test_flat_ne_ment_pas_au_dela_de_la_fenetre_du_cahier
+```
+
+Le test **passe**, donc `strict=True` le rend **rouge**, et force le retrait du marqueur dans le
+même commit. Le corps du test n'a pas bougé : ce qui prouvait le défaut verrouille sa correction.
+
+> **Première fois dans ce dépôt qu'une dette se rappelle toute seule au moment exact où elle est
+> payée.** Une dette décrite en prose se perd à la session suivante ; une dette en `xfail` strict
+> ne peut pas pourrir en silence. À réutiliser pour toute divergence connue qu'on choisit de ne pas
+> traiter tout de suite.
+
+### ⚠️ Deux bornes justes chacune chez elle, et c'est leur RENCONTRE qui ment
+
+Ni les 730 j (`p.HISTORY_DAYS`, nécessaires pour que les deltas des KPI soient vrais) ni les 366 j
+(`ACTIVITY_MAX_RANGE_DAYS`, qui protègent l'ampleur du scan) n'étaient fautifs. Chercher « la
+constante fausse » n'aurait rien donné.
+
+**Parade** : quand un nombre est annoncé ici et servi là, comparer les **fenêtres** des deux
+surfaces avant de relire les formules. Et **lire** la borne de l'autre surface plutôt que de la
+recopier — `_reading` lit `settings.activity_max_range_days`, un `366` en dur aurait divergé au
+premier changement de réglage.
+
+### ⚠️ Graphify n'indexe PAS les constantes de module Python — et mes requêtes visaient mal
+
+Deux choses distinctes, découvertes en cherchant ce chantier.
+
+**1. Une vraie lacune de l'extracteur.** `graphify update` est AST-only et ne crée aucun nœud pour
+les constantes de module Python ni pour les champs Pydantic de `Settings` :
+
+| cherché | nœuds |
+|---|---|
+| `CALENDAR_WEEKS` · `NON_ACTIVITY_EVENTS` · `REVIEW_LOAD_DAYS` · `_VALIDATION_HREFS` | **0** |
+| `activity_max_range_days` (champ `Field(...)`) | **0** |
+| `_reading()` · `actionable_gaps()` · `KIND_LABELS` (const TS) | ✅ présents |
+
+La passe **sémantique** ne comble pas le trou : la spec du skill la saute pour un corpus de code
+pur. Conséquence pratique : **une doctrine qui vit dans une constante Python (`366`, `730`, un
+`frozenset` d'exclusion) est invisible du graphe** — il faut la chercher dans les docs qui la
+citent, ou dans le code.
+
+**2. Le vrai tort était la requête.** Une question longue en langage naturel dont les mots sont
+génériques (« Lecture ZETIS », « Massimo », « fenêtre ») démarre le BFS sur `GLOSSARY.md` et
+`PRODUCT_SPEC.md` et ne rend que du documentaire.
+
+```bash
+graphify explain "_reading"        # ✅ le nœud, sa source, ses 7 arêtes
+graphify query  "actionable_gaps"  # ✅ le voisinage utile
+graphify query  "Lecture ZETIS branche flat fenêtre traces cahier"   # ❌ glossaire
+```
+
+**Parade** : interroger par **symbole exact** (`explain`), pas par phrase. Réserver les questions en
+langage naturel aux zones documentaires, qui sont ce que la passe sémantique indexe vraiment.
+
+⚠️ **Et vérifier la casse en fouillant `graph.json` à la main** : les `id` sont **minusculés**
+(`apps_backend_app_modules_dashboard_service_reading`). Une recherche sensible à la casse sur
+`HISTORY_DAYS` rend 0 et fait conclure à tort qu'un symbole manque — c'est arrivé ici, et le seul
+résultat trouvé ensuite venait d'`API_SPEC.md`, pas du code.
+
 ## Chantier `feat/file-de-relecture` — la file de relecture (ADR-0039) — 2026-08-05
 
 ### 🔴 Mon test-verrou central était VERT sur un sabotage — troisième occurrence du motif
