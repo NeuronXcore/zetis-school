@@ -7,19 +7,25 @@
 
 ## État à la reprise
 
-**Chantier : « tout nombre du Dashboard ouvre ce qu'il compte » — COMPLET, NON COMMITÉ.**
+**Chantier : « tout nombre du Dashboard ouvre ce qu'il compte » — COMPLET et MERGÉ.**
 Né du signalement du user : *« le badge doit devenir cliquable — 27 leçons, 1 fiche, 5 capsules :
 des liens ciblés vers les data à valider »*, puis *« parfois on peut aussi avoir : à produire,
 appliquer la même logique »*.
 
 | | |
 |---|---|
-| Branche | **`feat/file-de-relecture`**, partie de `c8e3af5` — **rien n'est commité** |
+| **MERGÉ `main`** | **PR [#86](https://github.com/NeuronXcore/zetis-school/pull/86)**, squash **`d727394`** (2026-08-05, 52 fichiers) — branche `feat/file-de-relecture` **supprimée**, locale et distante |
+| Base | **`c8e3af5`** (tête de `main` au départ) |
 | ADR | **`adr-0039-file-de-relecture.md`**, écrit **AVANT le code** (rituel tenu, contrairement au chantier précédent) |
 | Migration | **aucune** — pas une colonne touchée |
 | Suites | **931 backend · 545 Papa · 525 Massimo**, `tsc -b` propre (papa et massimo) |
 | Vérifié à l'écran | **OUI**, session Papa connectée (`:5175` / backend `:8001`), sur la base réelle |
-| **NEXT** | `/cloture`, puis **l'humain vérifie et committe**, push, PR |
+
+**Découpé en 3 commits vérifiés** (backend · front+types+ui · docs), et le commit backend a été
+testé **en isolation** — `git stash` du reste, 931 verts sans une ligne de front. C'est le seul
+découpage où aucun fichier n'est scindé entre deux commits, donc où `git add` au fichier suffit.
+
+**Aucun chantier suivant n'est cadré.** Le prochain se choisit dans les DETTES ci-dessous.
 
 ### Ce que le chantier a trouvé — trois nombres qui mentaient
 
@@ -79,16 +85,25 @@ Le détail de ces sept pièges, avec cause et parade, vit dans `TROUBLESHOOTING.
 
 ### ▶ PROCHAIN PAS
 
-**Le chantier est FINI** : tous les lots livrés, doc écrite, vérifié à l'écran. Rien n'est commité —
-c'est l'humain qui vérifie (diff + suites) puis committe.
+**Ce chantier est CLOS et MERGÉ** (PR #86, squash `d727394`). Branche supprimée des deux côtés,
+arbre propre, `main` == `origin/main` — vérifié après le merge. Étape 4bis faite.
 
-1. **Vérifier et committer** (geste humain), puis `git push -u origin feat/file-de-relecture`.
-2. **Ouvrir la PR** vers `main`, puis merger.
-3. 🔴 **Revenir faire l'étape 4bis** (`WORKFLOW.md §5`) : remettre ce fichier au réel — squash, n° de
-   PR, branche supprimée, « rien à pousser » — et **descendre les résidus ci-dessous** dans les
-   dettes. Tout ce qui est écrit ici sur l'état Git devient faux au merge.
+Le prochain chantier se choisit dans les DETTES ci-dessous. Les deux plus mûres restent les mêmes
+qu'au chantier précédent, parce qu'elles sont déjà bornées et qu'aucun des deux derniers chantiers
+ne les a touchées :
 
-Aucun chantier suivant n'est cadré ; le prochain se choisit dans les DETTES ci-dessous.
+1. 🔴 **la fenêtre de la branche `flat`** (730 j du constat contre 366 j de sa cible) — un `xfail`
+   strict l'attend déjà dans `test_reading_evidence.py` ;
+2. 🔴 **les entrées de `CHANGELOG.md` manquantes** pour les PR #82 et #83.
+
+⚠️ **Trois résidus de CE chantier**, qui ne vivent nulle part ailleurs (ni Git, ni les ADR) :
+
+- **Aucun clic « Valider » / « Rejeter » n'a été joué en vrai** — délibéré, ça aurait muté la base de
+  dev ; la preuve de la source partagée a été faite en comparant les deux API en direct. Le **retrait
+  optimiste**, le **rattrapage d'erreur** et les **deux endpoints `/reject`** ne sont donc couverts
+  **que par des tests**, jamais vus à l'écran. À exercer à la première occasion réelle.
+- **`/relecture` n'a été vue qu'en desktop** — aucun contrôle responsive.
+- **Aucune donnée de test laissée en base**, pour la même raison qu'au premier point.
 
 ---
 
