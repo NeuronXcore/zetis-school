@@ -104,8 +104,7 @@ Trois corrections écrites dans le document lui-même, pour que personne ne les 
 ### ▶ PROCHAIN PAS
 
 **Ce chantier est CLOS et MERGÉ** (PR #90, squash `392b075`). Branche supprimée des deux côtés,
-`main` == `origin/main`, arbre propre à `.claude/launch.json` près — vérifié après le merge.
-**Étape 4bis faite.**
+`main` == `origin/main`, **arbre propre** — vérifié après le merge. **Étape 4bis faite.**
 
 Le prochain chantier se choisit dans les DETTES ci-dessous, ou se cadre — `/ouverture`, ADR avant
 le code. Si le sujet reste le dashboard, **le premier geste est écrit dans les dettes** : l'addendum
@@ -113,9 +112,13 @@ qui fige « Semaine en cours », la seule surface du dashboard qu'aucun ADR ne d
 
 ⚠️ **Résidus de CE chantier**, qui ne vivent nulle part ailleurs :
 
-- ⚠️ **`.claude/launch.json` est modifié et n'appartient PAS à ce chantier** — `autoPort: false`
-  posé sur les neuf entrées appairées en relançant les serveurs. À sortir du commit, ou à committer
-  à part.
+- ✅ **`.claude/launch.json` : `autoPort: false` posé puis JETÉ, volontairement.** En relançant les
+  serveurs, le harnais a proposé de rendre le port de `papa-dev` réassignable — ce qui aurait cassé
+  le CORS en silence, chaque backend n'autorisant que le port de son front. Le champ a donc été posé
+  sur les neuf entrées appairées, puis **écarté à la clôture** parce qu'il n'appartenait pas à ce
+  chantier. **Exposition réelle faible** : ces entrées portent déjà `--port N --strictPort`, donc
+  Vite refuse de bouger plutôt que de glisser ailleurs. Ce qui manque n'est que le message d'échec
+  clair, pas la protection. À reposer si le harnais redemande.
 - ⚠️ **Deux incohérences pré-existantes de `launch.json`, signalées et non traitées** : `massimo`
   (:5173) et `papa` (:5174) ont `autoPort: true` alors que le `cors_origins` **par défaut** du
   backend est exactement 5173/5174 (même bug, latent) ; et `massimo-dev2` / `papa-srs` réclament
