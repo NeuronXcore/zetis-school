@@ -72,6 +72,37 @@ même mesure. Le nom accessible d'un bouton **concatène** ses descendants, `ari
 
 **Parade.** Ancrer sur le début du libellé : `/^À renforcer/`.
 
+### 🔴 `gh pr merge --delete-branch` bascule sur un `main` local périmé — tout le chantier a l'air d'avoir disparu
+
+**Symptôme, spectaculaire.** La commande échoue sur `fatal : Pas possible d'avancer rapidement,
+abandon.` / `! warning: not possible to fast-forward to: "main"`, et **tous les fichiers du chantier
+reviennent à leur état d'avant** : `MEMORY.md` reparle du chantier précédent, les fixtures de test
+perdent leurs nouveaux champs, le code du KPI n'existe plus.
+
+**Rien n'est perdu.** Le merge côté GitHub a **réussi** — le squash est sur `origin/main`. Ce qu'on
+regarde est un worktree que `gh` a basculé sur le `main` **local**, resté en arrière.
+
+**Cause.** Le cadrage avait été commité sur `main` **local sans être poussé** : ce commit n'a atteint
+le distant **que par la branche**. `main` local et `origin/main` avaient donc divergé. En supprimant
+la branche, `gh` quitte la branche courante pour `main`, tente de l'avancer, et s'arrête là.
+
+**Parade** (l'ordre compte — `reset --hard` écrase les fichiers modifiés hors chantier) :
+
+```bash
+git stash push -- <fichiers modifiés hors chantier>
+git reset --hard origin/main
+git stash pop
+git fetch --prune          # la ref `origin/<branche>` survit à la suppression distante
+```
+
+**Prévention.** Vérifier `git rev-list --count origin/main..main` **avant** de merger : s'il n'est
+pas à `0`, le `main` local a des commits que le distant n'a pas, et le merge se terminera dans cet
+état. Le contrôle vaut aussi au moment du cadrage : un commit de doc sur `main` se **pousse**.
+
+> ⚠️ **Ne jamais conclure « le travail est perdu » sur la foi de l'arbre de travail.** Le premier
+> réflexe est `git log --oneline origin/main` et `gh pr view <n> --json state,mergeCommit` — c'est
+> le distant qui dit la vérité, pas les fichiers sous les yeux.
+
 ### ⚠️ Le focus transite par l'URL — la bascule n'est pas synchrone au clic
 
 `toggleFocus` écrit dans les `searchParams`. Une assertion sèche juste après `fireEvent.click` lit

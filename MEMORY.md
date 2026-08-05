@@ -7,8 +7,7 @@
 
 ## État à la reprise
 
-**Chantier : « le KPI qui manque — À renforcer » (addendum ADR-0028) — COMPLET, vérifié à l'écran,
-prêt à pousser.**
+**Chantier : « le KPI qui manque — À renforcer » (addendum ADR-0028) — COMPLET et MERGÉ.**
 
 Parti d'une question du user sur les KPI de notions du dashboard Papa, passé par une maquette, un
 addendum d'ADR, puis la slice. Le rituel `mockup → ADR → code` a été tenu **dans l'ordre**, pour la
@@ -16,14 +15,14 @@ première fois depuis plusieurs chantiers.
 
 | | |
 |---|---|
-| **État** | ✅ **COMPLET.** Code vert, et **le bandeau a été regardé à l'écran par le user** avant toute PR (`WORKFLOW.md §5bis`) — contrairement au bandeau Massimo #79 et au souffle #89, dont les dettes visuelles restent dues. Prochain pas = commit + push + PR |
-| Branche | `feat/kpi-a-renforcer`, **poussée** — `origin/feat/kpi-a-renforcer` est identique au local. Commits : `git log --oneline main..HEAD` |
+| **MERGÉ `main`** | **PR [#90](https://github.com/NeuronXcore/zetis-school/pull/90)**, squash **`392b075`** (2026-08-05, 16 fichiers) — branche `feat/kpi-a-renforcer` **supprimée**, locale et distante (`git ls-remote` vide, ref locale élaguée). `main` == `origin/main`, **rien à pousser**. Étape **4bis faite** |
+| **État** | ✅ **COMPLET**, et **le bandeau a été regardé à l'écran par le user AVANT la PR** (`WORKFLOW.md §5bis`) — contrairement au bandeau Massimo #79 et au souffle #89, dont les dettes visuelles restent dues |
 | Base | **`5678f06`** (`docs(adr): le KPI qui manque…`) |
-| ⚠️ **État git anormal** | **`main` local a 1 commit d'avance sur `origin/main`.** `5678f06` (l'ADR + le glossaire) n'est arrivé sur le distant **que par la branche**, jamais sur `origin/main`. Après un merge en squash, le `main` local devra être **réaligné** (`git fetch && git reset --hard origin/main`) — un simple `git pull` divergera |
+| ⚠️ **Ce que le merge a coûté** | `main` local était **1 commit d'avance** sur `origin/main` (l'ADR n'avait atteint le distant que par la branche). `gh pr merge --delete-branch` a donc **basculé le worktree sur ce `main` périmé** puis échoué à l'avancer — tous les fichiers du chantier ont eu l'air d'avoir **disparu**. Rien n'était perdu : le squash était déjà sur `origin/main`. Parade dans `TROUBLESHOOTING.md` |
 | ADR | `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md` — écrit **avant** le code, **corrigé pendant** (trois corrections, plus bas) |
 | Migration | **aucune** · Route nouvelle : **aucune** · Requête nouvelle : **une** (`history_since`) |
 | Suites | backend **935 ✅** (`test_dashboard.py` 31 → 34, **+3**) · Papa **563 ✅** (561 → 563, **+2**) · Massimo **525 ✅**, non touché · `tsc -b` propre sur les deux fronts |
-| PR | **aucune** — `gh pr list --head feat/kpi-a-renforcer` rend `[]` |
+| PR | **[#90](https://github.com/NeuronXcore/zetis-school/pull/90) — `MERGED`** le 2026-08-05, 4 commits écrasés en un squash |
 | Vérifié à l'écran | ✅ **OUI — par le user**, sur la paire `backend-dev` :8001 + `papa-dev` :5175, session Papa connectée. Cinq points passés : la carte ambre parmi les cinq, le 13 / +4 et sa courbe en marche, les quatre infobulles, le clic (quatre cartes retenues dont la Lecture ZETIS) et les trois paliers de grille. ⚠️ **L'agent, lui, ne l'a jamais vu** — `localStorage` vide après le redémarrage des serveurs, et il ne saisit pas de mot de passe |
 
 ### FAIT
@@ -104,18 +103,13 @@ Trois corrections écrites dans le document lui-même, pour que personne ne les 
 
 ### ▶ PROCHAIN PAS
 
-**Le commit de la slice est FAIT** (`feat(dashboard): le bandeau nomme enfin ce qui glisse…`,
-16 fichiers, `.claude/launch.json` correctement exclu). La vérification à l'écran est faite.
+**Ce chantier est CLOS et MERGÉ** (PR #90, squash `392b075`). Branche supprimée des deux côtés,
+`main` == `origin/main`, arbre propre à `.claude/launch.json` près — vérifié après le merge.
+**Étape 4bis faite.**
 
-Reste, dans l'ordre : **committer la bascule de ce fichier en COMPLET** (elle a été écrite après le
-commit de la slice) → **push** → **PR** → merge → **4bis**.
-
-```bash
-git add MEMORY.md && git commit -m "docs(memory): le bandeau a été vu — chantier COMPLET" && git push -u origin feat/kpi-a-renforcer
-```
-
-⚠️ **Au retour de 4bis**, ne pas oublier le réalignement de `main` décrit plus haut : le squash
-n'aura pas `5678f06` pour ancêtre.
+Le prochain chantier se choisit dans les DETTES ci-dessous, ou se cadre — `/ouverture`, ADR avant
+le code. Si le sujet reste le dashboard, **le premier geste est écrit dans les dettes** : l'addendum
+qui fige « Semaine en cours », la seule surface du dashboard qu'aucun ADR ne décrit.
 
 ⚠️ **Résidus de CE chantier**, qui ne vivent nulle part ailleurs :
 
