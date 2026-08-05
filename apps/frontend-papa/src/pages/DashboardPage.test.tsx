@@ -18,6 +18,7 @@ vi.mock("../lib/missionsPilotage", () => ({
 }));
 
 import { fetchDashboard } from "../lib/dashboard";
+import { matchesFocus } from "../lib/dashboardDerive";
 import { generateRemediation } from "../lib/missionsPilotage";
 
 function subject(overrides: Partial<DashboardSubject> = {}): DashboardSubject {
@@ -50,12 +51,17 @@ const period = (minutes: number) => ({
     active_minutes: { value: minutes, delta: 5 },
     active_days: { value: 4, of: 7, delta: 1 },
     consolidated: { value: 4, of: 13, delta: 2 },
+    // `delta === value - sparks.fragile[0]` (3 - 2) : la fixture RESPECTE l'invariant du serveur
+    // (addendum ADR-0028 §5 ter). Une fixture incohérente laisserait passer un composant qui
+    // afficherait les deux nombres sans qu'ils s'accordent jamais.
+    fragile: { value: 3, delta: 1 },
     open_gaps: { value: 1, delta: 0, without_mission: 1 },
   },
   sparks: {
     active_minutes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
     active_days: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     consolidated: [0, 0, 1, 1, 2, 2, 3, 3, 3, 4, 4, 4],
+    fragile: [2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3],
     open_gaps: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
   },
 });
@@ -80,6 +86,7 @@ const PAYLOAD: DashboardPayload = {
   ],
   unattributed_minutes: { "7": 107, "30": 450, "90": 1200, "365": 3900 },
   periods: { "7": period(200), "30": period(825), "90": period(2210), "365": period(7400) },
+  history_since: null,
   subjects: [subject(), subject({ id: 2, slug: "svt", name: "SVT", minutes: { "7": 28, "30": 120, "90": 320, "365": 1100 } })],
   content_chain: [
     {
@@ -143,6 +150,42 @@ beforeEach(() => {
   // Sans ce reset, les compteurs d'appel s'accumulent d'un test à l'autre et les assertions
   // « n'a rien créé » passeraient à côté d'une écriture non voulue.
   vi.mocked(generateRemediation).mockReset().mockResolvedValue({ created: 1 });
+});
+
+describe("KPI « À renforcer » (addendum ADR-0028)", () => {
+  it("porte son propre chiffre, et une infobulle qui le SÉPARE des lacunes", async () => {
+    renderPage();
+
+    // ⚠️ Ancré sur le DÉBUT du nom accessible : l'infobulle de « Lacunes ouvertes » contient la
+    // chaîne « À renforcer » (elle explique justement que les deux ne sont pas la même mesure),
+    // donc un `/À renforcer/` flottant désigne DEUX boutons.
+    const carte = await screen.findByRole("button", { name: /^À renforcer/ });
+    expect(within(carte).getByText("3")).toBeInTheDocument();
+    // `delta === value - sparks.fragile[0]` : 3 - 2. Le chiffre et la courbe s'accordent.
+    expect(within(carte).getByText("+1")).toBeInTheDocument();
+
+    // Le seul garde-fou contre la confusion que l'ajout de ce KPI rouvre : 3 notions « à
+    // renforcer » à côté d'1 « lacune ouverte », pour ce qui sonne comme la même chose.
+    const info = within(carte).getByText("i");
+    expect(info.getAttribute("aria-label")).toMatch(/n'est PAS le compteur de lacunes/i);
+  });
+
+  it("prend le focus pour lui seul, et allume la Lecture ZETIS", async () => {
+    renderPage();
+
+    const carte = await screen.findByRole("button", { name: /^À renforcer/ });
+    fireEvent.click(carte);
+
+    // `waitFor` et non une assertion sèche : le focus transite par l'URL, la bascule n'est pas
+    // synchrone au clic (même idiome que « expose aria-pressed et bascule au second clic »).
+    await waitFor(() => expect(carte).toHaveAttribute("aria-pressed", "true"));
+    const consolidees = screen.getByRole("button", { name: /Notions consolidées/ });
+    expect(consolidees).toHaveAttribute("aria-pressed", "false");
+    // La Lecture ZETIS énonce littéralement « N notions à renforcer » : c'est la preuve du KPI en
+    // toutes lettres, elle ne doit pas s'atténuer quand on clique dessus.
+    expect(matchesFocus("lecture", "fragile")).toBe(true);
+    expect(matchesFocus("chaine", "fragile")).toBe(false);
+  });
 });
 
 describe("agrégat unique", () => {

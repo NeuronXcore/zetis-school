@@ -18,9 +18,16 @@ Proposé — 2026-08-05.
 > **Ne révoque rien.** Il **complète** le §5 : quatre KPI deviennent cinq, et le tableau de focus
 > du §5 gagne une ligne (il en corrige une autre au passage — voir le read-before-code).
 >
-> **Aucune migration, aucune route nouvelle, aucune requête de plus.** `_entered_fragile_at` et
-> `reconstruct_series` existent déjà et servent la courbe ambre **par matière** depuis le §3 ter ;
-> il ne s'agit que de les appeler une fois de plus, globalement.
+> **Aucune migration, aucune route nouvelle.** `_entered_fragile_at` et `reconstruct_series`
+> existent déjà et servent la courbe ambre **par matière** depuis le §3 ter ; il ne s'agit que de
+> les appeler une fois de plus, globalement.
+>
+> ⚠️ **Correction apportée à l'implémentation (2026-08-05).** La version « Proposé » annonçait
+> « aucune requête de plus » : **c'est faux**. `history_since` (§5 octies) en coûte **une** — un
+> `MIN(changed_at)` sur `skill_mastery_history`. La dériver de `_entered_fragile_at` aurait rendu
+> une date plus récente que la réalité (ce dictionnaire ne porte que les statuts fragiles) et aurait
+> retiré l'avertissement trop tôt. Une requête indexée contre une date juste : le compromis est
+> assumé, mais l'ADR ne doit pas prétendre le contraire.
 >
 > Maquette : `docs/frontend-papa/mockup/mockup-dashboard-kpi-notions-v1.html` (chiffres réels de la
 > base de dev au 2026-08-05).
@@ -193,9 +200,23 @@ C'est la seule ligne de cet addendum qui protège quelque chose de façon perman
 qu'un KPI et la carte qu'il éclaire se mettent à compter deux populations différentes — la classe
 de défaut qui a produit ce chantier.
 
-> ⚠️ **Ce verrou n'en est un qu'une fois prouvé par sabotage.** Muter le calcul du KPI (ne compter
-> que `weak`) doit le faire passer au **rouge**. Trois fois cette année, un test-verrou central est
-> resté **vert** sur un sabotage délibéré ; on ne signe plus celui-ci sur sa seule lecture.
+> ⚠️ **Ce verrou n'en est un qu'une fois prouvé par sabotage.** Muter le calcul du KPI doit le
+> faire passer au **rouge**. Trois fois cette année, un test-verrou central est resté **vert** sur
+> un sabotage délibéré ; on ne signe plus celui-ci sur sa seule lecture.
+
+> 🔴 **Correction apportée à l'implémentation (2026-08-05) — les deux assertions ci-dessus, seules,
+> sont TAUTOLOGIQUES.** `_periods` calcule `fragile_now` **par cette somme même** sur `subjects` :
+> opposer `kpis.fragile` à `Σ subjects[].notions.fragile` compare `sum(x)` à `sum(x)`, vrai par
+> construction. De même, `delta == value - sparks.fragile[0]` réénonce la formule du serveur.
+>
+> Le verrou n'en devient un que par un **ancrage extérieur au payload** : le test pose un nombre
+> connu de notions fragiles et l'écrit **en dur**. Et ce nombre doit **discriminer** — le premier
+> jet valait `1`, ce qui coïncidait avec le compte des consolidées ET des « en cours » du même
+> fixture : un KPI branché sur le mauvais segment serait resté vert. À **2**, il tombe.
+>
+> Prouvé le 2026-08-05 par trois sabotages, chacun rouge : le KPI compte le mauvais segment
+> (2 tests rouges), le champ disparaît du schéma Pydantic (3 rouges), le delta cesse d'être dérivé
+> de la courbe (1 rouge).
 
 ### §5 decies — La grille
 
@@ -214,6 +235,19 @@ horizontalement (ancrage à droite pour la carte de droite).
 > l'élargissement de `DashboardPeriod` l'a fait pour la fenêtre « Année ». **Mais ce filet n'existe
 > que si l'on lance le bon outil** : `tsc --noEmit` à la racine ne vérifie rien dans ce dépôt, seul
 > `tsc -b` le fait.
+
+> 🔴 **Le filet avait un trou, et il a coûté un KPI mort (trouvé le 2026-08-05, à l'implémentation).**
+> `useDashboard` gardait la liste blanche des focus valides en **`DashboardFocus[]`**, pas en
+> `Record`. Un **tableau** de `DashboardFocus` reste parfaitement valide en étant **incomplet** :
+> `tsc` est resté muet, le clic écrivait bien `?focus=fragile`, le garde `isFocus` le **refusait**,
+> et la carte ne s'activait **jamais**. Le KPI aurait été livré inerte — le motif « mergé sans
+> avoir jamais été vu », déjà payé sur le bandeau Massimo.
+>
+> Corrigé en `Record<DashboardFocus, true>`, qui rend l'omission impossible à la compilation. **La
+> règle générale, à opposer au prochain ajout** : une union qui pilote un comportement ne se garde
+> jamais par un tableau — le filet n'est pas dans l'union, il est dans le `Record` typé **par**
+> l'union. C'est la troisième fois que cette leçon se paie (`DashboardPeriod`, `COUNCIL_PERIOD_LABEL`,
+> et celle-ci).
 
 ## Vérifications de read-before-code — effectuées le 2026-08-05
 
@@ -259,7 +293,12 @@ horizontalement (ancrage à droite pour la carte de droite).
 1. `packages/types` : `fragile` dans `DashboardKpis` et `DashboardSparks`, `history_since` dans
    `DashboardPayload`.
 2. `dashboard/service.py` : une somme et un `reconstruct_series` de plus, sur des données déjà
-   chargées. **Aucune requête nouvelle, aucune migration.**
+   chargées, **plus une requête** pour `history_since`. **Aucune migration.**
+2 bis. 🔴 `dashboard/schemas.py` — **oublié de la version « Proposé », et son oubli aurait été
+   silencieux.** La route est servie avec `response_model=DashboardOut` : un champ absent du schéma
+   Pydantic est **filtré de la réponse HTTP sans erreur**. Le service aurait été juste et l'API
+   n'aurait rien servi. C'est aussi pourquoi le verrou du §5 nonies passe par la **réponse HTTP** et
+   non par le dict du service.
 3. `KpiFocusCard` : `deltaDirection` → `deltaTone` (3 sites d'appel).
 4. `dashboardDerive.ts` : une entrée dans `KPI_LABELS`, `KPI_FOCUS_HINTS`, `KPI_ORDER`, et
    `fragile` ajouté à quatre entrées de `CARD_SCOPES`.

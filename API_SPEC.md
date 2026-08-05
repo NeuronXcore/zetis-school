@@ -1062,9 +1062,18 @@ Contrat complet : `docs/frontend-papa/page-dashboard.md §Contrat API`. Forme :
   "periods": { "7": { "kpis": { "active_minutes": {"value":200,"delta":35},
                                 "active_days":    {"value":5,"of":7,"delta":1},
                                 "consolidated":   {"value":12,"of":46,"delta":3},
+                                // addendum adr-0028 §5 bis — notions `weak`+`learning`. SANS `of` :
+                                // un dénominateur les rapporterait au programme entier, non
+                                // abordées comprises. `delta` ≡ `value - sparks.fragile[0]`, donc
+                                // un compte d'ENTRÉES, jamais négatif et jamais un solde.
+                                "fragile":        {"value":13,"delta":4},
                                 "open_gaps":      {"value":3,"delta":0,"without_mission":1} },
-                      "sparks": { /* 4 × 12 points */ } },
-               "30": {…}, "90": {…} },
+                      "sparks": { /* 5 × 12 points */ } },
+               "30": {…}, "90": {…}, "365": {…} },
+  // Plus ancienne bascule de `skill_mastery_history`, `null` si la table est vide. Sert à faire
+  // EXPIRER l'avertissement sur la jeunesse de la courbe ambre : le client ne l'affiche que si la
+  // fenêtre regardée commence AVANT cette date (addendum adr-0028 §5 octies).
+  "history_since": "2026-07-31",
   "subjects": [{ "slug": "maths", "color": "#60a5fa",
                  "minutes": {"7":65,"30":255,"90":690},
                  "calendar": [{"date":"2026-07-28","active_minutes":42}],  // 26 sem., vides omis

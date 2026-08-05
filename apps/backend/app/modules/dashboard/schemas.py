@@ -29,6 +29,11 @@ class Kpis(BaseModel):
     active_minutes: KpiValue
     active_days: KpiOutOf
     consolidated: KpiOutOf
+    # Notions `weak` + `learning` — le seul signal de RÉGRESSION du bandeau (addendum ADR-0028
+    # §5 bis). Volontairement `KpiValue` et non `KpiOutOf` : « 13 / 280 » rapporterait les
+    # fragiles au programme entier, non abordées comprises, et suggérerait une proportion
+    # rassurante qui n'existe pas.
+    fragile: KpiValue
     open_gaps: KpiGaps
 
 
@@ -36,6 +41,7 @@ class Sparks(BaseModel):
     active_minutes: list[int]
     active_days: list[int]
     consolidated: list[int]
+    fragile: list[int]
     open_gaps: list[int]
 
 
@@ -186,6 +192,11 @@ class DashboardOut(BaseModel):
     # contredisaient sur le même écran.
     unattributed_minutes: dict[str, int]
     periods: dict[str, PeriodOut]
+    # Plus ancienne bascule connue de `skill_mastery_history` (`null` si la table est vide). Sert
+    # UNIQUEMENT à ce que l'avertissement sur la jeunesse de la courbe ambre s'auto-périme : le
+    # client ne l'affiche que si la fenêtre regardée commence AVANT cette date. Une phrase figée
+    # aurait été juste six mois puis fausse pour toujours, et personne ne serait revenu la retirer.
+    history_since: str | None = None
     subjects: list[SubjectOut]
     content_chain: list[ContentStage]
     reading: list[ReadingItem]

@@ -1,5 +1,51 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.51.0 — Le KPI qui manquait : « À renforcer »
+
+Le bandeau du dashboard Papa portait **deux** KPI sur les notions — « Notions consolidées » et
+« Lacunes ouvertes » — qui comptent **deux populations différentes, dans deux tables différentes**.
+Entre les deux, le segment « à renforcer » — le **seul signal de régression** de la page — n'avait
+aucune mesure de tête : il ne vivait que dans la barre empilée et dans la courbe ambre, à deux
+cartes du seul endroit qu'on lit tôt.
+
+Relevé sur la base de dev le jour du chantier : Papa lisait *« 1 notion consolidée, 1 lacune, tout
+est pris en charge »* pendant que **13 notions à renforcer**, dont **4 arrivées dans la semaine**,
+ne figuraient nulle part.
+
+### Un cinquième KPI
+
+**« À renforcer »** (`weak` + `learning`), ambre de bout en bout — le même ambre que son segment
+dans la barre empilée, pour que le KPI et le segment se reconnaissent à l'œil.
+
+- **Pas de dénominateur** : « 13 / 280 » rapporterait les fragiles au programme entier, dont 261
+  notions jamais abordées, et suggérerait une proportion rassurante qui n'existe pas.
+- **Son écart est dérivé de sa courbe** (`value - sparks.fragile[0]`), jamais recompté : le chiffre
+  et la sparkline affichée juste en dessous ne peuvent pas raconter deux histoires différentes. Il
+  compte donc des **entrées** et n'est jamais négatif — une notion réparée disparaît des deux
+  nombres au lieu d'être soustraite.
+- **Une hausse est une mauvaise nouvelle**, l'inverse des quatre autres KPI. Le sens passe par la
+  **couleur**, jamais par une flèche inversée.
+
+### Trois infobulles qui empêchent une confusion de revenir
+
+Poser « À renforcer » dans le bandeau met **13** à côté de **1** pour ce qui *sonne* comme la même
+chose. Les trois KPI de notions portent désormais chacun une infobulle qui dit ce qu'il compte —
+un **palier de maîtrise** d'un côté, une **décision ouverte** de l'autre. Une quatrième, dans la
+légende de « État des notions », assume à voix haute le fourre-tout du segment « en cours »
+(presque acquis, en cours de mission, ou pas encore tranché) plutôt que de le scinder.
+
+`GLOSSARY.md` gagne une entrée « Notion à renforcer » et corrige « Lacune ouverte », qui annonçait
+encore une formulation d'interface que le code avait explicitement refusée.
+
+### Un avertissement qui s'auto-périme
+
+L'historique des bascules de maîtrise est récent : sur une fenêtre longue, la courbe ambre est
+plate puis monte d'un coup — un artefact de mise en service, pas une dégradation. Le payload sert
+désormais `history_since`, et l'avertissement **disparaît de lui-même** dès que l'historique couvre
+la fenêtre regardée. Une phrase figée aurait été juste six mois puis fausse pour toujours.
+
+Décision : `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md`. Aucune migration.
+
 ## 0.50.0 — Le Dashboard dit ce qu'il montre
 
 Quatre demandes enchaînées dans la même session, chacune née de la précédente **en regardant
