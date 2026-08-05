@@ -89,7 +89,7 @@ export interface UseCouncilClass {
   championSuggestion: ChampionSuggestion | null;
   /** Un défi champion planned|active existe déjà → on n'en propose pas un doublon. */
   hasActiveChampion: boolean;
-  generate: (period?: string) => Promise<void>;
+  generate: (period?: string, subjectId?: number) => Promise<void>;
   openReport: (id: number) => Promise<void>;
   /** Équipe chaque notion (kit auto-validé) PUIS crée les missions (ADR-0021). */
   equipAndCreateMissions: (skillIds: number[], skillNames: string[]) => Promise<void>;
@@ -142,15 +142,24 @@ export function useCouncilClass(): UseCouncilClass {
     void load();
   }, [load]);
 
-  const generate = useCallback(async (period?: string) => {
+  const generate = useCallback(async (period?: string, subjectId?: number) => {
     setGenerating(true);
     setError(null);
     setCreated(null);
     try {
-      const fresh = await generateCouncil(period);
+      const fresh = await generateCouncil(period, subjectId);
       setReport(fresh);
       setHistory((prev) => [
-        { id: fresh.id, period: fresh.period, subjects_count: fresh.subjects.length, created_at: fresh.created_at },
+        {
+          id: fresh.id,
+          period: fresh.period,
+          // La portée VOYAGE jusque dans l'historique : sans elle, un rapport ciblé et un rapport
+          // global se liraient pareil dans la liste, à la même période.
+          subject_id: fresh.subject_id,
+          subject_name: fresh.subject_name,
+          subjects_count: fresh.subjects.length,
+          created_at: fresh.created_at,
+        },
         ...prev,
       ]);
     } catch (e) {

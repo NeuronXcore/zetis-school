@@ -85,7 +85,17 @@ const PAYLOAD: DashboardPayload = {
     {
       trend: "watch",
       text: "Mathématiques : 3 notions à renforcer",
-      evidence: { count: 3, kind: "notion", href: "/lacunes?subject=maths" },
+      // La preuve d'un constat « à renforcer » mène au PANNEAU d'analyse — seul endroit qui nomme
+      // les notions fragiles. Elle pointait vers `/lacunes`, qui liste une autre population.
+      evidence: { count: 3, kind: "notion", href: "/?subject=maths&panel=ou-agir" },
+    },
+    {
+      // ⚠️ Un constat dont la preuve mène AILLEURS, indispensable au verrou « on n'ajoute la
+      // période qu'aux liens internes » : avec un seul item interne, ce test itérait sur rien et
+      // restait vert quelle que soit la règle.
+      trend: "flat",
+      text: "SVT : trop peu d'activité mesurée pour conclure",
+      evidence: { count: 2, kind: "trace", href: "/cahier?subject=svt" },
     },
   ],
   proposed_mission: {
@@ -167,6 +177,34 @@ describe("agrégat unique", () => {
 
     await waitFor(() => expect(kpi).toHaveTextContent("123h20")); // 7400 min sur 365 jours
     expect(fetchDashboard).toHaveBeenCalledTimes(1);
+  });
+
+  it("la preuve GARDE la fenêtre en cours quand elle reste sur le dashboard", async () => {
+    // Constaté à l'écran le 2026-08-05 : suivre une preuve renvoyait le sélecteur à « 7 jours »,
+    // au moment précis où Papa descendait dans le détail. Le serveur ne peut pas porter la
+    // période — le payload en est indépendant par construction — donc c'est au client de la
+    // préserver, et SEULEMENT pour les liens qui restent sur cette page.
+    renderPage();
+    await screen.findByRole("button", { name: /Temps actif/ });
+    fireEvent.click(screen.getByRole("button", { name: "Année" }));
+
+    const preuve = await screen.findByRole("link", { name: /preuve · 3 notion/ });
+    expect(preuve).toHaveAttribute("href", "/?subject=maths&panel=ou-agir&period=365");
+  });
+
+  it("ne touche PAS aux preuves qui mènent ailleurs", async () => {
+    // Le `href` reste un contrat serveur : on ajoute une période, on ne réécrit pas un adressage.
+    renderPage();
+    await screen.findByRole("button", { name: /Temps actif/ });
+
+    const externes = screen
+      .getAllByRole("link", { name: /preuve · / })
+      .map((l) => l.getAttribute("href") ?? "")
+      .filter((h) => !h.startsWith("/?"));
+
+    // Anti-vacuité : sans au moins un lien externe dans la fixture, la boucle ne prouverait rien.
+    expect(externes.length).toBeGreaterThan(0);
+    for (const href of externes) expect(href).not.toContain("period=");
   });
 
   it("le donut totalise le MÊME temps que le KPI, part « hors matière » comprise", async () => {

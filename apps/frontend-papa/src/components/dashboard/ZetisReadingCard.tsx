@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type {
   DashboardFocus,
+  DashboardPeriod,
   DashboardReadingItem,
   ProposedMission,
   ReadingTrend,
@@ -27,8 +28,28 @@ const TREND_ICON: Record<ReadingTrend, { glyph: string; className: string; label
   flat: { glyph: "·", className: "text-papa-muted", label: "sans conclusion" },
 };
 
+/** Ajoute la période COURANTE à une preuve qui reste sur le dashboard.
+ *
+ *  ⚠️ Le `href` est un contrat SERVEUR et son adressage n'est pas réécrit ici — on n'ajoute que la
+ *  période, et uniquement aux liens qui pointent vers cette page. Le serveur ne peut pas la
+ *  porter : le payload du dashboard est indépendant de toute période, par construction (c'est ce
+ *  qui rend le filtrage gratuit). La période est donc un état de LECTURE, que seul le client
+ *  connaît.
+ *
+ *  Sans ça, suivre une preuve renvoyait le sélecteur à « 7 jours » : Papa perdait sa fenêtre au
+ *  moment précis où il descendait dans le détail. */
+function withPeriod(href: string, period: DashboardPeriod): string {
+  if (!href.startsWith("/?")) return href;
+  const [chemin, query] = href.split("?");
+  const params = new URLSearchParams(query);
+  params.set("period", period);
+  return `${chemin}?${params}`;
+}
+
 interface ZetisReadingCardProps {
   items: DashboardReadingItem[];
+  /** Pour que la preuve ne fasse pas perdre la fenêtre en cours. */
+  period: DashboardPeriod;
   proposal: ProposedMission | null;
   withoutMission: number;
   focus: DashboardFocus | null;
@@ -37,6 +58,7 @@ interface ZetisReadingCardProps {
 
 export function ZetisReadingCard({
   items,
+  period,
   proposal,
   withoutMission,
   focus,
@@ -72,7 +94,7 @@ export function ZetisReadingCard({
                 <span className="min-w-0 flex-1 leading-relaxed">
                   {item.text}
                   <Link
-                    to={item.evidence.href}
+                    to={withPeriod(item.evidence.href, period)}
                     className="ml-2 inline-block whitespace-nowrap rounded border border-papa-accent/30 bg-papa-accent/5 px-1.5 py-0.5 font-mono text-[10px] text-papa-accent hover:border-papa-accent"
                   >
                     preuve · {item.evidence.count} {item.evidence.kind}
