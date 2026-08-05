@@ -1,5 +1,58 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.47.0 — Les preuves de la Lecture ZETIS mènent quelque part, et Progression cesse d'être inventée
+
+> ⚠️ **Ce fichier saute deux chantiers mergés.** Les PR **#82** (vue à l'année) et **#83** (panneau
+> d'analyse par matière) n'ont **jamais reçu d'entrée** — constaté en clôturant celui-ci. Leur récit
+> vit dans leurs ADR et dans `TROUBLESHOOTING.md`, pas ici. Consigné en dette.
+
+Le correctif du 2026-08-05 n'avait traité qu'**une** des trois branches de la Lecture ZETIS. Les
+deux autres portaient le même défaut, et personne ne les avait regardées : `up` menait à
+`/progression`, **une page de 49 lignes entièrement en mock** — un pourcentage, un XP et un compte
+de lacunes ne venant d'aucune mesure, alors qu'elle est la cible d'un constat qui se dit adossé à
+une trace comptée.
+
+**La page ne ment plus.** Sur les vraies données : Français `10 / 96` abordées, 1 acquise, 367 XP,
+8 à renforcer — quatre nombres qui viennent tous d'une mesure.
+
+- **La barre mesure l'AVANCEMENT DU PROGRAMME**, pas l'acquisition : notions engagées (consolidées
+  ∪ fragiles ∪ en cours) sur les notions au programme. C'est la seule mesure disponible qui
+  **sépare** les matières aujourd'hui — il y a **1 notion consolidée sur 280**, une barre
+  `mastered / total` afficherait zéro pour sept matières sur huit pendant des mois.
+- **« Avancé » et « acquis » sont deux colonnes**, jamais fondues. Le vocabulaire de « consolidée »
+  ne bouge pas : on mesure autre chose, et on le nomme autrement.
+- **Le XP revient sur Progression**, sa seule maison côté Papa depuis l'ADR-0028 §5 — cumul sans
+  fenêtre, un stock et non un flux.
+- **`/lacunes` lit enfin `?subject=`** et filtre **en mémoire** : zéro requête, aucun changement
+  backend, les trois sections recalculées sur le jeu filtré, un slug inconnu ne vide jamais la page.
+  ⚠️ Les deux boutons de génération n'ont **aucun** paramètre de matière : leur libellé porte donc
+  le compte **non filtré** et le dit (« · toutes matières »), plutôt que d'annoncer 3 et d'en créer 7.
+- **Le verrou de cohérence devient général** : pour **chaque** constat, on résout la cible depuis
+  son `href`, on appelle ce qu'elle sert, et on exige l'égalité. C'est la seule ligne du chantier
+  qui protège durablement — elle empêche la classe entière du défaut de revenir sur une branche
+  qu'on n'a pas encore écrite.
+
+**Puis chaque ligne est devenue un dépliage qui nomme et qui agit** (addendum, même jour) : les
+quatre nombres se déplient sur leur détail nommé, et chaque notion porte l'action qui la concerne —
+créer une mission, l'équiper — via les routes **déjà existantes**. Aucune route d'écriture nouvelle.
+
+- ⚠️ **Révoque le deuxième point de l'ADR-0038 §6**, écrit le matin même. Son motif était la
+  *duplication d'un chemin existant* — or `create-missions` accepte des `skill_ids` arbitraires
+  sans rapport de conseil. Les trois autres non-objectifs (bulletin, historique, fenêtre) tiennent.
+- ⚠️ **Le XP se détaille par MOTIF, jamais par notion** : `XPEvent` ne porte pas de `skill_id`.
+  Écrit dans l'ADR, dans le contrat **et à l'écran**, pour que ce ne soit pas pris pour un oubli.
+- **`GET /progress/consolidated`**, écrite il y a des semaines et **appelée par personne**, sert
+  enfin la colonne « Acquis » — chargée une fois pour toute la page, au premier dépliage.
+
+🔴 **Une divergence réelle trouvée par le verrou général, et laissée ouverte** : le constat `flat`
+compte les traces sur 730 jours quand sa cible `/cahier` est bornée serveur à 366. Une trace plus
+ancienne est comptée et **invisible sur sa propre preuve**. L'ADR l'avait anticipé (« s'il rougit,
+ce sera un chantier à part ») ; c'est inscrit en `xfail(strict=True)` — le jour où quelqu'un corrige
+la fenêtre, le test devient rouge et force à retirer le marqueur.
+
+**Aucune migration.** Backend `901 passed, 1 xfailed` · Papa `492` · `tsc -b` propre.
+Vérifié à l'écran, session Papa connectée, sur les vraies données.
+
 ## 0.46.0 — Le Journal se trie et se filtre, et pour ça son passé cesse de bouger
 
 ### Ajouté

@@ -101,6 +101,40 @@ class AnalysisReferentielOut(BaseModel):
     derivatives_percent: int
 
 
+class AnalysisEngagedNotionOut(BaseModel):
+    """Une notion ENGAGÉE — elle porte une ligne de maîtrise (addendum ADR-0038 §2).
+
+    `segment` est celui de `notions_breakdown`, jamais reclassé ici : un statut inconnu tombe dans
+    `in_progress` plutôt que d'être perdu.
+    """
+
+    skill_id: int
+    skill_name: str
+    segment: str  # consolidated | fragile | in_progress
+    mastery_status: str | None = None
+    mastery_score: int | None = None
+
+
+class AnalysisNotStartedOut(BaseModel):
+    """Une notion AU PROGRAMME que rien n'a encore touchée — le reste de la barre d'avancement."""
+
+    skill_id: int
+    skill_name: str
+
+
+class AnalysisXpByReasonOut(BaseModel):
+    """L'XP d'une matière réparti par GESTE.
+
+    ⚠️ **Par motif, jamais par notion.** `XPEvent` ne porte pas de `skill_id` : « quelles notions
+    ont rapporté ces 367 XP » n'a aucune réponse en base. Ce n'est pas une approximation faute de
+    mieux, c'est le plafond de ce que la donnée permet (addendum ADR-0038 §3).
+    """
+
+    reason: str
+    count: int
+    amount: int
+
+
 class SubjectAnalysisOut(BaseModel):
     subject_id: int
     slug: str
@@ -117,3 +151,74 @@ class SubjectAnalysisOut(BaseModel):
     without_mission_count: int
     in_progress: AnalysisInProgressOut
     referentiel: AnalysisReferentielOut
+    # --- Dépliage d'une ligne de Progression (addendum ADR-0038) -------------------------------
+    #
+    # 🔴 Ces trois listes doivent RECOMPOSER les nombres de la ligne qu'elles expliquent :
+    # `len(engaged) == notions.engaged`, `len(engaged) + len(not_started) == notions.total`,
+    # `Σ xp_by_reason.amount == xp`. Un détail qui ne recompose pas son nombre est le défaut que
+    # tout ce chantier ferme, reproduit à quelques pixels d'écart.
+    #
+    # Le `SubjectAnalysisPanel` du dashboard les ignore : il n'a pas eu à changer.
+    engaged: list[AnalysisEngagedNotionOut] = []
+    not_started: list[AnalysisNotStartedOut] = []
+    xp_by_reason: list[AnalysisXpByReasonOut] = []
+
+
+# --- Page « Progression » : l'avancement du programme, matière par matière (ADR-0038) ------------
+#
+# ⚠️ **Deux mesures, jamais fondues.** `engaged` dit ce qui a été ABORDÉ, `notions.consolidated` dit
+# ce qui est ACQUIS. Elles ne s'additionnent pas et aucune n'est un raffinement de l'autre : « où
+# en est-on dans l'année » et « qu'est-ce qui est acquis » sont deux questions, et le contrat doit
+# le montrer avant qu'on le lui demande. Le vocabulaire de « consolidée » ne bouge pas (ADR-0028
+# §3 bis) — on mesure autre chose, et on le nomme autrement.
+#
+# ⚠️ Aucun champ de période, aucune série, aucune action : tout est un stock, lu « à aujourd'hui ».
+
+
+class ProgressionNotionsOut(BaseModel):
+    """Répartition des notions d'une matière — la MÊME que `SubjectOut.notions` du dashboard.
+
+    Sert la projection pure `dashboard.projections.notions_breakdown`, pas un second comptage.
+    """
+
+    consolidated: int
+    fragile: int
+    in_progress: int
+    # Notions AU PROGRAMME. ⚠️ `total == 0` n'est PAS « pas de référentiel » : une matière peut
+    # avoir ses chapitres sans qu'aucune notion y soit rattachée. Voir `has_referentiel`.
+    total: int
+
+
+class ProgressionSubjectOut(BaseModel):
+    subject_id: int
+    slug: str
+    name: str
+    color: str | None = None
+    icon: str | None = None
+    notions: ProgressionNotionsOut
+    # Notions portant une ligne de maîtrise = consolidées ∪ fragiles ∪ en cours. C'est le
+    # NUMÉRATEUR de la barre, et il mesure l'avancement du programme, jamais l'acquisition.
+    engaged: int
+    # Cumul sur toute l'histoire, sans fenêtre : un XP est un stock. Cette page est la seule
+    # maison du XP côté Papa depuis que l'ADR-0028 §5 l'a retiré des KPI de pilotage.
+    xp: int
+    # ⚠️ **La colonne « À renforcer » de l'écran, c'est `notions.fragile` — PAS ce champ.**
+    # Les deux populations sont disjointes en droit, et le sont en fait : sur la base réelle,
+    # Français porte 8 notions fragiles et 1 seule lacune ouverte. Le constat du dashboard qui
+    # pointe vers cette page annonce « 8 notions à renforcer » : afficher 1 ici referait mentir la
+    # preuve, ce que le chantier corrige. (La spec ADR-0038 disait `Gap` dans son tableau et
+    # montrait les fragiles dans son wireframe — contradiction tranchée le 2026-08-05.)
+    #
+    # Ce champ reste servi parce qu'il compte ce que la page `/lacunes` sert vraiment, et qu'il
+    # est déjà en mémoire. Il ne se substitue jamais à `notions.fragile`.
+    gaps_open: int
+    # « La matière a au moins un chapitre dans l'année active » — la définition du dashboard, donc
+    # celle du constat qui pointe vers cette page. `false` → la ligne reste affichée, avec son état
+    # écrit et un lien vers le Programme ; la masquer ferait croire que la matière n'existe pas.
+    has_referentiel: bool
+
+
+class ProgressionOverviewOut(BaseModel):
+    generated_at: str
+    school_year: dict | None = None
+    subjects: list[ProgressionSubjectOut]

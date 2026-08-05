@@ -10,12 +10,13 @@ par la régularité douce du module `motivation`, un compte hebdomadaire qui ne 
 La composition de `regularity` dans la réponse vit dans le ROUTEUR — ce service reste le grand
 livre de l'économie XP et n'a pas à connaître un module de plus haut niveau."""
 
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import StudentProfile, XPEvent
+from app.db.models import StudentProfile, Subject, XPEvent
 from app.modules.activity.timeutils import local_day
 
 XP_PER_LEVEL = 100
@@ -158,6 +159,84 @@ def xp_history(
             if total > 0
         ]
     }
+
+
+@dataclass(frozen=True)
+class SubjectXP:
+    """Le cumul d'XP réparti par matière — et ce qui n'appartient à aucune (ADR-0038 §3).
+
+    Deux champs, jamais un seul : `by_subject` et `unattributed_xp` s'additionnent pour valoir
+    l'XP total de l'élève. Les taire ferait mentir la page qui les affiche — c'est exactement le
+    défaut payé sur le dashboard, où le donut « Répartition du temps » totalisait 42 min à côté
+    d'un KPI qui en affichait 425 (cf. `unattributed_minutes`, `dashboard/service.py`).
+
+    **Aucun total ici, volontairement.** Le total a déjà une maison — `summary()` — et en servir
+    une seconde façon de le compter serait la dette que ce chantier vient précisément solder.
+    """
+
+    by_subject: dict[int, int]
+    # XP crédité sans matière (`XPEvent.subject_id` est nullable) : connexion, chat, toute
+    # récompense non imputable. Nommé plutôt que tu.
+    unattributed_xp: int
+
+
+def xp_by_subject(db: Session, student: StudentProfile) -> SubjectXP:
+    """Cumul d'`XPEvent.amount` par matière, sur TOUTE l'histoire de l'élève.
+
+    **Aucune fenêtre temporelle** (ADR-0038 §3) : un cumul d'XP est un stock, pas un flux, et la
+    page Progression ne porte aucun sélecteur de période. Un événement d'il y a un an compte
+    autant que celui d'hier. C'est aussi pourquoi l'agrégation se fait en SQL et non en Python
+    comme `xp_history` : sans fenêtre, il n'y a aucun jour à bucketiser en Europe/Paris.
+
+    **Toutes les matières sont présentes**, y compris celles qui n'ont jamais rapporté un seul XP
+    — à `0`, jamais absentes. Une matière absente et une matière à zéro se lisent pareil dans un
+    tableau, mais seule la seconde est une mesure ; la première est un trou que l'appelant devra
+    combler en devinant.
+
+    Rappel de frontière : ce service reste le grand livre de l'économie XP. Il ne sait rien des
+    années scolaires — c'est à l'appelant de décider quelles matières il affiche.
+    """
+    rows = db.execute(
+        select(XPEvent.subject_id, func.sum(XPEvent.amount))
+        .where(XPEvent.student_id == student.id)
+        .group_by(XPEvent.subject_id)
+    ).all()
+
+    by_subject = {sid: int(total or 0) for sid, total in rows if sid is not None}
+    unattributed = sum(int(total or 0) for sid, total in rows if sid is None)
+
+    # Les matières sans aucun événement n'ont pas de ligne à grouper : on les pose à zéro. Le
+    # sens de lecture compte — on complète après coup, sans jamais écraser un cumul mesuré.
+    for subject_id in db.scalars(select(Subject.id)):
+        by_subject.setdefault(subject_id, 0)
+
+    return SubjectXP(by_subject=by_subject, unattributed_xp=unattributed)
+
+
+def xp_by_reason(db: Session, student: StudentProfile, *, subject_id: int) -> list[dict]:
+    """Par quels GESTES une matière a rapporté son XP — `[{reason, count, amount}]`, plus fort d'abord.
+
+    ⚠️ **Par motif, jamais par notion** (addendum ADR-0038 §3). `XPEvent` porte `student_id`,
+    `subject_id`, `amount`, `reason` et `created_at` — **pas de `skill_id`**. La question « quelles
+    notions ont rapporté ces 367 XP ? » n'a aucune réponse en base et n'en aura pas sans migration.
+    Ce n'est donc pas une approximation de mieux : c'est le plafond de ce que la donnée permet, et
+    il est écrit ici pour que personne ne le prenne pour un oubli.
+
+    **Aucune fenêtre**, comme `xp_by_subject` : un cumul d'XP est un stock. La somme des `amount`
+    rendus ici vaut exactement l'XP de cette matière — c'est ce qui rend le détail vérifiable.
+    """
+    rows = db.execute(
+        select(XPEvent.reason, func.count(XPEvent.id), func.sum(XPEvent.amount))
+        .where(XPEvent.student_id == student.id, XPEvent.subject_id == subject_id)
+        .group_by(XPEvent.reason)
+    ).all()
+
+    return sorted(
+        ({"reason": reason, "count": count, "amount": int(total or 0)} for reason, count, total in rows),
+        # Le plus gros contributeur d'abord ; le motif départage pour que l'ordre soit stable d'un
+        # appel à l'autre — deux motifs à égalité ne doivent pas permuter entre deux dépliages.
+        key=lambda row: (-row["amount"], row["reason"]),
+    )
 
 
 def summary(db: Session, student: StudentProfile) -> dict:

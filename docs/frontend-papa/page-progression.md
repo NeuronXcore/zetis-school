@@ -6,10 +6,15 @@
 
 ## Objectif
 
-Répondre à **une** question : *« où en est-on dans l'année, matière par matière ? »*
+Répondre à **une** question : *« où en est-on dans l'année, matière par matière ? »* — et, depuis
+la réponse, pouvoir **agir sur la notion qu'on vient de lire** (addendum `adr-0038-addendum-progression-agit`).
 
-Non-objectifs : noter Massimo, produire un bulletin, classer les matières par niveau, agir. Agir se
-fait depuis « Où agir », les missions ou le Conseil.
+Non-objectifs : noter Massimo, produire un bulletin, classer les matières par niveau.
+
+> ⚠️ **Le non-objectif « agir » a été RÉVOQUÉ le 2026-08-05**, et lui seul. Son motif était la
+> duplication d'un chemin existant — or les actions du dépliage appellent les routes **déjà
+> écrites** (`create-missions`, `equip-notion`, `class-council`). Progression **ne décide de rien** :
+> elle déclenche, sur la notion que Papa désigne. Les autres non-objectifs tiennent.
 
 ## Wireframe
 
@@ -82,7 +87,66 @@ Une seule requête au montage. Deux sources déjà écrites, une à ajouter :
 | Aucune matière | « Aucune matière dans l'année active » + lien vers Années scolaires |
 | Matière sans référentiel | ligne présente, état écrit, lien Programme |
 
+## Le dépliage d'une ligne
+
+Cliquer une ligne l'ouvre **dans le flux**, sous elle — pas une modale. **Un seul dépliage à la
+fois** : deux matières ouvertes feraient défiler la table hors de l'écran, alors que le dépliage
+existe pour rapprocher le détail de son nombre.
+
+```txt
+▼ 📕 Français      ▓▓░░░░░░░ 10 / 96    1    367    8
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │ AVANCEMENT — 10 notions abordées sur 96                                │
+  │   Accord du participe · fragile      Concordance des temps · fragile   │
+  │   … · 86 notions pas encore abordées → Ouvrir le programme →           │
+  │                                                                        │
+  │ ACQUIS — 1                                                             │
+  │   Discours rapporté · 92 %  — vu le 3 août                             │
+  │                                                                        │
+  │ XP — 367, depuis toujours                                              │
+  │   missions 12 × 240 · quiz 8 × 127        (par MOTIF, pas par notion)  │
+  │                                                                        │
+  │ À RENFORCER — 8                                                        │
+  │   Accord du participe   [Créer une mission]  [Équiper]                 │
+  │   Concordance des temps [Créer une mission]  [Équiper]  · déjà couverte│
+  │                                                                        │
+  │                                    [Conseil de classe sur Français →]  │
+  └────────────────────────────────────────────────────────────────────────┘
+```
+
+### Ce que chaque bloc doit garantir
+
+🔴 **Le détail RECOMPOSE le nombre de sa ligne.** C'est le verrou de tout le chantier, transposé à
+l'intérieur d'un même écran :
+
+| Bloc | Invariant |
+|---|---|
+| Avancement | `len(engagées) == engaged` **et** `engagées + non abordées == total` |
+| Acquis | `len(acquises) == notions.consolidated` |
+| XP | `Σ montants == xp` |
+| À renforcer | `len(liste) == notions.fragile` |
+
+⚠️ **Le XP se détaille par MOTIF, jamais par notion** : `XPEvent` ne porte pas de `skill_id`. Ce
+n'est pas un oubli d'implémentation — c'est le plafond de ce que la donnée permet.
+
+⚠️ **Aucun des quatre nombres n'est redemandé au réseau** : ils viennent de `/progress/overview`,
+déjà en mémoire. Le dépliage ne charge que des **noms**.
+
+### Les actions
+
+Elles portent sur une notion **désignée**, ou sur la matière — **jamais sur « les 8 » d'un coup**.
+Toutes appellent des routes existantes ; aucune n'est écrite pour cette page.
+
+| Geste | Route |
+|---|---|
+| Créer une mission sur la notion | `POST /api/reports/class-council/create-missions` |
+| Équiper la notion | `POST /api/reports/class-council/equip-notion` |
+| Conseil de classe sur la matière | `POST /api/reports/class-council` |
+
+Confirmation explicite avant toute écriture, résultat affiché **sur place**.
+
 ## Ce que cette page ne fait pas
 
-Elle ne propose aucune action. Elle ne rejoue aucun seuil de maîtrise (ADR-0028 §3 : les statuts
-sont décidés serveur). Elle n'affiche pas de tendance.
+Elle ne **décide** rien : elle déclenche ce que d'autres modules décident. Elle ne rejoue aucun
+seuil de maîtrise (ADR-0028 §3 : les statuts sont décidés serveur). Elle n'affiche pas de tendance,
+aucun historique, aucune fenêtre temporelle. Elle n'ajoute **aucune route**.

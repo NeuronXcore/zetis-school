@@ -74,6 +74,34 @@ export interface AnalysisReferentiel {
   derivatives_percent: number;
 }
 
+/** Une notion ENGAGÉE — elle porte une ligne de maîtrise (addendum ADR-0038 §2). */
+export interface AnalysisEngagedNotion {
+  skill_id: number;
+  skill_name: string;
+  /** Segment de `notions_breakdown`, jamais reclassé côté client : un statut inconnu tombe dans
+   *  `in_progress` plutôt que d'être perdu. */
+  segment: "consolidated" | "fragile" | "in_progress";
+  mastery_status?: string | null;
+  mastery_score?: number | null;
+}
+
+/** Une notion AU PROGRAMME que rien n'a encore touchée — le reste de la barre d'avancement. */
+export interface AnalysisNotStarted {
+  skill_id: number;
+  skill_name: string;
+}
+
+/** L'XP d'une matière réparti par GESTE.
+ *
+ *  ⚠️ **Par motif, jamais par notion** : `XPEvent` ne porte pas de `skill_id`. « Quelles notions
+ *  ont rapporté ces 367 XP » n'a aucune réponse en base — ce n'est pas une approximation faute de
+ *  mieux, c'est le plafond de ce que la donnée permet (addendum ADR-0038 §3). */
+export interface AnalysisXpByReason {
+  reason: string;
+  count: number;
+  amount: number;
+}
+
 export interface SubjectAnalysis {
   /** Écho de la matière demandée : permet de jeter une réponse en retard, en plus de la garde
    *  d'annulation du hook. */
@@ -90,4 +118,15 @@ export interface SubjectAnalysis {
   without_mission_count: number;
   in_progress: AnalysisInProgress;
   referentiel: AnalysisReferentiel;
+  /** Dépliage d'une ligne de Progression (addendum ADR-0038).
+   *
+   *  🔴 Ces trois listes RECOMPOSENT les nombres de la ligne : `engaged.length === engaged` de
+   *  `/progress/overview`, `engaged.length + not_started.length === notions.total`, et la somme
+   *  des `xp_by_reason.amount` vaut `xp`. Un détail qui ne recompose pas son nombre est le défaut
+   *  que tout ce chantier ferme, reproduit à quelques pixels d'écart.
+   *
+   *  Le panneau du dashboard les ignore — il n'a pas eu à changer. */
+  engaged?: AnalysisEngagedNotion[];
+  not_started?: AnalysisNotStarted[];
+  xp_by_reason?: AnalysisXpByReason[];
 }

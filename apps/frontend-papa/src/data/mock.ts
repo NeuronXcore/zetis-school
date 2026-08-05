@@ -63,23 +63,10 @@ export const EVENTS: LearningEvent[] = [
   { date: "26/06", subject: "Anglais", text: "Lacune résolue : present simple consolidé après 3 réussites." },
 ];
 
-export interface SubjectProgress {
-  name: string;
-  progress: number;
-  xp: number;
-  openGaps: number;
-}
-
-export const SUBJECTS_PROGRESS: SubjectProgress[] = [
-  { name: "Français", progress: 62, xp: 320, openGaps: 1 },
-  { name: "Mathématiques", progress: 48, xp: 280, openGaps: 1 },
-  { name: "Histoire-Géo", progress: 70, xp: 190, openGaps: 1 },
-  { name: "SVT", progress: 55, xp: 240, openGaps: 1 },
-  { name: "Anglais", progress: 66, xp: 300, openGaps: 1 },
-  { name: "Espagnol", progress: 30, xp: 110, openGaps: 0 },
-  { name: "Physique-Chimie", progress: 44, xp: 175, openGaps: 0 },
-  { name: "Technologie", progress: 50, xp: 160, openGaps: 0 },
-];
+// `SubjectProgress` / `SUBJECTS_PROGRESS` ont été SUPPRIMÉS le 2026-08-05 (ADR-0038). Ils étaient
+// la seule source de la page `/progression`, elle-même cible d'un constat cliquable du dashboard :
+// un écran qui prétendait prouver un compte affichait huit lignes inventées. La page lit désormais
+// `GET /api/parent/progress/overview`. Ne pas les réintroduire.
 
 export interface PapaCapsule {
   id: string;

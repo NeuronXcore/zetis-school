@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ConfirmDialog, EmptyState, SubjectPictogram } from "@zetis/ui";
 import type { OpenGap } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
@@ -36,11 +36,29 @@ function formatDate(iso: string | null | undefined): string | null {
 }
 
 export function LacunesPage() {
-  const l = useLacunes();
+  const [params, setParams] = useSearchParams();
+  // Le filtre vit dans l'URL, pas dans un état local : le lien qui amène ici le porte, et
+  // recharger la page ne le perd pas.
+  const l = useLacunes(params.get("subject"));
   const [confirming, setConfirming] = useState<null | "remediation" | "revision">(null);
 
+  // Les trois sections dérivent TOUTES du jeu filtré par le hook — aucune ne peut l'oublier.
   const discovered = l.pending.filter((gap) => gap.status === "open");
   const returning = l.pending.filter((gap) => gap.status === "in_progress");
+
+  // ⚠️ Les comptes des BOUTONS, eux, ne sont PAS filtrés — et c'est voulu. Les deux routes de
+  // génération n'ont aucun paramètre de matière : elles agissent sur tout. Un bouton qui
+  // annoncerait « 3 » et en créerait 7 serait le défaut même que ce chantier corrige, transposé à
+  // une action. Le libellé porte donc le compte réel, et le dit quand un filtre est posé.
+  const allDiscovered = l.allPending.filter((gap) => gap.status === "open");
+  const scopeNote = l.activeSubject ? " · toutes matières" : "";
+
+  const clearFilter = () => {
+    const next = new URLSearchParams(params);
+    next.delete("subject");
+    // `replace` : un filtre est un état d'affichage, pas une étape de navigation.
+    setParams(next, { replace: true });
+  };
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -48,6 +66,21 @@ export function LacunesPage() {
         title="Notions à renforcer"
         subtitle="Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider."
       />
+
+      {l.activeSubject && (
+        <p className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-papa-accent/30 bg-papa-accent/5 px-4 py-2.5 text-sm text-papa-accent">
+          <span>
+            Filtré sur <strong className="font-semibold">{l.activeSubject.name}</strong>.
+          </span>
+          <button
+            type="button"
+            onClick={clearFilter}
+            className="rounded-lg border border-papa-accent/40 px-2 py-0.5 text-xs font-semibold hover:border-papa-accent"
+          >
+            Toutes les matières
+          </button>
+        </p>
+      )}
 
       {l.error && (
         <div className="mb-4 rounded-xl border border-papa-warn/30 bg-papa-warn/5 p-4">
@@ -94,7 +127,7 @@ export function LacunesPage() {
             action={
               discovered.length > 0
                 ? {
-                    label: `Créer ${discovered.length} mission${discovered.length > 1 ? "s" : ""} de consolidation`,
+                    label: `Créer ${allDiscovered.length} mission${allDiscovered.length > 1 ? "s" : ""} de consolidation${scopeNote}`,
                     onClick: () => setConfirming("remediation"),
                     busy: l.busy === "remediation",
                   }
@@ -109,7 +142,7 @@ export function LacunesPage() {
             action={
               returning.length > 0
                 ? {
-                    label: "Créer les missions de révision dues",
+                    label: `Créer les missions de révision dues${scopeNote}`,
                     onClick: () => setConfirming("revision"),
                     busy: l.busy === "revision",
                   }
@@ -142,6 +175,12 @@ export function LacunesPage() {
           else if (kind === "remediation") void l.createRemediation();
         }}
       >
+        {l.activeSubject && (
+          <p className="mb-2 rounded-lg border border-papa-warn/30 bg-papa-warn/5 px-3 py-2 text-papa-warn">
+            L'écran est filtré sur <b>{l.activeSubject.name}</b>, mais cette création porte sur{" "}
+            <b>toutes les matières</b> : la génération ne sait pas se restreindre.
+          </p>
+        )}
         <p>
           Les missions sont composées à partir des <b>contenus déjà validés</b> — aucun contenu
           n'est généré.

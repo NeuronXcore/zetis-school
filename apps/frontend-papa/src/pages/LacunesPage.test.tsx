@@ -35,9 +35,11 @@ function gap(overrides: Partial<OpenGap> = {}): OpenGap {
   };
 }
 
-function renderPage() {
+// Le paramètre a été AJOUTÉ (défaut inchangé) pour le filtre par matière : aucun appel existant
+// n'en tient compte, et aucune assertion existante n'a bougé.
+function renderPage(url = "/lacunes") {
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <LacunesPage />
     </MemoryRouter>,
   );
@@ -130,5 +132,105 @@ describe("états", () => {
     expect(await screen.findByText("backend éteint")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Réessayer" })).toBeInTheDocument();
     expect(screen.queryByText(/Découvertes/)).toBeNull();
+  });
+});
+
+// --- Filtre par matière (`?subject=`, ADR-0038 §4) ------------------------------------------------
+//
+// Le paramètre était INERTE : la route servait déjà `subject_slug` sur chaque lacune, personne ne
+// le lisait. Ce que ces tests protègent : filtrer ne coûte aucune requête, les trois sections
+// suivent le filtre ensemble, un slug inconnu ne vide jamais l'écran, et le filtre se voit et se
+// retire. Plus une cinquième chose, décidée le 2026-08-05 : les deux boutons de génération
+// n'ont AUCUN paramètre de matière, donc ils disent leur vraie portée.
+
+const TROIS = [
+  gap({ skill_id: 1, skill_name: "Comparaison de relatifs", subject_slug: "mathematiques", subject_name: "Mathématiques" }),
+  gap({ skill_id: 2, skill_name: "Accord du participe", subject_slug: "francais", subject_name: "Français" }),
+  gap({ skill_id: 3, skill_name: "Concordance des temps", subject_slug: "francais", subject_name: "Français", status: "in_progress" }),
+];
+
+describe("filtre par matière", () => {
+  it("ne montre que la matière demandée, sans AUCUNE requête de plus", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue(TROIS);
+    renderPage("/lacunes?subject=francais");
+
+    expect(await screen.findByText(/Accord du participe/)).toBeInTheDocument();
+    expect(screen.queryByText(/Comparaison de relatifs/)).toBeNull();
+    // LE verrou : le filtre s'applique à la liste déjà chargée. Une requête de plus voudrait dire
+    // que le filtre est parti au serveur.
+    expect(fetchOpenGaps).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetchOpenGaps).mock.calls[0]).toEqual([]);
+  });
+
+  it("fait suivre les compteurs des TROIS sections, pas seulement la liste", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue([
+      ...TROIS,
+      gap({ skill_id: 4, skill_name: "Discours rapporté", subject_slug: "francais", subject_name: "Français", has_active_mission: true }),
+      gap({ skill_id: 5, skill_name: "Théorème de Pythagore", subject_slug: "mathematiques", subject_name: "Mathématiques", has_active_mission: true }),
+    ]);
+    renderPage("/lacunes?subject=francais");
+
+    // Anti-vacuité : les trois sections sont peuplées ET chacune contient une ligne d'une AUTRE
+    // matière dans le jeu complet. Un compteur calculé avant le filtre se verrait sur chacune.
+    const decouvertes = (await screen.findByText(/Découvertes, jamais travaillées/)).closest("h2");
+    const revenues = screen.getByText(/Revenues par la révision/).closest("h2");
+    const couvertes = screen.getByText(/Déjà prises en charge/).closest("h2");
+
+    expect(decouvertes).toHaveTextContent("(1)");
+    expect(revenues).toHaveTextContent("(1)");
+    expect(couvertes).toHaveTextContent("(1)");
+    expect(screen.queryByText(/Théorème de Pythagore/)).toBeNull();
+  });
+
+  it("nomme le filtre actif et le rend retirable, sans recharger", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue(TROIS);
+    renderPage("/lacunes?subject=francais");
+
+    expect(await screen.findByText(/Filtré sur/)).toHaveTextContent("Français");
+
+    fireEvent.click(screen.getByRole("button", { name: "Toutes les matières" }));
+
+    expect(await screen.findByText(/Comparaison de relatifs/)).toBeInTheDocument();
+    expect(screen.queryByText(/Filtré sur/)).toBeNull();
+    // Retirer un filtre n'est pas une raison de redemander la liste.
+    expect(fetchOpenGaps).toHaveBeenCalledTimes(1);
+  });
+
+  it("un slug inconnu ne vide PAS la page : repli sur toutes", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue(TROIS);
+    renderPage("/lacunes?subject=klingon");
+
+    expect(await screen.findByText(/Comparaison de relatifs/)).toBeInTheDocument();
+    expect(screen.getByText(/Accord du participe/)).toBeInTheDocument();
+    // Pas de chip : rien n'est filtré, et prétendre le contraire serait un compteur qui ment.
+    expect(screen.queryByText(/Filtré sur/)).toBeNull();
+    expect(screen.queryByText(/Rien à renforcer pour le moment/)).toBeNull();
+  });
+
+  it("le bouton de création annonce sa portée RÉELLE, pas celle du filtre", async () => {
+    // Décision du 2026-08-05 : `POST /generate-remediation` n'a aucun paramètre de matière. Un
+    // bouton annonçant « 1 mission » alors qu'il en créerait 2 serait le défaut de ce chantier,
+    // transposé à une action.
+    vi.mocked(fetchOpenGaps).mockResolvedValue(TROIS);
+    renderPage("/lacunes?subject=francais");
+
+    const bouton = await screen.findByRole("button", { name: /de consolidation/ });
+    // 2 notions `open` au total (Mathématiques + Français), 1 seule affichée.
+    expect(bouton).toHaveTextContent("Créer 2 missions de consolidation · toutes matières");
+    expect(screen.getByText(/Accord du participe/)).toBeInTheDocument();
+    expect(screen.queryByText(/Comparaison de relatifs/)).toBeNull();
+
+    // Et la confirmation le redit, au moment où le geste devient irréversible.
+    fireEvent.click(bouton);
+    expect(await screen.findByText(/la génération ne sait pas se restreindre/)).toBeInTheDocument();
+  });
+
+  it("sans filtre, le libellé du bouton est INCHANGÉ", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue(TROIS);
+    renderPage();
+
+    const bouton = await screen.findByRole("button", { name: /de consolidation/ });
+    expect(bouton).toHaveTextContent("Créer 2 missions de consolidation");
+    expect(bouton).not.toHaveTextContent("toutes matières");
   });
 });
