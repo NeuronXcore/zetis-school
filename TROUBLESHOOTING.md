@@ -4,6 +4,110 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/file-de-relecture` — la file de relecture (ADR-0039) — 2026-08-05
+
+### 🔴 Mon test-verrou central était VERT sur un sabotage — troisième occurrence du motif
+
+Le chantier repose sur un invariant : la file `/relecture` et la ligne `validation` du Dashboard
+comptent **la même chose**. J'ai écrit `test_la_file_et_l_inbox_comptent_la_MEME_chose` pour le
+garder, et je l'ai contre-éprouvé en sabotant `_inbox()` pour qu'elle recompte les capsules
+**globalement**, sans bornage à l'année active.
+
+**Le test est resté vert.**
+
+**Cause** : le décor du test plaçait *toutes* ses pièces dans l'année active. Or un compte borné et
+un compte global rendent **le même nombre** quand rien ne vit hors du périmètre. Le test comparait
+deux formules dans le seul cas où elles ne peuvent pas diverger.
+
+**Parade** : `_hors_annee(db, ctx)` pose une pièce en attente **de chaque famille** hors année
+active — dont une capsule sur une matière que l'année n'étudie pas, sans quoi le bornage par
+matière la laisserait passer. Sabotage rejoué : deux tests tombent.
+
+> **Troisième fois que ce motif apparaît dans le dépôt** (cf. `contre-epreuve-mal-visee` en mémoire,
+> et les deux cas du 2026-08-03). La règle : **un sabotage vert ne prouve rien** — il faut d'abord
+> montrer que le décor peut faire diverger les deux branches.
+
+### 🔴 Les tests d'inbox existants passaient à vide depuis toujours
+
+`test_les_quiz_ne_sont_pas_dans_la_file_de_validation` (`test_dashboard.py`) s'écrit :
+
+```python
+validation = [i for i in body["inbox"] if i["kind"] == "validation"]
+assert validation == [] or "quiz" not in (validation[0]["detail"] or "").lower()
+```
+
+**La fixture `client_db` ne crée ni `SchoolYear` ni `Chapter`.** Il n'y a donc **jamais** de ligne
+`validation`, et la première branche du `or` est vraie en toutes circonstances. Le test n'a jamais
+rien vérifié — et il est resté vert quand j'ai borné les comptes à l'année active, changement qui
+faisait pourtant disparaître la ligne entière.
+
+**Parade** : tout test de ce fichier monte son propre décor (`_decor()`), et le nouveau
+`test_les_quiz_ne_sont_JAMAIS_dans_la_file` **affirme d'abord que la ligne existe**
+(`assert validation["count"] == 1`) avant de vérifier ce qu'elle ne contient pas.
+
+### 🔴 Rendre une page adressable a vidé ses pastilles de matière, définitivement
+
+`CouverturePage` alimentait sa liste de matières ainsi :
+
+```tsx
+useEffect(() => {
+  if (subjectId === null && coverage) setAllSubjects(coverage.subjects.map(…));
+}, [coverage, subjectId]);
+```
+
+Le motif était bon : `GET /coverage?subject_id=` restreint **aussi** la liste des matières
+renvoyée, d'où la mémorisation du premier chargement **non filtré**.
+
+**Mais ce chargement n'a plus lieu** dès qu'on arrive par un lien profond `?subject=3` : la première
+requête est déjà filtrée, la condition `subjectId === null` n'est jamais vraie, et `allSubjects`
+reste `[]` **pour toujours**. Les pastilles disparaissent, et il n'existe plus aucun geste pour
+revenir à « Toutes » — il faut éditer l'URL à la main.
+
+**Parade** : les pastilles ont leur propre source, `fetchSubjects()` au montage, indépendante de la
+couverture courante. Le test qui gardait l'invariant a été doublé d'un cas « arrivée déjà filtrée ».
+
+> Le piège général : **un état dérivé d'un « premier chargement » casse le jour où l'écran devient
+> adressable**, parce que le premier chargement n'est plus celui qu'on croyait.
+
+### ⚠️ Le rechargement de rattrapage effaçait le message d'erreur
+
+Sur `/relecture`, valider retire la ligne en optimiste ; si l'appel échoue, on recharge pour
+rétablir et on affiche pourquoi. Écrit dans cet ordre :
+
+```ts
+setState(cur => ({ ...cur, error: message }));
+await reload();          // ← remet `error` à null, au départ ET à l'arrivée
+```
+
+L'utilisateur voyait la ligne revenir **sans aucune explication** — indiscernable d'un clic ignoré.
+**Parade** : `await reload()` d'abord, message ensuite. Vérifié par un test dédié.
+
+### ⚠️ `querySelectorAll('tbody tr')` compte les en-têtes de chapitre
+
+En vérifiant que « ↓ N à produire » ouvre bien N lignes, ma première mesure a rendu **17** pour un
+compteur annonçant **10**. J'ai failli traiter un nombre juste comme un bug.
+
+La matrice de Couverture groupe les leçons par chapitre, et **les en-têtes de chapitre sont des
+`<tr>` du même `<tbody>`**. Compter les lignes de leçon demande de filtrer sur la présence d'une
+cellule d'état :
+
+```js
+[...document.querySelectorAll('tbody tr')]
+  .filter(r => r.querySelector('[data-state]') || r.querySelectorAll('td').length >= 4)
+```
+
+### ⚠️ Un `missing_href` sur la première marche de l'entonnoir est mort-né
+
+La « Chaîne de contenus » affiche un delta **entre deux marches** : celui rendu sous la marche *i*
+décrit le manque de la marche *i+1*. Rien ne se lit donc au-dessus de la première marche, et le
+`missing_href` que je lui avais servi n'était rendu par personne. Servi à `None`, avec le motif
+écrit — sinon la prochaine session le « réparera ».
+
+### ⚠️ `@testing-library/user-event` n'est pas une dépendance du projet
+
+`import userEvent from "@testing-library/user-event"` échoue à la résolution Vite. La convention du
+dépôt est `fireEvent` de `@testing-library/react`.
+
 ## Chantier `fix/file-de-production` — une file que personne n'écoute (2026-08-05)
 
 ### 🔴 Quatre lots identiques ont attendu six heures — le worker n'était pas lancé

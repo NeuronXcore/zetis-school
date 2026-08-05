@@ -18,6 +18,24 @@ import {
 // des leçons validées (`no_course` en est plein).
 export type CoverageFilter = "all" | "no_lesson" | "no_course" | "ready" | "pending" | "stale";
 
+const COVERAGE_FILTERS: CoverageFilter[] = [
+  "all",
+  "no_lesson",
+  "no_course",
+  "ready",
+  "pending",
+  "stale",
+];
+
+/** Lit `?filter=` de l'URL. Source UNIQUE de la valeur courante depuis que la page est adressable
+ *  (adr-0039 §9) : absent, vide ou inconnu → `"all"`.
+ *
+ *  Le repli n'est pas de la politesse : un lien partagé ou périmé qui blanchirait la matrice se
+ *  lirait comme une panne, alors que la donnée est là. */
+export function parseCoverageFilter(raw: string | null): CoverageFilter {
+  return COVERAGE_FILTERS.includes(raw as CoverageFilter) ? (raw as CoverageFilter) : "all";
+}
+
 /** Les quatre colonnes leçon-centrées, dans l'ordre d'affichage. */
 export const CELL_KEYS: CoverageCellKey[] = ["cours", "quiz", "fiche", "mindmap"];
 
@@ -45,6 +63,30 @@ export function matchesFilter(lesson: CoverageLesson, filter: CoverageFilter): b
   }
 }
 
+/** Les trois colonnes qu'un lien « ↓ N à produire » peut viser. Le COURS n'en est pas : ce qui lui
+ *  manque a déjà sa pilule (`no_course`), et il n'est pas un dérivé. */
+export type MissingKey = "quiz" | "fiche" | "mindmap";
+
+const MISSING_KEYS: MissingKey[] = ["quiz", "fiche", "mindmap"];
+
+/** Lit `?manque=` sans faire confiance à ce qui arrive : `null` = pas de restriction de colonne.
+ *
+ *  Repli silencieux plutôt qu'erreur — un lien périmé doit rendre une matrice complète, jamais une
+ *  page blanche qu'on croirait cassée. */
+export function parseMissing(raw: string | null): MissingKey | null {
+  return MISSING_KEYS.includes(raw as MissingKey) ? (raw as MissingKey) : null;
+}
+
+/** Cette leçon a-t-elle un trou dans LA colonne visée ?
+ *
+ *  `absent` est le prédicat exact de « à produire » : `cell_state` le sert quand la ligne n'existe
+ *  pas (`coverage.py`). ⚠️ Ni `pending` (l'objet existe, il attend une relecture — c'est la file
+ *  de relecture qui le traite), ni `blocked` (rien n'est générable tant que le cours manque).
+ */
+export function missesColumn(lesson: CoverageLesson, missing: MissingKey | null): boolean {
+  return missing === null || lesson.cells[missing].state === "absent";
+}
+
 export function matchesSearch(lesson: CoverageLesson, search: string): boolean {
   const needle = search.trim().toLowerCase();
   return needle === "" || lesson.title.toLowerCase().includes(needle);
@@ -59,6 +101,7 @@ export function filterCoverage(
   subjects: CoverageSubject[],
   filter: CoverageFilter,
   search: string,
+  missing: MissingKey | null = null,
 ): CoverageSubject[] {
   return subjects.map((subject) => ({
     ...subject,
@@ -66,7 +109,10 @@ export function filterCoverage(
       .map((chapter) => ({
         ...chapter,
         lessons: chapter.lessons.filter(
-          (lesson) => matchesFilter(lesson, filter) && matchesSearch(lesson, search),
+          (lesson) =>
+            matchesFilter(lesson, filter) &&
+            matchesSearch(lesson, search) &&
+            missesColumn(lesson, missing),
         ),
       }))
       .filter((chapter) => chapter.lessons.length > 0),

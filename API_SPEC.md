@@ -337,6 +337,9 @@ force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `
 - **PUT `/api/fiches/{id}`** — corps `{ spec }` : **revalidation** du `FicheSpec` → repasse `pending`.
 - **POST `/api/fiches/{id}/regenerate`** — régénère (écrase le spec) → `pending`.
 - **POST `/api/fiches/{id}/validate`** — `pending → validated` (visible côté Massimo).
+- **POST `/api/fiches/{id}/reject`** — `pending → rejected` (adr-0039). **Rejeter n'est pas
+  supprimer** : la fiche reste en base, régénérable. Aucune provenance écrite — `validated_by` dit
+  QUI a laissé passer, personne n'a rien laissé passer.
 - **DELETE `/api/fiches/{id}`**.
 - **GET `/api/fiches/lessons/{lesson_id}`** — fiches d'une leçon (tous statuts).
 - **GET `/api/fiches/pilotage/{subject_id}`** — arbre matière → leçons validées → leurs fiches
@@ -776,6 +779,12 @@ Papa (`require_parent`) : arbre matière → leçons validées → leurs cartes 
 carte porte `attempt_count` et `avg_score` (agrégat `mindmap_attempts`, une requête). **Cet agrégat
 n'existe que sur cette surface** : le suivi est parent-side, rien n'en remonte chez Massimo.
 
+### POST `/mindmaps/{id}/reject`
+
+Papa : `pending → rejected` (adr-0039). **Rejeter n'est pas supprimer** : la carte reste en base,
+régénérable depuis le pilotage. Aucune provenance écrite — `validated_by` dit QUI a laissé passer,
+personne n'a rien laissé passer ici.
+
 ### POST `/mindmaps/{id}/attempts`
 
 Massimo reproduit une mindmap.
@@ -989,6 +998,41 @@ contredire le `time` des événements de la même carte.
 }
 ```
 
+### GET `/api/parent/review-queue?subject_id=&kind=` (Papa) — **module `review_queue`** (adr-0039)
+
+Tout ce qui est produit et n'atteint pas encore Massimo, **borné à l'année active**. Lecture seule.
+
+`kind` ∈ `lesson | fiche | mindmap | capsule | chapter`. **Les quiz n'y sont pas** : `quizzes` n'a
+pas de `validation_status`, il est servi sans gate par doctrine (adr-0014 §2).
+
+```jsonc
+{
+  "counts":   { "lesson": 26, "fiche": 1, "mindmap": 0, "capsule": 5, "chapter": 0, "total": 32 },
+  "subjects": [ { "id": 3, "name": "Mathématiques", "slug": "mathematiques" } ],
+  "items": [
+    { "kind": "capsule", "id": 12, "title": "Les relatifs en 3 minutes",
+      "subject_id": 3, "subject": "Mathématiques", "subject_slug": "mathematiques",
+      "chapter_id": null, "chapter": null,     // fil PARTIEL par nature, pas un trou à combler
+      "lesson_id": null,  "lesson": null,      // une capsule n'a pas de leçon
+      "created_at": "2026-08-02T09:11:00Z" }   // `null` pour un chapitre (pas de TimestampMixin)
+  ]
+}
+```
+
+🔴 **`counts` et `subjects` ne sont JAMAIS filtrés** par `kind` / `subject_id` — seul `items` l'est.
+Des pastilles qui s'effondrent au premier clic obligeraient à repasser par « Tout » pour changer
+d'avis. Leçon déjà payée deux fois dans ce dépôt.
+
+**Aucun `href` dans les items** : `lib/pilotageLinks.ts` porte déjà la convention d'adressage
+`?subject=&focus=`. En servir un ici en ferait une seconde règle concurrente.
+
+**Aucun tri réglable, aucune pagination**, assumés : ordre du curriculum, population bornée par ce
+que Papa a produit et pas relu. Au-delà de ~500 items, ce n'est plus un problème de pagination mais
+le signal que quelque chose produit sans demande.
+
+Les **gestes** passent par les endpoints par type (`/api/lessons|fiches|mindmaps|capsules/{id}/…`,
+`PATCH /api/chapters/{id}`) : la file oriente, elle ne concentre pas les pouvoirs.
+
 ### GET `/api/parent/dashboard` (Papa) — agrégat unique, **module `dashboard`**
 
 > **Réécriture cassante (ADR-0028, 2026-07-31).** La route servait auparavant six KPI hebdomadaires
@@ -1008,7 +1052,13 @@ Contrat complet : `docs/frontend-papa/page-dashboard.md §Contrat API`. Forme :
   "school_year": { "level": "4e", "label": "2025-2026", "program_version": null },
   "generated_at": "...", "last_activity_at": "...", "days_inactive": 0,
   "inbox": [{ "kind": "validation|gap|demande|referentiel|source", "count": 6,
-              "label": "…", "detail": "…", "href": "/couverture" }],
+              "label": "…", "detail": "…",           // `detail` = repli texte si `breakdown` ignoré
+              "href": "/relecture",
+              // adr-0039 §5 — les CINQ familles mènent à la file. Vide pour les quatre autres
+              // `kind`, qui n'ont rien à décomposer. `href` SERVEUR : une règle d'adressage n'a
+              // rien à faire dans un composant de présentation (addendum adr-0028 §6).
+              "breakdown": [{ "kind": "lesson", "count": 4, "label": "4 cours",
+                              "href": "/relecture?kind=lesson" }] }],
   "periods": { "7": { "kpis": { "active_minutes": {"value":200,"delta":35},
                                 "active_days":    {"value":5,"of":7,"delta":1},
                                 "consolidated":   {"value":12,"of":46,"delta":3},
@@ -1024,7 +1074,12 @@ Contrat complet : `docs/frontend-papa/page-dashboard.md §Contrat API`. Forme :
                  "series": {"7": {"covered":[],"consolidated":[],"fragile":[]}},
                  "review_load": [/* 14 entiers, J+0 → J+13 */],
                  "gaps_open": 2, "has_referentiel": true }],
-  "content_chain": [{ "stage": "cours_valides", "label": "Cours validés", "value": 30, "target": 38 }],
+  "content_chain": [{ "stage": "cours_valides", "label": "Cours validés", "value": 30, "target": 38,
+                      // adr-0039 §9 — le nombre que la destination ouvre RÉELLEMENT, et non
+                      // `target - value` : celui-là compte aussi les leçons validées SANS cours
+                      // rédigé, où aucun dérivé n'est générable. `null` sur la première marche,
+                      // qui ne porte aucun delta (un delta se lit ENTRE deux marches).
+                      "missing_count": 38, "missing_href": "/couverture?filter=no_course" }],
   "reading": [{ "trend": "up|flat|watch", "text": "…",
                 "evidence": { "count": 5, "kind": "notion", "href": "…" } }],
   "proposed_mission": null

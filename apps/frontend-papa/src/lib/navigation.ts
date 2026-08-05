@@ -37,6 +37,11 @@ export const PAPA_NAV: NavItem[] = [
   // pilotages par type (Programme, Quiz, Fiches, Mindmaps, Cartes, Capsules), pas une vue
   // partielle de plus.
   { to: "/couverture", label: "Couverture", icon: "🗺️", iconUrl: couvertureIcon, startsGroup: true },
+  // File de relecture (ADR-0039), juste après la Couverture dont elle prolonge le bandeau ambre :
+  // la Couverture dit « ce qui n'atteint pas Massimo », cette page le sert ligne par ligne.
+  // ⚠️ **Aucune pastille de compteur**, contrairement aux Demandes : le nombre vit déjà sur le
+  // Dashboard, et une seconde source pour la même mesure est ce que l'addendum ADR-0028 interdit.
+  { to: "/relecture", label: "File de relecture", icon: "⏳" },
   // Boîte de réception des contenus réclamés par Massimo dans le chat (addendum ADR-0027). Pastille
   // de notification (compteur en attente) — c'est une file de TRAVAIL de Papa, pas un signal
   // d'activité de Massimo : le compteur y est légitime (contrairement à l'Agenda, cf. plus haut).

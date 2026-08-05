@@ -5,6 +5,7 @@ from app.api.health import router as health_router
 from app.core.config import settings
 from app.modules.activity.router import parent_router as activity_parent_router
 from app.modules.dashboard.router import router as dashboard_router
+from app.modules.review_queue.router import router as review_queue_router
 from app.modules.agenda.router import router as agenda_router
 from app.modules.agenda.router import student_router as agenda_student_router
 from app.modules.news.router import student_router as news_student_router
@@ -95,6 +96,7 @@ app.include_router(telemetry_router)
 app.include_router(activity_parent_router)
 # Dashboard Papa : agrégat unique, une seule requête au premier rendu (ADR-0028 §1).
 app.include_router(dashboard_router)
+app.include_router(review_queue_router)
 app.include_router(progress_router)
 # Motivation (Massimo) : régularité douce + engagement hebdomadaire choisi par l'enfant.
 app.include_router(motivation_router)

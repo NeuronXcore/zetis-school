@@ -85,14 +85,20 @@ zetis/
 
 ## Les modules backend
 
-`apps/backend/app/modules/` porte la logique métier, un dossier par domaine. Au 2026-08-01 :
+`apps/backend/app/modules/` porte la logique métier, un dossier par domaine. Au 2026-08-05 :
 
 ```txt
 activity · agenda · ai · auth · capsules · chat · content_requests · curriculum · dashboard
 diagnostics · eli5 · engagement · evidence · fiches · galaxy · gamification · memory · mindmaps
-missions · motivation · news · notions · production · progress · quizzes · rag · reports · school
-stt · subjects · tts
+missions · motivation · news · notions · production · progress · quizzes · rag · reports
+review_queue · school · stt · subjects · tts
 ```
+
+> **`review_queue`** (2026-08-05, `adr-0039`) — source **unique** du « en attente de relecture ».
+> La page `/relecture` **et** la ligne `validation` de la file du Dashboard en dérivent toutes deux.
+> Il ne vit ni dans `dashboard` (dont le router s'interdit tout query param, ADR-0028 §1) ni dans
+> `production` (dont `coverage.py` est verrouillé sur quatre colonnes leçon-centrées, où ni les
+> capsules ni les chapitres n'entrent). **Lecture seule.**
 
 Chaque module suit le même patron : `router.py` (routes + garde de rôle), `schemas.py` (Pydantic),
 `service.py` (métier). Les routes **élève** et **parent** vivent dans des routeurs séparés du même

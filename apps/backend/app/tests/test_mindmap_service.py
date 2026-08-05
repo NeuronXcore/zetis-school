@@ -29,7 +29,9 @@ from app.db.models import (
     Subject,
     XPEvent,
 )
+from app.main import app
 from app.modules.ai.canonical_context import CanonicalContext, build_canonical_sections
+from app.modules.auth.deps import get_current_user
 from app.modules.ai.provider import LLMResponse
 from app.modules.gamification.service import mindmap_reconstruction_xp, mindmap_xp
 from app.modules.mindmaps import service
@@ -559,3 +561,35 @@ def test_evaluate_preview_forbidden_for_child(client_db) -> None:
     client, _ = client_db
     resp = client.post("/api/mindmaps/1/evaluate-preview", json={"placements": []})
     assert resp.status_code == 403
+
+
+def test_rejeter_une_carte_la_retire_de_massimo_SANS_la_supprimer(client_db) -> None:
+    """Rejeter ≠ supprimer (ADR-0039 §8) : la carte reste en base, régénérable depuis le pilotage.
+
+    Symétrique de `test_rejeter_une_fiche_…` : sans cet endpoint, la file de relecture offrirait
+    « Rejeter » pour quatre familles sur cinq.
+    """
+    client, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        row = service.generate_mindmap(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+        mindmap_id = row.id
+        # La carte est bien invisible côté Massimo avant comme après le rejet.
+        assert row.validation_status == "pending"
+
+    app.dependency_overrides[get_current_user] = lambda: {"username": "papa", "role": "papa"}
+    response = client.post(f"/api/mindmaps/{mindmap_id}/reject")
+
+    assert response.status_code == 200
+    assert response.json()["validation_status"] == "rejected"
+    with Session() as db:
+        row = service.get_mindmap(db, mindmap_id)
+        assert row is not None, "la carte n'est pas supprimée"
+        assert row.validated_by is None, "un rejet n'écrit aucune provenance de validation"
+
+
+def test_le_rejet_d_une_carte_est_une_route_papa(client_db) -> None:
+    client, _ = client_db  # get_current_user override → rôle "child"
+    assert client.post("/api/mindmaps/1/reject").status_code == 403

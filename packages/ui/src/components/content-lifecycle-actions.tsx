@@ -6,15 +6,21 @@ import { ConfirmDialog } from "./confirm-dialog";
 // gardent leur barre bespoke). Régénérer et Supprimer passent par un ConfirmDialog partagé.
 // « Générer » n'est PAS ici : il crée un contenu qui n'existe pas encore (bouton au niveau
 // de la leçon). Ce composant agit sur un contenu déjà présent.
+//
+// Tous les gestes sont OPTIONNELS et ne se rendent que si leur handler existe (adr-0039 §8) : la
+// file de relecture n'en passe que deux, parce que **relire n'est pas produire**. Éditer,
+// régénérer et supprimer sont des gestes de production, ils ont déjà leurs pages de pilotage.
 
 export type ContentStatus = "pending" | "validated" | "rejected";
 
 export interface ContentLifecycleActionsProps {
   status: ContentStatus;
   onValidate?: () => void;
-  onRegenerate: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  /** Rejet explicite. Absent = la page n'offre pas ce geste (ex. un type sans endpoint de rejet). */
+  onReject?: () => void;
+  onRegenerate?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
   /** Désactive les actions pendant un appel API. */
   busy?: boolean;
   /** Nom du contenu, injecté dans les libellés de confirmation (ex. le titre de la fiche). */
@@ -29,6 +35,7 @@ export interface ContentLifecycleActionsProps {
   /** Libellés surchargables (défauts pédagogiques bienveillants). */
   labels?: Partial<{
     validate: string;
+    reject: string;
     regenerate: string;
     edit: string;
     delete: string;
@@ -58,6 +65,7 @@ export function ContentStatusBadge({ status }: { status: ContentStatus }) {
 export function ContentLifecycleActions({
   status,
   onValidate,
+  onReject,
   onRegenerate,
   onEdit,
   onDelete,
@@ -66,7 +74,7 @@ export function ContentLifecycleActions({
   destructionNotice,
   labels,
 }: ContentLifecycleActionsProps) {
-  const [confirming, setConfirming] = useState<null | "regenerate" | "delete">(null);
+  const [confirming, setConfirming] = useState<null | "regenerate" | "delete" | "reject">(null);
   const suffix = itemLabel ? ` « ${itemLabel} »` : "";
 
   return (
@@ -80,20 +88,52 @@ export function ContentLifecycleActions({
           {labels?.validate ?? "Valider"}
         </Button>
       )}
-      <Button variant="ghost" onClick={onEdit} disabled={busy}>
-        {labels?.edit ?? "✏️ Éditer"}
-      </Button>
-      <Button variant="ghost" onClick={() => setConfirming("regenerate")} disabled={busy}>
-        {labels?.regenerate ?? "↻ Régénérer"}
-      </Button>
-      <Button
-        variant="ghost"
-        onClick={() => setConfirming("delete")}
-        disabled={busy}
-        className="text-muted-foreground hover:text-rose-300"
+      {status !== "rejected" && onReject && (
+        <Button
+          variant="ghost"
+          onClick={() => setConfirming("reject")}
+          disabled={busy}
+          className="text-muted-foreground hover:text-rose-300"
+        >
+          {labels?.reject ?? "Rejeter"}
+        </Button>
+      )}
+      {onEdit && (
+        <Button variant="ghost" onClick={onEdit} disabled={busy}>
+          {labels?.edit ?? "✏️ Éditer"}
+        </Button>
+      )}
+      {onRegenerate && (
+        <Button variant="ghost" onClick={() => setConfirming("regenerate")} disabled={busy}>
+          {labels?.regenerate ?? "↻ Régénérer"}
+        </Button>
+      )}
+      {onDelete && (
+        <Button
+          variant="ghost"
+          onClick={() => setConfirming("delete")}
+          disabled={busy}
+          className="text-muted-foreground hover:text-rose-300"
+        >
+          {labels?.delete ?? "Supprimer"}
+        </Button>
+      )}
+
+      <ConfirmDialog
+        open={confirming === "reject"}
+        title="Rejeter le contenu ?"
+        confirmLabel="Rejeter"
+        tone="important"
+        busy={busy}
+        onConfirm={() => {
+          setConfirming(null);
+          onReject?.();
+        }}
+        onCancel={() => setConfirming(null)}
       >
-        {labels?.delete ?? "Supprimer"}
-      </Button>
+        Le contenu{suffix} n'atteindra pas Massimo. Il reste en base et pourra être régénéré depuis
+        sa page de pilotage.
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={confirming === "regenerate"}
@@ -102,7 +142,7 @@ export function ContentLifecycleActions({
         busy={busy}
         onConfirm={() => {
           setConfirming(null);
-          onRegenerate();
+          onRegenerate?.();
         }}
         onCancel={() => setConfirming(null)}
       >
@@ -119,7 +159,7 @@ export function ContentLifecycleActions({
         busy={busy}
         onConfirm={() => {
           setConfirming(null);
-          onDelete();
+          onDelete?.();
         }}
         onCancel={() => setConfirming(null)}
       >

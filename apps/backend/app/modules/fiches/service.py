@@ -284,6 +284,20 @@ def validate_fiche(db: Session, fiche_id: int, *, by: ValidatedBy = PARENT) -> F
     return row
 
 
+def reject_fiche(db: Session, fiche_id: int) -> Fiche:
+    """`pending` → `rejected` : la fiche n'atteindra pas Massimo, et elle reste en base.
+
+    Rejeter n'est pas supprimer — le contenu reste régénérable depuis la page de pilotage. Aucune
+    provenance n'est écrite : `validated_at`/`validated_by` disent QUI a laissé passer (§F), et
+    personne n'a rien laissé passer ici.
+    """
+    row = _fiche_or_404(db, fiche_id)
+    row.validation_status = "rejected"
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def delete_fiche(db: Session, fiche_id: int) -> None:
     row = _fiche_or_404(db, fiche_id)
     # Pas d'ON DELETE CASCADE sur la FK : retirer d'abord les vues (sinon violation FK).

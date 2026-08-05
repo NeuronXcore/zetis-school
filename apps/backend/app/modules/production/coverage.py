@@ -103,6 +103,66 @@ def row_state(*, lesson_validated: bool, has_course: bool, cells: dict[str, Cell
 # ── Étage 2 — requêtes agrégées ─────────────────────────────────────────────────
 
 
+def actionable_gaps(db: Session, year_id: int | None) -> dict[str, int]:
+    """Ce qui est PRODUISIBLE tout de suite, par les mêmes prédicats que les pilules de la matrice.
+
+    Existe pour une raison précise (ADR-0039 §9) : le delta de la « Chaîne de contenus » du
+    dashboard était une soustraction entre deux marches — `lessons_ok − fiches_ok`, comptées
+    **globalement et sans regarder si le cours existe**. Il annonçait 49 fiches à produire là où
+    `/couverture?filter=ready&manque=fiche` en ouvrait 17. Mesuré à l'écran, pas déduit.
+
+    L'écart avait deux causes cumulées, et aucune n'était un bug de calcul :
+    1. la chaîne ignore l'année scolaire, la Couverture non ;
+    2. une leçon validée **sans cours rédigé** entre dans `lessons_ok` alors qu'aucun dérivé n'y
+       est générable — le cours est la CONDITION des dérivés, pas un dérivé.
+
+    D'où ces trois comptes, qui sont ceux des destinations :
+    - `no_course` ↔ pilule « 📝 Sans cours » ;
+    - `fiche` / `quiz` ↔ « 🟢 Prêtes, incomplètes » + `?manque=`, c'est-à-dire une cellule
+      `absent` au sens de `cell_state` : la ligne n'existe pas. ⚠️ Ni `pending` (l'objet est là et
+      attend une relecture — le régénérer ferait un doublon), ni `blocked`.
+    """
+    if year_id is None:
+        return {"no_course": 0, "fiche": 0, "quiz": 0}
+
+    def _lessons_of_year():
+        return (
+            select(Lesson.id)
+            .join(Chapter, Chapter.id == Lesson.chapter_id)
+            .join(SchoolYearSubject, SchoolYearSubject.id == Chapter.school_year_subject_id)
+            .where(
+                SchoolYearSubject.school_year_id == year_id,
+                Lesson.status == "validated",
+            )
+        )
+
+    servables = _lessons_of_year().where(Lesson.content_markdown.is_not(None)).subquery()
+    return {
+        "no_course": db.scalar(
+            select(func.count()).select_from(
+                _lessons_of_year().where(Lesson.content_markdown.is_(None)).subquery()
+            )
+        )
+        or 0,
+        "fiche": db.scalar(
+            select(func.count())
+            .select_from(servables)
+            .where(~select(Fiche.id).where(Fiche.lesson_id == servables.c.id).exists())
+        )
+        or 0,
+        "quiz": db.scalar(
+            select(func.count())
+            .select_from(servables)
+            .where(
+                ~select(Quiz.id)
+                .where(Quiz.lesson_id == servables.c.id, Quiz.status != "archived")
+                .exists()
+            )
+        )
+        or 0,
+    }
+
+
 def _active_year(db: Session) -> SchoolYear | None:
     return db.scalar(
         select(SchoolYear).where(SchoolYear.status == "active").order_by(SchoolYear.id.desc())

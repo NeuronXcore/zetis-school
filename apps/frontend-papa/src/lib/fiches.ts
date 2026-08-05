@@ -43,6 +43,11 @@ export async function validateFiche(id: number): Promise<FicheDetail> {
   return asJson(await fetch(`${API}/${id}/validate`, { method: "POST", headers: authHeader() }));
 }
 
+/** `pending` → `rejected` (la fiche n'atteindra pas Massimo, sans être supprimée). */
+export async function rejectFiche(id: number): Promise<FicheDetail> {
+  return asJson(await fetch(`${API}/${id}/reject`, { method: "POST", headers: authHeader() }));
+}
+
 export async function deleteFiche(id: number): Promise<void> {
   const res = await fetch(`${API}/${id}`, { method: "DELETE", headers: authHeader() });
   if (!res.ok) {

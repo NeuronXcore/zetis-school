@@ -5,6 +5,9 @@ import {
   filterCoverage,
   matchesFilter,
   matchesSearch,
+  missesColumn,
+  parseCoverageFilter,
+  parseMissing,
   subjectAnomalies,
 } from "./coverageFilters";
 
@@ -181,5 +184,45 @@ describe("filterCounts", () => {
       pending: 0,
       stale: 0,
     });
+  });
+});
+
+describe("parseCoverageFilter — un lien périmé ne blanchit pas la page", () => {
+  it("reconnaît les six pilules", () => {
+    for (const key of ["all", "no_lesson", "no_course", "ready", "pending", "stale"] as const) {
+      expect(parseCoverageFilter(key)).toBe(key);
+    }
+  });
+
+  it("retombe sur « all » sur absent, vide ou inconnu", () => {
+    expect(parseCoverageFilter(null)).toBe("all");
+    expect(parseCoverageFilter("")).toBe("all");
+    expect(parseCoverageFilter("no_fiche")).toBe("all");
+  });
+});
+
+describe("parseMissing / missesColumn — « à produire » n'est pas « à relire »", () => {
+  it("ne reconnaît que les trois dérivés", () => {
+    expect(parseMissing("fiche")).toBe("fiche");
+    expect(parseMissing("quiz")).toBe("quiz");
+    expect(parseMissing("mindmap")).toBe("mindmap");
+    // Le cours n'est pas un dérivé : ce qui lui manque a déjà sa pilule (`no_course`).
+    expect(parseMissing("cours")).toBeNull();
+    expect(parseMissing(null)).toBeNull();
+  });
+
+  it("sans colonne visée, tout passe", () => {
+    expect(missesColumn(PENDING, null)).toBe(true);
+  });
+
+  it("garde `absent`, écarte `pending`, `stale`, `validated` et `blocked`", () => {
+    // ⚠️ La distinction qui porte tout le lien « ↓ N à produire » : une fiche `pending` EXISTE et
+    // attend une relecture — la produire une seconde fois créerait un doublon. Seul `absent`
+    // signifie « à produire ».
+    expect(missesColumn(READY, "fiche")).toBe(true); // absent
+    expect(missesColumn(PENDING, "fiche")).toBe(false); // pending
+    expect(missesColumn(STALE, "quiz")).toBe(false); // stale
+    expect(missesColumn(COMPLETE, "fiche")).toBe(false); // validated
+    expect(missesColumn(BLOCKED_LESSON, "fiche")).toBe(false); // blocked
   });
 });

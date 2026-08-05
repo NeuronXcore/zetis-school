@@ -72,6 +72,11 @@ export async function validateMindmap(id: number): Promise<MindmapDetail> {
   return asJson(await fetch(`${API}/${id}/validate`, { method: "POST", headers: authHeader() }));
 }
 
+/** `pending` → `rejected` (la carte n'atteindra pas Massimo, sans être supprimée). */
+export async function rejectMindmap(id: number): Promise<MindmapDetail> {
+  return asJson(await fetch(`${API}/${id}/reject`, { method: "POST", headers: authHeader() }));
+}
+
 export async function deleteMindmap(id: number): Promise<void> {
   const res = await fetch(`${API}/${id}`, { method: "DELETE", headers: authHeader() });
   if (!res.ok) {

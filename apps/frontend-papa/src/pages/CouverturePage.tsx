@@ -10,8 +10,8 @@
 //   faire n'est pas un outil de pilotage ;
 // - AUCUN TRI, AUCUN SCORE PAR MATIÈRE, AUCUN GRAPHE — une matrice à cases vides invite déjà
 //   assez à tout remplir ; l'envie de compléter n'est pas un critère pédagogique.
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate , useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ConfirmDialog,
   GenerationProgress,
@@ -37,8 +37,11 @@ import {
   type CoverageFilter,
   filterCoverage,
   filterCounts,
+  parseCoverageFilter,
+  parseMissing,
   subjectAnomalies,
 } from "../lib/coverageFilters";
+import { fetchSubjects } from "../lib/subjects";
 import { GENERATION_LABEL, GENERATION_MS } from "../lib/production";
 
 const FILTERS: { key: CoverageFilter; label: string; tone?: "warn" | "alert" }[] = [
@@ -61,9 +64,43 @@ const EMPTY_ANOMALIES: Record<AnomalyKey, number> = {
 
 export function CouverturePage() {
   const navigate = useNavigate();
-  const [subjectId, setSubjectId] = useState<number | null>(null);
-  const [filter, setFilter] = useState<CoverageFilter>("all");
+  // Matière, pilule d'état et colonne manquante vivent dans l'URL (adr-0039 §9) : sans ça, aucun
+  // lien du Dashboard ne peut ouvrir la matrice sur ce qu'il annonce. La recherche, elle, reste
+  // locale — c'est une frappe en cours, pas une destination qu'on partage.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const subjectId = Number(searchParams.get("subject")) || null;
+  const filter = parseCoverageFilter(searchParams.get("filter"));
+  const missing = parseMissing(searchParams.get("manque"));
   const [search, setSearch] = useState("");
+
+  /** Écriture d'URL en forme FONCTIONNELLE, et clé par clé.
+   *
+   *  ⚠️ Deux clés posées dans le même tick depuis une fermeture sur `searchParams` s'écrasent
+   *  l'une l'autre — piège documenté par l'addendum ADR-0028 §3. Et reconstruire l'URL à partir
+   *  de rien effacerait `?chapitre=`, qui vient de la pastille d'en-tête.
+   *
+   *  `replace` : choisir un filtre n'est pas naviguer. Sans lui, revenir en arrière depuis la
+   *  Couverture rejouerait chaque clic de pilule au lieu de ramener Papa au Dashboard. */
+  const patchParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [clef, valeur] of Object.entries(patch)) {
+            if (valeur === null) next.delete(clef);
+            else next.set(clef, valeur);
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+  const setSubjectId = useCallback(
+    (id: number | null) => patchParams({ subject: id === null ? null : String(id) }),
+    [patchParams],
+  );
   const [stale, setStale] = useState<{
     key: CoverageCellKey;
     lesson: CoverageLesson;
@@ -98,7 +135,6 @@ export function CouverturePage() {
   } = useCoverage(subjectId);
   // Production en lot (ADR-0031) : patron preview → confirm. La matrice se relit à la fin du lot
   // — sans ça, Papa verrait ses trous inchangés alors que le contenu vient d'arriver.
-  const [searchParams] = useSearchParams();
   const production = useChapterProduction(() => void reload());
   // Chapitre mis en évidence, arrivé par la pastille d'en-tête « ZETIS produit un chapitre ».
   // Sans lui, le clic ouvrait la Couverture entière et laissait Papa chercher lequel travaille.
@@ -106,19 +142,37 @@ export function CouverturePage() {
   const pct = useEstimatedProgress(generating !== null, generating ? GENERATION_MS[generating.key] : 30000);
 
   const counts = useMemo(() => filterCounts(coverage), [coverage]);
+  // Second clic = « Tout », écrit comme une ABSENCE de clé (`null`) et non comme `"all"` : ainsi
+  // `parseCoverageFilter` reste la source unique de la valeur courante, et l'URL ne traîne pas un
+  // paramètre qui ne filtre rien. Changer de pilule relâche aussi `?manque=`, qui appartient au
+  // lien d'où on vient et non à la pilule qu'on choisit.
   const toggleFilter = (key: CoverageFilter) =>
-    setFilter((current) => (current === key ? "all" : key));
+    patchParams({ filter: filter === key ? null : key, manque: null });
 
   // La requête filtrée par matière restreint AUSSI la liste des matières renvoyée
-  // (`coverage.subjects` ne contient plus que la sélectionnée). On mémorise donc celle du
-  // chargement non filtré : sans ça, les pastilles s'effondreraient à une seule au premier clic
-  // et il faudrait repasser par « Toutes » pour changer de matière.
+  // (`coverage.subjects` ne contient plus que la sélectionnée). Les pastilles ont donc leur propre
+  // source, indépendante de la couverture courante.
+  //
+  // 🔴 **Elles se lisaient auparavant sur le premier chargement NON filtré** — ce qui marchait
+  // tant que la page s'ouvrait toujours sur « Toutes ». Depuis qu'un lien peut arriver avec
+  // `?subject=3` (adr-0039), ce chargement-là n'a jamais lieu : `allSubjects` restait vide **pour
+  // toujours**, les pastilles disparaissaient, et Papa n'avait plus aucun moyen de revenir à
+  // « Toutes » sans éditer l'URL à la main. D'où une lecture propre, au montage, une seule fois.
   const [allSubjects, setAllSubjects] = useState<SubjectFilterOption[]>([]);
   useEffect(() => {
-    if (subjectId === null && coverage) {
-      setAllSubjects(coverage.subjects.map(({ id, name, slug }) => ({ id, name, slug })));
-    }
-  }, [coverage, subjectId]);
+    let annule = false;
+    void fetchSubjects()
+      .then((rows) => {
+        if (!annule) setAllSubjects(rows.map(({ id, name, slug }) => ({ id, name, slug })));
+      })
+      .catch(() => {
+        // Silencieux et volontairement : une liste de pastilles absente dégrade la page, elle ne
+        // la casse pas — la matrice, elle, a déjà son propre message d'erreur.
+      });
+    return () => {
+      annule = true;
+    };
+  }, []);
 
   // Dépliage des matières. L'état par défaut se DÉDUIT du contexte au lieu d'être stocké :
   // en vue d'ensemble (toutes matières, aucun filtre) tout est replié — c'est ce qui fait tenir
@@ -150,8 +204,8 @@ export function CouverturePage() {
     [coverage],
   );
   const subjects = useMemo(
-    () => (coverage ? filterCoverage(coverage.subjects, filter, search) : []),
-    [coverage, filter, search],
+    () => (coverage ? filterCoverage(coverage.subjects, filter, search, missing) : []),
+    [coverage, filter, search, missing],
   );
 
   if (loading) {
@@ -262,14 +316,17 @@ export function CouverturePage() {
                 </b>{" "}
                 — ils attendent seulement d'être relus.
               </div>
-              <button
-                type="button"
-                disabled
-                title="File de relecture — chantier distinct, non livré"
-                className="cursor-not-allowed rounded-lg border border-papa-border px-2.5 py-1 text-xs font-semibold text-papa-muted opacity-45"
+              {/* ⚠️ Le bouton ne PORTE PAS le compteur du bandeau, et c'est délibéré :
+                  `pending_count` compte les dérivés `pending` de CETTE matrice (§F), la file en
+                  couvre cinq familles dont deux absentes d'ici (capsules, chapitres). Écrire
+                  « Relire les 12 » enverrait vers une page qui en montre 33. Le bandeau garde son
+                  chiffre, qui est vrai chez lui ; le bouton n'en promet aucun. */}
+              <Link
+                to="/relecture"
+                className="rounded-lg border border-papa-border px-2.5 py-1 text-xs font-semibold text-papa-text hover:bg-papa-surface-2"
               >
                 File de relecture
-              </button>
+              </Link>
             </div>
           )}
           {totals.orphan_count > 0 && (
@@ -318,7 +375,7 @@ export function CouverturePage() {
             <button
               key={entry.key}
               type="button"
-              onClick={() => setFilter(entry.key)}
+              onClick={() => patchParams({ filter: entry.key, manque: null })}
               aria-pressed={active}
               className={`rounded-full border px-3 py-1.5 text-[12.5px] transition-colors ${
                 active

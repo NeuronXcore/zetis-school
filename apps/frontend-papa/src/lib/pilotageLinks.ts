@@ -8,7 +8,12 @@
 // présélectionne la matière, puis met l'objet en évidence. Le cours fait exception — il vit
 // dans le référentiel, pas dans une page de pilotage de dérivé : il garde le format de
 // Programme (`subject` + `chapter` + `lesson`), déjà en place pour le lien « À valider ».
-import { type BlockedTarget, type CoverageCellKey, type PieceKind } from "@zetis/types";
+import {
+  type BlockedTarget,
+  type CoverageCellKey,
+  type PieceKind,
+  type ReviewItem,
+} from "@zetis/types";
 
 export interface CellTarget {
   subjectId: number;
@@ -56,4 +61,31 @@ export function journalLink(
     lessonId: target.lesson_id,
     objectId: target.object_id,
   });
+}
+
+/** Où va Papa quand il veut LIRE un objet de la file de relecture avant de trancher (adr-0039).
+ *
+ *  Frère de `journalLink`, et pour la même raison : deux des cinq familles ne sont pas des
+ *  cellules de la matrice. Un **chapitre** n'a pas de leçon (il vit dans le référentiel) et une
+ *  **capsule** n'a ni leçon ni colonne. Les faire passer par la branche générique de
+ *  `pilotageLink` les enverrait sur `/quiz` — d'où le branchement explicite, plutôt qu'une
+ *  cinquième entrée forcée dans un type qui ne la veut pas.
+ *
+ *  `null` = rien à ouvrir : la file affiche alors la ligne sans lien de sortie, ce qui vaut
+ *  toujours mieux qu'un lien qui déposerait Papa au hasard.
+ */
+export function reviewLink(item: ReviewItem): string | null {
+  const { kind, subject_id: subjectId, chapter_id: chapterId, lesson_id: lessonId } = item;
+  if (subjectId === null) return null;
+  if (kind === "chapter") {
+    return chapterId === null ? null : `/programme?subject=${subjectId}&chapter=${chapterId}`;
+  }
+  if (kind === "capsule") {
+    return `/capsules?subject=${subjectId}&focus=${item.id}`;
+  }
+  if (chapterId === null || lessonId === null) return null;
+  if (kind === "lesson") {
+    return pilotageLink("cours", { subjectId, chapterId, lessonId, objectId: item.id });
+  }
+  return pilotageLink(kind, { subjectId, chapterId, lessonId, objectId: item.id });
 }

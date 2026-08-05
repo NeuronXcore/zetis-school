@@ -288,6 +288,20 @@ def validate_mindmap(db: Session, mindmap_id: int, *, by: ValidatedBy = PARENT) 
     return row
 
 
+def reject_mindmap(db: Session, mindmap_id: int) -> Mindmap:
+    """`pending` → `rejected` : la carte n'atteindra pas Massimo, et elle reste en base.
+
+    Rejeter n'est pas supprimer — la carte reste régénérable depuis le pilotage. Aucune provenance
+    n'est écrite : `validated_at`/`validated_by` disent QUI a laissé passer (§F), et personne n'a
+    rien laissé passer ici.
+    """
+    row = _mindmap_or_404(db, mindmap_id)
+    row.validation_status = "rejected"
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def delete_mindmap(db: Session, mindmap_id: int) -> None:
     row = _mindmap_or_404(db, mindmap_id)
     # Pas d'ON DELETE CASCADE sur la FK : retirer d'abord les tentatives (sinon violation FK).
