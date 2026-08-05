@@ -251,6 +251,35 @@ describe("KPI actifs", () => {
     await waitFor(() => expect(kpi).toHaveAttribute("aria-pressed", "false"));
   });
 
+  // Verrou du lien mesure → preuves, tel qu'il se VOIT. Rien d'autre dans cette suite ne regarde
+  // ce que le focus produit à l'écran : sans ce test, `CARD_SCOPES` peut se décrocher de ce qui
+  // s'affiche sans qu'un seul test rougisse. Il porte sur les classes parce que c'est le seul
+  // endroit où jsdom peut constater le signe — l'apparence, elle, se vérifie à l'œil.
+  it("le souffle vert marque le KPI cliqué ET ses cartes liées, elles seules", async () => {
+    renderPage();
+    const kpi = await screen.findByRole("button", { name: /Temps actif/ });
+
+    // `heatmap` répond à « Temps actif » (`CARD_SCOPES`), `chaine` non.
+    const heatmap = document.querySelector('[data-card="heatmap"]');
+    const chaine = document.querySelector('[data-card="chaine"]');
+    expect(heatmap).not.toBeNull();
+    expect(chaine).not.toBeNull();
+
+    expect(kpi).not.toHaveClass("souffle-focus");
+    expect(heatmap!).not.toHaveClass("souffle-focus--lie");
+
+    fireEvent.click(kpi);
+    await waitFor(() => expect(kpi).toHaveClass("souffle-focus"));
+    expect(heatmap!).toHaveClass("souffle-focus", "souffle-focus--lie");
+    expect(chaine!).not.toHaveClass("souffle-focus");
+    expect(chaine!).not.toHaveClass("souffle-focus--lie");
+
+    // Relâcher éteint TOUT : un souffle qui survivrait au focus deviendrait un signe qui ment.
+    fireEvent.click(kpi);
+    await waitFor(() => expect(kpi).not.toHaveClass("souffle-focus"));
+    expect(heatmap!).not.toHaveClass("souffle-focus--lie");
+  });
+
   it("n'affiche PAS l'XP : il reste sur Progression (ADR-0028 §5)", async () => {
     renderPage();
     await screen.findByRole("button", { name: /Temps actif/ });

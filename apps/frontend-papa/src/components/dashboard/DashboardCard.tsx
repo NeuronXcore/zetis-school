@@ -11,6 +11,11 @@ import { matchesFocus } from "../../lib/dashboardDerive";
 // L'atténuation combine opacité ET désaturation, et la carte retenue reçoit une bordure : le
 // contraste seul serait invisible pour une partie des lecteurs, et un `aria-hidden` sur les
 // cartes atténuées mentirait (elles restent lisibles et navigables).
+//
+// La carte retenue reçoit en plus un souffle vert (`souffle-focus--lie`, cf. `index.css`), à peine
+// moins appuyé que celui du KPI cliqué mais bien plus court : ces cartes sont HAUTES, et un voile
+// qui monterait à la même hauteur relative envahirait le diagramme. Comme sur le KPI, il DOUBLE le
+// signe et ne le porte jamais seul.
 
 interface DashboardCardProps {
   /** Clé de `CARD_SCOPES` — c'est elle qui décide si la carte répond au focus courant. */
@@ -47,7 +52,7 @@ export function DashboardCard({
     <section
       data-card={card}
       className={`rounded-xl border bg-papa-surface transition-[opacity,filter] motion-reduce:transition-none ${
-        highlighted ? "border-papa-accent/50" : "border-papa-border"
+        highlighted ? "border-papa-accent souffle-focus souffle-focus--lie" : "border-papa-border"
       } ${dimmed ? "opacity-40 saturate-50" : ""} ${className}`}
     >
       <header className="flex flex-wrap items-center gap-2.5 px-4 pb-2 pt-3.5">

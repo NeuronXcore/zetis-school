@@ -121,6 +121,16 @@ Comportement (`adr-0028 §5`) : le clic met la page en focus — les cartes hors
 `opacity: .32` + désaturation, celles du périmètre reçoivent une bordure émeraude. Second clic =
 relâche. Un seul focus à la fois.
 
+Le KPI cliqué et les cartes retenues portent en plus un **souffle vert** — un voile émeraude ancré
+en bas de la boîte, qui enfle et retombe en ~4,5 s (`souffle-focus` / `souffle-focus--lie`, dans
+`index.css`). Bordure émeraude **pleine** des deux côtés ; ce qui distingue le KPI cliqué de ses
+cartes, c'est son anneau et un voile un peu plus haut. Sur les cartes le voile est volontairement
+plus court : elles sont hautes, et un voile à la même hauteur relative envahirait le diagramme.
+
+**Il DOUBLE le signe, il ne le porte jamais seul** — la bordure et l'anneau restent porteurs, et
+rien ne se perd si le souffle est coupé. C'est ce qui le distingue du halo de régime en sidebar,
+seul endroit du dépôt où une animation porte de l'information.
+
 Table de correspondance KPI → cartes : cf. `adr-0028 §5`. Implémentation : attribut
 `data-scope="temps regularite"` sur chaque carte, sélecteur `[data-scope~="<focus>"]`.
 
@@ -520,6 +530,8 @@ Contrats TypeScript : `packages/types/src/dashboard.ts` (à créer), `activity.t
 - Heatmap : chaque case a un `title` textuel ; l'information n'est jamais portée par la seule
   couleur (palier + valeur en tooltip).
 - `prefers-reduced-motion` : transitions d'atténuation supprimées, changement d'état instantané.
+  Le souffle du focus se **fige à mi-course** — le mouvement part, le voile reste. Même parti pris
+  que `couverture-breathe` et que le halo de régime : on retire le mouvement, jamais le signe.
 - Contraste : libellés d'axes en `--dim` vérifiés ≥ 4.5:1 sur `--panel`.
 
 ## Ce qui est retiré (ne pas rouvrir sans ADR)
