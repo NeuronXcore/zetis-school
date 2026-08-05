@@ -46,6 +46,9 @@ function renderCard(subjects: DashboardSubject[]) {
         focus={null}
         selected={null}
         onSelect={vi.fn()}
+        // Panneau fermé : ces tests portent sur le NUAGE. Le panneau a les siens.
+        panelSubject={null}
+        onClosePanel={vi.fn()}
       />
     </MemoryRouter>,
   );
@@ -229,6 +232,67 @@ describe("WhereToActCard — échelle verticale adaptative", () => {
       Number(i.getAttribute("width")),
     );
     expect(tailles).toEqual([...tailles].sort((a, b) => b - a));
+  });
+
+  it("🔴 deux matières aux MÊMES valeurs restent toutes deux visibles", () => {
+    // Constaté à l'écran le 2026-08-05 : Histoire-Géo et Anglais, toutes deux à 1 min et 0 %,
+    // occupaient le MÊME point au pixel près — la plus petite était entièrement contenue dans la
+    // plus grosse, donc invisible ET incliquable. Une matière absente du nuage ne se lit pas
+    // « superposée », elle se lit « pas de données ».
+    // ⚠️ Une TROISIÈME matière très active pousse les deux autres CONTRE l'axe. C'est ce que ce
+    // test ne faisait pas, et c'est pourquoi il est resté vert sur un correctif qui ne marchait
+    // pas : le clamp du cadre, appliqué après le désentassement, ramenait les deux bulles au bord
+    // et annulait l'écart. Une collision au milieu du graphe ne rencontre jamais ce cas.
+    const { container } = renderCard([
+      à("svt", 0, 1),
+      à("histoire-geo", 0, 1), // exactement les mêmes coordonnées, et collées à l'axe
+      à("francais", 0, 400),
+    ]);
+
+    // Les deux collées à l'axe sont les deux plus à gauche ; la troisième est loin à droite.
+    const toutes = [...nuage(container).querySelectorAll("image")].sort(
+      (a, b) => Number(a.getAttribute("x")) - Number(b.getAttribute("x")),
+    );
+    expect(toutes).toHaveLength(3);
+    const images = toutes.slice(0, 2);
+
+    const centre = (i: Element) =>
+      Number(i.getAttribute("x")) + Number(i.getAttribute("width")) / 2;
+    const rayon = (i: Element) => Number(i.getAttribute("width")) / 2;
+    const ecart = Math.abs(centre(images[0]) - centre(images[1]));
+    const petite = Math.min(rayon(images[0]), rayon(images[1]));
+
+    // Le critère n'est pas « les centres diffèrent » — un écart d'un pixel laisserait la petite
+    // sous la grosse. C'est que la plus petite DÉBORDE de la plus grosse.
+    expect(ecart).toBeGreaterThan(petite);
+  });
+
+  it("les étiquettes de deux bulles proches ne se superposent pas", () => {
+    // Désentasser les bulles ne suffit pas : leurs NOMS restaient l'un sur l'autre, et deux
+    // matières illisibles se lisent comme une seule.
+    const { container } = renderCard([à("svt", 0, 10), à("histoire-geo", 0, 10)]);
+
+    const etiquettes = [...nuage(container).querySelectorAll("text")].filter((e) =>
+      ["svt", "histoire-geo"].includes(e.textContent ?? ""),
+    );
+    expect(etiquettes).toHaveLength(2);
+    expect(Number(etiquettes[0].getAttribute("y"))).not.toBeCloseTo(
+      Number(etiquettes[1].getAttribute("y")),
+      0,
+    );
+  });
+
+  it("aucune bulle ne déborde du cadre du graphe", () => {
+    // Une matière à 1 minute mordait de 11 px à gauche de l'axe des ordonnées.
+    const { container } = renderCard([à("svt", 0, 0), à("francais", 100, 999)]);
+
+    const PAD_L = 44, PAD_R = 18, W = 400;
+    for (const im of nuage(container).querySelectorAll("image")) {
+      const x = Number(im.getAttribute("x"));
+      const w = Number(im.getAttribute("width"));
+      expect(x).toBeGreaterThanOrEqual(PAD_L - 0.01);
+      expect(x + w).toBeLessThanOrEqual(W - PAD_R + 0.01);
+    }
   });
 
   it("n'affiche pas un pointillé qui se confondrait avec son axe", () => {

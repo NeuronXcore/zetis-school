@@ -37,6 +37,10 @@ from app.modules.reports.schemas import CouncilReportSpec, generation_schema
 # Bornes de composition : on plafonne les notions fournies au LLM (prompt borné + focus sur les
 # plus fragiles). Purement de présentation — l'évidence complète reste calculable.
 _MAX_NOTIONS_PER_SUBJECT = 8
+# En portée matière il n'y a plus qu'UNE matière dans le prompt : le budget de jetons libéré permet
+# d'en montrer davantage. ⚠️ Le panneau d'analyse, lui, n'est PAS plafonné — les deux nombres
+# diffèrent donc légitimement, et l'écart est DÉCLARÉ (`scope.notions_available`), pas gommé.
+_MAX_NOTIONS_SCOPED = 16
 _RECENT_VERDICTS = 20
 
 
@@ -62,8 +66,14 @@ def _default_period(db: Session, student) -> str:
     return "Bilan"
 
 
-def _build_context(db: Session, student, period: str) -> tuple[dict, set[int], set[int]]:
-    """Compose l'évidence read-only en un contexte par matière (notions fragiles d'abord)."""
+def _build_context(
+    db: Session, student, period: str, *, subject_id: int | None = None
+) -> tuple[dict, set[int], set[int]]:
+    """Compose l'évidence read-only en un contexte par matière (notions fragiles d'abord).
+
+    `subject_id` restreint le contexte à UNE matière (`adr-0020-addendum-portee-matiere`). `None`
+    = conseil global, comportement historique inchangé.
+    """
     mastery = evidence.mastery_by_skill(db, student_id=student.id)
     gaps = evidence.open_gaps(db, student_id=student.id)
     weak = evidence.weighted_quiz_signal(db, student_id=student.id)
@@ -77,6 +87,11 @@ def _build_context(db: Session, student, period: str) -> tuple[dict, set[int], s
     for skill_id in candidate_ids:
         skill = db.get(Skill, skill_id)
         if skill is None:
+            continue
+        # UNIQUE point de filtrage, et il porte sur `skill.subject_id` — déjà la clé de groupement
+        # de `per_subject`, donc de `subjects_ctx`, donc de `allowed_subject_ids`. Filtrer ailleurs
+        # laisserait passer une notion dont le rapport ne saurait plus de quelle matière elle est.
+        if subject_id is not None and skill.subject_id != subject_id:
             continue
         m = float(mastery.get(skill_id, {}).get("mastery", 0.0))
         per_subject.setdefault(skill.subject_id, []).append(
@@ -92,20 +107,26 @@ def _build_context(db: Session, student, period: str) -> tuple[dict, set[int], s
             }
         )
 
+    cap = _MAX_NOTIONS_SCOPED if subject_id is not None else _MAX_NOTIONS_PER_SUBJECT
+    available = 0
+    considered = 0
+
     subjects_ctx: list[dict] = []
     allowed_skill_ids: set[int] = set()
-    for subject_id, notions in per_subject.items():
-        subject = db.get(Subject, subject_id)
+    for sid, notions in per_subject.items():
+        subject = db.get(Subject, sid)
         if subject is None:
             continue
         notions.sort(key=lambda n: (-n["_fragility"], n["skill_id"]))
-        notions = notions[:_MAX_NOTIONS_PER_SUBJECT]
+        available += len(notions)
+        notions = notions[:cap]
+        considered += len(notions)
         for n in notions:
             allowed_skill_ids.add(n["skill_id"])
-        s = srs.get(subject_id, {})
+        s = srs.get(sid, {})
         subjects_ctx.append(
             {
-                "subject_id": subject_id,
+                "subject_id": sid,
                 "subject_name": subject.name,
                 "srs_due": int(s.get("due", 0)),
                 "srs_max_overdue_days": int(s.get("max_overdue_days", 0)),
@@ -116,9 +137,24 @@ def _build_context(db: Session, student, period: str) -> tuple[dict, set[int], s
 
     acquired = sum(1 for v in verdicts if v.get("verdict") == "acquired")
     review_later = sum(1 for v in verdicts if v.get("verdict") == "review_later")
+    scope = None
+    if subject_id is not None:
+        cible = db.get(Subject, subject_id)
+        # `notions_available` / `notions_considered` rendent la TRONCATURE auditable dans
+        # `evidence_snapshot_json`. Sans eux, un rapport ciblé qui ignore 7 notions sur 23 est
+        # indiscernable d'un rapport complet — et l'auditabilité du figeage, seul argument
+        # justifiant l'absence de mode aperçu, ne tiendrait plus.
+        scope = {
+            "subject_id": subject_id,
+            "subject_name": cible.name if cible is not None else None,
+            "notions_available": available,
+            "notions_considered": considered,
+        }
+
     context = {
         "period": period,
         "note": "Évidence à l'instant (v1 : état courant, pas de fenêtre temporelle).",
+        "scope": scope,
         "subjects": subjects_ctx,
         "recent_activity": {
             "verdicts_considered": len(verdicts),
@@ -196,9 +232,12 @@ def _to_out(db: Session, report: CouncilReport) -> dict:
                 "recommendations": recos,
             }
         )
+    cible = db.get(Subject, report.subject_id) if report.subject_id else None
     return {
         "id": report.id,
         "period": report.period,
+        "subject_id": report.subject_id,
+        "subject_name": cible.name if cible is not None else None,
         "global_summary": report.global_summary,
         "subjects": subjects,
         "prompt_version": report.prompt_version,
@@ -207,11 +246,17 @@ def _to_out(db: Session, report: CouncilReport) -> dict:
 
 
 def generate_council_report(
-    db: Session, student, llm: LLMProvider, *, period: str | None = None
+    db: Session, student, llm: LLMProvider, *, period: str | None = None,
+    subject_id: int | None = None,
 ) -> dict:
-    """Génère + persiste un rapport figé. 100 % local (`llm` = provider Ollama/MLX)."""
+    """Génère + persiste un rapport figé. 100 % local (`llm` = provider Ollama/MLX).
+
+    `subject_id` = portée matière (`adr-0020-addendum-portee-matiere`). `None` = global.
+    """
     period = (period or "").strip() or _default_period(db, student)
-    context, allowed_subject_ids, allowed_skill_ids = _build_context(db, student, period)
+    context, allowed_subject_ids, allowed_skill_ids = _build_context(
+        db, student, period, subject_id=subject_id
+    )
 
     now = datetime.now(timezone.utc)
     job = AIJob(
@@ -220,6 +265,7 @@ def generate_council_report(
         input_json={
             "period": period,
             "prompt_version": council.COUNCIL_PROMPT_VERSION,
+            "subject_id": subject_id,
             "subjects": len(context["subjects"]),
         },
         created_by="parent",
@@ -232,10 +278,20 @@ def generate_council_report(
     if not context["subjects"]:
         # Dégradation gracieuse : aucune évidence → rapport serein, pas d'appel LLM.
         spec_subjects: list[dict] = []
-        global_summary = (
-            "Pas encore assez de données pour un conseil de classe. Lance quelques activités "
-            "avec Massimo, puis reviens : la synthèse s'appuiera sur ses résultats réels."
-        )
+        # Le message doit être CADRÉ sur ce qui a été demandé : dire « pas assez de données pour un
+        # conseil de classe » à propos d'une seule matière laisserait croire que toute la scolarité
+        # est muette.
+        cible = context.get("scope") or {}
+        if cible.get("subject_name"):
+            global_summary = (
+                f"Pas encore assez de données sur {cible['subject_name']} pour un conseil ciblé. "
+                "Lance quelques activités dans cette matière, puis reviens."
+            )
+        else:
+            global_summary = (
+                "Pas encore assez de données pour un conseil de classe. Lance quelques activités "
+                "avec Massimo, puis reviens : la synthèse s'appuiera sur ses résultats réels."
+            )
     else:
         system, prompt = council.build_prompt(context)
         schema = generation_schema()
@@ -272,6 +328,7 @@ def generate_council_report(
 
     report = CouncilReport(
         student_id=student.id,
+        subject_id=subject_id,
         period=period,
         global_summary=global_summary,
         subjects_json=spec_subjects,
@@ -289,20 +346,34 @@ def generate_council_report(
     return _to_out(db, report)
 
 
-def list_reports(db: Session, student, *, period: str | None = None) -> list[dict]:
+def list_reports(
+    db: Session, student, *, period: str | None = None, subject_id: int | None = None
+) -> list[dict]:
+    """Historique des rapports. ⚠️ SANS `subject_id`, rend TOUT — globaux et ciblés confondus.
+
+    C'est ce qui garde le client existant intact : `fetchCouncilReports()` ne passe rien et
+    continue de tout voir. Chaque élément porte sa portée, à charge du client de grouper.
+    """
     q = select(CouncilReport).where(CouncilReport.student_id == student.id)
     if period:
         q = q.where(CouncilReport.period == period)
+    if subject_id is not None:
+        q = q.where(CouncilReport.subject_id == subject_id)
     rows = db.scalars(q.order_by(CouncilReport.created_at.desc(), CouncilReport.id.desc()))
-    return [
-        {
-            "id": r.id,
-            "period": r.period,
-            "subjects_count": len(r.subjects_json or []),
-            "created_at": r.created_at,
-        }
-        for r in rows
-    ]
+    out: list[dict] = []
+    for r in rows:
+        cible = db.get(Subject, r.subject_id) if r.subject_id else None
+        out.append(
+            {
+                "id": r.id,
+                "period": r.period,
+                "subject_id": r.subject_id,
+                "subject_name": cible.name if cible is not None else None,
+                "subjects_count": len(r.subjects_json or []),
+                "created_at": r.created_at,
+            }
+        )
+    return out
 
 
 def get_report(db: Session, student, report_id: int) -> dict:

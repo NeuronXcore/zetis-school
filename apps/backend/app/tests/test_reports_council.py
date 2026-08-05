@@ -290,3 +290,177 @@ def test_create_champion_requires_two_subjects(client_db) -> None:
         json={"skill_ids": ids, "flavor": "consolidation"},
     )
     assert res.status_code == 422  # 1 seule matière → pas une croisée
+
+
+# ==================================================================================================
+# Portée matière (adr-0020-addendum-portee-matiere)
+# ==================================================================================================
+
+
+def _seed_deux_matieres(Session) -> tuple[int, int, int, int]:
+    """Deux matières avec chacune une notion fragile. Rend `(sujet_a, skill_a, sujet_b, skill_b)`."""
+    with Session() as db:
+        student = db.scalar(select(m.StudentProfile))
+        a = db.scalar(select(m.Subject))
+        b = m.Subject(name="SVT", slug="svt")
+        db.add(b)
+        db.flush()
+        skill_a = db.scalar(select(m.Skill))
+        skill_b = m.Skill(subject_id=b.id, name="Photosynthèse", level="4e")
+        db.add(skill_b)
+        db.flush()
+        for skill in (skill_a, skill_b):
+            db.add(
+                m.SkillMastery(
+                    student_id=student.id, skill_id=skill.id, mastery_score=0.2, status="weak"
+                )
+            )
+        db.commit()
+        return a.id, skill_a.id, b.id, skill_b.id
+
+
+def _fake_council(subject_id: int, subject_name: str, skill_id: int) -> None:
+    app.dependency_overrides[get_provider] = lambda: FakeLLMProvider(
+        council={
+            "global_summary": "Synthèse.",
+            "subjects": [
+                {
+                    "subject_id": subject_id,
+                    "subject_name": subject_name,
+                    "strengths": "",
+                    "to_reinforce": "",
+                    "recent_evolution": "",
+                    "recommendations": [
+                        {"skill_ids": [skill_id], "template_hint": "", "justification": "x"}
+                    ],
+                }
+            ],
+        }
+    )
+
+
+def test_le_conseil_cible_ne_narre_QUE_sa_matiere(client_db) -> None:
+    """La restriction de `_build_context`. Sans elle, le contexte porte les deux matières."""
+    client, Session = client_db
+    sujet_a, skill_a, _sujet_b, _skill_b = _seed_deux_matieres(Session)
+    _as_parent()
+    _fake_council(sujet_a, "Mathématiques", skill_a)
+
+    body = client.post("/api/reports/class-council", json={"subject_id": sujet_a}).json()
+
+    assert body["subject_id"] == sujet_a
+    assert body["subject_name"] == "Mathématiques"
+    with Session() as db:
+        rapport = db.scalar(select(m.CouncilReport).order_by(m.CouncilReport.id.desc()))
+        evidence = rapport.evidence_snapshot_json
+    assert len(evidence["subjects"]) == 1, "l'évidence ne doit porter QUE la matière ciblée"
+    assert evidence["subjects"][0]["subject_id"] == sujet_a
+    assert evidence["scope"]["subject_id"] == sujet_a
+
+
+def test_l_ancrage_rejette_une_autre_matiere_en_portee_ciblee(client_db) -> None:
+    """L'ancrage hérite de la portée GRATUITEMENT — `allowed_subject_ids` dérive du contexte.
+
+    C'est exactement le genre de propriété qu'un refactor casse en silence : il suffit de calculer
+    `allowed_subject_ids` AVANT le filtrage « pour clarifier », et une matière hors portée passe.
+    D'où ce verrou : un modèle qui nomme une matière VALIDE mais hors portée doit rendre un rapport
+    vide.
+    """
+    client, Session = client_db
+    sujet_a, _skill_a, sujet_b, skill_b = _seed_deux_matieres(Session)
+    _as_parent()
+    # Conseil ciblé sur A, mais le modèle raconte B — qui existe, et a de l'évidence.
+    _fake_council(sujet_b, "SVT", skill_b)
+
+    body = client.post("/api/reports/class-council", json={"subject_id": sujet_a}).json()
+
+    assert body["subjects"] == [], "une matière hors portée doit être rejetée par l'ancrage"
+
+
+def test_le_conseil_GLOBAL_reste_inchange(client_db) -> None:
+    """Rétrocompatibilité stricte : `{}` et `{"period": …}` continuent de tout narrer."""
+    client, Session = client_db
+    sujet_a, skill_a, _sujet_b, _skill_b = _seed_deux_matieres(Session)
+    _as_parent()
+    _fake_council(sujet_a, "Mathématiques", skill_a)
+
+    body = client.post("/api/reports/class-council", json={"period": "Trimestre 1"}).json()
+
+    assert body["subject_id"] is None, "sans portée, le rapport est GLOBAL"
+    with Session() as db:
+        rapport = db.scalar(select(m.CouncilReport).order_by(m.CouncilReport.id.desc()))
+        evidence = rapport.evidence_snapshot_json
+    assert len(evidence["subjects"]) == 2, "le conseil global voit toujours les deux matières"
+    assert evidence["scope"] is None
+
+
+def test_la_liste_rend_TOUT_par_defaut_et_sait_filtrer(client_db) -> None:
+    """Sans `subject_id`, la liste rend globaux ET ciblés — c'est ce qui garde le client intact."""
+    client, Session = client_db
+    sujet_a, skill_a, _sujet_b, _skill_b = _seed_deux_matieres(Session)
+    _as_parent()
+    _fake_council(sujet_a, "Mathématiques", skill_a)
+
+    client.post("/api/reports/class-council", json={})
+    client.post("/api/reports/class-council", json={"subject_id": sujet_a})
+
+    tout = client.get("/api/reports/class-council").json()
+    assert len(tout) == 2
+    assert {item["subject_id"] for item in tout} == {None, sujet_a}
+
+    cible = client.get(f"/api/reports/class-council?subject_id={sujet_a}").json()
+    assert len(cible) == 1 and cible[0]["subject_id"] == sujet_a
+    assert cible[0]["subject_name"] == "Mathématiques"
+
+
+def test_la_troncature_du_conseil_cible_est_DECLAREE(client_db) -> None:
+    """Le panneau n'est pas plafonné, le prompt l'est à 16. L'écart doit être AUDITABLE.
+
+    Sans `notions_available`, un rapport ciblé qui ignore 4 notions sur 20 est indiscernable d'un
+    rapport complet — et l'auditabilité du figeage, seul argument justifiant l'absence de mode
+    aperçu, ne tiendrait plus.
+    """
+    client, Session = client_db
+    with Session() as db:
+        student = db.scalar(select(m.StudentProfile))
+        sujet = db.scalar(select(m.Subject))
+        skills = [m.Skill(subject_id=sujet.id, name=f"N{i}", level="4e") for i in range(20)]
+        db.add_all(skills)
+        db.flush()
+        for skill in skills:
+            db.add(
+                m.SkillMastery(
+                    student_id=student.id, skill_id=skill.id, mastery_score=0.2, status="weak"
+                )
+            )
+        db.commit()
+        sujet_id, premier = sujet.id, skills[0].id
+    _as_parent()
+    _fake_council(sujet_id, "Mathématiques", premier)
+
+    client.post("/api/reports/class-council", json={"subject_id": sujet_id})
+
+    with Session() as db:
+        scope = db.scalar(
+            select(m.CouncilReport).order_by(m.CouncilReport.id.desc())
+        ).evidence_snapshot_json["scope"]
+    assert scope["notions_available"] == 20
+    assert scope["notions_considered"] == 16, "plafond ciblé, plus large que les 8 du global"
+    assert scope["notions_available"] > scope["notions_considered"], "la troncature est déclarée"
+
+
+def test_la_degradation_gracieuse_est_cadree_sur_la_matiere(client_db) -> None:
+    """« Pas assez de données pour un conseil de classe » à propos d'UNE matière laisserait croire
+    que toute la scolarité est muette."""
+    client, Session = client_db
+    with Session() as db:
+        vide = m.Subject(name="Espagnol", slug="espagnol")
+        db.add(vide)
+        db.commit()
+        vide_id = vide.id
+    _as_parent()
+
+    body = client.post("/api/reports/class-council", json={"subject_id": vide_id}).json()
+
+    assert body["subjects"] == []
+    assert "Espagnol" in body["global_summary"]

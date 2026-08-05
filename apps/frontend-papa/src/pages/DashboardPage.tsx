@@ -244,12 +244,18 @@ export function DashboardPage() {
           period={period}
           focus={focus}
           selected={activeSubject}
-          onSelect={dash.toggleSubject}
+          // ⚠️ `analyseSubject` et NON `toggleSubject` : les autres surfaces de sélection
+          // (pastilles, donut, barres) filtrent et REFERMENT le panneau ; la bulle est le seul
+          // geste qui le déplie.
+          onSelect={dash.analyseSubject}
+          panelSubject={dash.panelSubject}
+          onClosePanel={dash.closePanel}
         />
         <ReviewLoadCard load={sumReviewLoad(visibleSubjects)} focus={focus} />
         <ContentChainCard stages={data.content_chain} focus={focus} />
         <ZetisReadingCard
           items={data.reading}
+          period={period}
           proposal={data.proposed_mission}
           withoutMission={kpis.open_gaps.without_mission}
           focus={focus}

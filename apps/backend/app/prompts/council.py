@@ -14,7 +14,10 @@ Règle CLAUDE.md : un prompt IA vit ici, jamais dans un composant.
 
 import json
 
-COUNCIL_PROMPT_VERSION = "v1"
+# ⚠️ Le texte du prompt change → la version change. `prompt_version` est persisté sur chaque
+# rapport : les rapports existants gardent `v1`, aucune migration de données, et la comparaison
+# entre générations reste possible.
+COUNCIL_PROMPT_VERSION = "v2"
 
 SYSTEM_PROMPT = (
     "Tu es ZETIS, et tu rédiges un « conseil de classe » personnalisé pour UN enfant "
@@ -73,7 +76,21 @@ REPAIR_INSTRUCTION = (
 def build_prompt(context: dict) -> tuple[str, str]:
     """Construit `(system, prompt)`. `context` = évidence structurée par le service (matières →
     notions fragiles avec id/nom/maîtrise/signaux, pression SRS, activité récente)."""
+    scope = context.get("scope")
+    # Le périmètre est annoncé AVANT l'évidence : un modèle qui découvre la contrainte après les
+    # données a déjà commencé à raisonner sur l'ensemble.
+    cadre = ""
+    if scope and scope.get("subject_name"):
+        cadre = (
+            f"PÉRIMÈTRE : ce conseil porte UNIQUEMENT sur {scope['subject_name']}. N'inclus "
+            "aucune autre matière. Le résumé global résume CETTE matière seule — pas l'ensemble "
+            "de la scolarité — et ne la compare à aucune autre, dont tu n'as pas les données. "
+            "PAR DÉROGATION au cadre général qui en autorise 2 : la matière étant le seul sujet, "
+            "tu peux proposer jusqu'à 3 recommandations.\n\n"
+        )
+
     prompt = (
+        f"{cadre}"
         f"PÉRIODE : {context.get('period', '—')}\n\n"
         "ÉVIDENCE (calculée, à raconter — n'utilise que ces subject_id / skill_id) :\n"
         f"{json.dumps(context, ensure_ascii=False, indent=2)}\n\n"

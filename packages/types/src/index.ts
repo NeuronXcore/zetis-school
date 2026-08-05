@@ -36,6 +36,13 @@ export {
   type ReadingTrend,
 } from "./dashboard";
 export {
+  type AnalysisInProgress,
+  type AnalysisMission,
+  type AnalysisNotion,
+  type AnalysisReferentiel,
+  type SubjectAnalysis,
+} from "./subjectAnalysis";
+export {
   type MotivationContext,
   type MotivationCta,
   type MotivationDay,

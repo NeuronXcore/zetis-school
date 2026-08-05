@@ -55,6 +55,13 @@ class GenerateCouncilRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     period: str | None = None
+    # Portée matière (`adr-0020-addendum-portee-matiere`). `None` = conseil GLOBAL, comportement
+    # historique inchangé.
+    #
+    # ⚠️ `extra="forbid"` rejette les champs NON DÉCLARÉS : ajouter un champ déclaré et optionnel
+    # ne casse rien — `{}` et `{"period": …}` restent valides, et le client existant passe sans
+    # une ligne de modification.
+    subject_id: int | None = None
 
 
 class EquipNotionRequest(BaseModel):
@@ -124,6 +131,9 @@ class CouncilSubjectOut(BaseModel):
 class CouncilReportOut(BaseModel):
     id: int
     period: str
+    # `None` = rapport GLOBAL. Une valeur = rapport CIBLÉ sur une matière.
+    subject_id: int | None = None
+    subject_name: str | None = None
     global_summary: str
     subjects: list[CouncilSubjectOut] = Field(default_factory=list)
     prompt_version: str
@@ -132,6 +142,8 @@ class CouncilReportOut(BaseModel):
 
 class CouncilReportListItem(BaseModel):
     id: int
+    subject_id: int | None = None
+    subject_name: str | None = None
     period: str
     subjects_count: int
     created_at: datetime | None = None

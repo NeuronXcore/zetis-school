@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { SubjectPictogram, subjectColorFor, subjectIconFor } from "@zetis/ui";
 import type { DashboardFocus, DashboardPeriod, DashboardSubject } from "@zetis/types";
 import { DashboardCard } from "./DashboardCard";
+import { SubjectAnalysisPanel } from "./SubjectAnalysisPanel";
+import { generateCouncil } from "../../lib/councilClass";
+import { COUNCIL_PERIOD_LABEL } from "../../lib/dashboardDerive";
 
 // « Où agir » — nuage temps actif × taux de consolidation, aire ∝ nombre de notions.
 //
@@ -26,6 +30,45 @@ const PAD = { l: 44, r: 18, t: 14, b: 36 };
 // « bien ancré ». Le plancher garde ces cas écrasés en bas, ce qui est la lecture vraie.
 const Y_FLOOR_PERCENT = 10;
 
+/** Écarte horizontalement les bulles qui se recouvrent trop, autour de leur position réelle.
+ *
+ *  🔴 Sans ça, deux matières aux mêmes valeurs occupent le MÊME point et la plus petite disparaît
+ *  entièrement sous la plus grosse — constaté à l'écran le 2026-08-05 : Histoire-Géo et Anglais,
+ *  toutes deux à 1 min et 0 %, au pixel près l'une sur l'autre. Une matière absente du nuage ne se
+ *  lit pas comme « superposée », elle se lit comme « pas de données ».
+ *
+ *  ⚠️ L'écart DÉPLACE le point sur l'axe du temps. C'est un compromis assumé et borné : le
+ *  déplacement vaut au plus un rayon, il est symétrique (aucune matière n'est systématiquement
+ *  poussée vers « plus de temps »), et l'infobulle porte toujours les chiffres EXACTS. Il est
+ *  annoncé dans la note de la carte. */
+function spreadOverlaps(
+  points: { cx: number; cy: number; r: number }[],
+  minX: number,
+  maxX: number,
+): void {
+  const ordered = [...points].sort((a, b) => a.cx - b.cx || b.r - a.r);
+  // Plusieurs passes : écarter un point peut le remettre en contact avec son voisin de gauche.
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 1; i < ordered.length; i++) {
+      const prev = ordered[i - 1];
+      const cur = ordered[i];
+      // On ne désentasse que ce qui se chevauche aussi VERTICALEMENT : deux bulles éloignées en
+      // consolidation se lisent très bien même proches en temps.
+      if (Math.abs(cur.cy - prev.cy) > (prev.r + cur.r) * 0.7) continue;
+      const mini = (prev.r + cur.r) * 0.8; // un léger recouvrement reste lisible
+      if (cur.cx - prev.cx >= mini) continue;
+      const pousse = (mini - (cur.cx - prev.cx)) / 2;
+      // 🔴 Les BORNES sont appliquées ICI, dans la boucle, et l'écart est reporté sur le voisin
+      // quand l'un des deux est bloqué contre un bord. Un clamp fait APRÈS coup annulait le
+      // désentassement : deux matières à 1 minute étaient toutes deux ramenées contre l'axe et se
+      // retrouvaient à 2 px l'une de l'autre — constaté à l'écran le 2026-08-05, alors que les
+      // tests passaient parce qu'ils plaçaient la collision loin du bord.
+      prev.cx = Math.max(minX + prev.r, prev.cx - pousse);
+      cur.cx = Math.min(maxX - cur.r, Math.max(cur.cx + pousse, prev.cx + mini));
+    }
+  }
+}
+
 /** Médiane d'une série, 0 si vide. Sert aux DEUX pointillés de quadrant. */
 function median(values: number[]): number {
   if (values.length === 0) return 0;
@@ -39,10 +82,47 @@ interface WhereToActCardProps {
   period: DashboardPeriod;
   focus: DashboardFocus | null;
   selected: DashboardSubject | null;
+  /** Clic sur une bulle : sélectionne la matière ET déplie son analyse, en un seul geste. */
   onSelect: (slug: string) => void;
+  /** Matière dont l'analyse est dépliée, ou `null`. Vient de l'URL (`?panel=ou-agir`), pas d'un
+   *  état local — le lien de preuve de la Lecture ZETIS doit pouvoir l'ouvrir depuis la MÊME page,
+   *  où React Router ne remonte pas le composant. */
+  panelSubject: DashboardSubject | null;
+  onClosePanel: () => void;
 }
 
-export function WhereToActCard({ subjects, period, focus, selected, onSelect }: WhereToActCardProps) {
+export function WhereToActCard({
+  subjects,
+  period,
+  focus,
+  selected,
+  onSelect,
+  panelSubject,
+  onClosePanel,
+}: WhereToActCardProps) {
+  // 🔴 L'état du run vit ICI, au-dessus du panneau. Le panneau se démonte dès que Papa clique une
+  // autre bulle : si `running` y vivait, la barre disparaîtrait, l'état repartirait à zéro et le
+  // bouton redeviendrait cliquable PENDANT que l'appel tourne — deux rapports pour une matière.
+  const [run, setRun] = useState<{ slug: string; name: string } | null>(null);
+  const [done, setDone] = useState<{ slug: string; id: number; text: string } | null>(null);
+
+  const lancerSynthese = (cible: DashboardSubject) => {
+    setRun({ slug: cible.slug, name: cible.name });
+    setDone(null);
+    // Le `period` envoyé est le LIBELLÉ, comme sur la page Conseil : un rapport lancé d'ici et un
+    // rapport lancé de là-bas doivent porter la même période dans l'historique.
+    void generateCouncil(COUNCIL_PERIOD_LABEL[period], cible.id)
+      .then((rapport) => {
+        const sien = rapport.subjects.find((s) => s.subject_id === cible.id);
+        setDone({
+          slug: cible.slug,
+          id: rapport.id,
+          text: sien?.to_reinforce || rapport.global_summary,
+        });
+      })
+      .catch(() => setDone(null))
+      .finally(() => setRun(null));
+  };
   const plotted = subjects.filter((s) => s.notions.total > 0);
   // Les coordonnées sont calculées UNE fois, avant le rendu : l'échelle et les médianes dépendent
   // de l'ensemble des points, on ne peut plus les déduire matière par matière dans le `map`.
@@ -88,6 +168,31 @@ export function WhereToActCard({ subjects, period, focus, selected, onSelect }: 
   const y = (percent: number) => H - PAD.b - bottomInset - (percent / yMax) * plotHeight;
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(yMax * f));
 
+  // Positions calculées ICI, une fois, parce que le désentassement a besoin de voir tous les
+  // points ensemble — un point ne peut pas savoir seul qu'il en cache un autre.
+  const placed = points.map((p) => ({
+    ...p,
+    r: 6 + Math.sqrt(p.subject.notions.total) * 2.2,
+    cx: x(p.minutes),
+    cy: y(p.percent),
+  }));
+  // Les bornes du cadre sont passées au désentassement, pas appliquées après lui : une matière à
+  // 1 minute mordait sur l'axe des ordonnées, et la ramener ensuite écrasait l'écart tout juste
+  // obtenu.
+  for (const p of placed) {
+    p.cx = Math.min(W - PAD.r - p.r, Math.max(PAD.l + p.r, p.cx));
+  }
+  spreadOverlaps(placed, PAD.l, W - PAD.r);
+  // Étiquettes décalées quand deux bulles restent proches : leurs noms se superposaient.
+  const labelTier = new Map<string, number>();
+  [...placed]
+    .sort((a, b) => a.cx - b.cx)
+    .forEach((p, i, arr) => {
+      const voisin = i > 0 ? arr[i - 1] : null;
+      const colle = voisin !== null && Math.abs(p.cx - voisin.cx) < 62;
+      labelTier.set(p.subject.slug, colle ? 1 - (labelTier.get(voisin!.subject.slug) ?? 0) : 0);
+    });
+
   return (
     <DashboardCard
       card="ou-agir"
@@ -97,8 +202,8 @@ export function WhereToActCard({ subjects, period, focus, selected, onSelect }: 
       className="xl:col-span-5"
       note={
         zoomed
-          ? `Chaque bulle est une matière ; sa taille est le nombre de notions au programme. L'échelle verticale s'arrête à ${yMax} % parce que c'est le maximum atteint : une bulle haute est simplement DEVANT les autres, pas encore ancrée. Les pointillés sont les médianes des matières affichées.`
-          : "Chaque bulle est une matière ; sa taille est le nombre de notions au programme. En bas à droite : beaucoup de temps, peu de consolidation — c'est là qu'une mission change quelque chose."
+          ? `Chaque bulle est une matière ; sa taille est le nombre de notions au programme. L'échelle verticale s'arrête à ${yMax} % parce que c'est le maximum atteint : une bulle haute est simplement DEVANT les autres, pas encore ancrée. Les pointillés sont les médianes des matières affichées. Deux matières aux valeurs identiques sont légèrement écartées pour rester visibles — l'infobulle donne les chiffres exacts.`
+          : "Chaque bulle est une matière ; sa taille est le nombre de notions au programme. En bas à droite : beaucoup de temps, peu de consolidation — c'est là qu'une mission change quelque chose. Deux matières aux valeurs identiques sont légèrement écartées pour rester visibles — l'infobulle donne les chiffres exacts."
       }
     >
       {plotted.length === 0 ? (
@@ -142,16 +247,13 @@ export function WhereToActCard({ subjects, period, focus, selected, onSelect }: 
             temps actif sur la période →
           </text>
 
-          {points.map(({ subject, minutes, percent }) => {
+          {placed.map(({ subject, minutes, percent, r: radius, cx, cy }) => {
             // ⚠️ Le rayon PORTE une donnée (aire ∝ notions au programme, cf. la note de la carte).
             // Le pictogramme prend exactement la place du disque : le changer de visuel ne doit pas
             // faire perdre l'encodage de taille, sinon la carte ne dit plus qu'une chose sur trois.
-            const radius = 6 + Math.sqrt(subject.notions.total) * 2.2;
             const dimmed = selected !== null && selected.slug !== subject.slug;
             const color = subjectColorFor(subject.slug, subject.color);
             const icon = subjectIconFor(subject.slug);
-            const cx = x(minutes);
-            const cy = y(percent);
             const clipId = `ou-agir-${subject.slug}`;
             return (
               <g
@@ -198,7 +300,7 @@ export function WhereToActCard({ subjects, period, focus, selected, onSelect }: 
                 )}
                 <text
                   x={cx}
-                  y={cy - radius - 5}
+                  y={cy - radius - 5 - (labelTier.get(subject.slug) ?? 0) * 11}
                   textAnchor="middle"
                   className="fill-papa-muted font-mono text-[9.5px]"
                 >
@@ -208,6 +310,18 @@ export function WhereToActCard({ subjects, period, focus, selected, onSelect }: 
             );
           })}
         </svg>
+      )}
+
+      {panelSubject && (
+        <SubjectAnalysisPanel
+          subject={panelSubject}
+          period={period}
+          onClose={onClosePanel}
+          generating={run?.slug === panelSubject.slug}
+          generatingElsewhere={run && run.slug !== panelSubject.slug ? run.name : null}
+          onGenerate={() => lancerSynthese(panelSubject)}
+          generated={done?.slug === panelSubject.slug ? done : null}
+        />
       )}
 
       {/* CTA à DEUX ÉTATS, toujours présent : le faire apparaître décalerait la mise en page au
@@ -225,7 +339,7 @@ export function WhereToActCard({ subjects, period, focus, selected, onSelect }: 
           <>
             {/* Pictogramme via `subjectIcons` — jamais d'emoji codé en dur. */}
             <SubjectPictogram slug={selected.slug} name={selected.name} size="sm" />
-            Analyser {selected.name} dans le conseil de classe
+            Ouvrir le conseil de classe — {selected.name}
           </>
         ) : (
           <>

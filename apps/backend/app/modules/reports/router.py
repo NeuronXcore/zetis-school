@@ -35,7 +35,13 @@ def generate_council(
 ) -> dict:
     try:
         return service.generate_council_report(
-            db, get_default_student(db), provider, period=payload.period
+            db,
+            get_default_student(db),
+            provider,
+            period=payload.period,
+            # `None` = conseil global, comportement historique. Une valeur restreint l'évidence,
+            # l'ancrage et le rapport figé à cette seule matière.
+            subject_id=payload.subject_id,
         )
     except service.CouncilGenerationError as exc:
         raise HTTPException(
@@ -45,8 +51,13 @@ def generate_council(
 
 
 @router.get("/class-council", response_model=list[CouncilReportListItem])
-def list_council(period: str | None = None, db: Session = Depends(get_db)) -> list[dict]:
-    return service.list_reports(db, get_default_student(db), period=period)
+def list_council(
+    period: str | None = None,
+    # ⚠️ ABSENT = tout, globaux et ciblés confondus — c'est ce qui garde le client existant intact.
+    subject_id: int | None = None,
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return service.list_reports(db, get_default_student(db), period=period, subject_id=subject_id)
 
 
 @router.post("/class-council/equip-notion", response_model=EquipNotionResult)

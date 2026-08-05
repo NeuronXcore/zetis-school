@@ -25,6 +25,9 @@ export interface CouncilSubject {
 export interface CouncilReport {
   id: number;
   period: string;
+  /** `null` = rapport GLOBAL. Une valeur = rapport CIBLÉ sur une matière (addendum ADR-0020). */
+  subject_id: number | null;
+  subject_name: string | null;
   global_summary: string;
   subjects: CouncilSubject[];
   prompt_version: string;
@@ -34,6 +37,8 @@ export interface CouncilReport {
 export interface CouncilReportListItem {
   id: number;
   period: string;
+  subject_id: number | null;
+  subject_name: string | null;
   subjects_count: number;
   created_at: string | null;
 }
@@ -73,11 +78,15 @@ async function asJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function generateCouncil(period?: string): Promise<CouncilReport> {
+/** Génère un rapport et le FIGE. Il n'existe pas de mode aperçu : ce bouton écrit.
+ *
+ *  @param subjectId portée matière. `undefined` = synthèse toutes matières (comportement
+ *  historique — les appelants existants n'ont pas à changer). */
+export function generateCouncil(period?: string, subjectId?: number): Promise<CouncilReport> {
   return fetch(`${API_URL}/api/reports/class-council`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ period: period ?? null }),
+    body: JSON.stringify({ period: period ?? null, subject_id: subjectId ?? null }),
   }).then((r) => asJson<CouncilReport>(r));
 }
 
