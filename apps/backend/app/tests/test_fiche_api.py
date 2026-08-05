@@ -4,10 +4,16 @@ Le service est appelé en direct pour fabriquer les données (générer une fich
 les routes élève sont testées avec le client `child` de la fixture (rôle autorisé en lecture).
 """
 
+from app.main import app
+from app.modules.auth.deps import get_current_user
 from app.modules.fiches import service
 from app.prompts import fiche
 from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
 from app.tests.test_fiche_service import _seed_validated_lesson
+
+
+def _as_papa() -> None:
+    app.dependency_overrides[get_current_user] = lambda: {"username": "papa", "role": "papa"}
 
 
 def _make_pending_fiche(db) -> int:
@@ -91,3 +97,33 @@ def test_fiches_summary_counts_and_new(client_db) -> None:
     subj = {s["slug"]: s for s in client.get("/api/student/fiches/summary").json()["subjects"]}
     assert subj["mathematiques"]["fiche_count"] == 1
     assert subj["mathematiques"]["new_count"] == 0
+
+
+def test_rejeter_une_fiche_la_retire_de_massimo_SANS_la_supprimer(client_db) -> None:
+    """Rejeter ≠ supprimer (ADR-0039 §8) : la fiche reste en base, régénérable depuis le pilotage.
+
+    Sans endpoint de rejet, la file de relecture offrirait « Rejeter » pour les capsules et les
+    leçons mais pas pour les fiches — une asymétrie que rien n'expliquerait à l'écran.
+    """
+    client, Session = client_db
+    with Session() as db:
+        fiche_id = _make_pending_fiche(db)
+
+    _as_papa()
+    response = client.post(f"/api/fiches/{fiche_id}/reject")
+
+    assert response.status_code == 200
+    assert response.json()["validation_status"] == "rejected"
+    # La fiche existe toujours…
+    assert client.get(f"/api/fiches/{fiche_id}").status_code == 200
+    # … et elle n'atteint pas Massimo.
+    assert client.get("/api/student/subjects/mathematiques/fiches").json() == []
+    # Aucune provenance écrite : `validated_by` dit QUI a laissé passer, personne n'a rien laissé
+    # passer ici (addendum ADR-0011 §F).
+    with Session() as db:
+        assert service.get_fiche(db, fiche_id).validated_by is None
+
+
+def test_le_rejet_d_une_fiche_est_une_route_papa(client_db) -> None:
+    client, _ = client_db  # la fixture authentifie un rôle "child"
+    assert client.post("/api/fiches/1/reject").status_code == 403

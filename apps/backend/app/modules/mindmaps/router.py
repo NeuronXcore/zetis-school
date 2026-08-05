@@ -118,6 +118,12 @@ def validate(mindmap_id: int, db: Session = Depends(get_db)) -> dict:
     return service.mindmap_out(db, service.validate_mindmap(db, mindmap_id))
 
 
+@router.post("/{mindmap_id}/reject", response_model=MindmapOut)
+def reject(mindmap_id: int, db: Session = Depends(get_db)) -> dict:
+    """Papa : `pending` → `rejected` (la carte n'atteindra pas Massimo, sans être supprimée)."""
+    return service.mindmap_out(db, service.reject_mindmap(db, mindmap_id))
+
+
 @router.delete("/{mindmap_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete(mindmap_id: int, db: Session = Depends(get_db)) -> Response:
     service.delete_mindmap(db, mindmap_id)

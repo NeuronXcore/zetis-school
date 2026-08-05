@@ -50,12 +50,29 @@ class SchoolYearOut(BaseModel):
     program_version: str | None = None
 
 
+class InboxSegment(BaseModel):
+    """Une part cliquable du détail d'une ligne de la file (ADR-0039 §5).
+
+    Le `href` est **servi par le serveur**, comme celui de la ligne elle-même : c'est le contrat de
+    la file, et l'addendum ADR-0028 §6 est explicite — *« une règle d'adressage n'a rien à faire
+    dans un composant de présentation »*.
+    """
+
+    kind: str  # lesson | fiche | mindmap | capsule | chapter
+    count: int
+    label: str  # « 27 leçons »
+    href: str
+
+
 class InboxItem(BaseModel):
     kind: str  # validation | gap | demande | referentiel | source
     count: int
     label: str
     detail: str | None = None
     href: str
+    # Vide pour les quatre familles autres que `validation` : elles n'ont rien à décomposer, et le
+    # front garde son repli sur `detail`.
+    breakdown: list[InboxSegment] = []
 
 
 class CalendarDay(BaseModel):
@@ -113,6 +130,14 @@ class ContentStage(BaseModel):
     label: str
     value: int
     target: int
+    # Où va Papa pour produire ce qui manque à CETTE marche (ADR-0039 §9). Servi par le serveur
+    # comme les `href` de la file : une règle d'adressage n'a rien à faire dans un composant de
+    # présentation (addendum ADR-0028 §6). `None` = rien à ouvrir.
+    missing_href: str | None = None
+    # Combien la destination en ouvre RÉELLEMENT — et non `target - value`, qui compte aussi ce
+    # qui n'est pas encore produisible. Le couple (nombre, lien) doit tenir ensemble ou ne pas
+    # exister : c'est toute la raison d'être de l'ADR-0039.
+    missing_count: int | None = None
 
 
 class Evidence(BaseModel):

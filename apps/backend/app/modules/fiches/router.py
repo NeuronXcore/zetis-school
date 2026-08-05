@@ -98,6 +98,12 @@ def validate(fiche_id: int, db: Session = Depends(get_db)) -> dict:
     return service.fiche_out(db, service.validate_fiche(db, fiche_id))
 
 
+@router.post("/{fiche_id}/reject", response_model=FicheOut)
+def reject(fiche_id: int, db: Session = Depends(get_db)) -> dict:
+    """Papa : `pending` → `rejected` (la fiche n'atteindra pas Massimo, sans être supprimée)."""
+    return service.fiche_out(db, service.reject_fiche(db, fiche_id))
+
+
 @router.delete("/{fiche_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete(fiche_id: int, db: Session = Depends(get_db)) -> Response:
     service.delete_fiche(db, fiche_id)

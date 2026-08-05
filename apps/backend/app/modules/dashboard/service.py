@@ -16,7 +16,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
-    Capsule,
     Chapter,
     ContentRequest,
     Fiche,
@@ -24,7 +23,6 @@ from app.db.models import (
     LearningEvent,
     Lesson,
     LessonSkill,
-    Mindmap,
     Mission,
     NotionRequest,
     Quiz,
@@ -48,6 +46,8 @@ from app.modules.activity.timeutils import (
     week_start,
 )
 from app.modules.dashboard import projections as p
+from app.modules.production.coverage import actionable_gaps
+from app.modules.review_queue import service as review_queue
 from app.modules.progress.service import OPEN_GAP_STATUSES, skills_with_active_mission
 
 # Fenêtre de la heatmap calendrier — indépendante du sélecteur de période, qui ne pilote que les
@@ -221,6 +221,26 @@ def _referentiel_subjects(db: Session, year_id: int | None) -> set[int]:
 # File « À décider »
 # ==================================================================================================
 
+# Où mène chaque part du détail « 26 cours · 1 fiche · 5 capsules » (ADR-0039 §5).
+#
+# **Les cinq familles vont à la file**, sans exception. Les cours avaient d'abord été routés vers
+# `/couverture?filter=no_lesson` — la Couverture porte la validation en lot par chapitre, donc le
+# geste qui traite 26 cours sans les ouvrir un à un. Décision REVUE par Papa après l'avoir vue à
+# l'écran (2026-08-05, ADR-0039 §5) : relire un cours se fait un par un, avec « Voir → » pour lire
+# avant de trancher, et une file où quatre familles sur cinq atterrissent laisse la cinquième
+# ailleurs sans raison lisible.
+#
+# ⚠️ La pilule « 🔒 Non validées » de la Couverture n'est PAS retirée : la validation en lot reste
+# le bon geste quand Papa a relu un chapitre entier. Ce sont deux gestes différents, pas deux
+# chemins vers le même.
+_VALIDATION_HREFS: dict[str, str] = {
+    "lesson": "/relecture?kind=lesson",
+    "fiche": "/relecture?kind=fiche",
+    "mindmap": "/relecture?kind=mindmap",
+    "capsule": "/relecture?kind=capsule",
+    "chapter": "/relecture?kind=chapter",
+}
+
 
 def _inbox(db: Session, student_id: int, year_id: int | None) -> list[dict]:
     """Cinq familles d'items en attente d'une décision de Papa, dans un ordre FIXE.
@@ -233,42 +253,32 @@ def _inbox(db: Session, student_id: int, year_id: int | None) -> list[dict]:
     """
     items: list[dict] = []
 
-    pending = {
-        "leçon": db.scalar(
-            select(func.count()).select_from(Lesson).where(Lesson.status == "draft")
-        )
-        or 0,
-        "fiche": db.scalar(
-            select(func.count()).select_from(Fiche).where(Fiche.validation_status == "pending")
-        )
-        or 0,
-        "mindmap": db.scalar(
-            select(func.count()).select_from(Mindmap).where(Mindmap.validation_status == "pending")
-        )
-        or 0,
-        "capsule": db.scalar(
-            select(func.count()).select_from(Capsule).where(Capsule.validation_status == "pending")
-        )
-        or 0,
-        "chapitre": db.scalar(
-            select(func.count())
-            .select_from(Chapter)
-            .where(Chapter.validation_status == "pending")
-        )
-        or 0,
-    }
+    # Les comptes ne sont plus calculés ici : ils viennent de `review_queue`, qui sert AUSSI la page
+    # `/relecture` (ADR-0039 §2). Une seconde façon de compter les objets en attente ferait diverger
+    # deux surfaces sur la même population — le défaut exact que l'addendum ADR-0028 a corrigé.
+    pending = review_queue.pending_counts(db, year_id)
     total_pending = sum(pending.values())
     if total_pending:
-        detail = " · ".join(
-            f"{count} {label}{'s' if count > 1 else ''}" for label, count in pending.items() if count
-        )
+        segments = [
+            {
+                "kind": kind,
+                "count": pending[kind],
+                "label": review_queue.kind_label(kind, pending[kind]),
+                "href": _VALIDATION_HREFS[kind],
+            }
+            for kind in review_queue.KINDS
+            if pending[kind]
+        ]
         items.append(
             {
                 "kind": "validation",
                 "count": total_pending,
                 "label": f"{total_pending} contenu{'s' if total_pending > 1 else ''} en attente de relecture",
-                "detail": detail,
-                "href": "/couverture",
+                # `detail` reste servi : il est le repli du front quand `breakdown` est vide, et il
+                # garde la ligne lisible pour tout consommateur qui ignorerait le nouveau champ.
+                "detail": " · ".join(segment["label"] for segment in segments),
+                "href": "/relecture",
+                "breakdown": segments,
             }
         )
 
@@ -385,11 +395,18 @@ def _gaps_without_mission(db: Session, student_id: int) -> list[str]:
 # ==================================================================================================
 
 
-def _content_chain(db: Session) -> list[dict]:
+def _content_chain(db: Session, year_id: int | None) -> list[dict]:
     """Entonnoir de production : chaque marche a pour cible la marche précédente.
 
     Lecture visée : la marche la plus haute est celle à produire en premier. Les quiz sont comptés
     sur `status='ready'` faute de `validation_status` (ADR-0014 §2).
+
+    ⚠️ **Les barres et le delta ne comptent pas la même chose, et c'est voulu** (ADR-0039 §9). Les
+    barres décrivent le STOCK, global et brut — c'est leur rôle depuis l'ADR-0028. Le delta décrit
+    ce qui est PRODUISIBLE maintenant, par les prédicats exacts de la page qu'il ouvre
+    (`actionable_gaps`). Les confondre revenait à annoncer 49 fiches à produire pour une page qui
+    en ouvrait 17 : une leçon validée sans cours rédigé entrait dans la soustraction alors
+    qu'aucun dérivé n'y est générable.
     """
     chapters = db.scalar(select(func.count()).select_from(Chapter)) or 0
     chapters_ok = (
@@ -415,11 +432,49 @@ def _content_chain(db: Session) -> list[dict]:
         )
         or 0
     )
+    gaps = actionable_gaps(db, year_id)
     return [
-        {"stage": "chapitres_valides", "label": "Chapitres validés", "value": chapters_ok, "target": chapters},
-        {"stage": "cours_valides", "label": "Cours validés", "value": lessons_ok, "target": chapters_ok},
-        {"stage": "fiches", "label": "Fiches", "value": fiches_ok, "target": lessons_ok},
-        {"stage": "quiz", "label": "Quiz de fin de cours", "value": quizzes_ok, "target": lessons_ok},
+        {
+            "stage": "chapitres_valides",
+            "label": "Chapitres validés",
+            "value": chapters_ok,
+            "target": chapters,
+            # `None` volontairement : un delta se lit TOUJOURS entre deux marches, et rien ne se
+            # trouve au-dessus de la première. Y poser un lien ferait une donnée que rien ne rend.
+            # Les chapitres en attente restent atteignables par le segment « chapitres » de la file
+            # « À décider ».
+            "missing_href": None,
+            "missing_count": None,
+        },
+        {
+            "stage": "cours_valides",
+            "label": "Cours validés",
+            "value": lessons_ok,
+            "target": chapters_ok,
+            # Ce qui manque ici, ce sont des leçons validées SANS cours rédigé : la Couverture est
+            # l'endroit où on l'écrit, et sa pilule existe déjà.
+            "missing_href": "/couverture?filter=no_course",
+            "missing_count": gaps["no_course"],
+        },
+        {
+            "stage": "fiches",
+            "label": "Fiches",
+            "value": fiches_ok,
+            "target": lessons_ok,
+            # `manque=` restreint la matrice aux leçons dont CETTE colonne est vide (ADR-0039 §9).
+            # Sans lui, « 19 à produire » ouvrirait toutes les leçons incomplètes, quel que soit le
+            # dérivé manquant — un nombre annoncé que la page ne sert pas.
+            "missing_href": "/couverture?filter=ready&manque=fiche",
+            "missing_count": gaps["fiche"],
+        },
+        {
+            "stage": "quiz",
+            "label": "Quiz de fin de cours",
+            "value": quizzes_ok,
+            "target": lessons_ok,
+            "missing_href": "/couverture?filter=ready&manque=quiz",
+            "missing_count": gaps["quiz"],
+        },
     ]
 
 
@@ -677,7 +732,7 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         "inbox": _inbox(db, student_id, year.id if year else None),
         "periods": periods,
         "subjects": subjects,
-        "content_chain": _content_chain(db),
+        "content_chain": _content_chain(db, year.id if year else None),
         "reading": _reading(db, student_id, subjects, ordered),
         # Proposition composée EN LECTURE par le moteur de missions (`preview_remediation`,
         # patron preview/confirm ADR-0010). Le GET n'écrit rien : la mission n'existe qu'après
