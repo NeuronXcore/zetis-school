@@ -7,118 +7,110 @@
 
 ## État à la reprise
 
-**Chantier : une vue à l'année sur le dashboard Papa, et « Où agir » qui redevient lisible —
-COMPLET et MERGÉ.** Trois demandes enchaînées dans la même session, chacune ayant révélé un défaut
-plus profond qu'elle.
+**Chantier : le panneau d'analyse par matière — COMPLET et MERGÉ.** Cinq slices dans la même
+session (A → E), plus trois correctifs de lisibilité nés de la vérification à l'écran.
 
-Le point de départ tenait en une phrase : *« Périodes analyse : ajouter année après trimestre pour
-avoir une vision globale. »*
+Le point de départ tenait en deux questions de Papa : *« quand je clique sur une bulle, comment
+voir l'analyse ? »* et *« pourquoi la preuve annonce 8 notions et n'en montre qu'une ? »*
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR [#82](https://github.com/NeuronXcore/zetis-school/pull/82)**, squash **`38b994c`** (2026-08-05) — branche **supprimée**, local et `origin` |
-| Base | `6ad3aac` |
-| Migration | **aucune** — ni route, ni dépendance |
-| ADR | addendum dans `adr-0028-dashboard-papa-agregat-unique.md`, indexé dans `DECISIONS.md` |
-| Suites après merge | **857 backend · 432 Papa · 525 Massimo**, `tsc -b` vert, build Papa vert |
-| Vérifié à l'écran | 🔴 **NON — voir DETTES.** Le dashboard est derrière le login Papa, que l'agent ne peut pas franchir |
+| **MERGÉ `main`** | **PR [#83](https://github.com/NeuronXcore/zetis-school/pull/83)**, squash **`cb59600`** (2026-08-05) — branche **supprimée**, local et `origin` |
+| Cadrage | `6597273` sur `main`, AVANT la branche (2 addenda + spec §5 bis + prompts de slices) |
+| Migration | **`f7a8b9c0d1e2`** — `council_reports.subject_id` nullable + index, **appliquée en dev SEULEMENT** |
+| ADR | `adr-0028-addendum-analyse-par-matiere.md`, `adr-0020-addendum-portee-matiere.md`, indexés |
+| Suites après merge | **880 backend · 463 Papa · Massimo vert**, `tsc -b` propre, build Papa vert |
+| Vérifié à l'écran | **OUI, session connectée** — panneau, lien de preuve, zéro requête au changement de période |
 
 ### Ce que ce chantier a livré
 
-1. **Une quatrième fenêtre, « Année »** — 365 jours **glissants**, comme les trois autres. Pas
-   « depuis la rentrée » : tout le moteur suppose une longueur fixe (fenêtre précédente pour le
-   delta, 12 points de série, dénominateur « x / N jours », moyenne par jour de semaine).
-2. **Le chargement d'événements a été découplé du calendrier** — c'est le vrai contenu du lot,
-   cf. les défauts ci-dessous.
-3. **Les bulles de « Où agir » portent le pictogramme de leur matière**, à rayon inchangé (il porte
-   l'aire ∝ nombre de notions).
-4. **Échelle verticale adaptative** sur cette carte, avec trois garde-fous : mention du zoom dans le
-   graphe, plancher à 10 %, quadrants passés en vraies médianes.
-5. **Le deep-link `?period=365` vers le Conseil ne ment plus.**
+1. **`GET /api/parent/progress/subjects/{id}/analysis`** — l'évidence NOMMÉE d'une matière, sans
+   LLM et sans écriture. *L'analyse est l'évidence, le Conseil est la narration.*
+2. **Le panneau** sous la carte « Où agir », seconde exception au « zéro état de chargement ».
+3. **Le lien de preuve ne ment plus** : le constat annonce 8, la preuve en sert 8.
+4. **Le Conseil de classe accepte une portée matière**, avec troncature déclarée.
+5. **Trois correctifs de lisibilité** que seul l'écran a révélés (cf. défauts ci-dessous).
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **« Année » = 365 jours glissants, jamais l'année scolaire.** Une fenêtre à longueur variable
-   demanderait un second moteur, pour une lecture qui ne serait pas plus vraie.
-2. **`HISTORY_DAYS = max(PERIODS) × 2`.** Le facteur 2 **est** la fenêtre précédente qui sert le
-   delta — ce n'est pas une marge de confort, et le réduire rend tous les deltas nuls en silence.
-3. **La heatmap reste à 26 semaines quelle que soit la période** (ADR-0028 §6, non rouvert). En vue
-   « Année » la grille est donc plus courte que la fenêtre : assumé, elle sert la régularité, pas le
-   bilan.
-4. **Le rayon d'une bulle porte une donnée.** Un pictogramme à taille fixe serait plus net et ferait
-   mentir la légende. Verrouillé par un test dédié.
-5. **Un zoom d'échelle doit se DIRE.** Une bulle haute sur échelle zoomée est *devant les autres*,
-   pas ancrée. La mention fait partie du correctif, pas de l'habillage.
-6. **Toute table indexée par une fenêtre se type `Record<DashboardPeriod, …>`**, jamais
-   `Record<string, …>`. **Le filet n'est pas dans l'union, il est dans le `Record` typé PAR
-   l'union.**
+1. 🔴 **Le réseau ne sert que ce que l'agrégat ne peut pas porter : des NOMS.** Tout chiffre déjà
+   dans `SubjectOut` vient de la mémoire. Corollaire testable : la réponse ne dépend d'**aucune
+   période**, donc changer de période panneau ouvert ne déclenche rien.
+2. **L'état du panneau vit dans l'URL** (`?panel=ou-agir`) par NÉCESSITÉ : le lien de preuve est
+   une navigation vers la route courante, que React Router ne remonte pas.
+3. 🔴 **Filtrer REFERME le panneau** (`panel: null` écrit avec `subject`). Sans cette ligne, un clic
+   de pastille rouvrirait le panneau — donc un geste de filtrage partirait au réseau.
+4. **Un geste = UN appel à `patchParams`.** `setSearchParams` de react-router n'est pas un setter
+   React mais un enrobage de `navigate()` : deux appels dans le même tick en perdent un, et la
+   forme fonctionnelle n'y change rien.
+5. **La carte ne change pas de largeur.** Le SVG est en `w-full` : l'élargir déplacerait les bulles
+   sous le curseur au moment du clic.
+6. **`to_reinforce` = fragiles ∪ lacunes, sans plafond.** Le plafond de 8 borne un PROMPT.
+7. **L'ancrage du Conseil hérite de la portée gratuitement** — `allowed_subject_ids` dérive du
+   contexte filtré. Un verrou le prouve, parce que c'est ce qu'un refactor casse en silence.
 
 ### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
 
-1. 🔴 **Deux bornes coïncidaient par accident, et l'une bornait l'autre sans le dire.** L'agrégat
-   chargeait ses événements sur `CALENDAR_WEEKS = 26` semaines, et *toutes* les fenêtres n'étaient
-   que des filtres en mémoire sur cette liste. 182 jours couvrent tout juste 90 + 90. Poser `365`
-   dessus donnait un écran **crédible et faux** : 182 jours vus sur 365 annoncés, et un delta
-   calculé contre J-366 → J-730 valant **0 pour toujours** — pas « stable », jamais mesuré. **Aucun
-   test n'aurait échoué**, tous les jeux d'essai tenant dans les dernières semaines.
-2. 🔴 **Un de mes verrous était VERT À TORT sur l'ensemble vide.** Le test du calendrier seedait un
-   événement isolé par jour ; un événement isolé porte **0 minute**, le calendrier **omet les jours
-   vides**, la liste sortait vide et `all([])` est vrai. Il passait y compris après sabotage de la
-   borne. Corrigé par deux événements espacés **et** une assertion de non-vacuité.
-3. 🔴 **Un test de non-régression avait cessé de mordre sans que rien ne le signale.**
-   `test_le_decrochage_regarde_AU_DELA_de_la_fenetre_du_calendrier` visait **400 jours en dur** —
-   passés *dans* la fenêtre chargée le jour où elle est montée à 730. Il serait resté vert en ne
-   prouvant plus rien. Son ancienneté dérive maintenant de `HISTORY_DAYS`.
-4. 🔴 **Un `Record<string, string>` a neutralisé le filet du typage.** Élargir `DashboardPeriod`
-   pour la fenêtre Année était censé casser tous les `Record` incomplets — et l'a fait partout, sauf
-   dans la page Conseil, dont la table était typée large. `?period=365` y tombait dans le repli
-   « Trimestre 1 » : le Conseil racontait un trimestre pendant que Papa regardait l'année.
-5. ⚠️ **La verticale des quadrants n'était pas une médiane.** Elle valait `0.42 × max`, alors que la
-   spec l'appelait déjà « médiane ». Divergence doc↔code jamais relevée.
-6. ⚠️ **Une grosse bulle pouvait masquer entièrement une petite** — invisible **et** incliquable.
-   SVG peint dans l'ordre du document ; il fallait peindre les grosses d'abord.
+1. 🔴 **Un correctif VERT et qui ne marchait pas.** Le désentassement des bulles était annulé par
+   le clamp du cadre appliqué APRÈS lui : deux matières à valeurs identiques étaient ramenées
+   contre l'axe, à 2 px l'une de l'autre. Les tests restaient verts parce qu'ils plaçaient la
+   collision **au milieu du graphe**, là où le clamp ne mord jamais. **C'est l'écran qui l'a
+   montré, pas la suite.**
+2. 🔴 **Deux sabotages étaient des no-op**, donc deux verrous paraissaient faux-négatifs :
+   `activeSubject !== null ? activeSubject : null` (identité), et `set(per_subject)` dans
+   l'ancrage (déjà filtré). Un sabotage qui ne change rien ne prouve rien.
+3. 🔴 **Deux assertions portaient sur des collections VIDES** — un lien externe absent de la
+   fixture, une liste de jours sans minutes. `all([])` est vrai.
+4. 🔴 **`toContain("17")` passait à l'intérieur de « 2h17 ».** Piège de sous-chaîne : le panneau
+   pouvait lire la charge de révision depuis le réseau sans que rien ne rougisse.
+5. ⚠️ **`pilot_list` et `skills_with_active_mission` n'ont pas la même population** (`validated`
+   exigé par l'un seulement) → source unique `active_missions()` extraite.
+6. ⚠️ **Une erreur React « Rendered more hooks » survivait au rechargement** : c'était un artefact
+   HMR, démasqué seulement en ouvrant un ONGLET NEUF (le tampon de console survit au reload).
 
-> Les défauts 2 et 3 ne sont ressortis **que par sabotage**. Les relire ne les aurait pas trouvés.
+> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-05 (analyse par matière)**.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS et MERGÉ** (PR #82, squash `38b994c`). Branche supprimée des deux côtés,
-arbre propre, `main` == `origin/main`.
+**Ce chantier est CLOS et MERGÉ** (PR #83, squash `cb59600`). Branche supprimée des deux côtés,
+arbre propre, `main` == `origin/main`. **La prochaine session ouvre un nouveau chantier**, et donc
+commence par un CADRAGE (ADR → spec → prompt) sur `main`, sans une ligne de code.
 
-**Le chantier suivant est DÉJÀ CADRÉ et validé par le user** — panneau d'analyse par matière sous
-« Où agir ». Quatre décisions prises, à ne pas rouvrir :
+⚠️ **Ce qui reste dû de celui-ci est dans les DETTES ci-dessous**, et un point en sort :
 
-1. **Surface** : panneau déplié **sous la carte**, patron du drill-down de jour (seconde exception
-   réseau assumée, ADR-0028 §4). Pas de modale — il n'existe aucune coquille générique dans le
-   dépôt, seulement une dizaine de copies à la main.
-2. **Contenu** : notions **nommées** à renforcer · ce qui est déjà en cours · temps et régularité ·
-   couverture du référentiel.
-3. **Conseil de classe ciblé sur la matière**, avec portée ajoutée côté backend (migration
-   `council_reports.subject_id` nullable).
-4. **Le lien « preuve » de la Lecture ZETIS pointera vers ce panneau**, le comptage des fragiles
-   restant juste.
-
-**Principe directeur du lot** : *le réseau ne sert que ce que l'agrégat ne peut pas porter — des
-NOMS.* Minutes, régularité, notions par statut, charge SRS et couverture sont déjà en mémoire ; les
-refaire venir du réseau fabriquerait un second chiffre pour une mesure affichée juste au-dessus.
-
-**Ouvrir sur une branche neuve `feat/analyse-matiere`.** Route retenue :
-`GET /api/parent/progress/subjects/{subject_id}/analysis` — dans `progress` (dont le docstring
-revendique déjà ce rôle) et non `dashboard` (qui documente « aucun query param de
-filtrage, volontairement ») ; nommée `analysis` et non `focus`, qui collisionne avec `DashboardFocus`.
+🔴 **La migration `f7a8b9c0d1e2` n'est appliquée qu'en DEV.** Elle est additive et sans backfill,
+mais aucun test ne l'exerce (`conftest` construit le schéma par `create_all`, jamais par
+`alembic upgrade`). Toute autre base devra recevoir `alembic upgrade head`.
 
 ### ▶ DETTES OUVERTES
 
-> ⚠️ Les trois premières sont **nées de la session du 2026-08-05 (vue à l'année + « Où agir »)** ;
-> les six suivantes du **2026-08-04 (tri et filtre du Journal)**.
+> ⚠️ Les quatre premières sont **nées du 2026-08-05 (analyse par matière)** ; les trois suivantes
+> du **2026-08-05 (vue à l'année)** ; les six dernières du **2026-08-04 (Journal)**.
 
-- 🔴 **RIEN du chantier du 2026-08-05 n'a été vu à l'écran.** Le dashboard Papa est derrière un
-  login, et l'agent ne saisit pas de mot de passe — la PR #82 a été mergée en le sachant. Deux
-  points relèvent du jugement d'œil et qu'aucun test ne remplace :
-  - **l'allure des pictogrammes aux petits rayons** — une matière à 9 notions fait 25 px de côté ;
-  - **le champ Période sur `/conseil?period=365`**, qui doit afficher « Année scolaire ».
+- 🔴 **La migration `f7a8b9c0d1e2` n'est appliquée qu'en DEV**, et **aucun test ne l'exerce**.
+  Additive, sans backfill (`NULL` = rapport global) — mais toute autre base devra recevoir
+  `alembic upgrade head`.
+- ⚠️ **`/lacunes` ignore toujours `?subject=`.** Le paramètre est inerte de bout en bout : route
+  backend sans query param, hook sans argument. La page reste utilisable, le deep-link non.
+- ⚠️ **`/progression` est encore entièrement en MOCK** (`data/mock`), et le constat « N notions
+  consolidées » de la Lecture ZETIS pointe dessus. **C'est le même défaut que celui qu'on vient de
+  fermer, sur l'autre branche** — signalé, non corrigé.
+- ⚠️ **`Gap.subject_id` et `Skill.subject_id` peuvent diverger.** Le dashboard, `/lacunes` et le
+  panneau attribuent par la colonne du `Gap` ; le Conseil groupe par la matière de la NOTION.
+  L'écriture ne les contraint pas (`diagnostics` écrit `subject_id=quiz.subject_id`). L'écart est
+  **borné par un test**, pas résolu.
+- ⚠️ **Le Conseil n'a aucun identifiant de run** : aucun sondage possible, rien ne peut signaler
+  ailleurs qu'une synthèse est en cours. La phrase de la confirmation (« tu peux quitter cette
+  page ») REMPLACE un dispositif absent. **Déclencheur de réouverture** : le jour où une génération
+  ciblée est lancée puis oubliée, il faudra un `ProductionRun` pour le Conseil.
+
+- ⚠️ **Dette PARTIELLEMENT payée le 2026-08-05, session connectée.** La PR #82 avait été mergée
+  sans que rien n'ait été vu à l'écran. Depuis : les **pictogrammes**, l'**échelle ajustée** et le
+  **désentassement** ont été vérifiés en vrai (et c'est ce qui a révélé que le désentassement ne
+  marchait pas — cf. défauts). **Reste dû** : le champ Période sur `/conseil?period=365`, qui doit
+  afficher « Année scolaire » — jamais ouvert.
 - ⚠️ **L'échelle adaptative ne sépare pas des matières à EXACTEMENT 0 %.** Au 2026-08-05, 4 des 5
   matières tracées y sont (1 notion consolidée sur 280) : elles restent sur la même ligne. C'est la
   donnée, pas le cadrage. Le seul vrai remède serait de changer ce que Y mesure — notions

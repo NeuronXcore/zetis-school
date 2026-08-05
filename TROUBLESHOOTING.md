@@ -4,6 +4,84 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/analyse-matiere` — panneau d'analyse par matière (addenda ADR-0028 / ADR-0020) — 2026-08-05
+
+### 🔴 Un correctif VERT qui ne marchait pas, parce que le test visait le milieu du graphe
+
+Deux matières aux mêmes valeurs occupaient le même point ; la petite disparaissait sous la grosse.
+Correctif : désentasser horizontalement, **puis** ramener les bulles dans le cadre. Tests verts.
+
+À l'écran, l'écart valait **2 px** : le clamp du cadre, appliqué APRÈS le désentassement, ramenait
+les deux bulles contre l'axe et **annulait l'écart tout juste obtenu**. Le test ne le voyait pas
+parce qu'il plaçait la collision **au milieu du graphe**, là où le clamp ne s'applique jamais.
+
+**Parade** : passer les bornes DANS la boucle de désentassement et reporter l'écart sur le voisin
+quand l'un est bloqué. Et surtout, faire vivre le test **au bord** : une troisième donnée très
+grande pousse les deux autres contre l'axe.
+
+**Le signe à guetter** : un correctif géométrique dont le test n'exerce pas les BORDS. Les cas
+intéressants d'un graphe sont presque toujours contre un axe, jamais au centre.
+
+### 🔴 Un sabotage qui ne change rien ne prouve rien
+
+Deux sabotages de cette session étaient des **no-op**, et faisaient croire à des verrous
+faux-négatifs :
+
+- `activeSubject !== null ? activeSubject : null` → réécrit en `activeSubject`. C'est la MÊME
+  expression. Le verrou paraissait ne pas mordre ; en réalité le code n'avait pas changé.
+- l'ancrage du Conseil saboté en `set(per_subject) | …` — or `per_subject` est **déjà filtré**.
+
+**Parade** : avant de conclure qu'un verrou est faible, vérifier que le sabotage **change vraiment
+le comportement**. Sur le second, il a fallu saboter de façon réaliste (« clarifier » en prenant
+toutes les matières de la base) pour que le verrou morde — et il mord.
+
+### 🔴 `toContain("17")` passe à l'intérieur de « 2h17 »
+
+Test censé prouver qu'un chiffre venait de la MÉMOIRE et non du réseau. La valeur témoin `17`
+était une sous-chaîne de `2h17`, affiché juste à côté : l'assertion passait même quand le panneau
+lisait la mauvaise source.
+
+**Parade** : choisir des valeurs témoins qui ne peuvent pas être sous-chaînes d'un voisin, et
+asserter **les deux côtés** (la valeur attendue ET celle qui ne doit pas apparaître).
+
+### 🔴 Une erreur React qui survit au rechargement — et qui n'existe pas
+
+`Rendered more hooks than during the previous render` s'affichait après avoir ajouté des hooks à
+un hook maison pendant que la page tournait. **Un rechargement complet ne l'effaçait pas.**
+
+Ce n'était pas un bug : le **tampon de console survit au rechargement**. Seul un ONGLET NEUF a
+montré une console vierge.
+
+**Parade** : pour trancher entre un artefact HMR et un vrai bug, ouvrir un onglet neuf — pas
+recharger.
+
+### ⚠️ `pilot_list` et `skills_with_active_mission` ne comptent pas la même chose
+
+`missions.pilot.pilot_list` exige `validation_status == "validated"` ; `skills_with_active_mission`
+non. Une notion pouvait donc être marquée « déjà couverte » sans qu'aucune mission n'apparaisse en
+regard — une contradiction sur le même écran.
+
+**Parade** : `progress.service.active_missions()` extrait comme source unique, dont le drapeau ET
+la liste dérivent. Un test seede une mission `pending` et vérifie qu'elle apparaît des deux côtés.
+
+### ⚠️ Un identifiant de révision Alembic déjà pris → `CycleDetected`
+
+`alembic heads` renvoyait `CycleDetected` après création d'une migration. Cause : l'identifiant
+choisi (`c1d2e3f4a5b6`, motif hexadécimal tournant) **existait déjà**.
+
+**Parade** : `grep -h "^revision" alembic/versions/*.py | sort` avant de choisir. Et lire la tête
+réelle avec `alembic heads`, jamais `ls | tail` — les fichiers sont triés alphabétiquement, pas
+chronologiquement.
+
+### ⚠️ Un `cd` dans une commande précédente déplace le répertoire des SUIVANTES
+
+Trois scripts Python de cette session ont échoué en `FileNotFoundError` sur des chemins relatifs
+corrects, parce qu'un `cd apps/frontend-papa` d'une commande antérieure persistait. Une fois, le
+heredoc a même affiché « écrit » alors que rien ne l'était.
+
+**Parade** : chemins **absolus** dans tout script qui écrit, et lire le résultat plutôt que la
+sortie du script.
+
 ## Chantier `feat/dashboard-periode-annee` — vue à l'année + « Où agir » (addendum ADR-0028) — 2026-08-05
 
 ### 🔴 Deux bornes qui coïncidaient par accident, dont l'une bornait l'autre en silence
