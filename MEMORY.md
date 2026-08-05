@@ -7,97 +7,132 @@
 
 ## État à la reprise
 
-**Chantier : le Journal se trie et se filtre — COMPLET, branche `feat/journal-tri-et-filtre`,
-base `82fd9c4`.** Cadrage, slice A (backend) et slice B (Papa) dans la même session, plus un
-correctif né d'un stop-on-blocker.
+**Chantier : une vue à l'année sur le dashboard Papa, et « Où agir » qui redevient lisible —
+COMPLET et MERGÉ.** Trois demandes enchaînées dans la même session, chacune ayant révélé un défaut
+plus profond qu'elle.
 
-Le point de départ : le Journal ne savait que paginer du plus récent au plus ancien, et *« qu'est-ce
-que ZETIS a fait en maths ce mois-ci »* n'avait d'autre réponse que faire défiler.
+Le point de départ tenait en une phrase : *« Périodes analyse : ajouter année après trimestre pour
+avoir une vision globale. »*
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR [#81](https://github.com/NeuronXcore/zetis-school/pull/81)**, squash **`e940ba3`** (2026-08-04) — branche **supprimée**, local et `origin` |
-| Base | `82fd9c4` (l'ADR, commité sur `main` au cadrage) |
-| Index `DECISIONS.md` | corrigé à part sur `main` (`22b35a6`), **avant** le merge — la décision abandonnée n'y figure plus |
-| Migration | **`e9f0a1b2c3d4`** — `zetis_mode_source` + 6 index, **appliquée en dev** |
-| Script de reprise | `apps/backend/scripts/backfill_zetis_mode.py`, **lancé avec `--apply` en dev** |
-| ADR | `adr-0034-addendum-tri-et-filtre-du-journal.md`, indexé |
-| Vérifié à l'écran | **oui, session connectée, sur les 9 lots réels** — 2 points sur 5 restent indémontrables faute de données (cf. DETTES) |
+| **MERGÉ `main`** | **PR [#82](https://github.com/NeuronXcore/zetis-school/pull/82)**, squash **`38b994c`** (2026-08-05) — branche **supprimée**, local et `origin` |
+| Base | `6ad3aac` |
+| Migration | **aucune** — ni route, ni dépendance |
+| ADR | addendum dans `adr-0028-dashboard-papa-agregat-unique.md`, indexé dans `DECISIONS.md` |
+| Suites après merge | **857 backend · 432 Papa · 525 Massimo**, `tsc -b` vert, build Papa vert |
+| Vérifié à l'écran | 🔴 **NON — voir DETTES.** Le dashboard est derrière le login Papa, que l'agent ne peut pas franchir |
 
 ### Ce que ce chantier a livré
 
-1. **Le régime d'un lot cesse d'être re-dérivé.** Il se lit sur le lot (`zetis_mode_source` =
-   `capture` | `deduit` | `NULL`). La déduction a lieu **une fois**, dans le script de reprise.
-2. **Filtrage et tri SERVEUR sur toute l'histoire** (`journal_filters.py`) : `WHERE` → `ORDER BY` →
-   `LIMIT`, six critères, quatre clés de tri inversables.
-3. **La pagination existe enfin à l'écran** — elle manquait **avant** ce chantier : `has_more`
-   voyageait sans être lu par personne, et au-delà de 20 lots la page était muette sans le dire.
-4. **La barre de filtres** : contrôles repliables, critères actifs **nommés et retirables**, état
-   vide **bavard**, cadre or sur le conteneur maître.
-5. **La porte de `subjects` est fermée** : un chapitre créé sous un thème reçoit AUSSI sa matière
-   d'année, ou la création refuse en le disant.
+1. **Une quatrième fenêtre, « Année »** — 365 jours **glissants**, comme les trois autres. Pas
+   « depuis la rentrée » : tout le moteur suppose une longueur fixe (fenêtre précédente pour le
+   delta, 12 points de série, dénominateur « x / N jours », moyenne par jour de semaine).
+2. **Le chargement d'événements a été découplé du calendrier** — c'est le vrai contenu du lot,
+   cf. les défauts ci-dessous.
+3. **Les bulles de « Où agir » portent le pictogramme de leur matière**, à rayon inchangé (il porte
+   l'aire ∝ nombre de notions).
+4. **Échelle verticale adaptative** sur cette carte, avec trois garde-fous : mention du zoom dans le
+   graphe, plancher à 10 %, quadrants passés en vraies médianes.
+5. **Le deep-link `?period=365` vers le Conseil ne ment plus.**
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. **Un filtre garde des LOTS ENTIERS.** Le filtre choisit *quels lots on regarde*, jamais *ce qu'on
-   voit d'un lot* — masquer les autres pièces ferait dire au Journal que le lot n'a produit que ça.
-2. **Écrire une fois ce que les ACTES prouvent n'est pas ce que le §F.4 interdit.** Le §F.4 interdit
-   de reconstituer depuis les **réglages d'aujourd'hui**, qui ont changé. ⚠️ La phrase *« rien n'est
-   stocké »* du §3 de l'addendum précédent **tient toujours** : elle porte sur `resolved`, qui reste
-   une lecture, comme `stale` et `target`.
-3. **Le type de contenu se lit dans `production_events`**, pas dans les cinq tables de pièces :
-   l'événement existe pour le produit, le sauté **et** l'échoué.
-4. **Les hors-échelle (`sur_mesure`, `inconnu`) vont en fin DANS LES DEUX SENS.** Un rang unique ne
-   suffit pas — il les met en tête du tri décroissant, c'est-à-dire au sommet de l'autonomie.
-5. **Toute clé de tri est départagée par `created_at DESC, id DESC`.** Sans cette queue, la
-   pagination perd ou répète des lots **en silence**.
-6. **Aucun filtre actif à l'ouverture, jamais** — y compris « la dernière fois ».
-7. **L'or du cadre est sur le CONTENEUR MAÎTRE**, pas sur la rangée de tri. L'or et l'ambre sont
-   séparés par la **matière** (l'or est halé, l'alerte est plate), et **le halo ne bat pas** : ici
-   une animation permanente *porte* de l'information.
+1. **« Année » = 365 jours glissants, jamais l'année scolaire.** Une fenêtre à longueur variable
+   demanderait un second moteur, pour une lecture qui ne serait pas plus vraie.
+2. **`HISTORY_DAYS = max(PERIODS) × 2`.** Le facteur 2 **est** la fenêtre précédente qui sert le
+   delta — ce n'est pas une marge de confort, et le réduire rend tous les deltas nuls en silence.
+3. **La heatmap reste à 26 semaines quelle que soit la période** (ADR-0028 §6, non rouvert). En vue
+   « Année » la grille est donc plus courte que la fenêtre : assumé, elle sert la régularité, pas le
+   bilan.
+4. **Le rayon d'une bulle porte une donnée.** Un pictogramme à taille fixe serait plus net et ferait
+   mentir la légende. Verrouillé par un test dédié.
+5. **Un zoom d'échelle doit se DIRE.** Une bulle haute sur échelle zoomée est *devant les autres*,
+   pas ancrée. La mention fait partie du correctif, pas de l'habillage.
+6. **Toute table indexée par une fenêtre se type `Record<DashboardPeriod, …>`**, jamais
+   `Record<string, …>`. **Le filet n'est pas dans l'union, il est dans le `Record` typé PAR
+   l'union.**
 
 ### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
 
-1. 🔴 **Le veto SUPPRIME la ligne `Lesson`** (`veto._delete_one`). La preuve « ce lot a rédigé un
-   cours » — celle qui porte 2 lots sur 9 — était donc **rétractable** : le point dur était plus
-   aigu que cadré, pas moins.
-2. 🔴 **Le trou `theme_id` était un niveau plus bas que cadré** : dans `lessons_by_skill`, pas dans
-   `lesson_targets`. Et il venait d'une **porte**, pas d'une donnée — un bouton fabriquait le cas,
-   un autre y accrochait des leçons, l'aval les ignorait en silence. Le commit 3 de la slice A a été
-   **abandonné** ; l'ADR porte la décision retenue et celle qui est révoquée.
-3. 🔴 **Deux de mes propres verrous ne mordaient pas** — la queue de tri (un ensemble ne dit rien
-   d'un ordre) et les libellés de la ligne de synthèse (un `getByText` global trouvait la pastille
-   de la rangée du dessus). Trouvés **en les sabotant**, pas en les relisant.
-4. 🔴 **La ligne de synthèse ne nommait pas les critères repliés** — trouvé **à l'écran**, pas dans
-   le code : « Plus de filtres 1 » dit qu'un critère filtre, jamais lequel.
-5. ⚠️ **`tsc -b` a été VERT sur un contrat qu'il n'avait pas reconstruit** (cache de
-   `packages/types`) : six littéraux de test étaient invalides sans que rien ne le dise.
+1. 🔴 **Deux bornes coïncidaient par accident, et l'une bornait l'autre sans le dire.** L'agrégat
+   chargeait ses événements sur `CALENDAR_WEEKS = 26` semaines, et *toutes* les fenêtres n'étaient
+   que des filtres en mémoire sur cette liste. 182 jours couvrent tout juste 90 + 90. Poser `365`
+   dessus donnait un écran **crédible et faux** : 182 jours vus sur 365 annoncés, et un delta
+   calculé contre J-366 → J-730 valant **0 pour toujours** — pas « stable », jamais mesuré. **Aucun
+   test n'aurait échoué**, tous les jeux d'essai tenant dans les dernières semaines.
+2. 🔴 **Un de mes verrous était VERT À TORT sur l'ensemble vide.** Le test du calendrier seedait un
+   événement isolé par jour ; un événement isolé porte **0 minute**, le calendrier **omet les jours
+   vides**, la liste sortait vide et `all([])` est vrai. Il passait y compris après sabotage de la
+   borne. Corrigé par deux événements espacés **et** une assertion de non-vacuité.
+3. 🔴 **Un test de non-régression avait cessé de mordre sans que rien ne le signale.**
+   `test_le_decrochage_regarde_AU_DELA_de_la_fenetre_du_calendrier` visait **400 jours en dur** —
+   passés *dans* la fenêtre chargée le jour où elle est montée à 730. Il serait resté vert en ne
+   prouvant plus rien. Son ancienneté dérive maintenant de `HISTORY_DAYS`.
+4. 🔴 **Un `Record<string, string>` a neutralisé le filet du typage.** Élargir `DashboardPeriod`
+   pour la fenêtre Année était censé casser tous les `Record` incomplets — et l'a fait partout, sauf
+   dans la page Conseil, dont la table était typée large. `?period=365` y tombait dans le repli
+   « Trimestre 1 » : le Conseil racontait un trimestre pendant que Papa regardait l'année.
+5. ⚠️ **La verticale des quadrants n'était pas une médiane.** Elle valait `0.42 × max`, alors que la
+   spec l'appelait déjà « médiane ». Divergence doc↔code jamais relevée.
+6. ⚠️ **Une grosse bulle pouvait masquer entièrement une petite** — invisible **et** incliquable.
+   SVG peint dans l'ordre du document ; il fallait peindre les grosses d'abord.
 
-> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-04 (tri et filtre du Journal)**.
+> Les défauts 2 et 3 ne sont ressortis **que par sabotage**. Les relire ne les aurait pas trouvés.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS et MERGÉ** (PR #81, squash `e940ba3`). Branche supprimée des deux côtés,
-arbre propre, `main` == `origin/main`. **La prochaine session ouvre un nouveau chantier.**
+**Ce chantier est CLOS et MERGÉ** (PR #82, squash `38b994c`). Branche supprimée des deux côtés,
+arbre propre, `main` == `origin/main`.
 
-⚠️ **Ce qui reste dû de CELUI-CI ne peut pas être payé par l'agent** — c'est dans les DETTES
-ci-dessous, et deux points en sortent :
+**Le chantier suivant est DÉJÀ CADRÉ et validé par le user** — panneau d'analyse par matière sous
+« Où agir ». Quatre décisions prises, à ne pas rouvrir :
 
-1. 🔴 **Le tri par mode et la pagination n'ont jamais été VUS**, faute de données. Ils le seront le
-   jour où la base portera un lot *Manual* ou *Hybrid*, et 21 lots. Les tests unitaires les tiennent
-   en attendant — ce n'est pas la même chose.
-2. ⚠️ **Le chapitre 10 reste sans matière d'année.** La porte est fermée pour l'avenir, la donnée
-   existante ne l'est pas.
+1. **Surface** : panneau déplié **sous la carte**, patron du drill-down de jour (seconde exception
+   réseau assumée, ADR-0028 §4). Pas de modale — il n'existe aucune coquille générique dans le
+   dépôt, seulement une dizaine de copies à la main.
+2. **Contenu** : notions **nommées** à renforcer · ce qui est déjà en cours · temps et régularité ·
+   couverture du référentiel.
+3. **Conseil de classe ciblé sur la matière**, avec portée ajoutée côté backend (migration
+   `council_reports.subject_id` nullable).
+4. **Le lien « preuve » de la Lecture ZETIS pointera vers ce panneau**, le comptage des fragiles
+   restant juste.
 
-**Suites relancées APRÈS le merge, sur `main` fusionné** : **855 backend · 414 Papa**, `tsc` vert
-sur les deux frontends. Le squash n'a rien changé aux chiffres d'avant le merge.
+**Principe directeur du lot** : *le réseau ne sert que ce que l'agrégat ne peut pas porter — des
+NOMS.* Minutes, régularité, notions par statut, charge SRS et couverture sont déjà en mémoire ; les
+refaire venir du réseau fabriquerait un second chiffre pour une mesure affichée juste au-dessus.
+
+**Ouvrir sur une branche neuve `feat/analyse-matiere`.** Route retenue :
+`GET /api/parent/progress/subjects/{subject_id}/analysis` — dans `progress` (dont le docstring
+revendique déjà ce rôle) et non `dashboard` (qui documente « aucun query param de
+filtrage, volontairement ») ; nommée `analysis` et non `focus`, qui collisionne avec `DashboardFocus`.
 
 ### ▶ DETTES OUVERTES
 
-> ⚠️ Les six dettes qui suivent sont **nées de la session du 2026-08-04 (tri et filtre du Journal)**.
+> ⚠️ Les trois premières sont **nées de la session du 2026-08-05 (vue à l'année + « Où agir »)** ;
+> les six suivantes du **2026-08-04 (tri et filtre du Journal)**.
 
+- 🔴 **RIEN du chantier du 2026-08-05 n'a été vu à l'écran.** Le dashboard Papa est derrière un
+  login, et l'agent ne saisit pas de mot de passe — la PR #82 a été mergée en le sachant. Deux
+  points relèvent du jugement d'œil et qu'aucun test ne remplace :
+  - **l'allure des pictogrammes aux petits rayons** — une matière à 9 notions fait 25 px de côté ;
+  - **le champ Période sur `/conseil?period=365`**, qui doit afficher « Année scolaire ».
+- ⚠️ **L'échelle adaptative ne sépare pas des matières à EXACTEMENT 0 %.** Au 2026-08-05, 4 des 5
+  matières tracées y sont (1 notion consolidée sur 280) : elles restent sur la même ligne. C'est la
+  donnée, pas le cadrage. Le seul vrai remède serait de changer ce que Y mesure — notions
+  *engagées* (0 → 10,4 %) plutôt que *consolidées* — **écarté par le user**, ce serait un autre sens
+  de carte et un addendum d'ADR.
+- ⚠️ **Quatre divergences doc↔code relevées et NON corrigées** (hors périmètre du lot) :
+  `page-dashboard.md` parle de `data-scope`, l'attribut réel est **`data-card`** ; ADR-0028 §7
+  affirme que `ConseilClasseIAPage` **ne lit aucun query param** (périmé, elle les lit) ; le même §7
+  annonce une régénération **destructive avec `ConfirmDialog`** (jamais implémentée — la génération
+  *empile*, elle n'écrase rien) et un **état vide local** si la matière manque au rapport (non
+  implémenté). ⚠️ Et surtout : **le `period` transmis au Conseil ne sélectionne AUCUNE donnée**
+  (`reports/service.py` : « v1 : état courant, pas de fenêtre temporelle ») alors que l'ADR justifie
+  son transport par l'inverse. À trancher — soit le CTA cesse de le passer, soit la doc dit que
+  c'est un simple libellé.
 - 🔴 **Deux des cinq vérifications à l'écran n'ont PAS pu être jouées, faute de données** — et rien
   ne les rejouera tout seul :
   - **le tri par mode dans les deux sens** : la base de dev ne porte que 2 lots *Autonom* et 7

@@ -4,6 +4,103 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/dashboard-periode-annee` — vue à l'année + « Où agir » (addendum ADR-0028) — 2026-08-05
+
+### 🔴 Deux bornes qui coïncidaient par accident, dont l'une bornait l'autre en silence
+
+Le dashboard Papa chargeait ses événements sur `CALENDAR_WEEKS = 26` semaines, et **toutes** les
+fenêtres (7/30/90) n'étaient que des filtres en mémoire sur cette liste. 182 jours couvrent tout
+juste 90 jours **plus** les 90 de la fenêtre précédente qui sert le delta : les deux nombres étaient
+d'accord **par hasard**, et personne n'avait écrit que le calendrier bornait le chargement.
+
+Ajouter une fenêtre de 365 jours sans toucher au chargement donnait un écran parfaitement crédible
+et faux : **182 jours vus sur 365 annoncés**, et un delta calculé contre J-366 → J-730 valant **0
+pour toujours** — pas « stable », jamais mesuré. **Aucun test n'échouait**, tous les jeux d'essai
+tenant dans les dernières semaines.
+
+**Parade** : `projections.HISTORY_DAYS = max(PERIODS) × 2` pour le chargement, `CALENDAR_WEEKS`
+pour la seule heatmap — **deux bornes explicites et séparées**, plus une garde explicite côté
+calendrier, sans laquelle il héritait de la nouvelle profondeur et rendait quatre fois plus de jours
+que la carte n'en dessine.
+
+**Le signe à guetter** : quand deux constantes ont la même valeur effective et qu'une seule est
+citée dans le code, l'autre borne quelque chose sans le dire. Changer l'une casse l'autre.
+
+### 🔴 Un verrou VERT À TORT parce qu'il assertait sur l'ensemble VIDE
+
+Test : « aucun jour du calendrier ne déborde des 26 semaines ». Il seedait **un** événement à
+J-300 et **un** à J-3, puis assertait `all(jour >= limite for jour in jours)`.
+
+Il passait — **y compris après sabotage de la borne**. Cause : un événement **isolé** porte **0
+minute** (`event_minutes` mesure l'écart au suivant *dans la même journée*), et le calendrier **omet
+les jours vides**. La liste `jours` sortait donc **vide**, et `all([])` vaut `True`.
+
+**Parade** : deux événements espacés de 10 min **par jour** pour que la journée porte des minutes,
+**et** une assertion de non-vacuité (`assert jours`) avant le `all(...)`. Ce second garde-fou est le
+vrai : il transforme un faux témoin en échec bruyant.
+
+**Généralisable** : tout `all(...)` / `any(...)` sur une collection construite par le code sous test
+doit être précédé d'une assertion de non-vacuité. Sinon le test ne prouve rien le jour où la
+collection se vide pour une raison sans rapport.
+
+### 🔴 Un test de non-régression qui cesse de mordre quand une constante bouge
+
+`test_le_decrochage_regarde_AU_DELA_de_la_fenetre_du_calendrier` seedait un événement à **400 jours
+en dur**, pour vérifier qu'un décrochage plus ancien que la fenêtre chargée est quand même compté.
+Le jour où la fenêtre est passée à 730 jours, 400 est tombé **dedans** : le test restait vert **en
+ne prouvant plus rien**.
+
+**Parade** : dériver la valeur de la constante — `outside = p.HISTORY_DAYS + 35` — et asserter au
+passage que l'événement est bien **hors** du chargement (`last_activity_at is None`), ce qui rend le
+test auto-vérifiant.
+
+**Le signe à guetter** : un littéral numérique dans un test dont l'intention est « au-delà de la
+limite X ». Il devient faux dès que X bouge, sans jamais rougir.
+
+### 🔴 Un `Record<string, string>` neutralise le filet du typage
+
+Élargir une union (`DashboardPeriod` += `"365"`) est censé être **volontairement cassant** : chaque
+`Record<DashboardPeriod, …>` devient incomplet et `tsc` les désigne un par un. Ce filet a fonctionné
+partout — sauf dans `ConseilClasseIAPage`, dont la table de libellés était typée
+`Record<string, string>`. Ce type accepte **n'importe quelle clé** : `?period=365` tombait dans le
+repli `?? "Trimestre 1"` et le Conseil racontait un trimestre pendant que Papa regardait l'année.
+
+**Parade** : toute table indexée par une union se type **par cette union**, et vit **une seule
+fois** (ici `COUNCIL_PERIOD_LABEL` + garde `isDashboardPeriod` dans `lib/dashboardDerive.ts`, source
+unique du sélecteur, du hook et du lien profond). Il y avait **trois** copies de cette connaissance.
+
+**La formule à retenir** : *le filet n'est pas dans l'union, il est dans le `Record` typé **par**
+l'union.*
+
+### ⚠️ `closest("clipPath")` ne trouve rien sous jsdom
+
+Filtrer les `<circle>` d'un SVG pour exclure ceux qui vivent dans un `<clipPath>` :
+`c.closest("clipPath")` rend `null` pour **tous**, y compris les bons. jsdom compare les sélecteurs
+en **minuscules** et ne reconnaît pas le camelCase des éléments SVG.
+
+**Parade** : regarder le parent directement —
+`(c.parentNode as Element)?.tagName?.toLowerCase() !== "clippath"`.
+
+### ⚠️ L'ordre des boutons vient de `Object.keys`, qui trie les clés numériques
+
+`Object.keys({"7":…, "30":…, "90":…, "365":…})` rend `["7","30","90","365"]` — **ordre numérique
+croissant**, pas ordre d'écriture : le langage énumère d'abord les clés qui ressemblent à des
+entiers. Ici cela tombe juste, mais une clé non numérique (« annee ») passerait **derrière** toutes
+les autres et casserait la progression du sélecteur, sans erreur.
+
+**Parade** : si l'ordre porte du sens, l'écrire dans un tableau explicite — ou, a minima, le
+verrouiller par un test qui lit les libellés rendus dans l'ordre du DOM.
+
+### ⚠️ Un SVG en `w-full` déplace ses points quand son conteneur change de largeur
+
+Envisagé puis **rejeté** : élargir la carte « Où agir » de 5 à 12 colonnes quand une matière est
+sélectionnée. Le `<svg viewBox="0 0 400 250" className="w-full">` s'étire avec son conteneur —
+doubler la largeur déplace **chaque bulle horizontalement**, y compris celle que l'utilisateur vient
+de cliquer, **sous son curseur**, dans le même frame.
+
+**Parade** : un geste de lecture ne recompose pas la page. Faire adapter le **contenu** à la largeur
+disponible plutôt que la largeur au contenu.
+
 ## Chantier `feat/journal-tri-et-filtre` — tri et filtre du Journal (addendum ADR-0034) — 2026-08-04
 
 ### 🔴 `tsc -b` est VERT sur un contrat qu'il n'a pas reconstruit
