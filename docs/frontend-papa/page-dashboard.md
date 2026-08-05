@@ -100,6 +100,19 @@ Première carte de la page, la seule à bordure ambre. Agrège les items **actio
 
 ## ② KPI actifs
 
+**Périodes d'analyse** — quatre boutons, du plus court au plus long : `7 jours`, `30 jours`,
+`Trimestre` (90 j), `Année` (365 j). Toutes sont **glissantes et de longueur fixe**, bornes
+incluses, se terminant aujourd'hui ; toutes arrivent dans le même payload. « Année » vaut
+365 jours glissants et **non « depuis la rentrée »** : le delta, les 12 points de série et le
+dénominateur « x / N jours » supposent une longueur fixe (addendum `adr-0028`, 2026-08-05).
+
+> ⚠️ Toute table indexée par une fenêtre doit être typée **`Record<DashboardPeriod, …>`**, jamais
+> `Record<string, …>`. La page Conseil portait une copie typée large : ajouter « Année » n'a rien
+> pu y casser, `?period=365` est tombé dans le repli et le Conseil a annoncé « Trimestre 1 »
+> pendant que Papa regardait l'année. Le filet n'est pas dans l'union, il est dans le `Record`
+> typé **par** l'union. Table partagée : `COUNCIL_PERIOD_LABEL` + garde `isDashboardPeriod`
+> (`lib/dashboardDerive.ts`), source unique du sélecteur, du hook et du lien profond.
+
 Quatre KPI, **cliquables** (`role="button"`, `aria-pressed`) : **Temps actif**, **Régularité**,
 **Notions consolidées**, **Lacunes ouvertes**. Chacun porte `{ value, delta }` (contrat existant,
 delta vs période précédente) et une **sparkline** de 12 points.
@@ -187,6 +200,41 @@ dev. `has_referentiel: false` signale l'absence de chapitre et oriente vers le P
 X = temps actif sur la fenêtre, Y = % de notions consolidées, aire ∝ nombre de notions. Médianes en
 pointillés (quadrants). Quadrant bas-droite annoté « beaucoup de temps, peu d'ancrage ».
 
+Chaque bulle porte le **pictogramme de sa matière** (`subjectIconFor`, `<image>` clippé en cercle,
+`preserveAspectRatio="xMidYMid slice"` — le cadrage de `SubjectPictogram`), entouré d'un **anneau**
+à la couleur de la matière qui la relie au donut et aux pastilles de filtre. Repli sur l'initiale
+si l'asset manque, jamais sur un emoji.
+
+> ⚠️ **Le rayon reste `6 + √notions × 2.2`** — il PORTE la troisième mesure de la carte. Un
+> pictogramme à taille fixe serait plus net et ferait mentir la légende « aire ∝ nombre de
+> notions » sans qu'aucun autre test ne bronche : d'où un test dédié sur la taille
+> (`WhereToActCard.test.tsx`).
+
+**Échelle verticale ADAPTATIVE** (2026-08-05). Elle se cale sur le maximum atteint (+30 %, arrondi
+au multiple de 5), avec un **plancher à 10 %** et un plafond à 100 % ; elle se dézoome donc toute
+seule au fil de l'année. Motif : au premier rendu réel, **1 notion consolidée sur 280** collait les
+cinq matières sur l'axe. Trois garde-fous, sans lesquels le zoom mentirait :
+
+| garde-fou | pourquoi |
+|---|---|
+| Mention `échelle ajustée · max N %` dans le graphe | une bulle haute sur une échelle zoomée est **devant les autres**, pas ancrée |
+| Plancher 10 % | évite d'étaler du bruit — et évite la **division par zéro** quand tout vaut 0 |
+| Quadrants = **vraies médianes** des matières tracées | le seuil figé à 35 % sortait du cadre dès que l'échelle zoome. ⚠️ La verticale valait `0.42 × max`, que ce document appelait déjà « médiane » sans qu'elle en soit une |
+
+Un pointillé dont la médiane vaut 0 n'est **pas tracé** : il se confondrait avec son axe et se
+lirait comme une graduation. Les quadrants deviennent donc **relatifs** — « moins ancré que les
+autres » et non « pas ancré » — seule lecture honnête tant que le programme démarre.
+
+Deux réglages de lisibilité liés : un **retrait bas** égal au plus gros rayon (une bulle à 0 % est
+centrée sur le zéro, et passait donc à moitié sous l'axe) ; et un **ordre de peinture par taille
+décroissante** (SVG peint dans l'ordre du document — une petite matière tombant près d'une grosse
+disparaissait dessous, invisible et incliquable).
+
+> Ce que cela ne résout **pas** : des matières à **exactement** 0 % restent sur la même ligne. C'est
+> la donnée, pas le cadrage. Séparer celles-là demanderait de changer ce que Y mesure (notions
+> *engagées* plutôt que *consolidées*) — écarté le 2026-08-05, ce serait un autre sens de carte
+> et un addendum d'ADR.
+
 CTA à deux états sous le graphe (`adr-0028 §7`, §8) :
 
 | État | Rendu | Cible |
@@ -264,17 +312,17 @@ projections client (`adr-0028 §1`, §2).
                       "open_gaps":      { "value": 3, "delta": 0, "without_mission": 1 } },
             "sparks": { "active_minutes": [ /* 12 */ ], "active_days": [], 
                         "consolidated": [], "open_gaps": [] } },
-    "30": { }, "90": { }
+    "30": { }, "90": { }, "365": { }
   },
 
   "subjects": [
     { "slug": "maths", "name": "Mathématiques", "color": "#60a5fa",
-      "minutes": { "7": 65, "30": 255, "90": 690 },
+      "minutes": { "7": 65, "30": 255, "90": 690, "365": 2400 },
       "calendar": [ { "date": "2026-07-28", "active_minutes": 42 } ],   // 26 sem., jours vides omis
-      "slots":    { "7": [[/*7 jours*/], /* × 8 créneaux, 8h→24h */], "30": [], "90": [] },
-      "slots_outside_minutes": { "7": 0, "30": 12, "90": 12 },          // activité 0h–8h, jamais repliée
+      "slots":    { "7": [[/*7 jours*/], /* × 8 créneaux, 8h→24h */], "30": [], "90": [], "365": [] },
+      "slots_outside_minutes": { "7": 0, "30": 12, "90": 12, "365": 40 },  // activité 0h–8h, jamais repliée
       "notions":  { "consolidated": 4, "fragile": 3, "in_progress": 2, "total": 13 },
-      "series":   { "7": { "covered": [], "consolidated": [], "fragile": [] }, "30": {}, "90": {} },
+      "series":   { "7": { "covered": [], "consolidated": [], "fragile": [] }, "30": {}, "90": {}, "365": {} },
       "review_load": [ /* 14 entiers, J+0 → J+13 */ ],
       "gaps_open": 2, "has_referentiel": true }
   ],
@@ -295,9 +343,10 @@ projections client (`adr-0028 §1`, §2).
 Règles de contrat :
 
 - **`calendar` est livré par matière**, jours vides omis, reconstruits client. « Toutes » = somme.
-  Il porte **26 semaines quelle que soit la période** : le sélecteur 7/30/90 pilote les KPI et les
-  séries, pas la grille calendrier (qui est là pour la tendance longue). Seul le filtre matière
-  l'affecte.
+  Il porte **26 semaines quelle que soit la période** : le sélecteur 7/30/90/365 pilote les KPI et
+  les séries, pas la grille calendrier (qui est là pour la tendance longue). Seul le filtre matière
+  l'affecte. En période « Année » la grille reste donc plus courte que la fenêtre — assumé : elle
+  sert la régularité, pas le bilan.
 - `slots` : matrice `8 × 7` de minutes moyennes par créneau, **8 h → 24 h**, **Europe/Paris**.
   Le complément 0 h–8 h vit dans `slots_outside_minutes`.
 - `series` : 12 points par fenêtre, alignés sur les mêmes bornes que les sparklines. `fragile`
