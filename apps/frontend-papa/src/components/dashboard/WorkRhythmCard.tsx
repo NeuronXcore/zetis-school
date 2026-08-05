@@ -2,10 +2,13 @@ import { useState } from "react";
 import type { DashboardFocus, DashboardPeriod, DashboardSubject } from "@zetis/types";
 import { DashboardCard } from "./DashboardCard";
 import { SlotGrid } from "./SlotGrid";
+import { CurrentWeekBars } from "./CurrentWeekBars";
 import { ActivityHeatmap } from "../activity/ActivityHeatmap";
 import { DayDetailPanel } from "../activity/DayDetailPanel";
 import {
+  buildCurrentWeek,
   buildSlotCells,
+  formatSlotWindow,
   sumCalendar,
   sumOutsideMinutes,
   DROPOUT_THRESHOLD,
@@ -31,6 +34,9 @@ interface WorkRhythmCardProps {
   focus: DashboardFocus | null;
   daysInactive: number;
   subjectNames: Map<string, string>;
+  /** `generated_at` de l'agrégat — sert à dater la fenêtre des créneaux avec les MÊMES bornes que
+   *  le serveur, plutôt qu'avec l'horloge d'un onglet resté ouvert. */
+  generatedAt: string;
 }
 
 export function WorkRhythmCard({
@@ -40,8 +46,9 @@ export function WorkRhythmCard({
   focus,
   daysInactive,
   subjectNames,
+  generatedAt,
 }: WorkRhythmCardProps) {
-  const [view, setView] = useState<"cal" | "slot">("cal");
+  const [view, setView] = useState<"cal" | "slot" | "week">("cal");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const days = sumCalendar(subjects);
@@ -49,6 +56,13 @@ export function WorkRhythmCard({
   // ventile plus qu'une matière, et chaque case n'a qu'un segment. C'est ce qui rend le nombre
   // lisible — il ne mélange alors plus rien.
   const slotCells = buildSlotCells(subjects, period);
+  // Sur 7 jours chaque jour de semaine n'apparaît QU'UNE FOIS : le serveur divise par 1, et le
+  // chiffre affiché est les minutes de ce jour-là, pas une moyenne. L'écrire « moyenne » serait
+  // faux — la moyenne ne commence à porter sur quelque chose qu'à partir de 30 jours.
+  const moyenne = period !== "7";
+  // Bâtie sur `calendar`, indépendant de la période — comme la vue Calendrier. Le sélecteur
+  // 7/30/90 ne pilote pas cette vue : « la semaine en cours » n'a qu'une seule définition.
+  const weekDays = buildCurrentWeek(subjects, generatedAt);
   const outside = sumOutsideMinutes(subjects, period);
   const selected = days.find((d) => d.date === selectedDate);
 
@@ -72,7 +86,8 @@ export function WorkRhythmCard({
           {(
             [
               ["cal", "Calendrier"],
-              ["slot", "Créneaux"],
+              ["slot", "Semaine type"],
+              ["week", "Semaine en cours"],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -95,10 +110,23 @@ export function WorkRhythmCard({
             Intensité = minutes actives du jour, jamais le nombre d'événements. Aucune couleur
             d'alerte : une case dense n'est pas « bien », une case vide n'est pas « mal ».
           </>
+        ) : view === "week" ? (
+          <>
+            La semaine calendaire en cours, jour par jour et datée — à ne pas confondre avec la
+            semaine type, qui replie une fenêtre glissante sur sept colonnes.{" "}
+            <strong className="font-semibold">Pas de découpage horaire ici</strong> : le détail par
+            créneau n'existe côté serveur que replié par jour de semaine, il a perdu les dates. Un
+            jour à venir est marqué comme tel — il n'a pas zéro minute, il n'a pas encore eu lieu.
+          </>
         ) : (
           <>
-            Semaine type sur la période : minutes actives moyennes par créneau de 2 h, fuseau
-            Europe/Paris. Sert à caler une séance, pas à contrôler un emploi du temps.{" "}
+            Semaine type {formatSlotWindow(generatedAt, period)}, repliée par jour de semaine :
+            la colonne « Jeu » est <strong className="font-semibold">le jeudi de cette fenêtre</strong>,
+            pas le jeudi à venir.{" "}
+            {moyenne
+              ? "Chiffres = minutes actives moyennes du créneau de 2 h."
+              : "Sur sept jours chaque jour n'apparaît qu'une fois : le chiffre est ses minutes, pas une moyenne."}{" "}
+            Fuseau Europe/Paris. Sert à caler une séance, pas à contrôler un emploi du temps.{" "}
             {activeSubject
               ? `Les nombres sont les minutes de ${activeSubject.name} dans le créneau.`
               : "Chaque barre est découpée par matière ; sa longueur compare le créneau au plus chargé de la semaine."}
@@ -131,8 +159,10 @@ export function WorkRhythmCard({
             </p>
           )}
         </>
+      ) : view === "week" ? (
+        <CurrentWeekBars days={weekDays} />
       ) : (
-        <SlotGrid cells={slotCells} showValues={activeSubject !== null} />
+        <SlotGrid cells={slotCells} showValues={activeSubject !== null} averaged={moyenne} />
       )}
     </DashboardCard>
   );

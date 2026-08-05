@@ -219,6 +219,7 @@ export function DashboardPage() {
           focus={focus}
           daysInactive={data.days_inactive}
           subjectNames={subjectNames}
+          generatedAt={data.generated_at}
         />
         <TimeSplitCard
           allSubjects={data.subjects}

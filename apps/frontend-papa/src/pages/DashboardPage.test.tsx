@@ -293,18 +293,24 @@ describe("donut « Répartition du temps »", () => {
 
 describe("créneaux — ce que la case montre", () => {
   // Deux matières qui se partagent Lun 8 h (20 + 5), et une case à maths seul (Jeu 12 h).
+  // Posé sur les QUATRE fenêtres : les créneaux vivent dans `slots[period]`, et n'alimenter que
+  // « 7 » rendrait la grille vide dès qu'un test change de période — sans rien casser d'autre,
+  // donc sans qu'on comprenne pourquoi.
+  const poser = (s: DashboardSubject, slot: number, day: number, minutes: number) => {
+    for (const p of ["7", "30", "90", "365"] as const) s.slots[p][slot][day] = minutes;
+  };
   const avecCreneaux = () => {
     const maths = subject({ slug: "maths", name: "Mathématiques", color: "#60a5fa" });
-    maths.slots["7"][0][0] = 20;
-    maths.slots["7"][2][3] = 12;
+    poser(maths, 0, 0, 20);
+    poser(maths, 2, 3, 12);
     const svt = subject({ id: 2, slug: "svt", name: "SVT", color: "#34d399" });
-    svt.slots["7"][0][0] = 5;
+    poser(svt, 0, 0, 5);
     return { ...PAYLOAD, subjects: [maths, svt] };
   };
 
   const ouvrirCreneaux = async () => {
     await screen.findByRole("button", { name: /Temps actif/ });
-    fireEvent.click(screen.getByRole("button", { name: "Créneaux" }));
+    fireEvent.click(screen.getByRole("button", { name: "Semaine type" }));
   };
 
   it("sans filtre, une case partagée porte un segment PAR matière, la plus grosse d'abord", async () => {
@@ -312,7 +318,7 @@ describe("créneaux — ce que la case montre", () => {
     renderPage();
     await ouvrirCreneaux();
 
-    const cellule = screen.getByLabelText(/^Lun 8 h — 25 min en moyenne/);
+    const cellule = screen.getByLabelText(/^Lun 8 h — 25 min —/);
     const segments = [...cellule.querySelectorAll("span[style*='background']")];
 
     expect(segments).toHaveLength(2);
@@ -333,7 +339,7 @@ describe("créneaux — ce que la case montre", () => {
     expect(screen.getByLabelText(/^Jeu 12 h —/).textContent).toBe("12");
     // 20 et non 25 : filtrée, la grille ne compte plus que la matière retenue.
     expect(screen.getByLabelText(/^Lun 8 h —/).getAttribute("aria-label")).toContain(
-      "20 min en moyenne — Mathématiques 20",
+      "20 min — Mathématiques 20",
     );
     expect(screen.getByLabelText("Mar 8 h — aucune séance").textContent).toBe("");
   });
@@ -343,7 +349,7 @@ describe("créneaux — ce que la case montre", () => {
     renderPage();
     await ouvrirCreneaux();
 
-    const cellule = screen.getByLabelText(/^Lun 8 h — 25 min en moyenne/);
+    const cellule = screen.getByLabelText(/^Lun 8 h — 25 min —/);
     const bulle = () => screen.queryByText(/^Lun 8 h · 25 min$/);
 
     expect(bulle()).toBeNull();
@@ -366,8 +372,38 @@ describe("créneaux — ce que la case montre", () => {
     renderPage();
     await ouvrirCreneaux();
 
-    expect(screen.getByLabelText(/^Lun 8 h — 25 min en moyenne/)).not.toHaveAttribute("title");
+    expect(screen.getByLabelText(/^Lun 8 h — 25 min —/)).not.toHaveAttribute("title");
     expect(screen.getByLabelText("Mar 8 h — aucune séance")).toHaveAttribute("title");
+  });
+
+  it("date la fenêtre et ne dit « moyenne » que lorsque c'en est une", async () => {
+    // Le piège que ce verrou ferme : des en-têtes `Lun…Dim` se lisent comme la semaine EN COURS,
+    // et une case remplie un jeudi passe pour une prédiction alors que c'est le jeudi PASSÉ de la
+    // fenêtre. Constaté à l'écran un mercredi.
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    // `generated_at` = 2026-07-29, fenêtre de 7 jours bornes incluses → 23 → 29 juillet.
+    const carte = screen.getByText("Quand Massimo travaille").closest("section")!;
+    expect(carte).toHaveTextContent("Semaine type du 23 juil. au 29 juil.");
+    expect(carte).toHaveTextContent("le jeudi de cette fenêtre");
+    // Sur 7 jours le serveur divise par 1 : le mot « moyenne » ne doit apparaître nulle part.
+    expect(carte).toHaveTextContent(/le chiffre est ses minutes, pas une moyenne/);
+    expect(screen.getByLabelText(/^Lun 8 h —/).getAttribute("aria-label")).not.toContain(
+      "en moyenne",
+    );
+  });
+
+  it("sur 30 jours la moyenne en est une, et le mot revient", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage("/?period=30");
+    await ouvrirCreneaux();
+
+    const carte = screen.getByText("Quand Massimo travaille").closest("section")!;
+    expect(carte).toHaveTextContent("Semaine type du 30 juin au 29 juil.");
+    expect(carte).toHaveTextContent("minutes actives moyennes du créneau");
+    expect(screen.getByLabelText(/^Lun 8 h —/).getAttribute("aria-label")).toContain("en moyenne");
   });
 
   it("la longueur de la barre compare les créneaux entre eux", async () => {
@@ -380,6 +416,76 @@ describe("créneaux — ce que la case montre", () => {
       screen.getByLabelText(label).querySelector("span:not([style*='background'])");
     expect(barre(/^Lun 8 h —/)).toHaveStyle({ width: "100%" }); // 25/25
     expect(barre(/^Jeu 12 h —/)).toHaveStyle({ width: "48%" }); // 12/25
+  });
+});
+
+describe("semaine en cours — la vraie, datée", () => {
+  // `generated_at` = mercredi 29 juillet 2026. La semaine calendaire va donc du lundi 27 au
+  // dimanche 2 août, et jeudi/vendredi/samedi/dimanche n'ont PAS encore eu lieu.
+  const avecSemaine = () => {
+    const maths = subject({
+      slug: "maths",
+      name: "Mathématiques",
+      color: "#60a5fa",
+      calendar: [
+        { date: "2026-07-27", active_minutes: 40 },
+        { date: "2026-07-29", active_minutes: 25 },
+      ],
+    });
+    const svt = subject({
+      id: 2,
+      slug: "svt",
+      name: "SVT",
+      color: "#34d399",
+      calendar: [{ date: "2026-07-27", active_minutes: 20 }],
+    });
+    return { ...PAYLOAD, subjects: [maths, svt] };
+  };
+
+  const ouvrirSemaine = async () => {
+    await screen.findByRole("button", { name: /Temps actif/ });
+    fireEvent.click(screen.getByRole("button", { name: "Semaine en cours" }));
+  };
+
+  it("montre les sept jours datés de la semaine contenant aujourd'hui", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecSemaine());
+    renderPage();
+    await ouvrirSemaine();
+
+    // Lundi 27 : 40 de maths + 20 de SVT.
+    expect(screen.getByLabelText(/^Lun 27 — 1h00 —/).getAttribute("aria-label")).toContain(
+      "Mathématiques 40, SVT 20",
+    );
+    // Mercredi 29 = aujourd'hui, 25 min de maths seul.
+    expect(screen.getByLabelText("Mer 29 — 25 min — Mathématiques 25")).toBeInTheDocument();
+    // Mardi 28 est passé sans séance — ce n'est PAS la même chose qu'un jour à venir.
+    expect(screen.getByLabelText("Mar 28 — aucune séance")).toBeInTheDocument();
+  });
+
+  it("un jour À VENIR est marqué comme tel, jamais compté à zéro", async () => {
+    // Le cœur de cette vue : « il n'a rien fait vendredi » et « on n'est pas encore vendredi »
+    // sont deux phrases différentes, et une seule des deux est vraie un mercredi.
+    vi.mocked(fetchDashboard).mockResolvedValue(avecSemaine());
+    renderPage();
+    await ouvrirSemaine();
+
+    for (const jour of ["Jeu 30", "Ven 31", "Sam 1", "Dim 2"]) {
+      expect(screen.getByLabelText(`${jour} — à venir`)).toBeInTheDocument();
+    }
+    // Et aucun de ces jours ne prétend valoir zéro minute.
+    expect(screen.queryByLabelText(/^Jeu 30 — aucune séance$/)).toBeNull();
+  });
+
+  it("le survol d'un jour ouvre la même bulle que la semaine type", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecSemaine());
+    renderPage();
+    await ouvrirSemaine();
+
+    fireEvent.mouseEnter(screen.getByLabelText(/^Lun 27 —/));
+    const contenu = screen.getByText(/^Lun 27 · 60 min$/).parentElement!;
+    expect(within(contenu).getByText("Mathématiques")).toBeInTheDocument();
+    expect(within(contenu).getByText("40 min")).toBeInTheDocument();
+    expect(within(contenu).getByText("SVT")).toBeInTheDocument();
   });
 });
 

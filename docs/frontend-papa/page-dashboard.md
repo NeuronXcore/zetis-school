@@ -38,7 +38,7 @@ cette page.
 │    [Toutes][Maths][Français][H-Géo][SVT][Anglais][P-C]   ← filtre transversal│
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ ③ ┌─ Quand Massimo travaille ──────────┐ ┌─ Répartition du temps ──────────┐ │
-│    │ (Calendrier | Créneaux)           │ │      ◍ donut par matière        │ │
+│    │ (Calendrier|Sem. type|Sem. en cours)│ │    ◍ donut par matière        │ │
 │    │  ▦▦▦▦▦▦▦ grille + échelle         │ │      + légende cliquable        │ │
 │    └───────────────────────────────────┘ └─────────────────────────────────┘ │
 │    ┌─ Évolution de la mémoire ─────────┐ ┌─ État des notions ──────────────┐ │
@@ -153,13 +153,15 @@ seul refait l'unique appel, pas le filtrage.
 
 ### 1. Quand Massimo travaille — heatmap (une carte, deux vues)
 
-Sélecteur `Calendrier | Créneaux` (`adr-0028 §6`).
+Sélecteur `Calendrier | Semaine type | Semaine en cours` (`adr-0028 §6`, troisième vue ajoutée
+le 2026-08-05). Trois lectures d'un même journal, dans **une seule carte** : la tendance longue,
+l'habitude, et ce qui s'est passé cette semaine-ci.
 
 - **Calendrier** — 26 semaines × 7 jours, lundi en haut. Intensité = **minutes actives du jour**
   (jamais le nombre d'événements). Paliers, présentation client : `0 / <10 / 10–20 / 20–40 / 40+`.
   Tooltip : date · minutes. Badge ambre « aucune activité depuis N jours » si `days_inactive >= 4`,
   **à la consultation uniquement, jamais de push**.
-- **Créneaux** — semaine type, 8 créneaux de 2 h (**8 h → 24 h**) × 7 jours. Bucketing
+- **Semaine type** — 8 créneaux de 2 h (**8 h → 24 h**) × 7 jours. Bucketing
   **Europe/Paris**. Les minutes de 0 h à 8 h sont renvoyées à part (`slots_outside_minutes`) et
   affichées en note — jamais repliées dans un créneau voisin, ce qui les daterait faussement
   (`adr-0028 §6`). La case est une **barre**, pas un aplat : sa **longueur** dit l'intensité
@@ -167,8 +169,21 @@ Sélecteur `Calendrier | Créneaux` (`adr-0028 §6`).
   **segments colorés** disent quelles matières s'y partagent le temps. Filtrée sur une matière, la
   grille ne ventile plus qu'elle et **écrit ses minutes** dans les cases non vides. Survol ou focus
   clavier d'une case non vide → **infobulle** : le créneau, son total, puis une ligne par matière.
+- **Semaine en cours** — les sept jours **datés** de la semaine calendaire contenant aujourd'hui,
+  lundi en tête. Une barre par jour, découpée par matière, longueur relative au jour le plus chargé
+  de la semaine. **Aucun découpage horaire** : construite sur `calendar` (minutes par DATE), parce
+  que `slots` est déjà replié par jour de semaine côté serveur et a perdu les dates — le dire
+  plutôt que de laisser croire à un oubli. Un jour **à venir** est marqué « à venir », sans barre
+  ni chiffre : il n'a pas zéro minute, il n'a pas encore eu lieu. Aujourd'hui est teinté **et
+  nommé** (`sr-only`), la couleur seule ne dirait rien à qui ne la perçoit pas.
+
+  > Cette vue est née d'un malentendu réel (2026-08-05, un mercredi) : des cases remplies un jeudi
+  > et un samedi dans la Semaine type se sont lues comme une prédiction, alors que c'étaient le
+  > jeudi et le samedi **passés** de la fenêtre glissante. Les deux vues répondent à deux questions
+  > — « quelle habitude ? » et « qu'a-t-il fait cette semaine ? ».
+
 - **Échelle émeraude unique** dans la vue **Calendrier**, où une case est UN JOUR et n'a pas de
-  composition à montrer. La vue Créneaux s'en écarte assumément : la couleur ne peut pas dire à la
+  composition à montrer. Les deux autres vues s'en écartent assumément : la couleur ne peut pas dire à la
   fois « combien » et « laquelle ». Pas de gradient vers le rouge nulle part : une case dense n'est
   pas une bonne note, une case vide n'est pas une faute.
 - Clic sur un jour (vue Calendrier) → **panneau inline** sous la grille, pas de modale ; détail

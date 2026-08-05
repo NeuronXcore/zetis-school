@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { subjectColorFor } from "@zetis/ui";
-import { maxSlotCell, type SlotCell } from "../../lib/dashboardDerive";
+import { maxSlotCell, WEEKDAY_LABELS, type SlotCell } from "../../lib/dashboardDerive";
+import { anchorFor, CellTooltip, type HoveredCell } from "./CellTooltip";
 
 // Semaine type : 8 créneaux de 2 h (8 h → 24 h) × 7 jours, en CSS Grid pur.
 //
@@ -28,7 +29,7 @@ import { maxSlotCell, type SlotCell } from "../../lib/dashboardDerive";
 // échappe au rognage — l'`overflow` d'un ancêtre ne clippe pas un descendant fixé.
 // Une seule bulle dans le DOM, pas 56 : c'est l'état qui dit laquelle est ouverte.
 
-const DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const DAYS = WEEKDAY_LABELS;
 const SLOT_LABELS = ["8 h", "10 h", "12 h", "14 h", "16 h", "18 h", "20 h", "22 h"];
 
 interface SlotGridProps {
@@ -37,18 +38,14 @@ interface SlotGridProps {
   /** Écrire les minutes DANS les cases non vides. Réservé au cas filtré : sans filtre, 56 nombres
    *  additionnant des matières différentes se liraient moins bien que les couleurs elles-mêmes. */
   showValues: boolean;
+  /** La valeur d'une case est-elle vraiment une moyenne ? Faux sur la fenêtre 7 jours, où chaque
+   *  jour de semaine n'apparaît qu'une fois et où le serveur divise par 1. Dire « en moyenne » y
+   *  serait un mot de trop sur un chiffre brut. */
+  averaged: boolean;
 }
 
-/** Case survolée (ou au focus clavier) et l'ancre de sa bulle, en coordonnées écran. */
-interface HoveredSlot {
-  title: string;
-  cell: SlotCell;
-  x: number;
-  y: number;
-}
-
-export function SlotGrid({ cells, showValues }: SlotGridProps) {
-  const [hovered, setHovered] = useState<HoveredSlot | null>(null);
+export function SlotGrid({ cells, showValues, averaged }: SlotGridProps) {
+  const [hovered, setHovered] = useState<HoveredCell | null>(null);
   const max = maxSlotCell(cells);
 
   // Légende construite depuis ce qui est RÉELLEMENT tracé : lister les matières du programme
@@ -79,12 +76,13 @@ export function SlotGrid({ cells, showValues }: SlotGridProps) {
             cells={row}
             max={max}
             showValues={showValues}
+            averaged={averaged}
             onHover={setHovered}
           />
         ))}
       </div>
 
-      {hovered && <SlotTooltip {...hovered} />}
+      {hovered && <CellTooltip {...hovered} />}
 
       <div className="mt-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[11px] text-papa-muted">
         {[...legend.entries()].map(([slug, { name, color }]) => (
@@ -102,52 +100,20 @@ export function SlotGrid({ cells, showValues }: SlotGridProps) {
   );
 }
 
-/** Bulle de détail d'un créneau : le créneau, puis une ligne par matière avec sa couleur.
- *
- *  `aria-hidden` : la même information est déjà dans l'`aria-label` de la case, qui est ce que lit
- *  un lecteur d'écran au focus. L'annoncer deux fois ferait bégayer la grille. */
-function SlotTooltip({ title, cell, x, y }: HoveredSlot) {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none fixed z-50 -translate-x-1/2 rounded-lg border border-papa-border bg-papa-bg/95 px-3 py-2 shadow-[0_8px_24px_rgb(0_0_0/55%)] backdrop-blur-sm"
-      style={{
-        // Bornée à l'écran : sur la colonne « Dim », une bulle centrée sortirait à droite.
-        left: Math.min(Math.max(x, 96), window.innerWidth - 96),
-        top: y,
-      }}
-    >
-      <p className="mb-1.5 font-mono text-[11px] font-semibold text-papa-text">
-        {title} · {cell.total} min
-      </p>
-      <ul className="flex flex-col gap-1">
-        {cell.parts.map((part) => (
-          <li key={part.slug} className="flex items-center gap-2 whitespace-nowrap text-[11px]">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
-              style={{ background: part.color ?? subjectColorFor(part.slug, null) }}
-            />
-            <span className="flex-1 text-papa-muted">{part.name}</span>
-            <span className="font-mono text-papa-text">{part.minutes} min</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function Row({
   label,
   cells,
   max,
   showValues,
+  averaged,
   onHover,
 }: {
   label: string;
   cells: SlotCell[];
   max: number;
   showValues: boolean;
-  onHover: (slot: HoveredSlot | null) => void;
+  averaged: boolean;
+  onHover: (cell: HoveredCell | null) => void;
 }) {
   return (
     <>
@@ -159,17 +125,20 @@ function Row({
         // seule couleur, et depuis que la couleur nomme une matière, la ventilation en fait partie.
         const detail =
           cell.total > 0
-            ? `${cell.total} min en moyenne — ${cell.parts
+            ? `${cell.total} min${averaged ? " en moyenne" : ""} — ${cell.parts
                 .map((p) => `${p.name} ${p.minutes}`)
                 .join(", ")}`
             : "aucune séance";
         const text = `${DAYS[day]} ${label} — ${detail}`;
         const ouvrable = cell.total > 0;
 
-        const ouvrir = (cible: HTMLElement) => {
-          const r = cible.getBoundingClientRect();
-          onHover({ title: `${DAYS[day]} ${label}`, cell, x: r.left + r.width / 2, y: r.bottom + 6 });
-        };
+        const ouvrir = (cible: HTMLElement) =>
+          onHover({
+            title: `${DAYS[day]} ${label}`,
+            parts: cell.parts,
+            total: cell.total,
+            ...anchorFor(cible),
+          });
 
         return (
           <span
