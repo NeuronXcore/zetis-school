@@ -148,9 +148,9 @@ la nuance `pending` + `peut_valider`, dont le sabotage a été relu en diff apr�
 
 ## 0.47.0 — Les preuves de la Lecture ZETIS mènent quelque part, et Progression cesse d'être inventée
 
-> ⚠️ **Ce fichier saute deux chantiers mergés.** Les PR **#82** (vue à l'année) et **#83** (panneau
-> d'analyse par matière) n'ont **jamais reçu d'entrée** — constaté en clôturant celui-ci. Leur récit
-> vit dans leurs ADR et dans `TROUBLESHOOTING.md`, pas ici. Consigné en dette.
+> ✅ **Les deux chantiers que ce fichier sautait ont reçu leur entrée** le 2026-08-05 : voir
+> **0.46.1** (PR #82) et **0.46.2** (PR #83), plus bas. Ils ont été rétro-inscrits **depuis leurs
+> sources** — messages de squash, ADR, `TROUBLESHOOTING.md` — et non de mémoire.
 
 Le correctif du 2026-08-05 n'avait traité qu'**une** des trois branches de la Lecture ZETIS. Les
 deux autres portaient le même défaut, et personne ne les avait regardées : `up` menait à
@@ -198,6 +198,79 @@ la fenêtre, le test devient rouge et force à retirer le marqueur.
 
 **Aucune migration.** Backend `901 passed, 1 xfailed` · Papa `492` · `tsc -b` propre.
 Vérifié à l'écran, session Papa connectée, sur les vraies données.
+
+## 0.46.2 — Une bulle qu'on clique dit enfin QUELLES notions
+
+> 🕓 **Entrée rétro-inscrite le 2026-08-05.** PR [#83](https://github.com/NeuronXcore/zetis-school/pull/83),
+> squash `cb59600`, mergée le 2026-08-05 — elle n'avait jamais reçu d'entrée, et la dette a été
+> consignée en clôturant 0.47.0. Reconstituée **depuis le message de squash, les ADR et
+> `TROUBLESHOOTING.md`**, jamais de mémoire.
+>
+> ⚠️ **Numérotée 0.46.2 et non 0.47.0** : les versions suivantes sont déjà publiées dans
+> l'historique Git. On rétro-inscrit à la place chronologique, on ne renumérote pas ce qui est sorti.
+
+Cliquer une bulle de « Où agir » déplie l'analyse de la matière : les notions à renforcer y sont
+enfin **nommées**, là où l'agrégat ne savait que les compter.
+
+**Ferme un bug de cohérence constaté à l'écran** : *« Français : 8 notions à renforcer »* menait à
+une page qui en montrait **UNE**. Le constat compte les notions **fragiles**, `/lacunes` liste des
+lignes **`Gap`** — deux populations disjointes sous le même mot. Aucun test ne s'en apercevait :
+celui censé garder ça ne vérifiait que *« href non vide et count >= 0 »*.
+
+Trois apports :
+
+- **une route d'évidence par matière**, sans LLM et sans écriture, qui **ne recalcule rien** — elle
+  appelle les fonctions faisant déjà autorité ;
+- **une portée matière pour le Conseil de classe**, dont l'ancrage anti-hallucination hérite
+  gratuitement ;
+- **le panneau lui-même**, seconde exception assumée au « zéro état de chargement » de l'ADR-0028 §4.
+
+**La règle qui borne tout** : le réseau ne sert que ce que l'agrégat ne peut pas porter — des
+**NOMS**. Corollaire vérifié à l'écran : changer de période panneau ouvert ne déclenche **aucune**
+requête.
+
+880 backend · 463 Papa · Massimo vert. Chaque commit vérifié seul par `stash`. **~30 sabotages,
+dont trois ont démasqué mes propres tests** : un correctif de nuage qui ne marchait pas alors que
+les tests étaient verts, un verrou d'ancrage sabotable en no-op, et deux assertions sur des
+collections vides.
+
+⚠️ **Migration `f7a8b9c0d1e2`** (`council_reports.subject_id`, nullable, sans backfill) **APPLIQUÉE
+EN DEV SEULEMENT**, et **non exercée par les tests**.
+
+---
+
+## 0.46.1 — Une vue à l'année, et la carte « Où agir » qui redevient lisible
+
+> 🕓 **Entrée rétro-inscrite le 2026-08-05.** PR [#82](https://github.com/NeuronXcore/zetis-school/pull/82),
+> squash `38b994c`. Même dette, mêmes sources — cf. l'avertissement de 0.46.2 sur la numérotation.
+
+Quatrième fenêtre **« Année »** (365 jours glissants) sur le tableau de bord Papa, et refonte de la
+lisibilité de la carte « Où agir ».
+
+> 🔴 **Le vrai contenu du lot n'est pas le bouton.** L'agrégat ne chargeait ses événements que sur
+> **26 semaines**, et toutes les fenêtres n'étaient que des filtres en mémoire sur cette liste. Les
+> deux nombres **coïncidaient par accident** — 182 jours couvrent tout juste 90 + 90. Posée dessus,
+> l'« Année » aurait montré **la moitié** de ce qu'elle annonce, avec un delta valant **0 pour
+> toujours**, et **aucun test n'aurait échoué.**
+
+D'où deux bornes désormais explicites : `HISTORY_DAYS = max(PERIODS) × 2` pour le **chargement**,
+`CALENDAR_WEEKS` pour la **seule** heatmap.
+
+**Carte « Où agir »** : pictogrammes de matière à rayon inchangé (il porte l'aire ∝ notions),
+échelle verticale adaptative avec mention du zoom, quadrants passés en **vraies médianes**, retrait
+bas, et ordre de peinture par taille décroissante.
+
+Corrige aussi le deep-link `?period=365` vers le Conseil, que la nouvelle fenêtre cassait : la table
+était typée `Record<string, string>` et **avalait la clé en silence**.
+
+857 backend · 432 Papa · 525 Massimo. Chaque verrou éprouvé **par sabotage** — dont **deux qui
+étaient verts à tort** et ne sont ressortis que comme ça.
+
+⚠️ **Rien n'a été vérifié à l'écran** : le dashboard est derrière le login Papa.
+
+Aucune migration, aucune route, aucune dépendance.
+
+---
 
 ## 0.46.0 — Le Journal se trie et se filtre, et pour ça son passé cesse de bouger
 
