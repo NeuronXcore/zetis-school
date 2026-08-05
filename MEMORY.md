@@ -7,7 +7,7 @@
 
 ## État à la reprise
 
-**Chantier : « les preuves mènent quelque part » + le dépliage de Progression — COMPLET, NON COMMITÉ.**
+**Chantier : « les preuves mènent quelque part » + le dépliage de Progression — COMPLET et MERGÉ.**
 Deux chantiers dans la même session, sur la même branche : les cinq slices de l'ADR-0038 (A → E),
 puis son addendum (chaque ligne se déplie et agit), demandé après coup.
 
@@ -18,15 +18,15 @@ Lecture ZETIS. `up` menait à `/progression`, une page de 49 lignes **entièreme
 
 | | |
 |---|---|
-| Branche | **`feat/preuves-vers-le-reel`**, créée depuis `main`, **jamais poussée** |
-| Base | **`7120bb1`** (le cadrage, déjà sur `main`) — vérifié `git cat-file` |
-| État git | 🔴 **ZÉRO commit.** Tout est dans l'arbre de travail — `git status --porcelain` fait foi (≈ 20 modifiés, 8 nouveaux à la clôture, docs de clôture comprises) |
-| `main` | == `origin/main`, rien à pousser de ce côté |
+| **MERGÉ `main`** | **PR [#84](https://github.com/NeuronXcore/zetis-school/pull/84)**, squash **`7f8e246`** (2026-08-05) — branche **supprimée**, locale et distante |
+| Base | **`7120bb1`** (le cadrage, déjà sur `main` avant la branche) |
 | Migration | **aucune** — `XPEvent.subject_id` existait, `Gap.subject_slug` était déjà servi |
-| ADR | `adr-0038-*` (cadré sur `main`) + **`adr-0038-addendum-progression-agit.md`** (écrit ici) |
+| ADR | `adr-0038-les-preuves-menent-quelque-part.md` (cadré sur `main`) + **`adr-0038-addendum-progression-agit.md`** |
+| Suites au merge | **901 backend (+1 xfailed) · 492 Papa · `tsc -b` propre** (papa et massimo) |
 | Vérifié à l'écran | **OUI**, session Papa connectée, viewport 1440×900, vraies données |
 
-> Le détail des commits se lit par `git log --oneline main..HEAD` — il n'y en a aucun pour l'instant.
+> ⚠️ Le squash a emporté **deux chantiers en un seul commit**, et il modifie `DECISIONS.md` — que
+> la convention réserve à `main`. Décision explicite du user, prise en connaissance de cause.
 
 ### Ce que ce chantier a livré
 
@@ -81,25 +81,27 @@ Lecture ZETIS. `up` menait à `/progression`, une page de 49 lignes **entièreme
 
 ### ▶ PROCHAIN PAS
 
-**Vérifier le diff et les tests, puis committer.** Rien n'est commité, aucun commit sur la branche
-(`git rev-list --count main..HEAD` = 0). Ensuite : push + PR.
+**Ce chantier est CLOS et MERGÉ** (PR #84, squash `7f8e246`). Branche supprimée des deux côtés,
+arbre propre, `main` == `origin/main` — vérifié après le merge.
 
-⚠️ **La branche porte DEUX chantiers** (ADR-0038 et son addendum) et **modifie `DECISIONS.md`**,
-que la convention réserve à `main`. Décision explicite du user, prise en connaissance de cause —
-aucune autre branche n'existe, donc aucun conflit possible, mais le diff se relira comme un bloc.
+**Aucun chantier suivant n'est cadré.** Le prochain se choisit dans les DETTES ci-dessous ; les
+deux plus mûres, parce qu'elles sont déjà documentées et bornées :
+
+1. 🔴 **la fenêtre de la branche `flat`** (730 j du constat contre 366 j de sa cible) — un `xfail`
+   strict l'attend déjà dans `test_reading_evidence.py`, il n'y a qu'à le faire passer au vert ;
+2. 🔴 **les deux entrées de `CHANGELOG.md` manquantes** (PR #82 et #83) — pur travail de doc, mais
+   il faut relire les ADR pour le faire honnêtement plutôt que de le reconstituer de mémoire.
 
 
 ### ▶ DETTES OUVERTES
 
-> ⚠️ Les **huit premières** sont nées du **2026-08-05 (les preuves + le dépliage)** ; suivent
+> ⚠️ Les **sept premières** sont nées du **2026-08-05 (les preuves + le dépliage)** ; suivent
 > celles du 2026-08-05 (analyse par matière), du 2026-08-05 (vue à l'année) et du 2026-08-04.
 >
-> ✅ **Deux dettes ont été PAYÉES par ce chantier** et retirées d'ici : « `/lacunes` ignore
-> `?subject=` » et « `/progression` est entièrement en MOCK ».
+> ✅ **Trois dettes ont été éteintes** et retirées d'ici : « `/lacunes` ignore `?subject=` » et
+> « `/progression` est entièrement en MOCK », payées par le chantier ; et « la branche n'a aucun
+> commit », éteinte par le merge de la PR #84.
 
-- 🔴 **La branche `feat/preuves-vers-le-reel` n'a AUCUN commit et n'est pas poussée.** Tout le
-  travail des deux chantiers vit dans l'arbre de travail. C'est l'état le plus fragile du dépôt :
-  un `git checkout` malheureux l'efface. **Premier geste de la reprise.**
 - 🔴 **La branche `flat` de la Lecture ZETIS ment au-delà de 366 jours.** Le constat compte les
   traces sur `p.HISTORY_DAYS` (730 j) ; sa cible `/cahier` est bornée serveur à
   `activity_max_range_days` (366 j). Une trace plus ancienne est **comptée et invisible sur sa
@@ -125,6 +127,10 @@ aucune autre branche n'existe, donc aucun conflit possible, mais le diff se reli
   `?subject=klingon` joué en vrai, **mais le contraste entre deux matières n'a jamais été observé**.
   Idem pour la mention « · toutes matières » des boutons : aucune section « découvertes » n'existe
   dans ces données.
+- ⚠️ **Serveurs de dev debout à la clôture du 2026-08-05** — vérifié par `lsof` : backend `:8001`,
+  Papa `:5175`, Massimo `:5176`. ⚠️ Ils ont été **lancés par une AUTRE session**, pas par celle-ci :
+  `preview_start` a refusé les deux ports, et la vérification à l'écran s'est faite sur eux. Ils
+  survivront donc à la fermeture de ce panneau-ci.
 - ⚠️ **Aucune action du dépliage n'a été DÉCLENCHÉE en vrai.** « Créer une mission » et « Équiper »
   sont testés (7 verrous, dont la confirmation obligatoire) et leurs routes préexistent — mais
   aucune n'a été cliquée jusqu'au bout sur la base de dev, volontairement : `equip-notion` génère et
