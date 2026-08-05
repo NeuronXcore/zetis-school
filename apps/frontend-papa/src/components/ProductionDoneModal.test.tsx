@@ -18,6 +18,7 @@ const RUN: ProductionRun = {
   done_notions: 1,
   progress_pct: 100,
   created_at: "2026-08-03T14:00:00Z",
+  started_at: "2026-08-03T14:00:02Z",
   finished_at: "2026-08-03T14:00:15Z",
 };
 

@@ -6,7 +6,7 @@ import { useActiveProductionRun } from "../hooks/useActiveProductionRun";
 import { useAutonomyState } from "../hooks/useAutonomyState";
 import { ActiveProductionModal } from "../components/ActiveProductionModal";
 import { ProductionDoneModal } from "../components/ProductionDoneModal";
-import { EN_FILE_LABEL, useRunProgress } from "../hooks/useRunProgress";
+import { useRunProgress } from "../hooks/useRunProgress";
 import { SCOPE_NOUN } from "../lib/production";
 
 // Layout commun de l'interface Papa : sidebar + header + zone analytique
@@ -26,7 +26,10 @@ export function PapaLayout() {
   // pourcentage et ignorait la règle que `ProductionProgress` portait déjà : un lot `queued` ne
   // s'estime pas. Un lot resté en file — worker éteint — montait donc à 95 % et y restait pour
   // toujours, constaté à l'écran le 2026-08-04.
-  const { pct, enFile } = useRunProgress(activeRun);
+  // ⚠️ `arrete` n'est PAS une variante d'attente : c'est le seul état qui appelle un geste. Le
+  // 2026-08-05, l'en-tête a annoncé « en file d'attente » pendant six heures sur une file que
+  // personne ne consommait — littéralement vrai, et lu comme « patiente ».
+  const { pct, enFile, libelle, arrete } = useRunProgress(activeRun);
   return (
     // `overflow-hidden` n'est pas cosmétique : sans lui, la sidebar (22 entrées, ~1100 px) déborde
     // du conteneur en `h-full`, le DOCUMENT grandit à sa taille, et c'est le body qui scrolle —
@@ -82,17 +85,35 @@ export function PapaLayout() {
                 <button
                   type="button"
                   onClick={() => setShowRun(true)}
-                  title="Production en cours — voir le détail"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-papa-accent/40 bg-papa-accent/10 px-2.5 py-1 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/20"
+                  title={
+                    arrete
+                      ? "Aucun moteur de production ne tourne — le lot ne démarrera pas tout seul"
+                      : "Production en cours — voir le détail"
+                  }
+                  className={
+                    arrete
+                      ? "inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/20"
+                      : "inline-flex items-center gap-1.5 rounded-full border border-papa-accent/40 bg-papa-accent/10 px-2.5 py-1 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/20"
+                  }
                 >
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-papa-accent" aria-hidden />
+                  {/* ⚠️ Le point ne PULSE que si quelque chose bouge. Un point qui clignote sur une
+                      file arrêtée est une animation qui ment — c'est elle qu'on regarde avant de
+                      lire le texte. */}
+                  <span
+                    className={
+                      arrete
+                        ? "h-1.5 w-1.5 rounded-full bg-amber-300"
+                        : "h-1.5 w-1.5 animate-pulse rounded-full bg-papa-accent"
+                    }
+                    aria-hidden
+                  />
                   {/* ⚠️ Le VERBE aussi suit l'état : « ZETIS produit … en file d'attente » se
                       contredit tout seul. Tant que le lot n'a pas démarré, ZETIS ne produit rien
-                      — il va le faire. */}
-                  {enFile ? "ZETIS va produire" : "ZETIS produit"}{" "}
+                      — il va le faire. Et s'il n'a personne pour le faire, il ne le fera pas. */}
+                  {arrete ? "ZETIS ne produit pas" : enFile ? "ZETIS va produire" : "ZETIS produit"}{" "}
                   {activeRun.scope_kind
                     ? SCOPE_NOUN[activeRun.scope_kind] ?? "un contenu"
-                    : "un chapitre"} · {enFile ? EN_FILE_LABEL : `${pct}%`}
+                    : "un chapitre"} · {libelle ?? `${pct}%`}
                 </button>
               )}
             </div>

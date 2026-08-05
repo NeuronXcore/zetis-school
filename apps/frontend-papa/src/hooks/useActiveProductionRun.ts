@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type ProductionRun } from "@zetis/types";
+import { type ActiveProductionRun, type ProductionRun } from "@zetis/types";
 
 import { fetchActiveProductionRun, fetchProductionRun } from "../lib/production";
 
@@ -23,8 +23,8 @@ import { fetchActiveProductionRun, fetchProductionRun } from "../lib/production"
 const POLL_MS = 4000;
 
 export interface ActiveProduction {
-  /** Le lot en cours, ou `null`. */
-  run: ProductionRun | null;
+  /** Le lot en cours, ou `null`. Il porte `worker_alive` — cette route est la seule à le savoir. */
+  run: ActiveProductionRun | null;
   /** Le lot qui vient de se TERMINER, à annoncer une fois. `null` le reste du temps. */
   finished: ProductionRun | null;
   /** Acquitte l'annonce. Sans ça, la carte reviendrait au sondage suivant. */
@@ -32,7 +32,7 @@ export interface ActiveProduction {
 }
 
 export function useActiveProductionRun(): ActiveProduction {
-  const [run, setRun] = useState<ProductionRun | null>(null);
+  const [run, setRun] = useState<ActiveProductionRun | null>(null);
   const [finished, setFinished] = useState<ProductionRun | null>(null);
 
   // Le dernier lot vu ACTIF. C'est lui qui permet de détecter une fin : `/active` rend `null` dès

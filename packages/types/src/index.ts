@@ -215,6 +215,7 @@ export {
   type CoverageSchoolYear,
   type CoverageSubject,
   type CoverageTotals,
+  type ActiveProductionRun,
   type CellState,
   type EventOutcome,
   type Journal,

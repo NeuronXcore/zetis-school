@@ -10,6 +10,7 @@
 // branchant le bouton en aurait fait un commentaire faux — exactement la dette que le lot de
 // corrections vient de solder.
 import {
+  type ActiveProductionRun,
   type Coverage,
   type CoverageCellKey,
   type ProductionOrphan,
@@ -194,6 +195,6 @@ export const KIT_MS_PER_NOTION = 69000;
  *  d'arriéré : « 12 contenus non contrôlés » en permanence dans le header est exactement ce que
  *  l'addendum ADR-0011 §F.2 interdit — la provenance est un fait, jamais un reproche. Il dit
  *  « ça travaille », pas « vous êtes en retard ». */
-export async function fetchActiveProductionRun(): Promise<ProductionRun | null> {
+export async function fetchActiveProductionRun(): Promise<ActiveProductionRun | null> {
   return asJson(await fetch(`${API}/runs/active`, { headers: authHeader() }));
 }

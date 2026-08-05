@@ -357,6 +357,13 @@ def run_out(db: Session, run: ProductionRun) -> dict:
             else (100 if run.status == "done" else 0)
         ),
         "created_at": run.created_at,
+        # ⚠️ **`started_at` n'est pas un ornement : il est ce qui rend l'avancement CONTINU.**
+        # Sur un lot-pièce le serveur n'a aucune granularité (une notion : 0 % du début à la fin),
+        # l'écran estime donc — et une estimation qui démarre au montage du composant repart de
+        # zéro à chaque navigation. Papa revenait sur la page Demandes et voyait « 0 % » d'une
+        # production commencée depuis une minute. Avec l'instant de départ, l'estimation se
+        # calcule sur le TEMPS ÉCOULÉ, pas sur l'âge de l'affichage.
+        "started_at": run.started_at,
         "finished_at": run.finished_at,
     }
 
