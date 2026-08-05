@@ -75,8 +75,44 @@ voir l'analyse ? »* et *« pourquoi la preuve annonce 8 notions et n'en montre 
 ### ▶ PROCHAIN PAS
 
 **Ce chantier est CLOS et MERGÉ** (PR #83, squash `cb59600`). Branche supprimée des deux côtés,
-arbre propre, `main` == `origin/main`. **La prochaine session ouvre un nouveau chantier**, et donc
-commence par un CADRAGE (ADR → spec → prompt) sur `main`, sans une ligne de code.
+arbre propre, `main` == `origin/main`.
+
+### 🚩 LE CHANTIER SUIVANT EST DÉJÀ CADRÉ — ne pas re-cadrer, ne pas re-décider
+
+**« Les preuves mènent quelque part »** — `adr-0038-les-preuves-menent-quelque-part.md`, spec
+`docs/frontend-papa/page-progression.md`, prompts `prompts/claude-code/prompt-preuves-slices.md`.
+Tout est sur `main`. **Ouvrir `feat/preuves-vers-le-reel`**, puis dérouler les slices A → E.
+
+Le problème : le correctif du 2026-08-05 n'a traité qu'**une** des trois branches de `_reading`.
+La branche `up` (« N notions consolidées ») pointe vers `/progression`, **une page entièrement en
+MOCK** ; et `/lacunes` ignore toujours `?subject=`.
+
+**Ce que le read-before-code du cadrage a déjà établi — inutile de le refaire :**
+
+| | |
+|---|---|
+| `GET /api/parent/progress/consolidated` | **existe**, sert les notions acquises nommées |
+| `fetchConsolidatedSkills` (`lib/activity.ts`) | **existe et n'est appelée nulle part** — la réutiliser, pas en écrire une seconde |
+| `XPEvent.subject_id` | renseigné sur **80 événements sur 80** en base réelle → aucune migration |
+| `/progress/gaps` | rend déjà toutes les lacunes avec leur `subject_slug` |
+
+**Décisions prises par le user, à RELIRE et non à rouvrir :**
+
+1. La barre de Progression mesure l'**AVANCEMENT DU PROGRAMME** (engagées = consolidées ∪ fragiles
+   ∪ en cours, sur le total) — **pas** les acquises seules. Motif : **1 notion consolidée sur
+   280**, une barre `mastered/total` afficherait zéro partout pendant des mois.
+2. « Avancé » et « acquis » restent **deux colonnes**, jamais fondues.
+3. Le **vocabulaire de « consolidée » ne bouge pas** — on mesure autre chose et on le nomme
+   autrement.
+4. L'**XP revient sur Progression** (sa seule maison côté Papa depuis l'ADR-0028 §5), sans fenêtre
+   temporelle.
+5. `/lacunes` filtre **côté client** sur `?subject=` — zéro requête, aucun changement backend.
+6. Le **verrou de cohérence devient général** : les trois branches de `reading`, pas seulement
+   `watch`.
+
+⚠️ **Un stop-on-blocker est posé d'avance en slice B** : servir Progression depuis l'agrégat du
+dashboard lie deux pages ; en servir un propre crée une seconde façon de compter. **Signaler et
+proposer, ne pas trancher seul.**
 
 ⚠️ **Ce qui reste dû de celui-ci est dans les DETTES ci-dessous**, et un point en sort :
 
