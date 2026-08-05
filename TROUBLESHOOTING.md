@@ -4,6 +4,85 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/preuves-vers-le-reel` — les preuves mènent quelque part + dépliage (ADR-0038 + addendum) — 2026-08-05
+
+### 🔴 Deux contre-épreuves étaient des NO-OP — et deux verrous paraissaient sans dents
+
+Le motif est déjà consigné (2026-08-03), il est revenu deux fois dans la même session :
+
+| Sabotage écrit | Pourquoi il ne prouvait rien |
+|---|---|
+| `setOpenSlug(s.slug)` au lieu de la bascule | il retirait la **fermeture au reclic**, pas l'unicité — or ouvrir une AUTRE ligne referme la première de toute façon, donc le test passait |
+| `onClick={() => { onAct("mission"); }}` | strictement identique à l'original : `onAct` **ouvre la modale**, il n'écrit rien |
+
+**Parade** : quand un sabotage passe, suspecter le sabotage AVANT le test. Le refaire en visant le
+comportement réel (`void run(...)` au lieu de `setConfirming(...)`) l'a fait rougir immédiatement.
+
+⚠️ **Et le premier a révélé un vrai trou** : rien ne vérifiait qu'une ligne ouverte pouvait se
+**refermer**. Une contre-épreuve mal visée n'est pas seulement inutile — elle cache ce qu'elle
+aurait dû trouver.
+
+### ⚠️ Un croisement de deux surfaces ne suffit pas à prouver qu'on n'a pas recopié
+
+Le verrou « la répartition de Progression est celle de l'agrégat du dashboard » **est passé** sous
+un sabotage qui réécrivait les ensembles de statuts à la main — parce que la réécriture *tombait
+juste* sur les statuts semés. Seul le test du **statut inédit** (`statut_inedit` → `in_progress`,
+jamais perdu) l'a attrapé.
+
+**Parade** : à côté d'un test d'égalité entre deux surfaces, en écrire un sur un cas que la règle
+partagée traite et qu'une réimplémentation naïve ne traite pas.
+
+### ⚠️ `_seed` du `conftest` sème DÉJÀ une notion dans Mathématiques
+
+« Nombres relatifs », sans ligne de maîtrise. Elle compte donc **au programme** et dans les « non
+abordées ». Deux tests sont tombés au premier passage pour ça, et un troisième semait des `Gap` sur
+`db.query(m.Skill).all()` — donc sur la notion du conftest en plus des siennes.
+
+**Parade** : nommer la constante (`NOTIONS_DU_CONFTEST = 1`) plutôt qu'ajuster les nombres en
+silence, et faire rendre au helper de semis **les `skill_id` qu'il a créés**.
+
+### ⚠️ Une notion FRAGILE est aussi une notion ENGAGÉE — elle apparaît dans deux blocs
+
+`getByText("Accord du participe")` remontait deux nœuds. Ce n'est pas un défaut d'affichage : les
+deux blocs ont raison. **Parade** : scoper par `<section>` (`closest("section")` + `within`) — le
+test devient plus fort au passage, puisqu'il peut alors vérifier qu'une **acquise** n'est PAS dans
+« à renforcer ».
+
+### ⚠️ Un tableau vide avec ses en-têtes se lit « il n'y a rien »
+
+Sur erreur de chargement, `/progression` affichait le bandeau d'erreur **et** un `<table>` vide.
+Deux lectures contradictoires du même écran pour un simple backend éteint. **Parade** : sur erreur,
+ne rien rendre du tout — le bandeau a déjà parlé.
+
+### ⚠️ `flex ... gap-2` sépare un mot de sa ponctuation
+
+« Depuis le constat sur **Français** . » — le point est un nœud texte, donc un **enfant flex**, donc
+espacé. Invisible en test (`toHaveTextContent` ignore l'espacement), flagrant à l'écran.
+**Parade** : une phrase = **un** enfant flex, enveloppée dans un `<span>`.
+
+### ⚠️ Le panneau navigateur rend en taille réduite par défaut
+
+Même piège que le bandeau Massimo (2026-08-04). `resize_window({preset:"desktop"})` **ne suffit
+pas** — il a rendu un viewport étroit mis à l'échelle. **Parade** : `resize_window({width:1440,
+height:900})` explicitement, et vérifier que la capture montre bien la sidebar ET le tableau.
+
+⚠️ **Et les `ref_N` de `read_page` deviennent faux après un scroll JS** : un clic sur `ref_35` a
+touché le vide. Parade : relire la page après tout scroll, ou cliquer via `element.click()`.
+
+### ⚠️ `graphify explain` / la mémoire ne disent pas quelles routes existent
+
+Le prompt de slice affirmait que le détail « À renforcer » devait venir de `Gap`. **Le wireframe de
+la même spec montrait les fragiles** (8, 3, 0, 1, 1 — exactement les fragiles réels, jamais les
+lacunes : 1, 0, 0, 0, 0). Contradiction interne, tranchée par le user.
+
+**Parade** : quand une spec porte un tableau ET un wireframe, **confronter les deux aux vraies
+données** avant de coder. Une requête sur la base de dev a suffi.
+
+### ⚠️ `subject_analysis` appelait `mastery_by_skill` deux fois après extension
+
+`_to_reinforce` et `_engagement` en ont tous deux besoin. **Parade** : l'appeler une fois dans
+`subject_analysis` et le passer en argument — les deux helpers sont privés au module.
+
 ## Chantier `feat/analyse-matiere` — panneau d'analyse par matière (addenda ADR-0028 / ADR-0020) — 2026-08-05
 
 ### 🔴 Un correctif VERT qui ne marchait pas, parce que le test visait le milieu du graphe

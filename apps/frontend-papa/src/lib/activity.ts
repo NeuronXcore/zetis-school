@@ -5,6 +5,7 @@ import type {
   ActivitySessions,
   ConsolidatedSkill,
   OpenGap,
+  ProgressionOverview,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader } from "./httpClient";
@@ -57,4 +58,14 @@ export async function fetchConsolidatedSkills(): Promise<ConsolidatedSkill[]> {
     headers: authHeader(),
   });
   return asJson<ConsolidatedSkill[]>(res);
+}
+
+/** L'avancement du programme, matière par matière — TOUTE la page Progression (ADR-0038).
+ *
+ *  ⚠️ Aucun paramètre : pas de matière, pas de période. Ce qui est servi est un stock, et la page
+ *  ne recharge jamais. Ajouter un argument ici serait le premier pas vers le sélecteur de période
+ *  que l'ADR-0038 §6 exclut. */
+export async function fetchProgressionOverview(): Promise<ProgressionOverview> {
+  const res = await fetch(`${API_URL}/api/parent/progress/overview`, { headers: authHeader() });
+  return asJson<ProgressionOverview>(res);
 }

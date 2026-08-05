@@ -440,7 +440,8 @@ validées `planned|active` sont candidates.
 
 > ⚠️ **Section documentée mais JAMAIS implémentée** (constat du read-before-code ADR-0028,
 > 2026-07-31). Aucune de ces quatre routes n'existe en code. Les seules routes de progression
-> réellement servies sont `GET /api/parent/progress/gaps` et `/consolidated`, décrites plus bas.
+> réellement servies sont `GET /api/parent/progress/gaps`, `/consolidated`, `/overview` et
+> `/subjects/{id}/analysis`, décrites plus bas (les deux dernières ajoutées les 2026-08-05).
 > Ce qui manque ici est repris autrement : le résumé global et la progression par matière sont
 > servis par `GET /api/parent/dashboard` (agrégat, par matière), et la vue élève par le module
 > `galaxy`. Ne pas coder contre cette section.
@@ -1091,6 +1092,82 @@ doit vouloir dire acquis, pas « presque ».
 ```json
 [{ "skill_id": 7, "skill_name": "Nombres relatifs", "subject_slug": "mathematiques",
    "subject_name": "Mathématiques", "mastery_score": 95, "last_seen_at": null }]
+```
+
+### GET `/api/parent/progress/overview`
+
+L'avancement du programme, **matière par matière** — toute la page « Progression » en une requête
+(ADR-0038). Elle a remplacé un écran entièrement en mock le 2026-08-05.
+
+🔴 **`engaged` mesure l'AVANCEMENT, pas l'acquisition** : notions engagées = consolidées ∪ fragiles
+∪ en cours, c'est-à-dire toute notion portant une ligne de maîtrise. `notions.consolidated` reste la
+mesure des ACQUIS, servie **à part** et jamais fondue dans la première. Il y a 1 notion consolidée
+sur 280 en base réelle : une barre bâtie sur les acquis afficherait zéro pour sept matières sur huit.
+
+⚠️ **Aucun paramètre**, et ce n'est pas un oubli : tout est un **stock**, lu « à aujourd'hui ».
+Aucune fenêtre temporelle, aucune série, aucun filtre — un `?period=` passé est ignoré.
+
+⚠️ `notions.total == 0` **n'est pas** « pas de référentiel » : une matière peut avoir ses chapitres
+sans qu'aucune notion y soit rattachée. `has_referentiel` = « au moins un chapitre dans l'année
+active », la **même** définition que `SubjectOut.has_referentiel` du dashboard — les deux écrans
+sont reliés par un lien et ne peuvent pas se contredire.
+
+⚠️ La colonne « À renforcer » de l'écran lit **`notions.fragile`**, pas `gaps_open` : les deux
+populations sont disjointes (8 fragiles pour 1 lacune ouverte en Français sur la base réelle), et
+c'est `fragile` que compte le constat du dashboard qui pointe ici.
+
+Toutes les matières sont servies, y compris sans référentiel et sans XP — à zéro, jamais absentes.
+
+```json
+{ "generated_at": "2026-08-05T09:00:00+00:00",
+  "school_year": { "label": "2026-2027", "level": "4e" },
+  "subjects": [{ "subject_id": 1, "slug": "francais", "name": "Français",
+                 "color": null, "icon": null,
+                 "notions": { "consolidated": 1, "fragile": 8, "in_progress": 1, "total": 96 },
+                 "engaged": 10, "xp": 367, "gaps_open": 1, "has_referentiel": true }] }
+```
+
+### GET `/api/parent/progress/subjects/{subject_id}/analysis`
+
+Ce que l'agrégat du dashboard ne peut pas porter, pour UNE matière : des **NOMS**. Chargée
+paresseusement au dépliage d'un panneau (`adr-0028-addendum-analyse-par-matiere`) puis d'une ligne
+de Progression (`adr-0038-addendum-progression-agit`). Lecture seule, **sans LLM** — *l'analyse est
+l'évidence, le Conseil est la narration*.
+
+⚠️ **Aucun paramètre de période** : tout ce qui est fenêtré vit déjà dans `SubjectOut`. C'est ce qui
+garantit que changer de période panneau ouvert ne déclenche aucune requête. 404 si la matière est
+inconnue.
+
+⚠️ `to_reinforce` = notions **fragiles ∪ lacunes ouvertes**, l'union jamais l'intersection, et
+**sans plafond** — le plafond de 8 du Conseil borne un *prompt*, pas un panneau. `fragile_count`,
+`open_gap_count` et `without_mission_count` sont redondants avec la liste **volontairement** : ils
+rendent la cohérence vérifiable dans une seule charge utile.
+
+Les trois derniers champs servent le dépliage d'une ligne de Progression, et **recomposent** les
+nombres de cette ligne : `len(engaged) == engaged` de `/overview`, `len(engaged) + len(not_started)
+== notions.total`, et `Σ xp_by_reason.amount == xp`.
+
+🔴 **`xp_by_reason` répartit par MOTIF, jamais par notion** : `XPEvent` ne porte pas de `skill_id`.
+« Quelles notions ont rapporté ces 367 XP » n'a aucune réponse en base et n'en aura pas sans
+migration. Ce n'est pas une approximation faute de mieux, c'est le plafond de ce que la donnée
+permet.
+
+```json
+{ "subject_id": 1, "slug": "francais", "name": "Français",
+  "generated_at": "2026-08-05T09:00:00+00:00",
+  "to_reinforce": [{ "skill_id": 12, "skill_name": "Temps du récit", "is_fragile": true,
+                     "has_open_gap": false, "severity": null, "gap_status": null,
+                     "first_detected_at": null, "mastery_status": "weak", "mastery_score": 40,
+                     "weak_quiz_signal": 0.3, "last_seen_at": null, "has_active_mission": false }],
+  "fragile_count": 8, "open_gap_count": 1, "without_mission_count": 3,
+  "in_progress": { "missions": [], "pending_content": 0, "stale_content": 0,
+                   "review_overdue": 2, "review_max_overdue_days": 5 },
+  "referentiel": { "has_referentiel": true, "lessons": 12, "lessons_validated": 9,
+                   "courses_written": 7, "derivatives_percent": 58 },
+  "engaged": [{ "skill_id": 12, "skill_name": "Temps du récit", "segment": "fragile",
+                "mastery_status": "weak", "mastery_score": 40 }],
+  "not_started": [{ "skill_id": 44, "skill_name": "Subordonnées" }],
+  "xp_by_reason": [{ "reason": "mission_remediation", "count": 2, "amount": 100 }] }
 ```
 
 ## Production — Couverture (Papa, ADR-0023)

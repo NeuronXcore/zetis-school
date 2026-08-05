@@ -9,6 +9,9 @@ export {
   type ConsolidatedSkill,
   type OpenGap,
   type PageViewRequest,
+  type ProgressionNotions,
+  type ProgressionOverview,
+  type ProgressionSubject,
 } from "./activity";
 export {
   type DashboardCalendarDay,
@@ -36,10 +39,13 @@ export {
   type ReadingTrend,
 } from "./dashboard";
 export {
+  type AnalysisEngagedNotion,
   type AnalysisInProgress,
   type AnalysisMission,
   type AnalysisNotion,
+  type AnalysisNotStarted,
   type AnalysisReferentiel,
+  type AnalysisXpByReason,
   type SubjectAnalysis,
 } from "./subjectAnalysis";
 export {

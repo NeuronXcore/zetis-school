@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Skill, SkillMastery, Subject
 from app.modules.dashboard import projections as p
 from app.modules.evidence import service as evidence
+from app.modules.gamification.service import xp_by_reason
 from app.modules.progress.service import (
     SEVERITY_RANK,
     active_missions,
@@ -52,13 +53,19 @@ def subject_analysis(db: Session, *, student_id: int, subject_id: int) -> dict:
     }
 
     totals = _coverage_totals(db, subject_id)
+    # UN seul appel : `_to_reinforce` en a besoin, `_engagement` aussi. Le rappeler ferait deux
+    # lectures de la même table pour une seule réponse.
+    mastery = evidence.mastery_by_skill(db, student_id=student_id)
 
     return {
         "subject_id": subject.id,
         "slug": subject.slug,
         "name": subject.name,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        **_to_reinforce(db, student_id=student_id, subject=subject, skills=skills),
+        **_engagement(db, student_id=student_id, subject=subject, skills=skills, mastery=mastery),
+        **_to_reinforce(
+            db, student_id=student_id, subject=subject, skills=skills, mastery=mastery
+        ),
         # ⚠️ UN seul appel à `coverage()`, dont les deux blocs dérivent : il construit l'arbre
         # chapitre → leçon complet de la matière pour n'en garder que les totaux, l'appeler deux
         # fois le construirait deux fois.
@@ -69,7 +76,70 @@ def subject_analysis(db: Session, *, student_id: int, subject_id: int) -> dict:
     }
 
 
-def _to_reinforce(db: Session, *, student_id: int, subject: Subject, skills: dict[int, str]) -> dict:
+def _engagement(
+    db: Session, *, student_id: int, subject: Subject, skills: dict[int, str], mastery: dict
+) -> dict:
+    """Ce que la barre d'avancement de la page Progression compte — mais NOMMÉ.
+
+    « Engagée » = toute notion portant une ligne de maîtrise (consolidée ∪ fragile ∪ en cours,
+    ADR-0038 §1). Le reste est « pas encore abordé ». Les deux listes doivent recomposer
+    exactement `notions.engaged` et `notions.total` de `/progress/overview` — sinon le dépliage
+    contredirait la ligne qu'il explique, soit le défaut de tout ce chantier reproduit à quelques
+    pixels d'écart (addendum ADR-0038 §2).
+
+    ⚠️ Les statuts ne sont **pas reclassés** ici : `p.CONSOLIDATED_STATUSES` / `p.FRAGILE_STATUSES`
+    font autorité, et un statut inconnu tombe dans « en cours » — la règle de `notions_breakdown`,
+    pas la nôtre. « Mieux vaut une notion mal rangée qu'une notion invisible » : une notion perdue
+    en route creuserait l'écart entre la liste et le nombre.
+    """
+    engaged: list[dict] = []
+    not_started: list[dict] = []
+
+    for skill_id, name in skills.items():
+        row = mastery.get(skill_id)
+        if row is None:
+            not_started.append({"skill_id": skill_id, "skill_name": name})
+            continue
+        status = row.get("status")
+        if status in p.CONSOLIDATED_STATUSES:
+            segment = "consolidated"
+        elif status in p.FRAGILE_STATUSES:
+            segment = "fragile"
+        else:
+            segment = "in_progress"
+        score = row.get("mastery")
+        engaged.append(
+            {
+                "skill_id": skill_id,
+                "skill_name": name,
+                "segment": segment,
+                "mastery_status": status,
+                "mastery_score": round(score) if score is not None else None,
+            }
+        )
+
+    # La plus avancée d'abord, puis le nom : un ordre stable d'un dépliage à l'autre.
+    order = {"consolidated": 0, "fragile": 1, "in_progress": 2}
+    engaged.sort(key=lambda n: (order[n["segment"]], n["skill_name"]))
+    not_started.sort(key=lambda n: n["skill_name"])
+
+    return {
+        "engaged": engaged,
+        "not_started": not_started,
+        # Par MOTIF, jamais par notion : `XPEvent` n'a pas de `skill_id` (addendum ADR-0038 §3).
+        "xp_by_reason": xp_by_reason(db, _student(db, student_id), subject_id=subject.id),
+    }
+
+
+def _student(db: Session, student_id: int):
+    from app.db.models import StudentProfile
+
+    return db.get(StudentProfile, student_id)
+
+
+def _to_reinforce(
+    db: Session, *, student_id: int, subject: Subject, skills: dict[int, str], mastery: dict
+) -> dict:
     """Notions fragiles **∪** lacunes ouvertes — l'union, jamais l'intersection.
 
     Les deux populations sont disjointes en droit : une notion peut être `weak` sans avoir jamais
@@ -93,7 +163,6 @@ def _to_reinforce(db: Session, *, student_id: int, subject: Subject, skills: dic
     # Hors boucle : une notion fragile sans lacune interroge cet ensemble, et le calculer par
     # notion aurait fait une requête par ligne de la liste.
     covered = skills_with_active_mission(db, student_id=student_id)
-    mastery = evidence.mastery_by_skill(db, student_id=student_id)
     quiz_signal = evidence.weighted_quiz_signal(db, student_id=student_id)
     fragile_ids = {
         skill_id

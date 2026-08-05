@@ -11,10 +11,11 @@ from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.modules.auth.deps import require_parent
 from app.modules.eli5.service import get_default_student
-from app.modules.progress import analysis, service
+from app.modules.progress import analysis, overview, service
 from app.modules.progress.schemas import (
     ConsolidatedSkillOut,
     OpenGapOut,
+    ProgressionOverviewOut,
     SubjectAnalysisOut,
 )
 
@@ -33,6 +34,20 @@ def open_gaps(db: Session = Depends(get_db)) -> list[dict]:
 def consolidated_skills(db: Session = Depends(get_db)) -> list[dict]:
     """Notions consolidées (`mastered`, score ≥ 90), la maîtrise la plus haute d'abord."""
     return service.consolidated_skills(db, student_id=get_default_student(db).id)
+
+
+@router.get("/overview", response_model=ProgressionOverviewOut)
+def progression_overview(db: Session = Depends(get_db)) -> dict:
+    """L'avancement du programme, matière par matière — la page « Progression » (ADR-0038).
+
+    **Une seule requête au montage** : les quatre colonnes sortent d'ici. Elle remplace un écran
+    entièrement en mock, alors qu'il est la cible d'un constat cliquable du dashboard.
+
+    ⚠️ **Aucun paramètre de période**, et ce n'est pas un oubli : tout ce que sert cette route est
+    un stock (ADR-0038 §6). L'historique de la maîtrise vit déjà, borné, dans « Évolution de la
+    mémoire » du dashboard ; en servir une seconde vue ici en ferait deux à tenir d'accord.
+    """
+    return overview.progression_overview(db, student_id=get_default_student(db).id)
 
 
 # ⚠️ Segment PARAMÉTRÉ, donc à déclarer APRÈS tout chemin littéral commençant par `/subjects`.

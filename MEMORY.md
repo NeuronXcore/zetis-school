@@ -7,132 +7,132 @@
 
 ## État à la reprise
 
-**Chantier : le panneau d'analyse par matière — COMPLET et MERGÉ.** Cinq slices dans la même
-session (A → E), plus trois correctifs de lisibilité nés de la vérification à l'écran.
+**Chantier : « les preuves mènent quelque part » + le dépliage de Progression — COMPLET, NON COMMITÉ.**
+Deux chantiers dans la même session, sur la même branche : les cinq slices de l'ADR-0038 (A → E),
+puis son addendum (chaque ligne se déplie et agit), demandé après coup.
 
-Le point de départ tenait en deux questions de Papa : *« quand je clique sur une bulle, comment
-voir l'analyse ? »* et *« pourquoi la preuve annonce 8 notions et n'en montre qu'une ? »*
+Le point de départ : le correctif du matin n'avait traité qu'**une** des trois branches de la
+Lecture ZETIS. `up` menait à `/progression`, une page de 49 lignes **entièrement en mock**.
 
 ### Où est le code, exactement
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR [#83](https://github.com/NeuronXcore/zetis-school/pull/83)**, squash **`cb59600`** (2026-08-05) — branche **supprimée**, local et `origin` |
-| Cadrage | `6597273` sur `main`, AVANT la branche (2 addenda + spec §5 bis + prompts de slices) |
-| Migration | **`f7a8b9c0d1e2`** — `council_reports.subject_id` nullable + index, **appliquée en dev SEULEMENT** |
-| ADR | `adr-0028-addendum-analyse-par-matiere.md`, `adr-0020-addendum-portee-matiere.md`, indexés |
-| Suites après merge | **880 backend · 463 Papa · Massimo vert**, `tsc -b` propre, build Papa vert |
-| Vérifié à l'écran | **OUI, session connectée** — panneau, lien de preuve, zéro requête au changement de période |
+| Branche | **`feat/preuves-vers-le-reel`**, créée depuis `main`, **jamais poussée** |
+| Base | **`7120bb1`** (le cadrage, déjà sur `main`) — vérifié `git cat-file` |
+| État git | 🔴 **ZÉRO commit.** Tout est dans l'arbre de travail — `git status --porcelain` fait foi (≈ 20 modifiés, 8 nouveaux à la clôture, docs de clôture comprises) |
+| `main` | == `origin/main`, rien à pousser de ce côté |
+| Migration | **aucune** — `XPEvent.subject_id` existait, `Gap.subject_slug` était déjà servi |
+| ADR | `adr-0038-*` (cadré sur `main`) + **`adr-0038-addendum-progression-agit.md`** (écrit ici) |
+| Vérifié à l'écran | **OUI**, session Papa connectée, viewport 1440×900, vraies données |
+
+> Le détail des commits se lit par `git log --oneline main..HEAD` — il n'y en a aucun pour l'instant.
 
 ### Ce que ce chantier a livré
 
-1. **`GET /api/parent/progress/subjects/{id}/analysis`** — l'évidence NOMMÉE d'une matière, sans
-   LLM et sans écriture. *L'analyse est l'évidence, le Conseil est la narration.*
-2. **Le panneau** sous la carte « Où agir », seconde exception au « zéro état de chargement ».
-3. **Le lien de preuve ne ment plus** : le constat annonce 8, la preuve en sert 8.
-4. **Le Conseil de classe accepte une portée matière**, avec troncature déclarée.
-5. **Trois correctifs de lisibilité** que seul l'écran a révélés (cf. défauts ci-dessous).
+1. **`gamification.xp_by_subject`** puis **`xp_by_reason`** — cumuls sans fenêtre (un XP est un
+   stock). Les événements sans matière sont **nommés** (`unattributed_xp`), jamais tus.
+2. **`GET /api/parent/progress/overview`** — toute la page Progression en une requête.
+3. **`/progression` n'est plus un mock** : `SUBJECTS_PROGRESS` supprimé de `data/mock.ts`.
+4. **`/lacunes` lit `?subject=`** et filtre en mémoire, zéro requête.
+5. **Le verrou général des trois branches** (`test_reading_evidence.py`) — il résout la cible depuis
+   le `href` et exige l'égalité du compte.
+6. **Le dépliage d'une ligne** : quatre blocs nommés + actions par notion, sur des routes existantes.
 
 ### Décisions actives — à relire, pas à rouvrir
 
-1. 🔴 **Le réseau ne sert que ce que l'agrégat ne peut pas porter : des NOMS.** Tout chiffre déjà
-   dans `SubjectOut` vient de la mémoire. Corollaire testable : la réponse ne dépend d'**aucune
-   période**, donc changer de période panneau ouvert ne déclenche rien.
-2. **L'état du panneau vit dans l'URL** (`?panel=ou-agir`) par NÉCESSITÉ : le lien de preuve est
-   une navigation vers la route courante, que React Router ne remonte pas.
-3. 🔴 **Filtrer REFERME le panneau** (`panel: null` écrit avec `subject`). Sans cette ligne, un clic
-   de pastille rouvrirait le panneau — donc un geste de filtrage partirait au réseau.
-4. **Un geste = UN appel à `patchParams`.** `setSearchParams` de react-router n'est pas un setter
-   React mais un enrobage de `navigate()` : deux appels dans le même tick en perdent un, et la
-   forme fonctionnelle n'y change rien.
-5. **La carte ne change pas de largeur.** Le SVG est en `w-full` : l'élargir déplacerait les bulles
-   sous le curseur au moment du clic.
-6. **`to_reinforce` = fragiles ∪ lacunes, sans plafond.** Le plafond de 8 borne un PROMPT.
-7. **L'ancrage du Conseil hérite de la portée gratuitement** — `allowed_subject_ids` dérive du
-   contexte filtré. Un verrou le prouve, parce que c'est ce qu'un refactor casse en silence.
+1. 🔴 **La barre mesure l'AVANCEMENT** (engagées / au programme), pas l'acquisition. « Avancé » et
+   « acquis » sont **deux colonnes**, jamais fondues, jamais additionnées.
+2. **Aucun pourcentage à l'écran** : « 10 / 96 » se lit « on en a abordé 10 sur 96 » ; « 10 % » se
+   lit « il ne sait que 10 % ». Le format des nombres EST le garde-fou.
+3. **`has_referentiel` = celle du DASHBOARD** (au moins un *chapitre* dans l'année active), pas
+   celle de `analysis._referentiel` (au moins une *leçon*). Deux écrans reliés par un lien ne
+   peuvent pas se contredire. ⚠️ **Les deux définitions coexistent toujours dans le dépôt.**
+4. 🔴 **La colonne « À renforcer » lit `notions.fragile`, pas `gaps_open`** — le tableau de la spec
+   disait `Gap`, son wireframe montrait les fragiles ; tranché par le user sur les vraies données
+   (Français : **8 fragiles pour 1 lacune ouverte**).
+5. **Progression compose depuis les primitives qui font autorité** (`evidence.mastery_by_skill`,
+   `p.notions_breakdown`, `open_gaps`), ni depuis `build_dashboard`, ni par un comptage propre.
+   C'est le patron de `progress/analysis.py`, pas une troisième voie.
+6. **Les boutons de `/lacunes` gardent leur portée réelle et le disent** (« · toutes matières ») :
+   les deux routes de génération n'ont **aucun** paramètre de matière.
+7. **L'addendum RÉVOQUE le 2ᵉ point de l'ADR-0038 §6** — et lui seul. Le motif du §6 était la
+   *duplication* ; or toutes les actions du dépliage appellent des routes **déjà écrites**.
+8. **Le XP se détaille par MOTIF, jamais par notion** : `XPEvent` n'a pas de `skill_id`.
+9. **Un seul dépliage à la fois** ; la ligne visée par `?subject=` est **surlignée, jamais filtrée**
+   (comparer les matières est la raison d'être de la page).
 
 ### ⚠️ LES DÉFAUTS TROUVÉS EN CODANT
 
-1. 🔴 **Un correctif VERT et qui ne marchait pas.** Le désentassement des bulles était annulé par
-   le clamp du cadre appliqué APRÈS lui : deux matières à valeurs identiques étaient ramenées
-   contre l'axe, à 2 px l'une de l'autre. Les tests restaient verts parce qu'ils plaçaient la
-   collision **au milieu du graphe**, là où le clamp ne mord jamais. **C'est l'écran qui l'a
-   montré, pas la suite.**
-2. 🔴 **Deux sabotages étaient des no-op**, donc deux verrous paraissaient faux-négatifs :
-   `activeSubject !== null ? activeSubject : null` (identité), et `set(per_subject)` dans
-   l'ancrage (déjà filtré). Un sabotage qui ne change rien ne prouve rien.
-3. 🔴 **Deux assertions portaient sur des collections VIDES** — un lien externe absent de la
-   fixture, une liste de jours sans minutes. `all([])` est vrai.
-4. 🔴 **`toContain("17")` passait à l'intérieur de « 2h17 ».** Piège de sous-chaîne : le panneau
-   pouvait lire la charge de révision depuis le réseau sans que rien ne rougisse.
-5. ⚠️ **`pilot_list` et `skills_with_active_mission` n'ont pas la même population** (`validated`
-   exigé par l'un seulement) → source unique `active_missions()` extraite.
-6. ⚠️ **Une erreur React « Rendered more hooks » survivait au rechargement** : c'était un artefact
-   HMR, démasqué seulement en ouvrant un ONGLET NEUF (le tampon de console survit au reload).
+1. 🔴 **Deux de mes contre-épreuves étaient des NO-OP** — deux verrous paraissaient sans dents. Et
+   le premier cachait un **vrai trou** : rien ne vérifiait qu'une ligne ouverte pouvait se refermer.
+2. 🔴 **Le croisement Progression ↔ dashboard est passé** sous un sabotage qui réécrivait les
+   statuts à la main : la réécriture tombait juste sur les statuts semés. Seul le test du **statut
+   inédit** l'a attrapé.
+3. 🔴 **Un tableau vide avec ses en-têtes** s'affichait sur erreur de chargement — « il n'y a rien »
+   pour un simple backend éteint.
+4. ⚠️ **`flex gap-2` séparait un mot de son point final** (« Français . ») — invisible en test.
+5. ⚠️ **Deux de mes tests sont tombés d'entrée** : le `conftest` sème déjà une notion dans
+   Mathématiques, et une notion fragile apparaît **légitimement** dans deux blocs.
+6. ⚠️ **La spec se contredisait** (tableau `Gap` vs wireframe fragiles) — trouvé en confrontant aux
+   vraies données, pas en relisant.
 
-> Détail et parades : `TROUBLESHOOTING.md`, section du **2026-08-05 (analyse par matière)**.
+> Détail et parades : `TROUBLESHOOTING.md`, section **`feat/preuves-vers-le-reel` (2026-08-05)**.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS et MERGÉ** (PR #83, squash `cb59600`). Branche supprimée des deux côtés,
-arbre propre, `main` == `origin/main`.
+**Vérifier le diff et les tests, puis committer.** Rien n'est commité, aucun commit sur la branche
+(`git rev-list --count main..HEAD` = 0). Ensuite : push + PR.
 
-### 🚩 LE CHANTIER SUIVANT EST DÉJÀ CADRÉ — ne pas re-cadrer, ne pas re-décider
+⚠️ **La branche porte DEUX chantiers** (ADR-0038 et son addendum) et **modifie `DECISIONS.md`**,
+que la convention réserve à `main`. Décision explicite du user, prise en connaissance de cause —
+aucune autre branche n'existe, donc aucun conflit possible, mais le diff se relira comme un bloc.
 
-**« Les preuves mènent quelque part »** — `adr-0038-les-preuves-menent-quelque-part.md`, spec
-`docs/frontend-papa/page-progression.md`, prompts `prompts/claude-code/prompt-preuves-slices.md`.
-Tout est sur `main`. **Ouvrir `feat/preuves-vers-le-reel`**, puis dérouler les slices A → E.
-
-Le problème : le correctif du 2026-08-05 n'a traité qu'**une** des trois branches de `_reading`.
-La branche `up` (« N notions consolidées ») pointe vers `/progression`, **une page entièrement en
-MOCK** ; et `/lacunes` ignore toujours `?subject=`.
-
-**Ce que le read-before-code du cadrage a déjà établi — inutile de le refaire :**
-
-| | |
-|---|---|
-| `GET /api/parent/progress/consolidated` | **existe**, sert les notions acquises nommées |
-| `fetchConsolidatedSkills` (`lib/activity.ts`) | **existe et n'est appelée nulle part** — la réutiliser, pas en écrire une seconde |
-| `XPEvent.subject_id` | renseigné sur **80 événements sur 80** en base réelle → aucune migration |
-| `/progress/gaps` | rend déjà toutes les lacunes avec leur `subject_slug` |
-
-**Décisions prises par le user, à RELIRE et non à rouvrir :**
-
-1. La barre de Progression mesure l'**AVANCEMENT DU PROGRAMME** (engagées = consolidées ∪ fragiles
-   ∪ en cours, sur le total) — **pas** les acquises seules. Motif : **1 notion consolidée sur
-   280**, une barre `mastered/total` afficherait zéro partout pendant des mois.
-2. « Avancé » et « acquis » restent **deux colonnes**, jamais fondues.
-3. Le **vocabulaire de « consolidée » ne bouge pas** — on mesure autre chose et on le nomme
-   autrement.
-4. L'**XP revient sur Progression** (sa seule maison côté Papa depuis l'ADR-0028 §5), sans fenêtre
-   temporelle.
-5. `/lacunes` filtre **côté client** sur `?subject=` — zéro requête, aucun changement backend.
-6. Le **verrou de cohérence devient général** : les trois branches de `reading`, pas seulement
-   `watch`.
-
-⚠️ **Un stop-on-blocker est posé d'avance en slice B** : servir Progression depuis l'agrégat du
-dashboard lie deux pages ; en servir un propre crée une seconde façon de compter. **Signaler et
-proposer, ne pas trancher seul.**
-
-⚠️ **Ce qui reste dû de celui-ci est dans les DETTES ci-dessous**, et un point en sort :
-
-🔴 **La migration `f7a8b9c0d1e2` n'est appliquée qu'en DEV.** Elle est additive et sans backfill,
-mais aucun test ne l'exerce (`conftest` construit le schéma par `create_all`, jamais par
-`alembic upgrade`). Toute autre base devra recevoir `alembic upgrade head`.
 
 ### ▶ DETTES OUVERTES
 
-> ⚠️ Les quatre premières sont **nées du 2026-08-05 (analyse par matière)** ; les trois suivantes
-> du **2026-08-05 (vue à l'année)** ; les six dernières du **2026-08-04 (Journal)**.
+> ⚠️ Les **huit premières** sont nées du **2026-08-05 (les preuves + le dépliage)** ; suivent
+> celles du 2026-08-05 (analyse par matière), du 2026-08-05 (vue à l'année) et du 2026-08-04.
+>
+> ✅ **Deux dettes ont été PAYÉES par ce chantier** et retirées d'ici : « `/lacunes` ignore
+> `?subject=` » et « `/progression` est entièrement en MOCK ».
+
+- 🔴 **La branche `feat/preuves-vers-le-reel` n'a AUCUN commit et n'est pas poussée.** Tout le
+  travail des deux chantiers vit dans l'arbre de travail. C'est l'état le plus fragile du dépôt :
+  un `git checkout` malheureux l'efface. **Premier geste de la reprise.**
+- 🔴 **La branche `flat` de la Lecture ZETIS ment au-delà de 366 jours.** Le constat compte les
+  traces sur `p.HISTORY_DAYS` (730 j) ; sa cible `/cahier` est bornée serveur à
+  `activity_max_range_days` (366 j). Une trace plus ancienne est **comptée et invisible sur sa
+  propre preuve**. Mesuré, pas supposé. Inscrit en `@pytest.mark.xfail(strict=True)` dans
+  `test_reading_evidence.py` : le jour où la fenêtre est corrigée, **le test devient rouge** et
+  force à retirer le marqueur. Chantier à part, nommé par l'ADR-0038.
+- 🔴 **`CHANGELOG.md` saute DEUX chantiers mergés** : les PR **#82** (vue à l'année) et **#83**
+  (panneau d'analyse par matière) n'ont **jamais reçu d'entrée**. Constaté en appliquant le 3ᵉ
+  contrôle d'élagage — qui a donc **échoué** pour la section retirée. Leur récit vit dans leurs ADR
+  et dans `TROUBLESHOOTING.md` ; il n'a pas été reconstitué de mémoire, ce qui aurait été inventer.
+- ⚠️ **DEUX définitions de `has_referentiel` coexistent** : `dashboard._referentiel_subjects` (≥ 1
+  **chapitre** dans l'année active) et `progress.analysis._referentiel` (≥ 1 **leçon**, via
+  `coverage()`). Progression utilise la première — celle du constat qui pointe vers elle. L'écart
+  n'est **pas résolu**, et rien ne le borne aujourd'hui.
+- ⚠️ **`XPEvent` n'a pas de `skill_id`**, donc le XP ne peut pas se détailler par notion. Décidé,
+  écrit dans l'ADR et **affiché à l'écran** (« réparti par activité »). Le lever exige une migration
+  — et d'abord d'établir que quelqu'un se pose la question.
+- ⚠️ **`XPEvent` est un import MORT dans `activity/service.py:24`** — une seule occurrence dans tout
+  le fichier, l'import lui-même. Vestige d'une lecture retirée. Signalé, hors périmètre, non traité.
+- ⚠️ **Le contraste du filtre `/lacunes` n'a pas pu être vu en vrai** : la base de dev ne porte
+  **qu'une seule lacune ouverte** (Français — Temps du récit, déjà couverte). Filtrer sur Français
+  y donne le même écran que « toutes ». Le comportement est verrouillé par 6 tests et par le cas
+  `?subject=klingon` joué en vrai, **mais le contraste entre deux matières n'a jamais été observé**.
+  Idem pour la mention « · toutes matières » des boutons : aucune section « découvertes » n'existe
+  dans ces données.
+- ⚠️ **Aucune action du dépliage n'a été DÉCLENCHÉE en vrai.** « Créer une mission » et « Équiper »
+  sont testés (7 verrous, dont la confirmation obligatoire) et leurs routes préexistent — mais
+  aucune n'a été cliquée jusqu'au bout sur la base de dev, volontairement : `equip-notion` génère et
+  auto-valide un kit entier. **À jouer une fois, en connaissance du coût.**
 
 - 🔴 **La migration `f7a8b9c0d1e2` n'est appliquée qu'en DEV**, et **aucun test ne l'exerce**.
   Additive, sans backfill (`NULL` = rapport global) — mais toute autre base devra recevoir
   `alembic upgrade head`.
-- ⚠️ **`/lacunes` ignore toujours `?subject=`.** Le paramètre est inerte de bout en bout : route
-  backend sans query param, hook sans argument. La page reste utilisable, le deep-link non.
-- ⚠️ **`/progression` est encore entièrement en MOCK** (`data/mock`), et le constat « N notions
-  consolidées » de la Lecture ZETIS pointe dessus. **C'est le même défaut que celui qu'on vient de
-  fermer, sur l'autre branche** — signalé, non corrigé.
 - ⚠️ **`Gap.subject_id` et `Skill.subject_id` peuvent diverger.** Le dashboard, `/lacunes` et le
   panneau attribuent par la colonne du `Gap` ; le Conseil groupe par la matière de la NOTION.
   L'écriture ne les contraint pas (`diagnostics` écrit `subject_id=quiz.subject_id`). L'écart est
@@ -415,6 +415,12 @@ si la file regrossit.
 
 
 ## Historique des chantiers clos
+
+> **2026-08-05 — le panneau d'analyse par matière** (PR #83, squash `cb59600`), section retirée à
+> la clôture du 2026-08-05. Contrôles : ADR `adr-0028-addendum-analyse-par-matiere.md` ✅ ·
+> `TROUBLESHOOTING.md` §`feat/analyse-matiere` ✅ · **`CHANGELOG.md` ❌ — il n'a jamais reçu son
+> entrée**, remonté en dette ci-dessus · ce qui restait ouvert : **deux dettes PAYÉES** par le
+> chantier suivant, le reste déjà dans « DETTES OUVERTES ».
 
 > **2026-08-04 — les deux bandeaux** (PR #78 `4458574`, PR #79 `c02a555`), section retirée à la
 > clôture suivante après les quatre contrôles : ADR `adr-0029-addendum-galaxie-dans-le-bandeau.md`,

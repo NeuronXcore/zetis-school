@@ -121,3 +121,51 @@ export interface ConsolidatedSkill {
 export interface PageViewRequest {
   route: string;
 }
+
+// --- Page « Progression » : l'avancement du programme, matière par matière (ADR-0038) -----------
+//
+// ⚠️ `engaged` et `notions.consolidated` sont DEUX mesures, jamais fondues, jamais additionnées.
+// La première dit ce qui a été ABORDÉ, la seconde ce qui est ACQUIS. Sur les données réelles il y
+// a 1 notion consolidée sur 280 : une barre bâtie sur la seconde afficherait zéro partout pendant
+// des mois. Le vocabulaire de « consolidée » ne bouge pas — on mesure autre chose, et on le nomme
+// autrement.
+
+/** Répartition des notions d'une matière — la MÊME que `DashboardSubject.notions`. */
+export interface ProgressionNotions {
+  consolidated: number;
+  fragile: number;
+  in_progress: number;
+  /** Notions AU PROGRAMME. ⚠️ `total === 0` n'est PAS « pas de référentiel » : une matière peut
+   *  avoir ses chapitres sans qu'aucune notion y soit rattachée. Voir `has_referentiel`. */
+  total: number;
+}
+
+/** Une ligne de la page Progression (`GET /api/parent/progress/overview`). */
+export interface ProgressionSubject {
+  subject_id: number;
+  slug: string;
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+  notions: ProgressionNotions;
+  /** Notions portant une ligne de maîtrise = consolidées ∪ fragiles ∪ en cours. NUMÉRATEUR de la
+   *  barre d'avancement — jamais un taux d'acquisition. */
+  engaged: number;
+  /** Cumul sur toute l'histoire, sans fenêtre. Cette page est la seule maison du XP côté Papa. */
+  xp: number;
+  /** ⚠️ **La colonne « À renforcer » affiche `notions.fragile`, PAS ce champ.** Les deux
+   *  populations sont disjointes : sur la base réelle, Français porte 8 notions fragiles et 1
+   *  seule lacune ouverte, et le constat du dashboard qui pointe ici annonce 8. Ce compte-ci est
+   *  celui de la page `/lacunes` ; il ne se substitue jamais à `notions.fragile`. */
+  gaps_open: number;
+  /** « Au moins un chapitre dans l'année active » — la définition du dashboard, donc celle du
+   *  constat qui pointe ici. `false` → la ligne RESTE affichée, avec son état écrit. */
+  has_referentiel: boolean;
+}
+
+/** `GET /api/parent/progress/overview` — une seule requête au montage, aucun état de période. */
+export interface ProgressionOverview {
+  generated_at: string;
+  school_year?: { label: string; level: string } | null;
+  subjects: ProgressionSubject[];
+}
