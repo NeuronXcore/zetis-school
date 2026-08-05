@@ -1,5 +1,61 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.48.0 — Une file que personne n'écoute, et un écran qui disait « 0 % »
+
+Signalé par le user : quatre lots (#24 à #27) créés dans la matinée, aucun terminé, l'en-tête figé
+à 0 %, et *« changer de page et revenir remet tout à zéro »*.
+
+**La cause était dans `scripts/dev.sh`**, qui ne lançait pas `python -m app.production_worker`. Le
+backend accepte un lot en `202` et l'enfile ; sans worker, il accepte tout et ne produit rien. Rien
+n'était cassé — c'est pour ça que ça a duré six heures. Le worker est maintenant lancé et arrêté
+avec la stack (`pnpm dev` étape 4/5, ou `pnpm dev:worker` seul).
+
+Quatre défauts que la panne a révélés :
+
+- **Le 0 % était une invention de l'affichage.** `useRunProgress` rend `null` — « rien à mesurer » —
+  et `ProductionProgress` le retraduisait en `0`. Le libellé était honnête, la case du pourcentage
+  ne l'était pas, et c'est la case qu'on lit. `GenerationProgress` accepte désormais
+  `value: number | null` et rend une **barre indéterminée sans chiffre**. Une barre partiellement
+  remplie est un pourcentage, même sans chiffre à côté : le liseré balaie, il ne se remplit jamais.
+- **« En file d'attente » était vrai et insuffisant.** Une file sans consommateur est un arrêt, pas
+  une attente. `GET /runs/active` rend `worker_alive` et l'en-tête écrit « ZETIS **ne produit pas**
+  … aucun moteur de production actif », en ambre, sans point qui pulse.
+  ⚠️ `rq.Worker.count()` **ment** (elle compte des noms dont le hash a expiré) — `Worker.all()` dit
+  vrai. Mesuré : aucun processus en vie, `count()` = 1.
+- **La page Demandes mémorisait les lots au lieu de les lire** — et c'est ce qui a fabriqué les
+  doublons : revenir sur la page rendait le bouton « Produire », Papa recliquait. Le lot se
+  redérive maintenant du serveur (`active_run` par demande, en une passe groupée), par
+  `(skill_id, piece)` faute de clé étrangère possible sur un lot `manual`.
+- **L'avancement reprend au lieu de repartir de zéro.** `started_at` voyage avec le lot et ancre
+  l'estimation : elle mesurait jusqu'ici l'âge de **l'affichage**, pas celui de l'opération.
+
+**Deux gardes dans `create_run`**, toutes deux en `409` :
+
+- **un lot au même scope est déjà en file** → le refus nomme le lot existant. Ce n'est pas de
+  l'idempotence (`run_exists_for` regarde toute l'histoire) — ici on demande seulement si quelqu'un
+  est en train de le faire ;
+- **le contenu existe déjà** → refus dit *avant* l'écriture. Le lot #28 avait tourné 76 ms pour
+  rendre `skipped`, sans rien dire à personne.
+  ⚠️ « Existe » ne veut pas dire « rien à faire » : une fiche `pending` que le régime permet de
+  valider est un lot utile, et le prédicat le sait. Il **réutilise** les prédicats d'`equip_piece`
+  — un test-verrou d'architecture l'exige.
+
+**Le refus part en toast, pas dans le bandeau rouge** (`components/Toast.tsx`) : un refus n'est pas
+une panne, ZETIS vient de reconnaître la situation et n'a rien détruit. `role="status"`, effacement
+automatique, aucune trace à traiter. Le tri se fait sur le **code HTTP** — `asJson` lève désormais
+un `HttpError` qui garde son `status` — et jamais sur le texte, qui a déjà été réécrit une fois.
+
+Vérifié sur la vraie base, worker éteint : lot #28 créé, `worker_alive = False`, 5ᵉ clic refusé en
+`409`, `active_run` retrouvé sans aucune mémoire de page. Worker relancé : #28 exécuté, `skipped` —
+la fiche COD existait déjà (fiche #24, en attente de validation).
+
+Vérifié aussi sur la vraie base : la fiche COD existant déjà, un clic « Produire » est **refusé**
+(`409`) au lieu de créer un lot stérile de plus.
+
+911 tests backend · 495 Papa · 525 Massimo verts. Dix verrous backend et quatre front ; chacun des
+mécanismes ajoutés a été **saboté séparément** pour vérifier que son verrou vise juste — y compris
+la nuance `pending` + `peut_valider`, dont le sabotage a été relu en diff après un `grep` ambigu.
+
 ## 0.47.0 — Les preuves de la Lecture ZETIS mènent quelque part, et Progression cesse d'être inventée
 
 > ⚠️ **Ce fichier saute deux chantiers mergés.** Les PR **#82** (vue à l'année) et **#83** (panneau

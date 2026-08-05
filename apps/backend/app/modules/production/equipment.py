@@ -93,6 +93,64 @@ def _has_srs_cards(db: Session, skill_id: int) -> bool:
     return bool(db.scalar(select(SpacedReviewCard.id).where(SpacedReviewCard.skill_id == skill_id)))
 
 
+def piece_deja_produite(db: Session, *, skill_id: int, kind: str, peut_valider: bool) -> str | None:
+    """Un lot-pièce sur ce scope ne produirait-il RIEN ? Rend le motif à dire, ou `None`.
+
+    ## Pourquoi cette question doit exister (2026-08-05)
+
+    Le lot #28, lancé pour vérifier un correctif, a tourné 76 ms et rendu `skipped` : la fiche
+    existait déjà. C'est le comportement JUSTE — on ne régénère jamais (ADR-0021) — mais **rien ne
+    l'avait dit avant le clic, et rien ne l'a dit après** : une ligne de plus au Journal, un lot de
+    plus dans l'histoire, et Papa qui attend un contenu qu'il possède déjà. Le user a demandé que
+    la création en double soit refusée et annoncée.
+
+    ⚠️ **On réutilise les prédicats d'`equip_piece`, on n'en réécrit aucun.** Une seconde lecture
+    « qui donne le même résultat » est le défaut que l'ADR-0037 nomme : elle diverge au premier
+    générateur ajouté, et l'écran refuserait alors ce que le lot aurait produit — ou l'inverse.
+
+    ⚠️ **« Existe » ne veut pas dire « rien à faire ».** Une fiche `pending` est une fiche
+    inexploitable pour Massimo, et `equip_piece` la VALIDE quand le régime le permet : ce lot-là
+    produit un vrai changement. `peut_valider` porte cette nuance — il vient d'`authority_for`,
+    c'est-à-dire de la même source que le lot. Sans lui, on refuserait le seul geste qui restait
+    utile.
+
+    ⚠️ Ne répond que des lots-PIÈCE. Un lot de chapitre saute ses notions déjà équipées une par
+    une et produit les autres : le refuser en bloc supprimerait du travail réel.
+    """
+    lesson = _skill_lesson(db, skill_id)
+    if lesson is None:
+        return None  # L'absence de leçon est déjà dite par `blockers_for` — un seul motif à la fois.
+
+    if kind == "cours":
+        if lesson.content_markdown and lesson.status == "validated":
+            return "Le cours de cette notion est déjà écrit et validé."
+        return None
+
+    # Les dérivés ont besoin du cours ; sans lui, `blockers_for` a déjà le dernier mot.
+    if not (lesson.status == "validated" and lesson.content_markdown):
+        return None
+
+    if kind == "fiche":
+        existing = _existing_fiche(db, lesson.id)
+        if existing is None:
+            return None
+        if existing.validation_status == "pending" and peut_valider:
+            return None  # Le lot la validerait : il a quelque chose à faire.
+        return "La fiche de cette notion existe déjà."
+    if kind == "mindmap":
+        existing = _existing_mindmap(db, lesson.id)
+        if existing is None:
+            return None
+        if existing.validation_status == "pending" and peut_valider:
+            return None
+        return "La carte mentale de cette notion existe déjà."
+    if kind == "srs":
+        return "Les cartes de révision de cette notion existent déjà." if _has_srs_cards(db, skill_id) else None
+    if kind == "quiz":
+        return "Le quiz de cette notion existe déjà." if _has_mission_quiz(db, skill_id) else None
+    return None
+
+
 def equip_notion(
     db: Session,
     *,

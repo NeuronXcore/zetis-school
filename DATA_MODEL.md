@@ -852,6 +852,23 @@ scope du tout.
 `derived`. Une colonne qui vaudrait tantôt « pourquoi » tantôt « sur quoi » serait l'ambiguïté
 exacte qui a fait rejeter `notion_requests` comme support des demandes de contenu.
 
+⚠️ **Conséquence de lecture, à connaître (2026-08-05)** : puisqu'un lot `manual` ne porte **aucune**
+FK vers la demande, « quel lot produit ce que Massimo a réclamé ? » ne se lit **par aucune
+jointure**. Le rapprochement se fait sur ce que les deux tables partagent — `(skill_id, piece)`, via
+`REQUEST_KIND_TO_PIECE` — et il est **volontairement approximatif** : deux demandes de la même pièce
+sur la même notion sont indistinguables, ce qui est sans conséquence puisque la dédup forte
+`(student, skill, kind)` interdit qu'il y en ait deux.
+
+⚠️ **Ne sont rapprochés que les lots-PIÈCE** (`scope_skill_id` non nul). Un lot de chapitre produit
+aussi la notion, mais il ne répond pas de CETTE demande : afficher son avancement sur la ligne
+ferait croire qu'une fiche arrive quand le lot en fabrique quinze, dont peut-être pas celle-là.
+
+⚠️ **Deux lots au même scope ne peuvent plus coexister en file** (`queued`/`running`) — refus `409`
+de `create_run`. Ce n'est **pas** une contrainte SQL : elle ne pourrait pas s'exprimer (elle porte
+sur un statut, pas sur une identité) et elle ne doit **pas** valoir pour l'histoire, qui garde
+légitimement plusieurs lots sur le même scope. Le 2026-08-05, quatre lots identiques ont été créés
+faute de cette garde.
+
 ⚠️ **`scope_kind` parle la langue des TABLES** (`srs`), pas celle des demandes (`card`). La
 correspondance vit **une seule fois**, dans `db/models/production.REQUEST_KIND_TO_PIECE` — qui n'a
 **que cinq entrées sur six** : `capsule` n'y figure pas, son générateur exigeant une instruction en

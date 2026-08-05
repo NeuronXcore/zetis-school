@@ -268,6 +268,71 @@ def create_run(
     elif db.get(Skill, scope_skill_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notion introuvable.")
 
+    # Un lot au MÊME scope attend déjà — le relancer ne produirait rien de plus (2026-08-05).
+    #
+    # Quatre lots `fiche` sur la notion 30 se sont empilés le même jour, à cinquante minutes
+    # d'intervalle : rien ne bougeait à l'écran (le worker était éteint), donc Papa a recliqué. Le
+    # régulateur d'arriéré ne pouvait rien y voir — il compte les contenus qui attendent une
+    # RELECTURE, or aucun n'avait été produit. Deux régulateurs, deux objets.
+    #
+    # ⚠️ **Le refus vient APRÈS `close_stale_runs`**, jamais avant : un lot zombie interdirait
+    # alors pour toujours de reproduire ce scope, et le remède serait pire que le mal.
+    #
+    # ⚠️ Ce n'est PAS de l'idempotence. `run_exists_for` (ADR-0035) demande « ce lot a-t-il déjà
+    # été produit ? » sur toute l'histoire ; ici on demande « y en a-t-il un en train de le
+    # faire ? ». Relancer une production terminée reste parfaitement légitime.
+    doublon = db.scalar(
+        select(ProductionRun)
+        .where(
+            ProductionRun.status.in_(("queued", "running")),
+            ProductionRun.chapter_id == chapter_id,
+            ProductionRun.scope_skill_id == scope_skill_id,
+            ProductionRun.scope_kind == scope_kind,
+        )
+        .limit(1)
+    )
+    if doublon is not None:
+        etat = "est en cours" if doublon.status == "running" else "attend son tour"
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=(
+                f"Une production identique {etat} déjà (lot #{doublon.id}). "
+                "Inutile de la relancer — elle apparaîtra dès qu'elle sera prête."
+            ),
+        )
+
+    # …et le contenu est peut-être DÉJÀ LÀ (2026-08-05, demande du user).
+    #
+    # Le lot #28 a tourné 76 ms pour rendre `skipped` : la fiche existait. Comportement juste — on
+    # ne régénère jamais (ADR-0021) — mais **muet** : une ligne de plus au Journal, et Papa qui
+    # attend un contenu qu'il possède. Le refus se dit maintenant avant l'écriture.
+    #
+    # ⚠️ **Lots-PIÈCE seulement.** Un lot de chapitre saute ses notions déjà équipées une par une
+    # et produit les autres ; le refuser en bloc supprimerait du travail réel.
+    #
+    # ⚠️ Le prédicat vit dans `equipment`, à côté de ceux qu'`equip_piece` utilise, et les
+    # RÉUTILISE. Une seconde lecture « qui donne le même résultat » divergerait au premier
+    # générateur ajouté (défaut nommé par l'ADR-0037), et l'écran refuserait alors ce que le lot
+    # aurait produit.
+    if piece_scope:
+        from app.modules.production.equipment import piece_deja_produite
+        from app.modules.settings import service as settings_service
+
+        deja = piece_deja_produite(
+            db,
+            skill_id=scope_skill_id,
+            kind=scope_kind,
+            # Même source que le lot : `authority_for` répond `None` quand A0a = 2 (ZETIS produit,
+            # Papa valide). Dans ce régime, valider une pièce `pending` n'est pas au programme du
+            # lot — donc il n'aurait vraiment rien à faire.
+            peut_valider=settings_service.derivatives_are_served(db),
+        )
+        if deja is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail=f"{deja} Relancer une production ne la remplacerait pas.",
+            )
+
     backlog = pending_backlog(db)
     if backlog >= settings.production_max_pending:
         raise HTTPException(

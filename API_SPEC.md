@@ -1356,6 +1356,45 @@ code même que le lot exécute**. ⚠️ À distinguer de `producible`, qui rép
 est vide sous un palier qui interdit à ZETIS de l'écrire. Le verdict **informe**, il ne verrouille
 pas — la route reste ouverte, et il est **daté**.
 
+Et `active_run: ProductionRun | null` (2026-08-05) — **le lot qui produit CE contenu en ce moment**,
+redérivé serveur à chaque lecture, en **une passe groupée** pour toute la file (patron
+`blockers_for`).
+
+⚠️ **Le lien ne passe par aucune clé étrangère** : un lot `manual` ne porte pas de
+`content_request_id` (la contrainte l'interdit, ADR-0031 §4). Il se retrouve par `(skill_id, piece)`
+via `REQUEST_KIND_TO_PIECE`. ⚠️ **Seuls les lots-PIÈCE** y figurent : un lot de chapitre produit
+aussi la notion, mais il ne répond pas de cette demande — afficher son avancement ferait croire
+qu'une fiche arrive quand le lot en fabrique quinze.
+
+> Motif : l'écran gardait les lots lancés dans son propre état, donc quitter la page effaçait la
+> barre et rendait le bouton « Produire ». Papa recliquait — **quatre lots identiques en une
+> matinée**, le 2026-08-05.
+
+### GET `/production/runs/active` — `worker_alive` (2026-08-05)
+
+La réponse est un `ProductionRun` **augmenté d'un champ**, et de ce champ seulement :
+
+- `worker_alive: bool` — un worker consomme-t-il la file ? **`false` ne veut pas dire « ça va être
+  long », il veut dire « personne ne viendra »**. Une file sans consommateur n'est pas une attente,
+  c'est un arrêt, et les deux n'appellent pas le même geste de Papa.
+
+⚠️ **La question n'est posée que sur un lot `queued`** — un lot `running` a forcément quelqu'un qui
+l'exécute, et cette route est sondée toutes les 4 s sur toutes les pages Papa. ⚠️ **Elle ne vit que
+sur cette route** : la poser dans `ProductionRunOut` la ferait payer une fois par ligne du Journal.
+
+⚠️ Côté implémentation : `rq.Worker.count()` **ment** (elle compte des noms dont le hash a expiré),
+`Worker.all()` dit vrai — mesuré, zéro processus en vie et `count()` = 1.
+
+**`ProductionRunOut` gagne `started_at: datetime | null`** — l'instant de démarrage réel. Il porte la
+continuité de l'avancement estimé d'une navigation à l'autre : sans lui, l'estimation client mesure
+**l'âge de l'affichage**, pas celui de l'opération.
+
+**Deux refus `409` de plus sur `POST /production/runs` et `/runs/from-request`** : un lot au même
+scope déjà `queued`/`running` (le message nomme le lot), et un contenu **déjà produit** (lots-PIÈCE
+seulement). ⚠️ Le second n'est pas de l'idempotence — il demande « quelqu'un est-il en train de le
+faire ? », pas « a-t-il déjà été produit un jour ». Et une pièce `pending` que le régime permet de
+valider **ne bloque pas** : ce lot-là a du travail.
+
 ### GET `/production/journal` — champs ajoutés le 2026-08-04
 
 - `zetis_mode` — `manuel|semi|autonome|sur_mesure|null` : le régime **de ce lot-là** ;

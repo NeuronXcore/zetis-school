@@ -3,6 +3,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { type ContentRequest } from "@zetis/types";
 import { DemandesPage } from "./DemandesPage";
+// ⚠️ NON mocké, à dessein : `estRefus` doit reconnaître un vrai `HttpError`. Un faux objet
+// `{status: 409}` vérifierait le test, pas le code.
+import { HttpError } from "../lib/httpClient";
 
 vi.mock("../lib/contentRequests", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/contentRequests")>()),
@@ -193,6 +196,45 @@ describe("DemandesPage", () => {
     expect(screen.queryByRole("button", { name: "Produire" })).toBeNull();
     expect(screen.getByText("Figure de style")).toBeTruthy();
     expect(screen.queryByText(/Aucune demande en attente/)).toBeNull();
+  });
+
+  it("un refus de doublon part en TOAST, jamais dans le bandeau rouge", async () => {
+    // ⚠️ Demande du user (2026-08-05) : *« si une production a déjà été générée auparavant
+    // (demande en double), il faut créer un toast qui avertit et invalide la création en
+    // doublon »*. Le lot #28 avait tourné 76 ms pour rendre `skipped`, sans rien dire.
+    //
+    // ⚠️ **Le cœur du test est la DERNIÈRE assertion.** Un refus de ZETIS n'est pas une panne :
+    // il vient de reconnaître que le contenu existe et n'a rien détruit. Le peindre en rouge, à
+    // côté des vraies erreurs, apprendrait que ses refus sont des dysfonctionnements.
+    vi.mocked(produceForRequest).mockClear();
+    vi.mocked(fetchContentRequests).mockResolvedValue([REQ]);
+    const refus = new HttpError("La fiche de cette notion existe déjà.", 409);
+    vi.mocked(produceForRequest).mockRejectedValue(refus);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Produire" }));
+
+    const annonce = await screen.findByRole("status");
+    expect(annonce.textContent).toMatch(/existe déjà/);
+    // Le bandeau rouge est réservé à ce qui casse : il ne doit rien contenir.
+    expect(document.querySelector(".text-red-300")).toBeNull();
+    // Et le bouton revient : la demande n'a pas été consommée par un lot fantôme.
+    expect(await screen.findByRole("button", { name: "Produire" })).toBeTruthy();
+  });
+
+  it("une vraie panne reste dans le bandeau rouge, PAS en toast", async () => {
+    // La contre-partie du test précédent. Sans elle, on pourrait envoyer toutes les erreurs en
+    // annonce éphémère — et une panne qui s'efface toute seule au bout de six secondes est une
+    // panne que personne ne traite.
+    vi.mocked(produceForRequest).mockClear();
+    vi.mocked(fetchContentRequests).mockResolvedValue([REQ]);
+    vi.mocked(produceForRequest).mockRejectedValue(new HttpError("Base injoignable.", 500));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Produire" }));
+
+    await waitFor(() => expect(screen.getByText("Base injoignable.")).toBeTruthy());
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("retrouve un lot en cours au RETOUR sur la page, sans l'avoir mémorisé", async () => {

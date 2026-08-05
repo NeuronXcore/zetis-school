@@ -23,6 +23,8 @@ import { NotionRequestActionModal } from "../components/demandes/NotionRequestAc
 import { ProductionProgress } from "../components/demandes/ProductionProgress";
 import { ProgressBar } from "../components/ProgressBar";
 import { produceForRequest } from "../lib/production";
+import { estRefus } from "../lib/httpClient";
+import { Toast, type ToastMessage } from "../components/Toast";
 import { notifyDemandesChanged } from "../lib/demandesEvents";
 
 export function DemandesPage() {
@@ -30,6 +32,10 @@ export function DemandesPage() {
   const [notions, setNotions] = useState<NotionRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // ⚠️ Séparé d'`error` À DESSEIN : le bandeau rouge dit « quelque chose est cassé », le toast dit
+  // « ZETIS a refusé, et il a eu raison ». Les mélanger apprendrait à Papa que les refus de ZETIS
+  // sont des pannes.
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [modal, setModal] = useState<{ request: NotionRequest; mode: "add" | "lesson" } | null>(null);
   // Notions entrées au programme mais qu'aucune leçon ne porte : ZETIS ne produira rien pour
   // elles. Verdict du SERVEUR, jamais déduit ici — une notion déjà rattachée n'y figure pas.
@@ -132,7 +138,26 @@ export function DemandesPage() {
       // `card → srs` vit côté serveur et n'a pas à être recopiée ici.
       setRuns((cur) => ({ ...cur, [id]: { id: run.id, kind: run.scope_kind ?? "" } }));
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : "Lancement de la production échoué");
+      const texte =
+        cause instanceof Error ? cause.message : "Lancement de la production échoué";
+      // ⚠️ **Un refus de doublon n'est pas une panne** (demande du user, 2026-08-05). Le serveur
+      // répond `409` dans deux cas — un lot identique déjà en file, ou un contenu déjà produit —
+      // et dans les deux, ZETIS a bien travaillé : il a reconnu la situation et n'a rien détruit.
+      // Le peindre en rouge à côté des vraies erreurs apprendrait que ses refus sont des
+      // dysfonctionnements. Il part donc en annonce éphémère, et le bandeau rouge reste réservé à
+      // ce qui casse.
+      //
+      // ⚠️ Le tri se fait sur le CODE, pas sur le texte du message : reconnaître un refus à ses
+      // mots le casserait à la première reformulation — et ces messages ont déjà été réécrits une
+      // fois (§7 du chantier du 2026-08-04).
+      if (estRefus(cause)) {
+        setToast({ id: Date.now(), texte, ton: "avertissement" });
+        // La demande n'a pas bougé, mais l'état du monde, si : le contenu existe peut-être déjà,
+        // ou un lot tourne. On relit pour que la ligne se remette au réel toute seule.
+        void reload();
+      } else {
+        setError(texte);
+      }
       setRuns((cur) => {
         const next = { ...cur };
         delete next[id];
@@ -184,6 +209,9 @@ export function DemandesPage() {
           {error}
         </p>
       )}
+
+      {/* Le refus de ZETIS — éphémère, il ne laisse aucune trace à traiter. */}
+      <Toast message={toast} onClose={() => setToast(null)} />
 
       {/* ⚠️ Verdict SERVEUR, affiché seulement quand il est vrai : une notion déjà portée par une
           leçon n'y figure pas. Un avertissement systématique s'apprend à s'ignorer.

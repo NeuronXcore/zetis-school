@@ -147,6 +147,32 @@ Responsabilités :
 
 Le worker IA doit fonctionner en tâches asynchrones. L’API crée une tâche, le worker traite, puis l’API expose le résultat.
 
+## Worker de production
+
+Service : **`apps/backend`, lancé à part** — `python -m app.production_worker`.
+
+> ⚠️ **Ce processus manquait à ce document, et ça a coûté six heures le 2026-08-05** : quatre lots
+> ont attendu dans Redis pendant que l'écran affichait « en file d'attente ». Un troisième
+> processus qu'aucun document ne nomme est un processus que personne ne lance.
+
+Contrairement aux deux workers ci-dessous, il **partage le code du backend** (même paquet, même
+runtime) : les jobs y sont enfilés **par fonction**, pas par nom de tâche — il n'y a aucun import
+croisé à éviter. File **dédiée** `production` (ADR-0031 §3), concurrence 1 : un rendu vidéo bloqué
+ne doit pas retarder une production, et l'inverse.
+
+Responsabilités :
+
+- exécuter les lots de production (`run_production`) — équipement d'un chapitre ou d'une pièce ;
+- porter le **réveil périodique** du déclencheur automatique (`scan_triggers`, ADR-0035).
+
+**Le backend n'exécute JAMAIS un lot.** Il l'accepte en `202` et l'enfile ; la page suit son état.
+Sans ce processus, ZETIS accepte tout et ne produit rien — silencieusement. `GET
+/production/runs/active` expose donc `worker_alive`, pour que l'interface distingue une file qui
+avance d'une file arrêtée.
+
+En développement, `scripts/dev.sh` le lance (étape 4/5) et l'arrête avec la stack ; `pnpm dev:worker`
+le lance seul.
+
 ## Worker media
 
 Service : `apps/worker-media`.
