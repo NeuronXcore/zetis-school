@@ -7,24 +7,24 @@
 
 ## État à la reprise
 
-**Chantier : « le Dashboard Papa dit ce qu'il montre » — COMPLET, PR OUVERTE, PAS ENCORE MERGÉ.**
+**Chantier : « le Dashboard Papa dit ce qu'il montre » — COMPLET et MERGÉ.**
 Quatre demandes du user enchaînées dans la même session, chacune née de la précédente en la
 regardant à l'écran. Aucune n'était cadrée à l'avance.
 
 | | |
 |---|---|
-| Branche | **`feat/souffle-focus-dashboard`**, **poussée** — `origin` la connaît |
-| PR | **[#89](https://github.com/NeuronXcore/zetis-school/pull/89)** — **OUVERTE**, `MERGEABLE`, jamais mergée |
-| Base | **`09ce1fe`** (tête de `main` au départ ; `main` n'a pas bougé depuis) |
+| **MERGÉ `main`** | **PR [#89](https://github.com/NeuronXcore/zetis-school/pull/89)**, squash **`045edf2`** (2026-08-05, 13 fichiers) — branche `feat/souffle-focus-dashboard` **supprimée**, locale et distante. `main` == `origin/main`, **rien à pousser** |
+| Base | **`09ce1fe`** (tête de `main` au départ) |
 | ADR | 🔴 **AUCUN** — voir l'écart plus bas. Les décisions vivent dans `docs/frontend-papa/page-dashboard.md` |
 | Migration | **aucune** — pas une colonne, pas un endpoint, pas un type partagé |
 | Suites | **561 Papa** (545 → 561, **+16** : 14 dans `DashboardPage.test.tsx`, 2 dans `dashboardDerive.test.ts`), `tsc -b` propre. Backend et Massimo **non relancés** : pas une ligne touchée |
-| Vérifié à l'écran | **OUI**, sur les VRAIES données, session Papa connectée — sauf `prefers-reduced-motion` |
+| Vérifié à l'écran | **OUI**, sur les VRAIES données, session Papa connectée — sauf `prefers-reduced-motion` et le **mouvement** du souffle |
 
-Le découpage en commits séparés est fait, **chacun vérifié vert sur son propre état** avant d'être
-écrit (`git log --oneline main..HEAD` pour la liste). Méthode : tout figer d'abord dans un commit
-jetable, remettre la branche sur `main`, puis reconstruire en avançant — ce qui permet de prouver
-d'un `git diff <jetable> HEAD` vide que la découpe n'a rien perdu.
+Le chantier avait été **découpé en quatre commits, chacun vérifié vert sur son propre état** avant
+d'être écrit. ⚠️ **Ce découpage n'existe plus sur `main`** : le merge est un squash, comme toute PR
+de ce dépôt. Il reste consultable dans la PR #89. La méthode, elle, vaut d'être reprise et vit dans
+`TROUBLESHOOTING.md` : figer tout dans un commit jetable, remettre la branche sur la base,
+reconstruire en avançant, et prouver d'un `git diff <jetable> HEAD` **vide** que rien n'est perdu.
 
 ### Les quatre chantiers, et ce que chacun a trouvé
 
@@ -93,13 +93,10 @@ Le détail de ces pièges, avec cause et parade, vit dans `TROUBLESHOOTING.md`
 
 ### ▶ PROCHAIN PAS
 
-**Le chantier est FINI. Il reste UN geste, humain : merger la PR [#89](https://github.com/NeuronXcore/zetis-school/pull/89)**,
-après relecture du diff et un coup d'œil au souffle **en mouvement** (une animation ne se juge pas
-sur une capture).
+**Ce chantier est CLOS et MERGÉ** (PR #89, squash `045edf2`). Branche supprimée des deux côtés,
+arbre propre, `main` == `origin/main` — vérifié après le merge. **Étape 4bis faite.**
 
-Puis, immédiatement après le merge : **l'étape 4bis** (`WORKFLOW.md §5`) — revenir écrire ici le
-squash, la suppression de la branche, « rien à pousser », et les résidus ci-dessous. Ce fichier
-sera **faux** dès que la PR sera mergée.
+Le prochain chantier se choisit dans les DETTES ci-dessous, ou se cadre.
 
 > 🗒️ **Note du user à la clôture** : *« on continuera sur dashboard la prochaine session »*. Le
 > **sujet** continue, pas ce chantier-ci. Le prochain se cadre normalement — `/ouverture`, ADR
@@ -116,9 +113,15 @@ un addendum ADR-0028 qui fige la troisième vue**, ou son retrait si elle ne con
 
 - 🔴 **`prefers-reduced-motion` n'a jamais été exercé.** La règle est livrée et bâtie comme les deux
   qui existent déjà dans `index.css`, mais elle n'a pas pu être émulée depuis le navigateur. **Le
-  seul comportement du chantier qui repose uniquement sur de la relecture de CSS.**
-- ⚠️ **Le souffle n'a été jugé qu'en captures figées.** Géométrie et intensité vérifiées ; **le
-  rythme, non** — c'est précisément ce qu'une capture ne montre pas.
+  seul comportement du chantier qui repose uniquement sur de la relecture de CSS.** Depuis le merge,
+  la dette est **sur `main`**.
+- 🔴 **LE SOUFFLE N'A JAMAIS ÉTÉ VU EN MOUVEMENT — et il a été MERGÉ quand même.** Géométrie et
+  intensité vérifiées sur captures figées ; **le rythme, non** — c'est précisément ce qu'une capture
+  ne montre pas. Le point a été signalé **deux fois** avant le merge, et le merge a eu lieu sur
+  décision explicite du user (*« fais la meilleure solution »*). ⚠️ **Arbitrage assumé, pas un
+  oubli** — mais la dette ne s'éteint pas pour autant : elle passe d'« avant merge » à « sur
+  `main` ». Même motif que le bandeau Massimo de la PR #79, qui est **toujours dû**. Elle ne peut
+  pas être payée par l'agent : à juger à l'œil, sur les quatre KPI et sur une carte haute.
 - ⚠️ **La grille des créneaux n'a de données réelles que sur la fenêtre courte.** Sur `?period=365`
   les 56 cases sont vides (91 % du temps est « hors matière », le reste hors plage 8 h–24 h). Le
   rendu multicolore n'a donc été vu que sur la fenêtre par défaut.
