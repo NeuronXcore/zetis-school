@@ -1,5 +1,72 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.50.0 — Le Dashboard dit ce qu'il montre
+
+Quatre demandes enchaînées dans la même session, chacune née de la précédente **en regardant
+l'écran**. Aucune n'était cadrée à l'avance, et la dernière a démasqué un nombre qui trompait.
+
+### Le focus respire
+
+Cliquer un KPI mettait déjà la page en focus, mais le signe était entièrement statique : deux traits
+de bordure sur une page sombre chargée de huit diagrammes. Le KPI cliqué et les cartes qui le fondent
+reçoivent désormais un **voile émeraude** qui enfle et retombe en ~4,5 s.
+
+Il **double** le signe, il ne le porte jamais seul : la bordure et l'anneau restent porteurs, et
+rien ne se perd s'il est coupé. C'est ce qui le distingue du halo de régime en sidebar, qui reste le
+seul endroit du dépôt où une animation porte de l'information. En `prefers-reduced-motion`, il se
+fige à mi-course — le mouvement part, le voile reste.
+
+### Le centre du donut suit la matière
+
+Filtrer sur une matière laissait « Répartition du temps » annoncer le temps de **toutes** les
+matières : le seul chiffre en gros de la carte ne répondait pas à la question qu'on venait de lui
+poser. Le centre suit maintenant la sélection, **avec le total conservé juste dessous** — c'est lui
+qui le raccorde au KPI du haut. Le tracé, lui, garde toutes ses parts : réduit à une matière, le
+donut occuperait 100 % du disque et ne dirait plus rien de sa part réelle.
+
+### La semaine type dit à QUOI, plus seulement QUAND
+
+La case des créneaux devient une **barre** : sa longueur dit l'intensité, ses segments colorés disent
+quelles matières s'y partagent le temps. La couleur ne peut pas dire à la fois « combien » et
+« laquelle ». Filtrée sur une matière, la grille écrit ses minutes dans les cases non vides ; au
+survol ou au focus clavier, une infobulle donne la ventilation complète.
+
+Écart assumé avec la vue Calendrier, qui garde son échelle émeraude : là-bas une case est **un
+jour**, et un jour n'a pas de composition à montrer.
+
+### Une question a démasqué une lecture trompeuse
+
+*« Nous ne sommes pas encore jeudi ni samedi : pourquoi des cases remplies ? »*
+
+Les cases étaient justes — c'étaient le jeudi 30 et le samedi 1ᵉʳ, tous deux **dans** la fenêtre
+glissante de 7 jours. Mais des en-têtes `Lun…Dim` au-dessus d'une fenêtre repliée se lisent comme un
+calendrier. Trois réponses, une par cause :
+
+- la note **date la fenêtre** en clair (« Semaine type du 30 juil. au 5 août ») et dit que la colonne
+  « Jeu » est le jeudi de cette fenêtre, pas le jeudi à venir ;
+- le mot **« moyenne » disparaît sur la fenêtre 7 jours** : chaque jour de semaine n'y apparaît
+  qu'une fois, `bucket_slots` divise par 1, et le chiffre est les minutes d'un seul jour ;
+- une **troisième vue « Semaine en cours »**, sept jours **datés**, où un jour à venir est marqué
+  comme tel et **jamais compté à zéro** — « il n'a rien fait vendredi » et « on n'est pas encore
+  vendredi » sont deux phrases différentes.
+
+Pas de découpage horaire dans cette vue, et ce n'est pas un oubli : `slots` est déjà replié par jour
+de semaine côté serveur et a perdu les dates. Elle est bâtie sur `calendar`, qui porte les minutes
+par date mais pas par heure — dit dans la note plutôt que laissé passer pour un manque.
+
+### Portée et vérification
+
+Frontend Papa uniquement. **Aucune migration, aucun endpoint, aucun type partagé.** `sumSlots` est
+remplacé par `buildSlotCells` plutôt que doublé — un seul appelant, et le garder aurait laissé du
+code mort avec son test.
+
+**561 tests Papa** (545 → 561, **+16**), `tsc -b` propre. **Dix sabotages, dix rouges** : chaque verrou a été vu
+échouer avant d'être compté comme un verrou. Trois d'entre eux ne discriminaient qu'un seul cas —
+les matières à 0 minute, le périmètre `matchesFocus`, et le début de semaine.
+
+Vérifié sur le vrai dashboard et les vraies données. ⚠️ **Sauf `prefers-reduced-motion`**, qui n'a
+pas pu être émulé et reste le seul comportement du lot tenu par la seule relecture du CSS.
+
 ## 0.49.1 — La branche « flat » cesse de compter ce que sa preuve ne montre pas
 
 Dette inscrite le 2026-08-05 par l'ADR-0038, payée le jour même.

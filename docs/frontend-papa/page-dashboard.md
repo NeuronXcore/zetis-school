@@ -38,7 +38,7 @@ cette page.
 │    [Toutes][Maths][Français][H-Géo][SVT][Anglais][P-C]   ← filtre transversal│
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ ③ ┌─ Quand Massimo travaille ──────────┐ ┌─ Répartition du temps ──────────┐ │
-│    │ (Calendrier | Créneaux)           │ │      ◍ donut par matière        │ │
+│    │ (Calendrier|Sem. type|Sem. en cours)│ │    ◍ donut par matière        │ │
 │    │  ▦▦▦▦▦▦▦ grille + échelle         │ │      + légende cliquable        │ │
 │    └───────────────────────────────────┘ └─────────────────────────────────┘ │
 │    ┌─ Évolution de la mémoire ─────────┐ ┌─ État des notions ──────────────┐ │
@@ -121,6 +121,16 @@ Comportement (`adr-0028 §5`) : le clic met la page en focus — les cartes hors
 `opacity: .32` + désaturation, celles du périmètre reçoivent une bordure émeraude. Second clic =
 relâche. Un seul focus à la fois.
 
+Le KPI cliqué et les cartes retenues portent en plus un **souffle vert** — un voile émeraude ancré
+en bas de la boîte, qui enfle et retombe en ~4,5 s (`souffle-focus` / `souffle-focus--lie`, dans
+`index.css`). Bordure émeraude **pleine** des deux côtés ; ce qui distingue le KPI cliqué de ses
+cartes, c'est son anneau et un voile un peu plus haut. Sur les cartes le voile est volontairement
+plus court : elles sont hautes, et un voile à la même hauteur relative envahirait le diagramme.
+
+**Il DOUBLE le signe, il ne le porte jamais seul** — la bordure et l'anneau restent porteurs, et
+rien ne se perd si le souffle est coupé. C'est ce qui le distingue du halo de régime en sidebar,
+seul endroit du dépôt où une animation porte de l'information.
+
 Table de correspondance KPI → cartes : cf. `adr-0028 §5`. Implémentation : attribut
 `data-scope="temps regularite"` sur chaque carte, sélecteur `[data-scope~="<focus>"]`.
 
@@ -143,18 +153,39 @@ seul refait l'unique appel, pas le filtrage.
 
 ### 1. Quand Massimo travaille — heatmap (une carte, deux vues)
 
-Sélecteur `Calendrier | Créneaux` (`adr-0028 §6`).
+Sélecteur `Calendrier | Semaine type | Semaine en cours` (`adr-0028 §6`, troisième vue ajoutée
+le 2026-08-05). Trois lectures d'un même journal, dans **une seule carte** : la tendance longue,
+l'habitude, et ce qui s'est passé cette semaine-ci.
 
 - **Calendrier** — 26 semaines × 7 jours, lundi en haut. Intensité = **minutes actives du jour**
   (jamais le nombre d'événements). Paliers, présentation client : `0 / <10 / 10–20 / 20–40 / 40+`.
   Tooltip : date · minutes. Badge ambre « aucune activité depuis N jours » si `days_inactive >= 4`,
   **à la consultation uniquement, jamais de push**.
-- **Créneaux** — semaine type, 8 créneaux de 2 h (**8 h → 24 h**) × 7 jours. Intensité = minutes
-  actives moyennes du créneau sur la fenêtre. Bucketing **Europe/Paris**. Les minutes de 0 h à 8 h
-  sont renvoyées à part (`slots_outside_minutes`) et affichées en note — jamais repliées dans un
-  créneau voisin, ce qui les daterait faussement (`adr-0028 §6`).
-- **Échelle émeraude unique** dans les deux vues. Pas de gradient vers le rouge : une case dense
-  n'est pas une bonne note, une case vide n'est pas une faute.
+- **Semaine type** — 8 créneaux de 2 h (**8 h → 24 h**) × 7 jours. Bucketing
+  **Europe/Paris**. Les minutes de 0 h à 8 h sont renvoyées à part (`slots_outside_minutes`) et
+  affichées en note — jamais repliées dans un créneau voisin, ce qui les daterait faussement
+  (`adr-0028 §6`). La case est une **barre**, pas un aplat : sa **longueur** dit l'intensité
+  (pleine = le créneau le plus chargé de la semaine, échelle **relative** à la grille), ses
+  **segments colorés** disent quelles matières s'y partagent le temps. Filtrée sur une matière, la
+  grille ne ventile plus qu'elle et **écrit ses minutes** dans les cases non vides. Survol ou focus
+  clavier d'une case non vide → **infobulle** : le créneau, son total, puis une ligne par matière.
+- **Semaine en cours** — les sept jours **datés** de la semaine calendaire contenant aujourd'hui,
+  lundi en tête. Une barre par jour, découpée par matière, longueur relative au jour le plus chargé
+  de la semaine. **Aucun découpage horaire** : construite sur `calendar` (minutes par DATE), parce
+  que `slots` est déjà replié par jour de semaine côté serveur et a perdu les dates — le dire
+  plutôt que de laisser croire à un oubli. Un jour **à venir** est marqué « à venir », sans barre
+  ni chiffre : il n'a pas zéro minute, il n'a pas encore eu lieu. Aujourd'hui est teinté **et
+  nommé** (`sr-only`), la couleur seule ne dirait rien à qui ne la perçoit pas.
+
+  > Cette vue est née d'un malentendu réel (2026-08-05, un mercredi) : des cases remplies un jeudi
+  > et un samedi dans la Semaine type se sont lues comme une prédiction, alors que c'étaient le
+  > jeudi et le samedi **passés** de la fenêtre glissante. Les deux vues répondent à deux questions
+  > — « quelle habitude ? » et « qu'a-t-il fait cette semaine ? ».
+
+- **Échelle émeraude unique** dans la vue **Calendrier**, où une case est UN JOUR et n'a pas de
+  composition à montrer. Les deux autres vues s'en écartent assumément : la couleur ne peut pas dire à la
+  fois « combien » et « laquelle ». Pas de gradient vers le rouge nulle part : une case dense n'est
+  pas une bonne note, une case vide n'est pas une faute.
 - Clic sur un jour (vue Calendrier) → **panneau inline** sous la grille, pas de modale ; détail
   chargé paresseusement (`GET /api/parent/activity/days/{date}`) — seule exception au §4 de l'ADR.
 
@@ -520,6 +551,8 @@ Contrats TypeScript : `packages/types/src/dashboard.ts` (à créer), `activity.t
 - Heatmap : chaque case a un `title` textuel ; l'information n'est jamais portée par la seule
   couleur (palier + valeur en tooltip).
 - `prefers-reduced-motion` : transitions d'atténuation supprimées, changement d'état instantané.
+  Le souffle du focus se **fige à mi-course** — le mouvement part, le voile reste. Même parti pris
+  que `couverture-breathe` et que le halo de régime : on retire le mouvement, jamais le signe.
 - Contraste : libellés d'axes en `--dim` vérifiés ≥ 4.5:1 sur `--panel`.
 
 ## Ce qui est retiré (ne pas rouvrir sans ADR)

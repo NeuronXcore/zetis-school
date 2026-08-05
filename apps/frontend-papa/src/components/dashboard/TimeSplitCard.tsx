@@ -11,6 +11,11 @@ import { formatMinutes } from "../../lib/heatmap";
 // Les matières à 0 minute sont EXCLUES du tracé : un segment d'épaisseur nulle serait invisible
 // mais occuperait une entrée de légende, et la légende deviendrait une liste de matières
 // inactives plutôt qu'une clé de lecture.
+//
+// Le TRACÉ ne suit pas le filtre, le CENTRE si. Les parts restent toutes dessinées — une matière
+// filtrée occuperait 100 % du disque et ne dirait plus rien de sa part réelle — mais le chiffre du
+// centre passe sur la matière sélectionnée, avec le total juste dessous. C'est le seul chiffre en
+// gros de la carte : le laisser sur le total revenait à ne pas répondre à la question posée.
 
 const R = 58;
 const C = 2 * Math.PI * R;
@@ -60,6 +65,30 @@ export function TimeSplitCard({
   ];
   const total = parts.reduce((sum, part) => sum + part.minutes, 0);
 
+  // Le centre suit la sélection : sans lui, filtrer sur une matière laissait le donut annoncer le
+  // temps de TOUTES les matières, et le seul chiffre en gros de la carte ne répondait pas à la
+  // question qu'on venait de lui poser.
+  //
+  // Lu depuis `allSubjects` et NON depuis `parts` : une matière à 0 minute est exclue du tracé
+  // (un segment nul n'est pas dessinable) mais reste sélectionnable par les pastilles du haut.
+  // La chercher dans `parts` la ferait retomber sur le total — soit exactement le bug corrigé ici,
+  // et seulement pour les matières sans temps, donc invisible à la relecture.
+  const selectedSubject =
+    selectedSlug !== null ? (allSubjects.find((s) => s.slug === selectedSlug) ?? null) : null;
+  // Le TOTAL reste affiché sous la valeur filtrée. Il totalise la fenêtre entière, part « hors
+  // matière » comprise, et c'est ce qui le raccorde au KPI « Temps actif » du haut — deux chiffres
+  // du même écran qui se contredisent, c'est le bug qui a fait naître la part « hors matière ».
+  const centerValue = selectedSubject ? (selectedSubject.minutes[period] ?? 0) : total;
+  // Un `<text>` SVG ne se coupe pas tout seul : un nom trop long sortirait de l'anneau et se
+  // poserait sur le tracé. « Physique-Chimie » (15) tient, mais Papa nomme ses matières librement
+  // et rien n'empêche un « Enseignement moral et civique ». Le nom entier reste lisible dans la
+  // légende, juste à côté, et dans le libellé accessible du donut.
+  const centerLabel = selectedSubject
+    ? selectedSubject.name.length > 17
+      ? `${selectedSubject.name.slice(0, 16)}…`
+      : selectedSubject.name
+    : "temps actif";
+
   let offset = 0;
 
   return (
@@ -89,7 +118,19 @@ export function TimeSplitCard({
         </p>
       ) : (
         <div className="grid items-center gap-4 sm:grid-cols-[150px_1fr]">
-          <svg viewBox="0 0 160 160" className="w-full max-w-[150px]" role="img" aria-label="Répartition du temps actif par matière">
+          {/* `aria-label` sur un `role="img"` REMPLACE le contenu : les `<text>` du centre ne sont
+              pas annoncés. La valeur filtrée doit donc être répétée ici, sinon elle n'existe que
+              pour qui voit le donut. Le libellé non filtré reste au mot près celui d'avant. */}
+          <svg
+            viewBox="0 0 160 160"
+            className="w-full max-w-[150px]"
+            role="img"
+            aria-label={
+              selectedSubject
+                ? `Répartition du temps actif par matière — ${selectedSubject.name} : ${formatMinutes(centerValue)} sur ${formatMinutes(total)}`
+                : "Répartition du temps actif par matière"
+            }
+          >
             <circle cx={80} cy={80} r={R} fill="none" stroke="currentColor" strokeWidth={20} className="text-papa-surface-2" />
             {parts.map((part) => {
               const fraction = part.minutes / total;
@@ -118,12 +159,29 @@ export function TimeSplitCard({
               offset += fraction;
               return element;
             })}
-            <text x={80} y={78} textAnchor="middle" className="fill-papa-text font-mono text-[19px]">
-              {formatMinutes(total)}
+            <text
+              x={80}
+              y={selectedSubject ? 74 : 78}
+              textAnchor="middle"
+              className="fill-papa-text font-mono text-[19px]"
+            >
+              {formatMinutes(centerValue)}
             </text>
-            <text x={80} y={95} textAnchor="middle" className="fill-papa-muted text-[10px]">
-              temps actif
+            <text
+              x={80}
+              y={selectedSubject ? 89 : 95}
+              textAnchor="middle"
+              className="fill-papa-muted text-[10px]"
+            >
+              {centerLabel}
             </text>
+            {selectedSubject && (
+              // Le total ne disparaît pas quand on filtre : sans lui, « 3h12 » au centre d'un donut
+              // qui dessine 21h44 de parts serait un chiffre sans échelle.
+              <text x={80} y={102} textAnchor="middle" className="fill-papa-muted text-[9px]">
+                sur {formatMinutes(total)}
+              </text>
+            )}
           </svg>
 
           <ul className="flex flex-col gap-1">

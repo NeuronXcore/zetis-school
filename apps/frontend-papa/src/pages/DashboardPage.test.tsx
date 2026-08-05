@@ -239,6 +239,256 @@ describe("agrégat unique", () => {
   });
 });
 
+describe("donut « Répartition du temps »", () => {
+  // On lit les `<text>` du CENTRE, pas le texte de la carte : `formatMinutes` sert aussi aux
+  // `<title>` des segments, si bien qu'un `toHaveTextContent("1h05")` passerait au vert sans que
+  // le centre ait bougé d'un pixel.
+  const centre = () =>
+    [...screen.getByRole("img", { name: /Répartition du temps actif/ }).querySelectorAll("text")]
+      .map((t) => t.textContent);
+
+  it("sans filtre, le centre annonce le total de la fenêtre", async () => {
+    renderPage();
+    await screen.findByRole("button", { name: /Temps actif/ });
+
+    expect(centre()).toEqual(["3h20", "temps actif"]);
+  });
+
+  it("le centre suit la matière sélectionnée, et garde le total sous lui", async () => {
+    renderPage("/?subject=maths");
+    await screen.findByRole("button", { name: /Temps actif/ });
+
+    // 65 min de maths dans une fenêtre de 200.
+    expect(centre()).toEqual(["1h05", "Mathématiques", "sur 3h20"]);
+
+    // Le TRACÉ, lui, ne suit pas le filtre : réduit à une matière, le donut occuperait 100 % du
+    // disque et ne dirait plus rien de sa part réelle.
+    const carte = screen.getByRole("img", { name: /Répartition du temps actif/ }).closest("section")!;
+    expect(within(carte).getByText("SVT")).toBeInTheDocument();
+    expect(within(carte).getByText("Hors matière")).toBeInTheDocument();
+  });
+
+  it("une matière SANS temps affiche 0, pas le total de la fenêtre", async () => {
+    // Le cas que le donut ne peut pas montrer : à 0 minute la matière n'a aucune part dessinée.
+    // La chercher parmi les parts la ferait retomber sur le total — un bug qui ne se verrait que
+    // sur les matières inactives, donc jamais.
+    vi.mocked(fetchDashboard).mockResolvedValue({
+      ...PAYLOAD,
+      subjects: [
+        ...PAYLOAD.subjects,
+        subject({
+          id: 3,
+          slug: "anglais",
+          name: "Anglais",
+          minutes: { "7": 0, "30": 0, "90": 0, "365": 0 },
+        }),
+      ],
+    });
+    renderPage("/?subject=anglais");
+    await screen.findByRole("button", { name: /Temps actif/ });
+
+    expect(centre()).toEqual(["0 min", "Anglais", "sur 3h20"]);
+  });
+});
+
+describe("créneaux — ce que la case montre", () => {
+  // Deux matières qui se partagent Lun 8 h (20 + 5), et une case à maths seul (Jeu 12 h).
+  // Posé sur les QUATRE fenêtres : les créneaux vivent dans `slots[period]`, et n'alimenter que
+  // « 7 » rendrait la grille vide dès qu'un test change de période — sans rien casser d'autre,
+  // donc sans qu'on comprenne pourquoi.
+  const poser = (s: DashboardSubject, slot: number, day: number, minutes: number) => {
+    for (const p of ["7", "30", "90", "365"] as const) s.slots[p][slot][day] = minutes;
+  };
+  const avecCreneaux = () => {
+    const maths = subject({ slug: "maths", name: "Mathématiques", color: "#60a5fa" });
+    poser(maths, 0, 0, 20);
+    poser(maths, 2, 3, 12);
+    const svt = subject({ id: 2, slug: "svt", name: "SVT", color: "#34d399" });
+    poser(svt, 0, 0, 5);
+    return { ...PAYLOAD, subjects: [maths, svt] };
+  };
+
+  const ouvrirCreneaux = async () => {
+    await screen.findByRole("button", { name: /Temps actif/ });
+    fireEvent.click(screen.getByRole("button", { name: "Semaine type" }));
+  };
+
+  it("sans filtre, une case partagée porte un segment PAR matière, la plus grosse d'abord", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    const cellule = screen.getByLabelText(/^Lun 8 h — 25 min —/);
+    const segments = [...cellule.querySelectorAll("span[style*='background']")];
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toHaveStyle({ width: "80%" }); // maths 20/25
+    expect(segments[1]).toHaveStyle({ width: "20%" }); // svt 5/25
+
+    // Aucun nombre sans filtre : un seul chiffre par-dessus deux matières additionnerait des
+    // choses différentes sans le dire.
+    expect(cellule.textContent).toBe("");
+  });
+
+  it("filtré, chaque case non vide porte ses minutes — les cases vides restent nues", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage("/?subject=maths");
+    await ouvrirCreneaux();
+
+    expect(screen.getByLabelText(/^Lun 8 h —/).textContent).toBe("20");
+    expect(screen.getByLabelText(/^Jeu 12 h —/).textContent).toBe("12");
+    // 20 et non 25 : filtrée, la grille ne compte plus que la matière retenue.
+    expect(screen.getByLabelText(/^Lun 8 h —/).getAttribute("aria-label")).toContain(
+      "20 min — Mathématiques 20",
+    );
+    expect(screen.getByLabelText("Mar 8 h — aucune séance").textContent).toBe("");
+  });
+
+  it("le survol ouvre le détail par matière, le quitter le referme", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    const cellule = screen.getByLabelText(/^Lun 8 h — 25 min —/);
+    const bulle = () => screen.queryByText(/^Lun 8 h · 25 min$/);
+
+    expect(bulle()).toBeNull();
+
+    fireEvent.mouseEnter(cellule);
+    const contenu = bulle()!.parentElement!;
+    expect(within(contenu).getByText("Mathématiques")).toBeInTheDocument();
+    expect(within(contenu).getByText("20 min")).toBeInTheDocument();
+    expect(within(contenu).getByText("SVT")).toBeInTheDocument();
+    expect(within(contenu).getByText("5 min")).toBeInTheDocument();
+
+    fireEvent.mouseLeave(cellule);
+    expect(bulle()).toBeNull();
+  });
+
+  it("le `title` natif cède la place sur les cases ouvrables, et reste sur les vides", async () => {
+    // Deux bulles pour la même case — la nôtre tout de suite, celle du navigateur une seconde
+    // plus tard, grise et par-dessus.
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    expect(screen.getByLabelText(/^Lun 8 h — 25 min —/)).not.toHaveAttribute("title");
+    expect(screen.getByLabelText("Mar 8 h — aucune séance")).toHaveAttribute("title");
+  });
+
+  it("date la fenêtre et ne dit « moyenne » que lorsque c'en est une", async () => {
+    // Le piège que ce verrou ferme : des en-têtes `Lun…Dim` se lisent comme la semaine EN COURS,
+    // et une case remplie un jeudi passe pour une prédiction alors que c'est le jeudi PASSÉ de la
+    // fenêtre. Constaté à l'écran un mercredi.
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    // `generated_at` = 2026-07-29, fenêtre de 7 jours bornes incluses → 23 → 29 juillet.
+    const carte = screen.getByText("Quand Massimo travaille").closest("section")!;
+    expect(carte).toHaveTextContent("Semaine type du 23 juil. au 29 juil.");
+    expect(carte).toHaveTextContent("le jeudi de cette fenêtre");
+    // Sur 7 jours le serveur divise par 1 : le mot « moyenne » ne doit apparaître nulle part.
+    expect(carte).toHaveTextContent(/le chiffre est ses minutes, pas une moyenne/);
+    expect(screen.getByLabelText(/^Lun 8 h —/).getAttribute("aria-label")).not.toContain(
+      "en moyenne",
+    );
+  });
+
+  it("sur 30 jours la moyenne en est une, et le mot revient", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage("/?period=30");
+    await ouvrirCreneaux();
+
+    const carte = screen.getByText("Quand Massimo travaille").closest("section")!;
+    expect(carte).toHaveTextContent("Semaine type du 30 juin au 29 juil.");
+    expect(carte).toHaveTextContent("minutes actives moyennes du créneau");
+    expect(screen.getByLabelText(/^Lun 8 h —/).getAttribute("aria-label")).toContain("en moyenne");
+  });
+
+  it("la longueur de la barre compare les créneaux entre eux", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecCreneaux());
+    renderPage();
+    await ouvrirCreneaux();
+
+    // La plus grosse case de la grille remplit toute sa piste ; les autres s'y rapportent.
+    const barre = (label: RegExp) =>
+      screen.getByLabelText(label).querySelector("span:not([style*='background'])");
+    expect(barre(/^Lun 8 h —/)).toHaveStyle({ width: "100%" }); // 25/25
+    expect(barre(/^Jeu 12 h —/)).toHaveStyle({ width: "48%" }); // 12/25
+  });
+});
+
+describe("semaine en cours — la vraie, datée", () => {
+  // `generated_at` = mercredi 29 juillet 2026. La semaine calendaire va donc du lundi 27 au
+  // dimanche 2 août, et jeudi/vendredi/samedi/dimanche n'ont PAS encore eu lieu.
+  const avecSemaine = () => {
+    const maths = subject({
+      slug: "maths",
+      name: "Mathématiques",
+      color: "#60a5fa",
+      calendar: [
+        { date: "2026-07-27", active_minutes: 40 },
+        { date: "2026-07-29", active_minutes: 25 },
+      ],
+    });
+    const svt = subject({
+      id: 2,
+      slug: "svt",
+      name: "SVT",
+      color: "#34d399",
+      calendar: [{ date: "2026-07-27", active_minutes: 20 }],
+    });
+    return { ...PAYLOAD, subjects: [maths, svt] };
+  };
+
+  const ouvrirSemaine = async () => {
+    await screen.findByRole("button", { name: /Temps actif/ });
+    fireEvent.click(screen.getByRole("button", { name: "Semaine en cours" }));
+  };
+
+  it("montre les sept jours datés de la semaine contenant aujourd'hui", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecSemaine());
+    renderPage();
+    await ouvrirSemaine();
+
+    // Lundi 27 : 40 de maths + 20 de SVT.
+    expect(screen.getByLabelText(/^Lun 27 — 1h00 —/).getAttribute("aria-label")).toContain(
+      "Mathématiques 40, SVT 20",
+    );
+    // Mercredi 29 = aujourd'hui, 25 min de maths seul.
+    expect(screen.getByLabelText("Mer 29 — 25 min — Mathématiques 25")).toBeInTheDocument();
+    // Mardi 28 est passé sans séance — ce n'est PAS la même chose qu'un jour à venir.
+    expect(screen.getByLabelText("Mar 28 — aucune séance")).toBeInTheDocument();
+  });
+
+  it("un jour À VENIR est marqué comme tel, jamais compté à zéro", async () => {
+    // Le cœur de cette vue : « il n'a rien fait vendredi » et « on n'est pas encore vendredi »
+    // sont deux phrases différentes, et une seule des deux est vraie un mercredi.
+    vi.mocked(fetchDashboard).mockResolvedValue(avecSemaine());
+    renderPage();
+    await ouvrirSemaine();
+
+    for (const jour of ["Jeu 30", "Ven 31", "Sam 1", "Dim 2"]) {
+      expect(screen.getByLabelText(`${jour} — à venir`)).toBeInTheDocument();
+    }
+    // Et aucun de ces jours ne prétend valoir zéro minute.
+    expect(screen.queryByLabelText(/^Jeu 30 — aucune séance$/)).toBeNull();
+  });
+
+  it("le survol d'un jour ouvre la même bulle que la semaine type", async () => {
+    vi.mocked(fetchDashboard).mockResolvedValue(avecSemaine());
+    renderPage();
+    await ouvrirSemaine();
+
+    fireEvent.mouseEnter(screen.getByLabelText(/^Lun 27 —/));
+    const contenu = screen.getByText(/^Lun 27 · 60 min$/).parentElement!;
+    expect(within(contenu).getByText("Mathématiques")).toBeInTheDocument();
+    expect(within(contenu).getByText("40 min")).toBeInTheDocument();
+    expect(within(contenu).getByText("SVT")).toBeInTheDocument();
+  });
+});
+
 describe("KPI actifs", () => {
   it("expose aria-pressed et bascule au second clic", async () => {
     renderPage();
@@ -249,6 +499,35 @@ describe("KPI actifs", () => {
     await waitFor(() => expect(kpi).toHaveAttribute("aria-pressed", "true"));
     fireEvent.click(kpi);
     await waitFor(() => expect(kpi).toHaveAttribute("aria-pressed", "false"));
+  });
+
+  // Verrou du lien mesure → preuves, tel qu'il se VOIT. Rien d'autre dans cette suite ne regarde
+  // ce que le focus produit à l'écran : sans ce test, `CARD_SCOPES` peut se décrocher de ce qui
+  // s'affiche sans qu'un seul test rougisse. Il porte sur les classes parce que c'est le seul
+  // endroit où jsdom peut constater le signe — l'apparence, elle, se vérifie à l'œil.
+  it("le souffle vert marque le KPI cliqué ET ses cartes liées, elles seules", async () => {
+    renderPage();
+    const kpi = await screen.findByRole("button", { name: /Temps actif/ });
+
+    // `heatmap` répond à « Temps actif » (`CARD_SCOPES`), `chaine` non.
+    const heatmap = document.querySelector('[data-card="heatmap"]');
+    const chaine = document.querySelector('[data-card="chaine"]');
+    expect(heatmap).not.toBeNull();
+    expect(chaine).not.toBeNull();
+
+    expect(kpi).not.toHaveClass("souffle-focus");
+    expect(heatmap!).not.toHaveClass("souffle-focus--lie");
+
+    fireEvent.click(kpi);
+    await waitFor(() => expect(kpi).toHaveClass("souffle-focus"));
+    expect(heatmap!).toHaveClass("souffle-focus", "souffle-focus--lie");
+    expect(chaine!).not.toHaveClass("souffle-focus");
+    expect(chaine!).not.toHaveClass("souffle-focus--lie");
+
+    // Relâcher éteint TOUT : un souffle qui survivrait au focus deviendrait un signe qui ment.
+    fireEvent.click(kpi);
+    await waitFor(() => expect(kpi).not.toHaveClass("souffle-focus"));
+    expect(heatmap!).not.toHaveClass("souffle-focus--lie");
   });
 
   it("n'affiche PAS l'XP : il reste sur Progression (ADR-0028 §5)", async () => {

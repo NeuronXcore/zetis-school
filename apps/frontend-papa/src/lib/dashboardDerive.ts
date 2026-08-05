@@ -42,18 +42,148 @@ export function sumCalendar(subjects: DashboardSubject[]): ActivityHeatmapDay[] 
     .map(([date, active_minutes]) => ({ date, active_minutes, events: 0, xp: 0 }));
 }
 
-/** Matrice 8 × 7 des créneaux, sommée sur les matières visibles. */
-export function sumSlots(subjects: DashboardSubject[], period: DashboardPeriod): number[][] {
-  const matrix = Array.from({ length: 8 }, () => Array.from({ length: 7 }, () => 0));
+/** Étiquettes des sept colonnes, lundi d'abord. Source unique : la grille des créneaux et la
+ *  semaine en cours doivent nommer les jours pareil, sinon passer de l'une à l'autre se relit. */
+export const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+/** Un jour de la semaine EN COURS — la vraie, datée, celle qui contient aujourd'hui. */
+export interface WeekDay {
+  /** ISO `AAAA-MM-JJ`. */
+  date: string;
+  label: string;
+  dayOfMonth: number;
+  isToday: boolean;
+  /** Jour pas encore arrivé : il n'a pas zéro minute, il n'a pas encore eu lieu. La nuance est
+   *  toute la différence entre « il n'a rien fait » et « on ne sait pas encore ». */
+  isFuture: boolean;
+  total: number;
+  parts: SlotCell["parts"];
+}
+
+/** Les sept jours de la semaine calendaire contenant `generatedAt`, ventilés par matière.
+ *
+ *  Complète la semaine type sans la remplacer : l'une dit l'habitude (une fenêtre glissante
+ *  repliée sur sept colonnes), l'autre dit ce qui s'est passé cette semaine-ci. Les confondre est
+ *  exactement le malentendu qui a motivé cette vue.
+ *
+ *  Construit depuis `calendar`, qui porte les minutes par DATE — `slots` ne le permettrait pas,
+ *  il est déjà replié par jour de semaine et a perdu les dates. C'est aussi pourquoi cette vue
+ *  n'a pas de découpage horaire. */
+export function buildCurrentWeek(subjects: DashboardSubject[], generatedAt: string): WeekDay[] {
+  const [y, m, d] = generatedAt.slice(0, 10).split("-").map(Number);
+  const today = Date.UTC(y, m - 1, d);
+  // `getUTCDay()` rend 0 pour dimanche ; on veut lundi en tête, comme partout dans le dépôt.
+  const sinceMonday = (new Date(today).getUTCDay() + 6) % 7;
+
+  const parMatiere = new Map<string, SlotCell["parts"]>();
+  for (const subject of subjects) {
+    for (const day of subject.calendar) {
+      if (day.active_minutes <= 0) continue;
+      const parts = parMatiere.get(day.date) ?? [];
+      parts.push({
+        slug: subject.slug,
+        name: subject.name,
+        color: subject.color,
+        minutes: day.active_minutes,
+      });
+      parMatiere.set(day.date, parts);
+    }
+  }
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const at = new Date(today + (i - sinceMonday) * 86_400_000);
+    const date = at.toISOString().slice(0, 10);
+    const parts = (parMatiere.get(date) ?? []).sort((a, b) => b.minutes - a.minutes);
+    return {
+      date,
+      label: WEEKDAY_LABELS[i],
+      dayOfMonth: at.getUTCDate(),
+      isToday: at.getTime() === today,
+      isFuture: at.getTime() > today,
+      total: parts.reduce((sum, p) => sum + p.minutes, 0),
+      parts,
+    };
+  });
+}
+
+/** Une case de la semaine type : son total, et ce que chaque matière y a mis. */
+export interface SlotCell {
+  total: number;
+  /** Matières ayant du temps dans cette case, la plus grosse d'abord. Les zéros sont écartés :
+   *  ils produiraient des segments de largeur nulle, invisibles mais bien présents dans le DOM. */
+  parts: { slug: string; name: string; color: string | null; minutes: number }[];
+}
+
+/** Matrice 8 × 7 des créneaux, VENTILÉE par matière.
+ *
+ *  Remplace une simple somme : la case doit pouvoir se peindre en plusieurs couleurs, donc le
+ *  détail par matière doit survivre jusqu'au rendu. Le total reste porté par la case — c'est lui
+ *  qui donne la longueur de la barre — mais il n'est plus la seule chose qu'on en sait. */
+export function buildSlotCells(
+  subjects: DashboardSubject[],
+  period: DashboardPeriod,
+): SlotCell[][] {
+  const cells: SlotCell[][] = Array.from({ length: 8 }, () =>
+    Array.from({ length: 7 }, () => ({ total: 0, parts: [] as SlotCell["parts"] })),
+  );
+
   for (const subject of subjects) {
     const slots = subject.slots[period] ?? [];
     slots.forEach((row, slot) =>
-      row.forEach((value, day) => {
-        matrix[slot][day] += value;
+      row.forEach((minutes, day) => {
+        if (minutes <= 0) return;
+        const cell = cells[slot][day];
+        cell.total += minutes;
+        cell.parts.push({
+          slug: subject.slug,
+          name: subject.name,
+          color: subject.color,
+          minutes,
+        });
       }),
     );
   }
-  return matrix;
+
+  // Tri décroissant : sans lui, l'ordre des segments suivrait l'ordre d'arrivée des matières,
+  // qui n'est stable ni d'une case à l'autre ni d'un chargement à l'autre. La grille se lirait
+  // comme un damier aléatoire au lieu d'une semaine type.
+  for (const row of cells) for (const cell of row) cell.parts.sort((a, b) => b.minutes - a.minutes);
+
+  return cells;
+}
+
+/** Fenêtre glissante des créneaux, en clair : « du 30 juil. au 5 août ».
+ *
+ *  Mêmes bornes que le serveur (`period_window` : `period` jours, bornes INCLUSES, se terminant au
+ *  jour de `generated_at`). Dater la fenêtre n'est pas cosmétique : sans elle, des en-têtes
+ *  `Lun…Dim` se lisent comme la semaine EN COURS, et une case remplie un jeudi passe pour une
+ *  prédiction. Constaté à l'écran le 2026-08-05, un mercredi.
+ *
+ *  Calcul sur la partie DATE de l'horodatage, en UTC : `new Date(iso).getDate()` répondrait dans le
+ *  fuseau du navigateur et pourrait décaler la fenêtre d'un jour — y compris en test, où le fuseau
+ *  du runner déciderait du résultat. */
+export function formatSlotWindow(generatedAt: string, period: DashboardPeriod): string {
+  const [y, m, d] = generatedAt.slice(0, 10).split("-").map(Number);
+  const last = new Date(Date.UTC(y, m - 1, d));
+  const first = new Date(Date.UTC(y, m - 1, d - (Number(period) - 1)));
+
+  // L'année n'apparaît que si la fenêtre en enjambe deux — sur « Année », taire l'année ferait
+  // lire « du 6 août au 5 août ».
+  const memeAnnee = first.getUTCFullYear() === last.getUTCFullYear();
+  const jour = (date: Date) =>
+    new Intl.DateTimeFormat("fr-FR", {
+      timeZone: "UTC",
+      day: "numeric",
+      month: "short",
+      ...(memeAnnee ? {} : { year: "numeric" }),
+    }).format(date);
+
+  return `du ${jour(first)} au ${jour(last)}`;
+}
+
+/** Plus grosse case de la grille — l'échelle des barres. 0 si la semaine est vide. */
+export function maxSlotCell(cells: SlotCell[][]): number {
+  return cells.reduce((max, row) => row.reduce((m, cell) => Math.max(m, cell.total), max), 0);
 }
 
 /** Minutes d'activité hors plage 8 h–24 h, cumulées. Affichées en note, jamais repliées. */

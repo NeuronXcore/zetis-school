@@ -106,6 +106,89 @@
   }
 }
 
+/* ═══ Souffle du focus, Dashboard Papa (ADR-0028 §5) ═════════════════════════════════════════════
+   Un voile émeraude qui enfle et retombe sous le KPI en focus et sous les cartes qui répondent à
+   sa question. C'est un RENFORT de la bordure, jamais le signe seul : la bordure et l'anneau
+   restent porteurs, et rien ne se perd si le souffle est coupé. Sans cette réserve, ce serait un
+   second endroit du dépôt où une animation porte de l'information — cf. le halo de régime plus
+   bas, qui reste le seul.
+   ~4,5 s : assez lent pour ne jamais tirer l'œil pendant qu'on lit un diagramme.
+
+   Le voile est posé en `background-image` sur l'élément LUI-MÊME, et non en pseudo-élément : une
+   image de fond se peint sous le contenu par construction. Un `::before` positionné passerait
+   PAR-DESSUS le texte du KPI (dont tous les enfants sont des `<span>` en ligne), et il faudrait
+   lui opposer `position`, `z-index` et `overflow` — trois réglages pour un problème qu'on peut ne
+   pas avoir. `bg-papa-surface` ne pose qu'un `background-color` : les deux couches cohabitent. */
+.souffle-focus {
+  background-image: radial-gradient(
+    ellipse at bottom,
+    color-mix(in srgb, var(--color-papa-accent) 32%, transparent) 0%,
+    transparent 62%
+  );
+  background-repeat: no-repeat;
+  animation: souffle-focus 4.5s ease-in-out infinite;
+}
+
+@keyframes souffle-focus {
+  0%,
+  100% {
+    background-size: 150% 105%;
+    background-position: 50% 106%;
+  }
+  50% {
+    background-size: 190% 145%;
+    background-position: 50% 97%;
+  }
+}
+
+/* Cartes retenues : même souffle, moitié moins appuyé — il double une bordure à 50 %, pas à 100 %.
+   Amplitude verticale bien plus courte : ces cartes sont HAUTES, et un voile dimensionné en % de
+   la boîte y remonterait dans le diagramme. Durée décalée pour que la page ne batte pas d'un seul
+   bloc, au garde-à-vous. */
+.souffle-focus--lie {
+  background-image: radial-gradient(
+    ellipse at bottom,
+    color-mix(in srgb, var(--color-papa-accent) 28%, transparent) 0%,
+    transparent 58%
+  );
+  animation: souffle-focus-lie 5.2s ease-in-out infinite;
+}
+
+/* Teinte et amplitude réglées à l'écran sur des boîtes aux dimensions réelles : à 13 % et
+   38 %/54 % de hauteur (premier jet), le voile était purement et simplement INVISIBLE sur une
+   carte haute — discret ne veut pas dire absent. Le creux reste visible, sinon le souffle
+   clignoterait au lieu de respirer. */
+@keyframes souffle-focus-lie {
+  0%,
+  100% {
+    background-size: 150% 44%;
+    background-position: 50% 102%;
+  }
+  50% {
+    background-size: 180% 62%;
+    background-position: 50% 100%;
+  }
+}
+
+/* Mouvement réduit : le souffle se fige à mi-course, le voile RESTE. Même parti pris que
+   `couverture-breathe` ci-dessus et que le halo de régime plus bas. */
+@media (prefers-reduced-motion: reduce) {
+  .souffle-focus,
+  .souffle-focus--lie {
+    animation: none;
+  }
+
+  .souffle-focus {
+    background-size: 170% 125%;
+    background-position: 50% 101%;
+  }
+
+  .souffle-focus--lie {
+    background-size: 165% 53%;
+    background-position: 50% 101%;
+  }
+}
+
 /* ═══ État d'autonomie de ZETIS en sidebar (addendum ADR-0032 §7) ════════════════════════════════
    Le halo est GRADUÉ PAR LE RÉGIME, et c'est le seul endroit du dépôt où une animation porte de
    l'information : l'échelle du mouvement suit l'échelle qu'elle signale.

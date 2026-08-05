@@ -10,6 +10,9 @@ import type { DashboardFocus } from "@zetis/types";
 // La carte active reçoit une BORDURE en plus de sa teinte : sur une page où le focus s'exprime
 // par l'atténuation des autres cartes, l'opacité seule ne suffirait pas (elle est invisible pour
 // qui ne perçoit pas les contrastes faibles).
+//
+// Elle reçoit aussi un souffle vert (`souffle-focus`, cf. `index.css`), qui DOUBLE la bordure sans
+// la remplacer : c'est une respiration, pas un signal. Rien ne se perd si elle est coupée.
 
 interface KpiFocusCardProps {
   focus: DashboardFocus;
@@ -50,7 +53,7 @@ export function KpiFocusCard({
       onClick={() => onToggle(focus)}
       className={`rounded-xl border bg-papa-surface p-4 text-left transition-colors ${
         active
-          ? "border-papa-accent ring-1 ring-papa-accent"
+          ? "border-papa-accent ring-1 ring-papa-accent souffle-focus"
           : "border-papa-border hover:border-papa-accent/60"
       }`}
     >
