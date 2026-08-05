@@ -32,7 +32,33 @@ RESOLVED_GAP_STATUS = "resolved"
 MASTERED_STATUS = "mastered"
 
 # Ordre de gravité décroissante : ce qui est le plus urgent se lit en premier.
-_SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
+SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
+
+
+def active_missions(db: Session, *, student_id: int, subject_id: int | None = None) -> list:
+    """Missions `planned|active`, TOUS types confondus. Optionnellement bornées à une matière.
+
+    SOURCE UNIQUE de « une mission couvre déjà cette notion » : `skills_with_active_mission` en
+    dérive, et le panneau d'analyse d'une matière (`adr-0028-addendum-analyse-par-matiere`) affiche
+    exactement ces lignes.
+
+    ⚠️ **Aucun filtre `validation_status`**, contrairement à `missions.pilot.pilot_list` qui exige
+    `validated`. Ce n'est pas un oubli : si le panneau listait les missions validées seules, une
+    notion marquée « déjà couverte » pourrait n'afficher aucune mission en regard — le drapeau et
+    la liste doivent porter sur la MÊME population, sans quoi Papa lit une contradiction.
+
+    Import local : `missions` importe déjà `progress`, une dépendance en tête de module la rendrait
+    circulaire.
+    """
+    from app.db.models import Mission
+
+    query = select(Mission).where(
+        Mission.student_id == student_id,
+        Mission.status.in_(("planned", "active")),
+    )
+    if subject_id is not None:
+        query = query.where(Mission.subject_id == subject_id)
+    return list(db.scalars(query.order_by(Mission.priority.desc(), Mission.id)))
 
 
 def skills_with_active_mission(db: Session, *, student_id: int) -> set[int]:
@@ -42,21 +68,9 @@ def skills_with_active_mission(db: Session, *, student_id: int) -> set[int]:
     missions de remédiation) : ici la question de Papa est « ai-je encore quelque chose à décider
     pour cette notion ? ». Une mission de révision en cours y répond tout autant — c'est même le
     relais que l'`adr-0017 §5bis` désigne après un verdict « à revoir ».
-
-    Import local : `missions` importe déjà `progress`, une dépendance en tête de module la rendrait
-    circulaire.
     """
-    from app.db.models import Mission
-
     return {
-        skill_id
-        for (skill_id,) in db.execute(
-            select(Mission.skill_id).where(
-                Mission.student_id == student_id,
-                Mission.status.in_(("planned", "active")),
-                Mission.skill_id.is_not(None),
-            )
-        ).all()
+        m.skill_id for m in active_missions(db, student_id=student_id) if m.skill_id is not None
     }
 
 
@@ -88,7 +102,7 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
         }
         for gap, skill, subject in rows
     ]
-    gaps.sort(key=lambda g: (_SEVERITY_RANK.get(g["severity"], 3), g["skill_name"]))
+    gaps.sort(key=lambda g: (SEVERITY_RANK.get(g["severity"], 3), g["skill_name"]))
     return gaps
 
 

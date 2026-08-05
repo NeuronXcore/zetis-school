@@ -451,7 +451,16 @@ def _reading(db: Session, student_id: int, subjects: list[dict], events: list[Le
                     "evidence": {
                         "count": fragile,
                         "kind": "notion",
-                        "href": f"/lacunes?subject={subject['slug']}",
+                        # 🔴 Pointait vers `/lacunes`, et c'était FAUX : ce compte est celui des
+                        # notions FRAGILES (`SkillMastery ∈ {weak, learning}`), tandis que
+                        # `/lacunes` liste des lignes `Gap` — deux populations disjointes sous le
+                        # même mot. Constaté à l'écran le 2026-08-05 : « Français : 8 notions à
+                        # renforcer » menait à une page qui en montrait UNE.
+                        #
+                        # Le comptage reste celui des fragiles — il est juste, et c'est la mesure
+                        # la plus fournie. C'est la CIBLE qui change : le panneau d'analyse est le
+                        # seul endroit qui les nomme (`adr-0028-addendum-analyse-par-matiere` §6).
+                        "href": f"/?subject={subject['slug']}&panel=ou-agir",
                     },
                 }
             )
@@ -486,7 +495,13 @@ def _reading(db: Session, student_id: int, subjects: list[dict], events: list[Le
             reading.append(
                 {
                     "trend": "flat",
-                    "text": f"{subject['name']} : trop peu d'activité sur la période pour conclure",
+                    # ⚠️ PAS « sur la période » : `events` est tout l'historique chargé
+                    # (`p.HISTORY_DAYS`, deux ans), pas la fenêtre que Papa a sélectionnée. Le mot
+                    # était déjà impropre quand le chargement valait 26 semaines ; la fenêtre
+                    # « Année » l'a porté à 730 jours et rendu franchement trompeur — une matière
+                    # à deux traces en deux ans s'annonçait « sur la période » alors que Papa
+                    # regardait sept jours. Le constat ne promet donc plus de fenêtre.
+                    "text": f"{subject['name']} : trop peu d'activité mesurée pour conclure",
                     "evidence": {
                         "count": traces,
                         "kind": "trace",
