@@ -386,3 +386,71 @@ Quatre affirmations de cet ADR venaient de la documentation et non du code. Rés
 - **`Subject.color` et `Subject.slug` existent en base** mais la couleur n'est lue nulle part côté
   Papa ; la seule palette par matière vit dans un **mock** de l'app Massimo. L'agrégat sert `color`,
   le repli est une affaire de présentation (§3).
+
+---
+
+## Addendum — 2026-08-05 : une quatrième fenêtre, « Année »
+
+**Demande.** Ajouter une période **Année** après « Trimestre », pour une vision globale.
+
+**Décision.** `PERIODS` passe de `(7, 30, 90)` à `(7, 30, 90, 365)`. Le §1 se lit désormais
+« quatre périodes préchargées » : la vision annuelle est une **fenêtre de plus dans le même
+payload**, jamais une surface ni une requête à part — sans quoi le principe qui fonde toute la page
+(changer de période ne déclenche aucun réseau) tomberait précisément sur la période la plus lourde.
+
+**Année = 365 jours glissants**, et non « depuis la rentrée ». Tout le moteur suppose une fenêtre de
+longueur fixe : `previous_window` pour les deltas, les 12 points de `series_marks`, le dénominateur
+`active_days.of`, et la moyenne par jour de semaine de `bucket_slots`. Une année scolaire à
+longueur variable demanderait un second moteur, pour une lecture qui ne serait pas plus vraie.
+
+### Ce que l'ajout a révélé — le chargement bornait le calendrier sans le dire
+
+L'agrégat chargeait ses événements sur `CALENDAR_WEEKS = 26` semaines, soit 182 jours, et **toutes**
+les fenêtres n'étaient que des filtres en mémoire sur cette liste. Les deux nombres coïncidaient par
+accident heureux : 182 jours couvrent tout juste 90 jours de fenêtre **plus** les 90 de la fenêtre
+précédente qui sert le delta.
+
+Poser `365` sur ce chargement aurait donné un écran crédible et faux :
+
+- l'« Année » n'aurait montré que **182 jours sur 365 annoncés** ;
+- son delta, calculé contre J-366 → J-730, aurait valu **0 pour toujours** — pas « stable », mais
+  jamais mesuré ;
+- **aucun test n'aurait échoué**, puisque tous les jeux d'essai tiennent dans les dernières semaines.
+
+D'où deux bornes désormais **explicites et séparées**, là où l'une dérivait de l'autre en silence :
+
+| borne | valeur | ce qu'elle règle |
+|---|---|---|
+| `projections.HISTORY_DAYS` | `max(PERIODS) × 2` = 730 j | profondeur du chargement des événements |
+| `service.CALENDAR_WEEKS` | 26 semaines | étendue de la heatmap calendrier, **inchangée** |
+
+Le facteur 2 n'est pas une marge de confort : c'est la fenêtre précédente, sans laquelle tout delta
+est structurellement nul.
+
+La heatmap reste à 26 semaines quelle que soit la période sélectionnée — décision du §6, non
+rouverte ici. Elle a en revanche gagné un filtre explicite : sans lui, elle aurait hérité de la
+nouvelle profondeur et rendu quatre fois plus de jours que la carte n'en dessine.
+
+### Coût
+
+Deux ans de `learning_events` pour un élève, en une requête déjà indexée
+(`ix_learning_events_student_created`), projetés en mémoire comme avant. L'ordre de grandeur du §1
+reste tenu : la quatrième fenêtre ajoute une colonne aux séries et aux créneaux, pas une requête.
+
+### Vérification
+
+Deux test-verrous, **chacun éprouvé par sabotage** — un verrou vert ne prouve rien tant qu'il n'a
+pas échoué sur le bug qu'il prétend fermer :
+
+1. `test_la_fenetre_annuelle_voit_VRAIMENT_un_an_et_son_annee_precedente` — un jour d'activité à
+   J-300 doit compter dans l'année et pas dans le trimestre ; deux jours à J-500 / J-520 doivent
+   rendre le delta **négatif**, ce qui prouve que la fenêtre précédente est bien lue. Échoue sur
+   l'ancien chargement.
+2. `test_le_calendrier_reste_a_26_semaines_malgre_le_chargement_elargi` — première rédaction
+   **verte à tort** : un événement isolé porte 0 minute, le calendrier omet les jours vides, la
+   liste sortait vide et l'assertion portait sur l'ensemble vide. Corrigée par deux événements
+   espacés par jour **et** une assertion de non-vacuité.
+
+Enfin, `test_le_decrochage_regarde_AU_DELA_de_la_fenetre_du_calendrier` visait 400 jours en dur —
+désormais **dans** la fenêtre chargée. Il serait resté vert en ne prouvant plus rien : son
+ancienneté est maintenant calculée depuis `HISTORY_DAYS`.

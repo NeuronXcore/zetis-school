@@ -163,3 +163,31 @@ export const KPI_FOCUS_HINTS: Record<DashboardFocus, string> = {
   consolidated: "Filtre actif → mémoire",
   open_gaps: "Filtre actif → où agir",
 };
+
+/** Libellé de la fenêtre transmise au Conseil de classe par le lien profond du dashboard.
+ *
+ *  ⚠️ `Record<DashboardPeriod, string>` et NON `Record<string, string>` — et c'est TOUT l'objet de
+ *  cette table. La page Conseil portait sa propre copie typée en `Record<string, string>`, qui
+ *  accepte n'importe quelle clé : élargir `DashboardPeriod` pour la fenêtre « Année » n'a donc rien
+ *  pu y casser, et `365` est tombé dans le repli « Trimestre 1 ». Le Conseil racontait un trimestre
+ *  pendant que Papa regardait l'année — exactement ce que le transport de la période était censé
+ *  empêcher (ADR-0028 §7), sans qu'aucun type ni aucun test ne bronche.
+ *
+ *  Le filet n'est pas dans l'union : il est dans le `Record` typé PAR l'union.
+ *
+ *  Jumelle de `PERIOD_LABELS` (`pages/DashboardPage.tsx`), qui nomme la même union pour les boutons.
+ *  Les deux tombent ensemble à la compilation si une fenêtre s'ajoute. */
+export const COUNCIL_PERIOD_LABEL: Record<DashboardPeriod, string> = {
+  "7": "7 derniers jours",
+  "30": "30 derniers jours",
+  "90": "Trimestre",
+  "365": "Année scolaire",
+};
+
+/** Un `?period=` d'URL désigne-t-il une fenêtre connue ?
+ *
+ *  Source unique : `useDashboard` en avait une copie privée et la page Conseil n'en avait aucune —
+ *  d'où le repli silencieux ci-dessus. */
+export function isDashboardPeriod(value: string | null): value is DashboardPeriod {
+  return value !== null && value in COUNCIL_PERIOD_LABEL;
+}

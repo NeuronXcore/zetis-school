@@ -1,8 +1,8 @@
 """Contrat de sortie de l'agrégat dashboard (ADR-0028, `page-dashboard.md §Contrat API`).
 
-Les clés de `periods`, `minutes`, `slots` et `series` sont les CHAÎNES `"7"`, `"30"`, `"90"` :
-JSON n'a pas de clé entière, et un `dict[int, …]` piégerait le client TypeScript qui lirait
-`payload.periods[7]` sur un objet dont la clé est `"7"`.
+Les clés de `periods`, `minutes`, `slots` et `series` sont les CHAÎNES `"7"`, `"30"`, `"90"`,
+`"365"` : JSON n'a pas de clé entière, et un `dict[int, …]` piégerait le client TypeScript qui
+lirait `payload.periods[7]` sur un objet dont la clé est `"7"`.
 """
 
 from pydantic import BaseModel

@@ -306,6 +306,38 @@
     seule la **note globale unique** est bannie. Invariants maintenus : **rien du dashboard ne remonte
     chez Massimo**, **aucune notification push** (le décrochage se lit à la consultation) — Accepté
     (2026-07-31)
+  - `docs/decisions/adr-0028-dashboard-papa-agregat-unique.md` (**addendum**) — **Une quatrième
+    fenêtre, « Année »**. Demande : une période après « Trimestre » pour une vision globale.
+    `PERIODS` passe à **(7, 30, 90, 365)** et le §1 se lit « quatre périodes préchargées » — la
+    vision annuelle est **une fenêtre de plus dans le même payload**, jamais une surface ni une
+    requête à part, sans quoi le principe qui fonde la page tomberait précisément sur la période la
+    plus lourde. **Année = 365 jours glissants et NON « depuis la rentrée »** : tout le moteur
+    suppose une longueur fixe (`previous_window`, les 12 points de `series_marks`, le dénominateur
+    `active_days.of`, la moyenne par jour de semaine) — une année scolaire à longueur variable
+    demanderait un second moteur pour une lecture qui ne serait pas plus vraie. **Ce que l'ajout a
+    révélé** : l'agrégat chargeait ses événements sur `CALENDAR_WEEKS = 26` semaines (182 j) et
+    toutes les fenêtres n'étaient que des **filtres en mémoire** sur cette liste ; les deux nombres
+    coïncidaient **par accident heureux** (182 j couvrent tout juste 90 + 90). Poser `365` dessus
+    aurait donné un écran **crédible et faux** — 182 jours sur 365 annoncés, et un delta calculé
+    contre J-366 → J-730 valant **0 pour toujours** (pas « stable » : jamais mesuré) — **sans
+    qu'aucun test n'échoue**, tous les jeux d'essai tenant dans les dernières semaines. D'où deux
+    bornes désormais **explicites et séparées** là où l'une dérivait de l'autre en silence :
+    `projections.HISTORY_DAYS = max(PERIODS) × 2` (730 j, le facteur 2 **est** la fenêtre
+    précédente, pas une marge de confort) pour le chargement, et `CALENDAR_WEEKS = 26` **inchangé**
+    pour la heatmap — laquelle a gagné un **filtre explicite**, sans lequel elle aurait hérité de la
+    nouvelle profondeur et rendu quatre fois plus de jours que la carte n'en dessine. La grille
+    reste donc plus courte que la fenêtre en période « Année » : assumé, elle sert la régularité et
+    pas le bilan (§6 non rouvert). **Deux test-verrous, chacun éprouvé par sabotage** : l'un exige
+    qu'un jour à J-300 compte dans l'année et pas dans le trimestre **et** que deux jours à
+    J-500/J-520 rendent le delta **négatif** (un 0 étant exactement ce que rendait le bug) ; l'autre
+    que la grille ne déborde pas des 26 semaines — celui-ci **vert à tort en première rédaction**
+    (un événement isolé porte 0 minute, les jours vides sont omis, la liste sortait vide et
+    l'assertion portait sur l'ensemble vide), corrigé par deux événements espacés **et** une
+    assertion de **non-vacuité**. Au passage,
+    `test_le_decrochage_regarde_AU_DELA_de_la_fenetre_du_calendrier` visait **400 jours en dur**,
+    désormais **dans** la fenêtre chargée : il serait resté vert en ne prouvant plus rien, son
+    ancienneté est maintenant **dérivée de `HISTORY_DAYS`**. **Aucune migration, aucune route, aucune
+    dépendance** — Accepté (2026-08-05)
 
 - `docs/decisions/adr-0029-rejeu-anime-galaxie.md` — **Rejeu animé de la galaxie : voir son chemin,
     pas seulement son état** — *nouvel ADR plutôt qu'un 3ᵉ addendum à l'`adr-0024`, qui n'y révise

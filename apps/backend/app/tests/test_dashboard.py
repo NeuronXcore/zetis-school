@@ -151,7 +151,7 @@ def test_route_interdite_a_l_enfant(client_db) -> None:
     assert client.get("/api/parent/dashboard").status_code == 403
 
 
-def test_les_trois_fenetres_sont_dans_la_MEME_reponse(client_db) -> None:
+def test_les_quatre_fenetres_sont_dans_la_MEME_reponse(client_db) -> None:
     """L'invariant central de l'ADR §1 : changer de période ne doit déclencher aucune requête."""
     client, TestSession = client_db
     _seed(TestSession)
@@ -159,14 +159,100 @@ def test_les_trois_fenetres_sont_dans_la_MEME_reponse(client_db) -> None:
 
     body = client.get("/api/parent/dashboard").json()
 
-    assert sorted(body["periods"]) == ["30", "7", "90"]
-    for period in ("7", "30", "90"):
+    assert sorted(body["periods"]) == sorted(str(w) for w in p.PERIODS)
+    assert "365" in body["periods"], "la vision annuelle doit arriver avec les autres"
+    for period in ("7", "30", "90", "365"):
         assert set(body["periods"][period]["kpis"]) == {
             "active_minutes",
             "active_days",
             "consolidated",
             "open_gaps",
         }
+
+
+def test_la_fenetre_annuelle_voit_VRAIMENT_un_an_et_son_annee_precedente(client_db) -> None:
+    """Le verrou du chantier « Année ». Il échoue sur le chargement d'avant (26 semaines).
+
+    Ajouter `365` à `PERIODS` sans toucher au chargement donnait un écran parfaitement crédible et
+    faux : les événements n'étaient lus que sur 182 jours, donc l'« Année » n'en montrait que la
+    moitié, et son delta — calculé contre la fenêtre précédente, J-366 → J-730 — valait
+    structurellement 0, pour toujours.
+
+    D'où les deux moitiés de ce test :
+      1. un jour d'activité à J-300 doit compter dans l'année et PAS dans le trimestre ;
+      2. deux jours à J-500 / J-520 doivent peupler l'année PRÉCÉDENTE, ce que prouve un delta
+         négatif. Un delta à 0 est précisément ce que rendait le bug — l'assertion vise donc le
+         signe, pas seulement la présence.
+    """
+    client, TestSession = client_db
+    with TestSession() as db:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        now = datetime.now(UTC)
+        for days_ago in (300, 500, 520):
+            db.add(
+                m.LearningEvent(
+                    student_id=student.id,
+                    subject_id=subject.id,
+                    event_type="lesson_viewed",
+                    created_at=now - timedelta(days=days_ago),
+                )
+            )
+        db.commit()
+    _as_papa()
+
+    body = client.get("/api/parent/dashboard").json()
+
+    an = body["periods"]["365"]["kpis"]["active_days"]
+    assert an["of"] == 365, "le dénominateur affiché doit être celui de la fenêtre annoncée"
+    assert an["value"] == 1, "J-300 est dans l'année : le chargement le tronquait à 182 jours"
+    assert an["delta"] == -1, (
+        "delta = 1 jour cette année − 2 l'année précédente. Un 0 signifierait que la fenêtre "
+        "précédente n'a jamais été chargée — le bug que ce test ferme."
+    )
+    assert body["periods"]["90"]["kpis"]["active_days"]["value"] == 0, (
+        "J-300 ne doit PAS remonter dans le trimestre"
+    )
+
+
+def test_le_calendrier_reste_a_26_semaines_malgre_le_chargement_elargi(client_db) -> None:
+    """La heatmap ne doit pas hériter de la profondeur du chargement.
+
+    Le chargement bornait implicitement la grille : les deux valaient 26 semaines et personne
+    n'avait à le dire. En le portant à deux ans pour la fenêtre 365, la grille se serait remplie
+    de jours que la carte ne dessine pas — d'où une borne désormais explicite côté calendrier.
+
+    ⚠️ Deux événements par jour, espacés : un événement ISOLÉ porte 0 minute, et le calendrier
+    omet les jours vides. Avec un seul événement par jour la liste sortait VIDE et l'assertion
+    passait sur l'ensemble vide — verte y compris après sabotage de la borne. C'est ce faux témoin
+    qui impose l'assertion de non-vacuité ci-dessous.
+    """
+    client, TestSession = client_db
+    with TestSession() as db:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        now = datetime.now(UTC)
+        for days_ago in (300, 3):
+            for minutes in (0, 10):
+                db.add(
+                    m.LearningEvent(
+                        student_id=student.id,
+                        subject_id=subject.id,
+                        event_type="lesson_viewed",
+                        created_at=now - timedelta(days=days_ago) + timedelta(minutes=minutes),
+                    )
+                )
+        db.commit()
+    _as_papa()
+
+    body = client.get("/api/parent/dashboard").json()
+
+    limite = date.today() - timedelta(weeks=26)
+    jours = [day["date"] for s in body["subjects"] for day in s["calendar"]]
+    assert jours, "aucun jour dans la grille : l'assertion suivante serait vide donc toujours vraie"
+    assert all(date.fromisoformat(d) >= limite for d in jours), (
+        f"la grille a débordé au-delà de 26 semaines : {jours}"
+    )
 
 
 def test_l_xp_a_quitte_les_kpi(client_db) -> None:
@@ -195,8 +281,8 @@ def test_les_series_sont_par_matiere_et_jamais_pre_agregees(client_db) -> None:
 
     assert body["subjects"], "au moins une matière attendue"
     for subject in body["subjects"]:
-        assert set(subject["series"]) == {"7", "30", "90"}
-        assert set(subject["minutes"]) == {"7", "30", "90"}
+        assert set(subject["series"]) == {str(w) for w in p.PERIODS}
+        assert set(subject["minutes"]) == {str(w) for w in p.PERIODS}
         assert subject["slug"] != "all"
     assert all(s["slug"] for s in body["subjects"])
 
@@ -272,13 +358,18 @@ def test_les_quiz_ne_sont_pas_dans_la_file_de_validation(client_db) -> None:
 
 
 def test_le_decrochage_regarde_AU_DELA_de_la_fenetre_du_calendrier(client_db) -> None:
-    """`days_inactive` ne doit pas être déduit des 26 semaines chargées pour le calendrier.
+    """`days_inactive` ne doit pas être déduit des événements chargés par l'agrégat.
 
-    Piège corrigé au nettoyage : une dernière activité plus ancienne que la grille aurait rendu
-    la liste d'événements vide, donc un décrochage à 0 — soit « tout va bien » au moment précis
-    où il faut alerter. Le comptage est délégué à `activity`, qui interroge le dernier événement
-    sans borne de fenêtre.
+    Piège corrigé au nettoyage : une dernière activité plus ancienne que le chargement rend la
+    liste d'événements vide, donc un décrochage à 0 — soit « tout va bien » au moment précis où il
+    faut alerter. Le comptage est délégué à `activity`, qui interroge le dernier événement sans
+    borne de fenêtre.
+
+    ⚠️ L'ancienneté est calculée DEPUIS `p.HISTORY_DAYS`, et non écrite en dur. Avec un `400`
+    figé, l'arrivée de la fenêtre 365 — qui a porté le chargement à deux ans — aurait rangé
+    l'événement DANS la fenêtre : le test serait resté vert en ne prouvant plus rien.
     """
+    outside = p.HISTORY_DAYS + 35
     client, TestSession = client_db
     with TestSession() as db:
         student = db.query(m.StudentProfile).first()
@@ -288,8 +379,7 @@ def test_le_decrochage_regarde_AU_DELA_de_la_fenetre_du_calendrier(client_db) ->
                 student_id=student.id,
                 subject_id=subject.id,
                 event_type="lesson_viewed",
-                # Bien au-delà des 26 semaines du calendrier.
-                created_at=datetime.now(UTC) - timedelta(days=400),
+                created_at=datetime.now(UTC) - timedelta(days=outside),
             )
         )
         db.commit()
@@ -297,7 +387,8 @@ def test_le_decrochage_regarde_AU_DELA_de_la_fenetre_du_calendrier(client_db) ->
 
     body = client.get("/api/parent/dashboard").json()
 
-    assert body["days_inactive"] >= 399, "le décrochage a été tronqué à la fenêtre du calendrier"
+    assert body["last_activity_at"] is None, "l'événement doit être HORS du chargement"
+    assert body["days_inactive"] >= outside - 1, "le décrochage a été tronqué à la fenêtre chargée"
 
 
 def test_le_temps_par_matiere_PLUS_le_hors_matiere_egale_le_kpi(client_db) -> None:

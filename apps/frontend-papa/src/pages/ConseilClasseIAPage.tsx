@@ -6,6 +6,7 @@ import { FOCUS_RING, useFocusTarget } from "../hooks/useFocusTarget";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { type Equipping, useCouncilClass } from "../hooks/useCouncilClass";
 import { type CouncilRecommendation, reportToMarkdown } from "../lib/councilClass";
+import { COUNCIL_PERIOD_LABEL, isDashboardPeriod } from "../lib/dashboardDerive";
 import type { Subject } from "../lib/subjects";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { subjectIconFor } from "../lib/subjectIcons";
@@ -257,17 +258,6 @@ function downloadMarkdown(filename: string, content: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Libellé de période correspondant au lien profond venu du dashboard (`?period=7|30|90`).
- *
- *  Le deep-link porte la période parce que sans elle, le Conseil raconterait un trimestre quand
- *  Papa regardait sept jours (ADR-0028 §7). Ce n'est qu'une PRÉSÉLECTION : le champ reste libre,
- *  et rien n'est généré à l'arrivée. */
-const PERIOD_FROM_DASHBOARD: Record<string, string> = {
-  "7": "7 derniers jours",
-  "30": "30 derniers jours",
-  "90": "Trimestre",
-};
-
 export function ConseilClasseIAPage() {
   const c = useCouncilClass();
   // Lien profond depuis le nuage « Où agir » du dashboard. Périmètre STRICT (ADR-0028 §7) :
@@ -275,9 +265,17 @@ export function ConseilClasseIAPage() {
   // routes backend du Conseil ne sont touchés — l'ADR-0020 n'est pas rouvert.
   const [searchParams] = useSearchParams();
   const focusedSubjectSlug = searchParams.get("subject");
-  const [period, setPeriod] = useState(
-    () => PERIOD_FROM_DASHBOARD[searchParams.get("period") ?? ""] ?? "Trimestre 1",
-  );
+  // Le deep-link porte la période parce que sans elle, le Conseil raconterait un trimestre quand
+  // Papa regardait sept jours (ADR-0028 §7). Ce n'est qu'une PRÉSÉLECTION : le champ reste libre,
+  // et rien n'est généré à l'arrivée.
+  //
+  // La table vit dans `dashboardDerive` et non ici : typée par `DashboardPeriod`, elle rend
+  // l'ajout d'une fenêtre cassant à la compilation. La copie locale, typée `Record<string, string>`,
+  // avalait `365` en silence.
+  const [period, setPeriod] = useState(() => {
+    const raw = searchParams.get("period");
+    return isDashboardPeriod(raw) ? COUNCIL_PERIOD_LABEL[raw] : "Trimestre 1";
+  });
   const [pendingReco, setPendingReco] = useState<CouncilRecommendation | null>(null);
   const [pendingChampion, setPendingChampion] = useState(false);
   const [showDone, setShowDone] = useState(false);

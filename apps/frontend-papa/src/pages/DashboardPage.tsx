@@ -35,10 +35,15 @@ import {
 //
 // Non-objectifs : noter Massimo, produire un bulletin, déclencher une génération depuis ici.
 
+// ⚠️ L'ordre des boutons vient de `Object.keys` ci-dessous, et non de l'ordre d'écriture : des clés
+// qui ressemblent toutes à des entiers sont énumérées en ordre NUMÉRIQUE croissant par le langage.
+// Cela tombe juste — 7, 30, 90, 365 — mais une clé non numérique (« annee ») passerait derrière et
+// casserait la progression du sélecteur.
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
   "7": "7 jours",
   "30": "30 jours",
   "90": "Trimestre",
+  "365": "Année",
 };
 
 export function DashboardPage() {

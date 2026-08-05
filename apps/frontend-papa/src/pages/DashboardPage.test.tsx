@@ -7,7 +7,7 @@ import { DashboardPage } from "./DashboardPage";
 // Dashboard Papa (ADR-0028).
 //
 // LE test de ce chantier est `test_aucune_requete_sur_un_geste_de_filtrage` : tout le design —
-// agrégat unique, trois fenêtres préchargées, séries par matière — n'existe que pour ça. S'il
+// agrégat unique, quatre fenêtres préchargées, séries par matière — n'existe que pour ça. S'il
 // tombe, la page a beau s'afficher correctement, elle n'est plus un cockpit.
 
 vi.mock("../lib/dashboard", () => ({ fetchDashboard: vi.fn() }));
@@ -27,15 +27,16 @@ function subject(overrides: Partial<DashboardSubject> = {}): DashboardSubject {
     slug: "maths",
     name: "Mathématiques",
     color: "#60a5fa",
-    minutes: { "7": 65, "30": 255, "90": 690 },
+    minutes: { "7": 65, "30": 255, "90": 690, "365": 2400 },
     calendar: [{ date: "2026-07-28", active_minutes: 42 }],
-    slots: { "7": zeros(), "30": zeros(), "90": zeros() },
-    slots_outside_minutes: { "7": 0, "30": 0, "90": 0 },
+    slots: { "7": zeros(), "30": zeros(), "90": zeros(), "365": zeros() },
+    slots_outside_minutes: { "7": 0, "30": 0, "90": 0, "365": 0 },
     notions: { consolidated: 4, fragile: 3, in_progress: 2, total: 13 },
     series: {
       "7": { covered: [1, 2], consolidated: [0, 4], fragile: [3, 3] },
       "30": { covered: [1, 2], consolidated: [0, 4], fragile: [3, 3] },
       "90": { covered: [1, 2], consolidated: [0, 4], fragile: [3, 3] },
+      "365": { covered: [1, 2], consolidated: [0, 4], fragile: [3, 3] },
     },
     review_load: Array.from({ length: 14 }, () => 2),
     gaps_open: 1,
@@ -73,9 +74,9 @@ const PAYLOAD: DashboardPayload = {
       href: "/couverture",
     },
   ],
-  unattributed_minutes: { "7": 107, "30": 450, "90": 1200 },
-  periods: { "7": period(200), "30": period(825), "90": period(2210) },
-  subjects: [subject(), subject({ id: 2, slug: "svt", name: "SVT", minutes: { "7": 28, "30": 120, "90": 320 } })],
+  unattributed_minutes: { "7": 107, "30": 450, "90": 1200, "365": 3900 },
+  periods: { "7": period(200), "30": period(825), "90": period(2210), "365": period(7400) },
+  subjects: [subject(), subject({ id: 2, slug: "svt", name: "SVT", minutes: { "7": 28, "30": 120, "90": 320, "365": 1100 } })],
   content_chain: [
     { stage: "cours_valides", label: "Cours validés", value: 30, target: 38 },
     { stage: "fiches", label: "Fiches", value: 22, target: 30 },
@@ -143,6 +144,28 @@ describe("agrégat unique", () => {
     fireEvent.click(screen.getByRole("button", { name: "30 jours" }));
 
     await waitFor(() => expect(kpi).toHaveTextContent("13h45")); // 825 min sur 30 jours
+    expect(fetchDashboard).toHaveBeenCalledTimes(1);
+  });
+
+  it("offre « Année » APRÈS « Trimestre », et y basculer ne recharge rien", async () => {
+    // La vision globale est la quatrième fenêtre, pas une surface à part : elle doit arriver dans
+    // le même payload que les trois autres, sinon le cockpit redevient une page qui va au réseau.
+    //
+    // L'ordre des boutons est vérifié pour de vrai : il vient de `Object.keys(PERIOD_LABELS)`,
+    // que le langage énumère en ordre NUMÉRIQUE parce que les clés ressemblent à des entiers.
+    // Cela tombe juste aujourd'hui — une clé non numérique passerait derrière sans prévenir.
+    renderPage();
+    const kpi = await screen.findByRole("button", { name: /Temps actif/ });
+
+    const périodes = screen
+      .getAllByRole("button")
+      .map((b) => b.textContent)
+      .filter((t) => t && ["7 jours", "30 jours", "Trimestre", "Année"].includes(t));
+    expect(périodes).toEqual(["7 jours", "30 jours", "Trimestre", "Année"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Année" }));
+
+    await waitFor(() => expect(kpi).toHaveTextContent("123h20")); // 7400 min sur 365 jours
     expect(fetchDashboard).toHaveBeenCalledTimes(1);
   });
 
