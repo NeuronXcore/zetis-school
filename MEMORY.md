@@ -8,12 +8,12 @@
 ## État à la reprise
 
 **Chantier : addendum 2 de l'ADR-0041 — « la barre devient une bande, et la production se compte
-en pièces ». COMPLET, vérifié à l'écran, NON POUSSÉ.**
+en pièces ». COMPLET, vérifié à l'écran, ✅ MERGÉ SUR `main` (2026-08-06). Ne pas ré-implémenter.**
 
 | | |
 |---|---|
-| **Branche** | `feat/bande-de-production`, base `4536893` (= tête de `main` au départ du chantier, vérifié). Les commits : `git log --oneline main..HEAD` |
-| **État git** | **rien n'est poussé** (`git ls-remote origin feat/bande-de-production` : vide), **aucune PR ouverte**. Restent non commités à la clôture : `MEMORY.md`, `CHANGELOG.md` (0.55.0), `API_SPEC.md`, `DATA_MODEL.md` |
+| **Mergé** | PR [#95](https://github.com/NeuronXcore/zetis-school/pull/95), **squash `5ba7097`**, base `4536893`. Branche `feat/bande-de-production` **supprimée** (locale et distante, vérifié) |
+| **État git** | `main` = `origin/main` — **rien à pousser**. Vérifié à la clôture 4bis |
 | **Migrations** | `c4d5e6f7a8b9` (`production_runs.current_piece`) puis `e7f8a9b0c1d2` (`production_refusals`) — ✅ appliquées sur le vrai Postgres de dev. ⚠️ **DEV SEULEMENT** |
 | **Suites** | backend **997 ✅** (2 désélectionnés — flake horaire *pré-existant*, cf. dettes) · Papa **641 ✅** · `tsc -b --force` propre |
 
@@ -115,9 +115,13 @@ force le rendu et tout repart (j'ai failli « réparer » ce qui n'était pas ca
 
 ### ▶ PROCHAIN PAS
 
-**Le chantier est fini.** Ordre : `git push -u origin feat/bande-de-production` → PR → merge →
-revenir ici pour l'étape **4bis** (`WORKFLOW.md §5`) : squash, n° de PR, branche supprimée, « rien
-à pousser », et les résidus ci-dessous.
+**Le chantier est clos.** Poussé, PR #95 ouverte puis **mergée en squash**, branche supprimée,
+étape 4bis faite. Le prochain chantier part de `main` par `/ouverture`.
+
+⚠️ **Mais quatre vérifications sont parties sur `main` sans être jouées** (dettes ci-dessous) —
+`503`/Redis coupé, rejeu transitoire, jetons du tapis, empilement de trois travaux. Le premier
+chantier qui touche la production devrait commencer par elles : les deux premières traînent
+maintenant depuis **deux** chantiers.
 
 ### ⚠️ DETTES OUVERTES — nées de ce chantier
 
@@ -135,8 +139,12 @@ revenir ici pour l'étape **4bis** (`WORKFLOW.md §5`) : squash, n° de PR, bran
   leurs entrées au Journal, plus des `production_refusals` acquittés. **Nettoyés en revanche** :
   l'échéance factice, les lots témoins, et le **déclencheur automatique remis à l'arrêt** (je
   l'avais armé pour provoquer le refus).
-- ⚠️ **Un worker de production a été relancé par la session** (`nohup … -m app.production_worker`,
-  log dans `/tmp/zetis-prod-worker.log`). Il tourne toujours.
+- ✅ **Le worker de production lancé par la session a été ARRÊTÉ** à la demande du commanditaire
+  (`production_worker_alive` → `False`, vérifié ; désabonnement propre, aucun travail interrompu).
+  ⚠️ **Conséquence à connaître à la reprise : plus rien ne consomme la file de production.** Un lot
+  lancé restera « en file », et la bande dira exactement cela. Le worker **média**, lui, tourne
+  toujours — il n'appartient pas à cette session. Relance :
+  `cd apps/backend && .venv/bin/python -m app.production_worker`.
 - 🔴 **Deux tests de `test_dashboard.py` alternent au rouge selon l'heure** —
   `..._26_semaines` et `..._peut_EXPIRER` se relaient autour de minuit. **Pré-existants**, attribués
   par `git stash`, désélectionnés pour la suite, **non corrigés** : hors périmètre. Cause probable :
