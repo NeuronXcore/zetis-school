@@ -212,7 +212,15 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
   const jetons = useJetons(item?.current_piece);
   const recoit = useBoiteRecoit(item?.pieces_produced);
 
-  const arrete = item != null && (item.status === "stale" || activity.worker_alive === false);
+  // 🔴 **Le worker de SON couloir, pas « le » worker** (addendum 2 §22, trouvé à l'écran le
+  // 2026-08-07 sur un rendu vidéo réellement bloqué). `worker_alive` ne parle que des files de
+  // production : un rendu média en attente derrière un worker vidéo mort affichait « ZETIS va
+  // produire » — la file paraissait servie alors que personne ne l'écoutait. C'est le défaut exact
+  // que ce paragraphe existe pour supprimer, reproduit d'un couloir à l'autre.
+  //
+  // ⚠️ `=== false`, jamais la fausseté : `null` veut dire « la question n'a pas été posée ».
+  const vivantDuCouloir = item?.lane === "media" ? activity.media_alive : activity.worker_alive;
+  const arrete = item != null && (item.status === "stale" || vivantDuCouloir === false);
   const enFile = item?.status === "queued";
   const enCours = item?.status === "running" && !arrete;
   const mesure = !!item?.pct_is_measured && item.pct !== null;

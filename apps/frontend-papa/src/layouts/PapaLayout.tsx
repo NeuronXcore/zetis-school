@@ -4,7 +4,7 @@ import { PapaSidebar } from "../components/PapaSidebar";
 import { useAuth } from "@zetis/auth";
 import { useActiveProductionRun } from "../hooks/useActiveProductionRun";
 import { useAutonomyState } from "../hooks/useAutonomyState";
-import { ActiveProductionModal } from "../components/ActiveProductionModal";
+import { ProductionPopover } from "../components/ProductionPopover";
 import { ProductionDoneModal } from "../components/ProductionDoneModal";
 import { useProductionActivity } from "../hooks/useProductionActivity";
 import { ProductionStrip } from "../components/ProductionStrip";
@@ -122,17 +122,20 @@ export function PapaLayout() {
               tapis, lui, bouge en permanence tant que quelque chose est fabriqué. */}
           <ProductionStrip
             activity={activity}
-            onOpen={() => setShowRun(true)}
+            onOpen={() => setShowRun((ouvert) => !ouvert)}
             onOpenStock={() => navigate("/couverture")}
           />
+          {/* Le détail vit DANS le header, ancré sous la bande — c'est ce qui en fait un popover
+              et non une modale. Il déborde volontairement : le `overflow-hidden` est resté sur le
+              bandeau, jamais sur le header. */}
+          {showRun && (
+            <ProductionPopover
+              activity={activity}
+              onClose={() => setShowRun(false)}
+              onAcknowledge={ackEchec}
+            />
+          )}
         </header>
-        {showRun && (
-          <ActiveProductionModal
-            activity={activity}
-            onClose={() => setShowRun(false)}
-            onAcknowledge={ackEchec}
-          />
-        )}
         {/* Annonce de fin — s'efface seule, ne laisse aucune trace à traiter. */}
         {finished && <ProductionDoneModal run={finished} onClose={acknowledge} />}
         <main className="flex-1 overflow-auto p-6">

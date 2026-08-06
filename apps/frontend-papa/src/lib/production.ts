@@ -191,7 +191,10 @@ export async function fetchProductionActivity(): Promise<ProductionActivity> {
 }
 
 /** « J'ai vu. » Un échec reste affiché jusqu'ici — serveur, donc il ne revient sur aucun appareil. */
-export async function acknowledgeActivity(kind: "run" | "job", id: number): Promise<void> {
+export async function acknowledgeActivity(
+  kind: "run" | "job" | "refusal",
+  id: number,
+): Promise<void> {
   const r = await fetch(`${API}/activity/${kind}/${id}/ack`, {
     method: "POST",
     headers: authHeader(),

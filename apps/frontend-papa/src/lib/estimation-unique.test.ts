@@ -118,7 +118,7 @@ describe("§9 — plus aucune durée devinée par un écran", () => {
     // panneau de DÉTAIL, qui affiche bien un `≈ N %` par travail. Le trio est intact : trois
     // surfaces, une seule source, celle que le serveur mesure.
     for (const [cible, champ] of [
-      ["/components/ActiveProductionModal.tsx", "estimated_ms"],
+      ["/components/ProductionPopover.tsx", "estimated_ms"],
       ["/pages/ConseilClasseIAPage.tsx", "estimatedMs"],
       ["/components/progression/SubjectDetailRow.tsx", "estimatedMs"],
     ] as const) {

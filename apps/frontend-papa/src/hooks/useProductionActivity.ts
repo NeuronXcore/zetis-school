@@ -33,7 +33,8 @@ const VIDE: ProductionActivity = {
 export interface ProductionActivityState {
   activity: ProductionActivity;
   /** « J'ai vu » — l'échec disparaît, et ne revient sur aucun appareil. */
-  acknowledge: (kind: "run" | "job", id: number) => void;
+  /** « J'ai vu » — pour un échec (`run`/`job`) comme pour un refus de régulateur. */
+  acknowledge: (kind: "run" | "job" | "refusal", id: number) => void;
 }
 
 export function useProductionActivity(): ProductionActivityState {
@@ -68,10 +69,14 @@ export function useProductionActivity(): ProductionActivityState {
   }, [lire]);
 
   const acknowledge = useCallback(
-    (kind: "run" | "job", id: number) => {
-      // Optimiste : l'échec quitte l'écran tout de suite, le serveur suit. Un aller-retour avant
-      // de retirer ce que Papa vient de fermer se verrait.
-      setActivity((a) => ({ ...a, failed: a.failed.filter((f) => f.id !== id || f.kind !== kind) }));
+    (kind: "run" | "job" | "refusal", id: number) => {
+      // Optimiste : ce que Papa vient de fermer quitte l'écran tout de suite, le serveur suit. Un
+      // aller-retour avant de retirer ce qu'il a acquitté se verrait.
+      setActivity((a) =>
+        kind === "refusal"
+          ? { ...a, refused: a.refused.filter((r) => r.id !== id) }
+          : { ...a, failed: a.failed.filter((f) => f.id !== id || f.kind !== kind) },
+      );
       void acknowledgeActivity(kind, id).catch(lire);
     },
     [lire],
