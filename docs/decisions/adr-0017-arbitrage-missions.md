@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-07-05. Draft préparé pendant le chantier référentiel ; ouverture
+Accepté — 2026-07-05. Draft préparé pendant le chantier référentiel ; ouverture
 du chantier missions après clôture du chantier actif (règle mono-chantier).
 
 > **Amendement acté à l'implémentation du Lot 1 (2026-07-05).** Read-before-code : la
