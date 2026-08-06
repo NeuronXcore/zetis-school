@@ -112,6 +112,17 @@ Un travail a échoué.
 Si plusieurs travaux ont échoué, ils s'empilent dans le détail (au clic) ; la pilule montre le plus
 récent et compte les autres.
 
+**Le motif est rendu TEL QUEL, sans traduction** — décision du commanditaire, 2026-08-06.
+
+La question a été posée à l'écran sur un échec réel : « Aucun exécutant pour
+« capsule_render_v2 ». » est exact, et ce n'est pas du français de Papa. La réponse est que la
+traduction est **inutile**. Un motif d'échec n'est pas un texte d'interface : il sert à savoir
+quoi réparer, et le reformuler ne ferait qu'ajouter une couche entre le fait et celui qui doit
+agir — au risque de perdre le nom exact dont il a besoin.
+
+⚠️ **Ne pas « améliorer » ce point sans rouvrir la décision.** Une table de correspondance
+`motif technique → phrase douce` serait exactement ce qui a été écarté.
+
 ## Plusieurs travaux à la fois
 
 La pilule montre **le travail courant, et lui seul**, suivi d'un compteur discret :
