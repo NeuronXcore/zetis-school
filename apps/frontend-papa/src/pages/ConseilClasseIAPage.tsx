@@ -5,7 +5,15 @@ import { PageHeader } from "../components/PageHeader";
 import { FOCUS_RING, useFocusTarget } from "../hooks/useFocusTarget";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { type Equipping, useCouncilClass } from "../hooks/useCouncilClass";
-import { type CouncilRecommendation, reportToMarkdown } from "../lib/councilClass";
+import {
+  type CouncilRecommendation,
+  type CouncilSubject,
+  estEvolutionDatee,
+  libelleRapport,
+  libelleTransition,
+  rapportSansHistoriqueDate,
+  reportToMarkdown,
+} from "../lib/councilClass";
 import { COUNCIL_PERIOD_LABEL, isDashboardPeriod } from "../lib/dashboardDerive";
 import type { Subject } from "../lib/subjects";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -248,17 +256,71 @@ function EquipDonePopup({
   );
 }
 
+// ⚠️ `evolutionSansHistoriqueDate` vivait ici, en DOUBLE de `rapportSansHistoriqueDate` de
+// `lib/councilClass` — et les deux répondaient l'INVERSE sur une version illisible. Une seule
+// implémentation désormais ; voir là-bas pour la doctrine (sur un doute, on signale).
+
 /**
- * Marque de lecture des rapports antérieurs au prompt v3 (ADR-0040 §8).
+ * L'évolution récente, sous ses trois formes (ADR-0040 §8).
  *
- * Avant v3, `recent_evolution` était un `str` NON-NULLABLE pour une valeur qu'aucune source ne
- * pouvait produire : le modèle remplissait par obligation de type, et la phrase était figée. On ne
- * réécrit aucun rapport figé — on SIGNALE. La marque est auto-périmée : elle s'éteint d'elle-même
- * à mesure que les rapports v3 s'accumulent, comme l'avertissement `history_since` du dashboard.
+ * 🔴 **Les bascules se rendent même sans commentaire.** Elles sont la MESURE ; le commentaire n'en
+ * est que la lecture. Un écran qui n'afficherait la section que lorsque le modèle a parlé ferait
+ * dépendre une donnée serveur du bon vouloir d'un LLM — exactement l'inversion que tout ce
+ * chantier corrige.
  */
-function evolutionSansHistoriqueDate(promptVersion: string): boolean {
-  const n = Number(promptVersion.replace(/^v/i, ""));
-  return Number.isFinite(n) && n < 3;
+function Evolution({
+  evolution,
+  marquerNonDatee,
+}: {
+  evolution: CouncilSubject["recent_evolution"];
+  marquerNonDatee: boolean;
+}) {
+  if (evolution === null) {
+    return (
+      <p className="mt-1 text-sm text-papa-muted">
+        <span className="text-sky-300">Évolution :</span> aucune bascule de palier sur la trace
+        disponible — absence de trace, pas absence de mouvement.
+      </p>
+    );
+  }
+
+  // Rapport FIGÉ avant le Lot 3 : sa prose n'était adossée à rien. On ne la réécrit pas, on la
+  // SIGNALE — la marque s'éteint d'elle-même à mesure que les rapports datés s'accumulent.
+  if (!estEvolutionDatee(evolution)) {
+    return (
+      <p className="mt-1 text-sm">
+        <span className="text-sky-300">Évolution :</span> {evolution}
+        {marquerNonDatee && (
+          <span className="ml-1 text-xs text-papa-muted">
+            (évolution rédigée sans historique daté)
+          </span>
+        )}
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-1 text-sm">
+      <p>
+        <span className="text-sky-300">Évolution :</span>{" "}
+        <span className="text-papa-muted">
+          {evolution.transitions.length} bascule{evolution.transitions.length > 1 ? "s" : ""} de
+          palier sur la trace disponible depuis le {evolution.since ?? "?"}
+        </span>
+      </p>
+      {/* 🔴 Le détail RECOMPOSE le nombre annoncé, comme partout ailleurs dans ce chantier. */}
+      <ul className="mt-1 space-y-0.5">
+        {evolution.transitions.map((t) => (
+          <li key={`${t.skill_id}-${t.changed_at}`} className="flex flex-wrap items-baseline gap-2">
+            <span className="tabular-nums text-xs text-papa-muted">{t.changed_at}</span>
+            <span className="font-medium">{t.skill_name}</span>
+            <span className="text-xs text-papa-muted">{libelleTransition(t)}</span>
+          </li>
+        ))}
+      </ul>
+      {evolution.comment && <p className="mt-1">{evolution.comment}</p>}
+    </div>
+  );
 }
 
 function downloadMarkdown(filename: string, content: string): void {
@@ -297,7 +359,7 @@ export function ConseilClasseIAPage() {
   const busy = c.equipping !== null;
   // Calculé ici, hors du rendu : `c.report` est narrowé par le `!c.report ?` du JSX, mais la
   // narrowing se perd dans la closure du `.map` sur les matières (propriété d'un objet mutable).
-  const evolutionNonDatee = c.report ? evolutionSansHistoriqueDate(c.report.prompt_version) : false;
+  const evolutionNonDatee = c.report ? rapportSansHistoriqueDate(c.report.prompt_version) : false;
 
   // Popup éphémère de fin : apparaît quand le flux équipe+crée se termine, s'efface seul après 6 s.
   useEffect(() => {
@@ -320,6 +382,10 @@ export function ConseilClasseIAPage() {
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
               aria-label="Période"
+              // ⚠️ Ce champ NOMME le rapport, il ne sélectionne rien — voir la phrase sous le
+              // titre. Le `title` le redit au survol, là où la main est déjà.
+              title="Étiquette du rapport — elle ne restreint pas les données"
+              placeholder="Nommer ce rapport"
               className="rounded-lg border border-papa-border bg-papa-surface px-3 py-2 text-sm"
             />
             <button
@@ -348,6 +414,21 @@ export function ConseilClasseIAPage() {
         }
       />
 
+      {/* 🔴 CE QUE LA PÉRIODE N'EST PAS (2026-08-06). Le champ ci-dessus est un LIBELLÉ LIBRE : il
+          ne restreint aucune donnée, et le snapshot figé de chaque rapport le dit déjà en base
+          (« `period` est une étiquette, elle ne sélectionne aucune donnée »). Ne pas l'écrire à
+          l'écran a produit un rapport intitulé « 7 derniers jours » sur une évidence qui couvre
+          tout l'historique — figé, donc rétroactivement indiscernable du vrai.
+          ⚠️ Elle reste transportée depuis le dashboard (le lien profond garde son sens) : ce
+          qu'on corrige est la LECTURE, pas le transport. */}
+      <p className="mb-4 rounded-lg border border-papa-border bg-papa-surface-2/50 px-3 py-2 text-xs text-papa-muted">
+        La période est une <strong className="font-semibold">étiquette</strong> : elle nomme le
+        rapport, elle ne restreint pas les données. Le conseil s'appuie sur l'
+        <strong className="font-semibold">état courant</strong> de la maîtrise, sans fenêtre —
+        seules les <strong className="font-semibold">bascules de palier</strong> sont datées, et
+        chaque matière annonce depuis quand.
+      </p>
+
       {c.error && (
         <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
           {c.error}
@@ -366,7 +447,14 @@ export function ConseilClasseIAPage() {
         </div>
       )}
 
-      {c.history.length > 1 && (
+      {/* 🔴 Une pastille dit QUEL rapport elle ouvre (2026-08-06). Elles n'affichaient que
+          `period` : neuf rapports lisaient « Trimestre 1 · Trimestre 1 · 7 derniers jours · … »,
+          et un historique où rien ne se distingue n'est pas un historique. La date et la matière
+          étaient DÉJÀ servies — il manquait de les écrire.
+          ⚠️ Visible dès le PREMIER rapport (`> 0`, pas `> 1`) : la bande est la seule porte vers
+          les anciens, et la masquer tant qu'il n'y en a qu'un la rend introuvable au moment où
+          Papa apprend qu'elle existe. */}
+      {c.history.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-papa-muted">
           <span>Rapports :</span>
           {c.history.map((h) => (
@@ -374,13 +462,28 @@ export function ConseilClasseIAPage() {
               key={h.id}
               type="button"
               onClick={() => void c.openReport(h.id)}
+              // ⚠️ `title` porte l'étiquette de période : elle a sa place, mais PAS au premier
+              // plan — c'est un libellé libre qui ne restreint aucune donnée, et le mettre en
+              // avant est justement ce qui faisait croire le contraire.
+              title={`${h.period} · ${h.subjects_count} matière${h.subjects_count > 1 ? "s" : ""}`}
               className={`rounded-full border px-2 py-0.5 ${
                 c.report?.id === h.id
                   ? "border-papa-accent text-papa-accent"
                   : "border-papa-border hover:border-papa-accent"
               }`}
             >
-              {h.period}
+              {libelleRapport(h)}
+              {rapportSansHistoriqueDate(h.prompt_version) && (
+                // Une étoile discrète plutôt qu'une phrase : la marque doit tenir dans une
+                // pastille, et le détail s'écrit en toutes lettres à l'ouverture du rapport.
+                <span
+                  aria-label="évolution rédigée sans historique daté"
+                  title="évolution rédigée sans historique daté"
+                  className="ml-1 text-papa-warn"
+                >
+                  ✳
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -468,21 +571,11 @@ export function ConseilClasseIAPage() {
                   {/* L'absence s'ÉCRIT (ADR-0040 §8.4). Ne rien rendre laisserait lire « aucun
                       mouvement » là où il faut lire « aucune trace » — les deux ne se corrigent
                       pas l'un l'autre. */}
-                  {s.recent_evolution ? (
-                    <p className="mt-1 text-sm">
-                      <span className="text-sky-300">Évolution :</span> {s.recent_evolution}
-                      {evolutionNonDatee && (
-                        <span className="ml-1 text-xs text-papa-muted">
-                          (évolution rédigée sans historique daté)
-                        </span>
-                      )}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-sm text-papa-muted">
-                      <span className="text-sky-300">Évolution :</span> aucune bascule de palier sur
-                      la trace disponible — absence de trace, pas absence de mouvement.
-                    </p>
-                  )}
+                  <Evolution
+                    evolution={s.recent_evolution}
+                    marquerNonDatee={evolutionNonDatee}
+                  />
+
                   {s.recommendations.map((r, i) => (
                     <RecommendationRow
                       key={`${s.subject_id}-${i}`}

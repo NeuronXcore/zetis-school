@@ -120,9 +120,18 @@ describe("création", () => {
 });
 
 describe("états", () => {
-  it("état vide : aucune notion à renforcer", async () => {
+  it("état vide : aucune lacune ouverte, ET le renvoi vers les paliers", async () => {
+    // Renommé par l'adr-0040 §5. L'assertion est RENFORCÉE, pas seulement adaptée : le libellé
+    // seul ne suffisait pas — « aucune lacune ouverte » se lirait « rien à faire » alors que 13
+    // notions sont fragiles en base réelle. Les deux populations sont disjointes, et l'écran doit
+    // le dire ET offrir le chemin.
     renderPage();
-    expect(await screen.findByText(/Rien à renforcer pour le moment/)).toBeInTheDocument();
+    expect(await screen.findByText(/Aucune lacune ouverte/)).toBeInTheDocument();
+    expect(screen.getByText(/disjointes/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Progression/ })).toHaveAttribute(
+      "href",
+      "/progression?view=notion",
+    );
   });
 
   it("erreur : bandeau + Réessayer, aucune liste inventée", async () => {

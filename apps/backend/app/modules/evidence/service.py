@@ -10,9 +10,9 @@ qui l'importent. Il consomme en revanche le **poids de scoring ADR-0014** (`WEAK
 jamais réécrit ici. Un test-verrou vérifie qu'aucun symbole de `missions` n'est importé.
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -23,8 +23,10 @@ from app.db.models import (
     QuizQuestion,
     Skill,
     SkillMastery,
+    SkillMasteryHistory,
     SpacedReviewCard,
 )
+from app.modules.activity.timeutils import local_day
 from app.modules.progress.service import OPEN_GAP_STATUSES
 from app.modules.quizzes.scoring import WEAK_SIGNAL_WEIGHT
 
@@ -114,6 +116,89 @@ def weighted_quiz_signal(db: Session, *, student_id: int) -> dict[int, float]:
         prev = signal.get(skill_id, float(score))
         signal[skill_id] = prev * (1 - WEAK_SIGNAL_WEIGHT) + float(score) * WEAK_SIGNAL_WEIGHT
     return {k: round(v, 1) for k, v in signal.items()}
+
+
+def history_since(db: Session, *, student_id: int) -> date | None:
+    """Plus ancienne bascule connue de `skill_mastery_history` — `None` si la table est vide.
+
+    **La borne de la trace**, et elle n'est PAS le `period` du Conseil (adr-0040 §9) : `period` ne
+    sélectionne aucune donnée et reste une étiquette, celle-ci est une date réelle. Les fondre
+    rendrait indétectable, demain, le défaut que le Lot 0 vient de corriger.
+
+    ⚠️ Volontairement sur TOUS les statuts, et non sur les seuls fragiles : ce qu'on date ici est
+    la mise en service de l'historique, pas la première régression. Se restreindre aux statuts
+    fragiles rendrait une date plus RÉCENTE que la réalité.
+
+    Vit ici plutôt que dans `dashboard` — où elle est née privée — parce qu'elle a désormais trois
+    consommateurs (le dashboard, Progression, le Conseil au Lot 3). `dashboard` la délègue.
+    """
+    when = db.scalar(
+        select(func.min(SkillMasteryHistory.changed_at)).where(
+            SkillMasteryHistory.student_id == student_id
+        )
+    )
+    return local_day(when) if when else None
+
+
+def mastery_transitions(
+    db: Session, *, student_id: int, since: datetime, subject_id: int | None = None
+) -> list[dict]:
+    """Bascules de palier depuis `since`, récentes d'abord — LA fonction de mesure (adr-0040 §10).
+
+    Un substrat, deux consommateurs : Progression (les noms et les dates, à l'écran) et le Conseil
+    (les mêmes, en prose ancrée, au Lot 3). Les calculer séparément refabriquerait la classe de bug
+    que ce dépôt paie depuis trois chantiers — deux mesures divergentes sous un même mot.
+
+    ⚠️ **`from_status` est calculé par FENÊTRAGE, pas lu** : `skill_mastery_history` ne stocke que
+    le statut d'ARRIVÉE. Le palier de départ est celui de la ligne précédente de la même notion,
+    `None` s'il n'y en a pas — la bascule est alors la première tracée pour elle, et prétendre
+    connaître son origine serait une invention.
+
+    Contrainte du module respectée : `evidence` ne reçoit que des données **probantes**. Des
+    bascules horodatées écrites par `record_mastery_transition` en sont.
+    """
+    query = (
+        select(
+            SkillMasteryHistory.skill_id,
+            SkillMasteryHistory.status,
+            SkillMasteryHistory.changed_at,
+            Skill.name,
+            Skill.subject_id,
+        )
+        .join(Skill, Skill.id == SkillMasteryHistory.skill_id)
+        .where(SkillMasteryHistory.student_id == student_id)
+    )
+    if subject_id is not None:
+        query = query.where(Skill.subject_id == subject_id)
+    # Tout l'historique de la notion est lu, pas seulement la fenêtre : sans la ligne qui PRÉCÈDE
+    # `since`, la première bascule de la fenêtre n'aurait pas de palier de départ. Le filtrage
+    # temporel se fait après, sur le résultat fenêtré.
+    rows = db.execute(
+        query.order_by(SkillMasteryHistory.skill_id, SkillMasteryHistory.changed_at, SkillMasteryHistory.id)
+    ).all()
+
+    previous: dict[int, str] = {}
+    out: list[dict] = []
+    for skill_id, status, changed_at, skill_name, subj_id in rows:
+        from_status = previous.get(skill_id)
+        previous[skill_id] = status
+        moment = changed_at if changed_at.tzinfo is not None else changed_at.replace(tzinfo=timezone.utc)
+        if moment < since:
+            continue
+        out.append(
+            {
+                "skill_id": skill_id,
+                "skill_name": skill_name,
+                "subject_id": subj_id,
+                "from_status": from_status,
+                "to_status": status,
+                "changed_at": moment,
+            }
+        )
+    # Récentes d'abord, départagées par `skill_id` : sans cette queue, deux bascules du même instant
+    # changeraient de place d'un rendu à l'autre (même raison que `created_at DESC, id DESC`).
+    out.sort(key=lambda t: (t["changed_at"], t["skill_id"]), reverse=True)
+    return out
 
 
 def srs_pressure(db: Session, *, student_id: int) -> dict[int, dict]:

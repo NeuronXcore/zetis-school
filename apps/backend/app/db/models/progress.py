@@ -60,7 +60,16 @@ class SkillMasteryHistory(Base):
 
     __tablename__ = "skill_mastery_history"
     __table_args__ = (
+        # Balayage de FENÊTRE (« toutes les bascules des 90 derniers jours ») — dashboard.
         Index("ix_skill_mastery_history_student_changed", "student_id", "changed_at"),
+        # « La DERNIÈRE bascule de CHAQUE notion » (adr-0040 §12) — l'index des notions. Le premier
+        # ne sert pas ce `group_by(skill_id)` : il faudrait parcourir tout l'historique de l'élève.
+        Index(
+            "ix_skill_mastery_history_student_skill_changed",
+            "student_id",
+            "skill_id",
+            "changed_at",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

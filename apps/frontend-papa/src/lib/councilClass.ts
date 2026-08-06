@@ -13,18 +13,68 @@ export interface CouncilRecommendation {
   justification: string;
 }
 
+/** Une bascule de palier telle que le SERVEUR l'a mesurée (`evidence.mastery_transitions`). */
+export interface CouncilTransition {
+  skill_id: number;
+  skill_name: string;
+  /** `null` sur la plus ancienne bascule tracée d'une notion : la trace ne porte pas son palier
+   *  de départ, et le déduire serait l'inventer. */
+  from: string | null;
+  to: string;
+  changed_at: string;
+}
+
+/** `recent_evolution` d'un rapport **v4 ou plus** (ADR-0040 §8). */
+export interface CouncilEvolution {
+  /** ⚠️ `history_since`, JAMAIS `period` (§9) : `period` est une étiquette qui ne sélectionne
+   *  aucune donnée, ceci est une date réelle. */
+  since: string | null;
+  transitions: CouncilTransition[];
+  /** Seule part du modèle. `null` = il n'a rien commenté ; les bascules se rendent quand même. */
+  comment: string | null;
+}
+
 export interface CouncilSubject {
   subject_id: number;
   subject_name: string;
   strengths: string;
   to_reinforce: string;
   /**
-   * `null` = l'évidence ne portait aucune bascule de palier sur cette matière (ADR-0040 §8.1).
-   * L'écran rend cette absence par une phrase, jamais par un blanc : « pas de trace » et
-   * « pas de mouvement » ne se corrigent pas l'un l'autre.
+   * 🔴 **Trois formes, et l'écran les distingue** (ADR-0040 §8) :
+   *   · `CouncilEvolution` — rapport v4+, des bascules datées et mesurées ;
+   *   · `string` — rapport FIGÉ avant le Lot 3, dont la prose n'était adossée à rien. On ne
+   *     réécrit aucun rapport : la marque de lecture `< v3` dit à l'écran ce qu'elle vaut ;
+   *   · `null` — l'évidence ne portait aucune bascule. L'écran rend cette absence par une PHRASE,
+   *     jamais par un blanc : « pas de trace » et « pas de mouvement » ne se corrigent pas l'un
+   *     l'autre.
    */
-  recent_evolution: string | null;
+  recent_evolution: CouncilEvolution | string | null;
   recommendations: CouncilRecommendation[];
+}
+
+/** Discrimine la structure de la prose figée. `typeof === "object"` seul ne suffirait pas :
+ *  `null` est un objet en JavaScript, et le piège est classique. */
+export function estEvolutionDatee(
+  e: CouncilSubject["recent_evolution"],
+): e is CouncilEvolution {
+  return e !== null && typeof e === "object";
+}
+
+const PALIER_MOT: Record<string, string> = {
+  mastered: "acquise",
+  solid: "solide",
+  learning: "en apprentissage",
+  weak: "à renforcer",
+  in_progress: "en cours",
+  unknown: "non située",
+};
+
+/** Une bascule en mots de Papa. Un statut inconnu s'affiche TEL QUEL plutôt que d'être masqué :
+ *  perdre une bascule serait pire que montrer un mot technique. */
+export function libelleTransition(t: CouncilTransition): string {
+  const vers = PALIER_MOT[t.to] ?? t.to;
+  if (!t.from) return `première bascule tracée → ${vers}`;
+  return `${PALIER_MOT[t.from] ?? t.from} → ${vers}`;
 }
 
 export interface CouncilReport {
@@ -46,6 +96,55 @@ export interface CouncilReportListItem {
   subject_name: string | null;
   subjects_count: number;
   created_at: string | null;
+  /** Sert la marque de lecture sans ouvrir le rapport. `""` = version inconnue, donc ancienne. */
+  prompt_version: string;
+}
+
+/**
+ * Ce qui distingue un rapport d'un autre dans la liste (2026-08-06).
+ *
+ * 🔴 Les pastilles n'affichaient que `period`. Neuf rapports lisaient donc « Trimestre 1 ·
+ * Trimestre 1 · 7 derniers jours · … » — un historique où rien ne se distingue n'est pas un
+ * historique, c'est une rangée de boutons. La date et la matière étaient DÉJÀ dans la charge
+ * utile ; il manquait seulement de les écrire.
+ *
+ * ⚠️ La date est celle de la GÉNÉRATION, la seule vraie ici — `period` est une étiquette qui ne
+ * sélectionne aucune donnée. Les mettre côte à côte, c'est justement ce qui rend la seconde
+ * lisible pour ce qu'elle est.
+ *
+ * ⚠️ **L'HEURE, pas seulement le jour.** Une première version n'affichait que la date : deux
+ * conseils générés le même jour redevenaient identiques, et c'est le cas courant — on en lance
+ * plusieurs d'affilée en travaillant. Vu à l'écran, pas en test.
+ *
+ * ⚠️ **Formatage LOCAL, jamais `slice(0, 10)`** sur l'ISO. Ce découpage lit de l'UTC : un rapport
+ * généré à 23 h 30 à Paris s'afficherait la veille. Même piège que `toISOString()` dans la grille
+ * du calendrier, et je viens de le reproduire ici.
+ */
+export function libelleRapport(h: CouncilReportListItem): string {
+  if (!h.created_at) return h.subject_name ?? "toutes matières";
+  const d = new Date(h.created_at);
+  const quand = `${d.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  })} ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${quand} · ${h.subject_name ?? "toutes matières"}`;
+}
+
+/**
+ * Un rapport antérieur au prompt v3 : son « évolution récente » n'était adossée à rien
+ * (ADR-0040 §8). La marque est auto-périmée — elle s'éteint à mesure que les rapports datés
+ * s'accumulent.
+ *
+ * ⚠️ **Une version ILLISIBLE est traitée comme ancienne.** La page en portait une copie qui
+ * répondait l'inverse (`Number.isFinite(n) && n < 3` ⇒ pas de marque sur une version inconnue) :
+ * deux fonctions pour la même question, avec deux réponses opposées sur le cas limite. Sur un
+ * doute, on signale — dire « ce rapport est fiable » sans le savoir est la faute que tout ce
+ * chantier corrige. Une seule implémentation désormais, et c'est celle-ci.
+ */
+export function rapportSansHistoriqueDate(promptVersion: string): boolean {
+  const n = Number(promptVersion.replace(/^v/i, ""));
+  return !Number.isFinite(n) || n < 3;
 }
 
 export interface EquipPieceError {
@@ -152,7 +251,18 @@ export function reportToMarkdown(report: CouncilReport): string {
     lines.push(`## ${s.subject_name}`, "");
     if (s.strengths) lines.push(`**Points forts :** ${s.strengths}`);
     if (s.to_reinforce) lines.push(`**À renforcer :** ${s.to_reinforce}`);
-    if (s.recent_evolution) lines.push(`**Évolution récente :** ${s.recent_evolution}`);
+    // L'export porte les DATES, pas seulement la prose : c'est ce fichier que Papa relira ou
+    // enverra, et une évolution sans ses bascules y redeviendrait une affirmation sans preuve.
+    if (estEvolutionDatee(s.recent_evolution)) {
+      const e = s.recent_evolution;
+      lines.push(`**Évolution récente** — sur la trace disponible depuis le ${e.since ?? "?"} :`);
+      for (const t of e.transitions) {
+        lines.push(`  - ${t.changed_at} · ${t.skill_name} — ${libelleTransition(t)}`);
+      }
+      if (e.comment) lines.push(`  ${e.comment}`);
+    } else if (s.recent_evolution) {
+      lines.push(`**Évolution récente :** ${s.recent_evolution}`);
+    }
     for (const r of s.recommendations) {
       lines.push("", `- **Action** (${r.skill_names.join(", ")}) — ${r.justification}`);
     }

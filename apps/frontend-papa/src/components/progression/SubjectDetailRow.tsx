@@ -4,6 +4,14 @@ import { ConfirmDialog } from "@zetis/ui";
 import type { AnalysisNotion, ConsolidatedSkill, ProgressionSubject } from "@zetis/types";
 import { useSubjectAnalysis } from "../../hooks/useSubjectAnalysis";
 import { createMissionsFromReco, equipNotion } from "../../lib/councilClass";
+import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+
+// Durées d'attente estimées. ⚠️ Ce ne sont PAS des mesures : le serveur ne rend aucune
+// progression, la barre est une ESTIMATION honnête (convention Papa — jamais de spinner nu, jamais
+// de barre réinventée). `EQUIP_MS` reprend la valeur du Conseil de classe, qui lance exactement le
+// même équipement : deux estimations différentes pour le même travail se contrediraient à l'écran.
+const EQUIP_MS = 90_000; // jusqu'à 5 générations LLM locales (cours, fiche, cartes, quiz, mindmap)
+const MISSION_MS = 8_000; // composition pur-DB, sans LLM
 
 // Le dépliage d'une ligne de Progression (addendum ADR-0038).
 //
@@ -58,12 +66,15 @@ export function SubjectDetailRow({
 }) {
   const { analysis, loading, error, retry } = useSubjectAnalysis(subject.subject_id);
   const [confirming, setConfirming] = useState<Action | null>(null);
-  const [busy, setBusy] = useState<number | null>(null);
+  // ⚠️ On garde l'ACTION en cours, pas seulement son `skillId` : sans son `kind`, impossible de
+  // dire à l'écran ce que ZETIS est en train de faire ni combien de temps ça prend.
+  const [running, setRunning] = useState<Action | null>(null);
+  const busy = running?.skillId ?? null;
   const [result, setResult] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const run = async (action: Action) => {
-    setBusy(action.skillId);
+    setRunning(action);
     setResult(null);
     setFailure(null);
     try {
@@ -86,7 +97,7 @@ export function SubjectDetailRow({
     } catch (e) {
       setFailure(e instanceof Error ? e.message : "L'action a échoué.");
     } finally {
-      setBusy(null);
+      setRunning(null);
     }
   };
 
@@ -118,9 +129,25 @@ export function SubjectDetailRow({
   const notStarted = analysis.not_started ?? [];
   const xpByReason = analysis.xp_by_reason ?? [];
   const fragiles = analysis.to_reinforce.filter((n) => n.is_fragile);
+  // 🔴 La colonne « Lacune » de la ligne doit RECOMPOSER, comme les quatre autres. Sans ce bloc,
+  // elle serait le seul nombre de l'écran dont le détail n'existe nulle part — exactement le
+  // cul-de-sac que ce chantier existe pour supprimer.
+  // ⚠️ `to_reinforce` est l'UNION (fragiles ∪ lacunes) : une notion peut y figurer pour l'une, pour
+  // l'autre, ou pour les deux. Les deux listes se CHEVAUCHENT donc sans se confondre, et leurs
+  // deux comptes n'ont aucune raison d'être égaux.
+  const lacunes = analysis.to_reinforce.filter((n) => n.has_open_gap);
 
   return (
     <div className="space-y-5 px-4 py-4">
+      {/* 🔴 ZETIS DIT QU'IL TRAVAILLE. Sans ce bloc, confirmer « Équiper » ne faisait que griser un
+          bouton : l'équipement enchaîne jusqu'à CINQ générations LLM locales (~90 s), et Papa
+          n'avait aucun moyen de savoir si quelque chose se produisait, ni s'il devait attendre.
+          Convention Papa : `useEstimatedProgress` + `<ProgressBar>` — jamais un spinner nu, jamais
+          une barre réinventée.
+          ⚠️ La barre est une ESTIMATION, pas une mesure : le serveur ne rend aucune progression.
+          Elle dit « c'est parti et voilà l'ordre de grandeur », elle ne prétend pas compter. */}
+      {running && <ActionEnCours action={running} />}
+
       {(result || failure) && (
         <p
           className={`rounded-lg px-3 py-2 text-sm ${
@@ -156,7 +183,10 @@ export function SubjectDetailRow({
           <p className="mt-2 text-xs text-papa-muted">
             {notStarted.length} notion{notStarted.length > 1 ? "s" : ""} pas encore abordée
             {notStarted.length > 1 ? "s" : ""}.{" "}
-            <Link to="/programme" className="font-semibold text-papa-accent underline">
+            <Link
+              to={`/programme?subject=${subject.subject_id}`}
+              className="font-semibold text-papa-accent underline"
+            >
               Ouvrir le programme →
             </Link>
           </p>
@@ -226,7 +256,136 @@ export function SubjectDetailRow({
         )}
       </Bloc>
 
-      <div className="flex justify-end">
+      <Bloc titre={`Lacune ouverte — ${subject.gaps_open}`}>
+        {lacunes.length === 0 ? (
+          <p className="text-sm text-papa-muted">
+            Aucune lacune ouverte dans cette matière. Ce n'est pas la même chose que « rien à
+            renforcer » : une notion fragile peut n'avoir jamais produit de lacune.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {lacunes.map((n) =>
+              // 🔴 UNE notion, UNE surface d'action. Une notion fragile ET porteuse de lacune
+              // figure dans les deux blocs — le compte l'exige — mais ses boutons ne sont rendus
+              // qu'UNE fois, au-dessus : deux « Créer une mission » identiques à trois centimètres
+              // d'écart laisseraient croire à deux actions différentes. Elle garde sa ligne, avec
+              // sa raison écrite — ce qui répond du même coup à « pourquoi je la vois deux fois ».
+              n.is_fragile ? (
+                <li
+                  key={n.skill_id}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-papa-border px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 flex-1">{n.skill_name}</span>
+                  <span className="text-xs text-papa-muted">
+                    aussi listée dans « À renforcer », avec ses actions
+                  </span>
+                </li>
+              ) : (
+                <NotionRow
+                  key={n.skill_id}
+                  notion={n}
+                  busy={busy === n.skill_id}
+                  disabled={busy !== null}
+                  onAct={(kind) =>
+                    setConfirming({ kind, skillId: n.skill_id, skillName: n.skill_name })
+                  }
+                />
+              ),
+            )}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-papa-muted">
+          Les lacunes se travaillent aussi depuis leur propre page.{" "}
+          <Link
+            to={`/lacunes?subject=${subject.slug}`}
+            className="font-semibold text-papa-accent underline"
+          >
+            Ouvrir les lacunes →
+          </Link>
+        </p>
+      </Bloc>
+
+      {/* ⚠️ Ce bloc ne RECOMPOSE aucun nombre de la ligne — il n'y a pas de colonne « référentiel »
+          — et c'est volontaire : il répond à l'autre question, « qu'est-ce qu'il reste à
+          produire », dont la maison est la Couverture. L'addendum ADR-0038 le promettait au
+          dépliage ; il manquait jusqu'au 2026-08-06.
+          🔴 Les deux liens portent LEUR matière. `/couverture` et `/programme` attendent un
+          `subject_id` numérique — pas le slug de `/lacunes` et `/conseil`. */}
+      <Bloc titre="Référentiel — ce qu'il reste à produire">
+        {!analysis.referentiel.has_referentiel ? (
+          <p className="text-sm text-papa-muted">
+            Aucun chapitre dans l'année active : il n'y a pas encore de programme à couvrir.{" "}
+            <Link
+              to={`/programme?subject=${subject.subject_id}`}
+              className="font-semibold text-papa-accent underline"
+            >
+              Générer le programme →
+            </Link>
+          </p>
+        ) : (
+          <>
+            <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              <li>
+                <span className="tabular-nums font-medium">
+                  {analysis.referentiel.lessons_validated} / {analysis.referentiel.lessons}
+                </span>{" "}
+                <span className="text-xs text-papa-muted">leçons validées</span>
+              </li>
+              <li>
+                <span className="tabular-nums font-medium">
+                  {analysis.referentiel.courses_written}
+                </span>{" "}
+                <span className="text-xs text-papa-muted">cours écrits</span>
+              </li>
+              <li>
+                <span className="tabular-nums font-medium">
+                  {analysis.referentiel.derivatives_percent} %
+                </span>{" "}
+                <span className="text-xs text-papa-muted">de dérivés produits</span>
+              </li>
+            </ul>
+            <p className="mt-2 text-xs text-papa-muted">
+              <Link
+                to={`/couverture?subject=${subject.subject_id}`}
+                className="font-semibold text-papa-accent underline"
+              >
+                Ouvrir la couverture de {subject.name} →
+              </Link>{" "}
+              pour voir chapitre par chapitre ce qui manque.
+            </p>
+          </>
+        )}
+      </Bloc>
+
+      {/* 🔴 Les trois liens vers les AUTRES VUES, pré-filtrées sur cette matière (§1). C'est ce qui
+          fait des trois grains un seul écran plutôt que trois : le dépliage nomme, et le lien
+          emmène là où on peut trier, chercher et remonter le temps sur la même population.
+          ⚠️ `<Link>`, pas un bouton qui bascule l'onglet : c'est une navigation choisie, « Retour »
+          doit ramener Papa à la table des matières. Le slug voyage — c'est ce que lisent la vue
+          notion et la vue période. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-papa-border pt-3">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <Link
+            to={`/progression?view=notion&subject=${subject.slug}`}
+            className="font-semibold text-papa-accent underline"
+          >
+            Les {subject.engaged} notions engagées →
+          </Link>
+          {subject.notions.fragile > 0 && (
+            <Link
+              to={`/progression?view=notion&subject=${subject.slug}&palier=a_renforcer`}
+              className="font-semibold text-papa-accent underline"
+            >
+              Les {subject.notions.fragile} à renforcer →
+            </Link>
+          )}
+          <Link
+            to={`/progression?view=periode&subject=${subject.slug}`}
+            className="font-semibold text-papa-accent underline"
+          >
+            Ce qui s'est passé →
+          </Link>
+        </div>
         <Link
           to={`/conseil?subject=${subject.slug}`}
           className="rounded-lg border border-papa-border px-3 py-1.5 text-sm font-semibold hover:border-papa-accent"
@@ -270,6 +429,22 @@ export function SubjectDetailRow({
         )}
       </ConfirmDialog>
     </div>
+  );
+}
+
+/** Ce que ZETIS est en train de faire, et l'ordre de grandeur de l'attente. */
+function ActionEnCours({ action }: { action: Action }) {
+  const equipe = action.kind === "equip";
+  const pct = useEstimatedProgress(true, equipe ? EQUIP_MS : MISSION_MS);
+  return (
+    <ProgressBar
+      pct={pct}
+      label={
+        equipe
+          ? `ZETIS équipe « ${action.skillName} » — cours, fiche, cartes, quiz, carte mentale`
+          : `ZETIS compose une mission sur « ${action.skillName} »`
+      }
+    />
   );
 }
 
@@ -323,7 +498,7 @@ function NotionRow({
         onClick={() => onAct("equip")}
         className="rounded-lg border border-papa-border px-2.5 py-1 text-xs font-semibold hover:border-papa-accent disabled:opacity-50"
       >
-        Équiper
+        {busy ? "…" : "Équiper"}
       </button>
     </li>
   );

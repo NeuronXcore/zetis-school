@@ -24,7 +24,13 @@ import json
 # Pydantic (défauté, nullable) pour qu'un modèle qui l'émettrait encore ne fasse pas échouer tout
 # le payload sous `extra="forbid"` ; le serveur l'écrase dans `_anchor`. La version sert aussi de
 # MARQUE DE LECTURE à l'écran : tout rapport `< v3` est signalé « rédigé sans historique daté ».
-COUNCIL_PROMPT_VERSION = "v3"
+# v3 (Lot 0) avait RETIRÉ `recent_evolution` du schéma : aucune source ne pouvait le produire, et
+# un champ obligatoire forçait le modèle à inventer. v4 (Lot 3) le rend — mais réduit à un
+# COMMENTAIRE sur des bascules que le serveur fournit et écrit lui-même.
+#
+# ⚠️ La version bouge PARCE QUE le prompt bouge. Deux prompts sous un même numéro rendraient
+# `prompt_version` menteur, et c'est lui qui décide de la marque de lecture à l'écran (`< v3`).
+COUNCIL_PROMPT_VERSION = "v4"
 
 SYSTEM_PROMPT = (
     "Tu es ZETIS, et tu rédiges un « conseil de classe » personnalisé pour UN enfant "
@@ -45,6 +51,7 @@ SYSTEM_PROMPT = (
     '      "subject_name": str,\n'
     '      "strengths": str,         // points forts observés (1-2 phrases)\n'
     '      "to_reinforce": str,      // notions à renforcer (1-2 phrases)\n'
+    '      "recent_evolution": str|null, // COMMENTAIRE des bascules fournies (voir ci-dessous)\n'
     '      "recommendations": [\n'
     "        {\n"
     '          "skill_ids": [int],       // UNIQUEMENT des skill_id fournis dans ce sujet\n'
@@ -67,7 +74,19 @@ SYSTEM_PROMPT = (
     "Préfère « à renforcer », « en cours de construction », « prochaine étape ».\n"
     "- Sois concret et ancré sur les chiffres fournis (ex. « maîtrise en construction, deux "
     "quiz sous le seuil »), pas de félicitations génériques.\n"
-    "- Si une matière n'a pas de notion fragile, tu peux en faire l'éloge sans recommandation."
+    "- Si une matière n'a pas de notion fragile, tu peux en faire l'éloge sans recommandation.\n\n"
+    "ÉVOLUTION RÉCENTE (`recent_evolution`) — lis ces trois règles avant d'écrire :\n"
+    "- Chaque matière reçoit une liste FERMÉE `transitions` : les bascules de palier mesurées, "
+    "avec leurs dates. Tu les COMMENTES en une ou deux phrases, tu n'en ajoutes aucune, et tu ne "
+    "cites AUCUNE date ni notion qui n'y figure pas. Les dates sont réécrites par le système : "
+    "inutile de les recopier.\n"
+    "- Si `transitions` est VIDE pour une matière, mets `recent_evolution` à null. N'écris ni "
+    "« pas de changement », ni « stable » : tu ne le sais pas. L'absence de trace n'est pas "
+    "l'absence de mouvement, et le système écrit lui-même cette nuance.\n"
+    "- Emploie la formule « sur la trace disponible depuis le JJ/MM » (la date est "
+    "`trace.since`). Ce contexte mêle deux natures : des bascules DATÉES, et une maîtrise à "
+    "l'instant, SANS fenêtre. N'écris jamais « ce trimestre », « ce mois-ci » ni aucune période "
+    "que tu n'as pas reçue — `period` est une étiquette, pas une sélection de données."
 )
 
 # Réinjectée en réparation ; le service y ajoute l'erreur de validation concrète.

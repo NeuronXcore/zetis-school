@@ -6,6 +6,8 @@ import type {
   ConsolidatedSkill,
   OpenGap,
   ProgressionOverview,
+  SkillIndex,
+  SkillTimeline,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader } from "./httpClient";
@@ -68,4 +70,23 @@ export async function fetchConsolidatedSkills(): Promise<ConsolidatedSkill[]> {
 export async function fetchProgressionOverview(): Promise<ProgressionOverview> {
   const res = await fetch(`${API_URL}/api/parent/progress/overview`, { headers: authHeader() });
   return asJson<ProgressionOverview>(res);
+}
+
+/** L'index des notions — la vue « Par notion » de Progression (adr-0040 §11).
+ *
+ *  ⚠️ **Aucun paramètre**, et surtout aucune période : le serveur sert TOUT en une passe agrégée
+ *  (sept requêtes, constantes), et filtres/tri/recherche/bascule de vue se font **au client, zéro
+ *  requête**. Ajouter un argument ici serait le premier pas vers le N+1 que la route évite. */
+export async function fetchSkillsIndex(): Promise<SkillIndex> {
+  const res = await fetch(`${API_URL}/api/parent/progress/skills`, { headers: authHeader() });
+  return asJson<SkillIndex>(res);
+}
+
+/** La frise d'UNE notion, chargée au dépliage — paresseuse par décision (adr-0028 §4, 3e
+ *  exception assumée : une descente vers un détail non borné, pas un filtre). */
+export async function fetchSkillTimeline(skillId: number): Promise<SkillTimeline> {
+  const res = await fetch(`${API_URL}/api/parent/progress/skills/${skillId}/timeline`, {
+    headers: authHeader(),
+  });
+  return asJson<SkillTimeline>(res);
 }

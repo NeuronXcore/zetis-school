@@ -161,21 +161,18 @@ def _entered_in_progress_at(db: Session, student_id: int) -> dict[int, date]:
 
 
 def _history_since(db: Session, student_id: int) -> date | None:
-    """Plus ancienne bascule connue de `skill_mastery_history` — `None` si la table est vide.
+    """Délègue à `evidence.history_since` — voir là-bas pour la doctrine.
 
-    Sert UNIQUEMENT à faire EXPIRER l'avertissement sur la jeunesse de la courbe ambre : le client
-    ne l'affiche que si la fenêtre regardée commence AVANT cette date (addendum ADR-0028 §5 octies).
+    Sert ici à faire EXPIRER l'avertissement sur la jeunesse de la courbe ambre : le client ne
+    l'affiche que si la fenêtre regardée commence AVANT cette date (addendum ADR-0028 §5 octies).
 
-    ⚠️ Volontairement sur TOUS les statuts, et non sur les seuls fragiles : ce qu'on date ici est
-    la mise en service de l'historique, pas la première régression. Se restreindre aux statuts
-    fragiles rendrait une date plus RÉCENTE que la réalité et retirerait l'avertissement trop tôt.
+    ⚠️ La fonction a été remontée dans `evidence` par l'adr-0040 §10 : elle a désormais trois
+    consommateurs (ici, Progression, le Conseil au Lot 3). En garder une copie locale ferait deux
+    bornes de trace sous un même nom — exactement ce que le §9 interdit.
     """
-    when = db.scalar(
-        select(func.min(SkillMasteryHistory.changed_at)).where(
-            SkillMasteryHistory.student_id == student_id
-        )
-    )
-    return local_day(when) if when else None
+    from app.modules.evidence import service as evidence
+
+    return evidence.history_since(db, student_id=student_id)
 
 
 def _mastered_at(db: Session, student_id: int) -> dict[int, date]:

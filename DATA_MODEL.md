@@ -1110,9 +1110,21 @@ Les contenus IA ont un statut. Les contenus critiques ou durables doivent pouvoi
 ## Index recommandés
 
 - `skill_mastery(student_id, skill_id)` unique.
-- `skill_mastery_history(student_id, changed_at)` — **existe** (migration `a9b8c7d6e5f4`) : toutes
-  les lectures balaient une fenêtre temporelle pour un élève donné, même motif que
-  `learning_events(student_id, created_at)`.
+- `skill_mastery_history(student_id, changed_at)` — **existe** (migration `a9b8c7d6e5f4`) : sert le
+  **balayage de FENÊTRE** du dashboard (« toutes les bascules des 90 derniers jours »), même motif
+  que `learning_events(student_id, created_at)`.
+- `skill_mastery_history(student_id, skill_id, changed_at DESC)` — **existe** (migration
+  `a1b2c3d4e5f9`, `adr-0040` §12) : sert « la **DERNIÈRE** bascule de **CHAQUE** notion », le
+  `group_by(skill_id)` de l'index des notions. ⚠️ **Le premier index ne sert pas cette
+  requête-là** — il faudrait parcourir tout l'historique de l'élève pour en extraire un max par
+  notion. Deux motifs de lecture, deux index ; aucune colonne, aucun backfill.
+
+> ⚠️ **Deux absences de date qui ne partagent pas un `null`** (`adr-0040` §7). Une notion sans
+> ligne `skill_mastery` n'a **jamais été abordée** ; une ligne de maîtrise **sans** bascule tracée
+> a deux causes distinctes — sa dernière bascule précède la mise en service de l'historique
+> (`before_history`, **se comblera d'elle-même**), ou elle est `mastered` avec `mastered_at IS
+> NULL`, consolidée avant que l'horodatage n'existe (`before_migration`, **définitivement
+> perdue**). Les fondre en un `int | null` ferait dire trois choses au même silence.
 - `gap(student_id, status, severity)`.
 - `mission(student_id, status, priority)`.
 - `quiz_attempt(student_id, completed_at)`.

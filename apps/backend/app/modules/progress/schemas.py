@@ -222,3 +222,96 @@ class ProgressionOverviewOut(BaseModel):
     generated_at: str
     school_year: dict | None = None
     subjects: list[ProgressionSubjectOut]
+
+
+# --- Index des notions (adr-0040 §11) -----------------------------------------------------------
+#
+# ⚠️ `since` n'est PAS un `int | None`, et c'est la décision du §7 : `null` dirait à la fois
+# « jamais abordée », « bascule antérieure à la trace » et « date perdue à la migration » — trois
+# causes dont une seule se comblera d'elle-même. Deux absences ne partagent pas un `null`.
+
+
+class SinceDays(BaseModel):
+    days: int
+
+
+class SinceUnknown(BaseModel):
+    # before_history   : abordée, mais sa dernière bascule précède la mise en service de l'historique
+    # before_migration : consolidée avant `mastered_at` — la date est définitivement perdue
+    unknown: str
+
+
+class SkillIndexRowOut(BaseModel):
+    skill_id: int
+    skill_name: str
+    subject_id: int
+    subject_name: str
+    subject_slug: str | None = None
+    # acquise | a_renforcer | en_cours | non_abordee — dérivé du regroupement canonique importé,
+    # jamais d'une ré-énumération locale.
+    palier: str
+    mastery_score: int | None = None
+    # ⚠️ DEUX AXES INDÉPENDANTS du palier (§4), jamais une colonne à trois valeurs.
+    has_open_gap: bool = False
+    gap_severity: str | None = None
+    has_active_mission: bool = False
+    since: SinceDays | SinceUnknown | None = None
+
+
+class SkillIndexSubjectOut(BaseModel):
+    subject_id: int
+    name: str
+    slug: str | None = None
+
+
+class DatedFactOut(BaseModel):
+    """Un fait DATÉ de la vue période (§2). Cinq natures, un seul schéma.
+
+    ⚠️ Ni XP ni production : l'XP est le seul compteur que le journal ne pourrait pas recomposer
+    (`XPEvent` n'a pas de `skill_id`), et la production mesure le stock de contenu, pas la
+    progression. Aucun palier, aucun stock non plus — une fenêtre posée sur un palier est un
+    mensonge, posée sur un fait daté elle est exacte.
+    """
+
+    # mastery_transition | gap_opened | gap_resolved | mission_done | quiz_scored | review_scored
+    kind: str
+    at: str
+    skill_id: int | None = None
+    skill_name: str | None = None
+    subject_id: int | None = None
+    # Renseignés selon la nature, jamais tous ensemble.
+    from_status: str | None = None
+    to_status: str | None = None
+    severity: str | None = None
+    verdict: str | None = None
+    score: int | None = None
+    rating: str | None = None
+
+
+class SkillIndexOut(BaseModel):
+    notions: list[SkillIndexRowOut] = []
+    subjects: list[SkillIndexSubjectOut] = []
+    # Servi sur la fenêtre la PLUS LARGE (365 j) ; le client filtre à 7/30/90 sans requête. C'est
+    # ce qui permet au §6 d'être tenu : les compteurs se dérivent du journal AFFICHÉ.
+    facts: list[DatedFactOut] = []
+    facts_since: str | None = None
+    # Les débuts de trace, déclarés à l'écran (§6) : un compteur bas dit « pas de trace », jamais
+    # « pas de mouvement ». `None` = aucune trace du tout.
+    history_since: str | None = None
+    reviews_since: str | None = None
+
+
+class TimelineTransitionOut(BaseModel):
+    # `None` sur la plus ancienne bascule tracée : la trace ne porte pas son palier de départ, et
+    # l'inventer serait une affirmation de plus que l'évidence ne soutient pas.
+    from_status: str | None = None
+    to_status: str
+    mastery_score: int
+    changed_at: str
+
+
+class SkillTimelineOut(BaseModel):
+    skill_id: int
+    skill_name: str
+    transitions: list[TimelineTransitionOut] = []
+    history_since: str | None = None

@@ -183,7 +183,8 @@ CE QUI EST DEHORS
   - Toute surface Massimo. require_parent de bout en bout.
 
 CRITÈRES D'ACCEPTATION — vérifiables à l'écran sur données réelles
-  - Vue notion : 19 notions engagées par défaut, dont 10 en « hors trace ». Ce n'est pas un bug.
+  - Vue notion : 19 notions engagées par défaut, dont 15 en « hors trace » (14 `before_history`,
+    1 `before_migration`). Ce n'est pas un bug. ⚠️ Le cadrage annonçait 10 ; mesure du Lot 1.
   - Tri par date : trois blocs séparés et comptés, jamais une liste continue.
   - Vue période, fenêtre 90 j : le compte des bascules est identique à celui de 7 j, ET l'écran
     l'explique par la borne de trace.

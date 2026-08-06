@@ -30,10 +30,16 @@ class CouncilSubjectEntry(BaseModel):
     subject_name: str
     strengths: str
     to_reinforce: str
-    # ⚠️ NULLABLE ET DÉFAUTÉ, volontairement (adr-0040 §8.1). Le prompt v3 ne demande plus ce
-    # champ, mais le retirer du modèle serait une faute : `extra="forbid"` ferait alors échouer la
-    # validation du payload ENTIER dès qu'un modèle continuerait de l'émettre — un champ de trop
-    # coûterait le rapport. On garde la porte ouverte et le serveur écrase derrière (`_anchor`).
+    # ⚠️ NULLABLE ET DÉFAUTÉ, volontairement (adr-0040 §8.1). Le retirer du modèle serait une
+    # faute : `extra="forbid"` ferait échouer la validation du payload ENTIER dès qu'un modèle
+    # continuerait de l'émettre — un champ de trop coûterait le rapport.
+    #
+    # 🔴 **Reste un `str`, et c'est la décision structurante du Lot 3.** Le §8 dessine la sortie
+    # `{since, transitions[], comment}` — mais il annote lui-même `transitions # SERVEUR` et
+    # `comment # LLM`. Faire de ce champ D'ENTRÉE une structure reviendrait à DEMANDER les dates
+    # au modèle, ce que le §8.2 interdit. Ici, il ne rend que le commentaire ; le serveur bâtit la
+    # structure autour (`_evolution`). Aucune date ne transite par le modèle, donc aucune date
+    # inventée ne peut atteindre le rapport — l'ancrage est structurel, pas un filtre a posteriori.
     recent_evolution: str | None = None
     recommendations: list[CouncilRecommendation] = Field(default_factory=list)
 
@@ -123,15 +129,46 @@ class CouncilRecommendationOut(BaseModel):
     justification: str
 
 
+class CouncilTransitionOut(BaseModel):
+    """Une bascule de palier, telle que le SERVEUR l'a mesurée (`evidence.mastery_transitions`)."""
+
+    skill_id: int
+    skill_name: str
+    # `None` sur la plus ancienne bascule tracée d'une notion : `skill_mastery_history` ne stocke
+    # que le statut d'ARRIVÉE, et prétendre connaître l'origine serait une invention.
+    from_: str | None = Field(default=None, alias="from")
+    to: str
+    changed_at: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CouncilEvolutionOut(BaseModel):
+    """`recent_evolution` d'un rapport **v4 ou plus** (adr-0040 §8)."""
+
+    # ⚠️ `history_since`, JAMAIS `period` (§9). `period` est une étiquette qui ne sélectionne
+    # aucune donnée ; ceci est une date réelle. Les fondre rendrait indétectable, demain, le défaut
+    # qu'on corrige aujourd'hui.
+    since: str | None = None
+    transitions: list[CouncilTransitionOut] = Field(default_factory=list)
+    # Seule part du modèle. `None` = il n'a rien commenté ; la liste, elle, se rend quand même.
+    comment: str | None = None
+
+
 class CouncilSubjectOut(BaseModel):
     subject_id: int
     subject_name: str
     strengths: str
     to_reinforce: str
-    # `None` = l'évidence ne portait aucune bascule sur cette matière. L'écran rend cette absence
-    # par une PHRASE (la borne de trace), jamais par un blanc : une section vide se lirait « aucun
-    # mouvement », or c'est « aucune trace ». Les deux ne se corrigent pas l'un l'autre.
-    recent_evolution: str | None = None
+    # 🔴 **Union, et les trois branches sont nécessaires** :
+    #   · `CouncilEvolutionOut` — un rapport v4+, avec ses bascules datées ;
+    #   · `str` — un rapport FIGÉ avant le Lot 3, dont `subjects_json` porte une chaîne. Un type
+    #     qui n'accepterait que la structure ferait échouer la lecture de TOUT l'historique. Aucune
+    #     réécriture (§8) : la marque de lecture `< v3` dit à l'écran ce que vaut cette prose ;
+    #   · `None` — l'évidence ne portait aucune bascule. L'écran rend cette absence par une PHRASE
+    #     (la borne de trace), jamais par un blanc : une section vide se lirait « aucun mouvement »,
+    #     or c'est « aucune trace ». Les deux ne se corrigent pas l'un l'autre.
+    recent_evolution: CouncilEvolutionOut | str | None = None
     recommendations: list[CouncilRecommendationOut] = Field(default_factory=list)
 
 
@@ -154,3 +191,6 @@ class CouncilReportListItem(BaseModel):
     period: str
     subjects_count: int
     created_at: datetime | None = None
+    # ⚠️ Défauté à `""` et non requis : la liste doit continuer de se sérialiser si un rapport
+    # ancien n'avait pas de version. Le client traite l'absence comme « antérieur au daté ».
+    prompt_version: str = ""

@@ -4,6 +4,125 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/progression-temps` — ADR-0040 « Progression dans le temps », Lots 0 à 3 — 2026-08-06
+
+> ADR : `adr-0040-progression-dans-le-temps.md`. Lot 0 mergé à part (PR #92) ; Lots 1-3 sur
+> `feat/progression-temps`.
+
+### 🔴 Un LITTÉRAL n'est pas un verrou — attrapé DEUX fois le même jour
+
+**Symptôme.** Deux tests rouges, tous deux pour une raison **sans rapport** avec ce qu'ils
+protégeaient. Le premier comptait les occurrences du mot « lacune » dans un fichier
+(`expect(interdits.length).toBeLessThanOrEqual(3)`) : l'ajout d'une colonne « Lacune » légitime les
+a portées à 7. Le second épinglait `assert version == "v3"` : le Lot 3 a fait passer le prompt en
+v4.
+
+**Cause.** Dans les deux cas, le test asserte une **valeur** là où l'invariant est une
+**propriété**. Le premier voulait dire « le mot ne qualifie que ce qui compte des `Gap` » ; le
+second, « ce rapport ne porte pas la marque *rédigé sans historique daté* ». Ni un compte ni une
+chaîne ne dit ça.
+
+**Ce que ça coûte.** Un seuil se relève à chaque édition. Un test qu'on **ajuste** ne retient rien —
+et il donne l'illusion d'une protection pendant tout le temps où il reste vert.
+
+**Parade.** Asserter la propriété. Ici : que chaque colonne lit **SA** source
+(`renforcer: (s) => s.notions.fragile`, `lacune: (s) => s.gaps_open`), et que l'écran dit que ce
+sont deux mesures ; là : le prédicat que l'écran applique (`int(version.removeprefix("v")) >= 3`).
+
+### 🔴 Un test peut GELER un bug aussi bien qu'un comportement
+
+**Symptôme.** `expect(...).toHaveAttribute("href", "/programme")` — vert, stable, et il exigeait
+l'URL **nue**.
+
+**Cause.** Le lien n'avait jamais porté sa matière. Le test a figé cet état comme s'il était voulu.
+Les huit lignes de la table menaient toutes à la matière ouverte par défaut, et **corriger** le lien
+faisait rougir le test.
+
+**Parade.** Quand un test rougit sur une correction évidente, se demander lequel des deux a raison
+avant de « réparer » le test. Ici la bonne écriture était `"/programme?subject=6"`.
+
+### 🔴 Une cible d'URL manquante est SILENCIEUSE, et `?subject=` n'a pas le même type partout
+
+**Symptôme.** Signalé par le user à l'écran, jamais par un test ni une erreur : « les liens ouvrent
+systématiquement `/programme` sur Français ».
+
+**Cause.** `<Link to="/programme">` sans paramètre. La page d'arrivée lit `params.get("subject")`,
+n'y trouve rien, et ouvre sa matière par défaut. **Aucune erreur, aucun log, aucun type en défaut.**
+
+⚠️ **Le piège dans le piège** : le paramètre ne porte pas le même type selon la destination, et rien
+dans son nom ne le dit.
+
+| Destination | `?subject=` attend |
+|---|---|
+| `/programme`, `/couverture` | un **`subject_id` numérique** |
+| `/lacunes`, `/conseil`, `/progression` | un **slug** |
+
+Se tromper de type est tout aussi silencieux : la page ignore le paramètre et ouvre son défaut.
+
+**Parade.** Un verrou générique en plus des verrous par lien : lister tous les `href` rendus par la
+surface et vérifier qu'**aucun** n'est une route nue. Un futur lien ajouté sans paramètre rougira
+sans qu'on ait pensé à lui.
+
+### 🔴 `created_at.slice(0, 10)` lit de l'UTC — le piège de `toISOString()`, huit heures après l'avoir documenté
+
+**Symptôme.** Aucun en test (les fixtures sont à midi). En production, un rapport généré à 23 h 30 à
+Paris se serait affiché **la veille**.
+
+**Cause.** Découper une chaîne ISO renvoie la date **UTC**, pas la date locale. Exactement ce que
+`CalendrierFaits::isoLocal` documente en tête de fichier — écrit le matin même, reproduit l'après-midi
+dans les pastilles d'historique du Conseil.
+
+**Parade.** `new Date(iso).toLocaleDateString("fr-FR", …)`. Ne jamais découper une chaîne ISO pour
+en tirer une date d'affichage.
+
+### 🔴 Deux fonctions pour la même question, avec des réponses OPPOSÉES sur le cas limite
+
+**Symptôme.** `evolutionSansHistoriqueDate` (dans la page) et `rapportSansHistoriqueDate` (dans la
+lib) répondaient l'inverse sur une version illisible : `Number.isFinite(n) && n < 3` ne marquait
+pas, `!Number.isFinite(n) || n < 3` marquait.
+
+**Cause.** La seconde a été écrite pour les pastilles sans voir que la première existait déjà pour
+le rapport ouvert. Un même écran aurait pu marquer une pastille et pas le rapport qu'elle ouvre.
+
+**Parade.** Une seule implémentation, dans la lib, avec le **défaut sûr** : sur un doute, on
+signale. Dire « ce rapport est fiable » sans le savoir est la faute que ce chantier corrige.
+
+### ⚠️ Une assertion POSITIONNELLE se périme en silence
+
+**Symptôme.** `cellules[cellules.length - 1]` valait 8 ; l'ajout d'une colonne l'a fait valoir 1.
+
+**Parade.** Ancrer sur l'**en-tête** : chercher l'index de la colonne par son libellé, puis lire la
+cellule à cet index. Une septième colonne ne déplacera plus rien.
+
+### ⚠️ Restaurer depuis une sauvegarde de sabotage PÉRIMÉE efface le travail fait entre-temps
+
+**Symptôme.** Deux éditions disparues sans bruit après un `cp /tmp/pp.bak fichier.tsx` de fin de
+contre-épreuve. La sauvegarde datait d'un sabotage antérieur.
+
+**Parade.** Reprendre la sauvegarde **juste avant chaque** sabotage, jamais réutiliser celle d'avant.
+Et relire `git diff` après restauration.
+
+### ⚠️ Le HMR de Vite remet l'état local à zéro entre deux clics
+
+**Symptôme.** Deux clics successifs sur des cases du calendrier ne sélectionnaient rien. Le
+comportement était correct au rechargement complet.
+
+**Cause.** Une édition du composant entre les deux clics : le HMR le recharge et `useState` repart
+de sa valeur initiale.
+
+**Parade.** Recharger la page avant de conclure qu'un état ne tient pas.
+
+### ⚠️ `tsc -b` attrape ce que les tests laissent passer
+
+**Symptôme.** Aucun test rouge. `tsc` a signalé que l'entrée optimiste de `useCouncilClass` ne
+portait pas le nouveau champ `prompt_version`.
+
+**Ce que ça coûtait.** Le champ serait retombé sur `""`, que le client traite comme « antérieur au
+daté » : un rapport qu'on **vient de générer** aurait affiché « rédigé sans historique daté »
+jusqu'au rechargement. Aucun test ne couvre l'entrée optimiste.
+
+**Parade.** Lancer `tsc -b` **et** la suite, toujours les deux. Ils n'attrapent pas les mêmes choses.
+
 ## Chantier `feat/memoire-quatre-vues` — la carte mémoire à 4 vues + 2 cartes focalisables — 2026-08-06
 
 > ADR : `adr-0028-addendum-memoire-quatre-vues.md` et `adr-0028-addendum-cartes-focalisables.md`.

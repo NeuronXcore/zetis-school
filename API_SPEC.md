@@ -442,9 +442,11 @@ validées `planned|active` sont candidates.
 ## Progression
 
 > ⚠️ **Section documentée mais JAMAIS implémentée** (constat du read-before-code ADR-0028,
-> 2026-07-31). Aucune de ces quatre routes n'existe en code. Les seules routes de progression
-> réellement servies sont `GET /api/parent/progress/gaps`, `/consolidated`, `/overview` et
-> `/subjects/{id}/analysis`, décrites plus bas (les deux dernières ajoutées les 2026-08-05).
+> 2026-07-31). ⚠️ **Amendée le 2026-08-06** : `GET /progress/skills` **existe désormais** et a
+> quitté cette section (voir plus bas). L'avertissement reste et **ne couvre plus que les TROIS
+> routes ci-dessous** — le retirer entièrement le rendrait faux pour elles. Les routes de
+> progression réellement servies sont `GET /api/parent/progress/gaps`, `/consolidated`,
+> `/overview`, `/subjects/{id}/analysis`, `/skills` et `/skills/{id}/timeline`.
 > Ce qui manque ici est repris autrement : le résumé global et la progression par matière sont
 > servis par `GET /api/parent/dashboard` (agrégat, par matière), et la vue élève par le module
 > `galaxy`. Ne pas coder contre cette section.
@@ -453,15 +455,11 @@ validées `planned|active` sont candidates.
 
 Résumé global.
 
-### GET `/progress/subjects?student_id=`
+### GET `/progress/subjects?student_id=` — *n'existe pas*
 
 Progression par matière.
 
-### GET `/progress/skills?subject_id=`
-
-Maîtrise par notion.
-
-### GET `/progress/xp`
+### GET `/progress/xp` — *n'existe pas*
 
 XP global et par matière.
 
@@ -814,17 +812,43 @@ Aucune surface Massimo.
 
 - **POST `/api/reports/class-council`** `{ period? }` → `CouncilReportOut`
   `{ id, period, global_summary, subjects: [{ subject_id, subject_name, strengths, to_reinforce,
-  recent_evolution: str|null, recommendations: [{ skill_ids, skill_names, mission_type:"manual",
-  template_hint, justification }] }], prompt_version, created_at }`. Génère + persiste. Évidence
-  vide → rapport serein (0 matière), sans appel LLM. Erreur provider → `502`.
-  ⚠️ `recent_evolution` est **nullable et écrasé serveur** (`adr-0040` §8.1) : si l'évidence ne
-  porte aucune bascule de palier sur la matière, le champ vaut `null` **quoi que le modèle ait
-  écrit**. Le `period` ne sélectionnant aucune donnée, ce champ réclamait une valeur qu'aucune
-  source ne pouvait produire — et la phrase inventée était figée dans `subjects_json`. Les
-  rapports antérieurs au prompt **v3** gardent leur prose, sous une marque de lecture dérivée de
-  `prompt_version` ; aucune réécriture, aucune migration.
+  recent_evolution: Evolution|str|null, recommendations: [{ skill_ids, skill_names,
+  mission_type:"manual", template_hint, justification }] }], prompt_version, created_at }`.
+  Génère + persiste. Évidence vide → rapport serein (0 matière), sans appel LLM. Erreur
+  provider → `502`.
+
+  ⚠️ `recent_evolution` est **écrasé serveur** (`adr-0040` §8.1) : si l'évidence ne porte aucune
+  bascule de palier sur la matière, le champ vaut `null` **quoi que le modèle ait écrit**. Le
+  `period` ne sélectionnant aucune donnée, ce champ réclamait une valeur qu'aucune source ne
+  pouvait produire — et la phrase inventée était figée dans `subjects_json`.
+
+  Depuis le prompt **v4** (Lot 3), une matière qui EN porte reçoit une structure :
+
+  ```txt
+  Evolution = { since: str|null, comment: str|null,
+                transitions: [{ skill_id, skill_name, from: str|null, to, changed_at }] }
+  ```
+
+  🔴 **`transitions` et `since` viennent du SERVEUR** (`evidence.mastery_transitions`, la même
+  fonction que sert Progression — §10). Le modèle ne rend que `comment` : **aucune date ne transite
+  par lui**, donc aucune date inventée ne peut atteindre le rapport. L'ancrage est structurel, pas
+  un filtre appliqué après coup.
+
+  ⚠️ `since` vaut `history_since`, **jamais `period`** (§9) : `period` est une étiquette,
+  `since` une date réelle. Il figure aussi dans `evidence_snapshot_json.trace`, avec
+  `transitions_available` / `transitions_considered` — sans quoi un rapport relu dans six mois
+  serait indiscernable d'un rapport sans borne. ⚠️ Ce bloc vit **à la racine du contexte** et non
+  dans `scope`, qui n'existe qu'en portée matière : l'écart d'un conseil global y serait invisible.
+
+  ⚠️ **Le type reste une union** : les rapports figés avant le Lot 3 portent une `str` dans
+  `subjects_json` et se relisent telle quelle. Aucune réécriture, aucune migration — les rapports
+  antérieurs au prompt **v3** gardent leur prose sous une marque de lecture dérivée de
+  `prompt_version`, qui s'éteint d'elle-même à mesure que les rapports datés s'accumulent.
 - **GET `/api/reports/class-council?period=`** → `[CouncilReportListItem]`
-  `{ id, period, subjects_count, created_at }` (récents d'abord).
+  `{ id, period, subject_id, subject_name, subjects_count, created_at, prompt_version }` (récents
+  d'abord, **sans limite**). ⚠️ `prompt_version` sert la marque de lecture **sans ouvrir le
+  rapport** : dans une liste où les entrées se ressemblent, savoir laquelle est adossée à un
+  historique daté est ce qui aide à choisir. Zéro requête de plus.
 - **GET `/api/reports/class-council/{id}`** → `CouncilReportOut`.
 - **POST `/api/reports/class-council/equip-notion`** `{ skill_id }` → `EquipNotionResult`
   `{ skill_id, skill_name, has_lesson, generated: [str], skipped: [str], errors: [{piece, message}],
@@ -1205,6 +1229,58 @@ Toutes les matières sont servies, y compris sans référentiel et sans XP — �
                  "notions": { "consolidated": 1, "fragile": 8, "in_progress": 1, "total": 96 },
                  "engaged": 10, "xp": 367, "gaps_open": 1, "has_referentiel": true }] }
 ```
+
+### GET `/api/parent/progress/skills`
+
+L'**index des notions** — la vue « Par notion » de Progression (`adr-0040` §11). Écrite le
+2026-08-06 ; elle a quitté la section « jamais implémentée » plus haut, qui ne couvre plus que
+trois routes.
+
+**Une passe agrégée, sept requêtes, quel que soit le volume** — aucun N+1, aucune pagination,
+**aucun paramètre de période**. Filtres, tri, recherche et bascule de vue sont **client, zéro
+requête** (patron `adr-0024-addendum-page-matiere-index-notions`). Un test compare deux volumes et
+chiffre l'écart s'il rougit.
+
+⚠️ **`since` n'est PAS un `int | null`** (`adr-0040` §7) : quatre états, dont **DEUX `unknown`
+distincts**. `null` dirait à la fois « jamais abordée », « bascule antérieure à la trace » et
+« date perdue à la migration » — or **une seule de ces absences se comblera d'elle-même**.
+
+⚠️ **`palier` et `has_open_gap` sont deux axes INDÉPENDANTS** (§4), jamais une colonne à trois
+valeurs : une notion peut être « à renforcer » sans lacune, et porter une lacune ouverte en étant
+« en cours ».
+
+```json
+{ "notions": [{ "skill_id": 12, "skill_name": "Théorème de Pythagore",
+                "subject_id": 2, "subject_name": "Mathématiques", "subject_slug": "maths",
+                "palier": "en_cours", "mastery_score": 62,
+                "has_open_gap": false, "gap_severity": null, "has_active_mission": true,
+                "since": { "days": 1 } }],
+  "subjects": [{ "subject_id": 2, "name": "Mathématiques", "slug": "maths" }],
+  "history_since": "2026-07-31", "reviews_since": "2026-07-04" }
+```
+
+`palier` ∈ `acquise | a_renforcer | en_cours | non_abordee`, **dérivé du regroupement canonique**
+(`dashboard/projections`) et jamais ré-énuméré. `since` ∈ `{days:int}` | `{unknown:"before_history"}`
+| `{unknown:"before_migration"}` | `null` (non abordée — aucune ligne de maîtrise).
+`history_since` et `reviews_since` sont les **débuts de trace**, déclarés pour qu'un compteur bas
+puisse dire « pas de trace » et jamais « pas de mouvement » (§6).
+
+### GET `/api/parent/progress/skills/{skill_id}/timeline`
+
+La **frise d'une notion**, chargée au dépliage — **paresseuse**. Troisième exception assumée au
+« zéro état de chargement » de l'`adr-0028` §4, après le drill-down d'un jour et le panneau
+d'analyse : une descente vers un détail non borné, pas un filtre.
+
+```json
+{ "skill_id": 12, "skill_name": "Théorème de Pythagore",
+  "transitions": [{ "from_status": "learning", "to_status": "solid",
+                    "mastery_score": 62, "changed_at": "2026-08-05T09:00:00+00:00" }],
+  "history_since": "2026-07-31" }
+```
+
+⚠️ `from_status` vaut `null` sur la **plus ancienne bascule tracée** : la trace ne porte pas son
+palier de départ, et l'inventer serait une affirmation de plus que l'évidence ne soutient pas —
+même règle que l'écrasement de `recent_evolution` (Lot 0).
 
 ### GET `/api/parent/progress/subjects/{subject_id}/analysis`
 
