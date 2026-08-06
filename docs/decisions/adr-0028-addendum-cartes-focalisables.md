@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-08-06.
+Accepté — 2026-08-06.
 
 > S'appuie sur : `adr-0028` **§5** (les KPI sont des filtres de focus, `CARD_SCOPES`) ;
 > `adr-0028-addendum-kpi-a-renforcer` **§5 quinquies** (« un focus qui n'atténue plus rien est un

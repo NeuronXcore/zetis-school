@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-08-05.
+Accepté — 2026-08-05.
 
 > S'appuie sur : `adr-0028` (l'agrégat unique, la dérivation client, les KPI-filtres, le §4 et son
 > exception assumée), `adr-0020` (le Conseil de classe, l'évidence calculée), `adr-0017 §5bis`

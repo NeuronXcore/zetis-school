@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-08-05.
+Accepté — 2026-08-05.
 
 > S'appuie sur : `adr-0020` (le Conseil, la narration LLM sur évidence calculée, l'ancrage
 > anti-hallucination, le rapport figé), `adr-0021` (l'équipement auto-validé avant création),

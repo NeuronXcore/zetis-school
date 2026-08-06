@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-08-05.
+Accepté — 2026-08-05.
 
 > S'appuie sur : `adr-0028` (l'agrégat unique, la Lecture ZETIS, « un constat sans preuve n'est pas
 > émis »), `adr-0028-addendum-analyse-par-matiere` (le panneau, le verrou constat↔preuve),

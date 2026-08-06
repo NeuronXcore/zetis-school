@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-08-05.
+Accepté — 2026-08-05.
 
 > S'appuie sur : `adr-0038` (la page qu'il vient de rendre réelle), `adr-0028-addendum-analyse-par-matiere`
 > (le panneau qui NOMME les notions, et le verrou constat↔preuve), `adr-0021` (l'équipement

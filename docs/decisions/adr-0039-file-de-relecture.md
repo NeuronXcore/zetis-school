@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-08-05.
+Accepté — 2026-08-05.
 
 > S'appuie sur : `adr-0028` (l'agrégat unique, le §1 « aucun query param », le §4 « zéro état de
 > chargement », le §5 « les KPI sont des filtres de focus »), `adr-0028-addendum-analyse-par-matiere`

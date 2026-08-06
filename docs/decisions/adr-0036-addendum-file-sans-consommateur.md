@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-08-05.
+Accepté — 2026-08-05.
 
 > ⚠️ **Écrit APRÈS le code, et c'est un écart au rituel qu'il faut nommer plutôt que masquer.**
 > `CLAUDE.md` pose `mockup → spec → ADR → prompt` ; ce chantier est entré par un signalement de bug

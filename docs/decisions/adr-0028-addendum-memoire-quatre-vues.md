@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-08-05.
+Accepté — 2026-08-06.
 
 > S'appuie sur : `adr-0028` **§3 ter** (`skill_mastery_history`, la table qui rend la bascule
 > datable), **§5** (les KPI sont des filtres de focus, `CARD_SCOPES`), **§6** (la carte
