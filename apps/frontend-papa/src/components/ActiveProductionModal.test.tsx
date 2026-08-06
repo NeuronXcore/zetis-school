@@ -16,16 +16,29 @@ function item(over: Partial<ActivityItem> = {}): ActivityItem {
     status: "queued",
     pct: null,
     pct_is_measured: false,
+    // Un travail unitaire n'a aucune pièce à fractionner (addendum 2 §20).
+    pieces_done: null,
+    pieces_total: null,
+    pieces_produced: 0,
+    current_piece: null,
     started_at: null,
     trigger: "manual",
     error: null,
-  estimated_ms: 30_000,
+    estimated_ms: 30_000,
     ...over,
   };
 }
 
 function activite(over: Partial<ProductionActivity> = {}): ProductionActivity {
-  return { current: null, queued_count: 0, queued: [], failed: [], worker_alive: null, ...over };
+  return {
+    current: null,
+    queued_count: 0,
+    queued: [],
+    failed: [],
+    refused: [],
+    worker_alive: null,
+    ...over,
+  };
 }
 
 function montre(a: ProductionActivity, onAck = vi.fn()) {

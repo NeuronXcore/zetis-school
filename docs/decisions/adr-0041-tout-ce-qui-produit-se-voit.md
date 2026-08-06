@@ -833,11 +833,30 @@ Table `production_refusals` : `trigger`, `regulator` (vocabulaire fermé — `du
 
 - Le `detail` est rendu **tel quel**, comme un motif d'échec (§8). Une table
   « motif technique → phrase douce » est exactement ce que le §8 a écarté.
-- 🔴 **La ligne s'écrit et se commite AVANT le `raise`**, sinon l'exception emporte la transaction
-  et le refus disparaît exactement comme aujourd'hui. C'est la faute la plus facile à commettre
-  ici, et elle serait **verte aux tests** : le refus existe bien pendant l'appel.
+- 🔴 **Corrigé au read-before-code : il n'y a rien à écrire « avant le `raise` ».** Le cadrage
+  prévoyait d'insérer l'écriture dans `create_run`, en la commitant avant de lever, sous peine de
+  la voir emportée par la transaction. C'était résoudre un problème qui n'existe pas :
+  `triggers.py` **attrape déjà** le `409` dans un `except` ordinaire, et les cinq régulateurs
+  gardent **avant** toute écriture du lot — la session est propre. La trace s'écrit donc chez
+  l'appelant, hors de tout chemin exceptionnel.
+- ⚠️ **Le tri se fait sur le TYPE, jamais sur la phrase.** `ProductionRefused` est une
+  `HTTPException` qui porte en plus un code de régulateur : la route rend toujours son `409` avec
+  son `detail`, et pas une ligne de `runs_router` ne change. Sans ce code il faudrait reconnaître
+  le motif dans le texte français — et le jour où quelqu'un reformule « contenus attendent déjà
+  votre relecture », la classification tomberait **sans qu'aucun test ne rougisse**, puisque le
+  message resterait juste.
+- ⚠️ **Les `404` du même chemin n'entrent pas.** Chapitre introuvable, profil élève absent : ce
+  sont des défauts de donnée, pas des décisions de politique. Sous le mot « refusé », un bug se
+  lirait comme un régulateur qui fonctionne — et resterait affiché jusqu'à ce que Papa l'acquitte
+  sans avoir rien à réparer.
+- ⚠️ **Un refus répété n'est pas dédupliqué**, et c'est voulu. Un scan qui tourne toutes les trois
+  heures sur une limite non levée empile ses refus : c'est exactement ce qu'il faut voir — la
+  limite n'a pas bougé, ZETIS n'a rien produit de la journée. Masquer les répétitions ferait lire
+  un incident isolé là où il y a un blocage installé.
 - **Un refus n'est pas une panne.** Il ne prend pas le ton d'un échec : rouages estompés, motif
   affiché, et le popover dit **ce qui le rouvrira**. Un refus invisible se lit comme une perte.
+  Deux listes distinctes dans `/activity`, jamais une : confondues, elles apprendraient à Papa à
+  ignorer les deux.
 
 ### §22 — Les couloirs deviennent visibles, et `worker_alive` cesse d'ignorer le média
 

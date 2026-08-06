@@ -23,6 +23,8 @@ const VIDE: ProductionActivity = {
   queued_count: 0,
   queued: [],
   failed: [],
+  // Les refus de régulateur (addendum 2 §21) — une liste à part, jamais mêlée aux échecs.
+  refused: [],
   worker_alive: null,
 };
 

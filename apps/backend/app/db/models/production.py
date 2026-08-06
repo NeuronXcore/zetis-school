@@ -290,3 +290,62 @@ class ProductionEvent(Base):
     # Message d'erreur, motif de saut, ou motif de blocage rendu par `select_notions`.
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+# --- Le REFUS d'un régulateur (addendum 2 ADR-0041 §21) ----------------------------------------
+
+# Les cinq régulateurs de `runs.create_run`, dans leur ordre d'évaluation. Vocabulaire fermé : un
+# code inconnu ne se rend pas, il se signale.
+REGULATORS = (
+    "duplicate",  # un lot au même scope attend ou tourne déjà
+    "already_produced",  # la pièce existe — la reproduire ne la remplacerait pas
+    "pending_backlog",  # trop de contenus attendent une relecture
+    "request_volume",  # plafond des lots nés d'une demande de Massimo
+    "auto_volume",  # plafond des lots que personne n'a demandés
+)
+
+
+class ProductionRefusal(Base):
+    """Un régulateur a dit non, et ZETIS s'en souvient.
+
+    🔴 **Le trou que cette table bouche.** Les cinq régulateurs lèvent un `HTTPException(409)`.
+    Quand Papa clique, il lit le motif à l'écran, dans la seconde. Quand le scan nocturne se le
+    prend à 3 h du matin, `triggers.py` l'attrape, le range dans un compte rendu **que personne ne
+    lit**, et la journée passe sans que rien n'ait été produit ni dit. Un chantier qui s'appelle
+    *rien ne se perd* ne peut pas laisser ça.
+
+    ⚠️ **Les refus AUTOMATIQUES seulement** (`trigger != "manual"`). Persister un refus manuel en
+    ferait une notification en double d'un événement que Papa vient de lire — et il resterait
+    affiché après qu'il a compris.
+
+    ⚠️ **Un refus n'est pas une panne**, et l'écran ne doit pas lui donner le ton d'un échec. C'est
+    un régulateur qui fonctionne. Le rouge reste réservé à ce qui s'est cassé.
+
+    ⚠️ **Portée bornée** : seuls les refus de régulateur entrent ici. Les `404` du même chemin
+    (chapitre introuvable, profil élève absent) sont des défauts de donnée, pas des décisions de
+    politique — les mêler ferait afficher un bug sous le mot « refusé ».
+    """
+
+    __tablename__ = "production_refusals"
+    # La seule lecture : les non-acquittés, du plus récent au plus ancien.
+    __table_args__ = (
+        Index("ix_production_refusals_ack_created", "acknowledged_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # `agenda` ou `request` — `manual` n'entre jamais ici, par construction.
+    trigger: Mapped[str] = mapped_column(String(20))
+    regulator: Mapped[str] = mapped_column(String(20))
+    # Le motif, rendu TEL QUEL à l'écran (§8) : une table « motif technique → phrase douce » est
+    # exactement ce que cet ADR a écarté. Un motif sert à savoir quoi faire, pas à rassurer.
+    detail: Mapped[str] = mapped_column(Text)
+    # Ce qui a été refusé. Les deux sont nullables et jamais tous deux remplis — même forme que le
+    # scope d'un lot, sans en dupliquer la contrainte : un refus n'est pas un lot.
+    chapter_id: Mapped[int | None] = mapped_column(ForeignKey("chapters.id"), nullable=True)
+    skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Papa a vu. Comme pour un échec : serveur, jamais `localStorage` — sinon le refus reviendrait
+    # au prochain rechargement, et sur chaque appareil.
+    acknowledged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

@@ -35,7 +35,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import AgendaItem, ContentRequest, StudentProfile
 from app.db.models.production import REQUEST_KIND_TO_PIECE
-from app.modules.production import runner, runs
+from app.modules.production import refusals, runner, runs
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,19 @@ def scan_agenda(db: Session) -> dict:
             # job RQ : le code de statut ne part vers personne. On le traduit en motif lisible,
             # et le lot REFUSÉ NE CONSOMME PAS LA RÉFÉRENCE : l'item redeviendra éligible au
             # réveil suivant. Un refus n'est pas une production.
+            #
+            # 🔴 **Et ce compte rendu ne va nulle part** (addendum 2 §21). C'est le retour d'un job
+            # RQ que personne ne lit : un refus survenu à 3 h du matin disparaissait ici même. Il
+            # est désormais RETENU — mais seulement s'il vient d'un régulateur, `ProductionRefused`
+            # faisant le tri. Un `404` sur un chapitre effacé n'est pas un refus, c'est un défaut.
+            if isinstance(exc, runs.ProductionRefused):
+                refusals.record(
+                    db,
+                    trigger="agenda",
+                    regulator=exc.regulator,
+                    detail=str(exc.detail),
+                    chapter_id=item.chapter_id,
+                )
             report["skipped"].append({"item_id": item.id, "reason": str(exc.detail)})
             logger.info("production: échéance %s non déclenchée — %s", item.id, exc.detail)
             continue
@@ -257,7 +270,15 @@ def scan_requests(db: Session) -> dict:
             )
         except HTTPException as exc:
             # Un refus n'est pas une production : la référence n'est pas consommée, la demande
-            # redeviendra éligible au réveil suivant.
+            # redeviendra éligible au réveil suivant. Mais il se DIT (§21) — voir `scan_agenda`.
+            if isinstance(exc, runs.ProductionRefused):
+                refusals.record(
+                    db,
+                    trigger="request",
+                    regulator=exc.regulator,
+                    detail=str(exc.detail),
+                    skill_id=req.skill_id,
+                )
             report["skipped"].append({"request_id": req.id, "reason": str(exc.detail)})
             logger.info("production: demande %s non déclenchée — %s", req.id, exc.detail)
             continue

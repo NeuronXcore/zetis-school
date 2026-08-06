@@ -258,6 +258,7 @@ export {
   type VetoRemoval,
   type ActivityItem,
   type ProductionActivity,
+  type ProductionRefusal,
 } from "./production";
 export {
   type Autonomy,

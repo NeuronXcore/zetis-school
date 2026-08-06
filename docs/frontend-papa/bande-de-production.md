@@ -166,6 +166,14 @@ Seuls les refus **automatiques** apparaissent : un refus manuel a déjà été d
 
 ⚠️ Le motif est rendu **tel quel**, comme un motif d'échec. Ne pas « adoucir ».
 
+⚠️ **Un refus répété s'empile, il ne se déduplique pas.** Trois refus identiques dans la journée
+disent une chose qu'un seul ne dirait pas : la limite n'a pas bougé, et ZETIS n'a rien produit
+depuis ce matin.
+
+⚠️ **Les défauts de donnée n'entrent pas ici.** Un chapitre effacé sous une échéance produit une
+erreur, pas un refus — l'afficher sous ce mot ferait chercher à Papa une limite à lever alors
+qu'il n'y en a pas.
+
 ### 8 · Échec, et fin
 
 - **Échec** : ton rouge — le rouge est réservé à l'échec seul, **jamais à une file**. Le motif reste

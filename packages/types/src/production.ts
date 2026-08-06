@@ -421,6 +421,31 @@ export interface ProductionActivity {
   queued: ActivityItem[];
   /** Les échecs NON acquittés. Ils restent jusqu'au clic, pas six secondes. */
   failed: ActivityItem[];
+  /** Les refus de régulateur non acquittés (addendum 2 §21).
+   *
+   *  ⚠️ **Une liste À PART, jamais mêlée à `failed`.** Un régulateur qui dit non n'est pas une
+   *  panne : c'est une limite que Papa a lui-même posée, et qui fonctionne. Les confondre lui
+   *  apprendrait à ignorer les deux, et le ferait chercher une réparation là où il n'y a qu'un
+   *  plafond à lever. Ton ambre, jamais rouge. */
+  refused: ProductionRefusal[];
   /** ⚠️ `null` = « la question n'a pas été posée », ce qui n'est PAS `false`. Tester `=== false`. */
   worker_alive: boolean | null;
+}
+
+/** Un lot que ZETIS n'a PAS lancé, et pourquoi (addendum 2 §21).
+ *
+ *  N'existe que pour les déclencheurs **automatiques** : quand Papa clique, il lit le motif à
+ *  l'écran dans la seconde, et le retenir en ferait une notification en double. Le trou bouché est
+ *  le refus nocturne, qui disparaissait dans le retour d'un job que personne ne lit. */
+export interface ProductionRefusal {
+  id: number;
+  /** Lequel des cinq a parlé — `duplicate` · `already_produced` · `pending_backlog` ·
+   *  `request_volume` · `auto_volume`. Vocabulaire fermé, validé serveur. */
+  regulator: string;
+  /** ⚠️ Rendu **tel quel**, sans traduction : un motif sert à savoir quoi faire, pas à rassurer.
+   *  Une table « technique → phrase douce » a été explicitement écartée (§8). */
+  detail: string;
+  /** `agenda` ou `request` — jamais `manual`, par construction. */
+  trigger: string;
+  created_at: string;
 }

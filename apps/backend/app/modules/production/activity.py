@@ -43,7 +43,7 @@ from app.db.models.production import (
 # travaux unitaires) qui masquerait un import de module — et le masquage serait silencieux
 # jusqu'à l'appel.
 from app.modules.ai.travaux import estimation_ms, estimations
-from app.modules.production import journal, runs, sweep
+from app.modules.production import journal, refusals, runs, sweep
 
 # Ce qui « se passe maintenant ». `stale` n'en fait pas partie : c'est une lecture dérivée de
 # `running` (`journal.run_status`), pas une valeur stockée.
@@ -366,6 +366,20 @@ def read(db: Session, *, worker_alive: bool | None = None) -> dict:
         # exhaustivité — c'est `queued_count` qui la déclare ici.
         "queued": actifs[1:21],
         "failed": echecs,
+        # Les refus de régulateur non acquittés (§21). ⚠️ Une liste À PART, jamais mêlée à
+        # `failed` : un régulateur qui dit non n'est pas une panne, et l'écran ne doit pas lui
+        # donner le ton d'un échec. Confondus, ils apprendraient à Papa à ignorer les deux.
+        "refused": [
+            {
+                "id": r.id,
+                "regulator": r.regulator,
+                # Rendu TEL QUEL — la traduction d'un motif a été écartée par le §8.
+                "detail": r.detail,
+                "trigger": r.trigger,
+                "created_at": r.created_at,
+            }
+            for r in refusals.unacknowledged(db)
+        ],
         "worker_alive": worker_alive,
     }
 
@@ -386,8 +400,16 @@ def _dernier_motif(db: Session, run: ProductionRun) -> str | None:
 
 
 def acknowledge(db: Session, *, kind: str, item_id: int) -> None:
-    """Papa a vu l'échec. Il ne revient plus — ni au rechargement, ni sur un autre appareil."""
+    """Papa a vu. Ça ne revient plus — ni au rechargement, ni sur un autre appareil."""
     from fastapi import HTTPException, status as http
+
+    # Un refus vit dans sa propre table et passe par son propre service : il n'a ni statut, ni
+    # progression, ni motif d'échec — le traiter comme un travail obligerait `ProductionRefusal`
+    # à faire semblant d'en être un.
+    if kind == "refusal":
+        if not refusals.acknowledge(db, item_id):
+            raise HTTPException(http.HTTP_404_NOT_FOUND, detail="Refus introuvable.")
+        return
 
     modele = {"run": ProductionRun, "job": AIJob}.get(kind)
     if modele is None:
