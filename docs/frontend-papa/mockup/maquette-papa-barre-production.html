@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette Papa — La barre de production (ADR-0041)</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tokens Papa. Repris tels quels de maquette-papa-progression.html.
+   Aucune couleur nouvelle n'est introduite par cette maquette.
+   ───────────────────────────────────────────────────────────────────────────*/
+:root{
+  --papa-bg:#071310; --papa-surface:#0e1f1a; --papa-surface-2:#142b24;
+  --papa-border:#1e3d34; --papa-fg:#e6f2ed; --papa-muted:#7c9a90;
+  --papa-accent:#10b981; --papa-accent-2:#2dd4bf; --papa-warn:#f59e0b;
+  --papa-err:#f87171; --r:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--papa-bg);color:var(--papa-fg);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.shell{max-width:1120px;margin:0 auto;padding:32px 24px 96px}
+h1,h2,h3{margin:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--papa-accent);outline-offset:2px;border-radius:6px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--papa-muted)} .warn{color:var(--papa-warn)} .acc{color:var(--papa-accent)}
+.err{color:var(--papa-err)}
+
+.pagehead{margin-bottom:26px}
+.pagehead h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.pagehead p{margin:6px 0 0;color:var(--papa-muted);font-size:13px;max-width:80ch}
+.lede{color:var(--papa-muted);font-size:13px;margin:0 0 14px;max-width:82ch}
+.lede strong{color:var(--papa-fg);font-weight:600}
+
+.caseh{display:flex;align-items:baseline;gap:10px;margin:34px 0 10px}
+.caseh h2{font-size:11px;letter-spacing:.11em;text-transform:uppercase;font-weight:700;color:var(--papa-muted)}
+.caseh .tag{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 8px;border-radius:99px;border:1px solid var(--papa-border);color:var(--papa-muted)}
+
+/* ── Le header Papa, reproduit ─────────────────────────────────────────────
+   h-28 (112px) / sm:h-36 (144px). Fond image dans le vrai produit ; ici un
+   dégradé de même densité, pour juger la lisibilité des pilules par-dessus.
+   ─────────────────────────────────────────────────────────────────────────*/
+.header{position:relative;height:144px;border:1px solid var(--papa-border);border-radius:var(--r);
+  container-type:inline-size;
+  overflow:hidden;background:
+    radial-gradient(120% 180% at 78% 30%, #12352b 0%, transparent 62%),
+    linear-gradient(100deg,#0a1c17 0%,#102b23 48%,#0b1d18 100%)}
+.header .row{position:relative;height:100%;display:flex;align-items:center;justify-content:space-between;
+  gap:14px;padding:0 18px}
+.pill{display:flex;align-items:center;gap:11px;padding:9px 15px;border-radius:99px;
+  background:color-mix(in srgb,#04120e 62%,transparent);backdrop-filter:blur(7px);
+  border:1px solid color-mix(in srgb,var(--papa-border) 78%,transparent);white-space:nowrap}
+.pill .brand{font-weight:800;letter-spacing:-.01em}
+.pill .sep{width:1px;height:15px;background:var(--papa-border)}
+.pill .ctx{font-size:12.5px;color:var(--papa-muted)}
+.hactions{display:flex;gap:8px}
+.hactions button{padding:8px 14px;border-radius:99px;font-size:12.5px;font-weight:600;
+  background:color-mix(in srgb,#04120e 62%,transparent);backdrop-filter:blur(7px);
+  border:1px solid color-mix(in srgb,var(--papa-border) 78%,transparent);color:var(--papa-muted)}
+
+/* ── La pilule de production (l'objet du chantier) ────────────────────────*/
+.prod{display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:99px;
+  background:color-mix(in srgb,#04120e 70%,transparent);backdrop-filter:blur(7px);
+  border:1px solid color-mix(in srgb,var(--papa-accent) 34%,transparent);
+  min-width:0;max-width:520px;flex:1 1 auto;cursor:pointer;text-align:left}
+.prod:hover{border-color:color-mix(in srgb,var(--papa-accent) 62%,transparent)}
+.prod .dot{width:8px;height:8px;border-radius:99px;background:var(--papa-accent);flex:0 0 auto;
+  animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.42;transform:scale(.78)}}
+.prod .label{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;min-width:0;flex:0 1 auto}
+.prod .label em{font-style:normal;color:var(--papa-muted);font-weight:500}
+.prod .val{font-size:12.5px;font-weight:700;flex:0 0 auto;letter-spacing:.01em}
+.prod .queued{font-size:11.5px;color:var(--papa-muted);flex:0 0 auto;padding-left:2px;
+  border-left:1px solid var(--papa-border);margin-left:2px;padding-left:10px}
+
+/* la barre elle-même */
+.track{position:relative;height:6px;border-radius:99px;flex:1 1 90px;min-width:64px;
+  background:color-mix(in srgb,var(--papa-fg) 12%,transparent);overflow:hidden}
+.track>i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:var(--papa-accent);
+  transition:width .35s ease}
+/* mode INDÉTERMINÉ : un liseré qui balaie, jamais un remplissage partiel */
+.track.indet>i{width:36%;background:linear-gradient(90deg,transparent,var(--papa-accent),transparent);
+  animation:sweep 1.35s ease-in-out infinite}
+@keyframes sweep{0%{left:-38%}100%{left:100%}}
+
+/* déclinaisons d'état */
+.prod.stopped{border-color:color-mix(in srgb,var(--papa-warn) 40%,transparent)}
+.prod.stopped .dot{background:var(--papa-warn);animation:none;opacity:.65}
+.prod.stopped .track.indet>i{background:linear-gradient(90deg,transparent,var(--papa-warn),transparent);
+  animation-duration:2.6s}
+.prod.failed{border-color:color-mix(in srgb,var(--papa-err) 46%,transparent)}
+.prod.failed .dot{background:var(--papa-err);animation:none}
+.ack{font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:99px;flex:0 0 auto;
+  border:1px solid color-mix(in srgb,var(--papa-err) 46%,transparent);color:var(--papa-err)}
+.ack:hover{background:color-mix(in srgb,var(--papa-err) 14%,transparent)}
+
+/* ── Le liseré du bord inférieur ──────────────────────────────────────────
+   Le repli : même quand la pilule est réduite (mobile), une production reste
+   perceptible. Pleine largeur, 2px, jamais cliquable.
+   ─────────────────────────────────────────────────────────────────────────*/
+.edge{position:absolute;left:0;right:0;bottom:0;height:2px;overflow:hidden;
+  background:color-mix(in srgb,var(--papa-fg) 8%,transparent)}
+.edge>i{position:absolute;inset:0 auto 0 0;background:var(--papa-accent)}
+.edge.indet>i{width:24%;background:linear-gradient(90deg,transparent,var(--papa-accent-2),transparent);
+  animation:sweep 1.35s ease-in-out infinite}
+.edge.stopped>i{background:linear-gradient(90deg,transparent,var(--papa-warn),transparent);
+  width:24%;animation:sweep 2.6s ease-in-out infinite}
+.edge.failed>i{width:100%;background:var(--papa-err);opacity:.8}
+
+.note{margin:9px 2px 0;font-size:12.5px;color:var(--papa-muted);max-width:88ch}
+.note b{color:var(--papa-fg);font-weight:600}
+.note code{background:var(--papa-surface-2);border:1px solid var(--papa-border);border-radius:5px;
+  padding:0 5px;font-size:11.5px}
+
+/* ── La modale de détail ──────────────────────────────────────────────────*/
+.modal{border:1px solid var(--papa-border);border-radius:var(--r);background:var(--papa-surface);
+  overflow:hidden;max-width:660px}
+.modal header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:12px 16px;background:var(--papa-surface-2);border-bottom:1px solid var(--papa-border)}
+.modal header h3{font-size:11px;letter-spacing:.11em;text-transform:uppercase;font-weight:700}
+.modal header span{font-size:12px;color:var(--papa-muted)}
+.job{display:grid;grid-template-columns:16px 1fr auto;gap:12px;align-items:center;
+  padding:11px 16px;border-top:1px solid color-mix(in srgb,var(--papa-border) 60%,transparent)}
+.job:first-of-type{border-top:0}
+.job .ico{font-size:11px;text-align:center}
+.job .who{min-width:0}
+.job .who b{font-weight:600;font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.job .who span{font-size:11.5px;color:var(--papa-muted)}
+.job .st{font-size:12px;text-align:right;white-space:nowrap}
+.job.fail{background:color-mix(in srgb,var(--papa-err) 7%,transparent)}
+.modal footer{padding:10px 16px;border-top:1px solid var(--papa-border);font-size:12px;
+  color:var(--papa-muted);background:color-mix(in srgb,var(--papa-surface-2) 55%,transparent)}
+
+/* ── L'échelle de repli ───────────────────────────────────────────────────
+   Mesuré le 2026-08-06 sur cette maquette : SANS cette échelle, la pilule ne
+   se replie pas — elle s'ÉCRASE. À 700 px de header le libellé tombait à 0 px
+   en restant dans une pilule de 244 px ; à 560 px les CINQ états n'affichaient
+   plus rien de lisible dans 104 px de décoration.
+   La pilule cède donc par PALIERS, du moins informatif au plus informatif :
+   le compteur, puis le sujet, puis le libellé entier. Le point et le nombre
+   ne partent jamais. Requêtes de CONTENEUR (pas de viewport) : la pilule
+   réagit à la largeur du header, qui porte déjà deux pilules et une sidebar.
+   ─────────────────────────────────────────────────────────────────────────*/
+@container (max-width:980px){ .prod .queued{display:none} }
+@container (max-width:880px){ .prod .label em{display:none} }   /* garde le TYPE, perd le sujet */
+@container (max-width:800px){
+  .prod{flex:0 0 auto;gap:9px;padding:7px 12px;max-width:none}
+  .prod .label{display:none}
+  .prod .track{flex:0 0 54px;min-width:54px}
+  /* Deux exceptions au repli : un ÉCHEC et un ARRÊT ne sont pas des états
+     d'avancement, ce sont des états d'anomalie. Réduits à une barre colorée
+     ils deviennent indistinguables d'une production qui va bien — ils gardent
+     donc leur mot, toujours, à toute largeur. */
+  .prod.failed .label,
+  .prod.stopped .label{display:inline;flex:0 0 auto}
+  .prod.failed .label em,
+  .prod.stopped .label em{display:none}
+}
+
+/* ── Responsive : la pilule réduite ───────────────────────────────────────*/
+.header.sm{height:112px;max-width:390px}
+.header.sm .ctx,.header.sm .sep{display:none}
+.header.sm .hactions button:first-child{display:none}
+.prod.mini{max-width:none;flex:0 0 auto;gap:9px;padding:7px 12px}
+.prod.mini .label{display:none}
+.prod.mini .track{flex:0 0 54px;min-width:54px}
+
+.legend{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+.legend span{font-size:11.5px;color:var(--papa-muted);border:1px solid var(--papa-border);
+  border-radius:99px;padding:3px 10px}
+hr{border:0;border-top:1px solid var(--papa-border);margin:38px 0 0}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<div class="pagehead">
+  <h1>La barre de production — header Papa</h1>
+  <p>Maquette de l'<b>ADR-0041</b>. Spec : <code>docs/frontend-papa/barre-de-production.md</code>.
+     Remplace la pastille de <code>PapaLayout.tsx:83-118</code> et <b>conserve sa doctrine</b> :
+     jamais 0 % pour dire « ça démarre », « en file » ≠ « arrêté », estimation ancrée sur le
+     <code>started_at</code> serveur.</p>
+</div>
+
+<p class="lede">Le header est reproduit à sa <strong>vraie hauteur</strong> — 144 px (<code>sm:h-36</code>),
+112 px en dessous — avec ses <strong>deux pilules existantes</strong>, pour juger si une troisième y
+tient. Le fond est un dégradé de densité équivalente à l'image de marque réelle.</p>
+
+<!-- ── 1 ────────────────────────────────────────────────────────────────── -->
+<div class="caseh"><h2>1 · Absente</h2><span class="tag">rien ne tourne</span></div>
+<div class="header">
+  <div class="row">
+    <div class="pill"><span class="brand">ZETIS Papa</span><span class="sep"></span>
+      <span class="ctx">Enfant : Massimo</span><span class="ctx">· Période : 2026 — 4<sup>e</sup></span></div>
+    <div class="hactions"><button>Exporter</button><button>Déconnexion</button></div>
+  </div>
+</div>
+<p class="note">Ni pilule, ni liseré. <b>Un indicateur toujours présent est un bruit toujours
+présent.</b> Le header est exactement celui d'aujourd'hui.</p>
+
+<!-- ── 2 ────────────────────────────────────────────────────────────────── -->
+<div class="caseh"><h2>2 · En file d'attente</h2><span class="tag">pct = null</span></div>
+<div class="header">
+  <div class="row">
+    <div class="pill"><span class="brand">ZETIS Papa</span><span class="sep"></span>
+      <span class="ctx">Enfant : Massimo</span></div>
+    <button class="prod">
+      <span class="dot"></span>
+      <span class="label">en file d'attente <em>· Fiche · Le présent de l'indicatif</em></span>
+      <span class="track indet"><i></i></span>
+    </button>
+    <div class="hactions"><button>Déconnexion</button></div>
+  </div>
+  <div class="edge indet"><i></i></div>
+</div>
+<p class="note">Barre <b>indéterminée</b> — un liseré qui balaie, jamais un remplissage partiel — et
+<b>aucun chiffre</b>. 🔴 Surtout pas « 0 % » : le 2026-08-05, quatre lots arrêtés affichaient 0 %,
+lu comme <em>ça démarre</em>.</p>
+
+<!-- ── 3a ───────────────────────────────────────────────────────────────── -->
+<div class="caseh"><h2>3a · En cours — mesuré</h2><span class="tag">pct_is_measured : true</span></div>
+<div class="header">
+  <div class="row">
+    <div class="pill"><span class="brand">ZETIS Papa</span><span class="sep"></span>
+      <span class="ctx">Enfant : Massimo</span></div>
+    <button class="prod">
+      <span class="dot"></span>
+      <span class="label">Équipement <em>· Théorème de Pythagore</em></span>
+      <span class="track"><i style="width:23%"></i></span>
+      <span class="val num">7 / 31 · 23 %</span>
+      <span class="queued num">+2 en attente</span>
+    </button>
+    <div class="hactions"><button>Déconnexion</button></div>
+  </div>
+  <div class="edge"><i style="width:23%"></i></div>
+</div>
+<p class="note"><b>La fraction est la preuve.</b> Seul le lot sait dire « 7 sur 31 » — progression
+réellement calculée serveur, après qu'une estimation client ait menti d'un facteur 2 (69 s réelles
+contre 150 s annoncées, mesuré le 2026-08-02). <code>+2 en attente</code> n'apparaît qu'à partir de 1,
+et <b>tout le reste est à un clic</b>.</p>
+
+<!-- ── 3b ───────────────────────────────────────────────────────────────── -->
+<div class="caseh"><h2>3b · En cours — estimé</h2><span class="tag">pct_is_measured : false</span></div>
+<div class="header">
+  <div class="row">
+    <div class="pill"><span class="brand">ZETIS Papa</span><span class="sep"></span>
+      <span class="ctx">Enfant : Massimo</span></div>
+    <button class="prod">
+      <span class="dot"></span>
+      <span class="label">Fiche <em>· Le présent de l'indicatif</em></span>
+      <span class="track"><i style="width:40%"></i></span>
+      <span class="val num">≈ 40 %</span>
+    </button>
+    <div class="hactions"><button>Déconnexion</button></div>
+  </div>
+  <div class="edge"><i style="width:40%"></i></div>
+</div>
+<p class="note"><b>Le tilde n'est pas décoratif.</b> Un appel LLM n'a aucun grain interne : il n'y a
+rien à sonder pendant les 32 s d'une fiche. Rendre les deux nombres identiques uniformiserait un
+mensonge — d'où <code>≈ 40 %</code> ici et <code>7 / 31 · 23 %</code> plus haut. Quand aucune durée
+attendue n'est connue, le travail retombe en <b>indéterminé</b> (cas 2), jamais sur une estimation
+inventée.</p>
+
+<!-- ── 4 ────────────────────────────────────────────────────────────────── -->
+<div class="caseh"><h2>4 · Arrêté</h2><span class="tag">worker_alive === false</span></div>
+<div class="header">
+  <div class="row">
+    <div class="pill"><span class="brand">ZETIS Papa</span><span class="sep"></span>
+      <span class="ctx">Enfant : Massimo</span></div>
+    <button class="prod stopped">
+      <span class="dot"></span>
+      <span class="label">en attente <em>— aucun moteur de production actif</em></span>
+      <span class="track indet"><i></i></span>
+      <span class="queued num">3 en file</span>
+    </button>
+    <div class="hactions"><button>Déconnexion</button></div>
+  </div>
+  <div class="edge stopped"><i></i></div>
+</div>
+<p class="note">🔴 <b>Jamais « en file ».</b> <em>Une file sans consommateur n'est pas une attente,
+c'est un arrêt</em> — quatre lots ont attendu six heures avant que cette distinction existe.
+⚠️ <code>worker_alive: null</code> veut dire « la question n'a pas été posée » et ne se confond
+pas avec <code>false</code> : le test porte sur <code>=== false</code>, jamais sur la falsité.
+Un lot <b>zombie</b> (<code>status: "stale"</code>) est rendu ici, avec son propre libellé.</p>
+
+<!-- ── 5 ────────────────────────────────────────────────────────────────── -->
+<div class="caseh"><h2>5 · Échec — et il reste</h2><span class="tag">aucune fermeture auto</span></div>
+<div class="header">
+  <div class="row">
+    <div class="pill"><span class="brand">ZETIS Papa</span><span class="sep"></span>
+      <span class="ctx">Enfant : Massimo</span></div>
+    <button class="prod failed">
+      <span class="dot"></span>
+      <span class="label">Échec <em>· Mindmap · Les fractions décimales — moteur injoignable</em></span>
+      <span class="ack">J'ai vu</span>
+    </button>
+    <div class="hactions"><button>Déconnexion</button></div>
+  </div>
+  <div class="edge failed"><i></i></div>
+</div>
+<p class="note">La pilule porte <b>le motif</b> et <b>y reste</b> jusqu'au clic sur « J'ai vu ».
+L'acquittement est <b>serveur</b> : il ne revient pas au prochain rechargement ni sur un autre
+appareil. Un échec qui s'efface après six secondes pendant que Papa est dans une autre pièce est un
+travail <b>perdu en silence</b> — et le Journal ne peut pas servir de repli, sa portée v1 ne couvrant
+que les travaux portés par un lot.</p>
+
+<hr>
+
+<!-- ── modale ───────────────────────────────────────────────────────────── -->
+<div class="caseh"><h2>Le détail, au clic</h2><span class="tag">ActiveProductionModal, étendu</span></div>
+<div class="modal">
+  <header><h3>Production en cours</h3><span>3 travaux · 1 échec</span></header>
+
+  <div class="job">
+    <span class="ico acc">⟳</span>
+    <span class="who"><b>Équipement · Théorème de Pythagore</b><span>lancé par vous</span></span>
+    <span class="st num acc">7 / 31 · 23 %</span>
+  </div>
+
+  <div class="job">
+    <span class="ico muted">◷</span>
+    <span class="who"><b>Fiche · Le présent de l'indicatif</b><span>lancé par vous</span></span>
+    <span class="st muted">en file — 1<sup>er</sup></span>
+  </div>
+
+  <div class="job">
+    <span class="ico muted">◷</span>
+    <span class="who"><b>Équipement · Les fractions décimales</b><span>préparé pour une échéance — contrôle du 12/09</span></span>
+    <span class="st muted">en file — 2<sup>e</sup></span>
+  </div>
+
+  <div class="job fail">
+    <span class="ico err">✕</span>
+    <span class="who"><b>Mindmap · Les fractions décimales</b><span class="err">moteur injoignable après 2 tentatives</span></span>
+    <span class="st"><button class="ack">J'ai vu</button></span>
+  </div>
+
+  <footer>Un travail lancé à la main passe devant les travaux automatiques — <b>l'ordre ci-dessus est
+  celui qui sera servi</b>. ⚠️ Le travail en cours n'est jamais interrompu : votre fiche démarrera à
+  la fin de la <b>notion</b> en cours (~69 s), pas à la fin du lot.</footer>
+</div>
+<p class="note"><b>L'origine se dit toujours</b> — <code>manual</code> → « lancé par vous »,
+<code>agenda</code> → « préparé pour une échéance », <code>request</code> → « demandé par Massimo ».
+Sans cela, Papa ouvre son écran à 8 h et voit ZETIS travailler sur quelque chose qu'il n'a pas
+demandé, sans pouvoir savoir pourquoi. Et <b>la priorité doit être visible, pas seulement vraie</b> :
+une règle qu'on ne peut pas vérifier à l'œil n'est pas vérifiée.</p>
+
+<hr>
+
+<!-- ── responsive ───────────────────────────────────────────────────────── -->
+<div class="caseh"><h2>Sous <code>sm</code> — la pilule réduite</h2><span class="tag">header 112 px</span></div>
+<div class="header sm">
+  <div class="row">
+    <div class="pill"><span class="brand">ZETIS Papa</span></div>
+    <button class="prod mini">
+      <span class="dot"></span>
+      <span class="track"><i style="width:23%"></i></span>
+      <span class="val num">23 %</span>
+    </button>
+    <div class="hactions"><button>Déconnexion</button></div>
+  </div>
+  <div class="edge"><i style="width:23%"></i></div>
+</div>
+<p class="note">Le libellé tombe, le point animé et le pourcentage restent. ⚠️ Le header porte déjà
+<b>deux</b> pilules translucides sur un fond image : la troisième doit <b>céder l'espace avant
+elles</b> en cas de conflit, jamais les pousser hors écran. <b>Le liseré du bord inférieur reste
+dans tous les cas</b> — c'est lui qui garantit qu'une production ne devient jamais invisible.</p>
+
+<div class="legend">
+  <span>⟳ en cours</span><span>◷ en file</span><span>✕ échec non acquitté</span>
+  <span>fraction = mesuré</span><span>≈ = estimé</span><span>liseré qui balaie = indéterminé</span>
+</div>
+
+<hr>
+<p class="note" style="margin-top:20px">🔴 <b>Cette maquette ne prouve rien sur le mouvement.</b>
+Les balayages ci-dessus sont des animations CSS figées dans un fichier ; la vraie question — <em>que
+fait la barre pendant 90 s d'équipement réel ?</em> — ne se répond que dans le navigateur, sur un
+équipement réel. <code>EQUIP_MS</code> existe depuis des semaines et sa barre n'a jamais été vue
+tourner une seule fois. Voir l'ADR-0041, § « Vérification humaine ».</p>
+
+</div>
+</body>
+</html>
