@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { DatedFact, DatedFactKind, SkillIndex } from "@zetis/types";
+import { CalendrierFaits, isoLocal, libelleMois } from "./CalendrierFaits";
 
 // Vue « Par période » (adr-0040 §2, §6) — le SEUL endroit de la page où une fenêtre existe.
 //
@@ -9,9 +10,6 @@ import type { DatedFact, DatedFactKind, SkillIndex } from "@zetis/types";
 //
 // 🔴 **Aucune courbe, aucune série.** La révocation du §5 de l'adr-0038 autorise des ÉVÉNEMENTS
 // NOMMÉS, jamais des agrégats temporels. Une courbe ici resterait une faute après cet ADR.
-
-const FENETRES = [7, 30, 90, 365] as const;
-type Fenetre = (typeof FENETRES)[number];
 
 const NATURE_LABEL: Record<DatedFactKind, string> = {
   mastery_transition: "bascule de palier",
@@ -54,7 +52,11 @@ function detail(f: DatedFact): string {
 }
 
 export function VuePeriode({ index, subjectId }: { index: SkillIndex; subjectId: number | null }) {
-  const [fenetre, setFenetre] = useState<Fenetre>(30);
+  // 🔴 Le MOIS AFFICHÉ REMPLACE le sélecteur de fenêtre (décision du 2026-08-06). Deux contrôles
+  // de temps sur un même écran — « 30 derniers jours » et « août 2026 » — se contrediraient dès
+  // qu'ils désigneraient des périodes différentes, et Papa ne saurait plus lequel commande.
+  const [ancre, setAncre] = useState(() => new Date());
+  const [jour, setJour] = useState<string | null>(null);
 
   // Certaines natures ne portent pas le nom de la notion : un verdict de mission vit dans
   // `learning_events` avec un `skill_id` mais sans jointure. On le résout ICI, depuis l'index
@@ -69,48 +71,76 @@ export function VuePeriode({ index, subjectId }: { index: SkillIndex; subjectId:
 
   // Le filtrage est CLIENT : le serveur a servi 365 jours en une passe. C'est ce qui permet au §6
   // d'être tenu — les compteurs se dérivent du journal AFFICHÉ, pas d'un second appel.
-  const affiches = useMemo(() => {
-    const limite = Date.now() - fenetre * 86_400_000;
+  const duMois = useMemo(() => {
+    const prefixe = `${ancre.getFullYear()}-${String(ancre.getMonth() + 1).padStart(2, "0")}`;
     return index.facts.filter((f) => {
-      if (new Date(f.at).getTime() < limite) return false;
+      if (!f.at.startsWith(prefixe)) return false;
       if (subjectId !== null && f.subject_id !== null && f.subject_id !== subjectId) return false;
       return true;
     });
-  }, [index.facts, fenetre, subjectId]);
+  }, [index.facts, ancre, subjectId]);
+
+  // Le journal suit la sélection : le mois entier, ou le seul jour ouvert. Les compteurs, eux,
+  // restent ceux du MOIS — sinon ouvrir un jour ferait croire que le mois s'est vidé.
+  const affiches = useMemo(
+    () => (jour ? duMois.filter((f) => f.at.slice(0, 10) === jour) : duMois),
+    [duMois, jour],
+  );
 
   // 🔴 L'invariant du §6, transposé de la ligne à la fenêtre : « le détail recompose le nombre ».
   // Les compteurs ne sont pas servis à part — ils SONT le décompte de ce qui est listé dessous.
   const compteurs = useMemo(() => {
     const c = {} as Record<DatedFactKind, number>;
-    for (const f of affiches) c[f.kind] = (c[f.kind] ?? 0) + 1;
+    for (const f of duMois) c[f.kind] = (c[f.kind] ?? 0) + 1;
     return c;
-  }, [affiches]);
+  }, [duMois]);
 
-  const debutFenetre = new Date(Date.now() - fenetre * 86_400_000).toISOString().slice(0, 10);
-  const bornesTouchees = bornes(index).filter((b) => b.depuis !== null && b.depuis > debutFenetre);
+  const debutMois = isoLocal(new Date(ancre.getFullYear(), ancre.getMonth(), 1));
+  const bornesTouchees = bornes(index).filter((b) => b.depuis !== null && b.depuis > debutMois);
+
+  const decalerMois = (offset: number) => {
+    setAncre((a) => new Date(a.getFullYear(), a.getMonth() + offset, 1));
+    setJour(null); // un jour ouvert n'a plus de sens dans un autre mois
+  };
+  const maintenant = new Date();
+  const peutSuivant =
+    ancre.getFullYear() < maintenant.getFullYear() ||
+    (ancre.getFullYear() === maintenant.getFullYear() && ancre.getMonth() < maintenant.getMonth());
+  // Au-delà de la fenêtre servie, toutes les cases seraient vides — et une grille vide se lirait
+  // « rien ne s'est passé » au lieu de « rien n'a été servi ».
+  const peutPrecedent = index.facts_since !== null && debutMois > index.facts_since;
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-        <span className="text-papa-muted">Fenêtre</span>
-        {FENETRES.map((f) => (
-          <button
-            key={f}
-            type="button"
-            aria-pressed={fenetre === f}
-            onClick={() => setFenetre(f)}
-            className={`rounded-full border px-2.5 py-1 font-semibold ${
-              fenetre === f ? "border-papa-accent text-papa-accent" : "border-papa-border text-papa-muted/60"
-            }`}
-          >
-            {f === 365 ? "1 an" : `${f} j`}
-          </button>
-        ))}
-        <span className="ml-auto tabular-nums text-papa-muted">
-          {affiches.length} fait{affiches.length > 1 ? "s" : ""} daté
-          {affiches.length > 1 ? "s" : ""}
-        </span>
-      </div>
+      <div className="mb-3 grid gap-4 lg:grid-cols-[minmax(0,22rem)_1fr]">
+        <CalendrierFaits
+          faits={duMois}
+          ancre={ancre}
+          jourSelectionne={jour}
+          onSelectJour={setJour}
+          onDecalerMois={decalerMois}
+          peutSuivant={peutSuivant}
+          peutPrecedent={peutPrecedent}
+        />
+        <div>
+          <p className="mb-2 text-xs text-papa-muted">
+            <span className="tabular-nums">{duMois.length}</span> fait
+            {duMois.length > 1 ? "s" : ""} daté{duMois.length > 1 ? "s" : ""} en{" "}
+            <span className="capitalize">{libelleMois(ancre)}</span>
+            {jour && (
+              <>
+                {" · "}
+                <strong className="font-semibold">{affiches.length}</strong> le {jour}{" "}
+                <button
+                  type="button"
+                  onClick={() => setJour(null)}
+                  className="underline hover:text-papa-accent"
+                >
+                  tout le mois
+                </button>
+              </>
+            )}
+          </p>
 
       {/* Les compteurs, DÉRIVÉS du journal ci-dessous. Aucun palier, aucun stock. */}
       <div className="mb-3 flex flex-wrap gap-2">
@@ -143,9 +173,9 @@ export function VuePeriode({ index, subjectId }: { index: SkillIndex; subjectId:
 
       {affiches.length === 0 ? (
         <p className="rounded-xl border border-dashed border-papa-border bg-papa-surface p-6 text-center text-sm text-papa-muted">
-          Aucun fait daté sur ces {fenetre} jours. Cela peut vouloir dire que rien n'a bougé — ou
-          que rien n'a été tracé sur cette période. Les deux se distinguent par les bornes
-          ci-dessus.
+          Aucun fait daté en <span className="capitalize">{libelleMois(ancre)}</span>. Cela peut
+          vouloir dire que rien n'a bougé — ou que rien n'a été tracé sur cette période. Les deux se
+          distinguent par les bornes ci-dessus.
         </p>
       ) : (
         <ol className="overflow-hidden rounded-xl border border-papa-border">
@@ -164,6 +194,8 @@ export function VuePeriode({ index, subjectId }: { index: SkillIndex; subjectId:
           ))}
         </ol>
       )}
+        </div>
+      </div>
     </div>
   );
 }

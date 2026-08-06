@@ -188,6 +188,21 @@ L'XP reste donc un **stock**, sur la vue matière, exactement là où l'`adr-003
 La révocation est étroite par construction : elle autorise des **événements**, jamais des
 **agrégats temporels**. Une courbe sur Progression resterait une faute après cet ADR.
 
+> ⚠️ **Amendement du 2026-08-06 — la case du calendrier.** La vue période est passée en **grille
+> calendaire**, sur le patron du Cahier de bord, et chaque case porte le **nombre** de faits du
+> jour. Ce nombre est un **repère de NAVIGATION, jamais une mesure de progression** : il dit « il
+> s'est passé quelque chose ici, ouvre », il ne décrit aucune tendance. Le détail nommé vit dans
+> le panneau du jour — le **drill-down**, première exception assumée de l'`adr-0028` §4.
+>
+> **Sans cette nuance la grille serait impossible**, et c'est la donnée réelle qui l'impose : 86
+> faits sur l'année dont **une vingtaine le seul 05/07**, et zéro l'immense majorité des jours.
+> Aucune case ne peut afficher vingt faits nommés.
+>
+> ⚠️ **Cette exception ne s'étend à rien d'autre.** Elle vaut pour un compte par JOUR dans une
+> grille cliquable. Une couleur ou un nombre agrégé sur une PÉRIODE reste une faute, et une courbe
+> aussi. **Le mois affiché remplace le sélecteur de fenêtre** — deux contrôles de temps sur un même
+> écran se contrediraient dès qu'ils désigneraient des périodes différentes.
+
 ### §4 — Palier et lacune sont deux axes indépendants, jamais une colonne
 
 La vue notion porte un filtre de **palier** (acquise / à renforcer / en cours / non abordée,
