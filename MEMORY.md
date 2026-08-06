@@ -7,22 +7,23 @@
 
 ## État à la reprise
 
-**Chantier : ADR-0040 « Progression dans le temps » — Lots 0 et 1 faits sur 4. Le chantier N'EST PAS clos.**
+**Chantier : ADR-0040 « Progression dans le temps » — Lot 0 mergé, Lot 1 fait, Lot 2 aux DEUX TIERS. Le chantier N'EST PAS clos.**
 
-🔴 **Le Lot 1 est COMMITÉ mais NON POUSSÉ, et il ne doit PAS être mergé seul.** Il livre deux
-routes que personne n'appelle encore : les merger sans le Lot 2 recréerait
-`GET /progress/consolidated`, le constat même qui a ouvert l'`adr-0038`. Le Lot 2 doit rejoindre
-**la même branche**, un seul squash au merge.
+🔴 **Il reste UNE pièce au Lot 2 : les trois vues de `ProgressionPage`.** Tout le reste est commité
+et vert sur `feat/progression-temps` (poussée). **Ne pas merger la branche avant** : elle livre deux
+routes que personne n'appelle encore, et les merger telles quelles recréerait
+`GET /progress/consolidated` — le constat même qui a ouvert l'`adr-0038`. Un seul squash, à la fin.
 
 | | |
 |---|---|
 | **Lot 0 — MERGÉ** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)**, squash **`1fb094f`** — branche supprimée des deux côtés |
-| **Lot 1 — COMMITÉ, NON POUSSÉ** | **`32f0e27`** sur **`feat/progression-temps`** (base `40e2f1a`). Aucune PR ouverte, c'est voulu |
-| **État du chantier** | ⏳ **2 lots sur 4.** Reste le **Lot 2** (l'écran, même branche) puis le Lot 3 (SESSION C, branche à part) |
+| **Lot 1 — fait** | **`32f0e27`** — la mesure, les deux routes, la migration |
+| **Lot 2 — 2 pièces sur 3** | **`1208680`** (contrat front : types, client, `useSkillsIndex`) · **`844f129`** (`/lacunes` renommée + verrou lexical). ⏳ **Manquent les trois vues** |
+| **Branche** | **`feat/progression-temps`**, poussée (`origin/feat/progression-temps`). **Aucune PR — voulu** |
 | Migration | **`a1b2c3d4e5f9`** — index `(student_id, skill_id, changed_at DESC)`. ⚠️ **Appliquée en dev**, un seul head alembic |
 | Routes nouvelles | **deux**, `require_parent` : `GET /progress/skills` (agrégée, **7 requêtes constantes**) et `/progress/skills/{id}/timeline` (paresseuse) |
-| Suites | backend **949 ✅** (941 → 949, **+8**) · Papa **575 ✅**, non touché au Lot 1 · `tsc -b` et `vite build` propres |
-| Vérifié à l'écran | Lot 0 ✅ par l'agent (Chrome du user, données réelles + vraie génération Ollama). **Lot 1 : rien à voir à l'écran** — la mesure a été vérifiée sur la base réelle par script. ⚠️ **Le user n'a relu aucun des deux** |
+| Suites | backend **949 ✅** (+8) · Papa **579 ✅** (575 → 579, +4) · `tsc -b` et `vite build` propres |
+| Vérifié à l'écran | Lot 0 ✅ par l'agent (Chrome du user, données réelles + vraie génération Ollama). **Lots 1 et 2 : RIEN vu à l'écran** — mesure vérifiée par script, renommage par test lexical. ⚠️ **Le user n'a relu aucun des trois** |
 
 ### FAIT
 
@@ -49,14 +50,32 @@ script (`scripts/reorder_decisions.py`, permutation pure vérifiée), indentatio
 
 ### ▶ EN COURS / À FAIRE
 
-**Rien d'instable** — arbre propre, aucun fichier à moitié écrit. Mais **`main` n'est PAS à jour du
-Lot 1** : il vit sur `feat/progression-temps`, non poussée.
+**Rien d'instable** — arbre propre, tout commité, tout vert. Mais **`main` ignore les Lots 1 et 2** :
+ils vivent sur `feat/progression-temps` (poussée, sans PR).
 
-**Il reste le LOT 2 — l'écran**, sur la même branche. Ce qui n'a **pas encore été lu**, et que le
-read-before-code du Lot 2 doit couvrir : `ProgressionPage.tsx`, `LacunesPage.tsx`,
-`SubjectDetailRow.tsx`, `useProgression.ts`, `useLacunes.ts`, `lib/activity.ts`, les types de
-`packages/types`, `docs/frontend-papa/page-lacunes.md` et la maquette de référence
-(`mockup/maquette-papa-progression.html`, comportement cliquable).
+**Il reste UNE pièce : les trois vues de `ProgressionPage`.** Ce qui est **déjà prêt et n'attend
+qu'un consommateur** : `useSkillsIndex` (un appel au montage, la frise paresseuse en plus), les
+types `SkillIndexRow` / `NotionSince` / `SkillTimeline`, et les deux routes.
+
+Ce qui reste à faire, tel que le prompt le décrit :
+
+- **sélecteur de vue en tête**, patron `WorkRhythmCard` ; `max-w-6xl` sur les **trois** vues (faire
+  varier la largeur ferait sauter la page à chaque bascule) ;
+- `?subject=` **conservé** (il porte le constat du dashboard) ; `?view=` écrit en **`replace: true`**
+  (sans quoi « Retour » rejouerait chaque bascule d'onglet) ; **filtre matière partagé** par les
+  trois vues ;
+- **vue notion** : trois tris (notion défaut · matière **dans l'ordre de l'année**, déjà servi
+  ainsi par la route · date), tous départagés par `skill_id` ; 🔴 le tri par date scinde en **TROIS
+  blocs comptés** (daté · sans bascule enregistrée · non abordées) ; infobulle **permanente** des
+  deux axes avec les deux nombres côte à côte ;
+- **vue période** : fenêtre 7/30/90/365, compteurs **dérivés du journal affiché** dessous, trois
+  bornes de trace déclarées. **Aucun palier, aucun stock, aucune barre.** Ni XP ni production ;
+- **dépliage matière ALLÉGÉ** : XP par motif + référentiel + trois liens. Ses listes de notions
+  deviennent des **liens** vers la vue notion pré-filtrée — sinon c'est une troisième copie.
+
+⚠️ **Pas encore lus** : `SubjectDetailRow.tsx` (330 l.) et la maquette de référence
+`docs/frontend-papa/mockup/maquette-papa-progression.html` (53 Ko, **cliquable** — c'est le
+comportement de référence, pas seulement l'allure).
 
 ⚠️ **Deux faits mesurés qui commandent le rendu** :
 
@@ -134,29 +153,36 @@ read-before-code du Lot 2 doit couvrir : `ProgressionPage.tsx`, `LacunesPage.tsx
    test de progression est donc faux d'un cran. Et **renvoyer des objets ORM d'un helper de seed**
    lève `DetachedInstanceError` dès que la session se referme avant les assertions — renvoyer des
    **ids**.
+10. 🔴 **Un test vert peut casser `tsc -b`.** Le verrou de vocabulaire lisait les sources par
+    `node:fs` : vert sous vitest, **rouge à la compilation** — le tsconfig du front déclare
+    `"types": []`, donc ni `readFileSync` ni `process` n'y existent. **Parade : l'import `?raw` de
+    Vite** (`import src from "./X.tsx?raw"`), typé par `vite/client` déjà référencé dans
+    `src/vite-env.d.ts`. Lancer les DEUX avant de conclure.
+11. ⚠️ **`import.meta.url` ne résout pas en chemin de fichier sous la transformation vitest** : il
+    rend `/src/pages/…`, sans la racine du paquet, et `readFileSync` échoue en `ENOENT`.
+12. ⚠️ **Lancer la suite Papa depuis la RACINE du dépôt donne un faux massacre** — `npx --prefix …
+    vitest run --dir …` a rendu « 440 failed » là où la vraie suite était verte. Se placer dans
+    `apps/frontend-papa` et lancer `npm test`.
+13. ⚠️ **Un renommage de libellé casse les tests qui l'assertaient — c'est le moment de les
+    RENFORCER, pas de les adapter.** `LacunesPage.test.tsx` vérifiait l'ancien titre ; il vérifie
+    désormais aussi que l'écran dit les populations **disjointes** et offre le chemin vers les
+    paliers. Remplacer le mot seul aurait laissé passer le vrai défaut.
 
 Détail, cause et parade : le corps de la PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92).
 
 ### ▶ PROCHAIN PAS
 
-🔴 **REPRENDRE SUR `feat/progression-temps`, PAS sur `main`.** Le Lot 1 y est commité (`32f0e27`)
-et non poussé. Aucune PR, c'est voulu.
+🔴 **REPRENDRE SUR `feat/progression-temps`, PAS sur `main`.** Elle est poussée mais sans PR.
 
 ```bash
-git checkout feat/progression-temps   # le Lot 1 y est ; main ne l'a pas
+git checkout feat/progression-temps   # main ignore les Lots 1 et 2
 ```
 
-1. **LOT 2 — l'écran, MÊME branche.** Trois vues dans `ProgressionPage` (matière / notion /
-   période), sélecteur en tête, `max-w-6xl` sur les trois, `?subject=` conservé et `?view=` écrit
-   en `replace: true`, filtre matière **partagé** par les trois vues. Dépliage matière **allégé**
-   (XP par motif + référentiel + trois liens ; ses listes de notions deviennent des liens vers la
-   vue notion, sinon c'est une troisième copie). Renommage de `LacunesPage` selon
-   `page-lacunes.md` + **test-verrou de vocabulaire** (« à renforcer » interdit en contexte `Gap`,
-   « lacune » en contexte `SkillMastery`). Le read-before-code du Lot 2 reste **entièrement à
-   faire** — voir « EN COURS » plus haut pour la liste des fichiers.
-2. **Puis merge des deux lots ensemble**, un seul squash. Commits attendus dans la branche :
-   `feat(progress): dated mastery transitions and the notion index` (fait) puis
+1. **LES TROIS VUES de `ProgressionPage`** — dernière pièce du Lot 2, détaillée dans « EN COURS »
+   ci-dessus. Le contrat front est **déjà là** (`useSkillsIndex`, les types, les deux routes) : il
+   ne manque que l'écran qui les consomme. Commit attendu :
    `feat(papa): progression in three grains — subject, notion, period`.
+2. **Puis merge de toute la branche**, un seul squash — les quatre commits ensemble.
 3. **SESSION C — Lot 3**, branche `feat/council-dated-evolution` depuis un `main` contenant B.
    Remplit `recent_evolution` avec de vraies bascules — `mastery_transitions` est **déjà écrite**,
    il la consomme. ⚠️ **Si l'écrasement serveur du Lot 0 a disparu, s'arrêter** : c'est une
@@ -167,6 +193,13 @@ git checkout feat/progression-temps   # le Lot 1 y est ; main ne l'a pas
 
 ⚠️ **Le prompt veut une session NEUVE par bloc.** Les Lots 0 et 1 ont été faits en fin d'une
 session déjà très longue (16+ commits) ; le Lot 2 mérite d'ouvrir la sienne.
+
+⚠️ **Résidus du Lot 2 (partie faite)** :
+
+- ⚠️ **`useSkillsIndex` n'a AUCUN consommateur** tant que les vues ne sont pas écrites — même
+  état transitoire que les routes du Lot 1, et refermé par la même pièce.
+- ⚠️ **Le renommage de `/lacunes` n'a pas été vu à l'écran**, seulement par test lexical. Le
+  `EmptyState` avec son nouveau renvoi n'a jamais été rendu pour de vrai.
 
 ⚠️ **Résidus du Lot 1** :
 
