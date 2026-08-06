@@ -1,5 +1,12 @@
 # Header Papa — la barre de production
 
+> 🔴 **REMPLACÉ par `bande-de-production.md`** (addendum 2 de l'`adr-0041`, 2026-08-06) : la pilule
+> devient une **bande** sous le bandeau de marque, et la mesure passe de la notion à la **pièce**.
+> Document conservé parce que sa **doctrine d'énoncé reste opposable** et n'a pas été réécrite —
+> jamais 0 % pour dire « ça démarre », « en file » ≠ « arrêté », `worker_alive === false` et jamais
+> la fausseté, le motif d'échec rendu tel quel, et son § Responsive (seuils 980 / 880 / 800 px,
+> mesurés). Ce qui est périmé ici est la **forme** : la pilule, son liseré, et le compte en notions.
+>
 > Créée au cadrage du 2026-08-06. Met en œuvre `adr-0041`.
 > **Remplace la pastille de production** de `PapaLayout.tsx:83-118`, livrée avec
 > `adr-0036-addendum-file-sans-consommateur` — dont elle **conserve intégralement la doctrine**.
