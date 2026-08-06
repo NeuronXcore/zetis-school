@@ -1,5 +1,69 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.55.0 — La barre devient une bande, et on l'a enfin vue tourner
+
+Addendum 2 de l'ADR-0041. La barre livrée en 0.54.0 était correcte et **n'avait toujours pas été
+vue tourner** : un lot avance d'un pas toutes les 69 secondes, et à cette cadence une barre est
+immobile à l'œil.
+
+### Ce n'est plus une barre, c'est un tapis
+
+La pilule du header devient une **bande de 46 px sous le bandeau de marque**, qui ne bouge pas.
+Rouages qui fabriquent à gauche, tapis dont la **texture en biais dit le sens de marche**, jetons
+nommés qui traversent, **boîte de connaissance** qui les avale et les compte. Au repos, la bande se
+replie et ne garde que la boîte — révocation **partielle** du §7 : ce qu'il interdisait, un
+compteur permanent qui vous regarde, reste interdit.
+
+### La production se compte en pièces
+
+`37 %` et `7 / 19 pièces` au lieu de `7 / 31 notions`. Trois nombres, pas un : les pièces
+**résolues** font avancer le tapis (elles ne reculent jamais), les seules **produites** remplissent
+la boîte — une pièce sautée y était déjà.
+
+🔴 **Mais compter des pièces ne fait pas bouger la barre plus souvent**, et le cadrage se trompait :
+les cinq lignes de journal d'une notion naissent dans le **même commit** que son avancement, donc
+`5/155` et `1/31` valent le même 3,23 % au même instant. C'est **`production_runs.current_piece`**
+qui débloque le mouvement — posée avant chaque pièce et emportée par le commit que les générateurs
+font **déjà**. Aucun commit ajouté, journal intouché, ~14 s au lieu de ~69 s.
+
+### Un régulateur qui refuse laisse une trace
+
+Les cinq régulateurs levaient un `409` que personne ne relisait : un refus survenu à 3 h du matin
+disparaissait dans le retour d'un job RQ. Table `production_refusals`, **refus automatiques
+seulement** — un refus manuel a déjà été lu au clic. Ton **ambre**, motif rendu tel quel, à part
+des échecs : un régulateur qui dit non n'est pas une panne.
+
+### Les couloirs cessent de se confondre
+
+`queued_count` comptait le rendu vidéo dans la file de production, qu'il ne bloque pourtant en rien.
+`media_alive` s'ajoute sans toucher `worker_alive` : le worker vidéo pouvait être mort pendant que
+l'écran annonçait que tout allait bien. Et `capsule_render_v2` — la clé qu'attendaient les libellés
+et les estimations — **n'était écrite par personne** : Papa lisait « capsule_render » en toutes
+lettres dans son header.
+
+### Le détail se lit sur place
+
+`ActiveProductionModal` devient `ProductionPopover` : 340 px ancré sous la bande, fermé au clic
+extérieur **et à `Escape`**. Badges de couloir, refus acquittables, « Voir au Journal → » filtré.
+Les sept invariants de la modale sont portés, pas supprimés.
+
+### 🔴 Sept défauts trouvés à l'écran, et seulement là
+
+La vérification humaine que l'ADR-0041 déclarait non négociable a enfin été faite — lot réel de
+9 notions observé de **11 % à 78 %**, rouages, texture, boîte, popover, et la page Couverture
+disant **44 % au même instant** que la bande.
+
+Le plus grave était livré depuis six jours : **`/activity` plantait sur tout lot de chapitre**
+(`Chapter.title`, le modèle n'a que `name`) — la barre ne pouvait donc **jamais** afficher le seul
+cas qu'elle sait mesurer, et l'échec était **muet**, le hook avalant ses erreurs par doctrine.
+Les six autres : les container queries Tailwind ne compilaient aucune règle (échelle de repli
+entièrement inopérante) · un rendu bloqué nommait le mauvais moteur · la bande lisait le worker
+LLM pour juger un travail média · une anomalie se taisait sous 800 px · un refus masquait une
+production en cours · un pourcentage s'affichait sur un lot en file.
+
+**Deux migrations**, additives : `current_piece` et `production_refusals`.
+⚠️ Restent dus : les scénarios `503`/Redis coupé et rejeu transitoire, jamais joués.
+
 ## 0.54.0 — Tout ce qui produit se voit, attend son tour, et ne se perd pas
 
 Le chantier ADR-0041, en deux slices. Il est parti d'une observation : `EQUIP_MS` pilotait une barre

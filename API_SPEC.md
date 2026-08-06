@@ -1893,13 +1893,19 @@ d'un cours en portait **cinq** différentes selon l'écran d'où on la lançait.
 ```json
 {
   "current": { "kind": "run|job", "id": 42, "label": "Équipement · Théorème de Pythagore",
-               "status": "queued|running|stale|failed",
-               "pct": 23, "pct_is_measured": true,
-               "started_at": "2026-08-06T10:00:00Z", "trigger": "manual", "error": null },
+               "status": "queued|running|stale|failed", "lane": "llm|media",
+               "pct": 37, "pct_is_measured": true,
+               "pieces_done": 7, "pieces_total": 19, "pieces_produced": 5,
+               "current_piece": "fiche",
+               "started_at": "2026-08-06T10:00:00Z", "trigger": "manual", "error": null,
+               "estimated_ms": 60000 },
   "queued_count": 2,
   "queued": [ /* ActivityItem[], dans l'ORDRE où la file sera servie — borné à 20 */ ],
   "failed": [],
-  "worker_alive": null
+  "refused": [ { "id": 3, "regulator": "pending_backlog", "detail": "…", "trigger": "agenda",
+                 "created_at": "2026-08-07T02:00:00Z" } ],
+  "worker_alive": null,
+  "media_alive": null
 }
 ```
 
@@ -1917,10 +1923,33 @@ d'un cours en portait **cinq** différentes selon l'écran d'où on la lançait.
   qu'on ne peut pas vérifier à l'œil n'est pas vérifiée. ⚠️ Comparer `queued.length` à
   `queued_count` dit s'il en reste — une troncature muette se lirait comme une exhaustivité.
 
+**Ajouts de l'addendum 2 (2026-08-07) :**
+
+- **`pieces_done` / `pieces_total`** — la mesure passe de la NOTION à la **PIÈCE** : `7 / 19`, pas
+  `7 / 31`. `null` **avec** `pct` et sous exactement la même condition serveur — il existe une
+  fenêtre où `runner.execute` a commité `running` sans avoir posé `total_notions`, et trois
+  conditions séparées feraient servir `null / null · 37 %`.
+- **`pieces_produced`** — les pièces `generated` **seules**, toujours servi (un `COUNT` reste exact
+  hors régime mesuré). C'est le badge du stock, pas l'avancement : une pièce `skipped` a traversé le
+  tapis mais était déjà dedans.
+- 🔴 **`current_piece`** — la pièce en cours **dans la notion en vol** (`cours` · `fiche` · `srs` ·
+  `quiz` · `mindmap`, `null` entre deux notions). **C'est ce champ qui fait bouger la barre** : les
+  cinq lignes de journal d'une notion atterrissent d'un coup à sa fin, donc sans lui un compte de
+  pièces avancerait exactement comme un compte de notions (`5/155` = `1/31`, toutes les ~69 s).
+  Un changement de valeur signifie qu'une pièce vient d'être finie.
+- **`lane`** — DÉRIVÉ du type de travail, jamais stocké. ⚠️ `media` **ne retarde rien** (worker et
+  file séparés) : il n'entre pas dans `queued_count` et n'apparaît que dans le détail.
+- **`refused`** — les refus de régulateur non acquittés, **automatiques seulement**. ⚠️ Liste **à
+  part** de `failed` : un régulateur qui dit non n'est pas une panne, et les confondre apprendrait
+  à Papa à ignorer les deux. `regulator` ∈ `duplicate` · `already_produced` · `pending_backlog` ·
+  `request_volume` · `auto_volume`. `detail` est rendu **tel quel**.
+- **`media_alive`** — le worker du couloir média, posé séparément. Champ **additif** :
+  `worker_alive` garde sa forme. Même règle de lecture, `=== false` jamais la fausseté.
+
 ### `POST /api/production/activity/{kind}/{item_id}/ack` → 204
 
-`kind` ∈ `run | job`. Un échec reste affiché **jusqu'à ce geste** — pas six secondes. L'acquittement
-est serveur : il ne revient sur aucun autre appareil.
+`kind` ∈ `run | job | refusal`. Un échec — ou un refus — reste affiché **jusqu'à ce geste**, pas six
+secondes. L'acquittement est serveur : il ne revient sur aucun autre appareil.
 
 ### ⚠️ Contrat MODIFIÉ — `POST /api/reports/class-council/equip-notion`
 
