@@ -97,16 +97,20 @@ function teinte(n: number): string {
 export function CalendrierFaits({
   faits,
   ancre,
-  jourSelectionne,
-  onSelectJour,
+  joursSelectionnes,
+  onBasculerJour,
   onDecalerMois,
   peutSuivant,
   peutPrecedent,
 }: {
   faits: DatedFact[];
   ancre: Date;
-  jourSelectionne: string | null;
-  onSelectJour: (date: string | null) => void;
+  /** ⚠️ Sélection MULTIPLE, par bascule indépendante — pas une plage. Un intervalle supposerait
+   *  un ordre (premier clic = début) et un second geste pour le fermer ; ici chaque case répond
+   *  seule, et l'ordre des clics n'a aucune importance. Les jours d'activité sont creux et
+   *  dispersés : ce qu'on veut comparer, c'est « le 2 et le 4 », rarement « du 2 au 4 ». */
+  joursSelectionnes: string[];
+  onBasculerJour: (date: string) => void;
   onDecalerMois: (offset: number) => void;
   /** Le futur n'a pas de journal. */
   peutSuivant: boolean;
@@ -115,6 +119,7 @@ export function CalendrierFaits({
   peutPrecedent: boolean;
 }) {
   const semaines = construireGrille(faits, ancre);
+  const selection = new Set(joursSelectionnes);
 
   return (
     <div>
@@ -156,12 +161,12 @@ export function CalendrierFaits({
               // Un jour sans fait n'est pas cliquable : ouvrir un panneau vide serait promettre un
               // détail qui n'existe pas.
               disabled={vide || c.futur}
-              aria-pressed={jourSelectionne === c.date}
-              onClick={() => onSelectJour(jourSelectionne === c.date ? null : c.date)}
+              aria-pressed={selection.has(c.date)}
+              onClick={() => onBasculerJour(c.date)}
               className={`aspect-square rounded-lg border p-1 text-left text-xs transition ${teinte(
                 c.faits.length,
               )} ${
-                jourSelectionne === c.date
+                selection.has(c.date)
                   ? "border-papa-accent ring-1 ring-papa-accent"
                   : "border-papa-border"
               } ${c.dansLeMois ? "" : "opacity-30"} ${

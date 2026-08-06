@@ -56,7 +56,8 @@ export function VuePeriode({ index, subjectId }: { index: SkillIndex; subjectId:
   // de temps sur un même écran — « 30 derniers jours » et « août 2026 » — se contrediraient dès
   // qu'ils désigneraient des périodes différentes, et Papa ne saurait plus lequel commande.
   const [ancre, setAncre] = useState(() => new Date());
-  const [jour, setJour] = useState<string | null>(null);
+  // Sélection MULTIPLE de jours, par bascule. Vide = tout le mois.
+  const [jours, setJours] = useState<string[]>([]);
 
   // Certaines natures ne portent pas le nom de la notion : un verdict de mission vit dans
   // `learning_events` avec un `skill_id` mais sans jointure. On le résout ICI, depuis l'index
@@ -82,10 +83,11 @@ export function VuePeriode({ index, subjectId }: { index: SkillIndex; subjectId:
 
   // Le journal suit la sélection : le mois entier, ou le seul jour ouvert. Les compteurs, eux,
   // restent ceux du MOIS — sinon ouvrir un jour ferait croire que le mois s'est vidé.
-  const affiches = useMemo(
-    () => (jour ? duMois.filter((f) => f.at.slice(0, 10) === jour) : duMois),
-    [duMois, jour],
-  );
+  const affiches = useMemo(() => {
+    if (jours.length === 0) return duMois;
+    const choisis = new Set(jours);
+    return duMois.filter((f) => choisis.has(f.at.slice(0, 10)));
+  }, [duMois, jours]);
 
   // 🔴 L'invariant du §6, transposé de la ligne à la fenêtre : « le détail recompose le nombre ».
   // Les compteurs ne sont pas servis à part — ils SONT le décompte de ce qui est listé dessous.
@@ -100,7 +102,7 @@ export function VuePeriode({ index, subjectId }: { index: SkillIndex; subjectId:
 
   const decalerMois = (offset: number) => {
     setAncre((a) => new Date(a.getFullYear(), a.getMonth() + offset, 1));
-    setJour(null); // un jour ouvert n'a plus de sens dans un autre mois
+    setJours([]); // une sélection de jours n'a plus de sens dans un autre mois
   };
   const maintenant = new Date();
   const peutSuivant =
@@ -116,8 +118,10 @@ export function VuePeriode({ index, subjectId }: { index: SkillIndex; subjectId:
         <CalendrierFaits
           faits={duMois}
           ancre={ancre}
-          jourSelectionne={jour}
-          onSelectJour={setJour}
+          joursSelectionnes={jours}
+          onBasculerJour={(d) =>
+            setJours((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]))
+          }
           onDecalerMois={decalerMois}
           peutSuivant={peutSuivant}
           peutPrecedent={peutPrecedent}
@@ -127,13 +131,14 @@ export function VuePeriode({ index, subjectId }: { index: SkillIndex; subjectId:
             <span className="tabular-nums">{duMois.length}</span> fait
             {duMois.length > 1 ? "s" : ""} daté{duMois.length > 1 ? "s" : ""} en{" "}
             <span className="capitalize">{libelleMois(ancre)}</span>
-            {jour && (
+            {jours.length > 0 && (
               <>
                 {" · "}
-                <strong className="font-semibold">{affiches.length}</strong> le {jour}{" "}
+                <strong className="font-semibold">{affiches.length}</strong> sur{" "}
+                {jours.length === 1 ? `le ${jours[0]}` : `${jours.length} jours sélectionnés`}{" "}
                 <button
                   type="button"
-                  onClick={() => setJour(null)}
+                  onClick={() => setJours([])}
                   className="underline hover:text-papa-accent"
                 >
                   tout le mois
