@@ -2002,3 +2002,34 @@ seule au lieu de mentir jusqu'à ce que quelqu'un la remarque — ce qui, mesur�
 
 ⚠️ **Médiane et non moyenne** : un travail qui a attendu Massimo ou tapé dans son `job_timeout`
 tirerait une moyenne vers le haut de façon permanente.
+
+### ⚠️ Contrats MODIFIÉS — sept routes de plus en `202` (ADR-0041 §4, dernier lot)
+
+| Route | Avant | `output` du travail |
+|---|---|---|
+| `POST /memory/cards/subjects/{id}/generate` | `200` + `SubjectGenerateResult` | le compte-rendu tel quel |
+| `POST /memory/cards/skills/{id}/generate` | `200` + `SkillGenerateResult` | idem |
+| `POST /capsules/generate` | `201` + `CapsuleOut` | `{capsule_id}` |
+| `POST /capsules/{id}/regenerate` | `200` + `CapsuleOut` | `{capsule_id}` |
+| `POST /capsules/{id}/voice` | `200` + `CapsuleOut` | `{capsule_id}` |
+| `POST /school-year-subjects/{id}/generate-chapters` | `201` + `list[ChapterOut]` | `{chapter_ids}` |
+| `POST /chapters/{id}/generate-lessons` · `/extend-lessons` | `201` + `list[LessonOut]` | `{lesson_ids}` |
+| `POST /curriculum/skills-backfill/generate` | `200` + `SkillsBackfillPreview` | la prévisualisation |
+
+⚠️ **Les deux routes SRS partagent un seul `job_type`** (`srs_cards_generate`) : c'est le même
+travail à deux granularités, et deux types auraient coupé en deux l'historique qui sert à mesurer
+sa durée.
+
+⚠️ **`skills-backfill/generate` est le seul travail migré qui ne persiste RIEN** (ADR-0010) : sa
+prévisualisation EST sa sortie — aucun id à relire ensuite.
+
+🔴 **Les refus restent SYNCHRONES, y compris le `503` « clé cloud absente ».** Il venait de
+`Depends(get_curriculum_provider)` ; la dépendance est **conservée sur les quatre routes
+`curriculum_*` alors qu'elles ne s'en servent plus**, précisément pour que ce verdict tombe au clic.
+Un test l'a rendu nécessaire.
+
+🔴 **La dérogation cloud de l'ADR-0009 traverse la file.** `run_ai_job` passe le moteur **LOCAL** :
+les exécutants `curriculum_*` reprennent `get_curriculum_provider()` eux-mêmes. Une migration naïve
+l'aurait annulée en silence — même code, même sortie apparente, référentiel de bien moindre
+qualité. Verrou : `test_curriculum_utilise_le_provider_CLOUD_et_pas_le_local`, avec **le moteur
+local piégé** (l'appeler fait échouer le travail).

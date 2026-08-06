@@ -59,7 +59,9 @@ const RUN: JournalRun = {
   })),
 };
 
-const JOURNAL: Journal = { runs: [RUN], has_more: false, total: 1 };
+const JOURNAL: Journal = { runs: [RUN], travaux: [],
+  travaux_exclus: null,
+  has_more: false, total: 1 };
 
 function renderPage(url = "/journal") {
   return render(
@@ -180,7 +182,9 @@ describe("Journal — le filtre", () => {
   it("🔒 quand il ne garde RIEN, il dit pourquoi", async () => {
     // Un filtre qui rend vide sans s'expliquer est indiscernable d'une panne — c'est le signal
     // d'échec nommé par l'ADR. Deux causes existent par construction : elles sont nommées.
-    vi.mocked(fetchJournal).mockResolvedValue({ runs: [], has_more: false, total: 0 });
+    vi.mocked(fetchJournal).mockResolvedValue({ runs: [], travaux: [],
+  travaux_exclus: null,
+  has_more: false, total: 0 });
     renderPage("/journal?piece=mindmap");
 
     expect(await screen.findByText(/Aucun lot ne correspond/)).toBeInTheDocument();
@@ -190,7 +194,9 @@ describe("Journal — le filtre", () => {
 
   it("un journal vide SANS filtre ne raconte pas d'histoire de filtre", async () => {
     // La contre-épreuve : si l'explication s'affichait toujours, elle ne dirait rien.
-    vi.mocked(fetchJournal).mockResolvedValue({ runs: [], has_more: false, total: 0 });
+    vi.mocked(fetchJournal).mockResolvedValue({ runs: [], travaux: [],
+  travaux_exclus: null,
+  has_more: false, total: 0 });
     renderPage();
 
     expect(await screen.findByText(/Aucun lot de production pour l'instant/)).toBeInTheDocument();

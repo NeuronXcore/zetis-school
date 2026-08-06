@@ -582,3 +582,79 @@ Avant toute PR :
 5. un **échec provoqué** (worker arrêté) : « arrêté », jamais « 0 % », et il reste ;
 6. **responsive** — le header fait 112 px / 144 px ≥ `sm` et porte déjà deux pilules. Aucun contrôle
    responsive n'a été fait sur les trois derniers chantiers.
+
+---
+
+## Addendum — le Journal de production accueille les travaux unitaires (2026-08-06)
+
+**Statut : Accepté.** Décidé après la vérification à l'écran des slices B et C, sur une question du
+commanditaire : *« pourquoi cela n'apparaît-il pas dans le Journal de production ? »*
+
+### Le constat
+
+Le Journal (ADR-0034) est bâti **entièrement** sur `ProductionRun` + `ProductionEvent` :
+`journal.py` et `journal_router.py` ne référencent `AIJob` nulle part. Le §2 de cet ADR avait
+conservé deux modèles et unifié la lecture **uniquement dans `/activity`**, qui alimente la barre.
+
+Ce n'était pas une régression — avant la migration, ces quinze producteurs étaient synchrones et
+n'apparaissaient nulle part non plus. Mais c'est devenu une **incohérence visible** : un chantier
+qui s'appelle *tout ce qui produit se voit* ne peut pas laisser le registre historique ignorer les
+trois quarts de ce qui produit.
+
+### §16 — Le Journal lit les deux modèles, dans UN flux chronologique
+
+Un travail unitaire y entre comme une ligne à part entière, à sa date, mêlée aux lots.
+
+🔴 **La fusion se fait en SQL, jamais en Python.** Le Journal filtre, trie et pagine côté serveur —
+`WHERE` puis `ORDER BY` puis `LIMIT`, dans cet ordre, et l'addendum « tri et filtre » §2 dit
+pourquoi : *filtrer les lots déjà chargés répondrait « rien en maths » alors que les lots de maths
+sont page 4 — un défaut qui ne ressemble pas à un défaut.* Fusionner deux pages déjà chargées
+rouvrirait exactement ce défaut, en pire : la page 1 mélangerait les vingt lots les plus récents
+avec les vingt travaux les plus récents, et perdrait tout ce qui tombe entre les deux.
+
+La forme retenue est donc une **union légère pour l'ordre et la pagination** — `(kind, id, date)`
+sur les deux tables — suivie du chargement des seules lignes de la page. `total` et `has_more`
+portent sur l'union filtrée.
+
+### §17 — Ce qu'un travail unitaire porte au Journal, et ce qu'il NE PORTE PAS
+
+C'est le cœur de la décision, et elle applique la doctrine de l'ADR-0011 §F et de l'ADR-0040 :
+**ne jamais affirmer ce que l'évidence ne porte pas.**
+
+| | Un LOT | Un TRAVAIL unitaire |
+|---|---|---|
+| date, issue, durée | ✅ | ✅ |
+| ce qu'il fabriquait (libellé, notion) | ✅ | ✅ |
+| motif d'échec | via son journal | ✅ `error_message` |
+| **régime d'autonomie** (`zetis_mode`) | ✅ gravé au démarrage | ❌ **`null`** |
+| **provenance des pièces** (`validated_by`) | ✅ | ❌ |
+| **veto** (retirer ce qui a été produit) | ✅ | ❌ **impossible** |
+| **journal ligne à ligne** (`ProductionEvent`) | ✅ | ❌ |
+
+⚠️ **Le veto est le point dur, et il n'est pas négociable en l'état.** `DELETE /journal/pieces/…`
+s'appuie sur le tamponnage `production_run_id` posé sur chaque pièce produite. Un `AIJob` ne
+tamponne rien : on ne saurait pas quoi retirer. Une ligne de travail unitaire **n'offre donc aucun
+bouton de retrait** — et l'écran doit dire pourquoi plutôt que d'afficher un bouton inerte.
+
+⚠️ **`zetis_mode` reste `null`, jamais « manuel ».** Un travail hors lot est manuel *par
+construction* (§3.2), et il serait tentant de l'écrire. Ce serait confondre **l'origine** (qui a
+demandé) avec **le régime** (sous quelles règles ZETIS avait le droit de servir sans relecture) —
+deux choses que l'ADR-0034 a séparées exprès. L'origine, elle, s'affiche : elle est dérivée.
+
+### §18 — Les filtres que les travaux ne portent pas les ÉCARTENT, et l'écran le dit
+
+`piece`, `mode`, et le filtre par chapitre n'ont aucun sens sur un travail unitaire. Plutôt que de
+leur inventer une valeur, un filtre actif sur l'une de ces dimensions **ne rend que des lots**.
+
+⚠️ **Et la page l'annonce**, sinon Papa lirait une absence comme un vide : « ce filtre ne porte que
+sur les lots ». Une exclusion muette est la même faute qu'une troncature muette (§7).
+
+Le filtre par **matière** fait exception : il s'applique aux deux, via la notion du travail
+(`input_json.skill_id`). Un travail sans notion identifiable est écarté quand ce filtre est actif —
+même règle, même raison.
+
+### Ce que cet addendum ne fait pas
+
+Il **ne tamponne pas** les pièces produites hors lot, donc il n'ouvre pas le veto sur elles. C'est
+la seule voie vers un Journal réellement unifié — pièces comprises — et elle mérite son propre
+cadrage : elle touche le modèle de données, pas seulement une lecture.

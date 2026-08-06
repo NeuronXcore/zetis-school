@@ -56,14 +56,15 @@ def test_active_school_year_subjects(client_db) -> None:
     assert subject["subject_slug"]
 
 
-def test_validate_all_subject_batch(client_db) -> None:
+def test_validate_all_subject_batch(client_db, poster_et_executer) -> None:
     """Lot matière : `pending` → `validated` ; `rejected` et `manual` intouchés."""
     client, Session = client_db
     _as_papa()
     sys_id = _seed_year_subject(Session)
 
     # 3 générés pending (FakeLLMProvider) + 1 manuel (validé d'office).
-    client.post(f"/api/school-year-subjects/{sys_id}/generate-chapters")
+    # ⚠️ `202` depuis l'ADR-0041 §4 : la route accepte, le worker crée les chapitres.
+    poster_et_executer(client, Session, f"/api/school-year-subjects/{sys_id}/generate-chapters")
     client.post(f"/api/school-year-subjects/{sys_id}/chapters", json={"name": "Manuel"})
     chapters = client.get(f"/api/school-year-subjects/{sys_id}/chapters").json()
     # Un généré rejeté explicitement : le lot ne doit pas le repêcher.
@@ -86,7 +87,7 @@ def test_validate_all_subject_batch(client_db) -> None:
     assert client.post("/api/school-year-subjects/9999/chapters/validate-all").status_code == 404
 
 
-def test_validate_all_active_year_batch(client_db) -> None:
+def test_validate_all_active_year_batch(client_db, poster_et_executer) -> None:
     """Lot année : toutes les matières de l'année active d'un coup."""
     client, Session = client_db
     _as_papa()
@@ -105,8 +106,9 @@ def test_validate_all_active_year_batch(client_db) -> None:
         db.add(sys2)
         db.commit()
         sys2_id = sys2.id
-    client.post(f"/api/school-year-subjects/{sys_id}/generate-chapters")
-    client.post(f"/api/school-year-subjects/{sys2_id}/generate-chapters")
+    # ⚠️ `202` depuis l'ADR-0041 §4 : ces deux appels ne créent plus rien par eux-mêmes.
+    poster_et_executer(client, Session, f"/api/school-year-subjects/{sys_id}/generate-chapters")
+    poster_et_executer(client, Session, f"/api/school-year-subjects/{sys2_id}/generate-chapters")
 
     res = client.post("/api/school-years/active/chapters/validate-all")
     assert res.status_code == 200
@@ -116,15 +118,16 @@ def test_validate_all_active_year_batch(client_db) -> None:
         assert all(c["validation_status"] == "validated" for c in chapters)
 
 
-def test_generate_then_crud_flow(client_db) -> None:
+def test_generate_then_crud_flow(client_db, poster_et_executer) -> None:
     client, Session = client_db
     _as_papa()
     sys_id = _seed_year_subject(Session)
 
     # Passe 1 : génération (FakeLLMProvider via conftest → 3 chapitres déterministes).
-    res = client.post(f"/api/school-year-subjects/{sys_id}/generate-chapters")
-    assert res.status_code == 201
-    chapters = res.json()
+    # ⚠️ `202` depuis l'ADR-0041 §4 : la route accepte, le worker crée. On relit ensuite la liste —
+    # les assertions portent donc sur ce qui est RÉELLEMENT en base, pas sur un corps de réponse.
+    poster_et_executer(client, Session, f"/api/school-year-subjects/{sys_id}/generate-chapters")
+    chapters = client.get(f"/api/school-year-subjects/{sys_id}/chapters").json()
     assert len(chapters) == 3
     assert all(c["source"] == "generated" and c["validation_status"] == "pending" for c in chapters)
     assert all(c["program_version"] == "2020" for c in chapters)

@@ -83,13 +83,16 @@ def equip_notion(payload: EquipNotionRequest, db: Session = Depends(get_db)) -> 
     from datetime import datetime, timezone
 
     from app.core.queue import MESSAGE_FILE_INJOIGNABLE, QueueUnavailable, enqueue_ai_job
+    from app.modules.ai import travaux
     from app.db.models import AIJob
 
     job = AIJob(
         job_type="equip_notion",
         status="queued",
         input_json={"skill_id": payload.skill_id},
-        created_by="parent",
+        # ⚠️ Le marqueur de LIGNE DE FILE — sans lui, ce travail serait compté comme une trace
+        # et son estimation resterait bloquée sur l'amorce, en silence (`ai/travaux.py`).
+        created_by=travaux.ACTEUR_FILE,
         created_at=datetime.now(timezone.utc),
     )
     db.add(job)

@@ -65,24 +65,28 @@ def test_generate_endpoint_requires_parent(client_db) -> None:
     # La fixture injecte un utilisateur « child » → la route Papa doit répondre 403.
     client, _ = client_db
     r = client.post("/api/capsules/generate", json={"subject_id": 1, "instruction": "Explique."})
+    # ⚠️ `202` depuis l'ADR-0041 §4 — la capsule naît dans le worker, pas dans la requête.
     assert r.status_code == 403
 
 
-def test_generate_endpoint_http_flow_for_papa(client_db) -> None:
+def test_generate_endpoint_http_flow_for_papa(client_db, poster_et_executer) -> None:
     from app.main import app
     from app.modules.auth.deps import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: {"username": "papa", "role": "papa"}
-    client, _ = client_db
+    client, TestSession = client_db
 
-    r = client.post(
-        "/api/capsules/generate", json={"subject_id": 1, "instruction": "Explique les relatifs."}
-    )
-    assert r.status_code == 201, r.text
-    body = r.json()
+    # ⚠️ `202` depuis l'ADR-0041 §4 : la route accepte, le worker produit. On relit ensuite la
+    # capsule — le spec et le statut sont donc toujours vérifiés, sur l'état réel de la base.
+    cid = poster_et_executer(
+        client,
+        TestSession,
+        "/api/capsules/generate",
+        json={"subject_id": 1, "instruction": "Explique les relatifs."},
+    )["capsule_id"]
+    body = client.get(f"/api/capsules/{cid}").json()
     assert body["validation_status"] == "pending"
     assert body["spec"]["scenes"][0]["kind"] == "title"
-    cid = body["id"]
 
     assert any(c["id"] == cid for c in client.get("/api/capsules").json())
     assert client.post(f"/api/capsules/{cid}/validate").json()["validation_status"] == "validated"

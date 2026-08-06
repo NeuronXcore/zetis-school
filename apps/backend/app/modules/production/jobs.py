@@ -163,8 +163,129 @@ def _diagnostic_generate(db, payload: dict, llm, _embedder) -> dict:
     return {"quiz_id": quiz.id, "subject": matiere, "questions_count": nombre}
 
 
+def _srs_cards_generate(db, payload: dict, llm, embedder) -> dict:
+    """Cartes de révision — par MATIÈRE ou par NOTION, selon la charge (ADR-0041 §4).
+
+    Deux routes, un seul `job_type` : c'est le même travail à deux granularités, et leur donner
+    deux types aurait coupé en deux l'historique qui sert à mesurer la durée.
+    """
+    from app.modules.memory import generation
+
+    if "subject_id" in payload:
+        sortie = generation.reconcile_cards_for_subject(
+            db, llm, embedder, subject_id=int(payload["subject_id"])
+        )
+        return {"subject_id": int(payload["subject_id"]), **sortie}
+    sortie = generation.generate_cards_for_skill(
+        db, llm, embedder, skill_id=int(payload["skill_id"])
+    )
+    return {"skill_id": int(payload["skill_id"]), **sortie}
+
+
+def _capsule_generate(db, payload: dict, llm, _embedder) -> dict:
+    from app.modules.capsules import service
+
+    # ⚠️ **Les options ABSENTES ne sont pas passées.** `visual`, `duration` et `difficulty` ont des
+    # défauts NON nuls dans le service (`"auto"`, `"moyenne"`, `"moyen"`) : leur passer `None`
+    # parce que le payload ne les portait pas écraserait ces défauts. Un `payload.get(...)` naïf
+    # aurait produit une capsule différente de celle que la route produisait.
+    options = {
+        k: payload[k]
+        for k in ("level", "skill_id", "chapter_id", "visual", "duration", "difficulty")
+        if payload.get(k) is not None
+    }
+    capsule = service.create_capsule(
+        db, llm, int(payload["subject_id"]), payload["instruction"], **options
+    )
+    return {"capsule_id": capsule.id}
+
+
+def _capsule_regenerate(db, payload: dict, llm, _embedder) -> dict:
+    from app.modules.capsules import service
+
+    capsule = service.regenerate_capsule(
+        db,
+        llm,
+        int(payload["capsule_id"]),
+        instruction=payload.get("instruction"),
+        visual=payload.get("visual"),
+        duration=payload.get("duration"),
+        difficulty=payload.get("difficulty"),
+    )
+    return {"capsule_id": capsule.id}
+
+
+def _capsule_voice(db, payload: dict, _llm, _embedder) -> dict:
+    """⚠️ **Le seul exécutant qui n'utilise PAS le LLM.** Il lui faut un moteur TTS (Piper), que
+    `run_ai_job` ne passe pas — il le construit donc lui-même, exactement comme la route le
+    faisait via `Depends(get_tts)`. Élargir la signature des exécutants pour ce cas unique aurait
+    fait porter à tous une dépendance qu'un seul utilise."""
+    from app.modules.capsules import service
+    from app.modules.tts import get_tts
+
+    capsule = service.synthesize_voice(db, get_tts(), int(payload["capsule_id"]))
+    return {"capsule_id": capsule.id}
+
+
+def _curriculum_provider():
+    """🔴 **La dérogation cloud de l'ADR-0009, et elle ne se perd pas dans la migration.**
+
+    Les tâches `curriculum_*` (référentiel de programme) sont routées vers Anthropic
+    `claude-sonnet-5` — dérogation étroite, justifiée et bornée : zéro donnée de Massimo dans ces
+    prompts, tâche one-shot de Papa. Or `run_ai_job` passe `get_provider()`, c'est-à-dire le moteur
+    **LOCAL**. Un exécutant qui se contenterait de son argument `llm` aurait donc **silencieusement
+    annulé la dérogation** — même code, même sortie apparente, référentiel de bien moindre qualité,
+    et aucun test pour le dire.
+    """
+    from app.modules.curriculum import get_curriculum_provider
+
+    return get_curriculum_provider()
+
+
+def _curriculum_chapters(db, payload: dict, _llm, _embedder) -> dict:
+    from app.modules.curriculum import service
+
+    crees = service.generate_chapters(
+        db, _curriculum_provider(), int(payload["school_year_subject_id"])
+    )
+    return {
+        "school_year_subject_id": int(payload["school_year_subject_id"]),
+        "chapter_ids": [c.id for c in crees],
+    }
+
+
+def _curriculum_lessons(db, payload: dict, _llm, _embedder) -> dict:
+    from app.modules.curriculum import service
+
+    lecons = service.generate_lessons(
+        db,
+        _curriculum_provider(),
+        int(payload["chapter_id"]),
+        mode=payload.get("mode", "replace"),
+    )
+    return {"chapter_id": int(payload["chapter_id"]), "lesson_ids": [l.id for l in lecons]}
+
+
+def _curriculum_skills_backfill(db, payload: dict, _llm, _embedder) -> dict:
+    """⚠️ Ne persiste RIEN (ADR-0010) : la prévisualisation vit dans `output_json` du travail, et
+    c'est très exactement ce que la route rendait. Un flux sans persistance n'a pas d'id à relire —
+    sa sortie EST son résultat."""
+    from app.modules.curriculum import service
+
+    return service.generate_skills_backfill(
+        db, _curriculum_provider(), int(payload["subject_id"]), payload["level"]
+    )
+
+
 # `job_type` → l'exécutant, qui reçoit `input_json`.
 _EXECUTANTS = {
+    "srs_cards_generate": _srs_cards_generate,
+    "capsule_generate": _capsule_generate,
+    "capsule_regenerate": _capsule_regenerate,
+    "capsule_voice": _capsule_voice,
+    "curriculum_chapters": _curriculum_chapters,
+    "curriculum_lessons": _curriculum_lessons,
+    "curriculum_skills_backfill": _curriculum_skills_backfill,
     "equip_notion": _equip_notion,
     "fiche_generate": _fiche_generate,
     "fiche_regenerate": _fiche_regenerate,

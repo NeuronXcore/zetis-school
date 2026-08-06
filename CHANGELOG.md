@@ -96,10 +96,25 @@ qu'un verrou doit être : un interdit à zéro, sans liste d'exceptions. Les **q
 rougissent (le troisième ne rougissait pas au premier jet — un `toContain` qui trouvait le champ
 dans un commentaire ; cinquième occurrence de ce motif dans le dépôt).
 
+### Le dernier lot : SRS, capsules et `curriculum_*` entrent dans la file
+
+Sept routes de plus en `202` — cartes de révision (par matière et par notion), capsule (script,
+régénération, **voix**), chapitres, leçons, extension de leçons, rattrapage skills-only. **Quinze
+producteurs LLM longs sont désormais dans la file**, et le §4 est complet.
+
+- ⚠️ **La voix est le seul travail migré qui n'appelle pas le LLM** : son exécutant construit Piper
+  lui-même, `run_ai_job` ne passant qu'un moteur de génération.
+- ⚠️ **Le rattrapage skills-only ne persiste RIEN** (ADR-0010) : sa prévisualisation EST sa sortie.
+- 🔴 **La dérogation cloud de l'ADR-0009 a failli disparaître dans la migration.** `run_ai_job`
+  passe le moteur **LOCAL** : un exécutant `curriculum_*` qui se serait contenté de son argument
+  aurait produit le référentiel de programme avec Ollama au lieu d'Anthropic — même code, même
+  sortie apparente, aucun test pour le dire. Les exécutants reprennent le bon provider, et un verrou
+  le vérifie **avec le moteur local piégé**.
+- 🔴 **Retirer une dépendance FastAPI retire aussi ce qu'elle LÈVE.** Le `503` « clé cloud absente »
+  venait de `Depends(get_curriculum_provider)`, pas du corps de la route. La dépendance est
+  conservée comme **précondition** sur les quatre routes `curriculum_*`.
+
 ⚠️ **Ce qui reste ouvert, et c'est exact plutôt que flatteur** :
-- **trois groupes de producteurs non migrés en file** — cartes SRS, capsules (script et voix),
-  `curriculum_*`. Leurs barres lisent déjà la mesure du serveur ; c'est leur **exécution** qui reste
-  synchrone ;
 - **une barre estime encore localement** : l'analyse par matière, seul producteur LLM du dépôt qui
   n'écrit **aucune trace `ai_jobs`** — il n'y a donc rien à mesurer. La tracer d'abord ;
 - **rien n'a été vérifié à l'écran** pour les slices B et C.

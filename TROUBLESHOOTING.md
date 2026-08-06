@@ -2988,3 +2988,93 @@ lot-PIÈCE **retrouvé au retour sur la page** perdait sa barre (`DemandesPage.t
 **Parade** : `run_out` porte `estimated_ms`. ⚠️ Généraliser : retirer une estimation locale oblige
 à vérifier que **chaque vue** du même objet porte la mesure — deux vues qui ne portent pas les
 mêmes champs finissent par diverger.
+
+### 🔴 Migrer `curriculum_*` en file annule la dérogation cloud — en silence
+
+`run_ai_job` passe `get_provider()`, c'est-à-dire le moteur **LOCAL**. Un exécutant `curriculum_*`
+qui se contenterait de son argument `llm` produirait un référentiel de programme avec Ollama au lieu
+d'Anthropic (ADR-0009) : même code, même sortie apparente, aucun test pour le dire.
+**Parade** : les exécutants appellent `get_curriculum_provider()` eux-mêmes
+(`jobs._curriculum_provider`), et un verrou le vérifie **avec le moteur local piégé** — l'appeler
+fait échouer le travail. Affirmer seulement « le cloud a été appelé » aurait laissé passer un
+exécutant qui appelle les deux.
+
+⚠️ **Corollaire pour `conftest`** : le fixture `executer_travail` doit mocker
+`curriculum.get_curriculum_provider` ET `tts.get_tts`. Le worker n'a **aucune dépendance FastAPI** :
+les surcharges de `client_db` ne l'atteignent pas, et l'oubli ferait partir un vrai appel Anthropic
+depuis la suite de tests.
+
+### Retirer une dépendance FastAPI peut retirer un REFUS
+
+`skills-backfill/generate` rendait `503` quand la clé cloud manquait — via `Depends(get_curriculum_provider)`,
+pas via le corps de la route. La migration a supprimé la dépendance devenue inutile… et le refus
+avec. Papa aurait obtenu `202` sur un clic qui ne pouvait pas aboutir.
+**Parade** : garder la dépendance comme **précondition**, avec un nom qui le dit (`_cloud`) et le
+commentaire qui l'explique. ⚠️ Généraliser : avant de retirer un `Depends`, se demander **ce qu'il
+lève**, pas seulement ce qu'il rend.
+
+### Un helper de test qui affirme `202` ne convient pas aux tests de REFUS
+
+`poster_et_executer` affirme le `202` — c'est voulu (une route repassée en synchrone rougit ici).
+Mais le test du `409` sur chapitre non validé doit appeler la route **directement** : passer par le
+helper aurait masqué le contrat qu'il vérifie.
+
+---
+
+## Vérification À L'ÉCRAN de l'ADR-0041 (slices B + C) — 2026-08-06
+
+Contrôle réel : backend `:8000`, front Papa `:5174`, worker de production, génération de cartes SRS
+par matière. **Quatre choses trouvées, dont trois défauts de code.**
+
+### 🔴 Un `SimpleWorker` RQ ne recharge JAMAIS le code — et l'écran accuse le code
+
+Trois workers tournaient : deux récents, un de **163 minutes**, démarré avant l'ajout de
+`_srs_cards_generate` à `_EXECUTANTS`. Le premier clic est tombé sur un worker à jour et a réussi ;
+le second sur le périmé, qui a répondu **« Aucun exécutant pour "srs_cards_generate" »** — un
+message qui se lit exactement comme un bug de la migration.
+**Parade** : après toute modification de `_EXECUTANTS` (ou de tout code que le worker exécute),
+**redémarrer TOUS les workers**. `uvicorn --reload` recharge le backend, pas eux. ⚠️ Et vérifier
+qu'il n'en traîne pas d'anciens : `Worker.all(queue=...)` avec leur `birth_date`.
+
+### 🔴 L'estimation comptait les traces IMBRIQUÉES, et sous-estimait d'un facteur 8
+
+Mesuré en vrai : une génération de cartes par matière = **un travail de file de 53,6 s** contenant
+**quatre traces de 5 à 6 s**. Les traces portent le même `job_type` et sont beaucoup plus
+nombreuses : la statistique servait **7,2 s**. La barre a atteint 100 % au bout de sept secondes et
+**traîné quarante-six secondes** — le défaut que le §9 nommait avant même ce chantier.
+**Parade** : `enfiler()` marque ses lignes `created_by="file"` (`travaux.ACTEUR_FILE`), et
+`estimations()` ne compte **que** celles-là. ⚠️ Conséquence assumée : un type sans cinq exécutions
+de file sert son amorce, même avec des centaines de traces en base — une trace mesure un appel, pas
+le travail que la barre montre.
+
+### 🔴 La médiane ne décrit rien sur une population MULTIMODALE
+
+`equip_notion` : sur 18 exécutions, huit à ~0 s (notion déjà équipée), cinq à ~7 s (kit partiel),
+cinq de 31 à 86 s (kit complet). Médiane = **7 s** pour un travail qui en dure **69 à 77**.
+**Parade** : le **p75** avec un **plancher de 2 s** (un travail plus court que la période de
+sondage n'a jamais eu de barre, il ne peut rien lui apprendre). Rend 76,9 s — la mesure réelle.
+Et sous-estimer est le pire des deux sens : une barre trop courte *traîne*.
+
+### 🔴 Le header parlait technique à Papa
+
+`LIBELLE_JOB` ne portait qu'`equip_notion` ; le repli « un mot technique vaut mieux qu'une barre
+anonyme » était juste avec UN producteur migré, il est devenu le cas général avec quinze. Le header
+a affiché **« srs_cards_generate »** en toutes lettres.
+**Parade** : la table couvre les dix-huit types. ⚠️ **À ne pas confondre avec le motif d'échec**,
+dont la traduction a été explicitement écartée le même jour : un motif sert à savoir quoi réparer,
+un libellé dit ce qui se passe.
+
+### ✅ Ce que l'écran a CONFIRMÉ
+
+- **Les deux barres disent la même chose** : header `≈ 62 %` / page `64 %` sur le même travail, un
+  tic de sondage d'écart. C'est la promesse du §9, tenue.
+- **`GET /production/estimations` est bien appelé** par la page, et sert des durées mesurées.
+- **L'échec reste, avec son motif brut, et « J'ai vu » l'efface** — `acknowledged_at` écrit en base,
+  donc l'acquittement ne revient sur aucun appareil (§8).
+- **Le header est vide quand rien ne tourne**, et la pilule paraît au clic (§7).
+
+### ⚠️ Piège d'environnement : le front `:5175` sans `VITE_API_URL`
+
+Un Vite orphelin sur `:5175` tape sur `:8000` par défaut, dont le CORS n'autorise que `:5173` et
+`:5174` → **« Failed to fetch »** au login, sans message clair. C'est la paire qui compte, pas le
+port : voir la mémoire `zetis-serveurs-dev-ports`.

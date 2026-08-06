@@ -263,7 +263,7 @@ def test_generate_endpoints_are_parent_only(client_db):
     assert client.get("/api/memory/cards/overview").status_code == 403
 
 
-def test_overview_tree_preview_and_actions(client_db):
+def test_overview_tree_preview_and_actions(client_db, poster_et_executer):
     client, TestSession = client_db
     db = TestSession()
     _, skill_id = _seed_lesson(db)
@@ -280,7 +280,10 @@ def test_overview_tree_preview_and_actions(client_db):
     assert subj0["to_generate"] >= 1 and subj0["active_cards"] == 0
 
     # Générer la matière → notion « ok », cartes actives, aperçu recto/verso disponible.
-    gen = client.post(f"/api/memory/cards/subjects/{subject_id}/generate").json()
+    # ⚠️ `202` depuis l'ADR-0041 §4 : la route accepte, le worker produit. Le compte-rendu
+    # (`created`) est la SORTIE du travail — l'assertion porte donc toujours sur ce qui a
+    # réellement été créé.
+    gen = poster_et_executer(client, TestSession, f"/api/memory/cards/subjects/{subject_id}/generate")
     assert gen["created"] == 2
     tree2 = client.get(f"/api/memory/cards/subjects/{subject_id}").json()
     n2 = [n for ch in tree2["chapters"] for le in ch["lessons"] for n in le["notions"] if n["skill_id"] == skill_id][0]

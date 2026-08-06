@@ -296,8 +296,41 @@ export interface JournalRun {
 
 /** ⚠️ Aucun total de provenance, aucun ratio ZETIS/Papa (§F.2) : la provenance est un fait,
  *  jamais un reproche — elle s'affiche par objet et ne se totalise pas. */
+/** Un TRAVAIL unitaire au Journal (addendum ADR-0041 §17) — ce qu'il sait, et rien de plus.
+ *
+ *  ⚠️ **Ni `zetis_mode`, ni `pieces`, ni `events`, donc aucun veto.** Ce n'est pas un oubli : un
+ *  `AIJob` ne grave aucun régime d'autonomie et ne tamponne aucune pièce produite. L'écran ne doit
+ *  offrir aucun bouton de retrait sur ces lignes — il ne pourrait rien retirer. */
+export interface JournalTravail {
+  id: number;
+  job_type: string;
+  /** Le mot que Papa lit (« Cartes de révision · Mitose »), jamais le `job_type`. */
+  label: string;
+  status: "queued" | "running" | "stale" | "succeeded" | "failed";
+  /** L'ORIGINE, pas le régime : hors lot ⇒ `manual` par construction (§3.2). */
+  trigger: string;
+  skill_id: number | null;
+  skill_name: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_ms: number | null;
+  /** Le motif d'échec, **tel quel** — décision du 2026-08-06, il ne se traduit pas. */
+  error: string | null;
+}
+
 export interface Journal {
   runs: JournalRun[];
+  /** Les travaux unitaires de LA MÊME page (addendum ADR-0041 §16) — à entrelacer par date.
+   *
+   *  ⚠️ Rendus à part plutôt que mêlés à `runs` : un travail ne porte **ni régime, ni pièces, ni
+   *  journal ligne à ligne** (§17), et le glisser dans `JournalRun` l'obligerait à faire semblant.
+   *  Les entrelacer côté écran n'est pas un tri côté client : la page est déjà la bonne, découpée
+   *  en SQL sur l'union des deux modèles. */
+  travaux: JournalTravail[];
+  /** Pourquoi les travaux sont absents, quand un filtre les écarte (§18) — `null` sinon.
+   *  ⚠️ À AFFICHER : une exclusion muette se lit comme un vide. */
+  travaux_exclus: string | null;
   has_more: boolean;
   /** Le nombre de lots RETENUS par le filtre — jamais celui de l'histoire entière.
    *

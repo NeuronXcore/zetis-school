@@ -370,3 +370,170 @@ def jobs_run(job_id: int) -> dict:
     from app.modules.production.jobs import run_ai_job
 
     return run_ai_job(job_id)
+
+
+# --- §4 — ce que la migration en file ne doit PAS perdre --------------------------------------
+
+
+def test_curriculum_utilise_le_provider_CLOUD_et_pas_le_local(client_db, monkeypatch) -> None:
+    """🔒 **La dérogation ADR-0009 survit à la migration en file.**
+
+    Les tâches `curriculum_*` sont routées vers Anthropic `claude-sonnet-5` — dérogation étroite et
+    bornée : zéro donnée de Massimo dans ces prompts. Or `run_ai_job` passe `get_provider()`,
+    c'est-à-dire le moteur **LOCAL**. Un exécutant qui se contenterait de son argument `llm` aurait
+    donc **silencieusement annulé la dérogation** : même code, même sortie apparente, référentiel de
+    bien moindre qualité, et aucun test pour le dire.
+
+    ⚠️ **La contre-épreuve est le moteur local PIÉGÉ.** Affirmer seulement « le provider cloud a
+    été appelé » laisserait passer un exécutant qui appellerait les deux. Ici, toucher au local
+    fait échouer le travail.
+    """
+    from app.tests.fakes import FakeLLMProvider
+    from app.tests.test_curriculum_api import _seed_year_subject
+
+    _, Session = client_db
+    sys_id = _seed_year_subject(Session)
+
+    appels_cloud: list[int] = []
+
+    class _CloudFactice(FakeLLMProvider):
+        def generate(self, *a, **kw):  # noqa: D102
+            appels_cloud.append(1)
+            return super().generate(*a, **kw)
+
+    class _LocalPiege:
+        def generate(self, *_a, **_kw):
+            raise AssertionError(
+                "la dérogation cloud ADR-0009 est perdue : `curriculum_*` a appelé le moteur LOCAL"
+            )
+
+    import app.db.base as base
+    import app.modules.ai as ai
+    import app.modules.curriculum as curriculum
+
+    monkeypatch.setattr(base, "SessionLocal", Session)
+    monkeypatch.setattr(ai, "get_provider", lambda: _LocalPiege())
+    monkeypatch.setattr(ai, "get_embedder", lambda: None)
+    monkeypatch.setattr(curriculum, "get_curriculum_provider", lambda: _CloudFactice())
+
+    with Session() as db:
+        jid = _travail(
+            db,
+            job_type="curriculum_chapters",
+            input_json={"school_year_subject_id": sys_id},
+        ).id
+
+    sortie = jobs_run(jid)
+
+    assert appels_cloud, "le provider CLOUD n'a pas été appelé du tout"
+    assert sortie.get("chapter_ids"), f"le travail n'a rien produit : {sortie}"
+    with Session() as db:
+        assert db.get(m.AIJob, jid).status == "succeeded"
+
+
+# --- Addendum §16-§18 — le Journal accueille les travaux unitaires ------------------------------
+
+
+def _travail_de_file(db, **kw) -> m.AIJob:
+    """Un travail tel que `travaux.enfiler` le crée — **avec son marqueur de file**."""
+    from app.modules.ai.travaux import ACTEUR_FILE
+
+    return _travail(db, created_by=ACTEUR_FILE, **kw)
+
+
+def test_le_journal_montre_les_travaux_unitaires(client_db) -> None:
+    """🔒 Un travail hors lot apparaît au Journal, avec son libellé de Papa.
+
+    C'est la question qui a ouvert l'addendum : le Journal était bâti sur `ProductionRun` seul, donc
+    quinze producteurs sur dix-huit n'y laissaient aucune trace — dans un chantier qui s'appelle
+    « tout ce qui produit se voit ».
+    """
+    client, Session = client_db
+    with Session() as db:
+        _travail_de_file(db, status="succeeded", duration_ms=53_600)
+    _as_papa()
+
+    corps = client.get("/api/production/journal").json()
+
+    assert len(corps["travaux"]) == 1, "le travail unitaire n'apparaît pas au Journal"
+    t = corps["travaux"][0]
+    assert t["label"].startswith("Équipement"), f"libellé technique : {t['label']}"
+    assert t["trigger"] == "manual"  # l'ORIGINE, dérivée (§3.2)
+    assert corps["travaux_exclus"] is None
+
+
+def test_un_travail_ne_porte_NI_regime_NI_veto(client_db) -> None:
+    """🔒 **Le verrou du §17.** Un travail ne fait pas semblant d'être un lot.
+
+    ⚠️ Il serait tentant d'écrire `zetis_mode: "manuel"` — un travail hors lot EST manuel par
+    construction. Ce serait confondre l'**origine** (qui a demandé) avec le **régime** (sous quelles
+    règles ZETIS pouvait servir sans relecture), que l'ADR-0034 sépare exprès.
+
+    ⚠️ Et aucune pièce, donc aucun veto : le retrait s'appuie sur le tamponnage `production_run_id`
+    des objets produits, qu'un `AIJob` ne pose pas. Un bouton de retrait serait inerte.
+    """
+    client, Session = client_db
+    with Session() as db:
+        _travail_de_file(db, status="succeeded")
+    _as_papa()
+
+    t = client.get("/api/production/journal").json()["travaux"][0]
+
+    for interdit in ("zetis_mode", "zetis_mode_source", "pieces", "events"):
+        assert interdit not in t, (
+            f"`{interdit}` ne doit pas exister sur un travail : l'écran afficherait une case vide "
+            "là où il n'y a rien à savoir, ou un retrait qui ne peut rien retirer"
+        )
+
+
+def test_un_filtre_que_les_travaux_ne_portent_pas_les_ecarte_ET_LE_DIT(client_db) -> None:
+    """🔒 **Le verrou du §18.** Une exclusion muette se lit comme un vide.
+
+    `piece`, `mode` et le chapitre n'ont aucun sens sur un travail unitaire. Plutôt que de lui
+    inventer une valeur, on l'écarte — et la page l'annonce, en nommant LA DIMENSION. « Ce filtre ne
+    porte que sur les lots » laisserait Papa chercher lequel.
+    """
+    client, Session = client_db
+    with Session() as db:
+        _travail_de_file(db, status="succeeded")
+    _as_papa()
+
+    corps = client.get("/api/production/journal?piece=fiche").json()
+
+    assert corps["travaux"] == [], "un filtre par pièce ne doit rendre que des lots"
+    assert corps["travaux_exclus"], "l'exclusion est muette — Papa lira un vide"
+    assert "pièce" in corps["travaux_exclus"]
+
+
+def test_les_TRACES_nentrent_pas_au_journal(client_db) -> None:
+    """🔒 Une trace n'est pas un travail que Papa a demandé — c'est un appel LLM à l'intérieur.
+
+    Mesuré en base : 143 traces `srs_cards_generate` pour une poignée de gestes. Les faire entrer
+    noierait le Journal, et la même confusion faisait déjà mentir l'estimation d'un facteur 8.
+    """
+    client, Session = client_db
+    with Session() as db:
+        _travail(db, status="succeeded", created_by="parent")  # une TRACE : pas le marqueur de file
+    _as_papa()
+
+    assert client.get("/api/production/journal").json()["travaux"] == []
+
+
+def test_la_pagination_porte_sur_LUNION_des_deux_modeles(client_db) -> None:
+    """🔒 **Le verrou du §16.** Paginer chaque modèle à part perdrait ce qui tombe entre les deux.
+
+    Douze travaux, une page de cinq : le total doit être douze, pas cinq — et une seconde page doit
+    exister. Une pagination faite sur les lots seuls rendrait `total = 0` alors que la page est
+    pleine, c'est-à-dire « un défaut qui ne ressemble pas à un défaut ».
+    """
+    client, Session = client_db
+    with Session() as db:
+        for _ in range(12):
+            _travail_de_file(db, status="succeeded")
+    _as_papa()
+
+    page = client.get("/api/production/journal?limit=5").json()
+
+    assert len(page["travaux"]) == 5
+    assert page["total"] == 12, "le total ne porte pas sur l'union"
+    assert page["has_more"] is True

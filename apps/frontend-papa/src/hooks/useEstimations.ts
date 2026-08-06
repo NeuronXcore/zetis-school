@@ -27,18 +27,44 @@ import { asJson, authHeader } from "../lib/httpClient";
  *  chaque montage d'une modale referait la requête — et il y a douze surfaces concernées. */
 let cache: Record<string, number> | null = null;
 let enVol: Promise<Record<string, number>> | null = null;
+/** 🔴 **L'échec se retient, sinon il se répète.** Constaté en direct le 2026-08-06 : le backend a
+ *  reçu `GET /production/estimations` en rafale, quatorze fois en quelques secondes, depuis quatre
+ *  ports. Cause : `enVol` était remis à `null` dans un `finally`, donc **chaque montage de
+ *  composant relançait la requête** — et il y a seize barres réparties sur vingt-deux pages, que la
+ *  navigation démonte et remonte sans cesse. Le `catch` silencieux du hook masquait la boucle.
+ *
+ *  Une seule tentative par chargement de page. Si elle échoue (401 sur un onglet déconnecté,
+ *  backend éteint), on sert `{}` : les barres deviennent **indéterminées**, ce qui est honnête —
+ *  cette table est un confort d'affichage, pas une donnée. */
+let echoue = false;
 
 export async function fetchEstimations(): Promise<Record<string, number>> {
   if (cache) return cache;
+  if (echoue) return {};
   // ⚠️ Une seule requête même si dix composants montent dans le même tic : on partage la promesse.
   enVol ??= asJson<Record<string, number>>(
     await fetch(`${API_URL}/api/production/estimations`, { headers: authHeader() }),
   )
-    .then((t) => (cache = t))
-    .finally(() => {
+    .then((t) => {
+      cache = t;
       enVol = null;
+      return t;
+    })
+    .catch((e) => {
+      // ⚠️ `enVol` n'est PAS remis à `null` avant d'avoir armé `echoue` : sans ça, un montage
+      // concurrent repartirait pour un tour et la rafale reprendrait.
+      echoue = true;
+      enVol = null;
+      throw e;
     });
   return enVol;
+}
+
+/** Uniquement pour les tests : repart d'un cache vide, échec compris. */
+export function _reinitialiserPourTest(): void {
+  cache = null;
+  enVol = null;
+  echoue = false;
 }
 
 /** Les durées attendues par `job_type`. `{}` tant que la réponse n'est pas là.

@@ -13,6 +13,7 @@ import {
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
+import { lancerEtSuivre, type SuiviTravail } from "./travaux";
 
 const BASE = `${API_URL}/api/memory/cards`;
 
@@ -27,19 +28,28 @@ export async function fetchSubjectTree(subjectId: number): Promise<SrsSubjectTre
 }
 
 /** Réconciliation par matière (génère les notions cibles + suspend les orphelines). */
-export async function generateSubjectCards(subjectId: number): Promise<SrsSubjectGenerateResult> {
-  return asJson(
-    await fetch(`${BASE}/subjects/${subjectId}/generate`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+export async function generateSubjectCards(
+  subjectId: number,
+  onEtat?: SuiviTravail,
+): Promise<SrsSubjectGenerateResult> {
+  // 202 + sondage (ADR-0041 §4). ⚠️ La sortie du travail EST le compte-rendu d'autrefois
+  // (`created`, `skipped`…) : rien n'a été perdu, tout a été déplacé.
+  return lancerEtSuivre<SrsSubjectGenerateResult>(
+    `${BASE}/subjects/${subjectId}/generate`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
 }
 
 /** Génération / relance / régénération unitaire d'une notion. */
-export async function generateSkillCards(skillId: number): Promise<SrsSkillGenerateResult> {
-  return asJson(
-    await fetch(`${BASE}/skills/${skillId}/generate`, { method: "POST", headers: authHeader() }),
+export async function generateSkillCards(
+  skillId: number,
+  onEtat?: SuiviTravail,
+): Promise<SrsSkillGenerateResult> {
+  return lancerEtSuivre<SrsSkillGenerateResult>(
+    `${BASE}/skills/${skillId}/generate`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
 }
 

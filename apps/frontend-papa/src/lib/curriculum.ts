@@ -56,13 +56,18 @@ export async function fetchChapters(sysId: number): Promise<CurriculumChapter[]>
 }
 
 /** Passe 1 (appel cloud synchrone ~10-30 s) : remplace les générés non validés. */
-export async function generateChapters(sysId: number): Promise<CurriculumChapter[]> {
-  return asJson(
-    await fetch(`${API_URL}/api/school-year-subjects/${sysId}/generate-chapters`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+export async function generateChapters(
+  sysId: number,
+  onEtat?: SuiviTravail,
+): Promise<CurriculumChapter[]> {
+  // 202 + sondage (ADR-0041 §4). ⚠️ Le `503` « clé cloud absente » et le `404` restent
+  // SYNCHRONES : la file diffère le travail, jamais le verdict sur la demande.
+  await lancerEtSuivre<{ chapter_ids: number[] }>(
+    `${API_URL}/api/school-year-subjects/${sysId}/generate-chapters`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
+  return fetchChapters(sysId);
 }
 
 export async function createManualChapter(
@@ -153,25 +158,32 @@ export async function fetchLessons(chapterId: number): Promise<CurriculumLesson[
 
 /** Passe 2 (appel cloud synchrone ~10-30 s) : 409 si le chapitre n'est ni validé ni
  *  manuel. Renvoie la liste complète des leçons du chapitre après génération. */
-export async function generateLessons(chapterId: number): Promise<CurriculumLesson[]> {
-  return asJson(
-    await fetch(`${API_URL}/api/chapters/${chapterId}/generate-lessons`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+export async function generateLessons(
+  chapterId: number,
+  onEtat?: SuiviTravail,
+): Promise<CurriculumLesson[]> {
+  // 202 + sondage (ADR-0041 §4). ⚠️ Le `409` (chapitre ni validé ni manuel) reste SYNCHRONE.
+  await lancerEtSuivre<{ lesson_ids: number[] }>(
+    `${API_URL}/api/chapters/${chapterId}/generate-lessons`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
+  return fetchLessons(chapterId);
 }
 
 /** Extension (appel cloud synchrone ~10-30 s) : complète la liste SANS rien supprimer
  *  (brouillons inclus) — l'existant est injecté dans le prompt, doublons écartés.
  *  Mêmes préconditions que la passe 2 (409 sinon). Renvoie la liste complète. */
-export async function extendLessons(chapterId: number): Promise<CurriculumLesson[]> {
-  return asJson(
-    await fetch(`${API_URL}/api/chapters/${chapterId}/extend-lessons`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+export async function extendLessons(
+  chapterId: number,
+  onEtat?: SuiviTravail,
+): Promise<CurriculumLesson[]> {
+  await lancerEtSuivre<{ lesson_ids: number[] }>(
+    `${API_URL}/api/chapters/${chapterId}/extend-lessons`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
+  return fetchLessons(chapterId);
 }
 
 export async function createManualLesson(
@@ -289,13 +301,18 @@ export async function reorderLessons(
 export async function generateSkillsBackfill(
   subjectId: number,
   level: string,
+  onEtat?: SuiviTravail,
 ): Promise<SkillsBackfillPreview> {
-  return asJson(
-    await fetch(`${API_URL}/api/curriculum/skills-backfill/generate`, {
+  // 202 + sondage (ADR-0041 §4). ⚠️ **Ce travail ne persiste RIEN** (ADR-0010) : sa
+  // prévisualisation EST sa sortie — il n'y a aucun id à relire, contrairement aux autres.
+  return lancerEtSuivre<SkillsBackfillPreview>(
+    `${API_URL}/api/curriculum/skills-backfill/generate`,
+    {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ subject_id: subjectId, level }),
-    }),
+    },
+    onEtat,
   );
 }
 

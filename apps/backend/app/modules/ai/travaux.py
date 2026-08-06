@@ -18,8 +18,22 @@ et la valeur en dur ne sert plus que d'**amorce**, tant qu'il n'y a pas assez d'
 apprend ses propres durées. Une amorce fausse se corrige toute seule après quelques exécutions, au
 lieu de mentir jusqu'à ce que quelqu'un la remarque — ce qui, mesuré, n'arrivait pas.
 
-⚠️ **La médiane, pas la moyenne.** Un travail qui a attendu Massimo ou tapé dans un `job_timeout`
-tire une moyenne vers le haut de façon permanente. La médiane ignore ces queues.
+🔴 **Le TROISIÈME quartile, pas la médiane — et surtout pas la moyenne.** Corrigé le 2026-08-06 en
+regardant la vraie base, avant même l'écran. Trois raisons, dans cet ordre :
+
+1. **La médiane a donné 7 s pour `equip_notion`, dont la durée réelle est 69-77 s** (mesurée deux
+   fois). La population est **multimodale** : sur 18 exécutions, huit avaient duré ~0 s (la notion
+   était déjà équipée, rien à produire), cinq ~7 s (kit partiel), cinq 31 à 86 s (kit complet).
+   Une médiane sur une telle population ne décrit aucun cas réel. Le p75 rend **76,9 s**.
+2. **Sous-estimer est le pire des deux sens.** Une barre trop courte atteint 100 % puis *traîne*
+   pendant que le travail continue — c'est le défaut nommé dans `SCOPE_MS` bien avant ce chantier :
+   « sur-estimer fait terminer la barre en avance ; elle ne traîne jamais après la fin ».
+3. **La moyenne reste exclue** : un travail qui a attendu Massimo ou tapé dans son `job_timeout` la
+   tirerait vers le haut de façon permanente. Le p75 ignore cette queue-là comme la médiane.
+
+⚠️ **Et un PLANCHER de 2 s.** Un travail plus court que la période de sondage n'a jamais eu de
+barre — il ne peut donc rien apprendre à une barre. Sans ce plancher, les équipements no-op
+comptaient dans la statistique de ceux qui produisent vraiment.
 
 🔵 **Les clés sont celles des TRACES qui existent déjà.** `_run_traced` écrit un `AIJob` à chaque
 appel LLM depuis la création de la table : `fiche_generate`, `mindmap_generate`, `quiz_generate`,
@@ -30,12 +44,21 @@ migrés**. ⚠️ Trois amorces divergeaient de ces noms au premier jet (`srs_ca
 `council_report`) : elles auraient rendu l'amorce éternelle **en silence**, puisqu'aucune ligne
 n'aurait jamais porté ces clés-là. Toute amorce ajoutée ici doit être **le `job_type` réel**.
 
-⚠️ **Approximation assumée, à connaître avant d'y toucher** : pour un producteur migré, DEUX lignes
-portent le même `job_type` — celle de la file (le travail entier) et celle de la trace (l'appel LLM
-qu'elle contient). La médiane les mélange, donc elle sous-estime un peu quand un producteur fait
-plusieurs appels. C'est accepté : les deux mesurent le même travail, à un emboîtement près. Si
-l'écart devenait visible à l'écran, le remède est un discriminant sur la ligne de file — pas un
-réglage à la main, qui rouvrirait la divergence que tout ceci vient de fermer.
+🔴 **On ne compte QUE les lignes de FILE (`created_by="file"`), et c'est un correctif payé À
+L'ÉCRAN le 2026-08-06.** Une version antérieure comptait toutes les lignes d'un `job_type`. Or pour
+un producteur migré il y en a de **deux natures** : celle de la file (le travail entier) et les
+traces que le service écrit à chaque appel LLM qu'il contient. Elles portent le même `job_type` et
+les traces sont **beaucoup plus nombreuses**.
+
+Mesuré en vrai sur une génération de cartes d'une matière : le travail de file a duré **53,6 s**,
+ses quatre traces imbriquées **5 à 6 s chacune**. La statistique, dominée par les traces, servait
+**7,2 s** — la barre a donc atteint 100 % au bout de sept secondes et **traîné quarante-six
+secondes**. C'est très exactement le défaut que le §9 nommait avant ce chantier :
+« sur-estimer fait terminer la barre en avance ; elle ne traîne jamais après la fin ».
+
+⚠️ **Conséquence à connaître** : un type qui n'a pas encore cinq exécutions **de file** sert son
+amorce, même si la table contient des centaines de traces. C'est voulu — une trace mesure un appel,
+pas le travail que la barre montre.
 
 ## 🔴 Pourquoi ce module vit dans `ai/` et non dans `production/`
 
@@ -55,7 +78,7 @@ tous depuis toujours (`get_provider`, `get_embedder`). La dépendance va donc da
 existait déjà. Aucun cycle, en substance et pas seulement à la lettre.
 """
 
-from statistics import median
+from statistics import quantiles
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -93,9 +116,16 @@ AMORCES_MS: dict[str, int] = {
     "capsule_render_v2": 75_000,
 }
 
-# En dessous, la médiane n'est pas une mesure mais un accident : un seul travail lent la fixerait
-# pour tout le monde. Au-dessus, elle est plus vraie que n'importe quelle valeur écrite à la main.
+# En dessous, la statistique n'est pas une mesure mais un accident : un seul travail lent la
+# fixerait pour tout le monde. Au-dessus, elle est plus vraie que n'importe quelle valeur écrite à
+# la main.
 MINIMUM_POUR_MESURER = 5
+
+# 🔴 Plancher : un travail plus court que la période de sondage de la barre (2 à 4 s) n'a jamais eu
+# de barre — il ne peut donc rien lui apprendre. Sans lui, les huit équipements **no-op** relevés
+# en base (~0 s, la notion était déjà équipée) écrasaient la statistique de ceux qui produisent
+# vraiment : 7 s annoncées pour un travail de 69 s.
+PLANCHER_MS = 2_000
 
 # Fenêtre de l'historique lu. Bornée pour que la lecture reste à coût constant, et **récente** :
 # une amélioration du modèle ou du matériel doit se voir dans l'estimation, pas être noyée.
@@ -115,20 +145,27 @@ def estimations(db: Session) -> dict[str, int]:
     """
     lignes = db.execute(
         select(AIJob.job_type, AIJob.duration_ms)
-        .where(AIJob.status == "succeeded", AIJob.duration_ms.is_not(None))
+        .where(
+            AIJob.status == "succeeded",
+            AIJob.duration_ms.is_not(None),
+            # 🔴 Les lignes de FILE seulement — voir l'en-tête : compter les traces imbriquées
+            # faisait annoncer 7 s pour un travail de 54 s.
+            AIJob.created_by == ACTEUR_FILE,
+        )
         .order_by(AIJob.id.desc())
         .limit(DERNIERS_TRAVAUX)
     ).all()
 
     par_type: dict[str, list[int]] = {}
     for job_type, duree in lignes:
-        if duree and duree > 0:
+        if duree and duree >= PLANCHER_MS:
             par_type.setdefault(job_type, []).append(duree)
 
     out = dict(AMORCES_MS)
     for job_type, durees in par_type.items():
         if len(durees) >= MINIMUM_POUR_MESURER:
-            out[job_type] = int(median(durees))
+            # `quantiles(n=4)` rend les trois quartiles ; `[2]` est le p75.
+            out[job_type] = int(quantiles(sorted(durees), n=4)[2])
     return out
 
 
@@ -137,7 +174,19 @@ def estimation_ms(estimations_connues: dict[str, int], job_type: str) -> int:
     return estimations_connues.get(job_type) or AMORCES_MS.get(job_type) or DEFAUT_MS
 
 
-def enfiler(db: Session, *, job_type: str, payload: dict, created_by: str = "parent") -> dict:
+# 🔴 Le marqueur qui distingue une ligne de FILE d'une trace (voir l'en-tête). `created_by` porte
+# l'ACTEUR : celui d'un travail de file est le **worker de production**, pas la requête HTTP qui l'a
+# demandé — exactement comme `"worker-media"` pour le rendu vidéo. Ce n'est donc pas un détournement
+# du champ, c'est son usage.
+#
+# ⚠️ Tout créateur de ligne de file doit poser cette valeur, sinon son travail sera compté comme une
+# trace et son estimation restera bloquée sur l'amorce, **en silence**.
+ACTEUR_FILE = "file"
+
+
+def enfiler(
+    db: Session, *, job_type: str, payload: dict, created_by: str = ACTEUR_FILE
+) -> dict:
     """Crée le travail, le **commite**, l'enfile — et le **supprime** si la file refuse.
 
     Le patron de la route `equip-notion` (ADR-0041 §3), écrit une seule fois pour les quinze

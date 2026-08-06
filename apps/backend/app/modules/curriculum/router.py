@@ -60,22 +60,32 @@ def active_school_year_subjects(db: Session = Depends(get_db)) -> dict:
 
 @router.post(
     "/school-year-subjects/{school_year_subject_id}/generate-chapters",
-    response_model=list[CurriculumChapterOut],
-    status_code=status.HTTP_201_CREATED,
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def generate_chapters(
     school_year_subject_id: int,
     db: Session = Depends(get_db),
-    llm: LLMProvider = Depends(get_curriculum_provider),
-) -> list[dict]:
-    """Passe 1 : génère les chapitres de la matière (chapitres `pending`, à valider)."""
-    try:
-        created = service.generate_chapters(db, llm, school_year_subject_id)
-    except service.CurriculumGenerationError as exc:
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
-        ) from exc
-    return [service.chapter_out(c) for c in created]
+    _cloud: LLMProvider = Depends(get_curriculum_provider),
+) -> dict:
+    """Passe 1 : demande les chapitres. **202 — acceptée, pas exécutée** (ADR-0041 §4).
+
+    🔴 **Le moteur reste la dérogation CLOUD** (`get_curriculum_provider`, ADR-0009) — le
+    référentiel de programme ne porte aucune donnée de Massimo. `run_ai_job` passe le moteur
+    LOCAL : c'est l'exécutant qui reprend le bon provider, et son docstring dit pourquoi. Une
+    migration naïve aurait annulé la dérogation en silence.
+    """
+    # 🔴 **La dépendance est GARDÉE alors que la route ne s'en sert plus, et c'est délibéré.**
+    # `get_curriculum_provider` lève un `503` quand la clé cloud est absente (ADR-0009). La retirer
+    # en migrant aurait rendu `202` à un clic qui ne pouvait pas aboutir, puis un travail en échec
+    # deux minutes plus tard — la file diffère le TRAVAIL, jamais le VERDICT sur la demande. Un test
+    # l'a prouvé nécessaire (`test_generate_returns_503_without_api_key`).
+    service._sys_or_404(db, school_year_subject_id)
+    return travaux.enfiler(
+        db,
+        job_type="curriculum_chapters",
+        payload={"school_year_subject_id": school_year_subject_id},
+    )
 
 
 @router.get(
@@ -180,47 +190,73 @@ def delete_chapter(chapter_id: int, db: Session = Depends(get_db)) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _chapitre_generable_ou_409(db: Session, chapter_id: int) -> None:
+    """Le gate BON MARCHÉ de la passe 2, rejoué AVANT d'enfiler (ADR-0041 §4).
+
+    ⚠️ **La file diffère le TRAVAIL, jamais le VERDICT sur la demande.** Un chapitre ni validé ni
+    manuel doit être refusé au clic, pas rapporté deux minutes plus tard comme un travail en échec.
+    Le service refait le même contrôle de son côté : entre le clic et l'exécution, le chapitre a pu
+    être dévalidé. La double vérification est voulue.
+
+    Écrit une fois pour `generate-lessons` ET `extend-lessons` : deux copies du même refus auraient
+    divergé au premier ajustement de son message.
+    """
+    chapitre = service._chapter_or_404(db, chapter_id)
+    if not (chapitre.validation_status == "validated" or chapitre.source == "manual"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Chapitre {chapter_id} ni validé ni manuel "
+                f"(source={chapitre.source}, validation_status={chapitre.validation_status}) : "
+                "valide-le d'abord pour générer ses leçons (ADR-0009 §1)."
+            ),
+        )
+
+
 @router.post(
     "/chapters/{chapter_id}/generate-lessons",
-    response_model=list[CurriculumLessonOut],
-    status_code=status.HTTP_201_CREATED,
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def generate_lessons(
     chapter_id: int,
     db: Session = Depends(get_db),
-    llm: LLMProvider = Depends(get_curriculum_provider),
-) -> list[dict]:
-    """Passe 2 (requête longue synchrone, ~10-30 s) : génère les leçons du chapitre
-    (validé ou manuel uniquement, sinon 409) et renvoie la liste complète après génération."""
-    try:
-        lessons = service.generate_lessons(db, llm, chapter_id)
-    except service.CurriculumGenerationError as exc:
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
-        ) from exc
-    return service.lessons_out(db, lessons)
+    _cloud: LLMProvider = Depends(get_curriculum_provider),
+) -> dict:
+    """Passe 2 : demande les leçons du chapitre. **202** (ADR-0041 §4).
+
+    ⚠️ Le `409` (chapitre ni validé ni manuel, ADR-0009 §1) reste SYNCHRONE — la file diffère le
+    travail, jamais le verdict sur la demande. Moteur cloud préservé : voir `generate_chapters`.
+    """
+    # 🔴 **La dépendance est GARDÉE alors que la route ne s'en sert plus, et c'est délibéré.**
+    # `get_curriculum_provider` lève un `503` quand la clé cloud est absente (ADR-0009). La retirer
+    # en migrant aurait rendu `202` à un clic qui ne pouvait pas aboutir, puis un travail en échec
+    # deux minutes plus tard — la file diffère le TRAVAIL, jamais le VERDICT sur la demande. Un test
+    # l'a prouvé nécessaire (`test_generate_returns_503_without_api_key`).
+    _chapitre_generable_ou_409(db, chapter_id)
+    return travaux.enfiler(
+        db, job_type="curriculum_lessons", payload={"chapter_id": chapter_id}
+    )
 
 
 @router.post(
     "/chapters/{chapter_id}/extend-lessons",
-    response_model=list[CurriculumLessonOut],
-    status_code=status.HTTP_201_CREATED,
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def extend_lessons(
     chapter_id: int,
     db: Session = Depends(get_db),
-    llm: LLMProvider = Depends(get_curriculum_provider),
-) -> list[dict]:
-    """Complète la liste de leçons SANS rien supprimer (brouillons inclus) : l'existant
-    est injecté dans le prompt et les doublons de titre sont écartés. Mêmes préconditions
-    que la passe 2 (chapitre validé ou manuel, sinon 409) ; requête longue ~10-30 s."""
-    try:
-        lessons = service.generate_lessons(db, llm, chapter_id, mode="extend")
-    except service.CurriculumGenerationError as exc:
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
-        ) from exc
-    return service.lessons_out(db, lessons)
+    _cloud: LLMProvider = Depends(get_curriculum_provider),
+) -> dict:
+    """Complète la liste SANS rien supprimer. **202** (ADR-0041 §4) — mêmes préconditions que la
+    passe 2, et le même `job_type` : c'est le même travail à un `mode` près."""
+    _chapitre_generable_ou_409(db, chapter_id)
+    return travaux.enfiler(
+        db,
+        job_type="curriculum_lessons",
+        payload={"chapter_id": chapter_id, "mode": "extend"},
+    )
 
 
 @router.get("/chapters/{chapter_id}/lessons", response_model=list[CurriculumLessonOut])
@@ -334,21 +370,36 @@ def delete_lesson(lesson_id: int, db: Session = Depends(get_db)) -> None:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/curriculum/skills-backfill/generate", response_model=SkillsBackfillPreview)
+@router.post(
+    "/curriculum/skills-backfill/generate",
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def skills_backfill_generate(
     payload: SkillsBackfillGenerateRequest,
     db: Session = Depends(get_db),
-    llm: LLMProvider = Depends(get_curriculum_provider),
+    _cloud: LLMProvider = Depends(get_curriculum_provider),
 ) -> dict:
-    """Enchaîne passes 1 et 2 EN MÉMOIRE et renvoie la prévisualisation des notions du
-    niveau demandé (aucune persistance) — requête longue synchrone (~6-9 appels LLM).
-    400 si le niveau est hors cycle 4 ; 503 si la clé cloud est absente (via la dépendance)."""
-    try:
-        return service.generate_skills_backfill(db, llm, payload.subject_id, payload.level)
-    except service.CurriculumGenerationError as exc:
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
-        ) from exc
+    """Demande le rattrapage skills-only. **202 — accepté, pas exécuté** (ADR-0041 §4).
+
+    ⚠️ **Ce travail ne persiste RIEN** (ADR-0010) : sa prévisualisation EST sa sortie, et se lit
+    donc dans `output` quand il est `succeeded` — il n'y a aucun id à relire ensuite.
+
+    Le `400` (niveau hors cycle 4) reste SYNCHRONE : la file diffère le travail, jamais le verdict.
+    Moteur cloud préservé — voir `generate_chapters`.
+    """
+    # 🔴 **La dépendance est GARDÉE alors que la route ne s'en sert plus, et c'est délibéré.**
+    # `get_curriculum_provider` lève un `503` quand la clé cloud est absente (ADR-0009). La retirer
+    # en migrant aurait rendu `202` à un clic qui ne pouvait pas aboutir, puis un travail en échec
+    # deux minutes plus tard — la file diffère le TRAVAIL, jamais le VERDICT sur la demande. Un test
+    # l'a prouvé nécessaire (`test_generate_returns_503_without_api_key`).
+    service._require_cycle4_level(payload.level)
+    service._subject_or_404(db, payload.subject_id)
+    return travaux.enfiler(
+        db,
+        job_type="curriculum_skills_backfill",
+        payload={"subject_id": payload.subject_id, "level": payload.level},
+    )
 
 
 @router.post("/curriculum/skills-backfill/confirm", response_model=SkillsBackfillConfirmResult)

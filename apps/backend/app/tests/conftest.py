@@ -104,14 +104,43 @@ def executer_travail(monkeypatch):
     def _executer(session_factory, job_id: int) -> dict:
         import app.db.base as base
         import app.modules.ai as ai
+        import app.modules.curriculum as curriculum
+        import app.modules.tts as tts
         from app.modules.production.jobs import run_ai_job
 
         monkeypatch.setattr(base, "SessionLocal", session_factory)
         monkeypatch.setattr(ai, "get_provider", lambda: FakeLLMProvider())
         monkeypatch.setattr(ai, "get_embedder", lambda: FakeEmbeddingProvider())
+        # ⚠️ **Le provider `curriculum_*` est mocké À PART**, comme `client_db` le fait pour la
+        # requête HTTP : c'est la dérogation cloud de l'ADR-0009, et un test ne doit appeler
+        # Anthropic sous aucun prétexte. Son exécutant le construit lui-même (le worker n'a aucune
+        # dépendance FastAPI) — l'oublier ferait partir un vrai appel réseau depuis la suite.
+        monkeypatch.setattr(curriculum, "get_curriculum_provider", lambda: FakeLLMProvider())
+        # Idem pour Piper : `capsule_voice` est le seul travail migré qui n'appelle pas le LLM.
+        monkeypatch.setattr(tts, "get_tts", lambda: FakeTtsProvider())
         return run_ai_job(job_id)
 
     return _executer
+
+
+@pytest.fixture()
+def poster_et_executer(executer_travail):
+    """`POST` sur une route migrée, **puis** exécution du travail. Rend sa SORTIE.
+
+    Le geste que douze tests répètent depuis que les routes rendent `202` : sans l'exécution, un
+    `202` en test ne produit rien (les files sont factices), et les assertions sur ce qui a été
+    produit deviendraient invérifiables.
+
+    ⚠️ Il **affirme le 202** : une route qui repasserait en synchrone sans qu'on s'en aperçoive
+    ferait rougir ici, pas ailleurs.
+    """
+
+    def _poster(client, session_factory, url: str, **kwargs) -> dict:
+        reponse = client.post(url, **kwargs)
+        assert reponse.status_code == 202, reponse.text
+        return executer_travail(session_factory, reponse.json()["job_id"])
+
+    return _poster
 
 
 @pytest.fixture()

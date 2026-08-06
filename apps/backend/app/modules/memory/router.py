@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.modules.ai import get_embedder, get_provider
+from app.modules.ai import get_embedder, get_provider, travaux
+from app.modules.ai.schemas import TravailAccepteOut
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.eli5.service import get_default_student
@@ -116,24 +117,28 @@ def subject_cards_tree(subject_id: int, db: Session = Depends(get_db)) -> dict:
     return generation.subject_tree(db, subject_id)
 
 
-@parent_router.post("/subjects/{subject_id}/generate", response_model=SubjectGenerateResult)
-def generate_subject(
-    subject_id: int,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> dict:
-    return generation.reconcile_cards_for_subject(db, provider, embedder, subject_id=subject_id)
+@parent_router.post(
+    "/subjects/{subject_id}/generate",
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def generate_subject(subject_id: int, db: Session = Depends(get_db)) -> dict:
+    """Papa : demande les cartes d'une matière. **202 — acceptée, pas exécutée** (ADR-0041 §4).
+
+    Le compte-rendu (`created`, `skipped`…) se lit dans `output` quand le travail est `succeeded`.
+    """
+    return travaux.enfiler(db, job_type="srs_cards_generate", payload={"subject_id": subject_id})
 
 
-@parent_router.post("/skills/{skill_id}/generate", response_model=SkillGenerateResult)
-def generate_skill(
-    skill_id: int,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> dict:
-    return generation.generate_cards_for_skill(db, provider, embedder, skill_id=skill_id)
+@parent_router.post(
+    "/skills/{skill_id}/generate",
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def generate_skill(skill_id: int, db: Session = Depends(get_db)) -> dict:
+    """202 — voir `generate_subject`. Même `job_type` : c'est le même travail, à une granularité
+    près, et deux types auraient coupé en deux l'historique qui sert à en mesurer la durée."""
+    return travaux.enfiler(db, job_type="srs_cards_generate", payload={"skill_id": skill_id})
 
 
 @parent_router.get("/skills/{skill_id}/cards", response_model=list[CardContent])

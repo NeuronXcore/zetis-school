@@ -343,3 +343,78 @@ def selectionner(db: Session, filtre: JournalFiltre, *, maintenant: datetime) ->
     j = _alias()
     stmt = appliquer(select(ProductionRun), db, filtre, j, maintenant=maintenant)
     return ordonner(stmt, filtre, j)
+
+
+# --- Les travaux unitaires au Journal (addendum ADR-0041 §16-§18) -------------------------------
+
+
+def travaux_admis(filtre: JournalFiltre) -> bool:
+    """Ce filtre laisse-t-il passer les travaux unitaires ? (§18)
+
+    🔴 **Un travail ne porte pas toutes les dimensions d'un lot**, et on ne lui en invente aucune :
+    `piece`, `mode` et le chapitre n'ont **aucun sens** sur un `AIJob`. Un filtre actif sur l'une
+    d'elles ne rend donc que des lots — et l'écran l'annonce, sinon Papa lirait une exclusion comme
+    un vide (même faute qu'une troncature muette, §7).
+
+    ⚠️ **Le TRI suit la même règle, et pour la même raison.** Trier par matière, par mode ou par
+    statut suppose des colonnes qu'un travail n'a pas ; le mêler au flux le placerait n'importe où.
+    Seul le tri par date range les deux modèles sur la même échelle.
+
+    ⚠️ La matière, elle, **passe** : elle se lit sur la notion du travail (`input_json.skill_id`).
+    C'est le seul filtre commun aux deux, et le plus utilisé.
+    """
+    return not (filtre.pieces or filtre.modes or filtre.chapter_ids) and filtre.tri == "date"
+
+
+def raison_exclusion(filtre: JournalFiltre) -> str | None:
+    """La phrase que l'écran affiche quand un filtre écarte les travaux — ou `None`.
+
+    Elle nomme **la dimension**, pas le fait : « ce filtre ne porte que sur les lots » laisserait
+    Papa chercher lequel."""
+    if filtre.pieces:
+        return "Le filtre par pièce ne porte que sur les lots : un travail unitaire n'en déclare pas."
+    if filtre.modes:
+        return "Le filtre par régime ne porte que sur les lots : un travail unitaire n'en grave aucun."
+    if filtre.chapter_ids:
+        return "Le filtre par chapitre ne porte que sur les lots : un travail unitaire vise une notion."
+    if filtre.tri != "date":
+        return "Ce tri ne porte que sur les lots — seule la date range les deux sur la même échelle."
+    return None
+
+
+def selectionner_travaux(filtre: JournalFiltre) -> "Select | None":
+    """`(id, created_at)` des travaux unitaires retenus — ou `None` si le filtre les écarte.
+
+    ⚠️ **Les TRACES sont exclues** (`created_by == ACTEUR_FILE`) : elles ne sont pas des travaux
+    que Papa a demandés, ce sont des appels LLM à l'intérieur d'un travail. Les faire entrer au
+    Journal le noierait — 143 traces pour une poignée de gestes, mesuré en base.
+    """
+    from app.db.models import AIJob, Skill
+    from app.modules.ai.travaux import ACTEUR_FILE
+
+    if not travaux_admis(filtre):
+        return None
+
+    stmt = select(AIJob.id, AIJob.created_at).where(AIJob.created_by == ACTEUR_FILE)
+    if filtre.depuis:
+        stmt = stmt.where(
+            AIJob.created_at >= datetime.combine(filtre.depuis, time.min, timezone.utc)
+        )
+    if filtre.jusqu_a:
+        stmt = stmt.where(
+            AIJob.created_at <= datetime.combine(filtre.jusqu_a, time.max, timezone.utc)
+        )
+    if filtre.statuts:
+        # ⚠️ `stale` est une LECTURE, pas un statut stocké — il ne peut pas se filtrer en SQL.
+        # Le demander écarte donc les travaux plutôt que d'en rendre au hasard.
+        if "stale" in filtre.statuts:
+            return None
+        stmt = stmt.where(AIJob.status.in_(filtre.statuts))
+    if filtre.subject_ids:
+        # La matière d'un travail se lit sur SA notion. Un travail sans notion identifiable est
+        # écarté quand ce filtre est actif — on ne devine pas une matière (§18).
+        ids = select(Skill.id).where(Skill.subject_id.in_(filtre.subject_ids))
+        stmt = stmt.where(
+            AIJob.input_json["skill_id"].as_integer().in_(ids)  # type: ignore[index]
+        )
+    return stmt

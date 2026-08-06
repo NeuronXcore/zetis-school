@@ -44,9 +44,39 @@ from app.modules.production import journal, runs, sweep
 # `running` (`journal.run_status`), pas une valeur stockée.
 ACTIF = ("queued", "running")
 
-# Le mot que Papa lit, par type de travail. Un `job_type` inconnu se rend par son propre nom :
-# un mot technique vaut mieux qu'une barre anonyme.
-LIBELLE_JOB = {"equip_notion": "Équipement"}
+# Le mot que Papa lit, par type de travail.
+#
+# 🔴 **Complété le 2026-08-06 en le voyant à l'écran.** Cette table ne portait qu'`equip_notion`,
+# avec ce motif : « un `job_type` inconnu se rend par son propre nom — un mot technique vaut mieux
+# qu'une barre anonyme ». C'était vrai avec UN producteur migré ; avec quinze, le repli est devenu
+# le cas général et le header a annoncé **« srs_cards_generate »** à Papa, en toutes lettres.
+#
+# ⚠️ **Ce n'est PAS le motif d'échec**, dont la traduction a été explicitement écartée le même jour
+# (`docs/frontend-papa/barre-de-production.md`) : un motif sert à savoir quoi réparer. Ici c'est le
+# NOM de ce qui est en train de se faire — le §7 demande qu'il se lise.
+#
+# Le repli sur le nom brut reste : il vaut toujours mieux qu'une barre anonyme, et il signale
+# qu'un type a été ajouté sans sa ligne ici.
+LIBELLE_JOB = {
+    "equip_notion": "Équipement",
+    "lesson_content": "Rédaction du cours",
+    "fiche_generate": "Fiche",
+    "fiche_regenerate": "Fiche (régénération)",
+    "mindmap_generate": "Carte mentale",
+    "mindmap_regenerate": "Carte mentale (régénération)",
+    "quiz_generate": "Quiz",
+    "quiz_regenerate": "Quiz (régénération)",
+    "srs_cards_generate": "Cartes de révision",
+    "diagnostic_generate": "Diagnostic",
+    "capsule_generate": "Capsule",
+    "capsule_regenerate": "Capsule (régénération)",
+    "capsule_voice": "Voix de la capsule",
+    "capsule_render_v2": "Rendu vidéo",
+    "curriculum_chapters": "Chapitres du programme",
+    "curriculum_lessons": "Leçons du chapitre",
+    "curriculum_skills_backfill": "Rattrapage de notions",
+    "council_generate": "Conseil de classe",
+}
 
 # Le mot que Papa lit, par pièce d'un lot-pièce.
 LIBELLE_PIECE = {
@@ -77,7 +107,7 @@ def _titres_de_chapitres(db: Session, ids: list[int]) -> dict[int, str]:
 PIECE_VERS_TYPE = {
     "cours": "lesson_content",
     "fiche": "fiche_generate",
-    "srs": "srs_cards",
+    "srs": "srs_cards_generate",
     "quiz": "quiz_generate",
     "mindmap": "mindmap_generate",
 }

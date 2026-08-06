@@ -134,7 +134,7 @@ def test_list_published_filters_validated_with_video(client_db, tmp_path, monkey
         assert no_video.id not in ids
 
 
-def test_massimo_library_and_video_stream(client_db, tmp_path, monkeypatch) -> None:
+def test_massimo_library_and_video_stream(client_db, tmp_path, monkeypatch, poster_et_executer) -> None:
     monkeypatch.setattr(settings, "audio_storage_dir", str(tmp_path))
     monkeypatch.setattr(settings, "storage_backend", "disk")
     # Valider enfile désormais le rendu (rendu auto) : on mocke la file (aucun Redis en test).
@@ -147,10 +147,15 @@ def test_massimo_library_and_video_stream(client_db, tmp_path, monkeypatch) -> N
     app.dependency_overrides[get_current_user] = lambda: {"username": "papa", "role": "papa"}
     client, Session = client_db
     try:
-        cid = client.post(
-            "/api/capsules/generate", json={"subject_id": 1, "instruction": "Explique."}
-        ).json()["id"]
-        client.post(f"/api/capsules/{cid}/voice")
+        # ⚠️ `202` sur generate et voice depuis l'ADR-0041 §4 : ce test porte sur la BIBLIOTHÈQUE
+        # de Massimo et le flux vidéo, pas sur le mode d'exécution — on joue donc les travaux.
+        cid = poster_et_executer(
+            client,
+            Session,
+            "/api/capsules/generate",
+            json={"subject_id": 1, "instruction": "Explique."},
+        )["capsule_id"]
+        poster_et_executer(client, Session, f"/api/capsules/{cid}/voice")
         client.post(f"/api/capsules/{cid}/validate")
 
         # Simule le worker : MP4 déposé + capsule publiée.
