@@ -1,6 +1,8 @@
 """Conseil de classe IA (ADR-0020) — narration locale sur évidence, ancrage `skill_id`
 anti-hallucination, dégradation gracieuse, Papa-only, pont Commander."""
 
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 
 import app.db.models as m
@@ -425,7 +427,134 @@ def test_l_evolution_recente_est_ECRASEE_quand_l_evidence_ne_porte_aucune_bascul
     assert fige[0]["recent_evolution"] is None, (
         "le rapport FIGÉ ne doit pas conserver la phrase inventée — c'est lui qu'on relira"
     )
-    assert version == "v3", "la marque de lecture de l'écran se dérive de cette version"
+    # ⚠️ Cette assertion épinglait le LITTÉRAL `"v3"` jusqu'au 2026-08-06, où le Lot 3 a fait
+    # bouger le prompt vers v4. Un littéral n'est pas un verrou : il rougit à chaque édition du
+    # prompt, pour une raison qui n'a rien à voir avec ce que le test protège. Ce qui compte est le
+    # PRÉDICAT que l'écran applique (`n < 3` ⇒ « rédigée sans historique daté ») : ce rapport-ci ne
+    # doit jamais porter cette marque.
+    numero = int(version.removeprefix("v").split(".")[0])
+    assert numero >= 3, "la marque de lecture de l'écran se dérive de cette version"
+
+
+def _seed_bascules(Session, skill_id: int) -> list[str]:
+    """Trois bascules datées sur une notion. Rend leurs dates ISO, de la plus RÉCENTE à la plus
+    ancienne — l'ordre que `mastery_transitions` garantit."""
+    with Session() as db:
+        student = db.scalar(select(m.StudentProfile))
+        for jour, statut in ((10, "weak"), (20, "learning"), (28, "solid")):
+            db.add(
+                m.SkillMasteryHistory(
+                    student_id=student.id,
+                    skill_id=skill_id,
+                    status=statut,
+                    mastery_score=jour,
+                    changed_at=datetime(2026, 7, jour, 9, 0, tzinfo=timezone.utc),
+                )
+            )
+        db.commit()
+    return ["2026-07-28", "2026-07-20", "2026-07-10"]
+
+
+def test_le_conseil_CITE_les_bascules_datees_et_aucune_autre(client_db) -> None:
+    """Le livrable du Lot 3 (adr-0040 §8) : la narration porte des dates RÉELLES, mesurées.
+
+    🔴 Les trois assertions qui comptent :
+      · les bascules servies sont exactement celles de l'évidence, dans leur ordre, avec leurs
+        vraies dates — le modèle n'en produit AUCUNE, il ne rend qu'un commentaire ;
+      · `since` vaut `history_since` et NON `period` (§9) — deux bornes distinctes qui ne
+        partagent pas un nom ;
+      · `since` figure dans le SNAPSHOT figé (§8.3), sans quoi un rapport relu dans six mois
+        serait indiscernable d'un rapport sans borne.
+    """
+    client, Session = client_db
+    sujet_a, skill_a, _sujet_b, _skill_b = _seed_deux_matieres(Session)
+    dates = _seed_bascules(Session, skill_a)
+    _as_parent()
+    _fake_council(sujet_a, "Mathématiques", skill_a)
+    # Le modèle commente ; il ne date rien.
+    app.dependency_overrides[get_provider] = lambda: FakeLLMProvider(
+        council={
+            "global_summary": "Synthèse.",
+            "subjects": [
+                {
+                    "subject_id": sujet_a,
+                    "subject_name": "Mathématiques",
+                    "strengths": "",
+                    "to_reinforce": "",
+                    "recent_evolution": "Montée régulière sur la trace disponible depuis le 10/07.",
+                    "recommendations": [
+                        {"skill_ids": [skill_a], "template_hint": "", "justification": "x"}
+                    ],
+                }
+            ],
+        }
+    )
+
+    body = client.post("/api/reports/class-council", json={"subject_id": sujet_a}).json()
+    evolution = body["subjects"][0]["recent_evolution"]
+
+    assert evolution is not None, "une matière qui PORTE des bascules doit les raconter"
+    assert [t["changed_at"] for t in evolution["transitions"]] == dates
+    assert [t["to"] for t in evolution["transitions"]] == ["solid", "learning", "weak"]
+    # `from` est calculé par FENÊTRAGE : la plus ANCIENNE bascule n'a pas de palier de départ, et
+    # prétendre le connaître serait une invention.
+    assert evolution["transitions"][-1]["from"] is None
+    assert evolution["transitions"][0]["from"] == "learning"
+    assert evolution["comment"], "le commentaire du modèle est la seule part qui lui revient"
+
+    # `since` = la borne de TRACE, jamais l'étiquette `period` (§9).
+    assert evolution["since"] == "2026-07-10"
+    assert evolution["since"] != body["period"]
+
+    with Session() as db:
+        rapport = db.scalar(select(m.CouncilReport).order_by(m.CouncilReport.id.desc()))
+        assert rapport.evidence_snapshot_json["trace"]["since"] == "2026-07-10", (
+            "sans `since` au snapshot, un rapport relu dans six mois ne dit plus sur quoi il portait"
+        )
+        assert rapport.subjects_json[0]["recent_evolution"]["transitions"], (
+            "c'est le FIGÉ qu'on relira — un ancrage fait à la sérialisation laisserait la base muette"
+        )
+
+
+def test_une_matiere_SANS_bascule_garde_son_evolution_nulle_meme_avec_une_voisine_qui_en_a(
+    client_db,
+) -> None:
+    """L'écrasement du Lot 0 tient MATIÈRE PAR MATIÈRE, pas globalement.
+
+    Le défaut qu'on prévient : dès qu'UNE matière porte des bascules, il serait tentant de traiter
+    « il y a de la trace » comme un état du rapport. Ce serait rouvrir le trou par la fenêtre — la
+    voisine, elle, n'a rien bougé, et sa prose serait de nouveau figée comme vraie.
+    """
+    client, Session = client_db
+    sujet_a, skill_a, sujet_b, skill_b = _seed_deux_matieres(Session)
+    _seed_bascules(Session, skill_a)  # A bouge, B ne bouge pas
+    _as_parent()
+    app.dependency_overrides[get_provider] = lambda: FakeLLMProvider(
+        council={
+            "global_summary": "Synthèse.",
+            "subjects": [
+                {
+                    "subject_id": s_id,
+                    "subject_name": nom,
+                    "strengths": "",
+                    "to_reinforce": "",
+                    "recent_evolution": "Nette progression ces dernières semaines.",
+                    "recommendations": [
+                        {"skill_ids": [sk], "template_hint": "", "justification": "x"}
+                    ],
+                }
+                for s_id, nom, sk in ((sujet_a, "Mathématiques", skill_a), (sujet_b, "SVT", skill_b))
+            ],
+        }
+    )
+
+    body = client.post("/api/reports/class-council", json={}).json()
+    par_matiere = {s["subject_id"]: s["recent_evolution"] for s in body["subjects"]}
+
+    assert par_matiere[sujet_a] is not None and par_matiere[sujet_a]["transitions"]
+    assert par_matiere[sujet_b] is None, (
+        "la matière sans bascule garde son évolution nulle, même quand sa voisine en porte"
+    )
 
 
 def test_le_conseil_GLOBAL_reste_inchange(client_db) -> None:

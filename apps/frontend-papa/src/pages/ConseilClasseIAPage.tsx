@@ -5,7 +5,13 @@ import { PageHeader } from "../components/PageHeader";
 import { FOCUS_RING, useFocusTarget } from "../hooks/useFocusTarget";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
 import { type Equipping, useCouncilClass } from "../hooks/useCouncilClass";
-import { type CouncilRecommendation, reportToMarkdown } from "../lib/councilClass";
+import {
+  type CouncilRecommendation,
+  type CouncilSubject,
+  estEvolutionDatee,
+  libelleTransition,
+  reportToMarkdown,
+} from "../lib/councilClass";
 import { COUNCIL_PERIOD_LABEL, isDashboardPeriod } from "../lib/dashboardDerive";
 import type { Subject } from "../lib/subjects";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -261,6 +267,69 @@ function evolutionSansHistoriqueDate(promptVersion: string): boolean {
   return Number.isFinite(n) && n < 3;
 }
 
+/**
+ * L'évolution récente, sous ses trois formes (ADR-0040 §8).
+ *
+ * 🔴 **Les bascules se rendent même sans commentaire.** Elles sont la MESURE ; le commentaire n'en
+ * est que la lecture. Un écran qui n'afficherait la section que lorsque le modèle a parlé ferait
+ * dépendre une donnée serveur du bon vouloir d'un LLM — exactement l'inversion que tout ce
+ * chantier corrige.
+ */
+function Evolution({
+  evolution,
+  marquerNonDatee,
+}: {
+  evolution: CouncilSubject["recent_evolution"];
+  marquerNonDatee: boolean;
+}) {
+  if (evolution === null) {
+    return (
+      <p className="mt-1 text-sm text-papa-muted">
+        <span className="text-sky-300">Évolution :</span> aucune bascule de palier sur la trace
+        disponible — absence de trace, pas absence de mouvement.
+      </p>
+    );
+  }
+
+  // Rapport FIGÉ avant le Lot 3 : sa prose n'était adossée à rien. On ne la réécrit pas, on la
+  // SIGNALE — la marque s'éteint d'elle-même à mesure que les rapports datés s'accumulent.
+  if (!estEvolutionDatee(evolution)) {
+    return (
+      <p className="mt-1 text-sm">
+        <span className="text-sky-300">Évolution :</span> {evolution}
+        {marquerNonDatee && (
+          <span className="ml-1 text-xs text-papa-muted">
+            (évolution rédigée sans historique daté)
+          </span>
+        )}
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-1 text-sm">
+      <p>
+        <span className="text-sky-300">Évolution :</span>{" "}
+        <span className="text-papa-muted">
+          {evolution.transitions.length} bascule{evolution.transitions.length > 1 ? "s" : ""} de
+          palier sur la trace disponible depuis le {evolution.since ?? "?"}
+        </span>
+      </p>
+      {/* 🔴 Le détail RECOMPOSE le nombre annoncé, comme partout ailleurs dans ce chantier. */}
+      <ul className="mt-1 space-y-0.5">
+        {evolution.transitions.map((t) => (
+          <li key={`${t.skill_id}-${t.changed_at}`} className="flex flex-wrap items-baseline gap-2">
+            <span className="tabular-nums text-xs text-papa-muted">{t.changed_at}</span>
+            <span className="font-medium">{t.skill_name}</span>
+            <span className="text-xs text-papa-muted">{libelleTransition(t)}</span>
+          </li>
+        ))}
+      </ul>
+      {evolution.comment && <p className="mt-1">{evolution.comment}</p>}
+    </div>
+  );
+}
+
 function downloadMarkdown(filename: string, content: string): void {
   const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -468,21 +537,11 @@ export function ConseilClasseIAPage() {
                   {/* L'absence s'ÉCRIT (ADR-0040 §8.4). Ne rien rendre laisserait lire « aucun
                       mouvement » là où il faut lire « aucune trace » — les deux ne se corrigent
                       pas l'un l'autre. */}
-                  {s.recent_evolution ? (
-                    <p className="mt-1 text-sm">
-                      <span className="text-sky-300">Évolution :</span> {s.recent_evolution}
-                      {evolutionNonDatee && (
-                        <span className="ml-1 text-xs text-papa-muted">
-                          (évolution rédigée sans historique daté)
-                        </span>
-                      )}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-sm text-papa-muted">
-                      <span className="text-sky-300">Évolution :</span> aucune bascule de palier sur
-                      la trace disponible — absence de trace, pas absence de mouvement.
-                    </p>
-                  )}
+                  <Evolution
+                    evolution={s.recent_evolution}
+                    marquerNonDatee={evolutionNonDatee}
+                  />
+
                   {s.recommendations.map((r, i) => (
                     <RecommendationRow
                       key={`${s.subject_id}-${i}`}

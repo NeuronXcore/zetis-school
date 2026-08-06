@@ -14,7 +14,7 @@ Le pont d'actionnabilité réutilise le flux Commander (ADR-0018) tel quel : une
 `create_command_missions` (fan-out mono-notion, validées par le clic Papa).
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
@@ -66,9 +66,56 @@ def _default_period(db: Session, student) -> str:
     return "Bilan"
 
 
+def _transitions_by_subject(
+    db: Session, student, *, subject_id: int | None, cap: int
+) -> tuple[dict[int, list[dict]], str | None, int, int]:
+    """Bascules de palier, groupées par matière et plafonnées — la mesure du Lot 3 (adr-0040 §8).
+
+    ⚠️ **Une seule fonction de mesure** (§10) : `evidence.mastery_transitions`, celle que sert déjà
+    Progression. Recalculer les bascules ici referait la classe de bug que ce dépôt paie depuis
+    trois chantiers — deux mesures divergentes sous un même mot.
+
+    ⚠️ `evidence.history_since` rend une **`date`** quand `mastery_transitions` attend un
+    **`datetime`** : la conversion se fait ICI, à minuit UTC, et pas dans l'appelant.
+
+    ⚠️ La borne est celle de l'élève, **pas de la matière** : c'est ce qu'exige le §8 (« `since`
+    vaut `history_since` »). Conséquence assumée en portée matière — la borne annoncée peut
+    précéder la première bascule de CETTE matière. Elle dit « voilà depuis quand on trace », jamais
+    « voilà depuis quand cette matière bouge ».
+    """
+    since_date = evidence.history_since(db, student_id=student.id)
+    if since_date is None:
+        return {}, None, 0, 0
+
+    since_dt = datetime.combine(since_date, time.min, tzinfo=timezone.utc)
+    rows = evidence.mastery_transitions(
+        db, student_id=student.id, since=since_dt, subject_id=subject_id
+    )
+
+    grouped: dict[int, list[dict]] = {}
+    for t in rows:
+        grouped.setdefault(t["subject_id"], []).append(
+            {
+                "skill_id": t["skill_id"],
+                "skill_name": t["skill_name"],
+                "from": t["from_status"],
+                "to": t["to_status"],
+                "changed_at": t["changed_at"].date().isoformat(),
+            }
+        )
+
+    # Plafond aligné sur celui des notions (§8) : servir l'événementiel sans borne ferait exploser
+    # le budget de jetons que le plafond des notions existe précisément pour tenir.
+    available = sum(len(v) for v in grouped.values())
+    for sid in grouped:
+        grouped[sid] = grouped[sid][:cap]
+    considered = sum(len(v) for v in grouped.values())
+    return grouped, since_date.isoformat(), available, considered
+
+
 def _build_context(
     db: Session, student, period: str, *, subject_id: int | None = None
-) -> tuple[dict, set[int], set[int]]:
+) -> tuple[dict, set[int], set[int], dict[int, dict]]:
     """Compose l'évidence read-only en un contexte par matière (notions fragiles d'abord).
 
     `subject_id` restreint le contexte à UNE matière (`adr-0020-addendum-portee-matiere`). `None`
@@ -111,6 +158,10 @@ def _build_context(
     available = 0
     considered = 0
 
+    transitions, since_iso, tr_available, tr_considered = _transitions_by_subject(
+        db, student, subject_id=subject_id, cap=cap
+    )
+
     subjects_ctx: list[dict] = []
     allowed_skill_ids: set[int] = set()
     for sid, notions in per_subject.items():
@@ -131,6 +182,11 @@ def _build_context(
                 "srs_due": int(s.get("due", 0)),
                 "srs_max_overdue_days": int(s.get("max_overdue_days", 0)),
                 "notions": [{k: v for k, v in n.items() if k != "_fragility"} for n in notions],
+                # 🔴 LISTE FERMÉE (§8.2). Le modèle ne reçoit que ces bascules-là et n'en produit
+                # aucune : il ne rend qu'un COMMENTAIRE. Les dates ne transitent jamais par lui,
+                # donc aucune date inventée ne peut atteindre le rapport — l'ancrage est structurel,
+                # pas un filtre appliqué après coup.
+                "transitions": transitions.get(sid, []),
             }
         )
     subjects_ctx.sort(key=lambda s: s["subject_id"])
@@ -153,8 +209,21 @@ def _build_context(
 
     context = {
         "period": period,
-        "note": "Évidence à l'instant (v1 : état courant, pas de fenêtre temporelle).",
+        "note": (
+            "Deux natures dans ce contexte, et c'est DÉCLARÉ (adr-0040 §9) : des bascules de "
+            "palier DATÉES, et une maîtrise à l'instant, SANS fenêtre. `period` est une étiquette, "
+            "elle ne sélectionne aucune donnée."
+        ),
         "scope": scope,
+        # 🔴 La borne de trace et l'écart de troncature vivent ICI, pas dans `scope` : `scope`
+        # n'existe qu'en portée matière (voir plus haut), et l'écart d'un conseil GLOBAL serait
+        # alors invisible. Le patron `available`/`considered` est celui des notions ; c'est sa
+        # PLACE qui change, pas sa forme.
+        "trace": {
+            "since": since_iso,
+            "transitions_available": tr_available,
+            "transitions_considered": tr_considered,
+        },
         "subjects": subjects_ctx,
         "recent_activity": {
             "verdicts_considered": len(verdicts),
@@ -163,18 +232,21 @@ def _build_context(
         },
     }
     allowed_subject_ids = {s["subject_id"] for s in subjects_ctx}
-    # Matières pour lesquelles l'évidence porte au moins une BASCULE DE PALIER datée (adr-0040 §8.1).
+    # Le bloc d'évolution PRÊT À POSER, par matière — la structure du §8 moins son `comment`, que
+    # seul le modèle fournit. Ses CLÉS sont exactement l'ensemble « matières portant au moins une
+    # bascule » que le Lot 0 laissait vide : `_anchor` interroge la même chose, au même endroit,
+    # pour le même motif d'ancrage. Le Lot 3 remplit ce trou, il ne le rebouche pas.
     #
-    # ⚠️ Structurellement VIDE au Lot 0, et ce n'est pas un oubli : la mesure (`mastery_transitions`
-    # dans `evidence`) est le Lot 1, et lire `skill_mastery_history` ici serait hors périmètre.
-    # Conséquence voulue — avec l'évidence d'aujourd'hui, `_anchor` vide `recent_evolution` PARTOUT,
-    # ce qui est exact : aucune source ne peut produire cette valeur.
-    #
-    # Le set existe malgré cela plutôt qu'un `None` écrit en dur, pour que le Lot 3 le REMPLISSE au
-    # lieu de défaire du code. Il est le miroir exact d'`allowed_skill_ids` : même forme, même
-    # place, même rôle d'ancrage.
-    subjects_with_transitions: set[int] = set()
-    return context, allowed_subject_ids, allowed_skill_ids, subjects_with_transitions
+    # Une seule structure et non deux (un `set` + une table) : deux porteurs de la même information
+    # finissent toujours par diverger — c'est la faute que tout ce chantier corrige.
+    evolution_by_subject: dict[int, dict] = {
+        sid: {"since": since_iso, "transitions": rows}
+        for sid, rows in transitions.items()
+        # Une matière absente de l'évidence n'entre pas dans le rapport : lui construire une
+        # évolution serait produire un bloc que `_anchor` jetterait de toute façon.
+        if rows and sid in allowed_subject_ids
+    }
+    return context, allowed_subject_ids, allowed_skill_ids, evolution_by_subject
 
 
 def _try_validate(raw: str) -> tuple[CouncilReportSpec | None, str | None]:
@@ -188,15 +260,19 @@ def _anchor(
     spec: CouncilReportSpec,
     allowed_subject_ids: set[int],
     allowed_skill_ids: set[int],
-    subjects_with_transitions: set[int],
+    evolution_by_subject: dict[int, dict],
 ) -> list[dict]:
     """Ne garde que les matières et `skill_id` présents dans l'évidence (anti-hallucination).
 
-    Écrase aussi `recent_evolution` à `None` sur toute matière dont l'évidence ne porte aucune
-    bascule (adr-0040 §8.1) — **quoi que le modèle ait écrit**. Le garde-fou existait pour les
-    `skill_id` et pas pour ce champ : la validation portait sur le TYPE, jamais sur le CONTENU,
-    et un `str` non-nullable OBLIGEAIT le producteur à remplir. Le résultat était figé dans
-    `subjects_json`, donc rétroactivement indiscernable du vrai.
+    Écrase aussi `recent_evolution` sur toute matière dont l'évidence ne porte aucune bascule
+    (adr-0040 §8.1) — **quoi que le modèle ait écrit**. Le garde-fou existait pour les `skill_id`
+    et pas pour ce champ : la validation portait sur le TYPE, jamais sur le CONTENU, et un `str`
+    non-nullable OBLIGEAIT le producteur à remplir. Le résultat était figé dans `subjects_json`,
+    donc rétroactivement indiscernable du vrai.
+
+    Sur une matière qui EN porte, le champ devient la structure du §8 : `since` et `transitions`
+    viennent du serveur, `comment` est la seule part du modèle. **Aucune date ne transite par
+    lui** — il n'a donc rien à en inventer.
     """
     out: list[dict] = []
     for s in spec.subjects:
@@ -221,13 +297,23 @@ def _anchor(
                 "subject_name": s.subject_name,
                 "strengths": s.strengths,
                 "to_reinforce": s.to_reinforce,
-                "recent_evolution": (
-                    s.recent_evolution if s.subject_id in subjects_with_transitions else None
-                ),
+                "recent_evolution": _evolution(evolution_by_subject.get(s.subject_id), s.recent_evolution),
                 "recommendations": recos,
             }
         )
     return out
+
+
+def _evolution(bloc: dict | None, comment: str | None) -> dict | None:
+    """Assemble le champ du §8, ou `None` si l'évidence ne porte aucune bascule.
+
+    ⚠️ `comment` reste `null` quand le modèle n'a rien écrit — et une chaîne vide COMPTE comme
+    rien. Sans ce repli, `""` se rendrait à l'écran comme un commentaire présent mais muet, ce qui
+    est encore une façon d'affirmer sans rien dire.
+    """
+    if not bloc:
+        return None
+    return {**bloc, "comment": (comment or "").strip() or None}
 
 
 def _to_out(db: Session, report: CouncilReport) -> dict:
@@ -280,7 +366,7 @@ def generate_council_report(
     `subject_id` = portée matière (`adr-0020-addendum-portee-matiere`). `None` = global.
     """
     period = (period or "").strip() or _default_period(db, student)
-    context, allowed_subject_ids, allowed_skill_ids, subjects_with_transitions = _build_context(
+    context, allowed_subject_ids, allowed_skill_ids, evolution_by_subject = _build_context(
         db, student, period, subject_id=subject_id
     )
 
@@ -350,7 +436,7 @@ def generate_council_report(
             raise CouncilGenerationError(error or "sortie LLM invalide")
 
         spec_subjects = _anchor(
-            spec, allowed_subject_ids, allowed_skill_ids, subjects_with_transitions
+            spec, allowed_subject_ids, allowed_skill_ids, evolution_by_subject
         )
         global_summary = spec.global_summary
 

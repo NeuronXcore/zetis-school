@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ConseilClasseIAPage } from "./ConseilClasseIAPage";
-import type { CouncilReport } from "../lib/councilClass";
+import type { CouncilReport, CouncilSubject } from "../lib/councilClass";
 
 // Lien profond du dashboard vers le Conseil de classe (ADR-0028 §7).
 //
@@ -50,7 +50,10 @@ function renderAt(url: string) {
   );
 }
 
-function rapport(recentEvolution: string | null, promptVersion: string): CouncilReport {
+function rapport(
+  recentEvolution: CouncilSubject["recent_evolution"],
+  promptVersion: string,
+): CouncilReport {
   return {
     id: 1,
     period: "Trimestre 1",
@@ -101,6 +104,74 @@ describe("ConseilClasseIAPage — évolution récente, absence et marque de lect
 
     expect(screen.getByText(/Trois bascules ce mois-ci\./)).toBeInTheDocument();
     expect(screen.queryByText(/évolution rédigée sans historique daté/i)).toBeNull();
+  });
+});
+
+// Lot 3 (ADR-0040 §8) — la narration porte des bascules DATÉES et mesurées.
+describe("ConseilClasseIAPage — les bascules datées", () => {
+  const DATEE = {
+    since: "2026-07-10",
+    transitions: [
+      {
+        skill_id: 1,
+        skill_name: "Théorème de Pythagore",
+        from: "learning",
+        to: "solid",
+        changed_at: "2026-07-28",
+      },
+      {
+        skill_id: 1,
+        skill_name: "Théorème de Pythagore",
+        from: null,
+        to: "weak",
+        changed_at: "2026-07-10",
+      },
+    ],
+    comment: "Une remontée nette sur la trace disponible depuis le 10/07.",
+  };
+
+  it("nomme et date chaque bascule, et annonce la borne de trace", () => {
+    etat.report = rapport(DATEE, "v4");
+    renderAt("/conseil");
+
+    expect(screen.getByText(/2 bascules de palier sur la trace disponible depuis le 2026-07-10/)).toBeInTheDocument();
+    expect(screen.getByText("2026-07-28")).toBeInTheDocument();
+    expect(screen.getByText("2026-07-10")).toBeInTheDocument();
+    expect(screen.getByText(/en apprentissage → solide/)).toBeInTheDocument();
+    // La plus ancienne bascule n'a pas de palier de départ : on le DIT, on ne l'invente pas.
+    expect(screen.getByText(/première bascule tracée → à renforcer/)).toBeInTheDocument();
+    expect(screen.getByText(/Une remontée nette/)).toBeInTheDocument();
+  });
+
+  it("🔴 rend les bascules MÊME quand le modèle n'a rien commenté", () => {
+    // Elles sont la MESURE ; le commentaire n'en est que la lecture. Les masquer ferait dépendre
+    // une donnée serveur du bon vouloir d'un LLM — l'inversion exacte que ce chantier corrige.
+    etat.report = rapport({ ...DATEE, comment: null }, "v4");
+    renderAt("/conseil");
+
+    expect(screen.getByText(/2 bascules de palier/)).toBeInTheDocument();
+    // DEUX lignes pour la même notion : une notion qui bascule deux fois a deux bascules, et les
+    // dédoublonner par nom perdrait la moitié de l'histoire.
+    expect(screen.getAllByText("Théorème de Pythagore")).toHaveLength(2);
+    expect(screen.queryByText(/Une remontée nette/)).toBeNull();
+  });
+
+  it("ne marque JAMAIS un rapport daté « rédigé sans historique »", () => {
+    etat.report = rapport(DATEE, "v4");
+    renderAt("/conseil");
+
+    expect(screen.queryByText(/évolution rédigée sans historique daté/i)).toBeNull();
+  });
+
+  it("un rapport v2 figé reste lisible à côté du nouveau format", () => {
+    // Anti-régression du §8 : aucune réécriture des rapports figés. La structure et la chaîne
+    // cohabitent, et c'est le TYPE qui les distingue — pas une devinette sur le contenu.
+    etat.report = rapport("Prose d'avant, adossée à rien.", "v2");
+    renderAt("/conseil");
+
+    expect(screen.getByText(/Prose d'avant/)).toBeInTheDocument();
+    expect(screen.getByText(/évolution rédigée sans historique daté/i)).toBeInTheDocument();
+    expect(screen.queryByText(/bascules? de palier sur la trace/)).toBeNull();
   });
 });
 

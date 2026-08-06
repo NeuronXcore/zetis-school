@@ -812,15 +812,38 @@ Aucune surface Massimo.
 
 - **POST `/api/reports/class-council`** `{ period? }` → `CouncilReportOut`
   `{ id, period, global_summary, subjects: [{ subject_id, subject_name, strengths, to_reinforce,
-  recent_evolution: str|null, recommendations: [{ skill_ids, skill_names, mission_type:"manual",
-  template_hint, justification }] }], prompt_version, created_at }`. Génère + persiste. Évidence
-  vide → rapport serein (0 matière), sans appel LLM. Erreur provider → `502`.
-  ⚠️ `recent_evolution` est **nullable et écrasé serveur** (`adr-0040` §8.1) : si l'évidence ne
-  porte aucune bascule de palier sur la matière, le champ vaut `null` **quoi que le modèle ait
-  écrit**. Le `period` ne sélectionnant aucune donnée, ce champ réclamait une valeur qu'aucune
-  source ne pouvait produire — et la phrase inventée était figée dans `subjects_json`. Les
-  rapports antérieurs au prompt **v3** gardent leur prose, sous une marque de lecture dérivée de
-  `prompt_version` ; aucune réécriture, aucune migration.
+  recent_evolution: Evolution|str|null, recommendations: [{ skill_ids, skill_names,
+  mission_type:"manual", template_hint, justification }] }], prompt_version, created_at }`.
+  Génère + persiste. Évidence vide → rapport serein (0 matière), sans appel LLM. Erreur
+  provider → `502`.
+
+  ⚠️ `recent_evolution` est **écrasé serveur** (`adr-0040` §8.1) : si l'évidence ne porte aucune
+  bascule de palier sur la matière, le champ vaut `null` **quoi que le modèle ait écrit**. Le
+  `period` ne sélectionnant aucune donnée, ce champ réclamait une valeur qu'aucune source ne
+  pouvait produire — et la phrase inventée était figée dans `subjects_json`.
+
+  Depuis le prompt **v4** (Lot 3), une matière qui EN porte reçoit une structure :
+
+  ```txt
+  Evolution = { since: str|null, comment: str|null,
+                transitions: [{ skill_id, skill_name, from: str|null, to, changed_at }] }
+  ```
+
+  🔴 **`transitions` et `since` viennent du SERVEUR** (`evidence.mastery_transitions`, la même
+  fonction que sert Progression — §10). Le modèle ne rend que `comment` : **aucune date ne transite
+  par lui**, donc aucune date inventée ne peut atteindre le rapport. L'ancrage est structurel, pas
+  un filtre appliqué après coup.
+
+  ⚠️ `since` vaut `history_since`, **jamais `period`** (§9) : `period` est une étiquette,
+  `since` une date réelle. Il figure aussi dans `evidence_snapshot_json.trace`, avec
+  `transitions_available` / `transitions_considered` — sans quoi un rapport relu dans six mois
+  serait indiscernable d'un rapport sans borne. ⚠️ Ce bloc vit **à la racine du contexte** et non
+  dans `scope`, qui n'existe qu'en portée matière : l'écart d'un conseil global y serait invisible.
+
+  ⚠️ **Le type reste une union** : les rapports figés avant le Lot 3 portent une `str` dans
+  `subjects_json` et se relisent telle quelle. Aucune réécriture, aucune migration — les rapports
+  antérieurs au prompt **v3** gardent leur prose sous une marque de lecture dérivée de
+  `prompt_version`, qui s'éteint d'elle-même à mesure que les rapports datés s'accumulent.
 - **GET `/api/reports/class-council?period=`** → `[CouncilReportListItem]`
   `{ id, period, subjects_count, created_at }` (récents d'abord).
 - **GET `/api/reports/class-council/{id}`** → `CouncilReportOut`.
