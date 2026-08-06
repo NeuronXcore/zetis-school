@@ -1,7 +1,8 @@
 # Addendum ADR-0016 — 2026-07-27 · Pilotage Papa : aperçu fidèle, brique de canvas partagée, cycle de vie éditorial
 
 > Section à **ajouter à la fin de** `docs/decisions/adr-0016-mindmaps-rendu-layout.md`
-> (patron des addenda de `adr-0007`). Ne remplace rien : précise le **§6 Frontière
+> (patron des addenda de `adr-0007`).
+> Statut : **Accepté — 2026-07-27**. Ne remplace rien : précise le **§6 Frontière
 > Massimo / Papa**, qui se limitait à « Papa : génération/validation (`pending → validated`) ».
 
 ## Contexte
