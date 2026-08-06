@@ -104,6 +104,7 @@ describe("ChapterProductionModal", () => {
               created_at: "",
               started_at: null,
               finished_at: null,
+              estimated_ms: 30_000,
             },
           },
         )}

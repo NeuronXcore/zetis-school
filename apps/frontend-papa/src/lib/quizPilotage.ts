@@ -13,6 +13,7 @@ import {
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
+import { lancerEtSuivre, type SuiviTravail } from "./travaux";
 
 const API = `${API_URL}/api`;
 const PILOTAGE = `${API}/quiz-pilotage`;
@@ -47,20 +48,26 @@ export async function fetchSubjectTree(subjectId: number): Promise<QuizPilotageT
 export async function generateQuiz(
   lessonId: number,
   body: QuizGenerateRequest,
+  onEtat?: SuiviTravail,
 ): Promise<QuizGenerateResult> {
-  return asJson(
-    await fetch(`${API}/lessons/${lessonId}/quizzes/generate`, {
-      method: "POST",
-      headers: jsonHeaders(),
-      body: JSON.stringify(body),
-    }),
+  // 202 + sondage (ADR-0041 §4). ⚠️ La sortie du travail EST le contrat d'autrefois — `quiz_id`,
+  // `questions_generated`, `questions_discarded` : rien n'a été perdu, tout a été déplacé.
+  return lancerEtSuivre<QuizGenerateResult>(
+    `${API}/lessons/${lessonId}/quizzes/generate`,
+    { method: "POST", headers: jsonHeaders(), body: JSON.stringify(body) },
+    onEtat,
   );
 }
 
 /** Régénère les questions IA d'un quiz (les questions manuelles sont préservées). */
-export async function regenerateQuiz(quizId: number): Promise<QuizGenerateResult> {
-  return asJson(
-    await fetch(`${API}/quizzes/${quizId}/regenerate`, { method: "POST", headers: authHeader() }),
+export async function regenerateQuiz(
+  quizId: number,
+  onEtat?: SuiviTravail,
+): Promise<QuizGenerateResult> {
+  return lancerEtSuivre<QuizGenerateResult>(
+    `${API}/quizzes/${quizId}/regenerate`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
 }
 

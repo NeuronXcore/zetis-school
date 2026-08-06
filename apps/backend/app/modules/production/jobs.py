@@ -84,10 +84,97 @@ def _equip_notion(db, payload: dict, llm, embedder) -> dict:
     )
 
 
-# `job_type` → l'exécutant, qui reçoit `input_json`. **Un seul producteur migré en slice A**
-# (ADR-0041 §4) : les autres restent synchrones et n'apparaissent donc pas dans la file. La table
-# grandit en slice C — elle ne change pas de forme.
-_EXECUTANTS = {"equip_notion": _equip_notion}
+# --- Les exécutants de la slice C (ADR-0041 §4) ------------------------------------------------
+#
+# ⚠️ **Ce sont des ADAPTATEURS, pas des implémentations.** Chacun appelle le service qui existait
+# déjà et que la route appelait en direct ; aucune logique de génération n'a été déplacée ici. Ce
+# qui change est *qui* l'appelle et *quand* — la route enfile, le worker exécute.
+#
+# ⚠️ **Chacun rend un dict qui identifie ce qui a été PRODUIT** (`fiche_id`, `quiz_id`…). C'est ce
+# que la surface appelante ira chercher au bout de son sondage, à la place de l'objet que la route
+# lui rendait autrefois. Un exécutant qui ne rend rien laisserait l'écran incapable d'ouvrir ce
+# qu'il vient de fabriquer.
+
+
+def _fiche_generate(db, payload: dict, llm, embedder) -> dict:
+    from app.modules.fiches import service
+
+    row = service.generate_fiche(db, llm, embedder, lesson_id=int(payload["lesson_id"]))
+    return {"fiche_id": row.id, "lesson_id": row.lesson_id}
+
+
+def _fiche_regenerate(db, payload: dict, llm, embedder) -> dict:
+    from app.modules.fiches import service
+
+    row = service.regenerate_fiche(db, llm, embedder, fiche_id=int(payload["fiche_id"]))
+    return {"fiche_id": row.id, "lesson_id": row.lesson_id}
+
+
+def _mindmap_generate(db, payload: dict, llm, embedder) -> dict:
+    from app.modules.mindmaps import service
+
+    row = service.generate_mindmap(db, llm, embedder, lesson_id=int(payload["lesson_id"]))
+    return {"mindmap_id": row.id, "lesson_id": row.lesson_id}
+
+
+def _mindmap_regenerate(db, payload: dict, llm, embedder) -> dict:
+    from app.modules.mindmaps import service
+
+    row = service.regenerate_mindmap(db, llm, embedder, mindmap_id=int(payload["mindmap_id"]))
+    return {"mindmap_id": row.id, "lesson_id": row.lesson_id}
+
+
+def _quiz_generate(db, payload: dict, llm, embedder) -> dict:
+    from app.modules.quizzes import service
+
+    quiz, compteurs = service.generate_quiz(
+        db,
+        llm,
+        embedder,
+        lesson_id=int(payload["lesson_id"]),
+        count=int(payload["count"]),
+        difficulty=int(payload["difficulty"]),
+    )
+    return {"quiz_id": quiz.id, "lesson_id": quiz.lesson_id, **compteurs}
+
+
+def _quiz_regenerate(db, payload: dict, llm, embedder) -> dict:
+    from app.modules.quizzes import service
+
+    quiz, compteurs = service.regenerate_quiz(db, llm, embedder, quiz_id=int(payload["quiz_id"]))
+    return {"quiz_id": quiz.id, "lesson_id": quiz.lesson_id, **compteurs}
+
+
+def _lesson_content(db, payload: dict, llm, _embedder) -> dict:
+    """⚠️ Moteur LOCAL (`llm`), jamais la dérogation cloud `curriculum_*` — la rédaction d'un cours
+    porte du contexte de Massimo. C'était déjà la règle de la route ; elle survit au déplacement."""
+    from app.modules.curriculum import service
+
+    lesson = service.generate_lesson_content(db, llm, int(payload["lesson_id"]))
+    return {"lesson_id": lesson.id}
+
+
+def _diagnostic_generate(db, payload: dict, llm, _embedder) -> dict:
+    from app.modules.diagnostics import service
+
+    quiz, matiere, nombre = service.generate_diagnostic(
+        db, llm, int(payload["subject_id"]), payload["level"]
+    )
+    return {"quiz_id": quiz.id, "subject": matiere, "questions_count": nombre}
+
+
+# `job_type` → l'exécutant, qui reçoit `input_json`.
+_EXECUTANTS = {
+    "equip_notion": _equip_notion,
+    "fiche_generate": _fiche_generate,
+    "fiche_regenerate": _fiche_regenerate,
+    "mindmap_generate": _mindmap_generate,
+    "mindmap_regenerate": _mindmap_regenerate,
+    "quiz_generate": _quiz_generate,
+    "quiz_regenerate": _quiz_regenerate,
+    "lesson_content": _lesson_content,
+    "diagnostic_generate": _diagnostic_generate,
+}
 
 
 def run_ai_job(job_id: int) -> dict:
@@ -98,12 +185,20 @@ def run_ai_job(job_id: int) -> dict:
     travail le rendrait invisible jusqu'à la fin, c'est-à-dire inutile.
 
     ⚠️ **L'échec relit le job après `rollback()`** : la session est cassée par l'exception, et
-    l'objet chargé avant ne peut plus être écrit. Puis on **relance** — RQ doit voir le job échoué,
-    comme le fait déjà `worker_media.jobs.render_capsule`.
+    l'objet chargé avant ne peut plus être écrit.
+
+    🔴 **Relancer a CHANGÉ DE SENS le 2026-08-06, et il faut le savoir avant de toucher ce bloc**
+    (ADR-0041 §10.2). Avant, relancer voulait dire « que RQ voie l'échec », par symétrie avec
+    `worker_media.jobs.render_capsule`. Depuis que `enqueue_ai_job` pose un `Retry`, **relancer
+    veut dire *rejoue-moi*** : RQ rejoue sur toute exception qui remonte, sans regarder laquelle.
+    Le seul moyen d'obtenir « zéro tentative sur échec structurel », c'est donc de **retenir**
+    l'exception — un `raise` posé par réflexe rendrait le rejeu typé silencieusement inopérant, et
+    aucun test ne rougirait puisque les files sont factices (§15).
     """
     from app.db.base import SessionLocal
     from app.db.models import AIJob
     from app.modules.ai import get_embedder, get_provider
+    from app.modules.production import failures
 
     db = SessionLocal()
     try:
@@ -128,15 +223,25 @@ def run_ai_job(job_id: int) -> dict:
         payload = job.input_json if isinstance(job.input_json, dict) else {}
         try:
             sortie = executant(db, payload, get_provider(), get_embedder())
-        except Exception as exc:  # noqa: BLE001 — on trace, on marque `failed`, puis on relance.
+        except Exception as exc:  # noqa: BLE001 — on trace, on qualifie, PUIS on décide de relancer
             db.rollback()
+            rejoue = failures.doit_rejouer(exc)
             echoue = db.get(AIJob, job_id)
             if echoue is not None:
-                echoue.status = "failed"
+                # ⚠️ **`queued` sur un rejeu, et pas `failed`.** Le travail RETOURNE dans la file :
+                # écrire `failed` le ferait apparaître comme un échec à acquitter (§8) pendant que
+                # RQ s'apprête à le reprendre — Papa verrait un échec qui se répare tout seul, ce
+                # qui est pire qu'un échec. `finished_at` reste vide : rien n'est fini.
+                echoue.status = "queued" if rejoue else "failed"
                 echoue.error_message = str(exc)[:1000]
-                echoue.finished_at = _now()
+                echoue.finished_at = None if rejoue else _now()
                 db.commit()
-            raise
+            if rejoue:
+                raise
+            logger.warning(
+                "run_ai_job: travail %s en échec STRUCTUREL, aucun rejeu — %s", job_id, exc
+            )
+            return {"error": str(exc)[:1000]}
 
         fin = _now()
         job = db.get(AIJob, job_id)
@@ -144,6 +249,9 @@ def run_ai_job(job_id: int) -> dict:
         job.output_json = sortie if isinstance(sortie, dict) else {"result": sortie}
         job.duration_ms = int((fin - debut).total_seconds() * 1000)
         job.finished_at = fin
+        # Le motif d'une tentative précédente ne survit pas au succès : un travail `succeeded` qui
+        # porterait encore « Ollama injoignable » ferait mentir la trace sur ce qui s'est passé.
+        job.error_message = None
         db.commit()
         return job.output_json
     finally:
@@ -161,14 +269,53 @@ def scan_triggers() -> dict:
     ⚠️ **La replanification est en `finally`.** Un scan qui échouerait sans se replanifier
     arrêterait le dispositif **définitivement et en silence** — le pire mode de panne pour une
     tâche de fond que personne ne regarde.
+
+    ⚠️ **Il BALAIE aussi les travaux morts** (ADR-0041 §10.3). Pas parce que ça a un rapport avec
+    l'agenda, mais parce que c'est le seul réveil périodique du dépôt et que l'ADR-0023 en interdit
+    un second. Le balayage est du **ménage** : ce qui rend la barre honnête, c'est la lecture
+    dérivée (`sweep.job_status`, `journal.run_status`), pas ce passage-ci — il bat toutes les trois
+    heures. Le confondre avec la garantie d'affichage laisserait l'écran mentir tout ce temps.
+
+    ⚠️ **Le balayage ne doit pas pouvoir empêcher le scan.** Il est donc isolé : une session cassée
+    par le ménage ferait sauter la lecture de l'agenda, c'est-à-dire perdre la préparation d'un
+    contrôle pour une raison qui n'a rien à voir avec elle.
     """
-    from app.core.queue import enqueue_production, production_queue
+    from app.core.queue import QueueUnavailable, production_queue
     from app.core.config import settings
     from app.db.base import SessionLocal
-    from app.modules.production import triggers
+    from app.db.models import ProductionRun
+    from app.modules.production import runs, sweep, triggers
+
+    def _enfiler_les_lots(crees: list[dict], *, trigger: str) -> None:
+        """Enfile les lots que le scan vient de créer, en **supprimant** ceux que la file refuse.
+
+        ⚠️ **Un lot par un lot, et l'échec de l'un n'emporte pas les autres.** Sans ça, une file
+        qui tombe entre deux enfilements laisserait derrière elle des lots fantômes — jamais
+        exécutés, mais comptés par `run_exists_for`, donc **bloquant leur propre recréation** au
+        prochain réveil. Le scan est idempotent : ce qu'il supprime ici, il le recrée dans trois
+        heures. C'est ça, « rien ne se perd » quand personne ne regarde.
+        """
+        for cree in crees:
+            lot = db.get(ProductionRun, cree["run_id"])
+            if lot is None:
+                continue
+            try:
+                runs.enqueue_or_cancel(db, lot, trigger=trigger)
+            except QueueUnavailable:
+                logger.warning(
+                    "production: file injoignable, lot %s annulé (il sera recréé)", cree["run_id"]
+                )
 
     db = SessionLocal()
     try:
+        try:
+            ferme = sweep.sweep(db)
+            if ferme["runs"] or ferme["jobs"]:
+                logger.info("production: balayage — %s lots, %s travaux refermés",
+                            ferme["runs"], ferme["jobs"])
+        except Exception:  # noqa: BLE001 — le ménage ne commande pas le sort du scan
+            logger.exception("production: balayage des travaux morts impossible")
+            db.rollback()
         # DEUX scans, un par source (ADR-0036 §1). Séparés parce que leurs conditions le sont :
         # l'agenda demande un déclencheur armé, les demandes exigent EN PLUS le régime *Autonome*.
         # Un scan unique aurait dû porter les deux jeux de conditions et le dire dans un seul
@@ -177,10 +324,8 @@ def scan_triggers() -> dict:
         report["requests"] = triggers.scan_requests(db)
         # ⚠️ Le `trigger` est passé EXPLICITEMENT et par source (ADR-0041 §5) : il choisit la file.
         # Un lot né du scan n'est attendu devant aucun écran — il ne double personne.
-        for created in report["created"]:
-            enqueue_production(created["run_id"], trigger="agenda")
-        for created in report["requests"]["created"]:
-            enqueue_production(created["run_id"], trigger="request")
+        _enfiler_les_lots(report["created"], trigger="agenda")
+        _enfiler_les_lots(report["requests"]["created"], trigger="request")
         return report
     finally:
         db.close()

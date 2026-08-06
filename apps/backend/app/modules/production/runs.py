@@ -392,6 +392,54 @@ def create_run(
     return run
 
 
+def enqueue_or_cancel(db: Session, run: ProductionRun, *, trigger: str | None = None) -> str:
+    """Enfile ce lot — ou le **SUPPRIME** et laisse remonter `QueueUnavailable` (ADR-0041 §10.1).
+
+    ## Le trou que cette fonction ferme, et pourquoi la compensation est le seul remède
+
+    `create_run` **commite** son lot (juste au-dessus) avant que quiconque ait pu l'enfiler. Redis
+    absent ⇒ un `ProductionRun` en `queued` restait en base pour toujours, pendant qu'un 500 partait
+    vers le navigateur. Papa recliquait ; le lot fantôme, lui, faisait échouer le régulateur
+    d'idempotence (`run_exists_for`) et bloquait la vraie création le jour où Redis revenait.
+
+    ⚠️ **On ne peut PAS simplement inverser l'ordre.** Le lot doit exister en base avant d'être
+    enfilé : le worker peut le prendre dans la milliseconde, et il a besoin de le lire. C'est la
+    même contrainte que pour un `AIJob` (§3). Le remède n'est donc pas un ordre différent mais une
+    **compensation** : si la file refuse, ce qui vient d'être écrit est effacé.
+
+    ⚠️ **`delete` et non `status = "failed"`.** Un lot en échec est un lot qui a TENTÉ quelque
+    chose — il a un journal, il s'acquitte, il compte dans les régulateurs de volume. Un lot jamais
+    parti n'a rien tenté du tout ; le laisser en base sous un autre statut ferait porter à
+    l'historique de production un événement qui n'a pas eu lieu.
+
+    Renvoie l'id du job RQ. Le `trigger` par défaut est celui du lot — le préciser ne sert qu'aux
+    appelants qui en connaissent un plus juste (le scan, qui distingue `agenda` de `request`).
+    """
+    from app.core.queue import QueueUnavailable, enqueue_production
+
+    try:
+        return enqueue_production(run.id, trigger=trigger or run.trigger)
+    except QueueUnavailable:
+        db.delete(run)
+        db.commit()
+        raise
+
+
+def _duree_attendue(db: Session, run: ProductionRun) -> int:
+    """Combien de temps ce lot devrait prendre — la MESURE du serveur, pas une devinette (§9).
+
+    Un lot-pièce vaut son générateur ; un lot de chapitre vaut N équipements de notion. La table
+    de correspondance vit dans `activity`, qui la porte déjà pour la même raison.
+    """
+    from app.modules.ai.travaux import estimation_ms, estimations
+    from app.modules.production.activity import PIECE_VERS_TYPE
+
+    connues = estimations(db)
+    if run.scope_skill_id is not None:
+        return estimation_ms(connues, PIECE_VERS_TYPE.get(run.scope_kind or "", ""))
+    return estimation_ms(connues, "equip_notion") * max(1, run.total_notions or 1)
+
+
 def run_out(db: Session, run: ProductionRun) -> dict:
     """Vue d'un run pour le suivi Papa. Aucun contenu, aucun verbatim — un état."""
     # ⚠️ **`run_status()` et non `run.status`** (ADR-0041 §1) — correction, pas fonctionnalité.
@@ -419,6 +467,13 @@ def run_out(db: Session, run: ProductionRun) -> dict:
         ),
         "total_notions": run.total_notions,
         "done_notions": run.done_notions,
+        # ⚠️ **La durée attendue, MESURÉE** (ADR-0041 §9) — ajoutée le 2026-08-06 pour réparer une
+        # régression que la slice C venait d'introduire : les composants ont cessé d'estimer en dur,
+        # or cette vue-ci ne portait pas de quoi estimer. Un lot-PIÈCE retrouvé au retour sur la
+        # page perdait donc sa barre. Sur un lot de chapitre, le serveur mesure vraiment
+        # (`progress_pct`) et ce champ ne sert pas — il est calculé quand même : deux vues du même
+        # lot qui ne portent pas les mêmes champs finissent par diverger.
+        "estimated_ms": _duree_attendue(db, run),
         # Pourcentage RÉEL, calculé serveur. L'estimation client (`KIT_MS_PER_NOTION`) mentait
         # d'un facteur 2 — mesuré le 2026-08-02 : 69 s par notion contre 150 s estimées. Une barre
         # qui progresse au vrai rythme vaut mieux qu'une barre qui devine.

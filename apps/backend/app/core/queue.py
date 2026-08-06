@@ -110,6 +110,55 @@ def production_worker_alive() -> bool:
         return False
 
 
+# La phrase que Papa lit quand la file refuse un travail — **écrite UNE fois** (ADR-0041 §10.1).
+# Trois routes la rendent en 503 ; trois copies auraient divergé au premier mot changé.
+#
+# ⚠️ Elle dit trois choses, et les trois comptent : ce qui n'a pas marché, **que rien n'a été
+# créé** (sinon Papa attend un travail qui n'existe pas), et le geste qui répare. Un « 500 Internal
+# Server Error » ne disait aucune des trois.
+MESSAGE_FILE_INJOIGNABLE = (
+    "La file de production est injoignable : rien n'a été lancé, et rien n'a été créé. "
+    "Vérifiez que Redis et le worker de production tournent, puis relancez."
+)
+
+
+class QueueUnavailable(RuntimeError):
+    """La file n'a pas pris le travail — Redis injoignable, ou refus de RQ (ADR-0041 §10.1).
+
+    ## Pourquoi une exception TYPÉE, et pas le `redis.ConnectionError` d'origine
+
+    Elle a un seul rôle : permettre à l'appelant de **défaire ce qu'il venait d'écrire**. Sans
+    elle, chaque site devrait connaître les exceptions de `redis` et de `rq` pour distinguer « la
+    file n'a pas voulu » de « mon code est cassé » — et les deux se compensent différemment.
+
+    ⚠️ **Le motif d'origine est conservé en `__cause__`** (`raise ... from exc`) : la trace du
+    worker doit dire *quoi* était injoignable. C'est l'écran qui reçoit une phrase de Papa, pas
+    les logs.
+    """
+
+
+def _enfiler(queue: "Queue", *args, **kwargs) -> str:
+    """Enfile, ou lève `QueueUnavailable`. **Le seul endroit qui parle à RQ en écriture.**
+
+    ## Le trou que cette fonction ferme (ADR-0041 §10.1)
+
+    Les trois `enqueue_*` appelaient RQ à nu. Redis absent ⇒ l'objet était **déjà commité** en base
+    (un `ProductionRun`, un `AIJob`, une capsule passée en `rendering`), puis un 500 partait vers
+    le navigateur. Résultat : un travail qui existe, que **personne n'exécutera jamais**, et un
+    écran qui dit « en file d'attente » — la barre annonçait une attente là où il y avait un arrêt
+    définitif. C'est exactement le mensonge que tout ce chantier existe pour supprimer.
+
+    ⚠️ **`Exception` et non `redis.ConnectionError`.** Le chemin traverse `redis`, `rq` et la
+    sérialisation du job : une erreur d'authentification, un timeout de socket ou un refus de RQ
+    doivent tous se compenser de la même façon. Ce qui compte pour l'appelant, c'est « le travail
+    n'est pas parti », jamais pourquoi.
+    """
+    try:
+        return queue.enqueue(*args, **kwargs).id
+    except Exception as exc:  # noqa: BLE001 — voir le ⚠️ ci-dessus
+        raise QueueUnavailable(str(exc)) from exc
+
+
 def enqueue_production(run_id: int, *, trigger: str | None = "manual") -> str:
     """Enfile l'exécution d'un lot et renvoie l'id du job RQ.
 
@@ -118,13 +167,19 @@ def enqueue_production(run_id: int, *, trigger: str | None = "manual") -> str:
     qui ne résout pas échouerait à l'exécution ; un import échoue au démarrage.
 
     `trigger` ne sert qu'à **choisir la file** (§5) : il n'est écrit nulle part ici, il est déjà
-    sur le lot. Défaut `manual` — un appelant qui ne le précise pas est un geste de Papa."""
+    sur le lot. Défaut `manual` — un appelant qui ne le précise pas est un geste de Papa.
+
+    ⚠️ **Aucun `Retry` ici, contrairement à `enqueue_ai_job`** (ADR-0041 §10.2, borne posée au
+    read-before-code du 2026-08-06). Un lot n'est pas rejouable en l'état : `runner.execute`
+    réécrit `started_at`, recalcule `total_notions` et **réempile ses lignes de journal**. Un lot
+    rejoué se raconterait deux fois, et l'ADR-0034 §1 fait du journal la seule mémoire de ce qui
+    a été produit. Un lot interrompu se reprend par un lot NEUF — `equip_notion` saute ce qui
+    existe déjà (`piece_deja_produite`), donc la reprise ne recalcule rien."""
     from app.modules.production.jobs import run_production
 
-    job = queue_for(trigger).enqueue(
-        run_production, run_id, job_timeout=settings.production_job_timeout
+    return _enfiler(
+        queue_for(trigger), run_production, run_id, job_timeout=settings.production_job_timeout
     )
-    return job.id
 
 
 def enqueue_ai_job(job_id: int) -> str:
@@ -132,21 +187,34 @@ def enqueue_ai_job(job_id: int) -> str:
 
     ⚠️ **L'ordre compte.** La ligne doit exister en base AVANT l'enfilement, sinon le worker peut
     la prendre avant qu'elle soit visible. C'est aussi ce qui permet à la barre de l'afficher
-    « en file » dès le retour de la route.
+    « en file » dès le retour de la route. Corollaire : quand l'enfilement échoue, l'appelant
+    **supprime la ligne** — voir `QueueUnavailable`.
 
     Toujours prioritaire : un travail hors lot est manuel par construction (§3.2).
-    """
-    from app.modules.production.jobs import run_ai_job
 
-    job = priority_queue().enqueue(
-        run_ai_job, job_id, job_timeout=settings.production_job_timeout
+    ⚠️ **`Retry` ne rejoue PAS tout seul ce qu'il veut** (ADR-0041 §10.2). RQ rejoue sur *toute*
+    exception qui remonte ; c'est `run_ai_job` qui décide de laisser remonter ou non, selon que
+    l'échec est transitoire ou structurel. Le compte vit ici parce que RQ l'exige à l'enfilement ;
+    **le verdict vit dans `production/failures.py`**.
+    """
+    from app.modules.production.failures import INTERVALLES_REJEU, MAX_REJEUX
+    from app.modules.production.jobs import run_ai_job
+    from rq import Retry
+
+    return _enfiler(
+        priority_queue(),
+        run_ai_job,
+        job_id,
+        job_timeout=settings.production_job_timeout,
+        retry=Retry(max=MAX_REJEUX, interval=INTERVALLES_REJEU),
     )
-    return job.id
 
 
 def enqueue_render(capsule_id: int) -> str:
     """Enfile le rendu MP4 d'une capsule et renvoie l'id du job RQ."""
-    job = render_queue().enqueue(
-        "worker_media.jobs.render_capsule", capsule_id, job_timeout=RENDER_JOB_TIMEOUT
+    return _enfiler(
+        render_queue(),
+        "worker_media.jobs.render_capsule",
+        capsule_id,
+        job_timeout=RENDER_JOB_TIMEOUT,
     )
-    return job.id

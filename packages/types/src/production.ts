@@ -171,6 +171,13 @@ export interface ProductionRun {
    *  temps écoulé — c'est-à-dire ce qu'elle prétend mesurer. */
   started_at: string | null;
   finished_at: string | null;
+  /** 🔴 Durée attendue, **MESURÉE** par le serveur (ADR-0041 §9) — médiane des exécutions
+   *  réussies du type de travail que ce lot exécute, × son nombre de notions.
+   *
+   *  ⚠️ Ajouté le 2026-08-06 pour réparer une régression que la slice C venait d'introduire : les
+   *  composants ont cessé d'estimer en dur, or cette vue ne portait pas de quoi estimer — un
+   *  lot-PIÈCE retrouvé au retour sur la page perdait sa barre. */
+  estimated_ms: number;
 }
 
 /** `GET /api/production/runs/active` — le lot en cours, augmenté de **qui l'exécute**.
@@ -339,6 +346,13 @@ export interface ActivityItem {
    *  manuel par construction. */
   trigger: string | null;
   error: string | null;
+  /** 🔴 La durée attendue, **MESURÉE par le serveur** (§9) — médiane des dernières exécutions
+   *  réussies de ce type de travail, amorce tant qu'il n'y a pas d'histoire.
+   *
+   *  C'est ce champ qui a tué les vingt-trois constantes de durée des composants Papa : une barre
+   *  locale ne devine plus, elle lit. Deux surfaces ne peuvent plus annoncer deux nombres pour le
+   *  même travail, puisqu'il n'y a plus qu'un nombre. */
+  estimated_ms: number;
 }
 
 export interface ProductionActivity {

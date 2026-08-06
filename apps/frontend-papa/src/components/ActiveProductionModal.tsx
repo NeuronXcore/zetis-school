@@ -2,7 +2,6 @@ import { Button, useEstimatedProgress } from "@zetis/ui";
 import { type ActivityItem, type ProductionActivity } from "@zetis/types";
 
 import { ProgressBar } from "./ProgressBar";
-import { WORK_ESTIMATION_MS } from "../lib/production";
 
 // Le détail de ce que ZETIS fabrique, ouvert depuis la barre d'en-tête (Papa uniquement).
 //
@@ -40,9 +39,10 @@ function Ligne({
 }) {
   // ⚠️ Appelé sans condition — un hook ne se saute pas. `active` décide, et il est faux tant que
   // le travail n'a pas démarré : une barre qui monte sur un travail en file mentirait.
+  // ⚠️ La durée vient du SERVEUR, par type de travail (§9) — voir `ProductionBar`.
   const estime = useEstimatedProgress(
-    item.status === "running" && !item.pct_is_measured,
-    WORK_ESTIMATION_MS,
+    item.status === "running" && !item.pct_is_measured && item.estimated_ms > 0,
+    item.estimated_ms,
     item.started_at ? Date.parse(item.started_at) : null,
   );
 

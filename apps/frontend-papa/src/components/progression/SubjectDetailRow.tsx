@@ -5,7 +5,6 @@ import type { AnalysisNotion, ConsolidatedSkill, ProgressionSubject } from "@zet
 import { useSubjectAnalysis } from "../../hooks/useSubjectAnalysis";
 import { createMissionsFromReco, equipNotion, type EtatTravail } from "../../lib/councilClass";
 import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
-import { WORK_ESTIMATION_MS } from "../../lib/production";
 
 // 🔴 **`EQUIP_MS` est SUPPRIMÉE ici** (ADR-0041 §9). Le commentaire qu'elle portait avait vu juste
 // — « deux estimations différentes pour le même travail se contrediraient à l'écran » — et sa
@@ -449,8 +448,8 @@ function ActionEnCours({ action, etat }: { action: Action; etat: EtatTravail | n
   // en file mentirait). La COMPOSITION d'une mission est synchrone et pur-DB : elle garde son
   // estimation locale, parce qu'elle n'est pas un travail migré.
   const pct = useEstimatedProgress(
-    equipe ? etat?.status === "running" : true,
-    equipe ? WORK_ESTIMATION_MS : MISSION_MS,
+    equipe ? etat?.status === "running" && (etat?.estimatedMs ?? 0) > 0 : true,
+    equipe ? (etat?.estimatedMs ?? 0) : MISSION_MS,
     equipe ? etat?.startedAtMs ?? null : null,
   );
   return (

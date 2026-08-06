@@ -373,7 +373,19 @@ def _has_narrated_audio(spec: object) -> bool:
 
 def request_render(db: Session, capsule_id: int) -> Capsule:
     """Papa : demande le rendu MP4. Préconditions = capsule **validée** + voix synthétisée.
-    Passe en `rendering` et enfile le job RQ (le worker fait le reste). Re-jouable."""
+    Passe en `rendering` et enfile le job RQ (le worker fait le reste). Re-jouable.
+
+    ⚠️ **Si la file refuse, la capsule REVIENT à son état d'avant** (ADR-0041 §10.1). C'était le
+    même trou que côté production, sur une autre table : `rendering` était commité avant
+    l'enfilement, donc Redis absent laissait une capsule « en cours de rendu » **pour toujours** —
+    et son `video_url` effacé au passage, ce qui rendait invisible la vidéo précédente qui, elle,
+    existait toujours. Une panne de file faisait disparaître un contenu déjà produit.
+
+    ⚠️ **On restaure APRÈS coup plutôt que d'enfiler avant de commiter**, et c'est délibéré :
+    enfiler d'abord ouvrirait une course — le worker peut prendre le job dans la milliseconde,
+    finir, écrire `published`, et notre commit repasserait la capsule en `rendering` par-dessus.
+    Une compensation se voit dans le code ; une course ne se voit qu'en production.
+    """
     capsule = _capsule_or_404(db, capsule_id)
     if capsule.validation_status != "validated":
         raise HTTPException(
@@ -387,12 +399,21 @@ def request_render(db: Session, capsule_id: int) -> Capsule:
         )
     # Import paresseux : évite de charger redis/rq (et d'ouvrir une connexion) à l'import du
     # module, notamment sous les tests qui ne touchent pas la file.
-    from app.core.queue import enqueue_render
+    from app.core.queue import MESSAGE_FILE_INJOIGNABLE, QueueUnavailable, enqueue_render
 
+    statut_avant, video_avant = capsule.status, capsule.video_url
     capsule.status = "rendering"
     capsule.video_url = None
     db.commit()
-    enqueue_render(capsule_id)
+    try:
+        enqueue_render(capsule_id)
+    except QueueUnavailable as exc:
+        capsule.status = statut_avant
+        capsule.video_url = video_avant
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=MESSAGE_FILE_INJOIGNABLE
+        ) from exc
     db.refresh(capsule)
     return capsule
 

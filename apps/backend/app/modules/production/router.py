@@ -28,3 +28,23 @@ def get_coverage(subject_id: int | None = None, db: Session = Depends(get_db)) -
 def get_orphans(db: Session = Depends(get_db)) -> list[dict]:
     """Dérivés dont la leçon a été archivée, + `has_history`. Ne supprime ni ne réattache rien."""
     return service.orphans(db)
+
+
+@router.get("/estimations")
+def get_estimations(db: Session = Depends(get_db)) -> dict[str, int]:
+    """Combien de temps chaque type de travail prend — **mesuré** (ADR-0041 §9).
+
+    🔴 **C'est ce qui tue les vingt-trois constantes de durée.** Une barre locale n'a plus rien à
+    deviner : elle lit. `estimated_ms` (porté par `/activity` et `/ai/jobs/{id}`) sert quand un
+    travail EXISTE ; cette table-ci sert **avant** — un aperçu (« ce lot prendra ~36 min »), et la
+    poignée de secondes entre le clic et la première réponse du sondage. Sans elle, l'écran aurait
+    dû garder une valeur en dur juste pour ce moment-là, c'est-à-dire garder le défaut.
+
+    Valeurs = médiane des dernières exécutions réussies par `job_type`, amorce sinon. Voir
+    `ai/travaux.py`, notamment pourquoi ce n'est pas une table de constantes déplacée d'un cran.
+
+    ⚠️ Lecture pure — le « LECTURE SEULE » de ce routeur (ADR-0023) est intact.
+    """
+    from app.modules.ai.travaux import estimations
+
+    return estimations(db)

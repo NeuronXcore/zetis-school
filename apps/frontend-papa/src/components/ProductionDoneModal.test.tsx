@@ -20,6 +20,7 @@ const RUN: ProductionRun = {
   created_at: "2026-08-03T14:00:00Z",
   started_at: "2026-08-03T14:00:02Z",
   finished_at: "2026-08-03T14:00:15Z",
+  estimated_ms: 30_000,
 };
 
 function show(run: Partial<ProductionRun>, onClose = vi.fn()) {

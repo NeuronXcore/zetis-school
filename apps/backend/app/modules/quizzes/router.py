@@ -7,7 +7,7 @@ Deux routeurs :
   clés, tentative, feedback immédiat, complétion.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -18,6 +18,8 @@ from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.eli5.service import get_default_student
 from app.modules.quizzes import service
+from app.modules.ai import travaux
+from app.modules.ai.schemas import TravailAccepteOut
 from app.modules.quizzes.schemas import (
     AnswerFeedbackOut,
     CompleteOut,
@@ -59,23 +61,28 @@ def pilotage_subject_tree(subject_id: int, db: Session = Depends(get_db)) -> dic
 # ── Papa ──────────────────────────────────────────────────────────────────────
 
 
-@router.post("/lessons/{lesson_id}/quizzes/generate", response_model=QuizGenerateResponse)
+@router.post(
+    "/lessons/{lesson_id}/quizzes/generate",
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def generate(
-    lesson_id: int,
-    req: QuizGenerateRequest,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> QuizGenerateResponse:
-    """Génère un NOUVEAU quiz de fin de cours (requête longue, moteur local)."""
-    quiz, counters = service.generate_quiz(
-        db, provider, embedder, lesson_id=lesson_id, count=req.count, difficulty=req.difficulty
-    )
-    return QuizGenerateResponse(
-        quiz_id=quiz.id,
-        lesson_id=lesson_id,
-        questions_generated=counters["questions_generated"],
-        questions_discarded=counters["questions_discarded"],
+    lesson_id: int, req: QuizGenerateRequest, db: Session = Depends(get_db)
+) -> dict:
+    """Demande un NOUVEAU quiz. **202 — accepté, pas exécuté** (ADR-0041 §4).
+
+    Le quiz et ses compteurs (`questions_generated` / `questions_discarded`) se lisent dans
+    `output` quand le travail est `succeeded` — le contrat de `QuizGenerateResponse` n'est pas
+    perdu, il est **déplacé** dans la sortie du travail.
+
+    ⚠️ **Le gate `validated` est rejoué ici, avant d'enfiler** — la file diffère le TRAVAIL,
+    jamais le VERDICT sur la demande.
+    """
+    service._validated_lesson_or_409(db, lesson_id)
+    return travaux.enfiler(
+        db,
+        job_type="quiz_generate",
+        payload={"lesson_id": lesson_id, "count": req.count, "difficulty": req.difficulty},
     )
 
 
@@ -95,20 +102,14 @@ def get_quiz(quiz_id: int, db: Session = Depends(get_db)) -> dict:
     return service.get_quiz_papa(db, quiz_id)
 
 
-@router.post("/quizzes/{quiz_id}/regenerate", response_model=QuizGenerateResponse)
-def regenerate(
-    quiz_id: int,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> QuizGenerateResponse:
-    quiz, counters = service.regenerate_quiz(db, provider, embedder, quiz_id=quiz_id)
-    return QuizGenerateResponse(
-        quiz_id=quiz.id,
-        lesson_id=quiz.lesson_id,
-        questions_generated=counters["questions_generated"],
-        questions_discarded=counters["questions_discarded"],
-    )
+@router.post(
+    "/quizzes/{quiz_id}/regenerate",
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def regenerate(quiz_id: int, db: Session = Depends(get_db)) -> dict:
+    """202 — voir `generate`."""
+    return travaux.enfiler(db, job_type="quiz_regenerate", payload={"quiz_id": quiz_id})
 
 
 @router.patch("/quiz-questions/{question_id}", response_model=PapaQuestionOut)

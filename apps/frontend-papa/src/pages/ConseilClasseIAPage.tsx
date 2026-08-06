@@ -19,12 +19,11 @@ import { COUNCIL_PERIOD_LABEL, isDashboardPeriod } from "../lib/dashboardDerive"
 import type { Subject } from "../lib/subjects";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { subjectIconFor } from "../lib/subjectIcons";
-import { WORK_ESTIMATION_MS } from "../lib/production";
+import { useProgressionEstimee } from "../hooks/useEstimations";
 
 // Conseil de classe IA Papa (ADR-0020/0021) — narration LLM locale + équipement d'une notion.
 // Composant présentationnel ; toute la logique vit dans `useCouncilClass`.
 
-const GEN_MS = 18000; // génération d'une synthèse (barre estimée).
 // 🔴 `EQUIP_MS` a été SUPPRIMÉE ici (ADR-0041 §9). Elle valait 90 000 ms et sa jumelle vivait
 // dans `SubjectDetailRow` : deux copies pour le même travail, qui divergeaient au premier
 // correctif. Le 2026-08-06, un équipement de 11 ms a fait dérouler dix secondes de pipeline à
@@ -58,8 +57,8 @@ function EquipProgress({ equipping, etat }: { equipping: Equipping; etat: EtatTr
   // ⚠️ `active` suit le SERVEUR : tant que le travail attend son tour, rien ne monte. Une barre
   // qui avance sur un travail en file ment sur ce qui se passe.
   const pct = useEstimatedProgress(
-    etat?.status === "running",
-    WORK_ESTIMATION_MS,
+    etat?.status === "running" && (etat?.estimatedMs ?? 0) > 0,
+    etat?.estimatedMs ?? 0,
     etat?.startedAtMs ?? null,
   );
   const seg = 100 / KIT_STEPS.length;
@@ -366,7 +365,7 @@ export function ConseilClasseIAPage() {
   const [pendingReco, setPendingReco] = useState<CouncilRecommendation | null>(null);
   const [pendingChampion, setPendingChampion] = useState(false);
   const [showDone, setShowDone] = useState(false);
-  const pct = useEstimatedProgress(c.generating, GEN_MS);
+  const pct = useProgressionEstimee(c.generating, "council_generate");
   const subjectById = new Map(c.subjects.map((s) => [s.id, s]));
   const busy = c.equipping !== null;
   // Calculé ici, hors du rendu : `c.report` est narrowé par le `!c.report ?` du JSX, mais la

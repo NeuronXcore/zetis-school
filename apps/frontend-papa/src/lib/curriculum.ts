@@ -15,6 +15,7 @@ import {
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
+import { lancerEtSuivre, type SuiviTravail } from "./travaux";
 
 export async function fetchActiveSchoolYear(): Promise<ActiveSchoolYear> {
   return asJson(
@@ -236,14 +237,30 @@ export async function deleteLesson(lessonId: number): Promise<void> {
   }
 }
 
-/** Rédaction du cours (moteur LOCAL ollama, ~40-60 s) : renvoie la leçon mise à jour.
- *  409 si la leçon est archivée ; la régénération écrase le cours existant. */
-export async function generateLessonContent(lessonId: number): Promise<CurriculumLesson> {
+/** Rédaction du cours (moteur LOCAL ollama) : renvoie la leçon mise à jour.
+ *
+ *  🔴 **C'est LA route du §9.** Sa durée était annoncée par cinq constantes différentes selon
+ *  l'écran d'où Papa cliquait — 45 s, 42 s, 50 s, 50 s, 22 s. Il n'y en a plus aucune : le serveur
+ *  dit ce qu'il mesure (`estimated_ms`), et cette fonction le transmet via `onEtat`.
+ *
+ *  202 + sondage (ADR-0041 §4). ⚠️ Le `409` (leçon archivée) et le `404` restent SYNCHRONES :
+ *  la file diffère le travail, jamais le verdict sur la demande. */
+export async function generateLessonContent(
+  lessonId: number,
+  onEtat?: SuiviTravail,
+): Promise<CurriculumLesson> {
+  const sortie = await lancerEtSuivre<{ lesson_id: number }>(
+    `${API_URL}/api/lessons/${lessonId}/generate-content`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
+  );
+  return fetchLesson(sortie.lesson_id);
+}
+
+/** La leçon par son id — sert à rendre l'objet une fois la rédaction finie. */
+export async function fetchLesson(lessonId: number): Promise<CurriculumLesson> {
   return asJson(
-    await fetch(`${API_URL}/api/lessons/${lessonId}/generate-content`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+    await fetch(`${API_URL}/api/lessons/${lessonId}`, { headers: authHeader() }),
   );
 }
 

@@ -40,6 +40,8 @@ from app.modules.curriculum.schemas import (
     SubjectNotionsOut,
 )
 from app.modules.subjects.resolver import subject_id_for_lesson
+from app.modules.ai import travaux
+from app.modules.ai.schemas import TravailAccepteOut
 
 router = APIRouter(prefix="/api", tags=["curriculum"], dependencies=[Depends(require_parent)])
 
@@ -251,6 +253,17 @@ def reorder_lessons(
     return service.lessons_out(db, lessons)
 
 
+@router.get("/lessons/{lesson_id}", response_model=CurriculumLessonOut)
+def get_lesson(lesson_id: int, db: Session = Depends(get_db)) -> dict:
+    """UNE leçon, avec son cours et son audit de provenance.
+
+    ⚠️ **Née de la migration en file** (ADR-0041 §4) : `generate-content` rendait la leçon rédigée
+    dans sa réponse ; elle rend maintenant `202`. Il faut donc pouvoir **relire** ce que le travail
+    a produit — sans quoi l'écran devrait recharger tout le chapitre pour une seule leçon.
+    """
+    return service.lessons_out(db, [service._lesson_or_404(db, lesson_id)])[0]
+
+
 @router.patch("/lessons/{lesson_id}", response_model=CurriculumLessonOut)
 def update_lesson(
     lesson_id: int, payload: LessonPatch, db: Session = Depends(get_db)
@@ -282,22 +295,32 @@ def reject_lesson(lesson_id: int, db: Session = Depends(get_db)) -> dict:
     return service.lessons_out(db, [lesson])[0]
 
 
-@router.post("/lessons/{lesson_id}/generate-content", response_model=CurriculumLessonOut)
-def generate_lesson_content(
-    lesson_id: int,
-    db: Session = Depends(get_db),
-    llm: LLMProvider = Depends(get_provider),
-) -> dict:
-    """Rédige le cours complet (markdown) de la leçon — requête longue synchrone
-    (~40-60 s), moteur LOCAL (`get_provider`, jamais la dérogation cloud `curriculum_*`).
-    409 si la leçon est archivée ; la régénération écrase le cours existant."""
-    try:
-        lesson = service.generate_lesson_content(db, llm, lesson_id)
-    except service.CurriculumGenerationError as exc:
+@router.post(
+    "/lessons/{lesson_id}/generate-content",
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def generate_lesson_content(lesson_id: int, db: Session = Depends(get_db)) -> dict:
+    """Demande la rédaction du cours. **202 — acceptée, pas exécutée** (ADR-0041 §4).
+
+    🔴 **Cette route est le motif entier du §9.** Sa durée était annoncée par **CINQ** constantes
+    différentes selon l'écran d'où Papa cliquait — 45 s, 42 s, 50 s, 50 s, 22 s — et aucune n'avait
+    été mesurée. Il n'y en a plus aucune : l'avancement se lit dans `/production/activity`.
+
+    Le moteur reste **LOCAL** (jamais la dérogation cloud `curriculum_*`) : un cours porte du
+    contexte de Massimo. La règle a suivi le travail dans `jobs._lesson_content`.
+
+    ⚠️ **Le `404` et le `409` (leçon archivée) sont rejoués ici, avant d'enfiler.** La file diffère
+    le TRAVAIL, jamais le VERDICT sur la demande : une leçon archivée se refuse au clic. Le service
+    les refait de son côté — le monde a pu changer entre le clic et l'exécution.
+    """
+    lecon = service._lesson_or_404(db, lesson_id)
+    if lecon.status == "archived":
         raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
-        ) from exc
-    return service.lessons_out(db, [lesson])[0]
+            status.HTTP_409_CONFLICT,
+            detail=f"Leçon {lesson_id} archivée : hors du flux, cours non rédigeable.",
+        )
+    return travaux.enfiler(db, job_type="lesson_content", payload={"lesson_id": lesson_id})
 
 
 @router.delete("/lessons/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -9,6 +9,7 @@ import {
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
+import { lancerEtSuivre, type SuiviTravail } from "./travaux";
 
 const API = `${API_URL}/api/mindmaps`;
 
@@ -40,20 +41,36 @@ export async function evaluateMindmapPreview(
   );
 }
 
-/** Génère une carte à partir d'une leçon validée (statut `pending`) — requête longue (LLM local). */
-export async function generateMindmap(lessonId: number): Promise<MindmapDetail> {
-  return asJson(
-    await fetch(`${API}/generate`, {
+/** Génère une carte à partir d'une leçon validée (statut `pending`).
+ *
+ *  202 + sondage (ADR-0041 §4) : la route accepte, le worker produit. La signature est INCHANGÉE —
+ *  l'attente est absorbée ici, donc aucun appelant n'a eu à changer de forme. */
+export async function generateMindmap(
+  lessonId: number,
+  onEtat?: SuiviTravail,
+): Promise<MindmapDetail> {
+  const sortie = await lancerEtSuivre<{ mindmap_id: number }>(
+    `${API}/generate`,
+    {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ lesson_id: lessonId }),
-    }),
+    },
+    onEtat,
   );
+  return fetchMindmap(sortie.mindmap_id);
 }
 
-/** Régénère le `mindmap_json` d'une carte (écrase l'existant → repasse `pending`). */
-export async function regenerateMindmap(id: number): Promise<MindmapDetail> {
-  return asJson(await fetch(`${API}/${id}/regenerate`, { method: "POST", headers: authHeader() }));
+/** Régénère le `mindmap_json` d'une carte (écrase l'existant → repasse `pending`).
+ *
+ *  202 + sondage (ADR-0041 §4). La signature est INCHANGÉE : l'attente est absorbée ici. */
+export async function regenerateMindmap(id: number, onEtat?: SuiviTravail): Promise<MindmapDetail> {
+  await lancerEtSuivre<{ mindmap_id: number }>(
+    `${API}/${id}/regenerate`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
+  );
+  return fetchMindmap(id);
 }
 
 /** Remplace le `mindmap_json` (revalidé par le schéma → repasse `pending`). */

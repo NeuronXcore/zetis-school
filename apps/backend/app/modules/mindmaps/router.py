@@ -30,6 +30,8 @@ from app.modules.mindmaps.schemas import (
     MindmapsSummaryOut,
     MindmapUpdateRequest,
 )
+from app.modules.ai import travaux
+from app.modules.ai.schemas import TravailAccepteOut
 
 router = APIRouter(
     prefix="/api/mindmaps", tags=["mindmaps"], dependencies=[Depends(require_parent)]
@@ -43,21 +45,19 @@ student_router = APIRouter(
 # ── Papa ────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/generate", response_model=MindmapOut, status_code=status.HTTP_201_CREATED)
-def generate(
-    req: MindmapGenerateRequest,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> dict:
-    """Papa : génère une carte à partir d'une leçon validée (statut `pending`)."""
-    try:
-        row = service.generate_mindmap(db, provider, embedder, lesson_id=req.lesson_id)
-    except service.MindmapGenerationError as exc:
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
-        ) from exc
-    return service.mindmap_out(db, row)
+@router.post(
+    "/generate", response_model=TravailAccepteOut, status_code=status.HTTP_202_ACCEPTED
+)
+def generate(req: MindmapGenerateRequest, db: Session = Depends(get_db)) -> dict:
+    """Papa : demande une carte. **202 — acceptée, pas exécutée** (ADR-0041 §4).
+
+    La carte se lit dans `output.mindmap_id` quand le travail est `succeeded`.
+
+    ⚠️ **Le gate `validated` est rejoué ici, avant d'enfiler.** La file diffère le TRAVAIL,
+    jamais le VERDICT sur la demande : une leçon non validée se refuse au clic.
+    """
+    service._validated_lesson_or_409(db, req.lesson_id)
+    return travaux.enfiler(db, job_type="mindmap_generate", payload={"lesson_id": req.lesson_id})
 
 
 @router.get("/pilotage/{subject_id}", response_model=MindmapPilotageTree)
@@ -84,20 +84,18 @@ def update(mindmap_id: int, req: MindmapUpdateRequest, db: Session = Depends(get
     )
 
 
-@router.post("/{mindmap_id}/regenerate", response_model=MindmapOut)
-def regenerate(
-    mindmap_id: int,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> dict:
-    try:
-        row = service.regenerate_mindmap(db, provider, embedder, mindmap_id=mindmap_id)
-    except service.MindmapGenerationError as exc:
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, detail=f"Régénération échouée : {exc}"
-        ) from exc
-    return service.mindmap_out(db, row)
+@router.post(
+    "/{mindmap_id}/regenerate",
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def regenerate(mindmap_id: int, db: Session = Depends(get_db)) -> dict:
+    """202 — voir `generate`. La carte régénérée garde son id.
+
+    Le gate est rejoué ici aussi (404 sur la carte, 409 sur sa leçon) — voir `generate`.
+    """
+    service._validated_lesson_or_409(db, service._mindmap_or_404(db, mindmap_id).lesson_id)
+    return travaux.enfiler(db, job_type="mindmap_regenerate", payload={"mindmap_id": mindmap_id})
 
 
 @router.post("/{mindmap_id}/evaluate-preview", response_model=MindmapReconstructionResult)

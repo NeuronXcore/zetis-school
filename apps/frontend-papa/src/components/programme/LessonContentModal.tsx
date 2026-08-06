@@ -3,8 +3,9 @@ import ReactMarkdown from "react-markdown";
 import { type CurriculumLesson, type LessonContentAuthor } from "@zetis/types";
 import { Button, Spinner } from "@zetis/ui";
 import { lessonActions } from "../../lib/chapterActions";
-import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+import { ProgressBar } from "../ProgressBar";
 import { LessonSourceBadge, LessonStatusBadge } from "./badges";
+import { useProgressionEstimee } from "../../hooks/useEstimations";
 
 // Modale « Lire le cours » d'une leçon (Lot 2) : lit `lesson.content` (markdown),
 // pilote sa rédaction locale (~40-60 s, qwen3.6 via get_provider — jamais la dérogation
@@ -86,7 +87,7 @@ export function LessonContentModal({
   const actions = lessonActions(lesson.created_by, lesson.status);
   // Progression *estimée* : génération LOCALE (qwen3.6), plus lente que le cloud —
   // même calibrage que la génération de capsule (42 s), pas les 22 s de Sonnet.
-  const generationPct = useEstimatedProgress(generating, 42000);
+  const generationPct = useProgressionEstimee(generating, "lesson_content");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);

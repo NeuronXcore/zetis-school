@@ -8,12 +8,12 @@ import {
 } from "@zetis/types";
 import { KpiCard } from "../components/KpiCard";
 import { PageHeader } from "../components/PageHeader";
-import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
+import { ProgressBar } from "../components/ProgressBar";
 import { QuizInspectModal } from "../components/quiz/QuizInspectModal";
 import { useQuizPilotage } from "../hooks/useQuizPilotage";
 import { formatLabel } from "../lib/quizPilotage";
+import { useProgressionEstimee } from "../hooks/useEstimations";
 
-const GEN_EXPECTED_MS = 60_000; // génération + auto-vérification ≈ 60 s (barre estimée)
 
 function pct(rate: number | null): string {
   return rate == null ? "—" : `${Math.round(rate * 100)} %`;
@@ -21,7 +21,7 @@ function pct(rate: number | null): string {
 
 /** Barre de progression estimée pendant une génération (pattern capsules/cours). */
 function GenerateProgress() {
-  const p = useEstimatedProgress(true, GEN_EXPECTED_MS);
+  const p = useProgressionEstimee(true, "quiz_generate");
   return (
     <div className="max-w-xs flex-1">
       <ProgressBar pct={p} label="Génération + auto-vérification (~60 s)" />

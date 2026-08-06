@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-// 🔒 VERROU DU §9 DE L'ADR-0041 — une seule source pour estimer un travail migré.
+// 🔒 VERROU DU §9 DE L'ADR-0041 — plus aucune durée n'est devinée par un écran.
 //
 // ## Ce que ce test empêche, et pourquoi il est LEXICAL
 //
@@ -17,6 +17,11 @@ import { describe, expect, it } from "vitest";
 //
 // Aucun test de rendu n'aurait attrapé ça : chaque composant était juste **tout seul**. Le défaut
 // ne vit que dans l'écart entre deux fichiers, donc le verrou se pose sur les fichiers.
+//
+// 🔴 **Ce test a changé de nature en slice C, et c'est le fait qui compte.** Il était un CLIQUET —
+// « la dette n'a pas le droit de grandir », avec douze fichiers inscrits noir sur blanc. La dette
+// est **dissoute** : plus aucune barre Papa ne porte de durée. Il est donc redevenu ce qu'un
+// verrou doit être — un interdit, sans liste d'exceptions.
 
 // ⚠️ `import.meta.glob` de Vite plutôt que `node:fs` : le tsconfig de Papa ne porte pas les
 // types Node, et les ajouter pour un test lexical serait payer une dépendance pour rien.
@@ -27,32 +32,36 @@ const SOURCES = import.meta.glob("../**/*.{ts,tsx}", {
   eager: true,
 }) as Record<string, string>;
 
+/** 🔴 **LE guichet, et le seul.** `useProgressionEstimee` appelle `useEstimatedProgress` avec la
+ *  durée que le SERVEUR mesure — c'est la fonction par laquelle toutes les barres passent
+ *  désormais. L'exclure du balayage n'est pas une exception concédée : c'est la destination.
+ *
+ *  ⚠️ Si un jour ce fichier portait un nombre en dur, ce test ne le verrait pas. C'est le prix
+ *  d'avoir UN point de passage — et c'est précisément pour ça que ce point de passage n'a le droit
+ *  de lire QUE `estimations[jobType]`. */
+const GUICHET = "/hooks/useEstimations.ts";
+
 const FICHIERS: [string, string][] = Object.entries(SOURCES)
   .filter(([chemin]) => !/\.test\.tsx?$/.test(chemin))
-  .map(([chemin, src]) => [chemin.replace(/^\.\./, ""), src]);
+  .map(([chemin, src]) => [chemin.replace(/^\.\./, ""), src] as [string, string])
+  .filter(([chemin]) => chemin !== GUICHET);
 
-/** Les constantes de durée légitimes, avec le motif qui les autorise. Toute AUTRE est un retour
- *  du défaut — et si un travail cesse d'être estimé localement, sa ligne part d'ici. */
+/** Les rares durées légitimes, avec le motif qui les autorise.
+ *
+ *  ⚠️ **Une durée n'entre ici que si elle n'estime AUCUN travail LLM.** Le jour où l'on est tenté
+ *  d'y ajouter un producteur, c'est qu'il faut lui donner un `job_type` — pas une ligne ici. */
 const AUTORISEES: Record<string, string> = {
-  WORK_ESTIMATION_MS:
-    "LA source unique — la seule durée jamais mesurée (69 s/notion, 2026-08-02, reconfirmée 77 s le 2026-08-06)",
+  GEN_MS:
+    "analyse par matière — producteur LLM SANS trace `ai_jobs`, donc sans `job_type` et sans historique à mesurer. La tracer d'abord ; le §4 ne le demande pas",
+  LONG_MS: "seuil de bascule d'un message d'attente, pas une estimation de durée",
   MISSION_MS:
     "composition pur-DB sans LLM : l'ADR-0041 §4 l'exclut EXPLICITEMENT de la file, donc le §9 ne la vise pas",
-  GEN_MS: "génération d'un rapport de Conseil — producteur NON migré en slice A",
-  GEN_EXPECTED_MS: "quiz — producteur NON migré en slice A",
   POLL_MS: "période de sondage, pas une estimation de durée",
   AUTO_CLOSE_MS: "fermeture d'une annonce, pas une estimation de durée",
   RENDER_JOB_TIMEOUT: "garde-fou de worker, pas une estimation",
-  // ⚠️ Ces deux-là sont des DURÉES estimées, et elles restent — mais elles vivent déjà dans UN
-  // seul fichier (`lib/production.ts`), et `SCOPE_MS` réutilise `GENERATION_MS` au lieu de la
-  // recopier. C'est exactement la forme visée. Elles couvrent les producteurs que la slice A n'a
-  // pas migrés (cours, fiche, quiz, mindmap, cartes) : **elles meurent en slice C**, quand ces
-  // producteurs entreront dans la file à leur tour.
-  GENERATION_MS: "durées par pièce des producteurs NON migrés — centralisées, à supprimer en slice C",
-  SCOPE_MS: "dérivée de GENERATION_MS (aucune recopie) — à supprimer en slice C",
 };
 
-describe("§9 — une seule estimation pour un travail migré", () => {
+describe("§9 — plus aucune durée devinée par un écran", () => {
   it("🔒 aucun composant Papa ne déclare sa propre durée d'ÉQUIPEMENT", () => {
     // On cherche une DÉCLARATION, pas une mention en commentaire : les commentaires de ce
     // chantier parlent abondamment d'`EQUIP_MS` pour expliquer pourquoi elle n'est plus là.
@@ -60,10 +69,10 @@ describe("§9 — une seule estimation pour un travail migré", () => {
       /^\s*(const|let)\s+EQUIP_MS\b/m.test(src),
     ).map(([f]) => f);
 
-    expect(coupables, "l'équipement s'estime en UN endroit — `WORK_ESTIMATION_MS`").toEqual([]);
+    expect(coupables, "l'équipement s'estime côté SERVEUR — `estimated_ms`").toEqual([]);
   });
 
-  it("🔒 toute durée qui PILOTE UNE BARRE est nommée et justifiée", () => {
+  it("🔒 AUCUNE barre ne pilote son avancement avec une durée écrite dans le frontend", () => {
     // ⚠️ **Le test porte sur l'usage, pas sur le nom.** Une première version listait toute
     // constante `*_MS` et attrapait un fondu, un toast, un seuil et un plafond de sondage —
     // aucun n'estime un travail. Une durée n'est dangereuse que **quand elle pilote une barre de
@@ -75,62 +84,68 @@ describe("§9 — une seule estimation pour un travail migré", () => {
         const arg = m[1].trim();
         const noms = arg.match(/[A-Z][A-Z0-9_]*_MS\b|[A-Z][A-Za-z0-9_]*_META\b/g) ?? [];
         const litteral = /\b\d{4,}\b/.test(arg);
-        const toutesConnues = noms.length > 0 && noms.every((n) => n in AUTORISEES);
+        const toutesConnues = noms.length === 0 || noms.every((n) => n in AUTORISEES);
         if (litteral || !toutesConnues) trouvees.push(f);
       }
     }
 
-    // 🔴 **Un CLIQUET, pas un feu vert.** La slice A n'a migré QU'`equip_notion` ; les autres
-    // producteurs estiment encore en dur, et c'est écrit noir sur blanc ci-dessous plutôt que
-    // laissé à la mémoire de quelqu'un. Ce test n'exige pas zéro — il exige que **la liste ne
-    // GRANDISSE pas**. Elle fondra en slice C, quand ces producteurs entreront dans la file.
-    //
-    // Ajouter une barre estimée en dur fait rougir ce test : c'est le but.
-    const DETTE_SLICE_C = [
-      "/components/ChampionMissionModal.tsx",
-      "/components/couverture/ChapterProductionModal.tsx",
-      "/components/demandes/NotionRequestActionModal.tsx",
-      "/components/programme/LessonContentModal.tsx",
-      "/components/programme/LessonsPanel.tsx",
-      "/components/programme/OrphanNotionsPanel.tsx",
-      "/components/programme/SkillsBackfillModal.tsx",
-      "/components/srs-cards/SubjectSection.tsx",
-      "/pages/CapsulesPilotagePage.tsx",
-      "/pages/CouverturePage.tsx",
-      "/pages/ProgrammePage.tsx",
-      // Repli `|| 30000` de `SCOPE_MS` — même classe, même échéance.
-      "/hooks/useRunProgress.ts",
-    ];
-
-    const nouvelles = [...new Set(trouvees)]
-      .filter((f) => !DETTE_SLICE_C.includes(f))
-      .sort();
+    // 🔴 **ZÉRO, et plus « la liste n'a pas le droit de grandir ».** La slice C a dissous les douze
+    // fichiers de `DETTE_SLICE_C` : les durées vivent côté serveur, où elles sont MESURÉES
+    // (médiane des exécutions réussies par `job_type`). Une barre qui réintroduirait un nombre ici
+    // recréerait la divergence entre écrans que tout ce chantier a servi à fermer.
     expect(
-      nouvelles,
-      "cette barre estime avec une durée en dur : fais-lui lire `WORK_ESTIMATION_MS`. " +
-        "La dette existante est inscrite dans DETTE_SLICE_C et n'a pas le droit de grandir",
-    ).toEqual([]);
-
-    // Contre-épreuve : la dette inscrite doit être RÉELLE. Une entrée périmée ferait passer ce
-    // test pour la mauvaise raison, et masquerait la prochaine.
-    const reelles = new Set(trouvees);
-    expect(
-      DETTE_SLICE_C.filter((f: string) => !reelles.has(f)),
-      "cette dette est réglée — retire sa ligne de DETTE_SLICE_C",
+      [...new Set(trouvees)].sort(),
+      "cette barre estime avec une durée écrite en dur : passe par `useProgressionEstimee(actif, " +
+        '"<job_type>")`, qui lit la mesure du serveur',
     ).toEqual([]);
   });
 
-  it("🔒 les trois surfaces d'équipement lisent la MÊME constante", () => {
+  it("🔒 les trois surfaces d'équipement lisent la MÊME source — le serveur", () => {
     // L'en-tête, la page du Conseil et le dépliage de Progression lancent tous le même travail.
-    // C'est très exactement le trio qui s'était mis à diverger.
-    for (const cible of [
-      "/components/ProductionBar.tsx",
-      "/pages/ConseilClasseIAPage.tsx",
-      "/components/progression/SubjectDetailRow.tsx",
-    ]) {
+    // C'est très exactement le trio qui s'était mis à diverger : trois constantes indépendantes
+    // pour un seul travail. Elles lisent désormais la durée que le serveur MESURE — `estimated_ms`
+    // sur l'item d'activité pour l'en-tête, `estimatedMs` de l'état de travail pour les deux
+    // autres, qui sondent `GET /ai/jobs/{id}`.
+    // 🔴 **Le verrou vise le 2ᵉ ARGUMENT, pas le fichier.** Première version : un `toContain` sur
+    // le nom du champ — resté **VERT sur son sabotage** (2026-08-06), parce que le champ figurait
+    // encore dans la CONDITION d'activation et dans un commentaire pendant que la durée, elle,
+    // était redevenue `69000`. Cinquième fois que ce motif apparaît dans ce dépôt : un verrou
+    // lexical doit viser l'endroit exact où la règle s'applique, jamais le voisinage.
+    for (const [cible, champ] of [
+      ["/components/ProductionBar.tsx", "estimated_ms"],
+      ["/pages/ConseilClasseIAPage.tsx", "estimatedMs"],
+      ["/components/progression/SubjectDetailRow.tsx", "estimatedMs"],
+    ] as const) {
       const entree = FICHIERS.find(([f]) => f === cible);
       expect(entree, `${cible} introuvable — le verrou vise un fichier qui n'existe plus`).toBeDefined();
-      expect(entree![1], cible).toContain("WORK_ESTIMATION_MS");
+
+      // Le 2ᵉ argument de chaque appel — celui qui porte la DURÉE. On accepte les parenthèses et
+      // le `?.` : `(etat?.estimatedMs ?? 0)`.
+      const durees = [
+        ...entree![1].matchAll(/useEstimatedProgress\(\s*[^,]+(?:,\s*)([^\n]*?),\s*$/gm),
+      ].map((m) => m[1].trim());
+      expect(
+        durees.length,
+        `${cible} : aucun appel à useEstimatedProgress trouvé — le verrou ne mesure plus rien`,
+      ).toBeGreaterThan(0);
+      expect(
+        durees.some((d) => d.includes(champ)),
+        `${cible} : la durée passée à la barre doit venir du serveur (\`${champ}\`), pas d'un nombre. Trouvé : ${durees.join(" | ")}`,
+      ).toBe(true);
+    }
+  });
+
+  it("🔒 les tables de durées du frontend sont bien MORTES, pas déplacées", () => {
+    // ⚠️ Contre-épreuve du test précédent. Sans elle, on pourrait rassembler les 23 constantes
+    // dans un seul fichier `lib/` et croire le §9 satisfait : elles seraient encore des
+    // devinettes, simplement regroupées. Ce que le §9 exige, c'est qu'elles n'existent PLUS —
+    // le serveur a l'historique de ce que chaque travail a duré, l'écran ne l'a pas.
+    const mortes = ["GENERATION_MS", "SCOPE_MS", "KIT_MS_PER_NOTION", "WORK_ESTIMATION_MS"];
+    for (const nom of mortes) {
+      const survivants = FICHIERS.filter(([, src]) =>
+        new RegExp(`^\\s*export\\s+const\\s+${nom}\\b`, "m").test(src),
+      ).map(([f]) => f);
+      expect(survivants, `${nom} est ressuscitée — les durées vivent côté serveur`).toEqual([]);
     }
   });
 });

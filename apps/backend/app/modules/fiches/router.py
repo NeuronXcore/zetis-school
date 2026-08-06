@@ -25,6 +25,8 @@ from app.modules.fiches.schemas import (
     FichesSummaryOut,
     FicheUpdateRequest,
 )
+from app.modules.ai import travaux
+from app.modules.ai.schemas import TravailAccepteOut
 from app.modules.subjects.resolver import subject_id_for_lesson
 
 router = APIRouter(prefix="/api/fiches", tags=["fiches"], dependencies=[Depends(require_parent)])
@@ -37,21 +39,27 @@ student_router = APIRouter(
 # ── Papa ────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/generate", response_model=FicheOut, status_code=status.HTTP_201_CREATED)
-def generate(
-    req: FicheGenerateRequest,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> dict:
-    """Papa : génère une fiche à partir d'une leçon validée (statut `pending`)."""
-    try:
-        row = service.generate_fiche(db, provider, embedder, lesson_id=req.lesson_id)
-    except service.FicheGenerationError as exc:
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}"
-        ) from exc
-    return service.fiche_out(db, row)
+@router.post(
+    "/generate", response_model=TravailAccepteOut, status_code=status.HTTP_202_ACCEPTED
+)
+def generate(req: FicheGenerateRequest, db: Session = Depends(get_db)) -> dict:
+    """Papa : demande une fiche. **202 — acceptée, pas exécutée** (ADR-0041 §4).
+
+    Cette route tenait la requête HTTP pendant une génération LLM locale. La fiche se lit dans
+    `output.fiche_id` quand le travail est `succeeded` ; l'avancement, dans `/production/activity`
+    comme tout le reste.
+
+    ⚠️ **Le `502` sur `FicheGenerationError` disparaît d'ici**, et ce n'est pas une perte : l'échec
+    est désormais porté par le travail (`error`), donc il **survit à la fermeture de l'onglet** et
+    reste affiché jusqu'à acquittement (§8). Un `502` ne durait que le temps d'un toast.
+
+    ⚠️ **Le gate `validated` est rejoué ici, avant d'enfiler.** La file diffère le TRAVAIL, jamais
+    le VERDICT sur la demande — une leçon non validée se refuse au clic (`409`), pas en silence
+    deux minutes plus tard. Le service le refait de son côté : entre le clic et l'exécution, la
+    leçon a pu être dévalidée.
+    """
+    service._validated_lesson_or_409(db, req.lesson_id)
+    return travaux.enfiler(db, job_type="fiche_generate", payload={"lesson_id": req.lesson_id})
 
 
 @router.get("/pilotage/{subject_id}", response_model=FichePilotageTree)
@@ -76,20 +84,18 @@ def update(fiche_id: int, req: FicheUpdateRequest, db: Session = Depends(get_db)
     return service.fiche_out(db, service.update_fiche_spec(db, fiche_id=fiche_id, spec=req.spec))
 
 
-@router.post("/{fiche_id}/regenerate", response_model=FicheOut)
-def regenerate(
-    fiche_id: int,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> dict:
-    try:
-        row = service.regenerate_fiche(db, provider, embedder, fiche_id=fiche_id)
-    except service.FicheGenerationError as exc:
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, detail=f"Régénération échouée : {exc}"
-        ) from exc
-    return service.fiche_out(db, row)
+@router.post(
+    "/{fiche_id}/regenerate",
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def regenerate(fiche_id: int, db: Session = Depends(get_db)) -> dict:
+    """202 — voir `generate`. La fiche régénérée garde son id.
+
+    Le gate est rejoué ici aussi (404 sur la fiche, 409 sur sa leçon) — voir `generate`.
+    """
+    service._validated_lesson_or_409(db, service._fiche_or_404(db, fiche_id).lesson_id)
+    return travaux.enfiler(db, job_type="fiche_regenerate", payload={"fiche_id": fiche_id})
 
 
 @router.post("/{fiche_id}/validate", response_model=FicheOut)

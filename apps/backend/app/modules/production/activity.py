@@ -34,7 +34,11 @@ from sqlalchemy.orm import Session
 from app.db.models import AIJob, Skill
 from app.db.models.school import Chapter
 from app.db.models.production import ProductionRun
-from app.modules.production import journal, runs
+# ⚠️ Les FONCTIONS, pas le module : `read()` a une variable locale `travaux` (la liste des
+# travaux unitaires) qui masquerait un import de module — et le masquage serait silencieux
+# jusqu'à l'appel.
+from app.modules.ai.travaux import estimation_ms, estimations
+from app.modules.production import journal, runs, sweep
 
 # Ce qui « se passe maintenant ». `stale` n'en fait pas partie : c'est une lecture dérivée de
 # `running` (`journal.run_status`), pas une valeur stockée.
@@ -66,7 +70,25 @@ def _titres_de_chapitres(db: Session, ids: list[int]) -> dict[int, str]:
     return dict(db.execute(select(Chapter.id, Chapter.title).where(Chapter.id.in_(ids))).all())
 
 
-def _lot(run: ProductionRun, notions: dict[int, str], chapitres: dict[int, str]) -> dict:
+# La pièce d'un lot-PIÈCE → le `job_type` dont elle partage la durée. Un lot-pièce et un travail
+# unitaire font littéralement le même travail (`equip_piece` appelle le même générateur) : leur
+# donner deux estimations différentes recréerait, entre le lot et le travail, la divergence que le
+# §9 vient de supprimer entre les écrans.
+PIECE_VERS_TYPE = {
+    "cours": "lesson_content",
+    "fiche": "fiche_generate",
+    "srs": "srs_cards",
+    "quiz": "quiz_generate",
+    "mindmap": "mindmap_generate",
+}
+
+
+def _lot(
+    run: ProductionRun,
+    notions: dict[int, str],
+    chapitres: dict[int, str],
+    estims: dict[str, int],
+) -> dict:
     statut = journal.run_status(run)
     # Mesuré seulement quand le serveur a une vraie granularité. Un lot-PIÈCE n'a qu'une notion :
     # il vaudrait 0 % du début à la fin — c'est l'écran qui estime, ancré sur `started_at`.
@@ -91,10 +113,17 @@ def _lot(run: ProductionRun, notions: dict[int, str], chapitres: dict[int, str])
         "started_at": run.started_at,
         "trigger": run.trigger,
         "error": None,
+        # La durée ATTENDUE, mesurée par le serveur quand il a de l'historique (§9). Un lot de
+        # chapitre est un multiple d'équipements de notion ; un lot-pièce vaut son générateur.
+        "estimated_ms": (
+            estimation_ms(estims, PIECE_VERS_TYPE.get(run.scope_kind or "", ""))
+            if run.scope_skill_id is not None
+            else estimation_ms(estims, "equip_notion") * max(1, run.total_notions or 1)
+        ),
     }
 
 
-def _travail(job: AIJob, notions: dict[int, str]) -> dict:
+def _travail(job: AIJob, notions: dict[int, str], estims: dict[str, int]) -> dict:
     charge = job.input_json if isinstance(job.input_json, dict) else {}
     skill_id = charge.get("skill_id")
     nom = notions.get(skill_id) if isinstance(skill_id, int) else None
@@ -103,7 +132,11 @@ def _travail(job: AIJob, notions: dict[int, str]) -> dict:
         "kind": "job",
         "id": job.id,
         "label": f"{tete} · {nom}" if nom else tete,
-        "status": job.status,
+        # ⚠️ **`sweep.job_status()` et non `job.status`** (ADR-0041 §10.4) — même correction que
+        # `run_out` au §1, et pour la même raison exactement. Un travail dont le worker est mort
+        # restait `running` ici indéfiniment : l'écran affichait une barre qui monte sur un travail
+        # que plus rien n'exécute. `stale` est une lecture, jamais une valeur stockée.
+        "status": sweep.job_status(job),
         # Un appel LLM n'a aucun grain : l'écran estime, ancré sur `started_at`. Jamais 0.
         "pct": None,
         "pct_is_measured": False,
@@ -111,6 +144,10 @@ def _travail(job: AIJob, notions: dict[int, str]) -> dict:
         # Hors lot ⇒ manuel, par construction (§3.2).
         "trigger": "manual",
         "error": job.error_message,
+        # ⚠️ **Le SERVEUR estime, plus l'écran** (§9). C'est ce qui tue les vingt-trois constantes :
+        # la valeur est la médiane des exécutions réussies de ce `job_type`, ou son amorce tant
+        # qu'il n'y a pas d'histoire. Deux surfaces ne peuvent plus annoncer deux durées.
+        "estimated_ms": estimation_ms(estims, job.job_type),
     }
 
 
@@ -159,6 +196,9 @@ def read(db: Session, *, worker_alive: bool | None = None) -> dict:
         ).all()
     )
 
+    # UNE lecture d'historique pour tout l'appel — jamais une par ligne affichée.
+    estims = estimations(db)
+
     notions = _noms_de_notions(
         db,
         [r.scope_skill_id for r in lots + lots_echoues if r.scope_skill_id]
@@ -168,15 +208,15 @@ def read(db: Session, *, worker_alive: bool | None = None) -> dict:
         db, [r.chapter_id for r in lots + lots_echoues if r.chapter_id]
     )
 
-    actifs = [_lot(r, notions, chapitres) for r in lots] + [
-        _travail(j, notions) for j in travaux
+    actifs = [_lot(r, notions, chapitres, estims) for r in lots] + [
+        _travail(j, notions, estims) for j in travaux
     ]
     # Ce qui TOURNE passe devant ce qui attend ; à égalité, le plus ancien démarré d'abord —
     # c'est l'ordre dans lequel la file sera servie.
     actifs.sort(key=lambda a: (a["status"] != "running", a["started_at"] or _loin()))
 
-    echecs = [_lot(r, notions, chapitres) for r in lots_echoues] + [
-        _travail(j, notions) for j in travaux_echoues
+    echecs = [_lot(r, notions, chapitres, estims) for r in lots_echoues] + [
+        _travail(j, notions, estims) for j in travaux_echoues
     ]
     for e, source in zip(echecs, list(lots_echoues) + list(travaux_echoues)):
         e["status"] = "failed"

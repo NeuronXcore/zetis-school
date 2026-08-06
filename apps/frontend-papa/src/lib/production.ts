@@ -39,13 +39,11 @@ export async function fetchOrphans(): Promise<ProductionOrphan[]> {
   return asJson(await fetch(`${API}/orphans`, { headers: authHeader() }));
 }
 
-/** Durées estimées des générations locales, par type — alimentent la barre de progression. */
-export const GENERATION_MS: Record<CoverageCellKey, number> = {
-  cours: 45000,
-  quiz: 30000,
-  fiche: 32000,
-  mindmap: 30000,
-};
+// ⚠️ **`GENERATION_MS` a été SUPPRIMÉE ici** (ADR-0041 §9, 2026-08-06), avec `SCOPE_MS`,
+// `KIT_MS_PER_NOTION` et `WORK_ESTIMATION_MS`. Les durées ne vivent plus dans le frontend : le
+// serveur les MESURE (`GET /api/production/estimations`, `estimated_ms` sur chaque travail), parce
+// qu'il a l'historique de ce que chaque travail a réellement duré et que l'écran ne l'a pas.
+// Ne pas en réintroduire une : le test-cliquet `estimation-unique.test.ts` rougit.
 
 export const GENERATION_LABEL: Record<CoverageCellKey, string> = {
   cours: "Rédaction du cours…",
@@ -131,20 +129,6 @@ export async function startChapterProduction(chapterId: number): Promise<Product
 // besoin de traduire `card → srs` côté client. La traduction vit UNE fois, côté serveur
 // (`REQUEST_KIND_TO_PIECE`), et la recopier ici l'aurait dédoublée pour rien.
 
-/** Durée attendue d'un lot-pièce. Adaptateur sur `GENERATION_MS` pour les quatre types que la
- *  Couverture produit déjà — recopier leurs valeurs les ferait diverger au premier réglage.
- *
- *  Mesures réelles du 2026-08-03 (Postgres + Ollama) : une **fiche en 15 s**, une **carte mentale
- *  en 17 s** — deux fois moins que l'estimation. La courbe étant asymptotique, sur-estimer fait
- *  terminer la barre en avance ; elle ne traîne jamais après la fin. */
-export const SCOPE_MS: Record<string, number> = {
-  cours: GENERATION_MS.cours,
-  fiche: GENERATION_MS.fiche,
-  mindmap: GENERATION_MS.mindmap,
-  quiz: GENERATION_MS.quiz,
-  srs: 35000,
-};
-
 /** Ce que ZETIS est en train de faire. */
 export const SCOPE_LABEL: Record<string, string> = {
   cours: GENERATION_LABEL.cours,
@@ -189,14 +173,6 @@ export async function fetchProductionRun(runId: number): Promise<ProductionRun> 
   return asJson(await fetch(`${API}/runs/${runId}`, { headers: authHeader() }));
 }
 
-/** Durée d'un kit complet par notion, **mesurée** le 2026-08-02 sur le chapitre « Fractions » :
- *  11 notions en 12 min 35 s, soit 69 s. La valeur estimée d'origine (150 s) mentait d'un facteur
- *  2 — la barre traînait à mi-course alors que le lot était fini.
- *
- *  ⚠️ Ne sert plus qu'à l'aperçu AVANT lancement (aucun run, donc aucun avancement réel). Dès
- *  qu'un run existe, c'est `progress_pct` du serveur qui fait foi. */
-export const KIT_MS_PER_NOTION = 69000;
-
 /** Le lot en cours, ou `null`. Alimente l'indicateur d'en-tête.
  *
  *  ⚠️ Un PROCESSUS, jamais un stock. Cet indicateur ne doit à aucun moment devenir un compteur
@@ -222,19 +198,3 @@ export async function acknowledgeActivity(kind: "run" | "job", id: number): Prom
   });
   if (!r.ok) throw new Error("Acquittement impossible");
 }
-
-/** 🔴 **LA seule durée estimée du frontend Papa** (ADR-0041 §9).
- *
- *  Et c'est la seule qui ait jamais été MESURÉE : 69 s par notion, relevées le 2026-08-02
- *  (11 notions en 12 min 35 s), reconfirmées le 2026-08-06 (un équipement réel : 77 227 ms).
- *
- *  Les constantes qu'elle remplace étaient des devinettes, et elles divergeaient : la rédaction
- *  d'un cours en portait CINQ valeurs différentes selon l'écran, `equip_notion` QUATRE. Le
- *  commentaire de `SubjectDetailRow` disait déjà le risque — « deux estimations différentes pour
- *  le même travail se contrediraient à l'écran » — et l'évitait en RECOPIANT la valeur. C'est la
- *  recopie qui meurt ici : une valeur copiée diverge au premier correctif.
- *
- *  ⚠️ Une estimation n'est honnête que si elle est **ancrée sur le `started_at` du SERVEUR**.
- *  Ancrée sur le montage du composant, elle mesure l'âge de l'AFFICHAGE — et deux surfaces qui
- *  regardent le même travail finissent par afficher deux nombres différents. */
-export const WORK_ESTIMATION_MS = 69_000;

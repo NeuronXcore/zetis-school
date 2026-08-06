@@ -94,6 +94,25 @@ Un travail est en file **et aucun moteur ne l'écoute** (`worker_alive: false`).
 Un lot **zombie** (`status: "stale"` — le worker n'a plus donné signe de vie) est rendu dans ce même
 état, avec son propre libellé.
 
+**Depuis la Slice B, un TRAVAIL UNITAIRE zombie l'est aussi** (ADR-0041 §10.4). Jusque-là,
+`/activity` rendait son statut brut : un travail dont le worker était mort restait « en cours »
+**indéfiniment**, barre qui monte comprise. C'est la même correction que le §1 avait faite pour les
+lots, sur le modèle frère.
+
+Deux pannes, deux lectures — et l'écran ne doit pas les confondre :
+
+| Ce qu'on voit | Ce qui s'est passé | Ce qui va se passer |
+|---|---|---|
+| `worker_alive: false` | **personne n'écoute** une des deux files | la file repart seule au démarrage du worker — **rien n'est perdu** |
+| une ligne `stale` | **ce travail-là** est mort en route (OOM, work-horse tué) | il se referme au balayage, puis s'acquitte comme un échec |
+
+⚠️ **Un travail `queued`, lui, n'est JAMAIS `stale`** — même depuis deux jours. Le passer en échec
+condamnerait une file parfaitement intacte.
+
+⚠️ **Ce n'est pas le balayage périodique qui rend cet état honnête**, et c'est important pour qui
+touchera à ce code : il ne bat que toutes les trois heures. La vérité se **dérive à la lecture** de
+`/activity` — le balayage ne fait que refermer les lignes en base.
+
 ### 5. Échec — et il reste
 
 Un travail a échoué.
@@ -237,6 +256,25 @@ et jamais sur un travail déjà terminé au chargement de la page.
   elle ne doit jamais devenir une source d'alarme sur son propre compte.
 - ⚠️ Ces deux silences sont la **seule** exception au principe « dire ce qu'on ne sait pas » : ici,
   ne rien savoir et n'avoir rien à montrer se ressemblent, et le premier ne mérite pas d'écran.
+
+### Quand c'est le CLIC qui échoue (Slice B, ADR-0041 §10.1)
+
+Le silence ci-dessus vaut pour la barre, qui ne fait que **regarder**. Il ne vaut pas pour un geste
+de Papa : un clic qui ne produit rien doit le dire.
+
+Les routes qui enfilent rendent désormais **`503`** quand la file est injoignable, et la phrase part
+telle quelle vers l'écran (`asJson` remonte `detail`) :
+
+> La file de production est injoignable : rien n'a été lancé, et rien n'a été créé. Vérifiez que
+> Redis et le worker de production tournent, puis relancez.
+
+🔴 **La deuxième proposition est la plus importante.** Auparavant, un `500` partait vers le
+navigateur pendant que le lot, lui, **existait déjà en base** — Papa recliquait, et un lot fantôme
+que rien n'exécuterait jamais s'affichait « en file d'attente » indéfiniment. La barre ne bouge donc
+pas après un `503` : c'est exact, il n'y a rien à montrer.
+
+⚠️ **Et la barre ne clignote pas.** `signalerEnfilement()` n'est appelé qu'après un enfilement
+**réussi** — un réveil sur un refus ferait chercher un travail inexistant, au pire moment.
 
 ## Navigation
 

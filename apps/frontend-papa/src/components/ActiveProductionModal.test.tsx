@@ -19,6 +19,7 @@ function item(over: Partial<ActivityItem> = {}): ActivityItem {
     started_at: null,
     trigger: "manual",
     error: null,
+  estimated_ms: 30_000,
     ...over,
   };
 }

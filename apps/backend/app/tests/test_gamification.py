@@ -26,9 +26,17 @@ def test_eli5_reverse_awards_xp(client_db) -> None:
     assert any(b["code"] == "explainer" for b in s["badges"])
 
 
-def test_diagnostic_awards_xp_and_badge(client_db) -> None:
-    client, _ = client_db
-    body = client.post("/api/diagnostics/generate", json={"subject_id": 1}).json()
+def _diagnostic(client, Session, executer_travail) -> dict:
+    """Lance un diagnostic ET joue le travail (ADR-0041 §4 : la route rend `202`)."""
+    res = client.post("/api/diagnostics/generate", json={"subject_id": 1})
+    assert res.status_code == 202, res.text
+    return executer_travail(Session, res.json()["job_id"])
+
+def test_diagnostic_awards_xp_and_badge(client_db, executer_travail) -> None:
+    client, Session = client_db
+    # ⚠️ `202` depuis l'ADR-0041 §4 : la route accepte, le worker produit. On joue le travail —
+    # ce test porte sur l'XP et le badge, pas sur le mode d'exécution du diagnostic.
+    body = _diagnostic(client, Session, executer_travail)
     quiz = client.get(f"/api/diagnostics/quizzes/{body['quiz_id']}").json()
     answers = [{"question_id": q["id"], "choice_index": 0} for q in quiz["questions"]]
     client.post(f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": answers})
@@ -53,11 +61,11 @@ def test_level_increases_with_xp(client_db) -> None:
     assert any(b["code"] == "xp_100" for b in s["badges"])
 
 
-def test_mission_completion_grants_first_mission_badge(client_db) -> None:
+def test_mission_completion_grants_first_mission_badge(client_db, executer_travail) -> None:
     # Diagnostic raté → lacune → mission (pending) → validation Papa → start → preuves →
     # complétion des étapes → badge « première mission » (ADR-0017 lot 1 : flux à preuves).
-    client, _ = client_db
-    body = client.post("/api/diagnostics/generate", json={"subject_id": 1}).json()
+    client, Session = client_db
+    body = _diagnostic(client, Session, executer_travail)
     quiz = client.get(f"/api/diagnostics/quizzes/{body['quiz_id']}").json()
     wrong = [{"question_id": q["id"], "choice_index": 1} for q in quiz["questions"]]
     client.post(f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": wrong})

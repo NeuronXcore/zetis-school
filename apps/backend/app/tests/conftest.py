@@ -79,6 +79,42 @@ def file_rq_factice(monkeypatch) -> FakeQueue:
 
 
 @pytest.fixture()
+def executer_travail(monkeypatch):
+    """Joue un travail unitaire **comme le worker le jouerait** (ADR-0041 slice C).
+
+    ## Pourquoi ce fixture existe
+
+    Quinze routes ne produisent plus rien elles-mêmes : elles rendent `202` et enfilent. Or les
+    files sont factices ici (`file_rq_factice`, `autouse`) — un `202` en test ne produit donc
+    **rien du tout**. Les assertions « la fiche existe, le quiz a N questions » deviendraient
+    invérifiables, et la tentation serait de les relâcher : c'est exactement la régression masquée
+    que le WORKFLOW interdit.
+
+    ⚠️ **Il n'imite pas le worker, il appelle le VRAI `run_ai_job`** — donc la transition
+    `queued → running → succeeded`, la table des exécutants et le rejeu typé sont sur le chemin
+    testé. Un exécutant mal branché tombe ici, pas en production.
+
+    ⚠️ Les providers sont remplacés parce que `run_ai_job` **ne passe par aucune dépendance
+    FastAPI** : il ouvre sa propre session et construit ses propres providers. Les surcharges de
+    `client_db` ne l'atteignent pas.
+
+    Usage : `sortie = executer_travail(Session, resp.json()["job_id"])`.
+    """
+
+    def _executer(session_factory, job_id: int) -> dict:
+        import app.db.base as base
+        import app.modules.ai as ai
+        from app.modules.production.jobs import run_ai_job
+
+        monkeypatch.setattr(base, "SessionLocal", session_factory)
+        monkeypatch.setattr(ai, "get_provider", lambda: FakeLLMProvider())
+        monkeypatch.setattr(ai, "get_embedder", lambda: FakeEmbeddingProvider())
+        return run_ai_job(job_id)
+
+    return _executer
+
+
+@pytest.fixture()
 def client_db() -> Iterator[tuple[TestClient, sessionmaker]]:
     """Client FastAPI sur SQLite in-memory + provider IA mocké (pas de Postgres ni d'ollama)."""
     engine = create_engine(

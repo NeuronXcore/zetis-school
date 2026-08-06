@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Badge, Button, ConfirmDialog } from "@zetis/ui";
 import { CYCLE4_LEVELS, useSkillsBackfill } from "../../hooks/useSkillsBackfill";
 import { type EditableGroup } from "../../lib/skillsBackfill";
-import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+import { ProgressBar } from "../ProgressBar";
 import { EditableNotionChip } from "./EditableNotionChip";
+import { useProgressionEstimee } from "../../hooks/useEstimations";
 
 // Modale « Rattrapage skills-only » (ADR-0010), déclenchée depuis la page Programme.
 // Présentation PURE : toute la logique vit dans `useSkillsBackfill`. Flux stateless en
@@ -47,7 +48,10 @@ export function SkillsBackfillModal({
   const guardOpen = confirmClose || confirmRegen;
 
   // Progression *estimée* : ~6-9 appels LLM séquentiels (cloud), cible ~90 s.
-  const generationPct = useEstimatedProgress(status === "generating", 90000);
+  const generationPct = useProgressionEstimee(
+    status === "generating",
+    "curriculum_skills_backfill",
+  );
 
   // Fermeture protégée : jamais pendant un appel ; avertir si une proposition non
   // confirmée serait perdue ; sinon fermer directement.

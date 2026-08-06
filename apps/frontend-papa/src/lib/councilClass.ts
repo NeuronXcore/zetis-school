@@ -224,6 +224,13 @@ export interface EtatTravail {
   status: "queued" | "running" | "succeeded" | "failed" | string;
   /** L'instant de démarrage, **côté serveur**. `null` tant que le travail attend son tour. */
   startedAtMs: number | null;
+  /** La durée attendue, **MESURÉE par le serveur** (ADR-0041 §9) — médiane des exécutions
+   *  réussies de ce type de travail. `null` tant que la réponse n'est pas revenue.
+   *
+   *  🔴 C'est ce champ qui a tué `WORK_ESTIMATION_MS`, la dernière durée en dur du frontend Papa.
+   *  Elle était juste (69 s mesurées) — mais elle était FIXE, et un chiffre figé cesse d'être vrai
+   *  au premier changement de modèle ou de machine. Le serveur, lui, remesure. */
+  estimatedMs: number | null;
 }
 
 export async function equipNotion(
@@ -244,7 +251,7 @@ export async function equipNotion(
   // plus, et surtout : la page et l'en-tête lisent la MÊME vérité, donc ne peuvent plus se
   // contredire — le 2026-08-06, un travail de 11 ms a fait dérouler dix secondes de pipeline à la
   // page du Conseil pendant que l'en-tête, lui, disait juste.
-  onEtat?.({ status: "queued", startedAtMs: null });
+  onEtat?.({ status: "queued", startedAtMs: null, estimatedMs: null });
 
   // Sondage 2 s : l'équipement dure ~69 s par notion (mesuré le 2026-08-02), donc ~35 lectures
   // d'une ligne indexée. Le plafond existe pour qu'une panne du worker finisse par se dire au
@@ -259,11 +266,13 @@ export async function equipNotion(
         output: EquipNotionResult | null;
         error: string | null;
         started_at: string | null;
+        estimated_ms: number | null;
       }>(r),
     );
     onEtat?.({
       status: job.status,
       startedAtMs: job.started_at ? Date.parse(job.started_at) : null,
+      estimatedMs: job.estimated_ms,
     });
     if (job.status === "succeeded" && job.output) return job.output;
     if (job.status === "failed") throw new Error(job.error ?? "L'équipement a échoué.");

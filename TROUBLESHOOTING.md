@@ -2820,3 +2820,171 @@ d'attendre le prochain tour.
 « Cours · Fiche · Cartes · Quiz · Carte mentale » pendant une dizaine de secondes — `EQUIP_MS`
 **devine**. Le header **mesure**. Les deux ne peuvent pas rester d'accord : c'est très exactement
 ce que la Slice C (mort des 23 constantes) vient réparer.
+
+---
+
+## `feat/barre-de-production` — Slice B, la durabilité (ADR-0041 §10) — 2026-08-06
+
+### 🔴 Le cadrage comptait DEUX trous d'enfilement ; il y en avait TROIS
+
+Le prompt de la Session B nommait `enqueue_production` et `enqueue_render`. Il avait été écrit
+**avant la Slice A**, qui a créé `enqueue_ai_job` — avec le même trou, et sur **le chemin de la
+barre**. Un prompt de cadrage vieillit dès que la slice précédente touche la même zone.
+**Parade** : au read-before-code, ne pas vérifier seulement que les constats du prompt sont vrais,
+mais **rechercher ce que la slice précédente a ajouté** dans le même périmètre.
+
+### 🔴 Le monde des travaux unitaires est né avec le bug déjà réparé à côté de lui
+
+Le §1 avait corrigé `run_out` (il rendait `run.status` brut, donc un lot mort s'affichait
+`running`) en passant par `journal.run_status`. La Slice A a créé `activity._travail` en rendant
+`job.status` **brut** — la même faute, quinze lignes plus bas, le même jour.
+**Parade** : quand une lecture dérivée existe pour un modèle (`run_status`), tout modèle **frère**
+en a besoin. `sweep.job_status` est désormais son miroir explicite, et son docstring le dit.
+
+### ⚠️ « Greffer le balayage sur le réveil déjà en place » aurait fait mentir la barre 3 heures
+
+`production_scan_interval_minutes` vaut **180**. Une barre qui n'aurait dit la vérité qu'après ce
+passage aurait rouvert le défaut que le chantier ferme.
+**Parade** : séparer les deux gestes. La vérité se **dérive à la lecture** (instantanée, §1) ; le
+balayage périodique n'est que du **ménage en base**. Et il tourne aussi au démarrage du worker
+(`production_worker.py` amorce le scan) — c'est-à-dire au meilleur moment : celui qui vient de
+mourir est de retour.
+
+### ⚠️ `raise` a CHANGÉ DE SENS dans `run_ai_job` le jour où `Retry` est apparu
+
+Avant : « que RQ voie l'échec », par symétrie avec `worker_media.jobs.render_capsule`. Depuis que
+`enqueue_ai_job` pose un `Retry`, **laisser remonter une exception veut dire *rejoue-moi*** — RQ ne
+regarde pas laquelle. Un `raise` remis par réflexe rendrait le rejeu typé silencieusement
+inopérant, et **aucun test des files ne rougirait** : elles sont factices (§15).
+**Parade** : un test-verrou dont l'assertion est l'**absence** de `pytest.raises`
+(`test_echec_structurel_zero_rejeu`), et le docstring de `run_ai_job` qui le dit en tête.
+
+### ⚠️ La capsule : une panne de file faisait DISPARAÎTRE une vidéo déjà rendue
+
+`request_render` passait la capsule en `rendering` **et effaçait `video_url`** avant d'enfiler.
+Redis absent ⇒ capsule bloquée « en cours de rendu » indéfiniment, et la vidéo précédente — qui
+existait toujours sur le disque — devenue invisible.
+**Parade** : compensation (restaurer statut **et** `video_url`), pas inversion de l'ordre. Enfiler
+avant de commiter ouvrirait une course : le worker peut finir et écrire `published` avant que notre
+commit repasse la capsule en `rendering`. *Une compensation se voit dans le code ; une course ne se
+voit qu'en production.*
+
+### 🔴 Un test-verrou VERT sur son sabotage — parce qu'il passait par la mauvaise garde
+
+`test_un_travail_qui_ATTEND_n_est_pas_un_travail_mort` créait un travail `queued` **sans
+`started_at`**. Il sortait donc par la garde « rien à juger » et non par la garde sur le statut :
+supprimer celle-ci le laissait **vert**. Quatrième occurrence de ce motif dans le dépôt.
+**Parade** : le cas rejoué est celui qui est réellement atteignable — un travail rendu à la file
+après un échec transitoire **garde le `started_at` de sa première tentative**. Et, plus
+généralement : sur une fonction à plusieurs gardes, un sabotage doit viser **chaque garde
+séparément**, sinon il mesure la première.
+
+### Où lire l'état quand la barre dit « arrêté »
+
+| Ce que l'écran montre | Ce que ça veut dire | Le geste |
+|---|---|---|
+| pilule ambre, `worker_alive: false` | aucun worker n'écoute **une** des deux files | `python -m app.production_worker` |
+| une ligne `stale` alors que le worker tourne | ce travail-là est mort seul (OOM, work-horse tué) | il se referme au prochain réveil ; acquitter ensuite |
+| `503` au clic | la file n'a pas pris le travail — **rien n'a été créé** | vérifier Redis, puis recliquer |
+
+---
+
+## `feat/barre-de-production` — Slice C, la migration du reste (ADR-0041 §4, §9) — 2026-08-06
+
+### 🔴 STOP-ON-BLOCKER : un test-verrou d'architecture a refusé le premier design
+
+`test_production_equipment.py::test_les_generateurs_nimportent_pas_production` interdit aux cinq
+modules générateurs (`curriculum`, `fiches`, `memory`, `mindmaps`, `quizzes`) d'importer
+`modules.production` — parce que `production.equipment` **les appelle**, donc l'inverse fermerait le
+cycle. Le helper d'enfilement avait été écrit dans `production/travaux.py`, et quinze routes de
+générateurs l'importaient. Le verrou a rougi ; il avait raison.
+**Parade** : le module a été déplacé dans **`ai/travaux.py`**. `ai` possède déjà `AIJob`, n'importe
+aucun générateur, et les générateurs l'importent tous depuis toujours (`get_provider`). La
+dépendance va dans le sens qui existait — aucun cycle, en substance et pas seulement à la lettre.
+⚠️ **Ne pas ramener ce module dans `production/`** sans rouvrir la question du cycle.
+
+### 🔴 Migrer une route en file peut DÉPLACER une validation — et un test l'a prouvé
+
+`POST /diagnostics/generate` rendait `404` sur une matière inconnue. Passée en `202`, elle aurait
+rendu « accepté » puis un travail en échec deux minutes plus tard.
+**Règle posée** : *la file diffère le TRAVAIL, jamais le VERDICT sur la demande.* Toute validation
+**bon marché** (une lecture indexée) est rejouée dans la route avant d'enfiler — `_subject_or_404`,
+`_validated_lesson_or_409`, le `409` de leçon archivée. Le service garde la sienne : le monde peut
+changer entre le clic et l'exécution. La double vérification est voulue, pas une redite.
+
+### Une route asynchrone a besoin d'un GET pour relire ce qu'elle a produit
+
+`generate-content` rendait la leçon rédigée. En `202`, elle ne rend plus qu'un `job_id` — et il
+n'existait **aucun** `GET /api/lessons/{id}` côté Papa. Sans lui, l'écran aurait dû recharger tout
+le chapitre pour une leçon.
+**Parade** : la route a été ajoutée. À prévoir pour tout producteur migré dont la sortie n'est pas
+auto-suffisante (`quiz` et `diagnostic` n'en ont pas eu besoin : leur sortie EST leur ancien
+contrat).
+
+### Insérer un import par script casse un bloc `from … import (`
+
+Un script d'insertion « après le dernier `from app.` » a écrit **à l'intérieur** de trois blocs
+d'import multi-lignes (`mindmaps`, `quizzes`, `curriculum`), produisant un `SyntaxError` silencieux
+jusqu'à l'import du module. Deux fichiers manquaient en plus `status` dans leur import `fastapi`.
+**Parade** : pour un import, viser une ancre **fermée** (la ligne `)` du bloc, ou la ligne
+`router = APIRouter(`), jamais « le dernier `from` ». Et vérifier par `import app.main` juste après.
+
+### Une variable locale peut masquer un module fraîchement importé
+
+`activity.read()` a une variable locale `travaux` (la liste des travaux unitaires). Importer
+`from app.modules.ai import travaux` au niveau module l'a rendue **inatteignable après la ligne 174**
+— masquage silencieux, qui n'aurait pété qu'à l'appel.
+**Parade** : importer les **fonctions** (`from …travaux import estimation_ms, estimations`) quand le
+nom du module est un mot courant du domaine.
+
+### L'estimation d'une durée : la mesurer plutôt que la déplacer
+
+Le réflexe était de rassembler les 23 constantes dans une table côté serveur. Ç'aurait laissé des
+devinettes, simplement plus loin de l'écran. Or `ai_jobs.duration_ms` enregistre depuis toujours ce
+que **chaque travail a réellement duré**, et l'index `(job_type, status)` de la slice A le rend
+lisible pour rien.
+**Parade** : `ai/travaux.estimations()` rend la **médiane des dernières exécutions réussies** par
+type ; les valeurs en dur ne sont plus que des **amorces**. ⚠️ Médiane et non moyenne : un travail
+qui a attendu Massimo tirerait une moyenne vers le haut de façon permanente.
+
+### 🔴 Un `toContain` sur un nom de champ reste VERT quand la règle est violée
+
+Le verrou « les trois surfaces d'équipement lisent la mesure du serveur » cherchait `estimated_ms`
+**n'importe où** dans le fichier. Sabotage : remplacer la durée par `69000` — le verrou est resté
+**vert**, parce que le champ figurait encore dans la CONDITION d'activation
+(`&& (item?.estimated_ms ?? 0) > 0`) et dans un commentaire. **Cinquième occurrence** de ce motif
+dans le dépôt.
+**Parade** : un verrou lexical vise **l'endroit exact où la règle s'applique** — ici le 2ᵉ argument
+de `useEstimatedProgress`, extrait par regex, jamais le fichier entier.
+
+### `vi.mock` sur un module ne change pas ce que ce module s'appelle À LUI-MÊME
+
+`useEstimations` appelle `fetchEstimations` par sa **liaison locale**, pas par l'espace de noms du
+module : un `vi.mock` avec `importActual` remplace l'export sans toucher l'appel interne. Le mock
+était vert et sans effet — exactement la classe de piège documentée côté backend pour `enqueue_*`.
+**Parade** : couper plus bas (`vi.spyOn(globalThis, "fetch")`), ce qui garde le hook RÉEL et
+continue donc de le prouver.
+
+### Une barre qui n'estime plus toute seule affiche son % un tic plus tard
+
+Deux tests exigeaient un `%` **synchrone** après le clic. La durée venant maintenant du serveur, la
+barre est indéterminée jusqu'à la première réponse — comportement voulu (§9 : on ne devine plus).
+**Parade** : `await waitFor(...)`. ⚠️ L'assertion ne bouge pas, seule son échéance — relâcher
+l'assertion aurait masqué la régression qu'elle protège.
+
+### Migrer une barre, c'est aussi vérifier QUEL travail elle annonce
+
+`ProgrammePage` et `LessonsPanel` ont été mappés sur `lesson_content` au premier jet. Or leurs
+libellés disent « ZETIS génère les **chapitres** » et « propose les **leçons** » : les bons types
+sont `curriculum_chapters` et `curriculum_lessons`. La durée venait du bon serveur, mais du mauvais
+travail — attrapé par `ProgrammePage.test.tsx`.
+**Parade** : lire le **libellé affiché** de la barre avant de choisir son `job_type`, pas le nom du
+fichier.
+
+### Une vue qui ne portait pas la durée perdait sa barre
+
+Les composants ayant cessé d'estimer, `/runs/active` s'est retrouvé sans rien à estimer : un
+lot-PIÈCE **retrouvé au retour sur la page** perdait sa barre (`DemandesPage.test.tsx`).
+**Parade** : `run_out` porte `estimated_ms`. ⚠️ Généraliser : retirer une estimation locale oblige
+à vérifier que **chaque vue** du même objet porte la mesure — deux vues qui ne portent pas les
+mêmes champs finissent par diverger.

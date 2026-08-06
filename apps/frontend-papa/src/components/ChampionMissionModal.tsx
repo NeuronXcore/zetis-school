@@ -1,8 +1,9 @@
 import { Button, Spinner } from "@zetis/ui";
 import { type ChampionFlavor, type ChampionNotion } from "../lib/missionsPilotage";
 import { type UseChampionMission } from "../hooks/useChampionMission";
-import { ProgressBar, useEstimatedProgress } from "./ProgressBar";
+import { ProgressBar } from "./ProgressBar";
 import { subjectEmoji } from "../lib/subjectEmoji";
+import { useProgressionEstimee } from "../hooks/useEstimations";
 
 // Modale « Défi champion » (ADR-0022). Purement présentationnelle : la résolution des notions
 // (classement par saveur, décochage, plafond) et l'équipement (ADR-0021) vivent côté serveur ;
@@ -24,7 +25,10 @@ function masteryBadge(n: ChampionNotion): { label: string; cls: string } {
 
 export function ChampionMissionModal({ champ }: { champ: UseChampionMission }) {
   // Barre estimée pendant l'équipement (opération LLM longue) : ~1 min par notion cochée.
-  const pct = useEstimatedProgress(champ.busy, Math.max(1, champ.checked.size) * 60_000);
+  // Un champion équipe N notions : la durée UNITAIRE est mesurée, le facteur la multiplie.
+  const pct = useProgressionEstimee(champ.busy, "equip_notion", {
+    facteur: champ.checked.size,
+  });
   if (!champ.open) return null;
   const atCap = champ.checked.size >= champ.maxSkills;
   const subjectsChecked = new Set(

@@ -74,10 +74,15 @@ def equip_notion(payload: EquipNotionRequest, db: Session = Depends(get_db)) -> 
 
     ⚠️ Aucun `trigger` n'est écrit : un travail hors lot est manuel **par construction** (§3.2).
     C'est ce qui l'envoie sur la file prioritaire, devant les lots automatiques.
+
+    503 si la file est injoignable, et **le travail est effacé** (ADR-0041 §10.1) : il vient d'être
+    commité pour que le worker puisse le lire, donc son absence d'enfilement doit se défaire
+    explicitement. Sans ça, la barre annoncerait « en file d'attente » sur un travail que rien
+    n'exécutera jamais — le mensonge exact que ce chantier ferme.
     """
     from datetime import datetime, timezone
 
-    from app.core.queue import enqueue_ai_job
+    from app.core.queue import MESSAGE_FILE_INJOIGNABLE, QueueUnavailable, enqueue_ai_job
     from app.db.models import AIJob
 
     job = AIJob(
@@ -89,7 +94,14 @@ def equip_notion(payload: EquipNotionRequest, db: Session = Depends(get_db)) -> 
     )
     db.add(job)
     db.commit()
-    enqueue_ai_job(job.id)
+    try:
+        enqueue_ai_job(job.id)
+    except QueueUnavailable as exc:
+        db.delete(job)
+        db.commit()
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, detail=MESSAGE_FILE_INJOIGNABLE
+        ) from exc
     return {"job_id": job.id, "status": job.status}
 
 

@@ -3,10 +3,11 @@ import { type CurriculumChapter, type CurriculumLesson } from "@zetis/types";
 import { Button, ConfirmDialog, Spinner } from "@zetis/ui";
 import { type CurriculumData } from "../../hooks/useCurriculum";
 import { chapterActions, lessonActions } from "../../lib/chapterActions";
-import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+import { ProgressBar } from "../ProgressBar";
 import { AddLessonForm } from "./AddLessonForm";
 import { LessonContentModal } from "./LessonContentModal";
 import { LessonRow } from "./LessonRow";
+import { useProgressionEstimee } from "../../hooks/useEstimations";
 
 // Étage leçons de l'état déplié d'un chapitre (Lot 2 Slice B). Le panneau n'est monté
 // que quand la ligne est dépliée : le fetch au montage EST le chargement paresseux
@@ -30,7 +31,9 @@ export function LessonsPanel({
   const [readingId, setReadingId] = useState<number | null>(null);
   const generating = state?.generating ?? false;
   // Progression *estimée* (même pattern que la génération de chapitres et les capsules).
-  const generationPct = useEstimatedProgress(generating, 22000);
+  // ⚠️ `curriculum_lessons` : ce panneau génère les LEÇONS d'un chapitre (passe 2), il ne rédige
+  // aucun cours. Même erreur de mappage que `ProgrammePage`, même correction.
+  const generationPct = useProgressionEstimee(generating, "curriculum_lessons");
   // « Proposer des leçons » : la même condition que le 409 backend, via la règle pure.
   const { canProposeLessons } = chapterActions(chapter.source, chapter.validation_status);
   const { loadLessons } = data;

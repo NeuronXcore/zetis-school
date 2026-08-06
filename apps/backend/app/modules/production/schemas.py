@@ -138,6 +138,13 @@ class ProductionRunOut(BaseModel):
     #: chaque montage de composant (constaté le 2026-08-05).
     started_at: datetime | None = None
     finished_at: datetime | None
+    #: 🔴 Durée attendue, **MESURÉE** par le serveur (ADR-0041 §9) — médiane des exécutions
+    #: réussies du type de travail que ce lot exécute, × son nombre de notions.
+    #:
+    #: Ajouté le 2026-08-06 pour réparer une régression que la slice C venait d'introduire : les
+    #: composants ont cessé d'estimer en dur, or cette vue ne portait pas de quoi estimer — un
+    #: lot-PIÈCE retrouvé au retour sur la page perdait sa barre.
+    estimated_ms: int = 0
 
 
 class ActiveProductionRunOut(ProductionRunOut):
@@ -296,3 +303,4 @@ class VetoPreviewOut(BaseModel):
 
 class VetoRemovalOut(BaseModel):
     removed: dict[str, int] = {}
+

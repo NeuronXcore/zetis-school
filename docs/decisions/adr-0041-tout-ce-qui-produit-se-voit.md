@@ -361,8 +361,41 @@ travail que rien n'exécute :
    insatisfaisable par construction, et rejouer ne fait que retarder le verdict en brûlant le GPU.
    Le verdict structurel remonte **immédiatement** à la barre.
 3. **Balayage périodique des travaux zombies.** `close_stale_runs` cesse d'être opportuniste : il se
-   greffe sur le réveil **déjà en place** (`production/jobs.py:101-107` se replanifie seul). Aucun
-   ordonnanceur nouveau — l'`adr-0023` en a refusé un, et cet ADR ne le rouvre pas.
+   greffe sur le réveil **déjà en place** (`scan_triggers` se replanifie seul). Aucun ordonnanceur
+   nouveau — l'`adr-0023` en a refusé un, et cet ADR ne le rouvre pas.
+
+#### 🔴 Corrigé au read-before-code de la Slice B (2026-08-06) — trois points
+
+Ce §10 a été écrit avant que la Slice A n'existe. Trois de ses affirmations ne tenaient plus.
+
+1. **Il y a TROIS enfilements sans filet, pas deux.** `enqueue_ai_job` est né dans la Slice A, avec
+   le même trou — et c'est **le chemin de la barre**. Le §10.1 s'y applique aussi.
+
+2. **Le §10.4 était infaisable en l'état.** Un `AIJob` n'a **aucun `heartbeat_at`**, et
+   `activity._travail` rendait `job.status` **brut** : le défaut exact que le §1 venait de corriger
+   pour les lots, réintroduit le même jour sur le modèle frère. Il y fallait donc une lecture
+   dérivée symétrique — `sweep.job_status()`, miroir de `journal.run_status()`. Le seuil retenu est
+   `PRODUCTION_JOB_TIMEOUT`, **le délai auquel RQ tue le job lui-même** : aucun réglage nouveau,
+   aucune variable d'environnement, et une borne qui a un sens par construction.
+
+3. 🔴 **Le balayage ne peut PAS être ce qui rend la barre honnête.** Le seul réveil périodique du
+   dépôt bat toutes les **180 minutes** (`production_scan_interval_minutes`). Faire dépendre
+   l'affichage de ce passage aurait laissé la barre mentir trois heures — le défaut même que ce
+   chantier ferme. C'est le **§1 qui tranche** : *la barre est une fenêtre, jamais un producteur
+   d'état*. La vérité se **dérive à la lecture**, instantanément ; le balayage n'est plus que du
+   ménage en base (libérer `/runs/active`, cesser de compter un mort parmi les vivants). Les deux
+   gestes sont désormais nommés séparément dans `production/sweep.py`, et la contrainte
+   « aucun ordonnanceur nouveau » est tenue **sans rien concéder à l'écran**.
+
+#### Borne posée sur le §10.2 : le rejeu ne vaut QUE pour le travail unitaire
+
+Le `Retry` est posé sur `enqueue_ai_job`, **pas** sur `enqueue_production`, et ce n'est pas un
+oubli. `runner.execute` réécrit `started_at`, recalcule `total_notions` et **réempile ses lignes de
+journal** : un lot rejoué se raconterait deux fois, alors que l'ADR-0034 §1 fait du journal la seule
+mémoire de ce qui a été produit. Un lot interrompu se reprend par un lot **neuf** — `equip_notion`
+saute ce qui existe déjà (`piece_deja_produite`), donc la reprise ne recalcule rien. Les trois
+exemples d'échec structurel du §10.2 (notion orpheline, prérequis absent, gate non franchi) sont
+d'ailleurs tous des notions du monde unitaire.
 
 ### §11 — Deux dettes nommées, non traitées ici
 

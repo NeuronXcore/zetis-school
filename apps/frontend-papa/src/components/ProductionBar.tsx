@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useEstimatedProgress } from "@zetis/ui";
 import { type ActivityItem, type ProductionActivity } from "@zetis/types";
 
-import { WORK_ESTIMATION_MS } from "../lib/production";
 
 // La barre de production du header Papa (ADR-0041, `docs/frontend-papa/barre-de-production.md`).
 //
@@ -70,9 +69,12 @@ export function ProductionBar({ activity, onOpen, onAcknowledge }: Props) {
   // Et l'ancrage sur `started_at` est ce qui empêche l'estimation de repartir de zéro à chaque
   // changement de route : c'est la différence entre « ça travaille depuis une minute » et
   // « je viens d'ouvrir cette page ».
+  // ⚠️ **`item.estimated_ms` et non une constante** (§9) : la durée est MESURÉE par le serveur,
+  // par type de travail. `WORK_ESTIMATION_MS` valait 69 s pour TOUT — donc une fiche de 15 s
+  // rampait à 20 % pendant qu'elle finissait.
   const estime = useEstimatedProgress(
-    item?.status === "running" && !item.pct_is_measured,
-    WORK_ESTIMATION_MS,
+    item?.status === "running" && !item.pct_is_measured && (item?.estimated_ms ?? 0) > 0,
+    item?.estimated_ms ?? 0,
     item?.started_at ? Date.parse(item.started_at) : null,
   );
 

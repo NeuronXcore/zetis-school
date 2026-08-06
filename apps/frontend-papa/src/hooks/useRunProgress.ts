@@ -1,7 +1,6 @@
 import { useEstimatedProgress } from "@zetis/ui";
 import { type ProductionRun } from "@zetis/types";
 
-import { SCOPE_MS } from "../lib/production";
 
 // LA lecture d'un lot en cours — une seule, pour tous les écrans qui en montrent un.
 //
@@ -58,6 +57,10 @@ type LotLisible = Pick<
   /** Absent (`undefined`) = la question n'a pas été posée, ce qui n'est pas « non ». Seule la
    *  route `/runs/active` la pose ; ailleurs on ne présume pas d'une panne. */
   worker_alive?: boolean;
+  /** Durée attendue, **mesurée par le serveur** (§9). Optionnelle parce que `/runs/active` ne la
+   *  porte pas — seule `/activity` le fait. Absente, l'estimation reste inactive : c'est le point
+   *  entier, on n'invente pas de repli. */
+  estimated_ms?: number;
 };
 
 export function useRunProgress(run: LotLisible | null): RunProgress {
@@ -72,9 +75,12 @@ export function useRunProgress(run: LotLisible | null): RunProgress {
   // ⚠️ **L'estimation s'ancre sur `started_at`, jamais sur le montage.** C'est la différence entre
   // « ça travaille depuis une minute » et « je viens d'ouvrir cette page » — deux phrases que le
   // même 0 % racontait indifféremment avant le 2026-08-05.
+  // ⚠️ **La durée vient du SERVEUR** (§9) : `estimated_ms` est portée par l'item d'activité, et
+  // elle est MESURÉE (médiane des exécutions réussies). `SCOPE_MS` et son repli `|| 30000` étaient
+  // la dernière table de durées du frontend Papa.
   const estime = useEstimatedProgress(
-    sansGranularite,
-    SCOPE_MS[run?.scope_kind ?? ""] || 30000,
+    sansGranularite && (run?.estimated_ms ?? 0) > 0,
+    run?.estimated_ms ?? 0,
     run?.started_at ? Date.parse(run.started_at) : null,
   );
 

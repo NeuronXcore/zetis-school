@@ -1,8 +1,8 @@
 import { Button } from "@zetis/ui";
 
-import { KIT_MS_PER_NOTION } from "../../lib/production";
 import { type UseChapterProduction } from "../../hooks/useChapterProduction";
-import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+import { ProgressBar } from "../ProgressBar";
+import { useProgressionEstimee } from "../../hooks/useEstimations";
 
 // Production en lot d'un chapitre (ADR-0031, addendum « le gate vit dans la sélection »).
 // Purement présentationnelle : la sélection, le gate et l'exécution vivent côté serveur.
@@ -16,7 +16,11 @@ export function ChapterProductionModal({ prod }: { prod: UseChapterProduction })
   // Estimation de repli, utilisée UNIQUEMENT tant qu'aucun run n'existe. Dès qu'il y en a un,
   // c'est `progress_pct` du serveur qui fait foi : il compte des notions équipées, pas des
   // secondes écoulées. L'estimation d'origine mentait d'un facteur 2 (mesuré le 2026-08-02).
-  const estimated = useEstimatedProgress(prod.busy, Math.max(1, eligible.length) * KIT_MS_PER_NOTION);
+  // Aperçu AVANT lancement : aucun travail n'existe encore, donc aucune `estimated_ms` — c'est
+  // très exactement le cas que la table `/production/estimations` sert (ADR-0041 §9).
+  const estimated = useProgressionEstimee(prod.busy, "equip_notion", {
+    facteur: eligible.length,
+  });
   const pct = prod.run ? prod.run.progress_pct : estimated;
   if (prod.chapterId === null) return null;
 

@@ -1933,3 +1933,72 @@ enfilé**, sinon la barre ne pourrait pas l'annoncer « en file » au retour de 
 `JobOut` gagne **`error`** (`error_message`) et **`started_at`**. Un job `failed` était jusqu'ici
 **muet** côté client ; et sans l'instant de départ, une barre locale mesure l'âge de son AFFICHAGE
 au lieu de celui du travail — c'est ainsi que deux surfaces finissent par afficher deux nombres.
+
+### ⚠️ `503` NOUVEAU sur les trois routes qui enfilent (ADR-0041 §10.1)
+
+`POST /production/runs` · `POST /production/runs/from-request` · `POST
+/reports/class-council/equip-notion` — et `POST /capsules/{id}/render`, qui lève le même.
+
+```json
+{ "detail": "La file de production est injoignable : rien n'a été lancé, et rien n'a été créé. Vérifiez que Redis et le worker de production tournent, puis relancez." }
+```
+
+🔴 **La garantie porte sur la base, pas sur le message** : après un `503`, **aucun lot, aucun
+travail, aucune capsule en `rendering`** ne subsiste. C'était un `500` auparavant, avec l'objet
+**déjà commité** — un lot que personne n'exécuterait jamais, que la barre annonçait « en file
+d'attente », et qui bloquait ensuite sa propre recréation via `run_exists_for`.
+
+⚠️ **L'ordre ne peut pas être inversé** (l'objet doit être lisible par le worker avant d'être
+enfilé, §3) : c'est une **compensation**, pas une transaction. Un test-verrou par chemin.
+
+### `status` peut valoir `stale` sur un `kind: "job"` (ADR-0041 §10.4)
+
+`stale` est une **lecture**, jamais une valeur stockée — ni `RUN_STATUSES` ni `ai_jobs.status` ne la
+contiennent. Côté lot elle vient de `heartbeat_at` ; côté travail unitaire, d'un `running` dont le
+`started_at` dépasse `PRODUCTION_JOB_TIMEOUT` — **le délai auquel RQ tue le job lui-même**, donc
+au-delà duquel une ligne `running` ne décrit plus rien de vivant.
+
+⚠️ Un travail **`queued`** n'est jamais `stale`, même depuis deux jours : c'est `worker_alive` qui
+dit cette panne-là, et la file repartira seule au prochain démarrage du worker.
+
+### ⚠️ Contrats MODIFIÉS — sept routes passent en `202` (ADR-0041 slice C)
+
+| Route | Avant | Maintenant |
+|---|---|---|
+| `POST /fiches/generate` | `201` + `FicheOut` | `202` + `{job_id, status}` |
+| `POST /fiches/{id}/regenerate` | `200` + `FicheOut` | idem |
+| `POST /mindmaps/generate` | `201` + `MindmapOut` | idem |
+| `POST /mindmaps/{id}/regenerate` | `200` + `MindmapOut` | idem |
+| `POST /lessons/{id}/quizzes/generate` | `200` + `QuizGenerateResponse` | idem |
+| `POST /quizzes/{id}/regenerate` | `200` + `QuizGenerateResponse` | idem |
+| `POST /lessons/{id}/generate-content` | `200` + `CurriculumLessonOut` | idem |
+| `POST /diagnostics/generate` | `200` + `DiagnosticGenerateResponse` | idem |
+
+Ce que la route rendait se lit désormais dans **`output` de `GET /api/ai/jobs/{job_id}`**, une fois
+`succeeded` : `{fiche_id}`, `{mindmap_id}`, `{quiz_id, questions_generated, questions_discarded}`,
+`{lesson_id}`, `{quiz_id, subject, questions_count}`. Rien n'est perdu — tout est **déplacé**.
+
+🔴 **Les refus, eux, restent SYNCHRONES.** La file diffère le **travail**, jamais le **verdict sur
+la demande** : `404` (matière ou leçon inconnue), `409` (leçon non validée, leçon archivée) tombent
+toujours au clic. Le service les rejoue de son côté — le monde peut changer entre le clic et
+l'exécution. Un test l'a prouvé nécessaire : `POST /diagnostics/generate` sur une matière inconnue
+serait passé de `404` immédiat à `202` suivi d'un travail en échec deux minutes plus tard.
+
+### `GET /api/lessons/{lesson_id}` (Papa) — NOUVELLE
+
+UNE leçon avec son cours et son audit de provenance. Née de la migration ci-dessus : `generate-content`
+rendait la leçon rédigée, il rend `202` — il faut pouvoir **relire** ce que le travail a produit sans
+recharger tout le chapitre.
+
+### `estimated_ms` — la durée attendue vient du SERVEUR (ADR-0041 §9)
+
+Porté par `ActivityItem` (`/production/activity`) **et** par `JobOut` (`/ai/jobs/{id}`).
+
+🔴 **Ce n'est pas une constante déplacée d'un cran.** C'est la **médiane des dernières exécutions
+réussies** de ce `job_type` (`ai_jobs.duration_ms`, ≥ 5 exécutions, fenêtre des 300 derniers
+travaux, servie par l'index `(job_type, status)`). La valeur en dur ne sert plus que d'**amorce**,
+le temps que l'histoire existe : ZETIS apprend ses propres durées, et une amorce fausse se corrige
+seule au lieu de mentir jusqu'à ce que quelqu'un la remarque — ce qui, mesuré, n'arrivait pas.
+
+⚠️ **Médiane et non moyenne** : un travail qui a attendu Massimo ou tapé dans son `job_timeout`
+tirerait une moyenne vers le haut de façon permanente.

@@ -148,7 +148,7 @@ def test_generate_then_lesson_crud_flow(client_db) -> None:
     assert client.delete("/api/lessons/9999").status_code == 404
 
 
-def test_generate_lesson_content_flow(client_db) -> None:
+def test_generate_lesson_content_flow(client_db, executer_travail) -> None:
     """Rédaction du cours : `content` null → rempli (moteur local via conftest) ;
     409 sur leçon archivée ; 404 sur leçon inconnue."""
     client, Session = client_db
@@ -158,9 +158,13 @@ def test_generate_lesson_content_flow(client_db) -> None:
     first_id = lessons[0]["id"]
     assert lessons[0]["content"] is None  # la passe 2 ne rédige pas le cours
 
+    # ⚠️ `202` depuis l'ADR-0041 §4. Le travail est joué ici, et l'assertion porte ensuite sur la
+    # leçon RELUE — la rédaction, le gate du cours canonique et le retour en `draft` sont donc
+    # toujours vérifiés, sur l'état réel de la base plutôt que sur un corps de réponse.
     res = client.post(f"/api/lessons/{first_id}/generate-content")
-    assert res.status_code == 200
-    body = res.json()
+    assert res.status_code == 202, res.text
+    executer_travail(Session, res.json()["job_id"])
+    body = next(l for l in client.get(f"/api/chapters/{chapter_id}/lessons").json() if l["id"] == first_id)
     assert body["id"] == first_id
     assert body["content"] and "## Mini-exercices" in body["content"]
     assert body["status"] == "draft"  # la rédaction ne valide pas la leçon
@@ -212,7 +216,7 @@ def test_extend_lessons_appends_without_touching_existing(client_db) -> None:
     # couverte par test_lesson_routes_are_parent_only pour les routes leçons.
 
 
-def test_content_audit_and_manual_edit_flow(client_db) -> None:
+def test_content_audit_and_manual_edit_flow(client_db, executer_travail) -> None:
     """Provenance du cours : 'ai' au premier write IA, 'parent' sur édition Papa ;
     `created_*` posés une fois, `updated_*` à chaque write ; le statut de la leçon
     ne bouge jamais sur une édition de cours (Papa est l'autorité de validation)."""
@@ -224,7 +228,15 @@ def test_content_audit_and_manual_edit_flow(client_db) -> None:
     assert lessons[0]["content_created_at"] is None  # pas encore de cours
 
     # Rédaction IA : audit 'ai' posé (created + updated).
-    body = client.post(f"/api/lessons/{first_id}/generate-content").json()
+    # ⚠️ `202` depuis l'ADR-0041 §4 — on joue le travail, puis on relit la leçon. L'audit de
+    # provenance est écrit par le SERVICE, que le worker appelle exactement comme la route le
+    # faisait : ce test le vérifie donc toujours, à l'endroit où il est vrai (la base).
+    res = client.post(f"/api/lessons/{first_id}/generate-content")
+    assert res.status_code == 202, res.text
+    executer_travail(Session, res.json()["job_id"])
+    body = next(
+        l for l in client.get(f"/api/chapters/{chapter_id}/lessons").json() if l["id"] == first_id
+    )
     assert body["content_created_by"] == "ai"
     assert body["content_updated_by"] == "ai"
     assert body["content_created_at"] and body["content_updated_at"]
@@ -257,7 +269,12 @@ def test_content_audit_and_manual_edit_flow(client_db) -> None:
     assert res.json()["content_updated_by"] == "parent"
 
     # Régénération IA après édition manuelle : created conservé, updated repasse à 'ai'.
-    regen = client.post(f"/api/lessons/{first_id}/generate-content").json()
+    res = client.post(f"/api/lessons/{first_id}/generate-content")
+    assert res.status_code == 202, res.text
+    executer_travail(Session, res.json()["job_id"])
+    regen = next(
+        l for l in client.get(f"/api/chapters/{chapter_id}/lessons").json() if l["id"] == first_id
+    )
     assert regen["content_created_by"] == "ai"
     assert regen["content_created_at"] == ai_created_at
     assert regen["content_updated_by"] == "ai"

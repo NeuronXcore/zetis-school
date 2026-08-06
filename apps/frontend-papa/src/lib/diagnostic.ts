@@ -1,5 +1,6 @@
 // Appels au diagnostic (Étape 14) — Papa lance un diagnostic et consulte les résultats.
 import { API_URL, authClient } from "./authClient";
+import { lancerEtSuivre, type SuiviTravail } from "./travaux";
 
 export interface Subject {
   id: number;
@@ -62,13 +63,19 @@ export async function fetchSubjects(): Promise<Subject[]> {
 export async function generateDiagnostic(
   subjectId: number,
   level?: string,
+  onEtat?: SuiviTravail,
 ): Promise<GenerateResponse> {
-  return asJson(
-    await fetch(`${API_URL}/api/diagnostics/generate`, {
+  // 202 + sondage (ADR-0041 §4). La sortie du travail EST le contrat d'autrefois.
+  // ⚠️ Le `404` « matière introuvable » est resté SYNCHRONE côté route : la file diffère le
+  // travail, jamais le verdict sur la demande.
+  return lancerEtSuivre<GenerateResponse>(
+    `${API_URL}/api/diagnostics/generate`,
+    {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({ subject_id: subjectId, level: level || null }),
-    }),
+    },
+    onEtat,
   );
 }
 

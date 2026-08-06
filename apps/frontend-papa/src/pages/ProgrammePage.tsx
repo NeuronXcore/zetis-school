@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { type CurriculumChapter } from "@zetis/types";
 import { Button, ConfirmDialog, EmptyState, Spinner } from "@zetis/ui";
 import { PageHeader } from "../components/PageHeader";
-import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
+import { ProgressBar } from "../components/ProgressBar";
 import { AddChapterForm } from "../components/programme/AddChapterForm";
 import { ChapterRow } from "../components/programme/ChapterRow";
 import { LessonsPanel } from "../components/programme/LessonsPanel";
@@ -18,6 +18,7 @@ import {
 } from "../components/programme/ValidateAllDialog";
 import { useCurriculum } from "../hooks/useCurriculum";
 import { cycleForLevel } from "../lib/yearDisplay";
+import { useProgressionEstimee } from "../hooks/useEstimations";
 
 // Page Programme (Papa, Slice B — ADR-0009 §9) : éditeur du référentiel de l'année
 // active. Aucune logique métier ici (cf. useCurriculum + chapterActions).
@@ -31,7 +32,10 @@ export function ProgrammePage() {
   const [notice, setNotice] = useState<string | null>(null);
   // Progression *estimée* (même pattern que les capsules) : l'appel de génération est
   // synchrone et opaque (~18-20 s mesurés), la barre monte vers 95 % puis se complète.
-  const generationPct = useEstimatedProgress(data.generating, 22000);
+  // ⚠️ `curriculum_chapters` : cette barre annonce « ZETIS génère les CHAPITRES », pas un cours.
+  // Premier jet mal mappé (`lesson_content`), attrapé par `ProgrammePage.test.tsx` — la durée
+  // venait du bon serveur, mais du mauvais travail.
+  const generationPct = useProgressionEstimee(data.generating, "curriculum_chapters");
 
   const cycle = data.year ? cycleForLevel(data.year.level) : undefined;
   // Version déclarative du programme, portée par les chapitres générés (ADR-0009 §5).

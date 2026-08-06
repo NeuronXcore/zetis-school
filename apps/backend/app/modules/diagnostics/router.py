@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -19,6 +19,8 @@ from app.modules.diagnostics.schemas import (
     SubjectOut,
 )
 from app.modules.eli5.service import get_default_student
+from app.modules.ai import travaux
+from app.modules.ai.schemas import TravailAccepteOut
 
 router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
 
@@ -28,16 +30,31 @@ def subjects(db: Session = Depends(get_db), _: dict = Depends(get_current_user))
     return [{"id": s.id, "name": s.name} for s in service.list_subjects(db)]
 
 
-@router.post("/generate", response_model=DiagnosticGenerateResponse)
+@router.post(
+    "/generate", response_model=TravailAccepteOut, status_code=status.HTTP_202_ACCEPTED
+)
 def generate(
     req: DiagnosticGenerateRequest,
     db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
     _: dict = Depends(get_current_user),
-) -> DiagnosticGenerateResponse:
-    """Papa lance un diagnostic : génère un quiz de QCM par notion (trace ai_jobs)."""
-    quiz, subject_name, count = service.generate_diagnostic(db, provider, req.subject_id, req.level)
-    return DiagnosticGenerateResponse(quiz_id=quiz.id, subject=subject_name, questions_count=count)
+) -> dict:
+    """Papa lance un diagnostic. **202 — accepté, pas exécuté** (ADR-0041 §4).
+
+    `quiz_id`, `subject` et `questions_count` se lisent dans `output` quand le travail est
+    `succeeded` — le contrat de `DiagnosticGenerateResponse` y est déplacé tel quel.
+
+    🔴 **Le `404` est rejoué ICI, avant d'enfiler, et c'est une correction trouvée par un test.**
+    La file diffère le TRAVAIL, jamais le VERDICT sur la demande : une matière inconnue doit être
+    refusée au clic, pas rapportée deux minutes plus tard comme un travail en échec. Le contrôle
+    coûte une lecture indexée, et le service le refait de son côté — le monde a pu changer entre
+    le clic et l'exécution.
+    """
+    service._subject_or_404(db, req.subject_id)
+    return travaux.enfiler(
+        db,
+        job_type="diagnostic_generate",
+        payload={"subject_id": req.subject_id, "level": req.level},
+    )
 
 
 @router.get("/quizzes", response_model=list[DiagnosticQuizListItem])
