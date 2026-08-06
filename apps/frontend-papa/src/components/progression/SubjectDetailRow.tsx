@@ -4,6 +4,14 @@ import { ConfirmDialog } from "@zetis/ui";
 import type { AnalysisNotion, ConsolidatedSkill, ProgressionSubject } from "@zetis/types";
 import { useSubjectAnalysis } from "../../hooks/useSubjectAnalysis";
 import { createMissionsFromReco, equipNotion } from "../../lib/councilClass";
+import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+
+// Durées d'attente estimées. ⚠️ Ce ne sont PAS des mesures : le serveur ne rend aucune
+// progression, la barre est une ESTIMATION honnête (convention Papa — jamais de spinner nu, jamais
+// de barre réinventée). `EQUIP_MS` reprend la valeur du Conseil de classe, qui lance exactement le
+// même équipement : deux estimations différentes pour le même travail se contrediraient à l'écran.
+const EQUIP_MS = 90_000; // jusqu'à 5 générations LLM locales (cours, fiche, cartes, quiz, mindmap)
+const MISSION_MS = 8_000; // composition pur-DB, sans LLM
 
 // Le dépliage d'une ligne de Progression (addendum ADR-0038).
 //
@@ -58,12 +66,15 @@ export function SubjectDetailRow({
 }) {
   const { analysis, loading, error, retry } = useSubjectAnalysis(subject.subject_id);
   const [confirming, setConfirming] = useState<Action | null>(null);
-  const [busy, setBusy] = useState<number | null>(null);
+  // ⚠️ On garde l'ACTION en cours, pas seulement son `skillId` : sans son `kind`, impossible de
+  // dire à l'écran ce que ZETIS est en train de faire ni combien de temps ça prend.
+  const [running, setRunning] = useState<Action | null>(null);
+  const busy = running?.skillId ?? null;
   const [result, setResult] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const run = async (action: Action) => {
-    setBusy(action.skillId);
+    setRunning(action);
     setResult(null);
     setFailure(null);
     try {
@@ -86,7 +97,7 @@ export function SubjectDetailRow({
     } catch (e) {
       setFailure(e instanceof Error ? e.message : "L'action a échoué.");
     } finally {
-      setBusy(null);
+      setRunning(null);
     }
   };
 
@@ -121,6 +132,15 @@ export function SubjectDetailRow({
 
   return (
     <div className="space-y-5 px-4 py-4">
+      {/* 🔴 ZETIS DIT QU'IL TRAVAILLE. Sans ce bloc, confirmer « Équiper » ne faisait que griser un
+          bouton : l'équipement enchaîne jusqu'à CINQ générations LLM locales (~90 s), et Papa
+          n'avait aucun moyen de savoir si quelque chose se produisait, ni s'il devait attendre.
+          Convention Papa : `useEstimatedProgress` + `<ProgressBar>` — jamais un spinner nu, jamais
+          une barre réinventée.
+          ⚠️ La barre est une ESTIMATION, pas une mesure : le serveur ne rend aucune progression.
+          Elle dit « c'est parti et voilà l'ordre de grandeur », elle ne prétend pas compter. */}
+      {running && <ActionEnCours action={running} />}
+
       {(result || failure) && (
         <p
           className={`rounded-lg px-3 py-2 text-sm ${
@@ -273,6 +293,22 @@ export function SubjectDetailRow({
   );
 }
 
+/** Ce que ZETIS est en train de faire, et l'ordre de grandeur de l'attente. */
+function ActionEnCours({ action }: { action: Action }) {
+  const equipe = action.kind === "equip";
+  const pct = useEstimatedProgress(true, equipe ? EQUIP_MS : MISSION_MS);
+  return (
+    <ProgressBar
+      pct={pct}
+      label={
+        equipe
+          ? `ZETIS équipe « ${action.skillName} » — cours, fiche, cartes, quiz, carte mentale`
+          : `ZETIS compose une mission sur « ${action.skillName} »`
+      }
+    />
+  );
+}
+
 function Bloc({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
     <section>
@@ -323,7 +359,7 @@ function NotionRow({
         onClick={() => onAct("equip")}
         className="rounded-lg border border-papa-border px-2.5 py-1 text-xs font-semibold hover:border-papa-accent disabled:opacity-50"
       >
-        Équiper
+        {busy ? "…" : "Équiper"}
       </button>
     </li>
   );
