@@ -2,10 +2,10 @@
 
 ## Statut
 
-Proposé — 2026-07-30. **Les quatre décisions structurantes (§1 à §4) sont VALIDÉES par le
+Accepté — 2026-07-30. **Les quatre décisions structurantes (§1 à §4) sont VALIDÉES par le
 commanditaire le 2026-07-30** (avec précisions : « pas de cible → ZETIS le dit », ouverture ciblée,
-et « contenu absent → demande à Papa » dont le mécanisme est différé, Point ouvert n°4). Reste
-« Proposé » jusqu'au commit du cadrage sur `main` ; passe **Accepté** à ce moment.
+et « contenu absent → demande à Papa » dont le mécanisme est différé, Point ouvert n°4). Passé
+**Accepté** au commit du cadrage sur `main` (`6672df9`, le jour même), comme prévu ici.
 
 > S'appuie sur : `adr-0026` (mémoire du chat — verbatim éphémère, pipeline aveugle au contenu §1c,
 > trois `learning_events` fermés, rappel≠relance §4), `adr-0011 §1` (module neutre à consommateurs

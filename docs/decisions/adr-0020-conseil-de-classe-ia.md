@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-07-06. Ouvert après clôture du chantier Missions (Lots 1+2 mergés,
+Accepté — 2026-07-06. Ouvert après clôture du chantier Missions (Lots 1+2 mergés,
 PR #46/#47). Deuxième consommateur du **service d'évidence** extrait au Lot 2
 (ADR-0017 §Suivi) — le premier étant le scoring des missions.
 

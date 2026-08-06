@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-07-06. Prolonge le pont d'actionnabilité de l'ADR-0020 (Conseil de
+Accepté — 2026-07-06. Prolonge le pont d'actionnabilité de l'ADR-0020 (Conseil de
 classe → missions via Commander ADR-0018).
 
 > S'appuie sur : `adr-0011` (résolution de la leçon canonique validée — substrat des

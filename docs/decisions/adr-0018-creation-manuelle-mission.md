@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-07-05. **Raffine `adr-0017` (décision 1, type `manual` ; décision
+Accepté — 2026-07-05. **Raffine `adr-0017` (décision 1, type `manual` ; décision
 5ter, validée par construction ; Suivi, Lot 3).** Ne rouvre aucune décision de
 0017 : le *quoi* (Papa apporte l'intention, ZETIS compose depuis l'évidence, les
 notions résolues sont décochables) est acté. Cet ADR tranche le *comment* au
