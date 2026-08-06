@@ -30,7 +30,11 @@ class CouncilSubjectEntry(BaseModel):
     subject_name: str
     strengths: str
     to_reinforce: str
-    recent_evolution: str
+    # ⚠️ NULLABLE ET DÉFAUTÉ, volontairement (adr-0040 §8.1). Le prompt v3 ne demande plus ce
+    # champ, mais le retirer du modèle serait une faute : `extra="forbid"` ferait alors échouer la
+    # validation du payload ENTIER dès qu'un modèle continuerait de l'émettre — un champ de trop
+    # coûterait le rapport. On garde la porte ouverte et le serveur écrase derrière (`_anchor`).
+    recent_evolution: str | None = None
     recommendations: list[CouncilRecommendation] = Field(default_factory=list)
 
 
@@ -124,7 +128,10 @@ class CouncilSubjectOut(BaseModel):
     subject_name: str
     strengths: str
     to_reinforce: str
-    recent_evolution: str
+    # `None` = l'évidence ne portait aucune bascule sur cette matière. L'écran rend cette absence
+    # par une PHRASE (la borne de trace), jamais par un blanc : une section vide se lirait « aucun
+    # mouvement », or c'est « aucune trace ». Les deux ne se corrigent pas l'un l'autre.
+    recent_evolution: str | None = None
     recommendations: list[CouncilRecommendationOut] = Field(default_factory=list)
 
 

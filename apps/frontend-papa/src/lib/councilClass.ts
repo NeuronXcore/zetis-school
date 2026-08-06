@@ -18,7 +18,12 @@ export interface CouncilSubject {
   subject_name: string;
   strengths: string;
   to_reinforce: string;
-  recent_evolution: string;
+  /**
+   * `null` = l'évidence ne portait aucune bascule de palier sur cette matière (ADR-0040 §8.1).
+   * L'écran rend cette absence par une phrase, jamais par un blanc : « pas de trace » et
+   * « pas de mouvement » ne se corrigent pas l'un l'autre.
+   */
+  recent_evolution: string | null;
   recommendations: CouncilRecommendation[];
 }
 

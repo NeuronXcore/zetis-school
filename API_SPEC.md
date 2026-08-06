@@ -814,9 +814,15 @@ Aucune surface Massimo.
 
 - **POST `/api/reports/class-council`** `{ period? }` → `CouncilReportOut`
   `{ id, period, global_summary, subjects: [{ subject_id, subject_name, strengths, to_reinforce,
-  recent_evolution, recommendations: [{ skill_ids, skill_names, mission_type:"manual",
+  recent_evolution: str|null, recommendations: [{ skill_ids, skill_names, mission_type:"manual",
   template_hint, justification }] }], prompt_version, created_at }`. Génère + persiste. Évidence
   vide → rapport serein (0 matière), sans appel LLM. Erreur provider → `502`.
+  ⚠️ `recent_evolution` est **nullable et écrasé serveur** (`adr-0040` §8.1) : si l'évidence ne
+  porte aucune bascule de palier sur la matière, le champ vaut `null` **quoi que le modèle ait
+  écrit**. Le `period` ne sélectionnant aucune donnée, ce champ réclamait une valeur qu'aucune
+  source ne pouvait produire — et la phrase inventée était figée dans `subjects_json`. Les
+  rapports antérieurs au prompt **v3** gardent leur prose, sous une marque de lecture dérivée de
+  `prompt_version` ; aucune réécriture, aucune migration.
 - **GET `/api/reports/class-council?period=`** → `[CouncilReportListItem]`
   `{ id, period, subjects_count, created_at }` (récents d'abord).
 - **GET `/api/reports/class-council/{id}`** → `CouncilReportOut`.

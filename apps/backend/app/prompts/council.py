@@ -17,7 +17,14 @@ import json
 # ⚠️ Le texte du prompt change → la version change. `prompt_version` est persisté sur chaque
 # rapport : les rapports existants gardent `v1`, aucune migration de données, et la comparaison
 # entre générations reste possible.
-COUNCIL_PROMPT_VERSION = "v2"
+#
+# v3 (adr-0040 §8) — le schéma ne demande plus `recent_evolution`. Le `period` du Conseil ne
+# sélectionne aucune donnée : réclamer une « tendance récente » revenait à faire inventer une
+# valeur qu'aucune source ne pouvait produire, puis à la figer. Le champ reste DÉCLARÉ côté
+# Pydantic (défauté, nullable) pour qu'un modèle qui l'émettrait encore ne fasse pas échouer tout
+# le payload sous `extra="forbid"` ; le serveur l'écrase dans `_anchor`. La version sert aussi de
+# MARQUE DE LECTURE à l'écran : tout rapport `< v3` est signalé « rédigé sans historique daté ».
+COUNCIL_PROMPT_VERSION = "v3"
 
 SYSTEM_PROMPT = (
     "Tu es ZETIS, et tu rédiges un « conseil de classe » personnalisé pour UN enfant "
@@ -38,7 +45,6 @@ SYSTEM_PROMPT = (
     '      "subject_name": str,\n'
     '      "strengths": str,         // points forts observés (1-2 phrases)\n'
     '      "to_reinforce": str,      // notions à renforcer (1-2 phrases)\n'
-    '      "recent_evolution": str,  // tendance récente, qualitative (1 phrase)\n'
     '      "recommendations": [\n'
     "        {\n"
     '          "skill_ids": [int],       // UNIQUEMENT des skill_id fournis dans ce sujet\n'
