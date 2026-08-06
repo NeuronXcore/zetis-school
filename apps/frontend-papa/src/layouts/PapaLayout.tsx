@@ -6,8 +6,8 @@ import { useActiveProductionRun } from "../hooks/useActiveProductionRun";
 import { useAutonomyState } from "../hooks/useAutonomyState";
 import { ActiveProductionModal } from "../components/ActiveProductionModal";
 import { ProductionDoneModal } from "../components/ProductionDoneModal";
-import { useRunProgress } from "../hooks/useRunProgress";
-import { SCOPE_NOUN } from "../lib/production";
+import { useProductionActivity } from "../hooks/useProductionActivity";
+import { ProductionBar, ProductionEdge } from "../components/ProductionBar";
 
 // Layout commun de l'interface Papa : sidebar + header + zone analytique
 // (cf. docs/frontend-papa/README.md § Layout).
@@ -22,14 +22,10 @@ export function PapaLayout() {
   const autonomy = useAutonomyState();
   const [showRun, setShowRun] = useState(false);
 
-  // ⚠️ **La lecture d'un lot vit dans `useRunProgress`, jamais ici.** Ce bloc calculait son propre
-  // pourcentage et ignorait la règle que `ProductionProgress` portait déjà : un lot `queued` ne
-  // s'estime pas. Un lot resté en file — worker éteint — montait donc à 95 % et y restait pour
-  // toujours, constaté à l'écran le 2026-08-04.
-  // ⚠️ `arrete` n'est PAS une variante d'attente : c'est le seul état qui appelle un geste. Le
-  // 2026-08-05, l'en-tête a annoncé « en file d'attente » pendant six heures sur une file que
-  // personne ne consommait — littéralement vrai, et lu comme « patiente ».
-  const { pct, enFile, libelle, arrete } = useRunProgress(activeRun);
+  // L'activité COMPLÈTE (ADR-0041) — lots ET travaux unitaires, tous déclencheurs confondus.
+  // L'indicateur d'origine ne voyait que les lots : les ~20 producteurs synchrones travaillaient
+  // sans que rien ne le dise, et la barre d'équipement n'a jamais été vue tourner une seule fois.
+  const { activity, acknowledge: ackEchec } = useProductionActivity();
   return (
     // `overflow-hidden` n'est pas cosmétique : sans lui, la sidebar (22 entrées, ~1100 px) déborde
     // du conteneur en `h-full`, le DOCUMENT grandit à sa taille, et c'est le body qui scrolle —
@@ -80,43 +76,17 @@ export function PapaLayout() {
                 Enfant : Massimo
               </span>
               <span className="text-papa-muted">Période : 2026 — 4ᵉ</span>
-              {activeRun && (
-                // Un PROCESSUS, jamais un stock : « ça travaille », pas « vous êtes en retard ».
-                <button
-                  type="button"
-                  onClick={() => setShowRun(true)}
-                  title={
-                    arrete
-                      ? "Aucun moteur de production ne tourne — le lot ne démarrera pas tout seul"
-                      : "Production en cours — voir le détail"
-                  }
-                  className={
-                    arrete
-                      ? "inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/20"
-                      : "inline-flex items-center gap-1.5 rounded-full border border-papa-accent/40 bg-papa-accent/10 px-2.5 py-1 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/20"
-                  }
-                >
-                  {/* ⚠️ Le point ne PULSE que si quelque chose bouge. Un point qui clignote sur une
-                      file arrêtée est une animation qui ment — c'est elle qu'on regarde avant de
-                      lire le texte. */}
-                  <span
-                    className={
-                      arrete
-                        ? "h-1.5 w-1.5 rounded-full bg-amber-300"
-                        : "h-1.5 w-1.5 animate-pulse rounded-full bg-papa-accent"
-                    }
-                    aria-hidden
-                  />
-                  {/* ⚠️ Le VERBE aussi suit l'état : « ZETIS produit … en file d'attente » se
-                      contredit tout seul. Tant que le lot n'a pas démarré, ZETIS ne produit rien
-                      — il va le faire. Et s'il n'a personne pour le faire, il ne le fera pas. */}
-                  {arrete ? "ZETIS ne produit pas" : enFile ? "ZETIS va produire" : "ZETIS produit"}{" "}
-                  {activeRun.scope_kind
-                    ? SCOPE_NOUN[activeRun.scope_kind] ?? "un contenu"
-                    : "un chapitre"} · {libelle ?? `${pct}%`}
-                </button>
-              )}
             </div>
+            {/* La barre de production (ADR-0041) — au CENTRE, entre l'identité et les actions.
+                Elle remplace la pastille qui vivait dans la pilule de gauche : celle-ci ne voyait
+                que les LOTS, donc rien des ~20 producteurs synchrones. Toute sa doctrine
+                d'affichage est conservée (jamais 0 %, « en file » ≠ « arrêté », estimation ancrée
+                sur le `started_at` serveur) — c'est ce qu'elle REGARDE qui change. */}
+            <ProductionBar
+              activity={activity}
+              onOpen={() => setShowRun(true)}
+              onAcknowledge={ackEchec}
+            />
             <div className="flex items-center gap-2 rounded-xl border border-papa-border/60 bg-papa-surface/70 px-2 py-2 backdrop-blur-sm">
               <button
                 type="button"
@@ -135,6 +105,10 @@ export function PapaLayout() {
               )}
             </div>
           </div>
+          {/* Le repli ultime : sous `sm`, la pilule perd son libellé — ce liseré, lui, reste.
+              Il garantit qu'une production ne devient jamais invisible, quelle que soit la
+              largeur. Jamais cliquable : c'est un signal, pas une commande. */}
+          <ProductionEdge activity={activity} />
         </header>
         {activeRun && showRun && (
           <ActiveProductionModal run={activeRun} onClose={() => setShowRun(false)} />

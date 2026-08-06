@@ -218,6 +218,18 @@ class ProductionRun(Base):
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Papa a-t-il VU que ce lot a échoué ? (ADR-0041 §8)
+    #
+    # ⚠️ **Serveur, jamais `localStorage`.** Un acquittement par navigateur reviendrait au
+    # prochain appareil, et « rien ne doit se perdre » deviendrait « rien ne doit se perdre ici ».
+    #
+    # `NULL` sur un lot réussi ne veut rien dire : la colonne ne se lit que sur un échec. Un lot
+    # historique vaut `NULL` = « jamais acquitté », ce qui est exact — aucune rétro-attribution
+    # à écrire, contrairement au cas du §F.4.
+    acknowledged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
 
 class ProductionEvent(Base):
     """Ce que le lot a fait, pièce par pièce (ADR-0034 §1).

@@ -87,7 +87,16 @@ def _seed_lesson(db, *, status="draft", with_notions=True) -> int:
 
 
 def _jobs(db) -> list[m.AIJob]:
-    return list(db.scalars(select(m.AIJob).where(m.AIJob.job_type == "lesson_content")))
+    # ⚠️ `order_by` explicite (2026-08-06). Sans lui, ce helper rendait l'ordre PHYSIQUE de
+    # SQLite, et les assertions ci-dessous lisaient « l'ordre de création » par coïncidence.
+    # L'index `ix_ai_jobs_type_status` de l'ADR-0041 a changé le plan de requête et l'ordre avec
+    # lui — `failed` avant `succeeded`. Aucun comportement n'a bougé : les deux jobs existent,
+    # avec les mêmes statuts. C'est la requête du test qui était sous-spécifiée.
+    return list(
+        db.scalars(
+            select(m.AIJob).where(m.AIJob.job_type == "lesson_content").order_by(m.AIJob.id)
+        )
+    )
 
 
 def test_scrub_converts_details_and_strips_known_html_only(client_db) -> None:

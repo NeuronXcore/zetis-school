@@ -16,6 +16,7 @@ import {
   type ProductionOrphan,
   type ProductionPreview,
   type ProductionRun,
+  type ProductionActivity,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader } from "./httpClient";
@@ -197,4 +198,20 @@ export const KIT_MS_PER_NOTION = 69000;
  *  « ça travaille », pas « vous êtes en retard ». */
 export async function fetchActiveProductionRun(): Promise<ActiveProductionRun | null> {
   return asJson(await fetch(`${API}/runs/active`, { headers: authHeader() }));
+}
+
+// --- L'activité (ADR-0041) : la source UNIQUE de toutes les barres ------------------------------
+
+/** Tout ce que ZETIS fabrique en ce moment — lots ET travaux unitaires, tous déclencheurs. */
+export async function fetchProductionActivity(): Promise<ProductionActivity> {
+  return asJson(await fetch(`${API}/activity`, { headers: authHeader() }));
+}
+
+/** « J'ai vu. » Un échec reste affiché jusqu'ici — serveur, donc il ne revient sur aucun appareil. */
+export async function acknowledgeActivity(kind: "run" | "job", id: number): Promise<void> {
+  const r = await fetch(`${API}/activity/${kind}/${id}/ack`, {
+    method: "POST",
+    headers: authHeader(),
+  });
+  if (!r.ok) throw new Error("Acquittement impossible");
 }

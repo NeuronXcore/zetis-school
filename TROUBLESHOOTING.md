@@ -2702,3 +2702,47 @@ bundle, résolu ou non.
 `ProgrammePage.test.tsx` › « pendant la génération : barre de progression estimée avec % » a échoué
 une fois (1029 ms) puis est repassé vert **5 fois de suite**. Flaky sur la temporisation de la
 barre, sans rapport avec le chantier. Non traité.
+
+## `feat/barre-de-production` (ADR-0041) — 2026-08-06
+
+### `conftest.py` remplace les FABRIQUES de file : une file neuve doit y être ajoutée
+
+Le fixture `autouse` `file_rq_factice` patche `_redis`, `production_queue` et `render_queue` —
+**les fabriques, pas les fonctions `enqueue_*`** (patcher celles-ci est vert et sans effet :
+`runs_router` les importe au niveau module). L'ADR-0041 ajoute `priority_queue` : **l'oublier
+aurait rouvert la fuite exactement là où elle avait déjà eu lieu** (18 jobs fantômes dans la file
+de dev le 2026-08-04), et sur le chemin le PLUS testé, puisqu'un clic de Papa passe désormais par
+la file prioritaire.
+**Parade** : toute nouvelle file RQ s'ajoute dans `originales` ET dans les trois `monkeypatch.setattr`.
+
+### Un index change l'ordre d'un `select` sans `ORDER BY`
+
+`test_lesson_content_service.py::_jobs()` faisait `select(AIJob).where(...)` **sans `order_by`**, et
+ses assertions lisaient « l'ordre de création » par coïncidence. Le nouvel index
+`ix_ai_jobs_type_status` a changé le plan SQLite : `failed` est passé avant `succeeded`. **Aucun
+comportement n'avait bougé** — la requête du test était sous-spécifiée.
+**Parade** : dans un test, tout `select` dont on lit l'ORDRE porte un `order_by` explicite. Un
+échec de ce type après l'ajout d'un index n'est pas une régression, c'est une révélation.
+
+### La pilule du header s'ÉCRASE au lieu de se replier
+
+Mesuré sur la maquette : sans échelle de repli, à **700 px** de header le libellé tombait à
+**0 px** en occupant encore 244 px, et à **560 px** les cinq états se réduisaient à 104 px de
+décoration illisible.
+**Parade** : paliers explicites (980 / 880 / 800 px), du moins informatif au plus informatif, sur
+la largeur du **conteneur** — jamais du viewport. Et deux exceptions : un **échec** et un **arrêt**
+gardent leur mot à toute largeur, parce que ce sont des états d'anomalie et non d'avancement.
+
+### `graphify affected` peut rendre « No affected nodes » sur une fonction utilisée
+
+`graphify affected "active_run"` rend une liste **vide** alors que
+`production/runs_router.py:87` l'appelle (`runs.active_run(db)` — accès par attribut de module).
+La cage `/slice` met en garde contre `explain` ; `affected` a le même angle mort.
+**Parade** : ne jamais s'en servir seul comme liste de non-régression — recouper au `grep`.
+
+### Rendre `equip-notion` asynchrone casse un ORDRE non documenté
+
+`useCouncilClass.ts:195` équipe N notions **puis** crée les missions, « leurs étapes résolvent les
+ressources fraîches ». Un appel non bloquant ferait composer des missions sur un kit inexistant.
+**Parade retenue** : le client `equipNotion()` sonde `GET /ai/jobs/{id}` jusqu'à complétion — la
+requête HTTP ne tient plus 90 s, la barre du header montre l'avancement, et l'ordre est préservé.

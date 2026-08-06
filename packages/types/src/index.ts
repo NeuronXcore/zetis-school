@@ -255,6 +255,8 @@ export {
   type ValidatedBy,
   type VetoPreview,
   type VetoRemoval,
+  type ActivityItem,
+  type ProductionActivity,
 } from "./production";
 export {
   type Autonomy,

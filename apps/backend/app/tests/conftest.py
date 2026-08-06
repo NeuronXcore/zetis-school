@@ -58,11 +58,20 @@ def file_rq_factice(monkeypatch) -> FakeQueue:
     # ⚠️ Les fabriques sont `lru_cache`ées : un cache peuplé avant le patch rendrait la VRAIE file
     # malgré lui. On garde les fonctions D'ORIGINE pour pouvoir vider ce cache **après** — au
     # démontage, `queue_mod._redis` est encore le leurre, qui n'a pas de `cache_clear`.
-    originales = (queue_mod._redis, queue_mod.production_queue, queue_mod.render_queue)
+    # ⚠️ `priority_queue` est dans la liste depuis l'ADR-0041 §5, et son oubli aurait rouvert la
+    # fuite EXACTEMENT là où elle avait déjà eu lieu : un clic de Papa passe désormais par la file
+    # prioritaire, donc c'est le chemin le PLUS testé qui serait parti dans le vrai Redis.
+    originales = (
+        queue_mod._redis,
+        queue_mod.production_queue,
+        queue_mod.priority_queue,
+        queue_mod.render_queue,
+    )
     for fabrique in originales:
         fabrique.cache_clear()
     monkeypatch.setattr(queue_mod, "_redis", _redis_interdit)
     monkeypatch.setattr(queue_mod, "production_queue", lambda: file)
+    monkeypatch.setattr(queue_mod, "priority_queue", lambda: file)
     monkeypatch.setattr(queue_mod, "render_queue", lambda: file)
     yield file
     for fabrique in originales:

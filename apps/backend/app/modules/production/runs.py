@@ -394,9 +394,15 @@ def create_run(
 
 def run_out(db: Session, run: ProductionRun) -> dict:
     """Vue d'un run pour le suivi Papa. Aucun contenu, aucun verbatim — un état."""
+    # ⚠️ **`run_status()` et non `run.status`** (ADR-0041 §1) — correction, pas fonctionnalité.
+    # Le Journal savait déjà dire `stale` ; cette vue rendait le statut brut, donc un lot zombie
+    # apparaissait `running` dans l'en-tête, indiscernable d'un lot vivant. Deux lectures du même
+    # état qui ne disaient pas la même chose.
+    from app.modules.production import journal
+
     return {
         "id": run.id,
-        "status": run.status,
+        "status": journal.run_status(run),
         "trigger": run.trigger,
         "authorized_by": run.authorized_by,
         "chapter_id": run.chapter_id,

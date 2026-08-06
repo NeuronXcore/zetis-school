@@ -17,6 +17,10 @@ class JobOut(BaseModel):
     status: str
     output: dict | None = None
     duration_ms: int | None = None
+    # ⚠️ Ajouté par l'ADR-0041 §3 : un job `failed` était jusqu'ici **MUET** côté client — le
+    # motif existait en base et ne sortait jamais. Une barre qui dit « échec » sans dire pourquoi
+    # oblige à ouvrir les logs du serveur.
+    error: str | None = None
 
 
 @router.get("/jobs/{job_id}", response_model=JobOut)
@@ -34,6 +38,7 @@ def get_job(
         status=job.status,
         output=job.output_json,
         duration_ms=job.duration_ms,
+        error=job.error_message,
     )
 
 

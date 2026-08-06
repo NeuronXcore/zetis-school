@@ -1148,3 +1148,33 @@ Créer un seed minimal :
 - quelques notions ;
 - une mission exemple ;
 - un quiz exemple.
+
+## `ai_jobs` et `production_runs` — l'attente et l'acquittement (ADR-0041, migration `b3c4d5e6f7a8`)
+
+**`ai_jobs` porte désormais deux natures, distinguées par `status`** :
+
+- une **trace** — l'appel synchrone créé directement en `running` par `flush()`, donc invisible
+  hors de sa transaction, puis `succeeded` ;
+- un **travail de file** — créé en `queued` **et commité** avant l'enfilement, pris par le worker.
+
+C'est le statut qui les sépare : quand une autre connexion peut lire une trace, elle est déjà
+finie. Aucun filtre à écrire pour l'exclure de `/activity`.
+
+| Colonne | Table | Rôle |
+|---|---|---|
+| `acknowledged_at` | `ai_jobs`, `production_runs` | Papa a-t-il VU cet échec ? Serveur, jamais `localStorage` |
+
+**Deux index sur `ai_jobs`, ses premiers** — la table n'en avait **aucun** depuis sa création
+(`5678d02df7f6`), alors que `quizzes/service.py` la balaie entièrement à deux endroits :
+
+- `ix_ai_jobs_status_created (status, created_at)` — la lecture d'activité ;
+- `ix_ai_jobs_type_status (job_type, status)` — les statistiques de génération.
+
+⚠️ **Aucune colonne d'origine sur `ai_jobs`, et c'est une décision.** `db/models/production.py`
+l'interdit en tête de fichier : un déclencheur se pose sur le **lot**, jamais recopié sur ce qu'il
+engendre (un lot `agenda` de 31 notions produirait 155 `AIJob`). L'origine se **dérive** : les deux
+scans automatiques passent par `create_run`, donc **hors lot ⇒ `manual`**.
+
+⚠️ **Un backfill, contrairement à ce que l'ADR annonçait.** `NULL` sur un échec veut dire « jamais
+acquitté » : sans backfill, **tout échec de l'historique** remonterait dans la barre au premier
+démarrage. Les lignes déjà `failed` sont datées à leur `finished_at`.

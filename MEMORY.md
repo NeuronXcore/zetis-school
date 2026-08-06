@@ -7,236 +7,111 @@
 
 ## État à la reprise
 
-**Chantier : ADR-0040 « Progression dans le temps » — COMPLET ET MERGÉ. Tout est sur `main`. Rien à pousser, rien à reprendre.**
+**Chantier : ADR-0041 « Tout ce qui produit se voit » — Slice A, EN COURS. Rien n'est mergé, rien n'est poussé depuis le commit de documentation.**
 
-Ce qu'il reste de ce chantier tient dans **ses résidus**, plus bas — et ils sont désormais **sur
-`main`**, plus « avant merge ». Le chantier suivant est déjà désigné : la barre de progression
-d'équipement.
+🔴 **Ne PAS merger.** Trois critères d'acceptation de la Slice A ne sont pas tenus (plus bas), et
+**aucun écran n'a été regardé**. La branche `feat/barre-de-production` porte le seul état réel.
 
 | | |
 |---|---|
-| **Ce chantier** | **PR [#93](https://github.com/NeuronXcore/zetis-school/pull/93)** (`MERGED`, vérifié), squash **`7d45e19`**. 17 commits, 40 fichiers, un seul carré |
-| **Lot 0 — mergé à part, avant** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)** (`MERGED`, vérifié), squash **`1fb094f`** |
-| **Branches** | **aucune** — `feat/progression-temps` supprimée des deux côtés, vérifié par `git ls-remote` **et** `git branch -r`. `main` local = `origin/main` = `7d45e19` |
-| ✅ Refs fantômes, réglées | La clôture avait trouvé deux refs de suivi périmées (`fix/council-evolution-lock`, `feat/memoire-quatre-vues`) que `git branch -r` montrait alors qu'elles n'existaient plus à distance. Le merge en a créé une troisième. **`git remote prune origin` lancé** : il ne reste que `origin/main` |
-| Migration | **`a1b2c3d4e5f9`** — index `(student_id, skill_id, changed_at DESC)`. ⚠️ **Appliquée en DEV seulement**, un seul head alembic |
-| Routes nouvelles | **deux**, `require_parent` : `GET /progress/skills` (agrégée, **7 requêtes constantes**) et `/progress/skills/{id}/timeline` (paresseuse) |
-| Contrat modifié | `CouncilSubjectOut.recent_evolution` devient une **union** `Evolution \| str \| null` ; `CouncilReportListItem` gagne `prompt_version` |
-| Prompt LLM | `COUNCIL_PROMPT_VERSION` **v2 → v3** (Lot 0) **→ v4** (Lot 3) |
-| Suites, réellement lancées | backend **953 ✅** · Papa **610 ✅** · `tsc -b` et `vite build` propres |
-| Vu à l'écran | **Lots 0, 2 et 3 ✅** par l'agent, via `claude-in-chrome` (vrai Chrome, données réelles, vraie génération Ollama). **Lot 1 : jamais vu** — mesure vérifiée par script et par test. ⚠️ **Le user n'a relu aucun écran de ce chantier** |
+| **Branche** | `feat/barre-de-production`, **base `dc1a6ed`** (= tête de `main`). Le code de la slice n'est **pas commité** — voir `git status` |
+| **Sur `main`** | `dc1a6ed` — l'ADR-0041 + la ligne `DECISIONS.md`. `b7bbe77` sur la branche — spec + maquette + prompts |
+| **Migration** | `b3c4d5e6f7a8` — ⚠️ **écrite, JAMAIS appliquée**, même en dev. Un seul head alembic avant elle : `a1b2c3d4e5f9` |
+| **Routes nouvelles** | `GET /api/production/activity` · `POST /api/production/activity/{kind}/{id}/ack`, toutes deux `require_parent` |
+| **Contrat modifié** | 🔴 `POST /api/reports/class-council/equip-notion` rend **202 + `{job_id, status}`** au lieu du kit. `JobOut` gagne `error` |
+| **Suites, réellement lancées** | backend **963 ✅** (953 avant) · Papa **610 ✅** · `tsc -b` et `vite build` propres |
+| **Vu à l'écran** | 🔴 **RIEN. Aucun des six contrôles du prompt.** Et c'est le chantier dont l'ADR dit qu'il « se vérifie à l'écran ou ne se vérifie pas » |
 
 ### FAIT
 
-**Lot 0 — `recent_evolution` cesse d'affirmer ce que l'évidence ne porte pas.** Le champ était un
-`str` **non-nullable** pour une valeur qu'aucune source ne pouvait produire : le `period` du Conseil
-ne sélectionne aucune donnée. Le producteur remplissait **par obligation de type**, et la phrase
-était figée dans `council_reports.subjects_json` — rétroactivement indiscernable du vrai. Le serveur
-écrase désormais dans `_anchor`, après la validation typée, au même endroit que l'ancrage des
-`skill_id`.
+**Le backend est complet et testé.** `AIJob` cesse d'être une trace et devient un travail de file :
+statut `queued` réellement employé, ligne **commitée avant l'enfilement**, deux premiers index de
+la table (elle n'en avait aucun depuis sa création). Deux files RQ dont la priorité se **dérive**
+de l'origine — `production_worker` cesse de fabriquer sa propre `Queue`. Module neutre
+`production/activity.py` + son routeur, `run_out()` applique enfin `run_status()`, `JobOut` expose
+son motif d'erreur, `equip_notion` migré en travail de file.
 
-**Lot 1 — la mesure, rendue vérifiable à l'œil avant qu'un LLM ne la raconte.**
-`evidence.mastery_transitions(student, since, subject_id)` : **UNE** fonction, deux consommateurs
-(Progression, le Conseil). Nouveau module `progress/skills.py`, deux routes, migration d'index.
+**La barre du header est écrite** (`components/ProductionBar.tsx` + `ProductionEdge`), branchée sur
+`useProductionActivity`. Elle porte les cinq états, l'échelle de repli en `ResizeObserver`
+(seuils 980 / 880 / 800), et **conserve toute la doctrine** de la pastille qu'elle remplace.
 
-**Lot 2 — Progression porte trois grains dans un seul écran** : la matière, la notion, le fait daté.
-Vue notion (six colonnes triables, infobulle permanente des deux axes, tri par date scindé en trois
-blocs comptés), vue période (**grille calendaire** sur le patron du Cahier de bord, sélection
-multiple de jours, bornes de trace déclarées), et la table matière enrichie.
+**Trois défauts trouvés au read-before-code, avant d'écrire une ligne** — c'est le livrable le plus
+utile de la session :
 
-**Lot 3 — le Conseil raconte des bascules datées.** `recent_evolution` devient
-`{since, transitions[], comment}`. 🔴 **Le modèle ne produit AUCUNE date** : il reçoit les bascules
-en liste fermée et ne rend qu'un commentaire. L'ancrage est **structurel** — il n'y a pas de date à
-filtrer, parce qu'il n'y a pas de date à inventer.
+1. 🔴 **`AIJob.trigger` était une faute, et l'ADR se contredisait à une ligne d'intervalle** : son
+   §3.3 refuse une colonne « qui duplique une dérivation » pendant que son §3.2 en ajoutait une.
+   `db/models/production.py` l'interdit en tête de fichier. **Colonne supprimée** ; l'origine se
+   dérive (*hors lot ⇒ manual*, vérifié : les deux scans passent par `create_run`). ADR corrigé.
+2. 🔴 **`runs.run_out()` émettait déjà `progress_pct: 0`** sur un lot en file, rattrapé côté
+   client. `/activity` devenant la source unique, le réutiliser aurait **déplacé le mensonge vers
+   le serveur**. `/activity` émet `null`. ADR corrigé (§1).
+3. 🔴 **Sans backfill, tous les échecs de l'historique** remonteraient comme non acquittés au
+   premier démarrage. La migration les date à leur `finished_at`. L'ADR annonçait « aucun
+   backfill » — il en fallait un, il est écrit et motivé dans la migration.
 
-**Deux correctifs hors cadrage, nés de questions du user** :
+### ▶ EN COURS — ce qui reste de la Slice A
 
-- la table matière gagne une **colonne « Lacune »** (`gaps_open` était servi et n'atteignait pas
-  l'écran), le **tri de ses six colonnes**, et ses trois liens `/programme` **partaient nus** — les
-  huit lignes menaient toutes à la matière ouverte par défaut ;
-- la **période du Conseil** dit enfin qu'elle est une étiquette, et les **pastilles d'historique**
-  disent quel rapport elles ouvrent.
+🔴 **Les deux `EQUIP_MS` vivent toujours** (`ConseilClasseIAPage.tsx:26`,
+`SubjectDetailRow.tsx:13`) — le critère « les deux constantes meurent » **n'est pas tenu**.
+Motif : un blocage que le cadrage n'avait pas vu — `useCouncilClass.ts:195` équipe N notions
+**puis** crée les missions, *« leurs étapes résolvent les ressources fraîches »*. Rendre l'appel
+non bloquant casserait cet ordre. **Parade posée, rien n'est cassé** : `equipNotion()` sonde
+`GET /ai/jobs/{id}` jusqu'à complétion (2 s, plafond 15 min), donc les deux appelants attendent
+toujours le kit — mais la requête HTTP ne tient plus 90 s et la barre du header montre l'avancement
+réel, sur toutes les pages. **Ce qu'il reste : décider si l'attente doit disparaître, et comment.**
 
-**Avant tout cela, 14 commits de remise en ordre de `DECISIONS.md`** (non demandés par le chantier) :
-l'index était écrit en deux blocs qui se télescopaient, **56 entrées sur 70 mal placées**. Tri par
-script (`scripts/reorder_decisions.py`), indentation, statuts. **Divergences index ↔ fichier
-d'ADR : 16 → 0.**
+⚠️ **`ActiveProductionModal` n'est pas étendu** en liste (ordre de file, origine par travail,
+échecs avec leur bouton). Il affiche encore le lot unique. Le clic sur la barre l'ouvre quand même.
 
-### ▶ EN COURS
-
-**Rien.** Arbre propre, tout commité, tout poussé, tout vert. Aucun fichier à moitié écrit.
+⚠️ **La migration n'est pas appliquée**, même en dev.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-1. **`CouncilSubjectEntry.recent_evolution` (entrée LLM) reste un `str`** alors que la sortie est
-   une structure. Le §8 annote lui-même `transitions # SERVEUR` / `comment # LLM` : faire du champ
-   d'entrée une structure reviendrait à **demander les dates au modèle**, ce que le §8.2 interdit.
-   Il reste par ailleurs **déclaré** malgré `extra="forbid"` — un champ de trop coûterait le rapport
-   entier.
-2. **`CouncilSubjectOut.recent_evolution` est une UNION à trois branches** — structure (v4+), `str`
-   (rapport figé d'avant), `null`. Un type strict ferait échouer la lecture de **tout l'historique**.
-3. **L'absence s'ÉCRIT** (§8.4). `null` ne rend pas une section vide mais une phrase : masquer
-   laisserait lire « aucun mouvement » là où il faut lire « aucune trace ».
-4. **Aucun rapport figé n'est réécrit.** La marque de lecture se **dérive** de `prompt_version`
-   (`< v3`) et s'éteint d'elle-même.
-5. **`history_since` vit dans `evidence`**, avec trois consommateurs (dashboard, Progression,
-   Conseil). `dashboard` **délègue**. Ne jamais la confondre avec le `period` du Conseil : le §9
-   interdit que deux bornes partagent un nom.
-6. **`from_status` se calcule par FENÊTRAGE, jamais ne se lit.** La plus ancienne bascule tracée n'a
-   **pas** de palier de départ, et `None` est la bonne réponse.
-7. **`PALIER_BY_STATUS` est CONSTRUIT depuis les frozensets canoniques**, `unknown` mappé
-   explicitement. Un `.get(…, défaut)` ferait glisser en silence une septième valeur.
-8. **La période du Conseil reste TRANSPORTÉE depuis le dashboard**, et le calendrier est REFUSÉ tant
-   que l'évidence n'a pas de fenêtre. Une date est une affirmation *précise* là où une étiquette
-   n'est que vague ; depuis le Lot 3 une **moitié** du rapport serait fenêtrable, et un rapport à
-   moitié fenêtré sous une date unique se lirait comme entièrement fenêtré.
-9. **La case du calendrier porte un COMPTE, et c'est un repère de NAVIGATION.** Première exception
-   assumée de l'`adr-0028` §4. Sans elle la grille serait impossible : les données sont grumeleuses
-   (86 faits sur l'année, ~20 le seul 05/07).
-10. **`DECISIONS.md` : le statut se lit sur la PROSE JOINTE de l'entrée, sous-puce finale exclue.**
-    Trois recensements ont donné 5, 6 puis 4 entrées sans statut — la dernière est la bonne.
+- **Deux modèles, une lecture.** `ProductionRun` = le lot pédagogique ; `AIJob` = le travail
+  unitaire. On ne les fusionne pas — `/activity` les normalise.
+- **L'origine et la file se DÉRIVENT**, aucune colonne ne les stocke.
+- **`pct = null`, jamais 0.** Zéro n'est pas une valeur basse, c'est une absence de mesure.
+- **`pct_is_measured`** distingue deux régimes de vérité : `7 / 31 · 23 %` vs `≈ 40 %`.
+- **Le travail en cours n'est jamais interrompu** — « passer devant » = prendre le prochain créneau.
+- **L'échec reste jusqu'à acquittement**, serveur (`acknowledged_at`), jamais `localStorage`.
+- **Concurrence 1** (un Ollama, un GPU) : non rouverte.
+- **Massimo ne voit rien** (`adr-0026` §4).
 
-### ⚠️ Pièges payés en vrai, à ne pas re-découvrir
+### ⚠️ Pièges payés en vrai — voir `TROUBLESHOOTING.md` §`feat/barre-de-production`
 
-Ceux du Lot 0 et du Lot 1 sont dans le corps de la PR
-[#92](https://github.com/NeuronXcore/zetis-school/pull/92) et dans `TROUBLESHOOTING.md`. Ceux des
-Lots 2, 3 et des correctifs, tous **payés cette session** :
-
-1. 🔴 **Un LITTÉRAL n'est pas un verrou — trouvé DEUX fois le même jour.** Un test comptait les
-   occurrences du mot « lacune » (« au plus 3 ») ; un autre épinglait `prompt_version == "v3"`. Les
-   deux ont rougi pour une raison **sans rapport** avec ce qu'ils protégeaient. **Parade : asserter
-   la PROPRIÉTÉ** (quelle source chaque colonne lit ; le prédicat `< 3` que l'écran applique), jamais
-   un nombre ni une chaîne qu'une édition légitime fera bouger.
-2. 🔴 **Un test peut GELER un bug.** `toHaveAttribute("href", "/programme")` exigeait l'URL **nue** :
-   il serait resté vert pour toujours sur un lien qui renvoyait les huit matières à la même page.
-3. 🔴 **Une cible d'URL manquante est SILENCIEUSE.** La page d'arrivée ignore le paramètre absent et
-   ouvre sa matière par défaut, sans erreur nulle part. ⚠️ Et `?subject=` **ne porte pas le même
-   type selon la destination** : `subject_id` numérique pour `/programme` et `/couverture`, **slug**
-   pour `/lacunes`, `/conseil` et `/progression`.
-4. 🔴 **`created_at.slice(0, 10)` lit de l'UTC** : un rapport généré à 23 h 30 à Paris s'affiche la
-   veille. C'est le piège de `toISOString()` documenté le matin même dans la grille du calendrier,
-   **reproduit huit heures plus tard** dans les pastilles d'historique.
-5. 🔴 **Deux fonctions pour la même question, aux réponses OPPOSÉES.**
-   `evolutionSansHistoriqueDate` (page) et `rapportSansHistoriqueDate` (lib) divergeaient sur une
-   version illisible : l'une marquait, l'autre pas. Fusionnées, avec le défaut sûr — **sur un doute,
-   on signale**.
-6. ⚠️ **Une assertion POSITIONNELLE se périme en silence.** « la dernière cellule vaut 8 » a été
-   invalidée par l'ajout d'une colonne. **Parade : ancrer sur l'EN-TÊTE**, jamais sur un index.
-7. ⚠️ **Restaurer depuis une sauvegarde de sabotage PÉRIMÉE efface le travail fait entre-temps.** Un
-   `cp /tmp/x.bak` a annulé deux éditions postérieures à la sauvegarde. **Parade : reprendre la
-   sauvegarde juste avant CHAQUE sabotage.**
-8. ⚠️ **Le HMR de Vite remet l'état local à zéro entre deux clics** — deux sélections de jour
-   semblaient ne rien faire. Ce n'était pas le code. Recharger avant de conclure.
-9. ⚠️ **`tsc` attrape ce que les tests laissent passer** : l'entrée optimiste de `useCouncilClass`
-   sans `prompt_version` aurait marqué « rédigé sans historique daté » un rapport qu'on vient de
-   générer. Aucun test ne l'aurait vu.
+- `conftest.py` remplace les **fabriques** de file : `priority_queue` devait y être ajouté, sinon
+  la fuite se rouvrait sur le chemin le plus testé.
+- Un index change l'ordre d'un `select` **sans `ORDER BY`** — `_jobs()` de
+  `test_lesson_content_service.py` lisait « l'ordre de création » par coïncidence.
+- La pilule de la barre **s'écrasait au lieu de se replier** : mesuré, libellé à 0 px pour 244 px
+  de pilule.
+- `graphify affected "active_run"` rend **« No affected nodes »** alors qu'un routeur l'appelle.
 
 ### ▶ PROCHAIN PAS
 
-✅ **Rien de ce chantier.** Il est mergé, `main` est à jour, l'arbre est propre, aucune branche ne
-survit. L'étape 4bis est FAITE — c'est ce que tu lis.
+**Appliquer la migration en dev, lancer les serveurs, et REGARDER la barre tourner** — c'est le
+seul verrou qui compte ici, et il n'a jamais été joué :
 
-Le prochain pas est **le chantier suivant** (ci-dessous), et il commence par `/ouverture` :
-c'est une surface qui demande un ADR, pas une slice.
+```
+cd apps/backend && .venv/bin/alembic upgrade head
+pnpm dev            # backend + worker + les deux frontends
+```
 
-⚠️ **À faire à l'ouverture du prochain chantier, pas maintenant** : élaguer cette section, avec les
-**quatre contrôles** — ADR ✅ (`adr-0040-progression-dans-le-temps.md`, Accepté),
-`TROUBLESHOOTING.md` ✅ (§`feat/progression-temps`), `CHANGELOG.md` ✅ (0.53.0), et 🔴 **le
-quatrième, celui qu'on oublie** : remonter dans « DETTES OUVERTES » tout ce qui reste ouvert dans
-les résidus ci-dessous. Il y en a, et ils sont maintenant **sur `main`**.
+Puis les six contrôles du prompt (`prompts-claude-code-adr-0041.md`, § VÉRIFICATION À L'ÉCRAN),
+en commençant par un équipement **réel** depuis Progression, observé **sur toute sa durée**.
+⚠️ Coût assumé : `equip_notion` génère **et auto-valide** un kit entier en base de dev.
 
-### ▶ CHANTIER SUIVANT, désigné par le commanditaire (2026-08-06)
+### ⚠️ Dettes héritées du chantier ADR-0040 (remontées à l'élagage, toujours ouvertes)
 
-**« La barre de progression d'équipement n'a jamais été vue tourner — c'est ce que je veux
-optimiser. »**
-
-⚠️ **Ce n'est PAS une slice, c'est un chantier avec ADR** : la barre ne peut pas devenir honnête
-sans changer la forme de la route. Passer par `/ouverture`.
-
-**Le read-before-code est déjà fait, et il tranche la question** :
-
-| Fait vérifié | Où | Conséquence |
-|---|---|---|
-| `POST /class-council/equip-notion` est **entièrement SYNCHRONE** | `reports/router.py:63` | une requête HTTP tient jusqu'à cinq générations LLM locales et ne rend rien avant la fin |
-| `equipment.equip_notion` **ne crée AUCUN `AIJob`** | `production/equipment.py:154` | 🔴 **il n'y a rien à sonder.** L'estimation n'est pas un raccourci, c'est le seul rendu possible aujourd'hui |
-| Les cinq pièces sont déjà **séquentielles et nommées** | même fichier : cours → fiche → SRS → quiz → mindmap, chacune isolée dans son `try` | la matière d'une vraie mesure existe **déjà** ; elle n'est simplement jamais rendue avant le `return` |
-| `EquipNotionResult` porte **`generated` / `skipped` / `errors` par pièce** | `reports/schemas.py` | le détail par pièce existe, mais **seulement à l'arrivée** |
-| Le précédent existe dans le dépôt | `generate_council_report` crée un `AIJob` (`job_type="council_generate"`), et `worker-ai` existe | mais ⚠️ **même cet `AIJob` n'est pas sondable** — l'addendum `adr-0020-portee-matiere` note « aucun identifiant de run, donc aucun sondage » |
-
-**Les deux constantes à l'écran** : `EQUIP_MS = 90_000` et `MISSION_MS = 8_000`, dans
-`components/progression/SubjectDetailRow.tsx`. ⚠️ `EQUIP_MS` est **repris du Conseil de classe**,
-qui lance exactement le même équipement : deux estimations différentes pour le même travail se
-contrediraient à l'écran. **Toute décision ici porte sur les DEUX surfaces.**
-
-**Ce que « optimiser » peut vouloir dire — à trancher au cadrage, ce sont trois chantiers
-différents** :
-
-1. **Rendre la barre HONNÊTE** — 5 paliers nommés qui avancent réellement (« cours ✓ · fiche… »).
-   Demande de rendre l'état AVANT la fin : job + sondage, ou flux (`StreamingResponse` / SSE).
-   C'est le seul qui supprime l'estimation.
-2. **Rendre l'attente plus COURTE** — les 90 s sont cinq générations locales enchaînées. Paralléliser
-   les dérivés (fiche, SRS, quiz, mindmap ne dépendent que du cours) diviserait l'attente ; ⚠️ ils
-   partagent une session SQLAlchemy, ce n'est pas gratuit.
-3. **Rendre l'attente NON BLOQUANTE** — Papa lance et part ; l'écran retrouve l'état au retour.
-   C'est le plus proche de l'existant (`AIJob` + `worker-ai`), et le plus loin de l'écran actuel.
-
-🔴 **Et d'abord, la VOIR tourner.** Elle n'a jamais été rendue en vrai, dans aucune des deux
-surfaces : avant de l'optimiser, il faut savoir ce qu'elle fait pendant 90 s. Un équipement réel
-depuis Progression ou depuis le Conseil, sur une notion sans kit, dans le vrai Chrome.
-
-### ⚠️ Résidus de ce chantier — ils ne vivent nulle part ailleurs
-
-🔴 **Ils sont SUR `main` désormais, plus « avant merge ».** Le merge a été demandé en connaissance
-de cause, les résidus étant écrits dans le corps de la PR #93 : c'est un arbitrage assumé du
-commanditaire, pas un oubli. Mais la dette a changé de nature — elle n'est plus rattrapable en
-retenant une branche.
-
-**Jamais vu à l'écran :**
-
-- 🔴 **Le user n'a relu AUCUN écran de ce chantier, et il est mergé.** **Cinquième** chantier
-  d'affilée (#79, #89, #91, #92, #93) — `WORKFLOW.md §5bis` demande l'œil humain avant la PR, et la
-  règle n'a pas été tenue cinq fois de suite. Ce n'est plus un incident, c'est le fonctionnement
-  réel : soit on change la règle, soit on change la pratique.
-- 🔴 **La barre de progression d'équipement (`EQUIP_MS = 90 s`) n'a jamais été vue tourner.** Écrite
-  pour que ZETIS dise qu'il travaille, et c'est le seul rendu de ce chantier jamais rendu pour de
-  vrai. **C'est le sujet du chantier suivant** — voir plus haut, le read-before-code est déjà fait.
-- ⚠️ **Le renommage de `/lacunes` n'a été vérifié que par test lexical.** Son `EmptyState` et son
-  nouveau renvoi n'ont jamais été rendus.
-- ⚠️ **Aucun contrôle responsive.** Les trois vues de Progression et le Conseil n'ont été vus qu'en
-  desktop, à 1568 px.
-
-**Dette technique posée, non traitée :**
-
-- ⚠️ **Migration `a1b2c3d4e5f9` appliquée en DEV seulement.** Même nature que `f7a8b9c0d1e2`.
-- ⚠️ **`list_reports` ne borne rien** — aucune `LIMIT`, aucune purge, aucune route `DELETE`. Neuf
-  rapports en dev ; à cinquante, la bande de pastilles sera illisible quel que soit le soin des
-  libellés.
-- ⚠️ **`dashboard/service.py:220` porte un `_mastery_transitions` PRIVÉ, de forme différente** (par
-  matière, pour ses séries). Deux fonctions, même nom, deux formes — la collision que le §10 veut
-  éviter. Elles ne se croisent pas, mais le nom est pris.
-- ⚠️ **La portée MATIÈRE de `mastery_transitions` reste peu exercée** : le Lot 3 l'appelle avec
-  `subject_id` en portée ciblée, jamais testée avec deux matières portant chacune des bascules
-  **différentes** en portée globale.
-- ⚠️ **`scripts/reorder_decisions.py` est un outil neuf et sans test.**
-- ⚠️ **Les rapports du Conseil ne nourrissent RIEN.** Aucun lien vers le RAG ou `ai/` : ce sont des
-  archives que Papa relit, pas une mémoire sur laquelle ZETIS raisonne. Le prochain conseil ignore
-  le précédent. Constat, pas défaut — mais s'il devait changer, ce serait un ADR.
-
-**Données de test laissées en base de dev :**
-
-- ⚠️ **Rapports #8 (v3) et #9 (v4)**, générés pour vérification par de vrais appels Ollama. Le #9
-  est le premier rapport daté du dépôt.
-
-**Décisions différées par le user :**
-
-- ⚠️ **`docs/decisions/annexes/statuts-en-attente-2026-08-06.md`** : mémo des **15 ADR restés
-  « Proposé »**. Leur code est mergé, mais index et fichiers sont d'accord entre eux — plus rien
-  dans le dépôt ne les signale. Ce mémo est leur seule trace.
-- ⚠️ **Le calendrier de période du Conseil**, refusé tant que l'évidence n'a pas de fenêtre
-  temporelle (décision active n°8). **Le chantier « fenêtre d'évidence » n'existe pas encore** et
-  n'a pas d'ADR.
-
----
+- ⚠️ **Migrations `f7a8b9c0d1e2` et `a1b2c3d4e5f9` appliquées en DEV seulement.**
+- ⚠️ **`list_reports` ne borne rien** — aucune `LIMIT`, aucune purge, aucune route `DELETE`.
+- ⚠️ **`dashboard/service.py:220` porte un `_mastery_transitions` PRIVÉ de forme différente** —
+  deux fonctions, même nom, deux formes.
+- ⚠️ **La portée MATIÈRE de `mastery_transitions` reste peu exercée.**
+- ⚠️ **Le renommage de `/lacunes` n'a été vérifié que par test lexical.**
+- 🔴 **Aucun contrôle responsive** sur Progression ni le Conseil (vus qu'en 1568 px).
+- 🔴 **Cinq chantiers d'affilée mergés sans relecture visuelle humaine** (#79, #89, #91, #92, #93).
+  Ce chantier-ci serait le **sixième** s'il partait maintenant.
 
 ### ▶ DETTES OUVERTES
 

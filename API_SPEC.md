@@ -1879,3 +1879,50 @@ entier qui ne trahit pas sa provenance), et aucun écoulement du temps n'augment
 
 **Ne s'applique pas à l'interface Papa** : Papa n'a pas de contenu qui « arrive » sans qu'il l'ait
 demandé. Ce que porte sa sidebar est une **file de validation**, objet distinct.
+
+## Activité de production (Papa, ADR-0041)
+
+La source **unique** de toutes les barres de progression Papa — le header et les pages lisent le
+même endpoint. Ce qui disparaît avec elle, ce sont les constantes de durée en dur : la rédaction
+d'un cours en portait **cinq** différentes selon l'écran d'où on la lançait.
+
+`require_parent`. Aucune surface Massimo (ADR-0026 §4).
+
+### `GET /api/production/activity`
+
+```json
+{
+  "current": { "kind": "run|job", "id": 42, "label": "Équipement · Théorème de Pythagore",
+               "status": "queued|running|stale|failed",
+               "pct": 23, "pct_is_measured": true,
+               "started_at": "2026-08-06T10:00:00Z", "trigger": "manual", "error": null },
+  "queued_count": 2,
+  "failed": [],
+  "worker_alive": null
+}
+```
+
+- 🔴 **`pct` vaut `null`, JAMAIS `0`** pour dire « ça démarre ». Zéro n'est pas une valeur basse,
+  c'est une absence de mesure — le 2026-08-05, quatre lots arrêtés affichaient 0 %.
+- **`pct_is_measured`** — `true` : progression **réelle** calculée serveur (le lot, `7 / 31`) ;
+  `false` : l'écran estime, ancré sur `started_at` (`≈ 40 %`). Un appel LLM n'a aucun grain interne.
+- **`trigger` est DÉRIVÉ**, jamais stocké sur le travail : un lot porte le sien, un travail hors
+  lot est `manual` par construction.
+- **`worker_alive: null`** = « la question n'a pas été posée » — à ne pas confondre avec `false`.
+  Elle n'est posée que si quelque chose est **en file**. Tester `=== false`.
+- **`queued_count`** est une profondeur de file, jamais un arriéré (`adr-0011` §F.2).
+
+### `POST /api/production/activity/{kind}/{item_id}/ack` → 204
+
+`kind` ∈ `run | job`. Un échec reste affiché **jusqu'à ce geste** — pas six secondes. L'acquittement
+est serveur : il ne revient sur aucun autre appareil.
+
+### ⚠️ Contrat MODIFIÉ — `POST /api/reports/class-council/equip-notion`
+
+Rendait le kit après ~69 s par notion. Rend désormais **`202` + `{ "job_id": int, "status":
+"queued" }`** ; l'avancement se lit dans `/activity`. Le travail est **commité avant d'être
+enfilé**, sinon la barre ne pourrait pas l'annoncer « en file » au retour de la route.
+
+### ⚠️ Contrat ENRICHI — `GET /api/ai/jobs/{job_id}`
+
+`JobOut` gagne **`error`** (`error_message`). Un job `failed` était jusqu'ici **muet** côté client.

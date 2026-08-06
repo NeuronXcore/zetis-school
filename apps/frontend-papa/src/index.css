@@ -500,3 +500,15 @@ body {
   color: var(--color-papa-text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+
+/* Le balayage de la barre de production (ADR-0041) — l'état INDÉTERMINÉ.
+   Un liseré qui traverse, jamais un remplissage partiel : il n'y a rien à mesurer tant que le
+   travail n'a pas démarré, et un remplissage se lirait comme une mesure. */
+@keyframes zetis-sweep {
+  0% {
+    left: -35%;
+  }
+  100% {
+    left: 100%;
+  }
+}

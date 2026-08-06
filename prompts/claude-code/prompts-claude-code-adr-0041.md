@@ -107,11 +107,15 @@ PÉRIMÈTRE — ce qui est DANS
   1. AIJob devient un TRAVAIL (§3) : la route crée la ligne en "queued" ET COMMITE, puis enfile ;
      le worker la passe running → succeeded/failed. Le flush() de _run_traced RESTE pour les
      producteurs non migrés — ils durent des millisecondes et n'ont pas à apparaître.
-  2. Migration (§14) : ai_jobs + trigger (vocabulaire fermé PARTAGÉ avec ProductionRun.TRIGGERS)
-     + acknowledged_at + index (status, created_at DESC) + index (job_type, status) ;
-     production_runs + acknowledged_at. AUCUN backfill : trigger NULL = antérieur à la trace.
+  2. Migration (§14) : ai_jobs + acknowledged_at + index (status, created_at DESC)
+     + index (job_type, status) ; production_runs + acknowledged_at. AUCUN backfill.
+     🔴 AUCUNE colonne d'origine sur ai_jobs — corrigé au read-before-code du 2026-08-06.
+        `db/models/production.py` l'interdit en tête de fichier (« trigger vit ici et nulle part
+        ailleurs »), et un lot agenda de 31 notions produirait 155 AIJob portant 155 copies du
+        même fait. L'origine se DÉRIVE : scan_agenda et scan_requests passent tous deux par
+        create_run, donc hors lot ⇒ manual, toujours.
      ⚠️ Ne réutilise PAS created_by — il porte l'ACTEUR ("child", "worker-media").
-     ⚠️ N'ajoute PAS de colonne pour la file : elle se DÉRIVE du trigger.
+     ⚠️ N'ajoute PAS non plus de colonne pour la file : elle se dérive de la même façon.
   3. Deux files (§5) : le worker écoute la prioritaire d'abord. trigger="manual" → prioritaire,
      tout le reste → normale. Le travail en cours n'est JAMAIS interrompu.
   4. GET /api/production/activity (§2, §13), dans le module `production` — ni reports, ni ai.

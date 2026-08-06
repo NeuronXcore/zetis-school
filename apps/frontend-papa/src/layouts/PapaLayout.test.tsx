@@ -9,9 +9,22 @@ vi.mock("@zetis/auth", async (orig) => ({
 
 // Le layout monte les deux hooks réseau de l'application. On les neutralise : la plupart de ces
 // tests portent sur l'identité de l'interface, pas sur la production ni sur l'autonomie.
-const etat = vi.hoisted(() => ({ run: null as Record<string, unknown> | null }));
+// ⚠️ **La source de la barre a changé (ADR-0041)** : l'en-tête ne lit plus « le lot actif » mais
+// TOUTE l'activité — lots ET travaux unitaires. Les verrous ci-dessous portent sur la même
+// doctrine, exercée sur la nouvelle source : jamais de pourcentage sur ce qui n'a pas démarré,
+// « en file » ≠ « arrêté », et le point qui cesse de battre quand rien ne bouge.
+const etat = vi.hoisted(() => ({
+  run: null as Record<string, unknown> | null,
+  activity: null as Record<string, unknown> | null,
+}));
 vi.mock("../hooks/useActiveProductionRun", () => ({
   useActiveProductionRun: () => ({ run: etat.run, finished: null, acknowledge: () => undefined }),
+}));
+vi.mock("../hooks/useProductionActivity", () => ({
+  useProductionActivity: () => ({
+    activity: etat.activity ?? { current: null, queued_count: 0, failed: [], worker_alive: null },
+    acknowledge: () => undefined,
+  }),
 }));
 vi.mock("../hooks/useAutonomyState", async (orig) => ({
   ...(await orig<typeof import("../hooks/useAutonomyState")>()),
@@ -28,27 +41,30 @@ function show() {
   );
 }
 
-function lot(over: Record<string, unknown>) {
+/** Une activité minimale — la forme que le serveur rend vraiment. */
+function activite(current: Record<string, unknown> | null, over: Record<string, unknown> = {}) {
+  return { current, queued_count: 0, failed: [], worker_alive: null, ...over };
+}
+
+function travail(over: Record<string, unknown> = {}) {
   return {
+    kind: "run",
     id: 42,
+    label: "Cours · Accord du COD",
     status: "queued",
+    // ⚠️ `null`, JAMAIS 0 — le serveur ne dit plus « 0 % » sur ce qui n'a pas démarré.
+    pct: null,
+    pct_is_measured: false,
+    started_at: null,
     trigger: "manual",
-    authorized_by: "parent_direct",
-    chapter_id: null,
-    scope_skill_id: 50,
-    scope_kind: "cours",
-    scope_skill_name: "Accord du COD",
-    total_notions: null,
-    done_notions: null,
-    progress_pct: 0,
-    created_at: "2026-08-04T12:24:00Z",
-    finished_at: null,
+    error: null,
     ...over,
   };
 }
 
 afterEach(() => {
   etat.run = null;
+  etat.activity = null;
 });
 
 describe("PapaLayout", () => {
@@ -75,7 +91,7 @@ describe("PapaLayout", () => {
     // Le défaut du 2026-08-04 : l'estimation démarrait avec le lot, pas avec sa production. Un lot
     // `queued` que personne ne consommait (worker éteint) montait donc à 95 % et y restait —
     // l'indicateur annonçait un travail qui n'avait jamais commencé.
-    etat.run = lot({ status: "queued" });
+    etat.activity = activite(travail({ status: "queued" }), { worker_alive: true });
     const { container } = show();
     const header = container.querySelector("header")!;
 
@@ -92,7 +108,7 @@ describe("PapaLayout", () => {
     // ⚠️ Le cœur du test est la DERNIÈRE assertion. Le texte se relit ; l'animation, non — et c'est
     // elle qu'on regarde en premier. Un point qui pulse sur une file arrêtée ment avant qu'on ait
     // lu la phrase, et un `className` conditionnel se « simplifie » sans que rien ne rougisse.
-    etat.run = lot({ status: "queued", worker_alive: false });
+    etat.activity = activite(travail({ status: "queued" }), { worker_alive: false });
     const { container } = show();
     const header = container.querySelector("header")!;
 
@@ -108,7 +124,7 @@ describe("PapaLayout", () => {
     // La contre-épreuve : sans elle, un indicateur qui dirait « arrêté » en permanence passerait
     // le test précédent au vert. ⚠️ `worker_alive` ABSENT ne vaut pas `false` — seule la route
     // `/runs/active` pose la question ; ailleurs on ne présume pas d'une panne.
-    etat.run = lot({ status: "queued", worker_alive: true });
+    etat.activity = activite(travail({ status: "queued" }), { worker_alive: true });
     const { container } = show();
     const header = container.querySelector("header")!;
 
@@ -120,10 +136,13 @@ describe("PapaLayout", () => {
   it("un lot DÉMARRÉ, lui, affiche bien son avancement", () => {
     // La contre-épreuve du test précédent : si l'indicateur se taisait dans les deux cas, le
     // verrou serait vert pour la mauvaise raison.
-    etat.run = lot({ status: "running", total_notions: 4, done_notions: 2, progress_pct: 50 });
+    etat.activity = activite(
+      travail({ status: "running", pct: 50, pct_is_measured: true, started_at: "2026-08-06T10:00:00Z" }),
+    );
     const { container } = show();
 
-    expect(container.querySelector("header")!.textContent).toContain("50%");
+    // `50 %` avec une espace : typographie française, et c'est ce que rend la maquette.
+    expect(container.querySelector("header")!.textContent).toMatch(/50\s?%/);
   });
 
   it("🔒 le header et la sidebar ne défilent pas avec le contenu", () => {

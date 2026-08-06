@@ -14,15 +14,20 @@ parallèle ne produiraient pas plus vite — ils se disputeraient la même resso
 Massimo. `SimpleWorker` (sans fork), comme `worker-media`.
 """
 
-from redis import Redis
-from rq import Queue, SimpleWorker
+from rq import SimpleWorker
 
 from app.core.config import settings
+from app.core.queue import _redis, production_queue, production_queues
 
 
 def main() -> None:
-    connection = Redis.from_url(settings.redis_url)
-    queue = Queue(settings.production_queue, connection=connection)
+    # ⚠️ Les files viennent de `core/queue.py` et **ne se reconstruisent pas ici** (ADR-0041 §5).
+    # Ce fichier fabriquait auparavant sa propre `Queue` : deux constructions du même objet, qui
+    # auraient divergé au premier ajout de file — et c'est exactement l'ajout qu'on fait.
+    connection = _redis()
+    files = production_queues()
+    # L'amorçage du scan vit sur la file NORMALE : c'est du travail que personne ne regarde.
+    queue = production_queue()
 
     # ⚠️ **L'objection d'origine est maintenue, et elle est SATISFAITE — pas contournée.**
     #
@@ -53,7 +58,10 @@ def main() -> None:
         else:
             queue.enqueue(scan_triggers)
 
-    SimpleWorker([queue], connection=connection).work(with_scheduler=True)
+    # L'ORDRE des files EST la priorité : RQ vide la première avant de regarder la seconde.
+    # La concurrence reste 1 — « passer devant » = prendre le prochain créneau, jamais interrompre
+    # celui-ci (ADR-0041 §5).
+    SimpleWorker(files, connection=connection).work(with_scheduler=True)
 
 
 if __name__ == "__main__":

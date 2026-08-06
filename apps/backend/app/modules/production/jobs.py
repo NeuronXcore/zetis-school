@@ -70,6 +70,86 @@ def run_production(run_id: int) -> dict:
         db.close()
 
 
+def _now():
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc)
+
+
+def _equip_notion(db, payload: dict, llm, embedder) -> dict:
+    from app.modules.production import equipment
+
+    return equipment.equip_notion(
+        db, skill_id=int(payload["skill_id"]), llm=llm, embedder=embedder
+    )
+
+
+# `job_type` → l'exécutant, qui reçoit `input_json`. **Un seul producteur migré en slice A**
+# (ADR-0041 §4) : les autres restent synchrones et n'apparaissent donc pas dans la file. La table
+# grandit en slice C — elle ne change pas de forme.
+_EXECUTANTS = {"equip_notion": _equip_notion}
+
+
+def run_ai_job(job_id: int) -> dict:
+    """Exécute un TRAVAIL unitaire déjà enfilé (ADR-0041 §3).
+
+    ⚠️ **Le passage en `running` est COMMITÉ à part, avant le travail.** C'est lui qui fait
+    basculer la barre de « en file d'attente » à « en cours » ; le garder dans la transaction du
+    travail le rendrait invisible jusqu'à la fin, c'est-à-dire inutile.
+
+    ⚠️ **L'échec relit le job après `rollback()`** : la session est cassée par l'exception, et
+    l'objet chargé avant ne peut plus être écrit. Puis on **relance** — RQ doit voir le job échoué,
+    comme le fait déjà `worker_media.jobs.render_capsule`.
+    """
+    from app.db.base import SessionLocal
+    from app.db.models import AIJob
+    from app.modules.ai import get_embedder, get_provider
+
+    db = SessionLocal()
+    try:
+        job = db.get(AIJob, job_id)
+        if job is None:
+            logger.warning("run_ai_job: travail %s introuvable", job_id)
+            return {"error": "introuvable"}
+
+        executant = _EXECUTANTS.get(job.job_type)
+        if executant is None:
+            job.status = "failed"
+            job.error_message = f"Aucun exécutant pour « {job.job_type} »."
+            job.finished_at = _now()
+            db.commit()
+            return {"error": job.error_message}
+
+        debut = _now()
+        job.status = "running"
+        job.started_at = debut
+        db.commit()
+
+        payload = job.input_json if isinstance(job.input_json, dict) else {}
+        try:
+            sortie = executant(db, payload, get_provider(), get_embedder())
+        except Exception as exc:  # noqa: BLE001 — on trace, on marque `failed`, puis on relance.
+            db.rollback()
+            echoue = db.get(AIJob, job_id)
+            if echoue is not None:
+                echoue.status = "failed"
+                echoue.error_message = str(exc)[:1000]
+                echoue.finished_at = _now()
+                db.commit()
+            raise
+
+        fin = _now()
+        job = db.get(AIJob, job_id)
+        job.status = "succeeded"
+        job.output_json = sortie if isinstance(sortie, dict) else {"result": sortie}
+        job.duration_ms = int((fin - debut).total_seconds() * 1000)
+        job.finished_at = fin
+        db.commit()
+        return job.output_json
+    finally:
+        db.close()
+
+
 def scan_triggers() -> dict:
     """Job PÉRIODIQUE du déclencheur automatique (ADR-0035 §2) — il REGARDE, il ne produit pas.
 
@@ -95,8 +175,12 @@ def scan_triggers() -> dict:
         # compte rendu — c'est-à-dire rendre illisible pourquoi il n'a rien fait.
         report = triggers.scan_agenda(db)
         report["requests"] = triggers.scan_requests(db)
-        for created in report["created"] + report["requests"]["created"]:
-            enqueue_production(created["run_id"])
+        # ⚠️ Le `trigger` est passé EXPLICITEMENT et par source (ADR-0041 §5) : il choisit la file.
+        # Un lot né du scan n'est attendu devant aucun écran — il ne double personne.
+        for created in report["created"]:
+            enqueue_production(created["run_id"], trigger="agenda")
+        for created in report["requests"]["created"]:
+            enqueue_production(created["run_id"], trigger="request")
         return report
     finally:
         db.close()

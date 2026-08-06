@@ -207,12 +207,42 @@ export function fetchCouncilReport(id: number): Promise<CouncilReport> {
 }
 
 /** Équipe une notion : ZETIS génère + auto-valide son kit (cours/fiche/SRS/quiz/mindmap). */
-export function equipNotion(skillId: number): Promise<EquipNotionResult> {
-  return fetch(`${API_URL}/api/reports/class-council/equip-notion`, {
+/** Équipe une notion — la route est ASYNCHRONE depuis l'ADR-0041, ce client attend quand même.
+ *
+ * ⚠️ **L'attente est délibérée, et elle protège un ORDRE.** `useCouncilClass` équipe N notions
+ * *puis* crée les missions, « leurs étapes résolvent les ressources fraîches » : rendre l'appel
+ * non bloquant sans rien d'autre ferait composer des missions sur un kit qui n'existe pas encore.
+ * Découvert en migrant la route, absent du cadrage.
+ *
+ * Ce que le chantier change n'est donc pas *qui attend*, c'est *ce que Papa voit pendant* : la
+ * requête HTTP ne tient plus 90 s, et la barre du header montre l'avancement réel, sur toutes les
+ * pages, y compris si Papa navigue ailleurs.
+ */
+export async function equipNotion(skillId: number): Promise<EquipNotionResult> {
+  const { job_id } = await fetch(`${API_URL}/api/reports/class-council/equip-notion`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ skill_id: skillId }),
-  }).then((r) => asJson<EquipNotionResult>(r));
+  }).then((r) => asJson<{ job_id: number; status: string }>(r));
+
+  // Sondage 2 s : l'équipement dure ~69 s par notion (mesuré le 2026-08-02), donc ~35 lectures
+  // d'une ligne indexée. Le plafond existe pour qu'une panne du worker finisse par se dire au
+  // lieu de laisser une promesse pendante à jamais.
+  const DEBUT = Date.now();
+  const PLAFOND_MS = 15 * 60_000;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const job = await fetch(`${API_URL}/api/ai/jobs/${job_id}`, { headers: headers() }).then((r) =>
+      asJson<{ status: string; output: EquipNotionResult | null; error: string | null }>(r),
+    );
+    if (job.status === "succeeded" && job.output) return job.output;
+    if (job.status === "failed") throw new Error(job.error ?? "L'équipement a échoué.");
+    if (Date.now() - DEBUT > PLAFOND_MS) {
+      throw new Error(
+        "L'équipement n'a pas répondu — vérifie qu'un moteur de production tourne (barre du header).",
+      );
+    }
+  }
 }
 
 export function createMissionsFromReco(

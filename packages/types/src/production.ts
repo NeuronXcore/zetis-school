@@ -312,3 +312,42 @@ export interface VetoPreview {
 export interface VetoRemoval {
   removed: Partial<Record<PieceKind, number>>;
 }
+
+// --- L'activité de production (ADR-0041) -------------------------------------------------------
+//
+// La source UNIQUE de toutes les barres de progression Papa : le header et les pages lisent le
+// même endpoint. Ce qui disparaît avec ce type, ce sont les 23 constantes de durée en dur — la
+// rédaction d'un cours en portait CINQ différentes selon l'écran d'où on la lançait.
+
+/** Un travail en cours, en file, ou échoué — lot pédagogique ou travail unitaire. */
+export interface ActivityItem {
+  /** `run` = un lot (`ProductionRun`) ; `job` = un travail unitaire (`AIJob`). */
+  kind: "run" | "job";
+  id: number;
+  label: string;
+  status: "queued" | "running" | "stale" | "failed";
+  /** ⚠️ `null` = **indéterminé**, et JAMAIS `0` pour dire « ça démarre ». Zéro n'est pas une
+   *  valeur basse, c'est une absence de mesure — le 2026-08-05, quatre lots arrêtés affichaient
+   *  0 %, lu comme « ça commence ». */
+  pct: number | null;
+  /** Deux régimes de vérité (§6) : `true` = progression RÉELLE calculée serveur (« 7 / 31 ») ;
+   *  `false` = estimation ancrée sur `started_at` (« ≈ 40 % »). Un appel LLM n'a aucun grain
+   *  interne : les confondre uniformiserait un mensonge. */
+  pct_is_measured: boolean;
+  started_at: string | null;
+  /** DÉRIVÉ, jamais stocké (§3.2) : un lot porte son déclencheur, un travail hors lot est
+   *  manuel par construction. */
+  trigger: string | null;
+  error: string | null;
+}
+
+export interface ProductionActivity {
+  /** Ce qui tourne ; à défaut, le premier de la file. */
+  current: ActivityItem | null;
+  /** Profondeur de file — jamais un arriéré (§7) : il retombe à zéro tout seul. */
+  queued_count: number;
+  /** Les échecs NON acquittés. Ils restent jusqu'au clic, pas six secondes. */
+  failed: ActivityItem[];
+  /** ⚠️ `null` = « la question n'a pas été posée », ce qui n'est PAS `false`. Tester `=== false`. */
+  worker_alive: boolean | null;
+}

@@ -33,6 +33,42 @@ def production_queue() -> Queue:
     return Queue(settings.production_queue, connection=_redis())
 
 
+@lru_cache(maxsize=1)
+def priority_queue() -> Queue:
+    """La file du GESTE (ADR-0041 §5) — ce que Papa a demandé à la main.
+
+    ⚠️ **Deux files, pas deux workers.** Le worker en écoute deux dans l'ordre ; RQ sert la
+    première d'abord. La concurrence reste 1 — un seul Ollama, un seul GPU — donc « passer
+    devant » veut dire *prendre le prochain créneau libre*, jamais *interrompre celui-ci*
+    (`runner.py` : prétendre interrompre un appel LLM serait un mensonge d'architecture).
+
+    Prolonge une doctrine déjà écrite : `runs.py` — « le geste EST le régulateur » — aucun plafond
+    de volume ne s'applique déjà à un clic de Papa. Sans cette file, un clic pouvait attendre
+    derrière un lot automatique de trente-six minutes parti à 3 h du matin.
+    """
+    return Queue(f"{settings.production_queue}-priority", connection=_redis())
+
+
+def production_queues() -> list[Queue]:
+    """Les files du worker de production, **dans l'ordre où elles doivent être servies**.
+
+    L'ordre EST la priorité : RQ vide la première avant de regarder la seconde. Écrit ici une
+    seule fois — `production_worker.py` construisait auparavant sa propre `Queue`, et deux listes
+    de files auraient divergé au premier ajout.
+    """
+    return [priority_queue(), production_queue()]
+
+
+def queue_for(trigger: str | None) -> Queue:
+    """La file se **DÉRIVE** de l'origine (ADR-0041 §5). Aucune colonne ne la stocke.
+
+    `manual` — et tout travail hors lot, qui est manuel par construction (§3.2) — passe devant.
+    Le reste (`agenda`, `request`, et tout déclencheur automatique futur) attend son tour : c'est
+    du travail que personne ne regarde arriver.
+    """
+    return priority_queue() if (trigger or "manual") == "manual" else production_queue()
+
+
 def production_worker_alive() -> bool:
     """Y a-t-il un worker VIVANT pour consommer la file de production ?
 
@@ -62,16 +98,36 @@ def production_worker_alive() -> bool:
         return False
 
 
-def enqueue_production(run_id: int) -> str:
+def enqueue_production(run_id: int, *, trigger: str | None = "manual") -> str:
     """Enfile l'exécution d'un lot et renvoie l'id du job RQ.
 
     On enfile la FONCTION, contrairement à `enqueue_render` : le worker de production partage le
     code du backend (même runtime, même paquet), il n'y a aucun import croisé à éviter. Une chaîne
-    qui ne résout pas échouerait à l'exécution ; un import échoue au démarrage."""
+    qui ne résout pas échouerait à l'exécution ; un import échoue au démarrage.
+
+    `trigger` ne sert qu'à **choisir la file** (§5) : il n'est écrit nulle part ici, il est déjà
+    sur le lot. Défaut `manual` — un appelant qui ne le précise pas est un geste de Papa."""
     from app.modules.production.jobs import run_production
 
-    job = production_queue().enqueue(
+    job = queue_for(trigger).enqueue(
         run_production, run_id, job_timeout=settings.production_job_timeout
+    )
+    return job.id
+
+
+def enqueue_ai_job(job_id: int) -> str:
+    """Enfile un TRAVAIL unitaire — un `AIJob` déjà créé en `queued` et **commité** (ADR-0041 §3).
+
+    ⚠️ **L'ordre compte.** La ligne doit exister en base AVANT l'enfilement, sinon le worker peut
+    la prendre avant qu'elle soit visible. C'est aussi ce qui permet à la barre de l'afficher
+    « en file » dès le retour de la route.
+
+    Toujours prioritaire : un travail hors lot est manuel par construction (§3.2).
+    """
+    from app.modules.production.jobs import run_ai_job
+
+    job = priority_queue().enqueue(
+        run_ai_job, job_id, job_timeout=settings.production_job_timeout
     )
     return job.id
 

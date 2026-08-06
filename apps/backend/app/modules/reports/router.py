@@ -7,12 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.modules.ai import get_embedder, get_provider
-from app.modules.ai.provider import EmbeddingProvider, LLMProvider
+from app.modules.ai import get_provider
+from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import require_parent
 from app.modules.eli5.service import get_default_student
 from app.modules.missions.schemas import MissionPilotOut
-from app.modules.production import equipment
 from app.modules.reports import service
 from app.modules.reports.schemas import (
     CouncilReportListItem,
@@ -20,7 +19,6 @@ from app.modules.reports.schemas import (
     CreateChampionRequest,
     CreateMissionsFromRecoRequest,
     EquipNotionRequest,
-    EquipNotionResult,
     GenerateCouncilRequest,
 )
 
@@ -60,17 +58,39 @@ def list_council(
     return service.list_reports(db, get_default_student(db), period=period, subject_id=subject_id)
 
 
-@router.post("/class-council/equip-notion", response_model=EquipNotionResult)
-def equip_notion(
-    payload: EquipNotionRequest,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-    embedder: EmbeddingProvider = Depends(get_embedder),
-) -> dict:
-    """Génère + auto-valide le kit pédagogique d'une notion (ADR-0021), avant création mission."""
-    # L'orchestrateur vit dans `production` depuis l'ADR-0031 §1 : le Conseil de classe n'en est
-    # qu'un appelant. Signature d'appel inchangée — c'est un déplacement, pas une refonte.
-    return equipment.equip_notion(db, skill_id=payload.skill_id, llm=provider, embedder=embedder)
+@router.post("/class-council/equip-notion", status_code=status.HTTP_202_ACCEPTED)
+def equip_notion(payload: EquipNotionRequest, db: Session = Depends(get_db)) -> dict:
+    """**202 : l'équipement est ACCEPTÉ, pas exécuté** (ADR-0041 §4).
+
+    Cette route tenait jusqu'ici la requête HTTP pendant **cinq générations LLM locales** —
+    ~69 s par notion, mesuré le 2026-08-02. Deux écrans affichaient une barre pilotée par deux
+    constantes indépendantes (`EQUIP_MS`), et cette barre n'a jamais été vue tourner une seule
+    fois. Elle rend désormais la main tout de suite ; l'avancement se lit dans
+    `GET /api/production/activity`, avec tout le reste de ce que ZETIS fabrique.
+
+    ⚠️ **Le travail est commité AVANT d'être enfilé** (§3). Sans cela, le worker pourrait le
+    prendre avant que la ligne soit visible — et la barre ne pourrait pas l'annoncer « en file »
+    dès le retour de cette route.
+
+    ⚠️ Aucun `trigger` n'est écrit : un travail hors lot est manuel **par construction** (§3.2).
+    C'est ce qui l'envoie sur la file prioritaire, devant les lots automatiques.
+    """
+    from datetime import datetime, timezone
+
+    from app.core.queue import enqueue_ai_job
+    from app.db.models import AIJob
+
+    job = AIJob(
+        job_type="equip_notion",
+        status="queued",
+        input_json={"skill_id": payload.skill_id},
+        created_by="parent",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(job)
+    db.commit()
+    enqueue_ai_job(job.id)
+    return {"job_id": job.id, "status": job.status}
 
 
 @router.post("/class-council/create-missions", response_model=list[MissionPilotOut])
