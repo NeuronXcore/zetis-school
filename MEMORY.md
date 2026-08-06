@@ -7,19 +7,22 @@
 
 ## État à la reprise
 
-**Chantier : ADR-0040 « Progression dans le temps » — Lot 0 sur 4 MERGÉ. Le chantier N'EST PAS clos.**
+**Chantier : ADR-0040 « Progression dans le temps » — Lots 0 et 1 faits sur 4. Le chantier N'EST PAS clos.**
 
-La session visait la nouvelle page Progression (Lot 2). Le prompt du chantier impose **trois
-sessions, jamais une**, et le Lot 0 en premier : c'est lui qui a été fait.
+🔴 **Le Lot 1 est COMMITÉ mais NON POUSSÉ, et il ne doit PAS être mergé seul.** Il livre deux
+routes que personne n'appelle encore : les merger sans le Lot 2 recréerait
+`GET /progress/consolidated`, le constat même qui a ouvert l'`adr-0038`. Le Lot 2 doit rejoindre
+**la même branche**, un seul squash au merge.
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)**, squash **`1fb094f`** (2026-08-06, 9 fichiers, +233/−17) — branche `fix/council-evolution-lock` **supprimée** des deux côtés. `main` == `origin/main` |
-| **État du chantier** | ⏳ **1 lot sur 4.** Restent les Lots 1+2 (SESSION B) puis le Lot 3 (SESSION C) |
-| Base | **`390ae38`** (`docs(adr): ADR-0040 — …`), elle-même précédée de 14 commits de remise en ordre de `DECISIONS.md` |
-| Migration | **aucune** · Route nouvelle : **aucune** · Requête nouvelle : **aucune** |
-| Suites | backend **941 ✅** (940 → 941, **+1**) · Papa **575 ✅** (572 → 575, **+3**) · Massimo non touché · `tsc -b` et `vite build` propres |
-| Vérifié à l'écran | ✅ **par l'agent**, sur le Chrome du user (`localhost:5174`, session existante), **sur données réelles ET sur une vraie génération Ollama** — les deux branches du rendu vues, pas une seule. ⚠️ **Le user n'a pas relu l'écran lui-même** |
+| **Lot 0 — MERGÉ** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)**, squash **`1fb094f`** — branche supprimée des deux côtés |
+| **Lot 1 — COMMITÉ, NON POUSSÉ** | **`32f0e27`** sur **`feat/progression-temps`** (base `40e2f1a`). Aucune PR ouverte, c'est voulu |
+| **État du chantier** | ⏳ **2 lots sur 4.** Reste le **Lot 2** (l'écran, même branche) puis le Lot 3 (SESSION C, branche à part) |
+| Migration | **`a1b2c3d4e5f9`** — index `(student_id, skill_id, changed_at DESC)`. ⚠️ **Appliquée en dev**, un seul head alembic |
+| Routes nouvelles | **deux**, `require_parent` : `GET /progress/skills` (agrégée, **7 requêtes constantes**) et `/progress/skills/{id}/timeline` (paresseuse) |
+| Suites | backend **949 ✅** (941 → 949, **+8**) · Papa **575 ✅**, non touché au Lot 1 · `tsc -b` et `vite build` propres |
+| Vérifié à l'écran | Lot 0 ✅ par l'agent (Chrome du user, données réelles + vraie génération Ollama). **Lot 1 : rien à voir à l'écran** — la mesure a été vérifiée sur la base réelle par script. ⚠️ **Le user n'a relu aucun des deux** |
 
 ### FAIT
 
@@ -33,18 +36,35 @@ existait pour les `skill_id` et pas ici : la validation portait sur le **type**,
 Le serveur écrase désormais à `None` dans `_anchor`, après la validation typée, au même endroit que
 l'ancrage des `skill_id`. `COUNCIL_PROMPT_VERSION` → **v3**. Aucune migration.
 
-**Avant lui, 14 commits de remise en ordre de `DECISIONS.md`** (non demandés par le chantier, faits
-en début de session) : l'index était écrit en deux blocs qui se télescopaient, **56 entrées sur 70
-mal placées**. Tri par script (`scripts/reorder_decisions.py`, permutation pure vérifiée),
-indentation, statuts. **Divergences index ↔ fichier d'ADR : 16 → 0.**
+**Lot 1 — la mesure, rendue vérifiable à l'œil avant qu'un LLM ne la raconte.**
+`evidence.mastery_transitions(student, since, subject_id)` : **UNE** fonction, deux consommateurs
+(Progression au Lot 2, le Conseil au Lot 3). Les calculer séparément refabriquerait la classe de
+bug payée depuis trois chantiers. Nouveau module `progress/skills.py` + deux routes + migration
+d'index.
+
+**Avant eux, 14 commits de remise en ordre de `DECISIONS.md`** (non demandés par le chantier) :
+l'index était écrit en deux blocs qui se télescopaient, **56 entrées sur 70 mal placées**. Tri par
+script (`scripts/reorder_decisions.py`, permutation pure vérifiée), indentation, statuts.
+**Divergences index ↔ fichier d'ADR : 16 → 0.**
 
 ### ▶ EN COURS / À FAIRE
 
-**Rien d'instable.** Arbre propre, `main` == `origin/main`, aucun fichier à moitié écrit.
+**Rien d'instable** — arbre propre, aucun fichier à moitié écrit. Mais **`main` n'est PAS à jour du
+Lot 1** : il vit sur `feat/progression-temps`, non poussée.
 
-**Le chantier ADR-0040 reprend à la SESSION B** — voir `prompts/claude-code/prompts-claude-code-adr-0040.md`,
-qui porte les trois prompts prêts à coller. Le prérequis « documents sur `main` » est **levé**
-(`390ae38`).
+**Il reste le LOT 2 — l'écran**, sur la même branche. Ce qui n'a **pas encore été lu**, et que le
+read-before-code du Lot 2 doit couvrir : `ProgressionPage.tsx`, `LacunesPage.tsx`,
+`SubjectDetailRow.tsx`, `useProgression.ts`, `useLacunes.ts`, `lib/activity.ts`, les types de
+`packages/types`, `docs/frontend-papa/page-lacunes.md` et la maquette de référence
+(`mockup/maquette-papa-progression.html`, comportement cliquable).
+
+⚠️ **Deux faits mesurés qui commandent le rendu** :
+
+- la colonne « depuis » sera **presque entièrement vide — 15 notions engagées sur 19 sans date**.
+  Les trois blocs du tri par date (§4 bis) portent donc **toute** la lisibilité de cette vue ;
+- **13 « à renforcer » pour 1 seule lacune ouverte** en base réelle. C'est exactement le contraste
+  que l'infobulle permanente du §4 doit expliquer — deux axes indépendants, « ces deux nombres
+  n'ont aucune raison d'être égaux ».
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
@@ -60,7 +80,19 @@ qui porte les trois prompts prêts à coller. Le prérequis « documents sur `ma
    pas l'un l'autre.
 4. **Aucun rapport figé n'est réécrit** — un artefact LLM n'est pas rejouable. La marque de lecture
    se **dérive** de `prompt_version` et s'éteindra d'elle-même à mesure que les v3 s'accumulent.
-5. **`DECISIONS.md` : le statut se lit sur la PROSE JOINTE de l'entrée, sous-puce finale exclue.**
+5. **`history_since` vit dans `evidence`, plus dans `dashboard`.** Elle y était privée ; elle a
+   maintenant trois consommateurs (dashboard, Progression, le Conseil au Lot 3). `dashboard`
+   **délègue** en une ligne. En garder une copie ferait deux bornes de trace sous un même nom, ce
+   que le §9 interdit — et c'est ce nom qu'il ne faut jamais confondre avec le `period` du Conseil,
+   qui ne sélectionne aucune donnée.
+6. **`from_status` se calcule par FENÊTRAGE, jamais ne se lit.** `skill_mastery_history` ne stocke
+   que le statut d'ARRIVÉE. La plus ancienne bascule tracée n'a donc **pas** de palier de départ,
+   et `None` est la bonne réponse — lui en inventer un serait la faute que le Lot 0 corrige.
+7. **`PALIER_BY_STATUS` est CONSTRUIT depuis les frozensets canoniques**, jamais réécrit, et
+   `unknown` y est mappé **explicitement**. Un `.get(..., défaut)` ferait glisser en silence une
+   septième valeur dans « non abordée » — piège signalé par `adr-0024` PUIS `adr-0028`, raté deux
+   fois. Le verrou compare le mapping à `KNOWN_MASTERY_STATUSES`.
+8. **`DECISIONS.md` : le statut se lit sur la PROSE JOINTE de l'entrée, sous-puce finale exclue.**
    Trois recensements successifs ont donné 5, 6 puis 4 entrées sans statut — la dernière est la
    bonne. `adr-0017` est la seule entrée du fichier à finir par une sous-puce, et deux autres
    coupent leur statut sur deux lignes.
@@ -90,31 +122,61 @@ qui porte les trois prompts prêts à coller. Le prérequis « documents sur `ma
 6. ⚠️ **La narrowing TypeScript se perd dans une closure** : `c.report` narrowé par le JSX
    redevient `possibly null` dans le `.map` des matières (propriété d'un objet mutable). Calculer
    hors du rendu.
+7. 🔴 **Un chiffre de cadrage peut être FAUX, et seule la mesure le dit.** L'ADR §4 bis,
+   `page-progression.md` et le fichier de prompts annonçaient tous trois « 10 des 19 notions
+   engagées sans date ». C'est **15** (19 lignes de maîtrise, 4 notions seulement portent une
+   bascule). Corrigé aux trois endroits (protocole §4) sans rouvrir la décision, qui n'en devient
+   que plus nécessaire. **Mesurer avant de citer un chiffre d'ADR dans un test ou un écran.**
+8. ⚠️ **Ma propre docstring annonçait « cinq requêtes » ; il y en a sept.** C'est le sabotage du
+   verrou N+1 qui l'a révélé, pas une relecture. Un nombre écrit dans un commentaire est une
+   affirmation testable : la mesurer, ou ne pas l'écrire.
+9. ⚠️ **La fixture `client_db` seede DÉJÀ une matière et une notion.** Tout comptage absolu dans un
+   test de progression est donc faux d'un cran. Et **renvoyer des objets ORM d'un helper de seed**
+   lève `DetachedInstanceError` dès que la session se referme avant les assertions — renvoyer des
+   **ids**.
 
 Détail, cause et parade : le corps de la PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92).
 
 ### ▶ PROCHAIN PAS
 
-**Le Lot 0 est mergé, le CHANTIER NE L'EST PAS.** `main` == `origin/main`, arbre propre, branche
-supprimée des deux côtés. **Étape 4bis faite** (ce fichier).
+🔴 **REPRENDRE SUR `feat/progression-temps`, PAS sur `main`.** Le Lot 1 y est commité (`32f0e27`)
+et non poussé. Aucune PR, c'est voulu.
 
-**La suite est écrite et prête à coller** — `prompts/claude-code/prompts-claude-code-adr-0040.md` :
+```bash
+git checkout feat/progression-temps   # le Lot 1 y est ; main ne l'a pas
+```
 
-1. **SESSION B — Lots 1+2**, branche `feat/progression-temps` depuis `main`. C'est **le gros
-   morceau** et c'est ce que le user voulait au départ : `evidence.mastery_transitions`, les deux
-   routes (`GET /progress/skills`, `…/{id}/timeline`), la **migration d'index**, les trois vues de
-   Progression, le renommage de `LacunesPage`. 🔴 **Les deux lots partent ENSEMBLE** — une route
-   écrite et appelée par personne, c'est `GET /progress/consolidated`, le constat qui a ouvert
-   l'ADR-0038.
-2. **SESSION C — Lot 3**, branche `feat/council-dated-evolution`. Remplit `recent_evolution` avec de
-   vraies bascules. ⚠️ **Si l'écrasement serveur du Lot 0 a disparu, s'arrêter** : c'est une
+1. **LOT 2 — l'écran, MÊME branche.** Trois vues dans `ProgressionPage` (matière / notion /
+   période), sélecteur en tête, `max-w-6xl` sur les trois, `?subject=` conservé et `?view=` écrit
+   en `replace: true`, filtre matière **partagé** par les trois vues. Dépliage matière **allégé**
+   (XP par motif + référentiel + trois liens ; ses listes de notions deviennent des liens vers la
+   vue notion, sinon c'est une troisième copie). Renommage de `LacunesPage` selon
+   `page-lacunes.md` + **test-verrou de vocabulaire** (« à renforcer » interdit en contexte `Gap`,
+   « lacune » en contexte `SkillMastery`). Le read-before-code du Lot 2 reste **entièrement à
+   faire** — voir « EN COURS » plus haut pour la liste des fichiers.
+2. **Puis merge des deux lots ensemble**, un seul squash. Commits attendus dans la branche :
+   `feat(progress): dated mastery transitions and the notion index` (fait) puis
+   `feat(papa): progression in three grains — subject, notion, period`.
+3. **SESSION C — Lot 3**, branche `feat/council-dated-evolution` depuis un `main` contenant B.
+   Remplit `recent_evolution` avec de vraies bascules — `mastery_transitions` est **déjà écrite**,
+   il la consomme. ⚠️ **Si l'écrasement serveur du Lot 0 a disparu, s'arrêter** : c'est une
    régression.
-3. **Clôture du chantier**, après C seulement : `CHANGELOG.md` **0.53.0** (il raconte ce qui est
+4. **Clôture du chantier**, après C seulement : `CHANGELOG.md` **0.53.0** (il raconte ce qui est
    sorti, d'où le silence jusque-là), `MEMORY.md`, et `DECISIONS.md` — passer l'ADR-0040 de
    **Proposé** à **Accepté**.
 
-⚠️ **Le prompt veut une session NEUVE par bloc.** Le Lot 0 a été fait en fin d'une session déjà
-longue ; la SESSION B est bien plus lourde.
+⚠️ **Le prompt veut une session NEUVE par bloc.** Les Lots 0 et 1 ont été faits en fin d'une
+session déjà très longue (16+ commits) ; le Lot 2 mérite d'ouvrir la sienne.
+
+⚠️ **Résidus du Lot 1** :
+
+- ⚠️ **Deux routes servies que personne n'appelle** — c'est l'état transitoire assumé du Lot 1, et
+  précisément ce que le Lot 2 doit refermer avant tout merge.
+- ⚠️ **Migration `a1b2c3d4e5f9` appliquée en DEV seulement.** Même nature de dette que
+  `f7a8b9c0d1e2` avant elle.
+- ⚠️ **`mastery_transitions` n'a encore AUCUN consommateur** : elle est testée indirectement par
+  l'index des notions, mais son propre chemin (fenêtre `since`, portée matière) n'est exercé par
+  aucun test tant que le Lot 3 ne l'appelle pas.
 
 ⚠️ **Résidus du Lot 0**, qui ne vivent nulle part ailleurs :
 
