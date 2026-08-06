@@ -7,11 +7,18 @@ export {
   type ActivitySessionDay,
   type ActivitySessions,
   type ConsolidatedSkill,
+  type NotionPalier,
+  type NotionSince,
   type OpenGap,
   type PageViewRequest,
   type ProgressionNotions,
   type ProgressionOverview,
   type ProgressionSubject,
+  type SkillIndex,
+  type SkillIndexRow,
+  type SkillIndexSubject,
+  type SkillTimeline,
+  type TimelineTransition,
 } from "./activity";
 export {
   type DashboardCalendarDay,

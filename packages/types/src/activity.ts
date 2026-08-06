@@ -169,3 +169,80 @@ export interface ProgressionOverview {
   school_year?: { label: string; level: string } | null;
   subjects: ProgressionSubject[];
 }
+
+// --- Index des notions (`GET /api/parent/progress/skills`, adr-0040 §11) -------------------------
+
+/** Palier d'une notion — dérivé serveur du regroupement canonique, jamais recalculé au front. */
+export type NotionPalier = "acquise" | "a_renforcer" | "en_cours" | "non_abordee";
+
+/**
+ * Depuis combien de temps la notion n'a pas bougé.
+ *
+ * ⚠️ **Ce n'est PAS un `number | null`**, et c'est la décision du §7 : un `null` unique dirait à la
+ * fois « jamais abordée », « bascule antérieure à la trace » et « date perdue à la migration ».
+ * Trois causes, dont **une seule se comblera d'elle-même** — les fondre rendrait l'écran incapable
+ * de dire laquelle.
+ *
+ * - `{ days }` — dernière bascule datée ;
+ * - `{ unknown: "before_history" }` — abordée, mais sa dernière bascule précède `history_since`.
+ *   Se comblera à la prochaine bascule ;
+ * - `{ unknown: "before_migration" }` — consolidée avant que `mastered_at` n'existe. **Perdue** ;
+ * - `null` — **non abordée**, aucune ligne de maîtrise. Et lui seul.
+ */
+export type NotionSince =
+  | { days: number }
+  | { unknown: "before_history" | "before_migration" }
+  | null;
+
+/** Une notion dans l'index. */
+export interface SkillIndexRow {
+  skill_id: number;
+  skill_name: string;
+  subject_id: number;
+  subject_name: string;
+  subject_slug?: string | null;
+  palier: NotionPalier;
+  mastery_score?: number | null;
+  /** ⚠️ **Axe INDÉPENDANT du palier** (§4), jamais une colonne à trois valeurs : une notion peut
+   *  être « à renforcer » sans lacune, et porter une lacune ouverte en étant « en cours ». Sur la
+   *  base réelle : 13 « à renforcer » pour 1 seule lacune ouverte. */
+  has_open_gap: boolean;
+  gap_severity?: string | null;
+  has_active_mission: boolean;
+  since: NotionSince;
+}
+
+export interface SkillIndexSubject {
+  subject_id: number;
+  name: string;
+  slug?: string | null;
+}
+
+/** `GET /api/parent/progress/skills` — une passe agrégée, aucun paramètre de période. */
+export interface SkillIndex {
+  notions: SkillIndexRow[];
+  /** Dans l'ORDRE DE L'ANNÉE (`sort_order`), jamais alphabétique : un tri divergent ferait se
+   *  contredire deux vues du même écran (§4 bis). */
+  subjects: SkillIndexSubject[];
+  /** Débuts de trace, déclarés à l'écran (§6) : un compteur bas dit « pas de trace », jamais
+   *  « pas de mouvement ». `null` = aucune trace du tout. */
+  history_since: string | null;
+  reviews_since: string | null;
+}
+
+/** Une bascule de palier dans la frise d'une notion. */
+export interface TimelineTransition {
+  /** `null` sur la plus ancienne bascule tracée : la trace ne porte pas son palier de départ. */
+  from_status: string | null;
+  to_status: string;
+  mastery_score: number;
+  changed_at: string;
+}
+
+/** `GET /api/parent/progress/skills/{id}/timeline` — paresseuse, chargée au dépliage. */
+export interface SkillTimeline {
+  skill_id: number;
+  skill_name: string;
+  transitions: TimelineTransition[];
+  history_since: string | null;
+}
