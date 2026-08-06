@@ -199,12 +199,18 @@ describe("JournalPage", () => {
     );
   });
 
-  it("dit que sa portée s'arrête aux lots", async () => {
-    // Un journal qui paraît exhaustif sans l'être est pire qu'un journal qui borne son sujet :
-    // le Conseil de classe et la composition champion équipent HORS lot.
+  it("dit sa portée — et surtout ce qu'un travail ne permet PAS", async () => {
+    // ⚠️ **Cette assertion a CHANGÉ le 2026-08-06, et c'est une décision, pas un ajustement.**
+    // Elle exigeait « ce journal ne montre que la production en lot » — vrai jusqu'à l'addendum
+    // ADR-0041 §16, qui y fait entrer les travaux unitaires. La garder aurait figé une phrase
+    // devenue fausse, et l'écran l'affichait encore ce jour-là au-dessus d'une ligne de travail.
+    //
+    // Ce qu'elle garde maintenant est plus exigeant : la page doit annoncer qu'un travail **ne se
+    // retire pas** (§17). Un journal qui paraît exhaustif sans l'être reste pire qu'un journal qui
+    // borne son sujet — la borne a seulement déménagé, du modèle vers le POUVOIR d'agir.
     renderPage();
     await screen.findByText(/Lot #7/);
-    expect(screen.getByText(/Conseil de classe/)).toBeInTheDocument();
+    expect(screen.getByText(/ne se retire pas/)).toBeInTheDocument();
   });
 
   it("explique un lot sans contenu au lieu de le laisser vide", async () => {

@@ -280,7 +280,10 @@ export function JournalFilterBar({
         className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2 text-xs"
       >
         <span className="font-bold text-papa-text">
-          {total === 0 ? "Aucun lot" : `${total} lot${total > 1 ? "s" : ""}`}
+          {/* ⚠️ « entrées » et non « lots » depuis l'addendum ADR-0041 §16 : le compte porte sur
+              l'UNION des lots et des travaux. Dire « 12 lots » devant une liste qui en mêle deux
+              sortes est un compteur qui ment — et il mentait à l'écran le 2026-08-06. */}
+          {total === 0 ? "Aucune entrée" : `${total} entrée${total > 1 ? "s" : ""}`}
         </span>
         {totalNonFiltre !== null && actif && (
           <span className="mr-1 text-papa-muted">sur {totalNonFiltre}</span>
