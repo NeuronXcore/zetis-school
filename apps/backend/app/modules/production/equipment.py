@@ -15,6 +15,8 @@ c'est éviter de charger cinq modules de génération — et leurs providers —
 `production`, que la Couverture importe pour une page de LECTURE.
 """
 
+from collections.abc import Callable
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -158,6 +160,7 @@ def equip_notion(
     llm: LLMProvider,
     embedder: EmbeddingProvider,
     authority: ValidatedBy | None = PARENT_BULK,
+    on_piece: Callable[[str], None] | None = None,
 ) -> dict:
     """Génère + auto-valide le kit pédagogique d'UNE notion (ADR-0021). Résumé typé, jamais
     d'exception qui remonte : chaque pièce est isolée, l'échec est reporté.
@@ -171,7 +174,23 @@ def equip_notion(
     - une valeur → les pièces produites sont validées avec cette provenance ;
     - `None` → **rien n'est auto-validé** ; les dérivés restent `pending` et Papa les relit
       (c'est le palier 2 de la classe A0a).
+
+    `on_piece` (addendum 2 ADR-0041 §20 bis) — appelé avec le nom de la pièce **avant** de
+    l'attaquer. Le lot y branche l'écriture de sa position ; **aucun commit n'est fait ici**, c'est
+    celui du générateur qui l'emporte.
+
+    ⚠️ **Même doctrine que `authority` : un défaut qui ne change aucun appelant.** Ce service
+    n'apprend rien de `ProductionRun` — le Conseil de classe et la composition champion l'appellent
+    hors de tout lot, et un service qui irait chercher le lot lui-même deviendrait inappelable par
+    eux.
+
+    ⚠️ Le rappel est appelé même pour une pièce qui va être **sautée** : la position doit avancer,
+    et une pièce sautée l'est en quelques microsecondes de toute façon.
     """
+    def _signale(piece: str) -> None:
+        if on_piece is not None:
+            on_piece(piece)
+
     # Imports paresseux : évite tout cycle avec les modules générateurs (qui n'importent pas reports).
     from app.modules.curriculum.service import generate_lesson_content, set_lesson_validation
     from app.modules.fiches.service import generate_fiche, validate_fiche
@@ -205,6 +224,7 @@ def equip_notion(
     # trouvé le 2026-08-02 (ADR-0032, constat n°3) ; `course_authority` ne peut pas être `None`
     # ici, la monotonie interdit A0a=2 avec A1=3.
     course_authority = authority or PARENT_BULK
+    _signale("cours")
     try:
         if lesson.content_markdown:
             if lesson.status == "draft":
@@ -233,6 +253,7 @@ def equip_notion(
         }
 
     # 2) Fiche — déjà créée (même `pending` de Papa) → jamais régénérée, validée si besoin.
+    _signale("fiche")
     try:
         existing_fiche = _existing_fiche(db, lesson_id)
         if existing_fiche is not None:
@@ -249,6 +270,7 @@ def equip_notion(
         errors.append({"piece": "fiche", "message": str(exc)})
 
     # 3) Cartes SRS — déjà présentes → pas de rappel LLM (`generate_cards_for_skill` régénère).
+    _signale("srs")
     try:
         if _has_srs_cards(db, skill_id):
             skipped.append("srs")
@@ -259,6 +281,7 @@ def equip_notion(
         errors.append({"piece": "srs", "message": str(exc)})
 
     # 4) Quiz de mission — déjà créé pour la notion → pas de régénération.
+    _signale("quiz")
     try:
         if _has_mission_quiz(db, skill_id):
             skipped.append("quiz")
@@ -276,6 +299,7 @@ def equip_notion(
         errors.append({"piece": "quiz", "message": str(exc)})
 
     # 5) Mindmap — déjà créée (même `pending` de Papa) → jamais régénérée, validée si besoin.
+    _signale("mindmap")
     try:
         existing_mindmap = _existing_mindmap(db, lesson_id)
         if existing_mindmap is not None:

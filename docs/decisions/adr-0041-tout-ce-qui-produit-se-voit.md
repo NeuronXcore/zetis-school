@@ -686,9 +686,37 @@ fabrique*, il dit *que l'interface est vivante*.
 ### Le point dur qui commande cet addendum
 
 **Le grain de la mesure décide si le mouvement existe.** Un lot de chapitre de 31 notions dure
-~36 minutes et n'a que 31 paliers ; le même lot a **155 pièces**. Le dénominateur en pièces est
-5× plus fin, donc la barre bouge **cinq fois plus souvent** — assez pour qu'un humain voie
-qu'elle avance sans rester devant.
+~36 minutes et n'a que 31 paliers : un pas toutes les 69 secondes, c'est-à-dire, à l'œil, une
+barre immobile.
+
+🔴 **Corrigé au read-before-code, et c'est la correction la plus importante de cet addendum.** La
+première version disait : *« le même lot a 155 pièces, donc un dénominateur 5× plus fin, donc la
+barre bouge cinq fois plus souvent. »* **C'est faux**, et le code le dit :
+
+```python
+for skill_id in eligible:
+    result = equip_notion(...)          # ~69 s — les 5 pièces sont fabriquées
+    run.done_notions += 1
+    _record_notion(db, run_id, result)  # les 5 lignes de journal sont ajoutées ICI
+    db.commit()                         # et commitées d'un seul coup
+```
+
+Les cinq `ProductionEvent` d'une notion naissent **dans le même commit que l'avancement** — et ce
+n'est pas un hasard, c'est une décision : *« un lot tué entre les deux laisserait un journal qui
+ment sur ce qu'il a fait »* (`runner.py:439`). Donc :
+
+| | pas | fréquence |
+|---|---|---|
+| notions | `1/31` = 3,23 % | ~69 s |
+| pièces, comptées sur le journal | `5/155` = 3,23 % | **~69 s** |
+
+**Identique.** Compter des pièces au lieu de notions ne fait bouger la barre ni plus souvent, ni
+d'un pas différent. Un renommage.
+
+**Ce qui débloque réellement le mouvement** est ailleurs : `equip_notion` ne commite jamais
+lui-même, mais **les cinq générateurs de pièces commitent chacun en interne**. Il passe donc déjà
+un commit toutes les ~14 secondes — il suffit de lui faire porter **la pièce en cours**. D'où le
+§20 bis, sans lequel le §20 ne serait qu'un changement de vocabulaire.
 
 C'est aussi ce qui rend le tapis honnête : une pièce qui voyage et tombe dans la boîte est
 l'image exacte de ce qui se passe en base, pas une métaphore décorative.
@@ -734,8 +762,12 @@ Trois nombres, pas un :
 - **`pieces_produced`** = les seules `generated`. C'est lui qui allume la boîte. Une pièce
   `skipped` était **déjà** dedans — la faire tomber une seconde fois serait un mensonge sur le
   stock.
-- **`pieces_recent`** = les natures des dernières pièces produites, pour que les jetons qui
-  voyagent portent un vrai mot.
+⚠️ **Il n'y a PAS de troisième liste `pieces_recent`.** Le cadrage en prévoyait une — les natures
+des dernières pièces produites, pour nommer les jetons du tapis — et elle était à la fois inutile
+et fausse : le journal atterrit **après coup**, donc les jetons seraient partis tous les cinq d'un
+coup, en retard. C'est `current_piece` (§20 bis) qui les lance : **son changement de valeur dit
+qu'une pièce vient d'être finie**, à l'instant, avec son nom. Une requête de moins, et le bon
+moment.
 
 ⚠️ **Filtrer `piece IS NOT NULL`.** Les lignes `blocked` portent sur la **notion**, pas sur une
 pièce (`production.py:256`). Les compter gonflerait le numérateur d'un travail que personne n'a
@@ -749,6 +781,41 @@ tenir ; quatre conditions séparées, c'est quatre occasions de servir `null / n
 ⚠️ **Un lot-pièce reste non mesuré.** Une pièce sur une pièce n'est pas une progression. *Sur un
 lot-pièce, le remplissage disparaît, un liseré balaie, et la case du % **n'existe pas** : un « — »
 à cet endroit se lirait encore comme une valeur.* C'est le §6 appliqué, pas contredit.
+
+### §20 bis — La pièce en cours, sans laquelle le §20 n'est qu'un renommage
+
+`production_runs` gagne **une colonne, `current_piece`** — la pièce que le lot est en train de
+fabriquer, `NULL` entre deux notions et à la fin.
+
+```txt
+pieces_done = COUNT(événements de pièces)  +  index(current_piece)
+              └─ le RÉCIT, atterrit à       └─ la POSITION dans la notion
+                 la fin de chaque notion       en vol, bouge toutes les ~14 s
+```
+
+Les deux ne se contredisent jamais : le journal porte les notions **achevées**, `current_piece`
+porte la notion **en vol**. La somme est monotone et exacte.
+
+Trois propriétés qui font que ce n'est pas cher payé :
+
+1. 🔴 **Aucun commit n'est ajouté.** Les cinq générateurs commitent déjà en interne (10, 11, 10 et
+   8 `db.commit()` dans `fiches`, `mindmaps`, `quizzes`, `memory`). Poser `current_piece` avant
+   d'appeler le générateur suffit : c'est son propre commit qui l'emporte.
+2. **Le journal n'est pas touché**, donc l'invariant de `runner.py:439` tient intact. La position
+   est un état courant, pas une trace ; les confondre reviendrait à écrire l'histoire à l'avance.
+3. ⚠️ **`equip_notion` n'apprend rien de `ProductionRun`.** Il reçoit un `on_piece:
+   Callable[[str], None] | None = None`, et le runner y branche l'écriture. Ses deux autres
+   consommateurs — le Conseil de classe et la composition champion — **ne changent pas d'un
+   caractère**, exactement comme pour `authority` (§ docstring d'`equip_notion`). Un service qui
+   irait chercher le lot lui-même deviendrait inappelable par eux.
+
+⚠️ **L'index vient de l'ordre de `PIECES`**, qui documente déjà être « l'ordre dans lequel
+`equip_notion` les produit ». Deux ordres divergeraient en silence ; il n'y en a qu'un, et le test
+qui verrouille les cinq natures verrouille aussi leur ordre.
+
+⚠️ **Le pas n'est pas régulier, et c'est correct.** Une pièce déjà produite passe en `skipped` en
+quelques microsecondes ; une fiche prend 32 s. La position avance donc par bonds inégaux. Une
+progression régulière sur un travail irrégulier serait une animation, pas une mesure.
 
 ### §21 — Un régulateur qui refuse laisse une trace
 
@@ -811,10 +878,10 @@ ignoré.
 ```txt
 Activity += {
     lane:            "llm" | "media",   # §22 — dérivé du job_type, jamais stocké
-    pieces_done:     int | null,        # §20 — résolues ; null hors régime mesuré
+    pieces_done:     int | null,        # §20 — résolues ; null AVEC pct, jamais séparément
     pieces_total:    int | null,
-    pieces_produced: int | null,        # ce qui tombe VRAIMENT dans la boîte
-    pieces_recent:   str[],             # les mots des jetons qui voyagent
+    pieces_produced: int,               # ce qui tombe VRAIMENT dans la boîte ; toujours servi
+    current_piece:   str | null,        # §20 bis — la position, et le lanceur de jetons
   }
 
 ProductionActivity += {

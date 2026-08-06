@@ -63,7 +63,22 @@ TRIGGER_REFERENCE = {
 # --- Vocabulaire du JOURNAL (ADR-0034 §1) ------------------------------------------------------
 
 # Les cinq pièces d'un kit, dans l'ordre où `equip_notion` les produit.
+#
+# ⚠️ **L'ordre est porteur** depuis l'addendum 2 de l'ADR-0041 : `current_piece` se convertit en
+# position par `PIECES.index(...)`. Deux ordres — celui-ci et celui du générateur — divergeraient
+# en silence, la barre reculant d'un cran sans que rien ne rougisse. Le test qui verrouille les
+# cinq natures verrouille donc aussi leur ordre.
 PIECES = ("cours", "fiche", "srs", "quiz", "mindmap")
+
+# Le dénominateur d'un lot-chapitre : `equip_notion` résout EXACTEMENT ces cinq pièces par notion
+# éligible — chacune finit dans `generated`, `skipped` ou `errors`, sans exception, y compris sur
+# les deux replis (« aucune leçon rattachée » et « cours indisponible ») qui poussent les manquantes
+# en `skipped`. Un lot de 31 notions vaut donc 155 pièces.
+#
+# ⚠️ **Dérivée de `PIECES`, jamais écrite en dur.** Le jour où une sixième pièce entre dans le kit,
+# un `5` recopié ferait mentir toutes les barres à la fois — et silencieusement, puisque 4/5 des
+# lots continueraient d'avoir l'air normaux.
+PIECES_PAR_NOTION = len(PIECES)
 
 # --- La demande et le lot ne parlent pas la même langue (ADR-0036 §2) ---------------------------
 #
@@ -174,6 +189,23 @@ class ProductionRun(Base):
     current_skill_id: Mapped[int | None] = mapped_column(
         ForeignKey("skills.id"), nullable=True
     )
+    # La PIÈCE en cours dans la notion en vol (addendum 2 ADR-0041 §20 bis). `NULL` entre deux
+    # notions, et à la fin.
+    #
+    # 🔴 **Sans elle, compter des pièces au lieu de notions ne serait qu'un renommage.** Les cinq
+    # `ProductionEvent` d'une notion naissent dans le MÊME commit que `done_notions` (`runner.py`,
+    # « un lot tué entre les deux laisserait un journal qui ment ») : `5/155` et `1/31` valent le
+    # même 3,23 %, au même instant. Le journal porte les notions ACHEVÉES ; cette colonne porte la
+    # notion EN VOL, et c'est elle qui fait bouger la barre toutes les ~14 s au lieu de ~69 s.
+    #
+    # ⚠️ **Un état courant, jamais une trace.** Elle s'écrase à chaque pièce et ne se relit pas
+    # après coup — l'histoire est au journal. Les confondre reviendrait à écrire le récit à
+    # l'avance. C'est aussi pourquoi elle n'a aucun besoin d'être exacte après un crash : la
+    # somme se recale sur le journal dès la notion suivante.
+    #
+    # ⚠️ Aucun commit n'est ajouté pour elle : les cinq générateurs commitent déjà en interne, et
+    # c'est leur commit qui l'emporte.
+    current_piece: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # --- Le RÉGIME sous lequel ce lot a tourné (addendum ADR-0034) -------------------------------
     #

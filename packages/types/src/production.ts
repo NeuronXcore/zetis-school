@@ -370,10 +370,31 @@ export interface ActivityItem {
    *  valeur basse, c'est une absence de mesure — le 2026-08-05, quatre lots arrêtés affichaient
    *  0 %, lu comme « ça commence ». */
   pct: number | null;
-  /** Deux régimes de vérité (§6) : `true` = progression RÉELLE calculée serveur (« 7 / 31 ») ;
+  /** Deux régimes de vérité (§6) : `true` = progression RÉELLE calculée serveur (« 7 / 19 ») ;
    *  `false` = estimation ancrée sur `started_at` (« ≈ 40 % »). Un appel LLM n'a aucun grain
    *  interne : les confondre uniformiserait un mensonge. */
   pct_is_measured: boolean;
+  /** La FRACTION en **pièces** — « 7 / 19 » (addendum 2 §20). C'est elle qui prouve la mesure :
+   *  « 37 % » seul ne se distingue pas d'une estimation bien tournée.
+   *
+   *  ⚠️ `null` **avec** `pct` et sous exactement la même condition serveur — il existe une fenêtre
+   *  où un lot est `running` sans ses compteurs. Les traiter séparément ferait afficher
+   *  `null / null · 37 %`. Un travail unitaire n'a aucune pièce : toujours `null`. */
+  pieces_done: number | null;
+  pieces_total: number | null;
+  /** Ce qui est **vraiment** tombé dans la boîte — les pièces `generated` seules, jamais les
+   *  `skipped` qui y étaient déjà. Toujours servi (un `COUNT` est exact même hors régime mesuré) :
+   *  c'est le badge du stock, pas l'avancement. */
+  pieces_produced: number;
+  /** La pièce en cours dans la notion en vol — `cours` · `fiche` · `srs` · `quiz` · `mindmap`,
+   *  `null` entre deux notions et à la fin.
+   *
+   *  🔴 **C'est ce champ qui fait bouger la barre.** Les cinq lignes de journal d'une notion
+   *  atterrissent d'un seul coup à sa fin : sans cette position, un compte de pièces avancerait
+   *  exactement comme un compte de notions (`5/155` = `1/31`), toutes les ~69 s. Un changement de
+   *  valeur ici veut dire qu'une pièce vient d'être finie — c'est ce qui lance un jeton sur le
+   *  tapis, avec son vrai nom. */
+  current_piece: string | null;
   started_at: string | null;
   /** DÉRIVÉ, jamais stocké (§3.2) : un lot porte son déclencheur, un travail hors lot est
    *  manuel par construction. */

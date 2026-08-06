@@ -418,6 +418,18 @@ def execute(
 
             run.current_skill_id = skill_id
             watermark = _max_ids(db)
+
+            # La POSITION dans la notion en vol (addendum 2 ADR-0041 §20 bis). Le journal, lui,
+            # n'atterrit qu'à la fin de la notion — sans cette écriture, la barre avancerait d'un
+            # pas toutes les 69 s, que l'on compte des notions ou des pièces (`5/155` = `1/31`).
+            #
+            # ⚠️ **Aucun `commit` ici, et c'est le cœur du dispositif** : les cinq générateurs
+            # commitent déjà en interne, donc c'est leur commit qui emporte cette valeur. En
+            # ajouter un ferait vivre la position hors de la transaction de l'acte — précisément
+            # ce que `_record` refuse de faire pour le journal.
+            def _position(piece: str, _run=run) -> None:
+                _run.current_piece = piece
+
             result = (
                 equipment.equip_piece(
                     db,
@@ -429,13 +441,22 @@ def execute(
                 )
                 if piece_kind is not None
                 else equipment.equip_notion(
-                    db, skill_id=skill_id, llm=llm, embedder=embedder, authority=authority
+                    db,
+                    skill_id=skill_id,
+                    llm=llm,
+                    embedder=embedder,
+                    authority=authority,
+                    on_piece=_position,
                 )
             )
             result["pieces_stamped"] = _stamp(db, watermark, run_id)
             if "cours" in result.get("generated", []):
                 _stamp_course(db, skill_id=skill_id, run_id=run_id)
             run.done_notions = (run.done_notions or 0) + 1
+            # La notion est finie : c'est le journal qui porte ses cinq pièces à partir d'ici, et
+            # la position doit lâcher — sinon elle serait comptée DEUX fois, une par le journal et
+            # une par l'index, et la barre sauterait en avant à chaque notion.
+            run.current_piece = None
             # Le battement et le détail vivent dans LE MÊME commit que l'avancement : un lot tué
             # entre les deux laisserait un journal qui ment sur ce qu'il a fait.
             run.heartbeat_at = datetime.now(timezone.utc)
@@ -463,6 +484,7 @@ def execute(
         # Plus rien n'est en cours — laisser la dernière notion affichée ferait lire un lot fini
         # comme un lot bloqué dessus.
         run.current_skill_id = None
+        run.current_piece = None
         db.commit()
 
     return {"run_id": run_id, "equipped": results, "blocked": blocked}

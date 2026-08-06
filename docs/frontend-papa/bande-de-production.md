@@ -60,7 +60,7 @@ route, donc son estimation ne repart jamais de zéro.
 | **rouages** | l'IA travaille — ils tournent, ou ils s'arrêtent | `current.status === "running"` |
 | **contexte** (2 lignes) | quoi, et **pourquoi** | `label` + `trigger` |
 | **tapis** | l'avancement **et son sens de marche** | `pieces_done / pieces_total` |
-| **jetons** | ce qui vient d'être fabriqué, nommé | `pieces_recent` |
+| **jetons** | ce qui vient d'être fabriqué, nommé | un changement de `current_piece` |
 | **file** | ce qui attend derrière | `queued_count` (couloir LLM seul) |
 | **compteur** | `37 %` et `7 / 19 pièces` | disparaît entièrement si non mesuré |
 | **boîte** | le stock ; clic → Couverture | `pieces_produced` |
@@ -228,11 +228,16 @@ Pied : **« Voir au Journal → »** vers `/journal?statut=queued&statut=running
 | rouages | rotation, 3,6 s et 2,5 s inversé | à l'arrêt (**figés**), au refus (estompés) |
 | texture du tapis | défilement continu | dès que rien ne tourne |
 | liseré | balayage 1,5 s | jamais en régime mesuré |
-| jetons | traversée 1,5 s puis chute | émis sur le **delta** de `pieces_produced` |
-| boîte | ouverture + lueur 0,5 s | à chaque pièce reçue |
+| jetons | traversée 1,5 s puis chute | émis quand `current_piece` **change** |
+| boîte | ouverture + lueur 0,5 s | quand `pieces_produced` **augmente** |
 
-⚠️ **Les jetons naissent du delta entre deux sondages**, jamais d'un `setInterval` décoratif. À
-~69 s par notion et 5 pièces, une pièce arrive toutes les ~14 s : le sondage à 4 s les voit toutes.
+⚠️ **Les jetons naissent d'un changement d'état, jamais d'un `setInterval` décoratif.** Quand
+`current_piece` passe de `cours` à `fiche`, c'est le **cours** qui vient d'être fini : le jeton
+part avec son vrai nom, à l'instant. À ~14 s par pièce, le sondage à 4 s les voit tous.
+
+⚠️ **Deux signaux, deux significations** — un jeton dit *du travail est passé* (même sauté), la
+boîte dit *quelque chose a été fabriqué*. Une pièce déjà en stock traverse le tapis sans allumer
+la boîte, et c'est exact.
 
 ⚠️ **`prefers-reduced-motion` fige sans rien retirer.** Rouages arrêtés, tapis sans texture animée,
 liseré immobile — le remplissage, les chiffres, les couleurs et la boîte **restent**. Couper
@@ -265,7 +270,7 @@ GET /api/production/activity        (require_parent)
 
 Activity = { kind, id, label, status, lane,
              pct, pct_is_measured,
-             pieces_done, pieces_total, pieces_produced, pieces_recent[],
+             pieces_done, pieces_total, pieces_produced, current_piece,
              started_at, trigger, error, estimated_ms }
 
 Refusal  = { id, regulator, detail, trigger, created_at }
@@ -273,7 +278,14 @@ Refusal  = { id, regulator, detail, trigger, created_at }
 
 - `status` ∈ `queued` · `running` · `stale` · `failed` — `stale` est **dérivé à la lecture**,
   jamais stocké.
-- `pct`, `pieces_done`, `pieces_total` sont `null` **ensemble** ou renseignés ensemble.
+- `pct`, `pieces_done`, `pieces_total` sont `null` **ensemble** ou renseignés ensemble — il existe
+  une fenêtre où un lot est `running` sans ses compteurs, et trois conditions séparées feraient
+  afficher `null / null · 37 %`.
+- `pieces_produced` est **toujours** servi : un `COUNT` reste exact même hors régime mesuré. C'est
+  le badge du stock, pas l'avancement.
+- 🔴 **`current_piece` est ce qui fait bouger la barre.** Les cinq lignes de journal d'une notion
+  atterrissent d'un seul coup à sa fin : sans la position dans la notion en vol, un compte de
+  pièces avancerait exactement comme un compte de notions — `5/155` = `1/31`, toutes les ~69 s.
 - Sondage **4 s**, plus un **réveil immédiat** après un enfilement réussi (`productionSignal`) —
   la bande paraît en ~52 ms au lieu de « quelque part dans les quatre secondes ».
   ⚠️ Raccourcir la période serait le réflexe, et le mauvais : cela ne supprime pas la course, cela

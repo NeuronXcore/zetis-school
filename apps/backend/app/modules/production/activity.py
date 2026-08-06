@@ -28,12 +28,17 @@ Aucun filtre à écrire — c'est le statut qui les exclut.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import AIJob, Skill
 from app.db.models.school import Chapter
-from app.db.models.production import ProductionRun
+from app.db.models.production import (
+    PIECES,
+    PIECES_PAR_NOTION,
+    ProductionEvent,
+    ProductionRun,
+)
 # ⚠️ Les FONCTIONS, pas le module : `read()` a une variable locale `travaux` (la liste des
 # travaux unitaires) qui masquerait un import de module — et le masquage serait silencieux
 # jusqu'à l'appel.
@@ -88,6 +93,62 @@ LIBELLE_PIECE = {
 }
 
 
+def _comptes_de_pieces(db: Session, run_ids: list[int]) -> dict[int, tuple[int, int]]:
+    """`(résolues, produites)` par lot, en **UNE** requête pour tous les lots à la fois.
+
+    Deux nombres, parce qu'ils ne répondent pas à la même question :
+
+    - **résolues** (`generated` ∪ `skipped` ∪ `error`) — ce qui a été *traité*. C'est l'avancement :
+      il ne recule jamais et atteint le total.
+    - **produites** (`generated` seules) — ce qui tombe *vraiment* dans la boîte. Une pièce
+      `skipped` y était déjà ; l'y faire tomber une seconde fois mentirait sur le stock.
+
+    ⚠️ **`piece IS NOT NULL` n'est pas une précaution, c'est la correction d'un faux compte.** Les
+    lignes `blocked` portent sur la NOTION (`piece = NULL`, cf. `db/models/production.py`) : les
+    compter ferait avancer la barre d'un travail que le gate vient précisément d'empêcher.
+
+    ⚠️ `case` plutôt que `count().filter()` : la clause `FILTER` n'est pas portable sur toutes les
+    versions de SQLite, et les tests n'ont pas à dépendre de celle qui est installée.
+    """
+    if not run_ids:
+        return {}
+    lignes = db.execute(
+        select(
+            ProductionEvent.run_id,
+            func.count().label("resolues"),
+            func.sum(case((ProductionEvent.outcome == "generated", 1), else_=0)).label(
+                "produites"
+            ),
+        )
+        .where(
+            ProductionEvent.run_id.in_(run_ids),
+            ProductionEvent.piece.is_not(None),
+        )
+        .group_by(ProductionEvent.run_id)
+    ).all()
+    return {ligne.run_id: (ligne.resolues or 0, ligne.produites or 0) for ligne in lignes}
+
+
+def _position_dans_la_notion(run: ProductionRun) -> int:
+    """Combien de pièces de la notion EN VOL sont derrière nous (addendum 2 §20 bis).
+
+    Le journal ne porte que les notions **achevées** — ses cinq lignes atterrissent d'un coup, dans
+    le commit qui incrémente `done_notions`. Sans cette position, compter des pièces au lieu de
+    notions donnerait exactement le même pas au même instant (`5/155` = `1/31` = 3,23 %), et la
+    barre ne bougerait toujours qu'une fois toutes les 69 secondes.
+
+    ⚠️ `current_piece` est remis à `None` dans le même commit que le journal de la notion : les
+    deux sources ne peuvent donc jamais compter la même pièce deux fois.
+    """
+    if not run.current_piece:
+        return 0
+    try:
+        return PIECES.index(run.current_piece)
+    except ValueError:
+        # Une pièce inconnue de `PIECES` ne fait pas reculer la barre : elle ne compte pas.
+        return 0
+
+
 def _noms_de_notions(db: Session, ids: list[int]) -> dict[int, str]:
     if not ids:
         return {}
@@ -118,11 +179,22 @@ def _lot(
     notions: dict[int, str],
     chapitres: dict[int, str],
     estims: dict[str, int],
+    pieces: tuple[int, int] = (0, 0),
 ) -> dict:
     statut = journal.run_status(run)
     # Mesuré seulement quand le serveur a une vraie granularité. Un lot-PIÈCE n'a qu'une notion :
     # il vaudrait 0 % du début à la fin — c'est l'écran qui estime, ancré sur `started_at`.
     mesure = statut == "running" and (run.total_notions or 0) > 1
+
+    # --- Le compte en PIÈCES (addendum 2 §20) ---------------------------------------------------
+    resolues, produites = pieces
+    # Le journal (notions achevées) + la position dans la notion en vol. Les deux ne peuvent pas
+    # compter la même pièce : `current_piece` retombe à `None` dans le commit qui écrit le journal.
+    pieces_faites = resolues + _position_dans_la_notion(run)
+    pieces_totales = PIECES_PAR_NOTION * (run.total_notions or 0)
+    # 🔴 **Borné au total.** Un lot repris, ou une notion qui produirait une ligne de plus que
+    # prévu, ferait dépasser 100 % — et une barre à 112 % est pire qu'une barre immobile.
+    pieces_faites = min(pieces_faites, pieces_totales)
     if run.scope_skill_id is not None:
         libelle = (
             f"{LIBELLE_PIECE.get(run.scope_kind or '', run.scope_kind or 'Production')} · "
@@ -136,13 +208,28 @@ def _lot(
         "id": run.id,
         "label": libelle,
         "status": statut,
-        "pct": (
-            round(100 * (run.done_notions or 0) / run.total_notions) if mesure else None
-        ),
+        # 🔴 **En PIÈCES, plus en notions** (addendum 2 §20). Le dénominateur est le même travail,
+        # dit cinq fois plus finement — et c'est `current_piece` (§20 bis), pas le journal, qui
+        # rend cette finesse observable.
+        "pct": round(100 * pieces_faites / pieces_totales) if mesure else None,
         "pct_is_measured": mesure,
+        # La FRACTION, parce que c'est elle qui prouve la mesure : « 37 % » seul ne se distingue
+        # pas d'une estimation bien tournée. Les deux nombres bougent avec `pct` ou pas du tout —
+        # ⚠️ `runner.execute` commite `running` AVANT de poser `total_notions`, donc il existe une
+        # fenêtre où un lot tourne sans compteurs. Trois champs sous une condition, c'est un
+        # invariant ; trois conditions, c'est trois occasions de servir `null / null · 37 %`.
+        "pieces_done": pieces_faites if mesure else None,
+        "pieces_total": pieces_totales if mesure else None,
+        # La BOÎTE, elle, ne dépend d'aucune granularité : un `COUNT` est toujours exact, même sur
+        # un lot-pièce et même dans la fenêtre ci-dessus. Elle compte ce qui a VRAIMENT été
+        # fabriqué — jamais les pièces sautées, qui étaient déjà dans le stock.
+        "pieces_produced": produites,
         "started_at": run.started_at,
         "trigger": run.trigger,
         "error": None,
+        # Ce qui est en train de se faire, à l'intérieur de la notion en vol. `None` entre deux
+        # notions et à la fin. L'écran s'en sert pour nommer les pièces qui traversent le tapis.
+        "current_piece": run.current_piece,
         # La durée ATTENDUE, mesurée par le serveur quand il a de l'historique (§9). Un lot de
         # chapitre est un multiple d'équipements de notion ; un lot-pièce vaut son générateur.
         "estimated_ms": (
@@ -170,6 +257,13 @@ def _travail(job: AIJob, notions: dict[int, str], estims: dict[str, int]) -> dic
         # Un appel LLM n'a aucun grain : l'écran estime, ancré sur `started_at`. Jamais 0.
         "pct": None,
         "pct_is_measured": False,
+        # ⚠️ Les champs EXISTENT et valent `None` plutôt que d'être absents : un travail qui ne
+        # porterait pas la clé forcerait chaque lecteur à distinguer « absent » de « nul », deux
+        # mots pour la même chose. Un appel LLM n'a rien à fractionner — il n'a pas de pièces.
+        "pieces_done": None,
+        "pieces_total": None,
+        "pieces_produced": 0,
+        "current_piece": None,
         "started_at": job.started_at,
         # Hors lot ⇒ manuel, par construction (§3.2).
         "trigger": "manual",
@@ -237,17 +331,21 @@ def read(db: Session, *, worker_alive: bool | None = None) -> dict:
     chapitres = _titres_de_chapitres(
         db, [r.chapter_id for r in lots + lots_echoues if r.chapter_id]
     )
+    # UN `GROUP BY` pour tous les lots à la fois — jamais une requête par barre affichée. C'est la
+    # même règle que `estimations()` juste au-dessus : le nombre de requêtes de cet endpoint ne
+    # dépend pas du nombre de choses en vol.
+    comptes = _comptes_de_pieces(db, [r.id for r in lots + lots_echoues])
 
-    actifs = [_lot(r, notions, chapitres, estims) for r in lots] + [
+    actifs = [_lot(r, notions, chapitres, estims, comptes.get(r.id, (0, 0))) for r in lots] + [
         _travail(j, notions, estims) for j in travaux
     ]
     # Ce qui TOURNE passe devant ce qui attend ; à égalité, le plus ancien démarré d'abord —
     # c'est l'ordre dans lequel la file sera servie.
     actifs.sort(key=lambda a: (a["status"] != "running", a["started_at"] or _loin()))
 
-    echecs = [_lot(r, notions, chapitres, estims) for r in lots_echoues] + [
-        _travail(j, notions, estims) for j in travaux_echoues
-    ]
+    echecs = [
+        _lot(r, notions, chapitres, estims, comptes.get(r.id, (0, 0))) for r in lots_echoues
+    ] + [_travail(j, notions, estims) for j in travaux_echoues]
     for e, source in zip(echecs, list(lots_echoues) + list(travaux_echoues)):
         e["status"] = "failed"
         if e["error"] is None:
@@ -279,8 +377,6 @@ def _loin() -> datetime:
 
 def _dernier_motif(db: Session, run: ProductionRun) -> str | None:
     """Le motif d'échec d'un lot vit dans son journal, pas sur le lot lui-même."""
-    from app.db.models.production import ProductionEvent
-
     return db.scalar(
         select(ProductionEvent.detail)
         .where(ProductionEvent.run_id == run.id, ProductionEvent.outcome == "error")
