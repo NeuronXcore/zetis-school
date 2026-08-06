@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette Papa — Progression (ADR-0040) · v2</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tokens Papa (émeraude analytique, fond sombre). Repris des classes Tailwind
+   déjà en service. Aucune couleur nouvelle introduite par cette maquette.
+   ───────────────────────────────────────────────────────────────────────────*/
+:root{
+  --papa-bg:#071310; --papa-surface:#0e1f1a; --papa-surface-2:#142b24;
+  --papa-border:#1e3d34; --papa-fg:#e6f2ed; --papa-muted:#7c9a90;
+  --papa-accent:#10b981; --papa-accent-2:#2dd4bf; --papa-warn:#f59e0b; --r:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--papa-bg);color:var(--papa-fg);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.shell{max-width:1120px;margin:0 auto;padding:32px 24px 96px}
+h1,h2,h3{margin:0}
+a{color:inherit}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--papa-accent);outline-offset:2px;border-radius:6px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--papa-muted)} .warn{color:var(--papa-warn)} .acc{color:var(--papa-accent)}
+
+.pagehead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px}
+.pagehead h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.pagehead p{margin:4px 0 0;color:var(--papa-muted);font-size:13px}
+.viewswitch{display:inline-flex;padding:3px;border:1px solid var(--papa-border);border-radius:10px;background:var(--papa-surface)}
+.viewswitch button{padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--papa-muted)}
+.viewswitch button[aria-selected="true"]{background:var(--papa-accent);color:#042f1f}
+
+.lede{color:var(--papa-muted);font-size:13px;margin:0 0 16px;max-width:78ch}
+.lede strong{color:var(--papa-fg);font-weight:600}
+
+/* Tables */
+.tablewrap{border:1px solid var(--papa-border);border-radius:var(--r);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+thead{background:var(--papa-surface-2)}
+th{text-align:left;padding:9px 14px;font-size:10.5px;font-weight:700;letter-spacing:.09em;
+   text-transform:uppercase;color:var(--papa-muted);white-space:nowrap}
+th.r,td.r{text-align:right}
+tbody tr{border-top:1px solid var(--papa-border);background:var(--papa-surface)}
+td{padding:11px 14px;vertical-align:middle}
+tr.open>td{background:var(--papa-surface-2)}
+.rowbtn{display:flex;align-items:center;gap:9px;text-align:left;width:100%}
+.caret{font-size:9px;color:var(--papa-muted);transition:transform .15s ease}
+[aria-expanded="true"] .caret{transform:rotate(90deg)}
+.rowbtn:hover{color:var(--papa-accent)}
+.pic{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;
+     font-size:9.5px;font-weight:800;color:#04120e;flex:0 0 auto}
+.bar{display:inline-block;height:7px;width:128px;border-radius:99px;background:var(--papa-surface-2);overflow:hidden;vertical-align:middle}
+.bar>i{display:block;height:100%;background:var(--papa-accent);border-radius:99px}
+
+/* Bandeau mouvements (vue notion) */
+.moved{border:1px solid var(--papa-border);border-radius:var(--r);background:var(--papa-surface);margin-bottom:18px;overflow:hidden}
+.moved header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:11px 16px;background:var(--papa-surface-2);border-bottom:1px solid var(--papa-border)}
+.moved h2{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;font-weight:700}
+.mv{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:7px 16px;border-top:1px solid color-mix(in srgb,var(--papa-border) 55%,transparent)}
+.mv:first-of-type{border-top:0}
+.mv .d{font-size:12px;color:var(--papa-muted)}
+.mv .who{display:flex;align-items:center;gap:8px;min-width:0}
+.mv .who b{font-weight:600}
+.mv .tr{font-size:12.5px;color:var(--papa-muted);white-space:nowrap}
+.arrow{font-size:11px} .up{color:var(--papa-accent)} .down{color:var(--papa-warn)}
+.movednote{padding:9px 16px;border-top:1px solid var(--papa-border);font-size:12px;color:var(--papa-muted);background:color-mix(in srgb,var(--papa-surface-2) 55%,transparent);display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
+
+/* Filtres */
+.filters{margin-bottom:14px;display:grid;gap:10px}
+.frow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.frow>.lbl{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--papa-muted);font-weight:700;margin-right:2px}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border:1px solid var(--papa-border);
+      border-radius:99px;font-size:12.5px;color:var(--papa-muted);background:var(--papa-surface)}
+.pill:hover{border-color:color-mix(in srgb,var(--papa-accent) 50%,var(--papa-border))}
+.pill[aria-pressed="true"]{border-color:var(--papa-accent);color:var(--papa-fg);
+      background:color-mix(in srgb,var(--papa-accent) 12%,var(--papa-surface))}
+.pill .n{font-variant-numeric:tabular-nums;font-weight:700;color:var(--papa-fg)}
+.pill.warnish[aria-pressed="true"]{border-color:var(--papa-warn);background:color-mix(in srgb,var(--papa-warn) 12%,var(--papa-surface))}
+.dot{width:7px;height:7px;border-radius:99px;display:inline-block}
+.search{flex:1;min-width:190px;display:flex;align-items:center;gap:8px;padding:5px 12px;
+        border:1px solid var(--papa-border);border-radius:99px;background:var(--papa-surface)}
+.search input{flex:1;background:none;border:0;color:var(--papa-fg);font-size:13px;outline:none}
+.search input::placeholder{color:var(--papa-muted)}
+.hint{font-size:12px;color:var(--papa-muted);display:flex;align-items:flex-start;gap:6px;max-width:82ch}
+.hint b{color:var(--papa-fg);font-weight:600}
+
+/* Badges */
+.pal{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:13px}
+.d-acquise{background:var(--papa-accent)} .d-renforcer{background:var(--papa-warn)}
+.d-encours{background:var(--papa-accent-2)} .d-nonabordee{background:transparent;border:1px solid var(--papa-muted)}
+.tag{display:inline-flex;align-items:center;padding:1px 9px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.t-high{background:color-mix(in srgb,var(--papa-warn) 16%,transparent);color:var(--papa-warn)}
+.t-med{background:color-mix(in srgb,var(--papa-accent-2) 15%,transparent);color:var(--papa-accent-2)}
+.t-low{background:var(--papa-surface-2);color:var(--papa-muted)}
+.t-mission{background:color-mix(in srgb,var(--papa-accent) 15%,transparent);color:var(--papa-accent)}
+.since-none{color:var(--papa-muted);border-bottom:1px dotted var(--papa-border);cursor:help}
+tr.sep>td{background:var(--papa-surface-2);padding:6px 14px;font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--papa-muted);font-weight:700}
+tr.sep>td .n{font-variant-numeric:tabular-nums;color:var(--papa-fg)}
+
+/* Dépliages */
+td.panelcell{padding:0}
+.panel{padding:16px 18px 18px 44px;border-left:2px solid color-mix(in srgb,var(--papa-accent) 45%,transparent);margin:2px 0 4px 20px}
+.panel h3{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--papa-muted);font-weight:700;margin-bottom:9px}
+.frise{list-style:none;margin:0 0 12px;padding:0}
+.frise li{display:grid;grid-template-columns:56px 12px 1fr;gap:10px;align-items:start;padding:4px 0}
+.frise .d{font-size:12px;color:var(--papa-muted);font-variant-numeric:tabular-nums;padding-top:1px}
+.frise .rail{position:relative;height:100%}
+.frise .rail::before{content:"";position:absolute;left:50%;top:9px;bottom:-8px;width:1px;background:var(--papa-border);transform:translateX(-50%)}
+.frise li:last-child .rail::before{display:none}
+.frise .rail i{position:absolute;left:50%;top:6px;width:7px;height:7px;border-radius:99px;background:var(--papa-border);transform:translate(-50%,0)}
+.frise li.now .rail i{background:var(--papa-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--papa-accent) 22%,transparent)}
+.frise li.gap .rail i{background:var(--papa-warn)}
+.frise .txt{font-size:13px}
+.frise .txt em{font-style:normal;color:var(--papa-muted)}
+.nowline{margin:10px 0 0;padding:9px 12px;border:1px dashed var(--papa-border);border-radius:10px;font-size:13px;background:color-mix(in srgb,var(--papa-surface-2) 60%,transparent)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.btn{padding:5px 12px;border:1px solid var(--papa-border);border-radius:9px;font-size:12.5px;font-weight:600}
+.btn:hover{border-color:var(--papa-accent)}
+.btn.primary{background:var(--papa-accent);color:#042f1f;border-color:var(--papa-accent)}
+.notrace{margin:6px 0 0;font-size:12px;color:var(--papa-muted)}
+.detailgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:3px 0;border-bottom:1px solid color-mix(in srgb,var(--papa-border) 50%,transparent)}
+.kv:last-child{border-bottom:0}
+.linkish{color:var(--papa-accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+
+/* ── VUE PÉRIODE ───────────────────────────────────────────────────────── */
+.periodbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.range{font-size:12.5px;color:var(--papa-muted)}
+.counters{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:10px;margin-bottom:12px}
+.ct{border:1px solid var(--papa-border);border-radius:var(--r);background:var(--papa-surface);padding:12px 14px}
+.ct .v{font-size:22px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
+.ct .l{font-size:12.5px;color:var(--papa-muted);margin-top:1px}
+.ct .tr{margin-top:7px;font-size:11px;display:inline-flex;align-items:center;gap:5px;
+        padding:1px 8px;border-radius:99px;background:var(--papa-surface-2);color:var(--papa-muted)}
+.ct .tr.cut{background:color-mix(in srgb,var(--papa-warn) 14%,transparent);color:var(--papa-warn)}
+.ct.zero .v{color:var(--papa-muted)}
+.tracewarn{border:1px solid color-mix(in srgb,var(--papa-warn) 35%,transparent);
+  background:color-mix(in srgb,var(--papa-warn) 7%,transparent);border-radius:var(--r);
+  padding:11px 14px;font-size:12.5px;color:var(--papa-warn);margin-bottom:18px}
+.tracewarn b{font-weight:700}
+.ledger{border:1px solid var(--papa-border);border-radius:var(--r);overflow:hidden}
+.day{display:flex;align-items:center;gap:10px;padding:7px 16px;background:var(--papa-surface-2);
+     font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--papa-muted);font-weight:700;
+     border-top:1px solid var(--papa-border)}
+.ledger .day:first-child{border-top:0}
+.ev{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:9px 16px;
+    background:var(--papa-surface);border-top:1px solid color-mix(in srgb,var(--papa-border) 55%,transparent)}
+.ev .who{display:flex;align-items:center;gap:9px;min-width:0}
+.ev .who b{font-weight:600}
+.ev .what{font-size:12.5px;color:var(--papa-muted);text-align:right}
+.ev .what .em{color:var(--papa-fg)}
+.evkind{width:5px;height:5px;border-radius:99px;flex:0 0 auto}
+.k-bascule{background:var(--papa-accent-2)} .k-lacune{background:var(--papa-warn)}
+.k-mission{background:var(--papa-accent)} .k-quiz{background:var(--papa-muted)}
+.k-revision{background:var(--papa-border)}
+
+/* États */
+.empty{border:1px dashed var(--papa-border);border-radius:var(--r);padding:28px;text-align:center;background:var(--papa-surface)}
+.empty h3{font-size:15px;font-weight:700;margin-bottom:5px}
+.empty p{margin:0 auto;max-width:56ch;color:var(--papa-muted);font-size:13px}
+.states{margin-top:56px;padding-top:22px;border-top:1px dashed var(--papa-border)}
+.states>h2{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--papa-muted);margin-bottom:14px}
+.stateblock{margin-bottom:22px}
+.stateblock>p{font-size:12px;color:var(--papa-muted);margin:0 0 8px}
+.skel{height:44px;border-radius:10px;background:var(--papa-surface);animation:pulse 1.6s ease-in-out infinite;margin-bottom:8px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.tail{margin-top:12px;font-size:12px;color:var(--papa-muted);text-align:center}
+.mockup-note{margin-top:8px;font-size:11.5px;color:var(--papa-muted);font-style:italic}
+[hidden]{display:none!important}
+@media (max-width:720px){
+  .shell{padding:20px 14px 72px}
+  th.hide-sm,td.hide-sm{display:none}
+  .mv{grid-template-columns:48px 1fr} .mv .tr{grid-column:2;white-space:normal}
+  .ev{grid-template-columns:1fr} .ev .what{text-align:left}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="pagehead">
+    <div>
+      <h1>Progression</h1>
+      <p>Où en est Massimo — et qu'est-ce qui a bougé.</p>
+    </div>
+    <div class="viewswitch" role="tablist" aria-label="Grain de lecture">
+      <button role="tab" id="tab-matiere" aria-selected="true"  aria-controls="v-matiere">Par matière</button>
+      <button role="tab" id="tab-notion"  aria-selected="false" aria-controls="v-notion">Par notion</button>
+      <button role="tab" id="tab-periode" aria-selected="false" aria-controls="v-periode">Par période</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════ VUE MATIÈRE ══════════════════════════ -->
+  <section id="v-matiere" role="tabpanel" aria-labelledby="tab-matiere">
+    <p class="lede">
+      La barre compte les notions <strong>abordées</strong> sur les notions au programme — pas ce qui
+      est acquis. Les acquis ont leur propre colonne. Tout est lu <strong>à aujourd'hui</strong> :
+      aucune fenêtre ici, elle vit dans la vue <strong>Par période</strong>. Année 2026-2027 · 4e.
+    </p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th scope="col">Matière</th><th scope="col">Avancement</th>
+          <th scope="col" class="r">Acquis</th><th scope="col" class="r hide-sm">XP</th>
+          <th scope="col" class="r">À renforcer</th>
+        </tr></thead>
+        <tbody id="tb-matiere"></tbody>
+      </table>
+    </div>
+    <p class="tail">Une matière sans référentiel reste dans la liste — le trou est nommé, jamais masqué.</p>
+  </section>
+
+  <!-- ══════════════════════════════ VUE NOTION ═══════════════════════════ -->
+  <section id="v-notion" role="tabpanel" aria-labelledby="tab-notion" hidden>
+    <div class="moved">
+      <header>
+        <h2>Dernières bascules</h2>
+        <span class="muted" style="font-size:12px" id="mv-count"></span>
+      </header>
+      <div id="movements"></div>
+      <p class="movednote">
+        <span>Historique des bascules ouvert le <b class="num">31/07/2026</b> — absence de trace,
+          jamais absence de mouvement.</span>
+        <button class="linkish" id="mv-all">Tout voir par période →</button>
+      </p>
+    </div>
+
+    <div class="filters">
+      <div class="frow" id="f-subjects"></div>
+      <div class="frow">
+        <span class="lbl">Palier</span>
+        <span id="f-paliers" style="display:contents"></span>
+        <div class="search">
+          <span aria-hidden="true" class="muted">⌕</span>
+          <input id="q" type="search" placeholder="Rechercher une notion…" aria-label="Rechercher une notion">
+        </div>
+      </div>
+      <div class="frow">
+        <span class="lbl">Et</span>
+        <button class="pill warnish" id="f-gap" aria-pressed="false">Lacune ouverte <span class="n">3</span></button>
+        <button class="pill" id="f-nomission" aria-pressed="false">Sans mission active <span class="n">17</span></button>
+        <span class="lbl" style="margin-left:14px">Trier</span>
+        <span id="f-sort" style="display:contents"></span>
+      </div>
+      <p class="hint"><span aria-hidden="true">ⓘ</span>
+        <span><b>Un palier n'est pas une lacune.</b> « À renforcer » est un palier de maîtrise (13
+        notions) ; une lacune ouverte est une décision à traiter (3 lignes). Les deux nombres n'ont
+        aucune raison d'être égaux — ce sont deux filtres indépendants.</span></p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th scope="col">Notion</th><th scope="col" class="hide-sm">Matière</th>
+          <th scope="col">Palier</th><th scope="col" class="r">Depuis</th>
+          <th scope="col" class="hide-sm">Lacune</th><th scope="col" class="hide-sm">Mission</th>
+        </tr></thead>
+        <tbody id="tb-notion"></tbody>
+      </table>
+    </div>
+    <p class="tail" id="notion-tail"></p>
+  </section>
+
+  <!-- ══════════════════════════════ VUE PÉRIODE ══════════════════════════ -->
+  <section id="v-periode" role="tabpanel" aria-labelledby="tab-periode" hidden>
+    <p class="lede">
+      🔴 Cette vue ne montre que des <strong>faits datés</strong>. Aucun palier, aucun stock, aucune
+      barre d'avancement : un stock n'a pas de fenêtre, et l'y afficher ferait lire un état comme un
+      résultat de période. La production (cours, fiches, capsules) n'y figure pas non plus — elle
+      vit dans <strong>Couverture</strong>.
+    </p>
+
+    <div class="periodbar">
+      <div class="viewswitch" role="group" aria-label="Fenêtre" id="periodsel"></div>
+      <span class="range" id="range"></span>
+    </div>
+
+    <div class="frow" id="f-subjects-2" style="margin-bottom:14px"></div>
+
+    <div class="counters" id="counters"></div>
+    <div id="tracewarn"></div>
+    <div class="ledger" id="ledger"></div>
+    <p class="tail" id="periode-tail"></p>
+  </section>
+
+  <!-- ══════════════════════════════ ÉTATS ════════════════════════════════ -->
+  <div class="states">
+    <h2>États</h2>
+
+    <div class="stateblock">
+      <p>Chargement — squelette, jamais un spinner nu.</p>
+      <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+    </div>
+
+    <div class="stateblock">
+      <p>Vue notion — aucune notion ne correspond aux filtres (le filtre reste visible et retirable).</p>
+      <div class="empty">
+        <h3>Aucune notion acquise en Histoire-Géographie</h3>
+        <p>34 notions sont au programme et aucune n'a encore été abordée.
+           <span class="linkish">Tout voir</span> · <span class="linkish">Ouvrir le programme →</span></p>
+      </div>
+    </div>
+
+    <div class="stateblock">
+      <p>Vue période — fenêtre entièrement antérieure à la trace. Le zéro s'explique, il ne se pose pas.</p>
+      <div class="empty">
+        <h3>Aucun fait daté sur ces 7 jours</h3>
+        <p>Rien n'a été enregistré entre le 20/06 et le 27/06. Sur cette fenêtre, l'historique des
+           bascules n'existait pas encore : ce n'est pas « rien n'a bougé », c'est « rien n'a été
+           tracé ».</p>
+      </div>
+    </div>
+  </div>
+
+  <p class="mockup-note">
+    Maquette v2 — base de dev au 06/08/2026 (280 notions, 19 engagées, 1 acquise, 13 à renforcer,
+    3 lacunes ouvertes, 1 109 XP). Pastilles de matière : tenant-lieu de <code>SubjectPictogram</code>.
+  </p>
+</div>
+
+<script>
+/* ═══════════════════════════ Données (06/08/2026) ════════════════════════ */
+const TODAY = new Date("2026-08-06T12:00:00");
+
+const SUBJECTS = [
+  {slug:"francais", name:"Français",            ini:"FR", color:"#f472b6", total:96, engaged:10, cons:1, fragile:8, xp:367, ref:true},
+  {slug:"maths",    name:"Mathématiques",       ini:"MA", color:"#60a5fa", total:58, engaged:5,  cons:0, fragile:3, xp:577, ref:true},
+  {slug:"hg",       name:"Histoire-Géographie", ini:"HG", color:"#fbbf24", total:34, engaged:0,  cons:0, fragile:0, xp:5,   ref:true},
+  {slug:"svt",      name:"SVT",                 ini:"SV", color:"#34d399", total:68, engaged:2,  cons:0, fragile:1, xp:60,  ref:true},
+  {slug:"anglais",  name:"Anglais",             ini:"AN", color:"#a78bfa", total:24, engaged:2,  cons:0, fragile:1, xp:100, ref:true},
+  {slug:"espagnol", name:"Espagnol",            ini:"ES", color:"#fb923c", total:0,  engaged:0,  cons:0, fragile:0, xp:0,   ref:false},
+];
+const SUB = Object.fromEntries(SUBJECTS.map(s=>[s.slug,s]));
+
+const PALIERS = [
+  {key:"acquise",    label:"Acquises",     n:1},
+  {key:"renforcer",  label:"À renforcer",  n:13},
+  {key:"encours",    label:"En cours",     n:5},
+  {key:"nonabordee", label:"Non abordées", n:261},
+];
+const PAL_LABEL = {acquise:"acquise", renforcer:"à renforcer", encours:"en cours", nonabordee:"non abordée"};
+
+/* since : {days} | {unknown} | null(non abordée) — DEUX absences distinctes, jamais un null unique */
+const N=(name,subject,chapter,palier,score,since,gap,mission,timeline)=>
+  ({name,subject,chapter,palier,score,since,gap,mission,timeline});
+
+const NOTIONS = [
+  N("Discours rapporté","francais","Ch. 2 · Le récit","acquise",92,{unknown:"before_migration"},null,false,[
+    {d:"20/06", t:"Quiz de fin de cours — <b>78 / 100</b>"},
+    {d:"05/07", t:"Mission de progression terminée — verdict <em>acquis</em>"},
+    {d:"26/07", t:"Révision — <em>facile</em>"},
+    {d:"02/08", t:"Révision — <em>facile</em>"},
+  ]),
+  N("Temps du récit","francais","Ch. 2 · Le récit","renforcer",40,{unknown:"before_history"},
+    {sev:"high",label:"prioritaire",days:36},true,[
+    {d:"01/07", t:"Lacune ouverte — diagnostic, sévérité <b>prioritaire</b>", kind:"gap"},
+    {d:"03/07", t:"Quiz de fin de cours — <b>40 / 100</b>"},
+    {d:"12/07", t:"Mission de remédiation terminée — verdict <em>à revoir</em>"},
+    {d:"20/07", t:"Révision — <em>difficile</em>"},
+    {d:"28/07", t:"Quiz de fin de cours — <b>55 / 100</b>"},
+  ]),
+  N("Accord du participe passé","francais","Ch. 4 · Orthographe","renforcer",45,{days:3},null,false),
+  N("Concordance des temps","francais","Ch. 4 · Orthographe","renforcer",38,{unknown:"before_history"},null,false),
+  N("Figures de style","francais","Ch. 5 · Poésie","renforcer",50,{days:5},null,false),
+  N("Narrateur et point de vue","francais","Ch. 2 · Le récit","renforcer",38,{unknown:"before_history"},null,false),
+  N("Subordonnées relatives","francais","Ch. 6 · Grammaire","renforcer",60,{unknown:"before_history"},null,false),
+  N("Champ lexical","francais","Ch. 5 · Poésie","renforcer",48,{unknown:"before_history"},null,false),
+  N("Registres de langue","francais","Ch. 6 · Grammaire","renforcer",52,{days:2},null,false),
+  N("Voix active et passive","francais","Ch. 6 · Grammaire","encours",74,{days:4},null,false),
+
+  N("Théorème de Pythagore","maths","Ch. 3 · Géométrie","encours",62,{days:1},null,true,[
+    {d:"22/07", t:"Cours validé"},
+    {d:"30/07", t:"Quiz de fin de cours — <b>62 / 100</b>"},
+    {d:"05/08", t:"Mission de progression terminée — verdict <em>à revoir</em> → <b>en cours</b>", kind:"now"},
+  ]),
+  N("Nombres relatifs","maths","Ch. 1 · Nombres","encours",78,{days:6},null,false),
+  N("Fractions et opérations","maths","Ch. 1 · Nombres","renforcer",42,{unknown:"before_history"},
+    {sev:"med",label:"à traiter",days:19},false),
+  N("Puissances de 10","maths","Ch. 1 · Nombres","renforcer",58,{unknown:"before_history"},null,false),
+  N("Proportionnalité","maths","Ch. 2 · Gestion de données","renforcer",35,{days:3},null,false),
+
+  N("Reproduction des plantes","svt","Ch. 2 · Le vivant","renforcer",44,{unknown:"before_history"},
+    {sev:"low",label:"à surveiller",days:12},false),
+  N("Chaînes alimentaires","svt","Ch. 1 · Écosystèmes","encours",71,{unknown:"before_history"},null,false),
+
+  N("Present perfect","anglais","Ch. 3 · Temps du passé","renforcer",41,{days:5},null,false),
+  N("Prétérit irrégulier","anglais","Ch. 3 · Temps du passé","encours",76,{unknown:"before_history"},null,false),
+
+  /* échantillon de non abordées — 14 sur 261 */
+  N("Subordonnées conjonctives","francais","Ch. 6 · Grammaire","nonabordee",null,null,null,false),
+  N("Accord de l'adjectif","francais","Ch. 4 · Orthographe","nonabordee",null,null,null,false),
+  N("Le dialogue dans le récit","francais","Ch. 2 · Le récit","nonabordee",null,null,null,false),
+  N("Connecteurs logiques","francais","Ch. 6 · Grammaire","nonabordee",null,null,null,false),
+  N("Théorème de Thalès","maths","Ch. 3 · Géométrie","nonabordee",null,null,null,false),
+  N("Équations du premier degré","maths","Ch. 4 · Calcul littéral","nonabordee",null,null,null,false),
+  N("Statistiques descriptives","maths","Ch. 2 · Gestion de données","nonabordee",null,null,null,false),
+  N("La Révolution française","hg","Ch. 1 · XVIIIe siècle","nonabordee",null,null,null,false),
+  N("L'Europe des Lumières","hg","Ch. 1 · XVIIIe siècle","nonabordee",null,null,null,false),
+  N("Les espaces productifs","hg","Ch. 4 · Géographie","nonabordee",null,null,null,false),
+  N("La digestion","svt","Ch. 3 · Corps humain","nonabordee",null,null,null,false),
+  N("Le système nerveux","svt","Ch. 3 · Corps humain","nonabordee",null,null,null,false),
+  N("Comparatifs et superlatifs","anglais","Ch. 2 · Grammaire","nonabordee",null,null,null,false),
+  N("Modaux","anglais","Ch. 2 · Grammaire","nonabordee",null,null,null,false),
+];
+
+/* ── Le journal des faits datés — SEULE source de la vue période ────────── */
+/* kind : bascule | lacune | mission | quiz | revision                      */
+const EVENTS = [
+  {date:"2026-08-05", kind:"mission",  subject:"maths",    notion:"Théorème de Pythagore",     what:"Mission de progression terminée", detail:"verdict « à revoir »"},
+  {date:"2026-08-05", kind:"bascule",  subject:"maths",    notion:"Théorème de Pythagore",     from:"à renforcer", to:"en cours", dir:"up"},
+  {date:"2026-08-04", kind:"bascule",  subject:"francais", notion:"Registres de langue",       from:"en cours", to:"à renforcer", dir:"down"},
+  {date:"2026-08-04", kind:"revision", subject:"francais", notion:null, what:"3 révisions notées", detail:"2 su · 1 difficile", count:3},
+  {date:"2026-08-03", kind:"bascule",  subject:"francais", notion:"Accord du participe passé", from:"en cours", to:"à renforcer", dir:"down"},
+  {date:"2026-08-03", kind:"bascule",  subject:"maths",    notion:"Proportionnalité",          from:"non abordée", to:"à renforcer", dir:"first"},
+  {date:"2026-08-02", kind:"bascule",  subject:"francais", notion:"Voix active et passive",    from:"à renforcer", to:"en cours", dir:"up"},
+  {date:"2026-08-02", kind:"lacune",   subject:"francais", notion:"Voix active et passive",    what:"Lacune résolue", detail:"ouverte le 21/07", resolved:true},
+  {date:"2026-08-02", kind:"revision", subject:"francais", notion:null, what:"2 révisions notées", detail:"2 su", count:2},
+  {date:"2026-08-01", kind:"bascule",  subject:"anglais",  notion:"Present perfect",           from:"non abordée", to:"à renforcer", dir:"first"},
+  {date:"2026-08-01", kind:"bascule",  subject:"francais", notion:"Figures de style",          from:"non abordée", to:"à renforcer", dir:"first"},
+  {date:"2026-07-31", kind:"bascule",  subject:"maths",    notion:"Nombres relatifs",          from:"à renforcer", to:"en cours", dir:"up"},
+  {date:"2026-07-31", kind:"lacune",   subject:"maths",    notion:"Nombres relatifs",          what:"Lacune résolue", detail:"ouverte le 09/07", resolved:true},
+  {date:"2026-07-28", kind:"quiz",     subject:"francais", notion:"Temps du récit",            what:"Quiz de fin de cours", detail:"55 / 100"},
+  {date:"2026-07-26", kind:"revision", subject:"francais", notion:null, what:"4 révisions notées", detail:"3 su · 1 difficile", count:4},
+  {date:"2026-07-25", kind:"lacune",   subject:"svt",      notion:"Reproduction des plantes",  what:"Lacune ouverte", detail:"à surveiller"},
+  {date:"2026-07-20", kind:"revision", subject:"francais", notion:"Temps du récit", what:"Révision notée", detail:"difficile", count:1},
+  {date:"2026-07-18", kind:"lacune",   subject:"maths",    notion:"Fractions et opérations",   what:"Lacune ouverte", detail:"à traiter"},
+  {date:"2026-07-12", kind:"mission",  subject:"francais", notion:"Temps du récit",            what:"Mission de remédiation terminée", detail:"verdict « à revoir »"},
+  {date:"2026-07-10", kind:"revision", subject:"maths",    notion:null, what:"5 révisions notées", detail:"4 su · 1 raté", count:5},
+  {date:"2026-07-08", kind:"quiz",     subject:"maths",    notion:"Puissances de 10",          what:"Quiz de fin de cours", detail:"58 / 100"},
+  {date:"2026-07-05", kind:"mission",  subject:"francais", notion:"Discours rapporté",         what:"Mission de progression terminée", detail:"verdict « acquis »"},
+  {date:"2026-07-04", kind:"revision", subject:"anglais",  notion:null, what:"2 révisions notées", detail:"1 su · 1 difficile", count:2},
+  {date:"2026-07-03", kind:"quiz",     subject:"francais", notion:"Temps du récit",            what:"Quiz de fin de cours", detail:"40 / 100"},
+  {date:"2026-07-01", kind:"lacune",   subject:"francais", notion:"Temps du récit",            what:"Lacune ouverte", detail:"prioritaire"},
+  {date:"2026-06-20", kind:"quiz",     subject:"francais", notion:"Discours rapporté",         what:"Quiz de fin de cours", detail:"78 / 100"},
+];
+
+/* Début de trace PAR NATURE. C'est le cœur de l'honnêteté de la vue. */
+const TRACE = {
+  bascule:  {since:"2026-07-31", label:"trace depuis le 31/07"},
+  revision: {since:"2026-07-04", label:"trace depuis le 04/07"},
+  lacune:   {since:null,         label:"trace complète"},
+  mission:  {since:null,         label:"trace complète"},
+  quiz:     {since:null,         label:"trace complète"},
+  xp:       {since:null,         label:"trace complète"},
+};
+
+/* ⚠️ AUCUN compteur d'XP dans la vue période (adr-0040 §2), et c'est une décision, pas un oubli :
+   il porterait le même mot que la colonne « XP » de la vue matière qui compte depuis toujours ;
+   il serait le SEUL compteur que le journal affiché dessous ne peut pas recomposer (XPEvent n'a
+   pas de skill_id) ; et l'adr-0028 §5 l'a retiré des KPI parce qu'il n'est pas décisionnel.
+   Le cumul « depuis toujours » (1 109) reste sur la vue matière. */
+
+const XP_BY_REASON = {
+  francais:[["Missions de remédiation",2,100],["Quiz de fin de cours",8,127],["Verbalisations ELI5",7,70],["Diagnostics",2,70]],
+  maths:[["Missions de progression",5,250],["Quiz de fin de cours",11,177],["Verbalisations ELI5",10,100],["Diagnostics",2,50]],
+  hg:[["Diagnostics",1,5]],
+  svt:[["Quiz de fin de cours",3,45],["Verbalisations ELI5",1,10],["Diagnostics",1,5]],
+  anglais:[["Quiz de fin de cours",5,60],["Verbalisations ELI5",3,30],["Diagnostics",2,10]],
+  espagnol:[],
+};
+const REFERENTIEL = {
+  francais:{lessons:12,validated:9,courses:7,pct:58},
+  maths:{lessons:14,validated:11,courses:9,pct:47},
+  hg:{lessons:8,validated:2,courses:1,pct:6},
+  svt:{lessons:10,validated:4,courses:3,pct:22},
+  anglais:{lessons:6,validated:5,courses:4,pct:61},
+};
+
+/* ═══════════════════════════ Utilitaires ════════════════════════════════ */
+const esc = s => String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const pic = s => `<span class="pic" style="background:${s.color}" aria-hidden="true">${s.ini}</span>`;
+const d2 = n => String(n).padStart(2,"0");
+const fr = iso => { const d=new Date(iso+"T12:00:00"); return `${d2(d.getDate())}/${d2(d.getMonth()+1)}`; };
+const frLong = iso => new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"})
+  .format(new Date(iso+"T12:00:00"));
+const daysAgo = n => { const d=new Date(TODAY); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
+const fold = s => s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu,"");
+
+/* ═══════════════════════════ Vue matière ════════════════════════════════ */
+let openSubject = null;
+
+function advancement(s){
+  if(!s.ref) return `<span class="muted" style="font-size:12.5px">référentiel non généré
+      <a class="linkish" href="#" style="margin-left:6px">Ouvrir le programme →</a></span>`;
+  if(s.total===0) return `<span class="muted" style="font-size:12.5px">aucune notion rattachée
+      <a class="linkish" href="#" style="margin-left:6px">Ouvrir le programme →</a></span>`;
+  const r = Math.min(1, s.engaged/s.total);
+  return `<span style="display:inline-flex;align-items:center;gap:12px">
+      <span class="bar" role="presentation"><i style="width:${r*100}%"></i></span>
+      <span class="num" style="white-space:nowrap">${s.engaged} / ${s.total}</span></span>`;
+}
+
+function subjectPanel(s){
+  const xp = XP_BY_REASON[s.slug]||[], ref = REFERENTIEL[s.slug];
+  const sum = xp.reduce((a,[,,m])=>a+m,0);
+  return `<div class="panel"><div class="detailgrid">
+    <div>
+      <h3>XP — ${s.xp}, depuis toujours</h3>
+      ${xp.length ? xp.map(([r,c,m])=>
+        `<div class="kv"><span class="muted">${r} <span class="num">×${c}</span></span><span class="num">${m}</span></div>`).join("")
+        : `<p class="muted" style="font-size:13px;margin:0">Aucun XP crédité sur cette matière.</p>`}
+      ${xp.length?`<div class="kv" style="margin-top:4px"><span style="font-weight:600">Total</span><span class="num" style="font-weight:600">${sum}</span></div>`:""}
+      <p class="notrace">Réparti par <b>motif</b>, jamais par notion : un événement d'XP ne porte pas de notion.</p>
+    </div>
+    <div>
+      <h3>Référentiel</h3>
+      ${ref ? `
+        <div class="kv"><span class="muted">Leçons</span><span class="num">${ref.lessons}</span></div>
+        <div class="kv"><span class="muted">Leçons validées</span><span class="num">${ref.validated} / ${ref.lessons}</span></div>
+        <div class="kv"><span class="muted">Cours rédigés</span><span class="num">${ref.courses} / ${ref.validated}</span></div>
+        <div class="kv"><span class="muted">Dérivés produits</span><span class="num">${ref.pct} %</span></div>
+        <p class="notrace"><a class="linkish" href="#">Ouvrir la couverture →</a></p>`
+        : `<p class="muted" style="font-size:13px;margin:0">Aucun chapitre dans l'année active.</p>`}
+    </div>
+    <div>
+      <h3>Aller plus loin</h3>
+      <p style="font-size:13px;margin:0 0 10px" class="muted">
+        Le détail par notion vit dans <b style="color:var(--papa-fg)">Par notion</b>, les faits
+        datés dans <b style="color:var(--papa-fg)">Par période</b> — une liste, un seul endroit.</p>
+      <div class="actions">
+        <button class="btn" data-goto="${s.slug}">Les ${s.engaged} notions engagées →</button>
+        ${s.fragile?`<button class="btn" data-goto="${s.slug}" data-pal="renforcer">Les ${s.fragile} à renforcer →</button>`:""}
+        <button class="btn" data-period="${s.slug}">Ce qui s'est passé →</button>
+      </div>
+    </div>
+  </div></div>`;
+}
+
+function renderMatiere(){
+  const tb = document.getElementById("tb-matiere");
+  tb.innerHTML = SUBJECTS.map(s=>{
+    const open = openSubject===s.slug;
+    const row = `<tr class="${open?"open":""}">
+      <td style="font-weight:500">
+        <button class="rowbtn" aria-expanded="${open}" data-subject="${s.slug}">
+          <span class="caret" aria-hidden="true">▶</span>${pic(s)}${esc(s.name)}</button></td>
+      <td>${advancement(s)}</td>
+      <td class="r num">${s.cons}</td>
+      <td class="r num hide-sm">${s.xp}</td>
+      <td class="r num"><span class="${s.fragile>0?"warn":"muted"}">${s.fragile}</span></td></tr>`;
+    return row + (open ? `<tr><td colspan="5" class="panelcell">${subjectPanel(s)}</td></tr>` : "");
+  }).join("");
+
+  tb.querySelectorAll("[data-subject]").forEach(b=>b.onclick=()=>{
+    openSubject = openSubject===b.dataset.subject ? null : b.dataset.subject; renderMatiere(); });
+  tb.querySelectorAll("[data-goto]").forEach(b=>b.onclick=()=>{
+    state.subject = b.dataset.goto;
+    state.paliers = b.dataset.pal ? new Set([b.dataset.pal]) : new Set(["acquise","renforcer","encours"]);
+    switchView("notion"); });
+  tb.querySelectorAll("[data-period]").forEach(b=>b.onclick=()=>{
+    state.subject = b.dataset.period; switchView("periode"); });
+}
+
+/* ═══════════════════════════ État partagé ═══════════════════════════════ */
+const state = {
+  subject:null,
+  paliers:new Set(["acquise","renforcer","encours"]),
+  gapOnly:false, noMission:false, q:"", open:null,
+  sort:"notion",          // notion (défaut) | matiere | date
+  period:30,
+};
+
+/* Ordre des matières = celui de l'année scolaire (table « Par matière »), jamais alphabétique :
+   deux vues du même écran ne peuvent pas classer les matières différemment. */
+const SUBJECT_ORDER = Object.fromEntries(SUBJECTS.map((s,i)=>[s.slug,i]));
+const SORTS = [{k:"notion",l:"Notion"},{k:"matiere",l:"Matière"},{k:"date",l:"Date"}];
+
+/* ═══════════════════════════ Vue notion ═════════════════════════════════ */
+function renderMovements(){
+  const rows = EVENTS
+    .filter(e=>e.kind==="bascule")
+    .filter(e=>!state.subject || e.subject===state.subject)
+    .slice(0,5);
+  document.getElementById("mv-count").textContent =
+    rows.length ? `les ${rows.length} dernières` : "aucune sur cette matière";
+  document.getElementById("movements").innerHTML = rows.length ? rows.map(m=>{
+    const s = SUB[m.subject];
+    const arrow = m.dir==="up" ? `<span class="arrow up" aria-label="montée">▲</span>`
+                : m.dir==="down"? `<span class="arrow down" aria-label="descente">▼</span>` : "";
+    return `<div class="mv"><span class="d num">${fr(m.date)}</span>
+      <span class="who">${pic(s)}<b>${esc(m.notion)}</b></span>
+      <span class="tr">${m.from} → <span style="color:var(--papa-fg)">${m.to}</span> ${arrow}</span></div>`;
+  }).join("") : `<div class="mv"><span class="d"></span><span class="muted" style="grid-column:2/-1">
+      Aucune bascule enregistrée sur cette matière depuis l'ouverture de l'historique.</span></div>`;
+}
+
+function renderFilters(){
+  const pillsSubjects = target=>{
+    target.innerHTML = `<span class="lbl">Matière</span>` +
+      [{slug:null,name:"Toutes"}].concat(SUBJECTS.filter(s=>s.total>0)).map(s=>{
+        const on = state.subject===s.slug;
+        const d = s.slug ? `<span class="dot" style="background:${SUB[s.slug].color}"></span>` : "";
+        return `<button class="pill" aria-pressed="${on}" data-sub="${s.slug??""}">${d}${esc(s.name)}</button>`;
+      }).join("");
+    target.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
+      state.subject = b.dataset.sub || null; state.open=null; renderNotion(); renderPeriode(); });
+  };
+  pillsSubjects(document.getElementById("f-subjects"));
+  pillsSubjects(document.getElementById("f-subjects-2"));
+
+  document.getElementById("f-paliers").innerHTML = PALIERS.map(p=>
+    `<button class="pill" aria-pressed="${state.paliers.has(p.key)}" data-pal="${p.key}">
+      <span class="dot d-${p.key}"></span>${p.label} <span class="n">${p.n}</span></button>`).join("");
+  document.querySelectorAll("#f-paliers [data-pal]").forEach(b=>b.onclick=()=>{
+    const k=b.dataset.pal; state.paliers.has(k)?state.paliers.delete(k):state.paliers.add(k);
+    state.open=null; renderNotion(); });
+
+  document.getElementById("f-sort").innerHTML = SORTS.map(s=>
+    `<button class="pill" aria-pressed="${state.sort===s.k}" data-sort="${s.k}">${s.l}</button>`).join("");
+  document.querySelectorAll("#f-sort [data-sort]").forEach(b=>b.onclick=()=>{
+    state.sort = b.dataset.sort; state.open=null; renderNotion(); });
+
+  const g=document.getElementById("f-gap"), m=document.getElementById("f-nomission");
+  g.setAttribute("aria-pressed", state.gapOnly); m.setAttribute("aria-pressed", state.noMission);
+  g.onclick=()=>{state.gapOnly=!state.gapOnly; state.open=null; renderNotion();};
+  m.onclick=()=>{state.noMission=!state.noMission; state.open=null; renderNotion();};
+}
+
+function sinceCell(n){
+  if(n.since===null) return `<span class="muted">—</span>`;
+  if(n.since.days!=null) return `<span class="num">${n.since.days} j</span>`;
+  const why = n.since.unknown==="before_migration"
+    ? "Consolidée avant la migration des dates — date inconnue"
+    : "Bascule antérieure au 31/07/2026 — hors historique";
+  return `<span class="since-none" title="${why}">hors trace</span>`;
+}
+
+function notionPanel(n){
+  const tl = n.timeline;
+  const body = tl && tl.length
+    ? `<ul class="frise">${tl.map(e=>`<li class="${e.kind==="gap"?"gap":e.kind==="now"?"now":""}">
+        <span class="d">${e.d}</span><span class="rail"><i></i></span>
+        <span class="txt">${e.t}</span></li>`).join("")}</ul>`
+    : `<p class="muted" style="font-size:13px;margin:0 0 4px">Aucun événement daté sur cette notion.</p>`;
+
+  const noTrace = n.since && n.since.unknown
+    ? `<p class="notrace">⚠ ${n.since.unknown==="before_migration"
+        ? "Consolidée avant la migration qui date les entrées au palier — le palier est certain, sa date est perdue."
+        : "Aucune bascule de palier enregistrée : l'historique s'ouvre le <span class=\"num\">31/07/2026</span>. Le palier courant est certain, sa date ne l'est pas."}</p>`
+    : "";
+
+  const now = n.palier==="nonabordee"
+    ? `<p class="nowline">État actuel : <b>non abordée</b> — aucune ligne de maîtrise.</p>`
+    : `<p class="nowline">État actuel : <b>${PAL_LABEL[n.palier]}</b>
+        ${n.score!=null?`<span class="num muted">(${n.score} / 100)</span>`:""}
+        ${n.since&&n.since.days!=null?` · depuis <span class="num">${n.since.days} jour${n.since.days>1?"s":""}</span>`:""}
+        ${n.gap?` · <span class="warn">lacune ouverte depuis <span class="num">${n.gap.days} jours</span></span>`:""}</p>`;
+
+  return `<div class="panel"><h3>${esc(n.chapter)}</h3>${body}${noTrace}${now}
+    <div class="actions">
+      ${n.palier!=="nonabordee"?`<button class="btn primary">Créer une mission</button>
+      <button class="btn">Équiper la notion</button>`:""}
+      <button class="btn">Ouvrir le cours</button>
+      ${n.gap?`<button class="btn">Voir dans Lacunes ouvertes →</button>`:""}
+    </div></div>`;
+}
+
+function filteredNotions(){
+  return NOTIONS.filter(n=>{
+    if(state.subject && n.subject!==state.subject) return false;
+    if(!state.paliers.has(n.palier)) return false;
+    if(state.gapOnly && !n.gap) return false;
+    if(state.noMission && n.mission) return false;
+    if(state.q && !fold(n.name+" "+n.chapter).includes(fold(state.q))) return false;
+    return true;
+  });
+}
+
+/* Identifiant stable — queue de départage de TOUS les tris. Sans elle, deux homonymes de
+   matières différentes changeraient de place d'un rendu à l'autre. */
+NOTIONS.forEach((n,i)=>n.id = i+1);
+
+const byName = (a,b)=> fold(a.name).localeCompare(fold(b.name),"fr") || a.id-b.id;
+
+/* Le tri par date scinde en TROIS blocs : daté · hors trace · non abordée.
+   Une liste continue ferait lire « hors trace » comme « le plus ancien ». */
+function groups(rows){
+  if(state.sort==="notion")
+    return [{label:null, rows:[...rows].sort(byName)}];
+  if(state.sort==="matiere")
+    return [{label:null, rows:[...rows].sort((a,b)=>
+      SUBJECT_ORDER[a.subject]-SUBJECT_ORDER[b.subject] || byName(a,b))}];
+
+  const dated  = rows.filter(n=>n.since && n.since.days!=null)
+                     .sort((a,b)=> a.since.days-b.since.days || byName(a,b));
+  const untrac = rows.filter(n=>n.since && n.since.unknown).sort(byName);
+  const never  = rows.filter(n=>n.since===null).sort(byName);
+  return [
+    {label:null, rows:dated},
+    {label:"sans bascule enregistrée", rows:untrac},
+    {label:"non abordées", rows:never},
+  ].filter(g=>g.rows.length);
+}
+
+function notionRow(n){
+  const s=SUB[n.subject], id=n.name, open=state.open===id;
+  const gap = n.gap ? `<span class="tag t-${n.gap.sev==="high"?"high":n.gap.sev==="med"?"med":"low"}">${n.gap.label}</span>` : `<span class="muted">—</span>`;
+  const mis = n.mission ? `<span class="tag t-mission">active</span>` : `<span class="muted">—</span>`;
+  const row = `<tr class="${open?"open":""}">
+    <td><button class="rowbtn" aria-expanded="${open}" data-notion="${esc(id)}">
+      <span class="caret" aria-hidden="true">▶</span><span>${esc(n.name)}</span></button></td>
+    <td class="hide-sm"><span style="display:inline-flex;align-items:center;gap:8px">${pic(s)}<span class="muted">${esc(s.name)}</span></span></td>
+    <td><span class="pal"><span class="dot d-${n.palier}"></span>${PAL_LABEL[n.palier]}</span></td>
+    <td class="r">${sinceCell(n)}</td>
+    <td class="hide-sm">${gap}</td><td class="hide-sm">${mis}</td></tr>`;
+  return row + (open?`<tr><td colspan="6" class="panelcell">${notionPanel(n)}</td></tr>`:"");
+}
+
+function renderNotion(){
+  renderFilters(); renderMovements();
+  const rows = filteredNotions(), tb = document.getElementById("tb-notion");
+  if(!rows.length){
+    tb.innerHTML = `<tr><td colspan="6" style="padding:0"><div class="empty" style="border:0;border-radius:0">
+      <h3>Aucune notion ne correspond</h3>
+      <p>Retire un filtre pour élargir — les compteurs des pastilles portent sur l'année entière,
+         jamais sur la sélection courante.</p></div></td></tr>`;
+  } else {
+    tb.innerHTML = groups(rows).map(g=>
+      (g.label ? `<tr class="sep"><td colspan="6">${g.label} · <span class="n">${g.rows.length}</span></td></tr>` : "")
+      + g.rows.map(notionRow).join("")
+    ).join("");
+    tb.querySelectorAll("[data-notion]").forEach(b=>b.onclick=()=>{
+      state.open = state.open===b.dataset.notion ? null : b.dataset.notion; renderNotion(); });
+  }
+  const nb = rows.length;
+  document.getElementById("notion-tail").innerHTML =
+    `${nb} notion${nb>1?"s":""} affichée${nb>1?"s":""}` +
+    (state.paliers.has("nonabordee") ? ` · <span class="muted">la maquette ne liste que 14 des 261 non abordées</span>` : "");
+}
+
+/* ═══════════════════════════ Vue période ════════════════════════════════ */
+const PERIODS = [{v:7,l:"7 jours"},{v:30,l:"30 jours"},{v:90,l:"90 jours"},{v:365,l:"Année"}];
+
+function windowEvents(){
+  const from = daysAgo(state.period);
+  return EVENTS.filter(e=>e.date>=from)
+               .filter(e=>!state.subject || e.subject===state.subject);
+}
+
+function renderPeriode(){
+  /* sélecteur de fenêtre */
+  document.getElementById("periodsel").innerHTML = PERIODS.map(p=>
+    `<button aria-selected="${state.period===p.v}" data-p="${p.v}">${p.l}</button>`).join("");
+  document.querySelectorAll("#periodsel [data-p]").forEach(b=>b.onclick=()=>{
+    state.period = +b.dataset.p; renderPeriode(); });
+
+  const from = daysAgo(state.period);
+  document.getElementById("range").textContent =
+    `du ${fr(from)} au ${fr(TODAY.toISOString().slice(0,10))} · ${state.period} jours`;
+
+  const ev = windowEvents();
+
+  /* Compteurs — TOUS dérivés du journal ci-dessous, sauf l'XP (agrégat séparé).
+     C'est l'invariant « le détail recompose le nombre », appliqué à la fenêtre. */
+  const basc = ev.filter(e=>e.kind==="bascule");
+  const C = [
+    {v:basc.filter(e=>e.dir==="up").length,    l:"montées de palier",     t:"bascule"},
+    {v:basc.filter(e=>e.dir==="down").length,  l:"descentes de palier",   t:"bascule"},
+    {v:basc.filter(e=>e.dir==="first").length, l:"premières mesures",     t:"bascule"},
+    {v:0,                                       l:"entrées / sorties du palier acquise", t:"bascule"},
+    {v:ev.filter(e=>e.kind==="lacune"&&!e.resolved).length, l:"lacunes ouvertes",  t:"lacune"},
+    {v:ev.filter(e=>e.kind==="lacune"&&e.resolved).length,  l:"lacunes résolues",  t:"lacune"},
+    {v:ev.filter(e=>e.kind==="mission").length, l:"missions terminées",   t:"mission"},
+    {v:ev.filter(e=>e.kind==="revision").reduce((a,e)=>a+(e.count||1),0), l:"révisions notées", t:"revision"},
+  ];
+
+  const cut = t => TRACE[t].since && TRACE[t].since > from;
+  document.getElementById("counters").innerHTML = C.map(c=>`
+    <div class="ct ${c.v===0?"zero":""}">
+      <div class="v num">${c.v}</div><div class="l">${c.l}</div>
+      <span class="tr ${cut(c.t)?"cut":""}">${cut(c.t)?"⚠ ":""}${TRACE[c.t].label}</span>
+    </div>`).join("");
+
+  /* Avertissement : les compteurs bornés par leur trace, pas par la fenêtre */
+  const cutKinds = [...new Set(C.filter(c=>cut(c.t)).map(c=>c.t))];
+  document.getElementById("tracewarn").innerHTML = cutKinds.length ? `
+    <div class="tracewarn">
+      <b>Trois natures de fait, trois débuts de trace.</b>
+      Sur cette fenêtre de ${state.period} jours,
+      ${cutKinds.map(k=>`les <b>${k==="bascule"?"bascules":"révisions"}</b> n'en couvrent que
+        ${Math.round((new Date(TODAY)-new Date(TRACE[k].since+"T12:00:00"))/864e5)} jours
+        (${TRACE[k].label.replace("trace depuis le ","depuis le ")})`).join(" et ")}.
+      Un compteur bas peut donc dire « pas de trace » et non « pas de mouvement » — les deux ne se
+      corrigent pas l'un l'autre.
+    </div>` : "";
+
+  /* Journal, groupé par jour */
+  const led = document.getElementById("ledger");
+  if(!ev.length){
+    led.innerHTML = `<div class="empty" style="border:0;border-radius:0">
+      <h3>Aucun fait daté sur cette fenêtre</h3>
+      <p>Rien n'a été enregistré ${state.subject?`en ${SUB[state.subject].name} `:""}entre le
+         ${fr(from)} et aujourd'hui. Vérifie le début de trace de chaque nature avant de lire ce
+         vide comme une inactivité.</p></div>`;
+  } else {
+    const byDay = {};
+    ev.forEach(e=>(byDay[e.date] ??= []).push(e));
+    led.innerHTML = Object.keys(byDay).sort().reverse().map(d=>{
+      const head = `<div class="day">${frLong(d)}</div>`;
+      const rows = byDay[d].map(e=>{
+        const s = SUB[e.subject];
+        const who = e.notion
+          ? `<span class="who"><span class="evkind k-${e.kind}"></span>${pic(s)}<b>${esc(e.notion)}</b></span>`
+          : `<span class="who"><span class="evkind k-${e.kind}"></span>${pic(s)}<span class="muted">${esc(s.name)}</span></span>`;
+        const what = e.kind==="bascule"
+          ? `<span class="what">${e.from} → <span class="em">${e.to}</span>
+             ${e.dir==="up"?`<span class="arrow up">▲</span>`:e.dir==="down"?`<span class="arrow down">▼</span>`:""}</span>`
+          : `<span class="what"><span class="em">${esc(e.what)}</span>${e.detail?` · ${esc(e.detail)}`:""}</span>`;
+        return `<div class="ev">${who}${what}</div>`;
+      }).join("");
+      return head+rows;
+    }).join("");
+  }
+
+  document.getElementById("periode-tail").innerHTML =
+    `${ev.length} fait${ev.length>1?"s":""} daté${ev.length>1?"s":""} sur la fenêtre · ` +
+    `<span class="muted">aucun palier, aucun stock, aucun XP : le cumul d'XP se lit sur la vue Par matière, où il compte depuis toujours</span>`;
+}
+
+/* ═══════════════════════════ Bascule de vue ═════════════════════════════ */
+const TABS = {matiere:"tab-matiere", notion:"tab-notion", periode:"tab-periode"};
+function switchView(v){
+  Object.entries(TABS).forEach(([k,id])=>{
+    document.getElementById(id).setAttribute("aria-selected", k===v);
+    document.getElementById("v-"+k).hidden = k!==v;
+  });
+  if(v==="notion") renderNotion();
+  if(v==="periode") renderPeriode();
+}
+Object.keys(TABS).forEach(k=>document.getElementById(TABS[k]).onclick=()=>switchView(k));
+document.getElementById("q").oninput = e=>{ state.q=e.target.value.trim(); state.open=null; renderNotion(); };
+document.getElementById("mv-all").onclick = ()=>switchView("periode");
+
+renderMatiere(); renderNotion(); renderPeriode();
+</script>
+</body>
+</html>
