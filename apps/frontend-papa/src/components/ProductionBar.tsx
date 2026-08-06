@@ -26,11 +26,20 @@ const SEUIL_COMPTEUR = 980;
 const SEUIL_SUJET = 880;
 const SEUIL_LIBELLE = 800;
 
-function useLargeurConteneur(): [React.RefObject<HTMLDivElement | null>, number] {
+/** Mesure le **HEADER**, jamais le conteneur de la pilule.
+ *
+ *  🔴 **Corrigé le 2026-08-06, à l'écran.** La première version observait son propre conteneur —
+ *  qui est DÉJÀ écrasé quand elle le lit, puisqu'il est le seul des trois blocs du header à
+ *  céder. Résultat mesuré à 644 px de header : pilule **30 px**, libellé **0 px**. L'échelle de
+ *  repli se déclenchait sur un espace déjà perdu, donc jamais.
+ *
+ *  La maquette ne pouvait pas le voir : elle n'avait pas les deux pilules réelles qui se
+ *  disputent la place. C'est le contrôle responsive, et lui seul, qui l'a sorti. */
+function useLargeurHeader(): [React.RefObject<HTMLDivElement | null>, number] {
   const ref = useRef<HTMLDivElement | null>(null);
   const [largeur, setLargeur] = useState(9999);
   useEffect(() => {
-    const noeud = ref.current;
+    const noeud = ref.current?.closest("header") ?? ref.current;
     if (!noeud || typeof ResizeObserver === "undefined") return;
     const obs = new ResizeObserver(([e]) => setLargeur(e.contentRect.width));
     obs.observe(noeud);
@@ -56,7 +65,7 @@ interface Props {
 }
 
 export function ProductionBar({ activity, onOpen, onAcknowledge }: Props) {
-  const [ref, largeur] = useLargeurConteneur();
+  const [ref, largeur] = useLargeurHeader();
   const echec = activity.failed[0] ?? null;
   // Un échec passe devant : ce n'est pas un état d'avancement, c'est un état d'anomalie.
   const item = echec ?? activity.current;
@@ -110,7 +119,10 @@ export function ProductionBar({ activity, onOpen, onAcknowledge }: Props) {
         : tete;
 
   return (
-    <div ref={ref} className="flex min-w-0 flex-1 justify-center">
+    // ⚠️ **Un PLANCHER, pas `min-w-0`.** La pilule est le seul des trois blocs du header à céder :
+    // sans plancher elle cède jusqu'à disparaître (30 px mesurés). En dessous de sa forme réduite
+    // — point + barre + pourcentage — il n'y a plus rien à montrer, donc plus rien à rétrécir.
+    <div ref={ref} className="flex min-w-[150px] flex-1 justify-center">
       <button
         type="button"
         onClick={onOpen}
@@ -121,7 +133,7 @@ export function ProductionBar({ activity, onOpen, onAcknowledge }: Props) {
               ? item.error ?? "Ce travail a échoué"
               : "Production en cours — voir le détail"
         }
-        className={`flex min-w-0 max-w-[520px] flex-1 items-center gap-3 rounded-full border bg-papa-surface/70 px-3.5 py-2 text-xs font-semibold backdrop-blur-sm transition-colors hover:bg-papa-surface ${ton}`}
+        className={`flex min-w-[150px] max-w-[520px] flex-1 items-center gap-3 rounded-full border bg-papa-surface/70 px-3.5 py-2 text-xs font-semibold backdrop-blur-sm transition-colors hover:bg-papa-surface ${ton}`}
       >
         {/* ⚠️ Le point ne PULSE que si quelque chose bouge. Un point qui clignote sur une file
             arrêtée est une animation qui ment — c'est elle qu'on regarde avant de lire le texte. */}

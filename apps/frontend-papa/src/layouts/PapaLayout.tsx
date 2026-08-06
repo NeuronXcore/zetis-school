@@ -62,7 +62,7 @@ export function PapaLayout() {
           <div className="relative flex h-full items-center justify-between px-6">
             {/* Les deux blocs de contenu reçoivent leur propre fond translucide : sur un header
                 à fond image, un texte nu devient illisible dès que l'onde passe dessous. */}
-            <div className="flex items-center gap-3 rounded-xl border border-papa-border/60 bg-papa-surface/70 px-3 py-2 text-sm backdrop-blur-sm">
+            <div className="flex shrink-0 items-center gap-3 whitespace-nowrap rounded-xl border border-papa-border/60 bg-papa-surface/70 px-3 py-2 text-sm backdrop-blur-sm">
               {/* La signature de l'interface. Elle a quitté la sidebar le 2026-08-04 : les deux
                   frontends doivent rester discernables (`docs/frontend-papa/README.md`), mais la
                   sidebar est la colonne rare, et ce header — devenu fixe le même jour — ne coûte
@@ -71,11 +71,15 @@ export function PapaLayout() {
               <span className="font-bold">
                 ZETIS <span className="text-papa-accent">Papa</span>
               </span>
-              <span className="h-4 w-px bg-papa-border" role="presentation" />
-              <span className="rounded-md bg-papa-surface-2 px-2.5 py-1 font-medium text-papa-text">
+              <span className="hidden h-4 w-px bg-papa-border md:block" role="presentation" />
+              {/* ⚠️ Le contexte CÈDE avant la production (corrigé à l'écran le 2026-08-06). Sans ça, cette
+                  pilule passait à DEUX LIGNES et la barre tombait à 30 px — elle était le seul bloc
+                  à céder, donc elle cédait tout. La signature « ZETIS Papa », elle, ne part jamais :
+                  c'est elle qui distingue les deux frontends. */}
+              <span className="hidden rounded-md bg-papa-surface-2 px-2.5 py-1 font-medium text-papa-text md:inline-block">
                 Enfant : Massimo
               </span>
-              <span className="text-papa-muted">Période : 2026 — 4ᵉ</span>
+              <span className="hidden text-papa-muted lg:inline">Période : 2026 — 4ᵉ</span>
             </div>
             {/* La barre de production (ADR-0041) — au CENTRE, entre l'identité et les actions.
                 Elle remplace la pastille qui vivait dans la pilule de gauche : celle-ci ne voyait
@@ -87,10 +91,10 @@ export function PapaLayout() {
               onOpen={() => setShowRun(true)}
               onAcknowledge={ackEchec}
             />
-            <div className="flex items-center gap-2 rounded-xl border border-papa-border/60 bg-papa-surface/70 px-2 py-2 backdrop-blur-sm">
+            <div className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-papa-border/60 bg-papa-surface/70 px-2 py-2 backdrop-blur-sm">
               <button
                 type="button"
-                className="rounded-lg border border-papa-border px-3 py-1.5 text-sm font-medium text-papa-muted hover:text-papa-text"
+                className="hidden rounded-lg border border-papa-border px-3 py-1.5 text-sm font-medium text-papa-muted hover:text-papa-text lg:block"
               >
                 Exporter
               </button>

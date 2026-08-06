@@ -2772,3 +2772,28 @@ vérifié par sabotage (`all` → `any` le fait rougir).
 ⚠️ **Et la règle d'exploitation qui va avec** : après tout ajout de file, **redémarrer le worker**
 (`pkill -f app.production_worker` puis `pnpm dev:worker`). Un worker vivant n'est pas un worker à
 jour.
+
+### La barre du header s'écrasait à 30 px — mesurer le CONTENEUR ne suffit pas
+
+Contrôle responsive du 2026-08-06, à 644 px de header : pilule **30 px**, libellé **0 px**.
+L'échelle de repli existait pourtant, et elle était juste sur la maquette.
+
+**Cause, en deux temps** :
+
+1. `useLargeurConteneur` observait **son propre conteneur** — lequel est DÉJÀ écrasé quand elle le
+   lit, puisque la pilule de production est le seul des trois blocs du header à céder. Les seuils
+   se déclenchaient donc sur un espace déjà perdu, c'est-à-dire jamais.
+2. Rien ne l'empêchait de céder jusqu'à **zéro** : la pilule d'identité passait à deux lignes
+   plutôt que d'abandonner « Période : 2026 — 4ᵉ ».
+
+**Parade** : observer le **`<header>`** (`ref.current.closest("header")`), donner à la pilule un
+**plancher** (`min-w-[150px]`, sa forme réduite), et faire **céder le contexte d'abord** —
+« Période » sous `lg`, « Enfant » et « Exporter » sous `md`. La signature « ZETIS Papa » ne part
+jamais : c'est elle qui distingue les deux frontends.
+
+⚠️ **Et un piège de MESURE, payé deux fois** : `textContent` renvoie le texte des éléments
+`display:none`. Une assertion « ce libellé a bien cédé » bâtie dessus est **toujours fausse**.
+Mesurer `getBoundingClientRect().width > 0`.
+
+⚠️ **La maquette ne pouvait pas trouver ce défaut** : elle n'avait pas les deux pilules réelles
+qui se disputent la place. C'est le contrôle responsive à l'écran, et lui seul, qui l'a sorti.
