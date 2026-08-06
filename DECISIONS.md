@@ -221,32 +221,32 @@
   avec `adr-0018 §1` — l'invariant protège d'un compte à rebours *inventé*, pas *subi* —
   Accepté (2026-07-29)
   - `docs/decisions/adr-0025-addendum-temoin-nouveaute-agenda.md` — **Addendum ADR-0025 §12 —
-  témoin de nouveauté ≠ compteur d'arriéré** : **révoque une interdiction explicite** de
-  `page-agenda.md` (« aucune pastille de compteur sur l'entrée, sous aucune forme ») dont le motif
-  était juste mais la portée trop large — elle visait l'**arriéré** et attrapait au passage le
-  **témoin de nouveauté** du chantier `adr-0030`. **Test qui sépare les deux objets** : *une date
-  qui passe sans que Massimo agisse change-t-elle le compteur ?* — arriéré **oui** (naît d'une date
-  franchie, ne meurt que par le **travail**, grossit quand Massimo ne vient pas), nouveauté **non**
-  (naît d'un geste de Papa, meurt d'un **regard**). **Badge chiffré**, pas la pastille muette
-  d'abord proposée : celle-ci est une alarme sans quantité, **plus** anxiogène qu'un nombre, et
-  refuser le chiffre là où le §1 autorise déjà la **date** d'une échéance subie était incohérent.
-  **Décision structurante — la granularité de la donnée** : `agenda_last_seen_at`, **un
-  horodatage par élève** (high-water mark, écrit à l'ouverture de `/agenda` **et** au rendu du
-  bandeau d'Accueil), **jamais un `seen_at` par item** — joint à `done_at`, celui-ci fabriquerait
-  la donnée persistée « **vu le 12, jamais fait** », lisible côté Papa par l'asymétrie de
-  visibilité (§2c) : la surveillance par la porte de service que §2a et §2b condamnent, et un objet
-  **pire** que le compteur qu'on évitait ; absent de `AgendaItemPilotOut` et de toute sortie
-  `/api/agenda` (**symétrique exact de `parent_note`**, test de non-fuite). **Non révoqué et
-  réaffirmé dans le même paragraphe** : `agenda_item_missed` n'existe pas (§3), aucun compteur
-  d'arriéré sur les surfaces Massimo (§7), aucun compteur d'items non faits en KPI Papa (§9) — les
-  deux règles se ressemblent assez pour devoir être **lues côte à côte**, les séparer garantirait
-  qu'une prochaine session tranche au hasard. **Limite assumée et écrite (§12.5)** : le badge
-  retombe à zéro dès l'ouverture et **y reste toute la semaine**, échéances en cours comprises — un
-  témoin de nouveauté est **structurellement incapable** d'être un plan de travail, et le rendre
-  capable reviendrait exactement à en faire un compteur d'arriéré ; la question « qu'est-ce que
-  j'ai à étudier » reste servie par le bandeau d'Accueil et la bande glissante. **Test-verrou** :
-  le badge ne bouge ni quand une échéance franchit sa date, ni quand un item est coché.
-  Implémentation **dans le lot `adr-0030`**, jamais isolément — Accepté (2026-08-01)
+    témoin de nouveauté ≠ compteur d'arriéré** : **révoque une interdiction explicite** de
+    `page-agenda.md` (« aucune pastille de compteur sur l'entrée, sous aucune forme ») dont le motif
+    était juste mais la portée trop large — elle visait l'**arriéré** et attrapait au passage le
+    **témoin de nouveauté** du chantier `adr-0030`. **Test qui sépare les deux objets** : *une date
+    qui passe sans que Massimo agisse change-t-elle le compteur ?* — arriéré **oui** (naît d'une date
+    franchie, ne meurt que par le **travail**, grossit quand Massimo ne vient pas), nouveauté **non**
+    (naît d'un geste de Papa, meurt d'un **regard**). **Badge chiffré**, pas la pastille muette
+    d'abord proposée : celle-ci est une alarme sans quantité, **plus** anxiogène qu'un nombre, et
+    refuser le chiffre là où le §1 autorise déjà la **date** d'une échéance subie était incohérent.
+    **Décision structurante — la granularité de la donnée** : `agenda_last_seen_at`, **un
+    horodatage par élève** (high-water mark, écrit à l'ouverture de `/agenda` **et** au rendu du
+    bandeau d'Accueil), **jamais un `seen_at` par item** — joint à `done_at`, celui-ci fabriquerait
+    la donnée persistée « **vu le 12, jamais fait** », lisible côté Papa par l'asymétrie de
+    visibilité (§2c) : la surveillance par la porte de service que §2a et §2b condamnent, et un objet
+    **pire** que le compteur qu'on évitait ; absent de `AgendaItemPilotOut` et de toute sortie
+    `/api/agenda` (**symétrique exact de `parent_note`**, test de non-fuite). **Non révoqué et
+    réaffirmé dans le même paragraphe** : `agenda_item_missed` n'existe pas (§3), aucun compteur
+    d'arriéré sur les surfaces Massimo (§7), aucun compteur d'items non faits en KPI Papa (§9) — les
+    deux règles se ressemblent assez pour devoir être **lues côte à côte**, les séparer garantirait
+    qu'une prochaine session tranche au hasard. **Limite assumée et écrite (§12.5)** : le badge
+    retombe à zéro dès l'ouverture et **y reste toute la semaine**, échéances en cours comprises — un
+    témoin de nouveauté est **structurellement incapable** d'être un plan de travail, et le rendre
+    capable reviendrait exactement à en faire un compteur d'arriéré ; la question « qu'est-ce que
+    j'ai à étudier » reste servie par le bandeau d'Accueil et la bande glissante. **Test-verrou** :
+    le badge ne bouge ni quand une échéance franchit sa date, ni quand un item est coché.
+    Implémentation **dans le lot `adr-0030`**, jamais isolément — Accepté (2026-08-01)
 - `docs/decisions/adr-0026-chat-zetis-memoire.md` — **Chat ZETIS : mémoire éphémère,
   traçabilité typée, signal déclaratif** : le verbatim de conversation est **éphémère par
   construction** — M1 en Redis (TTL `CHAT_SESSION_TTL_MINUTES=120`, purge à la clôture),
@@ -436,32 +436,32 @@
   - `docs/decisions/adr-0028-addendum-memoire-quatre-vues.md` — **Addendum ADR-0028 — la carte mémoire ne pouvait montrer aucun événement** : les trois courbes avaient **deux** défauts, l'un mesuré à l'écran et l'autre structurel. 🔴 **L'échelle était confisquée** — maximum de l'axe **222** (fixé par `covered`), « à renforcer » à **5,8 %** de la hauteur et « consolidées » à **0,45 %** : les deux courbes que la carte existe pour montrer étaient tracées dans les **6 % du bas** d'un cadre de 190 px pendant que la courbe de contexte en occupait 94 %. 🔴 **Et aucune ne peut redescendre** : `reconstruct_series` projette *« l'ensemble d'aujourd'hui moins ce qui y est entré après »*, donc c'est croissant **par construction** — une notion consolidée en juin puis perdue en juillet n'est pas dans `consolidated_now` et n'apparaît **nulle part**, absente de **tout son passé**. Trois courbes qui ne peuvent ni baisser ni se croiser ne montrent **jamais d'événement**. **L'interversion du même chantier** (« État des notions » à gauche, « Évolution de la mémoire » à droite, pour que la **cause** — filtrer une matière — se lise avant son **effet** — les courbes se redessinent) a rendu visible une troisième chose : la carte de droite montrait **la même décomposition que sa voisine de gauche**, étalée dans le temps. **Décisions** : **quatre vues** derrière un sélecteur (patron `WorkRhythmCard` + prop `action` de `DashboardCard`) — Paliers (4 stocks empilés) · Révisions (flux SRS daté + charge à venir) · Rétention (ratio 0–100 %) · Solde (flux de bascules) — qui **ne partagent ni unité ni nature de mesure**, les superposer sur un axe unique fabriquerait la contradiction que les `adr-0038`/`adr-0039` referment ; **« Paliers » par défaut, et ce n'est pas esthétique** — `CARD_SCOPES` fait allumer cette carte par « Notions consolidées » et « À renforcer », ouvrir sur « Révisions » (la vue la mieux fournie, et de loin) casserait ce contrat **en silence**, le KPI restant allumé sur un diagramme qui ne le justifie plus ; **l'aire empilée corrige l'échelle par construction** (les bandes se lisent à l'**épaisseur**, jamais en proportion du maximum d'une voisine) et ⚠️ **la bande grise domine parce que c'est vrai** — 19 notions travaillées sur 301, état de l'année que l'ancien tracé cachait ; **la rétention est le seul tracé qui puisse REDESCENDRE**, dénominateur = **travaillées** et jamais le programme entier (rapporté à 301 le taux vaudrait 0,3 %, rassurant et faux — même erreur que le §5 bis a refusée pour le KPI), dénominateur **affiché** à côté du taux (19 notions ⇒ une seule notion déplace la courbe de 5 points), et **un point sans dénominateur est un TROU, pas un zéro** (« 0 % de rien » est un jugement, les segments ne sont pas reliés). ⚠️ **BORNE — ne révoque pas — le §5 ter de [[adr-0028-addendum-kpi-a-renforcer]]** : le vrai solde y était écarté *parce qu'il contredirait la sparkline affichée à 3 mm* — **ce motif est intact et ne portait que sur cette adjacence** ; la vue « Solde » est une vue **nommée, isolée, qu'on choisit**, dont la note dit qu'elle ne se compte pas comme le KPI, et le delta reste `value − sparks.fragile[0]` inchangé. C'est **le seul endroit du dashboard où une perte est visible**. 🔴 **Un solde vide dit l'ABSENCE DE TRACE, jamais l'absence de mouvement** — `skill_mastery_history` compte **4 lignes**, toutes des entrées en `weak`, aucune ne franchit le palier consolidé : dessiner une ligne plate à zéro se lirait « stable », **mensonge tranquille**, d'où un état vide explicite qui reprend `history_since`. **Trois règles de comptage** pour n'inventer aucun mouvement invérifiable : l'état avant la première bascule connue est **inconnu et le reste** (première bascule vers `mastered` = entrée, vers autre chose = **rien**, surtout pas une perte qui supposerait un acquis jamais observé) ; seule une notion **observée consolidée** peut être comptée perdue ; une bascule qui ne traverse pas la frontière ne compte nulle part. **Les deux moitiés de « Révisions » n'ont PAS la même échelle** (~3 j à gauche, 1 j à droite) — **la note le dit** plutôt que de le taire, et la charge à venir est dessinée **en creux** parce qu'elle n'est pas mesurée mais **planifiée** ; `is_consolidation` **exclu** (2ᵉ passage le même jour, sans effet sur la planification). **`ReviewLoadCard` n'est PAS supprimée** — le recoupement est assumé, retirer une carte du cockpit est une décision de mise en page qui ne se prend pas en passant. **Le verrou** : 🔴 **toute série ajoutée au payload doit être sommée dans `sumSeries`** — `subjects` est déjà filtré, une série oubliée resterait à zéro sur toutes les vues et **le filtre matière mentirait sans qu'aucun test ne rougisse** ; deux filets qui ne se remplacent pas (le **type**, qui ne couvre que l'existence du champ et jamais sa justesse ; le **test**, un `toEqual` sur l'objet **entier** avec des séries aux valeurs **distinctes** — toutes égales auraient laissé passer une permutation). ⚠️ **Prouvé par DEUX sabotages** (dénominateur de rétention branché sur `covered` → 3 tests rouges ; `window_days` neutralisé → verrou de fenêtre rouge), un test-verrou central étant resté vert sur un sabotage **trois fois cette année**. **Le piège propre aux flux, absent des stocks** : `bucket_counts` range chaque jour dans le **premier repère qui l'atteint**, donc un jour antérieur à la fenêtre tombe dans le **bucket 0** et y fabrique un pic — les stocks n'ont jamais eu ce problème (rien n'y est bucketisé), d'où `window_days` et son test dédié. **Read-before-code, deux constats qui ont changé le chantier** : le solde **était déjà écarté** par le §5 ter (décision bornée, pas générale) ; et **la donnée de mémoire n'est pas dans les paliers** — `SpacedReviewAttempt` porte **38 passages notés et datés**, seule mesure de mémoire du dépôt, que la carte portant ce nom **ne lisait pas**. **Trois requêtes, aucune migration, aucune route.** ⚠️ `response_model=DashboardOut` **filtre en silence** tout champ absent de `schemas.py` — piège déjà consigné, il se serait rejoué à l'identique. Quatre vues **vérifiées à l'écran sur la vraie base** — **Le signal qui dirait qu'on s'est trompé** : Papa ne quittant **jamais** la vue par défaut, ce qui ferait des trois autres un coût sans lecteur, et la réponse serait d'en **retirer** — pas d'en ajouter une cinquième — Accepté (2026-08-06)
   - `docs/decisions/adr-0028-addendum-cartes-focalisables.md` — **Addendum ADR-0028 — deux cartes ne pouvaient que s'éteindre** : le §5 pose que le focus est porté par les KPI, avec une conséquence jamais écrite ni constatée — 🔴 **`charge` et `chaine` ne pouvaient QUE s'éteindre.** Leur mesure (la charge SRS à venir, l'entonnoir de production) n'est le sujet d'**aucun** des cinq KPI : `charge` n'était allumée que par 2 focus sur 5, `chaine` par **1 sur 5**, et **aucun geste de la page ne pouvait les désigner**. Confirmé au navigateur : ce sont aussi **les deux seules cartes à ne contenir aucun élément cliquable** (0 bouton, contre 5 pour `notions` et 4 pour `memoire`) — passives de bout en bout. **Décisions** : **le focus cesse d'être l'apanage du bandeau** — une carte dont la mesure n'a aucun KPI prend le focus au clic sur son **titre**, avec le même `toggleFocus`, la même clé `?focus=`, le même second clic qui relâche ; **un seul focus sur la page**, donc cliquer une carte **relâche le KPI pressé** (deux mesures allumées diraient que la page répond à deux questions à la fois) ; **`PageFocus` = type DISTINCT** (`DashboardFocus | DashboardCardFocus`) et **non** un élargissement de `DashboardFocus`, qui sert les `Record` du bandeau (`KPI_LABELS`, `KPI_FOCUS_HINTS`, `KPI_ORDER`) et qu'il aurait fallu remplir d'un libellé de KPI pour deux **non-KPI** ; ⚠️ **le garde `isFocus` doit être élargi EN MÊME TEMPS** — le dépôt a payé ce bug exact sur « À renforcer » (clic écrit dans l'URL, liste blanche en **tableau** incomplet qui refuse, carte jamais allumée, `tsc` muet), d'où `Record<PageFocus, true>` où l'omission ne compile pas : **quatrième fois** que cette règle se paie ; 🔴 **le TITRE et non la carte entière** — `ContentChainCard` porte des `<Link>` (« ↓ 47 à produire »), une **ancre dans un bouton** est du HTML invalide et le lien cesserait de fonctionner ; **le bouton se glisse DANS le `h3`**, il ne le remplace pas (sinon les deux cartes quittent la liste des titres — une carte gagnée au clic contre une carte perdue au clavier n'est pas un échange acceptable) ; un **`⌖` `aria-hidden`** porte l'affordance, sans quoi « ceci se clique » ne s'apprendrait qu'au survol, sur deux cartes qui n'ont jamais eu de clic. **Portées** : `charge` → `charge` + `memoire` (la vue « Révisions » montre les **mêmes** 14 jours et le passé qui les a produits) ; `chaine` → `chaine` + `memoire` + `lecture`. ⚠️ **L'asymétrie est voulue** — le focus `chaine` allume `lecture` alors que `fragile` n'allume **pas** `chaine` : « quelles cartes justifient cette mesure » n'est pas « quelles mesures cette carte justifie », et la « corriger » élargirait les portées jusqu'à ce qu'un focus n'atténue plus rien. 🔴 **Régression de la veille trouvée en écrivant l'addendum** : la refonte en quatre vues avait fait **disparaître de l'écran** la série `covered` — aucun test ne l'a signalé, alors que c'est **la seule mesure du dashboard reliant la PRODUCTION aux NOTIONS**, précisément le lien dont le focus `chaine` a besoin ; restaurée en **ligne pointillée de contexte** sur la vue « Paliers » et non en bande (une notion couverte peut être à n'importe lequel des quatre paliers, l'empiler mentirait sur la partition ; l'axe étant borné par le programme entier, elle ne peut plus confisquer l'échelle). **Le verrou** : cliquer l'en-tête doit **allumer pour de vrai** — 4 tests (allume/relâche, atténue ce qui ne la justifie pas, relâche le KPI pressé, le titre reste un titre), ⚠️ **prouvé par sabotage** (retirer `charge`/`chaine` de `FOCUSES` en retypant en `Record<string, true>` — la forme exacte du bug d'origine — fait tomber **3 tests sur 4**). **Aucune requête, aucun champ de payload, aucune migration.** Vérifié à l'écran sur la vraie base — **Le signal qui dirait qu'on s'est trompé** : quelqu'un rendant les **huit** cartes focalisables « par cohérence », ce qui rendrait le bandeau décoratif et ferait perdre au focus son sens — il ne désigne pas une carte, il désigne une **mesure** — Accepté (2026-08-06)
 - `docs/decisions/adr-0029-rejeu-anime-galaxie.md` — **Rejeu animé de la galaxie : voir son chemin,
-    pas seulement son état** — *nouvel ADR plutôt qu'un 3ᵉ addendum à l'`adr-0024`, qui n'y révise
-    rien* : l'ADR-0024 décide **comment la galaxie est rendue**, celui-ci ajoute une **capacité**
-    qui n'existait pas — rejouer le temps. **Constat du read-before-code : la donnée était déjà
-    calculée** — `galaxy/service.py:394` faisait déjà `min(created_at).group_by(skill_id)`, soit
-    « quand chaque notion a été allumée pour la première fois », puis **jetait le `skill_id`** pour
-    ne garder qu'un compte ; rien à calculer, seulement à cesser de jeter (`?with_skills=true`,
-    **opt-in strict** : sans le paramètre la clé est **absente** et non `null`, un test le
-    verrouille — aucune table, aucune migration, aucune requête de plus). **Décisions** : le rejeu
-    vit dans une **modale ouverte depuis « Mon ciel »**, en **DOUBLE `lazy()`** — la modale l'est,
-    et elle seule charge le canvas, également en `lazy()` — parce que le graphe d'imports
-    **statiques** de l'Accueil ne doit atteindre **ni l'une ni l'autre** : c'est ce qui garde la
-    page d'atterrissage à **zéro Three.js au premier paint**, et un import statique d'ici
-    remettrait 1,37 Mo **sans qu'aucun test ne le voie** (`accueil.bundle.test.ts` ne parcourt que
-    le statique, précisément pour mesurer le premier paint) → un test constate en plus que **la
-    modale n'est pas montée au chargement** ; **rejeu 3D EN DIRECT** (aucune image stockée : une
-    capture périmerait dès la notion suivante ; le rendu vidéo `worker-media`/MinIO est **écarté**,
-    réévaluable si un jour on veut *partager* le rejeu) ; **la frise devient la barre de lecture**,
-    tout en **restant telle quelle sur l'Accueil** (information passive qu'on ne veut pas perdre).
-    **Deux états seulement** — pas encore née, et allumée : l'état de maîtrise passé existe
-    (`skill_mastery_history`, `adr-0028`) mais il est **Papa-only** et il **RÉGRESSE**, un rejeu
-    bâti dessus montrerait des étoiles **s'éteindre** ; dérivé de `learning_events` **append-only**,
-    le rejeu ne peut donc que monter. **Interdits** : aucune date lisible, aucune période vide
-    annoncée, **aucun autoplay**, aucune comparaison entre périodes ; `prefers-reduced-motion` →
-    état final + curseur manipulable. **Coûts assumés** : un clic pour y accéder, et une
-    **troisième surface** qui monte `GalaxyCanvas`. **Vérifié en vrai** : 0 chunk 3D avant le clic,
-    canvas monté après, curseur 0 → 11 → 22 → 37 étoiles — Accepté (2026-07-31)
+  pas seulement son état** — *nouvel ADR plutôt qu'un 3ᵉ addendum à l'`adr-0024`, qui n'y révise
+  rien* : l'ADR-0024 décide **comment la galaxie est rendue**, celui-ci ajoute une **capacité**
+  qui n'existait pas — rejouer le temps. **Constat du read-before-code : la donnée était déjà
+  calculée** — `galaxy/service.py:394` faisait déjà `min(created_at).group_by(skill_id)`, soit
+  « quand chaque notion a été allumée pour la première fois », puis **jetait le `skill_id`** pour
+  ne garder qu'un compte ; rien à calculer, seulement à cesser de jeter (`?with_skills=true`,
+  **opt-in strict** : sans le paramètre la clé est **absente** et non `null`, un test le
+  verrouille — aucune table, aucune migration, aucune requête de plus). **Décisions** : le rejeu
+  vit dans une **modale ouverte depuis « Mon ciel »**, en **DOUBLE `lazy()`** — la modale l'est,
+  et elle seule charge le canvas, également en `lazy()` — parce que le graphe d'imports
+  **statiques** de l'Accueil ne doit atteindre **ni l'une ni l'autre** : c'est ce qui garde la
+  page d'atterrissage à **zéro Three.js au premier paint**, et un import statique d'ici
+  remettrait 1,37 Mo **sans qu'aucun test ne le voie** (`accueil.bundle.test.ts` ne parcourt que
+  le statique, précisément pour mesurer le premier paint) → un test constate en plus que **la
+  modale n'est pas montée au chargement** ; **rejeu 3D EN DIRECT** (aucune image stockée : une
+  capture périmerait dès la notion suivante ; le rendu vidéo `worker-media`/MinIO est **écarté**,
+  réévaluable si un jour on veut *partager* le rejeu) ; **la frise devient la barre de lecture**,
+  tout en **restant telle quelle sur l'Accueil** (information passive qu'on ne veut pas perdre).
+  **Deux états seulement** — pas encore née, et allumée : l'état de maîtrise passé existe
+  (`skill_mastery_history`, `adr-0028`) mais il est **Papa-only** et il **RÉGRESSE**, un rejeu
+  bâti dessus montrerait des étoiles **s'éteindre** ; dérivé de `learning_events` **append-only**,
+  le rejeu ne peut donc que monter. **Interdits** : aucune date lisible, aucune période vide
+  annoncée, **aucun autoplay**, aucune comparaison entre périodes ; `prefers-reduced-motion` →
+  état final + curseur manipulable. **Coûts assumés** : un clic pour y accéder, et une
+  **troisième surface** qui monte `GalaxyCanvas`. **Vérifié en vrai** : 0 chunk 3D avant le clic,
+  canvas monté après, curseur 0 → 11 → 22 → 37 étoiles — Accepté (2026-07-31)
   - `docs/decisions/adr-0029-addendum-construction-depuis-root.md` — **Construction depuis `root` :
     une croissance, pas une lecture** — addendum à l'`adr-0029` écrit le même jour : il révise le §3
     (la frise servait de barre de lecture) et reformule le §4 (autoplay). **Diagnostic du saccadé**,
@@ -557,66 +557,66 @@
     tout ce qui est affirmé sur le rendu est mesuré dans le canvas ; `IN_FLIGHT_BUDGET`,
     `ROTATION_PERIOD` et `FLATTEN` n'ont pas vu le profileur — Accepté (2026-08-04)
 - `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` — **Témoins de nouveauté en
-    navigation** — *nouvel ADR plutôt qu'un addendum : la règle est **transverse** (elle touche
-    `adr-0007`, `0013`, `0015`, `0016`, `0017`, `0025`), elle décrit un mécanisme qui n'existait
-    pas, et elle a de vraies alternatives à documenter.* **Constat** : cinq surfaces portent déjà
-    un badge « ✨ nouveau » **en page**, aucune ne le remonte en navigation — un contenu validé par
-    Papa n'existe pour Massimo que s'il visite la page **au hasard**, ce qui vide de son sens le
-    geste de validation. **La règle, en une phrase** : *un badge de navigation compte ce qui est
-    **NOUVEAU**, jamais ce qui est **DÛ*** — nouveauté = naît d'un geste de Papa, meurt d'un
-    **regard** ; arriéré = naît d'une date franchie, ne meurt que par le **travail**, **grossit
-    quand Massimo ne vient pas** (c'est la définition d'une relance, interdite sur les deux
-    interfaces). **Corollaire non négociable — un badge exige un `seen`** : un compteur de
-    **récence** décroît par le temps et non par le regard, il allumerait une entrée fraîchement
-    visitée et s'éteindrait sans avoir été lu → **ELI5 n'a pas de badge** (son `new_count` est un
-    critère de récence à 7 jours sur `Lesson.created_at`, faute d'horodatage sur `Skill`), il reste
-    sur ses decks. **Périmètre** : Agenda (`agenda_last_seen_at`, cf. addendum `adr-0025 §12` —
-    seule entrée ayant exigé la révocation d'une interdiction écrite) · Fiches · Capsules
-    (**spécifié dès `page-capsules-ia.md`, jamais livré en navigation**) · Révision — `new_count`
-    **et surtout pas `due_count`**, à portée de main sur le même endpoint et précisément le
-    compteur interdit (`adr-0013` : une carte due depuis 5 jours est « à revoir », jamais « en
-    retard ») · Missions (`new_count` à créer : `validated` jamais démarrées). **Mindmaps différé
-    et la dette est nommée** : `POST /seen` est un **no-op en V1** (`adr-0016`), le rendre réel
-    demande une table miroir de `capsule_views` + migration — du backend étranger au chantier
-    navigation ; mindmaps reste **la seule famille de dérivés sans témoin**, écrit ici pour que
-    l'asymétrie soit datée et non oubliée. **Transport** : **un seul appel**
-    `GET /api/student/news/summary` monté une fois dans `MassimoLayout`, invalidé par
-    `NEWS_CHANGED_EVENT` (patron `CONTENT_REQUESTS_CHANGED_EVENT`, éprouvé en live) —
-    **aucun polling, aucune horloge** : un compteur qui change sans que Massimo ait rien fait
-    **est** une notification. **Forme** : le badge `DeckDisc` existant, `9+`, absent à zéro, sans
-    pulsation ; **l'or reste à ZETIS qui parle**, l'ambre aux files de validation Papa.
-    **§7 — la doctrine Papa est clarifiée, pas changée** : `page-dashboard.md` interdisait « tout
-    badge de compteur en navigation » alors que la sidebar Papa en porte un (Missions `pending`) et
-    que la pastille `/demandes` est livrée — deux objets distincts, une **file de validation**
-    (travail que Papa a demandé) n'est pas un témoin de nouveauté, et ce dernier **ne s'applique
-    pas à l'interface Papa**. **Coûts assumés** : un endpoint agrégé à étendre à chaque famille
-    future, un `new_count` missions à créer, l'asymétrie mindmaps, et une **pression durable** pour
-    brancher ces badges sur les files — c'est la version utile, et c'est la version interdite.
-    **Test-verrou** : aucun badge ne consomme `due_count` / `due_at` / `done_at` / une échéance, et
-    aucun écoulement du temps ne l'augmente. **LIVRÉ le jour même** (branche `feat/news-badges`),
-    avec quatre écarts au cadrage, tous constatés au vu du code : (1) le §Constat était **faux** —
-    la sidebar portait **déjà** deux pastilles avec un `fetch` chacune, le lot en unifie deux et en
-    ajoute quatre ; (2) **`reviews/summary.new_count` était inutilisable ET violait déjà la règle en
-    production** — il exige `due_at <= now` alors que `schedule_review` crée les cartes avec une
-    échéance **future**, si bien qu'une carte fraîchement générée entrait dans le compteur 1 à
-    7 jours plus tard **sans aucun geste** ; expression dédiée `new_cards_count`, et le badge
-    Révision s'allume désormais dès la génération (conséquence visible assumée) ; (3) « le badge
-    `DeckDisc` repris à l'identique » était ambigu — `DeckDisc` en porte **deux**, dont un compteur
-    de cartes **dues** dont il ne fallait surtout pas emprunter le dégradé ; teinte emerald +
-    plafond `9+` via `capNewsBadge`, **distinct** de `cappedCount` (15+) et un test croise les deux ;
-    (4) **mindmaps n'est plus différé** — la dette du §4 a été levée dans la foulée à la demande :
-    table `mindmap_views` (migration `d2e3f4a5b6c7`, calque de `fiche_views`, **sans compteur**),
-    `mark_seen` cesse d'être le placeholder qui répondait 204 sans rien retenir, **plus aucune
-    famille de dérivés n'est sans témoin** et le périmètre passe à **six entrées**.
-    **Corollaire produit, tranché dans la même session** : un badge est **un nombre sans date** et
-    ne peut donc pas répondre à « quand ai-je des choses à étudier » — le faire compter les items
-    **non faits** en aurait fait le compteur d'arriéré interdit. La réponse est allée sur la bonne
-    surface : le bandeau d'Accueil gagne une section **« À préparer »** alimentée par
-    `/agenda/upcoming` (livré au Lot 1, jamais remonté), **avec les dates**, plafonnée à 2 — une
-    échéance venue du collège est un fait **subi**, jamais un compte à rebours fabriqué par ZETIS
-    (`adr-0025 §1`), et c'est l'argument même qui avait autorisé le badge chiffré. Zéro backend.
-    668 tests back + 319 Massimo, E2E live vérifié (badges, retombée sans rechargement, aucun appel
-    périodique, 14 → 13 mindmaps après un regard) — Accepté (2026-08-01)
+  navigation** — *nouvel ADR plutôt qu'un addendum : la règle est **transverse** (elle touche
+  `adr-0007`, `0013`, `0015`, `0016`, `0017`, `0025`), elle décrit un mécanisme qui n'existait
+  pas, et elle a de vraies alternatives à documenter.* **Constat** : cinq surfaces portent déjà
+  un badge « ✨ nouveau » **en page**, aucune ne le remonte en navigation — un contenu validé par
+  Papa n'existe pour Massimo que s'il visite la page **au hasard**, ce qui vide de son sens le
+  geste de validation. **La règle, en une phrase** : *un badge de navigation compte ce qui est
+  **NOUVEAU**, jamais ce qui est **DÛ*** — nouveauté = naît d'un geste de Papa, meurt d'un
+  **regard** ; arriéré = naît d'une date franchie, ne meurt que par le **travail**, **grossit
+  quand Massimo ne vient pas** (c'est la définition d'une relance, interdite sur les deux
+  interfaces). **Corollaire non négociable — un badge exige un `seen`** : un compteur de
+  **récence** décroît par le temps et non par le regard, il allumerait une entrée fraîchement
+  visitée et s'éteindrait sans avoir été lu → **ELI5 n'a pas de badge** (son `new_count` est un
+  critère de récence à 7 jours sur `Lesson.created_at`, faute d'horodatage sur `Skill`), il reste
+  sur ses decks. **Périmètre** : Agenda (`agenda_last_seen_at`, cf. addendum `adr-0025 §12` —
+  seule entrée ayant exigé la révocation d'une interdiction écrite) · Fiches · Capsules
+  (**spécifié dès `page-capsules-ia.md`, jamais livré en navigation**) · Révision — `new_count`
+  **et surtout pas `due_count`**, à portée de main sur le même endpoint et précisément le
+  compteur interdit (`adr-0013` : une carte due depuis 5 jours est « à revoir », jamais « en
+  retard ») · Missions (`new_count` à créer : `validated` jamais démarrées). **Mindmaps différé
+  et la dette est nommée** : `POST /seen` est un **no-op en V1** (`adr-0016`), le rendre réel
+  demande une table miroir de `capsule_views` + migration — du backend étranger au chantier
+  navigation ; mindmaps reste **la seule famille de dérivés sans témoin**, écrit ici pour que
+  l'asymétrie soit datée et non oubliée. **Transport** : **un seul appel**
+  `GET /api/student/news/summary` monté une fois dans `MassimoLayout`, invalidé par
+  `NEWS_CHANGED_EVENT` (patron `CONTENT_REQUESTS_CHANGED_EVENT`, éprouvé en live) —
+  **aucun polling, aucune horloge** : un compteur qui change sans que Massimo ait rien fait
+  **est** une notification. **Forme** : le badge `DeckDisc` existant, `9+`, absent à zéro, sans
+  pulsation ; **l'or reste à ZETIS qui parle**, l'ambre aux files de validation Papa.
+  **§7 — la doctrine Papa est clarifiée, pas changée** : `page-dashboard.md` interdisait « tout
+  badge de compteur en navigation » alors que la sidebar Papa en porte un (Missions `pending`) et
+  que la pastille `/demandes` est livrée — deux objets distincts, une **file de validation**
+  (travail que Papa a demandé) n'est pas un témoin de nouveauté, et ce dernier **ne s'applique
+  pas à l'interface Papa**. **Coûts assumés** : un endpoint agrégé à étendre à chaque famille
+  future, un `new_count` missions à créer, l'asymétrie mindmaps, et une **pression durable** pour
+  brancher ces badges sur les files — c'est la version utile, et c'est la version interdite.
+  **Test-verrou** : aucun badge ne consomme `due_count` / `due_at` / `done_at` / une échéance, et
+  aucun écoulement du temps ne l'augmente. **LIVRÉ le jour même** (branche `feat/news-badges`),
+  avec quatre écarts au cadrage, tous constatés au vu du code : (1) le §Constat était **faux** —
+  la sidebar portait **déjà** deux pastilles avec un `fetch` chacune, le lot en unifie deux et en
+  ajoute quatre ; (2) **`reviews/summary.new_count` était inutilisable ET violait déjà la règle en
+  production** — il exige `due_at <= now` alors que `schedule_review` crée les cartes avec une
+  échéance **future**, si bien qu'une carte fraîchement générée entrait dans le compteur 1 à
+  7 jours plus tard **sans aucun geste** ; expression dédiée `new_cards_count`, et le badge
+  Révision s'allume désormais dès la génération (conséquence visible assumée) ; (3) « le badge
+  `DeckDisc` repris à l'identique » était ambigu — `DeckDisc` en porte **deux**, dont un compteur
+  de cartes **dues** dont il ne fallait surtout pas emprunter le dégradé ; teinte emerald +
+  plafond `9+` via `capNewsBadge`, **distinct** de `cappedCount` (15+) et un test croise les deux ;
+  (4) **mindmaps n'est plus différé** — la dette du §4 a été levée dans la foulée à la demande :
+  table `mindmap_views` (migration `d2e3f4a5b6c7`, calque de `fiche_views`, **sans compteur**),
+  `mark_seen` cesse d'être le placeholder qui répondait 204 sans rien retenir, **plus aucune
+  famille de dérivés n'est sans témoin** et le périmètre passe à **six entrées**.
+  **Corollaire produit, tranché dans la même session** : un badge est **un nombre sans date** et
+  ne peut donc pas répondre à « quand ai-je des choses à étudier » — le faire compter les items
+  **non faits** en aurait fait le compteur d'arriéré interdit. La réponse est allée sur la bonne
+  surface : le bandeau d'Accueil gagne une section **« À préparer »** alimentée par
+  `/agenda/upcoming` (livré au Lot 1, jamais remonté), **avec les dates**, plafonnée à 2 — une
+  échéance venue du collège est un fait **subi**, jamais un compte à rebours fabriqué par ZETIS
+  (`adr-0025 §1`), et c'est l'argument même qui avait autorisé le badge chiffré. Zéro backend.
+  668 tests back + 319 Massimo, E2E live vérifié (badges, retombée sans rechargement, aucun appel
+  périodique, 14 → 13 mindmaps après un regard) — Accepté (2026-08-01)
 - `docs/decisions/adr-0031-production-en-lot-et-journal.md` — **ADR-0031 — produire un chapitre en une fois : exécution asynchrone et journal de production** : **ABSORBE ET EXÉCUTE l'ADR-0023**, accepté le 2026-07-28 et resté **sans implémentation à aucun endroit** (vérifié : `equip_notion` toujours dans `reports/`, `plan(scope)` inexistant, aucun endpoint 202, bouton « ⚡ Compléter le chapitre » toujours désactivé, `batch_id`/`PRODUCTION_MAX_PENDING` prose seule). ⚠️ **Le prérequis manquant de TOUT le chantier d'autonomisation, listé nulle part : il n'existe AUCUNE file d'exécution IA** — `worker-ai` est un README, la seule `Queue` RQ sert worker-media, et toute la génération est **synchrone** sur un seul Ollama/GPU. « Départ au plus tard », « Massimo passe devant », lot interruptible : ces trois notions supposaient une exécution différable et préemptible qui n'existait pas. Livre : extraction de l'orchestrateur vers `production` (**refactor de déplacement, tests existants inchangés** — un test retouché invalide le refactor), **`plan(scope)` fonction PURE partagée** avec la matrice de couverture (un substrat, deux consommateurs — deux résolutions divergentes se paieraient comme le prédicat de disponibilité le 2026-07-30), **endpoint 202 + file RQ `production` + worker** (patron worker-media sandboxé, **concurrence 1** : un seul GPU, deux jobs se disputeraient la même ressource), **`production_runs`** (`trigger` sur le LOT jamais sur la pièce, **FK typées jamais polymorphes**, aucune rétro-attribution) + `production_run_id`, **`PRODUCTION_MAX_PENDING` enfin écrit** (régulateur du palier 2 SEULEMENT — le palier 3 auto-valide, le compteur resterait à zéro dans le seul régime où il serait vital), et l'activation du bouton Couverture (page **toujours en lecture seule**). ⚠️ **« Massimo passe devant » se décide ENTRE deux pièces, jamais pendant** : un appel LLM n'est pas préemptible, le grain de la préemption est la pièce — à écrire, sinon quelqu'un promettra une interruption immédiate. **Le modèle anticipe, le code n'anticipe pas** : `production_runs` naît complet, seuls `trigger='manual'` + `authorized_by='parent_direct'` sont émis. **L'OBSERVATION EST LE LIVRABLE autant que le code** — temps réel, taux de dégradation, et surtout « **15 objets d'un coup sont-ils relisables ?** » : la réponse décide du chantier suivant, et l'ADR-0023 l'a déjà tranchée — si c'est non, ce n'est ni le cron ni les déclencheurs, **c'est la file de relecture** — Proposé (2026-08-02)
   - `docs/decisions/adr-0031-addendum-deux-passes-et-gate-cours.md` — **Addendum ADR-0031 — les deux passes du §7 : le gate vit dans la SÉLECTION, pas dans l'orchestrateur** : écrit **pendant** la slice A, à partir de son read-before-code. ⚠️ **Le §7 de l'ADR-0023 — cité par l'ADR-0031 ET par le §G comme « le seul gate humain obligatoire et bloquant, et il ne bouge pas » — n'a JAMAIS été implémenté** : `equip_notion` valide le cours lui-même par **deux chemins** (un brouillon `draft` que Papa avait peut-être délibérément laissé en attente → validé ; aucun cours → généré **puis** validé, Papa ne l'a jamais vu), puis enchaîne les dérivés. **Ce n'est pas un bug** : à l'échelle d'UNE notion c'est la soupape §5ter de l'ADR-0021, « ouverte étroitement », que le §F.4 assume et trace en `parent_bulk`. **C'est l'ÉCHELLE qui la rend inacceptable** — un clic sur « ⚡ Compléter le chapitre » ferait rédiger et auto-valider **quinze cours**, le seul contenu que Massimo lit vraiment. **Décision** : `equip_notion` **ne change pas** (toucher l'orchestrateur régresserait le Conseil de classe et la composition champion, et rouvrirait l'ADR-0021 §2 que personne n'a demandé à rouvrir) ; **le gate vit dans la sélection** — la passe 2 n'équipe QUE les notions dont la leçon est déjà `validated` avec contenu, les autres sont **rendues bloquées avec leur motif**, si bien que les deux chemins d'auto-validation deviennent **inatteignables depuis un lot sans qu'une ligne de l'orchestrateur bouge**. Les deux passes explicitées : passe 1 rédige et **laisse en brouillon**, le gate est Papa via les surfaces existantes (validation par leçon ou `validate-all` → `parent_bulk`, §F.3, **rien à construire**), passe 2 équipe. **Corollaire** : `plan(scope)` livré en slice A **sans** le filtre `validated` de l'ADR-0023 §2 cesse d'être une dérogation locale — **le filtre n'est pas un détail de résolution, c'est LE GATE**, il n'a rien à faire dans un résolveur partagé avec une page de lecture. ⚠️ **Coût nommé** : un lot sur un chapitre neuf **ne produira rien** à la passe 2, tout sera bloqué en attente de validation — la surface doit le dire, sinon Papa lira un échec là où il y a un gate ; **c'est le point le plus facile à rater de la slice C**. Verrou n°1 exigé : *après un lot complet sur un chapitre entièrement en brouillon, AUCUNE leçon n'est passée `validated`* — sans lui, tout cet addendum est décoratif — Proposé (2026-08-02)
 - `docs/decisions/adr-0032-paliers-autonomie-zetis.md` — **ADR-0032 — les paliers d'autonomie de ZETIS : le panneau de réglage, et la levée du gel d'A1** : troisième document du chantier d'autonomisation, après le §G (autorité, veto) et l'ADR-0031 (exécution, journal). ⚠️ **RÉVOQUE deux décisions écrites** — le §G.2 (« A1 rédaction de cours → **2 FIGÉ** ») et la lettre de l'ADR-0023 §7 (« le gate humain ne bouge pas ») : décision du **commanditaire**, prise au vu de l'observation du 2026-08-02, **bornée, outillée et désarmée par défaut**. **L'observation change le cahier des charges** : sur 33 objets produits, **2 seulement** arrivent en relecture — le panneau ne sert pas d'abord à faire **monter** Papa d'un palier, mais à lui **montrer où il est déjà** (il est au palier 3 pour les dérivés sans l'avoir choisi). **Six clés PLATES dans `app_settings`** (table existante → **aucune migration**), une par classe du §G.2 ; ⚠️ les seules routes de settings sont namespacées `/api/agenda/settings` → **routeur neutre à créer**. **Trois préréglages *Manuel · Semi-autonome · Autonome* = un RACCOURCI D'ÉCRITURE, JAMAIS un état stocké** — l'étiquette se **dérive** des six valeurs et affiche « Sur mesure » sinon ; un mode stocké *plus* six clés donnerait **deux réponses à une seule question**, le mal que le §G.1 a évité en refusant une colonne `authority`. **A2 et A4 ne bougent dans aucun préréglage** (lisibles, non écrivables, refus serveur). **Levée d'A1 sous trois bornes** : désarmée par défaut (2 préréglages sur 3 la laissent à 2), ⚠️ **la provenance suit `authorized_by`, PAS le palier** (corrigé au read-before-code : le §G.1 définit `parent_rule` par l'**absence de clic**, or un lot lancé depuis la Couverture EST un clic — à A1=3 la provenance juste reste `parent_bulk` ; **`parent_rule` demeure légale et NON ÉMISE**), et **le palier 3 n'existe pas sans veto branché**. Le contre-motif est **maintenu au dossier** : le cours est le seul contenu vraiment lu et, depuis l'observation, **le dernier gate humain** — le porter à 3 ne fait pas monter d'un palier, **ça retire le dernier**. **Le palier se branche dans la SÉLECTION** (`runner.select_notions`), jamais dans l'orchestrateur — ce que l'addendum ADR-0031 avait préservé sans le savoir ; **l'autorité devient un PARAMÈTRE** (`equip_notion(..., authority=)`), car un service qui lirait les réglages lui-même deviendrait inappelable par le Conseil de classe et le champion, dont l'autorité reste `parent_bulk` **quel que soit le palier**. ⚠️ **DÉFAUT BLOQUANT trouvé au read-before-code** : `equip_notion` auto-valide le cours via `set_lesson_validation`, qui tamponne **`parent`** — « relu pièce à pièce par Papa » — **sur un cours que personne n'a ouvert** (violation directe du §F.3, invisible du verrou existant qui ne vérifie que la NON-NULLITÉ de la provenance) ; **13 leçons** en base mêlent déjà vraies validations de Papa et auto-validations, **plus séparables** ; réparé ici (**aucune rétro-attribution**, §F.4) car tout le dispositif de paliers repose sur `validated_by` disant vrai. **Le veto obtient enfin une surface** — sur le **Journal** (flux daté + geste par pièce) et non la Couverture (matrice d'état) que le §G suggérait, question que l'ADR-0031 devait trancher et n'a pas tranchée ; ⚠️ ce « Retirer » **n'ouvre pas A4** (A4 dit que *ZETIS* ne supprime jamais seul ; ici c'est *Papa*). **Le régulateur du palier 3 est DIFFÉRÉ avec sa condition d'ouverture nommée** : tant que tout lot part d'un clic, **le geste EST le régulateur** — le jour où un déclencheur non humain existe (`agenda`, `evidence`, `derived`, cron), un plafond de volume par fenêtre devient obligatoire, et ce jour-là c'est un ADR. **Jamais** : compteur d'arriéré, ratio ZETIS/Papa (§F.2), surface Massimo (V1), A4 réglable. Nuancier : 4ᵉ teinte **avec** la correction du `null` confondu avec `parent_bulk` (dette §G constat 5). ⚠️ Coûts : le dernier gate humain devient optionnel ; le veto reste **partiellement** un droit sans notification ; 13 leçons restent mal tamponnées. **Observation attendue** : une **descente** de préréglage dans le premier mois vaudrait plus qu'une montée — elle dirait que le veto n'a pas suffi — Proposé (2026-08-02)
