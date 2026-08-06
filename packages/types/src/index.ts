@@ -243,6 +243,7 @@ export {
   type JournalEvent,
   type JournalPiece,
   type JournalRun,
+  type JournalTravail,
   type JournalRunStatus,
   type OrphanType,
   type PieceKind,
@@ -255,6 +256,8 @@ export {
   type ValidatedBy,
   type VetoPreview,
   type VetoRemoval,
+  type ActivityItem,
+  type ProductionActivity,
 } from "./production";
 export {
   type Autonomy,

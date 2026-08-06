@@ -157,13 +157,25 @@ Service : **`apps/backend`, lancé à part** — `python -m app.production_worke
 
 Contrairement aux deux workers ci-dessous, il **partage le code du backend** (même paquet, même
 runtime) : les jobs y sont enfilés **par fonction**, pas par nom de tâche — il n'y a aucun import
-croisé à éviter. File **dédiée** `production` (ADR-0031 §3), concurrence 1 : un rendu vidéo bloqué
-ne doit pas retarder une production, et l'inverse.
+croisé à éviter. **DEUX files** depuis l'ADR-0041 §5 — `production` et `production-priority`,
+servies dans cet ordre — concurrence 1 : un rendu vidéo bloqué ne doit pas retarder une production,
+et l'inverse. ⚠️ La priorité se **dérive** de l'origine, aucune colonne ne la stocke.
 
 Responsabilités :
 
 - exécuter les lots de production (`run_production`) — équipement d'un chapitre ou d'une pièce ;
-- porter le **réveil périodique** du déclencheur automatique (`scan_triggers`, ADR-0035).
+- 🔴 **exécuter les TRAVAUX UNITAIRES** (`run_ai_job`) — quinze producteurs LLM longs y sont passés
+  avec l'ADR-0041 §4 : les cinq générateurs, `curriculum_*`, les capsules (script et voix), le
+  diagnostic, l'équipement d'une notion. **Ils étaient synchrones dans la requête HTTP** ; ils
+  rendent maintenant `202` et attendent leur tour. La concurrence 1 cesse d'être une règle que
+  seul le worker respectait pour devenir une propriété du système ;
+- porter le **réveil périodique** du déclencheur automatique (`scan_triggers`, ADR-0035) — qui
+  **balaie** aussi les travaux morts (ADR-0041 §10.3).
+
+⚠️ **Un `SimpleWorker` RQ charge le code AU DÉMARRAGE et ne le recharge jamais.** Après toute
+modification de la table des exécutants (`production/jobs.py`), il faut redémarrer **tous** les
+workers : un worker périmé répond « Aucun exécutant pour … », ce qui se lit comme un bug du code
+alors que c'en est l'inverse (constaté le 2026-08-06).
 
 **Le backend n'exécute JAMAIS un lot.** Il l'accepte en `202` et l'enfile ; la page suit son état.
 Sans ce processus, ZETIS accepte tout et ne produit rien — silencieusement. `GET

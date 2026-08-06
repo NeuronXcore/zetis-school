@@ -8,7 +8,7 @@ l'invariant de l'ADR-0023 par simple voisinage de fichier.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.queue import enqueue_production, production_worker_alive
+from app.core.queue import MESSAGE_FILE_INJOIGNABLE, QueueUnavailable, production_worker_alive
 from app.db.base import get_db
 from app.modules.auth.deps import require_parent
 from app.modules.production import runs
@@ -28,9 +28,15 @@ def create(chapter_id: int, db: Session = Depends(get_db)) -> dict:
     """202 : le lot est ACCEPTÉ, pas exécuté. Le worker le prendra ; la page suit son état.
 
     409 si l'arriéré de relecture déborde — le régulateur refuse et le dit (ADR-0031 §5).
+    503 si la file est injoignable : **aucun lot n'est laissé en base** (ADR-0041 §10.1).
     """
     run = runs.create_run(db, chapter_id=chapter_id)
-    enqueue_production(run.id)
+    try:
+        runs.enqueue_or_cancel(db, run)
+    except QueueUnavailable as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, detail=MESSAGE_FILE_INJOIGNABLE
+        ) from exc
     return runs.run_out(db, run)
 
 
@@ -69,7 +75,12 @@ def create_from_request(request_id: int, db: Session = Depends(get_db)) -> dict:
             ),
         )
     run = runs.create_run(db, scope_skill_id=req.skill_id, scope_kind=piece)
-    enqueue_production(run.id)
+    try:
+        runs.enqueue_or_cancel(db, run)
+    except QueueUnavailable as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, detail=MESSAGE_FILE_INJOIGNABLE
+        ) from exc
     return runs.run_out(db, run)
 
 

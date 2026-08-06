@@ -3,14 +3,19 @@ import { Link } from "react-router-dom";
 import { ConfirmDialog } from "@zetis/ui";
 import type { AnalysisNotion, ConsolidatedSkill, ProgressionSubject } from "@zetis/types";
 import { useSubjectAnalysis } from "../../hooks/useSubjectAnalysis";
-import { createMissionsFromReco, equipNotion } from "../../lib/councilClass";
+import { createMissionsFromReco, equipNotion, type EtatTravail } from "../../lib/councilClass";
 import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
 
-// Durées d'attente estimées. ⚠️ Ce ne sont PAS des mesures : le serveur ne rend aucune
-// progression, la barre est une ESTIMATION honnête (convention Papa — jamais de spinner nu, jamais
-// de barre réinventée). `EQUIP_MS` reprend la valeur du Conseil de classe, qui lance exactement le
-// même équipement : deux estimations différentes pour le même travail se contrediraient à l'écran.
-const EQUIP_MS = 90_000; // jusqu'à 5 générations LLM locales (cours, fiche, cartes, quiz, mindmap)
+// 🔴 **`EQUIP_MS` est SUPPRIMÉE ici** (ADR-0041 §9). Le commentaire qu'elle portait avait vu juste
+// — « deux estimations différentes pour le même travail se contrediraient à l'écran » — et sa
+// parade était de RECOPIER la valeur du Conseil. Une valeur copiée diverge au premier correctif,
+// et c'est arrivé : le 2026-08-06, un équipement de 11 ms a fait dérouler dix secondes de pipeline
+// à la page du Conseil pendant que l'en-tête, qui MESURE, disait juste. L'équipement lit désormais
+// l'état du SERVEUR, comme l'en-tête.
+//
+// ⚠️ `MISSION_MS` RESTE, et ce n'est pas un oubli : la composition d'une mission est du pur-DB
+// sans LLM, que l'ADR-0041 §4 exclut explicitement de la file. Le verrou du §9 ne porte que sur
+// les travaux MIGRÉS.
 const MISSION_MS = 8_000; // composition pur-DB, sans LLM
 
 // Le dépliage d'une ligne de Progression (addendum ADR-0038).
@@ -69,6 +74,8 @@ export function SubjectDetailRow({
   // ⚠️ On garde l'ACTION en cours, pas seulement son `skillId` : sans son `kind`, impossible de
   // dire à l'écran ce que ZETIS est en train de faire ni combien de temps ça prend.
   const [running, setRunning] = useState<Action | null>(null);
+  // L'état SERVEUR du travail en cours — la barre le rend au lieu de le deviner.
+  const [etat, setEtat] = useState<EtatTravail | null>(null);
   const busy = running?.skillId ?? null;
   const [result, setResult] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -86,7 +93,7 @@ export function SubjectDetailRow({
             : `Mission créée sur « ${action.skillName} », en attente de ta validation.`,
         );
       } else {
-        const kit = await equipNotion(action.skillId);
+        const kit = await equipNotion(action.skillId, setEtat);
         const rates = kit.errors?.length ?? 0;
         setResult(
           rates === 0
@@ -98,6 +105,7 @@ export function SubjectDetailRow({
       setFailure(e instanceof Error ? e.message : "L'action a échoué.");
     } finally {
       setRunning(null);
+      setEtat(null);
     }
   };
 
@@ -146,7 +154,7 @@ export function SubjectDetailRow({
           une barre réinventée.
           ⚠️ La barre est une ESTIMATION, pas une mesure : le serveur ne rend aucune progression.
           Elle dit « c'est parti et voilà l'ordre de grandeur », elle ne prétend pas compter. */}
-      {running && <ActionEnCours action={running} />}
+      {running && <ActionEnCours action={running} etat={etat} />}
 
       {(result || failure) && (
         <p
@@ -433,9 +441,17 @@ export function SubjectDetailRow({
 }
 
 /** Ce que ZETIS est en train de faire, et l'ordre de grandeur de l'attente. */
-function ActionEnCours({ action }: { action: Action }) {
+function ActionEnCours({ action, etat }: { action: Action; etat: EtatTravail | null }) {
   const equipe = action.kind === "equip";
-  const pct = useEstimatedProgress(true, equipe ? EQUIP_MS : MISSION_MS);
+  // ⚠️ Deux régimes, et ils ne se confondent pas. L'ÉQUIPEMENT passe par la file : son avancement
+  // suit le serveur (`active` faux tant qu'il attend son tour — une barre qui monte sur un travail
+  // en file mentirait). La COMPOSITION d'une mission est synchrone et pur-DB : elle garde son
+  // estimation locale, parce qu'elle n'est pas un travail migré.
+  const pct = useEstimatedProgress(
+    equipe ? etat?.status === "running" && (etat?.estimatedMs ?? 0) > 0 : true,
+    equipe ? (etat?.estimatedMs ?? 0) : MISSION_MS,
+    equipe ? etat?.startedAtMs ?? null : null,
+  );
   return (
     <ProgressBar
       pct={pct}

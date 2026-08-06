@@ -138,6 +138,13 @@ class ProductionRunOut(BaseModel):
     #: chaque montage de composant (constaté le 2026-08-05).
     started_at: datetime | None = None
     finished_at: datetime | None
+    #: 🔴 Durée attendue, **MESURÉE** par le serveur (ADR-0041 §9) — médiane des exécutions
+    #: réussies du type de travail que ce lot exécute, × son nombre de notions.
+    #:
+    #: Ajouté le 2026-08-06 pour réparer une régression que la slice C venait d'introduire : les
+    #: composants ont cessé d'estimer en dur, or cette vue ne portait pas de quoi estimer — un
+    #: lot-PIÈCE retrouvé au retour sur la page perdait sa barre.
+    estimated_ms: int = 0
 
 
 class ActiveProductionRunOut(ProductionRunOut):
@@ -273,11 +280,43 @@ class JournalRunOut(BaseModel):
     pieces: list[JournalPieceOut] = []
 
 
+class JournalTravailOut(BaseModel):
+    """Un TRAVAIL unitaire au Journal (addendum ADR-0041 §17) — ce qu'il sait, et rien de plus.
+
+    ⚠️ **Pas de `zetis_mode`, pas de `pieces`, pas d'`events`, et donc pas de veto.** Ce n'est pas
+    un oubli : un `AIJob` ne grave aucun régime d'autonomie et ne tamponne aucune pièce. Lui donner
+    ces champs à `null` inviterait l'écran à afficher des cases vides là où il n'y a **rien à
+    savoir** — et à proposer un retrait qui ne pourrait rien retirer.
+    """
+
+    id: int
+    job_type: str
+    #: Le mot que Papa lit (« Cartes de révision · Mitose »), pas le `job_type`.
+    label: str
+    #: `queued|running|stale|succeeded|failed`. ⚠️ `stale` est une LECTURE dérivée, jamais stockée.
+    status: str
+    #: L'ORIGINE, pas le régime : hors lot ⇒ `manual` par construction (§3.2).
+    trigger: str
+    skill_id: int | None = None
+    skill_name: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_ms: int | None = None
+    #: Le motif d'échec, **tel quel** — décision du 2026-08-06, il ne se traduit pas.
+    error: str | None = None
+
+
 class JournalOut(BaseModel):
     """⚠️ Aucun total de provenance, aucun ratio ZETIS/Papa (§F.2) : la provenance est un fait,
     jamais un reproche — elle s'affiche par objet et ne se totalise pas."""
 
     runs: list[JournalRunOut] = []
+    #: Les travaux unitaires de LA MÊME page (addendum §16), à entrelacer par date côté écran.
+    travaux: list[JournalTravailOut] = []
+    #: Pourquoi les travaux sont absents, quand un filtre les écarte (§18) — `None` sinon.
+    #: ⚠️ À afficher : une exclusion muette se lit comme un vide.
+    travaux_exclus: str | None = None
     has_more: bool = False
     # Le compte des lots RETENUS par le filtre — un compteur de pagination, pas un compteur de
     # provenance : le §F.2 vise les totaux « ZETIS vs Papa », qui jugeraient. Celui-ci dit
@@ -296,3 +335,4 @@ class VetoPreviewOut(BaseModel):
 
 class VetoRemovalOut(BaseModel):
     removed: dict[str, int] = {}
+

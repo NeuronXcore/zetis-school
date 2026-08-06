@@ -6,8 +6,8 @@ import { useActiveProductionRun } from "../hooks/useActiveProductionRun";
 import { useAutonomyState } from "../hooks/useAutonomyState";
 import { ActiveProductionModal } from "../components/ActiveProductionModal";
 import { ProductionDoneModal } from "../components/ProductionDoneModal";
-import { useRunProgress } from "../hooks/useRunProgress";
-import { SCOPE_NOUN } from "../lib/production";
+import { useProductionActivity } from "../hooks/useProductionActivity";
+import { ProductionBar, ProductionEdge } from "../components/ProductionBar";
 
 // Layout commun de l'interface Papa : sidebar + header + zone analytique
 // (cf. docs/frontend-papa/README.md § Layout).
@@ -15,21 +15,20 @@ export function PapaLayout() {
   const { user, logout } = useAuth();
   // « ZETIS travaille » : le lot tourne dans un worker séparé, Papa peut fermer la modale et
   // naviguer. Sans cet indicateur, plus rien ne le lui disait.
-  const { run: activeRun, finished, acknowledge } = useActiveProductionRun();
+  // ⚠️ Seule l'ANNONCE DE FIN reste ici : `useActiveProductionRun` est le seul à savoir la
+  // faire (relecture par id mémorisé, une seule fois). Le lot lui-même est désormais lu par
+  // `useProductionActivity`, avec tout le reste de ce que ZETIS fabrique.
+  const { finished, acknowledge } = useActiveProductionRun();
   // L'état d'autonomie se lit ICI et non dans la sidebar (motif ADR-0030) : le layout ne se
   // démonte pas entre deux routes, donc un seul appel pour les 22 pages. Une lecture dans la
   // sidebar en referait un par entrée — le mal que l'ADR-0030 a supprimé côté Massimo.
   const autonomy = useAutonomyState();
   const [showRun, setShowRun] = useState(false);
 
-  // ⚠️ **La lecture d'un lot vit dans `useRunProgress`, jamais ici.** Ce bloc calculait son propre
-  // pourcentage et ignorait la règle que `ProductionProgress` portait déjà : un lot `queued` ne
-  // s'estime pas. Un lot resté en file — worker éteint — montait donc à 95 % et y restait pour
-  // toujours, constaté à l'écran le 2026-08-04.
-  // ⚠️ `arrete` n'est PAS une variante d'attente : c'est le seul état qui appelle un geste. Le
-  // 2026-08-05, l'en-tête a annoncé « en file d'attente » pendant six heures sur une file que
-  // personne ne consommait — littéralement vrai, et lu comme « patiente ».
-  const { pct, enFile, libelle, arrete } = useRunProgress(activeRun);
+  // L'activité COMPLÈTE (ADR-0041) — lots ET travaux unitaires, tous déclencheurs confondus.
+  // L'indicateur d'origine ne voyait que les lots : les ~20 producteurs synchrones travaillaient
+  // sans que rien ne le dise, et la barre d'équipement n'a jamais été vue tourner une seule fois.
+  const { activity, acknowledge: ackEchec } = useProductionActivity();
   return (
     // `overflow-hidden` n'est pas cosmétique : sans lui, la sidebar (22 entrées, ~1100 px) déborde
     // du conteneur en `h-full`, le DOCUMENT grandit à sa taille, et c'est le body qui scrolle —
@@ -66,7 +65,7 @@ export function PapaLayout() {
           <div className="relative flex h-full items-center justify-between px-6">
             {/* Les deux blocs de contenu reçoivent leur propre fond translucide : sur un header
                 à fond image, un texte nu devient illisible dès que l'onde passe dessous. */}
-            <div className="flex items-center gap-3 rounded-xl border border-papa-border/60 bg-papa-surface/70 px-3 py-2 text-sm backdrop-blur-sm">
+            <div className="flex shrink-0 items-center gap-3 whitespace-nowrap rounded-xl border border-papa-border/60 bg-papa-surface/70 px-3 py-2 text-sm backdrop-blur-sm">
               {/* La signature de l'interface. Elle a quitté la sidebar le 2026-08-04 : les deux
                   frontends doivent rester discernables (`docs/frontend-papa/README.md`), mais la
                   sidebar est la colonne rare, et ce header — devenu fixe le même jour — ne coûte
@@ -75,52 +74,30 @@ export function PapaLayout() {
               <span className="font-bold">
                 ZETIS <span className="text-papa-accent">Papa</span>
               </span>
-              <span className="h-4 w-px bg-papa-border" role="presentation" />
-              <span className="rounded-md bg-papa-surface-2 px-2.5 py-1 font-medium text-papa-text">
+              <span className="hidden h-4 w-px bg-papa-border md:block" role="presentation" />
+              {/* ⚠️ Le contexte CÈDE avant la production (corrigé à l'écran le 2026-08-06). Sans ça, cette
+                  pilule passait à DEUX LIGNES et la barre tombait à 30 px — elle était le seul bloc
+                  à céder, donc elle cédait tout. La signature « ZETIS Papa », elle, ne part jamais :
+                  c'est elle qui distingue les deux frontends. */}
+              <span className="hidden rounded-md bg-papa-surface-2 px-2.5 py-1 font-medium text-papa-text md:inline-block">
                 Enfant : Massimo
               </span>
-              <span className="text-papa-muted">Période : 2026 — 4ᵉ</span>
-              {activeRun && (
-                // Un PROCESSUS, jamais un stock : « ça travaille », pas « vous êtes en retard ».
-                <button
-                  type="button"
-                  onClick={() => setShowRun(true)}
-                  title={
-                    arrete
-                      ? "Aucun moteur de production ne tourne — le lot ne démarrera pas tout seul"
-                      : "Production en cours — voir le détail"
-                  }
-                  className={
-                    arrete
-                      ? "inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/20"
-                      : "inline-flex items-center gap-1.5 rounded-full border border-papa-accent/40 bg-papa-accent/10 px-2.5 py-1 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/20"
-                  }
-                >
-                  {/* ⚠️ Le point ne PULSE que si quelque chose bouge. Un point qui clignote sur une
-                      file arrêtée est une animation qui ment — c'est elle qu'on regarde avant de
-                      lire le texte. */}
-                  <span
-                    className={
-                      arrete
-                        ? "h-1.5 w-1.5 rounded-full bg-amber-300"
-                        : "h-1.5 w-1.5 animate-pulse rounded-full bg-papa-accent"
-                    }
-                    aria-hidden
-                  />
-                  {/* ⚠️ Le VERBE aussi suit l'état : « ZETIS produit … en file d'attente » se
-                      contredit tout seul. Tant que le lot n'a pas démarré, ZETIS ne produit rien
-                      — il va le faire. Et s'il n'a personne pour le faire, il ne le fera pas. */}
-                  {arrete ? "ZETIS ne produit pas" : enFile ? "ZETIS va produire" : "ZETIS produit"}{" "}
-                  {activeRun.scope_kind
-                    ? SCOPE_NOUN[activeRun.scope_kind] ?? "un contenu"
-                    : "un chapitre"} · {libelle ?? `${pct}%`}
-                </button>
-              )}
+              <span className="hidden text-papa-muted lg:inline">Période : 2026 — 4ᵉ</span>
             </div>
-            <div className="flex items-center gap-2 rounded-xl border border-papa-border/60 bg-papa-surface/70 px-2 py-2 backdrop-blur-sm">
+            {/* La barre de production (ADR-0041) — au CENTRE, entre l'identité et les actions.
+                Elle remplace la pastille qui vivait dans la pilule de gauche : celle-ci ne voyait
+                que les LOTS, donc rien des ~20 producteurs synchrones. Toute sa doctrine
+                d'affichage est conservée (jamais 0 %, « en file » ≠ « arrêté », estimation ancrée
+                sur le `started_at` serveur) — c'est ce qu'elle REGARDE qui change. */}
+            <ProductionBar
+              activity={activity}
+              onOpen={() => setShowRun(true)}
+              onAcknowledge={ackEchec}
+            />
+            <div className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-papa-border/60 bg-papa-surface/70 px-2 py-2 backdrop-blur-sm">
               <button
                 type="button"
-                className="rounded-lg border border-papa-border px-3 py-1.5 text-sm font-medium text-papa-muted hover:text-papa-text"
+                className="hidden rounded-lg border border-papa-border px-3 py-1.5 text-sm font-medium text-papa-muted hover:text-papa-text lg:block"
               >
                 Exporter
               </button>
@@ -135,9 +112,17 @@ export function PapaLayout() {
               )}
             </div>
           </div>
+          {/* Le repli ultime : sous `sm`, la pilule perd son libellé — ce liseré, lui, reste.
+              Il garantit qu'une production ne devient jamais invisible, quelle que soit la
+              largeur. Jamais cliquable : c'est un signal, pas une commande. */}
+          <ProductionEdge activity={activity} />
         </header>
-        {activeRun && showRun && (
-          <ActiveProductionModal run={activeRun} onClose={() => setShowRun(false)} />
+        {showRun && (
+          <ActiveProductionModal
+            activity={activity}
+            onClose={() => setShowRun(false)}
+            onAcknowledge={ackEchec}
+          />
         )}
         {/* Annonce de fin — s'efface seule, ne laisse aucune trace à traiter. */}
         {finished && <ProductionDoneModal run={finished} onClose={acknowledge} />}

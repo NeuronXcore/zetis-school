@@ -16,8 +16,10 @@ import {
   type ProductionOrphan,
   type ProductionPreview,
   type ProductionRun,
+  type ProductionActivity,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
+import { signalerEnfilement } from "./productionSignal";
 import { asJson, authHeader } from "./httpClient";
 import { generateFiche, regenerateFiche } from "./fiches";
 import { generateMindmap, regenerateMindmap } from "./mindmaps";
@@ -37,13 +39,11 @@ export async function fetchOrphans(): Promise<ProductionOrphan[]> {
   return asJson(await fetch(`${API}/orphans`, { headers: authHeader() }));
 }
 
-/** Durées estimées des générations locales, par type — alimentent la barre de progression. */
-export const GENERATION_MS: Record<CoverageCellKey, number> = {
-  cours: 45000,
-  quiz: 30000,
-  fiche: 32000,
-  mindmap: 30000,
-};
+// ⚠️ **`GENERATION_MS` a été SUPPRIMÉE ici** (ADR-0041 §9, 2026-08-06), avec `SCOPE_MS`,
+// `KIT_MS_PER_NOTION` et `WORK_ESTIMATION_MS`. Les durées ne vivent plus dans le frontend : le
+// serveur les MESURE (`GET /api/production/estimations`, `estimated_ms` sur chaque travail), parce
+// qu'il a l'historique de ce que chaque travail a réellement duré et que l'écran ne l'a pas.
+// Ne pas en réintroduire une : le test-cliquet `estimation-unique.test.ts` rougit.
 
 export const GENERATION_LABEL: Record<CoverageCellKey, string> = {
   cours: "Rédaction du cours…",
@@ -110,12 +110,16 @@ export async function previewChapterProduction(chapterId: number): Promise<Produ
 
 /** Lance un lot : 202, le worker le prendra. Lève sur 409 (arriéré de relecture au plafond). */
 export async function startChapterProduction(chapterId: number): Promise<ProductionRun> {
-  return asJson(
+  const run = await asJson<ProductionRun>(
     await fetch(`${API}/runs?chapter_id=${chapterId}`, {
       method: "POST",
       headers: authHeader(),
     }),
   );
+  // ⚠️ APRÈS le succès, jamais avant : `asJson` lève sur un 409 (arriéré au plafond), et réveiller
+  // la barre pour un lot qui n'a pas été créé lui ferait chercher un travail inexistant.
+  signalerEnfilement();
+  return run;
 }
 
 // --- Lots-PIÈCE : ce qu'on affiche pendant qu'ils tournent (ADR-0036 §2) ------------------------
@@ -124,20 +128,6 @@ export async function startChapterProduction(chapterId: number): Promise<Product
 // demande (`card`). C'est délibéré : le lot porte déjà son `scope_kind`, donc aucune surface n'a
 // besoin de traduire `card → srs` côté client. La traduction vit UNE fois, côté serveur
 // (`REQUEST_KIND_TO_PIECE`), et la recopier ici l'aurait dédoublée pour rien.
-
-/** Durée attendue d'un lot-pièce. Adaptateur sur `GENERATION_MS` pour les quatre types que la
- *  Couverture produit déjà — recopier leurs valeurs les ferait diverger au premier réglage.
- *
- *  Mesures réelles du 2026-08-03 (Postgres + Ollama) : une **fiche en 15 s**, une **carte mentale
- *  en 17 s** — deux fois moins que l'estimation. La courbe étant asymptotique, sur-estimer fait
- *  terminer la barre en avance ; elle ne traîne jamais après la fin. */
-export const SCOPE_MS: Record<string, number> = {
-  cours: GENERATION_MS.cours,
-  fiche: GENERATION_MS.fiche,
-  mindmap: GENERATION_MS.mindmap,
-  quiz: GENERATION_MS.quiz,
-  srs: 35000,
-};
 
 /** Ce que ZETIS est en train de faire. */
 export const SCOPE_LABEL: Record<string, string> = {
@@ -168,26 +158,20 @@ export const SCOPE_NOUN: Record<string, string> = {
  *
  *  202 : le lot est accepté, pas exécuté. L'indicateur d'en-tête suit la suite. */
 export async function produceForRequest(requestId: number): Promise<ProductionRun> {
-  return asJson(
+  const run = await asJson<ProductionRun>(
     await fetch(`${API}/runs/from-request?request_id=${requestId}`, {
       method: "POST",
       headers: authHeader(),
     }),
   );
+  signalerEnfilement();
+  return run;
 }
 
 /** État d'un lot — pour le suivi pendant l'exécution. */
 export async function fetchProductionRun(runId: number): Promise<ProductionRun> {
   return asJson(await fetch(`${API}/runs/${runId}`, { headers: authHeader() }));
 }
-
-/** Durée d'un kit complet par notion, **mesurée** le 2026-08-02 sur le chapitre « Fractions » :
- *  11 notions en 12 min 35 s, soit 69 s. La valeur estimée d'origine (150 s) mentait d'un facteur
- *  2 — la barre traînait à mi-course alors que le lot était fini.
- *
- *  ⚠️ Ne sert plus qu'à l'aperçu AVANT lancement (aucun run, donc aucun avancement réel). Dès
- *  qu'un run existe, c'est `progress_pct` du serveur qui fait foi. */
-export const KIT_MS_PER_NOTION = 69000;
 
 /** Le lot en cours, ou `null`. Alimente l'indicateur d'en-tête.
  *
@@ -197,4 +181,20 @@ export const KIT_MS_PER_NOTION = 69000;
  *  « ça travaille », pas « vous êtes en retard ». */
 export async function fetchActiveProductionRun(): Promise<ActiveProductionRun | null> {
   return asJson(await fetch(`${API}/runs/active`, { headers: authHeader() }));
+}
+
+// --- L'activité (ADR-0041) : la source UNIQUE de toutes les barres ------------------------------
+
+/** Tout ce que ZETIS fabrique en ce moment — lots ET travaux unitaires, tous déclencheurs. */
+export async function fetchProductionActivity(): Promise<ProductionActivity> {
+  return asJson(await fetch(`${API}/activity`, { headers: authHeader() }));
+}
+
+/** « J'ai vu. » Un échec reste affiché jusqu'ici — serveur, donc il ne revient sur aucun appareil. */
+export async function acknowledgeActivity(kind: "run" | "job", id: number): Promise<void> {
+  const r = await fetch(`${API}/activity/${kind}/${id}/ack`, {
+    method: "POST",
+    headers: authHeader(),
+  });
+  if (!r.ok) throw new Error("Acquittement impossible");
 }

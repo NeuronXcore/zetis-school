@@ -58,15 +58,89 @@ def file_rq_factice(monkeypatch) -> FakeQueue:
     # ⚠️ Les fabriques sont `lru_cache`ées : un cache peuplé avant le patch rendrait la VRAIE file
     # malgré lui. On garde les fonctions D'ORIGINE pour pouvoir vider ce cache **après** — au
     # démontage, `queue_mod._redis` est encore le leurre, qui n'a pas de `cache_clear`.
-    originales = (queue_mod._redis, queue_mod.production_queue, queue_mod.render_queue)
+    # ⚠️ `priority_queue` est dans la liste depuis l'ADR-0041 §5, et son oubli aurait rouvert la
+    # fuite EXACTEMENT là où elle avait déjà eu lieu : un clic de Papa passe désormais par la file
+    # prioritaire, donc c'est le chemin le PLUS testé qui serait parti dans le vrai Redis.
+    originales = (
+        queue_mod._redis,
+        queue_mod.production_queue,
+        queue_mod.priority_queue,
+        queue_mod.render_queue,
+    )
     for fabrique in originales:
         fabrique.cache_clear()
     monkeypatch.setattr(queue_mod, "_redis", _redis_interdit)
     monkeypatch.setattr(queue_mod, "production_queue", lambda: file)
+    monkeypatch.setattr(queue_mod, "priority_queue", lambda: file)
     monkeypatch.setattr(queue_mod, "render_queue", lambda: file)
     yield file
     for fabrique in originales:
         fabrique.cache_clear()
+
+
+@pytest.fixture()
+def executer_travail(monkeypatch):
+    """Joue un travail unitaire **comme le worker le jouerait** (ADR-0041 slice C).
+
+    ## Pourquoi ce fixture existe
+
+    Quinze routes ne produisent plus rien elles-mêmes : elles rendent `202` et enfilent. Or les
+    files sont factices ici (`file_rq_factice`, `autouse`) — un `202` en test ne produit donc
+    **rien du tout**. Les assertions « la fiche existe, le quiz a N questions » deviendraient
+    invérifiables, et la tentation serait de les relâcher : c'est exactement la régression masquée
+    que le WORKFLOW interdit.
+
+    ⚠️ **Il n'imite pas le worker, il appelle le VRAI `run_ai_job`** — donc la transition
+    `queued → running → succeeded`, la table des exécutants et le rejeu typé sont sur le chemin
+    testé. Un exécutant mal branché tombe ici, pas en production.
+
+    ⚠️ Les providers sont remplacés parce que `run_ai_job` **ne passe par aucune dépendance
+    FastAPI** : il ouvre sa propre session et construit ses propres providers. Les surcharges de
+    `client_db` ne l'atteignent pas.
+
+    Usage : `sortie = executer_travail(Session, resp.json()["job_id"])`.
+    """
+
+    def _executer(session_factory, job_id: int) -> dict:
+        import app.db.base as base
+        import app.modules.ai as ai
+        import app.modules.curriculum as curriculum
+        import app.modules.tts as tts
+        from app.modules.production.jobs import run_ai_job
+
+        monkeypatch.setattr(base, "SessionLocal", session_factory)
+        monkeypatch.setattr(ai, "get_provider", lambda: FakeLLMProvider())
+        monkeypatch.setattr(ai, "get_embedder", lambda: FakeEmbeddingProvider())
+        # ⚠️ **Le provider `curriculum_*` est mocké À PART**, comme `client_db` le fait pour la
+        # requête HTTP : c'est la dérogation cloud de l'ADR-0009, et un test ne doit appeler
+        # Anthropic sous aucun prétexte. Son exécutant le construit lui-même (le worker n'a aucune
+        # dépendance FastAPI) — l'oublier ferait partir un vrai appel réseau depuis la suite.
+        monkeypatch.setattr(curriculum, "get_curriculum_provider", lambda: FakeLLMProvider())
+        # Idem pour Piper : `capsule_voice` est le seul travail migré qui n'appelle pas le LLM.
+        monkeypatch.setattr(tts, "get_tts", lambda: FakeTtsProvider())
+        return run_ai_job(job_id)
+
+    return _executer
+
+
+@pytest.fixture()
+def poster_et_executer(executer_travail):
+    """`POST` sur une route migrée, **puis** exécution du travail. Rend sa SORTIE.
+
+    Le geste que douze tests répètent depuis que les routes rendent `202` : sans l'exécution, un
+    `202` en test ne produit rien (les files sont factices), et les assertions sur ce qui a été
+    produit deviendraient invérifiables.
+
+    ⚠️ Il **affirme le 202** : une route qui repasserait en synchrone sans qu'on s'en aperçoive
+    ferait rougir ici, pas ailleurs.
+    """
+
+    def _poster(client, session_factory, url: str, **kwargs) -> dict:
+        reponse = client.post(url, **kwargs)
+        assert reponse.status_code == 202, reponse.text
+        return executer_travail(session_factory, reponse.json()["job_id"])
+
+    return _poster
 
 
 @pytest.fixture()

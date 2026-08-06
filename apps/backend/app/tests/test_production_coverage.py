@@ -501,7 +501,7 @@ def test_batch_lesson_validation_is_parent_bulk(client_db) -> None:
     db.close()
 
 
-def test_generated_quiz_is_system(client_db) -> None:
+def test_generated_quiz_is_system(client_db, executer_travail) -> None:
     """`system` = servi sans relecture PAR DOCTRINE (ADR-0014 §2), écrit à la génération."""
     client, TestSession = client_db
     db = TestSession()
@@ -514,8 +514,12 @@ def test_generated_quiz_is_system(client_db) -> None:
     db.close()
 
     _as(PAPA)
+    # ⚠️ `202` depuis l'ADR-0041 §4 : la route accepte, le worker produit. Ce test porte sur
+    # l'auto-validation (`validated_by == "system"`), pas sur le mode d'exécution — on joue donc
+    # le travail plutôt que de relâcher l'assertion sur ce qui a été produit.
     resp = client.post(f"/api/lessons/{lesson_id}/quizzes/generate", json={"count": 5})
-    assert resp.status_code in (200, 201), resp.text
+    assert resp.status_code == 202, resp.text
+    executer_travail(TestSession, resp.json()["job_id"])
 
     db = TestSession()
     quiz = db.scalar(select(m.Quiz))

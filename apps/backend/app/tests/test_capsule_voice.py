@@ -70,21 +70,27 @@ def test_voice_endpoint_is_papa_only(client_db) -> None:
     assert client.post("/api/capsules/1/voice").status_code == 403
 
 
-def test_voice_endpoint_and_audio_route_for_papa(client_db, tmp_path, monkeypatch) -> None:
+def test_voice_endpoint_and_audio_route_for_papa(client_db, tmp_path, monkeypatch, poster_et_executer) -> None:
     monkeypatch.setattr(settings, "audio_storage_dir", str(tmp_path))
     from app.main import app
     from app.modules.auth.deps import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: {"username": "papa", "role": "papa"}
-    client, _ = client_db
+    client, TestSession = client_db
 
-    cid = client.post(
-        "/api/capsules/generate", json={"subject_id": 1, "instruction": "Explique les fractions."}
-    ).json()["id"]
+    # ⚠️ `202` sur les deux routes depuis l'ADR-0041 §4. La voix est le seul travail migré qui
+    # n'appelle pas le LLM : son exécutant construit Piper lui-même (le worker n'a aucune
+    # dépendance FastAPI), et le fixture le remplace par `FakeTtsProvider`.
+    cid = poster_et_executer(
+        client,
+        TestSession,
+        "/api/capsules/generate",
+        json={"subject_id": 1, "instruction": "Explique les fractions."},
+    )["capsule_id"]
 
-    rv = client.post(f"/api/capsules/{cid}/voice")
-    assert rv.status_code == 200, rv.text
-    assert all(s["audioUrl"] for s in rv.json()["spec"]["scenes"])
+    poster_et_executer(client, TestSession, f"/api/capsules/{cid}/voice")
+    spec = client.get(f"/api/capsules/{cid}").json()["spec"]
+    assert all(s["audioUrl"] for s in spec["scenes"])
 
     token = client.post(
         "/api/auth/login", json={"username": "papa", "password": "papa1234"}

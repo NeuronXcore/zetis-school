@@ -45,6 +45,7 @@ from app.modules.content_requests.router import (
 from app.modules.production.router import router as production_router
 from app.modules.production.journal_router import router as production_journal_router
 from app.modules.production.runs_router import router as production_runs_router
+from app.modules.production.activity_router import router as production_activity_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
 from app.modules.settings.router import router as settings_router
@@ -103,6 +104,7 @@ app.include_router(motivation_router)
 app.include_router(production_router)
 app.include_router(production_runs_router)
 app.include_router(production_journal_router)
+app.include_router(production_activity_router)
 app.include_router(content_requests_router)
 # Écriture SEULE côté enfant (addendum ADR-0027) : Massimo demande, il ne lit pas la file.
 app.include_router(content_requests_student_router)

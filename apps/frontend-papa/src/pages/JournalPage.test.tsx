@@ -80,7 +80,9 @@ const RUN: JournalRun = {
   ],
 };
 
-const JOURNAL: Journal = { runs: [RUN], has_more: false, total: 1 };
+const JOURNAL: Journal = { runs: [RUN], travaux: [],
+  travaux_exclus: null,
+  has_more: false, total: 1 };
 
 function renderPage() {
   return render(
@@ -117,7 +119,9 @@ describe("JournalPage", () => {
     // pire que se taire — le Journal ne reconstitue pas le passé (doctrine §F.4).
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, zetis_mode: null, zetis_mode_source: null }],
-      has_more: false,
+      travaux: [],
+  travaux_exclus: null,
+  has_more: false,
       total: 1,
     });
     renderPage();
@@ -131,7 +135,9 @@ describe("JournalPage", () => {
     // Sans la marque « déduit », cette reconstitution se lirait comme un fait enregistré.
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, zetis_mode: "autonome", zetis_mode_source: "deduit" }],
-      has_more: false,
+      travaux: [],
+  travaux_exclus: null,
+  has_more: false,
       total: 1,
     });
     renderPage();
@@ -166,7 +172,9 @@ describe("JournalPage", () => {
     // La compter réclamerait un geste qui n'a plus lieu d'être.
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, events: [{ ...RUN.events[1]!, resolved: true }] }],
-      has_more: false,
+      travaux: [],
+  travaux_exclus: null,
+  has_more: false,
       total: 1,
     });
     renderPage();
@@ -191,12 +199,18 @@ describe("JournalPage", () => {
     );
   });
 
-  it("dit que sa portée s'arrête aux lots", async () => {
-    // Un journal qui paraît exhaustif sans l'être est pire qu'un journal qui borne son sujet :
-    // le Conseil de classe et la composition champion équipent HORS lot.
+  it("dit sa portée — et surtout ce qu'un travail ne permet PAS", async () => {
+    // ⚠️ **Cette assertion a CHANGÉ le 2026-08-06, et c'est une décision, pas un ajustement.**
+    // Elle exigeait « ce journal ne montre que la production en lot » — vrai jusqu'à l'addendum
+    // ADR-0041 §16, qui y fait entrer les travaux unitaires. La garder aurait figé une phrase
+    // devenue fausse, et l'écran l'affichait encore ce jour-là au-dessus d'une ligne de travail.
+    //
+    // Ce qu'elle garde maintenant est plus exigeant : la page doit annoncer qu'un travail **ne se
+    // retire pas** (§17). Un journal qui paraît exhaustif sans l'être reste pire qu'un journal qui
+    // borne son sujet — la borne a seulement déménagé, du modèle vers le POUVOIR d'agir.
     renderPage();
     await screen.findByText(/Lot #7/);
-    expect(screen.getByText(/Conseil de classe/)).toBeInTheDocument();
+    expect(screen.getByText(/ne se retire pas/)).toBeInTheDocument();
   });
 
   it("explique un lot sans contenu au lieu de le laisser vide", async () => {
@@ -204,7 +218,9 @@ describe("JournalPage", () => {
     // notions » sans une ligne se lit comme une panne, alors que c'est l'inverse.
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, id: 6, events: [], pieces: [] }],
-      has_more: false,
+      travaux: [],
+  travaux_exclus: null,
+  has_more: false,
       total: 1,
     });
     renderPage();
@@ -239,7 +255,9 @@ describe("JournalPage", () => {
     // le motif dit ce qui s'est passé, l'annotation dit où on en est.
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, events: [{ ...RUN.events[1]!, resolved: true }] }],
-      has_more: false,
+      travaux: [],
+  travaux_exclus: null,
+  has_more: false,
       total: 1,
     });
     renderPage();
@@ -287,7 +305,9 @@ describe("JournalPage", () => {
           ],
         },
       ],
-      has_more: false,
+      travaux: [],
+  travaux_exclus: null,
+  has_more: false,
       total: 1,
     });
     renderPage();
@@ -304,7 +324,9 @@ describe("JournalPage", () => {
     // mauvaise raison. Une notion sans leçon non plus n'a rien à ouvrir — son motif le dit déjà.
     vi.mocked(fetchJournal).mockResolvedValue({
       runs: [{ ...RUN, events: [{ ...RUN.events[0]! }] }],
-      has_more: false,
+      travaux: [],
+  travaux_exclus: null,
+  has_more: false,
       total: 1,
     });
     renderPage();
@@ -392,7 +414,9 @@ describe("JournalPage — la pagination, qui manquait", () => {
   const autre: JournalRun = { ...RUN, id: 8, events: [], pieces: [] };
 
   it("n'offre AUCUN bouton quand tout est déjà là", async () => {
-    vi.mocked(fetchJournal).mockResolvedValue({ runs: [RUN], has_more: false, total: 1 });
+    vi.mocked(fetchJournal).mockResolvedValue({ runs: [RUN], travaux: [],
+  travaux_exclus: null,
+  has_more: false, total: 1 });
     renderPage();
     await screen.findByText(/Lot #7/);
     expect(screen.queryByRole("button", { name: /plus anciens/ })).not.toBeInTheDocument();
@@ -401,8 +425,12 @@ describe("JournalPage — la pagination, qui manquait", () => {
   it("EMPILE les lots plus anciens et annonce ce qui reste", async () => {
     // Un journal se lit de haut en bas : la page suivante s'ajoute, elle ne remplace pas.
     vi.mocked(fetchJournal)
-      .mockResolvedValueOnce({ runs: [RUN], has_more: true, total: 2 })
-      .mockResolvedValueOnce({ runs: [autre], has_more: false, total: 2 });
+      .mockResolvedValueOnce({ runs: [RUN], travaux: [],
+    travaux_exclus: null,
+    has_more: true, total: 2 })
+      .mockResolvedValueOnce({ runs: [autre], travaux: [],
+  travaux_exclus: null,
+  has_more: false, total: 2 });
 
     renderPage();
     const bouton = await screen.findByRole("button", { name: /1 restant/ });

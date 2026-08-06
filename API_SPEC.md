@@ -1879,3 +1879,209 @@ entier qui ne trahit pas sa provenance), et aucun écoulement du temps n'augment
 
 **Ne s'applique pas à l'interface Papa** : Papa n'a pas de contenu qui « arrive » sans qu'il l'ait
 demandé. Ce que porte sa sidebar est une **file de validation**, objet distinct.
+
+## Activité de production (Papa, ADR-0041)
+
+La source **unique** de toutes les barres de progression Papa — le header et les pages lisent le
+même endpoint. Ce qui disparaît avec elle, ce sont les constantes de durée en dur : la rédaction
+d'un cours en portait **cinq** différentes selon l'écran d'où on la lançait.
+
+`require_parent`. Aucune surface Massimo (ADR-0026 §4).
+
+### `GET /api/production/activity`
+
+```json
+{
+  "current": { "kind": "run|job", "id": 42, "label": "Équipement · Théorème de Pythagore",
+               "status": "queued|running|stale|failed",
+               "pct": 23, "pct_is_measured": true,
+               "started_at": "2026-08-06T10:00:00Z", "trigger": "manual", "error": null },
+  "queued_count": 2,
+  "queued": [ /* ActivityItem[], dans l'ORDRE où la file sera servie — borné à 20 */ ],
+  "failed": [],
+  "worker_alive": null
+}
+```
+
+- 🔴 **`pct` vaut `null`, JAMAIS `0`** pour dire « ça démarre ». Zéro n'est pas une valeur basse,
+  c'est une absence de mesure — le 2026-08-05, quatre lots arrêtés affichaient 0 %.
+- **`pct_is_measured`** — `true` : progression **réelle** calculée serveur (le lot, `7 / 31`) ;
+  `false` : l'écran estime, ancré sur `started_at` (`≈ 40 %`). Un appel LLM n'a aucun grain interne.
+- **`trigger` est DÉRIVÉ**, jamais stocké sur le travail : un lot porte le sien, un travail hors
+  lot est `manual` par construction.
+- **`worker_alive: null`** = « la question n'a pas été posée » — à ne pas confondre avec `false`.
+  Elle n'est posée que si quelque chose est **en file**. Tester `=== false`.
+- **`queued_count`** est une profondeur de file, jamais un arriéré (`adr-0011` §F.2).
+- **`queued`** porte la file **elle-même**, dans son ordre de service, bornée à **20**. Sans elle,
+  « une ligne par travail » et « l'ordre visible » du §7 sont infaisables : une règle de priorité
+  qu'on ne peut pas vérifier à l'œil n'est pas vérifiée. ⚠️ Comparer `queued.length` à
+  `queued_count` dit s'il en reste — une troncature muette se lirait comme une exhaustivité.
+
+### `POST /api/production/activity/{kind}/{item_id}/ack` → 204
+
+`kind` ∈ `run | job`. Un échec reste affiché **jusqu'à ce geste** — pas six secondes. L'acquittement
+est serveur : il ne revient sur aucun autre appareil.
+
+### ⚠️ Contrat MODIFIÉ — `POST /api/reports/class-council/equip-notion`
+
+Rendait le kit après ~69 s par notion. Rend désormais **`202` + `{ "job_id": int, "status":
+"queued" }`** ; l'avancement se lit dans `/activity`. Le travail est **commité avant d'être
+enfilé**, sinon la barre ne pourrait pas l'annoncer « en file » au retour de la route.
+
+### ⚠️ Contrat ENRICHI — `GET /api/ai/jobs/{job_id}`
+
+`JobOut` gagne **`error`** (`error_message`) et **`started_at`**. Un job `failed` était jusqu'ici
+**muet** côté client ; et sans l'instant de départ, une barre locale mesure l'âge de son AFFICHAGE
+au lieu de celui du travail — c'est ainsi que deux surfaces finissent par afficher deux nombres.
+
+### ⚠️ `503` NOUVEAU sur les trois routes qui enfilent (ADR-0041 §10.1)
+
+`POST /production/runs` · `POST /production/runs/from-request` · `POST
+/reports/class-council/equip-notion` — et `POST /capsules/{id}/render`, qui lève le même.
+
+```json
+{ "detail": "La file de production est injoignable : rien n'a été lancé, et rien n'a été créé. Vérifiez que Redis et le worker de production tournent, puis relancez." }
+```
+
+🔴 **La garantie porte sur la base, pas sur le message** : après un `503`, **aucun lot, aucun
+travail, aucune capsule en `rendering`** ne subsiste. C'était un `500` auparavant, avec l'objet
+**déjà commité** — un lot que personne n'exécuterait jamais, que la barre annonçait « en file
+d'attente », et qui bloquait ensuite sa propre recréation via `run_exists_for`.
+
+⚠️ **L'ordre ne peut pas être inversé** (l'objet doit être lisible par le worker avant d'être
+enfilé, §3) : c'est une **compensation**, pas une transaction. Un test-verrou par chemin.
+
+### `status` peut valoir `stale` sur un `kind: "job"` (ADR-0041 §10.4)
+
+`stale` est une **lecture**, jamais une valeur stockée — ni `RUN_STATUSES` ni `ai_jobs.status` ne la
+contiennent. Côté lot elle vient de `heartbeat_at` ; côté travail unitaire, d'un `running` dont le
+`started_at` dépasse `PRODUCTION_JOB_TIMEOUT` — **le délai auquel RQ tue le job lui-même**, donc
+au-delà duquel une ligne `running` ne décrit plus rien de vivant.
+
+⚠️ Un travail **`queued`** n'est jamais `stale`, même depuis deux jours : c'est `worker_alive` qui
+dit cette panne-là, et la file repartira seule au prochain démarrage du worker.
+
+### ⚠️ Contrats MODIFIÉS — sept routes passent en `202` (ADR-0041 slice C)
+
+| Route | Avant | Maintenant |
+|---|---|---|
+| `POST /fiches/generate` | `201` + `FicheOut` | `202` + `{job_id, status}` |
+| `POST /fiches/{id}/regenerate` | `200` + `FicheOut` | idem |
+| `POST /mindmaps/generate` | `201` + `MindmapOut` | idem |
+| `POST /mindmaps/{id}/regenerate` | `200` + `MindmapOut` | idem |
+| `POST /lessons/{id}/quizzes/generate` | `200` + `QuizGenerateResponse` | idem |
+| `POST /quizzes/{id}/regenerate` | `200` + `QuizGenerateResponse` | idem |
+| `POST /lessons/{id}/generate-content` | `200` + `CurriculumLessonOut` | idem |
+| `POST /diagnostics/generate` | `200` + `DiagnosticGenerateResponse` | idem |
+
+Ce que la route rendait se lit désormais dans **`output` de `GET /api/ai/jobs/{job_id}`**, une fois
+`succeeded` : `{fiche_id}`, `{mindmap_id}`, `{quiz_id, questions_generated, questions_discarded}`,
+`{lesson_id}`, `{quiz_id, subject, questions_count}`. Rien n'est perdu — tout est **déplacé**.
+
+🔴 **Les refus, eux, restent SYNCHRONES.** La file diffère le **travail**, jamais le **verdict sur
+la demande** : `404` (matière ou leçon inconnue), `409` (leçon non validée, leçon archivée) tombent
+toujours au clic. Le service les rejoue de son côté — le monde peut changer entre le clic et
+l'exécution. Un test l'a prouvé nécessaire : `POST /diagnostics/generate` sur une matière inconnue
+serait passé de `404` immédiat à `202` suivi d'un travail en échec deux minutes plus tard.
+
+### `GET /api/lessons/{lesson_id}` (Papa) — NOUVELLE
+
+UNE leçon avec son cours et son audit de provenance. Née de la migration ci-dessus : `generate-content`
+rendait la leçon rédigée, il rend `202` — il faut pouvoir **relire** ce que le travail a produit sans
+recharger tout le chapitre.
+
+### `estimated_ms` — la durée attendue vient du SERVEUR (ADR-0041 §9)
+
+Porté par `ActivityItem` (`/production/activity`) **et** par `JobOut` (`/ai/jobs/{id}`).
+
+🔴 **Ce n'est pas une constante déplacée d'un cran.** C'est la **médiane des dernières exécutions
+réussies** de ce `job_type` (`ai_jobs.duration_ms`, ≥ 5 exécutions, fenêtre des 300 derniers
+travaux, servie par l'index `(job_type, status)`). La valeur en dur ne sert plus que d'**amorce**,
+le temps que l'histoire existe : ZETIS apprend ses propres durées, et une amorce fausse se corrige
+seule au lieu de mentir jusqu'à ce que quelqu'un la remarque — ce qui, mesuré, n'arrivait pas.
+
+⚠️ **Médiane et non moyenne** : un travail qui a attendu Massimo ou tapé dans son `job_timeout`
+tirerait une moyenne vers le haut de façon permanente.
+
+### ⚠️ Contrats MODIFIÉS — sept routes de plus en `202` (ADR-0041 §4, dernier lot)
+
+| Route | Avant | `output` du travail |
+|---|---|---|
+| `POST /memory/cards/subjects/{id}/generate` | `200` + `SubjectGenerateResult` | le compte-rendu tel quel |
+| `POST /memory/cards/skills/{id}/generate` | `200` + `SkillGenerateResult` | idem |
+| `POST /capsules/generate` | `201` + `CapsuleOut` | `{capsule_id}` |
+| `POST /capsules/{id}/regenerate` | `200` + `CapsuleOut` | `{capsule_id}` |
+| `POST /capsules/{id}/voice` | `200` + `CapsuleOut` | `{capsule_id}` |
+| `POST /school-year-subjects/{id}/generate-chapters` | `201` + `list[ChapterOut]` | `{chapter_ids}` |
+| `POST /chapters/{id}/generate-lessons` · `/extend-lessons` | `201` + `list[LessonOut]` | `{lesson_ids}` |
+| `POST /curriculum/skills-backfill/generate` | `200` + `SkillsBackfillPreview` | la prévisualisation |
+
+⚠️ **Les deux routes SRS partagent un seul `job_type`** (`srs_cards_generate`) : c'est le même
+travail à deux granularités, et deux types auraient coupé en deux l'historique qui sert à mesurer
+sa durée.
+
+⚠️ **`skills-backfill/generate` est le seul travail migré qui ne persiste RIEN** (ADR-0010) : sa
+prévisualisation EST sa sortie — aucun id à relire ensuite.
+
+🔴 **Les refus restent SYNCHRONES, y compris le `503` « clé cloud absente ».** Il venait de
+`Depends(get_curriculum_provider)` ; la dépendance est **conservée sur les quatre routes
+`curriculum_*` alors qu'elles ne s'en servent plus**, précisément pour que ce verdict tombe au clic.
+Un test l'a rendu nécessaire.
+
+🔴 **La dérogation cloud de l'ADR-0009 traverse la file.** `run_ai_job` passe le moteur **LOCAL** :
+les exécutants `curriculum_*` reprennent `get_curriculum_provider()` eux-mêmes. Une migration naïve
+l'aurait annulée en silence — même code, même sortie apparente, référentiel de bien moindre
+qualité. Verrou : `test_curriculum_utilise_le_provider_CLOUD_et_pas_le_local`, avec **le moteur
+local piégé** (l'appeler fait échouer le travail).
+
+### ⚠️ Contrat MODIFIÉ — `GET /production/journal` accueille les travaux unitaires (addendum ADR-0041 §16-§18)
+
+```json
+{
+  "runs": [ /* JournalRunOut[] — inchangé */ ],
+  "travaux": [ { "id": 653, "job_type": "srs_cards_generate",
+                 "label": "Cartes de révision · Mitose", "status": "succeeded",
+                 "trigger": "manual", "skill_id": 42, "skill_name": "Mitose",
+                 "created_at": "…", "started_at": "…", "finished_at": "…",
+                 "duration_ms": 53600, "error": null } ],
+  "travaux_exclus": null,
+  "has_more": true, "total": 31
+}
+```
+
+🔴 **`runs` est INCHANGÉ** — le contrat existant ne bouge pas. Les travaux arrivent **à part**
+plutôt que mêlés à `runs` : un `AIJob` ne porte ni régime, ni pièces, ni journal ligne à ligne, et
+le glisser dans `JournalRunOut` l'obligerait à faire semblant (§17). L'écran les **entrelace par
+date** — ce n'est pas un tri côté client : la page est déjà la bonne, découpée **en SQL sur l'union
+des deux modèles**, et on ne fait qu'ordonner ce qu'elle contient.
+
+🔴 **`total` et `has_more` portent sur l'UNION.** Paginer chaque modèle séparément perdrait
+silencieusement tout ce qui tombe entre les deux — le défaut que l'addendum « tri et filtre » §2
+avait déjà nommé pour les filtres. ⚠️ **Corollaire client : l'offset compte les DEUX listes**
+(`runs.length + travaux.length`), jamais `runs` seul.
+
+**Ce qu'un travail ne porte PAS**, et ce n'est pas un oubli : `zetis_mode`, `zetis_mode_source`,
+`pieces`, `events`. Donc **aucun veto** — `DELETE /journal/pieces/{kind}/{id}` s'appuie sur le
+tamponnage `production_run_id`, qu'un `AIJob` ne pose pas. L'écran ne doit offrir aucun bouton de
+retrait sur ces lignes : il ne pourrait rien retirer.
+
+⚠️ **`zetis_mode` est ABSENT, pas `"manuel"`.** Un travail hors lot est manuel *par construction*
+(§3.2) et il serait tentant de l'écrire — ce serait confondre l'**origine** (qui a demandé) avec le
+**régime** (sous quelles règles ZETIS pouvait servir sans relecture), que l'ADR-0034 sépare exprès.
+L'origine, elle, se dit : `trigger`.
+
+### `travaux_exclus` — quand un filtre écarte les travaux (§18)
+
+`piece`, `mode`, le filtre par **chapitre** et tout **tri autre que la date** n'ont aucun sens sur
+un travail unitaire : plutôt que de lui inventer une valeur, ils ne rendent que des lots. Le champ
+porte alors la phrase à afficher, qui **nomme la dimension** — « le filtre par pièce ne porte que
+sur les lots » — et vaut `null` quand les travaux sont admis.
+
+⚠️ **À AFFICHER** : une exclusion muette se lit comme un vide, même faute qu'une troncature muette.
+
+Le filtre par **matière** fait exception et s'applique aux deux : il se lit sur la notion du
+travail (`input_json.skill_id`). Un travail sans notion identifiable est écarté quand il est actif.
+
+⚠️ **Les TRACES n'entrent jamais** (`created_by != "file"`) : ce sont les appels LLM *à l'intérieur*
+d'un travail, et elles sont beaucoup plus nombreuses — 143 pour une poignée de gestes, mesuré en
+base. Voir `DATA_MODEL.md`, règle de lecture de `created_by`.

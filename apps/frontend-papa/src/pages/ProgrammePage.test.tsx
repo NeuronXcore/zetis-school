@@ -71,6 +71,7 @@ vi.mock("../lib/curriculum", () => ({
   deleteOrphanNotion: vi.fn(),
 }));
 
+
 import {
   extendLessons,
   fetchActiveSchoolYear,
@@ -146,6 +147,25 @@ beforeEach(() => {
   vi.mocked(patchLesson).mockReset();
 });
 
+// ⚠️ **`fetch` est stubé, PAS le hook** — et c'est délibéré. `useProgressionEstimee` reste RÉEL :
+// ce test doit continuer à prouver qu'une barre affiche un % pendant la génération, ce qu'il ne
+// prouverait plus si l'estimation elle-même était mockée.
+//
+// ⚠️ Un `vi.mock` sur `../hooks/useEstimations` **ne marche pas ici** : `useEstimations` appelle
+// `fetchEstimations` par sa liaison LOCALE, pas par l'espace de noms du module — le mock serait
+// vert et sans effet (même classe de piège que `enqueue_*` côté backend). Il faut donc couper
+// plus bas, au réseau.
+//
+// Depuis l'ADR-0041 §9, la durée attendue vient du serveur. Sans cette réponse, la barre est
+// INDÉTERMINÉE — ce qui est correct : plus aucun composant ne devine.
+beforeEach(() => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ curriculum_chapters: 20_000, curriculum_skills_backfill: 90_000 }),
+  } as Response);
+});
+
 describe("ProgrammePage", () => {
   it("état liste : pills + chapitres avec badges source et validation", async () => {
     vi.mocked(fetchActiveSchoolYear).mockResolvedValue(YEAR);
@@ -208,7 +228,11 @@ describe("ProgrammePage", () => {
 
     // Barre estimée (pattern capsules) : label + pourcentage live, bouton en loading.
     expect(await screen.findByText(/ZETIS génère les chapitres/)).toBeInTheDocument();
-    expect(screen.getByText(/%$/)).toBeInTheDocument();
+    // ⚠️ **Le POURCENTAGE arrive un tic plus tard, et c'est le comportement voulu** (ADR-0041 §9) :
+    // la durée attendue vient du SERVEUR depuis qu'aucun composant ne la devine plus. Tant qu'elle
+    // n'est pas là, la barre est indéterminée — honnête, et préférable à un nombre inventé.
+    // L'assertion n'a pas bougé, seule son échéance.
+    await waitFor(() => expect(screen.getByText(/%$/)).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /Génération en cours/ })).toBeDisabled();
     // La liste reste affichée pendant l'appel.
     expect(screen.getByText("Nombres relatifs")).toBeInTheDocument();

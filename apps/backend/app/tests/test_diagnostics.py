@@ -8,16 +8,23 @@ from sqlalchemy import select
 import app.db.models as m
 
 
-def _generate(client) -> dict:
+def _generate(client, Session, executer_travail) -> dict:
+    """Lance un diagnostic ET joue le travail — la route ne produit plus rien elle-même.
+
+    ⚠️ **Elle rend `202` depuis l'ADR-0041 §4** : elle ACCEPTE, le worker exécute. Le corps
+    d'autrefois (`quiz_id`, `subject`, `questions_count`) est désormais la SORTIE du travail, et
+    c'est bien celle-là qu'on rend ici — les assertions en aval portent donc toujours sur ce qui a
+    réellement été produit, jamais sur un accusé de réception.
+    """
     # Fixture de test : Mathématiques est la seule matière → id=1 (skill « Nombres relatifs »).
     res = client.post("/api/diagnostics/generate", json={"subject_id": 1})
-    assert res.status_code == 200, res.text
-    return res.json()
+    assert res.status_code == 202, res.text
+    return executer_travail(Session, res.json()["job_id"])
 
 
-def test_generate_creates_quiz_with_questions(client_db) -> None:
-    client, _ = client_db
-    body = _generate(client)
+def test_generate_creates_quiz_with_questions(client_db, executer_travail) -> None:
+    client, Session = client_db
+    body = _generate(client, Session, executer_travail)
     assert body["subject"] == "Mathématiques"
     assert body["questions_count"] >= 1
 
@@ -30,17 +37,17 @@ def test_generate_creates_quiz_with_questions(client_db) -> None:
     assert first["skill_name"]
 
 
-def test_quizzes_listing_marks_taken(client_db) -> None:
-    client, _ = client_db
-    body = _generate(client)
+def test_quizzes_listing_marks_taken(client_db, executer_travail) -> None:
+    client, Session = client_db
+    body = _generate(client, Session, executer_travail)
     listed = client.get("/api/diagnostics/quizzes").json()
     assert listed[0]["quiz_id"] == body["quiz_id"]
     assert listed[0]["taken"] is False
 
 
-def test_submit_scores_and_opens_gap_on_wrong_answers(client_db) -> None:
+def test_submit_scores_and_opens_gap_on_wrong_answers(client_db, executer_travail) -> None:
     client, Session = client_db
-    body = _generate(client)
+    body = _generate(client, Session, executer_travail)
     quiz = client.get(f"/api/diagnostics/quizzes/{body['quiz_id']}").json()
 
     # On répond FAUX partout (index 1) → score 0 → lacune ouverte + maîtrise faible.
@@ -63,9 +70,9 @@ def test_submit_scores_and_opens_gap_on_wrong_answers(client_db) -> None:
     assert listed[0]["taken"] is True
 
 
-def test_submit_all_correct_is_strength(client_db) -> None:
-    client, _ = client_db
-    body = _generate(client)
+def test_submit_all_correct_is_strength(client_db, executer_travail) -> None:
+    client, Session = client_db
+    body = _generate(client, Session, executer_travail)
     quiz = client.get(f"/api/diagnostics/quizzes/{body['quiz_id']}").json()
     # Index 0 correct (fake) → 100 % → force, pas de lacune.
     answers = [{"question_id": q["id"], "choice_index": 0} for q in quiz["questions"]]
@@ -77,9 +84,9 @@ def test_submit_all_correct_is_strength(client_db) -> None:
     assert result["strengths"]
 
 
-def test_results_view_for_papa(client_db) -> None:
-    client, _ = client_db
-    body = _generate(client)
+def test_results_view_for_papa(client_db, executer_travail) -> None:
+    client, Session = client_db
+    body = _generate(client, Session, executer_travail)
     quiz = client.get(f"/api/diagnostics/quizzes/{body['quiz_id']}").json()
     answers = [{"question_id": q["id"], "choice_index": 1} for q in quiz["questions"]]
     client.post(f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": answers})

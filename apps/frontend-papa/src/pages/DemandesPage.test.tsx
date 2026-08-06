@@ -267,6 +267,7 @@ describe("DemandesPage", () => {
           created_at: "2026-08-05T09:00:00Z",
           started_at: new Date(Date.now() - 8000).toISOString(),
           finished_at: null,
+          estimated_ms: 30_000,
         },
       },
     ]);

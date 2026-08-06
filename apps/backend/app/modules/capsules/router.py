@@ -28,35 +28,41 @@ from app.modules.capsules.schemas import (
 from app.modules.eli5.service import get_default_student
 from app.modules.tts import get_tts
 from app.modules.tts.provider import TtsProvider
+from app.modules.ai import travaux
+from app.modules.ai.schemas import TravailAccepteOut
 
 _PARENT_ROLES = {"papa", "parent", "admin"}
 
 router = APIRouter(prefix="/api/capsules", tags=["capsules"], dependencies=[Depends(require_parent)])
 
 
-@router.post("/generate", response_model=CapsuleOut, status_code=status.HTTP_201_CREATED)
-def generate(
-    req: CapsuleCreateRequest,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
-) -> dict:
-    """Papa : génère un CapsuleSpec et persiste la capsule (statut `pending`)."""
-    try:
-        capsule = service.create_capsule(
-            db,
-            provider,
-            req.subject_id,
-            req.instruction,
-            level=req.level,
-            skill_id=req.skill_id,
-            chapter_id=req.chapter_id,
-            visual=req.visual,
-            duration=req.duration,
-            difficulty=req.difficulty,
-        )
-    except service.CapsuleGenerationError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=f"Génération échouée : {exc}") from exc
-    return service.capsule_out(db, capsule)
+@router.post(
+    "/generate", response_model=TravailAccepteOut, status_code=status.HTTP_202_ACCEPTED
+)
+def generate(req: CapsuleCreateRequest, db: Session = Depends(get_db)) -> dict:
+    """Papa : demande une capsule. **202 — acceptée, pas exécutée** (ADR-0041 §4).
+
+    La capsule se lit dans `output.capsule_id` quand le travail est `succeeded`.
+
+    ⚠️ Les préconditions de CONTEXTE (matière, chapitre, notion) sont rejouées ici, avant
+    d'enfiler : la file diffère le travail, jamais le verdict sur la demande.
+    """
+    service._resolve_context(db, req.subject_id, req.skill_id)
+    service._validate_chapter(db, req.chapter_id)
+    return travaux.enfiler(
+        db,
+        job_type="capsule_generate",
+        payload={
+            "subject_id": req.subject_id,
+            "instruction": req.instruction,
+            "level": req.level,
+            "skill_id": req.skill_id,
+            "chapter_id": req.chapter_id,
+            "visual": req.visual,
+            "duration": req.duration,
+            "difficulty": req.difficulty,
+        },
+    )
 
 
 @router.get("", response_model=list[CapsuleListItem])
@@ -77,40 +83,40 @@ def update_spec(
     return service.capsule_out(db, service.update_spec(db, capsule_id, req.spec))
 
 
-@router.post("/{capsule_id}/regenerate", response_model=CapsuleOut)
+@router.post(
+    "/{capsule_id}/regenerate",
+    response_model=TravailAccepteOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def regenerate(
-    capsule_id: int,
-    req: CapsuleRegenerateRequest,
-    db: Session = Depends(get_db),
-    provider: LLMProvider = Depends(get_provider),
+    capsule_id: int, req: CapsuleRegenerateRequest, db: Session = Depends(get_db)
 ) -> dict:
-    try:
-        capsule = service.regenerate_capsule(
-            db,
-            provider,
-            capsule_id,
-            instruction=req.instruction,
-            visual=req.visual,
-            duration=req.duration,
-            difficulty=req.difficulty,
-        )
-    except service.CapsuleGenerationError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=f"Régénération échouée : {exc}") from exc
-    return service.capsule_out(db, capsule)
+    """202 — voir `generate`. La capsule régénérée garde son id."""
+    service._capsule_or_404(db, capsule_id)
+    return travaux.enfiler(
+        db,
+        job_type="capsule_regenerate",
+        payload={
+            "capsule_id": capsule_id,
+            "instruction": req.instruction,
+            "visual": req.visual,
+            "duration": req.duration,
+            "difficulty": req.difficulty,
+        },
+    )
 
 
-@router.post("/{capsule_id}/voice", response_model=CapsuleOut)
-def voice(
-    capsule_id: int,
-    db: Session = Depends(get_db),
-    tts: TtsProvider = Depends(get_tts),
-) -> dict:
-    """Papa : synthétise la voix (Piper) et cale les durées sur la narration."""
-    try:
-        capsule = service.synthesize_voice(db, tts, capsule_id)
-    except service.CapsuleGenerationError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    return service.capsule_out(db, capsule)
+@router.post(
+    "/{capsule_id}/voice", response_model=TravailAccepteOut, status_code=status.HTTP_202_ACCEPTED
+)
+def voice(capsule_id: int, db: Session = Depends(get_db)) -> dict:
+    """Papa : demande la voix (Piper). **202 — acceptée, pas exécutée** (ADR-0041 §4).
+
+    ⚠️ **Le seul travail migré qui n'appelle pas le LLM.** Son exécutant construit lui-même le
+    moteur TTS, que `run_ai_job` ne passe pas — voir `jobs._capsule_voice`.
+    """
+    service._capsule_or_404(db, capsule_id)
+    return travaux.enfiler(db, job_type="capsule_voice", payload={"capsule_id": capsule_id})
 
 
 @router.post("/{capsule_id}/classify", response_model=CapsuleOut)

@@ -1,5 +1,124 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.54.0 — Tout ce qui produit se voit, attend son tour, et ne se perd pas
+
+Le chantier ADR-0041, en deux slices. Il est parti d'une observation : `EQUIP_MS` pilotait une barre
+de progression depuis des semaines, et **cette barre n'avait jamais été vue tourner une seule fois**.
+
+### Slice A — une surface unique, dans le header de Papa
+
+`POST /reports/class-council/equip-notion` tenait la requête HTTP pendant **cinq générations LLM
+locales** (~69 s par notion). Deux écrans affichaient son avancement via **deux constantes
+indépendantes**, qui ne pouvaient pas rester d'accord. La route rend désormais `202` tout de suite ;
+le travail part en file, et **`GET /api/production/activity`** devient la source **unique** de
+toutes les barres — header comme pages.
+
+- **`AIJob` cesse d'être une trace et devient un travail** : créé `queued` et **commité** avant
+  l'enfilement, sinon le worker pourrait le prendre avant que la ligne soit visible. Deux index (la
+  table n'en avait aucun depuis sa création) + `acknowledged_at`.
+- **Deux files RQ.** Un geste de Papa passe devant un lot automatique. ⚠️ Le lot en cours n'est
+  **jamais** interrompu : le grain de la préemption reste la notion — prétendre interrompre un appel
+  LLM serait un mensonge d'architecture.
+- **Aucune colonne d'origine sur `ai_jobs`** : elle se **dérive** (hors lot ⇒ manuel, toujours). Un
+  lot agenda de 31 notions aurait porté 155 copies du même fait.
+- 🔴 **`pct` vaut `null`, jamais `0`.** Zéro n'est pas une valeur basse, c'est une absence de mesure.
+  Et `pct_is_measured` distingue deux régimes de vérité : un lot sait dire « 7 sur 31 », un appel
+  LLM n'a **aucun grain interne**.
+- **L'échec reste jusqu'à acquittement** — serveur, jamais `localStorage`.
+- Les **deux `EQUIP_MS`** meurent. Il reste **une** durée estimée dans tout le frontend Papa, et
+  c'est la seule qui ait jamais été mesurée (69 s, relevée sur 11 notions).
+
+**Quatre défauts n'ont été trouvés qu'À L'ÉCRAN**, ce qui était l'argument central de l'ADR : un
+worker qui n'écoutait qu'une des deux nouvelles files (`worker_alive` affirmait une santé), la
+pilule écrasée à 30 px, un résumé qui disait « 1 en cours » sur une file arrêtée, et un travail de
+11 ms né et mort entre deux sondages — d'où le réveil de la barre **au clic**.
+
+### Slice B — rien de ce qui est enfilé ne se perd
+
+- **L'enfilement devient sûr.** Redis absent laissait l'objet **déjà commité** (un lot, un travail,
+  une capsule passée en `rendering`) puis renvoyait un `500` : un travail que personne
+  n'exécuterait jamais, affiché « en file d'attente », et qui bloquait ensuite sa propre recréation.
+  Les quatre routes rendent maintenant **`503`**, et **rien ne subsiste en base**. ⚠️ Côté capsule,
+  le trou faisait en plus **disparaître une vidéo déjà rendue** (`video_url` effacé avant
+  l'enfilement).
+- **Le rejeu est borné ET typé** : deux tentatives sur échec **transitoire** (transport, 5xx), zéro
+  sur échec **structurel**. Une notion orpheline est insatisfaisable par construction — la rejouer
+  ne fait que brûler du GPU et retarder le verdict. 🔴 Un échec **non classé** est tenu pour
+  structurel : il remonte tout de suite à la barre au lieu de tourner trois fois en silence.
+- **Un travail unitaire mort se voit enfin.** `activity` rendait son statut **brut** — le défaut
+  exact que la Slice A venait de corriger pour les lots, sur le modèle frère. `stale` est une
+  **lecture**, bornée par le délai auquel RQ tue le job lui-même.
+- **Le balayage cesse d'être opportuniste** et se greffe sur le seul réveil périodique du dépôt.
+  ⚠️ Mais il bat toutes les trois heures : ce n'est **pas** lui qui rend la barre honnête — c'est la
+  lecture dérivée. Confondre les deux aurait laissé l'écran mentir trois heures.
+
+⚠️ **Deux dettes nommées, non traitées** (ADR-0041 §11) : la persistance Redis n'est pas configurée
+(« rien ne se perd » n'est vrai qu'**au-dessus** de Redis), et `docker-compose.prod.yml` n'a aucun
+service de worker de production. Les deux portent sur un environnement déployé nulle part.
+
+### Slice C — huit routes entrent dans la file, et le serveur se met à mesurer
+
+- **Sept producteurs migrés** : fiche (générer / régénérer), carte mentale (générer / régénérer),
+  quiz (générer / régénérer), rédaction de cours, diagnostic. Chacun rend `202 {job_id}` ; ce que la
+  route rendait se lit dans `output` du travail. **Rien n'est perdu, tout est déplacé.**
+- **Un seul point d'enfilement** (`ai/travaux.enfiler`) : la compensation du §10.1 vit une fois pour
+  les huit routes, au lieu de huit copies dont sept auraient fini par diverger.
+- 🔴 **Les refus restent SYNCHRONES.** *La file diffère le travail, jamais le verdict sur la
+  demande* : `404` matière inconnue, `409` leçon non validée ou archivée tombent toujours au clic.
+  Un test l'a rendu nécessaire — le diagnostic serait passé d'un `404` immédiat à un travail en
+  échec deux minutes plus tard.
+- 🔴 **Le serveur MESURE au lieu de deviner.** `estimated_ms` est la **médiane des dernières
+  exécutions réussies** de chaque type de travail (`ai_jobs.duration_ms`, déjà écrit depuis
+  toujours, rendu lisible par l'index de la slice A). Les valeurs en dur ne sont plus que des
+  **amorces** : ZETIS apprend ses propres durées, et une amorce fausse se corrige seule.
+- Nouvelle route `GET /api/lessons/{id}` : une route asynchrone doit pouvoir faire relire ce
+  qu'elle a produit.
+- ⚠️ **Un test-verrou d'architecture a refusé le premier design** et il avait raison : les modules
+  générateurs n'ont pas le droit d'importer `production` (cycle). Le helper vit dans `ai/`.
+
+### Les vingt-trois constantes sont mortes — et le cliquet est redevenu un interdit
+
+Seize barres Papa lisent désormais `useProgressionEstimee(actif, "<job_type>")`, qui interroge le
+serveur. `GENERATION_MS`, `SCOPE_MS`, `KIT_MS_PER_NOTION` et `WORK_ESTIMATION_MS` sont **supprimées**
+du frontend, et un verrou vérifie qu'aucune ne ressuscite.
+
+🔵 **Les médianes sont réelles dès le premier affichage.** `_run_traced` écrit un `AIJob` à chaque
+appel LLM depuis la création de la table : `fiche_generate`, `lesson_content`, `curriculum_*`,
+`srs_cards_generate`, `capsule_*`… ont déjà leur histoire en base — **y compris les producteurs que
+la slice C n'a pas migrés**. ⚠️ Trois amorces divergeaient de ces noms au premier jet ; elles
+auraient rendu l'amorce éternelle en silence.
+
+`GET /api/production/estimations` sert la table entière : c'est ce qui permet à un **aperçu** (« ce
+lot prendra ~36 min ») d'exister sans qu'aucun travail n'ait encore été créé.
+
+**Le test-cliquet `DETTE_SLICE_C` est dissous** — ses douze fichiers sont réglés. Il redevient ce
+qu'un verrou doit être : un interdit à zéro, sans liste d'exceptions. Les **quatre** sabotages
+rougissent (le troisième ne rougissait pas au premier jet — un `toContain` qui trouvait le champ
+dans un commentaire ; cinquième occurrence de ce motif dans le dépôt).
+
+### Le dernier lot : SRS, capsules et `curriculum_*` entrent dans la file
+
+Sept routes de plus en `202` — cartes de révision (par matière et par notion), capsule (script,
+régénération, **voix**), chapitres, leçons, extension de leçons, rattrapage skills-only. **Quinze
+producteurs LLM longs sont désormais dans la file**, et le §4 est complet.
+
+- ⚠️ **La voix est le seul travail migré qui n'appelle pas le LLM** : son exécutant construit Piper
+  lui-même, `run_ai_job` ne passant qu'un moteur de génération.
+- ⚠️ **Le rattrapage skills-only ne persiste RIEN** (ADR-0010) : sa prévisualisation EST sa sortie.
+- 🔴 **La dérogation cloud de l'ADR-0009 a failli disparaître dans la migration.** `run_ai_job`
+  passe le moteur **LOCAL** : un exécutant `curriculum_*` qui se serait contenté de son argument
+  aurait produit le référentiel de programme avec Ollama au lieu d'Anthropic — même code, même
+  sortie apparente, aucun test pour le dire. Les exécutants reprennent le bon provider, et un verrou
+  le vérifie **avec le moteur local piégé**.
+- 🔴 **Retirer une dépendance FastAPI retire aussi ce qu'elle LÈVE.** Le `503` « clé cloud absente »
+  venait de `Depends(get_curriculum_provider)`, pas du corps de la route. La dépendance est
+  conservée comme **précondition** sur les quatre routes `curriculum_*`.
+
+⚠️ **Ce qui reste ouvert, et c'est exact plutôt que flatteur** :
+- **une barre estime encore localement** : l'analyse par matière, seul producteur LLM du dépôt qui
+  n'écrit **aucune trace `ai_jobs`** — il n'y a donc rien à mesurer. La tracer d'abord ;
+- **rien n'a été vérifié à l'écran** pour les slices B et C.
+
 ## 0.53.0 — Progression nomme les notions et date leurs mouvements ; le Conseil cesse d'affirmer ce que l'évidence ne porte pas
 
 Un chantier en quatre lots (ADR-0040), plus deux correctifs nés de questions posées en le relisant.

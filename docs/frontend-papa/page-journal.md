@@ -24,10 +24,25 @@ présent s'**ajoute à côté** (« depuis résolu »), il ne réécrit pas la l
 2. **On ne devine jamais un régime.** La capture prime ; à défaut, ce que les actes prouvent ; si
    rien ne prouve, on dit « non enregistré ».
 3. **Aucun total, aucun ratio par provenance** (§F.2) : la provenance est un fait, elle ne se
-   totalise pas. Le seul compteur légitime est celui des lots, pour la pagination.
-4. **La portée est DITE.** Le Conseil de classe et la mission champion équipent hors lot ; leurs
-   contenus n'y figurent pas, et la page l'écrit en tête. Un journal qui paraît exhaustif sans
-   l'être est pire qu'un journal qui borne son sujet.
+   totalise pas. Le seul compteur légitime est celui de la **pagination** — et il compte des
+   **entrées**, lots et travaux confondus, depuis l'addendum ci-dessous. ⚠️ Il disait « 12 lots »
+   devant une liste qui en mêlait deux sortes, vu à l'écran le 2026-08-06.
+4. **La portée est DITE — et elle a CHANGÉ le 2026-08-06** (addendum ADR-0041 §16-§18). Le Journal
+   ne montrait que la production **en lot** ; depuis la migration de quinze producteurs, ce silence
+   aurait couvert les trois quarts de ce qui produit. Les **travaux unitaires y entrent**, mêlés aux
+   lots par date. La borne n'a pas disparu, elle a **déménagé du modèle vers le pouvoir d'agir** :
+   un travail **ne se retire pas**. Les compositions instantanées (mission champion, conseil de
+   classe) n'y figurent toujours pas, et la page l'écrit en tête.
+
+   ⚠️ **Un travail dit ce qu'il sait et se tait sur le reste** (§17) : ni régime d'autonomie, ni
+   pièces, ni journal ligne à ligne, **ni veto** — le retrait s'appuie sur un tampon
+   (`production_run_id`) qu'un `AIJob` ne pose pas. Afficher un bouton inerte serait promettre ce
+   que la donnée ne porte pas.
+
+   ⚠️ **Un filtre que les travaux ne portent pas les ÉCARTE, et la page le dit** (§18) — pièce,
+   régime, chapitre, et tout tri autre que la date. Une exclusion muette se lit comme un vide,
+   même faute qu'une troncature muette. Le filtre par **matière** fait exception : il se lit sur la
+   notion du travail.
 5. **Rien pour Massimo.** Écran de Papa, `require_parent`, aucune route élève.
 
 ## Ce que la page est déjà

@@ -2,6 +2,7 @@
 import { type CapsuleSpec } from "@zetis/types";
 import { API_URL, authClient } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
+import { lancerEtSuivre, type SuiviTravail } from "./travaux";
 
 // Cycle de rendu MP4 (Lot 2). `draft` = pas encore rendu ; `published` = MP4 disponible.
 export type CapsuleRenderStatus = "draft" | "rendering" | "published" | "failed";
@@ -75,28 +76,36 @@ export async function getCapsule(id: number): Promise<Capsule> {
 }
 
 /** Génère + persiste une capsule (statut pending). Peut prendre ~40 s avec qwen2.5 local. */
-export async function generateCapsule(input: CapsuleGenerateInput): Promise<Capsule> {
-  return asJson(
-    await fetch(`${API_URL}/api/capsules/generate`, {
-      method: "POST",
-      headers: jsonHeaders(),
-      body: JSON.stringify(input),
-    }),
+export async function generateCapsule(
+  input: CapsuleGenerateInput,
+  onEtat?: SuiviTravail,
+): Promise<Capsule> {
+  // 202 + sondage (ADR-0041 §4) : la route accepte, le worker produit. Signature INCHANGÉE —
+  // l'attente est absorbée ici, aucun appelant n'a eu à changer de forme.
+  const sortie = await lancerEtSuivre<{ capsule_id: number }>(
+    `${API_URL}/api/capsules/generate`,
+    { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) },
+    onEtat,
   );
+  return getCapsule(sortie.capsule_id);
 }
 
 export async function regenerateCapsule(
   id: number,
   instruction?: string,
   difficulty?: DifficultyChoice,
+  onEtat?: SuiviTravail,
 ): Promise<Capsule> {
-  return asJson(
-    await fetch(`${API_URL}/api/capsules/${id}/regenerate`, {
+  await lancerEtSuivre<{ capsule_id: number }>(
+    `${API_URL}/api/capsules/${id}/regenerate`,
+    {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ instruction: instruction ?? null, difficulty: difficulty ?? null }),
-    }),
+    },
+    onEtat,
   );
+  return getCapsule(id);
 }
 
 export async function setCapsuleValidation(
@@ -142,13 +151,15 @@ export async function deleteCapsule(id: number): Promise<void> {
 }
 
 /** Synthétise la voix (Piper) et cale les durées sur la narration. ~10–20 s. */
-export async function synthesizeVoice(id: number): Promise<Capsule> {
-  return asJson(
-    await fetch(`${API_URL}/api/capsules/${id}/voice`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+export async function synthesizeVoice(id: number, onEtat?: SuiviTravail): Promise<Capsule> {
+  // 202 + sondage (ADR-0041 §4). ⚠️ Seul travail migré qui n'appelle pas le LLM : son exécutant
+  // construit Piper lui-même, `run_ai_job` ne lui passant qu'un moteur de génération.
+  await lancerEtSuivre<{ capsule_id: number }>(
+    `${API_URL}/api/capsules/${id}/voice`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
+  return getCapsule(id);
 }
 
 /** Lance le rendu MP4 (asynchrone, worker-media). La capsule passe en `rendering`. */

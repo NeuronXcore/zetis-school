@@ -171,6 +171,13 @@ export interface ProductionRun {
    *  temps écoulé — c'est-à-dire ce qu'elle prétend mesurer. */
   started_at: string | null;
   finished_at: string | null;
+  /** 🔴 Durée attendue, **MESURÉE** par le serveur (ADR-0041 §9) — médiane des exécutions
+   *  réussies du type de travail que ce lot exécute, × son nombre de notions.
+   *
+   *  ⚠️ Ajouté le 2026-08-06 pour réparer une régression que la slice C venait d'introduire : les
+   *  composants ont cessé d'estimer en dur, or cette vue ne portait pas de quoi estimer — un
+   *  lot-PIÈCE retrouvé au retour sur la page perdait sa barre. */
+  estimated_ms: number;
 }
 
 /** `GET /api/production/runs/active` — le lot en cours, augmenté de **qui l'exécute**.
@@ -289,8 +296,41 @@ export interface JournalRun {
 
 /** ⚠️ Aucun total de provenance, aucun ratio ZETIS/Papa (§F.2) : la provenance est un fait,
  *  jamais un reproche — elle s'affiche par objet et ne se totalise pas. */
+/** Un TRAVAIL unitaire au Journal (addendum ADR-0041 §17) — ce qu'il sait, et rien de plus.
+ *
+ *  ⚠️ **Ni `zetis_mode`, ni `pieces`, ni `events`, donc aucun veto.** Ce n'est pas un oubli : un
+ *  `AIJob` ne grave aucun régime d'autonomie et ne tamponne aucune pièce produite. L'écran ne doit
+ *  offrir aucun bouton de retrait sur ces lignes — il ne pourrait rien retirer. */
+export interface JournalTravail {
+  id: number;
+  job_type: string;
+  /** Le mot que Papa lit (« Cartes de révision · Mitose »), jamais le `job_type`. */
+  label: string;
+  status: "queued" | "running" | "stale" | "succeeded" | "failed";
+  /** L'ORIGINE, pas le régime : hors lot ⇒ `manual` par construction (§3.2). */
+  trigger: string;
+  skill_id: number | null;
+  skill_name: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_ms: number | null;
+  /** Le motif d'échec, **tel quel** — décision du 2026-08-06, il ne se traduit pas. */
+  error: string | null;
+}
+
 export interface Journal {
   runs: JournalRun[];
+  /** Les travaux unitaires de LA MÊME page (addendum ADR-0041 §16) — à entrelacer par date.
+   *
+   *  ⚠️ Rendus à part plutôt que mêlés à `runs` : un travail ne porte **ni régime, ni pièces, ni
+   *  journal ligne à ligne** (§17), et le glisser dans `JournalRun` l'obligerait à faire semblant.
+   *  Les entrelacer côté écran n'est pas un tri côté client : la page est déjà la bonne, découpée
+   *  en SQL sur l'union des deux modèles. */
+  travaux: JournalTravail[];
+  /** Pourquoi les travaux sont absents, quand un filtre les écarte (§18) — `null` sinon.
+   *  ⚠️ À AFFICHER : une exclusion muette se lit comme un vide. */
+  travaux_exclus: string | null;
   has_more: boolean;
   /** Le nombre de lots RETENUS par le filtre — jamais celui de l'histoire entière.
    *
@@ -311,4 +351,55 @@ export interface VetoPreview {
 
 export interface VetoRemoval {
   removed: Partial<Record<PieceKind, number>>;
+}
+
+// --- L'activité de production (ADR-0041) -------------------------------------------------------
+//
+// La source UNIQUE de toutes les barres de progression Papa : le header et les pages lisent le
+// même endpoint. Ce qui disparaît avec ce type, ce sont les 23 constantes de durée en dur — la
+// rédaction d'un cours en portait CINQ différentes selon l'écran d'où on la lançait.
+
+/** Un travail en cours, en file, ou échoué — lot pédagogique ou travail unitaire. */
+export interface ActivityItem {
+  /** `run` = un lot (`ProductionRun`) ; `job` = un travail unitaire (`AIJob`). */
+  kind: "run" | "job";
+  id: number;
+  label: string;
+  status: "queued" | "running" | "stale" | "failed";
+  /** ⚠️ `null` = **indéterminé**, et JAMAIS `0` pour dire « ça démarre ». Zéro n'est pas une
+   *  valeur basse, c'est une absence de mesure — le 2026-08-05, quatre lots arrêtés affichaient
+   *  0 %, lu comme « ça commence ». */
+  pct: number | null;
+  /** Deux régimes de vérité (§6) : `true` = progression RÉELLE calculée serveur (« 7 / 31 ») ;
+   *  `false` = estimation ancrée sur `started_at` (« ≈ 40 % »). Un appel LLM n'a aucun grain
+   *  interne : les confondre uniformiserait un mensonge. */
+  pct_is_measured: boolean;
+  started_at: string | null;
+  /** DÉRIVÉ, jamais stocké (§3.2) : un lot porte son déclencheur, un travail hors lot est
+   *  manuel par construction. */
+  trigger: string | null;
+  error: string | null;
+  /** 🔴 La durée attendue, **MESURÉE par le serveur** (§9) — médiane des dernières exécutions
+   *  réussies de ce type de travail, amorce tant qu'il n'y a pas d'histoire.
+   *
+   *  C'est ce champ qui a tué les vingt-trois constantes de durée des composants Papa : une barre
+   *  locale ne devine plus, elle lit. Deux surfaces ne peuvent plus annoncer deux nombres pour le
+   *  même travail, puisqu'il n'y a plus qu'un nombre. */
+  estimated_ms: number;
+}
+
+export interface ProductionActivity {
+  /** Ce qui tourne ; à défaut, le premier de la file. */
+  current: ActivityItem | null;
+  /** Profondeur de file — jamais un arriéré (§7) : il retombe à zéro tout seul. */
+  queued_count: number;
+  /** Ce qui attend derrière, **dans l'ordre où la file sera servie** (§7).
+   *
+   *  ⚠️ Borné à 20 par le serveur, alors que `queued_count` dit le total : une troncature qui ne
+   *  se déclare pas se lit comme une exhaustivité. Comparer les deux, c'est savoir s'il en reste. */
+  queued: ActivityItem[];
+  /** Les échecs NON acquittés. Ils restent jusqu'au clic, pas six secondes. */
+  failed: ActivityItem[];
+  /** ⚠️ `null` = « la question n'a pas été posée », ce qui n'est PAS `false`. Tester `=== false`. */
+  worker_alive: boolean | null;
 }

@@ -17,7 +17,6 @@ import {
   GenerationProgress,
   SubjectFilterChips,
   type SubjectFilterOption,
-  useEstimatedProgress,
 } from "@zetis/ui";
 import { type CoverageCellKey, type CoverageLesson } from "@zetis/types";
 import { CouvertureIcon } from "../components/CouvertureIcon";
@@ -42,7 +41,8 @@ import {
   subjectAnomalies,
 } from "../lib/coverageFilters";
 import { fetchSubjects } from "../lib/subjects";
-import { GENERATION_LABEL, GENERATION_MS } from "../lib/production";
+import { GENERATION_LABEL } from "../lib/production";
+import { useProgressionEstimee } from "../hooks/useEstimations";
 
 const FILTERS: { key: CoverageFilter; label: string; tone?: "warn" | "alert" }[] = [
   { key: "all", label: "Tout" },
@@ -60,6 +60,17 @@ const EMPTY_ANOMALIES: Record<AnomalyKey, number> = {
   no_course: 0,
   pending: 0,
   stale: 0,
+};
+
+/** La cellule de la matrice → le `job_type` dont elle lit la durée (ADR-0041 §9).
+ *
+ *  ⚠️ Ce n'est PAS une table de durées, c'est une table de NOMS : les durées vivent côté serveur,
+ *  où elles sont mesurées. `GENERATION_MS` portait ici la cinquième valeur du cours. */
+const CELLULE_VERS_TYPE: Record<CoverageCellKey, string> = {
+  cours: "lesson_content",
+  fiche: "fiche_generate",
+  quiz: "quiz_generate",
+  mindmap: "mindmap_generate",
 };
 
 export function CouverturePage() {
@@ -139,7 +150,12 @@ export function CouverturePage() {
   // Chapitre mis en évidence, arrivé par la pastille d'en-tête « ZETIS produit un chapitre ».
   // Sans lui, le clic ouvrait la Couverture entière et laissait Papa chercher lequel travaille.
   const highlightChapterId = Number(searchParams.get("chapitre")) || null;
-  const pct = useEstimatedProgress(generating !== null, generating ? GENERATION_MS[generating.key] : 30000);
+  // La Couverture lance les quatre producteurs migrés : la durée vient de leur `job_type`, plus
+  // d'une table locale. `GENERATION_MS` portait ici la cinquième valeur du cours (§9).
+  const pct = useProgressionEstimee(
+    generating !== null,
+    generating ? CELLULE_VERS_TYPE[generating.key] : "",
+  );
 
   const counts = useMemo(() => filterCounts(coverage), [coverage]);
   // Second clic = « Tout », écrit comme une ABSENCE de clé (`null`) et non comme `"all"` : ainsi

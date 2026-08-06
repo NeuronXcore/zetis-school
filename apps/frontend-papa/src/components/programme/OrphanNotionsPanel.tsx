@@ -14,7 +14,8 @@ import {
   generateLessonContent,
   type OrphanNotion,
 } from "../../lib/curriculum";
-import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+import { ProgressBar } from "../ProgressBar";
+import { useProgressionEstimee } from "../../hooks/useEstimations";
 
 export function OrphanNotionsPanel({
   subjectId,
@@ -159,7 +160,7 @@ function OrphanLessonModal({
   const [generate, setGenerate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pct = useEstimatedProgress(busy && generate, 50000);
+  const pct = useProgressionEstimee(busy && generate, "lesson_content");
 
   const submit = useCallback(async () => {
     if (chapterId == null) return;

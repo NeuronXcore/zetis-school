@@ -3,6 +3,7 @@
 // des `skill_id` ancrés (revalidés serveur). Le pont d'actionnabilité réutilise le flux Commander
 // (missions `manual` validées par le clic). Types locaux (patron des libs pilotage Papa).
 import { API_URL, authClient } from "./authClient";
+import { signalerEnfilement } from "./productionSignal";
 import type { MissionPilot } from "./missionsPilotage";
 
 export interface CouncilRecommendation {
@@ -207,12 +208,80 @@ export function fetchCouncilReport(id: number): Promise<CouncilReport> {
 }
 
 /** Équipe une notion : ZETIS génère + auto-valide son kit (cours/fiche/SRS/quiz/mindmap). */
-export function equipNotion(skillId: number): Promise<EquipNotionResult> {
-  return fetch(`${API_URL}/api/reports/class-council/equip-notion`, {
+/** Équipe une notion — la route est ASYNCHRONE depuis l'ADR-0041, ce client attend quand même.
+ *
+ * ⚠️ **L'attente est délibérée, et elle protège un ORDRE.** `useCouncilClass` équipe N notions
+ * *puis* crée les missions, « leurs étapes résolvent les ressources fraîches » : rendre l'appel
+ * non bloquant sans rien d'autre ferait composer des missions sur un kit qui n'existe pas encore.
+ * Découvert en migrant la route, absent du cadrage.
+ *
+ * Ce que le chantier change n'est donc pas *qui attend*, c'est *ce que Papa voit pendant* : la
+ * requête HTTP ne tient plus 90 s, et la barre du header montre l'avancement réel, sur toutes les
+ * pages, y compris si Papa navigue ailleurs.
+ */
+/** L'état SERVEUR du travail en cours — ce que la barre locale doit rendre au lieu de deviner. */
+export interface EtatTravail {
+  status: "queued" | "running" | "succeeded" | "failed" | string;
+  /** L'instant de démarrage, **côté serveur**. `null` tant que le travail attend son tour. */
+  startedAtMs: number | null;
+  /** La durée attendue, **MESURÉE par le serveur** (ADR-0041 §9) — médiane des exécutions
+   *  réussies de ce type de travail. `null` tant que la réponse n'est pas revenue.
+   *
+   *  🔴 C'est ce champ qui a tué `WORK_ESTIMATION_MS`, la dernière durée en dur du frontend Papa.
+   *  Elle était juste (69 s mesurées) — mais elle était FIXE, et un chiffre figé cesse d'être vrai
+   *  au premier changement de modèle ou de machine. Le serveur, lui, remesure. */
+  estimatedMs: number | null;
+}
+
+export async function equipNotion(
+  skillId: number,
+  onEtat?: (e: EtatTravail) => void,
+): Promise<EquipNotionResult> {
+  const { job_id } = await fetch(`${API_URL}/api/reports/class-council/equip-notion`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ skill_id: skillId }),
-  }).then((r) => asJson<EquipNotionResult>(r));
+  }).then((r) => asJson<{ job_id: number; status: string }>(r));
+
+  // La barre paraît AU CLIC, plus « quelque part dans les quatre secondes ».
+  signalerEnfilement();
+
+  // ⚠️ **On rapporte l'état, on ne le devine pas** (ADR-0041 §9). Ce sondage existait déjà pour
+  // attendre le kit ; il sert désormais aussi à nourrir la barre de la page. Aucun sondeur de
+  // plus, et surtout : la page et l'en-tête lisent la MÊME vérité, donc ne peuvent plus se
+  // contredire — le 2026-08-06, un travail de 11 ms a fait dérouler dix secondes de pipeline à la
+  // page du Conseil pendant que l'en-tête, lui, disait juste.
+  onEtat?.({ status: "queued", startedAtMs: null, estimatedMs: null });
+
+  // Sondage 2 s : l'équipement dure ~69 s par notion (mesuré le 2026-08-02), donc ~35 lectures
+  // d'une ligne indexée. Le plafond existe pour qu'une panne du worker finisse par se dire au
+  // lieu de laisser une promesse pendante à jamais.
+  const DEBUT = Date.now();
+  const PLAFOND_MS = 15 * 60_000;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const job = await fetch(`${API_URL}/api/ai/jobs/${job_id}`, { headers: headers() }).then((r) =>
+      asJson<{
+        status: string;
+        output: EquipNotionResult | null;
+        error: string | null;
+        started_at: string | null;
+        estimated_ms: number | null;
+      }>(r),
+    );
+    onEtat?.({
+      status: job.status,
+      startedAtMs: job.started_at ? Date.parse(job.started_at) : null,
+      estimatedMs: job.estimated_ms,
+    });
+    if (job.status === "succeeded" && job.output) return job.output;
+    if (job.status === "failed") throw new Error(job.error ?? "L'équipement a échoué.");
+    if (Date.now() - DEBUT > PLAFOND_MS) {
+      throw new Error(
+        "L'équipement n'a pas répondu — vérifie qu'un moteur de production tourne (barre du header).",
+      );
+    }
+  }
 }
 
 export function createMissionsFromReco(

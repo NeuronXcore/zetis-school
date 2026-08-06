@@ -36,6 +36,12 @@ const SEVERITY_DOT: Record<"low" | "medium" | "high", string> = {
 
 // Estimation de la génération, alignée sur celle de la page Conseil. Ce N'EST PAS une mesure : le
 // serveur ne rend aucune progression.
+// ⚠️ **La SEULE barre Papa qui estime encore localement, et c'est un constat, pas un oubli**
+// (ADR-0041 §9, 2026-08-06). L'analyse par matière est un producteur LLM qui n'écrit **aucune
+// trace `ai_jobs`** — elle n'a donc ni `job_type` ni historique, et le serveur n'a rien à mesurer.
+// La faire lire `estimated_ms` demanderait d'abord de la TRACER, ce que le §4 ne demande pas.
+// ⚠️ Ne pas « aligner » cette valeur sur une autre : c'est exactement le geste qui a produit cinq
+// durées pour un même cours.
 const GEN_MS = 18000;
 // ~2,5 × l'estimation. Au-delà, la barre sature à 95 % et n'apprend plus rien : c'est le TEXTE qui
 // doit reprendre la parole. On ne rallonge PAS `GEN_MS` — ce serait déclarer 4 min pour un appel

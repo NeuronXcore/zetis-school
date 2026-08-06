@@ -2702,3 +2702,379 @@ bundle, résolu ou non.
 `ProgrammePage.test.tsx` › « pendant la génération : barre de progression estimée avec % » a échoué
 une fois (1029 ms) puis est repassé vert **5 fois de suite**. Flaky sur la temporisation de la
 barre, sans rapport avec le chantier. Non traité.
+
+## `feat/barre-de-production` (ADR-0041) — 2026-08-06
+
+### `conftest.py` remplace les FABRIQUES de file : une file neuve doit y être ajoutée
+
+Le fixture `autouse` `file_rq_factice` patche `_redis`, `production_queue` et `render_queue` —
+**les fabriques, pas les fonctions `enqueue_*`** (patcher celles-ci est vert et sans effet :
+`runs_router` les importe au niveau module). L'ADR-0041 ajoute `priority_queue` : **l'oublier
+aurait rouvert la fuite exactement là où elle avait déjà eu lieu** (18 jobs fantômes dans la file
+de dev le 2026-08-04), et sur le chemin le PLUS testé, puisqu'un clic de Papa passe désormais par
+la file prioritaire.
+**Parade** : toute nouvelle file RQ s'ajoute dans `originales` ET dans les trois `monkeypatch.setattr`.
+
+### Un index change l'ordre d'un `select` sans `ORDER BY`
+
+`test_lesson_content_service.py::_jobs()` faisait `select(AIJob).where(...)` **sans `order_by`**, et
+ses assertions lisaient « l'ordre de création » par coïncidence. Le nouvel index
+`ix_ai_jobs_type_status` a changé le plan SQLite : `failed` est passé avant `succeeded`. **Aucun
+comportement n'avait bougé** — la requête du test était sous-spécifiée.
+**Parade** : dans un test, tout `select` dont on lit l'ORDRE porte un `order_by` explicite. Un
+échec de ce type après l'ajout d'un index n'est pas une régression, c'est une révélation.
+
+### La pilule du header s'ÉCRASE au lieu de se replier
+
+Mesuré sur la maquette : sans échelle de repli, à **700 px** de header le libellé tombait à
+**0 px** en occupant encore 244 px, et à **560 px** les cinq états se réduisaient à 104 px de
+décoration illisible.
+**Parade** : paliers explicites (980 / 880 / 800 px), du moins informatif au plus informatif, sur
+la largeur du **conteneur** — jamais du viewport. Et deux exceptions : un **échec** et un **arrêt**
+gardent leur mot à toute largeur, parce que ce sont des états d'anomalie et non d'avancement.
+
+### `graphify affected` peut rendre « No affected nodes » sur une fonction utilisée
+
+`graphify affected "active_run"` rend une liste **vide** alors que
+`production/runs_router.py:87` l'appelle (`runs.active_run(db)` — accès par attribut de module).
+La cage `/slice` met en garde contre `explain` ; `affected` a le même angle mort.
+**Parade** : ne jamais s'en servir seul comme liste de non-régression — recouper au `grep`.
+
+### Rendre `equip-notion` asynchrone casse un ORDRE non documenté
+
+`useCouncilClass.ts:195` équipe N notions **puis** crée les missions, « leurs étapes résolvent les
+ressources fraîches ». Un appel non bloquant ferait composer des missions sur un kit inexistant.
+**Parade retenue** : le client `equipNotion()` sonde `GET /ai/jobs/{id}` jusqu'à complétion — la
+requête HTTP ne tient plus 90 s, la barre du header montre l'avancement, et l'ordre est préservé.
+
+### 🔴 Ajouter une file RQ rend `production_worker_alive()` menteur — trouvé À L'ÉCRAN
+
+Le 2026-08-06, premier équipement réel après l'ajout de la file prioritaire : la barre est restée
+sur « ZETIS va produire · en file d'attente », indéfiniment, avec `worker_alive: true`.
+
+Relevé, sans ambiguïté :
+
+```
+rq:queue:production-priority = 1 job      rq:workers:production-priority = 0
+rq:queue:production          = 0          rq:workers:production          = 2
+```
+
+**Cause** : `production_worker_alive()` n'interrogeait que `production_queue()`. Les workers en
+vie avaient été démarrés **avant** le changement — ils n'écoutaient que la file normale. Le
+travail dormait sur une file que personne ne consommait, et l'indicateur affirmait une santé.
+C'est la panne de six heures du 2026-08-05 que cette fonction devait rendre visible, réintroduite
+par la file qu'on venait d'ajouter.
+
+**Parade** : `all()` sur `production_queues()` — une seule file non servie suffit à bloquer le
+travail qui s'y trouve. Test-verrou `test_un_worker_qui_n_ecoute_QU_UNE_file_ne_compte_pas`,
+vérifié par sabotage (`all` → `any` le fait rougir).
+
+⚠️ **Et la règle d'exploitation qui va avec** : après tout ajout de file, **redémarrer le worker**
+(`pkill -f app.production_worker` puis `pnpm dev:worker`). Un worker vivant n'est pas un worker à
+jour.
+
+### La barre du header s'écrasait à 30 px — mesurer le CONTENEUR ne suffit pas
+
+Contrôle responsive du 2026-08-06, à 644 px de header : pilule **30 px**, libellé **0 px**.
+L'échelle de repli existait pourtant, et elle était juste sur la maquette.
+
+**Cause, en deux temps** :
+
+1. `useLargeurConteneur` observait **son propre conteneur** — lequel est DÉJÀ écrasé quand elle le
+   lit, puisque la pilule de production est le seul des trois blocs du header à céder. Les seuils
+   se déclenchaient donc sur un espace déjà perdu, c'est-à-dire jamais.
+2. Rien ne l'empêchait de céder jusqu'à **zéro** : la pilule d'identité passait à deux lignes
+   plutôt que d'abandonner « Période : 2026 — 4ᵉ ».
+
+**Parade** : observer le **`<header>`** (`ref.current.closest("header")`), donner à la pilule un
+**plancher** (`min-w-[150px]`, sa forme réduite), et faire **céder le contexte d'abord** —
+« Période » sous `lg`, « Enfant » et « Exporter » sous `md`. La signature « ZETIS Papa » ne part
+jamais : c'est elle qui distingue les deux frontends.
+
+⚠️ **Et un piège de MESURE, payé deux fois** : `textContent` renvoie le texte des éléments
+`display:none`. Une assertion « ce libellé a bien cédé » bâtie dessus est **toujours fausse**.
+Mesurer `getBoundingClientRect().width > 0`.
+
+⚠️ **La maquette ne pouvait pas trouver ce défaut** : elle n'avait pas les deux pilules réelles
+qui se disputent la place. C'est le contrôle responsive à l'écran, et lui seul, qui l'a sorti.
+
+### La barre ne peut pas voir un travail plus court que son sondage
+
+Contrôle 2 du 2026-08-06 : un équipement lancé depuis le Conseil sur une notion **déjà équipée**
+a vécu **11 ms** (`generated: []`, les cinq pièces `skipped`). Le header n'a rien affiché — période
+de sondage : **4 s**. Le travail est né et mort entre deux lectures.
+
+Même classe que le défaut corrigé le 2026-08-03 sur `useActiveProductionRun` (« un lot-pièce dure
+15 à 17 s : à 20 s de période, l'indicateur pouvait ne JAMAIS voir un lot entier »), à plus petite
+échelle.
+
+**Ce n'est pas un bug d'affichage** : pour 11 ms de travail il n'y a rien d'utile à montrer, et
+aucune production n'a eu lieu. Mais l'attente « les deux surfaces disent la même chose au même
+moment » est violée.
+
+**Parade à écrire** : raccourcir la période ne supprime pas la course. C'est **le client qui vient
+d'enfiler** qui doit réveiller la barre (un rafraîchissement immédiat après l'appel), plutôt que
+d'attendre le prochain tour.
+
+⚠️ **Et le vrai enseignement** : pendant ces 11 ms, la page du Conseil a déroulé son pipeline
+« Cours · Fiche · Cartes · Quiz · Carte mentale » pendant une dizaine de secondes — `EQUIP_MS`
+**devine**. Le header **mesure**. Les deux ne peuvent pas rester d'accord : c'est très exactement
+ce que la Slice C (mort des 23 constantes) vient réparer.
+
+---
+
+## `feat/barre-de-production` — Slice B, la durabilité (ADR-0041 §10) — 2026-08-06
+
+### 🔴 Le cadrage comptait DEUX trous d'enfilement ; il y en avait TROIS
+
+Le prompt de la Session B nommait `enqueue_production` et `enqueue_render`. Il avait été écrit
+**avant la Slice A**, qui a créé `enqueue_ai_job` — avec le même trou, et sur **le chemin de la
+barre**. Un prompt de cadrage vieillit dès que la slice précédente touche la même zone.
+**Parade** : au read-before-code, ne pas vérifier seulement que les constats du prompt sont vrais,
+mais **rechercher ce que la slice précédente a ajouté** dans le même périmètre.
+
+### 🔴 Le monde des travaux unitaires est né avec le bug déjà réparé à côté de lui
+
+Le §1 avait corrigé `run_out` (il rendait `run.status` brut, donc un lot mort s'affichait
+`running`) en passant par `journal.run_status`. La Slice A a créé `activity._travail` en rendant
+`job.status` **brut** — la même faute, quinze lignes plus bas, le même jour.
+**Parade** : quand une lecture dérivée existe pour un modèle (`run_status`), tout modèle **frère**
+en a besoin. `sweep.job_status` est désormais son miroir explicite, et son docstring le dit.
+
+### ⚠️ « Greffer le balayage sur le réveil déjà en place » aurait fait mentir la barre 3 heures
+
+`production_scan_interval_minutes` vaut **180**. Une barre qui n'aurait dit la vérité qu'après ce
+passage aurait rouvert le défaut que le chantier ferme.
+**Parade** : séparer les deux gestes. La vérité se **dérive à la lecture** (instantanée, §1) ; le
+balayage périodique n'est que du **ménage en base**. Et il tourne aussi au démarrage du worker
+(`production_worker.py` amorce le scan) — c'est-à-dire au meilleur moment : celui qui vient de
+mourir est de retour.
+
+### ⚠️ `raise` a CHANGÉ DE SENS dans `run_ai_job` le jour où `Retry` est apparu
+
+Avant : « que RQ voie l'échec », par symétrie avec `worker_media.jobs.render_capsule`. Depuis que
+`enqueue_ai_job` pose un `Retry`, **laisser remonter une exception veut dire *rejoue-moi*** — RQ ne
+regarde pas laquelle. Un `raise` remis par réflexe rendrait le rejeu typé silencieusement
+inopérant, et **aucun test des files ne rougirait** : elles sont factices (§15).
+**Parade** : un test-verrou dont l'assertion est l'**absence** de `pytest.raises`
+(`test_echec_structurel_zero_rejeu`), et le docstring de `run_ai_job` qui le dit en tête.
+
+### ⚠️ La capsule : une panne de file faisait DISPARAÎTRE une vidéo déjà rendue
+
+`request_render` passait la capsule en `rendering` **et effaçait `video_url`** avant d'enfiler.
+Redis absent ⇒ capsule bloquée « en cours de rendu » indéfiniment, et la vidéo précédente — qui
+existait toujours sur le disque — devenue invisible.
+**Parade** : compensation (restaurer statut **et** `video_url`), pas inversion de l'ordre. Enfiler
+avant de commiter ouvrirait une course : le worker peut finir et écrire `published` avant que notre
+commit repasse la capsule en `rendering`. *Une compensation se voit dans le code ; une course ne se
+voit qu'en production.*
+
+### 🔴 Un test-verrou VERT sur son sabotage — parce qu'il passait par la mauvaise garde
+
+`test_un_travail_qui_ATTEND_n_est_pas_un_travail_mort` créait un travail `queued` **sans
+`started_at`**. Il sortait donc par la garde « rien à juger » et non par la garde sur le statut :
+supprimer celle-ci le laissait **vert**. Quatrième occurrence de ce motif dans le dépôt.
+**Parade** : le cas rejoué est celui qui est réellement atteignable — un travail rendu à la file
+après un échec transitoire **garde le `started_at` de sa première tentative**. Et, plus
+généralement : sur une fonction à plusieurs gardes, un sabotage doit viser **chaque garde
+séparément**, sinon il mesure la première.
+
+### Où lire l'état quand la barre dit « arrêté »
+
+| Ce que l'écran montre | Ce que ça veut dire | Le geste |
+|---|---|---|
+| pilule ambre, `worker_alive: false` | aucun worker n'écoute **une** des deux files | `python -m app.production_worker` |
+| une ligne `stale` alors que le worker tourne | ce travail-là est mort seul (OOM, work-horse tué) | il se referme au prochain réveil ; acquitter ensuite |
+| `503` au clic | la file n'a pas pris le travail — **rien n'a été créé** | vérifier Redis, puis recliquer |
+
+---
+
+## `feat/barre-de-production` — Slice C, la migration du reste (ADR-0041 §4, §9) — 2026-08-06
+
+### 🔴 STOP-ON-BLOCKER : un test-verrou d'architecture a refusé le premier design
+
+`test_production_equipment.py::test_les_generateurs_nimportent_pas_production` interdit aux cinq
+modules générateurs (`curriculum`, `fiches`, `memory`, `mindmaps`, `quizzes`) d'importer
+`modules.production` — parce que `production.equipment` **les appelle**, donc l'inverse fermerait le
+cycle. Le helper d'enfilement avait été écrit dans `production/travaux.py`, et quinze routes de
+générateurs l'importaient. Le verrou a rougi ; il avait raison.
+**Parade** : le module a été déplacé dans **`ai/travaux.py`**. `ai` possède déjà `AIJob`, n'importe
+aucun générateur, et les générateurs l'importent tous depuis toujours (`get_provider`). La
+dépendance va dans le sens qui existait — aucun cycle, en substance et pas seulement à la lettre.
+⚠️ **Ne pas ramener ce module dans `production/`** sans rouvrir la question du cycle.
+
+### 🔴 Migrer une route en file peut DÉPLACER une validation — et un test l'a prouvé
+
+`POST /diagnostics/generate` rendait `404` sur une matière inconnue. Passée en `202`, elle aurait
+rendu « accepté » puis un travail en échec deux minutes plus tard.
+**Règle posée** : *la file diffère le TRAVAIL, jamais le VERDICT sur la demande.* Toute validation
+**bon marché** (une lecture indexée) est rejouée dans la route avant d'enfiler — `_subject_or_404`,
+`_validated_lesson_or_409`, le `409` de leçon archivée. Le service garde la sienne : le monde peut
+changer entre le clic et l'exécution. La double vérification est voulue, pas une redite.
+
+### Une route asynchrone a besoin d'un GET pour relire ce qu'elle a produit
+
+`generate-content` rendait la leçon rédigée. En `202`, elle ne rend plus qu'un `job_id` — et il
+n'existait **aucun** `GET /api/lessons/{id}` côté Papa. Sans lui, l'écran aurait dû recharger tout
+le chapitre pour une leçon.
+**Parade** : la route a été ajoutée. À prévoir pour tout producteur migré dont la sortie n'est pas
+auto-suffisante (`quiz` et `diagnostic` n'en ont pas eu besoin : leur sortie EST leur ancien
+contrat).
+
+### Insérer un import par script casse un bloc `from … import (`
+
+Un script d'insertion « après le dernier `from app.` » a écrit **à l'intérieur** de trois blocs
+d'import multi-lignes (`mindmaps`, `quizzes`, `curriculum`), produisant un `SyntaxError` silencieux
+jusqu'à l'import du module. Deux fichiers manquaient en plus `status` dans leur import `fastapi`.
+**Parade** : pour un import, viser une ancre **fermée** (la ligne `)` du bloc, ou la ligne
+`router = APIRouter(`), jamais « le dernier `from` ». Et vérifier par `import app.main` juste après.
+
+### Une variable locale peut masquer un module fraîchement importé
+
+`activity.read()` a une variable locale `travaux` (la liste des travaux unitaires). Importer
+`from app.modules.ai import travaux` au niveau module l'a rendue **inatteignable après la ligne 174**
+— masquage silencieux, qui n'aurait pété qu'à l'appel.
+**Parade** : importer les **fonctions** (`from …travaux import estimation_ms, estimations`) quand le
+nom du module est un mot courant du domaine.
+
+### L'estimation d'une durée : la mesurer plutôt que la déplacer
+
+Le réflexe était de rassembler les 23 constantes dans une table côté serveur. Ç'aurait laissé des
+devinettes, simplement plus loin de l'écran. Or `ai_jobs.duration_ms` enregistre depuis toujours ce
+que **chaque travail a réellement duré**, et l'index `(job_type, status)` de la slice A le rend
+lisible pour rien.
+**Parade** : `ai/travaux.estimations()` rend la **médiane des dernières exécutions réussies** par
+type ; les valeurs en dur ne sont plus que des **amorces**. ⚠️ Médiane et non moyenne : un travail
+qui a attendu Massimo tirerait une moyenne vers le haut de façon permanente.
+
+### 🔴 Un `toContain` sur un nom de champ reste VERT quand la règle est violée
+
+Le verrou « les trois surfaces d'équipement lisent la mesure du serveur » cherchait `estimated_ms`
+**n'importe où** dans le fichier. Sabotage : remplacer la durée par `69000` — le verrou est resté
+**vert**, parce que le champ figurait encore dans la CONDITION d'activation
+(`&& (item?.estimated_ms ?? 0) > 0`) et dans un commentaire. **Cinquième occurrence** de ce motif
+dans le dépôt.
+**Parade** : un verrou lexical vise **l'endroit exact où la règle s'applique** — ici le 2ᵉ argument
+de `useEstimatedProgress`, extrait par regex, jamais le fichier entier.
+
+### `vi.mock` sur un module ne change pas ce que ce module s'appelle À LUI-MÊME
+
+`useEstimations` appelle `fetchEstimations` par sa **liaison locale**, pas par l'espace de noms du
+module : un `vi.mock` avec `importActual` remplace l'export sans toucher l'appel interne. Le mock
+était vert et sans effet — exactement la classe de piège documentée côté backend pour `enqueue_*`.
+**Parade** : couper plus bas (`vi.spyOn(globalThis, "fetch")`), ce qui garde le hook RÉEL et
+continue donc de le prouver.
+
+### Une barre qui n'estime plus toute seule affiche son % un tic plus tard
+
+Deux tests exigeaient un `%` **synchrone** après le clic. La durée venant maintenant du serveur, la
+barre est indéterminée jusqu'à la première réponse — comportement voulu (§9 : on ne devine plus).
+**Parade** : `await waitFor(...)`. ⚠️ L'assertion ne bouge pas, seule son échéance — relâcher
+l'assertion aurait masqué la régression qu'elle protège.
+
+### Migrer une barre, c'est aussi vérifier QUEL travail elle annonce
+
+`ProgrammePage` et `LessonsPanel` ont été mappés sur `lesson_content` au premier jet. Or leurs
+libellés disent « ZETIS génère les **chapitres** » et « propose les **leçons** » : les bons types
+sont `curriculum_chapters` et `curriculum_lessons`. La durée venait du bon serveur, mais du mauvais
+travail — attrapé par `ProgrammePage.test.tsx`.
+**Parade** : lire le **libellé affiché** de la barre avant de choisir son `job_type`, pas le nom du
+fichier.
+
+### Une vue qui ne portait pas la durée perdait sa barre
+
+Les composants ayant cessé d'estimer, `/runs/active` s'est retrouvé sans rien à estimer : un
+lot-PIÈCE **retrouvé au retour sur la page** perdait sa barre (`DemandesPage.test.tsx`).
+**Parade** : `run_out` porte `estimated_ms`. ⚠️ Généraliser : retirer une estimation locale oblige
+à vérifier que **chaque vue** du même objet porte la mesure — deux vues qui ne portent pas les
+mêmes champs finissent par diverger.
+
+### 🔴 Migrer `curriculum_*` en file annule la dérogation cloud — en silence
+
+`run_ai_job` passe `get_provider()`, c'est-à-dire le moteur **LOCAL**. Un exécutant `curriculum_*`
+qui se contenterait de son argument `llm` produirait un référentiel de programme avec Ollama au lieu
+d'Anthropic (ADR-0009) : même code, même sortie apparente, aucun test pour le dire.
+**Parade** : les exécutants appellent `get_curriculum_provider()` eux-mêmes
+(`jobs._curriculum_provider`), et un verrou le vérifie **avec le moteur local piégé** — l'appeler
+fait échouer le travail. Affirmer seulement « le cloud a été appelé » aurait laissé passer un
+exécutant qui appelle les deux.
+
+⚠️ **Corollaire pour `conftest`** : le fixture `executer_travail` doit mocker
+`curriculum.get_curriculum_provider` ET `tts.get_tts`. Le worker n'a **aucune dépendance FastAPI** :
+les surcharges de `client_db` ne l'atteignent pas, et l'oubli ferait partir un vrai appel Anthropic
+depuis la suite de tests.
+
+### Retirer une dépendance FastAPI peut retirer un REFUS
+
+`skills-backfill/generate` rendait `503` quand la clé cloud manquait — via `Depends(get_curriculum_provider)`,
+pas via le corps de la route. La migration a supprimé la dépendance devenue inutile… et le refus
+avec. Papa aurait obtenu `202` sur un clic qui ne pouvait pas aboutir.
+**Parade** : garder la dépendance comme **précondition**, avec un nom qui le dit (`_cloud`) et le
+commentaire qui l'explique. ⚠️ Généraliser : avant de retirer un `Depends`, se demander **ce qu'il
+lève**, pas seulement ce qu'il rend.
+
+### Un helper de test qui affirme `202` ne convient pas aux tests de REFUS
+
+`poster_et_executer` affirme le `202` — c'est voulu (une route repassée en synchrone rougit ici).
+Mais le test du `409` sur chapitre non validé doit appeler la route **directement** : passer par le
+helper aurait masqué le contrat qu'il vérifie.
+
+---
+
+## Vérification À L'ÉCRAN de l'ADR-0041 (slices B + C) — 2026-08-06
+
+Contrôle réel : backend `:8000`, front Papa `:5174`, worker de production, génération de cartes SRS
+par matière. **Quatre choses trouvées, dont trois défauts de code.**
+
+### 🔴 Un `SimpleWorker` RQ ne recharge JAMAIS le code — et l'écran accuse le code
+
+Trois workers tournaient : deux récents, un de **163 minutes**, démarré avant l'ajout de
+`_srs_cards_generate` à `_EXECUTANTS`. Le premier clic est tombé sur un worker à jour et a réussi ;
+le second sur le périmé, qui a répondu **« Aucun exécutant pour "srs_cards_generate" »** — un
+message qui se lit exactement comme un bug de la migration.
+**Parade** : après toute modification de `_EXECUTANTS` (ou de tout code que le worker exécute),
+**redémarrer TOUS les workers**. `uvicorn --reload` recharge le backend, pas eux. ⚠️ Et vérifier
+qu'il n'en traîne pas d'anciens : `Worker.all(queue=...)` avec leur `birth_date`.
+
+### 🔴 L'estimation comptait les traces IMBRIQUÉES, et sous-estimait d'un facteur 8
+
+Mesuré en vrai : une génération de cartes par matière = **un travail de file de 53,6 s** contenant
+**quatre traces de 5 à 6 s**. Les traces portent le même `job_type` et sont beaucoup plus
+nombreuses : la statistique servait **7,2 s**. La barre a atteint 100 % au bout de sept secondes et
+**traîné quarante-six secondes** — le défaut que le §9 nommait avant même ce chantier.
+**Parade** : `enfiler()` marque ses lignes `created_by="file"` (`travaux.ACTEUR_FILE`), et
+`estimations()` ne compte **que** celles-là. ⚠️ Conséquence assumée : un type sans cinq exécutions
+de file sert son amorce, même avec des centaines de traces en base — une trace mesure un appel, pas
+le travail que la barre montre.
+
+### 🔴 La médiane ne décrit rien sur une population MULTIMODALE
+
+`equip_notion` : sur 18 exécutions, huit à ~0 s (notion déjà équipée), cinq à ~7 s (kit partiel),
+cinq de 31 à 86 s (kit complet). Médiane = **7 s** pour un travail qui en dure **69 à 77**.
+**Parade** : le **p75** avec un **plancher de 2 s** (un travail plus court que la période de
+sondage n'a jamais eu de barre, il ne peut rien lui apprendre). Rend 76,9 s — la mesure réelle.
+Et sous-estimer est le pire des deux sens : une barre trop courte *traîne*.
+
+### 🔴 Le header parlait technique à Papa
+
+`LIBELLE_JOB` ne portait qu'`equip_notion` ; le repli « un mot technique vaut mieux qu'une barre
+anonyme » était juste avec UN producteur migré, il est devenu le cas général avec quinze. Le header
+a affiché **« srs_cards_generate »** en toutes lettres.
+**Parade** : la table couvre les dix-huit types. ⚠️ **À ne pas confondre avec le motif d'échec**,
+dont la traduction a été explicitement écartée le même jour : un motif sert à savoir quoi réparer,
+un libellé dit ce qui se passe.
+
+### ✅ Ce que l'écran a CONFIRMÉ
+
+- **Les deux barres disent la même chose** : header `≈ 62 %` / page `64 %` sur le même travail, un
+  tic de sondage d'écart. C'est la promesse du §9, tenue.
+- **`GET /production/estimations` est bien appelé** par la page, et sert des durées mesurées.
+- **L'échec reste, avec son motif brut, et « J'ai vu » l'efface** — `acknowledged_at` écrit en base,
+  donc l'acquittement ne revient sur aucun appareil (§8).
+- **Le header est vide quand rien ne tourne**, et la pilule paraît au clic (§7).
+
+### ⚠️ Piège d'environnement : le front `:5175` sans `VITE_API_URL`
+
+Un Vite orphelin sur `:5175` tape sur `:8000` par défaut, dont le CORS n'autorise que `:5173` et
+`:5174` → **« Failed to fetch »** au login, sans message clair. C'est la paire qui compte, pas le
+port : voir la mémoire `zetis-serveurs-dev-ports`.

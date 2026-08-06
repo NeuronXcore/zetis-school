@@ -3,6 +3,7 @@
 import { type FicheDetail, type FichePilotageTree, type FicheSpec } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
+import { lancerEtSuivre, type SuiviTravail } from "./travaux";
 
 const API = `${API_URL}/api/fiches`;
 
@@ -11,20 +12,41 @@ export async function fetchFichePilotage(subjectId: number): Promise<FichePilota
   return asJson(await fetch(`${API}/pilotage/${subjectId}`, { headers: authHeader() }));
 }
 
-/** Génère une fiche à partir d'une leçon validée (statut `pending`) — requête longue (LLM local). */
-export async function generateFiche(lessonId: number): Promise<FicheDetail> {
-  return asJson(
-    await fetch(`${API}/generate`, {
+/** Génère une fiche à partir d'une leçon validée (statut `pending`).
+ *
+ *  202 + sondage (ADR-0041 §4) : la route accepte, le worker produit. La signature est INCHANGÉE —
+ *  l'attente est absorbée ici, donc aucun appelant n'a eu à changer de forme. */
+export async function generateFiche(
+  lessonId: number,
+  onEtat?: SuiviTravail,
+): Promise<FicheDetail> {
+  const sortie = await lancerEtSuivre<{ fiche_id: number }>(
+    `${API}/generate`,
+    {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ lesson_id: lessonId }),
-    }),
+    },
+    onEtat,
   );
+  return fetchFiche(sortie.fiche_id);
 }
 
-/** Régénère le spec d'une fiche (écrase l'existant → repasse `pending`). */
-export async function regenerateFiche(id: number): Promise<FicheDetail> {
-  return asJson(await fetch(`${API}/${id}/regenerate`, { method: "POST", headers: authHeader() }));
+/** Régénère le spec d'une fiche (écrase l'existant → repasse `pending`).
+ *
+ *  202 + sondage (ADR-0041 §4). La signature est INCHANGÉE : l'attente est absorbée ici. */
+export async function regenerateFiche(id: number, onEtat?: SuiviTravail): Promise<FicheDetail> {
+  await lancerEtSuivre<{ fiche_id: number }>(
+    `${API}/${id}/regenerate`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
+  );
+  return fetchFiche(id);
+}
+
+/** La fiche par son id — sert à rendre l'objet une fois le travail fini. */
+export async function fetchFiche(id: number): Promise<FicheDetail> {
+  return asJson(await fetch(`${API}/${id}`, { headers: authHeader() }));
 }
 
 /** Remplace le spec (revalidé par le schéma → repasse `pending`). */

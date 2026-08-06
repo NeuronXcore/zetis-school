@@ -6,7 +6,6 @@ import {
   GenerationProgress,
   SoundToggle,
   useCelebrate,
-  useEstimatedProgress,
 } from "@zetis/ui";
 import { type FicheDetail, type FichePilotageTree } from "@zetis/types";
 import { FicheEditorModal } from "../components/FicheEditorModal";
@@ -22,12 +21,12 @@ import {
   regenerateFiche,
   validateFiche,
 } from "../lib/fiches";
+import { useProgressionEstimee } from "../hooks/useEstimations";
 
 // Pilotage Fiches Papa (émeraude) : par matière, les leçons validées + leurs fiches. Génération
 // par leçon (barre estimée + célébration), cycle de vie par fiche (briques @zetis/ui partagées),
 // édition via formulaire structuré (FicheEditorModal, revalidé → pending). Aucune action locale.
 
-const GEN_MS = 32000; // génération LLM locale d'une fiche (~20-40 s)
 
 function SubjectIcon({ slug, size = 20 }: { slug: string; size?: number }) {
   const url = subjectIconFor(slug);
@@ -65,7 +64,7 @@ export function FichesPilotagePage() {
 
   const celebrate = useCelebrate();
   const busyOp = genLessonId !== null || regenFicheId !== null;
-  const pct = useEstimatedProgress(busyOp, GEN_MS);
+  const pct = useProgressionEstimee(busyOp, "fiche_generate");
 
   useEffect(() => {
     fetchSubjects()

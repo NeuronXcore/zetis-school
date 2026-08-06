@@ -7,7 +7,6 @@ import {
   Input,
   SoundToggle,
   useCelebrate,
-  useEstimatedProgress,
 } from "@zetis/ui";
 import { type MindmapPilotageCard, type MindmapPilotageTree } from "@zetis/types";
 import { MindmapPreviewModal, destructionNotice } from "../components/MindmapPreviewModal";
@@ -23,6 +22,7 @@ import {
   regenerateMindmap,
   validateMindmap,
 } from "../lib/mindmaps";
+import { useProgressionEstimee } from "../hooks/useEstimations";
 
 // Pilotage Mindmaps Papa (émeraude) : par matière, les chapitres → leçons validées → leur carte.
 // Génération par leçon (barre estimée + célébration), cycle de vie par carte (briques @zetis/ui
@@ -32,7 +32,6 @@ import {
 // La métrique « reconstruite N fois · moyenne X % » et le signal des confirmations viennent de
 // l'agrégat `attempt_count`/`avg_score` de la route de pilotage — strictement côté Papa.
 
-const GEN_MS = 32000; // génération LLM locale d'une carte (~20-40 s)
 
 function SubjectIcon({ slug, size = 20 }: { slug: string; size?: number }) {
   const url = subjectIconFor(slug);
@@ -91,7 +90,7 @@ export function MindmapsPilotagePage() {
 
   const celebrate = useCelebrate();
   const busyOp = genLessonId !== null || regenMindmapId !== null;
-  const pct = useEstimatedProgress(busyOp, GEN_MS);
+  const pct = useProgressionEstimee(busyOp, "mindmap_generate");
 
   useEffect(() => {
     fetchSubjects()

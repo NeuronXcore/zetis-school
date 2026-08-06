@@ -7,8 +7,9 @@ import {
 } from "@zetis/types";
 import { Button, Spinner } from "@zetis/ui";
 import { subjectGenerateLabel } from "../../hooks/useSrsCards";
-import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+import { ProgressBar } from "../ProgressBar";
 import { NotionRow } from "./NotionRow";
+import { useProgressionEstimee } from "../../hooks/useEstimations";
 
 // Section « matière » (présentation pure) : accordéon + bouton « Générer les N » (visible
 // seulement si des notions sont à générer) + arbre chapitre → leçon → notion + suspendues.
@@ -44,7 +45,9 @@ export function SubjectSection(props: SubjectSectionProps) {
   // Barre de progression estimée pendant la génération par matière (même pattern que
   // Programme/Capsules : le backend LLM ne renvoie pas d'avancement). Durée cible ≈ nombre
   // de notions à générer × ~8 s (moteur local), plancher 20 s.
-  const genPct = useEstimatedProgress(busySubject, Math.max(20000, subject.to_generate * 8000));
+  // ⚠️ Pas de facteur : la trace `srs_cards_generate` mesure UNE génération par matière, quel
+  // que soit le nombre de cartes — multiplier par `to_generate` inventerait une durée.
+  const genPct = useProgressionEstimee(busySubject, "srs_cards_generate");
 
   const notionRow = (notion: SrsNotion) => (
     <NotionRow

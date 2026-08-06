@@ -14,7 +14,8 @@ import {
   createLessonFromRequest,
   type NotionRequest,
 } from "../../lib/notionRequests";
-import { ProgressBar, useEstimatedProgress } from "../ProgressBar";
+import { ProgressBar } from "../ProgressBar";
+import { useProgressionEstimee } from "../../hooks/useEstimations";
 
 export function NotionRequestActionModal({
   request,
@@ -36,7 +37,7 @@ export function NotionRequestActionModal({
   const [generateCourse, setGenerateCourse] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pct = useEstimatedProgress(busy && generateCourse, 50000);
+  const pct = useProgressionEstimee(busy && generateCourse, "lesson_content");
 
   useEffect(() => {
     fetchActiveSchoolYear()

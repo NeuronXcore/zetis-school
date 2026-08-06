@@ -5,13 +5,23 @@
 // - **Aucun total, aucun ratio ZETIS/Papa** (§F.2). La provenance est un fait, jamais un
 //   reproche : elle s'affiche par objet et ne se totalise pas. Un compteur « 31 objets servis
 //   sans relecture » en tête de page serait un bulletin de retard.
-// - **La portée est dite, pas devinée.** Le Journal ne montre que la production EN LOT ; le
-//   Conseil de classe et la composition champion équipent hors lot. Le silence sur eux ne doit
-//   pas se lire comme « rien d'autre n'a été produit ».
+// - **La portée est dite, pas devinée.** ⚠️ Elle a CHANGÉ le 2026-08-06 (addendum ADR-0041
+//   §16-§18) : le Journal ne montrait que la production EN LOT, et le commentaire ci-dessous
+//   avertissait que « le silence sur le hors-lot ne doit pas se lire comme rien d'autre n'a été
+//   produit ». Depuis la migration des quinze producteurs, ce silence aurait couvert les trois
+//   quarts de ce qui produit — les travaux unitaires y entrent donc, entrelacés par date.
+//   Ils y disent ce qu'ils savent et **se taisent sur le reste** : ni régime, ni pièces, ni veto
+//   (§17). Un filtre qu'ils ne portent pas les écarte, et la page l'annonce (§18).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ConfirmDialog, type SubjectFilterOption } from "@zetis/ui";
-import { type JournalPiece, type JournalRun, type PieceKind, type VetoPreview } from "@zetis/types";
+import {
+  type JournalPiece,
+  type JournalRun,
+  type JournalTravail,
+  type PieceKind,
+  type VetoPreview,
+} from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import {
   JournalFilterBar,
@@ -374,8 +384,129 @@ function EventList({ run }: { run: JournalRun }) {
 /** Taille d'une page. Le serveur plafonne à 50 : demander plus ne rendrait pas plus. */
 const PAGE = 20;
 
+/** UNE ligne de travail unitaire au Journal (addendum ADR-0041 §17).
+ *
+ *  ⚠️ **Elle dit ce qu'elle sait, et se tait sur le reste.** Pas de régime, pas de pli « contenu du
+ *  lot », **pas de bouton de retrait** : un `AIJob` ne grave aucun palier et ne tamponne aucune
+ *  pièce, donc un veto ne pourrait rien retirer. Afficher les mêmes affordances qu'un lot ferait
+ *  promettre à l'écran ce que la donnée ne porte pas — la faute que l'ADR-0011 §F et l'ADR-0040
+ *  ont chacun payée.
+ *
+ *  Visuellement plus SOBRE qu'un lot, et c'est voulu : un geste unitaire n'est pas une campagne. */
+function TravailRow({ travail }: { travail: JournalTravail }) {
+  const echec = travail.status === "failed";
+  const arrete = travail.status === "stale";
+  const ton = echec
+    ? "border-red-400/25 bg-red-400/[0.04]"
+    : arrete
+      ? "border-amber-400/25 bg-amber-400/[0.04]"
+      : "border-white/[0.06] bg-white/[0.015]";
+  const etat = echec
+    ? "échec"
+    : arrete
+      ? "arrêté"
+      : travail.status === "succeeded"
+        ? "fait"
+        : travail.status === "running"
+          ? "en cours"
+          : "en file";
+  return (
+    <section className={`rounded-xl border ${ton} px-4 py-3`}>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-xs uppercase tracking-widest text-papa-muted">Travail</span>
+        <span className="font-semibold text-papa-text">{travail.label}</span>
+        <span
+          className={`text-xs ${echec ? "text-red-300" : arrete ? "text-amber-300" : "text-papa-muted"}`}
+        >
+          {etat}
+        </span>
+        {travail.duration_ms ? (
+          <span className="text-xs tabular-nums text-papa-muted">
+            {Math.round(travail.duration_ms / 1000)} s
+          </span>
+        ) : null}
+        <span className="ml-auto text-xs text-papa-muted">
+          {new Date(travail.created_at).toLocaleString("fr-FR", {
+            day: "2-digit",
+            month: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
+      </div>
+      {/* Le motif d'échec est rendu TEL QUEL — décision du 2026-08-06 : il sert à savoir quoi
+          réparer, le reformuler ajouterait une couche entre le fait et celui qui doit agir. */}
+      {echec && travail.error && <p className="mt-1.5 text-sm text-red-300">{travail.error}</p>}
+      {/* ⚠️ L'ORIGINE, jamais le régime (§17) : « lancé par vous » dit qui a demandé, pas sous
+          quelles règles ZETIS avait le droit de servir sans relecture. */}
+      <p className="mt-1 text-xs text-papa-muted">lancé par vous · hors lot</p>
+    </section>
+  );
+}
+
+/** UNE section de LOT — extraite telle quelle pour que le flux puisse entrelacer lots et
+ *  travaux (addendum ADR-0041 §16).
+ *
+ *  ⚠️ **Aucune ligne de rendu n'a changé** : c'est un déplacement à comportement constant — la
+ *  condition pour que l'entrelacement ne soit pas, en plus, une refonte du lot. */
+function RunSection({
+  run,
+  askRemove,
+}: {
+  run: JournalRun;
+  /** Le veto, passé en PROP : il vit dans l'état de la page (modale de confirmation, rechargement).
+   *  ⚠️ Une section de lot l'offre ; une ligne de travail unitaire **non** — un `AIJob` ne tamponne
+   *  aucune pièce, donc il n'y aurait rien à retirer (addendum §17). */
+  askRemove: (piece: JournalPiece) => void;
+}) {
+  return (
+        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <RunHeader run={run} />
+          {/* ⚠️ **Un lot = un pli, fermé.** La liste des pièces était toujours déployée : le lot
+              #3 en aligne 33, ce qui noie les autres lots et rend la page illisible — constaté à
+              l'écran le 2026-08-04. L'en-tête raconte désormais le lot (régime, notions, résumé
+              des issues) ; le pli garde tout le reste.
+              ⚠️ Un SEUL pli, pas deux : les pièces et le détail répondent à la même question
+              (« qu'a fait ce lot ? »), et deux plis imbriqués obligeaient à deux clics. */}
+          {(run.pieces.length > 0 || run.events.length > 0) && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm text-papa-muted">
+                Voir le contenu du lot
+                {run.pieces.length > 0 && ` — ${run.pieces.length} pièce${run.pieces.length > 1 ? "s" : ""}`}
+              </summary>
+              {run.pieces.length > 0 && (
+                <ul className="mt-2 space-y-1.5">
+                  {run.pieces.map((p) => (
+                    <PieceRow key={`${p.kind}-${p.id}`} piece={p} onRemove={askRemove} />
+                  ))}
+                </ul>
+              )}
+              <EventList run={run} />
+            </details>
+          )}
+          {/* ⚠️ Vu à l'écran le 2026-08-03, sur les vrais lots du 2 août : un lot terminé
+              « 3/3 notions » qui n'affiche NI pièce NI détail se lit comme une panne. C'est
+              l'inverse — soit tout existait déjà, soit le lot est antérieur au journal (aucune
+              rétro-attribution, §F.4). Un vide non expliqué est un vide qui inquiète. */}
+          {run.pieces.length === 0 && run.events.length === 0 && (
+            <p className="mt-3 text-sm text-papa-muted">
+              Aucun contenu neuf rattaché à ce lot — soit tout existait déjà, soit il est
+              antérieur au journal, qui ne reconstitue pas le passé.
+            </p>
+          )}
+        </section>
+  );
+}
+
 export function JournalPage() {
   const [runs, setRuns] = useState<JournalRun[]>([]);
+  // Les travaux unitaires de la MÊME page (addendum ADR-0041 §16). Ils arrivent à part parce
+  // qu'ils ne portent ni régime, ni pièces, ni journal ligne à ligne (§17) — les mêler au type
+  // `JournalRun` les obligerait à faire semblant. L'entrelacement se fait à l'affichage.
+  const [travaux, setTravaux] = useState<JournalTravail[]>([]);
+  // Pourquoi ils sont absents, quand un filtre les écarte (§18). ⚠️ À AFFICHER : une exclusion
+  // muette se lit comme un vide.
+  const [travauxExclus, setTravauxExclus] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   /** Le total SANS filtre, retenu au premier chargement — « 7 lots sur 23 » a besoin des deux. */
   const [totalNonFiltre, setTotalNonFiltre] = useState<number | null>(null);
@@ -415,6 +546,8 @@ export function JournalPage() {
       try {
         const data = await fetchJournal(Math.min(50, Math.max(PAGE, combien)), 0, requete);
         setRuns(data.runs);
+        setTravaux(data.travaux);
+        setTravauxExclus(data.travaux_exclus);
         setTotal(data.total);
         setHasMore(data.has_more);
         // Le total de référence ne se lit QUE sur une réponse non filtrée : le relire sous filtre
@@ -437,8 +570,12 @@ export function JournalPage() {
   const loadMore = useCallback(async () => {
     setLoadingMore(true);
     try {
-      const data = await fetchJournal(PAGE, runs.length, requete);
+      // 🔴 **L'offset compte les DEUX modèles.** La page est découpée en SQL sur leur union
+      // (§16) : paginer sur `runs.length` seul redemanderait des lignes déjà affichées et en
+      // sauterait d'autres, en silence.
+      const data = await fetchJournal(PAGE, runs.length + travaux.length, requete);
       setRuns((precedents) => [...precedents, ...data.runs]);
+      setTravaux((precedents) => [...precedents, ...data.travaux]);
       setTotal(data.total);
       setHasMore(data.has_more);
     } catch (cause: unknown) {
@@ -446,7 +583,7 @@ export function JournalPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [runs.length, requete]);
+  }, [runs.length, travaux.length, requete]);
 
   useEffect(() => {
     void reload();
@@ -534,14 +671,14 @@ export function JournalPage() {
     try {
       await removePiece(target.piece.kind, target.piece.id);
       setTarget(null);
-      await reload(runs.length);
+      await reload(runs.length + travaux.length);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Retrait échoué");
       setTarget(null);
     } finally {
       setBusy(false);
     }
-  }, [target, reload, runs.length]);
+  }, [target, reload, runs.length, travaux.length]);
 
   const cascade = target?.preview.cascade ?? {};
   const cascadeEntries = Object.entries(cascade).filter(([, ids]) => (ids?.length ?? 0) > 0);
@@ -559,9 +696,10 @@ export function JournalPage() {
           leurs contenus n'apparaissent pas ici, et un journal qui paraît exhaustif sans l'être
           est pire qu'un journal qui borne son sujet. */}
       <p className="mb-6 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-papa-muted">
-        Ce journal ne montre que la production <strong>en lot</strong>. Les contenus créés par le
-        Conseil de classe ou une mission champion n'y figurent pas : vous les avez demandés d'un
-        clic, ils n'ont pas de fenêtre de retrait.
+        Ce journal montre les <strong>lots</strong> et les <strong>travaux</strong>, mêlés par
+        date. ⚠️ Un travail dit ce qu'il a fait, mais <strong>ne se retire pas</strong> : le retrait
+        s'appuie sur le tampon que seul un lot pose sur ce qu'il produit. Les compositions
+        instantanées — une mission champion, un conseil de classe — n'y figurent toujours pas.
       </p>
 
       {error && (
@@ -599,7 +737,8 @@ export function JournalPage() {
           <h3 className="text-sm font-bold text-papa-text">Aucun lot ne correspond à ce filtre.</h3>
           {totalNonFiltre !== null && (
             <p className="mx-auto mt-2 max-w-xl text-sm text-papa-muted">
-              Le journal compte {totalNonFiltre} lot{totalNonFiltre > 1 ? "s" : ""} au total.
+              Le journal compte {totalNonFiltre} entrée{totalNonFiltre > 1 ? "s" : ""} au total —
+              lots et travaux confondus.
             </p>
           )}
           {filtre.pieces.length > 0 && (
@@ -631,45 +770,37 @@ export function JournalPage() {
         </div>
       )}
 
+      {/* ⚠️ Une exclusion muette se lit comme un VIDE (§18) — la page nomme la dimension. */}
+      {travauxExclus && (
+        <p className="mb-3 rounded-lg border border-white/10 bg-papa-bg px-4 py-3 text-sm text-papa-muted">
+          ⚠️ {travauxExclus}
+        </p>
+      )}
+
       <div className="space-y-4">
-        {runs.map((run) => (
-          <section key={run.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <RunHeader run={run} />
-            {/* ⚠️ **Un lot = un pli, fermé.** La liste des pièces était toujours déployée : le lot
-                #3 en aligne 33, ce qui noie les autres lots et rend la page illisible — constaté à
-                l'écran le 2026-08-04. L'en-tête raconte désormais le lot (régime, notions, résumé
-                des issues) ; le pli garde tout le reste.
-                ⚠️ Un SEUL pli, pas deux : les pièces et le détail répondent à la même question
-                (« qu'a fait ce lot ? »), et deux plis imbriqués obligeaient à deux clics. */}
-            {(run.pieces.length > 0 || run.events.length > 0) && (
-              <details className="mt-3">
-                <summary className="cursor-pointer text-sm text-papa-muted">
-                  Voir le contenu du lot
-                  {run.pieces.length > 0 && ` — ${run.pieces.length} pièce${run.pieces.length > 1 ? "s" : ""}`}
-                </summary>
-                {run.pieces.length > 0 && (
-                  <ul className="mt-2 space-y-1.5">
-                    {run.pieces.map((p) => (
-                      <PieceRow key={`${p.kind}-${p.id}`} piece={p} onRemove={askRemove} />
-                    ))}
-                  </ul>
-                )}
-                <EventList run={run} />
-              </details>
-            )}
-            {/* ⚠️ Vu à l'écran le 2026-08-03, sur les vrais lots du 2 août : un lot terminé
-                « 3/3 notions » qui n'affiche NI pièce NI détail se lit comme une panne. C'est
-                l'inverse — soit tout existait déjà, soit le lot est antérieur au journal (aucune
-                rétro-attribution, §F.4). Un vide non expliqué est un vide qui inquiète. */}
-            {run.pieces.length === 0 && run.events.length === 0 && (
-              <p className="mt-3 text-sm text-papa-muted">
-                Aucun contenu neuf rattaché à ce lot — soit tout existait déjà, soit il est
-                antérieur au journal, qui ne reconstitue pas le passé.
-              </p>
-            )}
-          </section>
-        ))}
+        {/* 🔴 **Un seul flux, entrelacé par date** (§16). Ce tri n'est PAS un filtrage côté client :
+            la page reçue est déjà la bonne, découpée en SQL sur l'union des deux modèles — on ne
+            fait qu'ordonner ce qu'elle contient. Trier des lignes déjà chargées pour en choisir
+            serait le défaut que l'addendum « tri et filtre » §2 a nommé ; les ranger ne l'est pas. */}
+        {[
+          ...runs.map((r) => ({ quand: r.created_at, cle: `run-${r.id}`, run: r, travail: null })),
+          ...travaux.map((t) => ({
+            quand: t.created_at,
+            cle: `job-${t.id}`,
+            run: null,
+            travail: t,
+          })),
+        ]
+          .sort((a, b) => (a.quand < b.quand ? 1 : a.quand > b.quand ? -1 : 0))
+          .map((ligne) =>
+            ligne.travail ? (
+              <TravailRow key={ligne.cle} travail={ligne.travail} />
+            ) : (
+              <RunSection key={ligne.cle} run={ligne.run!} askRemove={askRemove} />
+            ),
+          )}
       </div>
+
 
       {/* ⚠️ Le bouton EMPILE, il ne feuillette pas : un journal se lit de haut en bas. Et il porte
           ce qui RESTE, pas ce qui est chargé — « 4 plus anciens » répond à la question que Papa se

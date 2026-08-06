@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type SrsSubjectTree } from "@zetis/types";
 import { SubjectSection, type SubjectSectionProps } from "./SubjectSection";
 
@@ -26,6 +26,25 @@ function renderSection(overrides: Partial<SubjectSectionProps> = {}) {
   render(<SubjectSection {...props} />);
   return props;
 }
+
+// ⚠️ **`fetch` est stubé, PAS le hook** — et c'est délibéré. `useProgressionEstimee` reste RÉEL :
+// ce test doit continuer à prouver qu'une barre affiche un % pendant la génération, ce qu'il ne
+// prouverait plus si l'estimation elle-même était mockée.
+//
+// ⚠️ Un `vi.mock` sur `../../hooks/useEstimations` **ne marche pas ici** : `useEstimations` appelle
+// `fetchEstimations` par sa liaison LOCALE, pas par l'espace de noms du module — le mock serait
+// vert et sans effet (même classe de piège que `enqueue_*` côté backend). Il faut donc couper
+// plus bas, au réseau.
+//
+// Depuis l'ADR-0041 §9, la durée attendue vient du serveur. Sans cette réponse, la barre est
+// INDÉTERMINÉE — ce qui est correct : plus aucun composant ne devine.
+beforeEach(() => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ srs_cards_generate: 35_000 }),
+  } as Response);
+});
 
 describe("SubjectSection", () => {
   it("to_generate=0 avec des cartes → bouton « ↻ Régénérer » (pas « Générer les N »)", () => {
@@ -63,12 +82,16 @@ describe("SubjectSection", () => {
     expect(props.onToggle).toHaveBeenCalledTimes(1);
   });
 
-  it("affiche la barre de progression (%) pendant la génération par matière", () => {
+  it("affiche la barre de progression (%) pendant la génération par matière", async () => {
     renderSection({ busySubject: true });
-    // Barre présente + pourcentage (démarre à 1 %) + bouton en état « Génération… ».
+    // Barre présente + bouton en état « Génération… » : immédiats, ils ne dépendent de rien.
     expect(screen.getByText(/ZETIS génère les cartes/)).toBeInTheDocument();
-    expect(screen.getByText(/%$/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Génération/ })).toBeInTheDocument();
+    // ⚠️ **Le POURCENTAGE arrive un tic plus tard, et c'est le comportement voulu** (ADR-0041 §9) :
+    // la durée attendue vient du SERVEUR depuis qu'aucun composant ne la devine plus. Tant qu'elle
+    // n'est pas là, la barre est indéterminée — ce qui est honnête, et ce qu'on refuserait de
+    // remplacer par un nombre inventé. L'assertion n'a pas bougé, seule son échéance.
+    await waitFor(() => expect(screen.getByText(/%$/)).toBeInTheDocument());
   });
 
   it("pas de barre de progression hors génération", () => {

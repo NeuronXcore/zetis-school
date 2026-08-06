@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import capsuleAiIcon from "../assets/app/capsule-AI_256.png";
 import { DifficultyBadge } from "../components/DifficultyBadge";
 import { PageHeader } from "../components/PageHeader";
-import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
+import { ProgressBar } from "../components/ProgressBar";
 import { SoundToggle, useCelebrate } from "@zetis/ui";
 import { CapsulePlayer } from "../remotion/CapsulePlayer";
 import {
@@ -28,6 +28,7 @@ import { groupBySubjectChapter } from "../lib/groupCapsules";
 import { type Subject, fetchSubjectDetail, fetchSubjects } from "../lib/subjects";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { subjectIconFor } from "../lib/subjectIcons";
+import { useProgressionEstimee } from "../hooks/useEstimations";
 
 const VISUAL_OPTIONS: { value: VisualChoice; label: string }[] = [
   { value: "auto", label: "Auto (le modèle choisit)" },
@@ -51,10 +52,14 @@ const DIFFICULTY_OPTIONS: { value: DifficultyChoice; label: string; stars: strin
 ];
 
 // Étapes IA « longues » (backend opaque) : libellé + durée cible de la barre de progression.
+// ⚠️ **Des LIBELLÉS et des `job_type`, plus aucune durée** (ADR-0041 §9). Les trois travaux sont
+// tracés côté serveur depuis toujours (`capsule_generate`, `capsule_voice`) : leur durée est donc
+// MESURÉE, même s'ils ne sont pas encore passés par la file. Les `ms: 42000 / 16000` qui vivaient
+// ici étaient des devinettes — et la voix Piper, notamment, dépend de la longueur du script.
 const PROGRESS_META = {
-  generate: { label: "Génération de la capsule…", ms: 42000 },
-  regenerate: { label: "Régénération de la capsule…", ms: 42000 },
-  voice: { label: "Synthèse de la voix (Piper)…", ms: 16000 },
+  generate: { label: "Génération de la capsule…", jobType: "capsule_generate" },
+  regenerate: { label: "Régénération de la capsule…", jobType: "capsule_regenerate" },
+  voice: { label: "Synthèse de la voix (Piper)…", jobType: "capsule_voice" },
 } as const;
 type ProgressTask = keyof typeof PROGRESS_META;
 
@@ -352,13 +357,13 @@ export function CapsulesPilotagePage() {
   }
 
   const generating = busy === "generate";
-  const pct = useEstimatedProgress(
+  const pct = useProgressionEstimee(
     progressTask !== null,
-    progressTask ? PROGRESS_META[progressTask].ms : 1,
+    progressTask ? PROGRESS_META[progressTask].jobType : "",
   );
   // Le rendu MP4 est asynchrone (worker-media, suivi par polling) : la barre est pilotée par
   // l'état `rendering` — couvre « Rendre la vidéo » ET « Valider (+ rendu) ». ~75 s estimés.
-  const renderPct = useEstimatedProgress(selected?.status === "rendering", 75000);
+  const renderPct = useProgressionEstimee(selected?.status === "rendering", "capsule_render_v2");
   const groups = groupBySubjectChapter(items, search);
   const formChapters = chaptersBySubject[subjectId ?? -1] ?? [];
   const detailChapters = selected ? (chaptersBySubject[selected.subject_id] ?? []) : [];

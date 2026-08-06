@@ -2169,3 +2169,87 @@ inchangé au rejeu. Les deux verrous ont été **mutés** pour vérifier qu'ils 
   écrit » (hors périmètre, ce serait un canal de message et non un témoin de contenu).
 
 ---
+
+# ÉTAPE — Tout ce qui produit se voit, attend son tour, et ne se perd pas (ADR-0041)
+
+## Statut
+
+FAIT (trois slices + un addendum, backend + frontend + docs + vérification live) — 2026-08-06.
+Branche `feat/barre-de-production`, base `dc1a6ed` (= tête de `main`). **Non poussée en entier** —
+la PR [#94](https://github.com/NeuronXcore/zetis-school/pull/94) est OPEN et en retard sur la
+branche. Une migration (`b3c4d5e6f7a8`) appliquée sur la base de dev.
+
+## Décision produit
+
+Le chantier est né d'une phrase : *« la barre de progression d'équipement n'a jamais été vue
+tourner »*. Il s'est élargi le jour même à sa vraie forme — **une barre unique dans le header Papa,
+pour toute création de contenu, d'où qu'elle parte et quel que soit le déclencheur**, avec une file
+derrière qui ne bloque pas et ne perd rien.
+
+Le read-before-code a déplacé le problème : la barre **existait déjà** au bon endroit, avec sa
+doctrine dure écrite ; l'infrastructure demandée existait **pour un monde sur deux** (le lot était
+asynchrone, les ~20 générateurs synchrones dans la requête HTTP). Le chantier n'était donc pas de
+construire une file, mais **d'y faire entrer le monde synchrone**.
+
+## Ce qui a été fait
+
+- **Slice A** — `AIJob` cesse d'être une trace et devient un travail de file : créé `queued` et
+  **commité avant l'enfilement**, deux premiers index, `acknowledged_at`. Deux files RQ dont la
+  priorité se **dérive** de l'origine. `GET /api/production/activity` normalise lots et travaux.
+  La barre du header : cinq états, échelle de repli en `ResizeObserver`, réveil au clic.
+- **Slice B** — `QueueUnavailable` + compensation sur les quatre chemins d'enfilement (`503`, et
+  **rien ne subsiste en base**). Rejeu **borné et typé** : deux tentatives sur transitoire, **zéro**
+  sur structurel. `production/sweep.py` : un travail mort se **lit** `stale`, et se referme au
+  réveil du scan.
+- **Slice C** — **quinze producteurs LLM longs entrent dans la file** (les cinq générateurs,
+  `curriculum_*`, capsules script + voix, diagnostic, cartes SRS). Un seul point d'enfilement.
+  **Les vingt-trois constantes de durée sont supprimées** : le serveur les MESURE (p75 des
+  exécutions de file, plancher 2 s) et les sert via `GET /api/production/estimations`.
+- **Addendum §16-§18** — le Journal de production lit les **deux modèles**, en un flux
+  chronologique paginé **en SQL sur leur union**. Un travail y dit ce qu'il sait et se tait sur le
+  reste : ni régime, ni pièces, **ni veto**.
+
+## Divergences tranchées (stop-on-blocker)
+
+1. **L'ADR se contredisait lui-même** : son §3.2 ajoutait une colonne `trigger` sur `ai_jobs` que
+   son §3.3 interdisait. Colonne retirée, origine **dérivée** — corrigé dans l'ADR.
+2. **Un test-verrou d'architecture a refusé le premier design de la Slice C.** Les générateurs
+   n'ont pas le droit d'importer `modules.production` (cycle) ; le helper d'enfilement est parti
+   dans `ai/`.
+3. **Migrer une route peut déplacer une VALIDATION.** `/diagnostics/generate` rendait `404` sur une
+   matière inconnue ; en `202` il aurait dit « accepté » puis échoué deux minutes plus tard. Règle
+   posée : *la file diffère le travail, jamais le verdict sur la demande.*
+4. **Retirer un `Depends` retire aussi ce qu'il LÈVE.** Le `503` « clé cloud absente » venait de la
+   dépendance, pas du corps de la route — elle est conservée comme précondition.
+5. **La dérogation cloud ADR-0009 a failli disparaître** : `run_ai_job` passe le moteur LOCAL, donc
+   les exécutants `curriculum_*` reprennent `get_curriculum_provider()` eux-mêmes.
+6. **La médiane ne décrit rien sur une population multimodale** — 7 s annoncées pour un travail de
+   69 s. Le p75 avec plancher rend 76,9 s.
+7. **L'estimation comptait les traces imbriquées** et sous-estimait d'un facteur 8. Seules les
+   lignes de FILE (`created_by="file"`) comptent.
+
+## Tests
+
+980 back · 625 Papa · 525 Massimo. `tsc -b` et `vite build` verts. **Sabotages** : 10/10 (Slice B),
+4/4 (§9), 5/5 (Journal) — dont **deux mal visés au premier jet**, recorrigés. **Vérifié live** :
+les six contrôles de la Slice A, puis une génération réelle de cartes SRS où **les deux barres ont
+dit la même chose** (header ≈ 62 %, page 64 %), l'échec resté avec son motif brut, « J'ai vu »
+écrivant `acknowledged_at` en base, et la ligne de travail à sa place dans le Journal.
+
+## Reste à faire
+
+- **Pousser la branche** (la PR #94 est en retard), puis décider si les vérifications manquantes
+  bloquent le merge.
+- 🔴 **Le critère d'écran de la Slice C n'est pas tenu** : il demandait trois producteurs
+  différents, dont un depuis deux écrans, plus un empilement de trois travaux en file. Un seul a
+  été lancé, sans empilement.
+- 🔴 Les scénarios propres de la Slice B (Redis coupé, rejeu transitoire, responsive) n'ont pas été
+  rejoués après les changements.
+- ⚠️ **Une barre estime encore localement** : l'analyse par matière, **seul producteur LLM du dépôt
+  sans trace `ai_jobs`** — il n'y a rien à mesurer, il faut le tracer d'abord.
+- ⚠️ Les pièces produites hors lot ne sont **pas tamponnées**, donc le veto ne s'ouvre pas sur
+  elles — seule voie vers un Journal réellement unifié, et elle mérite son propre cadrage.
+- Différées : les deux dettes nommées par l'ADR §11 (persistance Redis, worker absent de
+  `docker-compose.prod.yml`) — de l'infra sur un environnement déployé nulle part.
+
+---

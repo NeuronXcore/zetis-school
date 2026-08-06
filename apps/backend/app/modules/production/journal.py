@@ -43,7 +43,7 @@ from app.db.models import (
     SpacedReviewAttempt,
     SpacedReviewCard,
 )
-from app.modules.production import journal_filters, runs
+from app.modules.production import journal_filters, runs, sweep
 
 # Les cinq familles vetoables, et ce qui les rend « consommées ».
 #
@@ -535,6 +535,115 @@ def zetis_mode(run: ProductionRun) -> str | None:
     return niveau_de({A0A: run.a0a_level, A1: run.a1_level}) or "sur_mesure"
 
 
+def _travail_out(job, names: dict[int, str]) -> dict:
+    """Un travail unitaire, tel que le Journal le montre — **et rien de plus** (addendum §17).
+
+    ⚠️ **`zetis_mode` est absent, pas `"manuel"`.** Un travail hors lot est manuel *par
+    construction* (§3.2) et il serait tentant de l'écrire ici. Ce serait confondre **l'origine**
+    (qui a demandé) avec le **régime** (sous quelles règles ZETIS avait le droit de servir sans
+    relecture) — deux choses que l'ADR-0034 sépare exprès. L'origine, elle, se dit : `trigger`.
+
+    ⚠️ **Aucune pièce, donc aucun veto.** Le retrait s'appuie sur le tamponnage `production_run_id`
+    des objets produits ; un `AIJob` ne tamponne rien. L'écran ne doit pas offrir un bouton inerte.
+    """
+    from app.modules.production.activity import LIBELLE_JOB
+
+    charge = job.input_json if isinstance(job.input_json, dict) else {}
+    skill_id = charge.get("skill_id") if isinstance(charge.get("skill_id"), int) else None
+    tete = LIBELLE_JOB.get(job.job_type, job.job_type)
+    nom = names.get(skill_id) if skill_id else None
+    return {
+        "id": job.id,
+        "job_type": job.job_type,
+        "label": f"{tete} · {nom}" if nom else tete,
+        "status": sweep.job_status(job),
+        # Hors lot ⇒ manuel, par construction (§3.2). C'est l'ORIGINE, pas le régime.
+        "trigger": "manual",
+        "skill_id": skill_id,
+        "skill_name": nom,
+        "created_at": job.created_at,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
+        "duration_ms": job.duration_ms,
+        "error": job.error_message,
+    }
+
+
+def _page_du_flux(
+    db: Session,
+    filtre: journal_filters.JournalFiltre,
+    *,
+    maintenant: datetime,
+    limit: int,
+    offset: int,
+) -> tuple[list, list, int]:
+    """La page du flux — lots ET travaux unitaires, ordonnés et paginés **en SQL** (§16).
+
+    🔴 **La pagination porte sur l'UNION, jamais sur chaque modèle séparément.** Prendre les vingt
+    lots les plus récents puis les vingt travaux les plus récents et les mélanger perdrait tout ce
+    qui tombe entre les deux — et le ferait silencieusement. C'est le même défaut que l'addendum
+    « tri et filtre » §2 avait déjà nommé pour les filtres : *« un défaut qui ne ressemble pas à un
+    défaut »*.
+
+    L'union ne transporte que `(nature, id, date)` : de quoi ordonner et découper. Les lignes de la
+    page sont chargées ensuite, chacune par son modèle — un travail n'a pas à faire semblant de
+    porter les colonnes d'un lot (§17).
+    """
+    from sqlalchemy import literal, union_all
+
+    from app.db.models import AIJob
+
+    requete_travaux = journal_filters.selectionner_travaux(filtre)
+    if requete_travaux is None:
+        # Le filtre écarte les travaux (§18) : exactement le comportement d'avant l'addendum.
+        total = journal_filters.compter(db, filtre, maintenant=maintenant)
+        rows = db.scalars(
+            journal_filters.selectionner(db, filtre, maintenant=maintenant)
+            .limit(limit)
+            .offset(offset)
+        ).all()
+        return list(rows), [], total
+
+    lots = journal_filters.appliquer(
+        select(
+            literal("run").label("nature"),
+            ProductionRun.id.label("ident"),
+            ProductionRun.created_at.label("quand"),
+        ),
+        db,
+        filtre,
+        journal_filters._alias(),
+        maintenant=maintenant,
+    )
+    unitaires = requete_travaux.with_only_columns(
+        literal("job").label("nature"),
+        AIJob.id.label("ident"),
+        AIJob.created_at.label("quand"),
+    )
+    flux = union_all(lots, unitaires).subquery()
+
+    total = db.scalar(select(func.count()).select_from(flux)) or 0
+    ordre = flux.c.quand.desc() if filtre.descendant else flux.c.quand.asc()
+    page = db.execute(
+        select(flux.c.nature, flux.c.ident).order_by(ordre, flux.c.ident.desc())
+        .limit(limit)
+        .offset(offset)
+    ).all()
+
+    ids_lots = [i for n, i in page if n == "run"]
+    ids_travaux = [i for n, i in page if n == "job"]
+    par_id = {
+        r.id: r
+        for r in db.scalars(select(ProductionRun).where(ProductionRun.id.in_(ids_lots))).all()
+    } if ids_lots else {}
+    travaux = (
+        db.scalars(select(AIJob).where(AIJob.id.in_(ids_travaux))).all() if ids_travaux else []
+    )
+    # L'ORDRE de la page est celui de l'union — on le respecte plutôt que celui du `IN`.
+    rows = [par_id[i] for i in ids_lots if i in par_id]
+    return rows, list(travaux), total
+
+
 def list_journal(
     db: Session,
     *,
@@ -555,10 +664,9 @@ def list_journal(
     """
     filtre = filtre or journal_filters.JournalFiltre()
     maintenant = now or datetime.now(timezone.utc)
-    total = journal_filters.compter(db, filtre, maintenant=maintenant)
-    rows = db.scalars(
-        journal_filters.selectionner(db, filtre, maintenant=maintenant).limit(limit).offset(offset)
-    ).all()
+    rows, travaux, total = _page_du_flux(
+        db, filtre, maintenant=maintenant, limit=limit, offset=offset
+    )
 
     # UN seul aller-retour pour tous les noms de notions de la page — jamais un par événement.
     run_ids = [r.id for r in rows]
@@ -681,6 +789,15 @@ def list_journal(
 
     return {
         "runs": out_runs,
+        # Les travaux unitaires de LA MÊME page (addendum §16). ⚠️ Rendus à part plutôt que mêlés
+        # à `runs` : un travail ne porte ni régime, ni pièces, ni journal ligne à ligne (§17), et
+        # le glisser dans `JournalRunOut` l'obligerait à faire semblant. L'écran les entrelace par
+        # date — ce n'est pas un filtrage côté client, c'est l'ordonnancement d'une page qui est
+        # déjà la bonne, découpée en SQL sur l'union des deux modèles.
+        "travaux": [_travail_out(t, names) for t in travaux],
+        # La phrase à afficher quand un filtre écarte les travaux (§18) — `None` s'ils sont admis.
+        # ⚠️ Une exclusion muette se lit comme un vide : c'est la même faute qu'une troncature muette.
+        "travaux_exclus": journal_filters.raison_exclusion(filtre),
         # ⚠️ AUCUN total de provenance, aucun ratio ZETIS/Papa (§F.2 : la provenance est un fait,
         # jamais un reproche — elle s'affiche par objet et ne se totalise pas). Ce compteur-ci est
         # celui des LOTS, pour la pagination, et rien d'autre.

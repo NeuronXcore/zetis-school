@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette — Header Papa · bande de production</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   JETONS — dérivés du thème Papa (émeraude/teal analytique, fond sombre)
+   ⚠️ #ffcf47 (or) est INTERDIT ici : réservé à ZETIS qui parle à Massimo.
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:            #060d0b;
+  --surface:       #0c1714;
+  --surface-2:     #10201b;
+  --line:          #1b312a;
+  --line-soft:     #16261f;
+  --fg:            #dcebe5;
+  --fg-muted:      #79948b;
+  --fg-dim:        #4d635c;
+
+  --emerald:       #10b981;
+  --emerald-dim:   #0b6b4d;
+  --teal:          #2dd4bf;
+  --amber:         #f0a02a;   /* attente / arrêt / refus — jamais du rouge pour une file */
+  --rose:          #e5709b;   /* échec seul */
+
+  --belt-h:        6px;
+  --strip-h:       46px;
+  --ease:          cubic-bezier(.4,0,.2,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);
+  color:var(--fg);
+  font-family:'Inter',system-ui,sans-serif;
+  font-size:14px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+/* ═══════════════════════════════════════════════════════════════════
+   COQUILLE — sidebar factice + zone de contenu, pour juger le cadrage
+   ═══════════════════════════════════════════════════════════════════ */
+.shell{display:flex;min-height:100vh}
+.sidebar{
+  width:256px;flex:0 0 256px;
+  background:var(--surface);
+  border-right:1px solid var(--line);
+  padding:18px 14px;
+  display:flex;flex-direction:column;gap:16px;
+}
+@media (max-width:860px){ .sidebar{display:none} }
+.side-state{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:14px 0 18px;border-bottom:1px solid var(--line);
+}
+.side-avatar{
+  width:78px;height:78px;border-radius:50%;
+  background:radial-gradient(circle at 38% 32%, #1d4a3d, #0a1a15 70%);
+  border:1px solid #24513f;
+  position:relative;
+  box-shadow:0 0 0 6px rgba(16,185,129,.06), 0 0 28px rgba(16,185,129,.14);
+  animation:halo 4s var(--ease) infinite;
+  display:grid;place-items:center;
+}
+@keyframes halo{
+  0%,100%{box-shadow:0 0 0 6px rgba(16,185,129,.05), 0 0 22px rgba(16,185,129,.10)}
+  50%    {box-shadow:0 0 0 9px rgba(16,185,129,.09), 0 0 34px rgba(16,185,129,.20)}
+}
+.side-avatar span{font-size:26px;opacity:.85}
+.side-badge{
+  font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;
+  color:#a7e8cd;background:rgba(16,185,129,.10);
+  border:1px solid rgba(16,185,129,.28);border-radius:999px;padding:2px 9px;
+}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{
+  color:var(--fg-muted);text-decoration:none;font-size:13px;
+  padding:7px 10px;border-radius:7px;display:flex;gap:9px;align-items:center;
+}
+.nav a.on{background:rgba(16,185,129,.10);color:#bdf0d9}
+.nav .sep{height:1px;background:var(--line);margin:8px 2px}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HEADER — le bandeau de marque ne bouge PAS (v0.44.0, h-28 sm:h-36)
+   ═══════════════════════════════════════════════════════════════════ */
+.hdr{position:sticky;top:0;z-index:30;background:var(--bg)}
+
+.band{
+  position:relative;height:112px;overflow:hidden;
+  background:
+    radial-gradient(120% 180% at 50% 120%, rgba(16,185,129,.16), transparent 62%),
+    radial-gradient(70% 140% at 18% 10%, rgba(45,212,191,.10), transparent 60%),
+    linear-gradient(180deg,#07100d,#0a1713);
+  display:flex;align-items:center;justify-content:center;
+}
+@media (min-width:640px){ .band{height:144px} }
+/* fondu latéral posé sur l'IMAGE, jamais sur inset-0 (piège payé le 2026-08-04) */
+.band::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,var(--bg) 0%,transparent 16%,transparent 84%,var(--bg) 100%);
+}
+.band__note{
+  position:absolute;left:14px;bottom:8px;font-size:10px;color:var(--fg-dim);
+  letter-spacing:.03em;
+}
+.emblem{position:relative;display:flex;align-items:center;gap:18px}
+.emblem__mark{
+  width:74px;height:74px;border-radius:50%;
+  border:1.5px solid rgba(45,212,191,.55);
+  display:grid;place-items:center;
+  background:radial-gradient(circle at 44% 34%, rgba(45,212,191,.22), rgba(6,13,11,.9) 68%);
+  box-shadow:0 0 34px rgba(45,212,191,.20), inset 0 0 22px rgba(16,185,129,.14);
+}
+.emblem__mark svg{width:34px;height:34px}
+.wordmark{
+  font-family:'Syncopate',sans-serif;font-weight:700;
+  font-size:26px;letter-spacing:.16em;color:#e8fbf3;
+  text-shadow:0 0 18px rgba(45,212,191,.45);
+}
+.wordmark small{
+  display:block;font-family:'Inter',sans-serif;font-weight:500;
+  font-size:10.5px;letter-spacing:.34em;color:#5f9c88;margin-top:5px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   LA BANDE — signature : ce n'est pas une barre de progression,
+   c'est un TAPIS. Rouages (l'IA travaille) → tapis → boîte (le stock).
+   ═══════════════════════════════════════════════════════════════════ */
+.strip{
+  height:var(--strip-h);
+  display:flex;align-items:center;gap:14px;
+  padding:0 16px;
+  background:linear-gradient(180deg,#0a1512,#081210);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  position:relative;cursor:pointer;
+  transition:height .3s var(--ease), opacity .3s var(--ease);
+}
+.strip[data-state="repos"]{height:16px;}
+.strip[data-state="repos"] > *{opacity:0;pointer-events:none;transition:opacity .2s}
+.strip[data-state="repos"]::before{
+  content:"";position:absolute;left:0;right:0;top:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(16,185,129,.18),transparent);
+}
+
+/* — rouages ————————————————————————————————————— */
+.gears{flex:0 0 auto;width:40px;height:32px;position:relative}
+.gears svg{position:absolute;overflow:visible}
+.gear-a{left:0;top:1px;width:26px;height:26px;animation:spin 3.6s linear infinite}
+.gear-b{left:18px;top:12px;width:18px;height:18px;animation:spin 2.5s linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gears path,.gears circle{fill:none;stroke:var(--teal);stroke-width:1.6}
+.gears .tooth{fill:var(--teal);opacity:.85}
+
+/* — contexte ————————————————————————————————————— */
+.ctx{flex:0 0 auto;min-width:0;max-width:300px}
+.ctx__l1{font-size:12.5px;color:#c6e2d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctx__l1 b{color:#fff;font-weight:600}
+.ctx__l2{font-size:10.5px;color:var(--fg-dim);letter-spacing:.02em}
+@media (max-width:700px){ .ctx{display:none} }
+
+/* — le tapis ————————————————————————————————————— */
+.belt{flex:1 1 auto;min-width:60px;position:relative;height:var(--belt-h)}
+.belt__track{
+  position:absolute;inset:0;border-radius:999px;
+  background:#122a23;overflow:hidden;
+}
+.belt__fill{
+  position:absolute;left:0;top:0;bottom:0;width:0%;
+  border-radius:999px;
+  background:linear-gradient(90deg,var(--emerald-dim),var(--emerald) 55%,var(--teal));
+  transition:width .55s var(--ease);
+}
+/* la texture DIT le sens de marche — c'est elle qui fait un tapis */
+.belt__fill::after{
+  content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(115deg,
+    rgba(255,255,255,.16) 0 2px, transparent 2px 9px);
+  animation:tread .8s linear infinite;
+}
+@keyframes tread{to{background-position:22px 0}}
+
+/* état non mesuré : un liseré BALAIE, il ne remplit jamais (doctrine null≠0) */
+.belt__sweep{
+  position:absolute;inset:0;border-radius:999px;opacity:0;
+  background:linear-gradient(90deg,transparent,rgba(45,212,191,.75),transparent);
+  background-size:34% 100%;background-repeat:no-repeat;
+  animation:sweep 1.5s var(--ease) infinite;
+}
+@keyframes sweep{from{background-position:-40% 0}to{background-position:140% 0}}
+
+/* les pièces voyagent sur le tapis et TOMBENT dans la boîte */
+.piece{
+  position:absolute;top:50%;left:0;
+  transform:translate(-50%,-50%);
+  font-size:9.5px;letter-spacing:.02em;
+  padding:2px 6px;border-radius:5px;
+  background:#0d2019;border:1px solid rgba(45,212,191,.45);
+  color:#a9ecd6;white-space:nowrap;
+  box-shadow:0 0 12px rgba(45,212,191,.25);
+  animation:travel 1.5s linear forwards;
+}
+@keyframes travel{
+  0%  {left:0%;   opacity:0; transform:translate(-50%,-50%) scale(.7)}
+  12% {opacity:1; transform:translate(-50%,-50%) scale(1)}
+  86% {opacity:1; transform:translate(-50%,-50%) scale(1)}
+  100%{left:100%; opacity:0; transform:translate(-50%,-10%) scale(.6)}
+}
+
+/* — compteur ————————————————————————————————————— */
+.count{flex:0 0 auto;text-align:right;line-height:1.25}
+.count__pct{font-size:13px;color:#e6fff5;font-weight:500}
+.count__n{font-size:10.5px;color:var(--fg-dim)}
+
+/* — boîte de connaissance ————————————————————————— */
+.box{flex:0 0 auto;width:38px;height:34px;position:relative}
+.box svg{width:100%;height:100%;overflow:visible}
+.box .shell-l{fill:#0e2019;stroke:#2c6b56;stroke-width:1.4}
+.box .lid{stroke:var(--teal);stroke-width:1.4;fill:none;transition:transform .25s var(--ease);transform-origin:22px 12px}
+.box .layer{fill:var(--emerald);opacity:0;transition:opacity .4s var(--ease)}
+.box .glow{
+  position:absolute;inset:-8px;border-radius:12px;pointer-events:none;
+  background:radial-gradient(circle,rgba(45,212,191,.55),transparent 66%);
+  opacity:0;
+}
+.box.receive .glow{animation:catch .5s var(--ease)}
+.box.receive .lid{transform:translateY(-3px)}
+@keyframes catch{0%{opacity:0}35%{opacity:.9}100%{opacity:0}}
+.box__n{
+  position:absolute;right:-4px;top:-6px;
+  font-size:9.5px;padding:0 4px;border-radius:999px;
+  background:var(--emerald);color:#032018;font-weight:600;
+  opacity:0;transform:scale(.6);transition:.25s var(--ease);
+}
+.box__n.on{opacity:1;transform:scale(1)}
+
+/* ═══════════════════════════════════════════════════════════════════
+   VARIANTES D'ÉTAT
+   ═══════════════════════════════════════════════════════════════════ */
+/* non mesuré : pas de remplissage, pas de chiffre, PAS DE CASE de % */
+.strip[data-measured="false"] .belt__fill{display:none}
+.strip[data-measured="false"] .belt__sweep{opacity:1}
+.strip[data-measured="false"] .count{display:none}
+
+/* arrêt : aucun moteur. Rien ne tourne, rien ne balaie, rien ne pulse. */
+.strip[data-lane="arret"]{background:linear-gradient(180deg,#161006,#100c05)}
+.strip[data-lane="arret"] .gear-a,
+.strip[data-lane="arret"] .gear-b{animation-play-state:paused}
+.strip[data-lane="arret"] .gears path,
+.strip[data-lane="arret"] .gears circle{stroke:var(--amber)}
+.strip[data-lane="arret"] .gears .tooth{fill:var(--amber)}
+.strip[data-lane="arret"] .belt__sweep{
+  animation:none;opacity:1;
+  background:linear-gradient(90deg,transparent,rgba(240,160,42,.35),transparent);
+  background-size:100% 100%;
+}
+.strip[data-lane="arret"] .belt__track{background:#241a09}
+.strip[data-lane="arret"] .ctx__l1 b{color:var(--amber)}
+.strip[data-lane="arret"] .box .lid{stroke:var(--amber)}
+.strip[data-lane="arret"] .box .shell-l{stroke:#6b5227}
+
+/* refus : le régulateur a dit non — c'est un FAIT, pas une panne */
+.strip[data-lane="refus"] .gear-a,.strip[data-lane="refus"] .gear-b{animation-play-state:paused;opacity:.45}
+.strip[data-lane="refus"] .belt__track{background:#1d1708}
+.strip[data-lane="refus"] .belt__sweep{animation:none;opacity:0}
+.strip[data-lane="refus"] .ctx__l1 b{color:var(--amber)}
+
+/* file : ce qui attend se dit en CHIFFRE, jamais en barre qui recule */
+.queue{
+  flex:0 0 auto;display:none;align-items:center;gap:5px;
+  font-size:10.5px;color:#9fd8bf;
+  background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.22);
+  border-radius:999px;padding:2px 8px;white-space:nowrap;
+}
+.strip[data-queue="true"] .queue{display:inline-flex}
+.queue i{width:4px;height:4px;border-radius:50%;background:var(--emerald);font-style:normal;
+  animation:blip 1.8s ease-in-out infinite}
+@keyframes blip{0%,100%{opacity:.35}50%{opacity:1}}
+.strip[data-lane="arret"] .queue{color:#f4c988;background:rgba(240,160,42,.10);border-color:rgba(240,160,42,.3)}
+.strip[data-lane="arret"] .queue i{background:var(--amber);animation:none}
+
+/* fin : une annonce qui s'empile deviendrait un arriéré → elle s'efface seule */
+.done-chip{
+  position:absolute;right:16px;top:calc(100% + 8px);
+  background:var(--surface-2);border:1px solid rgba(16,185,129,.3);
+  border-radius:9px;padding:7px 12px;font-size:12px;color:#c9f0e0;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);
+  opacity:0;transform:translateY(-6px);pointer-events:none;
+}
+.done-chip.on{animation:chip 4.6s var(--ease) forwards}
+@keyframes chip{
+  0%{opacity:0;transform:translateY(-6px)}
+  8%{opacity:1;transform:translateY(0)}
+  78%{opacity:1;transform:translateY(0)}
+  100%{opacity:0;transform:translateY(-4px)}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   POPOVER — le détail n'est pas une modale neuve : c'est un survol
+   qui liste les travaux vivants, et son pied mène au Journal filtré.
+   ═══════════════════════════════════════════════════════════════════ */
+.pop{
+  position:absolute;right:12px;top:calc(100% + 6px);width:340px;
+  background:var(--surface-2);border:1px solid var(--line);
+  border-radius:11px;box-shadow:0 18px 46px rgba(0,0,0,.6);
+  padding:6px;display:none;z-index:40;
+}
+.pop.on{display:block}
+.pop h4{
+  margin:6px 8px 8px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--fg-dim);font-weight:600;
+}
+.job{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:8px}
+.job:hover{background:rgba(255,255,255,.03)}
+.job__dot{width:7px;height:7px;border-radius:50%;margin-top:6px;flex:0 0 auto}
+.job__dot.run{background:var(--emerald);box-shadow:0 0 8px var(--emerald)}
+.job__dot.wait{background:#33564a}
+.job__dot.hold{background:var(--amber)}
+.job__b{flex:1;min-width:0}
+.job__t{font-size:12.5px;color:#d8ede5}
+.job__s{font-size:10.5px;color:var(--fg-dim)}
+.job__lane{
+  font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+  color:#7fc4ab;border:1px solid #245243;border-radius:4px;padding:1px 5px;margin-top:3px;display:inline-block
+}
+.pop__foot{
+  border-top:1px solid var(--line);margin-top:4px;padding:9px 8px 5px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.pop__foot a{color:#7fe0c0;text-decoration:none;font-size:12px}
+.pop__foot a:hover{text-decoration:underline}
+.pop__foot span{font-size:10.5px;color:var(--fg-dim)}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ZONE DE REVUE (hors maquette réelle)
+   ═══════════════════════════════════════════════════════════════════ */
+.review{padding:26px 30px 60px;max-width:940px}
+.review h2{
+  font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--fg-dim);
+  font-weight:600;margin:28px 0 12px;
+}
+.review h2:first-child{margin-top:0}
+.states{display:flex;flex-wrap:wrap;gap:7px}
+.states button{
+  background:var(--surface-2);border:1px solid var(--line);color:var(--fg-muted);
+  padding:7px 13px;border-radius:8px;font:inherit;font-size:12.5px;cursor:pointer;
+  transition:.15s var(--ease);
+}
+.states button:hover{border-color:#2c5a4a;color:var(--fg)}
+.states button.on{background:rgba(16,185,129,.14);border-color:rgba(16,185,129,.45);color:#bdf0d9}
+.states button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.notes{color:var(--fg-muted);font-size:13px}
+.notes p{margin:0 0 10px}
+.notes b{color:#cfe9df;font-weight:600}
+.notes code{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;
+  background:#0f1f1a;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:#9fd8bf;
+}
+.warn{border-left:2px solid var(--amber);padding-left:12px;color:#d3bd94}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+@media (max-width:760px){ .grid2{grid-template-columns:1fr} }
+.toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--fg-muted);margin-top:12px}
+.toggle input{accent-color:var(--emerald)}
+
+/* réduction de mouvement — fige SANS RIEN RETIRER (patron couverture-breathe) */
+body.rm .gear-a,body.rm .gear-b,body.rm .belt__fill::after,
+body.rm .belt__sweep,body.rm .side-avatar,body.rm .queue i{animation:none !important}
+body.rm .piece{animation-duration:.01s !important}
+body.rm .belt__sweep{opacity:1;background:linear-gradient(90deg,transparent,rgba(45,212,191,.4),transparent);background-size:100% 100%}
+@media (prefers-reduced-motion:reduce){
+  .gear-a,.gear-b,.belt__fill::after,.belt__sweep,.side-avatar,.queue i{animation:none !important}
+  .belt__sweep{opacity:1;background:linear-gradient(90deg,transparent,rgba(45,212,191,.4),transparent);background-size:100% 100%}
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ── sidebar factice, seulement pour juger le voisinage du halo ── -->
+  <aside class="sidebar" aria-hidden="true">
+    <div class="side-state">
+      <div class="side-avatar"><span>◈</span></div>
+      <div class="side-badge">Semi-autonome ⚡</div>
+    </div>
+    <nav class="nav">
+      <a href="#">◧ Tableau de bord</a>
+      <a href="#">◱ Progression</a>
+      <a href="#">◲ Agenda</a>
+      <div class="sep"></div>
+      <a href="#">▦ Couverture</a>
+      <a href="#" class="on">📜 Journal</a>
+      <a href="#">◇ Demandes</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+
+    <!-- ═══ HEADER ═══════════════════════════════════════════════ -->
+    <header class="hdr">
+
+      <!-- bandeau de marque : INCHANGÉ (v0.44.0) -->
+      <div class="band">
+        <div class="emblem">
+          <div class="emblem__mark">
+            <svg viewBox="0 0 40 40" fill="none" aria-hidden="true">
+              <path d="M8 12h11v20H8z" stroke="#5eead4" stroke-width="1.4"/>
+              <path d="M21 12h11v20H21z" stroke="#5eead4" stroke-width="1.4"/>
+              <path d="M20 10v22" stroke="#a7f3d0" stroke-width="1.6"/>
+              <path d="M11 18h6M11 22h6M24 18h6M24 22h6" stroke="#2dd4bf" stroke-width="1" opacity=".7"/>
+            </svg>
+          </div>
+          <div class="wordmark">ZETIS<small>PAPA</small></div>
+        </div>
+        <div class="band__note">bandeau de marque — asset réel <code style="all:unset;font-family:'IBM Plex Mono',monospace">zetis-banner.png</code>, non modifié</div>
+      </div>
+
+      <!-- LA BANDE DE PRODUCTION -->
+      <div class="strip" id="strip"
+           data-state="mesure" data-measured="true" data-lane="llm" data-queue="false"
+           role="button" tabindex="0"
+           aria-label="Production en cours — 7 pièces sur 19. Ouvrir le détail.">
+
+        <!-- rouages : l'IA travaille -->
+        <div class="gears" aria-hidden="true">
+          <svg class="gear-a" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5.2"/>
+            <circle cx="12" cy="12" r="1.8"/>
+            <g class="tooth">
+              <rect x="11" y="0.6" width="2" height="3.4" rx=".6"/>
+              <rect x="11" y="20" width="2" height="3.4" rx=".6"/>
+              <rect x="0.6" y="11" width="3.4" height="2" rx=".6"/>
+              <rect x="20" y="11" width="3.4" height="2" rx=".6"/>
+              <rect x="3.4" y="3.4" width="2" height="3.4" rx=".6" transform="rotate(-45 4.4 5.1)"/>
+              <rect x="18.6" y="17.2" width="2" height="3.4" rx=".6" transform="rotate(-45 19.6 18.9)"/>
+              <rect x="18.6" y="3.4" width="2" height="3.4" rx=".6" transform="rotate(45 19.6 5.1)"/>
+              <rect x="3.4" y="17.2" width="2" height="3.4" rx=".6" transform="rotate(45 4.4 18.9)"/>
+            </g>
+          </svg>
+          <svg class="gear-b" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5.6"/>
+            <circle cx="12" cy="12" r="2"/>
+            <g class="tooth">
+              <rect x="10.8" y="1" width="2.4" height="3.6" rx=".6"/>
+              <rect x="10.8" y="19.4" width="2.4" height="3.6" rx=".6"/>
+              <rect x="1" y="10.8" width="3.6" height="2.4" rx=".6"/>
+              <rect x="19.4" y="10.8" width="3.6" height="2.4" rx=".6"/>
+            </g>
+          </svg>
+        </div>
+
+        <!-- contexte -->
+        <div class="ctx">
+          <div class="ctx__l1" id="ctxL1">ZETIS produit — <b>Fractions</b></div>
+          <div class="ctx__l2" id="ctxL2">chapitre · Mathématiques · lancé par vous</div>
+        </div>
+
+        <!-- le tapis -->
+        <div class="belt" id="belt">
+          <div class="belt__track">
+            <div class="belt__fill" id="fill" style="width:37%"></div>
+            <div class="belt__sweep"></div>
+          </div>
+        </div>
+
+        <span class="queue" id="queue"><i></i>3 en attente</span>
+
+        <div class="count">
+          <div class="count__pct mono" id="pct">37 %</div>
+          <div class="count__n mono" id="cnt">7 / 19 pièces</div>
+        </div>
+
+        <!-- boîte de connaissance -->
+        <div class="box" id="box" title="Le stock de contenu de Massimo">
+          <div class="glow"></div>
+          <svg viewBox="0 0 44 34" aria-hidden="true">
+            <path class="lid" d="M6 12 L22 5 L38 12"/>
+            <path class="shell-l" d="M6 12 L22 19 L38 12 L38 27 L22 34 L6 27 Z"/>
+            <path class="layer" d="M9 15.5 L22 21 L35 15.5 L35 18 L22 23.5 L9 18 Z" data-i="1"/>
+            <path class="layer" d="M9 19 L22 24.5 L35 19 L35 21.5 L22 27 L9 21.5 Z" data-i="2"/>
+            <path class="layer" d="M9 22.5 L22 28 L35 22.5 L35 25 L22 30.5 L9 25 Z" data-i="3"/>
+          </svg>
+          <span class="box__n mono" id="boxN">+7</span>
+        </div>
+
+        <!-- popover -->
+        <div class="pop" id="pop">
+          <h4>Travaux en cours</h4>
+          <div class="job">
+            <span class="job__dot run"></span>
+            <div class="job__b">
+              <div class="job__t">Fractions — chapitre entier</div>
+              <div class="job__s">7 / 19 pièces · démarré il y a 4 min</div>
+              <span class="job__lane">couloir LLM</span>
+            </div>
+          </div>
+          <div class="job">
+            <span class="job__dot wait"></span>
+            <div class="job__b">
+              <div class="job__t">Théorème de Pythagore — fiche</div>
+              <div class="job__s">en attente derrière le lot en cours</div>
+              <span class="job__lane">couloir LLM</span>
+            </div>
+          </div>
+          <div class="job">
+            <span class="job__dot run"></span>
+            <div class="job__b">
+              <div class="job__t">Capsule « Les fractions » — rendu vidéo</div>
+              <div class="job__s">en cours · couloir séparé, ne retarde rien</div>
+              <span class="job__lane">couloir média</span>
+            </div>
+          </div>
+          <div class="job">
+            <span class="job__dot hold"></span>
+            <div class="job__b">
+              <div class="job__t">Conjugaison — chapitre</div>
+              <div class="job__s">refusé : 34 pièces attendent votre relecture (plafond 30)</div>
+              <span class="job__lane">reprendra après relecture</span>
+            </div>
+          </div>
+          <div class="pop__foot">
+            <a href="#">Voir au Journal →</a>
+            <span>rien n'est perdu · 4 travaux suivis</span>
+          </div>
+        </div>
+
+        <div class="done-chip" id="chip">◈ 19 pièces déposées — <b>Fractions</b> est équipé</div>
+      </div>
+    </header>
+
+    <!-- ═══ REVUE ══════════════════════════════════════════════════ -->
+    <div class="review">
+
+      <h2>États à regarder</h2>
+      <div class="states" id="states">
+        <button data-s="repos">Au repos</button>
+        <button data-s="mesure" class="on">Lot chapitre — mesuré</button>
+        <button data-s="estime">Lot pièce — non mesuré</button>
+        <button data-s="file">Un en cours + 3 en file</button>
+        <button data-s="arret">Aucun moteur de production</button>
+        <button data-s="refus">Refusé par le régulateur</button>
+        <button data-s="fin">Dépôt terminé</button>
+      </div>
+      <label class="toggle"><input type="checkbox" id="rm"> simuler <code>prefers-reduced-motion</code></label>
+      <p class="notes" style="margin-top:14px">Cliquer la bande ouvre le popover des travaux.</p>
+
+      <h2>Ce que la maquette décide</h2>
+      <div class="grid2">
+        <div class="notes">
+          <p><b>Ce n'est pas une barre, c'est un tapis.</b> Les rouages fabriquent à gauche, la
+          pièce traverse, la boîte l'avale à droite. La texture en biais dit le sens de marche :
+          sans elle, une barre qui se remplit ne dit pas <i>d'où vers où</i>. C'est le seul geste
+          spectaculaire de l'écran ; tout le reste est plat.</p>
+
+          <p><b>Le % est un COMPTE, jamais une estimation.</b> Il vaut
+          <code>pièces_faites / pièces_prévues</code> — <code>production_events</code> écrit déjà
+          une ligne par pièce, le dénominateur se calcule avant l'exécution. Le lot #3 alignait
+          33 pièces : le grain est fin, la barre bouge vraiment.</p>
+
+          <p><b>Sans granularité, aucun chiffre — et aucune case.</b> Sur un lot-pièce, le
+          remplissage disparaît, un liseré balaie, et la case du % <i>n'existe pas</i>. Un
+          « — » à cet endroit se lirait encore comme une valeur.</p>
+
+          <p><b>Ce qui attend se compte, il ne se dessine pas.</b> Fondre plusieurs travaux dans
+          une barre unique la ferait <i>reculer</i> à chaque ajout. Une barre = un travail ; la
+          file est un chiffre à côté.</p>
+        </div>
+        <div class="notes">
+          <p><b>La boîte est le seul objet permanent.</b> Elle est la destination de tout ce que
+          ZETIS fabrique — le stock de contenu de Massimo. Elle s'ouvre d'un cran et s'illumine
+          une demi-seconde à chaque pièce reçue, puis retombe. Son clic mène à la Couverture,
+          le clic de la bande au Journal filtré sur <code>queued,running</code>.</p>
+
+          <p><b>L'arrêt ne ressemble pas à l'attente.</b> Sans moteur, les rouages
+          <i>s'immobilisent</i> — c'est le signe le plus lisible de l'écran, on le voit avant
+          d'avoir lu quoi que ce soit. Le tapis passe en ambre figé, rien ne balaie, rien ne
+          pulse. Une animation sur une file arrêtée ment avant qu'on ait lu le texte.</p>
+
+          <p><b>Le refus habite la bande.</b> Le régulateur qui dit non n'est pas une panne : les
+          rouages s'estompent, le motif s'affiche, et le popover dit ce qui le rouvrira. Un refus
+          invisible se lit exactement comme une perte — c'est là que « rien ne se perd » se prouve.</p>
+
+          <p><b>La fin s'efface seule.</b> Quatre secondes, puis plus rien. Une annonce qui
+          s'empile deviendrait un arriéré, c'est-à-dire le « vous êtes en retard » interdit.</p>
+        </div>
+      </div>
+
+      <h2>Contraintes tenues</h2>
+      <div class="notes">
+        <p class="warn"><b>Budget de bundle du chrome = zéro.</b> Tout est en CSS et SVG inline :
+        aucune lib d'animation, aucun canvas, aucun moteur. <code>layout.bundle.test.ts</code>
+        passe sans être touché.</p>
+        <p><b>Le bandeau de marque n'est pas modifié</b> — même hauteur <code>h-28 sm:h-36</code>,
+        même fondu latéral posé sur l'image. Les 3 verrous de <code>PapaLayout.test.tsx</code>
+        restent verts ; la bande s'ajoute <i>sous</i> lui.</p>
+        <p><b>Grammaire du mouvement, à trancher.</b> Le halo de la sidebar dit le <i>régime</i>
+        (4 s / 6 s) ; les rouages disent l'<i>instant</i>. Deux mouvements dans le même champ
+        visuel — c'est tenable parce que le halo est lent et continu et que les rouages ne
+        tournent <i>que</i> pendant un travail. Au repos, la bande se referme à 16 px et il ne
+        reste qu'un liseré : la sidebar redevient la seule chose qui bouge.</p>
+        <p><b><code>prefers-reduced-motion</code> fige sans rien retirer.</b> Rouages arrêtés,
+        tapis sans texture animée, liseré immobile — le remplissage, les chiffres, les couleurs
+        et la boîte restent. Couper l'animation effacerait le signal ; on l'immobilise.</p>
+        <p><b>Or interdit.</b> <code>#ffcf47</code> reste réservé à ZETIS qui parle à Massimo.
+        L'attente et l'arrêt sont en ambre <code>#f0a02a</code>, la famille déjà utilisée par les
+        files de validation Papa.</p>
+      </div>
+
+      <h2>Restant ouvert</h2>
+      <div class="notes">
+        <p>· Faut-il montrer le <b>couloir média</b> (rendu vidéo) dans la bande, ou le laisser
+        au popover ? Ici il n'est qu'au popover : deux tapis côte à côte diraient qu'il y a deux
+        productions, alors qu'il y a deux <i>ressources</i>.</p>
+        <p>· Les rouages et la boîte doivent-ils vivre <b>dans le bandeau de marque</b> plutôt que
+        dans la bande ? Ce serait plus spectaculaire et plus fragile : le bandeau porte une image
+        de fond dont le cadrage a déjà coûté deux pièges.</p>
+        <p>· <b>Au repos</b> : bande refermée à 16 px (choix ici) ou bande absente ? La refermer
+        garde la boîte atteignable d'un clic depuis n'importe quelle page.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const strip = document.getElementById('strip');
+const belt  = document.getElementById('belt');
+const fill  = document.getElementById('fill');
+const pct   = document.getElementById('pct');
+const cnt   = document.getElementById('cnt');
+const box   = document.getElementById('box');
+const boxN  = document.getElementById('boxN');
+const chip  = document.getElementById('chip');
+const pop   = document.getElementById('pop');
+const ctxL1 = document.getElementById('ctxL1');
+const ctxL2 = document.getElementById('ctxL2');
+
+const PIECES = ['cours','fiche','quiz','carte SRS','mindmap'];
+let timer = null, done = 7, total = 19;
+
+function clearLoop(){ if(timer){ clearInterval(timer); timer = null; } }
+
+function render(){
+  fill.style.width = Math.round(done/total*100) + '%';
+  pct.textContent  = Math.round(done/total*100) + ' %';
+  cnt.textContent  = done + ' / ' + total + ' pièces';
+  box.querySelectorAll('.layer').forEach(l => {
+    l.style.opacity = (done/total) >= (+l.dataset.i)/3.6 ? '.55' : '0';
+  });
+  boxN.textContent = '+' + done;
+  boxN.classList.toggle('on', done > 0);
+}
+
+function sendPiece(){
+  const p = document.createElement('span');
+  p.className = 'piece';
+  p.textContent = PIECES[Math.floor(Math.random()*PIECES.length)];
+  belt.appendChild(p);
+  const dur = document.body.classList.contains('rm') ? 20 : 1500;
+  setTimeout(() => {
+    p.remove();
+    box.classList.add('receive');
+    setTimeout(() => box.classList.remove('receive'), 500);
+    if (done < total) { done++; render(); }
+  }, dur);
+}
+
+const STATES = {
+  repos: () => {
+    strip.dataset.state='repos'; strip.dataset.queue='false'; strip.dataset.lane='llm';
+    pop.classList.remove('on');
+  },
+  mesure: () => {
+    done=7; total=19;
+    strip.dataset.state='en'; strip.dataset.measured='true';
+    strip.dataset.lane='llm'; strip.dataset.queue='false';
+    ctxL1.innerHTML='ZETIS produit — <b>Fractions</b>';
+    ctxL2.textContent='chapitre · Mathématiques · lancé par vous';
+    render();
+    timer = setInterval(sendPiece, 2400);
+    sendPiece();
+  },
+  estime: () => {
+    strip.dataset.state='en'; strip.dataset.measured='false';
+    strip.dataset.lane='llm'; strip.dataset.queue='false';
+    ctxL1.innerHTML='ZETIS produit — <b>une fiche</b>';
+    ctxL2.textContent='Théorème de Pythagore · demandée par Massimo';
+  },
+  file: () => {
+    done=4; total=19;
+    strip.dataset.state='en'; strip.dataset.measured='true';
+    strip.dataset.lane='llm'; strip.dataset.queue='true';
+    ctxL1.innerHTML='ZETIS produit — <b>Fractions</b>';
+    ctxL2.textContent='chapitre · 3 travaux attendent leur tour';
+    render();
+    timer = setInterval(sendPiece, 2400);
+  },
+  arret: () => {
+    strip.dataset.state='en'; strip.dataset.measured='false';
+    strip.dataset.lane='arret'; strip.dataset.queue='true';
+    ctxL1.innerHTML='ZETIS <b>ne produit pas</b>';
+    ctxL2.textContent='aucun moteur de production actif — personne ne viendra';
+    document.getElementById('queue').innerHTML='<i></i>4 en attente';
+  },
+  refus: () => {
+    strip.dataset.state='en'; strip.dataset.measured='false';
+    strip.dataset.lane='refus'; strip.dataset.queue='false';
+    ctxL1.innerHTML='<b>Rien lancé</b> — 34 pièces attendent votre relecture';
+    ctxL2.textContent='le plafond est 30 · Conjugaison repartira après relecture';
+  },
+  fin: () => {
+    done=19; total=19;
+    strip.dataset.state='en'; strip.dataset.measured='true';
+    strip.dataset.lane='llm'; strip.dataset.queue='false';
+    ctxL1.innerHTML='ZETIS a terminé — <b>Fractions</b>';
+    ctxL2.textContent='chapitre · 19 pièces · 12 min 35 s';
+    render();
+    box.classList.add('receive');
+    setTimeout(()=>box.classList.remove('receive'),500);
+    chip.classList.remove('on'); void chip.offsetWidth; chip.classList.add('on');
+  }
+};
+
+document.getElementById('states').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  clearLoop();
+  document.getElementById('queue').innerHTML='<i></i>3 en attente';
+  document.querySelectorAll('#states button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  STATES[b.dataset.s]();
+});
+
+strip.addEventListener('click', () => {
+  if (strip.dataset.state === 'repos') return;
+  pop.classList.toggle('on');
+});
+strip.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); strip.click(); }
+});
+document.addEventListener('click', e => {
+  if (!strip.contains(e.target)) pop.classList.remove('on');
+});
+
+document.getElementById('rm').addEventListener('change', e => {
+  document.body.classList.toggle('rm', e.target.checked);
+});
+
+STATES.mesure();
+</script>
+</body>
+</html>

@@ -80,8 +80,12 @@ def _add_mission_quiz_attempt(db, *, student, quiz_id, score, at):
     db.commit()
 
 
-def _open_gaps_via_failed_diagnostic(client) -> None:
-    body = client.post("/api/diagnostics/generate", json={"subject_id": 1}).json()
+def _open_gaps_via_failed_diagnostic(client, Session, executer_travail) -> None:
+    """⚠️ `/diagnostics/generate` rend `202` depuis l'ADR-0041 §4 — on joue le travail ici, sinon
+    aucun quiz n'existe et la lacune ne s'ouvre jamais."""
+    res = client.post("/api/diagnostics/generate", json={"subject_id": 1})
+    assert res.status_code == 202, res.text
+    body = executer_travail(Session, res.json()["job_id"])
     quiz = client.get(f"/api/diagnostics/quizzes/{body['quiz_id']}").json()
     answers = [{"question_id": q["id"], "choice_index": 1} for q in quiz["questions"]]
     res = client.post(f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": answers})
@@ -95,9 +99,9 @@ def _steps_of(client, mission_id) -> list[dict]:
 # --- Intégration : génération pending + validation Papa ------------------------------------
 
 
-def test_generate_creates_pending_missions_with_aligned_step_types(client_db) -> None:
-    client, _ = client_db
-    _open_gaps_via_failed_diagnostic(client)
+def test_generate_creates_pending_missions_with_aligned_step_types(client_db, executer_travail) -> None:
+    client, Session = client_db
+    _open_gaps_via_failed_diagnostic(client, Session, executer_travail)
     data = client.post("/api/missions/generate-remediation").json()
     assert data["created"] >= 1
     mission = data["missions"][0]
@@ -109,9 +113,9 @@ def test_generate_creates_pending_missions_with_aligned_step_types(client_db) ->
     assert "quiz" not in types
 
 
-def test_generate_is_idempotent(client_db) -> None:
-    client, _ = client_db
-    _open_gaps_via_failed_diagnostic(client)
+def test_generate_is_idempotent(client_db, executer_travail) -> None:
+    client, Session = client_db
+    _open_gaps_via_failed_diagnostic(client, Session, executer_travail)
     first = client.post("/api/missions/generate-remediation").json()["created"]
     second = client.post("/api/missions/generate-remediation").json()["created"]
     assert first >= 1

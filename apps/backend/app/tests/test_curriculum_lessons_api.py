@@ -36,6 +36,17 @@ def _seed_validated_chapter(Session) -> int:
         return chapter.id
 
 
+def _generer_lecons(client, Session, poster_et_executer, chapter_id, *, mode="replace"):
+    """Génère les leçons d'un chapitre ET joue le travail, puis rend la liste RELUE.
+
+    ⚠️ **`202` depuis l'ADR-0041 §4** : la route accepte, le worker produit. Rendre la liste relue
+    plutôt qu'un corps de réponse garde toutes les assertions en aval — elles portent désormais sur
+    l'état réel de la base, ce qui est plus fort, pas moins.
+    """
+    route = "extend-lessons" if mode == "extend" else "generate-lessons"
+    poster_et_executer(client, Session, f"/api/chapters/{chapter_id}/{route}")
+    return client.get(f"/api/chapters/{chapter_id}/lessons").json()
+
 def test_lesson_routes_are_parent_only(client_db) -> None:
     client, Session = client_db  # conftest = rôle child
     chapter_id = _seed_validated_chapter(Session)
@@ -53,26 +64,27 @@ def test_lesson_routes_are_parent_only(client_db) -> None:
     assert client.delete("/api/lessons/1").status_code == 403
 
 
-def test_generate_refused_on_non_eligible_chapter(client_db) -> None:
+def test_generate_refused_on_non_eligible_chapter(client_db, poster_et_executer) -> None:
     """Chapitre généré non validé → 409 avec message métier clair (ADR-0009 §1)."""
     client, Session = client_db
     _as_papa()
     chapter_id = _seed_validated_chapter(Session)
     client.patch(f"/api/chapters/{chapter_id}", json={"validation_action": "reject"})
+    # ⚠️ **Le refus reste SYNCHRONE** (ADR-0041 §4) : la file diffère le travail, jamais le
+    # verdict sur la demande. On appelle donc la route DIRECTEMENT — passer par le helper, qui
+    # affirme un `202`, masquerait ce contrat.
     res = client.post(f"/api/chapters/{chapter_id}/generate-lessons")
     assert res.status_code == 409
     assert "valide" in res.json()["detail"].lower()
 
 
-def test_generate_then_lesson_crud_flow(client_db) -> None:
+def test_generate_then_lesson_crud_flow(client_db, poster_et_executer) -> None:
     client, Session = client_db
     _as_papa()
     chapter_id = _seed_validated_chapter(Session)
 
     # Passe 2 : génération (FakeLLMProvider via conftest → 3 leçons déterministes).
-    res = client.post(f"/api/chapters/{chapter_id}/generate-lessons")
-    assert res.status_code == 201
-    lessons = res.json()
+    lessons = _generer_lecons(client, Session, poster_et_executer, chapter_id)
     assert len(lessons) == 3
     assert all(l["created_by"] == "ai" and l["status"] == "draft" for l in lessons)
     assert all(l["program_version"] == "2020" for l in lessons)
@@ -148,19 +160,23 @@ def test_generate_then_lesson_crud_flow(client_db) -> None:
     assert client.delete("/api/lessons/9999").status_code == 404
 
 
-def test_generate_lesson_content_flow(client_db) -> None:
+def test_generate_lesson_content_flow(client_db, executer_travail, poster_et_executer) -> None:
     """Rédaction du cours : `content` null → rempli (moteur local via conftest) ;
     409 sur leçon archivée ; 404 sur leçon inconnue."""
     client, Session = client_db
     _as_papa()
     chapter_id = _seed_validated_chapter(Session)
-    lessons = client.post(f"/api/chapters/{chapter_id}/generate-lessons").json()
+    lessons = _generer_lecons(client, Session, poster_et_executer, chapter_id)
     first_id = lessons[0]["id"]
     assert lessons[0]["content"] is None  # la passe 2 ne rédige pas le cours
 
+    # ⚠️ `202` depuis l'ADR-0041 §4. Le travail est joué ici, et l'assertion porte ensuite sur la
+    # leçon RELUE — la rédaction, le gate du cours canonique et le retour en `draft` sont donc
+    # toujours vérifiés, sur l'état réel de la base plutôt que sur un corps de réponse.
     res = client.post(f"/api/lessons/{first_id}/generate-content")
-    assert res.status_code == 200
-    body = res.json()
+    assert res.status_code == 202, res.text
+    executer_travail(Session, res.json()["job_id"])
+    body = next(l for l in client.get(f"/api/chapters/{chapter_id}/lessons").json() if l["id"] == first_id)
     assert body["id"] == first_id
     assert body["content"] and "## Mini-exercices" in body["content"]
     assert body["status"] == "draft"  # la rédaction ne valide pas la leçon
@@ -177,7 +193,7 @@ def test_generate_lesson_content_flow(client_db) -> None:
     assert client.post("/api/lessons/9999/generate-content").status_code == 404
 
 
-def test_extend_lessons_appends_without_touching_existing(client_db) -> None:
+def test_extend_lessons_appends_without_touching_existing(client_db, poster_et_executer) -> None:
     """Extension : rien n'est supprimé (brouillons inclus), les nouvelles s'ajoutent
     APRÈS l'existant, et les doublons de titre sont écartés (filet anti-doublon)."""
     client, Session = client_db
@@ -188,18 +204,14 @@ def test_extend_lessons_appends_without_touching_existing(client_db) -> None:
     manual = client.post(
         f"/api/chapters/{chapter_id}/lessons", json={"title": "Leçon de Papa"}
     ).json()
-    res = client.post(f"/api/chapters/{chapter_id}/extend-lessons")
-    assert res.status_code == 201
-    extended = res.json()
+    extended = _generer_lecons(client, Session, poster_et_executer, chapter_id, mode="extend")
     assert len(extended) == 4
     assert extended[0]["id"] == manual["id"]  # l'existant garde sa place
     assert all(l["created_by"] == "ai" and l["status"] == "draft" for l in extended[1:])
 
     # Ré-extension avec la même sortie fake : titres tous déjà présents → AUCUN ajout,
     # AUCUNE suppression (mêmes ids — les brouillons ne sont pas remplacés, ≠ passe 2).
-    res = client.post(f"/api/chapters/{chapter_id}/extend-lessons")
-    assert res.status_code == 201
-    again = res.json()
+    again = _generer_lecons(client, Session, poster_et_executer, chapter_id, mode="extend")
     assert [l["id"] for l in again] == [l["id"] for l in extended]
 
     # Même précondition que la passe 2 : chapitre ni validé ni manuel → 409.
@@ -212,19 +224,27 @@ def test_extend_lessons_appends_without_touching_existing(client_db) -> None:
     # couverte par test_lesson_routes_are_parent_only pour les routes leçons.
 
 
-def test_content_audit_and_manual_edit_flow(client_db) -> None:
+def test_content_audit_and_manual_edit_flow(client_db, executer_travail, poster_et_executer) -> None:
     """Provenance du cours : 'ai' au premier write IA, 'parent' sur édition Papa ;
     `created_*` posés une fois, `updated_*` à chaque write ; le statut de la leçon
     ne bouge jamais sur une édition de cours (Papa est l'autorité de validation)."""
     client, Session = client_db
     _as_papa()
     chapter_id = _seed_validated_chapter(Session)
-    lessons = client.post(f"/api/chapters/{chapter_id}/generate-lessons").json()
+    lessons = _generer_lecons(client, Session, poster_et_executer, chapter_id)
     first_id = lessons[0]["id"]
     assert lessons[0]["content_created_at"] is None  # pas encore de cours
 
     # Rédaction IA : audit 'ai' posé (created + updated).
-    body = client.post(f"/api/lessons/{first_id}/generate-content").json()
+    # ⚠️ `202` depuis l'ADR-0041 §4 — on joue le travail, puis on relit la leçon. L'audit de
+    # provenance est écrit par le SERVICE, que le worker appelle exactement comme la route le
+    # faisait : ce test le vérifie donc toujours, à l'endroit où il est vrai (la base).
+    res = client.post(f"/api/lessons/{first_id}/generate-content")
+    assert res.status_code == 202, res.text
+    executer_travail(Session, res.json()["job_id"])
+    body = next(
+        l for l in client.get(f"/api/chapters/{chapter_id}/lessons").json() if l["id"] == first_id
+    )
     assert body["content_created_by"] == "ai"
     assert body["content_updated_by"] == "ai"
     assert body["content_created_at"] and body["content_updated_at"]
@@ -257,7 +277,12 @@ def test_content_audit_and_manual_edit_flow(client_db) -> None:
     assert res.json()["content_updated_by"] == "parent"
 
     # Régénération IA après édition manuelle : created conservé, updated repasse à 'ai'.
-    regen = client.post(f"/api/lessons/{first_id}/generate-content").json()
+    res = client.post(f"/api/lessons/{first_id}/generate-content")
+    assert res.status_code == 202, res.text
+    executer_travail(Session, res.json()["job_id"])
+    regen = next(
+        l for l in client.get(f"/api/chapters/{chapter_id}/lessons").json() if l["id"] == first_id
+    )
     assert regen["content_created_by"] == "ai"
     assert regen["content_created_at"] == ai_created_at
     assert regen["content_updated_by"] == "ai"

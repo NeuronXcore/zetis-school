@@ -15,6 +15,7 @@ import {
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
+import { lancerEtSuivre, type SuiviTravail } from "./travaux";
 
 export async function fetchActiveSchoolYear(): Promise<ActiveSchoolYear> {
   return asJson(
@@ -55,13 +56,18 @@ export async function fetchChapters(sysId: number): Promise<CurriculumChapter[]>
 }
 
 /** Passe 1 (appel cloud synchrone ~10-30 s) : remplace les générés non validés. */
-export async function generateChapters(sysId: number): Promise<CurriculumChapter[]> {
-  return asJson(
-    await fetch(`${API_URL}/api/school-year-subjects/${sysId}/generate-chapters`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+export async function generateChapters(
+  sysId: number,
+  onEtat?: SuiviTravail,
+): Promise<CurriculumChapter[]> {
+  // 202 + sondage (ADR-0041 §4). ⚠️ Le `503` « clé cloud absente » et le `404` restent
+  // SYNCHRONES : la file diffère le travail, jamais le verdict sur la demande.
+  await lancerEtSuivre<{ chapter_ids: number[] }>(
+    `${API_URL}/api/school-year-subjects/${sysId}/generate-chapters`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
+  return fetchChapters(sysId);
 }
 
 export async function createManualChapter(
@@ -152,25 +158,32 @@ export async function fetchLessons(chapterId: number): Promise<CurriculumLesson[
 
 /** Passe 2 (appel cloud synchrone ~10-30 s) : 409 si le chapitre n'est ni validé ni
  *  manuel. Renvoie la liste complète des leçons du chapitre après génération. */
-export async function generateLessons(chapterId: number): Promise<CurriculumLesson[]> {
-  return asJson(
-    await fetch(`${API_URL}/api/chapters/${chapterId}/generate-lessons`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+export async function generateLessons(
+  chapterId: number,
+  onEtat?: SuiviTravail,
+): Promise<CurriculumLesson[]> {
+  // 202 + sondage (ADR-0041 §4). ⚠️ Le `409` (chapitre ni validé ni manuel) reste SYNCHRONE.
+  await lancerEtSuivre<{ lesson_ids: number[] }>(
+    `${API_URL}/api/chapters/${chapterId}/generate-lessons`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
+  return fetchLessons(chapterId);
 }
 
 /** Extension (appel cloud synchrone ~10-30 s) : complète la liste SANS rien supprimer
  *  (brouillons inclus) — l'existant est injecté dans le prompt, doublons écartés.
  *  Mêmes préconditions que la passe 2 (409 sinon). Renvoie la liste complète. */
-export async function extendLessons(chapterId: number): Promise<CurriculumLesson[]> {
-  return asJson(
-    await fetch(`${API_URL}/api/chapters/${chapterId}/extend-lessons`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+export async function extendLessons(
+  chapterId: number,
+  onEtat?: SuiviTravail,
+): Promise<CurriculumLesson[]> {
+  await lancerEtSuivre<{ lesson_ids: number[] }>(
+    `${API_URL}/api/chapters/${chapterId}/extend-lessons`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
   );
+  return fetchLessons(chapterId);
 }
 
 export async function createManualLesson(
@@ -236,14 +249,30 @@ export async function deleteLesson(lessonId: number): Promise<void> {
   }
 }
 
-/** Rédaction du cours (moteur LOCAL ollama, ~40-60 s) : renvoie la leçon mise à jour.
- *  409 si la leçon est archivée ; la régénération écrase le cours existant. */
-export async function generateLessonContent(lessonId: number): Promise<CurriculumLesson> {
+/** Rédaction du cours (moteur LOCAL ollama) : renvoie la leçon mise à jour.
+ *
+ *  🔴 **C'est LA route du §9.** Sa durée était annoncée par cinq constantes différentes selon
+ *  l'écran d'où Papa cliquait — 45 s, 42 s, 50 s, 50 s, 22 s. Il n'y en a plus aucune : le serveur
+ *  dit ce qu'il mesure (`estimated_ms`), et cette fonction le transmet via `onEtat`.
+ *
+ *  202 + sondage (ADR-0041 §4). ⚠️ Le `409` (leçon archivée) et le `404` restent SYNCHRONES :
+ *  la file diffère le travail, jamais le verdict sur la demande. */
+export async function generateLessonContent(
+  lessonId: number,
+  onEtat?: SuiviTravail,
+): Promise<CurriculumLesson> {
+  const sortie = await lancerEtSuivre<{ lesson_id: number }>(
+    `${API_URL}/api/lessons/${lessonId}/generate-content`,
+    { method: "POST", headers: authHeader() },
+    onEtat,
+  );
+  return fetchLesson(sortie.lesson_id);
+}
+
+/** La leçon par son id — sert à rendre l'objet une fois la rédaction finie. */
+export async function fetchLesson(lessonId: number): Promise<CurriculumLesson> {
   return asJson(
-    await fetch(`${API_URL}/api/lessons/${lessonId}/generate-content`, {
-      method: "POST",
-      headers: authHeader(),
-    }),
+    await fetch(`${API_URL}/api/lessons/${lessonId}`, { headers: authHeader() }),
   );
 }
 
@@ -272,13 +301,18 @@ export async function reorderLessons(
 export async function generateSkillsBackfill(
   subjectId: number,
   level: string,
+  onEtat?: SuiviTravail,
 ): Promise<SkillsBackfillPreview> {
-  return asJson(
-    await fetch(`${API_URL}/api/curriculum/skills-backfill/generate`, {
+  // 202 + sondage (ADR-0041 §4). ⚠️ **Ce travail ne persiste RIEN** (ADR-0010) : sa
+  // prévisualisation EST sa sortie — il n'y a aucun id à relire, contrairement aux autres.
+  return lancerEtSuivre<SkillsBackfillPreview>(
+    `${API_URL}/api/curriculum/skills-backfill/generate`,
+    {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ subject_id: subjectId, level }),
-    }),
+    },
+    onEtat,
   );
 }
 

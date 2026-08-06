@@ -9,7 +9,8 @@ import app.db.models as m
 from app.main import app
 from app.modules.ai import get_provider
 from app.modules.auth.deps import get_current_user
-from app.tests.fakes import FakeLLMProvider
+from app.modules.production.equipment import equip_notion
+from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
 
 
 def _as_parent() -> None:
@@ -172,28 +173,61 @@ def _seed_validated_lesson_for_skill(db):
     return lesson, skill
 
 
-def test_equip_notion_skips_when_no_lesson(client_db) -> None:
+# --- L'équipement : la ROUTE enfile, l'ORCHESTRATEUR produit (ADR-0041 §4) ----------------------
+#
+# ⚠️ **Changement de contrat VOULU, pas un test rendu vert.** La route tenait la requête HTTP
+# pendant cinq générations LLM (~69 s) ; elle rend désormais 202 + un travail. Les trois
+# comportements que les tests d'origine protégeaient — dégradation sans leçon, auto-validation,
+# idempotence — n'ont pas changé d'un caractère : ils vivent dans `equipment.equip_notion`, qui
+# n'est pas touché. On les exerce donc **directement sur l'orchestrateur**, patron déjà en place
+# dans `test_settings_autonomy.py`. Ce qui se teste au niveau de la route, c'est ce que la route
+# fait maintenant : enfiler.
+
+
+def test_equip_notion_route_enqueues_and_returns_immediately(client_db, file_rq_factice) -> None:
+    """La route rend la main tout de suite, et le travail existe EN BASE avant d'être enfilé."""
     client, Session = client_db
     with Session() as db:
         sid = db.scalar(select(m.Skill)).id
     _as_parent()
     r = client.post("/api/reports/class-council/equip-notion", json={"skill_id": sid})
-    assert r.status_code == 200
+    assert r.status_code == 202
     body = r.json()
+    assert body["status"] == "queued"
+
+    with Session() as db:
+        job = db.get(m.AIJob, body["job_id"])
+        # ⚠️ L'ordre est le verrou : la ligne doit être VISIBLE (commitée) avant l'enfilement,
+        # sinon le worker peut la prendre avant qu'elle existe — et la barre ne peut pas
+        # l'annoncer « en file » au retour de la route.
+        assert job is not None and job.status == "queued"
+        assert job.job_type == "equip_notion"
+        assert job.input_json == {"skill_id": sid}
+        assert job.started_at is None and job.finished_at is None
+
+    assert len(file_rq_factice.enqueued) == 1, "le travail doit partir dans la file"
+
+
+def test_equip_notion_skips_when_no_lesson(client_db) -> None:
+    _, Session = client_db
+    with Session() as db:
+        skill = db.scalar(select(m.Skill))
+        body = equip_notion(
+            db, skill_id=skill.id, llm=FakeLLMProvider(), embedder=FakeEmbeddingProvider()
+        )
     assert body["has_lesson"] is False
     assert body["generated"] == []
     assert set(body["skipped"]) == {"cours", "fiche", "srs", "quiz", "mindmap"}
 
 
 def test_equip_notion_generates_and_autovalidates_kit(client_db) -> None:
-    client, Session = client_db
+    _, Session = client_db
     with Session() as db:
         _seed_validated_lesson_for_skill(db)
         sid = db.scalar(select(m.Skill)).id
-    _as_parent()
-    r = client.post("/api/reports/class-council/equip-notion", json={"skill_id": sid})
-    assert r.status_code == 200
-    body = r.json()
+        body = equip_notion(
+            db, skill_id=sid, llm=FakeLLMProvider(), embedder=FakeEmbeddingProvider()
+        )
     assert body["has_lesson"] is True
     assert body["errors"] == []
     # Cours déjà validé → sauté (idempotence) ; les dérivés sont générés.
@@ -211,21 +245,25 @@ def test_equip_notion_generates_and_autovalidates_kit(client_db) -> None:
             select(m.Quiz).where(m.Quiz.quiz_type == "mission", m.Quiz.status == "ready")
         ) is not None
     # Idempotence : un 2e passage ne régénère pas les pièces déjà validées.
-    again = client.post("/api/reports/class-council/equip-notion", json={"skill_id": sid}).json()
+    with Session() as db:
+        again = equip_notion(
+            db, skill_id=sid, llm=FakeLLMProvider(), embedder=FakeEmbeddingProvider()
+        )
     assert {"fiche", "quiz", "mindmap"}.issubset(set(again["skipped"]))
 
 
 def test_equip_notion_does_not_regenerate_existing_pending_content(client_db) -> None:
     """Une pièce déjà créée (brouillon `pending` de Papa) n'est PAS régénérée — juste validée."""
-    client, Session = client_db
+    _, Session = client_db
     with Session() as db:
         lesson, _ = _seed_validated_lesson_for_skill(db)
         # Papa a déjà créé une fiche (encore `pending`).
         db.add(m.Fiche(lesson_id=lesson.id, validation_status="pending", source="manual"))
         db.commit()
         sid = db.scalar(select(m.Skill)).id
-    _as_parent()
-    body = client.post("/api/reports/class-council/equip-notion", json={"skill_id": sid}).json()
+        body = equip_notion(
+            db, skill_id=sid, llm=FakeLLMProvider(), embedder=FakeEmbeddingProvider()
+        )
     # La fiche existante est SAUTÉE (pas régénérée), pas dans `generated`.
     assert "fiche" in body["skipped"]
     assert "fiche" not in body["generated"]

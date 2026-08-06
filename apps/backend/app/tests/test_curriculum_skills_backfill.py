@@ -336,17 +336,21 @@ def test_skills_backfill_routes_are_parent_only(client_db) -> None:
     assert conf.status_code == 403
 
 
-def test_skills_backfill_generate_then_confirm_flow(client_db) -> None:
+def test_skills_backfill_generate_then_confirm_flow(client_db, poster_et_executer) -> None:
     client, Session = client_db
     _as_papa()
     with Session() as db:
         sid = _subject_id(db)
 
-    res = client.post(
-        "/api/curriculum/skills-backfill/generate", json={"subject_id": sid, "level": "5e"}
+    # ⚠️ `202` depuis l'ADR-0041 §4. ⚠️ **Ce travail ne persiste RIEN** (ADR-0010) : sa
+    # prévisualisation EST sa sortie — il n'y a rien à relire ensuite, contrairement aux autres
+    # producteurs migrés. C'est le seul de ce genre.
+    preview = poster_et_executer(
+        client,
+        Session,
+        "/api/curriculum/skills-backfill/generate",
+        json={"subject_id": sid, "level": "5e"},
     )
-    assert res.status_code == 200
-    preview = res.json()
     assert preview["level"] == "5e"
     assert len(preview["groups"]) == 3
     assert preview["failed_scaffolds"] == []

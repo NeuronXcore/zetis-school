@@ -187,6 +187,16 @@ sans exception :
 ⚠️ **`run_out()` doit appliquer `run_status()`** (point 8 du read-before-code) : un lot zombie doit
 apparaître `stale`, pas `running`. C'est une correction, pas une fonctionnalité.
 
+🔴 **Et une seconde correction, trouvée au read-before-code du 2026-08-06 — celle-ci vise le cœur
+du dispositif.** `runs.py:419-423` fait déjà émettre **`progress_pct: 0`** au serveur sur un lot en
+file (`else (100 if run.status == "done" else 0)`), et c'est `useRunProgress` qui rattrape côté
+client en le remplaçant par `null`. Or cet ADR fait de `/activity` **la source unique**. Bâtir
+l'endpoint sur `run_out()` tel quel **déplacerait le mensonge du client vers le serveur**, là où
+plus personne ne le rattrape — l'exact contraire du but.
+
+> `/activity` émet **`pct: null`**, jamais `0`. Le zéro n'est pas une valeur basse, c'est une
+> absence de mesure, et les deux ne se rendent pas pareil.
+
 ### §2 — Deux modèles conservés, une lecture unifiée
 
 `ProductionRun` reste **le lot pédagogique** : les paliers gravés au départ, le gate de cours, le
@@ -211,14 +221,32 @@ Trois changements, aucun destructeur :
    fonctionne — `worker-media/jobs.py:24-33` commite immédiatement. Le `flush()` de `_run_traced`
    reste pour les producteurs **non migrés** : ils durent des millisecondes et n'ont pas à
    apparaître.
-2. **La colonne `trigger`**, vocabulaire fermé **partagé** avec `ProductionRun.TRIGGERS`. Motif :
-   `adr-0031` §4 — *les colonnes disent POURQUOI*. Et un besoin produit direct : quand la barre
-   montre à Papa un travail qu'il n'a pas lancé (une échéance d'agenda partie à 3 h), il doit
-   pouvoir savoir **pourquoi il tourne**.
-   ⚠️ On ne réutilise **pas** `created_by` : il porte l'acteur (`"child"`, `"worker-media"`), pas
-   l'origine. Une colonne à deux sens est l'ambiguïté que ce dépôt rejette depuis `adr-0036` §2.
-3. **La file n'est PAS une colonne.** Elle se **dérive** du `trigger` (§5). Une colonne qui duplique
-   une dérivation donne deux réponses à une seule question.
+2. 🔴 **L'origine ne se stocke PAS sur le travail — elle se dérive.** *(Corrigé au
+   read-before-code du 2026-08-06 ; une version antérieure de ce §  ajoutait une colonne
+   `trigger` à `ai_jobs`.)*
+
+   Le modèle l'interdisait déjà, et le motif est écrit en tête de `db/models/production.py` :
+   *« `trigger` vit ici et **nulle part ailleurs** : un même déclencheur engendre un cours, trois
+   fiches, deux quiz et huit cartes. Le poser sur chaque ligne de contenu, c'est le recopier sur
+   cinq tables et le voir diverger au premier correctif. »* Un lot `agenda` sur un chapitre de
+   31 notions produit **155 `AIJob`** : la colonne aurait recopié 155 fois le même fait.
+
+   **L'invariant qui la remplace, vérifié en code** — `triggers.scan_agenda` et
+   `triggers.scan_requests` passent **tous deux** par `create_run` : il n'existe aucun chemin par
+   lequel un déclencheur automatique produirait un travail **hors lot**. Donc :
+
+   > **Hors lot ⇒ `manual`. Toujours.**
+
+   Un travail de `kind="job"` dans `/activity` est un geste direct ; un travail de `kind="run"`
+   porte le `trigger` que l'`adr-0031` lui a déjà donné. Rien à ajouter, rien à synchroniser.
+   Le jour où un déclencheur automatique produirait un travail hors lot, **c'est ce jour-là** que
+   la colonne se justifiera.
+
+   ⚠️ Et on ne réutilise pas davantage `created_by` : il porte l'**acteur** (`"child"`,
+   `"worker-media"`), pas l'origine.
+3. **La file n'est PAS une colonne** non plus. Elle se **dérive** de la même façon (§5). Une
+   colonne qui duplique une dérivation donne deux réponses à une seule question — et c'est cette
+   règle-là, écrite ici, que le point 2 violait avant sa correction.
 
 ### §4 — Ce qui entre dans la file, et ce qui n'y entre pas
 
@@ -279,6 +307,14 @@ son origine. Plus un compteur discret **« +N en attente »**. Un clic ouvre le 
 Ce qui n'est pas montré est **à un clic**, jamais caché. Le header reste lisible à toute charge, et
 aucun nombre agrégé ne se substitue à la réalité de la file.
 
+⚠️ **« +N en attente » n'est pas le compteur que `runs.py:493-496` interdit**, et la distinction
+s'écrit ici plutôt que de se laisser à l'intuition du prochain lecteur. `active_run()` porte cette
+clause : *« L'indicateur qui le consomme ne doit à aucun moment devenir un compteur d'arriéré […]
+la provenance est un fait, jamais un reproche, et elle ne se totalise pas »* (`adr-0011` §F.2). Ce
+qu'elle interdit, c'est de totaliser une **dette de relecture** — « 12 contenus non contrôlés », un
+reproche permanent. « +2 en attente » compte du **travail en vol**, il retombe à zéro tout seul, et
+il ne dit rien de ce que Papa aurait dû faire. Profondeur de file, pas arriéré.
+
 Quand rien ne tourne et que rien n'a échoué, **la barre n'existe pas** — comme la pastille
 aujourd'hui. Un indicateur permanent à l'arrêt est un bruit permanent.
 
@@ -325,8 +361,41 @@ travail que rien n'exécute :
    insatisfaisable par construction, et rejouer ne fait que retarder le verdict en brûlant le GPU.
    Le verdict structurel remonte **immédiatement** à la barre.
 3. **Balayage périodique des travaux zombies.** `close_stale_runs` cesse d'être opportuniste : il se
-   greffe sur le réveil **déjà en place** (`production/jobs.py:101-107` se replanifie seul). Aucun
-   ordonnanceur nouveau — l'`adr-0023` en a refusé un, et cet ADR ne le rouvre pas.
+   greffe sur le réveil **déjà en place** (`scan_triggers` se replanifie seul). Aucun ordonnanceur
+   nouveau — l'`adr-0023` en a refusé un, et cet ADR ne le rouvre pas.
+
+#### 🔴 Corrigé au read-before-code de la Slice B (2026-08-06) — trois points
+
+Ce §10 a été écrit avant que la Slice A n'existe. Trois de ses affirmations ne tenaient plus.
+
+1. **Il y a TROIS enfilements sans filet, pas deux.** `enqueue_ai_job` est né dans la Slice A, avec
+   le même trou — et c'est **le chemin de la barre**. Le §10.1 s'y applique aussi.
+
+2. **Le §10.4 était infaisable en l'état.** Un `AIJob` n'a **aucun `heartbeat_at`**, et
+   `activity._travail` rendait `job.status` **brut** : le défaut exact que le §1 venait de corriger
+   pour les lots, réintroduit le même jour sur le modèle frère. Il y fallait donc une lecture
+   dérivée symétrique — `sweep.job_status()`, miroir de `journal.run_status()`. Le seuil retenu est
+   `PRODUCTION_JOB_TIMEOUT`, **le délai auquel RQ tue le job lui-même** : aucun réglage nouveau,
+   aucune variable d'environnement, et une borne qui a un sens par construction.
+
+3. 🔴 **Le balayage ne peut PAS être ce qui rend la barre honnête.** Le seul réveil périodique du
+   dépôt bat toutes les **180 minutes** (`production_scan_interval_minutes`). Faire dépendre
+   l'affichage de ce passage aurait laissé la barre mentir trois heures — le défaut même que ce
+   chantier ferme. C'est le **§1 qui tranche** : *la barre est une fenêtre, jamais un producteur
+   d'état*. La vérité se **dérive à la lecture**, instantanément ; le balayage n'est plus que du
+   ménage en base (libérer `/runs/active`, cesser de compter un mort parmi les vivants). Les deux
+   gestes sont désormais nommés séparément dans `production/sweep.py`, et la contrainte
+   « aucun ordonnanceur nouveau » est tenue **sans rien concéder à l'écran**.
+
+#### Borne posée sur le §10.2 : le rejeu ne vaut QUE pour le travail unitaire
+
+Le `Retry` est posé sur `enqueue_ai_job`, **pas** sur `enqueue_production`, et ce n'est pas un
+oubli. `runner.execute` réécrit `started_at`, recalcule `total_notions` et **réempile ses lignes de
+journal** : un lot rejoué se raconterait deux fois, alors que l'ADR-0034 §1 fait du journal la seule
+mémoire de ce qui a été produit. Un lot interrompu se reprend par un lot **neuf** — `equip_notion`
+saute ce qui existe déjà (`piece_deja_produite`), donc la reprise ne recalcule rien. Les trois
+exemples d'échec structurel du §10.2 (notion orpheline, prérequis absent, gate non franchi) sont
+d'ailleurs tous des notions du monde unitaire.
 
 ### §11 — Deux dettes nommées, non traitées ici
 
@@ -374,7 +443,7 @@ Activity = {
     pct:             int | null,     # null = indéterminé. JAMAIS 0 pour dire « ça démarre »
     pct_is_measured: bool,           # §6 — progression réelle vs estimation ancrée
     started_at:      datetime | null,
-    trigger:         str | null,     # null = travail antérieur à la trace
+    trigger:         str | null,     # DÉRIVÉ (§3.2) : run → run.trigger ; job → "manual"
     error:           str | null
   }
 ```
@@ -388,16 +457,16 @@ mémorisé, relu **une seule fois**, jamais sur un travail déjà fini au charge
 ### §14 — La migration
 
 ```txt
-ai_jobs         : + trigger         String(20) nullable  (vocabulaire ProductionRun.TRIGGERS)
-                  + acknowledged_at DateTime(tz) nullable
+ai_jobs         : + acknowledged_at DateTime(tz) nullable
                   + index (status, created_at DESC)   — la lecture d'activité
                   + index (job_type, status)          — les stats de quiz, qui balaient aujourd'hui
                                                         TOUTE la table (aucun index n'existe)
 production_runs : + acknowledged_at DateTime(tz) nullable
 ```
 
-**Aucun backfill.** Les lignes historiques gardent `trigger = NULL` — « antérieur à la trace », même
-doctrine que l'`adr-0011` §F : *aucune rétro-attribution, historique `NULL` assumé*.
+**Aucun backfill**, et **aucune colonne d'origine** : le §3.2 l'a retirée au read-before-code. Une
+ligne historique non acquittée vaut `acknowledged_at = NULL`, ce qui est exactement « jamais
+acquittée » — pas d'ambiguïté à lever, donc pas de rétro-attribution à écrire.
 
 ### §15 — Ce que les tests ne pourront pas prouver, écrit d'avance
 
@@ -513,3 +582,79 @@ Avant toute PR :
 5. un **échec provoqué** (worker arrêté) : « arrêté », jamais « 0 % », et il reste ;
 6. **responsive** — le header fait 112 px / 144 px ≥ `sm` et porte déjà deux pilules. Aucun contrôle
    responsive n'a été fait sur les trois derniers chantiers.
+
+---
+
+## Addendum — le Journal de production accueille les travaux unitaires (2026-08-06)
+
+**Statut : Accepté.** Décidé après la vérification à l'écran des slices B et C, sur une question du
+commanditaire : *« pourquoi cela n'apparaît-il pas dans le Journal de production ? »*
+
+### Le constat
+
+Le Journal (ADR-0034) est bâti **entièrement** sur `ProductionRun` + `ProductionEvent` :
+`journal.py` et `journal_router.py` ne référencent `AIJob` nulle part. Le §2 de cet ADR avait
+conservé deux modèles et unifié la lecture **uniquement dans `/activity`**, qui alimente la barre.
+
+Ce n'était pas une régression — avant la migration, ces quinze producteurs étaient synchrones et
+n'apparaissaient nulle part non plus. Mais c'est devenu une **incohérence visible** : un chantier
+qui s'appelle *tout ce qui produit se voit* ne peut pas laisser le registre historique ignorer les
+trois quarts de ce qui produit.
+
+### §16 — Le Journal lit les deux modèles, dans UN flux chronologique
+
+Un travail unitaire y entre comme une ligne à part entière, à sa date, mêlée aux lots.
+
+🔴 **La fusion se fait en SQL, jamais en Python.** Le Journal filtre, trie et pagine côté serveur —
+`WHERE` puis `ORDER BY` puis `LIMIT`, dans cet ordre, et l'addendum « tri et filtre » §2 dit
+pourquoi : *filtrer les lots déjà chargés répondrait « rien en maths » alors que les lots de maths
+sont page 4 — un défaut qui ne ressemble pas à un défaut.* Fusionner deux pages déjà chargées
+rouvrirait exactement ce défaut, en pire : la page 1 mélangerait les vingt lots les plus récents
+avec les vingt travaux les plus récents, et perdrait tout ce qui tombe entre les deux.
+
+La forme retenue est donc une **union légère pour l'ordre et la pagination** — `(kind, id, date)`
+sur les deux tables — suivie du chargement des seules lignes de la page. `total` et `has_more`
+portent sur l'union filtrée.
+
+### §17 — Ce qu'un travail unitaire porte au Journal, et ce qu'il NE PORTE PAS
+
+C'est le cœur de la décision, et elle applique la doctrine de l'ADR-0011 §F et de l'ADR-0040 :
+**ne jamais affirmer ce que l'évidence ne porte pas.**
+
+| | Un LOT | Un TRAVAIL unitaire |
+|---|---|---|
+| date, issue, durée | ✅ | ✅ |
+| ce qu'il fabriquait (libellé, notion) | ✅ | ✅ |
+| motif d'échec | via son journal | ✅ `error_message` |
+| **régime d'autonomie** (`zetis_mode`) | ✅ gravé au démarrage | ❌ **`null`** |
+| **provenance des pièces** (`validated_by`) | ✅ | ❌ |
+| **veto** (retirer ce qui a été produit) | ✅ | ❌ **impossible** |
+| **journal ligne à ligne** (`ProductionEvent`) | ✅ | ❌ |
+
+⚠️ **Le veto est le point dur, et il n'est pas négociable en l'état.** `DELETE /journal/pieces/…`
+s'appuie sur le tamponnage `production_run_id` posé sur chaque pièce produite. Un `AIJob` ne
+tamponne rien : on ne saurait pas quoi retirer. Une ligne de travail unitaire **n'offre donc aucun
+bouton de retrait** — et l'écran doit dire pourquoi plutôt que d'afficher un bouton inerte.
+
+⚠️ **`zetis_mode` reste `null`, jamais « manuel ».** Un travail hors lot est manuel *par
+construction* (§3.2), et il serait tentant de l'écrire. Ce serait confondre **l'origine** (qui a
+demandé) avec **le régime** (sous quelles règles ZETIS avait le droit de servir sans relecture) —
+deux choses que l'ADR-0034 a séparées exprès. L'origine, elle, s'affiche : elle est dérivée.
+
+### §18 — Les filtres que les travaux ne portent pas les ÉCARTENT, et l'écran le dit
+
+`piece`, `mode`, et le filtre par chapitre n'ont aucun sens sur un travail unitaire. Plutôt que de
+leur inventer une valeur, un filtre actif sur l'une de ces dimensions **ne rend que des lots**.
+
+⚠️ **Et la page l'annonce**, sinon Papa lirait une absence comme un vide : « ce filtre ne porte que
+sur les lots ». Une exclusion muette est la même faute qu'une troncature muette (§7).
+
+Le filtre par **matière** fait exception : il s'applique aux deux, via la notion du travail
+(`input_json.skill_id`). Un travail sans notion identifiable est écarté quand ce filtre est actif —
+même règle, même raison.
+
+### Ce que cet addendum ne fait pas
+
+Il **ne tamponne pas** les pièces produites hors lot, donc il n'ouvre pas le veto sur elles. C'est
+la seule voie vers un Journal réellement unifié — pièces comprises — et elle mérite son propre
+cadrage : elle touche le modèle de données, pas seulement une lecture.
