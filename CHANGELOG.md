@@ -1,5 +1,105 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.53.0 — Progression nomme les notions et date leurs mouvements ; le Conseil cesse d'affirmer ce que l'évidence ne porte pas
+
+Un chantier en quatre lots (ADR-0040), plus deux correctifs nés de questions posées en le relisant.
+
+### Le Conseil affirmait une évolution qu'aucune source ne pouvait produire
+
+`CouncilReportSpec.recent_evolution` était un `str` **non-nullable** pour une valeur que rien ne
+mesurait : le `period` du Conseil ne sélectionne aucune donnée. Le modèle remplissait donc **par
+obligation de type**, et la phrase inventée était figée dans `council_reports.subjects_json` —
+rétroactivement indiscernable d'une observation réelle. Le garde-fou existait partout ailleurs (tout
+`skill_id` absent de l'évidence est ignoré) mais pas ici : la validation portait sur le **type**,
+jamais sur le **contenu**.
+
+Le serveur écrase désormais le champ après la validation typée, au même endroit que l'ancrage des
+`skill_id`. **L'absence s'écrit** : `null` ne rend pas une section vide mais une phrase — masquer
+laisserait lire « aucun mouvement » là où il faut lire « aucune trace ».
+
+Puis le Lot 3 l'a **rempli** : `{since, transitions[], comment}`. 🔴 **Le modèle ne produit aucune
+date.** Il reçoit les bascules de palier en **liste fermée** et ne rend qu'un commentaire. L'ancrage
+est donc **structurel** — il n'y a pas de date à filtrer, parce qu'il n'y a pas de date à inventer.
+C'est plus fort que le patron `skill_id`, où le modèle émet des identifiants qu'on revalide.
+
+Les rapports figés ne sont pas réécrits : un artefact LLM n'est pas rejouable. Une **marque de
+lecture** dérivée de `prompt_version` signale ceux d'avant, et s'éteint d'elle-même.
+
+### Progression porte trois grains dans un seul écran
+
+La matière, la notion, le fait daté — derrière un sélecteur de vue, sans jamais changer de largeur.
+
+**Par notion** : les 280 notions se lisent enfin ensemble. Six colonnes triables, chacune départagée
+par `skill_id` pour que l'ordre soit stable. Palier et lacune y sont **deux axes indépendants**,
+jamais une colonne à trois valeurs — 13 « à renforcer » pour 1 seule lacune ouverte en base réelle,
+et une infobulle permanente porte les deux nombres côte à côte parce que sinon ils se lisent comme
+une incohérence. Le tri par date scinde en **trois blocs comptés** : 15 des 19 notions engagées
+n'ont aucune date, et une liste continue les ferait lire comme « les plus anciennes ».
+
+**Par période** : une **grille calendaire**, sur le patron du Cahier de bord. La case porte un
+compte, et c'est un **repère de navigation**, pas une mesure — première exception assumée au « zéro
+agrégat temporel ». Les données sont grumeleuses (86 faits sur l'année, dont une vingtaine le seul
+05/07) : aucune case ne peut nommer vingt faits, le journal du jour si. Plusieurs jours se
+sélectionnent ensemble, par bascule indépendante.
+
+Trois débuts de trace sont **déclarés à l'écran** : un compteur bas dit alors « pas de trace »,
+jamais « pas de mouvement ». Corollaire vérifié sur la base réelle — 4 bascules à 7 jours comme à
+365, parce que la trace n'ouvre que le 31/07.
+
+**Par matière** : la table gagne une colonne **Lacune** (le compte existait, il n'atteignait pas
+l'écran), le tri de ses six colonnes, et un dépliage qui recompose chacun de ses nombres.
+
+### Une seule fonction de mesure, deux consommateurs
+
+`evidence.mastery_transitions(student, since, subject_id)` : Progression l'affiche, le Conseil la
+raconte. Les calculer séparément aurait refabriqué la classe de bug que ce dépôt paie depuis trois
+chantiers — deux mesures divergentes sous un même mot.
+
+⚠️ `from_status` est calculé **par fenêtrage**, jamais lu : `skill_mastery_history` ne stocke que le
+statut d'arrivée. La plus ancienne bascule tracée n'a donc pas de palier de départ, et l'écran écrit
+« première bascule tracée » plutôt que d'en inventer un.
+
+### Trois surfaces disaient « à renforcer » pour trois populations différentes
+
+`/lacunes` affichait « Rien à renforcer pour le moment » pendant que le dashboard en annonçait 13.
+La page s'appelle désormais **« Lacunes ouvertes »**, `SEVERITY.medium` dit « à traiter », et son
+état vide renvoie vers Progression **parce que les deux populations sont disjointes**. Un
+test-verrou lexical tient les deux vocabulaires séparés.
+
+### Deux correctifs, trouvés en répondant à des questions
+
+**Les liens de Progression ne visaient rien.** Les trois « Ouvrir le programme » partaient sans
+paramètre : les huit lignes menaient toutes à la matière ouverte par défaut. Une cible manquante est
+**silencieuse** — la page d'arrivée ignore le paramètre absent, sans erreur nulle part. Un test
+figeait même l'URL nue. Deux manques du §1 en sont sortis : le bloc « Référentiel — ce qu'il reste à
+produire » avec son lien Couverture, et les trois liens vers les autres vues pré-filtrées.
+
+**La période du Conseil promettait une fenêtre.** Un rapport intitulé « 7 derniers jours » portait un
+snapshot disant « évidence à l'instant, pas de fenêtre temporelle ». L'écran dit maintenant que la
+période est une **étiquette**. Pas de calendrier, et c'est une décision : une date est une
+affirmation *précise* là où une étiquette n'est que vague, et tant que le service d'évidence n'a pas
+de vraie fenêtre, un sélecteur de dates promettrait une sélection que personne n'honore.
+
+**L'historique était illisible.** Neuf rapports, neuf pastilles portant toutes « Trimestre 1 » ou
+« 7 derniers jours ». Elles portent maintenant la date de génération — la seule vraie — la matière
+ciblée, et une marque sur les rapports antérieurs au daté.
+
+### Technique
+
+Deux routes Papa (`GET /progress/skills` agrégée à nombre de requêtes constant,
+`/progress/skills/{id}/timeline` paresseuse). Une migration : index
+`(student_id, skill_id, changed_at DESC)` sur `skill_mastery_history` — l'existant sert le balayage
+de fenêtre du dashboard, pas « la dernière bascule de chaque notion ». `COUNCIL_PROMPT_VERSION`
+v2 → v3 → v4. `history_since` remonte de `dashboard` vers `evidence`, avec trois consommateurs.
+
+**Deux absences ne partagent pas un `null`** : `{days}`, `{unknown:"before_history"}` (se comblera),
+`{unknown:"before_migration"}` (perdue) et `null` (jamais abordée) — les fondre rendrait l'écran
+incapable de dire laquelle.
+
+Hors chantier, au passage : **`DECISIONS.md` remis en ordre** — l'index était écrit en deux blocs
+qui se télescopaient, 56 entrées sur 70 mal placées, et 16 divergences entre l'index et les fichiers
+d'ADR. Tri par script, statuts réconciliés, divergences ramenées à zéro.
+
 ## 0.52.0 — La carte mémoire montre enfin des événements, et deux cartes cessent de ne pouvoir que s'éteindre
 
 Deux chantiers liés par la même carte du dashboard Papa.

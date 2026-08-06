@@ -2,7 +2,8 @@
 
 ## Statut
 
-Proposé — 2026-08-06.
+Accepté — 2026-08-06. Les quatre lots sont écrits ; voir `CHANGELOG.md` 0.53.0 pour ce qui est
+sorti, et le bas de ce fichier pour les écarts d'exécution.
 
 > S'appuie sur : `adr-0038` (Progression, l'avancement du programme, « une preuve mène quelque
 > part »), son addendum `progression-agit` (le dépliage, l'invariant de recomposition, « le réseau

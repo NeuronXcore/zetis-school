@@ -7,261 +7,231 @@
 
 ## État à la reprise
 
-**Chantier : ADR-0040 « Progression dans le temps » — Lot 0 mergé, Lot 1 fait, Lot 2 aux DEUX TIERS. Le chantier N'EST PAS clos.**
+**Chantier : ADR-0040 « Progression dans le temps » — COMPLET. Les quatre lots sont écrits, plus deux correctifs nés de questions du user. La branche n'est ni en PR ni mergée.**
 
-🔴 **Il reste UNE pièce au Lot 2 : les trois vues de `ProgressionPage`.** Tout le reste est commité
-et vert sur `feat/progression-temps` (poussée). **Ne pas merger la branche avant** : elle livre deux
-routes que personne n'appelle encore, et les merger telles quelles recréerait
-`GET /progress/consolidated` — le constat même qui a ouvert l'`adr-0038`. Un seul squash, à la fin.
+🔴 **Prochain pas = ouvrir la PR et merger.** Un seul squash pour toute la branche : les lots ne
+tiennent pas debout séparément (le Lot 1 livre des routes que seul le Lot 2 appelle, le Lot 3
+consomme une mesure que seul le Lot 1 fournit).
 
 | | |
 |---|---|
-| **Lot 0 — MERGÉ** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)**, squash **`1fb094f`** — branche supprimée des deux côtés |
-| **Lot 1 — fait** | **`32f0e27`** — la mesure, les deux routes, la migration |
-| **Lot 2 — 2 pièces sur 3** | **`1208680`** (contrat front : types, client, `useSkillsIndex`) · **`844f129`** (`/lacunes` renommée + verrou lexical). ⏳ **Manquent les trois vues** |
-| **Trou du Lot 1, REFERMÉ** | **`bdf23cf`** — le §11 demandait « index des notions **ET faits datés** » ; je n'avais livré que l'index, donc la vue période n'avait **aucune source** et `mastery_transitions` **aucun appelant**. Journal des 5 natures du §2 ajouté, 365 j, filtré client |
-| **Branche** | **`feat/progression-temps`**, poussée (`origin/feat/progression-temps`). **Aucune PR — voulu** |
-| Migration | **`a1b2c3d4e5f9`** — index `(student_id, skill_id, changed_at DESC)`. ⚠️ **Appliquée en dev**, un seul head alembic |
+| **Branche** | **`feat/progression-temps`**, poussée. Base **`40e2f1a`** (= tête de `main` à l'ouverture, `main` n'a pas bougé depuis). **Aucune PR — c'est le geste qui manque** |
+| **Lot 0 — MERGÉ à part** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)** (`MERGED`, vérifié), squash **`1fb094f`**. Il est déjà sur `main` |
+| ⚠️ Refs fantômes | `git ls-remote --heads origin` ne porte que **`main`** et **`feat/progression-temps`** — mais `git branch -r` en local montre encore `origin/fix/council-evolution-lock` et `origin/feat/memoire-quatre-vues`, **supprimées à distance et jamais élaguées ici**. Elles n'existent pas. `git remote prune origin` |
+| **Lots 1 · 2 · 3 + 2 correctifs** | sur la branche, non mergés. Liste réelle : `git log --oneline main..HEAD` |
+| Migration | **`a1b2c3d4e5f9`** — index `(student_id, skill_id, changed_at DESC)`. ⚠️ **Appliquée en DEV seulement**, un seul head alembic |
 | Routes nouvelles | **deux**, `require_parent` : `GET /progress/skills` (agrégée, **7 requêtes constantes**) et `/progress/skills/{id}/timeline` (paresseuse) |
-| Suites | backend **949 ✅** (+8) · Papa **579 ✅** (575 → 579, +4) · `tsc -b` et `vite build` propres |
-| Vérifié à l'écran | Lot 0 ✅ par l'agent (Chrome du user, données réelles + vraie génération Ollama). **Lots 1 et 2 : RIEN vu à l'écran** — mesure vérifiée par script, renommage par test lexical. ⚠️ **Le user n'a relu aucun des trois** |
+| Contrat modifié | `CouncilSubjectOut.recent_evolution` devient une **union** `Evolution \| str \| null` ; `CouncilReportListItem` gagne `prompt_version` |
+| Prompt LLM | `COUNCIL_PROMPT_VERSION` **v2 → v3** (Lot 0) **→ v4** (Lot 3) |
+| Suites, réellement lancées | backend **953 ✅** · Papa **610 ✅** · `tsc -b` et `vite build` propres |
+| Vu à l'écran | **Lots 0, 2 et 3 ✅** par l'agent, via `claude-in-chrome` (vrai Chrome, données réelles, vraie génération Ollama). **Lot 1 : jamais vu** — mesure vérifiée par script et par test. ⚠️ **Le user n'a relu aucun écran de ce chantier** |
 
 ### FAIT
 
 **Lot 0 — `recent_evolution` cesse d'affirmer ce que l'évidence ne porte pas.** Le champ était un
-`str` **non-nullable** pour une valeur qu'aucune source ne peut produire : le `period` du Conseil ne
-sélectionne aucune donnée. Le producteur remplissait **par obligation de type**, et la phrase était
-figée dans `council_reports.subjects_json` — rétroactivement indiscernable du vrai. Le garde-fou
-existait pour les `skill_id` et pas ici : la validation portait sur le **type**, jamais sur le
-**contenu**.
-
-Le serveur écrase désormais à `None` dans `_anchor`, après la validation typée, au même endroit que
-l'ancrage des `skill_id`. `COUNCIL_PROMPT_VERSION` → **v3**. Aucune migration.
+`str` **non-nullable** pour une valeur qu'aucune source ne pouvait produire : le `period` du Conseil
+ne sélectionne aucune donnée. Le producteur remplissait **par obligation de type**, et la phrase
+était figée dans `council_reports.subjects_json` — rétroactivement indiscernable du vrai. Le serveur
+écrase désormais dans `_anchor`, après la validation typée, au même endroit que l'ancrage des
+`skill_id`.
 
 **Lot 1 — la mesure, rendue vérifiable à l'œil avant qu'un LLM ne la raconte.**
 `evidence.mastery_transitions(student, since, subject_id)` : **UNE** fonction, deux consommateurs
-(Progression au Lot 2, le Conseil au Lot 3). Les calculer séparément refabriquerait la classe de
-bug payée depuis trois chantiers. Nouveau module `progress/skills.py` + deux routes + migration
-d'index.
+(Progression, le Conseil). Nouveau module `progress/skills.py`, deux routes, migration d'index.
 
-**Avant eux, 14 commits de remise en ordre de `DECISIONS.md`** (non demandés par le chantier) :
+**Lot 2 — Progression porte trois grains dans un seul écran** : la matière, la notion, le fait daté.
+Vue notion (six colonnes triables, infobulle permanente des deux axes, tri par date scindé en trois
+blocs comptés), vue période (**grille calendaire** sur le patron du Cahier de bord, sélection
+multiple de jours, bornes de trace déclarées), et la table matière enrichie.
+
+**Lot 3 — le Conseil raconte des bascules datées.** `recent_evolution` devient
+`{since, transitions[], comment}`. 🔴 **Le modèle ne produit AUCUNE date** : il reçoit les bascules
+en liste fermée et ne rend qu'un commentaire. L'ancrage est **structurel** — il n'y a pas de date à
+filtrer, parce qu'il n'y a pas de date à inventer.
+
+**Deux correctifs hors cadrage, nés de questions du user** :
+
+- la table matière gagne une **colonne « Lacune »** (`gaps_open` était servi et n'atteignait pas
+  l'écran), le **tri de ses six colonnes**, et ses trois liens `/programme` **partaient nus** — les
+  huit lignes menaient toutes à la matière ouverte par défaut ;
+- la **période du Conseil** dit enfin qu'elle est une étiquette, et les **pastilles d'historique**
+  disent quel rapport elles ouvrent.
+
+**Avant tout cela, 14 commits de remise en ordre de `DECISIONS.md`** (non demandés par le chantier) :
 l'index était écrit en deux blocs qui se télescopaient, **56 entrées sur 70 mal placées**. Tri par
-script (`scripts/reorder_decisions.py`, permutation pure vérifiée), indentation, statuts.
-**Divergences index ↔ fichier d'ADR : 16 → 0.**
+script (`scripts/reorder_decisions.py`), indentation, statuts. **Divergences index ↔ fichier
+d'ADR : 16 → 0.**
 
-### ▶ EN COURS / À FAIRE
+### ▶ EN COURS
 
-**Rien d'instable** — arbre propre, tout commité, tout vert. Mais **`main` ignore les Lots 1 et 2** :
-ils vivent sur `feat/progression-temps` (poussée, sans PR).
-
-**Il reste UNE pièce : les trois vues de `ProgressionPage`.** Ce qui est **déjà prêt et n'attend
-qu'un consommateur** : `useSkillsIndex` (un appel au montage, la frise paresseuse en plus), les
-types `SkillIndexRow` / `NotionSince` / `SkillTimeline`, et les deux routes.
-
-Ce qui reste à faire, tel que le prompt le décrit :
-
-- **sélecteur de vue en tête**, patron `WorkRhythmCard` ; `max-w-6xl` sur les **trois** vues (faire
-  varier la largeur ferait sauter la page à chaque bascule) ;
-- `?subject=` **conservé** (il porte le constat du dashboard) ; `?view=` écrit en **`replace: true`**
-  (sans quoi « Retour » rejouerait chaque bascule d'onglet) ; **filtre matière partagé** par les
-  trois vues ;
-- **vue notion** : trois tris (notion défaut · matière **dans l'ordre de l'année**, déjà servi
-  ainsi par la route · date), tous départagés par `skill_id` ; 🔴 le tri par date scinde en **TROIS
-  blocs comptés** (daté · sans bascule enregistrée · non abordées) ; infobulle **permanente** des
-  deux axes avec les deux nombres côte à côte ;
-- **vue période** : fenêtre 7/30/90/365, compteurs **dérivés du journal affiché** dessous, trois
-  bornes de trace déclarées. **Aucun palier, aucun stock, aucune barre.** Ni XP ni production ;
-- **dépliage matière ALLÉGÉ** : XP par motif + référentiel + trois liens. Ses listes de notions
-  deviennent des **liens** vers la vue notion pré-filtrée — sinon c'est une troisième copie.
-
-⚠️ **Pas encore lus** : `SubjectDetailRow.tsx` (330 l.) et la maquette de référence
-`docs/frontend-papa/mockup/maquette-papa-progression.html` (53 Ko, **cliquable** — c'est le
-comportement de référence, pas seulement l'allure).
-
-⚠️ **Deux faits mesurés qui commandent le rendu** :
-
-- la colonne « depuis » sera **presque entièrement vide — 15 notions engagées sur 19 sans date**.
-  Les trois blocs du tri par date (§4 bis) portent donc **toute** la lisibilité de cette vue ;
-- **13 « à renforcer » pour 1 seule lacune ouverte** en base réelle. C'est exactement le contraste
-  que l'infobulle permanente du §4 doit expliquer — deux axes indépendants, « ces deux nombres
-  n'ont aucune raison d'être égaux ».
+**Rien.** Arbre propre, tout commité, tout poussé, tout vert. Aucun fichier à moitié écrit.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-1. **Le champ `recent_evolution` reste DÉCLARÉ côté Pydantic** alors que le prompt v3 ne le demande
-   plus. `extra="forbid"` ferait échouer le payload **entier** si un modèle continuait de l'émettre :
-   un champ de trop coûterait le rapport. On garde la porte ouverte et on écrase derrière.
-2. **`_build_context` rend un `subjects_with_transitions` structurellement VIDE** plutôt qu'un `None`
-   écrit en dur. Motif : le Lot 3 doit le **remplir**, pas défaire du code. C'est le miroir
-   d'`allowed_skill_ids` — même forme, même place, même rôle d'ancrage. ⚠️ Il ne discrimine rien
-   aujourd'hui, et c'est écrit dans le code avec son motif.
+1. **`CouncilSubjectEntry.recent_evolution` (entrée LLM) reste un `str`** alors que la sortie est
+   une structure. Le §8 annote lui-même `transitions # SERVEUR` / `comment # LLM` : faire du champ
+   d'entrée une structure reviendrait à **demander les dates au modèle**, ce que le §8.2 interdit.
+   Il reste par ailleurs **déclaré** malgré `extra="forbid"` — un champ de trop coûterait le rapport
+   entier.
+2. **`CouncilSubjectOut.recent_evolution` est une UNION à trois branches** — structure (v4+), `str`
+   (rapport figé d'avant), `null`. Un type strict ferait échouer la lecture de **tout l'historique**.
 3. **L'absence s'ÉCRIT** (§8.4). `null` ne rend pas une section vide mais une phrase : masquer
-   laisserait lire « aucun mouvement » là où il faut lire « aucune trace ». Les deux ne se corrigent
-   pas l'un l'autre.
-4. **Aucun rapport figé n'est réécrit** — un artefact LLM n'est pas rejouable. La marque de lecture
-   se **dérive** de `prompt_version` et s'éteindra d'elle-même à mesure que les v3 s'accumulent.
-5. **`history_since` vit dans `evidence`, plus dans `dashboard`.** Elle y était privée ; elle a
-   maintenant trois consommateurs (dashboard, Progression, le Conseil au Lot 3). `dashboard`
-   **délègue** en une ligne. En garder une copie ferait deux bornes de trace sous un même nom, ce
-   que le §9 interdit — et c'est ce nom qu'il ne faut jamais confondre avec le `period` du Conseil,
-   qui ne sélectionne aucune donnée.
-6. **`from_status` se calcule par FENÊTRAGE, jamais ne se lit.** `skill_mastery_history` ne stocke
-   que le statut d'ARRIVÉE. La plus ancienne bascule tracée n'a donc **pas** de palier de départ,
-   et `None` est la bonne réponse — lui en inventer un serait la faute que le Lot 0 corrige.
-7. **`PALIER_BY_STATUS` est CONSTRUIT depuis les frozensets canoniques**, jamais réécrit, et
-   `unknown` y est mappé **explicitement**. Un `.get(..., défaut)` ferait glisser en silence une
-   septième valeur dans « non abordée » — piège signalé par `adr-0024` PUIS `adr-0028`, raté deux
-   fois. Le verrou compare le mapping à `KNOWN_MASTERY_STATUSES`.
-8. **`DECISIONS.md` : le statut se lit sur la PROSE JOINTE de l'entrée, sous-puce finale exclue.**
-   Trois recensements successifs ont donné 5, 6 puis 4 entrées sans statut — la dernière est la
-   bonne. `adr-0017` est la seule entrée du fichier à finir par une sous-puce, et deux autres
-   coupent leur statut sur deux lignes.
+   laisserait lire « aucun mouvement » là où il faut lire « aucune trace ».
+4. **Aucun rapport figé n'est réécrit.** La marque de lecture se **dérive** de `prompt_version`
+   (`< v3`) et s'éteint d'elle-même.
+5. **`history_since` vit dans `evidence`**, avec trois consommateurs (dashboard, Progression,
+   Conseil). `dashboard` **délègue**. Ne jamais la confondre avec le `period` du Conseil : le §9
+   interdit que deux bornes partagent un nom.
+6. **`from_status` se calcule par FENÊTRAGE, jamais ne se lit.** La plus ancienne bascule tracée n'a
+   **pas** de palier de départ, et `None` est la bonne réponse.
+7. **`PALIER_BY_STATUS` est CONSTRUIT depuis les frozensets canoniques**, `unknown` mappé
+   explicitement. Un `.get(…, défaut)` ferait glisser en silence une septième valeur.
+8. **La période du Conseil reste TRANSPORTÉE depuis le dashboard**, et le calendrier est REFUSÉ tant
+   que l'évidence n'a pas de fenêtre. Une date est une affirmation *précise* là où une étiquette
+   n'est que vague ; depuis le Lot 3 une **moitié** du rapport serait fenêtrable, et un rapport à
+   moitié fenêtré sous une date unique se lirait comme entièrement fenêtré.
+9. **La case du calendrier porte un COMPTE, et c'est un repère de NAVIGATION.** Première exception
+   assumée de l'`adr-0028` §4. Sans elle la grille serait impossible : les données sont grumeleuses
+   (86 faits sur l'année, ~20 le seul 05/07).
+10. **`DECISIONS.md` : le statut se lit sur la PROSE JOINTE de l'entrée, sous-puce finale exclue.**
+    Trois recensements ont donné 5, 6 puis 4 entrées sans statut — la dernière est la bonne.
 
 ### ⚠️ Pièges payés en vrai, à ne pas re-découvrir
 
-1. 🔴 **Une PR ouverte depuis une branche locale peut emporter TOUT ce qui n'a jamais été poussé.**
-   `origin/main` avait 14 commits de retard : la PR du Lot 0 portait **15 commits et 31 fichiers**
-   au lieu d'un et neuf, et le `--squash` les aurait écrasés en un seul carré. Vu **avant** de
-   l'ouvrir, en lisant `git log origin/main..HEAD` plutôt qu'en supposant. **Parade : pousser `main`
-   avant d'ouvrir une PR, et lire le diff `origin/main..HEAD`, jamais `main..HEAD`.**
-2. 🔴 **Le panneau navigateur est un navigateur SÉPARÉ : la session du user n'y est pas.** Son
-   `localStorage` est vide, l'app renvoie sur `/login`, et l'agent ne saisit pas de mot de passe.
-   **Parade : `claude-in-chrome`**, qui pilote le vrai Chrome avec sa session — un clic réel sur
-   « Générer la synthèse » y a abouti, là où les clics du panneau échouaient en silence (dette du
-   chantier précédent, toujours ouverte pour le panneau).
-3. 🔴 **Une contre-épreuve peut rougir pour la MAUVAISE raison.** Un sabotage par `perl` a produit
-   une **erreur de transpilation** au lieu d'un échec d'assertion : le test était rouge, et ça ne
-   prouvait rien. Refait proprement (branche rendue `null`, JSX valide) — c'est la 3ᵉ occurrence du
-   motif « contre-épreuve mal visée » dans ce dépôt.
-4. ⚠️ **Un `count(*)` comparé à un seuil lu sur une requête `LIMIT` ment.** Une boucle d'attente a
-   cru voir un rapport neuf en 10 s parce que le `limit 6` d'une inspection antérieure avait caché
-   une 7ᵉ ligne. **Parade : attendre sur `max(id)`, pas sur un compte.**
-5. ⚠️ **`git add <dossier>/` ratisse les fichiers NON SUIVIS du dossier.** Un `git add docs/decisions/`
-   a embarqué les 485 lignes de l'ADR-0040 dans un commit de statuts. Défait par
-   `reset --soft` + `restore --staged` ; le hash du commit a changé.
-6. ⚠️ **La narrowing TypeScript se perd dans une closure** : `c.report` narrowé par le JSX
-   redevient `possibly null` dans le `.map` des matières (propriété d'un objet mutable). Calculer
-   hors du rendu.
-7. 🔴 **Un chiffre de cadrage peut être FAUX, et seule la mesure le dit.** L'ADR §4 bis,
-   `page-progression.md` et le fichier de prompts annonçaient tous trois « 10 des 19 notions
-   engagées sans date ». C'est **15** (19 lignes de maîtrise, 4 notions seulement portent une
-   bascule). Corrigé aux trois endroits (protocole §4) sans rouvrir la décision, qui n'en devient
-   que plus nécessaire. **Mesurer avant de citer un chiffre d'ADR dans un test ou un écran.**
-8. ⚠️ **Ma propre docstring annonçait « cinq requêtes » ; il y en a sept.** C'est le sabotage du
-   verrou N+1 qui l'a révélé, pas une relecture. Un nombre écrit dans un commentaire est une
-   affirmation testable : la mesurer, ou ne pas l'écrire.
-9. ⚠️ **La fixture `client_db` seede DÉJÀ une matière et une notion.** Tout comptage absolu dans un
-   test de progression est donc faux d'un cran. Et **renvoyer des objets ORM d'un helper de seed**
-   lève `DetachedInstanceError` dès que la session se referme avant les assertions — renvoyer des
-   **ids**.
-10. 🔴 **Un test vert peut casser `tsc -b`.** Le verrou de vocabulaire lisait les sources par
-    `node:fs` : vert sous vitest, **rouge à la compilation** — le tsconfig du front déclare
-    `"types": []`, donc ni `readFileSync` ni `process` n'y existent. **Parade : l'import `?raw` de
-    Vite** (`import src from "./X.tsx?raw"`), typé par `vite/client` déjà référencé dans
-    `src/vite-env.d.ts`. Lancer les DEUX avant de conclure.
-11. ⚠️ **`import.meta.url` ne résout pas en chemin de fichier sous la transformation vitest** : il
-    rend `/src/pages/…`, sans la racine du paquet, et `readFileSync` échoue en `ENOENT`.
-12. ⚠️ **Lancer la suite Papa depuis la RACINE du dépôt donne un faux massacre** — `npx --prefix …
-    vitest run --dir …` a rendu « 440 failed » là où la vraie suite était verte. Se placer dans
-    `apps/frontend-papa` et lancer `npm test`.
-13. ⚠️ **Un renommage de libellé casse les tests qui l'assertaient — c'est le moment de les
-    RENFORCER, pas de les adapter.** `LacunesPage.test.tsx` vérifiait l'ancien titre ; il vérifie
-    désormais aussi que l'écran dit les populations **disjointes** et offre le chemin vers les
-    paliers. Remplacer le mot seul aurait laissé passer le vrai défaut.
+Ceux du Lot 0 et du Lot 1 sont dans le corps de la PR
+[#92](https://github.com/NeuronXcore/zetis-school/pull/92) et dans `TROUBLESHOOTING.md`. Ceux des
+Lots 2, 3 et des correctifs, tous **payés cette session** :
 
-Détail, cause et parade : le corps de la PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92).
+1. 🔴 **Un LITTÉRAL n'est pas un verrou — trouvé DEUX fois le même jour.** Un test comptait les
+   occurrences du mot « lacune » (« au plus 3 ») ; un autre épinglait `prompt_version == "v3"`. Les
+   deux ont rougi pour une raison **sans rapport** avec ce qu'ils protégeaient. **Parade : asserter
+   la PROPRIÉTÉ** (quelle source chaque colonne lit ; le prédicat `< 3` que l'écran applique), jamais
+   un nombre ni une chaîne qu'une édition légitime fera bouger.
+2. 🔴 **Un test peut GELER un bug.** `toHaveAttribute("href", "/programme")` exigeait l'URL **nue** :
+   il serait resté vert pour toujours sur un lien qui renvoyait les huit matières à la même page.
+3. 🔴 **Une cible d'URL manquante est SILENCIEUSE.** La page d'arrivée ignore le paramètre absent et
+   ouvre sa matière par défaut, sans erreur nulle part. ⚠️ Et `?subject=` **ne porte pas le même
+   type selon la destination** : `subject_id` numérique pour `/programme` et `/couverture`, **slug**
+   pour `/lacunes`, `/conseil` et `/progression`.
+4. 🔴 **`created_at.slice(0, 10)` lit de l'UTC** : un rapport généré à 23 h 30 à Paris s'affiche la
+   veille. C'est le piège de `toISOString()` documenté le matin même dans la grille du calendrier,
+   **reproduit huit heures plus tard** dans les pastilles d'historique.
+5. 🔴 **Deux fonctions pour la même question, aux réponses OPPOSÉES.**
+   `evolutionSansHistoriqueDate` (page) et `rapportSansHistoriqueDate` (lib) divergeaient sur une
+   version illisible : l'une marquait, l'autre pas. Fusionnées, avec le défaut sûr — **sur un doute,
+   on signale**.
+6. ⚠️ **Une assertion POSITIONNELLE se périme en silence.** « la dernière cellule vaut 8 » a été
+   invalidée par l'ajout d'une colonne. **Parade : ancrer sur l'EN-TÊTE**, jamais sur un index.
+7. ⚠️ **Restaurer depuis une sauvegarde de sabotage PÉRIMÉE efface le travail fait entre-temps.** Un
+   `cp /tmp/x.bak` a annulé deux éditions postérieures à la sauvegarde. **Parade : reprendre la
+   sauvegarde juste avant CHAQUE sabotage.**
+8. ⚠️ **Le HMR de Vite remet l'état local à zéro entre deux clics** — deux sélections de jour
+   semblaient ne rien faire. Ce n'était pas le code. Recharger avant de conclure.
+9. ⚠️ **`tsc` attrape ce que les tests laissent passer** : l'entrée optimiste de `useCouncilClass`
+   sans `prompt_version` aurait marqué « rédigé sans historique daté » un rapport qu'on vient de
+   générer. Aucun test ne l'aurait vu.
 
 ### ▶ PROCHAIN PAS
 
-🔴 **REPRENDRE SUR `feat/progression-temps`, PAS sur `main`.** Elle est poussée mais sans PR.
+🔴 **La branche est poussée et complète. Il ne manque que la PR.**
 
 ```bash
-git checkout feat/progression-temps   # main ignore les Lots 1 et 2
+git log --oneline main..HEAD          # ce que la PR portera
+git rev-parse main origin/main        # doivent être ÉGAUX — la parade du #90
+gh pr create --base main --head feat/progression-temps
 ```
 
-1. **LES TROIS VUES de `ProgressionPage`** — dernière pièce du Lot 2, détaillée dans « EN COURS »
-   ci-dessus. 🔴 **Toute la donnée est maintenant là** : l'index, le journal des faits datés
-   (365 j, à filtrer client) et les trois bornes de trace. Il ne manque QUE l'écran.
-   ⚠️ Le contrat front (`packages/types`, `useSkillsIndex`) ne connaît PAS encore `facts` /
-   `facts_since` — le `bdf23cf` n'a touché que le backend. **Premier geste : compléter le type
-   `SkillIndex`**, sinon la vue période lira un champ que TypeScript ignore.
-   Commit attendu : `feat(papa): progression in three grains — subject, notion, period`.
-2. **Puis merge de toute la branche**, un seul squash — les quatre commits ensemble.
-3. **SESSION C — Lot 3**, branche `feat/council-dated-evolution` depuis un `main` contenant B.
-   Remplit `recent_evolution` avec de vraies bascules — `mastery_transitions` est **déjà écrite**,
-   il la consomme. ⚠️ **Si l'écrasement serveur du Lot 0 a disparu, s'arrêter** : c'est une
-   régression.
-4. **Clôture du chantier**, après C seulement : `CHANGELOG.md` **0.53.0** (il raconte ce qui est
-   sorti, d'où le silence jusque-là), `MEMORY.md`, et `DECISIONS.md` — passer l'ADR-0040 de
-   **Proposé** à **Accepté**.
+1. **Relire le diff et les écrans** (c'est le rôle du user, `WORKFLOW.md §2.4` et §5bis).
+2. **Ouvrir la PR, squash-merger** — un seul carré pour toute la branche.
+3. **Étape 4bis** (`WORKFLOW.md §5`) : revenir ici écrire le squash, le n° de PR, « branche
+   supprimée », « rien à pousser », et les résidus ci-dessous. **Ce fichier sera faux dès le merge.**
+4. **Élaguer cette section** au prochain chantier, avec les **quatre contrôles** — ADR ✅,
+   `TROUBLESHOOTING.md` ✅, `CHANGELOG.md` 0.53.0 ✅, et 🔴 **remonter dans « DETTES OUVERTES » tout
+   ce qui reste ouvert ci-dessous**.
 
-⚠️ **Le prompt veut une session NEUVE par bloc.** Les Lots 0 et 1 ont été faits en fin d'une
-session déjà très longue (16+ commits) ; le Lot 2 mérite d'ouvrir la sienne.
+### ▶ CHANTIER SUIVANT, désigné par le commanditaire (2026-08-06)
 
-🔴 **DÉCIDÉ, PAS ENCORE FAIT — la vue période passe en GRILLE CALENDAIRE**, sur le patron du
-Cahier de bord (demande du commanditaire, 2026-08-06).
+**« La barre de progression d'équipement n'a jamais été vue tourner — c'est ce que je veux
+optimiser. »**
 
-Mon objection initiale et sa RÉSOLUTION, pour ne pas la rejouer : une grille ne peut pas afficher
-vingt faits nommés dans une case, donc elle afficherait « 20 » — l'agrégat temporel que le §3
-interdit. Les données réelles sont grumeleuses : **86 faits sur l'année, dont ~20 le seul 05/07**,
-neuf le 02/08, et zéro l'immense majorité des jours.
+⚠️ **Ce n'est PAS une slice, c'est un chantier avec ADR** : la barre ne peut pas devenir honnête
+sans changer la forme de la route. Passer par `/ouverture`.
 
-**Le Cahier de bord résout exactement ça** et c'est pourquoi la demande tient : case = affordance
-de navigation, **clic → panneau du jour** avec les faits NOMMÉS. Le compte dans la case n'est pas
-une mesure de progression, c'est un repère de densité — et le drill-down d'un jour est la
-**première exception assumée** de l'`adr-0028` §4, déjà au dossier.
+**Le read-before-code est déjà fait, et il tranche la question** :
 
-⚠️ **À écrire dans le §3 avant ou avec le code** : la révocation autorisait « des événements,
-jamais des agrégats temporels ». Une case chiffrée est à la frontière ; il faut la nommer
-explicitement comme repère de navigation, sinon le prochain lecteur la prendra pour une
-autorisation générale d'agréger.
+| Fait vérifié | Où | Conséquence |
+|---|---|---|
+| `POST /class-council/equip-notion` est **entièrement SYNCHRONE** | `reports/router.py:63` | une requête HTTP tient jusqu'à cinq générations LLM locales et ne rend rien avant la fin |
+| `equipment.equip_notion` **ne crée AUCUN `AIJob`** | `production/equipment.py:154` | 🔴 **il n'y a rien à sonder.** L'estimation n'est pas un raccourci, c'est le seul rendu possible aujourd'hui |
+| Les cinq pièces sont déjà **séquentielles et nommées** | même fichier : cours → fiche → SRS → quiz → mindmap, chacune isolée dans son `try` | la matière d'une vraie mesure existe **déjà** ; elle n'est simplement jamais rendue avant le `return` |
+| `EquipNotionResult` porte **`generated` / `skipped` / `errors` par pièce** | `reports/schemas.py` | le détail par pièce existe, mais **seulement à l'arrivée** |
+| Le précédent existe dans le dépôt | `generate_council_report` crée un `AIJob` (`job_type="council_generate"`), et `worker-ai` existe | mais ⚠️ **même cet `AIJob` n'est pas sondable** — l'addendum `adr-0020-portee-matiere` note « aucun identifiant de run, donc aucun sondage » |
 
-Ce qu'il faut écrire :
+**Les deux constantes à l'écran** : `EQUIP_MS = 90_000` et `MISSION_MS = 8_000`, dans
+`components/progression/SubjectDetailRow.tsx`. ⚠️ `EQUIP_MS` est **repris du Conseil de classe**,
+qui lance exactement le même équipement : deux estimations différentes pour le même travail se
+contrediraient à l'écran. **Toute décision ici porte sur les DEUX surfaces.**
 
-- un **constructeur de grille propre aux faits** — ⚠️ `lib/sessions::buildMonthGrid` n'est PAS
-  réutilisable : il prend des `ActivitySessionDay` et rend des cases `sessions`/`activeMinutes`.
-  Réutiliser le PATRON (grille CSS 7 colonnes, navigation de mois, `canGoNext` qui interdit le
-  futur), jamais la fonction ;
-- le composant calendrier + le **panneau du jour** (patron `DayDetailPanel`) ;
-- le branchement dans `VuePeriode`, qui garde son journal en liste — la grille est une SECONDE
-  lecture des mêmes faits, pas un remplacement ;
-- ⚠️ la grille est mensuelle, la fenêtre est de 7/30/90/365 j : décider ce que le sélecteur de
-  fenêtre devient en mode grille (le mois affiché le remplace-t-il ? coexistent-ils ?). **Non
-  tranché.**
+**Ce que « optimiser » peut vouloir dire — à trancher au cadrage, ce sont trois chantiers
+différents** :
 
-⚠️ **Résidus du Lot 2 (partie faite)** :
+1. **Rendre la barre HONNÊTE** — 5 paliers nommés qui avancent réellement (« cours ✓ · fiche… »).
+   Demande de rendre l'état AVANT la fin : job + sondage, ou flux (`StreamingResponse` / SSE).
+   C'est le seul qui supprime l'estimation.
+2. **Rendre l'attente plus COURTE** — les 90 s sont cinq générations locales enchaînées. Paralléliser
+   les dérivés (fiche, SRS, quiz, mindmap ne dépendent que du cours) diviserait l'attente ; ⚠️ ils
+   partagent une session SQLAlchemy, ce n'est pas gratuit.
+3. **Rendre l'attente NON BLOQUANTE** — Papa lance et part ; l'écran retrouve l'état au retour.
+   C'est le plus proche de l'existant (`AIJob` + `worker-ai`), et le plus loin de l'écran actuel.
 
-- ⚠️ **`useSkillsIndex` n'a AUCUN consommateur** tant que les vues ne sont pas écrites — même
-  état transitoire que les routes du Lot 1, et refermé par la même pièce.
-- ⚠️ **Le renommage de `/lacunes` n'a pas été vu à l'écran**, seulement par test lexical. Le
-  `EmptyState` avec son nouveau renvoi n'a jamais été rendu pour de vrai.
+🔴 **Et d'abord, la VOIR tourner.** Elle n'a jamais été rendue en vrai, dans aucune des deux
+surfaces : avant de l'optimiser, il faut savoir ce qu'elle fait pendant 90 s. Un équipement réel
+depuis Progression ou depuis le Conseil, sur une notion sans kit, dans le vrai Chrome.
 
-⚠️ **Résidus du Lot 1** :
+### ⚠️ Résidus de ce chantier — ils ne vivent nulle part ailleurs
 
-- ⚠️ **Deux routes servies que personne n'appelle** — c'est l'état transitoire assumé du Lot 1, et
-  précisément ce que le Lot 2 doit refermer avant tout merge.
-- ⚠️ **Migration `a1b2c3d4e5f9` appliquée en DEV seulement.** Même nature de dette que
-  `f7a8b9c0d1e2` avant elle.
-- ✅ **`mastery_transitions` a désormais un consommateur** (le journal du `bdf23cf`). Sa portée
-  MATIÈRE (`subject_id=`) reste toutefois inexercée : le journal l'appelle sans, et c'est le Lot 3
-  qui s'en servira.
-- ⚠️ **`dashboard/service.py:220` porte un `_mastery_transitions` PRIVÉ, de forme différente**
-  (par matière, pour ses séries). Deux fonctions, même nom, deux formes — la collision même que le
-  §10 veut éviter. Elles ne se croisent pas aujourd'hui, mais le nom est pris.
+**Jamais vu à l'écran :**
 
-⚠️ **Résidus du Lot 0**, qui ne vivent nulle part ailleurs :
+- ⚠️ **Le user n'a relu AUCUN écran de ce chantier.** Cinquième chantier d'affilée dans ce cas
+  (#79, #89, #91, #92, celui-ci) — `WORKFLOW.md §5bis` demande l'œil humain avant la PR.
+- ⚠️ **La barre de progression d'équipement (`EQUIP_MS = 90 s`) n'a jamais été vue tourner.** Écrite
+  pour que ZETIS dise qu'il travaille, et c'est le seul rendu de ce chantier jamais rendu pour de
+  vrai.
+- ⚠️ **Le renommage de `/lacunes` n'a été vérifié que par test lexical.** Son `EmptyState` et son
+  nouveau renvoi n'ont jamais été rendus.
+- ⚠️ **Aucun contrôle responsive.** Les trois vues de Progression et le Conseil n'ont été vus qu'en
+  desktop, à 1568 px.
 
-- ⚠️ **Un rapport figé dont `recent_evolution` valait `""`** affiche désormais la phrase d'absence
-  là où il n'affichait rien. Conforme au §8.4, non traité comme un cas à part.
-- ⚠️ **Le rapport #8 est resté dans la base de dev** : généré pour la vérification, vrai appel
-  Ollama, premier v3 du dépôt. Légitime, mais il n'était pas là ce matin.
-- ⚠️ **`scripts/reorder_decisions.py` est un outil neuf et sans test.** Idempotent, il refuse
-  d'écrire si le résultat n'est pas une permutation pure — mais cette garantie n'est vérifiée que
-  par son propre contrôle interne, doublé une fois à la main.
+**Dette technique posée, non traitée :**
+
+- ⚠️ **Migration `a1b2c3d4e5f9` appliquée en DEV seulement.** Même nature que `f7a8b9c0d1e2`.
+- ⚠️ **`list_reports` ne borne rien** — aucune `LIMIT`, aucune purge, aucune route `DELETE`. Neuf
+  rapports en dev ; à cinquante, la bande de pastilles sera illisible quel que soit le soin des
+  libellés.
+- ⚠️ **`dashboard/service.py:220` porte un `_mastery_transitions` PRIVÉ, de forme différente** (par
+  matière, pour ses séries). Deux fonctions, même nom, deux formes — la collision que le §10 veut
+  éviter. Elles ne se croisent pas, mais le nom est pris.
+- ⚠️ **La portée MATIÈRE de `mastery_transitions` reste peu exercée** : le Lot 3 l'appelle avec
+  `subject_id` en portée ciblée, jamais testée avec deux matières portant chacune des bascules
+  **différentes** en portée globale.
+- ⚠️ **`scripts/reorder_decisions.py` est un outil neuf et sans test.**
+- ⚠️ **Les rapports du Conseil ne nourrissent RIEN.** Aucun lien vers le RAG ou `ai/` : ce sont des
+  archives que Papa relit, pas une mémoire sur laquelle ZETIS raisonne. Le prochain conseil ignore
+  le précédent. Constat, pas défaut — mais s'il devait changer, ce serait un ADR.
+
+**Données de test laissées en base de dev :**
+
+- ⚠️ **Rapports #8 (v3) et #9 (v4)**, générés pour vérification par de vrais appels Ollama. Le #9
+  est le premier rapport daté du dépôt.
+
+**Décisions différées par le user :**
+
 - ⚠️ **`docs/decisions/annexes/statuts-en-attente-2026-08-06.md`** : mémo des **15 ADR restés
-  « Proposé »**, décision explicitement DIFFÉRÉE par le user. Leur code est mergé, mais rien dans le
-  dépôt ne les signale plus — index et fichiers sont d'accord entre eux. Ce mémo est leur seule
-  trace.
+  « Proposé »**. Leur code est mergé, mais index et fichiers sont d'accord entre eux — plus rien
+  dans le dépôt ne les signale. Ce mémo est leur seule trace.
+- ⚠️ **Le calendrier de période du Conseil**, refusé tant que l'évidence n'a pas de fenêtre
+  temporelle (décision active n°8). **Le chantier « fenêtre d'évidence » n'existe pas encore** et
+  n'a pas d'ADR.
 
 ---
 
