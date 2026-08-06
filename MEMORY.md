@@ -19,6 +19,7 @@ routes que personne n'appelle encore, et les merger telles quelles recréerait
 | **Lot 0 — MERGÉ** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)**, squash **`1fb094f`** — branche supprimée des deux côtés |
 | **Lot 1 — fait** | **`32f0e27`** — la mesure, les deux routes, la migration |
 | **Lot 2 — 2 pièces sur 3** | **`1208680`** (contrat front : types, client, `useSkillsIndex`) · **`844f129`** (`/lacunes` renommée + verrou lexical). ⏳ **Manquent les trois vues** |
+| **Trou du Lot 1, REFERMÉ** | **`bdf23cf`** — le §11 demandait « index des notions **ET faits datés** » ; je n'avais livré que l'index, donc la vue période n'avait **aucune source** et `mastery_transitions` **aucun appelant**. Journal des 5 natures du §2 ajouté, 365 j, filtré client |
 | **Branche** | **`feat/progression-temps`**, poussée (`origin/feat/progression-temps`). **Aucune PR — voulu** |
 | Migration | **`a1b2c3d4e5f9`** — index `(student_id, skill_id, changed_at DESC)`. ⚠️ **Appliquée en dev**, un seul head alembic |
 | Routes nouvelles | **deux**, `require_parent` : `GET /progress/skills` (agrégée, **7 requêtes constantes**) et `/progress/skills/{id}/timeline` (paresseuse) |
@@ -179,9 +180,12 @@ git checkout feat/progression-temps   # main ignore les Lots 1 et 2
 ```
 
 1. **LES TROIS VUES de `ProgressionPage`** — dernière pièce du Lot 2, détaillée dans « EN COURS »
-   ci-dessus. Le contrat front est **déjà là** (`useSkillsIndex`, les types, les deux routes) : il
-   ne manque que l'écran qui les consomme. Commit attendu :
-   `feat(papa): progression in three grains — subject, notion, period`.
+   ci-dessus. 🔴 **Toute la donnée est maintenant là** : l'index, le journal des faits datés
+   (365 j, à filtrer client) et les trois bornes de trace. Il ne manque QUE l'écran.
+   ⚠️ Le contrat front (`packages/types`, `useSkillsIndex`) ne connaît PAS encore `facts` /
+   `facts_since` — le `bdf23cf` n'a touché que le backend. **Premier geste : compléter le type
+   `SkillIndex`**, sinon la vue période lira un champ que TypeScript ignore.
+   Commit attendu : `feat(papa): progression in three grains — subject, notion, period`.
 2. **Puis merge de toute la branche**, un seul squash — les quatre commits ensemble.
 3. **SESSION C — Lot 3**, branche `feat/council-dated-evolution` depuis un `main` contenant B.
    Remplit `recent_evolution` avec de vraies bascules — `mastery_transitions` est **déjà écrite**,
@@ -207,9 +211,12 @@ session déjà très longue (16+ commits) ; le Lot 2 mérite d'ouvrir la sienne.
   précisément ce que le Lot 2 doit refermer avant tout merge.
 - ⚠️ **Migration `a1b2c3d4e5f9` appliquée en DEV seulement.** Même nature de dette que
   `f7a8b9c0d1e2` avant elle.
-- ⚠️ **`mastery_transitions` n'a encore AUCUN consommateur** : elle est testée indirectement par
-  l'index des notions, mais son propre chemin (fenêtre `since`, portée matière) n'est exercé par
-  aucun test tant que le Lot 3 ne l'appelle pas.
+- ✅ **`mastery_transitions` a désormais un consommateur** (le journal du `bdf23cf`). Sa portée
+  MATIÈRE (`subject_id=`) reste toutefois inexercée : le journal l'appelle sans, et c'est le Lot 3
+  qui s'en servira.
+- ⚠️ **`dashboard/service.py:220` porte un `_mastery_transitions` PRIVÉ, de forme différente**
+  (par matière, pour ses séries). Deux fonctions, même nom, deux formes — la collision même que le
+  §10 veut éviter. Elles ne se croisent pas aujourd'hui, mais le nom est pris.
 
 ⚠️ **Résidus du Lot 0**, qui ne vivent nulle part ailleurs :
 
