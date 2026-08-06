@@ -7,18 +7,18 @@
 
 ## État à la reprise
 
-**Chantier : ADR-0040 « Progression dans le temps » — COMPLET. Les quatre lots sont écrits, plus deux correctifs nés de questions du user. La branche n'est ni en PR ni mergée.**
+**Chantier : ADR-0040 « Progression dans le temps » — COMPLET ET MERGÉ. Tout est sur `main`. Rien à pousser, rien à reprendre.**
 
-🔴 **Prochain pas = ouvrir la PR et merger.** Un seul squash pour toute la branche : les lots ne
-tiennent pas debout séparément (le Lot 1 livre des routes que seul le Lot 2 appelle, le Lot 3
-consomme une mesure que seul le Lot 1 fournit).
+Ce qu'il reste de ce chantier tient dans **ses résidus**, plus bas — et ils sont désormais **sur
+`main`**, plus « avant merge ». Le chantier suivant est déjà désigné : la barre de progression
+d'équipement.
 
 | | |
 |---|---|
-| **Branche** | **`feat/progression-temps`**, poussée. Base **`40e2f1a`** (= tête de `main` à l'ouverture, `main` n'a pas bougé depuis). **Aucune PR — c'est le geste qui manque** |
-| **Lot 0 — MERGÉ à part** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)** (`MERGED`, vérifié), squash **`1fb094f`**. Il est déjà sur `main` |
-| ⚠️ Refs fantômes | `git ls-remote --heads origin` ne porte que **`main`** et **`feat/progression-temps`** — mais `git branch -r` en local montre encore `origin/fix/council-evolution-lock` et `origin/feat/memoire-quatre-vues`, **supprimées à distance et jamais élaguées ici**. Elles n'existent pas. `git remote prune origin` |
-| **Lots 1 · 2 · 3 + 2 correctifs** | sur la branche, non mergés. Liste réelle : `git log --oneline main..HEAD` |
+| **Ce chantier** | **PR [#93](https://github.com/NeuronXcore/zetis-school/pull/93)** (`MERGED`, vérifié), squash **`7d45e19`**. 17 commits, 40 fichiers, un seul carré |
+| **Lot 0 — mergé à part, avant** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)** (`MERGED`, vérifié), squash **`1fb094f`** |
+| **Branches** | **aucune** — `feat/progression-temps` supprimée des deux côtés, vérifié par `git ls-remote` **et** `git branch -r`. `main` local = `origin/main` = `7d45e19` |
+| ✅ Refs fantômes, réglées | La clôture avait trouvé deux refs de suivi périmées (`fix/council-evolution-lock`, `feat/memoire-quatre-vues`) que `git branch -r` montrait alors qu'elles n'existaient plus à distance. Le merge en a créé une troisième. **`git remote prune origin` lancé** : il ne reste que `origin/main` |
 | Migration | **`a1b2c3d4e5f9`** — index `(student_id, skill_id, changed_at DESC)`. ⚠️ **Appliquée en DEV seulement**, un seul head alembic |
 | Routes nouvelles | **deux**, `require_parent` : `GET /progress/skills` (agrégée, **7 requêtes constantes**) et `/progress/skills/{id}/timeline` (paresseuse) |
 | Contrat modifié | `CouncilSubjectOut.recent_evolution` devient une **union** `Evolution \| str \| null` ; `CouncilReportListItem` gagne `prompt_version` |
@@ -133,21 +133,17 @@ Lots 2, 3 et des correctifs, tous **payés cette session** :
 
 ### ▶ PROCHAIN PAS
 
-🔴 **La branche est poussée et complète. Il ne manque que la PR.**
+✅ **Rien de ce chantier.** Il est mergé, `main` est à jour, l'arbre est propre, aucune branche ne
+survit. L'étape 4bis est FAITE — c'est ce que tu lis.
 
-```bash
-git log --oneline main..HEAD          # ce que la PR portera
-git rev-parse main origin/main        # doivent être ÉGAUX — la parade du #90
-gh pr create --base main --head feat/progression-temps
-```
+Le prochain pas est **le chantier suivant** (ci-dessous), et il commence par `/ouverture` :
+c'est une surface qui demande un ADR, pas une slice.
 
-1. **Relire le diff et les écrans** (c'est le rôle du user, `WORKFLOW.md §2.4` et §5bis).
-2. **Ouvrir la PR, squash-merger** — un seul carré pour toute la branche.
-3. **Étape 4bis** (`WORKFLOW.md §5`) : revenir ici écrire le squash, le n° de PR, « branche
-   supprimée », « rien à pousser », et les résidus ci-dessous. **Ce fichier sera faux dès le merge.**
-4. **Élaguer cette section** au prochain chantier, avec les **quatre contrôles** — ADR ✅,
-   `TROUBLESHOOTING.md` ✅, `CHANGELOG.md` 0.53.0 ✅, et 🔴 **remonter dans « DETTES OUVERTES » tout
-   ce qui reste ouvert ci-dessous**.
+⚠️ **À faire à l'ouverture du prochain chantier, pas maintenant** : élaguer cette section, avec les
+**quatre contrôles** — ADR ✅ (`adr-0040-progression-dans-le-temps.md`, Accepté),
+`TROUBLESHOOTING.md` ✅ (§`feat/progression-temps`), `CHANGELOG.md` ✅ (0.53.0), et 🔴 **le
+quatrième, celui qu'on oublie** : remonter dans « DETTES OUVERTES » tout ce qui reste ouvert dans
+les résidus ci-dessous. Il y en a, et ils sont maintenant **sur `main`**.
 
 ### ▶ CHANTIER SUIVANT, désigné par le commanditaire (2026-08-06)
 
@@ -190,13 +186,20 @@ depuis Progression ou depuis le Conseil, sur une notion sans kit, dans le vrai C
 
 ### ⚠️ Résidus de ce chantier — ils ne vivent nulle part ailleurs
 
+🔴 **Ils sont SUR `main` désormais, plus « avant merge ».** Le merge a été demandé en connaissance
+de cause, les résidus étant écrits dans le corps de la PR #93 : c'est un arbitrage assumé du
+commanditaire, pas un oubli. Mais la dette a changé de nature — elle n'est plus rattrapable en
+retenant une branche.
+
 **Jamais vu à l'écran :**
 
-- ⚠️ **Le user n'a relu AUCUN écran de ce chantier.** Cinquième chantier d'affilée dans ce cas
-  (#79, #89, #91, #92, celui-ci) — `WORKFLOW.md §5bis` demande l'œil humain avant la PR.
-- ⚠️ **La barre de progression d'équipement (`EQUIP_MS = 90 s`) n'a jamais été vue tourner.** Écrite
+- 🔴 **Le user n'a relu AUCUN écran de ce chantier, et il est mergé.** **Cinquième** chantier
+  d'affilée (#79, #89, #91, #92, #93) — `WORKFLOW.md §5bis` demande l'œil humain avant la PR, et la
+  règle n'a pas été tenue cinq fois de suite. Ce n'est plus un incident, c'est le fonctionnement
+  réel : soit on change la règle, soit on change la pratique.
+- 🔴 **La barre de progression d'équipement (`EQUIP_MS = 90 s`) n'a jamais été vue tourner.** Écrite
   pour que ZETIS dise qu'il travaille, et c'est le seul rendu de ce chantier jamais rendu pour de
-  vrai.
+  vrai. **C'est le sujet du chantier suivant** — voir plus haut, le read-before-code est déjà fait.
 - ⚠️ **Le renommage de `/lacunes` n'a été vérifié que par test lexical.** Son `EmptyState` et son
   nouveau renvoi n'ont jamais été rendus.
 - ⚠️ **Aucun contrôle responsive.** Les trois vues de Progression et le Conseil n'ont été vus qu'en
