@@ -2033,3 +2033,55 @@ les exécutants `curriculum_*` reprennent `get_curriculum_provider()` eux-mêmes
 l'aurait annulée en silence — même code, même sortie apparente, référentiel de bien moindre
 qualité. Verrou : `test_curriculum_utilise_le_provider_CLOUD_et_pas_le_local`, avec **le moteur
 local piégé** (l'appeler fait échouer le travail).
+
+### ⚠️ Contrat MODIFIÉ — `GET /production/journal` accueille les travaux unitaires (addendum ADR-0041 §16-§18)
+
+```json
+{
+  "runs": [ /* JournalRunOut[] — inchangé */ ],
+  "travaux": [ { "id": 653, "job_type": "srs_cards_generate",
+                 "label": "Cartes de révision · Mitose", "status": "succeeded",
+                 "trigger": "manual", "skill_id": 42, "skill_name": "Mitose",
+                 "created_at": "…", "started_at": "…", "finished_at": "…",
+                 "duration_ms": 53600, "error": null } ],
+  "travaux_exclus": null,
+  "has_more": true, "total": 31
+}
+```
+
+🔴 **`runs` est INCHANGÉ** — le contrat existant ne bouge pas. Les travaux arrivent **à part**
+plutôt que mêlés à `runs` : un `AIJob` ne porte ni régime, ni pièces, ni journal ligne à ligne, et
+le glisser dans `JournalRunOut` l'obligerait à faire semblant (§17). L'écran les **entrelace par
+date** — ce n'est pas un tri côté client : la page est déjà la bonne, découpée **en SQL sur l'union
+des deux modèles**, et on ne fait qu'ordonner ce qu'elle contient.
+
+🔴 **`total` et `has_more` portent sur l'UNION.** Paginer chaque modèle séparément perdrait
+silencieusement tout ce qui tombe entre les deux — le défaut que l'addendum « tri et filtre » §2
+avait déjà nommé pour les filtres. ⚠️ **Corollaire client : l'offset compte les DEUX listes**
+(`runs.length + travaux.length`), jamais `runs` seul.
+
+**Ce qu'un travail ne porte PAS**, et ce n'est pas un oubli : `zetis_mode`, `zetis_mode_source`,
+`pieces`, `events`. Donc **aucun veto** — `DELETE /journal/pieces/{kind}/{id}` s'appuie sur le
+tamponnage `production_run_id`, qu'un `AIJob` ne pose pas. L'écran ne doit offrir aucun bouton de
+retrait sur ces lignes : il ne pourrait rien retirer.
+
+⚠️ **`zetis_mode` est ABSENT, pas `"manuel"`.** Un travail hors lot est manuel *par construction*
+(§3.2) et il serait tentant de l'écrire — ce serait confondre l'**origine** (qui a demandé) avec le
+**régime** (sous quelles règles ZETIS pouvait servir sans relecture), que l'ADR-0034 sépare exprès.
+L'origine, elle, se dit : `trigger`.
+
+### `travaux_exclus` — quand un filtre écarte les travaux (§18)
+
+`piece`, `mode`, le filtre par **chapitre** et tout **tri autre que la date** n'ont aucun sens sur
+un travail unitaire : plutôt que de lui inventer une valeur, ils ne rendent que des lots. Le champ
+porte alors la phrase à afficher, qui **nomme la dimension** — « le filtre par pièce ne porte que
+sur les lots » — et vaut `null` quand les travaux sont admis.
+
+⚠️ **À AFFICHER** : une exclusion muette se lit comme un vide, même faute qu'une troncature muette.
+
+Le filtre par **matière** fait exception et s'applique aux deux : il se lit sur la notion du
+travail (`input_json.skill_id`). Un travail sans notion identifiable est écarté quand il est actif.
+
+⚠️ **Les TRACES n'entrent jamais** (`created_by != "file"`) : ce sont les appels LLM *à l'intérieur*
+d'un travail, et elles sont beaucoup plus nombreuses — 143 pour une poignée de gestes, mesuré en
+base. Voir `DATA_MODEL.md`, règle de lecture de `created_by`.
