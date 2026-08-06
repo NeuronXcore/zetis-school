@@ -7,9 +7,18 @@ import { useLacunes } from "../hooks/useLacunes";
 
 // Lacunes Papa — la surface de DÉCISION vers laquelle le dashboard renvoie.
 //
-// Vocabulaire : « notion à renforcer » à l'écran, `Gap` en base. Le mot « lacune » reste dans les
-// specs et le code (vocabulaire figé côté Papa), jamais dans une formulation qui pourrait
-// atteindre Massimo.
+// 🔴 **Vocabulaire renommé par l'`adr-0040` §5, et ce n'est pas cosmétique.** Trois surfaces
+// employaient « à renforcer » pour TROIS populations : le KPI du dashboard comptait 13
+// `SkillMastery ∈ {weak, learning}`, le titre de cette page 1 ligne `Gap` ouverte, et
+// `SEVERITY.medium` un sous-ensemble de ce sous-ensemble. Conséquence visible : cette page
+// affichait « Rien à renforcer » pendant que le dashboard en annonçait 13.
+//
+// Ici on dit **« lacune ouverte »** — le libellé du `GLOSSARY`. « À renforcer » appartient au
+// PALIER DE MAÎTRISE et vit sur Progression, jamais sur une surface `Gap`. Un test-verrou
+// l'interdit dans ce fichier : ce dépôt a déjà prouvé deux fois qu'un mot partagé finit par
+// fondre deux mesures.
+//
+// Le mot « lacune » reste hors de toute formulation pouvant atteindre Massimo (surface Papa).
 //
 // Deux gestes, aucun automatisme et aucune route nouvelle — les deux générateurs existaient déjà :
 //   · consolidation → notions découvertes et jamais prises en charge (lacunes `open`) ;
@@ -21,7 +30,7 @@ import { useLacunes } from "../hooks/useLacunes";
 const SEVERITY: Record<OpenGap["severity"], { label: string; className: string }> = {
   // Aucune teinte rouge : ce sont des notions à travailler, pas des fautes (adr-0024, adr-0028 §6).
   low: { label: "à surveiller", className: "bg-papa-surface-2 text-papa-muted" },
-  medium: { label: "à renforcer", className: "bg-papa-accent-2/15 text-papa-accent-2" },
+  medium: { label: "à traiter", className: "bg-papa-accent-2/15 text-papa-accent-2" },
   high: { label: "prioritaire", className: "bg-papa-warn/15 text-papa-warn" },
 };
 
@@ -63,7 +72,7 @@ export function LacunesPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title="Notions à renforcer"
+        title="Lacunes ouvertes"
         subtitle="Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider."
       />
 
@@ -115,8 +124,16 @@ export function LacunesPage() {
         </div>
       ) : l.gaps.length === 0 ? (
         <EmptyState
-          title="Rien à renforcer pour le moment"
-          description="Les notions apparaissent ici quand un diagnostic ou une mission mesure qu'elles ne tiennent pas encore."
+          title="Aucune lacune ouverte"
+          description="Les notions apparaissent ici quand un diagnostic ou une mission mesure qu'elles ne tiennent pas encore. ⚠️ Des notions peuvent rester fragiles SANS lacune ouverte : les deux populations sont disjointes."
+          action={
+            <Link
+              to="/progression?view=notion"
+              className="rounded-lg border border-papa-border px-3 py-1.5 text-sm font-semibold hover:border-papa-accent"
+            >
+              Voir les paliers sur Progression →
+            </Link>
+          }
         />
       ) : (
         <>
