@@ -7,7 +7,7 @@
 
 ## État à la reprise
 
-**Chantier : « la carte mémoire à 4 vues + 2 cartes focalisables » (2 addenda ADR-0028) — COMPLET, NON POUSSÉ.**
+**Chantier : « la carte mémoire à 4 vues + 2 cartes focalisables » (2 addenda ADR-0028) — COMPLET et MERGÉ.**
 
 Parti d'une demande directe du user sur le dashboard Papa — intervertir deux cartes, puis
 « propose-moi d'autres courbes plus expressives ». Le cadrage est donc venu **après** la demande,
@@ -16,9 +16,11 @@ c'est lui qui a exhumé une régression du chantier de la veille.
 
 | | |
 |---|---|
-| **État** | ✅ **COMPLET** — commité, **NON poussé, aucune PR**. Branche `feat/memoire-quatre-vues` |
-| Base | **`352c2ca`** (`docs(memory): launch.json a été jeté…`), == `main` == `origin/main` |
-| Commits | **un seul.** Les fichiers des deux chantiers se recoupent (`MemoryTrendCard.tsx`, `dashboardDerive.ts`, `DECISIONS.md`) : un découpage propre aurait demandé du staging par hunks, impossible ici (`git add -i` indisponible). Liste : `git log --oneline main..HEAD` |
+| **MERGÉ `main`** | **PR [#91](https://github.com/NeuronXcore/zetis-school/pull/91)**, squash **`d0ca126`** (2026-08-06, 33 fichiers) — branche `feat/memoire-quatre-vues` **supprimée**, locale et distante (`git ls-remote` vide). `main` == `origin/main`, **rien à pousser**. Étape **4bis faite** |
+| **État** | ✅ **COMPLET** — mais mergé **sans relecture visuelle humaine** (voir dettes) |
+| Base | **`352c2ca`** (`docs(memory): launch.json a été jeté…`) |
+| Commits | **deux avant squash** (le chantier, puis la clôture). Les fichiers des deux moitiés se recoupent (`MemoryTrendCard.tsx`, `dashboardDerive.ts`, `DECISIONS.md`) : un découpage plus fin aurait demandé du staging par hunks, impossible ici (`git add -i` indisponible) |
+| ⚠️ **Le piège du #90 ne s'est PAS déclenché** | `main` local == `origin/main` **vérifié avant** le merge, donc `gh pr merge --delete-branch` a basculé le worktree sur un `main` à jour. C'est la parade documentée à la clôture précédente, et elle a servi dès son premier usage |
 | ADR | `adr-0028-addendum-memoire-quatre-vues.md` · `adr-0028-addendum-cartes-focalisables.md` |
 | Migration | **aucune** · Route nouvelle : **aucune** · Requêtes nouvelles : **trois** |
 | Suites | backend **940 ✅** (935 → 940, **+5**) · Papa **572 ✅** (563 → 572, **+9**) · Massimo **525 ✅**, non touché · `tsc -b` et `vite build` propres |
@@ -99,22 +101,23 @@ Détail, cause et parade : `TROUBLESHOOTING.md` §`feat/memoire-quatre-vues`.
 
 ### ▶ PROCHAIN PAS
 
-**Pousser la branche et ouvrir la PR** — le chantier est fini, il ne manque que le geste git :
+**Ce chantier est CLOS et MERGÉ** (PR #91, squash `d0ca126`). Branche supprimée des deux côtés,
+`main` == `origin/main`, **arbre propre** — vérifié après le merge. **Étape 4bis faite.**
 
-```
-git push -u origin feat/memoire-quatre-vues
-```
-
-Puis PR → merge → **étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici le squash, le n° de PR et
-la suppression de branche.
+Le prochain chantier se choisit dans les DETTES ci-dessous, ou se cadre — `/ouverture`, ADR avant le
+code. **Si le sujet reste le dashboard**, deux candidats se disputent le premier geste : la dette
+visuelle ci-dessous (la moins coûteuse, et elle s'accumule), ou l'addendum qui fige « Semaine en
+cours », toujours la seule surface du dashboard qu'aucun ADR ne décrit.
 
 ⚠️ **Résidus de CE chantier**, qui ne vivent nulle part ailleurs :
 
-- 🔴 **Le user n'a PAS encore relu les quatre vues à l'écran.** L'agent les a vérifiées sur données
-  réelles, mais `WORKFLOW.md §5bis` demande l'œil humain avant la PR — et le dépôt porte déjà deux
-  dettes visuelles nées de ce raccourci (bandeau Massimo #79, souffle #89). **À faire avant de
-  merger**, en particulier la vue « Révisions » sur les fenêtres 30 j et Trimestre, où les 29
-  passages du 4 juillet entrent dans le cadre.
+- 🔴 **MERGÉ SANS RELECTURE VISUELLE HUMAINE, sur décision explicite du user.** `WORKFLOW.md §5bis`
+  demande l'œil humain avant la PR ; il a été signalé **trois fois** (checklist de clôture, message
+  de PR, case à cocher dans le corps de la PR) et le merge a été demandé quand même. **Arbitrage
+  assumé — mais la dette est passée d'« avant merge » à « sur `main` », exactement comme le souffle
+  #89 et le bandeau Massimo #79.** C'est la **troisième** fois. Ce qui reste à regarder : les quatre
+  vues, en particulier « Révisions » sur **30 j** et **Trimestre** (les 29 passages du 4 juillet
+  entrent alors dans le cadre, ce qu'aucune capture de cette session ne montre).
 - ⚠️ **La vue « Solde » est VIDE sur la base de dev**, et c'est correct : `skill_mastery_history`
   n'a que 4 lignes, toutes des entrées en `weak`. Son rendu **non vide n'a donc jamais été vu** —
   ni barres montantes, ni barres descendantes. À regarder à la première vraie bascule.
