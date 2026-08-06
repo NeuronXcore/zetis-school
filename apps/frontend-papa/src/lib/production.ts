@@ -19,6 +19,7 @@ import {
   type ProductionActivity,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
+import { signalerEnfilement } from "./productionSignal";
 import { asJson, authHeader } from "./httpClient";
 import { generateFiche, regenerateFiche } from "./fiches";
 import { generateMindmap, regenerateMindmap } from "./mindmaps";
@@ -111,12 +112,16 @@ export async function previewChapterProduction(chapterId: number): Promise<Produ
 
 /** Lance un lot : 202, le worker le prendra. Lève sur 409 (arriéré de relecture au plafond). */
 export async function startChapterProduction(chapterId: number): Promise<ProductionRun> {
-  return asJson(
+  const run = await asJson<ProductionRun>(
     await fetch(`${API}/runs?chapter_id=${chapterId}`, {
       method: "POST",
       headers: authHeader(),
     }),
   );
+  // ⚠️ APRÈS le succès, jamais avant : `asJson` lève sur un 409 (arriéré au plafond), et réveiller
+  // la barre pour un lot qui n'a pas été créé lui ferait chercher un travail inexistant.
+  signalerEnfilement();
+  return run;
 }
 
 // --- Lots-PIÈCE : ce qu'on affiche pendant qu'ils tournent (ADR-0036 §2) ------------------------
@@ -169,12 +174,14 @@ export const SCOPE_NOUN: Record<string, string> = {
  *
  *  202 : le lot est accepté, pas exécuté. L'indicateur d'en-tête suit la suite. */
 export async function produceForRequest(requestId: number): Promise<ProductionRun> {
-  return asJson(
+  const run = await asJson<ProductionRun>(
     await fetch(`${API}/runs/from-request?request_id=${requestId}`, {
       method: "POST",
       headers: authHeader(),
     }),
   );
+  signalerEnfilement();
+  return run;
 }
 
 /** État d'un lot — pour le suivi pendant l'exécution. */

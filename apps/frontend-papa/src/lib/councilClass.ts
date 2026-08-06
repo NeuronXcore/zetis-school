@@ -3,6 +3,7 @@
 // des `skill_id` ancrés (revalidés serveur). Le pont d'actionnabilité réutilise le flux Commander
 // (missions `manual` validées par le clic). Types locaux (patron des libs pilotage Papa).
 import { API_URL, authClient } from "./authClient";
+import { signalerEnfilement } from "./productionSignal";
 import type { MissionPilot } from "./missionsPilotage";
 
 export interface CouncilRecommendation {
@@ -234,6 +235,9 @@ export async function equipNotion(
     headers: headers(),
     body: JSON.stringify({ skill_id: skillId }),
   }).then((r) => asJson<{ job_id: number; status: string }>(r));
+
+  // La barre paraît AU CLIC, plus « quelque part dans les quatre secondes ».
+  signalerEnfilement();
 
   // ⚠️ **On rapporte l'état, on ne le devine pas** (ADR-0041 §9). Ce sondage existait déjà pour
   // attendre le kit ; il sert désormais aussi à nourrir la barre de la page. Aucun sondeur de

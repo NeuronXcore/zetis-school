@@ -88,8 +88,8 @@ non bloquant casserait cet ordre. **Parade posée, rien n'est cassé** : `equipN
 toujours le kit — mais la requête HTTP ne tient plus 90 s et la barre du header montre l'avancement
 réel, sur toutes les pages. **Ce qu'il reste : décider si l'attente doit disparaître, et comment.**
 
-⚠️ **`ActiveProductionModal` n'est pas étendu** en liste (ordre de file, origine par travail,
-échecs avec leur bouton). Il affiche encore le lot unique. Le clic sur la barre l'ouvre quand même.
+✅ **`ActiveProductionModal` est une liste** (2026-08-06) : ordre de file numéroté, origine par
+travail, échecs en tête avec leur bouton. `/activity` rend `queued` en plus de son compte.
 
 ⚠️ **La migration n'est pas appliquée**, même en dev.
 
@@ -138,10 +138,10 @@ Le Conseil a lancé un équipement sur une notion **déjà équipée** : job `su
 `generated: []`, `skipped: [les cinq pièces]`. Le header n'a rien montré — **et il avait raison**,
 il n'y avait aucune production. Mais deux choses réelles en sortent :
 
-- ⚠️ **La barre est AVEUGLE à tout travail plus court que son sondage** (4 s). Même classe que le
-  défaut corrigé le 2026-08-03 sur `useActiveProductionRun`, à plus petite échelle. La parade n'est
-  pas de raccourcir la période — ça ne supprime pas la course — mais de laisser **le client qui
-  vient d'enfiler prévenir la barre**, au lieu d'attendre jusqu'à 4 s.
+- ✅ **RÉGLÉ (2026-08-06) — le réveil immédiat.** `lib/productionSignal.ts` : le client qui vient
+  d'enfiler prévient la barre. Mesuré à l'écran : **52 ms** après le clic, au lieu de jusqu'à 4 s.
+  Le sondage reste (personne ne signale un déclencheur automatique). ⚠️ Ne rend toujours PAS
+  visible un travail de quelques millisecondes — rien ne le peut, et c'est écrit dans le module.
 - 🔴 **Les deux surfaces se sont contredites, en direct.** Pendant ces 11 ms de travail, la page du
   Conseil a déroulé son pipeline « Cours · Fiche · Cartes · Quiz · Carte mentale » une dizaine de
   secondes, piloté par `EQUIP_MS = 90_000` qui **devine** ; le header, qui **mesure**, disait la

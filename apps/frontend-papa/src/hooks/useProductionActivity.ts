@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { type ProductionActivity } from "@zetis/types";
 
 import { acknowledgeActivity, fetchProductionActivity } from "../lib/production";
+import { surEnfilement } from "../lib/productionSignal";
 
 // L'activité de production (ADR-0041 §2) — **une seule lecture pour tout ce que ZETIS fabrique**.
 //
@@ -51,9 +52,14 @@ export function useProductionActivity(): ProductionActivityState {
     };
     tick();
     const timer = window.setInterval(tick, POLL_MS);
+    // ⚠️ **Le sondage reste**, le réveil s'ajoute. Le premier voit ce que ZETIS lance tout seul
+    // (agenda, demande de Massimo) ; le second supprime la fenêtre aveugle après un clic de Papa.
+    // L'un ne remplace pas l'autre : personne ne signale un déclencheur automatique.
+    const desabonner = surEnfilement(tick);
     return () => {
       vivant = false;
       window.clearInterval(timer);
+      desabonner();
     };
   }, [lire]);
 

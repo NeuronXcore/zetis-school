@@ -200,6 +200,21 @@ Activity = {
 Sondage : **4 s**, valeur du patron existant — ramenée de 20 s le 2026-08-03 parce qu'*« un
 lot-pièce dure 15 à 17 s : à 20 s de période, l'indicateur pouvait ne JAMAIS voir un lot entier »*.
 
+**Plus un RÉVEIL immédiat** (`lib/productionSignal.ts`) : le client qui vient d'enfiler prévient la
+barre au lieu de la laisser attendre son prochain tour. Mesuré à l'écran le 2026-08-06 — la barre
+paraît en **52 ms** après le clic, au lieu de « quelque part dans les quatre secondes ».
+
+⚠️ **Raccourcir la période aurait été le réflexe, et c'était le mauvais** : cela ne supprime pas la
+course, cela la déplace — et sonder plus souvent coûte à toutes les pages, en permanence, pour un
+gain qui ne sert qu'après un clic.
+
+⚠️ **Le sondage RESTE**, le réveil s'ajoute : personne ne signale un déclencheur automatique
+(agenda, demande de Massimo). L'un voit ce que ZETIS lance tout seul, l'autre ce que Papa lance.
+
+⚠️ **Ce que le réveil ne fait PAS** : rendre visible un travail de quelques millisecondes. Rien ne
+le peut — quand la réponse revient, le travail est fini. Ce qu'il supprime est la fenêtre aveugle
+**après un geste**.
+
 Détection de fin : par **id mémorisé**, relu **une seule fois** quand `current` retombe à `null` —
 et jamais sur un travail déjà terminé au chargement de la page.
 
