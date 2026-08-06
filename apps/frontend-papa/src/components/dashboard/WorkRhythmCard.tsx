@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { DashboardFocus, DashboardPeriod, DashboardSubject } from "@zetis/types";
+import type { DashboardPeriod, DashboardSubject, PageFocus } from "@zetis/types";
 import { DashboardCard } from "./DashboardCard";
 import { SlotGrid } from "./SlotGrid";
 import { CurrentWeekBars } from "./CurrentWeekBars";
@@ -31,7 +31,7 @@ interface WorkRhythmCardProps {
   subjects: DashboardSubject[];
   activeSubject: DashboardSubject | null;
   period: DashboardPeriod;
-  focus: DashboardFocus | null;
+  focus: PageFocus | null;
   daysInactive: number;
   subjectNames: Map<string, string>;
   /** `generated_at` de l'agrégat — sert à dater la fenêtre des créneaux avec les MÊMES bornes que

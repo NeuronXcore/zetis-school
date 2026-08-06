@@ -203,3 +203,76 @@ def bucket_sums(pairs: list[tuple[date, int]], marks: list[date]) -> list[int]:
                 totals[index] += value
                 break
     return totals
+
+
+# --- Flux, par opposition aux stocks reconstruits ------------------------------------------------
+#
+# Tout ce qui précède `reconstruct_series` dans ce module projette des STOCKS à rebours. Les deux
+# fonctions ci-dessous comptent des ÉVÉNEMENTS DATÉS, et c'est une différence de nature :
+#
+#   - un stock reconstruit est croissant PAR CONSTRUCTION et ne peut jamais redescendre ;
+#   - un flux peut être négatif, et c'est tout son intérêt.
+#
+# ⚠️ Les deux ne se réconcilient PAS et ne doivent pas être présentés comme deux vues du même
+# nombre. `adr-0028-addendum-kpi-a-renforcer §5 ter` écarte le solde AU TITRE DU DELTA DE KPI,
+# précisément parce qu'il contredirait la sparkline voisine. Ce qui est servi ici ne remplace aucun
+# KPI : c'est une vue autonome, à charge pour la carte de nommer la différence.
+
+
+def window_days(days: list[date], marks: list[date]) -> list[date]:
+    """Restreint des jours à la fenêtre couverte par `marks`, bornes incluses.
+
+    ⚠️ Indispensable avant tout `bucket_counts` sur un FLUX. `bucket_counts` range chaque jour dans
+    le PREMIER repère qui l'atteint : un jour antérieur à la fenêtre tombe donc dans le bucket 0 au
+    lieu d'être ignoré, et gonfle silencieusement le premier point. Sur un stock la question ne se
+    pose pas (rien n'est bucketisé) ; sur un flux, l'oubli fabrique un pic à gauche.
+    """
+    if not marks:
+        return []
+    return [day for day in days if marks[0] <= day <= marks[-1]]
+
+
+def consolidation_flux(
+    transitions: list[tuple[int, str, date]], marks: list[date]
+) -> tuple[list[int], list[int]]:
+    """Entrées et sorties du palier « consolidée », par intervalle.
+
+    `transitions` = `(skill_id, statut APRÈS la bascule, jour)`, dans n'importe quel ordre. Rend
+    `(gagnées, perdues)`, deux listes positives de la longueur de `marks` — le signe est porté par
+    le sens de lecture de la carte, pas par les nombres.
+
+    Trois règles, toutes destinées à ne jamais inventer un événement qu'on ne sait pas prouver :
+
+    1. l'état AVANT la première bascule connue d'une notion est inconnu, et le reste. Une première
+       bascule vers `mastered` compte comme une entrée (c'est ce que le backfill de la migration a
+       posé, depuis `mastered_at`) ; une première bascule vers autre chose ne compte **rien** —
+       en particulier pas une perte, qui supposerait un acquis qu'on n'a pas observé ;
+    2. seule une notion **observée consolidée** peut être comptée perdue ;
+    3. une bascule qui ne traverse pas la frontière (`weak` → `learning`) ne compte nulle part.
+
+    ⚠️ Une notion peut entrer et sortir plusieurs fois dans la même fenêtre. Les deux listes
+    comptent alors **les deux fois** : ce sont des mouvements, pas un solde de population.
+    """
+    ordered = sorted(transitions, key=lambda row: row[2])
+    previous: dict[int, str] = {}
+    gained: list[date] = []
+    lost: list[date] = []
+
+    for skill_id, status, day in ordered:
+        before = previous.get(skill_id)
+        previous[skill_id] = status
+        now = status in CONSOLIDATED_STATUSES
+        if before is None:
+            if now:
+                gained.append(day)
+            continue
+        was = before in CONSOLIDATED_STATUSES
+        if now and not was:
+            gained.append(day)
+        elif was and not now:
+            lost.append(day)
+
+    return (
+        bucket_counts(window_days(gained, marks), marks),
+        bucket_counts(window_days(lost, marks), marks),
+    )

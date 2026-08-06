@@ -21,6 +21,21 @@ import { fetchDashboard } from "../lib/dashboard";
 import { matchesFocus } from "../lib/dashboardDerive";
 import { generateRemediation } from "../lib/missionsPilotage";
 
+// Séries de la carte mémoire. Volontairement NON nulles sur les quatre natures de mesure (stocks,
+// flux, révisions) : c'est ce qui permet aux quatre vues de dessiner quelque chose dans les tests,
+// au lieu de tomber toutes les quatre sur leur état vide et de ne rien vérifier.
+function memorySeries() {
+  return {
+    covered: [1, 2],
+    consolidated: [0, 4],
+    fragile: [3, 3],
+    in_progress: [1, 2],
+    gained: [0, 4],
+    lost: [1, 0],
+    reviews: { again: [2, 0], hard: [0, 1], good: [1, 3], easy: [0, 2] },
+  };
+}
+
 function subject(overrides: Partial<DashboardSubject> = {}): DashboardSubject {
   const zeros = () => Array.from({ length: 8 }, () => Array.from({ length: 7 }, () => 0));
   return {
@@ -34,10 +49,10 @@ function subject(overrides: Partial<DashboardSubject> = {}): DashboardSubject {
     slots_outside_minutes: { "7": 0, "30": 0, "90": 0, "365": 0 },
     notions: { consolidated: 4, fragile: 3, in_progress: 2, total: 13 },
     series: {
-      "7": { covered: [1, 2], consolidated: [0, 4], fragile: [3, 3] },
-      "30": { covered: [1, 2], consolidated: [0, 4], fragile: [3, 3] },
-      "90": { covered: [1, 2], consolidated: [0, 4], fragile: [3, 3] },
-      "365": { covered: [1, 2], consolidated: [0, 4], fragile: [3, 3] },
+      "7": memorySeries(),
+      "30": memorySeries(),
+      "90": memorySeries(),
+      "365": memorySeries(),
     },
     review_load: Array.from({ length: 14 }, () => 2),
     gaps_open: 1,
@@ -579,6 +594,72 @@ describe("KPI actifs", () => {
 
     expect(screen.queryByText(/XP/)).toBeNull();
     expect(screen.queryByText(/Sessions/)).toBeNull();
+  });
+
+  // --- Les deux cartes qui prennent le focus par elles-mêmes ------------------------------------
+  //
+  // `charge` et `chaine` portent une mesure qu'AUCUN des cinq KPI ne prend pour sujet. Avant ce
+  // chantier elles ne pouvaient donc que s'atténuer — `charge` répond à 2 focus sur 5, `chaine` à
+  // 1 — et rien sur la page ne pouvait les désigner.
+
+  it("🔴 cliquer l'en-tête d'une carte autonome l'ALLUME vraiment", async () => {
+    // Le piège que ce test verrouille est déjà survenu dans ce dépôt, sur le KPI « À renforcer » :
+    // le clic écrivait bien `?focus=…`, le garde `isFocus` le refusait parce que sa liste blanche
+    // était un TABLEAU incomplet, la carte ne s'allumait jamais, et `tsc` restait muet. Élargir le
+    // focus à `charge`/`chaine` rouvre exactement cette porte. Ici la liste est un
+    // `Record<PageFocus, true>`, et ce test le prouve à l'exécution.
+    renderPage();
+    const titre = await screen.findByRole("button", { name: /Charge de révision/ });
+    const charge = document.querySelector('[data-card="charge"]');
+
+    expect(titre).toHaveAttribute("aria-pressed", "false");
+    expect(charge!).not.toHaveClass("souffle-focus--lie");
+
+    fireEvent.click(titre);
+    await waitFor(() => expect(titre).toHaveAttribute("aria-pressed", "true"));
+    expect(charge!).toHaveClass("souffle-focus", "souffle-focus--lie");
+    expect(charge!).not.toHaveClass("opacity-40");
+
+    // Second clic = relâche, comme sur un KPI.
+    fireEvent.click(titre);
+    await waitFor(() => expect(titre).toHaveAttribute("aria-pressed", "false"));
+    expect(charge!).not.toHaveClass("souffle-focus--lie");
+  });
+
+  it("une carte autonome atténue les cartes qui ne la justifient PAS", async () => {
+    // Un focus qui n'atténue plus rien est un clic qui ne veut plus rien dire (addendum §5
+    // quinquies). `memoire` justifie la charge — sa vue « Révisions » montre les mêmes 14 jours ;
+    // `heatmap` ne la justifie pas.
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Charge de révision/ }));
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-card="memoire"]')).toHaveClass("souffle-focus--lie"),
+    );
+    expect(document.querySelector('[data-card="heatmap"]')).toHaveClass("opacity-40");
+  });
+
+  it("cliquer une carte autonome RELÂCHE le KPI pressé — un seul focus sur la page", async () => {
+    renderPage();
+    const kpi = await screen.findByRole("button", { name: /Temps actif/ });
+
+    fireEvent.click(kpi);
+    await waitFor(() => expect(kpi).toHaveAttribute("aria-pressed", "true"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Chaîne de contenus/ }));
+    // Deux mesures allumées en même temps diraient que la page répond à deux questions à la fois.
+    await waitFor(() => expect(kpi).toHaveAttribute("aria-pressed", "false"));
+    expect(document.querySelector('[data-card="chaine"]')).toHaveClass("souffle-focus--lie");
+  });
+
+  it("le titre rendu cliquable RESTE un titre", async () => {
+    // Remplacer le `h3` par un bouton aurait retiré ces deux cartes de la liste des titres de la
+    // page : une carte gagnée au clic contre une carte perdue à la navigation au clavier.
+    renderPage();
+    await screen.findByRole("button", { name: /Charge de révision/ });
+
+    expect(screen.getByRole("heading", { name: /Charge de révision/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Chaîne de contenus/ })).toBeTruthy();
   });
 });
 

@@ -47,10 +47,10 @@ const STAGES: DashboardContentStage[] = [
   },
 ];
 
-function renderCard(stages = STAGES) {
+function renderCard(stages = STAGES, onToggleFocus = () => {}) {
   return render(
     <MemoryRouter>
-      <ContentChainCard stages={stages} focus={null} />
+      <ContentChainCard stages={stages} focus={null} onToggleFocus={onToggleFocus} />
     </MemoryRouter>,
   );
 }

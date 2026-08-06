@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DashboardSubject } from "@zetis/types";
+import type { DashboardSeries, DashboardSubject } from "@zetis/types";
 import {
   buildSlotCells,
   COUNCIL_PERIOD_LABEL,
@@ -19,6 +19,21 @@ import {
 // aussi ce qui permet à « Toutes matières » d'exister sans que le serveur pré-agrège, donc au
 // filtrage de ne coûter aucune requête.
 
+// Chaque champ porte une valeur DISTINCTE des autres : un `sumSeries` qui lirait la mauvaise clé
+// (ou qui en oublierait une, la laissant à zéro) rendrait alors un tableau visiblement faux. Des
+// séries toutes égales auraient laissé passer une permutation.
+function series(): DashboardSeries {
+  return {
+    covered: [1, 2],
+    consolidated: [0, 1],
+    fragile: [1, 1],
+    in_progress: [2, 3],
+    gained: [0, 4],
+    lost: [5, 0],
+    reviews: { again: [1, 0], hard: [0, 2], good: [3, 0], easy: [0, 6] },
+  };
+}
+
 function subject(overrides: Partial<DashboardSubject> = {}): DashboardSubject {
   return {
     id: 1,
@@ -36,10 +51,10 @@ function subject(overrides: Partial<DashboardSubject> = {}): DashboardSubject {
     slots_outside_minutes: { "7": 0, "30": 0, "90": 0, "365": 0 },
     notions: { consolidated: 1, fragile: 2, in_progress: 3, total: 10 },
     series: {
-      "7": { covered: [1, 2], consolidated: [0, 1], fragile: [1, 1] },
-      "30": { covered: [1, 2], consolidated: [0, 1], fragile: [1, 1] },
-      "90": { covered: [1, 2], consolidated: [0, 1], fragile: [1, 1] },
-      "365": { covered: [1, 2], consolidated: [0, 1], fragile: [1, 1] },
+      "7": series(),
+      "30": series(),
+      "90": series(),
+      "365": series(),
     },
     review_load: Array.from({ length: 14 }, () => 1),
     gaps_open: 0,
@@ -111,11 +126,19 @@ describe("« Toutes matières » est une somme client", () => {
     expect(maxSlotCell(buildSlotCells([subject()], "7"))).toBe(0);
   });
 
-  it("somme les trois courbes point à point", () => {
+  // ⚠️ Verrou d'EXHAUSTIVITÉ autant que de somme. Une série ajoutée au payload et oubliée dans
+  // `sumSeries` resterait à zéro sur toutes les vues de la carte mémoire — le filtre matière
+  // mentirait sans qu'aucun autre test ne rougisse. Le `toEqual` sur l'objet ENTIER est ce qui
+  // rend l'oubli impossible : une clé manquante le fait tomber.
+  it("somme toutes les séries point à point, sans en oublier aucune", () => {
     expect(sumSeries([subject(), subject({ slug: "svt" })], "7")).toEqual({
       covered: [2, 4],
       consolidated: [0, 2],
       fragile: [2, 2],
+      in_progress: [4, 6],
+      gained: [0, 8],
+      lost: [10, 0],
+      reviews: { again: [2, 0], hard: [0, 4], good: [6, 0], easy: [0, 12] },
     });
   });
 

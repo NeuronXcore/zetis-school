@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import type {
-  DashboardFocus,
   DashboardPeriod,
   DashboardReadingItem,
+  PageFocus,
   ProposedMission,
   ReadingTrend,
 } from "@zetis/types";
@@ -52,7 +52,7 @@ interface ZetisReadingCardProps {
   period: DashboardPeriod;
   proposal: ProposedMission | null;
   withoutMission: number;
-  focus: DashboardFocus | null;
+  focus: PageFocus | null;
   onMissionCreated: () => void;
 }
 

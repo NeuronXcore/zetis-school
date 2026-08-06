@@ -101,10 +101,29 @@ export interface DashboardNotions {
   total: number;
 }
 
+/** Passages SRS notés, par intervalle. Ordre de lecture : `again` (raté) → `easy` (su). */
+export interface DashboardReviewRatings {
+  again: number[];
+  hard: number[];
+  good: number[];
+  easy: number[];
+}
+
 export interface DashboardSeries {
+  // --- Quatre STOCKS, reconstruits à rebours (`projections.reconstruct_series`).
+  // ⚠️ Croissants PAR CONSTRUCTION : aucun ne peut redescendre, aucun ne peut croiser un autre.
+  // Une notion sortie de l'ensemble disparaît de TOUT son passé — elle n'a jamais existé pour la
+  // courbe. C'est ce qui rend une vue « solde » impossible à dériver d'eux.
   covered: number[];
   consolidated: number[];
   fragile: number[];
+  in_progress: number[];
+  // --- Deux FLUX datés (`projections.consolidation_flux`), positifs tous les deux : le sens est
+  // porté par la carte, pas par le signe. Ils NE se réconcilient PAS avec les stocks ci-dessus, et
+  // aucune surface ne doit les présenter comme leur dérivée.
+  gained: number[];
+  lost: number[];
+  reviews: DashboardReviewRatings;
 }
 
 export interface DashboardSubject {
@@ -215,5 +234,22 @@ export interface ProposedMission {
   confirm_href: string;
 }
 
-/** Les quatre KPI, qui sont aussi les quatre focus possibles de la page (ADR-0028 §5). */
+/** Les KPI du bandeau, qui sont aussi des focus de la page (ADR-0028 §5). */
 export type DashboardFocus = keyof DashboardKpis;
+
+/** Cartes qui portent une mesure **sans KPI correspondant dans le bandeau**, et qui prennent donc
+ *  le focus par elles-mêmes, au clic sur leur en-tête.
+ *
+ *  Elles ne sont que deux, et ce n'est pas un hasard : ce sont les seules cartes de la page dont la
+ *  mesure — la charge SRS à venir, l'entonnoir de production — n'est le sujet d'aucun des cinq KPI.
+ *  Sans ce mécanisme elles ne pouvaient QUE s'atténuer, jamais s'allumer : `charge` ne répondait
+ *  qu'à 2 focus sur 5 et `chaine` à 1 sur 5, et aucun clic ne pouvait les désigner. */
+export type DashboardCardFocus = "charge" | "chaine";
+
+/** Ce qui peut tenir le focus de la page : un KPI du bandeau, **ou** une carte autonome.
+ *
+ *  ⚠️ Type distinct de `DashboardFocus`, et non un élargissement de celui-ci : `DashboardFocus`
+ *  vaut `keyof DashboardKpis` et sert les `Record` du bandeau (`KPI_LABELS`, `KPI_FOCUS_HINTS`,
+ *  `KPI_ORDER`). L'élargir aurait forcé à inventer un libellé de KPI pour `charge` et `chaine`,
+ *  qui n'en sont pas. */
+export type PageFocus = DashboardFocus | DashboardCardFocus;

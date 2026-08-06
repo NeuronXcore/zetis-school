@@ -33,6 +33,7 @@ from app.db.models import (
     Skill,
     SkillMastery,
     SkillMasteryHistory,
+    SpacedReviewAttempt,
     SpacedReviewCard,
     StudentProfile,
     Subject,
@@ -55,6 +56,11 @@ from app.modules.progress.service import OPEN_GAP_STATUSES, skills_with_active_m
 # KPI et les séries. La grille est là pour la tendance longue (adr-0028 §6).
 CALENDAR_WEEKS = 26
 REVIEW_LOAD_DAYS = 14
+
+# Les quatre notes de `SpacedReviewAttempt`, de la plus mauvaise à la meilleure. L'ORDRE compte :
+# c'est celui de l'empilement de la carte, et il doit aller du raté (en bas) au su (en haut) pour
+# qu'une pile qui s'éclaircit se lise comme un progrès.
+REVIEW_RATINGS = ("again", "hard", "good", "easy")
 
 _ACTIVE_MISSION_STATUSES = ("planned", "active")
 
@@ -136,6 +142,24 @@ def _entered_fragile_at(db: Session, student_id: int) -> dict[int, date]:
     return {skill_id: local_day(changed_at) for skill_id, changed_at in rows if changed_at}
 
 
+def _entered_in_progress_at(db: Session, student_id: int) -> dict[int, date]:
+    """Symétrique de `_entered_fragile_at` pour les statuts « en cours » (`solid`, `in_progress`).
+
+    Même convention, mêmes limites : une notion absente est réputée « en cours » depuis avant la
+    mise en service de l'historique. Sert la QUATRIÈME série, sans laquelle ni le taux de rétention
+    (dénominateur) ni l'aire empilée ne peuvent être tracés dans le temps.
+    """
+    rows = db.execute(
+        select(SkillMasteryHistory.skill_id, func.max(SkillMasteryHistory.changed_at))
+        .where(
+            SkillMasteryHistory.student_id == student_id,
+            SkillMasteryHistory.status.in_(tuple(p.IN_PROGRESS_STATUSES)),
+        )
+        .group_by(SkillMasteryHistory.skill_id)
+    ).all()
+    return {skill_id: local_day(changed_at) for skill_id, changed_at in rows if changed_at}
+
+
 def _history_since(db: Session, student_id: int) -> date | None:
     """Plus ancienne bascule connue de `skill_mastery_history` — `None` si la table est vide.
 
@@ -163,6 +187,63 @@ def _mastered_at(db: Session, student_id: int) -> dict[int, date]:
         )
     ).all()
     return {skill_id: local_day(when) for skill_id, when in rows if when}
+
+
+def _review_attempts(
+    db: Session, student_id: int, first_day: date
+) -> dict[int, list[tuple[str, date]]]:
+    """Passages SRS notés, par matière : `(note, jour)`.
+
+    C'est la seule donnée du dépôt qui mesure la mémoire elle-même plutôt qu'un palier de maîtrise :
+    une carte revue, une note, une date. `SpacedReviewAttempt` la porte depuis la slice SRS.
+
+    ⚠️ Les re-tours de consolidation (`is_consolidation`) sont **exclus** : un 2e passage de la même
+    carte le même jour est sans effet sur la planification (cf. le modèle), le compter doublerait
+    une révision qui n'a eu lieu qu'une fois.
+    """
+    rows = db.execute(
+        select(Skill.subject_id, SpacedReviewAttempt.rating, SpacedReviewAttempt.reviewed_at)
+        .join(SpacedReviewCard, SpacedReviewCard.id == SpacedReviewAttempt.card_id)
+        .join(Skill, Skill.id == SpacedReviewCard.skill_id)
+        .where(
+            SpacedReviewAttempt.student_id == student_id,
+            SpacedReviewAttempt.reviewed_at >= range_bounds_utc(first_day, first_day)[0],
+            SpacedReviewAttempt.is_consolidation.is_(False),
+        )
+    ).all()
+
+    grouped: dict[int, list[tuple[str, date]]] = {}
+    for subject_id, rating, reviewed_at in rows:
+        if subject_id is None or not reviewed_at:
+            continue
+        grouped.setdefault(subject_id, []).append((rating, local_day(reviewed_at)))
+    return grouped
+
+
+def _mastery_transitions(db: Session, student_id: int) -> dict[int, list[tuple[int, str, date]]]:
+    """Bascules de maîtrise par matière : `(skill_id, statut APRÈS, jour)`.
+
+    Alimente `projections.consolidation_flux`. Contrairement à `_entered_fragile_at`, qui ne garde
+    que la DERNIÈRE entrée par notion, on rend ici **toutes** les lignes : un flux se perd dès qu'on
+    dédoublonne, puisque c'est précisément l'aller-retour qu'il doit montrer.
+    """
+    rows = db.execute(
+        select(
+            Skill.subject_id,
+            SkillMasteryHistory.skill_id,
+            SkillMasteryHistory.status,
+            SkillMasteryHistory.changed_at,
+        )
+        .join(Skill, Skill.id == SkillMasteryHistory.skill_id)
+        .where(SkillMasteryHistory.student_id == student_id)
+    ).all()
+
+    grouped: dict[int, list[tuple[int, str, date]]] = {}
+    for subject_id, skill_id, status, changed_at in rows:
+        if subject_id is None or not changed_at:
+            continue
+        grouped.setdefault(subject_id, []).append((skill_id, status, local_day(changed_at)))
+    return grouped
 
 
 def _covered_at(db: Session) -> dict[int, date]:
@@ -642,7 +723,13 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
     covered_at = _covered_at(db)
     mastered_at = _mastered_at(db, student_id)
     fragile_at = _entered_fragile_at(db, student_id)
+    in_progress_at = _entered_in_progress_at(db, student_id)
     history_since = _history_since(db, student_id)
+    # Bornés à la même profondeur que le reste de l'agrégat : la fenêtre la plus longue et sa
+    # précédente. Charger tout l'historique de révision rendrait des lignes qu'aucune fenêtre ne
+    # dessine.
+    attempts_by_subject = _review_attempts(db, student_id, history_first)
+    transitions_by_subject = _mastery_transitions(db, student_id)
 
     gaps_by_subject: dict[int, int] = {}
     for (subject_id,) in db.execute(
@@ -681,6 +768,9 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
         subject_covered = skill_ids & covered_ids
         consolidated_now = sum(1 for s in statuses if s in p.CONSOLIDATED_STATUSES)
         fragile_now = sum(1 for s in statuses if s in p.FRAGILE_STATUSES)
+        in_progress_now = sum(1 for s in statuses if s in p.IN_PROGRESS_STATUSES)
+        subject_attempts = attempts_by_subject.get(subject.id, [])
+        subject_transitions = transitions_by_subject.get(subject.id, [])
 
         minutes: dict[str, int] = {}
         slots: dict[str, list[list[int]]] = {}
@@ -697,6 +787,7 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
             outside[str(period)] = out
 
             marks = p.series_marks(period, today)
+            gained, lost = p.consolidation_flux(subject_transitions, marks)
             series[str(period)] = {
                 "covered": p.reconstruct_series(
                     len(subject_covered),
@@ -713,6 +804,28 @@ def build_dashboard(db: Session, *, student_id: int) -> dict:
                     [fragile_at[s] for s in skill_ids if s in fragile_at],
                     marks,
                 ),
+                # Quatrième STOCK, même règle que les trois autres — dénominateur du taux de
+                # rétention et quatrième bande de l'aire empilée.
+                "in_progress": p.reconstruct_series(
+                    in_progress_now,
+                    [in_progress_at[s] for s in skill_ids if s in in_progress_at],
+                    marks,
+                ),
+                # Deux FLUX, qui ne se réconcilient avec aucun des stocks ci-dessus (cf. l'entête
+                # de `consolidation_flux`). Ils peuvent redescendre — c'est ce qu'on leur demande.
+                "gained": gained,
+                "lost": lost,
+                # Passages SRS notés par intervalle. `window_days` d'abord : sans lui, un passage
+                # antérieur à la fenêtre atterrirait dans le premier point.
+                "reviews": {
+                    rating: p.bucket_counts(
+                        p.window_days(
+                            [day for note, day in subject_attempts if note == rating], marks
+                        ),
+                        marks,
+                    )
+                    for rating in REVIEW_RATINGS
+                },
             }
 
         subjects.append(

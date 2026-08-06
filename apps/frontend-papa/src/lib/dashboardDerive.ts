@@ -10,11 +10,14 @@
 //
 // Fonctions pures, sans React ni DOM : testables directement.
 import type {
+  DashboardCardFocus,
   DashboardFocus,
   DashboardNotions,
   DashboardPeriod,
+  DashboardReviewRatings,
   DashboardSeries,
   DashboardSubject,
+  PageFocus,
 } from "@zetis/types";
 import type { ActivityHeatmapDay } from "@zetis/types";
 
@@ -194,17 +197,45 @@ export function sumOutsideMinutes(
   return subjects.reduce((total, s) => total + (s.slots_outside_minutes[period] ?? 0), 0);
 }
 
-/** Les trois courbes de « Évolution de la mémoire », sommées point à point. */
+/** Les séries de « Évolution de la mémoire », sommées point à point.
+ *
+ *  ⚠️ Toute série ajoutée au payload doit être sommée ICI. `subjects` est déjà filtré par la
+ *  matière active : une série oubliée resterait à zéro sur toutes les vues sans qu'aucun test ne
+ *  rougisse — le filtre matière mentirait en silence. Le type de retour est le seul garde-fou
+ *  (`DashboardSeries` complet exigé), et il ne couvre que les champs, pas leur justesse. */
 export function sumSeries(
   subjects: DashboardSubject[],
   period: DashboardPeriod,
 ): DashboardSeries {
-  const add = (key: keyof DashboardSeries): number[] => {
-    const rows = subjects.map((s) => s.series[period]?.[key] ?? []);
+  // `NumericSeriesKey` exclut `reviews`, qui est un objet et non un `number[]` : sans cette
+  // restriction, `keyof DashboardSeries` ferait passer `add("reviews")` à la compilation.
+  type NumericSeriesKey = {
+    [K in keyof DashboardSeries]: DashboardSeries[K] extends number[] ? K : never;
+  }[keyof DashboardSeries];
+
+  const sumRows = (rows: number[][]): number[] => {
     const length = Math.max(0, ...rows.map((r) => r.length));
     return Array.from({ length }, (_, i) => rows.reduce((total, r) => total + (r[i] ?? 0), 0));
   };
-  return { covered: add("covered"), consolidated: add("consolidated"), fragile: add("fragile") };
+  const add = (key: NumericSeriesKey): number[] =>
+    sumRows(subjects.map((s) => s.series[period]?.[key] ?? []));
+  const addRating = (key: keyof DashboardReviewRatings): number[] =>
+    sumRows(subjects.map((s) => s.series[period]?.reviews?.[key] ?? []));
+
+  return {
+    covered: add("covered"),
+    consolidated: add("consolidated"),
+    fragile: add("fragile"),
+    in_progress: add("in_progress"),
+    gained: add("gained"),
+    lost: add("lost"),
+    reviews: {
+      again: addRating("again"),
+      hard: addRating("hard"),
+      good: addRating("good"),
+      easy: addRating("easy"),
+    },
+  };
 }
 
 /** Compteurs de notions empilés. Un empilement, pas une décision de statut. */
@@ -242,23 +273,41 @@ export function notAddressed(notions: DashboardNotions): number {
  * cartes justifient ce chiffre*. C'est aussi ce qui rend huit diagrammes praticables sur une
  * page — sans lui, il faudrait en retirer.
  */
-export const CARD_SCOPES: Record<string, DashboardFocus[]> = {
+export const CARD_SCOPES: Record<string, PageFocus[]> = {
   heatmap: ["active_minutes", "active_days"],
   repartition: ["active_minutes"],
-  memoire: ["consolidated", "fragile"],
+  // `charge` : la vue « Révisions » de la carte mémoire montre les MÊMES 14 jours à venir, et le
+  // passé qui les a produits — c'est la seule autre surface qui justifie la charge.
+  // `chaine` : la ligne « couvertes par un cours validé » de la vue « Paliers » EST l'effet de
+  // l'entonnoir de production sur les notions.
+  memoire: ["consolidated", "fragile", "charge", "chaine"],
   notions: ["consolidated", "fragile", "open_gaps"],
   "ou-agir": ["active_minutes", "consolidated", "fragile", "open_gaps"],
-  charge: ["active_days", "consolidated"],
-  chaine: ["open_gaps"],
+  charge: ["active_days", "consolidated", "charge"],
+  chaine: ["open_gaps", "chaine"],
   // « À renforcer » allume la Lecture ZETIS parce qu'elle énonce littéralement « Français : 8
   // notions à renforcer » — c'est la preuve du KPI en toutes lettres. Il n'allume PAS `chaine`
   // (production, pas maîtrise) ni `charge` : un focus qui n'atténue plus rien est un clic qui ne
   // veut plus rien dire (addendum ADR-0028 §5 quinquies).
-  lecture: ["consolidated", "fragile", "open_gaps"],
+  //
+  // En revanche le focus `chaine` allume BIEN la Lecture ZETIS : c'est elle qui propose quoi
+  // produire. La relation n'est pas symétrique, et n'a aucune raison de l'être — « quelles cartes
+  // justifient cette mesure » n'est pas « quelles mesures cette carte justifie ».
+  lecture: ["consolidated", "fragile", "open_gaps", "chaine"],
+};
+
+/** Les deux cartes qui peuvent prendre le focus au clic, et le libellé de leur mesure.
+ *
+ *  ⚠️ `Record<DashboardCardFocus, …>` et non un tableau — même leçon que `FOCUSES` dans
+ *  `useDashboard` : un tableau reste valide en étant incomplet, un `Record` typé PAR l'union ne le
+ *  peut pas. C'est la quatrième fois que cette règle se paie dans ce dépôt. */
+export const CARD_FOCUS_HINTS: Record<DashboardCardFocus, string> = {
+  charge: "Filtre actif → mémoire",
+  chaine: "Filtre actif → mémoire & lecture",
 };
 
 /** La carte répond-elle à la question posée par le focus courant ? */
-export function matchesFocus(card: string, focus: DashboardFocus | null): boolean {
+export function matchesFocus(card: string, focus: PageFocus | null): boolean {
   if (!focus) return true;
   return (CARD_SCOPES[card] ?? []).includes(focus);
 }
