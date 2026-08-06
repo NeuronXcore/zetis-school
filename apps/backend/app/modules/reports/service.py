@@ -163,7 +163,18 @@ def _build_context(
         },
     }
     allowed_subject_ids = {s["subject_id"] for s in subjects_ctx}
-    return context, allowed_subject_ids, allowed_skill_ids
+    # Matières pour lesquelles l'évidence porte au moins une BASCULE DE PALIER datée (adr-0040 §8.1).
+    #
+    # ⚠️ Structurellement VIDE au Lot 0, et ce n'est pas un oubli : la mesure (`mastery_transitions`
+    # dans `evidence`) est le Lot 1, et lire `skill_mastery_history` ici serait hors périmètre.
+    # Conséquence voulue — avec l'évidence d'aujourd'hui, `_anchor` vide `recent_evolution` PARTOUT,
+    # ce qui est exact : aucune source ne peut produire cette valeur.
+    #
+    # Le set existe malgré cela plutôt qu'un `None` écrit en dur, pour que le Lot 3 le REMPLISSE au
+    # lieu de défaire du code. Il est le miroir exact d'`allowed_skill_ids` : même forme, même
+    # place, même rôle d'ancrage.
+    subjects_with_transitions: set[int] = set()
+    return context, allowed_subject_ids, allowed_skill_ids, subjects_with_transitions
 
 
 def _try_validate(raw: str) -> tuple[CouncilReportSpec | None, str | None]:
@@ -174,9 +185,19 @@ def _try_validate(raw: str) -> tuple[CouncilReportSpec | None, str | None]:
 
 
 def _anchor(
-    spec: CouncilReportSpec, allowed_subject_ids: set[int], allowed_skill_ids: set[int]
+    spec: CouncilReportSpec,
+    allowed_subject_ids: set[int],
+    allowed_skill_ids: set[int],
+    subjects_with_transitions: set[int],
 ) -> list[dict]:
-    """Ne garde que les matières et `skill_id` présents dans l'évidence (anti-hallucination)."""
+    """Ne garde que les matières et `skill_id` présents dans l'évidence (anti-hallucination).
+
+    Écrase aussi `recent_evolution` à `None` sur toute matière dont l'évidence ne porte aucune
+    bascule (adr-0040 §8.1) — **quoi que le modèle ait écrit**. Le garde-fou existait pour les
+    `skill_id` et pas pour ce champ : la validation portait sur le TYPE, jamais sur le CONTENU,
+    et un `str` non-nullable OBLIGEAIT le producteur à remplir. Le résultat était figé dans
+    `subjects_json`, donc rétroactivement indiscernable du vrai.
+    """
     out: list[dict] = []
     for s in spec.subjects:
         if s.subject_id not in allowed_subject_ids:
@@ -200,7 +221,9 @@ def _anchor(
                 "subject_name": s.subject_name,
                 "strengths": s.strengths,
                 "to_reinforce": s.to_reinforce,
-                "recent_evolution": s.recent_evolution,
+                "recent_evolution": (
+                    s.recent_evolution if s.subject_id in subjects_with_transitions else None
+                ),
                 "recommendations": recos,
             }
         )
@@ -228,7 +251,10 @@ def _to_out(db: Session, report: CouncilReport) -> dict:
                 "subject_name": s.get("subject_name", ""),
                 "strengths": s.get("strengths", ""),
                 "to_reinforce": s.get("to_reinforce", ""),
-                "recent_evolution": s.get("recent_evolution", ""),
+                # Pas de défaut `""` : un rapport figé AVANT ce lot garde sa prose telle quelle
+                # (aucune réécriture, adr-0040 §8), et l'absence de clé doit se rendre `None` —
+                # une chaîne vide se confondrait avec « le modèle n'a rien eu à dire ».
+                "recent_evolution": s.get("recent_evolution"),
                 "recommendations": recos,
             }
         )
@@ -254,7 +280,7 @@ def generate_council_report(
     `subject_id` = portée matière (`adr-0020-addendum-portee-matiere`). `None` = global.
     """
     period = (period or "").strip() or _default_period(db, student)
-    context, allowed_subject_ids, allowed_skill_ids = _build_context(
+    context, allowed_subject_ids, allowed_skill_ids, subjects_with_transitions = _build_context(
         db, student, period, subject_id=subject_id
     )
 
@@ -323,7 +349,9 @@ def generate_council_report(
             db.commit()
             raise CouncilGenerationError(error or "sortie LLM invalide")
 
-        spec_subjects = _anchor(spec, allowed_subject_ids, allowed_skill_ids)
+        spec_subjects = _anchor(
+            spec, allowed_subject_ids, allowed_skill_ids, subjects_with_transitions
+        )
         global_summary = spec.global_summary
 
     report = CouncilReport(

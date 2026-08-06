@@ -377,6 +377,57 @@ def test_l_ancrage_rejette_une_autre_matiere_en_portee_ciblee(client_db) -> None
     assert body["subjects"] == [], "une matière hors portée doit être rejetée par l'ancrage"
 
 
+def test_l_evolution_recente_est_ECRASEE_quand_l_evidence_ne_porte_aucune_bascule(
+    client_db,
+) -> None:
+    """Miroir exact du verrou de portée matière, sur le CONTENU au lieu de la PORTÉE (adr-0040 §8.1).
+
+    Le défaut corrigé : `recent_evolution` était un `str` NON-NULLABLE pour une valeur qu'aucune
+    source ne peut produire — le `period` du Conseil ne sélectionne aucune donnée. Le producteur
+    remplissait donc parce que le TYPE l'y obligeait, et la phrase inventée était figée dans
+    `subjects_json`, devenant rétroactivement indiscernable d'une observation réelle.
+
+    ⚠️ L'assertion qui compte porte sur le FIGÉ, pas sur la réponse HTTP. Un écrasement fait à la
+    sérialisation laisserait la base mentir en silence, et c'est la base qu'on relit dans six mois.
+    """
+    client, Session = client_db
+    sujet_a, skill_a, _sujet_b, _skill_b = _seed_deux_matieres(Session)
+    _as_parent()
+    # Le modèle AFFIRME une évolution. L'évidence n'en porte aucune : elle doit disparaître.
+    app.dependency_overrides[get_provider] = lambda: FakeLLMProvider(
+        council={
+            "global_summary": "Synthèse.",
+            "subjects": [
+                {
+                    "subject_id": sujet_a,
+                    "subject_name": "Mathématiques",
+                    "strengths": "",
+                    "to_reinforce": "",
+                    "recent_evolution": "Nette progression depuis trois semaines.",
+                    "recommendations": [
+                        {"skill_ids": [skill_a], "template_hint": "", "justification": "x"}
+                    ],
+                }
+            ],
+        }
+    )
+
+    body = client.post("/api/reports/class-council", json={"subject_id": sujet_a}).json()
+
+    assert body["subjects"], "la matière ciblée doit bien être narrée : on teste le champ, pas l'ancrage"
+    assert body["subjects"][0]["recent_evolution"] is None, (
+        "le serveur doit écraser l'évolution que l'évidence ne porte pas"
+    )
+    with Session() as db:
+        rapport = db.scalar(select(m.CouncilReport).order_by(m.CouncilReport.id.desc()))
+        fige = rapport.subjects_json
+        version = rapport.prompt_version
+    assert fige[0]["recent_evolution"] is None, (
+        "le rapport FIGÉ ne doit pas conserver la phrase inventée — c'est lui qu'on relira"
+    )
+    assert version == "v3", "la marque de lecture de l'écran se dérive de cette version"
+
+
 def test_le_conseil_GLOBAL_reste_inchange(client_db) -> None:
     """Rétrocompatibilité stricte : `{}` et `{"period": …}` continuent de tout narrer."""
     client, Session = client_db

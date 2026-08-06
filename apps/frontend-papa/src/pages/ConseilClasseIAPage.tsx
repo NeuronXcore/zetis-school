@@ -248,6 +248,19 @@ function EquipDonePopup({
   );
 }
 
+/**
+ * Marque de lecture des rapports antérieurs au prompt v3 (ADR-0040 §8).
+ *
+ * Avant v3, `recent_evolution` était un `str` NON-NULLABLE pour une valeur qu'aucune source ne
+ * pouvait produire : le modèle remplissait par obligation de type, et la phrase était figée. On ne
+ * réécrit aucun rapport figé — on SIGNALE. La marque est auto-périmée : elle s'éteint d'elle-même
+ * à mesure que les rapports v3 s'accumulent, comme l'avertissement `history_since` du dashboard.
+ */
+function evolutionSansHistoriqueDate(promptVersion: string): boolean {
+  const n = Number(promptVersion.replace(/^v/i, ""));
+  return Number.isFinite(n) && n < 3;
+}
+
 function downloadMarkdown(filename: string, content: string): void {
   const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -282,6 +295,9 @@ export function ConseilClasseIAPage() {
   const pct = useEstimatedProgress(c.generating, GEN_MS);
   const subjectById = new Map(c.subjects.map((s) => [s.id, s]));
   const busy = c.equipping !== null;
+  // Calculé ici, hors du rendu : `c.report` est narrowé par le `!c.report ?` du JSX, mais la
+  // narrowing se perd dans la closure du `.map` sur les matières (propriété d'un objet mutable).
+  const evolutionNonDatee = c.report ? evolutionSansHistoriqueDate(c.report.prompt_version) : false;
 
   // Popup éphémère de fin : apparaît quand le flux équipe+crée se termine, s'efface seul après 6 s.
   useEffect(() => {
@@ -449,9 +465,22 @@ export function ConseilClasseIAPage() {
                       <span className="text-amber-300">À renforcer :</span> {s.to_reinforce}
                     </p>
                   )}
-                  {s.recent_evolution && (
+                  {/* L'absence s'ÉCRIT (ADR-0040 §8.4). Ne rien rendre laisserait lire « aucun
+                      mouvement » là où il faut lire « aucune trace » — les deux ne se corrigent
+                      pas l'un l'autre. */}
+                  {s.recent_evolution ? (
                     <p className="mt-1 text-sm">
                       <span className="text-sky-300">Évolution :</span> {s.recent_evolution}
+                      {evolutionNonDatee && (
+                        <span className="ml-1 text-xs text-papa-muted">
+                          (évolution rédigée sans historique daté)
+                        </span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-sm text-papa-muted">
+                      <span className="text-sky-300">Évolution :</span> aucune bascule de palier sur
+                      la trace disponible — absence de trace, pas absence de mouvement.
                     </p>
                   )}
                   {s.recommendations.map((r, i) => (
