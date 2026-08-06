@@ -7,130 +7,106 @@
 
 ## État à la reprise
 
-**Chantier : ADR-0041 « Tout ce qui produit se voit » — Slice A, EN COURS. Rien n'est mergé, rien n'est poussé depuis le commit de documentation.**
-
-🔴 **Ne PAS merger.** Trois critères d'acceptation de la Slice A ne sont pas tenus (plus bas), et
-**aucun écran n'a été regardé**. La branche `feat/barre-de-production` porte le seul état réel.
+**Chantier : ADR-0041 « Tout ce qui produit se voit » — les TROIS slices + l'addendum Journal sont
+COMPLETS. Rien n'est mergé ; des commits ne sont pas encore poussés.**
 
 | | |
 |---|---|
-| **Branche** | `feat/barre-de-production`, **base `dc1a6ed`** (= tête de `main`). Le code de la slice n'est **pas commité** — voir `git status` |
-| **Sur `main`** | `dc1a6ed` — l'ADR-0041 + la ligne `DECISIONS.md`. `b7bbe77` sur la branche — spec + maquette + prompts |
-| **Migration** | `b3c4d5e6f7a8` — ✅ **appliquée sur le vrai Postgres de dev** (`a1b2c3d4e5f9 → b3c4d5e6f7a8 (head)`) |
-| **Routes nouvelles** | `GET /api/production/activity` · `POST /api/production/activity/{kind}/{id}/ack`, toutes deux `require_parent` |
-| **Contrat modifié** | 🔴 `POST /api/reports/class-council/equip-notion` rend **202 + `{job_id, status}`** au lieu du kit. `JobOut` gagne `error` |
-| **Suites, réellement lancées** | backend **963 ✅** (953 avant) · Papa **610 ✅** · `tsc -b` et `vite build` propres |
-| **Vu à l'écran** | ✅ **LES SIX CONTRÔLES SONT JOUÉS** (2026-08-06, vrai Chrome, vraies générations). La barre a été **vue tourner** : « en file » → « Équipement · Idée essentielle — ≈ 36 % » → `succeeded` en **77 227 ms**. Route rendue en **164 ms** au lieu de ~69 s. Deux défauts réels trouvés à l'écran et corrigés ; le 6ᵉ contrôle a fait apparaître deux dettes (plus bas) |
+| **Branche** | `feat/barre-de-production`, **base `dc1a6ed`** (= tête de `main`, inchangée). Arbre **propre** — tout est commité. Voir `git log --oneline main..HEAD` |
+| **Non poussé** | ⚠️ Des commits sont en avance sur `origin` — la PR #94 ne les voit donc pas encore. Voir `git log --oneline origin/feat/barre-de-production..HEAD` |
+| **PR** | [#94](https://github.com/NeuronXcore/zetis-school/pull/94), **OPEN**, en retard sur la branche |
+| **Migration** | `b3c4d5e6f7a8` — ✅ appliquée sur le vrai Postgres de dev (`alembic current` = head). **Aucune autre migration** dans les slices B, C ni l'addendum |
+| **Suites, réellement lancées** | backend **980 ✅** · Papa **625 ✅** · Massimo **525 ✅** · `tsc -b` et `vite build` propres |
 
-### FAIT
+### FAIT — les trois slices et l'addendum
 
-**Le backend est complet et testé.** `AIJob` cesse d'être une trace et devient un travail de file :
-statut `queued` réellement employé, ligne **commitée avant l'enfilement**, deux premiers index de
-la table (elle n'en avait aucun depuis sa création). Deux files RQ dont la priorité se **dérive**
-de l'origine — `production_worker` cesse de fabriquer sa propre `Queue`. Module neutre
-`production/activity.py` + son routeur, `run_out()` applique enfin `run_status()`, `JobOut` expose
-son motif d'erreur, `equip_notion` migré en travail de file.
+**Slice A — la barre.** `AIJob` cesse d'être une trace et devient un travail de file (commité avant
+l'enfilement, deux index, `acknowledged_at`). Deux files RQ dont la priorité se **dérive** de
+l'origine. `GET /api/production/activity` normalise lots et travaux. La barre du header porte cinq
+états et une échelle de repli. `equip_notion` migré.
 
-**La barre du header est écrite** (`components/ProductionBar.tsx` + `ProductionEdge`), branchée sur
-`useProductionActivity`. Elle porte les cinq états, l'échelle de repli en `ResizeObserver`
-(seuils 980 / 880 / 800), et **conserve toute la doctrine** de la pastille qu'elle remplace.
+**Slice B — la durabilité.** `QueueUnavailable` + compensation sur les quatre chemins d'enfilement
+(`503`, et **rien ne subsiste en base**). Rejeu **borné et typé** : deux tentatives sur transitoire,
+**zéro** sur structurel — obtenu en *retenant* l'exception, puisque `rq.Retry` rejoue sur tout ce
+qui remonte. `production/sweep.py` : un travail unitaire mort se **lit** `stale` (dérivé, instantané)
+et se referme au réveil du scan.
 
-**Trois défauts trouvés au read-before-code, avant d'écrire une ligne** — c'est le livrable le plus
-utile de la session :
+**Slice C — quinze producteurs en file, et la mort des vingt-trois constantes.** Fiche, carte
+mentale, quiz (×2 chacun), cours, diagnostic, cartes SRS (×2), capsule (script, régénération,
+**voix**), chapitres, leçons, extension, rattrapage skills-only. Un seul point d'enfilement
+(`ai/travaux.enfiler`). 🔴 Les refus restent **synchrones** — la file diffère le travail, jamais le
+verdict sur la demande. Seize barres lisent désormais `useProgressionEstimee(actif, "<job_type>")` ;
+`GENERATION_MS`, `SCOPE_MS`, `KIT_MS_PER_NOTION` et `WORK_ESTIMATION_MS` sont **supprimées**, et
+`DETTE_SLICE_C` est **dissoute** — le cliquet est redevenu un interdit à zéro.
 
-1. 🔴 **`AIJob.trigger` était une faute, et l'ADR se contredisait à une ligne d'intervalle** : son
-   §3.3 refuse une colonne « qui duplique une dérivation » pendant que son §3.2 en ajoutait une.
-   `db/models/production.py` l'interdit en tête de fichier. **Colonne supprimée** ; l'origine se
-   dérive (*hors lot ⇒ manual*, vérifié : les deux scans passent par `create_run`). ADR corrigé.
-2. 🔴 **`runs.run_out()` émettait déjà `progress_pct: 0`** sur un lot en file, rattrapé côté
-   client. `/activity` devenant la source unique, le réutiliser aurait **déplacé le mensonge vers
-   le serveur**. `/activity` émet `null`. ADR corrigé (§1).
-3. 🔴 **Sans backfill, tous les échecs de l'historique** remonteraient comme non acquittés au
-   premier démarrage. La migration les date à leur `finished_at`. L'ADR annonçait « aucun
-   backfill » — il en fallait un, il est écrit et motivé dans la migration.
+**Addendum Journal (§16-§18).** Le Journal lit les deux modèles, en **un flux chronologique paginé
+en SQL sur leur union**. Un travail y dit ce qu'il sait et **se tait sur le reste** : ni régime, ni
+pièces, **ni veto**. Un filtre qu'il ne porte pas l'écarte, et la page l'annonce.
 
-### ✅ Vérifié à l'écran, contrôle par contrôle
+### ✅ Vérifié à l'écran (vrai Chrome, vraies générations)
 
-| Contrôle | Résultat mesuré |
-|---|---|
-| Équipement réel, observé sur toute sa durée | ✅ 202 en 164 ms · « en file » · « ≈ 36 % » · `succeeded` en 77 227 ms (l'estimation de 69 s tient) |
-| Changement de route pendant un travail | ✅ 53 → 55 → **61 %** de `/` à `/progression` : la barre survit et ne repart pas de zéro |
-| Empilement en file | ✅ « +2 en attente », ordre 610 → 611 → 612 respecté |
-| Arrêt provoqué (worker tué) | ✅ « ZETIS ne produit pas », point **sans pulsation**, **aucun pourcentage** |
-| Responsive | ✅ après correctif — pilule 30 → **227 px**, libellé 0 → **47 px** |
-| Même travail depuis le Conseil | ⚠️ joué, **et il révèle deux dettes** (voir DETTES ci-dessous) |
+- **Slice A** : les six contrôles joués le 2026-08-06. La barre **vue tourner** (`77 227 ms`),
+  route rendue en 164 ms au lieu de ~69 s. Quatre défauts trouvés à l'œil et corrigés.
+- **Slice C + addendum** : génération réelle de cartes SRS. **Les deux barres disent la même
+  chose** — header `≈ 62 %`, page `64 %`, un tic de sondage d'écart : la promesse du §9 tenue.
+  `GET /production/estimations` appelé et servi. L'échec reste **avec son motif brut**, et
+  « J'ai vu » l'efface (`acknowledged_at` écrit en base). Le Journal montre la ligne de travail à
+  sa place chronologique, **sans bouton de retrait**.
 
-**Deux défauts réels, invisibles de tout test, trouvés en regardant** :
-
-1. 🔴 **`production_worker_alive()` affirmait une santé sur une file que personne n'écoutait.** Un
-   worker démarré avant l'ajout de la file prioritaire n'écoute que l'ancienne : 1 job en attente,
-   0 worker sur sa file, 2 sur l'autre. C'est la panne de six heures du 2026-08-05 réintroduite par
-   la file qu'on venait d'ajouter. Corrigé en `all()`, verrou saboté.
-2. 🔴 **La barre s'écrasait à 30 px** au lieu de se replier : elle mesurait son propre conteneur,
-   déjà écrasé quand elle le lit. Corrigé — elle mesure le `<header>`, a un plancher, et le
-   contexte (« Période », « Exporter ») cède avant elle.
-
-### ▶ EN COURS — ce qui reste de la Slice A
-
-✅ **Les deux `EQUIP_MS` sont MORTES** (2026-08-06) — le critère est tenu. Elles sont remplacées
-par `WORK_ESTIMATION_MS` dans `lib/production.ts`, **la seule durée estimée du frontend Papa**, et
-la seule qui ait jamais été mesurée. Surtout : `equipNotion()` rapporte désormais l'état SERVEUR
-qu'il sondait déjà (`onEtat`), donc les barres locales n'avancent que sur un travail réellement
-`running`. Verrou `src/lib/estimation-unique.test.ts` — un **cliquet** : il inscrit la dette
-restante (11 fichiers, producteurs non migrés) et interdit qu'elle GRANDISSE ; saboté dans les deux
-sens (barre en dur ajoutée / dette réglée mais laissée inscrite).
-
-⚠️ **Ce qui reste de l'ancien texte, pour mémoire** — le motif d'origine :
-Motif : un blocage que le cadrage n'avait pas vu — `useCouncilClass.ts:195` équipe N notions
-**puis** crée les missions, *« leurs étapes résolvent les ressources fraîches »*. Rendre l'appel
-non bloquant casserait cet ordre. **Parade posée, rien n'est cassé** : `equipNotion()` sonde
-`GET /ai/jobs/{id}` jusqu'à complétion (2 s, plafond 15 min), donc les deux appelants attendent
-toujours le kit — mais la requête HTTP ne tient plus 90 s et la barre du header montre l'avancement
-réel, sur toutes les pages. **Ce qu'il reste : décider si l'attente doit disparaître, et comment.**
-
-✅ **`ActiveProductionModal` est une liste** (2026-08-06) : ordre de file numéroté, origine par
-travail, échecs en tête avec leur bouton. `/activity` rend `queued` en plus de son compte.
-
-⚠️ **La migration n'est pas appliquée**, même en dev.
+🔴 **Quatre défauts n'ont été trouvés QU'À L'ÉCRAN ce jour-là** — c'est l'argument central de l'ADR,
+vérifié une fois de plus : l'estimation sous-estimait d'un facteur 8 (les traces imbriquées
+écrasaient la statistique), la médiane ne décrivait rien sur une population multimodale, le header
+affichait `srs_cards_generate` à Papa, et les deux textes du Journal étaient devenus faux.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-- **Deux modèles, une lecture.** `ProductionRun` = le lot pédagogique ; `AIJob` = le travail
-  unitaire. On ne les fusionne pas — `/activity` les normalise.
-- **L'origine et la file se DÉRIVENT**, aucune colonne ne les stocke.
-- **`pct = null`, jamais 0.** Zéro n'est pas une valeur basse, c'est une absence de mesure.
-- **`pct_is_measured`** distingue deux régimes de vérité : `7 / 31 · 23 %` vs `≈ 40 %`.
-- **Le travail en cours n'est jamais interrompu** — « passer devant » = prendre le prochain créneau.
-- **L'échec reste jusqu'à acquittement**, serveur (`acknowledged_at`), jamais `localStorage`.
-- **Concurrence 1** (un Ollama, un GPU) : non rouverte.
-- **Massimo ne voit rien** (`adr-0026` §4).
+- **Le motif d'échec est rendu TEL QUEL, sans traduction** (décision du commanditaire, 2026-08-06).
+  ⚠️ Ne pas confondre avec le **libellé** de ce qui se passe, qui lui est traduit (`LIBELLE_JOB`).
+- **`pct = null`, jamais `0`.** Zéro n'est pas une valeur basse, c'est une absence de mesure.
+- **Le p75 avec un plancher de 2 s**, pas la médiane, et surtout pas la moyenne — motivé par une
+  mesure réelle dans `ai/travaux.py`. Ne pas « affiner » les amorces à la main.
+- **Seules les lignes de FILE (`created_by="file"`) nourrissent l'estimation**, jamais les traces.
+- **La dérogation cloud ADR-0009 traverse la file** : les exécutants `curriculum_*` reprennent
+  `get_curriculum_provider()` eux-mêmes, `run_ai_job` passant le moteur LOCAL.
+- **`ai/travaux.py` vit dans `ai/`, pas dans `production/`** — un verrou d'architecture l'exige.
+- **Un travail unitaire n'a ni régime, ni veto** (addendum §17), et ce n'est pas un oubli.
+- **Massimo ne voit rien** de la production (ADR-0026 §4).
 
-### ⚠️ Pièges payés en vrai — voir `TROUBLESHOOTING.md` §`feat/barre-de-production`
+### ⚠️ Pièges payés en vrai — voir `TROUBLESHOOTING.md`
 
-- 🔴 **Ajouter une file rend `production_worker_alive()` menteur** — trouvé à l'écran, invisible de tout test : le travail dormait sur la file prioritaire pendant que l'indicateur affirmait `worker_alive: true`. Corrigé en `all()`, verrou saboté. **Après tout ajout de file : redémarrer le worker.**
-- `conftest.py` remplace les **fabriques** de file : `priority_queue` devait y être ajouté, sinon
-  la fuite se rouvrait sur le chemin le plus testé.
-- Un index change l'ordre d'un `select` **sans `ORDER BY`** — `_jobs()` de
-  `test_lesson_content_service.py` lisait « l'ordre de création » par coïncidence.
-- La pilule de la barre **s'écrasait au lieu de se replier** : mesuré, libellé à 0 px pour 244 px
-  de pilule.
-- `graphify affected "active_run"` rend **« No affected nodes »** alors qu'un routeur l'appelle.
+Quatre sections y sont écrites : `feat/barre-de-production` (slice A), sa **Slice B**, sa
+**Slice C**, et la **vérification à l'écran**. Les plus coûteux : un `SimpleWorker` RQ **ne
+recharge jamais le code** ; `vi.mock` sur un module ne change pas ce qu'il s'appelle à lui-même ;
+retirer un `Depends` retire aussi **ce qu'il lève** ; un `toContain` sur un nom de champ reste vert
+quand la règle est violée.
 
 ### ▶ PROCHAIN PAS
 
-**Faire mourir les deux `EQUIP_MS`** — c'est le critère d'acceptation non tenu de la Slice A, et le
-contrôle 2 vient de démontrer POURQUOI il compte : une surface qui devine et une surface qui mesure
-ne peuvent pas rester d'accord.
+1. **Pousser la branche** — la PR #94 est en retard sur elle.
+2. **Décider si les vérifications d'écran manquantes bloquent le merge** (voir dettes ci-dessous).
+3. Puis PR → merge → **étape 4bis** (`WORKFLOW.md §5`) : remettre ce fichier au réel.
 
-Read-before-code obligatoire sur `useCouncilClass.ts` (l'ordre « équiper puis composer ») et
-`SubjectDetailRow.tsx`. La question à trancher : `equipNotion()` sonde aujourd'hui jusqu'à
-complétion pour préserver cet ordre — faut-il le garder, ou déplacer l'enchaînement côté serveur ?
+### ⚠️ DETTES OUVERTES — nées de ce chantier
 
-Dans la même passe : le **réveil immédiat de la barre** à l'enfilement (dette ci-dessous), qui se
-teste avec exactement le même geste.
-
-⚠️ L'environnement est prêt : migration appliquée, worker à jour sur les deux files, serveurs
-debout (backend `:8000`, Massimo `:5173`, Papa `:5174`).
+- 🔴 **Le critère d'écran de la Slice C n'est pas tenu.** Il demandait **trois producteurs
+  différents lancés en vrai, dont un depuis deux écrans distincts, plus un empilement de trois
+  travaux en file**. Un seul producteur (cartes SRS) a été lancé, sans empilement. Le code est
+  livré et vert ; c'est la **confiance** qui manque, pas le travail.
+- 🔴 **Les slices B et C n'ont pas été vérifiées sur leurs propres scénarios** : `503` avec Redis
+  coupé, rejeu transitoire, état « arrêté » après les changements, responsive.
+- ⚠️ **Une barre estime encore localement** : l'analyse par matière, **seul producteur LLM du dépôt
+  qui n'écrit aucune trace `ai_jobs`** — il n'y a donc rien à mesurer. La tracer d'abord. Motif
+  inscrit dans le test-cliquet.
+- ⚠️ **Les pièces produites hors lot ne sont pas tamponnées**, donc le veto ne s'ouvre pas sur
+  elles. C'est la seule voie vers un Journal réellement unifié ; l'addendum le dit et ne le fait pas.
+- ⚠️ **Deux dettes nommées par l'ADR-0041 §11, non traitées** : persistance Redis non configurée
+  (« rien ne se perd » n'est vrai qu'**au-dessus** de Redis) et `docker-compose.prod.yml` sans
+  service de worker de production.
+- ⚠️ **Données de dev laissées telles quelles** : 20 cartes SRS générées en Anglais, un `AIJob`
+  `failed` acquitté (`659`), et le fichier `docs/frontend-massimo/mockup/maquette-papa-header-production.html`
+  — un brouillon **dans le mauvais dossier**, non suivi par Git.
+- ⚠️ **Deux workers de production tournent** (démarrés pendant la session). Un troisième, périmé,
+  a été arrêté : un `SimpleWorker` ne recharge pas le code, et il faisait échouer un job sur trois.
 
 ### ⚠️ DETTES OUVERTES — nées du contrôle 2 (Conseil de classe)
 

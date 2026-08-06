@@ -1164,6 +1164,20 @@ finie. Aucun filtre à écrire pour l'exclure de `/activity`.
 |---|---|---|
 | `acknowledged_at` | `ai_jobs`, `production_runs` | Papa a-t-il VU cet échec ? Serveur, jamais `localStorage` |
 
+🔴 **Règle de lecture ajoutée le 2026-08-06 : `ai_jobs.created_by = "file"` distingue un TRAVAIL
+d'une TRACE.** Les deux natures portent le même `job_type`, et les traces sont **beaucoup plus
+nombreuses** (une par appel LLM contenu dans le travail). Deux lectures en dépendent :
+
+- l'**estimation de durée** (`ai/travaux.estimations`) ne compte que les lignes de file. Sans ce
+  filtre, elle annonçait **7,2 s pour un travail de 53,6 s** — mesuré en base ;
+- le **Journal de production** n'affiche que les lignes de file (addendum ADR-0041 §16) : 143 traces
+  pour une poignée de gestes le noieraient.
+
+⚠️ `created_by` porte l'**acteur**. Celui d'un travail de file est le worker de production, pas la
+requête HTTP qui l'a demandé — même usage que `"worker-media"`. Tout créateur de ligne de file doit
+poser cette valeur (`travaux.ACTEUR_FILE`), sinon son travail est compté comme une trace **en
+silence**.
+
 **Deux index sur `ai_jobs`, ses premiers** — la table n'en avait **aucun** depuis sa création
 (`5678d02df7f6`), alors que `quizzes/service.py` la balaie entièrement à deux endroits :
 
