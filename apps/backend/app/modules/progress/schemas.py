@@ -264,9 +264,37 @@ class SkillIndexSubjectOut(BaseModel):
     slug: str | None = None
 
 
+class DatedFactOut(BaseModel):
+    """Un fait DATÉ de la vue période (§2). Cinq natures, un seul schéma.
+
+    ⚠️ Ni XP ni production : l'XP est le seul compteur que le journal ne pourrait pas recomposer
+    (`XPEvent` n'a pas de `skill_id`), et la production mesure le stock de contenu, pas la
+    progression. Aucun palier, aucun stock non plus — une fenêtre posée sur un palier est un
+    mensonge, posée sur un fait daté elle est exacte.
+    """
+
+    # mastery_transition | gap_opened | gap_resolved | mission_done | quiz_scored | review_scored
+    kind: str
+    at: str
+    skill_id: int | None = None
+    skill_name: str | None = None
+    subject_id: int | None = None
+    # Renseignés selon la nature, jamais tous ensemble.
+    from_status: str | None = None
+    to_status: str | None = None
+    severity: str | None = None
+    verdict: str | None = None
+    score: int | None = None
+    rating: str | None = None
+
+
 class SkillIndexOut(BaseModel):
     notions: list[SkillIndexRowOut] = []
     subjects: list[SkillIndexSubjectOut] = []
+    # Servi sur la fenêtre la PLUS LARGE (365 j) ; le client filtre à 7/30/90 sans requête. C'est
+    # ce qui permet au §6 d'être tenu : les compteurs se dérivent du journal AFFICHÉ.
+    facts: list[DatedFactOut] = []
+    facts_since: str | None = None
     # Les débuts de trace, déclarés à l'écran (§6) : un compteur bas dit « pas de trace », jamais
     # « pas de mouvement ». `None` = aucune trace du tout.
     history_since: str | None = None

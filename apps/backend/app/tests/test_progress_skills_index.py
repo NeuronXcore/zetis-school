@@ -255,3 +255,68 @@ def test_la_route_skills_repond_et_declare_ses_bornes(client_db) -> None:
     assert len(body["notions"]) >= 2 and len(body["subjects"]) >= 1
     # Déclarés même vides : c'est leur ABSENCE qui doit être lisible, pas leur omission.
     assert "history_since" in body and "reviews_since" in body
+
+
+def test_le_journal_EXCLUT_l_xp_et_la_production(client_db) -> None:
+    """🔴 Les deux exclusions du §2, et elles n'ont pas le même motif.
+
+    **L'XP** apparaîtrait sous le même mot que la colonne « depuis toujours » de la vue matière —
+    deux nombres, un mot — et il est le SEUL compteur que le journal ne pourrait pas recomposer
+    (`XPEvent` n'a pas de `skill_id`), ce qui casserait l'invariant du §6 pour tous les autres.
+
+    **La production** est datée, mais elle mesure le stock de CONTENU, pas la progression de
+    Massimo : sa maison est Couverture.
+
+    Ce verrou porte sur les NATURES servies, pas sur un rendu : c'est en ajoutant une nature « utile »
+    au journal qu'on rouvrirait le §2 sans s'en apercevoir.
+    """
+    client, Session = client_db
+    _as_parent()
+    with Session() as db:
+        student_id, skills = _seed(db, notions=1, subjects=1)
+        db.add(m.XPEvent(student_id=student_id, amount=50, reason="mission", created_at=datetime.now(timezone.utc)))
+        db.commit()
+        facts = skills_service.dated_facts(
+            db, student_id=student_id, since=datetime.now(timezone.utc) - timedelta(days=365)
+        )
+
+    natures = {f["kind"] for f in facts}
+    assert natures <= {
+        "mastery_transition",
+        "gap_opened",
+        "gap_resolved",
+        "mission_done",
+        "quiz_scored",
+        "review_scored",
+    }, "une nature hors du §2 s'est glissée dans le journal"
+    assert not any("xp" in f["kind"] for f in facts), "l'XP n'a rien à faire dans la vue période"
+    assert not any(
+        f["kind"].startswith(("lesson", "fiche", "mindmap", "capsule", "production"))
+        for f in facts
+    ), "la production mesure le stock de contenu, pas la progression — sa maison est Couverture"
+
+
+def test_une_fenetre_large_ne_cree_pas_de_bascule(client_db) -> None:
+    """Le corollaire TESTABLE du §6, celui que l'écran doit expliquer.
+
+    Sur 90 jours, le compte des bascules est IDENTIQUE à celui de 7 jours si rien n'a bougé entre
+    les deux. Un compteur bas dit alors « pas de trace », jamais « pas de mouvement » — et les deux
+    ne se corrigent pas l'un l'autre. Vérifié sur la base réelle : 4 bascules à 7 j comme à 365 j.
+    """
+    client, Session = client_db
+    _as_parent()
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student_id, skills = _seed(db, notions=1, subjects=1)
+        db.add(
+            m.SkillMasteryHistory(
+                student_id=student_id, skill_id=skills[0], status="weak",
+                mastery_score=20, changed_at=now - timedelta(days=2),
+            )
+        )
+        db.commit()
+        larges = skills_service.dated_facts(db, student_id=student_id, since=now - timedelta(days=90))
+        etroites = skills_service.dated_facts(db, student_id=student_id, since=now - timedelta(days=7))
+
+    bascules = lambda fs: [f for f in fs if f["kind"] == "mastery_transition"]
+    assert len(bascules(larges)) == len(bascules(etroites)) == 1

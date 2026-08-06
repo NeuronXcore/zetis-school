@@ -11,14 +11,31 @@ puis `adr-0028`. Ce module **importe** le regroupement canonique (`dashboard/pro
 `OPEN_GAP_STATUSES` (`progress/service`), il n'en recopie aucun.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Gap, Skill, SkillMastery, SkillMasteryHistory, Subject
+from app.db.models import (
+    Gap,
+    LearningEvent,
+    QuizAttempt,
+    QuizQuestion,
+    Skill,
+    SkillMastery,
+    SkillMasteryHistory,
+    SpacedReviewAttempt,
+    SpacedReviewCard,
+    Subject,
+)
 from app.modules.dashboard import projections as p
 from app.modules.progress.service import OPEN_GAP_STATUSES, skills_with_active_mission
+
+# La vue période propose 7 / 30 / 90 / 365 jours. La route sert la PLUS LARGE et le client filtre
+# — patron « filtres client, zéro requête » du §11. Servir chaque fenêtre côté serveur rendrait la
+# bascule de fenêtre coûteuse, et surtout empêcherait le §6 d'être tenu : les compteurs doivent se
+# DÉRIVER du journal affiché, donc le client doit posséder le journal.
+FACTS_WINDOW_DAYS = max(p.PERIODS)
 
 # Palier affiché ← statut de `SkillMastery`. **Construit depuis les frozensets canoniques**, jamais
 # réécrit. `unknown` est mappé EXPLICITEMENT : c'est une valeur réelle de la colonne, et la laisser
@@ -67,14 +84,17 @@ def _since_of(
 
 
 def skills_index(db: Session, *, student_id: int) -> dict:
-    """L'index complet, en un nombre CONSTANT de requêtes — **sept**, quel que soit le volume.
+    """L'index ET le journal des faits datés, en un nombre CONSTANT de requêtes, quel que soit
+    le volume — c'est le §11 en entier (« index des notions **+ faits datés** »).
 
-    Les sept, mesurées et non supposées : notions+matières · maîtrise · dernière bascule par
-    notion · lacunes ouvertes · missions actives · borne des bascules · borne des révisions.
+    Le compte exact n'est pas gravé ici : il a déjà menti une fois (« cinq » alors qu'il y en avait
+    sept). Ce qui est GARANTI et testé, c'est qu'il ne dépend ni du nombre de notions ni du nombre
+    de matières.
     Le test `test_le_nombre_de_requetes_ne_depend_PAS_du_volume` compare deux volumes ; il chiffre
     l'écart quand il rougit (« 10 → 110 »), ce qui rend le N+1 lisible sans relire le code.
     """
     today = datetime.now(timezone.utc)
+    facts_since = today - timedelta(days=FACTS_WINDOW_DAYS)
 
     # 1 — les notions et leur matière, dans l'ORDRE DE L'ANNÉE (jamais alphabétique, §4 bis) : le
     # client s'en sert tel quel pour le tri « matière », et un ordre divergent de la table matière
@@ -152,11 +172,152 @@ def skills_index(db: Session, *, student_id: int) -> dict:
     return {
         "notions": notions,
         "subjects": list(subjects_seen.values()),
+        # Le JOURNAL des faits datés (§2) — la seconde moitié de ce que le §11 demande à cette
+        # route. Servi sur la fenêtre la PLUS LARGE ; le client filtre à 7/30/90 sans requête, et
+        # c'est ce qui permet au §6 d'être tenu : les compteurs se dérivent du journal AFFICHÉ.
+        "facts": dated_facts(db, student_id=student_id, since=facts_since),
+        "facts_since": facts_since.isoformat(),
         # Les trois débuts de trace, DÉCLARÉS (§6) : un compteur bas doit pouvoir dire « pas de
         # trace » plutôt que « pas de mouvement ». Les deux ne se corrigent pas l'un l'autre.
+        #
+        # ⚠️ TROIS natures, TROIS bornes — et la troisième est l'absence de borne. Les lacunes,
+        # missions et quiz sont tracés depuis toujours : leur borne est `null`, ce qui veut dire
+        # « complète », jamais « inconnue ». Servir une borne unique ferait porter à un compteur
+        # l'avertissement d'un autre.
         "history_since": _history_since_iso(db, student_id),
         "reviews_since": _reviews_since_iso(db, student_id),
     }
+
+
+def dated_facts(db: Session, *, student_id: int, since: datetime) -> list[dict]:
+    """Les FAITS DATÉS de la vue période (§2) — cinq natures, récentes d'abord.
+
+    Ce qui y figure, et **rien d'autre** : bascules de palier, lacunes ouvertes et résolues,
+    missions terminées, quiz notés, révisions notées.
+
+    ⚠️ **Ni XP ni production**, et les deux exclusions ont un motif distinct (§2). L'XP
+    apparaîtrait sous le même mot que la colonne « depuis toujours » de la vue matière — deux
+    nombres, un mot, la classe de bug déjà payée deux fois — et il est le **seul compteur que ce
+    journal ne pourrait pas recomposer** (`XPEvent` n'a pas de `skill_id`), ce qui casserait
+    l'invariant du §6 pour tous les autres. La production est datée, mais elle mesure le stock de
+    CONTENU, pas la progression de Massimo : sa maison est Couverture.
+
+    ⚠️ **Aucun palier, aucun stock, aucune barre** ici : une fenêtre posée sur un palier est un
+    mensonge (les paliers sont des stocks sans reconstruction), posée sur un fait daté elle est
+    exacte. C'est tout le point dur de l'ADR.
+
+    Les bascules viennent de `evidence.mastery_transitions` — **LA** fonction de mesure du §10, que
+    le Conseil consommera aussi au Lot 3. Les recalculer ici referait deux mesures sous un mot.
+    """
+    from app.modules.evidence import service as evidence
+
+    facts: list[dict] = []
+
+    for t in evidence.mastery_transitions(db, student_id=student_id, since=since):
+        facts.append(
+            {
+                "kind": "mastery_transition",
+                "at": t["changed_at"].isoformat(),
+                "skill_id": t["skill_id"],
+                "skill_name": t["skill_name"],
+                "subject_id": t["subject_id"],
+                "from_status": t["from_status"],
+                "to_status": t["to_status"],
+            }
+        )
+
+    # Lacunes : une ligne `gaps` porte UN cycle ouverture → résolution, donc deux faits possibles
+    # pour la même ligne. Les deux sont servis : « ouverte » et « résolue » ne se déduisent pas
+    # l'une de l'autre.
+    for gap, skill in db.execute(
+        select(Gap, Skill).outerjoin(Skill, Skill.id == Gap.skill_id).where(Gap.student_id == student_id)
+    ).all():
+        nom = skill.name if skill is not None else "Notion"
+        for champ, kind in (("first_detected_at", "gap_opened"), ("resolved_at", "gap_resolved")):
+            moment = getattr(gap, champ)
+            if moment is None:
+                continue
+            moment = moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+            if moment < since:
+                continue
+            facts.append(
+                {
+                    "kind": kind,
+                    "at": moment.isoformat(),
+                    "skill_id": gap.skill_id,
+                    "skill_name": nom,
+                    "subject_id": gap.subject_id,
+                    "severity": gap.severity,
+                }
+            )
+
+    # Missions terminées : le verdict d'acquisition, tracé dans `learning_events`. C'est la source
+    # DATÉE — `missions` n'a pas de `completed_at`, et `updated_at` bougerait pour autre chose.
+    for ev in db.scalars(
+        select(LearningEvent).where(
+            LearningEvent.student_id == student_id,
+            LearningEvent.event_type == evidence.VERDICT_EVENT,
+            LearningEvent.created_at >= since,
+        )
+    ):
+        payload = dict(ev.payload_json or {})
+        facts.append(
+            {
+                "kind": "mission_done",
+                "at": ev.created_at.isoformat(),
+                "skill_id": ev.skill_id,
+                "skill_name": None,
+                "subject_id": ev.subject_id,
+                "verdict": payload.get("verdict"),
+            }
+        )
+
+    for skill_id, nom, score, at in db.execute(
+        select(QuizQuestion.skill_id, Skill.name, QuizAttempt.score_percent, QuizAttempt.completed_at)
+        .join(QuizAttempt, QuizAttempt.quiz_id == QuizQuestion.quiz_id)
+        .outerjoin(Skill, Skill.id == QuizQuestion.skill_id)
+        .where(
+            QuizAttempt.student_id == student_id,
+            QuizAttempt.completed_at.is_not(None),
+            QuizAttempt.completed_at >= since,
+            QuizAttempt.score_percent.is_not(None),
+        )
+    ).all():
+        facts.append(
+            {
+                "kind": "quiz_scored",
+                "at": at.isoformat(),
+                "skill_id": skill_id,
+                "skill_name": nom,
+                "subject_id": None,
+                "score": round(float(score)),
+            }
+        )
+
+    for skill_id, nom, rating, at in db.execute(
+        select(SpacedReviewCard.skill_id, Skill.name, SpacedReviewAttempt.rating, SpacedReviewAttempt.reviewed_at)
+        .join(SpacedReviewCard, SpacedReviewCard.id == SpacedReviewAttempt.card_id)
+        .outerjoin(Skill, Skill.id == SpacedReviewCard.skill_id)
+        .where(
+            SpacedReviewAttempt.student_id == student_id,
+            SpacedReviewAttempt.reviewed_at >= since,
+        )
+    ).all():
+        facts.append(
+            {
+                "kind": "review_scored",
+                "at": at.isoformat(),
+                "skill_id": skill_id,
+                "skill_name": nom,
+                "subject_id": None,
+                "rating": rating,
+            }
+        )
+
+    # Récents d'abord, départagés par (kind, skill_id) : sans cette queue, deux faits du même
+    # instant changeraient de place d'un rendu à l'autre — le journal de production a la même règle.
+    facts.sort(key=lambda f: (f["at"], f["kind"], f["skill_id"] or 0), reverse=True)
+    return facts
 
 
 def _history_since_iso(db: Session, student_id: int) -> str | None:
