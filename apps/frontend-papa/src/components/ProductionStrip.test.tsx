@@ -122,7 +122,11 @@ describe("ProductionStrip — les états de la bande", () => {
         media_alive: false,
       }),
     );
-    expect(c.textContent).toContain("aucun moteur de production actif");
+    // ⚠️ **Le mot nomme LE BON moteur.** Le premier jet disait « aucun moteur de production
+    // actif » sur un rendu vidéo : Papa serait allé vérifier le worker de production, qui tournait
+    // très bien. Un diagnostic qui envoie au mauvais endroit est pire que pas de diagnostic.
+    expect(c.textContent).toContain("aucun moteur de rendu vidéo actif");
+    expect(c.textContent).not.toContain("moteur de production");
     expect(c.querySelector("[data-balaie]")).toBeNull();
   });
 

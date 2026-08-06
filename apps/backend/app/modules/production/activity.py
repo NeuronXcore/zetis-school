@@ -177,9 +177,23 @@ def _noms_de_notions(db: Session, ids: list[int]) -> dict[int, str]:
 
 
 def _titres_de_chapitres(db: Session, ids: list[int]) -> dict[int, str]:
+    """🔴 **`Chapter.name`, PAS `Chapter.title`** — le modèle n'a jamais eu de `title`.
+
+    Bug livré avec l'ADR-0041 (commit `4536893`) et trouvé à l'écran le 2026-08-07 : cette ligne
+    lève un `AttributeError` **dès qu'un lot porte un `chapter_id`**, c'est-à-dire pour tout lot de
+    CHAPITRE — le seul cas que la barre sait mesurer, et la raison d'être de tout le chantier.
+
+    ⚠️ **Et l'échec était parfaitement muet.** `useProductionActivity` avale ses erreurs par
+    doctrine (« une barre est un confort, elle ne doit jamais devenir une source d'alarme sur son
+    propre compte ») : la 500 ne se voyait nulle part, l'en-tête restait simplement vide. Un lot de
+    huit notions a tourné neuf minutes derrière un header au repos.
+
+    C'est exactement le défaut que le § « Vérification humaine » de l'ADR existait pour attraper,
+    et qu'aucun test n'a pu voir : aucun cas de test ne posait de `chapter_id`.
+    """
     if not ids:
         return {}
-    return dict(db.execute(select(Chapter.id, Chapter.title).where(Chapter.id.in_(ids))).all())
+    return dict(db.execute(select(Chapter.id, Chapter.name).where(Chapter.id.in_(ids))).all())
 
 
 # La pièce d'un lot-PIÈCE → le `job_type` dont elle partage la durée. Un lot-pièce et un travail

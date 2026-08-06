@@ -30,6 +30,38 @@ const MOT_PIECE: Record<string, string> = {
   mindmap: "mindmap",
 };
 
+/** Les paliers de repli, mesurés sur la largeur du HEADER (spec § Responsive).
+ *
+ *  🔴 **Ces seuils ont d'abord été écrits en container queries Tailwind
+ *  (`@max-[980px]/entete:hidden`) — et Tailwind n'en a compilé AUCUNE.** Vérifié dans le
+ *  navigateur le 2026-08-07 : zéro `CSSContainerRule` dans toutes les feuilles de style, alors
+ *  que le CSS maison du même chantier était bien là. L'échelle de repli était donc entièrement
+ *  inopérante : la bande ne cédait jamais rien, c'est-à-dire exactement le défaut « sans échelle
+ *  explicite, elle ne se replie pas, elle s'écrase » que la spec avait mesuré et écarté.
+ *
+ *  ⚠️ **Aucun test ne pouvait l'attraper** : jsdom n'applique pas le CSS, et les tests rendent à
+ *  pleine largeur. Ce défaut n'existait qu'à l'écran — c'est le § « Vérification humaine » de
+ *  l'ADR qui l'a sorti, pas la suite.
+ *
+ *  On revient donc à la mesure JS, qui fonctionnait. ⚠️ Elle observe le HEADER, jamais son propre
+ *  conteneur : celui-ci est déjà écrasé quand il se lit (30 px mesurés le 2026-08-06). */
+const SEUIL_COMPTEUR = 980;
+const SEUIL_SOUS_TITRE = 880;
+const SEUIL_CONTEXTE = 800;
+
+function useLargeurHeader(): [React.RefObject<HTMLDivElement | null>, number] {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [largeur, setLargeur] = useState(9999);
+  useEffect(() => {
+    const noeud = ref.current?.closest("header") ?? ref.current;
+    if (!noeud || typeof ResizeObserver === "undefined") return;
+    const obs = new ResizeObserver(([e]) => setLargeur(e.contentRect.width));
+    obs.observe(noeud);
+    return () => obs.disconnect();
+  }, []);
+  return [ref, largeur];
+}
+
 interface Jeton {
   id: number;
   mot: string;
@@ -202,6 +234,7 @@ interface Props {
 }
 
 export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
+  const [ref, largeur] = useLargeurHeader();
   // ⚠️ Un échec passe devant : ce n'est pas un état d'avancement, c'est un état d'anomalie. Un
   // refus vient juste après — c'est un FAIT, pas une panne, mais il explique pourquoi rien ne
   // tourne, ce qu'aucun autre état ne dirait.
@@ -261,7 +294,14 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
     ligne2 = "un régulateur a dit non — ce n'est pas une panne";
   } else if (arrete) {
     ligne1 = <>ZETIS <b className="font-semibold">ne produit pas</b></>;
-    ligne2 = "aucun moteur de production actif — personne ne viendra";
+    // ⚠️ **Le mot nomme LE BON moteur** (trouvé à l'écran le 2026-08-07). Un rendu vidéo bloqué
+    // annonçait « aucun moteur de production actif » : Papa serait allé vérifier le worker de
+    // production, qui tournait très bien. Deux couloirs, deux processus, donc deux phrases —
+    // sinon le diagnostic envoie au mauvais endroit, ce qui est pire que pas de diagnostic.
+    ligne2 =
+      item?.lane === "media"
+        ? "aucun moteur de rendu vidéo actif — personne ne viendra"
+        : "aucun moteur de production actif — personne ne viendra";
   } else if (enFile) {
     ligne1 = <>ZETIS va produire · en file d'attente</>;
     ligne2 = item?.label ?? "";
@@ -276,7 +316,7 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
   // vous regarde — reste interdit, et le repos ne porte QU'UN SEUL objet cliquable.
   if (repos) {
     return (
-      <div className="flex h-7 items-center justify-end border-y border-papa-border bg-papa-surface/40 px-4">
+      <div ref={ref} className="flex h-7 items-center justify-end border-y border-papa-border bg-papa-surface/40 px-4">
         <button
           type="button"
           onClick={onOpenStock}
@@ -291,6 +331,7 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
 
   return (
     <div
+      ref={ref}
       className={`flex h-[46px] items-center gap-3.5 border-y border-papa-border px-4 ${
         arrete || refus ? "bg-papa-warn/5" : echec ? "bg-red-400/5" : "bg-papa-surface/40"
       }`}
@@ -308,12 +349,14 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
         className="flex min-w-0 flex-1 items-center gap-3.5 text-left"
       >
         {/* Le contexte cède avant le tapis : c'est lui qui porte l'information de mouvement. */}
-        <span className="hidden min-w-0 max-w-[300px] shrink-0 @max-[800px]/entete:!hidden md:block">
+        {largeur > SEUIL_CONTEXTE && (
+        <span className="hidden min-w-0 max-w-[300px] shrink-0 md:block">
           <span className="block truncate text-[12.5px] text-papa-text">{ligne1}</span>
-          <span className="block truncate text-[10.5px] text-papa-muted @max-[880px]/entete:hidden">
-            {ligne2}
-          </span>
+          {largeur > SEUIL_SOUS_TITRE && (
+            <span className="block truncate text-[10.5px] text-papa-muted">{ligne2}</span>
+          )}
         </span>
+        )}
 
         {/* ── LE TAPIS ────────────────────────────────────────────────────────────────── */}
         <span className="relative h-1.5 min-w-[60px] flex-1">
@@ -357,16 +400,16 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
 
         {/* La file se COMPTE, elle ne se dessine pas : fondre plusieurs travaux dans une barre
             unique la ferait reculer à chaque ajout. */}
-        {activity.queued_count > 0 && (
-          <span className="shrink-0 whitespace-nowrap rounded-full border border-papa-accent/25 bg-papa-accent/10 px-2 py-0.5 text-[10.5px] text-papa-accent @max-[980px]/entete:hidden">
+        {activity.queued_count > 0 && largeur > SEUIL_COMPTEUR && (
+          <span className="shrink-0 whitespace-nowrap rounded-full border border-papa-accent/25 bg-papa-accent/10 px-2 py-0.5 text-[10.5px] text-papa-accent">
             {activity.queued_count} en attente
           </span>
         )}
 
         {/* ⚠️ Sans granularité, aucun chiffre — et AUCUNE CASE. Un « — » à cet endroit se lirait
             encore comme une valeur. */}
-        {mesure && (
-          <span className="shrink-0 text-right leading-tight @max-[880px]/entete:hidden">
+        {mesure && largeur > SEUIL_SOUS_TITRE && (
+          <span className="shrink-0 text-right leading-tight">
             <span className="block text-[13px] font-medium tabular-nums text-papa-text">
               {item.pct} %
             </span>

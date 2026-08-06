@@ -291,6 +291,29 @@ def regenerate_capsule(
 def delete_capsule(db: Session, capsule_id: int) -> None:
     capsule = _capsule_or_404(db, capsule_id)
     db.delete(capsule)
+    # 🔴 **Le rendu en attente meurt avec sa capsule** (addendum 2 ADR-0041 §22, trouvé à l'écran
+    # le 2026-08-07). Depuis que le travail est créé DÈS l'enfilement, supprimer la capsule
+    # laissait une ligne `queued` que plus rien ne pouvait satisfaire : la bande annonçait
+    # « 1 en attente » indéfiniment, sur un travail sans cible.
+    #
+    # ⚠️ Le balayage périodique ne peut PAS rattraper ça : un travail `queued` n'est jamais
+    # déclaré zombie, et c'est une règle juste — « le passer en échec condamnerait une file
+    # parfaitement intacte ». Une file intacte, ici, ne l'est plus : c'est à la suppression, qui
+    # SAIT, de le dire.
+    #
+    # ⚠️ On ne touche PAS à un rendu déjà `running` : le worker est dedans, il découvrira l'absence
+    # et écrira son propre motif. Le lui voler ferait deux traces pour un travail.
+    for travail in db.scalars(
+        select(AIJob).where(AIJob.job_type == "capsule_render", AIJob.status == "queued")
+    ):
+        charge = travail.input_json if isinstance(travail.input_json, dict) else {}
+        if charge.get("capsule_id") == capsule_id:
+            travail.status = "failed"
+            travail.finished_at = datetime.now(timezone.utc)
+            travail.error_message = "Capsule supprimée avant son rendu."
+            # Acquitté d'office : Papa vient de supprimer la capsule, lui présenter l'échec du
+            # rendu qu'il a lui-même annulé serait lui demander de confirmer sa propre décision.
+            travail.acknowledged_at = travail.finished_at
     db.commit()
     # Nettoie les médias (audio disque + MP4) — best-effort, après le commit DB.
     storage.delete_capsule_audio(capsule_id)

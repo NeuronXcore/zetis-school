@@ -43,13 +43,13 @@ export function PapaLayout() {
         {/* Le fond de marque ZETIS a besoin de hauteur pour exister : à `py-3` (~44 px) l'image
             n'était qu'une texture. Hauteur réduite sous `sm` pour ne pas manger l'écran d'une
             tablette. */}
-        {/* ⚠️ `@container/entete` : les paliers de repli de la bande se mesurent sur la largeur du
-            HEADER, jamais sur celle de la fenêtre — il vit à droite d'une sidebar et porte déjà
-            deux pilules. Cela remplace le `ResizeObserver` de l'ancienne pilule et, avec lui, la
-            classe de bug corrigée le 2026-08-06 (observer son propre conteneur, déjà écrasé quand
-            il le lit) : elle devient structurellement impossible, le conteneur étant déclaré ici
-            une seule fois. */}
-        <header className="@container/entete relative shrink-0 border-b border-papa-border bg-papa-bg">
+        {/* ⚠️ Les paliers de repli de la bande se mesurent sur la largeur du HEADER, jamais sur
+            celle de la fenêtre — il vit à droite d'une sidebar et porte déjà deux pilules. La
+            mesure se fait dans `ProductionStrip`, en JS : 🔴 les container queries Tailwind
+            (`@container/entete` + `@max-[…]`) ont été essayées et **n'ont compilé AUCUNE règle**
+            (vérifié au navigateur le 2026-08-07, zéro `CSSContainerRule`), ce qui rendait
+            l'échelle entièrement inopérante sans que rien ne rougisse. */}
+        <header className="relative shrink-0 border-b border-papa-border bg-papa-bg">
           {/* ⚠️ La hauteur et le `overflow-hidden` sont DESCENDUS du header vers ce calque : la
               bande de 46 px vit sous le bandeau, dans le même header, et un `overflow-hidden` en
               haut la clipperait. */}
