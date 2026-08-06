@@ -1,5 +1,11 @@
 import { Fragment, useMemo, useState } from "react";
-import type { NotionPalier, NotionSince, SkillIndex, SkillTimeline } from "@zetis/types";
+import type {
+  NotionPalier,
+  NotionSince,
+  SkillIndex,
+  SkillIndexRow,
+  SkillTimeline,
+} from "@zetis/types";
 
 // Vue « Par notion » (adr-0040 §4, §4 bis, §7) — le grain que ni le dashboard ni la table matière
 // ne portent : des notions NOMMÉES.
@@ -28,7 +34,33 @@ const PALIER_CLASS: Record<NotionPalier, string> = {
 const PALIERS_ENGAGES: NotionPalier[] = ["acquise", "a_renforcer", "en_cours"];
 const TOUS_PALIERS: NotionPalier[] = [...PALIERS_ENGAGES, "non_abordee"];
 
-type Tri = "notion" | "matiere" | "date";
+// Les SIX colonnes sont triables (amendement du §4 bis, 2026-08-06 : le cadrage n'en prévoyait
+// que trois — notion, matière, date). Le motif d'origine tient toujours pour la QUEUE de tri :
+// un nom de notion étant unique, aucun critère ne le départage. C'est pourquoi **tous** les tris
+// se terminent par `skill_id`, sans quoi deux notions homonymes de matières différentes
+// changeraient de place d'un rendu à l'autre.
+type Tri = "notion" | "matiere" | "palier" | "date" | "lacune" | "mission";
+type Sens = "asc" | "desc";
+
+/** Rang de palier pour le tri — l'ORDRE DES PASTILLES à l'écran, pas un jugement de gravité.
+ *  Trier sur un ordre invisible (« le plus urgent d'abord ») rendrait le résultat imprévisible :
+ *  Papa doit pouvoir anticiper l'ordre depuis ce qu'il voit. */
+const RANG_PALIER: Record<NotionPalier, number> = {
+  acquise: 0,
+  a_renforcer: 1,
+  en_cours: 2,
+  non_abordee: 3,
+};
+
+/** Les six colonnes, dans l'ordre d'affichage. `cle` est aussi la clé de tri. */
+const COLONNES: { cle: Tri; label: string; aDroite?: boolean }[] = [
+  { cle: "notion", label: "Notion" },
+  { cle: "matiere", label: "Matière" },
+  { cle: "palier", label: "Palier" },
+  { cle: "date", label: "Depuis", aDroite: true },
+  { cle: "lacune", label: "Lacune", aDroite: true },
+  { cle: "mission", label: "Mission", aDroite: true },
+];
 
 /** Rend « depuis » sans jamais confondre les trois absences (§7). */
 export function libelleSince(since: NotionSince): string {
@@ -69,6 +101,7 @@ export function VueNotion({
   const [lacuneSeule, setLacuneSeule] = useState(false);
   const [sansMission, setSansMission] = useState(false);
   const [tri, setTri] = useState<Tri>("notion");
+  const [sens, setSens] = useState<Sens>("asc");
   const [recherche, setRecherche] = useState("");
   const [ouverte, setOuverte] = useState<number | null>(null);
 
@@ -105,35 +138,44 @@ export function VueNotion({
     });
   }, [index.notions, paliers, lacuneSeule, sansMission, subjectSlug, recherche]);
 
-  // Chaque tri se termine par `skill_id` : sans cette queue, deux notions homonymes de matières
-  // différentes changeraient de place d'un rendu à l'autre (§4 bis).
+  // 🔴 Chaque tri se termine par `skill_id` : sans cette queue, deux notions homonymes de matières
+  // différentes changeraient de place d'un rendu à l'autre (§4 bis). La règle survit à l'ajout des
+  // trois colonnes — c'est elle qui rend l'ordre STABLE, pas le critère principal.
   const triees = useMemo(() => {
-    const l = [...filtrees];
-    if (tri === "notion") {
-      l.sort(
-        (a, b) =>
-          plie(a.skill_name).localeCompare(plie(b.skill_name), "fr") ||
-          (rangMatiere.get(a.subject_id) ?? 0) - (rangMatiere.get(b.subject_id) ?? 0) ||
-          a.skill_id - b.skill_id,
-      );
-    } else if (tri === "matiere") {
-      l.sort(
-        (a, b) =>
-          (rangMatiere.get(a.subject_id) ?? 0) - (rangMatiere.get(b.subject_id) ?? 0) ||
-          plie(a.skill_name).localeCompare(plie(b.skill_name), "fr") ||
-          a.skill_id - b.skill_id,
-      );
-    } else {
-      const jours = (s: NotionSince) => (s !== null && "days" in s ? s.days : Number.MAX_SAFE_INTEGER);
-      l.sort(
-        (a, b) =>
-          jours(a.since) - jours(b.since) ||
-          plie(a.skill_name).localeCompare(plie(b.skill_name), "fr") ||
-          a.skill_id - b.skill_id,
-      );
+    const nom = (n: SkillIndexRow) => plie(n.skill_name);
+    const jours = (s: NotionSince) => (s !== null && "days" in s ? s.days : Number.MAX_SAFE_INTEGER);
+    // Clé principale par colonne. Le départage est TOUJOURS (nom, skill_id).
+    const cle: Record<Tri, (n: SkillIndexRow) => number | string> = {
+      notion: nom,
+      matiere: (n) => rangMatiere.get(n.subject_id) ?? 0,
+      palier: (n) => RANG_PALIER[n.palier],
+      date: (n) => jours(n.since),
+      // Booléens triés en NOMBRES : `true` d'abord en ascendant, parce que c'est ce qu'on cherche
+      // quand on trie sur ces colonnes — ce qui porte une lacune, ce qui a déjà une mission.
+      lacune: (n) => (n.has_open_gap ? 0 : 1),
+      mission: (n) => (n.has_active_mission ? 0 : 1),
+    };
+    const k = cle[tri];
+    const signe = sens === "asc" ? 1 : -1;
+    return [...filtrees].sort((a, b) => {
+      const ka = k(a);
+      const kb = k(b);
+      const principal =
+        typeof ka === "string" ? ka.localeCompare(kb as string, "fr") : ka - (kb as number);
+      // ⚠️ Le SENS ne s'applique qu'à la clé principale : inverser aussi le départage rendrait
+      // l'ordre des ex æquo dépendant du sens, donc imprévisible.
+      return signe * principal || nom(a).localeCompare(nom(b), "fr") || a.skill_id - b.skill_id;
+    });
+  }, [filtrees, tri, sens, rangMatiere]);
+
+  /** Un clic sur un en-tête trie dessus ; un second inverse le sens. */
+  const trierPar = (t: Tri) => {
+    if (tri === t) setSens((s) => (s === "asc" ? "desc" : "asc"));
+    else {
+      setTri(t);
+      setSens("asc");
     }
-    return l;
-  }, [filtrees, tri, rangMatiere]);
+  };
 
   // 🔴 Le tri par date scinde en TROIS blocs, jamais en une liste continue (§4 bis). Sur la base
   // réelle, 15 des 19 notions engagées n'ont AUCUNE date : les glisser en fin de liste sans marque
@@ -141,6 +183,8 @@ export function VueNotion({
   // distincts ET comptés, parce que les deux absences le sont (§7).
   const blocs = useMemo(() => {
     if (tri !== "date") return [{ titre: null as string | null, lignes: triees }];
+    // En sens DESCENDANT la liste part des plus anciennes : les blocs restent, dans le même ordre
+    // (daté · sans bascule · non abordée), parce qu'ils séparent des ABSENCES, pas des valeurs.
     const datees = triees.filter((n) => n.since !== null && "days" in n.since);
     const horsTrace = triees.filter((n) => n.since !== null && !("days" in n.since));
     const jamais = triees.filter((n) => n.since === null);
@@ -213,19 +257,8 @@ export function VueNotion({
             placeholder="Rechercher…"
             className="rounded-lg border border-papa-border bg-papa-surface px-2 py-1 text-xs"
           />
-          <label htmlFor="tri-notion" className="text-papa-muted">
-            Trier
-          </label>
-          <select
-            id="tri-notion"
-            value={tri}
-            onChange={(e) => setTri(e.target.value as Tri)}
-            className="rounded-lg border border-papa-border bg-papa-surface px-2 py-1 text-xs"
-          >
-            <option value="notion">Notion</option>
-            <option value="matiere">Matière</option>
-            <option value="date">Date</option>
-          </select>
+          {/* ⚠️ Pas de sélecteur « Trier » en plus des en-têtes : deux contrôles pour un même
+              état finiraient par se contredire. L'en-tête EST le contrôle. */}
         </span>
       </div>
 
@@ -249,12 +282,31 @@ export function VueNotion({
           <table className="w-full text-sm">
             <thead className="bg-papa-surface-2 text-left text-xs uppercase tracking-wide text-papa-muted">
               <tr>
-                <th scope="col" className="px-4 py-2">Notion</th>
-                <th scope="col" className="px-4 py-2">Matière</th>
-                <th scope="col" className="px-4 py-2">Palier</th>
-                <th scope="col" className="px-4 py-2 text-right">Depuis</th>
-                <th scope="col" className="px-4 py-2 text-right">Lacune</th>
-                <th scope="col" className="px-4 py-2 text-right">Mission</th>
+                {COLONNES.map((c) => (
+                  <th
+                    key={c.cle}
+                    scope="col"
+                    // `aria-sort` porte l'état à l'assistive tech : sans lui, la flèche n'est
+                    // qu'un caractère décoratif.
+                    aria-sort={
+                      tri === c.cle ? (sens === "asc" ? "ascending" : "descending") : "none"
+                    }
+                    className={`px-4 py-2 ${c.aDroite ? "text-right" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => trierPar(c.cle)}
+                      className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-papa-accent ${
+                        tri === c.cle ? "text-papa-accent" : ""
+                      }`}
+                    >
+                      {c.label}
+                      <span aria-hidden className={tri === c.cle ? "" : "opacity-25"}>
+                        {tri === c.cle && sens === "desc" ? "▼" : "▲"}
+                      </span>
+                    </button>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
