@@ -1,5 +1,75 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.52.0 — La carte mémoire montre enfin des événements, et deux cartes cessent de ne pouvoir que s'éteindre
+
+Deux chantiers liés par la même carte du dashboard Papa.
+
+### « Évolution de la mémoire » ne pouvait montrer aucun événement
+
+Elle portait trois courbes, avec deux défauts — l'un mesuré à l'écran, l'autre structurel.
+
+**L'échelle était confisquée.** Maximum de l'axe **222** (fixé par `covered`) ; « à renforcer »
+valait 13 et « consolidées » **1**. Les deux courbes que la carte existe pour montrer occupaient
+les **6 % du bas** d'un cadre de 190 px — une dizaine de pixels — pendant que la courbe de contexte
+en prenait 94 %.
+
+**Et aucune ne pouvait redescendre.** `reconstruct_series` projette l'ensemble d'aujourd'hui à
+rebours : c'est croissant **par construction**. Une notion consolidée en juin puis perdue en juillet
+n'apparaît nulle part — elle est absente de *tout son passé*. Trois courbes qui ne peuvent ni
+baisser ni se croiser ne montrent jamais d'événement.
+
+La carte porte désormais **quatre vues** derrière un sélecteur, qui ne partagent ni unité ni nature
+de mesure :
+
+| Vue | Nature |
+|---|---|
+| **Paliers** *(défaut)* | 4 stocks empilés, plus `covered` en ligne de contexte |
+| **Révisions** | passages SRS notés (`again`→`easy`) + charge à venir, aujourd'hui au centre |
+| **Rétention** | `consolidées ÷ travaillées`, 0–100 % — le seul tracé qui puisse **redescendre** |
+| **Solde** | entrées / sorties du palier consolidé, le seul endroit où une **perte** est visible |
+
+« Paliers » est le défaut **par contrat** : les KPI « Notions consolidées » et « À renforcer »
+allument cette carte, et leur clic doit tomber sur la vue qui justifie leur chiffre.
+
+Trois honnêtetés inscrites dans la carte : le dénominateur de la rétention est **affiché** (avec 19
+notions travaillées, une seule notion déplace la courbe de 5 points) ; un point sans dénominateur
+est un **trou**, pas un zéro ; et un solde vide dit **l'absence de trace**, jamais l'absence de
+mouvement — `skill_mastery_history` n'a que 4 lignes, aucune ne franchit le palier consolidé.
+
+**Interversion au passage** : « État des notions » passe à gauche, « Évolution de la mémoire » à
+droite. Lien de cause à effet et non mise en page — filtrer une matière dans les barres empilées
+**redessine** les courbes voisines.
+
+### « Charge de révision » et « Chaîne de contenus » ne pouvaient que s'éteindre
+
+Conséquence jamais écrite de l'ADR-0028 §5 : leur mesure n'est le sujet d'**aucun** des cinq KPI.
+`charge` n'était allumée que par 2 focus sur 5, `chaine` par **1 sur 5**, et aucun geste de la page
+ne pouvait les désigner. Ce sont aussi les deux seules cartes à ne contenir **aucun** élément
+cliquable.
+
+Le focus cesse d'être l'apanage du bandeau : **clic sur le titre**, même mécanisme, même clé d'URL,
+et cliquer une carte **relâche le KPI pressé** — un seul focus sur la page.
+
+La zone cliquable est le **titre** et non la carte entière : la Chaîne de contenus porte des liens,
+et une ancre dans un bouton est du HTML invalide. Le bouton se glisse **dans** le `h3` pour que la
+carte reste un titre à la navigation au clavier.
+
+### Régression corrigée dans le même chantier
+
+La refonte en quatre vues avait fait **disparaître de l'écran** la série `covered` — aucun test ne
+l'a signalé, alors que c'est la seule mesure du dashboard reliant la **production** aux **notions**.
+Restaurée en ligne pointillée de contexte sur la vue « Paliers ».
+
+### Sous le capot
+
+Trois requêtes de plus (`_review_attempts`, `_mastery_transitions`, `_entered_in_progress_at`),
+quatre séries et un objet ajoutés à `SubjectSeries`, `PageFocus` comme type distinct de
+`DashboardFocus`. **Aucune migration, aucune route nouvelle.**
+
+Verrous prouvés par sabotage : `window_days` neutralisé (le flux reportait un mouvement hors fenêtre
+sur son premier point), dénominateur de rétention branché sur `covered` (3 tests rouges), et
+`charge`/`chaine` retirés du garde `isFocus` (3 tests sur 4 rouges).
+
 ## 0.51.0 — Le KPI qui manquait : « À renforcer »
 
 Le bandeau du dashboard Papa portait **deux** KPI sur les notions — « Notions consolidées » et

@@ -4,6 +4,89 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/memoire-quatre-vues` — la carte mémoire à 4 vues + 2 cartes focalisables — 2026-08-06
+
+> ADR : `adr-0028-addendum-memoire-quatre-vues.md` et `adr-0028-addendum-cartes-focalisables.md`.
+
+### 🔴 Une refonte de composant peut faire DISPARAÎTRE une série servie, sans qu'un test rougisse
+
+**Symptôme.** Aucun. La série `covered` (« notions couvertes par un cours validé », 222 en dev)
+était toujours calculée, toujours servie dans le payload, toujours sommée par `sumSeries` — et
+**plus affichée nulle part**. Trouvée par hasard **le lendemain**, en cherchant quelle carte
+pourrait justifier un nouveau focus.
+
+**Cause.** La carte a été réécrite d'un bloc, de trois courbes vers quatre vues. L'ancien tracé
+portait `covered` ; aucune des quatre nouvelles vues ne l'a reprise. Rien ne pouvait le signaler :
+tous les tests portent sur ce qui est affiché, **aucun ne vérifie qu'une donnée servie l'est
+encore**. `tsc` est muet — un champ lu nulle part reste parfaitement typé.
+
+**Ce que ça coûtait.** `covered` est la **seule mesure du dashboard qui relie la production aux
+notions**. Sa disparition rendait la Chaîne de contenus orpheline.
+
+**Parade.** Quand on réécrit un composant qui consomme un payload, **lister les champs consommés
+AVANT et APRÈS** et comparer. Le compilateur ne le fera pas, les tests non plus.
+
+### 🔴 `bucket_counts` fabrique un pic à gauche sur tout FLUX — piège absent des stocks
+
+**Symptôme.** Silencieux, attrapé au test. Un mouvement vieux de 200 jours apparaissait dans le
+**premier point** d'une fenêtre de 7 jours.
+
+**Cause.** `bucket_counts` range chaque jour dans le **premier repère qui l'atteint** (`if day <=
+mark: break`). Un jour antérieur à `marks[0]` satisfait donc le premier test et tombe dans le
+bucket 0 au lieu d'être ignoré.
+
+**Pourquoi c'était nouveau.** Les quatre séries existantes sont des **stocks** reconstruits par
+`reconstruct_series` — rien n'y est bucketisé, le piège ne pouvait pas se manifester. Il est apparu
+avec la première série de **flux** du module.
+
+**Parade.** `projections.window_days(days, marks)` avant tout `bucket_counts` sur un flux, plus un
+test dédié. **Vérifié par sabotage** : neutraliser `window_days` fait rougir le test.
+
+### ⚠️ `keyof T` cesse de suffire dès qu'un champ du type n'est pas homogène
+
+**Symptôme.** `sumSeries` sommait ses séries via `add(key: keyof DashboardSeries)`. En ajoutant
+`reviews` — un **objet** `{again, hard, good, easy}` et non un `number[]` — `add("reviews")`
+devenait typable alors qu'il rendrait n'importe quoi.
+
+**Parade.** Un type conditionnel qui ne garde que les clés homogènes :
+
+```ts
+type NumericSeriesKey = {
+  [K in keyof DashboardSeries]: DashboardSeries[K] extends number[] ? K : never;
+}[keyof DashboardSeries];
+```
+
+⚠️ **Le type attrape l'OUBLI d'un champ, jamais sa JUSTESSE.** `sumSeries` déclare rendre un
+`DashboardSeries` complet, donc un champ ajouté casse la compilation tant qu'il n'est pas sommé —
+mais rien n'empêche de le sommer *depuis la mauvaise clé*. D'où un `toEqual` sur l'objet **entier**
+avec un fixture aux valeurs **toutes distinctes** : des séries égales laisseraient passer une
+permutation.
+
+### ⚠️ Le HMR de Vite laisse un module CASSÉ quand l'usage précède l'import
+
+**Symptôme.** Page blanche. Console : `ReferenceError: sumNotions is not defined`, suivi d'une
+cascade de `NaN` dans les attributs SVG (`<path d="M34.0 NaN…">`, `<line y1="NaN">`) et de
+« two children with the same key, NaN ».
+
+**Cause.** L'appel `sumNotions(...)` a été ajouté dans une édition, son import dans la **suivante**.
+Entre les deux, le HMR a rechargé un module qui plantait au rendu. Le composant jetait, React
+démontait l'arbre, et les `NaN` en cascade venaient du `notionsTotal` jamais calculé.
+
+**Parade — et c'est le vrai piège.** Le HMR **ne répare pas** un module qui a déjà planté au rendu :
+il faut un **rechargement complet**. Et surtout : la console **conserve l'historique**, donc elle
+montre encore ces erreurs longtemps après la correction. Pour savoir si un bug est **vivant**,
+interroger le **DOM** (`chercher "NaN" dans les attributs des <svg>`), jamais la console.
+
+### ⚠️ Quatrième occurrence — l'union gardée par un `Record`, pas par un tableau
+
+Élargir le focus de la page à deux cartes (`PageFocus = DashboardFocus | DashboardCardFocus`)
+rouvrait mot pour mot le bug du chantier précédent : un garde `isFocus` non élargi aurait refusé
+`?focus=charge`, et la carte ne se serait **jamais** allumée, `tsc` muet.
+
+Refermé du même geste : `FOCUSES` est un `Record<PageFocus, true>`. **Vérifié par sabotage** —
+retyper la table en `Record<string, true>` (la forme exacte du bug d'origine) fait tomber 3 tests
+sur 4. Voir l'entrée du chantier `feat/kpi-a-renforcer` ci-dessous pour le cas d'origine.
+
 ## Chantier `feat/kpi-a-renforcer` — le 5ᵉ KPI du dashboard Papa — 2026-08-05
 
 > ADR : `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md`, écrit **avant** le code.
