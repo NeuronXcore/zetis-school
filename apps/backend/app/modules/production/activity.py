@@ -188,6 +188,15 @@ def read(db: Session, *, worker_alive: bool | None = None) -> dict:
         # Profondeur de file, jamais un arriéré (§7) : il retombe à zéro tout seul et ne dit rien
         # de ce que Papa aurait dû faire.
         "queued_count": max(0, len(actifs) - 1),
+        # ⚠️ **La file elle-même, et pas seulement son compte.** Le §7 promet que « ce qui n'est
+        # pas montré est à un clic » et que l'ordre de service est VISIBLE : une règle de priorité
+        # qu'on ne peut pas vérifier à l'œil n'est pas vérifiée. Un compteur seul ne permet ni
+        # l'un ni l'autre.
+        #
+        # Borné à 20 : au-delà, l'écran ne se lit plus de toute façon, et `queued_count` continue
+        # de dire le vrai total. ⚠️ Une troncature qui ne se déclare pas se lit comme une
+        # exhaustivité — c'est `queued_count` qui la déclare ici.
+        "queued": actifs[1:21],
         "failed": echecs,
         "worker_alive": worker_alive,
     }

@@ -1,0 +1,123 @@
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { type ActivityItem, type ProductionActivity } from "@zetis/types";
+
+import { ActiveProductionModal } from "./ActiveProductionModal";
+
+// Le détail de ce que ZETIS fabrique (ADR-0041 §7). Il montrait UN lot ; il montre désormais tout
+// ce qui est en vol. Ces verrous portent sur les trois promesses du §7 : l'ordre de service est
+// VISIBLE, l'origine est TOUJOURS dite, et un échec ne part qu'à l'acquittement.
+
+function item(over: Partial<ActivityItem> = {}): ActivityItem {
+  return {
+    kind: "job",
+    id: 1,
+    label: "Équipement · Théorème de Pythagore",
+    status: "queued",
+    pct: null,
+    pct_is_measured: false,
+    started_at: null,
+    trigger: "manual",
+    error: null,
+    ...over,
+  };
+}
+
+function activite(over: Partial<ProductionActivity> = {}): ProductionActivity {
+  return { current: null, queued_count: 0, queued: [], failed: [], worker_alive: null, ...over };
+}
+
+function montre(a: ProductionActivity, onAck = vi.fn()) {
+  render(<ActiveProductionModal activity={a} onClose={vi.fn()} onAcknowledge={onAck} />);
+  return onAck;
+}
+
+describe("ActiveProductionModal — le détail de ce qui est en vol", () => {
+  it("🔒 l'ORDRE de la file est visible, pas seulement son compte", () => {
+    // Une règle de priorité qu'on ne peut pas vérifier à l'œil n'est pas vérifiée. C'est tout
+    // l'objet de ce panneau : la barre ne rend que le courant.
+    montre(
+      activite({
+        current: item({ id: 10, status: "running", label: "Équipement · A", started_at: "2026-08-06T10:00:00Z" }),
+        queued: [item({ id: 11, label: "Fiche · B" }), item({ id: 12, label: "Quiz · C" })],
+        queued_count: 2,
+      }),
+    );
+
+    const lignes = screen.getAllByRole("listitem").map((l) => l.textContent ?? "");
+    // Le courant d'abord, puis la file DANS SON ORDRE.
+    expect(lignes[0]).toContain("Équipement · A");
+    expect(lignes[1]).toContain("Fiche · B");
+    expect(lignes[1]).toContain("1er");
+    expect(lignes[2]).toContain("Quiz · C");
+    expect(lignes[2]).toContain("2e");
+  });
+
+  it("🔒 l'origine se dit TOUJOURS — y compris quand elle n'est pas enregistrée", () => {
+    // Sans elle, Papa ouvre son écran à 8 h et voit ZETIS travailler sur quelque chose qu'il n'a
+    // pas demandé, sans pouvoir savoir pourquoi.
+    montre(
+      activite({
+        current: item({ id: 1, trigger: "agenda", status: "running" }),
+        queued: [
+          item({ id: 2, trigger: "request" }),
+          item({ id: 3, trigger: null }),
+        ],
+        queued_count: 2,
+      }),
+    );
+
+    expect(screen.getByText("préparé pour une échéance")).toBeTruthy();
+    expect(screen.getByText("demandé par Massimo")).toBeTruthy();
+    // Un trou se DIT, il ne se tait pas : un libellé vide se lirait comme « lancé par vous ».
+    expect(screen.getByText("origine non enregistrée")).toBeTruthy();
+  });
+
+  it("🔒 un travail EN FILE n'affiche aucun pourcentage", () => {
+    // Même règle que la barre : une barre qui monte sur un travail qui n'a pas démarré ment sur
+    // ce qui se passe. `pct = null`, jamais 0.
+    montre(activite({ queued: [item({ id: 7 })], queued_count: 1 }));
+
+    const ligne = screen.getAllByRole("listitem")[0].textContent ?? "";
+    expect(ligne).toContain("en file");
+    expect(ligne).not.toMatch(/\d+\s?%/);
+  });
+
+  it("🔒 un échec porte son MOTIF et ne part que sur acquittement", () => {
+    const onAck = montre(
+      activite({
+        failed: [
+          item({ kind: "run", id: 42, status: "failed", error: "moteur injoignable", label: "Fiche · D" }),
+        ],
+      }),
+    );
+
+    expect(screen.getByText("moteur injoignable")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "J'ai vu" }));
+    expect(onAck).toHaveBeenCalledWith("run", 42);
+  });
+
+  it("🔒 une file TRONQUÉE le déclare — sinon elle se lit comme exhaustive", () => {
+    // Le serveur borne à 20 et `queued_count` dit le total. Une troncature muette est un mensonge
+    // par omission : l'écran affirmerait « voilà tout » en montrant une partie.
+    montre(activite({ queued: [item({ id: 1 }), item({ id: 2 })], queued_count: 25 }));
+
+    expect(screen.getByText(/23 autres plus loin dans la file/)).toBeTruthy();
+  });
+
+  it("🔒 le résumé compte des STATUTS, pas des objets", () => {
+    // Vu à l'écran le 2026-08-06 : le résumé disait « 1 en cours » sur une file ARRÊTÉE, pendant
+    // que la ligne juste en dessous disait « en file ». `current` porte le premier de la file
+    // quand rien ne tourne — il n'est pas forcément en cours.
+    montre(activite({ current: item({ id: 1, status: "queued" }), queued: [item({ id: 2 })], queued_count: 1 }));
+
+    const entete = screen.getByRole("heading", { name: /Production en cours/i }).parentElement;
+    expect(entete?.textContent).toContain("2 en attente");
+    expect(entete?.textContent).not.toContain("en cours ·");
+  });
+
+  it("rien en vol : le panneau le dit, il ne se rend pas vide", () => {
+    montre(activite());
+    expect(screen.getByText(/ZETIS ne fabrique rien/)).toBeTruthy();
+  });
+});

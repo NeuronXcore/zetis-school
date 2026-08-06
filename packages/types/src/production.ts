@@ -346,6 +346,11 @@ export interface ProductionActivity {
   current: ActivityItem | null;
   /** Profondeur de file — jamais un arriéré (§7) : il retombe à zéro tout seul. */
   queued_count: number;
+  /** Ce qui attend derrière, **dans l'ordre où la file sera servie** (§7).
+   *
+   *  ⚠️ Borné à 20 par le serveur, alors que `queued_count` dit le total : une troncature qui ne
+   *  se déclare pas se lit comme une exhaustivité. Comparer les deux, c'est savoir s'il en reste. */
+  queued: ActivityItem[];
   /** Les échecs NON acquittés. Ils restent jusqu'au clic, pas six secondes. */
   failed: ActivityItem[];
   /** ⚠️ `null` = « la question n'a pas été posée », ce qui n'est PAS `false`. Tester `=== false`. */

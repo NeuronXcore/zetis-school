@@ -1897,6 +1897,7 @@ d'un cours en portait **cinq** différentes selon l'écran d'où on la lançait.
                "pct": 23, "pct_is_measured": true,
                "started_at": "2026-08-06T10:00:00Z", "trigger": "manual", "error": null },
   "queued_count": 2,
+  "queued": [ /* ActivityItem[], dans l'ORDRE où la file sera servie — borné à 20 */ ],
   "failed": [],
   "worker_alive": null
 }
@@ -1911,6 +1912,10 @@ d'un cours en portait **cinq** différentes selon l'écran d'où on la lançait.
 - **`worker_alive: null`** = « la question n'a pas été posée » — à ne pas confondre avec `false`.
   Elle n'est posée que si quelque chose est **en file**. Tester `=== false`.
 - **`queued_count`** est une profondeur de file, jamais un arriéré (`adr-0011` §F.2).
+- **`queued`** porte la file **elle-même**, dans son ordre de service, bornée à **20**. Sans elle,
+  « une ligne par travail » et « l'ordre visible » du §7 sont infaisables : une règle de priorité
+  qu'on ne peut pas vérifier à l'œil n'est pas vérifiée. ⚠️ Comparer `queued.length` à
+  `queued_count` dit s'il en reste — une troncature muette se lirait comme une exhaustivité.
 
 ### `POST /api/production/activity/{kind}/{item_id}/ack` → 204
 
@@ -1925,4 +1930,6 @@ enfilé**, sinon la barre ne pourrait pas l'annoncer « en file » au retour de 
 
 ### ⚠️ Contrat ENRICHI — `GET /api/ai/jobs/{job_id}`
 
-`JobOut` gagne **`error`** (`error_message`). Un job `failed` était jusqu'ici **muet** côté client.
+`JobOut` gagne **`error`** (`error_message`) et **`started_at`**. Un job `failed` était jusqu'ici
+**muet** côté client ; et sans l'instant de départ, une barre locale mesure l'âge de son AFFICHAGE
+au lieu de celui du travail — c'est ainsi que deux surfaces finissent par afficher deux nombres.

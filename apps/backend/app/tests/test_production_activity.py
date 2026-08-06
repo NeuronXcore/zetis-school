@@ -137,6 +137,17 @@ def test_ce_qui_tourne_passe_devant_ce_qui_attend_et_le_reste_est_compte(client_
     # Profondeur de file, jamais un arriéré (§7) : il retombe à zéro tout seul.
     assert body["queued_count"] == 2
 
+    # ⚠️ **La file elle-même est servie, pas seulement son compte.** Sans elle, « une ligne par
+    # travail » et « l'ordre de service visible » du §7 sont infaisables — et une règle de
+    # priorité qu'on ne peut pas vérifier à l'œil n'est pas vérifiée.
+    assert len(body["queued"]) == 2
+    assert all(t["status"] == "queued" for t in body["queued"]), (
+        "ce qui TOURNE est `current` — la file ne contient que ce qui attend"
+    )
+    assert body["current"]["id"] not in [t["id"] for t in body["queued"]], (
+        "le travail courant ne se compte pas deux fois"
+    )
+
 
 def test_worker_absent_se_distingue_de_worker_inconnu(client_db, monkeypatch) -> None:
     """`worker_alive` : `false` ≠ `null`.

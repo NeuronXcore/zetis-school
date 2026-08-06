@@ -20,6 +20,7 @@ const POLL_MS = 4000;
 const VIDE: ProductionActivity = {
   current: null,
   queued_count: 0,
+  queued: [],
   failed: [],
   worker_alive: null,
 };

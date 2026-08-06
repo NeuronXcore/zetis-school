@@ -15,7 +15,10 @@ export function PapaLayout() {
   const { user, logout } = useAuth();
   // « ZETIS travaille » : le lot tourne dans un worker séparé, Papa peut fermer la modale et
   // naviguer. Sans cet indicateur, plus rien ne le lui disait.
-  const { run: activeRun, finished, acknowledge } = useActiveProductionRun();
+  // ⚠️ Seule l'ANNONCE DE FIN reste ici : `useActiveProductionRun` est le seul à savoir la
+  // faire (relecture par id mémorisé, une seule fois). Le lot lui-même est désormais lu par
+  // `useProductionActivity`, avec tout le reste de ce que ZETIS fabrique.
+  const { finished, acknowledge } = useActiveProductionRun();
   // L'état d'autonomie se lit ICI et non dans la sidebar (motif ADR-0030) : le layout ne se
   // démonte pas entre deux routes, donc un seul appel pour les 22 pages. Une lecture dans la
   // sidebar en referait un par entrée — le mal que l'ADR-0030 a supprimé côté Massimo.
@@ -114,8 +117,12 @@ export function PapaLayout() {
               largeur. Jamais cliquable : c'est un signal, pas une commande. */}
           <ProductionEdge activity={activity} />
         </header>
-        {activeRun && showRun && (
-          <ActiveProductionModal run={activeRun} onClose={() => setShowRun(false)} />
+        {showRun && (
+          <ActiveProductionModal
+            activity={activity}
+            onClose={() => setShowRun(false)}
+            onAcknowledge={ackEchec}
+          />
         )}
         {/* Annonce de fin — s'efface seule, ne laisse aucune trace à traiter. */}
         {finished && <ProductionDoneModal run={finished} onClose={acknowledge} />}
