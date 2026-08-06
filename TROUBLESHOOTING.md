@@ -65,10 +65,16 @@ fichiers qu'il croit à jour quand seule une déclaration de type a changé.
 `tsc --noEmit` à la racine ne vérifie rien, seul `tsc -b` compte : il faut désormais lire
 **`tsc -b --force`**.
 
-### ⚠️ Un test du dashboard tombe au passage de 23 h 50 — flake pré-existant
+### ⚠️ Deux tests du dashboard tombent autour de minuit — flakes pré-existants
 
 **Symptôme.** `test_le_calendrier_reste_a_26_semaines_malgre_le_chargement_elargi` passe à 23 h 48
-et échoue à 23 h 53, sur `assert jours` — la grille revient **vide**.
+et échoue à 23 h 53, sur `assert jours` — la grille revient **vide**. Puis, une fois minuit passé,
+**il redevient vert et c'est `test_l_avertissement_sur_la_jeunesse_de_la_courbe_peut_EXPIRER` qui
+tombe à sa place**.
+
+⚠️ **Cette alternance est la signature à reconnaître** : deux tests d'un même fichier qui se
+relaient au rouge selon l'heure ne décrivent pas deux bugs, mais une seule frontière de date mal
+tenue. Chercher la cause dans le second aurait coûté une heure pour rien.
 
 **Attribution.** Vérifiée par `git stash` : le test échoue **aussi sans les changements du
 chantier**. Il n'est pas une régression. Le test sème avec `datetime.now(UTC)` et borne avec

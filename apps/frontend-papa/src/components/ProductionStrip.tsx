@@ -223,7 +223,13 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
   const arrete = item != null && (item.status === "stale" || vivantDuCouloir === false);
   const enFile = item?.status === "queued";
   const enCours = item?.status === "running" && !arrete;
-  const mesure = !!item?.pct_is_measured && item.pct !== null;
+  // 🔴 **`status === "running"` fait partie de la garde, et ce n'est pas de la ceinture-bretelles.**
+  // Le serveur ne pose `pct_is_measured` que sur un travail qui tourne — mais l'ancienne pilule
+  // gardait DÉJÀ ici, et retirer cette garde a fait afficher « 37 % · 7 / 19 pièces » sur un lot
+  // EN FILE (attrapé par `ProductionStrip.test.tsx`, 2026-08-07). La doctrine « aucun chiffre sur
+  // ce qui n'a pas démarré » ne se délègue pas au serveur : c'est ici qu'elle se voit.
+  const mesure =
+    item?.status === "running" && !!item.pct_is_measured && item.pct !== null && !arrete;
 
   // Le repos : rien ne tourne, rien n'a échoué, rien n'a été refusé.
   const repos = item == null && echec == null && refus == null;
