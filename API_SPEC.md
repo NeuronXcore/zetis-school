@@ -442,9 +442,11 @@ validées `planned|active` sont candidates.
 ## Progression
 
 > ⚠️ **Section documentée mais JAMAIS implémentée** (constat du read-before-code ADR-0028,
-> 2026-07-31). Aucune de ces quatre routes n'existe en code. Les seules routes de progression
-> réellement servies sont `GET /api/parent/progress/gaps`, `/consolidated`, `/overview` et
-> `/subjects/{id}/analysis`, décrites plus bas (les deux dernières ajoutées les 2026-08-05).
+> 2026-07-31). ⚠️ **Amendée le 2026-08-06** : `GET /progress/skills` **existe désormais** et a
+> quitté cette section (voir plus bas). L'avertissement reste et **ne couvre plus que les TROIS
+> routes ci-dessous** — le retirer entièrement le rendrait faux pour elles. Les routes de
+> progression réellement servies sont `GET /api/parent/progress/gaps`, `/consolidated`,
+> `/overview`, `/subjects/{id}/analysis`, `/skills` et `/skills/{id}/timeline`.
 > Ce qui manque ici est repris autrement : le résumé global et la progression par matière sont
 > servis par `GET /api/parent/dashboard` (agrégat, par matière), et la vue élève par le module
 > `galaxy`. Ne pas coder contre cette section.
@@ -453,15 +455,11 @@ validées `planned|active` sont candidates.
 
 Résumé global.
 
-### GET `/progress/subjects?student_id=`
+### GET `/progress/subjects?student_id=` — *n'existe pas*
 
 Progression par matière.
 
-### GET `/progress/skills?subject_id=`
-
-Maîtrise par notion.
-
-### GET `/progress/xp`
+### GET `/progress/xp` — *n'existe pas*
 
 XP global et par matière.
 
@@ -1205,6 +1203,58 @@ Toutes les matières sont servies, y compris sans référentiel et sans XP — �
                  "notions": { "consolidated": 1, "fragile": 8, "in_progress": 1, "total": 96 },
                  "engaged": 10, "xp": 367, "gaps_open": 1, "has_referentiel": true }] }
 ```
+
+### GET `/api/parent/progress/skills`
+
+L'**index des notions** — la vue « Par notion » de Progression (`adr-0040` §11). Écrite le
+2026-08-06 ; elle a quitté la section « jamais implémentée » plus haut, qui ne couvre plus que
+trois routes.
+
+**Une passe agrégée, sept requêtes, quel que soit le volume** — aucun N+1, aucune pagination,
+**aucun paramètre de période**. Filtres, tri, recherche et bascule de vue sont **client, zéro
+requête** (patron `adr-0024-addendum-page-matiere-index-notions`). Un test compare deux volumes et
+chiffre l'écart s'il rougit.
+
+⚠️ **`since` n'est PAS un `int | null`** (`adr-0040` §7) : quatre états, dont **DEUX `unknown`
+distincts**. `null` dirait à la fois « jamais abordée », « bascule antérieure à la trace » et
+« date perdue à la migration » — or **une seule de ces absences se comblera d'elle-même**.
+
+⚠️ **`palier` et `has_open_gap` sont deux axes INDÉPENDANTS** (§4), jamais une colonne à trois
+valeurs : une notion peut être « à renforcer » sans lacune, et porter une lacune ouverte en étant
+« en cours ».
+
+```json
+{ "notions": [{ "skill_id": 12, "skill_name": "Théorème de Pythagore",
+                "subject_id": 2, "subject_name": "Mathématiques", "subject_slug": "maths",
+                "palier": "en_cours", "mastery_score": 62,
+                "has_open_gap": false, "gap_severity": null, "has_active_mission": true,
+                "since": { "days": 1 } }],
+  "subjects": [{ "subject_id": 2, "name": "Mathématiques", "slug": "maths" }],
+  "history_since": "2026-07-31", "reviews_since": "2026-07-04" }
+```
+
+`palier` ∈ `acquise | a_renforcer | en_cours | non_abordee`, **dérivé du regroupement canonique**
+(`dashboard/projections`) et jamais ré-énuméré. `since` ∈ `{days:int}` | `{unknown:"before_history"}`
+| `{unknown:"before_migration"}` | `null` (non abordée — aucune ligne de maîtrise).
+`history_since` et `reviews_since` sont les **débuts de trace**, déclarés pour qu'un compteur bas
+puisse dire « pas de trace » et jamais « pas de mouvement » (§6).
+
+### GET `/api/parent/progress/skills/{skill_id}/timeline`
+
+La **frise d'une notion**, chargée au dépliage — **paresseuse**. Troisième exception assumée au
+« zéro état de chargement » de l'`adr-0028` §4, après le drill-down d'un jour et le panneau
+d'analyse : une descente vers un détail non borné, pas un filtre.
+
+```json
+{ "skill_id": 12, "skill_name": "Théorème de Pythagore",
+  "transitions": [{ "from_status": "learning", "to_status": "solid",
+                    "mastery_score": 62, "changed_at": "2026-08-05T09:00:00+00:00" }],
+  "history_since": "2026-07-31" }
+```
+
+⚠️ `from_status` vaut `null` sur la **plus ancienne bascule tracée** : la trace ne porte pas son
+palier de départ, et l'inventer serait une affirmation de plus que l'évidence ne soutient pas —
+même règle que l'écrasement de `recent_evolution` (Lot 0).
 
 ### GET `/api/parent/progress/subjects/{subject_id}/analysis`
 

@@ -146,7 +146,8 @@ Et      : [Lacune ouverte 3] [Sans mission active 17]   Trier : [Notion] [Matiè
 null                              → « — »  (non abordée, aucune ligne de maîtrise)
 ```
 
-⚠️ **10 des 19 notions engagées de la base réelle n'ont aucune date.** La colonne est à moitié vide
+⚠️ **15 des 19 notions engagées de la base réelle n'ont aucune date** (mesuré au Lot 1 ; le
+cadrage annonçait 10). La colonne est presque entièrement vide
 au lancement, et c'est juste : une date inventée serait pire. Les deux `unknown` ont des libellés
 distincts parce que leurs causes le sont — l'une se comblera d'elle-même, l'autre est perdue.
 

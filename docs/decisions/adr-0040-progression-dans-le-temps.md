@@ -223,7 +223,9 @@ différentes changeraient de place d'un rendu à l'autre — la même raison qui
 `created_at DESC, id DESC` au journal de production.
 
 > 🔴 **Le tri par date scinde la liste en trois blocs, jamais en une liste continue.** Sur les 19
-> notions engagées de la base réelle, **10 n'ont aucune bascule datée**. Les glisser en fin de liste
+> notions engagées de la base réelle, **15 n'ont aucune bascule datée** (chiffre corrigé au Lot 1
+> — le cadrage annonçait 10 ; mesure du 2026-08-06 : 19 lignes de maîtrise, 4 notions seulement
+> portent une bascule tracée. La décision n'en est que plus nécessaire). Les glisser en fin de liste
 > sans marque les ferait lire comme « les plus anciennes » — l'exact contresens.
 
 ```txt
