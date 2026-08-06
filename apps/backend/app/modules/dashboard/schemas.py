@@ -93,10 +93,27 @@ class Notions(BaseModel):
     total: int
 
 
+class ReviewRatings(BaseModel):
+    """Passages SRS notés, par intervalle — quatre listes de même longueur que les séries."""
+
+    again: list[int]
+    hard: list[int]
+    good: list[int]
+    easy: list[int]
+
+
 class SubjectSeries(BaseModel):
+    # Quatre STOCKS reconstruits à rebours : croissants par construction, ils ne peuvent pas
+    # redescendre (`projections.reconstruct_series`).
     covered: list[int]
     consolidated: list[int]
     fragile: list[int]
+    in_progress: list[int]
+    # Deux FLUX datés, qui eux peuvent varier dans les deux sens. ⚠️ Ils ne se réconcilient PAS
+    # avec les stocks ci-dessus et ne doivent jamais être présentés comme leur dérivée.
+    gained: list[int]
+    lost: list[int]
+    reviews: ReviewRatings
 
 
 class SubjectOut(BaseModel):

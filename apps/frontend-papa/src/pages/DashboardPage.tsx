@@ -7,8 +7,8 @@ import { DecisionQueue } from "../components/dashboard/DecisionQueue";
 import { KpiFocusCard } from "../components/dashboard/KpiFocusCard";
 import { WorkRhythmCard } from "../components/dashboard/WorkRhythmCard";
 import { TimeSplitCard } from "../components/dashboard/TimeSplitCard";
-import { MemoryTrendCard } from "../components/dashboard/MemoryTrendCard";
 import { NotionsStackCard } from "../components/dashboard/NotionsStackCard";
+import { MemoryTrendCard } from "../components/dashboard/MemoryTrendCard";
 import { WhereToActCard } from "../components/dashboard/WhereToActCard";
 import { ReviewLoadCard } from "../components/dashboard/ReviewLoadCard";
 import { ContentChainCard } from "../components/dashboard/ContentChainCard";
@@ -19,6 +19,7 @@ import {
   KPI_FOCUS_HINTS,
   KPI_LABELS,
   fragileHistoryNote,
+  sumNotions,
   sumReviewLoad,
   sumSeries,
 } from "../lib/dashboardDerive";
@@ -259,16 +260,27 @@ export function DashboardPage() {
           selectedSlug={dash.subject}
           onSelect={dash.toggleSubject}
         />
-        <MemoryTrendCard
-          series={sumSeries(visibleSubjects, period)}
-          period={period}
-          focus={focus}
-        />
+        {/* ⚠️ « État des notions » PRÉCÈDE « Évolution de la mémoire », et c'est un lien de cause
+            à effet, pas une préférence de mise en page : cliquer une matière dans les barres
+            empilées filtre `visibleSubjects`, donc REDESSINE les courbes voisines. Le geste doit
+            se lire avant son effet — sur une ligne de 12, la cause à gauche (5), l'effet à droite
+            (7). Les inverser mettait la conséquence en premier. */}
         <NotionsStackCard
           subjects={data.subjects}
           focus={focus}
           selectedSlug={dash.subject}
           onSelect={dash.toggleSubject}
+        />
+        <MemoryTrendCard
+          series={sumSeries(visibleSubjects, period)}
+          period={period}
+          focus={focus}
+          // Les trois dernières props suivent le MÊME filtre matière que `series` — sauf
+          // `notionsTotal`, volontairement pris sur `visibleSubjects` lui aussi : un dénominateur
+          // resté au programme entier ferait fondre l'aire empilée dès qu'on filtre une matière.
+          reviewLoad={sumReviewLoad(visibleSubjects)}
+          notionsTotal={sumNotions(visibleSubjects).total}
+          historySince={data.history_since}
         />
         <WhereToActCard
           subjects={data.subjects}
@@ -282,8 +294,21 @@ export function DashboardPage() {
           panelSubject={dash.panelSubject}
           onClosePanel={dash.closePanel}
         />
-        <ReviewLoadCard load={sumReviewLoad(visibleSubjects)} focus={focus} />
-        <ContentChainCard stages={data.content_chain} focus={focus} />
+        {/* Les deux seules cartes qui prennent le focus par elles-mêmes : leur mesure — la charge
+            SRS à venir, l'entonnoir de production — n'est le sujet d'AUCUN des cinq KPI. Sans ce
+            clic elles ne pouvaient que s'atténuer (`charge` répond à 2 focus sur 5, `chaine` à 1),
+            jamais s'allumer. Même `toggleFocus` que le bandeau : un seul focus sur la page, et
+            cliquer une carte relâche le KPI pressé. */}
+        <ReviewLoadCard
+          load={sumReviewLoad(visibleSubjects)}
+          focus={focus}
+          onToggleFocus={dash.toggleFocus}
+        />
+        <ContentChainCard
+          stages={data.content_chain}
+          focus={focus}
+          onToggleFocus={dash.toggleFocus}
+        />
         <ZetisReadingCard
           items={data.reading}
           period={period}

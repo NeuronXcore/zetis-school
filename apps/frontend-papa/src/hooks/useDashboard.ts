@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type {
-  DashboardFocus,
   DashboardPayload,
   DashboardPeriod,
   DashboardSubject,
+  PageFocus,
 } from "@zetis/types";
 import { fetchDashboard } from "../lib/dashboard";
 import { isDashboardPeriod } from "../lib/dashboardDerive";
@@ -29,15 +29,22 @@ const PANEL_KEY = "ou-agir";
 // écrivait `?focus=fragile`, le garde ci-dessous le refusait, la carte ne s'activait jamais, et
 // `tsc` ne voyait rien. Même leçon que `Record<DashboardPeriod, …>` pour la fenêtre « Année » :
 // le filet n'est pas dans l'union, il est dans le `Record` typé PAR l'union.
-const FOCUSES: Record<DashboardFocus, true> = {
+//
+// ⚠️ La table porte désormais `PageFocus` et non `DashboardFocus` : deux CARTES peuvent tenir le
+// focus sans être des KPI du bandeau. Élargir le type sans élargir cette table aurait rejoué
+// exactement le bug ci-dessus — clic écrit dans l'URL, garde qui refuse, carte jamais allumée,
+// `tsc` muet. Ici le `Record` le rend impossible.
+const FOCUSES: Record<PageFocus, true> = {
   active_minutes: true,
   active_days: true,
   consolidated: true,
   fragile: true,
   open_gaps: true,
+  charge: true,
+  chaine: true,
 };
 
-function isFocus(value: string | null): value is DashboardFocus {
+function isFocus(value: string | null): value is PageFocus {
   return value !== null && Object.prototype.hasOwnProperty.call(FOCUSES, value);
 }
 
@@ -59,9 +66,10 @@ export interface UseDashboard {
   panelSubject: DashboardSubject | null;
   /** Referme le panneau SANS désélectionner la matière. */
   closePanel: () => void;
-  /** `null` = aucun focus. Second clic sur le même KPI = relâche. */
-  focus: DashboardFocus | null;
-  toggleFocus: (next: DashboardFocus) => void;
+  /** `null` = aucun focus. Second clic sur le même KPI — ou sur l'en-tête de la même carte
+   *  autonome — relâche. */
+  focus: PageFocus | null;
+  toggleFocus: (next: PageFocus) => void;
 
   /** Matières après filtrage — une seule quand un filtre est actif, toutes sinon. */
   visibleSubjects: DashboardSubject[];
@@ -103,7 +111,7 @@ export function useDashboard(): UseDashboard {
   const rawPeriod = searchParams.get("period");
   const period: DashboardPeriod = isDashboardPeriod(rawPeriod) ? rawPeriod : "7";
   const subject = searchParams.get("subject");
-  const focus = isFocus(searchParams.get("focus")) ? (searchParams.get("focus") as DashboardFocus) : null;
+  const focus = isFocus(searchParams.get("focus")) ? (searchParams.get("focus") as PageFocus) : null;
 
   /** Écrit PLUSIEURS clés d'URL **en un seul appel**. `null` supprime la clé.
    *
@@ -177,7 +185,7 @@ export function useDashboard(): UseDashboard {
   const closePanel = useCallback(() => patchParams({ panel: null }), [patchParams]);
 
   const toggleFocus = useCallback(
-    (next: DashboardFocus) => patchParams({ focus: next === focus ? null : next }),
+    (next: PageFocus) => patchParams({ focus: next === focus ? null : next }),
     [patchParams, focus],
   );
 

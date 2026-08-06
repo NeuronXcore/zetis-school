@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { DashboardFocus, DashboardSubject } from "@zetis/types";
+import type { DashboardSubject, PageFocus } from "@zetis/types";
 import { DashboardCard } from "./DashboardCard";
 import { notAddressed } from "../../lib/dashboardDerive";
 
@@ -35,7 +35,7 @@ const SEGMENTS: readonly {
 
 interface NotionsStackCardProps {
   subjects: DashboardSubject[];
-  focus: DashboardFocus | null;
+  focus: PageFocus | null;
   selectedSlug: string | null;
   onSelect: (slug: string) => void;
 }

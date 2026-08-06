@@ -626,6 +626,12 @@ next_due_at
 is_consolidation   # re-tour de consolidation (2e passage même jour) — détecté serveur, sans effet SRS
 ```
 
+⚠️ **Règle de lecture — tout lecteur qui COMPTE des révisions doit exclure `is_consolidation`.**
+Un re-tour est le 2ᵉ passage de la **même carte le même jour**, sans effet sur la planification : le
+compter doublerait une révision qui n'a eu lieu qu'une fois. Appliqué par
+`dashboard/service.py::_review_attempts` (vue « Révisions » de la carte mémoire, addendum
+`adr-0028-addendum-memoire-quatre-vues`). Sur la base de dev, l'écart est de **1 sur 38**.
+
 ### DocumentSource
 
 ```txt

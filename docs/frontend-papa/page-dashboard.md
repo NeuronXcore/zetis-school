@@ -41,11 +41,11 @@ cette page.
 │    │ (Calendrier|Sem. type|Sem. en cours)│ │    ◍ donut par matière        │ │
 │    │  ▦▦▦▦▦▦▦ grille + échelle         │ │      + légende cliquable        │ │
 │    └───────────────────────────────────┘ └─────────────────────────────────┘ │
-│    ┌─ Évolution de la mémoire ─────────┐ ┌─ État des notions ──────────────┐ │
-│    │  ╱ couvertes / consolidées /      │ │  ▬▬▬▭▭ barres empilées / matière│ │
-│    │    fragiles (3 courbes)           │ │  P-C : référentiel non généré   │ │
-│    └───────────────────────────────────┘ └─────────────────────────────────┘ │
-│    ┌─ Où agir ──────────┐ ┌─ Charge de révision ─┐ ┌─ Chaîne de contenus ──┐ │
+│    ┌─ État des notions ──────────────┐ ┌─ Évolution de la mémoire ─────────┐ │
+│    │  ▬▬▬▭▭ barres empilées / matière│ │ (Paliers|Révisions|Rétent.|Solde) │ │
+│    │  P-C : référentiel non généré   │ │  ▰▰▰ aire empilée + ╌ couvertes   │ │
+│    └─────────────────────────────────┘ └───────────────────────────────────┘ │
+│    ┌─ Où agir ──────────┐ ┌─ Charge de révis. ⌖ ┐ ┌─ Chaîne de contenus ⌖ ┐ │
 │    │  ○ nuage temps ×   │ │  ▮▮▯▮ 14 jours       │ │  ▰▰▰ entonnoir        │ │
 │    │    consolidation   │ │  seuil 15 cartes     │ │  ↓ n à produire       │ │
 │    │  [CTA Conseil →]   │ └──────────────────────┘ └───────────────────────┘ │
@@ -214,16 +214,45 @@ l'habitude, et ce qui s'est passé cette semaine-ci.
 Part de chaque matière dans le temps actif de la fenêtre. Centre : total (`3 h 20`). Légende
 cliquable = filtre. Matières à 0 min exclues du tracé.
 
-### 3. Évolution de la mémoire — 3 courbes
+### 3. Évolution de la mémoire — 4 vues
 
-`covered` (gris, notions couvertes par un cours validé) · `consolidated` (émeraude, aire remplie) ·
-`fragile` (ambre). 12 points sur la fenêtre. **L'écart entre la courbe grise et la verte est le
-travail restant** — c'est la lecture que la carte doit rendre évidente.
+> ⚠️ **Elle est à DROITE de « État des notions », et c'est un lien de cause à effet.** Cliquer une
+> matière dans les barres empilées filtre `visibleSubjects`, donc **redessine** cette carte : le
+> geste doit se lire avant son effet.
+
+Les trois courbes historiques ont été remplacées par un sélecteur de quatre vues (addendum
+`adr-0028-addendum-memoire-quatre-vues`), pour deux défauts mesurés le 2026-08-05 :
+
+- **l'échelle était confisquée** — axe max 222 (fixé par `covered`), « à renforcer » à 5,8 % de la
+  hauteur et « consolidées » à **0,45 %** : les deux courbes qu'on venait lire tenaient dans une
+  dizaine de pixels ;
+- **aucune ne pouvait redescendre** — `reconstruct_series` est croissant PAR CONSTRUCTION.
+
+| Vue | Nature | Ce qu'elle répond |
+|---|---|---|
+| **Paliers** *(défaut)* | 4 stocks empilés + `covered` en ligne pointillée | où en est le programme |
+| **Révisions** | flux SRS daté (`SpacedReviewAttempt`) + charge à venir | ce qui a été revu, et comment |
+| **Rétention** | ratio 0–100 % | ce qui tient, sur ce qui a été **travaillé** |
+| **Solde** | flux de bascules (`skill_mastery_history`) | entrées / sorties du palier consolidé |
+
+⚠️ **« Paliers » est le défaut par CONTRAT** : `CARD_SCOPES` fait allumer cette carte par les KPI
+« Notions consolidées » et « À renforcer », et un clic sur ces KPI doit tomber sur la vue qui
+**justifie leur chiffre**.
+
+⚠️ **`covered` est une LIGNE de contexte, jamais une bande** : une notion couverte par un cours
+validé peut être à n'importe lequel des quatre paliers, l'empiler mentirait sur la partition. C'est
+la seule mesure de la page qui relie la **production** aux **notions**.
+
+⚠️ **Stocks et flux ne se réconcilient pas.** Le « Solde » ne se compte pas comme l'écart « +N » du
+KPI « À renforcer », qui projette l'ensemble d'aujourd'hui à rebours et ne peut jamais être négatif.
+Un solde vide dit **l'absence de trace**, jamais l'absence de mouvement.
 
 Sources d'historique (`adr-0028 §3 ter`) : `covered` ← `Lesson.validated_at` ·
-`consolidated` ← `SkillMastery.mastered_at` · `fragile` ← **`skill_mastery_history`**, table créée
-pour ce chantier parce qu'aucun horodatage de bascule n'existait. Avant le backfill, la courbe ambre
-démarre à la date de mise en service — **elle ne remonte pas une histoire qu'on n'a pas**.
+`consolidated` ← `SkillMastery.mastered_at` · `fragile` / `in_progress` / `gained` / `lost` ←
+**`skill_mastery_history`**, table créée pour ce chantier parce qu'aucun horodatage de bascule
+n'existait · `reviews` ← `SpacedReviewAttempt` (les re-tours `is_consolidation` sont **exclus**).
+Avant le backfill, la courbe ambre démarre à la date de mise en service — **elle ne remonte pas une
+histoire qu'on n'a pas**.
 
 ### 4. État des notions — barres empilées par matière
 
@@ -400,15 +429,40 @@ autre bulle, et le bouton redeviendrait cliquable pendant l'appel — deux rappo
 **On ne navigue pas au résultat** : après quatre minutes, Papa n'est plus dans la même pensée. La
 synthèse s'affiche en ligne, puis un lien vers `/conseil`.
 
-### 6. Charge de révision — 14 jours à venir
+### 6. Charge de révision ⌖ — 14 jours à venir
 
 Cartes SRS dues par jour. Barres au-delà de `REVIEW_LOAD_WARN = 15` en ambre + ligne de seuil
 pointillée. Note : *« Un pic se lisse en avançant une révision, pas en la supprimant. »*
 
-### 7. Chaîne de contenus — entonnoir
+### 7. Chaîne de contenus ⌖ — entonnoir
 
 `Chapitres validés → Cours validés → Fiches → Quiz de fin de cours`, avec le **delta entre marches**
 (« ↓ 8 à produire »). Lecture visée : la marche la plus haute est celle à traiter en premier.
+
+### Les deux cartes qui prennent le focus elles-mêmes (⌖)
+
+Addendum `adr-0028-addendum-cartes-focalisables`. Ces deux cartes sont les seules dont la mesure
+n'est le sujet d'**aucun** des cinq KPI : `charge` n'était allumée que par 2 focus sur 5, `chaine`
+par **1 sur 5**, et aucun geste de la page ne pouvait les désigner. Elles ne pouvaient que
+s'éteindre.
+
+**Clic sur le TITRE** → la carte prend le focus, avec le même `toggleFocus`, la même clé `?focus=`
+et le même second clic qui relâche. Cliquer une carte **relâche le KPI pressé** : un seul focus sur
+la page.
+
+| Focus | Cartes conservées |
+|---|---|
+| `charge` | Charge de révision · **Évolution de la mémoire** (vue « Révisions » = les mêmes 14 jours) |
+| `chaine` | Chaîne de contenus · **Évolution de la mémoire** (ligne « couvertes ») · **Lecture ZETIS** |
+
+⚠️ **Le titre, pas la carte entière** : la Chaîne de contenus porte des liens (« ↓ n à produire »),
+et une ancre dans un bouton est du HTML invalide. Le bouton se glisse **dans** le `h3` pour que la
+carte reste un titre à la navigation au clavier ; le `⌖` est `aria-hidden`.
+
+⚠️ **L'asymétrie est voulue** : le focus `chaine` allume la Lecture ZETIS, alors que « À renforcer »
+n'allume **pas** la Chaîne de contenus. *« Quelles cartes justifient cette mesure »* n'est pas
+*« quelles mesures cette carte justifie »* — symétriser élargirait les portées jusqu'à ce qu'un
+focus n'atténue plus rien.
 
 ### 8. Lecture ZETIS — constats + mission proposée
 

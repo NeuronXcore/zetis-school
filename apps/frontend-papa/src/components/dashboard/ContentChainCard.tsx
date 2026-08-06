@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { DashboardContentStage, DashboardFocus } from "@zetis/types";
+import type { DashboardCardFocus, DashboardContentStage, PageFocus } from "@zetis/types";
 import { DashboardCard } from "./DashboardCard";
 
 // « Chaîne de contenus » — entonnoir de production.
@@ -18,15 +18,18 @@ import { DashboardCard } from "./DashboardCard";
 
 interface ContentChainCardProps {
   stages: DashboardContentStage[];
-  focus: DashboardFocus | null;
+  focus: PageFocus | null;
+  onToggleFocus: (next: DashboardCardFocus) => void;
 }
 
-export function ContentChainCard({ stages, focus }: ContentChainCardProps) {
+export function ContentChainCard({ stages, focus, onToggleFocus }: ContentChainCardProps) {
   return (
     <DashboardCard
       card="chaine"
       title="Chaîne de contenus"
       focus={focus}
+      focusKey="chaine"
+      onToggleFocus={onToggleFocus}
       className="xl:col-span-3"
       note="Tout dérivé part d'un cours validé. La marche la plus haute est celle à traiter en premier."
     >

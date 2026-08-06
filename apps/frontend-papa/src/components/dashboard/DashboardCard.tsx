@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { DashboardFocus } from "@zetis/types";
-import { matchesFocus } from "../../lib/dashboardDerive";
+import type { DashboardCardFocus, PageFocus } from "@zetis/types";
+import { CARD_FOCUS_HINTS, matchesFocus } from "../../lib/dashboardDerive";
 
 // Coquille commune des huit cartes du dashboard.
 //
@@ -25,12 +25,22 @@ interface DashboardCardProps {
   /** Contenu d'en-tête aligné à droite (sélecteur de vue, lien « → »). */
   action?: ReactNode;
   badge?: ReactNode;
-  focus: DashboardFocus | null;
+  focus: PageFocus | null;
   className?: string;
   children: ReactNode;
   /** Note de bas de carte : explicite ce que le diagramme mesure. Un chiffre dont on ne dit pas
    *  comment il est fabriqué est un chiffre qui ment. */
   note?: ReactNode;
+  /** Rend le TITRE cliquable : la carte prend alors le focus elle-même, comme un KPI du bandeau.
+   *
+   *  Réservé aux cartes dont la mesure n'a **aucun KPI** dans le bandeau (`charge`, `chaine`) :
+   *  sans cela elles ne pouvaient que s'atténuer, jamais s'allumer.
+   *
+   *  🔴 **Le titre, et NON la carte entière.** `ContentChainCard` contient des `<Link>` (« ↓ 19 à
+   *  produire ») : une ancre dans un bouton est du HTML invalide et le lien cesserait de
+   *  fonctionner. Cibler l'en-tête reste vrai le jour où ces cartes gagnent des contrôles. */
+  focusKey?: DashboardCardFocus;
+  onToggleFocus?: (next: DashboardCardFocus) => void;
 }
 
 export function DashboardCard({
@@ -43,10 +53,16 @@ export function DashboardCard({
   className = "",
   children,
   note,
+  focusKey,
+  onToggleFocus,
 }: DashboardCardProps) {
   const matched = matchesFocus(card, focus);
   const dimmed = focus !== null && !matched;
   const highlighted = focus !== null && matched;
+  const focusable = focusKey !== undefined && onToggleFocus !== undefined;
+  // La carte est-elle allumée PAR SON PROPRE clic, par opposition à « allumée par un KPI » ? C'est
+  // ce qui distingue `aria-pressed` (l'état de MON bouton) de `highlighted` (l'état de la carte).
+  const selfFocused = focusable && focus === focusKey;
 
   return (
     <section
@@ -56,9 +72,38 @@ export function DashboardCard({
       } ${dimmed ? "opacity-40 saturate-50" : ""} ${className}`}
     >
       <header className="flex flex-wrap items-center gap-2.5 px-4 pb-2 pt-3.5">
-        <h3 className="text-xs font-extrabold uppercase tracking-widest">{title}</h3>
+        {/* Le titre reste un `h3` DANS les deux cas : le bouton se glisse à l'intérieur plutôt que
+            de le remplacer. Remplacer le titre par un bouton retirerait la carte de la liste des
+            titres de la page — une carte qu'on gagne au clic contre une carte qu'on perd à la
+            navigation au clavier n'est pas un échange acceptable. */}
+        <h3 className="text-xs font-extrabold uppercase tracking-widest">
+          {focusable ? (
+            <button
+              type="button"
+              aria-pressed={selfFocused}
+              onClick={() => onToggleFocus(focusKey)}
+              className="flex items-center gap-1.5 rounded text-left uppercase tracking-widest transition-colors hover:text-papa-accent"
+            >
+              {title}
+              {/* Le seul signe qui dit « ceci se clique » AVANT le survol. Sans lui l'affordance
+                  n'existerait qu'à la souris, et ces deux cartes ont vécu jusqu'ici sans aucun
+                  clic — personne n'irait l'essayer. */}
+              <span aria-hidden className={selfFocused ? "text-papa-accent" : "text-papa-muted"}>
+                ⌖
+              </span>
+            </button>
+          ) : (
+            title
+          )}
+        </h3>
         {tagline && <span className="text-xs font-normal text-papa-muted">{tagline}</span>}
         {badge}
+        {/* Même indication que sur un KPI actif, au même endroit du regard : ce qui vient d'être
+            filtré. Elle n'est PAS réservée à la place comme sur les KPI — ces cartes sont hautes,
+            un saut de 16 px en tête de carte ne déplace rien sous le curseur. */}
+        {selfFocused && focusKey && (
+          <span className="text-xs font-semibold text-papa-accent">{CARD_FOCUS_HINTS[focusKey]}</span>
+        )}
         {action && <span className="ml-auto flex items-center gap-3">{action}</span>}
       </header>
       <div className="px-4 pb-4">

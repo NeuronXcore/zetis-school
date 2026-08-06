@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { SubjectPictogram, subjectColorFor, subjectIconFor } from "@zetis/ui";
-import type { DashboardFocus, DashboardPeriod, DashboardSubject } from "@zetis/types";
+import type { DashboardPeriod, DashboardSubject, PageFocus } from "@zetis/types";
 import { DashboardCard } from "./DashboardCard";
 import { SubjectAnalysisPanel } from "./SubjectAnalysisPanel";
 import { generateCouncil } from "../../lib/councilClass";
@@ -80,7 +80,7 @@ function median(values: number[]): number {
 interface WhereToActCardProps {
   subjects: DashboardSubject[];
   period: DashboardPeriod;
-  focus: DashboardFocus | null;
+  focus: PageFocus | null;
   selected: DashboardSubject | null;
   /** Clic sur une bulle : sélectionne la matière ET déplie son analyse, en un seul geste. */
   onSelect: (slug: string) => void;

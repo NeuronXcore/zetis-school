@@ -1080,7 +1080,16 @@ Contrat complet : `docs/frontend-papa/page-dashboard.md §Contrat API`. Forme :
                  "slots": {"7": [[/*7 j*/], /* × 8 créneaux, 8h→24h */]},
                  "slots_outside_minutes": {"7":0},                          // activité 0h–8h
                  "notions": {"consolidated":4,"fragile":3,"in_progress":2,"total":13},
-                 "series": {"7": {"covered":[],"consolidated":[],"fragile":[]}},
+                 // ⚠️ DEUX natures de mesure, qui ne se réconcilient PAS et qu'aucune surface ne
+                 // doit présenter comme dérivées l'une de l'autre (addendum adr-0028 « mémoire à
+                 // quatre vues ») :
+                 //   • 4 STOCKS reconstruits à rebours (`reconstruct_series`) — croissants PAR
+                 //     CONSTRUCTION, ils ne peuvent ni redescendre ni se croiser ;
+                 //   • 2 FLUX datés (`consolidation_flux`) + les passages SRS notés, qui eux
+                 //     varient dans les deux sens.
+                 "series": {"7": {"covered":[],"consolidated":[],"fragile":[],"in_progress":[],
+                                  "gained":[],"lost":[],
+                                  "reviews":{"again":[],"hard":[],"good":[],"easy":[]}}},
                  "review_load": [/* 14 entiers, J+0 → J+13 */],
                  "gaps_open": 2, "has_referentiel": true }],
   "content_chain": [{ "stage": "cours_valides", "label": "Cours validés", "value": 30, "target": 38,

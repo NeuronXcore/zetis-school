@@ -15,6 +15,7 @@ export {
 } from "./activity";
 export {
   type DashboardCalendarDay,
+  type DashboardCardFocus,
   type DashboardContentStage,
   type DashboardEvidence,
   type DashboardFocus,
@@ -24,6 +25,7 @@ export {
   type DashboardPeriod,
   type DashboardPeriodData,
   type DashboardReadingItem,
+  type DashboardReviewRatings,
   type DashboardSchoolYear,
   type DashboardSeries,
   type DashboardSparks,
@@ -34,6 +36,7 @@ export {
   type KpiGaps,
   type KpiOutOf,
   type KpiValue,
+  type PageFocus,
   type ProposedMission,
   type ProposedStep,
   type ProposedStepType,

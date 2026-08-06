@@ -115,6 +115,68 @@ class TestSeries:
             assert marks[0] == TODAY - timedelta(days=period - 1)
 
 
+class TestConsolidationFlux:
+    """Le FLUX, par opposition aux stocks reconstruits ci-dessus.
+
+    C'est la seule mesure de la carte mémoire qui puisse décrire une PERTE : les quatre stocks sont
+    croissants par construction et une notion sortie de l'ensemble disparaît de tout son passé.
+    """
+
+    def test_une_entree_et_une_sortie_de_la_meme_notion_comptent_les_DEUX(self) -> None:
+        """Ce sont des mouvements, pas un solde de population : un aller-retour dans la même
+        fenêtre laisse deux traces, sinon la vue ne montrerait jamais l'oscillation qu'elle existe
+        pour montrer."""
+        marks = p.series_marks(30, TODAY)
+        gained, lost = p.consolidation_flux(
+            [
+                (1, "mastered", TODAY - timedelta(days=20)),
+                (1, "weak", TODAY - timedelta(days=2)),
+            ],
+            marks,
+        )
+        assert sum(gained) == 1
+        assert sum(lost) == 1
+
+    def test_une_premiere_bascule_NON_consolidee_ne_compte_aucune_perte(self) -> None:
+        """L'état d'avant la première bascule connue est inconnu et le reste. Compter une perte ici
+        supposerait un acquis qu'on n'a jamais observé — c'est exactement le cas de la base de dev,
+        dont les quatre seules lignes d'historique sont des entrées en `weak`/`learning`."""
+        marks = p.series_marks(30, TODAY)
+        gained, lost = p.consolidation_flux(
+            [(7, "weak", TODAY - timedelta(days=3)), (8, "learning", TODAY - timedelta(days=1))],
+            marks,
+        )
+        assert sum(gained) == 0
+        assert sum(lost) == 0
+
+    def test_une_bascule_qui_ne_traverse_pas_la_frontiere_ne_compte_nulle_part(self) -> None:
+        marks = p.series_marks(30, TODAY)
+        gained, lost = p.consolidation_flux(
+            [
+                (2, "weak", TODAY - timedelta(days=10)),
+                (2, "learning", TODAY - timedelta(days=5)),
+            ],
+            marks,
+        )
+        assert sum(gained) == 0 and sum(lost) == 0
+
+    def test_un_mouvement_ANTERIEUR_a_la_fenetre_est_ignore_et_non_reporte_au_debut(self) -> None:
+        """🔴 Le piège propre aux flux, et il est SILENCIEUX. `bucket_counts` range chaque jour dans
+        le premier repère qui l'atteint : sans `window_days`, un mouvement vieux de six mois
+        atterrit dans le point n° 1 de la fenêtre 7 jours et y fabrique un pic. Le stock n'a jamais
+        ce problème — rien n'y est bucketisé —, d'où l'absence de précédent dans ce fichier."""
+        marks = p.series_marks(7, TODAY)
+        gained, _lost = p.consolidation_flux(
+            [(3, "mastered", TODAY - timedelta(days=200))], marks
+        )
+        assert sum(gained) == 0, "un mouvement hors fenêtre a été reporté sur le premier point"
+
+    def test_les_deux_listes_ont_la_longueur_des_reperes(self) -> None:
+        marks = p.series_marks(90, TODAY)
+        gained, lost = p.consolidation_flux([], marks)
+        assert len(gained) == len(lost) == p.SERIES_POINTS
+
+
 # ==================================================================================================
 # Route et contrat
 # ==================================================================================================

@@ -1,4 +1,4 @@
-import type { DashboardFocus } from "@zetis/types";
+import type { DashboardCardFocus, PageFocus } from "@zetis/types";
 import { DashboardCard } from "./DashboardCard";
 import { REVIEW_LOAD_WARN } from "../../lib/dashboardDerive";
 
@@ -15,10 +15,11 @@ const PAD = { l: 26, r: 10, t: 12, b: 28 };
 
 interface ReviewLoadCardProps {
   load: number[];
-  focus: DashboardFocus | null;
+  focus: PageFocus | null;
+  onToggleFocus: (next: DashboardCardFocus) => void;
 }
 
-export function ReviewLoadCard({ load, focus }: ReviewLoadCardProps) {
+export function ReviewLoadCard({ load, focus, onToggleFocus }: ReviewLoadCardProps) {
   const max = Math.max(REVIEW_LOAD_WARN + 4, ...load) + 2;
   const barWidth = (W - PAD.l - PAD.r) / load.length;
   const y = (value: number) => H - PAD.b - (value / max) * (H - PAD.t - PAD.b);
@@ -30,6 +31,8 @@ export function ReviewLoadCard({ load, focus }: ReviewLoadCardProps) {
       title="Charge de révision"
       tagline="14 jours à venir"
       focus={focus}
+      focusKey="charge"
+      onToggleFocus={onToggleFocus}
       className="xl:col-span-4"
       note={`La ligne pointillée marque ${REVIEW_LOAD_WARN} cartes — au-delà, la séance devient longue pour un soir de semaine. Un pic se lisse en avançant une révision, pas en la supprimant.`}
     >

@@ -7,144 +7,159 @@
 
 ## État à la reprise
 
-**Chantier : « le KPI qui manque — À renforcer » (addendum ADR-0028) — COMPLET et MERGÉ.**
+**Chantier : « la carte mémoire à 4 vues + 2 cartes focalisables » (2 addenda ADR-0028) — COMPLET, NON POUSSÉ.**
 
-Parti d'une question du user sur les KPI de notions du dashboard Papa, passé par une maquette, un
-addendum d'ADR, puis la slice. Le rituel `mockup → ADR → code` a été tenu **dans l'ordre**, pour la
-première fois depuis plusieurs chantiers.
+Parti d'une demande directe du user sur le dashboard Papa — intervertir deux cartes, puis
+« propose-moi d'autres courbes plus expressives ». Le cadrage est donc venu **après** la demande,
+mais les deux ADR ont été écrits **avant** de livrer, et le second a été écrit **pendant** —
+c'est lui qui a exhumé une régression du chantier de la veille.
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR [#90](https://github.com/NeuronXcore/zetis-school/pull/90)**, squash **`392b075`** (2026-08-05, 16 fichiers) — branche `feat/kpi-a-renforcer` **supprimée**, locale et distante (`git ls-remote` vide, ref locale élaguée). `main` == `origin/main`, **rien à pousser**. Étape **4bis faite** |
-| **État** | ✅ **COMPLET**, et **le bandeau a été regardé à l'écran par le user AVANT la PR** (`WORKFLOW.md §5bis`) — contrairement au bandeau Massimo #79 et au souffle #89, dont les dettes visuelles restent dues |
-| Base | **`5678f06`** (`docs(adr): le KPI qui manque…`) |
-| ⚠️ **Ce que le merge a coûté** | `main` local était **1 commit d'avance** sur `origin/main` (l'ADR n'avait atteint le distant que par la branche). `gh pr merge --delete-branch` a donc **basculé le worktree sur ce `main` périmé** puis échoué à l'avancer — tous les fichiers du chantier ont eu l'air d'avoir **disparu**. Rien n'était perdu : le squash était déjà sur `origin/main`. Parade dans `TROUBLESHOOTING.md` |
-| ADR | `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md` — écrit **avant** le code, **corrigé pendant** (trois corrections, plus bas) |
-| Migration | **aucune** · Route nouvelle : **aucune** · Requête nouvelle : **une** (`history_since`) |
-| Suites | backend **935 ✅** (`test_dashboard.py` 31 → 34, **+3**) · Papa **563 ✅** (561 → 563, **+2**) · Massimo **525 ✅**, non touché · `tsc -b` propre sur les deux fronts |
-| PR | **[#90](https://github.com/NeuronXcore/zetis-school/pull/90) — `MERGED`** le 2026-08-05, 4 commits écrasés en un squash |
-| Vérifié à l'écran | ✅ **OUI — par le user**, sur la paire `backend-dev` :8001 + `papa-dev` :5175, session Papa connectée. Cinq points passés : la carte ambre parmi les cinq, le 13 / +4 et sa courbe en marche, les quatre infobulles, le clic (quatre cartes retenues dont la Lecture ZETIS) et les trois paliers de grille. ⚠️ **L'agent, lui, ne l'a jamais vu** — `localStorage` vide après le redémarrage des serveurs, et il ne saisit pas de mot de passe |
+| **État** | ✅ **COMPLET** — commité, **NON poussé, aucune PR**. Branche `feat/memoire-quatre-vues` |
+| Base | **`352c2ca`** (`docs(memory): launch.json a été jeté…`), == `main` == `origin/main` |
+| Commits | **un seul.** Les fichiers des deux chantiers se recoupent (`MemoryTrendCard.tsx`, `dashboardDerive.ts`, `DECISIONS.md`) : un découpage propre aurait demandé du staging par hunks, impossible ici (`git add -i` indisponible). Liste : `git log --oneline main..HEAD` |
+| ADR | `adr-0028-addendum-memoire-quatre-vues.md` · `adr-0028-addendum-cartes-focalisables.md` |
+| Migration | **aucune** · Route nouvelle : **aucune** · Requêtes nouvelles : **trois** |
+| Suites | backend **940 ✅** (935 → 940, **+5**) · Papa **572 ✅** (563 → 572, **+9**) · Massimo **525 ✅**, non touché · `tsc -b` et `vite build` propres |
+| Vérifié à l'écran | ✅ **par l'agent**, sur `papa-dev` :5175 (session déjà connectée, héritée d'un autre chat). ⚠️ **Deux niveaux de preuve, à ne pas confondre** : les **4 vues** ont été basculées par de **vrais clics** sur données réelles ; les **2 focus de carte** n'ont été vus que **par leur URL** (`?focus=charge`, `?focus=chaine`) — aucun clic sur un titre n'a jamais abouti depuis le panneau navigateur (cf. résidus). Le comportement du clic n'est donc couvert que par les tests. ⚠️ **Le user, lui, n'a pas encore relu** l'écran |
 
 ### FAIT
 
-Le bandeau du dashboard Papa passe de **quatre à cinq KPI**. Le cinquième, **« À renforcer »**
-(`weak` + `learning`), est le seul signal de **régression** de la page : il ne vivait jusque-là que
-dans la barre empilée et la courbe ambre, à deux cartes du seul endroit qu'on lit tôt.
+**1. « Évolution de la mémoire » passe de 3 courbes à 4 vues.** Deux défauts mesurés : l'axe était
+plafonné par `covered` (222), donc « consolidées » (1) tenait dans **0,45 %** de la hauteur ; et
+`reconstruct_series` étant croissant **par construction**, aucune des trois courbes ne pouvait
+redescendre. Les vues : **Paliers** (aire empilée + `covered` en pointillé), **Révisions** (flux SRS
+noté + charge à venir), **Rétention** (ratio 0–100 %, le seul tracé qui peut baisser), **Solde**
+(entrées/sorties du palier consolidé).
 
-- **Backend** — `kpis.fragile` et `sparks.fragile` (réemploi de `_entered_fragile_at` et
-  `reconstruct_series`, déjà en place depuis l'ADR-0028 §3 ter), `history_since` au niveau du
-  payload, et les champs correspondants dans `dashboard/schemas.py`.
-- **Types partagés** — `fragile` dans `DashboardKpis` / `DashboardSparks`, `history_since` dans
-  `DashboardPayload`.
-- **Front** — la carte ambre et son focus, `deltaDirection` → **`deltaTone`** (3 sites),
-  `CARD_SCOPES` étendu à quatre cartes, grille `md:grid-cols-3 xl:grid-cols-5`, **quatre
-  infobulles** (les trois KPI de notions + le segment « en cours » de la légende).
-- **Tests** — 3 backend (le verrou, le delta ancré sur une bascule réelle, l'expiration de
-  `history_since`) + 2 front (rendu de la carte, et le focus **qui a trouvé un bug réel**).
-- **Docs** — `page-dashboard.md` (« Quatre KPI » → cinq, + le bloc qui explique les trois
-  propriétés qui distinguent ce KPI), `API_SPEC.md`, `GLOSSARY.md` (entrée « Notion à renforcer »
-  créée, « Lacune ouverte » remise au réel), `CHANGELOG.md`.
+**2. « Charge de révision » et « Chaîne de contenus » prennent le focus au clic sur leur titre.**
+Elles ne pouvaient jusque-là que **s'éteindre** : leur mesure n'est le sujet d'aucun des 5 KPI
+(`charge` allumée par 2 focus sur 5, `chaine` par 1 sur 5), et elles sont les 2 seules cartes de la
+page sans aucun élément cliquable.
 
-**Vérifié sur la VRAIE base** (`scripts` jetable, base de dev) : `history_since = 2026-07-31`,
-Σ segments ambre = **13** = valeur du KPI, `delta = +4` sur les quatre fenêtres, courbe 30 j
-`[9,9,9,9,9,9,9,9,9,12,13,13]` — exactement celle que la maquette annonçait.
+**3. Interversion** : « État des notions » à gauche, « Évolution de la mémoire » à droite — la cause
+(filtrer une matière) doit se lire avant son effet (les courbes se redessinent).
+
+**4. Régression du chantier lui-même, trouvée et corrigée** : la refonte avait fait disparaître de
+l'écran la série `covered`, seule mesure reliant la production aux notions.
+
+Backend : `window_days` + `consolidation_flux` (pures), `_review_attempts`, `_mastery_transitions`,
+`_entered_in_progress_at`, 4 champs + `ReviewRatings` dans `SubjectSeries`. Types : `PageFocus`
+distinct de `DashboardFocus`. Docs : les 2 ADR, `DECISIONS.md`, `CHANGELOG.md` 0.52.0,
+`page-dashboard.md`, `API_SPEC.md`, `DATA_MODEL.md`.
 
 ### ▶ EN COURS / À FAIRE
 
-**Rien.** Aucun fichier instable, aucune vérification en attente : la relecture à l'écran est faite,
-il ne reste que le geste git.
+**Rien d'instable.** Arbre propre, aucun fichier à moitié écrit. Il ne reste que le geste git.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-1. **Le delta de « À renforcer » est DÉRIVÉ de sa courbe** (`value - sparks.fragile[0]`), jamais
-   recompté. Ce n'est pas une commodité : c'est ce qui interdit au chiffre et à la sparkline de se
-   contredire. ⚠️ Il compte donc des **entrées** et n'est **jamais négatif** — une notion réparée
-   disparaît des deux nombres au lieu d'être soustraite. Le vrai solde a été **écarté** : il
-   contredirait la courbe affichée juste en dessous.
-2. **Pas de dénominateur sur ce KPI.** « 13 / 280 » rapporterait les fragiles au programme entier,
-   dont **261 notions jamais abordées**.
-3. **« En cours » reste UN segment** (`solid` ≥ 70 + `in_progress` + non tranché). Fourre-tout
-   **assumé et documenté** dans une infobulle, pas scindé.
-4. **Le sens de lecture passe par la COULEUR**, jamais par une flèche inversée : sur ce KPI une
-   hausse est une mauvaise nouvelle, et c'est la seule entorse à « vert = ça monte » du bandeau.
-5. **« À renforcer » ≠ « Lacunes ouvertes »** — un palier de maîtrise contre une décision ouverte,
-   deux tables. Les infobulles sont ce qui empêche la confusion de revenir ; si elles ne
-   suffisent pas, c'est le **libellé** qu'il faudra changer, pas l'infobulle qu'il faudra rallonger.
-6. **L'avertissement sur la jeunesse de la courbe s'AUTO-PÉRIME** via `history_since` — une phrase
-   figée aurait été juste six mois puis fausse pour toujours.
+1. **« Paliers » est la vue par défaut par CONTRAT**, pas par goût : `CARD_SCOPES` fait allumer
+   cette carte par « Notions consolidées » et « À renforcer », et leur clic doit tomber sur la vue
+   qui **justifie leur chiffre**. Ouvrir sur « Révisions » — la vue la mieux fournie en données —
+   casserait ce contrat en silence.
+2. 🔴 **Le §5 ter de `adr-0028-addendum-kpi-a-renforcer` est BORNÉ, pas révoqué.** Il écartait le
+   « vrai solde » parce qu'il contredirait la sparkline collée au KPI ; **ce motif ne portait que
+   sur cette adjacence**. La vue « Solde » est autonome, nommée, et sa note dit qu'elle ne se compte
+   pas comme le KPI. Le delta du KPI n'a pas bougé.
+3. **Stocks et flux ne se réconcilient pas**, et aucune surface ne doit les présenter comme dérivés
+   l'un de l'autre. Écrit trois fois (projections, types, schéma Pydantic) exprès.
+4. **Le dénominateur de la rétention est « travaillées », jamais le programme entier** — rapporté à
+   301 le taux vaudrait 0,3 %, rassurant et faux. Et il est **affiché** à côté du taux.
+5. **Un point sans dénominateur est un TROU, pas un zéro** ; **un solde vide dit l'absence de
+   trace**, jamais l'absence de mouvement.
+6. **`PageFocus` est un type DISTINCT de `DashboardFocus`**, qui sert les `Record` du bandeau et
+   qu'il aurait fallu remplir d'un libellé de KPI pour deux non-KPI.
+7. **La zone cliquable est le TITRE, pas la carte** (liens dans la Chaîne de contenus), et le bouton
+   vit **dans** le `h3` pour que la carte reste un titre au clavier.
+8. **L'asymétrie des portées est voulue** : `chaine` allume la Lecture ZETIS, mais `fragile`
+   n'allume pas `chaine`. La symétriser élargirait tout jusqu'à ce qu'un focus n'atténue plus rien.
+9. **`ReviewLoadCard` n'est PAS supprimée** malgré le recoupement avec la vue « Révisions » —
+   retirer une carte du cockpit est une décision de mise en page, qui ne se prend pas en passant.
 
 ### ⚠️ Pièges payés en vrai, à ne pas re-découvrir
 
-1. 🔴 **Une union qui pilote un comportement ne se garde JAMAIS par un tableau.** `useDashboard`
-   validait le focus d'URL contre un `DashboardFocus[]` : un tableau **incomplet reste valide**,
-   `tsc` est resté muet, le clic écrivait `?focus=fragile`, le garde le refusait, **et la carte ne
-   s'activait jamais**. Le KPI serait parti **inerte**. Corrigé en `Record<DashboardFocus, true>`.
-   **Troisième occurrence** de cette leçon (`DashboardPeriod`, `COUNCIL_PERIOD_LABEL`, celle-ci).
-2. 🔴 **`response_model=DashboardOut` FILTRE la réponse en silence.** Un champ ajouté au dict du
-   service mais absent du schéma Pydantic **disparaît du HTTP sans erreur**. D'où : tout verrou de
-   contrat passe par la **réponse HTTP**, jamais par le dict du service.
-3. 🔴 **Mon verrou, écrit tel quel dans l'ADR, était TAUTOLOGIQUE** — le service calcule la valeur
-   du KPI **par la somme même** qu'on lui opposait. Un verrou n'en est un que par un **ancrage hors
-   payload**. ⚠️ Et l'ancrage doit **discriminer** : le premier valait `1`, ce qui coïncidait avec
-   le compte des consolidées **et** des « en cours » du même fixture.
-4. ⚠️ **Une infobulle qui cite un autre KPI rend les noms accessibles ambigus.** L'infobulle de
-   « Lacunes ouvertes » contient la chaîne « À renforcer », donc `getByRole("button", {name:
-   /À renforcer/})` désigne **deux** boutons. Ancrer sur le début (`/^À renforcer/`).
-5. ⚠️ **Le focus transite par l'URL : la bascule n'est pas synchrone au clic.** Une assertion sèche
-   après `fireEvent.click` lit l'ancien `aria-pressed`. Utiliser `waitFor`.
+1. 🔴 **Une refonte de composant peut faire DISPARAÎTRE une série servie sans qu'un test rougisse.**
+   `covered` a cessé d'être affichée et rien ne l'a signalé — les tests portent sur ce qui est
+   affiché, jamais sur ce qui a **cessé** de l'être.
+2. 🔴 **`bucket_counts` fabrique un pic à gauche sur tout FLUX** : un jour antérieur à la fenêtre
+   tombe dans le bucket 0 au lieu d'être ignoré. Piège **absent des stocks** (rien n'y est
+   bucketisé), donc sans précédent dans le module. Parade : `window_days`.
+3. ⚠️ **`keyof T` cesse de suffire dès qu'un champ n'est pas homogène** (`reviews` est un objet, pas
+   un `number[]`). Et le type attrape l'**oubli** d'un champ, jamais sa **justesse** : d'où le
+   `toEqual` sur l'objet entier avec des valeurs toutes distinctes.
+4. ⚠️ **Le HMR laisse un module CASSÉ quand l'usage précède l'import**, et ne le répare pas : il
+   faut un rechargement complet. Surtout : **la console conserve l'historique** — pour savoir si un
+   bug est vivant, interroger le **DOM**, pas la console. A coûté un faux diagnostic de page morte.
+5. ⚠️ **Quatrième occurrence de « l'union se garde par un `Record`, pas par un tableau »** —
+   élargir le focus rouvrait mot pour mot le bug du chantier précédent.
 
-Détail, cause et parade : `TROUBLESHOOTING.md` §`feat/kpi-a-renforcer`.
-
-### Ce que le read-before-code a corrigé DANS L'ADR
-
-Trois corrections écrites dans le document lui-même, pour que personne ne les redécouvre :
-`dashboard/schemas.py` manquait au §Coût · « aucune requête de plus » était faux
-(`history_since` en coûte une) · le verrou du §5 nonies était tautologique.
+Détail, cause et parade : `TROUBLESHOOTING.md` §`feat/memoire-quatre-vues`.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS et MERGÉ** (PR #90, squash `392b075`). Branche supprimée des deux côtés,
-`main` == `origin/main`, **arbre propre** — vérifié après le merge. **Étape 4bis faite.**
+**Pousser la branche et ouvrir la PR** — le chantier est fini, il ne manque que le geste git :
 
-Le prochain chantier se choisit dans les DETTES ci-dessous, ou se cadre — `/ouverture`, ADR avant
-le code. Si le sujet reste le dashboard, **le premier geste est écrit dans les dettes** : l'addendum
-qui fige « Semaine en cours », la seule surface du dashboard qu'aucun ADR ne décrit.
+```
+git push -u origin feat/memoire-quatre-vues
+```
+
+Puis PR → merge → **étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici le squash, le n° de PR et
+la suppression de branche.
 
 ⚠️ **Résidus de CE chantier**, qui ne vivent nulle part ailleurs :
 
-- ✅ **`.claude/launch.json` : `autoPort: false` posé puis JETÉ, volontairement.** En relançant les
-  serveurs, le harnais a proposé de rendre le port de `papa-dev` réassignable — ce qui aurait cassé
-  le CORS en silence, chaque backend n'autorisant que le port de son front. Le champ a donc été posé
-  sur les neuf entrées appairées, puis **écarté à la clôture** parce qu'il n'appartenait pas à ce
-  chantier. **Exposition réelle faible** : ces entrées portent déjà `--port N --strictPort`, donc
-  Vite refuse de bouger plutôt que de glisser ailleurs. Ce qui manque n'est que le message d'échec
-  clair, pas la protection. À reposer si le harnais redemande.
-- ⚠️ **Deux incohérences pré-existantes de `launch.json`, signalées et non traitées** : `massimo`
-  (:5173) et `papa` (:5174) ont `autoPort: true` alors que le `cors_origins` **par défaut** du
-  backend est exactement 5173/5174 (même bug, latent) ; et `massimo-dev2` / `papa-srs` réclament
-  tous deux le port **5177**.
-- ⚠️ **`KPI_ORDER` est un export MORT** (`dashboardDerive.ts`) — lu par aucun fichier. Étendu par
-  cohérence, mais c'est de la dette : un `DashboardFocus[]` incomplet ne fait bouger ni test ni
-  compilateur. Chip de tâche posée.
-- ⚠️ **Deux écarts pré-existants du dashboard, relevés en passant** : le delta de `consolidated`
-  n'est **pas** `value - series[0]` (`reconstruct_series` filtre sur `> mark`, strict, alors que le
-  delta compte `first <= d <= last` — une notion consolidée pile le premier jour de la fenêtre est
-  comptée d'un côté et pas de l'autre) ; et `open_gaps.delta` est **codé en dur à `0`**.
-- ⚠️ **`FRAGILE_STATUSES` n'est pas là où l'ADR-0028 §3 bis l'annonce** (`progress/service.py`) mais
-  dans `dashboard/projections.py:41` — la dépendance va de `progress` **vers** `dashboard`. Constat,
-  pas correction.
-- ⚠️ **Aucune donnée de test laissée en base** : la vérification s'est faite en **lecture seule**
-  (script jetable appelant `build_dashboard`, aucun `commit`).
-- ✅ **Les trois paliers de grille ont été vus sur la vraie page** (5 → 3 → 2 colonnes), pas
-  seulement mesurés sur la maquette. Rien d'autre n'a été exercé en responsive : les huit cartes
-  du bas restent non vérifiées aux largeurs intermédiaires — dette **antérieure**, pas de ce
-  chantier.
-
+- 🔴 **Le user n'a PAS encore relu les quatre vues à l'écran.** L'agent les a vérifiées sur données
+  réelles, mais `WORKFLOW.md §5bis` demande l'œil humain avant la PR — et le dépôt porte déjà deux
+  dettes visuelles nées de ce raccourci (bandeau Massimo #79, souffle #89). **À faire avant de
+  merger**, en particulier la vue « Révisions » sur les fenêtres 30 j et Trimestre, où les 29
+  passages du 4 juillet entrent dans le cadre.
+- ⚠️ **La vue « Solde » est VIDE sur la base de dev**, et c'est correct : `skill_mastery_history`
+  n'a que 4 lignes, toutes des entrées en `weak`. Son rendu **non vide n'a donc jamais été vu** —
+  ni barres montantes, ni barres descendantes. À regarder à la première vraie bascule.
+- ⚠️ **Aucune donnée de test laissée en base** : la sonde était en lecture seule (script jetable
+  appelant `build_dashboard`, aucun `commit`).
+- 🔴 **Aucun clic sur un titre focalisable n'a abouti depuis le panneau navigateur.** Les clics par
+  `ref` y rendent des coordonnées **page**, hors de l'espace de clic (800 px de large), et
+  **échouent en silence** — sans erreur, sans effet. Le focus a donc été vérifié en posant
+  `?focus=charge` / `?focus=chaine` dans l'URL, ce qui exerce bien le garde `isFocus` et le rendu,
+  **mais pas le gestionnaire de clic**, couvert seulement par les tests. À confirmer à la main.
+- ⚠️ **Rien n'a été vérifié en responsive**, ni le sélecteur à 4 vues (4 boutons dans un en-tête qui
+  porte déjà titre + tagline + indication de focus), ni les deux titres devenus boutons.
+- ⚠️ **La vue « Révisions » a un axe des abscisses NON LINÉAIRE** de part et d'autre du trait
+  d'aujourd'hui (12 intervalles à gauche, 14 jours à droite). Assumé et écrit dans la note de la
+  carte — **déclencheur de réouverture** : si quelqu'un compare la largeur des barres des deux
+  moitiés, c'est que la note ne suffit pas.
+- ⚠️ **`ReviewLoadCard` et la vue « Révisions » servent les mêmes 14 jours.** Recoupement assumé
+  (voir décision 9), mais c'est le genre de doublon qui devient une question de mise en page si le
+  cockpit se resserre un jour.
 ---
 
 ### ▶ DETTES OUVERTES
 
-> ⚠️ **Les cinq premières sont REMONTÉES du chantier « souffle, donut, créneaux » (PR #89) lors de
+> ⚠️ **Les quatre premières sont REMONTÉES du chantier « KPI À renforcer » (PR #90) lors de son
+> élagage (2026-08-06, 4ᵉ contrôle).** Ses trois autres contrôles passaient — ADR
+> `adr-0028-addendum-kpi-a-renforcer.md` ✅, `TROUBLESHOOTING.md` §`feat/kpi-a-renforcer` ✅,
+> `CHANGELOG.md` 0.51.0 ✅ — mais ses « résidus » enterraient quatre constats **encore vrais**,
+> revérifiés un par un à la clôture.
+
+- ⚠️ **Deux incohérences pré-existantes de `.claude/launch.json`.** `massimo` (:5173) et `papa`
+  (:5174) portent `autoPort: true` alors que le `cors_origins` **par défaut** du backend est
+  exactement 5173/5174 — un glissement de port casserait le CORS **sans message clair**. Et
+  `massimo-dev2` / `papa-srs` réclament tous deux le port **5177**. Signalé deux fois, jamais traité.
+- ⚠️ **`KPI_ORDER` est un export MORT** (`dashboardDerive.ts:322`) — **revérifié le 2026-08-06** :
+  lu par aucun fichier, son seul autre occurrence est une mention dans un commentaire d'ADR. Un
+  `DashboardFocus[]` incomplet ne ferait bouger ni test ni compilateur.
+- ⚠️ **Deux écarts pré-existants du dashboard.** Le delta de `consolidated` n'est **pas**
+  `value - series[0]` (`reconstruct_series` filtre sur `> mark`, strict, alors que le delta compte
+  `first <= d <= last` : une notion consolidée pile le premier jour est comptée d'un côté et pas de
+  l'autre) ; et `open_gaps.delta` est **codé en dur à `0`** — revérifié, `service.py:993`.
+- ⚠️ **`FRAGILE_STATUSES` n'est pas là où l'ADR-0028 §3 bis l'annonce.** Il est dans
+  `dashboard/projections.py:42`, pas dans `progress/service.py` : la dépendance va de `progress`
+  **vers** `dashboard`. Constat, pas correction — le déplacer est un refactor transverse.
+
+> ⚠️ **Les cinq suivantes sont REMONTÉES du chantier « souffle, donut, créneaux » (PR #89) lors de
 > son élagage (2026-08-05, 4ᵉ contrôle).** Ses trois autres contrôles passaient — section
 > `TROUBLESHOOTING.md` présente, entrée `CHANGELOG.md` présente — mais **le premier a ÉCHOUÉ** : ce
 > chantier n'a **aucun ADR**, et c'est la première de ces dettes.
@@ -568,6 +583,17 @@ si la file regrossit.
 
 
 ## Historique des chantiers clos
+
+> **2026-08-05 — le 5ᵉ KPI du dashboard Papa, « À renforcer »** (PR
+> [#90](https://github.com/NeuronXcore/zetis-school/pull/90), squash `392b075`), section retirée à
+> la clôture du chantier « mémoire à quatre vues » (2026-08-06). Contrôles : ADR
+> `adr-0028-addendum-kpi-a-renforcer.md` ✅ · `TROUBLESHOOTING.md` §`feat/kpi-a-renforcer` ✅ ·
+> `CHANGELOG.md` 0.51.0 ✅ · **quatre résidus REMONTÉS** en tête de « DETTES OUVERTES » (les deux
+> incohérences de `launch.json`, `KPI_ORDER` mort, les deux écarts de delta du dashboard, et
+> l'emplacement de `FRAGILE_STATUSES`) — tous **revérifiés par commande** avant remontée, aucun
+> n'était périmé. Ce qui ne survit qu'ici : `gh pr merge --delete-branch` a **basculé le worktree
+> sur un `main` local périmé** puis échoué à l'avancer, donnant l'illusion que tous les fichiers du
+> chantier avaient disparu — rien n'était perdu, le squash était déjà sur `origin/main`.
 
 > **2026-08-05 — la file de relecture + la fenêtre de la branche `flat`** (PR #86 squash `d727394`,
 > PR #87 squash `e42dc64`), section retirée à la clôture du chantier « souffle du focus ».
