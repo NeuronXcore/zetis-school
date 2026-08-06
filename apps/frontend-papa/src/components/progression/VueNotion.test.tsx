@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import type { SkillIndex, SkillIndexRow } from "@zetis/types";
-import { VueNotion } from "./VueNotion";
+import type { NotionPalier, SkillIndex, SkillIndexRow } from "@zetis/types";
+import { palierDemande, VueNotion } from "./VueNotion";
 
 // Tri des six colonnes (amendement du §4 bis, 2026-08-06 — le cadrage n'en prévoyait que trois).
 //
@@ -39,11 +39,12 @@ function index(notions: SkillIndexRow[]): SkillIndex {
   };
 }
 
-function rendre(idx: SkillIndex) {
+function rendre(idx: SkillIndex, palierInitial: NotionPalier | null = null) {
   return render(
     <VueNotion
       index={idx}
       subjectSlug={null}
+      palierInitial={palierInitial}
       timelines={{}}
       timelineLoading={null}
       onOpenTimeline={vi.fn()}
@@ -51,6 +52,40 @@ function rendre(idx: SkillIndex) {
     />,
   );
 }
+
+// Le pré-filtre venu d'un lien du dépliage matière (« Les 8 à renforcer → », 2026-08-06).
+describe("VueNotion — pré-filtre de palier", () => {
+  const MELANGE = [
+    notion({ skill_id: 1, skill_name: "Acquise", palier: "acquise" }),
+    notion({ skill_id: 2, skill_name: "Fragile", palier: "a_renforcer" }),
+    notion({ skill_id: 3, skill_name: "EnCours", palier: "en_cours" }),
+  ];
+
+  it("n'affiche QUE le palier demandé", () => {
+    rendre(index(MELANGE), "a_renforcer");
+    expect(ordreAffiche()).toEqual(["Fragile"]);
+  });
+
+  it("le filtre reste VISIBLE et se retire d'un clic", () => {
+    // Un filtre silencieux est un écran qui ment par omission : Papa doit voir qu'il ne regarde
+    // pas tout, et pouvoir revenir sans repasser par l'URL.
+    rendre(index(MELANGE), "a_renforcer");
+    const pastille = screen.getByRole("button", { name: /^acquise ·/ });
+    expect(pastille).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(pastille);
+    expect(ordreAffiche()).toEqual(["Acquise", "Fragile"]);
+  });
+
+  it("un palier inconnu ne filtre RIEN plutôt que de vider l'écran", () => {
+    expect(palierDemande("klingon")).toBeNull();
+    expect(palierDemande(null)).toBeNull();
+    expect(palierDemande("a_renforcer")).toBe("a_renforcer");
+
+    rendre(index(MELANGE), palierDemande("klingon"));
+    expect(ordreAffiche()).toEqual(["Acquise", "EnCours", "Fragile"]);
+  });
+});
 
 /** Les noms de notion affichés, dans l'ordre du tableau. */
 function ordreAffiche(): string[] {

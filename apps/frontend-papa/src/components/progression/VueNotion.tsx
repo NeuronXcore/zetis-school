@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type {
   NotionPalier,
   NotionSince,
@@ -82,9 +82,17 @@ function plie(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("fr");
 }
 
+/** Le palier demandé par l'URL, validé. Un palier inconnu ne filtre RIEN plutôt que de vider
+ *  l'écran — même règle qu'un slug de matière inconnu, qui ne surligne rien au lieu de tout
+ *  masquer. Un lien qui vide la table se lit « il n'y a rien », pas « ton lien est faux ». */
+export function palierDemande(v: string | null): NotionPalier | null {
+  return TOUS_PALIERS.includes(v as NotionPalier) ? (v as NotionPalier) : null;
+}
+
 export function VueNotion({
   index,
   subjectSlug,
+  palierInitial,
   timelines,
   timelineLoading,
   onOpenTimeline,
@@ -92,12 +100,24 @@ export function VueNotion({
 }: {
   index: SkillIndex;
   subjectSlug: string | null;
+  /** Pré-filtre venu d'un lien du dépliage matière (« Les 8 à renforcer → »). Il POSE l'état des
+   *  pastilles, il ne le verrouille pas : Papa reste libre de les rallumer, et le filtre reste
+   *  visible — un filtre silencieux est un écran qui ment par omission. */
+  palierInitial?: NotionPalier | null;
   timelines: Record<number, SkillTimeline | undefined>;
   timelineLoading: number | null;
   onOpenTimeline: (skillId: number) => void;
   onVoirPeriode: () => void;
 }) {
-  const [paliers, setPaliers] = useState<NotionPalier[]>(PALIERS_ENGAGES);
+  const [paliers, setPaliers] = useState<NotionPalier[]>(
+    palierInitial ? [palierInitial] : PALIERS_ENGAGES,
+  );
+
+  // ⚠️ Dépendance sur la SEULE valeur du paramètre : l'effet ne rejoue pas quand Papa bascule les
+  // pastilles à la main, sinon le lien lui reprendrait son filtre à chaque rendu.
+  useEffect(() => {
+    if (palierInitial) setPaliers([palierInitial]);
+  }, [palierInitial]);
   const [lacuneSeule, setLacuneSeule] = useState(false);
   const [sansMission, setSansMission] = useState(false);
   const [tri, setTri] = useState<Tri>("notion");

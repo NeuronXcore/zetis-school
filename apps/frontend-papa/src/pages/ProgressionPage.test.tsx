@@ -66,6 +66,21 @@ function ligne(name: string) {
   return within(screen.getByRole("table")).getByText(name).closest("tr") as HTMLElement;
 }
 
+/** La cellule d'une ligne SOUS une colonne nommée.
+ *
+ *  ⚠️ Ancrée sur l'EN-TÊTE, jamais sur un index : deux assertions positionnelles (« la dernière
+ *  cellule vaut 8 », « la ligne contient 1 ») ont été silencieusement invalidées le 2026-08-06 par
+ *  l'ajout de la colonne « Lacune ». Ancrées ainsi, elles disent enfin de QUELLE colonne elles
+ *  parlent — et une septième colonne ne les déplacera plus. */
+function cellule(ligneEl: HTMLElement, colonne: string) {
+  const entetes = within(screen.getByRole("table")).getAllByRole("columnheader");
+  const i = entetes.findIndex((h) =>
+    h.textContent?.trim().toLowerCase().startsWith(colonne.toLowerCase()),
+  );
+  if (i < 0) throw new Error(`colonne « ${colonne} » introuvable`);
+  return within(ligneEl).getAllByRole("cell")[i];
+}
+
 function analyse(overrides: Record<string, unknown> = {}) {
   return {
     subject_id: 1,
@@ -157,8 +172,8 @@ describe("avancé et acquis ne fusionnent jamais", () => {
 
     const francais = await waitFor(() => ligne("Français"));
 
-    expect(within(francais).getByText("10 / 96")).toBeInTheDocument();
-    expect(within(francais).getByText("1")).toBeInTheDocument(); // acquis, à part
+    expect(cellule(francais, "Avancement")).toHaveTextContent("10 / 96");
+    expect(cellule(francais, "Acquis")).toHaveTextContent(/^1$/); // acquis, à part
     // Anti-vacuité : 10 ≠ 1, donc afficher l'un pour l'autre se verrait. Et la somme des deux
     // (11) ne doit apparaître nulle part — ce serait le total unique qu'on refuse.
     expect(within(francais).queryByText("11 / 96")).not.toBeInTheDocument();
@@ -214,9 +229,12 @@ describe("une matière sans référentiel n'est pas masquée", () => {
 
     const espagnol = await waitFor(() => ligne("Espagnol"));
     expect(within(espagnol).getByText(/référentiel non généré/)).toBeInTheDocument();
+    // 🔴 Cette assertion GELAIT le défaut : elle exigeait `/programme` NU, donc elle serait restée
+    // verte pour toujours sur un lien qui renvoyait les huit matières vers la même page. Un test
+    // peut verrouiller un bug aussi bien qu'un comportement — celui-ci l'a fait pendant un jour.
     expect(within(espagnol).getByRole("link", { name: /Ouvrir le programme/ })).toHaveAttribute(
       "href",
-      "/programme",
+      "/programme?subject=6",
     );
   });
 
@@ -272,8 +290,292 @@ describe("à renforcer", () => {
     renderPage();
 
     const francais = await waitFor(() => ligne("Français"));
-    const cellules = within(francais).getAllByRole("cell");
-    expect(cellules[cellules.length - 1]).toHaveTextContent("8");
+    // Depuis le 2026-08-06 les deux populations ont chacune leur colonne. L'assertion en est
+    // renforcée, pas allégée : elle dit maintenant que 8 et 1 tombent dans DEUX colonnes
+    // différentes, là où elle vérifiait seulement que la dernière valait 8.
+    expect(cellule(francais, "À renforcer")).toHaveTextContent(/^8$/);
+    expect(cellule(francais, "Lacune")).toHaveTextContent(/^1$/);
+  });
+
+  it("le compte de lacunes MÈNE à la page qui les porte, et zéro ne mène nulle part", async () => {
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(
+      overview([
+        subject({ gaps_open: 1 }),
+        subject({ subject_id: 2, slug: "mathematiques", name: "Mathématiques", gaps_open: 0 }),
+      ]),
+    );
+    renderPage();
+
+    const francais = await waitFor(() => ligne("Français"));
+    expect(within(cellule(francais, "Lacune")).getByRole("link")).toHaveAttribute(
+      "href",
+      "/lacunes?subject=francais",
+    );
+    // Un lien vers une liste vide serait le cul-de-sac que ce chantier existe pour supprimer.
+    expect(within(cellule(ligne("Mathématiques"), "Lacune")).queryByRole("link")).toBeNull();
+  });
+});
+
+// --- 🔴 Chaque lien porte SA matière ---------------------------------------------------------------
+//
+// Le défaut trouvé à l'écran le 2026-08-06 : les trois « Ouvrir le programme » ne portaient aucun
+// paramètre, donc les huit lignes menaient toutes à la matière ouverte par défaut. Une cible
+// manquante est SILENCIEUSE — la page d'arrivée ignore le paramètre absent et ouvre autre chose,
+// sans erreur, sans rien de rouge nulle part.
+//
+// ⚠️ Le paramètre `subject` ne porte pas le même type selon la destination : `subject_id` pour
+// `/programme` et `/couverture`, SLUG pour `/lacunes` et `/conseil`. Ce test fige les deux.
+
+describe("les liens de la Progression sont ciblés", () => {
+  const MATHS = subject({ subject_id: 7, slug: "mathematiques", name: "Mathématiques" });
+
+  it("« Ouvrir le programme » porte l'id de SA ligne, sur les deux états sans mesure", async () => {
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(
+      overview([
+        subject({ subject_id: 3, slug: "svt", name: "SVT", has_referentiel: false }),
+        subject({
+          subject_id: 5,
+          slug: "techno",
+          name: "Technologie",
+          notions: { consolidated: 0, fragile: 0, in_progress: 0, total: 0 },
+        }),
+      ]),
+    );
+    renderPage();
+
+    await waitFor(() => ligne("SVT"));
+    // Scopé à la cellule « Avancement » : la ligne porte aussi le lien de la colonne « Lacune ».
+    expect(within(cellule(ligne("SVT"), "Avancement")).getByRole("link")).toHaveAttribute(
+      "href",
+      "/programme?subject=3",
+    );
+    expect(within(cellule(ligne("Technologie"), "Avancement")).getByRole("link")).toHaveAttribute(
+      "href",
+      "/programme?subject=5",
+    );
+  });
+
+  it("le dépliage cible programme ET couverture sur la MÊME matière", async () => {
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(overview([MATHS]));
+    vi.mocked(fetchSubjectAnalysis).mockResolvedValue(
+      analyse({ not_started: [{ skill_id: 9, skill_name: "Pythagore" }] }) as never,
+    );
+    renderPage();
+    await waitFor(() => ligne("Mathématiques"));
+    await ouvrir("Mathématiques");
+
+    // Programme : la notion pas encore abordée ; Couverture : ce qu'il reste à produire.
+    expect(await screen.findByRole("link", { name: /Ouvrir le programme/ })).toHaveAttribute(
+      "href",
+      "/programme?subject=7",
+    );
+    expect(screen.getByRole("link", { name: /Ouvrir la couverture/ })).toHaveAttribute(
+      "href",
+      "/couverture?subject=7",
+    );
+    // …et les deux destinations qui prennent un SLUG le prennent toujours.
+    expect(screen.getByRole("link", { name: /Conseil de classe/ })).toHaveAttribute(
+      "href",
+      "/conseil?subject=mathematiques",
+    );
+    expect(screen.getByRole("link", { name: /Ouvrir les lacunes/ })).toHaveAttribute(
+      "href",
+      "/lacunes?subject=mathematiques",
+    );
+  });
+
+  it("les trois liens du dépliage mènent aux autres VUES, pré-filtrées sur la matière", async () => {
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(
+      overview([
+        subject({
+          subject_id: 7,
+          slug: "mathematiques",
+          name: "Mathématiques",
+          engaged: 12,
+          notions: { consolidated: 1, fragile: 4, in_progress: 7, total: 58 },
+        }),
+      ]),
+    );
+    vi.mocked(fetchSubjectAnalysis).mockResolvedValue(analyse() as never);
+    renderPage();
+    await waitFor(() => ligne("Mathématiques"));
+    await ouvrir("Mathématiques");
+
+    // Les libellés PORTENT les nombres de la ligne : un lien « Les 12 notions engagées » qui
+    // n'ouvrirait pas 12 notions serait le constat qui ment, déplacé d'un cran.
+    expect(await screen.findByRole("link", { name: "Les 12 notions engagées →" })).toHaveAttribute(
+      "href",
+      "/progression?view=notion&subject=mathematiques",
+    );
+    expect(screen.getByRole("link", { name: "Les 4 à renforcer →" })).toHaveAttribute(
+      "href",
+      "/progression?view=notion&subject=mathematiques&palier=a_renforcer",
+    );
+    expect(screen.getByRole("link", { name: "Ce qui s'est passé →" })).toHaveAttribute(
+      "href",
+      "/progression?view=periode&subject=mathematiques",
+    );
+  });
+
+  it("« 0 à renforcer » ne propose pas de lien vers une liste vide", async () => {
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(
+      overview([subject({ notions: { consolidated: 1, fragile: 0, in_progress: 2, total: 58 } })]),
+    );
+    vi.mocked(fetchSubjectAnalysis).mockResolvedValue(analyse() as never);
+    renderPage();
+    await waitFor(() => ligne("Français"));
+    await ouvrir("Français");
+
+    await screen.findByRole("link", { name: /notions engagées/ });
+    expect(screen.queryByRole("link", { name: /à renforcer →/ })).toBeNull();
+  });
+
+  it("aucun lien de la surface Progression ne part sans cible", async () => {
+    // Anti-régression générique : c'est la forme du défaut, pas une de ses instances. Un futur
+    // « Ouvrir le programme » ajouté sans paramètre rougira ici sans qu'on ait pensé à lui.
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(overview([MATHS]));
+    vi.mocked(fetchSubjectAnalysis).mockResolvedValue(analyse() as never);
+    renderPage();
+    await waitFor(() => ligne("Mathématiques"));
+    await ouvrir("Mathématiques");
+    await screen.findByText(/Référentiel —/);
+
+    const nus = screen
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href") ?? "")
+      .filter((h) => ["/programme", "/couverture", "/lacunes", "/conseil"].includes(h));
+    expect(nus).toEqual([]);
+  });
+});
+
+// --- Le tri des six colonnes (2026-08-06) ----------------------------------------------------------
+//
+// 🔴 L'invariant qui compte n'est PAS « ça trie » : c'est que **le départage survit au sens**, et
+// que **l'absence de mesure ne se retourne pas avec lui**. Les ex æquo sont la règle sur cette
+// table — sept matières sur huit à zéro acquis.
+
+/** Les matières, dans l'ordre du tableau. Les lignes de dépliage (une seule cellule) sont écartées. */
+function ordreMatieres(noms: string[]): string[] {
+  return within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1)
+    .filter((r) => within(r).queryAllByRole("cell").length > 1)
+    .map((r) => noms.find((n) => r.textContent?.includes(n)) ?? "?");
+}
+
+/** Clique un en-tête de colonne.
+ *
+ *  ⚠️ `fireEvent`, jamais `element.click()` : un clic DOM nu n'est pas enveloppé dans `act()`,
+ *  l'état n'est pas vidé, et l'assertion lit l'ordre d'AVANT — un test écrit ainsi passe quand
+ *  l'attendu est déjà l'ordre par défaut, donc il ne prouve rien. */
+function trierPar(nom: string) {
+  const colonne = within(screen.getByRole("table"))
+    .getAllByRole("columnheader")
+    .find((c) => c.textContent?.trim().toLowerCase().startsWith(nom.toLowerCase()));
+  if (!colonne) throw new Error(`colonne « ${nom} » introuvable`);
+  fireEvent.click(within(colonne).getByRole("button"));
+}
+
+describe("tri des colonnes", () => {
+  // Servies dans l'ORDRE DE L'ANNÉE, qui n'est pas l'ordre alphabétique — c'est ce qui rend les
+  // deux distinguables.
+  const NOMS = ["Mathématiques", "Français", "Histoire"];
+  const TROIS = [
+    subject({ subject_id: 1, slug: "mathematiques", name: "Mathématiques", xp: 100 }),
+    subject({ subject_id: 2, slug: "francais", name: "Français", xp: 300 }),
+    subject({ subject_id: 3, slug: "histoire", name: "Histoire", xp: 200 }),
+  ];
+
+  it("trie « Matière » dans l'ORDRE DE L'ANNÉE, jamais alphabétique", async () => {
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(overview(TROIS));
+    renderPage();
+    await waitFor(() => ligne("Français"));
+
+    // ⚠️ On passe D'ABORD par une autre colonne : l'ordre de l'année étant déjà celui du départ,
+    // cliquer « Matière » d'emblée passerait même si le clic ne faisait rien.
+    trierPar("XP");
+    expect(ordreMatieres(NOMS)).toEqual(["Français", "Histoire", "Mathématiques"]);
+
+    trierPar("Matière");
+    // L'ordre servi, pas l'alphabet — qui donnerait Français, Histoire, Mathématiques.
+    expect(ordreMatieres(NOMS)).toEqual(["Mathématiques", "Français", "Histoire"]);
+  });
+
+  it("le premier clic d'une colonne de compte montre les PLUS GRANDS", async () => {
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(overview(TROIS));
+    renderPage();
+    await waitFor(() => ligne("Français"));
+
+    trierPar("XP");
+    // 300, 200, 100 : on trie sur « XP » pour voir qui en a le plus, pas les zéros.
+    expect(ordreMatieres(NOMS)).toEqual(["Français", "Histoire", "Mathématiques"]);
+    trierPar("XP");
+    expect(ordreMatieres(NOMS)).toEqual(["Mathématiques", "Histoire", "Français"]);
+  });
+
+  it("🔴 le SENS n'inverse pas le départage — les ex æquo gardent leur ordre", async () => {
+    // Trois matières au MÊME XP : la clé principale ne les départage pas. Quel que soit le sens,
+    // elles restent dans l'ordre (nom, subject_id). Si le tri inversait aussi sa queue, l'ordre
+    // des ex æquo basculerait — et sur cette table les ex æquo sont la règle.
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(
+      overview(TROIS.map((s) => ({ ...s, xp: 42 }))),
+    );
+    renderPage();
+    await waitFor(() => ligne("Français"));
+
+    trierPar("XP");
+    const desc = ordreMatieres(NOMS);
+    trierPar("XP");
+    const asc = ordreMatieres(NOMS);
+
+    expect(desc).toEqual(["Français", "Histoire", "Mathématiques"]); // alphabétique, la queue
+    expect(asc).toEqual(desc);
+  });
+
+  it("🔴 une matière SANS barre reste en bas dans les DEUX sens", async () => {
+    // Sans référentiel, il n'y a pas de ratio. La compter comme 0 dirait « pas avancée » là où la
+    // vérité est « pas mesurable » — et en sens descendant elle passerait en TÊTE du classement
+    // d'avancement, ce qui serait le contresens exact.
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(
+      overview([
+        subject({ subject_id: 1, slug: "mathematiques", name: "Mathématiques", engaged: 5, notions: { consolidated: 0, fragile: 0, in_progress: 5, total: 100 } }),
+        subject({ subject_id: 2, slug: "francais", name: "Français", engaged: 0, notions: { consolidated: 0, fragile: 0, in_progress: 0, total: 0 }, has_referentiel: false }),
+        subject({ subject_id: 3, slug: "histoire", name: "Histoire", engaged: 50, notions: { consolidated: 0, fragile: 0, in_progress: 50, total: 100 } }),
+      ]),
+    );
+    renderPage();
+    await waitFor(() => ligne("Français"));
+
+    trierPar("Avancement");
+    expect(ordreMatieres(NOMS)).toEqual(["Histoire", "Mathématiques", "Français"]);
+    trierPar("Avancement");
+    expect(ordreMatieres(NOMS)).toEqual(["Mathématiques", "Histoire", "Français"]);
+  });
+
+  it("porte `aria-sort` sur la colonne active, et sur elle seule", async () => {
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(overview(TROIS));
+    renderPage();
+    await waitFor(() => ligne("Français"));
+
+    trierPar("Acquis");
+    const actives = within(screen.getByRole("table"))
+      .getAllByRole("columnheader")
+      .filter((c) => c.getAttribute("aria-sort") !== "none");
+    expect(actives).toHaveLength(1);
+    expect(actives[0]).toHaveAttribute("aria-sort", "descending");
+  });
+
+  it("trier ne referme pas la matière ouverte", async () => {
+    // Le dépliage est repéré par son SLUG, pas par sa position : réordonner la table ne doit pas
+    // faire disparaître le détail que Papa était en train de lire.
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(overview(TROIS));
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Histoire/ }));
+    await waitFor(() => expect(ligne("Histoire")).toBeInTheDocument());
+
+    trierPar("XP");
+    const histoire = within(screen.getByRole("table")).getByRole("button", { name: /Histoire/ });
+    expect(histoire).toHaveAttribute("aria-expanded", "true");
   });
 });
 
@@ -400,7 +702,7 @@ describe("dépliage d'une ligne", () => {
     // les nombres de la ligne, et les listes doivent les valoir.
     vi.mocked(fetchProgressionOverview).mockResolvedValue(
       overview([
-        subject({ notions: { consolidated: 1, fragile: 2, in_progress: 0, total: 5 }, engaged: 3, xp: 90 }),
+        subject({ notions: { consolidated: 1, fragile: 2, in_progress: 0, total: 5 }, engaged: 3, xp: 90, gaps_open: 1 }),
       ]),
     );
     vi.mocked(fetchConsolidatedSkills).mockResolvedValue([
@@ -423,11 +725,15 @@ describe("dépliage d'une ligne", () => {
           { reason: "mission_remediation", count: 2, amount: 60 },
           { reason: "quiz_completed", count: 1, amount: 30 },
         ],
+        // `to_reinforce` est l'UNION fragiles ∪ lacunes : « Homophones » porte une lacune SANS
+        // être fragile, ce qui est exactement le cas que les deux colonnes existent pour montrer.
         to_reinforce: [
           { skill_id: 1, skill_name: "Accord", is_fragile: true, has_open_gap: false, has_active_mission: false },
           { skill_id: 3, skill_name: "Concordance", is_fragile: true, has_open_gap: false, has_active_mission: false },
+          { skill_id: 6, skill_name: "Homophones", is_fragile: false, has_open_gap: true, has_active_mission: false },
         ],
         fragile_count: 2,
+        open_gap_count: 1,
       }) as never,
     );
     renderPage();
@@ -450,9 +756,47 @@ describe("dépliage d'une ligne", () => {
     expect(xp).toHaveTextContent("XP — 90");
     expect(within(xp).getAllByRole("listitem")).toHaveLength(2);
 
-    // À renforcer : 2.
+    // À renforcer : 2 — les fragiles, et « Homophones » qui n'en est pas n'y figure pas.
     const aRenforcer = screen.getByText(/À renforcer —/).closest("section") as HTMLElement;
     expect(within(aRenforcer).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(aRenforcer).queryByText("Homophones")).toBeNull();
+
+    // Lacune : 1 — et c'est bien l'autre population. Sans ce bloc, la colonne « Lacune » serait le
+    // seul nombre de l'écran dont le détail n'existe nulle part.
+    const lacune = screen.getByText(/Lacune ouverte —/).closest("section") as HTMLElement;
+    expect(lacune).toHaveTextContent("Lacune ouverte — 1");
+    expect(within(lacune).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(lacune).getByText("Homophones")).toBeInTheDocument();
+  });
+
+  it("une notion des DEUX blocs n'a qu'UNE surface d'action, et sa raison écrite", async () => {
+    // Le compte exige qu'elle figure dans les deux blocs ; l'écran exige qu'elle n'ait qu'un jeu
+    // de boutons. Deux « Créer une mission » identiques à trois centimètres d'écart laisseraient
+    // croire à deux actions différentes.
+    vi.mocked(fetchProgressionOverview).mockResolvedValue(
+      overview([subject({ notions: { consolidated: 0, fragile: 1, in_progress: 0, total: 5 }, gaps_open: 1 })]),
+    );
+    vi.mocked(fetchSubjectAnalysis).mockResolvedValue(
+      analyse({
+        to_reinforce: [
+          { skill_id: 1, skill_name: "Accord", is_fragile: true, has_open_gap: true, has_active_mission: false },
+        ],
+        fragile_count: 1,
+        open_gap_count: 1,
+      }) as never,
+    );
+    renderPage();
+    await waitFor(() => ligne("Français"));
+    await ouvrir("Français");
+
+    const lacune = (await screen.findByText(/Lacune ouverte —/)).closest("section") as HTMLElement;
+    // Elle est bien comptée et nommée ici…
+    expect(within(lacune).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(lacune).getByText("Accord")).toBeInTheDocument();
+    expect(within(lacune).getByText(/aussi listée dans « À renforcer »/)).toBeInTheDocument();
+    // …mais ses boutons ne sont rendus qu'une fois, dans l'autre bloc.
+    expect(within(lacune).queryByRole("button")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Équiper" })).toHaveLength(1);
   });
 
   it("n'ouvre qu'UNE matière à la fois", async () => {

@@ -50,10 +50,10 @@ varier la largeur du shell selon l'onglet ferait sauter la page à chaque bascul
 Inchangée dans ses quatre mesures. Elle reste la cible du constat du dashboard (`?subject=`).
 
 ```txt
-│ MATIÈRE          AVANCEMENT              ACQUIS        XP     À RENFORCER │
-│ 📕 Français      ▓▓▓░░░░░░░ 10 / 96      1            367           8    │
-│ 📐 Mathématiques ▓▓░░░░░░░░  5 / 58      0            577           3    │
-│ 🇪🇸 Espagnol      référentiel non généré  →  ouvrir le programme          │
+│ MATIÈRE ▲    AVANCEMENT ▲          ACQUIS ▲   XP ▲   À RENFORCER ▲  LACUNE ▲ │
+│ 📕 Français  ▓▓▓░░░░░░░ 10 / 96    1          367          8          1     │
+│ 📐 Maths     ▓▓░░░░░░░░  5 / 58    0          577          3          0     │
+│ 🇪🇸 Espagnol  référentiel non généré  →  ouvrir le programme (ciblé)         │
 ```
 
 | Colonne | Mesure exacte | Source |
@@ -62,9 +62,26 @@ Inchangée dans ses quatre mesures. Elle reste la cible du constat du dashboard 
 | **Acquis** | notions `mastered` | `/progress/overview` |
 | **XP** | cumul par matière, **depuis toujours** | `XPEvent.subject_id` |
 | **À renforcer** | notions **fragiles** (`weak` + `learning`) | `notions.fragile` |
+| **Lacune** | lacunes **ouvertes**, attribuées par `Gap.subject_id` | `gaps_open` |
 
 > 🔴 **« Avancement » et « Acquis » sont DEUX mesures, jamais fondues.** 1 notion consolidée sur 280
 > en base réelle : une barre bâtie sur les acquis afficherait zéro pour sept matières sur huit.
+
+> 🔴 **« À renforcer » et « Lacune » non plus** (colonne ajoutée le 2026-08-06). Français porte 8
+> fragiles et 1 lacune ouverte : la phrase au-dessus de la table dit lequel compte quoi, faute de
+> quoi les deux nombres côte à côte se lisent comme une incohérence. Le compte de lacunes est
+> **cliquable** vers `/lacunes?subject=<slug>` — même attribution des deux côtés, donc les deux
+> écrans ne peuvent pas se contredire. Zéro ne mène nulle part.
+
+**Les six colonnes sont triables** (amendement du 2026-08-06). Même discipline que la vue notion —
+l'en-tête EST le contrôle, `aria-sort` porte l'état, le départage est toujours `(nom, subject_id)`
+et **ne s'inverse jamais avec le sens**. Deux écarts assumés, tous deux visibles à l'écran :
+
+- le premier clic d'une colonne de **compte** part en **descendant** (on trie « Acquis » pour voir
+  les plus acquises, pas les sept zéros) — la flèche affiche le sens réel ;
+- une matière **sans barre** (pas de référentiel, ou référentiel vide) n'a pas de ratio : elle reste
+  **en bas dans les deux sens**, jamais mêlée aux zéros. Une absence de mesure n'est pas une
+  petite valeur.
 
 > ⚠️ **Aucun pourcentage à l'écran, volontairement.** « 10 / 96 » se lit « on en a abordé 10 sur
 > 96 » ; « 10 % » se lit « il ne sait que 10 % ».
@@ -75,9 +92,26 @@ Il garde **ce que les autres vues ne portent pas**, et rien d'autre :
 
 - **XP par motif** — `Σ montants == xp`. Réparti par motif, jamais par notion (`XPEvent` n'a pas de
   `skill_id` : c'est le plafond de la donnée, pas un oubli).
-- **Référentiel** — leçons, validées, cours rédigés, dérivés produits, lien Couverture.
+- **Lacune ouverte** — recompose le nombre de la nouvelle colonne. `to_reinforce` étant l'**union**
+  fragiles ∪ lacunes, une notion peut figurer dans ce bloc **et** dans « À renforcer » : elle y
+  garde sa ligne (le compte l'exige) mais **pas ses boutons**, qui ne sont rendus qu'une fois, avec
+  sa raison écrite. Deux « Créer une mission » identiques laisseraient croire à deux actions.
+- **Référentiel** — leçons, validées, cours rédigés, dérivés produits, lien Couverture. **Ne
+  recompose aucun nombre de la ligne, volontairement** : il répond à l'autre question, « qu'est-ce
+  qu'il reste à produire ».
 - **Trois liens** vers les autres vues, pré-filtrées : *« Les 10 notions engagées → »*,
-  *« Les 8 à renforcer → »*, *« Ce qui s'est passé → »*.
+  *« Les 8 à renforcer → »*, *« Ce qui s'est passé → »*. Le second pose `?palier=a_renforcer`, lu
+  par la page et **visible** dans les pastilles — un filtre silencieux ment par omission. Un palier
+  inconnu ne filtre rien plutôt que de vider l'écran.
+
+> 🔴 **Chaque lien porte SA matière.** Les trois « Ouvrir le programme » partaient nus jusqu'au
+> 2026-08-06 : les huit lignes menaient toutes à la matière ouverte par défaut. Une cible manquante
+> est **silencieuse** — la page d'arrivée ignore le paramètre absent, sans erreur nulle part. Un
+> test figeait même l'URL nue.
+>
+> ⚠️ **`?subject=` ne porte pas le même type selon la destination**, et rien dans son nom ne le
+> dit : `subject_id` **numérique** pour `/programme` et `/couverture`, **slug** pour `/lacunes`,
+> `/conseil` et `/progression`. Se tromper est, là encore, silencieux.
 
 > Ses anciennes listes de notions **disparaissent** : elles seraient une troisième copie de la même
 > liste. Une liste, un seul endroit.

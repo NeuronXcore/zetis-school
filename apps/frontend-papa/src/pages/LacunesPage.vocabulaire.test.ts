@@ -59,13 +59,21 @@ describe("vocabulaire — « à renforcer » et « lacune » ne se recouvrent pa
     expect(src).toMatch(/disjointes/i);
   });
 
-  it("aucun « lacune » n'atteint l'écran depuis la vue des PALIERS (contexte SkillMastery)", () => {
-    // Symétrique du premier : sur Progression, le mot « lacune » ne doit qualifier que la colonne
-    // qui compte VRAIMENT des `Gap`. Le vocabulaire des paliers est « acquise / à renforcer /
-    // en cours / non abordée ».
+  it("sur Progression, « lacune » ne qualifie QUE ce qui compte des `Gap`", () => {
+    // Symétrique du premier. ⚠️ Ce test COMPTAIT les occurrences du mot (« au plus 3 ») jusqu'au
+    // 2026-08-06, où l'ajout de la colonne « Lacune » les a portées à 7. Un seuil n'était pas un
+    // verrou : il se relève à chaque édition, et un test qu'on ajuste ne retient rien. Ce qui
+    // compte n'a jamais été COMBIEN de fois le mot apparaît, mais À QUOI il est lié.
     const rendu = sansCommentaires(lire("ProgressionPage.tsx"));
-    const interdits = rendu.match(/lacune/gi) ?? [];
-    // La colonne « Lacune » de la vue notion est le SEUL emploi légitime : elle compte des `Gap`.
-    expect(interdits.length).toBeLessThanOrEqual(3);
+
+    // Les deux colonnes lisent chacune SA source. Les intervertir serait exactement la fusion que
+    // le §5 interdit — et resterait invisible à l'écran, les deux étant de petits entiers.
+    expect(rendu).toMatch(/renforcer:\s*\(s\)\s*=>\s*s\.notions\.fragile/);
+    expect(rendu).toMatch(/lacune:\s*\(s\)\s*=>\s*s\.gaps_open/);
+    expect(rendu).toMatch(/\{s\.gaps_open\}/);
+
+    // Et l'écran DIT que ce sont deux mesures : sans cette phrase, « 8 » et « 1 » côte à côte se
+    // lisent comme une incohérence, et Papa cherche laquelle des deux se trompe.
+    expect(rendu).toMatch(/deux mesures distinctes/);
   });
 });
