@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -21,6 +23,11 @@ class JobOut(BaseModel):
     # motif existait en base et ne sortait jamais. Une barre qui dit « échec » sans dire pourquoi
     # oblige à ouvrir les logs du serveur.
     error: str | None = None
+    # ⚠️ L'instant de DÉMARRAGE, et il n'est pas un ornement (ADR-0041 §9) : c'est lui qui ancre
+    # l'estimation des barres locales. Sans lui, elles mesurent l'âge de leur AFFICHAGE et
+    # repartent de zéro à chaque montage — et deux surfaces qui estiment chacune de leur côté
+    # finissent par se contredire, ce qui est très exactement le défaut que ce chantier ferme.
+    started_at: datetime | None = None
 
 
 @router.get("/jobs/{job_id}", response_model=JobOut)
@@ -39,6 +46,7 @@ def get_job(
         output=job.output_json,
         duration_ms=job.duration_ms,
         error=job.error_message,
+        started_at=job.started_at,
     )
 
 

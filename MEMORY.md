@@ -72,8 +72,15 @@ utile de la session :
 
 ### ▶ EN COURS — ce qui reste de la Slice A
 
-🔴 **Les deux `EQUIP_MS` vivent toujours** (`ConseilClasseIAPage.tsx:26`,
-`SubjectDetailRow.tsx:13`) — le critère « les deux constantes meurent » **n'est pas tenu**.
+✅ **Les deux `EQUIP_MS` sont MORTES** (2026-08-06) — le critère est tenu. Elles sont remplacées
+par `WORK_ESTIMATION_MS` dans `lib/production.ts`, **la seule durée estimée du frontend Papa**, et
+la seule qui ait jamais été mesurée. Surtout : `equipNotion()` rapporte désormais l'état SERVEUR
+qu'il sondait déjà (`onEtat`), donc les barres locales n'avancent que sur un travail réellement
+`running`. Verrou `src/lib/estimation-unique.test.ts` — un **cliquet** : il inscrit la dette
+restante (11 fichiers, producteurs non migrés) et interdit qu'elle GRANDISSE ; saboté dans les deux
+sens (barre en dur ajoutée / dette réglée mais laissée inscrite).
+
+⚠️ **Ce qui reste de l'ancien texte, pour mémoire** — le motif d'origine :
 Motif : un blocage que le cadrage n'avait pas vu — `useCouncilClass.ts:195` équipe N notions
 **puis** crée les missions, *« leurs étapes résolvent les ressources fraîches »*. Rendre l'appel
 non bloquant casserait cet ordre. **Parade posée, rien n'est cassé** : `equipNotion()` sonde

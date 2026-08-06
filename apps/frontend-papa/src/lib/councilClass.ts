@@ -218,12 +218,29 @@ export function fetchCouncilReport(id: number): Promise<CouncilReport> {
  * requête HTTP ne tient plus 90 s, et la barre du header montre l'avancement réel, sur toutes les
  * pages, y compris si Papa navigue ailleurs.
  */
-export async function equipNotion(skillId: number): Promise<EquipNotionResult> {
+/** L'état SERVEUR du travail en cours — ce que la barre locale doit rendre au lieu de deviner. */
+export interface EtatTravail {
+  status: "queued" | "running" | "succeeded" | "failed" | string;
+  /** L'instant de démarrage, **côté serveur**. `null` tant que le travail attend son tour. */
+  startedAtMs: number | null;
+}
+
+export async function equipNotion(
+  skillId: number,
+  onEtat?: (e: EtatTravail) => void,
+): Promise<EquipNotionResult> {
   const { job_id } = await fetch(`${API_URL}/api/reports/class-council/equip-notion`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ skill_id: skillId }),
   }).then((r) => asJson<{ job_id: number; status: string }>(r));
+
+  // ⚠️ **On rapporte l'état, on ne le devine pas** (ADR-0041 §9). Ce sondage existait déjà pour
+  // attendre le kit ; il sert désormais aussi à nourrir la barre de la page. Aucun sondeur de
+  // plus, et surtout : la page et l'en-tête lisent la MÊME vérité, donc ne peuvent plus se
+  // contredire — le 2026-08-06, un travail de 11 ms a fait dérouler dix secondes de pipeline à la
+  // page du Conseil pendant que l'en-tête, lui, disait juste.
+  onEtat?.({ status: "queued", startedAtMs: null });
 
   // Sondage 2 s : l'équipement dure ~69 s par notion (mesuré le 2026-08-02), donc ~35 lectures
   // d'une ligne indexée. Le plafond existe pour qu'une panne du worker finisse par se dire au
@@ -233,8 +250,17 @@ export async function equipNotion(skillId: number): Promise<EquipNotionResult> {
   for (;;) {
     await new Promise((r) => setTimeout(r, 2000));
     const job = await fetch(`${API_URL}/api/ai/jobs/${job_id}`, { headers: headers() }).then((r) =>
-      asJson<{ status: string; output: EquipNotionResult | null; error: string | null }>(r),
+      asJson<{
+        status: string;
+        output: EquipNotionResult | null;
+        error: string | null;
+        started_at: string | null;
+      }>(r),
     );
+    onEtat?.({
+      status: job.status,
+      startedAtMs: job.started_at ? Date.parse(job.started_at) : null,
+    });
     if (job.status === "succeeded" && job.output) return job.output;
     if (job.status === "failed") throw new Error(job.error ?? "L'équipement a échoué.");
     if (Date.now() - DEBUT > PLAFOND_MS) {

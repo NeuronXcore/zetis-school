@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useEstimatedProgress } from "@zetis/ui";
 import { type ActivityItem, type ProductionActivity } from "@zetis/types";
 
+import { WORK_ESTIMATION_MS } from "../lib/production";
+
 // La barre de production du header Papa (ADR-0041, `docs/frontend-papa/barre-de-production.md`).
 //
 // Remplace la pastille de `PapaLayout`, dont elle conserve INTÉGRALEMENT la doctrine :
@@ -9,12 +11,6 @@ import { type ActivityItem, type ProductionActivity } from "@zetis/types";
 // `started_at` du SERVEUR. Ce qui change n'est pas la façon de dire — c'est ce qu'elle regarde :
 // tout ce que ZETIS fabrique, et plus seulement les lots.
 
-/** La seule durée estimée qui subsiste dans tout le frontend Papa.
- *
- *  ⚠️ Et c'est la SEULE qui ait jamais été mesurée : 69 s par notion, relevées le 2026-08-02
- *  (11 notions en 12 min 35 s). Les 23 autres constantes étaient des devinettes — la rédaction
- *  d'un cours en portait cinq différentes selon l'écran d'où on la lançait. */
-const ESTIMATION_MS = 69_000;
 
 /** En dessous, la pilule cède par paliers plutôt que de s'écraser (spec § Responsive).
  *
@@ -76,7 +72,7 @@ export function ProductionBar({ activity, onOpen, onAcknowledge }: Props) {
   // « je viens d'ouvrir cette page ».
   const estime = useEstimatedProgress(
     item?.status === "running" && !item.pct_is_measured,
-    ESTIMATION_MS,
+    WORK_ESTIMATION_MS,
     item?.started_at ? Date.parse(item.started_at) : null,
   );
 

@@ -215,3 +215,19 @@ export async function acknowledgeActivity(kind: "run" | "job", id: number): Prom
   });
   if (!r.ok) throw new Error("Acquittement impossible");
 }
+
+/** 🔴 **LA seule durée estimée du frontend Papa** (ADR-0041 §9).
+ *
+ *  Et c'est la seule qui ait jamais été MESURÉE : 69 s par notion, relevées le 2026-08-02
+ *  (11 notions en 12 min 35 s), reconfirmées le 2026-08-06 (un équipement réel : 77 227 ms).
+ *
+ *  Les constantes qu'elle remplace étaient des devinettes, et elles divergeaient : la rédaction
+ *  d'un cours en portait CINQ valeurs différentes selon l'écran, `equip_notion` QUATRE. Le
+ *  commentaire de `SubjectDetailRow` disait déjà le risque — « deux estimations différentes pour
+ *  le même travail se contrediraient à l'écran » — et l'évitait en RECOPIANT la valeur. C'est la
+ *  recopie qui meurt ici : une valeur copiée diverge au premier correctif.
+ *
+ *  ⚠️ Une estimation n'est honnête que si elle est **ancrée sur le `started_at` du SERVEUR**.
+ *  Ancrée sur le montage du composant, elle mesure l'âge de l'AFFICHAGE — et deux surfaces qui
+ *  regardent le même travail finissent par afficher deux nombres différents. */
+export const WORK_ESTIMATION_MS = 69_000;

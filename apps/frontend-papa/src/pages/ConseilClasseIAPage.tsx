@@ -13,17 +13,23 @@ import {
   libelleTransition,
   rapportSansHistoriqueDate,
   reportToMarkdown,
+  type EtatTravail,
 } from "../lib/councilClass";
 import { COUNCIL_PERIOD_LABEL, isDashboardPeriod } from "../lib/dashboardDerive";
 import type { Subject } from "../lib/subjects";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { subjectIconFor } from "../lib/subjectIcons";
+import { WORK_ESTIMATION_MS } from "../lib/production";
 
 // Conseil de classe IA Papa (ADR-0020/0021) — narration LLM locale + équipement d'une notion.
 // Composant présentationnel ; toute la logique vit dans `useCouncilClass`.
 
 const GEN_MS = 18000; // génération d'une synthèse (barre estimée).
-const EQUIP_MS = 90000; // équipement d'une notion : jusqu'à 5 générations LLM locales.
+// 🔴 `EQUIP_MS` a été SUPPRIMÉE ici (ADR-0041 §9). Elle valait 90 000 ms et sa jumelle vivait
+// dans `SubjectDetailRow` : deux copies pour le même travail, qui divergeaient au premier
+// correctif. Le 2026-08-06, un équipement de 11 ms a fait dérouler dix secondes de pipeline à
+// cette page pendant que l'en-tête, qui MESURE, disait juste. L'estimation vient désormais de
+// `WORK_ESTIMATION_MS`, ancrée sur le `started_at` du SERVEUR.
 
 // Pipeline de génération (concept IA) : les 5 pièces du kit s'allument une à une.
 const KIT_STEPS = [
@@ -48,8 +54,14 @@ const AI_KEYFRAMES = `
  * dégradé d'or qui coule + faisceau de scan + pipeline des 5 pièces qui s'illuminent.
  * Remontée par `key` à chaque notion → le % repart de 0.
  */
-function EquipProgress({ equipping }: { equipping: Equipping }) {
-  const pct = useEstimatedProgress(true, EQUIP_MS);
+function EquipProgress({ equipping, etat }: { equipping: Equipping; etat: EtatTravail | null }) {
+  // ⚠️ `active` suit le SERVEUR : tant que le travail attend son tour, rien ne monte. Une barre
+  // qui avance sur un travail en file ment sur ce qui se passe.
+  const pct = useEstimatedProgress(
+    etat?.status === "running",
+    WORK_ESTIMATION_MS,
+    etat?.startedAtMs ?? null,
+  );
   const seg = 100 / KIT_STEPS.length;
 
   return (
@@ -443,7 +455,7 @@ export function ConseilClasseIAPage() {
 
       {c.equipping && (
         <div key={c.equipping.index} className="mb-4">
-          <EquipProgress equipping={c.equipping} />
+          <EquipProgress etat={c.equipEtat} equipping={c.equipping} />
         </div>
       )}
 

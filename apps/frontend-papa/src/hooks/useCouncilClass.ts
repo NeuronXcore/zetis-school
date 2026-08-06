@@ -6,6 +6,7 @@ import {
   composeChampionFromReco,
   createMissionsFromReco,
   equipNotion,
+  type EtatTravail,
   fetchCouncilReport,
   fetchCouncilReports,
   generateCouncil,
@@ -80,6 +81,8 @@ export interface UseCouncilClass {
   generating: boolean;
   /** Non-null pendant que ZETIS génère le kit d'une notion (barre de progression). */
   equipping: Equipping | null;
+  /** Ce que le SERVEUR dit du travail en cours. `null` hors équipement. */
+  equipEtat: EtatTravail | null;
   /** Récap par notion du dernier « Créer ces missions » (généré / sauté / erreurs). */
   equipResults: EquipNotionResult[];
   /** `skill_id` dont les missions ont été générées cette session (mise en évidence + badge). */
@@ -106,6 +109,9 @@ export function useCouncilClass(): UseCouncilClass {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [generating, setGenerating] = useState(false);
   const [equipping, setEquipping] = useState<Equipping | null>(null);
+  // ⚠️ L'état SERVEUR du travail, pas une estimation locale (ADR-0041 §9). C'est lui qui
+  // empêche cette page et l'en-tête de se contredire — ils lisent désormais la même vérité.
+  const [equipEtat, setEquipEtat] = useState<EtatTravail | null>(null);
   const [equipResults, setEquipResults] = useState<EquipNotionResult[]>([]);
   const [generatedSkillIds, setGeneratedSkillIds] = useState<Set<number>>(new Set());
   const [created, setCreated] = useState<CreatedFeedback | null>(null);
@@ -192,7 +198,7 @@ export function useCouncilClass(): UseCouncilClass {
         // 1) Équiper chaque notion (kit auto-validé) — une barre par notion.
         for (let i = 0; i < skillIds.length; i++) {
           setEquipping({ name: skillNames[i] ?? `notion ${skillIds[i]}`, index: i + 1, total: skillIds.length });
-          results.push(await equipNotion(skillIds[i]));
+          results.push(await equipNotion(skillIds[i], setEquipEtat));
         }
         setEquipResults(results);
         // 2) Créer les missions APRÈS l'équipement (leurs étapes résolvent les ressources fraîches).
@@ -203,6 +209,7 @@ export function useCouncilClass(): UseCouncilClass {
         setError(e instanceof Error ? e.message : "Équipement / création impossible");
       } finally {
         setEquipping(null);
+        setEquipEtat(null);
       }
     },
     [],
@@ -223,7 +230,7 @@ export function useCouncilClass(): UseCouncilClass {
             index: i + 1,
             total: skillIds.length,
           });
-          results.push(await equipNotion(skillIds[i]));
+          results.push(await equipNotion(skillIds[i], setEquipEtat));
         }
         setEquipResults(results);
         await composeChampionFromReco(skillIds); // compose seul (notions déjà équipées)
@@ -234,6 +241,7 @@ export function useCouncilClass(): UseCouncilClass {
         setError(e instanceof Error ? e.message : "Équipement / création du défi impossible");
       } finally {
         setEquipping(null);
+        setEquipEtat(null);
       }
     },
     [],
@@ -247,6 +255,7 @@ export function useCouncilClass(): UseCouncilClass {
     subjects,
     generating,
     equipping,
+    equipEtat,
     equipResults,
     generatedSkillIds,
     created,
