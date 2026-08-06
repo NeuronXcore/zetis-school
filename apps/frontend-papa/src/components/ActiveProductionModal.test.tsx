@@ -14,6 +14,7 @@ function item(over: Partial<ActivityItem> = {}): ActivityItem {
     id: 1,
     label: "Équipement · Théorème de Pythagore",
     status: "queued",
+    lane: "llm",
     pct: null,
     pct_is_measured: false,
     // Un travail unitaire n'a aucune pièce à fractionner (addendum 2 §20).
@@ -37,6 +38,7 @@ function activite(over: Partial<ProductionActivity> = {}): ProductionActivity {
     failed: [],
     refused: [],
     worker_alive: null,
+    media_alive: null,
     ...over,
   };
 }

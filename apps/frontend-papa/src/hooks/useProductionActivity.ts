@@ -26,6 +26,8 @@ const VIDE: ProductionActivity = {
   // Les refus de régulateur (addendum 2 §21) — une liste à part, jamais mêlée aux échecs.
   refused: [],
   worker_alive: null,
+  // Le couloir média se demande à part : son worker est un autre processus (§22).
+  media_alive: null,
 };
 
 export interface ProductionActivityState {

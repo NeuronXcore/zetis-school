@@ -76,12 +76,33 @@ LIBELLE_JOB = {
     "capsule_generate": "Capsule",
     "capsule_regenerate": "Capsule (régénération)",
     "capsule_voice": "Voix de la capsule",
-    "capsule_render_v2": "Rendu vidéo",
+    # 🔴 `capsule_render`, PAS `capsule_render_v2` (addendum 2 §22). La clé `_v2` a été posée ici
+    # au cadrage de l'ADR-0041 et **rien ne l'écrit** : `worker_media` émet `capsule_render` depuis
+    # toujours. Papa lisait donc « capsule_render » en toutes lettres dans son header, et
+    # l'estimation retombait au défaut. C'est le libellé qu'on corrige, jamais le worker :
+    # renommer ce qu'il écrit scinderait en deux l'historique dont la médiane est tirée.
+    "capsule_render": "Rendu vidéo",
     "curriculum_chapters": "Chapitres du programme",
     "curriculum_lessons": "Leçons du chapitre",
     "curriculum_skills_backfill": "Rattrapage de notions",
     "council_generate": "Conseil de classe",
 }
+
+# Les travaux qui vivent dans l'AUTRE couloir (addendum 2 §22).
+#
+# 🔴 Le couloir média a son propre worker et sa propre file : un rendu vidéo **ne retarde rien**.
+# Sans cette distinction, `queued_count` annonçait « 1 en attente » sur le couloir LLM pour un
+# travail qui ne le bloquait en rien — et le lot en cours avait l'air d'avoir quelqu'un derrière
+# lui alors qu'il était seul.
+#
+# ⚠️ **Une dérivation, jamais une colonne.** La file se déduit déjà du type de travail (`queue.py`)
+# et une colonne qui duplique une dérivation donne deux réponses à une seule question (§3.3).
+TRAVAUX_MEDIA = frozenset({"capsule_render"})
+
+
+def _couloir(job_type: str) -> str:
+    return "media" if job_type in TRAVAUX_MEDIA else "llm"
+
 
 # Le mot que Papa lit, par pièce d'un lot-pièce.
 LIBELLE_PIECE = {
@@ -208,6 +229,8 @@ def _lot(
         "id": run.id,
         "label": libelle,
         "status": statut,
+        # Un lot passe toujours par le worker de production — il n'a aucun rendu à faire.
+        "lane": "llm",
         # 🔴 **En PIÈCES, plus en notions** (addendum 2 §20). Le dénominateur est le même travail,
         # dit cinq fois plus finement — et c'est `current_piece` (§20 bis), pas le journal, qui
         # rend cette finesse observable.
@@ -249,6 +272,7 @@ def _travail(job: AIJob, notions: dict[int, str], estims: dict[str, int]) -> dic
         "kind": "job",
         "id": job.id,
         "label": f"{tete} · {nom}" if nom else tete,
+        "lane": _couloir(job.job_type),
         # ⚠️ **`sweep.job_status()` et non `job.status`** (ADR-0041 §10.4) — même correction que
         # `run_out` au §1, et pour la même raison exactement. Un travail dont le worker est mort
         # restait `running` ici indéfiniment : l'écran affichait une barre qui monte sur un travail
@@ -284,7 +308,9 @@ def _skill_ids_des_travaux(jobs: list[AIJob]) -> list[int]:
     return out
 
 
-def read(db: Session, *, worker_alive: bool | None = None) -> dict:
+def read(
+    db: Session, *, worker_alive: bool | None = None, media_alive: bool | None = None
+) -> dict:
     """L'activité complète, en un nombre CONSTANT de requêtes (jamais un N+1).
 
     `worker_alive` est passé par la route — ce module ne parle pas à Redis. `None` veut dire
@@ -355,7 +381,12 @@ def read(db: Session, *, worker_alive: bool | None = None) -> dict:
         "current": actifs[0] if actifs else None,
         # Profondeur de file, jamais un arriéré (§7) : il retombe à zéro tout seul et ne dit rien
         # de ce que Papa aurait dû faire.
-        "queued_count": max(0, len(actifs) - 1),
+        #
+        # 🔴 **Le couloir LLM SEUL** (addendum 2 §22). Un rendu vidéo a son propre worker et sa
+        # propre file : le compter ici annonçait « 1 en attente » derrière un lot qu'il ne
+        # retardait en rien. Le média reste dans `queued`, avec son couloir — il est visible au
+        # détail, il ne grossit pas la file de production.
+        "queued_count": sum(1 for a in actifs[1:] if a["lane"] == "llm"),
         # ⚠️ **La file elle-même, et pas seulement son compte.** Le §7 promet que « ce qui n'est
         # pas montré est à un clic » et que l'ordre de service est VISIBLE : une règle de priorité
         # qu'on ne peut pas vérifier à l'œil n'est pas vérifiée. Un compteur seul ne permet ni
@@ -381,6 +412,10 @@ def read(db: Session, *, worker_alive: bool | None = None) -> dict:
             for r in refusals.unacknowledged(db)
         ],
         "worker_alive": worker_alive,
+        # Le couloir média, posé par la route comme `worker_alive` (§22). ⚠️ **Additif** : la forme
+        # de `worker_alive` ne bouge pas, donc rien de ce qui le lit ne casse. Même règle de
+        # lecture — `=== false`, jamais la fausseté.
+        "media_alive": media_alive,
     }
 
 

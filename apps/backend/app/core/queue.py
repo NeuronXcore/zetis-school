@@ -110,6 +110,27 @@ def production_worker_alive() -> bool:
         return False
 
 
+def render_worker_alive() -> bool:
+    """Quelqu'un écoute-t-il la file des RENDUS ? (addendum 2 §22)
+
+    🔴 `production_worker_alive` n'interroge **que** les files de production — par construction, et
+    c'était juste tant que la barre ne montrait qu'elles. Depuis que le couloir média est visible,
+    le worker vidéo pouvait être mort pendant que l'écran annonçait `worker_alive: true` : une
+    capsule attendait indéfiniment sous un indicateur qui disait que tout allait bien. C'est
+    exactement la panne de six heures que `production_worker_alive` avait été écrite pour rendre
+    visible, déplacée d'un couloir.
+
+    Même contrat : best-effort, `False` si Redis est injoignable — on préfère annoncer un doute
+    qu'affirmer une santé.
+    """
+    from rq import Worker
+
+    try:
+        return len(Worker.all(queue=render_queue())) > 0
+    except Exception:
+        return False
+
+
 # La phrase que Papa lit quand la file refuse un travail — **écrite UNE fois** (ADR-0041 §10.1).
 # Trois routes la rendent en 503 ; trois copies auraient divergé au premier mot changé.
 #

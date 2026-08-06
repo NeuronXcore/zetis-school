@@ -264,6 +264,53 @@ def test_un_lot_PIECE_qui_tourne_ne_mesure_RIEN(client_db) -> None:
     assert courant["pieces_total"] is None
 
 
+# ─── LES COULOIRS ──────────────────────────────────────────────────────────────────────────────
+def test_un_rendu_video_ne_grossit_PAS_la_file_de_production(client_db) -> None:
+    """🔴 Le couloir média a son propre worker et sa propre file : il ne retarde rien.
+
+    Le compter dans `queued_count` annonçait « 1 en attente » derrière un lot que ce rendu ne
+    bloquait en rien — et donnait à Papa une raison de croire que sa production allait attendre.
+    """
+    client, Session = client_db
+    with Session() as db:
+        _job(db, status="running", started_at=_now())  # un travail LLM en cours
+        _job(db, job_type="capsule_render", status="queued")  # un rendu vidéo derrière
+    _as_parent()
+    body = client.get("/api/production/activity").json()
+
+    assert body["current"]["lane"] == "llm"
+    assert body["queued_count"] == 0, "un rendu vidéo n'attend pas derrière la production"
+    # Mais il n'est pas caché pour autant : il est dans la file, avec son couloir.
+    assert [q["lane"] for q in body["queued"]] == ["media"]
+
+
+def test_un_rendu_video_se_lit_en_toutes_lettres(client_db) -> None:
+    """⚠️ Le défaut réparé ici : `LIBELLE_JOB` attendait `capsule_render_v2`, que RIEN n'écrit.
+
+    Papa lisait donc « capsule_render » dans son header, et l'estimation retombait au défaut. Le
+    verrou porte sur la clé RÉELLE — celle que `worker_media` émet — et non sur celle qu'on
+    croyait qu'il émettait.
+    """
+    client, Session = client_db
+    with Session() as db:
+        _job(db, job_type="capsule_render", status="running", started_at=_now())
+    _as_parent()
+    courant = client.get("/api/production/activity").json()["current"]
+    assert "capsule_render" not in courant["label"], "le nom technique fuit à l'écran"
+    assert courant["label"].startswith("Rendu vidéo")
+    assert courant["lane"] == "media"
+    assert courant["estimated_ms"] > 0, "sans amorce, la barre d'un rendu n'a aucune durée"
+
+
+def test_un_lot_est_toujours_dans_le_couloir_LLM(client_db) -> None:
+    """Un lot pédagogique n'a aucun rendu à faire : il passe par le worker de production."""
+    client, Session = client_db
+    with Session() as db:
+        _run(db, status="running", started_at=_now(), heartbeat_at=_now())
+    _as_parent()
+    assert client.get("/api/production/activity").json()["current"]["lane"] == "llm"
+
+
 def test_un_travail_unitaire_n_est_JAMAIS_mesure(client_db) -> None:
     """Un appel LLM n'a aucun grain interne : rien à sonder pendant ses 32 s.
 

@@ -366,6 +366,12 @@ export interface ActivityItem {
   id: number;
   label: string;
   status: "queued" | "running" | "stale" | "failed";
+  /** Quelle ressource ce travail occupe (addendum 2 §22). DÉRIVÉ du type de travail, jamais stocké.
+   *
+   *  ⚠️ **`media` ne retarde rien** : le rendu vidéo a son propre worker et sa propre file. Il
+   *  n'entre donc pas dans `queued_count` et n'apparaît que dans le détail — deux tapis côte à
+   *  côte diraient qu'il y a deux productions, alors qu'il y a deux ressources. */
+  lane: "llm" | "media";
   /** ⚠️ `null` = **indéterminé**, et JAMAIS `0` pour dire « ça démarre ». Zéro n'est pas une
    *  valeur basse, c'est une absence de mesure — le 2026-08-05, quatre lots arrêtés affichaient
    *  0 %, lu comme « ça commence ». */
@@ -412,7 +418,10 @@ export interface ActivityItem {
 export interface ProductionActivity {
   /** Ce qui tourne ; à défaut, le premier de la file. */
   current: ActivityItem | null;
-  /** Profondeur de file — jamais un arriéré (§7) : il retombe à zéro tout seul. */
+  /** Profondeur de file — jamais un arriéré (§7) : il retombe à zéro tout seul.
+   *
+   *  ⚠️ **Le couloir LLM SEUL** (addendum 2 §22). Un rendu vidéo y était compté alors qu'il ne
+   *  bloque rien : la barre annonçait « 1 en attente » derrière un lot qui était seul. */
   queued_count: number;
   /** Ce qui attend derrière, **dans l'ordre où la file sera servie** (§7).
    *
@@ -430,6 +439,13 @@ export interface ProductionActivity {
   refused: ProductionRefusal[];
   /** ⚠️ `null` = « la question n'a pas été posée », ce qui n'est PAS `false`. Tester `=== false`. */
   worker_alive: boolean | null;
+  /** Le worker du couloir MÉDIA, posé séparément (addendum 2 §22).
+   *
+   *  🔴 `worker_alive` n'interroge que les files de production : le worker vidéo pouvait être mort
+   *  pendant que l'écran annonçait que tout allait bien, et une capsule attendait sous un
+   *  indicateur vert. Champ **additif** — la forme de `worker_alive` ne bouge pas. Même règle de
+   *  lecture : `=== false`, jamais la fausseté. */
+  media_alive: boolean | null;
 }
 
 /** Un lot que ZETIS n'a PAS lancé, et pourquoi (addendum 2 §21).

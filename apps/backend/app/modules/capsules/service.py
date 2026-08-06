@@ -404,12 +404,28 @@ def request_render(db: Session, capsule_id: int) -> Capsule:
     statut_avant, video_avant = capsule.status, capsule.video_url
     capsule.status = "rendering"
     capsule.video_url = None
+    # Le travail existe DÈS L'ENFILEMENT (addendum 2 ADR-0041 §22), et pas seulement quand le
+    # worker le ramasse. Sans cette ligne, un rendu qui attend est invisible : la barre ne le voit
+    # naître qu'au démarrage, exactement le défaut que la Slice A avait corrigé pour tous les
+    # autres producteurs. `worker_media` la retrouve et la fait passer en `running`.
+    travail = AIJob(
+        job_type="capsule_render",
+        status="queued",
+        input_json={"capsule_id": capsule_id},
+        created_by="parent",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(travail)
     db.commit()
     try:
         enqueue_render(capsule_id)
     except QueueUnavailable as exc:
         capsule.status = statut_avant
         capsule.video_url = video_avant
+        # ⚠️ Le travail part avec le reste : le §10.1 promet « rien n'a été lancé, et rien n'a été
+        # créé ». Laisser une ligne `queued` que personne ne consommera ferait mentir la barre
+        # jusqu'au prochain balayage — un travail fantôme, la faute que ce §10.1 a supprimée.
+        db.delete(travail)
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=MESSAGE_FILE_INJOIGNABLE

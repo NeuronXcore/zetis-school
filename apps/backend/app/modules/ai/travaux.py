@@ -113,7 +113,10 @@ AMORCES_MS: dict[str, int] = {
     "curriculum_lessons": 60_000,
     "curriculum_skills_backfill": 90_000,
     "council_generate": 18_000,
-    "capsule_render_v2": 75_000,
+    # 🔴 `capsule_render`, PAS `capsule_render_v2` : la clé `_v2` n'a jamais été écrite par
+    # personne (addendum 2 §22). L'amorce ne s'appliquait donc à rien, et les rendus réels — qui
+    # existent en base depuis des semaines — n'avaient ni libellé ni durée attendue.
+    "capsule_render": 75_000,
 }
 
 # En dessous, la statistique n'est pas une mesure mais un accident : un seul travail lent la
