@@ -7,141 +7,149 @@
 
 ## État à la reprise
 
-**Chantier : « la carte mémoire à 4 vues + 2 cartes focalisables » (2 addenda ADR-0028) — COMPLET et MERGÉ.**
+**Chantier : ADR-0040 « Progression dans le temps » — Lot 0 sur 4 MERGÉ. Le chantier N'EST PAS clos.**
 
-Parti d'une demande directe du user sur le dashboard Papa — intervertir deux cartes, puis
-« propose-moi d'autres courbes plus expressives ». Le cadrage est donc venu **après** la demande,
-mais les deux ADR ont été écrits **avant** de livrer, et le second a été écrit **pendant** —
-c'est lui qui a exhumé une régression du chantier de la veille.
+La session visait la nouvelle page Progression (Lot 2). Le prompt du chantier impose **trois
+sessions, jamais une**, et le Lot 0 en premier : c'est lui qui a été fait.
 
 | | |
 |---|---|
-| **MERGÉ `main`** | **PR [#91](https://github.com/NeuronXcore/zetis-school/pull/91)**, squash **`d0ca126`** (2026-08-06, 33 fichiers) — branche `feat/memoire-quatre-vues` **supprimée**, locale et distante (`git ls-remote` vide). `main` == `origin/main`, **rien à pousser**. Étape **4bis faite** |
-| **État** | ✅ **COMPLET** — mais mergé **sans relecture visuelle humaine** (voir dettes) |
-| Base | **`352c2ca`** (`docs(memory): launch.json a été jeté…`) |
-| Commits | **deux avant squash** (le chantier, puis la clôture). Les fichiers des deux moitiés se recoupent (`MemoryTrendCard.tsx`, `dashboardDerive.ts`, `DECISIONS.md`) : un découpage plus fin aurait demandé du staging par hunks, impossible ici (`git add -i` indisponible) |
-| ⚠️ **Le piège du #90 ne s'est PAS déclenché** | `main` local == `origin/main` **vérifié avant** le merge, donc `gh pr merge --delete-branch` a basculé le worktree sur un `main` à jour. C'est la parade documentée à la clôture précédente, et elle a servi dès son premier usage |
-| ADR | `adr-0028-addendum-memoire-quatre-vues.md` · `adr-0028-addendum-cartes-focalisables.md` |
-| Migration | **aucune** · Route nouvelle : **aucune** · Requêtes nouvelles : **trois** |
-| Suites | backend **940 ✅** (935 → 940, **+5**) · Papa **572 ✅** (563 → 572, **+9**) · Massimo **525 ✅**, non touché · `tsc -b` et `vite build` propres |
-| Vérifié à l'écran | ✅ **par l'agent**, sur `papa-dev` :5175 (session déjà connectée, héritée d'un autre chat). ⚠️ **Deux niveaux de preuve, à ne pas confondre** : les **4 vues** ont été basculées par de **vrais clics** sur données réelles ; les **2 focus de carte** n'ont été vus que **par leur URL** (`?focus=charge`, `?focus=chaine`) — aucun clic sur un titre n'a jamais abouti depuis le panneau navigateur (cf. résidus). Le comportement du clic n'est donc couvert que par les tests. ⚠️ **Le user, lui, n'a pas encore relu** l'écran |
+| **MERGÉ `main`** | **PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92)**, squash **`1fb094f`** (2026-08-06, 9 fichiers, +233/−17) — branche `fix/council-evolution-lock` **supprimée** des deux côtés. `main` == `origin/main` |
+| **État du chantier** | ⏳ **1 lot sur 4.** Restent les Lots 1+2 (SESSION B) puis le Lot 3 (SESSION C) |
+| Base | **`390ae38`** (`docs(adr): ADR-0040 — …`), elle-même précédée de 14 commits de remise en ordre de `DECISIONS.md` |
+| Migration | **aucune** · Route nouvelle : **aucune** · Requête nouvelle : **aucune** |
+| Suites | backend **941 ✅** (940 → 941, **+1**) · Papa **575 ✅** (572 → 575, **+3**) · Massimo non touché · `tsc -b` et `vite build` propres |
+| Vérifié à l'écran | ✅ **par l'agent**, sur le Chrome du user (`localhost:5174`, session existante), **sur données réelles ET sur une vraie génération Ollama** — les deux branches du rendu vues, pas une seule. ⚠️ **Le user n'a pas relu l'écran lui-même** |
 
 ### FAIT
 
-**1. « Évolution de la mémoire » passe de 3 courbes à 4 vues.** Deux défauts mesurés : l'axe était
-plafonné par `covered` (222), donc « consolidées » (1) tenait dans **0,45 %** de la hauteur ; et
-`reconstruct_series` étant croissant **par construction**, aucune des trois courbes ne pouvait
-redescendre. Les vues : **Paliers** (aire empilée + `covered` en pointillé), **Révisions** (flux SRS
-noté + charge à venir), **Rétention** (ratio 0–100 %, le seul tracé qui peut baisser), **Solde**
-(entrées/sorties du palier consolidé).
+**Lot 0 — `recent_evolution` cesse d'affirmer ce que l'évidence ne porte pas.** Le champ était un
+`str` **non-nullable** pour une valeur qu'aucune source ne peut produire : le `period` du Conseil ne
+sélectionne aucune donnée. Le producteur remplissait **par obligation de type**, et la phrase était
+figée dans `council_reports.subjects_json` — rétroactivement indiscernable du vrai. Le garde-fou
+existait pour les `skill_id` et pas ici : la validation portait sur le **type**, jamais sur le
+**contenu**.
 
-**2. « Charge de révision » et « Chaîne de contenus » prennent le focus au clic sur leur titre.**
-Elles ne pouvaient jusque-là que **s'éteindre** : leur mesure n'est le sujet d'aucun des 5 KPI
-(`charge` allumée par 2 focus sur 5, `chaine` par 1 sur 5), et elles sont les 2 seules cartes de la
-page sans aucun élément cliquable.
+Le serveur écrase désormais à `None` dans `_anchor`, après la validation typée, au même endroit que
+l'ancrage des `skill_id`. `COUNCIL_PROMPT_VERSION` → **v3**. Aucune migration.
 
-**3. Interversion** : « État des notions » à gauche, « Évolution de la mémoire » à droite — la cause
-(filtrer une matière) doit se lire avant son effet (les courbes se redessinent).
-
-**4. Régression du chantier lui-même, trouvée et corrigée** : la refonte avait fait disparaître de
-l'écran la série `covered`, seule mesure reliant la production aux notions.
-
-Backend : `window_days` + `consolidation_flux` (pures), `_review_attempts`, `_mastery_transitions`,
-`_entered_in_progress_at`, 4 champs + `ReviewRatings` dans `SubjectSeries`. Types : `PageFocus`
-distinct de `DashboardFocus`. Docs : les 2 ADR, `DECISIONS.md`, `CHANGELOG.md` 0.52.0,
-`page-dashboard.md`, `API_SPEC.md`, `DATA_MODEL.md`.
+**Avant lui, 14 commits de remise en ordre de `DECISIONS.md`** (non demandés par le chantier, faits
+en début de session) : l'index était écrit en deux blocs qui se télescopaient, **56 entrées sur 70
+mal placées**. Tri par script (`scripts/reorder_decisions.py`, permutation pure vérifiée),
+indentation, statuts. **Divergences index ↔ fichier d'ADR : 16 → 0.**
 
 ### ▶ EN COURS / À FAIRE
 
-**Rien d'instable.** Arbre propre, aucun fichier à moitié écrit. Il ne reste que le geste git.
+**Rien d'instable.** Arbre propre, `main` == `origin/main`, aucun fichier à moitié écrit.
+
+**Le chantier ADR-0040 reprend à la SESSION B** — voir `prompts/claude-code/prompts-claude-code-adr-0040.md`,
+qui porte les trois prompts prêts à coller. Le prérequis « documents sur `main` » est **levé**
+(`390ae38`).
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-1. **« Paliers » est la vue par défaut par CONTRAT**, pas par goût : `CARD_SCOPES` fait allumer
-   cette carte par « Notions consolidées » et « À renforcer », et leur clic doit tomber sur la vue
-   qui **justifie leur chiffre**. Ouvrir sur « Révisions » — la vue la mieux fournie en données —
-   casserait ce contrat en silence.
-2. 🔴 **Le §5 ter de `adr-0028-addendum-kpi-a-renforcer` est BORNÉ, pas révoqué.** Il écartait le
-   « vrai solde » parce qu'il contredirait la sparkline collée au KPI ; **ce motif ne portait que
-   sur cette adjacence**. La vue « Solde » est autonome, nommée, et sa note dit qu'elle ne se compte
-   pas comme le KPI. Le delta du KPI n'a pas bougé.
-3. **Stocks et flux ne se réconcilient pas**, et aucune surface ne doit les présenter comme dérivés
-   l'un de l'autre. Écrit trois fois (projections, types, schéma Pydantic) exprès.
-4. **Le dénominateur de la rétention est « travaillées », jamais le programme entier** — rapporté à
-   301 le taux vaudrait 0,3 %, rassurant et faux. Et il est **affiché** à côté du taux.
-5. **Un point sans dénominateur est un TROU, pas un zéro** ; **un solde vide dit l'absence de
-   trace**, jamais l'absence de mouvement.
-6. **`PageFocus` est un type DISTINCT de `DashboardFocus`**, qui sert les `Record` du bandeau et
-   qu'il aurait fallu remplir d'un libellé de KPI pour deux non-KPI.
-7. **La zone cliquable est le TITRE, pas la carte** (liens dans la Chaîne de contenus), et le bouton
-   vit **dans** le `h3` pour que la carte reste un titre au clavier.
-8. **L'asymétrie des portées est voulue** : `chaine` allume la Lecture ZETIS, mais `fragile`
-   n'allume pas `chaine`. La symétriser élargirait tout jusqu'à ce qu'un focus n'atténue plus rien.
-9. **`ReviewLoadCard` n'est PAS supprimée** malgré le recoupement avec la vue « Révisions » —
-   retirer une carte du cockpit est une décision de mise en page, qui ne se prend pas en passant.
+1. **Le champ `recent_evolution` reste DÉCLARÉ côté Pydantic** alors que le prompt v3 ne le demande
+   plus. `extra="forbid"` ferait échouer le payload **entier** si un modèle continuait de l'émettre :
+   un champ de trop coûterait le rapport. On garde la porte ouverte et on écrase derrière.
+2. **`_build_context` rend un `subjects_with_transitions` structurellement VIDE** plutôt qu'un `None`
+   écrit en dur. Motif : le Lot 3 doit le **remplir**, pas défaire du code. C'est le miroir
+   d'`allowed_skill_ids` — même forme, même place, même rôle d'ancrage. ⚠️ Il ne discrimine rien
+   aujourd'hui, et c'est écrit dans le code avec son motif.
+3. **L'absence s'ÉCRIT** (§8.4). `null` ne rend pas une section vide mais une phrase : masquer
+   laisserait lire « aucun mouvement » là où il faut lire « aucune trace ». Les deux ne se corrigent
+   pas l'un l'autre.
+4. **Aucun rapport figé n'est réécrit** — un artefact LLM n'est pas rejouable. La marque de lecture
+   se **dérive** de `prompt_version` et s'éteindra d'elle-même à mesure que les v3 s'accumulent.
+5. **`DECISIONS.md` : le statut se lit sur la PROSE JOINTE de l'entrée, sous-puce finale exclue.**
+   Trois recensements successifs ont donné 5, 6 puis 4 entrées sans statut — la dernière est la
+   bonne. `adr-0017` est la seule entrée du fichier à finir par une sous-puce, et deux autres
+   coupent leur statut sur deux lignes.
 
 ### ⚠️ Pièges payés en vrai, à ne pas re-découvrir
 
-1. 🔴 **Une refonte de composant peut faire DISPARAÎTRE une série servie sans qu'un test rougisse.**
-   `covered` a cessé d'être affichée et rien ne l'a signalé — les tests portent sur ce qui est
-   affiché, jamais sur ce qui a **cessé** de l'être.
-2. 🔴 **`bucket_counts` fabrique un pic à gauche sur tout FLUX** : un jour antérieur à la fenêtre
-   tombe dans le bucket 0 au lieu d'être ignoré. Piège **absent des stocks** (rien n'y est
-   bucketisé), donc sans précédent dans le module. Parade : `window_days`.
-3. ⚠️ **`keyof T` cesse de suffire dès qu'un champ n'est pas homogène** (`reviews` est un objet, pas
-   un `number[]`). Et le type attrape l'**oubli** d'un champ, jamais sa **justesse** : d'où le
-   `toEqual` sur l'objet entier avec des valeurs toutes distinctes.
-4. ⚠️ **Le HMR laisse un module CASSÉ quand l'usage précède l'import**, et ne le répare pas : il
-   faut un rechargement complet. Surtout : **la console conserve l'historique** — pour savoir si un
-   bug est vivant, interroger le **DOM**, pas la console. A coûté un faux diagnostic de page morte.
-5. ⚠️ **Quatrième occurrence de « l'union se garde par un `Record`, pas par un tableau »** —
-   élargir le focus rouvrait mot pour mot le bug du chantier précédent.
+1. 🔴 **Une PR ouverte depuis une branche locale peut emporter TOUT ce qui n'a jamais été poussé.**
+   `origin/main` avait 14 commits de retard : la PR du Lot 0 portait **15 commits et 31 fichiers**
+   au lieu d'un et neuf, et le `--squash` les aurait écrasés en un seul carré. Vu **avant** de
+   l'ouvrir, en lisant `git log origin/main..HEAD` plutôt qu'en supposant. **Parade : pousser `main`
+   avant d'ouvrir une PR, et lire le diff `origin/main..HEAD`, jamais `main..HEAD`.**
+2. 🔴 **Le panneau navigateur est un navigateur SÉPARÉ : la session du user n'y est pas.** Son
+   `localStorage` est vide, l'app renvoie sur `/login`, et l'agent ne saisit pas de mot de passe.
+   **Parade : `claude-in-chrome`**, qui pilote le vrai Chrome avec sa session — un clic réel sur
+   « Générer la synthèse » y a abouti, là où les clics du panneau échouaient en silence (dette du
+   chantier précédent, toujours ouverte pour le panneau).
+3. 🔴 **Une contre-épreuve peut rougir pour la MAUVAISE raison.** Un sabotage par `perl` a produit
+   une **erreur de transpilation** au lieu d'un échec d'assertion : le test était rouge, et ça ne
+   prouvait rien. Refait proprement (branche rendue `null`, JSX valide) — c'est la 3ᵉ occurrence du
+   motif « contre-épreuve mal visée » dans ce dépôt.
+4. ⚠️ **Un `count(*)` comparé à un seuil lu sur une requête `LIMIT` ment.** Une boucle d'attente a
+   cru voir un rapport neuf en 10 s parce que le `limit 6` d'une inspection antérieure avait caché
+   une 7ᵉ ligne. **Parade : attendre sur `max(id)`, pas sur un compte.**
+5. ⚠️ **`git add <dossier>/` ratisse les fichiers NON SUIVIS du dossier.** Un `git add docs/decisions/`
+   a embarqué les 485 lignes de l'ADR-0040 dans un commit de statuts. Défait par
+   `reset --soft` + `restore --staged` ; le hash du commit a changé.
+6. ⚠️ **La narrowing TypeScript se perd dans une closure** : `c.report` narrowé par le JSX
+   redevient `possibly null` dans le `.map` des matières (propriété d'un objet mutable). Calculer
+   hors du rendu.
 
-Détail, cause et parade : `TROUBLESHOOTING.md` §`feat/memoire-quatre-vues`.
+Détail, cause et parade : le corps de la PR [#92](https://github.com/NeuronXcore/zetis-school/pull/92).
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est CLOS et MERGÉ** (PR #91, squash `d0ca126`). Branche supprimée des deux côtés,
-`main` == `origin/main`, **arbre propre** — vérifié après le merge. **Étape 4bis faite.**
+**Le Lot 0 est mergé, le CHANTIER NE L'EST PAS.** `main` == `origin/main`, arbre propre, branche
+supprimée des deux côtés. **Étape 4bis faite** (ce fichier).
 
-Le prochain chantier se choisit dans les DETTES ci-dessous, ou se cadre — `/ouverture`, ADR avant le
-code. **Si le sujet reste le dashboard**, deux candidats se disputent le premier geste : la dette
-visuelle ci-dessous (la moins coûteuse, et elle s'accumule), ou l'addendum qui fige « Semaine en
-cours », toujours la seule surface du dashboard qu'aucun ADR ne décrit.
+**La suite est écrite et prête à coller** — `prompts/claude-code/prompts-claude-code-adr-0040.md` :
 
-⚠️ **Résidus de CE chantier**, qui ne vivent nulle part ailleurs :
+1. **SESSION B — Lots 1+2**, branche `feat/progression-temps` depuis `main`. C'est **le gros
+   morceau** et c'est ce que le user voulait au départ : `evidence.mastery_transitions`, les deux
+   routes (`GET /progress/skills`, `…/{id}/timeline`), la **migration d'index**, les trois vues de
+   Progression, le renommage de `LacunesPage`. 🔴 **Les deux lots partent ENSEMBLE** — une route
+   écrite et appelée par personne, c'est `GET /progress/consolidated`, le constat qui a ouvert
+   l'ADR-0038.
+2. **SESSION C — Lot 3**, branche `feat/council-dated-evolution`. Remplit `recent_evolution` avec de
+   vraies bascules. ⚠️ **Si l'écrasement serveur du Lot 0 a disparu, s'arrêter** : c'est une
+   régression.
+3. **Clôture du chantier**, après C seulement : `CHANGELOG.md` **0.53.0** (il raconte ce qui est
+   sorti, d'où le silence jusque-là), `MEMORY.md`, et `DECISIONS.md` — passer l'ADR-0040 de
+   **Proposé** à **Accepté**.
 
-- 🔴 **MERGÉ SANS RELECTURE VISUELLE HUMAINE, sur décision explicite du user.** `WORKFLOW.md §5bis`
-  demande l'œil humain avant la PR ; il a été signalé **trois fois** (checklist de clôture, message
-  de PR, case à cocher dans le corps de la PR) et le merge a été demandé quand même. **Arbitrage
-  assumé — mais la dette est passée d'« avant merge » à « sur `main` », exactement comme le souffle
-  #89 et le bandeau Massimo #79.** C'est la **troisième** fois. Ce qui reste à regarder : les quatre
-  vues, en particulier « Révisions » sur **30 j** et **Trimestre** (les 29 passages du 4 juillet
-  entrent alors dans le cadre, ce qu'aucune capture de cette session ne montre).
-- ⚠️ **La vue « Solde » est VIDE sur la base de dev**, et c'est correct : `skill_mastery_history`
-  n'a que 4 lignes, toutes des entrées en `weak`. Son rendu **non vide n'a donc jamais été vu** —
-  ni barres montantes, ni barres descendantes. À regarder à la première vraie bascule.
-- ⚠️ **Aucune donnée de test laissée en base** : la sonde était en lecture seule (script jetable
-  appelant `build_dashboard`, aucun `commit`).
-- 🔴 **Aucun clic sur un titre focalisable n'a abouti depuis le panneau navigateur.** Les clics par
-  `ref` y rendent des coordonnées **page**, hors de l'espace de clic (800 px de large), et
-  **échouent en silence** — sans erreur, sans effet. Le focus a donc été vérifié en posant
-  `?focus=charge` / `?focus=chaine` dans l'URL, ce qui exerce bien le garde `isFocus` et le rendu,
-  **mais pas le gestionnaire de clic**, couvert seulement par les tests. À confirmer à la main.
-- ⚠️ **Rien n'a été vérifié en responsive**, ni le sélecteur à 4 vues (4 boutons dans un en-tête qui
-  porte déjà titre + tagline + indication de focus), ni les deux titres devenus boutons.
-- ⚠️ **La vue « Révisions » a un axe des abscisses NON LINÉAIRE** de part et d'autre du trait
-  d'aujourd'hui (12 intervalles à gauche, 14 jours à droite). Assumé et écrit dans la note de la
-  carte — **déclencheur de réouverture** : si quelqu'un compare la largeur des barres des deux
-  moitiés, c'est que la note ne suffit pas.
-- ⚠️ **`ReviewLoadCard` et la vue « Révisions » servent les mêmes 14 jours.** Recoupement assumé
-  (voir décision 9), mais c'est le genre de doublon qui devient une question de mise en page si le
-  cockpit se resserre un jour.
+⚠️ **Le prompt veut une session NEUVE par bloc.** Le Lot 0 a été fait en fin d'une session déjà
+longue ; la SESSION B est bien plus lourde.
+
+⚠️ **Résidus du Lot 0**, qui ne vivent nulle part ailleurs :
+
+- ⚠️ **Un rapport figé dont `recent_evolution` valait `""`** affiche désormais la phrase d'absence
+  là où il n'affichait rien. Conforme au §8.4, non traité comme un cas à part.
+- ⚠️ **Le rapport #8 est resté dans la base de dev** : généré pour la vérification, vrai appel
+  Ollama, premier v3 du dépôt. Légitime, mais il n'était pas là ce matin.
+- ⚠️ **`scripts/reorder_decisions.py` est un outil neuf et sans test.** Idempotent, il refuse
+  d'écrire si le résultat n'est pas une permutation pure — mais cette garantie n'est vérifiée que
+  par son propre contrôle interne, doublé une fois à la main.
+- ⚠️ **`docs/decisions/annexes/statuts-en-attente-2026-08-06.md`** : mémo des **15 ADR restés
+  « Proposé »**, décision explicitement DIFFÉRÉE par le user. Leur code est mergé, mais rien dans le
+  dépôt ne les signale plus — index et fichiers sont d'accord entre eux. Ce mémo est leur seule
+  trace.
+
 ---
 
 ### ▶ DETTES OUVERTES
 
-> ⚠️ **Les quatre premières sont REMONTÉES du chantier « KPI À renforcer » (PR #90) lors de son
+> ⚠️ **Les trois premières sont REMONTÉES du chantier « carte mémoire à 4 vues » (PR #91) lors de
+> son élagage (2026-08-06, clôture du Lot 0 ADR-0040)**, revérifiées avant remontée.
+
+- 🔴 **Trois chantiers d'affilée mergés sans relecture visuelle HUMAINE** (#79, #89, #91), et le
+  Lot 0 (#92) fait le quatrième — vu par l'agent, pas par le user. `WORKFLOW.md §5bis` demande
+  l'œil humain avant la PR. Ce qui reste à regarder du #91 : les quatre vues, en particulier
+  « Révisions » sur **30 j** et **Trimestre**.
+- ⚠️ **La vue « Solde » n'a jamais été vue NON VIDE.** `skill_mastery_history` n'a que 4 lignes,
+  toutes des entrées en `weak` — ni barres montantes, ni descendantes. ⚠️ **Le Lot 1 la nourrira**
+  (`mastery_transitions` lit cette même table) : à regarder à ce moment-là.
+- 🔴 **Aucun clic sur un titre focalisable n'a abouti depuis le panneau navigateur.** Les clics par
+  `ref` y rendent des coordonnées **page**, hors de l'espace de clic (800 px), et échouent **en
+  silence**. **Parade trouvée au Lot 0** : passer par `claude-in-chrome` (vrai Chrome, vraie
+  session) — un clic réel y a abouti. Le panneau reste inutilisable pour ça.
+
+> ⚠️ **Les quatre suivantes sont REMONTÉES du chantier « KPI À renforcer » (PR #90) lors de son
 > élagage (2026-08-06, 4ᵉ contrôle).** Ses trois autres contrôles passaient — ADR
 > `adr-0028-addendum-kpi-a-renforcer.md` ✅, `TROUBLESHOOTING.md` §`feat/kpi-a-renforcer` ✅,
 > `CHANGELOG.md` 0.51.0 ✅ — mais ses « résidus » enterraient quatre constats **encore vrais**,
@@ -586,6 +594,17 @@ si la file regrossit.
 
 
 ## Historique des chantiers clos
+
+> **2026-08-06 — la carte mémoire à 4 vues + 2 cartes focalisables** (PR
+> [#91](https://github.com/NeuronXcore/zetis-school/pull/91), squash `d0ca126`), section retirée à
+> la clôture du Lot 0 de l'ADR-0040 (2026-08-06). Contrôles : 2 addenda `adr-0028` ✅ ·
+> `CHANGELOG.md` 0.52.0 ✅. **Résidus encore vrais, REMONTÉS en « DETTES OUVERTES »** : le chantier
+> est **mergé sans relecture visuelle humaine** (3ᵉ fois d'affilée, après #79 et #89), la vue
+> « Solde » **n'a jamais été vue non vide** (`skill_mastery_history` n'a que 4 lignes, toutes des
+> entrées en `weak`), et **aucun clic sur un titre focalisable n'a abouti depuis le panneau
+> navigateur**. Ce dernier a trouvé sa parade au Lot 0 : passer par `claude-in-chrome` et le vrai
+> Chrome. Ce qui ne survit qu'ici : `covered` avait cessé d'être affichée **sans qu'un test
+> rougisse** — les tests portent sur ce qui est affiché, jamais sur ce qui a **cessé** de l'être.
 
 > **2026-08-05 — le 5ᵉ KPI du dashboard Papa, « À renforcer »** (PR
 > [#90](https://github.com/NeuronXcore/zetis-school/pull/90), squash `392b075`), section retirée à
