@@ -658,3 +658,318 @@ même règle, même raison.
 Il **ne tamponne pas** les pièces produites hors lot, donc il n'ouvre pas le veto sur elles. C'est
 la seule voie vers un Journal réellement unifié — pièces comprises — et elle mérite son propre
 cadrage : elle touche le modèle de données, pas seulement une lecture.
+
+---
+
+## Addendum 2 — la barre devient une bande, et la production se compte en pièces (2026-08-06)
+
+**Statut : Accepté.** Décidé sur la maquette
+`docs/frontend-papa/mockup/maquette-papa-header-production.html`, produite par le commanditaire
+après la livraison des trois slices.
+
+### Le constat
+
+La barre livrée par cet ADR est correcte et **n'a toujours pas été vue tourner**. Le §
+« Vérification humaine » n'a été honoré qu'en partie, et le message du commit de livraison le dit
+lui-même : *« le critère d'écran de la Slice C n'est pas tenu (un seul producteur lancé, sans
+empilement), les scénarios de la Slice B n'ont pas été rejoués »*.
+
+La maquette ne corrige pas un défaut d'affichage : elle attaque la cause. Une pilule qui passe de
+`0/31` à `1/31` toutes les 69 secondes **ne bouge pas à l'œil**. Rien n'y indique qu'un travail est
+en cours autrement qu'un point qui clignote — et un point qui clignote ne dit pas *que ZETIS
+fabrique*, il dit *que l'interface est vivante*.
+
+> **Ce n'est pas une barre, c'est un tapis.** Les rouages fabriquent à gauche, la pièce traverse, la
+> boîte l'avale à droite. La texture en biais dit le sens de marche : sans elle, une barre qui se
+> remplit ne dit pas *d'où vers où*.
+
+### Le point dur qui commande cet addendum
+
+**Le grain de la mesure décide si le mouvement existe.** Un lot de chapitre de 31 notions dure
+~36 minutes et n'a que 31 paliers : un pas toutes les 69 secondes, c'est-à-dire, à l'œil, une
+barre immobile.
+
+🔴 **Corrigé au read-before-code, et c'est la correction la plus importante de cet addendum.** La
+première version disait : *« le même lot a 155 pièces, donc un dénominateur 5× plus fin, donc la
+barre bouge cinq fois plus souvent. »* **C'est faux**, et le code le dit :
+
+```python
+for skill_id in eligible:
+    result = equip_notion(...)          # ~69 s — les 5 pièces sont fabriquées
+    run.done_notions += 1
+    _record_notion(db, run_id, result)  # les 5 lignes de journal sont ajoutées ICI
+    db.commit()                         # et commitées d'un seul coup
+```
+
+Les cinq `ProductionEvent` d'une notion naissent **dans le même commit que l'avancement** — et ce
+n'est pas un hasard, c'est une décision : *« un lot tué entre les deux laisserait un journal qui
+ment sur ce qu'il a fait »* (`runner.py:439`). Donc :
+
+| | pas | fréquence |
+|---|---|---|
+| notions | `1/31` = 3,23 % | ~69 s |
+| pièces, comptées sur le journal | `5/155` = 3,23 % | **~69 s** |
+
+**Identique.** Compter des pièces au lieu de notions ne fait bouger la barre ni plus souvent, ni
+d'un pas différent. Un renommage.
+
+**Ce qui débloque réellement le mouvement** est ailleurs : `equip_notion` ne commite jamais
+lui-même, mais **les cinq générateurs de pièces commitent chacun en interne**. Il passe donc déjà
+un commit toutes les ~14 secondes — il suffit de lui faire porter **la pièce en cours**. D'où le
+§20 bis, sans lequel le §20 ne serait qu'un changement de vocabulaire.
+
+C'est aussi ce qui rend le tapis honnête : une pièce qui voyage et tombe dans la boîte est
+l'image exacte de ce qui se passe en base, pas une métaphore décorative.
+
+### §19 — La bande remplace la pilule, et le §7 est révoqué EN PARTIE
+
+La pilule (`ProductionBar`) et son liseré (`ProductionEdge`) disparaissent. Une **bande de
+production** de 46 px prend leur place, **sous le bandeau de marque, dans le même `<header>`**.
+
+🔴 **Le §7 est révoqué sur un point et un seul** : « quand rien ne tourne, la barre n'existe pas ».
+Au repos, la bande **se replie** au lieu de disparaître.
+
+L'argument d'origine reste vrai et n'est pas abandonné : *« un indicateur permanent à l'arrêt est
+un bruit permanent »*. Ce qui change est qu'un **liseré immobile n'est pas un indicateur** — il
+n'annonce rien, ne compte rien, ne reproche rien. Le §7 visait un compteur qui vous regarde ; il
+ne visait pas une couture.
+
+⚠️ **Tout le reste du §7 tient** : la bande montre **le travail courant et lui seul**, jamais un
+agrégat. « 3 travaux · 41 % » reculerait quand un travail entre dans la file. *Ce qui attend se
+compte, il ne se dessine pas.*
+
+⚠️ **Le §12 tient intégralement.** Aucune bande chez Massimo. `require_parent` de bout en bout.
+
+### §20 — La mesure passe de la notion à la pièce
+
+| | Avant (§6) | Après |
+|---|---|---|
+| dénominateur | `total_notions` | `PIECES_PAR_NOTION × total_notions` |
+| numérateur | `done_notions` | `COUNT(production_events)` résolus |
+| ce qu'on lit | `7 / 31 · 23 %` | `37 %` · `7 / 19 pièces` |
+
+`equip_notion` produit **exactement 5 pièces par notion éligible** — cours, fiche, srs, quiz,
+mindmap — sans exception, y compris le repli « cours indisponible » qui pousse les quatre dérivés
+en `skipped`. La constante `PIECES_PAR_NOTION` vit **avec le vocabulaire `PIECES`** et nulle part
+ailleurs, et un test verrouille que `equip_notion` émet bien ces cinq natures : une constante qui
+dérive du code qu'elle décrit est une constante fausse le jour où quelqu'un ajoute une sixième
+pièce.
+
+Trois nombres, pas un :
+
+- **`pieces_done`** = les pièces **résolues** (`generated` ∪ `skipped` ∪ `error`). C'est lui qui
+  fait avancer le tapis : il ne recule jamais et atteint 100 %.
+- **`pieces_produced`** = les seules `generated`. C'est lui qui allume la boîte. Une pièce
+  `skipped` était **déjà** dedans — la faire tomber une seconde fois serait un mensonge sur le
+  stock.
+⚠️ **Il n'y a PAS de troisième liste `pieces_recent`.** Le cadrage en prévoyait une — les natures
+des dernières pièces produites, pour nommer les jetons du tapis — et elle était à la fois inutile
+et fausse : le journal atterrit **après coup**, donc les jetons seraient partis tous les cinq d'un
+coup, en retard. C'est `current_piece` (§20 bis) qui les lance : **son changement de valeur dit
+qu'une pièce vient d'être finie**, à l'instant, avec son nom. Une requête de moins, et le bon
+moment.
+
+⚠️ **Filtrer `piece IS NOT NULL`.** Les lignes `blocked` portent sur la **notion**, pas sur une
+pièce (`production.py:256`). Les compter gonflerait le numérateur d'un travail que personne n'a
+fait.
+
+🔴 **Les quatre champs de mesure passent sous une seule condition.** `runner.execute` commite
+`status = "running"` **avant** de poser `total_notions` : il existe une fenêtre réelle où un lot
+est `running` avec ses compteurs à `NULL`. Quatre champs sous un invariant, c'est un invariant à
+tenir ; quatre conditions séparées, c'est quatre occasions de servir `null / null · 37 %`.
+
+⚠️ **Un lot-pièce reste non mesuré.** Une pièce sur une pièce n'est pas une progression. *Sur un
+lot-pièce, le remplissage disparaît, un liseré balaie, et la case du % **n'existe pas** : un « — »
+à cet endroit se lirait encore comme une valeur.* C'est le §6 appliqué, pas contredit.
+
+### §20 bis — La pièce en cours, sans laquelle le §20 n'est qu'un renommage
+
+`production_runs` gagne **une colonne, `current_piece`** — la pièce que le lot est en train de
+fabriquer, `NULL` entre deux notions et à la fin.
+
+```txt
+pieces_done = COUNT(événements de pièces)  +  index(current_piece)
+              └─ le RÉCIT, atterrit à       └─ la POSITION dans la notion
+                 la fin de chaque notion       en vol, bouge toutes les ~14 s
+```
+
+Les deux ne se contredisent jamais : le journal porte les notions **achevées**, `current_piece`
+porte la notion **en vol**. La somme est monotone et exacte.
+
+Trois propriétés qui font que ce n'est pas cher payé :
+
+1. 🔴 **Aucun commit n'est ajouté.** Les cinq générateurs commitent déjà en interne (10, 11, 10 et
+   8 `db.commit()` dans `fiches`, `mindmaps`, `quizzes`, `memory`). Poser `current_piece` avant
+   d'appeler le générateur suffit : c'est son propre commit qui l'emporte.
+2. **Le journal n'est pas touché**, donc l'invariant de `runner.py:439` tient intact. La position
+   est un état courant, pas une trace ; les confondre reviendrait à écrire l'histoire à l'avance.
+3. ⚠️ **`equip_notion` n'apprend rien de `ProductionRun`.** Il reçoit un `on_piece:
+   Callable[[str], None] | None = None`, et le runner y branche l'écriture. Ses deux autres
+   consommateurs — le Conseil de classe et la composition champion — **ne changent pas d'un
+   caractère**, exactement comme pour `authority` (§ docstring d'`equip_notion`). Un service qui
+   irait chercher le lot lui-même deviendrait inappelable par eux.
+
+⚠️ **L'index vient de l'ordre de `PIECES`**, qui documente déjà être « l'ordre dans lequel
+`equip_notion` les produit ». Deux ordres divergeraient en silence ; il n'y en a qu'un, et le test
+qui verrouille les cinq natures verrouille aussi leur ordre.
+
+⚠️ **Le pas n'est pas régulier, et c'est correct.** Une pièce déjà produite passe en `skipped` en
+quelques microsecondes ; une fiche prend 32 s. La position avance donc par bonds inégaux. Une
+progression régulière sur un travail irrégulier serait une animation, pas une mesure.
+
+### §21 — Un régulateur qui refuse laisse une trace
+
+Les cinq régulateurs lèvent un `HTTPException(409)` et **rien n'est écrit**. Un refus survenu à
+3 h du matin sur le scan automatique est **définitivement perdu** — ce qui contredit frontalement
+le titre de cet ADR.
+
+**Seuls les refus AUTOMATIQUES sont persistés** (`trigger != "manual"`). Un refus manuel est déjà
+dit à Papa, synchroniquement, au clic, dans le `detail` du 409 ; le persister en ferait une
+notification en double d'un événement qu'il vient de lire.
+
+Table `production_refusals` : `trigger`, `regulator` (vocabulaire fermé — `duplicate` ·
+`already_produced` · `pending_backlog` · `request_volume` · `auto_volume`), `detail`,
+`chapter_id` / `skill_id` nullables, `created_at`, `acknowledged_at`.
+
+- Le `detail` est rendu **tel quel**, comme un motif d'échec (§8). Une table
+  « motif technique → phrase douce » est exactement ce que le §8 a écarté.
+- 🔴 **Corrigé au read-before-code : il n'y a rien à écrire « avant le `raise` ».** Le cadrage
+  prévoyait d'insérer l'écriture dans `create_run`, en la commitant avant de lever, sous peine de
+  la voir emportée par la transaction. C'était résoudre un problème qui n'existe pas :
+  `triggers.py` **attrape déjà** le `409` dans un `except` ordinaire, et les cinq régulateurs
+  gardent **avant** toute écriture du lot — la session est propre. La trace s'écrit donc chez
+  l'appelant, hors de tout chemin exceptionnel.
+- ⚠️ **Le tri se fait sur le TYPE, jamais sur la phrase.** `ProductionRefused` est une
+  `HTTPException` qui porte en plus un code de régulateur : la route rend toujours son `409` avec
+  son `detail`, et pas une ligne de `runs_router` ne change. Sans ce code il faudrait reconnaître
+  le motif dans le texte français — et le jour où quelqu'un reformule « contenus attendent déjà
+  votre relecture », la classification tomberait **sans qu'aucun test ne rougisse**, puisque le
+  message resterait juste.
+- ⚠️ **Les `404` du même chemin n'entrent pas.** Chapitre introuvable, profil élève absent : ce
+  sont des défauts de donnée, pas des décisions de politique. Sous le mot « refusé », un bug se
+  lirait comme un régulateur qui fonctionne — et resterait affiché jusqu'à ce que Papa l'acquitte
+  sans avoir rien à réparer.
+- ⚠️ **Un refus répété n'est pas dédupliqué**, et c'est voulu. Un scan qui tourne toutes les trois
+  heures sur une limite non levée empile ses refus : c'est exactement ce qu'il faut voir — la
+  limite n'a pas bougé, ZETIS n'a rien produit de la journée. Masquer les répétitions ferait lire
+  un incident isolé là où il y a un blocage installé.
+- **Un refus n'est pas une panne.** Il ne prend pas le ton d'un échec : rouages estompés, motif
+  affiché, et le popover dit **ce qui le rouvrira**. Un refus invisible se lit comme une perte.
+  Deux listes distinctes dans `/activity`, jamais une : confondues, elles apprendraient à Papa à
+  ignorer les deux.
+
+### §22 — Les couloirs deviennent visibles, et `worker_alive` cesse d'ignorer le média
+
+Trois défauts réels, tous visibles dès qu'une capsule tourne :
+
+1. **`queued_count` mélange les deux couloirs.** Un rendu vidéo fait afficher « 1 en attente » sur
+   le couloir LLM alors qu'il ne le bloque en rien — le média a son propre worker et sa propre
+   file. `queued_count` devient **le couloir LLM seul** ; les travaux média portent leur `lane` et
+   n'apparaissent que dans le popover.
+   *Deux tapis côte à côte diraient qu'il y a deux productions, alors qu'il y a deux ressources.*
+2. **`worker_alive` n'interroge que les files de production.** Le worker média peut être mort avec
+   `worker_alive: true`. Ajout de **`media_alive`**, champ **additif** : `worker_alive` garde sa
+   forme, donc rien de ce qui le lit ne casse. La règle `=== false` — jamais la fausseté — vaut
+   pour les deux.
+3. 🔴 **`worker_media` écrit `job_type="capsule_render"` quand la table des libellés et les
+   estimations attendent `"capsule_render_v2"`.** Papa lit donc « capsule_render » en toutes
+   lettres, et l'estimation retombe au défaut. C'est le défaut que le §9 disait avoir supprimé,
+   survivant sur le seul producteur qui vit dans un autre dépôt d'application.
+   Et **aucun `AIJob` n'est créé à l'enfilement** : un rendu qui attend est invisible — le défaut
+   exact que la Slice A a corrigé pour tous les autres.
+
+### §23 — Le popover remplace la modale
+
+`ActiveProductionModal` devient `ProductionPopover` : 340 px, ancré sous la bande, fermé au clic
+extérieur **et à `Escape`** (la modale n'avait ni l'un ni l'autre).
+
+**Les sept invariants de la modale sont portés, pas supprimés** : l'ordre de la file tel qu'il sera
+servi, l'origine toujours dite, aucun pourcentage sur ce qui attend, l'échec avec son motif et son
+acquittement, la troncature déclarée, le résumé qui compte les **statuts** et non la présence d'un
+objet, l'état vide.
+
+Le pied gagne **« Voir au Journal → »** vers `/journal?statut=queued&statut=running`.
+⚠️ La syntaxe est la **répétition** du paramètre : `?statut=queued,running` serait silencieusement
+ignoré.
+
+### §24 — Le contrat réseau, étendu
+
+```txt
+Activity += {
+    lane:            "llm" | "media",   # §22 — dérivé du job_type, jamais stocké
+    pieces_done:     int | null,        # §20 — résolues ; null AVEC pct, jamais séparément
+    pieces_total:    int | null,
+    pieces_produced: int,               # ce qui tombe VRAIMENT dans la boîte ; toujours servi
+    current_piece:   str | null,        # §20 bis — la position, et le lanceur de jetons
+  }
+
+ProductionActivity += {
+    refused:     Refusal[],             # §21 — non acquittés
+    media_alive: bool | null,           # §22 — additif, worker_alive inchangé
+  }
+
+Refusal = { id, regulator, detail, trigger, created_at }
+```
+
+⚠️ `GET /api/production/activity` **n'a pas de `response_model`** — elle est typée `-> dict`.
+**Les tests SONT le contrat.** Toute forme ajoutée ici sans test correspondant n'est garantie par
+rien.
+
+### §25 — Les deux contradictions de la maquette, tranchées
+
+La maquette se contredit elle-même sur deux points. Les trancher ici plutôt qu'au clavier :
+
+1. 🔴 **Elle dit que se replier « garde la boîte atteignable d'un clic », et son propre CSS la fait
+   disparaître** (`.strip[data-state="repos"] > * { opacity: 0 }`). C'est le repli qui est retenu,
+   donc c'est la hauteur qui doit céder : **au repos, la bande garde la boîte et rien d'autre**.
+   Seize pixels ne suffisent pas à la loger ; la hauteur de repos se règle **à l'écran**, pas dans
+   ce document. Ce qui est décidé, c'est que le repos porte **un seul objet cliquable**, et que cet
+   objet est la boîte.
+2. **Elle n'a aucun état pour « un lot attend, rien ne tourne encore »** — son état `file` a
+   toujours quelque chose en cours. Cet état existe pourtant, et le code sait déjà le dire : il est
+   **conservé** comme huitième état, avec ses mots actuels (« ZETIS va produire · en file
+   d'attente »), verrouillés depuis le 2026-08-05.
+
+⚠️ **La maquette conserve le verbe** (« ZETIS produit — », « ZETIS **ne produit pas** »). Les deux
+verrous de `PapaLayout.test.tsx` restent donc valides sur le fond ; seul leur crochet d'animation
+change (voir ci-dessous).
+
+⚠️ **Le hook d'animation devient un attribut, jamais une classe.** Les assertions qui vérifient que
+« rien ne bat quand rien ne bouge » s'accrochent aujourd'hui à `.animate-pulse`. Un `className` est
+précisément ce qu'un refactor renomme sans que rien ne rougisse. L'attribut `data-tourne` **porte**
+l'animation dans le CSS : l'observer, c'est observer le mouvement lui-même.
+
+⚠️ **`prefers-reduced-motion` fige sans rien retirer.** Rouages arrêtés, tapis sans texture animée,
+liseré immobile — remplissage, chiffres, couleurs et boîte restent. Couper l'animation effacerait
+le signal ; on l'immobilise.
+
+🔴 **Or `#ffcf47` interdit.** Il reste réservé à ZETIS quand il parle à Massimo. L'attente et
+l'arrêt sont en ambre `#f0a02a`, **jamais du rouge pour une file** : le rouge est l'échec seul.
+
+### Ce que cet addendum ne fait pas
+
+Il ne touche pas au bandeau de marque (hauteur, image, fondu, les deux pilules) · il n'augmente pas
+la concurrence du worker · il n'interrompt aucun travail en cours · il ne crée aucun ordonnanceur ·
+il ne migre pas les compositions pur-DB · il n'ajoute **aucun compte de pièces à `CoverageOut`**
+(le brut y est calculé puis jeté — c'est une dette nommée, pas un oubli) · il ne tamponne pas les
+pièces hors lot, donc n'ouvre toujours pas le veto sur elles · il n'atteint aucune surface Massimo.
+
+### Le signal qui dirait qu'on s'est trompé
+
+1. **La bande au repos finit par porter un deuxième objet** — un compteur, un badge, un lien. Le
+   §7 aura été perdu de vue : ce qu'il interdisait n'était pas la continuité visuelle, c'était
+   l'affordance permanente.
+2. **Papa regarde les rouages plutôt que le tapis.** Le mouvement le plus visible doit être celui
+   qui porte l'information ; si le décor gagne, c'est le décor qu'il faut réduire.
+3. **Le tapis recule.** Alors le numérateur aura cessé d'être un compte de faits résolus.
+4. **Quelqu'un traduit un motif de refus en phrase douce.** C'est la table écartée par le §8 qui
+   revient par la porte du refus.
+
+### Vérification humaine — la même, et elle n'a toujours pas été faite
+
+Les six contrôles du § « Vérification humaine » restent dus **en entier**, et quatre s'y ajoutent :
+un refus provoqué (abaisser `PRODUCTION_MAX_PENDING`), une capsule en rendu (couloir média
+distinct et libellé lisible), la bande au repos, et `prefers-reduced-motion` activé.
+
+> `EQUIP_MS` a été supprimée, mais **la barre qu'elle pilotait n'a toujours jamais été vue
+> tourner**. Cet addendum ne sera pas fini quand son code sera vert.

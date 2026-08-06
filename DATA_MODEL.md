@@ -979,6 +979,64 @@ ix_quizzes_production_run_id · ix_spaced_review_cards_production_run_id
 ix_production_runs_created_at   # la clé de tri par défaut du Journal, qui commande la pagination
 ```
 
+**La PIÈCE en cours** — `production_runs.current_piece`, ajoutée le 2026-08-07 (migration
+`c4d5e6f7a8b9`, addendum 2 ADR-0041 §20 bis). `String(32)` nullable : la pièce que le lot fabrique
+**à l'instant**, `NULL` entre deux notions et à la fin.
+
+> 🔴 **Sans elle, compter des pièces au lieu de notions n'est qu'un renommage.** Les cinq
+> `ProductionEvent` d'une notion naissent dans le **même commit** que `done_notions` — décision de
+> `runner.py`, « un lot tué entre les deux laisserait un journal qui ment ». Donc `5/155` et `1/31`
+> valent le même 3,23 %, au même instant. Le journal porte les notions **achevées** ; cette colonne
+> porte la notion **en vol**, et c'est elle qui fait avancer la barre toutes les ~14 s au lieu
+> de ~69 s. La lecture est une **somme** : `COUNT(événements de pièces) + PIECES.index(current_piece)`.
+>
+> ⚠️ **Un état courant, jamais une trace.** Elle s'écrase à chaque pièce et ne se relit pas après
+> coup — l'histoire est au journal. Elle n'a donc aucun besoin d'être exacte après un crash : la
+> somme se recale sur le journal dès la notion suivante.
+>
+> ⚠️ **Aucun commit n'est ajouté pour elle** : les cinq générateurs commitent déjà en interne, et
+> c'est leur commit qui l'emporte. `equip_notion` la reçoit par un `on_piece` optionnel et
+> **n'apprend rien de `ProductionRun`** — ses deux autres appelants (Conseil de classe, composition
+> champion) ne changent pas d'un caractère.
+>
+> ⚠️ **L'ORDRE de `PIECES` est devenu porteur** : la position se dérive de `PIECES.index()`. Deux
+> ordres divergeraient en silence et la barre reculerait d'un cran. Un test-verrou lexical compare
+> l'ordre des appels dans `equip_notion` au tuple (vérifié par sabotage).
+
+### ProductionRefusal (addendum 2 ADR-0041 §21)
+
+Table `production_refusals`, créée le 2026-08-07 (migration `e7f8a9b0c1d2`). Un régulateur a dit
+non, et ZETIS s'en souvient.
+
+```txt
+id · trigger · regulator · detail · chapter_id? · skill_id? · created_at · acknowledged_at?
+ix_production_refusals_ack_created   # la seule lecture : les non-acquittés, du plus récent au plus ancien
+```
+
+> 🔴 **Le trou bouché.** Les cinq régulateurs de `runs.create_run` lèvent un `HTTPException(409)`.
+> Quand Papa clique, il en lit le motif à l'écran dans la seconde. Quand le **scan nocturne** se le
+> prend à 3 h du matin, `triggers.py` l'attrape et le range dans un compte rendu **que personne ne
+> lit** — la journée passait sans production ni explication.
+>
+> ⚠️ **Les refus AUTOMATIQUES seulement** (`trigger != "manual"`) : persister un refus manuel en
+> ferait une notification en double d'un événement que Papa vient de lire, et elle resterait
+> affichée après qu'il a compris. Le filtre vit dans `refusals.record`, pas chez l'appelant.
+>
+> ⚠️ **`regulator` est un vocabulaire fermé** (`REGULATORS`) — `duplicate` · `already_produced` ·
+> `pending_backlog` · `request_volume` · `auto_volume`. Le tri se fait sur le **TYPE**
+> (`ProductionRefused`), jamais en reconnaissant le motif dans la phrase française : celle-ci se
+> reformule, et la classification tomberait **sans qu'aucun test ne rougisse**.
+>
+> ⚠️ **Portée bornée** : seuls les refus de régulateur entrent. Les `404` du même chemin (chapitre
+> introuvable, profil élève absent) sont des défauts de **donnée**, pas des décisions de politique —
+> sous le mot « refusé », un bug se lirait comme un régulateur qui fonctionne.
+>
+> ⚠️ **Aucune déduplication**, et c'est voulu : trois refus identiques dans la journée disent ce
+> qu'un seul ne dit pas — la limite n'a pas bougé, rien n'a été produit depuis ce matin.
+>
+> `detail` est rendu **tel quel** à l'écran, comme un motif d'échec (§8). Une table « motif
+> technique → phrase douce » est exactement ce que cet ADR a écarté.
+
 ### MindmapView (ADR-0030 §4)
 
 Carte vue par un élève. **« Vu » = la ligne existe** — il n'y a rien d'autre à savoir.

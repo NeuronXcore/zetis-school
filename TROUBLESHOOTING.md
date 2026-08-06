@@ -4,6 +4,88 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/bande-de-production` — addendum 2 ADR-0041, la bande du header Papa — 2026-08-06
+
+> ADR : `adr-0041-tout-ce-qui-produit-se-voit.md`, addendum 2. Spec :
+> `docs/frontend-papa/bande-de-production.md`.
+
+### 🔴 « Failed to fetch » sur le Journal ET les demandes — du code en avance sur son schéma
+
+**Symptôme.** Deux pages Papa sans rapport apparent tombent en même temps sur `failed to fetch`.
+Le backend répond pourtant `200` sur `/health`.
+
+**Cause.** Une colonne (`production_runs.current_piece`) et une table (`production_refusals`)
+avaient été ajoutées **au modèle SQLAlchemy et à une migration**, mais la migration n'avait pas été
+appliquée à la base de dev. Le serveur `--reload` avait rechargé le nouveau code : à partir de là,
+**toute requête touchant `ProductionRun` échouait** — d'où deux surfaces éloignées qui tombent
+ensemble, ce qui égare le diagnostic.
+
+⚠️ **`/health` ne prouve rien** : il ne touche aucun modèle. Et une route protégée rend `401`
+**avant** d'exécuter son handler — un `401` ne prouve donc pas davantage que la requête passe. Le
+seul contrôle utile est d'appeler le service directement :
+
+```bash
+.venv/bin/python -c "from app.db.base import SessionLocal; from app.modules.production import activity; print(activity.read(SessionLocal()))"
+```
+
+**Solution.** `.venv/bin/alembic upgrade head`. **Règle** : une migration écrite dans le même
+commit qu'un changement de modèle doit être appliquée dans la foulée, sinon le serveur de dev
+tourne en avance sur son schéma jusqu'au prochain redémarrage — et personne ne fait le lien.
+
+### 🔴 Un identifiant de révision Alembic déjà pris — et `upgrade head` ne dit pas lequel
+
+**Symptôme.** `alembic upgrade head` échoue avec *« Multiple head revisions are present »*, précédé
+d'un `UserWarning: Revision d5e6f7a8b9c0 is present more than once`. Aucune migration n'est
+appliquée, y compris celles qui n'ont rien à voir.
+
+**Cause.** L'identifiant choisi à la main (`d5e6f7a8b9c0`) existait déjà —
+`d5e6f7a8b9c0_validation_provenance.py`. Les identifiants du dépôt suivent un motif
+alphanumérique lisible (`a1b2c3d4e5f6`…), ce qui rend la collision **probable**, pas exceptionnelle.
+
+**Contrôle avant d'écrire une migration** :
+
+```bash
+grep -h "^revision" alembic/versions/*.py | sed 's/.*= *"//;s/".*//' | sort | uniq -d
+```
+
+⚠️ Ne pas se fier à un script maison qui cherche « la tête » en comparant `revision` et
+`down_revision` : le premier écrit pour ce chantier a rendu **41 têtes**, sa regex ne gérant pas
+toutes les formes d'annotation. La question « qui a X comme parent ? » (`grep -rl`) est fiable.
+
+### 🔴 `tsc -b` seul rend EXIT=0 sur du code qui ne compile pas
+
+**Symptôme.** Après avoir ajouté trois champs obligatoires à un type de `packages/types`,
+`tsc -b` sort en `0`, sans une ligne. Trois erreurs réelles étaient masquées — dont un objet
+littéral d'un hook auquel il manquait un champ.
+
+**Cause.** Build **incrémental** : `tsc -b` se fie à ses `.tsbuildinfo` et ne revoit pas les
+fichiers qu'il croit à jour quand seule une déclaration de type a changé.
+
+**Solution.** `tsc -b --force` dès qu'un type partagé bouge. Complète la note déjà connue —
+`tsc --noEmit` à la racine ne vérifie rien, seul `tsc -b` compte : il faut désormais lire
+**`tsc -b --force`**.
+
+### ⚠️ Deux tests du dashboard tombent autour de minuit — flakes pré-existants
+
+**Symptôme.** `test_le_calendrier_reste_a_26_semaines_malgre_le_chargement_elargi` passe à 23 h 48
+et échoue à 23 h 53, sur `assert jours` — la grille revient **vide**. Puis, une fois minuit passé,
+**il redevient vert et c'est `test_l_avertissement_sur_la_jeunesse_de_la_courbe_peut_EXPIRER` qui
+tombe à sa place**.
+
+⚠️ **Cette alternance est la signature à reconnaître** : deux tests d'un même fichier qui se
+relaient au rouge selon l'heure ne décrivent pas deux bugs, mais une seule frontière de date mal
+tenue. Chercher la cause dans le second aurait coûté une heure pour rien.
+
+**Attribution.** Vérifiée par `git stash` : le test échoue **aussi sans les changements du
+chantier**. Il n'est pas une régression. Le test sème avec `datetime.now(UTC)` et borne avec
+`date.today()` (heure locale) — les deux divergent près de minuit.
+
+⚠️ **Toujours attribuer avant de corriger.** Un test rouge pendant un chantier n'est pas
+nécessairement causé par lui, et `git stash push -u` suivi d'une relance donne la réponse en
+trente secondes.
+
+---
+
 ## Chantier `feat/progression-temps` — ADR-0040 « Progression dans le temps », Lots 0 à 3 — 2026-08-06
 
 > ADR : `adr-0040-progression-dans-le-temps.md`. Lot 0 mergé à part (PR #92) ; Lots 1-3 sur

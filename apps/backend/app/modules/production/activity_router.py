@@ -11,7 +11,7 @@ d'écriture — l'acquittement d'un échec.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.queue import production_worker_alive
+from app.core.queue import production_worker_alive, render_worker_alive
 from app.db.base import get_db
 from app.modules.auth.deps import require_parent
 from app.modules.production import activity
@@ -37,6 +37,14 @@ def get_activity(db: Session = Depends(get_db)) -> dict:
     # `None` = « la question n'a pas été posée ». Le client teste `=== false`, jamais la falsité :
     # confondre les deux ferait dire « arrêté » à chaque fois qu'on ne sait pas.
     etat["worker_alive"] = production_worker_alive() if en_file else None
+    # Le couloir média se demande à part, et seulement s'il y a un rendu qui attend (§22) : son
+    # worker est un autre processus, sur une autre file. Le confondre avec celui de production a
+    # laissé une capsule attendre sous un indicateur qui disait que tout allait bien.
+    media_en_file = any(
+        t["lane"] == "media" and t["status"] == "queued"
+        for t in ([etat["current"]] if etat["current"] else []) + etat["queued"]
+    )
+    etat["media_alive"] = render_worker_alive() if media_en_file else None
     return etat
 
 

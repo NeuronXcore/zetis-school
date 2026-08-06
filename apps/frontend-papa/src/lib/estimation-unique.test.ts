@@ -111,8 +111,14 @@ describe("§9 — plus aucune durée devinée par un écran", () => {
     // encore dans la CONDITION d'activation et dans un commentaire pendant que la durée, elle,
     // était redevenue `69000`. Cinquième fois que ce motif apparaît dans ce dépôt : un verrou
     // lexical doit viser l'endroit exact où la règle s'applique, jamais le voisinage.
+    // ⚠️ **La cible de l'en-tête a changé le 2026-08-07, et pas par commodité.** La BANDE qui
+    // remplace la pilule (addendum 2 §20) n'estime plus rien : la maquette tranche que sans
+    // granularité il n'y a « aucun chiffre — et aucune case », parce qu'un « — » à cet endroit se
+    // lirait encore comme une valeur. L'estimation de l'en-tête vit donc désormais dans son
+    // panneau de DÉTAIL, qui affiche bien un `≈ N %` par travail. Le trio est intact : trois
+    // surfaces, une seule source, celle que le serveur mesure.
     for (const [cible, champ] of [
-      ["/components/ProductionBar.tsx", "estimated_ms"],
+      ["/components/ProductionPopover.tsx", "estimated_ms"],
       ["/pages/ConseilClasseIAPage.tsx", "estimatedMs"],
       ["/components/progression/SubjectDetailRow.tsx", "estimatedMs"],
     ] as const) {

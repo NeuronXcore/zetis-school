@@ -42,6 +42,30 @@ def _run(db, **kw) -> m.ProductionRun:
     return run
 
 
+def _pieces(db, run, *, notions: int, outcome: str = "generated") -> None:
+    """Écrit le journal de `notions` notions ACHEVÉES — cinq lignes chacune, comme le runner.
+
+    ⚠️ **Ce helper n'est pas une commodité, il rétablit la source de vérité.** Avant l'addendum 2,
+    l'avancement se lisait sur le compteur `done_notions` ; il se lit désormais sur les lignes de
+    `production_events`, parce que c'est le seul endroit où une PIÈCE existe. Poser
+    `done_notions=7` sans journal décrivait donc un lot impossible — et c'est ce lot impossible que
+    le test décrivait jusqu'ici.
+    """
+    skill_id = db.scalar(select(m.Skill)).id
+    for _ in range(notions):
+        for piece in m.production.PIECES:
+            db.add(
+                m.ProductionEvent(
+                    run_id=run.id,
+                    skill_id=skill_id,
+                    piece=piece,
+                    outcome=outcome,
+                    created_at=_now(),
+                )
+            )
+    db.commit()
+
+
 def _job(db, **kw) -> m.AIJob:
     defaults = dict(
         job_type="equip_notion",
@@ -85,15 +109,26 @@ def test_un_lot_en_file_ne_rend_JAMAIS_zero_pour_cent(client_db) -> None:
     assert courant["status"] == "queued"
     assert courant["pct"] is None, "un lot en file n'a AUCUN pourcentage — surtout pas 0"
     assert courant["pct_is_measured"] is False
+    # La fraction tombe avec le quotient, sinon la barre afficherait « 0 / 0 » — un « ça démarre »
+    # de plus, écrit autrement. ⚠️ Ce verrou couvre aussi la fenêtre où `runner.execute` a commité
+    # `running` sans avoir encore posé `total_notions`.
+    assert courant["pieces_done"] is None
+    assert courant["pieces_total"] is None
 
 
 def test_un_lot_qui_tourne_rend_une_progression_MESUREE(client_db) -> None:
-    """Le lot est le seul à savoir dire « 7 sur 31 » — et il le déclare (`pct_is_measured`)."""
+    """Le lot est le seul à savoir compter ses pièces — et il le déclare (`pct_is_measured`).
+
+    ⚠️ **Ce test comptait des NOTIONS jusqu'à l'addendum 2** ; il pose désormais le journal réel.
+    L'assertion n'a pas été affaiblie pour passer : `35 / 155` vaut les mêmes **23 %** que
+    `7 / 31`. Ce qui a changé est d'où vient le nombre — d'un compteur qu'on posait à la main, vers
+    les lignes que le runner écrit vraiment.
+    """
     client, Session = client_db
     with Session() as db:
         # Le scope n'entre pas dans ce qu'on affirme ici : seuls les DEUX compteurs décident si
         # le serveur a une granularité réelle. On garde donc le scope par défaut du helper.
-        _run(
+        run = _run(
             db,
             status="running",
             total_notions=31,
@@ -101,10 +136,179 @@ def test_un_lot_qui_tourne_rend_une_progression_MESUREE(client_db) -> None:
             started_at=_now(),
             heartbeat_at=_now(),
         )
+        _pieces(db, run, notions=7)
     _as_parent()
     courant = client.get("/api/production/activity").json()["current"]
     assert courant["pct"] == 23
     assert courant["pct_is_measured"] is True
+    # 🔴 La FRACTION doit se prouver AVEC le quotient : sans ces deux nombres, rien ne dit que
+    # « 35 / 155 » n'est pas recomposé après coup depuis les 23 %.
+    assert (courant["pieces_done"], courant["pieces_total"]) == (35, 155)
+    assert courant["pieces_produced"] == 35
+
+
+def test_la_piece_en_cours_fait_avancer_la_barre_DANS_la_notion(client_db) -> None:
+    """🔴 Le verrou de l'addendum 2 §20 bis — sans lui, compter des pièces serait un renommage.
+
+    Les cinq lignes de journal d'une notion naissent dans le MÊME commit que `done_notions` : à
+    elles seules, elles font avancer la barre d'un pas toutes les ~69 s, exactement comme un
+    compte de notions (`5/155` = `1/31` = 3,23 %). C'est `current_piece` — et elle seule — qui
+    rend le mouvement observable, parce que les générateurs commitent en cours de route.
+
+    Ici : 7 notions au journal, et la 8ᵉ est arrivée au quiz (index 3 dans `PIECES`).
+    """
+    client, Session = client_db
+    with Session() as db:
+        run = _run(
+            db,
+            status="running",
+            total_notions=31,
+            done_notions=7,
+            current_piece="quiz",
+            started_at=_now(),
+            heartbeat_at=_now(),
+        )
+        _pieces(db, run, notions=7)
+    _as_parent()
+    courant = client.get("/api/production/activity").json()["current"]
+    assert courant["current_piece"] == "quiz"
+    # 35 achevées + 3 déjà passées dans la notion en vol (cours, fiche, srs).
+    assert courant["pieces_done"] == 38
+    # Et le mouvement est RÉEL : 38/155 = 25 %, contre 23 % à la même notion sans position.
+    assert courant["pct"] == 25
+
+
+def test_les_notions_BLOQUEES_ne_font_pas_avancer_la_barre(client_db) -> None:
+    """Une ligne `blocked` porte sur la NOTION, pas sur une pièce — elle a `piece = NULL`.
+
+    La compter ferait avancer la barre d'un travail que le gate vient précisément d'empêcher : le
+    lot aurait l'air de produire pendant qu'il refuse.
+    """
+    client, Session = client_db
+    with Session() as db:
+        run = _run(
+            db,
+            status="running",
+            total_notions=31,
+            done_notions=7,
+            started_at=_now(),
+            heartbeat_at=_now(),
+        )
+        _pieces(db, run, notions=7)
+        skill_id = db.scalar(select(m.Skill)).id
+        for _ in range(10):
+            db.add(
+                m.ProductionEvent(
+                    run_id=run.id,
+                    skill_id=skill_id,
+                    piece=None,
+                    outcome="blocked",
+                    detail="cours non validé",
+                    created_at=_now(),
+                )
+            )
+        db.commit()
+    _as_parent()
+    courant = client.get("/api/production/activity").json()["current"]
+    assert courant["pieces_done"] == 35, "les 10 notions bloquées ne sont pas des pièces"
+    assert courant["pct"] == 23
+
+
+def test_une_piece_SAUTEE_avance_le_tapis_mais_ne_remplit_pas_la_boite(client_db) -> None:
+    """Deux nombres, deux questions. Le tapis compte le travail RÉSOLU ; la boîte, le PRODUIT.
+
+    Une pièce `skipped` (déjà présente en base) a bien été traitée — le lot est passé dessus — mais
+    elle était déjà dans le stock. La faire tomber une seconde fois dans la boîte mentirait sur ce
+    que ZETIS a fabriqué.
+    """
+    client, Session = client_db
+    with Session() as db:
+        run = _run(
+            db,
+            status="running",
+            total_notions=31,
+            done_notions=7,
+            started_at=_now(),
+            heartbeat_at=_now(),
+        )
+        _pieces(db, run, notions=4)
+        _pieces(db, run, notions=3, outcome="skipped")
+    _as_parent()
+    courant = client.get("/api/production/activity").json()["current"]
+    assert courant["pieces_done"] == 35, "sautée ou produite, la pièce est résolue"
+    assert courant["pieces_produced"] == 20, "seules les 4 notions générées entrent dans la boîte"
+
+
+def test_un_lot_PIECE_qui_tourne_ne_mesure_RIEN(client_db) -> None:
+    """Une pièce sur une pièce n'est pas une progression : elle vaudrait 0 % puis 100 %.
+
+    Le cas manquait — le helper crée pourtant un lot-pièce par défaut. Les trois champs de mesure
+    tombent ensemble, sans exception pour la fraction.
+    """
+    client, Session = client_db
+    with Session() as db:
+        run = _run(
+            db,
+            status="running",
+            total_notions=1,
+            done_notions=0,
+            started_at=_now(),
+            heartbeat_at=_now(),
+        )
+        _pieces(db, run, notions=1)
+    _as_parent()
+    courant = client.get("/api/production/activity").json()["current"]
+    assert courant["pct"] is None
+    assert courant["pct_is_measured"] is False
+    assert courant["pieces_done"] is None
+    assert courant["pieces_total"] is None
+
+
+# ─── LES COULOIRS ──────────────────────────────────────────────────────────────────────────────
+def test_un_rendu_video_ne_grossit_PAS_la_file_de_production(client_db) -> None:
+    """🔴 Le couloir média a son propre worker et sa propre file : il ne retarde rien.
+
+    Le compter dans `queued_count` annonçait « 1 en attente » derrière un lot que ce rendu ne
+    bloquait en rien — et donnait à Papa une raison de croire que sa production allait attendre.
+    """
+    client, Session = client_db
+    with Session() as db:
+        _job(db, status="running", started_at=_now())  # un travail LLM en cours
+        _job(db, job_type="capsule_render", status="queued")  # un rendu vidéo derrière
+    _as_parent()
+    body = client.get("/api/production/activity").json()
+
+    assert body["current"]["lane"] == "llm"
+    assert body["queued_count"] == 0, "un rendu vidéo n'attend pas derrière la production"
+    # Mais il n'est pas caché pour autant : il est dans la file, avec son couloir.
+    assert [q["lane"] for q in body["queued"]] == ["media"]
+
+
+def test_un_rendu_video_se_lit_en_toutes_lettres(client_db) -> None:
+    """⚠️ Le défaut réparé ici : `LIBELLE_JOB` attendait `capsule_render_v2`, que RIEN n'écrit.
+
+    Papa lisait donc « capsule_render » dans son header, et l'estimation retombait au défaut. Le
+    verrou porte sur la clé RÉELLE — celle que `worker_media` émet — et non sur celle qu'on
+    croyait qu'il émettait.
+    """
+    client, Session = client_db
+    with Session() as db:
+        _job(db, job_type="capsule_render", status="running", started_at=_now())
+    _as_parent()
+    courant = client.get("/api/production/activity").json()["current"]
+    assert "capsule_render" not in courant["label"], "le nom technique fuit à l'écran"
+    assert courant["label"].startswith("Rendu vidéo")
+    assert courant["lane"] == "media"
+    assert courant["estimated_ms"] > 0, "sans amorce, la barre d'un rendu n'a aucune durée"
+
+
+def test_un_lot_est_toujours_dans_le_couloir_LLM(client_db) -> None:
+    """Un lot pédagogique n'a aucun rendu à faire : il passe par le worker de production."""
+    client, Session = client_db
+    with Session() as db:
+        _run(db, status="running", started_at=_now(), heartbeat_at=_now())
+    _as_parent()
+    assert client.get("/api/production/activity").json()["current"]["lane"] == "llm"
 
 
 def test_un_travail_unitaire_n_est_JAMAIS_mesure(client_db) -> None:
@@ -121,6 +325,11 @@ def test_un_travail_unitaire_n_est_JAMAIS_mesure(client_db) -> None:
     assert courant["kind"] == "job"
     assert courant["pct"] is None
     assert courant["pct_is_measured"] is False
+    # Un appel LLM n'a rien à fractionner : les champs EXISTENT et valent `null`, plutôt que
+    # d'être absents — sinon chaque lecteur devrait distinguer « absent » de « nul ».
+    assert courant["pieces_done"] is None
+    assert courant["pieces_total"] is None
+    assert courant["current_piece"] is None
     # Hors lot ⇒ manuel, PAR CONSTRUCTION (§3.2) : aucune colonne ne le stocke.
     assert courant["trigger"] == "manual"
 

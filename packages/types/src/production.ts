@@ -366,14 +366,41 @@ export interface ActivityItem {
   id: number;
   label: string;
   status: "queued" | "running" | "stale" | "failed";
+  /** Quelle ressource ce travail occupe (addendum 2 §22). DÉRIVÉ du type de travail, jamais stocké.
+   *
+   *  ⚠️ **`media` ne retarde rien** : le rendu vidéo a son propre worker et sa propre file. Il
+   *  n'entre donc pas dans `queued_count` et n'apparaît que dans le détail — deux tapis côte à
+   *  côte diraient qu'il y a deux productions, alors qu'il y a deux ressources. */
+  lane: "llm" | "media";
   /** ⚠️ `null` = **indéterminé**, et JAMAIS `0` pour dire « ça démarre ». Zéro n'est pas une
    *  valeur basse, c'est une absence de mesure — le 2026-08-05, quatre lots arrêtés affichaient
    *  0 %, lu comme « ça commence ». */
   pct: number | null;
-  /** Deux régimes de vérité (§6) : `true` = progression RÉELLE calculée serveur (« 7 / 31 ») ;
+  /** Deux régimes de vérité (§6) : `true` = progression RÉELLE calculée serveur (« 7 / 19 ») ;
    *  `false` = estimation ancrée sur `started_at` (« ≈ 40 % »). Un appel LLM n'a aucun grain
    *  interne : les confondre uniformiserait un mensonge. */
   pct_is_measured: boolean;
+  /** La FRACTION en **pièces** — « 7 / 19 » (addendum 2 §20). C'est elle qui prouve la mesure :
+   *  « 37 % » seul ne se distingue pas d'une estimation bien tournée.
+   *
+   *  ⚠️ `null` **avec** `pct` et sous exactement la même condition serveur — il existe une fenêtre
+   *  où un lot est `running` sans ses compteurs. Les traiter séparément ferait afficher
+   *  `null / null · 37 %`. Un travail unitaire n'a aucune pièce : toujours `null`. */
+  pieces_done: number | null;
+  pieces_total: number | null;
+  /** Ce qui est **vraiment** tombé dans la boîte — les pièces `generated` seules, jamais les
+   *  `skipped` qui y étaient déjà. Toujours servi (un `COUNT` est exact même hors régime mesuré) :
+   *  c'est le badge du stock, pas l'avancement. */
+  pieces_produced: number;
+  /** La pièce en cours dans la notion en vol — `cours` · `fiche` · `srs` · `quiz` · `mindmap`,
+   *  `null` entre deux notions et à la fin.
+   *
+   *  🔴 **C'est ce champ qui fait bouger la barre.** Les cinq lignes de journal d'une notion
+   *  atterrissent d'un seul coup à sa fin : sans cette position, un compte de pièces avancerait
+   *  exactement comme un compte de notions (`5/155` = `1/31`), toutes les ~69 s. Un changement de
+   *  valeur ici veut dire qu'une pièce vient d'être finie — c'est ce qui lance un jeton sur le
+   *  tapis, avec son vrai nom. */
+  current_piece: string | null;
   started_at: string | null;
   /** DÉRIVÉ, jamais stocké (§3.2) : un lot porte son déclencheur, un travail hors lot est
    *  manuel par construction. */
@@ -391,7 +418,10 @@ export interface ActivityItem {
 export interface ProductionActivity {
   /** Ce qui tourne ; à défaut, le premier de la file. */
   current: ActivityItem | null;
-  /** Profondeur de file — jamais un arriéré (§7) : il retombe à zéro tout seul. */
+  /** Profondeur de file — jamais un arriéré (§7) : il retombe à zéro tout seul.
+   *
+   *  ⚠️ **Le couloir LLM SEUL** (addendum 2 §22). Un rendu vidéo y était compté alors qu'il ne
+   *  bloque rien : la barre annonçait « 1 en attente » derrière un lot qui était seul. */
   queued_count: number;
   /** Ce qui attend derrière, **dans l'ordre où la file sera servie** (§7).
    *
@@ -400,6 +430,38 @@ export interface ProductionActivity {
   queued: ActivityItem[];
   /** Les échecs NON acquittés. Ils restent jusqu'au clic, pas six secondes. */
   failed: ActivityItem[];
+  /** Les refus de régulateur non acquittés (addendum 2 §21).
+   *
+   *  ⚠️ **Une liste À PART, jamais mêlée à `failed`.** Un régulateur qui dit non n'est pas une
+   *  panne : c'est une limite que Papa a lui-même posée, et qui fonctionne. Les confondre lui
+   *  apprendrait à ignorer les deux, et le ferait chercher une réparation là où il n'y a qu'un
+   *  plafond à lever. Ton ambre, jamais rouge. */
+  refused: ProductionRefusal[];
   /** ⚠️ `null` = « la question n'a pas été posée », ce qui n'est PAS `false`. Tester `=== false`. */
   worker_alive: boolean | null;
+  /** Le worker du couloir MÉDIA, posé séparément (addendum 2 §22).
+   *
+   *  🔴 `worker_alive` n'interroge que les files de production : le worker vidéo pouvait être mort
+   *  pendant que l'écran annonçait que tout allait bien, et une capsule attendait sous un
+   *  indicateur vert. Champ **additif** — la forme de `worker_alive` ne bouge pas. Même règle de
+   *  lecture : `=== false`, jamais la fausseté. */
+  media_alive: boolean | null;
+}
+
+/** Un lot que ZETIS n'a PAS lancé, et pourquoi (addendum 2 §21).
+ *
+ *  N'existe que pour les déclencheurs **automatiques** : quand Papa clique, il lit le motif à
+ *  l'écran dans la seconde, et le retenir en ferait une notification en double. Le trou bouché est
+ *  le refus nocturne, qui disparaissait dans le retour d'un job que personne ne lit. */
+export interface ProductionRefusal {
+  id: number;
+  /** Lequel des cinq a parlé — `duplicate` · `already_produced` · `pending_backlog` ·
+   *  `request_volume` · `auto_volume`. Vocabulaire fermé, validé serveur. */
+  regulator: string;
+  /** ⚠️ Rendu **tel quel**, sans traduction : un motif sert à savoir quoi faire, pas à rassurer.
+   *  Une table « technique → phrase douce » a été explicitement écartée (§8). */
+  detail: string;
+  /** `agenda` ou `request` — jamais `manual`, par construction. */
+  trigger: string;
+  created_at: string;
 }

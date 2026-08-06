@@ -25,9 +25,28 @@ from app.db.models.production import (
     AUTHORIZED_BY,
     EMITTED_TRIGGERS,
     PIECES,
+    REGULATORS,
     TRIGGER_REFERENCE,
     TRIGGERS,
 )
+
+
+class ProductionRefused(HTTPException):
+    """Un RÉGULATEUR a dit non — ce qui n'est ni une panne, ni une erreur de donnée.
+
+    Reste une `HTTPException` : la route continue de rendre son `409` avec son `detail`, et pas une
+    ligne de `runs_router` ne change. Ce qu'elle ajoute est un code **lisible par machine**, pour
+    que l'appelant automatique sache lequel des cinq a parlé (addendum 2 §21).
+
+    ⚠️ **Sans elle, il faudrait relire le motif dans la phrase française.** Un jour quelqu'un
+    reformule « contenus attendent déjà votre relecture », et la classification tombe en silence —
+    sans qu'aucun test ne rougisse, puisque le message resterait juste.
+    """
+
+    def __init__(self, regulator: str, detail: str) -> None:
+        assert regulator in REGULATORS, f"régulateur inconnu : {regulator}"
+        super().__init__(status.HTTP_409_CONFLICT, detail=detail)
+        self.regulator = regulator
 
 # Les dérivés qui attendent une relecture de Papa — et ils ne sont que DEUX.
 #
@@ -293,12 +312,10 @@ def create_run(
     )
     if doublon is not None:
         etat = "est en cours" if doublon.status == "running" else "attend son tour"
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail=(
-                f"Une production identique {etat} déjà (lot #{doublon.id}). "
-                "Inutile de la relancer — elle apparaîtra dès qu'elle sera prête."
-            ),
+        raise ProductionRefused(
+            "duplicate",
+            f"Une production identique {etat} déjà (lot #{doublon.id}). "
+            "Inutile de la relancer — elle apparaîtra dès qu'elle sera prête.",
         )
 
     # …et le contenu est peut-être DÉJÀ LÀ (2026-08-05, demande du user).
@@ -328,20 +345,18 @@ def create_run(
             peut_valider=settings_service.derivatives_are_served(db),
         )
         if deja is not None:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail=f"{deja} Relancer une production ne la remplacerait pas.",
+            raise ProductionRefused(
+                "already_produced",
+                f"{deja} Relancer une production ne la remplacerait pas.",
             )
 
     backlog = pending_backlog(db)
     if backlog >= settings.production_max_pending:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail=(
-                f"{backlog} contenus attendent déjà votre relecture "
-                f"(plafond : {settings.production_max_pending}). "
-                "Validez-en une partie avant de lancer une nouvelle production."
-            ),
+        raise ProductionRefused(
+            "pending_backlog",
+            f"{backlog} contenus attendent déjà votre relecture "
+            f"(plafond : {settings.production_max_pending}). "
+            "Validez-en une partie avant de lancer une nouvelle production.",
         )
 
     # Le régulateur de VOLUME ne s'applique qu'aux lots que personne n'a demandés (ADR-0035 §4) —
@@ -350,24 +365,20 @@ def create_run(
     if trigger == "request":
         recent = request_runs_in_window(db)
         if recent >= settings.production_request_max_runs:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail=(
-                    f"{recent} contenus déjà produits sur demande ces "
-                    f"{settings.production_auto_window_days} derniers jours "
-                    f"(plafond : {settings.production_request_max_runs})."
-                ),
+            raise ProductionRefused(
+                "request_volume",
+                f"{recent} contenus déjà produits sur demande ces "
+                f"{settings.production_auto_window_days} derniers jours "
+                f"(plafond : {settings.production_request_max_runs}).",
             )
     elif trigger != "manual":
         recent = auto_runs_in_window(db)
         if recent >= settings.production_auto_max_runs:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail=(
-                    f"{recent} productions automatiques ces "
-                    f"{settings.production_auto_window_days} derniers jours "
-                    f"(plafond : {settings.production_auto_max_runs})."
-                ),
+            raise ProductionRefused(
+                "auto_volume",
+                f"{recent} productions automatiques ces "
+                f"{settings.production_auto_window_days} derniers jours "
+                f"(plafond : {settings.production_auto_max_runs}).",
             )
 
     student = db.scalar(select(StudentProfile).order_by(StudentProfile.id))

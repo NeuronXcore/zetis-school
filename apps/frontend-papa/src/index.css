@@ -512,3 +512,139 @@ body {
     left: 100%;
   }
 }
+
+/* ─── LA BANDE DE PRODUCTION (addendum 2 ADR-0041) ────────────────────────────────────────────
+   Ce n'est pas une barre, c'est un TAPIS : les rouages fabriquent à gauche, la pièce traverse,
+   la boîte l'avale à droite. C'est le seul geste spectaculaire de l'interface Papa ; tout le
+   reste est plat, et doit le rester. */
+
+/* Les rouages disent l'INSTANT (la sidebar, elle, dit le régime — lent et continu).
+   ⚠️ L'attribut PORTE l'animation, il n'est pas un marqueur posé à côté : un test qui observe
+   `[data-tourne]` observe donc le mouvement lui-même, et non une classe utilitaire qu'un
+   refactor Tailwind peut renommer sans que rien ne rougisse. */
+@keyframes zetis-rouage {
+  to {
+    transform: rotate(360deg);
+  }
+}
+[data-tourne] .zetis-rouage-a {
+  animation: zetis-rouage 3.6s linear infinite;
+}
+[data-tourne] .zetis-rouage-b {
+  animation: zetis-rouage 2.5s linear infinite reverse;
+}
+
+/* L'état INDÉTERMINÉ : un liseré qui balaie, jamais un remplissage partiel.
+   🔴 C'est ce balayage — et non les rouages — qui dit « la file est servie » sur un travail qui
+   n'a pas encore démarré. À l'arrêt il s'immobilise : une animation sur une file que personne
+   n'écoute ment avant qu'on ait lu la phrase, et c'est elle qu'on regarde en premier.
+   ⚠️ L'attribut PORTE l'animation, comme `data-tourne` : un test qui l'observe observe le
+   mouvement, pas une classe utilitaire renommable. */
+[data-balaie] {
+  animation: zetis-sweep 1.5s ease-in-out infinite;
+}
+
+/* La texture en biais DIT LE SENS DE MARCHE. Sans elle, une barre qui se remplit ne dit pas
+   d'où vers où — et surtout, elle ne dit rien du tout entre deux paliers. C'est ce défilement,
+   et lui seul, qui répond à « est-ce que ça avance ? » pendant les 14 s d'une pièce. */
+@keyframes zetis-tapis {
+  to {
+    background-position: 22px 0;
+  }
+}
+.zetis-tapis-texture {
+  background-image: repeating-linear-gradient(
+    115deg,
+    rgb(255 255 255 / 0.16) 0 2px,
+    transparent 2px 9px
+  );
+  animation: zetis-tapis 0.8s linear infinite;
+}
+
+/* Un jeton naît quand `current_piece` CHANGE — donc quand une pièce vient d'être finie — et il
+   tombe dans la boîte. Jamais un `setInterval` décoratif : ce qui bouge doit correspondre à
+   quelque chose qui s'est passé. */
+@keyframes zetis-jeton {
+  0% {
+    left: 0%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  86% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+    transform: translate(-50%, -10%) scale(0.6);
+  }
+}
+.zetis-jeton {
+  animation: zetis-jeton 1.5s linear forwards;
+}
+
+/* La boîte s'ouvre d'un cran et s'illumine une demi-seconde à chaque pièce REÇUE — les
+   `generated` seules, jamais les `skipped` qui y étaient déjà. */
+@keyframes zetis-boite {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.zetis-boite-recoit {
+  animation: zetis-boite 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* La pastille de fin s'efface SEULE. Une annonce qui s'empile deviendrait un arriéré,
+   c'est-à-dire le « vous êtes en retard » que l'ADR-0011 §F.2 interdit. */
+@keyframes zetis-pastille {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  8%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.zetis-pastille {
+  animation: zetis-pastille 4.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* 🔴 `prefers-reduced-motion` FIGE SANS RIEN RETIRER. Remplissage, chiffres, couleurs et boîte
+   restent : couper l'animation effacerait le signal, on l'immobilise. Patron `couverture-breathe`,
+   déjà employé ailleurs dans Papa. */
+@media (prefers-reduced-motion: reduce) {
+  [data-tourne] .zetis-rouage-a,
+  [data-tourne] .zetis-rouage-b,
+  [data-balaie],
+  .zetis-tapis-texture,
+  .zetis-boite-recoit {
+    animation: none !important;
+  }
+  /* Le liseré s'immobilise mais reste VISIBLE et à sa place : sans cette ligne il se figerait
+     hors du tapis (`left: -35%`), et l'état indéterminé n'aurait plus aucun rendu. */
+  [data-balaie] {
+    left: 0 !important;
+    width: 100% !important;
+    opacity: 0.5;
+  }
+  .zetis-jeton {
+    animation-duration: 0.01s !important;
+  }
+}

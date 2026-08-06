@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { PapaSidebar } from "../components/PapaSidebar";
 import { useAuth } from "@zetis/auth";
 import { useActiveProductionRun } from "../hooks/useActiveProductionRun";
 import { useAutonomyState } from "../hooks/useAutonomyState";
-import { ActiveProductionModal } from "../components/ActiveProductionModal";
+import { ProductionPopover } from "../components/ProductionPopover";
 import { ProductionDoneModal } from "../components/ProductionDoneModal";
 import { useProductionActivity } from "../hooks/useProductionActivity";
-import { ProductionBar, ProductionEdge } from "../components/ProductionBar";
+import { ProductionStrip } from "../components/ProductionStrip";
 
 // Layout commun de l'interface Papa : sidebar + header + zone analytique
 // (cf. docs/frontend-papa/README.md § Layout).
@@ -24,6 +24,9 @@ export function PapaLayout() {
   // sidebar en referait un par entrée — le mal que l'ADR-0030 a supprimé côté Massimo.
   const autonomy = useAutonomyState();
   const [showRun, setShowRun] = useState(false);
+  // La boîte de la bande mène au STOCK — c'est-à-dire à la Couverture, la seule page qui dise ce
+  // que Massimo possède. La bande dit le flux ; la Couverture dit le stock.
+  const navigate = useNavigate();
 
   // L'activité COMPLÈTE (ADR-0041) — lots ET travaux unitaires, tous déclencheurs confondus.
   // L'indicateur d'origine ne voyait que les lots : les ~20 producteurs synchrones travaillaient
@@ -40,7 +43,17 @@ export function PapaLayout() {
         {/* Le fond de marque ZETIS a besoin de hauteur pour exister : à `py-3` (~44 px) l'image
             n'était qu'une texture. Hauteur réduite sous `sm` pour ne pas manger l'écran d'une
             tablette. */}
-        <header className="relative h-28 shrink-0 overflow-hidden border-b border-papa-border bg-papa-bg sm:h-36">
+        {/* ⚠️ Les paliers de repli de la bande se mesurent sur la largeur du HEADER, jamais sur
+            celle de la fenêtre — il vit à droite d'une sidebar et porte déjà deux pilules. La
+            mesure se fait dans `ProductionStrip`, en JS : 🔴 les container queries Tailwind
+            (`@container/entete` + `@max-[…]`) ont été essayées et **n'ont compilé AUCUNE règle**
+            (vérifié au navigateur le 2026-08-07, zéro `CSSContainerRule`), ce qui rendait
+            l'échelle entièrement inopérante sans que rien ne rougisse. */}
+        <header className="relative shrink-0 border-b border-papa-border bg-papa-bg">
+          {/* ⚠️ La hauteur et le `overflow-hidden` sont DESCENDUS du header vers ce calque : la
+              bande de 46 px vit sous le bandeau, dans le même header, et un `overflow-hidden` en
+              haut la clipperait. */}
+          <div className="relative h-28 overflow-hidden sm:h-36">
           {/* ⚠️ `contain`, PAS `cover`. La bande fait 1400×420 (ratio 3,33) et le header est
               beaucoup plus large que haut : `cover` la mettait à l'échelle de la LARGEUR et
               rognait l'emblème par le haut. `contain` cale sur la HAUTEUR — l'image entre en
@@ -84,16 +97,6 @@ export function PapaLayout() {
               </span>
               <span className="hidden text-papa-muted lg:inline">Période : 2026 — 4ᵉ</span>
             </div>
-            {/* La barre de production (ADR-0041) — au CENTRE, entre l'identité et les actions.
-                Elle remplace la pastille qui vivait dans la pilule de gauche : celle-ci ne voyait
-                que les LOTS, donc rien des ~20 producteurs synchrones. Toute sa doctrine
-                d'affichage est conservée (jamais 0 %, « en file » ≠ « arrêté », estimation ancrée
-                sur le `started_at` serveur) — c'est ce qu'elle REGARDE qui change. */}
-            <ProductionBar
-              activity={activity}
-              onOpen={() => setShowRun(true)}
-              onAcknowledge={ackEchec}
-            />
             <div className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-papa-border/60 bg-papa-surface/70 px-2 py-2 backdrop-blur-sm">
               <button
                 type="button"
@@ -112,18 +115,27 @@ export function PapaLayout() {
               )}
             </div>
           </div>
-          {/* Le repli ultime : sous `sm`, la pilule perd son libellé — ce liseré, lui, reste.
-              Il garantit qu'une production ne devient jamais invisible, quelle que soit la
-              largeur. Jamais cliquable : c'est un signal, pas une commande. */}
-          <ProductionEdge activity={activity} />
-        </header>
-        {showRun && (
-          <ActiveProductionModal
+          </div>
+          {/* La bande de production (addendum 2 ADR-0041) — SOUS le bandeau, qui ne bouge pas.
+              Elle remplace la pilule, qui ne pouvait pas montrer le mouvement : un lot avance
+              d'un pas toutes les 69 s, et à cette cadence une barre est immobile à l'œil. Le
+              tapis, lui, bouge en permanence tant que quelque chose est fabriqué. */}
+          <ProductionStrip
             activity={activity}
-            onClose={() => setShowRun(false)}
-            onAcknowledge={ackEchec}
+            onOpen={() => setShowRun((ouvert) => !ouvert)}
+            onOpenStock={() => navigate("/couverture")}
           />
-        )}
+          {/* Le détail vit DANS le header, ancré sous la bande — c'est ce qui en fait un popover
+              et non une modale. Il déborde volontairement : le `overflow-hidden` est resté sur le
+              bandeau, jamais sur le header. */}
+          {showRun && (
+            <ProductionPopover
+              activity={activity}
+              onClose={() => setShowRun(false)}
+              onAcknowledge={ackEchec}
+            />
+          )}
+        </header>
         {/* Annonce de fin — s'efface seule, ne laisse aucune trace à traiter. */}
         {finished && <ProductionDoneModal run={finished} onClose={acknowledge} />}
         <main className="flex-1 overflow-auto p-6">

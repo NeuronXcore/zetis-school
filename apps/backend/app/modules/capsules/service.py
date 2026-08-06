@@ -291,6 +291,29 @@ def regenerate_capsule(
 def delete_capsule(db: Session, capsule_id: int) -> None:
     capsule = _capsule_or_404(db, capsule_id)
     db.delete(capsule)
+    # 🔴 **Le rendu en attente meurt avec sa capsule** (addendum 2 ADR-0041 §22, trouvé à l'écran
+    # le 2026-08-07). Depuis que le travail est créé DÈS l'enfilement, supprimer la capsule
+    # laissait une ligne `queued` que plus rien ne pouvait satisfaire : la bande annonçait
+    # « 1 en attente » indéfiniment, sur un travail sans cible.
+    #
+    # ⚠️ Le balayage périodique ne peut PAS rattraper ça : un travail `queued` n'est jamais
+    # déclaré zombie, et c'est une règle juste — « le passer en échec condamnerait une file
+    # parfaitement intacte ». Une file intacte, ici, ne l'est plus : c'est à la suppression, qui
+    # SAIT, de le dire.
+    #
+    # ⚠️ On ne touche PAS à un rendu déjà `running` : le worker est dedans, il découvrira l'absence
+    # et écrira son propre motif. Le lui voler ferait deux traces pour un travail.
+    for travail in db.scalars(
+        select(AIJob).where(AIJob.job_type == "capsule_render", AIJob.status == "queued")
+    ):
+        charge = travail.input_json if isinstance(travail.input_json, dict) else {}
+        if charge.get("capsule_id") == capsule_id:
+            travail.status = "failed"
+            travail.finished_at = datetime.now(timezone.utc)
+            travail.error_message = "Capsule supprimée avant son rendu."
+            # Acquitté d'office : Papa vient de supprimer la capsule, lui présenter l'échec du
+            # rendu qu'il a lui-même annulé serait lui demander de confirmer sa propre décision.
+            travail.acknowledged_at = travail.finished_at
     db.commit()
     # Nettoie les médias (audio disque + MP4) — best-effort, après le commit DB.
     storage.delete_capsule_audio(capsule_id)
@@ -404,12 +427,28 @@ def request_render(db: Session, capsule_id: int) -> Capsule:
     statut_avant, video_avant = capsule.status, capsule.video_url
     capsule.status = "rendering"
     capsule.video_url = None
+    # Le travail existe DÈS L'ENFILEMENT (addendum 2 ADR-0041 §22), et pas seulement quand le
+    # worker le ramasse. Sans cette ligne, un rendu qui attend est invisible : la barre ne le voit
+    # naître qu'au démarrage, exactement le défaut que la Slice A avait corrigé pour tous les
+    # autres producteurs. `worker_media` la retrouve et la fait passer en `running`.
+    travail = AIJob(
+        job_type="capsule_render",
+        status="queued",
+        input_json={"capsule_id": capsule_id},
+        created_by="parent",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(travail)
     db.commit()
     try:
         enqueue_render(capsule_id)
     except QueueUnavailable as exc:
         capsule.status = statut_avant
         capsule.video_url = video_avant
+        # ⚠️ Le travail part avec le reste : le §10.1 promet « rien n'a été lancé, et rien n'a été
+        # créé ». Laisser une ligne `queued` que personne ne consommera ferait mentir la barre
+        # jusqu'au prochain balayage — un travail fantôme, la faute que ce §10.1 a supprimée.
+        db.delete(travail)
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=MESSAGE_FILE_INJOIGNABLE
