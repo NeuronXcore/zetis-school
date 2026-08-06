@@ -239,7 +239,7 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
   // refus vient juste après — c'est un FAIT, pas une panne, mais il explique pourquoi rien ne
   // tourne, ce qu'aucun autre état ne dirait.
   const echec: ActivityItem | null = activity.failed[0] ?? null;
-  const refus = activity.refused[0] ?? null;
+  const refusEnAttente = activity.refused[0] ?? null;
   const item: ActivityItem | null = activity.current;
 
   const jetons = useJetons(item?.current_piece);
@@ -264,8 +264,18 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
   const mesure =
     item?.status === "running" && !!item.pct_is_measured && item.pct !== null && !arrete;
 
+  // 🔴 **Un refus ne masque JAMAIS une production en cours** — trouvé à l'écran le 2026-08-07 :
+  // la bande annonçait « Rien lancé » pendant que ses rouages tournaient et que son tapis
+  // défilait. Elle se contredisait à elle-même, dans le même coup d'œil.
+  //
+  // La règle qui en sort : un ÉCHEC passe devant tout — c'est une anomalie qui demande un geste.
+  // Un REFUS explique pourquoi rien n'a démarré : il n'a de sens que quand, justement, rien ne
+  // tourne. Dès que ZETIS produit, la production EST la nouvelle ; le refus reste compté et
+  // acquittable dans le popover, où il ne contredit rien.
+  const refus = enCours ? null : refusEnAttente;
+
   // Le repos : rien ne tourne, rien n'a échoué, rien n'a été refusé.
-  const repos = item == null && echec == null && refus == null;
+  const repos = item == null && echec == null && refusEnAttente == null;
 
   // 🔴 Les rouages ne tournent QUE pendant un travail. Un mouvement sur une file arrêtée ment
   // avant qu'on ait lu le texte — et c'est le mouvement qu'on regarde en premier.
@@ -348,14 +358,18 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
         title="Voir le détail de ce que ZETIS fabrique"
         className="flex min-w-0 flex-1 items-center gap-3.5 text-left"
       >
-        {/* Le contexte cède avant le tapis : c'est lui qui porte l'information de mouvement. */}
-        {largeur > SEUIL_CONTEXTE && (
-        <span className="hidden min-w-0 max-w-[300px] shrink-0 md:block">
-          <span className="block truncate text-[12.5px] text-papa-text">{ligne1}</span>
-          {largeur > SEUIL_SOUS_TITRE && (
-            <span className="block truncate text-[10.5px] text-papa-muted">{ligne2}</span>
-          )}
-        </span>
+        {/* Le contexte cède avant le tapis : c'est lui qui porte l'information de mouvement.
+            🔴 **DEUX EXCEPTIONS, et elles sont la règle qui compte** (spec § Responsive) : une
+            ANOMALIE garde son mot à TOUTE largeur. Constaté à l'écran le 2026-08-07 — à 700 px, un
+            arrêt se réduisait à un tapis ambre et devenait indistinguable d'une production qui va
+            bien. Un état d'avancement peut se taire ; un état d'anomalie, jamais. */}
+        {(largeur > SEUIL_CONTEXTE || arrete || echec || refus) && (
+          <span className="hidden min-w-0 max-w-[300px] shrink-0 md:block">
+            <span className="block truncate text-[12.5px] text-papa-text">{ligne1}</span>
+            {largeur > SEUIL_SOUS_TITRE && (
+              <span className="block truncate text-[10.5px] text-papa-muted">{ligne2}</span>
+            )}
+          </span>
         )}
 
         {/* ── LE TAPIS ────────────────────────────────────────────────────────────────── */}

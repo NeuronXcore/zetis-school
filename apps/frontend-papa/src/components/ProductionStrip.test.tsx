@@ -169,6 +169,51 @@ describe("ProductionStrip — les états de la bande", () => {
     expect(c.querySelector("[data-tourne]")).toBeNull();
   });
 
+  it("🔒 un REFUS ne masque jamais une production EN COURS", () => {
+    // 🔴 Trouvé à l'écran le 2026-08-07 : la bande annonçait « Rien lancé » pendant que ses
+    // rouages tournaient et que son tapis défilait — elle se contredisait dans le même coup d'œil.
+    // Un refus explique pourquoi rien n'a démarré : il n'a de sens que quand rien ne tourne.
+    const c = montre(
+      activite({
+        current: item({ status: "running" }),
+        worker_alive: true,
+        refused: [
+          {
+            id: 9,
+            regulator: "duplicate",
+            detail: "Une production identique attend son tour déjà.",
+            trigger: "agenda",
+            created_at: "2026-08-07T02:00:00Z",
+          },
+        ],
+      }),
+    );
+    expect(c.textContent).toContain("ZETIS produit");
+    expect(c.textContent).not.toContain("Rien lancé");
+    // …et les rouages tournent, ce qui est le fait que le libellé contredisait.
+    expect(c.querySelector("[data-tourne]")).not.toBeNull();
+  });
+
+  it("🔒 une ANOMALIE garde son mot à TOUTE largeur", () => {
+    // 🔴 Trouvé à l'écran le 2026-08-07 : à 700 px de header, l'arrêt se réduisait à un tapis
+    // ambre — indistinguable d'une production qui va bien. Un état d'AVANCEMENT peut se taire
+    // quand la place manque ; un état d'ANOMALIE, jamais.
+    //
+    // ⚠️ Ce test ne mesure PAS la largeur (jsdom n'a pas de ResizeObserver utile) : il vérifie que
+    // le mot est rendu par la BRANCHE d'anomalie, pas par le seuil. C'est la seule part que le
+    // rendu peut prouver — le repli lui-même se voit à l'écran, et il y a été vu.
+    for (const [nom, etat] of [
+      ["arrêt", activite({ current: item({ status: "queued" }), worker_alive: false })],
+      [
+        "échec",
+        activite({ failed: [item({ status: "failed", error: "moteur injoignable" })] }),
+      ],
+    ] as const) {
+      const c = montre(etat);
+      expect(c.textContent, `${nom} : le mot doit rester`).toMatch(/ne produit pas|Échec/);
+    }
+  });
+
   it("🔒 la file se COMPTE, elle ne se dessine pas", () => {
     // Fondre plusieurs travaux dans une barre unique la ferait RECULER à chaque ajout. Une barre
     // = un travail ; la file est un chiffre à côté.
