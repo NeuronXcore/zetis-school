@@ -4,8 +4,30 @@ import { EmptyState, SubjectPictogram } from "@zetis/ui";
 import type { ProgressionSubject } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { SubjectDetailRow } from "../components/progression/SubjectDetailRow";
+import { VueNotion } from "../components/progression/VueNotion";
+import { VuePeriode } from "../components/progression/VuePeriode";
 import { useConsolidatedSkills } from "../hooks/useConsolidatedSkills";
 import { useProgression } from "../hooks/useProgression";
+import { useSkillsIndex } from "../hooks/useSkillsIndex";
+
+// ⚠️ TROIS GRAINS, UN SEUL ÉCRAN (adr-0040 §1) : la matière, la notion, le fait daté. La table
+// matière n'est PAS remplacée — elle est mesurée, elle est la cible d'un constat du dashboard
+// (`?subject=`), et son dépliage garde ce que les autres vues ne portent pas (XP par motif, état
+// du référentiel).
+//
+// ⚠️ La fenêtre temporelle n'existe QUE dans la vue période (§2). Les deux autres sont des stocks
+// « à aujourd'hui », sans sélecteur — leur en donner un serait le mensonge que l'ADR écarte.
+
+const VUES = [
+  { cle: "matiere", label: "Par matière" },
+  { cle: "notion", label: "Par notion" },
+  { cle: "periode", label: "Par période" },
+] as const;
+type Vue = (typeof VUES)[number]["cle"];
+
+function estVue(v: string | null): v is Vue {
+  return v === "matiere" || v === "notion" || v === "periode";
+}
 
 // Progression Papa — l'avancement du programme, matière par matière (ADR-0038).
 //
@@ -75,6 +97,20 @@ export function ProgressionPage() {
   const p = useProgression();
   const [params, setParams] = useSearchParams();
 
+  // ⚠️ `?view=` est un état d'AFFICHAGE : `replace: true`, comme la mise en avant. Sans lui,
+  // « Retour » rejouerait chaque bascule d'onglet (§Navigation).
+  const vue: Vue = estVue(params.get("view")) ? (params.get("view") as Vue) : "matiere";
+  const setVue = (v: Vue) => {
+    const next = new URLSearchParams(params);
+    if (v === "matiere") next.delete("view");
+    else next.set("view", v);
+    setParams(next, { replace: true });
+  };
+
+  // L'index des notions alimente les vues notion ET période. Un seul appel, au montage — filtres,
+  // tri et bascule de vue ne coûtent aucune requête.
+  const idx = useSkillsIndex();
+
   // ⚠️ Le constat « Français : 1 notion consolidée » pointe ici avec `?subject=francais`. On MET
   // EN ÉVIDENCE sa ligne, on ne filtre PAS : comparer les matières est la raison d'être de cette
   // page, et une preuve qui vide l'écran autour d'elle enlève ce qu'on venait chercher. Un slug
@@ -103,13 +139,34 @@ export function ProgressionPage() {
     setParams(next, { replace: true });
   };
 
+  // `max-w-6xl` sur les TROIS vues : faire varier la largeur du shell selon l'onglet ferait
+  // sauter la page à chaque bascule (§1).
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Progression"
-        subtitle="Avancement de Massimo, matière par matière."
+        subtitle="Où en est Massimo — et qu'est-ce qui a bougé."
       />
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        {VUES.map((v) => (
+          <button
+            key={v.cle}
+            type="button"
+            aria-pressed={vue === v.cle}
+            onClick={() => setVue(v.cle)}
+            className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${
+              vue === v.cle
+                ? "border-papa-accent bg-papa-accent/10 text-papa-accent"
+                : "border-papa-border text-papa-muted hover:border-papa-accent"
+            }`}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {vue === "matiere" && (
       <p className="mb-4 text-sm text-papa-muted">
         La barre compte les notions <strong className="font-semibold">abordées</strong> sur les
         notions au programme — pas ce qui est acquis. Les acquis ont leur propre colonne.
@@ -120,6 +177,7 @@ export function ProgressionPage() {
           </span>
         )}
       </p>
+      )}
 
       {highlighted && (
         <p className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-papa-accent/30 bg-papa-accent/5 px-4 py-2.5 text-sm text-papa-accent">
@@ -152,7 +210,8 @@ export function ProgressionPage() {
         </div>
       )}
 
-      {p.loading ? (
+      {vue === "matiere" ? (
+      p.loading ? (
         <div className="space-y-2">
           {[0, 1, 2, 3].map((i) => (
             <div
@@ -263,6 +322,39 @@ export function ProgressionPage() {
             </tbody>
           </table>
         </div>
+      )
+      ) : idx.error ? (
+        <div className="rounded-xl border border-papa-warn/30 bg-papa-warn/5 p-4">
+          <p className="text-sm text-papa-warn">{idx.error}</p>
+          <button
+            type="button"
+            onClick={idx.reload}
+            className="mt-2.5 rounded-lg border border-papa-border px-3 py-1.5 text-sm font-semibold hover:border-papa-accent"
+          >
+            Réessayer
+          </button>
+        </div>
+      ) : idx.loading || !idx.index ? (
+        // Squelette, jamais un spinner nu (§États).
+        <div className="space-y-2">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="h-10 animate-pulse rounded-xl bg-papa-surface motion-reduce:animate-none"
+            />
+          ))}
+        </div>
+      ) : vue === "notion" ? (
+        <VueNotion
+          index={idx.index}
+          subjectSlug={requested}
+          timelines={idx.timelines}
+          timelineLoading={idx.timelineLoading}
+          onOpenTimeline={idx.loadTimeline}
+          onVoirPeriode={() => setVue("periode")}
+        />
+      ) : (
+        <VuePeriode index={idx.index} subjectId={highlighted?.subject_id ?? null} />
       )}
     </div>
   );

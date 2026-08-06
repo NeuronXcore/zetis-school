@@ -218,6 +218,33 @@ export interface SkillIndexSubject {
   slug?: string | null;
 }
 
+/** Les cinq natures de fait servies par la vue période (§2). **Ni XP ni production** : l'XP
+ *  porterait le même mot que la colonne « depuis toujours » et serait le seul compteur que le
+ *  journal ne pourrait pas recomposer ; la production mesure le stock de contenu, sa maison est
+ *  Couverture. */
+export type DatedFactKind =
+  | "mastery_transition"
+  | "gap_opened"
+  | "gap_resolved"
+  | "mission_done"
+  | "quiz_scored"
+  | "review_scored";
+
+/** Un fait daté. Les champs de détail sont renseignés selon la nature, jamais tous ensemble. */
+export interface DatedFact {
+  kind: DatedFactKind;
+  at: string;
+  skill_id?: number | null;
+  skill_name?: string | null;
+  subject_id?: number | null;
+  from_status?: string | null;
+  to_status?: string | null;
+  severity?: string | null;
+  verdict?: string | null;
+  score?: number | null;
+  rating?: string | null;
+}
+
 /** `GET /api/parent/progress/skills` — une passe agrégée, aucun paramètre de période. */
 export interface SkillIndex {
   notions: SkillIndexRow[];
@@ -228,6 +255,11 @@ export interface SkillIndex {
    *  « pas de mouvement ». `null` = aucune trace du tout. */
   history_since: string | null;
   reviews_since: string | null;
+  /** Journal servi sur la fenêtre la PLUS LARGE (365 j) ; le client filtre à 7/30/90 **sans
+   *  requête**. Ce n'est pas de la commodité : le §6 exige que les compteurs se DÉRIVENT du
+   *  journal affiché, donc le client doit posséder le journal. */
+  facts: DatedFact[];
+  facts_since: string | null;
 }
 
 /** Une bascule de palier dans la frise d'une notion. */

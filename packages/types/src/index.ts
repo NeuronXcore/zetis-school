@@ -7,6 +7,8 @@ export {
   type ActivitySessionDay,
   type ActivitySessions,
   type ConsolidatedSkill,
+  type DatedFact,
+  type DatedFactKind,
   type NotionPalier,
   type NotionSince,
   type OpenGap,
