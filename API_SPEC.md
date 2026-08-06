@@ -845,7 +845,10 @@ Aucune surface Massimo.
   antérieurs au prompt **v3** gardent leur prose sous une marque de lecture dérivée de
   `prompt_version`, qui s'éteint d'elle-même à mesure que les rapports datés s'accumulent.
 - **GET `/api/reports/class-council?period=`** → `[CouncilReportListItem]`
-  `{ id, period, subjects_count, created_at }` (récents d'abord).
+  `{ id, period, subject_id, subject_name, subjects_count, created_at, prompt_version }` (récents
+  d'abord, **sans limite**). ⚠️ `prompt_version` sert la marque de lecture **sans ouvrir le
+  rapport** : dans une liste où les entrées se ressemblent, savoir laquelle est adossée à un
+  historique daté est ce qui aide à choisir. Zéro requête de plus.
 - **GET `/api/reports/class-council/{id}`** → `CouncilReportOut`.
 - **POST `/api/reports/class-council/equip-notion`** `{ skill_id }` → `EquipNotionResult`
   `{ skill_id, skill_name, has_lesson, generated: [str], skipped: [str], errors: [{piece, message}],

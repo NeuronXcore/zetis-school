@@ -485,6 +485,10 @@ def list_reports(
                 "subject_name": cible.name if cible is not None else None,
                 "subjects_count": len(r.subjects_json or []),
                 "created_at": r.created_at,
+                # Sert la marque de lecture SANS ouvrir le rapport : dans une liste où neuf
+                # entrées se ressemblent, savoir laquelle est adossée à un historique daté est
+                # justement ce qui aide à choisir. Zéro requête de plus — la colonne est déjà lue.
+                "prompt_version": r.prompt_version,
             }
         )
     return out

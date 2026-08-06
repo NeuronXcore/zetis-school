@@ -96,6 +96,55 @@ export interface CouncilReportListItem {
   subject_name: string | null;
   subjects_count: number;
   created_at: string | null;
+  /** Sert la marque de lecture sans ouvrir le rapport. `""` = version inconnue, donc ancienne. */
+  prompt_version: string;
+}
+
+/**
+ * Ce qui distingue un rapport d'un autre dans la liste (2026-08-06).
+ *
+ * 🔴 Les pastilles n'affichaient que `period`. Neuf rapports lisaient donc « Trimestre 1 ·
+ * Trimestre 1 · 7 derniers jours · … » — un historique où rien ne se distingue n'est pas un
+ * historique, c'est une rangée de boutons. La date et la matière étaient DÉJÀ dans la charge
+ * utile ; il manquait seulement de les écrire.
+ *
+ * ⚠️ La date est celle de la GÉNÉRATION, la seule vraie ici — `period` est une étiquette qui ne
+ * sélectionne aucune donnée. Les mettre côte à côte, c'est justement ce qui rend la seconde
+ * lisible pour ce qu'elle est.
+ *
+ * ⚠️ **L'HEURE, pas seulement le jour.** Une première version n'affichait que la date : deux
+ * conseils générés le même jour redevenaient identiques, et c'est le cas courant — on en lance
+ * plusieurs d'affilée en travaillant. Vu à l'écran, pas en test.
+ *
+ * ⚠️ **Formatage LOCAL, jamais `slice(0, 10)`** sur l'ISO. Ce découpage lit de l'UTC : un rapport
+ * généré à 23 h 30 à Paris s'afficherait la veille. Même piège que `toISOString()` dans la grille
+ * du calendrier, et je viens de le reproduire ici.
+ */
+export function libelleRapport(h: CouncilReportListItem): string {
+  if (!h.created_at) return h.subject_name ?? "toutes matières";
+  const d = new Date(h.created_at);
+  const quand = `${d.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  })} ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${quand} · ${h.subject_name ?? "toutes matières"}`;
+}
+
+/**
+ * Un rapport antérieur au prompt v3 : son « évolution récente » n'était adossée à rien
+ * (ADR-0040 §8). La marque est auto-périmée — elle s'éteint à mesure que les rapports datés
+ * s'accumulent.
+ *
+ * ⚠️ **Une version ILLISIBLE est traitée comme ancienne.** La page en portait une copie qui
+ * répondait l'inverse (`Number.isFinite(n) && n < 3` ⇒ pas de marque sur une version inconnue) :
+ * deux fonctions pour la même question, avec deux réponses opposées sur le cas limite. Sur un
+ * doute, on signale — dire « ce rapport est fiable » sans le savoir est la faute que tout ce
+ * chantier corrige. Une seule implémentation désormais, et c'est celle-ci.
+ */
+export function rapportSansHistoriqueDate(promptVersion: string): boolean {
+  const n = Number(promptVersion.replace(/^v/i, ""));
+  return !Number.isFinite(n) || n < 3;
 }
 
 export interface EquipPieceError {

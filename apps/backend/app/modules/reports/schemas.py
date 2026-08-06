@@ -191,3 +191,6 @@ class CouncilReportListItem(BaseModel):
     period: str
     subjects_count: int
     created_at: datetime | None = None
+    # ⚠️ Défauté à `""` et non requis : la liste doit continuer de se sérialiser si un rapport
+    # ancien n'avait pas de version. Le client traite l'absence comme « antérieur au daté ».
+    prompt_version: str = ""

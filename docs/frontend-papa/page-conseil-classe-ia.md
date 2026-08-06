@@ -71,6 +71,45 @@ Un type qui n'accepterait que la structure ferait échouer la lecture de **tout 
 ⚠️ **`v3` → `v4` parce que le prompt bouge.** Deux prompts sous un même numéro rendraient
 `prompt_version` menteur — et c'est lui qui décide de la marque de lecture.
 
+## La période nomme, elle ne sélectionne pas
+
+🔴 **Défaut mesuré en base le 2026-08-06** : un rapport intitulé *« 7 derniers jours »* dont le
+propre `evidence_snapshot_json` dit *« Évidence à l'instant — état courant, pas de fenêtre
+temporelle »*. L'étiquette annonçait une semaine sur des données couvrant tout l'historique. Le
+rapport étant **figé**, le mensonge devenait rétroactivement indiscernable du vrai — exactement le
+défaut que le §8 corrige pour `recent_evolution`, reproduit un cran plus haut.
+
+L'écran le dit désormais, sous le titre : *la période est une **étiquette**, elle ne restreint pas
+les données ; le conseil s'appuie sur l'**état courant**, seules les **bascules de palier** sont
+datées*. Le champ le redit au survol.
+
+⚠️ **Le transport depuis le dashboard est CONSERVÉ.** Le lien profond garde son sens — Papa arrive
+avec le nom de ce qu'il regardait. C'est la **lecture** qu'on corrige, pas le transport ; les
+verrous de `?period=` (2026-08-05) restent valides.
+
+⚠️ **Pas de calendrier**, et c'est une décision : une date est une affirmation *précise*, là où une
+étiquette n'est que vague. Tant que le service d'évidence n'a pas de vraie fenêtre temporelle
+(chantier à part, hors périmètre de l'ADR-0040), un sélecteur de dates promettrait une sélection
+que personne n'honore. Depuis le Lot 3, **une moitié** du rapport serait fenêtrable — les bascules
+— mais un rapport à moitié fenêtré sous une date unique se lirait comme entièrement fenêtré.
+
+## L'historique des rapports
+
+La bande `Rapports :` est la **seule porte** vers les anciens conseils — rien n'est jamais supprimé
+(aucune route `DELETE`, aucune purge, aucune rétention).
+
+🔴 Chaque pastille n'affichait que `period` : neuf rapports lisaient *« Trimestre 1 · Trimestre 1 ·
+7 derniers jours · … »*. Un historique où rien ne se distingue n'est pas un historique. Elle porte
+maintenant **la date de génération** — la seule vraie — **et la matière ciblée**, toutes deux déjà
+servies (zéro appel réseau de plus), plus un **✳** sur les rapports antérieurs au daté. L'étiquette
+de période passe en infobulle : elle a sa place, pas au premier plan.
+
+⚠️ Visible **dès le premier rapport** : la masquer tant qu'il n'y en a qu'un la rendait
+introuvable au moment précis où Papa apprend qu'elle existe.
+
+⚠️ **`list_reports` ne borne rien** — à cinquante rapports, la bande sera illisible. Constat posé,
+non traité.
+
 ## Wireframe
 
 ```txt

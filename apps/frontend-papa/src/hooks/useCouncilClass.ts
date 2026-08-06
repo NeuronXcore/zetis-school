@@ -159,6 +159,10 @@ export function useCouncilClass(): UseCouncilClass {
           subject_name: fresh.subject_name,
           subjects_count: fresh.subjects.length,
           created_at: fresh.created_at,
+          // ⚠️ La version VOYAGE elle aussi. Sans elle, l'entrée optimiste retomberait sur `""`,
+          // que le client traite comme « antérieur au daté » : un rapport qu'on vient de générer
+          // porterait la marque « rédigé sans historique daté ». `tsc` l'a attrapé.
+          prompt_version: fresh.prompt_version,
         },
         ...prev,
       ]);
