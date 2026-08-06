@@ -89,11 +89,23 @@ def production_worker_alive() -> bool:
 
     Best-effort : Redis injoignable → `False`. On préfère annoncer un doute qu'affirmer une
     santé — c'est l'affirmation fausse qui a coûté six heures.
+
+    🔴 **Depuis l'ADR-0041 §5, la question porte sur TOUTES les files, et c'est un correctif payé
+    à l'écran le 2026-08-06.** Cette fonction n'interrogeait que `production_queue()`. Avec deux
+    files, un worker démarré AVANT le changement n'écoute que celle-là : un travail enfilé sur
+    `production-priority` y dormait pendant que l'écran annonçait `worker_alive: true`, donc
+    « en file d'attente ». Mesuré en vrai — 1 job en attente, 0 worker sur sa file, 2 sur l'autre.
+    C'est très exactement la panne de six heures que cette fonction avait été écrite pour rendre
+    visible, réintroduite par la file qu'on venait d'ajouter.
+
+    `all()` et non `any()` : une seule file non servie suffit à bloquer le travail qui s'y trouve,
+    et on préfère annoncer un doute qu'affirmer une santé.
     """
     from rq import Worker
 
     try:
-        return len(Worker.all(queue=production_queue())) > 0
+        files = production_queues()
+        return all(len(Worker.all(queue=f)) > 0 for f in files) and bool(files)
     except Exception:
         return False
 

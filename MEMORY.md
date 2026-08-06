@@ -16,11 +16,11 @@
 |---|---|
 | **Branche** | `feat/barre-de-production`, **base `dc1a6ed`** (= tête de `main`). Le code de la slice n'est **pas commité** — voir `git status` |
 | **Sur `main`** | `dc1a6ed` — l'ADR-0041 + la ligne `DECISIONS.md`. `b7bbe77` sur la branche — spec + maquette + prompts |
-| **Migration** | `b3c4d5e6f7a8` — ⚠️ **écrite, JAMAIS appliquée**, même en dev. Un seul head alembic avant elle : `a1b2c3d4e5f9` |
+| **Migration** | `b3c4d5e6f7a8` — ✅ **appliquée sur le vrai Postgres de dev** (`a1b2c3d4e5f9 → b3c4d5e6f7a8 (head)`) |
 | **Routes nouvelles** | `GET /api/production/activity` · `POST /api/production/activity/{kind}/{id}/ack`, toutes deux `require_parent` |
 | **Contrat modifié** | 🔴 `POST /api/reports/class-council/equip-notion` rend **202 + `{job_id, status}`** au lieu du kit. `JobOut` gagne `error` |
 | **Suites, réellement lancées** | backend **963 ✅** (953 avant) · Papa **610 ✅** · `tsc -b` et `vite build` propres |
-| **Vu à l'écran** | 🔴 **RIEN. Aucun des six contrôles du prompt.** Et c'est le chantier dont l'ADR dit qu'il « se vérifie à l'écran ou ne se vérifie pas » |
+| **Vu à l'écran** | ✅ **La barre a été VUE TOURNER** (2026-08-06, vrai Chrome, vraie génération) : « en file » puis « Équipement · Idée essentielle — ≈ 36 % ». 202 en **164 ms** au lieu de ~69 s. ⚠️ Restent 4 contrôles sur 6 : changement de route, empilement en file, échec provoqué, responsive |
 
 ### FAIT
 
@@ -79,6 +79,7 @@ réel, sur toutes les pages. **Ce qu'il reste : décider si l'attente doit dispa
 
 ### ⚠️ Pièges payés en vrai — voir `TROUBLESHOOTING.md` §`feat/barre-de-production`
 
+- 🔴 **Ajouter une file rend `production_worker_alive()` menteur** — trouvé à l'écran, invisible de tout test : le travail dormait sur la file prioritaire pendant que l'indicateur affirmait `worker_alive: true`. Corrigé en `all()`, verrou saboté. **Après tout ajout de file : redémarrer le worker.**
 - `conftest.py` remplace les **fabriques** de file : `priority_queue` devait y être ajouté, sinon
   la fuite se rouvrait sur le chemin le plus testé.
 - Un index change l'ordre d'un `select` **sans `ORDER BY`** — `_jobs()` de

@@ -2746,3 +2746,29 @@ La cage `/slice` met en garde contre `explain` ; `affected` a le même angle mor
 ressources fraîches ». Un appel non bloquant ferait composer des missions sur un kit inexistant.
 **Parade retenue** : le client `equipNotion()` sonde `GET /ai/jobs/{id}` jusqu'à complétion — la
 requête HTTP ne tient plus 90 s, la barre du header montre l'avancement, et l'ordre est préservé.
+
+### 🔴 Ajouter une file RQ rend `production_worker_alive()` menteur — trouvé À L'ÉCRAN
+
+Le 2026-08-06, premier équipement réel après l'ajout de la file prioritaire : la barre est restée
+sur « ZETIS va produire · en file d'attente », indéfiniment, avec `worker_alive: true`.
+
+Relevé, sans ambiguïté :
+
+```
+rq:queue:production-priority = 1 job      rq:workers:production-priority = 0
+rq:queue:production          = 0          rq:workers:production          = 2
+```
+
+**Cause** : `production_worker_alive()` n'interrogeait que `production_queue()`. Les workers en
+vie avaient été démarrés **avant** le changement — ils n'écoutaient que la file normale. Le
+travail dormait sur une file que personne ne consommait, et l'indicateur affirmait une santé.
+C'est la panne de six heures du 2026-08-05 que cette fonction devait rendre visible, réintroduite
+par la file qu'on venait d'ajouter.
+
+**Parade** : `all()` sur `production_queues()` — une seule file non servie suffit à bloquer le
+travail qui s'y trouve. Test-verrou `test_un_worker_qui_n_ecoute_QU_UNE_file_ne_compte_pas`,
+vérifié par sabotage (`all` → `any` le fait rougir).
+
+⚠️ **Et la règle d'exploitation qui va avec** : après tout ajout de file, **redémarrer le worker**
+(`pkill -f app.production_worker` puis `pnpm dev:worker`). Un worker vivant n'est pas un worker à
+jour.

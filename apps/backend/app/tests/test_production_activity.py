@@ -213,3 +213,56 @@ def test_la_file_se_derive_de_l_origine(file_rq_factice) -> None:
     ) else None
     assert queue_for("manual") is queue_for(None)
     assert queue_for("agenda") is queue_for("request")
+
+
+# ─── LE VERROU DU 2026-08-06, PAYÉ À L'ÉCRAN ───────────────────────────────────────────────────
+def test_un_worker_qui_n_ecoute_QU_UNE_file_ne_compte_pas(monkeypatch) -> None:
+    """🔴 Une seule file non servie suffit à bloquer le travail qui s'y trouve.
+
+    Le défaut, mesuré en vrai le 2026-08-06 : `production_worker_alive()` n'interrogeait que
+    `production_queue()`. Un worker démarré AVANT l'ajout de la file prioritaire n'écoute que
+    celle-là — le travail dormait sur `production-priority` pendant que l'écran annonçait
+    `worker_alive: true`, donc « en file d'attente ». Relevé en Redis : **1 job en attente,
+    0 worker sur sa file, 2 sur l'autre.**
+
+    C'est très exactement la panne de six heures que cette fonction avait été écrite pour rendre
+    visible, réintroduite par la file qu'on venait d'ajouter. D'où `all()` et non `any()` : on
+    préfère annoncer un doute qu'affirmer une santé.
+
+    ⚠️ Ce test ne peut pas passer par Redis (interdit en test) : il exerce la LOGIQUE, en
+    nommant les files et en décidant lesquelles sont servies.
+    """
+    import rq
+
+    from app.core import queue as queue_mod
+
+    class FileNommee:
+        def __init__(self, nom: str) -> None:
+            self.name = nom
+
+    prioritaire, normale = FileNommee("production-priority"), FileNommee("production")
+    monkeypatch.setattr(queue_mod, "production_queues", lambda: [prioritaire, normale])
+
+    servies: set[str] = set()
+
+    class FauxWorker:
+        @staticmethod
+        def all(queue=None):  # noqa: ANN001
+            return ["w"] if queue is not None and queue.name in servies else []
+
+    monkeypatch.setattr(rq, "Worker", FauxWorker)
+
+    # L'ANCIEN worker : il n'écoute que la file normale.
+    servies.add("production")
+    assert queue_mod.production_worker_alive() is False, (
+        "un worker qui n'écoute pas la file prioritaire ne sert pas les gestes de Papa — "
+        "annoncer « vivant » ferait lire un ARRÊT comme une ATTENTE"
+    )
+
+    # Le worker à jour : les deux files.
+    servies.add("production-priority")
+    assert queue_mod.production_worker_alive() is True
+
+    # Contre-épreuve : sans elle, une fonction qui rendrait toujours False passerait au vert.
+    servies.clear()
+    assert queue_mod.production_worker_alive() is False
