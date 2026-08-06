@@ -2797,3 +2797,26 @@ Mesurer `getBoundingClientRect().width > 0`.
 
 ⚠️ **La maquette ne pouvait pas trouver ce défaut** : elle n'avait pas les deux pilules réelles
 qui se disputent la place. C'est le contrôle responsive à l'écran, et lui seul, qui l'a sorti.
+
+### La barre ne peut pas voir un travail plus court que son sondage
+
+Contrôle 2 du 2026-08-06 : un équipement lancé depuis le Conseil sur une notion **déjà équipée**
+a vécu **11 ms** (`generated: []`, les cinq pièces `skipped`). Le header n'a rien affiché — période
+de sondage : **4 s**. Le travail est né et mort entre deux lectures.
+
+Même classe que le défaut corrigé le 2026-08-03 sur `useActiveProductionRun` (« un lot-pièce dure
+15 à 17 s : à 20 s de période, l'indicateur pouvait ne JAMAIS voir un lot entier »), à plus petite
+échelle.
+
+**Ce n'est pas un bug d'affichage** : pour 11 ms de travail il n'y a rien d'utile à montrer, et
+aucune production n'a eu lieu. Mais l'attente « les deux surfaces disent la même chose au même
+moment » est violée.
+
+**Parade à écrire** : raccourcir la période ne supprime pas la course. C'est **le client qui vient
+d'enfiler** qui doit réveiller la barre (un rafraîchissement immédiat après l'appel), plutôt que
+d'attendre le prochain tour.
+
+⚠️ **Et le vrai enseignement** : pendant ces 11 ms, la page du Conseil a déroulé son pipeline
+« Cours · Fiche · Cartes · Quiz · Carte mentale » pendant une dizaine de secondes — `EQUIP_MS`
+**devine**. Le header **mesure**. Les deux ne peuvent pas rester d'accord : c'est très exactement
+ce que la Slice C (mort des 23 constantes) vient réparer.

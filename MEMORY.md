@@ -20,7 +20,7 @@
 | **Routes nouvelles** | `GET /api/production/activity` · `POST /api/production/activity/{kind}/{id}/ack`, toutes deux `require_parent` |
 | **Contrat modifié** | 🔴 `POST /api/reports/class-council/equip-notion` rend **202 + `{job_id, status}`** au lieu du kit. `JobOut` gagne `error` |
 | **Suites, réellement lancées** | backend **963 ✅** (953 avant) · Papa **610 ✅** · `tsc -b` et `vite build` propres |
-| **Vu à l'écran** | ✅ **La barre a été VUE TOURNER** (2026-08-06, vrai Chrome, vraie génération) : « en file » puis « Équipement · Idée essentielle — ≈ 36 % ». 202 en **164 ms** au lieu de ~69 s. ⚠️ Restent 4 contrôles sur 6 : changement de route, empilement en file, échec provoqué, responsive |
+| **Vu à l'écran** | ✅ **LES SIX CONTRÔLES SONT JOUÉS** (2026-08-06, vrai Chrome, vraies générations). La barre a été **vue tourner** : « en file » → « Équipement · Idée essentielle — ≈ 36 % » → `succeeded` en **77 227 ms**. Route rendue en **164 ms** au lieu de ~69 s. Deux défauts réels trouvés à l'écran et corrigés ; le 6ᵉ contrôle a fait apparaître deux dettes (plus bas) |
 
 ### FAIT
 
@@ -48,6 +48,27 @@ utile de la session :
 3. 🔴 **Sans backfill, tous les échecs de l'historique** remonteraient comme non acquittés au
    premier démarrage. La migration les date à leur `finished_at`. L'ADR annonçait « aucun
    backfill » — il en fallait un, il est écrit et motivé dans la migration.
+
+### ✅ Vérifié à l'écran, contrôle par contrôle
+
+| Contrôle | Résultat mesuré |
+|---|---|
+| Équipement réel, observé sur toute sa durée | ✅ 202 en 164 ms · « en file » · « ≈ 36 % » · `succeeded` en 77 227 ms (l'estimation de 69 s tient) |
+| Changement de route pendant un travail | ✅ 53 → 55 → **61 %** de `/` à `/progression` : la barre survit et ne repart pas de zéro |
+| Empilement en file | ✅ « +2 en attente », ordre 610 → 611 → 612 respecté |
+| Arrêt provoqué (worker tué) | ✅ « ZETIS ne produit pas », point **sans pulsation**, **aucun pourcentage** |
+| Responsive | ✅ après correctif — pilule 30 → **227 px**, libellé 0 → **47 px** |
+| Même travail depuis le Conseil | ⚠️ joué, **et il révèle deux dettes** (voir DETTES ci-dessous) |
+
+**Deux défauts réels, invisibles de tout test, trouvés en regardant** :
+
+1. 🔴 **`production_worker_alive()` affirmait une santé sur une file que personne n'écoutait.** Un
+   worker démarré avant l'ajout de la file prioritaire n'écoute que l'ancienne : 1 job en attente,
+   0 worker sur sa file, 2 sur l'autre. C'est la panne de six heures du 2026-08-05 réintroduite par
+   la file qu'on venait d'ajouter. Corrigé en `all()`, verrou saboté.
+2. 🔴 **La barre s'écrasait à 30 px** au lieu de se replier : elle mesurait son propre conteneur,
+   déjà écrasé quand elle le lit. Corrigé — elle mesure le `<header>`, a un plancher, et le
+   contexte (« Période », « Exporter ») cède avant elle.
 
 ### ▶ EN COURS — ce qui reste de la Slice A
 
@@ -90,17 +111,35 @@ réel, sur toutes les pages. **Ce qu'il reste : décider si l'attente doit dispa
 
 ### ▶ PROCHAIN PAS
 
-**Appliquer la migration en dev, lancer les serveurs, et REGARDER la barre tourner** — c'est le
-seul verrou qui compte ici, et il n'a jamais été joué :
+**Faire mourir les deux `EQUIP_MS`** — c'est le critère d'acceptation non tenu de la Slice A, et le
+contrôle 2 vient de démontrer POURQUOI il compte : une surface qui devine et une surface qui mesure
+ne peuvent pas rester d'accord.
 
-```
-cd apps/backend && .venv/bin/alembic upgrade head
-pnpm dev            # backend + worker + les deux frontends
-```
+Read-before-code obligatoire sur `useCouncilClass.ts` (l'ordre « équiper puis composer ») et
+`SubjectDetailRow.tsx`. La question à trancher : `equipNotion()` sonde aujourd'hui jusqu'à
+complétion pour préserver cet ordre — faut-il le garder, ou déplacer l'enchaînement côté serveur ?
 
-Puis les six contrôles du prompt (`prompts-claude-code-adr-0041.md`, § VÉRIFICATION À L'ÉCRAN),
-en commençant par un équipement **réel** depuis Progression, observé **sur toute sa durée**.
-⚠️ Coût assumé : `equip_notion` génère **et auto-valide** un kit entier en base de dev.
+Dans la même passe : le **réveil immédiat de la barre** à l'enfilement (dette ci-dessous), qui se
+teste avec exactement le même geste.
+
+⚠️ L'environnement est prêt : migration appliquée, worker à jour sur les deux files, serveurs
+debout (backend `:8000`, Massimo `:5173`, Papa `:5174`).
+
+### ⚠️ DETTES OUVERTES — nées du contrôle 2 (Conseil de classe)
+
+Le Conseil a lancé un équipement sur une notion **déjà équipée** : job `succeeded` en **11 ms**,
+`generated: []`, `skipped: [les cinq pièces]`. Le header n'a rien montré — **et il avait raison**,
+il n'y avait aucune production. Mais deux choses réelles en sortent :
+
+- ⚠️ **La barre est AVEUGLE à tout travail plus court que son sondage** (4 s). Même classe que le
+  défaut corrigé le 2026-08-03 sur `useActiveProductionRun`, à plus petite échelle. La parade n'est
+  pas de raccourcir la période — ça ne supprime pas la course — mais de laisser **le client qui
+  vient d'enfiler prévenir la barre**, au lieu d'attendre jusqu'à 4 s.
+- 🔴 **Les deux surfaces se sont contredites, en direct.** Pendant ces 11 ms de travail, la page du
+  Conseil a déroulé son pipeline « Cours · Fiche · Cartes · Quiz · Carte mentale » une dizaine de
+  secondes, piloté par `EQUIP_MS = 90_000` qui **devine** ; le header, qui **mesure**, disait la
+  vérité : rien. C'est la thèse du chantier prise en flagrant délit, et c'est **la Slice C** qui la
+  referme.
 
 ### ⚠️ Dettes héritées du chantier ADR-0040 (remontées à l'élagage, toujours ouvertes)
 
