@@ -198,6 +198,37 @@ git checkout feat/progression-temps   # main ignore les Lots 1 et 2
 ⚠️ **Le prompt veut une session NEUVE par bloc.** Les Lots 0 et 1 ont été faits en fin d'une
 session déjà très longue (16+ commits) ; le Lot 2 mérite d'ouvrir la sienne.
 
+🔴 **DÉCIDÉ, PAS ENCORE FAIT — la vue période passe en GRILLE CALENDAIRE**, sur le patron du
+Cahier de bord (demande du commanditaire, 2026-08-06).
+
+Mon objection initiale et sa RÉSOLUTION, pour ne pas la rejouer : une grille ne peut pas afficher
+vingt faits nommés dans une case, donc elle afficherait « 20 » — l'agrégat temporel que le §3
+interdit. Les données réelles sont grumeleuses : **86 faits sur l'année, dont ~20 le seul 05/07**,
+neuf le 02/08, et zéro l'immense majorité des jours.
+
+**Le Cahier de bord résout exactement ça** et c'est pourquoi la demande tient : case = affordance
+de navigation, **clic → panneau du jour** avec les faits NOMMÉS. Le compte dans la case n'est pas
+une mesure de progression, c'est un repère de densité — et le drill-down d'un jour est la
+**première exception assumée** de l'`adr-0028` §4, déjà au dossier.
+
+⚠️ **À écrire dans le §3 avant ou avec le code** : la révocation autorisait « des événements,
+jamais des agrégats temporels ». Une case chiffrée est à la frontière ; il faut la nommer
+explicitement comme repère de navigation, sinon le prochain lecteur la prendra pour une
+autorisation générale d'agréger.
+
+Ce qu'il faut écrire :
+
+- un **constructeur de grille propre aux faits** — ⚠️ `lib/sessions::buildMonthGrid` n'est PAS
+  réutilisable : il prend des `ActivitySessionDay` et rend des cases `sessions`/`activeMinutes`.
+  Réutiliser le PATRON (grille CSS 7 colonnes, navigation de mois, `canGoNext` qui interdit le
+  futur), jamais la fonction ;
+- le composant calendrier + le **panneau du jour** (patron `DayDetailPanel`) ;
+- le branchement dans `VuePeriode`, qui garde son journal en liste — la grille est une SECONDE
+  lecture des mêmes faits, pas un remplacement ;
+- ⚠️ la grille est mensuelle, la fenêtre est de 7/30/90/365 j : décider ce que le sélecteur de
+  fenêtre devient en mode grille (le mois affiché le remplace-t-il ? coexistent-ils ?). **Non
+  tranché.**
+
 ⚠️ **Résidus du Lot 2 (partie faite)** :
 
 - ⚠️ **`useSkillsIndex` n'a AUCUN consommateur** tant que les vues ne sont pas écrites — même
