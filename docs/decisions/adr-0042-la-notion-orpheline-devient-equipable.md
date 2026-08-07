@@ -328,3 +328,82 @@ tests qui épinglaient l'omission.
   le plancher du point 3 est franchissable aujourd'hui. Inventaire objet par objet après coup.
 - **Prochain chantier annoncé** : la refonte du diagnostic (T0 sur les prérequis, sonde T_n dans
   les missions), dont cet ADR est le prérequis. Il ne commence pas ici.
+
+## ⚠️ Corrections à l'exécution — décision inchangée (2026-08-07)
+
+Le chantier a été exécuté le jour même. **Aucune des cinq décisions n'a bougé.** Ce qui suit
+corrige trois énoncés de cet ADR que l'exécution a démentis — ils sont laissés en place au-dessus,
+et corrigés ici plutôt que réécrits : une estimation fausse qu'on efface ne se relit pas.
+
+### 1. « Environ sept tests » → **un seul**
+
+Le § Conséquences annonçait « environ sept tests épinglaient l'omission ». **La mesure dit 1** :
+`test_equip_notion_skips_when_no_lesson`, devenu
+`test_equip_notion_sans_lecon_saute_les_quatre_pieces_lecon_centrees`.
+
+Motif de l'écart, et il vaut d'être su : les tests de `missions` ne bougent pas **parce que le
+builder d'étapes RÉUTILISE et ne génère pas**. `_recall_steps` n'a jamais produit de quiz ; il
+n'en cherche un que s'il existe déjà. Ouvrir la production ne change donc rien à leurs fixtures,
+qui n'ont pas de quiz. J'avais compté comme « à réécrire » tout test qui *mentionne* l'omission,
+au lieu de ceux qui la *contraignent*.
+
+⚠️ Et `test_une_notion_sans_lecon_reste_bloquee_a_tous_les_paliers`, que le § Conséquences citait
+comme le verrou doctrinal frontal, **passe inchangé** : il appelle `select_notions` sans `piece`,
+donc au grain du kit — où une notion orpheline reste bel et bien bloquée. Sa doctrine n'est pas
+contredite, elle est **précisée**.
+
+### 2. Le verrou lexical de l'ordre des pièces a été gardé INTACT
+
+Non prévu par cet ADR. `test_equip_notion_signale_ses_pieces_dans_l_ordre_de_PIECES` lit
+**lexicalement** la source d'`equip_notion` : un sixième signal de position dans la branche
+orpheline l'aurait fait rougir sur un chemin qui, lui, ne recule pas. Le rappel est donc émis
+depuis le helper `_quiz_ancre_notion`, et le verrou n'a pas été touché.
+
+### 3. La preuve réelle a été faite en **Mathématiques**, pas en Anglais
+
+Le § Suivi la programmait « en Anglais — seule matière dont le RAG porte des chunks `validated` ».
+Exact, et **inexploitable** : ces 4 chunks sont une transcription YouTube de Rick Astley (données
+de test ZETIS Clip). Un quiz de rattrapage de 5e bâti dessus aurait été auto-validé (`system`) et
+atteignable par Massimo.
+
+Arbitrage du commanditaire : valider **un** document de maths réel (`RagDocument 3`, « Comprendre
+les fractions », 19 chunks — geste Papa, réversible) et faire la preuve là. Empreinte d'un cran
+au-delà de ce que le §10 du prompt bornait, assumée et annoncée avant.
+
+> **Ce que cela démontre du point 3 de la Décision** : sans le plancher de preuve, ce chantier
+> aurait servi du charabia. Le plancher n'est pas une prudence théorique — il a mordu au premier
+> essai réel.
+
+### 4. Contradiction interne du § Suivi, tranchée
+
+Le § Suivi exigeait la contre-épreuve « **sans qu'aucun test existant ne soit retouché** », ce que
+le § Conséquences contredisait dans le même document (il annonçait des réécritures délibérées).
+**C'est le § Conséquences qui fait foi.** La formulation juste : *aucun test existant ne doit être
+retouché **pour faire passer** le chantier* — un test réécrit doit l'être parce que son intention
+a changé, et le dire.
+
+### 5. Un défaut trouvé par l'exécution réelle, et par elle seule
+
+La base de dev porte un `Quiz` de type `mission`, `status='draft'`, **`lesson_id IS NULL`**, hérité
+d'un vieux jeu de données, dont les questions visent une notion qui, elle, **a** une leçon.
+
+Le point 4 de la Décision demandait à `_has_mission_quiz` de « voir les quiz notion-ancrés ».
+Appliqué **sans condition**, ce quiz-là répondait « déjà produit » sur le chemin **NORMAL** :
+`equip_notion` aurait cessé de générer le quiz d'une notion parfaitement équipable, **en silence,
+sur toute la base existante**.
+
+Correction — l'ancrage notion n'est consulté **que si `lessons_of_skill` est vide**, ce qui aligne
+le prédicat sur la règle du point 2 (dernier recours). Verrouillé par
+`test_un_quiz_sans_lecon_egare_ne_fait_pas_croire_la_notion_deja_equipee`.
+
+⚠️ **La contre-épreuve du § Suivi ne pouvait pas le voir** : sa fixture n'a aucun quiz sans leçon.
+C'est l'argument le plus net en faveur de l'exécution réelle imposée par le §10 — sans elle, ce
+défaut partait en PR.
+
+### 6. Découverte annexe — un chemin de test jamais exercé
+
+Aucun test du dépôt n'avait jamais servi un chunk RAG `validated` **avec embedding** : le chemin
+« il Y A des sources » n'était exercé nulle part, seule la branche « aucune source » l'était.
+Sur SQLite, l'opérateur pgvector `<=>` est une erreur de syntaxe — d'où une fixture qui remplace
+**`search` seul** (une capacité du moteur de base), en gardant réels `has_retrievable_chunks` et
+`retrieve_for_skill`, qui portent la logique.
