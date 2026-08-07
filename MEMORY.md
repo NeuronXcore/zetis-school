@@ -7,8 +7,139 @@
 
 ## État à la reprise
 
-**Chantier : « les engrenages et le dossier changent de dessin, pas de sens ». COMPLET, vérifié en
-production réelle par l'humain, ✅ MERGÉ SUR `main` (2026-08-07). Ne pas ré-implémenter.**
+**Chantier : « la notion orpheline devient équipable » (ADR-0042). COMPLET, vérifié à l'écran ET
+en exécution réelle. Branche `feat/notion-orpheline-equipable`, code NON COMMITÉ — l'humain relit
+(tests, diff) puis committe.**
+
+| | |
+|---|---|
+| **Sur `main`** | ADR-0042 + ligne `DECISIONS.md` + 7 dettes au `BACKLOG.md` — **commité `0ef20af`**, non poussé |
+| **Branche** | `feat/notion-orpheline-equipable`, partie de `0ef20af`. Code + tests **non commités** |
+| **Migrations** | **AUCUNE.** `quizzes.lesson_id`/`chapter_id` étaient déjà nullables et `quiz_questions.skill_id` portait déjà l'attribution |
+| **Suites** | Backend **1005 ✅** (999 avant, +6) · Papa `tsc -b` **EXIT=0** + build ✅ · Massimo non touché |
+| **Vérifié à l'écran** | page Programme (la notion de 5e apparaît **avec son niveau**) et page Missions (`❓→💡→🎙`, trois étapes) |
+| **Vérifié en réel** | §10 joué de bout en bout sur la base de dev — inventaire ci-dessous |
+
+### FAIT — le trou structurel est bouché
+
+Une `Skill` sans `Lesson` est un état produit NORMAL (contrat ADR-0010). Pour elle la chaîne était
+fermée : pas de leçon → pas de cours → pas de quiz → étape quiz **omise** → `acquired`
+**arithmétiquement** inatteignable → `review_later` → lacune `in_progress` → `generate_remediation`
+ne lit que `open` → **plus jamais de remédiation**. Et le relais SRS repassait par le **même**
+`_recall_steps` : la notion était piégée à vie.
+
+**Décision retenue** : quand aucune leçon ne porte la notion, **le quiz s'ancre sur la NOTION**
+(`lesson_id=NULL`, `subject_id` pris sur la `Skill`, questions attribuées par
+`quiz_questions.skill_id`). Cinq points touchés : `quizzes.service` (voie neuve + plancher),
+`production.runner` (le gate), `production.equipment` (les **deux** chemins),
+`missions.service` (`_resolve_mission_quiz_ids`), `curriculum.service` (`orphan_notions`).
+
+### 🔴 Le constat qui a retourné l'arbitrage
+
+Le cadrage annonçait que desserrer le verrou quiz « contredit frontalement le gate ADR-0011 ».
+**C'est faux, et c'est ce qui a décidé du chantier.** Le gate interdit de recevoir un cours
+**NON VALIDÉ** ; il n'interdit pas de travailler **SANS cours**. L'ADR-0011 §1 nomme lui-même la
+cascade — *« cours validé → RAG seul → connaissance du modèle »* — et le précédent était déjà dans
+le kit : `generate_cards_for_skill` est le seul des cinq générateurs sans garde 409, il dégrade en
+`pending`. On n'a donc pas ouvert une porte, on a appliqué une doctrine à un sixième cas.
+
+### 🔴 CINQ portes, pas une — et c'est la 4ᵉ qui décidait de tout
+
+Le cadrage en supposait une (le moteur quiz). La porte qu'on oublie est
+**`missions._resolve_mission_quiz_ids`**, qui joignait par `Quiz.lesson_id` : un quiz produit mais
+introuvable d'ici aurait laissé l'étape omise. **Tout aurait été vert et rien n'aurait été
+débloqué.** C'est exactement l'échec que le critère de réussite du prompt rendait visible — sans
+lui, ce chantier se serait cru fini.
+
+### ⚠️ Le comptage de chapitres que J'AI raté, en le cherchant
+
+Mon premier relevé disait « 79 chapitres, tous rattachés à l'année ». **Faux** : la requête
+joignait `chapters` à `school_year_subjects` en **INNER JOIN**, donc elle laissait tomber ce
+qu'elle cherchait. Le compte juste est **80, dont 1 orphelin** (`id=10` « Les fractions »,
+`validated`, 0 leçon — celui que l'addendum ADR-0034 signalait déjà). Le défaut se reproduit sur
+quiconque écrit la requête évidente. **`review_queue/service.py:81-117` est le seul module du
+dépôt qui le traite correctement** (`outerjoin` + `or_` + `COALESCE`) : c'est le patron à reprendre.
+
+### ✅ Ce que la vérification RÉELLE a trouvé et que les tests n'avaient pas vu
+
+L'exécution du §10 a révélé un **quasi-accident** que la contre-épreuve ne pouvait pas voir : la
+base de dev porte un quiz `mission` **`draft`, `lesson_id IS NULL`**, hérité d'un vieux jeu de
+données, dont les questions visent une notion qui, elle, **a** une leçon. Mon `_has_mission_quiz`
+consultait l'ancrage notion **sans condition** → ce quiz-là répondait « déjà produit » sur le
+chemin **NORMAL** : `equip_notion` aurait cessé de générer le quiz d'une notion parfaitement
+équipable, **en silence, sur toute la base existante**.
+
+Corrigé (l'ancrage notion n'est consulté que si `lessons_of_skill` est vide) et **verrouillé par
+un test qui met la situation réelle dans la fixture**. Sans le §10, ce défaut partait en PR.
+
+### ✅ Trois sabotages joués, trois rouges
+
+Un test vert ne prouve rien tant qu'il n'a pas rougi sur commande (jurisprudence du dépôt).
+
+| Sabotage | Test qui rougit |
+|---|---|
+| retirer la garde « dernier recours » | `test_verrou_le_quiz_de_notion_ne_double_jamais_la_voie_lecon` |
+| retirer le plancher RAG | `test_sans_source_le_quiz_est_refuse_avant_tout_appel_au_modele` |
+| rendre `_resolve_mission_quiz_ids` leçon-seule | `test_une_notion_de_niveau_anterieur_atteint_son_etape_quiz` |
+| retirer le garde `lessons_of_skill` de `_has_mission_quiz` | `test_un_quiz_sans_lecon_egare_ne_fait_pas_croire_la_notion_deja_equipee` |
+
+### ⚠️ UN SEUL test existant a été réécrit — pas sept
+
+J'avais annoncé « ~7 tests à réécrire ». **La mesure dit 1.** `test_equip_notion_skips_when_no_lesson`
+(devenu `..._sans_lecon_saute_les_quatre_pieces_lecon_centrees`) était le seul à épingler
+l'omission de façon incompatible. Les tests missions ne bougent pas parce que le builder
+**réutilise** toujours et ne génère pas. Et le verrou lexical
+`test_equip_notion_signale_ses_pieces_dans_l_ordre_de_PIECES` a été gardé **intact** en émettant le
+rappel de position depuis le helper plutôt que depuis `equip_notion`.
+⚠️ Ce verrou est **lexical** : une simple mention de la forme appelée **dans un commentaire** le
+fait rougir. Payé une fois.
+
+### 🔬 §10 — inventaire de l'exécution réelle (2026-08-07, base de DEV)
+
+Annoncé avant, joué une fois, une seule notion. Créé / modifié :
+
+| Objet | État |
+|---|---|
+| `RagDocument 3` « Comprendre les fractions » | `pending` → **`validated`** (+ ses 19 chunks) — geste Papa, **réversible** |
+| `Skill 436` « Les fractions » | level **`5e`**, subject 2, **aucune leçon** — créé par `confirm_skills_backfill` (**zéro appel LLM**) |
+| `Quiz 54` « Quiz — Les fractions » | `lesson_id=None`, `chapter_id=None`, subject 2, `ready`, `validated_by=system`, **5 questions** toutes `skill_id=436` |
+| `Gap 2` | `open`, sévérité `medium` |
+| `Mission 56` « Renforcer : Les fractions » | `validation_status=pending` (**invisible de Massimo**, conforme) |
+| `MissionStep 211/212/213` | **`quiz`(→54) · `eli5` · `vocal_explain`** — l'étape quiz est là |
+
+⚠️ **Le choix de la matière a été REVU en cours d'exécution.** Le plan disait « Anglais », seule
+matière à chunks `validated` — en allant les lire, ce sont **4 chunks d'une transcription YouTube
+de Rick Astley** (données de test ZETIS Clip, cf. docs 3-8). Un quiz de rattrapage 5e bâti dessus
+aurait été auto-validé et atteignable. Le user a tranché : valider **un** document Maths réel
+(fractions) et faire la preuve là. **Sans le plancher RAG, ce chantier aurait servi du charabia.**
+
+### ▶ PROCHAIN PAS
+
+1. **Relire le diff et committer** sur `feat/notion-orpheline-equipable` (je n'ai pas commité le
+   code — convention `/cloture`). Le commit `0ef20af` de `main` (ADR + backlog) **n'est pas poussé**.
+2. Puis PR, puis **étape 4bis** (`docs/WORKFLOW.md §5`) : remettre `MEMORY.md` au réel après merge.
+3. Décider du sort des **artefacts de dev du §10** — je les ai laissés en place et listés
+   ci-dessus. Le document 3 se remet en `pending` d'un clic si vous préférez.
+
+> Le chantier suivant annoncé par le cadrage — **refonte du diagnostic (T0 sur les prérequis,
+> sonde T_n dans les missions)** — a maintenant son prérequis. Il ne commence pas ici.
+
+### ⚠️ DETTES — où elles vivent
+
+- **Celles de l'ADR-0042** ne sont pas ici : elles sont au **`BACKLOG.md`** (§ « Dettes nommées »),
+  sept en tout — les trois du cadrage plus quatre trouvées en lisant, dont la plus sérieuse est le
+  défaut latent **tête-de-liste contre parcours de liste** (`runner.py:300` et `equipment.py:65`
+  prennent `lecons[0]` là où `canonical_context` parcourt toute la liste).
+- **Celles du chantier précédent** sont plus bas, inchangées : **aucune n'a été traitée ici**, et
+  les neuf vérifications dues sur `main` le restent.
+
+---
+
+<details>
+<summary>Chantier précédent — « les engrenages et le dossier changent de dessin, pas de sens »
+(PR #97, mergé le 2026-08-07)</summary>
+
+**COMPLET, vérifié en production réelle par l'humain, ✅ MERGÉ SUR `main`. Ne pas ré-implémenter.**
 
 | | |
 |---|---|
@@ -94,7 +225,9 @@ travaux ont dormi 4 h 50 en file sous un worker actif.
 ⚠️ **Et la base de dev n'a plus aucun gisement de production** (cf. plus bas) : pour rejouer quoi
 que ce soit qui produise, il faudra d'abord rédiger un cours sur une leçon `validated` mais vide.
 
-### ⚠️ DETTES OUVERTES — nées de ce chantier
+</details>
+
+### ⚠️ DETTES OUVERTES — nées du chantier « engrenages et dossier »
 
 - ⚠️ **Je n'ai jamais vu de mes yeux le vol d'une page sur un lot RÉEL.** L'onglet que je pilote est
   resté `hidden` toute la session, donc étranglé. Le rendu a été vu sur **données forcées**, et le
