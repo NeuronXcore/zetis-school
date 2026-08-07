@@ -4,6 +4,49 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Rejeu de scénario — `503` / Redis coupé (ADR-0041 §10) — 2026-08-07
+
+> Dette qui traînait depuis **quatre** chantiers. Jouée sur `main`, hors chantier.
+
+### ✅ Le contrat §10.1 est tenu — et la preuve est un TROU DANS LA SÉQUENCE
+
+Redis arrêté, `POST /api/production/runs` rend **503 en 36 ms** — pas un 500, pas un blocage — avec
+la phrase attendue : « La file de production est injoignable : rien n'a été lancé, et rien n'a été
+créé. » Aucune ligne n'est commitée : 27 lots et 744 `ai_jobs`, identiques à la référence.
+
+🔴 **Le signe qui prouve le rollback** : l'identifiant **49** a été alloué par la tentative puis
+perdu ; la reprise a rendu **50**. Un trou dans la séquence est l'empreinte d'une transaction
+correctement annulée — c'est ce qu'il faut chercher pour vérifier « l'objet n'est pas commité avant
+que son enfilement soit acquis ». Compter les lignes ne suffit pas : il faut regarder la séquence.
+
+`/activity` reste honnête pendant la panne : `worker_alive: false` — pas `null`, pas une valeur
+fausse par accident. La bande affiche donc « ZETIS ne produit pas · aucun moteur de production
+actif », ce qui est exact.
+
+### ⚠️ Ne pas confondre les deux « rejeux »
+
+- **Rejeu au niveau API** — ✅ joué : la même requête rend `202` en 79 ms dès Redis relancé.
+- **Rejeu du §10.2** — ❌ **non joué** : deux tentatives sur échec transitoire **côté worker**
+  (moteur injoignable, timeout), zéro sur échec structurel. L'exercer suppose de rendre Ollama
+  injoignable pendant qu'un travail tourne.
+
+### 🔴 Trois travaux ont dormi 4 h 50 en file sous un worker actif
+
+Découvert par accident en drainant le lot de contrôle : les `ai_jobs` **743-745**, enfilés à 12:06,
+étaient encore `queued` à 16:59 — et se sont exécutés d'un coup au démarrage d'un worker neuf, via
+`scan_triggers`. **Rien à l'écran ne le disait.** C'est précisément ce que le §10.3 (« balayage des
+travaux zombies ») existe pour empêcher. À creuser.
+
+⚠️ **Effet de bord** : ce réveil a créé **6 leçons et rédigé 1 cours**. Démarrer un worker n'est
+donc pas un geste neutre sur cette base — il rejoue tout ce qui dort.
+
+### ⚠️ Le navigateur ment sur la latence
+
+Deux tentatives d'appel depuis Chrome ont expiré à **45 s**, ce qui m'a fait écrire que « la route
+ne tombe pas vite ». C'était faux : la route répond en **36 ms**. Les blocages venaient de l'onglet
+(CDP `Runtime.evaluate` figé), pas du backend. **Mesurer une latence serveur depuis le shell**, ou
+lancer la requête sans l'attendre et relever le résultat ensuite.
+
 ## Chantier `feat/animations-engrenages-dossier` — les deux objets de la bande changent de dessin — 2026-08-07
 
 > Spec : `docs/frontend-papa/bande-de-production.md`, § « Le mouvement » et § « Le dossier de

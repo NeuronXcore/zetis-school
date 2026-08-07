@@ -85,9 +85,11 @@ remontées. Le compte se recoupe ainsi : les listes ci-dessous portent 3 + 8 puc
 pas des vérifications (le flake `test_dashboard`, et la ligne du worker — **éteinte** en fin de
 session), et une en vaut deux (`503` **et** rejeu transitoire).
 
-Ces deux-là **traînent depuis QUATRE chantiers**, et ce sont les deux derniers scénarios de la
-Slice B de l'ADR-0041 : le prochain qui touche la production doit commencer par là, pas par une
-fonctionnalité de plus.
+⚠️ **Mise à jour du 2026-08-07, 17 h** : le scénario **`503` / Redis coupé est JOUÉ et conforme**
+après quatre chantiers d'attente — il sort du compte. Restent donc **neuf** vérifications, dont le
+**§10.2** (deux tentatives sur échec transitoire côté worker), qui est l'autre moitié de la dette et
+demande de rendre Ollama injoignable. Le rejeu a par ailleurs ouvert **un nouveau front** : trois
+travaux ont dormi 4 h 50 en file sous un worker actif.
 
 ⚠️ **Et la base de dev n'a plus aucun gisement de production** (cf. plus bas) : pour rejouer quoi
 que ce soit qui produise, il faudra d'abord rédiger un cours sur une leçon `validated` mais vide.
@@ -104,18 +106,38 @@ que ce soit qui produise, il faudra d'abord rédiger un cours sur une leçon `va
   auto-validées** que Massimo verra — 1 carte (lot 44), une fiche + un quiz + une mindmap sur
   « Réalisme / Naturalisme » (lot 47, chapitre 45), et une fiche + un quiz + une mindmap + 4 cartes
   sur le chapitre 3 (lot 48, contrôle de la recette).
-- ✅ **Après le lot 48, la recette rend 0 sur TOUS les chapitres.** La base de dev n'a plus aucun
-  gisement : le prochain qui voudra voir la production tourner devra créer du contenu neuf
-  (nouveau chapitre, ou rédiger un cours sur une leçon `validated` mais vide).
+- ⚠️ **~~Après le lot 48, la base n'a plus aucun gisement~~ — FAUX depuis 17:00.** Le drainage du
+  lot de contrôle 503 a réveillé, via `scan_triggers`, trois travaux de curriculum en sommeil
+  depuis 12:06 : **6 leçons créées et 1 cours rédigé**. La leçon **141** (« Expressions littérales
+  et vocabulaire », chapitre **11**) a donc un cours écrit et **zéro dérivé**.
+  **La recette y annonce 7 pièces** — 3 dérivés + 4 cartes. C'est le gisement pour qui voudra
+  revoir la production tourner.
+- ⚠️ **Résidus du rejeu 503** : le lot de contrôle **50** (chapitre 21, `generated=0`), plus les
+  **6 leçons et le cours** ci-dessus, produits par le drainage — du curriculum que Papa devra
+  valider. Les 5 autres leçons créées ont un cours **vide**.
+- 🔴 **Trois travaux sont restés `queued` pendant 4 h 50 alors qu'un worker tournait** (743-745,
+  12:06 → exécutés à 16:59 au démarrage d'un worker neuf). Personne ne l'aurait su : rien à
+  l'écran ne le disait. À creuser — c'est précisément ce que le §10.3 (« balayage des zombies »)
+  existe pour empêcher.
 
 ### 🔁 DETTES REMONTÉES du chantier « popover en toutes lettres » (PR #96) à son élagage
 
 > Ses trois premiers contrôles passaient — ADR-0041 §23 ✅, section `TROUBLESHOOTING.md` ✅,
 > `CHANGELOG.md` 0.56.0 ✅. Le **quatrième** a rapporté ceci, revérifié avant remontée.
 
-- 🔴 **`503` / Redis coupé et rejeu transitoire : TOUJOURS jamais joués.** Ils traînent maintenant
-  depuis **quatre** chantiers. Ce sont les deux derniers scénarios de la Slice B de l'ADR-0041.
-  **Le prochain qui touche la production devrait commencer par là, pas par une fonctionnalité.**
+- ✅ **`503` / Redis coupé : JOUÉ ET CONFORME (2026-08-07).** Après quatre chantiers d'attente.
+  Redis arrêté, `POST /production/runs` rend **503 en 36 ms** (pas 500, pas un blocage) avec la
+  phrase attendue : « La file de production est injoignable : rien n'a été lancé, et rien n'a été
+  créé. » Et surtout **aucune ligne commitée** — 27 lots et 744 `ai_jobs`, identiques à la
+  référence. 🔴 **La preuve la plus nette est un TROU DANS LA SÉQUENCE** : l'id 49 a été alloué par
+  la tentative puis annulé, la reprise a rendu 50. C'est exactement le §10.1 (« l'objet n'est pas
+  commité avant que son enfilement soit acquis »). `/activity` reste honnête pendant la panne :
+  `worker_alive: **false**`, pas `null`.
+  **Rejeu au niveau API : conforme** — la même requête rend 202 en 79 ms dès Redis relancé.
+- 🔴 **Le rejeu du §10.2 n'est PAS joué** — ne pas confondre avec le précédent. §10.2 exige **deux
+  tentatives** sur échec **transitoire côté worker** (moteur injoignable, timeout) et **zéro** sur
+  échec structurel. L'exercer suppose de rendre Ollama injoignable pendant qu'un travail tourne,
+  donc de toucher un service de l'hôte. **C'est la moitié de la dette qui reste ouverte.**
 - ⚠️ **Le chemin automatique complet d'un refus `already_produced` n'a pas été joué** —
   `scan_requests` est bloqué **avant** le régulateur par le gate de régime, donc ce refus n'est
   persistable qu'en mode autonome.
