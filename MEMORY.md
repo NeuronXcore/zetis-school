@@ -305,9 +305,19 @@ par là, pas par une fonctionnalité de plus.
   aucune n'a été cliquée jusqu'au bout sur la base de dev, volontairement : `equip-notion` génère et
   auto-valide un kit entier. **À jouer une fois, en connaissance du coût.**
 
-- 🔴 **La migration `f7a8b9c0d1e2` n'est appliquée qu'en DEV**, et **aucun test ne l'exerce**.
-  Additive, sans backfill (`NULL` = rapport global) — mais toute autre base devra recevoir
-  `alembic upgrade head`.
+- ✅ **La dette « migration appliquée en DEV seulement » est SOLDÉE (2026-08-07).** Elle traînait
+  sur `f7a8b9c0d1e2` et sur une dizaine d'autres. La base **prod-like** (`zetis-prod_postgres_data`)
+  était restée à `e1f2a3b4c5d6`, soit **32 migrations de retard** — arrêtée au 4 juillet, alors que
+  `main` avait avancé d'une dizaine de chantiers. `alembic upgrade head` l'a portée à
+  `e7f8a9b0c1d2` : **403 colonnes et tous les index identiques au dev**, données intactes
+  (476 notions, 119 leçons, 111 `ai_jobs`). Sauvegarde préalable dans `~/zetis-backups/`.
+  ⚠️ `f7a8b9c0d1e2` reste **non exercée par un test** — c'est l'autre moitié de la dette, elle,
+  toujours ouverte.
+  ⚠️ **Le postgres prod ne publie AUCUN port** (`docker-compose.prod.yml`) : c'est ce qui permet de
+  le démarrer seul, sans bousculer le dev qui occupe 5432. Pour y lancer alembic depuis l'hôte, le
+  publier temporairement via un fichier d'override (`ports: ["5433:5432"]`) — le volume nommé
+  survit à la recréation du conteneur. **Discriminant obligatoire avant tout `upgrade`** :
+  `alembic current` doit répondre la révision de la PROD, jamais celle du dev.
 - ⚠️ **`Gap.subject_id` et `Skill.subject_id` peuvent diverger.** Le dashboard, `/lacunes` et le
   panneau attribuent par la colonne du `Gap` ; le Conseil groupe par la matière de la NOTION.
   L'écriture ne les contraint pas (`diagnostics` écrit `subject_id=quiz.subject_id`). L'écart est
