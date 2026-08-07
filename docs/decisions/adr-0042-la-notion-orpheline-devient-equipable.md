@@ -2,7 +2,18 @@
 
 ## Statut
 
-Proposé — 2026-08-07.
+**Accepté — 2026-08-07.** Les cinq décisions sont **gelées** : le quiz notion-ancré comme dernier
+recours, le plancher de source, l'ouverture des quatre autres portes pour la seule pièce `quiz`,
+la levée du filtre de niveau d'`orphan_notions`, et la liste de ce qui ne change pas (§6).
+
+> Historique : Proposé — 2026-08-07, **le même jour**. Le chantier a été cadré, instruit,
+> exécuté, vérifié à l'écran et joué en réel dans la même session ; le § « Corrections à
+> l'exécution » plus bas dit ce que l'exécution a démenti — **aucune décision n'a bougé**, et
+> c'est ce qui autorise l'acceptation sans délai.
+
+⚠️ **Accepté ≠ livré.** La décision est figée ; l'implémentation vit dans la PR
+[#98](https://github.com/NeuronXcore/zetis-school/pull/98), **encore ouverte et en attente de
+relecture visuelle humaine**. Ne pas lire ce statut comme « c'est en place sur `main` ».
 
 > S'appuie sur : `adr-0011 §1` (le substrat canonique partagé et **sa cascade de dégradation** —
 > c'est la pièce maîtresse de cette décision), `adr-0010` (la génération « skills-only » crée des
