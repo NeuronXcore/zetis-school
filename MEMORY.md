@@ -7,19 +7,21 @@
 
 ## État à la reprise
 
-**Chantier : « la notion orpheline devient équipable » (ADR-0042). COMPLET, vérifié à l'écran ET
-en exécution réelle. Tout est poussé — PR [#98](https://github.com/NeuronXcore/zetis-school/pull/98)
-OUVERTE, en attente de relecture humaine.**
+**Chantier : « la notion orpheline devient équipable » (ADR-0042). COMPLET, ✅ MERGÉ SUR `main`
+(2026-08-07). Ne pas ré-implémenter.**
 
-🔴 **NE PAS SUPPRIMER LA BRANCHE `feat/notion-orpheline-equipable` après le merge.** Consigne
-explicite du user (2026-08-07) : **la prochaine session portera sur le DESIGN et le MOCKUP de la
-page Diagnostic**, et cette branche lui sert de point de départ. C'est l'exception à l'étape 4bis
-du `docs/WORKFLOW.md §5`, qui fait normalement supprimer la branche locale et distante.
+🔴 **LA BRANCHE `feat/notion-orpheline-equipable` EST CONSERVÉE — NE PAS LA SUPPRIMER.** Consigne
+explicite du user : **la prochaine session porte sur le DESIGN et le MOCKUP de la page
+Diagnostic**, et cette branche lui sert de point de départ. C'est une **exception assumée** à
+l'étape 4bis du `docs/WORKFLOW.md §5`, qui fait normalement supprimer la branche locale et
+distante. Vérifié après merge : **présente en local ET sur `origin`**
+(`delete_branch_on_merge: false` sur le dépôt, donc aucun risque de suppression automatique).
 
 | | |
 |---|---|
-| **Sur `main`** | ADR-0042 (`0ef20af`) + ses corrections à l'exécution (`f0fed31`) — **poussés**, `origin/main` = `f0fed31` |
-| **Branche** | `feat/notion-orpheline-equipable` — `c84a453` (code + tests) et `6269325` (ce fichier), **poussés**. À **conserver** |
+| **Mergé** | PR [#98](https://github.com/NeuronXcore/zetis-school/pull/98), **squash `94ca955`**, base `4e2b1f7`. Branche **CONSERVÉE** |
+| **État git** | `main` = `origin/main` = `94ca955` — **rien à pousser**. Quatre commits sur `main` en tout : ADR (`0ef20af`), corrections (`f0fed31`), Accepté (`4e2b1f7`), squash (`94ca955`) |
+| **Décision** | ADR-0042 **Accepté** — figé avant le merge, le statut porte lui-même « Accepté ≠ livré » |
 | **Migrations** | **AUCUNE.** `quizzes.lesson_id`/`chapter_id` étaient déjà nullables et `quiz_questions.skill_id` portait déjà l'attribution |
 | **Suites** | Backend **1005 ✅** (999 avant, +6) · Papa `tsc -b` **EXIT=0** + build ✅ · Massimo non touché |
 | **Vérifié à l'écran** | page Programme (la notion de 5e apparaît **avec son niveau**) et page Missions (`❓→💡→🎙`, trois étapes) |
@@ -120,10 +122,12 @@ aurait été auto-validé et atteignable. Le user a tranché : valider **un** do
 
 ### ▶ PROCHAIN PAS
 
-1. 🔴 **Relecture visuelle humaine de la PR #98.** C'est le seul contrôle qui manque. Précédent qui
-   justifie l'insistance : **#79, #89 et #91 ont été mergées sans qu'un œil humain ait vu l'écran.**
-   J'ai vérifié moi-même (page Programme, page Missions) — ce n'est pas la même chose.
-2. **Merger**, puis **NE PAS SUPPRIMER LA BRANCHE** (voir l'encadré du haut).
+1. 🔴 **La relecture visuelle humaine N'A PAS EU LIEU** — merge sur instruction directe.
+   **4ᵉ occurrence du motif**, après #79, #89 et #91. J'ai vérifié moi-même les deux écrans
+   (Programme, Missions) et joué la chaîne en réel, mais **ce n'est pas la même chose** et la
+   dette de vérification humaine reste ouverte sur ce chantier comme sur les trois précédents.
+2. ~~Merger sans supprimer la branche~~ — **fait**, squash `94ca955`, branche vérifiée présente
+   en local et sur `origin`.
 3. ~~Décider du sort des artefacts de dev du §10~~ — **tranché** : le `RagDocument 3` est **remis
    en `pending`**, les quatre autres objets (`Skill 436`, `Quiz 54`, `Gap 2`, `Mission 56`) sont
    **conservés**. Ils restent cohérents entre eux — le quiz existant fait répondre « déjà produit »
@@ -141,6 +145,24 @@ aurait été auto-validé et atteignable. Le user a tranché : valider **un** do
 cadrage de l'ADR-0042 (T0 sur les prérequis, sonde T_n dans les missions), dont **le présent
 chantier était le prérequis** : une lacune ouverte sur une notion de niveau antérieur peut
 désormais se refermer.
+
+🔴 **LE T0 N'EST PAS FAIT, ET N'A PAS ÉTÉ ENTAMÉ.** C'était un **hors-périmètre explicite** de
+l'ADR-0042 (§Périmètre : *« le module `diagnostics` et sa refonte T0 / T_n »*). Rien du module
+`diagnostics` n'a été touché — ni la sélection des notions, ni le routage par `Skill.level`, ni la
+notion même de T0. Ce chantier a rendu le T0 **possible**, il ne l'a pas commencé.
+
+Ce qui manque au T0, et que le read-before-code a établi au passage :
+
+- **`diagnostics/service.py` n'a aucune notion de prérequis.** Il sélectionne
+  `select(Skill).where(Skill.subject_id == …)` plafonné à `MAX_SKILLS`, **sans filtre de leçon,
+  sans ordre pédagogique, sans niveau**. Un T0 « sur les prérequis » suppose de savoir ce qui
+  précède quoi.
+- ⚠️ **Le graphe de prérequis N'EXISTE PAS.** `Skill.prerequisite_skill_ids` n'est ni une colonne
+  ni une table (`DATA_MODEL.md:168` l'annonce à tort — dette au `BACKLOG.md`), et
+  `parent_skill_id` est **NULL sur les 432 notions**. C'est le vrai obstacle du T0, et il est
+  **pédagogique avant d'être technique** : il faut décider d'où vient l'ordre des prérequis.
+- **`Skill.level` est le seul discriminant disponible** aujourd'hui (`missions/service.py`,
+  branche rattrapage `Skill.level != year.level`). Il dit le niveau, pas la dépendance.
 
 ⚠️ **Rituel de décision du dépôt** (`CLAUDE.md`) : `mockup → spec → ADR → prompt`. La prochaine
 session commence donc par le **mockup**, pas par du code. Ne pas partir sur `/ouverture` tant que
