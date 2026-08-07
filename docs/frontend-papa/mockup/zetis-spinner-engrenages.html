@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZETIS — Spinner deux engrenages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   LE SPINNER — tout tient ici. Aucune dépendance, aucun JS.
+   Il se colore par `currentColor` : une seule brique pour Papa
+   (émeraude) et pour Massimo (cyan), sans variante à maintenir.
+   ═══════════════════════════════════════════════════════════════ */
+.zx-gears{
+  display:inline-block;
+  width:1.6em;height:1.6em;          /* dimensionné en em → suit la typo */
+  vertical-align:-.35em;
+  color:inherit;
+  flex:0 0 auto;
+}
+.zx-gears svg{display:block;width:100%;height:100%;overflow:visible}
+
+.zx-gears__a,.zx-gears__b{
+  fill:currentColor;
+  transform-box:fill-box;            /* ⚠️ sans lui, Safari fait tourner autour de (0,0) du SVG */
+  transform-origin:50% 50%;
+}
+/* 12 dents contre 8 → rapport 1,5 → 3 s contre 2 s. Le sens s'inverse.
+   Ce n'est pas un réglage esthétique : c'est ce qui fait que les dents
+   restent engrenées tout du long au lieu de se traverser. */
+.zx-gears__a{ animation:zx-cw  3s linear infinite; }
+.zx-gears__b{ animation:zx-ccw 2s linear infinite; opacity:.62; }
+
+@keyframes zx-cw { to{ transform:rotate(360deg) } }
+@keyframes zx-ccw{ to{ transform:rotate(-360deg) } }
+
+/* halo optionnel — jamais sur les petites tailles, il devient une tache */
+.zx-gears--glow{ filter:drop-shadow(0 0 .35em currentColor) }
+
+/* état ARRÊTÉ — grammaire ZETIS déjà en place : une file sans moteur
+   n'est pas une attente, c'est un arrêt. L'immobilité EST le message. */
+.zx-gears--stopped .zx-gears__a,
+.zx-gears--stopped .zx-gears__b{ animation-play-state:paused }
+.zx-gears--stopped{ color:var(--amber); opacity:.9 }
+
+/* fige sans rien retirer — patron `couverture-breathe` */
+@media (prefers-reduced-motion:reduce){
+  .zx-gears__a,.zx-gears__b{ animation:none }
+}
+body.rm .zx-gears__a, body.rm .zx-gears__b{ animation:none !important }
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGE DE DÉMO (hors livrable)
+   ═══════════════════════════════════════════════════════════════ */
+:root{ --amber:#f0a02a }
+*{box-sizing:border-box}
+body{
+  margin:0;background:#05100c;color:#dcebe5;
+  font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1000px;margin:0 auto;padding:44px 28px 90px}
+h1{
+  font-family:'Syncopate',sans-serif;font-weight:700;font-size:19px;letter-spacing:.16em;
+  margin:0 0 4px;color:#e8fbf3;
+}
+.sub{color:#6d8c82;font-size:12.5px;margin:0 0 38px;letter-spacing:.02em}
+h2{
+  font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#5d786f;
+  font-weight:600;margin:44px 0 14px;
+}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+.hero{
+  display:flex;align-items:center;justify-content:center;gap:34px;
+  padding:52px 24px;border:1px solid #163027;border-radius:16px;
+  background:radial-gradient(120% 150% at 50% 0%,rgba(16,185,129,.10),transparent 62%),#0a1713;
+}
+.hero .zx-gears{font-size:44px;color:#2dd4bf}
+
+.themes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:720px){.themes{grid-template-columns:1fr}}
+.theme{border-radius:14px;padding:26px;border:1px solid}
+.theme--papa{background:#0a1713;border-color:#173328;color:#10b981}
+.theme--massimo{
+  background:linear-gradient(150deg,#0d0f22,#140f26);border-color:#2a2450;color:#22d3ee;
+}
+.theme__t{
+  font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;
+  opacity:.55;margin-bottom:18px;
+}
+.theme__row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.theme__row .zx-gears{font-size:30px}
+.theme__cap{font-size:12.5px;color:inherit;opacity:.85}
+
+.scale{display:flex;align-items:flex-end;gap:30px;flex-wrap:wrap;color:#2dd4bf}
+.scale figure{margin:0;text-align:center}
+.scale figcaption{font-size:10.5px;color:#5d786f;margin-top:9px;letter-spacing:.03em}
+
+.ctx{display:flex;flex-direction:column;gap:12px}
+.btn{
+  display:inline-flex;align-items:center;gap:9px;align-self:flex-start;
+  background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.34);
+  color:#a7ecd0;border-radius:9px;padding:9px 16px;font:inherit;font-size:13px;cursor:default;
+}
+.btn .zx-gears{font-size:15px}
+.inline{color:#9db8ae;font-size:13.5px}
+.inline .zx-gears{font-size:14px;color:#2dd4bf}
+.card{
+  border:1px solid #163027;background:#0a1713;border-radius:12px;padding:22px;
+  display:flex;flex-direction:column;align-items:center;gap:12px;max-width:330px;
+}
+.card .zx-gears{font-size:34px;color:#2dd4bf}
+.card b{font-weight:600;color:#cfe9df;font-size:13.5px}
+.card span{font-size:12px;color:#5d786f}
+.strip{
+  display:flex;align-items:center;gap:12px;
+  border:1px solid #163027;border-top-color:#1b3a2f;border-radius:10px;
+  background:#081210;padding:9px 14px;
+}
+.strip .zx-gears{font-size:20px;color:#2dd4bf}
+.strip .bar{
+  flex:1;height:5px;border-radius:99px;background:#122a23;overflow:hidden;position:relative;
+}
+.strip .bar i{
+  position:absolute;inset:0 62% 0 0;border-radius:99px;
+  background:linear-gradient(90deg,#0b6b4d,#10b981 55%,#2dd4bf);
+}
+.strip .lbl{font-size:12px;color:#9db8ae;white-space:nowrap}
+.strip--stop{background:#140f05;border-color:#3a2c10}
+.strip--stop .lbl{color:#f0a02a}
+
+.notes{color:#7e968d;font-size:13px}
+.notes p{margin:0 0 11px}
+.notes b{color:#cfe9df;font-weight:600}
+.notes code{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;
+  background:#0e1f1a;border:1px solid #163027;border-radius:4px;padding:1px 5px;color:#9fd8bf;
+}
+.warn{border-left:2px solid var(--amber);padding-left:12px;color:#d3bd94}
+pre{
+  background:#081511;border:1px solid #163027;border-radius:10px;padding:16px 18px;
+  overflow:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.65;
+  color:#a8c9bd;
+}
+pre .k{color:#7fe0c0}
+pre .c{color:#4e6b62}
+.toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#7e968d;margin:16px 0 0}
+.toggle input{accent-color:#10b981}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>SPINNER · DEUX ENGRENAGES</h1>
+  <p class="sub">Une brique, deux thèmes, zéro dépendance — <span class="mono">packages/ui</span></p>
+
+  <div class="hero">
+    <!-- ══ LE COMPOSANT ══════════════════════════════════════════ -->
+    <span class="zx-gears zx-gears--glow" role="status" aria-label="Chargement en cours">
+      <svg viewBox="0 0 19.9 19.9" fill-rule="evenodd" aria-hidden="true" focusable="false">
+        <path class="zx-gears__a" d="M12.289 6.626 L14.329 6.855 A6.950 6.950 0 0 1 14.329 7.945 L12.289 8.174 A4.950 4.950 0 0 1 12.021 9.174 L13.673 10.392 A6.950 6.950 0 0 1 13.128 11.337 L11.247 10.515 A4.950 4.950 0 0 1 10.515 11.247 L11.337 13.128 A6.950 6.950 0 0 1 10.392 13.673 L9.174 12.021 A4.950 4.950 0 0 1 8.174 12.289 L7.945 14.329 A6.950 6.950 0 0 1 6.855 14.329 L6.626 12.289 A4.950 4.950 0 0 1 5.626 12.021 L4.408 13.673 A6.950 6.950 0 0 1 3.463 13.128 L4.285 11.247 A4.950 4.950 0 0 1 3.553 10.515 L1.672 11.337 A6.950 6.950 0 0 1 1.127 10.392 L2.779 9.174 A4.950 4.950 0 0 1 2.511 8.174 L0.471 7.945 A6.950 6.950 0 0 1 0.471 6.855 L2.511 6.626 A4.950 4.950 0 0 1 2.779 5.626 L1.127 4.408 A6.950 6.950 0 0 1 1.672 3.463 L3.553 4.285 A4.950 4.950 0 0 1 4.285 3.553 L3.463 1.672 A6.950 6.950 0 0 1 4.408 1.127 L5.626 2.779 A4.950 4.950 0 0 1 6.626 2.511 L6.855 0.471 A6.950 6.950 0 0 1 7.945 0.471 L8.174 2.511 A4.950 4.950 0 0 1 9.174 2.779 L10.392 1.127 A6.950 6.950 0 0 1 11.337 1.672 L10.515 3.553 A4.950 4.950 0 0 1 11.247 4.285 L13.128 3.463 A6.950 6.950 0 0 1 13.673 4.408 L12.021 5.626 A4.950 4.950 0 0 1 12.289 6.626 Z M9.920 7.400 A2.520 2.520 0 1 0 4.880 7.400 A2.520 2.520 0 1 0 9.920 7.400 Z"/>
+        <path class="zx-gears__b" d="M17.340 13.782 L19.387 13.889 A4.950 4.950 0 0 1 19.387 15.053 L17.340 15.160 A2.950 2.950 0 0 1 16.986 16.012 L18.358 17.536 A4.950 4.950 0 0 1 17.536 18.358 L16.012 16.986 A2.950 2.950 0 0 1 15.160 17.340 L15.053 19.387 A4.950 4.950 0 0 1 13.889 19.387 L13.782 17.340 A2.950 2.950 0 0 1 12.930 16.986 L11.407 18.358 A4.950 4.950 0 0 1 10.584 17.536 L11.956 16.012 A2.950 2.950 0 0 1 11.603 15.160 L9.555 15.053 A4.950 4.950 0 0 1 9.555 13.889 L11.603 13.782 A2.950 2.950 0 0 1 11.956 12.930 L10.584 11.407 A4.950 4.950 0 0 1 11.407 10.584 L12.930 11.956 A2.950 2.950 0 0 1 13.782 11.603 L13.889 9.555 A4.950 4.950 0 0 1 15.053 9.555 L15.160 11.603 A2.950 2.950 0 0 1 16.012 11.956 L17.536 10.584 A4.950 4.950 0 0 1 18.358 11.407 L16.986 12.930 A2.950 2.950 0 0 1 17.340 13.782 Z M16.151 14.471 A1.680 1.680 0 1 0 12.791 14.471 A1.680 1.680 0 1 0 16.151 14.471 Z"/>
+      </svg>
+    </span>
+    <div>
+      <div style="font-size:13px;color:#cfe9df">12 dents contre 8</div>
+      <div style="font-size:12px;color:#5d786f">rapport 1,5 — 3 s / 2 s, sens inversés</div>
+    </div>
+  </div>
+
+  <h2>Un composant, deux identités</h2>
+  <div class="themes">
+    <div class="theme theme--papa">
+      <div class="theme__t">Papa · émeraude</div>
+      <div class="theme__row">
+        <span class="zx-gears" role="status" aria-label="Chargement">
+          <svg viewBox="0 0 19.9 19.9" fill-rule="evenodd" aria-hidden="true"><use href="#ga"/><use href="#gb"/></svg>
+        </span>
+        <span class="theme__cap">ZETIS produit — Fractions</span>
+      </div>
+    </div>
+    <div class="theme theme--massimo">
+      <div class="theme__t">Massimo · cyan</div>
+      <div class="theme__row">
+        <span class="zx-gears" role="status" aria-label="Chargement">
+          <svg viewBox="0 0 19.9 19.9" fill-rule="evenodd" aria-hidden="true"><use href="#ga"/><use href="#gb"/></svg>
+        </span>
+        <span class="theme__cap">ZETIS réfléchit…</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Il suit la typo</h2>
+  <div class="scale">
+    <figure><span class="zx-gears" style="font-size:13px"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd" aria-hidden="true"><use href="#ga"/><use href="#gb"/></svg></span><figcaption>13 px</figcaption></figure>
+    <figure><span class="zx-gears" style="font-size:18px"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd" aria-hidden="true"><use href="#ga"/><use href="#gb"/></svg></span><figcaption>18 px</figcaption></figure>
+    <figure><span class="zx-gears" style="font-size:26px"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd" aria-hidden="true"><use href="#ga"/><use href="#gb"/></svg></span><figcaption>26 px</figcaption></figure>
+    <figure><span class="zx-gears" style="font-size:40px"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd" aria-hidden="true"><use href="#ga"/><use href="#gb"/></svg></span><figcaption>40 px</figcaption></figure>
+    <figure><span class="zx-gears zx-gears--glow" style="font-size:56px"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd" aria-hidden="true"><use href="#ga"/><use href="#gb"/></svg></span><figcaption>56 px · halo</figcaption></figure>
+  </div>
+
+  <h2>En situation</h2>
+  <div class="ctx">
+    <button class="btn" disabled>
+      <span class="zx-gears" aria-hidden="true"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd"><use href="#ga"/><use href="#gb"/></svg></span>
+      Rédaction du cours…
+    </button>
+
+    <p class="inline">
+      <span class="zx-gears" aria-hidden="true"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd"><use href="#ga"/><use href="#gb"/></svg></span>
+      Aligné sur la ligne de texte, sans la faire sauter.
+    </p>
+
+    <div class="card">
+      <span class="zx-gears zx-gears--glow" role="status" aria-label="Génération en cours"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd" aria-hidden="true"><use href="#ga"/><use href="#gb"/></svg></span>
+      <b>ZETIS fabrique la fiche</b>
+      <span>Théorème de Pythagore</span>
+    </div>
+
+    <div class="strip">
+      <span class="zx-gears" aria-hidden="true"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd"><use href="#ga"/><use href="#gb"/></svg></span>
+      <span class="lbl">Fractions · chapitre</span>
+      <span class="bar"><i></i></span>
+      <span class="lbl mono">7 / 19</span>
+    </div>
+
+    <div class="strip strip--stop">
+      <span class="zx-gears zx-gears--stopped" aria-hidden="true"><svg viewBox="0 0 19.9 19.9" fill-rule="evenodd"><use href="#ga"/><use href="#gb"/></svg></span>
+      <span class="lbl">ZETIS ne produit pas — aucun moteur actif</span>
+    </div>
+  </div>
+
+  <label class="toggle"><input type="checkbox" id="rm"> simuler <code>prefers-reduced-motion</code></label>
+
+  <h2>Ce que la forme décide</h2>
+  <div class="notes">
+    <p><b>Les dents engrènent vraiment.</b> 12 dents contre 8, donc un rapport de 1,5, donc 3 s
+    contre 2 s en sens inversés — et les tracés sont calculés sur un même module, avec une dent de
+    la petite roue posée dans un creux de la grande sur la ligne des centres. Ce n'est pas de la
+    coquetterie : deux roues qui tournent à la même vitesse se <i>traversent</i> visuellement, et
+    l'œil le voit sans savoir nommer ce qui cloche.</p>
+
+    <p><b>Une brique, pas deux.</b> Tout est en <code>currentColor</code> : émeraude chez Papa, cyan
+    chez Massimo, ambre à l'arrêt. Aucune variante de thème à maintenir, aucun risque qu'une des
+    deux dérive au prochain correctif.</p>
+
+    <p><b>Dimensionné en <code>em</code>.</b> Posé dans un bouton il prend la taille du bouton ;
+    posé dans une phrase il s'aligne sur la ligne de base sans la faire sauter. Aucune prop de
+    taille à passer, donc aucune taille à harmoniser entre 23 surfaces — le défaut qu'on vient
+    justement de payer avec les durées en dur.</p>
+
+    <p><b>L'arrêt est un état, pas une absence.</b> Les roues s'immobilisent et passent en ambre.
+    C'est la grammaire déjà en place : une file sans consommateur n'est pas une attente, c'est un
+    arrêt — et l'immobilité se lit avant le texte.</p>
+
+    <p class="warn"><b><code>transform-box: fill-box</code> n'est pas optionnel.</b> Sans lui, WebKit
+    fait tourner chaque roue autour de l'origine du SVG et non de son propre centre : les deux
+    engrenages partent en orbite. Le défaut ne se voit pas sur Chrome — donc pas en développement,
+    seulement sur l'iPad de Massimo.</p>
+
+    <p><b>Zéro dépendance, zéro JS.</b> Deux tracés et deux <code>@keyframes</code>. Il peut vivre
+    dans le chrome de Papa sans toucher au budget de bundle.</p>
+
+    <p><b>Accessibilité.</b> <code>role="status"</code> + <code>aria-label</code> sur l'enveloppe,
+    <code>aria-hidden</code> sur le SVG. Décoratif à côté d'un texte qui dit déjà l'attente
+    (« Rédaction du cours… ») : dans ce cas c'est l'enveloppe qui devient
+    <code>aria-hidden</code>, sinon le lecteur d'écran annonce deux fois.</p>
+  </div>
+
+  <h2>Intégration</h2>
+  <pre><span class="c">// packages/ui/src/components/gears-spinner.tsx</span>
+&lt;<span class="k">GearsSpinner</span> /&gt;                            <span class="c">// hérite couleur + taille</span>
+&lt;<span class="k">GearsSpinner</span> glow /&gt;                       <span class="c">// halo — ≥ 24 px seulement</span>
+&lt;<span class="k">GearsSpinner</span> stopped /&gt;                    <span class="c">// figé, ambre : aucun moteur</span>
+&lt;<span class="k">GearsSpinner</span> label=<span class="k">"Rédaction du cours"</span> /&gt;  <span class="c">// nom accessible</span>
+&lt;<span class="k">GearsSpinner</span> decorative /&gt;                 <span class="c">// à côté d'un texte qui le dit déjà</span></pre>
+
+  <!-- symboles réutilisés par toutes les instances ci-dessus -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <path id="ga" class="zx-gears__a" d="M12.289 6.626 L14.329 6.855 A6.950 6.950 0 0 1 14.329 7.945 L12.289 8.174 A4.950 4.950 0 0 1 12.021 9.174 L13.673 10.392 A6.950 6.950 0 0 1 13.128 11.337 L11.247 10.515 A4.950 4.950 0 0 1 10.515 11.247 L11.337 13.128 A6.950 6.950 0 0 1 10.392 13.673 L9.174 12.021 A4.950 4.950 0 0 1 8.174 12.289 L7.945 14.329 A6.950 6.950 0 0 1 6.855 14.329 L6.626 12.289 A4.950 4.950 0 0 1 5.626 12.021 L4.408 13.673 A6.950 6.950 0 0 1 3.463 13.128 L4.285 11.247 A4.950 4.950 0 0 1 3.553 10.515 L1.672 11.337 A6.950 6.950 0 0 1 1.127 10.392 L2.779 9.174 A4.950 4.950 0 0 1 2.511 8.174 L0.471 7.945 A6.950 6.950 0 0 1 0.471 6.855 L2.511 6.626 A4.950 4.950 0 0 1 2.779 5.626 L1.127 4.408 A6.950 6.950 0 0 1 1.672 3.463 L3.553 4.285 A4.950 4.950 0 0 1 4.285 3.553 L3.463 1.672 A6.950 6.950 0 0 1 4.408 1.127 L5.626 2.779 A4.950 4.950 0 0 1 6.626 2.511 L6.855 0.471 A6.950 6.950 0 0 1 7.945 0.471 L8.174 2.511 A4.950 4.950 0 0 1 9.174 2.779 L10.392 1.127 A6.950 6.950 0 0 1 11.337 1.672 L10.515 3.553 A4.950 4.950 0 0 1 11.247 4.285 L13.128 3.463 A6.950 6.950 0 0 1 13.673 4.408 L12.021 5.626 A4.950 4.950 0 0 1 12.289 6.626 Z M9.920 7.400 A2.520 2.520 0 1 0 4.880 7.400 A2.520 2.520 0 1 0 9.920 7.400 Z"/>
+      <path id="gb" class="zx-gears__b" d="M17.340 13.782 L19.387 13.889 A4.950 4.950 0 0 1 19.387 15.053 L17.340 15.160 A2.950 2.950 0 0 1 16.986 16.012 L18.358 17.536 A4.950 4.950 0 0 1 17.536 18.358 L16.012 16.986 A2.950 2.950 0 0 1 15.160 17.340 L15.053 19.387 A4.950 4.950 0 0 1 13.889 19.387 L13.782 17.340 A2.950 2.950 0 0 1 12.930 16.986 L11.407 18.358 A4.950 4.950 0 0 1 10.584 17.536 L11.956 16.012 A2.950 2.950 0 0 1 11.603 15.160 L9.555 15.053 A4.950 4.950 0 0 1 9.555 13.889 L11.603 13.782 A2.950 2.950 0 0 1 11.956 12.930 L10.584 11.407 A4.950 4.950 0 0 1 11.407 10.584 L12.930 11.956 A2.950 2.950 0 0 1 13.782 11.603 L13.889 9.555 A4.950 4.950 0 0 1 15.053 9.555 L15.160 11.603 A2.950 2.950 0 0 1 16.012 11.956 L17.536 10.584 A4.950 4.950 0 0 1 18.358 11.407 L16.986 12.930 A2.950 2.950 0 0 1 17.340 13.782 Z M16.151 14.471 A1.680 1.680 0 1 0 12.791 14.471 A1.680 1.680 0 1 0 16.151 14.471 Z"/>
+    </defs>
+  </svg>
+</div>
+
+<script>
+document.getElementById('rm').addEventListener('change', e => {
+  document.body.classList.toggle('rm', e.target.checked);
+});
+</script>
+</body>
+</html>
