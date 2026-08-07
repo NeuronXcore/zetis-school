@@ -26,6 +26,7 @@ from app.db.models import (
     LessonSkill,
     Mindmap,
     Quiz,
+    QuizQuestion,
     Skill,
     SpacedReviewCard,
 )
@@ -80,14 +81,87 @@ def _existing_mindmap(db: Session, lesson_id: int) -> Mindmap | None:
 
 
 def _has_mission_quiz(db: Session, skill_id: int) -> bool:
-    """Un quiz de mission existe déjà pour la notion (tout statut) — pas de régénération."""
+    """Un quiz de mission existe déjà pour la notion (tout statut) — pas de régénération.
+
+    ⚠️ **Deux ancrages, deux lectures** (ADR-0042) : le quiz porté par la leçon de la notion, et
+    celui porté par la notion elle-même. N'en lire qu'un rendrait ce prédicat **toujours faux**
+    pour une notion orpheline — et le lot régénérerait son quiz à chaque passage, en silence et
+    en payant le GPU. Le défaut aurait été invisible : rien ne rougit quand on produit deux fois.
+    """
+    par_lecon = db.scalar(
+        select(Quiz.id)
+        .join(LessonSkill, LessonSkill.lesson_id == Quiz.lesson_id)
+        .where(Quiz.quiz_type == "mission", LessonSkill.skill_id == skill_id)
+    )
+    if par_lecon:
+        return True
+    # ⚠️ **L'ancrage notion n'est consulté que pour une notion ORPHELINE**, et cette condition
+    # n'est pas une précaution décorative : elle a été ajoutée après la vérification réelle du
+    # 2026-08-07. La base de dev porte un quiz `mission` **`draft`, `lesson_id IS NULL`**, hérité
+    # d'un vieux jeu de données, dont les questions visent une notion qui, elle, A une leçon.
+    # Sans ce garde, ce quiz-là aurait fait répondre « déjà produit » sur le chemin NORMAL —
+    # `equip_notion` aurait cessé de générer le quiz d'une notion parfaitement équipable, en
+    # silence. La contre-épreuve ne l'avait pas vu : sa fixture n'a pas de quiz sans leçon.
+    if lessons_of_skill(db, skill_id):
+        return False
     return bool(
         db.scalar(
             select(Quiz.id)
-            .join(LessonSkill, LessonSkill.lesson_id == Quiz.lesson_id)
-            .where(Quiz.quiz_type == "mission", LessonSkill.skill_id == skill_id)
+            .join(QuizQuestion, QuizQuestion.quiz_id == Quiz.id)
+            .where(
+                Quiz.quiz_type == "mission",
+                Quiz.lesson_id.is_(None),
+                QuizQuestion.skill_id == skill_id,
+            )
         )
     )
+
+
+def _quiz_ancre_notion(
+    db: Session,
+    *,
+    skill_id: int,
+    llm,
+    embedder,
+    on_piece: Callable[[str], None] | None = None,
+) -> tuple[str, str | None]:
+    """Produit le quiz d'une notion qu'AUCUNE leçon ne porte (ADR-0042). Rend `(issue, motif)`.
+
+    `issue` ∈ `{"generated", "skipped", "error"}` — même vocabulaire que le journal du lot.
+
+    Écrit UNE fois et appelée par les deux chemins d'équipement : la double écriture des appels
+    générateurs est une dette connue (BACKLOG), on ne lui ajoute pas une troisième copie.
+
+    ⚠️ **Le rappel de position est émis ICI, pas chez l'appelant**, et c'est délibéré. Le verrou
+    `test_equip_notion_signale_ses_pieces_dans_l_ordre_de_PIECES` lit **lexicalement** les
+    appels à `_signale` d'`equip_notion` pour vérifier que l'ordre de fabrication du kit est celui
+    de `PIECES` — sans quoi la barre reculerait. Un sixième littéral posé dans la branche orpheline
+    l'aurait fait rougir sur un chemin qui, lui, ne recule pas (il produit une pièce et sort).
+    ⚠️ Corollaire : ce verrou étant LEXICAL, même une mention en commentaire le déclenche — ne
+    pas réécrire la ligne ci-dessus avec la forme appelée.
+    Émettre depuis ce helper garde le verrou **vrai et intact** : il continue de ne voir que le
+    kit, qui est ce qu'il protège.
+    """
+    from app.modules.quizzes.service import generate_quiz_for_skill
+
+    if on_piece is not None:
+        on_piece("quiz")
+    if _has_mission_quiz(db, skill_id):
+        return "skipped", None
+    try:
+        generate_quiz_for_skill(
+            db,
+            llm,
+            embedder,
+            skill_id=skill_id,
+            count=_EQUIP_QUIZ_COUNT,
+            difficulty=_EQUIP_QUIZ_DIFFICULTY,
+        )
+    except Exception as exc:  # noqa: BLE001 — on isole, comme chaque pièce
+        # `detail` d'abord : c'est le motif lisible (« aucune source validée… »), là où `str()`
+        # d'une HTTPException rendrait « 409: … ».
+        return "error", str(getattr(exc, "detail", None) or exc)
+    return "generated", None
 
 
 def _has_srs_cards(db: Session, skill_id: int) -> bool:
@@ -121,7 +195,12 @@ def piece_deja_produite(db: Session, *, skill_id: int, kind: str, peut_valider: 
     """
     lesson = _skill_lesson(db, skill_id)
     if lesson is None:
-        return None  # L'absence de leçon est déjà dite par `blockers_for` — un seul motif à la fois.
+        # Sans leçon, seul le quiz est encore produisible (ADR-0042) — et lui seul peut donc
+        # être « déjà produit ». Pour les quatre autres, l'absence de leçon est déjà dite par
+        # `blockers_for` : un seul motif à la fois.
+        if kind == "quiz" and _has_mission_quiz(db, skill_id):
+            return "Le quiz de cette notion existe déjà."
+        return None
 
     if kind == "cours":
         if lesson.content_markdown and lesson.status == "validated":
@@ -206,14 +285,22 @@ def equip_notion(
 
     lesson = _skill_lesson(db, skill_id)
     if lesson is None:
+        # Notion ORPHELINE. Les quatre pièces leçon-centrées restent hors d'atteinte — on ne
+        # fabrique ni chapitre ni leçon à la volée (interdit ADR-0021 décision 3, non levé).
+        # **Le quiz, lui, s'ancre sur la notion** (ADR-0042) : c'est lui qui rend le verdict
+        # `acquired` atteignable, donc lui qui referme la lacune.
+        issue, motif = _quiz_ancre_notion(
+            db, skill_id=skill_id, llm=llm, embedder=embedder, on_piece=on_piece
+        )
         return {
             "skill_id": skill_id,
             "skill_name": name,
             "has_lesson": False,
-            "generated": [],
-            "skipped": ["cours", "fiche", "srs", "quiz", "mindmap"],
-            "errors": [],
-            "reason": "Aucune leçon rattachée à cette notion — kit non généré.",
+            "generated": ["quiz"] if issue == "generated" else [],
+            "skipped": ["cours", "fiche", "srs", "mindmap"]
+            + (["quiz"] if issue == "skipped" else []),
+            "errors": [{"piece": "quiz", "message": motif}] if issue == "error" else [],
+            "reason": "Aucune leçon rattachée — seul le quiz, ancré sur la notion, est produit.",
         }
     lesson_id = lesson.id
 
@@ -384,13 +471,23 @@ def equip_piece(
 
     lesson = _skill_lesson(db, skill_id)
     if lesson is None:
-        # Notion ORPHELINE : aucune leçon ne la porte, donc aucun générateur leçon-centré ne peut
-        # la servir. Ce n'est pas une panne, c'est une absence de support — et elle se DIT.
-        skipped.append(kind)
-        return out(
-            has_lesson=False,
-            reason="Aucune leçon rattachée à cette notion — rien à produire.",
-        )
+        # Notion ORPHELINE. Aucun générateur LEÇON-CENTRÉ ne peut la servir — ce n'est pas une
+        # panne, c'est une absence de support, et elle se DIT. **Sauf le quiz** (ADR-0042), qui
+        # sait désormais s'ancrer sur la notion.
+        if kind != "quiz":
+            skipped.append(kind)
+            return out(
+                has_lesson=False,
+                reason="Aucune leçon rattachée à cette notion — rien à produire.",
+            )
+        issue, motif = _quiz_ancre_notion(db, skill_id=skill_id, llm=llm, embedder=embedder)
+        if issue == "generated":
+            generated.append("quiz")
+        elif issue == "skipped":
+            skipped.append("quiz")
+        else:
+            errors.append({"piece": "quiz", "message": motif})
+        return out(has_lesson=False, reason=None)
     lesson_id = lesson.id
 
     # 1) Le prérequis. Identique à l'étape 1 d'`equip_notion`, `by=` explicite sur les deux chemins.

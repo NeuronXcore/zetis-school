@@ -917,22 +917,33 @@ def create_manual_lesson(
 
 
 def orphan_notions(db: Session, subject_id: int) -> list[dict]:
-    """Notions du référentiel (Skill) d'une matière, au niveau de l'année active, **rattachées à
-    AUCUNE leçon** — donc invisibles dans la page Programme (leçon-centrée). Elles proviennent du
-    skills-backfill (« Rattrapage ») ou du pont « Ajouter au programme » (addendum ADR-0027). Les
-    faire voir ici évite le « je l'ai ajoutée mais je ne la vois nulle part »."""
-    year = _active_year_or_404(db)
+    """Notions du référentiel (Skill) d'une matière **rattachées à AUCUNE leçon** — donc invisibles
+    dans la page Programme (leçon-centrée). Elles proviennent du skills-backfill (« Rattrapage »)
+    ou du pont « Ajouter au programme » (addendum ADR-0027). Les faire voir ici évite le « je l'ai
+    ajoutée mais je ne la vois nulle part ».
+
+    ⚠️ **Le filtre `Skill.level == year.level` est TOMBÉ** (ADR-0042 décision 5). Il cachait
+    exactement la population que ce chantier rend équipable : les notions de niveau ANTÉRIEUR,
+    c'est-à-dire celles du rattrapage — la raison d'être de l'ADR-0010. Elles étaient **ciblées**
+    par les missions (`missions/service.py`, branche rattrapage de `generate_progression`,
+    sélectionne `Skill.level != year.level`) et **visibles nulle part** : ZETIS fabriquait des
+    missions sur des notions que Papa ne pouvait ouvrir sur aucun écran.
+
+    Produire pour une notion invisible serait le défaut que l'ADR-0037 nomme — « du temps GPU
+    payé, du contenu validé, et invisible ». D'où `level` **rendu** : une notion de 5e affichée
+    sans son niveau se lirait comme un trou dans le programme de l'année.
+    """
+    _active_year_or_404(db)  # une année active reste requise : la page Programme en dépend
     linked = select(LessonSkill.skill_id).distinct()
     skills = db.scalars(
         select(Skill)
         .where(
             Skill.subject_id == subject_id,
-            Skill.level == year.level,
             Skill.id.not_in(linked),
         )
         .order_by(Skill.name)
     ).all()
-    return [{"skill_id": s.id, "name": s.name} for s in skills]
+    return [{"skill_id": s.id, "name": s.name, "level": s.level} for s in skills]
 
 
 def delete_orphan_skill(db: Session, skill_id: int) -> dict:

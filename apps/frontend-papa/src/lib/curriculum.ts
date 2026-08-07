@@ -26,10 +26,16 @@ export async function fetchActiveSchoolYear(): Promise<ActiveSchoolYear> {
 export interface OrphanNotion {
   skill_id: number;
   name: string;
+  /** Niveau de la notion (« 5e », « 4e »…), ou null. Rendu depuis l'ADR-0042 : les notions de
+   *  RATTRAPAGE (niveau antérieur) apparaissent désormais ici, et sans leur niveau elles se
+   *  liraient comme un trou dans le programme de l'année en cours. */
+  level: string | null;
 }
 
-/** Notions du référentiel d'une matière (niveau année active) SANS leçon rattachée — ajoutées via
- *  « Rattrapage » ou le pont « Ajouter au programme », donc invisibles dans l'arbre leçon-centré. */
+/** Notions du référentiel d'une matière SANS leçon rattachée — ajoutées via « Rattrapage » ou le
+ *  pont « Ajouter au programme », donc invisibles dans l'arbre leçon-centré.
+ *  ⚠️ Depuis l'ADR-0042, TOUS les niveaux remontent (plus seulement celui de l'année active) :
+ *  les notions de rattrapage étaient ciblées par les missions et visibles nulle part. */
 export async function fetchOrphanNotions(subjectId: number): Promise<OrphanNotion[]> {
   const body = await asJson<{ notions: OrphanNotion[] }>(
     await fetch(`${API_URL}/api/subjects/${subjectId}/orphan-notions`, { headers: authHeader() }),

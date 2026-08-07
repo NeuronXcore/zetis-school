@@ -33,6 +33,7 @@ from app.db.models import (
     ProductionEvent,
     ProductionRun,
     Quiz,
+    Skill,
     SpacedReviewCard,
 )
 from app.modules.activity.events import NON_WORK_EVENTS
@@ -58,6 +59,16 @@ _PRODUCED = (Lesson, Fiche, Mindmap, Quiz, SpacedReviewCard)
 # journal** (`production_events.detail`) et n'en bougent plus. Y figer « Manual » ferait mentir la
 # ligne le jour où le nom d'affichage change — il a déjà changé une fois, le 2026-08-04.
 BLOCKED_NO_LESSON = "Notion sans leçon — rien à quoi rattacher un cours."
+# ⚠️ **`BLOCKED_NO_LESSON` a cessé d'être absolu** (ADR-0042). Il l'était : « ce n'est pas un gate,
+# c'est une absence de support ». C'est encore vrai des quatre pièces LEÇON-CENTRÉES — on ne
+# fabrique toujours ni chapitre ni leçon à la volée — mais **le quiz sait désormais s'ancrer sur la
+# notion**, donc pour lui l'absence de leçon n'est plus un empêchement. Reste un plancher : sans la
+# moindre source validée dans la matière, il n'y a rien pour construire des questions, et c'est ce
+# motif-ci qui le dit.
+BLOCKED_NO_LESSON_NO_SOURCE = (
+    "Notion sans leçon et sans source validée — rien pour construire un quiz. "
+    "Importez une source dans cette matière, puis relancez."
+)
 BLOCKED_COURSE_PENDING = "Cours à relire — il est écrit, il attend votre validation."
 # ⚠️ **Deux motifs là où il y en avait un** (addendum ADR-0036 « verdict de situation »). L'ancien
 # disait « à valider » d'une leçon souvent DÉJÀ validée — seulement vide. `Lesson.status` porte deux
@@ -245,7 +256,11 @@ def _wait_for_massimo(db: Session, *, student_id: int) -> None:
 
 
 def select_notions(
-    db: Session, skill_ids: list[int], *, require_validated_course: bool = True
+    db: Session,
+    skill_ids: list[int],
+    *,
+    require_validated_course: bool = True,
+    piece: str | None = None,
 ) -> tuple[list[int], list[dict]]:
     """LE GATE DU §7 (addendum ADR-0031). Sépare ce qui est équipable de ce qui est bloqué.
 
@@ -259,10 +274,14 @@ def select_notions(
     inatteignables. **Aucune ligne de l'orchestrateur ne bouge**, ce qui est exactement ce que
     l'addendum avait préservé.
 
-    ⚠️ Une notion **sans aucune leçon** reste bloquée à tous les paliers : il n'y a rien à quoi
-    rattacher un cours. Ce n'est pas un gate, c'est une absence de support.
+    ⚠️ Une notion **sans aucune leçon** reste bloquée à tous les paliers **pour les quatre pièces
+    leçon-centrées** : il n'y a rien à quoi rattacher un cours. Ce n'est pas un gate, c'est une
+    absence de support. **Depuis l'ADR-0042, le quiz fait exception** — il sait s'ancrer sur la
+    notion — à condition que la matière porte au moins une source récupérable.
     """
-    motifs = blockers_for(db, skill_ids, require_validated_course=require_validated_course)
+    motifs = blockers_for(
+        db, skill_ids, require_validated_course=require_validated_course, piece=piece
+    )
 
     eligible: list[int] = []
     blocked: list[dict] = []
@@ -275,8 +294,42 @@ def select_notions(
     return eligible, blocked
 
 
+def _sources_disponibles(db: Session, skill_ids: list[int]) -> dict[int, bool]:
+    """`skill_id` → sa matière porte-t-elle au moins une source récupérable ? (ADR-0042 §3)
+
+    Réutilise `rag.service.has_retrievable_chunks`, le prédicat que le moteur de quiz appliquera
+    vraiment. Le rejouer ici avec une requête maison ferait diverger l'annonce et le verdict — la
+    faute exacte que l'ADR-0037 documente.
+
+    Groupé par MATIÈRE : le prédicat est matière-scopé, donc dix notions d'anglais coûtent une
+    seule interrogation.
+    """
+    from app.modules.rag.service import has_retrievable_chunks
+
+    if not skill_ids:
+        return {}
+    matiere_par_notion = dict(
+        db.execute(select(Skill.id, Skill.subject_id).where(Skill.id.in_(skill_ids))).all()
+    )
+    cache: dict[int, bool] = {}
+    out: dict[int, bool] = {}
+    for skill_id in skill_ids:
+        subject_id = matiere_par_notion.get(skill_id)
+        if subject_id is None:
+            out[skill_id] = False
+            continue
+        if subject_id not in cache:
+            cache[subject_id] = has_retrievable_chunks(db, subject_id=subject_id)
+        out[skill_id] = cache[subject_id]
+    return out
+
+
 def blockers_for(
-    db: Session, skill_ids: list[int], *, require_validated_course: bool = True
+    db: Session,
+    skill_ids: list[int],
+    *,
+    require_validated_course: bool = True,
+    piece: str | None = None,
 ) -> dict[int, str | None]:
     """Pour chaque notion : le motif qui l'écarterait d'un lot, ou `None` si elle est équipable.
 
@@ -294,12 +347,25 @@ def blockers_for(
     en aurait fait un par ligne de la file.
     """
     par_notion = lessons_by_skill(db, skill_ids)
+    orphelines = [s for s in skill_ids if not par_notion.get(s)]
+    # Le plancher de source n'est interrogé que pour un lot-quiz ET que sur les orphelines : une
+    # requête au plus par matière concernée, zéro sur le cas courant.
+    source_par_notion = (
+        _sources_disponibles(db, orphelines) if piece == "quiz" and orphelines else {}
+    )
     motifs: dict[int, str | None] = {}
     for skill_id in skill_ids:
         lecons = par_notion.get(skill_id, [])
         lesson = lecons[0] if lecons else None
         if lesson is None:
-            motifs[skill_id] = BLOCKED_NO_LESSON
+            # Sans leçon, seul le quiz reste produisible (ADR-0042) — et seulement s'il a de quoi
+            # s'ancrer. Pour les quatre pièces leçon-centrées, l'empêchement est inchangé.
+            if piece != "quiz":
+                motifs[skill_id] = BLOCKED_NO_LESSON
+            elif not source_par_notion.get(skill_id, False):
+                motifs[skill_id] = BLOCKED_NO_LESSON_NO_SOURCE
+            else:
+                motifs[skill_id] = None
         elif not require_validated_course:
             motifs[skill_id] = None
         elif not lesson.content_markdown:
@@ -390,7 +456,9 @@ def execute(
         if piece_kind is not None
         else scope.plan(db, chapter_id=run.chapter_id)
     )
-    eligible, blocked = select_notions(db, notions, require_validated_course=gate)
+    eligible, blocked = select_notions(
+        db, notions, require_validated_course=gate, piece=piece_kind
+    )
     results: list[dict] = []
 
     # Avancement : le total est connu APRÈS le gate — c'est le nombre de notions qu'on va

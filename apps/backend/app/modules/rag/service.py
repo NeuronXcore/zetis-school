@@ -95,7 +95,14 @@ def list_documents(db: Session) -> list[tuple[RagDocument, int]]:
     return [(doc, count_chunks(db, doc.id)) for doc in docs]
 
 
-def _has_retrievable_chunks(db: Session, *, subject_id: int | None) -> bool:
+def has_retrievable_chunks(db: Session, *, subject_id: int | None) -> bool:
+    """Cette matière a-t-elle au moins un chunk **récupérable** (validé/officiel, vectorisé) ?
+
+    Public depuis l'ADR-0042 : la production s'en sert pour dire **avant le clic** qu'une notion
+    orpheline sans source ne pourra pas porter de quiz. Un second prédicat « qui donne le même
+    résultat » serait la faute que l'addendum ADR-0024 nomme — un seul prédicat de disponibilité
+    dans le dépôt.
+    """
     stmt = select(func.count()).select_from(RagChunk).where(
         RagChunk.validation_status.in_(_RETRIEVABLE),
         RagChunk.embedding.isnot(None),
@@ -114,7 +121,7 @@ def search(
     k: int = 3,
 ) -> list[tuple[RagChunk, float]]:
     """Top-k chunks par distance cosinus (pgvector). [] si aucune source indexée."""
-    if not _has_retrievable_chunks(db, subject_id=subject_id):
+    if not has_retrievable_chunks(db, subject_id=subject_id):
         return []
     vector = embedder.embed([query])[0]
     distance = RagChunk.embedding.cosine_distance(vector)
@@ -145,7 +152,7 @@ def retrieve_for_skill(
     Renvoie [] sans toucher l'embedder si aucune source n'existe (couture explain)."""
     skill = db.get(Skill, skill_id)
     subject_id = skill.subject_id if skill is not None else None
-    if not _has_retrievable_chunks(db, subject_id=subject_id):
+    if not has_retrievable_chunks(db, subject_id=subject_id):
         return []
     # Sans question précise, on cherche sur le nom de la notion plutôt que sur une chaîne vide.
     effective_query = query.strip() or (skill.name if skill is not None else "")
