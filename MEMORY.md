@@ -105,7 +105,7 @@ Annoncé avant, joué une fois, une seule notion. Créé / modifié :
 
 | Objet | État |
 |---|---|
-| `RagDocument 3` « Comprendre les fractions » | `pending` → **`validated`** (+ ses 19 chunks) — geste Papa, **réversible** |
+| ~~`RagDocument 3` « Comprendre les fractions »~~ | `pending` → `validated` (+ ses 19 chunks) le temps de la preuve, puis **REMIS EN `pending` le même jour** sur décision du user, via `rag.set_validation` — le RAG de dev est revenu **exactement** à son état d'avant le chantier |
 | `Skill 436` « Les fractions » | level **`5e`**, subject 2, **aucune leçon** — créé par `confirm_skills_backfill` (**zéro appel LLM**) |
 | `Quiz 54` « Quiz — Les fractions » | `lesson_id=None`, `chapter_id=None`, subject 2, `ready`, `validated_by=system`, **5 questions** toutes `skill_id=436` |
 | `Gap 2` | `open`, sévérité `medium` |
@@ -124,9 +124,16 @@ aurait été auto-validé et atteignable. Le user a tranché : valider **un** do
    justifie l'insistance : **#79, #89 et #91 ont été mergées sans qu'un œil humain ait vu l'écran.**
    J'ai vérifié moi-même (page Programme, page Missions) — ce n'est pas la même chose.
 2. **Merger**, puis **NE PAS SUPPRIMER LA BRANCHE** (voir l'encadré du haut).
-3. Décider du sort des **artefacts de dev du §10** — laissés en place et listés ci-dessus.
-   `RagDocument 3` se remet en `pending` d'un clic.
-4. Passer l'ADR-0042 de **Proposé** à **Accepté** une fois la PR mergée.
+3. ~~Décider du sort des artefacts de dev du §10~~ — **tranché** : le `RagDocument 3` est **remis
+   en `pending`**, les quatre autres objets (`Skill 436`, `Quiz 54`, `Gap 2`, `Mission 56`) sont
+   **conservés**. Ils restent cohérents entre eux — le quiz existant fait répondre « déjà produit »
+   à `_has_mission_quiz`, donc rien ne cherchera à le régénérer malgré la source retirée.
+   ⚠️ Ils constituent le **seul jeu de données « notion de niveau antérieur »** de la base : utile
+   pour la session Diagnostic. Ordre de suppression si besoin, contraint par les FK :
+   `MissionStep` → `Mission` → `Gap` → `QuizQuestion` → `Quiz` → `Skill`.
+4. ~~Passer l'ADR-0042 en Accepté~~ — **fait** (`4e2b1f7` sur `main`), **avant le merge et non
+   après** : la décision est figée, la livraison ne l'est pas. Le statut porte lui-même la
+   distinction « Accepté ≠ livré », parce que l'ADR est sur `main` et pas le code.
 
 ### ▶▶ LE CHANTIER SUIVANT — déjà nommé par le user
 
