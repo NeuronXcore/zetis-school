@@ -7,13 +7,13 @@
 
 ## État à la reprise
 
-**Chantier : « le popover dit l'état en toutes lettres ». COMPLET, vérifié à l'écran, POUSSÉ,
-PR ouverte et NON MERGÉE.**
+**Chantier : « le popover dit l'état en toutes lettres ». COMPLET, vérifié à l'écran, ✅ MERGÉ SUR
+`main` (2026-08-07). Ne pas ré-implémenter.**
 
 | | |
 |---|---|
-| **Branche** | `feat/popover-en-toutes-lettres`, base `e4fa60d` (= tête de `main` au départ, vérifié). Un seul commit : `git log --oneline main..HEAD` |
-| **PR** | [#96](https://github.com/NeuronXcore/zetis-school/pull/96) — **OUVERTE**, `MERGEABLE`, checks au vert. **Pas encore mergée** |
+| **Mergé** | PR [#96](https://github.com/NeuronXcore/zetis-school/pull/96), **squash `8045789`**, base `e4fa60d`. Branche `feat/popover-en-toutes-lettres` **supprimée** (locale et distante, vérifié) |
+| **État git** | `main` = `origin/main` — **rien à pousser**. Vérifié à la clôture 4bis |
 | **Migrations** | **aucune.** Chantier frontend seul — tout était déjà servi par `/api/production/activity` |
 | **Suites** | Papa **651 ✅** · `tsc -b --force` propre. ⚠️ Backend **non relancé** : aucun fichier backend touché |
 
@@ -77,8 +77,13 @@ immédiate ; une capture d'écran force le rendu.
 
 ### ▶ PROCHAIN PAS
 
-**Le chantier est fini.** Ordre : vérifier le diff et les tests → merge de la PR #96 → revenir ici
-pour l'étape **4bis** (`WORKFLOW.md §5`) : squash, n° de PR, branche supprimée, « rien à pousser ».
+**Le chantier est clos.** Poussé, PR #96 mergée en squash, branche supprimée, étape 4bis faite.
+Le prochain chantier part de `main` par `/ouverture`.
+
+⚠️ **Onze vérifications sont désormais dues sur `main`** (dettes ci-dessous) — les cinq de ce
+chantier plus les six remontées. Deux d'entre elles, `503`/Redis coupé et rejeu transitoire,
+traînent depuis **trois** chantiers : le prochain qui touche la production devrait commencer
+par là, pas par une fonctionnalité de plus.
 
 ### ⚠️ DETTES OUVERTES — nées de ce chantier
 
