@@ -7,122 +7,137 @@
 
 ## État à la reprise
 
-**Chantier : « le popover dit l'état en toutes lettres ». COMPLET, vérifié à l'écran, ✅ MERGÉ SUR
-`main` (2026-08-07). Ne pas ré-implémenter.**
+**Chantier : « les engrenages et le dossier changent de dessin, pas de sens ». COMPLET, vérifié en
+production réelle par l'humain. NON POUSSÉ — la PR reste à ouvrir.**
 
 | | |
 |---|---|
-| **Mergé** | PR [#96](https://github.com/NeuronXcore/zetis-school/pull/96), **squash `8045789`**, base `e4fa60d`. Branche `feat/popover-en-toutes-lettres` **supprimée** (locale et distante, vérifié) |
-| **État git** | `main` = `origin/main` — **rien à pousser**. Vérifié à la clôture 4bis |
-| **Migrations** | **aucune.** Chantier frontend seul — tout était déjà servi par `/api/production/activity` |
-| **Suites** | Papa **651 ✅** · `tsc -b --force` propre. ⚠️ Backend **non relancé** : aucun fichier backend touché |
+| **Branche** | `feat/animations-engrenages-dossier`, base `0ca1f57`. Trois commits — `git log --oneline main..HEAD` |
+| **Migrations** | **aucune.** Chantier frontend seul : aucun champ, aucune route, aucun contrat n'a bougé |
+| **Suites** | Papa **656 ✅** · `tsc -b --force` **EXIT=0**. ⚠️ Backend **non relancé** : aucun fichier backend touché |
+| **Vérifié à l'écran** | production, arrêt ambre, repos, pastille — puis **un vrai lot (47) confirmé par l'humain** |
 
 ### FAIT
 
-Le popover **encodait** ce que la maquette du header **explique** : un `37 %` isolé dans une
-colonne de droite, un `en file — 1ᵉʳ` en langage abrégé, l'origine seule en sous-titre. Papa
-recomposait trois fragments ; il lit désormais **une ligne**, selon une règle unique —
-*ce qui se passe · depuis quand · qui l'a demandé*. La colonne de droite ne garde que le geste.
+Les `Rouages` et la `Boite` de la bande cèdent la place à `GearsSpinner` et `KnowledgeFolder`, deux
+composants dessinés hors du dépôt (`docs/frontend-papa/mockup/`). La métaphore de l'ADR-0041 §682
+ne bouge pas — les roues fabriquent à gauche, la pièce traverse, le dossier l'avale à droite — et
+**tout le câblage d'état est conservé**. Seules changent la forme et les durées : **3 s / 2 s
+inversé** au lieu de 3,6 s / 2,5 s, parce que 12 dents contre 8 donnent un rapport de 1,5.
 
-- La **fraction** (`7 / 19 pièces`) et non le seul pourcentage — la bande le disait déjà, le détail
-  l'avait perdu.
-- L'**ancienneté**, via `lib/depuis.ts` (pure, `maintenant` injectable).
-- Le **couloir média** s'explique (« couloir séparé, ne retarde rien ») au lieu d'être une étiquette.
-- La ligne de refus dit **ce qui la rouvrira**, par régulateur.
+`useBoiteRecoit` a été **retiré**, pas laissé en doublon : le dossier détecte lui-même l'incrément
+de `pieces_produced`. La pile se remplit par **accumulation** (4 feuilles au plus) et non au prorata
+du lot — le tapis et le compteur disaient déjà le pourcentage.
 
-### 🔴 Deux mensonges corrigés — invisibles avant qu'on écrive les phrases
+### 🔴 Trois défauts que les tests ne pouvaient pas voir
 
-1. **`already_produced` promettait une reprise qui n'arrivera jamais.** Une phrase générique
-   couvrait les **cinq** régulateurs ; celui-ci est satisfait **par construction** (le contenu
-   existe déjà). Papa attendait une production qui ne viendrait pas.
-2. **Le rang se comptait derrière le travail courant**, ce qui n'a de sens que s'il y en a un.
-   Trouvé **à l'écran** : rien ne tournait, la ligne du haut disait « en file » et celle juste en
-   dessous s'annonçait « 1ᵉʳ ». La seconde ligne prétendait être la première.
+Ce chantier devait échanger deux dessins. Il a trouvé trois choses, **toutes à l'écran**, aucune
+détectable par la suite de tests.
 
-⚠️ **Le second n'existait que grâce au premier chantier** : c'est la formulation plus explicite qui
-l'a rendu visible. Un défaut de langage a révélé un défaut de logique.
+1. **`color: inherit` battait le ton Tailwind.** En Tailwind v4 les utilitaires vivent dans un
+   `@layer` : une règle de classe écrite hors couche gagne à spécificité égale. Les engrenages
+   restaient gris et **l'ambre de l'arrêt ne les atteignait plus** — le signal le plus lisible de
+   l'écran (spec §138), perdu en silence.
+2. **La pastille était invisible.** `background: currentColor` et `color:` sur la **même** règle :
+   `currentColor` se résout après le `color` qu'on vient de poser. Fond et texte tombaient sur la
+   même couleur sombre. Corrigé par deux `span`.
+3. **Le dossier perdait les pièces déposées avant son montage** — signalé par l'humain, pas par moi.
+   La bande repliée et la bande dépliée sont deux **branches de rendu distinctes** : le dossier est
+   démonté puis **remonté** au premier sondage qui voit un lot, et il avalait tout ce qui précédait.
+   Sur un lot court, c'est le lot entier.
 
-### ✅ Vérifié à l'écran (vrai Chrome, production réelle)
+### ✅ Le verrou qui manquait, et ce qu'il a démontré
 
-> « Équipement · Géométrie — **31 / 55 pièces · démarré il y a 1 min · lancé par vous** — couloir LLM »
-> « Équipement · Orthographe — **1ᵉʳ dans la file, derrière le lot en cours · lancé par vous** »
+Les **six** anciens tests `[data-tourne]` prouvaient que l'attribut est posé au bon moment ; **aucun
+ne prouvait que la chose animée est dessous**. Le CSS fourni par la maquette animait en permanence :
+branché tel quel, la bande aurait tourné à l'arrêt pendant que les six restaient verts. Démontré par
+sabotage — les six sont restés verts pendant que le septième rougissait.
 
-Worker éteint : rangs **1ᵉʳ / 2ᵉ** comptés depuis le haut, **sans** « derrière le lot en cours ».
-Refus : « **ne reprendra pas — ce contenu existe déjà** ».
+Le verrou du dossier a la meilleure forme possible : **rouge avant le correctif**
+(`expected 0 to be greater than 0`), vert après.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-- **L'origine se dit TOUJOURS**, fusionnée dans la phrase. La maquette la supprimait ; arbitrage du
-  commanditaire de la garder — sinon Papa voit ZETIS travailler à 8 h sur quelque chose qu'il n'a
-  pas demandé.
-- **Le titre reste `Équipement · Fractions`** (nature · sujet), pas `Fractions — chapitre entier`.
-  Il est construit **serveur** et la bande le redécoupe : l'inverser touche deux surfaces pour un
-  gain d'ordre de lecture seul.
-- **Le rang se compte depuis le HAUT de la liste**, jamais depuis le travail courant. Un travail
-  **en cours** n'a pas de rang : il n'est plus dans la file.
-- **« derrière le lot en cours » n'est écrit que si quelque chose tourne.** `current` porte le
-  premier de la file quand rien ne tourne — sa présence ne prouve pas qu'il y a du travail.
-- **Un code de régulateur inconnu se TAIT.** Le repli est le silence, jamais une promesse par
-  défaut : c'est exactement par un défaut par défaut que la phrase précédente était devenue fausse.
-- **Un travail en file n'a pas d'ancienneté** — `started_at` est `null`, lui en inventer une serait
-  le même mensonge que le 0 %.
-- **Aucun minuteur pour le temps relatif** : le sondage à 4 s provoque déjà le rendu.
+- **L'animation vit sous `[data-tourne]`, jamais sur la classe.** Le sélecteur EST le verrou.
+- **Aucune règle de COULEUR sur les composants** : le ton vient de la bande. Deux sources de couleur
+  pour un même état finissent toujours par diverger.
+- **Les composants vivent dans `frontend-papa`, pas dans `packages/ui`** : un seul consommateur.
+  Les y déplacer quand Massimo en voudra coûtera dix minutes.
+- **Le mode `loop` du dossier est interdit dans la bande** — il est décoratif par construction.
 
 ### ⚠️ Pièges payés en vrai — voir `TROUBLESHOOTING.md`
 
-Section `feat/popover-en-toutes-lettres`. Le plus coûteux, payé **deux fois** : dans un onglet en
-arrière-plan, Chrome limite les minuteurs à **un par minute** — le sondage à 4 s ne tourne pas, la
-bande paraît figée, et l'API dit pourtant qu'un lot tourne. Un rechargement force une lecture
-immédiate ; une capture d'écran force le rendu.
+Le plus coûteux, **repayé pour la deuxième session consécutive** : dans un onglet **caché**, Chrome
+limite les minuteurs à ~1/minute. Mesuré cette fois : **0 appel en 14 s** là où il en faudrait 3.
+Deux fausses pistes avant de penser à vérifier `document.visibilityState`.
+
+Et `~/Downloads` est **interdit à ce processus** par macOS : `Read`, `head` et `cp` échouent tous,
+sandbox désactivée comprise. Cinq voies essayées, cinq refus — c'est à l'humain de copier.
 
 ### ▶ PROCHAIN PAS
 
-**Le chantier est clos.** Poussé, PR #96 mergée en squash, branche supprimée, étape 4bis faite.
-Le prochain chantier part de `main` par `/ouverture`.
-
-⚠️ **Onze vérifications sont désormais dues sur `main`** (dettes ci-dessous) — les cinq de ce
-chantier plus les six remontées. Deux d'entre elles, `503`/Redis coupé et rejeu transitoire,
-traînent depuis **trois** chantiers : le prochain qui touche la production devrait commencer
-par là, pas par une fonctionnalité de plus.
+**Le chantier est fini.** Reste, dans l'ordre : `git push -u origin feat/animations-engrenages-dossier`,
+ouvrir la PR, merger en squash, puis l'**étape 4bis** (`docs/WORKFLOW.md` §5) pour remettre ce
+fichier au réel.
 
 ### ⚠️ DETTES OUVERTES — nées de ce chantier
 
-- ⚠️ **Le chemin automatique complet d'un refus `already_produced` n'a pas été joué.**
-  `scan_requests` est bloqué **avant** le régulateur par le gate de régime (« le régime n'est pas
-  Autonome »), donc ce refus n'est persistable **qu'en mode autonome**. Le **rendu** a été vérifié
-  en écrivant la ligne par le service réel ; la **persistance** l'avait été sur `duplicate` et
-  `auto_volume`. Ce qui manque est la jonction des deux.
-- ⚠️ **La phrase « en cours · couloir séparé, ne retarde rien » n'a pas été vue** — il aurait fallu
-  un rendu vidéo en cours pendant l'observation.
-- ⚠️ **`arrêté — plus rien ne l'exécute` n'a pas été vu non plus** : c'est l'état `stale` d'une
-  ligne, distinct de l'arrêt du worker (qui, lui, a été vu au chantier précédent).
-- ⚠️ **Un worker de production tourne**, relancé par la session pour le contrôle d'écran. Arrêt :
-  `pkill -f app.production_worker`.
-- ⚠️ **Données de dev** : quatre lots de contrôle de plus réellement produits (kits auto-validés).
-  **Nettoyés** : la demande factice, les refus (acquittés), et le déclencheur automatique **à
-  l'arrêt** (vérifié).
+- ⚠️ **Je n'ai jamais vu de mes yeux le vol d'une page sur un lot RÉEL.** L'onglet que je pilote est
+  resté `hidden` toute la session, donc étranglé. Le rendu a été vu sur **données forcées**, et le
+  lot 47 (41 s, 3 pièces réelles) a été confirmé par l'humain — pas par moi.
+- ⚠️ **`prefers-reduced-motion` n'a été vérifié qu'au niveau des RÈGLES** : le bloc vise bien
+  `.zx-gears__a/__b` et `.zx-folder__*`, et plus aucun sélecteur périmé. Jamais appliqué.
+- ⚠️ **Le `stopped` du dossier n'a pas été exercé** — seul celui des engrenages l'a été.
+- ⚠️ **Données de dev** : **quatre** lots réellement produits (44, 46, 47, 48), **10 pièces neuves
+  auto-validées** que Massimo verra — 1 carte (lot 44), une fiche + un quiz + une mindmap sur
+  « Réalisme / Naturalisme » (lot 47, chapitre 45), et une fiche + un quiz + une mindmap + 4 cartes
+  sur le chapitre 3 (lot 48, contrôle de la recette).
+- ✅ **Après le lot 48, la recette rend 0 sur TOUS les chapitres.** La base de dev n'a plus aucun
+  gisement : le prochain qui voudra voir la production tourner devra créer du contenu neuf
+  (nouveau chapitre, ou rédiger un cours sur une leçon `validated` mais vide).
 
-### 🔁 DETTES REMONTÉES du chantier « bande de production » (PR #95) à son élagage
+### 🔁 DETTES REMONTÉES du chantier « popover en toutes lettres » (PR #96) à son élagage
 
-> Ses trois premiers contrôles passaient — addendum 2 de l'`adr-0041` ✅, section
-> `TROUBLESHOOTING.md` ✅, `CHANGELOG.md` 0.55.0 ✅. Le **quatrième** a rapporté ceci, revérifié
-> avant remontée.
+> Ses trois premiers contrôles passaient — ADR-0041 §23 ✅, section `TROUBLESHOOTING.md` ✅,
+> `CHANGELOG.md` 0.56.0 ✅. Le **quatrième** a rapporté ceci, revérifié avant remontée.
 
-- 🔴 **`503` / Redis coupé et rejeu transitoire : TOUJOURS jamais joués.** Ils traînent désormais
-  depuis **trois** chantiers. Ce sont les deux derniers scénarios de la Slice B de l'ADR-0041.
-- ⚠️ **Le tapis n'a été vu qu'en régime MESURÉ.** Un travail unitaire long montre un liseré qui
-  balaie et aucun chiffre : jamais observé en vrai.
-- ⚠️ **Les jetons qui traversent le tapis n'ont jamais été vus** — les lots observés enchaînaient
-  des pièces **sautées**, donc trop vite. ⚠️ Et la base de dev est maintenant si équipée que les
-  lots finissent en quelques secondes : le prochain qui voudra les voir devra produire du contenu
-  neuf (nouveau chapitre, ou notions sans kit).
-- ⚠️ **`prefers-reduced-motion` n'a été exercé qu'en forçant la media query par le CSSOM**, jamais
-  par le réglage système.
+- 🔴 **`503` / Redis coupé et rejeu transitoire : TOUJOURS jamais joués.** Ils traînent maintenant
+  depuis **quatre** chantiers. Ce sont les deux derniers scénarios de la Slice B de l'ADR-0041.
+  **Le prochain qui touche la production devrait commencer par là, pas par une fonctionnalité.**
+- ⚠️ **Le chemin automatique complet d'un refus `already_produced` n'a pas été joué** —
+  `scan_requests` est bloqué **avant** le régulateur par le gate de régime, donc ce refus n'est
+  persistable qu'en mode autonome.
+- ⚠️ **« en cours · couloir séparé, ne retarde rien » n'a pas été vu** — il aurait fallu un rendu
+  vidéo en cours pendant l'observation.
+- ⚠️ **« arrêté — plus rien ne l'exécute » n'a pas été vu** : c'est l'état `stale` d'une ligne,
+  distinct de l'arrêt du worker.
+- ⚠️ **Le tapis n'a été vu qu'en régime MESURÉ.** Le liseré qui balaie sur un travail unitaire long
+  n'a jamais été observé en vrai.
 - ⚠️ **L'empilement de trois travaux en file n'a jamais été exercé** (deux, oui).
-- 🔴 **Deux tests de `test_dashboard.py` alternent au rouge selon l'heure** —
-  `..._26_semaines` et `..._peut_EXPIRER` se relaient autour de minuit. **Pré-existants**,
-  attribués par `git stash`, **non corrigés** : hors périmètre, et sortis en tâche séparée.
+- 🔴 **Deux tests de `test_dashboard.py` alternent au rouge selon l'heure** — pré-existants, sortis
+  en tâche séparée, non corrigés.
+- ⚠️ **Un worker de production tourne** (relancé pour les contrôles d'écran). Arrêt :
+  `pkill -f app.production_worker`.
+- ✅ **Dette ÉTEINTE** : « les jetons qui traversent le tapis n'ont jamais été vus ». Vu cette
+  session — jeton `mindmap` sur le tapis. ⚠️ Mais **sur données forcées**, pas sur un lot réel.
 
+### 🔴 La base de dev est saturée — et voici comment trouver un lot qui produit VRAIMENT
+
+Le piège « `eligible` ne veut pas dire *a du contenu à produire* » a coûté deux lots pour rien cette
+session : le **46** (9 notions, 45 pièces) a rendu `generated=0 skipped=45` en **1 seconde**.
+
+La recette est écrite **avec son SQL** dans `TROUBLESHOOTING.md`, et elle a été **validée par une
+prédiction falsifiable** : 7 pièces annoncées sur le chapitre 3, **7 obtenues** (`fiche ×1`,
+`mindmap ×1`, `quiz ×1`, `srs ×4`) en 58 s — puis 0 à la contre-épreuve.
+
+🔴 **Ma première version était FAUSSE sur deux points**, et les deux se paient en lots gaspillés :
+`cours`/`fiche`/`mindmap`/`quiz` sont **par leçon** (seul `srs` est par notion — le lot 47 avait
+4 notions **sur une seule leçon**), et le cours doit être **écrit**, pas seulement `validated` —
+une leçon validée mais vide ne dérive rien. Ce second point est le piège du 2026-08-04 (« 39 leçons
+`validated` VIDES »), retombé dedans un an de chantiers plus tard.
+
+⚠️ Et même là, les 5 événements d'une notion sont commités **ensemble** : `pieces_produced` monte
+par paliers, donc les pages volent **en rafale** (3 au plus), jamais en continu.
 
 ### ▶ DETTES OUVERTES
 
@@ -600,6 +615,17 @@ si la file regrossit.
 
 
 ## Historique des chantiers clos
+
+> **2026-08-07 — le popover dit l'état en toutes lettres** (PR
+> [#96](https://github.com/NeuronXcore/zetis-school/pull/96), squash `8045789`, base `e4fa60d`,
+> branche `feat/popover-en-toutes-lettres` supprimée), section retirée à la clôture du chantier
+> des animations (2026-08-07). Contrôles : `adr-0041` §23 ✅ · `TROUBLESHOOTING.md`
+> §`feat/popover-en-toutes-lettres` ✅ · `CHANGELOG.md` 0.56.0 ✅. **Résidus encore vrais,
+> REMONTÉS dans la section active** (huit, dont `503`/Redis et rejeu transitoire, désormais à
+> **quatre** chantiers de retard). Ce qui ne survit qu'ici : le chantier devait réécrire des
+> phrases, il a trouvé **deux mensonges** — `already_produced` promettait une reprise impossible,
+> et le rang se comptait derrière un travail courant qui n'existait pas toujours. Le second
+> n'existait que grâce au premier : **un défaut de langage a révélé un défaut de logique.**
 
 > **2026-08-06 — la bande de production** (addendum 2 de l'`adr-0041`, PR
 > [#95](https://github.com/NeuronXcore/zetis-school/pull/95), squash `5ba7097`, base `4536893`,
