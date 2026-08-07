@@ -82,8 +82,8 @@ Le prochain chantier part de `main` par `/ouverture`.
 
 🔴 **Dix vérifications sont désormais dues sur `main`** — **trois** nées de ce chantier, **sept**
 remontées. Le compte se recoupe ainsi : les listes ci-dessous portent 3 + 8 puces, dont deux ne sont
-pas des vérifications (le flake `test_dashboard`, et le worker qui tourne), et une en vaut deux
-(`503` **et** rejeu transitoire).
+pas des vérifications (le flake `test_dashboard`, et la ligne du worker — **éteinte** en fin de
+session), et une en vaut deux (`503` **et** rejeu transitoire).
 
 Ces deux-là **traînent depuis QUATRE chantiers**, et ce sont les deux derniers scénarios de la
 Slice B de l'ADR-0041 : le prochain qui touche la production doit commencer par là, pas par une
@@ -128,8 +128,12 @@ que ce soit qui produise, il faudra d'abord rédiger un cours sur une leçon `va
 - ⚠️ **L'empilement de trois travaux en file n'a jamais été exercé** (deux, oui).
 - 🔴 **Deux tests de `test_dashboard.py` alternent au rouge selon l'heure** — pré-existants, sortis
   en tâche séparée, non corrigés.
-- ⚠️ **Un worker de production tourne** (relancé pour les contrôles d'écran). Arrêt :
-  `pkill -f app.production_worker`.
+- ✅ **Le worker de production est ARRÊTÉ** (2026-08-07, fin de session, vérifié : plus aucun
+  processus). Il traînait allumé depuis deux chantiers. Pour le relancer :
+  `cd apps/backend && .venv/bin/python -m app.production_worker` — ou `pnpm dev:worker`.
+  ⚠️ Sans lui, un lot lancé depuis la Couverture reste `queued` **indéfiniment**, et la bande
+  affichera « ZETIS ne produit pas · aucun moteur de production actif ». C'est le comportement
+  juste, pas une panne.
 - ✅ **Dette ÉTEINTE** : « les jetons qui traversent le tapis n'ont jamais été vus ». Vu cette
   session — jeton `mindmap` sur le tapis. ⚠️ Mais **sur données forcées**, pas sur un lot réel.
 
