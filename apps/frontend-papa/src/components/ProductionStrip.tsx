@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { type ActivityItem, type ProductionActivity } from "@zetis/types";
 
+import { GearsSpinner } from "./GearsSpinner";
+import { KnowledgeFolder } from "./KnowledgeFolder";
+
 // La bande de production du header Papa (addendum 2 ADR-0041,
 // `docs/frontend-papa/bande-de-production.md`).
 //
@@ -99,133 +102,6 @@ function useJetons(piece: string | null | undefined): Jeton[] {
   return jetons;
 }
 
-/** La boîte s'illumine quand `pieces_produced` AUGMENTE — les `generated` seules.
- *
- *  ⚠️ Jamais sur `pieces_done` : une pièce `skipped` a bien traversé le tapis, mais elle était
- *  déjà dans le stock. L'y faire tomber une seconde fois mentirait sur ce que ZETIS a fabriqué. */
-function useBoiteRecoit(produites: number | undefined): boolean {
-  const [recoit, setRecoit] = useState(false);
-  const precedent = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    const avant = precedent.current;
-    precedent.current = produites;
-    if (avant === undefined || produites === undefined || produites <= avant) return;
-    setRecoit(true);
-    const t = setTimeout(() => setRecoit(false), 500);
-    return () => clearTimeout(t);
-  }, [produites]);
-
-  return recoit;
-}
-
-function Rouages({ ton }: { ton: string }) {
-  return (
-    <span className={`relative block h-8 w-10 shrink-0 ${ton}`} aria-hidden>
-      <svg
-        className="zetis-rouage-a absolute left-0 top-px h-6 w-6 overflow-visible"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      >
-        <circle cx="12" cy="12" r="5.2" />
-        <circle cx="12" cy="12" r="1.8" />
-        <g fill="currentColor" stroke="none" opacity="0.85">
-          <rect x="11" y="0.6" width="2" height="3.4" rx="0.6" />
-          <rect x="11" y="20" width="2" height="3.4" rx="0.6" />
-          <rect x="0.6" y="11" width="3.4" height="2" rx="0.6" />
-          <rect x="20" y="11" width="3.4" height="2" rx="0.6" />
-        </g>
-      </svg>
-      <svg
-        className="zetis-rouage-b absolute left-[18px] top-3 h-[18px] w-[18px] overflow-visible"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      >
-        <circle cx="12" cy="12" r="5.6" />
-        <circle cx="12" cy="12" r="2" />
-        <g fill="currentColor" stroke="none" opacity="0.85">
-          <rect x="10.8" y="1" width="2.4" height="3.6" rx="0.6" />
-          <rect x="10.8" y="19.4" width="2.4" height="3.6" rx="0.6" />
-          <rect x="1" y="10.8" width="3.6" height="2.4" rx="0.6" />
-          <rect x="19.4" y="10.8" width="3.6" height="2.4" rx="0.6" />
-        </g>
-      </svg>
-    </span>
-  );
-}
-
-/** La boîte de connaissance — **le seul objet permanent** de la bande.
- *
- *  Elle est la destination de tout ce que ZETIS fabrique, et le seul élément cliquable qui reste
- *  au repos : c'est ce qui a justifié de replier la bande plutôt que de la faire disparaître
- *  (§19, qui révoque le §7 sur ce point et sur celui-là seulement). */
-function Boite({
-  produites,
-  ratio,
-  recoit,
-  ton,
-}: {
-  produites: number;
-  ratio: number;
-  recoit: boolean;
-  ton: string;
-}) {
-  return (
-    <span className="relative block h-[34px] w-[38px] shrink-0">
-      {recoit && (
-        <span
-          aria-hidden
-          className="zetis-boite-recoit pointer-events-none absolute -inset-2 rounded-xl"
-          style={{
-            background:
-              "radial-gradient(circle, color-mix(in srgb, var(--color-papa-accent-2) 55%, transparent), transparent 66%)",
-          }}
-        />
-      )}
-      <svg viewBox="0 0 44 34" className="h-full w-full overflow-visible" aria-hidden>
-        <path
-          d="M6 12 L22 5 L38 12"
-          fill="none"
-          strokeWidth="1.4"
-          className={ton}
-          stroke="currentColor"
-          style={{ transform: recoit ? "translateY(-3px)" : undefined, transition: "transform .25s" }}
-        />
-        <path
-          d="M6 12 L22 19 L38 12 L38 27 L22 34 L6 27 Z"
-          className="fill-papa-surface-2 stroke-papa-border"
-          strokeWidth="1.4"
-        />
-        {[1, 2, 3].map((i) => (
-          <path
-            key={i}
-            d={
-              i === 1
-                ? "M9 15.5 L22 21 L35 15.5 L35 18 L22 23.5 L9 18 Z"
-                : i === 2
-                  ? "M9 19 L22 24.5 L35 19 L35 21.5 L22 27 L9 21.5 Z"
-                  : "M9 22.5 L22 28 L35 22.5 L35 25 L22 30.5 L9 25 Z"
-            }
-            className="fill-papa-accent transition-opacity duration-500"
-            // Les couches se remplissent avec l'avancement : la boîte MONTRE le stock, elle ne
-            // l'annonce pas en chiffres.
-            style={{ opacity: ratio >= i / 3.6 ? 0.55 : 0 }}
-          />
-        ))}
-      </svg>
-      {produites > 0 && (
-        <span className="absolute -right-1 -top-1.5 rounded-full bg-papa-accent px-1 text-[9.5px] font-semibold tabular-nums text-papa-bg">
-          +{produites}
-        </span>
-      )}
-    </span>
-  );
-}
-
 interface Props {
   activity: ProductionActivity;
   onOpen: () => void;
@@ -243,7 +119,6 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
   const item: ActivityItem | null = activity.current;
 
   const jetons = useJetons(item?.current_piece);
-  const recoit = useBoiteRecoit(item?.pieces_produced);
 
   // 🔴 **Le worker de SON couloir, pas « le » worker** (addendum 2 §22, trouvé à l'écran le
   // 2026-08-07 sur un rendu vidéo réellement bloqué). `worker_alive` ne parle que des files de
@@ -287,7 +162,10 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
       ? "text-papa-warn"
       : "text-papa-accent-2";
 
-  const ratio = mesure && item.pieces_total ? (item.pieces_done ?? 0) / item.pieces_total : 0;
+  // ⚠️ `ratio` a disparu avec l'ancienne boîte. Elle se remplissait par PROPORTION du lot ; le
+  // dossier se remplit par ACCUMULATION (4 feuilles au plus, `ceil(count / 2)`) — il dit « ça
+  // s'accumule », pas « combien ». Le compte exact est porté par le tapis et la pastille, qui ne
+  // l'ont jamais lâché ; deux objets disant le même pourcentage feraient doublon, pas redondance.
 
   const [tete, ...reste] = (item?.label ?? "").split(" · ");
   const sujet = reste.join(" · ");
@@ -333,7 +211,9 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
           title="Le stock de contenu de Massimo — voir la Couverture"
           className="scale-[.62] opacity-60 transition-opacity hover:opacity-100"
         >
-          <Boite produites={0} ratio={0} recoit={false} ton="text-papa-muted" />
+          {/* ⚠️ `decorative` : le bouton porte déjà son `title`. Sans cela, le lecteur d'écran
+              annonce « 0 pièces déposées » sur une bande au repos, ce qui n'apprend rien. */}
+          <KnowledgeFolder count={0} decorative className="text-papa-muted" />
         </button>
       </div>
     );
@@ -349,7 +229,13 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
       {/* ⚠️ `data-tourne` PORTE l'animation (voir `index.css`) : l'observer, c'est observer le
           mouvement lui-même, et non une classe utilitaire qu'un refactor peut renommer. */}
       <span {...(tourne ? { "data-tourne": "" } : {})}>
-        <Rouages ton={`${ton} ${refus ? "opacity-45" : ""}`} />
+        {/* ⚠️ `decorative` : « ZETIS produit — Fractions » est juste à côté. Un `role="status"`
+            ici ferait annoncer l'attente deux fois. */}
+        <GearsSpinner
+          decorative
+          stopped={arrete}
+          className={`${ton} ${refus ? "opacity-45" : ""}`}
+        />
       </span>
 
       <button
@@ -440,11 +326,15 @@ export function ProductionStrip({ activity, onOpen, onOpenStock }: Props) {
         title="Le stock de contenu de Massimo — voir la Couverture"
         className="shrink-0"
       >
-        <Boite
-          produites={item?.pieces_produced ?? 0}
-          ratio={ratio}
-          recoit={recoit}
-          ton={ton}
+        {/* 🔴 `pieces_produced`, JAMAIS `pieces_done` : une pièce `skipped` a traversé le tapis
+            mais était déjà en stock — l'y faire tomber une seconde fois mentirait sur ce que ZETIS
+            a fabriqué. Le composant détecte lui-même l'incrément ; c'est ce qui a rendu
+            `useBoiteRecoit` inutile, et il a été retiré plutôt que laissé en doublon. */}
+        <KnowledgeFolder
+          count={item?.pieces_produced ?? 0}
+          total={item?.pieces_total ?? null}
+          stopped={arrete}
+          className={ton}
         />
       </button>
     </div>
