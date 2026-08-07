@@ -70,7 +70,16 @@ export function KnowledgeFolder({
 }: KnowledgeFolderProps) {
   const [inFlight, setInFlight] = useState<number[]>([]);
   const [receiving, setReceiving] = useState(false);
-  const prev = useRef(count);
+  // 🔴 **LA RÉFÉRENCE PART DE ZÉRO, PAS DU COMPTE D'ARRIVÉE.** Signalé à l'écran le 2026-08-07 :
+  // « l'animation du dossier ne semble pas fonctionner ». La bande REPLIÉE et la bande DÉPLIÉE
+  // sont deux branches de rendu distinctes — le dossier est donc DÉMONTÉ puis REMONTÉ au premier
+  // sondage qui voit un lot. En mémorisant son compte d'arrivée, il avalait tout ce qui avait été
+  // produit avant ce sondage. Sur un lot court, c'est tout le lot : le lot 44 a duré 13 s pour UNE
+  // pièce neuve, sondée toutes les 4 s — la page n'avait presque aucune chance de voler.
+  //
+  // Partir de zéro fait voler, au remontage, les pièces déjà déposées (3 au plus). Ce n'est pas un
+  // artifice : ces pièces ont réellement atterri, et le dossier dit ce qui est arrivé dedans.
+  const prev = useRef(0);
   const seq = useRef(0);
 
   // ── mode événementiel : le delta observé, rien d'autre ────────────────────────────────────

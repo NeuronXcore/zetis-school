@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { type ActivityItem, type ProductionActivity } from "@zetis/types";
 
 import { ProductionStrip } from "./ProductionStrip";
@@ -265,6 +265,26 @@ describe("ProductionStrip — les engrenages et le dossier", () => {
     expect(c.querySelector(".zx-folder")?.getAttribute("aria-label")).toBe(
       "7 pièces déposées sur 45",
     );
+  });
+
+  it("🔒 un lot DÉJÀ commencé fait quand même voler ses pages", async () => {
+    // 🔴 Signalé à l'écran : « l'animation du dossier ne semble pas fonctionner ».
+    //
+    // La bande REPLIÉE et la bande DÉPLIÉE sont deux branches de rendu différentes : le dossier
+    // est donc DÉMONTÉ puis REMONTÉ au premier sondage qui voit un lot. S'il mémorise son compte
+    // d'arrivée comme référence, tout ce qui a été produit AVANT ce premier sondage est avalé —
+    // et sur un lot court, c'est tout le lot. Le lot 44 du 2026-08-07 a duré 13 s pour UNE seule
+    // pièce neuve : la fenêtre où l'incrément pouvait être vu était plus courte que le sondage.
+    vi.useFakeTimers();
+    try {
+      const c = montre(activite({ current: item({ pieces_produced: 2 }), worker_alive: true }));
+      await act(async () => {
+        vi.advanceTimersByTime(1200); // décalage (380 ms/page) + vol (620 ms)
+      });
+      expect(c.querySelectorAll(".zx-folder__in").length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("🔒 AU REPOS le dossier reste, et il est le seul objet", () => {
