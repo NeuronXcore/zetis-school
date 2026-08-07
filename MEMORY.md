@@ -8,13 +8,18 @@
 ## État à la reprise
 
 **Chantier : « la notion orpheline devient équipable » (ADR-0042). COMPLET, vérifié à l'écran ET
-en exécution réelle. Branche `feat/notion-orpheline-equipable`, code NON COMMITÉ — l'humain relit
-(tests, diff) puis committe.**
+en exécution réelle. Tout est poussé — PR [#98](https://github.com/NeuronXcore/zetis-school/pull/98)
+OUVERTE, en attente de relecture humaine.**
+
+🔴 **NE PAS SUPPRIMER LA BRANCHE `feat/notion-orpheline-equipable` après le merge.** Consigne
+explicite du user (2026-08-07) : **la prochaine session portera sur le DESIGN et le MOCKUP de la
+page Diagnostic**, et cette branche lui sert de point de départ. C'est l'exception à l'étape 4bis
+du `docs/WORKFLOW.md §5`, qui fait normalement supprimer la branche locale et distante.
 
 | | |
 |---|---|
-| **Sur `main`** | ADR-0042 + ligne `DECISIONS.md` + 7 dettes au `BACKLOG.md` — **commité `0ef20af`**, non poussé |
-| **Branche** | `feat/notion-orpheline-equipable`, partie de `0ef20af`. Code + tests **non commités** |
+| **Sur `main`** | ADR-0042 (`0ef20af`) + ses corrections à l'exécution (`f0fed31`) — **poussés**, `origin/main` = `f0fed31` |
+| **Branche** | `feat/notion-orpheline-equipable` — `c84a453` (code + tests) et `6269325` (ce fichier), **poussés**. À **conserver** |
 | **Migrations** | **AUCUNE.** `quizzes.lesson_id`/`chapter_id` étaient déjà nullables et `quiz_questions.skill_id` portait déjà l'attribution |
 | **Suites** | Backend **1005 ✅** (999 avant, +6) · Papa `tsc -b` **EXIT=0** + build ✅ · Massimo non touché |
 | **Vérifié à l'écran** | page Programme (la notion de 5e apparaît **avec son niveau**) et page Missions (`❓→💡→🎙`, trois étapes) |
@@ -115,14 +120,34 @@ aurait été auto-validé et atteignable. Le user a tranché : valider **un** do
 
 ### ▶ PROCHAIN PAS
 
-1. **Relire le diff et committer** sur `feat/notion-orpheline-equipable` (je n'ai pas commité le
-   code — convention `/cloture`). Le commit `0ef20af` de `main` (ADR + backlog) **n'est pas poussé**.
-2. Puis PR, puis **étape 4bis** (`docs/WORKFLOW.md §5`) : remettre `MEMORY.md` au réel après merge.
-3. Décider du sort des **artefacts de dev du §10** — je les ai laissés en place et listés
-   ci-dessus. Le document 3 se remet en `pending` d'un clic si vous préférez.
+1. 🔴 **Relecture visuelle humaine de la PR #98.** C'est le seul contrôle qui manque. Précédent qui
+   justifie l'insistance : **#79, #89 et #91 ont été mergées sans qu'un œil humain ait vu l'écran.**
+   J'ai vérifié moi-même (page Programme, page Missions) — ce n'est pas la même chose.
+2. **Merger**, puis **NE PAS SUPPRIMER LA BRANCHE** (voir l'encadré du haut).
+3. Décider du sort des **artefacts de dev du §10** — laissés en place et listés ci-dessus.
+   `RagDocument 3` se remet en `pending` d'un clic.
+4. Passer l'ADR-0042 de **Proposé** à **Accepté** une fois la PR mergée.
 
-> Le chantier suivant annoncé par le cadrage — **refonte du diagnostic (T0 sur les prérequis,
-> sonde T_n dans les missions)** — a maintenant son prérequis. Il ne commence pas ici.
+### ▶▶ LE CHANTIER SUIVANT — déjà nommé par le user
+
+**Design et MOCKUP de la page Diagnostic.** C'est la porte d'entrée de la refonte annoncée par le
+cadrage de l'ADR-0042 (T0 sur les prérequis, sonde T_n dans les missions), dont **le présent
+chantier était le prérequis** : une lacune ouverte sur une notion de niveau antérieur peut
+désormais se refermer.
+
+⚠️ **Rituel de décision du dépôt** (`CLAUDE.md`) : `mockup → spec → ADR → prompt`. La prochaine
+session commence donc par le **mockup**, pas par du code. Ne pas partir sur `/ouverture` tant que
+le mockup n'est pas validé — l'ADR n'existe pas encore.
+
+Ce que le chantier ADR-0042 laisse en héritage utile pour celui-là :
+
+- `diagnostics/service.py` sélectionne les notions **sans aucun filtre de leçon**
+  (`select(Skill).where(Skill.subject_id == …)`) — c'est le chemin canonique par lequel une
+  lacune s'ouvre sur une orpheline ;
+- le **plancher de source** (ADR-0042 §3) est le patron à reprendre si le diagnostic doit refuser
+  de mesurer ce qu'il ne peut pas ancrer ;
+- `Skill.level` est le discriminant du rattrapage (`missions/service.py`, branche
+  `Skill.level != year.level`) — **hors périmètre de l'ADR-0042, et central pour T0**.
 
 ### ⚠️ DETTES — où elles vivent
 
