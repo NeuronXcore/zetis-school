@@ -1,5 +1,49 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.56.0 — Le popover dit l'état en toutes lettres, et deux phrases cessent de mentir
+
+Le détail de production **encodait** ce que la maquette du header **explique** : un `37 %` isolé
+dans une colonne de droite, un `en file — 1ᵉʳ` en langage abrégé, l'origine seule en sous-titre.
+Papa recomposait trois fragments. Il lit désormais une ligne, selon une règle unique — *ce qui se
+passe · depuis quand · qui l'a demandé* — et la colonne de droite ne garde que le geste.
+
+- **La fraction, pas le seul pourcentage** : `7 / 19 pièces` prouve que le serveur compte, là où
+  `37 %` ne se distingue pas d'une estimation bien tournée. La bande le disait déjà ; le détail
+  l'avait perdu.
+- **L'ancienneté** — « démarré il y a 4 min ». ⚠️ Sans minuteur : le sondage à 4 s provoque déjà
+  le rendu.
+- **Le couloir média s'explique** au lieu d'être une étiquette : « en cours · couloir séparé, ne
+  retarde rien ».
+- **L'origine survit à la fusion.** La maquette la supprimait ; elle est conservée — sinon Papa
+  voit ZETIS travailler à 8 h sur quelque chose qu'il n'a pas demandé.
+
+### 🔴 Deux mensonges corrigés
+
+**`already_produced` promettait une reprise qui n'arrivera jamais.** Une phrase générique —
+« reprendra dès que la limite sera levée » — couvrait les **cinq** régulateurs. Or celui-ci est
+satisfait par **construction** : le contenu existe déjà. D'où une table par régulateur, dont une
+entrée dit que **rien** ne le rouvrira, et dont le repli sur un code inconnu est le **silence** —
+c'est très exactement par un défaut par défaut que la phrase précédente était devenue fausse.
+
+**Le rang se comptait derrière le travail courant**, ce qui n'a de sens que s'il y en a un. Trouvé
+à l'écran : rien ne tournait, la ligne du haut disait « en file » et celle juste en dessous
+s'annonçait « 1ᵉʳ » — la seconde ligne prétendait être la première. Le rang compte désormais depuis
+le **haut de la liste** ; un travail en cours n'a pas de rang, il n'est plus dans la file.
+
+⚠️ Le second défaut n'existait que grâce au premier chantier : c'est la formulation plus explicite
+qui l'a rendu visible. **Un défaut de langage a révélé un défaut de logique.**
+
+### Vérifié à l'écran
+
+> « Équipement · Géométrie — **31 / 55 pièces · démarré il y a 1 min · lancé par vous** — couloir LLM »
+> « Équipement · Orthographe — **1ᵉʳ dans la file, derrière le lot en cours · lancé par vous** »
+
+Worker éteint : rangs 1ᵉʳ / 2ᵉ comptés depuis le haut, **sans** « derrière le lot en cours ».
+
+**Aucune migration** — tout était déjà servi par `/api/production/activity`.
+⚠️ Reste dû : le chemin automatique complet d'un refus `already_produced`, qui n'est persistable
+qu'en mode autonome.
+
 ## 0.55.0 — La barre devient une bande, et on l'a enfin vue tourner
 
 Addendum 2 de l'ADR-0041. La barre livrée en 0.54.0 était correcte et **n'avait toujours pas été

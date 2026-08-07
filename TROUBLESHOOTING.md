@@ -4,6 +4,63 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/popover-en-toutes-lettres` — le détail de production se lit d'un trait — 2026-08-07
+
+> Spec : `docs/frontend-papa/bande-de-production.md`, § « Le détail — un popover ».
+> Pas d'ADR : précision du §23 de l'addendum 2, pas une révocation.
+
+### 🔴 Un onglet en arrière-plan ne SONDE PAS — et la bande paraît figée
+
+**Symptôme.** L'API dit qu'un lot tourne à 78 % ; le DOM de la bande est vide. Rechargement,
+attente de 6 s, nouvelle lecture : toujours vide. On soupçonne le hook, le composant, le poll —
+tout sauf la bonne cause. **Payé deux fois dans la même session.**
+
+**Cause.** Chrome **limite les minuteurs à un par minute** dans un onglet qui n'est pas au premier
+plan. `useProductionActivity` sonde par `setInterval(…, 4000)` : le sondage ne tourne
+pratiquement pas. Le même mécanisme explique une observation voisine du chantier précédent —
+`ResizeObserver` ne délivre rien tant que l'onglet ne **peint** pas.
+
+**Parades**, dans l'ordre de coût :
+
+1. **Recharger la page** (`navigate` vers la même URL) : le remontage déclenche une lecture
+   **immédiate**, sans attendre l'intervalle. C'est la parade la plus fiable.
+2. **Prendre une capture d'écran** : elle force un paint, ce qui réveille `ResizeObserver` et les
+   animations. Ne réveille PAS les minuteurs.
+3. Piloter le DOM par `element.click()` plutôt que par coordonnées : un popover ouvert peut avoir
+   décalé la mise en page entre la capture et le clic.
+
+⚠️ **Ne pas conclure « le sondage est cassé » depuis un onglet piloté.** L'écart entre l'API et le
+DOM y est **normal** ; il ne l'est pas dans un onglet que l'utilisateur regarde.
+
+### ⚠️ Un refus `already_produced` n'est persistable qu'en mode AUTONOME
+
+**Symptôme.** `scan_requests` appelé pour provoquer ce refus rend
+`« Le régime n'est pas "Autonome" — la production reste un geste de Papa »`, et **aucune** ligne
+n'entre dans `production_refusals`.
+
+**Cause.** Le gate de régime est évalué **avant** les régulateurs. Or `already_produced` ne
+s'applique qu'aux lots-**pièce**, que seul `scan_requests` produit automatiquement — et lui seul
+passe par ce gate. `scan_agenda` crée des lots de **chapitre**, hors de portée de ce régulateur.
+
+**Conséquence à connaître** : ce refus-là ne s'observe de bout en bout qu'en mode autonome. Le
+**rendu** se vérifie en écrivant la ligne par `refusals.record` ; la **persistance** se vérifie sur
+`duplicate` ou `auto_volume`, qui n'ont pas cette contrainte. Les deux ensemble restent dus.
+
+### ⚠️ Une base de dev trop équipée rend les lots inobservables
+
+**Symptôme.** Un lot de 11 notions annoncé « 55 pièces » se termine en **quelques secondes**, avant
+qu'on ait pu lire quoi que ce soit à l'écran.
+
+**Cause.** Les contrôles d'écran successifs ont équipé la base : `equip_notion` **saute** toute
+pièce déjà produite, en quelques microsecondes. `eligible` (qui passe le gate) n'est **pas**
+« qui a du contenu à produire ».
+
+**Parade.** Pour observer une production longue, il faut du contenu **neuf** — un chapitre encore
+sans dérivés, ou des notions sans kit. `GET /api/production/runs/preview?chapter_id=N` donne
+`eligible`, mais **ne dit pas** combien de pièces manquent réellement : c'est le piège.
+
+---
+
 ## Chantier `feat/bande-de-production` — addendum 2 ADR-0041, la bande du header Papa — 2026-08-06
 
 > ADR : `adr-0041-tout-ce-qui-produit-se-voit.md`, addendum 2. Spec :
