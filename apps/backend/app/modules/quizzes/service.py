@@ -34,6 +34,7 @@ from app.modules.ai.canonical_context import (
     build_canonical_sections,
     resolve_canonical_context,
 )
+from app.modules.lesson_resolution import lessons_of_skill
 from app.modules.provenance import SYSTEM
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.gamification.service import award_xp, quiz_xp
@@ -55,6 +56,13 @@ from app.prompts.quiz import (
 )
 
 QUIZ_TYPE_MISSION = "mission"
+# Motif unique du refus « notion sans leçon ET sans source » (ADR-0042 §3). Exporté parce que la
+# production le rejoue AVANT le clic (`runner.blockers_for`) : deux formulations pour un même
+# refus, c'est deux vérités à l'écran — le patron de l'ADR-0037 appliqué à un message.
+NOTION_QUIZ_NO_SOURCE = (
+    "Aucune leçon ne porte cette notion et aucune source validée ne la documente — "
+    "rien pour construire un quiz. Importe une source dans cette matière, puis réessaie."
+)
 # Types éditables à la main par Papa : les sept déterministes (Lot 1) + `open` (Lot 2, jugé par
 # LLM). `open` n'entre JAMAIS dans le mix auto-généré (ADR-0014 Décision 3) : opt-in manuel Papa.
 MANUAL_QUESTION_TYPES = correction.SUPPORTED_TYPES | {"open"}
@@ -145,6 +153,26 @@ def _canonical_sections(
     return build_canonical_sections(ctx)
 
 
+def _notion_sections_or_409(db: Session, embedder: EmbeddingProvider, skill: Skill) -> str:
+    """Bloc de contexte d'une notion SANS leçon — **et le plancher de preuve** (ADR-0042 §3).
+
+    Aucun cours n'existe : on est au deuxième cran de la cascade que l'ADR-0011 §1 nomme
+    (« cours validé → RAG seul → connaissance du modèle »). **On s'arrête au deuxième.**
+
+    Sans le moindre extrait, le quiz serait bâti sur la seule connaissance du modèle et servi à
+    Massimo comme une MESURE de sa maîtrise, sans qu'aucune source du dépôt ne l'ancre.
+    L'auto-vérification à l'aveugle (ADR-0014 Décision 5) contrôle la cohérence interne d'une
+    question, **pas sa pertinence au programme** : elle ne rattrape pas cette absence.
+
+    ⚠️ Le refus est levé **AVANT** tout appel au modèle — on ne paie pas une génération pour la
+    jeter, et le motif remonte à l'appelant qui saura le journaliser.
+    """
+    ctx = resolve_canonical_context(db, embedder, skill_id=skill.id, query=skill.name)
+    if not ctx.chunks:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=NOTION_QUIZ_NO_SOURCE)
+    return build_canonical_sections(ctx)
+
+
 def _generate_and_parse(provider: LLMProvider, prompt: str) -> GeneratedQuiz:
     """Pipeline ADR-0007 : validation Pydantic stricte → 1 réparation → 502."""
     raw = provider.generate(
@@ -207,18 +235,20 @@ def _self_check_agrees(
 
 
 def _produce_questions(
-    db: Session,
     provider: LLMProvider,
-    embedder: EmbeddingProvider,
     *,
-    lesson: Lesson,
+    sections: str,
     skills: list[Skill],
     count: int,
     difficulty: int,
 ) -> tuple[list[dict], dict]:
     """Génère, valide, résout la notion et auto-vérifie chaque question. Renvoie les survivantes
-    (prêtes à persister) + les compteurs (`discarded`, `invalid`)."""
-    sections = _canonical_sections(db, embedder, lesson, skills)
+    (prêtes à persister) + les compteurs (`discarded`, `invalid`).
+
+    ⚠️ Reçoit le bloc de contexte **déjà résolu** au lieu de le résoudre lui-même (ADR-0042) :
+    c'est ce qui permet aux deux ancrages — leçon et notion — de partager cette boucle au lieu
+    d'en avoir chacun une copie. Le défaut que l'ADR-0037 nomme, évité à la source.
+    """
     skill_by_norm = {correction.normalize_text(s.name): s for s in skills}
     prompt = QUIZ_GEN_PROMPT_V1.format(
         sections=sections,
@@ -281,7 +311,7 @@ def _persist_questions(db: Session, quiz_id: int, survivors: list[dict], start_o
 def _trace_job(
     db: Session,
     *,
-    lesson: Lesson,
+    lesson: Lesson | None,
     quiz_id: int,
     count: int,
     difficulty: int,
@@ -289,22 +319,32 @@ def _trace_job(
     discarded: int,
     invalid: int,
     started_at: datetime,
+    skill: Skill | None = None,
 ) -> None:
+    """Trace `ai_jobs` d'une génération de quiz.
+
+    ⚠️ L'ancrage est **soit** une leçon, **soit** une notion (ADR-0042) : `lesson_id` reste `None`
+    dans le second cas plutôt que d'être maquillé, et `skill_id` dit alors sur quoi le quiz porte.
+    Un `lesson_id` inventé rendrait la trace indiscernable d'une génération leçon-centrée.
+    """
     finished = _now()
     db.add(
         AIJob(
             job_type="quiz_generate",
             status="succeeded",
             input_json={
-                "lesson_id": lesson.id,
+                "lesson_id": lesson.id if lesson is not None else None,
+                "skill_id": skill.id if skill is not None else None,
                 "count": count,
                 "difficulty": difficulty,
                 "prompt_version": QUIZ_PROMPT_VERSION,
             },
             output_json={
                 "quiz_id": quiz_id,
-                "lesson_id": lesson.id,
-                "lesson_title": lesson.title,
+                "lesson_id": lesson.id if lesson is not None else None,
+                "lesson_title": lesson.title if lesson is not None else None,
+                "skill_id": skill.id if skill is not None else None,
+                "skill_name": skill.name if skill is not None else None,
                 "questions_generated": generated,
                 "questions_discarded": discarded,
                 "questions_invalid": invalid,
@@ -337,7 +377,11 @@ def generate_quiz(
         )
     started = _now()
     survivors, counters = _produce_questions(
-        db, provider, embedder, lesson=lesson, skills=skills, count=count, difficulty=difficulty
+        provider,
+        sections=_canonical_sections(db, embedder, lesson, skills),
+        skills=skills,
+        count=count,
+        difficulty=difficulty,
     )
     if not survivors:
         raise HTTPException(
@@ -377,6 +421,97 @@ def generate_quiz(
     return quiz, {"questions_generated": len(survivors), "questions_discarded": counters["discarded"]}
 
 
+def generate_quiz_for_skill(
+    db: Session,
+    provider: LLMProvider,
+    embedder: EmbeddingProvider,
+    *,
+    skill_id: int,
+    count: int,
+    difficulty: int,
+) -> tuple[Quiz, dict]:
+    """Quiz ancré sur la NOTION, pour une notion qu'aucune leçon ne porte (ADR-0042).
+
+    ## Pourquoi cette voie existe
+
+    Une `Skill` sans `Lesson` est un état produit normal (contrat ADR-0010 : le rattrapage d'un
+    niveau antérieur upserte des notions « sans chapitre associé »). Pour elle, la chaîne était
+    fermée : pas de leçon → pas de cours → pas de quiz → l'étape quiz de la mission **omise** →
+    verdict `acquired` arithmétiquement inatteignable → la lacune ne se refermait jamais.
+
+    ## Ce que cette voie n'est PAS
+
+    ⚠️ **Un DERNIER RECOURS, jamais un doublon.** Si une leçon porte la notion — même un
+    brouillon — c'est la voie leçon qui s'applique, et celle-ci refuse. Sans cette règle, deux
+    chemins produiraient le quiz d'une même notion et l'ADR-0037 (« une seule réponse à *quelle
+    est LA leçon de cette notion* ») serait rouvert par la bande. C'est l'invariant central de
+    l'ADR-0042, et il porte son test-verrou.
+
+    ⚠️ **Pas une entorse au gate du cours canonique.** L'ADR-0011 §1 interdit à un dérivé de
+    recevoir un cours **non validé** ; il n'interdit pas de travailler **sans cours** — sa
+    cascade nomme elle-même le cran « RAG seul ». Le gate reste entier : on ne le contourne pas,
+    on utilise le deuxième cran. Le plancher de `_notion_sections_or_409` borne ce cran.
+
+    Le `Quiz` produit porte `lesson_id=NULL` et `chapter_id=NULL` — colonnes déjà nullables, donc
+    **aucune migration**. L'attribution des questions passe par `quiz_questions.skill_id`, qui la
+    portait déjà.
+    """
+    skill = db.get(Skill, skill_id)
+    if skill is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notion introuvable.")
+    if lessons_of_skill(db, skill_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Cette notion est portée par une leçon — son quiz se génère depuis la leçon.",
+        )
+
+    sections = _notion_sections_or_409(db, embedder, skill)
+    started = _now()
+    survivors, counters = _produce_questions(
+        provider, sections=sections, skills=[skill], count=count, difficulty=difficulty
+    )
+    if not survivors:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Aucune question n'a passé l'auto-vérification — réessaie la génération.",
+        )
+
+    quiz = Quiz(
+        subject_id=skill.subject_id,
+        lesson_id=None,  # ancrage notion : la colonne est nullable, on ne maquille rien
+        chapter_id=None,
+        title=f"Quiz — {skill.name}",
+        quiz_type=QUIZ_TYPE_MISSION,
+        status="ready",
+        created_by="ai",
+        # Même doctrine que la voie leçon (ADR-0014 §2) : servi SANS gate de validation, `system`
+        # trace cette non-relecture. Valeur strictement réservée à ce cas (§F.1).
+        validated_at=datetime.now(timezone.utc),
+        validated_by=SYSTEM,
+    )
+    db.add(quiz)
+    db.flush()
+    _persist_questions(db, quiz.id, survivors, start_order=0)
+    _trace_job(
+        db,
+        lesson=None,
+        skill=skill,
+        quiz_id=quiz.id,
+        count=count,
+        difficulty=difficulty,
+        generated=len(survivors),
+        discarded=counters["discarded"],
+        invalid=counters["invalid"],
+        started_at=started,
+    )
+    db.commit()
+    db.refresh(quiz)
+    return quiz, {
+        "questions_generated": len(survivors),
+        "questions_discarded": counters["discarded"],
+    }
+
+
 def regenerate_quiz(
     db: Session, provider: LLMProvider, embedder: EmbeddingProvider, *, quiz_id: int
 ) -> tuple[Quiz, dict]:
@@ -391,7 +526,11 @@ def regenerate_quiz(
     started = _now()
     # Produit d'abord (peut lever 502) AVANT de toucher l'existant — pas de quiz vidé pour rien.
     survivors, counters = _produce_questions(
-        db, provider, embedder, lesson=lesson, skills=skills, count=len(skills) or 5, difficulty=2
+        provider,
+        sections=_canonical_sections(db, embedder, lesson, skills),
+        skills=skills,
+        count=len(skills) or 5,
+        difficulty=2,
     )
     if not survivors:
         raise HTTPException(

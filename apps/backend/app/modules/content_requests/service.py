@@ -221,10 +221,23 @@ def list_requests(db: Session, status_filter: str | None = "pending") -> list[di
     from app.modules.production.runner import blockers_for
     from app.modules.settings import service as settings_service
 
+    gate = settings_service.course_gate_enabled(db)
     motifs = blockers_for(
         db,
         [req.skill_id for req, *_ in lignes],
-        require_validated_course=settings_service.course_gate_enabled(db),
+        require_validated_course=gate,
+    )
+    # ⚠️ **Le quiz a son propre verdict depuis l'ADR-0042** : sur une notion orpheline il est le
+    # seul produisible, donc lui appliquer le motif commun annoncerait « bloqué » là où le lot
+    # produirait. Une seconde passe, sur les seules demandes de quiz — l'écran doit dire ce que
+    # le lot fera, c'est toute la raison d'être de ce verdict de situation.
+    notions_quiz = [
+        req.skill_id for req, *_ in lignes if REQUEST_KIND_TO_PIECE.get(req.content_kind) == "quiz"
+    ]
+    motifs_quiz = (
+        blockers_for(db, notions_quiz, require_validated_course=gate, piece="quiz")
+        if notions_quiz
+        else {}
     )
     lots = _active_runs_by_scope(db, [req.skill_id for req, *_ in lignes])
     return [
@@ -235,7 +248,12 @@ def list_requests(db: Session, status_filter: str | None = "pending") -> list[di
             subject_name,
             # Le motif ne vaut que pour ce que ZETIS sait produire : sur une `capsule`, `producible`
             # dit déjà le refus, et deux constats concurrents sur la même ligne se contrediraient.
-            motifs.get(req.skill_id) if req.content_kind in REQUEST_KIND_TO_PIECE else None,
+            (
+                (motifs_quiz if REQUEST_KIND_TO_PIECE.get(req.content_kind) == "quiz" else motifs)
+                .get(req.skill_id)
+                if req.content_kind in REQUEST_KIND_TO_PIECE
+                else None
+            ),
             lots.get((req.skill_id, REQUEST_KIND_TO_PIECE.get(req.content_kind))),
         )
         for req, skill_name, subject_id, subject_name in lignes

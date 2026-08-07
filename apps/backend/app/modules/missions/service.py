@@ -32,6 +32,7 @@ from app.db.models import (
     Mission,
     MissionStep,
     Quiz,
+    QuizQuestion,
     QuizAttempt,
     SchoolYear,
     SchoolYearSubject,
@@ -100,16 +101,47 @@ def _resolve_mission_quiz_ids(db: Session, skill_ids: Sequence[int]) -> dict[int
         )
         .group_by(LessonSkill.skill_id)
     ).all()
-    return {skill_id: quiz_id for skill_id, quiz_id in rows if quiz_id is not None}
+    resolus = {skill_id: quiz_id for skill_id, quiz_id in rows if quiz_id is not None}
+
+    # Second ancrage : les quiz portés par la NOTION et non par une leçon (ADR-0042). Sans cette
+    # requête, un quiz notion-ancré serait produit puis **introuvable ici** — l'étape quiz
+    # resterait omise, tout serait vert, et rien ne serait débloqué. C'est l'échec exact que le
+    # critère de réussite de l'ADR-0042 rend visible.
+    #
+    # ⚠️ La voie leçon garde la PRIORITÉ (`setdefault`) : le quiz notion-ancré est un dernier
+    # recours, et si une leçon porte la notion c'est son quiz qui fait foi.
+    manquantes = [s for s in ids if s not in resolus]
+    if manquantes:
+        rows_notion = db.execute(
+            select(QuizQuestion.skill_id, func.max(Quiz.id))
+            .join(Quiz, Quiz.id == QuizQuestion.quiz_id)
+            .where(
+                Quiz.quiz_type == "mission",
+                Quiz.status == "ready",
+                Quiz.lesson_id.is_(None),
+                QuizQuestion.skill_id.in_(manquantes),
+            )
+            .group_by(QuizQuestion.skill_id)
+        ).all()
+        for skill_id, quiz_id in rows_notion:
+            if quiz_id is not None:
+                resolus.setdefault(skill_id, quiz_id)
+    return resolus
 
 
 def _resolve_mission_quiz_id(db: Session, skill_id: int | None) -> int | None:
-    """Un quiz de mission déjà PRÊT couvrant la notion (via la leçon qui la porte), sinon None.
+    """Un quiz de mission déjà PRÊT couvrant la notion, sinon None.
 
-    Lot 1 « réutiliser sinon dégrader » (décision de session) : on ne génère PAS de quiz ici
-    (le moteur ADR-0014 est verrouillé à une leçon validée + LLM). Sans quiz réutilisable,
-    l'étape quiz est omise → la mission a 2 étapes et son verdict est `review_later` par défaut
-    (la notion revient via SRS). L'auto-génération relève du Lot 2."""
+    Deux ancrages acceptés : la leçon qui porte la notion, ou — depuis l'ADR-0042 — la notion
+    elle-même quand aucune leçon ne la porte.
+
+    ⚠️ **On ne génère toujours PAS de quiz ici**, et c'est délibéré : ce résolveur est appelé
+    pendant la composition d'une mission, un geste qui doit rester instantané. La production est
+    le métier de `production/` — cette fonction ne fait que RÉUTILISER ce qui existe.
+
+    Reste vrai après l'ADR-0042 : sans quiz réutilisable, l'étape quiz est omise → mission à
+    2 étapes → verdict `review_later` par défaut (la notion revient via SRS). Ce qui change,
+    c'est qu'une notion orpheline **peut désormais avoir un quiz à réutiliser**."""
     if skill_id is None:
         return None
     return _resolve_mission_quiz_ids(db, [skill_id]).get(skill_id)

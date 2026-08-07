@@ -73,6 +73,8 @@ export function OrphanNotionsPanel({
         Notions au référentiel de cette matière mais rattachées à <b className="text-papa-text">aucune
         leçon</b> — ajoutées par « Rattrapage » ou depuis une demande de Massimo. Crée une leçon qui
         les porte (elles quittent alors ce panneau), ou supprime une notion ajoutée par erreur.
+        Les notions d'un <b className="text-papa-text">niveau antérieur</b> portent leur niveau :
+        elles ne font pas partie du programme de l'année, mais ZETIS peut les travailler.
       </p>
 
       {error && (
@@ -88,6 +90,14 @@ export function OrphanNotionsPanel({
             className="flex items-center gap-2 rounded-lg border border-papa-border/70 bg-papa-bg/40 px-3 py-2"
           >
             <span className="min-w-0 flex-1 truncate text-[12.5px]">{n.name}</span>
+            {n.level && (
+              <span
+                className="shrink-0 rounded-md border border-papa-border px-1.5 py-0.5 text-[10.5px] font-semibold text-papa-muted"
+                title="Niveau de la notion"
+              >
+                {n.level}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => setLessonFor(n)}

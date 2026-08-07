@@ -208,7 +208,21 @@ def test_equip_notion_route_enqueues_and_returns_immediately(client_db, file_rq_
     assert len(file_rq_factice.enqueued) == 1, "le travail doit partir dans la file"
 
 
-def test_equip_notion_skips_when_no_lesson(client_db) -> None:
+def test_equip_notion_sans_lecon_saute_les_quatre_pieces_lecon_centrees(client_db) -> None:
+    """Notion orpheline : les quatre pièces leçon-centrées restent hors d'atteinte.
+
+    ⚠️ **Ce test a changé de sens le 2026-08-07 (ADR-0042), délibérément.** Il affirmait que
+    les CINQ pièces étaient sautées — la doctrine « pas de leçon, rien à produire ». Le quiz a
+    depuis appris à s'ancrer sur la notion : l'inclure encore dans `skipped` reviendrait à
+    verrouiller le trou que l'ADR-0042 vient de combler.
+
+    Ce qui reste vrai et que ce test protège : **on ne fabrique toujours ni chapitre ni leçon à
+    la volée** (interdit ADR-0021 décision 3, non levé). Cours, fiche, SRS et mindmap sont
+    leçon-centrés et le demeurent.
+
+    Ici la notion n'a aucune source RAG, donc le quiz est **refusé par le plancher** de
+    l'ADR-0042 §3 — et le refus se DIT (`errors`), il ne se tait pas.
+    """
     _, Session = client_db
     with Session() as db:
         skill = db.scalar(select(m.Skill))
@@ -217,7 +231,9 @@ def test_equip_notion_skips_when_no_lesson(client_db) -> None:
         )
     assert body["has_lesson"] is False
     assert body["generated"] == []
-    assert set(body["skipped"]) == {"cours", "fiche", "srs", "quiz", "mindmap"}
+    assert set(body["skipped"]) == {"cours", "fiche", "srs", "mindmap"}
+    assert [e["piece"] for e in body["errors"]] == ["quiz"]
+    assert "source" in body["errors"][0]["message"]
 
 
 def test_equip_notion_generates_and_autovalidates_kit(client_db) -> None:

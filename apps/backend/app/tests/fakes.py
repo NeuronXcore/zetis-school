@@ -9,7 +9,13 @@ from app.modules.tts.provider import TtsRequest, TtsResponse
 
 
 class FakeEmbeddingProvider:
-    """Embedder déterministe pour les tests (aucun appel ollama)."""
+    """Embedder « déterministe » pour les tests (aucun appel ollama).
+
+    ⚠️ **Il ne l'est PAS d'un run à l'autre** : `hash()` d'une `str` est salé par
+    `PYTHONHASHSEED`. Suffisant pour vérifier qu'une ingestion écrit un vecteur, **piégeux** dès
+    qu'un test dépend du CLASSEMENT des voisins — il devient alors instable à ~50 %.
+    Pour ces cas-là : `Crc32EmbeddingProvider` ci-dessous.
+    """
 
     def __init__(self, dim: int = 768) -> None:
         self.dim = dim
@@ -17,6 +23,27 @@ class FakeEmbeddingProvider:
     def embed(self, texts: list[str]) -> list[list[float]]:
         # Vecteur reproductible dérivé du texte (suffisant pour vérifier l'ingestion).
         return [[float(((hash(t) + i) % 1000) / 1000.0) for i in range(self.dim)] for t in texts]
+
+
+class Crc32EmbeddingProvider:
+    """Embedder **vraiment** déterministe — `zlib.crc32`, stable d'un processus à l'autre.
+
+    À utiliser dès qu'un test porte sur la RÉSOLUTION ou la NON-résolution d'un voisinage : avec
+    `FakeEmbeddingProvider`, un tel test est vert une fois sur deux et son échec ressemble à une
+    régression. Même parade que `test_chat_announce`, qui avait déjà troqué `hash()` contre
+    `crc32` pour la même raison.
+    """
+
+    def __init__(self, dim: int = 768) -> None:
+        self.dim = dim
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        import zlib
+
+        return [
+            [float(((zlib.crc32(t.encode()) + i) % 1000) / 1000.0) for i in range(self.dim)]
+            for t in texts
+        ]
 
 
 class FakeTtsProvider:
