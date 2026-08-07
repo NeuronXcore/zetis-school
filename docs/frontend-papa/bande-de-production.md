@@ -205,9 +205,67 @@ tourne.
 
 340 px, ancré sous la bande, ouvert au clic, fermé au clic extérieur **et à `Escape`**.
 
-Une ligne par travail : pastille d'état, libellé, sous-titre, **badge de couloir**.
+Une ligne par travail : pastille d'état, libellé, **phrase d'état**, badge de couloir.
 L'ordre affiché est **celui qui sera servi** — une règle de priorité qu'on ne peut pas vérifier à
 l'œil n'est pas vérifiée.
+
+### La phrase d'état — *ce qui se passe · depuis quand · qui l'a demandé*
+
+Le popover **encodait** ce qu'il doit **expliquer** : un `37 %` isolé dans une colonne de droite,
+un `en file — 1ᵉʳ` en langage abrégé, l'origine seule en sous-titre. Papa recomposait trois
+fragments. Il lit désormais une ligne, et la colonne de droite ne garde que le geste.
+
+| État | Ce qui s'écrit |
+|---|---|
+| en cours, **mesuré** | `7 / 19 pièces · démarré il y a 4 min · lancé par vous` |
+| en cours, **estimé** | `≈ 40 % · démarré il y a 32 s · demandé par Massimo` |
+| en cours, **média** | `en cours · couloir séparé, ne retarde rien · lancé par vous` |
+| en file, **derrière un travail** | `2ᵉ dans la file, derrière le lot en cours · préparé pour une échéance` |
+| en file, **rien ne tourne** | `1ᵉʳ dans la file · lancé par vous` |
+| **arrêté** | `arrêté — plus rien ne l'exécute · lancé par vous` |
+| **échec** | le motif brut — il remplace tout le reste |
+
+🔴 **La FRACTION, pas le seul pourcentage.** « 37 % » ne se distingue pas d'une estimation bien
+tournée ; « 7 / 19 pièces » prouve que le serveur compte. La bande le disait déjà, le détail
+l'avait perdu.
+
+⚠️ **Le rang reste**, même si la maquette l'abandonne : « derrière le lot en cours » ne distingue
+pas le 1ᵉʳ du 3ᵉ.
+
+🔴 **Le rang se compte depuis le HAUT de la liste, jamais depuis le travail courant.** Trouvé à
+l'écran le 2026-08-07 : quand rien ne tourne, `current` porte le premier de la file et s'affichait
+sans rang, pendant que la ligne juste **en dessous** s'annonçait « 1ᵉʳ ». La seconde ligne
+prétendait être la première. Un travail **en cours**, lui, n'a pas de rang — il n'est plus dans la
+file.
+
+⚠️ **« derrière le lot en cours » ne s'écrit que si quelque chose tourne VRAIMENT.** `current`
+porte le premier de la file quand rien ne tourne : sa présence ne prouve pas qu'il y a du travail.
+C'est la faute du résumé « 1 en cours » sur une file arrêtée, corrigée le 2026-08-06.
+
+⚠️ **L'origine survit à la fusion.** La maquette la supprimait ; elle est conservée (arbitrage du
+2026-08-07) pour la raison écrite plus haut — sinon Papa voit ZETIS travailler à 8 h sur quelque
+chose qu'il n'a pas demandé.
+
+⚠️ **Un travail en file n'a pas d'ancienneté.** `started_at` est `null` tant qu'il n'a pas démarré,
+et « démarré il y a … » ne s'écrit pas. Lui en inventer une serait le même mensonge que le 0 %.
+
+### Ce qui rouvrira un refus — par régulateur, jamais une formule générale
+
+| Régulateur | Ce qui s'écrit |
+|---|---|
+| `duplicate` | reprendra quand le lot en cours sera fini |
+| `already_produced` | 🔴 **ne reprendra pas — ce contenu existe déjà** |
+| `pending_backlog` | reprendra après relecture |
+| `request_volume` · `auto_volume` | reprendra quand la fenêtre de 7 jours se sera dégagée |
+| *inconnu* | **rien** — le repli est le silence |
+
+🔴 **Une phrase générique mentait sur un cas sur cinq.** « Reprendra dès que la limite sera levée »
+couvrait les cinq régulateurs — or `already_produced` est satisfait par **construction** : le
+contenu existe déjà, rien ne le rouvrira. Papa attendait une production qui ne viendrait pas, et
+rien à l'écran ne le détrompait.
+
+⚠️ **Un code inconnu ne dit rien plutôt que d'inventer une promesse.** C'est exactement par un
+défaut par défaut que la phrase précédente est devenue fausse.
 
 **L'origine se dit toujours :**
 

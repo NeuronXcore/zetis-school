@@ -72,9 +72,13 @@ describe("ProductionPopover — le détail de ce qui est en vol", () => {
     // Le courant d'abord, puis la file DANS SON ORDRE.
     expect(lignes[0]).toContain("Équipement · A");
     expect(lignes[1]).toContain("Fiche · B");
-    expect(lignes[1]).toContain("1er");
+    // ⚠️ Le RANG reste, seule sa formulation change : « en file — 1er » est devenu « 1ᵉʳ dans la
+    // file, derrière le lot en cours ». La règle protégée est la même — la priorité doit être
+    // VISIBLE, pas seulement vraie —, et elle est même mieux servie : on sait désormais derrière
+    // QUOI on attend.
+    expect(lignes[1]).toContain("1ᵉʳ dans la file");
     expect(lignes[2]).toContain("Quiz · C");
-    expect(lignes[2]).toContain("2e");
+    expect(lignes[2]).toContain("2ᵉ dans la file");
   });
 
   it("🔒 l'origine se dit TOUJOURS — y compris quand elle n'est pas enregistrée", () => {
@@ -91,10 +95,15 @@ describe("ProductionPopover — le détail de ce qui est en vol", () => {
       }),
     );
 
-    expect(screen.getByText("préparé pour une échéance")).toBeTruthy();
-    expect(screen.getByText("demandé par Massimo")).toBeTruthy();
+    // ⚠️ **L'origine est désormais FUSIONNÉE dans la phrase d'état** (arbitrage du 2026-08-07) :
+    // elle ne forme plus un nœud de texte à elle seule, d'où la recherche sur le contenu des
+    // lignes. Ce que ce test protège n'a pas bougé — la maquette supprimait l'origine, et c'est
+    // précisément ce qu'on a refusé de faire.
+    const lignes = screen.getAllByRole("listitem").map((l) => l.textContent ?? "");
+    expect(lignes.some((l) => l.includes("préparé pour une échéance"))).toBe(true);
+    expect(lignes.some((l) => l.includes("demandé par Massimo"))).toBe(true);
     // Un trou se DIT, il ne se tait pas : un libellé vide se lirait comme « lancé par vous ».
-    expect(screen.getByText("origine non enregistrée")).toBeTruthy();
+    expect(lignes.some((l) => l.includes("origine non enregistrée"))).toBe(true);
   });
 
   it("🔒 un travail EN FILE n'affiche aucun pourcentage", () => {
@@ -103,8 +112,11 @@ describe("ProductionPopover — le détail de ce qui est en vol", () => {
     montre(activite({ queued: [item({ id: 7 })], queued_count: 1 }));
 
     const ligne = screen.getAllByRole("listitem")[0].textContent ?? "";
-    expect(ligne).toContain("en file");
+    expect(ligne).toContain("dans la file");
     expect(ligne).not.toMatch(/\d+\s?%/);
+    // ⚠️ Et il n'a pas d'ancienneté non plus : un travail en file n'a pas démarré, `started_at`
+    // est `null`, et lui inventer un « démarré il y a … » serait le même mensonge que le 0 %.
+    expect(ligne).not.toContain("démarré");
   });
 
   it("🔒 un échec porte son MOTIF et ne part que sur acquittement", () => {
@@ -179,9 +191,132 @@ describe("ProductionPopover — le détail de ce qui est en vol", () => {
       }),
     );
     expect(screen.getByText(/34 contenus attendent déjà votre relecture/)).toBeTruthy();
-    expect(screen.getByText(/reprendra dès que la limite sera levée/)).toBeTruthy();
+    // ⚠️ La phrase est désormais celle de CE régulateur : « reprendra après relecture », pas la
+    // formule générale qui les couvrait tous.
+    expect(screen.getByText(/reprendra après relecture/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /J'ai vu/ }));
     expect(onAck).toHaveBeenCalledWith("refusal", 7);
+  });
+
+  // ─── LA PHRASE D'ÉTAT ────────────────────────────────────────────────────────────────────────
+  it("🔒 un travail MESURÉ dit sa FRACTION, pas son seul pourcentage", () => {
+    // « 37 % » ne se distingue pas d'une estimation bien tournée ; « 7 / 19 pièces » prouve que le
+    // serveur COMPTE. La bande le disait déjà, le popover l'avait perdu.
+    montre(
+      activite({
+        current: item({
+          status: "running",
+          pct_is_measured: true,
+          pct: 37,
+          pieces_done: 7,
+          pieces_total: 19,
+          started_at: new Date(Date.now() - 4 * 60_000).toISOString(),
+        }),
+        worker_alive: true,
+      }),
+    );
+    const ligne = screen.getAllByRole("listitem")[0].textContent ?? "";
+    expect(ligne).toContain("7 / 19 pièces");
+    expect(ligne).toContain("démarré il y a 4 min");
+    // 🔴 L'origine SURVIT à la fusion — c'est l'arbitrage qui a refusé de suivre la maquette.
+    expect(ligne).toContain("lancé par vous");
+  });
+
+  it("🔒 « derrière le lot en cours » ne s'écrit QUE si quelque chose tourne", () => {
+    // 🔴 Sur une file arrêtée, la phrase serait fausse — exactement la faute du résumé « 1 en
+    // cours » affiché sur une file à l'arrêt, corrigée à l'écran le 2026-08-06. `current` porte le
+    // premier de la file quand rien ne tourne : sa présence ne prouve pas qu'il y a du travail.
+    montre(
+      activite({
+        current: item({ id: 1, status: "queued" }),
+        queued: [item({ id: 2 })],
+        queued_count: 1,
+        worker_alive: false,
+      }),
+    );
+    const lignes = screen.getAllByRole("listitem").map((l) => l.textContent ?? "");
+    expect(lignes.join(" ")).not.toContain("derrière le lot en cours");
+    // …mais le rang reste : la priorité doit être visible même à l'arrêt.
+    expect(lignes.join(" ")).toContain("dans la file");
+  });
+
+  it("🔒 le rang compte depuis le HAUT de la liste, pas depuis le travail courant", () => {
+    // 🔴 Vu à l'écran le 2026-08-07 : rien ne tournait, `current` portait le premier de la file et
+    // s'affichait sans rang, pendant que la ligne juste EN DESSOUS s'annonçait « 1ᵉʳ ». La seconde
+    // ligne prétendait être la première. Le rang se comptait « derrière le travail en cours » —
+    // ce qui n'a de sens que s'il y en a un.
+    montre(
+      activite({
+        current: item({ id: 1, status: "queued", label: "Équipement · A" }),
+        queued: [item({ id: 2, label: "Fiche · B" })],
+        queued_count: 1,
+        worker_alive: true,
+      }),
+    );
+    const lignes = screen.getAllByRole("listitem").map((l) => l.textContent ?? "");
+    expect(lignes[0]).toContain("1ᵉʳ dans la file");
+    expect(lignes[1]).toContain("2ᵉ dans la file");
+  });
+
+  it("🔒 …mais quand quelque chose TOURNE, le courant n'a pas de rang", () => {
+    // La contre-épreuve : un travail en cours n'est pas « 1ᵉʳ dans la file », il n'y est plus.
+    montre(
+      activite({
+        current: item({ id: 1, status: "running", label: "Équipement · A" }),
+        queued: [item({ id: 2, label: "Fiche · B" })],
+        queued_count: 1,
+        worker_alive: true,
+      }),
+    );
+    const lignes = screen.getAllByRole("listitem").map((l) => l.textContent ?? "");
+    expect(lignes[0]).not.toContain("dans la file");
+    expect(lignes[1]).toContain("1ᵉʳ dans la file, derrière le lot en cours");
+  });
+
+  it("🔒 un refus `already_produced` ne PROMET RIEN — il ne reprendra jamais", () => {
+    // 🔴 **Le défaut que ce chantier corrige.** Une phrase générique — « reprendra dès que la
+    // limite sera levée » — couvrait les cinq régulateurs. Or celui-ci est satisfait par
+    // CONSTRUCTION : le contenu existe déjà, rien ne le rouvrira. Papa attendait une production
+    // qui ne viendrait pas, et rien à l'écran ne le détrompait.
+    montre(
+      activite({
+        refused: [
+          {
+            id: 8,
+            regulator: "already_produced",
+            detail: "La fiche de cette notion existe déjà. Relancer une production ne la remplacerait pas.",
+            trigger: "request",
+            created_at: "2026-08-07T02:00:00Z",
+          },
+        ],
+      }),
+    );
+    const ligne = screen.getAllByRole("listitem")[0].textContent ?? "";
+    expect(ligne).toContain("ne reprendra pas");
+    expect(ligne).not.toContain("reprendra dès");
+    expect(ligne).not.toMatch(/\breprendra (après|quand)\b/);
+  });
+
+  it("⚠️ un régulateur INCONNU se tait, il n'invente pas de promesse", () => {
+    // Le repli est le silence. Une phrase par défaut sur un code qu'on ne connaît pas, c'est
+    // exactement comme ça que « reprendra dès que la limite sera levée » est devenu faux.
+    montre(
+      activite({
+        refused: [
+          {
+            id: 9,
+            regulator: "plafond_futur_pas_encore_ecrit",
+            detail: "un motif quelconque",
+            trigger: "agenda",
+            created_at: "2026-08-07T02:00:00Z",
+          },
+        ],
+      }),
+    );
+    const ligne = screen.getAllByRole("listitem")[0].textContent ?? "";
+    expect(ligne).toContain("un motif quelconque");
+    expect(ligne).toContain("préparé pour une échéance");
+    expect(ligne).not.toContain("reprendra");
   });
 
   it("🔒 le pied mène au Journal FILTRÉ, en paramètres répétés", () => {
