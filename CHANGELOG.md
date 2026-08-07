@@ -1,5 +1,43 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.57.0 — Les engrenages et le dossier changent de dessin, pas de sens
+
+Les deux objets aux extrémités de la bande de production — les rouages à gauche, la boîte à
+droite — cèdent la place à `GearsSpinner` et `KnowledgeFolder`. La métaphore de l'ADR-0041 §682 ne
+bouge pas : les roues fabriquent, la pièce traverse, le dossier l'avale. **Tout le câblage d'état
+est conservé** ; seules changent la forme et les durées.
+
+- **3 s et 2 s inversé** au lieu de 3,6 s et 2,5 s — 12 dents contre 8 donnent un rapport de 1,5.
+  Deux roues à la même vitesse se traversent visuellement : l'œil le voit sans savoir le nommer.
+- **Le dossier reçoit des pages** qui volent, la face s'enfonce d'un cran, une lueur passe. Une
+  page par pièce **réellement fabriquée** — jamais une `skipped`, qui était déjà dedans.
+- **La pile se remplit par accumulation**, plus au prorata du lot : elle dit « ça s'accumule », pas
+  « combien ». Le tapis et le compteur portaient déjà le pourcentage ; deux objets sur le même
+  chiffre font doublon, pas redondance.
+- `useBoiteRecoit` est **retiré** : le dossier détecte lui-même l'incrément.
+
+### 🔴 Trois défauts que la suite de tests ne pouvait pas voir
+
+**Le ton n'atteignait plus les deux objets.** En Tailwind v4 les utilitaires vivent dans un
+`@layer` : un `color: inherit` posé hors couche bat `text-papa-accent-2` à spécificité égale. Les
+engrenages restaient gris — donc **l'ambre de l'arrêt disparaissait**, le signal le plus lisible de
+l'écran.
+
+**La pastille était illisible.** `background: currentColor` et `color:` sur la même règle :
+`currentColor` se résout après le `color` qu'on vient de poser. Fond et texte tombaient sur la même
+couleur sombre.
+
+**Le dossier perdait les pièces déposées avant son montage** — signalé à l'écran, pas par un test.
+La bande repliée et la bande dépliée sont deux branches de rendu distinctes : le dossier est
+remonté au premier sondage qui voit un lot, et avalait tout ce qui précédait. Sur un lot court,
+c'est le lot entier.
+
+### 🔒 Le verrou qui manquait depuis l'origine
+
+Six tests interrogeaient `[data-tourne]` ; **aucun ne vérifiait que la chose animée est dessous**.
+Le CSS de la maquette animait en permanence : branché tel quel, la bande aurait tourné à l'arrêt
+pendant que les six restaient verts. Démontré par sabotage.
+
 ## 0.56.0 — Le popover dit l'état en toutes lettres, et deux phrases cessent de mentir
 
 Le détail de production **encodait** ce que la maquette du header **explique** : un `37 %` isolé

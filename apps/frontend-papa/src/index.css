@@ -522,16 +522,70 @@ body {
    ⚠️ L'attribut PORTE l'animation, il n'est pas un marqueur posé à côté : un test qui observe
    `[data-tourne]` observe donc le mouvement lui-même, et non une classe utilitaire qu'un
    refactor Tailwind peut renommer sans que rien ne rougisse. */
-@keyframes zetis-rouage {
+@keyframes zx-cw {
   to {
     transform: rotate(360deg);
   }
 }
-[data-tourne] .zetis-rouage-a {
-  animation: zetis-rouage 3.6s linear infinite;
+@keyframes zx-ccw {
+  to {
+    transform: rotate(-360deg);
+  }
 }
-[data-tourne] .zetis-rouage-b {
-  animation: zetis-rouage 2.5s linear infinite reverse;
+
+/* 🔴 **AUCUN `color` ICI, ET C'EST LA RÈGLE À NE PAS REPERDRE.** La maquette posait
+   `color: inherit`. En Tailwind v4 les utilitaires vivent dans un `@layer` : une règle de classe
+   écrite hors couche bat `text-papa-accent-2` à spécificité égale. Résultat vu à l'écran le
+   2026-08-07 — les engrenages restaient gris, et l'AMBRE DE L'ARRÊT ne les atteignait plus.
+   C'est le signal le plus lisible de la bande (spec §138) : il aurait disparu en silence, sans
+   qu'un seul test rougisse. `color` s'hérite tout seul ; la déclarer ne servait qu'à la bloquer. */
+.zx-gears {
+  display: inline-block;
+  width: 1.9em;
+  height: 1.9em;
+  vertical-align: -0.35em;
+  flex: 0 0 auto;
+}
+.zx-gears svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ⚠️ `transform-box: fill-box` n'est PAS optionnel : sans lui, WebKit fait tourner chaque roue
+   autour de l'origine du SVG et non de son propre centre — les deux engrenages partent en orbite.
+   Le défaut ne se voit pas sur Chrome, donc pas en développement : seulement sur l'iPad. */
+.zx-gears__a,
+.zx-gears__b {
+  fill: currentColor;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.zx-gears__b {
+  opacity: 0.62;
+}
+
+/* 🔴 **ICI, ET SEULEMENT ICI.** La maquette animait sur `.zx-gears__a` directement, en se
+   contentant d'une pause via `--stopped`. Branchée ainsi, la bande aurait tourné à l'arrêt — et
+   les six tests qui interrogent `[data-tourne]` seraient restés verts en le prouvant faux.
+   12 dents contre 8 → rapport 1,5 → 3 s contre 2 s, sens inversés. Deux roues à la même vitesse
+   se traversent visuellement : l'œil le voit sans savoir nommer ce qui cloche. */
+[data-tourne] .zx-gears__a {
+  animation: zx-cw 3s linear infinite;
+}
+[data-tourne] .zx-gears__b {
+  animation: zx-ccw 2s linear infinite;
+}
+
+.zx-gears--glow {
+  filter: drop-shadow(0 0 0.35em currentColor);
+}
+/* ⚠️ Pas de règle de COULEUR ici : le ton vient de la bande (`text-papa-warn` à l'arrêt). Deux
+   sources de couleur pour un même état finissent toujours par diverger. */
+.zx-gears--stopped .zx-gears__a,
+.zx-gears--stopped .zx-gears__b {
+  animation-play-state: paused;
 }
 
 /* L'état INDÉTERMINÉ : un liseré qui balaie, jamais un remplissage partiel.
@@ -588,21 +642,135 @@ body {
   animation: zetis-jeton 1.5s linear forwards;
 }
 
-/* La boîte s'ouvre d'un cran et s'illumine une demi-seconde à chaque pièce REÇUE — les
-   `generated` seules, jamais les `skipped` qui y étaient déjà. */
-@keyframes zetis-boite {
+/* LE DOSSIER DE CONNAISSANCE — la destination. Une page vole, la face s'enfonce d'un cran, la
+   lueur passe : à chaque pièce REÇUE, les `generated` seules, jamais les `skipped` qui y étaient
+   déjà. Le mouvement naît d'un incrément observé, jamais d'une horloge. */
+/* ⚠️ Pas de `color` non plus — même piège que `.zx-gears`, même conséquence. */
+.zx-folder {
+  display: inline-block;
+  position: relative;
+  width: 2.4em;
+  height: 2em;
+  flex: 0 0 auto;
+  /* ⚠️ La face doit valoir le FOND RÉEL, sinon la page « disparaît » sur un carré plus clair au
+     lieu de passer derrière : une occultation ne se simule pas avec de la transparence. La bande
+     pose `bg-papa-surface/40` sur le fond de page — d'où ce mélange, et non un jeton brut. */
+  --zx-folder-face: color-mix(in srgb, var(--color-papa-surface) 40%, var(--color-papa-bg));
+}
+.zx-folder svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.zx-folder__back {
+  fill: currentColor;
+  opacity: 0.16;
+  stroke: currentColor;
+  stroke-width: 0.9;
+  stroke-opacity: 0.5;
+}
+.zx-folder__face {
+  fill: var(--zx-folder-face);
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-opacity: 0.85;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: transform 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+/* La pile plafonne à 4 feuilles : elle dit « ça s'accumule », pas « combien ». Le compte exact,
+   c'est la pastille et le tapis qui le portent. */
+.zx-folder__stack rect {
+  fill: currentColor;
+  stroke: var(--zx-folder-face);
+  stroke-width: 0.5;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.zx-folder__stack rect.on {
+  opacity: 0.62;
+}
+
+.zx-folder__in {
+  fill: currentColor;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: zx-drop 0.62s cubic-bezier(0.22, 0.9, 0.3, 1.06) forwards;
+}
+@keyframes zx-drop {
+  0% {
+    transform: translate(-9px, -11px) rotate(-16deg) scale(0.86);
+    opacity: 0;
+  }
+  22% {
+    opacity: 1;
+  }
+  70% {
+    transform: translate(0, 1.2px) rotate(1.5deg) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 0.72;
+  }
+}
+
+.zx-folder.receive .zx-folder__face {
+  transform: scaleY(0.93) translateY(0.6px);
+}
+.zx-folder__glow {
+  position: absolute;
+  inset: -18%;
+  border-radius: 30%;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle, currentColor, transparent 66%);
+}
+.zx-folder.receive .zx-folder__glow {
+  animation: zx-catch 0.5s ease-out;
+}
+@keyframes zx-catch {
   0% {
     opacity: 0;
   }
-  35% {
-    opacity: 0.9;
+  30% {
+    opacity: 0.45;
   }
   100% {
     opacity: 0;
   }
 }
-.zetis-boite-recoit {
-  animation: zetis-boite 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+
+.zx-folder__n {
+  position: absolute;
+  right: -0.35em;
+  top: -0.3em;
+  font-size: 0.5em;
+  line-height: 1;
+  padding: 0.22em 0.38em;
+  border-radius: 99px;
+  font-variant-numeric: tabular-nums;
+  /* 🔴 Le fond hérite du ton ; le chiffre bascule sur la face DANS UN ENFANT. Sur le même
+     élément, `currentColor` se résolvait sur le `color` qu'on venait de poser : fond et texte
+     tombaient sur la même couleur sombre, et la pastille devenait invisible. */
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.zx-folder__n-txt {
+  color: var(--zx-folder-face);
+}
+.zx-folder__n.on {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ⚠️ Comme pour les engrenages : pas de recoloration ici, le ton vient de la bande. */
+.zx-folder--stopped .zx-folder__in {
+  animation-play-state: paused;
 }
 
 /* La pastille de fin s'efface SEULE. Une annonce qui s'empile deviendrait un arriéré,
@@ -630,12 +798,21 @@ body {
    restent : couper l'animation effacerait le signal, on l'immobilise. Patron `couverture-breathe`,
    déjà employé ailleurs dans Papa. */
 @media (prefers-reduced-motion: reduce) {
-  [data-tourne] .zetis-rouage-a,
-  [data-tourne] .zetis-rouage-b,
+  [data-tourne] .zx-gears__a,
+  [data-tourne] .zx-gears__b,
   [data-balaie],
   .zetis-tapis-texture,
-  .zetis-boite-recoit {
+  .zx-folder.receive .zx-folder__glow {
     animation: none !important;
+  }
+  /* La page arrive à sa place SANS voler, et la pile monte quand même : masquer le dépôt
+     effacerait le signal, on le rend instantané. */
+  .zx-folder__in {
+    animation: zx-drop-rm 0.01s forwards !important;
+  }
+  .zx-folder__face,
+  .zx-folder__stack rect {
+    transition: none !important;
   }
   /* Le liseré s'immobilise mais reste VISIBLE et à sa place : sans cette ligne il se figerait
      hors du tapis (`left: -35%`), et l'état indéterminé n'aurait plus aucun rendu. */
@@ -646,5 +823,12 @@ body {
   }
   .zetis-jeton {
     animation-duration: 0.01s !important;
+  }
+}
+/* Le pendant figé de `zx-drop` : la page est là, à sa place, sans avoir volé. */
+@keyframes zx-drop-rm {
+  to {
+    transform: none;
+    opacity: 0.72;
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { type ActivityItem, type ProductionActivity } from "@zetis/types";
 
 import { ProductionStrip } from "./ProductionStrip";
@@ -221,5 +221,81 @@ describe("ProductionStrip — les états de la bande", () => {
     expect(c.textContent).toContain("3 en attente");
     // Et le pourcentage reste celui du travail COURANT, pas une moyenne.
     expect(c.textContent).toContain("37 %");
+  });
+});
+
+// ── Les engrenages et le dossier ──────────────────────────────────────────────────────────────
+//
+// 🔴 **CE BLOC EXISTE PARCE QUE LES 651 TESTS SONT RESTÉS VERTS PENDANT L'ÉCHANGE.** Aucun
+// n'assertait sur l'intérieur des deux objets : on pouvait remplacer les rouages par n'importe
+// quoi — ou par rien — sans qu'une seule ligne rougisse. Un test qui survit à la disparition de ce
+// qu'il est censé protéger ne protège rien ; c'est la sixième fois que ce dépôt le constate.
+
+describe("ProductionStrip — les engrenages et le dossier", () => {
+  it("🔒 les engrenages sont DANS `[data-tourne]`, pas à côté", () => {
+    // C'est LE verrou du chantier. Les six tests qui interrogent `[data-tourne]` prouvent que
+    // l'attribut est posé au bon moment — aucun ne prouve que la chose animée est dessous. Or le
+    // CSS d'origine du composant animait `.zx-gears__a` en permanence : branché tel quel, il aurait
+    // tourné sur une bande arrêtée pendant que tous les verrous restaient au vert.
+    const c = montre(activite({ current: item(), worker_alive: true }));
+    expect(c.querySelector("[data-tourne] .zx-gears")).not.toBeNull();
+  });
+
+  it("🔒 rien ne tourne ⇒ les engrenages sont là, mais HORS de `[data-tourne]`", () => {
+    // Immobiles et pas éteints : l'immobilité EST le signal, et c'est celui qu'on lit avant le
+    // texte. Les retirer effacerait le signal au lieu de le figer (§942).
+    const c = montre(activite({ current: item({ status: "stale" }), worker_alive: false }));
+    expect(c.querySelector(".zx-gears")).not.toBeNull();
+    expect(c.querySelector("[data-tourne] .zx-gears")).toBeNull();
+  });
+
+  it("🔒 le dossier compte les pièces PRODUITES, jamais les pièces RÉSOLUES", () => {
+    // 🔴 La doctrine que portait `useBoiteRecoit`, désormais tenue par le composant. Une pièce
+    // `skipped` a traversé le tapis mais était déjà en stock : `pieces_done` la compte, le dossier
+    // ne doit pas. Ici 30 résolues pour 7 fabriquées — le dossier dit 7.
+    const c = montre(
+      activite({
+        current: item({ pieces_done: 30, pieces_total: 45, pieces_produced: 7, pct: 67 }),
+        worker_alive: true,
+      }),
+    );
+    const pastille = c.querySelector(".zx-folder__n");
+    expect(pastille?.textContent).toBe("7");
+    // …et le nom accessible dit la même chose que la pastille.
+    expect(c.querySelector(".zx-folder")?.getAttribute("aria-label")).toBe(
+      "7 pièces déposées sur 45",
+    );
+  });
+
+  it("🔒 un lot DÉJÀ commencé fait quand même voler ses pages", async () => {
+    // 🔴 Signalé à l'écran : « l'animation du dossier ne semble pas fonctionner ».
+    //
+    // La bande REPLIÉE et la bande DÉPLIÉE sont deux branches de rendu différentes : le dossier
+    // est donc DÉMONTÉ puis REMONTÉ au premier sondage qui voit un lot. S'il mémorise son compte
+    // d'arrivée comme référence, tout ce qui a été produit AVANT ce premier sondage est avalé —
+    // et sur un lot court, c'est tout le lot. Le lot 44 du 2026-08-07 a duré 13 s pour UNE seule
+    // pièce neuve : la fenêtre où l'incrément pouvait être vu était plus courte que le sondage.
+    vi.useFakeTimers();
+    try {
+      const c = montre(activite({ current: item({ pieces_produced: 2 }), worker_alive: true }));
+      await act(async () => {
+        vi.advanceTimersByTime(1200); // décalage (380 ms/page) + vol (620 ms)
+      });
+      expect(c.querySelectorAll(".zx-folder__in").length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("🔒 AU REPOS le dossier reste, et il est le seul objet", () => {
+    // §19 : c'est ce qui a justifié de replier la bande plutôt que de la faire disparaître. Le
+    // repos ne porte QU'UN objet cliquable, et c'est lui.
+    const c = montre(activite());
+    expect(c.querySelector(".zx-folder")).not.toBeNull();
+    expect(c.querySelector(".zx-gears")).toBeNull();
+    expect(c.querySelectorAll("button")).toHaveLength(1);
+    // Aucun chiffre : `count = 0` ⇒ pas de pastille. Un « 0 » permanent serait le compteur qui
+    // vous regarde, que le §7 interdit.
+    expect(c.querySelector(".zx-folder__n")).toBeNull();
   });
 });

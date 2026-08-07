@@ -63,7 +63,13 @@ route, donc son estimation ne repart jamais de zéro.
 | **jetons** | ce qui vient d'être fabriqué, nommé | un changement de `current_piece` |
 | **file** | ce qui attend derrière | `queued_count` (couloir LLM seul) |
 | **compteur** | `37 %` et `7 / 19 pièces` | disparaît entièrement si non mesuré |
-| **boîte** | le stock ; clic → Couverture | `pieces_produced` |
+| **dossier** | le stock ; clic → Couverture | `pieces_produced` |
+
+⚠️ **Le ton ne se déclare qu'à UN endroit.** Les deux objets sont en `currentColor` et reçoivent le
+`ton` de la bande (émeraude en production, ambre à l'arrêt, estompé au refus). Un `color: inherit`
+posé sur leur classe — ce que faisait la maquette — **bat l'utilitaire Tailwind v4**, qui vit dans
+un `@layer` : l'ambre de l'arrêt n'atteignait plus les rouages, et aucun test ne pouvait le voir.
+Constaté à l'écran le 2026-08-07.
 
 ### Le tapis, et pourquoi ce n'est pas une barre
 
@@ -73,11 +79,21 @@ quand le compte ne bouge pas : c'est lui qui répond à « est-ce que ça avance
 
 C'est **le seul geste spectaculaire de l'écran**. Tout le reste de Papa est plat, et doit le rester.
 
-### La boîte
+### Le dossier de connaissance
 
-Elle est la **destination** de tout ce que ZETIS fabrique. Elle s'ouvre d'un cran et s'illumine une
-demi-seconde à chaque pièce reçue, puis retombe. Son badge `+N` compte les pièces **réellement
-produites** de ce travail — jamais les `skipped`, qui étaient déjà dedans.
+Elle est la **destination** de tout ce que ZETIS fabrique. À chaque pièce reçue, une page vole vers
+le dossier, la face s'enfonce d'un cran et une lueur passe. Son badge compte les pièces
+**réellement produites** de ce travail — jamais les `skipped`, qui étaient déjà dedans.
+
+⚠️ **La pile se remplit par ACCUMULATION, pas par proportion.** Quatre feuilles au plus
+(`ceil(count / 2)`) : elle dit « ça s'accumule », pas « combien ». L'ancienne boîte se remplissait
+au prorata du lot, ce qui répétait en dessin ce que le tapis et le compteur disaient déjà en
+chiffres — deux objets sur le même pourcentage font doublon, pas redondance.
+
+🔴 **Une page ne part jamais d'une horloge.** Le dossier observe l'incrément réel de
+`pieces_produced` entre deux rendus. Le mode `loop` du composant existe pour les écrans vides et les
+démos : **interdit dans la bande**. C'est ce composant qui a rendu `useBoiteRecoit` inutile — le
+hook a été retiré, pas laissé en doublon.
 
 C'est **le seul objet permanent** de la bande : au repos, tout s'efface sauf elle.
 
@@ -291,11 +307,22 @@ Pied : **« Voir au Journal → »** vers `/journal?statut=queued&statut=running
 
 | Élément | Animation | Quand elle s'arrête |
 |---|---|---|
-| rouages | rotation, 3,6 s et 2,5 s inversé | à l'arrêt (**figés**), au refus (estompés) |
+| rouages | rotation, **3 s et 2 s inversé** | à l'arrêt (**figés**), au refus (estompés) |
 | texture du tapis | défilement continu | dès que rien ne tourne |
 | liseré | balayage 1,5 s | jamais en régime mesuré |
 | jetons | traversée 1,5 s puis chute | émis quand `current_piece` **change** |
-| boîte | ouverture + lueur 0,5 s | quand `pieces_produced` **augmente** |
+| dossier | page qui vole 0,62 s, face qui s'enfonce, lueur 0,5 s | quand `pieces_produced` **augmente** |
+
+⚠️ **3 s et 2 s, et le rapport n'est pas décoratif** : 12 dents contre 8 → rapport 1,5. Deux roues
+à la même vitesse se traversent visuellement ; l'œil le voit sans savoir nommer ce qui cloche.
+Les 3,6 s / 2,5 s d'origine étaient arbitraires — remplacées le 2026-08-07 par
+[GearsSpinner](../../apps/frontend-papa/src/components/GearsSpinner.tsx), dont les tracés sont
+calculés sur un même module.
+
+🔴 **L'animation des rouages vit sous `[data-tourne]`, jamais sur la classe.** Le composant fourni
+animait en permanence et se contentait d'une pause via `--stopped` : branché tel quel, la bande
+aurait tourné à l'arrêt pendant que les **six** verrous `[data-tourne]` restaient au vert. Le
+sélecteur EST le verrou.
 
 ⚠️ **Les jetons naissent d'un changement d'état, jamais d'un `setInterval` décoratif.** Quand
 `current_piece` passe de `cours` à `fiche`, c'est le **cours** qui vient d'être fini : le jeton

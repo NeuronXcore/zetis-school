@@ -4,6 +4,123 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/animations-engrenages-dossier` — les deux objets de la bande changent de dessin — 2026-08-07
+
+> Spec : `docs/frontend-papa/bande-de-production.md`, § « Le mouvement » et § « Le dossier de
+> connaissance ». Pas d'ADR : la métaphore de l'`adr-0041` §682 est **conservée**, seule la forme
+> change. Maquettes : `docs/frontend-papa/mockup/{gears-spinner,knowledge-folder}.tsx`.
+
+### 🔴 En Tailwind v4, `color: inherit` sur une classe BAT `text-*`
+
+**Symptôme.** Les engrenages restaient gris alors que `text-papa-accent-2` était bien posé sur
+l'élément. Conséquence réelle : **l'ambre de l'arrêt ne les atteignait plus** — le signal le plus
+lisible de la bande, perdu sans qu'un test puisse le voir.
+
+**Cause.** Tailwind v4 met ses utilitaires dans un `@layer`. Une règle de classe écrite **hors
+couche** (dans `index.css`, à côté des keyframes) gagne à spécificité égale, quel que soit l'ordre.
+`.zx-gears { color: inherit }` écrasait donc `.text-papa-accent-2`.
+
+**Parade.** Ne **jamais** déclarer `color` sur un composant qui doit recevoir son ton par utilitaire.
+`color` s'hérite tout seul : la déclarer ne sert qu'à la bloquer. Vérification :
+`getComputedStyle(el).color` doit rendre le jeton attendu, pas le gris hérité.
+
+### 🔴 `background: currentColor` et `color:` sur la MÊME règle rendent l'élément invisible
+
+**Symptôme.** La pastille de comptage du dossier : fond et texte calculaient exactement la même
+couleur sombre.
+
+**Cause.** `currentColor` se résout sur la couleur **finale** de l'élément. Poser `color:` dans la
+même règle change donc aussi ce que `background: currentColor` va donner.
+
+**Parade.** Séparer en deux éléments : le parent prend `background: currentColor` (et hérite du
+ton), l'enfant porte le `color` contrastant. Ni `var()` ni une variable intermédiaire ne s'en
+sortent — la substitution reste résolue sur l'élément consommateur.
+
+### 🔴 Un composant qui MÉMORISE son compte d'arrivée avale ce qui précède son montage
+
+**Symptôme.** « L'animation du dossier ne semble pas fonctionner » — signalé par l'humain, invisible
+pour 655 tests.
+
+**Cause.** La bande **repliée** et la bande **dépliée** sont deux branches de rendu distinctes : le
+composant est donc démonté puis **remonté** au premier sondage qui voit un lot. Avec
+`useRef(count)` comme référence, tout ce qui a été produit avant ce sondage est perdu. Sur un lot
+court, c'est le lot entier — le lot 44 a duré **13 s** pour **une** pièce neuve, sondé toutes les 4 s.
+
+**Parade.** `useRef(0)`. Au remontage, ce qui est déjà déposé se rejoue (borné) : ces pièces ont
+réellement atterri. **Test-verrou** : monter le composant directement sur un état non nul et exiger
+l'animation — il était rouge avant le correctif.
+
+### ⚠️ Six verrous sur un attribut ne prouvent pas que la chose animée est dessous
+
+`[data-tourne]` porte l'animation, et six tests l'interrogent. Aucun ne vérifiait que les engrenages
+sont **dans** le porteur. Le CSS de la maquette animait en permanence : branché tel quel, la bande
+aurait tourné à l'arrêt pendant que les six restaient verts. **Démontré par sabotage** — sortir les
+engrenages du porteur laisse les six au vert et ne rougit que le septième.
+
+**Parade.** Quand un attribut porte un comportement, verrouiller **la relation**
+(`[porteur] .chose`), pas seulement la présence de l'attribut.
+
+### ⚠️ `~/Downloads` est inaccessible à ce processus (macOS)
+
+`Read`, `head` **et** `cp` échouent tous en `Operation not permitted`, y compris sandbox désactivée.
+Chrome sur `file://` (protocole non supporté par l'outil) et le `/@fs/` de Vite (`403 Restricted`,
+`server.fs.allow`) échouent aussi. **Cinq voies, cinq refus** : la copie est à faire par l'humain,
+ou le contenu à coller. Ne pas perdre de temps à chercher un contournement.
+
+### ⚠️ Rappel repayé : un onglet CACHÉ ne sonde pas — mesuré à 0 appel en 14 s
+
+Deuxième session consécutive à payer ce piège (cf. section `feat/popover-en-toutes-lettres`
+ci-dessous). **Vérifier `document.visibilityState` AVANT de conclure quoi que ce soit** sur une
+animation qui paraît morte. `hidden` ⇒ minuteurs à ~1/minute ⇒ le sondage à 4 s ne tourne pas.
+
+### ⚠️ « Éligible » ne veut toujours pas dire « a du contenu à produire »
+
+Le lot 46 (9 notions éligibles, 45 pièces) a rendu `generated=0 skipped=45` **en 1 seconde**. La base
+de dev est saturée : les notions éligibles ont déjà leurs pièces, et celles qui manquent de pièces
+ne sont pas éligibles (leçon sans cours écrit → `blocked`).
+
+**Recette pour prévoir le rendement d'un chapitre — VALIDÉE le 2026-08-07** : prédiction de
+**7 pièces** sur le chapitre 3, obtenu **7** (`fiche ×1`, `mindmap ×1`, `quiz ×1`, `srs ×4`) en 58 s.
+Contre-épreuve : après le lot, elle rend 0 sur ce chapitre.
+
+Croiser l'**éligibilité** — `GET /api/production/runs/preview?chapter_id=N`, entrées à
+`reason: null` — avec le **manque réel** en base, en respectant **deux règles qu'une première
+version de cette recette avait ratées** :
+
+🔴 **1. `cours`, `fiche`, `mindmap` et `quiz` sont PAR LEÇON ; seul `srs` est PAR NOTION.** Compter
+en notions sur-estime massivement : le lot 47 avait **4 notions éligibles** … **sur une seule
+leçon**, d'où `fiche generated ×1 / skipped ×3`. Quatre notions ne rendent pas 20 pièces, mais 3.
+
+🔴 **2. Le cours doit être ÉCRIT, pas seulement `status = 'validated'`.** Une leçon validée mais à
+`content_markdown` vide ne dérive rien — elle produit des `blocked`. C'est le piège déjà consigné le
+2026-08-04 (« 39 leçons `validated` VIDES font mentir le motif du gate ») ; la première version de
+cette recette est retombée dedans et prédisait 3 pièces sur le chapitre 14 là où le lot 44 n'en a
+produit **qu'une**.
+
+```sql
+-- rendement = dérivés manquants (par leçon À COURS ÉCRIT) + cartes manquantes (par notion)
+WITH eligibles(skill_id) AS (VALUES (…)),   -- ← ce que rend runs/preview, reason IS NULL
+lecons AS (
+  SELECT DISTINCT l.id FROM eligibles e
+  JOIN lesson_skills ls ON ls.skill_id = e.skill_id
+  JOIN lessons l ON l.id = ls.lesson_id
+  WHERE coalesce(l.content_markdown, '') <> ''          -- 🔴 la règle 2
+)
+SELECT (SELECT count(*) FILTER (WHERE f.id IS NULL)
+             + count(*) FILTER (WHERE m.id IS NULL)
+             + count(*) FILTER (WHERE q.id IS NULL)
+        FROM lecons
+        LEFT JOIN fiches   f ON f.lesson_id = lecons.id
+        LEFT JOIN mindmaps m ON m.lesson_id = lecons.id
+        LEFT JOIN quizzes  q ON q.lesson_id = lecons.id)
+     + (SELECT count(*) FROM eligibles e
+        WHERE NOT EXISTS (SELECT 1 FROM spaced_review_cards c WHERE c.skill_id = e.skill_id))
+     AS rendement;
+```
+
+⚠️ Et les 5 événements d'une notion sont commités **ensemble** : `pieces_produced` monte par
+paliers, donc l'animation part en rafale, jamais en continu.
+
 ## Chantier `feat/popover-en-toutes-lettres` — le détail de production se lit d'un trait — 2026-08-07
 
 > Spec : `docs/frontend-papa/bande-de-production.md`, § « Le détail — un popover ».
