@@ -222,6 +222,86 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
 - App iOS native.
 - Mode SaaS éventuel.
 
+## Dettes nommées — consignées, non traitées
+
+> Ouvertes le **2026-08-07** au cadrage puis au read-before-code de l'**ADR-0042** (la notion
+> orpheline devient équipable). Aucune n'est traitée par ce chantier : elles sont écrites ici
+> pour exister ailleurs que dans une conversation.
+
+### Nées du cadrage (les trois du §7 du prompt)
+
+- **`recent_evolution` du Conseil de classe est une surface d'hallucination.** Champ `str` **non
+  nullable** dans `CouncilReportSpec`, alors qu'aucune source ne pouvait le produire — l'ADR-0020
+  s'annote lui-même « comparatif = slice 2 », et le `period` du Conseil n'est qu'un libellé qui ne
+  sélectionne aucune donnée. Le producteur remplit **parce que le type l'y oblige**.
+  ⚠️ **Fait nouveau** : `skill_mastery_history` existe (migration `a9b8c7d6e5f4`) et
+  `evidence.mastery_transitions()` la lit déjà — **le champ est devenu calculable**.
+  🔴 Le champ est **figé** dans chaque rapport persisté (`subjects_json`) : tant qu'il n'est pas
+  typé, **chaque Conseil archive une tendance inventée**, rétroactivement indiscernable du vrai.
+  *(L'ADR-0040 a décrit la correction ; vérifier ce qui en a réellement été livré avant de
+  reprendre — cette ligne dit le problème, pas l'état d'avancement.)*
+- **La page Paramètres ne dit pas que le diagnostic et le Conseil restent manuels.** Ils ne sont
+  ni parmi les deux classes libres ni parmi les quatre verrouillées — **ils ne sont pas des
+  classes du tout**. Papa qui lit « Autonom » n'a **aucune surface** qui l'en informe.
+  Précédent de traitement à reprendre : le quiz, repêché en **note de pied de panneau, hors
+  matrice**.
+- **La double écriture des appels générateurs `equip_notion` / `equip_piece`.**
+  Les deux blocs d'imports paresseux sont **byte-identiques** (`equipment.py:195-199` et
+  `:362-366`) et les cinq générateurs sont appelés deux fois. Dette **assumée en commentaire**
+  (`equipment.py:341-347`) : l'addendum ADR-0031 interdisait de toucher l'orchestrateur.
+  Divergences déjà constatées entre les deux copies : `on_piece` n'existe que dans `equip_notion`
+  (donc un lot-pièce n'écrit jamais `run.current_piece`), la comptabilité `skipped` du cours
+  diffère, et `equip_piece` rend `reason=None` même quand `errors` est peuplé.
+  → à extraire **dans son propre chantier, sous contre-épreuve** — jamais au détour d'un ajout.
+
+### Nées du read-before-code de l'ADR-0042
+
+- 🔴 **Défaut latent : tête-de-liste contre parcours de liste.** `runner.py:300` et
+  `equipment.py:65` prennent `lecons[0]` ; `canonical_context.py:94-101` **parcourt** toute la
+  liste. Si la leçon la plus récemment touchée est un brouillon sans cours et qu'une plus
+  ancienne est validée avec cours, la production dit `BLOCKED_COURSE_MISSING` pendant que le
+  résolveur dit `has_course=True`. **C'est le défaut du 2026-08-03 avec l'ordre inversé.**
+  `test_le_cas_observe_ne_bloque_plus` ne fixe **que** l'orientation qui passe : la fixture
+  miroir n'est pas testée. **La plus sérieuse des quatre.**
+- **`_validated_lesson_or_409` est écrit en trois exemplaires** — `quizzes/service.py:70`,
+  `fiches/service.py:63`, `mindmaps/service.py:76` — identiques au nom près de la pièce. C'est
+  la forme de défaut que l'ADR-0037 a supprimée ailleurs, laissée debout ici. Le troisième
+  message (`content_markdown` vide) est **byte-identique** dans les trois : une divergence y
+  serait silencieuse.
+- **Collision de vocabulaire sur « orphelin ».** `coverage.orphans()` désigne des **dérivés dont
+  la leçon est archivée** (`coverage.py:513`) ; `curriculum.orphan_notions()` désigne des
+  **notions sans leçon**. Deux sens, un mot, deux modules — et `totals["orphan_count"]` compte
+  le premier.
+- **Deux lignes de documentation fausses**, sources de croyances déjà payées :
+  `DATA_MODEL.md:168` annonce un `prerequisite_skill_ids optional` sur `Skill` — **la colonne
+  n'existe pas** (ni table de liaison ; le vrai champ est `parent_skill_id`, NULL sur les 432
+  lignes, jamais écrit) ; `API_SPEC.md:1214-1215` affirme que le `has_referentiel` de
+  `/progress/analysis` est « **la même** » définition que celle du dashboard — **c'est faux** :
+  `dashboard._referentiel_subjects` compte des **chapitres**, `progress.analysis._referentiel`
+  compte des **leçons**, et `progress/overview.py:51` **importe** la version du dashboard (donc
+  le partage est 2 contre 1, pas 1 contre 1). Aucun test n'assied l'accord entre `analysis` et
+  les deux autres.
+- **Le docstring de `lesson_resolution.active_year` sous-compte ses propres copies.** Il annonce
+  « sept copies privées » ; il y a **treize** résolutions côté lecture (quatre sont *inline*
+  plutôt que des helpers nommés — `curriculum` en a **deux** à lui seul), plus une côté écriture.
+  Et **5 des 13 sont scopées par élève, 8 ne le sont pas** : elles ne s'accordent que parce que
+  `school/service.py:89-92` impose globalement qu'une seule année soit `active`. **Invariant
+  porteur et non documenté au niveau du modèle.**
+- **`lessons.chapter_id` a une FK sans `ON DELETE`, et `school.py` ne déclare aucune
+  `relationship()`.** Donc ni cascade SQL ni cascade ORM : `delete_chapter`
+  (`curriculum/service.py:443-446`) lève un `IntegrityError` non capté — **500 latent** sur tout
+  chapitre encore porteur de leçons. Même chose pour le chemin de régénération
+  (`service.py:218`). Contraste : `lesson_skills` porte bien `ondelete="CASCADE"`.
+- **Le chapitre orphelin n'est toujours pas rétro-attribué, et le plancher a son trou.** La porte
+  de création est fermée (`subjects/service.py:224`), mais `id=10` « Les fractions » existe
+  encore, et **16 des 17 consommateurs** laissent tomber un chapitre non rattaché **en silence**
+  (INNER JOIN sur `SchoolYearSubject`). ⚠️ **Le trap est vivant** : Papa peut créer une leçon
+  sous ce chapitre (`create_manual_lesson` ne vérifie que l'existence), la valider, et lancer un
+  lot dessus (`scope.py:61` joint par `chapter_id` **sans portée d'année**) — pendant que la
+  galaxie, `/cours`, la couverture et la progression agissent comme s'il n'existait pas.
+  **`review_queue/service.py:81-117` est le seul module qui le traite correctement** (`outerjoin`
+  + `or_` + `COALESCE`) : c'est le patron à reprendre. Aucun script de backfill n'existe.
+
 ## Bugs / risques à surveiller
 
 - **Tenue de la 3D sur les trois appareils de Massimo — dette OUVERTE et devenue critique le
