@@ -8,11 +8,12 @@
 ## État à la reprise
 
 **Chantier : « les engrenages et le dossier changent de dessin, pas de sens ». COMPLET, vérifié en
-production réelle par l'humain. NON POUSSÉ — la PR reste à ouvrir.**
+production réelle par l'humain, ✅ MERGÉ SUR `main` (2026-08-07). Ne pas ré-implémenter.**
 
 | | |
 |---|---|
-| **Branche** | `feat/animations-engrenages-dossier`, base `0ca1f57`. Trois commits — `git log --oneline main..HEAD` |
+| **Mergé** | PR [#97](https://github.com/NeuronXcore/zetis-school/pull/97), **squash `b463a0a`**, base `0ca1f57`. Branche `feat/animations-engrenages-dossier` **supprimée** (locale et distante, vérifié) |
+| **État git** | `main` = `origin/main` — **rien à pousser**. Vérifié à la clôture 4bis |
 | **Migrations** | **aucune.** Chantier frontend seul : aucun champ, aucune route, aucun contrat n'a bougé |
 | **Suites** | Papa **656 ✅** · `tsc -b --force` **EXIT=0**. ⚠️ Backend **non relancé** : aucun fichier backend touché |
 | **Vérifié à l'écran** | production, arrêt ambre, repos, pastille — puis **un vrai lot (47) confirmé par l'humain** |
@@ -76,9 +77,20 @@ sandbox désactivée comprise. Cinq voies essayées, cinq refus — c'est à l'h
 
 ### ▶ PROCHAIN PAS
 
-**Le chantier est fini.** Reste, dans l'ordre : `git push -u origin feat/animations-engrenages-dossier`,
-ouvrir la PR, merger en squash, puis l'**étape 4bis** (`docs/WORKFLOW.md` §5) pour remettre ce
-fichier au réel.
+**Le chantier est clos.** Poussé, PR #97 mergée en squash, branche supprimée, étape 4bis faite.
+Le prochain chantier part de `main` par `/ouverture`.
+
+🔴 **Dix vérifications sont désormais dues sur `main`** — **trois** nées de ce chantier, **sept**
+remontées. Le compte se recoupe ainsi : les listes ci-dessous portent 3 + 8 puces, dont deux ne sont
+pas des vérifications (le flake `test_dashboard`, et le worker qui tourne), et une en vaut deux
+(`503` **et** rejeu transitoire).
+
+Ces deux-là **traînent depuis QUATRE chantiers**, et ce sont les deux derniers scénarios de la
+Slice B de l'ADR-0041 : le prochain qui touche la production doit commencer par là, pas par une
+fonctionnalité de plus.
+
+⚠️ **Et la base de dev n'a plus aucun gisement de production** (cf. plus bas) : pour rejouer quoi
+que ce soit qui produise, il faudra d'abord rédiger un cours sur une leçon `validated` mais vide.
 
 ### ⚠️ DETTES OUVERTES — nées de ce chantier
 
