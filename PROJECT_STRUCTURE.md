@@ -75,7 +75,7 @@ zetis/
 │   └── WORKFLOW.md          # méthode de dev agentique
 ├── prompts/claude-code/     # prompts de slice, un par chantier
 ├── assets/                  # sources de marque (logos, pictogrammes de matières)
-├── scripts/                 # dev.sh, bench_llm.py
+├── scripts/                 # dev.sh, with-worker.sh, bench_llm.py
 ├── storage/                 # uploads / généré / exports — JAMAIS indexé, JAMAIS commité
 └── graphify-out/            # graphe de code — gitignoré, reconstruit par `graphify update .`
 ```

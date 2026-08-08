@@ -1,8 +1,15 @@
+import asyncio
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
+from app.core import mailer
 from app.core.config import settings
+from app.modules.production import watchdog
 from app.modules.activity.router import parent_router as activity_parent_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.review_queue.router import router as review_queue_router
@@ -51,7 +58,36 @@ from app.modules.school.router import router as school_router
 from app.modules.settings.router import router as settings_router
 from app.modules.subjects.router import router as subjects_router
 
-app = FastAPI(title="ZETIS Backend", version=settings.version)
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Le cycle de vie du backend — **introduit par l'ADR-0046**, il n'en avait aucun.
+
+    Une seule chose y vit : le watchdog qui rend atteignable l'absence de worker de production. Il
+    est ici et non dans le worker parce qu'**on ne demande pas au mort de constater son décès** ;
+    le backend est le processus qui reste debout quand le worker tombe.
+
+    Le canal est annoncé au démarrage : sans SMTP configuré, ZETIS ne se tait pas — il dit qu'il
+    est muet. Un canal inerte qu'on croit armé est pire qu'un canal absent.
+    """
+    logger = logging.getLogger("app.watchdog")
+    if mailer.canal_configure():
+        logger.info(
+            "watchdog production armé — alerte après %d min sans worker",
+            watchdog.delai_alerte_minutes(),
+        )
+    else:
+        logger.warning(
+            "watchdog production actif mais CANAL INERTE : ni SMTP_HOST ni ALERT_EMAIL_TO. "
+            "L'absence de worker restera visible dans le bandeau Papa, et nulle part ailleurs."
+        )
+    tache = asyncio.create_task(watchdog.boucle())
+    try:
+        yield
+    finally:
+        tache.cancel()
+
+
+app = FastAPI(title="ZETIS Backend", version=settings.version, lifespan=lifespan)
 
 # CORS temporaire pour les frontends locaux Massimo + Papa (Étape 4/5).
 app.add_middleware(

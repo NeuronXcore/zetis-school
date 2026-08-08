@@ -33,7 +33,8 @@ def get_activity(db: Session = Depends(get_db)) -> dict:
     personne. Le patron vient de `/runs/active`, qui le porte depuis le 2026-08-05.
     """
     etat = activity.read(db)
-    en_file = (etat["current"] or {}).get("status") == "queued"
+    # Le critère est partagé avec le watchdog (ADR-0046) — deux lecteurs, une seule définition.
+    en_file = activity.porte_un_travail_en_file(etat)
     # `None` = « la question n'a pas été posée ». Le client teste `=== false`, jamais la falsité :
     # confondre les deux ferait dire « arrêté » à chaque fois qu'on ne sait pas.
     etat["worker_alive"] = production_worker_alive() if en_file else None

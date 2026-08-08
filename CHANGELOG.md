@@ -1,5 +1,73 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.62.0 — Le worker de production est un service, et son absence vient à toi
+
+Le 2026-08-08, trois diagnostics attendaient depuis deux jours dans une file que **personne ne
+consommait**. La panne était **déjà** au `TROUBLESHOOTING.md`, diagnostiquée le 2026-08-05 avec le
+même `ps aux | grep production_worker → rien`. Une panne qui revient après avoir été documentée
+n'est pas un incident : c'est une absence de structure. **ADR-0046, trois slices, aucune migration,
+aucun endpoint, aucune surface Massimo.**
+
+### ① Le worker devient un service supervisé
+
+- **8ᵉ service `worker`** dans `docker-compose.prod.yml` — le seul qui manquait — avec
+  `restart: unless-stopped`, aucun port publié, et `extra_hosts` parce qu'il appelle **Ollama sur
+  l'hôte**.
+- 🔴 **`entrypoint` écrasé, pas `command`** : l'image du backend a un `ENTRYPOINT` exec qui fait
+  `alembic upgrade head` + seed + uvicorn et **n'inspecte jamais ses arguments**. Un `command:`
+  aurait lancé un second uvicorn **et une seconde migration concurrente**, sans erreur.
+- Le **healthcheck ajouté sur `backend`** n'est pas décoratif : c'est lui qui rend
+  `condition: service_healthy` disponible, donc lui qui garantit que les migrations sont passées
+  avant qu'un second conteneur touche la base.
+
+### ② Le dev ne peut plus démarrer deux workers
+
+- Le correctif de 2026-08-05 existait bien (`dev.sh` lançait le worker) — **il était attaché à une
+  seule porte d'entrée**, et une seconde est née à côté (`.claude/launch.json`). D'où la règle qui
+  dépasse le chantier : *un correctif attaché à une porte d'entrée ne survit pas à l'ouverture
+  d'une seconde*.
+- Le garde-fou vit donc dans **`app/production_worker.py`**, pas dans les scripts : il couvre les
+  quatre portes, **y compris celles qui n'existent pas encore**. Conséquence heureuse — `dev.sh` et
+  `package.json` n'ont eu besoin d'aucune modification.
+- Il **écrit ce qu'il a trouvé** (pid compris) : un garde-fou muet se lit comme un démarrage réussi.
+
+### ③ L'absence de worker sort de l'écran
+
+- Un **watchdog dans le backend** — jamais dans le worker : *on ne demande pas au mort de constater
+  son décès*. Première tâche de fond du dépôt.
+- 🔴 **Plancher de 8 minutes, MESURÉ** : un worker `idle` ne rebat qu'à chaque tour de boucle de
+  dequeue (3,8 min relevés, TTL de clé Redis à 8 min). Sous ce seuil, l'alarme sonnerait sur un
+  worker en parfaite santé.
+- **Le canal est l'e-mail, pas Web Push** — et le motif est un fait de déploiement, pas un goût :
+  il n'existe **aucun environnement distant**, or le Push API exige un contexte sécurisé. Il
+  n'aurait atteint que la machine devant laquelle Papa est déjà assis. À rouvrir le jour où l'accès
+  distant existe.
+- Le message **nomme l'instrument**, dit *« rien n'est perdu »* à chaque fois, et **porte le geste
+  de réparation**. Aucune donnée de Massimo.
+- `python -m app.core.mailer` — la **preuve de vie du canal**, ajoutée parce que l'ADR la nommait
+  comme le manque : un canal qu'on croit armé et qui ne l'est pas est pire qu'un canal absent.
+
+### Les 4 défauts du compose, corrigés avec des valeurs mesurées
+
+Healthchecks `redis`/`minio` (et `depends_on` en `service_healthy`) · `mem_limit: 1g` sur backend et
+worker (**mesuré** : 92 et 41 Mio à vide) · `POSTGRES_PASSWORD` sans défaut de dev — 🔴 `prod:up`
+**s'arrête** désormais sans la variable · deux réseaux, `interne` sans egress et `externe` réservé
+aux deux services qui appellent l'extérieur.
+
+### Ce que la vérification a corrigé dans sa propre procédure
+
+🔴 **`docker compose kill worker` ne prouve rien** — c'est un arrêt d'opérateur, que
+`unless-stopped` exclut par définition. La procédure écrite dans l'ADR, la spec **et** le prompt
+rendait donc un **faux négatif** sur un service correct. Corrigée aux trois endroits.
+
+**Sept preuves jouées en conditions réelles**, dont la plus importante n'était pas au cadrage : le
+worker conteneurisé n'avait **jamais exécuté un travail**. Il en a exécuté un —
+`run_ai_job(114)` en 1 min 27 s, 40 questions sur 8 notions, texte réel, `validation_status=pending`
+(le gate de l'ADR-0043 tient jusque dans la pile prod).
+
+⚠️ **Reste dû** : que l'e-mail atteigne une vraie boîte. Tout le canal est prouvé contre un vrai
+SMTP local ; il manque un identifiant.
+
 ## 0.61.0 — La page Diagnostic de Papa montre ce qu'elle annonce
 
 Les **quatre optimisations** différées derrière la page de Massimo. Elles ont un sang commun : la

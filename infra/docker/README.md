@@ -19,7 +19,7 @@ travers la VM Docker sur macOS, et le backend a besoin de joindre Ollama sur l'h
 Toute l'app en conteneurs, **une commande** (`docker-compose.prod.yml`) :
 
 ```bash
-pnpm prod:up      # build + up (postgres, redis, minio, backend, worker-media, 2 frontends nginx)
+pnpm prod:up      # build + up (postgres, redis, minio, backend, worker, worker-media, 2 fronts nginx)
 pnpm prod:logs    # suivre les logs
 pnpm prod:down    # tout arrêter
 ```
@@ -27,14 +27,29 @@ pnpm prod:down    # tout arrêter
 - **backend** (`backend.Dockerfile`) : uvicorn + entrypoint (migrations Alembic + seed). Joint Ollama
   via `host.docker.internal:11434`.
 - **frontends** (`frontend.Dockerfile`, ARG `APP`) : build Vite → servis en statique par **nginx**.
+- **worker** (même image que le backend, `entrypoint` écrasé) : consomme les files RQ
+  `production-priority` puis `production` — tout ce qui passe par `travaux.enfiler` (cours, fiche,
+  cartes SRS, mindmap, quiz, capsule, curriculum, diagnostic). `restart: unless-stopped`, aucun port.
+  🔴 **Jamais de `--scale`** : concurrence 1, un seul Ollama, un seul GPU. Détail : `docs/devops/worker-production.md`.
 - **worker-media** (`worker-media.Dockerfile`) : rendu MP4 Remotion (Chromium pré-baké), file RQ `media`.
 - Vidéos → **MinIO** ; audio partagé backend↔worker via le volume `capsule_audio`.
+- **Réseaux** (ADR-0046) : `interne` (`internal: true`, aucun egress) porte toutes les
+  communications entre services ; `externe` n'est joint que par **backend** et **worker**, qui
+  appellent Ollama sur l'hôte et l'API Anthropic. `worker-media` est sur `interne` **seul** —
+  Chromium ne doit pas pouvoir sortir. Vérifié : un conteneur sur `interne` seul n'atteint pas
+  l'hôte.
+- **Limites mémoire** : `backend` et `worker` à `1g` (mesuré à vide : 92 et 41 Mio),
+  `worker-media` à `2g` (Chromium).
 
 **Ports miroir du dev** (`8000` / `5173` / `5174`) → lancer **SOIT `pnpm dev` SOIT `pnpm prod:up`**,
 jamais les deux en même temps. Les données prod vivent dans des volumes séparés (`zetis-prod_*`).
 
 ### Prérequis & limites
 
+- 🔴 **`POSTGRES_PASSWORD` dans le `.env` de la racine** — obligatoire depuis l'ADR-0046 : le
+  compose de prod n'a plus de défaut de développement, et `prod:up` s'arrête sans elle.
+  ⚠️ Sur un volume déjà initialisé, il faut **reprendre la valeur d'origine** : Postgres ne fixe
+  le mot de passe qu'à la création du volume.
 - Ollama sur l'hôte avec le modèle pull (`qwen3.6:35b-a3b`) et `nomic-embed-text` (RAG).
 - **Voix Piper (TTS)** : `piper-tts` (extra `[tts]`) + le modèle FR `fr_FR-siwis-medium` sont **bakés
   dans l'image backend** → la narration des capsules fonctionne en conteneur (piper-tts embarque la
