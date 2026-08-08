@@ -295,7 +295,53 @@ Convention reprise de `fiches` (`/{id}/validate`, `/{id}/reject`) — la file de
 
 ### GET `/diagnostics/results` (Papa)
 
-Derniers diagnostics passés, score par notion + lacunes ouvertes.
+Derniers diagnostics passés (⚠️ `limit=10` en dur), score par notion + lacunes ouvertes.
+
+**`per_skill[]`** porte `questions_count` — le **grain** de la mesure (ADR-0043 Décision 3).
+`QUESTIONS_PER_SKILL` est passé de 2 à 5, mais **seulement pour les passations futures** : la
+granularité du dépôt est **mixte pour toujours**, et un score de 50 % ne dit pas la même chose
+selon qu'il porte sur 2 ou 5 questions. Le champ existe pour que la page le dise au lieu de le
+taire.
+
+🔴 **`gaps[]` est LU en base** (`gaps`, `source='diagnostic'`, `OPEN_GAP_STATUSES`), il n'est plus
+recalculé depuis les réponses de la passation. Une lacune résolue cesse donc de s'afficher.
+⚠️ **Ce que le champ veut dire a changé** : une `Gap` est clé sur `(student, skill)`, jamais sur une
+tentative — « les lacunes de cette passation » n'existe pas en base. Ce qui est servi, ce sont *les
+lacunes ouvertes **aujourd'hui** sur les notions que cette passation a mesurées*. Une lacune ouverte
+par un diagnostic antérieur apparaît donc sur la ligne d'un diagnostic plus récent qui remesure la
+même notion.
+
+### GET `/diagnostics/results/{attempt_id}` (Papa)
+
+Le détail d'**une** passation, même contrat qu'une ligne de `/results`. Il n'en existait aucun : le
+panneau devait retrouver sa passation parmi les dix servies, et au-delà elle était inaccessible.
+
+`404` si la passation n'existe pas, n'est pas un diagnostic, ou n'est pas celle de cet élève.
+
+### GET `/diagnostics/portee?subject_id=` (Papa)
+
+**La portée** — `results` transposé : par **notion** au lieu de par passation.
+
+```jsonc
+{
+  "subject_id": 2, "subject": "Mathématiques",
+  "attempts": [ { "attempt_id": 7, "completed_at": "…", "score_percent": 55 } ],  // du PLUS ANCIEN au plus récent
+  "notions": [ {
+    "skill_id": 12, "skill_name": "Nombres relatifs",
+    "points": [ { "attempt_id": 7, "score": 50, "questions_count": 2 }, null, { … } ],
+    "delta": 30                                    // dernière mesure − première, en points
+  } ]
+}
+```
+
+- `attempts` **indexe `points` position par position** : la page n'a aucun appariement à refaire.
+- 🔴 **`null` = notion non mesurée** par cette passation, **jamais** la valeur précédente reportée.
+  Reporter dessinerait un palier plat que personne n'a mesuré, et un palier plat se lit « rien n'a
+  bougé » — l'exact contraire de « on n'a pas regardé ».
+- 🔴 **Seules les notions mesurées au moins deux fois sortent.** Un point ne fait pas une pente ; à
+  une seule passation, `notions` est vide et la page remplace la portée par son absence expliquée.
+- `subject_id` est **obligatoire** : une portée toutes matières mélangerait des notions qui ne se
+  comparent pas (et l'`adr-0028 §9` interdit déjà le classement de matières).
 
 > Reporté : `generate-missions` (remédiation depuis les lacunes), diagnostic
 > multi-matières en une session, difficulté adaptative.
@@ -1717,6 +1763,8 @@ Sortie :
 | `/diagnostics/quizzes/{id}/validate` POST | non | oui | oui |
 | `/diagnostics/quizzes/{id}/reject` POST | non | oui | oui |
 | `/diagnostics/results` GET | non | oui | oui |
+| `/diagnostics/results/{attempt_id}` GET | non | oui | oui |
+| `/diagnostics/portee` GET | non | oui | oui |
 | `/missions/generate-remediation` POST | non | oui | oui |
 | `/missions/today` GET | oui | oui | oui |
 | `/missions/{id}/complete` POST | oui | oui | oui |

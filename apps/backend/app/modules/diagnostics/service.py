@@ -25,8 +25,10 @@ from app.db.models import (
     Subject,
 )
 from app.modules.ai.provider import LLMProvider, LLMRequest
+from app.modules.eli5.service import get_default_student
 from app.modules.gamification.service import XP_DIAGNOSTIC, award_xp
 from app.modules.progress.mastery import record_mastery_transition
+from app.modules.progress.service import OPEN_GAP_STATUSES
 from app.modules.provenance import PARENT, mark_validated
 from app.prompts.diagnostic import (
     DIAGNOSTIC_GEN_PROMPT_V1,
@@ -34,7 +36,15 @@ from app.prompts.diagnostic import (
     PROMPT_VERSION,
 )
 
-QUESTIONS_PER_SKILL = 2
+# ADR-0043 Décision 3 — 5 et non 2. À deux questions, un score par notion ne pouvait valoir que
+# 0, 50 ou 100 : le seuil de lacune à 70 était binaire, et une notion pouvait être déclarée lacune
+# GRAVE sur une seule réponse ratée.
+#
+# ⚠️ **N'améliore que les passations FUTURES.** Celles d'avant restent à trois valeurs, pour
+# toujours : la granularité du dépôt est et restera MIXTE. `score_par_notion` sert donc
+# `questions_count` par notion, pour que la page puisse le dire au lieu de comparer en silence des
+# grains incomparables.
+QUESTIONS_PER_SKILL = 5
 MAX_SKILLS = 8
 # Seuil en dessous duquel une notion est « à renforcer » (génère une lacune).
 GAP_THRESHOLD = 70
@@ -65,14 +75,63 @@ def _subject_or_404(db: Session, subject_id: int) -> Subject:
     return subject
 
 
+def notions_a_mesurer(
+    db: Session, *, subject_id: int, student_id: int | None, limit: int = MAX_SKILLS
+) -> list[Skill]:
+    """Les notions d'un diagnostic — **par ancienneté de mesure** (ADR-0043 Décision 4).
+
+    Avant : `order_by(Skill.id)[:8]`, c'est-à-dire les 8 premières entrées au référentiel. Sur ~280
+    notions au catalogue, une matière rendait **toujours les 8 mêmes**. Ce n'était pas une
+    sélection, c'était un accident d'ordre d'insertion.
+
+    **Motif de l'ordre choisi** : un diagnostic sert à *réduire l'incertitude*. Remesurer ce qui
+    vient de l'être n'en réduit aucune. D'où : jamais mesurées d'abord, puis les plus anciennement
+    mesurées. Cette règle fait tourner le périmètre toute seule, **sans tirage aléatoire** — donc
+    sans rendre deux passations incomparables.
+
+    ⚠️ **`student_id` peut être `None`, et la dégradation est correcte, pas silencieuse.**
+    `SkillMastery` est clé sur `(student, skill)` : sans élève, la jointure gauche ne rend que des
+    `NULL`, toutes les notions sont « jamais mesurées », et l'ordre retombe sur `Skill.id` —
+    exactement le comportement d'avant l'ADR-0043. Aucun résultat faux, seulement l'ancien.
+
+    `Skill.id` reste le départage final : sans lui, deux notions jamais mesurées sortiraient dans
+    un ordre non déterminé par la base, et deux générations successives ne seraient pas
+    reproductibles.
+    """
+    mesure = (
+        select(SkillMastery.skill_id, SkillMastery.last_seen_at)
+        .where(SkillMastery.student_id == student_id)
+        .subquery()
+        if student_id is not None
+        else None
+    )
+    query = select(Skill).where(Skill.subject_id == subject_id)
+    if mesure is not None:
+        query = query.outerjoin(mesure, mesure.c.skill_id == Skill.id).order_by(
+            # `NULLS FIRST` n'est pas portable sur SQLite : on trie sur un drapeau explicite. Il dit
+            # la règle mieux qu'un modificateur de tri, en plus d'être vrai dans les deux moteurs.
+            (mesure.c.last_seen_at.isnot(None)).asc(),
+            mesure.c.last_seen_at.asc(),
+            Skill.id.asc(),
+        )
+    else:
+        query = query.order_by(Skill.id.asc())
+    return list(db.scalars(query.limit(limit)))
+
+
 def generate_diagnostic(
     db: Session, provider: LLMProvider, subject_id: int, level: str | None
 ) -> tuple[Quiz, str, int]:
     """Génère un quiz diagnostic (QCM par notion) pour une matière. Trace ai_jobs."""
     subject = _subject_or_404(db, subject_id)
-    skills = list(
-        db.scalars(select(Skill).where(Skill.subject_id == subject_id).order_by(Skill.id))
-    )[:MAX_SKILLS]
+    # ⚠️ L'élève est résolu ICI et pas reçu en paramètre : cette fonction est appelée par le worker
+    # (`production/jobs.py::_diagnostic_generate`), dont la charge utile ne porte que `subject_id`
+    # et `level`. Le module entier est mono-enfant — le router résout de la même façon pour toutes
+    # ses autres routes — et le multi-enfant est hors périmètre de l'ADR-0043.
+    student = get_default_student(db)
+    skills = notions_a_mesurer(
+        db, subject_id=subject_id, student_id=student.id if student is not None else None
+    )
     if not skills:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -338,10 +397,11 @@ def submit(
     db.add(attempt)
     db.flush()
 
-    # Agrégat par notion : skill_id -> {name, correct, total}
-    per_skill: dict[int | None, dict] = {}
+    # ⚠️ **Une réponse par question, y compris NON RÉPONDUE** (`chosen is None`). C'est ce qui rend
+    # le dénominateur par notion complet, donc la comparaison entre passations honnête. Ne pas
+    # « optimiser » en n'écrivant que les réponses données : le score deviendrait flatteur.
     total_correct = 0
-    for q, skill in rows:
+    for q, _skill in rows:
         chosen = chosen_by_question.get(q.id)
         is_correct = chosen is not None and int(chosen) == int(q.correct_answer_json)
         db.add(
@@ -354,24 +414,21 @@ def submit(
             )
         )
         total_correct += int(is_correct)
-        bucket = per_skill.setdefault(
-            q.skill_id, {"name": skill.name if skill is not None else "Notion", "correct": 0, "total": 0}
-        )
-        bucket["total"] += 1
-        bucket["correct"] += int(is_correct)
 
     overall = round(total_correct / len(rows) * 100)
     attempt.score_percent = overall
 
-    per_skill_out: list[dict] = []
-    gaps_out: list[dict] = []
+    # 🔴 L'agrégat par notion se RELIT, il ne se recompte pas ici. `submit()` en portait sa propre
+    # copie, calculée pendant l'écriture — la deuxième des trois du dépôt, et celle qui n'avait pas
+    # de garde sur un dénominateur nul. Le `flush` ci-dessus rend les réponses visibles à la
+    # requête ; le prix est une lecture, le gain est qu'une passation ne peut plus être notée
+    # différemment selon la surface qui la regarde.
+    db.flush()
+    per_skill_out = score_par_notion(db, attempt.id)
+
     strengths: list[str] = []
-    for skill_id, data in per_skill.items():
-        score = round(data["correct"] / data["total"] * 100)
-        status_label = _status_from_score(score)
-        per_skill_out.append(
-            {"skill_id": skill_id, "skill_name": data["name"], "score": score, "status": status_label}
-        )
+    for row in per_skill_out:
+        skill_id, score = row["skill_id"], row["score"]
         if skill_id is not None:
             _upsert_skill_mastery(db, student_id=student.id, skill_id=skill_id, score=score, now=now)
         if score < GAP_THRESHOLD:
@@ -383,11 +440,18 @@ def submit(
                     skill_id=skill_id,
                     score=score,
                 )
-            gaps_out.append(
-                {"skill_id": skill_id, "skill_name": data["name"], "severity": _severity_from_score(score)}
-            )
         else:
-            strengths.append(data["name"])
+            strengths.append(row["skill_name"])
+
+    # Les lacunes rendues sont celles de la BASE, pas celles qu'on vient de calculer : le `flush`
+    # rend visibles les `Gap` tout juste ouvertes, et la lecture y ajoute celles qui étaient déjà
+    # ouvertes sur ces notions. Massimo voit donc le même état que Papa, au même instant.
+    db.flush()
+    gaps_out = lacunes_ouvertes(
+        db,
+        student_id=student.id,
+        skill_ids=[r["skill_id"] for r in per_skill_out if r["skill_id"] is not None],
+    )
 
     # XP pour avoir passé le diagnostic (gamification) — récompense l'engagement.
     award_xp(
@@ -442,7 +506,7 @@ def latest_results(db: Session, student: StudentProfile, limit: int = 10) -> lis
     for attempt in attempts:
         quiz = db.get(Quiz, attempt.quiz_id)
         subject = db.get(Subject, quiz.subject_id) if quiz is not None else None
-        per_skill_out, gaps_out = _per_skill_for_attempt(db, attempt)
+        per_skill_out, gaps_out = _per_skill_for_attempt(db, attempt, student_id=student.id)
         results.append(
             {
                 "attempt_id": attempt.id,
@@ -457,12 +521,34 @@ def latest_results(db: Session, student: StudentProfile, limit: int = 10) -> lis
     return results
 
 
-def _per_skill_for_attempt(db: Session, attempt: QuizAttempt) -> tuple[list[dict], list[dict]]:
+def score_par_notion(db: Session, attempt_id: int) -> list[dict]:
+    """**Le** calcul du score par notion d'une passation — un seul, réutilisé partout.
+
+    Il lisait déjà `quiz_answers` ; il est désormais le SEUL chemin du module. `submit()` en avait
+    sa propre copie, calculée pendant l'écriture des réponses ; elle est supprimée. Le prix est une
+    relecture de ce qu'on vient d'écrire ; le gain est que la réponse de `submit()` et la ligne que
+    `latest_results()` sert pour la MÊME passation ne peuvent plus diverger — c'est exactement ce
+    dont le pivot a besoin pour comparer deux passations sans comparer deux façons de compter.
+
+    🔴 **Il reste UNE autre copie dans le dépôt**, `quizzes.complete_attempt`, et elle n'est pas
+    absorbée ici : `quizzes/scoring.py` documente que ses paliers sont *« dupliqués volontairement
+    pour ne PAS importer `diagnostics` (modules évaluatifs indépendants) »*. Fusionner défairait
+    une décision écrite. L'ADR-0043 §8 demande de ne pas en écrire un **quatrième** ; on passe de
+    trois à deux, et la frontière restante est une frontière voulue.
+
+    ⚠️ **Le dénominateur est complet** parce que `submit()` écrit une réponse par question, *y
+    compris non répondue*. Ne pas « optimiser » cette écriture : sans elle, une notion à moitié
+    répondue rendrait un score calculé sur les seules réponses données, donc trop flatteur.
+
+    `total` est servi : c'est lui qui dit la granularité d'une passation (2 questions avant
+    l'ADR-0043, 5 après). La page en a besoin pour ne pas comparer des grains incomparables en
+    silence.
+    """
     rows = db.execute(
         select(QuizAnswer, QuizQuestion, Skill)
         .join(QuizQuestion, QuizQuestion.id == QuizAnswer.question_id)
         .outerjoin(Skill, Skill.id == QuizQuestion.skill_id)
-        .where(QuizAnswer.attempt_id == attempt.id)
+        .where(QuizAnswer.attempt_id == attempt_id)
     ).all()
     per_skill: dict[int | None, dict] = {}
     for answer, question, skill in rows:
@@ -472,20 +558,223 @@ def _per_skill_for_attempt(db: Session, attempt: QuizAttempt) -> tuple[list[dict
         )
         bucket["total"] += 1
         bucket["correct"] += int(bool(answer.is_correct))
-    per_skill_out: list[dict] = []
-    gaps_out: list[dict] = []
-    for skill_id, data in per_skill.items():
-        score = round(data["correct"] / data["total"] * 100) if data["total"] else 0
-        per_skill_out.append(
+    return [
+        {
+            "skill_id": skill_id,
+            "skill_name": data["name"],
+            "score": round(data["correct"] / data["total"] * 100) if data["total"] else 0,
+            "status": _status_from_score(
+                round(data["correct"] / data["total"] * 100) if data["total"] else 0
+            ),
+            "questions_count": data["total"],
+        }
+        for skill_id, data in per_skill.items()
+    ]
+
+
+def lacunes_ouvertes(db: Session, *, student_id: int, skill_ids: list[int]) -> list[dict]:
+    """Les lacunes **lues en base**, à l'état d'aujourd'hui (ADR-0043 Décision 5).
+
+    Avant, ce module les **recalculait** depuis les réponses de la passation : une lacune que Papa
+    avait résolue continuait de s'afficher, à jamais, alors que le docstring promettait « lacunes
+    ouvertes ».
+
+    ⚠️ **Ce que le champ veut dire a changé, et ce n'était pas évitable.** Une `Gap` est clé sur
+    `(student, skill)`, jamais sur une tentative : « les lacunes de cette passation » n'existe pas
+    en base. Ce qu'on sert est donc *les lacunes ouvertes aujourd'hui sur les notions que cette
+    passation a mesurées*. Conséquence assumée : une lacune ouverte par un diagnostic antérieur
+    apparaît sur la ligne d'un diagnostic plus récent qui remesure la même notion. C'est le sens
+    de « état à aujourd'hui ».
+
+    `OPEN_GAP_STATUSES` est **importé**, jamais recopié : c'est la définition canonique
+    (`("open", "in_progress")`), et `diagnostics` était justement le module qui ne l'importait pas.
+
+    🔴 **Dédup défensive, et voici pourquoi elle est nécessaire ici.** `_upsert_gap` déduplique sur
+    `"open"` SEUL : une lacune passée `in_progress` laisse la porte ouverte à une seconde ligne au
+    diagnostic suivant. Ce défaut est au `BACKLOG.md` et **hors du périmètre de cette session** —
+    mais lire avec le tuple canonique le rendrait VISIBLE, sous la forme de deux lignes pour une
+    notion dans le panneau. On garde la plus sévère, et le défaut reste à corriger là où il est.
+    """
+    if not skill_ids:
+        return []
+    rows = db.execute(
+        select(Gap, Skill)
+        .outerjoin(Skill, Skill.id == Gap.skill_id)
+        .where(
+            Gap.student_id == student_id,
+            Gap.skill_id.in_(skill_ids),
+            Gap.source == "diagnostic",
+            Gap.status.in_(OPEN_GAP_STATUSES),
+        )
+        .order_by(Gap.id)
+    ).all()
+    par_notion: dict[int, dict] = {}
+    for gap, skill in rows:
+        connue = par_notion.get(gap.skill_id)
+        if connue is not None and connue["severity"] == "high":
+            continue  # déjà au maximum : rien de plus sévère ne peut arriver
+        par_notion[gap.skill_id] = {
+            "skill_id": gap.skill_id,
+            "skill_name": skill.name if skill is not None else "Notion",
+            "severity": gap.severity,
+        }
+    return list(par_notion.values())
+
+
+def _passations_de_matiere(
+    db: Session, *, student_id: int, subject_id: int, limit: int
+) -> list[QuizAttempt]:
+    """Les passations de diagnostic d'une matière, **du plus ancien au plus récent**.
+
+    L'ordre chronologique est celui de la portée : une pente se lit dans le sens du temps.
+    `latest_results` sert l'ordre inverse, parce qu'une liste se lit du plus récent — les deux ne
+    se contredisent pas, ils répondent à deux questions.
+    """
+    return list(
+        db.scalars(
+            select(QuizAttempt)
+            .join(Quiz, Quiz.id == QuizAttempt.quiz_id)
+            .where(
+                QuizAttempt.student_id == student_id,
+                Quiz.quiz_type == "diagnostic",
+                Quiz.subject_id == subject_id,
+                QuizAttempt.completed_at.isnot(None),
+            )
+            .order_by(QuizAttempt.completed_at.asc(), QuizAttempt.id.asc())
+            .limit(limit)
+        )
+    )
+
+
+def portee(db: Session, *, student: StudentProfile, subject_id: int, limit: int = 12) -> dict:
+    """La portée : une notion, ses passations successives, son delta (ADR-0043, spec §portée).
+
+    C'est `latest_results` **transposé** — par notion au lieu de par passation. Il ne recompte
+    rien : chaque passation passe par `score_par_notion`, le calcul unique du module. C'est la
+    condition pour que la portée et le panneau d'une passation ne puissent pas se contredire.
+
+    🔴 **Aucune interpolation.** Une notion non mesurée par une passation vaut `None` à ce point,
+    jamais la valeur précédente reportée. Reporter dessinerait un palier plat que personne n'a
+    mesuré, et un palier plat se lit « rien n'a bougé » — l'exact contraire de « on n'a pas
+    regardé ».
+
+    🔴 **Seules les notions mesurées AU MOINS DEUX FOIS sortent.** Un point ne fait pas une pente ;
+    une notion mesurée une seule fois appartient au panneau de sa passation, pas à la comparaison.
+    Conséquence : à une seule passation, `notions` est vide — c'est ce qui permet à la page de
+    remplacer la portée par son absence expliquée sans avoir à compter elle-même.
+
+    ⚠️ **La granularité est servie point par point** (`questions_count`), et elle sera MIXTE pour
+    toujours : les passations d'avant l'ADR-0043 ont 2 questions par notion (3 valeurs possibles),
+    celles d'après en ont 5 (6 valeurs). Un delta entre deux grains différents reste vrai, mais il
+    ne se lit pas comme un delta entre deux grains identiques — la page doit pouvoir le dire.
+
+    ⚠️ **Une requête par passation, assumée.** L'alternative serait un `GROUP BY (attempt, skill)`
+    en SQL — c'est-à-dire une **quatrième** écriture de l'agrégat, précisément la faute que
+    l'ADR-0037 nomme et que l'ADR-0043 §8 interdit. On échange N lectures bornées par `limit`
+    contre une définition unique du score.
+    """
+    subject = _subject_or_404(db, subject_id)
+    attempts = _passations_de_matiere(
+        db, student_id=student.id, subject_id=subject_id, limit=limit
+    )
+
+    scores: dict[int, dict[int, dict]] = {}  # attempt_id -> skill_id -> ligne
+    noms: dict[int, str] = {}
+    for attempt in attempts:
+        par_notion = {}
+        for ligne in score_par_notion(db, attempt.id):
+            if ligne["skill_id"] is None:
+                continue  # une question sans notion n'entre dans aucune série
+            par_notion[ligne["skill_id"]] = ligne
+            noms[ligne["skill_id"]] = ligne["skill_name"]
+        scores[attempt.id] = par_notion
+
+    notions: list[dict] = []
+    for skill_id, nom in noms.items():
+        points = [
+            (
+                {
+                    "attempt_id": attempt.id,
+                    "score": scores[attempt.id][skill_id]["score"],
+                    "questions_count": scores[attempt.id][skill_id]["questions_count"],
+                }
+                if skill_id in scores[attempt.id]
+                else None
+            )
+            for attempt in attempts
+        ]
+        mesures = [point for point in points if point is not None]
+        if len(mesures) < 2:
+            continue
+        notions.append(
             {
                 "skill_id": skill_id,
-                "skill_name": data["name"],
-                "score": score,
-                "status": _status_from_score(score),
+                "skill_name": nom,
+                "points": points,
+                # Delta entre la PREMIÈRE et la DERNIÈRE mesure, pas entre les deux dernières :
+                # c'est le trajet de la notion sur la fenêtre servie, et il ne dépend pas du
+                # nombre de passations qui l'ont sautée entre-temps.
+                "delta": mesures[-1]["score"] - mesures[0]["score"],
             }
         )
-        if score < GAP_THRESHOLD:
-            gaps_out.append(
-                {"skill_id": skill_id, "skill_name": data["name"], "severity": _severity_from_score(score)}
-            )
-    return per_skill_out, gaps_out
+    notions.sort(key=lambda ligne: (ligne["delta"], ligne["skill_name"]))
+
+    return {
+        "subject_id": subject.id,
+        "subject": subject.name,
+        "attempts": [
+            {
+                "attempt_id": attempt.id,
+                "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
+                "score_percent": round(attempt.score_percent or 0),
+            }
+            for attempt in attempts
+        ],
+        "notions": notions,
+    }
+
+
+def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict:
+    """Le détail d'UNE passation — il n'existait aucun endpoint pour ça (spec §Ce qui manque).
+
+    Le panneau de la page ouvrait jusqu'ici une passation en la cherchant dans les dix que
+    `latest_results` sert : au-delà, elle était inaccessible, et la limite de dix est en dur.
+
+    `404` sur une passation qui n'est pas un diagnostic ou qui n'est pas celle de cet élève — pas
+    `403` : Papa n'a pas à apprendre l'existence de ce qu'il ne peut pas ouvrir.
+    """
+    attempt = db.get(QuizAttempt, attempt_id)
+    quiz = db.get(Quiz, attempt.quiz_id) if attempt is not None else None
+    if (
+        attempt is None
+        or attempt.student_id != student.id
+        or quiz is None
+        or quiz.quiz_type != "diagnostic"
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Passation introuvable.")
+    subject = db.get(Subject, quiz.subject_id)
+    per_skill_out, gaps_out = _per_skill_for_attempt(db, attempt, student_id=student.id)
+    return {
+        "attempt_id": attempt.id,
+        "quiz_id": attempt.quiz_id,
+        "subject": subject.name if subject is not None else "",
+        "score_percent": round(attempt.score_percent or 0),
+        "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
+        "per_skill": per_skill_out,
+        "gaps": gaps_out,
+    }
+
+
+def _per_skill_for_attempt(
+    db: Session, attempt: QuizAttempt, *, student_id: int
+) -> tuple[list[dict], list[dict]]:
+    """Le couple servi par la vue Papa : scores par notion + lacunes **ouvertes**.
+
+    Deux lectures distinctes et assumées : la mesure vient de la passation (figée, historique), la
+    lacune vient de la table (vivante, à aujourd'hui). C'est ce qui permet à la page de tenir les
+    deux colonnes que l'ADR-0043 Décision 6 veut **disjointes** — une notion à renforcer sans
+    lacune ouverte, une lacune résolue sur une notion pas encore acquise.
+    """
+    per_skill_out = score_par_notion(db, attempt.id)
+    skill_ids = [row["skill_id"] for row in per_skill_out if row["skill_id"] is not None]
+    return per_skill_out, lacunes_ouvertes(db, student_id=student_id, skill_ids=skill_ids)

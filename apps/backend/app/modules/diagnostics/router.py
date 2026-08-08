@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -17,6 +17,7 @@ from app.modules.diagnostics.schemas import (
     DiagnosticResultSummary,
     DiagnosticSubmitRequest,
     DiagnosticValidationOut,
+    PorteeOut,
     SubjectOut,
 )
 from app.modules.eli5.service import get_default_student
@@ -132,3 +133,29 @@ def reject(quiz_id: int, db: Session = Depends(get_db), _: dict = Depends(requir
 def results(db: Session = Depends(get_db), _: dict = Depends(require_parent)) -> list[dict]:
     student = get_default_student(db)
     return service.latest_results(db, student)
+
+
+@router.get("/results/{attempt_id}", response_model=DiagnosticResultSummary)
+def result_detail(
+    attempt_id: int, db: Session = Depends(get_db), _: dict = Depends(require_parent)
+) -> dict:
+    """Le détail d'UNE passation (ADR-0043 §Périmètre).
+
+    Il n'en existait aucun : le panneau devait retrouver sa passation parmi les dix que `/results`
+    sert, et au-delà de dix elle était inaccessible.
+    """
+    return service.result_detail(db, get_default_student(db), attempt_id)
+
+
+@router.get("/portee", response_model=PorteeOut)
+def portee(
+    subject_id: int = Query(...),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_parent),
+) -> dict:
+    """La portée d'une matière : une notion, ses passations successives, son delta.
+
+    ⚠️ `subject_id` est **obligatoire**. Une portée toutes matières confondues mélangerait des
+    notions qui ne se comparent pas, et l'`adr-0028 §9` interdit déjà le classement de matières.
+    """
+    return service.portee(db, student=get_default_student(db), subject_id=subject_id)
