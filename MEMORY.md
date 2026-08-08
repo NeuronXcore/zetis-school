@@ -99,8 +99,13 @@ Section `feat/worker-supervise`. Les trois qui coûteraient le plus :
 - 🔴 **`POSTGRES_PASSWORD` reste `zetis_dev_password`** dans le `.env` racine — je l'y ai mis pour
   ne pas casser `prod:up`, mais c'est le secret public que la correction visait. Le changer impose
   `docker compose -f docker-compose.prod.yml down -v`, qui **efface les données prod**.
-- ⚠️ **Le worker de dev tourne détaché** (`nohup`), pas dans un terminal. Pour reprendre la main :
-  `pgrep -f "python -m app.production_worker"` puis `kill` et `pnpm dev:worker`.
+- ✅ **Le worker de dev ne tourne plus détaché** (2026-08-09). Les deux processus `nohup` (56904,
+  56907) ont été arrêtés par `SIGTERM` — que **RQ intercepte**, donc arrêt propre en ~2 s — et
+  relancés par `pnpm dev:worker`. ⚠️ **Il vit désormais dans une session, donc il MOURRA avec
+  elle** : sans lui, un lot lancé depuis la Couverture reste `queued` **indéfiniment** et la bande
+  affiche « ZETIS ne produit pas ». C'est le comportement juste, pas une panne — mais c'est le
+  genre de chose qu'on découvre une heure plus tard. Pour vérifier :
+  `pgrep -fl "app.production_worker"`.
 - ⚠️ **Données de dev** : la pile prod porte désormais le **quiz 4** (SVT, 40 questions, `pending`)
   et son `ai_job 114`, créés par le test de production réelle. Volume `zetis-prod_postgres_data`.
 - ⚠️ **Le `lifespan` de `main.py` est la PREMIÈRE tâche de fond du backend.** Il n'y avait aucun
