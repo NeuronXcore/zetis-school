@@ -439,9 +439,18 @@ export function DiagnosticPage() {
             Déjà mesuré avec toi
           </h3>
           {faits.map((d) => (
+            // `flex-wrap` + `w-full` sur les boutons : sous `sm`, ils passent SOUS le texte au
+            // lieu de se serrer à côté. Mesuré à l'écran sur un iPhone SE (375 px) avant
+            // correction : les boutons prenaient ~171 pt et le texte ~102 pt — le texte avait
+            // MOINS de place que les boutons, « août » et « juillet » tombaient seuls sur leur
+            // ligne. C'est très exactement ce que la spec interdit (§ zone A : « ils se cassent
+            // en trois colonnes bancales dès 375 px »), l'avertissement n'ayant été appliqué
+            // qu'à la zone A. ⚠️ L'ancien `sm:flex-row` ne corrigeait rien : `sm` vaut 640 px,
+            // donc AUCUN téléphone ne l'atteint — le cas étroit était traité sur le mauvais axe
+            // (empiler les boutons, au lieu de les descendre).
             <div
               key={d.quiz_id}
-              className="mb-2 flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3.5"
+              className="mb-2 flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3.5"
             >
               <span
                 className="flex h-9 w-9 flex-none items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
@@ -449,13 +458,14 @@ export function DiagnosticPage() {
               >
                 ✓
               </span>
-              <span>
+              {/* `min-w-0` : sans lui, un titre long refuse de rétrécir et repousse le reste. */}
+              <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold">{d.title}</span>
                 <span className="block text-xs text-zetis-muted">
                   {d.subject} · tu l'as passé le {leJour(d.taken_at)}
                 </span>
               </span>
-              <span className="ml-auto flex flex-none flex-col gap-2 sm:flex-row">
+              <span className="flex w-full flex-none gap-2 sm:ml-auto sm:w-auto">
                 {d.last_attempt_id !== null && (
                   <button
                     type="button"
