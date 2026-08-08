@@ -8,7 +8,7 @@
 ## État à la reprise
 
 **Chantier : « la page Diagnostic de Papa montre ce qu'elle annonce » (ADR-0045).
-✅ COMPLET — trois slices livrées, **commitées**, et **vérifiées à l'écran**.**
+✅ COMPLET et ✅ MERGÉ SUR `main` (2026-08-08). Ne pas ré-implémenter.**
 
 > ✅ **La vérification à l'écran a eu lieu, avec l'humain, en cinq points** (2026-08-08) :
 > le contrat sert bien `source` et `content_state` (lu dans `/openapi.json`, sans auth) · « voir
@@ -22,22 +22,26 @@
 
 | | |
 |---|---|
-| **Branche** | `feat/diagnostic-papa-optimisations`, locale ET distante |
-| **Base** | `41ca48a` — le commit de l'ADR, sur `main`. Vérifié par `git merge-base main HEAD` |
-| **État git** | ✅ **Tout est commité** — cadrage, slices A+B, slice C, et les constats du BACKLOG, chacun dans son commit. 🔴 **Rien n'est POUSSÉ** : la branche distante est restée au commit de cadrage. `git log --oneline main..HEAD` fait foi |
-| **`main`** | `main` = `origin/main` — rien à pousser de ce côté |
-| **Décisions** | ADR-0045 **Accepté**, 9 décisions + 1 amendement — et **DEUX d'entre elles amendées pendant l'exécution**, voir plus bas |
+| **Mergé** | PR [#103](https://github.com/NeuronXcore/zetis-school/pull/103), **squash `5d71956`**, base `41ca48a`. 26 fichiers, +3419/−313 |
+| **État git** | `main` = `origin/main` = `5d71956` — **rien à pousser** |
+| **Branche** | `feat/diagnostic-papa-optimisations` — 🔴 **CONSERVÉE**, locale ET distante. Mergée **sans** `--delete-branch` |
+| **Décisions** | ADR-0045 **Accepté**, 9 décisions — et 🔴 **QUATRE d'entre elles amendées pendant l'exécution** (9, 5, 4, 8), voir plus bas |
 | **Migration** | **AUCUNE**, et aucun endpoint. ⚠️ Mais **le contrat a gagné deux champs** en slice C — invariant rompu délibérément, 4ᵉ amendement de l'ADR |
 | **Suites** | Papa **667 → 707** · Backend **1052 → 1055** · `tsc -b` 0 · `vite build` vert. ⚠️ Massimo **non relancé** — aucun de ses fichiers n'est touché |
 | **Sabotages** | **13 joués : 11 rouges, 1 VERT non concluant, 1 neutre** — voir DETTES |
 | **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé **DEUX défauts** qu'aucun test ne voyait, dont un que j'avais introduit en croyant corriger son jumeau. Puis **une TROISIÈME passe à deux**, qui a validé la slice C point par point et sorti un défaut de plus (page Lacunes, au `BACKLOG`) |
 
-🔴 **SEPT branches existent maintenant, six sont à conserver.** Les cinq déjà conservées —
-`feat/diagnostic-massimo-propose`, `fix/diagnostic-zone-c-mobile`, `fix/connexion-mot-de-passe`,
-`feat/diagnostic-mesure-qui-engage`, `feat/notion-orpheline-equipable` — plus
-`feat/diagnostic-papa-optimisations` (celle-ci, **active**). Le dépôt a `delete_branch_on_merge:
-false`. Les noms se ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais.
-**Aucune n'est à supprimer sans consigne.** Toutes vérifiées locales ET distantes le 2026-08-08.
+🔴 **SIX branches de chantier sont conservées** — `feat/diagnostic-massimo-propose`,
+`fix/diagnostic-zone-c-mobile`, `fix/connexion-mot-de-passe`, `feat/diagnostic-mesure-qui-engage`,
+`feat/notion-orpheline-equipable`, et `feat/diagnostic-papa-optimisations` (celle-ci). Le dépôt a
+`delete_branch_on_merge: false`. Les noms se ressemblent assez pour qu'un `git branch -d` distrait
+fasse le mauvais. **Aucune n'est à supprimer sans consigne.** Toutes vérifiées locales ET distantes
+le 2026-08-08, après le merge.
+
+> ⚠️ **Deux gestes du merge valent d'être refaits pareil**, tous deux tirés du `TROUBLESHOOTING` :
+> merger **sans `--delete-branch`**, et rattraper `main` par **`git fetch origin main:main`** sans
+> changer de branche. C'est ce second geste qui, fait autrement un jour, avait basculé le worktree
+> sur un `main` périmé et donné l'illusion que tout le chantier avait disparu.
 
 ### FAIT — les deux sessions
 
@@ -178,20 +182,24 @@ la plus discrète du décor dégénéré.
 
 ### ▶▶ PROCHAIN PAS
 
-**POUSSER la branche, puis ouvrir la PR.** Tout est commité et tout est vérifié — code, documents,
-tests, et l'écran. Il ne reste que le geste git.
+**Ce chantier est CLOS.** Mergé, vérifié à l'écran, étape 4bis faite. ⚠️ **Ne rien en
+recommencer.**
 
-```bash
-git push
-```
+**Le prochain chantier se choisit entre TROIS, tous au `BACKLOG.md` et tous nés de cette séance ou
+de la précédente :**
 
-Ensuite, **étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici le **squash**, le **n° de PR** et
-l'état de la branche, et compléter la ligne d'index de `DECISIONS.md` **sur `main`** — elle a été
-écrite au cadrage et ne porte **aucun des quatre amendements**.
+1. **L'anti-triche du diagnostic** — le plus mûr : pistes retenues et usage déjà tranchés par le
+   commanditaire (sortie d'écran, temps par question, verbalisation, audit de ce qui récompense un
+   bon score ; marquage **côté Papa seul**, jamais d'accusation à l'enfant).
+2. **Le worker de production qui n'est un service nulle part** — le plus urgent : trois diagnostics
+   sont restés bloqués, `docker-compose.prod.yml` n'a **aucun** service de worker, et la panne
+   était **déjà** au `TROUBLESHOOTING`. Elle reviendra une troisième fois.
+3. **La page Lacunes qui énonce sans permettre d'agir** — le moins cher : `content_state` est déjà
+   sur `OpenGap` depuis la slice C, donc les trois gestes de la station ② sont rendables **sans une
+   ligne de backend**.
 
-⚠️ **Ne rien recommencer de ce chantier.** Les deux chantiers suivants sont au `BACKLOG.md`, et le
-plus mûr des trois candidats reste l'**anti-triche du diagnostic**, déjà cadré en pistes et en
-décisions d'usage.
+Chacun demande le **rituel complet** (`mockup → spec → ADR → prompt`), donc une session de cadrage
+sur `main` avant la moindre ligne — puis `/ouverture`.
 
 **Chantier suivant, déjà décidé et cadré au `BACKLOG.md`** : l'**anti-triche du diagnostic** —
 sortie d'écran, temps par question, verbalisation, et audit de ce qui récompense encore un bon
