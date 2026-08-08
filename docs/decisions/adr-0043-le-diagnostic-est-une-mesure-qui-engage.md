@@ -304,3 +304,83 @@ d'une passation, le pivot de comparaison entre passations, et leurs tests.
   - un test du **pivot de comparaison** sur des passations à granularité mixte (2 et 5 questions).
 - **Vérification à l'écran** obligatoire, sur les sept états du rail et les quatre de la modale.
 - **Ordre** : la migration et le gate d'abord (ils changent un contrat), la page ensuite.
+
+## Mise en œuvre — ce que le code a appris à la décision
+
+> Annoté le **2026-08-08**, après les trois sessions (branche `feat/diagnostic-mesure-qui-engage`,
+> PR [#99](https://github.com/NeuronXcore/zetis-school/pull/99)). **Aucune décision n'est
+> rouverte** : ce qui suit est ce que la mise en œuvre a rendu plus précis, plus large ou faux.
+
+### 1. Le gate porte sur les TROIS routes élève, pas sur `list_diagnostics` seule
+
+La Décision 1 ne nomme que `list_diagnostics`. Il y a **trois portes** côté élève : `/quizzes`,
+`/quizzes/{id}` et `/quizzes/{id}/submit`. Filtrer la liste seule laissait la passation accessible
+à qui connaît l'identifiant — **un gate qu'on contourne en lisant une URL n'en est pas un**.
+
+Le gate vit donc dans un résolveur dédié (`_servable_quiz_or_404`), sur le patron déjà en place
+dans `quizzes.service`. Il rend **`404`, pas `403`** : pour Massimo, un diagnostic non relu
+n'existe pas — lui répondre « c'est interdit » lui apprendrait qu'un contenu l'attend derrière une
+porte, ce que la relecture doit justement pouvoir retenir.
+
+⚠️ Sans coût pour Papa, vérifié : il n'appelle **aucune** de ces trois routes.
+
+### 2. Un gate sans soupape enferme — `POST /validate` et `/reject` étaient manquants
+
+La Décision 1 prescrit l'entrée dans `/relecture` sans prescrire la sortie. Or la file est en
+**lecture seule** (invariant du module) : les verdicts passent par le client de pilotage de chaque
+famille, et le diagnostic n'en avait aucun. La 6ᵉ famille aurait été un **bouton mort**, et plus
+aucun diagnostic n'aurait atteint Massimo.
+
+Convention `fiches` (`/{id}/validate`, `/{id}/reject`) reprise telle quelle — `reviewActions.ts`
+n'est qu'une table d'aiguillage, et inventer une sixième convention pour une sixième famille est
+précisément ce que ce module refuse.
+
+### 3. 🔴 Le gate a créé le besoin d'une surface que l'ADR n'avait pas prévue
+
+En gatant `list_diagnostics`, la Décision 1 a rendu le **premier cran invisible de la seule route
+qui listait les diagnostics**. C'est correct — c'est la route de Massimo — mais la Décision 6
+demande à Papa un rail à trois crans, donc de voir exactement ce que Massimo ne voit pas encore.
+
+D'où **`GET /api/diagnostics/apercu`** : bandeau, rail et matières jamais mesurées, en un appel,
+borné à l'année active comme la Couverture et la file de relecture.
+
+**La leçon générale** : un gate ne se pose pas sans se demander *qui perd la vue au passage*. Ici
+c'est le pilote, et il fallait la lui rendre ailleurs.
+
+### 4. La Décision 5 disait « lues en base » — elle ne pouvait pas dire « ouvertes »
+
+Une `Gap` est clé sur `(student, skill)`, **jamais sur une tentative** : « les lacunes de cette
+passation » n'existe pas en base. Ce qui est servi est donc *les lacunes ouvertes **aujourd'hui**
+sur les notions que cette passation a mesurées* — une lacune ouverte par un diagnostic antérieur
+apparaît sur la ligne d'un diagnostic plus récent qui remesure la même notion.
+
+⚠️ Et la Décision 6 impose plus que « ouvertes » : la station ② porte un badge **`résolue`**, qu'un
+filtre sur les statuts ouverts rendrait impossible à afficher. « Les lacunes **ouvertes par** un
+diagnostic » désigne l'**origine** (`source='diagnostic'`), pas l'état courant — **l'état est ce
+que le badge dit, il n'est pas ce qui décide de l'affichage**. Deux fonctions en découlent :
+`lacunes_de_passation` (tout, avec le statut — Papa) et `lacunes_ouvertes` (le filtre étroit —
+Massimo, au sortir d'une passation).
+
+### 5. Ce que la Décision 8 protégeait a tenu, mais pas jusqu'où on croyait
+
+« On extrait `_per_skill_for_attempt`, on n'en écrit pas un quatrième » : fait. Mais on passe de
+**trois copies à deux, pas à une**. `quizzes/scoring.py` documente que ses paliers sont *« dupliqués
+volontairement pour ne PAS importer `diagnostics` (modules évaluatifs indépendants) »* — fusionner
+la troisième défairait une décision écrite. La frontière qui reste est **voulue**.
+
+### 6. Ce que la Décision 4 rend faux ailleurs
+
+La maquette et la spec annonçaient « ce sont toujours les **mêmes 8** notions tant qu'une rotation
+n'aura pas été décidée ». La rotation **est** la Décision 4. Les deux documents ont été corrigés
+dans le même chantier — mention gardée ici parce qu'un ADR qui périme un texte doit dire lequel.
+
+### 7. Ce qui n'a pas été fait, et qui reste dû
+
+- 🔴 **La relecture visuelle humaine**, exigée par le Suivi ci-dessus. Elle **n'a pas eu lieu** —
+  ce serait la 5ᵉ fois d'affilée dans ce dépôt (#79, #89, #91, #98).
+- **`_etat_contenu` ne consulte pas le plancher RAG de l'ADR-0042** : le vérifier coûterait un
+  appel d'embedding *par notion* sur une surface ouverte à chaque affichage. La page propose le
+  geste ; c'est la génération qui refuse, avec son message, si la source manque. Compromis assumé.
+- **La contre-épreuve du quiz de fin de cours monte son décor à la main** : elle prouve que le gate
+  ne le regarde pas, **pas** que `generate_quiz` pose bien `validation_status='validated'`. Cette
+  moitié n'est tenue que par le sabotage.
