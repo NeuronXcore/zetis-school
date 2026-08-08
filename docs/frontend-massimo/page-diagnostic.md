@@ -271,15 +271,42 @@ Les questions que cette spec avait laissées ouvertes sont décidées par
    élargie** — et sert le **même schéma enfant** que `POST /submit`. Ce schéma perd
    `score_percent` et la `severity` des lacunes.
 2. **Le score brut disparaît de l'écran de Massimo** — même décision. Il reste servi à Papa.
-3. **Diagnostic reste SANS témoin de nouveauté** (Décision 7), mais les **deux motifs écrits**
-   qui portaient cette absence sont corrigés : celui de Diagnostic devient « contenu entrant,
-   mais **aucune trace de vue** », celui de Quiz est rebasé sur `quiz_type` plutôt que sur la
-   table. L'ADR **annote l'ADR-0030** — pas d'addendum séparé.
-   La maquette montre la pastille sous une bascule ; **elle n'est pas retenue.**
+3. ~~**Diagnostic reste SANS témoin de nouveauté** (Décision 7)~~ — 🔴 **RÉVOQUÉ le jour même**
+   par `docs/decisions/adr-0030-addendum-temoin-diagnostic.md`, décision du commanditaire prise
+   après que l'objection lui a été exposée et **réaffirmée**. Voir ci-dessous.
 4. **Aucun plafond** (Décision 4), **icône `🧭` partout** (Décision 8).
 
 ⚠️ La Décision 5 **sort du périmètre annoncé** de cette spec (l'entrée dans le diagnostic, pas
 son déroulé). L'ADR le dit et l'assume : la zone C l'y force.
+
+## Le témoin de nouveauté — une exception assumée (addendum ADR-0030)
+
+**L'entrée « 🧭 Diagnostic » de la sidebar porte un témoin NUMÉRIQUE.** Il compte les diagnostics
+**relus par Papa que Massimo n'a pas encore passés**, et **s'éteint au PASSAGE** — par le travail,
+pas par le regard.
+
+🔴 **C'est une exception nommée à la règle « NOUVEAU jamais DÛ »**, pas une clarification. Le
+témoin tombe dans la colonne « Arriéré » du test de l'ADR-0030 : il naît d'un geste de Papa, meurt
+du travail, et **grossit si Massimo ne vient pas**. L'addendum l'écrit noir sur blanc, avec le
+contre-motif maintenu au dossier — ce qui suit n'est pas une justification, c'est un rappel des
+**bornes opposables** :
+
+- **une seule entrée** — la règle reste intacte pour les six autres ;
+- le compteur **ne compte que du relu** : Papa est le robinet, et la seule régulation de volume ;
+- **aucun décompte de jours**, sous aucune forme — cette interdiction-là n'est **pas** amendée ;
+- aucune couleur d'alerte, aucune notification ;
+- rien chez Papa.
+
+Coût : **aucune migration**, le compte se dérive du `taken_at` livré en Session A, et rejoint
+`GET /api/student/news/summary`. ⚠️ **Aucune trace de vue n'est à construire** — le témoin ne
+s'éteint pas au regard.
+
+⚠️ Le commentaire de `NavItem.newsKey` et son test-verrou doivent être **réécrits pour DIRE
+l'exception**, jamais simplement élargis : ce test existe pour empêcher qu'on complète la liste
+« par symétrie apparente », et un motif faux ne verrouille plus rien.
+
+La maquette montre la pastille sur la carte, sous une bascule : c'est **la sidebar** qui la porte,
+pas la carte.
 
 ## Hors périmètre
 
@@ -295,6 +322,8 @@ son déroulé). L'ADR le dit et l'assume : la zone C l'y force.
 - `docs/decisions/adr-0043-le-diagnostic-est-une-mesure-qui-engage.md` (Décision 4 : l'ordre
   par ancienneté de mesure, dont cette page est la remontée d'un cran)
 - `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` (règle « NOUVEAU jamais DÛ »)
+- `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` (**l'exception**, ses cinq bornes, et
+  la révocation de l'`adr-0044` Décision 7)
 - `mockup/mockup-page-diagnostic-massimo.html`
 - `docs/frontend-massimo/page-missions.md` (précédent : decks par matière, durée estimée,
   élection serveur — et pourquoi on ne la reprend pas ici)
