@@ -82,3 +82,27 @@ export async function generateDiagnostic(
 export async function fetchResults(): Promise<DiagnosticResultSummary[]> {
   return asJson(await fetch(`${API_URL}/api/diagnostics/results`, { headers: headers() }));
 }
+
+/** Verdict de Papa sur un diagnostic (adr-0043). Tant qu'il est `pending`, AUCUNE route élève ne
+ *  le sert — c'est le gate, et c'est aussi pourquoi ces deux appels existent : un gate sans
+ *  soupape enfermerait tout diagnostic à vie.
+ *
+ *  Convention `fiches` (`/{id}/validate`, `/{id}/reject`) reprise telle quelle plutôt qu'une
+ *  sixième inventée — `reviewActions.ts` n'est qu'une table d'aiguillage. */
+export async function validateDiagnostic(quizId: number): Promise<void> {
+  await asJson(
+    await fetch(`${API_URL}/api/diagnostics/quizzes/${quizId}/validate`, {
+      method: "POST",
+      headers: headers(),
+    }),
+  );
+}
+
+export async function rejectDiagnostic(quizId: number): Promise<void> {
+  await asJson(
+    await fetch(`${API_URL}/api/diagnostics/quizzes/${quizId}/reject`, {
+      method: "POST",
+      headers: headers(),
+    }),
+  );
+}

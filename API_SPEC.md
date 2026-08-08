@@ -241,6 +241,16 @@ Préfixe réel : `/api/diagnostics`. Implémenté à l'étape 14 (Phase 4) sur l
 `quizzes`/`quiz_questions`/`quiz_attempts`/`quiz_answers` (un diagnostic = un `quiz`
 de `quiz_type = diagnostic`). Les QCM sont générés par IA, par notion.
 
+> 🔴 **Gate de relecture depuis l'ADR-0043.** Un diagnostic naît `validation_status = 'pending'` et
+> **aucune des trois routes élève ne le sert** tant que Papa ne l'a pas relu — ni la liste, ni
+> l'accès direct par identifiant, ni la soumission. Elles rendent `404` (pas `403`) : pour Massimo,
+> un diagnostic non relu n'existe pas. Il apparaît en attendant dans `/api/parent/review-queue`,
+> sous la famille `diagnostic`.
+>
+> **Les rôles sont exigés** : `require_parent` sur `generate`, `results`, `validate` et `reject` ;
+> `require_child` sur `submit`. Protéger l'entrée en laissant la sortie ouverte ne protégerait rien
+> — `submit` écrit `skill_mastery` et ouvre des `Gap`, avec un signal fort.
+
 ### GET `/diagnostics/subjects`
 
 Matières disponibles pour lancer un diagnostic : `[{ id, name }]`.
@@ -248,22 +258,40 @@ Matières disponibles pour lancer un diagnostic : `[{ id, name }]`.
 ### POST `/diagnostics/generate` (Papa)
 
 Génère un diagnostic (QCM par notion) pour une matière. Corps : `{ subject_id, level? }`.
-Réponse : `{ quiz_id, subject, questions_count }`. Trace `ai_jobs` (`diagnostic_generate`).
+
+⚠️ **Rend `202` — accepté, pas exécuté** (ADR-0041 §4) : la réponse est un `{ job_id, … }`, et le
+corps d'autrefois (`quiz_id`, `subject`, `questions_count`) est la **sortie du travail**, lisible
+dans `output` quand il est `succeeded`. Le `404` « matière introuvable » reste **synchrone** : la
+file diffère le travail, jamais le verdict sur la demande. Trace `ai_jobs`
+(`diagnostic_generate`).
 
 ### GET `/diagnostics/quizzes` (Massimo)
 
-Liste les diagnostics : `[{ quiz_id, title, subject, questions_count, taken }]`.
+Liste les diagnostics **relus** : `[{ quiz_id, title, subject, questions_count, taken }]`.
 
 ### GET `/diagnostics/quizzes/{id}` (Massimo)
 
 Questions à passer — **sans** la bonne réponse :
 `{ quiz_id, title, subject, questions: [{ id, prompt, choices, skill_id, skill_name }] }`.
+`404` si le diagnostic n'est pas relu.
 
 ### POST `/diagnostics/quizzes/{id}/submit` (Massimo)
 
 Corps : `{ answers: [{ question_id, choice_index }] }`. Corrige, écrit la tentative,
 met à jour la maîtrise et ouvre les lacunes. Réponse :
 `{ attempt_id, quiz_id, subject, score_percent, per_skill: [{ skill_id, skill_name, score, status }], gaps: [{ skill_id, skill_name, severity }], strengths: [..] }`.
+`404` si le diagnostic n'est pas relu.
+
+### POST `/diagnostics/quizzes/{id}/validate` · `/reject` (Papa)
+
+Verdict de relecture — la **soupape** du gate. Sans elle, un diagnostic resterait `pending` à vie
+et Massimo n'en recevrait plus aucun. Réponse : `{ quiz_id, validation_status }`.
+
+Un diagnostic validé porte `validated_by = 'parent'`, **jamais** la provenance de doctrine. Un
+diagnostic rejeté sort de la file **sans** devenir servable ; rien n'est effacé (ADR-0014 §3).
+
+Convention reprise de `fiches` (`/{id}/validate`, `/{id}/reject`) — la file de relecture
+(`reviewActions.ts`) n'est qu'une table d'aiguillage vers le client de chaque famille.
 
 ### GET `/diagnostics/results` (Papa)
 
@@ -1685,7 +1713,9 @@ Sortie :
 | `/capsules/library` GET | oui | oui | oui |
 | `/capsules/{id}/view` POST | oui | oui | oui |
 | `/diagnostics/generate` POST | non | oui | oui |
-| `/diagnostics/quizzes/{id}/submit` POST | oui | oui | oui |
+| `/diagnostics/quizzes/{id}/submit` POST | oui | **non** | **non** |
+| `/diagnostics/quizzes/{id}/validate` POST | non | oui | oui |
+| `/diagnostics/quizzes/{id}/reject` POST | non | oui | oui |
 | `/diagnostics/results` GET | non | oui | oui |
 | `/missions/generate-remediation` POST | non | oui | oui |
 | `/missions/today` GET | oui | oui | oui |

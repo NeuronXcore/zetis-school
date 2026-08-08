@@ -15,6 +15,7 @@ import { rejectFiche, validateFiche } from "./fiches";
 import { rejectMindmap, validateMindmap } from "./mindmaps";
 import { setCapsuleValidation } from "./capsules";
 import { patchChapter, rejectLesson, validateLesson } from "./curriculum";
+import { rejectDiagnostic, validateDiagnostic } from "./diagnostic";
 
 export type ReviewVerdict = "validate" | "reject";
 
@@ -35,6 +36,11 @@ const HANDLERS: Record<ReviewKind, Record<ReviewVerdict, Handler>> = {
     validate: (id) => patchChapter(id, { validation_action: "validate" }),
     reject: (id) => patchChapter(id, { validation_action: "reject" }),
   },
+  // 🔴 Sixième famille (adr-0043), et la SEULE dont l'endpoint a été écrit pour elle : les cinq
+  // autres réutilisent le client de leur page de pilotage. Sans ces deux appels, la file
+  // afficherait un diagnostic que rien ne peut faire sortir de `pending` — un gate sans soupape,
+  // et Massimo ne recevrait plus jamais de diagnostic.
+  diagnostic: { validate: validateDiagnostic, reject: rejectDiagnostic },
 };
 
 /** Applique le verdict de Papa sur un objet de la file. Lève si l'appel échoue — la page rétablit

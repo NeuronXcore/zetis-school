@@ -83,6 +83,12 @@ export function reviewLink(item: ReviewItem): string | null {
   if (kind === "capsule") {
     return `/capsules?subject=${subjectId}&focus=${item.id}`;
   }
+  // 🔴 **`null` ASSUMÉ, et daté.** La page `/diagnostics` ne sait pas encore ouvrir un diagnostic
+  // précis : sa refonte est la session C de l'adr-0043. L'y envoyer maintenant déposerait Papa sur
+  // une page qui ne montre que des résultats passés — exactement le « lien au hasard » que le
+  // commentaire ci-dessus refuse. Papa tranche donc sans lire, ce qui n'est pas pire qu'avant
+  // (aucune relecture n'existait), mais reste un état intermédiaire.
+  if (kind === "diagnostic") return null;
   if (chapterId === null || lessonId === null) return null;
   if (kind === "lesson") {
     return pilotageLink("cours", { subjectId, chapterId, lessonId, objectId: item.id });

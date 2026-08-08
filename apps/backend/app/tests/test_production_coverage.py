@@ -580,23 +580,36 @@ def test_no_validated_row_without_provenance(client_db) -> None:
 
 
 def test_system_is_reserved_to_quizzes() -> None:
-    """`system` ne doit JAMAIS être écrit ailleurs que par la génération de quiz.
+    """`system` ne doit JAMAIS être écrit ailleurs que par la génération de quiz NON GATÉS.
 
     Sans ce verrou, une future auto-validation pourrait s'y déguiser sans ADR : `system` dit
-    « servi sans relecture PAR DOCTRINE », ce qui n'est vrai que du quiz (ADR-0014 §2). Un
-    équipement ou un lot qui s'en réclamerait masquerait une validation groupée derrière une
-    décision qui ne la couvre pas.
+    « servi sans relecture PAR DOCTRINE », ce qui n'est vrai que du quiz de mission ou de fin de
+    cours (ADR-0014 §2). Un équipement ou un lot qui s'en réclamerait masquerait une validation
+    groupée derrière une décision qui ne la couvre pas.
+
+    🔴 **Resserré par l'ADR-0043** : l'exemption ne couvre plus le module `quizzes` entier, mais le
+    SEUL fichier qui écrit légitimement la valeur. Un nouveau `quizzes/autovalidation.py` passait
+    jusqu'ici sans être vu — précisément le déguisement que ce test existe pour empêcher.
+    Vérifié par sabotage : le même fichier piégé est attrapé ici et manqué par l'ancienne forme.
+
+    ⚠️ **Il ne dit rien du diagnostic**, désormais gaté : le mot cherché n'apparaît nulle part dans
+    son module, donc aucun scan lexical ne peut le prouver. Cette moitié-là est verrouillée par le
+    COMPORTEMENT, dans `test_diagnostic_gate.py` — les deux forment une paire, ne pas en retirer
+    un seul.
 
     On cible les deux seules formes d'ÉCRITURE de la provenance — importer `SYSTEM` du module
     `provenance`, ou affecter `validated_by` littéralement. Chercher le mot « system » nu
     donnerait des faux positifs (`system=` est aussi le prompt système des providers LLM).
+
+    ⚠️ Les `#` sont retirés avant l'analyse : un commentaire ne déclenche rien. Une **docstring**,
+    si — elle n'est pas un commentaire pour ce scan. Piège payé sur l'ADR-0042.
     """
     from pathlib import Path
 
     offenders = []
     for path in sorted(Path("app/modules").rglob("*.py")):
-        if path.name == "provenance.py" or "quizzes" in path.parts:
-            continue  # le module qui la DÉFINIT, et le seul autorisé à l'écrire
+        if path.name == "provenance.py" or path.parts[-2:] == ("quizzes", "service.py"):
+            continue  # le module qui la DÉFINIT, et le seul FICHIER autorisé à l'écrire
         text = path.read_text(encoding="utf-8")
         for number, line in enumerate(text.splitlines(), start=1):
             code = line.split("#", 1)[0]

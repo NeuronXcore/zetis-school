@@ -27,6 +27,7 @@ from app.db.models import (
 from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.gamification.service import XP_DIAGNOSTIC, award_xp
 from app.modules.progress.mastery import record_mastery_transition
+from app.modules.provenance import PARENT, mark_validated
 from app.prompts.diagnostic import (
     DIAGNOSTIC_GEN_PROMPT_V1,
     DIAGNOSTIC_SYSTEM,
@@ -185,10 +186,16 @@ def _is_taken(db: Session, quiz_id: int, student_id: int) -> bool:
 
 
 def list_diagnostics(db: Session, student: StudentProfile) -> list[dict]:
+    """Les diagnostics que Massimo peut passer — **relus seulement** (ADR-0043 Décision 1).
+
+    C'est l'un des trois points d'entrée gatés, pas le seul : filtrer la liste sans filtrer
+    `get_quiz_for_taking` laisserait l'accès direct par identifiant, et un diagnostic non relu
+    resterait passable pour qui connaît son id. Le verrou de la session porte sur les TROIS.
+    """
     rows = db.execute(
         select(Quiz, Subject)
         .join(Subject, Subject.id == Quiz.subject_id)
-        .where(Quiz.quiz_type == "diagnostic")
+        .where(Quiz.quiz_type == "diagnostic", Quiz.validation_status == "validated")
         .order_by(Quiz.id.desc())
     ).all()
     return [
@@ -204,15 +211,56 @@ def list_diagnostics(db: Session, student: StudentProfile) -> list[dict]:
 
 
 def _quiz_or_404(db: Session, quiz_id: int) -> Quiz:
+    """Résout un diagnostic **sans regarder son statut de relecture**.
+
+    C'est le résolveur de PAPA : relire suppose de pouvoir ouvrir ce qui n'est pas encore relu.
+    Les routes de Massimo passent par `_servable_quiz_or_404`, jamais par celui-ci.
+    """
     quiz = db.get(Quiz, quiz_id)
     if quiz is None or quiz.quiz_type != "diagnostic":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Diagnostic introuvable.")
     return quiz
 
 
+def _servable_quiz_or_404(db: Session, quiz_id: int) -> Quiz:
+    """Le même, plus le gate de relecture — résolveur des routes élève (ADR-0043).
+
+    Même patron, nom pour nom, que `quizzes.service._servable_quiz_or_404` : un résolveur neutre,
+    un résolveur servable, et les routes élève ne touchent que le second. Deux fonctions plutôt
+    qu'un drapeau, parce qu'un drapeau s'oublie à `False` par défaut.
+
+    **`404`, pas `403`.** Un diagnostic non relu n'existe pas pour Massimo ; lui répondre « c'est
+    interdit » lui apprendrait qu'un contenu l'attend derrière une porte — exactement l'information
+    que la relecture de Papa doit pouvoir retenir.
+    """
+    quiz = _quiz_or_404(db, quiz_id)
+    if quiz.validation_status != "validated":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Diagnostic introuvable.")
+    return quiz
+
+
+def set_validation(db: Session, quiz_id: int, verdict: str) -> Quiz:
+    """Verdict de Papa sur un diagnostic — la soupape du gate (ADR-0043).
+
+    Sans elle, la 6ᵉ famille de `/relecture` serait un cul-de-sac : la ligne s'afficherait, le
+    bouton appellerait une route absente, et **plus aucun diagnostic n'atteindrait Massimo**.
+
+    La validation passe par `provenance.mark_validated`, seul chemin d'écriture (§F.3) : un
+    diagnostic relu porte `parent`, comme tout contenu qu'un humain a ouvert et laissé passer.
+    """
+    quiz = _quiz_or_404(db, quiz_id)
+    if verdict == "validate":
+        mark_validated(quiz, PARENT)
+    else:
+        quiz.validation_status = "rejected"
+    db.commit()
+    db.refresh(quiz)
+    return quiz
+
+
 def get_quiz_for_taking(db: Session, quiz_id: int) -> dict:
     """Questions servies à l'enfant : SANS la bonne réponse ni l'explication."""
-    quiz = _quiz_or_404(db, quiz_id)
+    quiz = _servable_quiz_or_404(db, quiz_id)
     subject = db.get(Subject, quiz.subject_id)
     rows = db.execute(
         select(QuizQuestion, Skill)
@@ -268,7 +316,7 @@ def submit(
 ) -> dict:
     """Corrige les réponses, calcule le score par notion, écrit la tentative,
     met à jour la maîtrise et ouvre les lacunes des notions faibles."""
-    quiz = _quiz_or_404(db, quiz_id)
+    quiz = _servable_quiz_or_404(db, quiz_id)
     subject = db.get(Subject, quiz.subject_id)
     rows = db.execute(
         select(QuizQuestion, Skill)

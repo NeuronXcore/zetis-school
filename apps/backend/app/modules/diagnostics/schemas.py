@@ -76,6 +76,15 @@ class DiagnosticResultOut(BaseModel):
     strengths: list[str]
 
 
+class DiagnosticValidationOut(BaseModel):
+    """Retour d'un verdict de Papa. **Deux champs, pas le quiz entier** : la file de relecture
+    retire la ligne en optimiste et n'affiche rien du corps — lui rendre le contenu du diagnostic
+    ferait transiter des questions que personne ne lit."""
+
+    quiz_id: int
+    validation_status: str  # pending|validated|rejected
+
+
 class DiagnosticResultSummary(BaseModel):
     """Vue Papa : résultats récents d'un diagnostic, par notion + lacunes."""
 

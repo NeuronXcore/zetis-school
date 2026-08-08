@@ -27,6 +27,10 @@ export interface ReviewCounts {
   mindmap: number;
   capsule: number;
   chapter: number;
+  /** ADR-0043 : seuls les quiz de type `diagnostic` entrent dans la file. Les quiz de mission et
+   *  de fin de cours restent hors gate (adr-0014 §2) — la ligne de partage est `quiz_type`, pas
+   *  la table. */
+  diagnostic: number;
   total: number;
 }
 

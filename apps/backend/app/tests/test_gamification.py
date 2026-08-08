@@ -3,6 +3,8 @@
 Vérifie la synthèse XP (niveau, badges, régularité) et le crédit d'XP aux moments clés
 (verbalisation ELI5, diagnostic, mission de remédiation)."""
 
+from app.tests.test_diagnostics import _generate
+
 
 def test_summary_empty(client_db) -> None:
     client, _ = client_db
@@ -27,10 +29,10 @@ def test_eli5_reverse_awards_xp(client_db) -> None:
 
 
 def _diagnostic(client, Session, executer_travail) -> dict:
-    """Lance un diagnostic ET joue le travail (ADR-0041 §4 : la route rend `202`)."""
-    res = client.post("/api/diagnostics/generate", json={"subject_id": 1})
-    assert res.status_code == 202, res.text
-    return executer_travail(Session, res.json()["job_id"])
+    """Parcours diagnostic complet — Papa génère et relit (ADR-0043), le travail se joue
+    (ADR-0041 §4 : la route rend `202`), et le rôle revient à Massimo. Un seul décor, chez son
+    module propriétaire, plutôt qu'une troisième copie."""
+    return _generate(client, Session, executer_travail)
 
 def test_diagnostic_awards_xp_and_badge(client_db, executer_travail) -> None:
     client, Session = client_db

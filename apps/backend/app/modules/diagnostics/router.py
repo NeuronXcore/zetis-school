@@ -6,7 +6,7 @@ from app.db.models import Quiz
 from app.modules.activity.events import EVENT_QUIZ_ATTEMPTED, log_learning_event
 from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
-from app.modules.auth.deps import get_current_user
+from app.modules.auth.deps import get_current_user, require_child, require_parent
 from app.modules.diagnostics import service
 from app.modules.diagnostics.schemas import (
     DiagnosticGenerateRequest,
@@ -16,6 +16,7 @@ from app.modules.diagnostics.schemas import (
     DiagnosticResultOut,
     DiagnosticResultSummary,
     DiagnosticSubmitRequest,
+    DiagnosticValidationOut,
     SubjectOut,
 )
 from app.modules.eli5.service import get_default_student
@@ -23,6 +24,13 @@ from app.modules.ai import travaux
 from app.modules.ai.schemas import TravailAccepteOut
 
 router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
+
+# Les rôles, route par route (ADR-0043 Décision 2). Jusqu'ici les six se contentaient de
+# `get_current_user` : n'importe quel compte pouvait soumettre un diagnostic à la place de Massimo,
+# donc écraser `skill_mastery` et ouvrir des `Gap` avec un signal fort et faux.
+#
+# 🔴 **Ce n'est pas une dérive de périmètre, c'est la moitié manquante du gate** : protéger l'entrée
+# (ce qui est servi) en laissant la sortie ouverte (ce qui est écrit) ne protège rien.
 
 
 @router.get("/subjects", response_model=list[SubjectOut])
@@ -36,7 +44,7 @@ def subjects(db: Session = Depends(get_db), _: dict = Depends(get_current_user))
 def generate(
     req: DiagnosticGenerateRequest,
     db: Session = Depends(get_db),
-    _: dict = Depends(get_current_user),
+    _: dict = Depends(require_parent),
 ) -> dict:
     """Papa lance un diagnostic. **202 — accepté, pas exécuté** (ADR-0041 §4).
 
@@ -75,7 +83,7 @@ def submit(
     quiz_id: int,
     req: DiagnosticSubmitRequest,
     db: Session = Depends(get_db),
-    _: dict = Depends(get_current_user),
+    _: dict = Depends(require_child),
 ) -> dict:
     student = get_default_student(db)
     result = service.submit(db, student, quiz_id, req.answers)
@@ -96,7 +104,31 @@ def submit(
     return result
 
 
+@router.post("/quizzes/{quiz_id}/validate", response_model=DiagnosticValidationOut)
+def validate(
+    quiz_id: int, db: Session = Depends(get_db), _: dict = Depends(require_parent)
+) -> dict:
+    """Papa laisse passer un diagnostic — il devient servable (ADR-0043).
+
+    Convention `fiches` (`/{id}/validate`, `/{id}/reject`) reprise telle quelle : `reviewActions`
+    n'est qu'une table d'aiguillage, et inventer une sixième convention pour une sixième famille
+    est précisément ce que ce module refuse de faire.
+    """
+    quiz = service.set_validation(db, quiz_id, "validate")
+    return {"quiz_id": quiz.id, "validation_status": quiz.validation_status}
+
+
+@router.post("/quizzes/{quiz_id}/reject", response_model=DiagnosticValidationOut)
+def reject(quiz_id: int, db: Session = Depends(get_db), _: dict = Depends(require_parent)) -> dict:
+    """Papa écarte un diagnostic. Il sort de la file **et** reste hors de portée de Massimo.
+
+    Rien n'est effacé : ses questions et ses éventuelles tentatives restent (ADR-0014 Décision 3).
+    """
+    quiz = service.set_validation(db, quiz_id, "reject")
+    return {"quiz_id": quiz.id, "validation_status": quiz.validation_status}
+
+
 @router.get("/results", response_model=list[DiagnosticResultSummary])
-def results(db: Session = Depends(get_db), _: dict = Depends(get_current_user)) -> list[dict]:
+def results(db: Session = Depends(get_db), _: dict = Depends(require_parent)) -> list[dict]:
     student = get_default_student(db)
     return service.latest_results(db, student)

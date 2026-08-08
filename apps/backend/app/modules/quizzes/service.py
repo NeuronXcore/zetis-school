@@ -399,6 +399,11 @@ def generate_quiz(
         created_by="ai",
         # ADR-0014 §2 : le quiz est servi SANS gate de validation. `system` trace cette
         # non-relecture par doctrine — valeur strictement réservée à ce cas (§F.1).
+        #
+        # ⚠️ `validation_status` est posé EXPLICITEMENT depuis l'ADR-0043 : la colonne existe
+        # maintenant sur `quizzes` et son défaut est `pending`. Laisser jouer le défaut ferait
+        # entrer un quiz de mission dans un gate dont l'ADR-0043 §8 dit qu'il ne le concerne pas.
+        validation_status="validated",
         validated_at=datetime.now(timezone.utc),
         validated_by=SYSTEM,
     )
@@ -485,7 +490,9 @@ def generate_quiz_for_skill(
         status="ready",
         created_by="ai",
         # Même doctrine que la voie leçon (ADR-0014 §2) : servi SANS gate de validation, `system`
-        # trace cette non-relecture. Valeur strictement réservée à ce cas (§F.1).
+        # trace cette non-relecture. Valeur strictement réservée à ce cas (§F.1). Et le même
+        # `validation_status` explicite, pour la même raison (ADR-0043 §8).
+        validation_status="validated",
         validated_at=datetime.now(timezone.utc),
         validated_by=SYSTEM,
     )

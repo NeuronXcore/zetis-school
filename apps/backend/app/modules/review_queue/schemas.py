@@ -9,7 +9,10 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-ReviewKind = Literal["lesson", "fiche", "mindmap", "capsule", "chapter"]
+# ⚠️ `diagnostic`, pas « quiz » (ADR-0043) : les quiz de mission et de fin de cours restent hors
+# gate. Ce `Literal` est le garde-fou qui a fait rougir la 6ᵉ famille avant qu'elle n'atteigne
+# l'écran — le garder fermé vaut mieux qu'un `str` libre.
+ReviewKind = Literal["lesson", "fiche", "mindmap", "capsule", "chapter", "diagnostic"]
 
 
 class ReviewItemOut(BaseModel):
@@ -45,6 +48,7 @@ class ReviewCountsOut(BaseModel):
     mindmap: int = 0
     capsule: int = 0
     chapter: int = 0
+    diagnostic: int = 0
     total: int = 0
 
 

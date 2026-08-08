@@ -26,7 +26,7 @@ import { PageHeader } from "../components/PageHeader";
 import { useReviewQueue } from "../hooks/useReviewQueue";
 import { reviewLink } from "../lib/pilotageLinks";
 
-/** Les cinq familles, dans l'ordre du serveur. Il n'est pas réordonnable ici : c'est le même que
+/** Les six familles, dans l'ordre du serveur. Il n'est pas réordonnable ici : c'est le même que
  *  celui de la file « À décider », et deux ordres pour la même population se contrediraient. */
 const FAMILLES: { key: ReviewKind; label: string; picto: string }[] = [
   { key: "lesson", label: "Cours", picto: "📖" },
@@ -34,6 +34,7 @@ const FAMILLES: { key: ReviewKind; label: string; picto: string }[] = [
   { key: "mindmap", label: "Mindmaps", picto: "🧠" },
   { key: "capsule", label: "Capsules", picto: "🎬" },
   { key: "chapter", label: "Chapitres", picto: "🗂️" },
+  { key: "diagnostic", label: "Diagnostics", picto: "🎯" },
 ];
 
 const FAMILLE_LABEL: Record<ReviewKind, string> = {
@@ -42,6 +43,7 @@ const FAMILLE_LABEL: Record<ReviewKind, string> = {
   mindmap: "Mindmap",
   capsule: "Capsule",
   chapter: "Chapitre",
+  diagnostic: "Diagnostic",
 };
 
 /** Teintes de famille. Aucune n'est rouge : cette file décrit du travail en attente, pas une
@@ -52,6 +54,7 @@ const FAMILLE_TON: Record<ReviewKind, string> = {
   mindmap: "border-papa-accent-2/30 bg-papa-accent-2/5 text-papa-accent-2",
   capsule: "border-papa-warn/40 bg-papa-warn/10 text-papa-warn",
   chapter: "border-papa-border bg-papa-surface-2 text-papa-muted",
+  diagnostic: "border-papa-accent-2/40 bg-papa-accent-2/10 text-papa-accent-2",
 };
 
 /** Lit `?kind=` sans faire confiance à ce qui arrive. Un lien périmé retombe sur « Tout » plutôt
