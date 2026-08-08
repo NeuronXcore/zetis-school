@@ -1,5 +1,113 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.59.0 — Le diagnostic devient une mesure qui engage
+
+Le diagnostic sort de l'exception « évaluation éphémère » de l'`adr-0014` §2 — **et lui seul**.
+L'exemption vaut pour les quiz *« dérivés d'un substrat déjà validé »* : `generate_diagnostic`
+bâtit son prompt sur **quatre scalaires** (nombre, matière, notion, niveau), sans cours ni contexte
+canonique, et **les trois garanties de contrepartie sont toutes inhonorées**. L'`adr-0014` disait
+*« régularise le précédent de l'étape 14 sans le modifier »* — il l'a régularisé
+**administrativement**, sans vérifier que la justification s'y appliquait. Elle ne s'y appliquait
+pas. Ce n'est pas un changement d'avis, c'est un constat.
+
+🔴 **La ligne de partage est `quiz_type`, jamais la table.** `quizzes` porte désormais du gaté et
+du non gaté ; les quiz de mission et de fin de cours ne bougent pas d'un pouce, et une
+contre-épreuve le vérifie.
+
+- **Migration `a9b0c1d2e3f4`** — `quizzes.validation_status`, **backfill des existants à
+  `validated`** : les déclarer `pending` rétroactivement fabriquerait une file de relecture
+  inventée sur du contenu **déjà servi**. Appliquée en **dev**, pas en prod.
+- **6ᵉ famille `diagnostic` dans `/relecture`**, bornée par matière comme les capsules — un
+  diagnostic n'a ni chapitre ni leçon, et le patron « dérivé » aurait rendu **zéro ligne en
+  silence**.
+- **Les rôles sur les six routes** : n'importe quel compte pouvait soumettre à la place de
+  Massimo, donc écraser `skill_mastery` et ouvrir des `Gap` avec un signal fort et faux.
+- **`QUESTIONS_PER_SKILL` 2 → 5** — à deux questions, une notion pouvait être déclarée lacune
+  **grave sur une seule réponse ratée**. ⚠️ N'améliore que l'avenir : la granularité du dépôt est
+  **mixte pour toujours**, et le contrat la sert **point par point**.
+- **La sélection des 8 notions devient une décision** : par ancienneté de mesure, les jamais
+  mesurées d'abord. C'étaient les 8 plus petits `id` — un accident d'ordre d'insertion.
+- **Les lacunes sont lues en base** au lieu d'être recalculées : une lacune résolue s'affichait
+  **à jamais** alors que le docstring promettait « lacunes ouvertes ».
+- **La page Papa est refondue** — bandeau à 4 jauges, rail à trois crans, panneau à trois stations,
+  portée en **escalier**. Palier et lacune sont **deux colonnes disjointes**, et le palier se **lit**
+  du serveur : c'est ce qui fait réapparaître `acquise` (≥ 90), invisible de l'ancienne page.
+
+### 🔴 Trois écarts que le cadrage n'avait pas prévus
+
+**Le gate porte sur les TROIS routes élève**, pas sur la seule liste : un gate qu'on contourne en
+lisant une URL n'en est pas un. `404` et non `403` — pour Massimo, un diagnostic non relu n'existe
+pas.
+
+**Un gate sans soupape enferme.** `/relecture` est en lecture seule et le diagnostic n'avait aucun
+client de pilotage : sans `POST /validate` et `/reject`, la 6ᵉ famille était un **bouton mort** et
+plus aucun diagnostic n'atteignait Massimo.
+
+**Le gate a créé le besoin d'une surface que l'ADR n'avait pas prévue.** En gatant
+`list_diagnostics`, on a rendu le **premier cran invisible** de la seule route qui listait les
+diagnostics — correct, c'est la route de Massimo, mais Papa doit voir ce que Massimo ne voit pas
+encore. D'où `GET /apercu`. **Un gate ne se pose pas sans se demander qui perd la vue au passage.**
+
+### 🔴 Un sabotage est resté vert — et ses deux causes valent ailleurs
+
+Le verrou de l'extraction (`submit` et `results` doivent noter la même passation pareil) est resté
+**vert sur un sabotage**. Cinquième occurrence du motif dans ce dépôt.
+
+- **Décor dégénéré** — il répondait tout faux, donc tous les scores valaient `0`, et à zéro une
+  divergence multiplicative est **indétectable**. Un verrou de valeur se pose sur un point **ni
+  plancher ni plafond**.
+- **Sabotage mathématiquement neutre** — à 5 questions par notion, tout score est multiple de 20 :
+  « arrondir à la dizaine » est l'**identité**. Un sabotage doit produire une valeur **atteignable**
+  différente, sinon son vert ne prouve rien.
+
+### ✅ La relecture visuelle humaine a eu lieu — et elle a tout justifié
+
+Première depuis quatre merges (#79, #89, #91, #98). Elle a sorti **cinq défauts en quelques
+minutes, dont aucun n'était détectable par un test** : jauges non cliquables, cran « proposé » sans
+issue, « en attente » qui ne nomme aucun acteur, témoin absent chez Massimo, et sa page en liste
+infinie.
+
+> Un travail peut être vert sur 2226 tests, saboté 28 fois, parcouru à l'écran par la machine —
+> et rater cinq choses qu'un humain voit en trois minutes.
+
+## 0.58.0 — La notion orpheline devient équipable
+
+Une `Skill` sans `Lesson` est un état produit **normal** (contrat `adr-0010`). Pour elle la chaîne
+était pourtant fermée de bout en bout, chaque maillon individuellement correct : pas de leçon → pas
+de cours → pas de quiz → étape quiz **omise** → verdict `acquired` **arithmétiquement**
+inatteignable → `review_later` → lacune `in_progress` → `generate_remediation` ne lit que `open` →
+**plus jamais de remédiation**. Et le relais SRS repassait par le **même** `_recall_steps` : la
+notion était piégée à vie.
+
+**Quand aucune leçon ne porte la notion, le quiz s'ancre sur la NOTION** (`lesson_id=NULL`,
+`subject_id` pris sur la `Skill`, questions attribuées par `quiz_questions.skill_id`). Aucune
+migration : les colonnes étaient déjà nullables.
+
+- **Deux règles portent la décision** : *dernier recours jamais doublon* — la voie notion ne
+  s'ouvre que si **aucune** leçon ne porte la notion — et un **plancher de preuve** : sans source
+  RAG, refus **avant** tout appel au modèle.
+- **Cinq portes, pas une.** Celle qu'on oublie est `missions._resolve_mission_quiz_ids`, qui
+  joignait par `Quiz.lesson_id` : un quiz produit mais introuvable d'ici aurait laissé l'étape
+  omise — **tout vert, rien débloqué**.
+
+### 🔴 Le constat qui a retourné l'arbitrage
+
+Le cadrage annonçait que desserrer le verrou quiz *« contredit frontalement le gate `adr-0011` »*.
+**C'est faux.** Le gate interdit de recevoir un cours **non validé** ; il n'interdit pas de
+travailler **sans cours**. L'`adr-0011` §1 nomme lui-même la cascade — *« cours validé → RAG seul →
+connaissance du modèle »* — et le précédent existait déjà dans le kit : `generate_cards_for_skill`
+dégrade en `pending`. On n'a pas ouvert une porte, on a appliqué une doctrine à un sixième cas.
+
+### ⚠️ Ce que seule l'exécution réelle a trouvé
+
+Un quiz `mission`/`draft` sans leçon traînant en base faisait répondre « déjà produit » à
+`_has_mission_quiz` **sur le chemin normal** — ce qui aurait arrêté la génération de quiz sur toute
+la base. Invisible aux tests, corrigé et verrouillé. Sans la vérification en réel, ce défaut
+partait en PR.
+
+⚠️ **Mergé sans relecture visuelle humaine** (4ᵉ occurrence). Le T0 du diagnostic n'a **pas** été
+entamé : hors périmètre explicite, ce chantier l'a rendu *possible*, il ne l'a pas commencé.
+
 ## 0.57.0 — Les engrenages et le dossier changent de dessin, pas de sens
 
 Les deux objets aux extrémités de la bande de production — les rouages à gauche, la boîte à
