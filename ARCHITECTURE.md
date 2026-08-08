@@ -149,11 +149,26 @@ Le worker IA doit fonctionner en tâches asynchrones. L’API crée une tâche, 
 
 ## Worker de production
 
-Service : **`apps/backend`, lancé à part** — `python -m app.production_worker`.
+Service : **`apps/backend`** — `python -m app.production_worker`.
+
+- **En production** : service `worker` de `docker-compose.prod.yml`, avec `restart: unless-stopped`
+  (ADR-0046). Même image que le backend, `entrypoint` **écrasé** — sinon l'entrypoint de l'image
+  relancerait `alembic upgrade head` + uvicorn, soit une **seconde migration concurrente**.
+- **En développement** : lancé par `scripts/dev.sh` (étape 4/5) et par les 5 entrées backend de
+  `.claude/launch.json` (via `scripts/with-worker.sh`).
+- 🔴 **Un seul à la fois, jamais de `--scale`** : un seul Ollama, un seul GPU. Le module refuse de
+  démarrer si un worker tourne déjà, et nomme son pid.
 
 > ⚠️ **Ce processus manquait à ce document, et ça a coûté six heures le 2026-08-05** : quatre lots
 > ont attendu dans Redis pendant que l'écran affichait « en file d'attente ». Un troisième
 > processus qu'aucun document ne nomme est un processus que personne ne lance.
+>
+> 🔴 **Et il n'a pas suffi de le nommer : la panne est revenue le 2026-08-08**, trois diagnostics
+> bloqués deux jours. Le correctif de 2026-08-05 était attaché à **une** porte d'entrée
+> (`dev.sh`) ; une seconde est née à côté (`launch.json`), et il n'a pas suivi. D'où l'ADR-0046 —
+> un service supervisé, un garde-fou dans le module, et une alerte qui sort de l'écran.
+>
+> **Détail opérationnel complet : `docs/devops/worker-production.md`.**
 
 Contrairement aux deux workers ci-dessous, il **partage le code du backend** (même paquet, même
 runtime) : les jobs y sont enfilés **par fonction**, pas par nom de tâche — il n'y a aucun import

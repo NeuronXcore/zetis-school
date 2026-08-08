@@ -4,6 +4,123 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/worker-supervise` — ADR-0046, slices A/B/C — 2026-08-08
+
+### 🔴 `docker compose kill` NE PROUVE PAS un redémarrage — il rend un FAUX NÉGATIF
+
+La procédure de vérification écrite dans l'ADR **et** dans la spec disait *« tuer le conteneur
+`worker`, vérifier qu'il revient »*. Jouée : `RestartCount = 0`, `State = exited`, **sur un service
+parfaitement configuré**.
+
+**Cause** : `docker kill` comme `docker stop` sont des **arrêts d'opérateur**. Le démon marque le
+conteneur comme arrêté à la demande, et `unless-stopped` **exclut ce cas par définition** — c'est le
+sens du mot *unless*.
+
+🔴 **Une procédure de preuve qui rend un faux négatif est pire qu'une absence de procédure** : elle
+fait défaire ce qui marche. Quiconque l'aurait suivie aurait conclu à l'échec du chantier.
+
+**Parade** — faire mourir le processus *depuis l'intérieur*, sans que le démon l'ait demandé :
+
+```bash
+docker exec zetis-prod-worker-1 sh -c 'kill -TERM 1'
+```
+
+Deux sous-pièges dans cette seule ligne :
+- `kill` **n'existe pas** dans l'image slim, et `docker exec` n'a pas de builtin → passer par `sh` ;
+- viser **SIGTERM**, pas `-9` : la protection du PID 1 empêche la délivrance des signaux **sans
+  gestionnaire**, et RQ installe un handler SIGTERM. Un `kill -9 1` de l'intérieur ne ferait rien.
+
+⚠️ **Corollaire utile** : `stop` et `kill` sont **exactement ce qu'il faut** pour maintenir le worker
+éteint pendant qu'on teste l'alerte. Le même geste sert une preuve et sabote l'autre.
+
+### 🔴 Un motif `pgrep` a DEUX façons d'être faux, et les deux sont invisibles sans essai
+
+| Direction | Motif | Effet |
+|---|---|---|
+| **sous-détection** | `pgrep -fl "production_worker\|rq worker"` | `\|` n'est **pas** une alternance en ERE — il cherche un `\|` littéral. Ne rend **jamais** rien, donc **autorise toujours** le démarrage |
+| **sur-détection** | `^(.*/)?python[0-9.]* -m app\.production_worker$` | `(.*/)?` avale `sh -c cd apps/backend && .venv/bin/`, qui finit par `/`. Attrape **le wrapper qui vient de nous lancer** → blocage permanent |
+
+Le premier a laissé monter un **troisième worker** sur un seul GPU. Le second a été produit en
+écrivant le correctif du premier.
+
+**Parade** : `^[^ ]*python[0-9.]* -m app\.production_worker$` — un chemin ne contient pas d'espace,
+la ligne du wrapper si. Et **confronter le motif à de vrais processus**, pas seulement à un test :
+c'est `pgrep` qui l'applique, pas le moteur `re` de Python.
+
+### 🔴 `command:` est SILENCIEUSEMENT ignoré sur une image à `ENTRYPOINT` exec
+
+`backend.Dockerfile` déclare `ENTRYPOINT ["/usr/local/bin/backend-entrypoint.sh"]`, et le script
+fait `alembic upgrade head` + seed + `exec uvicorn` **sans jamais lire ses arguments**. Un service
+qui réutilise l'image avec `command:` lance donc un **second uvicorn** et une **seconde migration
+concurrente** — sans aucune erreur.
+
+⚠️ **L'idiome du voisin mène au mauvais choix** : `worker-media` utilise bien `CMD`, mais **son image
+n'a aucun `ENTRYPOINT`**. Copier le voisin, qui est le réflexe, produit le défaut.
+
+**Et `docker compose config` VALIDE dans les deux cas** — vérifié. Le défaut n'existe qu'au runtime.
+
+### 🔴 Patcher un import de niveau module est VERT et SANS EFFET
+
+`watchdog.py` fait `from app.core.queue import _redis, production_worker_alive`. Les deux noms
+vivent dans le namespace de `watchdog` : patcher `app.core.queue._redis` **ne change rien**, et le
+test passe pour la mauvaise raison. Greffer sur `app.modules.production.watchdog.*`.
+
+⚠️ `activity` et `mailer` sont importés comme **modules** (`from app.core import mailer`), donc
+l'attribut est résolu à l'appel : les patcher sur le module d'origine fonctionne. La différence
+sépare un verrou d'un test qui ne teste rien. *(Le dépôt avait déjà payé ça sur `enqueue_*`.)*
+
+### 🔴 Un sabotage qui ne s'APPLIQUE PAS accuse le verrou à tort
+
+Deux sabotages sont ressortis **verts**, ce qui se lit « verrou inutile ». En réalité les
+expressions `perl` n'avaient **rien remplacé** — échappement de regex trop délicat. Rejoués avec un
+contrôle d'application (`if old not in source: exit 9`), les deux sont **rouges**.
+
+**Parade** : tout script de sabotage doit **échouer bruyamment quand le remplacement n'a pas eu
+lieu**. Sans ça, un sabotage cassé produit un faux « ce test ne sert à rien », et on supprime un
+verrou valide. C'est le miroir de la contre-épreuve mal visée.
+
+### ⚠️ Le worker de production a besoin de `ANTHROPIC_API_KEY`, et ce n'est pas devinable
+
+`curriculum_chapters`, `curriculum_lessons` et `curriculum_skills_backfill` sont **enfilés**
+(`curriculum/router.py:84,237,255,398`), donc exécutés **par le worker**, et la dérogation ADR-0009
+les route vers Anthropic. Un nettoyage qui retirerait la clé « inutile sur un worker » casserait la
+génération du référentiel — **dans un worker**, donc plus discrètement qu'un 503 rendu à Papa.
+
+Idem `AUDIO_STORAGE_DIR` + volume : `capsule_generate` / `capsule_voice` sont enfilés aussi.
+
+**Parade appliquée** : une **ancre YAML** (`&generation-env`) plutôt qu'une recopie — l'invariant
+devient structurel.
+
+### ⚠️ Changer `POSTGRES_PASSWORD` ne change pas le mot de passe d'un volume existant
+
+Postgres ne le fixe qu'à l'**initialisation du volume**. Sur un `zetis-prod_postgres_data` déjà
+créé, modifier la variable produit une **erreur d'authentification**, pas un nouveau secret. Il faut
+reprendre la valeur d'origine, ou `down -v` (qui efface les données).
+
+Le piège n'est pas dans le défaut — il est dans sa correction.
+
+### ⚠️ Le journal de production ne montre JAMAIS l'attente
+
+Il affiche la date de **création** et la durée d'**exécution**. Mesuré sur les jobs 749/750 :
+« *fait · 95 s · 07/08 20:07* » pour un travail créé le 07/08 et exécuté le 08/08 — **25 heures**
+d'attente, invisibles.
+
+🔴 **Le journal est donc incapable de montrer la panne que l'ADR-0046 corrige.** C'est pour ça
+qu'elle est restée invisible jusqu'à ce qu'on regarde Redis à la main. Consigné au `BACKLOG.md`.
+
+### ⚠️ Faire tourner la pile prod SANS démonter le dev
+
+Les deux se disputent 8000 / 5173 / 5174, et le README interdit de lancer les deux. Mais le conflit
+réel est **uniquement MinIO**, et il est paramétrable. Et `up worker` ne construit que le worker et
+ses dépendances — **pas `worker-media`**, donc pas les ~300 Mo de Chromium :
+
+```bash
+MINIO_PORT=9010 MINIO_CONSOLE_PORT=9011 POSTGRES_PASSWORD=zetis_dev_password \
+  docker compose -f docker-compose.prod.yml up -d --build worker
+```
+
+Joué quatre fois dans la session sans jamais toucher aux serveurs de dev.
+
 ## Chantier `feat/diagnostic-papa-optimisations` — ADR-0045, slice C — 2026-08-08
 
 ### 🔴 `response_model` FILTRE en silence les champs que le service produit

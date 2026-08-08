@@ -7,214 +7,172 @@
 
 ## État à la reprise
 
-**Chantier : « la page Diagnostic de Papa montre ce qu'elle annonce » (ADR-0045).
-✅ COMPLET et ✅ MERGÉ SUR `main` (2026-08-08). Ne pas ré-implémenter.**
-
-> ✅ **La vérification à l'écran a eu lieu, avec l'humain, en cinq points** (2026-08-08) :
-> le contrat sert bien `source` et `content_state` (lu dans `/openapi.json`, sans auth) · « voir
-> les 10 → » mène à **10** · « dont 4 sans contenu → » mène à **4**, et ce sont **exactement** les
-> quatre notions sans leçon validée comptées en base · le bandeau nomme les deux filtres composés
-> et se retire · un filtre qui ne laisse rien passer dit « Aucune lacune de ce type » et **ne
-> retombe pas sur tout**.
->
-> **L'invariant du chantier est donc prouvé à l'œil** : *un renvoi mène au compte qu'il annonce*.
-> Base, contrat et écran tombent d'accord sur les mêmes nombres.
+**Chantier : « le worker de production est un service, et son absence vient à toi » (ADR-0046).
+✅ COMPLET — trois slices, poussées. ❌ PAS de PR, PAS mergé.**
 
 | | |
 |---|---|
-| **Mergé** | PR [#103](https://github.com/NeuronXcore/zetis-school/pull/103), **squash `5d71956`**, base `41ca48a`. 26 fichiers, +3419/−313 |
-| **État git** | `main` = `origin/main` = `5d71956` — **rien à pousser** |
-| **Branche** | `feat/diagnostic-papa-optimisations` — 🔴 **CONSERVÉE**, locale ET distante. Mergée **sans** `--delete-branch` |
-| **Décisions** | ADR-0045 **Accepté**, 9 décisions — et 🔴 **QUATRE d'entre elles amendées pendant l'exécution** (9, 5, 4, 8), voir plus bas |
-| **Migration** | **AUCUNE**, et aucun endpoint. ⚠️ Mais **le contrat a gagné deux champs** en slice C — invariant rompu délibérément, 4ᵉ amendement de l'ADR |
-| **Suites** | Papa **667 → 707** · Backend **1052 → 1055** · `tsc -b` 0 · `vite build` vert. ⚠️ Massimo **non relancé** — aucun de ses fichiers n'est touché |
-| **Sabotages** | **13 joués : 11 rouges, 1 VERT non concluant, 1 neutre** — voir DETTES |
-| **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé **DEUX défauts** qu'aucun test ne voyait, dont un que j'avais introduit en croyant corriger son jumeau. Puis **une TROISIÈME passe à deux**, qui a validé la slice C point par point et sorti un défaut de plus (page Lacunes, au `BACKLOG`) |
+| **Branche** | `feat/worker-supervise`, base **`ef54f7f`** (= tête de `main`, vérifié). Poussée, rien en attente |
+| **Décisions** | ADR-0046 **Accepté**, 8 décisions — dont **trois amendées pendant l'exécution** (4, le périmètre, et le §Suivi) |
+| **Migration** | **AUCUNE**, aucun endpoint, aucune surface Massimo |
+| **Suites** | Backend **1052 → 1074** (+22). ⚠️ Front **non relancé** — aucun de ses fichiers n'est touché |
+| **Sabotages** | **11 joués, 11 rouges.** ⚠️ Deux étaient d'abord ressortis VERTS parce que le `perl` de sabotage n'avait rien remplacé — un contrôle d'application les a démasqués |
+| **Relecture visuelle** | ⬜ **AUCUNE, et c'est défendable ici** : le chantier n'a pas d'interface. Mais les preuves à l'écran ont été remplacées par des preuves **en conditions réelles**, listées ci-dessous |
 
-🔴 **SIX branches de chantier sont conservées** — `feat/diagnostic-massimo-propose`,
-`fix/diagnostic-zone-c-mobile`, `fix/connexion-mot-de-passe`, `feat/diagnostic-mesure-qui-engage`,
-`feat/notion-orpheline-equipable`, et `feat/diagnostic-papa-optimisations` (celle-ci). Le dépôt a
-`delete_branch_on_merge: false`. Les noms se ressemblent assez pour qu'un `git branch -d` distrait
-fasse le mauvais. **Aucune n'est à supprimer sans consigne.** Toutes vérifiées locales ET distantes
-le 2026-08-08, après le merge.
+### FAIT — les trois slices
 
-> ⚠️ **Deux gestes du merge valent d'être refaits pareil**, tous deux tirés du `TROUBLESHOOTING` :
-> merger **sans `--delete-branch`**, et rattraper `main` par **`git fetch origin main:main`** sans
-> changer de branche. C'est ce second geste qui, fait autrement un jour, avait basculé le worktree
-> sur un `main` périmé et donné l'illusion que tout le chantier avait disparu.
+> Les commits se listent par `git log --oneline main..HEAD` — on ne les recopie pas ici :
+> une ligne qui nomme le commit qui la contient ne peut pas être vraie (`WORKFLOW.md §5`).
 
-### FAIT — les deux sessions
+**Slice A — le service supervisé**
+8ᵉ service `worker` dans `docker-compose.prod.yml` : même image que le backend, `entrypoint`
+écrasé, `restart: unless-stopped`, aucun port, `extra_hosts` pour Ollama. Plus un **healthcheck sur
+`backend`**, qui est ce qui rend `condition: service_healthy` disponible.
 
-**Session A — le bandeau devient un instrument** (optimisations ① et ④)
+**Slice B — le dev ne peut plus démarrer deux workers**
+Garde-fou dans **`app/production_worker.py`**, pas dans les scripts — donc il couvre les quatre
+portes, y compris celles qui n'existent pas encore. `scripts/with-worker.sh` (neuf) attache le
+worker aux **5 entrées backend** de `.claude/launch.json`.
 
-1. **Les jauges deviennent des focus.** Une jauge **filtre le rail** quand sa population est faite
-   de diagnostics ; elle **renvoie par un lien nommé** quand cette population vit ailleurs ; elle
-   **ne fait rien** quand elle vaut zéro par décision — et alors elle porte la mention `inerte`.
-2. **Les sous-populations du détail sont des pastilles** — quatre focus : `non-mesurees`,
-   `a-relire`, `proposes`, `jamais-generees`.
-3. **La jauge dit ce qu'elle compte** : « jamais **générées** », pas « mesurées ».
-4. **Deux préconditions absorbées** (voir amendement) : l'état vide du rail distingue « aucun dans
-   le dépôt » de « aucun sous ce filtre », et le bloc « Jamais généré » subit les mêmes filtres.
-
-**Session B — les crans non passés** (optimisations ③ et ②)
-
-5. **L'acteur passe avant l'état** — « chez toi » (ambre) / « chez Massimo » (bleu), le mot écrit,
-   la légende du rail portant la règle.
-6. **Trois cellules du tableau d'actions sur quatre**, avec confirmation `danger` sur les deux
-   gestes secondaires.
-
-Deux modules purs neufs portent la logique et reçoivent les sabotages : `components/diagnostic/`
-→ **`focus.ts`** et **`crans.ts`**, chacun avec son fichier de test.
+**Slice C — l'absence vient à toi**
+Watchdog dans le **backend** (jamais dans le worker), e-mail par `smtplib`, plancher de **8 min
+mesuré**, verrou d'unicité dans Redis. Plus `python -m app.core.mailer`, la **preuve de vie du
+canal** — que l'ADR nommait dans son « signal qui dirait qu'on s'est trompé ».
+⚠️ Ce commit porte **aussi les 4 défauts du compose** (healthchecks, `mem_limit`, mot de passe,
+réseaux) : non séparables, leur documentation vit dans les mêmes fichiers.
 
 ### EN COURS — rien
 
-Aucun fichier à moitié écrit. La frontière est propre : tests verts, typecheck 0, build vert.
+Aucun fichier à moitié écrit, aucun état instable.
 
-### FAIT — la SLICE C, née de la relecture humaine
+### ✅ CE QUI A ÉTÉ PROUVÉ EN CONDITIONS RÉELLES
 
-**Le renvoi mène désormais au compte qu'il annonce.** Les deux liens de la jauge « Lacunes »
-portaient `?source=` et `?contenu=` que `LacunesPage` **ignorait** : « dont 4 sans contenu → »
-affichait **toutes** les lacunes.
+> Sept preuves jouées sur la vraie pile, pas en test. **À ne pas refaire** — elles sont détaillées
+> dans l'ADR-0046 § « Ce qui est prouvé, et comment ».
 
-1. **`etat_contenu` déménage** de `diagnostics.service` (privée) vers **`app/modules/content_state.py`**,
-   module neutre. Ni `lesson_resolution` — qui écrit refuser les filtres de statut — ni un import
-   inter-domaines. **Refactor à comportement constant prouvé : 1052 → 1052, aucun test touché.**
-2. **`open_gaps` sert `source` et `content_state`** ; le schéma `OpenGapOut` et le type `OpenGap`
-   les déclarent.
-3. **`useLacunes` filtre dessus, dans le hook**, et **sans repli** — contrairement au filtre par
-   matière. Montrer « tout » quand le filtre ne trouve rien serait le défaut corrigé.
-4. **`LacunesPage` nomme ce qu'elle filtre** et son état vide distingue « aucune de ce type » de
-   « aucune lacune ouverte ».
+| Preuve | Résultat |
+|---|---|
+| Barrière `service_healthy` | `backend … Waiting → Healthy` **puis** `worker Starting` |
+| `entrypoint` écrasé | logs RQ, **pas** uvicorn ; le backend a migré **seul** |
+| Redémarrage après crash | `RestartCount 0 → 1` |
+| Garde-fou, les deux portes | refuse worker vivant · **laisse démarrer** sans worker · refuse le second |
+| 🔴 **Le worker conteneurisé PRODUIT** | `run_ai_job(114)` en **1 min 27 s** → 40 questions / 8 notions, texte réel, `validation_status=pending` |
+| Chaîne du watchdog par un **vrai SMTP** | `trop-tot` → `alerte-envoyee` → `deja-alertee` → `worker-vivant`, **un seul message** |
+| Egress coupé sur `interne` | conteneur sur `interne` seul → **HTTP 000** ; worker → hôte **200** |
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-- **Un focus est un filtre NOMMÉ, jamais une troncature** — il dit ce qu'il montre et comment en
-  sortir. Une coupe silencieuse ferait croire à une couverture complète.
-- **La 4ᵉ jauge est INERTE par décision, et l'écrit.** La rendre cliquable ferait chercher une
-  population inexistante puis demander l'ouverture d'un déclencheur écarté en connaissance de cause.
-- **Aucun compte de jours d'attente, sous aucune forme** — décompte de non-fait. La date de
-  proposition dit le même fait sans la dette.
-- **Le focus `a-relire` a été ajouté par COHÉRENCE**, hors de la lettre de la Décision 1, et
-  **confirmé par le commanditaire**. Il annonce une population qui est dans le rail.
-- **`DiagnosticFocus` reste LOCAL** à la page Papa — `DashboardFocus` est une union fermée du
-  dashboard, l'élargir pour un second usage serait une abstraction prématurée.
-- 🔴 **Un défaut de MISE EN PAGE ne se verrouille pas par un test, et c'est assumé.** jsdom n'a pas
-  de moteur de rendu : `getBoundingClientRect` y renvoie des zéros. Comparer des chaînes de classes
-  Tailwind serait une **tautologie** qui casserait au premier refactor sans jamais voir le défaut.
-  La preuve d'un tel correctif est la **mesure dans un vrai moteur**, consignée dans le commit et la
-  PR. **Ne pas « réparer » ce manque par un faux verrou.**
-  ⚠️ Cette règle n'a **aucun ADR** — elle vient d'un correctif sans décision (`fix/diagnostic-zone-c-mobile`) et ne vit QUE dans ce fichier.
+- **Le canal est l'e-mail, pas Web Push.** Motif = un **fait de déploiement** : aucun environnement
+  distant n'existe, le Push API exige un contexte sécurisé, il n'aurait atteint que la machine
+  devant laquelle Papa est déjà assis. 🔴 **À rouvrir seulement le jour où l'accès distant existe.**
+- **N ≥ 8 minutes**, et le plancher **relève** au lieu de refuser.
+- **Le watchdog vit dans le backend** — on ne demande pas au mort de constater son décès.
+- **Concurrence 1**, jamais de `--scale`.
+- **Le worker accompagne CHAQUE entrée backend** de `launch.json` (Décision 4 amendée : le fichier
+  n'a aucune forme pour un processus sans port). C'est le garde-fou qui tient l'unicité.
+- **Le critère « du travail attend » a UNE définition** — `activity.porte_un_travail_en_file()`,
+  lue par la route d'activité **et** par le watchdog.
 
 ### PIÈGES rencontrés → `TROUBLESHOOTING.md`
 
-Une section `feat/diagnostic-papa-optimisations`, huit pièges. Les trois qui coûteraient le plus :
-**un `<button>` dans un `<button>` est éjecté par le parseur** et disloque la grille sans qu'aucun
-test ne rougisse ; **`reject` fait DISPARAÎTRE la ligne du rail** alors que `charger()` garde la
-sélection ; et **un décor de test à deux familles rend l'addition juste par accident** — la forme
-la plus discrète du décor dégénéré.
+Section `feat/worker-supervise`. Les trois qui coûteraient le plus :
+🔴 **`docker compose kill` ne prouve PAS un redémarrage** (arrêt d'opérateur, exclu par
+`unless-stopped`) — la procédure écrite dans l'ADR rendait un **faux négatif** ;
+🔴 **le motif `pgrep` a DEUX façons d'être faux**, sous-détection et sur-détection ;
+🔴 **`command:` est silencieusement ignoré** sur une image à `ENTRYPOINT` exec.
 
 ### ⚠️ DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- ✅ ~~La relecture visuelle humaine n'a pas eu lieu~~ — **FAITE le 2026-08-08**, et elle a rendu
-  **deux défauts**, tous deux **corrigés** : la 4ᵉ jauge incompréhensible, et les renvois de la
-  jauge « Lacunes » qui menaient à un autre nombre (slice C).
-- ✅ ~~La slice C n'a jamais été vue à l'écran~~ — **VÉRIFIÉE le 2026-08-08, à deux, en cinq
-  points** (détail en tête de section). ⚠️ Ce qu'il a fallu pour y arriver : les serveurs de dev
-  étaient retombés (la session voisine qui les portait s'est fermée) et la nouvelle instance
-  demandait une **connexion** — c'est l'humain qui l'a faite. **Je ne peux pas vérifier une
-  surface Papa tout seul après un redémarrage de serveur.**
-- ⚠️ **Un sabotage est resté VERT et a révélé un trou dans mes propres verrous** : le repli du
-  filtre `contenu` ne se déclenche pas sur un décor qui contient des lacunes sans contenu. Le cas
-  manquant (décor où le filtre trouve **zéro**) a été ajouté, et le sabotage rougit depuis.
-- ⚠️ **Un sabotage neutre, compté comme tel** : faire dépendre `filtreOrigine` du libellé est
-  devenu **équivalent** à la version correcte, le libellé ayant reçu un repli générique. Le bug
-  d'origine n'est plus atteignable ; le vert ne prouve rien et n'est pas revendiqué.
-- 🔴 **`response_model` filtre en SILENCE les champs non déclarés** — les deux clés neuves étaient
-  produites par le service et disparaissaient à la sérialisation. Aucune erreur. Vaut pour toute
-  route FastAPI du dépôt.
-- ⚠️ **Le worker de production a tourné en fin de séance, et il a changé le décor.** Les trois
-  travaux bloqués sont passés : **Histoire-Géo a quitté les « jamais générées »** (5 → 4) et les
-  proposés non passés sont montés de **12 à 15**. Les captures et les nombres d'avant ne
-  correspondent donc plus à la base actuelle.
-- 🔴 **DEUX chantiers neufs sont au `BACKLOG.md`**, tous deux nés de cette séance et **à cadrer** :
-  le **worker de production qui n'est un service nulle part** (`docker-compose.prod.yml` n'en a
-  aucun, et la panne était déjà au `TROUBLESHOOTING`), et la **page Lacunes qui énonce sans
-  permettre d'agir** (la ligne est un `<li>` nu — et « Voir la lacune → » de la station ② y
-  atterrit, donc la chaîne finit en cul-de-sac). ⚠️ Le second est **presque gratuit depuis la
-  slice C** : `content_state` est déjà sur `OpenGap`.
-- ⚠️ **Données de dev modifiées, délibérément** : le **quiz 30 est laissé en `pending`** — il donne
-  à dev le spécimen « généré » qui manquait et sans lequel « Refuser ce lot » ne peut pas être vu.
-  Pour l'annuler : `UPDATE quizzes SET validation_status='validated' WHERE id=30;`. Le quiz 29,
-  rejeté pendant le test du flux complet, a été **remis en `validated`**.
-- ⚠️ **Le panneau reste sur une matière que la pastille de matière exclut** — défaut pré-existant,
-  signalé non traité. Les focus ne peuvent pas le produire (la jauge ② efface les deux filtres).
-- ⚠️ **`avec_quiz` exclut les `rejected`** : une matière dont l'unique diagnostic a été refusé
-  compte comme « jamais générée ». **Non exercé** — zéro `rejected` en dev.
-- ⚠️ **Le focus `a-relire` n'a été vu qu'avec UN seul diagnostic** au premier cran, celui que j'ai
-  créé. Le pluriel de son libellé n'a jamais été rendu.
+- 🔴 **L'e-mail n'a jamais atteint une VRAIE boîte.** Tout le reste du canal est prouvé (vrai SMTP
+  local). Il manque les 4 lignes SMTP dans le `.env` **racine** (lignes 21-25, à décommenter ;
+  `ALERT_EMAIL_TO` est déjà posé) puis `python -m app.core.mailer`. ⚠️ Gmail exige un **mot de
+  passe d'application**. ⚠️ Un backend déjà lancé **ne verra pas** le nouveau `.env` : `settings`
+  est lu à l'import — le redémarrer, et il écrira « watchdog production armé » au lieu de
+  « CANAL INERTE ».
+- ⚠️ **`mem_limit: 1g` est calé sur une mesure À VIDE** (92 / 41 Mio). La voix Piper (ONNX) et
+  l'extraction PDF du RAG **n'ont pas été mesurées sous charge**. À relever si un OOM apparaît,
+  **jamais à baisser** sans nouvelle mesure.
+- 🔴 **`POSTGRES_PASSWORD` reste `zetis_dev_password`** dans le `.env` racine — je l'y ai mis pour
+  ne pas casser `prod:up`, mais c'est le secret public que la correction visait. Le changer impose
+  `docker compose -f docker-compose.prod.yml down -v`, qui **efface les données prod**.
+- ⚠️ **Le worker de dev tourne détaché** (`nohup`), pas dans un terminal. Pour reprendre la main :
+  `pgrep -f "python -m app.production_worker"` puis `kill` et `pnpm dev:worker`.
+- ⚠️ **Données de dev** : la pile prod porte désormais le **quiz 4** (SVT, 40 questions, `pending`)
+  et son `ai_job 114`, créés par le test de production réelle. Volume `zetis-prod_postgres_data`.
+- ⚠️ **Le `lifespan` de `main.py` est la PREMIÈRE tâche de fond du backend.** Il n'y avait aucun
+  patron ; celui-ci en devient un. Non exercé par les tests (la boucle dort d'abord, exprès).
 
 **Héritées, et toujours vraies :**
 
 - 🔴 **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
 - 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
-- ⚠️ **L'écran de résultat de Massimo affiche jusqu'à 8 notions à renforcer d'affilée** — le motif
-  du défaut d'origine, un cran plus bas. Signalé, non traité.
-- ⚠️ **La branche `null` de `measured_at` n'est exercée par aucune donnée réelle** : les diagnostics
-  de dev ont tous une mesure. Prouvée en tests SQLite seulement.
+- 🔴 **`response_model` filtre en SILENCE les champs non déclarés** — vaut pour toute route FastAPI.
+- ⚠️ **Le journal de production affiche « fait en 95 s » sur un travail resté 25 H en file** — il
+  montre la date de **création** et la durée d'**exécution**, jamais l'attente. Mesuré sur les jobs
+  749/750. **Le journal est incapable de montrer la panne que ce chantier corrige.** Au `BACKLOG`.
+- ⚠️ **Dans le compose DEV, `worker-media` est sur `networks:[internal]` SEUL** alors que
+  postgres/redis/minio sont sur le réseau par défaut — ils ne peuvent pas se joindre. Masqué par
+  `profiles:[render]`. Au `BACKLOG`.
+- ⚠️ **Massimo voit 18 diagnostics validés, dont 11 en Français pour 2 passés** — et **2 des 3
+  derniers sont des doublons Maths** (quiz 55 et 56, nés du double clic pendant la panne). Le geste
+  existe (« Retirer la proposition » → `POST /reject`) ; le fond est le chantier « page Diagnostic
+  de Massimo ».
+- ⚠️ **L'écran de résultat de Massimo affiche jusqu'à 8 notions à renforcer d'affilée.**
+- ⚠️ **La branche `null` de `measured_at`** n'est exercée par aucune donnée réelle.
 - ⚠️ **Rien ne referme une lacune quand la notion est réussie** — seul `missions/service.py` écrit
-  `resolved`. Contourné à l'affichage (**le filtre « réussie ⇒ pas à renforcer » est un filtre
-  d'AFFICHAGE**, pas une résolution : la lacune reste ouverte, Papa la voit). Le fond vaudrait un ADR.
-- ⚠️ **`graphify affected` est aveugle** sur `list_diagnostics` — une réponse vide n'est pas une
-  preuve d'absence d'appelant.
+  `resolved`. Le filtre d'affichage n'est PAS une résolution.
+- ⚠️ **`graphify affected` est aveugle** sur `list_diagnostics` — une réponse vide ne prouve rien.
 - **Papa valide un diagnostic sans pouvoir le LIRE** depuis la file (`reviewLink` rend `null`).
 - **Les 14 défauts du module `diagnostics`** restent au `BACKLOG.md`, aucun traité.
+- ⚠️ **Le panneau Diagnostic reste sur une matière que la pastille exclut** — pré-existant.
+- ⚠️ **`avec_quiz` exclut les `rejected`** : une matière dont l'unique diagnostic a été refusé
+  compte comme « jamais générée ». **Non exercé.**
+- ⚠️ **Données de dev ADR-0045** : le **quiz 30 est laissé en `pending`** (spécimen « généré »).
+  Annuler par `UPDATE quizzes SET validation_status='validated' WHERE id=30;`.
 - **Artefacts de dev ADR-0042 toujours en base** : `Skill 436`, `Quiz 54`, `Gap 2`, `Mission 56`.
   Ordre de suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion`
   → `Quiz` → `Skill`.
-- ⚠️ **Passations de dev** créées le 2026-08-08 : deux sur le diagnostic Français (une tout faux,
-  une tout juste), plus l'XP correspondant.
-- **Résidus de la vérification 375 px** : deux simulateurs `ZETIS-375` (iPhone SE 3ᵉ gen) et
-  `ZETIS-393` (iPhone 16), le clavier physique du SE passé en **Français** dans ses Réglages iOS.
-  À supprimer avec `xcrun simctl delete` pour une machine propre. La paire `backend-lan` /
-  `massimo-lan` de `.claude/launch.json` est la **seule joignable depuis un vrai iPhone**.
+- **Résidus de la vérification 375 px** : simulateurs `ZETIS-375` et `ZETIS-393`, à supprimer par
+  `xcrun simctl delete`. La paire `backend-lan` / `massimo-lan` est la **seule joignable depuis un
+  vrai iPhone**.
 
 ### ▶▶ PROCHAIN PAS
 
-**Ce chantier est CLOS.** Mergé, vérifié à l'écran, étape 4bis faite. ⚠️ **Ne rien en
-recommencer.**
+**Ouvrir la PR** sur `feat/worker-supervise` (base `ef54f7f`) — le chantier est complet et poussé.
 
-**Le prochain chantier se choisit entre TROIS, tous au `BACKLOG.md` et tous nés de cette séance ou
-de la précédente :**
+⚠️ **Avant de merger, deux gestes que le dépôt paie cher quand on les saute :**
 
-1. **L'anti-triche du diagnostic** — le plus mûr : pistes retenues et usage déjà tranchés par le
-   commanditaire (sortie d'écran, temps par question, verbalisation, audit de ce qui récompense un
-   bon score ; marquage **côté Papa seul**, jamais d'accusation à l'enfant).
-2. **Le worker de production qui n'est un service nulle part** — le plus urgent : trois diagnostics
-   sont restés bloqués, `docker-compose.prod.yml` n'a **aucun** service de worker, et la panne
-   était **déjà** au `TROUBLESHOOTING`. Elle reviendra une troisième fois.
-3. **La page Lacunes qui énonce sans permettre d'agir** — le moins cher : `content_state` est déjà
-   sur `OpenGap` depuis la slice C, donc les trois gestes de la station ② sont rendables **sans une
-   ligne de backend**.
+1. **Remplir les 4 lignes SMTP** et lancer `python -m app.core.mailer` — c'est la seule preuve du
+   chantier qui reste due, et elle prend une seconde.
+2. Merger **sans `--delete-branch`** (le dépôt a `delete_branch_on_merge: false`), puis rattraper
+   `main` par `git fetch origin main:main` **sans changer de branche**.
 
-Chacun demande le **rituel complet** (`mockup → spec → ADR → prompt`), donc une session de cadrage
-sur `main` avant la moindre ligne — puis `/ouverture`.
+Puis l'**étape 4bis** (`WORKFLOW.md §5`) : revenir mettre ce fichier au réel — squash, n° de PR.
 
-**Chantier suivant, déjà décidé et cadré au `BACKLOG.md`** : l'**anti-triche du diagnostic** —
-sortie d'écran, temps par question, verbalisation, et audit de ce qui récompense encore un bon
-score. Usage retenu : **marquer la mesure côté Papa seul**, jamais accuser l'enfant. Rituel complet
-attendu (`mockup → spec → ADR → prompt`).
+**Chantier suivant — trois candidats, tous au `BACKLOG.md` :**
 
-> ✅ **Élagage fait à cette clôture** : la section du chantier **ADR-0044** (page Diagnostic de
-> Massimo, PR #100, #101, #102) a été retirée après ses **quatre contrôles** — ADR
-> `adr-0044-…-propose-au-lieu-de-lister.md` ✅ · deux sections `TROUBLESHOOTING.md`
-> `feat/diagnostic-massimo-propose` ✅ · `CHANGELOG.md` **0.60.0 / 0.60.1 / 0.60.2** ✅ · et
-> **ses dettes ouvertes remontées ci-dessus**, y compris la doctrine « un défaut de mise en page ne
-> se verrouille pas par un test » qui n'a **aucun ADR** et serait morte avec la section.
-> Le récit se retrouve par `git log -p MEMORY.md`.
+1. 🔴 **La page Diagnostic de MASSIMO** — marquée `▶▶ PROCHAIN CHANTIER`, décidée le 2026-08-08
+   comme devant passer **AVANT** les optimisations Papa, qui sont mergées depuis. **Elle est donc
+   en retard sur son propre ordre**, et ce chantier vient d'en aggraver le constat : 18 diagnostics
+   validés, 11 en Français pour 2 passés.
+2. **L'anti-triche du diagnostic** — le plus mûr (pistes et usage déjà tranchés).
+3. **La page Lacunes qui énonce sans permettre d'agir** — le moins cher (`content_state` déjà sur
+   `OpenGap`).
+
+Chacun demande le **rituel complet** (`mockup → spec → ADR → prompt`) : une session de cadrage sur
+`main` avant la moindre ligne, puis `/ouverture`.
+
+> ✅ **Élagage fait à cette clôture** : la section du chantier **ADR-0045** (page Diagnostic de
+> Papa, PR #103) a été retirée après ses **quatre contrôles** — ADR
+> `adr-0045-…-montre-ce-qu-elle-annonce.md` ✅ · `TROUBLESHOOTING.md` section
+> `feat/diagnostic-papa-optimisations` ✅ · `CHANGELOG.md` **0.61.0** ✅ · et **ses dettes ouvertes
+> remontées ci-dessus**, y compris les résidus de données de dev et les cinq dettes héritées qu'elle
+> portait. Le récit se retrouve par `git log -p MEMORY.md`.
 
 ---
+
 
 ## Dettes SURVIVANTES des chantiers élagués
 

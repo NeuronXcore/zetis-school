@@ -222,7 +222,23 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
 - App iOS native.
 - Mode SaaS éventuel.
 
-## 🔴 CHANTIER À CADRER — le worker de production n'est un service NULLE PART
+## ✅ CHANTIER FAIT — le worker de production est un service (ADR-0046)
+
+> **Cadré et livré le 2026-08-08.** `docs/decisions/adr-0046-le-worker-de-production-est-un-service.md`,
+> spec `docs/devops/worker-production.md`, prompt `prompts/claude-code/prompts-claude-code-adr-0046.md`.
+> Trois slices sur `feat/worker-supervise`. **Le texte ci-dessous est conservé comme trace du
+> constat d'origine, pas comme une tâche ouverte.**
+>
+> ⚠️ **Deux de ses trois décisions se sont révélées FAUSSES au read-before-code**, et l'ADR le dit :
+> la moitié « dev » était **déjà faite** (`dev.sh` étape 4/5) — ce qui l'a contournée est une
+> **seconde porte d'entrée** née à côté ; et la notification demandait une infrastructure
+> **inexistante** dans tout le dépôt (« Notifications » est en P4). Le commanditaire l'a maintenue
+> au périmètre après lecture du constat.
+>
+> 🔴 **Reste dû, non délégable** : que l'e-mail atteigne une vraie boîte (les 4 lignes SMTP du
+> `.env` racine).
+
+## 🔴 CONSTAT D'ORIGINE — le worker de production n'était un service NULLE PART
 
 **Décidé le 2026-08-08, après que trois diagnostics soient restés bloqués.** Rituel complet attendu
 (`mockup → spec → ADR → prompt`) : ça touche le **déploiement**, pas un écran.
@@ -369,6 +385,28 @@ charge », qui sont aujourd'hui les plus inertes de toutes).
 que c'est frais : c'est maintenant que c'est le moins cher.
 
 ## Dettes nommées — consignées, non traitées
+
+### Nées du chantier ADR-0046 (2026-08-08)
+
+- 🔴 **Le journal de production ne montre JAMAIS l'attente.** Il affiche la date de **création** et
+  la durée d'**exécution**. Mesuré sur les travaux 749 et 750 : la ligne dit « *fait · 95 s ·
+  07/08 20:07* » pour un travail créé le 07/08 et exécuté le 08/08 — **25 heures d'attente,
+  invisibles**. Conséquence : **le journal est incapable de montrer la panne que l'ADR-0046
+  corrige**, et c'est pour ça qu'elle est restée invisible jusqu'à ce qu'on interroge Redis à la
+  main. Une ligne vraie et trompeuse est pire qu'une ligne absente.
+  ⚠️ Le correctif n'est pas d'ajouter une colonne « attente » partout : c'est une **décision
+  d'affichage** (que dit-on d'un travail qui a attendu ? à partir de quelle durée ?), donc un
+  cadrage.
+- ⚠️ **Dans le compose de DÉVELOPPEMENT, `worker-media` est isolé sur son réseau.** Il déclare
+  `networks: [internal]` **seul**, alors que `postgres`, `redis` et `minio` sont sur le réseau par
+  défaut : ils ne peuvent pas se joindre. Masqué par `profiles: [render]`, qui fait que le service
+  n'est presque jamais démarré. **Le compose de prod, lui, est correct depuis l'ADR-0046.**
+- ⚠️ **`mem_limit: 1g` est calé sur une mesure À VIDE** (backend 92 Mio, worker 41 Mio). La voix
+  Piper (ONNX) et l'extraction PDF du RAG n'ont **pas** été mesurées sous charge. À relever si un
+  OOM apparaît, **jamais à baisser** sans nouvelle mesure.
+- 🔴 **`POSTGRES_PASSWORD` vaut toujours `zetis_dev_password`** dans le `.env` racine — posé là pour
+  ne pas casser `prod:up` sur un volume déjà initialisé. C'est exactement le secret public que la
+  correction visait. Le changer impose un `down -v`, qui **efface les données prod**.
 
 > Ouvertes le **2026-08-07** au cadrage puis au read-before-code de l'**ADR-0042** (la notion
 > orpheline devient équipable). Aucune n'est traitée par ce chantier : elles sont écrites ici
