@@ -105,6 +105,16 @@ export interface OpenGap {
   /** Une mission `planned|active` (tous types) couvre-t-elle déjà cette notion ? Sépare ce qui
    *  attend une décision de Papa de ce qui est déjà en route. Calculé serveur. */
   has_active_mission?: boolean;
+  /** D'où vient la lacune — `diagnostic`, `mission`… Servi depuis l'`adr-0045` : sans lui, la page
+   *  ne peut pas distinguer ce qu'une **mesure** a ouvert de ce qu'un **exercice** a révélé, et le
+   *  renvoi d'une jauge du Diagnostic mène à une population plus large que celle qu'elle annonce. */
+  source?: string | null;
+  /** De quoi dispose-t-on pour retravailler la notion : `ok` · `aucune_lecon` · `cours_brouillon`
+   *  (ADR-0042, `app/modules/content_state.py`).
+   *
+   *  🔴 Les deux derniers **ne se confondent pas** : sans leçon la lacune est réparable par un quiz
+   *  ancré sur la notion ; avec un cours en brouillon, cette voie **refuse** et il faut valider. */
+  content_state?: string | null;
 }
 
 /** Une notion consolidée (`GET /api/parent/progress/consolidated`) — `mastered`, score ≥ 90. */

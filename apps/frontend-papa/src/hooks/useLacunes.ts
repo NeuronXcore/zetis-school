@@ -17,6 +17,19 @@ import { generateRemediation, generateRevision, notifyPendingChanged } from "../
 // `fetchOpenGaps` ne prend aucun paramètre et ne doit pas en prendre — le volume est celui d'un
 // seul enfant, et le dépôt vient d'écrire que filtrer ne doit rien coûter.
 
+/** Les filtres d'ORIGINE et de CONTENU (adr-0045), portés par les renvois des jauges du Diagnostic.
+ *
+ *  🔴 **Ils ne partagent PAS le repli du filtre par matière.** Celui-ci retombe sur « toutes » quand
+ *  le slug ne correspond à rien, pour qu'une faute de frappe ne rende pas une page vide. Ici le
+ *  repli serait exactement le défaut qu'on corrige : un renvoi annonçant 4 lacunes qui en montre 10.
+ *  **Un filtre d'origine qui ne trouve rien montre RIEN, et le dit.** */
+export interface LacunesFiltres {
+  /** `Gap.source` — `diagnostic`, `mission`… */
+  source?: string | null;
+  /** `absent` = les lacunes sans contenu produisible (`content_state !== "ok"`). */
+  contenu?: string | null;
+}
+
 export interface UseLacunes {
   loading: boolean;
   error: string | null;
@@ -29,6 +42,9 @@ export interface UseLacunes {
   allPending: OpenGap[];
   /** La matière effectivement filtrée, `null` si aucune ou si le slug ne correspond à rien. */
   activeSubject: { slug: string; name: string } | null;
+  /** Les filtres d'origine/contenu réellement appliqués — pour que la page DISE ce qu'elle montre.
+   *  Un filtre qui retire des lignes sans l'annoncer est une troncature, pas un filtre. */
+  activeFiltres: { source: string | null; contenu: string | null };
   busy: null | "remediation" | "revision";
   /** Message de résultat de la dernière génération (« 2 missions créées »). */
   result: string | null;
@@ -37,7 +53,12 @@ export interface UseLacunes {
   createRevision: () => Promise<void>;
 }
 
-export function useLacunes(subjectSlug?: string | null): UseLacunes {
+export function useLacunes(
+  subjectSlug?: string | null,
+  filtres: LacunesFiltres = {},
+): UseLacunes {
+  const source = filtres.source ?? null;
+  const contenu = filtres.contenu ?? null;
   const [gaps, setGaps] = useState<OpenGap[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,10 +122,22 @@ export function useLacunes(subjectSlug?: string | null): UseLacunes {
     return match ? { slug: subjectSlug, name: match.subject_name ?? subjectSlug } : null;
   }, [gaps, subjectSlug]);
 
-  const visible = useMemo(
-    () => (activeSubject ? gaps.filter((gap) => gap.subject_slug === activeSubject.slug) : gaps),
-    [gaps, activeSubject],
-  );
+  // 🔴 **Les filtres d'origine et de contenu sont STRICTS — aucun repli.** Le filtre par matière
+  // retombe sur « toutes » quand il ne trouve rien, et c'est justifié plus haut. Ici le même repli
+  // serait le défaut que l'`adr-0045` corrige : le renvoi « dont 4 sans contenu → » afficherait
+  // 10 lacunes, et le nombre cliquable mènerait à un autre nombre. Rien à montrer se montre.
+  const visible = useMemo(() => {
+    let jeu = activeSubject
+      ? gaps.filter((gap) => gap.subject_slug === activeSubject.slug)
+      : gaps;
+    if (source) jeu = jeu.filter((gap) => gap.source === source);
+    // `absent` : tout ce qui n'est pas produisible en l'état — ni leçon, ou cours en brouillon.
+    // Un booléen serait plus court et confondrait les deux, que l'ADR-0042 sépare exprès.
+    if (contenu === "absent") jeu = jeu.filter((gap) => (gap.content_state ?? "ok") !== "ok");
+    return jeu;
+  }, [gaps, activeSubject, source, contenu]);
+
+  const activeFiltres = useMemo(() => ({ source, contenu }), [source, contenu]);
 
   return {
     loading,
@@ -113,6 +146,7 @@ export function useLacunes(subjectSlug?: string | null): UseLacunes {
     pending: visible.filter((gap) => !gap.has_active_mission),
     allPending: gaps.filter((gap) => !gap.has_active_mission),
     activeSubject,
+    activeFiltres,
     busy,
     result,
     reload: () => void load(),

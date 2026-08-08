@@ -242,4 +242,87 @@ describe("filtre par matière", () => {
     expect(bouton).toHaveTextContent("Créer 2 missions de consolidation");
     expect(bouton).not.toHaveTextContent("toutes matières");
   });
+
+  // ================================================================================================
+  // Les renvois des jauges du Diagnostic (adr-0045, slice C)
+  //
+  // 🔴 Ce que ces verrous protègent : **un renvoi mène au compte qu'il annonce.** « dont 4 sans
+  // contenu → » menait à une page qui en affichait 10. Un nombre cliquable qui conduit à un AUTRE
+  // nombre est pire que le nombre invisible qu'il remplace — c'est le défaut dont l'adr-0039 est né,
+  // reproduit par le chantier qui le corrigeait.
+  // ================================================================================================
+
+  /** Décor NON DÉGÉNÉRÉ : les trois états de contenu, et deux origines. Avec un seul état, un
+   *  filtre qui ne filtre rien passerait ; avec une seule origine, aussi. */
+  const ORIGINES: OpenGap[] = [
+    gap({ skill_id: 1, skill_name: "Avec cours", source: "diagnostic", content_state: "ok" }),
+    gap({
+      skill_id: 2,
+      skill_name: "Sans leçon",
+      source: "diagnostic",
+      content_state: "aucune_lecon",
+    }),
+    gap({
+      skill_id: 3,
+      skill_name: "Cours draft",
+      source: "mission",
+      content_state: "cours_brouillon",
+    }),
+  ];
+
+  it("🔴 `contenu=absent` ne garde QUE les lacunes sans contenu produisible", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue(ORIGINES);
+    renderPage("/lacunes?contenu=absent");
+
+    await screen.findByText(/Sans leçon/);
+    expect(screen.getByText(/Cours draft/)).toBeInTheDocument();
+    // 🔴 Celle-ci a un cours validé : elle ne fait PAS partie du compte que la jauge annonce.
+    expect(screen.queryByText(/Avec cours/)).toBeNull();
+  });
+
+  it("🔴 `contenu=absent` qui ne trouve RIEN montre rien — jamais tout", async () => {
+    // ⚠️ **Ce test existe parce qu'un sabotage est resté VERT sans lui.** Le décor `ORIGINES`
+    // contient deux lacunes sans contenu : un repli « si le filtre ne trouve rien, montre tout »
+    // ne s'y déclenche jamais, et passe donc inaperçu. Il faut un décor où le filtre trouve ZÉRO.
+    vi.mocked(fetchOpenGaps).mockResolvedValue([
+      gap({ skill_id: 1, skill_name: "Avec cours", content_state: "ok" }),
+      gap({ skill_id: 2, skill_name: "Aussi avec cours", content_state: "ok" }),
+    ]);
+    renderPage("/lacunes?contenu=absent");
+
+    expect(await screen.findByText(/Aucune lacune de ce type/)).toBeInTheDocument();
+    expect(screen.queryByText(/Avec cours/)).toBeNull();
+  });
+
+  it("🔴 `source` filtre, et ne retombe JAMAIS sur « toutes »", async () => {
+    // Le filtre par MATIÈRE retombe sur « toutes » quand il ne trouve rien — c'est écrit et
+    // justifié (une faute de frappe ne doit pas vider la page). Ici ce repli serait exactement le
+    // défaut corrigé : annoncer une population et en montrer une autre, plus large.
+    vi.mocked(fetchOpenGaps).mockResolvedValue(ORIGINES);
+    renderPage("/lacunes?source=mission");
+
+    await screen.findByText(/Cours draft/);
+    expect(screen.queryByText(/Avec cours/)).toBeNull();
+    expect(screen.queryByText(/Sans leçon/)).toBeNull();
+  });
+
+  it("🔴 la page DIT ce qu'elle filtre, et comment en sortir", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue(ORIGINES);
+    renderPage("/lacunes?source=diagnostic&contenu=absent");
+
+    // Un filtre nommé, jamais une troncature — même règle que le rail du Diagnostic.
+    expect(await screen.findByText(/ouvertes par un diagnostic et sans contenu produisible/))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toutes les lacunes" })).toBeInTheDocument();
+  });
+
+  it("🔴 l'état vide d'un filtre n'emprunte pas la phrase d'un dépôt vide", async () => {
+    // Trois lacunes existent ; aucune ne vient d'une révision. « Aucune lacune ouverte » serait
+    // un mensonge, et il cohabiterait avec le bandeau qui vient d'annoncer le filtre.
+    vi.mocked(fetchOpenGaps).mockResolvedValue(ORIGINES);
+    renderPage("/lacunes?source=revision");
+
+    expect(await screen.findByText(/Aucune lacune de ce type/)).toBeInTheDocument();
+    expect(screen.queryByText(/Aucune lacune ouverte/)).toBeNull();
+  });
 });

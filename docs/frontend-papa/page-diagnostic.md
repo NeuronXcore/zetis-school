@@ -6,6 +6,14 @@
 > `docs/frontend-papa/mockup/mockup-papa-diagnostic-v3.html`.
 > Chantier : `prompts/claude-code/prompts-claude-code-adr-0043.md`, en trois sessions —
 > **les trois sont livrées**. Cette spec décrit désormais l'existant.
+>
+> **Amendée par l'`adr-0045`** (2026-08-08) — **quatre optimisations**, pas une refonte : les
+> jauges deviennent des focus, les deux crans non passés reçoivent leurs deux actions et nomment
+> leur acteur, et une jauge cesse de compter « générées » en écrivant « mesurées ». Tout le reste
+> — rail à trois crans, trois stations, portée en escalier, mur de la station ③ — est inchangé.
+> Maquette : `docs/frontend-papa/mockup/mockup-papa-diagnostic-v4-optimisations.html`.
+> Chantier : `prompts/claude-code/prompts-claude-code-adr-0045.md`.
+> **Les passages amendés portent la mention `[0045]`.**
 
 ## Ce que la page répond
 
@@ -43,15 +51,80 @@ produit »).
 
 ### Bandeau instrument — 4 jauges
 
-| Jauge | Ce qu'elle dit |
-|---|---|
-| Matières mesurées au moins une fois | `3 / 8`, avec le détail de ce qui manque en sous-titre |
-| Lecture la plus ancienne **encore invoquée** | l'âge de la mesure la plus vieille qui sert encore à décider |
-| Lacunes ouvertes **par un diagnostic**, encore ouvertes | `Gap.source == "diagnostic"` ∩ `OPEN_GAP_STATUSES` |
-| Lots de production déclenchés par une mesure | **`0`**, en hachures, sans couleur |
+| Jauge | Ce qu'elle dit | Geste `[0045]` |
+|---|---|---|
+| Matières mesurées au moins une fois | `3 / 8`, avec le détail de ce qui manque en sous-titre | **filtre** — les matières sans aucune mesure |
+| Lecture la plus ancienne **encore invoquée** | l'âge de la mesure la plus vieille qui sert encore à décider | **sélection** — ouvre cette passation |
+| Lacunes ouvertes **par un diagnostic**, encore ouvertes | `Gap.source == "diagnostic"` ∩ `OPEN_GAP_STATUSES` | **lien** — `/lacunes?source=diagnostic` |
+| Lots de production déclenchés par une mesure | **`0`**, en hachures, sans couleur | **aucun** — et c'est écrit |
 
 🔴 **La quatrième jauge n'est pas un compteur de panne.** Elle vaut zéro **par décision** — voir
 station ③. Son rendu (hachures, gris, jamais rouge) doit dire « vide voulu », pas « échec ».
+
+#### `[0045]` Chaque nombre peut montrer sa population
+
+**La règle, en une phrase :** une jauge **filtre le rail** quand sa population est faite de
+diagnostics ; elle **renvoie par un lien nommé** quand sa population vit sur une autre page ; elle
+**ne fait rien** quand elle vaut zéro par décision — et alors elle le dit.
+
+C'est le principe de `KpiFocusCard` (*« une mesure ET le contrôle qui montre ce qui la fonde »*,
+`adr-0028 §5`), et le défaut littéral dont l'`adr-0039` est né : **des nombres qui mentaient,
+invisibles parce que non cliquables**. Deux populations étaient annoncées et montrées nulle part —
+« N proposés non passés » et « dont N sans contenu produisible ».
+
+**Les sous-populations du détail sont des focus à part entière**, rendues en pastilles et non en
+phrase : c'est *elles* que le lecteur ne pouvait pas voir.
+
+| Focus | Le rail montre alors |
+|---|---|
+| `non-mesurees` (la valeur `3 / 8`) | les matières sans aucune passation — celles jamais générées **et** celles générées jamais passées |
+| `proposes` (pastille du détail) | les diagnostics au cran « proposé » |
+| `jamais-generees` (pastille du détail) | le bloc « Jamais généré » seul |
+
+🔴 **Un focus est un filtre NOMMÉ, jamais une troncature.** Un bandeau dit ce que le rail montre et
+comment en sortir (« Tout revoir ✕ »). Aucune ligne ne disparaît en silence — la règle est déjà
+écrite dans le dépôt : *si une surface borne ce qu'elle montre, elle doit dire ce qu'elle laisse
+dehors.*
+
+**Le focus se compose avec la pastille de matière**, et leur croisement obéit à la même règle :
+
+- **l'état vide du rail dit LAQUELLE des deux situations il rend** — *aucun diagnostic dans le
+  dépôt* ou *aucun sous les filtres actifs*. 🔴 La seconde ne doit **jamais** emprunter la phrase de
+  la première (« Aucun diagnostic pour l'instant. Lance-en un ») : ce serait annoncer un dépôt vide
+  à un lecteur qui en a dix-huit ;
+- **le bloc « Jamais généré » subit les mêmes filtres que le rail.** Il en est une partie, pas un
+  encart indépendant.
+
+> ⚠️ Ces deux points **amendent la Décision 9 de l'`adr-0045`**, qui rangeait les pastilles dans
+> « ce qui ne change pas ». Précondition fausse, corrigée au read-before-code de la Session A.
+> Reste **signalé et non traité** : une pastille seule laisse le panneau de droite sur une matière
+> qu'elle exclut. La jauge ② efface les deux filtres avant de sélectionner, donc les focus ne
+> peuvent pas produire ce cas.
+
+🔴 **La 4ᵉ jauge n'est PAS rendue cliquable, et c'est une décision.** La rendre cliquable ferait
+chercher une population qui n'existe pas, et pousserait à demander l'ouverture d'un déclencheur
+écarté en connaissance de cause.
+
+🔴 **Et elle se comprend SEULE.** La relecture humaine du 2026-08-08 a répondu « je ne comprends pas
+la 4ᵉ » devant « Lots de production déclenchés par une mesure · 0 · et c'est voulu — voir ③ ·
+inerte ». Trois défauts : du vocabulaire **interne**, un **renvoi mort** (③ n'est visible qu'après
+avoir sélectionné une passation passée et scrollé), et le mot `inerte` qui dit qu'elle ne réagit pas
+sans dire pourquoi. Elle porte désormais un titre de lecteur — **« Ce qu'une mesure a fait produire
+à ZETIS »** — et **sa raison sur elle** : *« rien, et c'est une décision : ZETIS ne se commande pas
+de contenu sur sa propre mesure »*. **Aucun renvoi.**
+
+#### `[0045]` La jauge dit ce qu'elle compte
+
+Le détail de la première jauge écrit « **jamais générées** », pas « jamais mesurées ».
+
+Ce sont deux populations distinctes : `matieres_mesurees` compte les matières ayant une
+**tentative** (`service.py:1013`), `jamais_generees` celles sans aucun **quiz** (`:1058`). Rendre
+la seconde avec le mot de la première produit une addition fausse à l'écran — `2 / 8` mesurées
+et `5` jamais mesurées, quand la soustraction en donne 6. La sixième est une matière **générée,
+proposée, jamais passée** : elle tombe dans le trou entre les deux mots.
+
+Le champ backend porte déjà le bon nom : **c'est le rendu qui mentait**. Et le focus
+`non-mesurees` rend l'addition vérifiable à l'œil — le lecteur compte au lieu de croire.
 
 ### Filtres
 
@@ -80,16 +153,66 @@ non couvertes.
 | ● **passé** | une tentative complétée existe | lu dans `quiz_attempts` |
 
 🔴 **Aucun score ne s'affiche avant le troisième cran — il n'en existe pas.** Les deux premiers
-crans portent un libellé (« à relire », « en attente »), jamais un pourcentage.
+crans portent un libellé, jamais un pourcentage.
 
 🔴 **Le témoin ne se coche jamais à la main.** Le troisième cran est *lu*, pas déclaré : le cocher
 serait affirmer un fait que rien n'a mesuré.
 
-⚠️ **Deux de ces trois crans n'existent pas dans le code** : `list_diagnostics` sert tout
-`quiz_type='diagnostic'` sur un seul prédicat, donc « généré » et « proposé » sont le même instant.
-Le gate qui les sépare est la Décision 1 de l'`adr-0043` — voir « Ce que l'ADR a tranché ».
+> ⚠️ Cette spec a longtemps porté ici : *« deux de ces trois crans n'existent pas dans le code »*.
+> **C'est faux depuis la session A de l'`adr-0043`** — `quizzes.validation_status` (migration
+> `a9b0c1d2e3f4`) sépare « généré » de « proposé », et le gate est en place dans
+> `list_diagnostics`. Corrigé le 2026-08-08.
+
+#### `[0045]` Un cran non passé nomme son acteur
+
+Les deux crans non passés désignent des acteurs **opposés**, et l'écran les rendait en deux paires
+de deux mots, de même casse et **du même gris** — rien ne disait chez qui la balle se trouvait.
+
+| Cran | Ligne 1 — **l'acteur**, en couleur | Ligne 2 — l'état, en gris |
+|---|---|---|
+| généré | **chez toi** (ambre) | à relire |
+| proposé | **chez Massimo** (bleu) | pas encore passé |
+
+L'acteur passe **en premier**. Ambre = c'est à Papa d'agir ; bleu = on attend Massimo. **La couleur
+ne porte jamais l'information seule** : le mot est écrit. La légende du rail dit la même règle, en
+toutes lettres — c'est la formulation que la maquette v3 portait dans sa légende et qui n'avait
+jamais été implémentée.
+
+🔴 **Nommer l'acteur est factuel ; compter les jours d'attente resterait interdit.** « chez Massimo
+depuis 6 jours » serait un décompte de non-fait — `CLAUDE.md` §gamification et la règle « NOUVEAU
+jamais DÛ » de l'`adr-0030`. La date de proposition est déjà affichée : elle dit le même fait sans
+le transformer en dette.
 
 ### Panneau — la passation sélectionnée
+
+#### `[0045]` Le panneau d'un cran non passé — deux actions, jamais zéro
+
+Un diagnostic non passé n'a **ni score, ni palier, ni lacune** : le panneau ne montre donc aucune
+des trois stations, et c'est le seul rendu honnête. Mais il ne doit pas pour autant être un
+**cul-de-sac** — trois lignes de texte et une colonne vide jusqu'en bas.
+
+**Chaque cran non mesuré porte deux actions** — une principale, une secondaire :
+
+| Cran | Action principale | Action secondaire |
+|---|---|---|
+| **chez toi** · à relire | Ouvrir dans la file de relecture → | Refuser ce lot |
+| **chez Massimo** · pas encore passé | *(différée — voir ci-dessous)* | Retirer la proposition |
+
+> 🔴 **« Voir la page de Massimo → » est DIFFÉRÉE**, et pas par oubli : elle ne peut pas rendre ce
+> qu'elle annonce. Aucun lien inter-app n'existe (`VITE_API_URL` est la seule variable du front
+> Papa), et surtout **le rôle l'interdit** — la page de Massimo appelle des routes `require_child`,
+> qui répondent 403 à un rôle parent. Papa y verrait une erreur, jamais ce que Massimo voit.
+> La décision produit qui la débloquerait est au `BACKLOG.md`.
+
+Le sur-titre du panneau reprend la formulation du rail (« chez toi · à relire »), pour qu'une ligne
+sélectionnée et son panneau ne se nomment pas différemment.
+
+⚠️ **Les deux actions secondaires appellent `POST /reject`, qui existe déjà.** Aucun endpoint neuf,
+aucune migration : c'est une surface qui manque, pas une capacité.
+
+🔴 **« Retirer la proposition » est destructif du point de vue de Massimo** — le diagnostic
+disparaît de sa page. Elle demande une confirmation, et **sa formulation ne désigne aucun
+manquement de sa part** : le refus va au lot, jamais à l'enfant.
 
 #### La portée — comparaison entre passations
 
@@ -177,6 +300,10 @@ Quatre états : **Réglage · En cours · À l'arrêt · Terminé**.
 - **Aucune interpolation** dans la portée (voir plus haut).
 - **Aucun agrégat de provenance** — la page ne totalise pas « ce que l'IA a produit ».
 - **Aucune modification de contenu** — la page lit et oriente ; produire a ses pages.
+- `[0045]` **Aucune troncature** — un focus est un filtre nommé, réversible et annoncé ; il ne coupe
+  jamais une liste en silence.
+- `[0045]` **Aucun geste sur la 4ᵉ jauge** — elle vaut zéro par décision, et le rendre cliquable
+  ferait chercher une population qui n'existe pas.
 
 ## Périmètre des données
 
@@ -210,6 +337,26 @@ l'`adr-0037` nomme**. La cible d'extraction est `_per_skill_for_attempt`.
 | **L'état réel des lacunes** | `gaps` **lue en base**, statut servi (session B), `content_state` servi (session C) |
 | **Le témoin à trois crans** | `quizzes.validation_status` (session A) + `GET /diagnostics/apercu` (session C) |
 | **`require_parent` / `require_child`** | posés sur les six routes (session A) |
+
+### `[0045]` Ce qu'il faut pour les quatre optimisations : **rien de neuf**
+
+| Besoin | Ce qui le porte déjà |
+|---|---|
+| Filtrer le rail | l'aperçu sert **déjà** `cran`, `subject`, et la liste des matières jamais générées — le focus est un `useState` sur une liste en mémoire, comme les pastilles de matière |
+| Ouvrir la passation la plus ancienne | `jauges.plus_ancienne_lecture` désigne **une** passation déjà présente dans le rail |
+| Les deux actions secondaires | `POST /api/diagnostics/quizzes/{id}/reject`, et son client `rejectDiagnostic()` (`lib/diagnostic.ts:120`) |
+| Le lien vers les lacunes | `/lacunes` existe |
+| Le mot « générées » | le champ s'appelle **déjà** `jamais_generees` |
+
+🔴 **Aucune migration, aucun endpoint neuf, aucun champ ajouté au contrat.** C'est l'invariant de ce
+chantier : les quatre défauts sont des défauts de **surface**, pas de capacité — ce qui est aussi
+pourquoi aucun test ne les voyait.
+
+⚠️ **`set_validation` n'a aucune précondition d'état** (`service.py:389`) : `reject` accepte un
+diagnostic déjà `validated`, ce qui est exactement ce que « Retirer la proposition » demande.
+**Mais rien n'empêche Massimo de le passer entre le chargement de la page et le clic.** La règle
+retenue : un diagnostic **passé** n'offre jamais cette action, et le rail le montre alors au
+troisième cran quel que soit son `validation_status` — une mesure existante ne se cache pas.
 
 🔴 **Une surface qu'aucune session ne prévoyait : `GET /diagnostics/apercu`.** C'est la session A
 qui l'a rendue nécessaire — en gatant `list_diagnostics` sur `validated`, elle a rendu le **premier
@@ -247,6 +394,18 @@ L'ADR ajoute un quatrième point que cette spec avait renvoyé au backlog : **le
 sur les six routes** (Décision 2). Un gate de relecture n'aurait aucun sens si n'importe quel compte
 pouvait soumettre à la place de Massimo — on protégerait l'entrée en laissant la sortie ouverte.
 
+## `[0045]` Ce que le second ADR a tranché
+
+L'`adr-0045` ne rouvre **aucune** décision de l'`adr-0043`. Il en tranche quatre nouvelles, toutes
+nées de la relecture visuelle humaine du 2026-08-08 :
+
+1. **Une jauge qui annonce une population doit pouvoir la montrer** — filtre, lien, ou rien assumé.
+   La 4ᵉ reste **inerte par décision**.
+2. **Un cran non passé porte deux actions**, principale et secondaire, sur les **deux** crans.
+3. **L'acteur passe avant l'état** — « chez toi » / « chez Massimo », en premier et en couleur,
+   sans jamais compter les jours.
+4. **Une jauge écrit le mot de ce qu'elle compte** — « jamais générées », pas « jamais mesurées ».
+
 ## Hors périmètre
 
 Le **T0 sur les prérequis** — le graphe de prérequis n'existe pas (ni colonne ni table,
@@ -254,3 +413,9 @@ Le **T0 sur les prérequis** — le graphe de prérequis n'existe pas (ni colonn
 la page Diagnostic **de Massimo** · le multi-enfant (le JWT n'est relié à aucun `StudentProfile`) ·
 la correction des 14 défauts du module consignés au `BACKLOG.md`, qui relèvent de leurs propres
 chantiers.
+
+`[0045]` S'y ajoutent, **écartés en connaissance de cause** : le bloc « Jamais généré » reste en
+lignes inertes (l'action existe en tête de page) · le « 37 j » est une troncature `.days`
+défendable, pas un défaut · le **N+1** de `GET /quizzes` et le plafond en dur de `GET /results` ·
+et l'**anti-triche du diagnostic** (temps par question, sortie d'écran, verbalisation), chantier
+suivant décidé le 2026-08-08 et consigné au `BACKLOG.md`.

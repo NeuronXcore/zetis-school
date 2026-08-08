@@ -1,5 +1,116 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.61.0 — La page Diagnostic de Papa montre ce qu'elle annonce
+
+Les **quatre optimisations** différées derrière la page de Massimo. Elles ont un sang commun : la
+page **énonçait** des faits sans qu'on puisse les voir, agir dessus, ou savoir qui devait agir.
+ADR-0045, deux sessions, **aucune migration, aucun endpoint, aucun champ de contrat**.
+
+### ① Chaque nombre peut montrer sa population
+
+- **Les jauges étaient des `<div>` nus** — aucun clic, et deux populations annoncées que rien à
+  l'écran ne montrait (« 12 proposés non passés », « dont 4 sans contenu produisible »). C'est le
+  défaut littéral dont l'ADR-0039 est né, et le dépôt avait déjà la réponse écrite (ADR-0028 §5).
+- **La règle retenue, en une phrase** : une jauge **filtre le rail** quand sa population est faite
+  de diagnostics ; elle **renvoie par un lien nommé** quand cette population vit ailleurs
+  (`/lacunes?source=diagnostic`) ; elle **ne fait rien** quand elle vaut zéro par décision.
+- **Les sous-populations du détail deviennent des pastilles** — ce sont *elles* que le lecteur ne
+  pouvait pas voir. Trois focus : `non-mesurees`, `proposes`, `jamais-generees`, plus `a-relire`
+  ajouté par cohérence et confirmé par le commanditaire.
+- 🔴 **La 4ᵉ jauge reste sans geste — et se comprend enfin SEULE.** La rendre cliquable ferait
+  chercher une population qui n'existe pas. Mais la relecture humaine a répondu *« je ne comprends
+  pas la 4ᵉ »* devant « Lots de production déclenchés par une mesure · 0 · et c'est voulu — voir ③ ·
+  inerte » : vocabulaire **interne**, **renvoi mort** (③ n'est visible qu'après avoir sélectionné une
+  passation passée et scrollé), et un mot technique qui dit qu'elle ne réagit pas sans dire pourquoi.
+  Elle porte désormais **« Ce qu'une mesure a fait produire à ZETIS »** et **sa raison sur elle** :
+  *« rien, et c'est une décision : ZETIS ne se commande pas de contenu sur sa propre mesure »*.
+- **Un focus est un filtre nommé, jamais une troncature** : bandeau « le rail ne montre que… » et
+  sortie « Tout revoir ✕ ».
+
+### ④ Une jauge écrit le mot de ce qu'elle compte
+
+- 🔴 **Trouvée à l'écran pendant le cadrage, elle n'était écrite nulle part.** Dans une seule carte :
+  « Matières mesurées au moins une fois **2 / 8** » et « **5** matières jamais **mesurées** ».
+  **8 − 2 = 6, l'écran disait 5.** `matieres_mesurees` compte les matières ayant une *tentative*,
+  `jamais_generees` celles sans aucun *quiz* — et le front rendait la seconde avec le mot de la
+  première. L'écart, c'était **Anglais** : générée ✅, mesurée ❌.
+- Le champ backend portait déjà le bon nom : **c'est le rendu qui mentait**, et aucun test ne
+  pouvait le voir. Le focus `non-mesurees` rend désormais l'addition **vérifiable à l'œil**.
+
+### ③ Un cran non passé nomme son acteur
+
+- « à relire / non proposé » et « en attente / non passé » : deux paires de deux mots, même casse,
+  **même gris**, pour des acteurs **opposés**. Désormais **« chez toi »** (ambre) et **« chez
+  Massimo »** (bleu), l'acteur **en premier**, l'état en gris dessous.
+- **La couleur ne porte jamais l'information seule** — le mot est écrit. La légende du rail dit la
+  règle : c'est la formulation que la maquette v3 portait et qui n'avait jamais été implémentée.
+- 🔴 **Aucun compte de jours d'attente**, sous aucune forme — ce serait un décompte de non-fait.
+  La date de proposition dit le même fait sans la dette.
+
+### ② Un cran non passé n'est plus un cul-de-sac
+
+- **Le cran « proposé » n'avait AUCUNE action** — le lien était rendu sous `{genere && …}`. À
+  l'écran : trois lignes de texte et une colonne vide jusqu'en bas.
+- **Trois cellules du tableau sur quatre sont livrées** : « Ouvrir dans la file de relecture → »,
+  « Refuser ce lot », « Retirer la proposition ». Les deux gestes secondaires appellent
+  `POST /quizzes/{id}/reject`, **qui existait déjà, client compris**.
+- **Confirmation obligatoire**, ton `danger`, et une formulation qui **ne désigne aucun manquement
+  de Massimo** — le refus va au lot, jamais à l'enfant.
+- 🔴 **« Voir la page de Massimo → » est DIFFÉRÉE**, et c'est écrit : aucun lien inter-app n'existe,
+  et surtout la page de Massimo appelle des routes `require_child` qui répondent **403** à un rôle
+  parent. Papa y verrait une erreur, jamais ce que Massimo voit. Décision produit au `BACKLOG.md`,
+  absence figée par un test-verrou.
+
+### Deux préconditions absorbées — la Décision 9 était fausse
+
+L'ADR rangeait les pastilles de matière dans « ce qui ne change pas ». **Elles filtraient mal**, et
+la Décision 3 était inimplémentable par-dessus :
+
+- **l'état vide du rail annonçait un dépôt VIDE** (« Aucun diagnostic pour l'instant. Lance-en un »)
+  à un lecteur qui en a dix-huit mais filtre sur une matière qui n'en a aucune ;
+- **le bloc « Jamais généré » n'était pas filtré** — il était passé brut là où le rail filtrait.
+
+Reste **signalé et non traité** : une pastille seule laisse le panneau sur une matière qu'elle
+exclut. Les focus ne peuvent pas produire ce cas — la jauge ② efface les deux filtres avant de
+sélectionner.
+
+### Le renvoi mène au compte qu'il annonce — et il a fallu payer le contrat pour ça
+
+La relecture humaine a trouvé un second défaut, et c'est **celui du chantier, reproduit par le
+chantier** : les renvois de la jauge « Lacunes » mènent à `/lacunes`, qui ne lisait que `?subject=`.
+« dont 4 sans contenu → » affichait donc **toutes** les lacunes. Rendre un nombre cliquable pour
+qu'il mène à **un autre nombre** est pire que le laisser invisible.
+
+- **`GET /api/parent/progress/gaps` sert `source` et `content_state`.** ⚠️ **L'invariant « zéro champ
+  ajouté au contrat » est rompu** — délibérément, et écrit dans l'ADR. « Zéro migration » et « zéro
+  endpoint » tiennent.
+- **`etat_contenu` déménage dans un module NEUTRE**, `app/modules/content_state.py`. Elle était
+  **privée** dans `diagnostics.service` par accident d'antériorité, alors qu'elle parle de
+  **leçons**. Ni `lesson_resolution` (qui écrit refuser les filtres de statut) ni un import
+  inter-domaines : une écriture, deux lecteurs. **Refactor à comportement constant prouvé** —
+  1052 → 1052, aucun test touché.
+- **`useLacunes` filtre sur `source` et `contenu`, dans le hook** — un seul point de filtrage.
+  🔴 **Sans repli**, contrairement au filtre par matière : montrer « tout » quand le filtre ne
+  trouve rien serait le défaut corrigé. L'état vide dit lequel des deux cas il rend.
+- 🔴 **Le piège qui vaut pour tout le dépôt** : `response_model` **filtre en silence** les champs
+  non déclarés. Les deux clés étaient produites par le service et disparaissaient à la
+  sérialisation, sans erreur ni avertissement. Seul un test qui interroge la **route** l'a vu.
+- ⚠️ **Correction du diagnostic initial** : « la page en montre 18 » était une **mauvaise lecture**
+  d'un nombre en petite police. Le premier renvoi coïncide aujourd'hui (10 = 10) *par accident* —
+  toutes les lacunes de dev viennent d'un diagnostic — et divergerait dès qu'une mission en
+  ouvrirait une. C'est le **second** qui ment maintenant.
+
+### Vérifications
+
+- **707 tests Papa** (667 avant) et **1055 backend** (1052 avant), `tsc -b` 0, `vite build` vert.
+- **10 sabotages joués, 10 rouges.** Dont un qui a rougi sur **mon propre texte** : la phrase de
+  confirmation disait « ce n'est pas un reproche : … pas parce qu'il ne l'a pas fait » — elle
+  **nommait** le reproche pour le nier. La phrase a été réécrite, pas le verrou.
+- **Un seul test existant touché**, et seulement son **localisateur** : il cherchait le panneau par
+  un sur-titre que la Décision 6 réécrit. Ses trois assertions de verrou sont intactes.
+- **Vérifié à l'écran sur données réelles**, y compris le flux de retrait complet — la ligne
+  disparaît, les compteurs suivent, la sélection retombe sur le défaut.
+
 ## 0.60.2 — L'écran par lequel Massimo entre cesse de lui résister
 
 Trois défauts du formulaire de connexion, **aucun visible depuis le poste de développement**. Ils
