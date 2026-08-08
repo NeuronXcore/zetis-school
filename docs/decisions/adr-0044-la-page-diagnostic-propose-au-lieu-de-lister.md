@@ -226,6 +226,19 @@ garantit qu'aucun résultat de mesure ne peut fuir dans la formulation.
 
 ### 7. Diagnostic reste SANS témoin de nouveauté — et les deux motifs écrits sont corrigés
 
+> 🔴 **RÉVOQUÉE le 2026-08-08, le jour même**, par
+> `adr-0030-addendum-temoin-diagnostic.md` : décision du **commanditaire**, prise après que
+> l'objection lui a été exposée et **réaffirmée**. Diagnostic reçoit un témoin **numérique** qui
+> s'éteint **au passage** du diagnostic, donc par le travail — une **exception assumée** à la règle
+> « NOUVEAU jamais DÛ », nommée et bornée dans l'addendum.
+>
+> **Ce qui suit reste vrai et n'est pas révoqué** : les deux motifs écrits dans `navigation.ts`
+> étaient faux, et ils doivent être corrigés de toute façon — l'addendum le redemande, en exigeant
+> qu'ils disent désormais l'**exception** plutôt qu'une absence.
+>
+> ⚠️ Ce qui reste également vrai : l'alternative (d) ci-dessus (« la refonte rend le témoin
+> inutile ») garde son argument. Il a été **pesé et écarté**, pas invalidé.
+
 **La conclusion ne change pas. Les raisons, si.**
 
 - Le motif de Diagnostic devient : *il existe désormais un contenu entrant (Papa valide, le
