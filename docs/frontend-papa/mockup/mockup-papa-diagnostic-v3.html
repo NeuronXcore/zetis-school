@@ -58,6 +58,23 @@ button{font:inherit;color:inherit;cursor:pointer}
 .pagetitle{font-size:30px;font-weight:700;margin-top:6px}
 .pagelede{color:var(--papa-muted);max-width:64ch;margin-top:8px}
 
+/* --- en-tête avec pictogramme de page ---------------------------------------------------
+   ⚠️ Le PNG est OPAQUE, fond noir aplati jusqu'aux bords : sans `border-radius`, quatre coins
+   noirs se découpent sur le bleu nuit de la page. Le rayon suit celui du carré dessiné dans
+   l'image (~22 %) — il rogne du noir et rien d'autre. Piège déjà payé par `CouvertureIcon.tsx`.
+   Le halo qui respire n'est activé QUE sur l'en-tête : à 20 px dans la sidebar, il devient un
+   clignotement parasite dans le coin de l'œil (même arbitrage, même composant). */
+.pagehead{display:flex;align-items:center;gap:16px}
+.pageicon{
+  width:56px;height:56px;flex:none;object-fit:contain;
+  border-radius:22%;
+  animation:breathe 4.5s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{filter:drop-shadow(0 0 6px rgba(56,189,248,.30))}
+  50%    {filter:drop-shadow(0 0 14px rgba(56,189,248,.55))}
+}
+
 /* ---------- bandeau instrument ---------- */
 .instrument{
   margin-top:26px;display:grid;grid-template-columns:repeat(4,1fr);
@@ -287,8 +304,17 @@ tr:last-child td{border-bottom:0}
 <body>
 <div class="wrap">
 
-  <div class="eyebrow">Interface Papa · lecture · année 2025–2026</div>
-  <h1 class="pagetitle">Diagnostic</h1>
+  <div class="pagehead">
+    <!-- Décoratif : le mot « Diagnostic » accompagne l'icône partout où elle apparaît.
+         Source : assets/brand/icons/ZETIS-Diagnostic.png (1254 px, 1,7 Mo) — dans l'app, ce sera
+         une réduction `ZETIS-Diagnostic_256.png` importée par un composant unique, cf.
+         `assets/brand/README.md` §Règle principale et le précédent `CouvertureIcon.tsx`. -->
+    <img class="pageicon" src="../../../assets/brand/icons/ZETIS-Diagnostic.png" alt="" aria-hidden="true">
+    <div>
+      <div class="eyebrow">Interface Papa · lecture · année 2025–2026</div>
+      <h1 class="pagetitle">Diagnostic</h1>
+    </div>
+  </div>
   <p class="pagelede">
     Chaque passation est une mesure datée. Cette page dit ce qu'elle a mesuré, ce qu'elle a ouvert,
     et ce que ZETIS en a produit — dans cet ordre, et sans sauter d'étape.
