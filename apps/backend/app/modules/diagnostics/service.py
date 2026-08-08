@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -234,17 +234,25 @@ def _question_count(db: Session, quiz_id: int) -> int:
     ) or 0
 
 
-def _is_taken(db: Session, quiz_id: int, student_id: int) -> bool:
-    return bool(
-        db.scalar(
-            select(func.count())
-            .select_from(QuizAttempt)
-            .where(
-                QuizAttempt.quiz_id == quiz_id,
-                QuizAttempt.student_id == student_id,
-                QuizAttempt.completed_at.isnot(None),
-            )
+def _last_attempt(db: Session, quiz_id: int, student_id: int) -> QuizAttempt | None:
+    """La dernière passation TERMINÉE de cet élève sur ce diagnostic — ou `None`.
+
+    Remplace `_is_taken`, qui ne rendait qu'un booléen (ADR-0044 Décision 6). Rendre la LIGNE
+    plutôt que deux scalaires n'est pas une commodité : `taken_at` et `last_attempt_id` sortent
+    ainsi de la **même** passation, et ne peuvent pas se contredire.
+
+    Départage par `id` décroissant : deux passations terminées à la même seconde sortiraient
+    sinon dans un ordre non déterminé par la base, et la page changerait d'un chargement à l'autre.
+    """
+    return db.scalar(
+        select(QuizAttempt)
+        .where(
+            QuizAttempt.quiz_id == quiz_id,
+            QuizAttempt.student_id == student_id,
+            QuizAttempt.completed_at.isnot(None),
         )
+        .order_by(QuizAttempt.completed_at.desc(), QuizAttempt.id.desc())
+        .limit(1)
     )
 
 
@@ -255,22 +263,98 @@ def list_diagnostics(db: Session, student: StudentProfile) -> list[dict]:
     `get_quiz_for_taking` laisserait l'accès direct par identifiant, et un diagnostic non relu
     resterait passable pour qui connaît son id. Le verrou de la session porte sur les TROIS.
     """
+    # L'âge de la mesure, par DIAGNOSTIC — agrégé sur les notions de ses questions, jamais sur sa
+    # matière (ADR-0044 Décision 6). Deux diagnostics d'une même matière portent des notions
+    # différentes : agréger par `subject_id` serait plus simple, plus rapide, et **faux** — et le
+    # faux ne se verrait qu'à l'usage, sur un ordre de liste que personne ne saurait contredire.
+    mesure = (
+        select(
+            QuizQuestion.quiz_id.label("quiz_id"),
+            func.max(SkillMastery.last_seen_at).label("measured_at"),
+        )
+        .join(
+            SkillMastery,
+            and_(
+                SkillMastery.skill_id == QuizQuestion.skill_id,
+                SkillMastery.student_id == student.id,
+            ),
+        )
+        .group_by(QuizQuestion.quiz_id)
+        .subquery()
+    )
     rows = db.execute(
-        select(Quiz, Subject)
+        select(Quiz, Subject, mesure.c.measured_at)
         .join(Subject, Subject.id == Quiz.subject_id)
+        # 🔴 JOINTURE GAUCHE, et ce n'est pas un détail de style : une notion jamais mesurée n'a
+        # AUCUNE ligne dans `skill_mastery` — ce n'est pas une ligne à `NULL`. Avec une jointure
+        # interne, un diagnostic entièrement neuf **disparaîtrait de la liste** au lieu de sortir
+        # en tête. C'est le motif de l'INNER JOIN qui ratait le chapitre orphelin (ADR-0042).
+        .outerjoin(mesure, mesure.c.quiz_id == Quiz.id)
         .where(Quiz.quiz_type == "diagnostic", Quiz.validation_status == "validated")
         .order_by(Quiz.id.desc())
     ).all()
-    return [
-        {
-            "quiz_id": quiz.id,
-            "title": quiz.title,
-            "subject": subject.name,
-            "questions_count": _question_count(db, quiz.id),
-            "taken": _is_taken(db, quiz.id, student.id),
-        }
-        for quiz, subject in rows
-    ]
+
+    items: list[dict] = []
+    for quiz, subject, measured_at in rows:
+        attempt = _last_attempt(db, quiz.id, student.id)
+        items.append(
+            {
+                "quiz_id": quiz.id,
+                "title": quiz.title,
+                "subject": subject.name,
+                "subject_slug": subject.slug,
+                "questions_count": _question_count(db, quiz.id),
+                "taken_at": (
+                    attempt.completed_at.isoformat()
+                    if attempt is not None and attempt.completed_at is not None
+                    else None
+                ),
+                "last_attempt_id": attempt.id if attempt is not None else None,
+                "measured_at": measured_at.isoformat() if measured_at is not None else None,
+            }
+        )
+    return items
+
+
+def new_diagnostics_count(db: Session, student_id: int) -> int:
+    """Diagnostics relus que Massimo n'a PAS ENCORE PASSÉS — témoin de navigation.
+
+    🔴 **CE COMPTEUR EST UNE EXCEPTION NOMMÉE À LA DOCTRINE DES TÉMOINS.** Il ne se recopie pas.
+
+    L'`adr-0030 §1` pose qu'un badge compte ce qui est **NOUVEAU** — né d'un geste, mort d'un
+    **REGARD** — et jamais ce qui est **DÛ**, qui ne meurt que du **travail** et grossit quand
+    Massimo ne vient pas. Celui-ci meurt du travail : il tombe dans la colonne interdite, et il
+    y est **par décision du commanditaire**, prise après que l'objection lui a été exposée et
+    réaffirmée (`adr-0030-addendum-temoin-diagnostic.md`).
+
+    ⚠️ **Il traverse les cinq verrous de `test_news_doctrine.py` sans en faire rougir un seul** :
+    ils testent le **temps** (« une échéance change-t-elle ce nombre ? »), or aucune date n'entre
+    ici. C'est par le **travail** qu'il pèche, dimension que le fichier ne verrouillait pas. D'où
+    le verrou d'exception ajouté là-bas — lui seul empêche que ce précédent soit lu comme une
+    autorisation générale.
+
+    Les deux bornes qui vivent dans cette requête :
+
+    - **`validation_status == 'validated'`** : Papa est le robinet, et c'est la SEULE régulation de
+      volume du dispositif. Compter les `pending` ferait grossir le badge sans qu'il ait rien
+      laissé passer ;
+    - **aucune date, dans aucun sens.** Ni ancienneté du diagnostic, ni délai depuis sa validation.
+      L'interdiction du décompte de jours n'est pas amendée par l'addendum.
+    """
+    passes = select(QuizAttempt.quiz_id).where(
+        QuizAttempt.student_id == student_id,
+        QuizAttempt.completed_at.isnot(None),
+    )
+    return (
+        db.scalar(
+            select(func.count(Quiz.id)).where(
+                Quiz.quiz_type == "diagnostic",
+                Quiz.validation_status == "validated",
+                Quiz.id.not_in(passes),
+            )
+        )
+        or 0
+    )
 
 
 def _quiz_or_404(db: Session, quiz_id: int) -> Quiz:
@@ -430,32 +514,22 @@ def submit(
     db.flush()
     per_skill_out = score_par_notion(db, attempt.id)
 
-    strengths: list[str] = []
     for row in per_skill_out:
         skill_id, score = row["skill_id"], row["score"]
         if skill_id is not None:
             _upsert_skill_mastery(db, student_id=student.id, skill_id=skill_id, score=score, now=now)
-        if score < GAP_THRESHOLD:
-            if skill_id is not None:
-                _upsert_gap(
-                    db,
-                    student_id=student.id,
-                    subject_id=quiz.subject_id,
-                    skill_id=skill_id,
-                    score=score,
-                )
-        else:
-            strengths.append(row["skill_name"])
+        if score < GAP_THRESHOLD and skill_id is not None:
+            _upsert_gap(
+                db,
+                student_id=student.id,
+                subject_id=quiz.subject_id,
+                skill_id=skill_id,
+                score=score,
+            )
 
-    # Les lacunes rendues sont celles de la BASE, pas celles qu'on vient de calculer : le `flush`
-    # rend visibles les `Gap` tout juste ouvertes, et la lecture y ajoute celles qui étaient déjà
-    # ouvertes sur ces notions. Massimo voit donc le même état que Papa, au même instant.
+    # Le `flush` rend visibles les `Gap` tout juste ouvertes : la vue construite ci-dessous les lit
+    # en base, avec celles qui étaient déjà ouvertes sur ces notions.
     db.flush()
-    gaps_out = lacunes_ouvertes(
-        db,
-        student_id=student.id,
-        skill_ids=[r["skill_id"] for r in per_skill_out if r["skill_id"] is not None],
-    )
 
     # XP pour avoir passé le diagnostic (gamification) — récompense l'engagement.
     award_xp(
@@ -463,15 +537,14 @@ def submit(
     )
 
     db.commit()
-    return {
-        "attempt_id": attempt.id,
-        "quiz_id": quiz_id,
-        "subject": subject.name if subject is not None else "",
-        "score_percent": overall,
-        "per_skill": per_skill_out,
-        "gaps": gaps_out,
-        "strengths": strengths,
-    }
+    # 🔴 La réponse n'est PAS composée ici (ADR-0044 Décision 5) : elle est produite par l'unique
+    # fabrique de la vue enfant, celle-là même que sert la route de relecture. Composer un second
+    # dictionnaire « équivalent » rendrait les deux surfaces libres de diverger — c'est exactement
+    # ce que la décision refuse.
+    #
+    # ⚠️ `score_percent` (`overall`) reste ÉCRIT sur la passation et servi à Papa ; il ne quitte
+    # que la réponse de l'enfant.
+    return resultat_eleve(db, student, attempt.id)
 
 
 def _upsert_skill_mastery(
@@ -1025,14 +1098,17 @@ def _skills_count(db: Session, quiz_id: int) -> int:
     )
 
 
-def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict:
-    """Le détail d'UNE passation — il n'existait aucun endpoint pour ça (spec §Ce qui manque).
+def _passation_ou_404(
+    db: Session, student: StudentProfile, attempt_id: int
+) -> tuple[QuizAttempt, Quiz]:
+    """Résout une passation de diagnostic **appartenant à cet élève** — sinon `404`.
 
-    Le panneau de la page ouvrait jusqu'ici une passation en la cherchant dans les dix que
-    `latest_results` sert : au-delà, elle était inaccessible, et la limite de dix est en dur.
+    Extrait de `result_detail` à comportement constant (ADR-0044 Décision 5) : la route élève de
+    relecture et la route Papa doivent poser exactement la même garde, et une garde recopiée est
+    une garde qui divergera.
 
-    `404` sur une passation qui n'est pas un diagnostic ou qui n'est pas celle de cet élève — pas
-    `403` : Papa n'a pas à apprendre l'existence de ce qu'il ne peut pas ouvrir.
+    **`404`, jamais `403`** : répondre « c'est interdit » apprendrait l'existence de ce qu'on ne
+    peut pas ouvrir.
     """
     attempt = db.get(QuizAttempt, attempt_id)
     quiz = db.get(Quiz, attempt.quiz_id) if attempt is not None else None
@@ -1043,6 +1119,72 @@ def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict
         or quiz.quiz_type != "diagnostic"
     ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Passation introuvable.")
+    return attempt, quiz
+
+
+def resultat_eleve(db: Session, student: StudentProfile, attempt_id: int) -> dict:
+    """La vue ENFANT d'une passation — servie à la soumission ET à la relecture (ADR-0044 §5).
+
+    🔴 **C'est la seule fabrique de cette vue.** `submit` l'appelle plutôt que de composer sa propre
+    réponse : les deux surfaces sont alors identiques *par construction*, et non par discipline.
+    Avant cette décision, Massimo voyait son résultat **une seule fois** — aucune route élève ne
+    permettait de le rouvrir, et celle de Papa sert un objet dont le docstring dit « Vue Papa ».
+
+    Les forces se **dérivent** de la mesure (`score_par_notion`), elles ne se stockent pas : le
+    seuil est `GAP_THRESHOLD`, le même qui décide d'ouvrir une lacune. Une notion est donc soit une
+    force, soit une prochaine étape — jamais les deux, jamais aucune des deux.
+
+    ⚠️ **`lacunes_ouvertes`, pas `lacunes_de_passation`** : Massimo doit voir ce qui l'attend
+    *aujourd'hui*. Servir une lacune déjà résolue comme « prochaine étape » serait faux, alors que
+    la vue Papa a besoin des résolues pour porter son badge.
+    """
+    attempt, quiz = _passation_ou_404(db, student, attempt_id)
+    subject = db.get(Subject, quiz.subject_id)
+    per_skill = score_par_notion(db, attempt.id)
+    skill_ids = [row["skill_id"] for row in per_skill if row["skill_id"] is not None]
+    forces = {r["skill_name"] for r in per_skill if r["score"] >= GAP_THRESHOLD}
+    reussies = {r["skill_id"] for r in per_skill if r["score"] >= GAP_THRESHOLD}
+
+    # 🔴 UNE NOTION RÉUSSIE DANS CETTE PASSATION NE PEUT PAS ÊTRE « À RENFORCER » SUR LE MÊME
+    # ÉCRAN. Sans ce filtre, Massimo lit « Tes forces : Temps du récit » et, trois lignes plus bas,
+    # « Notion à renforcer : Temps du récit » — vu à l'écran le 2026-08-08.
+    #
+    # La cause est structurelle : les deux listes ne parlent pas du même moment. Les forces
+    # viennent de CETTE passation ; les lacunes sont lues en base (ADR-0043 Décision 5), et **rien
+    # ne referme une lacune quand la notion est réussie** — le seul endroit du dépôt qui écrit
+    # `resolved` est `missions/service.py`. Une lacune ouverte par une passation ratée survit donc
+    # à sa propre remesure.
+    #
+    # ⚠️ **On filtre l'AFFICHAGE, on ne referme pas la lacune** : elle reste ouverte en base, Papa
+    # continue de la voir, et c'est une mission qui la refermera. Faire fermer ses lacunes au
+    # diagnostic serait un changement du cycle de vie — donc un ADR — et laisserait un diagnostic
+    # à 2 questions réussi par chance effacer une vraie lacune.
+    gaps = [
+        g
+        for g in lacunes_ouvertes(db, student_id=student.id, skill_ids=skill_ids)
+        if g["skill_id"] not in reussies
+    ]
+    return {
+        "attempt_id": attempt.id,
+        "quiz_id": attempt.quiz_id,
+        "subject": subject.name if subject is not None else "",
+        "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
+        "strengths": sorted(forces),
+        # Le nom seul — `severity` reste au contrat de Papa.
+        "gaps": [{"skill_id": g["skill_id"], "skill_name": g["skill_name"]} for g in gaps],
+    }
+
+
+def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict:
+    """Le détail d'UNE passation — il n'existait aucun endpoint pour ça (spec §Ce qui manque).
+
+    Le panneau de la page ouvrait jusqu'ici une passation en la cherchant dans les dix que
+    `latest_results` sert : au-delà, elle était inaccessible, et la limite de dix est en dur.
+
+    La garde `404` vit dans `_passation_ou_404`, partagée avec la vue élève (ADR-0044) : deux
+    routes qui protègent la même ressource ne peuvent pas se permettre deux copies de la garde.
+    """
+    attempt, quiz = _passation_ou_404(db, student, attempt_id)
     subject = db.get(Subject, quiz.subject_id)
     per_skill_out = score_par_notion(db, attempt.id)
     skill_ids = [row["skill_id"] for row in per_skill_out if row["skill_id"] is not None]

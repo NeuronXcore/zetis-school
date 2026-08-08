@@ -37,11 +37,33 @@ class DiagnosticQuizOut(BaseModel):
 
 
 class DiagnosticQuizListItem(BaseModel):
+    """Ce que la page de Massimo doit pouvoir HIÉRARCHISER (ADR-0044 Décision 6).
+
+    Les dates sont des chaînes ISO, comme partout dans ce module (`DiagnosticResultSummary`) et
+    dans `packages/types` — pas des `datetime`, pour que le contrat de sortie reste le même d'un
+    schéma à l'autre.
+    """
+
     quiz_id: int
     title: str
     subject: str
+    # Sans le slug, le front n'a pas de quoi appeler `subjectIconFor` et se remet à coder les
+    # matières en dur — ce que `CLAUDE.md` interdit. `useMissions` en est la démonstration : faute
+    # de slug servi, il reconstruit un `nameToSlug` à partir d'un second appel.
+    subject_slug: str
     questions_count: int
-    taken: bool
+    # ⚠️ REMPLACE `taken: bool` : le booléen reste dérivable (`taken_at is not None`), et deux
+    # sources pour un même fait est une divergence en attente.
+    taken_at: str | None
+    last_attempt_id: int | None
+    # La mesure la plus récente parmi les notions DE CE DIAGNOSTIC — jamais de sa matière.
+    # `None` = aucune de ses notions n'a jamais été mesurée.
+    #
+    # 🔴 C'est ce champ, et lui seul, qui porte le tri de la page (Décision 2). Il regarde l'ÂGE
+    # d'une mesure, jamais son RÉSULTAT : c'est ce qui rend l'ordre montrable à un enfant, là où
+    # un tri « la matière où il est le plus faible » serait un diagnostic négatif — un ordre de
+    # liste est une formulation.
+    measured_at: str | None
 
 
 class DiagAnswerIn(BaseModel):
@@ -78,14 +100,39 @@ class GapOut(BaseModel):
     content_state: str = "ok"
 
 
+class DiagnosticGapEleveOut(BaseModel):
+    """Une notion à renforcer, telle que MASSIMO la voit : son nom, rien d'autre.
+
+    ⚠️ Ne pas confondre avec `GapOut`, qui porte `severity`, `status` et `content_state` — c'est
+    le contrat de PAPA. Ici, `skill_id` n'est pas de l'analytique : c'est de la plomberie (la page
+    en fait un lien vers la notion).
+    """
+
+    skill_id: int | None
+    skill_name: str
+
+
 class DiagnosticResultOut(BaseModel):
+    """Ce que Massimo voit de sa propre mesure (ADR-0044 Décision 5).
+
+    🔴 **Un seul schéma pour DEUX routes** — `POST /submit` et la relecture d'une passation. Deux
+    schémas pour un même écran finiraient par diverger, et c'est l'écran de l'enfant.
+
+    **Ni `score_percent`, ni `per_skill`, ni `severity`.** La spec v1 prescrivait déjà « pas
+    d'affichage de note brute immédiate » ; l'écran la contredisait depuis l'étape 14. Un score par
+    notion est un score : le garder ferait rentrer par la porte de service ce que la décision fait
+    sortir par la grande.
+
+    ⚠️ Le score continue d'être **calculé et écrit** (`QuizAttempt.score_percent`) et reste servi à
+    **Papa** : c'est sa diffusion à l'enfant qui cesse, pas sa mesure.
+    """
+
     attempt_id: int
     quiz_id: int
     subject: str
-    score_percent: int
-    per_skill: list[SkillScoreOut]
-    gaps: list[GapOut]
+    completed_at: str | None
     strengths: list[str]
+    gaps: list[DiagnosticGapEleveOut]
 
 
 class PorteePointOut(BaseModel):

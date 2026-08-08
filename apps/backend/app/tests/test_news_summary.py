@@ -18,7 +18,7 @@ from app.tests.test_fiche_service import _seed_validated_lesson
 from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
 
 SUMMARY = "/api/student/news/summary"
-KEYS = {"agenda", "fiches", "capsules", "revision", "missions", "mindmaps"}
+KEYS = {"agenda", "fiches", "capsules", "revision", "missions", "mindmaps", "diagnostic"}
 
 
 # --- helpers de seed ------------------------------------------------------------------------
@@ -105,11 +105,14 @@ def _summary(client) -> dict:
 # --- 1. Contrat de sortie -------------------------------------------------------------------
 
 
-def test_summary_serves_six_keys_and_nothing_else(client_db) -> None:
-    """Le contrat est fermé : six entiers, et surtout AUCUN champ d'échéance ou de total.
+def test_summary_serves_exactement_ses_cles_et_rien_d_autre(client_db) -> None:
+    """Le contrat est fermé : des entiers, et surtout AUCUN champ d'échéance ou de total.
 
     Un `due_count` servi « pour information » finirait branché sur un badge — c'est la pression
     durable que l'ADR nomme dans ses coûts. La frontière tient dans le schéma, pas dans l'UI.
+
+    ⚠️ **Le compte n'est plus dans le nom.** Il a bougé deux fois — six avec `mindmaps`, sept avec
+    `diagnostic` — et un nom qui compte se périme sans rougir. `KEYS` porte la liste ; elle seule.
     """
     client, _ = client_db
     body = _summary(client)

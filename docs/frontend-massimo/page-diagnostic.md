@@ -87,6 +87,34 @@ Une **carte unique**, pas une liste. Elle porte :
 > distinctes**. Mis sur une seule, ils se cassent en trois colonnes bancales dès 375 px
 > (vu à l'écran sur la maquette avant correction).
 
+### Le choix de Massimo REMONTE dans la carte — et elle change de registre
+
+Choisir en zone B **promeut** le diagnostic dans la carte du haut ; il ne se lance pas depuis la
+liste. Le bouton y dit donc **« Choisir ↑ »**, pas « Commencer → ». Il n'y a qu'**un seul endroit
+où l'action arrive**.
+
+> **Le motif** : sans ça, le chemin que Massimo choisit lui-même passait par une ligne compacte,
+> quand celui qu'on lui propose passe par une carte qui explique. C'est précisément quand il exerce
+> son choix qu'il faut le soutenir le mieux.
+
+🔴 **La carte CHANGE DE REGISTRE**, et ce n'est pas cosmétique :
+
+| | ZETIS propose | Massimo a choisi |
+|---|---|---|
+| Bandeau | `ZETIS TE PROPOSE` | `TON CHOIX` |
+| Encart 💡 | la **raison** — *« C'est celle où il en apprendra le plus sur toi »* | le **fait brut** — *« ZETIS ne l'a encore jamais mesuré. »* |
+
+Servir la phrase de recommandation sur un diagnostic que Massimo a pris de lui-même ferait
+revendiquer à ZETIS un conseil qu'il n'a pas donné — un petit mensonge, sur la seule page où il
+mesure. La matière descend dans la ligne d'infos ; le bandeau sert à dire **d'où vient la
+proposition**.
+
+Deux mécaniques que ça impose : la carte **remonte dans le champ de vision** au clic (un changement
+hors écran est invisible, et Massimo croirait que son clic n'a rien fait), et
+**« ← Revenir à ce que ZETIS propose »** garde les deux chemins réversibles. La proposition de ZETIS
+**retourne en zone B** quand un choix la remplace : la carte n'en porte jamais deux, et rien ne
+disparaît.
+
 ### Zone B — le reste, replié par matière
 
 Les diagnostics non passés, **groupés par matière**, chaque groupe **replié** : une
@@ -175,27 +203,35 @@ aucun score, donc rien à retenir côté serveur.
 
 ## Données API
 
-### Servi aujourd'hui — `GET /api/diagnostics/quizzes` (`DiagnosticQuizListItem`)
+### `GET /api/diagnostics/quizzes` (`DiagnosticQuizListItem`) — ✅ LIVRÉ (Session A)
 
-`quiz_id` · `title` · `subject` (le **nom**) · `questions_count` · `taken` (bool).
+`quiz_id` · `title` · `subject` (le **nom**) · `subject_slug` · `questions_count` ·
+`taken_at` · `last_attempt_id` · `measured_at`. **Aucune migration** — tout se calcule sur des
+colonnes existantes.
+
+- **`subject_slug: str`** — sans lui, le front ne peut pas appeler `subjectIconFor` et se met à
+  hardcoder les matières.
+- **`measured_at: str | null`** (ISO) — la mesure la plus récente parmi les notions **du
+  diagnostic** : `QuizQuestion.skill_id` → `SkillMastery.last_seen_at` de Massimo, `max()`, via une
+  **jointure gauche** (une notion jamais mesurée n'a aucune ligne, pas une ligne à `NULL`).
+  **`null` = jamais mesuré.** C'est ce champ, et lui seul, qui porte le tri.
+- **`taken_at: str | null`** (ISO) et **`last_attempt_id: int | null`** — la dernière passation
+  terminée. ⚠️ Ils sortent de la **même ligne** (`_last_attempt`, qui remplace `_is_taken`) et ne
+  peuvent donc pas se contredire. `taken` a disparu ; il reste dérivable.
+
+> ⚠️ **Chaînes ISO, pas `datetime`** : convention du module (`DiagnosticResultSummary`) et de
+> `packages/types`. Même format sur le fil, une seule manière de dire une date.
+>
+> ⚠️ **`DiagnosticListItem` reste LOCAL** à `apps/frontend-massimo/src/lib/diagnostic.ts`, non
+> promu dans `packages/types` : ce contrat n'a qu'un consommateur — vérifié, Papa n'appelle de ce
+> module que `/validate` et `/reject`. C'est un choix, pas un oubli.
 
 Gate ADR-0043 : la liste ne rend que les diagnostics `validation_status = 'validated'`,
 et `_servable_quiz_or_404` tient la même ligne sur l'accès direct par identifiant.
 **Cette refonte ne touche pas au gate.**
 
-### À ajouter au contrat — aucune migration
-
-Tout ce qui suit se calcule sur des colonnes **existantes** :
-
-- **`subject_slug: str`** — sans lui, le front ne peut pas appeler `subjectIconFor` et
-  se met à hardcoder les matières. Le `Subject.slug` existe déjà.
-- **`measured_at: datetime | null`** — la mesure la plus récente parmi les notions du
-  diagnostic : `QuizQuestion.skill_id` → `SkillMastery.last_seen_at` de Massimo, `max()`.
-  **`null` = jamais mesuré.** C'est ce champ, et lui seul, qui porte le tri.
-- **`taken_at: datetime | null`** — `max(QuizAttempt.completed_at)` pour ce quiz et cet
-  élève. Remplace `taken`, qui reste dérivable (`taken_at !== null`) : le remplacer plutôt
-  que l'ajouter évite deux sources pour un même fait.
-- **`last_attempt_id: int | null`** — l'identifiant de passation à rouvrir en zone C.
+⚠️ **Aucun tri serveur** : l'ordre reste `quiz_id` décroissant, la hiérarchisation est côté client
+(Session C).
 
 ### 🔴 Ce qui manque, et qui n'est pas qu'un champ
 
@@ -222,10 +258,29 @@ doctrine du dépôt, pas un détail d'implémentation.
 > cette refonte et n'est pas traitée ici — elle est signalée pour être tranchée à
 > l'ADR-0044, avec la question de la relecture ci-dessus, dont elle est voisine.
 
-## Après le diagnostic (v1 conservée)
+## Après le diagnostic
 
-Massimo voit : 2 ou 3 forces ; 2 ou 3 prochaines étapes ; **pas de tableau anxiogène**.
+Massimo voit : ses forces ; ses prochaines étapes ; **pas de tableau anxiogène**, **aucune note**.
 Papa voit le détail dans son interface.
+
+🔴 **Une notion réussie DANS CETTE PASSATION ne peut pas figurer dans « tes prochaines étapes ».**
+Défaut vu à l'écran le 2026-08-08 : « Tes forces : Temps du récit » et, trois lignes plus bas,
+« Notion à renforcer : Temps du récit ».
+
+La cause est structurelle : les deux listes ne parlent pas du même moment. Les forces viennent de
+**cette passation** ; les lacunes sont **lues en base** (ADR-0043 §5), et **rien ne referme une
+lacune quand la notion est réussie** — le seul écrivain de `resolved` dans le dépôt est
+`missions/service.py`. Une lacune ouverte par une passation ratée survit donc à sa remesure.
+
+⚠️ **C'est un filtre d'AFFICHAGE, pas une résolution** : la lacune reste ouverte, Papa continue de
+la voir, et c'est une mission qui la refermera. Faire refermer ses lacunes au diagnostic serait un
+changement du cycle de vie — donc un ADR — et laisserait un diagnostic à 2 questions réussi par
+chance effacer une vraie lacune.
+
+**La suite** : un lien unique « Voir mes missions → » sous la liste. ⚠️ **Un seul, pas un par
+ligne** — `MissionsPage` n'accepte aucun lien profond (contrairement à `/revision?subject=`), donc
+N flèches iraient toutes au même endroit en laissant croire que chacune mène à SA notion. Les
+flèches décoratives d'avant ne menaient nulle part : c'est le cul-de-sac dont l'ADR-0039 est né.
 
 ## États
 
@@ -263,15 +318,42 @@ Les questions que cette spec avait laissées ouvertes sont décidées par
    élargie** — et sert le **même schéma enfant** que `POST /submit`. Ce schéma perd
    `score_percent` et la `severity` des lacunes.
 2. **Le score brut disparaît de l'écran de Massimo** — même décision. Il reste servi à Papa.
-3. **Diagnostic reste SANS témoin de nouveauté** (Décision 7), mais les **deux motifs écrits**
-   qui portaient cette absence sont corrigés : celui de Diagnostic devient « contenu entrant,
-   mais **aucune trace de vue** », celui de Quiz est rebasé sur `quiz_type` plutôt que sur la
-   table. L'ADR **annote l'ADR-0030** — pas d'addendum séparé.
-   La maquette montre la pastille sous une bascule ; **elle n'est pas retenue.**
+3. ~~**Diagnostic reste SANS témoin de nouveauté** (Décision 7)~~ — 🔴 **RÉVOQUÉ le jour même**
+   par `docs/decisions/adr-0030-addendum-temoin-diagnostic.md`, décision du commanditaire prise
+   après que l'objection lui a été exposée et **réaffirmée**. Voir ci-dessous.
 4. **Aucun plafond** (Décision 4), **icône `🧭` partout** (Décision 8).
 
 ⚠️ La Décision 5 **sort du périmètre annoncé** de cette spec (l'entrée dans le diagnostic, pas
 son déroulé). L'ADR le dit et l'assume : la zone C l'y force.
+
+## Le témoin de nouveauté — une exception assumée (addendum ADR-0030)
+
+**L'entrée « 🧭 Diagnostic » de la sidebar porte un témoin NUMÉRIQUE.** Il compte les diagnostics
+**relus par Papa que Massimo n'a pas encore passés**, et **s'éteint au PASSAGE** — par le travail,
+pas par le regard.
+
+🔴 **C'est une exception nommée à la règle « NOUVEAU jamais DÛ »**, pas une clarification. Le
+témoin tombe dans la colonne « Arriéré » du test de l'ADR-0030 : il naît d'un geste de Papa, meurt
+du travail, et **grossit si Massimo ne vient pas**. L'addendum l'écrit noir sur blanc, avec le
+contre-motif maintenu au dossier — ce qui suit n'est pas une justification, c'est un rappel des
+**bornes opposables** :
+
+- **une seule entrée** — la règle reste intacte pour les six autres ;
+- le compteur **ne compte que du relu** : Papa est le robinet, et la seule régulation de volume ;
+- **aucun décompte de jours**, sous aucune forme — cette interdiction-là n'est **pas** amendée ;
+- aucune couleur d'alerte, aucune notification ;
+- rien chez Papa.
+
+Coût : **aucune migration**, le compte se dérive du `taken_at` livré en Session A, et rejoint
+`GET /api/student/news/summary`. ⚠️ **Aucune trace de vue n'est à construire** — le témoin ne
+s'éteint pas au regard.
+
+⚠️ Le commentaire de `NavItem.newsKey` et son test-verrou doivent être **réécrits pour DIRE
+l'exception**, jamais simplement élargis : ce test existe pour empêcher qu'on complète la liste
+« par symétrie apparente », et un motif faux ne verrouille plus rien.
+
+La maquette montre la pastille sur la carte, sous une bascule : c'est **la sidebar** qui la porte,
+pas la carte.
 
 ## Hors périmètre
 
@@ -287,6 +369,8 @@ son déroulé). L'ADR le dit et l'assume : la zone C l'y force.
 - `docs/decisions/adr-0043-le-diagnostic-est-une-mesure-qui-engage.md` (Décision 4 : l'ordre
   par ancienneté de mesure, dont cette page est la remontée d'un cran)
 - `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` (règle « NOUVEAU jamais DÛ »)
+- `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` (**l'exception**, ses cinq bornes, et
+  la révocation de l'`adr-0044` Décision 7)
 - `mockup/mockup-page-diagnostic-massimo.html`
 - `docs/frontend-massimo/page-missions.md` (précédent : decks par matière, durée estimée,
   élection serveur — et pourquoi on ne la reprend pas ici)

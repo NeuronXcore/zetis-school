@@ -1,5 +1,62 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.60.0 — La page Diagnostic de Massimo propose au lieu de lister
+
+Née du 5ᵉ défaut de la relecture visuelle humaine du 2026-08-08 : *« une liste infinie de
+diagnostics sans savoir ce qu'il doit faire ou pas »*. La page ne répond plus « voici les 15
+diagnostics » mais **« commence par là, et voici pourquoi »**. ADR-0044, trois sessions,
+**aucune migration**.
+
+### La page (ADR-0044 §1, §3, §4)
+
+- **Zone A — une seule proposition, avec sa raison en clair.** Matière, titre, nombre de questions,
+  durée estimée, et une ligne de rassurance **séparée des faits**. Sous le bouton, une sortie
+  explicite : « Je préfère autre chose ↓ » — sans elle, la proposition est un objectif imposé.
+- **Le choix de Massimo REMONTE dans la carte** au lieu de se lancer depuis la liste : un seul
+  endroit où l'action arrive. 🔴 **La carte change alors de registre** — `ZETIS TE PROPOSE` devient
+  `TON CHOIX`, et l'encart se réduit au **fait brut** : servir la phrase de recommandation sur un
+  diagnostic qu'il a choisi ferait revendiquer à ZETIS un conseil qu'il n'a pas donné.
+  « ← Revenir à ce que ZETIS propose » garde les deux chemins réversibles.
+- **Zone B — le reste, groupé par matière et replié.** 11 diagnostics deviennent 6 lignes.
+  **Aucun plafond, aucune troncature** : structurer n'est pas masquer.
+- **Zone C — « Déjà mesuré avec toi », séparé du à-faire.** C'est la correction littérale du défaut :
+  `taken` ne changeait qu'un mot dans une liste plate.
+- **Le tri porte sur l'ÂGE d'une mesure, jamais sur son résultat** — jamais mesuré d'abord, puis le
+  plus anciennement mesuré. Trier par « la matière où il est le plus faible » serait un diagnostic
+  négatif montré à l'enfant : **un ordre de liste est une formulation**. ⚠️ Le départage par
+  `quiz_id` n'est pas un cas limite : 4 des 15 diagnostics de dev partagent leur `measured_at` à la
+  microseconde.
+
+### Le contrat, et ce que Massimo voit de sa mesure
+
+- `GET /api/diagnostics/quizzes` gagne `subject_slug`, `measured_at`, `last_attempt_id`, et
+  **remplace** `taken` par `taken_at`. Tout se calcule sur des colonnes existantes.
+- 🔴 **Massimo peut enfin relire son propre résultat** : il lui était montré **une seule fois**, à la
+  soumission, puis devenait inaccessible — `/results` est `require_parent`. Nouvelle route
+  `require_child`, **la route Papa n'est pas élargie** : son schéma porte le docstring « Vue Papa ».
+- **Un seul schéma de résultat en forme enfant**, servi par les deux routes — **sans
+  `score_percent`, sans `per_skill`, sans `severity`**. L'écran cesse d'afficher « Score global :
+  X % », qui contredisait sa propre spec depuis onze mois. Le score reste calculé, écrit et servi
+  à Papa.
+- **Une notion réussie ne peut plus être « à renforcer » sur le même écran** (défaut vu à l'écran).
+  ⚠️ Filtre d'affichage : la lacune reste ouverte en base — **rien ne referme une lacune quand la
+  notion est réussie**, le seul écrivain de `resolved` est `missions/service.py`.
+- Les flèches décoratives cèdent la place à **un** lien « Voir mes missions → ».
+
+### 🔴 Le témoin de navigation — une exception ASSUMÉE à « NOUVEAU jamais DÛ »
+
+L'entrée Diagnostic porte un témoin **numérique** qui compte les diagnostics relus non passés et
+**s'éteint au PASSAGE**, donc par le travail. C'est la colonne interdite de l'ADR-0030 §1, ouverte
+**par décision du commanditaire** après objection exposée et réaffirmée
+(`adr-0030-addendum-temoin-diagnostic.md`, cinq bornes opposables). Le contre-motif est maintenu
+au dossier ; le coût n'a pas motivé la décision — la forme interdite était gratuite, la légale
+coûtait une table.
+
+⚠️ **Il traversait les cinq verrous de `test_news_doctrine.py` sans en faire rougir un** : ils
+testent le temps, il pèche par le travail. D'où, dans la même passe, un **durcissement** —
+`completed_at` et `taken_at` entrent dans les jetons interdits pour tous les autres, et un dict
+`DEROGATIONS` enregistre l'exception unique sous trois tests.
+
 ## 0.59.0 — Le diagnostic devient une mesure qui engage
 
 Le diagnostic sort de l'exception « évaluation éphémère » de l'`adr-0014` §2 — **et lui seul**.

@@ -267,7 +267,23 @@ file diffère le travail, jamais le verdict sur la demande. Trace `ai_jobs`
 
 ### GET `/diagnostics/quizzes` (Massimo)
 
-Liste les diagnostics **relus** : `[{ quiz_id, title, subject, questions_count, taken }]`.
+Liste les diagnostics **relus** :
+`[{ quiz_id, title, subject, subject_slug, questions_count, taken_at, last_attempt_id, measured_at }]`.
+
+Depuis l'ADR-0044 §6, le contrat porte de quoi **hiérarchiser** la liste, sans aucune migration :
+
+- `subject_slug` — sans lui le front recode les matières en dur (`CLAUDE.md`) ;
+- `measured_at` (ISO ou `null`) — la mesure la plus récente parmi les notions **de ce
+  diagnostic**, jamais de sa matière. `null` = aucune de ses notions n'a jamais été mesurée.
+  Porte le tri de la page : il regarde l'**âge** d'une mesure, jamais son **résultat** ;
+- `taken_at` (ISO ou `null`) et `last_attempt_id` — la dernière passation terminée, tous deux issus
+  de la **même** ligne, donc incapables de se contredire.
+
+⚠️ **`taken: bool` a été REMPLACÉ par `taken_at`** — il reste dérivable (`taken_at !== null`), et
+deux sources pour un même fait est une divergence en attente.
+
+Aucun tri serveur : l'ordre reste `quiz_id` décroissant, la hiérarchisation se fait côté client
+(ADR-0044 §2 — il n'y a ici aucun score à retenir, contrairement à l'élection des missions).
 
 ### GET `/diagnostics/quizzes/{id}` (Massimo)
 
@@ -275,12 +291,35 @@ Questions à passer — **sans** la bonne réponse :
 `{ quiz_id, title, subject, questions: [{ id, prompt, choices, skill_id, skill_name }] }`.
 `404` si le diagnostic n'est pas relu.
 
+### GET `/diagnostics/mes-resultats/{attempt_id}` (Massimo) — ADR-0044 §5
+
+Rend le résultat d'une passation de Massimo, **dans la forme enfant**, par la même fabrique que
+`POST /submit` : ce qu'il relit est exactement ce qu'il a vu en terminant.
+`{ attempt_id, quiz_id, subject, completed_at, strengths[], gaps: [{ skill_id, skill_name }] }`.
+
+🔴 **Ni `score_percent`, ni `per_skill`, ni `severity`.** Le score reste calculé, écrit sur la
+passation et servi à **Papa** — seule sa diffusion à l'enfant cesse. `404` (jamais `403`) sur une
+passation qui n'est pas la sienne.
+
+⚠️ **La route Papa n'est pas élargie** : `GET /results/{attempt_id}` reste `require_parent`, et son
+schéma porte le docstring « Vue Papa ». Deux publics, deux schémas (frontière `adr-0017 §3`).
+
+⚠️ Une notion **réussie dans cette passation** est retirée de `gaps` : sans ce filtre, elle
+figurerait à la fois dans `strengths` et dans les notions à renforcer. La lacune reste **ouverte en
+base** — c'est un filtre d'affichage, pas une résolution.
+
 ### POST `/diagnostics/quizzes/{id}/submit` (Massimo)
 
 Corps : `{ answers: [{ question_id, choice_index }] }`. Corrige, écrit la tentative,
-met à jour la maîtrise et ouvre les lacunes. Réponse :
-`{ attempt_id, quiz_id, subject, score_percent, per_skill: [{ skill_id, skill_name, score, status }], gaps: [{ skill_id, skill_name, severity }], strengths: [..] }`.
-`404` si le diagnostic n'est pas relu.
+met à jour la maîtrise et ouvre les lacunes.
+
+**Réponse : le schéma ENFANT, le même que `GET /mes-resultats/{attempt_id}`** et produit par la
+même fabrique (ADR-0044 §5) —
+`{ attempt_id, quiz_id, subject, completed_at, strengths[], gaps: [{ skill_id, skill_name }] }`.
+
+⚠️ **`score_percent`, `per_skill` et `severity` ont été RETIRÉS de cette réponse.** Le score est
+toujours calculé et écrit sur la passation, et reste servi à Papa par `/results` — c'est sa
+diffusion à l'enfant qui cesse. `404` si le diagnostic n'est pas relu.
 
 ### POST `/diagnostics/quizzes/{id}/validate` · `/reject` (Papa)
 
@@ -1928,13 +1967,23 @@ n'a besoin d'aucune garde : sa seule lecture du journal est filtrée sur `missio
 
 ### GET `/api/student/news/summary`
 
-Les six compteurs de la sidebar Massimo, en **un seul appel**. Monté une fois dans
-`MassimoLayout` ; l'alternative (un appel par famille) faisait six allers-retours sur la page la
-plus visitée, pour un objet décoratif.
+Les compteurs de la sidebar Massimo, en **un seul appel**. Monté une fois dans `MassimoLayout` ;
+l'alternative (un appel par famille) faisait autant d'allers-retours sur la page la plus visitée,
+pour un objet décoratif.
 
 ```txt
-{ agenda, fiches, capsules, revision, missions, mindmaps }   # entiers bruts
+{ agenda, fiches, capsules, revision, missions, mindmaps, diagnostic }   # entiers bruts
 ```
+
+> ⚠️ Le compte a bougé deux fois (six avec `mindmaps`, sept avec `diagnostic`) — ne pas l'écrire en
+> toutes lettres, il se périme sans rougir.
+
+🔴 **`diagnostic` est une EXCEPTION NOMMÉE, et la seule.** Il compte les diagnostics relus que
+Massimo n'a pas passés, donc il **meurt du TRAVAIL** et non d'un regard : colonne interdite de la
+règle ci-dessous, ouverte par décision du commanditaire et bornée par
+`adr-0030-addendum-temoin-diagnostic.md`. ⚠️ Il **passe** le test du §1 (aucune date ne le fait
+bouger) : ce n'est donc pas ce test qui l'a autorisé. Avant d'ajouter une clé, poser les **deux**
+questions — de quoi elle naît, **et de quoi elle meurt**.
 
 **La règle que ce contrat encode :**
 

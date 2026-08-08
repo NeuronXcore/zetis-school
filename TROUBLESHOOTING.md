@@ -4,6 +4,140 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/diagnostic-massimo-propose` — ADR-0044, Sessions B et C — 2026-08-08
+
+### 🔴 Un compteur de NON-FAITS traverse les cinq verrous de `test_news_doctrine.py`
+
+Le témoin `diagnostic` (diagnostics relus non passés) **meurt du travail**, donc il tombe dans la
+colonne « Arriéré » que l'ADR-0030 §1 interdit. Il a pourtant passé **les cinq tests** du fichier
+bâti contre exactement ça — celui dont l'en-tête dit *« un échec ici ne se répare pas en ajustant
+l'assertion »*.
+
+**Cause** : ces tests interrogent le **TEMPS** (« une échéance change-t-elle ce nombre ? »), et
+aucune date n'entre dans ce compteur. La règle a **deux** dimensions — naissance ET mort — et le
+fichier n'en verrouillait qu'une. Le garde-fou écrit dans `NewsSummary` (« appliquer le test du
+§1 ») souffrait du même angle mort.
+
+→ **Parade** : `completed_at` et `taken_at` sont entrés dans `FORBIDDEN_TOKENS` (ils manquaient :
+n'importe quel compteur pouvait compter du non-fait sans être vu), un dict `DEROGATIONS` enregistre
+l'exception unique, et trois tests la bornent — dont un qui exige que **l'ADR cité existe
+réellement sur disque**. Poser les DEUX questions avant d'ajouter un témoin.
+
+### ⚠️ Un verrou de dérogation détecte qu'une branche est en retard sur `main`
+
+Le test « la dérogation cite un ADR qui existe » a échoué non pas sur le code, mais parce que
+l'addendum vivait **sur `main` seul** : la branche avait été créée avant, et rien ne les avait fait
+se rencontrer. La session codait contre un cadrage absent de sa propre branche.
+
+→ **Parade** : un verrou qui vérifie l'existence d'un fichier de décision est aussi un détecteur de
+dérive. Et `git merge origin/main` **avant** de coder, jamais après.
+
+### ⚠️ `git commit --no-edit` sur un MERGE aplatit les commentaires du gabarit dans le sujet
+
+Le message est devenu `Merge remote-tracking branch 'origin/main' … # Please enter a commit message
+to explain why this merge is necessary, # especially if…`.
+
+→ **Parade** : `-m` sur un merge, pas `--no-edit`. Corrigeable par `--amend` tant que ce n'est pas
+poussé.
+
+### 🔴 Deux gardes qui se couvrent l'une l'autre rendent chaque sabotage isolé VERT
+
+Le verrou « aucune route élève ne sert de score » est resté vert sur **deux** sabotages : service
+qui rend la lacune brute (Pydantic la filtre), et `response_model` retiré (le service projette
+déjà). C'est leur **conjonction** qui fuit, et elle est rouge.
+
+→ **Parade** : quand deux gardes protègent la même chose, un sabotage sur une seule est un **no-op**
+— il faut saboter les deux. Un vert isolé ne dit rien de la force du verrou.
+
+### ⚠️ `toLocaleDateString("fr-FR")` écrit « 1 juillet », pas « 1er juillet »
+
+Défaut vu **à l'écran** sur une vraie passation du 1er juillet ; aucun des 539 tests ne pouvait le
+signaler — ils vérifiaient qu'une date s'affiche, pas qu'elle soit en français correct.
+
+→ **Parade** : suffixe `1er` à la main sur `getDate() === 1`.
+
+### 🔴 Une notion peut être une FORCE et une lacune À RENFORCER sur le même écran
+
+Vu à l'écran : *« Tes forces : Temps du récit »* puis *« Notion à renforcer : Temps du récit »*.
+
+**Cause structurelle** : les deux listes ne parlent pas du même moment. Les forces viennent de
+**cette passation** ; les lacunes sont **lues en base** (ADR-0043 §5), et 🔴 **rien ne referme une
+lacune quand la notion est réussie** — le seul écrivain de `status = "resolved"` dans tout le dépôt
+est `missions/service.py`. Une lacune ouverte par une passation ratée survit donc à sa remesure.
+
+→ **Parade** : filtre d'**affichage** côté enfant (la lacune reste ouverte, Papa la voit). Faire
+refermer ses lacunes au diagnostic serait un changement de cycle de vie — donc un ADR — et
+laisserait un diagnostic à 2 questions réussi par chance effacer une vraie lacune.
+
+### ⚠️ Un `<Link>` ajouté à une page casse ses tests sans contexte Router
+
+`render(<DiagnosticPage />)` lève dès que l'écran contient un `<Link>`.
+→ **Parade** : envelopper dans `<MemoryRouter>` — un helper `afficher()` évite de le répéter.
+
+### ⚠️ `MissionsPage` n'accepte AUCUN lien profond, contrairement à `/revision?subject=`
+
+Envoyer `/missions?subject=x` serait inventer un paramètre que la page ignore — un no-op silencieux.
+→ **Parade** : vérifier `useSearchParams` dans la page cible avant de fabriquer une URL.
+
+### ⚠️ Le panneau d'aperçu rebondit sur la connexion ; `resize_window` n'a pas d'effet mesurable
+
+La page derrière `RequireAuth` renvoie à l'écran de login dans le panneau (stockage propre).
+Et via `claude-in-chrome`, `resize_window(390×844)` a laissé `window.innerWidth` à **2572** —
+donc **le 375 px n'est pas vérifiable par ce chemin**.
+→ **Parade** : `claude-in-chrome` pour l'authentification (⚠️ **Browser 2** joint `localhost`,
+**Browser 1 non**), et **mesurer `innerWidth`** plutôt que croire un redimensionnement.
+
+## Chantier `feat/diagnostic-massimo-propose` — ADR-0044, Session A (contrat de liste) — 2026-08-08
+
+### 🔴 `graphify affected` rend « No affected nodes found » sur une fonction réellement appelée
+
+`graphify affected "list_diagnostics"` répond **« No affected nodes found »** alors que
+`diagnostics/router.py` l'appelle démonstrativement (`service.list_diagnostics`). La commande est
+pourtant celle que `/slice §1bis` impose **avant de modifier une fonction partagée**, et sa réponse
+vide se lit comme « personne ne l'appelle, tu peux y aller ».
+
+**Cause** : l'extraction AST ne relie pas l'appel qualifié par le module (`service.f()`) au nœud de
+la fonction. À rapprocher du piège déjà consigné sur `graphify explain`, qui rend **un** nœud quand
+plusieurs portent le nom, sans prévenir.
+
+→ **Parade** : une réponse **vide** de `affected` n'est pas une preuve d'absence d'appelant. La
+confirmer par `grep -rn "<nom>"` avant d'en tirer un périmètre de non-régression. Ici, ce sont les
+`grep` qui ont donné les vrais consommateurs — dont le fait, décisif, que **Papa n'appelle pas** la
+route de liste.
+
+### ⚠️ Le format ISO d'une date diffère entre SQLite (tests) et PostgreSQL (réel)
+
+`datetime.isoformat()` sur une colonne `DateTime(timezone=True)` rend
+`2026-07-05T23:15:38.510826+00:00` sur PostgreSQL et un ISO **sans offset** sur SQLite : le moteur
+de test perd le `tzinfo` que Postgres conserve. Une assertion sur la chaîne **entière** passe donc
+en test et ment sur le vrai moteur — ou l'inverse.
+
+→ **Parade** : comparer sur le **préfixe de date** (`row["measured_at"][:10] == "2026-03-15"`),
+qui est stable sur les deux moteurs, et vérifier le format complet **une fois** contre le vrai
+PostgreSQL. C'est la face « lecture » du piège `to_utc` déjà consigné pour les soustractions.
+
+### 🔴 Un décor à UN objet par matière aurait laissé passer le sabotage principal
+
+Le verrou de la session — *`measured_at` est `null` ssi aucune notion du diagnostic n'a jamais été
+mesurée* — devait résister à deux sabotages. Le second (agréger par `subject_id` au lieu des
+notions du diagnostic, le raccourci tentant) **est invisible si le décor ne contient qu'un
+diagnostic par matière** : les deux calculs rendent alors la même valeur.
+
+→ **Parade** : le décor pose **trois diagnostics dans la MÊME matière**, sur des notions
+différentes, avec des dates distinctes et non extrêmes. Sous sabotage, les trois s'écrasent sur la
+date la plus récente et deux assertions rougissent. **La propriété que le décor doit avoir se
+déduit du sabotage qu'on veut rendre visible**, pas du confort d'écriture.
+
+### ⚠️ Une assertion de valeur ne dit rien si l'objet est ABSENT de la réponse
+
+`assert rows[id]["measured_at"] is None` sur une liste indexée par identifiant lève un `KeyError`
+quand l'objet manque — le test rougit, mais **par accident**, et le message ne dit pas la vérité.
+Or c'est exactement ce que produit le premier sabotage (jointure gauche → interne) : le diagnostic
+jamais mesuré **disparaît** au lieu de sortir avec `null`.
+
+→ **Parade** : affirmer d'abord la **présence** (`set(rows) == set(ids)`, avec message), puis les
+valeurs. Deux assertions, deux échecs distincts, deux diagnostics lisibles.
+
 ## Chantier `feat/diagnostic-mesure-qui-engage` — ADR-0043, le diagnostic sort de l'évaluation éphémère — 2026-08-08
 
 ### 🔴 Un sabotage resté VERT — et les deux causes se cumulaient

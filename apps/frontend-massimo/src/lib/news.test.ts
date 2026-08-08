@@ -24,7 +24,7 @@ describe("capNewsBadge — plafond du témoin de navigation (ADR-0030 §5)", () 
 });
 
 describe("EMPTY_NEWS", () => {
-  it("porte les six clés à zéro — l'état « aucun badge »", () => {
+  it("porte toutes ses clés à zéro — l'état « aucun badge »", () => {
     expect(EMPTY_NEWS).toEqual({
       agenda: 0,
       fiches: 0,
@@ -32,6 +32,7 @@ describe("EMPTY_NEWS", () => {
       revision: 0,
       missions: 0,
       mindmaps: 0,
+      diagnostic: 0,
     });
   });
 });

@@ -14,7 +14,12 @@ export type NewsKey =
   | "capsules"
   | "revision"
   | "missions"
-  | "mindmaps";
+  | "mindmaps"
+  /** ⚠️ EXCEPTION NOMMÉE — le seul témoin qui meurt du TRAVAIL et non d'un regard. Il compte les
+   *  diagnostics relus que Massimo n'a pas passés, donc il grossit quand Massimo ne vient pas :
+   *  colonne interdite de l'ADR-0030 §1, ouverte par décision du commanditaire et bornée par
+   *  `adr-0030-addendum-temoin-diagnostic.md`. Ne pas s'en servir comme précédent. */
+  | "diagnostic";
 
 /** `GET /api/student/news/summary` — un seul appel pour toute la navigation.
  *

@@ -7,135 +7,99 @@
 
 ## État à la reprise
 
-**Chantier : « le diagnostic devient une mesure qui engage » (ADR-0043). COMPLET, ✅ MERGÉ SUR
-`main` (2026-08-08). Ne pas ré-implémenter.**
-
-🔴 **DEUX branches sont CONSERVÉES, et c'est là qu'on se trompe.** Ni
-`feat/diagnostic-mesure-qui-engage` (celle de ce chantier) ni `feat/notion-orpheline-equipable`
-(consigne du 2026-08-07) n'ont été supprimées — **exception assumée** à l'étape 4bis du
-`docs/WORKFLOW.md §5`. Le dépôt a `delete_branch_on_merge: false`, vérifié : aucune suppression
-automatique. Les deux noms se ressemblent assez pour qu'un `git branch -d` distrait fasse le
-mauvais.
+**Chantier : « la page Diagnostic de Massimo propose au lieu de lister » (ADR-0044).
+✅ COMPLET — les TROIS sessions sont faites. Il reste le commit de la Session C, le push, et la PR.**
 
 | | |
 |---|---|
-| **Mergé** | PR [#99](https://github.com/NeuronXcore/zetis-school/pull/99), **squash `d36f789`**, base `9d6f81f`. 44 fichiers, +4355/−383 |
-| **État git** | `main` = `origin/main` — **rien à pousser** |
-| **Décision** | ADR-0043 **Accepté**, et **annoté** : il porte une section « Mise en œuvre » qui consigne ce que le code lui a appris |
-| **Migration** | `a9b0c1d2e3f4` (`quizzes.validation_status`) — **appliquée en DEV uniquement**, 54 quiz backfillés. ⚠️ **PAS en prod** |
-| **Suites** | Backend **1034** · Papa **667** · Massimo **525** · `tsc -b` + `vite build` verts |
-| **Sabotages** | **28 joués, 27 rouges.** Le vert est raconté plus bas |
+| **Branche** | `feat/diagnostic-massimo-propose`, base `8b8f988` (le prompt corrigé, sur `main`) |
+| **État git** | 🔴 **la Session C est NON COMMITÉE**, et **le distant de la branche est en retard** : le merge de rattrapage de `main` et les deux commits qu'il apporte n'ont jamais été poussés. Seules les Sessions A et B sont sur le distant. Voir `git log --oneline main..HEAD` et `git status` |
+| **Décisions** | ADR-0044 **Accepté** (9 décisions) + `adr-0030-addendum-temoin-diagnostic.md` **Accepté**, qui **révoque la Décision 7** |
+| **Migration** | **AUCUNE**, sur les trois sessions. Invariant du chantier |
+| **Suites** | Backend **1047** · Massimo **539** · Papa **667** · `tsc -b` 0 sur les deux projets · `vite build` vert |
+| **Sabotages** | **6 joués, 6 rouges** |
+| **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé DEUX défauts qu'aucun test ne voyait |
 
-### ✅ LA RELECTURE VISUELLE HUMAINE A EU LIEU — et elle a tout justifié
+🔴 **DEUX AUTRES branches sont CONSERVÉES et ne sont pas celle-ci** —
+`feat/diagnostic-mesure-qui-engage` et `feat/notion-orpheline-equipable`. Les trois noms se
+ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais.
 
-**C'est la rupture avec les quatre merges précédents** (#79, #89, #91, #98). Elle a sorti **cinq
-défauts en quelques minutes, dont AUCUN n'était détectable par un test** :
+### FAIT — les trois sessions
 
-1. les **4 jauges ne sont pas cliquables** — le défaut même dont l'ADR-0039 est né ;
-2. le cran **« proposé » est un cul-de-sac** : la maquette prescrivait 4 actions, 1 seule livrée ;
-3. **« en attente · non passé » ne nomme aucun acteur** ;
-4. **pas de témoin Diagnostic** dans la sidebar de Massimo ;
-5. la **page Diagnostic de Massimo** est une liste infinie sans priorité.
+1. **Le contrat de liste** — `subject_slug`, `measured_at`, `taken_at` (**en remplacement** de
+   `taken`), `last_attempt_id`. Vérifié en lecture seule contre le **vrai PostgreSQL**.
+2. **Le résultat en forme enfant** — un seul schéma, servi par `POST /submit` **et** la nouvelle
+   route `require_child` `GET /mes-resultats/{attempt_id}`. Sans score, sans `per_skill`, sans
+   sévérité. Massimo peut enfin **relire** son résultat.
+3. **La page en trois zones** + le témoin de navigation + les deux correctifs nés de la relecture.
 
-Les cinq sont au **`BACKLOG.md`**, section « Nées de la RELECTURE HUMAINE » — avec l'ordre décidé.
+### EN COURS — rien
 
-> **Ce que ça démontre, et qu'il faut garder** : la relecture humaine n'est pas une formalité de
-> clôture. Un chantier peut être vert sur 1034 + 667 + 525 tests, saboté 28 fois, parcouru à
-> l'écran par la machine — et rater cinq choses qu'un humain voit en trois minutes.
+Aucun fichier à moitié écrit. La frontière est propre.
 
-### FAIT — trois sessions, un arc
+### À FAIRE
 
-1. **Le gate** — `quizzes.validation_status`, 6ᵉ famille `diagnostic` dans `/relecture`, rôles sur
-   les six routes, `POST /validate` et `/reject`.
-2. **La mesure** — `QUESTIONS_PER_SKILL` 2 → 5, sélection par ancienneté de mesure, lacunes lues
-   en base, détail d'une passation, pivot de comparaison.
-3. **La page** — refonte de `DiagnosticsPapaPage`, icône, **et `GET /apercu`** que personne
-   n'avait prévu.
-
-### 🔴 Le constat qui a décidé du chantier
-
-L'exemption de l'ADR-0014 §2 vaut pour les quiz **« dérivés d'un substrat déjà validé »**.
-`generate_diagnostic` bâtit son prompt sur **quatre scalaires**, et les **trois garanties de
-contrepartie sont toutes inhonorées**. L'ADR-0014 disait *« régularise le précédent de l'étape 14
-sans le modifier »* — il l'a régularisé **administrativement**, sans vérifier que la justification
-s'y appliquait. **Elle ne s'y appliquait pas.**
-
-### 🔴 UN SABOTAGE EST RESTÉ VERT — 5ᵉ occurrence, deux causes réutilisables
-
-`test_submit_et_results_notent_la_MEME_passation_pareil`, le verrou de l'extraction :
-
-- **décor dégénéré** — tout faux ⇒ tous les scores à `0`, où une divergence multiplicative est
-  **indétectable**. Un verrou de valeur se pose sur un point **ni plancher ni plafond** ;
-- **sabotage mathématiquement neutre** — à 5 questions par notion tout score est multiple de 20,
-  donc « arrondir à la dizaine » est l'**identité**. Un sabotage doit produire une valeur
-  **atteignable** différente, sinon son vert ne prouve rien.
-
-### ⚠️ Pièges payés, transposables
-
-- **`quizzes/scoring.py` documente que sa duplication est VOULUE** — l'agrégat par notion passe de
-  trois copies à **deux**, pas à une. La frontière restante est décidée.
-- **Les compteurs d'appels de `vi.fn()` s'ADDITIONNENT entre tests** (pas de `clearMocks` côté
-  front) : deux assertions étaient fausses dès le second test.
-- **`to_utc` est obligatoire avant toute soustraction de dates** : SQLite perd le `tzinfo` d'une
-  colonne `DateTime(timezone=True)` là où PostgreSQL le garde — sans lui, ça plante en test et
-  marche en prod, le pire des deux.
+**Rien dans ce chantier.** Le prochain est au `BACKLOG.md` — les **quatre optimisations de la page
+Diagnostic de PAPA**, explicitement décidées « après celui-ci » (jauges non cliquables, cran
+« proposé » en cul-de-sac, « en attente · non passé » qui ne nomme personne).
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-- **La ligne de partage du gate est `quiz_type`, jamais la table.**
-- **`validated_by='system'` est réservé aux quiz NON gatés** — deux verrous en **paire**, un
-  lexical et un comportemental : le lexical ne peut rien dire du diagnostic, dont le module ne
-  contient pas le mot cherché.
-- **Palier et lacune sont deux populations disjointes.**
-- **Aucune interpolation dans la portée** : un palier plat se lit « rien n'a bougé ».
-- **`lots_declenches` vaut 0 par DÉCISION** — `trigger='evidence'` reste fermé.
-- **Un gate ne se pose pas sans se demander QUI PERD LA VUE au passage** (leçon de `GET /apercu`,
-  écrite dans l'ADR).
+- **Le tri porte sur l'ÂGE d'une mesure, jamais sur son RÉSULTAT.** Un ordre de liste **est** une
+  formulation : trier par « là où il est le plus faible » serait un diagnostic négatif montré à
+  l'enfant.
+- **La carte change de REGISTRE** quand le choix vient de Massimo (`TON CHOIX` + fait brut). Servir
+  la phrase de recommandation sur un diagnostic qu'il a choisi ferait revendiquer à ZETIS un
+  conseil qu'il n'a pas donné.
+- 🔴 **Le témoin `diagnostic` est une EXCEPTION NOMMÉE à « NOUVEAU jamais DÛ »** — il meurt du
+  TRAVAIL. Décision du commanditaire, prise après objection exposée et **réaffirmée**. Cinq bornes
+  opposables dans l'addendum. **Ne pas s'en servir comme précédent** : `test_news_doctrine.py`
+  l'interdit à tous les autres.
+- **Le filtre « réussie ⇒ pas à renforcer » est un filtre d'AFFICHAGE**, pas une résolution. La
+  lacune reste ouverte, Papa la voit, une mission la refermera.
+- **La route Papa n'est pas élargie** : son schéma dit « Vue Papa ». Deux publics, deux schémas.
+- **Aucun plafond, aucune troncature** : structurer n'est pas masquer.
+- **`DiagnosticListItem` reste LOCAL** à Massimo — un seul consommateur, vérifié.
 
-### ▶▶ PROCHAIN CHANTIER — la page Diagnostic de MASSIMO
+### PIÈGES rencontrés → `TROUBLESHOOTING.md`
 
-**Décidé par le user le 2026-08-08 : elle passe AVANT les optimisations de la page Papa.**
+Deux sections `feat/diagnostic-massimo-propose`. Les trois qui coûteraient le plus :
+**un compteur de non-faits traverse les cinq verrous de doctrine** (ils testent le temps, il pèche
+par le travail) ; **deux gardes qui se couvrent rendent chaque sabotage isolé VERT** — il faut
+saboter la conjonction ; et **`toLocaleDateString("fr-FR")` écrit « 1 juillet »**, pas « 1er ».
 
-*« Une liste infinie de diagnostics sans savoir ce qu'il doit faire ou pas. »* Mesurable :
-`list_diagnostics` n'a **aucune limite** (`order_by(Quiz.id.desc())`), et `taken` ne sert qu'à
-écrire « Refaire ↻ » ou « Commencer → » au lieu de structurer la liste.
+### ⚠️ DETTES OUVERTES
 
-⚠️ **L'ADR-0043 a AGGRAVÉ le contraste sans toucher cette page** (hors périmètre explicite) : Papa
-a un rail à trois crans groupé par mois, Massimo garde une liste plate.
-
-⚠️ **Rituel complet attendu** — `mockup → spec → ADR → prompt`. C'est l'espace enfant, où les
-règles de gamification sont les plus strictes. Ne pas partir sur `/ouverture` avant le mockup.
-
-Le **témoin de nouveauté** y sera posé comme question, pas comme évidence : deux motifs de
-`navigation.test.ts` sont devenus faux avec l'ADR-0043, **mais** un compte de non-faits reste
-interdit (« NOUVEAU jamais DÛ ») et un témoin de nouveauté exigerait une **trace de vue** qui
-n'existe pas. → **addendum ADR-0030**, détaillé au `BACKLOG.md`.
-
-### ⚠️ DETTES OUVERTES — remontées ici pour ne pas mourir dans l'historique
-
-- ~~Le `CHANGELOG.md` est muet sur deux chantiers~~ — **RATTRAPÉ le 2026-08-08** : `0.58.0`
-  (la notion orpheline devient équipable) et `0.59.0` (le diagnostic devient une mesure qui
-  engage). Le contrôle ③ passe.
-- ~~`TROUBLESHOOTING.md` n'a de section pour aucun des deux chantiers~~ — **ÉCRITES le
-  2026-08-08**, 14 pièges au total. Le contrôle ② passe.
-
-> ✅ **ÉLAGUÉ le 2026-08-08.** Les quatre contrôles du `WORKFLOW.md §6.3` passant, les récits des
-> chantiers **#98 (ADR-0042)** et **#97 (engrenages)** ont été retirés : **1094 → 823 lignes**.
-> Leurs dettes vivantes sont plus bas, sous « Dettes SURVIVANTES ». Les récits se retrouvent par
-> `git log -p MEMORY.md`.
-- **Artefacts de dev de l'ADR-0042, toujours en base** : `Skill 436`, `Quiz 54`, `Gap 2`,
-  `Mission 56`. Ils forment le **seul jeu « notion de niveau antérieur »** de la base. Ordre de
-  suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion` → `Quiz`
-  → `Skill`.
-- **Artefact de dev de l'ADR-0043** : `Quiz 31` porte `validated_by='parent'` là où les 14 autres
-  diagnostics ont `NULL` — trace de la vérification à l'écran, pas un bug.
-- **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
+- 🔴 **Le 375 px n'a PAS été vérifié.** C'est l'appareil de Massimo. `resize_window(390×844)` via
+  `claude-in-chrome` a laissé `window.innerWidth` à **2572** — mesuré, pas supposé. Reste à faire :
+  réduire la fenêtre Chrome à la main, ou ouvrir la page sur l'iPhone.
+- ⚠️ **L'écran de résultat affiche jusqu'à 8 notions à renforcer d'affilée** (vu sur la passation
+  Mathématiques). C'est le motif du défaut d'origine — une liste sans hiérarchie — un cran plus
+  bas. Signalé, non traité : ce serait de la dérive.
+- ⚠️ **La branche `null` de `measured_at` n'est exercée par aucune donnée réelle** : les 15
+  diagnostics de dev ont tous une mesure. Prouvée en tests SQLite seulement.
+- ⚠️ **Rien ne referme une lacune quand la notion est réussie** — seul `missions/service.py` écrit
+  `resolved`. Contourné à l'affichage ; le fond reste ouvert et vaudrait un ADR.
+- ⚠️ **`graphify affected` est aveugle** sur `list_diagnostics` — une réponse vide n'est pas une
+  preuve d'absence d'appelant.
+- **Artefacts de dev ADR-0042 toujours en base** : `Skill 436`, `Quiz 54`, `Gap 2`, `Mission 56`.
+  Ordre de suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion`
+  → `Quiz` → `Skill`.
+- ⚠️ **Passations de dev créées cette session** : deux sur le diagnostic Français (une tout faux,
+  une tout juste) pour reproduire la contradiction, plus l'XP correspondant.
+- 🔴 **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
 - **Papa valide un diagnostic sans pouvoir le LIRE** depuis la file (`reviewLink` rend `null`).
-- **La contre-épreuve du quiz de fin de cours monte son décor à la main** : elle ne prouve pas que
-  `generate_quiz` pose bien `validation_status='validated'`. Tenu par le seul sabotage.
 - **Les 14 défauts du module `diagnostics`** restent au `BACKLOG.md`, aucun traité.
-- 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine** — celui-ci en a eu une,
-  pas le précédent.
+- 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
+
+### ▶▶ PROCHAIN PAS
+
+**Committer la Session C**, pousser, puis **ouvrir la PR** — le chantier est fini, la relecture
+visuelle humaine a eu lieu, et elle a servi. Après le merge : **étape 4bis** (`WORKFLOW.md §5`) —
+remettre ce fichier au réel avec le squash, le n° de PR, et la branche.
+
+⚠️ Le `CHANGELOG.md` porte l'entrée **0.60.0**, et `TROUBLESHOOTING.md` ses deux sections : les
+contrôles ② et ③ passent **avant** le merge, pour une fois.
 
 ---
 

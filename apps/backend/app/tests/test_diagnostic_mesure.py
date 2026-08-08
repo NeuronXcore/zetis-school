@@ -118,6 +118,13 @@ def test_submit_et_results_notent_la_MEME_passation_pareil(client_db, executer_t
     ⚠️ Deuxième leçon du même échec : à 5 questions par notion, **tout score est un multiple de
     20**. Un sabotage qui arrondit à la dizaine est l'identité sur ces valeurs — il ne prouve rien,
     ni dans un sens ni dans l'autre. Un sabotage doit produire une valeur ATTEIGNABLE différente.
+
+    🔴 **RÉ-ANCRÉ par l'ADR-0044 Décision 5, et l'invariant n'a pas bougé.** La réponse de `submit`
+    ne porte plus ni `score_percent` ni `per_skill` : le score est toujours **calculé et écrit**,
+    il n'est simplement plus **diffusé à l'enfant**. La comparaison se fait donc entre les deux
+    surfaces qui ont encore le droit de le porter — **la passation écrite en base** et **la vue
+    Papa** — au lieu de la réponse enfant et de la vue Papa. Même invariant, mêmes valeurs exactes,
+    même décor à 60 % : le test perd une surface qui n'a plus le droit d'y figurer, pas sa force.
     """
     client, TestSession = client_db
     body = _generate(client, TestSession, executer_travail)
@@ -132,6 +139,11 @@ def test_submit_et_results_notent_la_MEME_passation_pareil(client_db, executer_t
         f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": reponses}
     ).json()
 
+    # La passation TELLE QU'ÉCRITE — la surface que l'ADR-0044 laisse porter le score.
+    with TestSession() as db:
+        en_base = db.get(m.QuizAttempt, immediat["attempt_id"])
+        score_en_base = en_base.score_percent
+
     as_papa()
     relu = next(
         row
@@ -139,20 +151,18 @@ def test_submit_et_results_notent_la_MEME_passation_pareil(client_db, executer_t
         if row["attempt_id"] == immediat["attempt_id"]
     )
 
-    def _cle(payload: dict) -> list[tuple]:
-        return sorted(
-            (r["skill_id"], r["score"], r["status"], r["questions_count"])
-            for r in payload["per_skill"]
-        )
-
     # Valeur EXACTE, pas seulement l'égalité des deux surfaces : deux surfaces peuvent s'accorder
     # sur un chiffre faux. 3/5 = 60 %, `learning` (≥ 40, < 70).
-    assert [r["score"] for r in immediat["per_skill"]] == [60]
-    assert [r["status"] for r in immediat["per_skill"]] == ["learning"]
-    assert immediat["score_percent"] == 60
+    assert score_en_base == 60
+    assert [r["score"] for r in relu["per_skill"]] == [60]
+    assert [r["status"] for r in relu["per_skill"]] == ["learning"]
 
-    assert _cle(immediat) == _cle(relu), "la même passation notée deux fois différemment"
-    assert immediat["score_percent"] == relu["score_percent"]
+    assert score_en_base == relu["score_percent"], "la même passation notée deux fois différemment"
+
+    # ⚠️ L'autre moitié de l'invariant depuis l'ADR-0044 : les deux surfaces parlent bien de LA
+    # MÊME passation. Sans elle, « les scores sont égaux » resterait vrai en comparant deux
+    # passations différentes qui auraient le même score.
+    assert relu["attempt_id"] == immediat["attempt_id"]
 
 
 # ==================================================================================================
@@ -165,12 +175,20 @@ def test_une_passation_neuve_porte_cinq_questions_par_notion(client_db, executer
 
     Le verrou ne porte pas sur la constante — il porte sur ce qui ARRIVE en base. Une constante
     changée sans que le générateur suive ne se verrait nulle part.
+
+    ⚠️ **Ré-ancré par l'ADR-0044 §5** : le grain se lisait dans la réponse enfant de `submit`, qui
+    ne porte plus `per_skill`. Il se lit maintenant dans la vue Papa de la même passation — la
+    surface qui porte encore la mesure détaillée. Le fait vérifié est le même.
     """
     client, TestSession = client_db
     body = _generate(client, TestSession, executer_travail)
     resultat = _passer(client, body["quiz_id"], bonnes=True)
 
-    assert [r["questions_count"] for r in resultat["per_skill"]] == [5]
+    as_papa()
+    detail = client.get(f"/api/diagnostics/results/{resultat['attempt_id']}").json()
+    as_massimo()
+
+    assert [r["questions_count"] for r in detail["per_skill"]] == [5]
     # Et le grain se lit jusque dans les scores atteignables : 3/5 = 60, impossible à 2 questions.
     assert service.QUESTIONS_PER_SKILL == 5
 
