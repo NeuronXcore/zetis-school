@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS — Mockup Page Diagnostic (Massimo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --zetis-bg: #0a0d1c;
+    --zetis-primary: #6366f1;
+    --zetis-cyan: #22d3ee;
+    --zetis-fuchsia: #d946ef;
+    --zetis-fg: #eef0ff;
+    --zetis-muted: #8b91b8;
+    --zetis-glass: rgba(255, 255, 255, 0.055);
+    --zetis-glass-border: rgba(255, 255, 255, 0.12);
+    --zetis-green: #34d399;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--zetis-bg);
+    color: var(--zetis-fg);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .neon-backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .neon-backdrop::before, .neon-backdrop::after {
+    content: ""; position: absolute; border-radius: 50%; filter: blur(110px); opacity: .3;
+  }
+  .neon-backdrop::before { width: 520px; height: 520px; top: -140px; left: -120px; background: var(--zetis-primary); }
+  .neon-backdrop::after { width: 460px; height: 460px; bottom: -160px; right: -100px; background: var(--zetis-cyan); opacity: .14; }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 860px; margin: 0 auto; padding: 32px 20px 80px;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+
+  .wordmark {
+    font-family: "Syncopate", sans-serif; font-weight: 700;
+    font-size: 15px; letter-spacing: .35em; color: var(--zetis-fg);
+    text-align: center; margin-bottom: 6px; opacity: .9;
+  }
+  .wordmark span { color: var(--zetis-cyan); }
+
+  .page-title {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-size: 24px; font-weight: 800; margin: 18px 0 4px; text-align: center;
+  }
+  .page-sub { text-align: center; color: var(--zetis-muted); font-size: 14.5px; margin-bottom: 30px; }
+
+  .section-label {
+    font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--zetis-muted); margin: 34px 4px 14px;
+  }
+
+  /* ══ ZONE A — « Commence par là » : UNE seule carte ══════════════════════ */
+  .hero {
+    position: relative; border-radius: 24px; padding: 26px 24px 22px;
+    background:
+      radial-gradient(120% 100% at 12% 0%, rgba(99,102,241,.22), transparent 62%),
+      var(--zetis-glass);
+    border: 1px solid var(--zetis-glass-border);
+    box-shadow: 0 18px 50px -28px rgba(99,102,241,.75);
+    overflow: hidden;
+  }
+  .hero::after {
+    content: ""; position: absolute; inset: 0; border-radius: 24px; pointer-events: none;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(99,102,241,.65), rgba(34,211,238,.35) 45%, transparent 70%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+  }
+  .hero-top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .hero-emoji {
+    width: 56px; height: 56px; flex: none; border-radius: 18px;
+    display: flex; align-items: center; justify-content: center; font-size: 30px;
+    background: var(--zetis-bg); border: 1px solid var(--zetis-glass-border);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .hero-subject { font-size: 12.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  .hero-title { font-size: 20px; font-weight: 800; line-height: 1.25; margin-top: 3px; }
+
+  /* La RAISON. C'est elle qui remplace « il y en a 15, débrouille-toi ». */
+  .hero-why {
+    display: flex; gap: 9px; align-items: flex-start;
+    font-size: 14.5px; line-height: 1.5; color: var(--zetis-fg);
+    background: rgba(255,255,255,.04); border: 1px solid var(--zetis-glass-border);
+    border-radius: 14px; padding: 12px 14px; margin-bottom: 16px;
+  }
+  .hero-why .ico { font-size: 16px; line-height: 1.35; }
+
+  /* Deux registres, deux lignes : les FAITS (combien, combien de temps) d'un côté,
+     la RASSURANCE de l'autre. Les mélanger sur une ligne se casse en trois colonnes
+     bancales dès l'iPhone — vu à l'écran en 375 px. */
+  .hero-meta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--zetis-muted); }
+  .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--zetis-muted); flex: none; }
+  .hero-calm { font-size: 13px; color: var(--zetis-muted); margin-top: 5px; margin-bottom: 18px; }
+
+  .btn-go {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 15px 22px; border: none; border-radius: 16px;
+    font-family: inherit; font-size: 16.5px; font-weight: 800; color: #fff; cursor: pointer;
+    background: linear-gradient(135deg, var(--zetis-primary), var(--zetis-cyan));
+    box-shadow: 0 10px 30px -12px rgba(34,211,238,.7);
+    transition: transform .14s ease, filter .14s ease;
+  }
+  .btn-go:hover { transform: translateY(-2px); filter: brightness(1.07); }
+  .btn-go:focus-visible { outline: 2px solid var(--zetis-cyan); outline-offset: 3px; }
+
+  /* La sortie. Sans elle, « commence par là » devient un ordre. */
+  .hero-escape {
+    display: block; width: 100%; margin-top: 13px; padding: 6px;
+    background: none; border: none; cursor: pointer; font-family: inherit;
+    font-size: 13.5px; color: var(--zetis-muted); text-align: center;
+  }
+  .hero-escape:hover { color: var(--zetis-fg); }
+
+  /* Témoin de nouveauté — QUESTION OUVERTE, voir le panneau « états » */
+  .pastille-new {
+    position: absolute; top: 18px; right: 18px;
+    display: none; align-items: center; gap: 6px;
+    padding: 5px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 800;
+    letter-spacing: .06em; text-transform: uppercase;
+    background: linear-gradient(135deg, var(--zetis-fuchsia), var(--zetis-primary)); color: #fff;
+  }
+  body.show-new .pastille-new { display: inline-flex; }
+  /* La pastille est en position absolue : sans réserve, un titre long passe dessous. */
+  body.show-new .hero-top { padding-right: 104px; }
+
+  /* ══ ZONE B — les autres, RANGÉS PAR MATIÈRE et repliés ══════════════════ */
+  .subject-row {
+    width: 100%; display: flex; align-items: center; gap: 13px;
+    padding: 14px 16px; margin-bottom: 9px;
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    border-radius: 16px; cursor: pointer; font-family: inherit; color: var(--zetis-fg);
+    text-align: left; transition: background .14s ease, transform .14s ease;
+  }
+  .subject-row:hover { background: rgba(255,255,255,.085); transform: translateY(-1px); }
+  .subject-row:focus-visible { outline: 2px solid var(--zetis-cyan); outline-offset: 2px; }
+  .sr-emoji {
+    width: 40px; height: 40px; flex: none; border-radius: 13px; font-size: 21px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--zetis-bg); border: 1px solid var(--zetis-glass-border);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .sr-name { font-size: 15.5px; font-weight: 700; }
+  .sr-hint { font-size: 12.5px; color: var(--zetis-muted); margin-top: 1px; }
+  .sr-chevron { margin-left: auto; color: var(--zetis-muted); font-size: 15px; transition: transform .2s ease; }
+  .subject-row[aria-expanded="true"] .sr-chevron { transform: rotate(90deg); }
+
+  .subject-panel { display: none; padding: 2px 0 12px 22px; margin-bottom: 6px; }
+  .subject-panel.open { display: block; animation: slideIn .2s ease; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+  .diag-line {
+    width: 100%; display: flex; align-items: center; gap: 12px;
+    padding: 12px 15px; margin-bottom: 7px;
+    background: rgba(255,255,255,.03); border: 1px solid var(--zetis-glass-border);
+    border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    border-radius: 12px; cursor: pointer; font-family: inherit; color: var(--zetis-fg);
+    text-align: left; transition: background .14s ease;
+  }
+  .diag-line:hover { background: rgba(255,255,255,.07); }
+  .diag-line:focus-visible { outline: 2px solid var(--zetis-cyan); outline-offset: 2px; }
+  .dl-title { font-size: 14.5px; font-weight: 650; }
+  .dl-meta { font-size: 12px; color: var(--zetis-muted); margin-top: 2px; }
+  .dl-go { margin-left: auto; font-size: 13.5px; font-weight: 700; color: var(--zetis-cyan); white-space: nowrap; }
+
+  /* ══ ZONE C — ce qui est DÉJÀ fait, séparé et positif ════════════════════ */
+  .done-card {
+    display: flex; align-items: center; gap: 13px;
+    padding: 13px 16px; margin-bottom: 8px;
+    background: rgba(52,211,153,.05); border: 1px solid rgba(52,211,153,.18);
+    border-radius: 14px;
+  }
+  .done-check {
+    width: 34px; height: 34px; flex: none; border-radius: 50%; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(52,211,153,.14); color: var(--zetis-green);
+    border: 1px solid rgba(52,211,153,.32);
+  }
+  .done-title { font-size: 14.5px; font-weight: 650; }
+  .done-meta { font-size: 12px; color: var(--zetis-muted); margin-top: 2px; }
+  .done-actions { margin-left: auto; display: flex; gap: 7px; flex: none; }
+  .btn-ghost {
+    padding: 7px 13px; border-radius: 10px; cursor: pointer; font-family: inherit;
+    font-size: 12.5px; font-weight: 700;
+    background: rgba(255,255,255,.05); border: 1px solid var(--zetis-glass-border);
+    color: var(--zetis-fg); transition: background .14s ease;
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,.11); }
+  .btn-ghost:focus-visible { outline: 2px solid var(--zetis-cyan); outline-offset: 2px; }
+
+  /* ══ États particuliers ═════════════════════════════════════════════════ */
+  .calm {
+    text-align: center; padding: 40px 26px; border-radius: 24px;
+    background: radial-gradient(120% 100% at 50% 0%, rgba(52,211,153,.13), transparent 62%), var(--zetis-glass);
+    border: 1px solid rgba(52,211,153,.22);
+  }
+  .calm-emoji { font-size: 46px; margin-bottom: 12px; }
+  .calm-title { font-size: 19px; font-weight: 800; margin-bottom: 7px; }
+  .calm-text { font-size: 14.5px; color: var(--zetis-muted); line-height: 1.55; max-width: 430px; margin: 0 auto; }
+
+  .hidden { display: none !important; }
+
+  /* ══ Barre de maquette (n'existe PAS dans l'app) ═════════════════════════ */
+  .mock-bar {
+    position: sticky; top: 0; z-index: 20; margin: -32px -20px 24px; padding: 10px 16px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: rgba(10,13,28,.92); backdrop-filter: blur(10px);
+    border-bottom: 1px dashed rgba(217,70,239,.4);
+  }
+  .mock-tag {
+    font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--zetis-fuchsia); border: 1px solid rgba(217,70,239,.4);
+    border-radius: 6px; padding: 3px 8px;
+  }
+  .mock-btn {
+    padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit;
+    font-size: 12.5px; font-weight: 650; color: var(--zetis-muted);
+    background: rgba(255,255,255,.04); border: 1px solid var(--zetis-glass-border);
+  }
+  .mock-btn:hover { color: var(--zetis-fg); }
+  .mock-btn.on { background: rgba(99,102,241,.22); border-color: rgba(99,102,241,.55); color: var(--zetis-fg); }
+
+  @media (max-width: 560px) {
+    .app { padding: 24px 14px 70px; }
+    .mock-bar { margin: -24px -14px 20px; }
+    .hero { padding: 22px 18px 18px; }
+    .hero-title { font-size: 18px; }
+    .done-actions { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="neon-backdrop"></div>
+
+<div class="app">
+
+  <!-- ─────────────────────────────────────────────────────────────────────
+       BARRE DE MAQUETTE — n'existe pas dans l'app. Elle sert à montrer les
+       états que la relecture doit trancher, sans avoir à recharger une page.
+       ───────────────────────────────────────────────────────────────────── -->
+  <div class="mock-bar">
+    <span class="mock-tag">maquette</span>
+    <button class="mock-btn on" id="b-normal" onclick="setState('normal')">Cas courant</button>
+    <button class="mock-btn" id="b-calm" onclick="setState('calm')">Tout est à jour</button>
+    <button class="mock-btn" id="b-empty" onclick="setState('empty')">Rien encore</button>
+    <button class="mock-btn" id="b-new" onclick="toggleNew()">Témoin « nouveau » ⚠️</button>
+  </div>
+
+  <div class="wordmark">ZET<span>I</span>S</div>
+  <h1 class="page-title">🧭 Diagnostic</h1>
+  <p class="page-sub">ZETIS vérifie ce qu'il faut renforcer pour t'aider plus vite.</p>
+
+  <!-- ═══ ZONE A — UNE seule proposition, avec sa raison ═══════════════════ -->
+  <section id="zone-a"></section>
+
+  <!-- ═══ ZONE B — le reste, rangé par matière, replié ═════════════════════ -->
+  <div id="zone-b-wrap">
+    <div class="section-label" id="label-b">Si tu préfères autre chose</div>
+    <div id="zone-b"></div>
+  </div>
+
+  <!-- ═══ ZONE C — ce que ZETIS a déjà mesuré avec toi ═════════════════════ -->
+  <div id="zone-c-wrap">
+    <div class="section-label">Déjà mesuré avec toi</div>
+    <div id="zone-c"></div>
+  </div>
+
+</div>
+
+<script>
+  /* ───────────────────────────────────────────────────────────────────────
+     DONNÉES — matières et couleurs reprises telles quelles du seed backend
+     (`apps/backend/app/db/seed.py`), pour que la maquette ne raconte pas
+     une autre app que celle qui existe.
+
+     Chaque diagnostic porte :
+       - servi AUJOURD'HUI par `list_diagnostics` : title, subject, questions_count, taken
+       - EN BASE mais pas servi : la date de passation (`quiz_attempts.completed_at`) et
+         l'ancienneté de la mesure (`skill_mastery.last_seen_at`, déjà utilisé par
+         `notions_a_mesurer`). Rien ici n'exige de migration.
+     ─────────────────────────────────────────────────────────────────────── */
+  const SUBJECTS = {
+    "histoire-geo":    { name: "Histoire-Géo",     emoji: "🌍", color: "#fbbf24" },
+    "mathematiques":   { name: "Mathématiques",    emoji: "➗", color: "#60a5fa" },
+    "francais":        { name: "Français",         emoji: "📖", color: "#f472b6" },
+    "svt":             { name: "SVT",              emoji: "🌱", color: "#34d399" },
+    "anglais":         { name: "Anglais",          emoji: "🇬🇧", color: "#a78bfa" },
+    "physique-chimie": { name: "Physique-Chimie",  emoji: "⚗️", color: "#22d3ee" },
+  };
+
+  /* 15 lignes — c'est le nombre RÉEL en base de dev au 2026-08-08, et il ne fera
+     que croître. Une maquette à 5 lignes prouverait quelque chose de faux : le
+     défaut à résoudre est un défaut d'ÉCHELLE. */
+  const DIAGS = [
+    // jamais mesuré → c'est celui-là qui réduit le plus d'incertitude
+    { id: 42, subject: "histoire-geo",   title: "L'Europe des Lumières", questions: 15, taken: false, jamais: true },
+    { id: 41, subject: "histoire-geo",   title: "La Révolution française", questions: 15, taken: false, jamais: true },
+    { id: 39, subject: "svt",            title: "Le corps humain et la santé", questions: 10, taken: false, jamais: true },
+    { id: 38, subject: "svt",            title: "Reproduction et peuplement", questions: 15, taken: false, jamais: true },
+    { id: 37, subject: "mathematiques",  title: "Nombres relatifs et calcul littéral", questions: 20, taken: false, jamais: false },
+    { id: 35, subject: "mathematiques",  title: "Proportionnalité", questions: 10, taken: false, jamais: false },
+    { id: 33, subject: "mathematiques",  title: "Triangles et parallèles", questions: 15, taken: false, jamais: false },
+    { id: 31, subject: "anglais",        title: "Present perfect et prétérit", questions: 10, taken: false, jamais: true },
+    { id: 30, subject: "anglais",        title: "Le discours indirect", questions: 10, taken: false, jamais: true },
+    { id: 28, subject: "francais",       title: "Les temps du récit", questions: 15, taken: false, jamais: false },
+    { id: 27, subject: "francais",       title: "Le vocabulaire de l'argumentation", questions: 10, taken: false, jamais: false },
+    { id: 26, subject: "physique-chimie", title: "Circuits électriques", questions: 15, taken: false, jamais: false },
+    // déjà passés
+    { id: 24, subject: "mathematiques",  title: "Théorème de Pythagore", questions: 15, taken: true, le: "12 juillet" },
+    { id: 19, subject: "francais",       title: "Réalisme et Naturalisme", questions: 10, taken: true, le: "28 juin" },
+    { id: 12, subject: "physique-chimie", title: "Les états de la matière", questions: 15, taken: true, le: "3 juin" },
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const minutes = (q) => Math.max(2, Math.round(q * 0.75)); // ~45 s par question, arrondi
+
+  /* La RAISON — factuelle, jamais un reproche, jamais un décompte de jours.
+     « jamais mesuré » d'abord, puis « la mesure date » : c'est exactement la
+     doctrine que `notions_a_mesurer` applique déjà d'un cran plus bas
+     (ADR-0043 Décision 4 : « remesurer ce qui vient de l'être ne réduit
+     aucune incertitude »). Ici on la remonte au choix du diagnostic. */
+  function raison(d) {
+    return d.jamais
+      ? "ZETIS ne t'a encore jamais posé de questions dans cette matière. C'est celle où il en apprendra le plus sur toi."
+      : "La dernière mesure de ZETIS commence à dater. Un petit tour et il saura où tu en es maintenant.";
+  }
+
+  function renderHero(d) {
+    const s = SUBJECTS[d.subject];
+    $("zone-a").innerHTML = `
+      <div class="hero" style="--accent:${s.color}">
+        <div class="pastille-new">✨ nouveau</div>
+        <div class="hero-top">
+          <div class="hero-emoji">${s.emoji}</div>
+          <div>
+            <div class="hero-subject">${s.name}</div>
+            <div class="hero-title">${d.title}</div>
+          </div>
+        </div>
+        <div class="hero-why"><span class="ico">💡</span><span>${raison(d)}</span></div>
+        <div class="hero-meta">
+          <span>${d.questions} questions</span><span class="dot"></span>
+          <span>environ ${minutes(d.questions)} min</span>
+        </div>
+        <div class="hero-calm">Tu peux t'arrêter quand tu veux.</div>
+        <button class="btn-go">Commencer →</button>
+        <button class="hero-escape" onclick="document.getElementById('label-b').scrollIntoView({behavior:'smooth',block:'center'})">
+          Je préfère autre chose ↓
+        </button>
+      </div>`;
+  }
+
+  function renderCalm() {
+    $("zone-a").innerHTML = `
+      <div class="calm">
+        <div class="calm-emoji">✨</div>
+        <div class="calm-title">Tout est à jour</div>
+        <p class="calm-text">
+          ZETIS a une mesure récente dans chacune de tes matières. Rien ne t'attend ici —
+          tu peux quand même en refaire un si tu en as envie.
+        </p>
+      </div>`;
+  }
+
+  function renderEmpty() {
+    $("zone-a").innerHTML = `
+      <div class="calm" style="border-color:var(--zetis-glass-border);background:var(--zetis-glass)">
+        <div class="calm-emoji">🧭</div>
+        <div class="calm-title">Rien à mesurer pour l'instant</div>
+        <p class="calm-text">
+          Papa prépare les diagnostics depuis son espace. Dès qu'il en laisse passer un,
+          il apparaît ici.
+        </p>
+      </div>`;
+  }
+
+  /* ZONE B — groupée par matière, repliée. Le tri des matières reprend celui
+     du hero : celles que ZETIS n'a jamais mesurées d'abord. */
+  function renderRest(exceptId) {
+    const aFaire = DIAGS.filter(d => !d.taken && d.id !== exceptId);
+    const parMatiere = {};
+    aFaire.forEach(d => (parMatiere[d.subject] ||= []).push(d));
+
+    const slugs = Object.keys(parMatiere).sort((a, b) => {
+      const ja = parMatiere[a].some(d => d.jamais) ? 0 : 1;
+      const jb = parMatiere[b].some(d => d.jamais) ? 0 : 1;
+      return ja - jb;
+    });
+
+    $("zone-b").innerHTML = slugs.map((slug, i) => {
+      const s = SUBJECTS[slug], items = parMatiere[slug];
+      return `
+      <button class="subject-row" style="--accent:${s.color}" aria-expanded="false"
+              aria-controls="panel-${i}" onclick="togglePanel(this, ${i})">
+        <div class="sr-emoji">${s.emoji}</div>
+        <div>
+          <div class="sr-name">${s.name}</div>
+          <div class="sr-hint">${items.length} diagnostic${items.length > 1 ? "s" : ""}</div>
+        </div>
+        <div class="sr-chevron">›</div>
+      </button>
+      <div class="subject-panel" id="panel-${i}">
+        ${items.map(d => `
+          <button class="diag-line" style="--accent:${s.color}">
+            <div>
+              <div class="dl-title">${d.title}</div>
+              <div class="dl-meta">${d.questions} questions · environ ${minutes(d.questions)} min</div>
+            </div>
+            <span class="dl-go">Commencer →</span>
+          </button>`).join("")}
+      </div>`;
+    }).join("");
+
+    $("zone-b-wrap").classList.toggle("hidden", slugs.length === 0);
+  }
+
+  /* ZONE C — le déjà-fait, hors de la liste du à-faire. C'est la séparation
+     qui manque aujourd'hui : `taken` n'y change que le libellé d'un bouton. */
+  function renderDone() {
+    const faits = DIAGS.filter(d => d.taken);
+    $("zone-c").innerHTML = faits.map(d => {
+      const s = SUBJECTS[d.subject];
+      return `
+      <div class="done-card">
+        <div class="done-check">✓</div>
+        <div>
+          <div class="done-title">${s.emoji} ${d.title}</div>
+          <div class="done-meta">${s.name} · tu l'as passé le ${d.le}</div>
+        </div>
+        <div class="done-actions">
+          <button class="btn-ghost">Ce que ZETIS a retenu</button>
+          <button class="btn-ghost">Refaire ↻</button>
+        </div>
+      </div>`;
+    }).join("");
+    $("zone-c-wrap").classList.toggle("hidden", faits.length === 0);
+  }
+
+  function togglePanel(btn, i) {
+    const panel = $("panel-" + i);
+    const open = panel.classList.toggle("open");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function setState(state) {
+    ["normal", "calm", "empty"].forEach(s =>
+      $("b-" + s).classList.toggle("on", s === state));
+
+    if (state === "empty") {
+      renderEmpty();
+      $("zone-b-wrap").classList.add("hidden");
+      $("zone-c-wrap").classList.add("hidden");
+      return;
+    }
+    if (state === "calm") {
+      renderCalm();
+      $("zone-b-wrap").classList.add("hidden");
+      renderDone();
+      return;
+    }
+    const hero = DIAGS.find(d => !d.taken && d.jamais) || DIAGS.find(d => !d.taken);
+    renderHero(hero);
+    renderRest(hero.id);
+    renderDone();
+  }
+
+  function toggleNew() {
+    document.body.classList.toggle("show-new");
+    $("b-new").classList.toggle("on", document.body.classList.contains("show-new"));
+  }
+
+  setState("normal");
+</script>
+</body>
+</html>
