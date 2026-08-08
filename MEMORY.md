@@ -8,24 +8,29 @@
 ## État à la reprise
 
 **Chantier : « la page Diagnostic de Papa montre ce qu'elle annonce » (ADR-0045).
-✅ COMPLET — **trois slices livrées**. 🔴 Rien n'est commité.**
+✅ COMPLET — trois slices livrées, **commitées**, et **vérifiées à l'écran**.**
 
-> ⚠️ **Il reste UNE vérification que je n'ai pas pu faire** : la slice C n'a **jamais été vue à
-> l'écran**. Les serveurs de dev sont retombés en cours de session et la nouvelle instance est
-> **déconnectée** — je ne peux pas saisir de mot de passe. Le comportement est prouvé par les
-> tests (707 Papa + 1055 backend, 3 sabotages rouges) mais **pas par l'œil**.
+> ✅ **La vérification à l'écran a eu lieu, avec l'humain, en cinq points** (2026-08-08) :
+> le contrat sert bien `source` et `content_state` (lu dans `/openapi.json`, sans auth) · « voir
+> les 10 → » mène à **10** · « dont 4 sans contenu → » mène à **4**, et ce sont **exactement** les
+> quatre notions sans leçon validée comptées en base · le bandeau nomme les deux filtres composés
+> et se retire · un filtre qui ne laisse rien passer dit « Aucune lacune de ce type » et **ne
+> retombe pas sur tout**.
+>
+> **L'invariant du chantier est donc prouvé à l'œil** : *un renvoi mène au compte qu'il annonce*.
+> Base, contrat et écran tombent d'accord sur les mêmes nombres.
 
 | | |
 |---|---|
 | **Branche** | `feat/diagnostic-papa-optimisations`, locale ET distante |
 | **Base** | `41ca48a` — le commit de l'ADR, sur `main`. Vérifié par `git merge-base main HEAD` |
-| **État git** | 🔴 **Le code des deux sessions n'est pas commité.** La branche ne porte qu'un commit de **documentation** (le cadrage). `git status` fait foi ; `git log --oneline main..HEAD` pour la liste |
+| **État git** | ✅ **Tout est commité** — cadrage, slices A+B, slice C, et les constats du BACKLOG, chacun dans son commit. 🔴 **Rien n'est POUSSÉ** : la branche distante est restée au commit de cadrage. `git log --oneline main..HEAD` fait foi |
 | **`main`** | `main` = `origin/main` — rien à pousser de ce côté |
 | **Décisions** | ADR-0045 **Accepté**, 9 décisions + 1 amendement — et **DEUX d'entre elles amendées pendant l'exécution**, voir plus bas |
 | **Migration** | **AUCUNE**, et aucun endpoint. ⚠️ Mais **le contrat a gagné deux champs** en slice C — invariant rompu délibérément, 4ᵉ amendement de l'ADR |
 | **Suites** | Papa **667 → 707** · Backend **1052 → 1055** · `tsc -b` 0 · `vite build` vert. ⚠️ Massimo **non relancé** — aucun de ses fichiers n'est touché |
 | **Sabotages** | **13 joués : 11 rouges, 1 VERT non concluant, 1 neutre** — voir DETTES |
-| **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé **DEUX défauts** qu'aucun test ne voyait, dont un que j'avais introduit en croyant corriger son jumeau |
+| **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé **DEUX défauts** qu'aucun test ne voyait, dont un que j'avais introduit en croyant corriger son jumeau. Puis **une TROISIÈME passe à deux**, qui a validé la slice C point par point et sorti un défaut de plus (page Lacunes, au `BACKLOG`) |
 
 🔴 **SEPT branches existent maintenant, six sont à conserver.** Les cinq déjà conservées —
 `feat/diagnostic-massimo-propose`, `fix/diagnostic-zone-c-mobile`, `fix/connexion-mot-de-passe`,
@@ -111,10 +116,11 @@ la plus discrète du décor dégénéré.
 - ✅ ~~La relecture visuelle humaine n'a pas eu lieu~~ — **FAITE le 2026-08-08**, et elle a rendu
   **deux défauts**, tous deux **corrigés** : la 4ᵉ jauge incompréhensible, et les renvois de la
   jauge « Lacunes » qui menaient à un autre nombre (slice C).
-- 🔴 **La slice C n'a JAMAIS été vue à l'écran.** Les serveurs de dev sont retombés en cours de
-  session (la session voisine qui les portait s'est fermée) et la nouvelle instance demande une
-  **connexion** que je ne peux pas faire. Prouvée par 707 + 1055 tests et 3 sabotages rouges,
-  **pas par l'œil**. **C'est la première chose à faire à la reprise.**
+- ✅ ~~La slice C n'a jamais été vue à l'écran~~ — **VÉRIFIÉE le 2026-08-08, à deux, en cinq
+  points** (détail en tête de section). ⚠️ Ce qu'il a fallu pour y arriver : les serveurs de dev
+  étaient retombés (la session voisine qui les portait s'est fermée) et la nouvelle instance
+  demandait une **connexion** — c'est l'humain qui l'a faite. **Je ne peux pas vérifier une
+  surface Papa tout seul après un redémarrage de serveur.**
 - ⚠️ **Un sabotage est resté VERT et a révélé un trou dans mes propres verrous** : le repli du
   filtre `contenu` ne se déclenche pas sur un décor qui contient des lacunes sans contenu. Le cas
   manquant (décor où le filtre trouve **zéro**) a été ajouté, et le sabotage rougit depuis.
@@ -124,6 +130,16 @@ la plus discrète du décor dégénéré.
 - 🔴 **`response_model` filtre en SILENCE les champs non déclarés** — les deux clés neuves étaient
   produites par le service et disparaissaient à la sérialisation. Aucune erreur. Vaut pour toute
   route FastAPI du dépôt.
+- ⚠️ **Le worker de production a tourné en fin de séance, et il a changé le décor.** Les trois
+  travaux bloqués sont passés : **Histoire-Géo a quitté les « jamais générées »** (5 → 4) et les
+  proposés non passés sont montés de **12 à 15**. Les captures et les nombres d'avant ne
+  correspondent donc plus à la base actuelle.
+- 🔴 **DEUX chantiers neufs sont au `BACKLOG.md`**, tous deux nés de cette séance et **à cadrer** :
+  le **worker de production qui n'est un service nulle part** (`docker-compose.prod.yml` n'en a
+  aucun, et la panne était déjà au `TROUBLESHOOTING`), et la **page Lacunes qui énonce sans
+  permettre d'agir** (la ligne est un `<li>` nu — et « Voir la lacune → » de la station ② y
+  atterrit, donc la chaîne finit en cul-de-sac). ⚠️ Le second est **presque gratuit depuis la
+  slice C** : `content_state` est déjà sur `OpenGap`.
 - ⚠️ **Données de dev modifiées, délibérément** : le **quiz 30 est laissé en `pending`** — il donne
   à dev le spécimen « généré » qui manquait et sans lequel « Refuser ce lot » ne peut pas être vu.
   Pour l'annuler : `UPDATE quizzes SET validation_status='validated' WHERE id=30;`. Le quiz 29,
@@ -162,17 +178,20 @@ la plus discrète du décor dégénéré.
 
 ### ▶▶ PROCHAIN PAS
 
-🔴 **VOIR LA SLICE C À L'ÉCRAN — c'est la seule chose qui manque.** Lancer la paire `backend-dev`
-(8001) + `papa-dev` (5175), **se connecter**, puis sur `/diagnostics` :
+**POUSSER la branche, puis ouvrir la PR.** Tout est commité et tout est vérifié — code, documents,
+tests, et l'écran. Il ne reste que le geste git.
 
-1. cliquer « **dont 4 sans contenu →** » et vérifier que la page en montre **4**, pas 10 ;
-2. cliquer « **voir les 10 →** » et vérifier **10** ;
-3. lire le bandeau de filtre et sa sortie « Toutes les lacunes ».
+```bash
+git push
+```
 
-C'est l'invariant du chantier — *un renvoi mène au compte qu'il annonce* — et il n'est aujourd'hui
-prouvé que par des tests.
+Ensuite, **étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici le **squash**, le **n° de PR** et
+l'état de la branche, et compléter la ligne d'index de `DECISIONS.md` **sur `main`** — elle a été
+écrite au cadrage et ne porte **aucun des quatre amendements**.
 
-Puis : commit → push → **PR**.
+⚠️ **Ne rien recommencer de ce chantier.** Les deux chantiers suivants sont au `BACKLOG.md`, et le
+plus mûr des trois candidats reste l'**anti-triche du diagnostic**, déjà cadré en pistes et en
+décisions d'usage.
 
 **Chantier suivant, déjà décidé et cadré au `BACKLOG.md`** : l'**anti-triche du diagnostic** —
 sortie d'écran, temps par question, verbalisation, et audit de ce qui récompense encore un bon
