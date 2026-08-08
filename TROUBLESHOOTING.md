@@ -4,6 +4,102 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/diagnostic-zone-c-mobile` — vérifier enfin le 375 px — 2026-08-08
+
+### 🔴 `sm:` vaut 640 px — donc AUCUN téléphone ne l'atteint
+
+La zone C portait `<span className="ml-auto flex flex-none flex-col gap-2 sm:flex-row">`. On lit
+volontiers ce `sm:` comme « le cas mobile est traité ». Il ne l'est pas : **le palier `sm` de
+Tailwind est à 640 px**, et le plus large des téléphones plafonne à 440. La branche « mobile » est
+donc celle qui s'applique **en permanence**, sur tous les appareils.
+
+Pire, la branche par défaut résolvait le problème **sur le mauvais axe** : elle empilait les boutons
+verticalement (`flex-col`) tout en les laissant **à côté** du texte, avec `flex-none` qui leur
+interdisait de rétrécir. Mesuré à 375 px : boutons **~171 pt**, texte **~102 pt** — *le texte avait
+moins de place que les boutons*.
+
+**Prouvé par bissection dans le vrai moteur**, pas lu dans une doc (Tailwind 4.3.2, aucun palier
+redéfini) — mesure du `y` du bloc de texte et de celui des boutons :
+
+| viewport | `y` texte | `y` boutons | même ligne ? |
+|---|---|---|---|
+| **639 px** | 970 | 1018 | **non** — branche téléphone |
+| **641 px** | 994 | 997 | **oui** — branche tablette/bureau |
+
+→ **Parade** : pour un empilement vertical sur téléphone, viser `flex-wrap` sur le conteneur +
+`w-full` sur le bloc qui doit descendre, et `min-w-0` sur le bloc de texte qui doit pouvoir
+rétrécir. Et **relire tout `sm:` comme « à partir de la tablette »**, jamais comme « sur mobile ».
+
+### 🔴 Un défaut de mise en page ne se voit dans AUCUN test — ne pas simuler le contraire
+
+jsdom n'embarque pas de moteur de rendu : `getBoundingClientRect` y renvoie des zéros. Aucun des
+539 tests Massimo ne pouvait voir ce défaut, et aucun n'a bougé au correctif.
+
+→ **Parade** : ne pas « combler » ce manque par un test qui compare des chaînes de classes Tailwind
+— ce serait une tautologie, qui casserait au premier refactor **sans jamais voir le défaut**. La
+preuve est la **mesure dans un vrai moteur** (capture d'écran + `getBoundingClientRect` lu dans le
+navigateur), consignée dans le commit et la PR.
+
+### ⚠️ `resize_window` fonctionne — il ne fonctionnait pas le matin même
+
+La dette « 375 px jamais vérifié » avait pour motif que `resize_window(390×844)` laissait
+`window.innerWidth` à **2572**. Le même jour, sur le panneau Browser, il obéit : `innerWidth` lit
+**393** puis **375**, demandés et vérifiés.
+
+→ **Parade** : mesurer `window.innerWidth` **après** chaque `resize_window` plutôt que supposer
+l'un ou l'autre. Ce genre de dette n'a plus d'excuse d'outillage.
+
+### 🔴 Aucun serveur de dev n'est joignable depuis un vrai téléphone — quatre choses, ENSEMBLE
+
+Les huit paires de `.claude/launch.json` liaient `127.0.0.1`. Un iPhone ne peut atteindre aucun de
+leurs ports, **quelle que soit l'URL tapée**. Il faut changer quatre choses à la fois, et il en
+manque toujours une : uvicorn `--host 0.0.0.0`, vite `--host 0.0.0.0`, `VITE_API_URL` sur l'IP du
+Mac (sur `localhost`, **le téléphone appellerait son propre localhost**), et l'origine LAN dans
+`ZETIS_CORS_ORIGINS`, que le défaut (`:5173`/`:5174`) n'a pas.
+
+⚠️ **Et le piège de l'adresse** : le Mac a une route par défaut sur `en10` (filaire, `192.168.0.x`)
+et son Wi-Fi sur `en0` (`192.168.50.x`). On relève par réflexe l'adresse de la route par défaut —
+et le téléphone, qui est en Wi-Fi, ne la joint pas.
+
+→ **Parade** : la paire `backend-lan` / `massimo-lan` (commit `e6fb2f5`) résout l'IP **sur `en0`**
+au lancement. Vérifier par `lsof -nP -iTCP:<port> -sTCP:LISTEN` que le socket est sur `*` et non
+`127.0.0.1`, puis `curl` l'IP Wi-Fi — et tester une origine CORS **non accordée** pour prouver que
+l'autorisation n'est pas vide.
+
+### ⚠️ Le clavier physique du simulateur iOS ignore la disposition du clavier actif
+
+Sur un Mac AZERTY, le simulateur interprète les frappes en **QWERTY** : `massimo1234` arrive en
+`,qssi,o&é"'`. Passer « Français » dans *Réglages › Général › Clavier › Clavier physique* **n'a rien
+changé** — le clavier matériel court-circuite ce réglage.
+
+→ **Parade** : pour saisir dans un simulateur, soit **⇧⌘K** (débranche le clavier matériel, le
+clavier iOS à l'écran devient WYSIWYG), soit `xcrun simctl pbsync host <udid>` puis coller, soit
+choisir une valeur dont **toutes les lettres occupent la même touche** sur les deux dispositions
+(`t·e·s·t` oui ; `a`, `q`, `z`, `w`, `m` et tous les chiffres non).
+
+### ⚠️ `xcode-select` mal pointé bloque TOUTE l'intégration simulateur — mais pas `simctl`
+
+`attach` **et** `tap` échouent avec « Xcode is installed but not selected ». Le correctif exige
+`sudo`, donc l'humain. En revanche `xcrun simctl` (create / boot / openurl / io screenshot) marche
+sans lui : on peut lancer et capturer, mais **pas injecter d'entrée**.
+
+→ **Parade** : `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`. En attendant,
+`simctl` suffit pour tout sauf le clic — et une page derrière `RequireAuth` est donc hors d'atteinte.
+
+### 🔴 Deux défauts de la page de CONNEXION, trouvés au passage, NON corrigés
+
+1. **`secrets.compare_digest` lève sur du non-ASCII** (`modules/auth/service.py:19`) →
+   **HTTP 500** au lieu de 401. Le 500 casse la réponse avant les en-têtes CORS, donc le front
+   n'affiche qu'un **« Load failed »** qui accuse le réseau. Sur un clavier français, un accent dans
+   une saisie ratée est banal.
+2. **L'œil qui révèle le mot de passe le rend intaisissable sur iOS** — `LoginScreen.tsx:125` passe
+   en `type="text"` **sans `autoCapitalize="none"` ni `autoCorrect="off"`**. iOS majuscule la
+   première lettre, sans recours. Le geste censé aider est celui qui bloque.
+
+→ **Parade** : encoder les deux opérandes en bytes avant `compare_digest` ; ajouter
+`autoCapitalize="none" autoCorrect="off" spellCheck={false}` sur tout champ à bascule
+`password`/`text`. **Aucun test jsdom ne verra le second** : c'est le clavier système.
+
 ## Chantier `feat/diagnostic-massimo-propose` — ADR-0044, Sessions B et C — 2026-08-08
 
 ### 🔴 Un compteur de NON-FAITS traverse les cinq verrous de `test_news_doctrine.py`

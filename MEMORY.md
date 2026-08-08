@@ -21,10 +21,36 @@
 | **Sabotages** | **6 joués, 6 rouges** |
 | **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé DEUX défauts qu'aucun test ne voyait |
 
-🔴 **TROIS branches sont désormais conservées** — `feat/diagnostic-massimo-propose` (celle-ci),
-`feat/diagnostic-mesure-qui-engage` et `feat/notion-orpheline-equipable`. Les trois noms se
-ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais. Aucune n'est à supprimer
-sans consigne.
+🔴 **QUATRE branches sont désormais conservées** — `feat/diagnostic-massimo-propose` (celle-ci),
+`fix/diagnostic-zone-c-mobile` (la suite, ci-dessous), `feat/diagnostic-mesure-qui-engage` et
+`feat/notion-orpheline-equipable`. Les quatre noms se ressemblent assez pour qu'un `git branch -d`
+distrait fasse le mauvais. Aucune n'est à supprimer sans consigne.
+
+### ⤷ SUITE du même jour — la dette 375 px est CLOSE (PR #101)
+
+**La vérification manquante a été faite, et elle a rendu un défaut réel, corrigé et mergé.**
+
+| | |
+|---|---|
+| **Mergé** | PR [#101](https://github.com/NeuronXcore/zetis-school/pull/101), **squash `e9d48e1`** — 1 fichier, +13/−3 |
+| **Branche** | `fix/diagnostic-zone-c-mobile` — **CONSERVÉE**, locale et distante |
+| **Surface** | Simulateur **iPhone SE, 375 × 667 CSS px MESURÉS** (le panneau annonce son espace de coordonnées), puis `resize_window` à 393 et 1490 |
+| **Suites** | Massimo **539 / 58 fichiers**, **aucun touché** · `tsc -b` 0 |
+| **Test** | **AUCUN, délibérément** — voir DÉCISIONS ACTIVES |
+
+**Le défaut** : la zone C se cassait en trois colonnes serrées ; les boutons prenaient ~171 pt et
+le texte ~102 pt — *le texte avait moins de place que les boutons*. Après : texte **265 px** à 375,
+**283 px** à 393, **333 px** au bureau où les trois colonnes gardent le **même `y`** (937/937/940).
+
+🔴 **La leçon, et elle vaut pour tout le dépôt : `sm:` vaut 640 px, donc AUCUN téléphone ne
+l'atteint.** L'ancien `sm:flex-row` ne corrigeait rien : la branche « mobile » était celle qui
+jouait en permanence. Le cas étroit avait été anticipé — et résolu sur le mauvais axe. Pire, la
+spec l'interdisait déjà noir sur blanc (« ils se cassent en trois colonnes bancales dès 375 px »),
+mais l'avertissement n'avait été appliqué qu'à la zone A.
+
+**Un outil aussi a changé de statut** : `resize_window` **fonctionne désormais** — `innerWidth` lit
+393 puis 375, demandé et vérifié. Il restait bloqué à 2572 le matin même. Ce genre de dette n'a
+donc plus d'excuse d'outillage.
 
 ### FAIT — les trois sessions
 
@@ -62,6 +88,11 @@ Diagnostic de PAPA**, explicitement décidées « après celui-ci » (jauges non
 - **La route Papa n'est pas élargie** : son schéma dit « Vue Papa ». Deux publics, deux schémas.
 - **Aucun plafond, aucune troncature** : structurer n'est pas masquer.
 - **`DiagnosticListItem` reste LOCAL** à Massimo — un seul consommateur, vérifié.
+- 🔴 **Un défaut de MISE EN PAGE ne se verrouille pas par un test, et c'est assumé.** jsdom n'a pas
+  de moteur de rendu : `getBoundingClientRect` y renvoie des zéros. Comparer des chaînes de classes
+  Tailwind serait une **tautologie** qui casserait au premier refactor, sans jamais voir le défaut.
+  La preuve d'un tel correctif est la **mesure dans un vrai moteur** (capture + `innerWidth` lu),
+  consignée dans le message de commit et la PR. Ne pas « réparer » ce manque par un faux verrou.
 
 ### PIÈGES rencontrés → `TROUBLESHOOTING.md`
 
@@ -72,9 +103,19 @@ saboter la conjonction ; et **`toLocaleDateString("fr-FR")` écrit « 1 juillet 
 
 ### ⚠️ DETTES OUVERTES
 
-- 🔴 **Le 375 px n'a PAS été vérifié.** C'est l'appareil de Massimo. `resize_window(390×844)` via
-  `claude-in-chrome` a laissé `window.innerWidth` à **2572** — mesuré, pas supposé. Reste à faire :
-  réduire la fenêtre Chrome à la main, ou ouvrir la page sur l'iPhone.
+- ✅ ~~Le 375 px n'a pas été vérifié~~ — **FAIT et CLOS le 2026-08-08** (PR #101, ci-dessus). Au
+  passage : **Massimo a un iPhone 16, soit 393 px, pas 375**. La dette visait donc une largeur
+  qu'il n'a pas ; les deux sont désormais vérifiées, 375 restant le cas le plus étroit.
+- 🔴 **Le login rend HTTP 500 sur un mot de passe NON-ASCII.**
+  `secrets.compare_digest` (`apps/backend/app/modules/auth/service.py:19`) refuse le non-ASCII et
+  lève `TypeError`. Reproduit en vrai avec un `é`. Le 500 casse la réponse avant les en-têtes CORS,
+  donc le front n'affiche qu'un **« Load failed »** qui accuse le réseau. Sur un clavier français,
+  un accent dans une saisie ratée est banal. Correctif : encoder les deux opérandes en bytes.
+- 🔴 **L'œil qui révèle le mot de passe le rend intaisissable sur iOS.**
+  `packages/auth/src/LoginScreen.tsx:125` passe en `type="text"` **sans `autoCapitalize="none"`** :
+  iOS majuscule la première lettre, sans recours au clavier. Un mot de passe commençant par une
+  minuscule devient inatteignable dès qu'on ouvre l'œil — le geste censé aider est celui qui bloque.
+  ⚠️ **Aucun test jsdom ne verra jamais ceci** : c'est un comportement du clavier système.
 - ⚠️ **L'écran de résultat affiche jusqu'à 8 notions à renforcer d'affilée** (vu sur la passation
   Mathématiques). C'est le motif du défaut d'origine — une liste sans hiérarchie — un cran plus
   bas. Signalé, non traité : ce serait de la dérive.
@@ -88,7 +129,15 @@ saboter la conjonction ; et **`toLocaleDateString("fr-FR")` écrit « 1 juillet 
   Ordre de suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion`
   → `Quiz` → `Skill`.
 - ⚠️ **Passations de dev créées cette session** : deux sur le diagnostic Français (une tout faux,
-  une tout juste) pour reproduire la contradiction, plus l'XP correspondant.
+  une tout juste) pour reproduire la contradiction, plus l'XP correspondant. ✅ Le diagnostic
+  d'Anglais ouvert pendant la vérification 375 px **n'a rien écrit** — `fetchDiagnosticQuiz` est un
+  GET, la passation ne naît qu'à l'envoi, et la page a été quittée avant.
+- **Résidus de la vérification 375 px** : deux simulateurs créés et bootés — `ZETIS-375`
+  (iPhone SE 3ᵉ gen) et `ZETIS-393` (iPhone 16) ; la disposition du clavier physique du SE a été
+  passée en **Français** dans ses Réglages iOS. À supprimer avec `xcrun simctl delete` si on veut
+  la machine propre. Une paire de serveurs `backend-lan` / `massimo-lan` a été ajoutée à
+  `.claude/launch.json` (commit `e6fb2f5`) : **seule paire joignable depuis un vrai iPhone**, les
+  huit autres liant `127.0.0.1`.
 - 🔴 **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
 - **Papa valide un diagnostic sans pouvoir le LIRE** depuis la file (`reviewLink` rend `null`).
 - **Les 14 défauts du module `diagnostics`** restent au `BACKLOG.md`, aucun traité.
@@ -103,13 +152,23 @@ non passé » qui ne nomme personne.
 ⚠️ **Rituel complet attendu** — `mockup → spec → ADR → prompt`. Le dépôt impose un cadrage avant
 la moindre ligne.
 
-> ✅ **Étape 4bis faite le 2026-08-08**, juste après le merge : squash, n° de PR et état des
-> branches vérifiés par commande (`git cat-file -t`, `gh pr view`), pas recopiés de mémoire.
+⚠️ **Deux candidats le précèdent peut-être** : les deux défauts de connexion ci-dessus (500 sur
+non-ASCII, majuscule forcée par l'œil) frappent **l'écran par lequel Massimo entre**, et le second
+a bloqué un adulte averti pendant vingt minutes. Ce sont des **correctifs**, pas un chantier : ils
+ne demandent aucun ADR. À l'humain de trancher l'ordre.
+
+> ✅ **Étape 4bis faite DEUX FOIS le 2026-08-08** — après le merge #100, puis après le merge #101.
+> Squash, n° de PR et état des branches vérifiés par commande (`git cat-file -t`, `gh pr view`),
+> pas recopiés de mémoire.
 >
 > ✅ Les quatre contrôles du `WORKFLOW.md §6.3` passent **déjà** — ADR + addendum, deux sections
 > `TROUBLESHOOTING.md`, entrée `CHANGELOG.md` **0.60.0**, et les dettes ci-dessus. Pour une fois,
 > ②  et ③ étaient en place **avant** le merge et non rattrapés après. Ce récit sera donc
 > élagable à la prochaine clôture — **à condition de remonter d'abord les dettes ouvertes**.
+>
+> ✅ Pour #101 : entrée `CHANGELOG.md` **0.60.1** écrite dans la foulée (le contrôle ③ manquait au
+> moment du merge — comblé aussitôt, pas laissé en dette), et la section `TROUBLESHOOTING.md`
+> `fix/diagnostic-zone-c-mobile` porte les pièges. Pas d'ADR : restauration d'intention.
 
 ---
 

@@ -1,5 +1,34 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.60.1 — La zone C du Diagnostic cesse de s'écraser sur un téléphone
+
+Correctif né de la dette que la 0.60.0 laissait ouverte : **le 375 px n'avait jamais été vérifié**.
+Il l'a été, sur un simulateur iPhone SE — `375 × 667` CSS px **mesurés** — et il a rendu un défaut
+réel. PR #101, un fichier, trois classes.
+
+- **Les lignes « déjà mesuré avec toi » se cassaient en trois colonnes serrées.** Les boutons
+  prenaient ~171 pt et le texte ~102 pt : *le texte avait moins de place que les boutons*.
+  « Diagnostic — Mathématiques » tombait sur deux lignes, « août » puis « juillet » se retrouvaient
+  seuls sur la leur. Les boutons passent désormais **sous** le texte tant qu'on est sous le palier.
+- 🔴 **Le point de rupture prévu ne protégeait aucun téléphone.** `sm:` vaut **640 px** : la branche
+  « mobile » était celle qui jouait en permanence, et elle empilait les boutons *verticalement* en
+  les laissant **à côté** du texte. Le cas étroit avait été anticipé — et résolu sur le mauvais axe.
+- **La spec l'interdisait déjà**, noir sur blanc, mais pour la zone A : « ils se cassent en trois
+  colonnes bancales dès 375 px ». L'avertissement n'avait été appliqué qu'à cette zone-là. C'est
+  donc une **restauration d'intention** : aucun ADR n'est rouvert.
+- **Mesuré aux trois largeurs après correction** — texte à **265 px** (375), **283 px** (393,
+  l'iPhone 16 de Massimo), **333 px** au bureau, où les trois colonnes gardent le **même `y`** :
+  l'agencement d'origine est intact. 539 tests / 58 fichiers, **aucun touché**.
+- ⚠️ **Aucun test ne verrouille ceci, délibérément.** jsdom n'a pas de moteur de rendu ;
+  `getBoundingClientRect` y renvoie des zéros, et comparer des chaînes de classes Tailwind serait
+  une tautologie qui casserait au premier refactor. La preuve est la mesure.
+- **Outillage** : `.claude/launch.json` gagne la paire `backend-lan` / `massimo-lan`, **seule paire
+  joignable depuis un vrai iPhone** — les huit autres lient `127.0.0.1`.
+
+> Deux défauts de la page de **connexion** ont été trouvés en chemin et **ne sont pas corrigés** :
+> un mot de passe non-ASCII rend **HTTP 500** au lieu de 401, et l'œil qui révèle le mot de passe
+> déclenche l'auto-capitalisation iOS, rendant toute première lettre minuscule inatteignable.
+
 ## 0.60.0 — La page Diagnostic de Massimo propose au lieu de lister
 
 Née du 5ᵉ défaut de la relecture visuelle humaine du 2026-08-08 : *« une liste infinie de
