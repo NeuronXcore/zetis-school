@@ -26,6 +26,12 @@ from app.db.models import (
     Subject,
 )
 from app.modules.activity.timeutils import to_utc
+from app.modules.content_state import (
+    CONTENU_AUCUNE_LECON,
+    CONTENU_COURS_BROUILLON,
+    CONTENU_OK,
+    etat_contenu,
+)
 from app.modules.lesson_resolution import lessons_by_skill
 from app.modules.review_queue.service import active_year_id
 from app.modules.ai.provider import LLMProvider, LLMRequest
@@ -649,43 +655,9 @@ def score_par_notion(db: Session, attempt_id: int) -> list[dict]:
     ]
 
 
-# État du contenu d'une notion, du point de vue de la remédiation (ADR-0042).
-#
-# 🔴 **`aucune_lecon` et `cours_brouillon` ne se confondent pas, et le geste de Papa diffère.**
-# Sans leçon, le quiz s'ancre sur la notion — la lacune est *réparable*, sous réserve d'une source
-# RAG. Avec une leçon en brouillon, la voie notion **refuse** (dernier recours réservé aux notions
-# sans leçon) : il faut valider le cours. Un état unique rendrait les deux indistinguables.
-CONTENU_OK = "ok"
-CONTENU_AUCUNE_LECON = "aucune_lecon"
-CONTENU_COURS_BROUILLON = "cours_brouillon"
-
-
-def _etat_contenu(db: Session, skill_ids: list[int]) -> dict[int, str]:
-    """Par notion : de quoi dispose-t-on pour la retravailler ?
-
-    ⚠️ **Le plancher RAG n'est PAS consulté ici.** L'ADR-0042 ne rouvre la voie notion que si une
-    source validée documente la matière — mais le vérifier coûte un appel d'embedding *par notion*,
-    sur une surface de lecture qu'on ouvre à chaque affichage. On sert donc « aucune leçon », qui
-    est un fait de structure, et la page propose le geste ; c'est la génération qui refusera, avec
-    son message, si la source manque. Une jauge qui mentirait par excès d'optimisme vaut mieux
-    qu'une page qui met huit secondes à s'afficher.
-
-    Batch par `lessons_by_skill` : une notion sans leçon n'apparaît pas dans le résultat, et c'est
-    l'information — le même trou qui a coûté l'ADR-0037 puis l'addendum ADR-0034.
-    """
-    if not skill_ids:
-        return {}
-    par_notion = lessons_by_skill(db, skill_ids)
-    etats: dict[int, str] = {}
-    for skill_id in skill_ids:
-        lecons = par_notion.get(skill_id, [])
-        if not lecons:
-            etats[skill_id] = CONTENU_AUCUNE_LECON
-        elif any(lecon.status == "validated" for lecon in lecons):
-            etats[skill_id] = CONTENU_OK
-        else:
-            etats[skill_id] = CONTENU_COURS_BROUILLON
-    return etats
+# ⚠️ `etat_contenu` et ses constantes ont DÉMÉNAGÉ le 2026-08-08 dans `app.modules.content_state`,
+# un module neutre — la page Lacunes en est devenue le second lecteur, et le concept parle de
+# LEÇONS, pas de diagnostics. Il vivait ici par accident d'antériorité. Voir l'en-tête du module.
 
 
 def lacunes_de_passation(db: Session, *, student_id: int, skill_ids: list[int]) -> list[dict]:
@@ -712,7 +684,7 @@ def lacunes_de_passation(db: Session, *, student_id: int, skill_ids: list[int]) 
         )
         .order_by(Gap.id)
     ).all()
-    etats = _etat_contenu(db, [gap.skill_id for gap, _s in rows])
+    etats = etat_contenu(db, [gap.skill_id for gap, _s in rows])
     par_notion: dict[int, dict] = {}
     for gap, skill in rows:
         # Une notion peut porter plusieurs lignes (cf. la dette de dédup) : la DERNIÈRE gagne, car
@@ -1042,7 +1014,7 @@ def apercu(db: Session, student: StudentProfile) -> dict:
         if par_id
         else []
     )
-    etats = _etat_contenu(db, lacunes)
+    etats = etat_contenu(db, lacunes)
     sans_contenu = sum(1 for skill_id in lacunes if etats.get(skill_id) != CONTENU_OK)
 
     return {

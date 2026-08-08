@@ -320,11 +320,52 @@ Et le focus `non-mesurees` de la Décision 1 rend l'addition **vérifiable à l'
 matières jamais générées **plus** celles générées jamais passées. Le lecteur compte au lieu de
 croire. **C'est la décision née de ce cadrage, et c'est celle qui appelle l'arbitrage.**
 
-### 8. Zéro migration, zéro endpoint neuf, zéro champ ajouté au contrat
+### 8. Zéro migration, zéro endpoint neuf, ~~zéro champ ajouté au contrat~~
 
 **C'est l'invariant du chantier.** Les quatre défauts sont des défauts de **surface**, pas de
 capacité — ce qui est aussi pourquoi aucun test ne les voyait. Si une session en vient à proposer
 une migration, c'est qu'elle a quitté le périmètre.
+
+> 🔴 **AMENDÉE à la relecture humaine du 2026-08-08 — décision du commanditaire.**
+> **« Zéro migration » et « zéro endpoint » tiennent. « Zéro champ ajouté au contrat » est rompu**,
+> et il fallait le rompre.
+>
+> **Ce qui l'a forcé** : la Décision 1 a rendu cliquable la jauge des lacunes, et les deux renvois
+> mènent à `/lacunes`. Or `LacunesPage` ne lisait que `?subject=` — `source` et `contenu` étaient
+> **ignorés**. Le renvoi « dont N sans contenu → » affichait donc **toutes** les lacunes.
+>
+> 🔴 **C'est le défaut du chantier, reproduit par le chantier.** L'`adr-0039` est né de *« des
+> nombres qui mentaient, invisibles parce que non cliquables »*. Rendre le nombre cliquable pour
+> qu'il mène à **un autre nombre** est **pire** que l'état d'origine : avant il était invisible,
+> après il est **contredit**. Un invariant technique ne vaut pas qu'on livre ça.
+>
+> ⚠️ **Ce que la vérification a corrigé dans le diagnostic initial** : j'avais annoncé « la page en
+> montre 18 » — **c'était une mauvaise lecture** d'un nombre en petite police. Compté en base : le
+> premier renvoi **coïncide aujourd'hui** (10 = 10), *par accident*, toutes les lacunes de dev
+> venant d'un diagnostic ; il divergerait dès qu'une mission en ouvrirait une. **C'est le second
+> renvoi qui ment maintenant** — 4 annoncées, 10 montrées. Le défaut est donc réel, et plus étroit
+> que dit.
+>
+> **Le coût, et ce qu'il a produit de bon** : `source` était **gratuit** (`open_gaps` sélectionne
+> déjà `Gap`). `content_state` a demandé de sortir `etat_contenu` de `diagnostics.service`, où elle
+> était **privée**, vers un module **neutre** — `app/modules/content_state.py`. Ni
+> `lesson_resolution` (qui écrit refuser les filtres de statut) ni un import inter-domaines : une
+> écriture, deux lecteurs. **Ce déménagement est bon indépendamment de ce chantier.**
+>
+> 🔴 **Le piège qui justifie à lui seul le test de contrat** : `response_model=list[OpenGapOut]`
+> **filtre en silence** tout champ non déclaré. Les deux clés étaient produites par le service et
+> disparaissaient à la sérialisation — aucune erreur, aucun avertissement. Seul un test qui
+> interroge la **route** l'a montré ; lire le service ne suffisait pas.
+
+### 8 bis. `[amendement]` Un filtre d'origine ne se replie JAMAIS
+
+Le filtre par matière de `/lacunes` retombe sur « toutes » quand le slug ne correspond à rien —
+c'est écrit et justifié : une faute de frappe ne doit pas vider l'écran. **`source` et `contenu` ne
+partagent pas ce repli.** Ici, montrer « tout » quand le filtre ne trouve rien serait exactement le
+défaut corrigé : annoncer une population et en montrer une plus large.
+
+**Rien à montrer se montre**, et l'état vide dit **lequel** des deux cas il rend — « aucune lacune
+de ce type » n'est pas « aucune lacune ouverte ».
 
 ### 9. Ce qui ne change pas
 

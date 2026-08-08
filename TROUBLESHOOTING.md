@@ -4,6 +4,56 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/diagnostic-papa-optimisations` — ADR-0045, slice C — 2026-08-08
+
+### 🔴 `response_model` FILTRE en silence les champs que le service produit
+
+`GET /api/parent/progress/gaps` porte `response_model=list[OpenGapOut]`. Ajouter deux clés au
+dictionnaire rendu par `progress.service.open_gaps` **ne suffit pas** : Pydantic ne sérialise que
+les champs **déclarés dans le schéma**, et jette les autres. **Aucune erreur, aucun avertissement,
+aucun test rouge** — la donnée existe côté service et n'arrive jamais au client.
+
+Le service se lisait comme correct. C'est un test qui interroge la **route** qui l'a montré.
+
+→ **Parade** : tout champ neuf se déclare **deux fois** — dans le service *et* dans le schéma. Et
+un test de contrat porte sur la **route**, jamais sur la fonction : c'est la seule position d'où on
+voit la sérialisation. Vaut pour toutes les routes FastAPI du dépôt.
+
+### 🔴 Un sabotage resté VERT parce que le décor ne peut pas déclencher le défaut
+
+Verrou : « le filtre `contenu=absent` ne retombe jamais sur *tout* ». Sabotage : ajouter le repli
+`jeu = filtré.length ? filtré : jeu`. **Vert.**
+
+La cause n'est pas le verrou mais son **décor** : il contenait deux lacunes sans contenu, donc le
+filtre trouvait toujours quelque chose et **le repli ne s'exécutait jamais**. C'est une forme de
+décor dégénéré plus discrète que le décor vide : il est riche, mais il ne peut pas atteindre la
+branche qu'on prétend verrouiller.
+
+→ **Parade** : pour verrouiller un REPLI, il faut un décor où la condition de repli est **vraie** —
+ici, un décor où le filtre trouve **zéro**. Ajouté ; le sabotage rougit depuis.
+
+### ⚠️ Un sabotage NEUTRE ne prouve rien, et il faut le dire plutôt que le compter
+
+Sabotage : faire dépendre `filtreOrigine` du libellé (`nomsFiltres.length > 0`) au lieu de la
+présence du paramètre. **Vert** — et cette fois c'est correct : le libellé a reçu entre-temps un
+repli générique (`d'origine « … »`), donc les deux expressions sont devenues **équivalentes** pour
+toute valeur de `source`. Le bug d'origine n'est plus atteignable.
+
+→ **Parade** : ne pas maquiller un sabotage neutre en verrou. Le compter comme neutre, et dire
+pourquoi — sinon on croit tenir une garantie qu'on n'a pas.
+
+### ⚠️ Où loger une fonction partagée quand le module évident la refuse
+
+`etat_contenu` avait deux lecteurs et devait sortir de `diagnostics.service`. Le domicile évident,
+`lesson_resolution.py`, **écrit dans son propre en-tête** qu'il ne porte *« aucun filtre de statut
+de leçon, et c'est le cœur de la décision »*. Or cette fonction classe sur `status == "validated"`.
+
+On peut plaider que **classer n'est pas filtrer** — mais réinterpréter en passant une frontière
+écrite noir sur blanc est exactement ce que le rituel interdit.
+
+→ **Parade** : un module neutre à part (`app/modules/content_state.py`). Ni la frontière érodée, ni
+`progress` rendu dépendant de `diagnostics` pour un concept qui parle de **leçons**.
+
 ## Chantier `feat/diagnostic-papa-optimisations` — ADR-0045, Sessions A et B — 2026-08-08
 
 ### 🔴 Un `<button>` dans un `<button>` : le parseur les SÉPARE, et la grille se disloque

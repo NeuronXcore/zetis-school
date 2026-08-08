@@ -74,9 +74,35 @@ Reste **signalé et non traité** : une pastille seule laisse le panneau sur une
 exclut. Les focus ne peuvent pas produire ce cas — la jauge ② efface les deux filtres avant de
 sélectionner.
 
+### Le renvoi mène au compte qu'il annonce — et il a fallu payer le contrat pour ça
+
+La relecture humaine a trouvé un second défaut, et c'est **celui du chantier, reproduit par le
+chantier** : les renvois de la jauge « Lacunes » mènent à `/lacunes`, qui ne lisait que `?subject=`.
+« dont 4 sans contenu → » affichait donc **toutes** les lacunes. Rendre un nombre cliquable pour
+qu'il mène à **un autre nombre** est pire que le laisser invisible.
+
+- **`GET /api/parent/progress/gaps` sert `source` et `content_state`.** ⚠️ **L'invariant « zéro champ
+  ajouté au contrat » est rompu** — délibérément, et écrit dans l'ADR. « Zéro migration » et « zéro
+  endpoint » tiennent.
+- **`etat_contenu` déménage dans un module NEUTRE**, `app/modules/content_state.py`. Elle était
+  **privée** dans `diagnostics.service` par accident d'antériorité, alors qu'elle parle de
+  **leçons**. Ni `lesson_resolution` (qui écrit refuser les filtres de statut) ni un import
+  inter-domaines : une écriture, deux lecteurs. **Refactor à comportement constant prouvé** —
+  1052 → 1052, aucun test touché.
+- **`useLacunes` filtre sur `source` et `contenu`, dans le hook** — un seul point de filtrage.
+  🔴 **Sans repli**, contrairement au filtre par matière : montrer « tout » quand le filtre ne
+  trouve rien serait le défaut corrigé. L'état vide dit lequel des deux cas il rend.
+- 🔴 **Le piège qui vaut pour tout le dépôt** : `response_model` **filtre en silence** les champs
+  non déclarés. Les deux clés étaient produites par le service et disparaissaient à la
+  sérialisation, sans erreur ni avertissement. Seul un test qui interroge la **route** l'a vu.
+- ⚠️ **Correction du diagnostic initial** : « la page en montre 18 » était une **mauvaise lecture**
+  d'un nombre en petite police. Le premier renvoi coïncide aujourd'hui (10 = 10) *par accident* —
+  toutes les lacunes de dev viennent d'un diagnostic — et divergerait dès qu'une mission en
+  ouvrirait une. C'est le **second** qui ment maintenant.
+
 ### Vérifications
 
-- **702 tests Papa** (667 avant), 35 neufs, `tsc -b` 0, `vite build` vert.
+- **707 tests Papa** (667 avant) et **1055 backend** (1052 avant), `tsc -b` 0, `vite build` vert.
 - **10 sabotages joués, 10 rouges.** Dont un qui a rougi sur **mon propre texte** : la phrase de
   confirmation disait « ce n'est pas un reproche : … pas parce qu'il ne l'a pas fait » — elle
   **nommait** le reproche pour le nier. La phrase a été réécrite, pas le verrou.

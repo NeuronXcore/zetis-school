@@ -48,7 +48,13 @@ export function LacunesPage() {
   const [params, setParams] = useSearchParams();
   // Le filtre vit dans l'URL, pas dans un état local : le lien qui amène ici le porte, et
   // recharger la page ne le perd pas.
-  const l = useLacunes(params.get("subject"));
+  // `source` et `contenu` (adr-0045) : les renvois des jauges du Diagnostic les portent. Sans eux,
+  // « dont 4 sans contenu → » menait ici et en montrait 10 — un nombre cliquable qui conduit à un
+  // autre nombre est pire que le nombre invisible qu'il remplace.
+  const l = useLacunes(params.get("subject"), {
+    source: params.get("source"),
+    contenu: params.get("contenu"),
+  });
   const [confirming, setConfirming] = useState<null | "remediation" | "revision">(null);
 
   // Les trois sections dérivent TOUTES du jeu filtré par le hook — aucune ne peut l'oublier.
@@ -69,12 +75,53 @@ export function LacunesPage() {
     setParams(next, { replace: true });
   };
 
+  const clearOrigine = () => {
+    const next = new URLSearchParams(params);
+    next.delete("source");
+    next.delete("contenu");
+    setParams(next, { replace: true });
+  };
+
+  // 🔴 **Un filtre NOMMÉ, jamais une troncature** : la page dit ce qu'elle montre et comment en
+  // sortir. Même règle que le rail du Diagnostic — si une surface borne ce qu'elle montre, elle
+  // doit dire ce qu'elle laisse dehors.
+  //
+  // ⚠️ `filtreOrigine` dépend de la PRÉSENCE du filtre, jamais de ma capacité à le nommer
+  // joliment. Une première version ne le déclarait actif que pour les deux valeurs connues :
+  // `?source=revision` retombait alors sur « Aucune lacune ouverte », c'est-à-dire sur la phrase
+  // d'un dépôt vide, servie à quelqu'un qui a dix lacunes. Un test l'a attrapé.
+  const filtreOrigine = l.activeFiltres.source !== null || l.activeFiltres.contenu !== null;
+  const nomsFiltres = [
+    l.activeFiltres.source === "diagnostic"
+      ? "ouvertes par un diagnostic"
+      : l.activeFiltres.source
+        ? `d'origine « ${l.activeFiltres.source} »`
+        : null,
+    l.activeFiltres.contenu === "absent" ? "sans contenu produisible" : null,
+  ].filter(Boolean) as string[];
+
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title="Lacunes ouvertes"
         subtitle="Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider."
       />
+
+      {filtreOrigine && (
+        <p className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-papa-accent/30 bg-papa-accent/5 px-4 py-2.5 text-sm text-papa-accent">
+          <span>
+            Ne montre que les lacunes{" "}
+            <strong className="font-semibold">{nomsFiltres.join(" et ")}</strong>.
+          </span>
+          <button
+            type="button"
+            onClick={clearOrigine}
+            className="rounded-lg border border-papa-accent/40 px-2 py-0.5 text-xs font-semibold hover:border-papa-accent"
+          >
+            Toutes les lacunes
+          </button>
+        </p>
+      )}
 
       {l.activeSubject && (
         <p className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-papa-accent/30 bg-papa-accent/5 px-4 py-2.5 text-sm text-papa-accent">
@@ -123,18 +170,38 @@ export function LacunesPage() {
           ))}
         </div>
       ) : l.gaps.length === 0 ? (
-        <EmptyState
-          title="Aucune lacune ouverte"
-          description="Les notions apparaissent ici quand un diagnostic ou une mission mesure qu'elles ne tiennent pas encore. ⚠️ Des notions peuvent rester fragiles SANS lacune ouverte : les deux populations sont disjointes."
-          action={
-            <Link
-              to="/progression?view=notion"
-              className="rounded-lg border border-papa-border px-3 py-1.5 text-sm font-semibold hover:border-papa-accent"
-            >
-              Voir les paliers sur Progression →
-            </Link>
-          }
-        />
+        // 🔴 **L'état vide dit LAQUELLE des deux situations il rend.** « Aucune lacune ouverte »
+        // annonce un dépôt vide : le servir à un lecteur qui en a dix mais filtre sur une origine
+        // est un mensonge — et il cohabiterait avec le bandeau qui vient d'annoncer le filtre.
+        // Même piège que l'état vide du rail du Diagnostic, même parade.
+        filtreOrigine ? (
+          <EmptyState
+            title="Aucune lacune de ce type"
+            description="D'autres lacunes existent en dehors de ce filtre — il n'en laisse simplement passer aucune."
+            action={
+              <button
+                type="button"
+                onClick={clearOrigine}
+                className="rounded-lg border border-papa-border px-3 py-1.5 text-sm font-semibold hover:border-papa-accent"
+              >
+                Voir toutes les lacunes
+              </button>
+            }
+          />
+        ) : (
+          <EmptyState
+            title="Aucune lacune ouverte"
+            description="Les notions apparaissent ici quand un diagnostic ou une mission mesure qu'elles ne tiennent pas encore. ⚠️ Des notions peuvent rester fragiles SANS lacune ouverte : les deux populations sont disjointes."
+            action={
+              <Link
+                to="/progression?view=notion"
+                className="rounded-lg border border-papa-border px-3 py-1.5 text-sm font-semibold hover:border-papa-accent"
+              >
+                Voir les paliers sur Progression →
+              </Link>
+            }
+          />
+        )
       ) : (
         <>
           <Section

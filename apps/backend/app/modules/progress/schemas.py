@@ -18,6 +18,16 @@ class OpenGapOut(BaseModel):
     # page Lacunes, ce qui ATTEND une décision de Papa de ce qui est déjà en route. Calculé
     # serveur : le client ne recroise pas deux listes.
     has_active_mission: bool = False
+    # D'où vient la lacune (`diagnostic`, `mission`…) et de quoi on dispose pour la retravailler
+    # (`ok` | `aucune_lecon` | `cours_brouillon`, cf. `app/modules/content_state.py`). Servis depuis
+    # l'ADR-0045 : les jauges de la page Diagnostic renvoient ici avec `?source=` et `?contenu=`,
+    # et sans ces deux champs le renvoi « dont N sans contenu → » affichait TOUTES les lacunes.
+    #
+    # 🔴 **Le `response_model` FILTRE tout champ non déclaré, en silence.** Les deux clés étaient
+    # bien produites par le service et disparaissaient ici — aucune erreur, aucun avertissement.
+    # C'est un test de contrat qui l'a montré, pas la lecture du service.
+    source: str | None = None
+    content_state: str | None = None
 
 
 class ConsolidatedSkillOut(BaseModel):

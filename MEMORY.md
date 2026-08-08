@@ -8,12 +8,12 @@
 ## État à la reprise
 
 **Chantier : « la page Diagnostic de Papa montre ce qu'elle annonce » (ADR-0045).
-🔴 EN COURS — deux slices livrées, **une TROISIÈME décidée et NON FAITE**. Rien n'est commité.**
+✅ COMPLET — **trois slices livrées**. 🔴 Rien n'est commité.**
 
-> 🔴 **NI PR NI MERGE tant que la slice C n'est pas faite.** La relecture visuelle humaine a eu
-> lieu et a trouvé **deux défauts** ; l'un est corrigé, l'autre demande un changement de contrat que
-> le commanditaire a explicitement choisi de payer. Merger maintenant mettrait sur `main` une jauge
-> dont le lien **contredit son propre nombre**.
+> ⚠️ **Il reste UNE vérification que je n'ai pas pu faire** : la slice C n'a **jamais été vue à
+> l'écran**. Les serveurs de dev sont retombés en cours de session et la nouvelle instance est
+> **déconnectée** — je ne peux pas saisir de mot de passe. Le comportement est prouvé par les
+> tests (707 Papa + 1055 backend, 3 sabotages rouges) mais **pas par l'œil**.
 
 | | |
 |---|---|
@@ -22,9 +22,9 @@
 | **État git** | 🔴 **Le code des deux sessions n'est pas commité.** La branche ne porte qu'un commit de **documentation** (le cadrage). `git status` fait foi ; `git log --oneline main..HEAD` pour la liste |
 | **`main`** | `main` = `origin/main` — rien à pousser de ce côté |
 | **Décisions** | ADR-0045 **Accepté**, 9 décisions + 1 amendement — et **DEUX d'entre elles amendées pendant l'exécution**, voir plus bas |
-| **Migration** | **AUCUNE.** Aucun endpoint, aucun champ de contrat, aucun type partagé. Invariant tenu sur les deux sessions |
-| **Suites** | Papa **667 → 702**, `tsc -b` 0, `vite build` vert. ⚠️ Backend et Massimo **non relancés** — aucun de leurs fichiers n'est touché (`git status` le montre) |
-| **Sabotages** | **10 joués, 10 rouges** |
+| **Migration** | **AUCUNE**, et aucun endpoint. ⚠️ Mais **le contrat a gagné deux champs** en slice C — invariant rompu délibérément, 4ᵉ amendement de l'ADR |
+| **Suites** | Papa **667 → 707** · Backend **1052 → 1055** · `tsc -b` 0 · `vite build` vert. ⚠️ Massimo **non relancé** — aucun de ses fichiers n'est touché |
+| **Sabotages** | **13 joués : 11 rouges, 1 VERT non concluant, 1 neutre** — voir DETTES |
 | **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé **DEUX défauts** qu'aucun test ne voyait, dont un que j'avais introduit en croyant corriger son jumeau |
 
 🔴 **SEPT branches existent maintenant, six sont à conserver.** Les cinq déjà conservées —
@@ -61,52 +61,21 @@ Deux modules purs neufs portent la logique et reçoivent les sabotages : `compon
 
 Aucun fichier à moitié écrit. La frontière est propre : tests verts, typecheck 0, build vert.
 
-### 🔴 À FAIRE — la SLICE C, décidée le 2026-08-08 et non commencée
+### FAIT — la SLICE C, née de la relecture humaine
 
-**La relecture visuelle humaine a trouvé deux défauts.** Le premier est corrigé (la 4ᵉ jauge, voir
-ci-dessus). **Le second demande un changement de contrat, et le commanditaire a choisi de le payer.**
+**Le renvoi mène désormais au compte qu'il annonce.** Les deux liens de la jauge « Lacunes »
+portaient `?source=` et `?contenu=` que `LacunesPage` **ignorait** : « dont 4 sans contenu → »
+affichait **toutes** les lacunes.
 
-**Le défaut** : les deux renvois de la jauge « Lacunes » — « voir les 10 → » et « dont 4 sans
-contenu → » — **naviguent bien**, mais vers une page qui montre **18** lacunes. `LacunesPage` ne lit
-que `params.get("subject")` : elle **ignore** `source` et `contenu`.
-
-🔴 **C'est le défaut du chantier, reproduit par le chantier.** L'ADR-0039 est né de *« des nombres
-qui mentaient, invisibles parce que non cliquables »*. J'ai rendu le nombre cliquable — et le clic
-mène à **un autre nombre**. Avant il était invisible ; maintenant il est **contredit**.
-
-**Le travail, dans cet ordre — le premier temps est un refactor à comportement constant :**
-
-1. **Déplacer `_etat_contenu`** de `diagnostics/service.py` (privée) vers `lesson_resolution.py`,
-   où vit déjà son `lessons_by_skill`, et la rendre publique. **Une écriture, deux lecteurs** —
-   l'importer entre modules serait un accès privé, la dupliquer serait la faute que l'ADR-0037
-   nomme. Les constantes `CONTENU_*` suivent. **Tests verts, aucun touché : c'est la preuve.**
-2. **`progress/service.py::open_gaps` sert `source` et `content_state`.** ⚠️ `source` est
-   **gratuit** — la requête sélectionne déjà `Gap`, le champ est sur la ligne et n'est simplement
-   pas rendu.
-3. **`OpenGap`** (`packages/types/src/activity.ts`) gagne les deux champs.
-4. **`useLacunes`** accepte `source` et `contenu` et filtre — **dans le hook, jamais dans la page** :
-   *« un seul point de filtrage rend l'oubli impossible »*, c'est écrit en tête du fichier.
-5. **`LacunesPage`** passe `params.get("source")` et `params.get("contenu")`.
-6. Verrous + sabotages, et **vérifier à l'écran que 10 mène bien à 10**.
-
-⚠️ **Cette slice ROMPT l'invariant de la Décision 8** (« zéro champ ajouté au contrat »). Elle
-demande donc un **quatrième amendement écrit** à l'ADR-0045, comme les trois précédents.
-
-Puis seulement : commit → push → **PR**.
-
-### 🔴 DEUX DÉCISIONS AMENDÉES PENDANT L'EXÉCUTION — les relire, ne pas les rouvrir
-
-1. **Décision 9 (Session A)** — elle rangeait les pastilles de matière dans « ce qui ne change
-   pas ». **Précondition fausse** : elles filtraient mal, trois défauts vus à l'écran. Les deux
-   premiers sont **absorbés** parce que la Décision 3 était inimplémentable sans eux ; le troisième
-   (le panneau reste sur une matière exclue) est **signalé, non traité**.
-2. **Décision 5 (Session B)** — « Voir la page de Massimo → » est **DIFFÉRÉE** : aucun lien
-   inter-app n'existe, et surtout la page de Massimo appelle des routes `require_child` qui
-   répondent **403** à un rôle parent. Trois cellules sur quatre livrées ; la décision produit est
-   au `BACKLOG.md`.
-
-⚠️ **`DECISIONS.md` ne porte PAS ces deux amendements** — sa ligne d'index a été écrite au cadrage
-et vit sur `main`, jamais sur la branche. **À compléter sur `main` à l'étape 4bis.**
+1. **`etat_contenu` déménage** de `diagnostics.service` (privée) vers **`app/modules/content_state.py`**,
+   module neutre. Ni `lesson_resolution` — qui écrit refuser les filtres de statut — ni un import
+   inter-domaines. **Refactor à comportement constant prouvé : 1052 → 1052, aucun test touché.**
+2. **`open_gaps` sert `source` et `content_state`** ; le schéma `OpenGapOut` et le type `OpenGap`
+   les déclarent.
+3. **`useLacunes` filtre dessus, dans le hook**, et **sans repli** — contrairement au filtre par
+   matière. Montrer « tout » quand le filtre ne trouve rien serait le défaut corrigé.
+4. **`LacunesPage` nomme ce qu'elle filtre** et son état vide distingue « aucune de ce type » de
+   « aucune lacune ouverte ».
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
@@ -140,8 +109,21 @@ la plus discrète du décor dégénéré.
 **Nées de ce chantier :**
 
 - ✅ ~~La relecture visuelle humaine n'a pas eu lieu~~ — **FAITE le 2026-08-08**, et elle a rendu
-  **deux défauts** : la 4ᵉ jauge incompréhensible (**corrigée**) et les renvois de la jauge
-  « Lacunes » qui mènent à un autre nombre (**slice C, à faire**).
+  **deux défauts**, tous deux **corrigés** : la 4ᵉ jauge incompréhensible, et les renvois de la
+  jauge « Lacunes » qui menaient à un autre nombre (slice C).
+- 🔴 **La slice C n'a JAMAIS été vue à l'écran.** Les serveurs de dev sont retombés en cours de
+  session (la session voisine qui les portait s'est fermée) et la nouvelle instance demande une
+  **connexion** que je ne peux pas faire. Prouvée par 707 + 1055 tests et 3 sabotages rouges,
+  **pas par l'œil**. **C'est la première chose à faire à la reprise.**
+- ⚠️ **Un sabotage est resté VERT et a révélé un trou dans mes propres verrous** : le repli du
+  filtre `contenu` ne se déclenche pas sur un décor qui contient des lacunes sans contenu. Le cas
+  manquant (décor où le filtre trouve **zéro**) a été ajouté, et le sabotage rougit depuis.
+- ⚠️ **Un sabotage neutre, compté comme tel** : faire dépendre `filtreOrigine` du libellé est
+  devenu **équivalent** à la version correcte, le libellé ayant reçu un repli générique. Le bug
+  d'origine n'est plus atteignable ; le vert ne prouve rien et n'est pas revendiqué.
+- 🔴 **`response_model` filtre en SILENCE les champs non déclarés** — les deux clés neuves étaient
+  produites par le service et disparaissaient à la sérialisation. Aucune erreur. Vaut pour toute
+  route FastAPI du dépôt.
 - ⚠️ **Données de dev modifiées, délibérément** : le **quiz 30 est laissé en `pending`** — il donne
   à dev le spécimen « généré » qui manquait et sans lequel « Refuser ce lot » ne peut pas être vu.
   Pour l'annuler : `UPDATE quizzes SET validation_status='validated' WHERE id=30;`. Le quiz 29,
@@ -180,12 +162,17 @@ la plus discrète du décor dégénéré.
 
 ### ▶▶ PROCHAIN PAS
 
-**La SLICE C ci-dessus, étape 1 : déplacer `_etat_contenu` vers `lesson_resolution.py`** à
-comportement constant, tests verts et aucun touché. C'est le refactor qui rend le reste possible
-sans dupliquer un agrégat.
+🔴 **VOIR LA SLICE C À L'ÉCRAN — c'est la seule chose qui manque.** Lancer la paire `backend-dev`
+(8001) + `papa-dev` (5175), **se connecter**, puis sur `/diagnostics` :
 
-Le code des deux premières slices peut être commité et poussé avant — mais **ni PR ni merge** :
-la branche porte l'état intermédiaire, et c'est ce qui protège la reprise.
+1. cliquer « **dont 4 sans contenu →** » et vérifier que la page en montre **4**, pas 10 ;
+2. cliquer « **voir les 10 →** » et vérifier **10** ;
+3. lire le bandeau de filtre et sa sortie « Toutes les lacunes ».
+
+C'est l'invariant du chantier — *un renvoi mène au compte qu'il annonce* — et il n'est aujourd'hui
+prouvé que par des tests.
+
+Puis : commit → push → **PR**.
 
 **Chantier suivant, déjà décidé et cadré au `BACKLOG.md`** : l'**anti-triche du diagnostic** —
 sortie d'écran, temps par question, verbalisation, et audit de ce qui récompense encore un bon

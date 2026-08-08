@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Gap, Skill, SkillMastery, Subject
 from app.modules.activity.timeutils import range_bounds_utc
+from app.modules.content_state import CONTENU_OK, etat_contenu
 
 # SOURCE UNIQUE de « lacune ouverte ». Cette définition vivait en quatre exemplaires (constante
 # dans `missions`, constante ici, deux tuples écrits en dur dans `pilot` et `evidence`) : quatre
@@ -86,6 +87,14 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
         .where(Gap.student_id == student_id, Gap.status.in_(OPEN_GAP_STATUSES))
     ).all()
     covered = skills_with_active_mission(db, student_id=student_id)
+    # 🔴 **`source` et `content_state` servent les RENVOIS des jauges du Diagnostic** (adr-0045).
+    # Sans eux, « dont 4 sans contenu → » mène à une page qui en montre 10 : un nombre cliquable
+    # qui conduit à un autre nombre est pire que le nombre invisible qu'il remplace.
+    #
+    # ⚠️ `source` est GRATUIT — la requête sélectionne déjà `Gap`, le champ était sur la ligne et
+    # n'était simplement pas rendu. `content_state` coûte UNE requête, en lot, quel que soit le
+    # nombre de lacunes.
+    etats = etat_contenu(db, [gap.skill_id for gap, _skill, _subject in rows])
 
     gaps = [
         {
@@ -99,6 +108,11 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
                 gap.first_detected_at.isoformat() if gap.first_detected_at else None
             ),
             "has_active_mission": gap.skill_id in covered,
+            # D'où vient la lacune : `diagnostic`, `mission`… Elle n'était servie nulle part, et la
+            # page ne pouvait donc pas distinguer ce qu'une mesure a ouvert de ce qu'un exercice a
+            # révélé.
+            "source": gap.source,
+            "content_state": etats.get(gap.skill_id, CONTENU_OK),
         }
         for gap, skill, subject in rows
     ]
