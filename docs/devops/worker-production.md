@@ -158,6 +158,18 @@ Il envoie **un** e-mail quand les deux conditions tiennent :
 1. la file de production porte au moins un travail ;
 2. `production_worker_alive()` est faux depuis plus de `PRODUCTION_ALERT_AFTER_MINUTES`.
 
+⚠️ **Il ne re-détecte rien, et il n'interroge pas Redis pour la condition 1.** C'est
+`activity.porte_un_travail_en_file()` qui répond — **la même fonction que la route d'activité**, et
+elle a été extraite pour ce chantier précisément pour qu'il n'y en ait qu'une. Le dépôt s'est déjà
+fait prendre par des définitions recopiées (`OPEN_GAP_STATUSES` a vécu en quatre exemplaires) : deux
+lecteurs d'une même question doivent lire la même fonction, sinon l'écran et l'alerte finiront par
+se contredire sur l'état du couloir.
+
+🔴 **L'état vit dans Redis, jamais en mémoire** — deux clés : l'instant de la première observation,
+et le verrou d'unicité. Ce n'est pas un détail : en développement, **jusqu'à cinq backends tournent
+en parallèle** (les paires de `launch.json`). Avec un état en mémoire, chacun enverrait son e-mail —
+cinq alertes pour une panne, soit le défaut des trois workers transposé à la surveillance.
+
 ### 🔴 Le plancher de 8 minutes, mesuré
 
 Un worker **idle** ne rebat qu'à chaque tour de boucle de dequeue. Relevé le 2026-08-08 : battement
@@ -195,9 +207,10 @@ identifiant.
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `PRODUCTION_ALERT_AFTER_MINUTES` | `15` | ⚠️ **plancher 8** — voir ci-dessus |
+| `PRODUCTION_ALERT_AFTER_MINUTES` | `15` | ⚠️ **plancher 8** — une valeur plus basse est **relevée** avec un avertissement, jamais refusée |
 | `ALERT_EMAIL_TO` | *(vide)* | destinataire ; **vide ⇒ canal inerte** |
-| `SMTP_HOST` / `SMTP_PORT` | — / `587` | serveur d'envoi |
+| `ALERT_EMAIL_FROM` | *(vide)* | expéditeur ; défaut `SMTP_USER` |
+| `SMTP_HOST` / `SMTP_PORT` | — / `587` | serveur d'envoi ; STARTTLS si annoncé |
 | `SMTP_USER` / `SMTP_PASSWORD` | *(vide)* | 🔴 secret — `.env` racine uniquement |
 
 **Sans configuration : dégradation propre.** Pas de crash, pas de 500 — une ligne de log au
@@ -239,7 +252,37 @@ les ~300 Mo de Chromium.
 MINIO_PORT=9010 MINIO_CONSOLE_PORT=9011 docker compose -f docker-compose.prod.yml up -d --build worker
 ```
 
-**L'alerte — l'e-mail arrive** ⬜ *slice C, pas encore livrée*
+### La preuve de vie du canal — `python -m app.core.mailer`
+
+🔴 **Un canal d'alerte qu'on croit armé et qui ne l'est pas est pire qu'un canal absent** : on cesse
+de surveiller en comptant sur lui. Sans cette commande, la seule façon de savoir si l'e-mail part
+serait d'attendre une vraie panne — c'est-à-dire de découvrir la défaillance du détecteur au moment
+précis où on en a besoin.
+
+```bash
+cd apps/backend && .venv/bin/python -m app.core.mailer
+```
+
+Sans configuration, elle **dit** que le canal est inerte et sort en `1`. Configurée, elle envoie et
+sort en `0`.
+
+#### Tout prouver sans compte SMTP réel
+
+Un attrapeur local prouve **tout sauf la dernière patte** (qu'un fournisseur délivre) :
+
+```bash
+docker run -d --rm --name mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
+cd apps/backend && SMTP_HOST=localhost SMTP_PORT=1025 ALERT_EMAIL_TO=papa@test \
+  .venv/bin/python -m app.core.mailer
+# le message reçu : http://localhost:8025   (ou l'API : /api/v1/messages)
+docker rm -f mailpit
+```
+
+✅ **Joué le 2026-08-08**, y compris la **chaîne complète** du watchdog contre ce vrai SMTP —
+`trop-tot` à t+0 et t+7, `alerte-envoyee` à t+21, `deja-alertee` à t+40, `worker-vivant` au retour du
+worker, **un seul message** reçu, au bon destinataire, avec le bon texte.
+
+**L'alerte de bout en bout — jusqu'à une vraie boîte** ⬜ *demande un identifiant SMTP réel*
 
 ```bash
 # Ici `stop` est le bon geste : on VEUT un arrêt d'opérateur, pour que rien ne le relance.

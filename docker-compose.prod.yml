@@ -15,10 +15,18 @@ name: zetis-prod
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    networks: [interne]
+    # 🔴 `:?` et non `:-` — un compose de PROD ne se rabat pas en silence sur un mot de passe de
+    # développement écrit en clair dans le dépôt. Sans la variable, `prod:up` s'arrête avec ce
+    # message au lieu de démarrer une base ouverte avec un secret public.
+    # ⚠️ Postgres ne fixe le mot de passe qu'à l'INITIALISATION du volume : sur un volume
+    # `zetis-prod_postgres_data` déjà créé, il faut reprendre la valeur d'origine, ou supprimer le
+    # volume. Changer la variable seule donne une erreur d'authentification, pas un nouveau
+    # mot de passe.
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-zetis}
       POSTGRES_USER: ${POSTGRES_USER:-zetis}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zetis_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?definis-le dans le .env de la racine — pas de mot de passe de dev en prod}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -31,6 +39,14 @@ services:
     image: redis:7-alpine
     volumes:
       - redis_data:/data
+    networks: [interne]
+    # `redis-cli` est dans l'image officielle. Sans ce healthcheck, les dépendants ne pouvaient
+    # attendre que `service_started` — c'est-à-dire « le conteneur existe », pas « Redis répond ».
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   minio:
     image: minio/minio:latest
@@ -43,6 +59,13 @@ services:
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
+    networks: [interne]
+    # `curl` est dans l'image officielle, et `/minio/health/live` est la sonde documentée.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   backend:
     build:
@@ -50,8 +73,10 @@ services:
       dockerfile: infra/docker/backend.Dockerfile
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_started }
-      minio: { condition: service_started }
+      # `service_healthy` depuis que redis et minio ont un healthcheck : `service_started`
+      # attendait que le CONTENEUR existe, pas que le service réponde.
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
     # ⚠️ ANCRE YAML — le service `worker` réutilise ce bloc TEL QUEL (`*generation-env`).
     # Ce n'est pas de l'élégance : le worker exécute EXACTEMENT les mêmes générateurs que le
     # backend (cours, fiche, srs, mindmap, quiz, capsule, curriculum, diagnostic — tout ce qui
@@ -59,7 +84,7 @@ services:
     # divergence ne se verrait qu'en production, sur un travail qui échoue. L'ancre rend
     # l'invariant structurel au lieu de le confier à un commentaire.
     environment: &generation-env
-      ZETIS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zetis}:${POSTGRES_PASSWORD:-zetis_dev_password}@postgres:5432/${POSTGRES_DB:-zetis}
+      ZETIS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zetis}:${POSTGRES_PASSWORD:?definis-le dans le .env de la racine — pas de mot de passe de dev en prod}@postgres:5432/${POSTGRES_DB:-zetis}
       # Ollama sur l'hôte (le modèle doit y être pull).
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.6:35b-a3b}
@@ -82,6 +107,17 @@ services:
       - capsule_audio:/shared/audio
     ports:
       - "${API_PORT:-8000}:8000"
+    # `externe` EN PLUS de `interne` : il joint Ollama sur l'hôte et l'API Anthropic pour les
+    # tâches `curriculum_*`. Un service sur le seul réseau `interne` n'a aucun egress.
+    networks: [interne, externe]
+    # Limite MESURÉE, pas devinée : relevé à vide le 2026-08-08 — backend 92 Mio, worker 41 Mio
+    # (`docker stats` sur la pile réelle). 1 Go laisse ~10× de marge pour les pointes non mesurées :
+    # extraction PDF du RAG côté backend, voix Piper (ONNX) côté worker.
+    # ⚠️ Une limite trop basse serait PIRE que pas de limite : un OOM-kill en pleine génération
+    # ressemblerait exactement à la panne que ce chantier corrige. Elle est récupérable — le
+    # `restart: unless-stopped` du worker relance — mais le travail en cours serait perdu.
+    # À relever si un OOM apparaît, jamais à baisser sans nouvelle mesure sous charge.
+    mem_limit: 1g
     # Permet au conteneur de joindre Ollama sur l'hôte (Linux : host-gateway).
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -139,6 +175,16 @@ services:
     environment: *generation-env
     volumes:
       - capsule_audio:/shared/audio
+    # Mêmes réseaux que le backend, et pour la même raison : Ollama sur l'hôte + Anthropic.
+    networks: [interne, externe]
+    # Limite MESURÉE, pas devinée : relevé à vide le 2026-08-08 — backend 92 Mio, worker 41 Mio
+    # (`docker stats` sur la pile réelle). 1 Go laisse ~10× de marge pour les pointes non mesurées :
+    # extraction PDF du RAG côté backend, voix Piper (ONNX) côté worker.
+    # ⚠️ Une limite trop basse serait PIRE que pas de limite : un OOM-kill en pleine génération
+    # ressemblerait exactement à la panne que ce chantier corrige. Elle est récupérable — le
+    # `restart: unless-stopped` du worker relance — mais le travail en cours serait perdu.
+    # À relever si un OOM apparaît, jamais à baisser sans nouvelle mesure sous charge.
+    mem_limit: 1g
     # Aucun port publié : il ne sert rien, il consomme.
     # Il appelle Ollama sur l'HÔTE, exactement comme le backend.
     extra_hosts:
@@ -157,7 +203,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       # La config backend lit la DB via le préfixe ZETIS_ (pas de validation_alias) → il FAUT
       # ZETIS_DATABASE_URL, sinon le worker retombe sur le défaut localhost:5432 (connection refused).
-      ZETIS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zetis}:${POSTGRES_PASSWORD:-zetis_dev_password}@postgres:5432/${POSTGRES_DB:-zetis}
+      ZETIS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zetis}:${POSTGRES_PASSWORD:?definis-le dans le .env de la racine — pas de mot de passe de dev en prod}@postgres:5432/${POSTGRES_DB:-zetis}
       STORAGE_BACKEND: minio
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-zetis_minio}
@@ -167,6 +213,9 @@ services:
       REMOTION_TIMEOUT: ${REMOTION_TIMEOUT:-600}
     volumes:
       - capsule_audio:/shared/audio
+    # 🔴 `interne` SEUL, et c'est le point : Remotion n'appelle personne, et Chromium ne doit pas
+    # pouvoir sortir. C'est le garde-fou du rendu (même intention que le compose de dev).
+    networks: [interne]
     mem_limit: 2g
     cpus: 1.5
     # Chromium (Remotion) crashe/bloque avec le /dev/shm par défaut (64 Mo) sur des capsules
@@ -181,6 +230,8 @@ services:
       args:
         APP: frontend-massimo
     depends_on: [backend]
+    # nginx sert du statique ; c'est le NAVIGATEUR qui appelle le backend, pas ce conteneur.
+    networks: [interne]
     ports:
       - "5173:80"
 
@@ -191,8 +242,18 @@ services:
       args:
         APP: frontend-papa
     depends_on: [backend]
+    networks: [interne]
     ports:
       - "5174:80"
+
+networks:
+  # Toutes les communications entre services passent ici. `internal: true` = AUCUN egress
+  # internet : un service qui n'est que sur ce réseau ne peut joindre que ses voisins.
+  interne:
+    internal: true
+  # L'egress, réservé aux deux services qui en ont besoin : `backend` et `worker` appellent
+  # Ollama sur l'hôte et l'API Anthropic (dérogation `curriculum_*`, ADR-0009).
+  externe:
 
 volumes:
   postgres_data:

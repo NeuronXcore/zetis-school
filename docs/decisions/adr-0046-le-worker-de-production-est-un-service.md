@@ -357,11 +357,46 @@ lourde :
 - **Web Push et l'accès distant** — écartés avec motif (alternative d), à rouvrir ensemble ;
 - le **bandeau Papa** et `ProductionStrip.tsx` ;
 - `production_worker_alive()` et `core/queue.py` ;
-- les **quatre défauts** de `docker-compose.prod.yml` qu'on croisera sans les traiter : aucun
+- ~~les **quatre défauts** de `docker-compose.prod.yml` qu'on croisera sans les traiter : aucun
   healthcheck sur `redis`/`minio`, aucune limite mémoire sur `backend`, `POSTGRES_PASSWORD` avec un
-  défaut de dev en clair, aucune clé `networks:` ;
+  défaut de dev en clair, aucune clé `networks:` ;~~ **`[amendement]` FAITS — voir ci-dessous** ;
 - toute **surface Massimo** ;
 - le **multi-enfant**, le **multi-destinataire**.
+
+### `[amendement]` Les quatre défauts du compose entrent au périmètre
+
+> Décidé par le commanditaire le 2026-08-08, **après** que le constat suivant lui ait été soumis :
+> **un seul des quatre est une correction, les trois autres sont des décisions**. Il a tranché
+> « tout corriger ». Les valeurs sont **mesurées**, pas inventées, et chaque choix porte son motif
+> dans le fichier.
+
+| # | Ce qui est fait | Comment la valeur a été choisie |
+|---|---|---|
+| 1 | healthchecks `redis` (`redis-cli ping`) et `minio` (`/minio/health/live`), et les `depends_on` passent en `service_healthy` | outils vérifiés présents dans les deux images officielles |
+| 2 | `mem_limit: 1g` sur `backend` **et** `worker` | **mesuré** à vide : backend **92 Mio**, worker **41 Mio** (`docker stats`). ~10× de marge pour les pointes non mesurées (extraction PDF du RAG, voix Piper ONNX) |
+| 3 | `POSTGRES_PASSWORD` en `${…:?}` — plus de défaut de dev | 🔴 `prod:up` **s'arrête** désormais sans la variable, au lieu de démarrer une base ouverte avec un secret public |
+| 4 | deux réseaux : `interne` (`internal: true`) et `externe` | `backend` et `worker` sont sur les deux (Ollama sur l'hôte + Anthropic) ; `worker-media` sur `interne` **seul** — c'est tout son intérêt |
+
+🔴 **Le piège du n°3, qui n'est pas dans le défaut mais dans sa correction** : Postgres ne fixe le
+mot de passe qu'à l'**initialisation du volume**. Sur un `zetis-prod_postgres_data` déjà créé,
+changer la variable ne change pas le mot de passe — elle produit une **erreur d'authentification**.
+Il faut reprendre la valeur d'origine, ou supprimer le volume.
+
+⚠️ **Une limite mémoire trop basse serait pire que pas de limite** : un OOM-kill en pleine
+génération ressemblerait exactement à la panne que ce chantier corrige. Elle est récupérable — le
+`restart: unless-stopped` relance — mais le travail en cours serait perdu. À relever si un OOM
+apparaît, **jamais à baisser sans nouvelle mesure sous charge**.
+
+**Vérifié en conditions réelles**, pile relancée après le changement : les cinq services `healthy` ·
+le worker joint l'hôte (`host.docker.internal:11434` → **HTTP 200**) et ses voisins (`minio:9000` →
+**200**) · 🔴 **contre-épreuve** : un conteneur attaché à `interne` **seul** n'atteint pas l'hôte
+(**HTTP 000**) — le réseau coupe bien l'egress · `mem_limit` appliquée (1 GiB, usage 92/41 Mio) ·
+et le **redémarrage automatique tient toujours** après la bascule de topologie (`RestartCount 0 → 1`).
+
+⚠️ **Trouvé sans le corriger** : dans le compose de **dev**, `worker-media` déclare
+`networks: [internal]` **seul** alors que `postgres`/`redis`/`minio` sont sur le réseau par défaut —
+ils ne peuvent donc pas se joindre. Masqué par `profiles: [render]`, qui fait que le service n'est
+presque jamais démarré. **Hors périmètre : c'est l'autre fichier.**
 
 ## Conséquences
 
@@ -392,8 +427,12 @@ lourde :
 
 - **L'e-mail arrive alors que tout va bien** → N est trop bas, ou le watchdog lit mal. Remonter N,
   **jamais** désactiver l'alerte.
-- **L'e-mail n'arrive jamais alors que la panne se reproduit** → le canal est inerte sans qu'on
-  l'ait su : il manque une preuve de vie du canal lui-même (un envoi de test déclenchable).
+- ~~**L'e-mail n'arrive jamais alors que la panne se reproduit** → le canal est inerte sans qu'on
+  l'ait su : il manque une preuve de vie du canal lui-même (un envoi de test déclenchable).~~
+  ✅ **CONSTRUIT dans la slice C** — `python -m app.core.mailer`. Ce signal désignait un manque
+  réel ; le chantier l'a comblé au lieu d'attendre qu'il se manifeste. La commande **dit** que le
+  canal est inerte plutôt que de se taire, et un attrapeur SMTP local (`mailpit`) prouve tout sauf
+  la dernière patte — qu'un fournisseur réel délivre. Procédure : `docs/devops/worker-production.md`.
 - **Le garde-fou de la slice B gêne** — on veut légitimement un second worker un jour → alors la
   concurrence 1 est à rediscuter dans son ADR, pas à contourner par un `--force` ajouté en douce.
 - **Papa reçoit l'alerte et ne peut rien faire** parce qu'il n'est pas devant la machine → c'est
@@ -443,6 +482,35 @@ vérifiable**, et ça a été fait. Ce qui reste humain, c'est la **slice C** �
 | La barrière `service_healthy` | séquence de démarrage réelle : `backend … Waiting → Healthy`, **puis** `worker Starting` |
 | L'`entrypoint` écrasé | les logs du worker montrent RQ `Listening on production-priority, production`, **pas** uvicorn ; et le backend a migré **seul** |
 | Le redémarrage automatique | `RestartCount 0 → 1` après une mort de processus interne |
+| 🔴 **Le worker conteneurisé PRODUIT vraiment** | voir ci-dessous — c'était le trou principal |
+| Le garde-fou (slice B) | les deux portes refusent worker vivant · **laissent démarrer** sans worker · un second refuse en nommant le nouveau pid |
+| Le canal e-mail (slice C) | chaîne complète du watchdog passée par un **vrai SMTP** (attrapeur local) : `trop-tot` → `alerte-envoyee` → `deja-alertee` → `worker-vivant`, **un seul message** |
+| L'alerte jusqu'à une vraie boîte | ⬜ **NON PROUVÉ** — demande un identifiant SMTP réel |
+
+#### 🔴 La preuve qui manquait au §Suivi : le worker conteneurisé n'avait jamais exécuté un travail
+
+Il démarrait, écoutait, redémarrait après un crash — mais **aucun job n'était jamais passé par lui**.
+Ollama avait été joint par un `curl`, pas par une génération. Piper, la clé Anthropic et les cinq
+générateurs n'étaient **exercés par rien**. Le §Suivi d'origine ne le demandait pas : c'est un oubli
+du cadrage, et le seul test qui exerçait ce que le chantier construit.
+
+**Joué le 2026-08-08 dans la pile prod**, un `diagnostic_generate` (SVT) enfilé depuis le conteneur
+backend :
+
+```
+21:25:54  production-priority: run_ai_job(114)
+21:27:22  Successfully completed … in 0:01:27
+```
+
+Écrit en base : **40 questions sur 8 notions distinctes**, du texte réel (*« Lors d'un tremblement de
+terre, comment appelle-t-on le point situé à la surface… »*), et
+**`validation_status = pending`, `validated_by = ∅`** — le gate de l'`adr-0043` tient jusque dans la
+pile prod. ⚠️ 40 / 8 = **5 questions par notion** : c'est bien le `QUESTIONS_PER_SKILL` relevé de 2 à
+5 par l'`adr-0043` qui tourne.
+
+**Ce que ça prouve et qu'aucun test ne pouvait prouver** : Ollama est joignable depuis le conteneur
+**en génération réelle**, et le chemin complet backend → Redis → worker conteneurisé → LLM → base
+fonctionne.
 
 ⚠️ **Jouée sans perturber le dev** : seul MinIO entrait en conflit (9000-9001) et il est paramétrable
 (`MINIO_PORT`) ; `up -d --build worker` ne construit que le worker et ses dépendances — **pas

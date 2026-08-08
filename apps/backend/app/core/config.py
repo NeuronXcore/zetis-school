@@ -344,6 +344,27 @@ class Settings(BaseSettings):
         default=180, validation_alias="PRODUCTION_SCAN_INTERVAL_MINUTES"
     )
 
+    # --- Alerte « la file n'est servie par personne » (ADR-0046 Décision 5) --------------------
+    # 🔴 **PLANCHER DE 8 MINUTES, et c'est une MESURE, pas un réglage confortable.** Un worker
+    # `idle` ne rebat qu'à chaque tour de boucle de dequeue : relevé le 2026-08-08 à 3,8 min
+    # d'ancienneté, pour un TTL de clé Redis de 8 min. Sous 8, l'alarme sonnerait sur un worker en
+    # parfaite santé — et une alerte qui crie à tort est celle qu'on apprend à ignorer, y compris
+    # le jour de la vraie panne. Le plancher est appliqué par `watchdog.delai_alerte_minutes()`,
+    # qui RELÈVE au lieu de refuser : un backend ne tombe pas pour un réglage d'alerting.
+    production_alert_after_minutes: int = Field(
+        default=15, validation_alias="PRODUCTION_ALERT_AFTER_MINUTES"
+    )
+    # Sans destinataire ni serveur : le canal est INERTE, dit une ligne au démarrage, et rien
+    # n'échoue. Même patron que la dérogation `curriculum_*` sans clé — dégradation propre, jamais
+    # de crash pour une fonction annexe.
+    # ⚠️ Ces valeurs vivent dans le `.env` de la RACINE, jamais dans `apps/backend/.env`.
+    alert_email_to: str | None = Field(default=None, validation_alias="ALERT_EMAIL_TO")
+    alert_email_from: str | None = Field(default=None, validation_alias="ALERT_EMAIL_FROM")
+    smtp_host: str | None = Field(default=None, validation_alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, validation_alias="SMTP_PORT")
+    smtp_user: str | None = Field(default=None, validation_alias="SMTP_USER")
+    smtp_password: str | None = Field(default=None, validation_alias="SMTP_PASSWORD")
+
     # --- Demandes de Massimo (ADR-0036 §5) ----------------------------------------------------
     # ⚠️ **Un compteur DISTINCT, et c'est une décision.** Le régulateur ci-dessus compte des LOTS,
     # pas du COÛT : un lot-pièce (une fiche, ~30 s) y pèserait autant qu'un lot-chapitre (~36 min).

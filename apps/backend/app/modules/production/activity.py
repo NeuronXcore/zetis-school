@@ -322,6 +322,20 @@ def _skill_ids_des_travaux(jobs: list[AIJob]) -> list[int]:
     return out
 
 
+def porte_un_travail_en_file(etat: dict) -> bool:
+    """Y a-t-il du travail qui ATTEND un consommateur ?
+
+    ⚠️ **Une définition, deux lecteurs** — la route d'activité et le watchdog de l'ADR-0046. Elle
+    est extraite ici parce que le dépôt s'est déjà fait prendre par des définitions recopiées :
+    `OPEN_GAP_STATUSES` a vécu en quatre exemplaires, et deux `new_count` voisins désignent encore
+    deux populations. Deux lecteurs d'une même question doivent lire la même fonction, sinon
+    l'écran et l'alerte finiront par se contredire sur l'état du couloir.
+
+    Un travail `running` ne compte pas : il a forcément quelqu'un qui l'exécute.
+    """
+    return (etat.get("current") or {}).get("status") == "queued"
+
+
 def read(
     db: Session, *, worker_alive: bool | None = None, media_alive: bool | None = None
 ) -> dict:
