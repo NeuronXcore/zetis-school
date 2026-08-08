@@ -220,8 +220,21 @@ couleur des gestes qui font avancer ; celui-ci constate.
 - `cours_brouillon` → une leçon en **brouillon** — c'est elle qu'il faut valider ;
 - `ok` → une leçon **validée** — c'est elle qu'on relit.
 
-Départage entre candidates de même statut : **la plus récente** (`id` le plus grand). Choix
-arbitraire, et il est écrit ici pour qu'il ne soit pas re-tranché en silence à chaque lecture.
+Départage entre candidates de même statut : **la première de l'ordre que `lessons_by_skill` établit
+déjà** — `updated_at` décroissant, puis `id`. Autrement dit `lecons[0]` après filtrage par statut.
+
+> 🔴 **Cette phrase disait « la plus récente (`id` le plus grand) », et c'était FAUX.** Corrigé le
+> 2026-08-09 au read-before-code de la Session A. `lesson_resolution.py:113` trie déjà
+> `(updated_at, id)` décroissant pour ses **cinq** appelants, et les deux ordres divergent
+> réellement : une leçon ancienne modifiée hier passe devant une leçon créée aujourd'hui et jamais
+> retouchée. Imposer l'`id` aurait mis **deux ordres de « la plus récente »** dans le même dépôt,
+> que rien n'aurait tenus ensemble — c'est le motif exact des dettes *deux définitions de
+> `has_referentiel`* et *sept copies de `_active_year`*. **Décision du commanditaire : l'ordre
+> existant gagne, l'ADR se corrige.** Bénéfice second : aucun code de tri à écrire.
+
+**Même règle pour la mission** (Décision 5) : `active_missions` trie déjà
+`priority DESC, id`. La mission rendue est la première de cet ordre — on ne réinvente pas un
+second critère de « la mission qui couvre ».
 
 ### 5. Les deux champs sont servis dans le MÊME payload, calculés en lot
 

@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Gap, Skill, SkillMastery, Subject
 from app.modules.activity.timeutils import range_bounds_utc
-from app.modules.content_state import CONTENU_OK, etat_contenu
+from app.modules.content_state import CONTENU_OK, etat_et_lecon
 
 # SOURCE UNIQUE de « lacune ouverte ». Cette définition vivait en quatre exemplaires (constante
 # dans `missions`, constante ici, deux tuples écrits en dur dans `pilot` et `evidence`) : quatre
@@ -70,9 +70,28 @@ def skills_with_active_mission(db: Session, *, student_id: int) -> set[int]:
     pour cette notion ? ». Une mission de révision en cours y répond tout autant — c'est même le
     relais que l'`adr-0017 §5bis` désigne après un verdict « à revoir ».
     """
-    return {
-        m.skill_id for m in active_missions(db, student_id=student_id) if m.skill_id is not None
-    }
+    return set(missions_by_skill(db, student_id=student_id))
+
+
+def missions_by_skill(db: Session, *, student_id: int) -> dict[int, int]:
+    """Notion → **la** mission `planned|active` qui la couvre (ADR-0047 Décision 5).
+
+    ⚠️ **Le critère n'est pas réinventé ici.** `active_missions` trie déjà
+    `priority DESC, id` : quand plusieurs missions couvrent la même notion, on garde la
+    **première de cet ordre** — la plus prioritaire. Poser un second critère de « la mission qui
+    couvre » aurait mis deux réponses à la même question dans le même module.
+
+    🔴 **`skills_with_active_mission` en DÉRIVE désormais**, et c'est ce qui garantit le coût :
+    `progress.open_gaps` appelle cette fonction-ci **seule** et tire l'ensemble de ses clés, au lieu
+    d'appeler deux fonctions qui interrogeraient `active_missions` chacune de leur côté. L'invariant
+    `set(missions_by_skill) == skills_with_active_mission` est verrouillé par un test : s'il tombe,
+    c'est que les quatre autres lecteurs de l'ensemble comptent autre chose que cette page.
+    """
+    par_notion: dict[int, int] = {}
+    for mission in active_missions(db, student_id=student_id):
+        if mission.skill_id is not None:
+            par_notion.setdefault(mission.skill_id, mission.id)
+    return par_notion
 
 
 def open_gaps(db: Session, *, student_id: int) -> list[dict]:
@@ -86,7 +105,11 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
         .outerjoin(Subject, Subject.id == Gap.subject_id)
         .where(Gap.student_id == student_id, Gap.status.in_(OPEN_GAP_STATUSES))
     ).all()
-    covered = skills_with_active_mission(db, student_id=student_id)
+    # 🔴 **UNE seule fonction, pas deux.** `missions_by_skill` porte l'ensemble ET l'identifiant :
+    # appeler aussi `skills_with_active_mission` interrogerait `active_missions` une seconde fois,
+    # et `open_gap_count` paierait le tout une troisième — il appelle cette fonction-ci (ADR-0047).
+    missions = missions_by_skill(db, student_id=student_id)
+    covered = missions.keys()
     # 🔴 **`source` et `content_state` servent les RENVOIS des jauges du Diagnostic** (adr-0045).
     # Sans eux, « dont 4 sans contenu → » mène à une page qui en montre 10 : un nombre cliquable
     # qui conduit à un autre nombre est pire que le nombre invisible qu'il remplace.
@@ -94,7 +117,11 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
     # ⚠️ `source` est GRATUIT — la requête sélectionne déjà `Gap`, le champ était sur la ligne et
     # n'était simplement pas rendu. `content_state` coûte UNE requête, en lot, quel que soit le
     # nombre de lacunes.
-    etats = etat_contenu(db, [gap.skill_id for gap, _skill, _subject in rows])
+    #
+    # 🔴 **`etat_et_lecon`, PAS `etat_contenu` puis `lecons_visees`** (ADR-0047) : la leçon visée
+    # sort de la même passe sur `lessons_by_skill` que l'état. Les appeler séparément doublerait la
+    # requête pour rendre deux moitiés du même parcours.
+    etats = etat_et_lecon(db, [gap.skill_id for gap, _skill, _subject in rows])
 
     gaps = [
         {
@@ -112,7 +139,14 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
             # page ne pouvait donc pas distinguer ce qu'une mesure a ouvert de ce qu'un exercice a
             # révélé.
             "source": gap.source,
-            "content_state": etats.get(gap.skill_id, CONTENU_OK),
+            "content_state": etats.get(gap.skill_id, (CONTENU_OK, None))[0],
+            # La leçon que le geste de la ligne doit ouvrir, et la mission qu'il doit montrer
+            # (ADR-0047 Décisions 3-5). Les deux étaient DÉJÀ calculés puis jetés — c'est le motif
+            # exact de `source` ci-dessus, deux chantiers plus tard, dans la même fonction.
+            "lesson_id": (
+                lecon.id if (lecon := etats.get(gap.skill_id, (CONTENU_OK, None))[1]) else None
+            ),
+            "mission_id": missions.get(gap.skill_id),
         }
         for gap, skill, subject in rows
     ]

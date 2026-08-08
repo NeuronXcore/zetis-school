@@ -1313,11 +1313,41 @@ la notion. C'est ce qui sépare ce qui attend une décision de ce qui est en rou
 (`open_gaps.without_mission`) et la page Lacunes s'appuient sur la **même** fonction, après avoir
 divergé (le KPI ne regardait que les missions de remédiation et sur-comptait).
 
+`source` et `content_state` (ADR-0045) portent l'**origine** de la lacune et **de quoi on dispose
+pour la retravailler** (`ok` · `aucune_lecon` · `cours_brouillon`). Ils servent les renvois des
+jauges du Diagnostic (`?source=`, `?contenu=`) : sans eux, « dont 4 sans contenu → » menait à une
+page qui en affichait 10.
+
+`lesson_id` et `mission_id` (ADR-0047) portent la **destination du geste** de chaque ligne :
+
+| Condition | Geste | Où mène le champ |
+|---|---|---|
+| `mission_id` non nul | Voir la mission → | `/missions?focus=` |
+| `content_state == "cours_brouillon"` | Valider le cours de cette leçon → | `/programme?lesson=` (leçon en **brouillon**) |
+| `content_state == "aucune_lecon"` | Produire le quiz de cette notion → | `/quiz?skill=` |
+| `content_state == "ok"` | Relire la leçon → | `/programme?lesson=` (leçon **validée**) |
+
+⚠️ **`lesson_id` suit l'état visé par le geste**, jamais « la dernière leçon » : celle qu'on doit
+*valider* est en brouillon, celle qu'on *relit* est validée. Une notion en porte jusqu'à quatre ; le
+départage suit l'ordre que `lessons_by_skill` établit déjà (`updated_at` décroissant, puis `id`).
+`mission_id` est non nul **exactement** quand `has_active_mission` l'est.
+
+⚠️ **Les quatre champs coûtent ZÉRO requête** — tous étaient déjà calculés puis jetés par le
+service.
+
 ```json
 [{ "skill_id": 12, "skill_name": "Temps du récit", "subject_slug": "francais",
    "subject_name": "Français", "severity": "high", "status": "in_progress",
-   "first_detected_at": "2026-07-01T08:00:00+00:00", "has_active_mission": true }]
+   "first_detected_at": "2026-07-01T08:00:00+00:00", "has_active_mission": true,
+   "source": "diagnostic", "content_state": "cours_brouillon",
+   "lesson_id": 24, "mission_id": 56 }]
 ```
+
+> ⚠️ **Cet exemple avait un chantier de retard** : il ne portait ni `source` ni `content_state`,
+> servis depuis l'ADR-0045 **mergée**. Remis au réel le 2026-08-09, en ajoutant les deux champs de
+> l'ADR-0047. Rien dans le dépôt ne compare `API_SPEC.md` à ce que les routes servent vraiment —
+> c'est le même angle mort que celui qui a laissé une spec de page décrire quatre routes
+> inexistantes (constat de l'ADR-0044).
 
 ### GET `/api/parent/progress/consolidated`
 

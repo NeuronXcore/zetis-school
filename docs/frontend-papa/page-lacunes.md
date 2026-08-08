@@ -127,8 +127,10 @@ notion.
 > 🔴 **Une notion porte jusqu'à QUATRE leçons** (« Priorités opératoires » : #151 `draft`,
 > #145 `draft`, #48 `validated`, #23 `validated`). **La leçon visée suit l'état visé par le geste** —
 > celle qu'on doit *valider* est en brouillon, celle qu'on *relit* est validée. Départage entre
-> candidates de même statut : la plus récente. Ouvrir une leçon déjà validée sous le libellé
-> « Valider le cours » recréerait le défaut que ce chantier corrige.
+> candidates de même statut : **la première de l'ordre que `lessons_by_skill` établit déjà**
+> (`updated_at` décroissant, puis `id`) — on ne pose pas un second ordre de « la plus récente ».
+> Ouvrir une leçon déjà validée sous le libellé « Valider le cours » recréerait le défaut que ce
+> chantier corrige.
 
 ### `[0047]` Le geste ne s'écrase pas sur un téléphone
 

@@ -4,6 +4,91 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/lacunes-permettent-d-agir` — ADR-0047, Session A — 2026-08-09
+
+### 🔴 Deux fonctions sœurs sur la même donnée = DEUX requêtes, et le test unitaire ne le voit pas
+
+L'ADR promettait « zéro requête de plus » pour `lesson_id` et `mission_id`, au motif que les deux
+sont **déjà calculés puis jetés**. C'est vrai. Ma première implémentation l'a quand même perdu :
+`etat_contenu` **et** une fonction sœur `lecons_visees`, appelées l'une après l'autre depuis
+`open_gaps` — donc **deux passes** sur `lessons_by_skill` pour deux moitiés du même parcours.
+
+Le même piège existait côté missions : `skills_with_active_mission` et une seconde fonction auraient
+interrogé `active_missions` chacune de leur côté.
+
+**Cause** : « la donnée est déjà calculée » ne dit rien de **où** elle est calculée. Extraire une
+seconde projection d'un même parcours produit un second parcours si l'appelant demande les deux.
+
+**Parade, appliquée des deux côtés** :
+
+- `content_state.etat_et_lecon` rend le **couple** en une passe ; `etat_contenu` et `lecons_visees`
+  n'en sont que des projections, pour les appelants qui ne veulent qu'une moitié ;
+- `progress.missions_by_skill` porte l'ensemble **et** l'identifiant, et
+  `skills_with_active_mission` en **dérive** (`set(...)`) au lieu de refaire la requête.
+
+⚠️ **Aucun test unitaire ne voit ça** : les deux versions rendent exactement les mêmes valeurs. Il
+faut un test qui **compte les requêtes SQL** (`event.listen(Engine, "before_cursor_execute")`) —
+c'est le seul angle d'où la double passe est visible. Et le coût s'y paie deux fois, puisque
+`open_gap_count` appelle `open_gaps`.
+
+### 🔴 `content_state.py` annonçait DEUX lecteurs — il en a CINQ
+
+Son docstring portait un tableau intitulé « Les deux lecteurs ». `graphify affected "etat_contenu"`
+en rend **cinq** : `lacunes_de_passation`, `apercu`, `result_detail` (diagnostics), `open_gaps`,
+`open_gap_count` (progress).
+
+**Pourquoi ça compte** : l'écart change ce qu'on peut se permettre. Élargir la **signature** de
+`etat_contenu` aurait touché trois appelants de `diagnostics` qui n'ont que faire d'une leçon —
+d'où le choix d'une fonction sœur plutôt que d'un retour élargi.
+
+**Parade** : sur un module neutre, `graphify affected` **avant** de décider de la forme d'une
+évolution, jamais le docstring du module. Un tableau de lecteurs écrit à la main se périme au
+premier appelant suivant, en silence.
+
+### ⚠️ `lessons_by_skill` TRIE DÉJÀ — poser un second ordre était le vrai risque
+
+L'ADR-0047 prescrivait un départage « la plus récente (`id` le plus grand) ». Le code trie déjà
+`lecons.sort(key=lambda l: (l.updated_at, l.id), reverse=True)` (`lesson_resolution.py:113`), pour
+ses **cinq** appelants.
+
+Les deux ordres **divergent réellement** : une leçon ancienne (petit `id`) modifiée hier passe
+devant une leçon créée aujourd'hui et jamais retouchée.
+
+**Parade** : l'ADR a été corrigé, pas le code. Un second ordre de « la plus récente » dans le même
+dépôt, c'est le motif des dettes *deux définitions de `has_referentiel`* et *sept copies de
+`_active_year`*.
+
+⚠️ **Et pour que le verrou le prouve, le décor doit distinguer les deux ordres** : la leçon attendue
+est créée **en premier** (donc plus petit `id`) avec le `updated_at` le plus récent, et le test
+assert explicitement `rendue != max(ids)`. Sans ça, il passerait avec l'un comme avec l'autre.
+
+### ⚠️ `Lesson.updated_at` a un `server_default` — un décor naïf ne teste pas le tri
+
+`TimestampMixin` pose `server_default=func.now()`. Quatre leçons créées dans la même transaction
+reçoivent donc **la même** valeur, et le départage retombe silencieusement sur l'`id` : le test
+passe, mais il ne prouve pas ce qu'il annonce.
+
+**Parade** : assigner `updated_at` **explicitement** à la création (SQLAlchemy garde la valeur
+fournie). C'est ce qui rend le tri observable.
+
+### ⚠️ `API_SPEC.md` avait UN CHANTIER DE RETARD, et rien ne pouvait le dire
+
+L'exemple JSON de `GET /api/parent/progress/gaps` ne portait ni `source` ni `content_state`, servis
+depuis l'ADR-0045 **mergée**. Découvert en venant y ajouter deux autres champs.
+
+**Cause** : **rien dans le dépôt ne compare `API_SPEC.md` à ce que les routes servent vraiment.**
+C'est le même angle mort qui a laissé une spec de page décrire quatre routes inexistantes
+(constat de l'ADR-0044). Un document de contrat sans contrôle automatique dérive à chaque chantier
+qui ne le regarde pas.
+
+### ⚠️ Le shell d'un agent GARDE son répertoire — un `cd` d'une commande vaut pour la suivante
+
+Après `cd apps/backend && pytest`, la commande suivante partait de `apps/backend`, et tous les
+chemins relatifs à la racine échouaient (`No such file or directory`) — sans que la cause soit
+évidente, puisque la commande précédente avait réussi.
+
+**Parade** : chemins **absolus**, ou `cd <racine> && …` en tête de chaque commande.
+
 ## Chantier `feat/worker-supervise` — ADR-0046, slices A/B/C — 2026-08-08
 
 ### 🔴 `docker compose kill` NE PROUVE PAS un redémarrage — il rend un FAUX NÉGATIF
