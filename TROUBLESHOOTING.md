@@ -86,7 +86,7 @@ sans lui : on peut lancer et capturer, mais **pas injecter d'entrée**.
 → **Parade** : `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`. En attendant,
 `simctl` suffit pour tout sauf le clic — et une page derrière `RequireAuth` est donc hors d'atteinte.
 
-### 🔴 Deux défauts de la page de CONNEXION, trouvés au passage, NON corrigés
+### 🔴 TROIS défauts de la page de CONNEXION — corrigés le jour même (PR #102, squash `d4c618d`)
 
 1. **`secrets.compare_digest` lève sur du non-ASCII** (`modules/auth/service.py:19`) →
    **HTTP 500** au lieu de 401. Le 500 casse la réponse avant les en-têtes CORS, donc le front
@@ -96,9 +96,31 @@ sans lui : on peut lancer et capturer, mais **pas injecter d'entrée**.
    en `type="text"` **sans `autoCapitalize="none"` ni `autoCorrect="off"`**. iOS majuscule la
    première lettre, sans recours. Le geste censé aider est celui qui bloque.
 
-→ **Parade** : encoder les deux opérandes en bytes avant `compare_digest` ; ajouter
-`autoCapitalize="none" autoCorrect="off" spellCheck={false}` sur tout champ à bascule
-`password`/`text`. **Aucun test jsdom ne verra le second** : c'est le clavier système.
+3. 🔴 **Et un TROISIÈME, que le read-before-code a seul trouvé : le champ Identifiant n'a pas de
+   `type`** — c'est donc `text`, donc auto-capitalisé **en permanence**, sans qu'aucun geste soit
+   nécessaire. `massimo` devient `Massimo`, la connexion échoue, et l'enfant lit « Identifiants
+   invalides » sans pouvoir l'expliquer. Il ne s'était **jamais montré** parce que Safari
+   pré-remplissait le champ. Le plus grave des trois — et invisible à l'écran, par construction.
+
+→ **Parade appliquée** : encoder les deux opérandes en bytes avant `compare_digest` ;
+`autoCapitalize="none" autoCorrect="off" spellCheck={false}` sur **les deux** champs, pas
+seulement celui à bascule. **Aucun test jsdom ne verra les défauts 2 et 3** : clavier système.
+
+### 🔴 Ce que le sabotage a révélé de l'ANCIENNE suite d'auth — la leçon la plus transférable
+
+Retirer l'encodage fait rougir les 4 nouveaux verrous non-ASCII. Mais **les 6 autres tests restent
+VERTS**, `test_login_bad_password` compris — un test qui existait déjà et qui était censé couvrir
+« mot de passe refusé ».
+
+**Cause** : il essaie « `wrong` », de l'**ASCII pur**. `compare_digest` ne lève que sur du
+non-ASCII. Le test couvrait donc la **forme d'erreur qu'il avait choisie**, pas la classe d'erreur
+qu'il prétendait couvrir — et le défaut est parti en production sous une suite verte.
+
+→ **Parade** : quand un test couvre un « cas d'erreur », se demander **quelles autres formes** cette
+erreur peut prendre (encodage, longueur, type, vide, unicode) — et si le refus doit être *un statut
+précis*, l'asserter comme tel. Ici le verrou ne dit pas « c'est refusé » mais **« c'est refusé par
+un 401 propre, jamais par une erreur serveur »** : un endpoint d'authentification qui s'effondre
+sur une entrée arbitraire est un défaut à part entière.
 
 ## Chantier `feat/diagnostic-massimo-propose` — ADR-0044, Sessions B et C — 2026-08-08
 

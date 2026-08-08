@@ -21,10 +21,11 @@
 | **Sabotages** | **6 joués, 6 rouges** |
 | **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé DEUX défauts qu'aucun test ne voyait |
 
-🔴 **QUATRE branches sont désormais conservées** — `feat/diagnostic-massimo-propose` (celle-ci),
-`fix/diagnostic-zone-c-mobile` (la suite, ci-dessous), `feat/diagnostic-mesure-qui-engage` et
-`feat/notion-orpheline-equipable`. Les quatre noms se ressemblent assez pour qu'un `git branch -d`
-distrait fasse le mauvais. Aucune n'est à supprimer sans consigne.
+🔴 **CINQ branches sont désormais conservées** — `feat/diagnostic-massimo-propose` (celle-ci),
+`fix/diagnostic-zone-c-mobile` et `fix/connexion-mot-de-passe` (les deux suites, ci-dessous),
+`feat/diagnostic-mesure-qui-engage` et `feat/notion-orpheline-equipable`. Les cinq noms se
+ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais. Aucune n'est à supprimer
+sans consigne. Toutes vérifiées locales ET distantes le 2026-08-08.
 
 ### ⤷ SUITE du même jour — la dette 375 px est CLOSE (PR #101)
 
@@ -47,6 +48,36 @@ l'atteint.** L'ancien `sm:flex-row` ne corrigeait rien : la branche « mobile »
 jouait en permanence. Le cas étroit avait été anticipé — et résolu sur le mauvais axe. Pire, la
 spec l'interdisait déjà noir sur blanc (« ils se cassent en trois colonnes bancales dès 375 px »),
 mais l'avertissement n'avait été appliqué qu'à la zone A.
+
+### ⤷ SECONDE SUITE — l'écran de connexion cesse de résister (PR #102)
+
+**Les deux défauts de connexion ne sont plus des dettes : ils sont corrigés et mergés. Et le
+read-before-code en a trouvé un TROISIÈME, plus grave, que personne n'avait signalé.**
+
+| | |
+|---|---|
+| **Mergé** | PR [#102](https://github.com/NeuronXcore/zetis-school/pull/102), **squash `d4c618d`** — 3 fichiers, +69/−1 |
+| **Branche** | `fix/connexion-mot-de-passe` — **CONSERVÉE**, locale et distante |
+| **Suites** | Backend **1047 → 1052** · Massimo 539 · Papa 667 · `tsc -b` 0 sur les deux |
+| **Sabotage** | **4 rouges sur 4** — et c'est ce qu'il révèle des AUTRES tests qui compte |
+
+1. **Le 500 sur mot de passe non-ASCII** → `compare_digest` compare des **bytes**. Temps constant
+   préservé, n'importe quelle entrée acceptée.
+2. **L'œil qui révèle le mot de passe** → `autoCapitalize="none"` + `autoCorrect` + `spellCheck`.
+3. 🔴 **LE TROISIÈME : le champ Identifiant n'a pas de `type`** — donc `text`, donc auto-capitalisé
+   **en permanence**, sans qu'aucun geste soit nécessaire. `massimo` devenait `Massimo`. Il ne
+   s'était jamais montré parce que **Safari pré-remplissait le champ**. C'est le plus grave des
+   trois, et il n'a été trouvé qu'en LISANT le fichier — pas à l'écran.
+
+🔴 **Ce que le sabotage a révélé de l'ancienne suite, et qui vaut pour tout le dépôt** : les 4
+verrous non-ASCII rougissent, mais **les 6 autres tests restent VERTS**, `test_login_bad_password`
+compris. Il essaie « wrong », de l'**ASCII pur** — la suite était *structurellement aveugle*, et
+c'est exactement pour ça que le défaut a été livré. Un test qui « couvre » un cas d'erreur ne
+couvre que la **forme d'erreur qu'il a choisie**.
+
+**Vérifié deux fois, indépendamment** : sur simulateur iOS (`massimo` remplacé en position 0 par
+`test` → `t` MINUSCULE, là où le même geste rendait `M` une heure plus tôt), et **par l'humain sur
+son propre iPhone**. ⚠️ Aucun test jsdom ne verra jamais les défauts 2 et 3 : clavier système.
 
 **Un outil aussi a changé de statut** : `resize_window` **fonctionne désormais** — `innerWidth` lit
 393 puis 375, demandé et vérifié. Il restait bloqué à 2572 le matin même. Ce genre de dette n'a
@@ -106,16 +137,9 @@ saboter la conjonction ; et **`toLocaleDateString("fr-FR")` écrit « 1 juillet 
 - ✅ ~~Le 375 px n'a pas été vérifié~~ — **FAIT et CLOS le 2026-08-08** (PR #101, ci-dessus). Au
   passage : **Massimo a un iPhone 16, soit 393 px, pas 375**. La dette visait donc une largeur
   qu'il n'a pas ; les deux sont désormais vérifiées, 375 restant le cas le plus étroit.
-- 🔴 **Le login rend HTTP 500 sur un mot de passe NON-ASCII.**
-  `secrets.compare_digest` (`apps/backend/app/modules/auth/service.py:19`) refuse le non-ASCII et
-  lève `TypeError`. Reproduit en vrai avec un `é`. Le 500 casse la réponse avant les en-têtes CORS,
-  donc le front n'affiche qu'un **« Load failed »** qui accuse le réseau. Sur un clavier français,
-  un accent dans une saisie ratée est banal. Correctif : encoder les deux opérandes en bytes.
-- 🔴 **L'œil qui révèle le mot de passe le rend intaisissable sur iOS.**
-  `packages/auth/src/LoginScreen.tsx:125` passe en `type="text"` **sans `autoCapitalize="none"`** :
-  iOS majuscule la première lettre, sans recours au clavier. Un mot de passe commençant par une
-  minuscule devient inatteignable dès qu'on ouvre l'œil — le geste censé aider est celui qui bloque.
-  ⚠️ **Aucun test jsdom ne verra jamais ceci** : c'est un comportement du clavier système.
+- ✅ ~~Le login rend 500 sur un mot de passe non-ASCII~~ · ~~l'œil rend le champ intaisissable~~ —
+  **les DEUX corrigés et MERGÉS** le 2026-08-08 (PR #102, ci-dessus), avec un **troisième** défaut
+  trouvé au read-before-code : le champ Identifiant, auto-capitalisé en permanence.
 - ⚠️ **L'écran de résultat affiche jusqu'à 8 notions à renforcer d'affilée** (vu sur la passation
   Mathématiques). C'est le motif du défaut d'origine — une liste sans hiérarchie — un cran plus
   bas. Signalé, non traité : ce serait de la dérive.
@@ -152,23 +176,39 @@ non passé » qui ne nomme personne.
 ⚠️ **Rituel complet attendu** — `mockup → spec → ADR → prompt`. Le dépôt impose un cadrage avant
 la moindre ligne.
 
-⚠️ **Deux candidats le précèdent peut-être** : les deux défauts de connexion ci-dessus (500 sur
-non-ASCII, majuscule forcée par l'œil) frappent **l'écran par lequel Massimo entre**, et le second
-a bloqué un adulte averti pendant vingt minutes. Ce sont des **correctifs**, pas un chantier : ils
-ne demandent aucun ADR. À l'humain de trancher l'ordre.
+✅ ~~Deux candidats le précèdent peut-être~~ — **tranché et fait le 2026-08-08** : les défauts de
+connexion sont passés d'abord, et sont mergés (PR #102). Plus rien ne s'intercale.
 
-> ✅ **Étape 4bis faite DEUX FOIS le 2026-08-08** — après le merge #100, puis après le merge #101.
-> Squash, n° de PR et état des branches vérifiés par commande (`git cat-file -t`, `gh pr view`),
-> pas recopiés de mémoire.
+🔴 **CE CHANTIER EST EXPLICITEMENT DIFFÉRÉ À LA PROCHAINE SESSION DE CODE.**
+
+Décision du commanditaire, prise le 2026-08-08 en fin de session — **ce n'est pas un oubli, et il
+ne faut pas l'entamer dans la foulée d'une reprise**. La session qui lira ces lignes commence donc
+par le **cadrage**, pas par du code :
+
+```txt
+1. /ouverture          — depuis un `main` propre, vérifie que le cadrage EXISTE (le fichier ADR)
+2. mockup              — docs/frontend-papa/mockup/
+3. spec                — docs/frontend-papa/page-*.md
+4. ADR                 — docs/decisions/adr-00XX-*.md, inscrit dans DECISIONS.md
+5. prompt de chantier  — prompts/claude-code/
+6. /slice              — et seulement là, du code
+```
+
+⚠️ `/ouverture` **s'arrête si un ADR manque** — c'est arrivé le 2026-08-01. Ne pas contourner.
+
+> ✅ **Étape 4bis faite TROIS FOIS le 2026-08-08** — après les merges #100, #101 et #102. Squash,
+> n° de PR et état des branches vérifiés par commande (`git cat-file -t`, `gh pr view`,
+> `git branch` / `-r`), pas recopiés de mémoire.
 >
 > ✅ Les quatre contrôles du `WORKFLOW.md §6.3` passent **déjà** — ADR + addendum, deux sections
 > `TROUBLESHOOTING.md`, entrée `CHANGELOG.md` **0.60.0**, et les dettes ci-dessus. Pour une fois,
 > ②  et ③ étaient en place **avant** le merge et non rattrapés après. Ce récit sera donc
 > élagable à la prochaine clôture — **à condition de remonter d'abord les dettes ouvertes**.
 >
-> ✅ Pour #101 : entrée `CHANGELOG.md` **0.60.1** écrite dans la foulée (le contrôle ③ manquait au
-> moment du merge — comblé aussitôt, pas laissé en dette), et la section `TROUBLESHOOTING.md`
-> `fix/diagnostic-zone-c-mobile` porte les pièges. Pas d'ADR : restauration d'intention.
+> ✅ Pour #101 et #102 : entrées `CHANGELOG.md` **0.60.1** et **0.60.2** écrites dans la foulée (le
+> contrôle ③ manquait au moment de chaque merge — comblé aussitôt, jamais laissé en dette), et la
+> section `TROUBLESHOOTING.md` `fix/diagnostic-zone-c-mobile` porte les neuf pièges des deux. Pas
+> d'ADR pour l'une ni pour l'autre : restauration d'intention et correctifs, pas de décision neuve.
 
 ---
 

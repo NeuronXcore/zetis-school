@@ -1,5 +1,35 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.60.2 — L'écran par lequel Massimo entre cesse de lui résister
+
+Trois défauts du formulaire de connexion, **aucun visible depuis le poste de développement**. Ils
+sont sortis d'une tentative de connexion sur un vrai iPhone, pendant la vérification 375 px de la
+0.60.1. PR #102.
+
+- 🔴 **Un mot de passe non-ASCII faisait rendre HTTP 500.** `secrets.compare_digest` lève
+  `TypeError` dès qu'une des deux chaînes sort de l'ASCII : un mot de passe simplement **mal tapé**
+  avec un accent faisait tomber l'endpoint d'authentification. Et le 500 casse la réponse **avant
+  les en-têtes CORS**, si bien que le navigateur n'affiche qu'un « Load failed » qui accuse le
+  **réseau** au lieu du mot de passe. La comparaison porte désormais sur des **bytes** : n'importe
+  quelle entrée est acceptée, le temps constant est préservé.
+- 🔴 **L'œil qui révèle le mot de passe le rendait intaisissable sur iOS.** L'input bascule en
+  `type="text"` au moment où l'utilisateur veut **relire** ce qu'il tape — et iOS capitalise alors
+  la première lettre, sans recours au clavier. Le geste censé aider était celui qui bloquait.
+- 🔴 **Le champ Identifiant était auto-capitalisé EN PERMANENCE** — il n'a pas de `type`, donc
+  `text`. `massimo` devenait `Massimo`. Ce troisième défaut, le plus grave, n'a été trouvé qu'en
+  **lisant le fichier** : il ne s'était jamais montré parce que Safari pré-remplissait le champ.
+  Les deux champs portent maintenant `autoCapitalize="none"`, `autoCorrect="off"`, `spellCheck`.
+
+> ⚠️ **Ce que le sabotage a révélé de l'ancienne suite.** Les 4 verrous non-ASCII rougissent quand
+> on retire l'encodage — mais **les 6 autres tests restent verts**, `test_login_bad_password`
+> compris. Il essaie « wrong », de l'ASCII pur : la suite couvrait la *forme* d'erreur qu'elle avait
+> choisie, pas la classe qu'elle prétendait couvrir. Le nouveau verrou ne dit pas « c'est refusé »
+> mais **« c'est refusé par un 401 propre, jamais par une erreur serveur »**.
+
+Vérifié deux fois, indépendamment : sur simulateur iOS (`massimo` remplacé en position 0 par
+`test` → `t` **minuscule**, là où le même geste rendait `M` une heure plus tôt) et **par Papa sur
+son propre iPhone**. Backend **1047 → 1052**, Massimo 539, Papa 667, `tsc -b` 0 sur les deux.
+
 ## 0.60.1 — La zone C du Diagnostic cesse de s'écraser sur un téléphone
 
 Correctif né de la dette que la 0.60.0 laissait ouverte : **le 375 px n'avait jamais été vérifié**.
