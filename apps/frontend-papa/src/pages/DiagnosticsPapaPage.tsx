@@ -1,148 +1,166 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { SubjectFilterChips } from "@zetis/ui";
+import type { DiagnosticApercu, DiagnosticPortee, DiagnosticRailEntry, DiagnosticResult } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
-import {
-  type DiagnosticResultSummary,
-  type Subject,
-  fetchResults,
-  fetchSubjects,
-  generateDiagnostic,
-} from "../lib/diagnostic";
+import { DiagnosticIcon } from "../components/DiagnosticIcon";
+import { BandeauInstrument } from "../components/diagnostic/BandeauInstrument";
+import { RailPassations } from "../components/diagnostic/RailPassations";
+import { PanneauPassation, PanneauSansMesure } from "../components/diagnostic/PanneauPassation";
+import { LancerDiagnosticDialog } from "../components/diagnostic/LancerDiagnosticDialog";
+import { fetchApercu, fetchPortee, fetchResultDetail } from "../lib/diagnostic";
 
-// Diagnostics Papa (Étape 14) — lancer un diagnostic IA par matière + lire les
-// résultats (score par notion, lacunes). Papa pilote, Massimo passe le diagnostic.
-
-function scoreColor(score: number): string {
-  if (score >= 70) return "bg-emerald-500/15 text-emerald-300";
-  if (score >= 40) return "bg-amber-500/15 text-amber-300";
-  return "bg-rose-500/15 text-rose-300";
-}
+// Page Papa « Diagnostic » (adr-0043) — refonte complète.
+//
+// Elle répond à UNE question, dans cet ordre et sans sauter d'étape : *cette mesure, qu'a-t-elle
+// mesuré, qu'a-t-elle ouvert, et qu'est-ce que ZETIS en a fait ?* Une passation est une **mesure
+// datée** : la page la traite comme un instrument, pas comme un bulletin.
+//
+// Ce qu'elle S'INTERDIT, et pourquoi :
+//
+// - **aucun score avant le 3ᵉ cran du témoin** — il n'en existe pas ;
+// - **aucun compteur de jours d'attente côté Massimo, aucune relance** — l'attente est une
+//   information pour Papa, pas une pression sur l'enfant ;
+// - **aucun classement de matières**, aucun « meilleur / moins bon » ;
+// - **aucune note globale de l'élève** — un diagnostic mesure des notions, pas un enfant
+//   (adr-0028 §9, non rouvert) ;
+// - **aucune interpolation** dans la portée ;
+// - **aucune modification de contenu** — la page lit et oriente ; produire a ses pages.
+//
+// ⚠️ **Deux appels seulement au chargement** (`/apercu`), puis un couple `détail + portée` par
+// sélection. La portée n'est pas préchargée pour toutes les matières : c'est une liste, pas un
+// agrégat borné, et le dashboard précharge pour une raison qui ne vaut pas ici (adr-0028 §1).
 
 export function DiagnosticsPapaPage() {
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [apercu, setApercu] = useState<DiagnosticApercu | null>(null);
   const [subjectId, setSubjectId] = useState<number | null>(null);
-  const [results, setResults] = useState<DiagnosticResultSummary[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [selection, setSelection] = useState<DiagnosticRailEntry | null>(null);
+  const [detail, setDetail] = useState<DiagnosticResult | null>(null);
+  const [portee, setPortee] = useState<DiagnosticPortee | null>(null);
+  const [dialogOuvert, setDialogOuvert] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function loadResults() {
-    fetchResults()
-      .then(setResults)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Chargement impossible"));
-  }
-
-  useEffect(() => {
-    fetchSubjects()
-      .then((list) => {
-        setSubjects(list);
-        if (list.length > 0) setSubjectId(list[0].id);
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Chargement impossible"));
-    loadResults();
+  const charger = useCallback(async () => {
+    try {
+      const donnees = await fetchApercu();
+      setApercu(donnees);
+      // Sélection par défaut : la passation la plus récente. Ouvrir sur du vide obligerait Papa à
+      // cliquer pour voir ce qu'il vient chercher.
+      setSelection((courante) => courante ?? donnees.rail.find((e) => e.cran === "passe") ?? donnees.rail[0] ?? null);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Chargement impossible");
+    }
   }, []);
 
-  async function onGenerate() {
-    if (subjectId == null) return;
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const res = await generateDiagnostic(subjectId);
-      setNotice(
-        `Diagnostic « ${res.subject} » prêt (${res.questions_count} questions) — Massimo peut le passer.`,
-      );
-      loadResults();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Génération impossible");
-    } finally {
-      setBusy(false);
+  useEffect(() => {
+    void charger();
+  }, [charger]);
+
+  useEffect(() => {
+    // ⚠️ `annule` : en StrictMode le montage est joué deux fois, et sans ce drapeau la réponse du
+    // premier passage peut écraser celle du second. Piège déjà payé sur le chat (adr-0026).
+    let annule = false;
+    if (selection === null || selection.attempt_id === null) {
+      setDetail(null);
+      setPortee(null);
+      return;
     }
+    const attemptId = selection.attempt_id;
+    const matiere = selection.subject_id;
+    void (async () => {
+      try {
+        const [d, p] = await Promise.all([fetchResultDetail(attemptId), fetchPortee(matiere)]);
+        if (annule) return;
+        setDetail(d);
+        setPortee(p);
+      } catch (cause: unknown) {
+        if (!annule) setError(cause instanceof Error ? cause.message : "Chargement impossible");
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, [selection]);
+
+  const railVisible = useMemo(
+    () =>
+      (apercu?.rail ?? []).filter((e) => subjectId === null || e.subject_id === subjectId),
+    [apercu, subjectId],
+  );
+
+  if (error !== null && apercu === null) {
+    return (
+      <div className="mx-auto max-w-6xl">
+        <p className="rounded-lg bg-papa-warn/15 px-3 py-2 text-sm text-papa-warn">{error}</p>
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <PageHeader
-        title="Diagnostics"
-        subtitle="Lance un diagnostic IA et suis le niveau par notion."
+        icon={<DiagnosticIcon size="header" breathing />}
+        title="Diagnostic"
+        subtitle="Chaque passation est une mesure datée. Cette page dit ce qu'elle a mesuré, ce qu'elle a ouvert, et ce que ZETIS en a produit — dans cet ordre, et sans sauter d'étape."
         actions={
-          <div className="flex items-center gap-2">
-            <select
-              value={subjectId ?? ""}
-              onChange={(e) => setSubjectId(Number(e.target.value))}
-              className="rounded-lg border border-papa-border bg-papa-bg px-3 py-2 text-sm"
-            >
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={onGenerate}
-              disabled={busy || subjectId == null}
-              className="rounded-lg bg-papa-accent px-4 py-2 text-sm font-semibold text-papa-bg disabled:opacity-50"
-            >
-              {busy ? "Génération…" : "Lancer un diagnostic"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setDialogOuvert(true)}
+            className="rounded-lg bg-papa-accent px-4 py-2 text-sm font-semibold text-papa-bg"
+          >
+            Lancer un diagnostic
+          </button>
         }
       />
 
-      {notice && (
-        <p className="mb-4 rounded-lg bg-emerald-500/15 px-3 py-2 text-sm text-emerald-300">{notice}</p>
-      )}
-      {error && (
-        <p className="mb-4 rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300">{error}</p>
-      )}
+      {apercu && <BandeauInstrument jauges={apercu.jauges} />}
 
-      {results.length === 0 ? (
-        <p className="text-sm text-papa-muted">
-          Aucun diagnostic passé pour l'instant. Lance-en un : Massimo le verra dans son espace.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {results.map((r) => (
-            <div key={r.attempt_id} className="rounded-xl border border-papa-border bg-papa-surface p-4">
-              <div className="flex items-center justify-between">
-                <p className="font-medium">{r.subject}</p>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${scoreColor(r.score_percent)}`}>
-                  {r.score_percent}%
-                </span>
-              </div>
-
-              <div className="mt-3 space-y-1.5">
-                {r.per_skill.map((s) => (
-                  <div key={`${r.attempt_id}-${s.skill_id}`} className="flex items-center gap-2 text-sm">
-                    <span className="w-48 shrink-0 truncate text-papa-muted">{s.skill_name}</span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-papa-bg">
-                      <div
-                        className={`h-full ${s.score >= 70 ? "bg-emerald-400" : s.score >= 40 ? "bg-amber-400" : "bg-rose-400"}`}
-                        style={{ width: `${s.score}%` }}
-                      />
-                    </div>
-                    <span className="w-10 shrink-0 text-right text-xs text-papa-muted">{s.score}%</span>
-                  </div>
-                ))}
-              </div>
-
-              {r.gaps.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {r.gaps.map((g) => (
-                    <span
-                      key={`${r.attempt_id}-gap-${g.skill_id}`}
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        g.severity === "high" ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300"
-                      }`}
-                    >
-                      Notion à renforcer : {g.skill_name}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+      {apercu && (
+        <div className="mb-5">
+          <SubjectFilterChips
+            subjects={apercu.subjects.map((s) => ({ id: s.id, slug: s.slug, name: s.name }))}
+            value={subjectId}
+            onChange={setSubjectId}
+          />
         </div>
+      )}
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+        <RailPassations
+          entrees={railVisible}
+          jamaisGenere={apercu?.jamais_genere ?? []}
+          selection={selection?.cle ?? null}
+          onSelect={setSelection}
+        />
+
+        <div>
+          {selection === null ? (
+            <div className="rounded-xl border border-dashed border-papa-border bg-papa-surface/50 p-6">
+              <p className="font-medium">Rien à lire pour l'instant</p>
+              <p className="mt-1 text-sm text-papa-muted">
+                Lance un diagnostic : il rejoindra le rail au premier cran, en relecture — pas
+                encore chez Massimo.
+              </p>
+            </div>
+          ) : selection.cran !== "passe" ? (
+            // 🔴 Deux premiers crans : aucun score, aucun palier, aucune lacune. Il n'en existe pas.
+            <PanneauSansMesure entree={selection} />
+          ) : detail ? (
+            <PanneauPassation detail={detail} portee={portee} rang={selection.rang} />
+          ) : (
+            <p className="text-sm text-papa-muted">Chargement…</p>
+          )}
+        </div>
+      </div>
+
+      {dialogOuvert && apercu && (
+        <LancerDiagnosticDialog
+          subjects={apercu.subjects}
+          onClose={() => setDialogOuvert(false)}
+          onTermine={() => {
+            setDialogOuvert(false);
+            void charger();
+          }}
+        />
       )}
     </div>
   );

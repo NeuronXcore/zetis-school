@@ -317,15 +317,23 @@ def test_la_selection_reprend_la_notion_la_PLUS_ANCIENNEMENT_mesuree(client_db) 
 # ==================================================================================================
 
 
-def test_une_lacune_RESOLUE_ne_s_affiche_plus_comme_ouverte(client_db, executer_travail) -> None:
-    """🔴 Le défaut que la Décision 5 corrige, dans les deux sens.
+def test_une_lacune_RESOLUE_change_d_ETAT_sans_disparaitre_de_Papa(client_db, executer_travail) -> None:
+    """🔴 Le défaut que la Décision 5 corrige — et la nuance que la maquette a imposée ensuite.
 
     `_per_skill_for_attempt` **recalculait** les lacunes depuis les réponses de la passation : une
-    lacune que Papa avait résolue continuait de s'afficher, à jamais, alors que le docstring
-    promettait « lacunes ouvertes ».
+    lacune que Papa avait résolue continuait de s'afficher **comme ouverte**, à jamais, alors que le
+    docstring promettait « lacunes ouvertes ».
 
-    Les deux moitiés du test comptent. Vérifier seulement l'absence après résolution passerait
-    aussi si les lacunes avaient disparu du contrat.
+    ⚠️ **Ce test a changé de forme en Session C, et pas pour le faire passer.** Sa première version
+    exigeait qu'une lacune résolue DISPARAISSE du détail. C'était trop étroit : la station ② de la
+    maquette porte un badge `résolue`, impossible à afficher si la lacune était filtrée. La spec dit
+    « les lacunes **ouvertes par** un diagnostic » — c'est l'ORIGINE, pas l'état courant.
+
+    Il vérifie donc maintenant **les deux surfaces**, ce qu'il ne faisait pas :
+
+    - côté **Papa**, la lacune reste listée et son `status` bascule — c'est le badge ;
+    - côté **Massimo**, `lacunes_ouvertes` ne la rend plus : au sortir d'une passation, une lacune
+      déjà refermée n'aurait rien à faire.
     """
     client, TestSession = client_db
     body = _generate(client, TestSession, executer_travail)
@@ -336,19 +344,27 @@ def test_une_lacune_RESOLUE_ne_s_affiche_plus_comme_ouverte(client_db, executer_
     assert [g["skill_id"] for g in resultat["gaps"]], "un diagnostic tout faux doit ouvrir une lacune"
     as_papa()
     detail = client.get(f"/api/diagnostics/results/{attempt_id}").json()
-    assert len(detail["gaps"]) == 1
+    assert [g["status"] for g in detail["gaps"]] == ["open"]
 
     # 2. Papa la résout — et la mesure, elle, ne bouge pas d'un point.
     with TestSession() as db:
         gap = db.query(m.Gap).first()
         gap.status = "resolved"
         db.commit()
+        skill_ids = [gap.skill_id]
+        student_id = gap.student_id
 
     apres = client.get(f"/api/diagnostics/results/{attempt_id}").json()
-    assert apres["gaps"] == [], "une lacune résolue ne s'affiche plus"
+    assert [g["status"] for g in apres["gaps"]] == ["resolved"], (
+        "Papa doit LIRE l'état, pas perdre la ligne — c'est le badge `résolue` de la station ②"
+    )
     assert apres["per_skill"] == detail["per_skill"], (
         "la MESURE est figée, seule la LACUNE est vivante — c'est la distinction de la Décision 6"
     )
+
+    # 3. …et la surface étroite, celle que Massimo voit, ne la rend PLUS.
+    with TestSession() as db:
+        assert service.lacunes_ouvertes(db, student_id=student_id, skill_ids=skill_ids) == []
 
 
 def test_une_lacune_in_progress_reste_ouverte_et_ne_double_PAS(client_db) -> None:

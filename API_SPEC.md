@@ -293,6 +293,26 @@ diagnostic rejeté sort de la file **sans** devenir servable ; rien n'est effac�
 Convention reprise de `fiches` (`/{id}/validate`, `/{id}/reject`) — la file de relecture
 (`reviewActions.ts`) n'est qu'une table d'aiguillage vers le client de chaque famille.
 
+### GET `/diagnostics/apercu` (Papa)
+
+Le **bandeau, le rail et les matières jamais mesurées**, en un appel. Borné à l'**année active**,
+comme la Couverture et la file de relecture.
+
+🔴 **Aucune autre route ne peut le servir**, et c'est une conséquence du gate : `/diagnostics/quizzes`
+ne rend que le `validated` — c'est la route de Massimo — alors que le rail a besoin du **premier
+cran**, celui que Massimo ne voit pas encore.
+
+- `rail[]` — une entrée par **tentative** au 3ᵉ cran, une par **quiz** aux deux premiers.
+  `cran` ∈ `genere | propose | passe`. `score_percent` est **`null` hors du 3ᵉ cran, jamais `0`**.
+  `rang` numérote la passation **dans sa matière** (1ʳᵉ, 2ᵉ…). Un diagnostic `rejected` en sort.
+- `jauges.plus_ancienne_lecture` — la mesure la plus ancienne **encore invoquée** : pour chaque
+  matière on garde la plus récente, puis on prend la plus vieille de celles-là. Ce n'est **pas** la
+  plus vieille du dépôt, qu'une passation postérieure aurait déjà remplacée.
+- `jauges.lots_declenches` — **toujours `0`, par décision** (`trigger='evidence'` reste fermé).
+  Servi plutôt que déduit, pour que la page rende un vide voulu et non un compteur de panne.
+- `subjects[].a_un_diagnostic` — les matières sans diagnostic restent servies, **atténuées** à
+  l'écran : leur absence est l'information.
+
 ### GET `/diagnostics/results` (Papa)
 
 Derniers diagnostics passés (⚠️ `limit=10` en dur), score par notion + lacunes ouvertes.
@@ -1765,6 +1785,7 @@ Sortie :
 | `/diagnostics/results` GET | non | oui | oui |
 | `/diagnostics/results/{attempt_id}` GET | non | oui | oui |
 | `/diagnostics/portee` GET | non | oui | oui |
+| `/diagnostics/apercu` GET | non | oui | oui |
 | `/missions/generate-remediation` POST | non | oui | oui |
 | `/missions/today` GET | oui | oui | oui |
 | `/missions/{id}/complete` POST | oui | oui | oui |

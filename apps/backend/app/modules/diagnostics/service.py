@@ -19,11 +19,15 @@ from app.db.models import (
     QuizAnswer,
     QuizAttempt,
     QuizQuestion,
+    SchoolYearSubject,
     Skill,
     SkillMastery,
     StudentProfile,
     Subject,
 )
+from app.modules.activity.timeutils import to_utc
+from app.modules.lesson_resolution import lessons_by_skill
+from app.modules.review_queue.service import active_year_id
 from app.modules.ai.provider import LLMProvider, LLMRequest
 from app.modules.eli5.service import get_default_student
 from app.modules.gamification.service import XP_DIAGNOSTIC, award_xp
@@ -572,6 +576,84 @@ def score_par_notion(db: Session, attempt_id: int) -> list[dict]:
     ]
 
 
+# État du contenu d'une notion, du point de vue de la remédiation (ADR-0042).
+#
+# 🔴 **`aucune_lecon` et `cours_brouillon` ne se confondent pas, et le geste de Papa diffère.**
+# Sans leçon, le quiz s'ancre sur la notion — la lacune est *réparable*, sous réserve d'une source
+# RAG. Avec une leçon en brouillon, la voie notion **refuse** (dernier recours réservé aux notions
+# sans leçon) : il faut valider le cours. Un état unique rendrait les deux indistinguables.
+CONTENU_OK = "ok"
+CONTENU_AUCUNE_LECON = "aucune_lecon"
+CONTENU_COURS_BROUILLON = "cours_brouillon"
+
+
+def _etat_contenu(db: Session, skill_ids: list[int]) -> dict[int, str]:
+    """Par notion : de quoi dispose-t-on pour la retravailler ?
+
+    ⚠️ **Le plancher RAG n'est PAS consulté ici.** L'ADR-0042 ne rouvre la voie notion que si une
+    source validée documente la matière — mais le vérifier coûte un appel d'embedding *par notion*,
+    sur une surface de lecture qu'on ouvre à chaque affichage. On sert donc « aucune leçon », qui
+    est un fait de structure, et la page propose le geste ; c'est la génération qui refusera, avec
+    son message, si la source manque. Une jauge qui mentirait par excès d'optimisme vaut mieux
+    qu'une page qui met huit secondes à s'afficher.
+
+    Batch par `lessons_by_skill` : une notion sans leçon n'apparaît pas dans le résultat, et c'est
+    l'information — le même trou qui a coûté l'ADR-0037 puis l'addendum ADR-0034.
+    """
+    if not skill_ids:
+        return {}
+    par_notion = lessons_by_skill(db, skill_ids)
+    etats: dict[int, str] = {}
+    for skill_id in skill_ids:
+        lecons = par_notion.get(skill_id, [])
+        if not lecons:
+            etats[skill_id] = CONTENU_AUCUNE_LECON
+        elif any(lecon.status == "validated" for lecon in lecons):
+            etats[skill_id] = CONTENU_OK
+        else:
+            etats[skill_id] = CONTENU_COURS_BROUILLON
+    return etats
+
+
+def lacunes_de_passation(db: Session, *, student_id: int, skill_ids: list[int]) -> list[dict]:
+    """Les lacunes que ces notions portent — **quel que soit leur statut** (spec §station ②).
+
+    🔴 **Ce n'est pas `lacunes_ouvertes`, et la distinction a été trouvée en confrontant la
+    maquette au code de la Session B.** La spec dit « les lacunes **ouvertes par** un diagnostic » :
+    c'est l'ORIGINE (`source='diagnostic'`), pas l'état courant. La station ② affiche justement un
+    badge `résolue` — impossible si l'on filtre sur les statuts ouverts. L'état est ce que le badge
+    dit, il n'est pas ce qui décide de l'affichage.
+
+    `lacunes_ouvertes` reste le filtre étroit : c'est ce que Massimo voit au sortir d'une passation,
+    où une lacune déjà refermée n'aurait rien à faire.
+    """
+    if not skill_ids:
+        return []
+    rows = db.execute(
+        select(Gap, Skill)
+        .outerjoin(Skill, Skill.id == Gap.skill_id)
+        .where(
+            Gap.student_id == student_id,
+            Gap.skill_id.in_(skill_ids),
+            Gap.source == "diagnostic",
+        )
+        .order_by(Gap.id)
+    ).all()
+    etats = _etat_contenu(db, [gap.skill_id for gap, _s in rows])
+    par_notion: dict[int, dict] = {}
+    for gap, skill in rows:
+        # Une notion peut porter plusieurs lignes (cf. la dette de dédup) : la DERNIÈRE gagne, car
+        # c'est elle qui porte l'état le plus récent. `order_by(Gap.id)` rend l'ordre déterministe.
+        par_notion[gap.skill_id] = {
+            "skill_id": gap.skill_id,
+            "skill_name": skill.name if skill is not None else "Notion",
+            "severity": gap.severity,
+            "status": gap.status,
+            "content_state": etats.get(gap.skill_id, CONTENU_OK),
+        }
+    return list(par_notion.values())
+
+
 def lacunes_ouvertes(db: Session, *, student_id: int, skill_ids: list[int]) -> list[dict]:
     """Les lacunes **lues en base**, à l'état d'aujourd'hui (ADR-0043 Décision 5).
 
@@ -734,6 +816,215 @@ def portee(db: Session, *, student: StudentProfile, subject_id: int, limit: int 
     }
 
 
+CRAN_GENERE = "genere"
+CRAN_PROPOSE = "propose"
+CRAN_PASSE = "passe"
+
+
+def apercu(db: Session, student: StudentProfile) -> dict:
+    """Le bandeau, le rail et les matières jamais mesurées — **un seul appel** (spec §Structure).
+
+    🔴 **Aucune autre route ne peut servir le rail, et c'est une conséquence de la Session A.**
+    `list_diagnostics` est désormais gaté sur `validated` : il ne peut plus montrer le premier cran.
+    C'est voulu — c'est une route élève — mais Papa a précisément besoin de voir ce que Massimo ne
+    voit pas encore. D'où cette surface de lecture dédiée, côté Papa, comme la Couverture et la
+    file de relecture.
+
+    **Trois crans, et l'ordre compte** : `genere` (existe, attend la relecture — invisible de
+    Massimo) → `propose` (relu, disponible, pas encore passé) → `passe` (une tentative complétée
+    existe). Le troisième est **lu**, jamais déclaré.
+
+    **Une entrée par TENTATIVE** pour le troisième cran, une entrée par QUIZ pour les deux
+    premiers : trois passations de Maths font trois lignes datées, alors qu'un quiz jamais passé
+    n'en fait qu'une.
+
+    ⚠️ **Bornage à l'année active**, comme la Couverture et la file de relecture. Une matière que
+    l'année n'étudie pas n'a pas à peser sur une jauge.
+    """
+    year_id = active_year_id(db, student.id)
+    matieres = (
+        list(
+            db.scalars(
+                select(Subject)
+                .join(SchoolYearSubject, SchoolYearSubject.subject_id == Subject.id)
+                .where(SchoolYearSubject.school_year_id == year_id)
+                .order_by(Subject.sort_order, Subject.id)
+            )
+        )
+        if year_id is not None
+        else []
+    )
+    par_id = {matiere.id: matiere for matiere in matieres}
+
+    quizzes = (
+        list(
+            db.scalars(
+                select(Quiz)
+                .where(
+                    Quiz.quiz_type == "diagnostic",
+                    Quiz.subject_id.in_(par_id.keys()),
+                    Quiz.status != "archived",
+                    # Un diagnostic écarté par Papa sort du rail : il n'attend plus rien.
+                    Quiz.validation_status != "rejected",
+                )
+                .order_by(Quiz.id)
+            )
+        )
+        if par_id
+        else []
+    )
+    tentatives = (
+        list(
+            db.scalars(
+                select(QuizAttempt)
+                .where(
+                    QuizAttempt.student_id == student.id,
+                    QuizAttempt.quiz_id.in_([quiz.id for quiz in quizzes]),
+                    QuizAttempt.completed_at.isnot(None),
+                )
+                .order_by(QuizAttempt.completed_at, QuizAttempt.id)
+            )
+        )
+        if quizzes
+        else []
+    )
+    quiz_par_id = {quiz.id: quiz for quiz in quizzes}
+    passes = {attempt.quiz_id for attempt in tentatives}
+
+    rail: list[dict] = []
+    rang_par_matiere: dict[int, int] = {}
+    for attempt in tentatives:  # ordre chronologique croissant : c'est lui qui numérote les rangs
+        quiz = quiz_par_id[attempt.quiz_id]
+        rang_par_matiere[quiz.subject_id] = rang_par_matiere.get(quiz.subject_id, 0) + 1
+        rail.append(
+            {
+                "cle": f"attempt-{attempt.id}",
+                "cran": CRAN_PASSE,
+                "quiz_id": quiz.id,
+                "attempt_id": attempt.id,
+                "subject_id": quiz.subject_id,
+                "subject": par_id[quiz.subject_id].name,
+                "subject_slug": par_id[quiz.subject_id].slug,
+                "date": attempt.completed_at.isoformat() if attempt.completed_at else None,
+                "notions_count": _skills_count(db, quiz.id),
+                "score_percent": round(attempt.score_percent or 0),
+                "rang": rang_par_matiere[quiz.subject_id],
+            }
+        )
+    for quiz in quizzes:
+        if quiz.id in passes:
+            continue
+        relu = quiz.validation_status == "validated"
+        # 🔴 **Aucun score sur les deux premiers crans : il n'en existe pas.** Le champ vaut `None`,
+        # jamais 0 — un zéro se lirait comme une mesure catastrophique au lieu d'une absence.
+        rail.append(
+            {
+                "cle": f"quiz-{quiz.id}",
+                "cran": CRAN_PROPOSE if relu else CRAN_GENERE,
+                "quiz_id": quiz.id,
+                "attempt_id": None,
+                "subject_id": quiz.subject_id,
+                "subject": par_id[quiz.subject_id].name,
+                "subject_slug": par_id[quiz.subject_id].slug,
+                "date": (quiz.validated_at or quiz.created_at).isoformat()
+                if (quiz.validated_at or quiz.created_at)
+                else None,
+                "notions_count": _skills_count(db, quiz.id),
+                "score_percent": None,
+                "rang": None,
+            }
+        )
+    rail.sort(key=lambda ligne: (ligne["date"] or "", ligne["cle"]), reverse=True)
+
+    # ── Les quatre jauges ────────────────────────────────────────────────────────
+    mesurees = {quiz_par_id[a.quiz_id].subject_id for a in tentatives}
+    a_relire = len([q for q in quizzes if q.id not in passes and q.validation_status != "validated"])
+    proposes = len([q for q in quizzes if q.id not in passes and q.validation_status == "validated"])
+    avec_quiz = {quiz.subject_id for quiz in quizzes}
+
+    # « La lecture la plus ancienne encore INVOQUÉE » : pour chaque matière, sa mesure la plus
+    # récente est ce qu'on sait d'elle aujourd'hui ; la plus vieille de ces lectures-là est celle
+    # sur laquelle on continue de décider avec le moins de fraîcheur. Ce n'est PAS la passation la
+    # plus ancienne du dépôt, qu'une passation postérieure aurait déjà remplacée.
+    derniere_par_matiere: dict[int, QuizAttempt] = {}
+    for attempt in tentatives:
+        derniere_par_matiere[quiz_par_id[attempt.quiz_id].subject_id] = attempt
+    plus_ancienne = min(
+        derniere_par_matiere.values(),
+        key=lambda a: a.completed_at,
+        default=None,
+    )
+
+    lacunes = (
+        list(
+            db.execute(
+                select(Gap.skill_id).where(
+                    Gap.student_id == student.id,
+                    Gap.source == "diagnostic",
+                    Gap.status.in_(OPEN_GAP_STATUSES),
+                    Gap.subject_id.in_(par_id.keys()),
+                )
+            ).scalars()
+        )
+        if par_id
+        else []
+    )
+    etats = _etat_contenu(db, lacunes)
+    sans_contenu = sum(1 for skill_id in lacunes if etats.get(skill_id) != CONTENU_OK)
+
+    return {
+        "subjects": [
+            {"id": m.id, "name": m.name, "slug": m.slug, "a_un_diagnostic": m.id in avec_quiz}
+            for m in matieres
+        ],
+        "jauges": {
+            "matieres_mesurees": len(mesurees),
+            "matieres_total": len(matieres),
+            "a_relire": a_relire,
+            "proposes_non_passes": proposes,
+            "jamais_generees": len([m for m in matieres if m.id not in avec_quiz]),
+            "plus_ancienne_lecture": (
+                {
+                    "subject": par_id[quiz_par_id[plus_ancienne.quiz_id].subject_id].name,
+                    "date": plus_ancienne.completed_at.isoformat(),
+                    # ⚠️ `to_utc` et pas une soustraction directe : SQLite perd le `tzinfo` d'une
+                    # colonne `DateTime(timezone=True)` là où PostgreSQL le conserve. Sans lui,
+                    # la jauge planterait en test et marcherait en production — le pire des deux.
+                    "jours": (datetime.now(timezone.utc) - to_utc(plus_ancienne.completed_at)).days,
+                }
+                if plus_ancienne is not None and plus_ancienne.completed_at is not None
+                else None
+            ),
+            "lacunes_ouvertes": len(lacunes),
+            "lacunes_sans_contenu": sans_contenu,
+            # 🔴 **Zéro par DÉCISION, pas par panne** (spec station ③). `trigger='evidence'` reste
+            # fermé : ZETIS ne se commande pas de production sur sa propre mesure. La constante est
+            # servie plutôt que calculée pour que la page n'ait pas à deviner que c'est un mur.
+            "lots_declenches": 0,
+        },
+        "rail": rail,
+        "jamais_genere": [
+            {"id": m.id, "name": m.name, "slug": m.slug} for m in matieres if m.id not in avec_quiz
+        ],
+    }
+
+
+def _skills_count(db: Session, quiz_id: int) -> int:
+    """Le nombre de NOTIONS d'un diagnostic — pas son nombre de questions.
+
+    Le rail affiche « 8 notions » : à 5 questions par notion, servir les questions afficherait 40 et
+    laisserait croire que le diagnostic couvre cinq fois plus de terrain qu'il n'en couvre.
+    """
+    return (
+        db.scalar(
+            select(func.count(func.distinct(QuizQuestion.skill_id))).where(
+                QuizQuestion.quiz_id == quiz_id, QuizQuestion.skill_id.isnot(None)
+            )
+        )
+        or 0
+    )
+
+
 def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict:
     """Le détail d'UNE passation — il n'existait aucun endpoint pour ça (spec §Ce qui manque).
 
@@ -753,15 +1044,19 @@ def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict
     ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Passation introuvable.")
     subject = db.get(Subject, quiz.subject_id)
-    per_skill_out, gaps_out = _per_skill_for_attempt(db, attempt, student_id=student.id)
+    per_skill_out = score_par_notion(db, attempt.id)
+    skill_ids = [row["skill_id"] for row in per_skill_out if row["skill_id"] is not None]
     return {
         "attempt_id": attempt.id,
         "quiz_id": attempt.quiz_id,
+        "subject_id": quiz.subject_id,
         "subject": subject.name if subject is not None else "",
         "score_percent": round(attempt.score_percent or 0),
         "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
         "per_skill": per_skill_out,
-        "gaps": gaps_out,
+        # 🔴 `lacunes_de_passation`, PAS `lacunes_ouvertes` : la station ② porte un badge `résolue`,
+        # que le filtre étroit rendrait impossible à afficher. Voir son docstring.
+        "gaps": lacunes_de_passation(db, student_id=student.id, skill_ids=skill_ids),
     }
 
 

@@ -4,8 +4,8 @@
 > (`DiagnosticsPapaPage.tsx`), pas une création.
 > Réalise l'`adr-0043` (**Accepté**, 2026-08-08). Maquette :
 > `docs/frontend-papa/mockup/mockup-papa-diagnostic-v3.html`.
-> Chantier : `prompts/claude-code/prompts-claude-code-adr-0043.md`, en trois sessions.
-> ⚠️ **Rien n'est implémenté** — cette spec décrit une cible, pas l'existant.
+> Chantier : `prompts/claude-code/prompts-claude-code-adr-0043.md`, en trois sessions —
+> **les trois sont livrées**. Cette spec décrit désormais l'existant.
 
 ## Ce que la page répond
 
@@ -201,15 +201,21 @@ de par notion. L'agrégat est **déjà écrit trois fois** dans le dépôt (`sub
 `_per_skill_for_attempt`, `quizzes.complete_attempt`) : **en écrire une quatrième serait la faute que
 l'`adr-0037` nomme**. La cible d'extraction est `_per_skill_for_attempt`.
 
-### Ce qui manque
+### Ce qui manquait — livré par l'`adr-0043`
 
-| Besoin | Pourquoi |
+| Besoin | Réponse |
 |---|---|
-| **Détail d'une passation** | Aucun `GET /results/{attempt_id}` — le panneau n'a pas d'endpoint |
-| **La portée** | Un pivot par notion sur les passations d'une matière, depuis `quiz_answers` |
-| **L'état réel des lacunes** | Lire `gaps`, au lieu de recalculer |
-| **Le témoin à trois crans** | Un statut de relecture sur `quizzes` |
-| **`require_parent` / `require_child`** | 🔴 Aucune route `diagnostics` n'exige de rôle aujourd'hui |
+| **Détail d'une passation** | `GET /diagnostics/results/{attempt_id}` (session B) |
+| **La portée** | `GET /diagnostics/portee?subject_id=` — pivot par notion, depuis `quiz_answers` (session B) |
+| **L'état réel des lacunes** | `gaps` **lue en base**, statut servi (session B), `content_state` servi (session C) |
+| **Le témoin à trois crans** | `quizzes.validation_status` (session A) + `GET /diagnostics/apercu` (session C) |
+| **`require_parent` / `require_child`** | posés sur les six routes (session A) |
+
+🔴 **Une surface qu'aucune session ne prévoyait : `GET /diagnostics/apercu`.** C'est la session A
+qui l'a rendue nécessaire — en gatant `list_diagnostics` sur `validated`, elle a rendu le **premier
+cran invisible** de la seule route qui listait les diagnostics. C'est voulu : cette route est celle
+de Massimo. Mais Papa a besoin de voir exactement ce que Massimo ne voit pas encore, d'où une
+surface de lecture dédiée côté Papa — bandeau, rail et matières jamais mesurées, en un appel.
 
 **La portée est calculable, y compris pour le passé** : `quiz_answers` n'est jamais écrasée (une
 réponse par question, **y compris non répondue**), et la clé inter-passations est

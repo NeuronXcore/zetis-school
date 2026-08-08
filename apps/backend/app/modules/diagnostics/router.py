@@ -9,6 +9,7 @@ from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import get_current_user, require_child, require_parent
 from app.modules.diagnostics import service
 from app.modules.diagnostics.schemas import (
+    DiagnosticApercuOut,
     DiagnosticGenerateRequest,
     DiagnosticGenerateResponse,
     DiagnosticQuizListItem,
@@ -127,6 +128,17 @@ def reject(quiz_id: int, db: Session = Depends(get_db), _: dict = Depends(requir
     """
     quiz = service.set_validation(db, quiz_id, "reject")
     return {"quiz_id": quiz.id, "validation_status": quiz.validation_status}
+
+
+@router.get("/apercu", response_model=DiagnosticApercuOut)
+def apercu(db: Session = Depends(get_db), _: dict = Depends(require_parent)) -> dict:
+    """Le bandeau, le rail et les matières jamais mesurées — un seul appel (spec §Structure).
+
+    🔴 **Route Papa, et c'est ce qui la rend nécessaire.** `list_diagnostics` est gaté sur
+    `validated` depuis l'ADR-0043 : il ne peut plus montrer un diagnostic non relu. C'est voulu —
+    c'est la route de Massimo — mais Papa doit voir exactement ce que Massimo ne voit pas encore.
+    """
+    return service.apercu(db, get_default_student(db))
 
 
 @router.get("/results", response_model=list[DiagnosticResultSummary])

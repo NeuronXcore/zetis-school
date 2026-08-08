@@ -694,115 +694,7 @@ function render(id){
         retard. L'attente est une information pour Papa, pas une pression sur l'enfant. Un diagnostic
         non passé peut être retiré ou refusé sans laisser de trace de manquement — le refus va au
         journal de production, pas au dossier de Massimo.
-        <span class="todo">⚠️ À construire : ni le cran « généré » ni le cran « proposé » n'existent
-        aujourd'hui. <code>list_diagnostics</code> sert tout <code>quiz_type='diagnostic'</code> sur un
-        seul prédicat, et <code>quizzes</code> n'a pas de <code>validation_status</code>. Demande un
-        addendum à l'ADR-0014 + une migration.</span>
-      </div>`;
-    return;
-  }
-
-  const nolesson = d.gaps.filter(g=>g.st==="nolesson").length;
-  const draftles = d.gaps.filter(g=>g.st==="draftlesson").length;
-
-  const skillRows = d.skills.map(s=>{
-    const [pc,pl] = PAL[s.s];
-    const barcls = s.p>=90 ? "" : (s.p>=70 ? "mid" : "low");
-    const lac = s.lac==="ouverte" ? `<span class="lac open">ouverte</span>`
-              : s.lac==="resolue" ? `<span class="lac">résolue</span>`
-              : `<span class="lac none">—</span>`;
-    return `<tr>
-      <td>${s.n}</td>
-      <td style="width:26%"><span class="bar ${barcls}"><i style="width:${s.p}%"></i></span></td>
-      <td class="r"><span class="pct">${s.p} %</span></td>
-      <td class="r" style="width:96px"><span class="pal ${pc}">${pl}</span></td>
-      <td class="r" style="width:74px">${lac}</td>
-    </tr>`;
-  }).join("");
-
-  const gapCards = d.gaps.map(g=>`<div class="gap ${CARD[g.st]}">
-    <div>
-      <div class="g1">${g.n}</div>
-      <div class="g2">${g.d}</div>
-      ${g.st==='nolesson' ? `<button class="link">Produire le quiz de cette notion →</button>`
-       : g.st==='draftlesson' ? `<button class="link">Valider le cours de cette leçon →</button>`
-       : `<button class="link">Voir la lacune →</button>`}
-    </div>
-    <span class="badge ${BADGE[g.st]}">${g.b}</span>
-  </div>`).join("");
-
-  document.getElementById("panel").innerHTML = `
-    <div class="phead">
-      <div class="eyebrow">${d.rank}</div>
-      <h2>Diagnostic ${d.subject} — ${d.date}</h2>
-      <div class="meta">
-        <span class="taken-chip"><span class="tick taken" aria-hidden="true">✓</span>passé par Massimo</span>
-        ${d.tags.map(t=>`<span class="tag">${t}</span>`).join("")}
-      </div>
-    </div>
-
-    ${staff(d.portee)}
-
-    <div class="thread">
-      <div class="station">
-        <div class="gutter"><span class="node">1</span><span class="rope"></span></div>
-        <div class="stbody">
-          <div class="sttitle">Ce qui a été mesuré</div>
-          <div class="sthint">
-            Score par notion, corrigé serveur, sur 5 questions — donc par paliers de 20 points.
-            Le palier de maîtrise et la lacune sont <strong>deux colonnes distinctes</strong> :
-            une notion peut être à renforcer sans lacune ouverte, et l'inverse.
-          </div>
-          <table>
-            <thead><tr><th>Notion</th><th></th><th class="r">Score</th><th class="r">Palier</th><th class="r">Lacune</th></tr></thead>
-            <tbody>${skillRows}</tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="station">
-        <div class="gutter"><span class="node">2</span><span class="rope cut"></span></div>
-        <div class="stbody">
-          <div class="sttitle">Ce qui a été ouvert</div>
-          <div class="sthint">${d.gaps.length} lacune${d.gaps.length>1?'s':''} · état à aujourd'hui, pas à la date de la passation.</div>
-          ${gapCards}
-        </div>
-      </div>
-
-      <div class="station">
-        <div class="gutter"><span class="node void">3</span></div>
-        <div class="stbody">
-          <div class="sttitle" style="color:var(--void)">Ce que ZETIS en a produit</div>
-          <div class="sthint">Le lot de production commandé par cette mesure.</div>
-          <div class="absent">
-            <p><strong>Aucun — et c'est une décision, pas une panne.</strong>
-            ZETIS ne se commande pas de production sur sa propre mesure. Une mesure fausse
-            produirait alors du contenu que rien d'extérieur ne viendrait contredire : la boucle se
-            refermerait sur elle-même. Seule une source du monde réel — un contrôle inscrit à
-            l'agenda — déclenche ZETIS toute seule.</p>
-            <p class="why">Le fil s'arrête ici volontairement. C'est à toi de décider si cette
-            mesure mérite une production.</p>
-            ${(nolesson+draftles) ? `<p class="why">Sur cette passation, ${nolesson+draftles} lacune${(nolesson+draftles)>1?'s':''}
-            attend${(nolesson+draftles)>1?'ent':''} un contenu : ${nolesson} sans leçon, ${draftles} avec un cours à valider.</p>` : ``}
-            <button class="ghost">Commander une production →</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="foot">
-      <strong>Comment ces chiffres sont fabriqués.</strong>
-      Score par notion = bonnes réponses / questions portant cette notion, corrigé serveur, sur
-      <code>5</code> questions. Paliers : <code>acquise</code> ≥ 90, <code>en cours</code> ≥ 70,
-      <code>à renforcer</code> en dessous. Une lacune s'ouvre sous <code>70</code> —
-      <strong>mais palier et lacune restent deux populations disjointes</strong> : une lacune
-      refermée ne remonte pas le palier, et un bon score ne referme pas la lacune.
-      Une passation est un <code>quiz</code> de <code>quiz_type = diagnostic</code> — pas une table à part.
-      <span class="todo">⚠️ À construire : la colonne « Lacune » demande de lire la table
-      <code>gaps</code>. Aujourd'hui <code>_per_skill_for_attempt</code> recalcule les lacunes depuis
-      les réponses de la passation et ne lit jamais <code>gaps</code> — une lacune résolue continue
-      donc de s'afficher. Et <code>QUESTIONS_PER_SKILL</code> vaut <code>2</code>, pas 5 : les
-      passations passées n'ont que 3 valeurs possibles (0/50/100).</span>
+        <span class="todo">✅ <strong>Livré par l'adr-0043.</strong> La colonne « Lacune » lit la table <code>gaps</code> (état à aujourd'hui, badge <code>résolue</code> compris) au lieu de la recalculer depuis les réponses ; et <code>QUESTIONS_PER_SKILL</code> vaut 5. ⚠️ Les passations <strong>antérieures</strong> gardent leurs 2 questions par notion — la granularité du dépôt est <strong>mixte pour toujours</strong>, et la page le dit.</span>
     </div>`;
 }
 
@@ -877,9 +769,10 @@ const VIEWS = {
         <div class="pl"><span>Notions retenues pour ce diagnostic</span><b>8</b></div>
         <div class="pl"><span>Questions attendues (5 par notion)</span><b>40</b></div>
         <p class="note">
-          ⚠️ Le diagnostic mesure <strong>8 notions</strong>, pas la matière entière. Ce sont
-          toujours les <strong>mêmes 8</strong> — les premières entrées au référentiel — tant qu'une
-          rotation n'aura pas été décidée. Une passation ne dit donc rien des 29 autres notions.
+          ⚠️ Le diagnostic mesure <strong>8 notions</strong>, pas la matière entière. Elles sont
+          choisies <strong>par ancienneté de mesure</strong> — jamais mesurées d'abord — parce qu'un
+          diagnostic sert à réduire l'incertitude, et que remesurer ce qui vient de l'être n'en
+          réduit aucune. Une passation ne dit donc rien des 29 autres notions.
         </p>
       </div>`,
     foot:`<span class="eng">Le lot sera tracé dans <span style="color:var(--papa-text)">ai_jobs</span> et visible dans le bandeau de production.</span>
