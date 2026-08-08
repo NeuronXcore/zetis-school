@@ -3,8 +3,8 @@
 > **Deux sessions, jamais une.** Chaque bloc « SESSION » se colle tel quel dans une session Claude
 > Code, **après `/slice`**, qui porte la discipline. Le prompt ne porte que le chantier.
 >
-> ⚠️ **L'ADR est `Proposé` au moment où ce fichier est écrit.** Les sessions ne démarrent
-> **qu'après** son acceptation — c'est le prérequis, et `/ouverture` s'arrêtera sinon.
+> ✅ **L'ADR est `Accepté` (2026-08-09).** Le prérequis de décision est levé : les sessions peuvent
+> démarrer. Les **huit décisions sont gelées** — on les **relit**, on ne les rouvre pas.
 >
 > **Aucune migration.** Les deux champs ajoutés au contrat sont **déjà calculés puis jetés** par le
 > service. Si une session en vient à proposer une migration, **c'est un blocker, pas une bonne

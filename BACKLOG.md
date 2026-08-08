@@ -343,7 +343,7 @@ n'atteint donc Massimo que par la main de Papa.
 ## La page Lacunes énonce sans permettre d'agir — ✅ CADRÉE, `adr-0047` (2026-08-09)
 
 > **Ce n'est plus au backlog : c'est un chantier.** Voir
-> `docs/decisions/adr-0047-la-page-lacunes-permet-d-agir.md` (Proposé), la spec
+> `docs/decisions/adr-0047-la-page-lacunes-permet-d-agir.md` (**Accepté**), la spec
 > `docs/frontend-papa/page-lacunes.md` (passages `[0047]`), la maquette
 > `mockup-papa-lacunes-v1.html` et le prompt
 > `prompts/claude-code/prompts-claude-code-adr-0047.md`, en deux sessions. Le texte ci-dessous est

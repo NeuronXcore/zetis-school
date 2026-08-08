@@ -2,16 +2,32 @@
 
 ## Statut
 
-**Proposé — 2026-08-09.** Cadré par la **maquette** (`docs/frontend-papa/mockup/mockup-papa-lacunes-v1.html`)
-puis la **spec** (`docs/frontend-papa/page-lacunes.md`, passages `[0047]`) avant cet ADR, selon le
-rituel `mockup → spec → ADR → prompt`.
+**Accepté — 2026-08-09.** Les **huit décisions sont gelées**, y compris la **Décision 8**, qui sort
+du périmètre annoncé du chantier et a été soumise comme telle au commanditaire. Le prérequis de
+décision est levé : les sessions de
+`prompts/claude-code/prompts-claude-code-adr-0047.md` peuvent démarrer, après `/ouverture`.
 
-⚠️ **Proposé ≠ livré.** Rien n'est implémenté. Le chantier n'a pas démarré. Il passera par
-`/ouverture` une fois cet ADR accepté.
+> Historique : Proposé — 2026-08-09, **le même jour**. Cadré par la **maquette**
+> (`docs/frontend-papa/mockup/mockup-papa-lacunes-v1.html`, **vue en desktop ET à 375 px**) puis la
+> **spec** (`docs/frontend-papa/page-lacunes.md`, passages `[0047]`) avant cet ADR, selon le rituel
+> `mockup → spec → ADR → prompt`, et **sans une ligne de code**. Ce qui autorise l'acceptation sans
+> délai : le read-before-code a été rendu **avant** toute décision, et les deux constats qui
+> falsifiaient le cadrage d'origine ont été portés au commanditaire **avant** que la moindre
+> décision soit écrite.
+
+⚠️ **Accepté ≠ livré.** Rien n'est implémenté, le chantier n'a pas démarré.
+
+> 🔴 **Et cette ligne doit MOURIR au merge, pas y survivre.** Le 2026-08-09, la même phrase est
+> restée sur l'`adr-0044` pendant vingt-quatre heures après sa livraison, recopiée dans
+> `DECISIONS.md`, `BACKLOG.md` et `MEMORY.md` — assez pour envoyer une session de reprise
+> **re-cadrer un chantier fait**. L'étape 4bis passe quatre contrôles ; **aucun ne demande de
+> retirer l'annonce « à faire »**. C'est le cinquième : *chercher le nom du chantier là où il était
+> promis, et l'y éteindre.*
 
 > ⚠️ **Trois décisions ont été prises par le commanditaire pendant le cadrage**, chacune après que
-> l'alternative lui a été exposée : le **grain** (Décision 1), le **périmètre** (Décision 2) et la
-> **résolution de la leçon** (Décision 4). Elles ne se rediscutent pas ici.
+> l'alternative lui a été exposée avec son coût : le **grain** (Décision 1), le **périmètre**
+> (Décision 2) et la **résolution de la leçon** (Décision 4). Elles ne se rediscutent pas ici — on
+> les **relit**.
 
 ## Contexte
 

@@ -169,15 +169,30 @@ l'import).
 > ⚠️ **Le merge a eu lieu SANS cette preuve, en connaissance de cause** — signalée trois fois, dans
 > le corps de la PR compris. Ce n'est pas un oubli : c'est un arbitrage du commanditaire.
 
-**Chantier suivant — DEUX candidats, tous deux au `BACKLOG.md` :**
+**▶▶ Le chantier suivant est CADRÉ et son ADR est ACCEPTÉ — `adr-0047`, la page Lacunes permet
+d'agir.** Il ne reste plus rien à décider : `/ouverture` peut créer la branche, puis les **deux
+sessions** de `prompts/claude-code/prompts-claude-code-adr-0047.md`.
 
-1. **L'anti-triche du diagnostic** — le plus mûr (pistes et usage déjà tranchés), et le seul qui
-   porte encore un `▶▶ PROCHAIN CHANTIER` au `BACKLOG.md`.
-2. **La page Lacunes qui énonce sans permettre d'agir** — le moins cher (`content_state` déjà sur
-   `OpenGap`).
+| | |
+|---|---|
+| **ADR** | `adr-0047-la-page-lacunes-permet-d-agir.md` — **Accepté 2026-08-09**, 8 décisions gelées |
+| **Maquette** | `docs/frontend-papa/mockup/mockup-papa-lacunes-v1.html` — **vue** en desktop ET à 375 px |
+| **Spec** | `docs/frontend-papa/page-lacunes.md`, 9 passages `[0047]` |
+| **Sessions** | A = le contrat porte de quoi agir (backend) · B = la ligne devient un geste (front) |
+| **Migration** | **AUCUNE** — les deux champs sont déjà calculés puis jetés |
 
-Chacun demande le **rituel complet** (`mockup → spec → ADR → prompt`) : une session de cadrage sur
-`main` avant la moindre ligne, puis `/ouverture`.
+🔴 **Les trois choses à ne pas redécouvrir en exécutant** (elles sont dans l'ADR, mais elles coûtent
+cher si on les rate) :
+
+- **`response_model` filtre en SILENCE** — l'`adr-0045` s'y est fait prendre sur **ce service
+  précis**, en y ajoutant `source` et `content_state` ;
+- **les 10 lacunes ont toutes une mission active**, donc deux sections sur trois **ne s'affichent
+  pas** : pour les voir, il faut fabriquer le cas, puis remettre la base en état ;
+- **une notion porte jusqu'à quatre leçons** — « la leçon à ouvrir » n'est pas un singleton.
+
+**Le candidat restant, non cadré :** l'**anti-triche du diagnostic**, seul à porter encore un
+`▶▶ PROCHAIN CHANTIER` au `BACKLOG.md`. Il demande le **rituel complet** — une session de cadrage
+sur `main` avant la moindre ligne.
 
 > 🔴 **Il y avait un troisième candidat ici, et il était FAUX** — « la page Diagnostic de MASSIMO,
 > en retard sur son propre ordre ». Elle est **livrée et mergée depuis le 2026-08-08** :
