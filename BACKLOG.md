@@ -302,6 +302,69 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
   **`review_queue/service.py:81-117` est le seul module qui le traite correctement** (`outerjoin`
   + `or_` + `COALESCE`) : c'est le patron à reprendre. Aucun script de backfill n'existe.
 
+### Nées de la confrontation du mockup Diagnostic v2 au code (2026-08-08)
+
+> Trouvées en préparant la refonte de la page Diagnostic. **Aucune n'est un défaut de maquette** :
+> ce sont des écarts du module `diagnostics`, mis au jour parce que le mockup, lui, était
+> réfutable. Le mockup v3 (`docs/frontend-papa/mockup/`) en tient compte ; le code non.
+
+- 🔴 **AUCUNE route `diagnostics` n'exige de rôle.** Les six utilisent `Depends(get_current_user)`
+  seul (`diagnostics/router.py:29,39,61,68,78,100`), alors que `require_parent` / `require_child`
+  existent (`auth/deps.py:32`, `:48`) et que l'`API_SPEC.md` annote pourtant « (Papa) » / « (Massimo) »
+  par route. Conséquences : **n'importe quel compte authentifié peut lancer une génération LLM**,
+  et surtout **peut SOUMETTRE un diagnostic à la place de Massimo** — ce qui écrase `SkillMastery`
+  (signal fort, écrasement brut) et ouvre des `Gap` sur une mesure fausse. **La plus grave de la
+  liste.**
+- 🔴 **Aucune fermeture de lacune par un bon diagnostic.** `diagnostics/service.py` n'écrit jamais
+  `Gap.status = "resolved"` ni `resolved_at`. Une notion qui remonte de 40 % à 95 % **laisse sa
+  lacune ouverte**. Le seul chemin qui referme une lacune est le verdict `acquired` d'une mission.
+- 🔴 **La dédup de `Gap` ne lit que `"open"`** (`service.py:246`), alors que la définition canonique
+  est `OPEN_GAP_STATUSES = ("open", "in_progress")` (`progress/service.py:31`), dont le commentaire
+  dit « cette définition vivait en quatre exemplaires […] les trois autres importent désormais
+  celui-ci ». **`diagnostics` ne l'importe pas.** Dès que Papa lance une mission (la lacune passe
+  `in_progress`), le diagnostic suivant crée une **seconde ligne ouverte** sur la même notion.
+- **`existing.severity = severity` sans condition** (`service.py:251`) — escalade **et
+  désescalade** silencieuses, sans horodatage. À comparer avec `chat/service.py:225-226`, qui
+  refuse explicitement toute escalade d'une lacune existante par du déclaratif.
+- **Les lacunes affichées ne sont pas lues en base.** `_per_skill_for_attempt` (`service.py:439-442`)
+  les **recalcule** depuis les réponses de la passation. Une lacune résolue continue donc de
+  s'afficher, à jamais — alors que le docstring `service.py:379` promet « lacunes **ouvertes** ».
+- **Deux `AIJob` par génération** : `travaux.enfiler` (`travaux.py:211`) en crée un, puis
+  `generate_diagnostic` (`service.py:92`) en crée un second, même `job_type`. Tout compteur
+  d'activité de production **compte double**.
+- **Le diagnostic mesure toujours les 8 MÊMES notions** — `select(Skill).where(subject_id)
+  .order_by(Skill.id)[:MAX_SKILLS]` (`service.py:72-74`) : les 8 plus petits `id`, c'est-à-dire les
+  8 premières insérées. Aucune rotation, aucun tirage, aucune priorisation des notions fragiles.
+  **Sur ~280 notions au catalogue**, une passation ne dit rien des autres. `MAX_SKILLS` est un
+  littéral de module, pas un réglage de `config.py` — contrairement à ses voisins
+  `mission_command_max_skills` / `mission_champion_max_skills`.
+- **`QUESTIONS_PER_SKILL = 2`** (`service.py:36`) ⇒ un score par notion ne peut valoir que
+  **0, 50 ou 100**. Et si le LLM n'en rend qu'une (rejet silencieux des malformées, `service.py:124`),
+  une notion peut être déclarée **lacune grave sur une seule question ratée**.
+- **Aucun filtre de leçon, de niveau ni d'année active** dans la sélection des notions. Le
+  paramètre `level` de la requête **ne restreint rien** — il n'alimente que le prompt
+  (`service.py:116`). Et `list_subjects` ne filtre que `Subject.is_active`, jamais
+  `SchoolYearSubject` : le menu peut proposer des matières hors programme.
+- **`_status_from_score` existe en quatre exemplaires** — `diagnostics/service.py:42`,
+  `quizzes/scoring.py:27` (dupliqué **volontairement**, motif écrit), et **deux fois en ligne** dans
+  `DiagnosticsPapaPage.tsx:14` et `:120`, avec des bornes réduites à 70/40. Conséquence : le palier
+  **`mastered` (≥ 90) n'existe pas à l'écran** — une notion à 95 % et une à 72 % s'affichent
+  identiques, alors que `progress/service.py:13-15` défend explicitement l'inverse
+  (« *"consolidé" doit vouloir dire acquis, pas "presque"* »). Le champ `status` est pourtant
+  transmis (`schemas.py:60`) et **jamais lu**.
+- **`completed_at` est transmis et jamais affiché** (`DiagnosticsPapaPage.tsx`) : deux diagnostics
+  de la même matière sont **indistinguables** à l'écran.
+- **Pas d'endpoint détail d'une passation** (`GET /results/{attempt_id}` n'existe pas) ;
+  `GET /results` est plafonné à **10** en dur, sans pagination ni filtre ; `GET /quizzes` fait un
+  **N+1** (2 requêtes par ligne, `service.py:199-200`).
+- **`severity="low"` n'est jamais émise** par le diagnostic (`service.py:52-53` est binaire), alors
+  que le modèle la déclare et que le chat l'utilise. Un filtre à 3 sévérités aurait une catégorie
+  toujours vide.
+- **Deux lignes de doc fausses** : `API_SPEC.md:250-251` annonce un corps synchrone
+  `{quiz_id, subject, questions_count}` alors que la route rend **202** + un travail ; et
+  `routeLabels.ts:21` mappe **`/diagnostic`** (singulier) alors que la route réelle est
+  **`/diagnostics`** — le libellé ne matchera jamais.
+
 ## Bugs / risques à surveiller
 
 - **Tenue de la 3D sur les trois appareils de Massimo — dette OUVERTE et devenue critique le

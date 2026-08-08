@@ -1,0 +1,905 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ZETIS — Papa · Diagnostic (maquette v3, thème réel)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   v3 — écarts avec la v2, tous motivés par le code réel :
+   · thème SOMBRE, tokens de `apps/frontend-papa/src/index.css` (la v2 était claire)
+   · scores multiples de 20 (QUESTIONS_PER_SKILL passe à 5 ; 2 ne donnait que 0/50/100)
+   · vocabulaire produit : acquise / en cours / à renforcer / non abordée
+   · palier de maîtrise ET lacune séparés — populations disjointes
+   · badge « sans contenu » scindé en deux depuis l'ADR-0042
+   · 8 notions (MAX_SKILLS réel), périmètre inventé retiré
+   ========================================================================= */
+:root{
+  /* --- tokens repris VERBATIM de l'app (index.css @theme) --- */
+  --papa-bg:#0a0f1a;
+  --papa-surface:#111a28;
+  --papa-surface-2:#18243a;
+  --papa-border:#243348;
+  --papa-text:#e6edf6;
+  --papa-muted:#8595ac;
+  --papa-accent:#10b981;
+  --papa-accent-2:#38bdf8;
+  --papa-warn:#f59e0b;
+
+  /* --- dérivés de maquette, tous construits SUR les tokens --- */
+  --accent-wash:rgba(16,185,129,.13);
+  --accent-line:rgba(16,185,129,.34);
+  --warn-wash:rgba(245,158,11,.11);
+  --warn-line:rgba(245,158,11,.38);
+  --void:#5c6b82;               /* l'absence : ni vert ni ambre, jamais rouge */
+
+  --r:10px;
+  --display:'Archivo',system-ui,sans-serif;
+  --body:'Instrument Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--papa-bg);color:var(--papa-text);
+  font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:var(--display);letter-spacing:-0.015em;margin:0}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--papa-accent);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 24px 80px}
+
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--papa-muted)}
+.pagetitle{font-size:30px;font-weight:700;margin-top:6px}
+.pagelede{color:var(--papa-muted);max-width:64ch;margin-top:8px}
+
+/* ---------- bandeau instrument ---------- */
+.instrument{
+  margin-top:26px;display:grid;grid-template-columns:repeat(4,1fr);
+  border:1px solid var(--papa-border);border-radius:var(--r);
+  background:var(--papa-surface);overflow:hidden;
+}
+.gauge{padding:16px 18px;border-right:1px solid var(--papa-border)}
+.gauge:last-child{border-right:0}
+.gauge .lbl{font-size:12px;color:var(--papa-muted);line-height:1.35;min-height:32px}
+.gauge .val{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.02em;margin-top:6px}
+.gauge .val small{font-size:14px;font-weight:400;color:var(--papa-muted)}
+.gauge .sub{font-size:11.5px;color:var(--papa-muted);margin-top:2px}
+/* l'absence : hachures SOMBRES — le motif de la v2 était blanc, il ne s'inverse pas */
+.gauge.void{background:repeating-linear-gradient(135deg,var(--papa-surface) 0 8px,#0d1524 8px 16px)}
+.gauge.void .val{color:var(--void)}
+.gauge.void .sub{color:var(--papa-warn)}
+
+/* ---------- filtres ---------- */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:22px 0 14px}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;padding:5px 11px 5px 6px;
+  border:1px solid var(--papa-border);border-radius:999px;
+  background:var(--papa-surface);font-size:13px;color:var(--papa-text);
+}
+.chip[aria-pressed="true"]{border-color:var(--accent-line);background:var(--accent-wash);color:var(--papa-accent)}
+.chip .mono{
+  width:20px;height:20px;border-radius:5px;background:var(--papa-surface-2);
+  font-family:var(--mono);font-size:10px;font-weight:600;color:var(--papa-muted);
+  display:grid;place-items:center;
+}
+.chip.dim{opacity:.5}
+.spacer{flex:1}
+.cta{
+  border:1px solid var(--papa-accent);background:var(--papa-accent);color:#042f1f;
+  padding:8px 14px;border-radius:8px;font-size:13.5px;font-weight:600;
+}
+.cta:hover{filter:brightness(1.08)}
+
+.cols{display:grid;grid-template-columns:322px 1fr;gap:22px;align-items:start}
+
+/* ---------- rail ---------- */
+.railhead{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--papa-muted);padding:0 2px 8px}
+.legend{border:1px solid var(--papa-border);border-radius:8px;background:var(--papa-surface);padding:10px 12px;margin-bottom:12px}
+.legend .lg{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--papa-text);padding:3px 0}
+.legend .lg span.k{font-family:var(--mono);font-size:10.5px;color:var(--papa-muted);margin-left:auto}
+.period{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--papa-muted);padding:14px 2px 7px;border-top:1px solid var(--papa-border);margin-top:10px}
+.period:first-of-type{border-top:0;margin-top:0;padding-top:0}
+.pass{
+  width:100%;text-align:left;background:var(--papa-surface);
+  border:1px solid var(--papa-border);border-left:3px solid var(--papa-surface-2);
+  border-radius:8px;padding:11px 12px;margin-bottom:7px;
+  display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:center;
+  transition:border-color .12s ease,background .12s ease;
+}
+.pass:hover{border-color:var(--papa-muted)}
+.pass[aria-current="true"]{border-left-color:var(--papa-accent);background:var(--accent-wash);border-color:var(--accent-line)}
+.pass .mono{width:26px;height:26px;border-radius:6px;background:var(--papa-surface-2);font-family:var(--mono);font-size:11px;font-weight:600;color:var(--papa-muted);display:grid;place-items:center}
+.pass .who{font-weight:600;font-size:14px}
+.pass .when{font-size:11.5px;color:var(--papa-muted);font-family:var(--mono)}
+.pass .sc{font-family:var(--mono);font-size:15px;font-weight:600}
+.pass .scl{font-size:10px;color:var(--papa-muted);text-align:right;letter-spacing:.06em}
+.pass.never{border-left-style:dashed;border-left-color:var(--void);background:transparent;cursor:default}
+.pass.never .who{color:var(--papa-muted);font-weight:500}
+.pass.never .when{color:var(--void)}
+.pass.waiting{border-left-color:var(--papa-accent);border-left-style:dashed;background:var(--papa-surface)}
+.pass.review{border-left-color:var(--papa-warn);border-left-style:dashed;background:rgba(245,158,11,.05)}
+.pass.waiting .sc,.pass.review .sc{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--papa-muted)}
+.pass .head{display:flex;align-items:center;gap:7px}
+.railnote{font-size:11.5px;color:var(--papa-muted);padding:12px 2px 0;line-height:1.45}
+
+/* témoin 3 crans */
+.tick{width:17px;height:17px;border-radius:5px;flex:none;display:grid;place-items:center;font-size:10px;line-height:1}
+.tick.draft{background:transparent;border:1.5px dashed var(--papa-warn);color:transparent}
+.tick.sent{background:transparent;border:1.5px solid var(--papa-accent);color:transparent}
+.tick.taken{background:var(--papa-accent);color:#042f1f;border:1px solid var(--papa-accent)}
+
+/* ---------- panneau ---------- */
+.panel{background:var(--papa-surface);border:1px solid var(--papa-border);border-radius:var(--r);overflow:hidden}
+.phead{padding:18px 22px 16px;border-bottom:1px solid var(--papa-border)}
+.phead h2{font-size:21px;font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+.tag{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:5px;background:var(--papa-surface-2);color:var(--papa-muted)}
+.taken-chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;padding:3px 9px 3px 6px;border-radius:5px;background:var(--accent-wash);color:var(--papa-accent)}
+.taken-chip.sent{background:var(--papa-surface-2);color:var(--papa-muted)}
+.taken-chip.draft{background:var(--warn-wash);color:var(--papa-warn)}
+
+/* ---------- la portée : MARCHES, pas courbe ---------- */
+.portee{padding:18px 22px;border-bottom:1px solid var(--papa-border);background:#0d1422}
+.blocklbl{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--papa-muted);display:flex;align-items:baseline;gap:10px}
+.blocklbl em{font-style:normal;text-transform:none;letter-spacing:0;font-family:var(--body);font-size:12px}
+.staff{margin-top:14px}
+.axis{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:center;margin-bottom:6px}
+.axis .dates{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--papa-muted)}
+.line{display:grid;grid-template-columns:190px 1fr 58px;gap:14px;align-items:center;padding:5px 0}
+.line .nm{font-size:13px;color:var(--papa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.line .dlt{font-family:var(--mono);font-size:12px;text-align:right;font-weight:500}
+.track{position:relative;height:22px}
+.track svg{display:block;width:100%;height:22px;overflow:visible}
+.up{color:var(--papa-accent)} .down{color:var(--papa-warn)} .flat{color:var(--void)}
+
+/* ---------- le fil ---------- */
+.thread{padding:6px 22px 22px}
+.station{display:grid;grid-template-columns:28px 1fr;gap:14px}
+.gutter{position:relative;display:flex;flex-direction:column;align-items:center}
+.node{
+  width:22px;height:22px;border-radius:50%;border:2px solid var(--papa-accent);
+  background:var(--papa-surface);color:var(--papa-accent);
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  display:grid;place-items:center;margin-top:18px;flex:none;z-index:1;
+}
+.node.void{border-color:var(--void);border-style:dashed;color:var(--void)}
+.rope{flex:1;width:2px;background:var(--accent-line)}
+.rope.cut{background:none;border-left:2px dashed var(--void);width:0}
+.stbody{padding:16px 0 6px}
+.sttitle{font-family:var(--display);font-size:15px;font-weight:600}
+.sthint{font-size:12.5px;color:var(--papa-muted);margin-top:2px}
+
+/* tableau notions */
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th{text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--papa-muted);font-weight:500;padding:0 8px 7px 0;border-bottom:1px solid var(--papa-border)}
+th.r,td.r{text-align:right;padding-right:0}
+td{padding:9px 8px 9px 0;border-bottom:1px solid rgba(36,51,72,.55);font-size:13.5px;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.bar{height:5px;border-radius:3px;background:var(--papa-surface-2);overflow:hidden;min-width:64px}
+.bar i{display:block;height:100%;border-radius:3px;background:var(--papa-accent)}
+.bar.mid i{background:var(--papa-accent);opacity:.55}
+.bar.low i{background:var(--papa-warn)}
+.pct{font-family:var(--mono);font-size:12.5px;font-weight:500}
+.pal{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.pal-acq{background:var(--accent-wash);color:var(--papa-accent)}
+.pal-enc{background:var(--papa-surface-2);color:var(--papa-text)}
+.pal-ren{background:var(--warn-wash);color:var(--papa-warn)}
+.pal-non{background:transparent;color:var(--void);border:1px dashed var(--papa-border)}
+/* la colonne lacune : volontairement DÉTACHÉE du palier */
+.lac{font-family:var(--mono);font-size:10.5px;color:var(--papa-muted)}
+.lac.open{color:var(--papa-warn)}
+.lac.none{color:var(--void)}
+
+/* lacunes */
+.gap{border:1px solid var(--papa-border);border-radius:8px;padding:12px 14px;margin-top:9px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;background:var(--papa-surface)}
+.gap .g1{font-weight:600;font-size:14px}
+.gap .g2{font-size:12.5px;color:var(--papa-muted);margin-top:3px;max-width:68ch}
+.badge{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;padding:3px 8px;border-radius:5px;white-space:nowrap}
+.b-ok{background:var(--accent-wash);color:var(--papa-accent)}
+.b-run{background:var(--papa-surface-2);color:var(--papa-text)}
+.b-nolesson{background:var(--warn-wash);color:var(--papa-warn);border:1px dashed var(--warn-line)}
+.b-draft{background:rgba(56,189,248,.10);color:var(--papa-accent-2);border:1px dashed rgba(56,189,248,.38)}
+.gap.nolesson{border-style:dashed;border-color:var(--warn-line);background:rgba(245,158,11,.04)}
+.gap.draftlesson{border-style:dashed;border-color:rgba(56,189,248,.34);background:rgba(56,189,248,.04)}
+.link{background:none;border:0;padding:0;margin-top:8px;font-size:12.5px;font-weight:600;color:var(--papa-accent);border-bottom:1px solid var(--accent-line)}
+.link:hover{border-bottom-color:var(--papa-accent)}
+
+/* absence */
+.absent{border:1px dashed var(--papa-border);border-radius:8px;padding:16px;margin-top:12px;background:repeating-linear-gradient(135deg,var(--papa-surface) 0 10px,#0d1524 10px 20px)}
+.absent p{margin:0;font-size:13.5px;color:var(--papa-text);max-width:72ch}
+.absent .why{font-family:var(--mono);font-size:11.5px;color:var(--papa-muted);margin-top:8px}
+.ghost{margin-top:12px;border:1px solid var(--papa-border);background:var(--papa-surface);padding:7px 12px;border-radius:7px;font-size:13px;font-weight:600;color:var(--papa-text)}
+.ghost:hover{border-color:var(--papa-accent);color:var(--papa-accent)}
+
+.foot{padding:14px 22px 18px;border-top:1px solid var(--papa-border);background:#0d1422;font-size:11.5px;color:var(--papa-muted);line-height:1.55}
+.foot code{font-family:var(--mono);font-size:11px;background:var(--papa-surface-2);padding:1px 4px;border-radius:3px;color:var(--papa-text)}
+.foot strong{color:var(--papa-text)}
+.foot .todo{display:block;margin-top:9px;padding-top:9px;border-top:1px solid var(--papa-border);color:var(--papa-warn)}
+
+/* ================= modale ================= */
+.scrim{position:fixed;inset:0;background:rgba(2,6,14,.72);display:grid;place-items:center;padding:20px;z-index:50}
+.scrim[hidden]{display:none}
+.modal{width:100%;max-width:640px;background:var(--papa-surface);border:1px solid var(--papa-border);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.mhead{padding:18px 22px 15px;border-bottom:1px solid var(--papa-border);display:grid;grid-template-columns:1fr auto;gap:12px}
+.mhead h3{font-size:18px;font-weight:600;margin-top:5px}
+.x{background:none;border:1px solid var(--papa-border);border-radius:7px;width:30px;height:30px;color:var(--papa-muted)}
+.x:hover{border-color:var(--papa-muted);color:var(--papa-text)}
+.mbody{padding:20px 22px;overflow:auto}
+.mfoot{padding:13px 22px;border-top:1px solid var(--papa-border);background:#0d1422;display:flex;align-items:center;gap:12px}
+.mfoot .eng{font-family:var(--mono);font-size:11px;color:var(--papa-muted);flex:1;line-height:1.4}
+.states{display:flex;gap:6px;padding:9px 22px;border-bottom:1px solid var(--papa-border);background:var(--papa-surface-2);flex-wrap:wrap}
+.states span{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--papa-muted);align-self:center;margin-right:4px}
+.states button{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid var(--papa-border);background:var(--papa-surface);color:var(--papa-muted)}
+.states button[aria-pressed="true"]{border-color:var(--accent-line);background:var(--accent-wash);color:var(--papa-accent)}
+
+.prog{border:1px solid var(--papa-border);border-radius:9px;padding:16px 17px;background:#0d1422}
+.progtop{display:flex;align-items:baseline;gap:12px}
+.pnum{font-family:var(--mono);font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1}
+.pctx{font-size:13px;color:var(--papa-muted);flex:1}
+.pstate{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--papa-accent)}
+.pbar{height:8px;border-radius:5px;background:var(--papa-surface-2);overflow:hidden;margin-top:12px}
+.pbar i{display:block;height:100%;background:var(--papa-accent);border-radius:5px;transition:width .4s ease}
+.pmeta{font-size:12px;color:var(--papa-muted);margin-top:9px}
+.pmeta b{color:var(--papa-warn);font-weight:600}
+@keyframes crawl{to{background-position:26px 0}}
+.pbar.moving i{background-image:linear-gradient(115deg,rgba(255,255,255,.30) 0 42%,transparent 42% 100%);background-size:26px 100%;animation:crawl 1.1s linear infinite}
+.pbar.stopped i{background:var(--void)}
+.pbar.stopped{outline:1px dashed var(--papa-border);outline-offset:2px}
+.warnbar{margin-top:14px;border:1px dashed var(--warn-line);background:var(--warn-wash);border-radius:8px;padding:11px 13px;font-size:13px;color:var(--papa-warn)}
+.warnbar b{display:block;font-family:var(--display);font-size:13.5px;margin-bottom:2px}
+
+.log{list-style:none;margin:16px 0 0;padding:0;border:1px solid var(--papa-border);border-radius:9px;overflow:hidden}
+.log li{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:center;padding:9px 13px;border-bottom:1px solid rgba(36,51,72,.55);font-size:13.5px}
+.log li:last-child{border-bottom:0}
+.log .i{font-family:var(--mono);font-size:10.5px;color:var(--papa-muted);text-align:right}
+.log li.wait{color:var(--void)}
+.log li.now{background:var(--accent-wash)}
+.log .st{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.st-keep{background:var(--accent-wash);color:var(--papa-accent)}
+.st-cut{background:var(--warn-wash);color:var(--papa-warn)}
+.st-now{background:var(--papa-surface);color:var(--papa-accent);border:1px solid var(--accent-line)}
+.st-wait{background:var(--papa-surface-2);color:var(--void)}
+
+.fieldlbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--papa-muted);margin-bottom:9px}
+.perim{border:1px solid var(--papa-border);border-radius:9px;padding:14px 16px;margin-top:18px;font-size:13.5px}
+.perim .pl{display:flex;justify-content:space-between;padding:5px 0;color:var(--papa-muted)}
+.perim .pl b{font-family:var(--mono);font-weight:600;color:var(--papa-text)}
+.perim .note{font-size:12px;color:var(--papa-muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--papa-border);line-height:1.5}
+.done .big{font-family:var(--mono);font-size:15px;font-weight:600;margin-top:14px}
+
+@media (max-width:920px){
+  .cols{grid-template-columns:1fr}
+  .instrument{grid-template-columns:repeat(2,1fr)}
+  .gauge:nth-child(2){border-right:0}
+  .gauge:nth-child(-n+2){border-bottom:1px solid var(--papa-border)}
+  .line{grid-template-columns:130px 1fr 52px}
+  .axis{grid-template-columns:130px 1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Interface Papa · lecture · année 2025–2026</div>
+  <h1 class="pagetitle">Diagnostic</h1>
+  <p class="pagelede">
+    Chaque passation est une mesure datée. Cette page dit ce qu'elle a mesuré, ce qu'elle a ouvert,
+    et ce que ZETIS en a produit — dans cet ordre, et sans sauter d'étape.
+  </p>
+
+  <div class="instrument">
+    <div class="gauge">
+      <div class="lbl">Matières mesurées au moins une fois</div>
+      <div class="val">3<small> / 8</small></div>
+      <div class="sub">1 à relire · 1 proposée non passée · 3 jamais générées</div>
+    </div>
+    <div class="gauge">
+      <div class="lbl">Lecture la plus ancienne encore invoquée</div>
+      <div class="val">247<small> j</small></div>
+      <div class="sub">SVT · 8 janv. 2026</div>
+    </div>
+    <div class="gauge">
+      <div class="lbl">Lacunes ouvertes par un diagnostic, encore ouvertes</div>
+      <div class="val">9</div>
+      <div class="sub">dont 4 sans contenu produisible</div>
+    </div>
+    <div class="gauge void">
+      <div class="lbl">Lots de production déclenchés par une mesure</div>
+      <div class="val">0</div>
+      <div class="sub">et c'est voulu — voir ③</div>
+    </div>
+  </div>
+
+  <div class="filters">
+    <button class="chip" aria-pressed="true"><span class="mono">TT</span>Toutes</button>
+    <button class="chip" aria-pressed="false"><span class="mono">MA</span>Maths</button>
+    <button class="chip" aria-pressed="false"><span class="mono">FR</span>Français</button>
+    <button class="chip" aria-pressed="false"><span class="mono">SV</span>SVT</button>
+    <button class="chip dim" aria-pressed="false"><span class="mono">AN</span>Anglais</button>
+    <button class="chip dim" aria-pressed="false"><span class="mono">HG</span>Histoire-Géo</button>
+    <span class="spacer"></span>
+    <button class="cta">Lancer un diagnostic</button>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="railhead">Diagnostics · 5 passés · 2 en cours de route</div>
+
+      <div class="legend">
+        <div class="lg"><span class="tick draft" aria-hidden="true">✓</span>Généré — attend ta relecture<span class="k">invisible pour Massimo</span></div>
+        <div class="lg"><span class="tick sent" aria-hidden="true">✓</span>Proposé — chez Massimo<span class="k">pas encore passé</span></div>
+        <div class="lg"><span class="tick taken" aria-hidden="true">✓</span>Passé — mesuré<span class="k">score disponible</span></div>
+      </div>
+
+      <div class="period">Août 2026</div>
+      <button class="pass review" data-id="hg0">
+        <span class="mono">HG</span>
+        <span>
+          <span class="head"><span class="tick draft" aria-hidden="true">✓</span><span class="who">Histoire-Géo</span></span>
+          <span class="when">généré le 6 août · 8 notions</span>
+        </span>
+        <span><span class="sc">à relire</span><br><span class="scl">non proposé</span></span>
+      </button>
+      <button class="pass waiting" data-id="an0">
+        <span class="mono">AN</span>
+        <span>
+          <span class="head"><span class="tick sent" aria-hidden="true">✓</span><span class="who">Anglais</span></span>
+          <span class="when">proposé le 4 août · 8 notions</span>
+        </span>
+        <span><span class="sc">en attente</span><br><span class="scl">non passé</span></span>
+      </button>
+
+      <div class="period">Mai 2026</div>
+      <button class="pass" data-id="ma3" aria-current="true">
+        <span class="mono">MA</span>
+        <span>
+          <span class="head"><span class="tick taken" aria-hidden="true">✓</span><span class="who">Maths</span></span>
+          <span class="when">passé le 19 mai · 8 notions</span>
+        </span>
+        <span><span class="sc">70 %</span><br><span class="scl">3ᵉ passation</span></span>
+      </button>
+      <button class="pass" data-id="fr1">
+        <span class="mono">FR</span>
+        <span>
+          <span class="head"><span class="tick taken" aria-hidden="true">✓</span><span class="who">Français</span></span>
+          <span class="when">passé le 12 mai · 8 notions</span>
+        </span>
+        <span><span class="sc">55 %</span><br><span class="scl">1ʳᵉ</span></span>
+      </button>
+
+      <div class="period">Mars 2026</div>
+      <button class="pass" data-id="ma2">
+        <span class="mono">MA</span>
+        <span>
+          <span class="head"><span class="tick taken" aria-hidden="true">✓</span><span class="who">Maths</span></span>
+          <span class="when">passé le 31 mars · 8 notions</span>
+        </span>
+        <span><span class="sc">60 %</span><br><span class="scl">2ᵉ</span></span>
+      </button>
+
+      <div class="period">Janvier 2026</div>
+      <button class="pass" data-id="sv1">
+        <span class="mono">SV</span>
+        <span>
+          <span class="head"><span class="tick taken" aria-hidden="true">✓</span><span class="who">SVT</span></span>
+          <span class="when">passé le 8 janv. · 8 notions</span>
+        </span>
+        <span><span class="sc">45 %</span><br><span class="scl">1ʳᵉ</span></span>
+      </button>
+
+      <div class="period">Septembre 2025</div>
+      <button class="pass" data-id="ma1">
+        <span class="mono">MA</span>
+        <span>
+          <span class="head"><span class="tick taken" aria-hidden="true">✓</span><span class="who">Maths</span></span>
+          <span class="when">passé le 15 sept. · 8 notions</span>
+        </span>
+        <span><span class="sc">50 %</span><br><span class="scl">1ʳᵉ</span></span>
+      </button>
+
+      <div class="period">Jamais généré</div>
+      <div class="pass never"><span class="mono">PC</span><span><span class="who">Physique-Chimie</span><br><span class="when">aucun diagnostic</span></span><span></span></div>
+      <div class="pass never"><span class="mono">TE</span><span><span class="who">Technologie</span><br><span class="when">aucun diagnostic</span></span><span></span></div>
+      <div class="pass never"><span class="mono">ES</span><span><span class="who">Espagnol</span><br><span class="when">aucun diagnostic</span></span><span></span></div>
+
+      <p class="railnote">
+        Le témoin se remplit en trois temps et ne se coche jamais à la main. « Passé » est lu dans
+        les tentatives ; « proposé » est un geste de Papa ; « généré » est un fait du moteur.
+        Aucun score ne s'affiche avant le troisième cran — il n'en existe pas.
+      </p>
+      <p class="railnote">
+        Les matières sans diagnostic restent listées : leur absence est l'information. Elle ne
+        produit ni compteur, ni pastille de nouveauté.
+      </p>
+    </div>
+
+    <div class="panel" id="panel"></div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <div class="mhead">
+      <div>
+        <div class="eyebrow">Production · <span class="num">diagnostic_generate</span></div>
+        <h3 id="mtitle">Lancer un diagnostic</h3>
+      </div>
+      <button class="x" id="close" aria-label="Fermer">✕</button>
+    </div>
+    <div class="states">
+      <span>États de la maquette</span>
+      <button data-v="config" aria-pressed="true">Réglage</button>
+      <button data-v="run" aria-pressed="false">En cours</button>
+      <button data-v="stopped" aria-pressed="false">À l'arrêt</button>
+      <button data-v="done" aria-pressed="false">Terminé</button>
+    </div>
+    <div class="mbody" id="mbody"></div>
+    <div class="mfoot" id="mfoot"></div>
+  </div>
+</div>
+
+<script>
+/* Scores : multiples de 20 UNIQUEMENT (5 questions par notion).
+   Paliers réels : ≥90 acquise · ≥70 en cours · <70 à renforcer.
+   `lac` est INDÉPENDANT du palier — populations disjointes. */
+const DATA = {
+  hg0:{stage:"draft",subject:"Histoire-Géo",date:"généré le 6 août 2026",rank:"jamais proposé",
+       tags:["8 notions","34 questions gardées","6 écartées"],since:1},
+  an0:{stage:"sent",subject:"Anglais",date:"proposé le 4 août 2026",rank:"jamais passé",
+       tags:["8 notions","38 questions","relu le 4 août"],since:3},
+
+  ma3:{subject:"Maths",date:"19 mai 2026",rank:"3ᵉ passation",
+    tags:["8 notions","70 %","12 min","qwen3.6:35b-a3b · 18 mai"],
+    portee:{dates:["15 sept.","31 mars","19 mai"],lines:[
+      {nm:"Comparer des relatifs",     pts:[20,60,100], d:"+80"},
+      {nm:"Puissances de 10",          pts:[40,60,80],  d:"+40"},
+      {nm:"Théorème de Pythagore",     pts:[60,60,60],  d:"0"},
+      {nm:"Proportionnalité",          pts:[80,60,40],  d:"−40"},
+      {nm:"Développer une expression", pts:[20,20,20],  d:"0"}
+    ]},
+    skills:[
+      {n:"Comparer des relatifs",     p:100, s:"acq", lac:null},
+      {n:"Puissances de 10",          p:80,  s:"enc", lac:null},
+      {n:"Symétrie centrale",         p:80,  s:"enc", lac:"resolue"},
+      {n:"Théorème de Pythagore",     p:60,  s:"ren", lac:"ouverte"},
+      {n:"Fractions : somme et écart",p:60,  s:"ren", lac:null},
+      {n:"Proportionnalité",          p:40,  s:"ren", lac:"ouverte"},
+      {n:"Développer une expression", p:20,  s:"ren", lac:"ouverte"},
+      {n:"Aires et périmètres",       p:20,  s:"ren", lac:"ouverte"}
+    ],
+    gaps:[
+      {n:"Symétrie centrale",st:"ok",b:"résolue",
+       d:"Refermée le 2 juin par la mission « Retourner la figure » — rappel réussi, 3 cartes SRS créées. La notion est remontée à 80 % ; elle reste « en cours », pas « acquise »."},
+      {n:"Proportionnalité",st:"run",b:"remédiation en cours",
+       d:"Mission active depuis le 21 mai, 2 étapes sur 4 faites. La leçon canonique existe et est validée : le parcours est complet."},
+      {n:"Développer une expression",st:"nolesson",b:"aucune leçon",
+       d:"Aucune leçon ne porte cette notion. Depuis l'ADR-0042, ZETIS peut lui produire un quiz ancré sur la notion — à condition qu'une source validée de la matière la documente. La mission aura alors son étape de rappel."},
+      {n:"Aires et périmètres",st:"draftlesson",b:"cours en brouillon",
+       d:"Une leçon existe et porte cette notion, mais son cours est en brouillon. Le quiz ancré sur la notion ne s'ouvre PAS dans ce cas — c'est un dernier recours réservé aux notions sans leçon. Il faut valider le cours."}
+    ]},
+
+  ma2:{subject:"Maths",date:"31 mars 2026",rank:"2ᵉ passation",
+    tags:["8 notions","60 %","14 min","qwen3.6:35b-a3b · 30 mars"],
+    portee:{dates:["15 sept.","31 mars"],lines:[
+      {nm:"Comparer des relatifs",pts:[20,60],d:"+40"},
+      {nm:"Puissances de 10",pts:[40,60],d:"+20"},
+      {nm:"Proportionnalité",pts:[80,60],d:"−20"}
+    ]},
+    skills:[
+      {n:"Comparer des relatifs",p:60,s:"ren",lac:"ouverte"},
+      {n:"Puissances de 10",p:60,s:"ren",lac:null},
+      {n:"Proportionnalité",p:60,s:"ren",lac:"ouverte"},
+      {n:"Développer une expression",p:20,s:"ren",lac:"ouverte"}
+    ],
+    gaps:[
+      {n:"Proportionnalité",st:"run",b:"reprise le 19 mai",d:"Toujours ouverte à la passation suivante — la remédiation n'avait pas été commandée."},
+      {n:"Développer une expression",st:"nolesson",b:"aucune leçon",d:"Ouverte ici, toujours ouverte deux mois plus tard. Même cause qu'au 19 mai."}
+    ]},
+
+  fr1:{subject:"Français",date:"12 mai 2026",rank:"1ʳᵉ passation",
+    tags:["8 notions","55 %","9 min","qwen3.6:35b-a3b · 11 mai"],portee:null,
+    skills:[
+      {n:"Temps du récit",p:80,s:"enc",lac:null},
+      {n:"Accord du participe passé",p:60,s:"ren",lac:"ouverte"},
+      {n:"Figures de style",p:40,s:"ren",lac:"ouverte"},
+      {n:"Discours rapporté",p:40,s:"ren",lac:"ouverte"}
+    ],
+    gaps:[
+      {n:"Accord du participe passé",st:"run",b:"remédiation en cours",d:"Mission active depuis le 14 mai, 1 étape sur 3 faite."},
+      {n:"Figures de style",st:"nolesson",b:"aucune leçon",d:"Notion au référentiel, aucune leçon ne la porte."},
+      {n:"Discours rapporté",st:"run",b:"remédiation en cours",d:"Mission active depuis le 14 mai, aucune étape faite."}
+    ]},
+
+  sv1:{subject:"SVT",date:"8 janv. 2026",rank:"1ʳᵉ passation",
+    tags:["8 notions","45 %","11 min","qwen3.6:35b-a3b · 7 janv."],portee:null,
+    skills:[
+      {n:"Chaînes alimentaires",p:60,s:"ren",lac:null},
+      {n:"Reproduction sexuée",p:40,s:"ren",lac:"ouverte"},
+      {n:"Cycle de l'eau",p:20,s:"ren",lac:"ouverte"}
+    ],
+    gaps:[
+      {n:"Reproduction sexuée",st:"nolesson",b:"aucune leçon",d:"Lacune ouverte il y a 211 jours. Aucun contenu n'a jamais pu être produit pour elle."},
+      {n:"Cycle de l'eau",st:"nolesson",b:"aucune leçon",d:"Lacune ouverte il y a 211 jours. Même cause."}
+    ]},
+
+  ma1:{subject:"Maths",date:"15 sept. 2025",rank:"1ʳᵉ passation",
+    tags:["8 notions","50 %","16 min","qwen3.6:35b-a3b · 14 sept."],portee:null,
+    skills:[
+      {n:"Proportionnalité",p:80,s:"enc",lac:null},
+      {n:"Puissances de 10",p:40,s:"ren",lac:"ouverte"},
+      {n:"Comparer des relatifs",p:20,s:"ren",lac:"ouverte"},
+      {n:"Développer une expression",p:20,s:"ren",lac:"ouverte"}
+    ],
+    gaps:[
+      {n:"Comparer des relatifs",st:"ok",b:"résolue",d:"Refermée le 4 déc. après deux missions. C'est la seule lacune de diagnostic refermée cette année."},
+      {n:"Développer une expression",st:"nolesson",b:"aucune leçon",d:"Ouverte il y a 326 jours. Trois passations plus tard, elle est encore ouverte."}
+    ]}
+};
+
+const BADGE = {ok:"b-ok", run:"b-run", nolesson:"b-nolesson", draftlesson:"b-draft"};
+const CARD  = {ok:"", run:"", nolesson:"nolesson", draftlesson:"draftlesson"};
+const PAL   = {acq:["pal-acq","acquise"], enc:["pal-enc","en cours"], ren:["pal-ren","à renforcer"], non:["pal-non","non abordée"]};
+
+/* La portée en MARCHES — 5 questions ⇒ 6 valeurs, un tracé lissé mentirait. */
+function staff(p){
+  if(!p) return `
+  <div class="portee">
+    <div class="blocklbl">La portée <em>— comparaison entre passations</em></div>
+    <div class="absent" style="margin-top:12px">
+      <p><strong>Une seule passation.</strong> Il n'y a rien à comparer : un point ne fait pas une pente.</p>
+      <p class="why">La portée apparaît à partir de la 2ᵉ passation de la même matière.</p>
+    </div>
+  </div>`;
+
+  const rows = p.lines.map(l=>{
+    const v = parseInt(l.d.replace("−","-"),10) || 0;
+    const cls = v > 0 ? "up" : (v < 0 ? "down" : "flat");
+    const n = l.pts.length;
+    // tracé en escalier : palier horizontal puis saut vertical
+    let d = "", prev = null;
+    l.pts.forEach((val,i)=>{
+      const x0 = (i/n)*100, x1 = ((i+1)/n)*100, y = 19 - (val/100)*16;
+      if(i===0) d += `M${x0} ${y}`;
+      else d += ` L${x0} ${prev} L${x0} ${y}`;
+      d += ` L${x1} ${y}`;
+      prev = y;
+    });
+    const dots = l.pts.map((val,i)=>{
+      const cx = ((i+0.5)/n)*100, cy = 19-(val/100)*16;
+      return `<circle cx="${cx}" cy="${cy}" r="2.4" fill="currentColor"/>`;
+    }).join("");
+    return `<div class="line ${cls}">
+      <span class="nm" title="${l.nm}">${l.nm}</span>
+      <span class="track">
+        <svg viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true">
+          <path d="${d}" fill="none" stroke="currentColor" stroke-width="1.4"
+                vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+        </svg>
+        <svg viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"
+             style="position:absolute;inset:0">${dots}</svg>
+      </span>
+      <span class="dlt">${l.d} pts</span>
+    </div>`;
+  }).join("");
+
+  return `<div class="portee">
+    <div class="blocklbl">La portée <em>— mêmes notions, dates différentes · marches de 20 points</em></div>
+    <div class="staff">
+      <div class="axis"><span></span><span class="dates">${p.dates.map(d=>`<span>${d}</span>`).join("")}</span></div>
+      ${rows}
+    </div>
+  </div>`;
+}
+
+function render(id){
+  const d = DATA[id];
+
+  if(d.stage){
+    const draft = d.stage==="draft";
+    const P = draft ? {
+      chip:'draft',chiplbl:'à relire',
+      title:"Généré, pas encore relu",
+      hint:"Le questionnaire existe. Personne ne l'a encore ouvert.",
+      lead:`<strong>Dans la file de relecture depuis ${d.since} jour${d.since>1?'s':''}.</strong>
+        34 questions gardées, 6 écartées par l'auto-vérification. Rien n'est visible par Massimo,
+        et rien ne le sera tant que tu ne l'auras pas relu : c'est un gate, pas un délai.`,
+      why:"Un diagnostic non relu n'apparaît pas sur la page Diagnostic de Massimo. Il n'existe que pour toi.",
+      cta:"Ouvrir dans la file de relecture →",alt:"Refuser ce lot",
+      cardT:"Pourquoi le diagnostic a un gate, pas les autres quiz",
+      cardD:`Un quiz de fin de cours est une évaluation éphémère : servi sans relecture, par doctrine.
+        Un diagnostic, lui, <strong>ouvre des lacunes et écrit la maîtrise</strong> — il n'est pas éphémère.
+        C'est ce qui justifie qu'il rejoigne les cinq familles de <code>/relecture</code>, et lui seul.`,
+      cardB:"gate"
+    } : {
+      chip:'sent',chiplbl:'proposé, non passé',
+      title:"Rien n'a encore été mesuré",
+      hint:"Le questionnaire est chez Massimo. Il attend d'être passé.",
+      lead:`<strong>En attente depuis ${d.since} jours.</strong>
+        Tu l'as relu et proposé le 4 août. Aucune tentative n'a été enregistrée : il n'y a donc ni
+        score, ni palier, ni lacune — et il n'y en aura pas tant qu'il ne l'aura pas passé.`,
+      why:"Côté Massimo, il apparaît sur sa page « Diagnostic ». Le mot ne lui est pas caché : c'est une mesure, pas un piège.",
+      cta:"Voir la page de Massimo →",alt:"Retirer la proposition",
+      cardT:"Le témoin se lève tout seul",
+      cardD:`Le troisième cran est lu dans <code>quiz_attempts</code> à chaque affichage. Papa ne peut
+        pas le cocher : ce serait déclarer un fait que rien n'a mesuré.`,
+      cardB:"lecture seule"
+    };
+
+    document.getElementById("panel").innerHTML = `
+      <div class="phead">
+        <div class="eyebrow">${d.rank}</div>
+        <h2>Diagnostic ${d.subject} — ${d.date}</h2>
+        <div class="meta">
+          <span class="taken-chip ${P.chip}"><span class="tick ${P.chip}" aria-hidden="true">✓</span>${P.chiplbl}</span>
+          ${d.tags.map(t=>`<span class="tag">${t}</span>`).join("")}
+        </div>
+      </div>
+      <div class="thread">
+        <div class="station">
+          <div class="gutter"><span class="node void">1</span></div>
+          <div class="stbody">
+            <div class="sttitle" style="color:var(--void)">${P.title}</div>
+            <div class="sthint">${P.hint}</div>
+            <div class="absent">
+              <p>${P.lead}</p>
+              <p class="why">${P.why}</p>
+              <div style="display:flex;gap:9px;flex-wrap:wrap">
+                <button class="ghost">${P.cta}</button>
+                <button class="ghost" style="border-style:dashed;color:var(--papa-muted)">${P.alt}</button>
+              </div>
+            </div>
+            <div class="gap" style="margin-top:14px">
+              <div><div class="g1">${P.cardT}</div><div class="g2">${P.cardD}</div></div>
+              <span class="badge ${draft?'b-nolesson':'b-run'}">${P.cardB}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">
+        <strong>Ce que « en attente » ne fait pas.</strong>
+        Aucun compteur de jours ne monte côté Massimo, aucune relance automatique, aucune pastille de
+        retard. L'attente est une information pour Papa, pas une pression sur l'enfant. Un diagnostic
+        non passé peut être retiré ou refusé sans laisser de trace de manquement — le refus va au
+        journal de production, pas au dossier de Massimo.
+        <span class="todo">⚠️ À construire : ni le cran « généré » ni le cran « proposé » n'existent
+        aujourd'hui. <code>list_diagnostics</code> sert tout <code>quiz_type='diagnostic'</code> sur un
+        seul prédicat, et <code>quizzes</code> n'a pas de <code>validation_status</code>. Demande un
+        addendum à l'ADR-0014 + une migration.</span>
+      </div>`;
+    return;
+  }
+
+  const nolesson = d.gaps.filter(g=>g.st==="nolesson").length;
+  const draftles = d.gaps.filter(g=>g.st==="draftlesson").length;
+
+  const skillRows = d.skills.map(s=>{
+    const [pc,pl] = PAL[s.s];
+    const barcls = s.p>=90 ? "" : (s.p>=70 ? "mid" : "low");
+    const lac = s.lac==="ouverte" ? `<span class="lac open">ouverte</span>`
+              : s.lac==="resolue" ? `<span class="lac">résolue</span>`
+              : `<span class="lac none">—</span>`;
+    return `<tr>
+      <td>${s.n}</td>
+      <td style="width:26%"><span class="bar ${barcls}"><i style="width:${s.p}%"></i></span></td>
+      <td class="r"><span class="pct">${s.p} %</span></td>
+      <td class="r" style="width:96px"><span class="pal ${pc}">${pl}</span></td>
+      <td class="r" style="width:74px">${lac}</td>
+    </tr>`;
+  }).join("");
+
+  const gapCards = d.gaps.map(g=>`<div class="gap ${CARD[g.st]}">
+    <div>
+      <div class="g1">${g.n}</div>
+      <div class="g2">${g.d}</div>
+      ${g.st==='nolesson' ? `<button class="link">Produire le quiz de cette notion →</button>`
+       : g.st==='draftlesson' ? `<button class="link">Valider le cours de cette leçon →</button>`
+       : `<button class="link">Voir la lacune →</button>`}
+    </div>
+    <span class="badge ${BADGE[g.st]}">${g.b}</span>
+  </div>`).join("");
+
+  document.getElementById("panel").innerHTML = `
+    <div class="phead">
+      <div class="eyebrow">${d.rank}</div>
+      <h2>Diagnostic ${d.subject} — ${d.date}</h2>
+      <div class="meta">
+        <span class="taken-chip"><span class="tick taken" aria-hidden="true">✓</span>passé par Massimo</span>
+        ${d.tags.map(t=>`<span class="tag">${t}</span>`).join("")}
+      </div>
+    </div>
+
+    ${staff(d.portee)}
+
+    <div class="thread">
+      <div class="station">
+        <div class="gutter"><span class="node">1</span><span class="rope"></span></div>
+        <div class="stbody">
+          <div class="sttitle">Ce qui a été mesuré</div>
+          <div class="sthint">
+            Score par notion, corrigé serveur, sur 5 questions — donc par paliers de 20 points.
+            Le palier de maîtrise et la lacune sont <strong>deux colonnes distinctes</strong> :
+            une notion peut être à renforcer sans lacune ouverte, et l'inverse.
+          </div>
+          <table>
+            <thead><tr><th>Notion</th><th></th><th class="r">Score</th><th class="r">Palier</th><th class="r">Lacune</th></tr></thead>
+            <tbody>${skillRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="station">
+        <div class="gutter"><span class="node">2</span><span class="rope cut"></span></div>
+        <div class="stbody">
+          <div class="sttitle">Ce qui a été ouvert</div>
+          <div class="sthint">${d.gaps.length} lacune${d.gaps.length>1?'s':''} · état à aujourd'hui, pas à la date de la passation.</div>
+          ${gapCards}
+        </div>
+      </div>
+
+      <div class="station">
+        <div class="gutter"><span class="node void">3</span></div>
+        <div class="stbody">
+          <div class="sttitle" style="color:var(--void)">Ce que ZETIS en a produit</div>
+          <div class="sthint">Le lot de production commandé par cette mesure.</div>
+          <div class="absent">
+            <p><strong>Aucun — et c'est une décision, pas une panne.</strong>
+            ZETIS ne se commande pas de production sur sa propre mesure. Une mesure fausse
+            produirait alors du contenu que rien d'extérieur ne viendrait contredire : la boucle se
+            refermerait sur elle-même. Seule une source du monde réel — un contrôle inscrit à
+            l'agenda — déclenche ZETIS toute seule.</p>
+            <p class="why">Le fil s'arrête ici volontairement. C'est à toi de décider si cette
+            mesure mérite une production.</p>
+            ${(nolesson+draftles) ? `<p class="why">Sur cette passation, ${nolesson+draftles} lacune${(nolesson+draftles)>1?'s':''}
+            attend${(nolesson+draftles)>1?'ent':''} un contenu : ${nolesson} sans leçon, ${draftles} avec un cours à valider.</p>` : ``}
+            <button class="ghost">Commander une production →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <strong>Comment ces chiffres sont fabriqués.</strong>
+      Score par notion = bonnes réponses / questions portant cette notion, corrigé serveur, sur
+      <code>5</code> questions. Paliers : <code>acquise</code> ≥ 90, <code>en cours</code> ≥ 70,
+      <code>à renforcer</code> en dessous. Une lacune s'ouvre sous <code>70</code> —
+      <strong>mais palier et lacune restent deux populations disjointes</strong> : une lacune
+      refermée ne remonte pas le palier, et un bon score ne referme pas la lacune.
+      Une passation est un <code>quiz</code> de <code>quiz_type = diagnostic</code> — pas une table à part.
+      <span class="todo">⚠️ À construire : la colonne « Lacune » demande de lire la table
+      <code>gaps</code>. Aujourd'hui <code>_per_skill_for_attempt</code> recalcule les lacunes depuis
+      les réponses de la passation et ne lit jamais <code>gaps</code> — une lacune résolue continue
+      donc de s'afficher. Et <code>QUESTIONS_PER_SKILL</code> vaut <code>2</code>, pas 5 : les
+      passations passées n'ont que 3 valeurs possibles (0/50/100).</span>
+    </div>`;
+}
+
+document.querySelectorAll(".pass[data-id]").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll(".pass[data-id]").forEach(x=>x.setAttribute("aria-current","false"));
+    b.setAttribute("aria-current","true");
+    render(b.dataset.id);
+  });
+});
+document.querySelectorAll(".filters .chip").forEach(c=>{
+  c.addEventListener("click",()=>{
+    document.querySelectorAll(".filters .chip").forEach(x=>x.setAttribute("aria-pressed","false"));
+    c.setAttribute("aria-pressed","true");
+  });
+});
+render("ma3");
+
+/* ================= modale ================= */
+const NOTIONS = [
+  {n:"Comparer des relatifs",     st:"keep",q:"5 gardées"},
+  {n:"Puissances de 10",          st:"keep",q:"5 gardées"},
+  {n:"Théorème de Pythagore",     st:"cut", q:"4 gardées · 1 écartée"},
+  {n:"Symétrie centrale",         st:"keep",q:"5 gardées"},
+  {n:"Proportionnalité",          st:"keep",q:"5 gardées"},
+  {n:"Développer une expression", st:"cut", q:"3 gardées · 2 écartées"},
+  {n:"Fractions : somme et écart",st:"keep",q:"5 gardées"},
+  {n:"Aires et périmètres",       st:"keep",q:"5 gardées"}
+];
+const STLBL={keep:"st-keep",cut:"st-cut",now:"st-now",wait:"st-wait"};
+
+function logList(upTo,frozen){
+  return `<ol class="log">${NOTIONS.map((x,i)=>{
+    let st=x.st,q=x.q;
+    if(i>=upTo){st="wait";q="en attente";}
+    if(i===upTo){st="now";q=frozen?"sans réponse":"en cours";}
+    const cls = st==="now"?"now":(st==="wait"?"wait":"");
+    return `<li class="${cls}"><span class="i">${String(i+1).padStart(2,"0")}</span>
+      <span>${x.n}</span><span class="st ${STLBL[st]}">${q}</span></li>`;
+  }).join("")}</ol>`;
+}
+
+function gauge(pct,done,total,cut,mode){
+  const bar = mode==="run"?"moving":(mode==="stopped"?"stopped":"");
+  const state = mode==="run"?"en cours":(mode==="stopped"?"sans avancement":"terminé");
+  return `<div class="prog">
+    <div class="progtop">
+      <span class="pnum">${pct} %</span>
+      <span class="pctx">notion <b class="num">${done}</b> sur <b class="num">${total}</b> traitée${done>1?'s':''}</span>
+      <span class="pstate" style="${mode==='stopped'?'color:var(--void)':''}">${state}</span>
+    </div>
+    <div class="pbar ${bar}"><i style="width:${pct}%"></i></div>
+    <div class="pmeta">Le pourcentage compte les <b style="color:var(--papa-text)">notions traitées</b>, pas le temps écoulé.
+      ${cut?`· <b>${cut} questions écartées</b> par l'auto-vérification à l'aveugle`:``}</div>
+  </div>`;
+}
+
+const ENGINE = `qwen3.6:35b-a3b · ollama · <span style="color:var(--papa-text)">job #4821</span> · démarré 14:07:32`;
+
+const VIEWS = {
+  config:()=>({
+    body:`<div class="fieldlbl">Matière</div>
+      <div class="filters" style="margin:0">
+        <button class="chip" aria-pressed="true"><span class="mono">MA</span>Maths</button>
+        <button class="chip" aria-pressed="false"><span class="mono">FR</span>Français</button>
+        <button class="chip" aria-pressed="false"><span class="mono">SV</span>SVT</button>
+        <button class="chip" aria-pressed="false"><span class="mono">AN</span>Anglais</button>
+      </div>
+      <div class="perim">
+        <div class="fieldlbl" style="margin-bottom:6px">Périmètre</div>
+        <div class="pl"><span>Notions du référentiel de la matière</span><b>37</b></div>
+        <div class="pl"><span>Notions retenues pour ce diagnostic</span><b>8</b></div>
+        <div class="pl"><span>Questions attendues (5 par notion)</span><b>40</b></div>
+        <p class="note">
+          ⚠️ Le diagnostic mesure <strong>8 notions</strong>, pas la matière entière. Ce sont
+          toujours les <strong>mêmes 8</strong> — les premières entrées au référentiel — tant qu'une
+          rotation n'aura pas été décidée. Une passation ne dit donc rien des 29 autres notions.
+        </p>
+      </div>`,
+    foot:`<span class="eng">Le lot sera tracé dans <span style="color:var(--papa-text)">ai_jobs</span> et visible dans le bandeau de production.</span>
+          <button class="cta" data-go="run">Générer 40 questions</button>`
+  }),
+  run:()=>({body:gauge(63,5,8,3,"run")+logList(5,false),
+    foot:`<span class="eng">${ENGINE}</span><button class="ghost" style="margin:0">Interrompre</button>`}),
+  stopped:()=>({body:gauge(63,5,8,3,"stopped")+`
+      <div class="warnbar"><b>Rien n'avance depuis 2 min 14 s.</b>
+      Le lot n'a pas échoué et n'a pas été refusé : il est immobile. La barre reste où elle est —
+      elle n'affichera pas d'avancement qu'aucune notion ne justifie.</div>`+logList(5,true),
+    foot:`<span class="eng">${ENGINE} · dernier événement 14:11:03</span><button class="ghost" style="margin:0">Interrompre</button>`}),
+  done:()=>({body:gauge(100,8,8,6,"done")+`
+      <div class="done">
+        <div class="big">8 notions mesurées · 34 questions gardées · 6 écartées</div>
+        <p style="font-size:13.5px;color:var(--papa-muted);margin:8px 0 0;max-width:66ch">
+          Les 6 questions écartées sont celles dont le modèle n'a pas retrouvé sa propre clé en
+          relecture à l'aveugle. Elles ne sont pas régénérées : deux notions descendent donc à
+          3 et 4 questions, ce que le score par notion prendra en compte — leurs paliers seront
+          plus grossiers que ceux des autres.
+        </p>
+        <div class="gap" style="margin-top:14px">
+          <div><div class="g1">Le diagnostic existe, Massimo ne le voit pas</div>
+          <div class="g2">Il rejoint le rail au premier cran, en relecture. Il n'apparaîtra sur sa page
+          Diagnostic qu'après ta validation, et n'aura de score qu'une fois passé.</div></div>
+          <span class="badge b-nolesson">à relire</span>
+        </div>
+      </div>`+logList(8,false).replace('class="log"','class="log" style="margin-top:18px"'),
+    foot:`<span class="eng">${ENGINE} · terminé 14:13:48 · durée 6 min 16 s</span>
+          <button class="cta">Envoyer en relecture →</button>`})
+};
+
+function showView(v){
+  const {body,foot} = VIEWS[v]();
+  document.getElementById("mbody").innerHTML = body;
+  document.getElementById("mfoot").innerHTML = foot;
+  document.querySelectorAll(".states button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===v)));
+  const go = document.querySelector("[data-go]");
+  if(go) go.addEventListener("click",()=>showView("run"));
+}
+const scrim=document.getElementById("scrim");
+document.querySelector(".filters .cta").addEventListener("click",()=>{scrim.hidden=false;showView("config");});
+document.getElementById("close").addEventListener("click",()=>scrim.hidden=true);
+scrim.addEventListener("click",e=>{if(e.target===scrim) scrim.hidden=true;});
+document.addEventListener("keydown",e=>{if(e.key==="Escape") scrim.hidden=true;});
+document.querySelectorAll(".states button").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.v)));
+</script>
+</body>
+</html>
