@@ -8,21 +8,23 @@
 ## État à la reprise
 
 **Chantier : « la page Diagnostic de Massimo propose au lieu de lister » (ADR-0044).
-✅ COMPLET — les TROIS sessions sont faites. Il reste le commit de la Session C, le push, et la PR.**
+✅ COMPLET et ✅ MERGÉ SUR `main` (2026-08-08). Ne pas ré-implémenter.**
 
 | | |
 |---|---|
-| **Branche** | `feat/diagnostic-massimo-propose`, base `8b8f988` (le prompt corrigé, sur `main`) |
-| **État git** | 🔴 **la Session C est NON COMMITÉE**, et **le distant de la branche est en retard** : le merge de rattrapage de `main` et les deux commits qu'il apporte n'ont jamais été poussés. Seules les Sessions A et B sont sur le distant. Voir `git log --oneline main..HEAD` et `git status` |
+| **Mergé** | PR [#100](https://github.com/NeuronXcore/zetis-school/pull/100), **squash `6642a30`**, base `8b8f988`. 27 fichiers, +2094/−311 |
+| **État git** | `main` = `origin/main` — **rien à pousser** |
+| **Branche** | `feat/diagnostic-massimo-propose` — 🔴 **CONSERVÉE**, locale ET distante. Le dépôt a `delete_branch_on_merge: false` |
 | **Décisions** | ADR-0044 **Accepté** (9 décisions) + `adr-0030-addendum-temoin-diagnostic.md` **Accepté**, qui **révoque la Décision 7** |
 | **Migration** | **AUCUNE**, sur les trois sessions. Invariant du chantier |
 | **Suites** | Backend **1047** · Massimo **539** · Papa **667** · `tsc -b` 0 sur les deux projets · `vite build` vert |
 | **Sabotages** | **6 joués, 6 rouges** |
 | **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé DEUX défauts qu'aucun test ne voyait |
 
-🔴 **DEUX AUTRES branches sont CONSERVÉES et ne sont pas celle-ci** —
+🔴 **TROIS branches sont désormais conservées** — `feat/diagnostic-massimo-propose` (celle-ci),
 `feat/diagnostic-mesure-qui-engage` et `feat/notion-orpheline-equipable`. Les trois noms se
-ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais.
+ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais. Aucune n'est à supprimer
+sans consigne.
 
 ### FAIT — les trois sessions
 
@@ -92,14 +94,22 @@ saboter la conjonction ; et **`toLocaleDateString("fr-FR")` écrit « 1 juillet 
 - **Les 14 défauts du module `diagnostics`** restent au `BACKLOG.md`, aucun traité.
 - 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
 
-### ▶▶ PROCHAIN PAS
+### ▶▶ PROCHAIN CHANTIER
 
-**Committer la Session C**, pousser, puis **ouvrir la PR** — le chantier est fini, la relecture
-visuelle humaine a eu lieu, et elle a servi. Après le merge : **étape 4bis** (`WORKFLOW.md §5`) —
-remettre ce fichier au réel avec le squash, le n° de PR, et la branche.
+**Les quatre optimisations de la page Diagnostic de PAPA**, au `BACKLOG.md` — explicitement
+décidées « après celui-ci » : jauges non cliquables, cran « proposé » en cul-de-sac, « en attente ·
+non passé » qui ne nomme personne.
 
-⚠️ Le `CHANGELOG.md` porte l'entrée **0.60.0**, et `TROUBLESHOOTING.md` ses deux sections : les
-contrôles ② et ③ passent **avant** le merge, pour une fois.
+⚠️ **Rituel complet attendu** — `mockup → spec → ADR → prompt`. Le dépôt impose un cadrage avant
+la moindre ligne.
+
+> ✅ **Étape 4bis faite le 2026-08-08**, juste après le merge : squash, n° de PR et état des
+> branches vérifiés par commande (`git cat-file -t`, `gh pr view`), pas recopiés de mémoire.
+>
+> ✅ Les quatre contrôles du `WORKFLOW.md §6.3` passent **déjà** — ADR + addendum, deux sections
+> `TROUBLESHOOTING.md`, entrée `CHANGELOG.md` **0.60.0**, et les dettes ci-dessus. Pour une fois,
+> ②  et ③ étaient en place **avant** le merge et non rattrapés après. Ce récit sera donc
+> élagable à la prochaine clôture — **à condition de remonter d'abord les dettes ouvertes**.
 
 ---
 
