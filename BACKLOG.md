@@ -340,7 +340,18 @@ une attente : les trois quiz sont nés `pending`, puis `validated_by = 'parent'`
 validation est un **geste humain postérieur**, pas un effet de la production. Le diagnostic
 n'atteint donc Massimo que par la main de Papa.
 
-## 🔴 CHANTIER À CADRER — la page Lacunes énonce sans permettre d'agir
+## La page Lacunes énonce sans permettre d'agir — ✅ CADRÉE, `adr-0047` (2026-08-09)
+
+> **Ce n'est plus au backlog : c'est un chantier.** Voir
+> `docs/decisions/adr-0047-la-page-lacunes-permet-d-agir.md` (Proposé), la spec
+> `docs/frontend-papa/page-lacunes.md` (passages `[0047]`), la maquette
+> `mockup-papa-lacunes-v1.html` et le prompt
+> `prompts/claude-code/prompts-claude-code-adr-0047.md`, en deux sessions. Le texte ci-dessous est
+> conservé **comme trace du constat d'origine**, pas comme une tâche ouverte.
+>
+> 🔴 **Le read-before-code du cadrage a démenti QUATRE points de ce texte**, dont deux qui
+> changeaient la conception — ils sont détaillés dans l'ADR § *Constat read-before-code*, et les
+> deux qui comptent sont rappelés en place ci-dessous.
 
 **Trouvé le 2026-08-08 par le commanditaire**, en vérifiant la slice C de l'ADR-0045.
 
@@ -366,6 +377,11 @@ l'état** :
 
 **La page DÉDIÉE aux lacunes en dit donc moins qu'une section d'une autre page.**
 
+> 🔴 **Ce tableau est FAUX sur le grain, vérifié le 2026-08-09.** La station ② envoie sur
+> `/quiz?subject=<id>` et `/programme?subject=<id>` (`PanneauPassation.tsx:266-277`) : **la
+> matière**, jamais la notion ni la leçon. Elle promet un grain que ses liens ne livrent pas.
+> L'`adr-0047` ne la copie donc pas — **il la corrige** (Décision 8).
+
 Et le cul-de-sac se referme sur lui-même : ce dernier geste, « **Voir la lacune →** », pointe sur
 `/lacunes` (`PanneauPassation.tsx`). Papa quitte un écran qui lui donnait le motif et l'action pour
 atterrir sur **une ligne inerte**. C'est exactement le motif que l'ADR-0045 a traité deux fois —
@@ -380,6 +396,17 @@ plus `severity`, `has_active_mission` et `source`.
 **Ce qui manque encore, et qui coûterait un champ** : la **leçon ou le chapitre** à ouvrir, et la
 **mission** qui couvre déjà la notion (pour un « voir la mission → » sur les lignes « déjà prises en
 charge », qui sont aujourd'hui les plus inertes de toutes).
+
+> 🔴 **Deux corrections, mesurées le 2026-08-09.**
+> **(a) Ça coûte ZÉRO requête**, pas « un champ » : `etat_contenu` obtient les `Lesson` en lot puis
+> **les jette** (`content_state.py:62`), et `skills_with_active_mission` réduit des `Mission` à un
+> `set[int]` (`progress/service.py:73`). Deux fois le motif de `source` dans l'`adr-0045`.
+> ⚠️ Mais la leçon **n'est pas un singleton** : une notion en porte jusqu'à **quatre**
+> (« Priorités opératoires » : #151 `draft`, #145 `draft`, #48 `validated`, #23 `validated`).
+> **(b) « les plus inertes de toutes » est en dessous de la vérité** : les **10** lacunes ouvertes
+> ont **toutes** `has_active_mission`, donc les deux autres sections **ne s'affichent pas** et cette
+> section est **la seule visible**. La page entière est un cul-de-sac — c'est ce qui a fait passer
+> son geste en **prioritaire** (`adr-0047` Décision 2).
 
 ⚠️ **Hors périmètre de l'ADR-0045**, qui porte sur la page Diagnostic. À cadrer à part — mais tant
 que c'est frais : c'est maintenant que c'est le moins cher.

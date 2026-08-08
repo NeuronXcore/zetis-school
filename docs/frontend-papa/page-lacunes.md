@@ -3,6 +3,11 @@
 > **Créée le 2026-08-06.** La page existe en code depuis des semaines (`LacunesPage.tsx`) et
 > n'avait **aucune spec** — ce qui est précisément ce qui a laissé son titre dériver.
 > Le renommage est décidé par `adr-0040` §5.
+>
+> **Amendée le 2026-08-09 par l'`adr-0047` — la ligne cesse d'être inerte.**
+> **Les passages amendés portent la mention `[0047]`.** Maquette :
+> `mockup/mockup-papa-lacunes-v1.html`. Ce qui ne porte pas la mention est **inchangé** : les trois
+> titres de section, leurs notes, les deux boutons de génération, le filtre, les états vides.
 
 ## Objectif
 
@@ -48,25 +53,35 @@ Trois sections, dérivées **toutes** du jeu filtré — aucune ne peut l'oublie
 │ Lacunes ouvertes                                                             │
 │ Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider│
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ DÉCOUVERTES, JAMAIS TRAVAILLÉES (1)      [Créer 1 mission de consolidation]   │
+│ DÉCOUVERTES, JAMAIS TRAVAILLÉES (3)      [Créer 3 missions de consolidation]   │
 │   Un diagnostic les a repérées et aucune mission ne les prend en charge.      │
-│   📕 Français — Temps du récit · repérée le 1er juillet 2026    [prioritaire] │
+│   ∑ Maths — Comparaison de relatifs  [à traiter]  Valider le cours de … →     │
+│       Une leçon existe, son cours est en brouillon.                    [0047] │
 │                                                                              │
-│ REVENUES PAR LA RÉVISION (0)             [Créer les missions de révision dues]│
+│ REVENUES PAR LA RÉVISION (1)             [Créer les missions de révision dues]│
+│   ¶ Français — Temps du récit        [à traiter]  Produire le quiz de … →     │
 │                                                                              │
-│ DÉJÀ PRISES EN CHARGE (1)                                                    │
-│   Une mission active couvre ces notions — rien à décider.                    │
+│ DÉJÀ PRISES EN CHARGE (10)                                                   │
+│   Une mission active couvre ces notions — rien à décider, mais on peut la voir│
+│   ∑ Maths — Priorités opératoires    [à traiter]  Voir la mission →    [0047] │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Section | Population | Générateur |
-|---|---|---|
-| Découvertes, jamais travaillées | `Gap.status == "open"` | consolidation (remédiation) |
-| Revenues par la révision | `Gap.status == "in_progress"` | révision — c'est le relais de l'`adr-0017` §5bis |
-| Déjà prises en charge | `has_active_mission` | aucun, rien à décider |
+| Section | Population | Geste de SECTION | Geste de LIGNE `[0047]` |
+|---|---|---|---|
+| Découvertes, jamais travaillées | `Gap.status == "open"` | consolidation (remédiation) | selon `content_state` |
+| Revenues par la révision | `Gap.status == "in_progress"` | révision — relais de l'`adr-0017` §5bis | selon `content_state` |
+| Déjà prises en charge | `has_active_mission` | aucun | **Voir la mission →** |
 
 **Une section vide n'est pas affichée** : elle n'apprendrait rien et pousserait le reste hors de
 l'écran.
+
+> 🔴 **`[0047]` Ce que ce comportement produit aujourd'hui, et qui n'était écrit nulle part.**
+> Relevé en base de dev le 2026-08-09 : les **10** lacunes ouvertes ont **toutes**
+> `has_active_mission`. Donc `pending` est vide, les deux premières sections **ne s'affichent pas**
+> — ni leurs boutons — et la page ne montre que « Déjà prises en charge », la seule sans action.
+> **La page entière est un cul-de-sac**, pas une ligne inerte parmi des sections vivantes.
+> C'est ce qui rend le geste de cette troisième section **prioritaire** et non secondaire.
 
 ## Les deux gestes
 
@@ -87,6 +102,42 @@ La `ConfirmDialog` annonce trois choses, et la première n'est pas négociable :
 Sur la révision, une quatrième ligne : seules les cartes **dues** sont reprises, et leur nombre est
 plafonné — une séance reste courte.
 
+## `[0047]` Le geste de la ligne
+
+Une ligne, **un** geste, et il dépend de ce dont on dispose. Le motif est écrit **en clair sous la
+ligne** : Papa n'a pas à deviner pourquoi ce geste-là plutôt qu'un autre.
+
+| Condition | Geste | Destination |
+|---|---|---|
+| `has_active_mission` | **Voir la mission →** | `/missions?focus=<mission_id>` |
+| `content_state == "cours_brouillon"` | **Valider le cours de cette leçon →** | `/programme?lesson=<leçon en brouillon>` |
+| `content_state == "aucune_lecon"` | **Produire le quiz de cette notion →** | `/quiz?skill=<skill_id>` |
+| `content_state == "ok"` | **Relire la leçon →** | `/programme?lesson=<leçon validée>` |
+
+`has_active_mission` est testé **en premier** : une notion déjà couverte n'attend aucune décision de
+contenu, quel que soit son `content_state`.
+
+**Le grain est la NOTION, jamais la matière.** Un libellé qui dit « cette notion » mène à cette
+notion.
+
+> 🔴 **Ce chantier ne copie pas la station ② du Diagnostic — il la corrige.** Elle écrit « Produire
+> le quiz de **cette notion** → » et envoie sur `/quiz?subject=<id>` : la **matière**. Le libellé y
+> promet un grain que le lien ne livre pas. C'est le défaut que l'`adr-0039` est né de corriger.
+
+> 🔴 **Une notion porte jusqu'à QUATRE leçons** (« Priorités opératoires » : #151 `draft`,
+> #145 `draft`, #48 `validated`, #23 `validated`). **La leçon visée suit l'état visé par le geste** —
+> celle qu'on doit *valider* est en brouillon, celle qu'on *relit* est validée. Départage entre
+> candidates de même statut : la plus récente. Ouvrir une leçon déjà validée sous le libellé
+> « Valider le cours » recréerait le défaut que ce chantier corrige.
+
+### `[0047]` Le geste ne s'écrase pas sur un téléphone
+
+Sous **640 px**, le badge de sévérité et le geste descendent sur leur propre ligne ; le corps prend
+toute la largeur. Sans cette règle, `.corps` (`flex:1`, `min-width:0`) est comprimé **sous sa
+largeur minimale** par ses deux frères `flex:0 0 auto`, et le titre part en colonne, un mot par
+ligne. Vu à 375 px sur la maquette avant d'être écrit — c'est le défaut exact que la **PR #101** a
+dû corriger après coup sur la zone C du Diagnostic.
+
 ## Filtre
 
 `?subject=<slug>`, lu par `useLacunes` et appliqué **côté client** sur une liste déjà chargée —
@@ -98,8 +149,9 @@ est un état d'affichage, pas une étape de navigation.
 
 ## Ce que cette page n'est pas
 
-- **Ce n'est pas la liste des notions fragiles.** 13 fragiles pour 1 lacune ouverte en base réelle :
-  les deux populations sont **disjointes**. Une notion peut être `weak` sans avoir jamais produit de
+- **Ce n'est pas la liste des notions fragiles.** Les deux populations sont **disjointes** — au
+  2026-08-06 le dépôt comptait 13 notions fragiles pour **1** lacune ouverte ; au 2026-08-09 il y a
+  **10** lacunes ouvertes. Le rapport bouge, la disjonction ne bouge pas, et c'est elle qui compte. Une notion peut être `weak` sans avoir jamais produit de
   `Gap`, et une lacune peut rester ouverte alors que la maîtrise est repassée à `solid`. Les notions
   fragiles se lisent sur **Progression**, vue notion.
 - **Ce n'est pas une surface de mesure.** Aucun compteur global, aucune tendance, aucune date de
@@ -109,8 +161,27 @@ est un état d'affichage, pas une étape de navigation.
 
 ## Contrat API
 
-`GET /api/parent/progress/gaps` — **existe**, inchangée. Rend toutes les lacunes ouvertes avec leur
-`subject_slug`, leur sévérité, leur statut, `first_detected_at` et `has_active_mission`.
+`GET /api/parent/progress/gaps` — **existe**. Rend toutes les lacunes ouvertes avec leur
+`subject_slug`, leur sévérité, leur statut, `first_detected_at`, `has_active_mission`, `source` et
+`content_state`.
+
+### `[0047]` Deux champs de plus, et ils coûtent ZÉRO requête
+
+| Champ | D'où il vient |
+|---|---|
+| `lesson_id` | `etat_contenu` obtient les objets `Lesson` **en lot** (`lessons_by_skill`), s'en sert pour classer, puis **les jette** |
+| `mission_id` | `skills_with_active_mission` réduit des objets `Mission` à un `set[int]` |
+
+C'est le motif exact de `source` dans l'`adr-0045` : *« le champ était sur la ligne et n'était
+simplement pas rendu »*. Aucune requête supplémentaire, aucune migration.
+
+> ⚠️ **`fetchOpenGaps()` ne prend aucun paramètre et ne doit pas en prendre** (`adr-0038` §4 :
+> filtrer ne coûte rien). Les deux champs arrivent donc dans le **même payload**, calculés en lot —
+> **jamais** par une requête par ligne.
+
+> ⚠️ **`content_state` est typé `string | null`, pas une union.** Rendre quatre gestes selon sa
+> valeur ne donne **aucune exhaustivité au compilateur** : un cinquième état ajouté côté backend
+> tomberait en silence dans la branche par défaut.
 
 `has_active_mission` vient de la **fonction partagée** — le dashboard (`open_gaps.without_mission`),
 cette page et la vue notion de Progression s'appuient sur la **même**, après avoir divergé une fois
@@ -129,6 +200,8 @@ Génération : les deux routes existantes de `missions`, sans paramètre de port
 
 ## Voir aussi
 
+- `docs/decisions/adr-0047-la-page-lacunes-permet-d-agir.md` — la ligne devient un geste `[0047]`.
+- `mockup/mockup-papa-lacunes-v1.html` — la maquette du chantier, avec l'état réel de la base.
 - `docs/decisions/adr-0040-progression-dans-le-temps.md` §5 — le renommage et son test-verrou.
 - `docs/frontend-papa/page-progression.md` — la page voisine, qui **lit** là où celle-ci **décide**.
 - `GLOSSARY.md` — « Lacune ouverte » vs « Notion à renforcer », la frontière que ce renommage

@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ZETIS — Papa · La page Lacunes permet d'agir (maquette v1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   v1 — la page Lacunes cesse d'énoncer sans permettre d'agir.
+
+   Elle ne refait PAS la page : les trois sections, leurs libellés, leurs deux
+   boutons de génération et le filtre par matière restent exactement ce qui est
+   livré. Ce qui change est la LIGNE, qui devient un geste.
+
+   🔴 Les données sont RELEVÉES en base de dev le 2026-08-09 par
+   `progress.open_gaps(student_id=1)` — pas inventées :
+     · 10 lacunes ouvertes, toutes de source `diagnostic`
+     · contenu : ok 6 · cours_brouillon 1 · aucune_lecon 3
+     · statut  : open 9 · in_progress 1
+     · sévérité: high 3 · medium 7
+     · 🔴 has_active_mission : 10 sur 10
+
+   ⚠️ Ce dernier chiffre est le fait central du cadrage, et il n'était écrit
+   nulle part : `pending` étant vide, les deux premières sections ne s'affichent
+   PAS aujourd'hui (`if (gaps.length === 0) return null`), ni leurs boutons.
+   La page ne montre donc qu'une chose : « Déjà prises en charge », la section
+   sans aucune action. C'est l'écran C ci-dessous.
+
+   ⚠️ `MEMORY.md` annonçait « une seule lacune ouverte » : périmé, il y en a 10.
+
+   Tokens repris VERBATIM de `apps/frontend-papa/src/index.css`.
+   ========================================================================= */
+:root{
+  --papa-bg:#0a0f1a;
+  --papa-surface:#111a28;
+  --papa-surface-2:#18243a;
+  --papa-border:#243348;
+  --papa-text:#e6edf6;
+  --papa-muted:#8595ac;
+  --papa-accent:#10b981;
+  --papa-accent-2:#38bdf8;
+  --papa-warn:#f59e0b;
+
+  --accent-wash:rgba(16,185,129,.13);
+  --accent-line:rgba(16,185,129,.34);
+  --warn-wash:rgba(245,158,11,.11);
+  --warn-line:rgba(245,158,11,.38);
+  --sky-wash:rgba(56,189,248,.12);
+  --sky-line:rgba(56,189,248,.34);
+  --void:#5c6b82;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;padding:40px 24px 80px;
+  background:var(--papa-bg);color:var(--papa-text);
+  font-family:'Instrument Sans',system-ui,sans-serif;
+  font-size:15px;line-height:1.55;
+}
+.wrap{max-width:920px;margin:0 auto}
+h1{font-family:Archivo,sans-serif;font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+h2.ecran{
+  font-family:Archivo,sans-serif;font-size:13px;text-transform:uppercase;
+  letter-spacing:.14em;margin:44px 0 4px;color:var(--papa-accent);
+}
+h2.ecran.avant{color:var(--void)}
+.sub{color:var(--papa-muted);font-size:14px;margin:0 0 22px}
+.note{
+  border:1px solid var(--accent-line);background:var(--accent-wash);
+  border-radius:12px;padding:14px 16px;margin:0 0 8px;font-size:13.5px;
+}
+.note.warn{border-color:var(--warn-line);background:var(--warn-wash)}
+.note.plat{border-color:var(--papa-border);background:var(--papa-surface);color:var(--papa-muted)}
+.note b{color:var(--papa-text)}
+code{font-family:'IBM Plex Mono',monospace;font-size:.9em;color:var(--papa-accent-2)}
+
+/* --- l'écran --- */
+.ecran-cadre{
+  border:1px solid var(--papa-border);border-radius:16px;
+  background:var(--papa-bg);padding:22px;margin-top:12px;
+}
+.pagehead h3{font-family:Archivo,sans-serif;font-size:20px;margin:0}
+.pagehead p{color:var(--papa-muted);font-size:13px;margin:3px 0 0}
+section.bloc{margin-top:24px}
+.bloc-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}
+.bloc-head h4{
+  font-family:Archivo,sans-serif;font-size:12.5px;text-transform:uppercase;
+  letter-spacing:.13em;margin:0;font-weight:700;
+}
+.bloc-head h4 span{font-family:'IBM Plex Mono',monospace;color:var(--papa-muted);font-weight:400}
+.bloc-note{color:var(--papa-muted);font-size:12px;margin:0 0 10px}
+.btn-section{
+  border:0;border-radius:9px;background:var(--papa-accent);color:#042f1f;
+  font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:11.5px;
+  padding:6px 13px;cursor:pointer;
+}
+
+/* --- la ligne --- */
+ul.lignes{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+li.ligne{
+  display:flex;flex-wrap:wrap;align-items:center;gap:12px;
+  border:1px solid var(--papa-border);background:var(--papa-surface);
+  border-radius:12px;padding:11px 16px;
+}
+li.ligne.actionnable{transition:border-color .15s}
+li.ligne.actionnable:hover{border-color:var(--accent-line)}
+.picto{
+  width:26px;height:26px;border-radius:8px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:13px;
+  background:var(--papa-surface-2);border:1px solid var(--papa-border);
+}
+.corps{min-width:0;flex:1}
+.nom{font-weight:500}
+.meta{font-size:11.5px;color:var(--papa-muted);margin-top:1px}
+.sev{
+  flex:0 0 auto;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:500;
+}
+.sev.high{background:var(--warn-wash);color:var(--papa-warn)}
+.sev.medium{background:var(--sky-wash);color:var(--papa-accent-2)}
+.sev.low{background:var(--papa-surface-2);color:var(--papa-muted)}
+
+/* le geste — c'est TOUT ce que le chantier ajoute à la ligne */
+.geste{
+  flex:0 0 auto;font-size:12px;font-weight:600;color:var(--papa-accent);
+  text-decoration:none;border-bottom:1px solid transparent;
+}
+.geste:hover{border-bottom-color:var(--accent-line)}
+.geste.sky{color:var(--papa-accent-2)}
+.geste.absent{color:var(--void);font-weight:400;font-style:italic}
+.motif{
+  flex-basis:100%;font-size:11.5px;color:var(--papa-muted);
+  margin:2px 0 0;padding-left:38px;
+}
+
+/* --- table des destinations --- */
+/* 🔴 **Sous 640 px, le badge et le geste descendent — ils ne partagent plus la ligne du corps.**
+   Sans cette règle, `.corps` (flex:1, min-width:0) est comprimé SOUS sa largeur minimale par ses
+   deux frères `flex:0 0 auto`, et le titre part en colonne, un mot par ligne. Vu à 375 px avant
+   d'être écrit : c'est le défaut exact que la PR #101 a dû corriger après coup sur la zone C du
+   Diagnostic. Une maquette qui ne se regarde qu'en desktop le laisse passer au chantier. */
+@media (max-width:640px){
+  li.ligne{align-items:flex-start}
+  .corps{flex-basis:100%;order:1}
+  .picto{order:0}
+  .sev{order:2}
+  .geste{order:3;margin-left:auto}
+  .motif{padding-left:0;order:4}
+}
+
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+th,td{text-align:left;padding:8px 10px;border-top:1px solid var(--papa-border);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--papa-muted);font-weight:500;border-top:0}
+.oui{color:var(--papa-accent);font-weight:600}
+.non{color:var(--papa-warn);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>La page Lacunes permet d'agir</h1>
+  <p class="sub">
+    Maquette v1 · 2026-08-09 · données relevées en base de dev, pas inventées.
+    Elle ne refait pas la page : elle rend la <strong>ligne</strong> actionnable.
+  </p>
+
+  <div class="note warn">
+    🔴 <b>Le fait central, et il n'était écrit nulle part.</b> Les <b>10</b> lacunes ouvertes ont
+    toutes <code>has_active_mission: true</code>. Donc <code>pending</code> est vide, les deux
+    premières sections ne s'affichent pas — ni leurs boutons de génération — et la page ne montre
+    aujourd'hui que <b>« Déjà prises en charge »</b>, la seule section sans aucune action.
+    Ce n'est pas une ligne morte parmi des sections vivantes : c'est la page entière.
+  </div>
+
+  <div class="note plat">
+    Ce que la maquette ne touche pas : les trois titres de section, leurs notes, les deux boutons
+    de génération, le filtre par matière, les bandeaux de filtre, les deux états vides.
+    Tout cela est livré et tenu par des tests.
+  </div>
+
+  <!-- ================= A — AVANT ================= -->
+  <h2 class="ecran avant">A · Ce qui est livré aujourd'hui</h2>
+  <p class="sub">
+    Pictogramme, nom, statut, date, badge. Aucun <code>Link</code>, aucun <code>onClick</code>,
+    pas même un expander inerte.
+  </p>
+  <div class="ecran-cadre">
+    <ul class="lignes">
+      <li class="ligne">
+        <span class="picto">∑</span>
+        <div class="corps">
+          <p class="nom" style="margin:0">Mathématiques — Comparaison de relatifs</p>
+          <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p>
+        </div>
+        <span class="sev medium">à traiter</span>
+      </li>
+      <li class="ligne">
+        <span class="picto">∑</span>
+        <div class="corps">
+          <p class="nom" style="margin:0">Mathématiques — Les fractions</p>
+          <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p>
+        </div>
+        <span class="sev medium">à traiter</span>
+      </li>
+    </ul>
+    <p class="bloc-note" style="margin-top:12px">
+      La ligne dit ce qui ne va pas. Elle ne dit pas quoi en faire, et ne mène nulle part.
+    </p>
+  </div>
+
+  <!-- ================= B — APRÈS ================= -->
+  <h2 class="ecran">B · Ce que la v1 propose</h2>
+  <p class="sub">
+    Une ligne, un geste — et le geste dépend de ce dont on dispose (<code>content_state</code>).
+    Le motif est écrit en clair : Papa n'a pas à deviner pourquoi ce geste-là.
+  </p>
+
+  <div class="ecran-cadre">
+    <div class="pagehead">
+      <h3>Lacunes ouvertes</h3>
+      <p>Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider.</p>
+    </div>
+
+    <!-- section 1 -->
+    <section class="bloc">
+      <div class="bloc-head">
+        <h4>Découvertes, jamais travaillées <span>(3)</span></h4>
+        <button class="btn-section">Créer 3 missions de consolidation</button>
+      </div>
+      <p class="bloc-note">Un diagnostic les a repérées et aucune mission ne les prend en charge.</p>
+      <ul class="lignes">
+
+        <li class="ligne actionnable">
+          <span class="picto">∑</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">Mathématiques — Comparaison de relatifs</p>
+            <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p>
+          </div>
+          <span class="sev medium">à traiter</span>
+          <a class="geste" href="#">Valider le cours de cette leçon →</a>
+          <p class="motif">
+            Une leçon existe, son cours est en brouillon : la voie « quiz ancré sur la notion »
+            refuse tant qu'il n'est pas validé.
+          </p>
+        </li>
+
+        <li class="ligne actionnable">
+          <span class="picto">∑</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">Mathématiques — Les fractions</p>
+            <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p>
+          </div>
+          <span class="sev medium">à traiter</span>
+          <a class="geste" href="#">Produire le quiz de cette notion →</a>
+          <p class="motif">
+            Aucune leçon ne porte cette notion : le quiz s'ancre directement dessus.
+          </p>
+        </li>
+
+        <li class="ligne actionnable">
+          <span class="picto">∑</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">Mathématiques — Produit de relatifs</p>
+            <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p>
+          </div>
+          <span class="sev high">prioritaire</span>
+          <a class="geste" href="#">Relire la leçon →</a>
+          <p class="motif">
+            Le cours est validé — il y a de quoi retravailler la notion dès maintenant.
+          </p>
+        </li>
+      </ul>
+    </section>
+
+    <!-- section 2 -->
+    <section class="bloc">
+      <div class="bloc-head">
+        <h4>Revenues par la révision <span>(1)</span></h4>
+        <button class="btn-section">Créer les missions de révision dues</button>
+      </div>
+      <p class="bloc-note">
+        Déjà travaillées, pas encore acquises : leur carte de révision les ramène d'elle-même.
+      </p>
+      <ul class="lignes">
+        <li class="ligne actionnable">
+          <span class="picto">¶</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">Français — Temps du récit</p>
+            <p class="meta">déjà travaillée, pas encore acquise · repérée le 5 août 2026</p>
+          </div>
+          <span class="sev medium">à traiter</span>
+          <a class="geste" href="#">Produire le quiz de cette notion →</a>
+          <p class="motif">Aucune leçon ne porte cette notion.</p>
+        </li>
+      </ul>
+    </section>
+
+    <!-- section 3 — prioritaire, décision du 2026-08-09 -->
+    <section class="bloc">
+      <div class="bloc-head">
+        <h4>Déjà prises en charge <span>(10)</span></h4>
+      </div>
+      <p class="bloc-note">
+        Une mission active couvre ces notions — rien à décider, mais on peut aller la voir.
+      </p>
+      <ul class="lignes">
+        <li class="ligne actionnable">
+          <span class="picto">∑</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">Mathématiques — Priorités opératoires</p>
+            <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p>
+          </div>
+          <span class="sev medium">à traiter</span>
+          <a class="geste sky" href="#">Voir la mission →</a>
+          <p class="motif">Mission de consolidation « Priorités opératoires », en attente de validation.</p>
+        </li>
+        <li class="ligne actionnable">
+          <span class="picto">∑</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">Mathématiques — Règle des signes</p>
+            <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p>
+          </div>
+          <span class="sev high">prioritaire</span>
+          <a class="geste sky" href="#">Voir la mission →</a>
+          <p class="motif">Mission de consolidation « Règle des signes », active.</p>
+        </li>
+      </ul>
+    </section>
+  </div>
+
+  <!-- ================= C — L'ÉTAT RÉEL ================= -->
+  <h2 class="ecran">C · L'état réel de la base, aujourd'hui</h2>
+  <p class="sub">
+    Ce que Papa a sous les yeux en ce moment. À montrer parce que c'est ce qui justifie que la
+    troisième section soit <strong>prioritaire</strong> et non traitée en dernier.
+  </p>
+  <div class="ecran-cadre">
+    <div class="pagehead">
+      <h3>Lacunes ouvertes</h3>
+      <p>Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider.</p>
+    </div>
+    <section class="bloc">
+      <div class="bloc-head">
+        <h4>Déjà prises en charge <span>(10)</span></h4>
+      </div>
+      <p class="bloc-note">Une mission active couvre ces notions — rien à décider.</p>
+      <ul class="lignes">
+        <li class="ligne">
+          <span class="picto">∑</span>
+          <div class="corps"><p class="nom" style="margin:0">Mathématiques — Produit de relatifs</p>
+          <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p></div>
+          <span class="sev high">prioritaire</span>
+          <span class="geste absent">aucun geste</span>
+        </li>
+        <li class="ligne">
+          <span class="picto">∑</span>
+          <div class="corps"><p class="nom" style="margin:0">Mathématiques — Quotient de relatifs</p>
+          <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p></div>
+          <span class="sev high">prioritaire</span>
+          <span class="geste absent">aucun geste</span>
+        </li>
+        <li class="ligne">
+          <span class="picto">¶</span>
+          <div class="corps"><p class="nom" style="margin:0">Français — Temps du récit</p>
+          <p class="meta">déjà travaillée, pas encore acquise · repérée le 5 août 2026</p></div>
+          <span class="sev medium">à traiter</span>
+          <span class="geste absent">aucun geste</span>
+        </li>
+      </ul>
+      <p class="bloc-note" style="margin-top:12px">
+        … et 7 autres. Aucun bouton de section, aucun geste de ligne :
+        <strong>la page entière est un cul-de-sac.</strong>
+      </p>
+    </section>
+  </div>
+
+  <!-- ================= D — les destinations ================= -->
+  <h2 class="ecran">D · Où chaque geste mène, et ce que ça coûte</h2>
+  <p class="sub">
+    Le grain est <strong>la notion</strong> (décidé le 2026-08-09) : un libellé qui dit « cette
+    notion » doit mener à cette notion. Aujourd'hui la station ② du Diagnostic promet la notion et
+    livre la matière — ce chantier ne copie donc pas la station ②, il la corrige.
+  </p>
+  <div class="ecran-cadre">
+    <table>
+      <thead>
+        <tr><th>État</th><th>Geste</th><th>Destination</th><th>Existe ?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>cours_brouillon</code></td>
+          <td>Valider le cours de cette leçon →</td>
+          <td><code>/programme?lesson=&lt;draft&gt;</code></td>
+          <td class="oui">oui — lu déjà</td>
+        </tr>
+        <tr>
+          <td><code>ok</code></td>
+          <td>Relire la leçon →</td>
+          <td><code>/programme?lesson=&lt;validated&gt;</code></td>
+          <td class="oui">oui — lu déjà</td>
+        </tr>
+        <tr>
+          <td><code>aucune_lecon</code></td>
+          <td>Produire le quiz de cette notion →</td>
+          <td><code>/quiz?skill=&lt;id&gt;</code></td>
+          <td class="non">à ajouter</td>
+        </tr>
+        <tr>
+          <td><code>has_active_mission</code></td>
+          <td>Voir la mission →</td>
+          <td><code>/missions?focus=&lt;id&gt;</code></td>
+          <td class="non">à ajouter</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note" style="margin-top:20px">
+    ⚙️ <b>Les deux champs à servir coûtent ZÉRO requête.</b> <code>etat_contenu</code> obtient les
+    objets <code>Lesson</code> en lot puis les jette ; <code>skills_with_active_mission</code>
+    réduit des <code>Mission</code> à un <code>set[int]</code>. C'est le motif exact de
+    <code>source</code> dans l'ADR-0045 : <i>« le champ était sur la ligne et n'était simplement pas
+    rendu »</i>.
+  </div>
+
+  <div class="note warn" style="margin-top:10px">
+    ⚠️ <b>Une notion porte jusqu'à QUATRE leçons</b> (« Priorités opératoires » : #151 draft,
+    #145 draft, #48 validated, #23 validated). La leçon visée suit donc <b>l'état visé par le
+    geste</b> — brouillon pour « valider », validée pour « relire » — et le départage entre
+    candidates de même statut est documenté. Un geste qui ouvrirait une leçon déjà validée sous le
+    libellé « Valider le cours » recréerait le défaut que ce chantier corrige.
+  </div>
+
+  <div class="note plat" style="margin-top:10px">
+    ⚠️ <code>content_state</code> est typé <code>string | null</code>, pas une union. Rendre trois
+    gestes selon sa valeur ne donne <b>aucune exhaustivité au compilateur</b> : un quatrième état
+    ajouté côté backend tomberait en silence dans la branche par défaut. À trancher dans l'ADR.
+  </div>
+
+</div>
+</body>
+</html>
