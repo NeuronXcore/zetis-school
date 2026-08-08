@@ -99,12 +99,24 @@ export function LoginScreen({ role }: LoginScreenProps) {
           <p className="mt-2 text-center text-sm text-slate-400">{me.tagline}</p>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-3">
+            {/* 🔴 `autoCapitalize="none"` n'est PAS un détail sur ces deux champs.
+                Sans lui, iOS applique la capitalisation de phrase à la première lettre d'un
+                `type="text"` — et il n'existe aucun moyen, au clavier, de la remettre en
+                minuscule. Un identifiant `massimo` devient `Massimo`, et la connexion échoue
+                sur un « Identifiants invalides » que l'enfant ne peut pas expliquer.
+                Ici le champ n'a même pas de `type` : c'est donc `text`, donc TOUJOURS
+                auto-capitalisé sur iOS. Le défaut ne s'était pas vu parce que Safari
+                pré-remplissait le champ (2026-08-08, vérifié sur simulateur).
+                `autoCorrect`/`spellCheck` complètent : un identifiant n'est pas de la prose. */}
             <Field icon={<PersonIcon className="h-4 w-4" />}>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Identifiant"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
               />
             </Field>
@@ -122,12 +134,20 @@ export function LoginScreen({ role }: LoginScreenProps) {
                 </button>
               }
             >
+              {/* Même correctif, et c'est ici qu'il est le plus perfide : tant que le type vaut
+                  `password`, iOS n'auto-capitalise pas — le champ semble sain. Il ne bascule en
+                  `text` QUE lorsque l'utilisateur touche l'œil pour RELIRE ce qu'il tape, et
+                  c'est à cet instant que la première lettre devient majuscule, sans recours.
+                  Le geste censé aider est donc celui qui bloque. */}
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Mot de passe"
                 autoComplete="current-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
               />
             </Field>
