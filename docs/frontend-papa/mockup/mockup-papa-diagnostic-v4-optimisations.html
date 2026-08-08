@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ZETIS — Papa · Diagnostic, les 4 optimisations (maquette v4)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   v4 — les QUATRE optimisations de la page Diagnostic de Papa.
+   Suite de `mockup-papa-diagnostic-v3.html`, qui a produit la page livrée
+   (ADR-0043, PR #99). Cette v4 ne refait PAS la page : elle corrige quatre
+   points, et laisse tout le reste tel qu'il est en production.
+
+   Les données sont celles de la base de DEV au 2026-08-08, relevées à
+   l'écran — pas inventées :
+     · 8 matières · 2 mesurées (Français, Mathématiques)
+     · 6 passations · 12 proposés non passés · 5 matières jamais générées
+     · 10 lacunes ouvertes, dont 4 sans contenu produisible
+     · 0 lot de production (par décision, station ③)
+   ⚠️ `a_relire` vaut ZÉRO en dev : aucun diagnostic au cran « généré ».
+      Le panneau de ce cran est donc montré ici en cas construit, et il
+      faudra en créer un pour le vérifier en vrai.
+
+   Tokens repris VERBATIM de `apps/frontend-papa/src/index.css`.
+   ========================================================================= */
+:root{
+  --papa-bg:#0a0f1a;
+  --papa-surface:#111a28;
+  --papa-surface-2:#18243a;
+  --papa-border:#243348;
+  --papa-text:#e6edf6;
+  --papa-muted:#8595ac;
+  --papa-accent:#10b981;
+  --papa-accent-2:#38bdf8;
+  --papa-warn:#f59e0b;
+
+  --accent-wash:rgba(16,185,129,.13);
+  --accent-line:rgba(16,185,129,.34);
+  --warn-wash:rgba(245,158,11,.11);
+  --warn-line:rgba(245,158,11,.38);
+  --void:#5c6b82;               /* l'absence : ni vert ni ambre, jamais rouge */
+
+  --r:10px;
+  --display:'Archivo',system-ui,sans-serif;
+  --body:'Instrument Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--papa-bg);color:var(--papa-text);
+  font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--display);letter-spacing:-0.015em;margin:0}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:none;padding:0;text-align:left}
+a{color:var(--papa-accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--papa-accent);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 24px 100px}
+
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--papa-muted)}
+.pagetitle{font-size:30px;font-weight:700;margin-top:6px}
+.pagelede{color:var(--papa-muted);max-width:70ch;margin-top:8px}
+
+/* ---- chapitrage de la maquette (n'existe pas dans l'app) ---------------- */
+.chapitre{margin-top:56px;border-top:1px solid var(--papa-border);padding-top:28px}
+.chapitre > .eyebrow span{color:var(--papa-accent)}
+.chapitre h2{font-size:22px;font-weight:700;margin-top:6px}
+.chapitre .pourquoi{color:var(--papa-muted);max-width:78ch;margin-top:10px;font-size:14px}
+.chapitre .pourquoi code{font-family:var(--mono);font-size:12.5px;color:var(--papa-text)}
+.note{
+  margin-top:14px;border-left:2px solid var(--accent-line);padding:2px 0 2px 14px;
+  color:var(--papa-muted);font-size:13.5px;max-width:78ch;
+}
+.note strong{color:var(--papa-text)}
+.note.warn{border-left-color:var(--warn-line)}
+
+/* ---- avant / après ------------------------------------------------------ */
+.duo{display:grid;gap:16px;margin-top:20px}
+@media(min-width:900px){.duo{grid-template-columns:1fr 1fr}}
+.volet{border:1px solid var(--papa-border);border-radius:var(--r);overflow:hidden;background:var(--papa-surface)}
+.volet > header{
+  padding:8px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  border-bottom:1px solid var(--papa-border);color:var(--papa-muted);
+}
+.volet.avant > header{background:rgba(245,158,11,.07);color:var(--papa-warn)}
+.volet.apres > header{background:var(--accent-wash);color:var(--papa-accent)}
+.volet .corps{padding:16px}
+
+/* ---- le bandeau instrument (4 jauges) ---------------------------------- */
+.bandeau{display:grid;gap:12px;grid-template-columns:repeat(2,1fr)}
+@media(min-width:1080px){.bandeau{grid-template-columns:repeat(4,1fr)}}
+.jauge{
+  position:relative;overflow:hidden;border:1px solid var(--papa-border);border-radius:var(--r);
+  background:var(--papa-surface);padding:14px;display:block;width:100%;
+  transition:border-color .13s, background-color .13s, transform .13s;
+}
+.jauge .titre{font-size:12px;line-height:1.35;color:var(--papa-muted)}
+.jauge .valeur{font-family:var(--mono);font-size:28px;font-weight:600;margin-top:8px;letter-spacing:-.01em}
+.jauge .valeur .unite{font-family:var(--body);font-size:15px;font-weight:400;color:var(--papa-muted);margin-left:3px}
+.jauge .detail{font-size:12px;color:var(--papa-muted);margin-top:6px}
+
+/* L'état cliquable — le seul écart visuel avec la page livrée.
+   ⚠️ La jauge est un <div>, jamais un <button> : elle CONTIENT des boutons (les pastilles de
+   sous-population), et un bouton dans un bouton est du HTML invalide — le parseur les éjecte et
+   la grille se disloque. Vu à l'écran sur la première version de cette maquette. */
+.jauge-main{display:block;width:100%}
+.jauge.actionnable{cursor:pointer}
+.jauge.actionnable:hover,
+.jauge:has(.jauge-main:hover){border-color:var(--accent-line);background:var(--papa-surface-2)}
+.jauge:has(.jauge-main[aria-pressed="true"]),
+.jauge:has(.chip-pop[aria-pressed="true"]){border-color:var(--papa-accent);background:var(--accent-wash)}
+.jauge .affordance{
+  position:absolute;top:12px;right:12px;font-size:13px;color:var(--papa-muted);
+  opacity:0;transition:opacity .13s;
+}
+.jauge:has(.jauge-main:hover) .affordance,
+.jauge:has(.jauge-main[aria-pressed="true"]) .affordance{opacity:1;color:var(--papa-accent)}
+
+/* les chips du détail : une population nommée = un focus */
+.souspop{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip-pop{
+  border:1px solid var(--papa-border);border-radius:999px;padding:2px 9px;font-size:11.5px;
+  color:var(--papa-muted);transition:border-color .13s,color .13s,background-color .13s;
+}
+.chip-pop:hover{border-color:var(--accent-line);color:var(--papa-text)}
+.chip-pop[aria-pressed="true"]{border-color:var(--papa-accent);background:var(--accent-wash);color:var(--papa-accent)}
+.chip-pop .n{font-family:var(--mono);font-weight:600}
+
+/* la 4ᵉ jauge — le mur. Hachures, gris, jamais de couleur d'alerte. */
+.jauge.mur{background:rgba(17,26,40,.4);cursor:default}
+.jauge.mur .valeur{color:var(--papa-muted)}
+.jauge.mur::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.07;
+  background-image:repeating-linear-gradient(45deg,currentColor 0 1px,transparent 1px 7px);
+}
+.jauge.mur .verrou{
+  position:absolute;top:12px;right:12px;font-size:10px;font-family:var(--mono);
+  letter-spacing:.08em;text-transform:uppercase;color:var(--void);
+}
+
+/* ---- le bandeau de focus actif ----------------------------------------- */
+.focusbar{
+  display:none;align-items:center;gap:10px;margin-top:12px;padding:8px 12px;
+  border:1px solid var(--accent-line);background:var(--accent-wash);border-radius:var(--r);font-size:13px;
+}
+.focusbar.on{display:flex}
+.focusbar .quoi strong{color:var(--papa-accent)}
+.focusbar .vider{
+  margin-left:auto;border:1px solid var(--papa-border);border-radius:8px;padding:3px 10px;
+  font-size:12px;color:var(--papa-muted);
+}
+.focusbar .vider:hover{border-color:var(--papa-accent);color:var(--papa-text)}
+
+/* ---- la scène : rail + panneau ----------------------------------------- */
+.scene{display:grid;gap:16px;margin-top:16px}
+@media(min-width:1080px){.scene{grid-template-columns:340px 1fr}}
+.rail .compte{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--papa-muted);margin-bottom:10px}
+.rail .mois{font-size:12px;font-weight:500;color:var(--papa-muted);margin:16px 0 8px}
+.rail .mois:first-of-type{margin-top:0}
+.ligne{
+  display:block;width:100%;border:1px solid var(--papa-border);border-radius:var(--r);
+  background:var(--papa-surface);padding:11px 12px;margin-bottom:8px;transition:border-color .13s,background-color .13s;
+}
+.ligne:hover{border-color:var(--accent-line)}
+.ligne[aria-pressed="true"]{border-color:var(--papa-accent);background:var(--accent-wash)}
+.ligne .haut{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.ligne .matiere{display:flex;align-items:center;gap:7px;font-weight:500;font-size:14px}
+.ligne .quand{font-size:11.5px;color:var(--papa-muted);margin-top:2px}
+.ligne .droite{text-align:right;flex-shrink:0}
+.ligne .score{font-family:var(--mono);font-size:14px;font-weight:600}
+.ligne .rang{font-size:11px;color:var(--papa-muted)}
+
+/* le témoin à trois crans — inchangé */
+.temoin{display:inline-flex;gap:2px}
+.temoin i{width:6px;height:6px;border-radius:999px;background:var(--papa-accent);display:block}
+.temoin i.vide{background:none;border:1px solid var(--papa-border)}
+
+/* OPTIMISATION ③ — l'acteur est nommé, et il se voit */
+.acteur{font-size:11.5px;font-weight:600;white-space:nowrap}
+.acteur.toi{color:var(--papa-warn)}        /* la balle est chez Papa : ambre, c'est à lui d'agir */
+.acteur.massimo{color:var(--papa-accent-2)}/* la balle est chez Massimo : bleu, on attend */
+.etat{font-size:11px;color:var(--papa-muted);margin-top:1px;white-space:nowrap}
+
+.jamais{margin-top:18px}
+.jamais .titre{font-size:12px;font-weight:500;color:var(--papa-muted);margin-bottom:8px}
+.jamais .item{
+  border:1px dashed var(--papa-border);border-radius:var(--r);padding:8px 12px;margin-bottom:6px;
+  font-size:13.5px;color:var(--papa-muted);display:flex;align-items:center;gap:8px;
+}
+.jamais .item .sub{font-size:11.5px}
+.legende{font-size:12px;line-height:1.6;color:var(--papa-muted);margin-top:18px;max-width:46ch}
+.legende b{color:var(--papa-text);font-weight:600}
+
+/* ---- les panneaux sans mesure (optimisation ②) -------------------------- */
+.panneau{border:1px solid var(--papa-border);border-radius:var(--r);background:var(--papa-surface);padding:18px}
+.panneau .cran{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--papa-muted)}
+.panneau h3{font-size:19px;font-weight:700;margin-top:4px}
+.panneau p.dit{font-size:14px;line-height:1.6;color:var(--papa-muted);margin:12px 0 0;max-width:64ch}
+.panneau p.dit strong{color:var(--papa-text)}
+.gestes{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px}
+.btn-1{
+  display:inline-flex;border:1px solid var(--accent-line);border-radius:9px;padding:7px 13px;
+  font-size:13.5px;font-weight:500;color:var(--papa-accent);
+}
+.btn-1:hover{background:var(--accent-wash);text-decoration:none}
+.btn-2{
+  display:inline-flex;border:1px solid transparent;border-radius:9px;padding:7px 13px;
+  font-size:13.5px;color:var(--papa-muted);
+}
+.btn-2:hover{border-color:var(--papa-border);color:var(--papa-text)}
+.vide-droite{
+  border:1px dashed var(--papa-border);border-radius:var(--r);padding:22px;text-align:center;
+  color:var(--void);font-size:13px;margin-top:16px;
+}
+
+/* ---- tableaux de règles ------------------------------------------------- */
+table.regles{width:100%;border-collapse:collapse;margin-top:18px;font-size:13.5px}
+table.regles th{
+  text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--papa-muted);font-weight:500;padding:0 12px 8px 0;border-bottom:1px solid var(--papa-border);
+}
+table.regles td{padding:10px 12px 10px 0;border-bottom:1px solid rgba(36,51,72,.6);vertical-align:top}
+table.regles td code,table.regles th code{font-family:var(--mono);font-size:12px}
+table.regles .oui{color:var(--papa-accent)}
+table.regles .non{color:var(--void)}
+.mono{font-family:var(--mono);font-size:12.5px}
+del{color:var(--void);text-decoration-color:var(--papa-warn)}
+ins{color:var(--papa-text);text-decoration:none;border-bottom:1px solid var(--accent-line)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Maquette v4 · page Papa · route <span class="mono">/diagnostics</span></p>
+  <h1 class="pagetitle">Les quatre optimisations du Diagnostic</h1>
+  <p class="pagelede">
+    Cette maquette ne refait pas la page. Elle corrige <strong>quatre points</strong> de la page
+    livrée par l'ADR-0043, et laisse tout le reste — le rail à trois crans, les trois stations, la
+    portée en escalier, le mur de la station ③ — exactement tel qu'il est en production.
+  </p>
+  <p class="note">
+    <strong>Les données sont celles de la base de dev au 2026-08-08</strong>, relevées à l'écran :
+    8 matières, 2 mesurées, 6 passations, 12 proposés non passés, 5 matières jamais générées, 10
+    lacunes ouvertes dont 4 sans contenu produisible. Rien n'est inventé — c'est ce qui a permis de
+    trouver le quatrième défaut.
+  </p>
+
+  <!-- ==================================================================== -->
+  <!-- ④ — le défaut de nombre, d'abord : il change le texte que ① rend cliquable -->
+  <!-- ==================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Optimisation <span>④</span> — trouvée à la relecture du 2026-08-08</p>
+    <h2>La jauge compte des matières « générées » et écrit « mesurées »</h2>
+    <p class="pourquoi">
+      Dans une seule et même carte, l'écran affiche <span class="mono">2 / 8</span> mesurées et
+      <span class="mono">5</span> jamais mesurées. <strong>8 − 2 = 6.</strong> Au code, ce sont deux
+      populations différentes : <code>mesurees</code> compte les matières ayant une
+      <em>tentative</em> (<code>service.py:1013</code>), <code>jamais_generees</code> celles sans
+      aucun <em>quiz</em> (<code>service.py:1058</code>). Le front rend la seconde avec le mot de la
+      première (<code>BandeauInstrument.tsx:59</code>), alors que le rail nomme correctement le même
+      groupe « Jamais généré ».
+    </p>
+
+    <div class="duo">
+      <div class="volet avant">
+        <header>Aujourd'hui — l'addition ne tombe pas juste</header>
+        <div class="corps">
+          <div class="jauge" style="max-width:280px">
+            <p class="titre">Matières mesurées au moins une fois</p>
+            <p class="valeur">2 / 8</p>
+            <p class="detail">12 proposés non passés · 5 matières <del>jamais mesurées</del></p>
+          </div>
+          <p class="note warn" style="margin-top:14px">
+            Le lecteur soustrait et trouve <strong>6</strong>. L'écran dit <strong>5</strong>. La
+            sixième est <strong>Anglais</strong> : diagnostic généré et proposé le 5 août, jamais
+            passé. Générée ✅, mesurée ❌ — elle tombe dans le trou entre les deux mots.
+          </p>
+        </div>
+      </div>
+      <div class="volet apres">
+        <header>Après — chaque mot dit ce qu'il compte</header>
+        <div class="corps">
+          <div class="jauge" style="max-width:280px">
+            <p class="titre">Matières mesurées au moins une fois</p>
+            <p class="valeur">2 / 8</p>
+            <p class="detail">12 proposés non passés · 5 matières <ins>jamais générées</ins></p>
+          </div>
+          <p class="note" style="margin-top:14px">
+            Un seul mot change, et il s'aligne sur celui que le rail emploie déjà
+            (« <strong>Jamais généré</strong> »). L'addition se ferme alors <em>à l'écran</em> :
+            le focus « 6 matières non mesurées » de l'optimisation ① montre les 5 jamais générées
+            <strong>plus Anglais</strong>. Le lecteur peut vérifier de ses yeux, au lieu de croire.
+          </p>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      ⚠️ <strong>Aucune migration, aucun changement de contrat.</strong> Le champ backend
+      <code>jamais_generees</code> porte déjà le bon nom : c'est le <em>rendu</em> qui mentait.
+      Le correctif est une chaîne de caractères — et c'est pour ça qu'il a survécu onze mois sans
+      qu'un test rougisse.
+    </p>
+  </section>
+
+  <!-- ==================================================================== -->
+  <!-- ① — le bandeau devient cliquable -->
+  <!-- ==================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Optimisation <span>①</span></p>
+    <h2>Chaque nombre peut montrer sa population</h2>
+    <p class="pourquoi">
+      Le dépôt a déjà tranché ce point deux fois : <code>KpiFocusCard</code> pose
+      « <em>une mesure ET le contrôle qui montre ce qui la fonde</em> » (ADR-0028 §5), et l'ADR-0039
+      est né de ce défaut exact — <strong>des nombres qui mentaient, invisibles parce que non
+      cliquables</strong>. Ici, deux populations sont annoncées et montrées nulle part :
+      « 12 proposés non passés » et « dont 4 sans contenu produisible ».
+    </p>
+
+    <p class="note">
+      <strong>La règle proposée, en une phrase :</strong> une jauge <em>filtre le rail</em> quand sa
+      population est faite de diagnostics ; elle <em>renvoie par un lien nommé</em> quand sa
+      population vit sur une autre page ; elle <em>ne fait rien</em> quand elle vaut zéro par
+      décision — et alors elle le dit.
+    </p>
+
+    <div style="margin-top:20px">
+      <div class="bandeau">
+
+        <div class="jauge actionnable">
+          <button class="jauge-main" data-focus="non-mesurees" aria-pressed="false">
+            <span class="affordance">⌕</span>
+            <p class="titre">Matières mesurées au moins une fois</p>
+            <p class="valeur">2 / 8</p>
+          </button>
+          <div class="souspop">
+            <button class="chip-pop" data-focus="propose" aria-pressed="false"><span class="n">12</span> proposés non passés</button>
+            <button class="chip-pop" data-focus="jamais-genere" aria-pressed="false"><span class="n">5</span> jamais générées</button>
+          </div>
+        </div>
+
+        <div class="jauge actionnable">
+          <button class="jauge-main" data-focus="plus-ancienne" aria-pressed="false">
+            <span class="affordance">→</span>
+            <p class="titre">Lecture la plus ancienne encore invoquée</p>
+            <p class="valeur">37<span class="unite">j</span></p>
+            <p class="detail">Français · 1 juil. 2026</p>
+          </button>
+        </div>
+
+        <div class="jauge">
+          <p class="titre">Lacunes ouvertes par un diagnostic, encore ouvertes</p>
+          <p class="valeur">10</p>
+          <div class="souspop">
+            <a class="chip-pop" href="#" onclick="return false">voir les <span class="n">10</span> →</a>
+            <a class="chip-pop" href="#" onclick="return false">dont <span class="n">4</span> sans contenu →</a>
+          </div>
+        </div>
+
+        <div class="jauge mur">
+          <span class="verrou">inerte</span>
+          <p class="titre">Lots de production déclenchés par une mesure</p>
+          <p class="valeur">0</p>
+          <p class="detail">et c'est voulu — voir ③</p>
+        </div>
+      </div>
+
+      <div class="focusbar" id="focusbar">
+        <span class="quoi">Le rail ne montre que <strong id="focus-nom">—</strong>.</span>
+        <button class="vider" id="focus-vider">Tout revoir ✕</button>
+      </div>
+    </div>
+
+    <table class="regles">
+      <thead>
+        <tr><th>Jauge</th><th>Geste</th><th>Ce qu'elle montre</th><th>Pourquoi ce geste</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>① <span class="mono">2 / 8</span></td>
+          <td class="oui">filtre</td>
+          <td>les <strong>6</strong> matières dont ZETIS ne sait rien</td>
+          <td>La population est faite de matières et de diagnostics : le rail sait les afficher. C'est ce focus qui rend l'optimisation ④ vérifiable à l'œil — 5 jamais générées + Anglais = 6.</td>
+        </tr>
+        <tr>
+          <td>① <span class="mono">12 proposés</span></td>
+          <td class="oui">filtre</td>
+          <td>les 12 diagnostics chez Massimo</td>
+          <td>Le nombre nommait une population que rien ne montrait. C'est le défaut littéral de l'ADR-0039.</td>
+        </tr>
+        <tr>
+          <td>① <span class="mono">5 jamais générées</span></td>
+          <td class="oui">filtre</td>
+          <td>le bloc « Jamais généré » seul</td>
+          <td>Idem. Le bloc existe déjà en bas du rail — le filtre ne fait que le remonter.</td>
+        </tr>
+        <tr>
+          <td>② <span class="mono">37 j</span></td>
+          <td class="oui">sélection</td>
+          <td>ouvre la passation Français du 1<sup>er</sup> juil.</td>
+          <td>La jauge désigne <strong>une</strong> passation, pas un ensemble. Filtrer une population de un serait un détour ; l'ouvrir est le geste direct.</td>
+        </tr>
+        <tr>
+          <td>③ <span class="mono">10 lacunes</span></td>
+          <td class="oui">lien</td>
+          <td><code>/lacunes?source=diagnostic</code></td>
+          <td>Les lacunes ne sont pas des diagnostics : le rail ne peut pas les afficher. Un lien nommé vaut mieux qu'un filtre qui ne filtrerait rien.</td>
+        </tr>
+        <tr>
+          <td>④ <span class="mono">0 lot</span></td>
+          <td class="non">rien</td>
+          <td>—</td>
+          <td>🔴 <strong>Elle vaut zéro par décision, et doit le rester.</strong> La rendre cliquable ferait chercher une population qui n'existe pas, et pousserait à demander l'ouverture d'un déclencheur écarté en connaissance de cause.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ==================================================================== -->
+  <!-- ③ — le rail nomme l'acteur (montré avant ② car la scène le contient) -->
+  <!-- ==================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Optimisation <span>③</span></p>
+    <h2>Les deux crans non passés nomment enfin qui doit agir</h2>
+    <p class="pourquoi">
+      <code>CRAN_TEXTE</code> (<code>RailPassations.tsx:15</code>) donne
+      « à relire / non proposé » et « en attente / non passé » : deux paires de deux mots, même
+      casse, <strong>même gris</strong>, et qui désignent des acteurs <strong>opposés</strong>. La
+      maquette v3 avait la bonne formulation dans sa légende — « <em>chez Massimo · pas encore
+      passé</em> » — et cette légende n'a jamais été implémentée.
+    </p>
+
+    <div class="duo">
+      <div class="volet avant">
+        <header>Aujourd'hui — deux gris interchangeables</header>
+        <div class="corps">
+          <div class="ligne"><div class="haut">
+            <div><p class="matiere"><span class="temoin"><i></i><i class="vide"></i><i class="vide"></i></span>Mathématiques</p><p class="quand">généré le 3 août · 8 notions</p></div>
+            <div class="droite"><p class="etat">à relire</p><p class="etat">non proposé</p></div>
+          </div></div>
+          <div class="ligne"><div class="haut">
+            <div><p class="matiere"><span class="temoin"><i></i><i></i><i class="vide"></i></span>Français</p><p class="quand">proposé le 5 août · 8 notions</p></div>
+            <div class="droite"><p class="etat">en attente</p><p class="etat">non passé</p></div>
+          </div></div>
+          <p class="note warn" style="margin-top:14px">
+            Rien ne dit que le premier attend <strong>toi</strong> et le second
+            <strong>Massimo</strong>. Douze lignes de suite portent le second libellé.
+          </p>
+        </div>
+      </div>
+      <div class="volet apres">
+        <header>Après — l'acteur d'abord, l'état ensuite</header>
+        <div class="corps">
+          <div class="ligne"><div class="haut">
+            <div><p class="matiere"><span class="temoin"><i></i><i class="vide"></i><i class="vide"></i></span>Mathématiques</p><p class="quand">généré le 3 août · 8 notions</p></div>
+            <div class="droite"><p class="acteur toi">chez toi</p><p class="etat">à relire</p></div>
+          </div></div>
+          <div class="ligne"><div class="haut">
+            <div><p class="matiere"><span class="temoin"><i></i><i></i><i class="vide"></i></span>Français</p><p class="quand">proposé le 5 août · 8 notions</p></div>
+            <div class="droite"><p class="acteur massimo">chez Massimo</p><p class="etat">pas encore passé</p></div>
+          </div></div>
+          <p class="note" style="margin-top:14px">
+            L'acteur passe <strong>en premier</strong> et en couleur ; l'état reste en gris,
+            en second. Ambre = la balle est chez toi. Bleu = elle est chez Massimo, on attend.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <p class="note warn">
+      🔴 <strong>Nommer l'acteur est factuel ; compter les jours d'attente resterait interdit.</strong>
+      « chez Massimo depuis 6 jours » serait un décompte de non-fait — <code>CLAUDE.md</code>
+      §gamification, et la règle « NOUVEAU jamais DÛ » de l'ADR-0030. La date de proposition est
+      déjà là (« proposé le 5 août ») : elle dit le même fait sans le transformer en dette.
+    </p>
+    <p class="note">
+      La couleur ne porte jamais l'information seule : le mot « chez toi » / « chez Massimo » est
+      écrit. La légende du bas doit dire la même chose — voir la scène ci-dessous.
+    </p>
+  </section>
+
+  <!-- ==================================================================== -->
+  <!-- La scène complète — rail filtrable + panneau -->
+  <!-- ==================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">La scène — ① et ③ ensemble, cliquables</p>
+    <h2>Le rail répond au bandeau</h2>
+    <p class="pourquoi">
+      Clique une jauge ou une pastille au-dessus : le rail se réduit à sa population, et le bandeau
+      de focus dit ce qu'il montre et comment en sortir. <strong>Aucune ligne n'est supprimée en
+      silence</strong> — c'est un filtre nommé, pas une troncature.
+    </p>
+
+    <div class="scene">
+      <aside class="rail">
+        <p class="compte" id="rail-compte">Diagnostics · 6 passés · 12 en cours de route</p>
+        <div id="rail-corps"></div>
+        <div class="jamais" id="rail-jamais">
+          <p class="titre">Jamais généré</p>
+          <div id="rail-jamais-liste"></div>
+        </div>
+        <p class="legende">
+          Le témoin se remplit en trois temps et ne se coche jamais à la main. « Passé » est lu dans
+          les tentatives ; « proposé » est un geste de ta part ; « généré » est un fait du moteur.
+          Aucun score ne s'affiche avant le troisième cran — il n'en existe pas.
+          <b>Tant qu'un diagnostic n'est pas passé, la mention de droite dit chez qui il attend :
+          chez toi s'il reste à relire, chez Massimo s'il lui a été proposé.</b>
+        </p>
+      </aside>
+
+      <div id="scene-panneau"></div>
+    </div>
+  </section>
+
+  <!-- ==================================================================== -->
+  <!-- ② — les deux actions par cran -->
+  <!-- ==================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Optimisation <span>②</span></p>
+    <h2>Un cran non passé n'est plus un cul-de-sac</h2>
+    <p class="pourquoi">
+      Le lien « Ouvrir dans la file de relecture → » est rendu sous <code>{genere &amp;&amp; …}</code>
+      (<code>PanneauPassation.tsx:64</code>). Le cran <strong>« proposé » n'a donc aucune action —
+      pas une seule</strong> : un panneau de trois lignes, et toute la colonne droite vide en
+      dessous. La maquette v3 prescrivait <strong>deux actions par cran non mesuré</strong> ; une
+      seule sur quatre est implémentée.
+    </p>
+
+    <table class="regles">
+      <thead><tr><th>Cran</th><th>Action principale</th><th>Action secondaire</th><th>Livré aujourd'hui</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="acteur toi">chez toi</span><br><span class="mono" style="font-size:11.5px">genere</span></td>
+          <td>Ouvrir dans la file de relecture →</td>
+          <td>Refuser ce lot</td>
+          <td class="non">la principale seule</td>
+        </tr>
+        <tr>
+          <td><span class="acteur massimo">chez Massimo</span><br><span class="mono" style="font-size:11.5px">propose</span></td>
+          <td>Voir la page de Massimo →</td>
+          <td>Retirer la proposition</td>
+          <td class="non"><strong>rien</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="note">
+      <strong>Les deux actions secondaires appellent <code>POST /reject</code>, qui existe déjà.</strong>
+      Aucun endpoint neuf, aucune migration : c'est une surface qui manque, pas une capacité.
+    </p>
+
+    <div class="duo" style="margin-top:22px">
+      <div class="volet avant">
+        <header>Aujourd'hui — le cran « proposé »</header>
+        <div class="corps">
+          <div class="panneau">
+            <p class="cran">Proposé, pas encore passé</p>
+            <h3>Diagnostic Français</h3>
+            <p class="dit">Tu l'as relu et proposé. Aucune tentative n'a été enregistrée : il n'y a
+              donc <strong>ni score, ni palier, ni lacune</strong> — et il n'y en aura pas tant
+              qu'il ne l'aura pas passé.</p>
+          </div>
+          <div class="vide-droite">… et rien d'autre. La colonne reste vide jusqu'en bas.</div>
+        </div>
+      </div>
+      <div class="volet apres">
+        <header>Après — le cran « proposé »</header>
+        <div class="corps">
+          <div class="panneau">
+            <p class="cran">Chez Massimo · pas encore passé</p>
+            <h3>Diagnostic Français</h3>
+            <p class="dit">Tu l'as relu et proposé le 5 août. Aucune tentative n'a été enregistrée :
+              il n'y a donc <strong>ni score, ni palier, ni lacune</strong> — et il n'y en aura pas
+              tant qu'il ne l'aura pas passé.</p>
+            <div class="gestes">
+              <a class="btn-1" href="#" onclick="return false">Voir la page de Massimo →</a>
+              <button class="btn-2">Retirer la proposition</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="duo" style="margin-top:16px">
+      <div class="volet avant">
+        <header>Aujourd'hui — le cran « généré »</header>
+        <div class="corps">
+          <div class="panneau">
+            <p class="cran">Généré, pas encore relu</p>
+            <h3>Diagnostic Mathématiques</h3>
+            <p class="dit">Le questionnaire existe et attend ta relecture. <strong>Rien n'est
+              visible par Massimo</strong>, et rien ne le sera tant que tu ne l'auras pas relu :
+              c'est un gate, pas un délai.</p>
+            <div class="gestes">
+              <a class="btn-1" href="#" onclick="return false">Ouvrir dans la file de relecture →</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="volet apres">
+        <header>Après — le cran « généré »</header>
+        <div class="corps">
+          <div class="panneau">
+            <p class="cran">Chez toi · à relire</p>
+            <h3>Diagnostic Mathématiques</h3>
+            <p class="dit">Le questionnaire existe et attend ta relecture. <strong>Rien n'est
+              visible par Massimo</strong>, et rien ne le sera tant que tu ne l'auras pas relu :
+              c'est un gate, pas un délai.</p>
+            <div class="gestes">
+              <a class="btn-1" href="#" onclick="return false">Ouvrir dans la file de relecture →</a>
+              <button class="btn-2">Refuser ce lot</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note warn">
+      ⚠️ <strong>Le cran « généré » n'existe pas en base de dev</strong> — <code>a_relire</code> vaut
+      zéro, les 12 non-passés sont tous au cran « proposé ». Les deux panneaux « généré » ci-dessus
+      sont donc des cas <em>construits</em> : il faudra en créer un pour vérifier « Refuser ce lot »
+      à l'écran, sans quoi cette moitié de l'optimisation partirait non vue.
+    </p>
+    <p class="note">
+      <strong>« Retirer la proposition » est destructif du point de vue de Massimo</strong> : le
+      diagnostic disparaît de sa page. Il demande une confirmation, et sa formulation ne doit
+      désigner aucun manquement de sa part — le refus va au lot, pas à l'enfant.
+    </p>
+  </section>
+
+  <!-- ==================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Ce que cette maquette ne touche pas</p>
+    <h2>Hors périmètre, explicitement</h2>
+    <p class="pourquoi">
+      Posé d'avance, pas corrigé après coup. Le mode d'échec n°1 est la dérive.
+    </p>
+    <ul style="color:var(--papa-muted);font-size:14px;line-height:1.8;max-width:80ch">
+      <li>Le <strong>rail à trois crans</strong>, son groupement par mois, son ordre — inchangés.</li>
+      <li>Les <strong>trois stations</strong> du panneau d'une passation, la portée en escalier, le
+        mur de la station ③ — inchangés.</li>
+      <li>Le <strong>gate de relecture</strong> de l'ADR-0043 — intact.</li>
+      <li>La <strong>page Diagnostic de Massimo</strong> (ADR-0044, livrée) — pas touchée.</li>
+      <li>Le <strong>N+1</strong> de <code>GET /quizzes</code> et le plafond en dur de
+        <code>GET /results</code> — au <code>BACKLOG.md</code>, non traités ici.</li>
+      <li>Le bloc « <strong>Jamais généré</strong> » reste en lignes inertes : l'action existe
+        ailleurs (« Lancer un diagnostic » en tête de page). Signalé, écarté.</li>
+      <li>Le « <strong>37 j</strong> » : troncature <code>.days</code> défendable, pas un défaut.</li>
+      <li>L'<strong>anti-triche du diagnostic</strong> (temps par question, sortie d'écran,
+        verbalisation) — chantier suivant, décidé le 2026-08-08, au <code>BACKLOG.md</code>.</li>
+    </ul>
+  </section>
+
+</div>
+
+<script>
+/* ==========================================================================
+   Données de dev relevées à l'écran le 2026-08-08 (rien d'inventé).
+   `acteur` est dérivé du cran, jamais stocké : genere → toi, propose → Massimo.
+   ========================================================================== */
+const RAIL = [
+  {cle:'a1', mois:'Août 2026',    matiere:'Mathématiques', cran:'passe',   date:'8 août',    notions:8, score:31,  rang:2},
+  {cle:'a2', mois:'Août 2026',    matiere:'Mathématiques', cran:'passe',   date:'8 août',    notions:8, score:12,  rang:1},
+  {cle:'a3', mois:'Août 2026',    matiere:'Français',      cran:'propose', date:'5 août',    notions:8},
+  {cle:'a4', mois:'Août 2026',    matiere:'Français',      cran:'propose', date:'5 août',    notions:8},
+  {cle:'a5', mois:'Août 2026',    matiere:'Anglais',       cran:'propose', date:'5 août',    notions:8},
+  {cle:'a6', mois:'Août 2026',    matiere:'Français',      cran:'propose', date:'2 août',    notions:8},
+  {cle:'a7', mois:'Août 2026',    matiere:'Mathématiques', cran:'propose', date:'1 août',    notions:8},
+  {cle:'a8', mois:'Août 2026',    matiere:'Français',      cran:'propose', date:'1 août',    notions:8},
+  {cle:'j1', mois:'Juillet 2026', matiere:'Français',      cran:'propose', date:'31 juil.',  notions:8},
+  {cle:'j2', mois:'Juillet 2026', matiere:'Français',      cran:'propose', date:'30 juil.',  notions:8},
+  {cle:'j3', mois:'Juillet 2026', matiere:'Français',      cran:'propose', date:'6 juil.',   notions:8},
+  {cle:'j4', mois:'Juillet 2026', matiere:'Français',      cran:'propose', date:'5 juil.',   notions:8},
+  {cle:'j5', mois:'Juillet 2026', matiere:'Mathématiques', cran:'propose', date:'1 juil.',   notions:1},
+  {cle:'j6', mois:'Juillet 2026', matiere:'Français',      cran:'passe',   date:'1 juil.',   notions:1, score:50,  rang:4, ancienne:true},
+  {cle:'j7', mois:'Juillet 2026', matiere:'Français',      cran:'passe',   date:'1 juil.',   notions:1, score:100, rang:3},
+  {cle:'j8', mois:'Juillet 2026', matiere:'Français',      cran:'propose', date:'1 juil.',   notions:1},
+  {cle:'n1', mois:'Juin 2026',    matiere:'Français',      cran:'passe',   date:'30 juin',   notions:1, score:50,  rang:2},
+  {cle:'n2', mois:'Juin 2026',    matiere:'Français',      cran:'passe',   date:'30 juin',   notions:1, score:50,  rang:1},
+];
+const JAMAIS = ['Histoire-Géo','SVT','Espagnol','Physique-Chimie','Technologie'];
+/* Les 6 matières dont ZETIS ne sait rien : les 5 jamais générées + Anglais (généré, jamais passé).
+   C'est l'addition que l'optimisation ④ rend enfin vérifiable à l'œil. */
+const NON_MESUREES = new Set([...JAMAIS, 'Anglais']);
+
+const ACTEUR = {
+  genere:  {classe:'toi',     mot:'chez toi',     etat:'à relire'},
+  propose: {classe:'massimo', mot:'chez Massimo', etat:'pas encore passé'},
+};
+const VERBE = {genere:'généré', propose:'proposé', passe:'passé'};
+const ORDINAL = ['','1ʳᵉ','2ᵉ','3ᵉ','4ᵉ','5ᵉ','6ᵉ','7ᵉ','8ᵉ','9ᵉ'];
+
+const FOCUS = {
+  'non-mesurees':  {nom:'les 6 matières dont ZETIS ne sait rien', garde:e=>NON_MESUREES.has(e.matiere), jamais:true},
+  'propose':       {nom:'les 12 diagnostics chez Massimo',        garde:e=>e.cran==='propose',          jamais:false},
+  'jamais-genere': {nom:'les 5 matières jamais générées',         garde:()=>false,                      jamais:true},
+  'plus-ancienne': {nom:null},
+};
+
+let focusActif = null;
+let selection  = 'a1';
+
+function ligneHTML(e){
+  const t = [1,2,3].map(r => `<i class="${r <= (e.cran==='genere'?1:e.cran==='propose'?2:3) ? '' : 'vide'}"></i>`).join('');
+  const droite = e.cran === 'passe'
+    ? `<p class="score">${e.score} %</p><p class="rang">${ORDINAL[e.rang]||e.rang+'ᵉ'} passation</p>`
+    : `<p class="acteur ${ACTEUR[e.cran].classe}">${ACTEUR[e.cran].mot}</p><p class="etat">${ACTEUR[e.cran].etat}</p>`;
+  return `<button class="ligne" data-cle="${e.cle}" aria-pressed="${selection===e.cle}">
+    <div class="haut">
+      <div><p class="matiere"><span class="temoin">${t}</span>${e.matiere}</p>
+           <p class="quand">${VERBE[e.cran]} le ${e.date} · ${e.notions} notion${e.notions>1?'s':''}</p></div>
+      <div class="droite">${droite}</div>
+    </div></button>`;
+}
+
+function dessineRail(){
+  const f = focusActif ? FOCUS[focusActif] : null;
+  const visibles = f && f.garde ? RAIL.filter(f.garde) : RAIL;
+
+  let html = '', moisCourant = null;
+  for (const e of visibles){
+    if (e.mois !== moisCourant){ html += `<p class="mois">${e.mois}</p>`; moisCourant = e.mois; }
+    html += ligneHTML(e);
+  }
+  if (!visibles.length) html = `<p class="etat" style="padding:12px 0">Aucun diagnostic dans ce focus — seules des matières jamais générées.</p>`;
+  document.getElementById('rail-corps').innerHTML = html;
+
+  const passes = visibles.filter(e=>e.cran==='passe').length;
+  document.getElementById('rail-compte').textContent =
+    `Diagnostics · ${passes} passé${passes>1?'s':''} · ${visibles.length-passes} en cours de route`;
+
+  /* Le bloc « Jamais généré » : visible sans focus, ou si le focus le contient. Jamais tronqué. */
+  const montreJamais = !f || f.jamais;
+  document.getElementById('rail-jamais').style.display = montreJamais ? '' : 'none';
+  document.getElementById('rail-jamais-liste').innerHTML =
+    JAMAIS.map(m=>`<div class="item">${m}<span class="sub">aucun diagnostic</span></div>`).join('');
+
+  const bar = document.getElementById('focusbar');
+  if (f && f.nom){ bar.classList.add('on'); document.getElementById('focus-nom').textContent = f.nom; }
+  else bar.classList.remove('on');
+
+  document.querySelectorAll('[data-focus]').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.focus === focusActif)));
+
+  document.querySelectorAll('.ligne').forEach(b =>
+    b.addEventListener('click', () => { selection = b.dataset.cle; dessineRail(); dessinePanneau(); }));
+}
+
+function dessinePanneau(){
+  const e = RAIL.find(x=>x.cle===selection);
+  const cible = document.getElementById('scene-panneau');
+  if (!e){ cible.innerHTML = ''; return; }
+
+  if (e.cran === 'passe'){
+    cible.innerHTML = `<div class="panneau">
+      <p class="cran">${ORDINAL[e.rang]||e.rang+'ᵉ'} passation</p>
+      <h3>Diagnostic ${e.matiere} <span style="font-weight:400;color:var(--papa-muted)">— ${e.date} 2026</span></h3>
+      <p class="dit">Le panneau complet — la portée en escalier et les trois stations — reste
+        <strong>exactement celui d'aujourd'hui</strong>. Aucune des quatre optimisations ne le touche.</p>
+    </div>`;
+    return;
+  }
+  const a = ACTEUR[e.cran];
+  const principale = e.cran === 'genere' ? 'Ouvrir dans la file de relecture →' : 'Voir la page de Massimo →';
+  const secondaire = e.cran === 'genere' ? 'Refuser ce lot' : 'Retirer la proposition';
+  const dit = e.cran === 'genere'
+    ? `Le questionnaire existe et attend ta relecture. <strong>Rien n'est visible par Massimo</strong>, et rien ne le sera tant que tu ne l'auras pas relu : c'est un gate, pas un délai.`
+    : `Tu l'as relu et proposé le ${e.date}. Aucune tentative n'a été enregistrée : il n'y a donc <strong>ni score, ni palier, ni lacune</strong> — et il n'y en aura pas tant qu'il ne l'aura pas passé.`;
+  cible.innerHTML = `<div class="panneau">
+    <p class="cran">${a.mot} · ${a.etat}</p>
+    <h3>Diagnostic ${e.matiere}</h3>
+    <p class="dit">${dit}</p>
+    <div class="gestes">
+      <a class="btn-1" href="#" onclick="return false">${principale}</a>
+      <button class="btn-2">${secondaire}</button>
+    </div>
+  </div>`;
+}
+
+document.querySelectorAll('[data-focus]').forEach(b => b.addEventListener('click', ev => {
+  ev.stopPropagation();                       /* les pastilles vivent DANS la jauge */
+  const cible = b.dataset.focus;
+  if (cible === 'plus-ancienne'){              /* une jauge qui désigne UNE passation l'ouvre */
+    focusActif = null;
+    selection = RAIL.find(e=>e.ancienne).cle;
+  } else {
+    focusActif = (focusActif === cible) ? null : cible;
+  }
+  dessineRail(); dessinePanneau();
+}));
+document.getElementById('focus-vider').addEventListener('click', () => {
+  focusActif = null; dessineRail(); dessinePanneau();
+});
+
+dessineRail();
+dessinePanneau();
+</script>
+</body>
+</html>
