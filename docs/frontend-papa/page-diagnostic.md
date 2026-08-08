@@ -86,9 +86,32 @@ comment en sortir (« Tout revoir ✕ »). Aucune ligne ne disparaît en silence
 écrite dans le dépôt : *si une surface borne ce qu'elle montre, elle doit dire ce qu'elle laisse
 dehors.*
 
+**Le focus se compose avec la pastille de matière**, et leur croisement obéit à la même règle :
+
+- **l'état vide du rail dit LAQUELLE des deux situations il rend** — *aucun diagnostic dans le
+  dépôt* ou *aucun sous les filtres actifs*. 🔴 La seconde ne doit **jamais** emprunter la phrase de
+  la première (« Aucun diagnostic pour l'instant. Lance-en un ») : ce serait annoncer un dépôt vide
+  à un lecteur qui en a dix-huit ;
+- **le bloc « Jamais généré » subit les mêmes filtres que le rail.** Il en est une partie, pas un
+  encart indépendant.
+
+> ⚠️ Ces deux points **amendent la Décision 9 de l'`adr-0045`**, qui rangeait les pastilles dans
+> « ce qui ne change pas ». Précondition fausse, corrigée au read-before-code de la Session A.
+> Reste **signalé et non traité** : une pastille seule laisse le panneau de droite sur une matière
+> qu'elle exclut. La jauge ② efface les deux filtres avant de sélectionner, donc les focus ne
+> peuvent pas produire ce cas.
+
 🔴 **La 4ᵉ jauge n'est PAS rendue cliquable, et c'est une décision.** La rendre cliquable ferait
 chercher une population qui n'existe pas, et pousserait à demander l'ouverture d'un déclencheur
-écarté en connaissance de cause. Elle porte une mention `inerte` plutôt qu'une affordance absente.
+écarté en connaissance de cause.
+
+🔴 **Et elle se comprend SEULE.** La relecture humaine du 2026-08-08 a répondu « je ne comprends pas
+la 4ᵉ » devant « Lots de production déclenchés par une mesure · 0 · et c'est voulu — voir ③ ·
+inerte ». Trois défauts : du vocabulaire **interne**, un **renvoi mort** (③ n'est visible qu'après
+avoir sélectionné une passation passée et scrollé), et le mot `inerte` qui dit qu'elle ne réagit pas
+sans dire pourquoi. Elle porte désormais un titre de lecteur — **« Ce qu'une mesure a fait produire
+à ZETIS »** — et **sa raison sur elle** : *« rien, et c'est une décision : ZETIS ne se commande pas
+de contenu sur sa propre mesure »*. **Aucun renvoi.**
 
 #### `[0045]` La jauge dit ce qu'elle compte
 
@@ -173,7 +196,13 @@ des trois stations, et c'est le seul rendu honnête. Mais il ne doit pas pour au
 | Cran | Action principale | Action secondaire |
 |---|---|---|
 | **chez toi** · à relire | Ouvrir dans la file de relecture → | Refuser ce lot |
-| **chez Massimo** · pas encore passé | Voir la page de Massimo → | Retirer la proposition |
+| **chez Massimo** · pas encore passé | *(différée — voir ci-dessous)* | Retirer la proposition |
+
+> 🔴 **« Voir la page de Massimo → » est DIFFÉRÉE**, et pas par oubli : elle ne peut pas rendre ce
+> qu'elle annonce. Aucun lien inter-app n'existe (`VITE_API_URL` est la seule variable du front
+> Papa), et surtout **le rôle l'interdit** — la page de Massimo appelle des routes `require_child`,
+> qui répondent 403 à un rôle parent. Papa y verrait une erreur, jamais ce que Massimo voit.
+> La décision produit qui la débloquerait est au `BACKLOG.md`.
 
 Le sur-titre du panneau reprend la formulation du rail (« chez toi · à relire »), pour qu'une ligne
 sélectionnée et son panneau ne se nomment pas différemment.

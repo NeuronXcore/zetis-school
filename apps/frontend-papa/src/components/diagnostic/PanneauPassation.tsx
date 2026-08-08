@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { ConfirmDialog } from "@zetis/ui";
 import type { DiagnosticPortee, DiagnosticRailEntry, DiagnosticResult } from "@zetis/types";
 import { PorteeEscalier } from "./PorteeEscalier";
 import { badgeLacune, motifLacune, palierLabel, palierTon } from "./paliers";
+import { actionPrincipale, CRAN_TEXTE, RETRAIT } from "./crans";
 
 // Le panneau d'une passation : la portée, puis les trois stations — ce qui a été mesuré, ce qui a
 // été ouvert, ce que ZETIS en a produit. Dans cet ordre, et sans sauter d'étape.
@@ -34,16 +37,39 @@ function Station({
   );
 }
 
+export interface PanneauSansMesureProps {
+  entree: DiagnosticRailEntry;
+  /** Le geste secondaire : `POST /reject`. La page le porte — c'est elle qui recharge l'aperçu et
+   *  qui doit oublier une sélection dont la ligne vient de sortir du rail. */
+  onRetirer: () => void;
+  retraitEnCours: boolean;
+}
+
 /** L'état « pas encore de mesure » — les deux premiers crans du témoin.
  *
  *  🔴 Il n'affiche AUCUN score, aucun palier, aucune lacune : il n'en existe pas. C'est le seul
- *  rendu honnête d'un diagnostic généré ou proposé mais jamais passé. */
-export function PanneauSansMesure({ entree }: { entree: DiagnosticRailEntry }) {
+ *  rendu honnête d'un diagnostic généré ou proposé mais jamais passé.
+ *
+ *  🔴 **Mais il n'est plus un CUL-DE-SAC** (adr-0045 Décision 5). Le cran « proposé » n'avait
+ *  aucune action — pas une seule : trois lignes de texte et une colonne vide jusqu'en bas, parce
+ *  que le lien de relecture était rendu sous `{genere && …}`. */
+export function PanneauSansMesure({
+  entree,
+  onRetirer,
+  retraitEnCours,
+}: PanneauSansMesureProps) {
+  const [dialogue, setDialogue] = useState(false);
   const genere = entree.cran === "genere";
+  const texte = CRAN_TEXTE[entree.cran];
+  const principale = actionPrincipale(entree.cran);
+  const retrait = RETRAIT[genere ? "genere" : "propose"];
+
   return (
     <div className="rounded-xl border border-papa-border bg-papa-surface p-5">
+      {/* Le sur-titre reprend MOT POUR MOT la mention du rail : une ligne sélectionnée et son
+          panneau ne doivent pas se nommer différemment. */}
       <p className="text-xs uppercase tracking-wide text-papa-muted">
-        {genere ? "Généré, pas encore relu" : "Proposé, pas encore passé"}
+        <span className={texte.ton}>{texte.acteur}</span> · {texte.etat}
       </p>
       <h2 className="mt-1 text-xl font-bold">Diagnostic {entree.subject}</h2>
       <p className="mt-3 text-sm leading-relaxed text-papa-muted">
@@ -61,14 +87,41 @@ export function PanneauSansMesure({ entree }: { entree: DiagnosticRailEntry }) {
           </>
         )}
       </p>
-      {genere && (
-        <Link
-          to="/relecture?kind=diagnostic"
-          className="mt-4 inline-flex rounded-lg border border-papa-accent/50 px-3 py-1.5 text-sm text-papa-accent hover:bg-papa-accent/10"
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {principale && (
+          <Link
+            to={principale.to}
+            className="inline-flex rounded-lg border border-papa-accent/50 px-3 py-1.5 text-sm text-papa-accent hover:bg-papa-accent/10"
+          >
+            {principale.libelle}
+          </Link>
+        )}
+        <button
+          type="button"
+          onClick={() => setDialogue(true)}
+          className="inline-flex rounded-lg border border-transparent px-3 py-1.5 text-sm text-papa-muted hover:border-papa-border hover:text-papa-text"
         >
-          Ouvrir dans la file de relecture →
-        </Link>
-      )}
+          {retrait.bouton}
+        </button>
+      </div>
+
+      {/* 🔴 Destructif du point de vue de Massimo quand il s'agit d'une proposition : le diagnostic
+          disparaît de sa page. D'où la confirmation — et un corps qui ne lui reproche rien. */}
+      <ConfirmDialog
+        open={dialogue}
+        tone="danger"
+        title={retrait.titre}
+        confirmLabel={retrait.bouton}
+        busy={retraitEnCours}
+        onCancel={() => setDialogue(false)}
+        onConfirm={() => {
+          setDialogue(false);
+          onRetirer();
+        }}
+      >
+        {retrait.corps}
+      </ConfirmDialog>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import type { DiagnosticCran, DiagnosticRailEntry, DiagnosticSubjectRef } from "@zetis/types";
+import { CRAN_TEXTE } from "./crans";
 
 // Le rail chronologique — une entrée par passation, ou par diagnostic en cours de route.
 //
@@ -11,12 +12,6 @@ import type { DiagnosticCran, DiagnosticRailEntry, DiagnosticSubjectRef } from "
 // précisément pour que cette page n'ait pas à deviner la différence.
 
 const CRAN_RANG: Record<DiagnosticCran, number> = { genere: 1, propose: 2, passe: 3 };
-
-const CRAN_TEXTE: Record<DiagnosticCran, { etat: string; note: string; verbe: string }> = {
-  genere: { etat: "à relire", note: "non proposé", verbe: "généré" },
-  propose: { etat: "en attente", note: "non passé", verbe: "proposé" },
-  passe: { etat: "", note: "", verbe: "passé" },
-};
 
 function Temoin({ cran }: { cran: DiagnosticCran }) {
   const atteint = CRAN_RANG[cran];
@@ -55,6 +50,9 @@ export interface RailPassationsProps {
   jamaisGenere: DiagnosticSubjectRef[];
   selection: string | null;
   onSelect: (entree: DiagnosticRailEntry) => void;
+  /** Un filtre est posé — pastille de matière ou focus du bandeau. Change ce que dit l'état vide,
+   *  et **seulement** cela : le rail ne se comporte pas autrement. */
+  filtreActif: boolean;
 }
 
 export function RailPassations({
@@ -62,6 +60,7 @@ export function RailPassations({
   jamaisGenere,
   selection,
   onSelect,
+  filtreActif,
 }: RailPassationsProps) {
   // Groupement par mois, dans l'ordre servi (le plus récent d'abord). On ne re-trie pas : l'ordre
   // vient du serveur, et deux tris pour la même liste finiraient par se contredire.
@@ -80,10 +79,28 @@ export function RailPassations({
         {entrees.filter((e) => e.cran !== "passe").length} en cours de route
       </p>
 
+      {/* 🔴 **L'état vide dit LAQUELLE des deux situations il rend.** « Aucun diagnostic pour
+          l'instant. Lance-en un » annonce un dépôt VIDE : le servir à un lecteur qui a dix-huit
+          diagnostics mais filtre sur une matière qui n'en a aucun est un mensonge, et il cohabitait
+          avec un bandeau de focus disant « le rail ne montre que les 12 ». Deux phrases, une fausse.
+
+          ⚠️ Le message sort dès que le rail est vide, **y compris quand le bloc « Jamais généré »
+          ne l'est pas** : les deux ne disent pas la même chose — celui-ci compte des DIAGNOSTICS,
+          celui-là liste des MATIÈRES. Ils se complètent. Une première version les avait crus
+          contradictoires et supprimait le message ; un test existant l'a rattrapée. */}
       {entrees.length === 0 && (
         <p className="rounded-xl border border-papa-border bg-papa-surface p-4 text-sm text-papa-muted">
-          Aucun diagnostic pour l'instant. Lance-en un : il rejoindra ce rail au premier cran, en
-          relecture — pas encore chez Massimo.
+          {filtreActif ? (
+            <>
+              <strong className="font-medium text-papa-text">Aucun diagnostic ici.</strong> Le
+              filtre en cours n'en laisse passer aucun — d'autres existent en dehors.
+            </>
+          ) : (
+            <>
+              Aucun diagnostic pour l'instant. Lance-en un : il rejoindra ce rail au premier cran,
+              en relecture — pas encore chez Massimo.
+            </>
+          )}
         </p>
       )}
 
@@ -129,9 +146,17 @@ export function RailPassations({
                         )}
                       </>
                     ) : (
+                      // 🔴 L'ACTEUR d'abord, en couleur ; l'état ensuite, en gris. Deux paires du
+                      // même gris désignaient des acteurs OPPOSÉS — rien ne disait chez qui la
+                      // balle se trouvait. La couleur ne porte pas l'information seule : le mot
+                      // « chez toi » / « chez Massimo » est écrit.
                       <>
-                        <p className="text-xs text-papa-muted">{texte.etat}</p>
-                        <p className="text-[11px] text-papa-muted">{texte.note}</p>
+                        <p className={`whitespace-nowrap text-[11.5px] font-semibold ${texte.ton}`}>
+                          {texte.acteur}
+                        </p>
+                        <p className="whitespace-nowrap text-[11px] text-papa-muted">
+                          {texte.etat}
+                        </p>
                       </>
                     )}
                   </div>
@@ -163,7 +188,13 @@ export function RailPassations({
       <p className="text-xs leading-relaxed text-papa-muted">
         Le témoin se remplit en trois temps et ne se coche jamais à la main. « Passé » est lu dans
         les tentatives ; « proposé » est un geste de ta part ; « généré » est un fait du moteur.
-        Aucun score ne s'affiche avant le troisième cran — il n'en existe pas.
+        Aucun score ne s'affiche avant le troisième cran — il n'en existe pas.{" "}
+        {/* La formulation que la maquette v3 portait dans sa légende, et qui n'avait jamais été
+            implémentée. Elle dit la règle plutôt que de laisser deviner la couleur. */}
+        <span className="text-papa-text">
+          Tant qu'un diagnostic n'est pas passé, la mention de droite dit <strong>chez qui</strong>{" "}
+          il attend : chez toi s'il reste à relire, chez Massimo s'il lui a été proposé.
+        </span>
       </p>
     </aside>
   );

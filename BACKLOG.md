@@ -450,6 +450,35 @@ précisément pour empêcher qu'on complète la liste « par symétrie apparente
    pas encore passé » — et cette légende n'a pas été implémentée. ⚠️ Nommer l'acteur est factuel ;
    compter les jours d'attente resterait **interdit** (`CLAUDE.md` §gamification).
 
+#### 🔴 Décision produit en attente — « Voir la page de Massimo → » (née de l'`adr-0045`)
+
+**Différée le 2026-08-08 pendant la Session B, par décision du commanditaire.** L'`adr-0045`
+Décision 5 prescrivait deux actions par cran non passé ; **trois cellules sur quatre sont
+livrées**, la quatrième ne peut pas l'être.
+
+**Pourquoi elle ne peut pas** — deux obstacles, le second rédhibitoire :
+
+1. **aucun lien inter-app n'existe** : la seule variable du front Papa est `VITE_API_URL`, il n'y a
+   ni `VITE_MASSIMO_URL` ni le moindre lien vers l'app enfant dans le dépôt ;
+2. 🔴 **le rôle l'interdit** : la page de Massimo appelle des routes `require_child`, qui répondent
+   **403 « Accès réservé à l'espace de Massimo. »** à un rôle parent (`auth/deps.py:55`). Papa y
+   verrait un écran vide ou une erreur — **jamais ce que Massimo voit**.
+
+⚠️ **Le besoin reste bon** : *vérifier ce que l'enfant a sous les yeux*. C'est la **mise en œuvre**
+qui n'existe pas, et aucune ligne de code ne peut l'inventer sans rouvrir la frontière des rôles.
+
+**Les deux voies, à trancher** :
+
+- **Un lien inter-app assumé** — `VITE_MASSIMO_URL` + `.env.example`. Utilisable seulement depuis un
+  appareil où **Massimo est déjà connecté** (la tablette de la famille), sinon Papa tombe sur
+  l'écran de connexion. Honnête si c'est dit ; trompeur si ça ne l'est pas.
+- **Un aperçu côté Papa** — le panneau dit ce que Massimo voit de ce diagnostic : sa place dans le
+  tri de sa page (`adr-0044` Décision 2), s'il est celui proposé en tête. Aucun problème de rôle,
+  mais **c'est du design neuf** et ça demande son propre cadrage.
+
+> Un test-verrou fige l'absence : `crans.test.ts` → *« le cran « proposé » n'en a pas — DIFFÉRÉE, et
+> c'est écrit »*. S'il tombe, c'est que quelqu'un a rouvert la question sans passer par ici.
+
 #### ▶▶ PROCHAIN CHANTIER — l'anti-triche du diagnostic
 
 **Décidé le 2026-08-08, pendant le cadrage de l'`adr-0045` : il passe APRÈS les 4 optimisations.**

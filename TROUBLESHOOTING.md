@@ -4,6 +4,104 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/diagnostic-papa-optimisations` — ADR-0045, Sessions A et B — 2026-08-08
+
+### 🔴 Un `<button>` dans un `<button>` : le parseur les SÉPARE, et la grille se disloque
+
+La première jauge doit être cliquable **et** contenir deux pastilles cliquables. Écrit
+naïvement — `<button class="jauge">` contenant `<button class="chip">` — c'est du **HTML
+invalide** : le parseur HTML **éjecte les boutons enfants hors du parent**. Le DOM obtenu n'est
+pas celui du JSX, la grille CSS reçoit trois enfants au lieu d'un, et le bandeau se disloque.
+
+Aucune erreur, aucun avertissement, aucun test rouge : **ça ne se voit qu'à l'écran**. Payé sur la
+maquette de ce chantier, avant que le code ne le reproduise.
+
+→ **Parade** : la carte est un `<div>` ; la zone principale est un `<button>` ; les pastilles sont
+ses **sœurs**, pas ses filles. L'état visuel de la carte se calcule alors en JS (ou par `:has()`),
+puisqu'il ne peut plus venir du `:hover` du bouton parent.
+
+### 🔴 `reject` fait DISPARAÎTRE la ligne du rail — il ne la fait pas reculer d'un cran
+
+`apercu` exclut `Quiz.validation_status != "rejected"` (`diagnostics/service.py:941`). Un
+diagnostic refusé **sort du rail**, il ne redescend pas au premier cran.
+
+Et `charger()` **conserve** la sélection courante — `setSelection((courante) => courante ?? …)`.
+Enchaîner `reject` puis `charger()` laisse donc le panneau sur une **ligne qui n'existe plus**.
+
+→ **Parade** : `setSelection(null)` **avant** le rechargement. L'updater fonctionnel de `charger()`
+voit alors `null` et reprend le choix par défaut. Vérifié à l'écran : compteur 12 → 11, pastille
+11 → 10, sélection retombée sur le défaut, aucun panneau fantôme.
+
+### 🔴 Un décor de test à DEUX familles rend l'addition juste par accident
+
+Le défaut central du chantier — la jauge annonce « 5 jamais **mesurées** » quand
+`matieres_total − matieres_mesurees` en donne 6 — n'existe **que** s'il y a une matière **générée
+et jamais passée**. Or le décor du fichier de page a deux matières : une mesurée, une jamais
+générée. `2 − 1 = 1` et `jamais_generees = 1` **tombent d'accord par hasard**.
+
+Un verrou posé sur ce décor est vert quoi qu'on fasse. C'est la forme la plus discrète du décor
+dégénéré : il n'est ni vide ni au plancher, il est juste **incomplet d'une famille**.
+
+→ **Parade** : le verrou central vit dans son propre fichier (`components/diagnostic/focus.test.ts`)
+avec un décor à **trois** familles — mesurée / générée-jamais-passée / jamais générée. Sabotage
+joué : faire rendre au focus les seules `jamais_generees` → **5 tests rouges**.
+
+### 🔴 Un verrou lexical « ne blâme pas l'enfant » refuse une phrase qui NIE le blâme — et il a raison
+
+Le dialogue de retrait disait : *« Ce n'est pas un reproche : … pas parce qu'il ne l'a pas fait. »*
+Le verrou de doctrine cherche `/n'a pas fait|oubli|néglig|retard/i` et l'a **refusée**.
+
+Le réflexe est d'assouplir le motif pour accepter les formes niées. **C'est le mauvais réflexe** :
+la phrase **nommait** le reproche pour le démentir, et démentir une accusation l'introduit.
+
+→ **Parade** : réécrire la phrase pour qu'elle n'aborde jamais le sujet — dire la raison positive
+(*« on retire un diagnostic quand il ne tombe plus juste »*) plutôt que nier la mauvaise. Le verrou
+lexical **ne peut pas** distinguer l'affirmation de la négation, et c'est une bonne raison de ne
+pas écrire la négation.
+
+### ⚠️ `require_child` répond 403 à un rôle parent — il n'y a AUCUNE navigation Papa → Massimo
+
+`auth/deps.py:55` : *« Accès réservé à l'espace de Massimo. »* Toute action qui prétend montrer à
+Papa **la page de Massimo** est impossible en l'état — et pas seulement faute d'URL : le front Papa
+n'a que `VITE_API_URL`, mais même avec un lien, les appels échoueraient.
+
+→ **Parade** : ne pas écrire l'action. La décision produit qui la débloquerait est au `BACKLOG.md`,
+et un test-verrou fige l'absence pour qu'elle reste une décision (`crans.test.ts`).
+
+### ⚠️ Une condition « trop maligne » sur l'état vide — rattrapée par un test EXISTANT
+
+En rendant l'état vide du rail honnête (« aucun sous ce filtre » ≠ « aucun dans le dépôt »), j'avais
+ajouté une condition : ne rien dire si le bloc « Jamais généré » n'est pas vide. Raisonnement :
+sous le focus `jamais-generees`, le rail est vide **par construction**, et annoncer « aucun » au
+-dessus d'une liste de cinq serait contradictoire.
+
+**C'était faux.** Les deux blocs ne comptent pas la même chose — l'un des **diagnostics**, l'autre
+des **matières**. Ils se complètent. Un test existant (`état vide : aucune passation…`) est tombé
+et a désigné l'erreur en une ligne.
+
+→ **Parade** : condition simple, `entrees.length === 0`, avec la formulation qui dépend du filtre.
+Et surtout : **quand un test existant tombe sur un raisonnement neuf, suspecter le raisonnement.**
+
+### ⚠️ `avec_quiz` exclut les `rejected` — « jamais générée » devient faux dans un cas
+
+`jamais_generees` et `a_un_diagnostic` sont calculés depuis `quizzes`, qui exclut déjà les refusés.
+Une matière dont l'**unique** diagnostic a été rejeté compte donc comme « jamais générée », alors
+qu'un diagnostic a bien existé.
+
+**Non exercé** : les 15 diagnostics de dev sont `validated`, zéro `rejected`. À surveiller le jour
+où un refus sera la seule histoire d'une matière.
+
+### ⚠️ Le prompt de chantier donnait un chemin qui n'existe pas
+
+`apps/frontend-papa/src/components/ConfirmDialog.tsx` — il n'y a **que son test** à cet endroit. Le
+composant vit dans `packages/ui/src/components/confirm-dialog.tsx`, exporté par `@zetis/ui`, et son
+test est resté dans l'app parce que **le setup Vitest vit dans `frontend-papa`, pas dans
+`packages/ui`** (c'est écrit en tête du fichier de test).
+
+→ **Parade** : le §5 du protocole — « aucun chemin inventé, vérifie l'existence réelle ». Un fichier
+`X.test.tsx` sans `X.tsx` à côté n'est pas une anomalie dans ce dépôt : c'est le signe d'un
+composant **partagé**.
+
 ## Chantier `fix/diagnostic-zone-c-mobile` — vérifier enfin le 375 px — 2026-08-08
 
 ### 🔴 `sm:` vaut 640 px — donc AUCUN téléphone ne l'atteint

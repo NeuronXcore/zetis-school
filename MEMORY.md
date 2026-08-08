@@ -7,208 +7,198 @@
 
 ## État à la reprise
 
-**Chantier : « la page Diagnostic de Massimo propose au lieu de lister » (ADR-0044).
-✅ COMPLET et ✅ MERGÉ SUR `main` (2026-08-08). Ne pas ré-implémenter.**
+**Chantier : « la page Diagnostic de Papa montre ce qu'elle annonce » (ADR-0045).
+🔴 EN COURS — deux slices livrées, **une TROISIÈME décidée et NON FAITE**. Rien n'est commité.**
+
+> 🔴 **NI PR NI MERGE tant que la slice C n'est pas faite.** La relecture visuelle humaine a eu
+> lieu et a trouvé **deux défauts** ; l'un est corrigé, l'autre demande un changement de contrat que
+> le commanditaire a explicitement choisi de payer. Merger maintenant mettrait sur `main` une jauge
+> dont le lien **contredit son propre nombre**.
 
 | | |
 |---|---|
-| **Mergé** | PR [#100](https://github.com/NeuronXcore/zetis-school/pull/100), **squash `6642a30`**, base `8b8f988`. 27 fichiers, +2094/−311 |
-| **État git** | `main` = `origin/main` — **rien à pousser** |
-| **Branche** | `feat/diagnostic-massimo-propose` — 🔴 **CONSERVÉE**, locale ET distante. Le dépôt a `delete_branch_on_merge: false` |
-| **Décisions** | ADR-0044 **Accepté** (9 décisions) + `adr-0030-addendum-temoin-diagnostic.md` **Accepté**, qui **révoque la Décision 7** |
-| **Migration** | **AUCUNE**, sur les trois sessions. Invariant du chantier |
-| **Suites** | Backend **1047** · Massimo **539** · Papa **667** · `tsc -b` 0 sur les deux projets · `vite build` vert |
-| **Sabotages** | **6 joués, 6 rouges** |
-| **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé DEUX défauts qu'aucun test ne voyait |
+| **Branche** | `feat/diagnostic-papa-optimisations`, locale ET distante |
+| **Base** | `41ca48a` — le commit de l'ADR, sur `main`. Vérifié par `git merge-base main HEAD` |
+| **État git** | 🔴 **Le code des deux sessions n'est pas commité.** La branche ne porte qu'un commit de **documentation** (le cadrage). `git status` fait foi ; `git log --oneline main..HEAD` pour la liste |
+| **`main`** | `main` = `origin/main` — rien à pousser de ce côté |
+| **Décisions** | ADR-0045 **Accepté**, 9 décisions + 1 amendement — et **DEUX d'entre elles amendées pendant l'exécution**, voir plus bas |
+| **Migration** | **AUCUNE.** Aucun endpoint, aucun champ de contrat, aucun type partagé. Invariant tenu sur les deux sessions |
+| **Suites** | Papa **667 → 702**, `tsc -b` 0, `vite build` vert. ⚠️ Backend et Massimo **non relancés** — aucun de leurs fichiers n'est touché (`git status` le montre) |
+| **Sabotages** | **10 joués, 10 rouges** |
+| **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé **DEUX défauts** qu'aucun test ne voyait, dont un que j'avais introduit en croyant corriger son jumeau |
 
-🔴 **CINQ branches sont désormais conservées** — `feat/diagnostic-massimo-propose` (celle-ci),
-`fix/diagnostic-zone-c-mobile` et `fix/connexion-mot-de-passe` (les deux suites, ci-dessous),
-`feat/diagnostic-mesure-qui-engage` et `feat/notion-orpheline-equipable`. Les cinq noms se
-ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais. Aucune n'est à supprimer
-sans consigne. Toutes vérifiées locales ET distantes le 2026-08-08.
+🔴 **SEPT branches existent maintenant, six sont à conserver.** Les cinq déjà conservées —
+`feat/diagnostic-massimo-propose`, `fix/diagnostic-zone-c-mobile`, `fix/connexion-mot-de-passe`,
+`feat/diagnostic-mesure-qui-engage`, `feat/notion-orpheline-equipable` — plus
+`feat/diagnostic-papa-optimisations` (celle-ci, **active**). Le dépôt a `delete_branch_on_merge:
+false`. Les noms se ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais.
+**Aucune n'est à supprimer sans consigne.** Toutes vérifiées locales ET distantes le 2026-08-08.
 
-### ⤷ SUITE du même jour — la dette 375 px est CLOSE (PR #101)
+### FAIT — les deux sessions
 
-**La vérification manquante a été faite, et elle a rendu un défaut réel, corrigé et mergé.**
+**Session A — le bandeau devient un instrument** (optimisations ① et ④)
 
-| | |
-|---|---|
-| **Mergé** | PR [#101](https://github.com/NeuronXcore/zetis-school/pull/101), **squash `e9d48e1`** — 1 fichier, +13/−3 |
-| **Branche** | `fix/diagnostic-zone-c-mobile` — **CONSERVÉE**, locale et distante |
-| **Surface** | Simulateur **iPhone SE, 375 × 667 CSS px MESURÉS** (le panneau annonce son espace de coordonnées), puis `resize_window` à 393 et 1490 |
-| **Suites** | Massimo **539 / 58 fichiers**, **aucun touché** · `tsc -b` 0 |
-| **Test** | **AUCUN, délibérément** — voir DÉCISIONS ACTIVES |
+1. **Les jauges deviennent des focus.** Une jauge **filtre le rail** quand sa population est faite
+   de diagnostics ; elle **renvoie par un lien nommé** quand cette population vit ailleurs ; elle
+   **ne fait rien** quand elle vaut zéro par décision — et alors elle porte la mention `inerte`.
+2. **Les sous-populations du détail sont des pastilles** — quatre focus : `non-mesurees`,
+   `a-relire`, `proposes`, `jamais-generees`.
+3. **La jauge dit ce qu'elle compte** : « jamais **générées** », pas « mesurées ».
+4. **Deux préconditions absorbées** (voir amendement) : l'état vide du rail distingue « aucun dans
+   le dépôt » de « aucun sous ce filtre », et le bloc « Jamais généré » subit les mêmes filtres.
 
-**Le défaut** : la zone C se cassait en trois colonnes serrées ; les boutons prenaient ~171 pt et
-le texte ~102 pt — *le texte avait moins de place que les boutons*. Après : texte **265 px** à 375,
-**283 px** à 393, **333 px** au bureau où les trois colonnes gardent le **même `y`** (937/937/940).
+**Session B — les crans non passés** (optimisations ③ et ②)
 
-🔴 **La leçon, et elle vaut pour tout le dépôt : `sm:` vaut 640 px, donc AUCUN téléphone ne
-l'atteint.** L'ancien `sm:flex-row` ne corrigeait rien : la branche « mobile » était celle qui
-jouait en permanence. Le cas étroit avait été anticipé — et résolu sur le mauvais axe. Pire, la
-spec l'interdisait déjà noir sur blanc (« ils se cassent en trois colonnes bancales dès 375 px »),
-mais l'avertissement n'avait été appliqué qu'à la zone A.
+5. **L'acteur passe avant l'état** — « chez toi » (ambre) / « chez Massimo » (bleu), le mot écrit,
+   la légende du rail portant la règle.
+6. **Trois cellules du tableau d'actions sur quatre**, avec confirmation `danger` sur les deux
+   gestes secondaires.
 
-### ⤷ SECONDE SUITE — l'écran de connexion cesse de résister (PR #102)
-
-**Les deux défauts de connexion ne sont plus des dettes : ils sont corrigés et mergés. Et le
-read-before-code en a trouvé un TROISIÈME, plus grave, que personne n'avait signalé.**
-
-| | |
-|---|---|
-| **Mergé** | PR [#102](https://github.com/NeuronXcore/zetis-school/pull/102), **squash `d4c618d`** — 3 fichiers, +69/−1 |
-| **Branche** | `fix/connexion-mot-de-passe` — **CONSERVÉE**, locale et distante |
-| **Suites** | Backend **1047 → 1052** · Massimo 539 · Papa 667 · `tsc -b` 0 sur les deux |
-| **Sabotage** | **4 rouges sur 4** — et c'est ce qu'il révèle des AUTRES tests qui compte |
-
-1. **Le 500 sur mot de passe non-ASCII** → `compare_digest` compare des **bytes**. Temps constant
-   préservé, n'importe quelle entrée acceptée.
-2. **L'œil qui révèle le mot de passe** → `autoCapitalize="none"` + `autoCorrect` + `spellCheck`.
-3. 🔴 **LE TROISIÈME : le champ Identifiant n'a pas de `type`** — donc `text`, donc auto-capitalisé
-   **en permanence**, sans qu'aucun geste soit nécessaire. `massimo` devenait `Massimo`. Il ne
-   s'était jamais montré parce que **Safari pré-remplissait le champ**. C'est le plus grave des
-   trois, et il n'a été trouvé qu'en LISANT le fichier — pas à l'écran.
-
-🔴 **Ce que le sabotage a révélé de l'ancienne suite, et qui vaut pour tout le dépôt** : les 4
-verrous non-ASCII rougissent, mais **les 6 autres tests restent VERTS**, `test_login_bad_password`
-compris. Il essaie « wrong », de l'**ASCII pur** — la suite était *structurellement aveugle*, et
-c'est exactement pour ça que le défaut a été livré. Un test qui « couvre » un cas d'erreur ne
-couvre que la **forme d'erreur qu'il a choisie**.
-
-**Vérifié deux fois, indépendamment** : sur simulateur iOS (`massimo` remplacé en position 0 par
-`test` → `t` MINUSCULE, là où le même geste rendait `M` une heure plus tôt), et **par l'humain sur
-son propre iPhone**. ⚠️ Aucun test jsdom ne verra jamais les défauts 2 et 3 : clavier système.
-
-**Un outil aussi a changé de statut** : `resize_window` **fonctionne désormais** — `innerWidth` lit
-393 puis 375, demandé et vérifié. Il restait bloqué à 2572 le matin même. Ce genre de dette n'a
-donc plus d'excuse d'outillage.
-
-### FAIT — les trois sessions
-
-1. **Le contrat de liste** — `subject_slug`, `measured_at`, `taken_at` (**en remplacement** de
-   `taken`), `last_attempt_id`. Vérifié en lecture seule contre le **vrai PostgreSQL**.
-2. **Le résultat en forme enfant** — un seul schéma, servi par `POST /submit` **et** la nouvelle
-   route `require_child` `GET /mes-resultats/{attempt_id}`. Sans score, sans `per_skill`, sans
-   sévérité. Massimo peut enfin **relire** son résultat.
-3. **La page en trois zones** + le témoin de navigation + les deux correctifs nés de la relecture.
+Deux modules purs neufs portent la logique et reçoivent les sabotages : `components/diagnostic/`
+→ **`focus.ts`** et **`crans.ts`**, chacun avec son fichier de test.
 
 ### EN COURS — rien
 
-Aucun fichier à moitié écrit. La frontière est propre.
+Aucun fichier à moitié écrit. La frontière est propre : tests verts, typecheck 0, build vert.
 
-### À FAIRE
+### 🔴 À FAIRE — la SLICE C, décidée le 2026-08-08 et non commencée
 
-**Rien dans ce chantier.** Le prochain est au `BACKLOG.md` — les **quatre optimisations de la page
-Diagnostic de PAPA**, explicitement décidées « après celui-ci » (jauges non cliquables, cran
-« proposé » en cul-de-sac, « en attente · non passé » qui ne nomme personne).
+**La relecture visuelle humaine a trouvé deux défauts.** Le premier est corrigé (la 4ᵉ jauge, voir
+ci-dessus). **Le second demande un changement de contrat, et le commanditaire a choisi de le payer.**
+
+**Le défaut** : les deux renvois de la jauge « Lacunes » — « voir les 10 → » et « dont 4 sans
+contenu → » — **naviguent bien**, mais vers une page qui montre **18** lacunes. `LacunesPage` ne lit
+que `params.get("subject")` : elle **ignore** `source` et `contenu`.
+
+🔴 **C'est le défaut du chantier, reproduit par le chantier.** L'ADR-0039 est né de *« des nombres
+qui mentaient, invisibles parce que non cliquables »*. J'ai rendu le nombre cliquable — et le clic
+mène à **un autre nombre**. Avant il était invisible ; maintenant il est **contredit**.
+
+**Le travail, dans cet ordre — le premier temps est un refactor à comportement constant :**
+
+1. **Déplacer `_etat_contenu`** de `diagnostics/service.py` (privée) vers `lesson_resolution.py`,
+   où vit déjà son `lessons_by_skill`, et la rendre publique. **Une écriture, deux lecteurs** —
+   l'importer entre modules serait un accès privé, la dupliquer serait la faute que l'ADR-0037
+   nomme. Les constantes `CONTENU_*` suivent. **Tests verts, aucun touché : c'est la preuve.**
+2. **`progress/service.py::open_gaps` sert `source` et `content_state`.** ⚠️ `source` est
+   **gratuit** — la requête sélectionne déjà `Gap`, le champ est sur la ligne et n'est simplement
+   pas rendu.
+3. **`OpenGap`** (`packages/types/src/activity.ts`) gagne les deux champs.
+4. **`useLacunes`** accepte `source` et `contenu` et filtre — **dans le hook, jamais dans la page** :
+   *« un seul point de filtrage rend l'oubli impossible »*, c'est écrit en tête du fichier.
+5. **`LacunesPage`** passe `params.get("source")` et `params.get("contenu")`.
+6. Verrous + sabotages, et **vérifier à l'écran que 10 mène bien à 10**.
+
+⚠️ **Cette slice ROMPT l'invariant de la Décision 8** (« zéro champ ajouté au contrat »). Elle
+demande donc un **quatrième amendement écrit** à l'ADR-0045, comme les trois précédents.
+
+Puis seulement : commit → push → **PR**.
+
+### 🔴 DEUX DÉCISIONS AMENDÉES PENDANT L'EXÉCUTION — les relire, ne pas les rouvrir
+
+1. **Décision 9 (Session A)** — elle rangeait les pastilles de matière dans « ce qui ne change
+   pas ». **Précondition fausse** : elles filtraient mal, trois défauts vus à l'écran. Les deux
+   premiers sont **absorbés** parce que la Décision 3 était inimplémentable sans eux ; le troisième
+   (le panneau reste sur une matière exclue) est **signalé, non traité**.
+2. **Décision 5 (Session B)** — « Voir la page de Massimo → » est **DIFFÉRÉE** : aucun lien
+   inter-app n'existe, et surtout la page de Massimo appelle des routes `require_child` qui
+   répondent **403** à un rôle parent. Trois cellules sur quatre livrées ; la décision produit est
+   au `BACKLOG.md`.
+
+⚠️ **`DECISIONS.md` ne porte PAS ces deux amendements** — sa ligne d'index a été écrite au cadrage
+et vit sur `main`, jamais sur la branche. **À compléter sur `main` à l'étape 4bis.**
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-- **Le tri porte sur l'ÂGE d'une mesure, jamais sur son RÉSULTAT.** Un ordre de liste **est** une
-  formulation : trier par « là où il est le plus faible » serait un diagnostic négatif montré à
-  l'enfant.
-- **La carte change de REGISTRE** quand le choix vient de Massimo (`TON CHOIX` + fait brut). Servir
-  la phrase de recommandation sur un diagnostic qu'il a choisi ferait revendiquer à ZETIS un
-  conseil qu'il n'a pas donné.
-- 🔴 **Le témoin `diagnostic` est une EXCEPTION NOMMÉE à « NOUVEAU jamais DÛ »** — il meurt du
-  TRAVAIL. Décision du commanditaire, prise après objection exposée et **réaffirmée**. Cinq bornes
-  opposables dans l'addendum. **Ne pas s'en servir comme précédent** : `test_news_doctrine.py`
-  l'interdit à tous les autres.
-- **Le filtre « réussie ⇒ pas à renforcer » est un filtre d'AFFICHAGE**, pas une résolution. La
-  lacune reste ouverte, Papa la voit, une mission la refermera.
-- **La route Papa n'est pas élargie** : son schéma dit « Vue Papa ». Deux publics, deux schémas.
-- **Aucun plafond, aucune troncature** : structurer n'est pas masquer.
-- **`DiagnosticListItem` reste LOCAL** à Massimo — un seul consommateur, vérifié.
+- **Un focus est un filtre NOMMÉ, jamais une troncature** — il dit ce qu'il montre et comment en
+  sortir. Une coupe silencieuse ferait croire à une couverture complète.
+- **La 4ᵉ jauge est INERTE par décision, et l'écrit.** La rendre cliquable ferait chercher une
+  population inexistante puis demander l'ouverture d'un déclencheur écarté en connaissance de cause.
+- **Aucun compte de jours d'attente, sous aucune forme** — décompte de non-fait. La date de
+  proposition dit le même fait sans la dette.
+- **Le focus `a-relire` a été ajouté par COHÉRENCE**, hors de la lettre de la Décision 1, et
+  **confirmé par le commanditaire**. Il annonce une population qui est dans le rail.
+- **`DiagnosticFocus` reste LOCAL** à la page Papa — `DashboardFocus` est une union fermée du
+  dashboard, l'élargir pour un second usage serait une abstraction prématurée.
 - 🔴 **Un défaut de MISE EN PAGE ne se verrouille pas par un test, et c'est assumé.** jsdom n'a pas
   de moteur de rendu : `getBoundingClientRect` y renvoie des zéros. Comparer des chaînes de classes
-  Tailwind serait une **tautologie** qui casserait au premier refactor, sans jamais voir le défaut.
-  La preuve d'un tel correctif est la **mesure dans un vrai moteur** (capture + `innerWidth` lu),
-  consignée dans le message de commit et la PR. Ne pas « réparer » ce manque par un faux verrou.
+  Tailwind serait une **tautologie** qui casserait au premier refactor sans jamais voir le défaut.
+  La preuve d'un tel correctif est la **mesure dans un vrai moteur**, consignée dans le commit et la
+  PR. **Ne pas « réparer » ce manque par un faux verrou.**
+  ⚠️ Cette règle n'a **aucun ADR** — elle vient d'un correctif sans décision (`fix/diagnostic-zone-c-mobile`) et ne vit QUE dans ce fichier.
 
 ### PIÈGES rencontrés → `TROUBLESHOOTING.md`
 
-Deux sections `feat/diagnostic-massimo-propose`. Les trois qui coûteraient le plus :
-**un compteur de non-faits traverse les cinq verrous de doctrine** (ils testent le temps, il pèche
-par le travail) ; **deux gardes qui se couvrent rendent chaque sabotage isolé VERT** — il faut
-saboter la conjonction ; et **`toLocaleDateString("fr-FR")` écrit « 1 juillet »**, pas « 1er ».
+Une section `feat/diagnostic-papa-optimisations`, huit pièges. Les trois qui coûteraient le plus :
+**un `<button>` dans un `<button>` est éjecté par le parseur** et disloque la grille sans qu'aucun
+test ne rougisse ; **`reject` fait DISPARAÎTRE la ligne du rail** alors que `charger()` garde la
+sélection ; et **un décor de test à deux familles rend l'addition juste par accident** — la forme
+la plus discrète du décor dégénéré.
 
 ### ⚠️ DETTES OUVERTES
 
-- ✅ ~~Le 375 px n'a pas été vérifié~~ — **FAIT et CLOS le 2026-08-08** (PR #101, ci-dessus). Au
-  passage : **Massimo a un iPhone 16, soit 393 px, pas 375**. La dette visait donc une largeur
-  qu'il n'a pas ; les deux sont désormais vérifiées, 375 restant le cas le plus étroit.
-- ✅ ~~Le login rend 500 sur un mot de passe non-ASCII~~ · ~~l'œil rend le champ intaisissable~~ —
-  **les DEUX corrigés et MERGÉS** le 2026-08-08 (PR #102, ci-dessus), avec un **troisième** défaut
-  trouvé au read-before-code : le champ Identifiant, auto-capitalisé en permanence.
-- ⚠️ **L'écran de résultat affiche jusqu'à 8 notions à renforcer d'affilée** (vu sur la passation
-  Mathématiques). C'est le motif du défaut d'origine — une liste sans hiérarchie — un cran plus
-  bas. Signalé, non traité : ce serait de la dérive.
-- ⚠️ **La branche `null` de `measured_at` n'est exercée par aucune donnée réelle** : les 15
-  diagnostics de dev ont tous une mesure. Prouvée en tests SQLite seulement.
+**Nées de ce chantier :**
+
+- ✅ ~~La relecture visuelle humaine n'a pas eu lieu~~ — **FAITE le 2026-08-08**, et elle a rendu
+  **deux défauts** : la 4ᵉ jauge incompréhensible (**corrigée**) et les renvois de la jauge
+  « Lacunes » qui mènent à un autre nombre (**slice C, à faire**).
+- ⚠️ **Données de dev modifiées, délibérément** : le **quiz 30 est laissé en `pending`** — il donne
+  à dev le spécimen « généré » qui manquait et sans lequel « Refuser ce lot » ne peut pas être vu.
+  Pour l'annuler : `UPDATE quizzes SET validation_status='validated' WHERE id=30;`. Le quiz 29,
+  rejeté pendant le test du flux complet, a été **remis en `validated`**.
+- ⚠️ **Le panneau reste sur une matière que la pastille de matière exclut** — défaut pré-existant,
+  signalé non traité. Les focus ne peuvent pas le produire (la jauge ② efface les deux filtres).
+- ⚠️ **`avec_quiz` exclut les `rejected`** : une matière dont l'unique diagnostic a été refusé
+  compte comme « jamais générée ». **Non exercé** — zéro `rejected` en dev.
+- ⚠️ **Le focus `a-relire` n'a été vu qu'avec UN seul diagnostic** au premier cran, celui que j'ai
+  créé. Le pluriel de son libellé n'a jamais été rendu.
+
+**Héritées, et toujours vraies :**
+
+- 🔴 **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
+- 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
+- ⚠️ **L'écran de résultat de Massimo affiche jusqu'à 8 notions à renforcer d'affilée** — le motif
+  du défaut d'origine, un cran plus bas. Signalé, non traité.
+- ⚠️ **La branche `null` de `measured_at` n'est exercée par aucune donnée réelle** : les diagnostics
+  de dev ont tous une mesure. Prouvée en tests SQLite seulement.
 - ⚠️ **Rien ne referme une lacune quand la notion est réussie** — seul `missions/service.py` écrit
-  `resolved`. Contourné à l'affichage ; le fond reste ouvert et vaudrait un ADR.
+  `resolved`. Contourné à l'affichage (**le filtre « réussie ⇒ pas à renforcer » est un filtre
+  d'AFFICHAGE**, pas une résolution : la lacune reste ouverte, Papa la voit). Le fond vaudrait un ADR.
 - ⚠️ **`graphify affected` est aveugle** sur `list_diagnostics` — une réponse vide n'est pas une
   preuve d'absence d'appelant.
+- **Papa valide un diagnostic sans pouvoir le LIRE** depuis la file (`reviewLink` rend `null`).
+- **Les 14 défauts du module `diagnostics`** restent au `BACKLOG.md`, aucun traité.
 - **Artefacts de dev ADR-0042 toujours en base** : `Skill 436`, `Quiz 54`, `Gap 2`, `Mission 56`.
   Ordre de suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion`
   → `Quiz` → `Skill`.
-- ⚠️ **Passations de dev créées cette session** : deux sur le diagnostic Français (une tout faux,
-  une tout juste) pour reproduire la contradiction, plus l'XP correspondant. ✅ Le diagnostic
-  d'Anglais ouvert pendant la vérification 375 px **n'a rien écrit** — `fetchDiagnosticQuiz` est un
-  GET, la passation ne naît qu'à l'envoi, et la page a été quittée avant.
-- **Résidus de la vérification 375 px** : deux simulateurs créés et bootés — `ZETIS-375`
-  (iPhone SE 3ᵉ gen) et `ZETIS-393` (iPhone 16) ; la disposition du clavier physique du SE a été
-  passée en **Français** dans ses Réglages iOS. À supprimer avec `xcrun simctl delete` si on veut
-  la machine propre. Une paire de serveurs `backend-lan` / `massimo-lan` a été ajoutée à
-  `.claude/launch.json` (commit `e6fb2f5`) : **seule paire joignable depuis un vrai iPhone**, les
-  huit autres liant `127.0.0.1`.
-- 🔴 **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
-- **Papa valide un diagnostic sans pouvoir le LIRE** depuis la file (`reviewLink` rend `null`).
-- **Les 14 défauts du module `diagnostics`** restent au `BACKLOG.md`, aucun traité.
-- 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
+- ⚠️ **Passations de dev** créées le 2026-08-08 : deux sur le diagnostic Français (une tout faux,
+  une tout juste), plus l'XP correspondant.
+- **Résidus de la vérification 375 px** : deux simulateurs `ZETIS-375` (iPhone SE 3ᵉ gen) et
+  `ZETIS-393` (iPhone 16), le clavier physique du SE passé en **Français** dans ses Réglages iOS.
+  À supprimer avec `xcrun simctl delete` pour une machine propre. La paire `backend-lan` /
+  `massimo-lan` de `.claude/launch.json` est la **seule joignable depuis un vrai iPhone**.
 
-### ▶▶ PROCHAIN CHANTIER
+### ▶▶ PROCHAIN PAS
 
-**Les quatre optimisations de la page Diagnostic de PAPA**, au `BACKLOG.md` — explicitement
-décidées « après celui-ci » : jauges non cliquables, cran « proposé » en cul-de-sac, « en attente ·
-non passé » qui ne nomme personne.
+**La SLICE C ci-dessus, étape 1 : déplacer `_etat_contenu` vers `lesson_resolution.py`** à
+comportement constant, tests verts et aucun touché. C'est le refactor qui rend le reste possible
+sans dupliquer un agrégat.
 
-⚠️ **Rituel complet attendu** — `mockup → spec → ADR → prompt`. Le dépôt impose un cadrage avant
-la moindre ligne.
+Le code des deux premières slices peut être commité et poussé avant — mais **ni PR ni merge** :
+la branche porte l'état intermédiaire, et c'est ce qui protège la reprise.
 
-✅ ~~Deux candidats le précèdent peut-être~~ — **tranché et fait le 2026-08-08** : les défauts de
-connexion sont passés d'abord, et sont mergés (PR #102). Plus rien ne s'intercale.
+**Chantier suivant, déjà décidé et cadré au `BACKLOG.md`** : l'**anti-triche du diagnostic** —
+sortie d'écran, temps par question, verbalisation, et audit de ce qui récompense encore un bon
+score. Usage retenu : **marquer la mesure côté Papa seul**, jamais accuser l'enfant. Rituel complet
+attendu (`mockup → spec → ADR → prompt`).
 
-🔴 **CE CHANTIER EST EXPLICITEMENT DIFFÉRÉ À LA PROCHAINE SESSION DE CODE.**
-
-Décision du commanditaire, prise le 2026-08-08 en fin de session — **ce n'est pas un oubli, et il
-ne faut pas l'entamer dans la foulée d'une reprise**. La session qui lira ces lignes commence donc
-par le **cadrage**, pas par du code :
-
-```txt
-1. /ouverture          — depuis un `main` propre, vérifie que le cadrage EXISTE (le fichier ADR)
-2. mockup              — docs/frontend-papa/mockup/
-3. spec                — docs/frontend-papa/page-*.md
-4. ADR                 — docs/decisions/adr-00XX-*.md, inscrit dans DECISIONS.md
-5. prompt de chantier  — prompts/claude-code/
-6. /slice              — et seulement là, du code
-```
-
-⚠️ `/ouverture` **s'arrête si un ADR manque** — c'est arrivé le 2026-08-01. Ne pas contourner.
-
-> ✅ **Étape 4bis faite TROIS FOIS le 2026-08-08** — après les merges #100, #101 et #102. Squash,
-> n° de PR et état des branches vérifiés par commande (`git cat-file -t`, `gh pr view`,
-> `git branch` / `-r`), pas recopiés de mémoire.
->
-> ✅ Les quatre contrôles du `WORKFLOW.md §6.3` passent **déjà** — ADR + addendum, deux sections
-> `TROUBLESHOOTING.md`, entrée `CHANGELOG.md` **0.60.0**, et les dettes ci-dessus. Pour une fois,
-> ②  et ③ étaient en place **avant** le merge et non rattrapés après. Ce récit sera donc
-> élagable à la prochaine clôture — **à condition de remonter d'abord les dettes ouvertes**.
->
-> ✅ Pour #101 et #102 : entrées `CHANGELOG.md` **0.60.1** et **0.60.2** écrites dans la foulée (le
-> contrôle ③ manquait au moment de chaque merge — comblé aussitôt, jamais laissé en dette), et la
-> section `TROUBLESHOOTING.md` `fix/diagnostic-zone-c-mobile` porte les neuf pièges des deux. Pas
-> d'ADR pour l'une ni pour l'autre : restauration d'intention et correctifs, pas de décision neuve.
+> ✅ **Élagage fait à cette clôture** : la section du chantier **ADR-0044** (page Diagnostic de
+> Massimo, PR #100, #101, #102) a été retirée après ses **quatre contrôles** — ADR
+> `adr-0044-…-propose-au-lieu-de-lister.md` ✅ · deux sections `TROUBLESHOOTING.md`
+> `feat/diagnostic-massimo-propose` ✅ · `CHANGELOG.md` **0.60.0 / 0.60.1 / 0.60.2** ✅ · et
+> **ses dettes ouvertes remontées ci-dessus**, y compris la doctrine « un défaut de mise en page ne
+> se verrouille pas par un test » qui n'a **aucun ADR** et serait morte avec la section.
+> Le récit se retrouve par `git log -p MEMORY.md`.
 
 ---
 

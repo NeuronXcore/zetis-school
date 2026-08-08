@@ -7,7 +7,15 @@ import { BandeauInstrument } from "../components/diagnostic/BandeauInstrument";
 import { RailPassations } from "../components/diagnostic/RailPassations";
 import { PanneauPassation, PanneauSansMesure } from "../components/diagnostic/PanneauPassation";
 import { LancerDiagnosticDialog } from "../components/diagnostic/LancerDiagnosticDialog";
-import { fetchApercu, fetchPortee, fetchResultDetail } from "../lib/diagnostic";
+import {
+  compteFocus,
+  filtrerJamaisGenere,
+  filtrerRail,
+  libelleFocus,
+  matieresNonMesurees,
+  type DiagnosticFocus,
+} from "../components/diagnostic/focus";
+import { fetchApercu, fetchPortee, fetchResultDetail, rejectDiagnostic } from "../lib/diagnostic";
 
 // Page Papa « Diagnostic » (adr-0043) — refonte complète.
 //
@@ -33,10 +41,15 @@ import { fetchApercu, fetchPortee, fetchResultDetail } from "../lib/diagnostic";
 export function DiagnosticsPapaPage() {
   const [apercu, setApercu] = useState<DiagnosticApercu | null>(null);
   const [subjectId, setSubjectId] = useState<number | null>(null);
+  // Le focus du bandeau (adr-0045). LOCAL à cette page : un seul consommateur, et `DashboardFocus`
+  // est une union fermée du dashboard — l'élargir pour un second usage serait payer une abstraction
+  // pour un cas.
+  const [focus, setFocus] = useState<DiagnosticFocus | null>(null);
   const [selection, setSelection] = useState<DiagnosticRailEntry | null>(null);
   const [detail, setDetail] = useState<DiagnosticResult | null>(null);
   const [portee, setPortee] = useState<DiagnosticPortee | null>(null);
   const [dialogOuvert, setDialogOuvert] = useState(false);
+  const [retraitEnCours, setRetraitEnCours] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
@@ -81,11 +94,76 @@ export function DiagnosticsPapaPage() {
     };
   }, [selection]);
 
-  const railVisible = useMemo(
-    () =>
-      (apercu?.rail ?? []).filter((e) => subjectId === null || e.subject_id === subjectId),
-    [apercu, subjectId],
+  // ⚠️ Les deux filtres se COMPOSENT, dans cet ordre : la pastille de matière, puis le focus. Le
+  // rail ne se re-trie jamais — l'ordre vient du serveur, et deux tris pour la même liste
+  // finiraient par se contredire.
+  const nonMesurees = useMemo(
+    () => (apercu ? matieresNonMesurees(apercu) : new Set<number>()),
+    [apercu],
   );
+
+  const railVisible = useMemo(() => {
+    const parMatiere = (apercu?.rail ?? []).filter(
+      (e) => subjectId === null || e.subject_id === subjectId,
+    );
+    return filtrerRail(parMatiere, focus, nonMesurees);
+  }, [apercu, subjectId, focus, nonMesurees]);
+
+  // 🔴 Le bloc « Jamais généré » FAIT PARTIE du rail : il subit les mêmes filtres. Il était passé
+  // BRUT jusqu'ici, donc filtrer sur une matière laissait apparaître les quatre autres.
+  const jamaisGenereVisible = useMemo(
+    () => filtrerJamaisGenere(apercu?.jamais_genere ?? [], focus, subjectId),
+    [apercu, focus, subjectId],
+  );
+
+  const basculerFocus = useCallback((cible: DiagnosticFocus) => {
+    setFocus((courant) => (courant === cible ? null : cible));
+  }, []);
+
+  /** Le geste secondaire des deux crans non passés — « Refuser ce lot » / « Retirer la proposition ».
+   *
+   *  🔴 **La ligne SORT du rail**, elle ne recule pas d'un cran : `apercu` exclut
+   *  `validation_status == "rejected"`. Et `charger()` conserve la sélection courante — garder
+   *  celle-ci laisserait le panneau sur une ligne absente, exactement le défaut que ce chantier
+   *  refuse de reproduire. D'où le `setSelection(null)` AVANT le rechargement, qui rend la main au
+   *  choix par défaut. */
+  const retirer = useCallback(
+    async (entree: DiagnosticRailEntry) => {
+      setRetraitEnCours(true);
+      try {
+        await rejectDiagnostic(entree.quiz_id);
+        setSelection(null);
+        await charger();
+      } catch (cause: unknown) {
+        setError(cause instanceof Error ? cause.message : "Retrait impossible");
+      } finally {
+        setRetraitEnCours(false);
+      }
+    },
+    [charger],
+  );
+
+  /** La jauge « lecture la plus ancienne » désigne UNE passation : elle l'ouvre.
+   *
+   *  L'appariement est EXACT et non heuristique : `jauges.plus_ancienne_lecture.date` et le `date`
+   *  de la ligne viennent du même `attempt.completed_at.isoformat()` côté serveur, et ni l'une ni
+   *  l'autre ne le reformate. */
+  const ouvrirPlusAncienne = useMemo(() => {
+    const lecture = apercu?.jauges.plus_ancienne_lecture;
+    if (!apercu || !lecture) return null;
+    const entree = apercu.rail.find(
+      (e) => e.cran === "passe" && e.subject === lecture.subject && e.date === lecture.date,
+    );
+    if (!entree) return null;
+    return () => {
+      // 🔴 Les DEUX filtres tombent avant de sélectionner. Sans ça, la jauge pourrait ouvrir un
+      // panneau dont la ligne n'est pas dans le rail — le défaut pré-existant qu'on refuse de
+      // reproduire par une porte neuve.
+      setFocus(null);
+      setSubjectId(null);
+      setSelection(entree);
+    };
+  }, [apercu]);
 
   if (error !== null && apercu === null) {
     return (
@@ -112,7 +190,35 @@ export function DiagnosticsPapaPage() {
         }
       />
 
-      {apercu && <BandeauInstrument jauges={apercu.jauges} />}
+      {apercu && (
+        <BandeauInstrument
+          jauges={apercu.jauges}
+          focus={focus}
+          onFocus={basculerFocus}
+          onPlusAncienne={ouvrirPlusAncienne}
+        />
+      )}
+
+      {/* 🔴 Un focus est un filtre NOMMÉ, jamais une troncature : il dit ce qu'il montre ET comment
+          en sortir. Une coupe silencieuse ferait croire à une couverture complète. */}
+      {focus !== null && (
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-papa-accent/40 bg-papa-accent/10 px-3 py-2 text-sm">
+          <span>
+            Le rail ne montre que{" "}
+            <strong className="font-medium text-papa-accent">
+              {libelleFocus(focus, compteFocus(focus, railVisible, jamaisGenereVisible))}
+            </strong>
+            .
+          </span>
+          <button
+            type="button"
+            onClick={() => setFocus(null)}
+            className="ml-auto rounded-lg border border-papa-border px-2.5 py-1 text-xs text-papa-muted hover:border-papa-accent hover:text-papa-text"
+          >
+            Tout revoir ✕
+          </button>
+        </div>
+      )}
 
       {apercu && (
         <div className="mb-5">
@@ -127,9 +233,10 @@ export function DiagnosticsPapaPage() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
         <RailPassations
           entrees={railVisible}
-          jamaisGenere={apercu?.jamais_genere ?? []}
+          jamaisGenere={jamaisGenereVisible}
           selection={selection?.cle ?? null}
           onSelect={setSelection}
+          filtreActif={subjectId !== null || focus !== null}
         />
 
         <div>
@@ -143,7 +250,13 @@ export function DiagnosticsPapaPage() {
             </div>
           ) : selection.cran !== "passe" ? (
             // 🔴 Deux premiers crans : aucun score, aucun palier, aucune lacune. Il n'en existe pas.
-            <PanneauSansMesure entree={selection} />
+            // Un diagnostic PASSÉ ne passe jamais ici, donc il n'offre jamais « Retirer » — une
+            // mesure existante ne se cache pas.
+            <PanneauSansMesure
+              entree={selection}
+              onRetirer={() => void retirer(selection)}
+              retraitEnCours={retraitEnCours}
+            />
           ) : detail ? (
             <PanneauPassation detail={detail} portee={portee} rang={selection.rang} />
           ) : (
