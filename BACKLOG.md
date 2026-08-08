@@ -414,7 +414,20 @@ dette.
 **→ Addendum à l'ADR-0030 nécessaire.** Ne pas toucher le test-verrou sans lui : il existe
 précisément pour empêcher qu'on complète la liste « par symétrie apparente ».
 
-#### Optimisations de la page Diagnostic PAPA — après le chantier Massimo
+#### Optimisations de la page Diagnostic PAPA — ✅ CADRÉES, `adr-0045` (2026-08-08)
+
+> **Elles ne sont plus au backlog : elles sont un chantier.** Voir
+> `docs/decisions/adr-0045-la-page-diagnostic-papa-montre-ce-qu-elle-annonce.md`, la spec
+> `docs/frontend-papa/page-diagnostic.md` (passages `[0045]`), la maquette
+> `mockup-papa-diagnostic-v4-optimisations.html` et le prompt
+> `prompts/claude-code/prompts-claude-code-adr-0045.md`. Le texte ci-dessous est conservé
+> **comme trace du constat d'origine**, pas comme une tâche ouverte.
+>
+> ⚠️ **Le compte était faux, et il est corrigé** : « quatre optimisations » était écrit cinq fois
+> dans le dépôt pour **trois** items ci-dessous — recopie probable des « **4 jauges** » de l'item 1.
+> La relecture visuelle du cadrage a trouvé la **vraie quatrième** : la jauge compte des matières
+> *générées* et écrit *mesurées*, donc `8 − 2 = 6` quand l'écran dit `5`. C'est la **Décision 7**
+> de l'`adr-0045`.
 
 1. 🔴 **Les 4 jauges ne sont pas cliquables.** Le dépôt a `KpiFocusCard` (« une mesure **ET le
    contrôle qui montre ce qui la fonde** », ADR-0028 §5), et l'ADR-0039 est né de ce défaut exact :
@@ -436,6 +449,56 @@ précisément pour empêcher qu'on complète la liste « par symétrie apparente
    Massimo). La maquette avait la bonne formulation dans sa **légende** — « **chez Massimo** ·
    pas encore passé » — et cette légende n'a pas été implémentée. ⚠️ Nommer l'acteur est factuel ;
    compter les jours d'attente resterait **interdit** (`CLAUDE.md` §gamification).
+
+#### ▶▶ PROCHAIN CHANTIER — l'anti-triche du diagnostic
+
+**Décidé le 2026-08-08, pendant le cadrage de l'`adr-0045` : il passe APRÈS les 4 optimisations.**
+
+*« L'élève est en train de faire un diagnostic et cherche les réponses sur le web ou l'IA. Comment
+s'en douter ? »*
+
+**Pourquoi ça compte plus qu'ailleurs** : le diagnostic est le seul endroit de ZETIS où une mesure
+fausse **se propage** — elle ouvre des `Gap`, écrit `SkillMastery`, nourrit les missions et le
+Conseil de classe. Une triche ne fait pas « gagner » Massimo, elle fait **construire ZETIS sur du
+faux**, et rien d'extérieur ne vient la contredire. C'est le motif que la station ③ défend déjà
+(*« ZETIS ne se commande pas de production sur sa propre mesure »*), un cran plus tôt dans la
+chaîne.
+
+🔴 **À savoir avant de choisir quoi que ce soit** : **aucun signal côté navigateur ne survit à un
+téléphone posé à côté de l'écran.** Focus d'onglet, temps, presse-papier — tout ça attrape la
+triche *sur le même appareil* et rien d'autre. Construire un détecteur sans le dire produirait un
+instrument qui rassure sans mesurer.
+
+**Les quatre pistes retenues par le commanditaire** (les quatre, pas un sous-ensemble) :
+
+1. **La sortie d'écran** — `visibilitychange` / `blur` : *cette question a été quittée avant
+   d'être répondue*. Le signal le plus net et le moins interprétatif, aucun seuil à inventer.
+2. **Le temps par question** — horodater chaque réponse. Le plus riche et le plus **bruité** :
+   lenteur ≠ triche. **Indice pondéré, jamais verdict**, et ⚠️ **jamais de chrono visible** —
+   ce serait de la pression anxiogène (`CLAUDE.md` §gamification) et ça changerait la mesure
+   elle-même.
+3. **La verbalisation après coup** — sur 1 ou 2 bonnes réponses tirées au sort : *« explique en une
+   phrase comment tu as trouvé »*. Une réponse copiée ne survit pas à l'explication, et
+   `CLAUDE.md` **prescrit déjà** la verbalisation : le contrôle devient un acte d'apprentissage au
+   lieu d'une surveillance.
+4. **Retirer ce qu'il y a à gagner** — auditer tout ce qui récompense encore un **bon score** de
+   diagnostic (XP, badges, galaxie, Conseil de classe, formulation du résultat). L'`adr-0044` a
+   déjà retiré le score brut à l'enfant et l'XP est donné pour **être venu** (§9). S'il triche
+   encore, ce n'est pas pour gagner : c'est pour **ne pas avoir l'air nul** — et ça, aucun
+   détecteur ne le règle, seule la formulation du résultat le règle.
+
+**L'usage du signal — tranché** : la passation porte un état « **mesure à confirmer** » visible
+**côté Papa seul**, avec les faits bruts (« 3 questions quittées en cours »). Papa tranche.
+**Massimo ne voit rien et n'est jamais accusé.**
+
+🔴 **La règle de vocabulaire, non négociable** : tout ce qui sera construit dit « **cette mesure est
+peu fiable** » — on parle de l'instrument — et **jamais** « Massimo a peut-être triché » — on
+parlerait de l'enfant. Un enfant accusé à tort par un logiciel apprend surtout à s'en méfier.
+
+**Rituel complet attendu** — `mockup → spec → ADR → prompt`. Deux points appellent une décision et
+non un patch : le **bridage de la propagation** (une mesure douteuse doit-elle écrire `Gap` et
+`SkillMastery` avant confirmation ?) et la **surface de la verbalisation**, qui touche l'écran de
+passation — jusqu'ici hors périmètre de tous les chantiers Diagnostic.
 
 ## Bugs / risques à surveiller
 
