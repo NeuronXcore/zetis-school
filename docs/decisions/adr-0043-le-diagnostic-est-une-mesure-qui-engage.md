@@ -2,7 +2,16 @@
 
 ## Statut
 
-Proposé — 2026-08-08.
+**Accepté — 2026-08-08.** Les huit décisions sont **gelées**.
+
+> Historique : Proposé — 2026-08-08, **le même jour**. Le chantier a été cadré par la maquette puis
+> la spec avant l'ADR (rituel `mockup → spec → ADR → prompt`), et l'amendement de l'`adr-0014` a été
+> soumis au commanditaire **avant** toute écriture de code — c'est ce qui autorise l'acceptation
+> sans délai.
+
+⚠️ **Accepté ≠ livré.** La décision est figée ; **rien n'est implémenté**. Le chantier est décrit
+par `prompts/claude-code/prompts-claude-code-adr-0043.md`, en trois sessions, et n'a pas démarré.
+Ne pas lire ce statut comme « c'est en place ».
 
 > **Amende l'`adr-0014` Décision 2** (voir Décision 1). Ne la révoque pas : il en sort **un seul**
 > type de quiz, sur un motif que la décision d'origine n'avait pas examiné.

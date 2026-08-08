@@ -4,9 +4,9 @@
 > Code neuve, **après `/slice`**. Entre deux sessions : le geste git de clôture, puis celui
 > d'ouverture de la suivante.
 >
-> 🔴 **PRÉREQUIS BLOQUANT — l'`adr-0043` est en statut `Proposé`.** Il **amende l'`adr-0014`
-> Décision 2**, une décision figée. Tant qu'il n'est pas passé en `Accepté` par le commanditaire,
-> **aucune de ces sessions ne démarre**. `/ouverture` doit s'arrêter si ce n'est pas le cas.
+> ✅ **L'`adr-0043` est `Accepté` (2026-08-08).** Il **amende l'`adr-0014` Décision 2**, et cet
+> amendement est **figé** : il se relit, il ne se rediscute pas. Le prérequis de décision est levé,
+> les sessions peuvent démarrer.
 >
 > Prérequis matériel, en deux gestes (`docs/WORKFLOW.md` §2bis, `/ouverture` §1 et §3) :
 >
@@ -250,7 +250,8 @@ La page Diagnostic **de Massimo** · `routeLabels.ts` (`/diagnostic` singulier �
 - `API_SPEC.md` §Diagnostics — il est **déjà périmé aujourd'hui** (il annonce un corps synchrone
   alors que la route rend 202).
 - `DATA_MODEL.md` sous `Quiz` — la colonne `validation_status`.
-- L'`adr-0043` passe de `Proposé` à `Accepté`, et sa spec perd sa section
-  « Ce que l'ADR doit trancher ».
+- ~~L'`adr-0043` passe en `Accepté`~~ — **fait le 2026-08-08, avant la Session A.** Sa spec porte
+  désormais « Ce que l'ADR a tranché ». Ce qui reste à faire à la clôture, c'est de retirer de la
+  spec la mention « **rien n'est implémenté** » : elle sera devenue fausse.
 - ⚠️ **La branche `feat/notion-orpheline-equipable` reste conservée** (consigne du 2026-08-07) —
   elle n'est pas celle de ce chantier, ne pas la confondre ni la supprimer.

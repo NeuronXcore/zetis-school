@@ -2,10 +2,10 @@
 
 > Route `/diagnostics`, sidebar après « Missions ». **Refonte** d'une page existante de 149 lignes
 > (`DiagnosticsPapaPage.tsx`), pas une création.
-> Maquette : `docs/frontend-papa/mockup/mockup-papa-diagnostic-v3.html`.
-> ⚠️ **L'ADR n'existe pas encore** — cette spec le précède, conformément au rituel
-> `mockup → spec → ADR → prompt`. Le §« Ce que l'ADR doit trancher » en fin de document liste ce
-> qu'elle ne peut pas décider seule.
+> Réalise l'`adr-0043` (**Accepté**, 2026-08-08). Maquette :
+> `docs/frontend-papa/mockup/mockup-papa-diagnostic-v3.html`.
+> Chantier : `prompts/claude-code/prompts-claude-code-adr-0043.md`, en trois sessions.
+> ⚠️ **Rien n'est implémenté** — cette spec décrit une cible, pas l'existant.
 
 ## Ce que la page répond
 
@@ -85,7 +85,9 @@ crans portent un libellé (« à relire », « en attente »), jamais un pourcen
 🔴 **Le témoin ne se coche jamais à la main.** Le troisième cran est *lu*, pas déclaré : le cocher
 serait affirmer un fait que rien n'a mesuré.
 
-⚠️ **Deux de ces trois crans n'existent pas dans le code** — voir « Ce que l'ADR doit trancher ».
+⚠️ **Deux de ces trois crans n'existent pas dans le code** : `list_diagnostics` sert tout
+`quiz_type='diagnostic'` sur un seul prédicat, donc « généré » et « proposé » sont le même instant.
+Le gate qui les sépare est la Décision 1 de l'`adr-0043` — voir « Ce que l'ADR a tranché ».
 
 ### Panneau — la passation sélectionnée
 
@@ -215,25 +217,29 @@ réponse par question, **y compris non répondue**), et la clé inter-passations
 ⚠️ **Ni `SkillMastery`** (écrasé, une ligne par notion à vie) **ni `skill_mastery_history`**
 (n'écrit **qu'au changement de statut**) ne peuvent la porter.
 
-## Ce que l'ADR doit trancher
+## Ce que l'ADR a tranché
 
-Cette spec décrit une cible. Trois de ses éléments **ne sont pas décidables au niveau d'une page** :
+Les trois points que cette spec ne pouvait pas décider seule ont été tranchés par l'`adr-0043`.
 
-1. 🔴 **Le témoin à trois crans suppose un gate de relecture sur le diagnostic.** Or `quizzes` n'a
-   pas de `validation_status` et les quiz sont **exclus de `/relecture`** — documenté trois fois,
-   verrouillé par un test. La décision à amender est l'**`adr-0014` Décision 2**, qui dit
-   explicitement *« ceci régularise le précédent du **diagnostic** sans le modifier »*.
-   **Argument disponible** : un diagnostic **ouvre des `Gap` et écrit `skill_mastery`** — il n'est
-   donc pas « éphémère », contrairement à un quiz de fin de cours, et `quizzes/scoring.py:86` fait
-   **déjà** cette distinction (« signal fort + gaps »). La doctrine se raffinerait au lieu de se
-   contredire.
-2. 🔴 **La granularité des scores.** `QUESTIONS_PER_SKILL = 2` ⇒ un score par notion ne peut valoir
-   que **0, 50 ou 100**. La portée en escalier reste honnête, mais grossière. Passer à 5 questions
-   n'améliore que les passations **futures** — la page devra donc afficher une granularité **mixte**
-   et le dire.
-3. **Le nombre et le choix des notions mesurées.** `MAX_SKILLS = 8`, et ce sont toujours les **8
-   plus petits `id`**. Sur ~280 notions, une passation ne dit rien des autres. Rotation ? Tirage ?
-   Priorisation des notions fragiles ? C'est une décision pédagogique.
+1. **Le gate de relecture** — le diagnostic **sort de l'exception « évaluation éphémère »**
+   (`adr-0043` Décision 1, qui amende l'`adr-0014` Décision 2). Le motif retenu est plus fort que
+   celui envisagé ici : l'exemption d'origine vaut pour les quiz *« dérivés d'un substrat déjà
+   validé »*, or `generate_diagnostic` construit son prompt sur **quatre scalaires**, sans cours ni
+   contexte canonique — **et les trois garanties de contrepartie sont toutes inhonorées**.
+   L'exemption ne s'y est jamais appliquée.
+   → `quizzes.validation_status` (migration), 6ᵉ famille `diagnostic` dans `/relecture`, gate de
+   service dans `list_diagnostics`. Les quiz de mission et de cours **restent dehors**.
+2. **La granularité** — `QUESTIONS_PER_SKILL` passe de **2 à 5** (`adr-0043` Décision 3).
+   ⚠️ N'améliore que les passations **futures** : la page affiche une granularité **mixte** et
+   **le dit**.
+3. **Le choix des notions** — le nombre **reste 8**, mais la sélection devient une décision au lieu
+   d'un ordre d'insertion : **par ancienneté de mesure** (`SkillMastery.last_seen_at`), les jamais
+   mesurées d'abord (`adr-0043` Décision 4). Motif : un diagnostic sert à **réduire l'incertitude**,
+   et remesurer ce qui vient de l'être n'en réduit aucune. La page dit que c'est un **échantillon**.
+
+L'ADR ajoute un quatrième point que cette spec avait renvoyé au backlog : **les rôles sont exigés
+sur les six routes** (Décision 2). Un gate de relecture n'aurait aucun sens si n'importe quel compte
+pouvait soumettre à la place de Massimo — on protégerait l'entrée en laissant la sortie ouverte.
 
 ## Hors périmètre
 
