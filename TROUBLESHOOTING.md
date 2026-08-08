@@ -4,6 +4,148 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/diagnostic-mesure-qui-engage` — ADR-0043, le diagnostic sort de l'évaluation éphémère — 2026-08-08
+
+### 🔴 Un sabotage resté VERT — et les deux causes se cumulaient
+
+`test_submit_et_results_notent_la_MEME_passation_pareil` (le verrou de l'extraction) est resté vert
+quand on a fait recompter le score à `submit`. **Cinquième occurrence du motif dans ce dépôt.**
+
+**Cause 1 — décor dégénéré.** Le test répondait *tout faux*, donc chaque score valait `0`. À zéro,
+une divergence **multiplicative** est indétectable : `0 × k = 0` pour tout `k`.
+→ **Remède** : un verrou de valeur se pose sur un point **ni plancher ni plafond**. Le décor répond
+maintenant partiellement (3 bonnes sur 5 → **60 %**) et affirme la valeur exacte.
+
+**Cause 2 — sabotage mathématiquement neutre.** Le sabotage choisi arrondissait à la dizaine. Or à
+5 questions par notion, **tout score est un multiple de 20** : `int(x/10)*10` est l'**identité** sur
+ces valeurs. Le sabotage ne prouvait rien, ni dans un sens ni dans l'autre.
+→ **Remède** : un sabotage doit produire une valeur **atteignable différente**. Rejoué avec
+`+20 points`, le verrou rougit.
+
+> **Ce qu'il faut retenir** : un sabotage vert a deux explications possibles — le verrou est faible,
+> **ou le sabotage est un no-op**. Vérifier la seconde avant de conclure sur la première.
+
+### ⚠️ Les compteurs d'appels de `vi.fn()` s'ADDITIONNENT entre tests
+
+`expect(fetchResultDetail).toHaveBeenCalledTimes(1)` rendait « 9 fois », et
+`.not.toHaveBeenCalled()` rendait « 7 fois » — sur des tests qui n'appelaient rien.
+
+**Cause** : le front n'active pas `clearMocks`, et `mockResolvedValue()` en `beforeEach` **ne remet
+pas l'historique à zéro**. Les compteurs cumulent sur tout le fichier.
+→ **Remède** : `vi.clearAllMocks()` en tête de `beforeEach`. Toute assertion qui **compte** des
+appels est fausse dès le second test sans lui.
+
+### ⚠️ `to_utc` avant toute soustraction de dates — sinon ça marche en prod et plante en test
+
+`(datetime.now(timezone.utc) - attempt.completed_at)` → `TypeError: can't subtract offset-naive and
+offset-aware datetimes`, sur **9 tests d'un coup**.
+
+**Cause** : SQLite **perd le `tzinfo`** d'une colonne `DateTime(timezone=True)` là où PostgreSQL le
+conserve. Le pire des deux mondes : rouge en test, vert en prod.
+→ **Remède** : `from app.modules.activity.timeutils import to_utc`, qui existe et documente
+exactement ce cas. Ne pas en écrire un quatrième — quatre modules le réimplémentaient déjà.
+
+### 🔴 Le test lexical `test_system_is_reserved_to_quizzes` strippe les COMMENTAIRES, pas les DOCSTRINGS
+
+Le cadrage annonçait : *« il est lexical — une simple mention dans un **commentaire** le
+déclenche »*. **Faux.** Le scan fait `line.split("#", 1)[0]` : les commentaires `#` sont retirés
+avant analyse.
+
+**Ce qui piège vraiment, ce sont les docstrings** — elles n'ont pas de `#`, donc rien ne les
+retire. C'est exactement ce qui avait cassé le verrou lexical de l'ADR-0042.
+→ **Remède** : en écrivant une docstring dans `app/modules/**`, ne jamais mettre sur la même ligne
+les deux mots que ce scan cherche.
+
+### ⚠️ Une nouvelle famille de `/relecture` se borne par MATIÈRE, pas par leçon
+
+Un diagnostic a `subject_id` et **rien d'autre** : `chapter_id` et `lesson_id` sont `NULL` par
+construction. Le passer par `_derivative_query` (qui joint la leçon) aurait rendu **zéro ligne en
+silence**.
+→ **Remède** : le patron à copier est `_capsules_query`, pas `_derivative_query`. C'est le même
+trou que `_chapter_in_year` documente pour les chapitres orphelins, transposé d'un cran.
+
+### ✅ Le `Literal` Pydantic fermé a fait rougir la 6ᵉ famille AVANT l'écran
+
+`ResponseValidationError: Input should be 'lesson', 'fiche', 'mindmap', 'capsule' or 'chapter'` —
+la famille `diagnostic` a été refusée par le contrat avant d'atteindre la page.
+→ **À garder** : `ReviewKind` est un `Literal` fermé et non un `str` libre. Un `str` aurait laissé
+passer la famille avec des compteurs incohérents, découverts à l'écran ou jamais.
+
+### 🔴 `git checkout <fichier>` EFFACE le travail non commité — payé DEUX fois
+
+Utilisé pour restaurer après un sabotage, sur des fichiers dont les modifications n'étaient **pas
+encore commitées**. `git checkout` restaure depuis `HEAD` : tout le travail de la session sur ce
+fichier disparaît, sans avertissement.
+→ **Remède** : pour un sabotage, **copier le fichier** (`cp f f.bak`) et restaurer par `cp`. Ne
+jamais utiliser `git checkout` comme bouton « annuler » tant que le travail n'est pas commité.
+
+### ⚠️ `useEstimatedProgress(active, expectedMs, startedAtMs)` exige un `number`, pas `number | null`
+
+`EtatTravail.estimatedMs` est `number | null` (le serveur ne sait pas encore tant que le travail
+est en file). Le passer tel quel casse `tsc`.
+→ **Remède** : la forme d'appel du dépôt est celle de `SubjectDetailRow` — `active` inclut
+`(etat?.estimatedMs ?? 0) > 0`, et `expectedMs` vaut `etat?.estimatedMs ?? 0`. La barre n'anime que
+si le serveur a une durée à donner ; elle n'en invente jamais une (ADR-0041 §9).
+
+### ⚠️ « Found multiple elements » — une notion est nommée à TROIS endroits
+
+`screen.getByText("Symétrie centrale")` échoue : la notion apparaît dans le tableau de la station ①,
+dans sa carte de lacune (station ②) **et** dans la portée.
+→ **Remède** : scoper la requête (`within(table)`, `closest("section")`). Une requête globale
+rendrait « multiple elements » aujourd'hui, et — pire — pourrait trouver la bonne **par accident**
+demain.
+
+### ⚠️ Le panneau navigateur : `file://` est bloqué, et les clics de modale sont instables
+
+Ouvrir une maquette locale par `navigate` sur `file:///…` laisse l'onglet sur `about:blank`. Et les
+clics par `ref` échouent en silence (espace de clic **800 px**, pas la largeur du viewport).
+→ **Remèdes** : copier temporairement la maquette dans `apps/frontend-papa/public/` et l'ouvrir par
+`http://localhost:5175/…` (puis la retirer) ; cliquer par **coordonnées** lues sur la capture ; et
+pour un contenu de modale, **lire la source** plutôt que de se battre avec la couche de clic.
+
+## Chantier `feat/notion-orpheline-equipable` — ADR-0042, la notion orpheline devient équipable — 2026-08-07
+
+### 🔴 Le comptage de chapitres raté PAR L'INNER JOIN — en le cherchant
+
+Première mesure : « 79 chapitres, tous rattachés à l'année ». **Faux.** La requête faisait un
+`INNER JOIN` de `chapters` sur `school_year_subjects` — donc elle **supprimait exactement ce
+qu'elle cherchait**. Compte réel : **80, dont 1 orphelin** (`id=10`, « Les fractions », validé,
+0 leçon).
+
+**`Chapter.school_year_subject_id` est nullable** : un chapitre peut vivre sous
+`Subject → Theme → Chapter`, sans chemin direct vers une année.
+→ **Remède** : accepter les **deux** chemins (`_chapter_in_year` le fait). Ce trou a coûté
+l'ADR-0037 entier, puis a été retrouvé dans `lessons_by_skill` (addendum ADR-0034), puis ici — la
+troisième fois **en le cherchant explicitement**.
+
+### 🔴 Une docstring a cassé un test-verrou lexical
+
+`test_equip_notion_signale_ses_pieces_dans_l_ordre_de_PIECES` scanne le source à la recherche de
+`_signale("…")`. Une **docstring** contenant ce littéral l'a fait échouer.
+→ **Remède** : reformuler la prose, **jamais** le test. Voir aussi l'entrée du chantier suivant :
+ce scan retire les `#` mais pas les docstrings.
+
+### ⚠️ pgvector `<=>` est une ERREUR DE SYNTAXE sur SQLite
+
+Tout test qui sert un chunk RAG plante — et **aucun test du dépôt n'avait jamais servi un chunk
+`validated` avec un embedding**, ce qui masquait le problème depuis l'origine.
+→ **Remède** : une fixture qui patche **uniquement** `rag_service.search`, pas tout le module.
+
+### ⚠️ `FakeEmbeddingProvider` n'est pas déterministe
+
+Il s'appuie sur `hash()`, salé par `PYTHONHASHSEED` : tout test de **non-résolution** est flaky à
+~50 %.
+→ **Remède** : `Crc32EmbeddingProvider` (`app/tests/fakes.py`), stable d'un run à l'autre.
+
+### ✅ Ce que seule l'EXÉCUTION RÉELLE a trouvé
+
+Un quiz `mission`/`draft` **sans leçon** traînant en base de dev faisait répondre « déjà produit » à
+`_has_mission_quiz` **sur le chemin normal** — ce qui aurait arrêté la génération de quiz sur toute
+la base, en silence.
+→ **Remède** : garde explicite (`if lessons_of_skill(...): return False` avant de consulter
+l'ancrage notion), plus un test et son sabotage. **Sans la vérification en réel, ce défaut partait
+en PR** : aucun test ne le voyait.
+
 ## Rejeu de scénario — `503` / Redis coupé (ADR-0041 §10) — 2026-08-07
 
 > Dette qui traînait depuis **quatre** chantiers. Jouée sur `main`, hors chantier.

@@ -116,10 +116,14 @@ n'existe pas. → **addendum ADR-0030**, détaillé au `BACKLOG.md`.
 - ~~Le `CHANGELOG.md` est muet sur deux chantiers~~ — **RATTRAPÉ le 2026-08-08** : `0.58.0`
   (la notion orpheline devient équipable) et `0.59.0` (le diagnostic devient une mesure qui
   engage). Le contrôle ③ passe.
-- 🔴 **`TROUBLESHOOTING.md` n'a de section NI pour l'ADR-0042 NI pour l'ADR-0043.** Le contrôle ②
-  du `WORKFLOW.md §6.3` échoue toujours — **c'est ce qui bloque encore l'élagage** de la section
-  du chantier précédent. Les pièges à y porter sont nommés plus haut (décor dégénéré, sabotage
-  neutre, `vi.fn()` cumulatif, `to_utc` avant toute soustraction de dates).
+- ~~`TROUBLESHOOTING.md` n'a de section pour aucun des deux chantiers~~ — **ÉCRITES le
+  2026-08-08**, 14 pièges au total. Le contrôle ② passe.
+
+> ✅ **LES QUATRE CONTRÔLES DU `WORKFLOW.md §6.3` PASSENT** — décisions (ADR), pièges
+> (`TROUBLESHOOTING.md`), livré (`CHANGELOG.md` `0.58.0`/`0.59.0`), et rien d'ouvert qui ne soit
+> remonté ici. **L'élagage de la section du chantier ADR-0042 est débloqué** : ~190 lignes à
+> retirer sur les ~970 du fichier. Elle se retrouve par `git log -p MEMORY.md`. Geste non fait —
+> il attend une décision.
 - **Artefacts de dev de l'ADR-0042, toujours en base** : `Skill 436`, `Quiz 54`, `Gap 2`,
   `Mission 56`. Ils forment le **seul jeu « notion de niveau antérieur »** de la base. Ordre de
   suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion` → `Quiz`
