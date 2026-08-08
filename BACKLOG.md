@@ -222,6 +222,68 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
 - App iOS native.
 - Mode SaaS éventuel.
 
+## 🔴 CHANTIER À CADRER — le worker de production n'est un service NULLE PART
+
+**Décidé le 2026-08-08, après que trois diagnostics soient restés bloqués.** Rituel complet attendu
+(`mockup → spec → ADR → prompt`) : ça touche le **déploiement**, pas un écran.
+
+### Ce qui a été mesuré, pas supposé
+
+- **3 `ai_jobs` `diagnostic_generate` en `queued`**, `started_at` NULL — deux du 2026-08-07
+  (Mathématiques), un du 2026-08-08 (Histoire-Géo).
+- **`rq:queue:production-priority` en contient exactement 3** : `run_ai_job(749|750|755)`. Les
+  trois autres files (`media`, `ai`, `production`) sont à **zéro**.
+- **Aucun worker de production ne tourne** (`pgrep` → rien). Le seul worker enregistré dans Redis
+  est **mort** — sa clé ne rend ni battement ni liste de files — et c'était un worker `media`.
+- 🔴 **`docker-compose.prod.yml` n'a AUCUN service de worker de production.** Sept services :
+  `postgres`, `redis`, `minio`, `backend`, `worker-media`, `frontend-massimo`, `frontend-papa`. Et
+  l'unique `restart: unless-stopped` du fichier appartient à `worker-media`.
+- `ARCHITECTURE.md:152` le dit déjà : le worker de production est *« lancé à part »*.
+- 🔴 **La panne est DÉJÀ au `TROUBLESHOOTING.md:1450`**, diagnostiquée une première fois avec le
+  même `ps aux | grep production_worker → rien`. **Elle est revenue.** Une panne qui revient après
+  avoir été documentée n'est pas un incident : c'est une absence de structure.
+
+### Les trois décisions du commanditaire
+
+**1. 🔴 PAS de bouton de relance sur les lignes du journal — pas pour ce défaut.** Le travail **est**
+en file ; l'y remettre ne changerait rien et donnerait l'illusion d'un geste. Le dépôt a déjà nommé
+ce motif — *« bouton cul-de-sac »*. Un bouton qui ne peut pas agir sur la cause est pire que pas de
+bouton.
+⚠️ Un bouton **« abandonner »** garde du sens et reste ouvert : un travail bloqué reprendra dès
+qu'un worker démarrera, des jours plus tard, sans qu'on s'y attende. À décider séparément.
+
+**2. La détection EXISTE — c'est l'alerte qui n'est pas atteignable.** Le bandeau mesure déjà
+`worker_alive` et écrit *« aucun moteur de production actif — personne ne viendra »*. Il ne devine
+pas, il mesure. Le manque est que **ça ne se voit qu'en ouvrant l'app**.
+→ Une **notification poussée** quand la file porte des travaux et qu'aucun worker ne répond depuis
+N minutes. **Pas un agent qui re-détecte** : ce serait une seconde source de vérité sur le même
+fait, ce que le dépôt évite partout ailleurs.
+
+**3. Le worker devient un service supervisé.** C'est le vrai défaut, et le seul qui referme les
+deux autres :
+- service `worker` dans `docker-compose.prod.yml`, avec `restart: unless-stopped` ;
+- et en dev, un démarrage qui ne dépende plus d'une **commande à taper** — c'est ce qui a fait
+  revenir la panne.
+
+### Ce que la même cause a produit d'autre, et qui n'est PAS un bug
+
+**Les pourcentages du popover de l'en-tête Papa ont disparu — c'est correct.**
+`ProductionStrip.tsx:139` ne mesure que si `status === "running"` **et** que le couloir est vivant.
+Trois travaux `queued` + aucun worker → aucun chiffre. Le commentaire au-dessus rappelle pourquoi :
+retirer cette garde avait fait afficher « 37 % · 7/19 pièces » **sur un lot en file** (défaut du
+2026-08-07). L'en-tête refuse de chiffrer ce qui n'a pas démarré. **Ne pas « réparer » ça.**
+
+### Le geste immédiat, en attendant le chantier
+
+```bash
+pnpm dev:worker
+```
+
+Draine `production-priority` puis `production`. Les trois diagnostics atterriront au **premier
+cran**, `pending` — donc en relecture chez Papa et **pas chez Massimo** : le gate de l'ADR-0043
+tient. ⚠️ Le travail 755 est un diagnostic **Histoire-Géo**, matière jusqu'ici « jamais générée » :
+une fois produit, la jauge `2 / 8` et le focus `non-mesurees` bougeront.
+
 ## Dettes nommées — consignées, non traitées
 
 > Ouvertes le **2026-08-07** au cadrage puis au read-before-code de l'**ADR-0042** (la notion
