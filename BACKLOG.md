@@ -352,18 +352,90 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
   identiques, alors que `progress/service.py:13-15` défend explicitement l'inverse
   (« *"consolidé" doit vouloir dire acquis, pas "presque"* »). Le champ `status` est pourtant
   transmis (`schemas.py:60`) et **jamais lu**.
-- **`completed_at` est transmis et jamais affiché** (`DiagnosticsPapaPage.tsx`) : deux diagnostics
-  de la même matière sont **indistinguables** à l'écran.
-- **Pas d'endpoint détail d'une passation** (`GET /results/{attempt_id}` n'existe pas) ;
-  `GET /results` est plafonné à **10** en dur, sans pagination ni filtre ; `GET /quizzes` fait un
-  **N+1** (2 requêtes par ligne, `service.py:199-200`).
+- ~~**`completed_at` est transmis et jamais affiché**~~ — **FAIT (ADR-0043, PR #99)** : la date
+  est portée par le rail et par l'en-tête du panneau.
+- ~~**Pas d'endpoint détail d'une passation**~~ — **FAIT (ADR-0043)** : `GET /results/{attempt_id}`.
+  ⚠️ **Le reste de la ligne TIENT** : `GET /results` est toujours plafonné à **10** en dur, sans
+  pagination ni filtre, et `GET /quizzes` fait toujours un **N+1** (2 requêtes par ligne).
 - **`severity="low"` n'est jamais émise** par le diagnostic (`service.py:52-53` est binaire), alors
   que le modèle la déclare et que le chat l'utilise. Un filtre à 3 sévérités aurait une catégorie
   toujours vide.
-- **Deux lignes de doc fausses** : `API_SPEC.md:250-251` annonce un corps synchrone
-  `{quiz_id, subject, questions_count}` alors que la route rend **202** + un travail ; et
-  `routeLabels.ts:21` mappe **`/diagnostic`** (singulier) alors que la route réelle est
-  **`/diagnostics`** — le libellé ne matchera jamais.
+- **Une ligne de doc fausse sur deux** : ~~`API_SPEC.md` annonçait un corps synchrone~~ —
+  **CORRIGÉ (ADR-0043)**, le §Diagnostics dit désormais le `202` et le travail.
+  ⚠️ **`routeLabels.ts:21` TIENT** : il mappe **`/diagnostic`** (singulier) alors que la route
+  réelle est **`/diagnostics`** — le libellé ne matchera jamais.
+
+### 🔴 Nées de la RELECTURE HUMAINE du chantier ADR-0043 (2026-08-08)
+
+> Cinq défauts trouvés à l'écran en quelques minutes, **aucun détectable par un test**. C'est ce
+> que les quatre merges précédents (#79, #89, #91, #98) n'avaient pas eu. À lire comme la preuve
+> que la relecture visuelle n'est pas une formalité de clôture.
+
+#### ▶▶ PROCHAIN CHANTIER — la page Diagnostic de MASSIMO
+
+**Décidé le 2026-08-08 : elle passe AVANT les optimisations de la page Papa.**
+
+*« Une liste infinie de diagnostics sans savoir ce qu'il doit faire ou pas. »* Le constat est
+exact, et mesurable :
+
+- **`list_diagnostics` n'a aucune limite** — `order_by(Quiz.id.desc())`, c'est tout. Tous les
+  diagnostics validés depuis toujours. 15 en base de dev, et ça ne fera que croître.
+- **`taken` est servi et ne structure rien** : `DiagnosticPage.tsx:194` s'en sert uniquement pour
+  écrire « Refaire ↻ » ou « Commencer → ». Le fait et le à-faire sont dans la même liste plate.
+- **Aucun tri par pertinence, aucune séparation, aucun « celui-ci d'abord ».**
+
+⚠️ **L'ADR-0043 a aggravé le contraste sans toucher cette page** (elle était hors périmètre
+explicite) : Papa a désormais un rail à trois crans groupé par mois avec un panneau qui explique,
+pendant que Massimo garde une liste plate.
+
+Rituel complet attendu — `mockup → spec → ADR → prompt` : c'est l'espace enfant, où les règles de
+gamification sont les plus strictes.
+
+#### Le témoin de nouveauté « Diagnostic » chez Massimo — décision requise, pas patch
+
+`navigation.ts` (Massimo) range Diagnostic parmi les entrées **sans témoin**, et
+`navigation.test.ts:66` le verrouille. 🔴 **Mais deux des motifs écrits sont devenus FAUX à cause
+de l'ADR-0043 :**
+
+- *« Diagnostic … n'a ni trace de vue **ni contenu entrant** »* — depuis le gate, il y a un moment
+  « ça arrive » : **Papa valide, et le diagnostic apparaît chez Massimo**. C'est exactement le
+  motif de l'Agenda, qui a droit à son témoin (« il naît d'un geste de Papa et meurt d'un regard ») ;
+- le test voisin justifie l'absence de témoin sur Quiz par *« la table `quizzes` n'a pas de
+  `validation_status` »* — **elle en a un depuis la migration `a9b0c1d2e3f4`**. Le test passe
+  toujours, sa raison écrite ne tient plus.
+
+⚠️ **Le badge demandé est probablement du type INTERDIT.** La règle ADR-0030 est
+**« NOUVEAU jamais DÛ »** : « 3 diagnostics à passer » est un **compte de non-faits**, qui
+*« ne décroîtrait que par le travail et grossirait quand Massimo ne vient pas »*. Seul un témoin
+de **nouveauté** est légal — et il exige une **trace de vue** qui n'existe pas : `quiz_attempts`
+enregistre « passé », pas « vu ». Il faudrait une table, comme `mindmap_views` a soldé la même
+dette.
+
+**→ Addendum à l'ADR-0030 nécessaire.** Ne pas toucher le test-verrou sans lui : il existe
+précisément pour empêcher qu'on complète la liste « par symétrie apparente ».
+
+#### Optimisations de la page Diagnostic PAPA — après le chantier Massimo
+
+1. 🔴 **Les 4 jauges ne sont pas cliquables.** Le dépôt a `KpiFocusCard` (« une mesure **ET le
+   contrôle qui montre ce qui la fonde** », ADR-0028 §5), et l'ADR-0039 est né de ce défaut exact :
+   **des nombres qui mentaient, invisibles parce que non cliquables**. Deux de mes jauges annoncent
+   des populations que rien à l'écran ne montre (« 2 lacunes dont 2 sans contenu produisible »,
+   « 13 proposés non passés »). La 4ᵉ doit rester **inerte** : elle vaut zéro par décision.
+2. 🔴 **Le cran « proposé » est un cul-de-sac.** La maquette prescrit **deux actions par cran non
+   mesuré**, une seule sur quatre est implémentée :
+
+   | Cran | Action principale | Action secondaire | Livré |
+   |---|---|---|---|
+   | généré | Ouvrir dans la file de relecture → | Refuser ce lot | la principale seule |
+   | proposé | Voir la page de Massimo → | Retirer la proposition | **rien** |
+
+   Les deux actions secondaires appellent `POST /reject`, qui existe déjà.
+3. **« en attente · non passé » ne nomme personne.** Les deux crans non passés affichent deux
+   paires de deux mots, de même forme et de même gris, mais désignent des acteurs **opposés** :
+   « à relire · non proposé » (la balle est chez Papa) et « en attente · non passé » (chez
+   Massimo). La maquette avait la bonne formulation dans sa **légende** — « **chez Massimo** ·
+   pas encore passé » — et cette légende n'a pas été implémentée. ⚠️ Nommer l'acteur est factuel ;
+   compter les jours d'attente resterait **interdit** (`CLAUDE.md` §gamification).
 
 ## Bugs / risques à surveiller
 
