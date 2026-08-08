@@ -175,27 +175,35 @@ aucun score, donc rien à retenir côté serveur.
 
 ## Données API
 
-### Servi aujourd'hui — `GET /api/diagnostics/quizzes` (`DiagnosticQuizListItem`)
+### `GET /api/diagnostics/quizzes` (`DiagnosticQuizListItem`) — ✅ LIVRÉ (Session A)
 
-`quiz_id` · `title` · `subject` (le **nom**) · `questions_count` · `taken` (bool).
+`quiz_id` · `title` · `subject` (le **nom**) · `subject_slug` · `questions_count` ·
+`taken_at` · `last_attempt_id` · `measured_at`. **Aucune migration** — tout se calcule sur des
+colonnes existantes.
+
+- **`subject_slug: str`** — sans lui, le front ne peut pas appeler `subjectIconFor` et se met à
+  hardcoder les matières.
+- **`measured_at: str | null`** (ISO) — la mesure la plus récente parmi les notions **du
+  diagnostic** : `QuizQuestion.skill_id` → `SkillMastery.last_seen_at` de Massimo, `max()`, via une
+  **jointure gauche** (une notion jamais mesurée n'a aucune ligne, pas une ligne à `NULL`).
+  **`null` = jamais mesuré.** C'est ce champ, et lui seul, qui porte le tri.
+- **`taken_at: str | null`** (ISO) et **`last_attempt_id: int | null`** — la dernière passation
+  terminée. ⚠️ Ils sortent de la **même ligne** (`_last_attempt`, qui remplace `_is_taken`) et ne
+  peuvent donc pas se contredire. `taken` a disparu ; il reste dérivable.
+
+> ⚠️ **Chaînes ISO, pas `datetime`** : convention du module (`DiagnosticResultSummary`) et de
+> `packages/types`. Même format sur le fil, une seule manière de dire une date.
+>
+> ⚠️ **`DiagnosticListItem` reste LOCAL** à `apps/frontend-massimo/src/lib/diagnostic.ts`, non
+> promu dans `packages/types` : ce contrat n'a qu'un consommateur — vérifié, Papa n'appelle de ce
+> module que `/validate` et `/reject`. C'est un choix, pas un oubli.
 
 Gate ADR-0043 : la liste ne rend que les diagnostics `validation_status = 'validated'`,
 et `_servable_quiz_or_404` tient la même ligne sur l'accès direct par identifiant.
 **Cette refonte ne touche pas au gate.**
 
-### À ajouter au contrat — aucune migration
-
-Tout ce qui suit se calcule sur des colonnes **existantes** :
-
-- **`subject_slug: str`** — sans lui, le front ne peut pas appeler `subjectIconFor` et
-  se met à hardcoder les matières. Le `Subject.slug` existe déjà.
-- **`measured_at: datetime | null`** — la mesure la plus récente parmi les notions du
-  diagnostic : `QuizQuestion.skill_id` → `SkillMastery.last_seen_at` de Massimo, `max()`.
-  **`null` = jamais mesuré.** C'est ce champ, et lui seul, qui porte le tri.
-- **`taken_at: datetime | null`** — `max(QuizAttempt.completed_at)` pour ce quiz et cet
-  élève. Remplace `taken`, qui reste dérivable (`taken_at !== null`) : le remplacer plutôt
-  que l'ajouter évite deux sources pour un même fait.
-- **`last_attempt_id: int | null`** — l'identifiant de passation à rouvrir en zone C.
+⚠️ **Aucun tri serveur** : l'ordre reste `quiz_id` décroissant, la hiérarchisation est côté client
+(Session C).
 
 ### 🔴 Ce qui manque, et qui n'est pas qu'un champ
 

@@ -4,6 +4,57 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/diagnostic-massimo-propose` — ADR-0044, Session A (contrat de liste) — 2026-08-08
+
+### 🔴 `graphify affected` rend « No affected nodes found » sur une fonction réellement appelée
+
+`graphify affected "list_diagnostics"` répond **« No affected nodes found »** alors que
+`diagnostics/router.py` l'appelle démonstrativement (`service.list_diagnostics`). La commande est
+pourtant celle que `/slice §1bis` impose **avant de modifier une fonction partagée**, et sa réponse
+vide se lit comme « personne ne l'appelle, tu peux y aller ».
+
+**Cause** : l'extraction AST ne relie pas l'appel qualifié par le module (`service.f()`) au nœud de
+la fonction. À rapprocher du piège déjà consigné sur `graphify explain`, qui rend **un** nœud quand
+plusieurs portent le nom, sans prévenir.
+
+→ **Parade** : une réponse **vide** de `affected` n'est pas une preuve d'absence d'appelant. La
+confirmer par `grep -rn "<nom>"` avant d'en tirer un périmètre de non-régression. Ici, ce sont les
+`grep` qui ont donné les vrais consommateurs — dont le fait, décisif, que **Papa n'appelle pas** la
+route de liste.
+
+### ⚠️ Le format ISO d'une date diffère entre SQLite (tests) et PostgreSQL (réel)
+
+`datetime.isoformat()` sur une colonne `DateTime(timezone=True)` rend
+`2026-07-05T23:15:38.510826+00:00` sur PostgreSQL et un ISO **sans offset** sur SQLite : le moteur
+de test perd le `tzinfo` que Postgres conserve. Une assertion sur la chaîne **entière** passe donc
+en test et ment sur le vrai moteur — ou l'inverse.
+
+→ **Parade** : comparer sur le **préfixe de date** (`row["measured_at"][:10] == "2026-03-15"`),
+qui est stable sur les deux moteurs, et vérifier le format complet **une fois** contre le vrai
+PostgreSQL. C'est la face « lecture » du piège `to_utc` déjà consigné pour les soustractions.
+
+### 🔴 Un décor à UN objet par matière aurait laissé passer le sabotage principal
+
+Le verrou de la session — *`measured_at` est `null` ssi aucune notion du diagnostic n'a jamais été
+mesurée* — devait résister à deux sabotages. Le second (agréger par `subject_id` au lieu des
+notions du diagnostic, le raccourci tentant) **est invisible si le décor ne contient qu'un
+diagnostic par matière** : les deux calculs rendent alors la même valeur.
+
+→ **Parade** : le décor pose **trois diagnostics dans la MÊME matière**, sur des notions
+différentes, avec des dates distinctes et non extrêmes. Sous sabotage, les trois s'écrasent sur la
+date la plus récente et deux assertions rougissent. **La propriété que le décor doit avoir se
+déduit du sabotage qu'on veut rendre visible**, pas du confort d'écriture.
+
+### ⚠️ Une assertion de valeur ne dit rien si l'objet est ABSENT de la réponse
+
+`assert rows[id]["measured_at"] is None` sur une liste indexée par identifiant lève un `KeyError`
+quand l'objet manque — le test rougit, mais **par accident**, et le message ne dit pas la vérité.
+Or c'est exactement ce que produit le premier sabotage (jointure gauche → interne) : le diagnostic
+jamais mesuré **disparaît** au lieu de sortir avec `null`.
+
+→ **Parade** : affirmer d'abord la **présence** (`set(rows) == set(ids)`, avec message), puis les
+valeurs. Deux assertions, deux échecs distincts, deux diagnostics lisibles.
+
 ## Chantier `feat/diagnostic-mesure-qui-engage` — ADR-0043, le diagnostic sort de l'évaluation éphémère — 2026-08-08
 
 ### 🔴 Un sabotage resté VERT — et les deux causes se cumulaient

@@ -1,12 +1,27 @@
 // Appels au diagnostic (Étape 14) — Massimo passe le diagnostic généré par l'IA.
 import { API_URL, authClient } from "./authClient";
 
+/** Contrat de liste (ADR-0044 Décision 6).
+ *
+ * ⚠️ Volontairement LOCAL et non promu dans `packages/types` : ce contrat n'a qu'un seul
+ * consommateur — cette application. Papa n'appelle de ce module que `/validate` et `/reject`.
+ * C'est un choix, pas un oubli.
+ *
+ * ⚠️ À ne pas confondre avec les homonymes de `packages/types/src/diagnostic.ts`
+ * (`DiagnosticResult`, `DiagnosticGap`) : ceux-là sont le contrat de PAPA, avec score et sévérité.
+ */
 export interface DiagnosticListItem {
   quiz_id: number;
   title: string;
   subject: string;
+  subject_slug: string;
   questions_count: number;
-  taken: boolean;
+  /** Dernière passation terminée. `null` = jamais passé (ex-`taken`, qui reste dérivable). */
+  taken_at: string | null;
+  last_attempt_id: number | null;
+  /** Âge de la mesure sur les notions de CE diagnostic. `null` = jamais mesuré.
+   *  Porte le tri de la page (Session C) — il regarde l'âge, jamais le résultat. */
+  measured_at: string | null;
 }
 
 export interface DiagQuestion {

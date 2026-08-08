@@ -267,7 +267,23 @@ file diffère le travail, jamais le verdict sur la demande. Trace `ai_jobs`
 
 ### GET `/diagnostics/quizzes` (Massimo)
 
-Liste les diagnostics **relus** : `[{ quiz_id, title, subject, questions_count, taken }]`.
+Liste les diagnostics **relus** :
+`[{ quiz_id, title, subject, subject_slug, questions_count, taken_at, last_attempt_id, measured_at }]`.
+
+Depuis l'ADR-0044 §6, le contrat porte de quoi **hiérarchiser** la liste, sans aucune migration :
+
+- `subject_slug` — sans lui le front recode les matières en dur (`CLAUDE.md`) ;
+- `measured_at` (ISO ou `null`) — la mesure la plus récente parmi les notions **de ce
+  diagnostic**, jamais de sa matière. `null` = aucune de ses notions n'a jamais été mesurée.
+  Porte le tri de la page : il regarde l'**âge** d'une mesure, jamais son **résultat** ;
+- `taken_at` (ISO ou `null`) et `last_attempt_id` — la dernière passation terminée, tous deux issus
+  de la **même** ligne, donc incapables de se contredire.
+
+⚠️ **`taken: bool` a été REMPLACÉ par `taken_at`** — il reste dérivable (`taken_at !== null`), et
+deux sources pour un même fait est une divergence en attente.
+
+Aucun tri serveur : l'ordre reste `quiz_id` décroissant, la hiérarchisation se fait côté client
+(ADR-0044 §2 — il n'y a ici aucun score à retenir, contrairement à l'élection des missions).
 
 ### GET `/diagnostics/quizzes/{id}` (Massimo)
 

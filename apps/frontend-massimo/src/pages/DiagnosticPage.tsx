@@ -191,7 +191,7 @@ export function DiagnosticPage() {
                 </p>
               </div>
               <span className="text-sm text-zetis-accent-2">
-                {d.taken ? "Refaire ↻" : "Commencer →"}
+                {d.taken_at ? "Refaire ↻" : "Commencer →"}
               </span>
             </button>
           ))}

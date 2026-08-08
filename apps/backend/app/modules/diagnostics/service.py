@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -234,17 +234,25 @@ def _question_count(db: Session, quiz_id: int) -> int:
     ) or 0
 
 
-def _is_taken(db: Session, quiz_id: int, student_id: int) -> bool:
-    return bool(
-        db.scalar(
-            select(func.count())
-            .select_from(QuizAttempt)
-            .where(
-                QuizAttempt.quiz_id == quiz_id,
-                QuizAttempt.student_id == student_id,
-                QuizAttempt.completed_at.isnot(None),
-            )
+def _last_attempt(db: Session, quiz_id: int, student_id: int) -> QuizAttempt | None:
+    """La dernière passation TERMINÉE de cet élève sur ce diagnostic — ou `None`.
+
+    Remplace `_is_taken`, qui ne rendait qu'un booléen (ADR-0044 Décision 6). Rendre la LIGNE
+    plutôt que deux scalaires n'est pas une commodité : `taken_at` et `last_attempt_id` sortent
+    ainsi de la **même** passation, et ne peuvent pas se contredire.
+
+    Départage par `id` décroissant : deux passations terminées à la même seconde sortiraient
+    sinon dans un ordre non déterminé par la base, et la page changerait d'un chargement à l'autre.
+    """
+    return db.scalar(
+        select(QuizAttempt)
+        .where(
+            QuizAttempt.quiz_id == quiz_id,
+            QuizAttempt.student_id == student_id,
+            QuizAttempt.completed_at.isnot(None),
         )
+        .order_by(QuizAttempt.completed_at.desc(), QuizAttempt.id.desc())
+        .limit(1)
     )
 
 
@@ -255,22 +263,57 @@ def list_diagnostics(db: Session, student: StudentProfile) -> list[dict]:
     `get_quiz_for_taking` laisserait l'accès direct par identifiant, et un diagnostic non relu
     resterait passable pour qui connaît son id. Le verrou de la session porte sur les TROIS.
     """
+    # L'âge de la mesure, par DIAGNOSTIC — agrégé sur les notions de ses questions, jamais sur sa
+    # matière (ADR-0044 Décision 6). Deux diagnostics d'une même matière portent des notions
+    # différentes : agréger par `subject_id` serait plus simple, plus rapide, et **faux** — et le
+    # faux ne se verrait qu'à l'usage, sur un ordre de liste que personne ne saurait contredire.
+    mesure = (
+        select(
+            QuizQuestion.quiz_id.label("quiz_id"),
+            func.max(SkillMastery.last_seen_at).label("measured_at"),
+        )
+        .join(
+            SkillMastery,
+            and_(
+                SkillMastery.skill_id == QuizQuestion.skill_id,
+                SkillMastery.student_id == student.id,
+            ),
+        )
+        .group_by(QuizQuestion.quiz_id)
+        .subquery()
+    )
     rows = db.execute(
-        select(Quiz, Subject)
+        select(Quiz, Subject, mesure.c.measured_at)
         .join(Subject, Subject.id == Quiz.subject_id)
+        # 🔴 JOINTURE GAUCHE, et ce n'est pas un détail de style : une notion jamais mesurée n'a
+        # AUCUNE ligne dans `skill_mastery` — ce n'est pas une ligne à `NULL`. Avec une jointure
+        # interne, un diagnostic entièrement neuf **disparaîtrait de la liste** au lieu de sortir
+        # en tête. C'est le motif de l'INNER JOIN qui ratait le chapitre orphelin (ADR-0042).
+        .outerjoin(mesure, mesure.c.quiz_id == Quiz.id)
         .where(Quiz.quiz_type == "diagnostic", Quiz.validation_status == "validated")
         .order_by(Quiz.id.desc())
     ).all()
-    return [
-        {
-            "quiz_id": quiz.id,
-            "title": quiz.title,
-            "subject": subject.name,
-            "questions_count": _question_count(db, quiz.id),
-            "taken": _is_taken(db, quiz.id, student.id),
-        }
-        for quiz, subject in rows
-    ]
+
+    items: list[dict] = []
+    for quiz, subject, measured_at in rows:
+        attempt = _last_attempt(db, quiz.id, student.id)
+        items.append(
+            {
+                "quiz_id": quiz.id,
+                "title": quiz.title,
+                "subject": subject.name,
+                "subject_slug": subject.slug,
+                "questions_count": _question_count(db, quiz.id),
+                "taken_at": (
+                    attempt.completed_at.isoformat()
+                    if attempt is not None and attempt.completed_at is not None
+                    else None
+                ),
+                "last_attempt_id": attempt.id if attempt is not None else None,
+                "measured_at": measured_at.isoformat() if measured_at is not None else None,
+            }
+        )
+    return items
 
 
 def _quiz_or_404(db: Session, quiz_id: int) -> Quiz:

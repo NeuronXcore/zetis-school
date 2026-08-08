@@ -37,11 +37,33 @@ class DiagnosticQuizOut(BaseModel):
 
 
 class DiagnosticQuizListItem(BaseModel):
+    """Ce que la page de Massimo doit pouvoir HIÉRARCHISER (ADR-0044 Décision 6).
+
+    Les dates sont des chaînes ISO, comme partout dans ce module (`DiagnosticResultSummary`) et
+    dans `packages/types` — pas des `datetime`, pour que le contrat de sortie reste le même d'un
+    schéma à l'autre.
+    """
+
     quiz_id: int
     title: str
     subject: str
+    # Sans le slug, le front n'a pas de quoi appeler `subjectIconFor` et se remet à coder les
+    # matières en dur — ce que `CLAUDE.md` interdit. `useMissions` en est la démonstration : faute
+    # de slug servi, il reconstruit un `nameToSlug` à partir d'un second appel.
+    subject_slug: str
     questions_count: int
-    taken: bool
+    # ⚠️ REMPLACE `taken: bool` : le booléen reste dérivable (`taken_at is not None`), et deux
+    # sources pour un même fait est une divergence en attente.
+    taken_at: str | None
+    last_attempt_id: int | None
+    # La mesure la plus récente parmi les notions DE CE DIAGNOSTIC — jamais de sa matière.
+    # `None` = aucune de ses notions n'a jamais été mesurée.
+    #
+    # 🔴 C'est ce champ, et lui seul, qui porte le tri de la page (Décision 2). Il regarde l'ÂGE
+    # d'une mesure, jamais son RÉSULTAT : c'est ce qui rend l'ordre montrable à un enfant, là où
+    # un tri « la matière où il est le plus faible » serait un diagnostic négatif — un ordre de
+    # liste est une formulation.
+    measured_at: str | None
 
 
 class DiagAnswerIn(BaseModel):
