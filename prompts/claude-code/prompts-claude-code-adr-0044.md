@@ -223,7 +223,10 @@ rendre possible.
 
 - `docs/frontend-massimo/page-diagnostic.md` — **en entier**
 - `docs/frontend-massimo/mockup/mockup-page-diagnostic-massimo.html` — les **quatre** états
-- `docs/decisions/adr-0044-*.md` — Décisions 1, 2, 3, 4, 7, 8
+- `docs/decisions/adr-0044-*.md` — Décisions 1, 2, 3, 4, 8. ⚠️ **La Décision 7 est RÉVOQUÉE** :
+- `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` — **en entier**, c'est elle qui la
+  remplace, et elle porte cinq bornes opposables
+- `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` — Décisions 1 et 2, la règle amendée
 - `apps/frontend-massimo/src/pages/DiagnosticPage.tsx` — les trois écrans actuels
 - `apps/frontend-massimo/src/lib/navigation.ts` — le commentaire de `NavItem.newsKey`
 - `apps/frontend-massimo/src/lib/navigation.test.ts` — les trois tests de témoin
@@ -235,16 +238,33 @@ rendre possible.
 
 ### CE QU'IL FAUT FAIRE — DANS CET ORDRE
 
-**1. D'ABORD les deux motifs de `navigation.ts` (Décision 7).** En premier, parce que c'est la
-tâche sans effet visible : mise en dernier, elle saute quand la session s'allonge.
+**1. D'ABORD le témoin de `navigation.ts`.** En premier, parce que c'est la tâche la plus facile à
+laisser tomber quand la session s'allonge — et la plus délicate à écrire juste.
 
-- le motif de **Diagnostic** devient : *contenu entrant réel depuis le gate, mais **aucune trace
-  de vue** — `quiz_attempts` enregistre « passé », pas « vu »* ; plus la raison de fond : **la
-  zone A est déjà le signal d'arrivée** ;
+> 🔴 **CETTE INSTRUCTION A ÉTÉ RETOURNÉE le 2026-08-08.** Une version antérieure de ce prompt
+> disait « **Aucun `newsKey` n'est ajouté** », en rouge, d'après l'`adr-0044` Décision 7. Cette
+> décision a été **RÉVOQUÉE le jour même** par
+> `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` — décision du commanditaire, prise après
+> que l'objection lui a été exposée et **réaffirmée**. Lis l'addendum avant d'écrire.
+
+- **`/diagnostic` REÇOIT un `newsKey`.** Le compteur vaut le nombre de diagnostics **relus par
+  Papa que Massimo n'a pas encore passés** — il s'éteint donc **au passage**, par le travail, et
+  non par le regard. Il affiche un **nombre**, comme les six autres témoins.
+- **Backend** : le compte rejoint `GET /api/student/news/summary` (`adr-0030 §5` — **un seul
+  appel, aucune horloge**). Il se calcule sur des colonnes existantes grâce au `taken_at` de la
+  Session A : **aucune migration**. Si une migration apparaît, c'est un blocker.
+- **Le commentaire de `NavItem.newsKey` et le test-verrou `navigation.test.ts` se RÉÉCRIVENT pour
+  DIRE L'EXCEPTION**, jamais pour être simplement élargis. Le motif écrit doit nommer que ce
+  témoin **enfreint** la règle « NOUVEAU jamais DÛ », qu'il le fait **par décision**, et renvoyer à
+  l'addendum. Sans ça, la prochaine session complétera la liste « par symétrie apparente » —
+  exactement ce que ce test existe pour empêcher, et il n'aurait plus rien pour l'en dissuader.
 - le motif de **Quiz** se rebase sur **`quiz_type`**, plus sur la table : `quizzes` a bien un
-  `validation_status` depuis `a9b0c1d2e3f4`, mais **seul le diagnostic est gaté**.
+  `validation_status` depuis `a9b0c1d2e3f4`, mais **seul le diagnostic est gaté**. Ce point-là
+  n'est pas touché par la révocation.
 
-🔴 **Aucun `newsKey` n'est ajouté.** La conclusion ne change pas — seules les raisons changent.
+⚠️ **Les cinq bornes de l'addendum sont opposables** : une seule entrée · le compteur ne compte que
+du **relu** · **aucun décompte de jours** (interdiction NON amendée) · aucune couleur d'alerte ni
+notification · rien chez Papa.
 
 **2. Le hook `useDiagnostics`** — toute la logique, aucune dans le composant : tri (Décision 2),
 tête de liste, regroupement par matière, dépliage.
@@ -271,9 +291,14 @@ tête de liste, regroupement par matière, dépliage.
 
 ### TESTS EXIGÉS
 
-- **test-verrou (Décision 7)** : `/diagnostic` n'a pas de `newsKey`. Sabotage : ajoute-lui-en un →
-  rouge. ⚠️ Le test existant couvre déjà six routes en boucle — **ne pas le remplacer par un test
-  qui ne regarde que Diagnostic**, ce serait rétrécir un verrou en croyant le préciser ;
+- **test-verrou (addendum ADR-0030)** : le compteur de `/diagnostic` **décroît quand un diagnostic
+  est passé**, et **ne compte que du relu**. Deux sabotages : compter aussi les `pending` → rouge ;
+  ne pas décrémenter après une passation → rouge.
+  🔴 **Le test existant qui couvre six routes en boucle NE SE RÉTRÉCIT PAS À CINQ** — retirer
+  `/diagnostic` de sa liste serait affaiblir un verrou en croyant l'ajuster. Il garde sa boucle et
+  gagne une **assertion nommée** disant que `/diagnostic` est la seule exception, avec son motif.
+  ⚠️ Et l'interdiction du **décompte de jours** n'est pas amendée : un verrou doit continuer de
+  l'empêcher ;
 - **test-verrou (Décision 3)** : la zone C ne contient aucun diagnostic non passé, et la zone B
   aucun passé. C'est la séparation elle-même, pas son apparence ;
 - **test-verrou (Décision 2)** : à `measured_at` égaux, l'ordre ne dépend pas du score.
@@ -298,7 +323,8 @@ espace de clic 800 px.
 ### HORS PÉRIMÈTRE DE LA SESSION C
 
 L'écran de passation · la page Diagnostic **de Papa** et ses quatre optimisations (chantier sœur,
-décidé après) · la création d'une trace de vue · le multi-enfant · les 14 défauts du `BACKLOG.md`.
+décidé après) · **la création d'une trace de vue** — le témoin s'éteint au PASSAGE, pas au regard,
+donc aucune table de vues n'est à construire · le multi-enfant · les 14 défauts du `BACKLOG.md`.
 
 ---
 
