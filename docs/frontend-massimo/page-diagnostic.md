@@ -87,6 +87,34 @@ Une **carte unique**, pas une liste. Elle porte :
 > distinctes**. Mis sur une seule, ils se cassent en trois colonnes bancales dès 375 px
 > (vu à l'écran sur la maquette avant correction).
 
+### Le choix de Massimo REMONTE dans la carte — et elle change de registre
+
+Choisir en zone B **promeut** le diagnostic dans la carte du haut ; il ne se lance pas depuis la
+liste. Le bouton y dit donc **« Choisir ↑ »**, pas « Commencer → ». Il n'y a qu'**un seul endroit
+où l'action arrive**.
+
+> **Le motif** : sans ça, le chemin que Massimo choisit lui-même passait par une ligne compacte,
+> quand celui qu'on lui propose passe par une carte qui explique. C'est précisément quand il exerce
+> son choix qu'il faut le soutenir le mieux.
+
+🔴 **La carte CHANGE DE REGISTRE**, et ce n'est pas cosmétique :
+
+| | ZETIS propose | Massimo a choisi |
+|---|---|---|
+| Bandeau | `ZETIS TE PROPOSE` | `TON CHOIX` |
+| Encart 💡 | la **raison** — *« C'est celle où il en apprendra le plus sur toi »* | le **fait brut** — *« ZETIS ne l'a encore jamais mesuré. »* |
+
+Servir la phrase de recommandation sur un diagnostic que Massimo a pris de lui-même ferait
+revendiquer à ZETIS un conseil qu'il n'a pas donné — un petit mensonge, sur la seule page où il
+mesure. La matière descend dans la ligne d'infos ; le bandeau sert à dire **d'où vient la
+proposition**.
+
+Deux mécaniques que ça impose : la carte **remonte dans le champ de vision** au clic (un changement
+hors écran est invisible, et Massimo croirait que son clic n'a rien fait), et
+**« ← Revenir à ce que ZETIS propose »** garde les deux chemins réversibles. La proposition de ZETIS
+**retourne en zone B** quand un choix la remplace : la carte n'en porte jamais deux, et rien ne
+disparaît.
+
 ### Zone B — le reste, replié par matière
 
 Les diagnostics non passés, **groupés par matière**, chaque groupe **replié** : une
@@ -230,10 +258,29 @@ doctrine du dépôt, pas un détail d'implémentation.
 > cette refonte et n'est pas traitée ici — elle est signalée pour être tranchée à
 > l'ADR-0044, avec la question de la relecture ci-dessus, dont elle est voisine.
 
-## Après le diagnostic (v1 conservée)
+## Après le diagnostic
 
-Massimo voit : 2 ou 3 forces ; 2 ou 3 prochaines étapes ; **pas de tableau anxiogène**.
+Massimo voit : ses forces ; ses prochaines étapes ; **pas de tableau anxiogène**, **aucune note**.
 Papa voit le détail dans son interface.
+
+🔴 **Une notion réussie DANS CETTE PASSATION ne peut pas figurer dans « tes prochaines étapes ».**
+Défaut vu à l'écran le 2026-08-08 : « Tes forces : Temps du récit » et, trois lignes plus bas,
+« Notion à renforcer : Temps du récit ».
+
+La cause est structurelle : les deux listes ne parlent pas du même moment. Les forces viennent de
+**cette passation** ; les lacunes sont **lues en base** (ADR-0043 §5), et **rien ne referme une
+lacune quand la notion est réussie** — le seul écrivain de `resolved` dans le dépôt est
+`missions/service.py`. Une lacune ouverte par une passation ratée survit donc à sa remesure.
+
+⚠️ **C'est un filtre d'AFFICHAGE, pas une résolution** : la lacune reste ouverte, Papa continue de
+la voir, et c'est une mission qui la refermera. Faire refermer ses lacunes au diagnostic serait un
+changement du cycle de vie — donc un ADR — et laisserait un diagnostic à 2 questions réussi par
+chance effacer une vraie lacune.
+
+**La suite** : un lien unique « Voir mes missions → » sous la liste. ⚠️ **Un seul, pas un par
+ligne** — `MissionsPage` n'accepte aucun lien profond (contrairement à `/revision?subject=`), donc
+N flèches iraient toutes au même endroit en laissant croire que chacune mène à SA notion. Les
+flèches décoratives d'avant ne menaient nulle part : c'est le cul-de-sac dont l'ADR-0039 est né.
 
 ## États
 

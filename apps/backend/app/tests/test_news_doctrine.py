@@ -17,6 +17,7 @@ Un échec ici ne se répare pas en ajustant l'assertion.
 
 import inspect
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -32,7 +33,29 @@ SUMMARY = "/api/student/news/summary"
 #: geste de Massimo sur sa propre page (il meurt d'une action de l'enfant, pas d'une date), donc
 #: `new_agenda_count` a le droit de le filtrer. Le cacher dans un helper `_visible_items()` pour
 #: satisfaire un grep rendrait ce verrou décoratif — mieux vaut l'exception écrite.
-FORBIDDEN_TOKENS = ("due_count", "due_at", "due_on", "due_date", "done_at", "overdue", "late")
+FORBIDDEN_TOKENS = (
+    "due_count",
+    "due_at",
+    "due_on",
+    "due_date",
+    "done_at",
+    "overdue",
+    "late",
+    # 🔴 AJOUTÉS le 2026-08-08, et le moment n'est pas un hasard : on perce ce jour-là une
+    # exception dans la doctrine (`diagnostic`), et c'est précisément quand on ouvre un trou qu'il
+    # faut resserrer le reste. Ces deux jetons manquaient — un compteur pouvait donc compter du
+    # NON-FAIT (« ce qui n'a pas de passation ») sans qu'aucun verrou ne le voie.
+    "completed_at",
+    "taken_at",
+)
+
+#: Les compteurs autorisés à lire les jetons ci-dessus, avec la décision qui les y autorise.
+#:
+#: ⚠️ **Une entrée ici est une DÉROGATION, pas une configuration.** N'en ajouter une qu'avec un
+#: ADR qui la nomme — sinon ce dictionnaire devient la porte de sortie du verrou qu'il borne.
+DEROGATIONS = {
+    "diagnostic": "adr-0030-addendum-temoin-diagnostic.md",
+}
 
 
 def _body_without_docstring(fn) -> str:
@@ -61,12 +84,52 @@ def test_no_news_source_reads_a_deadline() -> None:
     branché sur `due_count` rendrait exactement le même type de réponse qu'un badge conforme.
     """
     for key, source_fn in NEWS_SOURCES.items():
+        if key in DEROGATIONS:
+            continue
         body = _body_without_docstring(source_fn)
         for token in FORBIDDEN_TOKENS:
             assert token not in body, (
                 f"Le compteur « {key} » lit « {token} » : c'est un compteur d'ARRIÉRÉ, "
                 f"pas un témoin de nouveauté (ADR-0030 §1)."
             )
+
+
+def test_toute_derogation_est_adossee_a_un_ADR_qui_la_nomme() -> None:
+    """Une dérogation sans document est un contournement qui se donne l'air d'une règle.
+
+    Ce test ne juge pas le bien-fondé de l'exception — il exige qu'elle soit ÉCRITE quelque part
+    où on la retrouvera. Le fichier nommé doit exister ; sinon la dérogation survit à sa propre
+    justification, ce qui est la façon dont une doctrine se vide.
+    """
+    # `app/tests/x.py` → parents : tests, app, backend, apps, RACINE.
+    racine = Path(__file__).resolve().parents[4] / "docs" / "decisions"
+    for key, document in DEROGATIONS.items():
+        assert key in NEWS_SOURCES, f"Dérogation « {key} » accordée à un compteur inexistant."
+        assert (racine / document).is_file(), (
+            f"La dérogation de « {key} » cite « {document} », qui n'existe pas."
+        )
+
+
+def test_UNE_SEULE_exception_meurt_du_travail_et_les_autres_meurent_d_un_REGARD() -> None:
+    """🔴 LE VERROU D'EXCEPTION — il enregistre le trou pour empêcher qu'il s'élargisse.
+
+    Le 2026-08-08, `diagnostic` est entré dans les témoins alors qu'il **meurt du TRAVAIL** :
+    il compte les diagnostics relus que Massimo n'a pas passés, donc il grossit quand Massimo ne
+    vient pas. C'est la colonne interdite de l'`adr-0030 §1`, ouverte par décision du
+    commanditaire après objection et réaffirmation.
+
+    ⚠️ **Ce qu'il faut comprendre, et qui a failli passer inaperçu** : ce compteur traversait les
+    CINQ verrous de ce fichier sans en faire rougir un seul. Ils interrogent le **temps** — « une
+    échéance change-t-elle ce nombre ? » — et aucune date n'entre dans son calcul. La règle a deux
+    dimensions ; le fichier n'en verrouillait qu'une. Sans ce test, la prochaine session lirait
+    sept témoins tous conformes et en conclurait qu'un compteur de non-faits est recevable.
+
+    Il n'y en a qu'un, et il est nommé.
+    """
+    assert set(DEROGATIONS) == {"diagnostic"}, (
+        "Une seconde exception a été ajoutée à la doctrine des témoins. Ce n'est pas un réglage : "
+        "il faut un ADR qui la nomme, et une bonne raison de ne pas plutôt retirer la première."
+    )
 
 
 def test_every_served_field_has_a_declared_source() -> None:

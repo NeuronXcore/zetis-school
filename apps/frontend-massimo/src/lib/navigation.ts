@@ -14,15 +14,26 @@ export interface NavItem {
   image?: string;
   /** Témoin de nouveauté servi par `GET /api/student/news/summary` (ADR-0030).
    *
-   *  ABSENT = pas de badge, et ce n'est jamais un oubli. Une entrée n'est éligible que si elle a
-   *  une trace de VUE côté serveur, et les absences ont chacune leur raison :
+   *  ABSENT = pas de badge, et ce n'est jamais un oubli. La règle : un badge compte ce qui est
+   *  NOUVEAU — né d'un geste, mort d'un **REGARD** — jamais ce qui est DÛ, qui ne meurt que du
+   *  travail et grossit quand Massimo ne vient pas.
+   *
+   *  🔴 **UNE EXCEPTION, UNE SEULE, ET ELLE EST NOMMÉE.** `/diagnostic` porte un témoin qui meurt
+   *  du **TRAVAIL** : il compte les diagnostics relus par Papa que Massimo n'a pas encore passés.
+   *  Il tombe donc dans la colonne interdite, **par décision du commanditaire** prise après que
+   *  l'objection lui a été exposée et réaffirmée — `adr-0030-addendum-temoin-diagnostic.md`, qui
+   *  porte cinq bornes opposables (dont : le compteur ne compte que du RELU, Papa restant le
+   *  robinet, et aucun décompte de jours, interdiction NON amendée).
+   *  Ne pas en déduire qu'un compteur de non-faits est désormais recevable ailleurs.
+   *
+   *  Les absences ont chacune leur raison :
    *  - **Matières** est un hub — ce qui arrive (fiches, capsules, cartes) a déjà son entrée ;
-   *  - **Quiz** n'a pas de `validation_status` du tout (ADR-0014 §2) : un quiz se produit à la
-   *    demande sur le cours qu'on vient de lire, il n'y a aucun moment « ça arrive » ;
+   *  - **Quiz** : seul le DIAGNOSTIC est gaté (ADR-0043) ; un quiz de mission ou de fin de cours
+   *    vaut `validated` dès sa génération, donc aucun moment « ça arrive ». ⚠️ Le motif d'avant
+   *    disait « la table `quizzes` n'a pas de `validation_status` » — faux depuis `a9b0c1d2e3f4` ;
    *  - **ELI5** a bien un `new_count`, mais c'est un critère de RÉCENCE (leçon créée dans les 7
    *    jours) : il décroîtrait tout seul et allumerait une entrée qu'on vient de visiter ;
-   *  - Cours, Diagnostic, Ma Galaxie, Chat et Paramètres n'ont ni trace de vue ni contenu
-   *    entrant.
+   *  - Cours, Ma Galaxie, Chat et Paramètres n'ont ni trace de vue ni contenu entrant.
    *  Un test verrouille cette liste, pour qu'elle ne se « complète » pas par symétrie apparente. */
   newsKey?: NewsKey;
 }
@@ -49,7 +60,8 @@ export const MASSIMO_NAV: NavItem[] = [
   // `due_count` est servi par le même endpoint et répondrait mieux à « qu'est-ce que j'ai à
   // faire », ce qui est exactement pourquoi il est interdit.
   { to: "/revision", label: "Révision", icon: "🗂️", image: srsIcon, newsKey: "revision" },
-  { to: "/diagnostic", label: "Diagnostic", icon: "🧭" },
+  // ⚠️ Le seul témoin qui meurt du TRAVAIL — exception nommée, voir `newsKey` ci-dessus.
+  { to: "/diagnostic", label: "Diagnostic", icon: "🧭", newsKey: "diagnostic" },
   { to: "/eli5", label: "ELI5", icon: "💡", image: eli5Icon },
   // Icône de marque mindmaps.png (comme ELI5/SRS/Quiz) ; repli emoji 🕸️ si l'asset manque.
   // Témoin ajouté le 2026-08-01 : `POST /mindmaps/{id}/seen` existait depuis l'ADR-0016 mais ne

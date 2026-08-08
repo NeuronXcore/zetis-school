@@ -316,6 +316,47 @@ def list_diagnostics(db: Session, student: StudentProfile) -> list[dict]:
     return items
 
 
+def new_diagnostics_count(db: Session, student_id: int) -> int:
+    """Diagnostics relus que Massimo n'a PAS ENCORE PASSÉS — témoin de navigation.
+
+    🔴 **CE COMPTEUR EST UNE EXCEPTION NOMMÉE À LA DOCTRINE DES TÉMOINS.** Il ne se recopie pas.
+
+    L'`adr-0030 §1` pose qu'un badge compte ce qui est **NOUVEAU** — né d'un geste, mort d'un
+    **REGARD** — et jamais ce qui est **DÛ**, qui ne meurt que du **travail** et grossit quand
+    Massimo ne vient pas. Celui-ci meurt du travail : il tombe dans la colonne interdite, et il
+    y est **par décision du commanditaire**, prise après que l'objection lui a été exposée et
+    réaffirmée (`adr-0030-addendum-temoin-diagnostic.md`).
+
+    ⚠️ **Il traverse les cinq verrous de `test_news_doctrine.py` sans en faire rougir un seul** :
+    ils testent le **temps** (« une échéance change-t-elle ce nombre ? »), or aucune date n'entre
+    ici. C'est par le **travail** qu'il pèche, dimension que le fichier ne verrouillait pas. D'où
+    le verrou d'exception ajouté là-bas — lui seul empêche que ce précédent soit lu comme une
+    autorisation générale.
+
+    Les deux bornes qui vivent dans cette requête :
+
+    - **`validation_status == 'validated'`** : Papa est le robinet, et c'est la SEULE régulation de
+      volume du dispositif. Compter les `pending` ferait grossir le badge sans qu'il ait rien
+      laissé passer ;
+    - **aucune date, dans aucun sens.** Ni ancienneté du diagnostic, ni délai depuis sa validation.
+      L'interdiction du décompte de jours n'est pas amendée par l'addendum.
+    """
+    passes = select(QuizAttempt.quiz_id).where(
+        QuizAttempt.student_id == student_id,
+        QuizAttempt.completed_at.isnot(None),
+    )
+    return (
+        db.scalar(
+            select(func.count(Quiz.id)).where(
+                Quiz.quiz_type == "diagnostic",
+                Quiz.validation_status == "validated",
+                Quiz.id.not_in(passes),
+            )
+        )
+        or 0
+    )
+
+
 def _quiz_or_404(db: Session, quiz_id: int) -> Quiz:
     """Résout un diagnostic **sans regarder son statut de relecture**.
 
@@ -1101,13 +1142,34 @@ def resultat_eleve(db: Session, student: StudentProfile, attempt_id: int) -> dic
     subject = db.get(Subject, quiz.subject_id)
     per_skill = score_par_notion(db, attempt.id)
     skill_ids = [row["skill_id"] for row in per_skill if row["skill_id"] is not None]
-    gaps = lacunes_ouvertes(db, student_id=student.id, skill_ids=skill_ids)
+    forces = {r["skill_name"] for r in per_skill if r["score"] >= GAP_THRESHOLD}
+    reussies = {r["skill_id"] for r in per_skill if r["score"] >= GAP_THRESHOLD}
+
+    # 🔴 UNE NOTION RÉUSSIE DANS CETTE PASSATION NE PEUT PAS ÊTRE « À RENFORCER » SUR LE MÊME
+    # ÉCRAN. Sans ce filtre, Massimo lit « Tes forces : Temps du récit » et, trois lignes plus bas,
+    # « Notion à renforcer : Temps du récit » — vu à l'écran le 2026-08-08.
+    #
+    # La cause est structurelle : les deux listes ne parlent pas du même moment. Les forces
+    # viennent de CETTE passation ; les lacunes sont lues en base (ADR-0043 Décision 5), et **rien
+    # ne referme une lacune quand la notion est réussie** — le seul endroit du dépôt qui écrit
+    # `resolved` est `missions/service.py`. Une lacune ouverte par une passation ratée survit donc
+    # à sa propre remesure.
+    #
+    # ⚠️ **On filtre l'AFFICHAGE, on ne referme pas la lacune** : elle reste ouverte en base, Papa
+    # continue de la voir, et c'est une mission qui la refermera. Faire fermer ses lacunes au
+    # diagnostic serait un changement du cycle de vie — donc un ADR — et laisserait un diagnostic
+    # à 2 questions réussi par chance effacer une vraie lacune.
+    gaps = [
+        g
+        for g in lacunes_ouvertes(db, student_id=student.id, skill_ids=skill_ids)
+        if g["skill_id"] not in reussies
+    ]
     return {
         "attempt_id": attempt.id,
         "quiz_id": attempt.quiz_id,
         "subject": subject.name if subject is not None else "",
         "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
-        "strengths": [r["skill_name"] for r in per_skill if r["score"] >= GAP_THRESHOLD],
+        "strengths": sorted(forces),
         # Le nom seul — `severity` reste au contrat de Papa.
         "gaps": [{"skill_id": g["skill_id"], "skill_name": g["skill_name"]} for g in gaps],
     }

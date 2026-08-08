@@ -1,5 +1,6 @@
 // Appels au diagnostic (Étape 14) — Massimo passe le diagnostic généré par l'IA.
 import { API_URL, authClient } from "./authClient";
+import { notifyNewsChanged } from "./newsEvents";
 
 /** Contrat de liste (ADR-0044 Décision 6).
  *
@@ -95,11 +96,16 @@ export async function submitDiagnostic(
   quizId: number,
   answers: { question_id: number; choice_index: number }[],
 ): Promise<DiagnosticResult> {
-  return asJson(
+  const resultat = await asJson<DiagnosticResult>(
     await fetch(`${API_URL}/api/diagnostics/quizzes/${quizId}/submit`, {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({ answers }),
     }),
   );
+  // Le témoin de navigation compte les diagnostics NON PASSÉS : passer celui-ci le fait retomber
+  // (addendum ADR-0030). L'émission vit ici, à côté de l'écriture — pas dans la page, pour
+  // qu'aucun appelant présent ou futur ne puisse l'oublier.
+  notifyNewsChanged();
+  return resultat;
 }

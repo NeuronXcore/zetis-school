@@ -8,122 +8,98 @@
 ## État à la reprise
 
 **Chantier : « la page Diagnostic de Massimo propose au lieu de lister » (ADR-0044).
-🟡 EN COURS — Session A sur trois est faite. NE PAS MERGER, NE PAS OUVRIR DE PR.**
+✅ COMPLET — les TROIS sessions sont faites. Il reste le commit de la Session C, le push, et la PR.**
 
 | | |
 |---|---|
-| **Branche** | `feat/diagnostic-massimo-propose`, base `2c96a5c` (le commit de cadrage) |
-| **État git** | 🔴 **la branche porte ZÉRO commit — tout le travail de la Session A est NON COMMITÉ.** `main` = `origin/main`, rien à pousser de ce côté. Voir `git log --oneline main..HEAD` et `git status` |
-| **Décision** | ADR-0044 **Accepté** (2026-08-08), neuf décisions **gelées** |
-| **Migration** | **AUCUNE**, et c'est un invariant du chantier : si une migration apparaît, c'est un blocker à remonter |
-| **Suites** | Backend **1038** (1034 avant, +4) · Papa **667** · Massimo **525** · `tsc -b` code 0 · `vite build` Massimo vert |
-| **Sabotages** | **2 joués, 2 rouges** |
+| **Branche** | `feat/diagnostic-massimo-propose`, base `8b8f988` (le prompt corrigé, sur `main`) |
+| **État git** | 🔴 **la Session C est NON COMMITÉE**, et **le distant de la branche est en retard** : le merge de rattrapage de `main` et les deux commits qu'il apporte n'ont jamais été poussés. Seules les Sessions A et B sont sur le distant. Voir `git log --oneline main..HEAD` et `git status` |
+| **Décisions** | ADR-0044 **Accepté** (9 décisions) + `adr-0030-addendum-temoin-diagnostic.md` **Accepté**, qui **révoque la Décision 7** |
+| **Migration** | **AUCUNE**, sur les trois sessions. Invariant du chantier |
+| **Suites** | Backend **1047** · Massimo **539** · Papa **667** · `tsc -b` 0 sur les deux projets · `vite build` vert |
+| **Sabotages** | **6 joués, 6 rouges** |
+| **Relecture visuelle** | ✅ **FAITE, et par l'humain** — elle a trouvé DEUX défauts qu'aucun test ne voyait |
 
 🔴 **DEUX AUTRES branches sont CONSERVÉES et ne sont pas celle-ci** —
 `feat/diagnostic-mesure-qui-engage` et `feat/notion-orpheline-equipable`. Les trois noms se
 ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais.
 
-### FAIT — Session A, le contrat de liste
+### FAIT — les trois sessions
 
-`GET /api/diagnostics/quizzes` gagne quatre champs et en perd un, **sans migration** :
-`subject_slug`, `measured_at`, `taken_at` (**en remplacement** de `taken`), `last_attempt_id`.
-
-- `measured_at` = `max(SkillMastery.last_seen_at)` sur les notions **du diagnostic**, via une
-  sous-requête agrégée jointe en **jointure GAUCHE** ;
-- `_is_taken` devient `_last_attempt`, qui rend la **passation** et non deux scalaires : `taken_at`
-  et `last_attempt_id` sortent de la **même ligne** et ne peuvent pas se contredire ;
-- côté front, un seul caractère change à l'écran (`d.taken` → `d.taken_at`) ;
-- **le tri n'est PAS fait ici** — il est en Session C, dans le hook.
+1. **Le contrat de liste** — `subject_slug`, `measured_at`, `taken_at` (**en remplacement** de
+   `taken`), `last_attempt_id`. Vérifié en lecture seule contre le **vrai PostgreSQL**.
+2. **Le résultat en forme enfant** — un seul schéma, servi par `POST /submit` **et** la nouvelle
+   route `require_child` `GET /mes-resultats/{attempt_id}`. Sans score, sans `per_skill`, sans
+   sévérité. Massimo peut enfin **relire** son résultat.
+3. **La page en trois zones** + le témoin de navigation + les deux correctifs nés de la relecture.
 
 ### EN COURS — rien
 
-Aucun fichier à moitié écrit. La frontière est propre : le contrat est complet, testé, et vérifié
-contre le vrai PostgreSQL.
+Aucun fichier à moitié écrit. La frontière est propre.
 
-### À FAIRE — les deux sessions restantes
+### À FAIRE
 
-- **Session B — le résultat en forme enfant.** La plus risquée : elle **casse un contrat servi**
-  (`DiagnosticResultOut` perd `score_percent` et la `severity` de ses lacunes) et crée une route
-  `require_child` de relecture d'une passation.
-- **Session C — la page en trois zones**, plus les deux motifs de `navigation.ts` et l'icône `🧭`.
-
-Le découpage, les fichiers à lire et les verrous attendus sont dans
-`prompts/claude-code/prompts-claude-code-adr-0044.md`. **Ne pas le re-dériver.**
+**Rien dans ce chantier.** Le prochain est au `BACKLOG.md` — les **quatre optimisations de la page
+Diagnostic de PAPA**, explicitement décidées « après celui-ci » (jauges non cliquables, cran
+« proposé » en cul-de-sac, « en attente · non passé » qui ne nomme personne).
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-- **Les neuf décisions de l'ADR-0044 sont gelées**, y compris la **Décision 5**, qui sort du
-  périmètre annoncé et a été soumise comme telle.
-- **Le tri porte sur l'ÂGE d'une mesure, jamais sur son RÉSULTAT.** C'est ce qui le rend montrable
-  à un enfant : un ordre de liste **est** une formulation, et trier par « la matière où il est le
-  plus faible » serait un diagnostic négatif.
-- **Les dates du module sont des chaînes ISO (`str | None`), pas des `datetime`** — convention
-  déjà en place (`DiagnosticResultSummary.completed_at`) et dans `packages/types`. L'ADR disait
-  `datetime` ; la convention l'emporte, même format sur le fil.
-- **`DiagnosticListItem` reste LOCAL à Massimo**, non promu dans `packages/types` : le contrat n'a
-  qu'un seul consommateur, vérifié (Papa n'appelle de ce module que `/validate` et `/reject`).
-  C'est un choix, pas un oubli.
-- **Le prompt de chantier se commite sur `main`, avec l'ADR et la spec** — la règle inverse écrite
-  dans le prompt de l'ADR-0043 n'a jamais été suivie, c'est vérifié et corrigé.
+- **Le tri porte sur l'ÂGE d'une mesure, jamais sur son RÉSULTAT.** Un ordre de liste **est** une
+  formulation : trier par « là où il est le plus faible » serait un diagnostic négatif montré à
+  l'enfant.
+- **La carte change de REGISTRE** quand le choix vient de Massimo (`TON CHOIX` + fait brut). Servir
+  la phrase de recommandation sur un diagnostic qu'il a choisi ferait revendiquer à ZETIS un
+  conseil qu'il n'a pas donné.
+- 🔴 **Le témoin `diagnostic` est une EXCEPTION NOMMÉE à « NOUVEAU jamais DÛ »** — il meurt du
+  TRAVAIL. Décision du commanditaire, prise après objection exposée et **réaffirmée**. Cinq bornes
+  opposables dans l'addendum. **Ne pas s'en servir comme précédent** : `test_news_doctrine.py`
+  l'interdit à tous les autres.
+- **Le filtre « réussie ⇒ pas à renforcer » est un filtre d'AFFICHAGE**, pas une résolution. La
+  lacune reste ouverte, Papa la voit, une mission la refermera.
+- **La route Papa n'est pas élargie** : son schéma dit « Vue Papa ». Deux publics, deux schémas.
+- **Aucun plafond, aucune troncature** : structurer n'est pas masquer.
+- **`DiagnosticListItem` reste LOCAL** à Massimo — un seul consommateur, vérifié.
 
 ### PIÈGES rencontrés → `TROUBLESHOOTING.md`
 
-Section `feat/diagnostic-massimo-propose`. Les trois qui coûteraient le plus à la prochaine
-session : **`graphify affected` rend « No affected nodes found » sur une fonction réellement
-appelée** ; **le format ISO diffère entre SQLite et PostgreSQL** ; et **un décor à un diagnostic
-par matière aurait laissé passer le sabotage principal**.
+Deux sections `feat/diagnostic-massimo-propose`. Les trois qui coûteraient le plus :
+**un compteur de non-faits traverse les cinq verrous de doctrine** (ils testent le temps, il pèche
+par le travail) ; **deux gardes qui se couvrent rendent chaque sabotage isolé VERT** — il faut
+saboter la conjonction ; et **`toLocaleDateString("fr-FR")` écrit « 1 juillet »**, pas « 1er ».
 
-### ⚠️ DEUX DÉCOUVERTES qui changent la Session C
+### ⚠️ DETTES OUVERTES
 
-1. 🔴 **`measured_at` est peuplé sur les 15 diagnostics de la base de dev — zéro `null`.** La
-   branche « jamais mesuré » — le cœur du verrou **et** la première formulation du hero — n'est
-   exercée par **aucune donnée réelle**, seulement par les tests SQLite. La cause est saine
-   (`SkillMastery` est écrit par les quiz, missions et révisions, pas seulement par le
-   diagnostic), mais la conséquence est nette : **dans une base vivante, `null` est l'exception**,
-   et le hero affichera presque toujours sa seconde formulation.
-2. 🔴 **Les égalités de date sont la NORME, pas le cas limite.** Les diagnostics 29 et 30 partagent
-   `2026-07-05T23:55:37.641935` à la microseconde ; idem 2 et 3. Deux diagnostics d'une même
-   matière piochent dans le même vivier de notions. **Le départage par `quiz_id` décroissant n'est
-   donc pas un garde-fou théorique : c'est lui qui décidera de l'ordre la plupart du temps.** À
-   traiter comme un comportement de premier plan en Session C.
-
-### ⚠️ DETTES OUVERTES — dont celles héritées de l'ADR-0043
-
-> Les cinq dernières viennent du chantier ADR-0043, dont le récit a été élagué ici après ses
-> quatre contrôles (ADR ✅, `TROUBLESHOOTING.md` ✅, `CHANGELOG.md` 0.59.0 ✅, dettes remontées —
-> c'est le 4ᵉ, celui qu'on oublie). Le récit se retrouve par `git log -p MEMORY.md`.
-
-- 🔴 **Le changement front de la Session A n'a été VU par personne** — il n'existe pas de
-  `DiagnosticPage.test.tsx`, donc aucun test ne couvre le libellé du bouton. Le rendu est
-  identique *par construction*, ce qui est exactement le raisonnement qui a échoué quatre fois
-  dans ce dépôt. À lever au plus tard à la relecture visuelle de la Session C.
-- ⚠️ **Le verrou central n'est prouvé qu'en SQLite** pour sa branche `null` (cf. découverte 1).
-- ⚠️ **`graphify affected` est aveugle sur `list_diagnostics`** — le périmètre réel est venu des
-  `grep`. Ne pas s'y fier seul avant de toucher une fonction partagée.
-- **Artefacts de dev de l'ADR-0042, toujours en base** : `Skill 436`, `Quiz 54`, `Gap 2`,
-  `Mission 56`. Ils forment le **seul jeu « notion de niveau antérieur »** de la base. Ordre de
-  suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion` → `Quiz`
-  → `Skill`.
-- **Artefact de dev de l'ADR-0043** : `Quiz 31` porte `validated_by='parent'` là où les 14 autres
-  diagnostics ont `NULL` — trace de la vérification à l'écran, pas un bug.
+- 🔴 **Le 375 px n'a PAS été vérifié.** C'est l'appareil de Massimo. `resize_window(390×844)` via
+  `claude-in-chrome` a laissé `window.innerWidth` à **2572** — mesuré, pas supposé. Reste à faire :
+  réduire la fenêtre Chrome à la main, ou ouvrir la page sur l'iPhone.
+- ⚠️ **L'écran de résultat affiche jusqu'à 8 notions à renforcer d'affilée** (vu sur la passation
+  Mathématiques). C'est le motif du défaut d'origine — une liste sans hiérarchie — un cran plus
+  bas. Signalé, non traité : ce serait de la dérive.
+- ⚠️ **La branche `null` de `measured_at` n'est exercée par aucune donnée réelle** : les 15
+  diagnostics de dev ont tous une mesure. Prouvée en tests SQLite seulement.
+- ⚠️ **Rien ne referme une lacune quand la notion est réussie** — seul `missions/service.py` écrit
+  `resolved`. Contourné à l'affichage ; le fond reste ouvert et vaudrait un ADR.
+- ⚠️ **`graphify affected` est aveugle** sur `list_diagnostics` — une réponse vide n'est pas une
+  preuve d'absence d'appelant.
+- **Artefacts de dev ADR-0042 toujours en base** : `Skill 436`, `Quiz 54`, `Gap 2`, `Mission 56`.
+  Ordre de suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion`
+  → `Quiz` → `Skill`.
+- ⚠️ **Passations de dev créées cette session** : deux sur le diagnostic Français (une tout faux,
+  une tout juste) pour reproduire la contradiction, plus l'XP correspondant.
 - 🔴 **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
 - **Papa valide un diagnostic sans pouvoir le LIRE** depuis la file (`reviewLink` rend `null`).
-- **La contre-épreuve du quiz de fin de cours monte son décor à la main** : elle ne prouve pas que
-  `generate_quiz` pose bien `validation_status='validated'`. Tenu par le seul sabotage.
 - **Les 14 défauts du module `diagnostics`** restent au `BACKLOG.md`, aucun traité.
 - 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
 
 ### ▶▶ PROCHAIN PAS
 
-**Committer la Session A** (le travail est sur la branche, non commité), **pousser la branche**.
-⚠️ **Ni PR ni merge** : le chantier a deux sessions de retard sur sa fin, et merger maintenant
-mettrait un contrat à moitié migré sur `main`.
+**Committer la Session C**, pousser, puis **ouvrir la PR** — le chantier est fini, la relecture
+visuelle humaine a eu lieu, et elle a servi. Après le merge : **étape 4bis** (`WORKFLOW.md §5`) —
+remettre ce fichier au réel avec le squash, le n° de PR, et la branche.
 
-Puis, dans une **session neuve** : `/slice`, et le bloc **SESSION B — le résultat en forme
-enfant** du prompt collé juste après.
-
-⚠️ Le `CHANGELOG.md` n'a **pas** d'entrée pour ce chantier, et c'est volontaire : il s'écrira quand
-les trois sessions seront livrées. Ne pas oublier — le contrôle ③ a déjà été raté deux fois.
+⚠️ Le `CHANGELOG.md` porte l'entrée **0.60.0**, et `TROUBLESHOOTING.md` ses deux sections : les
+contrôles ② et ③ passent **avant** le merge, pour une fois.
 
 ---
 

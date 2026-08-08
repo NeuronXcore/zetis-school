@@ -111,6 +111,39 @@ def test_massimo_peut_relire_une_passation_ANCIENNE(client_db, executer_travail)
     assert relue["completed_at"] is not None
 
 
+def test_une_notion_REUSSIE_n_est_jamais_aussi_une_notion_A_RENFORCER(
+    client_db, executer_travail
+) -> None:
+    """🔴 Le défaut vu À L'ÉCRAN le 2026-08-08 : « Tes forces : Temps du récit » et, trois lignes
+    plus bas, « Notion à renforcer : Temps du récit ». Sur le même écran, pour Massimo.
+
+    Le décor le REPRODUIT par le vrai chemin, sans rien monter à la main : une passation tout
+    faux ouvre la lacune, une seconde tout juste rend la notion excellente. Rien ne referme la
+    lacune entre les deux — le seul écrivain de `resolved` est `missions/service.py` — donc les
+    deux listes se contredisent tant que l'affichage ne les départage pas.
+
+    ⚠️ Ce test ne dit RIEN de la lacune en base : elle reste ouverte, et Papa doit continuer de
+    la voir. C'est l'affichage enfant qui est filtré, pas le cycle de vie.
+    """
+    client, TestSession = client_db
+    body = _generate(client, TestSession, executer_travail)
+
+    rate = _passer(client, body["quiz_id"], bonnes=False)
+    assert rate["gaps"], "le décor exige qu'une lacune soit réellement ouverte"
+    notion = rate["gaps"][0]["skill_name"]
+
+    reussi = _passer(client, body["quiz_id"], bonnes=True)
+
+    assert notion in reussi["strengths"], "la notion vient d'être réussie"
+    assert notion not in [g["skill_name"] for g in reussi["gaps"]], (
+        "une notion réussie ne peut pas être « à renforcer » sur le même écran"
+    )
+
+    # La lacune n'a PAS été refermée : c'est un filtre d'affichage, pas une résolution.
+    with TestSession() as db:
+        assert db.query(m.Gap).filter(m.Gap.status == "open").count() >= 1
+
+
 def test_une_passation_qui_n_est_pas_la_sienne_est_INTROUVABLE(client_db, executer_travail) -> None:
     """`404`, jamais `403` : un `403` apprendrait l'existence de ce qu'on ne peut pas ouvrir."""
     client, TestSession = client_db
