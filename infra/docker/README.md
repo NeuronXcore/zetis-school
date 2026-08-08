@@ -19,7 +19,7 @@ travers la VM Docker sur macOS, et le backend a besoin de joindre Ollama sur l'h
 Toute l'app en conteneurs, **une commande** (`docker-compose.prod.yml`) :
 
 ```bash
-pnpm prod:up      # build + up (postgres, redis, minio, backend, worker-media, 2 frontends nginx)
+pnpm prod:up      # build + up (postgres, redis, minio, backend, worker, worker-media, 2 fronts nginx)
 pnpm prod:logs    # suivre les logs
 pnpm prod:down    # tout arrêter
 ```
@@ -27,6 +27,10 @@ pnpm prod:down    # tout arrêter
 - **backend** (`backend.Dockerfile`) : uvicorn + entrypoint (migrations Alembic + seed). Joint Ollama
   via `host.docker.internal:11434`.
 - **frontends** (`frontend.Dockerfile`, ARG `APP`) : build Vite → servis en statique par **nginx**.
+- **worker** (même image que le backend, `entrypoint` écrasé) : consomme les files RQ
+  `production-priority` puis `production` — tout ce qui passe par `travaux.enfiler` (cours, fiche,
+  cartes SRS, mindmap, quiz, capsule, curriculum, diagnostic). `restart: unless-stopped`, aucun port.
+  🔴 **Jamais de `--scale`** : concurrence 1, un seul Ollama, un seul GPU. Détail : `docs/devops/worker-production.md`.
 - **worker-media** (`worker-media.Dockerfile`) : rendu MP4 Remotion (Chromium pré-baké), file RQ `media`.
 - Vidéos → **MinIO** ; audio partagé backend↔worker via le volume `capsule_audio`.
 

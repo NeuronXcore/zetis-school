@@ -43,10 +43,40 @@ Service `worker` de `docker-compose.prod.yml`. Ce qui le définit :
 |---|---|---|
 | image | `infra/docker/backend.Dockerfile` | même runtime et même code que le backend |
 | `entrypoint` | **écrasé** → `python -m app.production_worker` | l'entrypoint de l'image fait `alembic upgrade head` + seed + uvicorn : sans écrasement, **deuxième migration concurrente** et deuxième uvicorn |
+| environnement | **l'ancre YAML `*generation-env` du backend**, pas une copie | voir ci-dessous |
 | `restart` | `unless-stopped` | la propriété qui referme la panne |
 | ports | **aucun** | il ne sert rien, il consomme |
 | `extra_hosts` | `host.docker.internal:host-gateway` | il appelle **Ollama sur l'hôte** |
 | `depends_on` | `backend: { condition: service_healthy }` | il ne migre plus lui-même : il doit attendre que le backend l'ait fait |
+
+### 🔴 `entrypoint:` et non `command:` — le piège du voisin
+
+L'image du backend porte un `ENTRYPOINT` en **forme exec** (`backend-entrypoint.sh`) qui fait
+`alembic upgrade head`, le seed, puis `exec uvicorn`, et qui **n'inspecte jamais ses arguments**. Un
+`command:` serait donc **silencieusement ignoré** : le service lancerait un second uvicorn avec une
+seconde migration concurrente.
+
+⚠️ **L'idiome du voisin mène exactement au mauvais choix** : `worker-media` utilise bien
+`CMD ["python", "-m", "worker_media.worker"]` — mais son image **n'a aucun `ENTRYPOINT`**. Ce qui
+marche pour lui ne marche pas ici.
+
+### L'environnement est celui du backend, à la variable près
+
+Le service réutilise l'**ancre YAML** `&generation-env` définie sur `backend`. Ce n'est pas de
+l'élégance : le worker exécute **exactement les mêmes générateurs**, et deux blocs recopiés
+divergeraient au premier ajout — une divergence qui ne se verrait qu'en production, sur un travail
+qui échoue.
+
+Deux variables qu'un nettoyage futur croirait inutiles sur un worker, et qui ne le sont pas :
+
+- **`ANTHROPIC_API_KEY` / `CURRICULUM_LLM_PROVIDER`** — les travaux `curriculum_chapters`,
+  `curriculum_lessons` et `curriculum_skills_backfill` sont **enfilés** (`curriculum/router.py:84`,
+  `:237`, `:255`, `:398`), donc exécutés **ici**, et la dérogation `adr-0009` les route vers
+  Anthropic. Sans la clé, la génération du référentiel échoue **dans un worker** — plus discret
+  qu'un 503 rendu à Papa ;
+- **`AUDIO_STORAGE_DIR` + le volume `capsule_audio`** — `capsule_generate`, `capsule_regenerate` et
+  `capsule_voice` sont enfilés eux aussi : la voix Piper s'écrit dans le volume partagé, que
+  `worker-media` relit pour le rendu MP4.
 
 ⚠️ **`ZETIS_DATABASE_URL`, avec son préfixe.** `Settings` déclare `env_prefix="ZETIS_"` et
 `database_url` n'a aucun `validation_alias` : un `DATABASE_URL` nu est **ignoré en silence** et le

@@ -52,7 +52,13 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
       minio: { condition: service_started }
-    environment:
+    # ⚠️ ANCRE YAML — le service `worker` réutilise ce bloc TEL QUEL (`*generation-env`).
+    # Ce n'est pas de l'élégance : le worker exécute EXACTEMENT les mêmes générateurs que le
+    # backend (cours, fiche, srs, mindmap, quiz, capsule, curriculum, diagnostic — tout ce qui
+    # passe par `travaux.enfiler`). Deux blocs recopiés divergeraient au premier ajout, et la
+    # divergence ne se verrait qu'en production, sur un travail qui échoue. L'ancre rend
+    # l'invariant structurel au lieu de le confier à un commentaire.
+    environment: &generation-env
       ZETIS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zetis}:${POSTGRES_PASSWORD:-zetis_dev_password}@postgres:5432/${POSTGRES_DB:-zetis}
       # Ollama sur l'hôte (le modèle doit y être pull).
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -79,6 +85,65 @@ services:
     # Permet au conteneur de joindre Ollama sur l'hôte (Linux : host-gateway).
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Ce healthcheck n'est pas décoratif : c'est lui qui rend `condition: service_healthy`
+    # disponible pour le `worker` ci-dessous, donc lui qui garantit que les migrations sont
+    # passées avant qu'un second conteneur touche la base (ADR-0046 Décision 2).
+    # `curl` est déjà dans l'image POUR CET USAGE (cf. backend.Dockerfile) ; la route existe
+    # depuis l'étape 9 (`app/api/health.py`).
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      # Généreux À DESSEIN : le premier démarrage applique les migrations Alembic ET le seed
+      # avant qu'uvicorn n'écoute. Un `start_period` court ferait déclarer le backend malsain
+      # pendant une migration longue, et le worker ne démarrerait jamais.
+      start_period: 90s
+      retries: 5
+
+  # ── Worker de production ──────────────────────────────────────────────────────────────────
+  # Le 8e service, et le seul qui manquait à ce fichier (ADR-0046). Sans lui, le backend accepte
+  # les lots en 202 et les enfile sur Redis (ADR-0031 §3) — et RIEN ne les consomme : la file
+  # grossit en silence, l'écran dit « en file d'attente » (littéralement vrai), et Papa reclique.
+  # Mesuré DEUX fois : 2026-08-05 (quatre lots, six heures) puis 2026-08-08 (trois diagnostics,
+  # deux jours). `restart: unless-stopped` est la propriété qui referme ça.
+  #
+  # 🔴 JAMAIS de `--scale worker=N`. Concurrence 1, et ce n'est pas provisoire : un seul Ollama,
+  # un seul GPU. Deux jobs en parallèle ne produiraient pas plus vite — ils se disputeraient la
+  # même ressource et ralentiraient Massimo (en-tête de `app/production_worker.py`).
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+    # 🔴 `entrypoint`, PAS `command` — et c'est le piège principal de ce service.
+    # L'image du backend porte un ENTRYPOINT en forme exec (`backend-entrypoint.sh`) qui fait
+    # `alembic upgrade head`, le seed, puis `exec uvicorn`, et qui n'inspecte JAMAIS ses
+    # arguments. Un `command:` serait donc silencieusement ignoré : ce service lancerait un
+    # second uvicorn AVEC une seconde migration concurrente de celle du backend.
+    # ⚠️ L'idiome du voisin ne transfère pas : `worker-media` utilise bien `CMD`, mais son image
+    # n'a aucun ENTRYPOINT.
+    entrypoint: ["python", "-m", "app.production_worker"]
+    depends_on:
+      # `service_healthy` et non `service_started` : l'entrypoint étant écrasé, ce conteneur ne
+      # migre plus lui-même — il doit attendre que le backend l'ait fait.
+      backend: { condition: service_healthy }
+      redis: { condition: service_started }
+      minio: { condition: service_started }
+    # Identique au backend, par nécessité — voir l'ancre plus haut. En particulier :
+    #   · ANTHROPIC_API_KEY / CURRICULUM_LLM_PROVIDER — les travaux `curriculum_chapters`,
+    #     `curriculum_lessons` et `curriculum_skills_backfill` sont ENFILÉS (curriculum/router.py),
+    #     donc exécutés ICI, et la dérogation ADR-0009 les route vers Anthropic. Sans la clé, la
+    #     génération du référentiel échoue dans un worker — plus discret qu'un 503 rendu à Papa.
+    #   · AUDIO_STORAGE_DIR + le volume — `capsule_generate` / `capsule_regenerate` /
+    #     `capsule_voice` sont enfilés eux aussi : la voix Piper s'écrit dans le volume partagé,
+    #     que `worker-media` relit pour le rendu MP4.
+    environment: *generation-env
+    volumes:
+      - capsule_audio:/shared/audio
+    # Aucun port publié : il ne sert rien, il consomme.
+    # Il appelle Ollama sur l'HÔTE, exactement comme le backend.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
 
   worker-media:
     build:
