@@ -76,6 +76,22 @@ Réf. maquette validée : `maquette-papa-missions-pilotage.html` (2026-07-05).
 > bruts de preuves **n'existent pas** dans `MissionStudentOut` — la frontière
 > est serveur, jamais un filtrage front.
 
+## `[0047]` Lien profond — `?focus=<mission_id>`
+
+La page Lacunes pointe la mission qui couvre une notion (« Voir la mission → »). À l'arrivée, la
+mission visée est **dépliée** et amenée au centre de l'écran.
+
+🔴 **L'ancre est un `id` DOM (`mission-<id>`) posé sur les DEUX listes**, « À valider » et le pool —
+jamais une recherche dans un seul tableau. Motif : `active_missions`, qui alimente le lien côté
+serveur, n'a **aucun filtre `validation_status`**, alors que `pilot_list` **exige `validated`**. Une
+mission `pending` couvre donc une notion sans figurer au pool : chercher dans une seule liste
+rendrait le lien **mort une fois sur deux**, ce qui déplacerait d'une page le cul-de-sac que
+l'`adr-0047` corrige.
+
+⚠️ L'effet ne dépend que de la **valeur** du paramètre, jamais de l'objet `params` — celui-ci change
+d'identité à chaque écriture d'URL, et la page se re-scrollerait sous les doigts de Papa. Il sort
+sans rien faire si l'élément n'est pas encore monté : les listes arrivent après le premier rendu.
+
 ## États
 
 - **Aucune pending** : la zone « À valider » affiche un état vide sobre

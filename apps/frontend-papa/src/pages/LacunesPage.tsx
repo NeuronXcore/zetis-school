@@ -3,6 +3,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ConfirmDialog, EmptyState, SubjectPictogram } from "@zetis/ui";
 import type { OpenGap } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
+import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
+import { equipNotion, type EtatTravail } from "../lib/councilClass";
+import { gesteDe } from "../lib/gesteLacune";
 import { useLacunes } from "../hooks/useLacunes";
 
 // Lacunes Papa — la surface de DÉCISION vers laquelle le dashboard renvoie.
@@ -44,6 +47,12 @@ function formatDate(iso: string | null | undefined): string | null {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(iso));
 }
 
+/** Les trois gestes irréversibles de la page passent par la même confirmation. */
+type Confirmation =
+  | { kind: "remediation" }
+  | { kind: "revision" }
+  | { kind: "equip"; skillId: number; skillName: string };
+
 export function LacunesPage() {
   const [params, setParams] = useSearchParams();
   // Le filtre vit dans l'URL, pas dans un état local : le lien qui amène ici le porte, et
@@ -55,7 +64,39 @@ export function LacunesPage() {
     source: params.get("source"),
     contenu: params.get("contenu"),
   });
-  const [confirming, setConfirming] = useState<null | "remediation" | "revision">(null);
+  // ⚠️ **Une SEULE `ConfirmDialog`, discriminée** — pas une seconde à côté. Deux dialogues dans le
+  // même composant piégeraient les tests qui cherchent le bouton « Créer » par son rôle, et
+  // surtout : deux gestes irréversibles doivent passer par la même porte.
+  const [confirming, setConfirming] = useState<Confirmation | null>(null);
+
+  // L'équipement d'une notion orpheline (ADR-0047 §3). Il passe par la FILE de production : son
+  // avancement se sonde côté serveur, il ne s'estime pas localement — une barre qui monterait sur
+  // un travail encore en file mentirait (ADR-0041 §9).
+  const [equipement, setEquipement] = useState<{ skillName: string } | null>(null);
+  const [etat, setEtat] = useState<EtatTravail | null>(null);
+  const [equipResult, setEquipResult] = useState<string | null>(null);
+
+  async function lancerEquipement(skillId: number, skillName: string) {
+    setEquipement({ skillName });
+    setEtat(null);
+    setEquipResult(null);
+    try {
+      const kit = await equipNotion(skillId, setEtat);
+      const rates = kit.errors?.length ?? 0;
+      setEquipResult(
+        rates === 0
+          ? `« ${skillName} » est équipée : cours, fiche, cartes, quiz et carte mentale.`
+          : `« ${skillName} » est équipée, mais ${rates} pièce${rates > 1 ? "s ont" : " a"} échoué.`,
+      );
+      // La lacune peut avoir changé d'état : elle a une leçon maintenant.
+      l.reload();
+    } catch (e) {
+      setEquipResult(e instanceof Error ? e.message : "L'équipement a échoué.");
+    } finally {
+      setEquipement(null);
+      setEtat(null);
+    }
+  }
 
   // Les trois sections dérivent TOUTES du jeu filtré par le hook — aucune ne peut l'oublier.
   const discovered = l.pending.filter((gap) => gap.status === "open");
@@ -160,6 +201,21 @@ export function LacunesPage() {
         </p>
       )}
 
+      {/* ⚠️ Une BARRE, jamais un spinner nu — convention Papa pour toute action backend opaque.
+          Et son avancement vient du SERVEUR : `active` reste faux tant que le travail attend son
+          tour dans la file, parce qu'une barre qui monte sur un travail en file mentirait. */}
+      {equipement && (
+        <div className="mb-4">
+          <EquipementEnCours skillName={equipement.skillName} etat={etat} />
+        </div>
+      )}
+
+      {equipResult && (
+        <p className="mb-4 rounded-xl border border-papa-accent/30 bg-papa-accent/5 px-4 py-3 text-sm text-papa-accent">
+          {equipResult}
+        </p>
+      )}
+
       {l.loading ? (
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
@@ -212,11 +268,13 @@ export function LacunesPage() {
               discovered.length > 0
                 ? {
                     label: `Créer ${allDiscovered.length} mission${allDiscovered.length > 1 ? "s" : ""} de consolidation${scopeNote}`,
-                    onClick: () => setConfirming("remediation"),
+                    onClick: () => setConfirming({ kind: "remediation" }),
                     busy: l.busy === "remediation",
                   }
                 : undefined
             }
+            onEquiper={(skillId, skillName) => setConfirming({ kind: "equip", skillId, skillName })}
+            equipEnCours={equipement !== null}
           />
 
           <Section
@@ -227,16 +285,18 @@ export function LacunesPage() {
               returning.length > 0
                 ? {
                     label: `Créer les missions de révision dues${scopeNote}`,
-                    onClick: () => setConfirming("revision"),
+                    onClick: () => setConfirming({ kind: "revision" }),
                     busy: l.busy === "revision",
                   }
                 : undefined
             }
+            onEquiper={(skillId, skillName) => setConfirming({ kind: "equip", skillId, skillName })}
+            equipEnCours={equipement !== null}
           />
 
           <Section
             title="Déjà prises en charge"
-            note="Une mission active couvre ces notions — rien à décider."
+            note="Une mission active couvre ces notions — rien à décider, mais on peut aller la voir."
             gaps={l.gaps.filter((gap) => gap.has_active_mission)}
           />
         </>
@@ -245,20 +305,34 @@ export function LacunesPage() {
       <ConfirmDialog
         open={confirming !== null}
         title={
-          confirming === "revision"
-            ? "Créer les missions de révision dues ?"
-            : "Créer les missions de consolidation ?"
+          confirming?.kind === "equip"
+            ? `Équiper « ${confirming.skillName} » ?`
+            : confirming?.kind === "revision"
+              ? "Créer les missions de révision dues ?"
+              : "Créer les missions de consolidation ?"
         }
-        confirmLabel="Créer"
-        busy={l.busy !== null}
+        confirmLabel={confirming?.kind === "equip" ? "Équiper" : "Créer"}
+        busy={l.busy !== null || equipement !== null}
         onCancel={() => setConfirming(null)}
         onConfirm={() => {
-          const kind = confirming;
+          const demande = confirming;
           setConfirming(null);
-          if (kind === "revision") void l.createRevision();
-          else if (kind === "remediation") void l.createRemediation();
+          if (demande?.kind === "revision") void l.createRevision();
+          else if (demande?.kind === "remediation") void l.createRemediation();
+          else if (demande?.kind === "equip")
+            void lancerEquipement(demande.skillId, demande.skillName);
         }}
       >
+        {/* 🔴 L'équipement ne compose pas à partir de l'existant : il GÉNÈRE et AUTO-VALIDE. Le
+            dire est ce qui rend la confirmation utile — même texte que le dépliage de Progression,
+            parce que c'est le même geste et qu'il ne doit pas se raconter de deux façons. */}
+        {confirming?.kind === "equip" ? (
+          <p>
+            ZETIS génère et <b>auto-valide</b> le kit de cette notion : cours, fiche, cartes de
+            révision, quiz et carte mentale. Cela peut prendre plusieurs minutes.
+          </p>
+        ) : (
+          <>
         {l.activeSubject && (
           <p className="mb-2 rounded-lg border border-papa-warn/30 bg-papa-warn/5 px-3 py-2 text-papa-warn">
             L'écran est filtré sur <b>{l.activeSubject.name}</b>, mais cette création porte sur{" "}
@@ -273,11 +347,13 @@ export function LacunesPage() {
           Elles naissent <b>en attente de ta validation</b> : elles n'atteindront Massimo qu'une
           fois relues sur la page Missions.
         </p>
-        {confirming === "revision" && (
+        {confirming?.kind === "revision" && (
           <p className="mt-2 text-papa-muted">
             Seules les notions dont la carte de révision est <b>due</b> sont reprises, et leur
             nombre est plafonné : une séance reste courte.
           </p>
+        )}
+          </>
         )}
       </ConfirmDialog>
     </div>
@@ -290,16 +366,51 @@ interface SectionAction {
   busy: boolean;
 }
 
+/** L'équipement en cours — ce que ZETIS fait, et l'ordre de grandeur de l'attente.
+ *
+ * ⚠️ **`active` suit le SERVEUR, pas une estimation locale.** L'équipement passe par la file de
+ * production : tant que `status` n'est pas `running`, le travail attend son tour et la barre reste
+ * indéterminée. Le 2026-08-06, une page a déroulé dix secondes de pipeline sur un travail de 11 ms
+ * parce qu'elle DEVINAIT au lieu de lire — c'est le motif de l'ADR-0041 §9. */
+function EquipementEnCours({
+  skillName,
+  etat,
+}: {
+  skillName: string;
+  etat: EtatTravail | null;
+}) {
+  const pct = useEstimatedProgress(
+    etat?.status === "running" && (etat?.estimatedMs ?? 0) > 0,
+    etat?.estimatedMs ?? 0,
+    etat?.startedAtMs ?? null,
+  );
+  return (
+    <ProgressBar
+      pct={pct}
+      label={
+        etat?.status === "running"
+          ? `Équipement de « ${skillName} » — cours, fiche, cartes, quiz, carte mentale`
+          : `« ${skillName} » attend son tour dans la file de production`
+      }
+    />
+  );
+}
+
 function Section({
   title,
   note,
   gaps,
   action,
+  onEquiper,
+  equipEnCours,
 }: {
   title: string;
   note: string;
   gaps: OpenGap[];
   action?: SectionAction;
+  /** Le geste `aucune_lecon` est une ACTION : la section ne la porte pas, elle la remonte. */
+  onEquiper?: (skillId: number, skillName: string) => void;
+  equipEnCours?: boolean;
 }) {
   // Une section vide n'est pas affichée : elle n'apprendrait rien et pousserait le reste hors
   // de l'écran.
@@ -328,15 +439,21 @@ function Section({
         {gaps.map((gap) => {
           const severity = SEVERITY[gap.severity] ?? SEVERITY.medium;
           const detected = formatDate(gap.first_detected_at);
+          const geste = gesteDe(gap);
           return (
             <li
               key={`${gap.skill_id}-${gap.status}`}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-papa-border bg-papa-surface px-4 py-3"
+              // 🔴 **Sous 640 px, le corps prend TOUTE la largeur** (`basis-full`), et le badge et
+              // le geste descendent sur leur propre ligne. Sans ça, `flex-1 min-w-0` est comprimé
+              // SOUS sa largeur minimale par deux frères `shrink-0`, et le titre part en colonne,
+              // un mot par ligne. Vu à 375 px sur la maquette AVANT d'être écrit — c'est le défaut
+              // exact que la PR #101 a dû corriger après coup sur la zone C du Diagnostic.
+              className="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-xl border border-papa-border bg-papa-surface px-4 py-3 sm:items-center"
             >
               {gap.subject_slug && (
                 <SubjectPictogram slug={gap.subject_slug} name={gap.subject_name ?? ""} size="sm" />
               )}
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
                 <p className="font-medium">
                   {gap.subject_name ? `${gap.subject_name} — ` : ""}
                   {gap.skill_name}
@@ -351,6 +468,35 @@ function Section({
               >
                 {severity.label}
               </span>
+
+              {/* Le geste — et il est ABSENT quand aucun ne peut être tenu, plutôt que par défaut. */}
+              {geste?.kind === "lien" && (
+                <Link
+                  to={geste.href}
+                  className={`ml-auto shrink-0 text-xs font-semibold hover:underline ${
+                    geste.ton === "sky" ? "text-papa-accent-2" : "text-papa-accent"
+                  }`}
+                >
+                  {geste.libelle}
+                </Link>
+              )}
+              {geste?.kind === "equiper" && (
+                <button
+                  type="button"
+                  onClick={() => onEquiper?.(gap.skill_id, gap.skill_name)}
+                  disabled={equipEnCours}
+                  className="ml-auto shrink-0 rounded-lg border border-papa-accent/40 px-2.5 py-1 text-xs font-semibold text-papa-accent hover:border-papa-accent disabled:opacity-50"
+                >
+                  {geste.libelle}
+                </button>
+              )}
+
+              {/* Le motif, en clair — c'est lui qui distingue ce geste d'un lien nu. */}
+              {geste && (
+                <p className="basis-full text-xs leading-relaxed text-papa-muted sm:pl-[2.3rem]">
+                  {geste.motif}
+                </p>
+              )}
             </li>
           );
         })}

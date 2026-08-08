@@ -196,12 +196,32 @@ slice que les autres gestes, pas après.
 Le geste dépend de l'état ; le motif est écrit **sous la ligne**, comme le fait la station ②.
 Papa n'a pas à deviner pourquoi ce geste-là.
 
-| Condition | Geste | Destination |
+| Condition | Geste | Ce qu'il fait |
 |---|---|---|
-| `has_active_mission` | **Voir la mission →** | `/missions?focus=<mission_id>` |
-| `content_state == "cours_brouillon"` | **Valider le cours de cette leçon →** | `/programme?lesson=<brouillon>` |
-| `content_state == "aucune_lecon"` | **Produire le quiz de cette notion →** | `/quiz?skill=<skill_id>` |
-| `content_state == "ok"` | **Relire la leçon →** | `/programme?lesson=<validée>` |
+| `has_active_mission` | **Voir la mission →** | lien vers `/missions?focus=<mission_id>` |
+| `content_state == "cours_brouillon"` | **Valider le cours de cette leçon →** | lien vers `/programme?lesson=<brouillon>` |
+| `content_state == "aucune_lecon"` | **Équiper cette notion** | **action** `equipNotion(skill_id)`, avec confirmation |
+| `content_state == "ok"` | **Relire la leçon →** | lien vers `/programme?lesson=<validée>` |
+
+> 🔴 **La ligne `aucune_lecon` disait « Produire le quiz de cette notion → » vers `/quiz?skill=`.
+> C'était FAUX deux fois**, et corrigé le 2026-08-09 au read-before-code de la Session B :
+>
+> - **`/quiz` ne peut pas tenir la promesse.** `QuizPilotagePage` pilote les quiz *de fin de cours*
+>   — son sous-titre dit « un quiz se génère depuis le cours validé d'une leçon ». Or
+>   `aucune_lecon` est exactement le cas **sans leçon**. Y créer `?skill=` aurait amené Papa sur une
+>   page structurellement incapable de faire ce que le lien promet : **le défaut même que cet ADR
+>   corrige**, reproduit par l'ADR qui le corrige.
+> - **Le geste réel produit CINQ pièces, pas un quiz.** `equipNotion` (ADR-0042) génère et
+>   auto-valide « cours, fiche, cartes de révision, quiz et carte mentale ».
+>
+> **Décision du commanditaire : la ligne porte l'ACTION**, pas un lien vers une page qui ne la
+> porte pas. C'est le geste qui existe déjà dans le dépliage de Progression
+> (`SubjectDetailRow.tsx`), avec sa `ConfirmDialog` et sa `ProgressBar`.
+>
+> ⚠️ **La confirmation n'est pas optionnelle** : c'est une génération LLM auto-validée, ~69 s par
+> notion (mesuré le 2026-08-02). Elle dit ce qui sera produit, et que ça prend des minutes.
+> ⚠️ **Conséquence assumée** : cette ligne-là est un `<button>`, les trois autres des `<Link>`. La
+> forme suit ce que le geste fait — un lien qui déclencherait une génération serait pire.
 
 **`has_active_mission` est testé en premier** : une notion déjà couverte n'attend aucune décision de
 contenu, quel que soit son `content_state`.

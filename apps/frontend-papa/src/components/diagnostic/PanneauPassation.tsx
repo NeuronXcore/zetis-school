@@ -130,9 +130,15 @@ export interface PanneauPassationProps {
   detail: DiagnosticResult;
   portee: DiagnosticPortee | null;
   rang: number | null;
+  /** Le slug de la matière — pour que « Voir la lacune → » transporte le filtre (ADR-0047 §8).
+   *
+   *  ⚠️ Il vient de l'entrée du RAIL, pas de `detail` : `DiagnosticResult` porte `subject` (le
+   *  NOM) et `subject_id`, jamais le slug — or la page Lacunes filtre par slug. Le rail, lui,
+   *  l'a déjà. Aucun champ ajouté à aucun contrat. */
+  subjectSlug: string;
 }
 
-export function PanneauPassation({ detail, portee, rang }: PanneauPassationProps) {
+export function PanneauPassation({ detail, portee, rang, subjectSlug }: PanneauPassationProps) {
   const grains = new Set(detail.per_skill.map((s) => s.questions_count).filter(Boolean));
   const marche = grains.size === 1 ? Math.round(100 / [...grains][0]) : null;
 
@@ -263,13 +269,24 @@ export function PanneauPassation({ detail, portee, rang }: PanneauPassationProps
                       {badge.label}
                     </span>
                   </div>
+                  {/* 🔴 **Les deux premiers gestes SUR-PROMETTENT, et c'est consigné, pas corrigé
+                      ici.** Ils écrivent « cette notion » / « cette leçon » et mènent à la
+                      MATIÈRE. Les corriger demande `lesson_id` au contrat de
+                      `lacunes_de_passation` et l'action `equipNotion` portée dans ce composant —
+                      pas trois lignes, contrairement à ce que l'ADR-0047 §8 annonçait. Différé au
+                      `BACKLOG.md` avec son vrai chiffrage (décision du 2026-08-09).
+
+                      Le troisième, lui, est corrigé : il menait à `/lacunes` NU, donc Papa quittait
+                      un diagnostic de Français pour la liste complète, toutes matières — le
+                      cul-de-sac CIRCULAIRE que l'ADR-0047 cite en Contexte comme motif du
+                      chantier. Il transporte désormais la matière, et ça ne coûte aucun champ. */}
                   <Link
                     to={
                       lacune.content_state === "cours_brouillon"
                         ? `/programme?subject=${detail.subject_id ?? ""}`
                         : lacune.content_state === "aucune_lecon"
                           ? `/quiz?subject=${detail.subject_id ?? ""}`
-                          : "/lacunes"
+                          : `/lacunes?subject=${subjectSlug}`
                     }
                     className="mt-2 inline-flex text-xs text-papa-accent hover:underline"
                   >

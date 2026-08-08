@@ -258,7 +258,12 @@ export function DiagnosticsPapaPage() {
               retraitEnCours={retraitEnCours}
             />
           ) : detail ? (
-            <PanneauPassation detail={detail} portee={portee} rang={selection.rang} />
+            <PanneauPassation
+              detail={detail}
+              portee={portee}
+              rang={selection.rang}
+              subjectSlug={selection.subject_slug}
+            />
           ) : (
             <p className="text-sm text-papa-muted">Chargement…</p>
           )}

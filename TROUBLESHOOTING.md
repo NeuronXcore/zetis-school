@@ -4,6 +4,103 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/lacunes-permettent-d-agir` — ADR-0047, Session B — 2026-08-09
+
+### 🔴 Une destination qui EXISTE ne garantit pas qu'elle puisse tenir la promesse du lien
+
+L'ADR prescrivait `aucune_lecon` → « Produire le quiz de cette notion → » vers `/quiz?skill=`.
+`QuizPilotagePage` existe, et lui ajouter `?skill=` était faisable. **Mais elle pilote les quiz *de
+fin de cours*** — son propre sous-titre : *« un quiz se génère depuis le cours validé d'une
+leçon »*. Or `aucune_lecon` est le cas **sans leçon**.
+
+**Cause** : au cadrage, on vérifie qu'une page existe et qu'elle peut lire un paramètre. On ne
+vérifie pas qu'elle sait **faire** ce que le libellé promet.
+
+**Parade** : lire le **sous-titre et le domaine** de la page de destination, pas seulement son
+URL. Ici le geste réel était `equipNotion` (`adr-0042`), une **action** in-place — et elle produit
+**cinq** pièces, pas un quiz.
+
+⚠️ Sans ce contrôle, le chantier dont la thèse est *« un libellé qui promet un grain doit livrer ce
+grain »* aurait livré un lien qui ment. **Le défaut se reproduit dans sa propre correction.**
+
+### 🔴 « trois lignes de code » — un chiffrage d'ADR ne se croit pas
+
+La Décision 8 annonçait la correction de la station ② en « trois lignes ». Vérifié :
+
+| Geste | Ce qu'il demandait vraiment |
+|---|---|
+| `cours_brouillon` → la leçon | `lesson_id` au contrat de `lacunes_de_passation` (backend + schéma + type) |
+| `aucune_lecon` → l'action | `ConfirmDialog` + `ProgressBar` portées dans `PanneauPassation` |
+| « Voir la lacune → » → la matière | ⚠️ **rien** — voir ci-dessous |
+
+**Parade** : le prompt disait *« trois lignes ; si ça en demande trente, arrête-toi »*. C'est ce
+garde-fou qui a fonctionné. **Écrire le chiffrage attendu dans le prompt rend son démenti visible.**
+
+### ✅ Le champ qu'on croyait manquer était déjà là — mais PAS où on le cherchait
+
+`/lacunes?subject=` attend un **slug**. `DiagnosticResult` porte `subject` (le **nom**) et
+`subject_id` — jamais le slug. On aurait donc ajouté un champ au contrat…
+
+…sauf que **`DiagnosticRailEntry` porte déjà `subject_slug`**, et que `DiagnosticsPapaPage` a
+l'entrée du rail sous la main : elle lui passe déjà `selection.rang`. Une **prop**, zéro backend.
+
+**Parade** : avant d'ajouter un champ à un contrat, chercher s'il existe sur un **contrat voisin
+déjà présent dans le même composant parent**. Le grep utile n'est pas « où est ce champ » mais
+« qu'est-ce que la page a déjà en main ».
+
+### 🔴 `active_missions` et `pilot_list` ne voient PAS la même population
+
+`mission_id` vient d'`active_missions` — `status in (planned, active)`, **aucun filtre
+`validation_status`**. La page Missions affiche deux listes : `pending` (à valider) et `pilot`
+(qui, lui, **exige `validated`**).
+
+Conséquence : un `?focus=` qui ne chercherait que dans le pool serait **mort une fois sur deux**.
+
+**Parade** : ancrer le lien profond sur un **`id` DOM posé sur les deux listes**, pas sur une
+recherche dans un tableau. L'effet se contente de `getElementById` et sort si l'élément n'est pas
+encore monté.
+
+### ⚠️ Un test existant peut contraindre la FORME d'un ajout, sans être faux
+
+`LacunesPage.test.tsx` verrouillait `queryByRole("button") === null` sur « Déjà prises en charge »
+(*« rien à décider »*). Ajouter « Voir la mission → » y aurait **cassé ce test si c'était un
+`<button>`**.
+
+**Ce n'est pas un test à modifier** : un `<Link>` a le rôle `link`, il passe — et c'est aussi la
+bonne forme, puisque le geste est une navigation. **Le verrou existant a désigné la bonne
+implémentation.** Le modifier aurait masqué exactement ce qu'il protégeait.
+
+### ⚠️ Les décors de test ne portent pas les invariants du serveur
+
+`gap({ has_active_mission: true })` — sans `mission_id`. Le serveur garantit les deux ensemble ; les
+décors écrits **avant** le champ, non.
+
+**Parade, et elle vaut mieux qu'un décor corrigé** : ne rendre un geste **que si son identifiant
+l'est**. `?focus=undefined` ne peut alors pas sortir, ni en test ni en production. Verrouillé.
+
+### 🔴 Vérifier le responsive d'une page Papa à 375 px ne prouve RIEN aujourd'hui
+
+Mesuré au DOM : viewport **375 px** → sidebar **256 px** (`w-64 shrink-0`, sans point de rupture),
+`main` **119 px**, la ligne **71 px**, son corps **37 px**.
+
+La règle `< 640 px` **s'appliquait bien** (`flex-basis: 100%` confirmé par `getComputedStyle`) —
+elle ne peut simplement rien contre un conteneur de 119 px. C'est la dette *« la sidebar Papa n'est
+toujours pas responsive »*, pas un défaut du chantier.
+
+**Parade** : vérifier ces règles à **768 px**, où `main` fait ~512 px — donc **sous le seuil** et
+lisible. Et **mesurer avant d'accuser** : sans les quatre nombres ci-dessus, j'aurais signalé une
+régression qui n'existe pas.
+
+### ⚠️ Libérer UNE mission ne libère pas forcément la notion
+
+Pour voir les gestes autres que « Voir la mission », il faut retirer la mission qui couvre la
+notion. Fait sur la mission 59 → la ligne est **restée** en « Déjà prises en charge », avec
+`?focus=12` : **une seconde mission couvrait la même notion**.
+
+C'est la preuve en conditions réelles que `missions_by_skill` suit bien l'ordre `priority DESC, id`
+— mais c'est surtout un piège de vérification : **il faut libérer TOUTES les missions actives d'une
+notion**, et relever leurs états avant de les toucher pour pouvoir restaurer.
+
 ## Chantier `feat/lacunes-permettent-d-agir` — ADR-0047, Session A — 2026-08-09
 
 ### 🔴 Deux fonctions sœurs sur la même donnée = DEUX requêtes, et le test unitaire ne le voit pas

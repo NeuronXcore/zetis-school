@@ -1,4 +1,5 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button, ConfirmDialog, EmptyState, Spinner } from "@zetis/ui";
 import { PageHeader } from "../components/PageHeader";
 import { DEFAULT_SUBJECT_EMOJI, subjectEmoji } from "../lib/subjectEmoji";
@@ -93,6 +94,29 @@ export function MissionsPage() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+
+  // Lien profond « voir CETTE mission » : `?focus=<mission_id>` (ADR-0047 §3). Il vient de la page
+  // Lacunes, dont chaque ligne « déjà prise en charge » pointe la mission qui la couvre.
+  //
+  // 🔴 **Ancré sur un `id` DOM, pas sur une liste.** La mission cherchée peut être dans « à
+  // valider » (`pending`) OU dans le pool (`pilot`) : `active_missions`, côté serveur, n'a **aucun
+  // filtre `validation_status`**, contrairement à `pilot_list`. Chercher dans une seule liste
+  // rendrait le lien mort une fois sur deux — soit le cul-de-sac que l'ADR-0047 corrige, déplacé
+  // d'une page.
+  //
+  // ⚠️ Ne dépend QUE de la valeur, pas de l'objet `params` : il change d'identité à chaque écriture
+  // d'URL, et la page se re-scrollerait sous les doigts de Papa.
+  const [params] = useSearchParams();
+  const focusMissionId = Number(params.get("focus")) || null;
+  const focusedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (focusMissionId === null || focusedRef.current === focusMissionId) return;
+    const cible = document.getElementById(`mission-${focusMissionId}`);
+    if (!cible) return; // pas encore chargée — l'effet repassera quand les listes arriveront
+    focusedRef.current = focusMissionId;
+    setExpanded((prev) => new Set(prev).add(focusMissionId));
+    cible.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focusMissionId, p.pending, p.pilot]);
 
   // Corps déplié partagé (pool + à valider) : frise + actions cycle de vie.
   function expandedBody(m: MissionPilot) {
@@ -218,7 +242,13 @@ export function MissionsPage() {
             </div>
 
             {p.pending.map((m) => (
-              <div key={m.id} className="border-b border-papa-border last:border-b-0">
+              // L'ancre du lien profond `?focus=` — posée sur les DEUX listes (voir l'effet plus
+              // haut) : une mission `pending` n'est pas dans le pool, et le lien doit aboutir.
+              <div
+                key={m.id}
+                id={`mission-${m.id}`}
+                className="border-b border-papa-border last:border-b-0"
+              >
                 <div className="flex items-center gap-3 px-4 py-3">
                   <input
                     type="checkbox"
@@ -320,7 +350,11 @@ export function MissionsPage() {
             {p.pilot.map((m) => {
               const current = m.status === "active" ? currentStepLabel(m) : null;
               return (
-                <div key={m.id} className="rounded-xl border border-papa-border bg-papa-surface">
+                <div
+                  key={m.id}
+                  id={`mission-${m.id}`}
+                  className="rounded-xl border border-papa-border bg-papa-surface"
+                >
                   <button
                     type="button"
                     onClick={() => toggleExpand(m.id)}
