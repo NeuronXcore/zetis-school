@@ -8,11 +8,13 @@
 ## État à la reprise
 
 **Chantier : « le worker de production est un service, et son absence vient à toi » (ADR-0046).
-✅ COMPLET — trois slices, poussées. ❌ PAS de PR, PAS mergé.**
+✅ COMPLET et ✅ MERGÉ SUR `main` (2026-08-08). Ne pas ré-implémenter.**
 
 | | |
 |---|---|
-| **Branche** | `feat/worker-supervise`, base **`ef54f7f`** (= tête de `main`, vérifié). Poussée, rien en attente |
+| **Mergé** | PR [#104](https://github.com/NeuronXcore/zetis-school/pull/104), **squash `a6247f4`**, base `ef54f7f` (vérifié : parent du squash). 23 fichiers, +2022/−196 |
+| **État git** | `main` = `origin/main` = `a6247f4` — **rien à pousser** |
+| **Branche** | `feat/worker-supervise` — 🔴 **CONSERVÉE**, locale ET distante. Mergée **sans** `--delete-branch` |
 | **Décisions** | ADR-0046 **Accepté**, 8 décisions — dont **trois amendées pendant l'exécution** (4, le périmètre, et le §Suivi) |
 | **Migration** | **AUCUNE**, aucun endpoint, aucune surface Massimo |
 | **Suites** | Backend **1052 → 1074** (+22). ⚠️ Front **non relancé** — aucun de ses fichiers n'est touché |
@@ -106,6 +108,14 @@ Section `feat/worker-supervise`. Les trois qui coûteraient le plus :
 
 **Héritées, et toujours vraies :**
 
+- 🔴 **SEPT branches de chantier sont conservées** — `feat/diagnostic-massimo-propose`,
+  `feat/diagnostic-mesure-qui-engage`, `feat/diagnostic-papa-optimisations`,
+  `feat/notion-orpheline-equipable`, `feat/worker-supervise`, `fix/connexion-mot-de-passe`,
+  `fix/diagnostic-zone-c-mobile`. Le dépôt a `delete_branch_on_merge: false`. **Aucune n'est à
+  supprimer sans consigne**, et leurs noms se ressemblent assez pour qu'un `git branch -d` distrait
+  fasse le mauvais. *(Ce fait avait été emporté par l'élagage de cette clôture, et rattrapé par la
+  vérification — c'est le genre de consigne qui ne vit nulle part ailleurs.)*
+
 - 🔴 **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
 - 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
 - 🔴 **`response_model` filtre en SILENCE les champs non déclarés** — vaut pour toute route FastAPI.
@@ -140,16 +150,17 @@ Section `feat/worker-supervise`. Les trois qui coûteraient le plus :
 
 ### ▶▶ PROCHAIN PAS
 
-**Ouvrir la PR** sur `feat/worker-supervise` (base `ef54f7f`) — le chantier est complet et poussé.
+**Le chantier est CLOS.** Mergé, branche conservée, étape 4bis faite. ⚠️ **Ne rien en recommencer.**
 
-⚠️ **Avant de merger, deux gestes que le dépôt paie cher quand on les saute :**
+🔴 **La seule dette du chantier qui survit au merge** : l'e-mail n'a **jamais atteint une vraie
+boîte**. Le canal est prouvé partout ailleurs (vrai SMTP local, chaîne complète du watchdog). Il
+manque les 4 lignes SMTP du `.env` **racine** (21-25, à décommenter — `ALERT_EMAIL_TO` est déjà
+posé), puis `python -m app.core.mailer` : une seconde, et on sait. ⚠️ Gmail exige un **mot de passe
+d'application**, et un backend déjà lancé ne verra pas le nouveau `.env` (`settings` est lu à
+l'import).
 
-1. **Remplir les 4 lignes SMTP** et lancer `python -m app.core.mailer` — c'est la seule preuve du
-   chantier qui reste due, et elle prend une seconde.
-2. Merger **sans `--delete-branch`** (le dépôt a `delete_branch_on_merge: false`), puis rattraper
-   `main` par `git fetch origin main:main` **sans changer de branche**.
-
-Puis l'**étape 4bis** (`WORKFLOW.md §5`) : revenir mettre ce fichier au réel — squash, n° de PR.
+> ⚠️ **Le merge a eu lieu SANS cette preuve, en connaissance de cause** — signalée trois fois, dans
+> le corps de la PR compris. Ce n'est pas un oubli : c'est un arbitrage du commanditaire.
 
 **Chantier suivant — trois candidats, tous au `BACKLOG.md` :**
 
