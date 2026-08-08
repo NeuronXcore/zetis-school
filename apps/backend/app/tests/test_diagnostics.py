@@ -6,20 +6,45 @@ et l'upsert de maîtrise, plus la vue résultats Papa."""
 from sqlalchemy import select
 
 import app.db.models as m
+from app.main import app
+from app.modules.auth.deps import get_current_user
 
 
-def _generate(client, Session, executer_travail) -> dict:
-    """Lance un diagnostic ET joue le travail — la route ne produit plus rien elle-même.
+def as_papa() -> None:
+    app.dependency_overrides[get_current_user] = lambda: {"username": "papa", "role": "papa"}
+
+
+def as_massimo() -> None:
+    app.dependency_overrides[get_current_user] = lambda: {"username": "massimo", "role": "child"}
+
+
+def _generate(client, Session, executer_travail, *, valider: bool = True) -> dict:
+    """Le parcours d'un diagnostic **à deux acteurs**, depuis l'ADR-0043.
 
     ⚠️ **Elle rend `202` depuis l'ADR-0041 §4** : elle ACCEPTE, le worker exécute. Le corps
     d'autrefois (`quiz_id`, `subject`, `questions_count`) est désormais la SORTIE du travail, et
     c'est bien celle-là qu'on rend ici — les assertions en aval portent donc toujours sur ce qui a
     réellement été produit, jamais sur un accusé de réception.
+
+    🔴 **Deux choses ont changé avec l'ADR-0043, et elles ne sont pas cosmétiques :**
+
+    1. `generate` exige `require_parent` — d'où la bascule de rôle. Elle rend le décor plus fidèle,
+       pas plus permissif : Papa lance, Massimo passe.
+    2. Un diagnostic naît `pending` et **aucune route élève ne le sert**. Sans la validation, tout
+       ce qui suit rendrait `404`. `valider=False` sert précisément à vérifier ce `404`.
+
+    Le rôle est laissé sur **Massimo** en sortie : les tests d'aval sont des tests d'élève.
     """
+    as_papa()
     # Fixture de test : Mathématiques est la seule matière → id=1 (skill « Nombres relatifs »).
     res = client.post("/api/diagnostics/generate", json={"subject_id": 1})
     assert res.status_code == 202, res.text
-    return executer_travail(Session, res.json()["job_id"])
+    body = executer_travail(Session, res.json()["job_id"])
+    if valider:
+        verdict = client.post(f"/api/diagnostics/quizzes/{body['quiz_id']}/validate")
+        assert verdict.status_code == 200, verdict.text
+    as_massimo()
+    return body
 
 
 def test_generate_creates_quiz_with_questions(client_db, executer_travail) -> None:
@@ -91,6 +116,9 @@ def test_results_view_for_papa(client_db, executer_travail) -> None:
     answers = [{"question_id": q["id"], "choice_index": 1} for q in quiz["questions"]]
     client.post(f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": answers})
 
+    # `results` est une vue PAPA (`require_parent` depuis l'ADR-0043) — le nom du test le disait
+    # déjà, la route l'exige maintenant.
+    as_papa()
     results = client.get("/api/diagnostics/results").json()
     assert len(results) == 1
     assert results[0]["subject"] == "Mathématiques"
@@ -100,4 +128,5 @@ def test_results_view_for_papa(client_db, executer_travail) -> None:
 
 def test_generate_unknown_subject_404(client_db) -> None:
     client, _ = client_db
+    as_papa()
     assert client.post("/api/diagnostics/generate", json={"subject_id": 999}).status_code == 404

@@ -439,6 +439,12 @@ class FakeLLMProvider:
             "feedback": self._feedback,
             "missing_points": ["Pense aussi à zéro"],
             # clés diagnostic (génération QCM) — déterministe : index 0 correct
+            #
+            # ⚠️ **CINQ questions depuis l'ADR-0043 Décision 3, et le nombre n'est pas décoratif.**
+            # `generate_diagnostic` tronque à `QUESTIONS_PER_SKILL` : tant que ce faux n'en rendait
+            # que deux, une passation de test restait à trois valeurs de score possibles et AUCUN
+            # test ne pouvait exercer la granularité fine — ni un score à 20 %, ni un 80 %, ni la
+            # différence entre les deux grains que la page doit savoir dire.
             "questions": [
                 {
                     "prompt": "Question de diagnostic ?",
@@ -449,6 +455,24 @@ class FakeLLMProvider:
                 {
                     "prompt": "Autre question ?",
                     "choices": ["Vrai", "Faux"],
+                    "correct_index": 0,
+                    "explanation": "Explication courte.",
+                },
+                {
+                    "prompt": "Troisième question ?",
+                    "choices": ["Bonne réponse", "Mauvaise A", "Mauvaise B"],
+                    "correct_index": 0,
+                    "explanation": "Explication courte.",
+                },
+                {
+                    "prompt": "Quatrième question ?",
+                    "choices": ["Bonne réponse", "Mauvaise A"],
+                    "correct_index": 0,
+                    "explanation": "Explication courte.",
+                },
+                {
+                    "prompt": "Cinquième question ?",
+                    "choices": ["Bonne réponse", "Mauvaise A", "Mauvaise B", "Mauvaise C"],
                     "correct_index": 0,
                     "explanation": "Explication courte.",
                 },

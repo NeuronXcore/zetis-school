@@ -18,7 +18,7 @@ interface State {
 }
 
 const VIDE: ReviewQueue = {
-  counts: { lesson: 0, fiche: 0, mindmap: 0, capsule: 0, chapter: 0, total: 0 },
+  counts: { lesson: 0, fiche: 0, mindmap: 0, capsule: 0, chapter: 0, diagnostic: 0, total: 0 },
   subjects: [],
   items: [],
 };

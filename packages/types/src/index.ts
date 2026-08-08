@@ -183,6 +183,22 @@ export {
   type SubjectNotions,
 } from "./curriculum";
 export {
+  type DiagnosticApercu,
+  type DiagnosticApercuSubject,
+  type DiagnosticContentState,
+  type DiagnosticCran,
+  type DiagnosticGap,
+  type DiagnosticJauges,
+  type DiagnosticPalier,
+  type DiagnosticPortee,
+  type DiagnosticPorteeNotion,
+  type DiagnosticPorteePoint,
+  type DiagnosticRailEntry,
+  type DiagnosticResult,
+  type DiagnosticSkillScore,
+  type DiagnosticSubjectRef,
+} from "./diagnostic";
+export {
   type SchoolYear,
   type SchoolYearCreateRequest,
   type SchoolYearPatchRequest,

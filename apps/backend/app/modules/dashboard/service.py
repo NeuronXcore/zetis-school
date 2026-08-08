@@ -336,6 +336,7 @@ _VALIDATION_HREFS: dict[str, str] = {
     "mindmap": "/relecture?kind=mindmap",
     "capsule": "/relecture?kind=capsule",
     "chapter": "/relecture?kind=chapter",
+    "diagnostic": "/relecture?kind=diagnostic",
 }
 
 
@@ -345,8 +346,10 @@ def _inbox(db: Session, student_id: int, year_id: int | None) -> list[dict]:
     L'ordre encode la priorité pédagogique, pas la chronologie : ce qui bloque la diffusion d'un
     contenu passe avant ce qui n'attend qu'un rangement.
 
-    ⚠️ **Les quiz n'y figurent pas** : `quizzes` n'a pas de `validation_status`, ils sont servis
-    sans gate par doctrine (ADR-0014 §2). Les compter ici demanderait une migration hors périmètre.
+    ⚠️ **Les quiz de mission et de fin de cours n'y figurent pas** : servis sans gate par doctrine
+    (ADR-0014 §2). Le **diagnostic**, lui, y figure depuis l'ADR-0043 — il ne dérive d'aucun
+    substrat validé, l'exemption ne s'y appliquait pas. Aucun compte n'est écrit ici : tout vient
+    de `review_queue.KINDS`, donc la 6ᵉ famille est arrivée sans qu'on touche à cette fonction.
     """
     items: list[dict] = []
 

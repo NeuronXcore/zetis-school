@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 
 import app.db.models as m
+from app.tests.test_diagnostics import _generate
 
 
 # --- Helpers ------------------------------------------------------------------------------
@@ -81,11 +82,11 @@ def _add_mission_quiz_attempt(db, *, student, quiz_id, score, at):
 
 
 def _open_gaps_via_failed_diagnostic(client, Session, executer_travail) -> None:
-    """⚠️ `/diagnostics/generate` rend `202` depuis l'ADR-0041 §4 — on joue le travail ici, sinon
-    aucun quiz n'existe et la lacune ne s'ouvre jamais."""
-    res = client.post("/api/diagnostics/generate", json={"subject_id": 1})
-    assert res.status_code == 202, res.text
-    body = executer_travail(Session, res.json()["job_id"])
+    """⚠️ Le parcours diagnostic est à DEUX acteurs depuis l'ADR-0043 (Papa génère et relit, Massimo
+    passe) et la route rend `202` depuis l'ADR-0041 §4. Les deux sont portés par `_generate`, qu'on
+    réutilise plutôt que de recopier ici un troisième décor qui divergerait au premier changement.
+    """
+    body = _generate(client, Session, executer_travail)
     quiz = client.get(f"/api/diagnostics/quizzes/{body['quiz_id']}").json()
     answers = [{"question_id": q["id"], "choice_index": 1} for q in quiz["questions"]]
     res = client.post(f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": answers})

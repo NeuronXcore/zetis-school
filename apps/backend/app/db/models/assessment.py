@@ -22,10 +22,26 @@ class Quiz(Base, TimestampMixin):
     # conservé car il porte des tentatives (ADR-0014 Décision 3 : on n'efface pas l'histoire).
     status: Mapped[str] = mapped_column(String(20), default="draft")
     created_by: Mapped[str] = mapped_column(String(20), default="ai")
-    # Provenance (addendum ADR-0011 §F). Le quiz n'a PAS de `validation_status` : l'ADR-0014 §2
-    # le sert sans gate, par doctrine. Ces colonnes tracent précisément cette non-relecture —
-    # `validated_by='system'`, écrit à la génération. `system` est STRICTEMENT réservé à ce cas
-    # (test dédié) : sans ce verrou, une future auto-validation pourrait s'y déguiser sans ADR.
+    # pending|validated|rejected (ADR-0043 Décision 1). **Seul le diagnostic est gaté** : les quiz
+    # de mission et de fin de cours restent servis sans relecture (ADR-0014 §2, intacte), et leur
+    # colonne vaut `validated` dès la génération.
+    #
+    # ⚠️ **`status` et `validation_status` ne sont PAS un doublon.** `status` est le cycle de vie
+    # (`draft|ready|archived` — l'ADR-0014 Décision 3 s'en sert pour retirer un quiz sans effacer
+    # ses tentatives) ; `validation_status` dit si Papa l'a laissé passer. Un diagnostic `ready`
+    # et `pending` est complet mais non servi. Les aligner effacerait cette distinction — même
+    # motif que les deux conventions que `review_queue` documente et refuse d'unifier.
+    validation_status: Mapped[str] = mapped_column(
+        String(20), default="pending", server_default="pending"
+    )
+    # Provenance (addendum ADR-0011 §F) : QUI a laissé passer. Pour un quiz non gaté, c'est la
+    # doctrine elle-même — `validated_by='system'`, écrit à la génération, STRICTEMENT réservé à
+    # ce cas (test dédié) : sans ce verrou, une future auto-validation pourrait s'y déguiser sans
+    # ADR. Un diagnostic relu par Papa porte `parent`, comme tout contenu relu.
+    #
+    # ⚠️ `NULL` sur une ligne `validated` n'est pas une anomalie : c'est la signature des quiz
+    # antérieurs à l'ADR-0043, backfillés parce qu'ils étaient déjà servis. Personne ne les a
+    # laissés passer ; ils sont passés faute de gate. Aucune rétro-attribution (doctrine §F.4).
     validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     validated_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Lot de production qui a produit cette pièce (ADR-0031 §4). `NULL` = produit hors lot,

@@ -65,9 +65,12 @@ export interface DashboardSchoolYear {
  *  priorité pédagogique, pas la chronologie. */
 export type InboxKind = "validation" | "gap" | "demande" | "referentiel" | "source";
 
-/** Les cinq familles d'objets qui attendent une relecture (adr-0039). Les quiz n'en sont pas :
- *  `quizzes` n'a pas de `validation_status`, il est servi sans gate par doctrine (adr-0014 §2). */
-export type ReviewKind = "lesson" | "fiche" | "mindmap" | "capsule" | "chapter";
+/** Les six familles d'objets qui attendent une relecture (adr-0039, adr-0043).
+ *
+ *  ⚠️ `diagnostic` — pas « quiz ». Les quiz de mission et de fin de cours restent servis sans gate
+ *  (adr-0014 §2, intacte) : ils dérivent d'un substrat déjà validé. Le diagnostic n'en dérive
+ *  d'aucun, d'où son entrée dans la file. La ligne de partage est `quiz_type`, pas la table. */
+export type ReviewKind = "lesson" | "fiche" | "mindmap" | "capsule" | "chapter" | "diagnostic";
 
 /** Une part cliquable du détail d'une ligne de la file. Le `href` vient du SERVEUR, comme celui de
  *  la ligne : une règle d'adressage n'a rien à faire dans un composant de présentation

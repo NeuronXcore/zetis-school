@@ -7,6 +7,140 @@
 
 ## État à la reprise
 
+**Chantier : « le diagnostic devient une mesure qui engage » (ADR-0043). COMPLET sur la branche,
+PR [#99](https://github.com/NeuronXcore/zetis-school/pull/99) OUVERTE, PAS ENCORE MERGÉ.**
+
+🔴 **NE PAS MERGER SANS RELECTURE VISUELLE HUMAINE.** La session C l'exige explicitement, et le
+dépôt compte **quatre merges d'affilée sans elle** (#79, #89, #91, #98). J'ai parcouru la page
+moi-même sur données réelles — ce n'est pas la même chose. À parcourir : les 7 entrées du rail ·
+les 4 états de la modale · l'état vide · le responsive · **les coins de l'icône sur fond sombre** ·
+la portée à granularité mixte.
+
+🔴 **LA BRANCHE `feat/notion-orpheline-equipable` RESTE CONSERVÉE** (consigne du 2026-08-07).
+Elle n'est **pas** celle de ce chantier — ne pas les confondre, ne pas la supprimer.
+
+| | |
+|---|---|
+| **Branche** | `feat/diagnostic-mesure-qui-engage`, **3 commits** : `144d3ca` (A) · `5d5d846` (B) · `0bdc7e3` (C) |
+| **État git** | `main` = `origin/main` = `c0158b0`. Branche **en avance d'un commit** sur `origin` — la session C n'est pas poussée |
+| **Décision** | ADR-0043 **Accepté** (2026-08-08), sur `main`. Il **amende l'ADR-0014 Décision 2** — l'amendement se relit, il ne se rediscute pas |
+| **Migration** | `a9b0c1d2e3f4` — `quizzes.validation_status`, **appliquée sur la base de dev** (54 quiz backfillés à `validated`) |
+| **Suites** | Backend **1034 ✅** (1005 avant, +29) · Papa **667 ✅** (656 avant, +11) · Massimo **525 ✅** · `tsc -b` + `vite build` verts |
+| **Sabotages** | **28 joués, 27 rouges.** Le vert est raconté plus bas — c'est le plus instructif du chantier |
+
+### FAIT — trois sessions, un arc
+
+1. **Le gate** — le diagnostic sort de l'exception « évaluation éphémère ».
+   `quizzes.validation_status`, 6ᵉ famille `diagnostic` dans `/relecture`, rôles sur les six
+   routes, et `POST /validate` · `/reject`.
+2. **La mesure** — `QUESTIONS_PER_SKILL` 2 → 5, sélection des notions par ancienneté de mesure,
+   lacunes **lues en base**, détail d'une passation, pivot de comparaison.
+3. **La page** — refonte complète de `DiagnosticsPapaPage` (bandeau, rail, panneau, modale),
+   icône de page, **et `GET /api/diagnostics/apercu`** que personne n'avait prévu.
+
+### 🔴 Le constat qui a décidé du chantier
+
+L'exemption de l'ADR-0014 §2 vaut pour les quiz **« dérivés d'un substrat déjà validé »**.
+`generate_diagnostic` construit son prompt sur **quatre scalaires** — nom de matière, nom de
+notion, niveau, nombre — sans cours ni contexte canonique. **Et les trois garanties de
+contrepartie sont toutes inhonorées** : `output_json` ne porte que `questions_count`, l'auto-
+vérification n'existe pas dans le module, et aucune route ne permet de retirer une question.
+
+L'ADR-0014 disait *« ceci régularise le précédent de l'étape 14 sans le modifier »*. Il l'a
+régularisé **administrativement**, sans vérifier que la justification s'y appliquait.
+**L'exemption ne s'y est jamais appliquée.** Ce n'est pas un changement d'avis, c'est un constat.
+
+### 🔴 Trois écarts pris sur le cadrage, et pourquoi
+
+1. **Le gate porte sur les TROIS routes élève**, pas sur la seule liste que nomme la Décision 1.
+   Filtrer `list_diagnostics` seul laissait la passation ouverte à qui connaît l'identifiant.
+   `404` et non `403` : pour Massimo, un diagnostic non relu **n'existe pas**.
+2. **`POST /validate` et `/reject` ajoutés** — le cadrage prescrit un gate **sans sa soupape**.
+   `/relecture` est en lecture seule et le diagnostic n'avait aucun client de pilotage : sans ces
+   routes, la 6ᵉ famille était un bouton mort et **plus aucun diagnostic n'atteignait Massimo**.
+3. **`GET /apercu` construit en session C** — trois blocs de la maquette (jauges, rail, jamais
+   généré) n'avaient aucune source. Le motif est une conséquence de la **session A elle-même** :
+   en gatant `list_diagnostics`, elle a rendu le **premier cran invisible** de la seule route qui
+   listait les diagnostics.
+
+### 🔴 UN SABOTAGE EST RESTÉ VERT — 5ᵉ occurrence du motif
+
+`test_submit_et_results_notent_la_MEME_passation_pareil`, le verrou de l'extraction. **Deux
+causes, et les deux sont réutilisables ailleurs :**
+
+- **le décor était dégénéré** — il répondait tout faux, donc tous les scores valaient `0`, et à
+  zéro une divergence multiplicative est **indétectable** ;
+- **le sabotage était mathématiquement neutre** — à 5 questions par notion, tout score est un
+  multiple de 20 ; « arrondir à la dizaine » est donc l'**identité**. Il ne prouvait rien, ni dans
+  un sens ni dans l'autre.
+
+Corrigés tous les deux : le décor répond **partiellement** (60 %, ni plancher ni plafond) et
+affirme la valeur exacte ; rejoué avec un décalage atteignable (+20 points), le verrou rougit.
+
+### ⚠️ Ce que seule la confrontation à l'écran a trouvé
+
+- **Le sous-titre de la 1ʳᵉ jauge mélangeait deux unités** : « 1 / 8 · **13** proposé(s) non
+  passé(s) · 5 jamais générée(s) ». Le 13 compte des **diagnostics**, le reste des **matières** —
+  ça se lisait comme 13 matières sur 8. Aucun test ne pouvait le voir.
+- **La station ② et la session B se contredisaient.** `lacunes_ouvertes` filtrait sur
+  `OPEN_GAP_STATUSES` ; la maquette porte un badge `résolue`. La spec dit « les lacunes **ouvertes
+  par** un diagnostic » — c'est l'**origine**, pas l'état. Le détail sert donc **toutes** les
+  lacunes avec leur statut ; le filtre étroit reste pour Massimo.
+
+### ⚠️ Deux pièges de test payés, transposables
+
+- **`quizzes/scoring.py` documente que sa duplication est VOULUE** (*« dupliqués volontairement
+  pour ne PAS importer `diagnostics` »*). L'agrégat par notion passe donc de **trois copies à
+  deux**, pas à une : la frontière restante est une frontière décidée.
+- **Les compteurs d'appels de `vi.fn()` s'ADDITIONNENT entre tests** — le front n'active pas
+  `clearMocks`, et `mockResolvedValue` ne remet pas l'historique à zéro. Deux assertions comptaient
+  des appels : elles étaient fausses dès le second test.
+
+### DÉCISIONS ACTIVES — à relire, pas à rouvrir
+
+- **`validated_by='system'` est réservé aux quiz NON gatés.** Un diagnostic relu porte `parent`.
+  Deux verrous le tiennent, **et ils forment une paire** : un lexical (resserré du module entier
+  au seul `quizzes/service.py`) et un **comportemental** (le lexical ne peut rien dire du
+  diagnostic, dont le module ne contient pas le mot cherché).
+- **La ligne de partage du gate est `quiz_type`, jamais la table.** `quizzes` porte désormais du
+  gaté et du non gaté.
+- **Palier et lacune sont deux populations disjointes**, jamais dérivées l'une de l'autre.
+- **Aucune interpolation dans la portée** : reporter la valeur précédente dessinerait un palier
+  plat, qui se lit « rien n'a bougé » — le contraire de « on n'a pas regardé ».
+- **`lots_declenches` vaut 0 par DÉCISION**, pas par panne. `trigger='evidence'` reste fermé.
+
+### ▶ PROCHAIN PAS
+
+1. **Pousser la session C** (`0bdc7e3`) — la branche est en avance d'un commit sur `origin`.
+2. 🔴 **Faire faire la relecture visuelle humaine** avant tout merge. C'est le point 1 de la
+   dette du dépôt, et la session C l'exige nommément.
+3. **Annoter l'ADR-0043 sur `main`** avec les trois écarts ci-dessus — pas sur la branche :
+   `DECISIONS.md` et les ADR ne vont **jamais** sur une branche.
+4. Après merge : **étape 4bis** (`docs/WORKFLOW.md §5`) — remettre ce fichier au réel.
+   ⚠️ Supprimer `feat/diagnostic-mesure-qui-engage` **mais PAS** `feat/notion-orpheline-equipable`.
+
+### ⚠️ DETTES — où elles vivent
+
+- **Les 14 défauts du module `diagnostics`** sont au **`BACKLOG.md`**, aucun n'a été traité ici.
+  Deux sont devenus **visibles** par ce chantier : la dédup de `Gap` sur `"open"` seul (une lacune
+  `in_progress` produit un doublon — une dédup de **lecture** l'empêche d'atteindre l'écran) et le
+  `limit=10` en dur de `/results`.
+- **La contre-épreuve du quiz de fin de cours monte son décor à la main** : elle prouve que le
+  gate ne le regarde pas, **pas** que `generate_quiz` pose bien `validation_status='validated'`.
+  Cette moitié n'est tenue que par le sabotage.
+- **Papa valide un diagnostic sans pouvoir le LIRE** — `reviewLink` rend `null` pour cette
+  famille. Pas pire qu'avant (aucune relecture n'existait), mais un état intermédiaire.
+- **Artefacts de dev** : `Quiz 31` porte `validated_by='parent'` là où les 14 autres diagnostics
+  ont `NULL` — trace de la vérification à l'écran, pas un bug.
+
+---
+
+<details>
+<summary>Chantier précédent — « la notion orpheline devient équipable » (PR #98, mergé le
+2026-08-07)</summary>
+
+**COMPLET, ✅ MERGÉ SUR `main` (2026-08-07). Ne pas ré-implémenter.**
+
 **Chantier : « la notion orpheline devient équipable » (ADR-0042). COMPLET, ✅ MERGÉ SUR `main`
 (2026-08-07). Ne pas ré-implémenter.**
 
@@ -186,6 +320,8 @@ Ce que le chantier ADR-0042 laisse en héritage utile pour celui-là :
   prennent `lecons[0]` là où `canonical_context` parcourt toute la liste).
 - **Celles du chantier précédent** sont plus bas, inchangées : **aucune n'a été traitée ici**, et
   les neuf vérifications dues sur `main` le restent.
+
+</details>
 
 ---
 

@@ -109,6 +109,16 @@ def _hors_annee(db, ctx: dict) -> None:
             subject_id=matiere_oubliee.id, title="Capsule d'hier", validation_status="pending"
         )
     )
+    # Le diagnostic se borne par MATIÈRE, comme la capsule : il n'a ni chapitre ni leçon.
+    db.add(
+        m.Quiz(
+            subject_id=matiere_oubliee.id,
+            title="Diagnostic d'hier",
+            quiz_type="diagnostic",
+            status="ready",
+            validation_status="pending",
+        )
+    )
 
 
 def _queue(client, **params) -> dict:
@@ -122,7 +132,7 @@ def _queue(client, **params) -> dict:
 # ==================================================================================================
 
 
-def test_les_cinq_familles_en_attente_entrent_dans_la_file(client_db) -> None:
+def test_les_six_familles_en_attente_entrent_dans_la_file(client_db) -> None:
     client, TestSession = client_db
     with TestSession() as db:
         ctx = _decor(db)
@@ -149,12 +159,30 @@ def test_les_cinq_familles_en_attente_entrent_dans_la_file(client_db) -> None:
                 validation_status="pending",
             )
         )
+        db.add(
+            m.Quiz(
+                subject_id=ctx["subject_id"],
+                title="Diagnostic à relire",
+                quiz_type="diagnostic",
+                status="ready",
+                validation_status="pending",
+            )
+        )
         # ... et une de chaque, DÉJÀ validée : elles ne doivent jamais ressortir.
         db.add(m.Fiche(lesson_id=ctx["lesson_id"], validation_status="validated"))
         db.add(m.Mindmap(lesson_id=ctx["lesson_id"], validation_status="validated"))
         db.add(
             m.Capsule(
                 subject_id=ctx["subject_id"], title="Déjà vue", validation_status="validated"
+            )
+        )
+        db.add(
+            m.Quiz(
+                subject_id=ctx["subject_id"],
+                title="Diagnostic déjà relu",
+                quiz_type="diagnostic",
+                status="ready",
+                validation_status="validated",
             )
         )
         db.commit()
@@ -168,7 +196,8 @@ def test_les_cinq_familles_en_attente_entrent_dans_la_file(client_db) -> None:
         "mindmap": 1,
         "capsule": 1,
         "chapter": 1,
-        "total": 5,
+        "diagnostic": 1,
+        "total": 6,
     }
     assert {item["kind"] for item in body["items"]} == {
         "lesson",
@@ -176,7 +205,12 @@ def test_les_cinq_familles_en_attente_entrent_dans_la_file(client_db) -> None:
         "mindmap",
         "capsule",
         "chapter",
+        "diagnostic",
     }
+    # Le diagnostic déjà relu ne revient pas — le gate se lit dans les DEUX sens.
+    assert [item["title"] for item in body["items"] if item["kind"] == "diagnostic"] == [
+        "Diagnostic à relire"
+    ]
 
 
 def test_la_file_et_l_inbox_comptent_la_MEME_chose(client_db) -> None:
@@ -230,30 +264,28 @@ def test_la_file_et_l_inbox_comptent_la_MEME_chose(client_db) -> None:
     assert "mindmap" not in by_kind
 
 
-def test_les_quiz_ne_sont_JAMAIS_dans_la_file(client_db) -> None:
-    """`quizzes` n'a pas de `validation_status` : servi sans gate par doctrine (ADR-0014 §2).
+def test_seuls_les_quiz_de_DIAGNOSTIC_entrent_dans_la_file(client_db) -> None:
+    """La ligne de partage est `quiz_type`, JAMAIS la table (ADR-0043, qui amende l'ADR-0014 §2).
 
-    L'absence doit se relire comme un choix, pas comme un oubli — d'où ce test plutôt qu'un
-    commentaire. Contrairement à son aîné de `test_dashboard.py`, il monte un décor réel : sans
-    ligne `validation`, une assertion « pas de quiz dedans » ne prouverait rien.
+    Ce test s'appelait « les quiz ne sont JAMAIS dans la file » et portait sur la TABLE : à
+    l'époque, `quizzes` n'avait pas de `validation_status`. Il n'est pas supprimé — il est déplacé
+    sur le bon prédicat, parce que ce qu'il protège n'a pas bougé : les quiz de **mission** et de
+    **fin de cours** restent servis sans gate, et cette absence doit se relire comme un choix, pas
+    comme un oubli.
+
+    🔴 **Le décor porte les DEUX populations dans la même table, et les trois quiz sont `pending`.**
+    C'est le seul montage qui distingue « la requête filtre sur `quiz_type` » de « la requête a
+    oublié un prédicat » : un décor sans quiz de mission passerait aussi avec un `select(Quiz)` nu.
+    L'anti-test-à-vide de l'aîné est conservé sous une forme plus forte — un compte EXACT, des deux
+    côtés.
     """
     client, TestSession = client_db
     with TestSession() as db:
         ctx = _decor(db)
-        db.add(
-            m.Lesson(
-                chapter_id=ctx["chapter_id"], title="Brouillon", status="draft", created_by="ai"
-            )
-        )
-        db.add(
-            m.Quiz(
-                subject_id=ctx["subject_id"],
-                lesson_id=ctx["lesson_id"],
-                title="Quiz",
-                quiz_type="lesson",
-                status="draft",
-            )
-        )
+        commun = {"subject_id": ctx["subject_id"], "status": "ready", "validation_status": "pending"}
+        db.add(m.Quiz(lesson_id=ctx["lesson_id"], title="Quiz de mission", quiz_type="mission", **commun))
+        db.add(m.Quiz(lesson_id=ctx["lesson_id"], title="Quiz de fin de cours", quiz_type="lesson", **commun))
+        db.add(m.Quiz(lesson_id=None, title="Diagnostic — Maths", quiz_type="diagnostic", **commun))
         db.commit()
     _as_papa()
 
@@ -261,10 +293,16 @@ def test_les_quiz_ne_sont_JAMAIS_dans_la_file(client_db) -> None:
     dashboard = client.get("/api/parent/dashboard").json()
     validation = next(item for item in dashboard["inbox"] if item["kind"] == "validation")
 
-    assert validation["count"] == 1, "le décor doit produire une ligne non vide, sinon on ne teste rien"
-    assert "quiz" not in body["counts"]
-    assert all(item["kind"] != "quiz" for item in body["items"])
-    assert "quiz" not in (validation["detail"] or "").lower()
+    # Ce qui entre : le diagnostic, et lui seul. `total == 1` couvre les deux autres d'un coup —
+    # y compris le cas où ils entreraient sous une famille qu'on n'aurait pas pensé à nommer.
+    assert body["counts"]["diagnostic"] == 1
+    assert body["counts"]["total"] == 1, "un quiz non-diagnostic est entré dans la file"
+    assert [item["title"] for item in body["items"]] == ["Diagnostic — Maths"]
+
+    # Le diagnostic remonte jusqu'au dashboard, et la file « À décider » le nomme par sa FAMILLE.
+    assert validation["count"] == 1, "sans ligne non vide, on ne teste rien"
+    assert "diagnostic" in (validation["detail"] or "").lower()
+    assert "quiz" not in (validation["detail"] or "").lower(), "la famille s'appelle `diagnostic`"
 
 
 def test_les_deux_conventions_de_statut_sont_lues(client_db) -> None:
@@ -416,6 +454,7 @@ def test_hors_annee_active_n_est_compte_NULLE_PART(client_db) -> None:
         "mindmap": 0,
         "capsule": 0,
         "chapter": 0,
+        "diagnostic": 0,
         "total": 1,
     }, "aucune famille ne laisse passer une pièce hors année"
     assert validation["count"] == 1, "les deux surfaces se bornent pareil"

@@ -11,7 +11,7 @@ import { reviewAction } from "../lib/reviewActions";
 import { RelecturePage } from "./RelecturePage";
 
 const QUEUE: ReviewQueue = {
-  counts: { lesson: 2, fiche: 1, mindmap: 1, capsule: 1, chapter: 1, total: 6 },
+  counts: { lesson: 2, fiche: 1, mindmap: 1, capsule: 1, chapter: 1, diagnostic: 1, total: 7 },
   subjects: [
     { id: 3, name: "Mathématiques", slug: "mathematiques" },
     { id: 5, name: "Français", slug: "francais" },
@@ -65,6 +65,22 @@ const QUEUE: ReviewQueue = {
       subject_slug: "mathematiques",
       chapter_id: 9,
       chapter: "Théorème de Pythagore",
+      lesson_id: null,
+      lesson: null,
+      created_at: null,
+    },
+    {
+      // 6ᵉ famille (adr-0043). Ses TROIS `null` sont l'information : un diagnostic mesure une
+      // matière, il n'a ni chapitre ni leçon. C'est ce qui le prive de lien d'ouverture tant que
+      // la page `/diagnostics` ne sait pas ouvrir un objet précis (session C).
+      kind: "diagnostic",
+      id: 12,
+      title: "Diagnostic — Mathématiques",
+      subject_id: 3,
+      subject: "Mathématiques",
+      subject_slug: "mathematiques",
+      chapter_id: null,
+      chapter: null,
       lesson_id: null,
       lesson: null,
       created_at: null,
@@ -134,7 +150,9 @@ describe("RelecturePage", () => {
     await screen.findByText("Multiplier des relatifs");
     expect(screen.getByRole("button", { name: /Cours · 2/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Capsules · 1/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Tout · 6$/ })).toBeTruthy();
+    // La 6ᵉ famille tient la même règle que les cinq autres — elle n'est pas un cas à part.
+    expect(screen.getByRole("button", { name: /Diagnostics · 1/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Tout · 7$/ })).toBeTruthy();
   });
 
   it("valider retire la ligne sans recharger la file", async () => {
@@ -218,7 +236,7 @@ describe("RelecturePage", () => {
 
   it("écrit l'état vide au lieu de féliciter", async () => {
     vi.mocked(fetchReviewQueue).mockResolvedValue({
-      counts: { lesson: 0, fiche: 0, mindmap: 0, capsule: 0, chapter: 0, total: 0 },
+      counts: { lesson: 0, fiche: 0, mindmap: 0, capsule: 0, chapter: 0, diagnostic: 0, total: 0 },
       subjects: [],
       items: [],
     });

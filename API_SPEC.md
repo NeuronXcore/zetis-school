@@ -241,6 +241,16 @@ Préfixe réel : `/api/diagnostics`. Implémenté à l'étape 14 (Phase 4) sur l
 `quizzes`/`quiz_questions`/`quiz_attempts`/`quiz_answers` (un diagnostic = un `quiz`
 de `quiz_type = diagnostic`). Les QCM sont générés par IA, par notion.
 
+> 🔴 **Gate de relecture depuis l'ADR-0043.** Un diagnostic naît `validation_status = 'pending'` et
+> **aucune des trois routes élève ne le sert** tant que Papa ne l'a pas relu — ni la liste, ni
+> l'accès direct par identifiant, ni la soumission. Elles rendent `404` (pas `403`) : pour Massimo,
+> un diagnostic non relu n'existe pas. Il apparaît en attendant dans `/api/parent/review-queue`,
+> sous la famille `diagnostic`.
+>
+> **Les rôles sont exigés** : `require_parent` sur `generate`, `results`, `validate` et `reject` ;
+> `require_child` sur `submit`. Protéger l'entrée en laissant la sortie ouverte ne protégerait rien
+> — `submit` écrit `skill_mastery` et ouvre des `Gap`, avec un signal fort.
+
 ### GET `/diagnostics/subjects`
 
 Matières disponibles pour lancer un diagnostic : `[{ id, name }]`.
@@ -248,26 +258,110 @@ Matières disponibles pour lancer un diagnostic : `[{ id, name }]`.
 ### POST `/diagnostics/generate` (Papa)
 
 Génère un diagnostic (QCM par notion) pour une matière. Corps : `{ subject_id, level? }`.
-Réponse : `{ quiz_id, subject, questions_count }`. Trace `ai_jobs` (`diagnostic_generate`).
+
+⚠️ **Rend `202` — accepté, pas exécuté** (ADR-0041 §4) : la réponse est un `{ job_id, … }`, et le
+corps d'autrefois (`quiz_id`, `subject`, `questions_count`) est la **sortie du travail**, lisible
+dans `output` quand il est `succeeded`. Le `404` « matière introuvable » reste **synchrone** : la
+file diffère le travail, jamais le verdict sur la demande. Trace `ai_jobs`
+(`diagnostic_generate`).
 
 ### GET `/diagnostics/quizzes` (Massimo)
 
-Liste les diagnostics : `[{ quiz_id, title, subject, questions_count, taken }]`.
+Liste les diagnostics **relus** : `[{ quiz_id, title, subject, questions_count, taken }]`.
 
 ### GET `/diagnostics/quizzes/{id}` (Massimo)
 
 Questions à passer — **sans** la bonne réponse :
 `{ quiz_id, title, subject, questions: [{ id, prompt, choices, skill_id, skill_name }] }`.
+`404` si le diagnostic n'est pas relu.
 
 ### POST `/diagnostics/quizzes/{id}/submit` (Massimo)
 
 Corps : `{ answers: [{ question_id, choice_index }] }`. Corrige, écrit la tentative,
 met à jour la maîtrise et ouvre les lacunes. Réponse :
 `{ attempt_id, quiz_id, subject, score_percent, per_skill: [{ skill_id, skill_name, score, status }], gaps: [{ skill_id, skill_name, severity }], strengths: [..] }`.
+`404` si le diagnostic n'est pas relu.
+
+### POST `/diagnostics/quizzes/{id}/validate` · `/reject` (Papa)
+
+Verdict de relecture — la **soupape** du gate. Sans elle, un diagnostic resterait `pending` à vie
+et Massimo n'en recevrait plus aucun. Réponse : `{ quiz_id, validation_status }`.
+
+Un diagnostic validé porte `validated_by = 'parent'`, **jamais** la provenance de doctrine. Un
+diagnostic rejeté sort de la file **sans** devenir servable ; rien n'est effacé (ADR-0014 §3).
+
+Convention reprise de `fiches` (`/{id}/validate`, `/{id}/reject`) — la file de relecture
+(`reviewActions.ts`) n'est qu'une table d'aiguillage vers le client de chaque famille.
+
+### GET `/diagnostics/apercu` (Papa)
+
+Le **bandeau, le rail et les matières jamais mesurées**, en un appel. Borné à l'**année active**,
+comme la Couverture et la file de relecture.
+
+🔴 **Aucune autre route ne peut le servir**, et c'est une conséquence du gate : `/diagnostics/quizzes`
+ne rend que le `validated` — c'est la route de Massimo — alors que le rail a besoin du **premier
+cran**, celui que Massimo ne voit pas encore.
+
+- `rail[]` — une entrée par **tentative** au 3ᵉ cran, une par **quiz** aux deux premiers.
+  `cran` ∈ `genere | propose | passe`. `score_percent` est **`null` hors du 3ᵉ cran, jamais `0`**.
+  `rang` numérote la passation **dans sa matière** (1ʳᵉ, 2ᵉ…). Un diagnostic `rejected` en sort.
+- `jauges.plus_ancienne_lecture` — la mesure la plus ancienne **encore invoquée** : pour chaque
+  matière on garde la plus récente, puis on prend la plus vieille de celles-là. Ce n'est **pas** la
+  plus vieille du dépôt, qu'une passation postérieure aurait déjà remplacée.
+- `jauges.lots_declenches` — **toujours `0`, par décision** (`trigger='evidence'` reste fermé).
+  Servi plutôt que déduit, pour que la page rende un vide voulu et non un compteur de panne.
+- `subjects[].a_un_diagnostic` — les matières sans diagnostic restent servies, **atténuées** à
+  l'écran : leur absence est l'information.
 
 ### GET `/diagnostics/results` (Papa)
 
-Derniers diagnostics passés, score par notion + lacunes ouvertes.
+Derniers diagnostics passés (⚠️ `limit=10` en dur), score par notion + lacunes ouvertes.
+
+**`per_skill[]`** porte `questions_count` — le **grain** de la mesure (ADR-0043 Décision 3).
+`QUESTIONS_PER_SKILL` est passé de 2 à 5, mais **seulement pour les passations futures** : la
+granularité du dépôt est **mixte pour toujours**, et un score de 50 % ne dit pas la même chose
+selon qu'il porte sur 2 ou 5 questions. Le champ existe pour que la page le dise au lieu de le
+taire.
+
+🔴 **`gaps[]` est LU en base** (`gaps`, `source='diagnostic'`, `OPEN_GAP_STATUSES`), il n'est plus
+recalculé depuis les réponses de la passation. Une lacune résolue cesse donc de s'afficher.
+⚠️ **Ce que le champ veut dire a changé** : une `Gap` est clé sur `(student, skill)`, jamais sur une
+tentative — « les lacunes de cette passation » n'existe pas en base. Ce qui est servi, ce sont *les
+lacunes ouvertes **aujourd'hui** sur les notions que cette passation a mesurées*. Une lacune ouverte
+par un diagnostic antérieur apparaît donc sur la ligne d'un diagnostic plus récent qui remesure la
+même notion.
+
+### GET `/diagnostics/results/{attempt_id}` (Papa)
+
+Le détail d'**une** passation, même contrat qu'une ligne de `/results`. Il n'en existait aucun : le
+panneau devait retrouver sa passation parmi les dix servies, et au-delà elle était inaccessible.
+
+`404` si la passation n'existe pas, n'est pas un diagnostic, ou n'est pas celle de cet élève.
+
+### GET `/diagnostics/portee?subject_id=` (Papa)
+
+**La portée** — `results` transposé : par **notion** au lieu de par passation.
+
+```jsonc
+{
+  "subject_id": 2, "subject": "Mathématiques",
+  "attempts": [ { "attempt_id": 7, "completed_at": "…", "score_percent": 55 } ],  // du PLUS ANCIEN au plus récent
+  "notions": [ {
+    "skill_id": 12, "skill_name": "Nombres relatifs",
+    "points": [ { "attempt_id": 7, "score": 50, "questions_count": 2 }, null, { … } ],
+    "delta": 30                                    // dernière mesure − première, en points
+  } ]
+}
+```
+
+- `attempts` **indexe `points` position par position** : la page n'a aucun appariement à refaire.
+- 🔴 **`null` = notion non mesurée** par cette passation, **jamais** la valeur précédente reportée.
+  Reporter dessinerait un palier plat que personne n'a mesuré, et un palier plat se lit « rien n'a
+  bougé » — l'exact contraire de « on n'a pas regardé ».
+- 🔴 **Seules les notions mesurées au moins deux fois sortent.** Un point ne fait pas une pente ; à
+  une seule passation, `notions` est vide et la page remplace la portée par son absence expliquée.
+- `subject_id` est **obligatoire** : une portée toutes matières mélangerait des notions qui ne se
+  comparent pas (et l'`adr-0028 §9` interdit déjà le classement de matières).
 
 > Reporté : `generate-missions` (remédiation depuis les lacunes), diagnostic
 > multi-matières en une session, difficulté adaptative.
@@ -1685,8 +1779,13 @@ Sortie :
 | `/capsules/library` GET | oui | oui | oui |
 | `/capsules/{id}/view` POST | oui | oui | oui |
 | `/diagnostics/generate` POST | non | oui | oui |
-| `/diagnostics/quizzes/{id}/submit` POST | oui | oui | oui |
+| `/diagnostics/quizzes/{id}/submit` POST | oui | **non** | **non** |
+| `/diagnostics/quizzes/{id}/validate` POST | non | oui | oui |
+| `/diagnostics/quizzes/{id}/reject` POST | non | oui | oui |
 | `/diagnostics/results` GET | non | oui | oui |
+| `/diagnostics/results/{attempt_id}` GET | non | oui | oui |
+| `/diagnostics/portee` GET | non | oui | oui |
+| `/diagnostics/apercu` GET | non | oui | oui |
 | `/missions/generate-remediation` POST | non | oui | oui |
 | `/missions/today` GET | oui | oui | oui |
 | `/missions/{id}/complete` POST | oui | oui | oui |

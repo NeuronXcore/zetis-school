@@ -14,9 +14,15 @@ Trois invariants portent tout le reste :
 3. **Bornage à l'année active** (§3), comme la Couverture — sinon la file annoncerait des objets
    qu'aucune page ne sait ouvrir.
 
-⚠️ **Les quiz n'y sont pas**, et c'est un choix : `quizzes` n'a pas de `validation_status`, il est
-servi sans gate par doctrine (ADR-0014 §2). Les compter demanderait une migration **et** un
-changement de doctrine. Un test le verrouille pour que l'absence ne se relise pas comme un oubli.
+⚠️ **Les quiz de mission et de fin de cours n'y sont pas**, et c'est un choix : l'ADR-0014 §2 les
+sert sans gate, par doctrine — ils sont dérivés d'un substrat déjà validé. Un test le verrouille
+pour que l'absence ne se relise pas comme un oubli.
+
+**Le diagnostic, lui, y est** (ADR-0043) : il ne dérive d'aucun substrat validé — son prompt ne
+reçoit que le nom de la matière, celui de la notion et un niveau. L'exemption ne s'y est jamais
+appliquée ; la 6ᵉ famille en tire la conséquence. La ligne de partage n'est donc **pas** la table
+(`quizzes` porte les deux) mais `quiz_type` — c'est ce qui rend la doctrine relisible : ce qui
+dérive du validé passe, ce qui mesure à froid se relit.
 
 ⚠️ **Les deux conventions de statut coexistent et restent** : `lessons.status == 'draft'` d'un côté,
 `validation_status == 'pending'` de l'autre. Ce n'est pas une dette qu'on repousse : `school.py`
@@ -34,6 +40,7 @@ from app.db.models import (
     Fiche,
     Lesson,
     Mindmap,
+    Quiz,
     SchoolYear,
     SchoolYearSubject,
     Subject,
@@ -43,7 +50,11 @@ from app.db.models import (
 # Ordre FIXE des familles, repris tel quel par la file « À décider » et par la page. Il encode la
 # priorité de diffusion — un chapitre non validé bloque ses leçons, une leçon non validée bloque
 # ses dérivés — et non la chronologie.
-KINDS: tuple[str, ...] = ("lesson", "fiche", "mindmap", "capsule", "chapter")
+#
+# `diagnostic` est en DERNIER, et pas par ancienneté : il ne bloque rien et rien ne le bloque. Un
+# diagnostic se génère sans cours (son prompt ne lit aucun substrat), il n'a donc pas sa place dans
+# la chaîne de déblocage que l'ordre encode.
+KINDS: tuple[str, ...] = ("lesson", "fiche", "mindmap", "capsule", "chapter", "diagnostic")
 
 # Libellés (singulier, pluriel) pour la ligne de la file « À décider » : « 27 cours · 1 fiche ».
 #
@@ -56,6 +67,7 @@ KIND_LABELS: dict[str, tuple[str, str]] = {
     "mindmap": ("mindmap", "mindmaps"),
     "capsule": ("capsule", "capsules"),
     "chapter": ("chapitre", "chapitres"),
+    "diagnostic": ("diagnostic", "diagnostics"),
 }
 
 
@@ -239,6 +251,46 @@ def _chapters_query(year_id: int) -> Select:
     ).where(Chapter.validation_status == "pending", _chapter_in_year(year_id))
 
 
+def _diagnostics_query(year_id: int) -> Select:
+    """Les diagnostics en attente de relecture (ADR-0043 Décision 1).
+
+    🔴 **Le bornage est celui des CAPSULES, pas celui des dérivés.** Un diagnostic porte
+    `subject_id` et **rien d'autre** : `chapter_id` et `lesson_id` sont `NULL` par construction —
+    il mesure une matière, pas un cours. Le passer par `_derivative_query`, qui joint la leçon,
+    rendrait **zéro ligne en silence** : le piège exact que `_chapter_in_year` documente déjà pour
+    les chapitres orphelins, transposé d'un cran.
+
+    `status != 'archived'` : un diagnostic retiré ne se relit plus, mais ses tentatives restent
+    (ADR-0014 Décision 3 — on n'efface pas l'histoire).
+
+    ⚠️ **Le filtre porte sur `quiz_type`, jamais sur la table.** `quizzes` héberge maintenant du
+    gaté et du non-gaté ; une requête écrite sur `Quiz` seul ferait entrer tous les quiz de mission
+    dans la file au premier oubli de prédicat.
+    """
+    return (
+        select(
+            Quiz.id.label("oid"),
+            Quiz.title.label("otitle"),
+            Subject.id.label("subject_id"),
+            Subject.name.label("subject_name"),
+            Subject.slug.label("subject_slug"),
+            null().label("chapter_id"),
+            null().label("chapter_name"),
+            null().label("lesson_id"),
+            null().label("lesson_title"),
+            Quiz.created_at.label("created_at"),
+        )
+        .select_from(Quiz)
+        .join(Subject, Subject.id == Quiz.subject_id)
+        .where(
+            Quiz.quiz_type == "diagnostic",
+            Quiz.validation_status == "pending",
+            Quiz.status != "archived",
+            Quiz.subject_id.in_(_year_subject_ids(year_id)),
+        )
+    )
+
+
 def _family_query(kind: str, year_id: int) -> Select:
     if kind == "lesson":
         return _lessons_query(year_id)
@@ -250,6 +302,8 @@ def _family_query(kind: str, year_id: int) -> Select:
         return _capsules_query(year_id)
     if kind == "chapter":
         return _chapters_query(year_id)
+    if kind == "diagnostic":
+        return _diagnostics_query(year_id)
     raise ValueError(f"famille de relecture inconnue : {kind}")
 
 

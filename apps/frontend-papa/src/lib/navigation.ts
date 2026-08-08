@@ -1,6 +1,7 @@
 // Entrées de la sidebar Papa (cf. docs/frontend-papa/README.md + SUIVI Étape 3).
 // Étape 3 : navigation temporaire. Les vraies pages arrivent à l'Étape 8.
 import couvertureIcon from "../assets/app/ZETIS_map_256.png";
+import diagnosticIcon from "../assets/app/ZETIS-Diagnostic_256.png";
 export interface NavItem {
   to: string;
   label: string;
@@ -30,7 +31,7 @@ export const PAPA_NAV: NavItem[] = [
   { to: "/progression", label: "Progression", icon: "📈" },
   { to: "/lacunes", label: "Lacunes", icon: "🧩" },
   { to: "/missions", label: "Missions", icon: "🎯" },
-  { to: "/diagnostics", label: "Diagnostics", icon: "🧭" },
+  { to: "/diagnostics", label: "Diagnostics", icon: "🧭", iconUrl: diagnosticIcon },
   { to: "/conseil", label: "Conseil de classe IA", icon: "🧑‍🏫" },
   { to: "/cahier", label: "Cahier de bord IA", icon: "📓" },
   // ── Production de contenu ── « Couverture » ouvre le groupe : elle est l'UNION des cinq

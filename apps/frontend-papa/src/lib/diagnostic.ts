@@ -1,34 +1,25 @@
-// Appels au diagnostic (Étape 14) — Papa lance un diagnostic et consulte les résultats.
+// Client API du diagnostic côté Papa (étape 14, refondu par l'adr-0043).
+//
+// Les formes vivent dans `@zetis/types` depuis l'adr-0043 : le module était le seul à garder ses
+// contrats en local, et ses contrats ont changé. Les alias ci-dessous conservent les noms
+// historiques pour ne pas réécrire les appelants au passage.
+import type {
+  DiagnosticApercu,
+  DiagnosticPortee,
+  DiagnosticResult,
+  DiagnosticSubjectRef,
+} from "@zetis/types";
 import { API_URL, authClient } from "./authClient";
 import { lancerEtSuivre, type SuiviTravail } from "./travaux";
+
+export type { DiagnosticApercu, DiagnosticPortee } from "@zetis/types";
 
 export interface Subject {
   id: number;
   name: string;
 }
 
-export interface SkillScore {
-  skill_id: number | null;
-  skill_name: string;
-  score: number;
-  status: string;
-}
-
-export interface DiagnosticGap {
-  skill_id: number | null;
-  skill_name: string;
-  severity: string;
-}
-
-export interface DiagnosticResultSummary {
-  attempt_id: number;
-  quiz_id: number;
-  subject: string;
-  score_percent: number;
-  completed_at: string | null;
-  per_skill: SkillScore[];
-  gaps: DiagnosticGap[];
-}
+export type DiagnosticResultSummary = DiagnosticResult;
 
 export interface GenerateResponse {
   quiz_id: number;
@@ -81,4 +72,56 @@ export async function generateDiagnostic(
 
 export async function fetchResults(): Promise<DiagnosticResultSummary[]> {
   return asJson(await fetch(`${API_URL}/api/diagnostics/results`, { headers: headers() }));
+}
+
+/** Bandeau + rail + matières jamais mesurées, en UN appel.
+ *
+ *  ⚠️ Ne PAS le remplacer par `/quizzes` : cette route-là est gatée sur `validated` depuis
+ *  l'adr-0043 — c'est celle de Massimo — et le rail a précisément besoin du premier cran, celui
+ *  que Massimo ne voit pas encore. */
+export async function fetchApercu(): Promise<DiagnosticApercu> {
+  return asJson(await fetch(`${API_URL}/api/diagnostics/apercu`, { headers: headers() }));
+}
+
+/** Le détail d'UNE passation. Séparé de `fetchResults` : au-delà des dix servies par la liste,
+ *  une passation n'était plus atteignable. */
+export async function fetchResultDetail(attemptId: number): Promise<DiagnosticResultSummary> {
+  return asJson(
+    await fetch(`${API_URL}/api/diagnostics/results/${attemptId}`, { headers: headers() }),
+  );
+}
+
+/** La portée d'une matière — le pivot par notion sur ses passations successives. */
+export async function fetchPortee(subjectId: number): Promise<DiagnosticPortee> {
+  return asJson(
+    await fetch(`${API_URL}/api/diagnostics/portee?subject_id=${subjectId}`, {
+      headers: headers(),
+    }),
+  );
+}
+
+export type { DiagnosticSubjectRef };
+
+/** Verdict de Papa sur un diagnostic (adr-0043). Tant qu'il est `pending`, AUCUNE route élève ne
+ *  le sert — c'est le gate, et c'est aussi pourquoi ces deux appels existent : un gate sans
+ *  soupape enfermerait tout diagnostic à vie.
+ *
+ *  Convention `fiches` (`/{id}/validate`, `/{id}/reject`) reprise telle quelle plutôt qu'une
+ *  sixième inventée — `reviewActions.ts` n'est qu'une table d'aiguillage. */
+export async function validateDiagnostic(quizId: number): Promise<void> {
+  await asJson(
+    await fetch(`${API_URL}/api/diagnostics/quizzes/${quizId}/validate`, {
+      method: "POST",
+      headers: headers(),
+    }),
+  );
+}
+
+export async function rejectDiagnostic(quizId: number): Promise<void> {
+  await asJson(
+    await fetch(`${API_URL}/api/diagnostics/quizzes/${quizId}/reject`, {
+      method: "POST",
+      headers: headers(),
+    }),
+  );
 }

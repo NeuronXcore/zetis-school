@@ -263,11 +263,22 @@ title
 description
 quiz_type          # diagnostic | mission | revision | capsule_post_test
 status             # draft | ready | archived (suppression = archivage si tentatives, ADR-0014)
+                   # ⚠️ CYCLE DE VIE, pas relecture — voir `validation_status` juste dessous
 created_by
+validation_status  # pending | validated | rejected — défaut `pending` (ADR-0043)
+                   # SEUL le `quiz_type = diagnostic` est gaté : il ne dérive d'aucun substrat
+                   # validé, l'exemption « évaluation éphémère » (ADR-0014 §2) ne s'y applique
+                   # pas. Les quiz de mission et de fin de cours naissent `validated`.
+                   # ⚠️ La ligne de partage est `quiz_type`, JAMAIS la table.
+                   # ⚠️ Deux statuts, pas un doublon : un diagnostic `ready` + `pending` est
+                   # complet mais non servi.
 validated_at optional  # horodatage, posé à la génération (addendum ADR-0011 §F)
-validated_by optional  # TOUJOURS `system` : le quiz est servi SANS gate de validation par doctrine
-                       # (ADR-0014 §2). Valeur strictement réservée à ce cas — un test-verrou
-                       # interdit à tout autre chemin de l'écrire.
+validated_by optional  # `system` pour un quiz NON gaté — servi sans relecture par doctrine,
+                       # valeur strictement réservée à ce cas (deux tests-verrous, l'un lexical
+                       # l'autre comportemental). Un diagnostic relu porte `parent`.
+                       # ⚠️ `NULL` sur une ligne `validated` = quiz antérieur à l'ADR-0043,
+                       # backfillé parce qu'il était déjà servi. Personne ne l'a laissé passer ;
+                       # il est passé faute de gate. Aucune rétro-attribution (doctrine §F.4).
 ```
 
 ### QuizQuestion
