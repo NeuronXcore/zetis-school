@@ -238,6 +238,48 @@ La règle qui en sort, et qui vaut au-delà de ce chantier :
 > **Un correctif attaché à une porte d'entrée ne survit pas à l'ouverture d'une seconde.** Quand on
 > ajoute un chemin de lancement, on hérite de tout ce que l'ancien garantissait.
 
+#### `[amendement]` 🔴 « Une seule fois pour toutes » était INIMPLÉMENTABLE
+
+> Amendé le 2026-08-08, au read-before-code de la slice B, et **soumis au commanditaire avant toute
+> écriture**. La décision d'origine disait : *« une seule fois pour toutes, pas une par paire »*.
+
+Deux faits, vérifiés dans `.claude/launch.json` :
+
+- **chaque entrée exige un `port`** — le fichier n'a aucune forme pour un processus qui n'écoute
+  rien ;
+- il y a **cinq** entrées backend : `backend` :8000, `backend-dev` :8001, `backend-dev2` :8002,
+  `backend-galaxy` :8003, `backend-lan` :8004.
+
+Il n'existe donc **aucun endroit** où poser « le worker, une fois ». Le seul contournement aurait été
+une entrée dédiée avec un **port inventé que rien n'écoute** — et qu'il aurait fallu penser à lancer,
+c'est-à-dire la commande à taper que ce chantier supprime.
+
+**Ce qui est retenu** : le worker accompagne **chaque** entrée backend, via `scripts/with-worker.sh`.
+La garantie « un seul worker » n'est plus portée par l'unicité du point de lancement mais par le
+**garde-fou** — ce que le motif de la décision disait déjà : *« le garde-fou doit être ce qui rend
+l'item 2 sûr, pas un filet posé à côté »*. La première entrée lancée démarre le worker ; les
+suivantes refusent et nomment le pid.
+
+⚠️ **La garantie est inchangée ; seul le moyen l'est.** Vérifié en conditions réelles : un second
+appel rend *« ⚠ Un worker de production tourne déjà — pid 29543 (+1 processus : RQ fork son
+scheduler) »*, puis laisse la commande enveloppée tourner normalement.
+
+#### `[amendement]` Le garde-fou vit dans le MODULE, pas dans les scripts
+
+Le tableau du périmètre listait `scripts/dev.sh`, `package.json` et `.claude/launch.json`. Le garde-fou
+est finalement dans **`apps/backend/app/production_worker.py`**, et c'est la Décision 4 appliquée à
+elle-même : en bash, il aurait fallu le recopier dans chaque porte, et **la prochaine porte serait
+née sans lui**. Dans le module, il couvre les quatre portes actuelles et celles qui n'existent pas
+encore.
+
+Effet de bord favorable : **`scripts/dev.sh` et `package.json` n'ont eu besoin d'aucune
+modification**. Ils appellent le module, donc ils héritent du garde-fou.
+
+⚠️ Et il mesure des **processus**, jamais l'enregistrement RQ dans Redis : les deux divergent dans
+les deux sens (une clé expire après 8 min sans battement ; un enregistrement survit à un worker tué
+sans nettoyage). `production_worker_alive()` répond à *« la file est-elle servie ? »* et reste la
+bonne réponse à cette question-là.
+
 ### 5. L'absence du worker sort de l'écran — par e-mail, et le motif est un fait de déploiement
 
 Un **watchdog dans le backend** — pas dans le worker (alternative c) — qui envoie un e-mail quand
@@ -364,6 +406,44 @@ lourde :
 
 - Le prompt de slice : `prompts/claude-code/prompts-claude-code-adr-0046.md`.
 - La spec : `docs/devops/worker-production.md`.
-- ⚠️ **La vérification est humaine et non délégable** : `pnpm prod:up`, tuer le conteneur `worker`,
-  vérifier qu'il revient ; puis lancer un lot sans worker et attendre l'e-mail. Aucun test ne peut
-  prouver l'un ni l'autre.
+
+### `[amendement]` 🔴 La procédure de vérification écrite ici était FAUSSE — elle rendait un faux négatif
+
+> Corrigé le 2026-08-08, en la jouant. Le texte d'origine disait : *« La vérification est humaine et
+> non délégable : `pnpm prod:up`, **tuer le conteneur `worker`**, vérifier qu'il revient. »* Les deux
+> moitiés de cette phrase étaient fausses.
+
+**1. `docker compose kill worker` ne simule pas un crash — c'est un arrêt d'opérateur.** Le démon
+marque le conteneur comme arrêté à la demande, et `unless-stopped` **exclut ce cas par définition** :
+c'est tout le sens du mot *unless*. Mesuré : après un `kill`, `RestartCount = 0`, `State = exited`.
+
+🔴 **Le service était correct et la procédure disait le contraire.** Quiconque aurait suivi la
+procédure écrite aurait conclu que le chantier avait échoué. Une procédure de preuve qui rend un
+faux négatif est pire qu'une absence de procédure — elle fait défaire ce qui marche.
+
+**La bonne manœuvre** : faire mourir le processus *depuis l'intérieur*, sans que le démon l'ait
+demandé. ⚠️ `kill` n'existe pas dans l'image slim et `docker exec` n'a pas de builtin — il faut
+passer par `sh`. Et viser **SIGTERM**, que RQ intercepte : la protection du PID 1 empêche la
+délivrance des signaux **sans gestionnaire**, donc un `kill -9 1` de l'intérieur ne ferait rien.
+
+```bash
+docker exec zetis-prod-worker-1 sh -c 'kill -TERM 1'
+```
+
+**Résultat mesuré : `RestartCount 0 → 1`, `StartedAt` changée, et le worker réécoute ses deux
+files.** ✅
+
+**2. « non délégable » était faux pour cette moitié.** Un conteneur qui redémarre est **mécaniquement
+vérifiable**, et ça a été fait. Ce qui reste humain, c'est la **slice C** — un e-mail qui arrive.
+
+### Ce qui est prouvé, et comment
+
+| Propriété | Preuve |
+|---|---|
+| La barrière `service_healthy` | séquence de démarrage réelle : `backend … Waiting → Healthy`, **puis** `worker Starting` |
+| L'`entrypoint` écrasé | les logs du worker montrent RQ `Listening on production-priority, production`, **pas** uvicorn ; et le backend a migré **seul** |
+| Le redémarrage automatique | `RestartCount 0 → 1` après une mort de processus interne |
+
+⚠️ **Jouée sans perturber le dev** : seul MinIO entrait en conflit (9000-9001) et il est paramétrable
+(`MINIO_PORT`) ; `up -d --build worker` ne construit que le worker et ses dépendances — **pas
+`worker-media`**, donc pas les ~300 Mo de Chromium.

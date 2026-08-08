@@ -194,14 +194,19 @@ file**, qui sont corrects et défendus par un commentaire. Web Push, l'accès di
 
 ## 🔴 VÉRIFICATION — OBLIGATOIRE, ET PAR UN HUMAIN
 
-Aucune des deux preuves de ce chantier n'est atteignable par un test : **aucune CI n'existe**, et un
-test ne peut prouver ni qu'un conteneur redémarre, ni qu'un e-mail est arrivé.
+Aucune n'est atteignable par un test : **aucune CI n'existe**, et rien dans les suites ne lit un
+compose ni une boîte mail.
 
-1. **La supervision** — `pnpm prod:up`, tuer le conteneur `worker`, vérifier qu'il revient.
-2. **L'alerte** — arrêter le worker, déclencher une production, attendre le seuil, **recevoir
-   l'e-mail**.
-3. **Le garde-fou** — lancer `pnpm dev:worker` deux fois : le second doit refuser **en nommant le
-   pid du premier**.
+1. ✅ **La supervision** — **FAITE le 2026-08-08**, et elle a corrigé ce prompt. 🔴 `docker compose
+   kill worker` **ne prouve rien** : c'est un arrêt d'opérateur, que `unless-stopped` exclut par
+   définition — il rend un **faux négatif** sur un service correct. La bonne manœuvre est
+   `docker exec zetis-prod-worker-1 sh -c 'kill -TERM 1'` (⚠️ pas de `kill` dans l'image slim, pas
+   de builtin dans `docker exec` ; et SIGTERM parce que RQ l'intercepte — la protection du PID 1
+   bloque les signaux sans gestionnaire). Résultat : `RestartCount 0 → 1`.
+2. ⬜ **L'alerte** (slice C) — arrêter le worker, déclencher une production, attendre le seuil,
+   **recevoir l'e-mail**. Ici `stop` est le bon geste : on veut que rien ne le relance.
+3. ⬜ **Le garde-fou** (slice B) — lancer `pnpm dev:worker` deux fois : le second doit refuser **en
+   nommant le pid du premier**.
 
 Les cinq relectures visuelles précédentes du dépôt ont chacune trouvé ce qu'aucun test ne voyait.
 Celle-ci porte sur du déploiement, où il n'y a même pas d'écran pour trahir un défaut.

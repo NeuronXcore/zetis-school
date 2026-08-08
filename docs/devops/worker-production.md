@@ -106,21 +106,47 @@ correctif de 2026-08-05 n'était attaché qu'à la première.
 | Porte | Lance le worker ? |
 |---|---|
 | `pnpm dev` (`scripts/dev.sh`) | ✅ oui, étape 4/5, avec un `trap` qui l'arrête |
-| paires `.claude/launch.json` (`backend-dev`, `backend-galaxy`, …) | ✅ oui, **une seule fois pour toutes** |
+| les **5 entrées backend** de `.claude/launch.json` | ✅ oui, via `scripts/with-worker.sh` |
 | `pnpm dev:back` / `dev:front` / `dev:massimo` / `dev:papa` | ❌ non — ce sont des morceaux, pas une stack |
 | `pnpm dev:worker` | ✅ c'est son seul objet |
 
+⚠️ **Chaque** entrée backend l'emporte, et non « une seule fois pour toutes » : `launch.json` exige
+un `port` sur chaque entrée et n'a donc aucune forme pour un processus qui n'écoute rien. C'est le
+**garde-fou** qui tient la garantie, pas l'unicité du point de lancement (`adr-0046` Décision 4,
+amendée).
+
 ### Le garde-fou
 
-`dev:worker` et `dev.sh` **refusent de démarrer** si un worker tourne déjà, et **disent lequel** :
+Il vit dans **`app/production_worker.py`**, donc il couvre **toutes** les portes — y compris celles
+qui n'existent pas encore. C'est la raison pour laquelle `dev.sh` et `package.json` n'ont eu besoin
+d'aucune modification.
 
 ```
-⚠ Un worker de production tourne déjà (pid 29543). Un seul à la fois — un seul Ollama, un seul GPU.
-  Pour le remplacer :  kill 29543 && pnpm dev:worker
+⚠ Un worker de production tourne déjà — pid 29543 (+1 processus : RQ fork son scheduler).
+  Un seul à la fois — un seul Ollama, un seul GPU.
+  Pour le remplacer :  kill 29543 29544 && pnpm dev:worker
 ```
 
-Un garde-fou qui s'abstient en silence est pire que pas de garde-fou : celui-ci écrit ce qu'il a
-trouvé.
+Trois choses que ce message fait exprès :
+
+- **il écrit ce qu'il a trouvé.** Un garde-fou qui s'abstient en silence se lit comme un démarrage
+  réussi, et on cherche ensuite pourquoi rien ne produit ;
+- **il ne compte pas les processus comme des workers** — RQ fork un scheduler qui porte la même
+  ligne de commande. Annoncer « pid 29543, 29544 » ferait croire à deux workers, soit le défaut
+  qu'on empêche ;
+- **il donne le geste**, avec tous les pids : tuer le worker sans son scheduler laisserait un
+  orphelin.
+
+🔴 **Le motif de détection a DEUX façons d'être faux**, rencontrées toutes les deux le 2026-08-08 :
+
+| Direction | Motif | Effet |
+|---|---|---|
+| sous-détection | `"production_worker\|rq worker"` | `\|` n'est pas une alternance en ERE → ne rend **jamais** rien → **autorise toujours** le démarrage |
+| sur-détection | `^(.*/)?python[0-9.]* -m app\.production_worker$` | `(.*/)?` avale `sh -c cd … && .venv/bin/` → attrape **le wrapper qui vient de nous lancer** → blocage permanent |
+
+Le motif retenu, `^[^ ]*python[0-9.]* -m app\.production_worker$`, ferme les deux : un chemin ne
+contient pas d'espace, la ligne du wrapper si. Cinq verrous le tiennent
+(`test_production_worker_garde.py`), **tous sabotés et rouges**.
 
 ## L'alerte quand personne ne consomme
 
@@ -180,23 +206,54 @@ Anthropic (`adr-0009`).
 
 ## Vérifier — et pourquoi aucun test ne le fera
 
-**Deux preuves, humaines et non délégables** :
+### 🔴 `docker compose kill worker` NE PROUVE RIEN — et rend un faux négatif
+
+C'est un **arrêt d'opérateur** : le démon marque le conteneur comme arrêté à la demande, et
+`unless-stopped` **exclut ce cas par définition** — c'est le sens du mot *unless*. Mesuré le
+2026-08-08 : après un `kill`, `RestartCount = 0`, `State = exited`, sur un service parfaitement
+configuré.
+
+**Cette procédure a été écrite fausse dans la première version de l'ADR et de ce document.**
+Quiconque l'aurait suivie aurait conclu que le chantier avait échoué, et serait allé « réparer » ce
+qui marchait.
+
+**La supervision — le service revient tout seul** ✅ *vérifié le 2026-08-08*
+
+Il faut faire mourir le processus **depuis l'intérieur**, sans que le démon l'ait demandé :
 
 ```bash
-# 1. La supervision : le service revient tout seul.
 pnpm prod:up
-docker compose -f docker-compose.prod.yml kill worker
-docker compose -f docker-compose.prod.yml ps worker   # doit être remonté
+# ⚠️ `kill` n'est pas dans l'image slim et `docker exec` n'a pas de builtin → passer par `sh`.
+# ⚠️ Viser SIGTERM, que RQ intercepte : la protection du PID 1 bloque les signaux SANS
+#    gestionnaire, donc un `kill -9 1` de l'intérieur ne ferait rien.
+docker exec zetis-prod-worker-1 sh -c 'kill -TERM 1'
+sleep 15
+docker inspect zetis-prod-worker-1 --format '{{.RestartCount}} {{.State.Status}}'   # → 1 running
 ```
 
+💡 **Pour rejouer sans démonter le dev** : seul MinIO entre en conflit, et il est paramétrable.
+`up -d --build worker` ne construit que le worker et ses dépendances — pas `worker-media`, donc pas
+les ~300 Mo de Chromium.
+
 ```bash
-# 2. L'alerte : lancer un lot sans worker, attendre le seuil.
+MINIO_PORT=9010 MINIO_CONSOLE_PORT=9011 docker compose -f docker-compose.prod.yml up -d --build worker
+```
+
+**L'alerte — l'e-mail arrive** ⬜ *slice C, pas encore livrée*
+
+```bash
+# Ici `stop` est le bon geste : on VEUT un arrêt d'opérateur, pour que rien ne le relance.
 docker compose -f docker-compose.prod.yml stop worker
 # … déclencher une production depuis l'app, puis patienter PRODUCTION_ALERT_AFTER_MINUTES …
 ```
 
-Aucune CI n'existe dans ce dépôt (`DEPLOYMENT.md`), et un test ne peut prouver ni qu'un conteneur
-redémarre, ni qu'un e-mail est arrivé.
+🔴 **Celle-ci est vraiment humaine** : aucune CI n'existe dans ce dépôt (`DEPLOYMENT.md`), et rien
+ne peut constater à ma place qu'un e-mail est arrivé dans une boîte.
+
+> ⚠️ **La distinction vaut d'être retenue** : `stop` et `kill` sont tous deux des arrêts
+> d'opérateur, donc tous deux **inaptes** à prouver un redémarrage — et tous deux **exactement ce
+> qu'il faut** pour maintenir le worker éteint pendant qu'on teste l'alerte. Le même geste sert une
+> preuve et sabote l'autre.
 
 ## Ce que ce document ne couvre pas
 

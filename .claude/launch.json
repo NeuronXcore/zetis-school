@@ -3,8 +3,10 @@
   "configurations": [
     {
       "name": "backend",
-      "runtimeExecutable": "pnpm",
+      "runtimeExecutable": "bash",
       "runtimeArgs": [
+        "scripts/with-worker.sh",
+        "pnpm",
         "dev:back"
       ],
       "port": 8000
@@ -33,8 +35,10 @@
     },
     {
       "name": "backend-dev",
-      "runtimeExecutable": "sh",
+      "runtimeExecutable": "bash",
       "runtimeArgs": [
+        "scripts/with-worker.sh",
+        "sh",
         "-c",
         "cd apps/backend && ZETIS_CORS_ORIGINS='[\"http://localhost:5175\",\"http://localhost:5176\",\"http://localhost:5177\"]' .venv/bin/uvicorn app.main:app --reload --port 8001"
       ],
@@ -42,8 +46,10 @@
     },
     {
       "name": "backend-dev2",
-      "runtimeExecutable": "sh",
+      "runtimeExecutable": "bash",
       "runtimeArgs": [
+        "scripts/with-worker.sh",
+        "sh",
         "-c",
         "cd apps/backend && ZETIS_CORS_ORIGINS='[\"http://localhost:5177\",\"http://localhost:5178\"]' .venv/bin/uvicorn app.main:app --reload --port 8002"
       ],
@@ -87,8 +93,10 @@
     },
     {
       "name": "backend-galaxy",
-      "runtimeExecutable": "sh",
+      "runtimeExecutable": "bash",
       "runtimeArgs": [
+        "scripts/with-worker.sh",
+        "sh",
         "-c",
         "cd apps/backend && ZETIS_CORS_ORIGINS='[\"http://localhost:5179\"]' .venv/bin/uvicorn app.main:app --reload --port 8003"
       ],
@@ -116,8 +124,10 @@
       "// paire LAN": "Seule paire joignable depuis un VRAI iPhone. Toutes les autres lient 127.0.0.1 : le téléphone ne peut atteindre AUCUN de leurs ports, quelle que soit l'URL tapée. Quatre choses doivent changer ENSEMBLE, et il en manque toujours une : (1) uvicorn --host 0.0.0.0, (2) vite --host 0.0.0.0, (3) VITE_API_URL sur l'IP du Mac — sur localhost le téléphone appellerait SON PROPRE localhost, (4) l'origine LAN dans ZETIS_CORS_ORIGINS, que le défaut (:5173/:5174) n'a pas. L'IP se résout au lancement : elle bouge au gré du DHCP.",
       "// piège en0": "en0 est le Wi-Fi. Le Mac a AUSSI une route par défaut sur en10 (filaire) — c'est cette adresse-là qu'on relève par réflexe, et le téléphone, qui est en Wi-Fi, ne la joint pas.",
       "name": "backend-lan",
-      "runtimeExecutable": "sh",
+      "runtimeExecutable": "bash",
       "runtimeArgs": [
+        "scripts/with-worker.sh",
+        "sh",
         "-c",
         "IP=$(ipconfig getifaddr en0) && echo \"[LAN] backend sur http://$IP:8004\" && cd apps/backend && ZETIS_CORS_ORIGINS=\"[\\\"http://$IP:5180\\\",\\\"http://localhost:5180\\\"]\" .venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8004"
       ],
