@@ -284,6 +284,50 @@ cran**, `pending` — donc en relecture chez Papa et **pas chez Massimo** : le g
 tient. ⚠️ Le travail 755 est un diagnostic **Histoire-Géo**, matière jusqu'ici « jamais générée » :
 une fois produit, la jauge `2 / 8` et le focus `non-mesurees` bougeront.
 
+## 🔴 CHANTIER À CADRER — la page Lacunes énonce sans permettre d'agir
+
+**Trouvé le 2026-08-08 par le commanditaire**, en vérifiant la slice C de l'ADR-0045.
+
+### Le constat, vérifié dans le code
+
+**La ligne d'une lacune est un `<li>` nu** (`LacunesPage.tsx`) : pictogramme, nom, statut, date,
+badge de sévérité. **Aucun `Link`, aucun `onClick`, aucun dépliage.** Il n'y a même pas d'expander
+inerte — il n'y a rien.
+
+Les seuls éléments cliquables de la page sont les deux boutons de filtre, « Réessayer », et les
+deux boutons de génération **au niveau de la SECTION**, jamais de la ligne.
+
+### 🔴 Ce qui rend le défaut gênant : une autre page fait déjà mieux
+
+La **station ② du Diagnostic** rend, par lacune, le motif en clair **et un geste qui dépend de
+l'état** :
+
+| `content_state` | Geste proposé par la station ② |
+|---|---|
+| `aucune_lecon` | **Produire le quiz de cette notion →** |
+| `cours_brouillon` | **Valider le cours de cette leçon →** |
+| ouverte / résolue | Voir la lacune → |
+
+**La page DÉDIÉE aux lacunes en dit donc moins qu'une section d'une autre page.**
+
+Et le cul-de-sac se referme sur lui-même : ce dernier geste, « **Voir la lacune →** », pointe sur
+`/lacunes` (`PanneauPassation.tsx`). Papa quitte un écran qui lui donnait le motif et l'action pour
+atterrir sur **une ligne inerte**. C'est exactement le motif que l'ADR-0045 a traité deux fois —
+une surface qui énonce sans permettre d'agir — laissé intact sur la page qui en porte le nom.
+
+### ⚠️ La réparation est devenue presque gratuite le 2026-08-08
+
+La **slice C** a mis **`content_state` sur `OpenGap`** pour tout autre chose. La page a donc déjà en
+main, sans **aucune** ligne de backend, de quoi rendre les trois mêmes gestes que la station ② —
+plus `severity`, `has_active_mission` et `source`.
+
+**Ce qui manque encore, et qui coûterait un champ** : la **leçon ou le chapitre** à ouvrir, et la
+**mission** qui couvre déjà la notion (pour un « voir la mission → » sur les lignes « déjà prises en
+charge », qui sont aujourd'hui les plus inertes de toutes).
+
+⚠️ **Hors périmètre de l'ADR-0045**, qui porte sur la page Diagnostic. À cadrer à part — mais tant
+que c'est frais : c'est maintenant que c'est le moins cher.
+
 ## Dettes nommées — consignées, non traitées
 
 > Ouvertes le **2026-08-07** au cadrage puis au read-before-code de l'**ADR-0042** (la notion
