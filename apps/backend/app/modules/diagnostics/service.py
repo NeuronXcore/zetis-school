@@ -473,32 +473,22 @@ def submit(
     db.flush()
     per_skill_out = score_par_notion(db, attempt.id)
 
-    strengths: list[str] = []
     for row in per_skill_out:
         skill_id, score = row["skill_id"], row["score"]
         if skill_id is not None:
             _upsert_skill_mastery(db, student_id=student.id, skill_id=skill_id, score=score, now=now)
-        if score < GAP_THRESHOLD:
-            if skill_id is not None:
-                _upsert_gap(
-                    db,
-                    student_id=student.id,
-                    subject_id=quiz.subject_id,
-                    skill_id=skill_id,
-                    score=score,
-                )
-        else:
-            strengths.append(row["skill_name"])
+        if score < GAP_THRESHOLD and skill_id is not None:
+            _upsert_gap(
+                db,
+                student_id=student.id,
+                subject_id=quiz.subject_id,
+                skill_id=skill_id,
+                score=score,
+            )
 
-    # Les lacunes rendues sont celles de la BASE, pas celles qu'on vient de calculer : le `flush`
-    # rend visibles les `Gap` tout juste ouvertes, et la lecture y ajoute celles qui étaient déjà
-    # ouvertes sur ces notions. Massimo voit donc le même état que Papa, au même instant.
+    # Le `flush` rend visibles les `Gap` tout juste ouvertes : la vue construite ci-dessous les lit
+    # en base, avec celles qui étaient déjà ouvertes sur ces notions.
     db.flush()
-    gaps_out = lacunes_ouvertes(
-        db,
-        student_id=student.id,
-        skill_ids=[r["skill_id"] for r in per_skill_out if r["skill_id"] is not None],
-    )
 
     # XP pour avoir passé le diagnostic (gamification) — récompense l'engagement.
     award_xp(
@@ -506,15 +496,14 @@ def submit(
     )
 
     db.commit()
-    return {
-        "attempt_id": attempt.id,
-        "quiz_id": quiz_id,
-        "subject": subject.name if subject is not None else "",
-        "score_percent": overall,
-        "per_skill": per_skill_out,
-        "gaps": gaps_out,
-        "strengths": strengths,
-    }
+    # 🔴 La réponse n'est PAS composée ici (ADR-0044 Décision 5) : elle est produite par l'unique
+    # fabrique de la vue enfant, celle-là même que sert la route de relecture. Composer un second
+    # dictionnaire « équivalent » rendrait les deux surfaces libres de diverger — c'est exactement
+    # ce que la décision refuse.
+    #
+    # ⚠️ `score_percent` (`overall`) reste ÉCRIT sur la passation et servi à Papa ; il ne quitte
+    # que la réponse de l'enfant.
+    return resultat_eleve(db, student, attempt.id)
 
 
 def _upsert_skill_mastery(
@@ -1068,14 +1057,17 @@ def _skills_count(db: Session, quiz_id: int) -> int:
     )
 
 
-def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict:
-    """Le détail d'UNE passation — il n'existait aucun endpoint pour ça (spec §Ce qui manque).
+def _passation_ou_404(
+    db: Session, student: StudentProfile, attempt_id: int
+) -> tuple[QuizAttempt, Quiz]:
+    """Résout une passation de diagnostic **appartenant à cet élève** — sinon `404`.
 
-    Le panneau de la page ouvrait jusqu'ici une passation en la cherchant dans les dix que
-    `latest_results` sert : au-delà, elle était inaccessible, et la limite de dix est en dur.
+    Extrait de `result_detail` à comportement constant (ADR-0044 Décision 5) : la route élève de
+    relecture et la route Papa doivent poser exactement la même garde, et une garde recopiée est
+    une garde qui divergera.
 
-    `404` sur une passation qui n'est pas un diagnostic ou qui n'est pas celle de cet élève — pas
-    `403` : Papa n'a pas à apprendre l'existence de ce qu'il ne peut pas ouvrir.
+    **`404`, jamais `403`** : répondre « c'est interdit » apprendrait l'existence de ce qu'on ne
+    peut pas ouvrir.
     """
     attempt = db.get(QuizAttempt, attempt_id)
     quiz = db.get(Quiz, attempt.quiz_id) if attempt is not None else None
@@ -1086,6 +1078,51 @@ def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict
         or quiz.quiz_type != "diagnostic"
     ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Passation introuvable.")
+    return attempt, quiz
+
+
+def resultat_eleve(db: Session, student: StudentProfile, attempt_id: int) -> dict:
+    """La vue ENFANT d'une passation — servie à la soumission ET à la relecture (ADR-0044 §5).
+
+    🔴 **C'est la seule fabrique de cette vue.** `submit` l'appelle plutôt que de composer sa propre
+    réponse : les deux surfaces sont alors identiques *par construction*, et non par discipline.
+    Avant cette décision, Massimo voyait son résultat **une seule fois** — aucune route élève ne
+    permettait de le rouvrir, et celle de Papa sert un objet dont le docstring dit « Vue Papa ».
+
+    Les forces se **dérivent** de la mesure (`score_par_notion`), elles ne se stockent pas : le
+    seuil est `GAP_THRESHOLD`, le même qui décide d'ouvrir une lacune. Une notion est donc soit une
+    force, soit une prochaine étape — jamais les deux, jamais aucune des deux.
+
+    ⚠️ **`lacunes_ouvertes`, pas `lacunes_de_passation`** : Massimo doit voir ce qui l'attend
+    *aujourd'hui*. Servir une lacune déjà résolue comme « prochaine étape » serait faux, alors que
+    la vue Papa a besoin des résolues pour porter son badge.
+    """
+    attempt, quiz = _passation_ou_404(db, student, attempt_id)
+    subject = db.get(Subject, quiz.subject_id)
+    per_skill = score_par_notion(db, attempt.id)
+    skill_ids = [row["skill_id"] for row in per_skill if row["skill_id"] is not None]
+    gaps = lacunes_ouvertes(db, student_id=student.id, skill_ids=skill_ids)
+    return {
+        "attempt_id": attempt.id,
+        "quiz_id": attempt.quiz_id,
+        "subject": subject.name if subject is not None else "",
+        "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
+        "strengths": [r["skill_name"] for r in per_skill if r["score"] >= GAP_THRESHOLD],
+        # Le nom seul — `severity` reste au contrat de Papa.
+        "gaps": [{"skill_id": g["skill_id"], "skill_name": g["skill_name"]} for g in gaps],
+    }
+
+
+def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict:
+    """Le détail d'UNE passation — il n'existait aucun endpoint pour ça (spec §Ce qui manque).
+
+    Le panneau de la page ouvrait jusqu'ici une passation en la cherchant dans les dix que
+    `latest_results` sert : au-delà, elle était inaccessible, et la limite de dix est en dur.
+
+    La garde `404` vit dans `_passation_ou_404`, partagée avec la vue élève (ADR-0044) : deux
+    routes qui protègent la même ressource ne peuvent pas se permettre deux copies de la garde.
+    """
+    attempt, quiz = _passation_ou_404(db, student, attempt_id)
     subject = db.get(Subject, quiz.subject_id)
     per_skill_out = score_par_notion(db, attempt.id)
     skill_ids = [row["skill_id"] for row in per_skill_out if row["skill_id"] is not None]

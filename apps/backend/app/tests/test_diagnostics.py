@@ -87,11 +87,14 @@ def test_submit_scores_and_opens_gap_on_wrong_answers(client_db, executer_travai
     result = client.post(
         f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": answers}
     ).json()
-    assert result["score_percent"] == 0
     assert result["gaps"], "des lacunes doivent être détectées"
     assert result["strengths"] == []
 
     with Session() as db:
+        # ⚠️ Le score se lit sur LA PASSATION depuis l'ADR-0044 §5 : la réponse servie à Massimo ne
+        # le porte plus. Il est toujours calculé et écrit — c'est sa diffusion à l'enfant qui cesse.
+        passation = db.get(m.QuizAttempt, result["attempt_id"])
+        assert passation.score_percent == 0
         gap = db.scalar(select(m.Gap).where(m.Gap.source == "diagnostic", m.Gap.status == "open"))
         assert gap is not None
         mastery = db.scalar(select(m.SkillMastery))
@@ -111,9 +114,11 @@ def test_submit_all_correct_is_strength(client_db, executer_travail) -> None:
     result = client.post(
         f"/api/diagnostics/quizzes/{body['quiz_id']}/submit", json={"answers": answers}
     ).json()
-    assert result["score_percent"] == 100
     assert result["gaps"] == []
     assert result["strengths"]
+    with Session() as db:
+        # Le score reste écrit sur la passation (ADR-0044 §5) — seule sa diffusion à l'enfant cesse.
+        assert db.get(m.QuizAttempt, result["attempt_id"]).score_percent == 100
 
 
 def test_results_view_for_papa(client_db, executer_travail) -> None:

@@ -39,27 +39,29 @@ export interface DiagnosticQuiz {
   questions: DiagQuestion[];
 }
 
-export interface SkillScore {
+/** Une notion à renforcer, telle que Massimo la voit : son nom, rien d'autre (ADR-0044 §5).
+ *
+ * ⚠️ **Homonyme de `DiagnosticGap` dans `packages/types`, qui n'est PAS le même objet** : celui-là
+ * porte `severity`, `status` et `content_state` — c'est le contrat de Papa, et il ne bouge pas.
+ */
+export interface DiagnosticGapEleve {
   skill_id: number | null;
   skill_name: string;
-  score: number;
-  status: string;
 }
 
-export interface DiagnosticGap {
-  skill_id: number | null;
-  skill_name: string;
-  severity: string;
-}
-
+/** Ce que Massimo voit de sa propre mesure — **ni score, ni score par notion, ni sévérité**.
+ *
+ * La spec prescrivait « pas d'affichage de note brute immédiate » depuis l'étape 14 ; l'écran la
+ * contredisait. Le score reste calculé, écrit et servi à Papa : seule sa diffusion à l'enfant
+ * cesse (ADR-0044 Décision 5).
+ */
 export interface DiagnosticResult {
   attempt_id: number;
   quiz_id: number;
   subject: string;
-  score_percent: number;
-  per_skill: SkillScore[];
-  gaps: DiagnosticGap[];
+  completed_at: string | null;
   strengths: string[];
+  gaps: DiagnosticGapEleve[];
 }
 
 function headers(): HeadersInit {
@@ -79,6 +81,14 @@ export async function fetchDiagnostics(): Promise<DiagnosticListItem[]> {
 
 export async function fetchDiagnosticQuiz(quizId: number): Promise<DiagnosticQuiz> {
   return asJson(await fetch(`${API_URL}/api/diagnostics/quizzes/${quizId}`, { headers: headers() }));
+}
+
+/** Relit une passation passée. Même charge utile que `submitDiagnostic` — une seule fabrique
+ *  serveur, donc ce que Massimo relit est exactement ce qu'il a vu en terminant. */
+export async function fetchMonResultat(attemptId: number): Promise<DiagnosticResult> {
+  return asJson(
+    await fetch(`${API_URL}/api/diagnostics/mes-resultats/${attemptId}`, { headers: headers() }),
+  );
 }
 
 export async function submitDiagnostic(

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.db.models import Quiz
+from app.db.models import Quiz, QuizAttempt
 from app.modules.activity.events import EVENT_QUIZ_ATTEMPTED, log_learning_event
 from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
@@ -91,6 +91,13 @@ def submit(
     result = service.submit(db, student, quiz_id, req.answers)
     # Journal d'activité : une tentative de quiz, saveur « diagnostic ». Pas de dédupe — refaire
     # un diagnostic EST une activité, contrairement à un rafraîchissement de page.
+    #
+    # 🔴 Le score se lit sur LA PASSATION, plus dans `result` (ADR-0044 Décision 5) : la réponse
+    # servie à Massimo ne le porte plus. Ce n'est pas un contournement de la décision — le journal
+    # est de la **télémétrie interne**, lue par l'activité et le dashboard de Papa, jamais rendue à
+    # l'enfant. Et la source est meilleure qu'avant : la passation écrite, pas une vue qui se
+    # trouvait la transporter.
+    passation = db.get(QuizAttempt, result["attempt_id"])
     log_learning_event(
         db,
         student_id=student.id,
@@ -99,7 +106,7 @@ def submit(
         payload={
             "quiz_id": quiz_id,
             "quiz_type": "diagnostic",
-            "score_percent": result["score_percent"],
+            "score_percent": passation.score_percent if passation is not None else None,
         },
     )
     db.commit()
@@ -139,6 +146,27 @@ def apercu(db: Session = Depends(get_db), _: dict = Depends(require_parent)) -> 
     c'est la route de Massimo — mais Papa doit voir exactement ce que Massimo ne voit pas encore.
     """
     return service.apercu(db, get_default_student(db))
+
+
+@router.get("/mes-resultats/{attempt_id}", response_model=DiagnosticResultOut)
+def mon_resultat(
+    attempt_id: int, db: Session = Depends(get_db), _: dict = Depends(require_child)
+) -> dict:
+    """Massimo relit ce que ZETIS a retenu d'une de ses passations (ADR-0044 Décision 5).
+
+    🔴 **Cette route n'existait pas, et son absence n'était pas un détail** : le résultat était
+    montré à Massimo **une seule fois**, à la soumission, puis devenait inaccessible — `/results`
+    et `/results/{id}` sont `require_parent`.
+
+    **La route de Papa n'est PAS élargie**, et c'est une décision : son schéma
+    (`DiagnosticResultSummary`) porte le docstring « Vue Papa » — score global, sévérité, statut de
+    lacune. Élargir son rôle servirait à l'enfant un objet conçu pour l'analyse parentale. Deux
+    publics, deux schémas (frontière `adr-0017 §3`).
+
+    Même réponse que `POST /submit`, par la même fabrique : ce que Massimo relit est **exactement**
+    ce qu'il a vu en terminant.
+    """
+    return service.resultat_eleve(db, get_default_student(db), attempt_id)
 
 
 @router.get("/results", response_model=list[DiagnosticResultSummary])

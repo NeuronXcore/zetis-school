@@ -65,9 +65,11 @@ export function DiagnosticPage() {
     return (
       <div className="mx-auto max-w-2xl">
         <PageHeader title="C'est noté ✨" subtitle={`Voici ce que ZETIS retient (${result.subject}).`} />
+        {/* Aucune note brute (ADR-0044 Décision 5) : la spec le prescrivait depuis l'étape 14, et
+            cet écran affichait « Score global : X % » juste au-dessus de la phrase qui promettait
+            le contraire. Le score existe toujours — Papa le voit, Massimo non. */}
         <p className="mb-4 text-sm text-zetis-muted">
-          Score global : <span className="font-semibold text-zetis-accent-2">{result.score_percent}%</span>{" "}
-          — pas de note brute, juste de quoi savoir quoi renforcer.
+          Pas de note : juste ce qui est solide, et ce qu'on va renforcer ensemble.
         </p>
         {result.strengths.length > 0 && (
           <section className="rounded-2xl border border-zetis-border bg-zetis-surface p-5">

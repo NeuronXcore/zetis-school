@@ -100,14 +100,39 @@ class GapOut(BaseModel):
     content_state: str = "ok"
 
 
+class DiagnosticGapEleveOut(BaseModel):
+    """Une notion à renforcer, telle que MASSIMO la voit : son nom, rien d'autre.
+
+    ⚠️ Ne pas confondre avec `GapOut`, qui porte `severity`, `status` et `content_state` — c'est
+    le contrat de PAPA. Ici, `skill_id` n'est pas de l'analytique : c'est de la plomberie (la page
+    en fait un lien vers la notion).
+    """
+
+    skill_id: int | None
+    skill_name: str
+
+
 class DiagnosticResultOut(BaseModel):
+    """Ce que Massimo voit de sa propre mesure (ADR-0044 Décision 5).
+
+    🔴 **Un seul schéma pour DEUX routes** — `POST /submit` et la relecture d'une passation. Deux
+    schémas pour un même écran finiraient par diverger, et c'est l'écran de l'enfant.
+
+    **Ni `score_percent`, ni `per_skill`, ni `severity`.** La spec v1 prescrivait déjà « pas
+    d'affichage de note brute immédiate » ; l'écran la contredisait depuis l'étape 14. Un score par
+    notion est un score : le garder ferait rentrer par la porte de service ce que la décision fait
+    sortir par la grande.
+
+    ⚠️ Le score continue d'être **calculé et écrit** (`QuizAttempt.score_percent`) et reste servi à
+    **Papa** : c'est sa diffusion à l'enfant qui cesse, pas sa mesure.
+    """
+
     attempt_id: int
     quiz_id: int
     subject: str
-    score_percent: int
-    per_skill: list[SkillScoreOut]
-    gaps: list[GapOut]
+    completed_at: str | None
     strengths: list[str]
+    gaps: list[DiagnosticGapEleveOut]
 
 
 class PorteePointOut(BaseModel):
