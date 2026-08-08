@@ -242,6 +242,22 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
 - 🔴 **La panne est DÉJÀ au `TROUBLESHOOTING.md:1450`**, diagnostiquée une première fois avec le
   même `ps aux | grep production_worker → rien`. **Elle est revenue.** Une panne qui revient après
   avoir été documentée n'est pas un incident : c'est une absence de structure.
+- 🔴 **Le même soir, TROIS workers tournaient en même temps** — pids `29543`, `31814`, `32002`,
+  démarrés à 21:09, 21:17 et 21:17 dans trois terminaux distincts. Un quatrième a failli s'ajouter :
+  le `pgrep` de contrôle était écrit `pgrep -fl "production_worker\|rq worker"`, et `\|` **n'est pas
+  une alternance en ERE** — il cherchait un `|` littéral. **Le contrôle censé dire « il en tourne
+  déjà un » répondait « aucun » quoi qu'il arrive.** Le contrôle qui marche :
+  `pgrep -fl "python -m app.production_worker"`.
+  🔴 Trois workers sont interdits par le module lui-même : *« **Concurrence 1, et ce n'est pas
+  provisoire** : un seul Ollama, un seul GPU »* (`production_worker.py`, en-tête) — ils se
+  disputaient un GPU unique.
+  **C'est le MÊME défaut que les six lignes ci-dessus, vu par l'autre face** : un démarrage qui
+  dépend d'une commande à taper est aussi une commande qu'on tape trois fois, faute de surface qui
+  dise qu'elle tourne déjà. Zéro worker et trois workers ne sont pas deux problèmes — la
+  **décision 3 les referme tous les deux**.
+  ⚠️ Un point rassurant au passage : le worker a écrit *« un réveil du scan est déjà prévu — pas de
+  nouvel amorçage »*. **Le correctif du 2026-08-03 a tenu** — c'est lui qui a empêché quatre
+  démarrages de fabriquer quatre récurrences permanentes.
 
 ### Les trois décisions du commanditaire
 
@@ -259,6 +275,15 @@ pas, il mesure. Le manque est que **ça ne se voit qu'en ouvrant l'app**.
 N minutes. **Pas un agent qui re-détecte** : ce serait une seconde source de vérité sur le même
 fait, ce que le dépôt évite partout ailleurs.
 
+🔴 **N ne peut pas descendre sous 8 minutes, et c'est mesuré — pas supposé (2026-08-08).** Un worker
+**idle** ne rebat qu'à chaque tour de boucle de dequeue : relevé à **3,8 min d'ancienneté de
+battement**, pour un TTL de clé Redis de **8 min**. Un seuil plus court ferait sonner l'alarme sur un
+worker en parfaite santé — et une alerte qui crie à tort est celle qu'on apprend à ignorer.
+⚠️ **`production_worker_alive()` n'est PAS le maillon faible**, et il ne faut pas le « renforcer » en
+passant : son docstring consigne deux pannes déjà payées (`Worker.count()` qui ment là où `all()` dit
+vrai ; la seconde file non interrogée, 2026-08-06) et il interroge bien **toutes** les files. La
+détection est solide ; ce qui manque reste son **atteignabilité**.
+
 **3. Le worker devient un service supervisé.** C'est le vrai défaut, et le seul qui referme les
 deux autres :
 - service `worker` dans `docker-compose.prod.yml`, avec `restart: unless-stopped` ;
@@ -273,16 +298,31 @@ Trois travaux `queued` + aucun worker → aucun chiffre. Le commentaire au-dessu
 retirer cette garde avait fait afficher « 37 % · 7/19 pièces » **sur un lot en file** (défaut du
 2026-08-07). L'en-tête refuse de chiffrer ce qui n'a pas démarré. **Ne pas « réparer » ça.**
 
-### Le geste immédiat, en attendant le chantier
+### Le geste immédiat — ✅ FAIT le 2026-08-08. Ne pas le rejouer à l'aveugle.
+
+🔴 **Vérifier AVANT de lancer quoi que ce soit** — c'est l'omission de ce contrôle qui a produit
+trois workers concurrents :
+
+```bash
+pgrep -fl "python -m app.production_worker"
+```
+
+S'il ne rend rien, et seulement alors :
 
 ```bash
 pnpm dev:worker
 ```
 
-Draine `production-priority` puis `production`. Les trois diagnostics atterriront au **premier
-cran**, `pending` — donc en relecture chez Papa et **pas chez Massimo** : le gate de l'ADR-0043
-tient. ⚠️ Le travail 755 est un diagnostic **Histoire-Géo**, matière jusqu'ici « jamais générée » :
-une fois produit, la jauge `2 / 8` et le focus `non-mesurees` bougeront.
+Draine `production-priority` puis `production`.
+
+**Ce que le geste a produit, le 2026-08-08 de 21:09 à 21:14** : les travaux `749`, `750` et `755`
+sont `succeeded` et ont créé les quiz **55** et **56** (Mathématiques) et **57** (Histoire-Géo). La
+jauge `2 / 8` et le focus `non-mesurees` ont bougé comme annoncé.
+
+✅ **Le gate de l'ADR-0043 a tenu, et c'est vérifié en base** — la prédiction ci-dessus n'est plus
+une attente : les trois quiz sont nés `pending`, puis `validated_by = 'parent'` à 21:16. La
+validation est un **geste humain postérieur**, pas un effet de la production. Le diagnostic
+n'atteint donc Massimo que par la main de Papa.
 
 ## 🔴 CHANTIER À CADRER — la page Lacunes énonce sans permettre d'agir
 
