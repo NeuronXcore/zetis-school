@@ -127,8 +127,10 @@ Section `feat/worker-supervise`. Les trois qui coûteraient le plus :
   `profiles:[render]`. Au `BACKLOG`.
 - ⚠️ **Massimo voit 18 diagnostics validés, dont 11 en Français pour 2 passés** — et **2 des 3
   derniers sont des doublons Maths** (quiz 55 et 56, nés du double clic pendant la panne). Le geste
-  existe (« Retirer la proposition » → `POST /reject`) ; le fond est le chantier « page Diagnostic
-  de Massimo ».
+  existe (« Retirer la proposition » → `POST /reject`). ⚠️ **Ce qui survit ici, c'est la DONNÉE, pas
+  la page** : le chantier « page Diagnostic de Massimo » (`adr-0044`) est **livré et mergé** (PR
+  #100) — il **hiérarchise et sépare** fait / à-faire, il ne **déduplique** rien en base. Les deux
+  doublons Maths et le déséquilibre 11-pour-2 sont donc toujours là, et se retirent un par un.
 - ⚠️ **L'écran de résultat de Massimo affiche jusqu'à 8 notions à renforcer d'affilée.**
 - ⚠️ **La branche `null` de `measured_at`** n'est exercée par aucune donnée réelle.
 - ⚠️ **Rien ne referme une lacune quand la notion est réussie** — seul `missions/service.py` écrit
@@ -162,18 +164,33 @@ l'import).
 > ⚠️ **Le merge a eu lieu SANS cette preuve, en connaissance de cause** — signalée trois fois, dans
 > le corps de la PR compris. Ce n'est pas un oubli : c'est un arbitrage du commanditaire.
 
-**Chantier suivant — trois candidats, tous au `BACKLOG.md` :**
+**Chantier suivant — DEUX candidats, tous deux au `BACKLOG.md` :**
 
-1. 🔴 **La page Diagnostic de MASSIMO** — marquée `▶▶ PROCHAIN CHANTIER`, décidée le 2026-08-08
-   comme devant passer **AVANT** les optimisations Papa, qui sont mergées depuis. **Elle est donc
-   en retard sur son propre ordre**, et ce chantier vient d'en aggraver le constat : 18 diagnostics
-   validés, 11 en Français pour 2 passés.
-2. **L'anti-triche du diagnostic** — le plus mûr (pistes et usage déjà tranchés).
-3. **La page Lacunes qui énonce sans permettre d'agir** — le moins cher (`content_state` déjà sur
+1. **L'anti-triche du diagnostic** — le plus mûr (pistes et usage déjà tranchés), et le seul qui
+   porte encore un `▶▶ PROCHAIN CHANTIER` au `BACKLOG.md`.
+2. **La page Lacunes qui énonce sans permettre d'agir** — le moins cher (`content_state` déjà sur
    `OpenGap`).
 
 Chacun demande le **rituel complet** (`mockup → spec → ADR → prompt`) : une session de cadrage sur
 `main` avant la moindre ligne, puis `/ouverture`.
+
+> 🔴 **Il y avait un troisième candidat ici, et il était FAUX** — « la page Diagnostic de MASSIMO,
+> en retard sur son propre ordre ». Elle est **livrée et mergée depuis le 2026-08-08** :
+> `adr-0044`, PR [#100](https://github.com/NeuronXcore/zetis-school/pull/100), squash `6642a30`,
+> trois sessions, `CHANGELOG.md` 0.60.0. Et **l'ordre décidé a été tenu** : #100 (Massimo) est
+> passée **avant** #103 (Papa). La phrase était donc fausse deux fois.
+>
+> **Quatre documents portaient le même mensonge** — l'`adr-0044` (« rien n'est implémenté »),
+> `DECISIONS.md`, `BACKLOG.md` (titre `▶▶ PROCHAIN CHANTIER` + « addendum à l'ADR-0030
+> nécessaire », alors qu'il existe) et ce fichier. **Ils ont envoyé la session du 2026-08-09
+> re-cadrer un chantier fait** : elle l'a arrêtée au read-before-code, sur le `git log` de la
+> branche conservée. Les cinq endroits sont remis au réel à cette date.
+>
+> ⚠️ **La leçon, et elle vaut pour toute clôture** : l'étape 4bis a bien passé ses quatre contrôles
+> (`2d8410b` le dit, et c'est vrai — ADR, `TROUBLESHOOTING`, `CHANGELOG`, dettes remontées). Aucun
+> des quatre ne demande de **retirer l'annonce « à faire »**. Un chantier livré qui continue de
+> s'annoncer est invisible à tous les contrôles existants — c'est un **cinquième contrôle** :
+> *chercher le nom du chantier là où il était promis, et l'y éteindre.*
 
 > ✅ **Élagage fait à cette clôture** : la section du chantier **ADR-0045** (page Diagnostic de
 > Papa, PR #103) a été retirée après ses **quatre contrôles** — ADR

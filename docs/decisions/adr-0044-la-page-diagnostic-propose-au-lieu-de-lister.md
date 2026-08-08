@@ -10,13 +10,29 @@ sort du périmètre annoncé du chantier et a été soumise comme telle au comma
 > périmètre de la Décision 5 a été soumis **avant** toute écriture de code — c'est ce qui autorise
 > l'acceptation sans délai.
 
-⚠️ **Accepté ≠ livré.** La décision est figée ; **rien n'est implémenté**. Le chantier est décrit
-par `prompts/claude-code/prompts-claude-code-adr-0044.md`, en trois sessions, et n'a pas démarré.
-Ne pas lire ce statut comme « c'est en place ».
+✅ **LIVRÉ ET MERGÉ — 2026-08-08.** PR [#100](https://github.com/NeuronXcore/zetis-school/pull/100),
+squash `6642a30`, les **trois sessions** du prompt
+`prompts/claude-code/prompts-claude-code-adr-0044.md` (contrat de liste → résultat en forme enfant
+→ la page). Branche `feat/diagnostic-massimo-propose` **conservée**. Aucune migration.
+`CHANGELOG.md` **0.60.0** ; `TROUBLESHOOTING.md` deux sections `feat/diagnostic-massimo-propose`.
 
-> **Annote l'`adr-0030`** (voir Décision 7) : la conclusion « Diagnostic sans témoin » est
-> **maintenue**, mais les deux motifs écrits qui la portaient sont devenus faux et sont corrigés.
-> Aucun addendum séparé — une décision unique, dans le chantier qui la découvre.
+> 🔴 **Ce paragraphe a dit « rien n'est implémenté » pendant que le code était sur `main`**, et
+> quatre autres documents le recopiaient (`DECISIONS.md`, `BACKLOG.md` ×2, `MEMORY.md`). Une
+> session de reprise a été envoyée **re-cadrer ce chantier livré** le **2026-08-09** — remis au
+> réel à cette date. L'étape 4bis (`2d8410b`) avait bien passé les quatre contrôles ; ce qu'elle
+> n'a pas fait, c'est **retirer l'annonce « à faire »**. C'est le geste manquant du 4bis, et il
+> vaut pour tout chantier : *un ADR livré doit cesser de s'annoncer.*
+
+⚠️ **La relecture visuelle humaine exigée ci-dessous n'est pas établie AVANT la PR.** Ce qui est
+établi, c'est qu'une relecture à l'écran a eu lieu **après** le merge : elle a rendu le correctif
+`CHANGELOG.md` **0.60.1** — la **zone C**, créée par cet ADR, s'écrasait sur un téléphone
+(PR [#101](https://github.com/NeuronXcore/zetis-school/pull/101)).
+
+> 🔴 **La Décision 7 est RÉVOQUÉE** par `adr-0030-addendum-temoin-diagnostic.md` (commit `7ce2657`),
+> écrit le même jour, **sur décision du commanditaire après objection exposée et réaffirmée** :
+> l'entrée « 🧭 Diagnostic » de la sidebar de Massimo porte finalement un **témoin numérique** qui
+> s'éteint par le **travail** et non par le regard — exception assumée à « NOUVEAU jamais DÛ ».
+> La note « aucun addendum séparé » qui figurait ici est donc **caduque** : l'addendum existe.
 >
 > S'appuie sur : `adr-0043` (Décision 4 : l'ordre par ancienneté de mesure, dont cette page est
 > la remontée d'un cran ; et le gate de relecture, intact), `adr-0030` (règle « NOUVEAU jamais

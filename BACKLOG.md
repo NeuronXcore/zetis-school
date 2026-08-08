@@ -555,12 +555,26 @@ que c'est frais : c'est maintenant que c'est le moins cher.
 > que les quatre merges précédents (#79, #89, #91, #98) n'avaient pas eu. À lire comme la preuve
 > que la relecture visuelle n'est pas une formalité de clôture.
 
-#### ▶▶ PROCHAIN CHANTIER — la page Diagnostic de MASSIMO
+#### La page Diagnostic de MASSIMO — ✅ LIVRÉE ET MERGÉE, `adr-0044` (2026-08-08)
+
+> **Ce n'est plus au backlog : c'est livré.** PR
+> [#100](https://github.com/NeuronXcore/zetis-school/pull/100), squash `6642a30`, trois sessions,
+> aucune migration. `CHANGELOG.md` **0.60.0** ; `TROUBLESHOOTING.md` deux sections
+> `feat/diagnostic-massimo-propose`. Le texte ci-dessous est conservé **comme trace du constat
+> d'origine**, pas comme une tâche ouverte.
+>
+> 🔴 **Cette section a porté le titre `▶▶ PROCHAIN CHANTIER` pendant vingt-quatre heures après le
+> merge**, en même temps que l'`adr-0044`, `DECISIONS.md` et `MEMORY.md` — et elle a envoyé la
+> session de reprise du **2026-08-09** re-cadrer un chantier fait. Le geste manquant de l'étape
+> 4bis n'était pas un contrôle : c'était **retirer l'annonce**.
+>
+> ⚠️ **L'ordre décidé a bien été tenu**, contrairement à ce que `MEMORY.md` a écrit ensuite : #100
+> (Massimo) est passée **avant** #103 (Papa, `adr-0045`).
 
 **Décidé le 2026-08-08 : elle passe AVANT les optimisations de la page Papa.**
 
-*« Une liste infinie de diagnostics sans savoir ce qu'il doit faire ou pas. »* Le constat est
-exact, et mesurable :
+*« Une liste infinie de diagnostics sans savoir ce qu'il doit faire ou pas. »* Le constat était
+exact, et mesurable — **les trois points sont traités** :
 
 - **`list_diagnostics` n'a aucune limite** — `order_by(Quiz.id.desc())`, c'est tout. Tous les
   diagnostics validés depuis toujours. 15 en base de dev, et ça ne fera que croître.
@@ -575,7 +589,12 @@ pendant que Massimo garde une liste plate.
 Rituel complet attendu — `mockup → spec → ADR → prompt` : c'est l'espace enfant, où les règles de
 gamification sont les plus strictes.
 
-#### Le témoin de nouveauté « Diagnostic » chez Massimo — décision requise, pas patch
+> ✅ **Rituel tenu** : maquette, puis spec, puis `adr-0044` (9 décisions), puis
+> `prompts/claude-code/prompts-claude-code-adr-0044.md` en trois sessions — dans cet ordre, et
+> l'élargissement de périmètre de la Décision 5 soumis au commanditaire **avant** toute ligne de
+> code.
+
+#### Le témoin de nouveauté « Diagnostic » chez Massimo — ✅ TRANCHÉ, addendum `adr-0030` (2026-08-08)
 
 `navigation.ts` (Massimo) range Diagnostic parmi les entrées **sans témoin**, et
 `navigation.test.ts:66` le verrouille. 🔴 **Mais deux des motifs écrits sont devenus FAUX à cause
@@ -597,6 +616,20 @@ dette.
 
 **→ Addendum à l'ADR-0030 nécessaire.** Ne pas toucher le test-verrou sans lui : il existe
 précisément pour empêcher qu'on complète la liste « par symétrie apparente ».
+
+> ✅ **L'addendum EXISTE** : `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` (commit
+> `7ce2657`), livré avec la PR #100. Le texte ci-dessus est conservé comme trace du constat, pas
+> comme une tâche ouverte.
+>
+> 🔴 **Et la décision est allée CONTRE l'analyse ci-dessus, en le disant** : le témoin a été
+> accordé — **numérique**, comptant les diagnostics relus par Papa et **non encore passés**,
+> s'éteignant **par le travail** et non par le regard. C'est bien la colonne « Arriéré » que
+> l'`adr-0030` déclare *interdite en navigation* : il naît d'un geste de Papa ✅, meurt du travail
+> ❌, **grossit si Massimo ne vient pas** ❌. **Décision du commanditaire, prise après que
+> l'objection lui a été exposée en toutes lettres et RÉAFFIRMÉE**, et écrite *« parce qu'une règle
+> qu'on enfreint sans le dire cesse d'être une règle pour tout le monde »*.
+> Le contre-motif reste **au dossier** (`CLAUDE.md` §gamification, motif du retrait du streak le
+> 2026-07-27). Cet addendum **révoque aussi l'`adr-0044` Décision 7**, acceptée le matin même.
 
 #### Optimisations de la page Diagnostic PAPA — ✅ CADRÉES, `adr-0045` (2026-08-08)
 
