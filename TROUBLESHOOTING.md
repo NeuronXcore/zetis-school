@@ -4511,3 +4511,79 @@ de `/cloture` existe pour attraper, appliqué à autre chose qu'un hash de commi
 **La parade** : toute ligne de `MEMORY.md` qui **nomme des identifiants de base** se vérifie par un
 `SELECT` avant d'être écrite — et un semis dont la réversibilité n'a pas été prouvée se déclare
 **non réversible**, pas « voici comment le défaire ».
+
+## Un travail dit ce qu'il a produit (addendum ADR-0041) — 2026-08-09
+
+### 🔴 Un même travail écrit DEUX `ai_jobs`, et le Journal n'en montre qu'un — pas celui qu'on croit
+
+`journal_filters.selectionner_travaux` ne retient que `created_by == 'file'` (la ligne enfilée) et
+exclut `created_by == 'parent'` (la trace d'appel LLM) — *« 143 traces pour une poignée de gestes »*.
+Or **les deux ne portent pas la même sortie** :
+
+| `job_type` | ligne VISIBLE (`file`) | trace EXCLUE (`parent`) |
+|---|---|---|
+| `lesson_content` | `{"lesson_id": 114}` | `{"content_chars": 4942, "model": …}` |
+| `curriculum_lessons` | `{"chapter_id": 44, "lesson_ids": […7 ids]}` | `{"lessons_count": 5, "skills_created": 7}` |
+| `srs_cards_generate` | `{"skill_id": 149, "created": 3, …}` | `{"cards": [ … ]}` |
+
+**Parade** : avant d'écrire une règle sur `output_json`, vérifier **sur quelle ligne** le champ vit —
+`select id, created_by, output_json from ai_jobs where job_type=… order by id desc limit 4`. Un champ
+lu sur la mauvaise ligne donne un `None` silencieux, ou pire : une phrase qu'on n'aurait pas dû
+pouvoir écrire.
+
+### 🔴 `lesson_ids` n'est PAS une production — le mot « créées » était un mensonge, et vert
+
+`curriculum_lessons` rend dans `lesson_ids` **l'état résultant du chapitre**, pas ce qu'il vient de
+fabriquer. Sur le chapitre 44 il rendait 7 ids dont **deux créés trois jours plus tôt** (114 et 115,
+le 06/08) — le job en avait fait 5. L'écran affichait « 7 leçons créées ».
+
+⚠️ **Pire à l'échelle de la page** : trois `curriculum_lessons` successifs sur le chapitre 11
+annonçaient « 12 / 8 / 6 leçons créées », soit **26 créations pour un chapitre qui en porte 12**.
+Trois lignes qui, mises côte à côte, se contredisaient — et personne ne les additionne en lisant.
+
+🔴 **Ce que ce piège coûte à savoir** : les trois suites étaient vertes, et **les deux test-verrous
+avaient été sabotés et rougis**. Aucun test ne pouvait attraper ça — il fallait connaître la date de
+création de deux leçons pour douter du participe. **Le sabotage prouve qu'un test mord ; il ne
+prouve pas qu'il vise juste.**
+
+**Parade** : pour chaque champ de sortie, se demander *« est-ce un compte de ce qui a été FAIT, ou
+un état APRÈS ? »*. En cas de doute, dire l'état (« N leçons au chapitre », ton neutre) — surestimer
+est le seul des deux qui trompe.
+
+### ⚠️ `BlockedTargetOut` ne peut pas porter trois des cinq destinations
+
+Il exige `lesson_id` **et** `chapter_id`, non-nuls. Or un diagnostic n'a **aucune** leçon,
+`curriculum_lessons` en a **sept**, `srs_cards_generate` n'a qu'un `skill_id`. Le réutiliser
+obligerait à inventer des valeurs — ce que `journalLink` et `reviewLink` ont **déjà** refusé chacun
+avec sa branche explicite (*« une cinquième entrée forcée dans un type qui ne la veut pas »*).
+
+**Parade** : pour une ligne qui n'est pas leçon-centrée, composer une **route** serveur au format
+`pilotageLinks`, plutôt que de tordre le type des pièces.
+
+### 🔴 Aucune surface Papa n'ouvre un diagnostic généré — vérifié, ce n'est pas une impression
+
+- `/quiz` (pilotage) filtre sur `QUIZ_TYPE_MISSION` dans **sept comparaisons de requête**
+  (`quizzes/service.py` :108, 635, 647, 830, 900, 1212, 1275) — un `quiz_type='diagnostic'` n'y
+  apparaît **jamais** ;
+- `/relecture` rend `null` pour `kind === "diagnostic"` (`pilotageLinks.ts:86`, `null` assumé et
+  daté) ;
+- `/diagnostics` montre les **passations**, pas le quiz généré.
+
+⚠️ **Le `null` de `reviewLink:91` pouvait sembler périmé** — son commentaire renvoie à « la session C
+de l'`adr-0043` », qui **a été livrée** (PR #99). Vérifié : il ne l'est pas. `DiagnosticsPapaPage`
+tenait son focus en `useState` sans `useSearchParams`. **Un commentaire daté qui nomme un chantier
+livré n'est pas pour autant caduc — le relire dans le code, pas dans le journal des PR.**
+
+### ⚠️ La fixture de session DB s'appelle `client_db`, et elle rend un TUPLE
+
+`db_session` n'existe pas dans `app/tests/conftest.py`. La bonne forme :
+
+```python
+def test_x(client_db):
+    _, TestSession = client_db
+    db = TestSession()
+```
+
+Et **`AIJob.created_at` est NOT NULL sans défaut serveur** : un `m.AIJob(...)` monté à la main dans
+un test doit le porter, sinon `IntegrityError` sur SQLite. `_seed_year` rend `(student, subject,
+chapter)`, pas le seul chapitre.

@@ -280,6 +280,37 @@ class JournalRunOut(BaseModel):
     pieces: list[JournalPieceOut] = []
 
 
+ProductionTon = Literal["succes", "neutre", "avertissement"]
+
+
+class JournalProductionOut(BaseModel):
+    """Ce que CE travail a produit — addendum ADR-0041 « un travail dit ce qu'il a produit ».
+
+    ⚠️ **`route` est une route Papa toute faite, pas un `BlockedTargetOut`.** Ce dernier exige
+    `lesson_id` ET `chapter_id` : un diagnostic n'a aucune leçon, `curriculum_lessons` en a sept, et
+    `srs_cards_generate` n'a qu'un `skill_id`. Le réutiliser obligerait à **fabriquer des valeurs**
+    pour satisfaire un type — ce que `journalLink` et `reviewLink` ont déjà refusé chacun avec sa
+    branche explicite. Les URL restent celles de `pilotageLinks` : le serveur les compose, il n'en
+    invente pas une seconde convention.
+
+    🔴 **`route` est `None` dès que rien n'a été produit** (décision 3), et un test l'épingle. C'est
+    la doctrine déjà écrite pour les pièces `skipped` : la pièce existe peut-être, mais elle
+    appartient à un autre moment — la rattacher ici ferait croire que ce travail-là l'a faite.
+    """
+
+    texte: str
+    #: ⚠️ `avertissement` n'est **pas** une erreur, et son rendu n'est jamais rouge : ne rien
+    #: produire parce que tout existait déjà est un résultat correct. Il surprend, il ne fâche pas.
+    ton: ProductionTon = "neutre"
+    route: str | None = None
+    #: 🔴 **Le libellé NOMME sa destination, et son GRAIN** — « voir la leçon », « voir le
+    #: chapitre », « voir les diagnostics d'Histoire-Géo ». Un « voir → » nu laisserait Papa
+    #: découvrir où il atterrit, et c'est précisément le défaut que l'`adr-0047` Décision 8 a
+    #: corrigé sur la station ② : elle promettait un grain notion et livrait un grain matière.
+    #: Ici, quand la route est de grain matière, le libellé le **dit**. `None` avec `route`.
+    route_texte: str | None = None
+
+
 class JournalTravailOut(BaseModel):
     """Un TRAVAIL unitaire au Journal (addendum ADR-0041 §17) — ce qu'il sait, et rien de plus.
 
@@ -305,6 +336,9 @@ class JournalTravailOut(BaseModel):
     duration_ms: int | None = None
     #: Le motif d'échec, **tel quel** — décision du 2026-08-06, il ne se traduit pas.
     error: str | None = None
+    #: Ce que ce travail a produit. `None` tant qu'il n'est pas terminé — un travail en cours n'a
+    #: rien à dire de sa production, et une phrase au futur se lirait comme un fait.
+    production: JournalProductionOut | None = None
 
 
 class JournalOut(BaseModel):

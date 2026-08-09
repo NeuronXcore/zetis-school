@@ -5,6 +5,11 @@
 **Accepté — 2026-08-09.** Six décisions gelées. Aucune migration, aucun endpoint neuf, aucune
 requête réseau supplémentaire.
 
+⚠️ **Deux corrections le jour même, toutes deux nées de la relecture visuelle** — elles sont en fin
+de document et il faut les lire avec les décisions : (1) `curriculum_lessons` disait « N leçons
+créées » là où le job en avait créé cinq sur sept ; (2) **la Décision 4 est AMENDÉE** — le
+diagnostic mène à sa matière au lieu de n'avoir aucun lien.
+
 > Cadré le 2026-08-09 selon le rituel `mockup → spec → ADR → prompt`, sur `main`, à partir d'une
 > observation du commanditaire à l'écran : *« on n'arrive pas à savoir si les data ont été créées
 > ou pas »*. Le read-before-code a été rendu **avant** toute décision, et il a **démenti quatre
@@ -18,7 +23,8 @@ L'ADR-0041 s'appelle « tout ce qui produit se voit ». Sa doctrine a été appl
 (`generated` / `skipped` / `blocked` / `error`) et un lien vers la pièce produite.
 
 Elle n'a **jamais été appliquée aux travaux unitaires** (`AIJob`, « hors lot »). `_travail_out`
-(`production/journal.py:538`) lit `job.input_json` et **jamais** `job.output_json`. La ligne rend
+(`production/journal.py`, **ligne 538 AVANT ce chantier — 761 après**, les numéros de ce document
+décrivent l'état trouvé) lit `job.input_json` et **jamais** `job.output_json`. La ligne rend
 donc son libellé, son statut, sa durée, sa date et son origine — et rien d'autre.
 
 Conséquence, observée à l'écran le 2026-08-09 sur sept lignes consécutives : **trois issues
@@ -63,7 +69,7 @@ c'est un couplage qu'on refuse pour un ornement.
 exactement ce que `journalLink` et `reviewLink` ont déjà refusé de faire deux fois, chacun avec sa
 branche explicite plutôt qu'« une cinquième entrée forcée dans un type qui ne la veut pas ».
 
-**3. 🔴 Un diagnostic n'est toujours pas ouvrable par URL.** `reviewLink:86` porte un `null` assumé
+**3. 🔴 Un diagnostic n'est toujours pas ouvrable par URL.** `reviewLink:91` porte un `null` assumé
 et daté : *« la page `/diagnostics` ne sait pas encore ouvrir un diagnostic précis : sa refonte est
 la session C de l'adr-0043 »*. Cette session **a été livrée** (PR #99) — le commentaire pourrait
 donc être périmé. Vérifié : il ne l'est pas. `DiagnosticsPapaPage` tient son focus en `useState`,
@@ -99,7 +105,12 @@ l'a faite »*. Un travail qui n'a rien produit ne doit **jamais** rendre un lien
 
 **Décision 4 — le diagnostic n'a pas de route, et l'écran ne prétend pas le contraire.** `texte`
 dit « 40 questions », `route` est `None`. **Dette nommée**, pas contournée : elle se lèvera quand
-`/diagnostics` lira un paramètre d'URL, et le `null` de `reviewLink:86` tombera dans le même geste.
+`/diagnostics` lira un paramètre d'URL, et le `null` de `reviewLink:91` tombera dans le même geste.
+
+> 🔴 **AMENDÉE le même jour — ne pas s'arrêter ici.** Cette version laissait un doute à l'écran :
+> ni lien, ni indication d'où aller. Voir **§ Décision 4 AMENDÉE** en fin de document — le
+> diagnostic mène désormais à sa **matière**, et le libellé annonce ce grain. Le texte ci-dessus
+> est conservé parce qu'il dit ce qui a été décidé d'abord, et pourquoi.
 
 **Décision 5 — aucune migration, aucun appel réseau, une seule requête en lot.** Tout se lit dans
 `output_json`, déjà chargé. Seule exception : `lesson_content` ne porte qu'un `lesson_id` et la
@@ -111,9 +122,12 @@ page, exactement le patron que `_travail_out` utilise déjà pour les noms de no
 
 | Ton | Quand | Exemple |
 |---|---|---|
-| `succes` | quelque chose a été créé | « 3 cartes créées », « 7 leçons créées », « 40 questions » |
+| `succes` | quelque chose a été créé, **et la sortie le prouve** | « 3 cartes créées », « cours rédigé », « 40 questions » |
 | `avertissement` | le travail a réussi et **n'a rien produit** | « rien produit — les 5 pièces existaient déjà » |
-| `neutre` | issue sans production ni anomalie, ou type sans règle | « terminé » |
+| `neutre` | issue sans production prouvable, ou type sans règle | « 7 leçons au chapitre », « terminé » |
+
+⚠️ **« et la sortie le prouve » n'est pas une nuance de style** — voir la correction à l'exécution en
+fin d'ADR : `curriculum_lessons` a d'abord porté `succes` et « N leçons créées », ce qui était faux.
 
 ⚠️ **`avertissement` n'est pas une erreur** et son ton ne doit pas être rouge : ne rien produire
 parce que tout existait déjà est un **résultat correct**. Il est signalé parce qu'il est
@@ -130,7 +144,7 @@ le rendu de la ligne `TravailSection` dans `JournalPage.tsx`, les types partagé
 - **les lignes de LOT** — elles ont déjà leur pli, leurs pièces et leurs liens ; y toucher serait
   la dérive ;
 - **l'ouverture d'un diagnostic par URL** (décision 4) — c'est son propre chantier ;
-- **la file de relecture** et le `null` de `reviewLink:86`, qui tombera avec elle ;
+- **la file de relecture** et le `null` de `reviewLink:91`, qui tombera avec elle ;
 - **le veto** : un `AIJob` ne tamponne aucune pièce, il n'y a rien à retirer (§17 inchangé) ;
 - **les traces `parent`**, qui restent hors du Journal ;
 - **la longueur du cours** et toute donnée qui ne vit que sur une trace (constat 1).
@@ -160,3 +174,66 @@ le rendu de la ligne `TravailSection` dans `JournalPage.tsx`, les types partagé
   `pilotageLinks`, ce que la décision 2 interdit ;
 - Papa cesse de lire le résumé parce qu'il dit « terminé » partout → trop de types sans règle, il
   faut en écrire, jamais retirer le repli.
+
+## ⚠️ Correction à l'exécution — décisions inchangées (2026-08-09)
+
+**La relecture visuelle a trouvé un défaut, et c'était celui-ci même, à l'envers.**
+
+La première écriture de la règle `curriculum_lessons` rendait **« 7 leçons créées »** sur le
+chapitre 44. Vérifié en base pendant la relecture : le job du 09/08 00:24 en avait fabriqué
+**cinq** (153 à 157) — les leçons **114 et 115 dataient du 06/08**, trois jours plus tôt.
+
+`lesson_ids` est l'**état résultant** du chapitre, pas la production du travail. Et le compte
+réellement créé (`lessons_count`) vit sur la trace `parent`, **exclue du Journal** par le constat 1 :
+il ne peut pas être dit, donc il ne se devine pas.
+
+La règle rend désormais un **état au ton `neutre`** — « N leçons au chapitre » — et non une création
+au ton `succes`. Un test l'épingle, `assert "créé" not in texte` compris.
+
+🔴 **Ce que cet épisode démontre, et qui vaut au-delà de la règle corrigée** : les trois suites
+étaient vertes, le test-verrou avait été sabotté et rougi, et l'écran affirmait quand même une
+chose fausse. Aucun test ne pouvait la voir — il aurait fallu connaître la date de création de deux
+leçons pour douter du mot « créées ». **C'est la sixième fois que ce dépôt le constate, et la
+deuxième fois qu'on le chiffre.**
+
+⚠️ **Dette nommée** : le nombre de leçons **réellement créées** par un
+`curriculum_lessons` reste indisponible côté Journal. Le rendre lisible demanderait soit de faire
+entrer la trace `parent` (refusé, constat 1), soit que le travail l'écrive dans sa propre sortie —
+une modification de `curriculum/service.py`, hors périmètre ici.
+
+## ⚠️ Décision 4 AMENDÉE — le diagnostic mène à sa matière (2026-08-09, même jour)
+
+**Motif : la version livrée laissait un doute à l'écran.** « 40 questions · Histoire-Géo », sans
+lien ni indication d'où aller. Le commanditaire l'a dit en une phrase : *« il faut qu'aucun doute ne
+soit permis à l'écran en lisant »*. Un texte juste qui n'indique rien reste un cul-de-sac — c'est le
+motif de l'`adr-0047`, appliqué à la ligne qu'on venait d'écrire.
+
+**Ce que la recherche d'une destination a établi, et qui vaut d'être écrit** : aucune surface Papa
+n'ouvre un diagnostic précis. `/quiz` filtre sur `QUIZ_TYPE_MISSION` dans **sept comparaisons de requête** de
+pilotage — un diagnostic n'y apparaît jamais ; `/relecture` rend `null` (`reviewLink:91`) ;
+`/diagnostics` montre les **passations**, pas le quiz généré.
+
+**Décision** : la route est de **grain matière** — `/diagnostics?subject=<id>`, l'id lu dans
+`input_json` (la sortie ne porte que le *nom* de la matière, et une route ne se compose pas sur un
+nom). Aucune requête de plus.
+
+🔴 **Ce qui rend ce lien acceptable là où l'`adr-0047` Décision 8 en a condamné un** : le libellé
+**annonce son grain**. La station ② disait « Produire le quiz de cette notion → » et envoyait sur la
+matière — elle promettait un grain qu'elle ne livrait pas. Ici on écrit « voir les diagnostics
+d'Histoire-Géo → », au pluriel, et c'est exactement ce qu'on sert. **Le défaut n'était pas le grain
+matière ; c'était l'écart entre le grain promis et le grain servi.**
+
+**Conséquences de l'amendement** :
+
+- **`route_texte` est ajouté** au contrat, et il devient obligatoire dès qu'il y a une route.
+  ⚠️ Un « voir → » nu était d'ailleurs déjà un écart à la maquette, qui disait « voir la leçon → » /
+  « voir le chapitre → » / « voir les cartes → » : l'implémentation les avait collapsés. Corrigé,
+  et tenu par un test paramétré sur les quatre types à route.
+- **`DiagnosticsPapaPage` lit `?subject=`** — sans quoi le lien aurait promis une matière et livré
+  la page par défaut. ⚠️ **Amorçage, pas synchronisation** : la pastille reste maîtresse ensuite, et
+  le `focus` du bandeau reste strictement local. Trois tests, dont un `?subject=` illisible.
+- **L'élision est traitée** (`d'Histoire-Géo`, `d'Anglais`, `d'Espagnol`) : trois matières sur huit
+  commencent par une voyelle, un libellé sur cinq se lirait de travers sans elle.
+
+**Ce qui reste dû, et n'a pas bougé** : ouvrir **LE** diagnostic — ses 40 questions — depuis Papa.
+C'est un chantier à part, et il fermera aussi le `null` de `reviewLink:91`.

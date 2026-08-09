@@ -245,3 +245,77 @@ dans `packages/types` — le chantier le matérialise en base, il ne l'ajoute pa
 - **Le rendu des maths dans les libellés de cartes SRS** (LaTeX brut à l'écran) — dette nommée, elle
   demande une dépendance, donc un ADR.
 - **Toute surface Massimo.**
+
+---
+
+## `[0041-A]` ▶ CHANTIER — La ligne « Travail » dit ce qu'elle a produit
+
+> Addendum ADR-0041 (`adr-0041-addendum-le-travail-dit-ce-qu-il-a-produit.md`), maquette
+> `mockup/mockup-papa-journal-travail-v1.html`. Cadré le 2026-08-09 à partir d'une observation à
+> l'écran : *« on n'arrive pas à savoir si les data ont été créées ou pas »*.
+
+### Le défaut, en une ligne
+
+`_travail_out` lit `job.input_json` et **jamais** `job.output_json`. Trois issues opposées rendent
+donc trois lignes identiques — dont un `Équipement · fait · 0 s` qui **n'a rien produit du tout**
+(`generated: []`, cinq pièces `skipped`).
+
+### Ce qui s'ajoute — une ligne, entre le libellé et l'origine
+
+Un champ `production` sur `JournalTravailOut` :
+
+```
+production: { texte, ton: "succes"|"neutre"|"avertissement", route: string|null } | null
+```
+
+Rendu : une pastille au `ton`, le `texte`, puis le lien quand `route` existe. L'origine
+(« lancé par vous · hors lot ») reste **la dernière ligne** du bloc.
+
+🔴 **Le libellé du lien NOMME sa destination**, il vient du serveur avec la route : « voir la
+leçon → », « voir le chapitre → », « voir les cartes → », « voir les diagnostics d'Histoire-Géo → ».
+Un « voir → » nu laisserait Papa découvrir où il atterrit — le défaut que l'`adr-0047` Décision 8 a
+corrigé sur la station ②. `route_texte` est `null` exactement quand `route` l'est.
+
+### Les règles, une par type de travail
+
+| `job_type` | Texte | Ton | Route |
+|---|---|---|---|
+| `equip_notion`, rien généré | « rien produit — les N pièces existaient déjà » | `avertissement` | **jamais** |
+| `equip_notion`, N générées | « N pièces produites » | `succes` | la notion, si résoluble |
+| `lesson_content` | « cours rédigé » | `succes` | `/programme?subject=…&chapter=…&lesson=…` |
+| `curriculum_lessons` | « N leçons **au chapitre** » | `neutre` | `/programme?subject=…&chapter=…` |
+| `srs_cards_generate` | « N cartes créées » (ou « aucune carte nouvelle ») | `succes` / `avertissement` | `/cartes-revision?subject=…&focus=<skill_id>` |
+| `diagnostic_generate` | « N questions · <matière> » | `succes` | `/diagnostics?subject=…` — grain **matière**, et le libellé le dit |
+| tout autre type | « terminé » | `neutre` | aucune |
+
+⚠️ **La longueur du cours n'est PAS affichée.** `content_chars` vit sur la trace `parent`, exclue du
+Journal ; la ligne visible de `lesson_content` ne porte qu'un `lesson_id`.
+
+🔴 **`curriculum_lessons` dit un ÉTAT, jamais une création — corrigé à la relecture visuelle du
+2026-08-09.** La première écriture rendait « 7 leçons créées » sur un job qui en avait fabriqué
+**5** : `lesson_ids` est l'état **résultant** du chapitre, et deux des sept dataient de trois jours
+plus tôt (114 et 115, le 06/08). Le compte réellement créé (`lessons_count`) vit sur la trace
+`parent`, exclue : il ne peut pas être dit, donc il ne se devine pas. Surestimer serait le défaut
+même que ce chantier corrige.
+
+### 🔴 Trois interdits
+
+1. **« Rien produit » n'est jamais cliquable.** Rattacher une pièce préexistante à un travail qui ne
+   l'a pas faite ferait croire le contraire (doctrine déjà écrite pour les pièces `skipped`).
+2. **« Rien produit » n'est jamais rouge.** Ambre. Ne rien produire parce que tout existait déjà est
+   un résultat *correct* — signalé parce qu'il surprend, pas parce qu'il est mauvais.
+3. **Le diagnostic mène à sa MATIÈRE, jamais à lui-même — et son libellé l'annonce.** Aucune
+   surface Papa n'ouvre un diagnostic précis : `/quiz` filtre sur `QUIZ_TYPE_MISSION` dans ses sept
+   requêtes, `/relecture` rend `null` (`reviewLink:91`). Le lien est donc de grain matière, et le
+   libellé dit « voir les diagnostics d'Histoire-Géo → » : **le grain annoncé est le grain servi**.
+   Ce n'est pas le défaut de l'`adr-0047` Décision 8, qui promettait « le quiz de cette notion » et
+   livrait la matière. Ouvrir *ce* diagnostic reste dû, et reste un chantier à part.
+
+   ⚠️ Ça n'a été possible qu'en donnant à `DiagnosticsPapaPage` la lecture de `?subject=` —
+   **amorçage seulement**, la pastille reste maîtresse ensuite, et le `focus` du bandeau reste
+   strictement local.
+
+### Ce qui ne bouge pas
+
+Les lignes de **lot** (leur pli, leurs pièces, leurs liens, leur veto), les traces `parent` hors
+Journal, l'absence de veto sur un travail unitaire (§17), et le reste de la page.

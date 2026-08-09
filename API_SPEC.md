@@ -2319,7 +2319,10 @@ local piégé** (l'appeler fait échouer le travail).
                  "label": "Cartes de révision · Mitose", "status": "succeeded",
                  "trigger": "manual", "skill_id": 42, "skill_name": "Mitose",
                  "created_at": "…", "started_at": "…", "finished_at": "…",
-                 "duration_ms": 53600, "error": null } ],
+                 "duration_ms": 53600, "error": null,
+                 "production": { "texte": "3 cartes créées", "ton": "succes",
+                                 "route": "/cartes-revision?subject=4&focus=42",
+                                 "route_texte": "voir les cartes →" } } ],
   "travaux_exclus": null,
   "has_more": true, "total": 31
 }
@@ -2340,6 +2343,35 @@ avait déjà nommé pour les filtres. ⚠️ **Corollaire client : l'offset comp
 `pieces`, `events`. Donc **aucun veto** — `DELETE /journal/pieces/{kind}/{id}` s'appuie sur le
 tamponnage `production_run_id`, qu'un `AIJob` ne pose pas. L'écran ne doit offrir aucun bouton de
 retrait sur ces lignes : il ne pourrait rien retirer.
+
+#### ⚠️ Champ AJOUTÉ le 2026-08-09 — `production` (addendum ADR-0041 « un travail dit ce qu'il a produit »)
+
+`production: { texte, ton, route, route_texte } | null` — **calculé serveur**, une règle par
+`job_type`. `null` tant que le travail n'est pas `succeeded`. Additif : rien de ce qui lisait la
+ligne ne casse.
+
+| Champ | Contrat |
+|---|---|
+| `texte` | ce que le travail a produit, en clair — « 3 cartes créées », « cours rédigé », « 40 questions · Histoire-Géo », « rien produit — les 5 pièces existaient déjà », « N leçons **au chapitre** » |
+| `ton` | `succes` \| `neutre` \| `avertissement`. ⚠️ **`avertissement` n'est PAS une erreur** et ne se rend jamais en rouge |
+| `route` | une **route Papa toute faite**, au format `pilotageLinks`. 🔴 **`null` dès que rien n'a été produit** |
+| `route_texte` | le libellé, qui **nomme la destination et son GRAIN**. `null` exactement quand `route` l'est |
+
+🔴 **Deux invariants que le client ne doit pas contourner** :
+
+1. **`route = null` ⇒ aucun lien.** Rattacher une pièce préexistante à un travail qui ne l'a pas
+   faite ferait croire le contraire (même doctrine que `cible()` pour les pièces `skipped`).
+   Test-verrou serveur **et** écran.
+2. **Ne jamais afficher un « voir → » nu** : le libellé vient du serveur. Un lien qui n'annonce pas
+   son grain est le défaut que l'`adr-0047` Décision 8 a corrigé sur la station ②.
+
+⚠️ **Un `job_type` sans règle rend `{"texte": "terminé", "ton": "neutre"}`** — dégradation propre,
+pas un bug. ⚠️ **La longueur du cours n'est pas dans le contrat** : `content_chars` vit sur la trace
+`created_by='parent'`, que le Journal exclut.
+
+⚠️ **`GET /diagnostics/apercu` est inchangé**, mais la page qui le consomme lit désormais
+`?subject=<id>` de l'URL (amorçage de la pastille de matière) — c'est la destination des lignes
+`diagnostic_generate`. Aucun contrat serveur n'en dépend.
 
 ⚠️ **`zetis_mode` est ABSENT, pas `"manuel"`.** Un travail hors lot est manuel *par construction*
 (§3.2) et il serait tentant de l'écrire — ce serait confondre l'**origine** (qui a demandé) avec le

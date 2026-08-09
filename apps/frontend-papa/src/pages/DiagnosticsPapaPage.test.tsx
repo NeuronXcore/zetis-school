@@ -115,9 +115,9 @@ const PORTEE: DiagnosticPortee = {
   ],
 };
 
-function renderPage() {
+function renderPage(url = "/diagnostics") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <DiagnosticsPapaPage />
     </MemoryRouter>,
   );
@@ -474,5 +474,36 @@ describe("DiagnosticsPapaPage", () => {
     // que sur une valeur — le défaut qui fait clignoter un panneau sous le curseur.
     await new Promise((r) => setTimeout(r, 50));
     expect(fetchResultDetail).toHaveBeenCalledTimes(1);
+  });
+});
+
+// --- L'ouverture par URL (addendum ADR-0041, décision 4 amendée) --------------------------------
+
+describe("La page s'ouvre sur la matière demandée par l'URL", () => {
+  beforeEach(() => {
+    vi.mocked(fetchApercu).mockResolvedValue(APERCU);
+  });
+
+  it("🔒 `?subject=3` présélectionne Mathématiques", async () => {
+    // 🔴 Sans cette lecture, le lien du Journal (« voir les diagnostics de Mathématiques → »)
+    // déposerait Papa sur « Toutes » : il promettrait une matière et livrerait la page par défaut.
+    // Un lien qui ment est pire que pas de lien — c'est très exactement pour ne pas en poser un
+    // que la décision 4 d'origine avait renoncé au lien.
+    renderPage("/diagnostics?subject=3");
+    const chip = await screen.findByRole("button", { name: "Mathématiques" });
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("sans paramètre, aucune matière n'est présélectionnée", async () => {
+    renderPage();
+    const chip = await screen.findByRole("button", { name: "Mathématiques" });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("un `?subject=` illisible ne présélectionne rien, et ne casse rien", async () => {
+    // Une URL bricolée à la main ne doit pas rendre la page inutilisable ni filtrer sur `NaN`.
+    renderPage("/diagnostics?subject=pas-un-nombre");
+    const chip = await screen.findByRole("button", { name: "Mathématiques" });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
   });
 });
