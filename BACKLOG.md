@@ -848,6 +848,61 @@ non un patch : le **bridage de la propagation** (une mesure douteuse doit-elle �
 `SkillMastery` avant confirmation ?) et la **surface de la verbalisation**, qui touche l'écran de
 passation — jusqu'ici hors périmètre de tous les chantiers Diagnostic.
 
+---
+
+### 🟡 CADRAGE ENTAMÉ le 2026-08-09 — read-before-code fait, décisions prises, ADR PAS ÉCRIT
+
+> ⚠️ **Reprendre ICI, ne pas re-poser ces questions.** La session de cadrage s'est arrêtée faute de
+> contexte, après le read-before-code et quatre décisions du commanditaire. Il reste
+> **maquette → spec → ADR → prompt**.
+
+**🔴 Ce que le read-before-code a démenti ou complété (vérifié dans le code) :**
+
+1. 🔴 **La durée d'une passation n'est PAS mesurée — elle vaut zéro par construction.**
+   `submit()` pose `started_at = completed_at = now`, le **même instant**
+   (`diagnostics/service.py:483-490`). Et `QuizAttempt.duration_seconds` **existe déjà** dans le
+   modèle… et n'est **jamais écrit**. La piste 2 ne part donc pas de « horodater chaque réponse » :
+   elle part de « le backend n'a **aucune** notion du temps, pas même la durée totale ».
+2. ✅ **Les pistes 1 et 2 coûtent ZÉRO migration côté données.** `QuizAnswer.answer_json` est un
+   JSON libre, déjà écrit à chaque réponse (`{"choice_index": chosen}`) : horodatage et drapeau
+   « quittée en cours » y logent sans toucher le schéma.
+3. 🔴 **Le vrai coût est côté FRONT.** Le client envoie `{question_id, choice_index}[]` **une seule
+   fois, en fin de parcours** (`lib/diagnostic.ts:95`). Il ne mesure rien, n'observe rien. Le
+   backend ne peut rien inférer de ce qu'on ne lui envoie pas.
+4. ⚠️ **Il manque un endroit pour le VERDICT.** `QuizAttempt` n'a aucun champ pour « mesure à
+   confirmer » — c'est la **migration probable du chantier, et sans doute la seule**.
+5. ✅ La propagation est bien immédiate et inconditionnelle : `_upsert_skill_mastery` + `_upsert_gap`
+   + `award_xp`, puis **un seul** `db.commit()`. Et l'XP est bien donné pour **être venu**.
+
+**🔴 Ce que le `BACKLOG` ne disait pas, et qui est le meilleur signal du lot :** le seul qui
+**survit au téléphone posé à côté** n'est pas dans le navigateur, c'est le **contraste avec
+l'historique** — score élevé sur une notion jamais travaillée, jamais vue, sans contenu consulté.
+ZETIS a déjà tout pour le calculer (`SkillMastery`, `LessonView`, passations antérieures) : **zéro
+instrumentation**. ⚠️ Bruité dans l'autre sens : un enfant peut savoir une chose sans l'avoir
+travaillée **dans ZETIS**.
+
+**Décisions du commanditaire (2026-08-09) — à relire, pas à rouvrir :**
+
+- **Propagation** : la mesure **écrit** comme aujourd'hui, et le **verdict s'y attache**. Pas d'état
+  intermédiaire, pas de geste obligatoire de Papa — donc rien à défaire, et pas de mesure en
+  attente indéfinie.
+- **Verbalisation** : **après la soumission, sur l'écran de résultat**. L'écran de **passation
+  n'est pas touché** — et la demande reste un acte d'apprentissage, pas une surveillance.
+- **Signaux retenus** : sortie d'écran · timing par réponse · **contraste avec l'historique** ·
+  `copy` de l'énoncé (il couvre un trou de la sortie d'écran : on peut copier **sans quitter la
+  page**) · `resize` / split-screen.
+- **Écarté : les mouvements de souris** — bruit énorme, **absents sur tablette et iPhone**, et
+  c'est de la surveillance comportementale, ce qui heurte la règle de vocabulaire du chantier.
+
+**🔴 « Bloquer la navigation » a été demandé, et c'est IMPOSSIBLE côté web** — ni `Cmd+T`, ni
+`Cmd+Tab`, ni quitter le navigateur, ni un second appareil. Ce n'est pas une limite de ZETIS : un
+site qui pourrait retenir l'utilisateur serait une faille. **Décision : aucune barrière.** Le
+**plein écran** entre comme **sixième signal**, pas comme empêchement — en sortir est un geste
+délibéré que `fullscreenchange` détecte. ⚠️ Il exige un geste utilisateur pour démarrer et **iOS
+Safari le refuse sur iPhone** : il ne vaudra que sur iPad et desktop, et l'ADR doit le dire.
+⚠️ Le seul dispositif qui bloque vraiment est **hors du code** : l'**Accès guidé iOS**, un geste de
+Papa avant la passation. Écarté du périmètre, mentionné ici pour qu'on ne le redécouvre pas.
+
 ## Bugs / risques à surveiller
 
 - **Tenue de la 3D sur les trois appareils de Massimo — dette OUVERTE et devenue critique le
