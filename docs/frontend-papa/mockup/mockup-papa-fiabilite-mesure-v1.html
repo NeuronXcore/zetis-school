@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ZETIS — Papa · La fiabilité d'une mesure (maquette v1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   v1 — l'anti-triche du diagnostic, côté PAPA.
+   Suite de `mockup-papa-diagnostic-v4-optimisations.html`. Cette maquette
+   n'ajoute PAS une page : elle ajoute UNE bande au panneau d'une passation,
+   UNE marque sur la ligne du rail, et UNE colonne à la station ①.
+
+   🔴 La règle de vocabulaire commande tout ce fichier : on parle de
+      L'INSTRUMENT (« cette mesure est à confirmer »), JAMAIS de l'enfant
+      (« Massimo a peut-être triché »). Si une phrase de cette maquette prend
+      l'enfant pour sujet, c'est un défaut, pas un raccourci.
+
+   Les données sont plausibles, pas relevées : rien de tout ceci n'existe
+   encore en base. Les 6 signaux sont ceux arrêtés au BACKLOG le 2026-08-09.
+
+   Tokens repris VERBATIM de `apps/frontend-papa/src/index.css`.
+   ========================================================================= */
+:root{
+  --papa-bg:#0a0f1a;
+  --papa-surface:#111a28;
+  --papa-surface-2:#18243a;
+  --papa-border:#243348;
+  --papa-text:#e6edf6;
+  --papa-muted:#8595ac;
+  --papa-accent:#10b981;
+  --papa-accent-2:#38bdf8;
+  --papa-warn:#f59e0b;
+
+  --accent-wash:rgba(16,185,129,.13);
+  --accent-line:rgba(16,185,129,.34);
+  --warn-wash:rgba(245,158,11,.11);
+  --warn-line:rgba(245,158,11,.38);
+  --void:#5c6b82;               /* l'absence : ni vert ni ambre, jamais rouge */
+
+  --r:10px;
+  --display:'Archivo',system-ui,sans-serif;
+  --body:'Instrument Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--papa-bg);color:var(--papa-text);
+  font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--display);letter-spacing:-0.015em;margin:0}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:none;padding:0;text-align:left}
+a{color:var(--papa-accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--papa-accent);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 24px 100px}
+
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--papa-muted)}
+.pagetitle{font-size:30px;font-weight:700;margin-top:6px}
+.pagelede{color:var(--papa-muted);max-width:74ch;margin-top:8px}
+
+.chapitre{margin-top:56px;border-top:1px solid var(--papa-border);padding-top:28px}
+.chapitre > .eyebrow span{color:var(--papa-accent)}
+.chapitre h2{font-size:22px;font-weight:700;margin-top:6px}
+.chapitre .pourquoi{color:var(--papa-muted);max-width:78ch;margin-top:10px;font-size:14px}
+.chapitre .pourquoi code{font-family:var(--mono);font-size:12.5px;color:var(--papa-text)}
+.note{
+  margin-top:14px;border-left:2px solid var(--accent-line);padding:2px 0 2px 14px;
+  color:var(--papa-muted);font-size:13.5px;max-width:78ch;
+}
+.note strong{color:var(--papa-text)}
+.note.warn{border-left-color:var(--warn-line)}
+.note.rouge{border-left-color:#ef4444}
+
+.panneau{border:1px solid var(--papa-border);border-radius:var(--r);background:var(--papa-surface);padding:18px;margin-top:20px}
+.panneau > .rang{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--papa-muted)}
+.panneau > h3{font-size:19px;font-weight:700;margin-top:4px}
+.panneau > h3 .date{font-family:var(--body);font-weight:400;color:var(--papa-muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12px}
+.chip{border:1px solid var(--papa-border);border-radius:999px;padding:2px 10px;color:var(--papa-muted)}
+.chip.ok{border-color:var(--accent-line);background:var(--accent-wash);color:var(--papa-accent)}
+
+/* ---- LA BANDE DE FIABILITÉ ---------------------------------------------
+   Elle se place APRÈS l'en-tête et AVANT la portée en escalier : elle
+   qualifie la mesure entière, donc elle se lit avant les nombres. Une bande
+   sous la station ① commenterait des chiffres déjà crus. */
+.fiabilite{
+  margin-top:16px;border:1px solid var(--warn-line);border-left-width:3px;
+  border-radius:var(--r);background:var(--warn-wash);padding:14px 16px;
+}
+.fiabilite > .titre{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.fiabilite > .titre h4{font-size:15.5px;font-weight:600;color:var(--papa-warn)}
+.fiabilite > .titre .qualif{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--papa-muted)}
+.fiabilite > .chapeau{color:var(--papa-muted);font-size:13.5px;margin-top:6px;max-width:74ch}
+
+.faits{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:9px}
+.faits li{display:grid;grid-template-columns:18px 1fr;gap:10px;align-items:start;font-size:14px}
+.faits .pip{font-size:12px;line-height:1.55;color:var(--papa-warn)}
+.faits li.indice .pip{color:var(--void)}
+.faits li.indice{color:var(--papa-muted)}
+.faits b{font-weight:600;color:var(--papa-text)}
+.faits li.indice b{color:var(--papa-muted);font-weight:500}
+.faits .quoi{font-size:12.5px;color:var(--papa-muted);display:block;margin-top:1px}
+
+.famille{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--papa-border);border-radius:4px;padding:0 5px;margin-left:6px;
+  color:var(--void);white-space:nowrap;
+}
+.famille.net{color:var(--papa-warn);border-color:var(--warn-line)}
+
+.portee-instrument{
+  margin-top:14px;padding-top:12px;border-top:1px dashed var(--papa-border);
+  font-size:12.5px;color:var(--papa-muted);display:flex;gap:8px;align-items:baseline;
+}
+.portee-instrument .num{color:var(--papa-text)}
+
+.geste{margin-top:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.btn-remesurer{
+  border:1px solid var(--accent-line);background:var(--accent-wash);color:var(--papa-accent);
+  border-radius:8px;padding:7px 14px;font-size:14px;font-weight:500;
+}
+.btn-remesurer:hover{background:rgba(16,185,129,.2)}
+.geste .aparte{font-size:12.5px;color:var(--papa-muted);max-width:52ch}
+
+/* état « rien à signaler » : PAS de bande verte, pas de bande du tout. */
+.rien{
+  margin-top:16px;border:1px dashed var(--papa-border);border-radius:var(--r);
+  padding:12px 16px;color:var(--void);font-size:13.5px;
+}
+
+/* ---- la portée en escalier (rappel, inchangée) -------------------------- */
+.portee{margin-top:16px;border:1px solid var(--papa-border);border-radius:var(--r);background:var(--papa-surface-2);padding:12px 16px;color:var(--papa-muted);font-size:13px}
+
+/* ---- station ① ---------------------------------------------------------- */
+.station{margin-top:16px;border:1px solid var(--papa-border);border-radius:var(--r);background:var(--papa-surface);overflow:hidden}
+.station > header{padding:12px 16px;border-bottom:1px solid var(--papa-border)}
+.station > header .n{font-family:var(--mono);font-size:11px;color:var(--papa-accent);letter-spacing:.12em}
+.station > header h4{font-size:16px;font-weight:600;margin-top:3px}
+.station > header p{color:var(--papa-muted);font-size:12.5px;margin:6px 0 0;max-width:76ch}
+.station .corps{padding:14px 16px}
+
+table.notions{width:100%;border-collapse:collapse;font-size:14px}
+table.notions th{
+  text-align:left;font-weight:400;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--papa-muted);padding-bottom:8px;border-bottom:1px solid var(--papa-border);
+}
+table.notions th.r{text-align:right}
+table.notions td{padding:11px 0;border-bottom:1px solid rgba(36,51,72,.55);vertical-align:top}
+table.notions td.r{text-align:right;font-family:var(--mono)}
+table.notions tr:last-child td{border-bottom:none}
+.palier{font-size:12px;color:var(--papa-muted)}
+
+.mot{
+  display:block;margin-top:6px;font-size:13px;color:var(--papa-text);
+  border-left:2px solid var(--accent-line);padding:1px 0 1px 10px;max-width:56ch;font-style:italic;
+}
+.mot .qui{font-style:normal;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--papa-muted);display:block;margin-bottom:2px}
+.mot-absent{display:block;margin-top:6px;font-size:12.5px;color:var(--void)}
+
+/* ---- le rail ------------------------------------------------------------ */
+.rail{border:1px solid var(--papa-border);border-radius:var(--r);background:var(--papa-surface);overflow:hidden;max-width:520px;margin-top:20px}
+.ligne{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px 14px;border-bottom:1px solid var(--papa-border);align-items:center}
+.ligne:last-child{border-bottom:none}
+.ligne .acteur{font-size:14px;font-weight:600}
+.ligne .etat{font-size:12.5px;color:var(--papa-muted);margin-top:1px}
+.ligne .droite{text-align:right}
+.ligne .score{font-family:var(--mono);font-size:14px}
+.ligne .quand{font-size:11.5px;color:var(--papa-muted);margin-top:2px}
+.ligne.selectionnee{background:var(--papa-surface-2);box-shadow:inset 3px 0 0 var(--papa-accent)}
+.marque{
+  display:inline-flex;align-items:center;gap:5px;margin-left:8px;
+  border:1px solid var(--warn-line);background:var(--warn-wash);color:var(--papa-warn);
+  border-radius:999px;padding:0 8px;font-size:11px;font-weight:500;vertical-align:middle;
+}
+
+.duo{display:grid;gap:16px;margin-top:20px}
+@media(min-width:900px){.duo{grid-template-columns:1fr 1fr}}
+.volet{border:1px solid var(--papa-border);border-radius:var(--r);overflow:hidden;background:var(--papa-surface)}
+.volet > header{
+  padding:8px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  border-bottom:1px solid var(--papa-border);color:var(--papa-muted);
+}
+.volet.non > header{background:rgba(239,68,68,.08);color:#f87171}
+.volet.oui > header{background:var(--accent-wash);color:var(--papa-accent)}
+.volet .corps{padding:16px;font-size:14px}
+.volet .corps p{margin:0 0 10px}
+.volet .corps p:last-child{margin-bottom:0}
+.volet .corps .exemple{font-size:15px;font-weight:600;line-height:1.4}
+.volet.non .corps .exemple{color:#f87171}
+.volet.oui .corps .exemple{color:var(--papa-accent)}
+.volet .corps .parce{color:var(--papa-muted);font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">ZETIS · Papa · Diagnostic</p>
+  <h1 class="pagetitle">La fiabilité d'une mesure</h1>
+  <p class="pagelede">
+    Le diagnostic est le seul endroit de ZETIS où une mesure fausse <strong>se propage</strong> : elle
+    ouvre des lacunes, écrit la maîtrise, nourrit les missions et le Conseil de classe. Cette maquette
+    montre ce que Papa voit quand ZETIS <em>doute de son propre instrument</em> — et rien d'autre.
+  </p>
+
+  <div class="note rouge">
+    🔴 <strong>La règle qui commande tout le chantier.</strong> Chaque phrase ici prend
+    <strong>la mesure</strong> pour sujet. Aucune ne prend l'enfant. « Cette mesure est à confirmer »
+    est un constat sur un instrument ; « Massimo a peut-être triché » est une accusation, et un enfant
+    accusé à tort par un logiciel apprend surtout à s'en méfier.
+  </div>
+
+  <!-- ================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Chapitre <span>①</span></p>
+    <h2>Le mot juste, et celui qui tue le chantier</h2>
+    <p class="pourquoi">
+      Ce n'est pas une préférence de style. Les deux colonnes disent le <em>même fait</em> ; seule la
+      seconde peut être montrée à Papa sans qu'un jour l'enfant la lise par-dessus son épaule.
+    </p>
+
+    <div class="duo">
+      <div class="volet non">
+        <header>✗ jamais — le sujet est l'enfant</header>
+        <div class="corps">
+          <p class="exemple">« Massimo a quitté l'écran 3 fois. Score suspect. »</p>
+          <p class="parce">
+            Le fait est exact et la phrase est fausse : elle transforme une observation en jugement de
+            personne. Elle n'a pas de suite possible — on ne « confirme » pas un soupçon, on
+            l'entretient.
+          </p>
+        </div>
+      </div>
+      <div class="volet oui">
+        <header>✓ toujours — le sujet est l'instrument</header>
+        <div class="corps">
+          <p class="exemple">« Cette mesure a été prise dans des conditions incertaines. »</p>
+          <p class="parce">
+            Le même fait, et une suite évidente : <strong>remesurer</strong>. Papa peut agir, l'enfant
+            n'a rien à défendre, et ZETIS reste ce qu'il est — un instrument qui connaît ses propres
+            limites.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Chapitre <span>②</span></p>
+    <h2>La bande de fiabilité, au-dessus de la station ①</h2>
+    <p class="pourquoi">
+      Elle se place <strong>après l'en-tête, avant la portée en escalier</strong> : elle qualifie la
+      mesure <em>entière</em>, donc elle doit se lire <strong>avant</strong> les nombres. Placée sous la
+      station ①, elle commenterait des chiffres déjà crus.
+    </p>
+
+    <div class="panneau">
+      <p class="rang">3ᵉ passation</p>
+      <h3>Diagnostic Histoire-Géographie <span class="date">— 9 août 2026</span></h3>
+      <div class="chips">
+        <span class="chip ok">passé par Massimo</span>
+        <span class="chip">8 notions</span>
+        <span class="chip">88 %</span>
+      </div>
+
+      <!-- LA BANDE -->
+      <div class="fiabilite">
+        <div class="titre">
+          <h4>⚖️ Cette mesure est à confirmer</h4>
+          <span class="qualif">conditions de passation</span>
+        </div>
+        <p class="chapeau">
+          Voici ce que ZETIS a observé pendant la passation. Ce ne sont pas des reproches : ce sont les
+          <strong>conditions</strong> dans lesquelles la mesure a été prise. Les chiffres ci-dessous
+          restent affichés, et ils ont été écrits — ils méritent juste d'être lus en sachant ça.
+        </p>
+
+        <ul class="faits">
+          <li>
+            <span class="pip">◆</span>
+            <span>
+              <b>3 questions quittées</b> avant d'être répondues <span class="famille net">fait</span>
+              <span class="quoi">L'écran a été quitté puis retrouvé, entre l'affichage de la question et la réponse.</span>
+            </span>
+          </li>
+          <li>
+            <span class="pip">◆</span>
+            <span>
+              <b>1 énoncé copié</b> <span class="famille net">fait</span>
+              <span class="quoi">Le texte d'une question a été copié. Il n'est pas nécessaire de quitter la page pour cela.</span>
+            </span>
+          </li>
+          <li>
+            <span class="pip">◆</span>
+            <span>
+              <b>6 notions sur 8 données acquises sans aucune trace antérieure</b> <span class="famille net">fait</span>
+              <span class="quoi">Jamais mesurées, aucun cours ouvert, aucune passation avant celle-ci — et la mesure les donne à 100 %.</span>
+            </span>
+          </li>
+          <li class="indice">
+            <span class="pip">◇</span>
+            <span>
+              <b>4 réponses nettement plus rapides</b> que les autres <span class="famille">indice</span>
+              <span class="quoi">Ne déclenche jamais rien à lui seul : rapide ≠ copié, et lent ≠ honnête.</span>
+            </span>
+          </li>
+          <li class="indice">
+            <span class="pip">◇</span>
+            <span>
+              <b>La fenêtre a changé de taille</b> pendant la passation <span class="famille">indice</span>
+              <span class="quoi">Peut être un écran partagé — ou une tablette qu'on a tournée.</span>
+            </span>
+          </li>
+        </ul>
+
+        <div class="portee-instrument">
+          <span>🔭</span>
+          <span>
+            <strong class="num">5</strong> des <strong class="num">6</strong> signaux étaient observables
+            sur cet appareil. <span style="color:var(--void)">Le plein écran n'a pas pu être demandé —
+            iOS Safari le refuse sur iPhone.</span>
+          </span>
+        </div>
+
+        <div class="geste">
+          <button class="btn-remesurer">Remesurer cette matière →</button>
+          <span class="aparte">
+            C'est la seule réponse à « à confirmer » : une deuxième mesure. Aucune case à cocher,
+            rien à valider, rien à défaire.
+          </span>
+        </div>
+      </div>
+
+      <div class="portee">
+        <strong style="color:var(--papa-text)">Portée</strong> — 8 notions sur 14 du chapitre · 3 chapitres sur 9 de la matière
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>La bande ne se retire pas, et n'a pas de bouton « j'ai vérifié ».</strong> Les conditions
+      d'une passation sont un fait daté, au même titre que le score : les effacer parce qu'on les a lues
+      reviendrait à réécrire la mesure. Ce que Papa peut faire, c'est en <strong>prendre une
+      autre</strong> — et l'action est là.
+    </div>
+    <div class="note warn">
+      ⚠️ <strong>« Remesurer cette matière → » a un coût réel, et il est petit.</strong>
+      <code>LancerDiagnosticDialog</code> existe mais présélectionne toujours <code>subjects[0]</code> :
+      il lui faut <strong>une prop de plus</strong>. Sans elle, le bouton ouvrirait la modale sur la
+      mauvaise matière — le défaut exact que l'<code>adr-0045</code> §5 a refusé de livrer.
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Chapitre <span>③</span></p>
+    <h2>Quand il n'y a rien à signaler, il n'y a pas de bande</h2>
+    <p class="pourquoi">
+      Une bande verte « mesure fiable ✓ » serait une <strong>promesse que l'instrument ne peut pas
+      tenir</strong> : aucun signal du navigateur ne survit à un téléphone posé à côté de l'écran.
+      L'absence de bande dit « rien vu », pas « rien eu lieu », et c'est tout ce qu'on peut affirmer.
+    </p>
+
+    <div class="panneau">
+      <p class="rang">2ᵉ passation</p>
+      <h3>Diagnostic Mathématiques <span class="date">— 2 août 2026</span></h3>
+      <div class="chips">
+        <span class="chip ok">passé par Massimo</span>
+        <span class="chip">6 notions</span>
+        <span class="chip">64 %</span>
+      </div>
+      <div class="rien">Rien à signaler sur les conditions de cette passation.</div>
+      <div class="portee">
+        <strong style="color:var(--papa-text)">Portée</strong> — 6 notions sur 11 du chapitre · 2 chapitres sur 7 de la matière
+      </div>
+    </div>
+
+    <div class="note warn">
+      ⚠️ <strong>Cette ligne grise est le seul écart assumé avec « pas de bande du tout ».</strong>
+      Sans elle, Papa ne saurait pas distinguer <em>« ZETIS a regardé et n'a rien vu »</em> de
+      <em>« ZETIS ne regardait pas »</em> — ce qui sera le cas de <strong>toutes les passations
+      antérieures au chantier</strong>, qui n'ont aucune observation et n'en auront jamais.
+      Celles-là ne disent rien du tout.
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Chapitre <span>④</span></p>
+    <h2>La marque dans le rail — repérable sans ouvrir</h2>
+    <p class="pourquoi">
+      Le rail est la liste des passations. Une bande qu'on ne voit qu'en ouvrant le panneau se
+      découvrirait par hasard. La marque est <strong>sur le troisième cran seulement</strong> — les
+      crans non passés n'ont pas de mesure, donc rien à qualifier.
+    </p>
+
+    <div class="rail">
+      <div class="ligne">
+        <div>
+          <div class="acteur" style="color:var(--papa-accent-2)">chez Massimo</div>
+          <div class="etat">pas encore passé</div>
+        </div>
+        <div class="droite"><div class="quand">proposé le 5 août</div></div>
+      </div>
+      <div class="ligne selectionnee">
+        <div>
+          <div class="acteur">Histoire-Géographie<span class="marque">⚖️ à confirmer</span></div>
+          <div class="etat">mesuré</div>
+        </div>
+        <div class="droite">
+          <div class="score">88 %</div>
+          <div class="quand">9 août</div>
+        </div>
+      </div>
+      <div class="ligne">
+        <div>
+          <div class="acteur">Mathématiques</div>
+          <div class="etat">mesuré</div>
+        </div>
+        <div class="droite">
+          <div class="score">64 %</div>
+          <div class="quand">2 août</div>
+        </div>
+      </div>
+      <div class="ligne">
+        <div>
+          <div class="acteur">Français</div>
+          <div class="etat">mesuré</div>
+        </div>
+        <div class="droite">
+          <div class="score">71 %</div>
+          <div class="quand">28 juillet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>Ambre, jamais rouge</strong> — et le mot est écrit à côté du symbole. C'est la règle de
+      couleur de l'<code>adr-0045</code> §6 : la couleur ne porte jamais l'information seule. Le rouge
+      dirait « faute » ; il n'y a pas de faute, il y a une incertitude.
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Chapitre <span>⑤</span></p>
+    <h2>La station ① gagne une colonne : le mot de Massimo</h2>
+    <p class="pourquoi">
+      La verbalisation est demandée à Massimo <strong>après la soumission</strong>, sur son écran de
+      résultat (chapitre ⑥ de la maquette de Massimo). Elle atterrit ici, <strong>à côté de la notion
+      dont elle parle</strong> — pas dans la bande de fiabilité, qui liste ce que ZETIS a observé, alors
+      que ceci est ce que Massimo a <em>dit</em>.
+    </p>
+
+    <div class="station">
+      <header>
+        <div class="n">STATION ①</div>
+        <h4>Ce qui a été mesuré</h4>
+        <p>
+          Score par notion, corrigé serveur, par paliers de 25 points. Le palier de maîtrise et la
+          lacune sont deux colonnes distinctes.
+        </p>
+      </header>
+      <div class="corps">
+        <table class="notions">
+          <thead>
+            <tr>
+              <th>Notion</th>
+              <th class="r">Score</th>
+              <th style="padding-left:16px">Palier</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                La Révolution française — causes
+                <span class="mot">
+                  <span class="qui">Massimo raconte</span>
+                  « je l'ai vu dans le documentaire qu'on a regardé avec toi dimanche »
+                </span>
+              </td>
+              <td class="r">100</td>
+              <td style="padding-left:16px" class="palier">maîtrisé</td>
+            </tr>
+            <tr>
+              <td>
+                Les trois ordres
+                <span class="mot">
+                  <span class="qui">Massimo raconte</span>
+                  « j'ai trouvé sur internet »
+                </span>
+              </td>
+              <td class="r">100</td>
+              <td style="padding-left:16px" class="palier">maîtrisé</td>
+            </tr>
+            <tr>
+              <td>
+                Le calendrier révolutionnaire
+                <span class="mot-absent">Pas de question tirée sur cette notion.</span>
+              </td>
+              <td class="r">50</td>
+              <td style="padding-left:16px" class="palier">en construction</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>La deuxième ligne est le cas qui justifie tout le chantier</strong>, et elle montre
+      pourquoi la verbalisation bat les cinq autres signaux : elle n'a rien détecté, elle a
+      <em>demandé</em> — et Massimo a répondu honnêtement, parce que rien dans l'écran ne lui a laissé
+      croire qu'il était accusé. <strong>Ce mot-là ne s'obtient pas par surveillance.</strong>
+    </div>
+    <div class="note rouge">
+      🔴 <strong>Ce que Papa ne doit surtout pas faire de cette ligne, et que l'ADR doit écrire :</strong>
+      la reprocher à Massimo. Le jour où « j'ai trouvé sur internet » se retourne contre lui, la
+      question ne recevra plus jamais de réponse vraie, et ZETIS aura perdu son meilleur instrument
+      pour gagner une remontrance.
+    </div>
+    <div class="note warn">
+      ⚠️ <strong>L'explication n'entre PAS dans le calcul du verdict</strong>, et son absence encore
+      moins. La compter ferait de la question un piège, et de « je préfère pas » un aveu.
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <section class="chapitre">
+    <p class="eyebrow">Chapitre <span>⑥</span></p>
+    <h2>Ce qui déclenche la bande, et ce qui ne la déclenche jamais</h2>
+    <p class="pourquoi">
+      Six signaux, deux familles, et <strong>une seule règle</strong> : un <em>fait</em> déclenche,
+      un <em>indice</em> ne déclenche jamais seul. La différence n'est pas la force du soupçon, c'est
+      la <strong>part d'interprétation</strong> — un indice a une explication innocente qui est au
+      moins aussi probable que l'autre.
+    </p>
+
+    <div class="duo">
+      <div class="volet oui">
+        <header>◆ faits — un seul suffit</header>
+        <div class="corps">
+          <p><strong>Une question quittée</strong> avant d'être répondue. <span class="parce" style="display:block;margin-top:2px">L'écran a été quitté, point. Aucun seuil à inventer.</span></p>
+          <p><strong>Un énoncé copié.</strong> <span class="parce" style="display:block;margin-top:2px">Couvre le trou du précédent : on copie sans quitter la page.</span></p>
+          <p><strong>Le plein écran quitté</strong> en cours de passation. <span class="parce" style="display:block;margin-top:2px">Un geste délibéré. Absent sur iPhone — l'instrument le dit.</span></p>
+          <p><strong>Le contraste avec l'historique.</strong> <span class="parce" style="display:block;margin-top:2px">La majorité des notions données acquises sans aucune trace avant. Le seul signal qui survit à un téléphone posé à côté, et le seul que le navigateur ne fabrique pas.</span></p>
+        </div>
+      </div>
+      <div class="volet non">
+        <header>◇ indices — s'affichent, ne déclenchent pas</header>
+        <div class="corps">
+          <p><strong>Le temps par réponse.</strong> <span class="parce" style="display:block;margin-top:2px">Lenteur ≠ triche, et rapidité ≠ copie. Un enfant qui sait répond vite.</span></p>
+          <p><strong>Le changement de taille de fenêtre.</strong> <span class="parce" style="display:block;margin-top:2px">Un écran partagé — ou un iPad qu'on tourne, ou un clavier qui s'ouvre. L'explication innocente est la plus fréquente.</span></p>
+          <p class="parce" style="margin-top:16px;border-top:1px solid var(--papa-border);padding-top:12px">
+            Ils sont <strong style="color:var(--papa-text)">affichés quand même</strong>, dans la bande,
+            en gris. Papa lit mieux qu'un seuil ; les lui cacher au motif qu'ils sont bruités
+            reviendrait à décider à sa place.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="note rouge">
+      🔴 <strong>Les mouvements de souris ont été écartés</strong> : bruit énorme, <strong>absents sur
+      tablette et iPhone</strong> — les deux appareils de Massimo — et c'est de la surveillance
+      comportementale, ce qui heurte de front la règle du chapitre ①.
+    </div>
+    <div class="note warn">
+      ⚠️ <strong>Aucune barrière, et ce n'est pas un renoncement.</strong> Bloquer la navigation est
+      impossible côté web : ni <code>Cmd+T</code>, ni <code>Cmd+Tab</code>, ni quitter le navigateur,
+      ni un second appareil. Un site qui pourrait retenir son utilisateur serait une faille. Le plein
+      écran entre donc comme <strong>signal</strong>, jamais comme empêchement.
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

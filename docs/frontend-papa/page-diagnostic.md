@@ -419,6 +419,52 @@ nées de la relecture visuelle humaine du 2026-08-08 :
    sans jamais compter les jours.
 4. **Une jauge écrit le mot de ce qu'elle compte** — « jamais générées », pas « jamais mesurées ».
 
+## `[0048]` La bande de fiabilité — ce que Papa voit d'une mesure douteuse
+
+> Règle complète, signaux et calcul : **`docs/backend/fiabilite-de-la-mesure.md`** — source unique.
+> Ne pas la recopier ici. Maquette : `mockup/mockup-papa-fiabilite-mesure-v1.html`.
+
+Le diagnostic est le seul endroit de ZETIS où une mesure fausse **se propage**. L'`adr-0048` donne
+donc à chaque passation un **verdict de fiabilité**, visible **côté Papa seul**.
+
+**Trois ajouts à cette page, et rien d'autre :**
+
+1. **Une bande dans le panneau d'une passation**, entre l'en-tête et la portée en escalier — elle
+   qualifie la mesure **entière**, donc elle se lit **avant** les nombres. Elle liste les **faits
+   bruts** (« 3 questions quittées avant d'être répondues »), les **indices** en gris, et la
+   **portée de l'instrument** (combien de signaux étaient observables sur cet appareil).
+   Son unique geste est **« Remesurer cette matière → »** : la seule réponse à « à confirmer » est
+   une seconde mesure.
+2. **Une marque sur la ligne du rail** — `⚖️ à confirmer`, **ambre jamais rouge**, le mot écrit à
+   côté du symbole (règle de couleur `[0045]` §6). Sur le **troisième cran seulement** : les crans
+   non passés n'ont pas de mesure, donc rien à qualifier.
+3. **Le mot de Massimo dans la station ①**, à côté de la notion dont il parle — pas dans la bande,
+   qui ne contient que ce que ZETIS a **observé**, alors que ceci est ce que Massimo a **dit**.
+
+🔴 **Le vocabulaire est non négociable** : chaque libellé prend **la mesure** pour sujet, jamais
+l'enfant. « Cette mesure est à confirmer », pas « Massimo a peut-être triché ».
+
+🔴 **Ce que Papa ne doit pas faire du mot de Massimo, et que l'ADR écrit** : le lui reprocher. Le
+jour où « j'ai cherché » se retourne contre lui, la question ne reçoit plus jamais de réponse vraie.
+
+**Trois états, pas deux** — et la distinction est visible :
+
+| `reliability_json` | Ce que la page montre |
+|---|---|
+| `verdict = "a_confirmer"` | la bande ambre, ses faits, son geste |
+| `verdict = "rien_a_signaler"` | une ligne grise : *« Rien à signaler sur les conditions de cette passation. »* |
+| `null` (toutes les passations d'avant le chantier) | **rien du tout** — ZETIS ne regardait pas |
+
+⚠️ **Pas de bande verte « mesure fiable ✓ »** : ce serait une promesse que l'instrument ne peut pas
+tenir. Aucun signal du navigateur ne survit à un téléphone posé à côté de l'écran.
+
+⚠️ **La bande ne se retire pas**, et n'a pas de bouton « j'ai vérifié ». Les conditions d'une
+passation sont un fait daté, au même titre que le score.
+
+⚠️ **Coût connu** : `LancerDiagnosticDialog` présélectionne toujours `subjects[0]`. « Remesurer cette
+matière → » lui demande **une prop de plus** — sans elle, le bouton ouvrirait la modale sur la
+mauvaise matière, le défaut exact que `[0045]` §5 a refusé de livrer.
+
 ## Hors périmètre
 
 Le **T0 sur les prérequis** — le graphe de prérequis n'existe pas (ni colonne ni table,
@@ -430,5 +476,11 @@ chantiers.
 `[0045]` S'y ajoutent, **écartés en connaissance de cause** : le bloc « Jamais généré » reste en
 lignes inertes (l'action existe en tête de page) · le « 37 j » est une troncature `.days`
 défendable, pas un défaut · le **N+1** de `GET /quizzes` et le plafond en dur de `GET /results` ·
-et l'**anti-triche du diagnostic** (temps par question, sortie d'écran, verbalisation), chantier
-suivant décidé le 2026-08-08 et consigné au `BACKLOG.md`.
+~~et l'**anti-triche du diagnostic**~~ → **cadré le 2026-08-09 par l'`adr-0048`** : voir la section
+`[0048]` ci-dessus.
+
+`[0048]` S'y ajoutent : **toute barrière** (bloquer la navigation est impossible côté web, et un site
+qui pourrait retenir son utilisateur serait une faille) · les **mouvements de souris** (bruit, et
+absents sur les deux appareils de Massimo) · l'**écran de passation**, qui n'est pas modifié · les
+**autres quiz** (seul le diagnostic propage, seul le diagnostic est instrumenté) · et **toute
+migration au-delà de `QuizAttempt.reliability_json`**, qui serait un blocker.

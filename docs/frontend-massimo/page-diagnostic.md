@@ -355,10 +355,74 @@ l'exception**, jamais simplement élargis : ce test existe pour empêcher qu'on 
 La maquette montre la pastille sur la carte, sous une bascule : c'est **la sidebar** qui la porte,
 pas la carte.
 
+## `[0048]` « Raconte-moi » — la seule part de l'anti-triche que Massimo voit
+
+> Règle complète, signaux et calcul : **`docs/backend/fiabilite-de-la-mesure.md`** — source unique.
+> Maquette : `mockup/mockup-diagnostic-resultat-verbalisation-v1.html`.
+
+L'`adr-0048` donne à ZETIS six signaux pour douter de sa propre mesure. **Cinq sont muets** : ils
+s'observent et ne s'affichent jamais côté enfant. Le sixième s'affiche, parce qu'il n'a rien à
+cacher — et il serait à sa place même sans anti-triche : `CLAUDE.md` prescrit déjà la verbalisation
+par Massimo.
+
+🔴 **L'écran de passation n'est pas touché.** Ni chrono, ni compteur, ni avertissement, ni plein
+écran imposé. Un enfant qui se sait chronométré ne passe plus le même diagnostic : la surveillance
+changerait la mesure qu'elle prétend protéger.
+
+**Une carte, sur l'écran de résultat**, insérée entre **Tes forces** et **Tes prochaines étapes** :
+après les forces parce qu'elle parle d'une **bonne** réponse et porte le même élan ; avant les
+prochaines étapes parce que ce bloc finit par « Voir mes missions → », et que rien ne doit venir
+après la porte de sortie.
+
+- **UNE** question sur **UNE** notion, tirée parmi les **bonnes** réponses. Deux, c'est un
+  interrogatoire.
+- **Tirage déterministe**, dérivé de l'`attempt_id` : recharger repose la **même** question. Un
+  tirage aléatoire changerait de notion à chaque rechargement, et aucun test ne pourrait tenir cet
+  écran.
+- Champ **200 caractères**, **facultatif**, bouton « Passer » réel et sans conséquence, **et un
+  micro** — la verbalisation se **dit** autant qu'elle s'écrit, et c'est la forme que `CLAUDE.md`
+  nomme. Trois imports, zéro backend : `lib/dictation.ts` (déjà partagé par `useEli5.ts` et
+  `ChatPage.tsx`) et `transcribeEli5` (déjà appelé par `ChatPage.tsx`).
+  🔴 **La transcription atterrit DANS le champ, elle ne s'envoie pas toute seule** — patron d'ELI5,
+  pas celui de ChatPage : Massimo doit pouvoir corriger ce que Whisper a mal entendu, sinon il
+  découvrirait sa phrase déformée chez Papa.
+  🔴 **Le micro dégrade en SILENCE** : micro indisponible ou STT éteint (503) → il **disparaît**, le
+  champ texte reste, et rien ne s'affiche sur ce qui manque.
+
+🔴 **La carte est là à CHAQUE passation, quel que soit le verdict.** La conditionner au doute la
+transformerait en accusation : deux ou trois passations suffisent à un enfant pour comprendre, et le
+seul signal non falsifiable du lot serait détruit par la manière de le demander. Le coût est réel et
+assumé — une question de plus les vingt fois où il n'y avait rien à vérifier, pour que la
+vingt-et-unième ne ressemble pas à un piège.
+
+🔴 **La phrase de permission est obligatoire**, et c'est la ligne qui fait tout le travail :
+
+> *« Tu peux dire "je le savais", "je l'ai vu en cours", "j'ai deviné" ou "j'ai cherché" — tout ça
+> compte pareil. »*
+
+Elle **nomme** la réponse qu'on cherche à détecter et la déclare **acceptable**. Un enfant qui sait
+qu'il peut dire « j'ai cherché » sans conséquence le **dira** — et ZETIS obtient librement ce
+qu'aucun des cinq autres signaux ne peut prouver, sans que personne n'ait été soupçonné.
+
+⚠️ **Ce qui la détruit** : qu'une seule fois, « j'ai cherché » revienne à Massimo sous forme de
+reproche.
+
+**Ce que la réponse ne fait pas** : elle **n'entre pas** dans le calcul du verdict, et son absence
+encore moins (la compter ferait de « Passer » un aveu) · elle **ne donne pas d'XP**, contrairement à
+l'explication d'ELI5 — payer pour elle en ferait une tâche, et un enfant qui veut l'XP écrira
+n'importe quoi.
+
+L'accusé de réception dit que **Papa le lira** — parce que c'est vrai, et qu'un mot recueilli sans le
+dire serait recueilli en douce. Il ne promet **aucune** récompense.
+
 ## Hors périmètre
 
-- L'écran de passation et l'écran de résultat (hors le point 2 ci-dessus) : cette refonte
-  traite **l'entrée** dans le diagnostic, pas son déroulé.
+- L'écran de passation et l'écran de résultat (hors le point 2 ci-dessus, et hors la carte
+  `[0048]` ci-dessus) : cette refonte traite **l'entrée** dans le diagnostic, pas son déroulé.
+- `[0048]` Le **déménagement de `/api/ai/eli5/transcribe`** vers un nom neutre (le micro de la carte
+  en fait le **troisième** consommateur d'une route nommée `eli5`) · **toute barrière**
+  pendant la passation, et **tout affichage du verdict côté Massimo** — il ne voit rien et n'est
+  jamais accusé.
 - Les quatre optimisations de la **page Diagnostic de Papa** (jauges non cliquables, cran
   « proposé » en cul-de-sac, « en attente · non passé » qui ne nomme personne) : chantier
   sœur, décidé **après** celui-ci.
