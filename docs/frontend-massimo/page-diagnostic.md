@@ -412,8 +412,24 @@ encore moins (la compter ferait de « Passer » un aveu) · elle **ne donne pas 
 l'explication d'ELI5 — payer pour elle en ferait une tâche, et un enfant qui veut l'XP écrira
 n'importe quoi.
 
-L'accusé de réception dit que **Papa le lira** — parce que c'est vrai, et qu'un mot recueilli sans le
-dire serait recueilli en douce. Il ne promet **aucune** récompense.
+**L'accusé de réception rend sa phrase à Massimo, et nomme ZETIS — jamais Papa.**
+
+> *« Merci ✨ » · « <ce qu'il a écrit> » · « C'est noté. ZETIS le garde à côté de ta réponse. »*
+
+Deux règles, et la seconde a été **révisée à la relecture visuelle du 2026-08-09** :
+
+1. **Sa phrase lui est rendue**, en relecture comme juste après l'envoi. « C'est gardé » n'est une
+   promesse tenable que s'il sait *quoi* — et après une **dictée**, c'est le seul endroit où il peut
+   découvrir que Whisper l'a mal entendu. *(L'écran n'en faisait rien jusqu'au 2026-08-09, alors que
+   le serveur servait bien l'explication.)*
+2. **ZETIS, pas Papa.** L'accusé disait « Papa le verra à côté de ta réponse » : c'était vrai, et
+   c'était le problème. Nommer Papa remet l'**enjeu** que la phrase de permission passe tout son
+   texte à retirer — un enfant à qui l'on annonce « Papa va lire ça » **pèse** sa réponse au lieu de
+   la dire, et le seul signal infalsifiable du lot se referme.
+   ⚠️ **Ce n'est pas pour autant recueilli en douce**, ce qui serait pire : la phrase dit que le mot
+   est **gardé**, et à quel endroit. Rien n'est caché — ZETIS ne convoque simplement personne.
+
+Il ne promet **aucune** récompense.
 
 ## Hors périmètre
 

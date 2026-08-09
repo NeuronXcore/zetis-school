@@ -4408,3 +4408,106 @@ l'arrivée des questions.
 `packages/types/src/index.ts` ré-exporte **type par type**, nommément. Le message est trompeur —
 *« has no exported member named 'DiagnosticFiabilite'. Did you mean 'DiagnosticPalier'? »* — et
 suggère une faute de frappe là où il manque une ligne d'export. Piège déjà consigné, retombé dessus.
+
+## Relecture visuelle de l'ADR-0048, sur les deux apps — 2026-08-09
+
+> Cinq défauts trouvés **à l'écran**, avec **36 sabotages rouges et trois suites vertes** derrière.
+> C'est le meilleur argument dont dispose ce dépôt pour la relecture humaine : ce qui suit décrit
+> *pourquoi* les tests ne pouvaient pas les voir, pas *qu'ils* ne les ont pas vus.
+
+### 🔴 Un verrou dont le NOM promet plus que ses assertions — VERT sur le défaut qu'il nommait
+
+Le test s'appelait **« en relecture, Massimo SE RELIT — on ne lui redemande pas »**. Il vérifiait :
+la présence de « Merci », et l'absence du bouton « Envoyer ». **Rien sur la relecture.** L'écran
+affichait « Merci ✨ · C'est noté » et **jamais les mots de Massimo**, alors que le serveur les
+servait dans le payload (`notion_a_verbaliser` joint `answer_json.explication`) — et que
+`docs/backend/fiabilite-de-la-mesure.md:400` écrit noir sur blanc *« Massimo relit ce qu'il a
+écrit »*.
+
+**Le mécanisme** : le nom du test décrit l'intention, les assertions décrivent le code. Quand on
+écrit les deux dans la même minute, on relit le nom et on croit avoir vérifié l'intention. **Un
+`describe`/`it` n'est pas une assertion.**
+
+**La parade** : sur un verrou qui protège une DÉCISION, relire ses assertions **sans lire son nom**
+et se demander ce qu'elles interdisent vraiment. Ici : rien de ce que le nom annonçait.
+**4ᵉ occurrence du motif dans ce dépôt** (cf. `adr-0039`, la contre-épreuve mal visée, les trois
+verrous des sessions B/C).
+
+### 🔴 Un décor semé À LA MAIN peut être IMPOSSIBLE pour le vrai client — et la contradiction s'affiche
+
+La passation 53 portait `plein_ecran_quitte: true` **avec** `plein_ecran` **absent** de
+`portee.observables`. La bande affichait donc, à quatre lignes d'écart, « Le plein écran a été
+quitté » **et** « Le plein écran n'a pas pu être demandé — iOS Safari le refuse sur iPhone ».
+
+Le vrai client **ne peut pas** produire ça : `useObservationPassation` ne lève le drapeau que si
+`pleinEcranDemande` (`:126`), et inscrit `plein_ecran` dans la portée sous exactement la même
+condition (`:172`). Les deux champs sont liés **par construction côté client**, et par **rien du
+tout côté serveur** — `evaluer()` recopie `conditions["signaux_observables"]` sans le confronter aux
+faits.
+
+**Le coût réel** : dix minutes à chercher un défaut de rendu qui n'existait pas. **La parade** :
+quand un décor est fabriqué au lieu d'être produit par le vrai chemin, **vérifier ses invariants
+croisés avant de conclure quoi que ce soit de l'écran**. Un semis incohérent accuse le code.
+
+### ⚠️ Mesurer un contraste avec un parseur naïf donne 1,06 là où il y a 3,38 — l'`oklab` de Tailwind
+
+`getComputedStyle(el).color` rend **`oklab(0.665 -0.008 -0.038 / 0.7)`** pour un `text-papa-muted/70`
+(les opacités Tailwind passent par `color-mix`). Un parseur qui extrait les nombres d'une chaîne lit
+`rgb(0.665, -0.008, -0.038)` — **du noir** — et annonce un contraste catastrophique sur une couleur
+parfaitement lisible.
+
+**La parade, et elle est courte** : faire composer le **navigateur**. Peindre le fond puis la couleur
+sur un canvas 1×1 et relire le pixel — ça gère `oklab`, `color-mix`, l'alpha, tout :
+
+```js
+cx.fillStyle = fond;    cx.fillRect(0,0,1,1);
+cx.fillStyle = couleur; cx.fillRect(0,0,1,1);
+const [r,g,b] = cx.getImageData(0,0,1,1).data;   // le rgb RÉEL, composé
+```
+
+⚠️ Le fond aussi doit être **empilé** jusqu'au premier opaque : une bande `bg-papa-warn/10` sur une
+surface translucide sur le fond de page fait **trois** couches.
+
+### ⚠️ Le panneau navigateur : l'espace de CLIC fait 800 px, le viewport 1798
+
+Une position lue par `getBoundingClientRect()` est en pixels de **viewport** ; `computer{left_click}`
+attend des pixels de **capture d'écran**. Le rapport était de **0,445** cette session. Un clic passé
+tel quel atterrit à plus du double de la bonne hauteur — sans erreur, sur un autre élément.
+
+**La parade** : `Math.round(coordonnée * (800 / innerWidth))`. Et `left_click` par coordonnée exige
+un `screenshot` **préalable** dans le même onglet, sinon : *« no screenshot dimensions cached »*.
+⚠️ `scroll` échoue avec un timeout de 30 s si l'onglet visé **n'est pas au premier plan** —
+`tabs_select` d'abord.
+
+### 🔴 Le glob zsh non quoté a REpayé son piège — dans la session qui le documente
+
+`grep -rn "..." --include=*.tsx .` → **`(eval):1: no matches found: --include=*.tsx`**, zéro ligne de
+sortie. Le piège est consigné depuis le cadrage de ce même ADR (§ *En zsh, un `--include=*.ts` non
+quoté TUE la commande*), et il a quand même été retendu **le même jour**.
+
+Ce n'est pas une redite : c'est la mesure de sa force. **Écrire `--include='*.tsx'`, toujours**, et
+traiter une sortie vide comme suspecte tant qu'on n'a pas vu le code de retour.
+
+### 🔴 Une recette « pour défaire » écrite sans être vérifiée aurait DÉTRUIT des données réelles
+
+`MEMORY.md` portait, depuis la clôture précédente, l'ordre de suppression du semis de dev. Passé en
+base à la clôture suivante, **trois de ses quatre lignes étaient fausses** :
+
+| Écrit | Vérifié en base |
+|---|---|
+| `skill_mastery` **28-31** (4 lignes) | **33** lignes touchées |
+| `xp_events` **94, 95, 96** | **94 à 97** |
+| « 8 `Gap` + 8 `Gap` » | **14** au total (8 Maths + 6 Histoire-Géo) |
+
+🔴 **Et la plus grave n'est pas un chiffre** : `_upsert_skill_mastery` fait des **UPDATE**, pas des
+INSERT. Il n'y a **aucun « avant » à restaurer** — la mesure antérieure est écrasée sur place, sans
+historique de ligne. Suivre la recette aurait supprimé la maîtrise réelle de Massimo sur des notions
+qu'il a vraiment travaillées, en croyant nettoyer un décor de test.
+
+**La cause** : la recette a été écrite en **raisonnant sur le code** (« la passation touche 8
+notions, donc 8 lignes ») au lieu d'être **lue en base**. C'est exactement le motif que le point 6
+de `/cloture` existe pour attraper, appliqué à autre chose qu'un hash de commit.
+
+**La parade** : toute ligne de `MEMORY.md` qui **nomme des identifiants de base** se vérifie par un
+`SELECT` avant d'être écrite — et un semis dont la réversibilité n'a pas été prouvée se déclare
+**non réversible**, pas « voici comment le défaire ».

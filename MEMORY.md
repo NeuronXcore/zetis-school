@@ -7,7 +7,25 @@
 ## État à la reprise
 
 **Chantier : « ZETIS doute de sa propre mesure » — l'anti-triche du diagnostic (ADR-0048).
-🟡 EN COURS. LES TROIS SESSIONS SONT CODÉES. NI PR, NI MERGE — la vérification manque.**
+🟠 CODE COMPLET — **2 des 3 portes de PR franchies**. La 3ᵉ est une vérification **physique**
+(le plein écran sur trois appareils) et il faut la TRANCHER avant d'ouvrir la PR.**
+
+🔴 **LES TROIS PORTES, ET LEUR SOURCE.** `DECISIONS.md` (entrée ADR-0048, dernière phrase) en
+exige **trois** ; le § Suivi de l'ADR n'en marque qu'**une** « obligatoire avant la PR ». **Les deux
+documents ne disent pas la même chose** — divergence constatée à la clôture du 2026-08-09. C'est la
+liste de `DECISIONS.md` qui fait foi ici, parce qu'elle est la plus exigeante :
+
+| Porte (`DECISIONS.md`) | État |
+|---|---|
+| Relecture visuelle humaine, **sur les deux apps** | ✅ **FAITE** le 2026-08-09 — 5 défauts trouvés et corrigés |
+| **Semer une passation « à confirmer »** en dev | ✅ **FAITE** — passations 53 et 55 |
+| **Le plein écran sur les trois appareils** | ❌ **NON FAITE** — aucun `requestFullscreen` réel n'a jamais été joué |
+
+⚠️ **La 3ᵉ porte ne peut pas être franchie par un agent** : elle demande un iPhone et une tablette.
+Deux issues, et c'est une décision humaine — **la jouer**, ou **l'abaisser explicitement en dette**
+en corrigeant `DECISIONS.md` (auquel cas : sur `main`, jamais sur la branche).
+✅ **Ce qui plaide pour l'abaisser** : les deux chemins d'échec convergent sur le même résultat
+correct (§ À FAIRE, point 4) — la vérification **confirmerait**, elle ne protège pas.
 
 | | |
 |---|---|
@@ -15,14 +33,18 @@
 | **Base** | `7108cf8` (ne bouge pas). ⚠️ La branche est **1 commit derrière `main`** — le `DECISIONS.md` poussé après coup. Aucun conflit possible : il ne vit sur aucune branche |
 | **Décisions** | ADR-0048 **Accepté**, **11 décisions gelées** + **2 amendements pris à l'exécution** (voir plus bas) |
 | **Migration** | `e2f3a4b5c6d7` — `quiz_attempts.reliability_json`, **appliquée sur la base de dev**. **La seule du chantier ; une seconde est un blocker** |
-| **Suites** | Backend **1081 → 1108** · Massimo **539 → 558** · Papa **726 → 745** |
-| **Sabotages** | **36 joués, 36 rouges**, chacun avec contrôle d'application |
-| 🔴 **Relecture visuelle** | ❌ **JAMAIS FAITE, sur aucune des deux apps** — et l'ADR la rend **obligatoire avant la PR**. C'est ce qui empêche de clore |
+| **Suites** | Backend **1081 → 1108** · Massimo **539 → 560** · Papa **726 → 749** |
+| **Sabotages** | **43 joués, 43 rouges** (36 aux sessions A–C, **7 à la relecture visuelle**), chacun avec contrôle d'application |
+| ✅ **Relecture visuelle** | **FAITE sur les deux apps** le 2026-08-09, pas à pas avec l'humain. **Elle a rapporté 5 défauts** — voir plus bas |
 
-🔴 **POURQUOI CE N'EST PAS « FINI ».** Le code est complet, mais l'ADR exige deux choses qu'aucun
-test ne remplace : la **relecture visuelle humaine sur les deux apps**, et le **semis des trois
-états en dev**. Ouvrir la PR sans elles contredirait l'acte de naissance du chantier — et ce dépôt
-a déjà mergé **cinq fois** sans regarder.
+🔴 **CE QUE LA RELECTURE VISUELLE A COÛTÉ ET RAPPORTÉ — à lire avant de douter qu'elle serve.**
+36 sabotages rouges, trois suites vertes, et **cinq défauts sont quand même passés**. Ce n'est pas
+un accident de rigueur : ce sont des propriétés qu'un test ne peut pas juger (un badge de trop, un
+contraste, une phrase absente, un mot qui remet un enjeu). **Ce dépôt avait déjà mergé cinq fois
+sans regarder ; c'est la première fois qu'on chiffre ce que ça aurait laissé passer.**
+
+⚠️ **Le micro sur les trois appareils** n'est pas une porte (aucun document ne l'exige avant la PR),
+mais il n'est vérifié que sur **un** : il descend en **DETTES OUVERTES**, pas dans l'oubli.
 
 ### FAIT — les trois sessions
 
@@ -41,6 +63,33 @@ gagne `data-question-id`, invisible, qui sert à localiser une copie d'énoncé.
 états), la marque du rail (**ambre jamais rouge**, mot écrit à côté du symbole, 3ᵉ cran seulement),
 le mot de Massimo dans la station ①, et la **prop de présélection** de `LancerDiagnosticDialog`.
 
+**Relecture visuelle (2026-08-09) — les cinq défauts, et pourquoi aucun test ne pouvait les voir.**
+Faite pas à pas avec l'humain, sur `:5175` (Papa) et `:5176` (Massimo), avec une **vraie passation**
+jouée par Massimo — micro réel, Whisper réel, mot envoyé et relu chez Papa.
+
+| # | Défaut | Pourquoi les tests étaient verts |
+|---|---|---|
+| 1 | 🔴 **4 badges « fait » pour 3 déclencheurs** — le contraste portait `fait` sous son seuil | le décor de test portait `contraste` dans ses déclencheurs : il **ne pouvait pas** exposer le cas. C'est la base de DEV qui l'a montré (3 notions sur 8, et 3×2 = 6 n'est pas > 8) |
+| 2 | 🔴 **Massimo ne se relisait pas** — « Merci ✨ · C'est noté » et jamais ses mots, alors que le serveur les servait et que la spec §6 l'écrit | le verrou s'appelait **« SE RELIT »** et ne vérifiait que l'absence du bouton « Envoyer ». **Son nom promettait plus que ses assertions** |
+| 3 | 🔴 **L'accusé nommait Papa** — « Papa le verra à côté de ta réponse » | rien à tester : c'était **conforme** à la spec d'alors. C'est la spec qui a changé d'avis en voyant l'écran |
+| 4 | ⚠️ **La ligne « rien à signaler » illisible (3:1) et muette** | un contraste ne se teste pas en `jsdom` |
+| 5 | ⚠️ **Le ◆ gris au même poids que le ◇ de l'indice** (2,81:1) | idem — et la forme portait seule une distinction que le poids contredisait |
+
+**Trois nouveaux registres et deux nouvelles règles en sont sortis** : ◆ ambre `fait` (7,80:1) ·
+◆ gris `sous le seuil` (**4,67:1**) · ◇ gris `indice` (2,81:1) ; la ligne grise **dit sa portée**
+(16,25:1) ; l'accusé **rend sa phrase** à Massimo et **nomme ZETIS, jamais Papa**.
+
+🔴 **Le « ZETIS, jamais Papa » n'est pas cosmétique** : nommer Papa remet l'**enjeu** que la phrase
+de permission passe tout son texte à retirer. Un enfant à qui l'on annonce « Papa va lire ça » pèse
+sa réponse au lieu de la dire — et le seul signal infalsifiable du chantier se referme dans la
+manière même de le demander. ⚠️ Ce n'est **pas** recueilli en douce pour autant : la phrase dit que
+le mot est **gardé**, et où.
+
+✅ **Ce que la vraie passation a prouvé, et qu'aucun décor ne pouvait prouver** : Massimo a répondu
+**« J'ai deviné. »** sur une notion que ZETIS notait **80 % · en cours**, avec un verdict
+`rien_a_signaler` et `sorties_ecran: 0`. **Aucun des cinq autres signaux n'aurait attrapé ça.** Et
+`duration_seconds` a été rempli pour la première fois par une passation réelle (91 s).
+
 ### 🔴 DEUX AMENDEMENTS PRIS À L'EXÉCUTION — ne pas relire l'ADR dans sa version d'origine
 
 1. **La trace se lit sur TROIS sources**, pas une (Session A). `LearningEvent` seul aurait fait
@@ -54,23 +103,27 @@ le mot de Massimo dans la station ①, et la **prop de présélection** de `Lanc
 
 Aucun fichier à moitié écrit. La suite est verte, l'arbre est cohérent.
 
-### À FAIRE — la vérification, et elle seule
+### À FAIRE — rien qui bloque la PR
 
-🔴 **Aucune ligne de code ne reste à écrire.** Ce qui manque ne peut pas être fait par un agent :
+🔴 **Aucune ligne de code ne reste à écrire, et le gate de l'ADR est levé.**
 
-1. **Semer les TROIS états en dev** — une passation `a_confirmer`, une `rien_a_signaler`, et **en
-   laisser une à `null`**. Ils se vérifient **ensemble ou pas du tout** : sans ça la bande part non
-   vue, exactement le constat n° 6 de l'`adr-0045` qui a déjà coûté une moitié d'optimisation.
-2. **Relecture visuelle humaine, sur les DEUX apps.** Côté Papa : la bande et ses trois états, la
-   marque du rail, le mot de Massimo en station ①, et « Remesurer » qui ouvre sur la **bonne**
-   matière. Côté Massimo : la carte « Raconte-moi » et ses quatre états (repos · écoute · rempli ·
-   **micro absent**).
-3. ⚠️ **Le micro sur les trois appareils** — qu'il enregistre, que la transcription revienne, et
-   qu'elle **atterrisse dans le champ sans partir toute seule**. Il se masque **en silence** : son
-   absence ressemble à une absence d'implémentation, **il faut aller le chercher**.
-4. ⚠️ **Le plein écran sur les trois appareils.** Le refus d'iOS Safari sur iPhone est documenté
-   mais **jamais vérifié en vrai** : si l'appel échoue autrement que prévu, c'est la **portée
-   affichée à Papa** qui ment.
+1. ✅ ~~Semer les trois états en dev~~ — **FAIT** : 53 (`a_confirmer`), 54 (`rien_a_signaler`),
+   55 (`a_confirmer`, pour désambiguïser « Remesurer »), et les anciennes à **`null`**. Semées par
+   le vrai `submit()`, donc le verdict est **calculé**. Ordre de suppression au § DETTES.
+2. ✅ ~~Relecture visuelle humaine, sur les DEUX apps~~ — **FAITE le 2026-08-09**, 5 défauts
+   corrigés (§ FAIT). Y compris une **vraie passation** de Massimo avec micro et Whisper réels.
+3. ⚠️ **Le micro : vérifié sur UN appareil, pas trois.** Enregistrement, transcription Whisper,
+   atterrissage **dans le champ** et envoi : tous vus en vrai sur le poste de dev. **Ni iPhone, ni
+   tablette.** Il se masque **en silence** quand il n'est pas supporté — son absence ressemble à une
+   absence d'implémentation, **il faut aller le chercher**. → **DETTE**.
+4. ⚠️ **Le plein écran sur les trois appareils : JAMAIS vérifié en vrai.** → **DETTE**.
+   ✅ *Atténuation trouvée en relisant le code* : les deux chemins d'échec convergent sur le même
+   résultat correct — `requestFullscreen` **absent** (iPhone) laisse `pleinEcranDemande` à `false`
+   par la garde `typeof … === "function"`, et une promesse **rejetée** le laisse à `false` par le
+   `.catch`. Dans les deux cas `plein_ecran` sort de la portée et Papa lit « 3 des 4 ». **La
+   vérification confirmerait, elle ne protège pas** — c'est ce qui la fait descendre en dette.
+5. ⚠️ **Le cas STT éteint (503) jamais joué en vrai** — couvert par un test, jamais par un service
+   réellement arrêté. → **DETTE**.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
@@ -91,15 +144,22 @@ Aucun fichier à moitié écrit. La suite est verte, l'arbre est cohérent.
 
 ### PIÈGES rencontrés → `TROUBLESHOOTING.md`
 
-Deux sections : « Session A de l'ADR-0048 » et « Sessions B et C ». Les quatre qui coûteraient le
-plus :
+**Quatre** sections : « Cadrage de l'ADR-0048 », « Session A », « Sessions B et C », et
+« **Relecture visuelle** ». Les six qui coûteraient le plus :
+
+🔴 **un verrou dont le NOM promet plus que ses assertions** — « en relecture, Massimo SE RELIT » ne
+vérifiait que l'absence du bouton « Envoyer », et était **vert sur le défaut qu'il nommait**.
+**4ᵉ occurrence du motif** ; la parade est de relire les assertions **sans lire le nom** ;
 🔴 **une ligne de hors-périmètre d'un ADR n'est PAS un fait vérifié** — celle de l'`adr-0044`
 décrivait un écran de passation qui n'a jamais existé, et deux signaux ont dû être redessinés ;
 🔴 **les tests de Massimo ne sont PAS typecheckés** (`tsconfig.app.json` les exclut), ceux de Papa
 si — le même changement de contrat a hurlé d'un côté et est passé sans bruit de l'autre ;
+🔴 **un décor semé À LA MAIN peut être impossible pour le vrai client** — 53 portait
+`plein_ecran_quitte` **sans** `plein_ecran` observable, et la bande affichait deux phrases
+contradictoires. **Un semis incohérent accuse le code** ;
 🔴 **un id de révision Alembic déjà pris** se signale par *« Cycle is detected »* sur 42 révisions ;
-🔴 **trois verrous ont visé à côté** et rassuraient à tort — tous trois attrapés par le contrôle
-d'application des sabotages, jamais par une relecture.
+⚠️ **mesurer un contraste avec un parseur naïf donne 1,06 là où il y a 3,38** — Tailwind rend de
+l'`oklab` pour les opacités (`/70`). Faire composer le navigateur sur un **canvas 1×1**.
 
 ### ⚠️ DETTES OUVERTES
 
@@ -113,10 +173,16 @@ d'application des sabotages, jamais par une relecture.
   `DiagnosticPage.test.tsx` porte toujours un décor sans `verbalisation`, et `tsc -b` est vert.
   **Un `tsc -b` vert ne prouve rien sur les tests de Massimo.**
 - 🔴 **DEUX migrations ne sont pas en prod** : `a9b0c1d2e3f4` (héritée) et **`e2f3a4b5c6d7`**.
-- ⚠️ **L'observation côté client n'a JAMAIS tourné en vrai.** Les tests la simulent avec des
-  événements DOM : aucun `visibilitychange` réel, aucun `requestFullscreen` réel, aucune
-  transcription Whisper réelle. La localisation d'une copie (`getSelection()` →
-  `closest("[data-question-id]")`) n'a jamais été exercée sur une vraie sélection.
+- ⚠️ **L'observation côté client a tourné en vrai UNE FOIS, sur UN appareil** (passation 56, poste
+  de dev) : chronométrage, verdict, micro, Whisper, atterrissage dans le champ, envoi, relecture
+  chez Papa. **Ce qui reste non exercé en vrai**, et par quoi commencer si un doute apparaît :
+  - 🔴 **le plein écran** (aucun `requestFullscreen` réel joué — voir l'atténuation au § À FAIRE) ;
+  - 🔴 **la localisation d'une copie** — `getSelection()` → `closest("[data-question-id]")` n'a
+    jamais rencontré une vraie sélection de texte. C'est le seul signal **par question** du lot ;
+  - 🔴 **une vraie sortie d'écran** (`visibilitychange` / `blur`) et sa fenêtre anti-doublon de
+    500 ms : la passation 56 s'est déroulée sans quitter l'écran (`sorties_ecran: 0`) ;
+  - ⚠️ **iPhone et tablette** — ni le micro, ni le plein écran, ni le responsive n'y ont été vus ;
+  - ⚠️ **le cas STT éteint (503)** : couvert par un test, jamais par un service réellement arrêté.
 - ⚠️ **Les seuils sont des choix de cadrage, jamais éprouvés sur des données réelles** :
   `CONTRASTE_SCORE_MIN = 90`, plancher `2`, majorité stricte, `RAPIDE_FRACTION_MEDIANE = 0.4`, et la
   fenêtre anti-doublon de **500 ms** sur les sorties d'écran. Premier signal de dérive : « la bande
@@ -124,6 +190,56 @@ d'application des sabotages, jamais par une relecture.
 - ⚠️ **`signaux_observables` est déclaré par le client** et n'est vérifié par rien côté serveur : la
   portée affichée à Papa vaut ce que le front en dit.
 - ⚠️ **Aucun lint** : `ruff` n'est pas installé dans le venv du backend.
+- 🔴 **DONNÉES DE DEV SEMÉES le 2026-08-09 — les trois états de la fiabilité.** Semées par le
+  **vrai `service.submit()`**, pas écrites à la main : le verdict est **calculé** par
+  `fiabilite.evaluer()`, sinon on vérifierait une donnée inventée au lieu du code.
+
+  | Passation | État | Ce qu'elle montre |
+  |---|---|---|
+  | **53** — Français, 100 % | `a_confirmer` | 2 faits (3 sorties d'écran · 1 énoncé copié), le contraste **sous le seuil** (3/8), 2 indices, **portée 3/4** → la bande affiche la ligne « iOS Safari le refuse sur iPhone ». ⚠️ **`reliability_json` RETOUCHÉ À LA MAIN le 2026-08-09** — voir ci-dessous |
+  | **54** — Mathématiques, 38 % | `rien_a_signaler` | la ligne grise, **portée 4/4** (donc sans la nuance « rien vu ≠ rien eu lieu ») |
+  | **55** — Mathématiques, 50 % | `a_confirmer` | 🔴 **semée pour rendre « Remesurer » VÉRIFIABLE** : sur la seule passation Français, la modale s'ouvrait sur Français… qui est aussi `subjects[0]`. Le test à l'écran était **confondu** et ne prouvait rien. ⚠️ **Elle a ouvert 8 `Gap`** (Mathématiques) |
+  | **56** — Histoire-Géo, 50 % | `rien_a_signaler` | 🟢 **la seule VRAIE passation** — jouée par Massimo le 2026-08-09, micro et Whisper réels. Porte l'explication **« J'ai deviné. »** sur « Prise de la Bastille », notée **80 % · en cours**. `duration_seconds = 91`, le premier rempli par un usage réel |
+  | **50** et les 5 autres | `null` | **rien du tout** — ZETIS ne regardait pas |
+
+  🔴 **La passation 53 a été RETOUCHÉE À LA MAIN**, et il faut le savoir avant d'en conclure quoi que
+  ce soit : elle portait `plein_ecran_quitte: true` **avec** `plein_ecran` absent de la portée — une
+  combinaison que le vrai client **ne peut pas produire** (`useObservationPassation:126` et `:172`
+  lient les deux). La bande affichait donc « le plein écran a été quitté » **et** « il n'a pas pu
+  être demandé ». Corrigé en base (`plein_ecran_quitte → false`, déclencheur retiré). **Ce n'est
+  donc plus ce que `submit()` a produit** — c'est le seul champ de tout le semis dans ce cas.
+
+  ⚠️ **Le CONTRASTE n'est PAS déclenchable sur les données de dev actuelles**, et ce n'est pas un
+  défaut : aucun diagnostic n'a une **majorité** de notions sans trace (le meilleur est à 3 sur 8,
+  et `3×2 = 6` n'est pas `> 8`). La passation 53 porte donc `acquises_sans_trace: 3` **sans**
+  `contraste` dans ses déclencheurs — le seuil fait exactement ce qu'il doit. **Ne pas conclure que
+  le contraste est cassé en ne le voyant pas à l'écran** ; il est couvert par 5 tests et 3 sabotages.
+  ✅ **Bénéfice imprévu** : c'est ce cas-là qui a révélé le défaut du 4ᵉ badge « fait ».
+
+  🔴 **LA RECETTE « POUR DÉFAIRE » DE LA CLÔTURE PRÉCÉDENTE ÉTAIT FAUSSE** — vérifiée en base le
+  2026-08-09, elle aurait **détruit des données réelles**. Ce qu'elle disait, et ce qui est vrai :
+
+  | Elle disait | La base dit |
+  |---|---|
+  | `skill_mastery` **28-31** (4 lignes) | **33 lignes** touchées (`last_seen_at` du 2026-08-09) — et 🔴 **ce sont des UPDATE, pas des INSERT** : `_upsert_skill_mastery` écrase des lignes préexistantes |
+  | `xp_events` **94, 95, 96** | **94, 95, 96 ET 97** — la 97 est celle de la passation 56 |
+  | « les 8 `Gap` de la 55 » + « les 8 de la 56 » | **14 au total** : **8** en Mathématiques (55) + **6** en Histoire-Géo (56) |
+
+  🔴 **`skill_mastery` NE SE DÉFAIT PAS PAR SUPPRESSION.** Il n'existe **aucun « avant »** à
+  restaurer : la mesure antérieure a été écrasée sur place, sans historique de ligne. Supprimer ces
+  33 lignes effacerait la maîtrise réelle de Massimo sur des notions qu'il a vraiment travaillées.
+  **Le semis de dev n'est donc PAS entièrement réversible** — c'est un fait à connaître avant de
+  décider, pas un obstacle à la PR.
+
+  **Ce qui, lui, se défait proprement** — ordre contraint par les FK :
+  `quiz_answers` (`attempt_id IN (53,54,55,56)`) → `quiz_attempts` **53, 54, 55, 56** →
+  `xp_events` **94, 95, 96, 97** (`diagnostic`, 15 XP chacun) → les **14 `Gap`** du
+  `first_detected_at = 2026-08-09` (les **10** antérieures sont intactes : total **24**, dont 23
+  `open`). ⚠️ **La passation 56 est la seule VRAIE** — la supprimer efface le mot de Massimo.
+
+  ✅ **Bénéfice de vérification imprévu** : la passation **50** montre côte à côte l'ancien état
+  (`duration_seconds = NULL`, `started_at = completed_at`) et les nouvelles (214 s et 305 s, avec un
+  `started_at` réel). Le défaut corrigé se voit **par comparaison**, sur le même écran.
 
 **Héritées, et toujours vraies :**
 
@@ -174,16 +290,28 @@ d'application des sabotages, jamais par une relecture.
 
 ### ▶▶ PROCHAIN PAS
 
-1. **Commit + push** de la clôture sur `feat/anti-triche-diagnostic`. **NI PR, NI MERGE.**
-2. **Semer les trois états en dev**, puis **la relecture visuelle humaine sur les deux apps**
-   (§ À FAIRE). C'est le seul chemin vers la PR.
-3. **Seulement ensuite** : PR, merge, puis l'**étape 4bis** — revenir tuer les annonces « en cours
-   de livraison » dans `DECISIONS.md`, l'ADR et ce fichier. ⚠️ `DECISIONS.md` se corrige **sur
-   `main`**, jamais sur la branche.
+1. **Commit + push** de la clôture sur `feat/anti-triche-diagnostic`.
+2. 🔴 **TRANCHER LA 3ᵉ PORTE** (le plein écran sur trois appareils) — la jouer, ou l'abaisser en
+   dette **en corrigeant `DECISIONS.md` sur `main`**. Tant qu'elle est écrite « exigée avant la PR »
+   et non faite, **ouvrir la PR contredirait le dépôt**. Voir le tableau des trois portes en tête.
+3. **Puis PR, puis merge.** Les deux autres portes sont franchies, et la relecture visuelle a
+   **rapporté cinq défauts**, tous corrigés et verrouillés.
+4. **Immédiatement après le merge : l'étape 4bis** (`WORKFLOW.md §5`) — revenir tuer les annonces
+   « en cours de livraison » dans `DECISIONS.md`, l'ADR-0048 et ce fichier, et y inscrire le
+   **squash** et le **n° de PR**. ⚠️ `DECISIONS.md` se corrige **sur `main`**, jamais sur la branche.
+   🔴 Ce fichier a **déjà survécu deux fois à son propre chantier** : tout ce qui est écrit ici
+   devient faux à la seconde où la PR est mergée.
+5. **Puis, hors chantier** : décider du sort des **données de dev** (§ DETTES — passations 53 à 56
+   et les **14 `Gap`** qu'elles ont ouvertes, qui font lire **24** lacunes là où il y en avait 10).
+   🔴 **Lire d'abord la note sur `skill_mastery`** : le semis n'est pas entièrement réversible.
 
-⚠️ **Ce qui n'a jamais tourné en vrai** : l'observation côté client. Les tests la simulent avec des
-événements DOM ; aucun `visibilitychange` réel, aucun `requestFullscreen` réel, aucune transcription
-Whisper réelle n'a été jouée. C'est précisément ce que la relecture doit couvrir.
+⚠️ **Ce que la PR emporterait en dette** — une fois le point 2 tranché : le micro **sur trois
+appareils**, la localisation d'une copie sur une vraie sélection, une vraie sortie d'écran, et le
+cas STT 503. Aucun de ces quatre-là n'est une porte écrite nulle part — mais **c'est ce qu'il faut
+regarder en premier** si un comportement surprend en usage réel.
+🔴 **Le plein écran, lui, N'EST PAS dans cette liste tant que le point 2 n'a pas été tranché** : il
+est écrit « exigé avant la PR » dans `DECISIONS.md`, et une dette ne se décrète pas contre un
+document du dépôt.
 
 ---
 

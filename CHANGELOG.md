@@ -52,6 +52,31 @@ déclare acceptable.
 🔴 **L'écran de passation n'a pas changé d'un pixel** : ni chrono, ni compteur, ni avertissement. Un
 enfant qui se sait chronométré ne passe plus le même diagnostic.
 
+### Ce que la relecture visuelle a corrigé — cinq défauts, zéro test rouge
+
+Les 36 sabotages étaient tous rouges, les trois suites vertes, et **cinq défauts sont passés
+au travers**. L'ADR rendait cette relecture obligatoire avant la PR ; voici ce qu'elle a rapporté.
+
+- 🔴 **La bande rendait 4 badges « fait » pour 3 déclencheurs.** Le contraste portait le badge `fait`
+  même sous son seuil : la bande se contredisait dans le geste qui explique sa règle. Un **troisième
+  registre** est né — ◆ gris + `sous le seuil`, qui ne le cache pas mais ne le compte pas.
+- 🔴 **Massimo ne se relisait pas.** L'accusé affichait « Merci ✨ · C'est noté » et **jamais ses
+  propres mots**, alors que le serveur les servait — et la spec écrivait « Massimo relit ce qu'il a
+  écrit ». Sa phrase lui est rendue : après une **dictée**, c'est le seul endroit où il peut
+  découvrir que Whisper l'a mal entendu.
+- 🔴 **L'accusé nommait Papa** — « Papa le verra à côté de ta réponse ». C'était vrai, et c'était le
+  problème : ça remet l'**enjeu** que la phrase de permission passe tout son texte à retirer. Il dit
+  désormais « **ZETIS le garde** à côté de ta réponse ». Rien n'est caché ; personne n'est convoqué.
+- ⚠️ **La ligne « rien à signaler » était illisible (3:1) et muette.** Elle porte sa **portée** —
+  *N des 4 signaux étaient observables* — et passe à 16,25:1. « Rien vu » ne veut rien dire tant
+  qu'on ignore sur combien d'yeux ce rien repose.
+- ⚠️ **Le ◆ gris était au même poids que le ◇ de l'indice** (2,81:1) : la forme qui porte toute la
+  distinction de famille était ce qu'on voyait le moins. Porté à **4,67:1**.
+
+🔴 **Deux verrous ont été écrits après coup, et l'un d'eux était VERT sur le défaut** : le test
+`en relecture, Massimo SE RELIT` ne vérifiait que l'absence du bouton « Envoyer ». Son **nom**
+promettait plus que ses assertions.
+
 ### Aussi
 
 - `QuizAttempt.duration_seconds` est **écrit pour la première fois** depuis sa création, et

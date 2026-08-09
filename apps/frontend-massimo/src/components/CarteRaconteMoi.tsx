@@ -106,9 +106,29 @@ export function CarteRaconteMoi({
     return (
       <section className="mt-4 rounded-2xl border border-emerald-300/40 bg-emerald-300/10 p-5">
         <p className="font-bold text-emerald-300">Merci ✨</p>
-        {/* Dire que Papa le lira, parce que c'est vrai : un mot recueilli sans le dire serait
-            recueilli en douce. Et AUCUNE récompense n'est promise — pas d'XP sur ce mot. */}
-        <p className="mt-1 text-sm text-zetis-muted">C'est noté. Papa le verra à côté de ta réponse.</p>
+        {/* 🔴 IL RELIT CE QU'IL A ÉCRIT — la spec §6 le dit en toutes lettres (« Massimo relit ce
+            qu'il a écrit, il ne se le voit pas redemander »), et l'écran n'en faisait que la
+            moitié : trouvé à la relecture visuelle du 2026-08-09. Le serveur servait bien
+            l'explication, le composant la jetait.
+            Deux raisons de la montrer, et la seconde est la vraie : « c'est gardé » n'est une
+            promesse tenable que si Massimo SAIT ce qui est gardé — et après une DICTÉE, c'est le
+            seul endroit où il peut découvrir que Whisper l'a mal entendu. */}
+        {texte.trim() && (
+          <p className="mt-2 border-l-2 border-emerald-300/40 pl-3 text-[14.5px] italic">
+            « {texte.trim()} »
+          </p>
+        )}
+        {/* 🔴 ZETIS, ET NON PAPA (décision du 2026-08-09, à la relecture visuelle). L'accusé de
+            réception disait « Papa le verra à côté de ta réponse » — vrai, mais ça remet l'ENJEU que
+            la phrase de permission passe tout son texte à retirer. Un enfant à qui l'on dit « Papa
+            va lire ça » pèse sa réponse au lieu de la dire, et le seul signal infalsifiable du
+            chantier se referme.
+            ⚠️ **Ce n'est pas pour autant recueilli en douce** — l'inverse serait pire : la phrase
+            dit que le mot est GARDÉ, et à quel endroit. Rien n'est caché, c'est juste que ZETIS ne
+            convoque personne. Et AUCUNE récompense n'est promise — pas d'XP sur ce mot. */}
+        <p className="mt-2 text-sm text-zetis-muted">
+          C'est noté. ZETIS le garde à côté de ta réponse.
+        </p>
       </section>
     );
   }

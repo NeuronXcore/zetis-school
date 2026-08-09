@@ -458,6 +458,38 @@ jour où « j'ai cherché » se retourne contre lui, la question ne reçoit plus
 ⚠️ **Pas de bande verte « mesure fiable ✓ »** : ce serait une promesse que l'instrument ne peut pas
 tenir. Aucun signal du navigateur ne survit à un téléphone posé à côté de l'écran.
 
+### `[0048]` Trois registres dans la bande — corrigé à la relecture visuelle du 2026-08-09
+
+**Aucun des 36 sabotages ne pouvait voir ce qui suit** : la bande rendait **quatre badges « fait »
+pour trois déclencheurs**. Elle se contredisait dans le geste même qui explique sa règle — *un fait
+déclenche à lui seul* — et faisait lire un déclencheur de plus qu'il n'y en avait, le motif de
+l'`adr-0039` : un nombre qui dit autre chose que ce qu'il compte.
+
+| Registre | Glyphe | Badge | Contraste mesuré |
+|---|---|---|---:|
+| Un fait qui a **déclenché** | ◆ ambre | `fait` | 7,80:1 |
+| Un fait **sous son seuil** | ◆ gris | `sous le seuil` | **4,67:1** |
+| Un **indice** | ◇ gris | `indice` | 2,81:1 |
+
+**La forme dit la FAMILLE, le poids dit s'il a COMPTÉ.** Le contraste — seul fait à avoir un seuil
+d'ampleur — porte le badge `sous le seuil` quand il n'a pas franchi la majorité. ⚠️ **On ne le cache
+pas** : Papa peut légitimement vouloir savoir qu'il a frôlé.
+
+⚠️ Le ◆ gris était à **2,81:1**, soit le même poids que le ◇ de l'indice : la forme qui porte toute
+la distinction était ce qu'on voyait le moins. Il est passé à `/90`. Le ◇ **reste** à 2,81 — l'écart
+dit maintenant à voix haute ce que la seule forme disait tout bas.
+
+### `[0048]` La ligne « rien à signaler » DIT SA PORTÉE
+
+Elle était `text-papa-muted/70` sur une bordure pointillée — **presque effacée (3:1)** — **et
+muette**. Or *« rien vu »* ne veut rien dire tant qu'on ignore **sur combien d'yeux** ce rien repose.
+
+> 🔭 **Rien à signaler sur les conditions de cette passation.** `N` des `4` signaux étaient
+> observables sur cet appareil. *(+ « C'est donc un "rien vu", pas un "rien eu lieu" » quand N < 4.)*
+
+La portée compte **plus** ici que sur la bande ambre, où d'autres faits parlent déjà. Contraste porté
+à **16,25:1**, et un 🔭 pour l'ancrer.
+
 ⚠️ **La bande ne se retire pas**, et n'a pas de bouton « j'ai vérifié ». Les conditions d'une
 passation sont un fait daté, au même titre que le score.
 

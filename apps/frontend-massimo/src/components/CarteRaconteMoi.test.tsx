@@ -88,15 +88,50 @@ describe("la carte demande, elle n'accuse pas", () => {
     fireEvent.click(screen.getByRole("button", { name: "Envoyer" }));
     await waitFor(() => expect(envoyerExplication).toHaveBeenCalledWith(42, 41, "j'ai cherché"));
     expect(await screen.findByText(/Merci/)).toBeInTheDocument();
-    // Il dit que Papa le lira — parce que c'est vrai. Et AUCUN XP, aucune promesse.
-    expect(document.body.textContent).toContain("Papa le verra");
+    // Il dit que le mot est GARDÉ, et où. Et AUCUN XP, aucune promesse.
+    expect(document.body.textContent).toContain("ZETIS le garde à côté de ta réponse");
     expect(document.body.textContent?.toLowerCase()).not.toContain("xp");
+    // 🔴 Et sa phrase lui est RENDUE : « c'est gardé » n'est tenable que s'il sait quoi.
+    expect(screen.getByText(/« j'ai cherché »/)).toBeInTheDocument();
   });
 
-  it("en relecture, Massimo SE RELIT — on ne lui redemande pas", () => {
+  it("🔴 l'accusé de réception nomme ZETIS, JAMAIS Papa", async () => {
+    // 🔴 Décision du 2026-08-09, à la relecture visuelle. L'écran disait « Papa le verra à côté de
+    // ta réponse » : c'était vrai, et c'était le problème. Nommer Papa remet l'ENJEU que la phrase
+    // de permission passe tout son texte à retirer — un enfant à qui l'on annonce « Papa va lire
+    // ça » pèse sa réponse au lieu de la dire, et le seul signal infalsifiable du chantier se
+    // referme. Le mot est gardé, on le dit, on ne convoque personne.
+    //
+    // Sabotage : remettre « Papa le verra à côté de ta réponse » → rouge.
+    poser({ ...V, explication: "j'ai deviné" });
+    const texte = document.body.textContent ?? "";
+    expect(texte).not.toContain("Papa");
+    // L'anti-test-à-vide : l'accusé parle bien, et il dit ce qui devient du mot.
+    expect(texte).toContain("ZETIS le garde à côté de ta réponse");
+  });
+
+  it("🔴 en relecture, Massimo SE RELIT — sa phrase est À L'ÉCRAN, pas seulement dans le payload", () => {
+    // 🔴 DÉFAUT TROUVÉ À LA RELECTURE VISUELLE DU 2026-08-09, et **ce test-ci était VERT dessus** :
+    // il s'appelait « SE RELIT » et ne vérifiait que l'absence du bouton « Envoyer ». Le serveur
+    // servait bien l'explication (`notion_a_verbaliser` la joint), le composant la jetait — Massimo
+    // voyait « Merci ✨ · C'est noté » et jamais ses propres mots. C'est le motif déjà payé trois
+    // fois dans ce dépôt : un verrou dont le NOM dit plus que ses assertions.
+    //
+    // La spec §6 est explicite : « Massimo relit ce qu'il a écrit, il ne se le voit pas redemander ».
+    // Sabotage : retirer le bloc `{texte.trim() && …}` du composant → rouge.
     poser({ ...V, explication: "je l'ai vu dans le documentaire" });
+    expect(screen.getByText(/« je l'ai vu dans le documentaire »/)).toBeInTheDocument();
+    // …et l'autre moitié de la phrase de la spec : on ne lui redemande pas.
     expect(screen.getByText(/Merci/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Envoyer" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Comment tu as trouvé/)).not.toBeInTheDocument();
+  });
+
+  it("mais « Passer » ne fabrique pas une phrase vide entre guillemets", () => {
+    // L'anti-régression du bloc ci-dessus : `texte` est vide quand rien n'a été dit, et des
+    // guillemets vides à l'écran seraient un silence commenté — exactement ce que la carte interdit.
+    poser({ ...V, explication: "" });
+    expect(screen.queryByText(/«\s*»/)).not.toBeInTheDocument();
   });
 });
 
