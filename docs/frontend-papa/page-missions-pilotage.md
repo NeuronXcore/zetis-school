@@ -92,6 +92,19 @@ l'`adr-0047` corrige.
 d'identité à chaque écriture d'URL, et la page se re-scrollerait sous les doigts de Papa. Il sort
 sans rien faire si l'élément n'est pas encore monté : les listes arrivent après le premier rendu.
 
+**La mission ciblée porte un anneau ambre**, qui s'estompe en ~2,4 s. Déplier et centrer ne
+suffisait pas : Papa arrivait sur une page pleine de missions sans savoir laquelle il venait
+chercher. *(Demandé par le commanditaire le 2026-08-09, après avoir suivi le lien.)*
+
+🔴 **L'estompage est en CSS, jamais par un `setTimeout` React** — et c'est ce qui rend
+`prefers-reduced-motion` juste sans une ligne de JS : l'animation coupée, **l'anneau reste**. Un
+retrait piloté par l'état aurait effacé le repère chez qui demande moins de mouvement, soit
+exactement ce que le patron du dépôt interdit (« FIGE SANS RIEN RETIRER »).
+
+⚠️ **Ambre TEMPORAIRE, et c'est ce qui le distingue** de l'ambre permanent de l'alerte (bandeau de
+la Couverture, « chez toi » du rail Diagnostic). Ici il dit « regarde ici », pas « quelque chose ne
+va pas ».
+
 ## États
 
 - **Aucune pending** : la zone « À valider » affiche un état vide sobre

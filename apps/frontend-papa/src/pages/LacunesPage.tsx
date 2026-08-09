@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ConfirmDialog, EmptyState, SubjectPictogram } from "@zetis/ui";
+import { ConfirmDialog, EmptyState, SubjectFilterChips, SubjectPictogram } from "@zetis/ui";
 import type { OpenGap } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { ProgressBar, useEstimatedProgress } from "../components/ProgressBar";
@@ -109,6 +109,35 @@ export function LacunesPage() {
   const allDiscovered = l.allPending.filter((gap) => gap.status === "open");
   const scopeNote = l.activeSubject ? " · toutes matières" : "";
 
+  // Les matières du sélecteur viennent des LACUNES elles-mêmes — **zéro requête** (`adr-0038` §4,
+  // « filtrer ne doit rien coûter »), et seules celles qui portent au moins une lacune
+  // apparaissent : proposer une matière qui rendrait une page vide serait un filtre qui ment.
+  //
+  // ⚠️ **L'id est SYNTHÉTIQUE** (l'index du tri alphabétique). `OpenGap` ne porte pas de
+  // `subject_id`, et la vérité de cette page est le **slug** — c'est lui qui vit dans l'URL et que
+  // le hook compare. La brique partagée exige un `number` ; on le lui fabrique ici plutôt que de
+  // changer une brique que trois autres pages consomment.
+  const matieres = useMemo(() => {
+    const vues = new Map<string, string>();
+    for (const gap of l.allGaps) {
+      if (gap.subject_slug) vues.set(gap.subject_slug, gap.subject_name ?? gap.subject_slug);
+    }
+    return [...vues.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1], "fr"))
+      .map(([slug, name], index) => ({ id: index, slug, name }));
+  }, [l.allGaps]);
+
+  const matiereActive = matieres.find((m) => m.slug === l.activeSubject?.slug) ?? null;
+
+  const choisirMatiere = (id: number | null) => {
+    const next = new URLSearchParams(params);
+    const cible = id === null ? null : matieres.find((m) => m.id === id);
+    if (cible) next.set("subject", cible.slug);
+    else next.delete("subject");
+    // `replace` : choisir une matière est un état d'affichage, pas une étape de navigation.
+    setParams(next, { replace: true });
+  };
+
   const clearFilter = () => {
     const next = new URLSearchParams(params);
     next.delete("subject");
@@ -147,6 +176,20 @@ export function LacunesPage() {
         title="Lacunes ouvertes"
         subtitle="Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider."
       />
+
+      {/* Le filtre par matière était atteignable UNIQUEMENT par un lien externe (dashboard, jauges
+          du Diagnostic) : la page savait le lire et le retirer, jamais le poser. Même brique que le
+          Dashboard, la Couverture et le Cahier de bord — une seule façon de choisir une matière
+          côté Papa. ⚠️ Elle est MONO-matière alors que le serveur accepte une liste : dette
+          connue, non ouverte ici. */}
+      {matieres.length > 1 && (
+        <SubjectFilterChips
+          subjects={matieres}
+          value={matiereActive?.id ?? null}
+          onChange={choisirMatiere}
+          className="mb-4"
+        />
+      )}
 
       {filtreOrigine && (
         <p className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-papa-accent/30 bg-papa-accent/5 px-4 py-2.5 text-sm text-papa-accent">

@@ -794,6 +794,37 @@ body {
   animation: zetis-pastille 4.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+/* La mission ouverte par `?focus=` (adr-0047 §3) — « c'est celle-là », puis la page reprend sa
+   lecture normale.
+
+   🔴 **L'anneau s'estompe en CSS, jamais par un `setTimeout` React.** C'est ce qui rend
+   `prefers-reduced-motion` juste sans une ligne de JS : l'animation coupée, l'anneau RESTE.
+   Un retrait piloté par l'état aurait fait disparaître le repère même chez qui demande moins de
+   mouvement — soit exactement « retirer le signal », ce que le patron du dépôt interdit.
+
+   ⚠️ **Ambre TEMPORAIRE, et c'est ce qui le distingue de l'ambre d'alerte** (bandeau de la
+   Couverture, « chez toi » du rail Diagnostic), qui est permanent. Ici il dit « regarde ici », pas
+   « quelque chose ne va pas ». */
+.zetis-focus-mission {
+  box-shadow: 0 0 0 2px var(--color-papa-warn);
+  animation: zetis-focus-mission 2.4s ease-out forwards;
+}
+@keyframes zetis-focus-mission {
+  0%,
+  40% {
+    box-shadow: 0 0 0 2px var(--color-papa-warn);
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* FIGE SANS RIEN RETIRER : l'anneau demeure, il ne clignote pas et ne s'efface pas. */
+  .zetis-focus-mission {
+    animation: none;
+  }
+}
+
 /* 🔴 `prefers-reduced-motion` FIGE SANS RIEN RETIRER. Remplissage, chiffres, couleurs et boîte
    restent : couper l'animation effacerait le signal, on l'immobilise. Patron `couverture-breathe`,
    déjà employé ailleurs dans Papa. */

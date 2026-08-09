@@ -247,7 +247,9 @@ export function MissionsPage() {
               <div
                 key={m.id}
                 id={`mission-${m.id}`}
-                className="border-b border-papa-border last:border-b-0"
+                className={`border-b border-papa-border last:border-b-0 ${
+                  m.id === focusMissionId ? "zetis-focus-mission rounded-lg" : ""
+                }`}
               >
                 <div className="flex items-center gap-3 px-4 py-3">
                   <input
@@ -353,7 +355,9 @@ export function MissionsPage() {
                 <div
                   key={m.id}
                   id={`mission-${m.id}`}
-                  className="rounded-xl border border-papa-border bg-papa-surface"
+                  className={`rounded-xl border border-papa-border bg-papa-surface ${
+                    m.id === focusMissionId ? "zetis-focus-mission" : ""
+                  }`}
                 >
                   <button
                     type="button"

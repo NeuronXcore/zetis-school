@@ -156,6 +156,28 @@ dû corriger après coup sur la zone C du Diagnostic.
 `?subject=<slug>`, lu par `useLacunes` et appliqué **côté client** sur une liste déjà chargée —
 zéro requête (`adr-0038` §4). Slug inconnu → repli sur « toutes », jamais une page vide.
 
+### `[0047]` Le sélecteur de matières — la page sait enfin POSER le filtre
+
+Jusqu'au 2026-08-09, le filtre n'était atteignable que par un **lien externe** (dashboard, jauges
+du Diagnostic) : la page savait le lire et le retirer, jamais le poser.
+
+`SubjectFilterChips` — la brique déjà partagée par le Dashboard, la Couverture et le Cahier de bord.
+
+🔴 **Les matières viennent des LACUNES elles-mêmes**, pas d'un appel : zéro requête, et seules
+celles qui portent au moins une lacune apparaissent. Proposer une matière sans lacune mènerait à
+une page vide — un filtre qui ment.
+
+⚠️ **L'id passé à la brique est SYNTHÉTIQUE** (l'index du tri alphabétique). `OpenGap` ne porte pas
+de `subject_id`, et la vérité de cette page est le **slug** : c'est lui qui vit dans l'URL. On
+fabrique le `number` que la brique exige plutôt que de modifier une brique que trois autres pages
+consomment.
+
+⚠️ **Le sélecteur disparaît sous deux matières** : un groupe de pastilles à une seule option occupe
+l'écran sans offrir de choix.
+
+⚠️ **Il est MONO-matière** alors que le serveur accepte une liste — dette connue de
+`SubjectFilterChips`, non ouverte ici.
+
 Le filtre est **visible et retirable** (bandeau + « Toutes les matières »), et vit dans l'URL :
 le lien qui amène ici le porte, et recharger ne le perd pas. Retiré avec `replace: true` — un filtre
 est un état d'affichage, pas une étape de navigation.

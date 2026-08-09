@@ -47,9 +47,38 @@ lacune → » de la station ② qui transporte enfin la matière.
 
 Les trois sont écrites **avec leur motif** dans l'ADR, `DECISIONS.md` et les specs.
 
+### FAIT AUSSI — deux retours d'usage du commanditaire (2026-08-09, après la clôture)
+
+Le chantier a été **rouvert** après sa première clôture, sur deux demandes faites en regardant
+l'écran :
+
+- **L'anneau ambre** sur la mission ouverte par `?focus=` — déplier et centrer ne suffisait pas.
+  🔴 Estompage **en CSS**, jamais par `setTimeout` : sous `prefers-reduced-motion` l'animation est
+  coupée et **l'anneau reste**. C'est le patron du dépôt (« FIGE SANS RIEN RETIRER »), et il évite
+  une ligne de JS.
+- **Le sélecteur de matières** sur `/lacunes`. Le filtre existait mais n'était atteignable que par
+  un lien externe. `SubjectFilterChips`, alimenté par les matières **des lacunes elles-mêmes** :
+  zéro requête, et aucune matière qui mènerait à une page vide.
+
 ### EN COURS — rien
 
 Aucun fichier à moitié écrit, aucun état instable.
+
+### 🔴 DEUX CHANTIERS NÉS DE CES ÉCHANGES — cadrés au `BACKLOG`, PAS ouverts
+
+Le commanditaire les a retenus tous les deux. **Aucun n'est du code** : les deux demandent un
+cadrage avant la moindre ligne.
+
+1. **Une lacune comblée AUTREMENT ne se referme jamais.** Vérifié : **un seul** endroit écrit
+   `gap.status = "resolved"` (`missions/service.py:1011`, fin de mission). Quiz réussi, diagnostic
+   repassé, carte SRS acquise — rien ne referme. ⚠️ **Ce chantier vient d'aggraver le défaut** : la
+   page propose maintenant d'AGIR, donc de produire du contenu pour une notion peut-être déjà
+   acquise. C'est une **doctrine** (quel signal vaut résolution ?), pas un correctif, et elle
+   touche quatre modules.
+2. **Une vue calendrier sur `/lacunes`.** ⚠️ Elle **contredit une décision écrite** de la spec
+   (« ce n'est pas une surface de mesure »). Il faut un **addendum à l'`adr-0047`** qui la révoque
+   ou reformule le besoin — le dépôt interdit de contourner une décision sans la nommer.
+   ✅ La moitié « tri par matières » de la demande **est livrée**.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 

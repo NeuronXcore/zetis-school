@@ -35,6 +35,9 @@ export interface UseLacunes {
   error: string | null;
   /** Le jeu FILTRÉ — ce que la page affiche. */
   gaps: OpenGap[];
+  /** Le jeu COMPLET, avant tout filtre. Sert à construire le sélecteur de matières : le dériver
+   *  de `gaps` réduirait la liste à la matière déjà choisie, et on ne pourrait plus en sortir. */
+  allGaps: OpenGap[];
   /** Lacunes qu'aucune mission active ne couvre, sur le jeu filtré : celles qui attendent un geste. */
   pending: OpenGap[];
   /** Les mêmes, sur TOUT — c'est la portée réelle des deux générateurs, qui ignorent le filtre.
@@ -143,6 +146,7 @@ export function useLacunes(
     loading,
     error,
     gaps: visible,
+    allGaps: gaps,
     pending: visible.filter((gap) => !gap.has_active_mission),
     allPending: gaps.filter((gap) => !gap.has_active_mission),
     activeSubject,

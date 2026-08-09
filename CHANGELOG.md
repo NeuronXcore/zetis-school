@@ -36,6 +36,18 @@ ce chantier corrige, reproduit par sa propre correction.**
 ⚠️ **La leçon visée suit l'ÉTAT VISÉ PAR LE GESTE** : celle qu'on doit *valider* est en brouillon,
 celle qu'on *relit* est validée. Une notion en porte jusqu'à quatre.
 
+### Deux retours d'usage, traités dans la foulée
+
+**La mission ciblée porte un anneau ambre**, qui s'estompe en ~2,4 s. Déplier et centrer ne
+suffisait pas : Papa arrivait sur une page pleine de missions sans savoir laquelle. 🔴 L'estompage
+est **en CSS**, jamais par un `setTimeout` — donc sous `prefers-reduced-motion` l'animation est
+coupée et **l'anneau reste**, au lieu de disparaître chez qui demande moins de mouvement.
+
+**Le sélecteur de matières arrive sur la page.** Le filtre `?subject=` existait, mais n'était
+atteignable que par un lien externe : la page savait le lire et le retirer, jamais le **poser**.
+Même brique que le Dashboard, la Couverture et le Cahier de bord — et les matières viennent des
+**lacunes elles-mêmes**, donc zéro requête et aucune matière qui mènerait à une page vide.
+
 ### La station ② cesse de perdre la matière
 
 « Voir la lacune → » transporte enfin `?subject=<slug>` — il menait à la liste complète, toutes

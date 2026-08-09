@@ -416,6 +416,35 @@ describe("le geste de la ligne", () => {
     expect(screen.queryByText(/undefined/)).toBeNull();
   });
 
+  it("🔴 le sélecteur de matières POSE le filtre, et il vient des lacunes", async () => {
+    // Le filtre existait mais n'était atteignable que par un lien externe : la page savait le lire
+    // et le retirer, jamais le poser. Et les matières viennent des lacunes elles-mêmes — proposer
+    // une matière sans lacune mènerait à une page vide, soit un filtre qui ment.
+    vi.mocked(fetchOpenGaps).mockResolvedValue(TROIS);
+    renderPage();
+
+    const groupe = await screen.findByRole("group", { name: /Filtrer par matière/ });
+    expect(within(groupe).getByRole("button", { name: /Français/ })).toBeInTheDocument();
+    expect(within(groupe).getByRole("button", { name: /Mathématiques/ })).toBeInTheDocument();
+
+    fireEvent.click(within(groupe).getByRole("button", { name: /Français/ }));
+
+    expect(await screen.findByText(/Accord du participe/)).toBeInTheDocument();
+    expect(screen.queryByText(/Comparaison de relatifs/)).toBeNull();
+    // Filtrer ne coûte AUCUNE requête (adr-0038 §4) — le verrou de la page, transposé au sélecteur.
+    expect(fetchOpenGaps).toHaveBeenCalledTimes(1);
+  });
+
+  it("une seule matière : pas de sélecteur", async () => {
+    // Un groupe de pastilles à une seule option n'offre aucun choix — il occupe l'écran sans rien
+    // permettre.
+    vi.mocked(fetchOpenGaps).mockResolvedValue([gap()]);
+    renderPage();
+
+    await screen.findByText(/Comparaison de relatifs/);
+    expect(screen.queryByRole("group", { name: /Filtrer par matière/ })).toBeNull();
+  });
+
   it("le motif accompagne le geste à l'écran", async () => {
     vi.mocked(fetchOpenGaps).mockResolvedValue([
       gap({ content_state: "cours_brouillon", lesson_id: 24 }),

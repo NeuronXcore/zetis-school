@@ -723,6 +723,54 @@ qui n'existe pas, et aucune ligne de code ne peut l'inventer sans rouvrir la fro
 > Un test-verrou fige l'absence : `crans.test.ts` → *« le cran « proposé » n'en a pas — DIFFÉRÉE, et
 > c'est écrit »*. S'il tombe, c'est que quelqu'un a rouvert la question sans passer par ici.
 
+#### 🔴 CHANTIER À CADRER — une lacune comblée AUTREMENT ne se referme jamais
+
+**Demandé par le commanditaire le 2026-08-09**, en regardant la page Lacunes livrée.
+
+**Le constat, vérifié dans le code** : **un seul endroit** du backend écrit `gap.status =
+"resolved"` — `missions/service.py:1011`, à la **fin d'une mission**. Si Massimo comble la notion
+autrement — quiz réussi, diagnostic repassé, carte SRS acquise —, la lacune **reste ouverte
+indéfiniment** chez Papa.
+
+🔴 **Ce que le chantier ADR-0047 vient d'aggraver** : la page propose désormais **d'agir** sur
+chaque lacune. Elle peut donc proposer de produire du contenu pour une notion **déjà acquise** —
+un geste qui coûte une génération LLM pour rien, sur un constat périmé.
+
+⚠️ **C'est une DOCTRINE, pas un correctif.** Il faut trancher **quel signal vaut résolution**, et la
+réponse n'est pas évidente : un quiz réussi une fois n'est pas une acquisition (c'est tout le sens
+de la répétition espacée), et `SkillMastery.status == "mastered"` est déjà une mesure qui existe —
+mais les deux populations sont **disjointes** par décision (`page-lacunes.md`, « ce n'est pas la
+liste des notions fragiles »). Refermer une lacune sur la maîtrise reviendrait à les fondre.
+
+**Ce que ça touche** : `diagnostics`, `quizzes`, `memory` (SRS) et `missions` — quatre modules qui
+écriraient tous une résolution, plus le risque de quatre définitions divergentes de « acquis », le
+motif exact des dettes `has_referentiel` et `_active_year`.
+
+**Rituel complet attendu** — `mockup → spec → ADR → prompt`. Deux questions appellent une décision
+et non un patch : **quel signal referme**, et **une lacune refermée peut-elle se rouvrir** (si oui,
+`resolved` n'est plus un état terminal).
+
+#### 🔴 DÉCISION PRODUIT EN ATTENTE — une vue calendrier sur la page Lacunes
+
+**Demandée par le commanditaire le 2026-08-09**, sur le modèle du **Cahier de bord IA**, avec tri
+par matières et séparation ouvertes / prises en charge.
+
+⚠️ **Elle CONTREDIT une décision écrite**, et c'est pourquoi elle attend un cadrage plutôt qu'un
+patch. `docs/frontend-papa/page-lacunes.md` tranche : *« Ce n'est pas une surface de mesure. Aucun
+compteur global, aucune tendance, aucune date de bascule — Progression les porte. »*
+
+**Et les deux calendriers ne répondent pas à la même question** : celui du Cahier de bord navigue
+**par date** sur des *événements* (« qu'a fait Massimo ce jour-là »). Une lacune est un **stock**,
+dont la seule date est `first_detected_at` — un calendrier dirait *quand elles ont été repérées*,
+ce qui n'aide pas à décider laquelle traiter.
+
+**Ce qu'il faut donc d'abord** : un **addendum à l'`adr-0047`** qui révoque explicitement ce point,
+ou qui reformule le besoin. Le dépôt interdit de contourner une décision sans la nommer.
+
+> ⚠️ **La moitié « tri par matières » est LIVRÉE** (2026-08-09) : le sélecteur `SubjectFilterChips`
+> est sur la page, alimenté par les matières **des lacunes elles-mêmes** — zéro requête. Ce qui
+> reste en attente est le **calendrier**, pas le tri.
+
 #### La station ② du Diagnostic sur-promet — DIFFÉRÉE de l'`adr-0047` §8 (2026-08-09)
 
 **Ce qui reste après le chantier ADR-0047.** Sa Décision 8 annonçait la correction de la station ②
