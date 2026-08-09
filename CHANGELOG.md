@@ -1,5 +1,91 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.64.0 — ZETIS doute de sa propre mesure
+
+Le diagnostic est le seul endroit de ZETIS où une mesure fausse **se propage** : elle écrit
+`SkillMastery`, ouvre des `Gap`, et ces deux-là nourrissent missions, galaxie et Conseil de classe.
+Une triche ne fait donc pas « gagner » Massimo — elle fait **construire ZETIS sur du faux**, et rien
+d'extérieur ne vient jamais la contredire. ADR-0048, trois sessions.
+
+🔴 **La règle qui commande tout** : chaque phrase construite prend **la mesure** pour sujet, jamais
+l'enfant. « Cette mesure est à confirmer », jamais « Massimo a peut-être triché ». Elle vaut pour les
+libellés, les noms de champs, les commentaires — et pour cette entrée.
+
+### Six signaux, deux familles, une règle
+
+Un **fait** déclenche le verdict à lui seul ; un **indice** ne le déclenche jamais et s'affiche quand
+même. La frontière n'est pas la force du soupçon, c'est la part d'interprétation.
+
+Faits : l'écran quitté pendant la passation · un énoncé copié · le plein écran quitté · **le
+contraste avec l'historique**. Indices : le rythme des réponses · le changement de taille de fenêtre.
+
+**Le contraste est le seul qui survive à un téléphone posé à côté de l'écran**, et le seul calculé
+serveur — donc le seul infalsifiable. Il lit **trois sources en union** : `SkillMastery`,
+`LearningEvent` portant le `skill_id` hors `NON_WORK_EVENTS`, et `LessonView ⋈ LessonSkill`.
+
+⚠️ **Aucune barrière.** Bloquer la navigation est impossible côté web — un site qui pourrait retenir
+son utilisateur serait une faille. Le plein écran entre comme **signal**, jamais comme empêchement.
+
+### Ce que Papa voit — trois états, pas deux
+
+Une bande au-dessus de la station ①, avec les **faits bruts**, les indices en gris, et la **portée de
+l'instrument** (combien de signaux étaient observables sur cet appareil). Son unique geste est
+**« Remesurer cette matière → »** : la seule réponse à « à confirmer » est une seconde mesure. Elle
+ne se retire pas — les conditions d'une passation sont un fait daté, au même titre que le score.
+
+Marque du rail `⚖️ à confirmer`, **ambre jamais rouge**, le mot écrit à côté du symbole.
+
+🔴 **`null` ne veut pas dire « rien à signaler »** : il veut dire **ZETIS ne regardait pas**, l'état
+de toutes les passations antérieures. Et **pas de bande verte** — « mesure fiable ✓ » serait une
+promesse que l'instrument ne peut pas tenir.
+
+### Ce que Massimo voit — une question, et rien d'autre
+
+Une carte « Raconte-moi » après la soumission, avec son **micro**. Il ne voit **rien** du verdict et
+n'est jamais accusé. Elle est là à **chaque** passation : la conditionner au doute la transformerait
+en accusation, et détruirait le seul signal non falsifiable par la manière de le demander.
+
+La ligne qui fait tout le travail : *« Tu peux dire "je le savais", "je l'ai vu en cours", "j'ai
+deviné" ou **"j'ai cherché"** — tout ça compte pareil. »* Elle nomme la réponse qu'on cherche et la
+déclare acceptable.
+
+🔴 **L'écran de passation n'a pas changé d'un pixel** : ni chrono, ni compteur, ni avertissement. Un
+enfant qui se sait chronométré ne passe plus le même diagnostic.
+
+### Ce que la relecture visuelle a corrigé — cinq défauts, zéro test rouge
+
+Les 36 sabotages étaient tous rouges, les trois suites vertes, et **cinq défauts sont passés
+au travers**. L'ADR rendait cette relecture obligatoire avant la PR ; voici ce qu'elle a rapporté.
+
+- 🔴 **La bande rendait 4 badges « fait » pour 3 déclencheurs.** Le contraste portait le badge `fait`
+  même sous son seuil : la bande se contredisait dans le geste qui explique sa règle. Un **troisième
+  registre** est né — ◆ gris + `sous le seuil`, qui ne le cache pas mais ne le compte pas.
+- 🔴 **Massimo ne se relisait pas.** L'accusé affichait « Merci ✨ · C'est noté » et **jamais ses
+  propres mots**, alors que le serveur les servait — et la spec écrivait « Massimo relit ce qu'il a
+  écrit ». Sa phrase lui est rendue : après une **dictée**, c'est le seul endroit où il peut
+  découvrir que Whisper l'a mal entendu.
+- 🔴 **L'accusé nommait Papa** — « Papa le verra à côté de ta réponse ». C'était vrai, et c'était le
+  problème : ça remet l'**enjeu** que la phrase de permission passe tout son texte à retirer. Il dit
+  désormais « **ZETIS le garde** à côté de ta réponse ». Rien n'est caché ; personne n'est convoqué.
+- ⚠️ **La ligne « rien à signaler » était illisible (3:1) et muette.** Elle porte sa **portée** —
+  *N des 4 signaux étaient observables* — et passe à 16,25:1. « Rien vu » ne veut rien dire tant
+  qu'on ignore sur combien d'yeux ce rien repose.
+- ⚠️ **Le ◆ gris était au même poids que le ◇ de l'indice** (2,81:1) : la forme qui porte toute la
+  distinction de famille était ce qu'on voyait le moins. Porté à **4,67:1**.
+
+🔴 **Deux verrous ont été écrits après coup, et l'un d'eux était VERT sur le défaut** : le test
+`en relecture, Massimo SE RELIT` ne vérifiait que l'absence du bouton « Envoyer ». Son **nom**
+promettait plus que ses assertions.
+
+### Aussi
+
+- `QuizAttempt.duration_seconds` est **écrit pour la première fois** depuis sa création, et
+  `started_at` cesse de valoir `completed_at` : la durée d'une passation valait **zéro par
+  construction** depuis l'étape 14.
+- Migration `e2f3a4b5c6d7` (`quiz_attempts.reliability_json`) — **la seule du chantier**.
+- Le micro réutilise `lib/dictation.ts` et `transcribeEli5`, déjà partagés par ELI5 et le chat :
+  **trois imports, zéro backend**.
+
 ## 0.63.0 — La page Lacunes permet d'agir
 
 La page dédiée aux lacunes en disait **moins** qu'une section d'une autre page : sa ligne était un

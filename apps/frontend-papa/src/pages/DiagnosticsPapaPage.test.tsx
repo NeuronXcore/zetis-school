@@ -40,6 +40,7 @@ const APERCU: DiagnosticApercu = {
     {
       cle: "quiz-9",
       cran: "genere",
+      fiabilite_verdict: null,
       quiz_id: 9,
       attempt_id: null,
       subject_id: 3,
@@ -53,6 +54,7 @@ const APERCU: DiagnosticApercu = {
     {
       cle: "attempt-4",
       cran: "passe",
+      fiabilite_verdict: null,
       quiz_id: 7,
       attempt_id: 4,
       subject_id: 3,
@@ -70,6 +72,8 @@ const APERCU: DiagnosticApercu = {
 const DETAIL: DiagnosticResult = {
   attempt_id: 4,
   quiz_id: 7,
+  fiabilite: null,
+  verbalisation: null,
   subject_id: 3,
   subject: "Mathématiques",
   score_percent: 70,

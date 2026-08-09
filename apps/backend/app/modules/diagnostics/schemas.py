@@ -67,12 +67,66 @@ class DiagnosticQuizListItem(BaseModel):
 
 
 class DiagAnswerIn(BaseModel):
+    """Une réponse, et les deux signaux qui se rattachent VRAIMENT à elle (ADR-0048).
+
+    🔴 **Les deux derniers champs sont OPTIONNELS, et ils doivent le rester.** Un corps qui
+    n'envoie que `question_id` et `choice_index` — le contrat d'avant le chantier — continue de
+    fonctionner à l'identique. C'est ce qui garde les tests existants verts et rend le déploiement
+    sans ordre imposé entre le back et le front.
+
+    ⚠️ `ms_depuis_precedente` est une **durée**, jamais un horodatage : le client la mesure avec
+    `performance.now()` (monotone, immune au changement d'heure), et aucun temps absolu venu du
+    navigateur n'entre dans ZETIS.
+
+    🔴 **La sortie d'écran n'est PAS ici** — elle est dans `DiagnosticConditionsIn` (Décision 1 bis).
+    L'écran de passation affiche **toutes les questions d'un bloc** : il n'y a pas de question
+    courante, donc rien à quoi rattacher une sortie. Ne pas la « remonter » ici en croyant bien
+    faire : elle y serait fausse.
+    """
+
     question_id: int
     choice_index: int
+    # Délai depuis la réponse PRÉCÉDENTE (pour la première : depuis le début de la passation). C'est
+    # le RYTHME de Massimo. INDICE, ne déclenche jamais rien.
+    #
+    # 🔴 Ce champ s'appelait `ms_reflexion` et prétendait mesurer « l'affichage → la réponse ».
+    # Inimplémentable : l'écran de passation affiche TOUTES les questions d'un bloc, il n'existe
+    # aucun instant d'affichage par question (ADR-0048 Décision 1 bis).
+    ms_depuis_precedente: int | None = None
+    # L'énoncé a été copié. FAIT, et le SEUL des trois qui survit au niveau de la réponse : une
+    # sélection se localise dans le bloc d'une question, contrairement à une sortie d'écran.
+    enonce_copie: bool = False
+
+
+class DiagnosticConditionsIn(BaseModel):
+    """Ce que le client a observé sur la passation ENTIÈRE (ADR-0048). Optionnel en bloc."""
+
+    ms_total: int | None = None
+    # Combien de fois l'écran a été quitté PENDANT la passation. FAIT (ADR-0048 Décision 1 bis).
+    # Porté ici et non par la réponse : toutes les questions sont affichées ensemble, une sortie
+    # d'écran ne se rattache à aucune d'elles.
+    sorties_ecran: int = 0
+    plein_ecran_quitte: bool = False
+    taille_changee: bool = False
+    # 🔴 Ce que l'appareil PERMETTAIT d'observer. Sans lui, l'absence d'un signal se lirait comme
+    # l'absence du comportement — or iOS Safari refuse le plein écran sur iPhone.
+    signaux_observables: list[str] = Field(default_factory=list)
 
 
 class DiagnosticSubmitRequest(BaseModel):
     answers: list[DiagAnswerIn] = Field(default_factory=list)
+    conditions: DiagnosticConditionsIn | None = None
+
+
+class ExplicationIn(BaseModel):
+    """Le mot de Massimo sur une bonne réponse (ADR-0048 Décision 5).
+
+    200 caractères et non 140 : une phrase **dite** est plus longue qu'une phrase tapée, et le champ
+    porte un micro. Tronquer la parole d'un enfant en silence est ce que ce chantier s'interdit
+    partout ailleurs."""
+
+    question_id: int
+    texte: str = Field(max_length=200)
 
 
 class SkillScoreOut(BaseModel):
@@ -112,6 +166,65 @@ class DiagnosticGapEleveOut(BaseModel):
     skill_name: str
 
 
+class FiabiliteFaitsOut(BaseModel):
+    # Nombre de sorties d'écran SUR LA PASSATION — pas « questions quittées » (Décision 1 bis) :
+    # toutes les questions étant affichées ensemble, on ne sait pas laquelle était lue.
+    sorties_ecran: int = 0
+    enonces_copies: int = 0
+    plein_ecran_quitte: bool = False
+    acquises_sans_trace: int = 0
+    notions_total: int = 0
+
+
+class FiabiliteIndicesOut(BaseModel):
+    """Ils s'AFFICHENT et ne déclenchent jamais. Les cacher au motif qu'ils sont bruités
+    reviendrait à décider à la place de Papa, qui lit mieux qu'un seuil."""
+
+    reponses_rapides: int = 0
+    taille_changee: bool = False
+
+
+class FiabilitePorteeOut(BaseModel):
+    observables: list[str] = Field(default_factory=list)
+
+
+class FiabiliteOut(BaseModel):
+    """Les conditions dans lesquelles une mesure a été prise (ADR-0048).
+
+    🔴 **Servi `None` quand la passation n'a jamais été observée** — toutes celles d'avant le
+    chantier. `None` ne veut PAS dire « rien à signaler » : il veut dire « ZETIS ne regardait pas ».
+    La page rend trois états, pas deux.
+
+    ⚠️ Ce schéma doit **déclarer chaque clé** : `response_model` filtre en silence tout champ non
+    déclaré, et le dépôt s'est fait avoir deux fois de suite sur ce motif (ADR-0045 puis ADR-0047).
+    """
+
+    verdict: str  # a_confirmer|rien_a_signaler
+    regle_version: int
+    faits: FiabiliteFaitsOut
+    indices: FiabiliteIndicesOut
+    declencheurs: list[str] = Field(default_factory=list)
+    portee: FiabilitePorteeOut
+
+
+class VerbalisationOut(BaseModel):
+    """La question posée à Massimo après sa soumission — « raconte comment tu as trouvé ».
+
+    🔴 **Servie à CHAQUE passation, quel que soit le verdict.** La conditionner au doute la
+    transformerait en accusation : deux ou trois passations suffisent à un enfant pour comprendre,
+    et le seul signal non falsifiable du lot serait détruit par la manière de le demander.
+
+    Le tirage est **déterministe** (dérivé de l'`attempt_id`) : recharger repose la même question.
+    """
+
+    question_id: int
+    skill_id: int | None
+    skill_name: str
+    # Ce que Massimo a déjà répondu, s'il a répondu. En relecture il se relit ; on ne lui redemande
+    # pas. `None` = pas encore répondu, et ce n'est **jamais** un signal.
+    explication: str | None = None
+
+
 class DiagnosticResultOut(BaseModel):
     """Ce que Massimo voit de sa propre mesure (ADR-0044 Décision 5).
 
@@ -133,6 +246,9 @@ class DiagnosticResultOut(BaseModel):
     completed_at: str | None
     strengths: list[str]
     gaps: list[DiagnosticGapEleveOut]
+    # 🔴 La SEULE part de l'anti-triche que Massimo voit — et il ne voit rien du verdict, jamais
+    # (ADR-0048). `None` uniquement si la passation n'a aucune bonne réponse à faire raconter.
+    verbalisation: VerbalisationOut | None = None
 
 
 class PorteePointOut(BaseModel):
@@ -198,6 +314,12 @@ class RailEntryOut(BaseModel):
     notions_count: int
     score_percent: int | None
     rang: int | None  # rang de la passation DANS SA MATIÈRE (1ʳᵉ, 2ᵉ…), `None` hors 3ᵉ cran
+    # Le verdict, pour que la marque du rail soit repérable SANS ouvrir le panneau (ADR-0048).
+    # Le verdict seul, pas les faits : le rail signale, le panneau explique.
+    #
+    # 🔴 `None` sur les deux premiers crans — une passation qui n'a pas eu lieu n'a pas de mesure,
+    # donc rien à qualifier — ET sur les passations d'avant le chantier.
+    fiabilite_verdict: str | None = None
 
 
 class PlusAncienneLectureOut(BaseModel):
@@ -265,3 +387,11 @@ class DiagnosticResultSummary(BaseModel):
     completed_at: str | None
     per_skill: list[SkillScoreOut]
     gaps: list[GapOut]
+    # Les conditions de cette mesure (ADR-0048). `None` = ZETIS ne regardait pas.
+    fiabilite: FiabiliteOut | None = None
+    # Ce que Massimo a dit d'une de ses bonnes réponses, s'il l'a dit. Rendu dans la station ①, à
+    # côté de la notion dont il parle — pas dans la bande, qui ne porte que ce que ZETIS a OBSERVÉ.
+    #
+    # 🔴 Papa ne doit jamais le reprocher à Massimo. Le jour où « j'ai cherché » se retourne contre
+    # lui, la question ne reçoit plus jamais de réponse vraie.
+    verbalisation: VerbalisationOut | None = None

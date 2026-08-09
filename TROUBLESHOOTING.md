@@ -4262,3 +4262,252 @@ argument contenant `*` non quoté est concerné.
 contre une **commande qui n'a pas tourné**. Une affirmation négative (« ça n'existe pas ») tirée d'un
 outil de recherche doit être confirmée par une commande qui, elle, rend quelque chose — ici,
 `ls apps/frontend-massimo/src/lib/` aurait suffi.
+
+## Session A de l'ADR-0048 (le backend apprend à douter) — 2026-08-09
+
+### 🔴 Un id de révision Alembic DÉJÀ PRIS ne dit pas « doublon » — il dit « Cycle is detected »
+
+**Ce qui s'est passé.** J'ai numéroté la migration à la main : `c3d4e5f6a7b8`. Cet id était **déjà
+celui** de `c3d4e5f6a7b8_add_capsule_lot1_fields.py`. Alembic n'a pas dit « revision dupliquée » ;
+il a répondu :
+
+```
+ERROR [alembic.util.messaging] Cycle is detected in revisions (a1b2c3d4e5f7, a1b2c3d4e5f9, … 42 ids …)
+```
+
+**Quarante-deux révisions listées, dont aucune n'est la cause.** Le message ne nomme ni le doublon,
+ni les deux fichiers concernés.
+
+**Comment on trouve, en une commande** : sortir sa propre migration du dossier et relancer. Si le
+cycle disparaît, c'est le nouveau fichier — et alors :
+
+```bash
+grep -h '^revision = ' alembic/versions/*.py | sort | uniq -d
+```
+
+**La parade** : ne pas inventer d'id à la main sans le vérifier, et surtout —
+
+### 🔴 `alembic heads` est l'AUTORITÉ sur la tête, pas un `grep` sur `down_revision`
+
+J'avais écrit un script Python pour trouver la tête du graphe : il a rendu `a1b2c3d4e5f9`. **La
+vraie tête est `a9b0c1d2e3f4`**, et `alembic heads` le dit en une ligne.
+
+**La cause** : le dépôt écrit `down_revision` sous **deux formes**, et un regex sur
+`^down_revision\s*=` ne voit que la première :
+
+```python
+down_revision = "f7a8b9c0d1e2"                    # forme A
+down_revision: str | None = "a1b2c3d4e5f9"        # forme B — annotée, ratée par le regex naïf
+```
+
+Une migration greffée sur une fausse tête crée une **branche silencieuse** : `alembic upgrade head`
+échoue avec « multiple heads », ou pire, applique une moitié du graphe.
+
+### 🔴 Six sabotages sur quinze n'avaient pas été APPLIQUÉS — et « prouvaient » quelque chose
+
+Le script de sabotage passait ses motifs à un helper Python via `zsh`. **`zsh` transmet `\n` en deux
+caractères** : les motifs multi-lignes ne matchaient jamais, et les remplacements injectaient un
+`\n` littéral dans le source → `SyntaxError`. Le test « échouait », donc paraissait rouge.
+
+**Ce qui a sauvé la mesure** : le script distinguait explicitement **trois** issues — `rouge`,
+`RESTÉ VERT`, et **`SABOTAGE NON APPLIQUÉ (motif absent)`** — et refusait de compter les deux
+dernières. Sans ce troisième cas, six verrous creux auraient été annoncés comme tenus.
+
+**La parade, générale** : un script de sabotage doit **échouer bruyamment** quand la substitution
+n'a pas eu lieu, et interpréter ses `\n` (`avant.replace("\\n", "\n")`).
+
+### 🔴 Un sabotage peut rester VERT parce qu'une AUTRE protection joue — et le verrou n'est pas mauvais
+
+Sabotage : ajouter `"fiabilite": attempt.reliability_json` à la vue enfant, pour vérifier que
+`test_MASSIMO_ne_voit_RIEN_du_verdict` rougit. **Il est resté vert.**
+
+**Ce n'est pas un défaut du test** : `DiagnosticResultOut` ne déclare pas ce champ, et
+`response_model` le retire **en silence**. Le mécanisme qui a coûté deux chantiers au dépôt
+(ADR-0045 puis ADR-0047) jouait ici **en notre faveur**.
+
+**Le sabotage qui vise juste demande DEUX gestes** : produire le champ dans le service **et** le
+déclarer dans le schéma enfant. Rejoué ainsi → rouge.
+
+⚠️ **La leçon dépasse ce test** : quand un sabotage reste vert, la question n'est pas seulement
+« mon verrou est-il mauvais ? » mais **« qu'est-ce qui protège déjà, et le test le sait-il ? »**.
+Un verrou dont on ignore le vrai gardien sera cru mort le jour où le gardien changera.
+
+## Sessions B et C de l'ADR-0048 (le front) — 2026-08-09
+
+### 🔴 Une ligne de HORS-PÉRIMÈTRE d'un ADR n'est pas un fait vérifié — elle décrivait un écran qui n'existe pas
+
+**Ce qui s'est passé.** L'`adr-0044:291` range en hors-périmètre *« l'**écran de passation** (une
+question à la fois, barre de progression) »*. Cette phrase a été recopiée dans l'`adr-0048`, puis
+dans sa spec, et **deux des six signaux de l'anti-triche ont été conçus dessus** : « question
+quittée **avant d'être répondue** » et « temps entre l'**affichage** de la question et sa réponse ».
+
+**Vérifié au read-before-code de la Session B** : `DiagnosticPage.tsx:227` rend **toutes les
+questions d'un bloc**, empilées dans une page qui défile, avec un seul « Envoyer mes réponses ».
+
+```bash
+grep -n "currentQuestion\|questionIndex\|step\b" apps/frontend-massimo/src/pages/DiagnosticPage.tsx
+# → rien. Ni question courante, ni barre de progression.
+```
+
+**Les deux signaux étaient inimplémentables**, et le chantier les aurait faits semblant. Ils ont dû
+descendre au niveau de la **passation** (ADR-0048 Décision 1 bis) — on garde le fait, on perd le
+rattachement à une question.
+
+**La leçon, et elle dépasse ce cas** : un ADR décrit ce qu'il **décide**, pas nécessairement ce qui
+**existe**. Sa section « hors périmètre » est la plus exposée : elle nomme des choses qu'on n'a
+justement pas regardées. **Ce qu'un ADR range en hors-périmètre se vérifie comme n'importe quelle
+autre hypothèse** — surtout quand on construit dessus.
+
+⚠️ C'est le troisième document du dépôt à décrire un écran qui n'existe pas : la spec de Massimo le
+documente déjà sur sa propre v1 (*« décrivait un écran qui n'a jamais existé »*).
+
+### 🔴 Les tests de MASSIMO ne sont pas typecheckés — ceux de PAPA le sont
+
+```jsonc
+// apps/frontend-massimo/tsconfig.app.json
+"exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test"]
+```
+
+Papa n'a pas cette exclusion. **Conséquence mesurée le même jour, sur le même changement de
+contrat** : ajouter un champ requis à `DiagnosticResult` a produit **6 erreurs `tsc` côté Papa**
+(fixtures de test incomplètes, corrigées) et **zéro côté Massimo** — dont le décor
+`DiagnosticPage.test.tsx` est resté sans `verbalisation`, avec un `tsc -b` vert.
+
+⚠️ **Un `tsc -b` vert ne dit rien des tests de Massimo.** Et vitest ne typecheck pas non plus
+(transform esbuild). Un décor peut donc y décrire un contrat qui n'existe plus, indéfiniment.
+
+### 🔴 Trois verrous ont visé à côté, et le contrôle d'application les a tous attrapés
+
+Aucun n'a été trouvé par relecture. **Les trois auraient rassuré à tort.**
+
+| Verrou | Pourquoi il restait vert | La bonne visée |
+|---|---|---|
+| « Massimo ne voit rien du verdict » | `response_model` retirait déjà le champ **en silence** | la fuite demande **deux** gestes : service **et** schéma enfant |
+| « Passer n'envoie rien » | le champ était **vide**, la garde `if (!propre) return` bloquait | remplir le champ **avant** de cliquer Passer |
+| « aucun libellé ne prend l'enfant pour sujet » | balayait tout le rail et rougissait sur sa **légende** légitime (« chez Massimo s'il lui a été proposé », `adr-0045 §6`) | scoper à la **ligne** de la marque |
+
+**La leçon** : quand un sabotage reste vert, la question n'est pas seulement *« mon verrou est-il
+mauvais ? »* mais **« qu'est-ce qui protège déjà, et le test le sait-il ? »**. Et un verrou **trop
+large** est aussi dangereux qu'un verrou trop étroit : il interdit du texte légitime, et finit
+désarmé par la première personne qui l'assouplit.
+
+### ⚠️ `requestFullscreen` doit être appelé AVANT le premier `await`, pas après
+
+Le plein écran exige le **contexte de geste utilisateur**, que le premier `await` fait perdre.
+`startQuiz(quizId)` chargeait le quiz (`await fetchDiagnosticQuiz`) **avant** de pouvoir demander le
+plein écran : demandé là, l'appel est **refusé en silence**, sur tous les navigateurs.
+
+**La parade** : `observation.demarrer()` est appelé **en tête du gestionnaire de clic**, avant toute
+opération asynchrone. C'est aussi ce qui rend le chronométrage honnête — il démarre au clic, pas à
+l'arrivée des questions.
+
+### ⚠️ Un nouveau type partagé doit être ajouté au BARIL, pas seulement au module
+
+`packages/types/src/diagnostic.ts` peut exporter `DiagnosticFiabilite` sans que
+`import { DiagnosticFiabilite } from "@zetis/types"` fonctionne : le baril
+`packages/types/src/index.ts` ré-exporte **type par type**, nommément. Le message est trompeur —
+*« has no exported member named 'DiagnosticFiabilite'. Did you mean 'DiagnosticPalier'? »* — et
+suggère une faute de frappe là où il manque une ligne d'export. Piège déjà consigné, retombé dessus.
+
+## Relecture visuelle de l'ADR-0048, sur les deux apps — 2026-08-09
+
+> Cinq défauts trouvés **à l'écran**, avec **36 sabotages rouges et trois suites vertes** derrière.
+> C'est le meilleur argument dont dispose ce dépôt pour la relecture humaine : ce qui suit décrit
+> *pourquoi* les tests ne pouvaient pas les voir, pas *qu'ils* ne les ont pas vus.
+
+### 🔴 Un verrou dont le NOM promet plus que ses assertions — VERT sur le défaut qu'il nommait
+
+Le test s'appelait **« en relecture, Massimo SE RELIT — on ne lui redemande pas »**. Il vérifiait :
+la présence de « Merci », et l'absence du bouton « Envoyer ». **Rien sur la relecture.** L'écran
+affichait « Merci ✨ · C'est noté » et **jamais les mots de Massimo**, alors que le serveur les
+servait dans le payload (`notion_a_verbaliser` joint `answer_json.explication`) — et que
+`docs/backend/fiabilite-de-la-mesure.md:400` écrit noir sur blanc *« Massimo relit ce qu'il a
+écrit »*.
+
+**Le mécanisme** : le nom du test décrit l'intention, les assertions décrivent le code. Quand on
+écrit les deux dans la même minute, on relit le nom et on croit avoir vérifié l'intention. **Un
+`describe`/`it` n'est pas une assertion.**
+
+**La parade** : sur un verrou qui protège une DÉCISION, relire ses assertions **sans lire son nom**
+et se demander ce qu'elles interdisent vraiment. Ici : rien de ce que le nom annonçait.
+**4ᵉ occurrence du motif dans ce dépôt** (cf. `adr-0039`, la contre-épreuve mal visée, les trois
+verrous des sessions B/C).
+
+### 🔴 Un décor semé À LA MAIN peut être IMPOSSIBLE pour le vrai client — et la contradiction s'affiche
+
+La passation 53 portait `plein_ecran_quitte: true` **avec** `plein_ecran` **absent** de
+`portee.observables`. La bande affichait donc, à quatre lignes d'écart, « Le plein écran a été
+quitté » **et** « Le plein écran n'a pas pu être demandé — iOS Safari le refuse sur iPhone ».
+
+Le vrai client **ne peut pas** produire ça : `useObservationPassation` ne lève le drapeau que si
+`pleinEcranDemande` (`:126`), et inscrit `plein_ecran` dans la portée sous exactement la même
+condition (`:172`). Les deux champs sont liés **par construction côté client**, et par **rien du
+tout côté serveur** — `evaluer()` recopie `conditions["signaux_observables"]` sans le confronter aux
+faits.
+
+**Le coût réel** : dix minutes à chercher un défaut de rendu qui n'existait pas. **La parade** :
+quand un décor est fabriqué au lieu d'être produit par le vrai chemin, **vérifier ses invariants
+croisés avant de conclure quoi que ce soit de l'écran**. Un semis incohérent accuse le code.
+
+### ⚠️ Mesurer un contraste avec un parseur naïf donne 1,06 là où il y a 3,38 — l'`oklab` de Tailwind
+
+`getComputedStyle(el).color` rend **`oklab(0.665 -0.008 -0.038 / 0.7)`** pour un `text-papa-muted/70`
+(les opacités Tailwind passent par `color-mix`). Un parseur qui extrait les nombres d'une chaîne lit
+`rgb(0.665, -0.008, -0.038)` — **du noir** — et annonce un contraste catastrophique sur une couleur
+parfaitement lisible.
+
+**La parade, et elle est courte** : faire composer le **navigateur**. Peindre le fond puis la couleur
+sur un canvas 1×1 et relire le pixel — ça gère `oklab`, `color-mix`, l'alpha, tout :
+
+```js
+cx.fillStyle = fond;    cx.fillRect(0,0,1,1);
+cx.fillStyle = couleur; cx.fillRect(0,0,1,1);
+const [r,g,b] = cx.getImageData(0,0,1,1).data;   // le rgb RÉEL, composé
+```
+
+⚠️ Le fond aussi doit être **empilé** jusqu'au premier opaque : une bande `bg-papa-warn/10` sur une
+surface translucide sur le fond de page fait **trois** couches.
+
+### ⚠️ Le panneau navigateur : l'espace de CLIC fait 800 px, le viewport 1798
+
+Une position lue par `getBoundingClientRect()` est en pixels de **viewport** ; `computer{left_click}`
+attend des pixels de **capture d'écran**. Le rapport était de **0,445** cette session. Un clic passé
+tel quel atterrit à plus du double de la bonne hauteur — sans erreur, sur un autre élément.
+
+**La parade** : `Math.round(coordonnée * (800 / innerWidth))`. Et `left_click` par coordonnée exige
+un `screenshot` **préalable** dans le même onglet, sinon : *« no screenshot dimensions cached »*.
+⚠️ `scroll` échoue avec un timeout de 30 s si l'onglet visé **n'est pas au premier plan** —
+`tabs_select` d'abord.
+
+### 🔴 Le glob zsh non quoté a REpayé son piège — dans la session qui le documente
+
+`grep -rn "..." --include=*.tsx .` → **`(eval):1: no matches found: --include=*.tsx`**, zéro ligne de
+sortie. Le piège est consigné depuis le cadrage de ce même ADR (§ *En zsh, un `--include=*.ts` non
+quoté TUE la commande*), et il a quand même été retendu **le même jour**.
+
+Ce n'est pas une redite : c'est la mesure de sa force. **Écrire `--include='*.tsx'`, toujours**, et
+traiter une sortie vide comme suspecte tant qu'on n'a pas vu le code de retour.
+
+### 🔴 Une recette « pour défaire » écrite sans être vérifiée aurait DÉTRUIT des données réelles
+
+`MEMORY.md` portait, depuis la clôture précédente, l'ordre de suppression du semis de dev. Passé en
+base à la clôture suivante, **trois de ses quatre lignes étaient fausses** :
+
+| Écrit | Vérifié en base |
+|---|---|
+| `skill_mastery` **28-31** (4 lignes) | **33** lignes touchées |
+| `xp_events` **94, 95, 96** | **94 à 97** |
+| « 8 `Gap` + 8 `Gap` » | **14** au total (8 Maths + 6 Histoire-Géo) |
+
+🔴 **Et la plus grave n'est pas un chiffre** : `_upsert_skill_mastery` fait des **UPDATE**, pas des
+INSERT. Il n'y a **aucun « avant » à restaurer** — la mesure antérieure est écrasée sur place, sans
+historique de ligne. Suivre la recette aurait supprimé la maîtrise réelle de Massimo sur des notions
+qu'il a vraiment travaillées, en croyant nettoyer un décor de test.
+
+**La cause** : la recette a été écrite en **raisonnant sur le code** (« la passation touche 8
+notions, donc 8 lignes ») au lieu d'être **lue en base**. C'est exactement le motif que le point 6
+de `/cloture` existe pour attraper, appliqué à autre chose qu'un hash de commit.
+
+**La parade** : toute ligne de `MEMORY.md` qui **nomme des identifiants de base** se vérifie par un
+`SELECT` avant d'être écrite — et un semis dont la réversibilité n'a pas été prouvée se déclare
+**non réversible**, pas « voici comment le défaire ».

@@ -50,11 +50,28 @@ export interface DiagnosticGapEleve {
   skill_name: string;
 }
 
+/** La question posée à Massimo après sa soumission (ADR-0048 Décision 5).
+ *
+ * 🔴 **C'est la SEULE part de l'anti-triche qu'il voit.** Les cinq autres signaux s'observent en
+ * silence et ne reviennent jamais de son côté : aucun champ de fiabilité n'entre dans
+ * `DiagnosticResult`, et le backend n'en sert aucun sur les routes élève.
+ */
+export interface DiagnosticVerbalisation {
+  question_id: number;
+  skill_id: number | null;
+  skill_name: string;
+  /** Ce qu'il a déjà répondu. `null` = pas encore — et ce n'est **jamais** un signal. */
+  explication: string | null;
+}
+
 /** Ce que Massimo voit de sa propre mesure — **ni score, ni score par notion, ni sévérité**.
  *
  * La spec prescrivait « pas d'affichage de note brute immédiate » depuis l'étape 14 ; l'écran la
  * contredisait. Le score reste calculé, écrit et servi à Papa : seule sa diffusion à l'enfant
  * cesse (ADR-0044 Décision 5).
+ *
+ * 🔴 **Et aucun champ de FIABILITÉ n'y entre** (ADR-0048) : Massimo ne voit rien du verdict et
+ * n'est jamais accusé. `verbalisation` est une question, pas un jugement.
  */
 export interface DiagnosticResult {
   attempt_id: number;
@@ -63,6 +80,31 @@ export interface DiagnosticResult {
   completed_at: string | null;
   strengths: string[];
   gaps: DiagnosticGapEleve[];
+  /** `null` seulement si la passation n'a aucune bonne réponse à faire raconter. */
+  verbalisation: DiagnosticVerbalisation | null;
+}
+
+/** Ce que le client a observé pendant la passation (ADR-0048).
+ *
+ * 🔴 **`sorties_ecran` est porté ICI et non par la réponse** (Décision 1 bis) : l'écran affiche
+ * toutes les questions d'un bloc, une sortie ne se rattache à aucune d'elles.
+ */
+export interface ConditionsPassation {
+  ms_total: number;
+  sorties_ecran: number;
+  plein_ecran_quitte: boolean;
+  taille_changee: boolean;
+  /** Ce que l'appareil PERMETTAIT d'observer — sans lui, l'absence d'un signal se lirait comme
+   *  l'absence du comportement. Le plein écran n'existe pas sur iPhone. */
+  signaux_observables: string[];
+}
+
+export interface ReponseObservee {
+  question_id: number;
+  choice_index: number;
+  /** Délai depuis la réponse précédente — le RYTHME. Jamais un horodatage. */
+  ms_depuis_precedente?: number;
+  enonce_copie?: boolean;
 }
 
 function headers(): HeadersInit {
@@ -94,13 +136,16 @@ export async function fetchMonResultat(attemptId: number): Promise<DiagnosticRes
 
 export async function submitDiagnostic(
   quizId: number,
-  answers: { question_id: number; choice_index: number }[],
+  answers: ReponseObservee[],
+  conditions?: ConditionsPassation,
 ): Promise<DiagnosticResult> {
   const resultat = await asJson<DiagnosticResult>(
     await fetch(`${API_URL}/api/diagnostics/quizzes/${quizId}/submit`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ answers }),
+      // `conditions` est OPTIONNEL côté serveur : si l'observation a échoué, la soumission part
+      // quand même avec ses réponses. Une mesure sans conditions vaut mieux qu'une mesure perdue.
+      body: JSON.stringify(conditions ? { answers, conditions } : { answers }),
     }),
   );
   // Le témoin de navigation compte les diagnostics NON PASSÉS : passer celui-ci le fait retomber
@@ -108,4 +153,23 @@ export async function submitDiagnostic(
   // qu'aucun appelant présent ou futur ne puisse l'oublier.
   notifyNewsChanged();
   return resultat;
+}
+
+/** Massimo raconte comment il a trouvé une de ses bonnes réponses (ADR-0048 Décision 5).
+ *
+ * 🔴 **N'entre pas dans le calcul de la fiabilité, et son absence encore moins.** Le serveur ne
+ * la compte nulle part : compter le silence ferait de « Passer » un aveu.
+ */
+export async function envoyerExplication(
+  attemptId: number,
+  questionId: number,
+  texte: string,
+): Promise<DiagnosticVerbalisation> {
+  return asJson(
+    await fetch(`${API_URL}/api/diagnostics/mes-resultats/${attemptId}/explication`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ question_id: questionId, texte }),
+    }),
+  );
 }

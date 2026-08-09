@@ -18,8 +18,10 @@ from app.modules.diagnostics.schemas import (
     DiagnosticResultSummary,
     DiagnosticSubmitRequest,
     DiagnosticValidationOut,
+    ExplicationIn,
     PorteeOut,
     SubjectOut,
+    VerbalisationOut,
 )
 from app.modules.eli5.service import get_default_student
 from app.modules.ai import travaux
@@ -88,7 +90,7 @@ def submit(
     _: dict = Depends(require_child),
 ) -> dict:
     student = get_default_student(db)
-    result = service.submit(db, student, quiz_id, req.answers)
+    result = service.submit(db, student, quiz_id, req.answers, conditions=req.conditions)
     # Journal d'activité : une tentative de quiz, saveur « diagnostic ». Pas de dédupe — refaire
     # un diagnostic EST une activité, contrairement à un rafraîchissement de page.
     #
@@ -97,6 +99,13 @@ def submit(
     # est de la **télémétrie interne**, lue par l'activité et le dashboard de Papa, jamais rendue à
     # l'enfant. Et la source est meilleure qu'avant : la passation écrite, pas une vue qui se
     # trouvait la transporter.
+    #
+    # 🔴 **CE `log_learning_event` DOIT RESTER DANS LE ROUTEUR** (ADR-0048, piège n° 3). Il est écrit
+    # APRÈS le retour de `submit()` : c'est ce qui empêche le contraste avec l'historique de voir
+    # l'événement de sa propre passation. Le déplacer dans le service — même « pour regrouper les
+    # écritures » — casserait le contraste **sans toucher au contraste**, et sans qu'aucun test du
+    # calcul ne rougisse. Un test-verrou tient cet ordre ; s'il tombe, c'est ici qu'il faut
+    # regarder, pas dans `fiabilite.py`.
     passation = db.get(QuizAttempt, result["attempt_id"])
     log_learning_event(
         db,
@@ -167,6 +176,32 @@ def mon_resultat(
     ce qu'il a vu en terminant.
     """
     return service.resultat_eleve(db, get_default_student(db), attempt_id)
+
+
+@router.post("/mes-resultats/{attempt_id}/explication", response_model=VerbalisationOut)
+def explication(
+    attempt_id: int,
+    req: ExplicationIn,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_child),
+) -> dict:
+    """Massimo raconte comment il a trouvé une de ses bonnes réponses (ADR-0048 Décision 5).
+
+    `require_child` comme les trois autres routes élève, et le même contrôle d'appartenance —
+    `_passation_ou_404` est partagé : deux routes qui protègent la même ressource ne peuvent pas se
+    permettre deux copies de la garde.
+
+    🔴 **Ce que cette route N'EST PAS.** Elle n'entre pas dans le calcul du verdict, et son absence
+    d'appel encore moins : compter le silence ferait de « Passer » un aveu, et de la question un
+    piège. Elle ne donne **aucun XP** non plus — contrairement à l'explication d'ELI5 : ici le mot
+    est attaché à une **mesure**, et payer pour lui en ferait une tâche qu'on remplit n'importe
+    comment.
+
+    ⚠️ **Zéro migration** : le texte se range dans `quiz_answers.answer_json`, déjà libre.
+    """
+    return service.enregistrer_explication(
+        db, get_default_student(db), attempt_id, req.question_id, req.texte
+    )
 
 
 @router.get("/results", response_model=list[DiagnosticResultSummary])

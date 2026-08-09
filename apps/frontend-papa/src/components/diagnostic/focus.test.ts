@@ -22,6 +22,9 @@ function ligne(partiel: Partial<DiagnosticRailEntry>): DiagnosticRailEntry {
   return {
     cle: "x",
     cran: "propose",
+    // Champs ajoutés par l'ADR-0048 — décor complété, aucune assertion touchée.
+    // `null` = ZETIS ne regardait pas, l'état de toutes les passations d'avant.
+    fiabilite_verdict: null,
     quiz_id: 1,
     attempt_id: null,
     subject_id: 7,

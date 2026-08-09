@@ -188,6 +188,9 @@ export {
   type DiagnosticApercuSubject,
   type DiagnosticContentState,
   type DiagnosticCran,
+  type DiagnosticFiabilite,
+  type DiagnosticFiabiliteFaits,
+  type DiagnosticFiabiliteIndices,
   type DiagnosticGap,
   type DiagnosticJauges,
   type DiagnosticPalier,
@@ -198,6 +201,8 @@ export {
   type DiagnosticResult,
   type DiagnosticSkillScore,
   type DiagnosticSubjectRef,
+  type DiagnosticVerbalisation,
+  type DiagnosticVerdict,
 } from "./diagnostic";
 export {
   type SchoolYear,

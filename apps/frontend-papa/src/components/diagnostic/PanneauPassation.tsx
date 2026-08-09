@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ConfirmDialog } from "@zetis/ui";
 import type { DiagnosticPortee, DiagnosticRailEntry, DiagnosticResult } from "@zetis/types";
+import { BandeFiabilite } from "./BandeFiabilite";
 import { PorteeEscalier } from "./PorteeEscalier";
 import { badgeLacune, motifLacune, palierLabel, palierTon } from "./paliers";
 import { actionPrincipale, CRAN_TEXTE, RETRAIT } from "./crans";
@@ -136,9 +137,21 @@ export interface PanneauPassationProps {
    *  NOM) et `subject_id`, jamais le slug — or la page Lacunes filtre par slug. Le rail, lui,
    *  l'a déjà. Aucun champ ajouté à aucun contrat. */
   subjectSlug: string;
+  /** Relance un diagnostic sur cette matière — le SEUL geste de la bande de fiabilité.
+   *
+   *  🔴 La bande n'a **aucun** bouton « j'ai vérifié » : les conditions d'une passation sont un
+   *  fait daté, au même titre que le score. La seule réponse à « à confirmer » est une SECONDE
+   *  mesure — c'est littéralement ce que le mot demande. */
+  onRemesurer: (subjectId: number | null) => void;
 }
 
-export function PanneauPassation({ detail, portee, rang, subjectSlug }: PanneauPassationProps) {
+export function PanneauPassation({
+  detail,
+  portee,
+  rang,
+  subjectSlug,
+  onRemesurer,
+}: PanneauPassationProps) {
   const grains = new Set(detail.per_skill.map((s) => s.questions_count).filter(Boolean));
   const marche = grains.size === 1 ? Math.round(100 / [...grains][0]) : null;
 
@@ -175,6 +188,13 @@ export function PanneauPassation({ detail, portee, rang, subjectSlug }: PanneauP
         </div>
       </header>
 
+      {/* 🔴 ENTRE l'en-tête et la portée : la bande qualifie la mesure ENTIÈRE, donc elle se lit
+          AVANT les nombres. Placée sous la station ①, elle commenterait des chiffres déjà crus. */}
+      <BandeFiabilite
+        fiabilite={detail.fiabilite}
+        onRemesurer={() => onRemesurer(detail.subject_id)}
+      />
+
       {portee && <PorteeEscalier portee={portee} />}
 
       <Station
@@ -202,7 +222,22 @@ export function PanneauPassation({ detail, portee, rang, subjectSlug }: PanneauP
               const lacune = detail.gaps.find((g) => g.skill_id === notion.skill_id);
               return (
                 <tr key={notion.skill_id} className="border-t border-papa-border/60">
-                  <td className="py-2 pr-3">{notion.skill_name}</td>
+                  <td className="py-2 pr-3">
+                    {notion.skill_name}
+                    {/* Le mot de Massimo, à côté de la notion dont il parle — pas dans la bande,
+                        qui ne porte que ce que ZETIS a OBSERVÉ, alors que ceci est ce qu'il a DIT.
+                        🔴 Papa ne doit jamais le lui reprocher : le jour où « j'ai cherché » se
+                        retourne contre lui, la question ne reçoit plus jamais de réponse vraie. */}
+                    {detail.verbalisation?.skill_id === notion.skill_id &&
+                      detail.verbalisation.explication && (
+                        <span className="mt-1.5 block max-w-[56ch] border-l-2 border-papa-accent/40 pl-2.5 text-[13px] italic">
+                          <span className="mb-0.5 block text-[11px] uppercase not-italic tracking-wider text-papa-muted">
+                            Massimo raconte
+                          </span>
+                          « {detail.verbalisation.explication} »
+                        </span>
+                      )}
+                  </td>
                   <td className="w-32 py-2">
                     <div className="h-1.5 overflow-hidden rounded-full bg-papa-bg">
                       <div

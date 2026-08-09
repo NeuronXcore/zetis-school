@@ -17,17 +17,25 @@ type Etat = "reglage" | "en_cours" | "termine";
 
 export interface LancerDiagnosticDialogProps {
   subjects: DiagnosticApercuSubject[];
+  /** Matière présélectionnée à l'ouverture. `null` = la première, comportement d'avant.
+   *
+   *  🔴 Sans elle, « Remesurer cette matière → » ouvrirait la modale sur `subjects[0]` — le défaut
+   *  exact que l'`adr-0045 §5` a refusé de livrer : une action qui ne rend pas ce qu'elle annonce. */
+  subjectInitial?: number | null;
   onClose: () => void;
   onTermine: () => void;
 }
 
 export function LancerDiagnosticDialog({
   subjects,
+  subjectInitial = null,
   onClose,
   onTermine,
 }: LancerDiagnosticDialogProps) {
   const [etat, setEtat] = useState<Etat>("reglage");
-  const [subjectId, setSubjectId] = useState<number | null>(subjects[0]?.id ?? null);
+  const [subjectId, setSubjectId] = useState<number | null>(
+    subjectInitial ?? subjects[0]?.id ?? null,
+  );
   const [travail, setTravail] = useState<EtatTravail | null>(null);
   const [resultat, setResultat] = useState<{ subject: string; questions_count: number } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);

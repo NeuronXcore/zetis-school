@@ -15,6 +15,10 @@ function resultat(overrides: Partial<DiagnosticResult> = {}): DiagnosticResult {
   return {
     attempt_id: 12,
     quiz_id: 34,
+    // Champs ajoutés par l'ADR-0048 — décor complété, aucune assertion touchée.
+    // `null` = ZETIS ne regardait pas, l'état de toutes les passations d'avant.
+    fiabilite: null,
+    verbalisation: null,
     subject_id: 3,
     subject: "Français",
     score_percent: 63,
@@ -32,7 +36,13 @@ function resultat(overrides: Partial<DiagnosticResult> = {}): DiagnosticResult {
 function renderPanneau(detail = resultat(), subjectSlug = "francais") {
   render(
     <MemoryRouter>
-      <PanneauPassation detail={detail} portee={null} rang={2} subjectSlug={subjectSlug} />
+      <PanneauPassation
+        detail={detail}
+        portee={null}
+        rang={2}
+        subjectSlug={subjectSlug}
+        onRemesurer={() => {}}
+      />
     </MemoryRouter>,
   );
 }

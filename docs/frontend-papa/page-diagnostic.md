@@ -419,6 +419,84 @@ nées de la relecture visuelle humaine du 2026-08-08 :
    sans jamais compter les jours.
 4. **Une jauge écrit le mot de ce qu'elle compte** — « jamais générées », pas « jamais mesurées ».
 
+## `[0048]` La bande de fiabilité — ce que Papa voit d'une mesure douteuse
+
+> Règle complète, signaux et calcul : **`docs/backend/fiabilite-de-la-mesure.md`** — source unique.
+> Ne pas la recopier ici. Maquette : `mockup/mockup-papa-fiabilite-mesure-v1.html`.
+
+Le diagnostic est le seul endroit de ZETIS où une mesure fausse **se propage**. L'`adr-0048` donne
+donc à chaque passation un **verdict de fiabilité**, visible **côté Papa seul**.
+
+**Trois ajouts à cette page, et rien d'autre :**
+
+1. **Une bande dans le panneau d'une passation**, entre l'en-tête et la portée en escalier — elle
+   qualifie la mesure **entière**, donc elle se lit **avant** les nombres. Elle liste les **faits
+   bruts** (« l'écran a été quitté 3 fois pendant la passation »), les **indices** en gris, et la
+   **portée de l'instrument** (combien de signaux étaient observables sur cet appareil).
+   Son unique geste est **« Remesurer cette matière → »** : la seule réponse à « à confirmer » est
+   une seconde mesure.
+2. **Une marque sur la ligne du rail** — `⚖️ à confirmer`, **ambre jamais rouge**, le mot écrit à
+   côté du symbole (règle de couleur `[0045]` §6). Sur le **troisième cran seulement** : les crans
+   non passés n'ont pas de mesure, donc rien à qualifier.
+3. **Le mot de Massimo dans la station ①**, à côté de la notion dont il parle — pas dans la bande,
+   qui ne contient que ce que ZETIS a **observé**, alors que ceci est ce que Massimo a **dit**.
+
+🔴 **Le vocabulaire est non négociable** : chaque libellé prend **la mesure** pour sujet, jamais
+l'enfant. « Cette mesure est à confirmer », pas « Massimo a peut-être triché ».
+
+🔴 **Ce que Papa ne doit pas faire du mot de Massimo, et que l'ADR écrit** : le lui reprocher. Le
+jour où « j'ai cherché » se retourne contre lui, la question ne reçoit plus jamais de réponse vraie.
+
+**Trois états, pas deux** — et la distinction est visible :
+
+| `reliability_json` | Ce que la page montre |
+|---|---|
+| `verdict = "a_confirmer"` | la bande ambre, ses faits, son geste |
+| `verdict = "rien_a_signaler"` | une ligne grise : *« Rien à signaler sur les conditions de cette passation. »* |
+| `null` (toutes les passations d'avant le chantier) | **rien du tout** — ZETIS ne regardait pas |
+
+⚠️ **Pas de bande verte « mesure fiable ✓ »** : ce serait une promesse que l'instrument ne peut pas
+tenir. Aucun signal du navigateur ne survit à un téléphone posé à côté de l'écran.
+
+### `[0048]` Trois registres dans la bande — corrigé à la relecture visuelle du 2026-08-09
+
+**Aucun des 36 sabotages ne pouvait voir ce qui suit** : la bande rendait **quatre badges « fait »
+pour trois déclencheurs**. Elle se contredisait dans le geste même qui explique sa règle — *un fait
+déclenche à lui seul* — et faisait lire un déclencheur de plus qu'il n'y en avait, le motif de
+l'`adr-0039` : un nombre qui dit autre chose que ce qu'il compte.
+
+| Registre | Glyphe | Badge | Contraste mesuré |
+|---|---|---|---:|
+| Un fait qui a **déclenché** | ◆ ambre | `fait` | 7,80:1 |
+| Un fait **sous son seuil** | ◆ gris | `sous le seuil` | **4,67:1** |
+| Un **indice** | ◇ gris | `indice` | 2,81:1 |
+
+**La forme dit la FAMILLE, le poids dit s'il a COMPTÉ.** Le contraste — seul fait à avoir un seuil
+d'ampleur — porte le badge `sous le seuil` quand il n'a pas franchi la majorité. ⚠️ **On ne le cache
+pas** : Papa peut légitimement vouloir savoir qu'il a frôlé.
+
+⚠️ Le ◆ gris était à **2,81:1**, soit le même poids que le ◇ de l'indice : la forme qui porte toute
+la distinction était ce qu'on voyait le moins. Il est passé à `/90`. Le ◇ **reste** à 2,81 — l'écart
+dit maintenant à voix haute ce que la seule forme disait tout bas.
+
+### `[0048]` La ligne « rien à signaler » DIT SA PORTÉE
+
+Elle était `text-papa-muted/70` sur une bordure pointillée — **presque effacée (3:1)** — **et
+muette**. Or *« rien vu »* ne veut rien dire tant qu'on ignore **sur combien d'yeux** ce rien repose.
+
+> 🔭 **Rien à signaler sur les conditions de cette passation.** `N` des `4` signaux étaient
+> observables sur cet appareil. *(+ « C'est donc un "rien vu", pas un "rien eu lieu" » quand N < 4.)*
+
+La portée compte **plus** ici que sur la bande ambre, où d'autres faits parlent déjà. Contraste porté
+à **16,25:1**, et un 🔭 pour l'ancrer.
+
+⚠️ **La bande ne se retire pas**, et n'a pas de bouton « j'ai vérifié ». Les conditions d'une
+passation sont un fait daté, au même titre que le score.
+
+⚠️ **Coût connu** : `LancerDiagnosticDialog` présélectionne toujours `subjects[0]`. « Remesurer cette
+matière → » lui demande **une prop de plus** — sans elle, le bouton ouvrirait la modale sur la
+mauvaise matière, le défaut exact que `[0045]` §5 a refusé de livrer.
+
 ## Hors périmètre
 
 Le **T0 sur les prérequis** — le graphe de prérequis n'existe pas (ni colonne ni table,
@@ -430,5 +508,11 @@ chantiers.
 `[0045]` S'y ajoutent, **écartés en connaissance de cause** : le bloc « Jamais généré » reste en
 lignes inertes (l'action existe en tête de page) · le « 37 j » est une troncature `.days`
 défendable, pas un défaut · le **N+1** de `GET /quizzes` et le plafond en dur de `GET /results` ·
-et l'**anti-triche du diagnostic** (temps par question, sortie d'écran, verbalisation), chantier
-suivant décidé le 2026-08-08 et consigné au `BACKLOG.md`.
+~~et l'**anti-triche du diagnostic**~~ → **cadré le 2026-08-09 par l'`adr-0048`** : voir la section
+`[0048]` ci-dessus.
+
+`[0048]` S'y ajoutent : **toute barrière** (bloquer la navigation est impossible côté web, et un site
+qui pourrait retenir son utilisateur serait une faille) · les **mouvements de souris** (bruit, et
+absents sur les deux appareils de Massimo) · l'**écran de passation**, qui n'est pas modifié · les
+**autres quiz** (seul le diagnostic propage, seul le diagnostic est instrumenté) · et **toute
+migration au-delà de `QuizAttempt.reliability_json`**, qui serait un blocker.
