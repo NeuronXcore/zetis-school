@@ -295,11 +295,34 @@ Questions à passer — **sans** la bonne réponse :
 
 Rend le résultat d'une passation de Massimo, **dans la forme enfant**, par la même fabrique que
 `POST /submit` : ce qu'il relit est exactement ce qu'il a vu en terminant.
-`{ attempt_id, quiz_id, subject, completed_at, strengths[], gaps: [{ skill_id, skill_name }] }`.
+`{ attempt_id, quiz_id, subject, completed_at, strengths[], gaps: [{ skill_id, skill_name }],
+verbalisation }`.
 
 🔴 **Ni `score_percent`, ni `per_skill`, ni `severity`.** Le score reste calculé, écrit sur la
 passation et servi à **Papa** — seule sa diffusion à l'enfant cesse. `404` (jamais `403`) sur une
 passation qui n'est pas la sienne.
+
+**`verbalisation` (ADR-0048)** — `{ question_id, skill_id, skill_name, explication }` ou `null` si
+la passation n'a aucune bonne réponse. C'est la **seule** part de l'anti-triche que Massimo voit :
+🔴 **aucun champ de fiabilité n'entre dans cette réponse**, et il n'est jamais accusé.
+
+⚠️ **Servie à CHAQUE passation, quel que soit le verdict.** La conditionner au doute la
+transformerait en accusation. Le tirage est **déterministe** (dérivé de l'`attempt_id`) : recharger
+repose la même question.
+
+### POST `/diagnostics/mes-resultats/{attempt_id}/explication` (Massimo) — ADR-0048 §5
+
+Corps : `{ question_id, texte }` (`texte` ≤ **200** caractères — une phrase *dite* est plus longue
+qu'une phrase tapée, et le champ porte un micro). Réponse : le même objet `verbalisation`, avec
+l'explication enregistrée.
+
+Le texte se range dans `quiz_answers.answer_json` de la question concernée : **zéro migration**. Il
+vit sur la **réponse** et non dans `reliability_json`, parce que celui-ci ne contient que ce que
+ZETIS a **observé**, alors que ceci est ce que Massimo a **dit**.
+
+🔴 **N'entre pas dans le calcul du verdict, et son absence encore moins** — la compter ferait de
+« Passer » un aveu. **Aucun XP** n'est accordé. `require_child`, même contrôle d'appartenance que
+`GET /mes-resultats/{attempt_id}`.
 
 ⚠️ **La route Papa n'est pas élargie** : `GET /results/{attempt_id}` reste `require_parent`, et son
 schéma porte le docstring « Vue Papa ». Deux publics, deux schémas (frontière `adr-0017 §3`).
@@ -310,8 +333,28 @@ base** — c'est un filtre d'affichage, pas une résolution.
 
 ### POST `/diagnostics/quizzes/{id}/submit` (Massimo)
 
-Corps : `{ answers: [{ question_id, choice_index }] }`. Corrige, écrit la tentative,
+Corps : `{ answers: [{ question_id, choice_index }], conditions? }`. Corrige, écrit la tentative,
 met à jour la maîtrise et ouvre les lacunes.
+
+**Champs d'observation (ADR-0048), TOUS optionnels** — un corps réduit à
+`{ question_id, choice_index }` continue de fonctionner **à l'identique** :
+
+```jsonc
+{
+  "answers": [{ "question_id": 41, "choice_index": 2,
+                "ms_reflexion": 8400,   // durée, jamais un horodatage (performance.now)
+                "quittee": false, "enonce_copie": false }],
+  "conditions": { "ms_total": 214000, "plein_ecran_quitte": false, "taille_changee": true,
+                  "signaux_observables": ["sortie_ecran", "copie", "taille"] }
+}
+```
+
+`ms_total` remplit enfin `duration_seconds` et rend `started_at` réel. `signaux_observables` dit ce
+que l'appareil **permettait** d'observer — sans lui, l'absence d'un signal se lirait comme l'absence
+du comportement (iOS Safari refuse le plein écran sur iPhone).
+
+⚠️ **Les cinq signaux du navigateur sont DÉCLARÉS par le client** ; seul le contraste avec
+l'historique est calculé serveur, et lui seul est infalsifiable.
 
 **Réponse : le schéma ENFANT, le même que `GET /mes-resultats/{attempt_id}`** et produit par la
 même fabrique (ADR-0044 §5) —
@@ -344,6 +387,10 @@ cran**, celui que Massimo ne voit pas encore.
 - `rail[]` — une entrée par **tentative** au 3ᵉ cran, une par **quiz** aux deux premiers.
   `cran` ∈ `genere | propose | passe`. `score_percent` est **`null` hors du 3ᵉ cran, jamais `0`**.
   `rang` numérote la passation **dans sa matière** (1ʳᵉ, 2ᵉ…). Un diagnostic `rejected` en sort.
+- `rail[].fiabilite_verdict` (ADR-0048) — `a_confirmer | rien_a_signaler | null`, pour que la marque
+  soit repérable **sans ouvrir le panneau**. Le **verdict seul**, jamais les faits : le rail signale,
+  le panneau explique. 🔴 **`null` hors du 3ᵉ cran** — une passation qui n'a pas eu lieu n'a pas de
+  mesure, donc rien à qualifier — **et** sur les passations d'avant le chantier.
 - `jauges.plus_ancienne_lecture` — la mesure la plus ancienne **encore invoquée** : pour chaque
   matière on garde la plus récente, puis on prend la plus vieille de celles-là. Ce n'est **pas** la
   plus vieille du dépôt, qu'une passation postérieure aurait déjà remplacée.
@@ -355,6 +402,22 @@ cran**, celui que Massimo ne voit pas encore.
 ### GET `/diagnostics/results` (Papa)
 
 Derniers diagnostics passés (⚠️ `limit=10` en dur), score par notion + lacunes ouvertes.
+
+**`fiabilite` et `verbalisation` (ADR-0048)**, servis ici **et** par `/results/{attempt_id}` — les
+deux routes partagent le schéma, et ne remplir qu'une seule ferait servir « ZETIS ne regardait pas »
+sur des passations bel et bien observées.
+
+`fiabilite` = `{ verdict, regle_version, faits{}, indices{}, declencheurs[], portee{} }`, **relu tel
+qu'écrit, jamais recalculé**. 🔴 **`null` = ZETIS ne regardait pas**, ce qui ne se confond pas avec
+`rien_a_signaler` : la page rend **trois** états, pas deux.
+
+⚠️ **Les indices (`reponses_rapides`, `taille_changee`) sont servis mais ne déclenchent JAMAIS** —
+ils s'affichent en gris. Les cacher au motif qu'ils sont bruités reviendrait à décider à la place de
+Papa, qui lit mieux qu'un seuil.
+
+`verbalisation` porte le mot de Massimo sur une de ses bonnes réponses. 🔴 **Il ne doit jamais lui
+être reproché** : le jour où « j'ai cherché » se retourne contre lui, la question ne reçoit plus
+jamais de réponse vraie.
 
 **`per_skill[]`** porte `questions_count` — le **grain** de la mesure (ADR-0043 Décision 3).
 `QUESTIONS_PER_SKILL` est passé de 2 à 5, mais **seulement pour les passations futures** : la

@@ -4,193 +4,138 @@
 > décisions actives / prochain pas. Écrit pour la **prochaine session, sans contexte**.
 > L'état du **code** se lit dans Git ; les **décisions figées** dans `DECISIONS.md`/les ADR ;
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
-
 ## État à la reprise
 
-> 🔴 **LA DERNIÈRE SESSION EST UN CADRAGE, ET SES FICHIERS NE SONT PAS COMMITÉS.**
-> *2026-08-09 — à lire avant tout le reste, sinon on croit que le dernier fait est le merge de
-> l'ADR-0047 ci-dessous.*
->
-> **Ce qui a été fait** : le cadrage complet de l'**anti-triche du diagnostic**, `mockup → spec →
-> ADR → prompt`, sur `main`, **sans une ligne de code**. Détail au § *Chantier suivant*, plus bas.
->
-> **EN COURS / à faire tout de suite** : l'arbre de travail porte les fichiers du cadrage,
-> **non commités** — la liste exacte est `git status`, et non un nombre écrit ici, qui serait faux
-> au premier ajout. Ils partent en **DEUX commits sur deux refs** (`WORKFLOW.md §2bis`) :
->
-> | Lot | Où | Contenu |
-> |---|---|---|
-> | 1 — **d'abord** | `main` | ADR-0048 · `DECISIONS.md` · `MEMORY.md` · `BACKLOG.md` · `TROUBLESHOOTING.md` · `.claude/commands/cloture.md` |
-> | 2 — ensuite | branche créée par `/ouverture` | spec `docs/backend/fiabilite-de-la-mesure.md` · les 2 specs de page · les 2 maquettes · le prompt |
->
-> ⚠️ **L'ordre n'est pas décoratif** : `/ouverture` **s'arrête** s'il voit `DECISIONS.md` modifié.
->
-> ✅ **L'arbitrage sur la voix est TRANCHÉ : elle est DANS le périmètre** (ADR **Décision 5 bis**,
-> 2026-08-09). Le cadrage l'avait exclue sur une affirmation **fausse**, corrigée à la clôture. Coût
-> réel : **trois imports, zéro backend** — `lib/dictation.ts` et `transcribeEli5` sont **déjà**
-> utilisés par `ChatPage.tsx`. Voir `TROUBLESHOOTING.md` § *Cadrage de l'ADR-0048* pour la cause de
-> l'erreur (un `grep` mort en zsh, dont le vide s'est lu comme une absence de résultats).
->
-> **PROCHAIN PAS** : commit du lot 1 → commit/push → puis `/ouverture anti-triche-diagnostic
-> ADR-0048`.
-
-**Chantier précédent : « la page Lacunes permet d'agir » (ADR-0047).
-✅ COMPLET et ✅ MERGÉ SUR `main` (2026-08-09). Ne pas ré-implémenter.**
+**Chantier : « ZETIS doute de sa propre mesure » — l'anti-triche du diagnostic (ADR-0048).
+🟡 EN COURS. Session A sur 3 faite. NI PR, NI MERGE.**
 
 | | |
 |---|---|
-| **Mergé** | PR [#105](https://github.com/NeuronXcore/zetis-school/pull/105), **squash `9dce148`**, base `6641f8a` (vérifié : parent du squash) |
-| **État git** | `main` = `origin/main` = `9dce148` — **rien à pousser** |
-| **Branche** | `feat/lacunes-permettent-d-agir` — 🔴 **CONSERVÉE**, locale ET distante. Mergée **sans** `--delete-branch` |
-| **Décisions** | ADR-0047 **Accepté**, 8 décisions — ⚠️ **TROIS ont été corrigées à l'exécution** (4, 3 et 8), voir plus bas |
-| **Migration** | **AUCUNE**, aucun endpoint neuf, aucune surface Massimo |
-| **Suites** | Backend **1074 → 1080** (+1 rouge pré-existant, prouvé tel) · Papa **707 → 726** (+19) · `tsc -b` Papa + Massimo **0** |
-| **Sabotages** | **13 joués, 13 rouges** (5 en session A, 8 en B), chacun avec contrôle d'application |
-| **Relecture visuelle** | ✅ **FAITE par le commanditaire (2026-08-09), RIEN RELEVÉ.** Après l'ouverture de la PR [#105](https://github.com/NeuronXcore/zetis-school/pull/105) ; l'ADR la voulait **avant** — écart assumé, écrit dans le corps de la PR. ⚠️ **Une relecture qui ne trouve rien est l'exception ici** : celle de l'`adr-0043` avait sorti **cinq** défauts en quelques minutes, et c'est elle qui a fait naître ce chantier |
+| **Branche** | `feat/anti-triche-diagnostic` — **vivante**, c'est elle qui porte l'état intermédiaire |
+| **Base** | `7108cf8` (ne bouge pas). Nombre de commits : `git log --oneline main..HEAD` |
+| **Décisions** | ADR-0048 **Accepté**, **11 décisions gelées** — on les relit, on ne les rouvre pas |
+| **Migration** | `e2f3a4b5c6d7` — `quiz_attempts.reliability_json`, **appliquée sur la base de dev** (colonne vérifiée par `inspect`). **La seule du chantier ; une seconde est un blocker** |
+| **Suites** | Backend **1081 → 1108** (+27), **aucun test existant modifié** |
+| **Sabotages** | **15 joués, 15 rouges**, chacun avec contrôle d'application |
+| **Relecture visuelle** | ❌ **sans objet en Session A** — backend seul, aucun écran. Elle sera **obligatoire** après la Session C, sur les **deux** apps |
 
-### FAIT — les deux sessions
+### FAIT — Session A, « le backend apprend à douter »
 
-**Session A — le contrat porte de quoi agir.** `lesson_id` et `mission_id` sur `OpenGap`, pour
-**zéro requête** : les deux étaient déjà calculés puis jetés. `content_state.etat_et_lecon` rend
-l'état ET la leçon en une passe ; `progress.missions_by_skill` porte l'ensemble ET l'identifiant, et
-`skills_with_active_mission` en **dérive**.
+- **`app/modules/diagnostics/fiabilite.py`** (neuf) : les **trois sources** de trace, quatre faits,
+  deux indices, le verdict figé avec sa `regle_version`.
+- **`submit()`** : signaux par question dans `answer_json` (**zéro migration**), `reliability_json`
+  écrit **une fois**, et 🔴 **`duration_seconds` + `started_at` enfin réels** — ils valaient zéro par
+  construction depuis l'étape 14.
+- **Contrat de `POST /submit`** élargi en champs **optionnels** : le corps d'avant le chantier marche
+  à l'identique.
+- **Le verdict servi à Papa** sur `/results`, `/results/{id}` et chaque ligne passée du rail
+  d'`/apercu`. **Rien chez Massimo.**
+- **`POST /api/diagnostics/mes-resultats/{id}/explication`** (`require_child`) + le **tirage
+  déterministe** de la notion à verbaliser.
 
-**Session B — la ligne devient un geste.** `lib/gesteLacune.ts` (la règle, testable sans monter la
-page) + son rendu, le motif en clair, la règle responsive, `?focus=` sur `/missions`, et « Voir la
-lacune → » de la station ② qui transporte enfin la matière.
+### 🔴 UNE RÈGLE DE L'ADR A ÉTÉ CORRIGÉE AU READ-BEFORE-CODE — ne pas la relire dans sa version d'origine
 
-### 🔴 TROIS DÉCISIONS DE L'ADR ONT ÉTÉ CORRIGÉES — ne pas les relire dans leur version d'origine
+La spec définissait « jamais rencontrée » par *« aucun `LearningEvent` de travail sur cette
+notion »*. **C'était faux**, et le chantier aurait livré sa propre défaillance : sur les **10**
+appels à `log_learning_event`, **3 seulement** passent un `skill_id`, et **le diagnostic n'en fait
+pas partie**. Une notion mesurée par trois diagnostics antérieurs aurait été comptée « jamais
+rencontrée » → la bande serait apparue **presque à chaque passation**.
 
-1. **Décision 4 — le départage des leçons.** L'ADR disait « l'`id` le plus grand » ;
-   `lessons_by_skill` trie **déjà** `(updated_at, id)` pour ses cinq appelants. Deux ordres qui
-   divergent. **L'ordre existant gagne, l'ADR se corrige.**
-2. **Décision 3 — `aucune_lecon`.** L'ADR disait « Produire le quiz de cette notion → »
-   vers `/quiz?skill=`. `/quiz` pilote les quiz **de fin de cours**, « générés depuis le cours
-   validé d'une leçon » — exactement ce qui manque ici. **C'est une ACTION** (`equipNotion`), qui
-   produit cinq pièces et non un quiz.
-3. **Décision 8 — la station ②.** « Trois lignes » était faux : deux de ses trois gestes demandent
-   un champ backend ou une machinerie d'action. **Réduite à « Voir la lacune → »**, qui ne coûte
-   rien (le slug est déjà sur l'entrée du rail).
+**La trace se lit sur TROIS sources en union** (décision du commanditaire, la 3ᵉ ajoutée sur
+arbitrage) : `SkillMastery` · `LearningEvent(skill_id)` hors `NON_WORK_EVENTS` ·
+`LessonView ⋈ LessonSkill`. Détail : spec **§3.4 bis**.
 
-Les trois sont écrites **avec leur motif** dans l'ADR, `DECISIONS.md` et les specs.
+### EN COURS — rien d'instable
 
-### FAIT AUSSI — deux retours d'usage du commanditaire (2026-08-09, après la clôture)
+Aucun fichier à moitié écrit. La suite est verte, l'arbre est cohérent.
 
-Le chantier a été **rouvert** après sa première clôture, sur deux demandes faites en regardant
-l'écran :
+### À FAIRE — Sessions B puis C
 
-- **L'anneau ambre** sur la mission ouverte par `?focus=` — déplier et centrer ne suffisait pas.
-  🔴 Estompage **en CSS**, jamais par `setTimeout` : sous `prefers-reduced-motion` l'animation est
-  coupée et **l'anneau reste**. C'est le patron du dépôt (« FIGE SANS RIEN RETIRER »), et il évite
-  une ligne de JS.
-- **Le sélecteur de matières** sur `/lacunes`. Le filtre existait mais n'était atteignable que par
-  un lien externe. `SubjectFilterChips`, alimenté par les matières **des lacunes elles-mêmes** :
-  zéro requête, et aucune matière qui mènerait à une page vide.
-
-### EN COURS — rien
-
-Aucun fichier à moitié écrit, aucun état instable.
-
-### 🔴 DEUX CHANTIERS NÉS DE CES ÉCHANGES — cadrés au `BACKLOG`, PAS ouverts
-
-Le commanditaire les a retenus tous les deux. **Aucun n'est du code** : les deux demandent un
-cadrage avant la moindre ligne.
-
-1. **Une lacune comblée AUTREMENT ne se referme jamais.** Vérifié : **un seul** endroit écrit
-   `gap.status = "resolved"` (`missions/service.py:1011`, fin de mission). Quiz réussi, diagnostic
-   repassé, carte SRS acquise — rien ne referme. ⚠️ **Ce chantier vient d'aggraver le défaut** : la
-   page propose maintenant d'AGIR, donc de produire du contenu pour une notion peut-être déjà
-   acquise. C'est une **doctrine** (quel signal vaut résolution ?), pas un correctif, et elle
-   touche quatre modules.
-2. **Une vue calendrier sur `/lacunes`.** ⚠️ Elle **contredit une décision écrite** de la spec
-   (« ce n'est pas une surface de mesure »). Il faut un **addendum à l'`adr-0047`** qui la révoque
-   ou reformule le besoin — le dépôt interdit de contourner une décision sans la nommer.
-   ✅ La moitié « tri par matières » de la demande **est livrée**.
+- **Session B — le front de Massimo observe, puis demande.** Le hook d'observation (silencieux),
+  l'envoi avec les réponses, et la carte « Raconte-moi » **avec son micro**.
+  🔴 **L'écran de passation ne change pas d'un pixel** : ni chrono, ni compteur, ni avertissement.
+- **Session C — Papa voit, et peut remesurer.** La bande de fiabilité (trois états), la marque du
+  rail, le mot de Massimo dans la station ①, et **une prop de présélection** sur
+  `LancerDiagnosticDialog` (il force `subjects[0]`).
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-- **Le grain est la NOTION, jamais la matière.**
-- **`has_active_mission` est testé EN PREMIER**, avant tout `content_state`.
-- **Un geste n'est rendu que si son identifiant l'est** — jamais `?focus=undefined`.
-- **La branche par défaut ne rend AUCUN geste** — pas de repli.
-- **« Voir la mission » est BLEU** (`papa-accent-2`) : le vert est la couleur des gestes qui font
-  avancer, celui-ci constate.
-- **La forme suit ce que le geste fait** : `aucune_lecon` est un `<button>`, les trois autres des
-  `<Link>`.
+- **Un FAIT déclenche seul, un INDICE jamais** — la frontière est la part d'interprétation.
+- **Aucune barrière** : bloquer la navigation est impossible côté web. Le plein écran est un
+  **signal**.
+- **La propagation ne change pas** ; le verdict **s'y attache**. Pas d'état intermédiaire.
+- **Le verdict est FIGÉ à l'écriture**, jamais dérivé à la lecture (`regle_version`).
+- **La verbalisation est INCONDITIONNELLE** — la conditionner au doute la transformerait en
+  accusation. **Pas d'XP** dessus.
+- **Trois états côté Papa** : `a_confirmer` / `rien_a_signaler` / **`null` = ZETIS ne regardait
+  pas**. Pas de bande verte.
+- **La seule réponse à « à confirmer » est de REMESURER** — la bande ne se retire pas.
+- **La VOIX est dans le périmètre** (Décision 5 bis) — mais on copie `ChatPage` **sauf sur un
+  point** : la transcription **atterrit dans le champ**, elle ne s'envoie pas toute seule.
+- 🔴 **La règle de vocabulaire est une contrainte de CODE** : tout prend **la mesure** pour sujet,
+  jamais l'enfant — libellés, champs, commentaires **et messages de commit**.
 
 ### PIÈGES rencontrés → `TROUBLESHOOTING.md`
 
-Deux sections, `feat/lacunes-permettent-d-agir` Sessions A et B. Les trois qui coûteraient le plus :
-🔴 **deux fonctions sœurs sur la même donnée = DEUX requêtes**, et **aucun test unitaire ne le
-voit** — il faut compter le SQL ;
-🔴 **une destination qui EXISTE ne garantit pas qu'elle puisse tenir la promesse du lien** ;
-🔴 **`active_missions` et `pilot_list` ne voient pas la même population** — un `?focus=` cherché
-dans une seule liste serait mort une fois sur deux.
+Section « Session A de l'ADR-0048 ». Les trois qui coûteraient le plus :
+🔴 **un id de révision Alembic déjà pris ne dit pas « doublon »** — il dit *« Cycle is detected »* en
+listant 42 révisions, et l'autorité pour la tête est `alembic heads`, pas un `grep` ;
+🔴 **six sabotages sur quinze n'avaient pas été APPLIQUÉS** et « prouvaient » quelque chose — sans
+contrôle d'application, on annonce des verrous creux ;
+🔴 **un sabotage bien intentionné est resté vert** parce que `response_model` protégeait déjà : la
+fuite chez Massimo demande **deux** gestes, service **et** schéma.
 
 ### ⚠️ DETTES OUVERTES
 
-**Nées de ce chantier :**
+**Nées de cette session :**
 
-- ✅ **La relecture visuelle HUMAINE est FAITE (2026-08-09).** Elle a eu lieu **après** l'ouverture
-  de la PR, là où l'ADR la voulait avant — écart assumé, consigné dans le corps de la PR #105.
-  ⚠️ **Ce que l'agent n'avait PAS pu voir** et qui relevait donc entièrement d'elle : l'action
-  « Équiper » jouée jusqu'au bout (génération LLM ~69 s auto-validée, cinq pièces écrites en base),
-  et la station ② corrigée à l'écran.
-- 🔴 **Le responsive Papa n'est pas jugeable à 375 px, et ce n'est pas ce chantier** : la sidebar y
-  prend **256 px** des 375, `main` n'en garde **119**, la ligne 71, son corps 37. La règle du
-  chantier **s'applique bien** (`flex-basis: 100%` mesuré au DOM) — elle ne peut rien contre ce
-  conteneur. Validée à **768 px**. C'est la dette `w-64 shrink-0` ci-dessous.
-- ⚠️ **Les deux gestes de la station ② sur-promettent toujours** — « cette notion » / « cette
-  leçon » mènent à la **matière**. Un test **fige la dette** (`PanneauPassation.test.tsx`) : s'il
-  tombe, c'est qu'elle est payée — le **supprimer**, pas l'ajuster. Chiffrage réel au `BACKLOG`.
-- ⚠️ **Le test de coût backend assert un PLAFOND (`<= 4`), pas une égalité.**
-- ⚠️ **`missions_by_skill` à priorités égales** rend l'`id` le plus petit, par l'ordre existant.
-  Verrouillé indirectement, pas nommé dans un test dédié.
-- 🔴 **`API_SPEC.md` n'a AUCUN contrôle automatique**, et il avait **un chantier de retard**
-  (ni `source` ni `content_state`, servis depuis l'`adr-0045` mergée). Remis au réel ici — rien
-  n'empêche la prochaine dérive.
-- ⚠️ **Données de dev touchées puis RESTAURÉES** : missions **12, 48, 56, 59, 64** passées à
-  `completed` pour faire apparaître les gestes autres que « Voir la mission », puis remises à
-  (`12: active`, les quatre autres `planned`) — **restauration vérifiée à l'écran** : une seule
-  section, 10 liens, 0 bouton.
+- 🔴 **`DECISIONS.md` porte encore l'ANCIENNE règle du contraste** (une seule source). Il **ne va
+  jamais sur la branche** — à corriger **sur `main`**, en même temps que l'ajout de la Décision
+  5 bis à son entrée d'index.
+- 🔴 **DEUX migrations ne sont pas en prod** : `a9b0c1d2e3f4` (héritée) et **`e2f3a4b5c6d7`**
+  (cette session), qui se pose dessus.
+- ⚠️ **Les seuils du contraste sont des choix de cadrage, jamais éprouvés sur des données réelles** :
+  `CONTRASTE_SCORE_MIN = 90`, plancher `2`, majorité stricte, et `RAPIDE_FRACTION_MEDIANE = 0.4`.
+  Le premier signal de dérive sera « la bande apparaît presque à chaque passation » — et alors
+  **vérifier les trois sources AVANT les seuils**.
+- ⚠️ **`signaux_observables` est déclaré par le client et n'est vérifié par rien côté serveur.** La
+  portée affichée à Papa vaut ce que le front en dit.
+- ⚠️ **Aucun lint joué** : `ruff` n'est pas installé dans le venv du backend. Non ajouté.
+- ⚠️ **`fiabilite.evaluer` n'est pas exercée avec un `per_skill` contenant `skill_id = None`** en
+  intégration — seulement en unitaire, où les notions sans identifiant sont exclues du dénominateur.
 
 **Héritées, et toujours vraies :**
 
-- 🔴 **HUIT branches de chantier sont conservées** — les sept d'avant plus
-  `feat/lacunes-permettent-d-agir`. Le dépôt a `delete_branch_on_merge: false`. **Aucune n'est à
-  supprimer sans consigne**, et leurs noms se ressemblent assez pour qu'un `git branch -d` distrait
-  fasse le mauvais.
-- 🔴 **La sidebar Papa n'est toujours pas responsive** — `w-64 shrink-0` sans point de rupture,
-  alors que Massimo a reçu son tiroir le 2026-08-04. **Mesurée cette session** : elle rend toute
-  page Papa inutilisable à 375 px. Le chantier est le même, déjà mené une fois.
-- 🔴 **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
+- ⚠️ **Les deux gestes de la station ② sur-promettent toujours** — « cette notion » / « cette
+  leçon » mènent à la **matière**. Un test **fige la dette** (`PanneauPassation.test.tsx`) : s'il
+  tombe, c'est qu'elle est payée — le **supprimer**, pas l'ajuster. Chiffrage au `BACKLOG`.
+- 🔴 **`API_SPEC.md` n'a AUCUN contrôle automatique** et avait déjà **un chantier de retard** une
+  fois. Remis au réel à cette clôture — rien n'empêche la prochaine dérive.
+- 🔴 **HUIT branches de chantier sont conservées** (neuf avec `feat/anti-triche-diagnostic`). Le
+  dépôt a `delete_branch_on_merge: false`. **Aucune n'est à supprimer sans consigne**, et leurs noms
+  se ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais.
+- 🔴 **La sidebar Papa n'est toujours pas responsive** — `w-64 shrink-0` sans point de rupture. Elle
+  rend toute page Papa inutilisable à 375 px.
 - 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
-- 🔴 **`response_model` filtre en SILENCE les champs non déclarés** — vaut pour toute route FastAPI.
-  Un verrou existe désormais pour `/progress/gaps`, et pour elle seule.
-- 🔴 **Deux tests de `test_dashboard.py` alternent au rouge selon l'heure** — pré-existants.
-  ⚠️ **Reconfirmé et PROUVÉ pré-existant** par `git stash` du code backend de ce chantier.
+- 🔴 **`response_model` filtre en SILENCE les champs non déclarés** — un verrou existe pour
+  `/progress/gaps`, et désormais pour `/diagnostics/results/{id}` et le rail. Pas ailleurs.
+- 🔴 **Deux tests de `test_dashboard.py` alternent au rouge selon l'heure** — pré-existants,
+  prouvés tels. ✅ Verts sur les deux suites complètes de cette session.
 - 🔴 **L'e-mail du watchdog n'a jamais atteint une VRAIE boîte** — 4 lignes SMTP du `.env` racine
   (21-25) à décommenter, mot de passe d'application Gmail, puis `python -m app.core.mailer`.
-  ⚠️ Un backend déjà lancé ne verra pas le nouveau `.env`.
 - 🔴 **`POSTGRES_PASSWORD` reste `zetis_dev_password`** dans le `.env` racine.
 - ⚠️ **`mem_limit: 1g` est calé sur une mesure À VIDE** (92 / 41 Mio) — à relever si un OOM
   apparaît, **jamais à baisser** sans nouvelle mesure.
-- ✅ **Le worker de production est ARRÊTÉ** (2026-08-09, fin de session — vérifié : plus aucun
-  processus). Arrêté par `SIGTERM`, que **RQ intercepte** : il finit son travail en cours avant de
-  sortir, ~2 s mesurées, code de sortie 143 (= `128 + SIGTERM`, l'arrêt propre — pas une erreur).
-  Pour le relancer : `pnpm dev:worker`.
-  ⚠️ **Sans lui, un lot lancé depuis la Couverture reste `queued` INDÉFINIMENT**, et la bande
-  affiche « ZETIS ne produit pas · aucun moteur de production actif ». **C'est le comportement
-  juste, pas une panne** — mais c'est le genre de chose qu'on découvre une heure plus tard.
+- ✅ **Le worker de production est ARRÊTÉ** (2026-08-09). Relance : `pnpm dev:worker`.
+  ⚠️ **Sans lui, un lot lancé depuis la Couverture reste `queued` INDÉFINIMENT.**
   Vérifier : `pgrep -fl "app.production_worker"`.
 - ⚠️ **Le `lifespan` de `main.py` est la PREMIÈRE tâche de fond du backend** — non exercé par les
-  tests (la boucle dort d'abord, exprès).
+  tests.
 - ⚠️ **Données de dev ADR-0046** : la pile prod porte le **quiz 4** (SVT, `pending`) et son
   `ai_job 114`.
 - ⚠️ **Le journal de production affiche « fait en 95 s » sur un travail resté 25 H en file.**
 - ⚠️ **Dans le compose DEV, `worker-media` est sur `networks:[internal]` SEUL.**
 - ⚠️ **Massimo voit 18 diagnostics validés, dont 11 en Français pour 2 passés**, 2 doublons Maths.
-  C'est la **donnée**, pas la page : l'`adr-0044` hiérarchise, il ne déduplique pas.
 - ⚠️ **L'écran de résultat de Massimo affiche jusqu'à 8 notions à renforcer d'affilée.**
 - ⚠️ **La branche `null` de `measured_at`** n'est exercée par aucune donnée réelle.
 - ⚠️ **Rien ne referme une lacune quand la notion est réussie** — seul `missions/service.py` écrit
@@ -198,71 +143,31 @@ dans une seule liste serait mort une fois sur deux.
 - **Papa valide un diagnostic sans pouvoir le LIRE** depuis la file (`reviewLink` rend `null`).
 - **Les 14 défauts du module `diagnostics`** restent au `BACKLOG.md`, aucun traité.
 - ⚠️ **Le panneau Diagnostic reste sur une matière que la pastille exclut** — pré-existant.
-- ⚠️ **`avec_quiz` exclut les `rejected`** — non exercé.
 - ⚠️ **Données de dev ADR-0045** : le **quiz 30 est laissé en `pending`**. Annuler par
   `UPDATE quizzes SET validation_status='validated' WHERE id=30;`.
 - **Artefacts de dev ADR-0042 en base** : `Skill 436`, `Quiz 54`, `Gap 2`, `Mission 56`. Ordre de
   suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion` → `Quiz`
   → `Skill`.
 - **Résidus de la vérification 375 px** : simulateurs `ZETIS-375` et `ZETIS-393`
-  (`xcrun simctl delete`). La paire `backend-lan` / `massimo-lan` est la **seule joignable depuis
-  un vrai iPhone**.
+  (`xcrun simctl delete`).
 
 ### ▶▶ PROCHAIN PAS
 
-**Le chantier est CLOS.** Mergé (squash `9dce148`), branche conservée, relecture humaine faite,
-étape 4bis **faite dans l'heure qui a suivi le merge**. ⚠️ **Ne rien en recommencer.**
-
-> ✅ **Le geste que le 4bis ne demande pas a été fait cette fois** : les **trois** annonces
-> « à faire » qui survivaient au merge ont été retirées — le Statut de l'ADR (« pas encore
-> mergé »), l'entrée `DECISIONS.md` (« Accepté ≠ livré, rien n'est implémenté ») et l'en-tête de ce
-> fichier (« PAS ENCORE MERGÉ »). C'est exactement ce que l'`adr-0044` avait laissé traîner
-> vingt-quatre heures, assez pour envoyer la session du matin re-cadrer un chantier livré.
-> **Le contrôle qui les a trouvées est un `grep` sur les formules d'annonce**, pas une relecture.
-
-⚠️ **Piège de vérification, s'il faut y revenir** : pour voir les gestes autres que « Voir la
-mission », il faut **fabriquer le cas** — les 10 lacunes sont toutes couvertes. Libérer **toutes**
-les missions actives d'une notion (une seule ne suffit pas, mesuré), relever leurs états avant, et
-**remettre la base après**.
-
-**Chantier suivant — trois candidats au `BACKLOG.md`, et le premier est CADRÉ, PRÊT À CODER :**
-
-1. ✅ **L'anti-triche du diagnostic — CADRAGE TERMINÉ le 2026-08-09, `adr-0048` ACCEPTÉ.**
-   🔴 **NE RIEN RE-CADRER. Les 10 décisions sont GELÉES — on les relit, on ne les rouvre pas.** Le
-   rituel complet a été fait en **deux sessions le même jour**, **sans une ligne de code** :
-   `docs/decisions/adr-0048-zetis-doute-de-sa-propre-mesure.md` · spec **source unique**
-   `docs/backend/fiabilite-de-la-mesure.md` · passages `[0048]` dans les deux specs de page · deux
-   maquettes **vues à l'écran** · prompt **trois sessions**
+1. **Commit + push de la Session A** sur `feat/anti-triche-diagnostic`. **NI PR, NI MERGE** — le
+   chantier n'est pas fini.
+2. **Sur `main`, séparément** : corriger l'entrée `DECISIONS.md` de l'ADR-0048 (règle du contraste à
+   trois sources + Décision 5 bis). `DECISIONS.md` ne va **jamais** sur une branche.
+3. **Session B** : `/slice`, puis le bloc « SESSION B » de
    `prompts/claude-code/prompts-claude-code-adr-0048.md`.
-   🔴 **Accepté ≠ livré — RIEN n'est implémenté.** Prochain pas : **`/ouverture`**, puis la Session A.
-   **Une seule migration dans tout le chantier** (`QuizAttempt.reliability_json`) — une seconde est
-   un **blocker**.
-   🔴 **Les deux pièges qui rendraient le chantier inopérant EN RESTANT VERT**, et qui sont la vraie
-   raison de lire le prompt avant de coder : le **contraste calculé après `_upsert_skill_mastery`
-   vaut toujours zéro** (la passation se comparerait à elle-même, et rien ne rougirait), et
-   **`NON_ACTIVITY_EVENTS` au lieu de `NON_WORK_EVENTS`** ferait compter un `page_viewed` comme du
-   travail — le défaut déjà payé sur `production.runner.massimo_is_active`.
-   ⚠️ **La règle de vocabulaire est une contrainte de CODE** : tout prend **la mesure** pour sujet,
-   jamais l'enfant — libellés, noms de champs, commentaires **et messages de commit**.
-   ✅ **La VOIX est dans le périmètre** (Décision **5 bis**) : la carte « Raconte-moi » porte un
-   micro. **Trois imports, zéro backend** — `lib/dictation.ts` et `transcribeEli5` sont **déjà**
-   importés par `ChatPage.tsx`, un écran non-ELI5. 🔴 **Mais on copie ChatPage SAUF sur un point** :
-   la transcription **atterrit dans le champ**, elle ne s'envoie pas toute seule (patron ELI5) —
-   Massimo doit pouvoir corriger Whisper, et la carte n'a qu'un chemin de soumission.
-   ⚠️ Le micro **se masque en silence** quand il n'est pas supporté ou que le STT répond 503 : à la
-   vérification, **il faut aller le chercher**, son absence ressemble à une absence d'implémentation.
-2. **Une lacune comblée autrement ne se referme jamais** — né du chantier ADR-0047, qui l'aggrave.
-   Doctrine, quatre modules. **Non cadré.**
-3. **La vue calendrier sur `/lacunes`** — demande d'abord un **addendum** qui révoque une décision
-   écrite de la spec. **Non cadré.**
+   ⚠️ **À lire avant** : `ChatPage.tsx` est le modèle du micro — **sauf** que la transcription
+   atterrit dans le champ au lieu de partir toute seule.
 
-Les deux derniers demandent le **rituel complet** (`mockup → spec → ADR → prompt`) : une session de
-cadrage sur `main` avant la moindre ligne, puis `/ouverture`.
+⚠️ **Piège de vérification pour la Session C** : il faudra **semer une passation « à confirmer » en
+dev**, plus une `rien_a_signaler`, et **en garder une à `null`**. Les trois états se vérifient
+ensemble ou pas du tout — sans ça la bande part non vue, exactement le constat n° 6 de l'`adr-0045`
+qui a déjà coûté une moitié d'optimisation.
 
 ---
-
-
-
 
 ## Dettes SURVIVANTES des chantiers élagués
 

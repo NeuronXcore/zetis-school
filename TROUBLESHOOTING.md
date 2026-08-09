@@ -4262,3 +4262,72 @@ argument contenant `*` non quoté est concerné.
 contre une **commande qui n'a pas tourné**. Une affirmation négative (« ça n'existe pas ») tirée d'un
 outil de recherche doit être confirmée par une commande qui, elle, rend quelque chose — ici,
 `ls apps/frontend-massimo/src/lib/` aurait suffi.
+
+## Session A de l'ADR-0048 (le backend apprend à douter) — 2026-08-09
+
+### 🔴 Un id de révision Alembic DÉJÀ PRIS ne dit pas « doublon » — il dit « Cycle is detected »
+
+**Ce qui s'est passé.** J'ai numéroté la migration à la main : `c3d4e5f6a7b8`. Cet id était **déjà
+celui** de `c3d4e5f6a7b8_add_capsule_lot1_fields.py`. Alembic n'a pas dit « revision dupliquée » ;
+il a répondu :
+
+```
+ERROR [alembic.util.messaging] Cycle is detected in revisions (a1b2c3d4e5f7, a1b2c3d4e5f9, … 42 ids …)
+```
+
+**Quarante-deux révisions listées, dont aucune n'est la cause.** Le message ne nomme ni le doublon,
+ni les deux fichiers concernés.
+
+**Comment on trouve, en une commande** : sortir sa propre migration du dossier et relancer. Si le
+cycle disparaît, c'est le nouveau fichier — et alors :
+
+```bash
+grep -h '^revision = ' alembic/versions/*.py | sort | uniq -d
+```
+
+**La parade** : ne pas inventer d'id à la main sans le vérifier, et surtout —
+
+### 🔴 `alembic heads` est l'AUTORITÉ sur la tête, pas un `grep` sur `down_revision`
+
+J'avais écrit un script Python pour trouver la tête du graphe : il a rendu `a1b2c3d4e5f9`. **La
+vraie tête est `a9b0c1d2e3f4`**, et `alembic heads` le dit en une ligne.
+
+**La cause** : le dépôt écrit `down_revision` sous **deux formes**, et un regex sur
+`^down_revision\s*=` ne voit que la première :
+
+```python
+down_revision = "f7a8b9c0d1e2"                    # forme A
+down_revision: str | None = "a1b2c3d4e5f9"        # forme B — annotée, ratée par le regex naïf
+```
+
+Une migration greffée sur une fausse tête crée une **branche silencieuse** : `alembic upgrade head`
+échoue avec « multiple heads », ou pire, applique une moitié du graphe.
+
+### 🔴 Six sabotages sur quinze n'avaient pas été APPLIQUÉS — et « prouvaient » quelque chose
+
+Le script de sabotage passait ses motifs à un helper Python via `zsh`. **`zsh` transmet `\n` en deux
+caractères** : les motifs multi-lignes ne matchaient jamais, et les remplacements injectaient un
+`\n` littéral dans le source → `SyntaxError`. Le test « échouait », donc paraissait rouge.
+
+**Ce qui a sauvé la mesure** : le script distinguait explicitement **trois** issues — `rouge`,
+`RESTÉ VERT`, et **`SABOTAGE NON APPLIQUÉ (motif absent)`** — et refusait de compter les deux
+dernières. Sans ce troisième cas, six verrous creux auraient été annoncés comme tenus.
+
+**La parade, générale** : un script de sabotage doit **échouer bruyamment** quand la substitution
+n'a pas eu lieu, et interpréter ses `\n` (`avant.replace("\\n", "\n")`).
+
+### 🔴 Un sabotage peut rester VERT parce qu'une AUTRE protection joue — et le verrou n'est pas mauvais
+
+Sabotage : ajouter `"fiabilite": attempt.reliability_json` à la vue enfant, pour vérifier que
+`test_MASSIMO_ne_voit_RIEN_du_verdict` rougit. **Il est resté vert.**
+
+**Ce n'est pas un défaut du test** : `DiagnosticResultOut` ne déclare pas ce champ, et
+`response_model` le retire **en silence**. Le mécanisme qui a coûté deux chantiers au dépôt
+(ADR-0045 puis ADR-0047) jouait ici **en notre faveur**.
+
+**Le sabotage qui vise juste demande DEUX gestes** : produire le champ dans le service **et** le
+déclarer dans le schéma enfant. Rejoué ainsi → rouge.
+
+⚠️ **La leçon dépasse ce test** : quand un sabotage reste vert, la question n'est pas seulement
+« mon verrou est-il mauvais ? » mais **« qu'est-ce qui protège déjà, et le test le sait-il ? »**.
+Un verrou dont on ignore le vrai gardien sera cru mort le jour où le gardien changera.

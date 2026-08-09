@@ -87,6 +87,18 @@ class QuizAttempt(Base):
     score_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     context: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Les conditions dans lesquelles cette mesure a été prise (ADR-0048). **Écrit UNE fois, à la
+    # soumission, et jamais recalculé à la lecture** : une règle qui change re-jugerait sinon tout
+    # l'historique, et une mesure que Papa a déjà lue changerait d'avis sous ses yeux. `regle_version`
+    # dit quelle règle l'a produit.
+    #
+    # 🔴 `NULL` ≠ « rien à signaler ». `NULL` veut dire **ZETIS ne regardait pas** — c'est le cas de
+    # toutes les passations antérieures au chantier, et elles ne seront jamais rétro-remplies. Les
+    # deux états se distinguent à l'écran (spec §6.2) ; les confondre ferait passer une absence
+    # d'instrument pour un constat d'instrument.
+    #
+    # 🔴 Règle de vocabulaire : ce champ décrit LA MESURE, jamais l'enfant.
+    reliability_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class QuizAnswer(Base):

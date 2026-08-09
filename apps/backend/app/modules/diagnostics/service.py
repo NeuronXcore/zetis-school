@@ -6,7 +6,7 @@ d'échec. Les questions sont générées via le LLMProvider abstrait (mockable e
 et chaque génération laisse une trace `ai_jobs`."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
@@ -26,6 +26,7 @@ from app.db.models import (
     Subject,
 )
 from app.modules.activity.timeutils import to_utc
+from app.modules.diagnostics import fiabilite
 from app.modules.content_state import (
     CONTENU_AUCUNE_LECON,
     CONTENU_COURS_BROUILLON,
@@ -465,10 +466,19 @@ def _upsert_gap(db: Session, *, student_id: int, subject_id: int, skill_id: int,
 
 
 def submit(
-    db: Session, student: StudentProfile, quiz_id: int, answers: list
+    db: Session, student: StudentProfile, quiz_id: int, answers: list, conditions=None
 ) -> dict:
     """Corrige les réponses, calcule le score par notion, écrit la tentative,
-    met à jour la maîtrise et ouvre les lacunes des notions faibles."""
+    met à jour la maîtrise et ouvre les lacunes des notions faibles.
+
+    `conditions` (ADR-0048) porte ce que le client a observé pendant la passation. **Optionnel** :
+    sans lui, tout se comporte comme avant, et le verdict repose sur le seul signal calculé
+    serveur — le contraste.
+
+    🔴 **L'ordre de ce corps est porteur.** `notions_sans_trace` se lit **avant** la boucle de
+    propagation : celle-ci écrit un `SkillMastery` par notion, et la passation se comparerait
+    sinon à elle-même — le contraste vaudrait toujours zéro, sans qu'une ligne rougisse.
+    """
     quiz = _servable_quiz_or_404(db, quiz_id)
     subject = db.get(Subject, quiz.subject_id)
     rows = db.execute(
@@ -480,12 +490,26 @@ def submit(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Diagnostic sans question.")
 
     chosen_by_question = {a.question_id: a.choice_index for a in answers}
+    # Les signaux déclarés par le client, par question (ADR-0048). `getattr` plutôt qu'un accès
+    # direct : les tests du dépôt construisent des réponses minimales, et le contrat d'avant le
+    # chantier doit continuer de passer tel quel.
+    signaux_by_question = {a.question_id: a for a in answers}
     now = datetime.now(timezone.utc)
+
+    # 🔴 `started_at` cessait d'être une date : il valait `completed_at`, au même instant, depuis
+    # l'étape 14. La durée d'une passation valait donc ZÉRO par construction, et
+    # `duration_seconds` — qui existe dans le modèle depuis toujours — n'était **jamais écrit**.
+    # Le client mesure enfin le temps ; on remplit les deux (ADR-0048 Décision 4).
+    ms_total = getattr(conditions, "ms_total", None) if conditions is not None else None
+    duration_seconds = int(ms_total // 1000) if ms_total else None
+    started_at = now - timedelta(seconds=duration_seconds) if duration_seconds else now
+
     attempt = QuizAttempt(
         quiz_id=quiz_id,
         student_id=student.id,
-        started_at=now,
+        started_at=started_at,
         completed_at=now,
+        duration_seconds=duration_seconds,
         context="diagnostic",
     )
     db.add(attempt)
@@ -498,11 +522,20 @@ def submit(
     for q, _skill in rows:
         chosen = chosen_by_question.get(q.id)
         is_correct = chosen is not None and int(chosen) == int(q.correct_answer_json)
+        # Les signaux par question logent dans `answer_json`, qui est déjà un JSON libre :
+        # **zéro migration** (ADR-0048 constat n° 2). C'est aussi là que la verbalisation viendra
+        # se poser, à côté de la réponse dont elle parle.
+        signaux = signaux_by_question.get(q.id)
         db.add(
             QuizAnswer(
                 attempt_id=attempt.id,
                 question_id=q.id,
-                answer_json={"choice_index": chosen},
+                answer_json={
+                    "choice_index": chosen,
+                    "ms_reflexion": getattr(signaux, "ms_reflexion", None),
+                    "quittee": bool(getattr(signaux, "quittee", False)),
+                    "enonce_copie": bool(getattr(signaux, "enonce_copie", False)),
+                },
                 is_correct=is_correct,
                 score=1.0 if is_correct else 0.0,
             )
@@ -520,6 +553,16 @@ def submit(
     db.flush()
     per_skill_out = score_par_notion(db, attempt.id)
 
+    # 🔴 ICI, ET PAS UNE LIGNE PLUS BAS. La boucle qui suit écrit un `SkillMastery` pour CHAQUE
+    # notion de cette passation : lue après, cette fonction ne rendrait jamais rien, le contraste
+    # vaudrait zéro à chaque fois, et **tout marcherait**. C'est le piège qui rendrait le chantier
+    # inopérant en restant vert (ADR-0048, spec §3.4 bis) — un test-verrou le tient.
+    sans_trace = fiabilite.notions_sans_trace(
+        db,
+        student_id=student.id,
+        skill_ids=[r["skill_id"] for r in per_skill_out if r["skill_id"] is not None],
+    )
+
     for row in per_skill_out:
         skill_id, score = row["skill_id"], row["score"]
         if skill_id is not None:
@@ -536,6 +579,24 @@ def submit(
     # Le `flush` rend visibles les `Gap` tout juste ouvertes : la vue construite ci-dessous les lit
     # en base, avec celles qui étaient déjà ouvertes sur ces notions.
     db.flush()
+
+    # Les conditions dans lesquelles cette mesure a été prise (ADR-0048). **Écrit une fois, ici.**
+    # Il ne retient rien : `_upsert_skill_mastery`, `_upsert_gap` et `award_xp` ont déjà tourné, et
+    # c'est la décision — pas d'état intermédiaire, pas de geste obligatoire de Papa, donc rien à
+    # défaire et aucune mesure en attente indéfinie. Le verdict **s'attache** à la mesure.
+    attempt.reliability_json = fiabilite.evaluer(
+        reponses=[
+            {
+                "ms_reflexion": getattr(a, "ms_reflexion", None),
+                "quittee": getattr(a, "quittee", False),
+                "enonce_copie": getattr(a, "enonce_copie", False),
+            }
+            for a in answers
+        ],
+        conditions=conditions.model_dump() if conditions is not None else None,
+        per_skill=per_skill_out,
+        sans_trace=sans_trace,
+    )
 
     # XP pour avoir passé le diagnostic (gamification) — récompense l'engagement.
     award_xp(
@@ -599,6 +660,13 @@ def latest_results(db: Session, student: StudentProfile, limit: int = 10) -> lis
                 "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
                 "per_skill": per_skill_out,
                 "gaps": gaps_out,
+                # 🔴 Servi ici AUSSI, et ce n'est pas du zèle : `/results` partage
+                # `DiagnosticResultSummary` avec `/results/{id}`, dont le champ vaut `None` par
+                # défaut. Ne pas le remplir ferait servir « ZETIS ne regardait pas » pour des
+                # passations qui ont bel et bien été observées — le troisième état se mettrait à
+                # mentir sur une route entière, sans erreur ni avertissement.
+                "fiabilite": attempt.reliability_json,
+                "verbalisation": notion_a_verbaliser(db, attempt.id),
             }
         )
     return results
@@ -954,6 +1022,10 @@ def apercu(db: Session, student: StudentProfile) -> dict:
                 "notions_count": _skills_count(db, quiz.id),
                 "score_percent": round(attempt.score_percent or 0),
                 "rang": rang_par_matiere[quiz.subject_id],
+                # Le verdict SEUL, pour que la marque du rail soit repérable sans ouvrir le panneau
+                # (ADR-0048). Le rail signale, le panneau explique : servir les faits ici ferait
+                # deux surfaces qui racontent la même chose et finiraient par diverger.
+                "fiabilite_verdict": (attempt.reliability_json or {}).get("verdict"),
             }
         )
     for quiz in quizzes:
@@ -977,6 +1049,9 @@ def apercu(db: Session, student: StudentProfile) -> dict:
                 "notions_count": _skills_count(db, quiz.id),
                 "score_percent": None,
                 "rang": None,
+                # 🔴 `None` sur les deux premiers crans, et ce n'est pas un oubli : une passation
+                # qui n'a pas eu lieu n'a pas de mesure, donc rien à qualifier.
+                "fiabilite_verdict": None,
             }
         )
     rail.sort(key=lambda ligne: (ligne["date"] or "", ligne["cle"]), reverse=True)
@@ -1094,6 +1169,67 @@ def _passation_ou_404(
     return attempt, quiz
 
 
+def notion_a_verbaliser(db: Session, attempt_id: int) -> dict | None:
+    """La bonne réponse dont Massimo va raconter comment il l'a trouvée (ADR-0048 Décision 5).
+
+    🔴 **Le tirage est DÉTERMINISTE**, dérivé de l'`attempt_id` : recharger la page repose la
+    **même** question. Un tirage aléatoire changerait de notion à chaque rechargement — aucun test
+    ne pourrait tenir cet écran, et Massimo pourrait relancer le dé jusqu'à tomber sur une notion
+    qui l'arrange.
+
+    **Une seule question, jamais deux** : deux, c'est un interrogatoire. Et **parmi les bonnes
+    réponses** seulement — la carte célèbre une réussite, elle ne cherche pas une faute.
+
+    Rend `None` si la passation n'a aucune bonne réponse : il n'y a alors rien à faire raconter.
+    """
+    rows = db.execute(
+        select(QuizAnswer, Skill)
+        .join(QuizQuestion, QuizQuestion.id == QuizAnswer.question_id)
+        .outerjoin(Skill, Skill.id == QuizQuestion.skill_id)
+        .where(QuizAnswer.attempt_id == attempt_id, QuizAnswer.is_correct.is_(True))
+        .order_by(QuizAnswer.question_id)
+    ).all()
+    if not rows:
+        return None
+    answer, skill = rows[attempt_id % len(rows)]
+    return {
+        "question_id": answer.question_id,
+        "skill_id": skill.id if skill is not None else None,
+        "skill_name": skill.name if skill is not None else "",
+        # Ce qu'il a déjà répondu, s'il a répondu. En relecture il se relit ; on ne lui redemande
+        # pas. `None` n'est **jamais** un signal — le compter ferait de « Passer » un aveu.
+        "explication": (answer.answer_json or {}).get("explication"),
+    }
+
+
+def enregistrer_explication(
+    db: Session, student: StudentProfile, attempt_id: int, question_id: int, texte: str
+) -> dict | None:
+    """Range le mot de Massimo à côté de la réponse dont il parle. **Zéro migration** :
+    `answer_json` est déjà un JSON libre.
+
+    Il vit sur la RÉPONSE et non dans `reliability_json`, parce que les deux ne sont pas de même
+    nature : le bloc de fiabilité ne contient que ce que ZETIS a **observé**, ceci est ce que
+    Massimo a **dit**. Les mélanger ferait entrer une parole dans un instrument de mesure.
+    """
+    _passation_ou_404(db, student, attempt_id)
+    answer = db.scalar(
+        select(QuizAnswer).where(
+            QuizAnswer.attempt_id == attempt_id, QuizAnswer.question_id == question_id
+        )
+    )
+    if answer is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Réponse introuvable."
+        )
+    # Réassignation et non mutation en place : SQLAlchemy ne voit pas un `dict` modifié sous lui.
+    payload = dict(answer.answer_json or {})
+    payload["explication"] = texte.strip()
+    answer.answer_json = payload
+    db.commit()
+    return notion_a_verbaliser(db, attempt_id)
+
+
 def resultat_eleve(db: Session, student: StudentProfile, attempt_id: int) -> dict:
     """La vue ENFANT d'une passation — servie à la soumission ET à la relecture (ADR-0044 §5).
 
@@ -1144,6 +1280,11 @@ def resultat_eleve(db: Session, student: StudentProfile, attempt_id: int) -> dic
         "strengths": sorted(forces),
         # Le nom seul — `severity` reste au contrat de Papa.
         "gaps": [{"skill_id": g["skill_id"], "skill_name": g["skill_name"]} for g in gaps],
+        # 🔴 Servie à CHAQUE passation, quel que soit le verdict — et le verdict, lui, ne sort
+        # JAMAIS d'ici. Massimo ne voit rien de la fiabilité et n'est jamais accusé (ADR-0048).
+        # La conditionner au doute la transformerait en accusation, et détruirait le seul signal
+        # non falsifiable du lot par la manière de le demander.
+        "verbalisation": notion_a_verbaliser(db, attempt.id),
     }
 
 
@@ -1171,6 +1312,11 @@ def result_detail(db: Session, student: StudentProfile, attempt_id: int) -> dict
         # 🔴 `lacunes_de_passation`, PAS `lacunes_ouvertes` : la station ② porte un badge `résolue`,
         # que le filtre étroit rendrait impossible à afficher. Voir son docstring.
         "gaps": lacunes_de_passation(db, student_id=student.id, skill_ids=skill_ids),
+        # Les conditions de la mesure, RELUES telles qu'écrites — jamais recalculées (ADR-0048
+        # Décision 4). `None` sur les passations d'avant le chantier : ZETIS ne regardait pas, et
+        # ça ne se confond pas avec « rien à signaler ».
+        "fiabilite": attempt.reliability_json,
+        "verbalisation": notion_a_verbaliser(db, attempt.id),
     }
 
 

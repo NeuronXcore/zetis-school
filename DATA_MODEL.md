@@ -306,13 +306,45 @@ status             # active | retired (retrait = hors tirages ; les quiz_answers
 id
 quiz_id
 student_id
-started_at
+started_at         # RÉEL depuis l'ADR-0048 — il valait completed_at, au même instant
 completed_at
-score_raw
 score_percent
-duration_seconds
+duration_seconds   # ÉCRIT depuis l'ADR-0048 — il ne l'était jamais depuis sa création
 context            # dashboard | mission | diagnostic | revision
+reliability_json   # ADR-0048 — les conditions de la mesure. NULL ≠ « rien à signaler »
 ```
+
+> ⚠️ **`score_raw` figurait ici et n'existe dans aucune table** — zéro occurrence dans
+> `apps/backend/app/`. Retiré à la clôture de la Session A de l'ADR-0048, **et signalé plutôt que
+> corrigé en silence** : une colonne fantôme retirée sans trace ne laisse personne se demander
+> combien il y en a d'autres (patron du constat n° 7 de l'`adr-0045`).
+
+**`reliability_json` (ADR-0048), écrit UNE fois à la soumission et jamais recalculé à la lecture.**
+Une règle qui change re-jugerait sinon tout l'historique, et une mesure que Papa a déjà lue
+changerait d'avis sous ses yeux — motif du rapport figé de l'`adr-0021`. Le champ `regle_version`
+dit quelle règle l'a produit.
+
+🔴 **Trois états, pas deux.** `NULL` ne veut **pas** dire « rien à signaler » : il veut dire **ZETIS
+ne regardait pas**, ce qui est l'état de toutes les passations antérieures au chantier. **Aucun
+backfill** — on ne reconstitue pas des conditions qu'on n'a pas observées.
+
+```jsonc
+{
+  "verdict": "a_confirmer",          // ou "rien_a_signaler"
+  "regle_version": 1,
+  "faits":   { "questions_quittees": 3, "enonces_copies": 1, "plein_ecran_quitte": false,
+               "acquises_sans_trace": 6, "notions_total": 8 },
+  "indices": { "reponses_rapides": 4, "taille_changee": true },
+  "declencheurs": ["questions_quittees", "contraste"],
+  "portee":  { "observables": ["sortie_ecran", "copie", "taille"] }
+}
+```
+
+⚠️ **Règle de lecture du contraste** : « notion jamais rencontrée » se lit sur **TROIS** sources en
+union — `SkillMastery`, `LearningEvent(skill_id)` hors `NON_WORK_EVENTS`, et
+`LessonView ⋈ LessonSkill`. `LearningEvent` **seul ne suffit pas** : le diagnostic journalise avec
+le `subject_id` seul, donc une notion mesurée trois fois n'y laisse aucune trace par notion.
+Détail : `docs/backend/fiabilite-de-la-mesure.md` §3.4 bis.
 
 ### QuizAnswer
 

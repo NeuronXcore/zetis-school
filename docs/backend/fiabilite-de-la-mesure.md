@@ -93,14 +93,48 @@ instrumentation : ZETIS a déjà tout ce qu'il faut.
 > rencontrées** dans ZETIS.
 
 - **« acquise »** = score de la notion ≥ `CONTRASTE_SCORE_MIN` (**90**).
-- **« jamais rencontrée »** = aucun `LearningEvent` de travail sur cette notion **avant** cette
-  passation.
+- **« jamais rencontrée »** = **aucune des TROIS sources** ne porte cette notion (§3.4 bis).
 - **Déclenche quand** : `n_acquises_sans_trace >= 2` **et** `n_acquises_sans_trace > notions / 2`.
 
 Le plancher de 2 empêche un diagnostic à une ou deux notions de déclencher pour rien ; la majorité
 empêche une notion isolée de suffire.
 
-🔴 **Deux pièges, et ils sont tous les deux datés du dépôt :**
+### 3.4 bis 🔴 Les TROIS sources d'une trace — corrigé au read-before-code du 2026-08-09
+
+> 🔴 **Ce paragraphe disait « aucun `LearningEvent` de travail sur cette notion », et c'était FAUX** —
+> assez faux pour que le chantier livre sa propre défaillance. **Mesuré dans le code** : sur les
+> **10** appels à `log_learning_event`, **3 seulement** passent un `skill_id` (`chat/service.py:506`,
+> `eli5/service.py:177`, `memory/service.py:380`). **Le diagnostic n'en fait pas partie** —
+> `diagnostics/router.py:101` journalise `EVENT_QUIZ_ATTEMPTED` avec le `subject_id` seul, et son
+> payload porte `quiz_id`, `quiz_type`, `score_percent` : **aucune notion**. Idem pour les quiz
+> (`quizzes/router.py:189`).
+>
+> **Conséquence si on n'avait rien vu** : une notion mesurée par **trois diagnostics antérieurs**
+> n'a toujours aucun `LearningEvent` portant son `skill_id` — elle serait comptée « jamais
+> rencontrée », et le contraste se déclencherait **sur ce que ZETIS a déjà mesuré**. C'est
+> exactement le faux positif que l'ADR annonce sous *« la bande apparaît presque à chaque
+> passation »*.
+
+Une notion porte une trace dès que **l'une** de ces trois sources la connaît :
+
+| # | Source | Ce qu'elle atteste | Lecture |
+|---|---|---|---|
+| 1 | `SkillMastery(student, skill)` | la notion a été **mesurée** — diagnostic, quiz, mission | existence de la ligne |
+| 2 | `LearningEvent(skill_id, event_type ∉ NON_WORK_EVENTS)` | elle a été **travaillée sans être mesurée** — ELI5, chat, révision SRS | existence d'une ligne |
+| 3 | `LessonView ⋈ LessonSkill` | **le cours a été lu** | `lesson_views(student_id, lesson_id)` ⋈ `lesson_skills(lesson_id, skill_id)` |
+
+**Les trois, parce qu'elles ne disent pas la même chose.** Un enfant qui a lu la leçon et n'a jamais
+été interrogé n'a que la 3ᵉ ; un enfant qui a expliqué une notion à ELI5 sans jamais être mesuré
+n'a que la 2ᵉ. Prendre l'union est la seule lecture honnête de *« jamais travaillée, jamais vue »*.
+
+⚠️ **La 3ᵉ demande une jointure à deux sauts**, et elle est bon marché : `lesson_views` est unique
+sur `(student_id, lesson_id)` avec les deux colonnes indexées, et `lesson_skills` est une table de
+jointure pure `(lesson_id, skill_id)` en clé composite.
+
+✅ **Les trois sont naturellement ANTÉRIEURES au point de lecture** — à une condition, qui est le
+piège ci-dessous : `SkillMastery` ne l'est que si on lit **avant** l'upsert.
+
+🔴 **Trois pièges, et le troisième vient d'être découvert :**
 
 - **Filtrer avec `NON_WORK_EVENTS`, pas `NON_ACTIVITY_EVENTS`.** `activity/events.py:87` — la
   navigation n'est pas du travail. Sans ce filtre, un simple `page_viewed` compterait comme une trace
@@ -108,8 +142,14 @@ empêche une notion isolée de suffire.
   `production.runner.massimo_is_active`.
 - 🔴 **Le contraste se calcule AVANT `_upsert_skill_mastery`.** Cette fonction écrit un
   `SkillMastery` pour chaque notion de la passation : calculé après, le contraste comparerait la
-  passation **à elle-même** et vaudrait toujours zéro. C'est le piège qui rendrait le chantier
-  entièrement inopérant tout en restant vert.
+  passation **à elle-même** et vaudrait toujours zéro. **Ce piège porte désormais sur la source
+  n° 1**, c'est-à-dire la principale — il ne dégrade plus le signal, il l'annule.
+- ⚠️ **L'ordre qui sauve la source n° 2 vit dans un AUTRE FICHIER que le calcul.** Le
+  `LearningEvent` du diagnostic est écrit par le **routeur**, *après* le retour de `submit()`
+  (`diagnostics/router.py:101`, `commit` à `:112`). Un contraste calculé dans `submit()` ne peut donc
+  pas voir l'événement de sa propre passation — **c'est vrai, et personne ne l'a écrit nulle part**.
+  Déplacer ce `log_learning_event` dans le service casserait le contraste **sans toucher au
+  contraste**. Un commentaire doit le dire aux deux endroits.
 
 ⚠️ **Bruité dans l'autre sens, et c'est écrit sur la bande** : un enfant peut savoir une chose sans
 l'avoir travaillée **dans ZETIS** — à l'école, à la maison, dans un documentaire.

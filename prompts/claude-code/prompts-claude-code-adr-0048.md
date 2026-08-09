@@ -87,9 +87,11 @@ PROTOCOLE DE SESSION — non négociable
 
 ---
 
-## 🔴 Les deux pièges qui rendraient le chantier inopérant EN RESTANT VERT
+## 🔴 Les TROIS pièges qui rendraient le chantier inopérant EN RESTANT VERT
 
 **Lis-les avant la Session A. Ils ne se voient dans aucun test qu'on n'a pas écrit exprès.**
+Le troisième a été **trouvé au read-before-code du 2026-08-09**, et il avait déjà produit une règle
+fausse dans la spec.
 
 ### 1. Le contraste calculé APRÈS `_upsert_skill_mastery` vaut toujours zéro
 
@@ -98,7 +100,8 @@ comparerait la passation **à elle-même** : « jamais rencontrée » serait fau
 vaudrait zéro à chaque fois, et **tout marcherait**. Le meilleur signal du chantier serait mort sans
 qu'une seule ligne rougisse.
 
-**Calcule le contraste AVANT la boucle de propagation, et fais-en un test-verrou explicite.**
+🔴 **Ce piège porte sur la source n° 1 du contraste, la principale** : il ne dégrade pas le signal,
+il l'**annule**. **Calcule le contraste AVANT la boucle de propagation, et fais-en un test-verrou.**
 
 ### 2. `NON_ACTIVITY_EVENTS` au lieu de `NON_WORK_EVENTS` éteint le signal en silence
 
@@ -108,6 +111,29 @@ Sans `page_viewed` dans le filtre, **ouvrir une page compterait comme « avoir t
 notion »** : toutes les notions auraient une trace, et le contraste ne déclencherait jamais. Le dépôt
 a déjà payé exactement ce défaut sur `production.runner.massimo_is_active` — le commentaire du
 fichier le raconte.
+
+### 3. 🔴 UNE SOURCE DE TRACE MANQUANTE FAIT DÉCLENCHER SUR CE QUE ZETIS A DÉJÀ MESURÉ
+
+La trace se lit sur **TROIS** sources en union (spec §3.4 bis), et **aucune n'est facultative** :
+
+| # | Source | Ce qu'elle atteste |
+|---|---|---|
+| 1 | `SkillMastery(student, skill)` | la notion a été **mesurée** (diagnostic, quiz, mission) |
+| 2 | `LearningEvent(skill_id, event_type ∉ NON_WORK_EVENTS)` | **travaillée sans être mesurée** (ELI5, chat, SRS) |
+| 3 | `LessonView ⋈ LessonSkill` | **le cours a été lu** |
+
+**Pourquoi `LearningEvent` seul ne suffit pas** — c'est ce que la spec disait, et c'était faux : sur
+les **10** appels à `log_learning_event`, **3 seulement** passent un `skill_id`
+(`chat/service.py:506`, `eli5/service.py:177`, `memory/service.py:380`). **Le diagnostic n'en fait
+pas partie** : `diagnostics/router.py:101` journalise `EVENT_QUIZ_ATTEMPTED` avec le `subject_id`
+seul. Une notion mesurée par trois diagnostics antérieurs serait donc « jamais rencontrée », et la
+bande apparaîtrait presque à chaque passation.
+
+⚠️ **Et un ordre à ne pas casser, qui vit dans un AUTRE fichier que ton calcul** : ce même
+`log_learning_event` est appelé par le **routeur**, *après* le retour de `submit()`
+(`diagnostics/router.py:101`, `commit` à `:112`). C'est ce qui empêche la passation de voir son
+propre événement. **Le déplacer dans le service casserait le contraste sans toucher au contraste.**
+Laisse un commentaire aux **deux** endroits.
 
 ---
 
@@ -123,8 +149,14 @@ verbalisation. **Aucun front.**
   `latest_results` (L573) ;
 - `apps/backend/app/db/models/assessment.py` — `QuizAttempt` (L79) et `QuizAnswer` (L92) ;
 - `apps/backend/app/modules/activity/events.py` — **`NON_WORK_EVENTS`, L87** ;
-- `apps/backend/app/modules/diagnostics/schemas.py` et `router.py` ;
-- `docs/backend/fiabilite-de-la-mesure.md` §3 à §6 — **les seuils et les noms de champs sont là**.
+- 🔴 **les trois sources de trace** : `apps/backend/app/db/models/progress.py` — `SkillMastery`
+  (L22), `LearningEvent` (L232), `LessonView` (L293) — et
+  `apps/backend/app/db/models/school.py` — `LessonSkill` (L168) ;
+- 🔴 `apps/backend/app/modules/diagnostics/router.py` — **L101, le `log_learning_event` qui doit
+  RESTER dans le routeur** (piège n° 3) ;
+- `apps/backend/app/modules/diagnostics/schemas.py` ;
+- `docs/backend/fiabilite-de-la-mesure.md` §3 à §6 — **les seuils et les noms de champs sont là**,
+  et le **§3.4 bis** porte la règle des trois sources.
 
 ### Ce qu'il faut faire
 
@@ -136,7 +168,8 @@ verbalisation. **Aucun front.**
 3. **`QuizAnswer.answer_json` porte les signaux par question** (`ms_reflexion`, `quittee`,
    `enonce_copie`). **Zéro migration** : le champ est déjà un JSON libre.
 4. **Le calcul du verdict**, dans un module ou une fonction **nommée pour l'instrument**. Quatre
-   faits, deux indices, la règle du §3. 🔴 **Le contraste AVANT la propagation.**
+   faits, deux indices, la règle du §3. 🔴 **Le contraste AVANT la propagation, et sur les TROIS
+   sources** (§3.4 bis) — pas une de moins.
 5. **`reliability_json` est écrit UNE fois**, avec `regle_version: 1` (spec §5.2). Il n'est **jamais**
    recalculé à la lecture.
 6. **`duration_seconds` et `started_at` deviennent réels** (spec §4.2) — c'est dans le périmètre, et
@@ -157,6 +190,15 @@ verbalisation. **Aucun front.**
   boucle `_upsert_skill_mastery` → le test doit rougir.
 - 🔴 **Le filtre est `NON_WORK_EVENTS`.** Sabotage : le remplacer par `NON_ACTIVITY_EVENTS`, avec un
   décor qui pose un `page_viewed` sur la notion → le test doit rougir.
+- 🔴 **LES TROIS SOURCES SONT LUES — un test par source, et un sabotage par source.** Décor : une
+  notion connue **par cette source seule**, score 100, et la passation ne doit **pas** déclencher.
+  Retirer la source du code → le test doit rougir. Les trois séparément, sans quoi une source
+  manquante reste verte grâce aux deux autres.
+  ⚠️ Le décor de la source 1 doit poser un `SkillMastery` **préexistant**, pas celui que la
+  passation écrit.
+- 🔴 **Le `log_learning_event` reste dans le ROUTEUR.** Sabotage : le déplacer dans `submit()` avant
+  le calcul → le contraste voit sa propre passation, et le test doit rougir. C'est le piège n° 3, et
+  c'est le seul verrou qui protège un ordre vivant dans un autre fichier.
 - **Un corps sans aucun champ optionnel marche encore**, et produit `verdict = "rien_a_signaler"`
   (pas `null`) dès lors que le serveur a regardé.
 - **`null` n'est pas `rien_a_signaler`** : une passation antérieure garde `null`, et rien ne le

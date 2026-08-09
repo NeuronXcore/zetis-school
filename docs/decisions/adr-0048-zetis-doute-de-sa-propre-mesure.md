@@ -91,8 +91,29 @@ bien donné pour **être venu**, montant fixe.
 ### 6. 🔴 Le meilleur signal n'est pas dans le navigateur, et le `BACKLOG` ne l'avait pas vu
 
 Le seul qui **survit au téléphone posé à côté** est le **contraste avec l'historique** : un score
-élevé sur des notions jamais travaillées, jamais vues. ZETIS a déjà tout pour le calculer
-(`LearningEvent`, `SkillMastery`) : **zéro instrumentation**.
+élevé sur des notions jamais travaillées, jamais vues. ZETIS a déjà tout pour le calculer : **zéro
+instrumentation**.
+
+> 🔴 **CORRIGÉ au read-before-code de la Session A, 2026-08-09 — décision du commanditaire.**
+> Ce constat nommait deux sources (`LearningEvent`, `SkillMastery`) et la spec n'en retenait
+> **qu'une**, `LearningEvent`. **C'était faux, et assez faux pour que le chantier livre sa propre
+> défaillance** : sur les **10** appels à `log_learning_event`, **3 seulement** passent un
+> `skill_id`, et **le diagnostic n'en fait pas partie** (`diagnostics/router.py:101` journalise avec
+> le `subject_id` seul). Une notion mesurée par trois diagnostics antérieurs aurait donc été comptée
+> « jamais rencontrée », et le contraste se serait déclenché **sur ce que ZETIS a déjà mesuré** —
+> le faux positif que la section « Le signal qui dirait qu'on s'est trompé » annonce plus bas.
+>
+> **La trace se lit désormais sur TROIS sources en union** : `SkillMastery` (a été **mesurée**) ·
+> `LearningEvent` portant le `skill_id`, hors `NON_WORK_EVENTS` (a été **travaillée** sans être
+> mesurée) · `LessonView ⋈ LessonSkill` (**le cours a été lu**). Détail et pièges :
+> `docs/backend/fiabilite-de-la-mesure.md` §3.4 bis.
+>
+> ⚠️ **La 3ᵉ source est entrée sur arbitrage du commanditaire**, la question lui ayant été posée
+> avec son coût (une jointure à deux sauts) : le `BACKLOG` d'origine disait *« jamais travaillée,
+> jamais **vue** »*, et le mot « vue » ne se rend pas autrement.
+>
+> ⚠️ **Écrit ici plutôt que corrigé en silence** : c'est le patron du constat n° 7 de l'`adr-0045`.
+> Une prémisse fausse retirée sans trace ne laisse personne se demander combien il y en a d'autres.
 
 ⚠️ Bruité dans l'autre sens : un enfant peut savoir une chose sans l'avoir travaillée **dans ZETIS**.
 
@@ -190,7 +211,7 @@ même.** La frontière n'est pas la force du soupçon, c'est la **part d'interpr
 | ◆ **fait** | une question **quittée** avant d'être répondue | l'écran a été quitté, point — aucun seuil à inventer |
 | ◆ **fait** | un **énoncé copié** | couvre le trou du précédent : on copie sans quitter la page |
 | ◆ **fait** | le **plein écran quitté** en cours de passation | un geste délibéré |
-| ◆ **fait** | le **contraste avec l'historique** | le seul qui survit au téléphone, et le seul calculé serveur |
+| ◆ **fait** | le **contraste avec l'historique** — **trois** sources en union (constat n° 6) | le seul qui survit au téléphone, et le seul calculé serveur |
 | ◇ indice | le **temps par réponse** | lenteur ≠ triche, rapidité ≠ copie |
 | ◇ indice | le **changement de taille de fenêtre** | un iPad qu'on tourne est plus fréquent qu'un écran partagé |
 
@@ -443,8 +464,10 @@ station ①.
 
 - **La bande apparaît presque à chaque passation** — un déclencheur est trop sensible, et
   « à confirmer » devient du bruit qu'on cesse de lire. Regarder **lequel** des quatre faits domine
-  avant de toucher aux seuils : c'est probablement le contraste, sur un enfant qui apprend beaucoup
-  hors de ZETIS.
+  avant de toucher aux seuils : c'est probablement le contraste. 🔴 **Et alors vérifier d'abord ses
+  TROIS sources, pas ses seuils** — c'est par là que ce défaut a failli être livré (constat n° 6) :
+  une source manquante rend « sans trace » des notions déjà connues, et ça ressemble à un seuil trop
+  bas. Ce n'est qu'après, s'il ne reste rien, qu'on regarde un enfant qui apprend hors de ZETIS.
 - **La bande n'apparaît jamais** alors que Papa a des doutes — l'instrument mesure à côté. La réponse
   serait de regarder ce que la **portée** dit : peut-être qu'il ne voyait rien du tout.
 - **Papa ne clique jamais « Remesurer »** — le geste ne correspond pas à ce qu'il veut faire du
