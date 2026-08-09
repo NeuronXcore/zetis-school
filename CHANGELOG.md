@@ -1,5 +1,70 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.63.0 — La page Lacunes permet d'agir
+
+La page dédiée aux lacunes en disait **moins** qu'une section d'une autre page : sa ligne était un
+`<li>` nu — aucun lien, aucun clic, pas même un expander. Et le cul-de-sac se refermait sur
+lui-même : « Voir la lacune → » de la station ② du Diagnostic y atterrissait. ADR-0047, deux
+sessions, **aucune migration**.
+
+### Une ligne, un geste, et son motif en clair (ADR-0047 §3)
+
+| Condition | Geste | Où il mène |
+|---|---|---|
+| une mission active couvre la notion | **Voir la mission →** | `/missions?focus=<id>`, dépliée et centrée |
+| `cours_brouillon` | **Valider le cours de cette leçon →** | `/programme?lesson=<brouillon>` |
+| `aucune_lecon` | **Équiper cette notion** | action `equipNotion`, avec confirmation |
+| `ok` | **Relire la leçon →** | `/programme?lesson=<validée>` |
+
+**Le grain est la NOTION, jamais la matière** : un libellé qui dit « cette notion » mène à cette
+notion. Le motif est écrit sous la ligne — Papa n'a pas à deviner pourquoi ce geste-là.
+
+🔴 **`aucune_lecon` est une ACTION, pas un lien.** L'ADR prescrivait `/quiz?skill=` : cette page
+pilote les quiz *de fin de cours*, « générés depuis le cours validé d'une leçon » — soit exactement
+ce qui manque dans ce cas. Y mener aurait promis ce que la page ne peut pas faire : **le défaut que
+ce chantier corrige, reproduit par sa propre correction.**
+
+🔴 **Un geste n'est rendu que si son identifiant l'est** — jamais `?focus=undefined`. Et un
+`content_state` inconnu ne rend **aucun** geste plutôt qu'un geste par défaut.
+
+### Le contrat porte de quoi agir, pour zéro requête (ADR-0047 §5)
+
+`lesson_id` et `mission_id` rejoignent `OpenGap`. Les deux étaient **déjà calculés puis jetés** —
+`etat_contenu` obtenait les leçons en lot, `skills_with_active_mission` réduisait des missions à un
+`set[int]`. Même motif que `source` deux chantiers plus tôt, dans la même fonction.
+
+⚠️ **La leçon visée suit l'ÉTAT VISÉ PAR LE GESTE** : celle qu'on doit *valider* est en brouillon,
+celle qu'on *relit* est validée. Une notion en porte jusqu'à quatre.
+
+### Deux retours d'usage, traités dans la foulée
+
+**La mission ciblée porte un anneau ambre**, qui s'estompe en ~2,4 s. Déplier et centrer ne
+suffisait pas : Papa arrivait sur une page pleine de missions sans savoir laquelle. 🔴 L'estompage
+est **en CSS**, jamais par un `setTimeout` — donc sous `prefers-reduced-motion` l'animation est
+coupée et **l'anneau reste**, au lieu de disparaître chez qui demande moins de mouvement.
+
+**Le sélecteur de matières arrive sur la page.** Le filtre `?subject=` existait, mais n'était
+atteignable que par un lien externe : la page savait le lire et le retirer, jamais le **poser**.
+Même brique que le Dashboard, la Couverture et le Cahier de bord — et les matières viennent des
+**lacunes elles-mêmes**, donc zéro requête et aucune matière qui mènerait à une page vide.
+
+### La station ② cesse de perdre la matière
+
+« Voir la lacune → » transporte enfin `?subject=<slug>` — il menait à la liste complète, toutes
+matières. Le slug existait déjà sur l'entrée du rail : aucun champ ajouté.
+
+⚠️ **Ses deux autres gestes sur-promettent toujours** (ils disent « cette notion » et mènent à la
+matière) : différé au `BACKLOG`, avec un test qui **fige la dette**.
+
+### Vérifié à l'écran, sur les vraies données
+
+Les quatre gestes vus, leurs destinations recoupées avec la base (`cours_brouillon` → la leçon
+`draft` #24, `ok` → la leçon `validated` #21), et le clic joué : `/missions?focus=59` ouvre bien
+« Renforcer : Produit de relatifs ».
+
+⚠️ **Le responsive Papa n'est pas jugeable à 375 px** : la sidebar y prend 256 px des 375, `main`
+n'en garde 119. La règle du chantier s'applique bien (mesuré au DOM) ; elle a été validée à 768 px.
+
 ## 0.62.0 — Le worker de production est un service, et son absence vient à toi
 
 Le 2026-08-08, trois diagnostics attendaient depuis deux jours dans une file que **personne ne

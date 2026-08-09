@@ -15,7 +15,20 @@ décision est levé : les sessions de
 > falsifiaient le cadrage d'origine ont été portés au commanditaire **avant** que la moindre
 > décision soit écrite.
 
-⚠️ **Accepté ≠ livré.** Rien n'est implémenté, le chantier n'a pas démarré.
+✅ **LIVRÉ — deux sessions, aucune migration.** PR
+[#105](https://github.com/NeuronXcore/zetis-school/pull/105), branche
+`feat/lacunes-permettent-d-agir`. ⚠️ **Pas encore mergé** à l'heure où cette ligne est écrite.
+
+✅ **La relecture visuelle humaine a EU LIEU (2026-08-09) — rien relevé.** ⚠️ Elle s'est faite
+**après** l'ouverture de la PR, là où cet ADR la voulait **avant** : écart assumé par le
+commanditaire, signalé deux fois et consigné dans le corps de la PR. Ce n'est pas un oubli.
+
+> ⚠️ **« Rien relevé » est l'exception dans ce dépôt, pas la norme** — et c'est ce qui rend le fait
+> intéressant. La relecture de l'`adr-0043` avait sorti **cinq** défauts en quelques minutes, dont
+> aucun n'était détectable par un test ; c'est elle qui a fait naître ce chantier. Celle de
+> l'`adr-0045` avait trouvé une **quatrième** optimisation que cinq documents ignoraient. Ici, ce
+> qu'elle couvrait — l'action « Équiper » jouée jusqu'au bout, la station ② sur une passation
+> réelle — a tenu.
 
 > 🔴 **Et cette ligne doit MOURIR au merge, pas y survivre.** Le 2026-08-09, la même phrase est
 > restée sur l'`adr-0044` pendant vingt-quatre heures après sa livraison, recopiée dans
@@ -196,12 +209,32 @@ slice que les autres gestes, pas après.
 Le geste dépend de l'état ; le motif est écrit **sous la ligne**, comme le fait la station ②.
 Papa n'a pas à deviner pourquoi ce geste-là.
 
-| Condition | Geste | Destination |
+| Condition | Geste | Ce qu'il fait |
 |---|---|---|
-| `has_active_mission` | **Voir la mission →** | `/missions?focus=<mission_id>` |
-| `content_state == "cours_brouillon"` | **Valider le cours de cette leçon →** | `/programme?lesson=<brouillon>` |
-| `content_state == "aucune_lecon"` | **Produire le quiz de cette notion →** | `/quiz?skill=<skill_id>` |
-| `content_state == "ok"` | **Relire la leçon →** | `/programme?lesson=<validée>` |
+| `has_active_mission` | **Voir la mission →** | lien vers `/missions?focus=<mission_id>` |
+| `content_state == "cours_brouillon"` | **Valider le cours de cette leçon →** | lien vers `/programme?lesson=<brouillon>` |
+| `content_state == "aucune_lecon"` | **Équiper cette notion** | **action** `equipNotion(skill_id)`, avec confirmation |
+| `content_state == "ok"` | **Relire la leçon →** | lien vers `/programme?lesson=<validée>` |
+
+> 🔴 **La ligne `aucune_lecon` disait « Produire le quiz de cette notion → » vers `/quiz?skill=`.
+> C'était FAUX deux fois**, et corrigé le 2026-08-09 au read-before-code de la Session B :
+>
+> - **`/quiz` ne peut pas tenir la promesse.** `QuizPilotagePage` pilote les quiz *de fin de cours*
+>   — son sous-titre dit « un quiz se génère depuis le cours validé d'une leçon ». Or
+>   `aucune_lecon` est exactement le cas **sans leçon**. Y créer `?skill=` aurait amené Papa sur une
+>   page structurellement incapable de faire ce que le lien promet : **le défaut même que cet ADR
+>   corrige**, reproduit par l'ADR qui le corrige.
+> - **Le geste réel produit CINQ pièces, pas un quiz.** `equipNotion` (ADR-0042) génère et
+>   auto-valide « cours, fiche, cartes de révision, quiz et carte mentale ».
+>
+> **Décision du commanditaire : la ligne porte l'ACTION**, pas un lien vers une page qui ne la
+> porte pas. C'est le geste qui existe déjà dans le dépliage de Progression
+> (`SubjectDetailRow.tsx`), avec sa `ConfirmDialog` et sa `ProgressBar`.
+>
+> ⚠️ **La confirmation n'est pas optionnelle** : c'est une génération LLM auto-validée, ~69 s par
+> notion (mesuré le 2026-08-02). Elle dit ce qui sera produit, et que ça prend des minutes.
+> ⚠️ **Conséquence assumée** : cette ligne-là est un `<button>`, les trois autres des `<Link>`. La
+> forme suit ce que le geste fait — un lien qui déclencherait une génération serait pire.
 
 **`has_active_mission` est testé en premier** : une notion déjà couverte n'attend aucune décision de
 contenu, quel que soit son `content_state`.
@@ -220,8 +253,21 @@ couleur des gestes qui font avancer ; celui-ci constate.
 - `cours_brouillon` → une leçon en **brouillon** — c'est elle qu'il faut valider ;
 - `ok` → une leçon **validée** — c'est elle qu'on relit.
 
-Départage entre candidates de même statut : **la plus récente** (`id` le plus grand). Choix
-arbitraire, et il est écrit ici pour qu'il ne soit pas re-tranché en silence à chaque lecture.
+Départage entre candidates de même statut : **la première de l'ordre que `lessons_by_skill` établit
+déjà** — `updated_at` décroissant, puis `id`. Autrement dit `lecons[0]` après filtrage par statut.
+
+> 🔴 **Cette phrase disait « la plus récente (`id` le plus grand) », et c'était FAUX.** Corrigé le
+> 2026-08-09 au read-before-code de la Session A. `lesson_resolution.py:113` trie déjà
+> `(updated_at, id)` décroissant pour ses **cinq** appelants, et les deux ordres divergent
+> réellement : une leçon ancienne modifiée hier passe devant une leçon créée aujourd'hui et jamais
+> retouchée. Imposer l'`id` aurait mis **deux ordres de « la plus récente »** dans le même dépôt,
+> que rien n'aurait tenus ensemble — c'est le motif exact des dettes *deux définitions de
+> `has_referentiel`* et *sept copies de `_active_year`*. **Décision du commanditaire : l'ordre
+> existant gagne, l'ADR se corrige.** Bénéfice second : aucun code de tri à écrire.
+
+**Même règle pour la mission** (Décision 5) : `active_missions` trie déjà
+`priority DESC, id`. La mission rendue est la première de cet ordre — on ne réinvente pas un
+second critère de « la mission qui couvre ».
 
 ### 5. Les deux champs sont servis dans le MÊME payload, calculés en lot
 

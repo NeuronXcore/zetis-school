@@ -7,6 +7,7 @@ export {
   type ActivitySessionDay,
   type ActivitySessions,
   type ConsolidatedSkill,
+  type ContentState,
   type DatedFact,
   type DatedFactKind,
   type NotionPalier,

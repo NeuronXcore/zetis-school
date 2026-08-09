@@ -107,12 +107,23 @@ plafonné — une séance reste courte.
 Une ligne, **un** geste, et il dépend de ce dont on dispose. Le motif est écrit **en clair sous la
 ligne** : Papa n'a pas à deviner pourquoi ce geste-là plutôt qu'un autre.
 
-| Condition | Geste | Destination |
+| Condition | Geste | Ce qu'il fait |
 |---|---|---|
-| `has_active_mission` | **Voir la mission →** | `/missions?focus=<mission_id>` |
-| `content_state == "cours_brouillon"` | **Valider le cours de cette leçon →** | `/programme?lesson=<leçon en brouillon>` |
-| `content_state == "aucune_lecon"` | **Produire le quiz de cette notion →** | `/quiz?skill=<skill_id>` |
-| `content_state == "ok"` | **Relire la leçon →** | `/programme?lesson=<leçon validée>` |
+| `has_active_mission` | **Voir la mission →** | lien `/missions?focus=<mission_id>` |
+| `content_state == "cours_brouillon"` | **Valider le cours de cette leçon →** | lien `/programme?lesson=<brouillon>` |
+| `content_state == "aucune_lecon"` | **Équiper cette notion** | **action** `equipNotion(skill_id)` + confirmation |
+| `content_state == "ok"` | **Relire la leçon →** | lien `/programme?lesson=<validée>` |
+
+> 🔴 **`aucune_lecon` est une ACTION, pas un lien** — corrigé le 2026-08-09. `/quiz` pilote les quiz
+> *de fin de cours*, « générés depuis le cours validé d'une leçon » : c'est exactement ce qui manque
+> ici. Le geste réel est `equipNotion` (ADR-0042), qui produit **cinq** pièces — cours, fiche,
+> cartes, quiz, carte mentale — en ~69 s. La confirmation le dit, et elle est obligatoire.
+> Cette ligne-là est donc un `<button>`, les trois autres des `<Link>` : **la forme suit ce que le
+> geste fait**.
+
+> ⚠️ **Un geste n'est rendu que si son identifiant l'est.** `mission_id` absent alors que
+> `has_active_mission` est vrai → aucun geste, jamais `/missions?focus=undefined`. Le serveur
+> garantit les deux ensemble ; la page ne le suppose pas.
 
 `has_active_mission` est testé **en premier** : une notion déjà couverte n'attend aucune décision de
 contenu, quel que soit son `content_state`.
@@ -127,8 +138,10 @@ notion.
 > 🔴 **Une notion porte jusqu'à QUATRE leçons** (« Priorités opératoires » : #151 `draft`,
 > #145 `draft`, #48 `validated`, #23 `validated`). **La leçon visée suit l'état visé par le geste** —
 > celle qu'on doit *valider* est en brouillon, celle qu'on *relit* est validée. Départage entre
-> candidates de même statut : la plus récente. Ouvrir une leçon déjà validée sous le libellé
-> « Valider le cours » recréerait le défaut que ce chantier corrige.
+> candidates de même statut : **la première de l'ordre que `lessons_by_skill` établit déjà**
+> (`updated_at` décroissant, puis `id`) — on ne pose pas un second ordre de « la plus récente ».
+> Ouvrir une leçon déjà validée sous le libellé « Valider le cours » recréerait le défaut que ce
+> chantier corrige.
 
 ### `[0047]` Le geste ne s'écrase pas sur un téléphone
 
@@ -142,6 +155,28 @@ dû corriger après coup sur la zone C du Diagnostic.
 
 `?subject=<slug>`, lu par `useLacunes` et appliqué **côté client** sur une liste déjà chargée —
 zéro requête (`adr-0038` §4). Slug inconnu → repli sur « toutes », jamais une page vide.
+
+### `[0047]` Le sélecteur de matières — la page sait enfin POSER le filtre
+
+Jusqu'au 2026-08-09, le filtre n'était atteignable que par un **lien externe** (dashboard, jauges
+du Diagnostic) : la page savait le lire et le retirer, jamais le poser.
+
+`SubjectFilterChips` — la brique déjà partagée par le Dashboard, la Couverture et le Cahier de bord.
+
+🔴 **Les matières viennent des LACUNES elles-mêmes**, pas d'un appel : zéro requête, et seules
+celles qui portent au moins une lacune apparaissent. Proposer une matière sans lacune mènerait à
+une page vide — un filtre qui ment.
+
+⚠️ **L'id passé à la brique est SYNTHÉTIQUE** (l'index du tri alphabétique). `OpenGap` ne porte pas
+de `subject_id`, et la vérité de cette page est le **slug** : c'est lui qui vit dans l'URL. On
+fabrique le `number` que la brique exige plutôt que de modifier une brique que trois autres pages
+consomment.
+
+⚠️ **Le sélecteur disparaît sous deux matières** : un groupe de pastilles à une seule option occupe
+l'écran sans offrir de choix.
+
+⚠️ **Il est MONO-matière** alors que le serveur accepte une liste — dette connue de
+`SubjectFilterChips`, non ouverte ici.
 
 Le filtre est **visible et retirable** (bandeau + « Toutes les matières »), et vit dans l'URL :
 le lien qui amène ici le porte, et recharger ne le perd pas. Retiré avec `replace: true` — un filtre

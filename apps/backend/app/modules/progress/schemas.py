@@ -28,6 +28,16 @@ class OpenGapOut(BaseModel):
     # C'est un test de contrat qui l'a montré, pas la lecture du service.
     source: str | None = None
     content_state: str | None = None
+    # ADR-0047 : de quoi rendre la ligne actionnable. `lesson_id` est la leçon que le GESTE doit
+    # ouvrir — en brouillon quand il dit « valider », validée quand il dit « relire » —, `mission_id`
+    # la mission `planned|active` qui couvre déjà la notion. Les deux étaient DÉJÀ calculés puis
+    # jetés par le service : coût nul, aucune migration.
+    #
+    # ⚠️ Le commentaire ci-dessus n'est pas décoratif : ce sont les DEUX MÊMES lignes qu'il a fallu
+    # ajouter ici en 2026-08-08 pour `source` et `content_state`, après qu'elles ont disparu en
+    # silence à la sérialisation. Troisième et quatrième champ du même service, même piège.
+    lesson_id: int | None = None
+    mission_id: int | None = None
 
 
 class ConsolidatedSkillOut(BaseModel):

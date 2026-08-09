@@ -326,3 +326,132 @@ describe("filtre par matière", () => {
     expect(screen.queryByText(/Aucune lacune ouverte/)).toBeNull();
   });
 });
+
+// ================================================================================================
+// Le GESTE de chaque ligne (ADR-0047 §3) — la page cesse d'énoncer sans permettre d'agir.
+//
+// 🔴 Ce que ces verrous protègent, et que `gesteLacune.test.ts` ne peut pas voir : que le geste
+// arrive JUSQU'À L'ÉCRAN, avec le bon `href`. La règle peut être juste et le rendu l'ignorer —
+// c'est exactement ce qui est arrivé à `covered` (PR #91), qui a cessé d'être affichée sans
+// qu'aucun test ne rougisse.
+// ================================================================================================
+
+describe("le geste de la ligne", () => {
+  it("🔴 chaque état mène à SON href, et les quatre diffèrent", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue([
+      gap({ skill_id: 1, skill_name: "Brouillon", content_state: "cours_brouillon", lesson_id: 24 }),
+      gap({ skill_id: 2, skill_name: "Validee", content_state: "ok", lesson_id: 48 }),
+      gap({
+        skill_id: 3,
+        skill_name: "Couverte",
+        has_active_mission: true,
+        mission_id: 56,
+        content_state: "ok",
+        lesson_id: 99,
+      }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: /Valider le cours/ })).toHaveAttribute(
+      "href",
+      "/programme?lesson=24",
+    );
+    expect(screen.getByRole("link", { name: /Relire la leçon/ })).toHaveAttribute(
+      "href",
+      "/programme?lesson=48",
+    );
+    // 🔴 La notion couverte porte AUSSI `lesson_id: 99` : si l'ordre des conditions s'inversait,
+    // ce lien deviendrait `/programme?lesson=99` et le test le verrait.
+    expect(screen.getByRole("link", { name: /Voir la mission/ })).toHaveAttribute(
+      "href",
+      "/missions?focus=56",
+    );
+  });
+
+  it("🔴 la section « Déjà prises en charge » gagne un LIEN, et reste sans bouton", async () => {
+    // Le verrou historique de cette section (« aucun bouton de génération ») doit continuer de
+    // tenir : le geste y est une NAVIGATION, pas une action. Un `<button>` le casserait — et ce
+    // serait la bonne alerte, pas un faux positif.
+    vi.mocked(fetchOpenGaps).mockResolvedValue([
+      gap({ has_active_mission: true, mission_id: 56 }),
+    ]);
+    renderPage();
+
+    const section = (await screen.findByText(/Déjà prises en charge/)).closest("section");
+    expect(within(section as HTMLElement).getByRole("link", { name: /Voir la mission/ })).toBeInTheDocument();
+    expect(within(section as HTMLElement).queryByRole("button")).toBeNull();
+  });
+
+  it("🔴 `aucune_lecon` propose une ACTION, et la confirmation dit ce qu'elle génère", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue([
+      gap({ skill_name: "Les fractions", content_state: "aucune_lecon" }),
+    ]);
+    renderPage();
+
+    const bouton = await screen.findByRole("button", { name: "Équiper cette notion" });
+    // Ce n'est PAS un lien : `/quiz` ne peut pas produire le quiz d'une notion sans leçon.
+    expect(screen.queryByRole("link", { name: /Équiper/ })).toBeNull();
+
+    fireEvent.click(bouton);
+
+    // La confirmation n'est pas décorative : c'est une génération LLM auto-validée de plusieurs
+    // minutes. Elle doit le dire avant, pas après.
+    expect(await screen.findByText(/Équiper « Les fractions » \?/)).toBeInTheDocument();
+    expect(screen.getByText(/auto-valide/)).toBeInTheDocument();
+    expect(screen.getByText(/plusieurs minutes/)).toBeInTheDocument();
+  });
+
+  it("une ligne sans geste tenable n'en affiche AUCUN", async () => {
+    // `has_active_mission` sans `mission_id`, et `cours_brouillon` sans `lesson_id` : le serveur
+    // les garantit ensemble, les décors de test non. Aucun lien mort ne doit sortir.
+    vi.mocked(fetchOpenGaps).mockResolvedValue([
+      gap({ skill_id: 1, skill_name: "Sans mission_id", has_active_mission: true }),
+      gap({ skill_id: 2, skill_name: "Sans lesson_id", content_state: "cours_brouillon" }),
+    ]);
+    renderPage();
+
+    await screen.findByText(/Sans lesson_id/);
+    expect(screen.queryByRole("link", { name: /Voir la mission/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Valider le cours/ })).toBeNull();
+    expect(screen.queryByText(/undefined/)).toBeNull();
+  });
+
+  it("🔴 le sélecteur de matières POSE le filtre, et il vient des lacunes", async () => {
+    // Le filtre existait mais n'était atteignable que par un lien externe : la page savait le lire
+    // et le retirer, jamais le poser. Et les matières viennent des lacunes elles-mêmes — proposer
+    // une matière sans lacune mènerait à une page vide, soit un filtre qui ment.
+    vi.mocked(fetchOpenGaps).mockResolvedValue(TROIS);
+    renderPage();
+
+    const groupe = await screen.findByRole("group", { name: /Filtrer par matière/ });
+    expect(within(groupe).getByRole("button", { name: /Français/ })).toBeInTheDocument();
+    expect(within(groupe).getByRole("button", { name: /Mathématiques/ })).toBeInTheDocument();
+
+    fireEvent.click(within(groupe).getByRole("button", { name: /Français/ }));
+
+    expect(await screen.findByText(/Accord du participe/)).toBeInTheDocument();
+    expect(screen.queryByText(/Comparaison de relatifs/)).toBeNull();
+    // Filtrer ne coûte AUCUNE requête (adr-0038 §4) — le verrou de la page, transposé au sélecteur.
+    expect(fetchOpenGaps).toHaveBeenCalledTimes(1);
+  });
+
+  it("une seule matière : pas de sélecteur", async () => {
+    // Un groupe de pastilles à une seule option n'offre aucun choix — il occupe l'écran sans rien
+    // permettre.
+    vi.mocked(fetchOpenGaps).mockResolvedValue([gap()]);
+    renderPage();
+
+    await screen.findByText(/Comparaison de relatifs/);
+    expect(screen.queryByRole("group", { name: /Filtrer par matière/ })).toBeNull();
+  });
+
+  it("le motif accompagne le geste à l'écran", async () => {
+    vi.mocked(fetchOpenGaps).mockResolvedValue([
+      gap({ content_state: "cours_brouillon", lesson_id: 24 }),
+    ]);
+    renderPage();
+
+    // Sans lui, le geste est un lien nu : Papa doit deviner pourquoi celui-là.
+    expect(await screen.findByText(/son cours est en brouillon/)).toBeInTheDocument();
+  });
+});

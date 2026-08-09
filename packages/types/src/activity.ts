@@ -113,9 +113,28 @@ export interface OpenGap {
    *  (ADR-0042, `app/modules/content_state.py`).
    *
    *  🔴 Les deux derniers **ne se confondent pas** : sans leçon la lacune est réparable par un quiz
-   *  ancré sur la notion ; avec un cours en brouillon, cette voie **refuse** et il faut valider. */
-  content_state?: string | null;
+   *  ancré sur la notion ; avec un cours en brouillon, cette voie **refuse** et il faut valider.
+   *
+   *  ⚠️ **L'union est nommée, mais `string` reste accepté** (ADR-0047 Décision 6). Le serveur peut
+   *  servir un état que ce contrat ne connaît pas encore ; le front doit alors ne rendre **aucun**
+   *  geste plutôt que d'en deviner un. Fermer le type ici transformerait un état inconnu en erreur
+   *  de compilation à la place d'une ligne sans geste — plus strict, et faux. */
+  content_state?: ContentState | (string & {}) | null;
+  /** La leçon que le geste de la ligne doit ouvrir (ADR-0047 Décision 4) : celle **en brouillon**
+   *  quand le geste dit « valider », celle **validée** quand il dit « relire ». `null` quand la
+   *  notion n'a aucune leçon — le geste vise alors la notion elle-même.
+   *
+   *  ⚠️ Une notion porte jusqu'à quatre leçons. Le départage n'est pas fait ici : il suit l'ordre
+   *  que `lessons_by_skill` établit déjà côté serveur (`updated_at` décroissant, puis `id`). */
+  lesson_id?: number | null;
+  /** La mission `planned|active` qui couvre déjà la notion — la plus prioritaire quand il y en a
+   *  plusieurs, suivant l'ordre d'`active_missions`. Non nul exactement quand
+   *  `has_active_mission` est vrai : les deux sortent de la même passe. */
+  mission_id?: number | null;
 }
+
+/** Les états de contenu que le front sait traduire en geste (ADR-0042, ADR-0047 §3). */
+export type ContentState = "ok" | "aucune_lecon" | "cours_brouillon";
 
 /** Une notion consolidée (`GET /api/parent/progress/consolidated`) — `mastered`, score ≥ 90. */
 export interface ConsolidatedSkill {

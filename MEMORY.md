@@ -7,219 +7,201 @@
 
 ## État à la reprise
 
-**Chantier : « le worker de production est un service, et son absence vient à toi » (ADR-0046).
-✅ COMPLET et ✅ MERGÉ SUR `main` (2026-08-08). Ne pas ré-implémenter.**
+**Chantier : « la page Lacunes permet d'agir » (ADR-0047).
+✅ COMPLET — les DEUX sessions sont livrées. ⚠️ PAS ENCORE MERGÉ, et la relecture humaine est DUE.**
 
 | | |
 |---|---|
-| **Mergé** | PR [#104](https://github.com/NeuronXcore/zetis-school/pull/104), **squash `a6247f4`**, base `ef54f7f` (vérifié : parent du squash). 23 fichiers, +2022/−196 |
-| **État git** | `main` = `origin/main` = `a6247f4` — **rien à pousser** |
-| **Branche** | `feat/worker-supervise` — 🔴 **CONSERVÉE**, locale ET distante. Mergée **sans** `--delete-branch` |
-| **Décisions** | ADR-0046 **Accepté**, 8 décisions — dont **trois amendées pendant l'exécution** (4, le périmètre, et le §Suivi) |
-| **Migration** | **AUCUNE**, aucun endpoint, aucune surface Massimo |
-| **Suites** | Backend **1052 → 1074** (+22). ⚠️ Front **non relancé** — aucun de ses fichiers n'est touché |
-| **Sabotages** | **11 joués, 11 rouges.** ⚠️ Deux étaient d'abord ressortis VERTS parce que le `perl` de sabotage n'avait rien remplacé — un contrôle d'application les a démasqués |
-| **Relecture visuelle** | ⬜ **AUCUNE, et c'est défendable ici** : le chantier n'a pas d'interface. Mais les preuves à l'écran ont été remplacées par des preuves **en conditions réelles**, listées ci-dessous |
+| **Branche** | `feat/lacunes-permettent-d-agir`, avec suivi distant. ⚠️ **La Session B n'est pas commitée** à cette clôture |
+| **Base** | `6641f8a` (`docs(adr): ADR-0047 passe en Accepté`), vérifiée par `git cat-file -t` |
+| **Commits** | par `git log --oneline main..HEAD` — on ne les recopie pas ici |
+| **Décisions** | ADR-0047 **Accepté**, 8 décisions — ⚠️ **TROIS ont été corrigées à l'exécution** (4, 3 et 8), voir plus bas |
+| **Migration** | **AUCUNE**, aucun endpoint neuf, aucune surface Massimo |
+| **Suites** | Backend **1080** (+1 rouge pré-existant, prouvé tel) · Papa **707 → 724** (+17) · `tsc -b` Papa + Massimo **0** |
+| **Sabotages** | **13 joués, 13 rouges** (5 en session A, 8 en B), chacun avec contrôle d'application |
+| **Relecture visuelle** | ✅ **FAITE par le commanditaire (2026-08-09), RIEN RELEVÉ.** Après l'ouverture de la PR [#105](https://github.com/NeuronXcore/zetis-school/pull/105) ; l'ADR la voulait **avant** — écart assumé, écrit dans le corps de la PR. ⚠️ **Une relecture qui ne trouve rien est l'exception ici** : celle de l'`adr-0043` avait sorti **cinq** défauts en quelques minutes, et c'est elle qui a fait naître ce chantier |
 
-### FAIT — les trois slices
+### FAIT — les deux sessions
 
-> Les commits se listent par `git log --oneline main..HEAD` — on ne les recopie pas ici :
-> une ligne qui nomme le commit qui la contient ne peut pas être vraie (`WORKFLOW.md §5`).
+**Session A — le contrat porte de quoi agir.** `lesson_id` et `mission_id` sur `OpenGap`, pour
+**zéro requête** : les deux étaient déjà calculés puis jetés. `content_state.etat_et_lecon` rend
+l'état ET la leçon en une passe ; `progress.missions_by_skill` porte l'ensemble ET l'identifiant, et
+`skills_with_active_mission` en **dérive**.
 
-**Slice A — le service supervisé**
-8ᵉ service `worker` dans `docker-compose.prod.yml` : même image que le backend, `entrypoint`
-écrasé, `restart: unless-stopped`, aucun port, `extra_hosts` pour Ollama. Plus un **healthcheck sur
-`backend`**, qui est ce qui rend `condition: service_healthy` disponible.
+**Session B — la ligne devient un geste.** `lib/gesteLacune.ts` (la règle, testable sans monter la
+page) + son rendu, le motif en clair, la règle responsive, `?focus=` sur `/missions`, et « Voir la
+lacune → » de la station ② qui transporte enfin la matière.
 
-**Slice B — le dev ne peut plus démarrer deux workers**
-Garde-fou dans **`app/production_worker.py`**, pas dans les scripts — donc il couvre les quatre
-portes, y compris celles qui n'existent pas encore. `scripts/with-worker.sh` (neuf) attache le
-worker aux **5 entrées backend** de `.claude/launch.json`.
+### 🔴 TROIS DÉCISIONS DE L'ADR ONT ÉTÉ CORRIGÉES — ne pas les relire dans leur version d'origine
 
-**Slice C — l'absence vient à toi**
-Watchdog dans le **backend** (jamais dans le worker), e-mail par `smtplib`, plancher de **8 min
-mesuré**, verrou d'unicité dans Redis. Plus `python -m app.core.mailer`, la **preuve de vie du
-canal** — que l'ADR nommait dans son « signal qui dirait qu'on s'est trompé ».
-⚠️ Ce commit porte **aussi les 4 défauts du compose** (healthchecks, `mem_limit`, mot de passe,
-réseaux) : non séparables, leur documentation vit dans les mêmes fichiers.
+1. **Décision 4 — le départage des leçons.** L'ADR disait « l'`id` le plus grand » ;
+   `lessons_by_skill` trie **déjà** `(updated_at, id)` pour ses cinq appelants. Deux ordres qui
+   divergent. **L'ordre existant gagne, l'ADR se corrige.**
+2. **Décision 3 — `aucune_lecon`.** L'ADR disait « Produire le quiz de cette notion → »
+   vers `/quiz?skill=`. `/quiz` pilote les quiz **de fin de cours**, « générés depuis le cours
+   validé d'une leçon » — exactement ce qui manque ici. **C'est une ACTION** (`equipNotion`), qui
+   produit cinq pièces et non un quiz.
+3. **Décision 8 — la station ②.** « Trois lignes » était faux : deux de ses trois gestes demandent
+   un champ backend ou une machinerie d'action. **Réduite à « Voir la lacune → »**, qui ne coûte
+   rien (le slug est déjà sur l'entrée du rail).
+
+Les trois sont écrites **avec leur motif** dans l'ADR, `DECISIONS.md` et les specs.
+
+### FAIT AUSSI — deux retours d'usage du commanditaire (2026-08-09, après la clôture)
+
+Le chantier a été **rouvert** après sa première clôture, sur deux demandes faites en regardant
+l'écran :
+
+- **L'anneau ambre** sur la mission ouverte par `?focus=` — déplier et centrer ne suffisait pas.
+  🔴 Estompage **en CSS**, jamais par `setTimeout` : sous `prefers-reduced-motion` l'animation est
+  coupée et **l'anneau reste**. C'est le patron du dépôt (« FIGE SANS RIEN RETIRER »), et il évite
+  une ligne de JS.
+- **Le sélecteur de matières** sur `/lacunes`. Le filtre existait mais n'était atteignable que par
+  un lien externe. `SubjectFilterChips`, alimenté par les matières **des lacunes elles-mêmes** :
+  zéro requête, et aucune matière qui mènerait à une page vide.
 
 ### EN COURS — rien
 
 Aucun fichier à moitié écrit, aucun état instable.
 
-### ✅ CE QUI A ÉTÉ PROUVÉ EN CONDITIONS RÉELLES
+### 🔴 DEUX CHANTIERS NÉS DE CES ÉCHANGES — cadrés au `BACKLOG`, PAS ouverts
 
-> Sept preuves jouées sur la vraie pile, pas en test. **À ne pas refaire** — elles sont détaillées
-> dans l'ADR-0046 § « Ce qui est prouvé, et comment ».
+Le commanditaire les a retenus tous les deux. **Aucun n'est du code** : les deux demandent un
+cadrage avant la moindre ligne.
 
-| Preuve | Résultat |
-|---|---|
-| Barrière `service_healthy` | `backend … Waiting → Healthy` **puis** `worker Starting` |
-| `entrypoint` écrasé | logs RQ, **pas** uvicorn ; le backend a migré **seul** |
-| Redémarrage après crash | `RestartCount 0 → 1` |
-| Garde-fou, les deux portes | refuse worker vivant · **laisse démarrer** sans worker · refuse le second |
-| 🔴 **Le worker conteneurisé PRODUIT** | `run_ai_job(114)` en **1 min 27 s** → 40 questions / 8 notions, texte réel, `validation_status=pending` |
-| Chaîne du watchdog par un **vrai SMTP** | `trop-tot` → `alerte-envoyee` → `deja-alertee` → `worker-vivant`, **un seul message** |
-| Egress coupé sur `interne` | conteneur sur `interne` seul → **HTTP 000** ; worker → hôte **200** |
+1. **Une lacune comblée AUTREMENT ne se referme jamais.** Vérifié : **un seul** endroit écrit
+   `gap.status = "resolved"` (`missions/service.py:1011`, fin de mission). Quiz réussi, diagnostic
+   repassé, carte SRS acquise — rien ne referme. ⚠️ **Ce chantier vient d'aggraver le défaut** : la
+   page propose maintenant d'AGIR, donc de produire du contenu pour une notion peut-être déjà
+   acquise. C'est une **doctrine** (quel signal vaut résolution ?), pas un correctif, et elle
+   touche quatre modules.
+2. **Une vue calendrier sur `/lacunes`.** ⚠️ Elle **contredit une décision écrite** de la spec
+   (« ce n'est pas une surface de mesure »). Il faut un **addendum à l'`adr-0047`** qui la révoque
+   ou reformule le besoin — le dépôt interdit de contourner une décision sans la nommer.
+   ✅ La moitié « tri par matières » de la demande **est livrée**.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-- **Le canal est l'e-mail, pas Web Push.** Motif = un **fait de déploiement** : aucun environnement
-  distant n'existe, le Push API exige un contexte sécurisé, il n'aurait atteint que la machine
-  devant laquelle Papa est déjà assis. 🔴 **À rouvrir seulement le jour où l'accès distant existe.**
-- **N ≥ 8 minutes**, et le plancher **relève** au lieu de refuser.
-- **Le watchdog vit dans le backend** — on ne demande pas au mort de constater son décès.
-- **Concurrence 1**, jamais de `--scale`.
-- **Le worker accompagne CHAQUE entrée backend** de `launch.json` (Décision 4 amendée : le fichier
-  n'a aucune forme pour un processus sans port). C'est le garde-fou qui tient l'unicité.
-- **Le critère « du travail attend » a UNE définition** — `activity.porte_un_travail_en_file()`,
-  lue par la route d'activité **et** par le watchdog.
+- **Le grain est la NOTION, jamais la matière.**
+- **`has_active_mission` est testé EN PREMIER**, avant tout `content_state`.
+- **Un geste n'est rendu que si son identifiant l'est** — jamais `?focus=undefined`.
+- **La branche par défaut ne rend AUCUN geste** — pas de repli.
+- **« Voir la mission » est BLEU** (`papa-accent-2`) : le vert est la couleur des gestes qui font
+  avancer, celui-ci constate.
+- **La forme suit ce que le geste fait** : `aucune_lecon` est un `<button>`, les trois autres des
+  `<Link>`.
 
 ### PIÈGES rencontrés → `TROUBLESHOOTING.md`
 
-Section `feat/worker-supervise`. Les trois qui coûteraient le plus :
-🔴 **`docker compose kill` ne prouve PAS un redémarrage** (arrêt d'opérateur, exclu par
-`unless-stopped`) — la procédure écrite dans l'ADR rendait un **faux négatif** ;
-🔴 **le motif `pgrep` a DEUX façons d'être faux**, sous-détection et sur-détection ;
-🔴 **`command:` est silencieusement ignoré** sur une image à `ENTRYPOINT` exec.
+Deux sections, `feat/lacunes-permettent-d-agir` Sessions A et B. Les trois qui coûteraient le plus :
+🔴 **deux fonctions sœurs sur la même donnée = DEUX requêtes**, et **aucun test unitaire ne le
+voit** — il faut compter le SQL ;
+🔴 **une destination qui EXISTE ne garantit pas qu'elle puisse tenir la promesse du lien** ;
+🔴 **`active_missions` et `pilot_list` ne voient pas la même population** — un `?focus=` cherché
+dans une seule liste serait mort une fois sur deux.
 
 ### ⚠️ DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- 🔴 **L'e-mail n'a jamais atteint une VRAIE boîte.** Tout le reste du canal est prouvé (vrai SMTP
-  local). Il manque les 4 lignes SMTP dans le `.env` **racine** (lignes 21-25, à décommenter ;
-  `ALERT_EMAIL_TO` est déjà posé) puis `python -m app.core.mailer`. ⚠️ Gmail exige un **mot de
-  passe d'application**. ⚠️ Un backend déjà lancé **ne verra pas** le nouveau `.env` : `settings`
-  est lu à l'import — le redémarrer, et il écrira « watchdog production armé » au lieu de
-  « CANAL INERTE ».
-- ⚠️ **`mem_limit: 1g` est calé sur une mesure À VIDE** (92 / 41 Mio). La voix Piper (ONNX) et
-  l'extraction PDF du RAG **n'ont pas été mesurées sous charge**. À relever si un OOM apparaît,
-  **jamais à baisser** sans nouvelle mesure.
-- 🔴 **`POSTGRES_PASSWORD` reste `zetis_dev_password`** dans le `.env` racine — je l'y ai mis pour
-  ne pas casser `prod:up`, mais c'est le secret public que la correction visait. Le changer impose
-  `docker compose -f docker-compose.prod.yml down -v`, qui **efface les données prod**.
-- ✅ **Le worker de dev ne tourne plus détaché** (2026-08-09). Les deux processus `nohup` (56904,
-  56907) ont été arrêtés par `SIGTERM` — que **RQ intercepte**, donc arrêt propre en ~2 s — et
-  relancés par `pnpm dev:worker`. ⚠️ **Il vit désormais dans une session, donc il MOURRA avec
-  elle** : sans lui, un lot lancé depuis la Couverture reste `queued` **indéfiniment** et la bande
-  affiche « ZETIS ne produit pas ». C'est le comportement juste, pas une panne — mais c'est le
-  genre de chose qu'on découvre une heure plus tard. Pour vérifier :
-  `pgrep -fl "app.production_worker"`.
-- ⚠️ **Données de dev** : la pile prod porte désormais le **quiz 4** (SVT, 40 questions, `pending`)
-  et son `ai_job 114`, créés par le test de production réelle. Volume `zetis-prod_postgres_data`.
-- ⚠️ **Le `lifespan` de `main.py` est la PREMIÈRE tâche de fond du backend.** Il n'y avait aucun
-  patron ; celui-ci en devient un. Non exercé par les tests (la boucle dort d'abord, exprès).
+- ✅ **La relecture visuelle HUMAINE est FAITE (2026-08-09).** Elle a eu lieu **après** l'ouverture
+  de la PR, là où l'ADR la voulait avant — écart assumé, consigné dans le corps de la PR #105.
+  ⚠️ **Ce que l'agent n'avait PAS pu voir** et qui relevait donc entièrement d'elle : l'action
+  « Équiper » jouée jusqu'au bout (génération LLM ~69 s auto-validée, cinq pièces écrites en base),
+  et la station ② corrigée à l'écran.
+- 🔴 **Le responsive Papa n'est pas jugeable à 375 px, et ce n'est pas ce chantier** : la sidebar y
+  prend **256 px** des 375, `main` n'en garde **119**, la ligne 71, son corps 37. La règle du
+  chantier **s'applique bien** (`flex-basis: 100%` mesuré au DOM) — elle ne peut rien contre ce
+  conteneur. Validée à **768 px**. C'est la dette `w-64 shrink-0` ci-dessous.
+- ⚠️ **Les deux gestes de la station ② sur-promettent toujours** — « cette notion » / « cette
+  leçon » mènent à la **matière**. Un test **fige la dette** (`PanneauPassation.test.tsx`) : s'il
+  tombe, c'est qu'elle est payée — le **supprimer**, pas l'ajuster. Chiffrage réel au `BACKLOG`.
+- ⚠️ **Le test de coût backend assert un PLAFOND (`<= 4`), pas une égalité.**
+- ⚠️ **`missions_by_skill` à priorités égales** rend l'`id` le plus petit, par l'ordre existant.
+  Verrouillé indirectement, pas nommé dans un test dédié.
+- 🔴 **`API_SPEC.md` n'a AUCUN contrôle automatique**, et il avait **un chantier de retard**
+  (ni `source` ni `content_state`, servis depuis l'`adr-0045` mergée). Remis au réel ici — rien
+  n'empêche la prochaine dérive.
+- ⚠️ **Données de dev touchées puis RESTAURÉES** : missions **12, 48, 56, 59, 64** passées à
+  `completed` pour faire apparaître les gestes autres que « Voir la mission », puis remises à
+  (`12: active`, les quatre autres `planned`) — **restauration vérifiée à l'écran** : une seule
+  section, 10 liens, 0 bouton.
 
 **Héritées, et toujours vraies :**
 
-- 🔴 **SEPT branches de chantier sont conservées** — `feat/diagnostic-massimo-propose`,
-  `feat/diagnostic-mesure-qui-engage`, `feat/diagnostic-papa-optimisations`,
-  `feat/notion-orpheline-equipable`, `feat/worker-supervise`, `fix/connexion-mot-de-passe`,
-  `fix/diagnostic-zone-c-mobile`. Le dépôt a `delete_branch_on_merge: false`. **Aucune n'est à
+- 🔴 **HUIT branches de chantier sont conservées** — les sept d'avant plus
+  `feat/lacunes-permettent-d-agir`. Le dépôt a `delete_branch_on_merge: false`. **Aucune n'est à
   supprimer sans consigne**, et leurs noms se ressemblent assez pour qu'un `git branch -d` distrait
-  fasse le mauvais. *(Ce fait avait été emporté par l'élagage de cette clôture, et rattrapé par la
-  vérification — c'est le genre de consigne qui ne vit nulle part ailleurs.)*
-
+  fasse le mauvais.
+- 🔴 **La sidebar Papa n'est toujours pas responsive** — `w-64 shrink-0` sans point de rupture,
+  alors que Massimo a reçu son tiroir le 2026-08-04. **Mesurée cette session** : elle rend toute
+  page Papa inutilisable à 375 px. Le chantier est le même, déjà mené une fois.
 - 🔴 **La migration `a9b0c1d2e3f4` n'est PAS en prod.**
 - 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
 - 🔴 **`response_model` filtre en SILENCE les champs non déclarés** — vaut pour toute route FastAPI.
-- ⚠️ **Le journal de production affiche « fait en 95 s » sur un travail resté 25 H en file** — il
-  montre la date de **création** et la durée d'**exécution**, jamais l'attente. Mesuré sur les jobs
-  749/750. **Le journal est incapable de montrer la panne que ce chantier corrige.** Au `BACKLOG`.
-- ⚠️ **Dans le compose DEV, `worker-media` est sur `networks:[internal]` SEUL** alors que
-  postgres/redis/minio sont sur le réseau par défaut — ils ne peuvent pas se joindre. Masqué par
-  `profiles:[render]`. Au `BACKLOG`.
-- ⚠️ **Massimo voit 18 diagnostics validés, dont 11 en Français pour 2 passés** — et **2 des 3
-  derniers sont des doublons Maths** (quiz 55 et 56, nés du double clic pendant la panne). Le geste
-  existe (« Retirer la proposition » → `POST /reject`). ⚠️ **Ce qui survit ici, c'est la DONNÉE, pas
-  la page** : le chantier « page Diagnostic de Massimo » (`adr-0044`) est **livré et mergé** (PR
-  #100) — il **hiérarchise et sépare** fait / à-faire, il ne **déduplique** rien en base. Les deux
-  doublons Maths et le déséquilibre 11-pour-2 sont donc toujours là, et se retirent un par un.
+  Un verrou existe désormais pour `/progress/gaps`, et pour elle seule.
+- 🔴 **Deux tests de `test_dashboard.py` alternent au rouge selon l'heure** — pré-existants.
+  ⚠️ **Reconfirmé et PROUVÉ pré-existant** par `git stash` du code backend de ce chantier.
+- 🔴 **L'e-mail du watchdog n'a jamais atteint une VRAIE boîte** — 4 lignes SMTP du `.env` racine
+  (21-25) à décommenter, mot de passe d'application Gmail, puis `python -m app.core.mailer`.
+  ⚠️ Un backend déjà lancé ne verra pas le nouveau `.env`.
+- 🔴 **`POSTGRES_PASSWORD` reste `zetis_dev_password`** dans le `.env` racine.
+- ⚠️ **`mem_limit: 1g` est calé sur une mesure À VIDE** (92 / 41 Mio) — à relever si un OOM
+  apparaît, **jamais à baisser** sans nouvelle mesure.
+- ⚠️ **Le worker de dev vit dans une SESSION** : il meurt avec elle. Sans lui, un lot lancé depuis
+  la Couverture reste `queued` **indéfiniment**. Vérifier : `pgrep -fl "app.production_worker"`.
+- ⚠️ **Le `lifespan` de `main.py` est la PREMIÈRE tâche de fond du backend** — non exercé par les
+  tests (la boucle dort d'abord, exprès).
+- ⚠️ **Données de dev ADR-0046** : la pile prod porte le **quiz 4** (SVT, `pending`) et son
+  `ai_job 114`.
+- ⚠️ **Le journal de production affiche « fait en 95 s » sur un travail resté 25 H en file.**
+- ⚠️ **Dans le compose DEV, `worker-media` est sur `networks:[internal]` SEUL.**
+- ⚠️ **Massimo voit 18 diagnostics validés, dont 11 en Français pour 2 passés**, 2 doublons Maths.
+  C'est la **donnée**, pas la page : l'`adr-0044` hiérarchise, il ne déduplique pas.
 - ⚠️ **L'écran de résultat de Massimo affiche jusqu'à 8 notions à renforcer d'affilée.**
 - ⚠️ **La branche `null` de `measured_at`** n'est exercée par aucune donnée réelle.
 - ⚠️ **Rien ne referme une lacune quand la notion est réussie** — seul `missions/service.py` écrit
-  `resolved`. Le filtre d'affichage n'est PAS une résolution.
-- ⚠️ **`graphify affected` est aveugle** sur `list_diagnostics` — une réponse vide ne prouve rien.
+  `resolved`.
 - **Papa valide un diagnostic sans pouvoir le LIRE** depuis la file (`reviewLink` rend `null`).
 - **Les 14 défauts du module `diagnostics`** restent au `BACKLOG.md`, aucun traité.
 - ⚠️ **Le panneau Diagnostic reste sur une matière que la pastille exclut** — pré-existant.
-- ⚠️ **`avec_quiz` exclut les `rejected`** : une matière dont l'unique diagnostic a été refusé
-  compte comme « jamais générée ». **Non exercé.**
-- ⚠️ **Données de dev ADR-0045** : le **quiz 30 est laissé en `pending`** (spécimen « généré »).
-  Annuler par `UPDATE quizzes SET validation_status='validated' WHERE id=30;`.
-- **Artefacts de dev ADR-0042 toujours en base** : `Skill 436`, `Quiz 54`, `Gap 2`, `Mission 56`.
-  Ordre de suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion`
-  → `Quiz` → `Skill`.
-- **Résidus de la vérification 375 px** : simulateurs `ZETIS-375` et `ZETIS-393`, à supprimer par
-  `xcrun simctl delete`. La paire `backend-lan` / `massimo-lan` est la **seule joignable depuis un
-  vrai iPhone**.
+- ⚠️ **`avec_quiz` exclut les `rejected`** — non exercé.
+- ⚠️ **Données de dev ADR-0045** : le **quiz 30 est laissé en `pending`**. Annuler par
+  `UPDATE quizzes SET validation_status='validated' WHERE id=30;`.
+- **Artefacts de dev ADR-0042 en base** : `Skill 436`, `Quiz 54`, `Gap 2`, `Mission 56`. Ordre de
+  suppression contraint par les FK : `MissionStep` → `Mission` → `Gap` → `QuizQuestion` → `Quiz`
+  → `Skill`.
+- **Résidus de la vérification 375 px** : simulateurs `ZETIS-375` et `ZETIS-393`
+  (`xcrun simctl delete`). La paire `backend-lan` / `massimo-lan` est la **seule joignable depuis
+  un vrai iPhone**.
 
 ### ▶▶ PROCHAIN PAS
 
-**Le chantier est CLOS.** Mergé, branche conservée, étape 4bis faite. ⚠️ **Ne rien en recommencer.**
+**Le chantier est COMPLET, mais la Session B n'est PAS COMMITÉE** — tout est dans l'arbre de
+travail. La Session A, elle, est commitée **et poussée** (0 commit en attente, vérifié).
+Donc : **committer la Session B, puis pousser.**
 
-🔴 **La seule dette du chantier qui survit au merge** : l'e-mail n'a **jamais atteint une vraie
-boîte**. Le canal est prouvé partout ailleurs (vrai SMTP local, chaîne complète du watchdog). Il
-manque les 4 lignes SMTP du `.env` **racine** (21-25, à décommenter — `ALERT_EMAIL_TO` est déjà
-posé), puis `python -m app.core.mailer` : une seconde, et on sait. ⚠️ Gmail exige un **mot de passe
-d'application**, et un backend déjà lancé ne verra pas le nouveau `.env` (`settings` est lu à
-l'import).
+✅ **La relecture visuelle humaine est FAITE (2026-08-09)** — la dernière condition du chantier.
+La PR [#105](https://github.com/NeuronXcore/zetis-school/pull/105) est **OPEN** et `MERGEABLE`.
 
-> ⚠️ **Le merge a eu lieu SANS cette preuve, en connaissance de cause** — signalée trois fois, dans
-> le corps de la PR compris. Ce n'est pas un oubli : c'est un arbitrage du commanditaire.
+**Il reste donc : merger (squash), puis l'étape 4bis.**
 
-**▶▶ Le chantier suivant est CADRÉ et son ADR est ACCEPTÉ — `adr-0047`, la page Lacunes permet
-d'agir.** Il ne reste plus rien à décider : `/ouverture` peut créer la branche, puis les **deux
-sessions** de `prompts/claude-code/prompts-claude-code-adr-0047.md`.
+⚠️ **Piège de vérification, s'il faut y revenir** : pour voir les gestes autres que « Voir la
+mission », il faut **fabriquer le cas** — les 10 lacunes sont toutes couvertes. Libérer **toutes**
+les missions actives d'une notion (une seule ne suffit pas, mesuré), relever leurs états avant, et
+**remettre la base après**.
 
-| | |
-|---|---|
-| **ADR** | `adr-0047-la-page-lacunes-permet-d-agir.md` — **Accepté 2026-08-09**, 8 décisions gelées |
-| **Maquette** | `docs/frontend-papa/mockup/mockup-papa-lacunes-v1.html` — **vue** en desktop ET à 375 px |
-| **Spec** | `docs/frontend-papa/page-lacunes.md`, 9 passages `[0047]` |
-| **Sessions** | A = le contrat porte de quoi agir (backend) · B = la ligne devient un geste (front) |
-| **Migration** | **AUCUNE** — les deux champs sont déjà calculés puis jetés |
+**Puis** : merge, et l'étape **4bis** (`WORKFLOW.md §5`). ⚠️ Son geste que le dépôt a appris à
+ses dépens le 2026-08-09 : **retirer l'annonce « à faire »** partout où ce chantier était promis —
+`BACKLOG.md`, le Statut de l'ADR, `DECISIONS.md`, ce fichier. Les quatre contrôles du 4bis ne le
+demandent pas, et c'est ce qui a envoyé une session entière re-cadrer un chantier livré.
 
-🔴 **Les trois choses à ne pas redécouvrir en exécutant** (elles sont dans l'ADR, mais elles coûtent
-cher si on les rate) :
-
-- **`response_model` filtre en SILENCE** — l'`adr-0045` s'y est fait prendre sur **ce service
-  précis**, en y ajoutant `source` et `content_state` ;
-- **les 10 lacunes ont toutes une mission active**, donc deux sections sur trois **ne s'affichent
-  pas** : pour les voir, il faut fabriquer le cas, puis remettre la base en état ;
-- **une notion porte jusqu'à quatre leçons** — « la leçon à ouvrir » n'est pas un singleton.
-
-**Le candidat restant, non cadré :** l'**anti-triche du diagnostic**, seul à porter encore un
-`▶▶ PROCHAIN CHANTIER` au `BACKLOG.md`. Il demande le **rituel complet** — une session de cadrage
-sur `main` avant la moindre ligne.
-
-> 🔴 **Il y avait un troisième candidat ici, et il était FAUX** — « la page Diagnostic de MASSIMO,
-> en retard sur son propre ordre ». Elle est **livrée et mergée depuis le 2026-08-08** :
-> `adr-0044`, PR [#100](https://github.com/NeuronXcore/zetis-school/pull/100), squash `6642a30`,
-> trois sessions, `CHANGELOG.md` 0.60.0. Et **l'ordre décidé a été tenu** : #100 (Massimo) est
-> passée **avant** #103 (Papa). La phrase était donc fausse deux fois.
->
-> **Quatre documents portaient le même mensonge** — l'`adr-0044` (« rien n'est implémenté »),
-> `DECISIONS.md`, `BACKLOG.md` (titre `▶▶ PROCHAIN CHANTIER` + « addendum à l'ADR-0030
-> nécessaire », alors qu'il existe) et ce fichier. **Ils ont envoyé la session du 2026-08-09
-> re-cadrer un chantier fait** : elle l'a arrêtée au read-before-code, sur le `git log` de la
-> branche conservée. Les cinq endroits sont remis au réel à cette date.
->
-> ⚠️ **La leçon, et elle vaut pour toute clôture** : l'étape 4bis a bien passé ses quatre contrôles
-> (`2d8410b` le dit, et c'est vrai — ADR, `TROUBLESHOOTING`, `CHANGELOG`, dettes remontées). Aucun
-> des quatre ne demande de **retirer l'annonce « à faire »**. Un chantier livré qui continue de
-> s'annoncer est invisible à tous les contrôles existants — c'est un **cinquième contrôle** :
-> *chercher le nom du chantier là où il était promis, et l'y éteindre.*
-
-> ✅ **Élagage fait à cette clôture** : la section du chantier **ADR-0045** (page Diagnostic de
-> Papa, PR #103) a été retirée après ses **quatre contrôles** — ADR
-> `adr-0045-…-montre-ce-qu-elle-annonce.md` ✅ · `TROUBLESHOOTING.md` section
-> `feat/diagnostic-papa-optimisations` ✅ · `CHANGELOG.md` **0.61.0** ✅ · et **ses dettes ouvertes
-> remontées ci-dessus**, y compris les résidus de données de dev et les cinq dettes héritées qu'elle
-> portait. Le récit se retrouve par `git log -p MEMORY.md`.
+**Chantier suivant, non cadré** : l'**anti-triche du diagnostic**, seul à porter encore un
+`▶▶ PROCHAIN CHANTIER` au `BACKLOG.md`. Rituel complet exigé.
 
 ---
+
+
 
 
 ## Dettes SURVIVANTES des chantiers élagués

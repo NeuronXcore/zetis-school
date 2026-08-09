@@ -246,12 +246,25 @@ laisser lire que « score bas » et « lacune » sont la même chose.
 Une carte par lacune, **relue à l'affichage** — l'état est celui d'aujourd'hui, pas celui de la date
 de passation. Quatre badges, et **deux d'entre eux commandent des gestes différents** :
 
-| Badge | Situation | Geste proposé |
-|---|---|---|
-| `résolue` | refermée par une mission | Voir la lacune → |
-| `remédiation en cours` | mission active | Voir la lacune → |
-| `aucune leçon` | **aucune** leçon ne porte la notion | **Produire le quiz de cette notion →** |
-| `cours en brouillon` | une leçon existe, son cours n'est pas validé | **Valider le cours de cette leçon →** |
+| Badge | Situation | Geste proposé | Où il mène |
+|---|---|---|---|
+| `résolue` | refermée par une mission | Voir la lacune → | `/lacunes?subject=<slug>` `[0047]` |
+| `remédiation en cours` | mission active | Voir la lacune → | `/lacunes?subject=<slug>` `[0047]` |
+| `aucune leçon` | **aucune** leçon ne porte la notion | **Produire le quiz de cette notion →** | ⚠️ `/quiz?subject=` — la **matière** |
+| `cours en brouillon` | une leçon existe, son cours n'est pas validé | **Valider le cours de cette leçon →** | ⚠️ `/programme?subject=` — la **matière** |
+
+> ✅ **`[0047]` « Voir la lacune → » transporte enfin la matière** (2026-08-09). Il menait à
+> `/lacunes` **nu** : Papa quittait un diagnostic de Français pour la liste complète, toutes
+> matières, depuis un écran qui lui donnait le motif ET l'action. C'est le cul-de-sac **circulaire**
+> que l'`adr-0047` cite en Contexte comme motif de son chantier. Le slug vient de l'entrée du
+> **rail** (`DiagnosticRailEntry.subject_slug`), que la page a déjà — aucun champ ajouté nulle part.
+
+> 🔴 **DETTE ASSUMÉE : les deux gestes du bas SUR-PROMETTENT.** Ils écrivent « cette notion » et
+> « cette leçon », et mènent à la **matière**. Les corriger demande `lesson_id` au contrat de
+> `lacunes_de_passation` et l'action `equipNotion` portée dans `PanneauPassation` — pas les « trois
+> lignes » que l'`adr-0047` §8 annonçait. **Différé au `BACKLOG.md` avec son vrai chiffrage**, et
+> un test **fige la dette** (`PanneauPassation.test.tsx`) : s'il tombe, c'est qu'elle est payée —
+> il faut alors le **supprimer**, pas l'ajuster.
 
 🔴 **Les deux derniers badges ne se confondent pas, et c'est l'`adr-0042` qui les a séparés.**
 Sans leçon, le quiz s'ancre désormais sur la notion (sous réserve d'une source RAG) : la lacune est
