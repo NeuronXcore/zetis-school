@@ -306,7 +306,7 @@ même que ce chantier corrige.
    un résultat *correct* — signalé parce qu'il surprend, pas parce qu'il est mauvais.
 3. **Le diagnostic mène à sa MATIÈRE, jamais à lui-même — et son libellé l'annonce.** Aucune
    surface Papa n'ouvre un diagnostic précis : `/quiz` filtre sur `QUIZ_TYPE_MISSION` dans ses sept
-   requêtes, `/relecture` rend `null` (`reviewLink:86`). Le lien est donc de grain matière, et le
+   requêtes, `/relecture` rend `null` (`reviewLink:91`). Le lien est donc de grain matière, et le
    libellé dit « voir les diagnostics d'Histoire-Géo → » : **le grain annoncé est le grain servi**.
    Ce n'est pas le défaut de l'`adr-0047` Décision 8, qui promettait « le quiz de cette notion » et
    livrait la matière. Ouvrir *ce* diagnostic reste dû, et reste un chantier à part.

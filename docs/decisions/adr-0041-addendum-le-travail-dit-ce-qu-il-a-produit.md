@@ -23,7 +23,8 @@ L'ADR-0041 s'appelle « tout ce qui produit se voit ». Sa doctrine a été appl
 (`generated` / `skipped` / `blocked` / `error`) et un lien vers la pièce produite.
 
 Elle n'a **jamais été appliquée aux travaux unitaires** (`AIJob`, « hors lot »). `_travail_out`
-(`production/journal.py:538`) lit `job.input_json` et **jamais** `job.output_json`. La ligne rend
+(`production/journal.py`, **ligne 538 AVANT ce chantier — 761 après**, les numéros de ce document
+décrivent l'état trouvé) lit `job.input_json` et **jamais** `job.output_json`. La ligne rend
 donc son libellé, son statut, sa durée, sa date et son origine — et rien d'autre.
 
 Conséquence, observée à l'écran le 2026-08-09 sur sept lignes consécutives : **trois issues
@@ -68,7 +69,7 @@ c'est un couplage qu'on refuse pour un ornement.
 exactement ce que `journalLink` et `reviewLink` ont déjà refusé de faire deux fois, chacun avec sa
 branche explicite plutôt qu'« une cinquième entrée forcée dans un type qui ne la veut pas ».
 
-**3. 🔴 Un diagnostic n'est toujours pas ouvrable par URL.** `reviewLink:86` porte un `null` assumé
+**3. 🔴 Un diagnostic n'est toujours pas ouvrable par URL.** `reviewLink:91` porte un `null` assumé
 et daté : *« la page `/diagnostics` ne sait pas encore ouvrir un diagnostic précis : sa refonte est
 la session C de l'adr-0043 »*. Cette session **a été livrée** (PR #99) — le commentaire pourrait
 donc être périmé. Vérifié : il ne l'est pas. `DiagnosticsPapaPage` tient son focus en `useState`,
@@ -104,7 +105,7 @@ l'a faite »*. Un travail qui n'a rien produit ne doit **jamais** rendre un lien
 
 **Décision 4 — le diagnostic n'a pas de route, et l'écran ne prétend pas le contraire.** `texte`
 dit « 40 questions », `route` est `None`. **Dette nommée**, pas contournée : elle se lèvera quand
-`/diagnostics` lira un paramètre d'URL, et le `null` de `reviewLink:86` tombera dans le même geste.
+`/diagnostics` lira un paramètre d'URL, et le `null` de `reviewLink:91` tombera dans le même geste.
 
 > 🔴 **AMENDÉE le même jour — ne pas s'arrêter ici.** Cette version laissait un doute à l'écran :
 > ni lien, ni indication d'où aller. Voir **§ Décision 4 AMENDÉE** en fin de document — le
@@ -143,7 +144,7 @@ le rendu de la ligne `TravailSection` dans `JournalPage.tsx`, les types partagé
 - **les lignes de LOT** — elles ont déjà leur pli, leurs pièces et leurs liens ; y toucher serait
   la dérive ;
 - **l'ouverture d'un diagnostic par URL** (décision 4) — c'est son propre chantier ;
-- **la file de relecture** et le `null` de `reviewLink:86`, qui tombera avec elle ;
+- **la file de relecture** et le `null` de `reviewLink:91`, qui tombera avec elle ;
 - **le veto** : un `AIJob` ne tamponne aucune pièce, il n'y a rien à retirer (§17 inchangé) ;
 - **les traces `parent`**, qui restent hors du Journal ;
 - **la longueur du cours** et toute donnée qui ne vit que sur une trace (constat 1).
@@ -208,8 +209,8 @@ soit permis à l'écran en lisant »*. Un texte juste qui n'indique rien reste u
 motif de l'`adr-0047`, appliqué à la ligne qu'on venait d'écrire.
 
 **Ce que la recherche d'une destination a établi, et qui vaut d'être écrit** : aucune surface Papa
-n'ouvre un diagnostic précis. `/quiz` filtre sur `QUIZ_TYPE_MISSION` dans ses **sept** requêtes de
-pilotage — un diagnostic n'y apparaît jamais ; `/relecture` rend `null` (`reviewLink:86`) ;
+n'ouvre un diagnostic précis. `/quiz` filtre sur `QUIZ_TYPE_MISSION` dans **sept comparaisons de requête** de
+pilotage — un diagnostic n'y apparaît jamais ; `/relecture` rend `null` (`reviewLink:91`) ;
 `/diagnostics` montre les **passations**, pas le quiz généré.
 
 **Décision** : la route est de **grain matière** — `/diagnostics?subject=<id>`, l'id lu dans
@@ -235,4 +236,4 @@ matière ; c'était l'écart entre le grain promis et le grain servi.**
   commencent par une voyelle, un libellé sur cinq se lirait de travers sans elle.
 
 **Ce qui reste dû, et n'a pas bougé** : ouvrir **LE** diagnostic — ses 40 questions — depuis Papa.
-C'est un chantier à part, et il fermera aussi le `null` de `reviewLink:86`.
+C'est un chantier à part, et il fermera aussi le `null` de `reviewLink:91`.

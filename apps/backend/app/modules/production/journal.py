@@ -738,7 +738,7 @@ def resume_de_production(job, routes: dict[int, str]) -> dict | None:
         # 🔴 **Décision 4 AMENDÉE le 2026-08-09, après relecture visuelle.** La version d'abord
         # livrée ne rendait aucune route : `DiagnosticsPapaPage` ne lisait pas d'URL, et aucune
         # surface Papa n'ouvre un diagnostic précis (`/quiz` filtre sur `QUIZ_TYPE_MISSION` dans ses
-        # sept requêtes, `/relecture` rend `null` — `reviewLink:86`). C'était vrai, et **ça laissait
+        # sept requêtes, `/relecture` rend `null` — `reviewLink:91`). C'était vrai, et **ça laissait
         # un doute à l'écran** : ni lien, ni indication d'où aller.
         #
         # La route est donc de **grain MATIÈRE**, et le libellé le DIT. Ce n'est pas le défaut de

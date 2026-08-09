@@ -1,5 +1,51 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.65.0 — Un travail dit ce qu'il a produit
+
+Le Journal de production s'appelle « tout ce qui produit se voit » (ADR-0041) et sa doctrine n'avait
+jamais atteint les travaux **hors lot**. `_travail_out` lisait `input_json` et **jamais**
+`output_json` : sur sept lignes consécutives, trois issues opposées rendaient trois lignes
+identiques — dont un `Équipement · Quotient de relatifs · fait · 0 s` qui n'avait **rien produit**.
+
+« Fait » veut dire *« le programme est allé au bout »*. Papa lit *« la donnée existe »*. Chaque ligne
+dit désormais laquelle des deux est vraie, et **où aller le vérifier**.
+
+| Ligne | Avant | Maintenant |
+|---|---|---|
+| Équipement · Quotient de relatifs | `fait · 0 s` | **rien produit — les 5 pièces existaient déjà**, en ambre, sans lien |
+| Cartes de révision · Magma | `fait · 6 s` | **3 cartes créées** · voir les cartes → |
+| Rédaction du cours | `fait · 25 s` | **cours rédigé** · voir la leçon → |
+| Leçons du chapitre | `fait · 8 s` | **7 leçons au chapitre** · voir le chapitre → |
+| Diagnostic | `fait · 113 s` | **40 questions · Histoire-Géo** · voir les diagnostics d'Histoire-Géo → |
+
+Le résumé est **calculé serveur**, une règle par type de travail, en un seul endroit — un `switch`
+côté écran aurait été une seconde définition de « qu'a produit ce travail », et le dépôt a déjà payé
+un ADR entier pour cette faute (ADR-0037).
+
+### 🔴 Ce que seule la relecture visuelle a trouvé
+
+Les trois suites étaient vertes et **les deux test-verrous avaient été sabotés et rougis**. L'écran
+affirmait quand même **« 7 leçons créées »** là où le job en avait créé **cinq** — deux des sept
+dataient de trois jours plus tôt. `lesson_ids` est l'état *résultant* du chapitre, pas une
+production. Trois lignes voisines annonçaient ainsi **26 créations pour un chapitre qui en porte
+12**. Corrigé en « N leçons **au chapitre** », ton neutre.
+
+Aucun test ne pouvait le voir : il fallait connaître la date de création de deux leçons pour douter
+du participe. **Le sabotage prouve qu'un test mord ; il ne prouve pas qu'il vise juste.**
+
+### Le diagnostic mène à sa matière, et le dit
+
+Aucune surface Papa n'ouvre un diagnostic généré — `/quiz` filtre sur les quiz de mission dans sept
+comparaisons de requête, `/relecture` rend `null`. Le lien est donc de grain **matière**, et son libellé
+l'annonce. Ce n'est pas le défaut corrigé par l'ADR-0047 Décision 8 : là-bas on promettait « le quiz
+de cette notion » et on livrait la matière. **Le défaut n'était pas le grain, c'était l'écart entre
+le grain promis et le grain servi.**
+
+`DiagnosticsPapaPage` lit désormais `?subject=` — un amorçage, pas une synchronisation.
+
+**Aucune migration.** Backend 1141 tests, Papa 758.
+
+
 ## 0.64.0 — ZETIS doute de sa propre mesure
 
 Le diagnostic est le seul endroit de ZETIS où une mesure fausse **se propage** : elle écrit

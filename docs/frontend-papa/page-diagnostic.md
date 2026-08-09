@@ -516,3 +516,24 @@ qui pourrait retenir son utilisateur serait une faille) · les **mouvements de s
 absents sur les deux appareils de Massimo) · l'**écran de passation**, qui n'est pas modifié · les
 **autres quiz** (seul le diagnostic propage, seul le diagnostic est instrumenté) · et **toute
 migration au-delà de `QuizAttempt.reliability_json`**, qui serait un blocker.
+
+---
+
+## `[0041-A]` La page s'ouvre sur la matière demandée par l'URL
+
+> Addendum ADR-0041 (« un travail dit ce qu'il a produit »), décision 4 amendée — 2026-08-09.
+
+`?subject=<id>` **amorce** la pastille de matière. C'est la destination des lignes
+`diagnostic_generate` du Journal, dont le libellé annonce « voir les diagnostics d'Histoire-Géo → ».
+
+⚠️ **Un AMORÇAGE, pas une synchronisation.** Le paramètre sert d'état initial ; ensuite la pastille
+est maîtresse et l'URL ne la suit pas. Synchroniser dans les deux sens ferait de la barre d'adresse
+une seconde source de vérité pour un filtre qui n'en demande pas, et rendrait le retour arrière du
+navigateur imprévisible.
+
+⚠️ **Le `focus` du bandeau reste strictement LOCAL** — il n'entre pas dans l'URL. Un `?subject=`
+illisible ne présélectionne rien et ne casse rien (test dédié).
+
+🔴 **Ce que cette page ne sait toujours PAS faire** : ouvrir **UN** diagnostic précis, ses questions
+sous les yeux. C'est pour ça que le lien du Journal est de grain matière et le **dit**. Tant que ce
+manque tient, `reviewLink` rend `null` pour un diagnostic et Papa valide sans pouvoir lire.
