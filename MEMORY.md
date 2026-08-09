@@ -198,17 +198,23 @@ mission », il faut **fabriquer le cas** — les 10 lacunes sont toutes couverte
 les missions actives d'une notion (une seule ne suffit pas, mesuré), relever leurs états avant, et
 **remettre la base après**.
 
-**Chantier suivant — trois candidats, tous au `BACKLOG.md`, aucun cadré :**
+**Chantier suivant — trois candidats au `BACKLOG.md`, et le premier est DÉJÀ À MI-CADRAGE :**
 
-1. **L'anti-triche du diagnostic** — le plus mûr, et le seul à porter encore un
-   `▶▶ PROCHAIN CHANTIER`.
-2. **Une lacune comblée autrement ne se referme jamais** — né de ce chantier, qui l'aggrave.
-   Doctrine, quatre modules.
+1. 🟡 **L'anti-triche du diagnostic — CADRAGE ENTAMÉ le 2026-08-09.**
+   🔴 **NE PAS REFAIRE le read-before-code, NE PAS re-poser les questions tranchées.** Tout est au
+   `BACKLOG.md`, sous le titre *« CADRAGE ENTAMÉ … reprendre ICI »* : **cinq constats vérifiés dans
+   le code** et **quatre décisions du commanditaire**. Il reste **maquette → spec → ADR → prompt**.
+   Les deux choses à savoir avant de rouvrir le fichier : la **durée d'une passation n'est pas
+   mesurée du tout** (`started_at = completed_at`, et `duration_seconds` dort), et le **meilleur
+   signal n'est pas dans le navigateur** — c'est le contraste avec l'historique, le seul qui
+   survive à un téléphone posé à côté.
+2. **Une lacune comblée autrement ne se referme jamais** — né du chantier ADR-0047, qui l'aggrave.
+   Doctrine, quatre modules. **Non cadré.**
 3. **La vue calendrier sur `/lacunes`** — demande d'abord un **addendum** qui révoque une décision
-   écrite de la spec.
+   écrite de la spec. **Non cadré.**
 
-Chacun demande le **rituel complet** (`mockup → spec → ADR → prompt`) : une session de cadrage sur
-`main` avant la moindre ligne, puis `/ouverture`.
+Les deux derniers demandent le **rituel complet** (`mockup → spec → ADR → prompt`) : une session de
+cadrage sur `main` avant la moindre ligne, puis `/ouverture`.
 
 ---
 
