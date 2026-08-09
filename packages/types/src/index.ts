@@ -265,6 +265,7 @@ export {
   type JournalEvent,
   type JournalPiece,
   type JournalRun,
+  type JournalProduction,
   type JournalTravail,
   type JournalRunStatus,
   type OrphanType,

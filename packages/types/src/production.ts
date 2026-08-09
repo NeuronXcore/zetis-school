@@ -301,6 +301,23 @@ export interface JournalRun {
  *  ⚠️ **Ni `zetis_mode`, ni `pieces`, ni `events`, donc aucun veto.** Ce n'est pas un oubli : un
  *  `AIJob` ne grave aucun régime d'autonomie et ne tamponne aucune pièce produite. L'écran ne doit
  *  offrir aucun bouton de retrait sur ces lignes — il ne pourrait rien retirer. */
+/** Ce qu'un travail a produit — addendum ADR-0041 « un travail dit ce qu'il a produit ».
+ *
+ *  ⚠️ **`route` est une route Papa toute faite, pas un `BlockedTarget`.** Ce dernier exige
+ *  `lesson_id` ET `chapter_id` : un diagnostic n'a aucune leçon, `curriculum_lessons` en a sept, et
+ *  `srs_cards_generate` n'a qu'un `skill_id`. Elle est composée SERVEUR, au même format que
+ *  `pilotageLinks` — le front la suit, il n'en fabrique pas une deuxième.
+ *
+ *  🔴 **`route` est `null` dès que rien n'a été produit** : rattacher une pièce préexistante à un
+ *  travail qui ne l'a pas faite ferait croire le contraire. Un test-verrou serveur l'épingle. */
+export interface JournalProduction {
+  texte: string;
+  /** ⚠️ `avertissement` n'est **pas** une erreur, et ne se rend jamais en rouge : ne rien produire
+   *  parce que tout existait déjà est un résultat correct — il surprend, il ne fâche pas. */
+  ton: "succes" | "neutre" | "avertissement";
+  route: string | null;
+}
+
 export interface JournalTravail {
   id: number;
   job_type: string;
@@ -317,6 +334,9 @@ export interface JournalTravail {
   duration_ms: number | null;
   /** Le motif d'échec, **tel quel** — décision du 2026-08-06, il ne se traduit pas. */
   error: string | null;
+  /** Ce que ce travail a produit. `null` tant qu'il n'est pas terminé — un travail en cours n'a
+   *  rien à dire de sa production, et une phrase au futur se lirait comme un fait. */
+  production: JournalProduction | null;
 }
 
 export interface Journal {

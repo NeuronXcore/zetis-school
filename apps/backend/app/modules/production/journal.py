@@ -535,7 +535,175 @@ def zetis_mode(run: ProductionRun) -> str | None:
     return niveau_de({A0A: run.a0a_level, A1: run.a1_level}) or "sur_mesure"
 
 
-def _travail_out(job, names: dict[int, str]) -> dict:
+def _sortie(job) -> dict:
+    """`output_json`, toujours un dict. Un travail en file, en échec ou interrompu n'en a pas."""
+    return job.output_json if isinstance(job.output_json, dict) else {}
+
+
+def _route_programme(cible: dict | None, *, avec_lecon: bool) -> str | None:
+    """La route du référentiel, composée comme `pilotageLinks.pilotageLink("cours", …)`.
+
+    ⚠️ **Même format, à la lettre.** Une seconde façon d'écrire la même URL divergerait au premier
+    changement de route — le motif que l'ADR-0037 a payé d'un ADR entier.
+    """
+    if not cible or cible.get("subject_id") is None:
+        return None
+    base = f"/programme?subject={cible['subject_id']}&chapter={cible['chapter_id']}"
+    return f"{base}&lesson={cible['lesson_id']}" if avec_lecon else base
+
+
+def routes_des_travaux(db: Session, travaux) -> dict[int, str]:
+    """`job_id` → route Papa, résolue **en lot pour la page** (addendum §5).
+
+    🔴 **Jamais une requête par ligne** — c'est le mal du 2026-08-02, déjà payé une fois par
+    `notion_targets`. Trois requêtes au total quel que soit le nombre de travaux, et **zéro** si
+    aucun de la page ne mène nulle part.
+
+    Un travail dont la route ne se résout pas n'entre pas dans le résultat : son résumé s'affichera
+    sans lien, ce qui vaut toujours mieux qu'un lien qui déposerait Papa au hasard.
+    """
+    from app.db.models import Lesson, Skill
+
+    lecons: set[int] = set()
+    notions: set[int] = set()
+    for job in travaux:
+        sortie = _sortie(job)
+        if job.job_type == "lesson_content" and isinstance(sortie.get("lesson_id"), int):
+            lecons.add(sortie["lesson_id"])
+        elif job.job_type == "curriculum_lessons":
+            ids = sortie.get("lesson_ids")
+            if isinstance(ids, list) and ids and isinstance(ids[0], int):
+                lecons.add(ids[0])
+        elif job.job_type in ("equip_notion", "srs_cards_generate") and isinstance(
+            sortie.get("skill_id"), int
+        ):
+            notions.add(sortie["skill_id"])
+
+    par_lecon: dict[int, dict] = {}
+    if lecons:
+        chapitres = {
+            row.id: row.chapter_id
+            for row in db.execute(
+                select(Lesson.id, Lesson.chapter_id).where(Lesson.id.in_(lecons))
+            )
+        }
+        par_lecon = lesson_targets(db, chapitres)
+
+    # ⚠️ `Skill.subject_id` est lu DIRECTEMENT, et pas déduit de `notion_targets` : une notion sans
+    # leçon n'entre pas dans ce dernier, et ses cartes de révision existent quand même. La page
+    # Révision se focalise sur la NOTION — elle n'a pas besoin qu'une leçon existe.
+    matiere: dict[int, int] = {}
+    cibles: dict[int, dict] = {}
+    if notions:
+        matiere = {
+            row.id: row.subject_id
+            for row in db.execute(select(Skill.id, Skill.subject_id).where(Skill.id.in_(notions)))
+        }
+        cibles = notion_targets(db, notions)
+
+    routes: dict[int, str] = {}
+    for job in travaux:
+        sortie = _sortie(job)
+        route: str | None = None
+        if job.job_type == "lesson_content":
+            route = _route_programme(par_lecon.get(sortie.get("lesson_id")), avec_lecon=True)
+        elif job.job_type == "curriculum_lessons":
+            ids = sortie.get("lesson_ids")
+            premiere = ids[0] if isinstance(ids, list) and ids else None
+            route = _route_programme(par_lecon.get(premiere), avec_lecon=False)
+        elif job.job_type == "equip_notion":
+            route = _route_programme(cibles.get(sortie.get("skill_id")), avec_lecon=True)
+        elif job.job_type == "srs_cards_generate":
+            notion = sortie.get("skill_id")
+            sujet = matiere.get(notion)
+            if sujet is not None:
+                # `focus` attend un `skill_id`, pas un id d'objet — cf. `journalLink`, même cas.
+                route = f"/cartes-revision?subject={sujet}&focus={notion}"
+        if route:
+            routes[job.id] = route
+    return routes
+
+
+def _pluriel(n: int, singulier: str, pluriel: str) -> str:
+    return f"{n} {singulier}" if n <= 1 else f"{n} {pluriel}"
+
+
+def resume_de_production(job, routes: dict[int, str]) -> dict | None:
+    """Ce que CE travail a produit — `{texte, ton, route}` (addendum ADR-0041).
+
+    ## Pourquoi cette fonction existe
+
+    `_travail_out` lisait `input_json` et **jamais** `output_json` : trois issues opposées rendaient
+    trois lignes identiques, dont un `Équipement · fait · 0 s` qui n'avait **rien produit**. « Fait »
+    veut dire « le programme est allé au bout » ; Papa lit « la donnée existe ». Les deux divergent.
+
+    ## Les deux règles qui priment sur les tables
+
+    🔴 **Rien produit ⇒ aucune route.** Une pièce préexistante appartient à un autre moment ; la
+    rattacher ici ferait croire que ce travail-là l'a faite (même doctrine que `cible()` pour
+    `skipped`). Un test-verrou l'épingle.
+
+    ⚠️ **`avertissement` n'est pas une erreur.** Ne rien produire parce que tout existait déjà est
+    un résultat *correct* — il surprend, il ne fâche pas. L'écran le rend en ambre, jamais en rouge.
+
+    ⚠️ Un `job_type` sans règle retombe sur « terminé » / `neutre` : une dégradation propre, pas un
+    bug. Un type neuf se verra à ce qu'il ne dit rien, et sa règle s'ajoutera ici.
+    """
+    if sweep.job_status(job) != "succeeded":
+        # Un travail qui n'est pas fini n'a rien à dire de sa production, et l'échec a déjà `error`.
+        return None
+
+    sortie = _sortie(job)
+    route = routes.get(job.id)
+    succes = lambda texte: {"texte": texte, "ton": "succes", "route": route}  # noqa: E731
+    rien = lambda texte: {"texte": texte, "ton": "avertissement", "route": None}  # noqa: E731
+
+    if job.job_type == "equip_notion":
+        produites = sortie.get("generated") or []
+        deja = sortie.get("skipped") or []
+        if produites:
+            return succes(_pluriel(len(produites), "pièce produite", "pièces produites"))
+        if deja:
+            return rien(f"rien produit — {_pluriel(len(deja), 'pièce existait', 'pièces existaient')} déjà")
+        return rien("rien produit")
+
+    if job.job_type == "lesson_content":
+        return succes("cours rédigé") if sortie.get("lesson_id") else None
+
+    if job.job_type == "curriculum_lessons":
+        ids = sortie.get("lesson_ids")
+        if not isinstance(ids, list) or not ids:
+            return rien("rien produit")
+        return succes(_pluriel(len(ids), "leçon créée", "leçons créées"))
+
+    if job.job_type == "srs_cards_generate":
+        creees = sortie.get("created")
+        if not isinstance(creees, int):
+            return None
+        if creees == 0:
+            return rien("aucune carte nouvelle")
+        return succes(_pluriel(creees, "carte créée", "cartes créées"))
+
+    if job.job_type == "diagnostic_generate":
+        n = sortie.get("questions_count")
+        if not isinstance(n, int):
+            return None
+        matiere = sortie.get("subject")
+        texte = _pluriel(n, "question", "questions")
+        # 🔴 **Aucune route, et c'est une décision (addendum §4)** : `DiagnosticsPapaPage` tient son
+        # focus en état local, sans `useSearchParams`. Un lien y déposerait Papa sur une page qui ne
+        # montre pas CE diagnostic — le « lien au hasard » que `reviewLink:86` refuse déjà, pour la
+        # même cause et qui tombera dans le même geste.
+        return {
+            "texte": f"{texte} · {matiere}" if matiere else texte,
+            "ton": "succes",
+            "route": None,
+        }
+
+    return {"texte": "terminé", "ton": "neutre", "route": None}
+
+
+def _travail_out(job, names: dict[int, str], routes: dict[int, str] | None = None) -> dict:
     """Un travail unitaire, tel que le Journal le montre — **et rien de plus** (addendum §17).
 
     ⚠️ **`zetis_mode` est absent, pas `"manuel"`.** Un travail hors lot est manuel *par
@@ -566,6 +734,9 @@ def _travail_out(job, names: dict[int, str]) -> dict:
         "finished_at": job.finished_at,
         "duration_ms": job.duration_ms,
         "error": job.error_message,
+        # Ce que ce travail a PRODUIT (addendum ADR-0041) — la seule information qui répondait à
+        # « est-ce que ça a créé quelque chose ? », et que la ligne jetait.
+        "production": resume_de_production(job, routes or {}),
     }
 
 
@@ -714,6 +885,11 @@ def list_journal(
         )
     resolues = causes_resolues(db, bloquees)
 
+    # Où mène chaque TRAVAIL unitaire (addendum ADR-0041). Séparé de `cibles` exprès : celles-ci
+    # sont indexées par notion et servent les lignes de lot ; un travail se résout par ce qu'il a
+    # ÉCRIT (`output_json`), et trois types sur cinq n'ont aucune notion à interroger.
+    routes_travaux = routes_des_travaux(db, travaux)
+
     # ⚠️ **`lot_evidence` n'est PLUS appelée ici** — trois requêtes de moins par page. Elle et
     # `deduire_regime` n'ont pas disparu : elles sont devenues les fonctions du script de reprise
     # (`scripts/backfill_zetis_mode.py`), qui les exécute une fois. Les lire à chaque affichage
@@ -794,7 +970,8 @@ def list_journal(
         # le glisser dans `JournalRunOut` l'obligerait à faire semblant. L'écran les entrelace par
         # date — ce n'est pas un filtrage côté client, c'est l'ordonnancement d'une page qui est
         # déjà la bonne, découpée en SQL sur l'union des deux modèles.
-        "travaux": [_travail_out(t, names) for t in travaux],
+        # ⚠️ Les routes sont résolues **une fois pour la page**, jamais par ligne (addendum §5).
+        "travaux": [_travail_out(t, names, routes_travaux) for t in travaux],
         # La phrase à afficher quand un filtre écarte les travaux (§18) — `None` s'ils sont admis.
         # ⚠️ Une exclusion muette se lit comme un vide : c'est la même faute qu'une troncature muette.
         "travaux_exclus": journal_filters.raison_exclusion(filtre),

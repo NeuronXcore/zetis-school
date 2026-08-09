@@ -437,6 +437,42 @@ function TravailRow({ travail }: { travail: JournalTravail }) {
       {/* Le motif d'échec est rendu TEL QUEL — décision du 2026-08-06 : il sert à savoir quoi
           réparer, le reformuler ajouterait une couche entre le fait et celui qui doit agir. */}
       {echec && travail.error && <p className="mt-1.5 text-sm text-red-300">{travail.error}</p>}
+      {/* 🔴 **CE QUE LE TRAVAIL A PRODUIT** (addendum ADR-0041). Avant cette ligne, `fait` voulait
+          dire « le programme est allé au bout » et Papa lisait « la donnée existe » — deux choses
+          qui divergent, et un `Équipement · fait · 0 s` qui n'avait rien fabriqué se lisait comme
+          une production réussie.
+
+          ⚠️ Le texte, le ton et la route sont **calculés serveur** : « qu'a produit ce travail »
+          a une seule réponse dans le dépôt (motif ADR-0037). Un `switch` sur `job_type` ici en
+          serait une deuxième, qui divergerait au premier type ajouté.
+
+          ⚠️ `avertissement` est AMBRE, jamais rouge : ne rien produire parce que tout existait
+          déjà est un résultat correct — il surprend, il ne fâche pas. */}
+      {travail.production && (
+        <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-sm">
+          <span
+            className={`rounded px-2 py-0.5 text-xs font-medium ${
+              travail.production.ton === "succes"
+                ? "bg-papa-accent-2/10 text-papa-accent-2"
+                : travail.production.ton === "avertissement"
+                  ? "bg-papa-warn/10 text-papa-warn"
+                  : "bg-white/5 text-papa-muted"
+            }`}
+          >
+            {travail.production.texte}
+          </span>
+          {/* 🔴 Pas de lien quand rien n'a été produit — le serveur rend `route: null` dans ce cas
+              et un test-verrou l'épingle. L'écran n'a donc rien à décider ici : il suit. */}
+          {travail.production.route && (
+            <Link
+              to={travail.production.route}
+              className="text-xs text-papa-accent-2 underline-offset-2 hover:underline"
+            >
+              voir →
+            </Link>
+          )}
+        </p>
+      )}
       {/* ⚠️ L'ORIGINE, jamais le régime (§17) : « lancé par vous » dit qui a demandé, pas sous
           quelles règles ZETIS avait le droit de servir sans relecture. */}
       <p className="mt-1 text-xs text-papa-muted">lancé par vous · hors lot</p>
