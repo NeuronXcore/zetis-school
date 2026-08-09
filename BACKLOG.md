@@ -723,6 +723,33 @@ qui n'existe pas, et aucune ligne de code ne peut l'inventer sans rouvrir la fro
 > Un test-verrou fige l'absence : `crans.test.ts` → *« le cran « proposé » n'en a pas — DIFFÉRÉE, et
 > c'est écrit »*. S'il tombe, c'est que quelqu'un a rouvert la question sans passer par ici.
 
+#### La station ② du Diagnostic sur-promet — DIFFÉRÉE de l'`adr-0047` §8 (2026-08-09)
+
+**Ce qui reste après le chantier ADR-0047.** Sa Décision 8 annonçait la correction de la station ②
+en « **trois lignes** ». Vérifié à l'exécution : **c'était faux**, et le commanditaire a réduit la
+décision à son seul geste gratuit. Voici le chiffrage réel des deux qui restent.
+
+| Geste actuel | Ce qu'il promet | Où il mène | Ce qu'il faudrait |
+|---|---|---|---|
+| « Produire le quiz de **cette notion** → » | une notion | `/quiz?subject=` — la **matière** | l'action `equipNotion` portée dans `PanneauPassation` : `ConfirmDialog` + `ProgressBar` + état de sondage |
+| « Valider le cours de **cette leçon** → » | une leçon | `/programme?subject=` — la **matière** | `lesson_id` au contrat de `lacunes_de_passation` : service + `DiagnosticGapOut` + type `DiagnosticGap` |
+
+✅ **Fait par l'`adr-0047`** : « Voir la lacune → » transporte enfin la matière
+(`/lacunes?subject=<slug>`) — il menait à la liste complète. C'était le cul-de-sac **circulaire**
+cité en Contexte de l'ADR, et il ne coûtait **rien** : le slug était déjà sur l'entrée du rail.
+
+⚠️ **Moins cher qu'il n'y paraît, et c'est daté** : `apps/frontend-papa/src/lib/gesteLacune.ts`
+porte **déjà** la table de décision `content_state → geste`, écrite pour la page Lacunes et
+testée (9 verrous + 5 sabotages). La station ② répond à la **même** question sur les **mêmes**
+états : le vrai travail est de brancher cette règle, pas de la réécrire. Plus le champ backend et
+l'action.
+
+> 🔴 **Un test FIGE cette dette** — `PanneauPassation.test.tsx`, *« les deux autres gestes visent
+> encore la MATIÈRE — et c'est consigné, pas oublié »*. **S'il tombe, c'est que la dette est payée :
+> il faut alors le SUPPRIMER, pas l'ajuster.** C'est le patron du `xfail(strict=True)` de la
+> fenêtre `flat` — la première dette du dépôt à s'être rappelée toute seule au moment exact où elle
+> a été payée.
+
 #### ▶▶ PROCHAIN CHANTIER — l'anti-triche du diagnostic
 
 **Décidé le 2026-08-08, pendant le cadrage de l'`adr-0045` : il passe APRÈS les 4 optimisations.**
