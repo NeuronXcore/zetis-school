@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maquette — la ligne « Travail » dit ce qu'elle a produit (addendum ADR-0041)</title>
+<style>
+  :root {
+    --papa-bg: #0f1115;
+    --papa-card: rgba(255, 255, 255, 0.015);
+    --papa-card-2: rgba(255, 255, 255, 0.03);
+    --papa-border: rgba(255, 255, 255, 0.06);
+    --papa-text: #e8eaed;
+    --papa-muted: #8b9099;
+    --papa-accent-2: #7fd1c1;
+    --papa-warn: #e0b160;
+  }
+  body {
+    margin: 0; padding: 32px;
+    background: var(--papa-bg); color: var(--papa-text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .sous { color: var(--papa-muted); font-size: 13px; margin: 0 0 28px; }
+  h2 { font-size: 13px; font-weight: 500; color: var(--papa-muted); margin: 28px 0 10px; }
+  .travail {
+    border: 1px solid var(--papa-border); background: var(--papa-card);
+    border-radius: 12px; padding: 12px 16px; margin-bottom: 10px;
+  }
+  .tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+  .kicker { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--papa-muted); }
+  .label { font-weight: 600; }
+  .meta { font-size: 12px; color: var(--papa-muted); }
+  .num { font-variant-numeric: tabular-nums; }
+  .date { margin-left: auto; font-size: 12px; color: var(--papa-muted); }
+  .origine { margin: 4px 0 0; font-size: 12px; color: var(--papa-muted); }
+
+  /* La ligne AJOUTÉE par l'addendum — c'est tout l'objet de cette maquette. */
+  .production { margin: 7px 0 0; font-size: 13px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+  .pastille { border-radius: 6px; padding: 2px 9px; font-size: 12px; font-weight: 500; }
+  .ton-succes { background: rgba(127, 209, 193, .14); color: var(--papa-accent-2); }
+  .ton-avert  { background: rgba(224, 177, 96, .14);  color: var(--papa-warn); }
+  .ton-neutre { background: rgba(255, 255, 255, .06); color: var(--papa-muted); }
+  .detail { color: var(--papa-muted); }
+  a.route { color: var(--papa-accent-2); text-decoration: none; }
+  a.route:hover { text-decoration: underline; }
+
+  .note {
+    border-left: 2px solid var(--papa-warn); padding: 8px 0 8px 14px;
+    margin: 22px 0 0; font-size: 13px; color: var(--papa-muted);
+  }
+  .note strong { color: var(--papa-text); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>La ligne « Travail » dit ce qu'elle a produit</h1>
+  <p class="sous">Maquette v1 — addendum ADR-0041. Une seule ligne s'ajoute ; rien d'autre ne bouge.</p>
+
+  <h2>Aujourd'hui — trois issues différentes, trois lignes identiques</h2>
+
+  <section class="travail">
+    <div class="tete">
+      <span class="kicker">Travail</span><span class="label">Équipement · Quotient de relatifs</span>
+      <span class="meta">fait</span><span class="meta num">0 s</span><span class="date">09/08 04:10</span>
+    </div>
+    <p class="origine">lancé par vous · hors lot</p>
+  </section>
+
+  <section class="travail">
+    <div class="tete">
+      <span class="kicker">Travail</span><span class="label">Cartes de révision · Magma</span>
+      <span class="meta">fait</span><span class="meta num">6 s</span><span class="date">09/08 03:12</span>
+    </div>
+    <p class="origine">lancé par vous · hors lot</p>
+  </section>
+
+  <section class="travail">
+    <div class="tete">
+      <span class="kicker">Travail</span><span class="label">Diagnostic</span>
+      <span class="meta">fait</span><span class="meta num">113 s</span><span class="date">08/08 21:03</span>
+    </div>
+    <p class="origine">lancé par vous · hors lot</p>
+  </section>
+
+  <h2>Proposé — le résumé, lu dans <code>output_json</code> qui est déjà écrit</h2>
+
+  <section class="travail">
+    <div class="tete">
+      <span class="kicker">Travail</span><span class="label">Équipement · Quotient de relatifs</span>
+      <span class="meta">fait</span><span class="meta num">0 s</span><span class="date">09/08 04:10</span>
+    </div>
+    <p class="production">
+      <span class="pastille ton-avert">rien produit</span>
+      <span class="detail">les 5 pièces existaient déjà</span>
+    </p>
+    <p class="origine">lancé par vous · hors lot</p>
+  </section>
+
+  <section class="travail">
+    <div class="tete">
+      <span class="kicker">Travail</span><span class="label">Cartes de révision · Magma</span>
+      <span class="meta">fait</span><span class="meta num">6 s</span><span class="date">09/08 03:12</span>
+    </div>
+    <p class="production">
+      <span class="pastille ton-succes">3 cartes créées</span>
+      <a class="route" href="#">voir les cartes →</a>
+    </p>
+    <p class="origine">lancé par vous · hors lot</p>
+  </section>
+
+  <section class="travail">
+    <div class="tete">
+      <span class="kicker">Travail</span><span class="label">Rédaction du cours</span>
+      <span class="meta">fait</span><span class="meta num">25 s</span><span class="date">09/08 00:25</span>
+    </div>
+    <p class="production">
+      <span class="pastille ton-succes">cours rédigé</span>
+      <a class="route" href="#">voir la leçon →</a>
+    </p>
+    <p class="origine">lancé par vous · hors lot</p>
+  </section>
+
+  <section class="travail">
+    <div class="tete">
+      <span class="kicker">Travail</span><span class="label">Leçons du chapitre</span>
+      <span class="meta">fait</span><span class="meta num">8 s</span><span class="date">09/08 00:24</span>
+    </div>
+    <p class="production">
+      <span class="pastille ton-succes">7 leçons créées</span>
+      <a class="route" href="#">voir le chapitre →</a>
+    </p>
+    <p class="origine">lancé par vous · hors lot</p>
+  </section>
+
+  <section class="travail">
+    <div class="tete">
+      <span class="kicker">Travail</span><span class="label">Diagnostic</span>
+      <span class="meta">fait</span><span class="meta num">113 s</span><span class="date">08/08 21:03</span>
+    </div>
+    <p class="production">
+      <span class="pastille ton-succes">40 questions</span>
+      <span class="detail">Histoire-Géo</span>
+    </p>
+    <p class="origine">lancé par vous · hors lot</p>
+  </section>
+
+  <p class="note">
+    <strong>Le diagnostic n'a pas de lien, et c'est une décision (§4).</strong> La page
+    <code>/diagnostics</code> tient son focus en état local, sans paramètre d'URL : un lien y
+    déposerait Papa au hasard. Dette nommée, elle se lèvera avec l'ouverture par URL.
+  </p>
+  <p class="note">
+    <strong>« Rien produit » n'est pas rouge, et ne sera jamais cliquable (§3, §6).</strong> Ne rien
+    produire parce que tout existait déjà est un résultat <em>correct</em> — signalé parce qu'il
+    surprend, pas parce qu'il est mauvais. Et le rattacher à une pièce ferait croire que ce
+    travail-là l'a faite.
+  </p>
+</main>
+</body>
+</html>

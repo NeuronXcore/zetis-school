@@ -245,3 +245,58 @@ dans `packages/types` — le chantier le matérialise en base, il ne l'ajoute pa
 - **Le rendu des maths dans les libellés de cartes SRS** (LaTeX brut à l'écran) — dette nommée, elle
   demande une dépendance, donc un ADR.
 - **Toute surface Massimo.**
+
+---
+
+## `[0041-A]` ▶ CHANTIER — La ligne « Travail » dit ce qu'elle a produit
+
+> Addendum ADR-0041 (`adr-0041-addendum-le-travail-dit-ce-qu-il-a-produit.md`), maquette
+> `mockup/mockup-papa-journal-travail-v1.html`. Cadré le 2026-08-09 à partir d'une observation à
+> l'écran : *« on n'arrive pas à savoir si les data ont été créées ou pas »*.
+
+### Le défaut, en une ligne
+
+`_travail_out` lit `job.input_json` et **jamais** `job.output_json`. Trois issues opposées rendent
+donc trois lignes identiques — dont un `Équipement · fait · 0 s` qui **n'a rien produit du tout**
+(`generated: []`, cinq pièces `skipped`).
+
+### Ce qui s'ajoute — une ligne, entre le libellé et l'origine
+
+Un champ `production` sur `JournalTravailOut` :
+
+```
+production: { texte, ton: "succes"|"neutre"|"avertissement", route: string|null } | null
+```
+
+Rendu : une pastille au `ton`, le `texte`, puis le lien quand `route` existe. L'origine
+(« lancé par vous · hors lot ») reste **la dernière ligne** du bloc.
+
+### Les règles, une par type de travail
+
+| `job_type` | Texte | Ton | Route |
+|---|---|---|---|
+| `equip_notion`, rien généré | « rien produit — les N pièces existaient déjà » | `avertissement` | **jamais** |
+| `equip_notion`, N générées | « N pièces produites » | `succes` | la notion, si résoluble |
+| `lesson_content` | « cours rédigé » | `succes` | `/programme?subject=…&chapter=…&lesson=…` |
+| `curriculum_lessons` | « N leçons créées » | `succes` | `/programme?subject=…&chapter=…` |
+| `srs_cards_generate` | « N cartes créées » (ou « aucune carte nouvelle ») | `succes` / `avertissement` | `/cartes-revision?subject=…&focus=<skill_id>` |
+| `diagnostic_generate` | « N questions · <matière> » | `succes` | **aucune** — voir ci-dessous |
+| tout autre type | « terminé » | `neutre` | aucune |
+
+⚠️ **La longueur du cours n'est PAS affichée.** `content_chars` vit sur la trace `parent`, exclue du
+Journal ; la ligne visible de `lesson_content` ne porte qu'un `lesson_id`.
+
+### 🔴 Trois interdits
+
+1. **« Rien produit » n'est jamais cliquable.** Rattacher une pièce préexistante à un travail qui ne
+   l'a pas faite ferait croire le contraire (doctrine déjà écrite pour les pièces `skipped`).
+2. **« Rien produit » n'est jamais rouge.** Ambre. Ne rien produire parce que tout existait déjà est
+   un résultat *correct* — signalé parce qu'il surprend, pas parce qu'il est mauvais.
+3. **Le diagnostic n'a pas de lien.** `/diagnostics` tient son focus en état local, sans paramètre
+   d'URL — un lien y déposerait Papa au hasard. Dette nommée, elle tombera avec l'ouverture par URL
+   (et avec le `null` de `reviewLink:86`, qui a la même cause).
+
+### Ce qui ne bouge pas
+
+Les lignes de **lot** (leur pli, leurs pièces, leurs liens, leur veto), les traces `parent` hors
+Journal, l'absence de veto sur un travail unitaire (§17), et le reste de la page.
