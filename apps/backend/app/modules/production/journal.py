@@ -619,6 +619,14 @@ def routes_des_travaux(db: Session, travaux) -> dict[int, str]:
             if sujet is not None:
                 # `focus` attend un `skill_id`, pas un id d'objet — cf. `journalLink`, même cas.
                 route = f"/cartes-revision?subject={sujet}&focus={notion}"
+        elif job.job_type == "diagnostic_generate":
+            # ⚠️ **La matière se lit dans `input_json`, pas dans la sortie** : celle-ci ne porte que
+            # le NOM de la matière (« Histoire-Géo »), et une route ne se compose pas sur un nom.
+            # Aucune requête de plus — l'entrée est déjà chargée.
+            entree = job.input_json if isinstance(job.input_json, dict) else {}
+            sujet = entree.get("subject_id")
+            if isinstance(sujet, int):
+                route = f"/diagnostics?subject={sujet}"
         if route:
             routes[job.id] = route
     return routes
@@ -626,6 +634,16 @@ def routes_des_travaux(db: Session, travaux) -> dict[int, str]:
 
 def _pluriel(n: int, singulier: str, pluriel: str) -> str:
     return f"{n} {singulier}" if n <= 1 else f"{n} {pluriel}"
+
+
+def _de(nom: str) -> str:
+    """« de Mathématiques », mais « d'Histoire-Géo ».
+
+    Trois des huit matières commencent par une voyelle (Histoire-Géo, Anglais, Espagnol) : sans
+    élision, un libellé sur cinq se lirait de travers. Un `h` muet suffit ici — ZETIS n'a aucune
+    matière à `h` aspiré.
+    """
+    return f"d'{nom}" if nom[:1].upper() in "AEIOUYÀÂÉÈÊËÎÏÔÖÙÛÜH" else f"de {nom}"
 
 
 def resume_de_production(job, routes: dict[int, str]) -> dict | None:
@@ -655,20 +673,33 @@ def resume_de_production(job, routes: dict[int, str]) -> dict | None:
 
     sortie = _sortie(job)
     route = routes.get(job.id)
-    succes = lambda texte: {"texte": texte, "ton": "succes", "route": route}  # noqa: E731
-    rien = lambda texte: {"texte": texte, "ton": "avertissement", "route": None}  # noqa: E731
+
+    def succes(texte: str, ou: str) -> dict:
+        """🔴 `ou` est OBLIGATOIRE, et c'est le point : un « voir → » nu laisse Papa découvrir où il
+        atterrit. Le libellé nomme la destination **et son grain** — voir `route_texte`."""
+        return {
+            "texte": texte,
+            "ton": "succes",
+            "route": route,
+            "route_texte": ou if route else None,
+        }
+
+    def rien(texte: str) -> dict:
+        return {"texte": texte, "ton": "avertissement", "route": None, "route_texte": None}
 
     if job.job_type == "equip_notion":
         produites = sortie.get("generated") or []
         deja = sortie.get("skipped") or []
         if produites:
-            return succes(_pluriel(len(produites), "pièce produite", "pièces produites"))
+            return succes(
+                _pluriel(len(produites), "pièce produite", "pièces produites"), "voir la notion →"
+            )
         if deja:
             return rien(f"rien produit — {_pluriel(len(deja), 'pièce existait', 'pièces existaient')} déjà")
         return rien("rien produit")
 
     if job.job_type == "lesson_content":
-        return succes("cours rédigé") if sortie.get("lesson_id") else None
+        return succes("cours rédigé", "voir la leçon →") if sortie.get("lesson_id") else None
 
     if job.job_type == "curriculum_lessons":
         ids = sortie.get("lesson_ids")
@@ -687,6 +718,7 @@ def resume_de_production(job, routes: dict[int, str]) -> dict | None:
             "texte": _pluriel(len(ids), "leçon au chapitre", "leçons au chapitre"),
             "ton": "neutre",
             "route": route,
+            "route_texte": "voir le chapitre →" if route else None,
         }
 
     if job.job_type == "srs_cards_generate":
@@ -695,7 +727,7 @@ def resume_de_production(job, routes: dict[int, str]) -> dict | None:
             return None
         if creees == 0:
             return rien("aucune carte nouvelle")
-        return succes(_pluriel(creees, "carte créée", "cartes créées"))
+        return succes(_pluriel(creees, "carte créée", "cartes créées"), "voir les cartes →")
 
     if job.job_type == "diagnostic_generate":
         n = sortie.get("questions_count")
@@ -703,17 +735,27 @@ def resume_de_production(job, routes: dict[int, str]) -> dict | None:
             return None
         matiere = sortie.get("subject")
         texte = _pluriel(n, "question", "questions")
-        # 🔴 **Aucune route, et c'est une décision (addendum §4)** : `DiagnosticsPapaPage` tient son
-        # focus en état local, sans `useSearchParams`. Un lien y déposerait Papa sur une page qui ne
-        # montre pas CE diagnostic — le « lien au hasard » que `reviewLink:86` refuse déjà, pour la
-        # même cause et qui tombera dans le même geste.
+        # 🔴 **Décision 4 AMENDÉE le 2026-08-09, après relecture visuelle.** La version d'abord
+        # livrée ne rendait aucune route : `DiagnosticsPapaPage` ne lisait pas d'URL, et aucune
+        # surface Papa n'ouvre un diagnostic précis (`/quiz` filtre sur `QUIZ_TYPE_MISSION` dans ses
+        # sept requêtes, `/relecture` rend `null` — `reviewLink:86`). C'était vrai, et **ça laissait
+        # un doute à l'écran** : ni lien, ni indication d'où aller.
+        #
+        # La route est donc de **grain MATIÈRE**, et le libellé le DIT. Ce n'est pas le défaut de
+        # l'`adr-0047` Décision 8 — là-bas, la station ② promettait « le quiz de cette notion » et
+        # livrait la matière. Ici on promet la matière et on livre la matière : le grain annoncé est
+        # le grain servi. Ouvrir LE diagnostic reste dû, et reste un chantier à part.
         return {
             "texte": f"{texte} · {matiere}" if matiere else texte,
             "ton": "succes",
-            "route": None,
+            "route": route,
+            "route_texte": (
+                f"voir les diagnostics {_de(matiere)} →" if route and matiere else
+                "voir les diagnostics →" if route else None
+            ),
         }
 
-    return {"texte": "terminé", "ton": "neutre", "route": None}
+    return {"texte": "terminé", "ton": "neutre", "route": None, "route_texte": None}
 
 
 def _travail_out(job, names: dict[int, str], routes: dict[int, str] | None = None) -> dict:

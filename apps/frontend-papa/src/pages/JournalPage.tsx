@@ -468,7 +468,11 @@ function TravailRow({ travail }: { travail: JournalTravail }) {
               to={travail.production.route}
               className="text-xs text-papa-accent-2 underline-offset-2 hover:underline"
             >
-              voir →
+              {/* 🔴 Le libellé vient du SERVEUR et nomme son grain (« voir la leçon → », « voir les
+                  diagnostics d'Histoire-Géo → »). Un « voir → » nu laissait Papa découvrir où il
+                  atterrissait — trouvé à la relecture du 2026-08-09, et c'est le défaut que
+                  l'`adr-0047` Décision 8 avait déjà corrigé sur la station ②. */}
+              {travail.production.route_texte ?? "voir →"}
             </Link>
           )}
         </p>

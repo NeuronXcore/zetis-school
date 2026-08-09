@@ -56,7 +56,12 @@ describe("La ligne « Travail » dit ce qu'elle a produit", () => {
   it("affiche le résumé rendu par le serveur", async () => {
     afficher({
       ...TRAVAIL,
-      production: { texte: "3 cartes créées", ton: "succes", route: "/cartes-revision?subject=2&focus=149" },
+      production: {
+        texte: "3 cartes créées",
+        ton: "succes",
+        route: "/cartes-revision?subject=2&focus=149",
+        route_texte: "voir les cartes →",
+      },
     });
     expect(await screen.findByText("3 cartes créées")).toBeInTheDocument();
   });
@@ -64,13 +69,16 @@ describe("La ligne « Travail » dit ce qu'elle a produit", () => {
   it("offre le lien quand le travail a produit quelque chose", async () => {
     afficher({
       ...TRAVAIL,
-      production: { texte: "cours rédigé", ton: "succes", route: "/programme?subject=1&chapter=44&lesson=114" },
+      production: {
+        texte: "cours rédigé",
+        ton: "succes",
+        route: "/programme?subject=1&chapter=44&lesson=114",
+        route_texte: "voir la leçon →",
+      },
     });
     await screen.findByText("cours rédigé");
-    expect(screen.getByRole("link", { name: /voir/ })).toHaveAttribute(
-      "href",
-      "/programme?subject=1&chapter=44&lesson=114",
-    );
+    const lien = screen.getByRole("link", { name: /voir la leçon/ });
+    expect(lien).toHaveAttribute("href", "/programme?subject=1&chapter=44&lesson=114");
   });
 
   it("🔒 un travail qui n'a RIEN produit n'offre AUCUN lien", async () => {
@@ -82,10 +90,31 @@ describe("La ligne « Travail » dit ce qu'elle a produit", () => {
         texte: "rien produit — les 5 pièces existaient déjà",
         ton: "avertissement",
         route: null,
+        route_texte: null,
       },
     });
     expect(await screen.findByText(/rien produit/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /voir/ })).toBeNull();
+  });
+
+  it("🔒 le lien NOMME sa destination, jamais un « voir → » nu", async () => {
+    // Un « voir → » nu laisse Papa découvrir où il atterrit — trouvé à la relecture du 2026-08-09.
+    // Sur un diagnostic, le grain servi est la MATIÈRE : le libellé doit le dire, sans quoi il
+    // promettrait CE diagnostic et livrerait sa matière (le défaut de l'adr-0047 Décision 8).
+    afficher({
+      ...TRAVAIL,
+      job_type: "diagnostic_generate",
+      label: "Diagnostic",
+      production: {
+        texte: "40 questions · Histoire-Géo",
+        ton: "succes",
+        route: "/diagnostics?subject=3",
+        route_texte: "voir les diagnostics d'Histoire-Géo →",
+      },
+    });
+    const lien = await screen.findByRole("link", { name: /voir les diagnostics d'Histoire-Géo/ });
+    expect(lien).toHaveAttribute("href", "/diagnostics?subject=3");
+    expect(screen.queryByRole("link", { name: /^voir →$/ })).toBeNull();
   });
 
   it("« rien produit » est ambre, jamais rouge", async () => {
@@ -93,7 +122,7 @@ describe("La ligne « Travail » dit ce qu'elle a produit", () => {
     // panne, et Papa irait réparer ce qui marche — même distinction que l'ambre de l'adr-0048.
     afficher({
       ...TRAVAIL,
-      production: { texte: "aucune carte nouvelle", ton: "avertissement", route: null },
+      production: { texte: "aucune carte nouvelle", ton: "avertissement", route: null, route_texte: null },
     });
     const pastille = await screen.findByText("aucune carte nouvelle");
     expect(pastille.className).toContain("papa-warn");

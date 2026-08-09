@@ -316,6 +316,10 @@ export interface JournalProduction {
    *  parce que tout existait déjà est un résultat correct — il surprend, il ne fâche pas. */
   ton: "succes" | "neutre" | "avertissement";
   route: string | null;
+  /** 🔴 **Le libellé NOMME sa destination et son GRAIN** — « voir la leçon → », « voir les
+   *  diagnostics d'Histoire-Géo → ». Un « voir → » nu laisserait Papa découvrir où il atterrit,
+   *  défaut corrigé par l'`adr-0047` Décision 8. `null` quand `route` l'est. */
+  route_texte: string | null;
 }
 
 export interface JournalTravail {

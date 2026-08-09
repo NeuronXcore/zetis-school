@@ -23,9 +23,18 @@ from app.tests.test_production_coverage import _seed_lesson, _seed_year
 ROUTES = {1: "/programme?subject=1&chapter=2&lesson=3"}
 
 
-def _job(job_type: str, sortie: dict | None, *, status: str = "succeeded") -> m.AIJob:
+def _job(
+    job_type: str, sortie: dict | None, *, status: str = "succeeded", entree: dict | None = None
+) -> m.AIJob:
     """Un travail NON persisté : `resume_de_production` est une fonction pure de ses champs."""
-    return m.AIJob(id=1, job_type=job_type, status=status, output_json=sortie, created_by="file")
+    return m.AIJob(
+        id=1,
+        job_type=job_type,
+        status=status,
+        input_json=entree,
+        output_json=sortie,
+        created_by="file",
+    )
 
 
 def _resume(job_type: str, sortie: dict | None, *, status: str = "succeeded") -> dict | None:
@@ -47,13 +56,16 @@ def test_equipement_qui_a_tout_saute_dit_qu_il_n_a_rien_produit():
 
 def test_equipement_qui_a_produit_compte_ses_pieces_et_mene_quelque_part():
     r = _resume("equip_notion", {"skill_id": 64, "generated": ["fiche", "quiz"], "skipped": []})
-    assert r == {"texte": "2 pièces produites", "ton": "succes", "route": ROUTES[1]}
+    assert r["texte"] == "2 pièces produites"
+    assert r["route"] == ROUTES[1]
 
 
 def test_redaction_du_cours_dit_le_cours_et_pas_sa_longueur():
     """⚠️ `content_chars` vit sur la trace `parent`, exclue du Journal (constat 1 de l'addendum)."""
     r = _resume("lesson_content", {"lesson_id": 114})
-    assert r == {"texte": "cours rédigé", "ton": "succes", "route": ROUTES[1]}
+    assert r["texte"] == "cours rédigé"
+    assert r["ton"] == "succes"
+    assert r["route"] == ROUTES[1]
 
 
 def test_lecons_du_chapitre_dit_un_ETAT_et_jamais_une_creation():
@@ -89,12 +101,70 @@ def test_cartes_de_revision_sans_creation_le_dit():
     assert r["ton"] == "avertissement"
 
 
-def test_diagnostic_dit_ses_questions_et_sa_matiere_SANS_lien():
-    """🔴 Décision 4 : `/diagnostics` tient son focus en état local, un lien y viserait au hasard."""
-    r = _resume("diagnostic_generate", {"quiz_id": 57, "subject": "Histoire-Géo", "questions_count": 40})
+def test_diagnostic_mene_a_SA_matiere_et_le_dit():
+    """🔴 **Décision 4 amendée après relecture visuelle (2026-08-09).**
+
+    Sans route ni indication, la ligne laissait un doute : ni lien, ni mot disant où aller. La route
+    est donc de grain MATIÈRE — et le libellé le NOMME. Ce n'est pas le défaut de l'`adr-0047`
+    Décision 8 (promettre un grain notion, livrer un grain matière) : ici on annonce la matière et
+    on livre la matière.
+    """
+    job = _job(
+        "diagnostic_generate",
+        {"quiz_id": 57, "subject": "Histoire-Géo", "questions_count": 40},
+        entree={"subject_id": 3},
+    )
+    r = journal.resume_de_production(job, {1: "/diagnostics?subject=3"})
     assert r["texte"] == "40 questions · Histoire-Géo"
-    assert r["ton"] == "succes"
-    assert r["route"] is None, "un diagnostic n'est pas ouvrable par URL — cf. reviewLink:86"
+    assert r["route"] == "/diagnostics?subject=3"
+    assert r["route_texte"] == "voir les diagnostics d'Histoire-Géo →", (
+        "trois matières sur huit commencent par une voyelle — sans élision, un libellé sur cinq "
+        "se lit de travers"
+    )
+    assert "cette" not in r["route_texte"], "le libellé ne doit pas promettre CE diagnostic"
+
+
+def test_la_route_du_diagnostic_se_compose_sur_input_json(client_db):
+    """La sortie ne porte que le NOM de la matière ; l'id est dans l'entrée, déjà chargée."""
+    _, TestSession = client_db
+    db = TestSession()
+    job = m.AIJob(
+        job_type="diagnostic_generate",
+        status="succeeded",
+        created_by="file",
+        created_at=datetime.now(timezone.utc),
+        input_json={"subject_id": 3, "level": None},
+        output_json={"quiz_id": 57, "subject": "Histoire-Géo", "questions_count": 40},
+    )
+    db.add(job)
+    db.flush()
+    assert journal.routes_des_travaux(db, [job]) == {job.id: "/diagnostics?subject=3"}
+
+
+@pytest.mark.parametrize(
+    "matiere,attendu",
+    [
+        ("Mathématiques", "voir les diagnostics de Mathématiques →"),
+        ("Histoire-Géo", "voir les diagnostics d'Histoire-Géo →"),
+        ("Anglais", "voir les diagnostics d'Anglais →"),
+        ("Espagnol", "voir les diagnostics d'Espagnol →"),
+        ("SVT", "voir les diagnostics de SVT →"),
+    ],
+)
+def test_l_elision_du_libelle(matiere, attendu):
+    job = _job(
+        "diagnostic_generate", {"subject": matiere, "questions_count": 40}, entree={"subject_id": 3}
+    )
+    assert journal.resume_de_production(job, {1: "/diagnostics?subject=3"})["route_texte"] == attendu
+
+
+def test_un_diagnostic_sans_matiere_identifiable_n_a_pas_de_lien():
+    """Un lien sans matière déposerait Papa sur « Toutes » — le retour du lien au hasard."""
+    r = journal.resume_de_production(
+        _job("diagnostic_generate", {"questions_count": 40}, entree={}), {}
+    )
+    assert r["route"] is None
+    assert r["route_texte"] is None
 
 
 # --- Les dégradations, qui doivent rester muettes -------------------------------------------------
@@ -103,7 +173,26 @@ def test_diagnostic_dit_ses_questions_et_sa_matiere_SANS_lien():
 def test_un_type_sans_regle_degrade_proprement():
     """Un `job_type` neuf ne casse pas la page : il ne dit simplement rien de plus."""
     r = _resume("council_generate", {"report_subjects": 1})
-    assert r == {"texte": "terminé", "ton": "neutre", "route": None}
+    assert r == {"texte": "terminé", "ton": "neutre", "route": None, "route_texte": None}
+
+
+@pytest.mark.parametrize(
+    "job_type,sortie",
+    [
+        ("lesson_content", {"lesson_id": 114}),
+        ("curriculum_lessons", {"lesson_ids": [1, 2]}),
+        ("srs_cards_generate", {"skill_id": 1, "created": 2}),
+        ("equip_notion", {"skill_id": 1, "generated": ["fiche"]}),
+    ],
+)
+def test_tout_lien_NOMME_sa_destination(job_type, sortie):
+    """🔴 Un « voir → » nu laisse Papa découvrir où il atterrit — trouvé à la relecture du
+    2026-08-09, et c'est le défaut que l'`adr-0047` Décision 8 avait déjà corrigé ailleurs."""
+    r = journal.resume_de_production(_job(job_type, sortie), ROUTES)
+    assert r["route"] == ROUTES[1]
+    assert r["route_texte"], "une route sans libellé rendrait « voir → » nu"
+    assert r["route_texte"] != "voir →"
+    assert r["route_texte"].endswith("→")
 
 
 @pytest.mark.parametrize("sortie", [None, {}, {"lesson_id": None}, "pas un dict"])
@@ -140,6 +229,7 @@ def test_rien_produit_ne_rend_JAMAIS_de_route(job_type, sortie):
     """
     r = journal.resume_de_production(_job(job_type, sortie), ROUTES)
     assert r["route"] is None
+    assert r["route_texte"] is None, "un libellé sans route est un lien fantôme"
     assert r["ton"] == "avertissement"
 
 

@@ -271,6 +271,11 @@ production: { texte, ton: "succes"|"neutre"|"avertissement", route: string|null 
 Rendu : une pastille au `ton`, le `texte`, puis le lien quand `route` existe. L'origine
 (« lancé par vous · hors lot ») reste **la dernière ligne** du bloc.
 
+🔴 **Le libellé du lien NOMME sa destination**, il vient du serveur avec la route : « voir la
+leçon → », « voir le chapitre → », « voir les cartes → », « voir les diagnostics d'Histoire-Géo → ».
+Un « voir → » nu laisserait Papa découvrir où il atterrit — le défaut que l'`adr-0047` Décision 8 a
+corrigé sur la station ②. `route_texte` est `null` exactement quand `route` l'est.
+
 ### Les règles, une par type de travail
 
 | `job_type` | Texte | Ton | Route |
@@ -280,7 +285,7 @@ Rendu : une pastille au `ton`, le `texte`, puis le lien quand `route` existe. L'
 | `lesson_content` | « cours rédigé » | `succes` | `/programme?subject=…&chapter=…&lesson=…` |
 | `curriculum_lessons` | « N leçons **au chapitre** » | `neutre` | `/programme?subject=…&chapter=…` |
 | `srs_cards_generate` | « N cartes créées » (ou « aucune carte nouvelle ») | `succes` / `avertissement` | `/cartes-revision?subject=…&focus=<skill_id>` |
-| `diagnostic_generate` | « N questions · <matière> » | `succes` | **aucune** — voir ci-dessous |
+| `diagnostic_generate` | « N questions · <matière> » | `succes` | `/diagnostics?subject=…` — grain **matière**, et le libellé le dit |
 | tout autre type | « terminé » | `neutre` | aucune |
 
 ⚠️ **La longueur du cours n'est PAS affichée.** `content_chars` vit sur la trace `parent`, exclue du
@@ -299,9 +304,16 @@ même que ce chantier corrige.
    l'a pas faite ferait croire le contraire (doctrine déjà écrite pour les pièces `skipped`).
 2. **« Rien produit » n'est jamais rouge.** Ambre. Ne rien produire parce que tout existait déjà est
    un résultat *correct* — signalé parce qu'il surprend, pas parce qu'il est mauvais.
-3. **Le diagnostic n'a pas de lien.** `/diagnostics` tient son focus en état local, sans paramètre
-   d'URL — un lien y déposerait Papa au hasard. Dette nommée, elle tombera avec l'ouverture par URL
-   (et avec le `null` de `reviewLink:86`, qui a la même cause).
+3. **Le diagnostic mène à sa MATIÈRE, jamais à lui-même — et son libellé l'annonce.** Aucune
+   surface Papa n'ouvre un diagnostic précis : `/quiz` filtre sur `QUIZ_TYPE_MISSION` dans ses sept
+   requêtes, `/relecture` rend `null` (`reviewLink:86`). Le lien est donc de grain matière, et le
+   libellé dit « voir les diagnostics d'Histoire-Géo → » : **le grain annoncé est le grain servi**.
+   Ce n'est pas le défaut de l'`adr-0047` Décision 8, qui promettait « le quiz de cette notion » et
+   livrait la matière. Ouvrir *ce* diagnostic reste dû, et reste un chantier à part.
+
+   ⚠️ Ça n'a été possible qu'en donnant à `DiagnosticsPapaPage` la lecture de `?subject=` —
+   **amorçage seulement**, la pastille reste maîtresse ensuite, et le `focus` du bandeau reste
+   strictement local.
 
 ### Ce qui ne bouge pas
 

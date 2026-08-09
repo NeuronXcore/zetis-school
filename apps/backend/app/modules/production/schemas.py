@@ -303,6 +303,12 @@ class JournalProductionOut(BaseModel):
     #: produire parce que tout existait déjà est un résultat correct. Il surprend, il ne fâche pas.
     ton: ProductionTon = "neutre"
     route: str | None = None
+    #: 🔴 **Le libellé NOMME sa destination, et son GRAIN** — « voir la leçon », « voir le
+    #: chapitre », « voir les diagnostics d'Histoire-Géo ». Un « voir → » nu laisserait Papa
+    #: découvrir où il atterrit, et c'est précisément le défaut que l'`adr-0047` Décision 8 a
+    #: corrigé sur la station ② : elle promettait un grain notion et livrait un grain matière.
+    #: Ici, quand la route est de grain matière, le libellé le **dit**. `None` avec `route`.
+    route_texte: str | None = None
 
 
 class JournalTravailOut(BaseModel):

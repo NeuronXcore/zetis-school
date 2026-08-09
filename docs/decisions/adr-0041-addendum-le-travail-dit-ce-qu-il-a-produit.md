@@ -5,6 +5,11 @@
 **Accepté — 2026-08-09.** Six décisions gelées. Aucune migration, aucun endpoint neuf, aucune
 requête réseau supplémentaire.
 
+⚠️ **Deux corrections le jour même, toutes deux nées de la relecture visuelle** — elles sont en fin
+de document et il faut les lire avec les décisions : (1) `curriculum_lessons` disait « N leçons
+créées » là où le job en avait créé cinq sur sept ; (2) **la Décision 4 est AMENDÉE** — le
+diagnostic mène à sa matière au lieu de n'avoir aucun lien.
+
 > Cadré le 2026-08-09 selon le rituel `mockup → spec → ADR → prompt`, sur `main`, à partir d'une
 > observation du commanditaire à l'écran : *« on n'arrive pas à savoir si les data ont été créées
 > ou pas »*. Le read-before-code a été rendu **avant** toute décision, et il a **démenti quatre
@@ -101,6 +106,11 @@ l'a faite »*. Un travail qui n'a rien produit ne doit **jamais** rendre un lien
 dit « 40 questions », `route` est `None`. **Dette nommée**, pas contournée : elle se lèvera quand
 `/diagnostics` lira un paramètre d'URL, et le `null` de `reviewLink:86` tombera dans le même geste.
 
+> 🔴 **AMENDÉE le même jour — ne pas s'arrêter ici.** Cette version laissait un doute à l'écran :
+> ni lien, ni indication d'où aller. Voir **§ Décision 4 AMENDÉE** en fin de document — le
+> diagnostic mène désormais à sa **matière**, et le libellé annonce ce grain. Le texte ci-dessus
+> est conservé parce qu'il dit ce qui a été décidé d'abord, et pourquoi.
+
 **Décision 5 — aucune migration, aucun appel réseau, une seule requête en lot.** Tout se lit dans
 `output_json`, déjà chargé. Seule exception : `lesson_content` ne porte qu'un `lesson_id` et la
 route Programme demande `chapter` et `subject` — d'où **une** requête en lot sur les leçons de la
@@ -189,3 +199,40 @@ deuxième fois qu'on le chiffre.**
 `curriculum_lessons` reste indisponible côté Journal. Le rendre lisible demanderait soit de faire
 entrer la trace `parent` (refusé, constat 1), soit que le travail l'écrive dans sa propre sortie —
 une modification de `curriculum/service.py`, hors périmètre ici.
+
+## ⚠️ Décision 4 AMENDÉE — le diagnostic mène à sa matière (2026-08-09, même jour)
+
+**Motif : la version livrée laissait un doute à l'écran.** « 40 questions · Histoire-Géo », sans
+lien ni indication d'où aller. Le commanditaire l'a dit en une phrase : *« il faut qu'aucun doute ne
+soit permis à l'écran en lisant »*. Un texte juste qui n'indique rien reste un cul-de-sac — c'est le
+motif de l'`adr-0047`, appliqué à la ligne qu'on venait d'écrire.
+
+**Ce que la recherche d'une destination a établi, et qui vaut d'être écrit** : aucune surface Papa
+n'ouvre un diagnostic précis. `/quiz` filtre sur `QUIZ_TYPE_MISSION` dans ses **sept** requêtes de
+pilotage — un diagnostic n'y apparaît jamais ; `/relecture` rend `null` (`reviewLink:86`) ;
+`/diagnostics` montre les **passations**, pas le quiz généré.
+
+**Décision** : la route est de **grain matière** — `/diagnostics?subject=<id>`, l'id lu dans
+`input_json` (la sortie ne porte que le *nom* de la matière, et une route ne se compose pas sur un
+nom). Aucune requête de plus.
+
+🔴 **Ce qui rend ce lien acceptable là où l'`adr-0047` Décision 8 en a condamné un** : le libellé
+**annonce son grain**. La station ② disait « Produire le quiz de cette notion → » et envoyait sur la
+matière — elle promettait un grain qu'elle ne livrait pas. Ici on écrit « voir les diagnostics
+d'Histoire-Géo → », au pluriel, et c'est exactement ce qu'on sert. **Le défaut n'était pas le grain
+matière ; c'était l'écart entre le grain promis et le grain servi.**
+
+**Conséquences de l'amendement** :
+
+- **`route_texte` est ajouté** au contrat, et il devient obligatoire dès qu'il y a une route.
+  ⚠️ Un « voir → » nu était d'ailleurs déjà un écart à la maquette, qui disait « voir la leçon → » /
+  « voir le chapitre → » / « voir les cartes → » : l'implémentation les avait collapsés. Corrigé,
+  et tenu par un test paramétré sur les quatre types à route.
+- **`DiagnosticsPapaPage` lit `?subject=`** — sans quoi le lien aurait promis une matière et livré
+  la page par défaut. ⚠️ **Amorçage, pas synchronisation** : la pastille reste maîtresse ensuite, et
+  le `focus` du bandeau reste strictement local. Trois tests, dont un `?subject=` illisible.
+- **L'élision est traitée** (`d'Histoire-Géo`, `d'Anglais`, `d'Espagnol`) : trois matières sur huit
+  commencent par une voyelle, un libellé sur cinq se lirait de travers sans elle.
+
+**Ce qui reste dû, et n'a pas bougé** : ouvrir **LE** diagnostic — ses 40 questions — depuis Papa.
+C'est un chantier à part, et il fermera aussi le `null` de `reviewLink:86`.

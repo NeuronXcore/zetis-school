@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { SubjectFilterChips } from "@zetis/ui";
 import type { DiagnosticApercu, DiagnosticPortee, DiagnosticRailEntry, DiagnosticResult } from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
@@ -40,7 +41,22 @@ import { fetchApercu, fetchPortee, fetchResultDetail, rejectDiagnostic } from ".
 
 export function DiagnosticsPapaPage() {
   const [apercu, setApercu] = useState<DiagnosticApercu | null>(null);
-  const [subjectId, setSubjectId] = useState<number | null>(null);
+  // 🔴 **La matière s'amorce depuis l'URL** (addendum ADR-0041, décision 4 amendée). Sans cette
+  // lecture, `/diagnostics?subject=3` déposait Papa sur « Toutes » : le lien du Journal aurait
+  // promis une matière et livré la page par défaut — un lien qui ment, pire que pas de lien.
+  //
+  // ⚠️ **Un AMORÇAGE, pas une synchronisation.** Le paramètre sert d'état initial ; ensuite la
+  // pastille de matière est maîtresse et l'URL ne la suit pas. Synchroniser dans les deux sens
+  // ferait de la barre d'adresse une seconde source de vérité pour un filtre qui n'en demande pas,
+  // et rendrait le retour arrière du navigateur imprévisible.
+  //
+  // ⚠️ Le `focus` du bandeau, lui, reste **strictement local** : il n'est pas dans l'URL et ne le
+  // devient pas ici. Ouvrir UN diagnostic précis reste dû, et c'est un chantier à part.
+  const [parametres] = useSearchParams();
+  const [subjectId, setSubjectId] = useState<number | null>(() => {
+    const brut = Number(parametres.get("subject"));
+    return Number.isInteger(brut) && brut > 0 ? brut : null;
+  });
   // Matière présélectionnée quand la modale est ouverte par « Remesurer cette matière → »
   // (ADR-0048). `null` pour le bouton de tête, qui n'en vise aucune.
   const [remesurer, setRemesurer] = useState<number | null>(null);
