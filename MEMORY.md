@@ -7,7 +7,34 @@
 
 ## État à la reprise
 
-**Chantier : « la page Lacunes permet d'agir » (ADR-0047).
+> 🔴 **LA DERNIÈRE SESSION EST UN CADRAGE, ET SES FICHIERS NE SONT PAS COMMITÉS.**
+> *2026-08-09 — à lire avant tout le reste, sinon on croit que le dernier fait est le merge de
+> l'ADR-0047 ci-dessous.*
+>
+> **Ce qui a été fait** : le cadrage complet de l'**anti-triche du diagnostic**, `mockup → spec →
+> ADR → prompt`, sur `main`, **sans une ligne de code**. Détail au § *Chantier suivant*, plus bas.
+>
+> **EN COURS / à faire tout de suite** : l'arbre de travail porte les fichiers du cadrage,
+> **non commités** — la liste exacte est `git status`, et non un nombre écrit ici, qui serait faux
+> au premier ajout. Ils partent en **DEUX commits sur deux refs** (`WORKFLOW.md §2bis`) :
+>
+> | Lot | Où | Contenu |
+> |---|---|---|
+> | 1 — **d'abord** | `main` | ADR-0048 · `DECISIONS.md` · `MEMORY.md` · `BACKLOG.md` · `TROUBLESHOOTING.md` · `.claude/commands/cloture.md` |
+> | 2 — ensuite | branche créée par `/ouverture` | spec `docs/backend/fiabilite-de-la-mesure.md` · les 2 specs de page · les 2 maquettes · le prompt |
+>
+> ⚠️ **L'ordre n'est pas décoratif** : `/ouverture` **s'arrête** s'il voit `DECISIONS.md` modifié.
+>
+> ✅ **L'arbitrage sur la voix est TRANCHÉ : elle est DANS le périmètre** (ADR **Décision 5 bis**,
+> 2026-08-09). Le cadrage l'avait exclue sur une affirmation **fausse**, corrigée à la clôture. Coût
+> réel : **trois imports, zéro backend** — `lib/dictation.ts` et `transcribeEli5` sont **déjà**
+> utilisés par `ChatPage.tsx`. Voir `TROUBLESHOOTING.md` § *Cadrage de l'ADR-0048* pour la cause de
+> l'erreur (un `grep` mort en zsh, dont le vide s'est lu comme une absence de résultats).
+>
+> **PROCHAIN PAS** : commit du lot 1 → commit/push → puis `/ouverture anti-triche-diagnostic
+> ADR-0048`.
+
+**Chantier précédent : « la page Lacunes permet d'agir » (ADR-0047).
 ✅ COMPLET et ✅ MERGÉ SUR `main` (2026-08-09). Ne pas ré-implémenter.**
 
 | | |
@@ -198,16 +225,32 @@ mission », il faut **fabriquer le cas** — les 10 lacunes sont toutes couverte
 les missions actives d'une notion (une seule ne suffit pas, mesuré), relever leurs états avant, et
 **remettre la base après**.
 
-**Chantier suivant — trois candidats au `BACKLOG.md`, et le premier est DÉJÀ À MI-CADRAGE :**
+**Chantier suivant — trois candidats au `BACKLOG.md`, et le premier est CADRÉ, PRÊT À CODER :**
 
-1. 🟡 **L'anti-triche du diagnostic — CADRAGE ENTAMÉ le 2026-08-09.**
-   🔴 **NE PAS REFAIRE le read-before-code, NE PAS re-poser les questions tranchées.** Tout est au
-   `BACKLOG.md`, sous le titre *« CADRAGE ENTAMÉ … reprendre ICI »* : **cinq constats vérifiés dans
-   le code** et **quatre décisions du commanditaire**. Il reste **maquette → spec → ADR → prompt**.
-   Les deux choses à savoir avant de rouvrir le fichier : la **durée d'une passation n'est pas
-   mesurée du tout** (`started_at = completed_at`, et `duration_seconds` dort), et le **meilleur
-   signal n'est pas dans le navigateur** — c'est le contraste avec l'historique, le seul qui
-   survive à un téléphone posé à côté.
+1. ✅ **L'anti-triche du diagnostic — CADRAGE TERMINÉ le 2026-08-09, `adr-0048` ACCEPTÉ.**
+   🔴 **NE RIEN RE-CADRER. Les 10 décisions sont GELÉES — on les relit, on ne les rouvre pas.** Le
+   rituel complet a été fait en **deux sessions le même jour**, **sans une ligne de code** :
+   `docs/decisions/adr-0048-zetis-doute-de-sa-propre-mesure.md` · spec **source unique**
+   `docs/backend/fiabilite-de-la-mesure.md` · passages `[0048]` dans les deux specs de page · deux
+   maquettes **vues à l'écran** · prompt **trois sessions**
+   `prompts/claude-code/prompts-claude-code-adr-0048.md`.
+   🔴 **Accepté ≠ livré — RIEN n'est implémenté.** Prochain pas : **`/ouverture`**, puis la Session A.
+   **Une seule migration dans tout le chantier** (`QuizAttempt.reliability_json`) — une seconde est
+   un **blocker**.
+   🔴 **Les deux pièges qui rendraient le chantier inopérant EN RESTANT VERT**, et qui sont la vraie
+   raison de lire le prompt avant de coder : le **contraste calculé après `_upsert_skill_mastery`
+   vaut toujours zéro** (la passation se comparerait à elle-même, et rien ne rougirait), et
+   **`NON_ACTIVITY_EVENTS` au lieu de `NON_WORK_EVENTS`** ferait compter un `page_viewed` comme du
+   travail — le défaut déjà payé sur `production.runner.massimo_is_active`.
+   ⚠️ **La règle de vocabulaire est une contrainte de CODE** : tout prend **la mesure** pour sujet,
+   jamais l'enfant — libellés, noms de champs, commentaires **et messages de commit**.
+   ✅ **La VOIX est dans le périmètre** (Décision **5 bis**) : la carte « Raconte-moi » porte un
+   micro. **Trois imports, zéro backend** — `lib/dictation.ts` et `transcribeEli5` sont **déjà**
+   importés par `ChatPage.tsx`, un écran non-ELI5. 🔴 **Mais on copie ChatPage SAUF sur un point** :
+   la transcription **atterrit dans le champ**, elle ne s'envoie pas toute seule (patron ELI5) —
+   Massimo doit pouvoir corriger Whisper, et la carte n'a qu'un chemin de soumission.
+   ⚠️ Le micro **se masque en silence** quand il n'est pas supporté ou que le STT répond 503 : à la
+   vérification, **il faut aller le chercher**, son absence ressemble à une absence d'implémentation.
 2. **Une lacune comblée autrement ne se referme jamais** — né du chantier ADR-0047, qui l'aggrave.
    Doctrine, quatre modules. **Non cadré.**
 3. **La vue calendrier sur `/lacunes`** — demande d'abord un **addendum** qui révoque une décision

@@ -850,11 +850,35 @@ passation — jusqu'ici hors périmètre de tous les chantiers Diagnostic.
 
 ---
 
-### 🟡 CADRAGE ENTAMÉ le 2026-08-09 — read-before-code fait, décisions prises, ADR PAS ÉCRIT
+### ✅ CADRAGE TERMINÉ le 2026-08-09 — `adr-0048` ACCEPTÉ, rituel complet, RIEN d'implémenté
 
-> ⚠️ **Reprendre ICI, ne pas re-poser ces questions.** La session de cadrage s'est arrêtée faute de
-> contexte, après le read-before-code et quatre décisions du commanditaire. Il reste
-> **maquette → spec → ADR → prompt**.
+> ✅ **Ne rien re-cadrer ici.** Le rituel `maquette → spec → ADR → prompt` est **complet**, en deux
+> sessions le même jour, **sans une ligne de code**. Ce qui suit est conservé comme **archive du
+> read-before-code** — les décisions vivent désormais dans l'ADR, qui fait foi.
+>
+> - ADR : **`docs/decisions/adr-0048-zetis-doute-de-sa-propre-mesure.md`** — 10 décisions **gelées** ;
+> - Spec (source unique de la règle, des seuils et des noms de champs) :
+>   **`docs/backend/fiabilite-de-la-mesure.md`** ;
+> - Surfaces : passages `[0048]` de `docs/frontend-papa/page-diagnostic.md` et
+>   `docs/frontend-massimo/page-diagnostic.md` ;
+> - Maquettes (**vues à l'écran**) : `docs/frontend-papa/mockup/mockup-papa-fiabilite-mesure-v1.html`
+>   et `docs/frontend-massimo/mockup/mockup-diagnostic-resultat-verbalisation-v1.html` ;
+> - Prompt : **`prompts/claude-code/prompts-claude-code-adr-0048.md`** — **trois sessions**.
+>
+> 🔴 **Accepté ≠ livré — RIEN n'est implémenté.** Cette phrase doit **mourir ici** le jour du merge.
+>
+> **Ce que le cadrage a tranché en plus des quatre décisions ci-dessous** : un **6ᵉ signal** (le
+> contraste avec l'historique devient un **fait déclencheur**, pas une note de bas de page) · la
+> **verbalisation est INCONDITIONNELLE** (la conditionner au doute la transformerait en accusation) ·
+> **trois états côté Papa, pas deux** (`null` = ZETIS ne regardait pas ≠ rien à signaler) · **la seule
+> réponse à « à confirmer » est de REMESURER** (la bande ne se retire pas) · la **galaxie reste**
+> malgré l'audit de la 4ᵉ piste.
+>
+> 🔴 **Les deux pièges qui rendraient le chantier inopérant EN RESTANT VERT**, écrits dans le prompt :
+> le contraste calculé **après** `_upsert_skill_mastery` vaut toujours zéro (la passation se
+> comparerait à elle-même), et `NON_ACTIVITY_EVENTS` au lieu de **`NON_WORK_EVENTS`** ferait compter
+> un `page_viewed` comme du travail — le défaut que le dépôt a déjà payé sur
+> `production.runner.massimo_is_active`.
 
 **🔴 Ce que le read-before-code a démenti ou complété (vérifié dans le code) :**
 
@@ -902,6 +926,23 @@ délibéré que `fullscreenchange` détecte. ⚠️ Il exige un geste utilisateu
 Safari le refuse sur iPhone** : il ne vaudra que sur iPad et desktop, et l'ADR doit le dire.
 ⚠️ Le seul dispositif qui bloque vraiment est **hors du code** : l'**Accès guidé iOS**, un geste de
 Papa avant la passation. Écarté du périmètre, mentionné ici pour qu'on ne le redécouvre pas.
+
+#### Ce que l'`adr-0048` laisse dehors, et qui reste à faire
+
+- ✅ ~~**La voix sur la verbalisation**~~ → **ENTRÉE dans le périmètre le 2026-08-09**, décision du
+  commanditaire (ADR **Décision 5 bis**). Elle avait été exclue sur une affirmation **fausse** —
+  *« la dictée vit dans `Eli5Session.tsx`, pas dans une brique réutilisable »* — produite par un
+  `grep` mort en zsh dont le vide s'est lu comme une absence de résultats
+  (`TROUBLESHOOTING.md` § *Cadrage de l'ADR-0048*). En vrai :
+  `apps/frontend-massimo/src/lib/dictation.ts` a **déjà deux consommateurs**, et `transcribeEli5`
+  est **déjà appelé par `ChatPage.tsx`**, un écran non-ELI5. **Trois imports, zéro backend.**
+- 🔴 **Déménager `/api/ai/eli5/transcribe` sous un nom neutre — dette NOMMÉE, non payée.**
+  La route porte le nom d'ELI5 et n'a plus rien d'ELI5 : le module `stt` n'a qu'un `provider.py`,
+  **aucun routeur**. Avec le micro de la carte « Raconte-moi », elle aura **trois** consommateurs
+  sous le nom du premier. Écartée du chantier ADR-0048 en connaissance de cause : la déplacer
+  toucherait deux écrans qui marchent (`useEli5.ts`, `ChatPage.tsx`) pour un gain nul sur la mesure.
+- **L'Accès guidé iOS**, geste de Papa avant la passation — le seul dispositif qui bloque vraiment,
+  et il est **hors du code**. Écrit ici pour qu'on ne le redécouvre pas.
 
 ## Bugs / risques à surveiller
 

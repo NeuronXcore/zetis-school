@@ -4218,3 +4218,47 @@ un libellé dit ce qui se passe.
 Un Vite orphelin sur `:5175` tape sur `:8000` par défaut, dont le CORS n'autorise que `:5173` et
 `:5174` → **« Failed to fetch »** au login, sans message clair. C'est la paire qui compte, pas le
 port : voir la mémoire `zetis-serveurs-dev-ports`.
+
+## Cadrage de l'ADR-0048 (anti-triche du diagnostic) — 2026-08-09
+
+Session de **cadrage** : aucune ligne de code, donc aucun écart d'exécution. Un seul piège, et il
+est **méthodologique** — il a produit une affirmation fausse dans **cinq documents**.
+
+### 🔴 En zsh, un `--include=*.ts` non quoté TUE la commande — et l'absence de sortie se lit comme une absence de RÉSULTATS
+
+**Ce qui s'est passé.** Pour savoir si la dictée vocale existait en brique réutilisable, j'ai lancé :
+
+```bash
+ls apps/frontend-massimo/src/components/ | head -30
+echo "=== dictée ==="
+grep -rln "useDictation\|Dictee\|micro\|Mic" apps/frontend-massimo/src --include=*.tsx --include=*.ts
+```
+
+zsh a répondu `(eval):1: no matches found: --include=*.ts` **et la commande est morte**. Les deux
+premières parties avaient déjà affiché leur sortie ; sous l'en-tête `=== dictée ===`, **il n'y avait
+rien**. J'ai lu ce vide comme *« aucune brique de dictée »* et j'ai écrit — dans l'ADR, la spec, le
+prompt, la maquette et le `BACKLOG` — que la dictée *« vit dans `Eli5Session.tsx`, pas dans une
+brique réutilisable »*, et qu'il faudrait « refactorer ou dupliquer ».
+
+**C'était faux.** `apps/frontend-massimo/src/lib/dictation.ts` (102 lignes) expose
+`isDictationSupported()`, `startRecording()` et le type `Recording`, et il est **déjà importé par
+deux écrans** : `hooks/useEli5.ts` et `pages/ChatPage.tsx`. Cette erreur a servi de **seule
+justification** à une exclusion de périmètre.
+
+**La cause exacte.** zsh — contrairement à bash — refuse un motif de glob sans correspondance au lieu
+de le passer littéralement, et **abandonne toute la commande**. Ce n'est pas propre à `grep` : tout
+argument contenant `*` non quoté est concerné.
+
+**Deux parades, et la seconde est la vraie.**
+
+1. **Quoter le motif** : `--include='*.ts'` — vérifié, rend bien `lib/dictation.ts`.
+2. 🔴 **Ne jamais lire un vide comme un résultat.** Un `grep` qui ne trouve rien sort en **code 1**
+   sans message ; un `grep` qui n'a jamais tourné sort en **code 1 avec un message sur stderr**. Les
+   deux se ressemblent quand on ne regarde que stdout. **Contrôle le code de sortie, ou fais dire à
+   la commande ce qu'elle a fait** — par exemple terminer par `; echo "code: $?"`, ou faire suivre
+   d'un `echo "(vide = aucun résultat)"` qui, lui, ne s'affichera pas si la commande est morte.
+
+⚠️ **Le vrai enseignement dépasse zsh** : le read-before-code protège contre une doc périmée, pas
+contre une **commande qui n'a pas tourné**. Une affirmation négative (« ça n'existe pas ») tirée d'un
+outil de recherche doit être confirmée par une commande qui, elle, rend quelque chose — ici,
+`ls apps/frontend-massimo/src/lib/` aurait suffi.

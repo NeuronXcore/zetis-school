@@ -23,19 +23,41 @@ pas une étape de cette commande.
 - Tête de `main` : !`git rev-parse --short main`
 - Note de l'utilisateur : $ARGUMENTS
 
-## D'abord : le chantier est-il FINI ?
+## D'abord : quelle SESSION clôtures-tu ?
 
 ⚠️ **Cette question commande tout le reste, et la commande l'ignorait.** Tranche-la explicitement,
-et dis-moi laquelle des deux tu appliques.
+et dis-moi laquelle des **trois** tu appliques.
 
-| | Chantier **FINI** | Chantier **EN COURS** |
-|---|---|---|
-| `MEMORY.md` | « COMPLET », prochain pas = push + PR | « EN COURS », prochain pas = la première action à reprendre |
-| Git (par MOI, après vérification) | commit → push → **PR → merge** → 4bis | commit → push. **NI PR, NI MERGE.** |
-| La branche | sera supprimée au merge | **reste vivante** — c'est elle qui porte l'état intermédiaire |
+| | Chantier **FINI** | Chantier **EN COURS** | **CADRAGE** — aucune ligne de code |
+|---|---|---|---|
+| `MEMORY.md` | « COMPLET », prochain pas = push + PR | « EN COURS », prochain pas = la première action à reprendre | le chantier suivant passe à « **cadré** », prochain pas = **`/ouverture`** |
+| Git (par MOI, après vérification) | commit → push → **PR → merge** → 4bis | commit → push. **NI PR, NI MERGE.** | 🔴 **DEUX commits, pas un** — voir ci-dessous |
+| La branche | sera supprimée au merge | **reste vivante** — c'est elle qui porte l'état intermédiaire | **elle n'existe pas encore** : c'est `/ouverture` qui la crée |
 
 > **Ne jamais merger un chantier inachevé.** Ça mettrait du travail à moitié fait sur `main` et
 > détruirait la seule chose qui protège la reprise : une branche qui porte l'état réel.
+
+> 🔴 **Le cas CADRAGE — ajouté le 2026-08-09, parce que la commande n'avait aucune réponse vraie
+> pour lui.** Une session de cadrage vit sur `main`, ne livre rien, et produit **deux lots qui ne
+> vont pas au même endroit** (`WORKFLOW.md §2bis`) :
+>
+> | Lot | Où | Quand |
+> |---|---|---|
+> | ADR + `DECISIONS.md` + `MEMORY.md` + `BACKLOG.md` | **`main`** | **avant** `/ouverture` |
+> | spec + maquettes + prompts | la **branche** | c'est `/ouverture` qui la crée et rend la commande |
+>
+> ⚠️ **L'ordre n'est pas décoratif** : `/ouverture` **s'arrête** s'il voit `DECISIONS.md` modifié
+> (*« il se committe là-bas, avec l'ADR, JAMAIS sur la branche »*). Le lot `main` part **avant** de
+> l'appeler, sinon la commande suivante bloque sur ce qu'on vient de faire.
+>
+> **Ce que tu ne fais donc PAS dans ce cas** : ni l'élagage (**1bis** — le `MEMORY.md` du chantier
+> précédent peut encore être l'actif), ni les documents de structure (**3** — rien n'a bougé), ni
+> les tests (**6** de la checklist — écris « aucun : aucune ligne de code »). **Et le point 9 rend
+> DEUX messages de commit**, un par lot.
+>
+> **Ce que tu fais quand même** : `graphify update .` (les docs sont indexés), et surtout la
+> **vérification fait par fait** du point 6 — un cadrage écrit beaucoup de chemins de fichiers, et
+> un chemin faux dans un prompt envoie la session de slice lire un fichier qui n'existe pas.
 
 ## Ta tâche, dans cet ordre
 
@@ -98,6 +120,10 @@ et dis-moi laquelle des deux tu appliques.
    `CHANGELOG.md` **seulement** si cette session termine une slice livrable — mais alors, fais-le.
    `DECISIONS.md` est normalement déjà à jour (il s'écrit au **cadrage**, pas à la clôture) :
    vérifie-le, ne le réécris pas.
+   ⚠️ **Sauf en session de CADRAGE, où c'est exactement l'inverse** : c'est cette session-là qui
+   l'écrit. Vérifie alors que la ligne d'index existe **et** que le fichier ADR qu'elle nomme existe
+   pour de bon — *une ligne d'index n'est pas une décision, c'est un renvoi vers une décision*
+   (le contrôle du 2026-08-01 que `/ouverture` fera de toute façon, en s'arrêtant s'il manque).
 
 5. **`graphify update .`** — la carte du code doit suivre (`WORKFLOW.md §5`, étape 2). Sans ça, la
    prochaine session s'oriente sur un graphe périmé.
@@ -124,6 +150,11 @@ et dis-moi laquelle des deux tu appliques.
 1. Étape traitée · 2. Résumé · 3. Fichiers créés · 4. Fichiers modifiés · 5. Commandes lancées ·
 6. Tests · 7. Points non traités volontairement · 8. Prochaine étape recommandée ·
 9. Message de commit suggéré — que **je** lancerai moi-même.
+
+⚠️ **Point 9 en session de CADRAGE : DEUX messages, et dis lequel part en premier.** Un seul commit
+mélangerait des fichiers qui ne vivent pas sur la même ref, et ferait buter `/ouverture` juste après.
+Range explicitement **chaque** fichier des points 3 et 4 dans son lot — c'est là que le tri se fait,
+pas au moment du `git add`.
 
 ⚠️ **Point 6 : tu ne lances PAS les tests ici** (c'est mon rôle, `WORKFLOW.md §2.4` — je ne fais
 jamais confiance à un « c'est vert » rapporté). Rapporte donc le résultat **réel des tests lancés
