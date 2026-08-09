@@ -7,30 +7,34 @@
 ## État à la reprise
 
 **Chantier : « ZETIS doute de sa propre mesure » — l'anti-triche du diagnostic (ADR-0048).
-🟠 CODE COMPLET — **2 des 3 portes de PR franchies**. La 3ᵉ est une vérification **physique**
-(le plein écran sur trois appareils) et il faut la TRANCHER avant d'ouvrir la PR.**
+🟢 COMPLET — **les trois portes de PR sont franchies**. Prochain pas = **PR, puis merge**.**
 
-🔴 **LES TROIS PORTES, ET LEUR SOURCE.** `DECISIONS.md` (entrée ADR-0048, dernière phrase) en
-exige **trois** ; le § Suivi de l'ADR n'en marque qu'**une** « obligatoire avant la PR ». **Les deux
-documents ne disent pas la même chose** — divergence constatée à la clôture du 2026-08-09. C'est la
-liste de `DECISIONS.md` qui fait foi ici, parce qu'elle est la plus exigeante :
+**LES TROIS PORTES.** `DECISIONS.md` (entrée ADR-0048) en exigeait **trois** ; le § Suivi de l'ADR
+n'en marquait qu'**une** « obligatoire avant la PR ». ⚠️ **Les deux documents ne disaient pas la
+même chose** — divergence constatée à la clôture du 2026-08-09, tranchée par la liste la plus
+exigeante :
 
 | Porte (`DECISIONS.md`) | État |
 |---|---|
 | Relecture visuelle humaine, **sur les deux apps** | ✅ **FAITE** le 2026-08-09 — 5 défauts trouvés et corrigés |
 | **Semer une passation « à confirmer »** en dev | ✅ **FAITE** — passations 53 et 55 |
-| **Le plein écran sur les trois appareils** | ❌ **NON FAITE** — aucun `requestFullscreen` réel n'a jamais été joué |
+| **Le plein écran sur les trois appareils** | 🟡 **ABAISSÉE EN DETTE** le 2026-08-09, par décision du commanditaire — `DECISIONS.md` corrigé **sur `main`** (`ec39b8e`) |
 
-⚠️ **La 3ᵉ porte ne peut pas être franchie par un agent** : elle demande un iPhone et une tablette.
-Deux issues, et c'est une décision humaine — **la jouer**, ou **l'abaisser explicitement en dette**
-en corrigeant `DECISIONS.md` (auquel cas : sur `main`, jamais sur la branche).
-✅ **Ce qui plaide pour l'abaisser** : les deux chemins d'échec convergent sur le même résultat
-correct (§ À FAIRE, point 4) — la vérification **confirmerait**, elle ne protège pas.
+🟡 **Pourquoi la 3ᵉ a été abaissée, et pas contournée.** Elle demandait un iPhone et une tablette —
+aucun agent ne peut la franchir. Mais la relecture du hook montre que **les deux chemins d'échec
+convergent sur le même résultat correct** (§ À FAIRE, point 4) : **la vérification confirmerait,
+elle ne protège pas.** C'est très exactement ce qui distingue une porte d'une dette. ⚠️ **Elle
+reste à faire** — voir § DETTES OUVERTES, avec les quatre autres vérifications jamais jouées.
+
+🔴 **Le même passage de `DECISIONS.md` a été remis au réel dans le même geste** : il annonçait
+encore « Session A sur 3 » et « aucun écran n'a encore été vu », alors que les trois sessions sont
+poussées et que la relecture a eu lieu. **Ne pas relire cette entrée dans une version antérieure à
+`ec39b8e`.**
 
 | | |
 |---|---|
 | **Branche** | `feat/anti-triche-diagnostic` — **vivante** ; nombre de commits : `git log --oneline main..HEAD` |
-| **Base** | `7108cf8` (ne bouge pas). ⚠️ La branche est **1 commit derrière `main`** — le `DECISIONS.md` poussé après coup. Aucun conflit possible : il ne vit sur aucune branche |
+| **Base** | `7108cf8` (ne bouge pas). ⚠️ La branche est **2 commits derrière `main`** — les deux corrections de `DECISIONS.md`, poussées après coup. **Aucun conflit possible** : ce fichier ne vit sur aucune branche |
 | **Décisions** | ADR-0048 **Accepté**, **11 décisions gelées** + **2 amendements pris à l'exécution** (voir plus bas) |
 | **Migration** | `e2f3a4b5c6d7` — `quiz_attempts.reliability_json`, **appliquée sur la base de dev**. **La seule du chantier ; une seconde est un blocker** |
 | **Suites** | Backend **1081 → 1108** · Massimo **539 → 560** · Papa **726 → 749** |
@@ -105,7 +109,7 @@ Aucun fichier à moitié écrit. La suite est verte, l'arbre est cohérent.
 
 ### À FAIRE — rien qui bloque la PR
 
-🔴 **Aucune ligne de code ne reste à écrire, et le gate de l'ADR est levé.**
+🔴 **Aucune ligne de code ne reste à écrire, et les trois portes sont franchies.**
 
 1. ✅ ~~Semer les trois états en dev~~ — **FAIT** : 53 (`a_confirmer`), 54 (`rien_a_signaler`),
    55 (`a_confirmer`, pour désambiguïser « Remesurer »), et les anciennes à **`null`**. Semées par
@@ -290,28 +294,30 @@ l'`oklab` pour les opacités (`/70`). Faire composer le navigateur sur un **canv
 
 ### ▶▶ PROCHAIN PAS
 
-1. **Commit + push** de la clôture sur `feat/anti-triche-diagnostic`.
-2. 🔴 **TRANCHER LA 3ᵉ PORTE** (le plein écran sur trois appareils) — la jouer, ou l'abaisser en
-   dette **en corrigeant `DECISIONS.md` sur `main`**. Tant qu'elle est écrite « exigée avant la PR »
-   et non faite, **ouvrir la PR contredirait le dépôt**. Voir le tableau des trois portes en tête.
-3. **Puis PR, puis merge.** Les deux autres portes sont franchies, et la relecture visuelle a
-   **rapporté cinq défauts**, tous corrigés et verrouillés.
-4. **Immédiatement après le merge : l'étape 4bis** (`WORKFLOW.md §5`) — revenir tuer les annonces
+1. ✅ ~~Commit + push de la clôture~~ · ✅ ~~trancher la 3ᵉ porte~~ (abaissée en dette, `ec39b8e`).
+2. 🔴 **OUVRIR LA PR, puis merger.** Plus rien ne bloque : les trois portes sont franchies, et la
+   relecture visuelle a **rapporté cinq défauts**, tous corrigés et verrouillés.
+3. **Immédiatement après le merge : l'étape 4bis** (`WORKFLOW.md §5`) — revenir tuer les annonces
    « en cours de livraison » dans `DECISIONS.md`, l'ADR-0048 et ce fichier, et y inscrire le
    **squash** et le **n° de PR**. ⚠️ `DECISIONS.md` se corrige **sur `main`**, jamais sur la branche.
    🔴 Ce fichier a **déjà survécu deux fois à son propre chantier** : tout ce qui est écrit ici
    devient faux à la seconde où la PR est mergée.
-5. **Puis, hors chantier** : décider du sort des **données de dev** (§ DETTES — passations 53 à 56
+4. **Puis, hors chantier** : décider du sort des **données de dev** (§ DETTES — passations 53 à 56
    et les **14 `Gap`** qu'elles ont ouvertes, qui font lire **24** lacunes là où il y en avait 10).
    🔴 **Lire d'abord la note sur `skill_mastery`** : le semis n'est pas entièrement réversible.
 
-⚠️ **Ce que la PR emporterait en dette** — une fois le point 2 tranché : le micro **sur trois
-appareils**, la localisation d'une copie sur une vraie sélection, une vraie sortie d'écran, et le
-cas STT 503. Aucun de ces quatre-là n'est une porte écrite nulle part — mais **c'est ce qu'il faut
-regarder en premier** si un comportement surprend en usage réel.
-🔴 **Le plein écran, lui, N'EST PAS dans cette liste tant que le point 2 n'a pas été tranché** : il
-est écrit « exigé avant la PR » dans `DECISIONS.md`, et une dette ne se décrète pas contre un
-document du dépôt.
+⚠️ **CE QUE LA PR EMPORTE EN DETTE — cinq vérifications jamais jouées en vrai**, et ce sont les
+cinq premiers endroits où regarder si un comportement surprend en usage réel :
+
+1. le **plein écran** sur trois appareils (abaissé de porte à dette le 2026-08-09) ;
+2. le **micro** sur trois appareils — vérifié sur **un seul** ;
+3. la **localisation d'une copie** (`getSelection()` → `closest("[data-question-id]")`) sur une
+   **vraie sélection** de texte — c'est le seul signal **par question** du lot ;
+4. une **vraie sortie d'écran** et sa fenêtre anti-doublon de 500 ms — la passation 56 s'est
+   déroulée sans quitter l'écran ;
+5. le cas **STT éteint (503)** — couvert par un test, jamais par un service réellement arrêté.
+
+Aucune n'est une porte : c'est écrit tel quel dans `DECISIONS.md` depuis `ec39b8e`.
 
 ---
 
