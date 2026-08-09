@@ -41,6 +41,9 @@ import { fetchApercu, fetchPortee, fetchResultDetail, rejectDiagnostic } from ".
 export function DiagnosticsPapaPage() {
   const [apercu, setApercu] = useState<DiagnosticApercu | null>(null);
   const [subjectId, setSubjectId] = useState<number | null>(null);
+  // Matière présélectionnée quand la modale est ouverte par « Remesurer cette matière → »
+  // (ADR-0048). `null` pour le bouton de tête, qui n'en vise aucune.
+  const [remesurer, setRemesurer] = useState<number | null>(null);
   // Le focus du bandeau (adr-0045). LOCAL à cette page : un seul consommateur, et `DashboardFocus`
   // est une union fermée du dashboard — l'élargir pour un second usage serait payer une abstraction
   // pour un cas.
@@ -182,7 +185,10 @@ export function DiagnosticsPapaPage() {
         actions={
           <button
             type="button"
-            onClick={() => setDialogOuvert(true)}
+            onClick={() => {
+              setRemesurer(null);
+              setDialogOuvert(true);
+            }}
             className="rounded-lg bg-papa-accent px-4 py-2 text-sm font-semibold text-papa-bg"
           >
             Lancer un diagnostic
@@ -263,6 +269,10 @@ export function DiagnosticsPapaPage() {
               portee={portee}
               rang={selection.rang}
               subjectSlug={selection.subject_slug}
+              onRemesurer={(sid) => {
+                setRemesurer(sid);
+                setDialogOuvert(true);
+              }}
             />
           ) : (
             <p className="text-sm text-papa-muted">Chargement…</p>
@@ -273,6 +283,7 @@ export function DiagnosticsPapaPage() {
       {dialogOuvert && apercu && (
         <LancerDiagnosticDialog
           subjects={apercu.subjects}
+          subjectInitial={remesurer}
           onClose={() => setDialogOuvert(false)}
           onTermine={() => {
             setDialogOuvert(false);

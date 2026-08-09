@@ -14,7 +14,7 @@
 |---|---|
 | « Massimo a peut-être triché » | « cette mesure est à confirmer » |
 | « score suspect » | « conditions de passation incertaines » |
-| « 3 sorties d'écran détectées » | « 3 questions quittées avant d'être répondues » |
+| « Massimo est sorti de l'écran 3 fois » | « l'écran a été quitté 3 fois pendant la passation » |
 
 Ce n'est pas de la politesse. Un enfant accusé à tort par un logiciel apprend surtout à s'en méfier,
 et la §6 (verbalisation) repose **entièrement** sur le fait qu'il n'ait rien à défendre. Une phrase
@@ -61,16 +61,37 @@ explication innocente au moins aussi probable que l'autre.
 
 ### 3.1 ◆ Fait — la sortie d'écran
 
-`visibilitychange` et `blur` pendant qu'une question est affichée et pas encore répondue.
-**Aucun seuil à inventer** : l'écran a été quitté, point.
+`visibilitychange` et `blur` **pendant la passation**. **Aucun seuil à inventer** : l'écran a été
+quitté, point.
 
-Compté **par question**, jamais en total de secondes. « 3 questions quittées » se lit ; « 47 secondes
-hors écran » demande un seuil que personne ne sait fixer.
+Compté **en nombre de sorties sur la passation**, jamais en total de secondes — « l'écran a été
+quitté 3 fois » se lit ; « 47 secondes hors écran » demande un seuil que personne ne sait fixer.
+
+> 🔴 **Ce paragraphe disait « pendant qu'une question est affichée et pas encore répondue », compté
+> PAR QUESTION. C'était inimplémentable**, découvert au read-before-code de la Session B
+> (2026-08-09). **L'écran de passation affiche TOUTES les questions d'un bloc** —
+> `DiagnosticPage.tsx:227` les empile dans une page qui défile, avec des boutons radio et un seul
+> « Envoyer mes réponses ». Il n'y a **ni question courante, ni barre de progression** : `grep` sur
+> `currentQuestion|questionIndex|step` ne rend rien.
+>
+> La prémisse venait de l'`adr-0044:291`, qui range en hors-périmètre *« l'écran de passation (une
+> question à la fois, barre de progression) »* — **un écran qui n'a jamais existé**. Elle a été
+> recopiée dans l'`adr-0048` et ici sans être revérifiée.
+>
+> **Décision du commanditaire (2026-08-09)** : le signal est porté par **la passation**, pas par la
+> question. On perd le rattachement, on garde le fait. **L'écran de passation n'est pas modifié** —
+> le découper en une question à la fois rendrait le signal plus fin, mais c'est une refonte, et
+> l'ADR pose qu'un enfant qui se sait observé ne passe plus le même diagnostic. Au `BACKLOG.md`,
+> comme chantier **pédagogique** et non anti-triche.
 
 ### 3.2 ◆ Fait — la copie de l'énoncé
 
-Événement `copy` sur le texte d'une question. **Couvre le trou du 3.1** : on peut copier un énoncé
-**sans quitter la page**, puis le coller ailleurs plus tard.
+Événement `copy` dont la sélection tombe dans le bloc d'une question. **Couvre le trou du 3.1** : on
+peut copier un énoncé **sans quitter la page**, puis le coller ailleurs plus tard.
+
+⚠️ **Le seul des trois signaux par question qui survit à l'écran réel** — et il n'est pas gratuit :
+il faut localiser la sélection (`getSelection().anchorNode` → `closest("section")`) pour savoir
+**quelle** question a été copiée. Sans cette localisation, il dégrade proprement en compte global.
 
 ### 3.3 ◆ Fait — la sortie du plein écran
 
@@ -156,7 +177,14 @@ l'avoir travaillée **dans ZETIS** — à l'école, à la maison, dans un docume
 
 ### 3.5 ◇ Indice — le temps par réponse
 
-Le temps entre l'affichage d'une question et sa réponse, en millisecondes.
+Le temps **entre deux réponses**, en millisecondes — pour la première, depuis le début de la
+passation. C'est le **rythme** de Massimo, et une réponse nettement plus rapide que son propre
+rythme se remarque.
+
+> ⚠️ **Ce n'était pas ça, et c'était inimplémentable** : ce paragraphe disait *« le temps entre
+> l'affichage d'une question et sa réponse »*. **Toutes les questions s'affichent en même temps**
+> (§3.1) — il n'existe aucun instant d'affichage par question, et Massimo peut lire les huit avant
+> d'en répondre une seule. Le délai entre réponses, lui, se mesure vraiment.
 
 **Ne déclenche jamais rien.** Lenteur ≠ triche, rapidité ≠ copie : un enfant qui sait répond vite. Il
 s'affiche à côté des faits, en gris, et Papa lit mieux qu'un seuil.
@@ -191,24 +219,30 @@ existants verts et rend le déploiement sans ordre imposé.
     {
       "question_id": 41,
       "choice_index": 2,
-      "ms_reflexion": 8400,      // optionnel — durée affichage → réponse (performance.now)
-      "quittee": false,          // optionnel — §3.1
-      "enonce_copie": false      // optionnel — §3.2
+      "ms_depuis_precedente": 8400,  // optionnel — délai depuis la réponse d'avant (§3.5)
+      "enonce_copie": false          // optionnel — §3.2, le seul signal PAR QUESTION
     }
   ],
-  "conditions": {                // optionnel en bloc
-    "ms_total": 214000,          // durée réelle de la passation
-    "plein_ecran_quitte": false, // §3.3
-    "taille_changee": true,      // §3.6
+  "conditions": {                    // optionnel en bloc
+    "ms_total": 214000,              // durée réelle de la passation
+    "sorties_ecran": 3,              // §3.1 — nombre de sorties PENDANT la passation
+    "plein_ecran_quitte": false,     // §3.3
+    "taille_changee": true,          // §3.6
     "signaux_observables": ["sortie_ecran", "copie", "taille"]   // §4.3
   }
 }
 ```
 
+> 🔴 **`quittee` et `ms_reflexion` ont quitté le niveau de la réponse** au read-before-code de la
+> Session B : l'écran affiche toutes les questions d'un bloc, ces deux-là n'y étaient pas
+> mesurables (§3.1). `sorties_ecran` monte dans `conditions` ; `ms_reflexion` devient
+> `ms_depuis_precedente`, qui dit ce qu'on mesure vraiment. **`enonce_copie` reste sur la
+> réponse** — c'est le seul des trois qui survit.
+
 ### 4.2 Ce que ça permet enfin d'écrire
 
 - `QuizAnswer.answer_json` devient
-  `{"choice_index": …, "ms_reflexion": …, "quittee": …, "enonce_copie": …}` — **zéro migration**.
+  `{"choice_index": …, "ms_depuis_precedente": …, "enonce_copie": …}` — **zéro migration**.
 - `QuizAttempt.duration_seconds` est **écrit pour la première fois** (`ms_total / 1000`).
 - `QuizAttempt.started_at` devient **réel** : `completed_at − ms_total`, au lieu du même instant.
 
@@ -254,7 +288,7 @@ reliability_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
   "verdict": "a_confirmer",          // ou "rien_a_signaler"
   "regle_version": 1,
   "faits": {
-    "questions_quittees": 3,
+    "sorties_ecran": 3,
     "enonces_copies": 1,
     "plein_ecran_quitte": false,
     "acquises_sans_trace": 6,
@@ -264,7 +298,7 @@ reliability_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     "reponses_rapides": 4,
     "taille_changee": true
   },
-  "declencheurs": ["questions_quittees", "enonces_copies", "contraste"],
+  "declencheurs": ["sorties_ecran", "enonces_copies", "contraste"],
   "portee": { "observables": ["sortie_ecran", "copie", "taille"] }
 }
 ```

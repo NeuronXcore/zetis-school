@@ -58,7 +58,7 @@ def test_rien_dobserve_donne_rien_a_signaler_jamais_null() -> None:
 @pytest.mark.parametrize(
     "nom, reponses, conditions",
     [
-        ("une question quittée", [{"quittee": True}], None),
+        ("l'écran quitté pendant la passation", [], {"sorties_ecran": 3}),
         ("un énoncé copié", [{"enonce_copie": True}], None),
         ("le plein écran quitté", [], {"plein_ecran_quitte": True}),
     ],
@@ -81,7 +81,7 @@ def test_les_indices_ne_declenchent_JAMAIS_meme_a_deux() -> None:
     Sabotage : faire de `taille_changee` ou de `reponses_rapides` un déclencheur → rouge.
     """
     bloc = _evaluer(
-        reponses=[{"ms_reflexion": 100}] * 5 + [{"ms_reflexion": 30000}] * 5,
+        reponses=[{"ms_depuis_precedente": 100}] * 5 + [{"ms_depuis_precedente": 30000}] * 5,
         conditions={"taille_changee": True},
     )
     assert bloc["indices"]["reponses_rapides"] >= 1, "le décor doit produire des réponses rapides"
@@ -93,7 +93,7 @@ def test_les_indices_ne_declenchent_JAMAIS_meme_a_deux() -> None:
 def test_les_indices_sont_AFFICHES_meme_sans_declenchement() -> None:
     """Papa lit mieux qu'un seuil : les cacher reviendrait à décider à sa place."""
     bloc = _evaluer(
-        reponses=[{"ms_reflexion": 100}] * 5 + [{"ms_reflexion": 30000}] * 5,
+        reponses=[{"ms_depuis_precedente": 100}] * 5 + [{"ms_depuis_precedente": 30000}] * 5,
         conditions={"taille_changee": True},
     )
     assert bloc["indices"]["reponses_rapides"] > 0
@@ -101,9 +101,13 @@ def test_les_indices_sont_AFFICHES_meme_sans_declenchement() -> None:
 
 def test_la_rapidite_ne_dit_rien_sous_quatre_reponses() -> None:
     """Sur trois réponses, une « médiane » ne décrit rien — on n'invente pas un indice."""
-    assert _evaluer(reponses=[{"ms_reflexion": 10}, {"ms_reflexion": 5000}])["indices"][
-        "reponses_rapides"
-    ] == 0
+    trois = [{"ms_depuis_precedente": 10}, {"ms_depuis_precedente": 5000}, {"ms_depuis_precedente": 20}]
+    assert _evaluer(reponses=trois)["indices"]["reponses_rapides"] == 0
+    # ⚠️ L'anti-test-à-vide : à QUATRE réponses, le même décor rend un indice. Sans cette
+    # contre-épreuve, le test passerait aussi bien si le champ était ignoré — ce qui est
+    # EXACTEMENT ce qui s'est produit au renommage de `ms_reflexion` (il est resté vert pour la
+    # mauvaise raison, attrapé en relisant les 4 rouges).
+    assert _evaluer(reponses=trois + [{"ms_depuis_precedente": 5000}])["indices"]["reponses_rapides"] > 0
 
 
 # ================================================================================================
@@ -357,21 +361,21 @@ def test_une_passation_d_avant_le_chantier_reste_NULL(client_db) -> None:
         assert relue.reliability_json is None, "aucun backfill, aucune valeur par défaut"
 
 
-def test_les_signaux_par_question_logent_SANS_migration(client_db, executer_travail) -> None:
+def test_les_signaux_par_reponse_logent_SANS_migration(client_db, executer_travail) -> None:
     """`answer_json` est déjà un JSON libre — le contrat par question n'a rien coûté au schéma."""
     client, TestSession = client_db
     with TestSession() as db:
         db.add(m.Skill(subject_id=1, name="Fractions", level="4e"))
         db.commit()
     body = _generate(client, TestSession, executer_travail)
-    resultat = _passer(client, body["quiz_id"], corps={"ms_reflexion": 4200, "quittee": True})
+    resultat = _passer(client, body["quiz_id"], corps={"ms_depuis_precedente": 4200, "enonce_copie": True})
 
     with TestSession() as db:
         reponse = db.query(m.QuizAnswer).filter_by(attempt_id=resultat["attempt_id"]).first()
-        assert reponse.answer_json["ms_reflexion"] == 4200
-        assert reponse.answer_json["quittee"] is True
+        assert reponse.answer_json["ms_depuis_precedente"] == 4200
+        assert reponse.answer_json["enonce_copie"] is True
         attempt = db.get(m.QuizAttempt, resultat["attempt_id"])
-        assert attempt.reliability_json["faits"]["questions_quittees"] >= 1
+        assert attempt.reliability_json["faits"]["enonces_copies"] >= 1
 
 
 def test_la_duree_et_le_debut_cessent_d_etre_faux(client_db, executer_travail) -> None:

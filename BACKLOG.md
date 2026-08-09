@@ -936,6 +936,25 @@ Papa avant la passation. Écarté du périmètre, mentionné ici pour qu'on ne l
   (`TROUBLESHOOTING.md` § *Cadrage de l'ADR-0048*). En vrai :
   `apps/frontend-massimo/src/lib/dictation.ts` a **déjà deux consommateurs**, et `transcribeEli5`
   est **déjà appelé par `ChatPage.tsx`**, un écran non-ELI5. **Trois imports, zéro backend.**
+- 🔴 **L'écran de passation du diagnostic affiche TOUTES les questions d'un bloc — le découper est un
+  chantier PÉDAGOGIQUE, pas une pièce d'anti-triche.**
+  Trouvé au read-before-code de la Session B de l'`adr-0048` (2026-08-09). `DiagnosticPage.tsx:227`
+  empile les questions dans une page qui défile, boutons radio, un seul « Envoyer mes réponses » :
+  **ni question courante, ni barre de progression** (`grep` sur `currentQuestion|questionIndex|step`
+  ne rend rien).
+  🔴 **Et trois documents décrivaient l'inverse.** L'`adr-0044:291` range en hors-périmètre *« l'écran
+  de passation (une question à la fois, barre de progression) »* — **un écran qui n'a jamais
+  existé** — et la phrase a été recopiée dans l'`adr-0048` et sa spec sans être revérifiée. C'est
+  exactement le défaut que la spec de Massimo documente sur sa propre v1. **L'`adr-0044` est mergé et
+  n'est pas réécrit** : la fausseté est nommée dans l'`adr-0048` constat n° 6 bis, là où elle a été
+  découverte.
+  **Ce que ça a coûté** : deux des six signaux de l'anti-triche ont dû descendre au niveau de la
+  passation (Décision 1 bis) — on garde le fait, on perd le rattachement à une question.
+  ⚠️ **Le motif du découpage n'est PAS l'anti-triche**, et il ne doit pas l'être : un mur de huit
+  questions est lourd pour un enfant, point. L'`adr-0048` refuse explicitement d'améliorer
+  l'instrument en changeant l'écran qu'il mesure — *un enfant qui se sait observé ne passe plus le
+  même diagnostic*. Si ce chantier se fait, il se fait pour Massimo, et les signaux en profitent par
+  accident.
 - 🔴 **Déménager `/api/ai/eli5/transcribe` sous un nom neutre — dette NOMMÉE, non payée.**
   La route porte le nom d'ELI5 et n'a plus rien d'ELI5 : le module `stt` n'a qu'un `provider.py`,
   **aucun routeur**. Avec le micro de la carte « Raconte-moi », elle aura **trois** consommateurs

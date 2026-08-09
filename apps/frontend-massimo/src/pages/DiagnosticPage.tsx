@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { CarteRaconteMoi } from "../components/CarteRaconteMoi";
 import { PageHeader } from "../components/PageHeader";
+import { useObservationPassation } from "../hooks/useObservationPassation";
 import { useDiagnostics, type GroupeMatiere, type Raison } from "../hooks/useDiagnostics";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -96,10 +98,16 @@ export function DiagnosticPage() {
   const [busy, setBusy] = useState(false);
   const [erreurAction, setErreurAction] = useState<string | null>(null);
   const [depliee, setDepliee] = useState<string | null>(null);
+  // Observation de la passation (ADR-0048). Elle ne rend RIEN à l'écran — voir le hook.
+  const observation = useObservationPassation();
   const zoneB = useRef<HTMLDivElement | null>(null);
   const carte = useRef<HTMLElement | null>(null);
 
   async function startQuiz(quizId: number) {
+    // 🔴 EN TÊTE, ET AVANT TOUT `await`. Le plein écran exige le contexte de geste utilisateur, que
+    // le premier `await` fait perdre : demandé après le chargement du quiz, il serait refusé en
+    // silence. C'est aussi ici que démarre le chronométrage de la passation.
+    observation.demarrer();
     setBusy(true);
     setErreurAction(null);
     try {
@@ -143,11 +151,14 @@ export function DiagnosticPage() {
     setBusy(true);
     setErreurAction(null);
     try {
+      const observe = observation.recolter();
       const payload = quiz.questions.map((q) => ({
         question_id: q.id,
         choice_index: answers[q.id] ?? -1,
+        ...(observe?.parQuestion.get(q.id) ?? {}),
       }));
-      setResult(await submitDiagnostic(quiz.quiz_id, payload));
+      setResult(await submitDiagnostic(quiz.quiz_id, payload, observe?.conditions));
+      observation.terminer();
       setQuiz(null);
       recharger();
     } catch (e) {
@@ -177,6 +188,13 @@ export function DiagnosticPage() {
               ))}
             </ul>
           </section>
+        )}
+        {/* 🔴 ENTRE « Tes forces » et « Tes prochaines étapes » : après les forces parce qu'elle
+            parle d'une BONNE réponse et porte le même élan ; avant les prochaines étapes parce que
+            ce bloc finit par « Voir mes missions → », et que rien ne doit venir après la sortie.
+            Servie à CHAQUE passation — la conditionner au verdict en ferait une accusation. */}
+        {result.verbalisation && (
+          <CarteRaconteMoi attemptId={result.attempt_id} verbalisation={result.verbalisation} />
         )}
         {result.gaps.length > 0 && (
           <section className="mt-4 rounded-2xl border border-zetis-border bg-zetis-surface p-5">
@@ -225,7 +243,14 @@ export function DiagnosticPage() {
         {erreurAction && <p className="mb-3 text-sm text-rose-400">{erreurAction}</p>}
         <div className="space-y-4">
           {quiz.questions.map((q, idx) => (
-            <section key={q.id} className="rounded-2xl border border-zetis-border bg-zetis-surface p-4">
+            // `data-question-id` sert UNIQUEMENT à localiser une copie d'énoncé dans le DOM —
+            // c'est ce qui fait de la copie le seul signal par question qui survive à un écran
+            // qui les affiche toutes. Aucun rendu n'en dépend.
+            <section
+              key={q.id}
+              data-question-id={q.id}
+              className="rounded-2xl border border-zetis-border bg-zetis-surface p-4"
+            >
               <p className="text-sm font-medium">
                 {idx + 1}. {q.prompt}
               </p>
@@ -243,7 +268,10 @@ export function DiagnosticPage() {
                       type="radio"
                       name={`q-${q.id}`}
                       checked={answers[q.id] === ci}
-                      onChange={() => setAnswers((a) => ({ ...a, [q.id]: ci }))}
+                      onChange={() => {
+                        observation.noterReponse(q.id);
+                        setAnswers((a) => ({ ...a, [q.id]: ci }));
+                      }}
                       className="accent-zetis-accent"
                     />
                     {choice}

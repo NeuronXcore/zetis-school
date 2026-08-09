@@ -18,8 +18,13 @@
 >
 > Le rituel a été tenu dans l'ordre, **sans une ligne de code**.
 
-⚠️ **Accepté ≠ livré.** La décision est figée ; **rien n'est implémenté**. Le chantier est décrit par
-`prompts/claude-code/prompts-claude-code-adr-0048.md`. Ne pas lire ce statut comme « c'est en place ».
+🟡 **EN COURS DE LIVRAISON.** ~~« rien n'est implémenté »~~ — cette phrase est morte le 2026-08-09.
+**La Session A sur 3 est livrée** (le backend qualifie une mesure : migration `e2f3a4b5c6d7`, module
+`diagnostics/fiabilite.py`, contrat de `submit`, verdict servi à Papa, route de verbalisation).
+**Les Sessions B et C restent**, et **aucun écran n'a encore été vu**. Le chantier est décrit par
+`prompts/claude-code/prompts-claude-code-adr-0048.md`.
+🔴 **Cette ligne devra mourir à son tour au merge** — c'est le geste que l'`adr-0044` a manqué
+pendant vingt-quatre heures, assez pour envoyer une session re-cadrer un chantier livré.
 
 > S'appuie sur : `adr-0043` (le diagnostic est une mesure qui **engage** — c'est de là que vient
 > l'enjeu), `adr-0044 §5` et `§9` (le score brut a quitté l'écran de l'enfant ; l'XP est donné pour
@@ -117,6 +122,29 @@ instrumentation**.
 
 ⚠️ Bruité dans l'autre sens : un enfant peut savoir une chose sans l'avoir travaillée **dans ZETIS**.
 
+### 6 bis. 🔴 L'écran de passation n'est PAS celui que trois documents décrivent
+
+> **Trouvé au read-before-code de la Session B, 2026-08-09.** Il casse deux des six signaux, et la
+> prémisse fausse était partagée par l'`adr-0044`, cet ADR-ci et la spec.
+
+`DiagnosticPage.tsx:227` rend **toutes les questions d'un bloc** : empilées dans une page qui
+défile, boutons radio, un seul « Envoyer mes réponses » à la fin. **Ni question courante, ni barre
+de progression** — `grep` sur `currentQuestion|questionIndex|step` ne rend rien.
+
+Or l'`adr-0044:291` range en hors-périmètre *« l'**écran de passation** (une question à la fois,
+barre de progression) »*. **Cet écran n'a jamais existé.** C'est exactement le défaut que la spec de
+Massimo documente sur sa propre v1 — *« décrivait un écran qui n'a jamais existé »* — et il s'est
+propagé ici sans que personne le revérifie.
+
+| Signal | Sort |
+|---|---|
+| « question **quittée avant d'être répondue** » | 🔴 **inimplémentable** — elles sont toutes affichées, tout le temps |
+| « temps entre l'**affichage** de la question et sa réponse » | 🔴 **inimplémentable** — toutes s'affichent à t=0 |
+| « énoncé copié » | ⚠️ **survit**, au prix d'une localisation de la sélection dans le DOM |
+| plein écran · resize · **contraste** · durée totale | ✅ intacts — ce sont des signaux de **passation** |
+
+Voir la **Décision 1 bis**.
+
 ### 7. L'audit de « ce qu'il reste à gagner » ne trouve qu'une chose, et on n'y touche pas
 
 | Récompense | Dépend du score ? |
@@ -149,7 +177,7 @@ seule** passation, sans aucun historique pour calibrer les poids. Le nombre aura
 et n'en serait pas — le défaut littéral dont l'`adr-0039` est né, reproduit dans l'outil censé
 détecter les mesures fausses.
 
-**Les faits bruts sont plus honnêtes qu'un score dérivé** : « 3 questions quittées » se vérifie, se
+**Les faits bruts sont plus honnêtes qu'un score dérivé** : « l'écran a été quitté 3 fois » se vérifie, se
 discute, et Papa en fait ce qu'il veut.
 
 ### (c) Bloquer la navigation pendant la passation — impossible, pas écartée
@@ -208,11 +236,11 @@ même.** La frontière n'est pas la force du soupçon, c'est la **part d'interpr
 
 | | Signal | Pourquoi de ce côté |
 |---|---|---|
-| ◆ **fait** | une question **quittée** avant d'être répondue | l'écran a été quitté, point — aucun seuil à inventer |
+| ◆ **fait** | l'écran **quitté** pendant la passation (Décision 1 bis) | l'écran a été quitté, point — aucun seuil à inventer |
 | ◆ **fait** | un **énoncé copié** | couvre le trou du précédent : on copie sans quitter la page |
 | ◆ **fait** | le **plein écran quitté** en cours de passation | un geste délibéré |
 | ◆ **fait** | le **contraste avec l'historique** — **trois** sources en union (constat n° 6) | le seul qui survit au téléphone, et le seul calculé serveur |
-| ◇ indice | le **temps par réponse** | lenteur ≠ triche, rapidité ≠ copie |
+| ◇ indice | le **délai entre deux réponses** — le rythme (Décision 1 bis) | lenteur ≠ triche, rapidité ≠ copie |
 | ◇ indice | le **changement de taille de fenêtre** | un iPad qu'on tourne est plus fréquent qu'un écran partagé |
 
 **Les indices sont affichés quand même**, en gris, dans la bande. Papa lit mieux qu'un seuil ; les
@@ -220,6 +248,31 @@ lui cacher au motif qu'ils sont bruités reviendrait à décider à sa place.
 
 Seuils et pièges d'implémentation : `docs/backend/fiabilite-de-la-mesure.md` §3 — **source unique**,
 à ne pas recopier.
+
+### 1 bis. Deux signaux sont portés par la PASSATION, pas par la question
+
+> 🔴 **Décision du commanditaire, 2026-08-09**, après le constat n° 6 bis. Les deux signaux étaient
+> spécifiés « par question » sur la foi d'un écran qui n'existe pas.
+
+| | Avant (inimplémentable) | Après |
+|---|---|---|
+| sortie d'écran | `answers[].quittee` — « quittée avant d'être répondue » | **`conditions.sorties_ecran`** — combien de fois l'écran a été quitté **pendant la passation** |
+| temps | `answers[].ms_reflexion` — « depuis l'affichage de la question » | **`answers[].ms_depuis_precedente`** — le délai depuis la réponse d'avant, c'est-à-dire le **rythme** |
+| copie | `answers[].enonce_copie` | **inchangé** — le seul des trois qui survit |
+
+**Ce qu'on perd** : le rattachement à une question. « 3 questions quittées » devient « l'écran a été
+quitté 3 fois ». Le **fait** demeure ; sa **précision** baisse. C'est un coût, pas un détail — et
+c'est celui que le libellé de la bande doit dire honnêtement.
+
+🔴 **Ce qu'on ne fait PAS : découper la passation en une question à la fois.** Ça rendrait les deux
+signaux tels qu'ils étaient écrits, et un mur de huit questions est lourd pour un enfant de toute
+façon. Mais c'est une **refonte de l'écran de passation**, et la Décision 2 pose l'inverse : *un
+enfant qui se sait observé ne passe plus le même diagnostic*. **Rendre l'instrument meilleur en
+changeant l'écran qu'il mesure est précisément ce que cet ADR refuse.** Le découpage part au
+`BACKLOG.md` comme chantier **pédagogique**, avec son vrai motif — pas comme une pièce d'anti-triche.
+
+⚠️ **Coût sur du code déjà écrit** : le contrat de la Session A perd deux champs par réponse et en
+gagne un global. Rien ne les consomme hors du calcul du verdict, et **rien n'est encore sur `main`**.
 
 ### 2. Aucune barrière. Le plein écran est un signal, pas un empêchement
 
@@ -366,7 +419,7 @@ mauvaise matière : le défaut exact que l'`adr-0045 §5` a refusé de livrer.
 |---|---|
 | « Massimo a peut-être triché » | « cette mesure est à confirmer » |
 | « score suspect » | « conditions de passation incertaines » |
-| « 3 sorties d'écran détectées » | « 3 questions quittées avant d'être répondues » |
+| « Massimo est sorti de l'écran 3 fois » | « l'écran a été quitté 3 fois pendant la passation » |
 
 Elle s'applique aux **libellés, aux noms de champs, aux commentaires et aux messages de commit**. Un
 enfant accusé à tort par un logiciel apprend surtout à s'en méfier — et la Décision 5 repose

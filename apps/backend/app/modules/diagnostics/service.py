@@ -532,8 +532,7 @@ def submit(
                 question_id=q.id,
                 answer_json={
                     "choice_index": chosen,
-                    "ms_reflexion": getattr(signaux, "ms_reflexion", None),
-                    "quittee": bool(getattr(signaux, "quittee", False)),
+                    "ms_depuis_precedente": getattr(signaux, "ms_depuis_precedente", None),
                     "enonce_copie": bool(getattr(signaux, "enonce_copie", False)),
                 },
                 is_correct=is_correct,
@@ -587,8 +586,7 @@ def submit(
     attempt.reliability_json = fiabilite.evaluer(
         reponses=[
             {
-                "ms_reflexion": getattr(a, "ms_reflexion", None),
-                "quittee": getattr(a, "quittee", False),
+                "ms_depuis_precedente": getattr(a, "ms_depuis_precedente", None),
                 "enonce_copie": getattr(a, "enonce_copie", False),
             }
             for a in answers

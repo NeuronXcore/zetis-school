@@ -431,7 +431,7 @@ donc à chaque passation un **verdict de fiabilité**, visible **côté Papa seu
 
 1. **Une bande dans le panneau d'une passation**, entre l'en-tête et la portée en escalier — elle
    qualifie la mesure **entière**, donc elle se lit **avant** les nombres. Elle liste les **faits
-   bruts** (« 3 questions quittées avant d'être répondues »), les **indices** en gris, et la
+   bruts** (« l'écran a été quitté 3 fois pendant la passation »), les **indices** en gris, et la
    **portée de l'instrument** (combien de signaux étaient observables sur cet appareil).
    Son unique geste est **« Remesurer cette matière → »** : la seule réponse à « à confirmer » est
    une seconde mesure.

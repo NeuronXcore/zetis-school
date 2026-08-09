@@ -67,25 +67,34 @@ class DiagnosticQuizListItem(BaseModel):
 
 
 class DiagAnswerIn(BaseModel):
-    """Une réponse, et ce que le client a observé PENDANT cette question (ADR-0048).
+    """Une réponse, et les deux signaux qui se rattachent VRAIMENT à elle (ADR-0048).
 
-    🔴 **Les trois derniers champs sont OPTIONNELS, et ils doivent le rester.** Un corps qui
+    🔴 **Les deux derniers champs sont OPTIONNELS, et ils doivent le rester.** Un corps qui
     n'envoie que `question_id` et `choice_index` — le contrat d'avant le chantier — continue de
     fonctionner à l'identique. C'est ce qui garde les tests existants verts et rend le déploiement
     sans ordre imposé entre le back et le front.
 
-    ⚠️ `ms_reflexion` est une **durée**, jamais un horodatage : le client la mesure avec
+    ⚠️ `ms_depuis_precedente` est une **durée**, jamais un horodatage : le client la mesure avec
     `performance.now()` (monotone, immune au changement d'heure), et aucun temps absolu venu du
     navigateur n'entre dans ZETIS.
+
+    🔴 **La sortie d'écran n'est PAS ici** — elle est dans `DiagnosticConditionsIn` (Décision 1 bis).
+    L'écran de passation affiche **toutes les questions d'un bloc** : il n'y a pas de question
+    courante, donc rien à quoi rattacher une sortie. Ne pas la « remonter » ici en croyant bien
+    faire : elle y serait fausse.
     """
 
     question_id: int
     choice_index: int
-    # Durée entre l'affichage de la question et la réponse. INDICE, ne déclenche jamais rien.
-    ms_reflexion: int | None = None
-    # L'écran a été quitté entre l'affichage et la réponse. FAIT.
-    quittee: bool = False
-    # L'énoncé a été copié — couvre le trou du précédent : on copie sans quitter la page. FAIT.
+    # Délai depuis la réponse PRÉCÉDENTE (pour la première : depuis le début de la passation). C'est
+    # le RYTHME de Massimo. INDICE, ne déclenche jamais rien.
+    #
+    # 🔴 Ce champ s'appelait `ms_reflexion` et prétendait mesurer « l'affichage → la réponse ».
+    # Inimplémentable : l'écran de passation affiche TOUTES les questions d'un bloc, il n'existe
+    # aucun instant d'affichage par question (ADR-0048 Décision 1 bis).
+    ms_depuis_precedente: int | None = None
+    # L'énoncé a été copié. FAIT, et le SEUL des trois qui survit au niveau de la réponse : une
+    # sélection se localise dans le bloc d'une question, contrairement à une sortie d'écran.
     enonce_copie: bool = False
 
 
@@ -93,6 +102,10 @@ class DiagnosticConditionsIn(BaseModel):
     """Ce que le client a observé sur la passation ENTIÈRE (ADR-0048). Optionnel en bloc."""
 
     ms_total: int | None = None
+    # Combien de fois l'écran a été quitté PENDANT la passation. FAIT (ADR-0048 Décision 1 bis).
+    # Porté ici et non par la réponse : toutes les questions sont affichées ensemble, une sortie
+    # d'écran ne se rattache à aucune d'elles.
+    sorties_ecran: int = 0
     plein_ecran_quitte: bool = False
     taille_changee: bool = False
     # 🔴 Ce que l'appareil PERMETTAIT d'observer. Sans lui, l'absence d'un signal se lirait comme
@@ -154,7 +167,9 @@ class DiagnosticGapEleveOut(BaseModel):
 
 
 class FiabiliteFaitsOut(BaseModel):
-    questions_quittees: int = 0
+    # Nombre de sorties d'écran SUR LA PASSATION — pas « questions quittées » (Décision 1 bis) :
+    # toutes les questions étant affichées ensemble, on ne sait pas laquelle était lue.
+    sorties_ecran: int = 0
     enonces_copies: int = 0
     plein_ecran_quitte: bool = False
     acquises_sans_trace: int = 0

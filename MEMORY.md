@@ -7,56 +7,70 @@
 ## État à la reprise
 
 **Chantier : « ZETIS doute de sa propre mesure » — l'anti-triche du diagnostic (ADR-0048).
-🟡 EN COURS. Session A sur 3 faite. NI PR, NI MERGE.**
+🟡 EN COURS. LES TROIS SESSIONS SONT CODÉES. NI PR, NI MERGE — la vérification manque.**
 
 | | |
 |---|---|
-| **Branche** | `feat/anti-triche-diagnostic` — **vivante**, c'est elle qui porte l'état intermédiaire |
-| **Base** | `7108cf8` (ne bouge pas). Nombre de commits : `git log --oneline main..HEAD` |
-| **Décisions** | ADR-0048 **Accepté**, **11 décisions gelées** — on les relit, on ne les rouvre pas |
-| **Migration** | `e2f3a4b5c6d7` — `quiz_attempts.reliability_json`, **appliquée sur la base de dev** (colonne vérifiée par `inspect`). **La seule du chantier ; une seconde est un blocker** |
-| **Suites** | Backend **1081 → 1108** (+27), **aucun test existant modifié** |
-| **Sabotages** | **15 joués, 15 rouges**, chacun avec contrôle d'application |
-| **Relecture visuelle** | ❌ **sans objet en Session A** — backend seul, aucun écran. Elle sera **obligatoire** après la Session C, sur les **deux** apps |
+| **Branche** | `feat/anti-triche-diagnostic` — **vivante** ; nombre de commits : `git log --oneline main..HEAD` |
+| **Base** | `7108cf8` (ne bouge pas). ⚠️ La branche est **1 commit derrière `main`** — le `DECISIONS.md` poussé après coup. Aucun conflit possible : il ne vit sur aucune branche |
+| **Décisions** | ADR-0048 **Accepté**, **11 décisions gelées** + **2 amendements pris à l'exécution** (voir plus bas) |
+| **Migration** | `e2f3a4b5c6d7` — `quiz_attempts.reliability_json`, **appliquée sur la base de dev**. **La seule du chantier ; une seconde est un blocker** |
+| **Suites** | Backend **1081 → 1108** · Massimo **539 → 558** · Papa **726 → 745** |
+| **Sabotages** | **36 joués, 36 rouges**, chacun avec contrôle d'application |
+| 🔴 **Relecture visuelle** | ❌ **JAMAIS FAITE, sur aucune des deux apps** — et l'ADR la rend **obligatoire avant la PR**. C'est ce qui empêche de clore |
 
-### FAIT — Session A, « le backend apprend à douter »
+🔴 **POURQUOI CE N'EST PAS « FINI ».** Le code est complet, mais l'ADR exige deux choses qu'aucun
+test ne remplace : la **relecture visuelle humaine sur les deux apps**, et le **semis des trois
+états en dev**. Ouvrir la PR sans elles contredirait l'acte de naissance du chantier — et ce dépôt
+a déjà mergé **cinq fois** sans regarder.
 
-- **`app/modules/diagnostics/fiabilite.py`** (neuf) : les **trois sources** de trace, quatre faits,
-  deux indices, le verdict figé avec sa `regle_version`.
-- **`submit()`** : signaux par question dans `answer_json` (**zéro migration**), `reliability_json`
-  écrit **une fois**, et 🔴 **`duration_seconds` + `started_at` enfin réels** — ils valaient zéro par
-  construction depuis l'étape 14.
-- **Contrat de `POST /submit`** élargi en champs **optionnels** : le corps d'avant le chantier marche
-  à l'identique.
-- **Le verdict servi à Papa** sur `/results`, `/results/{id}` et chaque ligne passée du rail
-  d'`/apercu`. **Rien chez Massimo.**
-- **`POST /api/diagnostics/mes-resultats/{id}/explication`** (`require_child`) + le **tirage
-  déterministe** de la notion à verbaliser.
+### FAIT — les trois sessions
 
-### 🔴 UNE RÈGLE DE L'ADR A ÉTÉ CORRIGÉE AU READ-BEFORE-CODE — ne pas la relire dans sa version d'origine
+**Session A — le backend apprend à douter.** `diagnostics/fiabilite.py` (neuf) : trois sources de
+trace, quatre faits, deux indices, verdict **figé** avec sa `regle_version`. `submit()` écrit
+`reliability_json` une fois ; `duration_seconds` et `started_at` cessent d'être faux. Verdict servi
+à Papa sur `/results`, `/results/{id}` et le rail d'`/apercu`. Route
+`POST /mes-resultats/{id}/explication` + tirage déterministe.
 
-La spec définissait « jamais rencontrée » par *« aucun `LearningEvent` de travail sur cette
-notion »*. **C'était faux**, et le chantier aurait livré sa propre défaillance : sur les **10**
-appels à `log_learning_event`, **3 seulement** passent un `skill_id`, et **le diagnostic n'en fait
-pas partie**. Une notion mesurée par trois diagnostics antérieurs aurait été comptée « jamais
-rencontrée » → la bande serait apparue **presque à chaque passation**.
+**Session B — le front de Massimo observe, puis demande.** `hooks/useObservationPassation.ts`
+(silencieux, `performance.now()`, écouteurs retirés au démontage) et `components/CarteRaconteMoi.tsx`
+(la carte, son micro, ses quatre états). 🔴 **L'écran de passation n'a pas changé d'un pixel** — il
+gagne `data-question-id`, invisible, qui sert à localiser une copie d'énoncé.
 
-**La trace se lit sur TROIS sources en union** (décision du commanditaire, la 3ᵉ ajoutée sur
-arbitrage) : `SkillMastery` · `LearningEvent(skill_id)` hors `NON_WORK_EVENTS` ·
-`LessonView ⋈ LessonSkill`. Détail : spec **§3.4 bis**.
+**Session C — Papa voit, et peut remesurer.** `components/diagnostic/BandeFiabilite.tsx` (les trois
+états), la marque du rail (**ambre jamais rouge**, mot écrit à côté du symbole, 3ᵉ cran seulement),
+le mot de Massimo dans la station ①, et la **prop de présélection** de `LancerDiagnosticDialog`.
+
+### 🔴 DEUX AMENDEMENTS PRIS À L'EXÉCUTION — ne pas relire l'ADR dans sa version d'origine
+
+1. **La trace se lit sur TROIS sources**, pas une (Session A). `LearningEvent` seul aurait fait
+   déclencher la bande sur des notions déjà mesurées trois fois.
+2. **Deux signaux sont portés par la PASSATION, pas par la question** (Décision 1 bis, Session B) —
+   `sorties_ecran` dans `conditions`, et `ms_reflexion` devenu `ms_depuis_precedente`. Cause :
+   l'écran de passation affiche **toutes les questions d'un bloc**, contrairement à ce que trois
+   documents affirmaient.
 
 ### EN COURS — rien d'instable
 
 Aucun fichier à moitié écrit. La suite est verte, l'arbre est cohérent.
 
-### À FAIRE — Sessions B puis C
+### À FAIRE — la vérification, et elle seule
 
-- **Session B — le front de Massimo observe, puis demande.** Le hook d'observation (silencieux),
-  l'envoi avec les réponses, et la carte « Raconte-moi » **avec son micro**.
-  🔴 **L'écran de passation ne change pas d'un pixel** : ni chrono, ni compteur, ni avertissement.
-- **Session C — Papa voit, et peut remesurer.** La bande de fiabilité (trois états), la marque du
-  rail, le mot de Massimo dans la station ①, et **une prop de présélection** sur
-  `LancerDiagnosticDialog` (il force `subjects[0]`).
+🔴 **Aucune ligne de code ne reste à écrire.** Ce qui manque ne peut pas être fait par un agent :
+
+1. **Semer les TROIS états en dev** — une passation `a_confirmer`, une `rien_a_signaler`, et **en
+   laisser une à `null`**. Ils se vérifient **ensemble ou pas du tout** : sans ça la bande part non
+   vue, exactement le constat n° 6 de l'`adr-0045` qui a déjà coûté une moitié d'optimisation.
+2. **Relecture visuelle humaine, sur les DEUX apps.** Côté Papa : la bande et ses trois états, la
+   marque du rail, le mot de Massimo en station ①, et « Remesurer » qui ouvre sur la **bonne**
+   matière. Côté Massimo : la carte « Raconte-moi » et ses quatre états (repos · écoute · rempli ·
+   **micro absent**).
+3. ⚠️ **Le micro sur les trois appareils** — qu'il enregistre, que la transcription revienne, et
+   qu'elle **atterrisse dans le champ sans partir toute seule**. Il se masque **en silence** : son
+   absence ressemble à une absence d'implémentation, **il faut aller le chercher**.
+4. ⚠️ **Le plein écran sur les trois appareils.** Le refus d'iOS Safari sur iPhone est documenté
+   mais **jamais vérifié en vrai** : si l'appel échoue autrement que prévu, c'est la **portée
+   affichée à Papa** qui ment.
 
 ### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
@@ -77,32 +91,39 @@ Aucun fichier à moitié écrit. La suite est verte, l'arbre est cohérent.
 
 ### PIÈGES rencontrés → `TROUBLESHOOTING.md`
 
-Section « Session A de l'ADR-0048 ». Les trois qui coûteraient le plus :
-🔴 **un id de révision Alembic déjà pris ne dit pas « doublon »** — il dit *« Cycle is detected »* en
-listant 42 révisions, et l'autorité pour la tête est `alembic heads`, pas un `grep` ;
-🔴 **six sabotages sur quinze n'avaient pas été APPLIQUÉS** et « prouvaient » quelque chose — sans
-contrôle d'application, on annonce des verrous creux ;
-🔴 **un sabotage bien intentionné est resté vert** parce que `response_model` protégeait déjà : la
-fuite chez Massimo demande **deux** gestes, service **et** schéma.
+Deux sections : « Session A de l'ADR-0048 » et « Sessions B et C ». Les quatre qui coûteraient le
+plus :
+🔴 **une ligne de hors-périmètre d'un ADR n'est PAS un fait vérifié** — celle de l'`adr-0044`
+décrivait un écran de passation qui n'a jamais existé, et deux signaux ont dû être redessinés ;
+🔴 **les tests de Massimo ne sont PAS typecheckés** (`tsconfig.app.json` les exclut), ceux de Papa
+si — le même changement de contrat a hurlé d'un côté et est passé sans bruit de l'autre ;
+🔴 **un id de révision Alembic déjà pris** se signale par *« Cycle is detected »* sur 42 révisions ;
+🔴 **trois verrous ont visé à côté** et rassuraient à tort — tous trois attrapés par le contrôle
+d'application des sabotages, jamais par une relecture.
 
 ### ⚠️ DETTES OUVERTES
 
-**Nées de cette session :**
+**Nées de ce chantier :**
 
-- 🔴 **`DECISIONS.md` porte encore l'ANCIENNE règle du contraste** (une seule source). Il **ne va
-  jamais sur la branche** — à corriger **sur `main`**, en même temps que l'ajout de la Décision
-  5 bis à son entrée d'index.
-- 🔴 **DEUX migrations ne sont pas en prod** : `a9b0c1d2e3f4` (héritée) et **`e2f3a4b5c6d7`**
-  (cette session), qui se pose dessus.
-- ⚠️ **Les seuils du contraste sont des choix de cadrage, jamais éprouvés sur des données réelles** :
-  `CONTRASTE_SCORE_MIN = 90`, plancher `2`, majorité stricte, et `RAPIDE_FRACTION_MEDIANE = 0.4`.
-  Le premier signal de dérive sera « la bande apparaît presque à chaque passation » — et alors
-  **vérifier les trois sources AVANT les seuils**.
-- ⚠️ **`signaux_observables` est déclaré par le client et n'est vérifié par rien côté serveur.** La
+- ✅ ~~`DECISIONS.md` porte l'ancienne règle du contraste~~ → **corrigé et poussé sur `main`**
+  (`ed7119b`), avec la mort de « rien n'est implémenté ».
+- 🔴 **LES TESTS DE MASSIMO NE SONT PAS TYPECHECKÉS** — `apps/frontend-massimo/tsconfig.app.json`
+  exclut `src/**/*.test.ts(x)`. Ceux de **Papa le sont**. Le même changement de contrat a donc
+  hurlé côté Papa (6 erreurs de fixtures, corrigées) et est passé **sans un bruit** côté Massimo :
+  `DiagnosticPage.test.tsx` porte toujours un décor sans `verbalisation`, et `tsc -b` est vert.
+  **Un `tsc -b` vert ne prouve rien sur les tests de Massimo.**
+- 🔴 **DEUX migrations ne sont pas en prod** : `a9b0c1d2e3f4` (héritée) et **`e2f3a4b5c6d7`**.
+- ⚠️ **L'observation côté client n'a JAMAIS tourné en vrai.** Les tests la simulent avec des
+  événements DOM : aucun `visibilitychange` réel, aucun `requestFullscreen` réel, aucune
+  transcription Whisper réelle. La localisation d'une copie (`getSelection()` →
+  `closest("[data-question-id]")`) n'a jamais été exercée sur une vraie sélection.
+- ⚠️ **Les seuils sont des choix de cadrage, jamais éprouvés sur des données réelles** :
+  `CONTRASTE_SCORE_MIN = 90`, plancher `2`, majorité stricte, `RAPIDE_FRACTION_MEDIANE = 0.4`, et la
+  fenêtre anti-doublon de **500 ms** sur les sorties d'écran. Premier signal de dérive : « la bande
+  apparaît presque à chaque passation » — et alors **vérifier les trois sources AVANT les seuils**.
+- ⚠️ **`signaux_observables` est déclaré par le client** et n'est vérifié par rien côté serveur : la
   portée affichée à Papa vaut ce que le front en dit.
-- ⚠️ **Aucun lint joué** : `ruff` n'est pas installé dans le venv du backend. Non ajouté.
-- ⚠️ **`fiabilite.evaluer` n'est pas exercée avec un `per_skill` contenant `skill_id = None`** en
-  intégration — seulement en unitaire, où les notions sans identifiant sont exclues du dénominateur.
+- ⚠️ **Aucun lint** : `ruff` n'est pas installé dans le venv du backend.
 
 **Héritées, et toujours vraies :**
 
@@ -153,19 +174,16 @@ fuite chez Massimo demande **deux** gestes, service **et** schéma.
 
 ### ▶▶ PROCHAIN PAS
 
-1. **Commit + push de la Session A** sur `feat/anti-triche-diagnostic`. **NI PR, NI MERGE** — le
-   chantier n'est pas fini.
-2. **Sur `main`, séparément** : corriger l'entrée `DECISIONS.md` de l'ADR-0048 (règle du contraste à
-   trois sources + Décision 5 bis). `DECISIONS.md` ne va **jamais** sur une branche.
-3. **Session B** : `/slice`, puis le bloc « SESSION B » de
-   `prompts/claude-code/prompts-claude-code-adr-0048.md`.
-   ⚠️ **À lire avant** : `ChatPage.tsx` est le modèle du micro — **sauf** que la transcription
-   atterrit dans le champ au lieu de partir toute seule.
+1. **Commit + push** de la clôture sur `feat/anti-triche-diagnostic`. **NI PR, NI MERGE.**
+2. **Semer les trois états en dev**, puis **la relecture visuelle humaine sur les deux apps**
+   (§ À FAIRE). C'est le seul chemin vers la PR.
+3. **Seulement ensuite** : PR, merge, puis l'**étape 4bis** — revenir tuer les annonces « en cours
+   de livraison » dans `DECISIONS.md`, l'ADR et ce fichier. ⚠️ `DECISIONS.md` se corrige **sur
+   `main`**, jamais sur la branche.
 
-⚠️ **Piège de vérification pour la Session C** : il faudra **semer une passation « à confirmer » en
-dev**, plus une `rien_a_signaler`, et **en garder une à `null`**. Les trois états se vérifient
-ensemble ou pas du tout — sans ça la bande part non vue, exactement le constat n° 6 de l'`adr-0045`
-qui a déjà coûté une moitié d'optimisation.
+⚠️ **Ce qui n'a jamais tourné en vrai** : l'observation côté client. Les tests la simulent avec des
+événements DOM ; aucun `visibilitychange` réel, aucun `requestFullscreen` réel, aucune transcription
+Whisper réelle n'a été jouée. C'est précisément ce que la relecture doit couvrir.
 
 ---
 

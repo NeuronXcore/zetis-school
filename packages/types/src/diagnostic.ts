@@ -57,6 +57,59 @@ export interface DiagnosticResult {
   completed_at: string | null;
   per_skill: DiagnosticSkillScore[];
   gaps: DiagnosticGap[];
+  /** `null` = ZETIS ne regardait pas (passation d'avant l'ADR-0048), ≠ « rien à signaler ». */
+  fiabilite: DiagnosticFiabilite | null;
+  verbalisation: DiagnosticVerbalisation | null;
+}
+
+// ── La fiabilité d'une mesure (ADR-0048) ────────────────────────────────────────
+
+/** Les FAITS observés. Un seul suffit à porter le verdict à « à confirmer ». */
+export interface DiagnosticFiabiliteFaits {
+  /** Combien de fois l'écran a été quitté PENDANT la passation.
+   *  🔴 Pas « questions quittées » (Décision 1 bis) : l'écran de passation affiche toutes les
+   *  questions d'un bloc, on ne sait pas laquelle était lue. */
+  sorties_ecran: number;
+  enonces_copies: number;
+  plein_ecran_quitte: boolean;
+  acquises_sans_trace: number;
+  notions_total: number;
+}
+
+/** Les INDICES. Ils s'affichent en gris et ne déclenchent JAMAIS : les cacher au motif qu'ils
+ *  sont bruités reviendrait à décider à la place de Papa, qui lit mieux qu'un seuil. */
+export interface DiagnosticFiabiliteIndices {
+  reponses_rapides: number;
+  taille_changee: boolean;
+}
+
+export type DiagnosticVerdict = "a_confirmer" | "rien_a_signaler";
+
+/** Les conditions dans lesquelles une mesure a été prise.
+ *
+ * 🔴 **`null` ne veut PAS dire « rien à signaler »** : il veut dire **ZETIS ne regardait pas**,
+ * l'état de toutes les passations d'avant le chantier. La page rend TROIS états, pas deux. */
+export interface DiagnosticFiabilite {
+  verdict: DiagnosticVerdict;
+  regle_version: number;
+  faits: DiagnosticFiabiliteFaits;
+  indices: DiagnosticFiabiliteIndices;
+  declencheurs: string[];
+  /** 🔴 L'instrument dit sa PORTÉE : sans elle, l'absence d'un signal se lirait comme l'absence du
+   *  comportement. Le plein écran n'existe pas sur iPhone. */
+  portee: { observables: string[] };
+}
+
+/** Le mot de Massimo sur une de ses bonnes réponses.
+ *
+ * 🔴 **Il ne doit JAMAIS lui être reproché.** Le jour où « j'ai cherché » se retourne contre lui,
+ * la question ne reçoit plus jamais de réponse vraie, et ZETIS aura échangé son meilleur
+ * instrument contre une remontrance. */
+export interface DiagnosticVerbalisation {
+  question_id: number;
+  skill_id: number | null;
+  skill_name: string;
+  explication: string | null;
 }
 
 // ── L'aperçu : bandeau, rail, matières jamais mesurées ──────────────────────────
@@ -76,6 +129,10 @@ export interface DiagnosticRailEntry {
   score_percent: number | null;
   /** Rang de la passation DANS SA MATIÈRE (1ʳᵉ, 2ᵉ…). `null` hors du 3ᵉ cran. */
   rang: number | null;
+  /** Le verdict SEUL, pour repérer la marque sans ouvrir le panneau : le rail signale, le panneau
+   *  explique. 🔴 `null` hors du 3ᵉ cran — une passation qui n'a pas eu lieu n'a pas de mesure,
+   *  donc rien à qualifier — ET sur les passations d'avant le chantier. */
+  fiabilite_verdict: DiagnosticVerdict | null;
 }
 
 export interface DiagnosticJauges {

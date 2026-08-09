@@ -4331,3 +4331,80 @@ déclarer dans le schéma enfant. Rejoué ainsi → rouge.
 ⚠️ **La leçon dépasse ce test** : quand un sabotage reste vert, la question n'est pas seulement
 « mon verrou est-il mauvais ? » mais **« qu'est-ce qui protège déjà, et le test le sait-il ? »**.
 Un verrou dont on ignore le vrai gardien sera cru mort le jour où le gardien changera.
+
+## Sessions B et C de l'ADR-0048 (le front) — 2026-08-09
+
+### 🔴 Une ligne de HORS-PÉRIMÈTRE d'un ADR n'est pas un fait vérifié — elle décrivait un écran qui n'existe pas
+
+**Ce qui s'est passé.** L'`adr-0044:291` range en hors-périmètre *« l'**écran de passation** (une
+question à la fois, barre de progression) »*. Cette phrase a été recopiée dans l'`adr-0048`, puis
+dans sa spec, et **deux des six signaux de l'anti-triche ont été conçus dessus** : « question
+quittée **avant d'être répondue** » et « temps entre l'**affichage** de la question et sa réponse ».
+
+**Vérifié au read-before-code de la Session B** : `DiagnosticPage.tsx:227` rend **toutes les
+questions d'un bloc**, empilées dans une page qui défile, avec un seul « Envoyer mes réponses ».
+
+```bash
+grep -n "currentQuestion\|questionIndex\|step\b" apps/frontend-massimo/src/pages/DiagnosticPage.tsx
+# → rien. Ni question courante, ni barre de progression.
+```
+
+**Les deux signaux étaient inimplémentables**, et le chantier les aurait faits semblant. Ils ont dû
+descendre au niveau de la **passation** (ADR-0048 Décision 1 bis) — on garde le fait, on perd le
+rattachement à une question.
+
+**La leçon, et elle dépasse ce cas** : un ADR décrit ce qu'il **décide**, pas nécessairement ce qui
+**existe**. Sa section « hors périmètre » est la plus exposée : elle nomme des choses qu'on n'a
+justement pas regardées. **Ce qu'un ADR range en hors-périmètre se vérifie comme n'importe quelle
+autre hypothèse** — surtout quand on construit dessus.
+
+⚠️ C'est le troisième document du dépôt à décrire un écran qui n'existe pas : la spec de Massimo le
+documente déjà sur sa propre v1 (*« décrivait un écran qui n'a jamais existé »*).
+
+### 🔴 Les tests de MASSIMO ne sont pas typecheckés — ceux de PAPA le sont
+
+```jsonc
+// apps/frontend-massimo/tsconfig.app.json
+"exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test"]
+```
+
+Papa n'a pas cette exclusion. **Conséquence mesurée le même jour, sur le même changement de
+contrat** : ajouter un champ requis à `DiagnosticResult` a produit **6 erreurs `tsc` côté Papa**
+(fixtures de test incomplètes, corrigées) et **zéro côté Massimo** — dont le décor
+`DiagnosticPage.test.tsx` est resté sans `verbalisation`, avec un `tsc -b` vert.
+
+⚠️ **Un `tsc -b` vert ne dit rien des tests de Massimo.** Et vitest ne typecheck pas non plus
+(transform esbuild). Un décor peut donc y décrire un contrat qui n'existe plus, indéfiniment.
+
+### 🔴 Trois verrous ont visé à côté, et le contrôle d'application les a tous attrapés
+
+Aucun n'a été trouvé par relecture. **Les trois auraient rassuré à tort.**
+
+| Verrou | Pourquoi il restait vert | La bonne visée |
+|---|---|---|
+| « Massimo ne voit rien du verdict » | `response_model` retirait déjà le champ **en silence** | la fuite demande **deux** gestes : service **et** schéma enfant |
+| « Passer n'envoie rien » | le champ était **vide**, la garde `if (!propre) return` bloquait | remplir le champ **avant** de cliquer Passer |
+| « aucun libellé ne prend l'enfant pour sujet » | balayait tout le rail et rougissait sur sa **légende** légitime (« chez Massimo s'il lui a été proposé », `adr-0045 §6`) | scoper à la **ligne** de la marque |
+
+**La leçon** : quand un sabotage reste vert, la question n'est pas seulement *« mon verrou est-il
+mauvais ? »* mais **« qu'est-ce qui protège déjà, et le test le sait-il ? »**. Et un verrou **trop
+large** est aussi dangereux qu'un verrou trop étroit : il interdit du texte légitime, et finit
+désarmé par la première personne qui l'assouplit.
+
+### ⚠️ `requestFullscreen` doit être appelé AVANT le premier `await`, pas après
+
+Le plein écran exige le **contexte de geste utilisateur**, que le premier `await` fait perdre.
+`startQuiz(quizId)` chargeait le quiz (`await fetchDiagnosticQuiz`) **avant** de pouvoir demander le
+plein écran : demandé là, l'appel est **refusé en silence**, sur tous les navigateurs.
+
+**La parade** : `observation.demarrer()` est appelé **en tête du gestionnaire de clic**, avant toute
+opération asynchrone. C'est aussi ce qui rend le chronométrage honnête — il démarre au clic, pas à
+l'arrivée des questions.
+
+### ⚠️ Un nouveau type partagé doit être ajouté au BARIL, pas seulement au module
+
+`packages/types/src/diagnostic.ts` peut exporter `DiagnosticFiabilite` sans que
+`import { DiagnosticFiabilite } from "@zetis/types"` fonctionne : le baril
+`packages/types/src/index.ts` ré-exporte **type par type**, nommément. Le message est trompeur —
+*« has no exported member named 'DiagnosticFiabilite'. Did you mean 'DiagnosticPalier'? »* — et
+suggère une faute de frappe là où il manque une ligne d'export. Piège déjà consigné, retombé dessus.

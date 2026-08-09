@@ -24,7 +24,7 @@
 |---|---|
 | « Massimo a peut-être triché » | « cette mesure est à confirmer » |
 | `suspicion_score`, `cheat_flags` | `reliability_json`, `faits`, `indices` |
-| « 3 sorties d'écran détectées » | « 3 questions quittées avant d'être répondues » |
+| « Massimo est sorti de l'écran 3 fois » | « l'écran a été quitté 3 fois pendant la passation » |
 
 Elle s'applique aux **libellés, aux noms de champs, aux commentaires et aux messages de commit**. Une
 phrase qui prend Massimo pour sujet est **un défaut du chantier**, pas un raccourci de rédaction —
@@ -165,8 +165,10 @@ verbalisation. **Aucun front.**
 2. **Le contrat de `POST /submit` gagne des champs OPTIONNELS** (spec §4.1). Un corps qui n'envoie
    que `{question_id, choice_index}` doit continuer à marcher **à l'identique** — c'est ce qui garde
    les tests existants verts.
-3. **`QuizAnswer.answer_json` porte les signaux par question** (`ms_reflexion`, `quittee`,
+3. **`QuizAnswer.answer_json` porte les signaux par réponse** (`ms_depuis_precedente`,
    `enonce_copie`). **Zéro migration** : le champ est déjà un JSON libre.
+   🔴 **`quittee` a QUITTÉ ce niveau** (Décision 1 bis) : l'écran affiche toutes les questions d'un
+   bloc, il n'y a pas de question courante. Le compte monte dans `conditions.sorties_ecran`.
 4. **Le calcul du verdict**, dans un module ou une fonction **nommée pour l'instrument**. Quatre
    faits, deux indices, la règle du §3. 🔴 **Le contraste AVANT la propagation, et sur les TROIS
    sources** (§3.4 bis) — pas une de moins.

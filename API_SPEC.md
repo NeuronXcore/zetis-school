@@ -342,12 +342,18 @@ met à jour la maîtrise et ouvre les lacunes.
 ```jsonc
 {
   "answers": [{ "question_id": 41, "choice_index": 2,
-                "ms_reflexion": 8400,   // durée, jamais un horodatage (performance.now)
-                "quittee": false, "enonce_copie": false }],
-  "conditions": { "ms_total": 214000, "plein_ecran_quitte": false, "taille_changee": true,
+                "ms_depuis_precedente": 8400,  // délai depuis la réponse d'avant, jamais un horodatage
+                "enonce_copie": false }],       // le SEUL signal par réponse
+  "conditions": { "ms_total": 214000, "sorties_ecran": 3,
+                  "plein_ecran_quitte": false, "taille_changee": true,
                   "signaux_observables": ["sortie_ecran", "copie", "taille"] }
 }
 ```
+
+🔴 **`sorties_ecran` est porté par la PASSATION, pas par la réponse** (ADR-0048 Décision 1 bis).
+L'écran de passation affiche **toutes les questions d'un bloc** (`DiagnosticPage.tsx:227`) : il n'y a
+ni question courante ni barre de progression, donc une sortie d'écran ne se rattache à aucune
+question. `enonce_copie` reste sur la réponse — une sélection, elle, se localise dans le DOM.
 
 `ms_total` remplit enfin `duration_seconds` et rend `started_at` réel. `signaux_observables` dit ce
 que l'appareil **permettait** d'observer — sans lui, l'absence d'un signal se lirait comme l'absence

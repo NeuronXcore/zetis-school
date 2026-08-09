@@ -127,6 +127,16 @@ export function RailPassations({
                     <p className="flex items-center gap-2 truncate font-medium">
                       <Temoin cran={entree.cran} />
                       {entree.subject}
+                      {/* 🔴 AMBRE, JAMAIS ROUGE, et le MOT est écrit à côté du symbole : la
+                          couleur ne porte jamais l'information seule (adr-0045 §6). Le rouge
+                          dirait « faute » ; il n'y a pas de faute, il y a une incertitude.
+                          Le backend ne sert ce champ qu'au 3ᵉ cran — un cran non passé n'a pas
+                          de mesure, donc rien à qualifier. */}
+                      {entree.fiabilite_verdict === "a_confirmer" && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-papa-warn/40 bg-papa-warn/10 px-2 py-0 text-[11px] font-medium text-papa-warn">
+                          ⚖️ à confirmer
+                        </span>
+                      )}
                     </p>
                     <p className="mt-0.5 text-xs text-papa-muted">
                       {texte.verbe} le {jourDe(entree.date)} · {entree.notions_count} notion

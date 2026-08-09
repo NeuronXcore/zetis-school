@@ -332,10 +332,10 @@ backfill** — on ne reconstitue pas des conditions qu'on n'a pas observées.
 {
   "verdict": "a_confirmer",          // ou "rien_a_signaler"
   "regle_version": 1,
-  "faits":   { "questions_quittees": 3, "enonces_copies": 1, "plein_ecran_quitte": false,
+  "faits":   { "sorties_ecran": 3, "enonces_copies": 1, "plein_ecran_quitte": false,
                "acquises_sans_trace": 6, "notions_total": 8 },
   "indices": { "reponses_rapides": 4, "taille_changee": true },
-  "declencheurs": ["questions_quittees", "contraste"],
+  "declencheurs": ["sorties_ecran", "contraste"],
   "portee":  { "observables": ["sortie_ecran", "copie", "taille"] }
 }
 ```

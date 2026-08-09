@@ -109,8 +109,11 @@ def notions_sans_trace(db: Session, *, student_id: int, skill_ids: list[int]) ->
 
 
 def _rapides(durees_ms: list[int]) -> int:
-    """Combien de réponses sont **nettement** plus rapides que les autres — un INDICE, jamais un
-    fait. Lenteur ≠ triche, rapidité ≠ copie : un enfant qui sait répond vite.
+    """Combien de réponses arrivent **nettement** plus vite que le rythme de Massimo — un INDICE,
+    jamais un fait. Lenteur ≠ triche, rapidité ≠ copie : un enfant qui sait répond vite.
+
+    ⚠️ On mesure le **délai entre deux réponses**, pas « affichage → réponse » : toutes les
+    questions sont affichées ensemble (ADR-0048 Décision 1 bis).
 
     Normalisé sur la passation elle-même, pas sur une constante en secondes, qui punirait un enfant
     rapide et raterait un enfant lent."""
@@ -129,8 +132,8 @@ def evaluer(
 ) -> dict:
     """Compose le bloc `reliability_json` d'une passation. **Appelé une fois, à la soumission.**
 
-    `reponses` porte, par question, les drapeaux déclarés par le client (`quittee`, `enonce_copie`,
-    `ms_reflexion`) ; `conditions` porte ceux qui valent pour la passation entière ; `per_skill` est
+    `reponses` porte, par réponse, `enonce_copie` et `ms_depuis_precedente` ; `conditions` porte ce
+    qui vaut pour la passation entière — dont **`sorties_ecran`** (Décision 1 bis) ; `per_skill` est
     la mesure déjà corrigée ; `sans_trace` vient de `notions_sans_trace`, appelée **avant** la
     propagation.
 
@@ -144,7 +147,10 @@ def evaluer(
     conditions = conditions or {}
 
     # --- les FAITS déclarés par le client ---
-    questions_quittees = sum(1 for r in reponses if r.get("quittee"))
+    # 🔴 `sorties_ecran` vient des CONDITIONS, pas des réponses (ADR-0048 Décision 1 bis) : l'écran
+    # de passation affiche toutes les questions d'un bloc, une sortie ne se rattache à aucune.
+    # `enonce_copie` reste par réponse — une sélection, elle, se localise.
+    sorties_ecran = int(conditions.get("sorties_ecran") or 0)
     enonces_copies = sum(1 for r in reponses if r.get("enonce_copie"))
     plein_ecran_quitte = bool(conditions.get("plein_ecran_quitte"))
 
@@ -162,13 +168,17 @@ def evaluer(
     )
 
     # --- les INDICES : ils s'affichent, ils ne déclenchent pas ---
-    durees = [int(r["ms_reflexion"]) for r in reponses if r.get("ms_reflexion") is not None]
+    durees = [
+        int(r["ms_depuis_precedente"])
+        for r in reponses
+        if r.get("ms_depuis_precedente") is not None
+    ]
     reponses_rapides = _rapides(durees)
     taille_changee = bool(conditions.get("taille_changee"))
 
     declencheurs: list[str] = []
-    if questions_quittees:
-        declencheurs.append("questions_quittees")
+    if sorties_ecran:
+        declencheurs.append("sorties_ecran")
     if enonces_copies:
         declencheurs.append("enonces_copies")
     if plein_ecran_quitte:
@@ -180,7 +190,7 @@ def evaluer(
         "verdict": VERDICT_A_CONFIRMER if declencheurs else VERDICT_RIEN_A_SIGNALER,
         "regle_version": REGLE_VERSION,
         "faits": {
-            "questions_quittees": questions_quittees,
+            "sorties_ecran": sorties_ecran,
             "enonces_copies": enonces_copies,
             "plein_ecran_quitte": plein_ecran_quitte,
             "acquises_sans_trace": acquises_sans_trace,
