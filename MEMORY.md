@@ -7,13 +7,18 @@
 ## État à la reprise
 
 **Chantier : « Un travail dit ce qu'il a produit » — la ligne du Journal cesse d'être muette
-(addendum ADR-0041).** ✅ **COMPLET, testé, relu à l'écran. Non poussé, pas de PR.**
+(addendum ADR-0041).** ✅ **MERGÉ le 2026-08-09 — PR
+[#107](https://github.com/NeuronXcore/zetis-school/pull/107), squash `a8123ee`.** Rien à reprendre,
+rien à ré-implémenter.
 
-Branche `feat/travail-dit-ce-qu-il-a-produit`, base `e1d350b` (= l'ADR, sur `main`).
-Le détail des commits : `git log --oneline main..HEAD`.
-
-⚠️ **`main` porte UN commit non poussé** : `e1d350b`, l'ADR + `DECISIONS.md`. Il part **avec** la
-branche, sinon la PR référencerait un ADR que `origin` ne connaît pas.
+| | |
+|---|---|
+| **Merge** | PR **#107**, **squash `a8123ee`** sur `main`, **parent `e1d350b`** (= l'ADR) — vérifié : `a8123ee^` est bien `e1d350b`. Le détail des 5 commits d'origine : `git log --oneline e1d350b..feat/travail-dit-ce-qu-il-a-produit` |
+| **Branche** | `feat/travail-dit-ce-qu-il-a-produit` — 🔴 **CONSERVÉE, en local ET sur `origin`, ne pas supprimer sans consigne** (`delete_branch_on_merge: false`). **Dix** branches de chantier dorment ainsi, et leurs noms se ressemblent |
+| **Rien à pousser** | ✅ vérifié — `main` = `origin/main` = `a8123ee` |
+| **Migration** | **aucune** |
+| **Suites** | Backend **1141** · Papa **758** · `tsc -b` propre sur les deux fronts |
+| ✅ **Relecture visuelle** | **FAITE**, sur les 12 lignes de la première page du Journal, tons vérifiés par CSS calculé et **liens suivis jusqu'au bout**. **Elle a rapporté 2 défauts** — voir plus bas |
 
 ### Le défaut, et pourquoi il comptait
 
@@ -224,13 +229,20 @@ inapte, `/quiz` fermé aux diagnostics, et la fixture `client_db` qui n'est pas 
 
 ### ▶▶ PROCHAIN PAS
 
-1. 🔴 **Pousser les DEUX refs, `main` d'abord.** `main` porte `e1d350b` (ADR + `DECISIONS.md`), la
-   branche porte le reste. Pousser la branche seule ferait une PR qui cite un ADR absent d'`origin`.
-2. **Ouvrir la PR** depuis `feat/travail-dit-ce-qu-il-a-produit` — le message est au point 9 de la
-   clôture.
-3. ⚠️ **Après le merge : étape 4bis** (`WORKFLOW.md §5`) — squash, n° de PR, « rien à pousser », et
-   les résidus, **dans l'heure**. C'est le geste que l'`adr-0044` avait manqué pendant vingt-quatre
-   heures, assez pour envoyer une session re-cadrer un chantier livré.
+1. ✅ ~~Clôture~~ · ✅ ~~push des deux refs, `main` d'abord~~ · ✅ ~~PR #107~~ ·
+   ✅ ~~merge (squash `a8123ee`)~~ · ✅ ~~**étape 4bis**~~ — les annonces « non poussé, pas de PR »
+   sont mortes **dans l'heure du merge**, ici et dans l'ADR. C'est le geste que l'`adr-0044` avait
+   manqué pendant vingt-quatre heures, assez pour envoyer une session re-cadrer un chantier livré ;
+   l'`adr-0048` l'avait fait dans l'heure, celui-ci aussi.
+2. 🔴 **PROCHAIN CHANTIER : `/ouverture`** depuis un `main` propre. Ce chantier-ci est **clos** ; sa
+   section sera **élaguée de ce fichier** à la clôture du suivant, après les quatre contrôles
+   (ADR ✅ · `TROUBLESHOOTING.md` ✅ 1 section · `CHANGELOG.md` ✅ 0.65.0 · dettes remontées).
+   ⚠️ **Ce n'est PAS la refonte T0/T_n** — elle est en **liste d'attente**, son read-before-code est
+   écrit au `BACKLOG.md` et **ne doit pas être refait**.
+3. **Le candidat le plus mûr, s'il faut choisir** : 🔴 **ouvrir LE diagnostic depuis Papa** (§ DETTES
+   OUVERTES, premier point). Ce chantier fermerait **trois** dettes d'un geste — le lien de grain
+   matière du Journal, le `null` de `pilotageLinks.ts:91`, et « Papa valide un diagnostic sans
+   pouvoir le LIRE ».
 4. **Hors chantier, quand tu veux** : le sort des données de dev (§ DETTES — passations 53 à 56 et
    les 14 `Gap`). 🔴 **Lire d'abord la note sur `skill_mastery`** : le semis n'est pas entièrement
    réversible.

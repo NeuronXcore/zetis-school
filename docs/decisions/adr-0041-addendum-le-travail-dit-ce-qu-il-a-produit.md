@@ -10,6 +10,17 @@ de document et il faut les lire avec les décisions : (1) `curriculum_lessons` d
 créées » là où le job en avait créé cinq sur sept ; (2) **la Décision 4 est AMENDÉE** — le
 diagnostic mène à sa matière au lieu de n'avoir aucun lien.
 
+✅ **LIVRÉ ET MERGÉ — 2026-08-09.** PR
+[#107](https://github.com/NeuronXcore/zetis-school/pull/107), **squash `a8123ee`**, parent `e1d350b`
+(vérifié : `a8123ee^` est bien le commit de cet ADR). Une seule session, **aucune migration**, aucun
+endpoint neuf. Branche `feat/travail-dit-ce-qu-il-a-produit` **CONSERVÉE**. Suites : backend 1141,
+Papa 758, `tsc -b` propre sur les deux fronts.
+
+> ✅ **La relecture visuelle humaine a EU LIEU**, et elle a rapporté **deux défauts** dont un
+> mensonge (« 7 leçons créées » pour cinq créées), alors que les trois suites étaient vertes **et
+> que les deux test-verrous avaient été sabotés et rougis**. Deuxième chiffrage du dépôt sur ce que
+> cette relecture achète — et il confirme celui de l'`adr-0048`, la veille au même endroit.
+
 > Cadré le 2026-08-09 selon le rituel `mockup → spec → ADR → prompt`, sur `main`, à partir d'une
 > observation du commanditaire à l'écran : *« on n'arrive pas à savoir si les data ont été créées
 > ou pas »*. Le read-before-code a été rendu **avant** toute décision, et il a **démenti quatre
