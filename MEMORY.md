@@ -148,8 +148,14 @@ dans une seule liste serait mort une fois sur deux.
 - 🔴 **`POSTGRES_PASSWORD` reste `zetis_dev_password`** dans le `.env` racine.
 - ⚠️ **`mem_limit: 1g` est calé sur une mesure À VIDE** (92 / 41 Mio) — à relever si un OOM
   apparaît, **jamais à baisser** sans nouvelle mesure.
-- ⚠️ **Le worker de dev vit dans une SESSION** : il meurt avec elle. Sans lui, un lot lancé depuis
-  la Couverture reste `queued` **indéfiniment**. Vérifier : `pgrep -fl "app.production_worker"`.
+- ✅ **Le worker de production est ARRÊTÉ** (2026-08-09, fin de session — vérifié : plus aucun
+  processus). Arrêté par `SIGTERM`, que **RQ intercepte** : il finit son travail en cours avant de
+  sortir, ~2 s mesurées, code de sortie 143 (= `128 + SIGTERM`, l'arrêt propre — pas une erreur).
+  Pour le relancer : `pnpm dev:worker`.
+  ⚠️ **Sans lui, un lot lancé depuis la Couverture reste `queued` INDÉFINIMENT**, et la bande
+  affiche « ZETIS ne produit pas · aucun moteur de production actif ». **C'est le comportement
+  juste, pas une panne** — mais c'est le genre de chose qu'on découvre une heure plus tard.
+  Vérifier : `pgrep -fl "app.production_worker"`.
 - ⚠️ **Le `lifespan` de `main.py` est la PREMIÈRE tâche de fond du backend** — non exercé par les
   tests (la boucle dort d'abord, exprès).
 - ⚠️ **Données de dev ADR-0046** : la pile prod porte le **quiz 4** (SVT, `pending`) et son
