@@ -674,7 +674,20 @@ def resume_de_production(job, routes: dict[int, str]) -> dict | None:
         ids = sortie.get("lesson_ids")
         if not isinstance(ids, list) or not ids:
             return rien("rien produit")
-        return succes(_pluriel(len(ids), "leçon créée", "leçons créées"))
+        # 🔴 **« N leçons créées » serait FAUX, trouvé à la relecture visuelle du 2026-08-09.**
+        # `lesson_ids` est l'état RÉSULTANT du chapitre, pas la production de ce travail : sur le
+        # chapitre 44, il rendait 7 ids dont **deux créés trois jours plus tôt** (114 et 115, le
+        # 06/08) — le job en avait fabriqué 5. Le compte des leçons réellement créées
+        # (`lessons_count`) vit sur la trace `parent`, exclue du Journal (constat 1) : on ne peut
+        # donc pas le dire, et on ne le devine pas.
+        #
+        # D'où un **état**, au ton neutre, et non une création au ton succès. Surestimer serait
+        # précisément le défaut que cet addendum corrige — l'écran affirmant plus que la donnée.
+        return {
+            "texte": _pluriel(len(ids), "leçon au chapitre", "leçons au chapitre"),
+            "ton": "neutre",
+            "route": route,
+        }
 
     if job.job_type == "srs_cards_generate":
         creees = sortie.get("created")

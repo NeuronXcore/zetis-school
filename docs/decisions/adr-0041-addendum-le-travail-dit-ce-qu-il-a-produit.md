@@ -111,9 +111,12 @@ page, exactement le patron que `_travail_out` utilise déjà pour les noms de no
 
 | Ton | Quand | Exemple |
 |---|---|---|
-| `succes` | quelque chose a été créé | « 3 cartes créées », « 7 leçons créées », « 40 questions » |
+| `succes` | quelque chose a été créé, **et la sortie le prouve** | « 3 cartes créées », « cours rédigé », « 40 questions » |
 | `avertissement` | le travail a réussi et **n'a rien produit** | « rien produit — les 5 pièces existaient déjà » |
-| `neutre` | issue sans production ni anomalie, ou type sans règle | « terminé » |
+| `neutre` | issue sans production prouvable, ou type sans règle | « 7 leçons au chapitre », « terminé » |
+
+⚠️ **« et la sortie le prouve » n'est pas une nuance de style** — voir la correction à l'exécution en
+fin d'ADR : `curriculum_lessons` a d'abord porté `succes` et « N leçons créées », ce qui était faux.
 
 ⚠️ **`avertissement` n'est pas une erreur** et son ton ne doit pas être rouge : ne rien produire
 parce que tout existait déjà est un **résultat correct**. Il est signalé parce qu'il est
@@ -160,3 +163,29 @@ le rendu de la ligne `TravailSection` dans `JournalPage.tsx`, les types partagé
   `pilotageLinks`, ce que la décision 2 interdit ;
 - Papa cesse de lire le résumé parce qu'il dit « terminé » partout → trop de types sans règle, il
   faut en écrire, jamais retirer le repli.
+
+## ⚠️ Correction à l'exécution — décisions inchangées (2026-08-09)
+
+**La relecture visuelle a trouvé un défaut, et c'était celui-ci même, à l'envers.**
+
+La première écriture de la règle `curriculum_lessons` rendait **« 7 leçons créées »** sur le
+chapitre 44. Vérifié en base pendant la relecture : le job du 09/08 00:24 en avait fabriqué
+**cinq** (153 à 157) — les leçons **114 et 115 dataient du 06/08**, trois jours plus tôt.
+
+`lesson_ids` est l'**état résultant** du chapitre, pas la production du travail. Et le compte
+réellement créé (`lessons_count`) vit sur la trace `parent`, **exclue du Journal** par le constat 1 :
+il ne peut pas être dit, donc il ne se devine pas.
+
+La règle rend désormais un **état au ton `neutre`** — « N leçons au chapitre » — et non une création
+au ton `succes`. Un test l'épingle, `assert "créé" not in texte` compris.
+
+🔴 **Ce que cet épisode démontre, et qui vaut au-delà de la règle corrigée** : les trois suites
+étaient vertes, le test-verrou avait été sabotté et rougi, et l'écran affirmait quand même une
+chose fausse. Aucun test ne pouvait la voir — il aurait fallu connaître la date de création de deux
+leçons pour douter du mot « créées ». **C'est la sixième fois que ce dépôt le constate, et la
+deuxième fois qu'on le chiffre.**
+
+⚠️ **Dette nommée** : le nombre de leçons **réellement créées** par un
+`curriculum_lessons` reste indisponible côté Journal. Le rendre lisible demanderait soit de faire
+entrer la trace `parent` (refusé, constat 1), soit que le travail l'écrive dans sa propre sortie —
+une modification de `curriculum/service.py`, hors périmètre ici.

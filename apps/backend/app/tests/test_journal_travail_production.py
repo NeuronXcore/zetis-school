@@ -56,15 +56,23 @@ def test_redaction_du_cours_dit_le_cours_et_pas_sa_longueur():
     assert r == {"texte": "cours rédigé", "ton": "succes", "route": ROUTES[1]}
 
 
-def test_lecons_du_chapitre_comptent_les_lecons_creees():
+def test_lecons_du_chapitre_dit_un_ETAT_et_jamais_une_creation():
+    """🔴 **Trouvé à la relecture visuelle du 2026-08-09**, et c'est le défaut qu'on répare, à
+    l'envers : l'écran disait « 7 leçons créées » là où le job en avait fabriqué **5** — deux des
+    sept dataient de trois jours plus tôt (114 et 115, créées le 06/08).
+
+    `lesson_ids` est l'état RÉSULTANT du chapitre. Le compte réellement créé (`lessons_count`) vit
+    sur la trace `parent`, exclue du Journal : il ne peut pas être dit, donc il ne se devine pas.
+    """
     r = _resume("curriculum_lessons", {"chapter_id": 44, "lesson_ids": [114, 115, 153, 154]})
-    assert r["texte"] == "4 leçons créées"
-    assert r["ton"] == "succes"
+    assert r["texte"] == "4 leçons au chapitre"
+    assert "créé" not in r["texte"], "surestimer serait le défaut même que cet addendum corrige"
+    assert r["ton"] == "neutre", "un état n'est pas un succès de production"
 
 
 def test_le_singulier_est_respecte():
     """« 1 leçons créées » se lit comme un bug de l'écran, et ferait douter du reste."""
-    assert _resume("curriculum_lessons", {"lesson_ids": [114]})["texte"] == "1 leçon créée"
+    assert _resume("curriculum_lessons", {"lesson_ids": [114]})["texte"] == "1 leçon au chapitre"
     assert _resume("srs_cards_generate", {"skill_id": 1, "created": 1})["texte"] == "1 carte créée"
 
 

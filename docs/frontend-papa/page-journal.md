@@ -278,13 +278,20 @@ Rendu : une pastille au `ton`, le `texte`, puis le lien quand `route` existe. L'
 | `equip_notion`, rien généré | « rien produit — les N pièces existaient déjà » | `avertissement` | **jamais** |
 | `equip_notion`, N générées | « N pièces produites » | `succes` | la notion, si résoluble |
 | `lesson_content` | « cours rédigé » | `succes` | `/programme?subject=…&chapter=…&lesson=…` |
-| `curriculum_lessons` | « N leçons créées » | `succes` | `/programme?subject=…&chapter=…` |
+| `curriculum_lessons` | « N leçons **au chapitre** » | `neutre` | `/programme?subject=…&chapter=…` |
 | `srs_cards_generate` | « N cartes créées » (ou « aucune carte nouvelle ») | `succes` / `avertissement` | `/cartes-revision?subject=…&focus=<skill_id>` |
 | `diagnostic_generate` | « N questions · <matière> » | `succes` | **aucune** — voir ci-dessous |
 | tout autre type | « terminé » | `neutre` | aucune |
 
 ⚠️ **La longueur du cours n'est PAS affichée.** `content_chars` vit sur la trace `parent`, exclue du
 Journal ; la ligne visible de `lesson_content` ne porte qu'un `lesson_id`.
+
+🔴 **`curriculum_lessons` dit un ÉTAT, jamais une création — corrigé à la relecture visuelle du
+2026-08-09.** La première écriture rendait « 7 leçons créées » sur un job qui en avait fabriqué
+**5** : `lesson_ids` est l'état **résultant** du chapitre, et deux des sept dataient de trois jours
+plus tôt (114 et 115, le 06/08). Le compte réellement créé (`lessons_count`) vit sur la trace
+`parent`, exclue : il ne peut pas être dit, donc il ne se devine pas. Surestimer serait le défaut
+même que ce chantier corrige.
 
 ### 🔴 Trois interdits
 
