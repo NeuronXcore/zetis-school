@@ -411,6 +411,110 @@ charge », qui sont aujourd'hui les plus inertes de toutes).
 ⚠️ **Hors périmètre de l'ADR-0045**, qui porte sur la page Diagnostic. À cadrer à part — mais tant
 que c'est frais : c'est maintenant que c'est le moins cher.
 
+## La refonte T0 / T_n du diagnostic — 🟡 EN LISTE D'ATTENTE (2026-08-09)
+
+> **Annoncée « prochain chantier » par l'`adr-0042`** (« la refonte du diagnostic — T0 sur les
+> prérequis, sonde T_n dans les missions — dont cet ADR est le prérequis. Il ne commence pas ici »),
+> et tenue hors périmètre par l'`adr-0043`, la spec `page-diagnostic.md` et `DECISIONS.md` ×2.
+>
+> **Cadrage ouvert le 2026-08-09, ARRÊTÉ au read-before-code, sur décision du commanditaire.** Ce
+> n'est pas un chantier : c'en est **trois empilés**, et le premier n'est pas du code. **Pas d'ADR
+> pour l'instant** — un ADR fige des décisions, et figer aujourd'hui celles d'un chantier qu'on
+> n'exécutera pas les rendrait périmées le jour de l'ouverture. Le rituel
+> `mockup → spec → ADR → prompt` reprendra à l'ouverture, à partir du constat ci-dessous.
+
+Ce qui suit est le **read-before-code, mesuré en base de dev le 2026-08-09**. ⚠️ Les chiffres sont
+datés : à la reprise, ils se **re-mesurent**, ils ne se recopient pas.
+
+### 🔴 Ce que le hors-périmètre annoncé dit, et ce qui est faux dedans
+
+Quatre documents énoncent la même phrase : *« le graphe de prérequis n'existe pas (ni colonne ni
+table, `parent_skill_id` NULL sur 432 notions) »*.
+
+1. ❌ **« ni colonne » est faux, et le dépôt se contredit lui-même.** La colonne existe :
+   `Skill.parent_skill_id`, FK nullable vers `skills.id`
+   (`apps/backend/app/db/models/school.py:117`). `docs/frontend-massimo/zetis-galaxy.md:78`,
+   l'`adr-0024` et le `BACKLOG.md:488` le disent **correctement** ; l'`adr-0043:247` et
+   `docs/frontend-papa/page-diagnostic.md:503` disent « ni colonne ». C'est la version fausse qui a
+   été recopiée dans `DECISIONS.md`.
+2. 🔴 **La colonne est structurellement insuffisante — et c'est plus grave que son vide.**
+   `parent_skill_id` est **1-à-1**. Une notion a en général **plusieurs** prérequis. Le graphe
+   demande donc une **table de liaison n-n**, donc une **migration** — pas un backfill de colonne.
+   Une lecture rapide de « la colonne est là, il suffit de la remplir » enverrait le chantier dans
+   le mur.
+3. 🔴 **LE VRAI BLOCAGE N'EST PAS LE GRAPHE : C'EST QU'IL N'Y A RIEN À POINTER.** 440 notions en
+   base — **439 en `4e`, UNE en `5e`** (id 436, « Les fractions », Mathématiques : l'artefact de la
+   vérification de l'`adr-0042`). L'unique année scolaire est `2026-2027`, niveau `4e`. **Le
+   référentiel des niveaux antérieurs n'existe pas.** Un T0 sur les prérequis mesurerait donc le
+   vide, quel que soit le graphe posé au-dessus. `parent_skill_id` renseigné à 0 sur 440 n'est pas
+   la cause : c'est la conséquence.
+4. ⚠️ **`learning_objectives` est VIDE (0 ligne).** La table qui porte `expected_mastery_level` —
+   la seule notion d'« attendu de fin de cycle » du modèle — n'a jamais été peuplée.
+5. ⚠️ **« 432 notions » est périmé (440), et la couverture est très inégale** : Français 207,
+   SVT 89, Mathématiques 86, Histoire-Géo 34, Anglais 24 — et **3 matières sur 8 n'ont AUCUNE
+   notion** (Technologie, Espagnol, Physique-Chimie). Un T0 « sur le programme » ne veut pas dire
+   la même chose en Français et en Espagnol.
+
+### ⚠️ Le piège qui se déclenchera TOUT SEUL, sans une ligne de code
+
+`notions_a_mesurer` (`apps/backend/app/modules/diagnostics/service.py:119`) filtre sur
+`Skill.subject_id` **et rien d'autre** — **aucun filtre de niveau**. Le jour où le référentiel 5e
+existe, **ses notions entrent silencieusement dans les diagnostics de 4e**, et l'ordre « jamais
+mesurées d'abord » (`adr-0043` Décision 4) les fera passer **en premier**. Le premier geste du
+chantier 0 casserait donc la mesure du chantier en cours, sans erreur et sans test rouge.
+
+Et `MAX_SKILLS = 8` (`service.py:59`) : une passation mesure 8 notions. Sur les 207 de Français,
+c'est un échantillon de 4 %. Augmenter `MAX_SKILLS` a déjà été **écarté** par l'`adr-0043`
+(à 5 questions par notion, 30 notions = 150 questions, « inadministrable »). Un T0 qui veut couvrir
+des prérequis devra donc **résoudre ce que l'`adr-0043` a explicitement refusé de résoudre**.
+
+### ✅ Ce qui est DÉJÀ posé, et qui réduit le chantier
+
+Le hors-niveau n'est pas un terrain vierge — l'`adr-0042` a fait la moitié du travail de socle :
+
+- `orphan_notions` a **perdu son filtre `Skill.level == year.level`** (Décision 5,
+  `curriculum/service.py:925`) : une notion de niveau antérieur est **visible et équipable** par
+  Papa, avec son niveau rendu à l'écran ;
+- `missions/service.py:622` **cible déjà** `Skill.level != year.level` en branche « rattrapage » —
+  ZETIS sait donc déjà fabriquer une mission sur une notion d'un niveau précédent ;
+- `curriculum/service.py:515` sélectionne par `Skill.level == level` : la **génération d'un
+  référentiel à un niveau donné est un chemin qui existe**.
+
+### Le chiffrage — pourquoi c'est en attente
+
+| # | Ce qu'il faut faire | Coût | Migration |
+|---|---|---|---|
+| **0** | **Le référentiel des niveaux antérieurs** (5e, voire 6e) sur les matières concernées — génération `curriculum_*` → `claude-sonnet-5` (dérogation ADR-0009), puis **validation Papa obligatoire avant activation** (gate ADR-0009) | 🔴 le plus lourd, et **l'essentiel n'est pas du code** : ~400 notions à relire à la main | non |
+| **1** | **Le graphe de prérequis** — table n-n, et la question ouverte de **qui le produit** | 1 session | 🔴 oui |
+| **2** | **Le T0** — sélection par prérequis, sort de `MAX_SKILLS`, filtre de niveau à poser dans `notions_a_mesurer`, `Gap` de prérequis | 1–2 sessions | probable |
+| **3** | **La sonde T_n** dans les missions | 1 session | ? |
+| **4** | **Les surfaces** — page Diagnostic Papa, page Lacunes, écran Massimo | 1–2 sessions | non |
+
+→ **4 à 6 sessions de code, plus une campagne de validation humaine.** À titre de comparaison,
+l'`adr-0048` — le plus gros chantier du dépôt à ce jour — en a fait **trois**. C'est ce chiffrage,
+et non un doute sur la valeur du T0, qui le met en attente.
+
+### Les arbitrages à rendre à l'ouverture — aucun n'est tranché
+
+1. **D'où vient le graphe de prérequis ?** Généré par LLM (donc à valider notion par notion, ~440
+   liens) · saisi à la main par Papa · **dérivé** de l'ordre du curriculum (gratuit, mais un ordre
+   n'est pas une dépendance) · ou hybride. **C'est la décision qui commande le coût du chantier 1.**
+2. **Jusqu'où descend le T0 ?** 5e seulement, ou 5e + 6e ? Chaque niveau ajouté est un référentiel
+   entier à générer **et à relire**.
+3. **Le T0 est-il une passation, ou un régime de passation ?** S'il faut couvrir des prérequis
+   au-delà de 8 notions, il faut soit scinder en plusieurs séances, soit rouvrir `MAX_SKILLS` —
+   refusé par l'`adr-0043`, donc à rouvrir **explicitement** ou à contourner par la scission.
+4. **Que devient la sonde T_n ?** Une mesure de plus dans les missions rouvre `trigger='evidence'`,
+   fermé par l'`adr-0043` avec un motif de fond (« ZETIS ne se commande pas sur sa propre mesure »).
+5. **Les 3 matières à zéro notion** entrent-elles dans le périmètre, ou le T0 se limite-t-il aux 5
+   matières pourvues ?
+
+### Le signal qui dirait qu'il faut l'ouvrir sans attendre
+
+Une lacune de 4e qui se **rouvre après remédiation** — c'est la signature d'un prérequis manquant en
+dessous, et c'est précisément ce qu'aucune mesure actuelle ne peut voir. À surveiller sur les
+`gaps` : une `Gap` résolue puis rouverte sur la même notion.
+
 ## Dettes nommées — consignées, non traitées
 
 ### Nées du chantier ADR-0046 (2026-08-08)

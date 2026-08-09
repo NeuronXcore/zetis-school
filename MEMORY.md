@@ -302,6 +302,14 @@ l'`oklab` pour les opacités (`/70`). Faire composer le navigateur sur un **canv
 2. 🔴 **PROCHAIN CHANTIER : `/ouverture`** depuis un `main` propre. Ce chantier-ci est **clos** ;
    sa section sera **élaguée de ce fichier** à la clôture du suivant, après les quatre contrôles
    (ADR ✅ · `TROUBLESHOOTING.md` ✅ 4 sections · `CHANGELOG.md` ✅ 0.64.0 · dettes remontées).
+   ⚠️ **Ce n'est PAS la refonte T0/T_n**, bien que l'`adr-0042` l'annonce comme « prochain
+   chantier ». Cadrage tenté le **2026-08-09**, **arrêté au read-before-code** et mis en **liste
+   d'attente** par le commanditaire : 4 à 6 sessions + une campagne de validation humaine. **Ne
+   pas refaire ce read-before-code** — il est écrit, avec ses chiffres mesurés en base, au
+   `BACKLOG.md` § *La refonte T0 / T_n du diagnostic — 🟡 EN LISTE D'ATTENTE*. 🔴 Ce qu'il a
+   trouvé et qui n'était écrit nulle part : le blocage n'est **pas** le graphe de prérequis, c'est
+   qu'il n'y a **rien à pointer** (439 notions sur 440 en `4e`, une seule en `5e`). Aucun ADR n'a
+   été écrit, et c'est délibéré.
 3. **Hors chantier, quand tu veux** : décider du sort des **données de dev** (§ DETTES — passations 53 à 56
    et les **14 `Gap`** qu'elles ont ouvertes, qui font lire **24** lacunes là où il y en avait 10).
    🔴 **Lire d'abord la note sur `skill_mastery`** : le semis n'est pas entièrement réversible.
