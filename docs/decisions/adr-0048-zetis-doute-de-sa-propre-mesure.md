@@ -18,13 +18,20 @@
 >
 > Le rituel a été tenu dans l'ordre, **sans une ligne de code**.
 
-🟡 **EN COURS DE LIVRAISON.** ~~« rien n'est implémenté »~~ — cette phrase est morte le 2026-08-09.
-**La Session A sur 3 est livrée** (le backend qualifie une mesure : migration `e2f3a4b5c6d7`, module
-`diagnostics/fiabilite.py`, contrat de `submit`, verdict servi à Papa, route de verbalisation).
-**Les Sessions B et C restent**, et **aucun écran n'a encore été vu**. Le chantier est décrit par
-`prompts/claude-code/prompts-claude-code-adr-0048.md`.
-🔴 **Cette ligne devra mourir à son tour au merge** — c'est le geste que l'`adr-0044` a manqué
-pendant vingt-quatre heures, assez pour envoyer une session re-cadrer un chantier livré.
+✅ **LIVRÉ ET MERGÉ le 2026-08-09** — PR [#106](https://github.com/NeuronXcore/zetis-school/pull/106),
+**squash `3c11226`**, base `7108cf8`, branche `feat/anti-triche-diagnostic` **conservée**. Trois
+sessions (backend · front Massimo · front Papa) et une **relecture visuelle humaine sur les deux
+apps**. Backend **1081 → 1108** · Massimo **539 → 560** · Papa **726 → 749** · **43 sabotages,
+43 rouges**. Chantier décrit par `prompts/claude-code/prompts-claude-code-adr-0048.md`.
+
+🔴 **La relecture visuelle a rapporté CINQ défauts derrière 36 sabotages rouges et trois suites
+vertes** — un badge de trop, une phrase non rendue, un mot qui remettait un enjeu, deux contrastes
+illisibles. **C'est la première fois que ce dépôt chiffre ce qu'un merge sans regarder aurait laissé
+passer.** Détail au `CHANGELOG.md` 0.64.0 et dans l'entrée `DECISIONS.md`.
+
+✅ **Les annonces « en cours de livraison » sont mortes ICI, dans l'heure du merge** — comme celles
+de l'`adr-0047`, et non après vingt-quatre heures comme celle de l'`adr-0044`, qui avait envoyé une
+session re-cadrer un chantier livré.
 
 > S'appuie sur : `adr-0043` (le diagnostic est une mesure qui **engage** — c'est de là que vient
 > l'enjeu), `adr-0044 §5` et `§9` (le score brut a quitté l'écran de l'enfant ; l'XP est donné pour

@@ -7,7 +7,8 @@
 ## État à la reprise
 
 **Chantier : « ZETIS doute de sa propre mesure » — l'anti-triche du diagnostic (ADR-0048).
-🟢 COMPLET — **les trois portes de PR sont franchies**. Prochain pas = **PR, puis merge**.**
+✅ **MERGÉ le 2026-08-09 — PR [#106](https://github.com/NeuronXcore/zetis-school/pull/106), squash
+`3c11226`.** Rien à reprendre, rien à ré-implémenter.**
 
 **LES TROIS PORTES.** `DECISIONS.md` (entrée ADR-0048) en exigeait **trois** ; le § Suivi de l'ADR
 n'en marquait qu'**une** « obligatoire avant la PR ». ⚠️ **Les deux documents ne disaient pas la
@@ -33,8 +34,8 @@ poussées et que la relecture a eu lieu. **Ne pas relire cette entrée dans une 
 
 | | |
 |---|---|
-| **Branche** | `feat/anti-triche-diagnostic` — **vivante** ; nombre de commits : `git log --oneline main..HEAD` |
-| **Base** | `7108cf8` (ne bouge pas). ⚠️ La branche est **2 commits derrière `main`** — les deux corrections de `DECISIONS.md`, poussées après coup. **Aucun conflit possible** : ce fichier ne vit sur aucune branche |
+| **Merge** | PR **#106**, **squash `3c11226`** sur `main`, base `7108cf8`. Le détail des 5 commits d'origine : `git log --oneline 7108cf8..feat/anti-triche-diagnostic` |
+| **Branche** | `feat/anti-triche-diagnostic` — 🔴 **CONSERVÉE, ne pas supprimer sans consigne** (`delete_branch_on_merge: false`). Neuf branches de chantier dorment ainsi, et leurs noms se ressemblent |
 | **Décisions** | ADR-0048 **Accepté**, **11 décisions gelées** + **2 amendements pris à l'exécution** (voir plus bas) |
 | **Migration** | `e2f3a4b5c6d7` — `quiz_attempts.reliability_json`, **appliquée sur la base de dev**. **La seule du chantier ; une seconde est un blocker** |
 | **Suites** | Backend **1081 → 1108** · Massimo **539 → 560** · Papa **726 → 749** |
@@ -294,15 +295,14 @@ l'`oklab` pour les opacités (`/70`). Faire composer le navigateur sur un **canv
 
 ### ▶▶ PROCHAIN PAS
 
-1. ✅ ~~Commit + push de la clôture~~ · ✅ ~~trancher la 3ᵉ porte~~ (abaissée en dette, `ec39b8e`).
-2. 🔴 **OUVRIR LA PR, puis merger.** Plus rien ne bloque : les trois portes sont franchies, et la
-   relecture visuelle a **rapporté cinq défauts**, tous corrigés et verrouillés.
-3. **Immédiatement après le merge : l'étape 4bis** (`WORKFLOW.md §5`) — revenir tuer les annonces
-   « en cours de livraison » dans `DECISIONS.md`, l'ADR-0048 et ce fichier, et y inscrire le
-   **squash** et le **n° de PR**. ⚠️ `DECISIONS.md` se corrige **sur `main`**, jamais sur la branche.
-   🔴 Ce fichier a **déjà survécu deux fois à son propre chantier** : tout ce qui est écrit ici
-   devient faux à la seconde où la PR est mergée.
-4. **Puis, hors chantier** : décider du sort des **données de dev** (§ DETTES — passations 53 à 56
+1. ✅ ~~Clôture~~ · ✅ ~~3ᵉ porte abaissée~~ (`ec39b8e`) · ✅ ~~PR #106~~ · ✅ ~~merge (`3c11226`)~~ ·
+   ✅ ~~**étape 4bis**~~ — les annonces « en cours de livraison » sont mortes **dans l'heure du
+   merge**, dans `DECISIONS.md`, l'ADR-0048 et ce fichier. C'est le geste que l'`adr-0044` avait
+   manqué pendant vingt-quatre heures, assez pour envoyer une session re-cadrer un chantier livré.
+2. 🔴 **PROCHAIN CHANTIER : `/ouverture`** depuis un `main` propre. Ce chantier-ci est **clos** ;
+   sa section sera **élaguée de ce fichier** à la clôture du suivant, après les quatre contrôles
+   (ADR ✅ · `TROUBLESHOOTING.md` ✅ 4 sections · `CHANGELOG.md` ✅ 0.64.0 · dettes remontées).
+3. **Hors chantier, quand tu veux** : décider du sort des **données de dev** (§ DETTES — passations 53 à 56
    et les **14 `Gap`** qu'elles ont ouvertes, qui font lire **24** lacunes là où il y en avait 10).
    🔴 **Lire d'abord la note sur `skill_mastery`** : le semis n'est pas entièrement réversible.
 
