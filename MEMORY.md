@@ -8,16 +8,16 @@
 ## État à la reprise
 
 **Chantier : « la page Lacunes permet d'agir » (ADR-0047).
-✅ COMPLET — les DEUX sessions sont livrées. ⚠️ PAS ENCORE MERGÉ, et la relecture humaine est DUE.**
+✅ COMPLET et ✅ MERGÉ SUR `main` (2026-08-09). Ne pas ré-implémenter.**
 
 | | |
 |---|---|
-| **Branche** | `feat/lacunes-permettent-d-agir`, avec suivi distant. ⚠️ **La Session B n'est pas commitée** à cette clôture |
-| **Base** | `6641f8a` (`docs(adr): ADR-0047 passe en Accepté`), vérifiée par `git cat-file -t` |
-| **Commits** | par `git log --oneline main..HEAD` — on ne les recopie pas ici |
+| **Mergé** | PR [#105](https://github.com/NeuronXcore/zetis-school/pull/105), **squash `9dce148`**, base `6641f8a` (vérifié : parent du squash) |
+| **État git** | `main` = `origin/main` = `9dce148` — **rien à pousser** |
+| **Branche** | `feat/lacunes-permettent-d-agir` — 🔴 **CONSERVÉE**, locale ET distante. Mergée **sans** `--delete-branch` |
 | **Décisions** | ADR-0047 **Accepté**, 8 décisions — ⚠️ **TROIS ont été corrigées à l'exécution** (4, 3 et 8), voir plus bas |
 | **Migration** | **AUCUNE**, aucun endpoint neuf, aucune surface Massimo |
-| **Suites** | Backend **1080** (+1 rouge pré-existant, prouvé tel) · Papa **707 → 724** (+17) · `tsc -b` Papa + Massimo **0** |
+| **Suites** | Backend **1074 → 1080** (+1 rouge pré-existant, prouvé tel) · Papa **707 → 726** (+19) · `tsc -b` Papa + Massimo **0** |
 | **Sabotages** | **13 joués, 13 rouges** (5 en session A, 8 en B), chacun avec contrôle d'application |
 | **Relecture visuelle** | ✅ **FAITE par le commanditaire (2026-08-09), RIEN RELEVÉ.** Après l'ouverture de la PR [#105](https://github.com/NeuronXcore/zetis-school/pull/105) ; l'ADR la voulait **avant** — écart assumé, écrit dans le corps de la PR. ⚠️ **Une relecture qui ne trouve rien est l'exception ici** : celle de l'`adr-0043` avait sorti **cinq** défauts en quelques minutes, et c'est elle qui a fait naître ce chantier |
 
@@ -177,27 +177,32 @@ dans une seule liste serait mort une fois sur deux.
 
 ### ▶▶ PROCHAIN PAS
 
-**Le chantier est COMPLET, mais la Session B n'est PAS COMMITÉE** — tout est dans l'arbre de
-travail. La Session A, elle, est commitée **et poussée** (0 commit en attente, vérifié).
-Donc : **committer la Session B, puis pousser.**
+**Le chantier est CLOS.** Mergé (squash `9dce148`), branche conservée, relecture humaine faite,
+étape 4bis **faite dans l'heure qui a suivi le merge**. ⚠️ **Ne rien en recommencer.**
 
-✅ **La relecture visuelle humaine est FAITE (2026-08-09)** — la dernière condition du chantier.
-La PR [#105](https://github.com/NeuronXcore/zetis-school/pull/105) est **OPEN** et `MERGEABLE`.
-
-**Il reste donc : merger (squash), puis l'étape 4bis.**
+> ✅ **Le geste que le 4bis ne demande pas a été fait cette fois** : les **trois** annonces
+> « à faire » qui survivaient au merge ont été retirées — le Statut de l'ADR (« pas encore
+> mergé »), l'entrée `DECISIONS.md` (« Accepté ≠ livré, rien n'est implémenté ») et l'en-tête de ce
+> fichier (« PAS ENCORE MERGÉ »). C'est exactement ce que l'`adr-0044` avait laissé traîner
+> vingt-quatre heures, assez pour envoyer la session du matin re-cadrer un chantier livré.
+> **Le contrôle qui les a trouvées est un `grep` sur les formules d'annonce**, pas une relecture.
 
 ⚠️ **Piège de vérification, s'il faut y revenir** : pour voir les gestes autres que « Voir la
 mission », il faut **fabriquer le cas** — les 10 lacunes sont toutes couvertes. Libérer **toutes**
 les missions actives d'une notion (une seule ne suffit pas, mesuré), relever leurs états avant, et
 **remettre la base après**.
 
-**Puis** : merge, et l'étape **4bis** (`WORKFLOW.md §5`). ⚠️ Son geste que le dépôt a appris à
-ses dépens le 2026-08-09 : **retirer l'annonce « à faire »** partout où ce chantier était promis —
-`BACKLOG.md`, le Statut de l'ADR, `DECISIONS.md`, ce fichier. Les quatre contrôles du 4bis ne le
-demandent pas, et c'est ce qui a envoyé une session entière re-cadrer un chantier livré.
+**Chantier suivant — trois candidats, tous au `BACKLOG.md`, aucun cadré :**
 
-**Chantier suivant, non cadré** : l'**anti-triche du diagnostic**, seul à porter encore un
-`▶▶ PROCHAIN CHANTIER` au `BACKLOG.md`. Rituel complet exigé.
+1. **L'anti-triche du diagnostic** — le plus mûr, et le seul à porter encore un
+   `▶▶ PROCHAIN CHANTIER`.
+2. **Une lacune comblée autrement ne se referme jamais** — né de ce chantier, qui l'aggrave.
+   Doctrine, quatre modules.
+3. **La vue calendrier sur `/lacunes`** — demande d'abord un **addendum** qui révoque une décision
+   écrite de la spec.
+
+Chacun demande le **rituel complet** (`mockup → spec → ADR → prompt`) : une session de cadrage sur
+`main` avant la moindre ligne, puis `/ouverture`.
 
 ---
 

@@ -15,9 +15,11 @@ décision est levé : les sessions de
 > falsifiaient le cadrage d'origine ont été portés au commanditaire **avant** que la moindre
 > décision soit écrite.
 
-✅ **LIVRÉ — deux sessions, aucune migration.** PR
-[#105](https://github.com/NeuronXcore/zetis-school/pull/105), branche
-`feat/lacunes-permettent-d-agir`. ⚠️ **Pas encore mergé** à l'heure où cette ligne est écrite.
+✅ **LIVRÉ ET MERGÉ — 2026-08-09.** PR
+[#105](https://github.com/NeuronXcore/zetis-school/pull/105), **squash `9dce148`**, base `6641f8a`
+(vérifié : parent du squash). Deux sessions, **aucune migration**, aucun endpoint neuf.
+Branche `feat/lacunes-permettent-d-agir` **conservée**, locale et distante.
+`CHANGELOG.md` **0.63.0** · `TROUBLESHOOTING.md` deux sections.
 
 ✅ **La relecture visuelle humaine a EU LIEU (2026-08-09) — rien relevé.** ⚠️ Elle s'est faite
 **après** l'ouverture de la PR, là où cet ADR la voulait **avant** : écart assumé par le
