@@ -19,7 +19,7 @@
 | **Migration** | **AUCUNE**, aucun endpoint neuf, aucune surface Massimo |
 | **Suites** | Backend **1080** (+1 rouge pré-existant, prouvé tel) · Papa **707 → 724** (+17) · `tsc -b` Papa + Massimo **0** |
 | **Sabotages** | **13 joués, 13 rouges** (5 en session A, 8 en B), chacun avec contrôle d'application |
-| **Relecture visuelle** | 🔴 **DUE — par un HUMAIN, AVANT la PR.** L'ADR l'exige : ce chantier naît d'une relecture humaine. Vu par l'agent, pas par le commanditaire |
+| **Relecture visuelle** | ✅ **FAITE par le commanditaire (2026-08-09), RIEN RELEVÉ.** Après l'ouverture de la PR [#105](https://github.com/NeuronXcore/zetis-school/pull/105) ; l'ADR la voulait **avant** — écart assumé, écrit dans le corps de la PR. ⚠️ **Une relecture qui ne trouve rien est l'exception ici** : celle de l'`adr-0043` avait sorti **cinq** défauts en quelques minutes, et c'est elle qui a fait naître ce chantier |
 
 ### FAIT — les deux sessions
 
@@ -104,10 +104,11 @@ dans une seule liste serait mort une fois sur deux.
 
 **Nées de ce chantier :**
 
-- 🔴 **La relecture visuelle HUMAINE est due, avant la PR.** Ce que l'agent a vu : les quatre
-  gestes sur données réelles, le clic qui aboutit, le rendu à 768 px et en desktop. Ce qu'il n'a
-  **pas** vu : l'action « Équiper » jouée jusqu'au bout (génération LLM ~69 s auto-validée, qui
-  écrirait cinq pièces en base), et la station ② corrigée à l'écran.
+- ✅ **La relecture visuelle HUMAINE est FAITE (2026-08-09).** Elle a eu lieu **après** l'ouverture
+  de la PR, là où l'ADR la voulait avant — écart assumé, consigné dans le corps de la PR #105.
+  ⚠️ **Ce que l'agent n'avait PAS pu voir** et qui relevait donc entièrement d'elle : l'action
+  « Équiper » jouée jusqu'au bout (génération LLM ~69 s auto-validée, cinq pièces écrites en base),
+  et la station ② corrigée à l'écran.
 - 🔴 **Le responsive Papa n'est pas jugeable à 375 px, et ce n'est pas ce chantier** : la sidebar y
   prend **256 px** des 375, `main` n'en garde **119**, la ligne 71, son corps 37. La règle du
   chantier **s'applique bien** (`flex-basis: 100%` mesuré au DOM) — elle ne peut rien contre ce
@@ -180,21 +181,17 @@ dans une seule liste serait mort une fois sur deux.
 travail. La Session A, elle, est commitée **et poussée** (0 commit en attente, vérifié).
 Donc : **committer la Session B, puis pousser.**
 
-🔴 **AVANT la PR : la relecture visuelle HUMAINE.** L'`adr-0047` l'exige, et le dépôt a payé son
-absence cinq fois. Ce qui reste à regarder, et que l'agent n'a pas pu voir :
+✅ **La relecture visuelle humaine est FAITE (2026-08-09)** — la dernière condition du chantier.
+La PR [#105](https://github.com/NeuronXcore/zetis-school/pull/105) est **OPEN** et `MERGEABLE`.
 
-1. **L'action « Équiper cette notion »**, jouée jusqu'au bout sur une notion `aucune_lecon` — la
-   confirmation, la barre, le résultat. ⚠️ **Génération LLM auto-validée, ~69 s, cinq pièces
-   écrites en base.** À faire en connaissance du coût.
-2. **La station ②** d'une passation réelle : « Voir la lacune → » doit arriver sur `/lacunes`
-   **filtré sur la matière**.
-3. **Le rendu général**, à l'œil — les motifs allongent la page de trois lignes par lacune.
+**Il reste donc : merger (squash), puis l'étape 4bis.**
 
-⚠️ **Pour voir les gestes autres que « Voir la mission », il faut fabriquer le cas** : les 10
-lacunes sont toutes couvertes. Libérer **toutes** les missions actives d'une notion (une seule ne
-suffit pas — mesuré), relever leurs états avant, et **remettre la base après**.
+⚠️ **Piège de vérification, s'il faut y revenir** : pour voir les gestes autres que « Voir la
+mission », il faut **fabriquer le cas** — les 10 lacunes sont toutes couvertes. Libérer **toutes**
+les missions actives d'une notion (une seule ne suffit pas, mesuré), relever leurs états avant, et
+**remettre la base après**.
 
-**Puis** : PR, merge, et l'étape **4bis** (`WORKFLOW.md §5`). ⚠️ Son geste que le dépôt a appris à
+**Puis** : merge, et l'étape **4bis** (`WORKFLOW.md §5`). ⚠️ Son geste que le dépôt a appris à
 ses dépens le 2026-08-09 : **retirer l'annonce « à faire »** partout où ce chantier était promis —
 `BACKLOG.md`, le Statut de l'ADR, `DECISIONS.md`, ce fichier. Les quatre contrôles du 4bis ne le
 demandent pas, et c'est ce qui a envoyé une session entière re-cadrer un chantier livré.

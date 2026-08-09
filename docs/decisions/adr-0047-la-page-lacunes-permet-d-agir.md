@@ -15,7 +15,20 @@ décision est levé : les sessions de
 > falsifiaient le cadrage d'origine ont été portés au commanditaire **avant** que la moindre
 > décision soit écrite.
 
-⚠️ **Accepté ≠ livré.** Rien n'est implémenté, le chantier n'a pas démarré.
+✅ **LIVRÉ — deux sessions, aucune migration.** PR
+[#105](https://github.com/NeuronXcore/zetis-school/pull/105), branche
+`feat/lacunes-permettent-d-agir`. ⚠️ **Pas encore mergé** à l'heure où cette ligne est écrite.
+
+✅ **La relecture visuelle humaine a EU LIEU (2026-08-09) — rien relevé.** ⚠️ Elle s'est faite
+**après** l'ouverture de la PR, là où cet ADR la voulait **avant** : écart assumé par le
+commanditaire, signalé deux fois et consigné dans le corps de la PR. Ce n'est pas un oubli.
+
+> ⚠️ **« Rien relevé » est l'exception dans ce dépôt, pas la norme** — et c'est ce qui rend le fait
+> intéressant. La relecture de l'`adr-0043` avait sorti **cinq** défauts en quelques minutes, dont
+> aucun n'était détectable par un test ; c'est elle qui a fait naître ce chantier. Celle de
+> l'`adr-0045` avait trouvé une **quatrième** optimisation que cinq documents ignoraient. Ici, ce
+> qu'elle couvrait — l'action « Équiper » jouée jusqu'au bout, la station ② sur une passation
+> réelle — a tenu.
 
 > 🔴 **Et cette ligne doit MOURIR au merge, pas y survivre.** Le 2026-08-09, la même phrase est
 > restée sur l'`adr-0044` pendant vingt-quatre heures après sa livraison, recopiée dans
