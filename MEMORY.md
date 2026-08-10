@@ -241,8 +241,17 @@ Aucun fichier à moitié écrit. L'arbre est propre, tout est commité.
 
 ### ⚠️ DETTES NÉES DU CHANTIER AGENDA
 
-- 🔴 **La migration `a1b2c3d4e5f8` n'est pas en prod.** `agenda_items.lesson_id`. Le Postgres prod
-  ne publie aucun port — passer par le conteneur. Voir le récit de la mise à niveau du 2026-08-07.
+- 🔴 **La migration `a1b2c3d4e5f8` n'est pas en prod, et c'est VOLONTAIRE.** La prod a été portée le
+  2026-08-10 au **dernier mergé, `e2f3a4b5c6d7`** — pas plus loin. Motif :
+  `infra/docker/backend-entrypoint.sh:6` fait `alembic upgrade head` **à chaque démarrage** ; une
+  révision présente en base mais absente de `main` ferait échouer le démarrage sur *« Can't locate
+  revision »*. 👉 **Migrer `a1b2c3d4e5f8` APRÈS le merge de la PR #108**, pas avant.
+  ⚠️ Trois pièges rencontrés ce jour-là, tous consignés dans la mémoire `migrer-la-base-prod` :
+  la variable est **`ZETIS_DATABASE_URL`** (`DATABASE_URL` est ignorée **en silence**, et alembic
+  répond alors la révision du DEV) ; le réseau `interne` est `internal: true`, donc **publier un
+  port ne marche pas** sans attacher aussi `externe` ; et `tail -3` ne voit plus le marqueur de
+  `pg_dump` 16. Sauvegarde du jour : `~/zetis-backups/zetis-prod-20260810-151428-*.sql` (621 K,
+  marqueur vérifié).
 - 🔴 **Les pièges ci-dessus ne sont pas dans `TROUBLESHOOTING.md`.** Six sections à écrire.
 - ⚠️ **Le Commander n'est TOUJOURS pas idempotent** — commander deux fois la même échéance crée des
   doublons (`Mission` n'a aucune référence à l'agenda). La dette existait déjà (addendum ADR-0035) ;
