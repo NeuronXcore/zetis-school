@@ -259,15 +259,35 @@ export function AgendaItemRow({
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Masquer"
-        title="Masquer"
-        className="shrink-0 rounded-lg px-1.5 py-0.5 text-xs text-zetis-muted transition-colors hover:text-white motion-reduce:transition-none"
-      >
-        ✕
-      </button>
+      {/* 🔴 LA CROIX NE VISE QUE CE QUE MASSIMO A ÉCRIT LUI-MÊME (2026-08-11).
+          Le §2c donne le masquage au titre de la **réciprocité** — Papa archive, donc l'enfant
+          n'est pas passif sur sa propre page. Le motif est l'autonomie, jamais l'évitement.
+
+          🔴 **Et le §1 du MÊME ADR tranche l'autre moitié, trente lignes plus haut** :
+          *« une échéance scolaire existe déjà dans le monde de Massimo — écrite dans son agenda
+          papier, annoncée en classe. La masquer ne supprime pas la pression : elle supprime
+          seulement son moyen de s'organiser. »* Une croix sur une échéance de l'école faisait
+          donc exactement ce que cet ADR passe son §1 à refuser.
+
+          On retire ce que l'ON a écrit, pas ce que l'école a demandé. ⚠️ **En phase 0 la croix
+          disparaît de partout** — Massimo ne saisit pas encore (§10) — et elle revient d'elle-même
+          le jour où Papa ouvre sa saisie, c'est-à-dire là où l'argument du §2c tient vraiment.
+          Les doublons du §2d restent traités par Papa, qui les a créés et que la saisie prévient.
+
+          ⚠️ Conséquence assumée : le rattrapage « Masqué · Annuler » devient **inatteignable en
+          phase 0**. Il n'est pas mort — `undismiss` sert au « Rendre à Massimo » de Papa, et le
+          bandeau reprend vie avec la saisie. Le retirer réintroduirait le défaut du 2026-08-10. */}
+      {item.created_by === "student" && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Masquer"
+          title="Masquer"
+          className="shrink-0 rounded-lg px-1.5 py-0.5 text-xs text-zetis-muted transition-colors hover:text-white motion-reduce:transition-none"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }

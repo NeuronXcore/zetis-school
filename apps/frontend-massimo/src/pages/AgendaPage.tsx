@@ -7,7 +7,7 @@ import { AgendaWeekStrip } from "../components/agenda/AgendaWeekStrip";
 import { AgendaDayPanel } from "../components/agenda/AgendaDayPanel";
 import { UpcomingCard } from "../components/agenda/UpcomingCard";
 import { useAgenda } from "../hooks/useAgenda";
-import { RESUME_MAX } from "../lib/agendaSections";
+import { RESUME_MAX, addDays, isoDay, preparationsForDay } from "../lib/agendaSections";
 
 // Page `/agenda` de Massimo (ADR-0025, Lot 1) — ce que l'école lui demande.
 //
@@ -72,10 +72,42 @@ export function AgendaPage() {
   /** Traces du jour ouvert — `null` sur un jour à venir, jamais `0` (§7 : un jour qui n'est pas
    *  encore arrivé n'a pas de case vide). Le contrat serveur ne distingue pas `0` de « pas de
    *  donnée » ; on le respecte en n'affichant la ligne que si elle est positive. */
-  const pickedTraces = agenda.week?.days.find((d) => d.date === pickedDay)?.traces ?? null;
+  const pickedDayData = agenda.week?.days.find((d) => d.date === pickedDay);
+  const pickedTraces = pickedDayData?.traces ?? null;
+
+  /** Ce que le jour ouvert PRÉPARE — les étapes qui y tombent, chacune avec son échéance.
+   *  C'est la question que le `✦` de la bande pose, et à laquelle le panneau ne répondait pas. */
+  const pickedPreparations = useMemo(
+    () => preparationsForDay(pickedDayData, agenda.items),
+    [pickedDayData, agenda.items],
+  );
 
   const { today, tomorrow, later, resume } = agenda.sections;
   const nothingNow = today.length === 0 && tomorrow.length === 0;
+
+  /** Le jour ouvert est une RÉPONSE, pas une seconde liste — addendum §17.1, qui nomme le défaut
+   *  et le déclarait évité par la seule transience du panneau : *« la bande ne devient pas une
+   *  seconde liste qui doublerait les sections »*. À l'écran, la transience n'empêche rien —
+   *  **tant que le panneau est ouvert, l'item est là deux fois**, avec deux coches, deux ✕, et
+   *  son ancre `agenda-item-<id>` en double dans le DOM (ce que `getElementById`, dont dépend
+   *  `openPlan`, ne sait pas départager).
+   *
+   *  🔴 **Les sections d'UN jour se retirent ENTIÈREMENT, elles ne se vident pas.** Les vider
+   *  les ferait mentir : `tomorrow` filtré à zéro rendrait *« Rien de noté pour demain »* trois
+   *  lignes sous les deux devoirs de demain. Le panneau EST la section, ce jour-là.
+   *
+   *  ⚠️ **Quatre sections rendent des items, pas deux.** « La suite » et « À reprendre » en
+   *  rendent aussi — et « À reprendre » couvre les jours PASSÉS, que le panneau ouvre depuis
+   *  l'addendum §17 : c'était même sa raison d'être. Multi-jours, elles se filtrent, et leur
+   *  garde `.length > 0` les fait disparaître d'elles-mêmes si le jour ouvert était tout leur
+   *  contenu. */
+  const dayOpen = pickedDay !== null;
+  const openIsToday = pickedDay === isoDay(agenda.today);
+  const openIsTomorrow = pickedDay === isoDay(addDays(agenda.today, 1));
+  const withoutOpenDay = (items: AgendaItemStudent[]) =>
+    dayOpen ? items.filter((item) => item.due_on !== pickedDay) : items;
+  const laterShown = withoutOpenDay(later);
+  const resumeShown = withoutOpenDay(resume);
 
   return (
     <div className="relative mx-auto max-w-2xl">
@@ -108,53 +140,87 @@ export function AgendaPage() {
             onDismiss={(item) => agenda.dismiss(item)}
             planByItem={agenda.planByItem}
             onToggleStep={agenda.toggleStep}
+            preparations={pickedPreparations}
           />
+        )}
+
+        {/* 1 ter — LE MASQUAGE SE RATTRAPE (relecture humaine du 2026-08-10).
+            La croix ✕ n'avait aucun retour : le devoir quittait l'agenda définitivement, et Papa
+            lui-même ne pouvait que le ressaisir. Le §2c tranchait « masquer ≠ supprimer », il
+            n'avait rien dit de l'irréversibilité.
+
+            🔴 **Un retour APRÈS le geste, jamais une confirmation AVANT.** Un dialogue mettrait
+            une friction sur chaque masquage, y compris les bons, sur l'écran d'un enfant qui a
+            le droit de ranger son agenda. Et il ne servirait à rien quand le geste est
+            volontaire puis regretté.
+
+            ⚠️ Placé ici, sous la bande, et non à l'emplacement de la carte : la carte peut être
+            dans un repli (« la suite ») ou dans une section qu'on ne regarde pas. Une bande
+            visible d'un seul endroit se retrouve toujours. */}
+        {agenda.undoable && (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-zetis-border bg-zetis-surface px-4 py-2.5">
+            <p className="min-w-0 truncate text-sm text-zetis-muted">
+              Masqué : <span className="text-slate-200">{agenda.undoable.label}</span>
+            </p>
+            <button
+              type="button"
+              onClick={agenda.undoDismiss}
+              className="shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-100 transition-colors hover:border-violet-400/45 motion-reduce:transition-none"
+            >
+              Annuler
+            </button>
+          </div>
         )}
 
         {/* 2 — Composer : ABSENT en Lot 1 (rien n'occupe cet espace, rien ne le grise). */}
 
-        {/* 3 — Aujourd'hui · Demain, dépliées. */}
-        <Section title="Aujourd'hui">
-          {today.length === 0 ? (
-            // Ligne calme : jamais « ajoute tes devoirs » — en phase 0 il ne le peut pas, et
-            // l'y inviter serait une impasse.
-            <Calm>Rien de noté pour aujourd'hui.</Calm>
-          ) : (
-            // Le plan se passe à TOUTES les sections, sans exception de section : c'est le
-            // SERVEUR qui décide où il y en a un (jours à venir seulement), et le recopier ici
-            // en règle d'affichage ferait une seconde source de vérité. « À reprendre » n'en
-            // reçoit donc jamais, sans qu'on l'ait écrit nulle part.
-            today.map((item) => (
-              <AgendaItemRow
-                key={item.id}
-                item={item}
-                onToggle={() => agenda.toggleDone(item)}
-                onDismiss={() => agenda.dismiss(item)}
-                planSteps={agenda.planByItem[item.id]}
-                onToggleStep={agenda.toggleStep}
-              />
-            ))
-          )}
-        </Section>
+        {/* 3 — Aujourd'hui · Demain, dépliées. **Sautées quand le panneau porte déjà ce
+            jour-là** : la réponse à un tap ne se double pas d'une section identique (§17.1). */}
+        {!openIsToday && (
+          <Section title="Aujourd'hui">
+            {today.length === 0 ? (
+              // Ligne calme : jamais « ajoute tes devoirs » — en phase 0 il ne le peut pas, et
+              // l'y inviter serait une impasse.
+              <Calm>Rien de noté pour aujourd'hui.</Calm>
+            ) : (
+              // Le plan se passe à TOUTES les sections, sans exception de section : c'est le
+              // SERVEUR qui décide où il y en a un (jours à venir seulement), et le recopier ici
+              // en règle d'affichage ferait une seconde source de vérité. « À reprendre » n'en
+              // reçoit donc jamais, sans qu'on l'ait écrit nulle part.
+              today.map((item) => (
+                <AgendaItemRow
+                  key={item.id}
+                  item={item}
+                  onToggle={() => agenda.toggleDone(item)}
+                  onDismiss={() => agenda.dismiss(item)}
+                  planSteps={agenda.planByItem[item.id]}
+                  onToggleStep={agenda.toggleStep}
+                />
+              ))
+            )}
+          </Section>
+        )}
 
-        <Section title="Demain">
-          {tomorrow.length === 0 ? (
-            <Calm>Rien de noté pour demain.</Calm>
-          ) : (
-            tomorrow.map((item) => (
-              <AgendaItemRow
-                key={item.id}
-                item={item}
-                onToggle={() => agenda.toggleDone(item)}
-                onDismiss={() => agenda.dismiss(item)}
-                planSteps={agenda.planByItem[item.id]}
-                onToggleStep={agenda.toggleStep}
-              />
-            ))
-          )}
-        </Section>
+        {!openIsTomorrow && (
+          <Section title="Demain">
+            {tomorrow.length === 0 ? (
+              <Calm>Rien de noté pour demain.</Calm>
+            ) : (
+              tomorrow.map((item) => (
+                <AgendaItemRow
+                  key={item.id}
+                  item={item}
+                  onToggle={() => agenda.toggleDone(item)}
+                  onDismiss={() => agenda.dismiss(item)}
+                  planSteps={agenda.planByItem[item.id]}
+                  onToggleStep={agenda.toggleStep}
+                />
+              ))
+            )}
+          </Section>
+        )}
 
-        {later.length > 0 && (
+        {laterShown.length > 0 && (
           <section className="mt-5">
             <button
               type="button"
@@ -162,12 +228,14 @@ export function AgendaPage() {
               className="w-full rounded-2xl border border-zetis-border bg-zetis-surface px-4 py-2.5 text-sm text-zetis-muted transition-colors hover:text-white motion-reduce:transition-none"
             >
               {/* « La suite », pas « la suite de la semaine » : la bande porte 14 jours, elle
-                  déborde la semaine. Un compte de ce qui ARRIVE n'est pas un compte d'arriéré. */}
-              {laterOpen ? "Replier la suite ▴" : `La suite · ${later.length} ▾`}
+                  déborde la semaine. Un compte de ce qui ARRIVE n'est pas un compte d'arriéré.
+                  ⚠️ Le compte suit ce que le bouton VA OUVRIR : sur un jour ouvert, ses items
+                  sont au panneau et n'ont plus à être annoncés ici. */}
+              {laterOpen ? "Replier la suite ▴" : `La suite · ${laterShown.length} ▾`}
             </button>
             {laterOpen && (
               <div className="mt-2 flex flex-col gap-2">
-                {later.map((item) => (
+                {laterShown.map((item) => (
                   <AgendaItemRow
                     key={item.id}
                     item={item}
@@ -196,9 +264,9 @@ export function AgendaPage() {
             Le plafond protégeait d'un écran qui s'allonge tout seul ; il rendait aussi les plus
             anciens inaccessibles. Le dépliage est un GESTE de Massimo — la section ne grossit
             toujours pas sans qu'il le demande. */}
-        {resume.length > 0 && (
+        {resumeShown.length > 0 && (
           <Section title="À reprendre">
-            {(resumeOpen ? resume : resume.slice(0, RESUME_MAX)).map((item) => (
+            {(resumeOpen ? resumeShown : resumeShown.slice(0, RESUME_MAX)).map((item) => (
               <AgendaItemRow
                 key={item.id}
                 item={item}
@@ -213,14 +281,14 @@ export function AgendaPage() {
             {/* ⚠️ Le nombre n'apparaît QUE sur le bouton de dépliage, jamais comme un compteur
                 posé à côté du titre : « À reprendre · 8 » serait le compteur d'arriéré que le §7
                 interdit. Ici il dit ce que le geste va ouvrir, et il disparaît une fois ouvert. */}
-            {!resumeOpen && resume.length > RESUME_MAX && (
+            {!resumeOpen && resumeShown.length > RESUME_MAX && (
               <button
                 type="button"
                 onClick={() => setResumeOpen(true)}
                 className="self-start rounded-lg px-1 py-1 text-xs text-zetis-muted underline-offset-2 transition-colors hover:text-white hover:underline motion-reduce:transition-none"
               >
-                voir {resume.length - RESUME_MAX} autre
-                {resume.length - RESUME_MAX > 1 ? "s" : ""} ▾
+                voir {resumeShown.length - RESUME_MAX} autre
+                {resumeShown.length - RESUME_MAX > 1 ? "s" : ""} ▾
               </button>
             )}
           </Section>

@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 from app.db.models import AgendaItem, AgendaPlanStep
 from app.modules.evidence import service as evidence
 from app.modules.galaxy.service import resolve_panoply
+from app.modules.activity.timeutils import today_local
 from app.modules.lesson_resolution import ordered_chapter_skill_ids
 from app.modules.memory.service import chapter_servable_count
 
@@ -54,8 +55,24 @@ PLAN_STEP_ORDER = ("fiche", "revision", "quiz")
 
 
 def _today() -> date:
-    """Isolé pour être figé dans les tests (patron `_now` du module `memory`)."""
-    return datetime.now(timezone.utc).date()
+    """Le jour d'aujourd'hui **en Europe/Paris**, isolé pour être figé dans les tests.
+
+    🔴 **CORRIGÉ le 2026-08-11 : cette fonction rendait la date UTC** — un bug de production,
+    pas une coquette de test. Tout le reste de l'agenda date en Europe/Paris (`today_local`),
+    et entre **minuit et 2 h** (été ; minuit–1 h en hiver) les deux sources **diffèrent d'un
+    jour**. Mesuré à 00 h 16 : UTC disait le 10, Paris le 11.
+
+    Conséquence à l'écran, et c'est ce qui en fait un bug et non un détail :
+    `jours_restants = due_on - _today()` valait **un de trop**, donc une échéance de **demain**
+    était vue comme J+2 — et ZETIS **composait un plan là où la Décision 3 l'interdit**
+    (« aucun plan à J+0 ni J+1 »), avec une étape datée d'aujourd'hui ou de la veille. Un enfant
+    qui ouvre son agenda à 00 h 30 est dans la fenêtre.
+
+    ⚠️ **L'isolation reste** (patron `_now` du module `memory`) : c'est la SOURCE qui était
+    fausse, pas le fait d'avoir une fonction. Elle est désormais la même que celle de la bande,
+    des traces et des sections — une seule notion d'« aujourd'hui » dans tout l'agenda.
+    """
+    return today_local()
 
 
 def _panoply_entry(actions: list[dict], kind: str) -> dict | None:

@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import app.db.models as m
 from app.main import app
+from app.modules.activity.timeutils import local_day
 from app.modules.auth.deps import get_current_user
 from app.modules.dashboard import projections as p
 
@@ -429,7 +430,12 @@ def test_l_avertissement_sur_la_jeunesse_de_la_courbe_peut_EXPIRER(client_db) ->
         )
         db.commit()
 
-    attendu = (datetime.now(UTC) - timedelta(days=10)).date().isoformat()
+    # 🔴 `local_day`, JAMAIS `.date()` — `history_since` rend `local_day(when)`, donc un jour
+    # **Europe/Paris**. Entre minuit et 2 h, `.date()` sur l'instant UTC répond la veille et ce
+    # test échouait, **alors que le produit avait raison**. C'est la même cause qui a été
+    # consignée comme « deux tests qui alternent au rouge selon l'heure » : ce n'était pas une
+    # bizarrerie, c'était un attendu calculé dans le mauvais fuseau.
+    attendu = local_day(datetime.now(UTC) - timedelta(days=10)).isoformat()
     assert client.get("/api/parent/dashboard").json()["history_since"] == attendu
 
 

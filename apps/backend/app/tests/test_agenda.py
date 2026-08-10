@@ -177,6 +177,65 @@ def test_delete_is_archiving_not_deletion(papa: TestClient, client_db) -> None:
     assert all(i["id"] != item["id"] for day in band["days"] for i in day["fixed_items"])
 
 
+def _dans_la_bande(client: TestClient, item_id: int) -> bool:
+    band = client.get(f"{STUDENT}/week").json()
+    return any(i["id"] == item_id for day in band["days"] for i in day["fixed_items"])
+
+
+def test_massimo_peut_revenir_sur_son_masquage(papa: TestClient) -> None:
+    """La croix ✕ se rattrape — le symétrique que `dismiss` n'avait pas.
+
+    🔴 **Défaut trouvé à la RELECTURE HUMAINE le 2026-08-10** : un tap retirait un devoir de
+    l'agenda **définitivement**. Aucune route ne le rendait, et `dismissed_at` est exclu de
+    `_STUDENT_EDITABLE` comme de `_PARENT_EDITABLE` — Papa lui-même ne pouvait que le ressaisir.
+    Le §2c n'avait rien décidé là-dessus : l'irréversibilité était un oubli, désigné par
+    l'asymétrie avec `undone` dans le même routeur.
+
+    ⚠️ **TROIS assertions, et c'est le point.** Vérifier que l'item disparaît après `dismiss` ne
+    verrouille **rien** — une bande vide satisferait l'assertion négative aussi bien qu'une bande
+    correcte. Le verrou est l'aller-RETOUR : présent, puis absent, puis **présent de nouveau**.
+    """
+    item = _create_parent_item(papa)
+    _as_massimo()
+
+    assert _dans_la_bande(papa, item["id"]), "l'item doit être visible AVANT le masquage"
+    assert papa.post(f"{STUDENT}/items/{item['id']}/dismiss").status_code == 200
+    assert not _dans_la_bande(papa, item["id"])
+
+    assert papa.post(f"{STUDENT}/items/{item['id']}/undismiss").status_code == 200
+    assert _dans_la_bande(papa, item["id"]), "démasquer doit RENDRE l'item à l'agenda"
+
+
+def test_undismiss_ne_fuit_pas_dismissed_at(papa: TestClient) -> None:
+    """Le rattrapage n'ouvre aucun champ interdit : `AgendaItemStudentOut` reste muet sur les
+    horodatages (§2c). Un `response_model` filtre en silence — sans ce test, ajouter le champ au
+    service l'aurait exposé le jour où quelqu'un l'ajoute au schéma « pour déboguer »."""
+    item = _create_parent_item(papa)
+    _as_massimo()
+    papa.post(f"{STUDENT}/items/{item['id']}/dismiss")
+    corps = papa.post(f"{STUDENT}/items/{item['id']}/undismiss").json()
+    for interdit in ("dismissed_at", "parent_note", "created_at", "edited_by_parent_at"):
+        assert interdit not in corps, f"{interdit} ne doit jamais atteindre Massimo"
+
+
+def test_papa_rend_une_echeance_archivee(papa: TestClient) -> None:
+    """La moitié PARENTALE du rattrapage — celle qui compte quand le masquage était une esquive
+    et non un faux mouvement. Rend agissante l'asymétrie que le §2c pose déjà (« le parent voit
+    tout ») : jusque-là il voyait l'archive sans pouvoir la rendre."""
+    item = _create_parent_item(papa)
+    _as_massimo()
+    papa.post(f"{STUDENT}/items/{item['id']}/dismiss")
+    assert not _dans_la_bande(papa, item["id"])
+
+    app.dependency_overrides[get_current_user] = lambda: PAPA
+    response = papa.post(f"{PILOT}/items/{item['id']}/restore")
+    assert response.status_code == 200
+    assert response.json()["dismissed_at"] is None, "la ligne redevient visible, pas archivée"
+
+    _as_massimo()
+    assert _dans_la_bande(papa, item["id"]), "l'échéance rendue revient chez Massimo"
+
+
 # ── 6 & 11. Asymétrie de la bande, et aucune case vide sur un jour à venir (§6, §7) ──
 
 

@@ -136,6 +136,26 @@ def _plan_du_jour(client: TestClient) -> list[dict]:
 # ── Rien à afficher ⇒ RIEN (Décision 3 + adr-0025 §14.6) ─────────────────────────
 
 
+def test_le_plan_date_dans_LE_MEME_fuseau_que_le_reste_de_l_agenda() -> None:
+    """🔴 VERROU DE FUSEAU — un seul « aujourd'hui » dans tout l'agenda.
+
+    `plan._today()` rendait la date **UTC** jusqu'au 2026-08-11, quand la bande, les traces et les
+    sections datent en **Europe/Paris**. Entre minuit et 2 h les deux diffèrent d'un jour, donc
+    `jours_restants` valait un de trop : une échéance de DEMAIN passait pour J+2 et ZETIS
+    composait un plan que la Décision 3 interdit, avec une étape datée d'aujourd'hui.
+
+    ⚠️ **Ce test existe parce que les deux tests de comportement voisins ne suffisent PAS.** Ils
+    n'ont attrapé le bug que parce qu'on les a lancés à 00 h 16 — **22 h par jour ils étaient
+    verts sur du code faux**. Un verrou qui ne mord que deux heures sur vingt-quatre n'est pas un
+    verrou, c'est une loterie. Celui-ci compare les deux sources directement : il mord à
+    n'importe quelle heure, y compris en plein après-midi.
+    """
+    assert plan._today() == today_local(), (
+        "le plan doit dater en Europe/Paris comme le reste de l'agenda ; "
+        "`datetime.now(timezone.utc).date()` décale d'un jour entre minuit et 2 h"
+    )
+
+
 def test_pas_de_plan_a_j0_ni_j1(papa: TestClient, client_db) -> None:
     """Il n'y a pas de « rétro-planning » sur zéro jour disponible — et une échéance du jour
     même n'a plus rien à préparer."""

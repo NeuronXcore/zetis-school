@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 
 import app.db.models as m
 import app.modules.memory.service as srv
+from app.modules.activity.timeutils import today_local
 from app.modules.memory.service import (
     REVIEW_SESSION_MAX_CHAPTER,
     REVIEW_SESSION_MAX_SUBJECT,
@@ -730,7 +731,11 @@ def test_agenda_item_carries_its_revisable_count(client_db):
     """
     client, Session = client_db
     now = datetime.now(timezone.utc)
-    today = datetime.now(timezone.utc).date()
+    # 🔴 `today_local()`, JAMAIS la date UTC — sinon ce test échoue entre minuit et 2 h, et
+    # **le produit a raison** : à 00 h 16 Paris est déjà au 11 quand UTC dit encore le 10, une
+    # échéance datée en UTC tombe donc sur un jour PASSÉ, et la bande n'annonce jamais d'échéance
+    # sur un jour passé (§6, asymétrie calculée serveur). Le défaut était dans le test.
+    today = today_local()
     with Session() as db:
         student = _student(db)
         subj = _subject(db, "histoire", "Histoire")

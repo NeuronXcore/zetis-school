@@ -96,6 +96,19 @@ export async function dismissAgendaItem(id: number): Promise<AgendaItemStudent> 
   return item;
 }
 
+/** Démasque un item — le rattrapage de la croix ✕.
+ *
+ *  🔴 Cette route n'existait pas, et c'était le défaut : un tap retirait un devoir de l'agenda
+ *  **définitivement**, sans qu'aucune surface — ni celle de Massimo, ni celle de Papa — puisse
+ *  le rendre. Trouvé à la relecture humaine du 2026-08-10. */
+export async function undismissAgendaItem(id: number): Promise<AgendaItemStudent> {
+  const item = await asJson<AgendaItemStudent>(
+    await fetch(`${BASE}/items/${id}/undismiss`, { method: "POST", headers: headers() }),
+  );
+  notifyNewsChanged(); // il redevient un item de l'agenda — le témoin se recalcule
+  return item;
+}
+
 /** `POST /api/student/agenda/seen` — Massimo a regardé ce qui est arrivé (addendum §12.3).
  *
  *  Appelée depuis DEUX surfaces, et il en faut deux : l'ouverture de `/agenda` et le rendu du
