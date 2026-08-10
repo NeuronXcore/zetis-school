@@ -159,7 +159,36 @@ s'efface jamais.
 >
 > ⚠️ **Indépendant du `kind`** : un devoir rattaché à un cours y mène aussi.
 
-`plan_steps` (✦ sous le jour) : emplacement prévu, **vide en Lot 1**.
+### `plan_steps` — le plan de préparation `[0050]`
+
+**Ce n'était qu'un emplacement prévu, vide en Lot 1.** Il est rempli depuis l'`adr-0050` : sur une
+échéance datée qui porte un chapitre, ZETIS compose un **plan rétro-planifié** — jusqu'à **trois**
+étapes, réparties de demain à **la veille** de l'échéance, jamais le jour même.
+
+Chaque étape est un **lien vers ce qui existe déjà** (*lire le cours · lire la fiche · réviser les
+cartes du chapitre · petit quiz*), dans l'ordre pédagogique que le serveur porte déjà —
+*comprendre, puis mémoriser, puis se tester*. **Aucun LLM** : le plan se compose depuis le
+référentiel (ADR-0025 §8 rôle 1).
+
+- **Figé.** Composé à la première lecture, puis inchangé jusqu'à l'échéance — *« un plan qui se
+  recalcule à chaque ouverture est un plan auquel on ne fait pas confiance »*. Une fiche validée
+  après coup n'y entre pas.
+- 🔴 **Sauf si Papa déplace la date** : le plan est alors **supprimé**, coches comprises, et
+  recomposé à la lecture suivante. Un rétro-planning est une fonction de la date.
+- 🔴 **Rien à afficher ⇒ rien.** Échéance à J+0 ou J+1, chapitre absent, ou aucune activité
+  disponible → **`has_plan` faux et aucune surface**. Jamais un plan vide, jamais un « ✦ » qui
+  n'ouvre rien : même règle que la porte de révision (`adr-0049` Décision 2).
+- **Les étapes se cochent**, et cette coche vaut ce que vaut celle d'un item : une **déclaration**
+  de Massimo, **aucun XP, aucune célébration** (§3, `adr-0050` Décision 5). Le geste est déclaratif,
+  il ne se récompense pas — sinon Massimo apprend à cocher.
+
+  > ⚠️ **Jouer l'activité ne coche RIEN, et cocher n'exige pas de l'avoir jouée.** La preuve
+  > existe pourtant (une session de cartes laisse une trace) : s'en servir est l'option (B),
+  > **reportée**, pas écartée — elle créerait deux sémantiques de coche sur le même écran. Son
+  > déclencheur est nommé : le jour où Papa demandera à lire autre chose qu'une déclaration.
+
+> ⚠️ **`plan_steps` était typé `unknown[]`** dans `packages/types` : le contrat n'existait pas, il
+> est **créé** par ce chantier — c'est le seul endroit du dépôt où rien n'était à respecter.
 
 **Tap sur un jour → il s'ouvre, sous la bande** (addendum §17, 2026-08-10). Le panneau porte son
 travail, cochable, avec le lien vers le cours ; et **il répond toujours** — « Rien à rendre ce
