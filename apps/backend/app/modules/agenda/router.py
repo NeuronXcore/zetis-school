@@ -203,8 +203,7 @@ def pilot_create(req: AgendaItemsParentCreate, db: Session = Depends(get_db)) ->
         student_id=get_default_student(db).id,
         items=[item.model_dump(exclude_unset=True) for item in req.items],
     )
-    subjects = service.subjects_index(db)
-    return [service.pilot_out(item, subjects) for item in items]
+    return service.pilot_out_many(db, items)
 
 
 @router.post(
@@ -217,7 +216,7 @@ def pilot_create_single(req: AgendaItemParentCreate, db: Session = Depends(get_d
         student_id=get_default_student(db).id,
         items=[req.model_dump(exclude_unset=True)],
     )
-    return service.pilot_out(items[0], service.subjects_index(db))
+    return service.pilot_out_one(db, items[0])
 
 
 @router.patch("/items/{item_id}", response_model=AgendaItemPilotOut)
@@ -231,7 +230,7 @@ def pilot_patch(
         item_id=item_id,
         data=req.model_dump(exclude_unset=True),
     )
-    return service.pilot_out(item, service.subjects_index(db))
+    return service.pilot_out_one(db, item)
 
 
 @router.put("/items/{item_id}/note", response_model=AgendaItemPilotOut)
@@ -239,7 +238,7 @@ def pilot_note(item_id: int, req: AgendaNoteRequest, db: Session = Depends(get_d
     item = service.set_note(
         db, student_id=get_default_student(db).id, item_id=item_id, note=req.parent_note
     )
-    return service.pilot_out(item, service.subjects_index(db))
+    return service.pilot_out_one(db, item)
 
 
 @router.delete("/items/{item_id}", response_model=AgendaItemPilotOut)
@@ -247,4 +246,4 @@ def pilot_delete(item_id: int, db: Session = Depends(get_db)) -> dict:
     """ARCHIVAGE, pas suppression : la ligne reste en base (§2c). D'où un 200 avec l'item
     archivé, et non un 204 — la réponse dit ce qui s'est réellement passé."""
     item = service.archive(db, student_id=get_default_student(db).id, item_id=item_id)
-    return service.pilot_out(item, service.subjects_index(db))
+    return service.pilot_out_one(db, item)

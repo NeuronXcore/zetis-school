@@ -11,6 +11,7 @@ résoudre des notions et ne produire aucune étape `fiche`. Monter la chaîne en
 moyen de tester ce que la production fera vraiment.
 """
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -373,3 +374,153 @@ def test_une_etape_dun_autre_eleve_rend_404(papa: TestClient, client_db) -> None
     """404 et non 403 : un id inconnu et un id étranger doivent être INDISCERNABLES."""
     client, _ = client_db
     assert client.post(f"{STUDENT}/plan-steps/999999/done").status_code == 404
+
+
+# ── Papa LIT le plan, il ne le DÉCLENCHE pas (Décision 7) ────────────────────────
+
+
+def _etapes_en_base(Session) -> int:
+    with Session() as db:
+        return db.scalar(select(func.count(m.AgendaPlanStep.id))) or 0
+
+
+def _grille(client: TestClient) -> list[dict]:
+    """La grille de pilotage, sur une fenêtre qui couvre largement l'échéance."""
+    res = client.get(
+        f"{PILOT}/items",
+        params={
+            "from": (today_local() - timedelta(days=1)).isoformat(),
+            "to": (today_local() + timedelta(days=20)).isoformat(),
+        },
+    )
+    assert res.status_code == 200, res.text
+    return res.json()
+
+
+def test_lire_la_grille_de_papa_ne_COMPOSE_AUCUN_plan(papa: TestClient, client_db) -> None:
+    """🔴 **LE verrou de la Session C.**
+
+    Le §8 dit *« composé à la première lecture »* — la première lecture **de Massimo**. Si la
+    grille de Papa composait, il **figerait le plan de son fils** en relevant l'ENT le dimanche
+    soir, sur un état du référentiel antérieur aux fiches qu'il s'apprête justement à valider.
+    La surface de pilotage **constate**, elle ne provoque pas — même frontière que `done_at`,
+    que Papa lit et n'écrit jamais (§2b).
+
+    ⚠️ L'échéance est **réellement composable** (chapitre résolu, fiche + cartes + quiz, J+5) :
+    c'est ce qui rend le test probant. Sur une échéance sans plan possible, il passerait sans
+    rien prouver — le piège qui a rendu un verrou vert sur son sabotage.
+    """
+    _, Session = client_db
+    chapitre = _seed(Session)
+    _item(papa, jours=5, chapitre=chapitre)
+    assert _etapes_en_base(Session) == 0, "créer l'échéance ne compose rien non plus"
+
+    grille = _grille(papa)
+    assert _etapes_en_base(Session) == 0, "🔴 Papa vient de figer le plan de Massimo"
+    assert grille[0]["plan_steps_total"] == 0
+    assert grille[0]["plan_steps_done"] == 0
+
+    # Et Massimo, lui, le fait naître — sinon ce test prouverait seulement que rien ne marche.
+    assert len(_plan_du_jour(papa)) == 3
+    assert _etapes_en_base(Session) == 3
+
+
+def test_papa_lit_le_compte_du_plan_et_ses_coches(papa: TestClient, client_db) -> None:
+    """« plan en 3 étapes · 1 cochée » — deux entiers, calculés en base."""
+    _, Session = client_db
+    chapitre = _seed(Session)
+    _item(papa, jours=5, chapitre=chapitre)
+    etapes = _plan_du_jour(papa)  # la lecture de Massimo compose le plan
+
+    assert _grille(papa)[0]["plan_steps_total"] == 3
+    assert _grille(papa)[0]["plan_steps_done"] == 0
+
+    papa.post(f"{STUDENT}/plan-steps/{etapes[0]['id']}/done")
+    ligne = _grille(papa)[0]
+    assert (ligne["plan_steps_total"], ligne["plan_steps_done"]) == (3, 1)
+
+    # Décocher redescend : le compte suit la déclaration, il ne cumule pas.
+    papa.post(f"{STUDENT}/plan-steps/{etapes[0]['id']}/undone")
+    assert _grille(papa)[0]["plan_steps_done"] == 0
+
+
+def test_une_echeance_sans_plan_rend_zero_sur_zero(papa: TestClient, client_db) -> None:
+    """`0/0` et non `null` : la surface n'a aucun cas d'absence à traiter, elle rend RIEN."""
+    _, Session = client_db
+    _seed(Session)
+    _item(papa, jours=5, chapitre=None)
+    ligne = _grille(papa)[0]
+    assert (ligne["plan_steps_total"], ligne["plan_steps_done"]) == (0, 0)
+
+
+def test_deplacer_la_date_rend_zero_dans_la_REPONSE_du_patch(
+    papa: TestClient, client_db
+) -> None:
+    """🔴 La réponse du PATCH dit ce qui vient de se passer, pas ce qui était vrai avant.
+
+    Déplacer la date **supprime** le plan (Décision 4). Une route unitaire qui renverrait le
+    compte d'avant afficherait « 3 étapes » sur une échéance qui n'en a plus aucune — et il
+    aurait fallu recharger la page pour s'en apercevoir.
+    """
+    _, Session = client_db
+    chapitre = _seed(Session)
+    item = _item(papa, jours=5, chapitre=chapitre)
+    _plan_du_jour(papa)
+    assert _grille(papa)[0]["plan_steps_total"] == 3
+
+    res = papa.patch(
+        f"{PILOT}/items/{item['id']}",
+        json={"due_on": (today_local() + timedelta(days=9)).isoformat()},
+    )
+    assert res.status_code == 200, res.text
+    assert (res.json()["plan_steps_total"], res.json()["plan_steps_done"]) == (0, 0)
+
+
+def test_une_route_unitaire_rend_le_VRAI_compte_du_plan(papa: TestClient, client_db) -> None:
+    """🔴 Le pendant POSITIF du test ci-dessus, et il est indispensable.
+
+    Seul, l'autre est **vert sur son sabotage** : si `pilot_out_one` rendait toujours `{}`, il
+    verrait quand même `0/0` après un déplacement de date — le plan venant d'être supprimé, la
+    bonne réponse et la mauvaise coïncident. Démontré le 2026-08-10.
+
+    Il faut donc une route unitaire qui **ne touche pas** au plan et doit rendre un compte NON
+    NUL : la note privée. Saboter `pilot_out_one` en `plan={}` rougit ici, et seulement ici.
+    """
+    _, Session = client_db
+    chapitre = _seed(Session)
+    item = _item(papa, jours=5, chapitre=chapitre)
+    etapes = _plan_du_jour(papa)
+    papa.post(f"{STUDENT}/plan-steps/{etapes[0]['id']}/done")
+
+    res = papa.put(f"{PILOT}/items/{item['id']}/note", json={"parent_note": "revoir avec lui"})
+    assert res.status_code == 200, res.text
+    assert (res.json()["plan_steps_total"], res.json()["plan_steps_done"]) == (3, 1)
+
+
+def test_papa_ne_recoit_JAMAIS_les_etapes_elles_memes(papa: TestClient, client_db) -> None:
+    """🔴 Deux entiers, et rien d'autre (Décision 7).
+
+    Servir les étapes à Papa en ferait un **objet de pilotage** : il lirait ce que ZETIS a
+    proposé, puis voudrait le corriger — et le plan cesserait d'être un service rendu à Massimo.
+    L'assertion porte sur le **JSON sérialisé**, pas sur le schéma : c'est ce qui part sur le
+    réseau qui est exposé, quoi qu'en fasse l'UI.
+    """
+    _, Session = client_db
+    chapitre = _seed(Session)
+    _item(papa, jours=5, chapitre=chapitre)
+    _plan_du_jour(papa)
+
+    brut = json.dumps(_grille(papa))
+    for interdit in ("day_offset", "sort_order", "resource_id", "plan_steps\"", "steps\":"):
+        assert interdit not in brut, f"« {interdit} » ne doit jamais atteindre Papa"
+
+
+def test_aucune_route_ne_permet_a_papa_de_generer_un_plan(papa: TestClient, client_db) -> None:
+    """L'affordance n'existe pas — pas même en 403. Un plan est composé par la lecture de
+    Massimo, jamais par un geste d'adulte (Décision 7 : « aucune génération manuelle »)."""
+    _, Session = client_db
+    chapitre = _seed(Session)
+    item = _item(papa, jours=5, chapitre=chapitre)
+    for chemin in (f"{PILOT}/items/{item['id']}/plan", f"{PILOT}/plan-steps"):
+        assert papa.post(chemin).status_code == 404, chemin
+    assert _etapes_en_base(Session) == 0

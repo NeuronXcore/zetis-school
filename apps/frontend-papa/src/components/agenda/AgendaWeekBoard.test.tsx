@@ -25,6 +25,11 @@ function item(over: Partial<AgendaItemPilot> = {}): AgendaItemPilot {
     edited_by_parent_at: null,
     created_at: null,
     updated_at: null,
+    // ADR-0050 : servis par le pilotage depuis le 2026-08-10. Les omettre laissait passer un
+    // `undefined` que `tsc -b` attrape ici — les tests de Papa SONT dans le projet typé, à la
+    // différence de ceux de Massimo.
+    plan_steps_total: 0,
+    plan_steps_done: 0,
     ...over,
   };
 }
@@ -106,5 +111,50 @@ describe("AgendaWeekBoard — l'état d'un item", () => {
     renderBoard([item()]);
     expect(screen.getByText("à faire")).toBeInTheDocument();
     expect(screen.queryByText(/coché/)).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// L'ÉTIQUETTE DU PLAN DE PRÉPARATION (ADR-0050 Décision 7) — et surtout, son ABSENCE
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+const etiquettePlan = () => screen.queryByText(/^✦ \d+\/\d+$/);
+
+describe("AgendaWeekBoard — le plan de préparation, en lecture", () => {
+  it("🔴 VERROU — sans plan, AUCUNE étiquette n'est rendue", () => {
+    // La plupart des échéances n'ont pas de plan (il faut un chapitre et au moins 2 jours). Un
+    // « ✦ 0/0 » sur chacune ferait de la grille un tableau de manques — et il désignerait un
+    // manque dont Papa n'est pas l'auteur.
+    const { container } = renderBoard([item({ plan_steps_total: 0, plan_steps_done: 0 })]);
+    expect(etiquettePlan()).toBeNull();
+    expect(container.textContent).not.toContain("✦");
+  });
+
+  it("affiche le compte quand le plan existe", () => {
+    renderBoard([item({ plan_steps_total: 3, plan_steps_done: 1 })]);
+    expect(etiquettePlan()).toHaveTextContent("✦ 1/3");
+  });
+
+  it("🔴 VERROU — jamais « fait » : Papa lit une DÉCLARATION de Massimo (§14.7)", () => {
+    // Le seul fait connu est qu'il a touché une case. Le reste de cette page l'écrit déjà
+    // correctement (« ✓ coché »), et l'étiquette du plan ne doit pas rouvrir la brèche.
+    const { container } = renderBoard([item({ plan_steps_total: 3, plan_steps_done: 3 })]);
+    expect(container.textContent).not.toMatch(/faite?s?\b/i);
+    expect(container.textContent).not.toMatch(/terminé|complété|réussi/i);
+  });
+
+  it("VERROU — l'étiquette n'est pas un bouton : Papa ne pilote pas le plan", () => {
+    // Décision 7 : aucun geste, aucune édition, aucune génération manuelle. Le plan est un
+    // service rendu à Massimo. Une étiquette cliquable serait la première marche vers un
+    // « régénérer » — c'est-à-dire vers une prescription d'adulte.
+    // ⚠️ L'assertion ne peut PAS être « aucun bouton ne s'appelle ✦ » : la cellule entière est
+    // déjà un bouton de SÉLECTION, et il porte le texte de toutes ses étiquettes. Ce qu'on
+    // verrouille, c'est qu'aucun contrôle DÉDIÉ au plan n'existe.
+    renderBoard([item({ plan_steps_total: 3, plan_steps_done: 1 })]);
+    expect(etiquettePlan()!.tagName).toBe("SPAN");
+    for (const interdit of [/plan/i, /générer/i, /régénérer/i, /étape/i]) {
+      expect(screen.queryByRole("button", { name: interdit })).toBeNull();
+      expect(screen.queryByRole("link", { name: interdit })).toBeNull();
+    }
   });
 });

@@ -28,10 +28,11 @@ testables, Massimo ne verra pas six « petit quiz » : le plan dit **par où com
 ce qu'on pourrait faire. La panoplie complète reste accessible depuis la galaxie.
 """
 
+from collections.abc import Sequence
 from datetime import date, datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import AgendaItem, AgendaPlanStep
@@ -187,6 +188,40 @@ def get_or_create_plan(db: Session, item: AgendaItem) -> list[AgendaPlanStep]:
     for etape in crees:
         db.refresh(etape)
     return crees
+
+
+def plan_counts(db: Session, item_ids: Sequence[int]) -> dict[int, tuple[int, int]]:
+    """`{agenda_item_id: (étapes, cochées)}` — **LECTURE PURE, EN LOT** (ADR-0050 Décision 7).
+
+    🔴 **Ne compose RIEN et n'écrit RIEN**, et c'est la raison d'être de cette fonction. Compter
+    via `get_or_create_plan` aurait fait de **Papa le déclencheur du figement** : il ouvre sa
+    grille le dimanche soir en relevant l'ENT, et le plan de Massimo se fige là, sur un état du
+    référentiel antérieur aux fiches que Papa s'apprête justement à valider.
+
+    Le §8 dit *« composé à la première lecture »* — la première lecture **de Massimo**. La surface
+    de pilotage **constate**, elle ne provoque pas. C'est la même frontière que `done_at`, que Papa
+    lit et n'écrit jamais (§2b).
+
+    ⚠️ **En lot** : la grille de Papa rend deux semaines d'items. Une requête par ligne dans la
+    boucle de rendu ferait N requêtes par page — patron de `revisable_counts`.
+
+    ⚠️ Une échéance **sans plan** est absente du résultat, elle ne rend pas `(0, 0)` : c'est à
+    l'appelant de choisir son défaut, et `pilot_out` l'exige explicitement.
+    """
+    if not item_ids:
+        return {}
+    lignes = db.execute(
+        select(
+            AgendaPlanStep.agenda_item_id,
+            func.count(AgendaPlanStep.id),
+            # `done_at IS NOT NULL` compté en base : ramener les lignes pour les compter en
+            # Python ferait transiter tout le plan pour deux entiers.
+            func.count(AgendaPlanStep.done_at),
+        )
+        .where(AgendaPlanStep.agenda_item_id.in_(item_ids))
+        .group_by(AgendaPlanStep.agenda_item_id)
+    ).all()
+    return {item_id: (total, coches) for item_id, total, coches in lignes}
 
 
 def drop_plan(db: Session, item: AgendaItem) -> int:

@@ -133,6 +133,19 @@ export interface AgendaItemPilot {
   edited_by_parent_at: string | null;
   created_at: string | null;
   updated_at: string | null;
+  /** Le plan de préparation de Massimo, **en lecture seule** (ADR-0050 Décision 7).
+   *
+   *  🔴 **Deux entiers, et aucune étape.** Servir les étapes ici ferait du plan un objet de
+   *  pilotage : Papa lirait ce que ZETIS a proposé, puis voudrait le corriger. `0/0` = pas de
+   *  plan, et la surface ne rend alors **rien**.
+   *
+   *  ⚠️ « cochées », JAMAIS « faites » (addendum ADR-0025 §14.7) : le serveur ne sait rien
+   *  d'autre qu'un `done_at` posé par une route élève.
+   *
+   *  ⚠️ Lire ces champs ne **compose** aucun plan — le serveur compte les étapes existantes.
+   *  Papa ne doit pas devenir le déclencheur du figement. */
+  plan_steps_total: number;
+  plan_steps_done: number;
 }
 
 export interface AgendaItemDraft {

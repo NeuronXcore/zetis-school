@@ -33,6 +33,11 @@ function item(overrides: Partial<AgendaItemPilot> = {}): AgendaItemPilot {
     edited_by_parent_at: null,
     created_at: null,
     updated_at: null,
+    // ADR-0050 : servis par le pilotage depuis le 2026-08-10. Les omettre laissait passer un
+    // `undefined` que `tsc -b` attrape ici — les tests de Papa SONT dans le projet typé, à la
+    // différence de ceux de Massimo.
+    plan_steps_total: 0,
+    plan_steps_done: 0,
     ...overrides,
   };
 }
@@ -146,5 +151,68 @@ describe("AgendaDetailPanel — l'intitulé (addendum ADR-0025 §13)", () => {
     renderPanel({ chapter_id: null });
     expect(screen.getByLabelText("Intitulé").tagName).toBe("INPUT");
     expect(screen.queryByRole("button", { name: /choisir un cours/ })).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// LE PLAN DE PRÉPARATION — quatrième refus : Papa CONSTATE (ADR-0050 Décision 7)
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+describe("AgendaDetailPanel — le plan de préparation", () => {
+  it("🔴 VERROU — sans plan, la section n'EXISTE PAS", () => {
+    const { container } = renderPanel({ plan_steps_total: 0, plan_steps_done: 0 });
+    expect(container.textContent).not.toContain("Plan de préparation");
+    expect(container.textContent).not.toContain("✦");
+  });
+
+  it("dit ce que ZETIS a proposé, et ce que Massimo en a coché", () => {
+    renderPanel({ chapter_id: 3, plan_steps_total: 3, plan_steps_done: 1 });
+    expect(screen.getByText(/Plan de préparation/)).toBeInTheDocument();
+    expect(screen.getByText(/3 étapes/)).toBeInTheDocument();
+    expect(screen.getByText(/1 cochée/)).toBeInTheDocument();
+  });
+
+  it("le singulier et le zéro sont respectés", () => {
+    const { unmount } = renderPanel({ plan_steps_total: 3, plan_steps_done: 0 });
+    expect(screen.getByText(/Aucune n'est cochée/)).toBeInTheDocument();
+    unmount();
+
+    renderPanel({ plan_steps_total: 3, plan_steps_done: 2 });
+    expect(screen.getByText(/2 cochées/)).toBeInTheDocument();
+  });
+
+  it("🔴 VERROU — « cochée », JAMAIS « faite » (§14.7)", () => {
+    // Cocher ne prouve rien : le serveur ne connaît qu'un `done_at` posé par une route élève.
+    // Écrire « faite » ferait croire à Papa que ZETIS a constaté un travail.
+    //
+    // ⚠️ L'assertion vise LA PHRASE du plan, pas tout le panneau — et c'est ce qui la rend
+    // probante. Une première version cherchait « étapes faites » dans le conteneur entier :
+    // elle passait sur le sabotage (« 3 cochées faites par lui ») ET ne pouvait pas être
+    // élargie, le panneau contenant légitimement « marquer cette échéance comme faite ».
+    renderPanel({ plan_steps_total: 3, plan_steps_done: 3 });
+    const phrase = screen.getByText(/ZETIS a proposé/);
+    expect(phrase.textContent).toMatch(/cochées/);
+    expect(phrase.textContent).not.toMatch(/faites?\b/i);
+    expect(phrase.textContent).not.toMatch(/terminée|réussie|complétée/i);
+  });
+
+  it("🔴 VERROU — AUCUNE affordance de pilotage sur le plan", () => {
+    // Décision 7 : « aucun geste, aucune édition, aucune génération manuelle ». Le plan est un
+    // service rendu à Massimo ; le donner à corriger le transformerait en prescription d'adulte,
+    // et l'agenda redeviendrait le carnet que l'ADR-0025 §8 refuse.
+    renderPanel({ chapter_id: 3, plan_steps_total: 3, plan_steps_done: 1 });
+    for (const interdit of [/générer/i, /régénérer/i, /recomposer/i, /modifier le plan/i, /étape/i]) {
+      expect(screen.queryByRole("button", { name: interdit })).toBeNull();
+    }
+  });
+
+  it("🔴 VERROU — plus aucune annonce « pas encore possible » sur la révision", () => {
+    // Le panneau affirmait « **Réviser les cartes du chapitre** n'est pas encore possible » —
+    // faux depuis le merge de l'adr-0049. Une annonce d'indisponibilité qui survit à sa
+    // livraison est pire qu'un silence : elle décourage un geste devenu possible.
+    // ⚠️ Saboter en remettant la phrase doit ROUGIR : c'est l'étape 4bis portée dans le CODE.
+    const { container } = renderPanel({ chapter_id: 3 });
+    expect(container.textContent).not.toMatch(/pas encore possible/i);
+    expect(container.textContent).not.toMatch(/n'est pas encore/i);
   });
 });

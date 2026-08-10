@@ -173,6 +173,17 @@ class AgendaItemPilotOut(BaseModel):
     edited_by_parent_at: datetime | None
     created_at: datetime | None
     updated_at: datetime | None
+    # Le plan de préparation, EN LECTURE (ADR-0050 Décision 7). Papa constate, il ne pilote pas :
+    # aucune route de génération, aucune édition, aucune coche — le plan est un service rendu à
+    # Massimo.
+    #
+    # 🔴 **Deux entiers et rien d'autre.** Servir les étapes ici en ferait un objet de pilotage :
+    # Papa lirait ce que ZETIS a proposé, puis voudrait le corriger. `0/0` = pas de plan.
+    #
+    # ⚠️ « cochées », JAMAIS « faites » (§14.7) : le serveur ne sait rien d'autre qu'un `done_at`
+    # posé par une route élève (Décision 5, option A).
+    plan_steps_total: int = 0
+    plan_steps_done: int = 0
 
 
 class AgendaItemParentCreate(BaseModel):
