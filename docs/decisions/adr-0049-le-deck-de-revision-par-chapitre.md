@@ -2,9 +2,26 @@
 
 ## Statut
 
-**Accepté — 2026-08-10.** Les **sept décisions sont gelées**. Le prérequis de décision est levé :
-les sessions de `prompts/claude-code/prompts-claude-code-adr-0049.md` peuvent démarrer, après
-`/ouverture`.
+**Accepté — 2026-08-10.** Les **sept décisions sont gelées**.
+
+✅ **LIVRÉ ET MERGÉ — 2026-08-10, le jour même.** PR
+[#109](https://github.com/NeuronXcore/zetis-school/pull/109), **squash `117b632`**, parent
+`7d4823c` (vérifié). Deux sessions, **aucune migration**, aucun endpoint neuf — le deck et le
+contexte s'ajoutent aux trois routes existantes. Branche `feat/deck-revision-chapitre`
+**conservée**, locale et distante. `CHANGELOG.md` **0.72.0** · `TROUBLESHOOTING.md` une section,
+six sous-sections.
+
+✅ **La relecture visuelle humaine a EU LIEU (2026-08-10) — aucun défaut remonté.** ⚠️ Elle s'est
+faite **après** l'ouverture de la PR, là où le §Suivi la voulait **avant** : écart assumé par le
+commanditaire, signalé et consigné dans le corps de la PR.
+
+> ⚠️ **Formulation volontaire : *aucun défaut remonté*, et non « rien relevé ».** Le second serait
+> une affirmation sur ce que la relecture a vu ; seul le premier est établi. La distinction compte
+> parce que « rien relevé » est **l'exception** dans ce dépôt — celle de l'`adr-0043` avait sorti
+> cinq défauts en quelques minutes.
+>
+> 🔴 **Et cette ligne doit MOURIR à l'élagage, pas y survivre.** Le 2026-08-09, la même phrase est
+> restée vingt-quatre heures sur l'`adr-0044` après sa livraison, recopiée dans trois fichiers.
 
 > Historique : Proposé — 2026-08-10, **le même jour**. Écrit sur `main`, **sans une ligne de code**,
 > selon le rituel `mockup → spec → ADR → prompt` (`docs/WORKFLOW.md`) : maquette

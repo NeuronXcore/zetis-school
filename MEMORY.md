@@ -7,11 +7,13 @@
 ## État à la reprise
 
 **Chantier : le deck de révision par chapitre — ADR-0049, le couplage 2 du §11 de l'ADR-0025.**
-🟡 **PR [#109](https://github.com/NeuronXcore/zetis-school/pull/109) OUVERTE, PAS ENCORE MERGÉE.**
+✅ **MERGÉ le 2026-08-10 — PR [#109](https://github.com/NeuronXcore/zetis-school/pull/109), squash
+`117b632`.** Rien à reprendre, rien à ré-implémenter.
 
 | | |
 |---|---|
-| **Branche** | `feat/deck-revision-chapitre`, commit **`20b4ad2`**, poussée. Base `7d4823c` |
+| **Merge** | squash **`117b632`** sur `main`, **parent `7d4823c`** — vérifié. Le détail des 2 commits : `git log --oneline 7d4823c..feat/deck-revision-chapitre` |
+| **Branche** | `feat/deck-revision-chapitre` — 🔴 **CONSERVÉE sur `origin`, ne pas supprimer sans consigne** (`delete_branch_on_merge: false`). **Douze** branches de chantier dorment ainsi |
 | **Cadrage** | `adr-0049` **`Accepté`** + sa ligne `DECISIONS.md` — sur **`main`**, commit `7d4823c`, **poussé**. ⚠️ Ils ne sont PAS dans la PR, et c'est voulu |
 | **Migration** | **AUCUNE** — l'effet réutilise `SpacedReviewAttempt.is_consolidation`, qui existe |
 | **Suites** | Backend **1159** · Massimo **594** · Papa **784** · `tsc -b` vert sur les trois |
@@ -41,8 +43,8 @@ objet — et **n'écrit aucun état SRS**.
 
 ### EN COURS — rien d'instable
 
-Arbre propre au moment du commit. `CHANGELOG.md` **0.72.0**, `TROUBLESHOOTING.md` sa section, et ce
-fichier restent **non commités** — ils sont la clôture, à committer sur la branche.
+Aucun fichier à moitié écrit. Tout est mergé. `CHANGELOG.md` **0.72.0** et la section
+`TROUBLESHOOTING.md` sont sur `main`.
 
 ### ✅ PIÈGES du chantier — ÉCRITS dans `TROUBLESHOOTING.md`
 
@@ -250,26 +252,27 @@ Massimo déjà incomplète avant le chantier.
 > été **élagué de ce fichier** à la clôture du présent chantier — ses dettes survivent aux §§
 > ci-dessus.
 
-1. ✅ ~~Commit~~ · ✅ ~~push~~ · ✅ ~~PR #109~~ — faits le 2026-08-10, **sur demande explicite du
-   user** (dérogation assumée). ✅ ~~Relecture visuelle~~ — faite, **aucun défaut remonté**.
-2. 🔴 **RESTE À COMMITTER sur la branche** : `CHANGELOG.md` **0.72.0**, la section
-   `TROUBLESHOOTING.md`, et ce fichier. Ils sont écrits, **pas commités**.
-3. 🔴 **MERGER la PR #109**, puis **étape 4bis** (`docs/WORKFLOW.md §5`) — remettre ce fichier au
-   réel **dans l'heure**, et surtout **ÉTEINDRE LES ANNONCES « À FAIRE »** là où ce chantier était
-   promis :
-   - `docs/decisions/adr-0025-addendum-lecon-a-apprendre.md` **§14.6** dit encore *« le couplage 2
-     du §11, livré à 0 % »* et *« aucune affordance de l'agenda ne doit suggérer une session de
-     révision »* — **les deux sont devenus faux** ;
-   - `docs/frontend-massimo/page-revision.md` §« Hors périmètre V1 » ;
-   - `DECISIONS.md`, l. 319 et 323, qui portent le même « livré à 0 % ».
-   ⚠️ **Aucun des quatre contrôles de l'étape 4bis ne demande ce geste-là** — c'est le cinquième,
-   et c'est celui qui a manqué vingt-quatre heures sur l'`adr-0044`.
-4. **AUCUNE migration à poser en prod** pour ce chantier. ⚠️ Mais deux migrations héritées y
-   restent dues (§ DETTES) — vérifier avant de croire la prod à jour.
-5. **Le chantier suivant, désormais débloqué** : le **plan de préparation** (`plan_steps`, câblé et
-   vide, §8 rôle 1 de l'ADR-0025). Le §14.6 le faisait dépendre du couplage 2 ; ses étapes sont
-   « lire la fiche · mini-quiz · **réviser les cartes du chapitre** », et la troisième existe enfin.
-   ⚠️ Il demandera d'abord de trancher `step_type = lesson`, **déclaré mais mort**.
+1. ✅ ~~Commit~~ · ✅ ~~push~~ · ✅ ~~PR #109~~ · ✅ ~~clôture (CHANGELOG 0.72.0, pièges, MEMORY)~~ ·
+   ✅ ~~**merge (squash `117b632`)**~~ · ✅ ~~**étape 4bis**~~ — **tout fait le 2026-08-10**, et cette
+   section a été remise au réel **dans l'heure** de chaque geste (`docs/WORKFLOW.md §5`).
+   ✅ ~~Relecture visuelle~~ — faite, **aucun défaut remonté**. **Ce chantier est CLOS.**
+2. ✅ **L'étape 4bis a éteint les annonces devenues fausses**, et c'est son cinquième contrôle —
+   celui qu'aucun des quatre autres ne demande : `adr-0025-addendum-lecon-a-apprendre.md` §14.6
+   (« livré à 0 % » + l'interdiction d'affordance), `DECISIONS.md` l. 319, et le §Statut de
+   l'`adr-0049`. ⚠️ **Le §14.6 est conservé, pas effacé** : son raisonnement reste juste, seul son
+   état de fait est périmé.
+3. ✅ **Les QUATRE contrôles du `WORKFLOW.md §6.3` passent** : ADR ✅ (`adr-0049`) ·
+   `TROUBLESHOOTING.md` ✅ (1 section, 6 sous-sections) · `CHANGELOG.md` ✅ (0.72.0) · dettes
+   remontées ✅ (§ ci-dessus). 👉 **Cette section peut être ÉLAGUÉE à la clôture du chantier
+   suivant** — ses dettes survivantes sont à remonter au § du même nom.
+4. **AUCUNE migration** posée par ce chantier. ⚠️ Deux migrations héritées restent dues en prod
+   (§ DETTES) — vérifier avant de croire la prod à jour.
+5. 🔴 **PROCHAIN CHANTIER : le plan de préparation** (`plan_steps`, câblé et vide, ADR-0025 §8
+   rôle 1). Le §14.6 le faisait dépendre du couplage 2 ; **la dépendance est levée**, ses étapes
+   sont « lire la fiche · mini-quiz · **réviser les cartes du chapitre** », et la troisième existe
+   enfin. ⚠️ Il faudra d'abord trancher `step_type = lesson`, **déclaré mais toujours mort** — le
+   seul des trois constats du §14.6 qui survive. Passer par `/ouverture` depuis un `main` propre :
+   **le cadrage (ADR + maquette + prompt) n'existe pas**, et l'`/ouverture` s'arrêtera sans lui.
 6. **Toujours en attente** : 🔴 **ouvrir LE diagnostic depuis Papa** (§ DETTES du chantier #107).
 
 

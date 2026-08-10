@@ -95,6 +95,20 @@ pas — c'est le raisonnement de `SKIP_*` dans `triggers.py`, appliqué à l'éc
 
 ### 14.6 — Ce que cet addendum refuse de promettre : « réviser »
 
+> ✅ **LEVÉ le 2026-08-10 par l'`adr-0049`** — le jour même, PR
+> [#109](https://github.com/NeuronXcore/zetis-school/pull/109), squash `117b632`. Le couplage 2
+> existe : le deck `{chapter}` sert des cartes non dues sans écrire aucun état SRS, et une porte
+> « 🃏 Réviser ce chapitre » vit sur l'échéance — **elle n'apparaît que si le chapitre résout des
+> cartes**, jamais grisée.
+>
+> **Ce paragraphe est conservé au dossier, pas effacé** : son raisonnement reste juste, et c'est
+> lui qui a ordonné le chantier suivant. Mais ses trois constats et son interdiction sont
+> **périmés** — les lire aujourd'hui comme l'état du dépôt enverrait une session re-cadrer un
+> chantier fait.
+>
+> ⚠️ **Un seul des trois constats survit** : `step_type = lesson` est **toujours déclaré et mort**.
+> Il appartient au plan de préparation, désormais débloqué.
+
 La question qui a ouvert ce chantier était *« comment demander à Massimo de réviser ? »*. La
 réponse honnête est : **on ne peut pas encore**, et cet addendum ne fait pas semblant.
 
@@ -112,6 +126,11 @@ Corollaire d'ordonnancement : le **plan de préparation** (§8 rôle 1, dont `pl
 l'emplacement câblé et vide) vient **après** le couplage 2, jamais avant — ses étapes sont « lire la
 fiche · mini-quiz · **réviser les cartes du chapitre** ». Le construire d'abord serait le poser sur
 le trou.
+
+> ✅ **Le corollaire a joué, et il a tenu.** Le couplage 2 est livré (`adr-0049`, 2026-08-10) ; la
+> troisième étape du plan existe désormais, et le plan de préparation est **le chantier suivant**.
+> C'est le seul endroit du dépôt où un ordre de chantiers a été décidé d'avance, écrit, puis
+> respecté — et où l'attendre a évité de poser un plan sur un trou.
 
 ### 14.7 — Papa lit « coché », jamais « fait »
 
