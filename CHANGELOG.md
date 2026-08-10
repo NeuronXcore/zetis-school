@@ -1,5 +1,33 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.75.0 — On ne valide plus un cours vide
+
+Le statut d'une leçon ne disait **rien de son contenu**. Une leçon sans une ligne pouvait passer
+`validated`, et le gate de l'ADR-0011 — qui filtre sur le seul `status` — la servait alors à
+Massimo : une page blanche au bout d'un lien. Mesuré en base le jour du correctif :
+**50 leçons `validated` sur 88 étaient vides**, soit **57 % du corpus validé**. La dette était
+consignée depuis le 2026-08-04, elle en comptait 39 : elle avait grossi.
+
+Trouvé en lisant la page Diagnostic de Papa, qui proposait « Valider le cours de cette leçon »
+sur trois lacunes dont la leçon n'a jamais eu de contenu.
+
+**La validation unitaire répond désormais 409** sur un cours vide — et **rejeter reste permis**,
+c'est précisément ce qu'on archive. **Le lot, lui, SAUTE** les leçons vides au lieu de planter :
+un 409 à la première aurait empêché de valider tout le reste du chapitre. Et il **compte ce qu'il
+a sauté**, jusqu'à l'écran — sans quoi Papa lirait « 3 validées » là où il en attendait 8, sans
+rien pour lui dire pourquoi. Un manque silencieux se lit comme une panne.
+
+⚠️ **Deux hypothèses démenties par le read-before-code**, et c'est ce qui a rendu le correctif
+juste : la création manuelle n'explique **qu'une** de ces 50 leçons (pas 50), et la garde est
+**transparente pour la production** — `equip_notion` rédige le cours *avant* de le valider, il ne
+l'a jamais validé vide.
+
+🔴 **Ce que ce correctif ne fait PAS** : les 50 leçons déjà validées et vides restent là. Les
+repasser en `draft`, leur commander une rédaction ou les archiver est une **décision produit**,
+pas un correctif — chacune retire ou laisse quelque chose sur l'écran de Massimo.
+
+**Aucune migration.**
+
 ## 0.74.0 — Ce que l'œil a vu et qu'aucun test ne regardait
 
 Quatre défauts de l'agenda, **trois trouvés par le commanditaire en quinze minutes devant

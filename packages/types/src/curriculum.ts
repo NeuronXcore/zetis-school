@@ -64,6 +64,11 @@ export interface ChapterReorderRequest {
 /** Réponse des endpoints `POST .../validate-all` (lot matière ou année). */
 export interface BatchValidationResult {
   validated_count: number;
+  /** Leçons SAUTÉES parce que leur cours est vide (2026-08-11) — `0` sur un lot de chapitres,
+   *  qui n'a rien à sauter. Valider un cours vide donnerait à Massimo une leçon sans une ligne,
+   *  que le gate de l'ADR-0011 (qui filtre sur le seul `status`) laisserait passer. Le champ
+   *  existe pour que le manque ne soit pas silencieux à l'écran. */
+  skipped_empty_count?: number;
 }
 
 /** `status` d'une leçon ≈ validation (ADR-0009 §3) : draft = à valider, archived = rejetée. */

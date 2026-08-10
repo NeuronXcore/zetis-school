@@ -352,9 +352,24 @@ def test_manual_lesson_crud_and_validation_flow(client_db) -> None:
             set_lesson_validation(db, lesson.id, "validate")
         assert exc.value.status_code == 409
 
+        # 🔴 VERROU (2026-08-11) — un brouillon au cours VIDE ne se valide pas. Ce test créait
+        # exactement ça et attendait `validated` : il exerçait le défaut qui a produit 50 leçons
+        # `validated` vides sur 88, servables par le gate de l'ADR-0011 qui ne lit que `status`.
+        vide = m.Lesson(
+            chapter_id=chapter_id, title="Brouillon sans cours", status="draft",
+            created_by="ai", sort_order=9,
+        )
+        db.add(vide)
+        db.commit()
+        with pytest.raises(HTTPException) as exc_vide:
+            set_lesson_validation(db, vide.id, "validate")
+        assert exc_vide.value.status_code == 409
+        # ⚠️ Le REJET d'une leçon vide reste permis — c'est le geste qu'on attend sur elle.
+        assert set_lesson_validation(db, vide.id, "reject").status == "archived"
+
         draft = m.Lesson(
             chapter_id=chapter_id, title="Brouillon IA", status="draft",
-            created_by="ai", sort_order=1,
+            created_by="ai", sort_order=1, content_markdown="## Cours\n\nUne vraie ligne.",
         )
         db.add(draft)
         db.commit()

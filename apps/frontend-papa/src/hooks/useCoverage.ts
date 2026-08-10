@@ -145,13 +145,30 @@ export function useCoverage(subjectId: number | null) {
    * qui bloque la ligne. La provenance `parent_bulk` est écrite côté serveur et devient
    * visible dans la colonne Cours — Papa approuve sans avoir tout ouvert, et ça se voit. */
   const [validatingChapterId, setValidatingChapterId] = useState<number | null>(null);
+  /** Ce que le dernier lot a SAUTÉ — un constat, jamais une erreur : le geste a réussi pour le
+   *  reste. Distinct de `error`, qui porte les échecs, et rendu dans un ton neutre. */
+  const [skippedNotice, setSkippedNotice] = useState<string | null>(null);
   const validateChapterLessons = useCallback(
     async (chapterId: number) => {
       if (validatingChapterId !== null) return;
       setValidatingChapterId(chapterId);
       setError(null);
+      setSkippedNotice(null);
       try {
-        await validateAllLessons(chapterId);
+        const res = await validateAllLessons(chapterId);
+        // 🔴 **Le lot saute les cours VIDES, et il faut le DIRE** (2026-08-11). Valider une leçon
+        // sans contenu donnait à Massimo une page blanche que le gate de l'ADR-0011 laissait
+        // passer — 50 leçons `validated` sur 88 étaient dans ce cas. Le serveur les saute
+        // désormais ; sans ce message, Papa cliquerait, verrait la ligne inchangée, et n'aurait
+        // **aucun moyen de savoir pourquoi**. Un manque silencieux se lit comme une panne.
+        // `?? 0` : le champ est optionnel au contrat (les lots de CHAPITRES ne le portent pas).
+        const n = res.skipped_empty_count ?? 0;
+        if (n > 0) {
+          setSkippedNotice(
+            `${n} leçon${n > 1 ? "s" : ""} non validée${n > 1 ? "s" : ""} : ` +
+              `son cours est vide. Il faut le rédiger avant — valider ne donnerait rien à lire.`,
+          );
+        }
         await reload();
       } catch (cause: unknown) {
         setError(cause instanceof Error ? cause.message : "Validation en lot échouée");
@@ -176,6 +193,7 @@ export function useCoverage(subjectId: number | null) {
     generateCards,
     validatingChapterId,
     validateChapterLessons,
+    skippedNotice,
     reload,
   };
 }

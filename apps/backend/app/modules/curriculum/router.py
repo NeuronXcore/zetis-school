@@ -19,6 +19,7 @@ from app.modules.notions.schemas import NotionRequestOut, NotionRequestPatch
 from app.modules.curriculum.schemas import (
     ActiveSchoolYearOut,
     BatchValidationResult,
+    LessonBatchValidationResult,
     ChapterManualCreate,
     ChapterPatch,
     ChapterReorderRequest,
@@ -147,14 +148,22 @@ def validate_all_chapters(
     return {"validated_count": count}
 
 
-@router.post("/chapters/{chapter_id}/lessons/validate-all", response_model=BatchValidationResult)
+@router.post(
+    "/chapters/{chapter_id}/lessons/validate-all",
+    response_model=LessonBatchValidationResult,
+)
 def validate_all_lessons(chapter_id: int, db: Session = Depends(get_db)) -> dict:
-    """Validation par lot des leçons `draft` d'un chapitre.
+    """Validation par lot des leçons `draft` d'un chapitre **dont le cours est écrit**.
 
     Provenance `parent_bulk` (addendum ADR-0011 §F.3) : Papa approuve, sans avoir ouvert
-    chaque leçon — et la page Couverture le montrera, objet par objet."""
-    count = service.validate_all_lessons(db, chapter_id)
-    return {"validated_count": count}
+    chaque leçon — et la page Couverture le montrera, objet par objet.
+
+    🔴 **Les leçons au cours vide sont SAUTÉES et COMPTÉES** (2026-08-11) : les valider donnerait
+    à Massimo des leçons sans une ligne, que le gate de l'ADR-0011 laisserait passer. Le lot ne
+    s'interrompt pas pour autant — sinon une seule leçon vide empêcherait de valider tout le reste.
+    """
+    validated, skipped = service.validate_all_lessons(db, chapter_id)
+    return {"validated_count": validated, "skipped_empty_count": skipped}
 
 
 @router.post("/school-years/active/chapters/validate-all", response_model=BatchValidationResult)

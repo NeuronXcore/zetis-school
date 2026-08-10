@@ -146,7 +146,18 @@ Validation par lot des `pending` (matière, ou toute l'année active).
 
 #### POST `/chapters/{id}/lessons/validate-all`
 
-Validation par lot des leçons `draft` d'un chapitre. Sortie `{ "validated_count": n }`.
+Validation par lot des leçons `draft` d'un chapitre **dont le cours est écrit**.
+Sortie `{ "validated_count": n, "skipped_empty_count": m }`.
+
+🔴 **Les leçons au cours VIDE sont SAUTÉES et COMPTÉES** (2026-08-11) — pas refusées : un 409 à la
+première leçon vide n'aurait rien validé du tout, et Papa n'aurait eu aucun moyen d'avancer sur le
+reste du chapitre. Les valider donnait à Massimo une leçon sans une ligne, que le gate de
+l'ADR-0011 — qui filtre sur le seul `status` — laissait passer. Ce chemin exact a produit
+**26 des 50 leçons `validated` vides** mesurées en base ce jour-là (`validated_by='parent_bulk'`).
+
+⚠️ **`skipped_empty_count` n'est pas décoratif** : sans lui, Papa lit « 3 validées » là où il en
+attendait 8 et **rien ne dit pourquoi**. La page Couverture le rend en clair, dans un ton neutre —
+le geste a réussi pour le reste, ce n'est pas un échec.
 
 Seules les `draft` sont touchées : une leçon déjà validée n'est **pas** re-tamponnée (écraser
 un `validated_by='parent'` par `parent_bulk` perdrait l'information qu'elle a été relue), une
@@ -179,6 +190,18 @@ du cours, statut inchangé) · suppression.
 #### POST `/lessons/{id}/validate` · POST `/lessons/{id}/reject`
 
 `draft` → `validated` / `archived` (409 sinon).
+
+🔴 **`validate` répond aussi 409 sur un cours VIDE** (2026-08-11). Le statut ne disait rien du
+contenu : une leçon sans une ligne pouvait passer `validated`, et le gate de l'ADR-0011 la servait
+alors à Massimo. Mesuré le jour du correctif : **50 leçons `validated` sur 88 étaient vides**, dont
+**23 par ce chemin**.
+
+⚠️ **`reject` reste permis sur une leçon vide** — c'est précisément ce qu'on archive.
+
+⚠️ **Transparent pour la production** : `equip_notion` et `equip_piece` ne valident jamais un cours
+vide, ils appellent `generate-content` **avant**. Si la garde y tombe, c'est que la rédaction a
+rendu du vide en silence — leur `try/except` par pièce le remonte alors en erreur de pièce, ce qui
+est le comportement voulu.
 
 #### POST `/lessons/{id}/generate-content`
 

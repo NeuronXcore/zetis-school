@@ -142,6 +142,7 @@ export function CouverturePage() {
     generateCards,
     validatingChapterId,
     validateChapterLessons,
+    skippedNotice,
     reload,
   } = useCoverage(subjectId);
   // Production en lot (ADR-0031) : patron preview → confirm. La matrice se relit à la fin du lot
@@ -421,6 +422,15 @@ export function CouverturePage() {
       {error && coverage && (
         <p className="mb-4 rounded-lg border border-red-400/40 bg-red-500/5 px-3 py-2 text-sm text-red-300">
           {error}
+        </p>
+      )}
+      {/* Ce que le dernier lot a SAUTÉ. ⚠️ **Ton neutre, pas rouge** : le geste a réussi pour le
+          reste, ce n'est pas un échec — c'est un constat. Sans lui, Papa cliquerait « valider les
+          leçons », verrait la ligne inchangée, et n'aurait aucun moyen de savoir pourquoi ; un
+          manque silencieux se lit comme une panne. */}
+      {skippedNotice && (
+        <p className="mb-4 rounded-lg border border-papa-border bg-papa-surface-2 px-3 py-2 text-sm text-papa-muted">
+          {skippedNotice}
         </p>
       )}
 

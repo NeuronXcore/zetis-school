@@ -161,9 +161,25 @@ class ChapterReorderRequest(BaseModel):
 
 
 class BatchValidationResult(BaseModel):
-    """Réponse des endpoints `validate-all` : nombre de chapitres passés en `validated`."""
+    """Réponse des endpoints `validate-all` de CHAPITRES : nombre passé en `validated`."""
 
     validated_count: int
+
+
+class LessonBatchValidationResult(BatchValidationResult):
+    """Le même, pour les LEÇONS — qui, elles, peuvent être sautées.
+
+    🔴 **`skipped_empty_count` n'est pas un ornement** (2026-08-11) : sans lui, Papa clique
+    « tout valider », lit « 3 validées » là où il en attendait 8, et **rien ne lui dit pourquoi**.
+    Un manque silencieux se lit comme une panne.
+
+    ⚠️ **Schéma séparé, et non un champ par défaut sur le parent** : un lot de chapitres n'a rien
+    à sauter, et lui servir un `skipped_empty_count: 0` structurellement immobile serait un champ
+    qui ment par sa seule présence. Le corollaire agréable : les deux tests des lots de chapitres
+    n'ont pas eu à être touchés — **un test qu'on ne modifie pas est un test qui garde encore.**
+    """
+
+    skipped_empty_count: int = 0
 
 
 class LessonNotionOut(BaseModel):
