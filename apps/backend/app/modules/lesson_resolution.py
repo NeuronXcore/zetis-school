@@ -117,3 +117,48 @@ def lessons_by_skill(db: Session, skill_ids: Sequence[int]) -> dict[int, list[Le
 def lessons_of_skill(db: Session, skill_id: int) -> list[Lesson]:
     """Raccourci mono-notion. Même règle, exactement — c'est `lessons_by_skill` qui décide."""
     return lessons_by_skill(db, [skill_id]).get(skill_id, [])
+
+
+def ordered_chapter_skill_ids(db: Session, chapter_id: int) -> list[int]:
+    """« Quelles notions ce chapitre enseigne-t-il ? » — sans doublon, en ordre curriculum.
+
+    Le sens INVERSE des fonctions ci-dessus : de la leçon vers la notion, à partir d'un chapitre.
+    Deux appelants aujourd'hui, et ils doivent répondre pareil :
+
+    - `missions.command.resolve_chapter_notions` (ADR-0018) — le preview de notions que Papa décoche ;
+    - `memory.service` (ADR-0049) — le scope du deck de révision par chapitre.
+
+    🔴 **Elle vit ICI, et pas dans `missions`, à cause d'un CYCLE d'import** : `missions.service`
+    importe déjà `memory.service`, si bien que `memory → missions.command` inverse la couche et
+    casse `app.main` (`ImportError: partially initialized module`). Le cycle n'était pas un accident
+    mécanique — c'était le découpage qui disait que cette traversée n'appartient pas à `missions`.
+
+    ⚠️ **EXCEPTION ASSUMÉE à la règle de l'en-tête** (*« il ne porte aucun filtre de statut de
+    leçon »*). Cette fonction en porte un — `status == 'validated'`. La règle existe parce que
+    `production` et `galaxy` diffèrent **légitimement** sur ce gate ; ici les deux appelants
+    **s'accordent**, et « quelles notions ce chapitre enseigne » n'a de sens que sur des leçons
+    validées. Le paramétrer aujourd'hui serait l'abstraction prématurée que `CLAUDE.md` n°7 écarte.
+    **Le jour où un appelant diverge, le paramètre apparaît** — pas avant, et pas en silence.
+
+    ⚠️ **Ce n'est PAS le même ensemble que `memory.generation._target_skill_ids_for_subject`**, qui
+    ajoute `Lesson.content_markdown IS NOT NULL`. Les 39 leçons `validated` au contenu vide de la
+    base entrent ici et sortent là-bas — voulu des deux côtés : la génération de cartes a besoin
+    d'un cours à lire, le scope d'un chapitre non. Pour le deck de révision, le gating réel est le
+    filtre de CARTES (`memory.service.chapter_card_conditions`), pas celui-ci.
+
+    Rend `[]` sur un chapitre inexistant, sans leçon validée, ou dont aucune leçon ne porte de
+    notion. **Les trois cas se lisent pareil** ; c'est l'appelant qui sait quoi en dire.
+    """
+    rows = db.execute(
+        select(LessonSkill.skill_id)
+        .join(Lesson, Lesson.id == LessonSkill.lesson_id)
+        .where(Lesson.chapter_id == chapter_id, Lesson.status == "validated")
+        .order_by(Lesson.sort_order, LessonSkill.skill_id)
+    ).all()
+    ordered: list[int] = []
+    seen: set[int] = set()
+    for (skill_id,) in rows:
+        if skill_id not in seen:
+            seen.add(skill_id)
+            ordered.append(skill_id)
+    return ordered

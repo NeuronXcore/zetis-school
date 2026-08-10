@@ -6,6 +6,7 @@
 import {
   type ReviewAttemptResult,
   type ReviewCard,
+  type ReviewChapterDeck,
   type ReviewDeck,
   type ReviewRating,
   type ReviewsSummary,
@@ -53,18 +54,28 @@ export async function startReviewSession(deck: ReviewDeck): Promise<ReviewCard[]
 
 /**
  * `POST /api/student/reviews/cards/{id}/attempt` — enregistre une note.
- * Le re-tour (consolidation) est détecté CÔTÉ SERVEUR : le client ne déclare rien
- * et n'invente aucun montant d'XP — il cumule `xp_awarded` tel que renvoyé.
+ *
+ * Le re-tour (consolidation) est détecté CÔTÉ SERVEUR : le client ne déclare rien et n'invente
+ * aucun montant d'XP — il cumule `xp_awarded` tel que renvoyé.
+ *
+ * `deck` (ADR-0049) est le **CONTEXTE** de la session, jamais son **EFFET**. Le serveur re-résout
+ * le chapitre et vérifie que la carte lui appartient avant d'en tirer quoi que ce soit ; un
+ * contexte faux est ignoré en silence et l'attempt est traité normalement.
+ *
+ * ⚠️ Il n'est pas construit ici : il est **l'écho du deck demandé** à `startReviewSession`. Le
+ * client répète ce qu'il a demandé, il ne décide de rien.
  */
 export async function submitReviewAttempt(
   cardId: number,
   rating: ReviewRating,
+  deck?: ReviewChapterDeck,
 ): Promise<ReviewAttemptResult> {
   const result = await asJson<ReviewAttemptResult>(
     await fetch(`${API_URL}/api/student/reviews/cards/${cardId}/attempt`, {
       method: "POST",
       headers: headers(true),
-      body: JSON.stringify({ rating }),
+      // `deck` omis quand il n'y en a pas : le corps reste `{rating}`, identique à l'existant.
+      body: JSON.stringify(deck ? { rating, deck } : { rating }),
     }),
   );
   // Une carte qui vient d'être vue pour la première fois quitte le témoin. Émis à CHAQUE

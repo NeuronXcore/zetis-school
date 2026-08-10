@@ -47,6 +47,17 @@ class AgendaItemStudentOut(BaseModel):
     # `dismissed_at` et les horodatages — ceux-là restent interdits, sans exception.
     lesson_id: int | None
     chapter_id: int | None
+    # Combien de cartes le deck de révision de ce chapitre servirait, PLAFOND COMPRIS (ADR-0049).
+    # `0` ⇒ la surface ne rend AUCUNE porte — ni bouton grisé, ni bouton qui explique, RIEN
+    # (« un bouton mort se lit comme une panne », addendum ADR-0025 §14.6).
+    #
+    # ⚠️ Ce champ DOIT être déclaré ici : `response_model` filtre en silence tout ce qui n'est pas
+    # au schéma. L'ADR-0045 puis l'ADR-0047 s'y sont fait prendre sur `open_gaps` — les clés
+    # étaient produites par le service et disparaissaient à la sérialisation, sans erreur.
+    #
+    # Ce n'est pas une donnée SUR Massimo : c'est la disponibilité d'un contenu, au même titre que
+    # `lesson_id` / `chapter_id` ci-dessus.
+    revisable_cards: int = 0
     # AUCUN `parent_note`, AUCUN `dismissed_at`, AUCUN horodatage. Jamais.
 
 

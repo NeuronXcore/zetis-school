@@ -14,6 +14,7 @@ from app.modules.memory.schemas import (
     AttemptResult,
     CardContent,
     CardsOverview,
+    ChapterDeck,
     DeleteCardResult,
     DeleteCardsResult,
     ReactivateResult,
@@ -83,6 +84,8 @@ def reviews_session(
     student = get_default_student(db)
     if isinstance(body.deck, SubjectDeck):
         cards = build_session(db, student, deck="subject", subject_slug=body.deck.subject)
+    elif isinstance(body.deck, ChapterDeck):
+        cards = build_session(db, student, deck="chapter", chapter_id=body.deck.chapter)
     else:
         cards = build_session(db, student, deck=body.deck)
     return [ReviewCard(**c) for c in cards]
@@ -96,7 +99,16 @@ def reviews_attempt(
     _: dict = Depends(get_current_user),
 ) -> AttemptResult:
     student = get_default_student(db)
-    return AttemptResult(**record_attempt(db, student, card_id, body.rating))
+    return AttemptResult(
+        **record_attempt(
+            db,
+            student,
+            card_id,
+            body.rating,
+            # Contexte proposé, revalidé serveur — cf. `record_attempt` (ADR-0049 Décision 4).
+            chapter_id=body.deck.chapter if body.deck else None,
+        )
+    )
 
 
 # --- Pilotage PAPA de la génération des cartes (/api/memory/cards/*, ADR-0013) ---

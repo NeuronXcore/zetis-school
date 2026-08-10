@@ -36,6 +36,14 @@ export interface AgendaItemStudent {
    *  horodatages restent interdits ici, sans exception. */
   lesson_id: number | null;
   chapter_id: number | null;
+  /** Combien de cartes le deck de révision de ce chapitre servirait, PLAFOND COMPRIS (ADR-0049).
+   *
+   *  🔴 `0` ⇒ la surface ne rend **AUCUNE** porte de révision : ni bouton grisé, ni bouton qui
+   *  explique — rien. *« Un bouton mort se lit comme une panne »* (addendum ADR-0025 §14.6).
+   *
+   *  ⚠️ Ce nombre vient du serveur et **ne se recalcule jamais côté client** : le plafond vit
+   *  côté serveur, et une surface qui le recopierait mentirait le jour où il bouge. */
+  revisable_cards: number;
 }
 
 export interface AgendaDay {

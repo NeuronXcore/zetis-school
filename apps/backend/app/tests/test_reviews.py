@@ -15,7 +15,11 @@ from sqlalchemy import func, select
 
 import app.db.models as m
 import app.modules.memory.service as srv
-from app.modules.memory.service import REVIEW_SESSION_MAX_SUBJECT, interleave
+from app.modules.memory.service import (
+    REVIEW_SESSION_MAX_CHAPTER,
+    REVIEW_SESSION_MAX_SUBJECT,
+    interleave,
+)
 
 
 # --- helpers de seed ---------------------------------------------------------------
@@ -50,6 +54,61 @@ def _card(db, student, subject, *, due_at, front="Question ?", back="Réponse.",
         skill_id=skill.id,
         front_markdown=front,
         back_markdown=back,
+        interval_days=1,
+        due_at=due_at,
+        status=status,
+    )
+    db.add(card)
+    db.flush()
+    return card
+
+
+# --- helpers du DECK CHAPITRE (ADR-0049) --------------------------------------------
+#
+# ⚠️ `_card` ci-dessus crée un `Skill` directement sous un `Subject` — **ni `Chapter`, ni
+# `Lesson`, ni `LessonSkill`**. Aucune de ses cartes n'est donc résolvable par chapitre : la
+# traversée est `Chapter → Lesson(validated) → LessonSkill → Skill`. D'où ces helpers, qui
+# construisent la chaîne ENTIÈRE.
+
+
+def _chapter(db, name="Chapitre"):
+    """Un chapitre nu. `school_year_subject_id` et `theme_id` sont nullables — la traversée du
+    deck ne les regarde pas (elle part de `Lesson.chapter_id`)."""
+    chapter = m.Chapter(name=name, status="active", validation_status="validated")
+    db.add(chapter)
+    db.flush()
+    return chapter
+
+
+def _lesson(db, chapter, *, status="validated", sort_order=0, title="Leçon"):
+    # `created_by` est NOT NULL (parent|ai|imported) — la traversée ne le regarde pas.
+    lesson = m.Lesson(
+        chapter_id=chapter.id,
+        title=title,
+        status=status,
+        sort_order=sort_order,
+        created_by="parent",
+    )
+    db.add(lesson)
+    db.flush()
+    return lesson
+
+
+def _chapter_card(db, student, subject, lesson, *, due_at, status="scheduled", name=None):
+    """Une carte RÉSOLVABLE par le chapitre de `lesson` : la chaîne complète est câblée."""
+    skill = m.Skill(
+        subject_id=subject.id,
+        name=name or f"notion-{lesson.id}-{status}-{due_at.isoformat() if due_at else 'nodue'}",
+        level="4e",
+    )
+    db.add(skill)
+    db.flush()
+    db.add(m.LessonSkill(lesson_id=lesson.id, skill_id=skill.id))
+    card = m.SpacedReviewCard(
+        student_id=student.id,
+        skill_id=skill.id,
+        front_markdown="Question ?",
+        back_markdown="Réponse.",
         interval_days=1,
         due_at=due_at,
         status=status,
@@ -405,3 +464,297 @@ def test_summary_lists_all_subjects_even_without_cards(client_db):
     assert subjects["mathematiques"]["has_cards"] is True
     assert subjects["histoire"]["has_cards"] is False
     assert subjects["histoire"]["due_count"] == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# DECK CHAPITRE (ADR-0049) — la session supplémentaire qui n'écrit AUCUN état SRS
+# ═══════════════════════════════════════════════════════════════════════════════════
+
+
+def test_chapter_deck_serves_cards_that_are_NOT_due(client_db):
+    """Le point du chantier : servir des cartes NON DUES. Aucun autre deck ne le fait.
+
+    Réviser avant un contrôle, pas quand l'oubli le réclame — ADR-0025 §11 couplage 2.
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "histoire", "Histoire")
+        chapter = _chapter(db, "La Révolution française")
+        lesson = _lesson(db, chapter)
+        _chapter_card(db, student, subj, lesson, due_at=now + timedelta(days=30))  # loin d'être due
+        _chapter_card(db, student, subj, lesson, due_at=now + timedelta(days=90))
+        db.commit()
+        cid = chapter.id
+
+    # Le mélange du jour ne voit rien (aucune carte due) …
+    assert client.post("/api/student/reviews/session", json={"deck": "mix_day"}).json() == []
+    # … le deck chapitre sert les deux.
+    served = client.post("/api/student/reviews/session", json={"deck": {"chapter": cid}}).json()
+    assert len(served) == 2
+    # Et le payload reste muet sur la planification, comme partout ailleurs.
+    assert set(served[0]) == {"card_id", "subject_slug", "front_markdown", "back_markdown"}
+
+
+def test_chapter_without_validated_lesson_resolves_nothing(client_db):
+    """🔴 Le §Constat 1 du read-before-code : `Skill` n'a aucun `chapter_id`, la traversée passe
+    par les leçons VALIDÉES. Un chapitre dont la leçon est en brouillon ne résout RIEN — et la
+    servabilité renvoyée doit le dire, sinon la porte s'affiche sur du vide."""
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "svt", "SVT")
+        chapter = _chapter(db, "Les séismes")
+        brouillon = _lesson(db, chapter, status="draft")
+        _chapter_card(db, student, subj, brouillon, due_at=now - timedelta(days=1))
+        db.commit()
+        cid, sid = chapter.id, student.id
+
+    with Session() as db:
+        assert srv.chapter_servable_count(db, sid, cid) == 0
+    assert client.post(
+        "/api/student/reviews/session", json={"deck": {"chapter": cid}}
+    ).status_code == 400
+
+
+def test_chapter_deck_never_serves_pending_cards(client_db):
+    """🔴 LE verrou du chantier — `due_at IS NOT NULL` est CONSERVÉ.
+
+    C'est la clause qu'on supprime par erreur en croyant supprimer l'échéance. Une carte
+    `pending` est générée SANS cours validé (ADR-0013) : la servir à Massimo lui montrerait du
+    contenu que personne n'a relu.
+
+    🔴 **La carte `sans_echeance` est celle qui fait mordre le verrou, et elle a failli manquer.**
+    Une carte `status="pending"` est exclue DEUX fois — par son statut *et* par son échéance nulle.
+    Un test qui ne poserait que celle-là resterait **VERT** en retirant `due_at.is_not(None)` :
+    c'est ce qui s'est produit à la première écriture de ce test, et c'est la 4ᵉ occurrence du
+    motif dans ce dépôt. Il faut une carte au statut **ACTIF** et à l'échéance **NULLE** —
+    l'anomalie de données que cette clause, et elle seule, arrête.
+
+    ⚠️ SABOTAGE ATTENDU : retirer `due_at.is_not(None)` de `chapter_card_conditions` doit faire
+    ROUGIR ce test. Vérifié.
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "histoire", "Histoire")
+        chapter = _chapter(db, "La Révolution")
+        lesson = _lesson(db, chapter)
+        _chapter_card(db, student, subj, lesson, due_at=None, status="pending", name="pending")
+        _chapter_card(db, student, subj, lesson, due_at=now, status="suspended", name="suspendue")
+        _chapter_card(db, student, subj, lesson, due_at=now, status="archived", name="archivee")
+        # Statut ACTIF, échéance NULLE : seule `due_at IS NOT NULL` l'arrête.
+        _chapter_card(
+            db, student, subj, lesson, due_at=None, status="scheduled", name="sans_echeance"
+        )
+        ok = _chapter_card(db, student, subj, lesson, due_at=now + timedelta(days=10), name="ok")
+        db.commit()
+        cid, ok_id, sid = chapter.id, ok.id, student.id
+
+    served = client.post("/api/student/reviews/session", json={"deck": {"chapter": cid}}).json()
+    assert [c["card_id"] for c in served] == [ok_id], "seule la carte ACTIVE est servable"
+    with Session() as db:
+        assert srv.chapter_servable_count(db, sid, cid) == 1
+
+
+def test_chapter_deck_caps_and_orders_by_due_at(client_db):
+    """Plafond chapitre, et le tri `due_at` croissant qui garde son sens sans clause d'échéance :
+    les plus en retard d'abord, puis les plus proches de l'être."""
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "histoire", "Histoire")
+        chapter = _chapter(db, "La Révolution")
+        lesson = _lesson(db, chapter)
+        attendu = []
+        for i in range(REVIEW_SESSION_MAX_CHAPTER + 5):
+            card = _chapter_card(db, student, subj, lesson, due_at=now + timedelta(days=i))
+            attendu.append(card.id)
+        db.commit()
+        cid, sid = chapter.id, student.id
+
+    served = client.post("/api/student/reviews/session", json={"deck": {"chapter": cid}}).json()
+    assert len(served) == REVIEW_SESSION_MAX_CHAPTER
+    assert [c["card_id"] for c in served] == attendu[:REVIEW_SESSION_MAX_CHAPTER]
+    with Session() as db:
+        # La servabilité annonce le PLAFOND, pas l'arriéré — même règle que `session_size`.
+        assert srv.chapter_servable_count(db, sid, cid) == REVIEW_SESSION_MAX_CHAPTER
+
+
+def test_chapter_deck_400_is_indistinguishable(client_db):
+    """Chapitre inexistant ET chapitre sans carte servable → LE MÊME 400. Un élève ne doit pas
+    pouvoir sonder l'existence d'un chapitre."""
+    client, Session = client_db
+    with Session() as db:
+        _subject(db, "histoire", "Histoire")
+        vide = _chapter(db, "Chapitre sans rien")
+        _lesson(db, vide)  # leçon validée, mais aucune notion
+        db.commit()
+        vide_id = vide.id
+
+    a = client.post("/api/student/reviews/session", json={"deck": {"chapter": vide_id}})
+    b = client.post("/api/student/reviews/session", json={"deck": {"chapter": 999999}})
+    assert a.status_code == b.status_code == 400
+    assert a.json() == b.json(), "les deux causes doivent être indiscernables"
+
+
+def test_chapter_session_never_moves_the_schedule(client_db, monkeypatch):
+    """🔴 L'INVARIANT de l'ADR-0025 §11 : ne jamais avancer les cartes SRS.
+
+    Il ne se lit nulle part ailleurs — aucun autre test ne vérifie qu'un attempt LAISSE la carte
+    en place tout en créditant l'XP plein.
+    """
+    _, Session = client_db
+    fixed = datetime(2026, 8, 10, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(srv, "_now", lambda: fixed)
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "histoire", "Histoire")
+        chapter = _chapter(db, "La Révolution")
+        lesson = _lesson(db, chapter)
+        card = _chapter_card(db, student, subj, lesson, due_at=fixed + timedelta(days=30))
+        db.commit()
+        cid, avant_due, avant_interval = chapter.id, card.due_at, card.interval_days
+
+        res = srv.record_attempt(db, student, card.id, "good", chapter_id=cid)
+
+        db.refresh(card)
+        assert card.due_at == avant_due, "due_at STRICTEMENT inchangé"
+        assert card.interval_days == avant_interval, "interval_days STRICTEMENT inchangé"
+        assert card.last_reviewed_at is None, "last_reviewed_at STRICTEMENT inchangé"
+        assert res["next_due_at"] == avant_due
+        assert res["is_consolidation"] is True
+
+
+def test_chapter_session_credits_FULL_xp_with_its_own_reason(client_db):
+    """Décision 5 : XP PLEIN (5), pas les 2 XP du re-tour — l'effort est le même. Et une `reason`
+    distincte, qui est ce qui rend la série lisible."""
+    _, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "histoire", "Histoire")
+        chapter = _chapter(db, "La Révolution")
+        lesson = _lesson(db, chapter)
+        card = _chapter_card(db, student, subj, lesson, due_at=now + timedelta(days=30))
+        db.commit()
+
+        res = srv.record_attempt(db, student, card.id, "again", chapter_id=chapter.id)
+        assert res["xp_awarded"] == 5, "PLEIN, pas 2"
+        evt = db.scalar(select(m.XPEvent).where(m.XPEvent.student_id == student.id))
+        assert evt.reason == "review_chapter"
+
+
+def test_false_chapter_context_is_ignored_silently(client_db, monkeypatch):
+    """🔴 Décision 4 : le client déclare un CONTEXTE, le serveur le REVALIDE.
+
+    Un `chapter_id` qui ne contient pas la carte est ignoré **en silence** — l'attempt est traité
+    normalement (la carte se replanifie), sans erreur ni mention. C'est ce qui empêche un client
+    d'éteindre la planification en la demandant.
+    """
+    _, Session = client_db
+    fixed = datetime(2026, 8, 10, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(srv, "_now", lambda: fixed)
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "histoire", "Histoire")
+        chap_a = _chapter(db, "Chapitre A")
+        chap_b = _chapter(db, "Chapitre B")
+        lesson_a = _lesson(db, chap_a)
+        _lesson(db, chap_b)
+        card = _chapter_card(db, student, subj, lesson_a, due_at=fixed - timedelta(days=1))
+        db.commit()
+
+        # On prétend que la carte de A vient d'une session sur B.
+        res = srv.record_attempt(db, student, card.id, "good", chapter_id=chap_b.id)
+
+        assert res["is_consolidation"] is False, "contexte faux → attempt NORMAL"
+        db.refresh(card)
+        assert card.due_at == _naive(fixed + timedelta(days=7)), "la carte s'est REPLANIFIÉE"
+        assert card.last_reviewed_at == _naive(fixed)
+        evt = db.scalar(select(m.XPEvent).where(m.XPEvent.student_id == student.id))
+        assert evt.reason == "review", "pas `review_chapter`"
+
+        # Et un chapitre carrément inexistant : même silence.
+        res2 = srv.record_attempt(db, student, card.id, "good", chapter_id=999999)
+        assert res2["is_consolidation"] is True, "…mais c'est un RE-TOUR (2e fois le même jour)"
+
+
+def test_chapter_session_absent_from_memory_panel_present_in_journal(client_db, monkeypatch):
+    """Décision 6, en DEUX assertions sur une seule session.
+
+    Le panneau mémoire du dashboard mesure l'OUBLI — une carte non due n'en mesure aucun, donc
+    l'attempt en est exclu. Mais c'est du vrai travail : il reste dans le journal d'activité.
+    """
+    from app.modules.dashboard import service as dash
+
+    _, Session = client_db
+    fixed = datetime(2026, 8, 10, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(srv, "_now", lambda: fixed)
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "histoire", "Histoire")
+        chapter = _chapter(db, "La Révolution")
+        lesson = _lesson(db, chapter)
+        card = _chapter_card(db, student, subj, lesson, due_at=fixed + timedelta(days=30))
+        db.commit()
+
+        srv.record_attempt(db, student, card.id, "good", chapter_id=chapter.id)
+
+        # 1. ABSENT de la mesure de mémoire.
+        mesure = dash._review_attempts(db, student.id, fixed.date() - timedelta(days=7))
+        assert mesure.get(subj.id, []) == []
+
+        # 2. PRÉSENT dans le journal d'activité.
+        events = db.scalars(
+            select(m.LearningEvent).where(
+                m.LearningEvent.student_id == student.id,
+                m.LearningEvent.event_type == "review_attempted",
+            )
+        ).all()
+        assert len(events) == 1
+        assert events[0].payload_json["deck_chapter_id"] == chapter.id
+        assert events[0].payload_json["xp"] == 5
+
+
+def test_agenda_item_carries_its_revisable_count(client_db):
+    """La servabilité voyage jusqu'à Massimo — et le `response_model` ne l'avale pas.
+
+    ⚠️ Piège payé deux fois sur ce dépôt (`adr-0045`, `adr-0047`) : une clé produite par le
+    service et absente du schéma DISPARAÎT à la sérialisation, sans erreur. On l'assert donc sur
+    la réponse HTTP, jamais sur le retour de la fonction.
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    today = datetime.now(timezone.utc).date()
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "histoire", "Histoire")
+        servable = _chapter(db, "La Révolution")
+        lesson = _lesson(db, servable)
+        _chapter_card(db, student, subj, lesson, due_at=now + timedelta(days=30))
+        vide = _chapter(db, "Sans cartes")
+        _lesson(db, vide)
+        db.add(
+            m.AgendaItem(
+                student_id=student.id, label="Contrôle Révolution", due_on=today,
+                kind="controle", created_by="parent", chapter_id=servable.id,
+            )
+        )
+        db.add(
+            m.AgendaItem(
+                student_id=student.id, label="Contrôle vide", due_on=today,
+                kind="controle", created_by="parent", chapter_id=vide.id,
+            )
+        )
+        db.commit()
+
+    days = client.get("/api/student/agenda/week").json()["days"]
+    items = {i["label"]: i for d in days for i in d["fixed_items"]}
+    assert items["Contrôle Révolution"]["revisable_cards"] == 1
+    # 🔴 Zéro ⇒ la surface ne rend AUCUNE porte. Le champ doit EXISTER et valoir 0, pas manquer.
+    assert items["Contrôle vide"]["revisable_cards"] == 0

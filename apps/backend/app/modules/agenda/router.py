@@ -81,7 +81,7 @@ def student_create(
     item = service.create_student_item(
         db, student_id=student.id, data=req.model_dump(exclude_unset=True)
     )
-    return service.student_out(item, service.subjects_index(db))
+    return service.student_out_one(db, item, student_id=get_default_student(db).id)
 
 
 @student_router.patch("/items/{item_id}", response_model=AgendaItemStudentOut)
@@ -94,7 +94,7 @@ def student_patch(
         item_id=item_id,
         data=req.model_dump(exclude_unset=True),
     )
-    return service.student_out(item, service.subjects_index(db))
+    return service.student_out_one(db, item, student_id=get_default_student(db).id)
 
 
 @student_router.post("/items/{item_id}/done", response_model=AgendaItemStudentOut)
@@ -103,7 +103,7 @@ def student_done(item_id: int, db: Session = Depends(get_db)) -> dict:
     item = service.set_done(
         db, student_id=get_default_student(db).id, item_id=item_id, done=True
     )
-    return service.student_out(item, service.subjects_index(db))
+    return service.student_out_one(db, item, student_id=get_default_student(db).id)
 
 
 @student_router.post("/items/{item_id}/undone", response_model=AgendaItemStudentOut)
@@ -111,14 +111,14 @@ def student_undone(item_id: int, db: Session = Depends(get_db)) -> dict:
     item = service.set_done(
         db, student_id=get_default_student(db).id, item_id=item_id, done=False
     )
-    return service.student_out(item, service.subjects_index(db))
+    return service.student_out_one(db, item, student_id=get_default_student(db).id)
 
 
 @student_router.post("/items/{item_id}/dismiss", response_model=AgendaItemStudentOut)
 def student_dismiss(item_id: int, db: Session = Depends(get_db)) -> dict:
     """Masque un item, y compris de Papa (le masquage reste visible côté pilotage)."""
     item = service.dismiss(db, student_id=get_default_student(db).id, item_id=item_id)
-    return service.student_out(item, service.subjects_index(db))
+    return service.student_out_one(db, item, student_id=get_default_student(db).id)
 
 
 @student_router.post("/seen", status_code=status.HTTP_204_NO_CONTENT)

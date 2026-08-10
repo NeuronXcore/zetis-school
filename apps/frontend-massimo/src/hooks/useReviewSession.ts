@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type MotivationMessage,
   type ReviewCard,
+  type ReviewChapterDeck,
   type ReviewDeck,
   type ReviewRating,
 } from "@zetis/types";
@@ -37,6 +38,16 @@ export function computeTier(pct: number): SessionTier {
 /** Badge de compteur : exact jusqu'à 15, « 15+ » au-delà (présentation, jamais un retard). */
 export function cappedCount(n: number): string {
   return n > 15 ? "15+" : String(n);
+}
+
+/** Le contexte de session à faire suivre aux notes — `undefined` hors deck chapitre (ADR-0049).
+ *
+ *  ⚠️ Pure LECTURE du deck déjà demandé : le client répète ce qu'il a demandé, il ne décide de
+ *  rien. C'est ce qui distingue un contexte revalidable d'un flag `non_scheduling` qui, lui,
+ *  laisserait un bug front éteindre la planification en silence. */
+export function chapterContext(deck: ReviewDeck | null): ReviewChapterDeck | undefined {
+  if (deck && typeof deck === "object" && "chapter" in deck) return { chapter: deck.chapter };
+  return undefined;
 }
 
 /** Instantané présenté par `SessionEndPopup` à la fin d'un passage. */
@@ -178,7 +189,10 @@ export function useReviewSession(deck: ReviewDeck | null): ReviewSessionApi {
       setShowRatings(false);
       void (async () => {
         try {
-          const res = await submitReviewAttempt(card.card_id, rating);
+          // Le contexte est l'ÉCHO du deck demandé, jamais une décision du client (ADR-0049
+          // Décision 4). Il part sur CHAQUE note de la session — y compris celles du re-tour,
+          // où le serveur tranchera de lui-même que c'est un second passage.
+          const res = await submitReviewAttempt(card.card_id, rating, chapterContext(deckRef.current));
           // XP : uniquement ce que le serveur crédite (consolidation incluse).
           xpRef.current += res.xp_awarded;
           ratedRef.current += 1;

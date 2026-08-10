@@ -33,6 +33,24 @@ Quatre points d'entrée, tous vers `/revision` :
    matière).
 4. **Missions** : une étape de type révision ouvre `/revision` (ou le deep
    link matière si la mission est ciblée).
+5. **Deck chapitre** `[0049]` — **depuis l'échéance d'agenda, et de nulle part ailleurs**
+   (`adr-0049` Décision 1, tranchée le 2026-08-10). Sur une échéance datée portant un
+   `chapter_id` servable, la page Agenda de Massimo affiche *« 🃏 Réviser ce chapitre »*,
+   qui lance la session du deck `{chapter}` — le runner existant, réutilisé tel quel.
+   `chapter_id` est déjà servi par `AgendaItemStudentOut`.
+
+   🔴 **La porte n'existe PAS quand le deck serait vide** : ni bouton grisé, ni bouton qui
+   explique — **rien**. Un chapitre sans leçon validée résout zéro notion, donc zéro carte,
+   et *« un bouton mort se lit comme une panne »* (`adr-0025` addendum §14.6). La
+   **servabilité vient du serveur** ; la surface ne la recompte jamais.
+
+   > ⚠️ Ce n'est pas le cas de l'`adr-0024` §4 (catalogue, indisponible grisé) : là-bas
+   > le gris dit *« Papa ne l'a pas encore produit »* sur un écran fait pour être
+   > parcouru. Ici la porte vit dans un flux, où le gris ne dirait rien d'actionnable.
+
+   > 🔴 **Cette page ne porte AUCUNE entrée vers le deck chapitre**, et c'est une décision,
+   > pas un oubli : le drill-in permanent depuis le deck matière est l'option (b) de la
+   > Décision 1, **écartée**. Voir le §Hors périmètre V1 ci-dessous.
 
 Routing interne — deux routes :
 
@@ -144,12 +162,19 @@ jamais à Massimo ; refuser = déléguer au système, pas abandonner.
 ```txt
 REVIEW_SESSION_MAX_MIX     = 12   # Mélange du jour
 REVIEW_SESSION_MAX_SUBJECT = 8    # deck matière
+REVIEW_SESSION_MAX_CHAPTER = 8    # deck chapitre [0049] — aligné sur le deck matière
 REVIEW_SESSION_FLASH       = 5    # Mélange éclair
 ```
 
 - Sélection : cartes dues triées par `due_at` croissant (les plus anciennes
   d'abord), le surplus attend la prochaine session sans être présenté comme un
   retard.
+- **Deck chapitre** `[0049]` : même tri `due_at` croissant, qui garde son sens sans
+  clause d'échéance — les plus en retard d'abord, puis les plus proches de l'être.
+  **Pas d'entrelacement** (un chapitre est d'une seule matière). Le plafond n'est pas
+  relevé avant un contrôle : il borne **une** session, pas la révision — rien n'empêche
+  d'en lancer une seconde, et un mur de 20 cartes serait la pression anxiogène que
+  `CLAUDE.md` §gamification interdit.
 - **Entrelacement côté serveur** pour les mélanges : jamais deux cartes
   consécutives de la même matière quand c'est possible (un `ORDER BY random()`
   ne suffit pas — l'interleaving est le mécanisme pédagogique du deck mélange).
@@ -159,6 +184,11 @@ REVIEW_SESSION_FLASH       = 5    # Mélange éclair
 - **L'XP récompense l'effort, pas le score** : +5 XP par carte revue quel que
   soit le rating (sinon incitation à s'auto-noter « Facile »).
 - Re-tour : +2 XP par carte (récompense sans farming).
+- **Session chapitre** `[0049]` : **+5 XP, plein** — `reason = "review_chapter"`.
+  Les 2 XP du re-tour paient une **répétition peu coûteuse** (trois minutes plus tard),
+  pas l'absence de replanification ; une session chapitre demande le **même effort**
+  qu'une session normale. Sous-payer précisément la session qu'on veut voir avant un
+  contrôle serait une contre-incitation.
 - Aucun calcul d'XP côté client ; le mockup ne fait que simuler l'affichage.
 
 ## Données API (contrat : `packages/types/src/reviews.ts` à créer)
@@ -169,14 +199,27 @@ Routes élève, `get_current_user` (rôle `child` passe) :
   total_due, flash_size}` — compteurs exacts (le « 15+ » est de la
   présentation).
 - `POST /api/student/reviews/session` body `{deck: "mix_day" | "mix_flash" |
-  {subject: slug}}` → cartes servies `[{card_id, subject_slug, front_markdown,
-  back_markdown}]` — plafond, tri et entrelacement **côté serveur**.
-- `POST /api/student/reviews/cards/{card_id}/attempt` body `{rating}` →
-  `{next_due_at}` + XP crédité. **Détection du re-tour côté serveur** (pas de
-  flag client) : une carte déjà notée aujourd'hui ⇒ attempt de consolidation
-  (planification inchangée, XP réduit). Tracé `SpacedReviewAttempt` dans les
-  deux cas (historique Papa) — flag `is_consolidation` optionnel (petite
-  migration) pour la lisibilité du dashboard.
+  {subject: slug} | {chapter: id}}` → cartes servies `[{card_id, subject_slug,
+  front_markdown, back_markdown}]` — plafond, tri et entrelacement **côté serveur**.
+  Le deck **`{chapter}`** `[0049]` sert des cartes **non dues** (c'est son objet) :
+  la clause `due_at <= now` tombe, mais `due_at IS NOT NULL` et le filtre de statut
+  **restent** — sans eux, les cartes `pending` (générées sans cours validé) seraient
+  servies. Portée = notions des **leçons validées** du chapitre.
+- `POST /api/student/reviews/cards/{card_id}/attempt` body `{rating, deck?}` →
+  `{next_due_at}` + XP crédité. Tracé `SpacedReviewAttempt` dans tous les cas
+  (historique Papa), colonne `is_consolidation` **livrée**. Deux mécaniques de
+  non-planification, à ne pas confondre :
+  - **Re-tour** — **détecté côté serveur** (pas de flag client) : une carte déjà
+    notée aujourd'hui ⇒ planification inchangée, **XP réduit (2)**.
+  - **Session chapitre** `[0049]` — le client passe `deck: {chapter: id}`, et le
+    **serveur revalide** que la carte appartient bien à ce chapitre avant d'en tirer
+    l'effet ; un contexte faux est **ignoré en silence**, l'attempt est traité
+    normalement. Planification inchangée, **XP plein (5)**, `reason =
+    "review_chapter"` — l'effort est le même que celui d'une session normale.
+  > ⚠️ **La règle « pas de flag client » n'est pas abandonnée, elle est précisée** :
+  > le client déclare un **contexte**, jamais un **effet** ; le serveur revalide le
+  > contexte et décide l'effet. Un flag `non_scheduling` piloté par le client aurait
+  > pu éteindre la planification **en silence** sur des sessions normales.
 
 Modèles : `SpacedReviewCard` / `SpacedReviewAttempt` existants (`DATA_MODEL.md`).
 
@@ -192,7 +235,38 @@ Modèles : `SpacedReviewCard` / `SpacedReviewAttempt` existants (`DATA_MODEL.md`
 
 ## Hors périmètre V1
 
-Filtre par chapitre (V2 : drill-in discret depuis le deck matière — garder le
-tap direct comme défaut, le filtre étroit ramène au blocked practice) ;
-statistiques détaillées côté Massimo (→ dashboard Papa) ; cartes cloze/images ;
+Statistiques détaillées côté Massimo (→ dashboard Papa) ; cartes cloze/images ;
 mode vocal ; réglage des intervalles par Papa.
+
+### Le filtre par chapitre — AMENDÉ le 2026-08-10 `[0049]`
+
+Cette section rangeait le filtre par chapitre en V2, avec cette raison : *« drill-in discret
+depuis le deck matière — garder le tap direct comme défaut, **le filtre étroit ramène au
+blocked practice** »*.
+
+**L'objection reste vraie et n'est pas effacée.** L'entrelacement (`interleave`, côté serveur)
+est le mécanisme pédagogique du deck mélange, pas un détail cosmétique ; réviser étroit à la
+place de réviser entrelacé dégraderait la mémoire réelle.
+
+Ce que l'`adr-0049` y répond, et pourquoi la V2 s'ouvre quand même :
+
+1. Le deck chapitre est une session **supplémentaire et non planifiante** — il **s'ajoute** au
+   mélange, il ne le remplace pas. Il n'écrit **aucun** état SRS : ni `due_at`, ni
+   `interval_days`, ni `last_reviewed_at` (invariant `adr-0025` §11 couplage 2).
+2. Il naît d'un **événement daté** (une échéance d'agenda), pas d'une habitude. Un contrôle
+   jeudi n'est pas un régime de révision.
+3. Le pari est **surveillé, pas supposé** : si l'usage de `mix_day` baisse pendant que celui du
+   deck chapitre monte, c'est la cannibalisation, et la réponse sera de **borner le deck dans le
+   temps** autour de l'échéance — pas de le retirer. Les deux séries se lisent dans
+   `XPEvent.reason` (`review` vs `review_chapter`).
+
+🔴 **Reste hors périmètre, et c'est TRANCHÉ** : le drill-in **permanent** depuis le deck
+matière — c'est exactement la forme que cette section visait, et c'est celle qui porte le
+risque *blocked practice*. C'est l'option (b) de la Décision 1, **écartée le 2026-08-10** au
+profit de la seule porte (a). Il demanderait en plus un endpoint « chapitres servables d'une
+matière » que `summary` ne sait pas rendre, un écran et son propre état vide. Chantier à part,
+s'il a lieu un jour.
+
+⚠️ **Conséquence assumée** : ZETIS livre une capacité de révision que la **page dédiée à la
+révision ne montre pas**. L'asymétrie est voulue — la porte vit là où l'échéance la justifie —
+mais il faut savoir l'expliquer plutôt que la découvrir.

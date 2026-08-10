@@ -9,8 +9,16 @@
 /** Notes de révision (mapping code inchangé ; l'UI les habille 🔄🤔🙂⚡). */
 export type ReviewRating = "again" | "hard" | "good" | "easy";
 
+/** Deck ciblé sur un chapitre (ADR-0049) — le SEUL à servir des cartes non dues.
+ *
+ *  C'est tout son objet : réviser avant un contrôle, pas quand l'oubli le réclame. Il n'écrit
+ *  aucun état SRS — ni replanification, ni intervalle. */
+export interface ReviewChapterDeck {
+  chapter: number;
+}
+
 /** Deck demandé à `POST /api/student/reviews/session`. */
-export type ReviewDeck = "mix_day" | "mix_flash" | { subject: string };
+export type ReviewDeck = "mix_day" | "mix_flash" | { subject: string } | ReviewChapterDeck;
 
 /** Une matière et son nombre EXACT de cartes dues (le « 15+ » est de la présentation). */
 export interface ReviewSubjectDue {
@@ -56,13 +64,24 @@ export interface ReviewSessionRequest {
 /** `POST /api/student/reviews/cards/{card_id}/attempt`. */
 export interface ReviewAttemptRequest {
   rating: ReviewRating;
+  /** Le CONTEXTE de la session, jamais son EFFET (ADR-0049). Le serveur re-résout le chapitre
+   *  et vérifie que la carte lui appartient ; un contexte faux est ignoré **en silence** et
+   *  l'attempt est traité normalement.
+   *
+   *  ⚠️ Ne JAMAIS remplacer par un booléen `non_scheduling` côté client : un bug front
+   *  éteindrait la planification en silence sur des sessions normales, et le SRS se dégraderait
+   *  sans qu'aucun écran ne change. */
+  deck?: ReviewChapterDeck;
 }
 
-/** Réponse d'un attempt. La consolidation (re-tour) est détectée CÔTÉ SERVEUR. */
+/** Réponse d'un attempt. */
 export interface ReviewAttemptResult {
-  /** ISO 8601 — prochaine échéance de la carte (inchangée en cas de consolidation). */
+  /** ISO 8601 — prochaine échéance de la carte (inchangée quand rien n'est replanifié). */
   next_due_at: string | null;
   xp_awarded: number;
+  /** « Cet attempt n'a pas mesuré l'oubli » — vrai dans DEUX cas depuis l'ADR-0049 : le re-tour
+   *  (même carte, même jour, détecté serveur, XP réduit) et la session chapitre (carte non due,
+   *  XP plein). Les distinguer se fait par l'XP crédité, pas par ce booléen. */
   is_consolidation: boolean;
 }
 

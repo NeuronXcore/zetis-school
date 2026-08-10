@@ -36,9 +36,19 @@ class SubjectDeck(BaseModel):
     subject: str
 
 
+class ChapterDeck(BaseModel):
+    """Deck ciblé sur un chapitre : `{"chapter": <id>}` (ADR-0049).
+
+    Le seul deck qui sert des cartes **non dues** — c'est tout son objet : réviser avant un
+    contrôle, pas quand l'oubli le réclame. Il n'écrit aucun état SRS.
+    """
+
+    chapter: int
+
+
 class SessionRequest(BaseModel):
-    # "mix_day"/"mix_flash" = mélanges ; objet {subject} = deck matière.
-    deck: Literal["mix_day", "mix_flash"] | SubjectDeck
+    # "mix_day"/"mix_flash" = mélanges ; {subject} = deck matière ; {chapter} = deck chapitre.
+    deck: Literal["mix_day", "mix_flash"] | SubjectDeck | ChapterDeck
 
 
 class ReviewCard(BaseModel):
@@ -50,6 +60,11 @@ class ReviewCard(BaseModel):
 
 class AttemptRequest(BaseModel):
     rating: Literal["again", "hard", "good", "easy"]
+    # Le CONTEXTE de la session, jamais son EFFET (ADR-0049 Décision 4). Le serveur re-résout le
+    # chapitre et vérifie que la carte lui appartient ; un contexte faux est ignoré en silence.
+    # ⚠️ Ne JAMAIS remplacer par un booléen `non_scheduling` : un client qui déciderait de l'effet
+    # pourrait éteindre la planification en silence sur des sessions normales.
+    deck: ChapterDeck | None = None
 
 
 class AttemptResult(BaseModel):
