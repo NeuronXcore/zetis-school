@@ -29,6 +29,11 @@ function item(over: Partial<AgendaItemPilot> & { id: number; due_on: string }): 
     edited_by_parent_at: null,
     created_at: null,
     updated_at: null,
+    // ADR-0050 : servis par le pilotage depuis le 2026-08-10. Les omettre laissait passer un
+    // `undefined` que `tsc -b` attrape ici — les tests de Papa SONT dans le projet typé, à la
+    // différence de ceux de Massimo.
+    plan_steps_total: 0,
+    plan_steps_done: 0,
     ...over,
   };
 }

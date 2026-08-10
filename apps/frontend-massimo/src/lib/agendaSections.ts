@@ -8,7 +8,13 @@
 //    qui s'allonge à l'écran est un compteur d'arriéré déguisé.
 // 2. **Aucun total, aucun compteur de retard** n'est calculé ici. Ce qui n'est pas fait ne se
 //    compte pas.
-import { type AgendaItemStudent, type AgendaUpcomingItem } from "@zetis/types";
+import {
+  type AgendaDay,
+  type AgendaItemStudent,
+  type AgendaPlanStep,
+  type AgendaUpcomingItem,
+} from "@zetis/types";
+import { subjectRouteFor } from "./notionRoutes";
 
 /** Combien de « À reprendre » sont montrés d'emblée (ADR-0025 §7).
  *
@@ -171,4 +177,121 @@ export function revisionSessionState(item: AgendaItemStudent): {
     label: item.label,
     subjectSlug: item.subject?.slug,
   };
+}
+
+/** Le plan servi PAR JOUR, regroupé PAR ÉCHÉANCE (ADR-0050 Décision 2 ter).
+ *
+ *  Le serveur sert les étapes sous les jours — c'est ce dont la bande a besoin pour son `✦`.
+ *  Massimo, lui, lit un plan **sous le contrôle qu'il prépare** : sur une semaine à deux
+ *  contrôles, une étape posée sous le jour flotterait sans dire de quel chapitre elle parle.
+ *
+ *  🔴 **Le tri est par `day_offset` DÉCROISSANT.** L'offset compte les jours **avant**
+ *  l'échéance : le plus GRAND est le plus TÔT. Trier croissant présenterait le plan à l'envers —
+ *  et rien ne le signalerait à l'écran, les trois étapes seraient bien là, dans le mauvais ordre.
+ *
+ *  `id` croissant départage deux étapes du même jour (cas d'un plan à 2 étapes sur 2 jours). */
+export function groupPlanByItem(days: AgendaDay[]): Record<number, AgendaPlanStep[]> {
+  const out: Record<number, AgendaPlanStep[]> = {};
+  for (const day of days) {
+    for (const step of day.plan_steps) (out[step.agenda_item_id] ??= []).push(step);
+  }
+  for (const steps of Object.values(out)) {
+    steps.sort((a, b) => b.day_offset - a.day_offset || a.id - b.id);
+  }
+  return out;
+}
+
+/** Ce qu'une étape du plan propose, et où elle mène **vraiment**. */
+export interface PlanStepTarget {
+  icon: string;
+  label: string;
+  /** `null` ⇒ l'étape se rend **sans lien**, et sa coche reste : le plan ne disparaît pas faute
+   *  de destination. Arrive sur une échéance sans matière, ou sans chapitre pour `revision`. */
+  to: string | null;
+  /** Passé tel quel à `<Link state>`. Seule `revision` en a besoin (le deck n'est pas dans l'URL). */
+  state?: unknown;
+}
+
+/** Habillage et destination d'une étape du plan de préparation (ADR-0050 Décision 2 quater).
+ *
+ *  🔴 **Le libellé nomme sa destination ET son grain** — règle de l'`adr-0047`, appliquée ici
+ *  parce qu'elle a été écrite pour exactement ce défaut. Deux activités sur trois **ne sont pas
+ *  adressables par URL** dans ce dépôt :
+ *
+ *  | Étape | Grain atteignable | Route |
+ *  |---|---|---|
+ *  | `fiche` | la **matière** — `FichesPage` ne lit aucun `searchParams` | `/fiches/<slug>` |
+ *  | `revision` | le **chapitre** ✅ — le deck de l'`adr-0049` | `/revision/session` + `state` |
+ *  | `quiz` | la **matière** — `QuizPage` ne lit que `subject` | `/quiz?subject=<slug>` |
+ *
+ *  D'où *« Lire les fiches »* et non *« Lire la fiche »* : le **pluriel** dit qu'on ouvre une
+ *  liste, là où le singulier promettrait une fiche précise. Idem *« Choisir un quiz »* — le verbe
+ *  dit qu'il y aura un choix, donc que ZETIS n'en a pas désigné un.
+ *
+ *  ⚠️ **La matière n'est PAS dans le libellé, et c'est une MESURE, pas un goût.** La rédaction
+ *  d'origine de la Décision 2 quater disait *« Lire les fiches de \<matière\> »* ; mesuré dans le
+ *  DOM le 2026-08-10 : **193 px pour 151 disponibles** sur une carte de téléphone (202 px pour
+ *  « Physique-Chimie »). Ce qui se coupait, c'était **le nom de la matière** — précisément
+ *  l'information que le libellé avait été allongé pour porter. Et elle est déjà à l'écran, deux
+ *  lignes plus haut, sur la ligne de puces de l'échéance.
+ *
+ *  🔴 **On ne fabrique aucune route.** `/fiches?fiche=<id>` et `/quiz?quiz=<id>` n'existent pas ;
+ *  les écrire aurait produit deux liens qui déposent Massimo sur une page qui **ignore** son
+ *  paramètre — et **aucun test de rendu ne l'aurait vu** : le lien existe, il est cliquable, il a
+ *  l'air de marcher. `step.resource_id` reste donc **inutilisé** pour `fiche` et `quiz` : la
+ *  donnée est juste, c'est la route qui manque.
+ *
+ *  ⚠️ Les destinations viennent de `subjectRouteFor` — LA table de routage du dépôt. En recopier
+ *  les chemins ici aurait créé un second jeu de routes, qui aurait divergé au premier correctif.
+ */
+export function planStepTarget(step: AgendaPlanStep, item: AgendaItemStudent): PlanStepTarget {
+  const subject = item.subject;
+  switch (step.kind) {
+    case "fiche":
+      return {
+        // 🗒️ et non 📖 : l'icône de `ACTION_UI.fiche`, et surtout PAS celle de `cours` — la puce
+        // « 📖 lire le cours » est deux lignes plus haut, sur la même carte. La maquette du
+        // cadrage portait 📖 ; elle n'avait pas la puce sous les yeux.
+        icon: "🗒️",
+        // PLURIEL — c'est lui qui porte le grain : « la fiche » promettrait une fiche précise.
+        // La matière n'y est pas : mesurée à 193 px pour 151, elle se coupait (voir l'en-tête).
+        label: "Lire les fiches",
+        to: subject ? subjectRouteFor("fiche", subject.slug) : null,
+        // Le NOM de la matière, comme `notionRouteFor` : l'URL n'a qu'un slug, et « Svt » serait
+        // laid. Ce n'est pas de l'état de navigation — la page a un repli.
+        state: subject ? { name: subject.name } : undefined,
+      };
+    case "revision": {
+      // Même destination et même état que la porte de l'`adr-0049`, composés une seule fois.
+      const state = revisionSessionState(item);
+      return {
+        icon: "🃏",
+        // Le seul libellé qui garde le grain fin, parce que sa destination l'a vraiment.
+        label: "Réviser ce chapitre",
+        to: state === null ? null : "/revision/session",
+        state: state ?? undefined,
+      };
+    }
+    case "quiz":
+      return {
+        icon: "🎯",
+        // « CHOISIR » — le verbe dit qu'il y aura une liste, donc que ZETIS n'a désigné aucun
+        // quiz. « Petit quiz » (maquette du cadrage) laissait croire à un quiz préparé pour lui.
+        label: "Choisir un quiz",
+        to: subject ? subjectRouteFor("quiz", subject.slug) : null,
+      };
+  }
+}
+
+/** Le jour où tombe une étape — « mar. 11 ».
+ *
+ *  ⚠️ Le serveur sert un **offset**, pas une date : `day_offset` compte les jours **avant**
+ *  l'échéance (`1` = la veille). La date se reconstruit donc ici, à partir de `due_on`.
+ *
+ *  ⚠️ `due_on` est un jour civil, pas un instant : il se parse en composants et se construit en
+ *  **local**. Passer par `new Date("2026-08-14")` le lirait en UTC et décalerait d'un jour à
+ *  l'ouest de Greenwich. */
+export function planStepDayLabel(item: AgendaItemStudent, step: AgendaPlanStep): string {
+  const [year, month, day] = item.due_on.split("-").map(Number);
+  return shortDayLabel(isoDay(addDays(new Date(year, month - 1, day), -step.day_offset)));
 }

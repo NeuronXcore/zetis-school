@@ -1,7 +1,13 @@
 import { Link } from "react-router-dom";
-import { type AgendaItemStudent } from "@zetis/types";
+import { type AgendaItemStudent, type AgendaPlanStep } from "@zetis/types";
 import { subjectIconFor } from "../../lib/subjectIcons";
-import { originLabel, revisionSessionState, shortDayLabel } from "../../lib/agendaSections";
+import {
+  originLabel,
+  planStepDayLabel,
+  planStepTarget,
+  revisionSessionState,
+  shortDayLabel,
+} from "../../lib/agendaSections";
 import { agendaCourseRoute } from "../../lib/notionRoutes";
 
 // Un item de l'agenda de Massimo.
@@ -22,6 +28,10 @@ interface Props {
   tone?: "normal" | "resume";
   onToggle: () => void;
   onDismiss: () => void;
+  /** Le plan de préparation de CETTE échéance (ADR-0050), déjà trié du plus tôt au plus tard.
+   *  Vide ou absent ⇒ **rien n'est rendu** : ni bloc, ni « bientôt », ni espace réservé. */
+  planSteps?: AgendaPlanStep[];
+  onToggleStep?: (step: AgendaPlanStep) => void;
 }
 
 export function AgendaItemRow({
@@ -30,13 +40,30 @@ export function AgendaItemRow({
   tone = "normal",
   onToggle,
   onDismiss,
+  planSteps,
+  onToggleStep,
 }: Props) {
   const origin = originLabel(item);
   const coursRoute = agendaCourseRoute(item);
+  const steps = planSteps ?? [];
+  // 🔴 **Le plan absorbe la porte de l'ADR-0049 quand il la porte déjà.** Les deux mènent au
+  // MÊME deck, et les deux conditions serveur sont la même (`chapter_servable_count > 0`) : sans
+  // cette garde, une carte à contrôle afficherait deux boutons vers la même destination, à trois
+  // lignes d'écart. La version du plan est la meilleure des deux — elle est **datée** et elle se
+  // **coche**.
+  //
+  // ⚠️ Le « N cartes » de la porte n'est PAS repris sur l'étape, et c'est délibéré : sur un
+  // bouton qu'on peut presser tout de suite, c'est une offre ; sur une étape datée de mercredi,
+  // ça devient un quota pour mercredi. La session l'annoncera au moment de la jouer.
+  //
+  // ⚠️ Point à confirmer à la relecture visuelle : c'est un arbitrage d'écran, et l'ADR-0050 ne
+  // l'avait pas prévu (sa maquette ne montrait pas la porte sur la même carte).
+  const planPorteLaRevision = steps.some((step) => step.kind === "revision");
   // `revisable_cards > 0` implique un chapitre côté serveur, mais on ne le SUPPOSE pas : la
   // porte n'existe que si les deux sont vrais. Une garde de moins serait une porte ouverte sur
   // un deck sans chapitre.
-  const revisionState = item.revisable_cards > 0 ? revisionSessionState(item) : null;
+  const revisionState =
+    item.revisable_cards > 0 && !planPorteLaRevision ? revisionSessionState(item) : null;
   return (
     <div
       id={`agenda-item-${item.id}`}
@@ -152,6 +179,83 @@ export function AgendaItemRow({
               {item.revisable_cards} carte{item.revisable_cards > 1 ? "s" : ""}
             </span>
           </Link>
+        )}
+
+        {/* Le plan de préparation (ADR-0050) — l'échéance dit QUOI, le plan dit COMMENT s'y
+            prendre. C'est le §8 rôle 1, *« le seul rôle qui justifie la fonctionnalité »*.
+
+            🔴 **Aucune étape ⇒ RIEN.** Pas d'encadré vide, pas de « ton plan arrive », pas de
+            place réservée : la très grande majorité des échéances n'a pas de plan (il faut un
+            chapitre et au moins 2 jours), et un cadre vide sur chacune ferait de l'agenda une
+            page de manques. Même règle que la porte ci-dessus (§14.6).
+
+            ⚠️ Les étapes arrivent **déjà triées** du plus tôt au plus tard : le tri se fait une
+            fois dans `useAgenda`, sur `day_offset` DÉCROISSANT — l'offset compte les jours AVANT
+            l'échéance. Ne pas le refaire ici, et surtout pas dans l'autre sens. */}
+        {steps.length > 0 && (
+          <div className="mt-2 rounded-xl border border-violet-400/20 bg-violet-400/[0.06] p-2">
+            <div className="flex items-center gap-1.5 px-1 pb-1.5 text-[11px] text-violet-200">
+              <span aria-hidden>✦</span>
+              <span className="font-semibold">Ton plan</span>
+              {/* Un compte d'AVANCÉE, pas de retard : « 1 sur 3 » monte, il ne décompte rien.
+                  Aucune barre, aucun pourcentage — trois lignes se lisent d'un coup d'œil. */}
+              <span className="ml-auto text-zetis-muted">
+                {steps.filter((step) => step.done).length} sur {steps.length}
+              </span>
+            </div>
+            <ul className="space-y-1">
+              {steps.map((step) => {
+                const target = planStepTarget(step, item);
+                const inner = (
+                  <>
+                    <span aria-hidden>{target.icon}</span>
+                    <span className={`min-w-0 truncate ${step.done ? "line-through" : ""}`}>
+                      {target.label}
+                    </span>
+                    <span className="ml-auto shrink-0 text-[10px] text-zetis-muted">
+                      {planStepDayLabel(item, step)}
+                    </span>
+                  </>
+                );
+                // La coche et le lien sont FRÈRES, jamais imbriqués : un `<button>` dans un
+                // `<a>` est invalide, et le geste de cocher partirait en navigation.
+                return (
+                  <li key={step.id} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onToggleStep?.(step)}
+                      aria-pressed={step.done}
+                      // « coché », jamais « fait » (§14.7) : cocher ne prouve rien.
+                      aria-label={step.done ? "Décocher l'étape" : "Cocher l'étape"}
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] transition-colors motion-reduce:transition-none ${
+                        step.done
+                          ? "border-emerald-400/70 bg-emerald-400/20 text-emerald-300"
+                          : "border-white/20 text-transparent hover:border-white/40"
+                      }`}
+                    >
+                      ✓
+                    </button>
+                    {/* Sans destination (échéance sans matière, ou sans chapitre) l'étape reste
+                        LÀ, en texte : elle se coche quand même. Un lien vers la racine serait
+                        une petite trahison, et faire disparaître l'étape trouerait le plan. */}
+                    {target.to === null ? (
+                      <span className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zetis-muted">
+                        {inner}
+                      </span>
+                    ) : (
+                      <Link
+                        to={target.to}
+                        state={target.state}
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-xs text-slate-100 transition-colors hover:border-violet-400/45 motion-reduce:transition-none"
+                      >
+                        {inner}
+                      </Link>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </div>
 

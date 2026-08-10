@@ -11,7 +11,7 @@ Conséquence directe : cette table n'alimente **ni** `skill_mastery`, **ni** le 
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -91,3 +91,65 @@ class AgendaItem(Base, TimestampMixin):
     # `StudentWeeklyGoal`, qui n'a délibérément aucune colonne d'atteinte : rien de punitif ne
     # doit être persistable. L'écart déclaré/fait se LIT par requête côté Papa ; il ne se
     # DIFFUSE pas.
+
+
+# Types d'étape d'un plan de préparation (ADR-0050 Décision 2 bis). **Trois, et un seul de
+# chaque par plan** — le plan parle en TYPES, jamais en notions : sur un chapitre à six notions
+# testables, Massimo ne verra pas six « petit quiz ». Il dit **par où commencer**, pas tout ce
+# qu'on pourrait faire.
+#
+# ⚠️ Vocabulaire repris de la PANOPLIE (`galaxy.resolve_panoply`), jamais réinventé : deux
+# vocabulaires pour la même chose divergent au premier ajout.
+#
+# ⚠️ `cours` et `eli5` en sont ABSENTS et c'est délibéré — l'échéance offre déjà « lire le cours »
+# (addendum ADR-0025 §15), et une troisième surface pour la même chose est le motif que
+# l'`adr-0047` a corrigé ailleurs.
+PLAN_STEP_KINDS = ("fiche", "revision", "quiz")
+
+
+class AgendaPlanStep(Base):
+    """Une étape du plan de préparation d'une échéance (ADR-0050, ADR-0025 §8 rôle 1).
+
+    **Pourquoi une table et pas un `MissionStep`** : une mission porte un verdict, un scoring, de
+    l'XP et un `skill_id` obligatoire, et elle est **par notion** ; un plan est **par échéance** et
+    ne mesure rien. Réutiliser aurait fait entrer tout le moteur de missions dans l'agenda —
+    exactement ce que l'en-tête de ce fichier refuse pour `AgendaItem` lui-même.
+
+    **Le plan est FIGÉ** (§8 rôle 1) : composé à la première lecture, il ne se recompose jamais —
+    *« un plan qui se recalcule à chaque ouverture est un plan auquel on ne fait pas confiance »*.
+    Une fiche validée après coup n'y entre pas.
+
+    🔴 **Sauf si la date bouge** : le service SUPPRIME le plan quand `due_on` change, coches
+    comprises. Un rétro-planning est une fonction de la date ; le garder afficherait des jours qui
+    ne veulent plus rien dire. La perte des coches est assumée — elles portaient ces jours-là.
+
+    ⚠️ **`done_at` ne prouve RIEN** (ADR-0050 Décision 5, option A) : c'est une **déclaration** de
+    Massimo, comme la coche d'un item. Aucun XP, aucune célébration — sinon il apprend à cocher.
+    Jouer l'activité ne pose pas ce champ, et le poser n'exige pas d'avoir joué l'activité. La
+    variante « prouvée par la trace » est **reportée**, pas écartée.
+    """
+
+    __tablename__ = "agenda_plan_steps"
+    # Toutes les lectures partent de l'échéance et rendent ses étapes dans l'ordre.
+    __table_args__ = (Index("ix_agenda_plan_steps_item", "agenda_item_id", "sort_order"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # CASCADE : le plan n'a aucune existence hors de son échéance. C'est le seul DELETE physique
+    # de ce fichier — `AgendaItem` s'archive (`dismissed_at`), une étape se supprime.
+    agenda_item_id: Mapped[int] = mapped_column(
+        ForeignKey("agenda_items.id", ondelete="CASCADE"), index=True
+    )
+    # Jours AVANT l'échéance : 1 = la veille, 2 = l'avant-veille… Stocké en offset et non en date
+    # pour que le plan reste lisible tel quel — et parce qu'une date stockée survivrait au
+    # déplacement qui, lui, révoque le plan.
+    day_offset: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(15))  # fiche|revision|quiz
+    # La notion visée, quand l'étape en a une. `revision` n'en a pas : son grain est le CHAPITRE
+    # (deck de l'adr-0049), et son identifiant est le `chapter_id` de l'échéance.
+    skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id"), nullable=True)
+    # ⚠️ La panoplie ne nomme PAS uniformément cet identifiant (`fiche_id`, `quiz_id`, `lesson_id`…)
+    # et n'en fournit aucun pour `revision` : l'extraction est faite PAR TYPE côté service.
+    resource_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # Déclaration de Massimo, écrite uniquement par une route élève. Voir la docstring.
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

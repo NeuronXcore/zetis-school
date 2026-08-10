@@ -8,7 +8,12 @@
 // l'enfant — l'ouverture doit être un événement positif, pas la fin d'une privation affichée.
 //
 // `parent_note` n'existe pas dans ces réponses : le serveur sert un schéma séparé.
-import { type AgendaItemStudent, type AgendaUpcomingItem, type AgendaWeek } from "@zetis/types";
+import {
+  type AgendaItemStudent,
+  type AgendaPlanStep,
+  type AgendaUpcomingItem,
+  type AgendaWeek,
+} from "@zetis/types";
 import { notifyNewsChanged } from "./newsEvents";
 import { API_URL, authClient } from "./authClient";
 
@@ -57,6 +62,25 @@ export async function setAgendaItemDone(
 ): Promise<AgendaItemStudent> {
   return asJson(
     await fetch(`${BASE}/items/${id}/${done ? "done" : "undone"}`, {
+      method: "POST",
+      headers: headers(),
+    }),
+  );
+}
+
+/** Coche / décoche une étape du plan de préparation (ADR-0050 Décision 5, option A).
+ *
+ *  ⚠️ **Même règle que la coche d'un item, et pour la même raison** : c'est une **déclaration**
+ *  de Massimo. Aucun XP, aucune célébration — sinon il apprend à cocher.
+ *
+ *  🔴 Et **jouer l'activité ne passe JAMAIS par ici** : une session de cartes ne coche rien. La
+ *  variante « prouvée par la trace » est reportée, pas écartée. */
+export async function setAgendaPlanStepDone(
+  id: number,
+  done: boolean,
+): Promise<AgendaPlanStep> {
+  return asJson(
+    await fetch(`${BASE}/plan-steps/${id}/${done ? "done" : "undone"}`, {
       method: "POST",
       headers: headers(),
     }),

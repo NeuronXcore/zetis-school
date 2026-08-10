@@ -144,7 +144,11 @@ performance. Chaque item porte :
   **lit** une déclaration dont il n'est pas l'auteur ; chez Massimo, le bouton reste « marquer
   comme fait », parce que lui la **produit** ;
 - le cas échéant `corrigé` (édité par Papa) et `masqué par Massimo` (atténué, **jamais
-  disparu**).
+  disparu**) ;
+- son **plan de préparation**, depuis le 2026-08-10 (`adr-0050` Décision 7) : une étiquette
+  violette **`✦ 1/3`** — *cochées / proposées*. 🔴 **`0` étape ⇒ aucune étiquette** : la plupart
+  des échéances n'ont pas de plan (il faut un chapitre et au moins 2 jours), et un `✦ 0/0` sur
+  chacune ferait de la grille un tableau de manques — un manque dont Papa n'est pas l'auteur.
 
 L'écart déclaré / fait **se lit ici**. Il ne produit **aucune alerte, aucun badge rouge, aucun
 compteur d'arriéré** : l'ADR interdit d'émettre un événement d'échec, l'UI ne doit pas le
@@ -152,9 +156,27 @@ réintroduire par la couleur.
 
 ### Panneau de détail
 
-Intitulé · date · type · **chapitre** éditables ; **état en lecture seule** ; **note privée**
-(`parent_note`) avec la mention explicite qu'elle n'est jamais servie à Massimo ; actions
-Enregistrer / Archiver.
+Intitulé · date · type · **chapitre** éditables ; **état en lecture seule** ; **plan de
+préparation en lecture seule** ; **note privée** (`parent_note`) avec la mention explicite qu'elle
+n'est jamais servie à Massimo ; actions Enregistrer / Archiver.
+
+> **Le plan de préparation — quatrième refus** (`adr-0050` Décision 7, 2026-08-10).
+> *« ZETIS a proposé **3 étapes** à Massimo, réparties jusqu'à la veille. **1 cochée** par lui. »*
+>
+> 🔴 **Aucun geste** : pas de bouton « générer », pas d'édition d'étape, pas de coche. Le plan est
+> un **service rendu à Massimo**, pas un objet de pilotage — le donner à corriger en ferait une
+> prescription d'adulte, et l'agenda redeviendrait le carnet que l'ADR-0025 §8 refuse.
+>
+> 🔴 **Et lire cet écran ne COMPOSE rien.** Le compte vient de `plan_counts`, qui compte les
+> étapes **existantes**. S'il passait par `get_or_create_plan`, **Papa figerait le plan de son
+> fils** en relevant l'ENT le dimanche soir, sur un référentiel antérieur aux fiches qu'il
+> s'apprête justement à valider. Même frontière que `done_at` : Papa lit, il n'écrit pas (§2b).
+>
+> ⚠️ **« cochée », jamais « faite »** (§14.7), et **deux entiers, jamais les étapes** : les servir
+> ici ferait lire à Papa ce que ZETIS a proposé, donc lui donnerait envie de le corriger.
+>
+> ⚠️ Sans plan : **la section n'existe pas**. Et déplacer la date **supprime** le plan (Décision 4)
+> — la réponse du `PATCH` le dit tout de suite, elle ne rend pas le compte d'avant.
 
 > **L'intitulé y est le même menu qu'à la saisie** (addendum ADR-0025 §13), branché sur le
 > chapitre **en cours d'édition** — changer de chapitre change la liste avant tout enregistrement.
@@ -220,7 +242,16 @@ Conventions des pages Papa existantes, sans en inventer de nouvelles.
 ## Données API
 
 Préfixe `/api/agenda`, `require_parent`. Schéma `AgendaItemPilotOut` (tout, y compris
-`parent_note`, `dismissed_at`, horodatages).
+`parent_note`, `dismissed_at`, horodatages), plus `plan_steps_total` / `plan_steps_done`
+(`adr-0050`) — **deux entiers, jamais les étapes**.
+
+> ⚠️ **Toutes** les routes ci-dessous les servent, y compris les unitaires, et c'est délibéré :
+> une route qui rendrait un compte périmé mentirait juste après le geste qui l'a changé. Le cas
+> concret est le `PATCH` de date, qui **supprime** le plan et doit répondre `0/0`.
+>
+> Côté service, `plan` est un kwarg **obligatoire** de `pilot_out` — un défaut à `{}` ferait
+> disparaître le plan de l'écran de Papa sans qu'aucun test ne rougisse. Même discipline que
+> `revisable` sur `student_out`.
 
 - `GET /items?from=&to=` → items archivés inclus, marqués.
 - `POST /items` → `created_by` forcé à `parent`. **Accepte un corps en lot.**

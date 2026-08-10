@@ -25,6 +25,7 @@ from app.db.models import (
     StudentProfile,
     Subject,
 )
+from app.modules.agenda import plan as plan_mod
 from app.modules.memory.service import chapter_servable_counts
 from app.modules.activity.events import (
     EVENT_AGENDA_ITEM_CREATED,
@@ -174,7 +175,20 @@ def student_out_one(db: Session, item: AgendaItem, *, student_id: int) -> dict:
     )
 
 
-def pilot_out(item: AgendaItem, subjects: dict[int, Subject]) -> dict:
+def pilot_out(
+    item: AgendaItem, subjects: dict[int, Subject], *, plan: dict[int, tuple[int, int]]
+) -> dict:
+    """Vue Papa. Sur-ensemble de la vue élève : `parent_note` et les horodatages y vivent.
+
+    ⚠️ `plan` est un paramètre **obligatoire**, sans valeur par défaut, pour la même raison que
+    `revisable` sur `student_out` : un défaut à `{}` ferait qu'un appelant distrait rendrait
+    `0/0` — donc **ferait disparaître le plan de l'écran de Papa sans qu'aucun test ne rougisse**.
+    Mieux vaut un `TypeError` bruyant qu'une information qui s'éteint en silence.
+
+    🔴 Et il vient de `plan_counts`, jamais de `get_or_create_plan` : lire la grille de Papa ne
+    doit **rien composer** (cf. la docstring de `plan_counts`).
+    """
+    total, coches = plan.get(item.id, (0, 0))
     return {
         "id": item.id,
         "label": item.label,
@@ -191,7 +205,26 @@ def pilot_out(item: AgendaItem, subjects: dict[int, Subject]) -> dict:
         "edited_by_parent_at": item.edited_by_parent_at,
         "created_at": getattr(item, "created_at", None),
         "updated_at": getattr(item, "updated_at", None),
+        "plan_steps_total": total,
+        "plan_steps_done": coches,
     }
+
+
+def pilot_out_many(db: Session, items: Sequence[AgendaItem]) -> list[dict]:
+    """`pilot_out` pour une liste — **un** appel à `plan_counts`, pas un par ligne."""
+    subjects = subjects_index(db)
+    plan = plan_mod.plan_counts(db, [item.id for item in items])
+    return [pilot_out(item, subjects, plan=plan) for item in items]
+
+
+def pilot_out_one(db: Session, item: AgendaItem) -> dict:
+    """`pilot_out` pour un item seul — les routes unitaires (créer, corriger, noter, archiver).
+
+    Miroir de `student_out_one`, et pour la même raison : une route unitaire qui rendrait un
+    compte périmé mentirait juste après le geste qui l'a changé. Le cas concret est la
+    **Décision 4** — corriger la date SUPPRIME le plan, et la réponse du PATCH doit dire `0/0`.
+    """
+    return pilot_out(item, subjects_index(db), plan=plan_mod.plan_counts(db, [item.id]))
 
 
 # --- Lectures ---------------------------------------------------------------------------------
@@ -241,6 +274,35 @@ def traces_by_day(db: Session, *, student_id: int, first: date, last: date) -> d
     return {day: min(cap, len(types)) for day, types in kinds.items() if types}
 
 
+def plan_steps_by_day(
+    db: Session, *, student_id: int, first: date, last: date
+) -> dict[date, list[dict]]:
+    """Les étapes de plan qui tombent chaque jour de la fenêtre (ADR-0050).
+
+    ⚠️ **La fenêtre des ÉCHÉANCES est plus large que celle des JOURS**, et c'est le point subtil
+    de cette fonction : une étape tombe *avant* son échéance. Un contrôle qui a lieu trois jours
+    après la fin de la bande porte donc des étapes **dans** la bande. Ne chercher que les
+    échéances de la fenêtre les ferait disparaître, sans erreur et sans test rouge.
+
+    Le plan est composé **à la demande** ici (`get_or_create_plan`) : c'est la « première lecture »
+    du §8 rôle 1. Lire la bande est donc ce qui fait naître les plans — voulu, et la seule
+    alternative serait un job de fond pour un objet que personne ne regarde peut-être jamais.
+    """
+    items = _items_between(
+        db,
+        student_id=student_id,
+        first=first,
+        last=last + timedelta(days=plan_mod.PLAN_MAX_STEPS),
+    )
+    out: dict[date, list[dict]] = {}
+    for item in items:
+        for step in plan_mod.get_or_create_plan(db, item):
+            jour = item.due_on - timedelta(days=step.day_offset)
+            if first <= jour <= last:
+                out.setdefault(jour, []).append(plan_mod.step_out(step))
+    return out
+
+
 def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
     """Bande GLISSANTE de 7 jours (§6) : 3 jours avant l'ancre, l'ancre, 3 jours après.
 
@@ -265,6 +327,7 @@ def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
     traces = traces_by_day(db, student_id=student_id, first=first, last=min(last, today))
     # Une seule résolution de servabilité pour toute la bande (ADR-0049 §2).
     revisable = revisable_counts(db, student_id=student_id, items=items)
+    steps_by_day = plan_steps_by_day(db, student_id=student_id, first=first, last=last)
 
     days = []
     for offset in range(-settings.agenda_band_days_before, settings.agenda_band_days_after + 1):
@@ -284,7 +347,9 @@ def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
                     if future_or_today
                     else []
                 ),
-                "plan_steps": [],  # Lot 2 — champ au contrat, jamais rempli ici.
+                # Le plan de préparation (ADR-0050). ⚠️ Jamais sur un jour PASSÉ : une étape
+                # qu'on ne peut plus faire n'est pas une aide, c'est un reproche (§7).
+                "plan_steps": steps_by_day.get(day, []) if future_or_today else [],
             }
         )
     return {"anchor": anchor, "days": days}
@@ -319,7 +384,9 @@ def upcoming(db: Session, *, student_id: int) -> list[dict]:
             "subject": _subject_ref(subjects, item.subject_id),
             "due_on": item.due_on,
             "days_left": (item.due_on - today).days,
-            "has_plan": False,  # Lot 2.
+            # ADR-0050 : vrai SI ET SEULEMENT SI le plan a au moins une étape. Un `has_plan`
+            # optimiste ferait apparaître un « ✦ » qui n'ouvre rien — le bouton mort du §14.6.
+            "has_plan": bool(plan_mod.get_or_create_plan(db, item)),
         }
         for item in rows
     ]
@@ -334,11 +401,17 @@ def list_student_items(db: Session, *, student_id: int, first: date, last: date)
 
 def list_pilot_items(db: Session, *, student_id: int, first: date, last: date) -> list[dict]:
     """Vue Papa : archivés INCLUS (le masquage reste visible côté pilotage — §2c)."""
-    subjects = subjects_index(db)
     items = _items_between(
         db, student_id=student_id, first=first, last=last, include_archived=True
     )
-    return [pilot_out(item, subjects) for item in items]
+    # UNE requête pour toute la grille (ADR-0050 Décision 7), et surtout une requête qui ne
+    # COMPOSE rien : lire le pilotage ne fige aucun plan.
+    #
+    # ⚠️ Les ARCHIVÉS en font partie, et leur plan aussi : `drop_plan` n'est appelé que sur un
+    # déplacement de date, jamais à l'archivage. Un item masqué garde donc son compte — c'est
+    # cohérent avec le §2c (« le masquage reste visible côté pilotage »), et l'écran le rend
+    # déjà en `opacity-50`.
+    return pilot_out_many(db, items)
 
 
 def new_agenda_count(db: Session, student_id: int) -> int:
@@ -508,6 +581,14 @@ def patch_parent_item(db: Session, *, student_id: int, item_id: int, data: dict)
         data.get("lesson_id", item.lesson_id),
         data.get("chapter_id", item.chapter_id),
     )
+    # 🔴 Le plan de préparation est une FONCTION DE LA DATE (ADR-0050 Décision 4) : si `due_on`
+    # change, les jours qu'il porte ne veulent plus rien dire. On le supprime, coches comprises.
+    #
+    # ⚠️ Testé sur la PRÉSENCE de la clé et sur un changement RÉEL de valeur, jamais sur
+    # `data.get("due_on")` : celui-ci vaut `None` aussi quand Papa ne patche pas la date, et le
+    # chantier agenda a déjà payé « le PATCH partiel qui périme une donnée ».
+    if "due_on" in data and data["due_on"] != item.due_on:
+        plan_mod.drop_plan(db, item)
     _apply(item, data, _PARENT_EDITABLE)
     if item.created_by == "student":
         item.edited_by_parent_at = _now()

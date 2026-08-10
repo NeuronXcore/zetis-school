@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS — Mockup Plan de préparation (Massimo) — ADR-0050</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --zetis-bg: #0a0d1c; --zetis-primary: #6366f1; --zetis-cyan: #22d3ee;
+    --zetis-fuchsia: #d946ef; --zetis-amber: #f5a524; --zetis-fg: #eef0ff;
+    --zetis-muted: #8b91b8; --zetis-glass: rgba(255,255,255,.055);
+    --zetis-glass-border: rgba(255,255,255,.12);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--zetis-bg); color: var(--zetis-fg); min-height:100vh; overflow-x:hidden;
+  }
+  .neon-backdrop { position:fixed; inset:0; z-index:0; pointer-events:none; }
+  .neon-backdrop::before, .neon-backdrop::after {
+    content:""; position:absolute; border-radius:50%; filter:blur(110px); opacity:.3;
+  }
+  .neon-backdrop::before { width:520px; height:520px; top:-140px; left:-120px; background:var(--zetis-primary); }
+  .neon-backdrop::after { width:460px; height:460px; bottom:-160px; right:-100px; background:var(--zetis-fuchsia); opacity:.16; }
+
+  .app { position:relative; z-index:1; max-width:1120px; margin:0 auto; padding:30px 20px 70px; }
+  .wordmark { font-family:"Syncopate",sans-serif; font-weight:700; font-size:14px; letter-spacing:.35em;
+    text-align:center; margin-bottom:4px; opacity:.9; }
+  .wordmark span { color:var(--zetis-cyan); }
+  .doc-title { text-align:center; font-size:22px; font-weight:800; margin:14px 0 4px; }
+  .doc-sub { text-align:center; color:var(--zetis-muted); font-size:13.5px; margin-bottom:4px; }
+  .doc-adr { text-align:center; font-size:12px; color:var(--zetis-cyan); letter-spacing:.12em;
+    text-transform:uppercase; font-weight:700; margin-bottom:26px; }
+
+  .note { max-width:780px; margin:0 auto 30px; padding:14px 18px; border-left:3px solid var(--zetis-amber);
+    background:rgba(245,165,36,.07); border-radius:0 12px 12px 0; font-size:13.5px; line-height:1.6; color:#f0e2c8; }
+  .note strong { color:var(--zetis-amber); }
+  .note code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
+    background:rgba(255,255,255,.07); padding:1px 5px; border-radius:5px; }
+
+  .block-label { font-size:11.5px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--zetis-muted); margin:40px 4px 6px; display:flex; align-items:center; gap:10px; }
+  .block-label::after { content:""; flex:1; height:1px; background:var(--zetis-glass-border); }
+  .block-note { font-size:13px; color:var(--zetis-muted); margin:0 4px 18px; line-height:1.6; max-width:830px; }
+  .block-note b { color:var(--zetis-fg); }
+
+  .phones { display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
+  .phone { width:336px; flex:0 0 336px; border:1px solid var(--zetis-glass-border);
+    border-radius:28px; padding:18px 15px 22px; background:rgba(255,255,255,.018); position:relative; }
+  .phone-cap { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--zetis-muted);
+    font-weight:700; text-align:center; margin-bottom:14px; }
+  .phone.good { border-color:rgba(34,211,238,.38); } .phone.good .phone-cap { color:var(--zetis-cyan); }
+  .phone.bad { border-color:rgba(244,63,94,.38); } .phone.bad .phone-cap { color:#fb7185; }
+  /* Option reportée : conservée comme trace, jamais comme spécification.
+     ⚠️ Le badge se pose SUR la bordure haute, pas dans le flux — à l'intérieur, il chevauchait le
+     libellé centré (défaut mesuré sur la maquette du deck chapitre, le 2026-08-10). */
+  .phone.discarded { opacity:.42; filter:saturate(.35); margin-top:10px; }
+  .phone.discarded::after {
+    content:"OPTION REPORTÉE"; position:absolute; top:-10px; left:50%; transform:translateX(-50%);
+    white-space:nowrap; font-size:9.5px; font-weight:800; letter-spacing:.13em;
+    padding:3px 10px; border-radius:999px;
+    background:#1a1020; color:var(--zetis-amber); border:1px solid rgba(245,165,36,.44);
+  }
+
+  .glass-card { background:var(--zetis-glass); border:1px solid var(--zetis-glass-border);
+    border-radius:18px; padding:15px; }
+
+  /* ── bande semaine réduite ── */
+  .days { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px; }
+  .day-col { display:flex; flex-direction:column; align-items:center; gap:5px; padding:7px 0;
+    border-radius:12px; font-size:11px; }
+  .day-col .dow { color:var(--zetis-muted); font-size:9px; letter-spacing:.08em; text-transform:uppercase; }
+  .day-col .num { font-weight:800; font-size:14px; }
+  .day-col.today { background:rgba(34,211,238,.10); border:1px solid rgba(34,211,238,.35); }
+  .spark { color:var(--zetis-cyan); font-size:11px; line-height:1; }
+
+  /* ── le plan ── */
+  .plan { margin-top:12px; }
+  .plan-head { display:flex; align-items:baseline; gap:8px; font-size:11px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--zetis-cyan); font-weight:700; margin-bottom:9px; }
+  .plan-head .sub { margin-left:auto; letter-spacing:0; text-transform:none; color:var(--zetis-muted);
+    font-weight:600; font-size:11px; }
+  .step { display:flex; align-items:center; gap:9px; padding:9px 11px; border-radius:12px;
+    background:rgba(255,255,255,.035); border:1px solid var(--zetis-glass-border);
+    font-size:12.5px; margin-bottom:6px; cursor:pointer; }
+  .step:hover { border-color:rgba(34,211,238,.45); }
+  .step .tick { width:19px; height:19px; border-radius:50%; border:1px solid rgba(255,255,255,.22);
+    display:flex; align-items:center; justify-content:center; font-size:10px; color:transparent; flex:0 0 auto; }
+  .step.done .tick { border-color:rgba(52,211,153,.7); background:rgba(52,211,153,.2); color:#6ee7b7; }
+  .step.done .lbl { text-decoration:line-through; opacity:.6; }
+  .step .lbl { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .step .when { margin-left:auto; font-size:10.5px; color:var(--zetis-muted); flex:0 0 auto; }
+  .step .ico { flex:0 0 auto; }
+
+  .absence { margin-top:12px; padding:11px 14px; border-radius:12px; border:1px dashed rgba(255,255,255,.10);
+    font-size:11.5px; color:rgba(139,145,184,.55); font-style:italic; text-align:center; }
+
+  .kind { font-size:9.5px; font-weight:800; letter-spacing:.11em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; }
+  .kind.controle { background:rgba(217,70,239,.17); color:#f0abfc; border:1px solid rgba(217,70,239,.35); }
+  .item-head { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+  .when-r { font-size:11.5px; color:var(--zetis-muted); font-weight:600; margin-left:auto; }
+  .item-title { font-size:15px; font-weight:700; line-height:1.35; }
+  .item-meta { font-size:12px; color:var(--zetis-muted); margin-top:4px; }
+
+  .legend { margin:12px 4px 0; font-size:12.5px; color:var(--zetis-muted); line-height:1.65; }
+  .legend b { color:var(--zetis-fg); }
+  .legend .ko { color:#fb7185; font-weight:700; }
+  .legend .ok { color:var(--zetis-cyan); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="neon-backdrop"></div>
+<div class="app">
+  <div class="wordmark">ZE<span>T</span>IS</div>
+  <div class="doc-title">Le plan de préparation</div>
+  <div class="doc-sub">Interface de Massimo — ADR-0025 §8 rôle 1, le « traducteur »</div>
+  <div class="doc-adr">ADR-0050 · maquette v1 · 2026-08-10</div>
+
+  <div class="note">
+    <strong>L'échéance disait QUOI. Le plan dit COMMENT s'y prendre.</strong>
+    Trois étapes au maximum, réparties de demain à <strong>la veille</strong> — jamais le jour du
+    contrôle. Chaque étape est un lien vers ce qui existe déjà, dans l'ordre que le serveur porte
+    déjà : <em>comprendre, puis mémoriser, puis se tester</em>.
+    <br><br>
+    ⚠️ <strong>Aucun LLM</strong> — le plan se compose depuis le référentiel (§8 rôle 1). Et
+    <strong>aucun compte à rebours, aucune couleur d'approche</strong> : le seul signal
+    d'approche est l'apparition du plan lui-même (§6).
+  </div>
+
+  <!-- A -->
+  <div class="block-label">A — Le plan sous le jour &nbsp;·&nbsp; contrôle dans 4 jours</div>
+  <div class="block-note">
+    Le <b>✦</b> de la bande s'allume sur les jours qui portent une étape. Le plan vit sous
+    l'échéance qui le justifie — <b>il n'a aucune page à lui</b>.
+  </div>
+  <div class="phones">
+    <div class="phone good">
+      <div class="phone-cap">Agenda · demain → jeudi</div>
+      <div class="days">
+        <div class="day-col"><span class="dow">lun</span><span class="num">10</span></div>
+        <div class="day-col"><span class="dow">mar</span><span class="num">11</span><span class="spark">✦</span></div>
+        <div class="day-col"><span class="dow">mer</span><span class="num">12</span><span class="spark">✦</span></div>
+        <div class="day-col today"><span class="dow">jeu</span><span class="num">13</span><span class="spark">✦</span></div>
+        <div class="day-col"><span class="dow">ven</span><span class="num">14</span></div>
+        <div class="day-col"><span class="dow">sam</span><span class="num">15</span></div>
+        <div class="day-col"><span class="dow">dim</span><span class="num">16</span></div>
+      </div>
+
+      <div class="glass-card">
+        <div class="item-head">
+          <span class="kind controle">Contrôle</span>
+          <span class="when-r">vendredi · dans 4 jours</span>
+        </div>
+        <div class="item-title">Multiplication de fractions</div>
+        <div class="item-meta">Mathématiques · ajouté par ZETIS</div>
+
+        <div class="plan">
+          <div class="plan-head">
+            <span>✦ Ton plan</span>
+            <span class="sub">1 sur 3</span>
+          </div>
+          <div class="step done">
+            <span class="tick">✓</span><span class="ico">🗒️</span>
+            <span class="lbl">Lire les fiches</span><span class="when">mar. 11</span>
+          </div>
+          <div class="step">
+            <span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span>
+          </div>
+          <div class="step">
+            <span class="tick">✓</span><span class="ico">🎯</span>
+            <span class="lbl">Choisir un quiz</span><span class="when">jeu. 13</span>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <b>Rien le jour du contrôle.</b> Un plan qui demande de réviser le matin même est une
+        source d'angoisse, pas une aide. La dernière étape tombe <b>la veille</b>.
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="phone-cap">Le même, à J+2</div>
+      <div class="glass-card">
+        <div class="item-head">
+          <span class="kind controle">Contrôle</span>
+          <span class="when-r">mercredi · dans 2 jours</span>
+        </div>
+        <div class="item-title">Comparaison de fractions</div>
+        <div class="item-meta">Mathématiques · ajouté par ZETIS</div>
+        <div class="plan">
+          <div class="plan-head"><span>✦ Ton plan</span><span class="sub">0 sur 2</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mar. 11</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
+            <span class="lbl">Choisir un quiz</span><span class="when">mar. 11</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        <b>Deux jours ⇒ deux étapes</b>, pas trois compressées. Le plafond descend avec le temps
+        disponible ; il ne monte jamais au-dessus de 3.
+      </div>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="block-label">B — 🔴 Les trois états SANS plan &nbsp;·&nbsp; ce que la Décision 3 et le §14.6 tranchent</div>
+  <div class="block-note">
+    Trois causes, <b>un seul rendu</b> : rien. Ni « ✦ » éteint, ni « plan bientôt », ni bloc vide.
+    <code>has_plan</code> est faux et la surface n'existe pas.
+  </div>
+  <div class="phones">
+    <div class="phone bad">
+      <div class="phone-cap">✗ Ce qu'on REFUSE</div>
+      <div class="glass-card">
+        <div class="item-head"><span class="kind controle">Contrôle</span><span class="when-r">demain</span></div>
+        <div class="item-title">Les séismes et les volcans</div>
+        <div class="item-meta">SVT · ajouté par ZETIS</div>
+        <div class="plan">
+          <div class="plan-head" style="color:var(--zetis-muted);"><span>✦ Ton plan</span><span class="sub">bientôt</span></div>
+          <div class="step" style="opacity:.42; cursor:not-allowed;">
+            <span class="tick">✓</span><span class="ico">🗒️</span>
+            <span class="lbl">Pas encore de plan</span><span class="when">—</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="ko">Un bloc qui s'annonce et ne sert rien se lit comme une panne.</span>
+        Et il annonce à Massimo un manque dont il n'est pas l'auteur.
+      </div>
+    </div>
+
+    <div class="phone good">
+      <div class="phone-cap">✓ Ce qu'on FAIT — les trois causes</div>
+      <div class="glass-card" style="margin-bottom:8px;">
+        <div class="item-head"><span class="kind controle">Contrôle</span><span class="when-r">demain</span></div>
+        <div class="item-title">Les séismes et les volcans</div>
+        <div class="item-meta">SVT · <b>J+1 : pas de rétro-planning possible</b></div>
+        <div class="absence">— aucun plan, aucun espace réservé —</div>
+      </div>
+      <div class="glass-card" style="margin-bottom:8px;">
+        <div class="item-head"><span class="kind controle">Contrôle</span><span class="when-r">dans 5 jours</span></div>
+        <div class="item-title">Le théorème de Pythagore</div>
+        <div class="item-meta">Maths · <b>chapitre sans fiche, sans cartes, sans quiz</b></div>
+        <div class="absence">— aucun plan —</div>
+      </div>
+      <div class="glass-card">
+        <div class="item-head"><span class="kind controle">Contrôle</span><span class="when-r">dans 5 jours</span></div>
+        <div class="item-title">Contrôle surprise</div>
+        <div class="item-meta">Histoire-Géo · <b>aucun chapitre saisi</b></div>
+        <div class="absence">— aucun plan —</div>
+      </div>
+      <div class="legend">
+        <span class="ok">L'échéance reste entière.</span> Elle ne promet rien, et surtout elle
+        n'explique pas ce qui lui manque : ce qui manque est du travail de Papa, sur un écran
+        qui n'en parle pas.
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="phone-cap">🔴 Papa déplace la date</div>
+      <div class="glass-card">
+        <div class="item-head"><span class="kind controle">Contrôle</span><span class="when-r">vendredi → <b>lundi</b></span></div>
+        <div class="item-title">Multiplication de fractions</div>
+        <div class="item-meta">Mathématiques</div>
+        <div class="absence">— le plan est supprimé, coches comprises —</div>
+      </div>
+      <div class="legend">
+        Un rétro-planning est une <b>fonction de la date</b> : le garder afficherait des jours qui
+        ne veulent plus rien dire. Le suivant sera composé à la prochaine lecture.
+        <br><br>
+        ⚠️ <b>La perte des coches est assumée</b> — elles portaient des jours qui n'existent plus.
+        C'est le coût le plus discutable de l'ADR, et il est écrit.
+      </div>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="block-label">C — Décision 5 &nbsp;·&nbsp; ✅ (A) RETENUE, (B) REPORTÉE</div>
+  <div class="block-note">
+    Le plan est <b>le premier objet du dépôt où la preuve serait disponible</b> : une session de
+    cartes laisse une trace, un quiz aussi. <b>Tranché le 2026-08-10 : on ne s'en sert pas.</b>
+    La cohérence d'écran prime — les deux coches sont côte à côte — et (B) rouvrirait le §3
+    (<i>« cocher ne prouve rien »</i>) sans que rien ne le demande.
+  </div>
+  <div class="phones">
+    <div class="phone good">
+      <div class="phone-cap">✅ (A) Déclaratif — RETENUE</div>
+      <div class="glass-card">
+        <div class="plan">
+          <div class="plan-head"><span>✦ Ton plan</span><span class="sub">1 sur 3</span></div>
+          <div class="step done"><span class="tick">✓</span><span class="ico">🗒️</span>
+            <span class="lbl">Lire les fiches</span><span class="when">mar. 11</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        Massimo coche, comme il coche un devoir. <b>Aucun XP, aucune célébration</b> — le geste est
+        déclaratif, il ne se récompense pas, sinon il apprend à cocher. Papa lira
+        <b>« cochée »</b>, jamais « faite ».
+      </div>
+    </div>
+    <div class="phone discarded">
+      <div class="phone-cap">(B) Prouvé — l'activité valide</div>
+      <div class="glass-card">
+        <div class="plan">
+          <div class="plan-head"><span>✦ Ton plan</span><span class="sub">1 sur 3</span></div>
+          <div class="step done"><span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">8 cartes revues</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
+            <span class="lbl">Choisir un quiz</span><span class="when">mer. 12</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        L'étape se coche <b>toute seule</b> quand l'activité a laissé sa trace. Plus honnête —
+        mais <b>deux sémantiques de coche</b> sur le même écran, et le §3 (<i>« cocher ne prouve
+        rien »</i>) se rouvre sans que rien ne le demande.
+        <br><br>
+        ⚠️ <b>REPORTÉE, pas écartée</b> — la donnée existe déjà. Son déclencheur est nommé : le
+        jour où Papa demandera à lire autre chose qu'une déclaration.
+      </div>
+    </div>
+  </div>
+
+  <!-- D -->
+  <div class="block-label">D — 🔴 Décision 2 quater &nbsp;·&nbsp; le libellé nomme le grain qu'il atteint</div>
+  <div class="block-note">
+    Ajoutée <b>au câblage</b>, le 2026-08-10. Cette maquette portait « Lire la fiche » et « Petit
+    quiz » — deux promesses que le dépôt <b>ne peut pas tenir</b> :
+    <code>FichesPage</code> ne lit aucun <code>searchParams</code> et <code>QuizPage</code> ne lit
+    que <code>subject</code>. Fabriquer <code>/fiches?fiche=&lt;id&gt;</code> aurait produit un lien
+    qui s'ouvre sur une page qui <b>ignore</b> son paramètre : un cul-de-sac qui a l'air de marcher.
+  </div>
+  <div class="phones">
+    <div class="phone bad">
+      <div class="phone-cap">✗ Ce que cette maquette disait</div>
+      <div class="glass-card">
+        <div class="plan">
+          <div class="plan-head"><span>✦ Ton plan</span><span class="sub">0 sur 3</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">📖</span>
+            <span class="lbl">Lire la fiche</span><span class="when">mar. 11</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
+            <span class="lbl">Petit quiz</span><span class="when">jeu. 13</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="ko">« Lire la fiche » promet UNE fiche et en ouvre une liste.</span>
+        Et <b>📖 est déjà la puce « lire le cours »</b>, deux lignes plus haut sur la même carte —
+        collision invisible tant qu'on ne regarde pas la carte entière.
+      </div>
+    </div>
+
+    <div class="phone good">
+      <div class="phone-cap">✓ Ce qui est livré</div>
+      <div class="glass-card">
+        <div class="plan">
+          <div class="plan-head"><span>✦ Ton plan</span><span class="sub">0 sur 3</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🗒️</span>
+            <span class="lbl">Lire les fiches</span><span class="when">mar. 11</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
+            <span class="lbl">Choisir un quiz</span><span class="when">jeu. 13</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="ok">Le grain se dit par le PLURIEL et par le VERBE</span>, pas en répétant la
+        matière : « les fiches » ouvre une liste, « choisir » annonce qu'on choisira. Seule la
+        révision garde le grain fin — <b>parce que sa destination l'a vraiment</b> : c'est le deck
+        chapitre de l'<code>adr-0049</code>.
+        <br><br>
+        🔴 <b>« Lire les fiches de Mathématiques » a été essayé, puis MESURÉ dans le DOM</b> :
+        193 px pour 151 disponibles (202 px avec « Physique-Chimie »). Ce qui se coupait, c'était
+        <b>le nom de la matière</b> — l'information même que l'allongement portait. Et elle est
+        déjà sur la carte, deux lignes plus haut.
+        <br><br>
+        ⚠️ <code>resource_id</code> reste persisté et <b>inutilisé</b> pour la fiche et le quiz —
+        la donnée est juste, c'est la route qui manque.
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="phone-cap">🔴 Une seule porte vers le deck</div>
+      <div class="glass-card">
+        <div class="item-head"><span class="kind controle">Contrôle</span><span class="when-r">dans 4 jours</span></div>
+        <div class="item-title">Multiplication de fractions</div>
+        <div class="item-meta">Mathématiques · <b>8 cartes servables</b></div>
+        <div class="absence">— la porte « 🃏 Réviser ce chapitre · 8 cartes » n'est pas rendue —</div>
+        <div class="plan">
+          <div class="plan-head"><span>✦ Ton plan</span><span class="sub">0 sur 2</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
+            <span class="lbl">Choisir un quiz</span><span class="when">jeu. 13</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        La porte de l'<code>adr-0049</code> et l'étape <code>revision</code> mènent au <b>même
+        deck</b>, sous la même condition serveur. Deux boutons identiques à trois lignes d'écart :
+        <b>le plan absorbe la porte</b> — sa version est datée et elle se coche.
+        <br><br>
+        ⚠️ Le « 8 cartes » part avec la porte. Sur un bouton pressable tout de suite c'est une
+        <b>offre</b> ; sur une étape datée de mercredi, ça devient un <b>quota pour mercredi</b>.
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

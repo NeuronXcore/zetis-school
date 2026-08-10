@@ -148,6 +148,21 @@ export function AgendaTags({ item }: { item: AgendaItemPilot }) {
       >
         {item.done_at ? "✓ coché" : "à faire"}
       </Tag>
+      {/* Le plan de préparation, EN LECTURE (ADR-0050 Décision 7). Violet — ni l'émeraude de la
+          coche, ni le fuchsia du contrôle : c'est ZETIS qui parle, pas Massimo et pas l'école.
+          Même couleur que chez lui, où l'encadré porte le `✦`.
+
+          🔴 **`0` étape ⇒ AUCUNE étiquette.** La plupart des échéances n'ont pas de plan (il faut
+          un chapitre et au moins 2 jours) : un « ✦ 0/0 » sur chacune ferait de la grille un
+          tableau de manques, et il désignerait un manque dont Papa n'est pas l'auteur.
+
+          ⚠️ Le compte MONTE (« cochées »), il ne décompte pas — et jamais « faites » (§14.7) :
+          Papa lit une déclaration de Massimo, pas une complétion constatée. */}
+      {item.plan_steps_total > 0 && (
+        <Tag className="bg-violet-500/15 text-violet-300">
+          ✦ {item.plan_steps_done}/{item.plan_steps_total}
+        </Tag>
+      )}
     </>
   );
 }

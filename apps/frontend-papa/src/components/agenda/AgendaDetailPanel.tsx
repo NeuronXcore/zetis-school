@@ -253,9 +253,59 @@ export function AgendaDetailPanel({
           </button>
           <p className="text-[11px] leading-relaxed text-papa-muted">
             Massimo les recevra dans ses missions — découvrir, verbaliser, reconstruire la carte,
-            mini-quiz. <b className="text-papa-text/80">Réviser les cartes du chapitre</b> n'est pas
-            encore possible.
+            mini-quiz.
           </p>
+          {/* ⚠️ Cette phrase disait « **Réviser les cartes du chapitre** n'est pas encore
+              possible » — **faux depuis le 2026-08-10** : l'`adr-0049` a livré le deck chapitre,
+              et Massimo a la porte sur son échéance. Une annonce d'indisponibilité qui survit à
+              sa livraison est pire qu'un silence : elle décourage un geste devenu possible. */}
+          <p className="text-[11px] leading-relaxed text-papa-muted">
+            Depuis son agenda, Massimo peut aussi{" "}
+            <b className="text-papa-text/80">réviser les cartes de ce chapitre</b> — dès qu'il y en
+            a de servables.
+          </p>
+        </div>
+      )}
+
+      {/* Le plan de préparation, EN LECTURE SEULE (ADR-0050 Décision 7).
+          Quatrième refus, du même ordre que les trois de l'en-tête : Papa CONSTATE.
+
+          🔴 **Aucun geste** — pas de bouton « générer », pas d'édition d'étape, pas de coche.
+          Le plan est un service rendu à Massimo, pas un objet de pilotage : le lui donner à
+          corriger le transformerait en prescription d'adulte, et l'agenda redeviendrait le
+          carnet que l'ADR-0025 §8 refuse.
+
+          🔴 **Et lire cet écran ne COMPOSE rien.** Le compte vient de `plan_counts`, qui compte
+          les étapes existantes ; s'il passait par `get_or_create_plan`, Papa figerait le plan de
+          son fils en relevant l'ENT le dimanche soir. */}
+      {item.plan_steps_total > 0 && (
+        <div className="flex flex-col gap-1 text-xs text-papa-muted">
+          Plan de préparation
+          <div className="flex items-start gap-2 rounded-lg border border-papa-border bg-papa-bg px-3 py-2">
+            <span aria-hidden className="mt-0.5 shrink-0 text-violet-300">
+              ✦
+            </span>
+            <p className="text-xs leading-relaxed text-papa-text">
+              ZETIS a proposé <b>{item.plan_steps_total} étapes</b> à Massimo, réparties jusqu'à la
+              veille.{" "}
+              {/* « cochée(s) », JAMAIS « faite(s) » (§14.7) : cocher ne prouve rien, et le
+                  serveur ne connaît qu'un `done_at` posé par une route élève. */}
+              {item.plan_steps_done === 0 ? (
+                <>Aucune n'est cochée pour l'instant.</>
+              ) : (
+                <>
+                  <b>
+                    {item.plan_steps_done} cochée{item.plan_steps_done > 1 ? "s" : ""}
+                  </b>{" "}
+                  par lui.
+                </>
+              )}
+            </p>
+          </div>
+          <span>
+            Composé depuis le programme, sans IA. Vous ne pouvez ni le modifier ni le relancer —
+            et déplacer la date le supprime.
+          </span>
         </div>
       )}
 

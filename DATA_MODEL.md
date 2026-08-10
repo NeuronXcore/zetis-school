@@ -512,9 +512,17 @@ chapter_id          # FK chapters — NULLABLE. Sélectionné par Papa dans le r
                     # C'est la clé de toute l'analyse (ADR-0025 §11) : {chapter_id, due_on}
                     # est l'entrée exacte de la porte « échéance » du Commander (ADR-0018 §1).
                     # Zéro embedding, zéro parsing — Papa choisit dans un menu.
+lesson_id           # FK lessons — NULLABLE. Renseigné quand Papa choisit l'intitulé dans la
+                    # liste des cours VALIDÉS du chapitre (addendum ADR-0025 §13/§15). Sert à
+                    # POINTER (« lire le cours »), jamais à scoper une production : le
+                    # déclencheur et le Commander restent scopés par `chapter_id`.
+                    # ⚠️ Le service refuse en 422 une leçon étrangère au `chapter_id` donné.
 due_on              # Date (pas datetime : une échéance est un jour)
 label               # texte brut, tel que saisi — JAMAIS réécrit par le serveur
-kind                # devoir | controle | rendu
+kind                # devoir | lecon | controle | rendu
+                    # `lecon` = « leçon à apprendre », ajouté par l'addendum ADR-0025 §14 :
+                    # c'est le travail que ZETIS sait le mieux accompagner. Premier `kind` qui
+                    # DÉCLENCHE une production sans être annoncé dans « ce qui arrive ».
 created_by          # student | parent — IMMUABLE après création
 created_at / updated_at
 edited_by_parent_at # nullable — renseigné automatiquement par le service, jamais par le client
@@ -533,9 +541,60 @@ Schémas séparés côté serveur, patron `MissionStudentOut` / `MissionPilotOut
 `AgendaItemStudentOut` (sans `parent_note`, avec `edited_by_parent` booléen dérivé) et
 `AgendaItemPilotOut` (tout).
 
-**Pas de `skill_id`, pas de table de plan.** Le scope pédagogique passe par `chapter_id` ; les
-notions s'en résolvent au moment de l'analyse (fonction pure, la même que la matrice de
-couverture — un substrat, deux consommateurs).
+**Pas de `skill_id` sur l'item.** Le scope pédagogique passe par `chapter_id` ; les notions s'en
+résolvent au moment de l'analyse (fonction pure, la même que la matrice de couverture — un
+substrat, deux consommateurs).
+
+### AgendaPlanStep
+
+> Créée par l'ADR-0050 (migration **`b2c3d4e5f9a1`**), qui réalise le §8 rôle 1 de l'ADR-0025 :
+> l'échéance dit **quoi**, le plan dit **comment s'y prendre**.
+>
+> ⚠️ **Ce n'est PAS un `MissionStep`**, et la ressemblance est trompeuse. Une mission se **prouve**
+> (complétion vérifiée serveur, ADR-0017 §5) ; une étape de plan se **déclare** — elle hérite de
+> l'`AgendaItem` qui la porte, pas du moteur de missions (ADR-0050 Décision 1).
+
+```txt
+id
+agenda_item_id      # FK agenda_items, ON DELETE CASCADE — l'étape n'existe QUE par son échéance
+day_offset          # jours AVANT l'échéance : 1 = la veille. JAMAIS 0 — on ne planifie pas le
+                    # jour du contrôle, ce serait une source d'angoisse et non une aide.
+kind                # fiche | revision | quiz — vocabulaire de la PANOPLIE, jamais réinventé.
+                    # ⚠️ `cours` et `eli5` en sont exclus : l'échéance offre déjà « lire le
+                    # cours » (§15), et le redonner ici serait une troisième surface.
+skill_id            # FK skills — NULLABLE. La notion visée, quand l'étape en a une.
+resource_id         # NULLABLE. 🔴 Sa SIGNIFICATION DÉPEND DU `kind` : `fiche_id` pour `fiche`,
+                    # `quiz_id` pour `quiz`, et le `chapter_id` de l'échéance pour `revision`
+                    # (dont le grain est le chapitre — deck de l'ADR-0049). L'interpréter
+                    # uniformément enverrait Massimo au mauvais endroit.
+                    # ⚠️ Servi mais INUTILISÉ pour `fiche` et `quiz` : ni `/fiches` ni `/quiz`
+                    # ne sont adressables par id (ADR-0050 Décision 2 quater). La donnée est
+                    # juste, c'est la route qui manque.
+sort_order          # ordre pédagogique — comprendre, puis mémoriser, puis se tester
+done_at             # nullable — écrit UNIQUEMENT par une route élève. « coché », jamais
+                    # « fait » : aucun XP, aucune écriture pédagogique (Décision 5, option A).
+```
+
+**Cycle de vie, entièrement dans `modules/agenda/plan.py` :**
+
+- **Composé à la PREMIÈRE LECTURE** — celle de **Massimo**, jamais celle de Papa. C'est une
+  écriture dans un `GET`, assumée et commentée : `db.commit()` obligatoire, sinon le plan est
+  servi avec des ids puis annulé au rollback (la coche répondait alors 404).
+- **Puis FIGÉ** : une fiche validée après coup n'y entre jamais.
+- 🔴 **RÉVOQUÉ si `due_on` change** (`drop_plan`) — coches comprises, et c'est assumé : elles
+  portaient des jours qui n'existent plus. Un rétro-planning est une fonction de la date.
+- **Un plan vide n'est jamais persisté** — on ne stocke pas une absence. La composition est donc
+  retentée à chaque lecture tant qu'elle ne donne rien, ce qui est le comportement voulu : le jour
+  où Papa valide la fiche, le plan apparaît.
+- ⚠️ **Non supprimé à l'archivage** de l'échéance — seul un déplacement de date le révoque
+  (cohérent avec le §2c : le masquage reste visible côté pilotage).
+
+**Bornes** : au plus **3** étapes (2 si l'échéance est à 2–3 jours), **une par `kind`** — trois
+types, donc trois étapes au maximum, naturellement.
+
+**Deux lectures, deux fonctions, et il ne faut pas les confondre** : `get_or_create_plan` (qui
+**compose**, pour Massimo) et `plan_counts` (qui **compte**, en lot, pour Papa). Si le pilotage
+passait par la première, **Papa figerait le plan de son fils** en relevant l'ENT.
 
 ### AppSetting
 

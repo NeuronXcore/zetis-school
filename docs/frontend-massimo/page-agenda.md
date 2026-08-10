@@ -159,7 +159,60 @@ s'efface jamais.
 >
 > ⚠️ **Indépendant du `kind`** : un devoir rattaché à un cours y mène aussi.
 
-`plan_steps` (✦ sous le jour) : emplacement prévu, **vide en Lot 1**.
+### `plan_steps` — le plan de préparation `[0050]`
+
+**Ce n'était qu'un emplacement prévu, vide en Lot 1.** Il est rempli depuis l'`adr-0050` : sur une
+échéance datée qui porte un chapitre, ZETIS compose un **plan rétro-planifié** — jusqu'à **trois**
+étapes, réparties de demain à **la veille** de l'échéance, jamais le jour même.
+
+Chaque étape est un **lien vers ce qui existe déjà**, dans l'ordre pédagogique que le serveur porte
+déjà — *comprendre, puis mémoriser, puis se tester*. **Aucun LLM** : le plan se compose depuis le
+référentiel (ADR-0025 §8 rôle 1). **Trois types, donc trois étapes au maximum** — jamais deux du
+même type (Décision 2 bis) ; `cours` et `eli5` n'en sont pas, l'échéance offre déjà « lire le
+cours ».
+
+**Où il se rend, et ce que chaque étape dit** (Décisions 2 ter et 2 quater) :
+
+| Étape | Libellé | Où elle mène | Grain |
+|---|---|---|---|
+| 🗒️ | **Lire les fiches** | `/fiches/<slug>` | la **matière** — `FichesPage` ne lit aucun `searchParams` |
+| 🃏 | **Réviser ce chapitre** | `/revision/session` + `state` | le **chapitre** ✅, deck de l'`adr-0049` |
+| 🎯 | **Choisir un quiz** | `/quiz?subject=<slug>` | la **matière** — `QuizPage` ne lit que `subject` |
+
+- **Le plan se rend SOUS l'échéance qu'il prépare**, pas sous le jour : sur une semaine à deux
+  contrôles, une étape posée sous le jour flotte sans dire de quel chapitre elle parle. La **bande**
+  ne garde que le **`✦`** — *« il y a quelque chose à faire ce jour-là »*, rien de plus.
+- 🔴 **Le libellé ne répète pas la matière**, et c'est une **mesure** : *« Lire les fiches de
+  Mathématiques »* faisait 193 px pour 151 disponibles sur un téléphone, et c'est **le nom de la
+  matière** qui se coupait. Elle est déjà deux lignes plus haut. Le grain se dit par le **pluriel**
+  et par le **verbe**.
+- 🔴 **Le plan absorbe la porte de révision de l'`adr-0049`** quand il porte une étape `revision` :
+  les deux mènent au même deck, sous la même condition serveur. Deux boutons identiques à trois
+  lignes d'écart. La version du plan gagne — elle est **datée** et elle se **coche**. Le « N cartes »
+  part avec la porte : sur une étape datée de mercredi, il deviendrait un quota pour mercredi.
+- ⚠️ **`resource_id` est servi et reste inutilisé** pour `fiche` et `quiz` : la donnée est juste,
+  c'est la route qui manque. Aucune route n'est fabriquée — `/fiches?fiche=<id>` s'ouvrirait sur une
+  page qui ignore son paramètre, un cul-de-sac qui a l'air de marcher.
+
+- **Figé.** Composé à la première lecture, puis inchangé jusqu'à l'échéance — *« un plan qui se
+  recalcule à chaque ouverture est un plan auquel on ne fait pas confiance »*. Une fiche validée
+  après coup n'y entre pas.
+- 🔴 **Sauf si Papa déplace la date** : le plan est alors **supprimé**, coches comprises, et
+  recomposé à la lecture suivante. Un rétro-planning est une fonction de la date.
+- 🔴 **Rien à afficher ⇒ rien.** Échéance à J+0 ou J+1, chapitre absent, ou aucune activité
+  disponible → **`has_plan` faux et aucune surface**. Jamais un plan vide, jamais un « ✦ » qui
+  n'ouvre rien : même règle que la porte de révision (`adr-0049` Décision 2).
+- **Les étapes se cochent**, et cette coche vaut ce que vaut celle d'un item : une **déclaration**
+  de Massimo, **aucun XP, aucune célébration** (§3, `adr-0050` Décision 5). Le geste est déclaratif,
+  il ne se récompense pas — sinon Massimo apprend à cocher.
+
+  > ⚠️ **Jouer l'activité ne coche RIEN, et cocher n'exige pas de l'avoir jouée.** La preuve
+  > existe pourtant (une session de cartes laisse une trace) : s'en servir est l'option (B),
+  > **reportée**, pas écartée — elle créerait deux sémantiques de coche sur le même écran. Son
+  > déclencheur est nommé : le jour où Papa demandera à lire autre chose qu'une déclaration.
+
+> ⚠️ **`plan_steps` était typé `unknown[]`** dans `packages/types` : le contrat n'existait pas, il
+> est **créé** par ce chantier — c'est le seul endroit du dépôt où rien n'était à respecter.
 
 **Tap sur un jour → il s'ouvre, sous la bande** (addendum §17, 2026-08-10). Le panneau porte son
 travail, cochable, avec le lien vers le cours ; et **il répond toujours** — « Rien à rendre ce
@@ -204,9 +257,28 @@ Emplacement des étiquettes de parsing (Lot 2) prévu, non implémenté.
 `GET /upcoming`. Gros chiffre neutre de décompte, **jamais une jauge qui change de couleur** :
 le seul signal d'approche est l'apparition du plan.
 
-CTA « Préparer » **affiché mais grisé en Lot 1**, avec les trois garde-fous d'ADR-0024 §4 :
-non cliquable, libellé « bientôt » (jamais « manquant » ni « indisponible »), et l'accent
-visuel de la carte va à ce qui est réellement faisable.
+> 🔴 **Le CTA « Préparer · bientôt » est RETIRÉ depuis le 2026-08-10** (`adr-0050` Décision 8). Il
+> était grisé depuis le Lot 1 au titre de l'ADR-0024 §4 — *« montrer la porte à venir montre le
+> chemin »* — et cette justification est morte avec la livraison du plan : **« bientôt » était
+> devenu faux**. Défaut vu **à l'écran**, désigné par aucun test.
+
+La carte consomme `has_plan`, servi par `GET /upcoming` :
+
+| `has_plan` | Rendu |
+|---|---|
+| `true` | **« ✦ Ton plan »** — les mots exacts de l'encadré qu'il ouvre. Il **déplie « la suite »** puis défile jusqu'au plan, qui vit **sous l'échéance** |
+| `false` | **rien.** Ni grisé, ni « bientôt », ni espace réservé |
+
+**Le `false` est définitif, pas transitoire** : une échéance sans chapitre, ou à J+1, n'aura
+**jamais** de plan (`adr-0050` Décision 3). Lui promettre « bientôt » serait mentir une seconde fois.
+
+⚠️ **Ce n'est pas un revirement sur l'ADR-0024 §4** : là-bas le gris dit *« Papa ne l'a pas encore
+produit »* sur un catalogue fait pour être parcouru — une **attente**. Ici il disait *« ZETIS ne
+sait pas encore le faire »* — une **dette**.
+
+⚠️ **Le dépliage n'est pas un détail** : l'échéance visée est toujours à J+2 ou plus, donc dans la
+section repliée. Une ancre seule n'aurait rien trouvé, et le bouton serait redevenu mort deux
+lignes après qu'on ait tué le précédent.
 
 ### 5. À reprendre
 

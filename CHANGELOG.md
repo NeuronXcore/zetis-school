@@ -1,5 +1,40 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.73.0 — L'échéance dit quoi, le plan dit par où commencer
+
+L'agenda savait annoncer *« contrôle de fractions, vendredi »*. Il ne savait pas répondre à la
+seule question que Massimo se pose devant cette phrase : **par où je commence ?** C'est le §8
+rôle 1 de l'ADR-0025, *« le seul rôle qui justifie la fonctionnalité ; sans lui, ZETIS construit un
+carnet de plus »* — resté un emplacement vide pendant deux chantiers.
+
+Sur une échéance datée qui porte un chapitre, ZETIS compose désormais un **plan rétro-planifié** :
+jusqu'à **trois étapes**, de demain à **la veille**, **jamais le jour du contrôle** — un plan qui
+demande de réviser le matin même est une source d'angoisse, pas une aide. **Aucune IA** : le plan
+se compose depuis le référentiel, et une étape par **type** — lire les fiches, réviser le chapitre,
+choisir un quiz — jamais une par notion. Le plan dit *par où commencer*, pas *tout ce qu'on
+pourrait faire*.
+
+**Chez Massimo** — un `✦` s'allume dans la bande sur les jours porteurs, et le plan se lit **sous
+l'échéance qu'il prépare** (sur une semaine à deux contrôles, une étape posée sous le jour flotte
+sans dire de quel chapitre elle parle). Les étapes se cochent : **aucun XP, aucune célébration**,
+c'est une déclaration, pas une preuve — et jouer l'activité ne coche rien.
+
+**Chez Papa** — `✦ 1/3` dans la grille, une phrase dans le panneau, **en lecture seule**. Aucun
+bouton de génération, aucune édition : le plan est un service rendu à Massimo. 🔴 Et lire le
+pilotage ne **compose** aucun plan — sinon Papa figerait celui de son fils en relevant l'ENT du
+dimanche soir, sur un référentiel antérieur aux fiches qu'il s'apprête justement à valider.
+
+**Deux promesses fausses sont mortes**, toutes deux trouvées à l'écran et désormais tenues par un
+test : « Préparer · **bientôt** » chez Massimo (placeholder devenu faux le jour de la livraison) et
+« Réviser les cartes du chapitre **n'est pas encore possible** » chez Papa (faux depuis la 0.72.0).
+
+⚠️ **Les étapes mènent au grain réellement atteignable** — la matière pour les fiches et le quiz,
+le chapitre pour la révision : `/fiches` et `/quiz` ne sont pas adressables par identifiant, et
+fabriquer les routes manquantes aurait produit des liens qui ont l'air de marcher. Les libellés le
+disent par le pluriel et par le verbe.
+
+🔴 **Migration `b2c3d4e5f9a1`** — table `agenda_plan_steps` (`ON DELETE CASCADE`).
+
 ## 0.72.0 — Réviser avant un contrôle, sans déplacer la programmation
 
 Le **couplage 2 du §11 de l'ADR-0025**, resté à 0 % depuis. La question qui avait ouvert le

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.modules.agenda import plan
 from app.modules.agenda import service
 from app.modules.agenda.schemas import (
     AgendaItemParentCreate,
@@ -20,6 +21,7 @@ from app.modules.agenda.schemas import (
     AgendaItemPilotOut,
     AgendaItemStudentCreate,
     AgendaItemStudentOut,
+    PlanStepOut,
     AgendaItemStudentPatch,
     AgendaItemsParentCreate,
     AgendaNoteRequest,
@@ -121,6 +123,28 @@ def student_dismiss(item_id: int, db: Session = Depends(get_db)) -> dict:
     return service.student_out_one(db, item, student_id=get_default_student(db).id)
 
 
+@student_router.post("/plan-steps/{step_id}/done", response_model=PlanStepOut)
+def student_plan_step_done(step_id: int, db: Session = Depends(get_db)) -> dict:
+    """Massimo coche une étape de son plan de préparation (ADR-0050).
+
+    🔴 **Aucun XP, aucune célébration** — le geste est déclaratif, il ne se récompense pas, sinon
+    Massimo apprend à cocher (§3). Et **il n'existe aucune route Papa symétrique** : cocher
+    appartient à Massimo, comme pour les échéances elles-mêmes (§2b).
+    """
+    step = plan.set_step_done(
+        db, student_id=get_default_student(db).id, step_id=step_id, done=True
+    )
+    return plan.step_out(step)
+
+
+@student_router.post("/plan-steps/{step_id}/undone", response_model=PlanStepOut)
+def student_plan_step_undone(step_id: int, db: Session = Depends(get_db)) -> dict:
+    step = plan.set_step_done(
+        db, student_id=get_default_student(db).id, step_id=step_id, done=False
+    )
+    return plan.step_out(step)
+
+
 @student_router.post("/seen", status_code=status.HTTP_204_NO_CONTENT)
 def student_mark_seen(db: Session = Depends(get_db)) -> None:
     """Massimo a regardé ce qui est arrivé — pose le high-water mark (addendum §12.3).
@@ -179,8 +203,7 @@ def pilot_create(req: AgendaItemsParentCreate, db: Session = Depends(get_db)) ->
         student_id=get_default_student(db).id,
         items=[item.model_dump(exclude_unset=True) for item in req.items],
     )
-    subjects = service.subjects_index(db)
-    return [service.pilot_out(item, subjects) for item in items]
+    return service.pilot_out_many(db, items)
 
 
 @router.post(
@@ -193,7 +216,7 @@ def pilot_create_single(req: AgendaItemParentCreate, db: Session = Depends(get_d
         student_id=get_default_student(db).id,
         items=[req.model_dump(exclude_unset=True)],
     )
-    return service.pilot_out(items[0], service.subjects_index(db))
+    return service.pilot_out_one(db, items[0])
 
 
 @router.patch("/items/{item_id}", response_model=AgendaItemPilotOut)
@@ -207,7 +230,7 @@ def pilot_patch(
         item_id=item_id,
         data=req.model_dump(exclude_unset=True),
     )
-    return service.pilot_out(item, service.subjects_index(db))
+    return service.pilot_out_one(db, item)
 
 
 @router.put("/items/{item_id}/note", response_model=AgendaItemPilotOut)
@@ -215,7 +238,7 @@ def pilot_note(item_id: int, req: AgendaNoteRequest, db: Session = Depends(get_d
     item = service.set_note(
         db, student_id=get_default_student(db).id, item_id=item_id, note=req.parent_note
     )
-    return service.pilot_out(item, service.subjects_index(db))
+    return service.pilot_out_one(db, item)
 
 
 @router.delete("/items/{item_id}", response_model=AgendaItemPilotOut)
@@ -223,4 +246,4 @@ def pilot_delete(item_id: int, db: Session = Depends(get_db)) -> dict:
     """ARCHIVAGE, pas suppression : la ligne reste en base (§2c). D'où un 200 avec l'item
     archivé, et non un 204 — la réponse dit ce qui s'est réellement passé."""
     item = service.archive(db, student_id=get_default_student(db).id, item_id=item_id)
-    return service.pilot_out(item, service.subjects_index(db))
+    return service.pilot_out_one(db, item)

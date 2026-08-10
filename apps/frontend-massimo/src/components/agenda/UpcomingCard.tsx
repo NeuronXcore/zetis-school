@@ -7,16 +7,32 @@ import { daysLeftLabel, shortDayLabel } from "../../lib/agendaSections";
 // Le décompte est un **gros chiffre neutre**, jamais une jauge qui change de couleur : le seul
 // signal d'approche prévu est l'apparition du plan de préparation (Lot 2).
 //
-// Le CTA « Préparer » est **affiché mais grisé** en Lot 1, avec les trois garde-fous de
-// l'ADR-0024 §4 : non cliquable, libellé « bientôt » (jamais « manquant » ni « indisponible »),
-// et l'accent visuel de la carte reste sur ce qui est réellement faisable. Montrer la porte à
-// venir a une valeur propre : elle montre le chemin.
+// 🔴 **Le CTA « Préparer · bientôt » a été RETIRÉ le 2026-08-10** (ADR-0050). Il était grisé
+// depuis le Lot 1 au titre de l'ADR-0024 §4 — *« montrer la porte à venir montre le chemin »* —
+// et cette justification est morte avec la livraison du plan : « bientôt » est devenu **faux**.
+// Le défaut a été vu à l'écran, pas par un test.
 //
-// ⚠️ À ne pas confondre avec le composer de saisie, qui lui n'est PAS grisé mais ABSENT
-// (ADR-0025 §10, règle 3) : ici on grise du contenu que ZETIS n'a pas encore produit ; là-bas
-// on griserait une capacité retirée à l'enfant.
+// À la place, `has_plan` — servi par le serveur pour cette carte, et **sans consommateur jusqu'à
+// aujourd'hui** :
+//
+//   • `true`  → un bouton qui OUVRE le plan (il vit sous l'échéance, sur cette même page) ;
+//   • `false` → **rien**. Une échéance sans chapitre, ou à J+1, n'aura JAMAIS de plan : lui
+//     promettre « bientôt » serait mentir une seconde fois. *« Un bouton mort se lit comme une
+//     panne »* (addendum ADR-0025 §14.6).
+//
+// ⚠️ Ce n'est PAS un revirement sur l'ADR-0024 §4 : là-bas le gris dit *« Papa ne l'a pas encore
+// produit »* sur un catalogue fait pour être parcouru. Ici, il disait *« ZETIS ne sait pas encore
+// le faire »* — et ZETIS sait, désormais.
 
-export function UpcomingCard({ item }: { item: AgendaUpcomingItem }) {
+export function UpcomingCard({
+  item,
+  onOpenPlan,
+}: {
+  item: AgendaUpcomingItem;
+  /** Amène Massimo au plan de cette échéance. L'appelant sait où il est rendu (il peut être dans
+   *  une section repliée) — d'où le rappel plutôt qu'une ancre posée ici. */
+  onOpenPlan?: () => void;
+}) {
   return (
     <div
       style={{ borderLeftColor: item.subject?.color ?? undefined }}
@@ -52,15 +68,20 @@ export function UpcomingCard({ item }: { item: AgendaUpcomingItem }) {
         </div>
       </div>
 
-      <button
-        type="button"
-        disabled
-        aria-disabled
-        className="shrink-0 cursor-not-allowed rounded-xl border border-white/10 px-3 py-1.5 text-xs text-zetis-muted opacity-60"
-      >
-        Préparer
-        <span className="ml-1 text-[10px]">bientôt</span>
-      </button>
+      {/* Les MÊMES mots que l'encadré qu'il ouvre — « ✦ Ton plan ». Un bouton qui nomme sa
+          destination ne demande aucune explication (règle de l'`adr-0047`). */}
+      {item.has_plan && onOpenPlan && (
+        <button
+          type="button"
+          onClick={onOpenPlan}
+          className="shrink-0 rounded-xl border border-violet-400/30 bg-violet-400/10 px-3 py-1.5 text-xs font-semibold text-violet-100 transition-colors hover:border-violet-400/60 motion-reduce:transition-none"
+        >
+          <span aria-hidden className="mr-1">
+            ✦
+          </span>
+          Ton plan
+        </button>
+      )}
     </div>
   );
 }

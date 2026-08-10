@@ -6,67 +6,119 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-**Chantier : le deck de révision par chapitre — ADR-0049, le couplage 2 du §11 de l'ADR-0025.**
-✅ **MERGÉ le 2026-08-10 — PR [#109](https://github.com/NeuronXcore/zetis-school/pull/109), squash
-`117b632`.** Rien à reprendre, rien à ré-implémenter.
+**Chantier : le plan de préparation — ADR-0050**, qui réalise le §8 rôle 1 de l'ADR-0025 (le rôle
+de « traducteur »). ✅ **COMPLET — livré, poussé, et la PR
+[#110](https://github.com/NeuronXcore/zetis-school/pull/110) est OUVERTE** (`MERGEABLE`).
+🔴 **NE PAS MERGER avant la relecture visuelle humaine** — l'ADR la voulait *avant* la PR ; elle
+est donc due **avant le merge**, et le corps de la PR le dit en premier.
 
 | | |
 |---|---|
-| **Merge** | squash **`117b632`** sur `main`, **parent `7d4823c`** — vérifié. Le détail des 2 commits : `git log --oneline 7d4823c..feat/deck-revision-chapitre` |
-| **Branche** | `feat/deck-revision-chapitre` — 🔴 **CONSERVÉE sur `origin`, ne pas supprimer sans consigne** (`delete_branch_on_merge: false`). **Douze** branches de chantier dorment ainsi |
-| **Cadrage** | `adr-0049` **`Accepté`** + sa ligne `DECISIONS.md` — sur **`main`**, commit `7d4823c`, **poussé**. ⚠️ Ils ne sont PAS dans la PR, et c'est voulu |
-| **Migration** | **AUCUNE** — l'effet réutilise `SpacedReviewAttempt.is_consolidation`, qui existe |
-| **Suites** | Backend **1159** · Massimo **594** · Papa **784** · `tsc -b` vert sur les trois |
-| ✅ **Relecture visuelle** | **FAITE le 2026-08-10**, après l'ouverture de la PR. **Aucun défaut remonté** — formulation volontaire, ce n'est pas « rien relevé », que rien ne me permet d'affirmer |
-| **Commande** | ⚠️ Commit, push et PR demandés **explicitement** par le user : dérogation assumée au `CLAUDE.md` |
+| **Branche** | `feat/plan-de-preparation`, forkée à **`03b38d2`**, **poussée et à jour** (`0 0`). Son contenu : `git log --oneline main..feat/plan-de-preparation` |
+| **`main`** | **poussé et à jour**. Sept commits d'ADR-0050 : `fab8a6a` `3a04900` `03b38d2` **avant** le fork, `98c5de1` `17b2ffd` `b1fc862` `9689a27` **après**, tous re-mergés dans la branche |
+| 🔴 **Migration** | **`b2c3d4e5f9a1`** — appliquée en DEV, downgrade/upgrade rejoués. **PAS en prod**, et elle ne peut pas y aller avant le merge (l'entrypoint fait `upgrade head` au démarrage). ⚠️ **Combien de révisions sont dues, on ne le sait PAS** — voir ci-dessous |
+| **Suites** | Backend **1181** · Massimo **626** · Papa **794**. **25 sabotages, 25 rougissements** — 12 (B) + 7 (C) + **6 d'une CLASSE neuve** : *« la surface disparaît »* |
+| ⏳ **Relecture visuelle** | 🔴 **PAS FAITE PAR L'HUMAIN** — l'ADR la veut AVANT la PR. Les deux interfaces ont été vues et **mesurées dans le DOM** par Claude, ce n'est pas la même chose |
 
-### Ce que le chantier a livré
+### Ce que le chantier a livré, en une phrase par session
 
-Sur une échéance datée dont le chapitre a des cartes servables, Massimo lit **« 🃏 Réviser ce
-chapitre · N cartes »**. Le deck sert les cartes du chapitre — **y compris non dues**, c'est son
-objet — et **n'écrit aucun état SRS**.
+`plan_steps` et `has_plan` étaient **au contrat et MORTS depuis le Lot 1** (`[]` et `False` en dur,
+aux deux étages). Ils sont remplis, et lus par les deux interfaces.
 
-### DÉCISIONS ACTIVES — à relire, pas à rouvrir
+- **A — backend.** Sur une échéance datée à chapitre, ZETIS compose jusqu'à **3 étapes**
+  (`fiche` · `revision` · `quiz`), de demain à **la veille**, **jamais le jour J**. Table
+  `agenda_plan_steps` + migration ; `modules/agenda/plan.py` porte **tout le cycle de vie**
+  (composition, figement, révocation sur déplacement de date) ; 2 routes de coche.
+- **B — Massimo.** Le `✦` s'allume dans la bande sur les jours porteurs ; le plan se rend **sous
+  l'échéance** qu'il prépare ; les étapes mènent au **grain réellement atteignable** ; la coche est
+  optimiste et déclarative. Le plan **absorbe** la porte de révision de l'`adr-0049` quand il la
+  porte déjà. Le « Préparer · bientôt » de « Ce qui arrive » est **mort**.
+- **C — Papa.** `✦ 1/3` dans la grille, la phrase dans le panneau, **en lecture seule**. Lire le
+  pilotage ne **compose** aucun plan.
 
-1. **L'invariant du §11** : ni `due_at`, ni `interval_days`, ni `last_reviewed_at` ne bougent.
-2. **La porte est l'échéance d'agenda, et ELLE SEULE.** 🔴 Le drill-in permanent depuis `/revision`
-   est l'option (b), **écartée** — un verrou de dépôt interdit toute occurrence du deck chapitre
-   sous `pages/Revision*`. Il paraîtra manquant : **c'est décidé, pas oublié.**
-3. **Deck vide ⇒ la porte n'EXISTE PAS.** Ni gris, ni explication. Pas le cas de l'`adr-0024` §4.
-4. 🔴 **Le client déclare un CONTEXTE, jamais un EFFET.** L'attempt porte `{chapter: id}`, le
-   serveur revalide. Un booléen `non_scheduling` piloté par le client est **écarté par écrit**.
-5. **XP PLEIN (5)**, `reason = "review_chapter"` — pas les 2 XP du re-tour.
-6. On retire `due_at <= now`, **et rien d'autre** : `due_at IS NOT NULL` et le filtre de statut
-   restent, sinon les cartes `pending` seraient servies.
-7. La traversée chapitre → notions vit dans **`lesson_resolution.py`** (résolveur neutre), plus
-   dans `missions` — un cycle d'import l'imposait.
+### 🔴 DÉCISIONS ACTIVES — à relire, JAMAIS à rouvrir
 
-### EN COURS — rien d'instable
+L'ADR a été **amendé SEPT FOIS**, toujours par un read-before-code ou par une mesure à l'écran,
+jamais par confort. Les rouvrir referait les erreurs :
 
-Aucun fichier à moitié écrit. Tout est mergé. `CHANGELOG.md` **0.72.0** et la section
-`TROUBLESHOOTING.md` sont sur `main`.
+1. **Décision 2** — chaque étape interroge le prédicat de **SON grain** : `resolve_panoply`
+   (notion) pour `fiche`/`quiz`, **`chapter_servable_count`** (chapitre) pour `revision`. La
+   panoplie filtre sur le `status` seul, le deck exige aussi `due_at IS NOT NULL` : composer
+   `revision` depuis la panoplie donne une étape qui ouvre sur un **400**. ⚠️ La règle de
+   l'addendum `adr-0024` n'est pas « tout passe par `resolve_panoply` », c'est **« un seul
+   prédicat par question »** — trois réponses légitimes coexistent à « peut-on réviser ceci ».
+2. **Décision 2 bis** — **une étape par TYPE, jamais par notion**. `cours` et `eli5` exclus.
+3. **Décision 2 ter** — `PlanStepOut` porte **`agenda_item_id`** : c'est le **sujet** de l'étape,
+   pas un rouage. Sans lui la maquette est inconstructible et les étapes flottent.
+4. **Décision 4** — figé à la première lecture ; **révoqué si `due_on` change**, coches comprises.
+5. **Décision 5 (A)** — cocher est une **déclaration** : aucun XP, et **jouer l'activité ne coche
+   rien**. L'option « prouvée » est **REPORTÉE**, pas écartée.
+6. **Décision 2 quater** — 🔴 **deux activités sur trois ne sont PAS adressables par URL** :
+   `FichesPage` ne lit **aucun** `searchParams`, `QuizPage` ne lit que `subject`. Les étapes mènent
+   donc au **grain réellement atteignable** (matière pour `fiche`/`quiz`, chapitre pour `revision`),
+   et **aucune route n'est fabriquée** — `/fiches?fiche=<id>` s'ouvrirait sur une page qui ignore
+   son paramètre, et **aucun test de rendu ne le verrait**. `resource_id` reste servi et
+   **inutilisé** pour deux types sur trois : la donnée est juste, c'est la route qui manque.
+   ⚠️ **Corrigée le jour même sur MESURE** : le libellé ne répète **pas** la matière (193 px pour
+   151 disponibles — c'est le nom de la matière qui se coupait). Le grain se dit par le **pluriel**
+   et par le **verbe** : « Lire les fiches », « Choisir un quiz », « Réviser ce chapitre ».
+7. **Décision 7, précisée en 7.1–7.4** — 🔴 **lire le pilotage de Papa ne COMPOSE aucun plan**
+   (`plan_counts`, pur et en lot, ≠ `get_or_create_plan`). Sinon Papa figerait le plan de son fils
+   en relevant l'ENT le dimanche soir. **Deux entiers, jamais les étapes.** Aux **deux densités**,
+   comme l'état. `0` étape ⇒ **aucune surface**.
+8. **Décision 8** — « Ce qui arrive » consomme `has_plan`. Le bouton grisé « Préparer · bientôt »
+   est **retiré** : la fonctionnalité qu'il annonçait est livrée, donc « bientôt » était devenu
+   faux. ⚠️ Ce **n'est pas** un revirement sur l'ADR-0024 §4 — là-bas le gris est une **attente**
+   (« Papa ne l'a pas encore produit »), ici c'était une **dette** (« ZETIS ne sait pas le faire »).
 
-### ✅ PIÈGES du chantier — ÉCRITS dans `TROUBLESHOOTING.md`
+### ⚠️ Deux arbitrages d'ÉCRAN, pris par Claude, à confirmer à la relecture
 
-Section **« Le deck de révision par chapitre (ADR-0049) — 2026-08-10 »**, **six** sous-sections :
-le cycle `memory → missions` qui casse `app.main` · **mon test de cycle invalide qui concluait
-« pas de cycle »** · 🔴 **le verrou central vert sur son sabotage** (4ᵉ occurrence) · la constante
-supprimée en réécrivant un bloc · **`npx tsc` qui ne tourne pas sous un `echo OK`** · la fixture de
-Massimo déjà incomplète avant le chantier.
+1. **Le plan ABSORBE la porte de l'`adr-0049`** quand il porte une étape `revision` : mêmes
+   conditions serveur, même destination, sinon deux boutons identiques à trois lignes d'écart. La
+   version du plan gagne — elle est **datée** et elle se **coche**. Le « N cartes » part avec la
+   porte (sur une étape datée de mercredi, ce serait un **quota pour mercredi**).
+2. **L'icône de la fiche est `🗒️`, pas `📖`** — la puce « 📖 lire le cours » est deux lignes plus
+   haut sur la même carte. La maquette du cadrage portait `📖` ; elle n'avait pas la puce sous les
+   yeux.
+
+### ✅ PIÈGES — tous consignés dans `TROUBLESHOOTING.md`
+
+Section `feat/plan-de-preparation`. Les trois qui coûteraient le plus à redécouvrir :
+
+- 🔴 **Le plan était composé pendant un `GET` qui ne commit JAMAIS** — servi avec des ids, puis
+  annulé au rollback. La coche répondait **404** et aucun test d'affichage ne l'aurait vu.
+- 🔴 **SIX de mes verrous ont été VERTS sur leur sabotage**, dont **deux motifs neufs** : une
+  assertion qui ne distingue pas le code correct d'un défaut **quand les deux réponses
+  coïncident** ; et une assertion trop large qu'on ne peut pas resserrer sans casser un texte
+  légitime voisin.
+- 🔴 **Puis un AUDIT systématique en a trouvé six autres**, tous du même mal généralisé :
+  > *Un verrou qui n'assert qu'une **absence** ne verrouille rien tant qu'une **présence** ne
+  > l'accompagne pas — un écran vide satisfait toute assertion négative.*
+
+  Les 19 sabotages étaient rouges et ne les visaient pas : ils faisaient varier un
+  **comportement**, jamais **disparaître la surface**. D'où une **classe de sabotage à rejouer
+  une fois par chantier** — `{false && (…)}`, un service qui rend `[]`, un paragraphe supprimé.
+  6/6 passaient avant les ancres, 6/6 rougissent après.
+  ⚠️ `expect(x).not.toBe("📖")` n'est **pas** un verrou : il passe sur `""` et sur `undefined`.
+- 🔴 **`npx tsc` ne lance PAS TypeScript** dans ce dépôt, et `| tail` masque l'échec du pipeline.
 
 ### ⚠️ DETTES NÉES DE CE CHANTIER
 
-- 🔴 **Les tests de Massimo ne sont PAS typecheckés** (`tsconfig.app.json` les exclut) — la fixture
-  `agendaSections.test.ts` omettait **déjà** `lesson_id` et `chapter_id` avant ce chantier. Les
-  trois fixtures sont complétées ; **la dette de typecheck reste entière**.
-- ⚠️ **Le nom du chapitre n'existe pas côté Massimo** — l'en-tête de session porte l'intitulé de
-  l'échéance. Le correctif propre serait un `chapter_name` au payload serveur.
-- ⚠️ `revisable_counts` fait **une requête par chapitre distinct** de la page.
-- ⚠️ **Le chemin « carte non due » n'a jamais tourné en vrai** : les cartes du chapitre 6 étaient
-  dues. Tenu par les tests seulement.
-- ⚠️ **Donnée de dev** : l'échéance **19** est avancée au **11/08** (au lieu du 16/09) pour que les
-  deux états soient côte à côte sur `/agenda`.
-
+- 🔴 **Migration `b2c3d4e5f9a1` non posée en prod.**
+- 🔴 **Trois échéances d'un MÊME chapitre affichent trois plans IDENTIQUES**, aux mêmes jours.
+  Conséquence directe de la **Décision 1 gelée** (« un plan par échéance ») — vu à l'écran le
+  2026-08-10, **pas rouvert**. Arbitrage produit à poser un jour : plan par échéance, ou par
+  chapitre ?
+- ⚠️ **`resource_id` est persisté et inutilisé** pour `fiche` et `quiz`. La variante « charger le
+  quiz puis `/quiz/session` » (patron `mode: "quiz"` de `notionRoutes`) est **reportée, pas
+  écartée** : son déclencheur est le jour où l'on accepte un cas d'échec de chargement sur un écran
+  d'enfant.
+- ⚠️ **Les tests de Massimo ne sont TOUJOURS PAS typecheckés** (`tsconfig.app.json` les exclut) —
+  ceux de Papa le sont, et `tsc -b` y a attrapé les trois fixtures périmées d'un coup. L'asymétrie
+  est une dette, pas un choix.
+- ⚠️ **Le `✦` et les points de `traces` n'ont jamais été vus se croiser** — et ne le peuvent pas en
+  théorie (étapes au futur, traces au passé). Mesuré en revanche : **toutes les colonnes de la
+  bande font 111 px**, allumées ou non.
 
 ### ⚠️ DETTES OUVERTES du chantier PRÉCÉDENT (#107)
 
@@ -233,48 +285,67 @@ Massimo déjà incomplète avant le chantier.
   doublons (`Mission` n'a aucune référence à l'agenda). La dette existait déjà (addendum ADR-0035) ;
   **le §14.5 l'a rendue plus probable** en remontant l'action au niveau de l'item. **Obligatoire à
   corriger avant tout déclenchement automatique de missions.**
-- ⚠️ **« Réviser » n'est toujours pas livrable depuis l'agenda** — c'est le **couplage 2 du §11,
-  à 0 %** : aucun `step_type` SRS, pas de deck `{chapter}`, non-scheduling borné au même jour.
-  Le §14.6 refuse explicitement de le promettre tant qu'il n'existe pas.
-- ⚠️ **Le plan de préparation (`plan_steps`) vient APRÈS le couplage 2**, jamais avant : ses étapes
-  incluent « réviser les cartes du chapitre ». L'emplacement est câblé des deux côtés, rempli en
-  dur à `[]`.
+- ✅ ~~**« Réviser » n'est pas livrable depuis l'agenda (couplage 2 du §11, à 0 %)**~~ —
+  **LIVRÉ par l'`adr-0049`**, PR #109, squash `117b632`, mergé le 2026-08-10. Deck `{chapter}`,
+  non-scheduling, porte sur l'échéance.
+- ✅ ~~**Le plan de préparation (`plan_steps`) vient APRÈS le couplage 2 ; l'emplacement est câblé
+  des deux côtés, rempli en dur à `[]`**~~ — **LIVRÉ par l'`adr-0050`, ce chantier.** `plan_steps`
+  et `has_plan` ne sont plus morts.
 - ⚠️ **`STEP_LESSON` est déclaré mais MORT** (absent de `_build_steps` et `_STEP_PALETTE`) : aucune
-  mission ne peut mener à une fiche ni à un cours.
-- ⚠️ **Données de test en base DEV** : 4 échéances (« Lire le chapitre 3 », « La phrase complexe… »,
-  « Comparaison de fractions », « Division de fractions »). Archivables sans risque.
+  mission ne peut mener à une fiche ni à un cours. 🔴 **Et ce n'est plus une dette subie** :
+  l'`adr-0050` Décision 6 le motive — le plan n'est pas une mission, `MissionStep` est hors sujet,
+  et ressusciter `STEP_LESSON` ferait une **troisième** surface pour « lire un cours ».
+- ⚠️ **Données de test en base DEV** : **cinq** échéances (« La phrase complexe… », « Organisation
+  du système nerveux », « Comparaison de fractions », « Division de fractions », « Multiplication
+  de fractions »), et depuis ce chantier **8 lignes dans `agenda_plan_steps`** — composées par les
+  lectures de Massimo pendant la vérification. Archivables sans risque ; les étapes tombent avec
+  leur échéance (FK `CASCADE`).
 
 ### ▶▶ PROCHAIN PAS
 
-> ⚠️ Le chantier agenda (#108) est **CLOS** : commit, push, merge (squash `526b9b8`), migration
-> prod et étape 4bis, tous faits le 2026-08-10. Ses quatre contrôles du `WORKFLOW.md §6.3`
-> passaient (ADR · `TROUBLESHOOTING` · `CHANGELOG` 0.66→0.71 · dettes remontées), et son récit a
-> été **élagué de ce fichier** à la clôture du présent chantier — ses dettes survivent aux §§
-> ci-dessus.
+**Le code est FINI. Il ne reste que des gestes de livraison — et ils sont dans cet ordre.**
 
-1. ✅ ~~Commit~~ · ✅ ~~push~~ · ✅ ~~PR #109~~ · ✅ ~~clôture (CHANGELOG 0.72.0, pièges, MEMORY)~~ ·
-   ✅ ~~**merge (squash `117b632`)**~~ · ✅ ~~**étape 4bis**~~ — **tout fait le 2026-08-10**, et cette
-   section a été remise au réel **dans l'heure** de chaque geste (`docs/WORKFLOW.md §5`).
-   ✅ ~~Relecture visuelle~~ — faite, **aucun défaut remonté**. **Ce chantier est CLOS.**
-2. ✅ **L'étape 4bis a éteint les annonces devenues fausses**, et c'est son cinquième contrôle —
-   celui qu'aucun des quatre autres ne demande : `adr-0025-addendum-lecon-a-apprendre.md` §14.6
-   (« livré à 0 % » + l'interdiction d'affordance), `DECISIONS.md` l. 319, et le §Statut de
-   l'`adr-0049`. ⚠️ **Le §14.6 est conservé, pas effacé** : son raisonnement reste juste, seul son
-   état de fait est périmé.
-3. ✅ **Les QUATRE contrôles du `WORKFLOW.md §6.3` passent** : ADR ✅ (`adr-0049`) ·
-   `TROUBLESHOOTING.md` ✅ (1 section, 6 sous-sections) · `CHANGELOG.md` ✅ (0.72.0) · dettes
-   remontées ✅ (§ ci-dessus). 👉 **Cette section peut être ÉLAGUÉE à la clôture du chantier
-   suivant** — ses dettes survivantes sont à remonter au § du même nom.
-4. **AUCUNE migration** posée par ce chantier. ⚠️ Deux migrations héritées restent dues en prod
-   (§ DETTES) — vérifier avant de croire la prod à jour.
-5. 🔴 **PROCHAIN CHANTIER : le plan de préparation** (`plan_steps`, câblé et vide, ADR-0025 §8
-   rôle 1). Le §14.6 le faisait dépendre du couplage 2 ; **la dépendance est levée**, ses étapes
-   sont « lire la fiche · mini-quiz · **réviser les cartes du chapitre** », et la troisième existe
-   enfin. ⚠️ Il faudra d'abord trancher `step_type = lesson`, **déclaré mais toujours mort** — le
-   seul des trois constats du §14.6 qui survive. Passer par `/ouverture` depuis un `main` propre :
-   **le cadrage (ADR + maquette + prompt) n'existe pas**, et l'`/ouverture` s'arrêtera sans lui.
-6. **Toujours en attente** : 🔴 **ouvrir LE diagnostic depuis Papa** (§ DETTES du chantier #107).
+1. 🔴 **RELECTURE VISUELLE HUMAINE, avant tout le reste.** L'ADR l'exige, et elle compte
+   doublement : l'état principal est une **absence**, et le plan est le premier objet du dépôt qui
+   **affiche des jours**. Les deux serveurs de dev tournent sur la paire par défaut —
+   `http://localhost:5173/agenda` (Massimo) et `http://localhost:5174/agenda` (Papa). **Trois** des
+   cinq échéances de dev portent un plan (8 étapes en tout, toutes décochées) ; les deux autres
+   n'en ont pas, et c'est **l'état à vérifier en premier** — l'absence.
+   **Ce qu'il faut regarder ensuite** : les deux
+   arbitrages d'écran du § plus haut (la porte absorbée, l'icône `🗒️`), et les **trois plans
+   identiques** sur les trois échéances de fractions.
+2. ✅ ~~Pousser `main` puis la branche~~ — **FAIT le 2026-08-10**, dans cet ordre (la branche
+   référence des décisions qui doivent exister sur `main`), les deux vérifiés à `0 0`.
+3. ✅ ~~Ouvrir la PR~~ — **#110, OUVERTE le 2026-08-10**, `MERGEABLE`, 35 fichiers.
+   🔴 **Le merge attend la relecture du point 1**, pas l'inverse. Merger en **squash**, et
+   **NE PAS supprimer la branche** tant que l'étape 4bis n'est pas faite.
+4. 🔴 **APRÈS le merge : poser `b2c3d4e5f9a1` en prod.**
 
+   🔴 **NE PAS SE FIER AU NOMBRE DE RÉVISIONS DUES : deux sources du dépôt se contredisent**, et
+   c'est le 2026-08-10 qui les a fabriquées toutes les deux.
+   - la mémoire `migrer-la-base-prod-zetis` dit prod à **`e2f3a4b5c6d7`** (elle a été écrite à
+     13:17, **après la 1ʳᵉ étape et jamais mise à jour après la 2ᵈᵉ**) ;
+   - le § « DETTES NÉES DU CHANTIER AGENDA` ci-dessus dit **deux temps**, donc prod à
+     **`a1b2c3d4e5f8`**.
+
+   La chaîne locale est `e2f3a4b5c6d7 → a1b2c3d4e5f8 → b2c3d4e5f9a1 (head)` — donc **une** révision
+   due si la seconde source dit vrai, **deux** si c'est la première. **La question se tranche par
+   UNE commande, et par elle seule** (le conteneur prod ne tourne pas en local ; seul le dev
+   `zetis-*` est up) :
+   ```bash
+   ZETIS_DATABASE_URL="postgresql+psycopg://zetis:<mdp>@127.0.0.1:5433/zetis" .venv/bin/alembic current
+   ```
+   ⚠️ Trois rappels qui ont déjà coûté : la variable est **`ZETIS_DATABASE_URL`** (`DATABASE_URL`
+   est ignorée **en silence** et alembic répond alors la révision du DEV — c'est **le** piège) ; le
+   réseau `interne` est `internal: true`, donc publier un port ne suffit pas ; et
+   `backend-entrypoint.sh` fait `alembic upgrade head` **à chaque démarrage** — ne jamais poser en
+   prod une révision absente de `main`.
+5. 🔴 **Étape 4bis, et son cinquième contrôle** : éteindre les annonces devenues fausses.
+   ⚠️ **Deux l'ont déjà été DANS le code de ce chantier** — le « Préparer · bientôt » de Massimo
+   et le « Réviser les cartes du chapitre n'est pas encore possible » de Papa, ce dernier étant un
+   contrôle **manqué à la clôture de l'`adr-0049`**. Vérifier ce qui annonce encore le plan comme
+   à venir : `adr-0025` §8 et §14.6.
+6. Puis **`/ouverture`** sur le chantier suivant, depuis un `main` propre.
 
 ## Dettes SURVIVANTES des chantiers élagués
 
@@ -847,6 +918,27 @@ si la file regrossit.
 
 
 ## Historique des chantiers clos
+
+> **2026-08-10 — le deck de révision par chapitre** (`adr-0049`, couplage 2 du §11, PR
+> [#109](https://github.com/NeuronXcore/zetis-school/pull/109), squash `117b632`, base `7d4823c`,
+> branche `feat/deck-revision-chapitre` **CONSERVÉE**), section retirée à la clôture du plan de
+> préparation (2026-08-10). Contrôles : ADR `adr-0049-le-deck-de-revision-par-chapitre.md` ✅ ·
+> `TROUBLESHOOTING.md` **sept** sous-sections ✅ (⚠️ « six » a été compté à sa clôture, vérifié à
+> **sept** ici) · `CHANGELOG.md` 0.72.0 ✅ · 4ᵉ contrôle — dettes
+> remontées ✅. Ce qui ne survit qu'ici : le chantier a livré une **exemption** au lieu d'un
+> réglage — `is_consolidation` veut dire *« cet essai n'a pas mesuré l'oubli »*, et le deck
+> chapitre réutilise ce sens au lieu d'inventer un troisième régime. 🔴 **Et sa clôture a MANQUÉ un
+> contrôle 4bis** : le panneau Papa a continué d'annoncer *« Réviser les cartes du chapitre n'est
+> pas encore possible »* pendant un chantier entier — corrigé le 2026-08-10 par l'`adr-0050`, et
+> désormais tenu par un test-verrou.
+
+> **2026-08-10 — l'agenda devient utilisable** (six addenda `adr-0025` §13→§17, PR
+> [#108](https://github.com/NeuronXcore/zetis-school/pull/108), squash `526b9b8`), section retirée
+> à la clôture du plan de préparation (2026-08-10). Contrôles : addenda ✅ · `TROUBLESHOOTING.md` ✅
+> · `CHANGELOG.md` 0.66→0.71 ✅ · dettes remontées ✅ (§ « DETTES NÉES DU CHANTIER AGENDA », toujours
+> dans la section active). Migration prod et étape 4bis faites le jour même. Ce qui ne survit
+> qu'ici : **cinq de ses six décisions sont nées de l'ŒIL, zéro d'un test** — une teinte à 16° de
+> l'émeraude voisine, une gouttière d'un tiers de carte, un tap muet, un champ sans nom.
 
 > **2026-08-09 — ZETIS doute de sa propre mesure** (PR
 > [#106](https://github.com/NeuronXcore/zetis-school/pull/106), squash `3c11226` — ⚠️ **deux

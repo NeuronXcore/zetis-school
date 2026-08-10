@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { type AgendaItemStudent, type AgendaUpcomingItem, type AgendaWeek } from "@zetis/types";
+import {
+  type AgendaItemStudent,
+  type AgendaPlanStep,
+  type AgendaUpcomingItem,
+  type AgendaWeek,
+} from "@zetis/types";
 import {
   dismissAgendaItem,
   fetchAgendaItems,
@@ -7,8 +12,15 @@ import {
   fetchAgendaWeek,
   markAgendaSeen,
   setAgendaItemDone,
+  setAgendaPlanStepDone,
 } from "../lib/agenda";
-import { type AgendaSections, addDays, isoDay, splitSections } from "../lib/agendaSections";
+import {
+  type AgendaSections,
+  addDays,
+  groupPlanByItem,
+  isoDay,
+  splitSections,
+} from "../lib/agendaSections";
 
 // Logique de la page `/agenda` côté Massimo. Les composants restent présentationnels.
 //
@@ -27,9 +39,19 @@ export interface UseAgenda {
    *  qui sont les seules données que le serveur seul peut calculer. */
   items: AgendaItemStudent[];
   sections: AgendaSections;
+  /** Les étapes du plan, GROUPÉES PAR ÉCHÉANCE (ADR-0050 Décision 2 ter).
+   *
+   *  Le serveur les sert par JOUR — c'est ce dont la bande a besoin pour son `✦`. Mais Massimo
+   *  lit un plan sous le contrôle qu'il prépare : sur une semaine à deux contrôles, une étape
+   *  posée sous le jour flotterait sans dire de quel chapitre elle parle. Le regroupement se
+   *  fait donc ici, une fois, sur `agenda_item_id`. */
+  planByItem: Record<number, AgendaPlanStep[]>;
   loading: boolean;
   today: Date;
   toggleDone: (item: AgendaItemStudent) => void;
+  /** Coche une étape. Optimiste, comme la coche d'item — et aussi déclarative : aucun XP,
+   *  aucune célébration (Décision 5, option A). */
+  toggleStep: (step: AgendaPlanStep) => void;
   dismiss: (item: AgendaItemStudent) => void;
 }
 
@@ -77,6 +99,33 @@ export function useAgenda(): UseAgenda {
     [items, today],
   );
 
+  // Jour → échéance. Le regroupement ET son tri vivent dans le module pur, où ils sont testés :
+  // le sens du tri est un piège (l'offset compte à rebours) et un piège se verrouille.
+  const planByItem = useMemo(() => groupPlanByItem(week?.days ?? []), [week]);
+
+  const toggleStep = useCallback((step: AgendaPlanStep) => {
+    const next = !step.done;
+    // La coche vit dans `week` (c'est là que le serveur sert les étapes) : on y écrit
+    // optimistement, et `planByItem` s'en dérive.
+    const patch = (value: boolean) =>
+      setWeek((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              days: current.days.map((day) => ({
+                ...day,
+                plan_steps: day.plan_steps.map((s) =>
+                  s.id === step.id ? { ...s, done: value } : s,
+                ),
+              })),
+            },
+      );
+    patch(next);
+    // Retour silencieux à l'état serveur en cas d'échec : jamais de rouge chez Massimo.
+    setAgendaPlanStepDone(step.id, next).catch(() => patch(!next));
+  }, []);
+
   const toggleDone = useCallback(
     (item: AgendaItemStudent) => {
       const next = !item.done;
@@ -99,5 +148,16 @@ export function useAgenda(): UseAgenda {
     dismissAgendaItem(item.id).catch(() => void load());
   }, [load]);
 
-  return { week, upcoming, items, sections, loading, today, toggleDone, dismiss };
+  return {
+    week,
+    upcoming,
+    items,
+    sections,
+    planByItem,
+    loading,
+    today,
+    toggleDone,
+    toggleStep,
+    dismiss,
+  };
 }

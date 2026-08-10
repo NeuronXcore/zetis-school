@@ -61,6 +61,33 @@ class AgendaItemStudentOut(BaseModel):
     # AUCUN `parent_note`, AUCUN `dismissed_at`, AUCUN horodatage. Jamais.
 
 
+class PlanStepOut(BaseModel):
+    """Une étape du plan de préparation, vue de Massimo (ADR-0050).
+
+    ⚠️ **Aucun champ de mécanique** — `sort_order` reste dehors, c'est un rouage.
+
+    🔴 **Mais `agenda_item_id` EN EST UN, et il y est** (Décision 2 ter) : ce n'est pas de la
+    mécanique, c'est le **sujet** de l'étape — ce qu'elle prépare. Sans lui, le plan ne peut se
+    rendre que sous le JOUR, et sur une semaine à deux contrôles une étape y flotte sans dire de
+    quel chapitre elle parle. Le refuser avait aussi rendu la maquette inconstructible.
+    """
+
+    id: int
+    # Ce que l'étape prépare (Décision 2 ter). Le plan se rend SOUS cette échéance ; le jour, lui,
+    # garde `plan_steps` pour allumer son `✦` dans la bande. Un seul payload, deux surfaces.
+    agenda_item_id: int
+    kind: str  # fiche|revision|quiz — vocabulaire de la panoplie, jamais réinventé
+    # Jours AVANT l'échéance : 1 = la veille. Jamais 0 : on ne planifie pas le jour du contrôle.
+    day_offset: int
+    skill_id: int | None
+    # ⚠️ Sa signification dépend du `kind` : `fiche_id`, `quiz_id`… et le `chapter_id` de
+    # l'échéance pour `revision`, dont le grain est le chapitre.
+    resource_id: int | None
+    # « coché », JAMAIS « fait » (§14.7) : le serveur ne sait rien d'autre qu'un `done_at` posé
+    # par une route élève. Cocher ne prouve rien (ADR-0050 Décision 5, option A).
+    done: bool
+
+
 class AgendaDayOut(BaseModel):
     """Un jour de la bande glissante. L'asymétrie passé/futur est calculée SERVEUR (§6)."""
 
@@ -74,8 +101,13 @@ class AgendaDayOut(BaseModel):
     # Jours à VENIR (et aujourd'hui) uniquement, `[]` sinon : un jour passé n'a plus d'échéance
     # à annoncer.
     fixed_items: list[AgendaItemStudentOut]
-    # Toujours `[]` en Lot 1 — champ présent au contrat, rempli par le plan de préparation (§8).
-    plan_steps: list[dict] = []
+    # Le plan de préparation (ADR-0050), enfin rempli — le champ était au contrat et mort depuis
+    # le Lot 1. Les étapes d'un jour, toutes échéances confondues.
+    #
+    # ⚠️ Typé `PlanStepOut` et non `dict` : `response_model` FILTRE EN SILENCE tout ce qui n'est
+    # pas au schéma. Les ADR-0045 et 0047 s'y sont fait prendre sur `open_gaps` — les clés étaient
+    # produites par le service et disparaissaient à la sérialisation, sans erreur.
+    plan_steps: list["PlanStepOut"] = []
 
 
 class AgendaWeekOut(BaseModel):
@@ -96,7 +128,9 @@ class UpcomingItemOut(BaseModel):
     subject: SubjectRef | None
     due_on: date
     days_left: int
-    has_plan: bool  # `false` en Lot 1
+    # ADR-0050 : vrai SI ET SEULEMENT SI le plan a au moins une étape. Un `has_plan` optimiste
+    # ferait apparaître un « ✦ » qui n'ouvre rien — le bouton mort du §14.6.
+    has_plan: bool
 
 
 class AgendaItemStudentCreate(BaseModel):
@@ -139,6 +173,17 @@ class AgendaItemPilotOut(BaseModel):
     edited_by_parent_at: datetime | None
     created_at: datetime | None
     updated_at: datetime | None
+    # Le plan de préparation, EN LECTURE (ADR-0050 Décision 7). Papa constate, il ne pilote pas :
+    # aucune route de génération, aucune édition, aucune coche — le plan est un service rendu à
+    # Massimo.
+    #
+    # 🔴 **Deux entiers et rien d'autre.** Servir les étapes ici en ferait un objet de pilotage :
+    # Papa lirait ce que ZETIS a proposé, puis voudrait le corriger. `0/0` = pas de plan.
+    #
+    # ⚠️ « cochées », JAMAIS « faites » (§14.7) : le serveur ne sait rien d'autre qu'un `done_at`
+    # posé par une route élève (Décision 5, option A).
+    plan_steps_total: int = 0
+    plan_steps_done: int = 0
 
 
 class AgendaItemParentCreate(BaseModel):
