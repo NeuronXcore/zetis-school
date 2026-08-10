@@ -243,9 +243,24 @@ c'est bien un rouage.
 
 **Alors le libellé nomme sa destination ET son grain** — c'est la règle de l'`adr-0047`, appliquée
 ici parce qu'elle a été écrite pour exactement ce défaut : *« Lire la fiche »* promet **une** fiche
-et en ouvrirait une liste. Les libellés servis sont donc **« Lire les fiches de \<matière\> »** et
-**« Un quiz de \<matière\> »** ; seul `revision` garde un libellé au grain fin — **« Réviser ce
-chapitre »** — parce que sa destination l'est.
+et en ouvrirait une liste.
+
+**Le grain se dit par le PLURIEL et par le VERBE, pas en répétant la matière :**
+
+| Étape | Libellé servi | Ce qui porte le grain |
+|---|---|---|
+| `fiche` | **« Lire les fiches »** | le **pluriel** — on ouvre une liste, pas une fiche désignée |
+| `revision` | **« Réviser ce chapitre »** | rien à corriger : sa destination **est** le chapitre |
+| `quiz` | **« Choisir un quiz »** | le **verbe** — il y aura un choix, donc ZETIS n'en a désigné aucun |
+
+> 🔴 **« Lire les fiches de \<matière\> » a été écrit ici, essayé, puis MESURÉ dans le DOM** le
+> 2026-08-10 : **193 px pour 151 disponibles** sur une carte de téléphone — 202 px avec
+> « Physique-Chimie ». Ce qui se coupait à l'ellipse, c'était **le nom de la matière**, c'est-à-dire
+> l'information même que l'allongement avait servi à porter. Et elle est **déjà à l'écran**, deux
+> lignes plus haut, sur la ligne de puces de l'échéance.
+>
+> Le libellé ne dépend donc **plus du tout** de la matière — une chaîne fixe par type, un cas de
+> moins à tenir. Seule la **destination** en dépend.
 
 🔴 **On ne fabrique aucune route.** `/fiches?fiche=` et `/quiz?quiz=` n'existent pas ; les écrire
 aurait produit deux liens qui déposent Massimo sur une page qui ignore son paramètre — un
@@ -402,8 +417,12 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
   remettant `?fiche=<id>` doit **rougir** — la page ignore le paramètre, le lien s'ouvre sur un
   cul-de-sac silencieux, et **aucun test de rendu ne le verrait** : le lien existe, il est
   cliquable, il a l'air de marcher.
-- **Test-verrou** — le libellé d'une étape `fiche` ou `quiz` **nomme la matière** (Décision
-  2 quater) ; `revision` garde *« ce chapitre »*, parce que sa destination l'est vraiment.
+- **Test-verrou** — le libellé dit son grain **par le pluriel et par le verbe** (Décision
+  2 quater) : *« Lire les fiches »*, *« Choisir un quiz »*, *« Réviser ce chapitre »*. Saboter en
+  singulier (*« Lire la fiche »*) ou en quiz désigné (*« Petit quiz »*) doit **rougir**.
+- 🔴 **Test-verrou** — le libellé **ne répète pas la matière**. Mesuré : elle se coupait à
+  l'ellipse. Saboter en remettant `de ${subject.name}` doit **rougir** — sans quoi le défaut
+  reviendra à la première relecture qui trouvera le libellé « trop vague ».
 - **Test-verrou** — une échéance **sans matière** rend ses étapes **sans lien**, et la coche
   reste. Le plan ne disparaît pas faute de destination.
 - Mise à jour de `docs/frontend-massimo/page-agenda.md` (`plan_steps` cesse d'être « vide en Lot 1 »)
@@ -428,10 +447,14 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
    migration.**
 2 quater. ✅ **AJOUTÉE le 2026-08-10**, au câblage de la Session B : une étape mène au **grain
    réellement atteignable** — la matière pour `fiche` et `quiz`, le chapitre pour `revision` — et
-   **son libellé le dit** (règle de l'`adr-0047`). `/fiches?fiche=` et `/quiz?quiz=` **n'existent
-   pas** ; les écrire aurait produit des liens qui ont l'air de marcher. `resource_id` reste
-   persisté et inutilisé pour deux types sur trois, **délibérément**. La variante « charger le quiz
-   puis `/quiz/session` » est **reportée, pas écartée**.
+   **son libellé le dit** (règle de l'`adr-0047`), par le **pluriel** et par le **verbe** :
+   *« Lire les fiches »*, *« Choisir un quiz »*, *« Réviser ce chapitre »*. `/fiches?fiche=` et
+   `/quiz?quiz=` **n'existent pas** ; les écrire aurait produit des liens qui ont l'air de marcher.
+   `resource_id` reste persisté et inutilisé pour deux types sur trois, **délibérément**. La
+   variante « charger le quiz puis `/quiz/session` » est **reportée, pas écartée**.
+   ⚠️ **Corrigée le jour même sur MESURE** : la première rédaction mettait la matière dans le
+   libellé (*« Lire les fiches de Mathématiques »*) — 193 px pour 151 disponibles, et c'est le nom
+   de la matière qui se coupait.
 3. ✅ Rétro-planning **borné à 3**, de demain à la veille, jamais le jour de l'échéance ; aucun
    plan à J+0 ou J+1.
 4. ✅ Figé à la première lecture ; **révoqué** si la date bouge, coches comprises.
