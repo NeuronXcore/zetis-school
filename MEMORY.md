@@ -19,8 +19,19 @@ faisaient varier des **comportements**, jamais des **destinations** ni des **rec
 | Un jour `✦` qui ouvrait sur du vide | `preparationsForDay` + bloc « ✦ Ce jour-là, tu prépares » | **trou** — l'ADR-0050 décide le marqueur, jamais ce que fait le clic |
 | Le jour ouvert doublait sa section | sections d'un jour retirées, multi-jours filtrées | 🔴 **l'addendum §17.1 l'interdisait déjà** |
 
-**Suites à la clôture** : backend **1185** (+4) · Massimo **634** (+8) · Papa **795** (+1), deux
-typechecks verts. **7 sabotages joués, 7 rougissements** — dont la classe *« la surface disparaît »*, qui
+🔴 **CINQUIÈME défaut, trouvé PENDANT la relecture (2026-08-11), et le plus instructif** : le
+bouton qui **referme le panneau du jour** portait le **même glyphe et le même `className`** que la
+croix de masquage. Un panneau à trois devoirs affichait donc **trois `✕` indiscernables** — un qui
+referme, deux qui archivent définitivement. **C'est très probablement là que les deux devoirs de
+dev sont partis la veille.** Le commanditaire a lu le survivant comme un masquage, *après* que les
+deux autres avaient été retirés — la preuve que le retrait ne suffisait pas.
+Il est devenu **`▴`**, le vocabulaire que la page emploie déjà (« Replier la suite ▴ »).
+⚠️ **Ce bouton n'était couvert par AUCUN test** — ni libellé, ni comportement. Il l'est maintenant,
+dans les deux sens (aucune croix sur un panneau d'items de l'école ; la croix subsiste sur un item
+de Massimo).
+
+**Suites à la clôture** : backend **1185** (+4) · Massimo **636** (+10) · Papa **795** (+1), deux
+typechecks verts. **8 sabotages joués, 8 rougissements** — dont la classe *« la surface disparaît »*, qui
 avait piégé six verrous au chantier précédent : mes verrous y survivent **grâce à l'assertion de
 présence**, systématiquement posée AVANT l'assertion négative.
 

@@ -242,6 +242,12 @@ travail, cochable, avec le lien vers le cours ; et **il répond toujours** — �
 jour-là » sur un jour passé sans échéance, « Rien de noté pour ce jour » sur un jour à venir, plus
 « tu as travaillé N fois » quand le jour porte des traces. Retaper le jour ouvert le referme.
 
+🔴 **Le bouton de fermeture est un `▴`, jamais un `✕`** (2026-08-11). Il portait le **même glyphe et
+le même style** que la croix de masquage des cartes : un panneau à trois devoirs affichait donc
+**trois `✕` indiscernables**, un qui referme et deux qui archivent définitivement — et c'est très
+probablement là que deux devoirs de la base de dev sont partis. Le chevron est le vocabulaire
+**déjà employé par la page** (« Replier la suite ▴ ») : un même geste, un même signe.
+
 🔴 **Deux corrections nées de la relecture humaine du 2026-08-10 — le panneau mentait deux fois.**
 
 1. **Il montre ce que le jour PRÉPARE** — bloc « ✦ Ce jour-là, tu prépares », une ligne par étape,

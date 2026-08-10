@@ -5,7 +5,7 @@
 // pas se lisent comme une panne. Ce panneau répond toujours.
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { type AgendaItemStudent } from "@zetis/types";
 import { AgendaDayPanel } from "./AgendaDayPanel";
 
@@ -138,6 +138,41 @@ describe("AgendaDayPanel", () => {
       panneau({ date: DEMAIN, items: [], preparations: [] });
       expect(screen.getByText(/Rien de noté pour ce jour/)).toBeInTheDocument();
       expect(screen.queryByText(/Ce jour-là, tu prépares/)).toBeNull();
+    });
+  });
+
+  describe("🔴 le bouton de fermeture ne peut plus se confondre avec un masquage", () => {
+    // Ce bouton portait le MÊME glyphe et le MÊME `className` que la croix de masquage des
+    // cartes : un panneau à trois devoirs affichait **trois ✕ indiscernables**, un qui referme et
+    // deux qui archivent définitivement. Le commanditaire l'a lu comme un masquage à la relecture
+    // du 2026-08-11 — après que la croix de masquage avait déjà été retirée.
+    //
+    // ⚠️ Il n'était couvert par **aucun test** : ni `aria-label`, ni comportement.
+
+    it("le jour se replie par ▴, et le panneau ne porte AUCUNE croix", () => {
+      const onClose = vi.fn();
+      const { container } = panneau({
+        items: [item(), item({ id: 2, label: "Fiche de lecture" })],
+        onClose,
+      });
+
+      // ⚠️ **ANCRE POSITIVE D'ABORD** : sans elle, un panneau qui ne rendrait plus rien du tout
+      // satisferait l'assertion négative qui suit.
+      const replier = screen.getByRole("button", { name: /replier/i });
+      fireEvent.click(replier);
+      expect(onClose).toHaveBeenCalledTimes(1);
+
+      // 🔴 Le verrou : sur un panneau plein de devoirs de l'ÉCOLE (`created_by: "parent"` par
+      // défaut dans la fabrique), plus une seule croix à l'écran.
+      expect(container.textContent).not.toContain("✕");
+    });
+
+    it("et la croix reste possible sur ce que Massimo a écrit lui-même", () => {
+      // Le pendant obligatoire : un test qui n'aurait que l'assertion ci-dessus passerait sur une
+      // croix supprimée PARTOUT — donc sur la révocation du §2c, qui n'a pas été décidée.
+      const { container } = panneau({ items: [item({ created_by: "student" })] });
+      expect(container.textContent).toContain("✕");
+      expect(screen.getByRole("button", { name: /masquer/i })).toBeInTheDocument();
     });
   });
 });

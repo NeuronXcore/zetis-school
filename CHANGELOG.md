@@ -30,6 +30,13 @@ cartes, deux coches, deux ✕, et l'ancre `agenda-item-<id>` en double dans le D
 l'interdisait déjà, en s'appuyant sur la transience du panneau — mais tant qu'il est ouvert, l'item
 est là deux fois.
 
+**Et le bouton qui referme le jour est devenu un `▴`.** Il portait le même glyphe et le même style
+que la croix de masquage : un panneau à trois devoirs montrait **trois `✕` indiscernables**, un qui
+referme et deux qui archivent pour toujours. Trouvé à la relecture — le commanditaire a lu le
+survivant comme un masquage, *après* que les deux autres avaient déjà été retirés. Le chevron est
+le vocabulaire que la page emploie deux blocs plus bas (« Replier la suite ▴ »). Ce bouton n'était
+couvert par **aucun test** : ni son libellé, ni son comportement.
+
 🔴 **Bug de production corrigé au passage : le plan lisait l'heure d'UTC.** Entre **minuit et 2 h**,
 `jours_restants` valait un de trop — une échéance de demain passait pour J+2, et ZETIS composait un
 plan que l'ADR-0050 interdit, daté d'aujourd'hui. ⚠️ Deux autres tests tombaient dans la même

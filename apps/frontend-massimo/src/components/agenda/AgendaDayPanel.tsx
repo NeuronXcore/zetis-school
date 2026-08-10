@@ -65,13 +65,28 @@ export function AgendaDayPanel({
         <p className="text-xs font-semibold uppercase tracking-wide text-zetis-accent-2">
           {longDayLabel(date)}
         </p>
+        {/* 🔴 `▴` ET NON `✕` (2026-08-11, relecture humaine). Ce bouton portait **exactement le
+            même `className` et le même glyphe** que la croix de masquage des cartes : sur un
+            panneau qui montre trois devoirs, l'écran affichait donc **trois `✕` indiscernables**,
+            un qui referme et deux qui archivent définitivement. C'est très probablement là que
+            deux devoirs de la base de dev sont partis la veille.
+
+            Le masquage a été borné aux items de Massimo le même jour, donc les deux mauvais ont
+            disparu — mais le survivant gardait une forme qui, au milieu de devoirs, se lit encore
+            « fais disparaître ça ». Et le commanditaire l'a lu ainsi, à la relecture.
+
+            ⚠️ **Le chevron n'est pas un choix de goût : c'est le vocabulaire DÉJÀ employé par la
+            page** deux blocs plus bas — « Replier la suite ▴ ». Un même geste, un même signe.
+            L'addendum §17 rappelle par ailleurs que **retaper le jour le referme** : ce bouton est
+            une affordance secondaire, il n'a pas à emprunter la forme du geste destructeur. */}
         <button
           type="button"
           onClick={onClose}
-          aria-label="Fermer le jour"
+          aria-label="Replier le jour"
+          title="Replier"
           className="shrink-0 rounded-lg px-1.5 py-0.5 text-xs text-zetis-muted transition-colors hover:text-white motion-reduce:transition-none"
         >
-          ✕
+          ▴
         </button>
       </div>
 
