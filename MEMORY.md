@@ -7,18 +7,24 @@
 ## État à la reprise
 
 **Chantier : le plan de préparation — ADR-0050**, qui réalise le §8 rôle 1 de l'ADR-0025 (le rôle
-de « traducteur »). ✅ **COMPLET — livré, poussé, et la PR
-[#110](https://github.com/NeuronXcore/zetis-school/pull/110) est OUVERTE** (`MERGEABLE`).
-🔴 **NE PAS MERGER avant la relecture visuelle humaine** — l'ADR la voulait *avant* la PR ; elle
-est donc due **avant le merge**, et le corps de la PR le dit en premier.
+de « traducteur »). ✅ **MERGÉ dans `main`** — PR
+[#110](https://github.com/NeuronXcore/zetis-school/pull/110), squash **`fa45576`**, le 2026-08-10.
 
 | | |
 |---|---|
-| **Branche** | `feat/plan-de-preparation`, forkée à **`03b38d2`**, **poussée et à jour** (`0 0`). Son contenu : `git log --oneline main..feat/plan-de-preparation` |
-| **`main`** | **poussé et à jour**. Sept commits d'ADR-0050 : `fab8a6a` `3a04900` `03b38d2` **avant** le fork, `98c5de1` `17b2ffd` `b1fc862` `9689a27` **après**, tous re-mergés dans la branche |
-| 🔴 **Migration** | **`b2c3d4e5f9a1`** — appliquée en DEV, downgrade/upgrade rejoués. **PAS en prod**, et elle ne peut pas y aller avant le merge (l'entrypoint fait `upgrade head` au démarrage). ⚠️ **Combien de révisions sont dues, on ne le sait PAS** — voir ci-dessous |
+| **Branche** | `feat/plan-de-preparation`, forkée à **`03b38d2`**, **CONSERVÉE** (locale et distante, à `a80c70f`) — demandé explicitement au merge |
+| **`main`** | **à jour, `fa45576`**. Sept commits d'ADR-0050 l'ont précédé (`fab8a6a` `3a04900` `03b38d2` avant le fork, `98c5de1` `17b2ffd` `b1fc862` `9689a27` après), plus `b6e5b63` pour l'index `DECISIONS.md` |
+| 🔴 **Migration** | **`b2c3d4e5f9a1`** — appliquée en DEV, downgrade/upgrade rejoués. **PAS en prod.** Elle peut désormais y aller (elle est sur `main`). ⚠️ **Combien de révisions sont dues, on ne le sait PAS** — voir le § PROCHAIN PAS |
 | **Suites** | Backend **1181** · Massimo **626** · Papa **794**. **25 sabotages, 25 rougissements** — 12 (B) + 7 (C) + **6 d'une CLASSE neuve** : *« la surface disparaît »* |
-| ⏳ **Relecture visuelle** | 🔴 **PAS FAITE PAR L'HUMAIN** — l'ADR la veut AVANT la PR. Les deux interfaces ont été vues et **mesurées dans le DOM** par Claude, ce n'est pas la même chose |
+| 🔴 **Relecture visuelle** | **JAMAIS FAITE — et le chantier a été mergé quand même**, sur décision du commanditaire du 2026-08-10, après deux signalements. L'ADR-0050 la mettait au Suivi, **avant la PR**. Les deux interfaces ont été vues et mesurées dans le DOM **par Claude** ; ce n'est pas la même chose, et le dépôt en a déjà payé le prix |
+
+> 🔴 **Ce merge s'ajoute à une série que le dépôt tient déjà** — #79 (bandeau Massimo, *« mergé sans
+> avoir jamais été VU »*), #89, #91. Ce n'est pas un reproche à consigner, c'est un **signal** : la
+> relecture visuelle a rapporté, sur l'ADR-0048, **cinq défauts qu'aucun des 43 sabotages rouges
+> n'avait vus** — c'est le seul chiffrage du dépôt sur ce qu'elle achète.
+>
+> **Ce qui reste donc à regarder un jour, sur `main`** : la porte de révision absorbée par le plan,
+> l'icône `🗒️`, et les **trois plans identiques** sur trois échéances d'un même chapitre.
 
 ### Ce que le chantier a livré, en une phrase par session
 
@@ -303,23 +309,21 @@ Section `feat/plan-de-preparation`. Les trois qui coûteraient le plus à redéc
 
 ### ▶▶ PROCHAIN PAS
 
-**Le code est FINI. Il ne reste que des gestes de livraison — et ils sont dans cet ordre.**
+**Le chantier est MERGÉ. Il reste deux gestes, et un rendez-vous manqué.**
 
-1. 🔴 **RELECTURE VISUELLE HUMAINE, avant tout le reste.** L'ADR l'exige, et elle compte
-   doublement : l'état principal est une **absence**, et le plan est le premier objet du dépôt qui
-   **affiche des jours**. Les deux serveurs de dev tournent sur la paire par défaut —
-   `http://localhost:5173/agenda` (Massimo) et `http://localhost:5174/agenda` (Papa). **Trois** des
-   cinq échéances de dev portent un plan (8 étapes en tout, toutes décochées) ; les deux autres
-   n'en ont pas, et c'est **l'état à vérifier en premier** — l'absence.
-   **Ce qu'il faut regarder ensuite** : les deux
-   arbitrages d'écran du § plus haut (la porte absorbée, l'icône `🗒️`), et les **trois plans
-   identiques** sur les trois échéances de fractions.
-2. ✅ ~~Pousser `main` puis la branche~~ — **FAIT le 2026-08-10**, dans cet ordre (la branche
-   référence des décisions qui doivent exister sur `main`), les deux vérifiés à `0 0`.
-3. ✅ ~~Ouvrir la PR~~ — **#110, OUVERTE le 2026-08-10**, `MERGEABLE`, 35 fichiers.
-   🔴 **Le merge attend la relecture du point 1**, pas l'inverse. Merger en **squash**, et
-   **NE PAS supprimer la branche** tant que l'étape 4bis n'est pas faite.
-4. 🔴 **APRÈS le merge : poser `b2c3d4e5f9a1` en prod.**
+1. ⏳ **RELECTURE VISUELLE — sautée, à faire sur `main`.** Elle n'est plus une porte avant le
+   merge (il a eu lieu), elle est devenue une **dette d'observation**. Les deux serveurs de dev
+   tournent sur la paire par défaut — `http://localhost:5173/agenda` (Massimo) et
+   `http://localhost:5174/agenda` (Papa). **Trois** des cinq échéances de dev portent un plan
+   (8 étapes, toutes décochées) ; les deux autres n'en ont pas — **et c'est l'absence qu'il faut
+   regarder en premier**, c'est l'état principal.
+   **Ensuite** : la porte de révision absorbée, l'icône `🗒️`, et les **trois plans identiques**
+   sur les trois échéances de fractions.
+2. ✅ ~~Pousser `main` puis la branche~~ — **FAIT le 2026-08-10**, dans cet ordre, vérifiés `0 0`.
+3. ✅ ~~Ouvrir la PR, merger en squash~~ — **#110 MERGÉE le 2026-08-10**, squash **`fa45576`**,
+   **branche CONSERVÉE** (locale et distante). 🔴 **Mergée SANS la relecture du point 1.**
+4. 🔴 **MAINTENANT : poser `b2c3d4e5f9a1` en prod** — c'est le geste le plus urgent, et il est
+   enfin permis (la révision est sur `main`).
 
    🔴 **NE PAS SE FIER AU NOMBRE DE RÉVISIONS DUES : deux sources du dépôt se contredisent**, et
    c'est le 2026-08-10 qui les a fabriquées toutes les deux.

@@ -107,7 +107,10 @@ pas — c'est le raisonnement de `SKIP_*` dans `triggers.py`, appliqué à l'éc
 > chantier fait.
 >
 > ⚠️ **Un seul des trois constats survit** : `step_type = lesson` est **toujours déclaré et mort**.
-> Il appartient au plan de préparation, désormais débloqué.
+> 🔴 **Et ce n'est plus une dette subie** — l'`adr-0050` (Décision 6, mergée le 2026-08-10) le
+> **motive** : le plan n'est pas une mission, `MissionStep` est hors sujet, et ressusciter
+> `STEP_LESSON` ferait une **troisième** surface pour « lire un cours ». Le §14.6 le nommait comme
+> un manque à combler ; c'était le symptôme de tout autre chose.
 
 La question qui a ouvert ce chantier était *« comment demander à Massimo de réviser ? »*. La
 réponse honnête est : **on ne peut pas encore**, et cet addendum ne fait pas semblant.
@@ -127,8 +130,13 @@ l'emplacement câblé et vide) vient **après** le couplage 2, jamais avant — 
 fiche · mini-quiz · **réviser les cartes du chapitre** ». Le construire d'abord serait le poser sur
 le trou.
 
-> ✅ **Le corollaire a joué, et il a tenu.** Le couplage 2 est livré (`adr-0049`, 2026-08-10) ; la
-> troisième étape du plan existe désormais, et le plan de préparation est **le chantier suivant**.
+> ✅ **Le corollaire a joué, et il a tenu jusqu'au bout.** Le couplage 2 a été livré
+> (`adr-0049`, 2026-08-10), puis le plan de préparation dans la foulée (`adr-0050`, PR #110, squash
+> `fa45576`, **mergé le même jour**). `plan_steps` n'est plus « l'emplacement câblé et vide » : il
+> est rempli, et lu par les deux interfaces.
+>
+> ⚠️ **Ce paragraphe décrit donc un ordonnancement PASSÉ, pas une contrainte à venir.** Le lire
+> comme une consigne enverrait une session attendre un chantier déjà fait.
 > C'est le seul endroit du dépôt où un ordre de chantiers a été décidé d'avance, écrit, puis
 > respecté — et où l'attendre a évité de poser un plan sur un trou.
 
