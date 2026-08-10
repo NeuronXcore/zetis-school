@@ -6,7 +6,7 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ▶ CHANTIER COMPLET — `fix/agenda-trois-defauts` (2026-08-10 au soir → 2026-08-11), **NON COMMITÉ**
+### ▶ CHANTIER COMPLET — `fix/agenda-trois-defauts` (2026-08-10 au soir → 2026-08-11), **PR #111 OUVERTE**
 
 Trois défauts de l'agenda, **tous trouvés par la RELECTURE HUMAINE** de l'ADR-0050, **tous
 corrigés et vérifiés à l'écran**. Aucun n'était visible à un test : les 25 sabotages du chantier
@@ -479,9 +479,14 @@ et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dé
 ### ▶▶ PROCHAIN PAS
 
 **Le chantier est COMPLET et NON COMMITÉ.** Branche `fix/agenda-trois-defauts`, forkée à
-`9bca7bc` (= tête de `main` = `origin/main`, vérifiés à la clôture). **Aucun commit** : tout est en
-arbre de travail — **27 fichiers**, dont 5 de documentation écrits par la clôture elle-même. La
-tête de branche ne s'écrit pas ici (elle n'existe pas encore) — voir `git log --oneline main..HEAD`.
+`9bca7bc` (= tête de `main` = `origin/main`, vérifiés à la clôture). **Un commit**, 27 fichiers
+(dont 5 de documentation écrits par la clôture), poussé — local et distant à `0 0`. **PR
+[#111](https://github.com/NeuronXcore/zetis-school/pull/111) OUVERTE**, `fix/agenda-trois-defauts`
+→ `main`, **pas encore mergée**. La tête de branche ne s'écrit pas ici — voir
+`git log --oneline main..HEAD`.
+
+⚠️ **Le squash et la suppression de branche s'écriront à l'étape 4bis**, après le merge — pas
+avant, sinon ce fichier annonce un état qui n'existe pas.
 
 1. 🔴 **LA RELECTURE VISUELLE HUMAINE — c'est la porte, et elle n'est pas franchie.**
    Trois défauts sont nés de **vos** clics ce soir, en quinze minutes, et **aucun des 25 sabotages
@@ -494,8 +499,10 @@ tête de branche ne s'écrit pas ici (elle n'existe pas encore) — voir `git lo
    - et les deux arbitrages d'écran hérités de l'ADR-0050 (§ REMONTÉ ci-dessus), vus par l'agent
      et jamais par vous.
    Serveurs : `http://localhost:5173/agenda` (Massimo), `http://localhost:5174/agenda` (Papa).
-2. Puis **commit → push → PR → merge en squash**, et l'**étape 4bis** (`WORKFLOW.md §5`) :
-   revenir écrire ici le squash, le n° de PR, et l'état réel de la branche.
+2. ✅ ~~commit → push → PR~~ — **FAITS le 2026-08-11**, commit unique, poussé, **PR #111 ouverte**.
+   Reste le **merge en squash**, puis l'**étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici le
+   squash et l'état réel de la branche. 🔴 **Le merge est la seule chose que la relecture du
+   point 1 doit précéder** — la PR peut rester ouverte le temps qu'il faut.
 3. ⚠️ **Un contrôle 4bis nommé d'avance** : la spec `docs/frontend-massimo/page-agenda.md` a été
    mise à jour par cette clôture ; vérifier qu'aucun autre document n'annonce encore la croix
    comme universelle, ni le panneau de jour comme muet sur les étapes.
