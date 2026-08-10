@@ -134,16 +134,76 @@ Colonnes minimales : `agenda_item_id · day_offset · kind · skill_id · resour
 done_at`. Le `kind` reprend le **vocabulaire de la panoplie** (`cours · fiche · revision · quiz`),
 jamais un vocabulaire neuf — deux vocabulaires pour la même chose divergent au premier ajout.
 
-### 2. Le plan se compose depuis `resolve_panoply`, et de nulle part ailleurs
+### 2. Chaque étape interroge le prédicat de SON grain — jamais un prédicat réécrit
 
-Chapitre → `ordered_chapter_skill_ids` → `resolve_panoply` → on **retient ce qui est disponible**.
+> 🔴 **AMENDÉE le 2026-08-10, avant la première ligne de code**, sur le read-before-code de la
+> Session A. La rédaction d'origine disait *« depuis `resolve_panoply`, et de nulle part
+> ailleurs »*. **Elle était fausse, et elle fabriquait le défaut qu'elle prétendait éviter** —
+> voir l'encadré plus bas. Amendement validé par le commanditaire.
 
-🔴 **Aucune requête de disponibilité écrite dans `agenda`.** C'est le second prédicat que
-l'addendum ADR-0024 interdit nommément.
+Chapitre → `ordered_chapter_skill_ids` → puis, **selon le grain de l'étape** :
+
+| Étape | Grain | Prédicat |
+|---|---|---|
+| `cours` · `fiche` · `quiz` | **notion** | `resolve_panoply` — et rien d'autre |
+| `revision` | **chapitre** | `memory.chapter_servable_count` (ADR-0049) |
+
+🔴 **Aucune requête de disponibilité RÉÉCRITE dans `agenda`.** La règle de l'addendum ADR-0024
+n'est pas « tout passe par `resolve_panoply` », elle est « **un seul prédicat par question** ».
+Poser une question différente ne la viole pas ; y répondre par une requête maison, si.
+
+> **Pourquoi la rédaction d'origine était fausse.** L'étape est *« réviser les cartes **du
+> chapitre** »* — le deck de l'`adr-0049`. Or la panoplie répond à une **autre question** :
+>
+> | | Question | Filtre |
+> |---|---|---|
+> | `resolve_panoply` → `revision` | *cette **notion** a-t-elle une carte ?* | `status` seul, **aucun `resource_id`** |
+> | `chapter_servable_count` | *ce **chapitre** a-t-il des cartes servables ?* | `status` **+ `due_at IS NOT NULL`** + plafond |
+>
+> Le filtre de la panoplie est **plus lâche** : il compte des cartes que le deck chapitre
+> **refuse**. Une étape composée depuis lui mènerait à un deck répondant **400** — exactement la
+> *« porte ouverte sur du vide »* que l'addendum ADR-0024 existe pour empêcher.
+>
+> ⚠️ Il y a désormais **trois** réponses dans le dépôt à « peut-on réviser ceci » — celle-ci,
+> celle de l'`adr-0049`, et `get_reviews_summary` par matière. **Les trois sont légitimes : elles
+> ne posent pas la même question.** Ne pas chercher à les unifier ; chercher à choisir.
 
 ⚠️ **L'ordre pédagogique vient de `resolve_panoply`**, il ne se réordonne pas ici : *comprendre,
 puis mémoriser, puis se tester*. Un plan qui testerait avant d'expliquer serait pédagogiquement
-faux, et le dépôt porte déjà la réponse.
+faux, et le dépôt porte déjà la réponse. L'étape `revision` s'insère **à sa place dans cet
+ordre** (entre `fiche` et `quiz`), même si sa disponibilité vient d'ailleurs.
+
+⚠️ **`resource_id` n'est PAS uniforme dans la panoplie** : les clés varient selon le `kind`
+(`lesson_id · fiche_id · capsule_id · mindmap_id · quiz_id`), et `eli5` comme `revision` n'en ont
+**aucune**. La colonne unique de la Décision 1 exige donc une **extraction par type** ; pour
+`revision`, l'identifiant est le `chapter_id` de l'échéance elle-même.
+
+### 2 bis. Une étape par TYPE, jamais par notion
+
+> 🔴 **AJOUTÉE le 2026-08-10** — le read-before-code a montré que l'ADR ne disait **nulle part**
+> comment N notions × 7 activités deviennent ≤ 3 étapes. Le plafond de la Décision 3 n'y suffisait
+> pas : il aurait tronqué arbitrairement.
+
+Le chapitre est résolu en notions, mais **le plan ne parle jamais de notions** : il parle de
+**types d'étape**, et il en produit **au plus un de chaque**.
+
+| Étape | Ce qu'elle vise |
+|---|---|
+| `fiche` | la fiche de la **première leçon du chapitre qui en a une**, en ordre curriculum |
+| `revision` | le **chapitre entier** — c'est le deck de l'`adr-0049`, il n'a pas de grain plus fin |
+| `quiz` | le quiz de la notion **la plus fragile** du chapitre (service d'évidence, patron ADR-0018 §3) |
+
+**Trois types ⇒ trois étapes au maximum, naturellement.** Le plafond de 3 de la Décision 3 cesse
+d'être un couperet arbitraire : il devient la conséquence du nombre de types.
+
+⚠️ **`cours` et `eli5` ne sont PAS des étapes de plan.** Lire le cours est déjà offert par
+l'échéance elle-même (addendum §15, *« lire le cours »*), et le redonner ici serait une troisième
+surface pour la même chose. `capsule` et `mindmap` sont hors périmètre — ils n'ont pas de grain
+chapitre.
+
+> ⚠️ **Massimo ne verra donc jamais deux fois « petit quiz » dans un plan**, même si le chapitre
+> porte six notions testables. C'est voulu : le plan dit **par où commencer**, pas **tout ce qu'on
+> pourrait faire**. La panoplie complète reste accessible depuis la galaxie et la page matière.
 
 ### 3. Rétro-planifié sur les jours restants, borné, et jamais la veille au soir
 
@@ -259,8 +319,14 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
 - **Test-verrou** — le plan ne se recompose **pas** quand une fiche est validée après coup.
 - **Test-verrou** — déplacer la date **supprime** le plan, coches comprises.
 - **Test-verrou** — l'ordre des étapes est celui de `resolve_panoply`, jamais réordonné.
-- **Test-verrou de dépôt** — aucune requête de disponibilité dans `modules/agenda/` : le module
-  n'importe que `resolve_panoply`.
+- **Test-verrou de dépôt** — aucune requête de disponibilité **réécrite** dans `modules/agenda/` :
+  le module n'appelle que `resolve_panoply` et `chapter_servable_count` (Décision 2 amendée).
+- 🔴 **Test-verrou** — un chapitre dont une notion a une carte **sans échéance** (`due_at IS NULL`)
+  ne produit **aucune** étape `revision`. C'est LE cas où la panoplie et le deck divergent, et
+  c'est le test qui aurait attrapé la rédaction d'origine de la Décision 2. ⚠️ Le saboter en
+  composant `revision` depuis `resolve_panoply` doit **rougir**.
+- **Test-verrou** — jamais deux étapes du **même type** dans un plan (Décision 2 bis), même sur un
+  chapitre à six notions testables.
 - **Test-verrou** — jamais plus de 3 étapes, et jamais une étape le jour de l'échéance.
 - **Test-verrou** — cocher une étape ne crédite **aucun XP** et ne déclenche aucune célébration
   (Décision 5 (A)). ⚠️ Le saboter en ajoutant un `award_xp` doit **rougir** : c'est la garde qui
@@ -278,7 +344,12 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
 **Les sept sont gelées.** On les **relit**, on ne les rouvre pas.
 
 1. ✅ Table dédiée `agenda_plan_steps`, pas `Mission` — 🔴 **une migration**.
-2. ✅ Composition depuis `resolve_panoply` **uniquement**, dans son ordre.
+2. ✅ **AMENDÉE le 2026-08-10, avant la première ligne de code** : chaque étape interroge le
+   prédicat de **son grain** — `resolve_panoply` pour `cours`/`fiche`/`quiz` (notion),
+   `chapter_servable_count` pour `revision` (chapitre). La rédaction d'origine (*« et de nulle
+   part ailleurs »*) aurait produit une étape ouvrant sur un **400**.
+2 bis. ✅ **AJOUTÉE le 2026-08-10** : une étape par **TYPE**, jamais par notion. Trois types, donc
+   trois étapes au maximum — le plafond cesse d'être arbitraire. `cours` et `eli5` exclus.
 3. ✅ Rétro-planning **borné à 3**, de demain à la veille, jamais le jour de l'échéance ; aucun
    plan à J+0 ou J+1.
 4. ✅ Figé à la première lecture ; **révoqué** si la date bouge, coches comprises.
