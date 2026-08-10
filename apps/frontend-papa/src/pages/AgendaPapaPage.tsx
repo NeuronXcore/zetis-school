@@ -8,6 +8,7 @@ import { AgendaBatchEntry } from "../components/agenda/AgendaBatchEntry";
 import { CommandMissionModal } from "../components/CommandMissionModal";
 import { AgendaDetailPanel } from "../components/agenda/AgendaDetailPanel";
 import { AgendaTags, AgendaWeekBoard } from "../components/agenda/AgendaWeekBoard";
+import { CommandChip } from "../components/agenda/CommandChip";
 import { StudentEntrySwitch } from "../components/agenda/StudentEntrySwitch";
 import { useAgenda, useAgendaReferential } from "../hooks/useAgenda";
 import { useCommandMission } from "../hooks/useCommandMission";
@@ -46,6 +47,24 @@ export function AgendaPapaPage() {
     agenda.filter.period === "next" ? addDays(agenda.today, 7) : agenda.today,
   );
   const isBoard = agenda.filter.period === "current" || agenda.filter.period === "next";
+
+  /** Le geste « commander les missions » pour une échéance — ou `null` s'il n'est pas possible.
+   *
+   *  ⚠️ **La disponibilité se calcule ICI, une fois.** Le Commander raisonne en
+   *  `school_year_subject_id`, l'échéance en `subject_id`, et `sysId` est `number | null` : une
+   *  matière peut exister sans être rattachée à l'année active, auquel cas il n'y a aucun
+   *  référentiel de chapitres — donc rien à commander. Rendre l'affordance puis ne rien faire au
+   *  clic se lirait comme une panne (addendum §14.5).
+   *
+   *  `chapterId` explicite pour le panneau de détail : il peut porter un chapitre en cours
+   *  d'édition, pas encore enregistré. */
+  const commandFor =
+    (chapterId: number | null) => (item: AgendaItemPilot) => {
+      const sysId = referential.subjects.find((s) => s.id === item.subject_id)?.sysId ?? null;
+      const target = chapterId ?? item.chapter_id;
+      if (sysId === null || target === null) return null;
+      return () => cmd.openFor({ sysId, chapterId: target, dueDate: item.due_on });
+    };
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -90,6 +109,9 @@ export function AgendaPapaPage() {
               chaptersBySys={referential.chaptersBySys}
               chaptersLoading={referential.chaptersLoading}
               onNeedChapters={referential.loadChapters}
+              lessonsByChapter={referential.lessonsByChapter}
+              lessonsLoading={referential.lessonsLoading}
+              onNeedLessons={referential.loadLessons}
               saving={agenda.saving}
               onSubmit={agenda.createItems}
             />
@@ -135,6 +157,7 @@ export function AgendaPapaPage() {
                   columns={weekColumns(agenda.visible, monday, agenda.today)}
                   selectedId={current?.id ?? null}
                   onSelect={setSelected}
+                  commandFor={commandFor(null)}
                 />
               ) : agenda.visible.length === 0 ? (
                 <EmptyState
@@ -155,6 +178,7 @@ export function AgendaPapaPage() {
                   items={agenda.visible}
                   selectedId={current?.id ?? null}
                   onSelect={setSelected}
+                  commandFor={commandFor(null)}
                 />
               )}
             </div>
@@ -170,17 +194,12 @@ export function AgendaPapaPage() {
                   chaptersBySys={referential.chaptersBySys}
                   chaptersLoading={referential.chaptersLoading}
                   onNeedChapters={referential.loadChapters}
-                  onCommandMissions={(chapterId) => {
-                    // Le sysId vient du référentiel : le Commander raisonne en
-                    // `school_year_subject_id`, l'échéance en `subject_id`.
-                    // ⚠️ `sysId` est `number | null` : une matière peut exister sans être
-                    // rattachée à l'année active. Sans matière rattachée, il n'y a pas de
-                    // référentiel de chapitres — donc rien à commander.
-                    const sysId =
-                      referential.subjects.find((s) => s.id === current.subject_id)?.sysId ?? null;
-                    if (sysId === null) return;
-                    cmd.openFor({ sysId, chapterId, dueDate: current.due_on });
-                  }}
+                  lessonsByChapter={referential.lessonsByChapter}
+                  lessonsLoading={referential.lessonsLoading}
+                  onNeedLessons={referential.loadLessons}
+                  // Le chapitre EN COURS D'ÉDITION, pas celui enregistré : le panneau permet de
+                  // le rattacher après coup, et commander doit suivre ce qui est à l'écran.
+                  onCommandMissions={(chapterId) => commandFor(chapterId)(current)?.()}
                   onSaveNote={(note) => agenda.updateNote(current.id, note)}
                   onArchive={() => setToArchive(current)}
                 />
@@ -238,10 +257,12 @@ function AgendaFlatList({
   items,
   selectedId,
   onSelect,
+  commandFor,
 }: {
   items: AgendaItemPilot[];
   selectedId: number | null;
   onSelect: (item: AgendaItemPilot) => void;
+  commandFor?: (item: AgendaItemPilot) => (() => void) | null;
 }) {
   const days = [...new Set(items.map((item) => item.due_on))].sort();
   return (
@@ -255,21 +276,25 @@ function AgendaFlatList({
             {items
               .filter((item) => item.due_on === day)
               .map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onSelect(item)}
-                  aria-pressed={item.id === selectedId}
-                  style={{ borderLeftColor: item.subject?.color ?? undefined }}
-                  className={`flex flex-wrap items-center gap-2 rounded-lg border border-papa-border border-l-2 bg-papa-surface px-3 py-2 text-left transition-colors hover:border-papa-accent/60 ${
-                    item.id === selectedId ? "ring-1 ring-papa-accent" : ""
-                  } ${item.dismissed_at ? "opacity-50" : ""}`}
-                >
-                  <span className="text-sm">{item.label}</span>
-                  <span className="ml-auto flex flex-wrap gap-1">
-                    <AgendaTags item={item} />
-                  </span>
-                </button>
+                // La puce « commander » est un FRÈRE du bouton : un bouton dans un bouton n'est
+                // pas du HTML valide, et le clic irait aux deux.
+                <div key={item.id} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => onSelect(item)}
+                    aria-pressed={item.id === selectedId}
+                    style={{ borderLeftColor: item.subject?.color ?? undefined }}
+                    className={`flex w-full flex-wrap items-center gap-2 rounded-lg border border-papa-border border-l-2 bg-papa-surface py-2 pl-3 pr-8 text-left transition-colors hover:border-papa-accent/60 ${
+                      item.id === selectedId ? "ring-1 ring-papa-accent" : ""
+                    } ${item.dismissed_at ? "opacity-50" : ""}`}
+                  >
+                    <span className="text-sm">{item.label}</span>
+                    <span className="ml-auto flex flex-wrap gap-1">
+                      <AgendaTags item={item} />
+                    </span>
+                  </button>
+                  <CommandChip item={item} commandFor={commandFor} />
+                </div>
               ))}
           </div>
         </div>

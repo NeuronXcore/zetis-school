@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { type AgendaItemDraft, type AgendaKind, type CurriculumChapter } from "@zetis/types";
 import { Button, Input, Select, Spinner } from "@zetis/ui";
+import { AGENDA_KINDS, kindLabel } from "../../lib/agendaModel";
+import { LabelField, type LessonOption } from "./LabelField";
 
 // Saisie EN LOT — « je relève l'ENT du dimanche soir », pas « j'ajoute un devoir ».
 //
@@ -21,15 +23,11 @@ interface DraftRow {
   subjectId: string;
   chapterId: string;
   label: string;
+  /** Leçon pointée quand l'intitulé vient de la liste (addendum §15). */
+  lessonId: number | null;
   dueOn: string;
   kind: AgendaKind;
 }
-
-const KINDS: { value: AgendaKind; label: string }[] = [
-  { value: "devoir", label: "Devoir" },
-  { value: "controle", label: "Contrôle" },
-  { value: "rendu", label: "Rendu" },
-];
 
 let nextKey = 1;
 const emptyRow = (): DraftRow => ({
@@ -37,6 +35,7 @@ const emptyRow = (): DraftRow => ({
   subjectId: "",
   chapterId: "",
   label: "",
+  lessonId: null,
   dueOn: "",
   kind: "devoir",
 });
@@ -47,6 +46,10 @@ interface Props {
   chaptersBySys: Record<number, CurriculumChapter[]>;
   chaptersLoading: Set<number>;
   onNeedChapters: (sysId: number) => void;
+  /** Cours VALIDÉS par `chapter_id`, chargés à la demande (addendum ADR-0025 §13, §15). */
+  lessonsByChapter: Record<number, LessonOption[]>;
+  lessonsLoading: Set<number>;
+  onNeedLessons: (chapterId: number) => void;
   saving: boolean;
   onSubmit: (drafts: AgendaItemDraft[]) => Promise<void>;
 }
@@ -56,6 +59,9 @@ export function AgendaBatchEntry({
   chaptersBySys,
   chaptersLoading,
   onNeedChapters,
+  lessonsByChapter,
+  lessonsLoading,
+  onNeedLessons,
   saving,
   onSubmit,
 }: Props) {
@@ -65,10 +71,23 @@ export function AgendaBatchEntry({
     setRows((all) => all.map((row) => (row.key === key ? { ...row, ...change } : row)));
 
   const chooseSubject = (row: DraftRow, value: string) => {
-    // Changer de matière invalide le chapitre déjà choisi : il appartenait à l'autre matière.
-    patch(row.key, { subjectId: value, chapterId: "" });
+    // Changer de matière invalide le chapitre déjà choisi : il appartenait à l'autre matière —
+    // et donc la leçon pointée aussi.
+    // L'intitulé, lui, N'EST PAS effacé — c'est peut-être la seule chose que Papa ait tapée
+    // (addendum ADR-0025 §13.4). Sans chapitre, `LabelField` retombe seul en texte libre.
+    patch(row.key, { subjectId: value, chapterId: "", lessonId: null });
     const sysId = subjects.find((s) => String(s.id) === value)?.sysId ?? null;
     if (sysId !== null && !chaptersBySys[sysId]) onNeedChapters(sysId);
+  };
+
+  const chooseChapter = (row: DraftRow, value: string) => {
+    // ⚠️ **La leçon tombe avec le chapitre.** Sans ça, un intitulé choisi dans le chapitre A
+    // resterait rattaché à SA leçon après un passage au chapitre B : le serveur refuserait en
+    // 422 (§15), et avant lui l'écran aurait menti. Le texte de l'intitulé, lui, survit.
+    patch(row.key, { chapterId: value, lessonId: null });
+    // Même geste que `chooseSubject` pour les chapitres : le niveau du dessous se charge à la
+    // demande, une seule fois par chapitre.
+    if (value && !lessonsByChapter[Number(value)]) onNeedLessons(Number(value));
   };
 
   // Une ligne compte dès qu'elle porte un intitulé ET une date : ce sont les deux seules
@@ -84,6 +103,7 @@ export function AgendaBatchEntry({
         due_on: row.dueOn,
         subject_id: row.subjectId ? Number(row.subjectId) : null,
         chapter_id: row.chapterId ? Number(row.chapterId) : null,
+        lesson_id: row.lessonId,
         kind: row.kind,
       })),
     );
@@ -113,6 +133,9 @@ export function AgendaBatchEntry({
           const sysId = subjects.find((s) => String(s.id) === row.subjectId)?.sysId ?? null;
           const chapters = sysId !== null ? (chaptersBySys[sysId] ?? []) : [];
           const loadingChapters = sysId !== null && chaptersLoading.has(sysId);
+          const chapterId = row.chapterId ? Number(row.chapterId) : null;
+          const lessons = chapterId !== null ? (lessonsByChapter[chapterId] ?? []) : [];
+          const loadingLessons = chapterId !== null && lessonsLoading.has(chapterId);
           return (
             <div
               key={row.key}
@@ -135,7 +158,7 @@ export function AgendaBatchEntry({
                 aria-label="Chapitre"
                 value={row.chapterId}
                 disabled={sysId === null || loadingChapters}
-                onChange={(e) => patch(row.key, { chapterId: e.target.value })}
+                onChange={(e) => chooseChapter(row, e.target.value)}
               >
                 <option value="">
                   {sysId === null
@@ -153,12 +176,19 @@ export function AgendaBatchEntry({
                 ))}
               </Select>
 
-              <Input
-                aria-label="Intitulé"
+              {/* ⚠️ Un REPÈRE, pas un exemple (2026-08-10). L'exemple chiffré d'origine a été
+                  retiré : depuis le §13 le champ est un MENU dès qu'un chapitre est choisi, et une
+                  suggestion de saisie libre y proposait la mauvaise habitude.
+                  Mais il ne peut pas rester nu : sous `lg`, les en-têtes de colonnes sont masqués
+                  et tous les autres champs gardent un repère (`— matière —`, `jj/mm/aaaa`,
+                  `Devoir`). L'intitulé serait la SEULE boîte vide et sans nom de la grille. */}
+              <LabelField
                 className="col-span-2 lg:col-span-1"
-                placeholder="ex. Exercices 12 à 15 p. 45"
+                placeholder="Intitulé"
                 value={row.label}
-                onChange={(e) => patch(row.key, { label: e.target.value })}
+                onChange={(label, lessonId) => patch(row.key, { label, lessonId })}
+                lessons={lessons}
+                loading={loadingLessons}
               />
 
               <Input
@@ -173,9 +203,9 @@ export function AgendaBatchEntry({
                 value={row.kind}
                 onChange={(e) => patch(row.key, { kind: e.target.value as AgendaKind })}
               >
-                {KINDS.map((kind) => (
-                  <option key={kind.value} value={kind.value}>
-                    {kind.label}
+                {AGENDA_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {kindLabel(kind)}
                   </option>
                 ))}
               </Select>

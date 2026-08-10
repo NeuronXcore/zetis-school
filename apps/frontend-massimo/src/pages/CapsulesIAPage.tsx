@@ -120,7 +120,7 @@ export function CapsulesIAPage() {
         <p className="text-sm text-zetis-muted">Chargement…</p>
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-zetis-border bg-zetis-surface p-8 text-center text-zetis-muted">
-          Aucune capsule pour l'instant. Reviens bientôt : Papa en prépare de nouvelles ! 🎬
+          Aucune capsule pour l'instant. Reviens bientôt : ZETIS en prépare de nouvelles ! 🎬
         </div>
       ) : (
         <>

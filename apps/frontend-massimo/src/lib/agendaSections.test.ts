@@ -50,14 +50,19 @@ describe("splitSections", () => {
     expect(splitSections(items, TODAY).resume.map((i) => i.id)).toEqual([4]);
   });
 
-  it("plafonne « à reprendre » à 3, quel qu'en soit le nombre réel", () => {
-    // Mécanisme anti-dette (ADR-0025 §7) : la section ne grossit JAMAIS, et les items omis le
-    // sont en silence — aucun « et 7 autres », qui serait un compteur d'arriéré déguisé.
+  it("VERROU §17 — ne plafonne PLUS : les plus anciens restent atteignables", () => {
+    // Le plafond vivait ici jusqu'au 2026-08-10, et il rendait les plus anciens **hors
+    // d'atteinte**, pas seulement invisibles. Il est devenu un plafond d'AFFICHAGE, appliqué par
+    // la page et levé par un geste de Massimo.
+    //
+    // ⚠️ Ce que le §7 interdit reste interdit et se teste AILLEURS (`AgendaPage`) : la section
+    // ne s'allonge pas toute seule, et aucun compteur d'arriéré n'est posé à côté du titre.
     const many = Array.from({ length: 10 }, (_, index) =>
       item({ id: 100 + index, due_on: `2026-07-1${index % 10}` }),
     );
     const sections = splitSections(many, TODAY);
-    expect(sections.resume).toHaveLength(RESUME_MAX);
+    expect(sections.resume.length).toBeGreaterThan(RESUME_MAX);
+    expect(sections.resume).toHaveLength(10);
   });
 
   it("garde les plus récents parmi les items à reprendre", () => {
@@ -70,13 +75,26 @@ describe("splitSections", () => {
       ],
       TODAY,
     );
-    expect(sections.resume.map((i) => i.id)).toEqual([4, 3, 2]);
+    // Plus récent d'abord : ce qu'on vient de manquer se rattrape avant ce qui date de dix jours.
+    expect(sections.resume.map((i) => i.id)).toEqual([4, 3, 2, 1]);
   });
 });
 
 describe("originLabel", () => {
-  it("annonce « ajouté par papa » sur un item de Papa", () => {
-    expect(originLabel(item({ id: 1, due_on: "2026-07-29" }))).toBe("ajouté par papa");
+  it("annonce « ajouté par ZETIS » sur un item que Massimo n'a pas écrit", () => {
+    // §16 — le §2a exige que Massimo sache qu'un AUTRE a touché son agenda ; il n'exige pas de
+    // le nommer. L'invariant testé est inchangé : un item non écrit par lui PORTE un marqueur.
+    expect(originLabel(item({ id: 1, due_on: "2026-07-29" }))).toBe("ajouté par ZETIS");
+  });
+
+  it("VERROU §16 — ce marqueur ne nomme jamais l'adulte", () => {
+    const parLautre = originLabel(item({ id: 1, due_on: "2026-07-29" }));
+    const corrige = originLabel(
+      item({ id: 2, due_on: "2026-07-29", created_by: "student", edited_by_parent: true }),
+    );
+    for (const libelle of [parLautre, corrige]) {
+      expect(libelle).not.toMatch(/papa/i);
+    }
   });
 
   it("annonce la CORRECTION en priorité : c'est l'information neuve (§2a)", () => {
@@ -86,7 +104,7 @@ describe("originLabel", () => {
       created_by: "student",
       edited_by_parent: true,
     });
-    expect(originLabel(corrected)).toBe("complété par papa");
+    expect(originLabel(corrected)).toBe("complété par ZETIS");
   });
 
   it("ne dit rien sur un item que Massimo a écrit lui-même", () => {

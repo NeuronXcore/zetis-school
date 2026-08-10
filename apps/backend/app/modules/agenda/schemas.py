@@ -38,6 +38,15 @@ class AgendaItemStudentOut(BaseModel):
     # Marqueur « complété par papa » (§2a) : booléen DÉRIVÉ de `edited_by_parent_at`. L'instant
     # exact reste pilot-only — Massimo a besoin de savoir QUE l'item a bougé, pas QUAND.
     edited_by_parent: bool
+    # Où mène l'échéance (addendum §15). Deux clés de référentiel, servies dans cet ordre de
+    # précision : la leçon, sinon le chapitre, sinon rien — et le lien tombe alors sur la matière.
+    #
+    # ⚠️ Ce sont les DEUX SEULS champs pilot-only à avoir été ouverts à Massimo depuis l'origine,
+    # et c'est délibéré : ce ne sont pas des données SUR lui, ce sont des adresses de contenu
+    # qu'il peut déjà atteindre à la main. Le test de non-fuite porte sur `parent_note`,
+    # `dismissed_at` et les horodatages — ceux-là restent interdits, sans exception.
+    lesson_id: int | None
+    chapter_id: int | None
     # AUCUN `parent_note`, AUCUN `dismissed_at`, AUCUN horodatage. Jamais.
 
 
@@ -109,6 +118,7 @@ class AgendaItemPilotOut(BaseModel):
     subject: SubjectRef | None
     subject_id: int | None
     chapter_id: int | None
+    lesson_id: int | None
     due_on: date
     kind: str
     created_by: str
@@ -125,6 +135,9 @@ class AgendaItemParentCreate(BaseModel):
     due_on: date
     subject_id: int | None = None
     chapter_id: int | None = None
+    # Renseigné quand Papa choisit l'intitulé dans la liste des cours du chapitre (§13.1).
+    # Le service refuse en 422 une leçon qui n'appartient pas au `chapter_id` donné.
+    lesson_id: int | None = None
     kind: str = Field(default="devoir", pattern=_KIND_PATTERN)
     parent_note: str | None = None
 
@@ -149,6 +162,7 @@ class AgendaItemParentPatch(BaseModel):
     due_on: date | None = None
     subject_id: int | None = None
     chapter_id: int | None = None
+    lesson_id: int | None = None
     kind: str | None = Field(default=None, pattern=_KIND_PATTERN)
     done_at: datetime | None = None  # piège volontaire → 403, cf. docstring.
 

@@ -10,7 +10,14 @@
 //    compte pas.
 import { type AgendaItemStudent, type AgendaUpcomingItem } from "@zetis/types";
 
-/** Plafond d'affichage de « À reprendre » (ADR-0025 §7). Les autres sont omis EN SILENCE. */
+/** Combien de « À reprendre » sont montrés d'emblée (ADR-0025 §7).
+ *
+ *  ⚠️ **Plafond d'AFFICHAGE, plus de filtrage** (addendum §17, 2026-08-10). Il coupait la liste
+ *  dans `splitSections` : les plus anciens n'étaient pas cachés, ils étaient **hors d'atteinte**.
+ *  Ils sont désormais tous là, et la page en montre trois avec un dépliage.
+ *
+ *  Ce que le §7 interdit reste interdit : un écran qui s'allonge **tout seul**. Un dépliage que
+ *  Massimo ouvre est son geste, pas une dette qui pousse sous ses yeux. */
 export const RESUME_MAX = 3;
 
 export function isoDay(day: Date): string {
@@ -43,21 +50,31 @@ export function splitSections(items: AgendaItemStudent[], today: Date): AgendaSe
     tomorrow: byDate.filter((item) => item.due_on === tomorrowIso),
     later: byDate.filter((item) => item.due_on > tomorrowIso),
     // Un item passé DÉJÀ FAIT ne revient pas : il n'y a rien à reprendre.
-    resume: byDate
-      .filter((item) => item.due_on < todayIso && !item.done)
-      .slice(-RESUME_MAX)
-      .reverse(),
+    //
+    // ⚠️ **Plus de plafond ICI depuis le 2026-08-10** (addendum §17). Il y était, et il rendait
+    // les plus anciens **inaccessibles**, pas seulement invisibles. Le plafond a changé de nature :
+    // il est devenu un plafond d'AFFICHAGE, appliqué par la page (`RESUME_MAX`), que Massimo lève
+    // d'un geste. Le §7 protège d'un écran qui s'allonge tout seul — pas d'un dépliage demandé.
+    //
+    // Plus récent d'abord : ce qu'on vient de manquer se rattrape avant ce qui date de dix jours.
+    resume: byDate.filter((item) => item.due_on < todayIso && !item.done).reverse(),
   };
 }
 
 /** Étiquette d'origine affichée sous un item, ou `null` s'il n'y a rien à dire.
  *
- * « complété par papa » prime sur « ajouté par papa » : quand Papa a corrigé un item de
- * Massimo, l'information neuve est la CORRECTION — c'est elle qui doit être visible, sans quoi
- * l'agenda bougerait tout seul sous ses yeux (ADR-0025 §2a). */
+ * « complété par ZETIS » prime sur « ajouté par ZETIS » : quand l'item de Massimo a été corrigé,
+ * l'information neuve est la CORRECTION — c'est elle qui doit être visible, sans quoi l'agenda
+ * bougerait tout seul sous ses yeux (ADR-0025 §2a).
+ *
+ * ⚠️ **« ZETIS » et non « papa » depuis le 2026-08-10** (addendum §16). Le §2a exige que Massimo
+ * sache qu'un AUTRE a touché son agenda — il n'exige pas de le nommer. Généralise la décision du
+ * 2026-08-02 sur les missions : « une mission arrive dans la voix de ZETIS, quel que soit qui l'a
+ * créée ; la voix du monde de Massimo doit tenir dans le temps ». Le marqueur reste, l'invariant
+ * du §2a est intact — seul l'auteur nommé change. */
 export function originLabel(item: AgendaItemStudent): string | null {
-  if (item.edited_by_parent) return "complété par papa";
-  if (item.created_by === "parent") return "ajouté par papa";
+  if (item.edited_by_parent) return "complété par ZETIS";
+  if (item.created_by === "parent") return "ajouté par ZETIS";
   return null;
 }
 
@@ -79,6 +96,30 @@ export function shortDayLabel(isoDate: string): string {
   const [year, month, day] = isoDate.split("-").map(Number);
   const date = new Date(year, month - 1, day);
   return `${WEEKDAY_SHORT[date.getDay()]} ${date.getDate()}`;
+}
+
+const WEEKDAY_LONG = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+const MONTH_LONG = [
+  "janvier",
+  "février",
+  "mars",
+  "avril",
+  "mai",
+  "juin",
+  "juillet",
+  "août",
+  "septembre",
+  "octobre",
+  "novembre",
+  "décembre",
+];
+
+/** « samedi 8 août » — en-tête du jour ouvert (addendum §17), où la date complète a du sens :
+ *  Massimo vient de la désigner du doigt, elle est le sujet du panneau. */
+export function longDayLabel(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return `${WEEKDAY_LONG[date.getDay()]} ${date.getDate()} ${MONTH_LONG[month - 1]}`;
 }
 
 /** Les 3 premiers items « aujourd'hui puis demain » du bandeau d'Accueil.

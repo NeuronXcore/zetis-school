@@ -150,7 +150,7 @@ describe("DiagnosticPage — l'écran de résultat", () => {
     vi.mocked(fetchDiagnostics).mockResolvedValue([]);
     afficher();
     await waitFor(() => expect(screen.getByText(/Rien à mesurer pour l'instant/)).toBeTruthy());
-    expect(screen.getByText(/Papa prépare les diagnostics/)).toBeTruthy();
+    expect(screen.getByText(/ZETIS prépare les diagnostics/)).toBeTruthy();
   });
 
   it("🔴 le choix de Massimo REMONTE dans la carte, et la carte CHANGE DE REGISTRE", async () => {

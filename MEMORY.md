@@ -6,56 +6,55 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-**Chantier : « Un travail dit ce qu'il a produit » — la ligne du Journal cesse d'être muette
-(addendum ADR-0041).** ✅ **MERGÉ le 2026-08-09 — PR
-[#107](https://github.com/NeuronXcore/zetis-school/pull/107), squash `a8123ee`.** Rien à reprendre,
-rien à ré-implémenter.
+**Chantier : l'agenda devient utilisable — SIX décisions en une session (addenda ADR-0025 §13 →
+§17).** ✅ **COMMITÉ le 2026-08-10 sur `feat/agenda-intitule-referentiel`.** 🔴 **NON POUSSÉ,
+AUCUNE PR.**
 
 | | |
 |---|---|
-| **Merge** | PR **#107**, **squash `a8123ee`** sur `main`, **parent `e1d350b`** (= l'ADR) — vérifié : `a8123ee^` est bien `e1d350b`. Le détail des 5 commits d'origine : `git log --oneline e1d350b..feat/travail-dit-ce-qu-il-a-produit` |
-| **Branche** | `feat/travail-dit-ce-qu-il-a-produit` — 🔴 **CONSERVÉE, en local ET sur `origin`, ne pas supprimer sans consigne** (`delete_branch_on_merge: false`). **Dix** branches de chantier dorment ainsi, et leurs noms se ressemblent |
-| **Rien à pousser** | ✅ vérifié — `main` = `origin/main` = `a8123ee` |
-| **Migration** | **aucune** |
-| **Suites** | Backend **1141** · Papa **758** · `tsc -b` propre sur les deux fronts |
-| ✅ **Relecture visuelle** | **FAITE**, sur les 12 lignes de la première page du Journal, tons vérifiés par CSS calculé et **liens suivis jusqu'au bout**. **Elle a rapporté 2 défauts** — voir plus bas |
+| **Branche** | `feat/agenda-intitule-referentiel` — un seul commit, **rien sur `origin`** |
+| **Migration** | 🔴 **`a1b2c3d4e5f8`** (`agenda_items.lesson_id`) — **appliquée en DEV UNIQUEMENT, la prod reste à faire**. Le Postgres prod ne publie aucun port (délibéré) : passer par le conteneur |
+| **Suites** | Backend **1149** · Papa **784** · Massimo **582** · `tsc -b` propre sur les deux fronts |
+| ✅ **Relecture visuelle** | **FAITE sur les DEUX interfaces**, et elle a rapporté **quatre** défauts que les tests ne voyaient pas — voir plus bas |
+| **Commande** | ⚠️ Le user a demandé le commit explicitement, **dérogation assumée** au `CLAUDE.md` (« l'humain committe ») |
 
-### Le défaut, et pourquoi il comptait
+### Les six décisions, dans l'ordre où elles ont été prises
 
-`_travail_out` (`production/journal.py`) lisait `job.input_json` et **jamais** `job.output_json`.
-Sur sept lignes consécutives, trois issues opposées rendaient trois lignes identiques — dont un
-`Équipement · Quotient de relatifs · fait · 0 s` qui n'avait **rien produit** (`generated: []`,
-cinq pièces `skipped`). « Fait » veut dire *« le programme est allé au bout »* ; Papa lit *« la
-donnée existe »*. **C'est le motif de l'ADR-0037 à l'envers** : là-bas du contenu produit était
-invisible ; ici l'écran laissait croire à une production qui n'avait pas eu lieu.
+Chacune a son addendum dans `docs/decisions/`, sa ligne dans `DECISIONS.md`, son entrée CHANGELOG
+(**0.66.0 → 0.71.0**) et ses test-verrous **sabotés et rougis**.
 
-### FAIT
+1. **§13 — l'intitulé se choisit dans le référentiel.** Le champ texte devient un menu des cours
+   **validés** du chapitre + « ✏️ Autre (texte libre) ». Zéro backend : `GET /api/chapters/{id}/lessons`
+   et `fetchLessons` existaient.
+2. **§14 — « leçon à apprendre », 4ᵉ `kind`** (`lecon`) + **le Commander sort de sa cachette**
+   (puce 🎯 au niveau de l'item). Aucune migration : `AGENDA_KINDS` est un tuple sans Enum SQL.
+   §14.7 : Papa lit **« ✓ coché »**, plus jamais « ✓ fait ».
+3. **§15 — l'échéance mène à son cours.** 🔴 **RÉVOQUE le §13.3 le jour même** : colonne
+   `lesson_id`. §15.6 : **rattrapage par titre exact** pour les échéances qui n'en ont pas.
+4. **§16 — Papa n'existe pas dans l'espace de Massimo.** « ajouté par ZETIS ». Cinq surfaces + le
+   module `chat` du serveur. Deux verrous de dépôt.
+5. **§17 — la bande ouvre un jour**, et le plafond de « À reprendre » passe du **filtrage** à
+   l'**affichage** (3 + dépliage).
 
-**Backend.** `resume_de_production(job, routes)` — une règle par `job_type`, **un seul endroit**
-(motif ADR-0037 ; un `switch` en TS aurait été une seconde définition). `routes_des_travaux(db,
-travaux)` — **trois requêtes pour la page entière**, jamais une par ligne. Champ `production
-{texte, ton, route, route_texte}` sur `JournalTravailOut`.
+### 🔴 CE QUE LA RELECTURE VISUELLE A RAPPORTÉ — quatre défauts, zéro test rouge
 
-**Frontend.** `TravailSection` rend la pastille au ton et le lien. `DiagnosticsPapaPage` **lit
-`?subject=`** — amorçage seulement.
+Les trois suites étaient vertes **et tous les verrous avaient été sabotés**. L'écran a quand même
+rendu quatre choses :
 
-**Aucune migration, aucun endpoint neuf, aucun appel réseau de plus.**
+1. 🔴 **Le teal de la leçon était à 16° de teinte de l'émeraude d'à côté** (oklch 181 vs 165, même
+   clarté, même chroma) — indiscernables sur deux badges de 10 px, et l'émeraude **veut dire
+   « Papa »** chez Massimo. Passé à l'**indigo** (110°). *Aucun test ne mesure une teinte.*
+2. **La puce 🎯 dans l'angle mangeait un tiers de la largeur du titre** sur une carte de **81 px**.
+   Passée **sous** la carte en vue semaine. *Aucun test ne mesure une colonne.*
+3. **Taper un jour passé ne faisait RIEN** — `scrollToDay` sortait en silence, et le serveur ne
+   renvoie jamais d'échéance sur le passé : le tap était muet sur **tous** les jours passés.
+4. **Retirer le placeholder laissait l'intitulé sans nom** sous `lg` (en-têtes masqués) — remis en
+   **repère** (`Intitulé`), pas en exemple.
 
-### 🔴 CE QUE LA RELECTURE VISUELLE A RAPPORTÉ — deux défauts, dont un mensonge
+> **La leçon de la session** : cinq des six décisions sont nées d'une relecture à l'écran, pas
+> d'un test. Les tests ont protégé les invariants ; ils n'ont vu **aucun** des quatre défauts.
 
-Les trois suites étaient vertes et **les deux test-verrous avaient été sabotés et rougis**. L'écran
-affirmait quand même une chose fausse.
-
-1. 🔴 **« 7 leçons créées » était FAUX.** Le job en avait créé **5** — les leçons 114 et 115
-   dataient du **06/08**, trois jours plus tôt. `lesson_ids` est l'état **résultant** du chapitre.
-   Pire ailleurs : trois `curriculum_lessons` sur le chapitre 11 annonçaient « 12 / 8 / 6 créées »,
-   soit **26 créations pour un chapitre qui en porte 12**. Corrigé en **« N leçons au chapitre »**,
-   ton `neutre`, avec un `assert "créé" not in texte`.
-   **Aucun test ne pouvait le voir** : il fallait connaître la date de création de deux leçons.
-2. **Le diagnostic ne menait nulle part** — texte juste, cul-de-sac. Décision 4 **amendée** le jour
-   même : route de **grain matière**, et le libellé l'**annonce**.
-
-### DÉCISIONS ACTIVES — à relire, pas à rouvrir
+### DÉCISIONS ACTIVES du chantier PRÉCÉDENT (#107, mergé) — à relire, pas à rouvrir
 
 - **Le résumé est calculé SERVEUR**, une règle par type, un seul endroit.
 - **Une ROUTE, pas un `BlockedTargetOut`** : celui-ci exige `lesson_id` **et** `chapter_id`, or un
@@ -72,15 +71,28 @@ affirmait quand même une chose fausse.
 
 ### EN COURS — rien d'instable
 
-Aucun fichier à moitié écrit. L'arbre est propre.
+Aucun fichier à moitié écrit. L'arbre est propre, tout est commité.
 
-### PIÈGES rencontrés → `TROUBLESHOOTING.md`
+### ⚠️ PIÈGES de la session agenda — à porter dans `TROUBLESHOOTING.md`
 
-Section **« Un travail dit ce qu'il a produit (addendum ADR-0041) — 2026-08-09 »** : les deux
-`output_json` d'un même travail, `lesson_ids` qui n'est pas une production, `BlockedTargetOut`
-inapte, `/quiz` fermé aux diagnostics, et la fixture `client_db` qui n'est pas `db_session`.
+**Non encore écrits dans `TROUBLESHOOTING.md`** — c'est la dette de clôture de ce chantier.
 
-### ⚠️ DETTES OUVERTES
+- 🔴 **Un verrou frontend seul aurait été VERT sur trois phrases fautives** : le libellé du bouton
+  de demande du chat de Massimo est **fabriqué côté SERVEUR** (`ChatAction.label`, servi tel quel).
+  D'où deux verrous (§16.4). **Le réflexe « je balaie le front » ne suffit pas.**
+- 🔴 **`_KIND_PRIORITY.get(kind, 9)` ne lève rien** : un `kind` ajouté à `TRIGGERING_KINDS` mais
+  absent de la table de priorité passe **systématiquement dernier**, **sans qu'aucun test ne
+  rougisse** — le lot part quand même. Démontré par sabotage.
+- ⚠️ **Contrôler l'état RÉSULTANT, pas le corps de la requête** : un `PATCH` du seul `chapter_id`
+  rend un `lesson_id` périmé. Lire `data` seul laisse passer exactement ce cas.
+- ⚠️ **`Chapter` n'a PAS de `subject_id`** (`theme_id` / `school_year_subject_id`, les deux
+  nullables) — deux tests écrits dessus ont planté à l'écriture.
+- ⚠️ **Panneau navigateur** : `computer left_click` par `ref` ET par coordonnées n'a **pas
+  déclenché React** ; `element.click()` en JS a fonctionné. `form_input` par `ref` marche.
+- ⚠️ **Un octet NUL s'est glissé dans un fichier écrit par Write** (`" free-text"` rendu `\0`),
+  invisible au Read, détecté par `od -c` après un échec d'Edit inexplicable.
+
+### ⚠️ DETTES OUVERTES du chantier PRÉCÉDENT (#107)
 
 **Nées de ce chantier :**
 
@@ -227,25 +239,40 @@ inapte, `/quiz` fermé aux diagnostics, et la fixture `client_db` qui n'est pas 
 - **Résidus de la vérification 375 px** : simulateurs `ZETIS-375` et `ZETIS-393`
   (`xcrun simctl delete`).
 
+### ⚠️ DETTES NÉES DU CHANTIER AGENDA
+
+- 🔴 **La migration `a1b2c3d4e5f8` n'est pas en prod.** `agenda_items.lesson_id`. Le Postgres prod
+  ne publie aucun port — passer par le conteneur. Voir le récit de la mise à niveau du 2026-08-07.
+- 🔴 **Les pièges ci-dessus ne sont pas dans `TROUBLESHOOTING.md`.** Six sections à écrire.
+- ⚠️ **Le Commander n'est TOUJOURS pas idempotent** — commander deux fois la même échéance crée des
+  doublons (`Mission` n'a aucune référence à l'agenda). La dette existait déjà (addendum ADR-0035) ;
+  **le §14.5 l'a rendue plus probable** en remontant l'action au niveau de l'item. **Obligatoire à
+  corriger avant tout déclenchement automatique de missions.**
+- ⚠️ **« Réviser » n'est toujours pas livrable depuis l'agenda** — c'est le **couplage 2 du §11,
+  à 0 %** : aucun `step_type` SRS, pas de deck `{chapter}`, non-scheduling borné au même jour.
+  Le §14.6 refuse explicitement de le promettre tant qu'il n'existe pas.
+- ⚠️ **Le plan de préparation (`plan_steps`) vient APRÈS le couplage 2**, jamais avant : ses étapes
+  incluent « réviser les cartes du chapitre ». L'emplacement est câblé des deux côtés, rempli en
+  dur à `[]`.
+- ⚠️ **`STEP_LESSON` est déclaré mais MORT** (absent de `_build_steps` et `_STEP_PALETTE`) : aucune
+  mission ne peut mener à une fiche ni à un cours.
+- ⚠️ **Données de test en base DEV** : 4 échéances (« Lire le chapitre 3 », « La phrase complexe… »,
+  « Comparaison de fractions », « Division de fractions »). Archivables sans risque.
+
 ### ▶▶ PROCHAIN PAS
 
-1. ✅ ~~Clôture~~ · ✅ ~~push des deux refs, `main` d'abord~~ · ✅ ~~PR #107~~ ·
-   ✅ ~~merge (squash `a8123ee`)~~ · ✅ ~~**étape 4bis**~~ — les annonces « non poussé, pas de PR »
-   sont mortes **dans l'heure du merge**, ici et dans l'ADR. C'est le geste que l'`adr-0044` avait
-   manqué pendant vingt-quatre heures, assez pour envoyer une session re-cadrer un chantier livré ;
-   l'`adr-0048` l'avait fait dans l'heure, celui-ci aussi.
-2. 🔴 **PROCHAIN CHANTIER : `/ouverture`** depuis un `main` propre. Ce chantier-ci est **clos** ; sa
-   section sera **élaguée de ce fichier** à la clôture du suivant, après les quatre contrôles
-   (ADR ✅ · `TROUBLESHOOTING.md` ✅ 1 section · `CHANGELOG.md` ✅ 0.65.0 · dettes remontées).
-   ⚠️ **Ce n'est PAS la refonte T0/T_n** — elle est en **liste d'attente**, son read-before-code est
-   écrit au `BACKLOG.md` et **ne doit pas être refait**.
-3. **Le candidat le plus mûr, s'il faut choisir** : 🔴 **ouvrir LE diagnostic depuis Papa** (§ DETTES
-   OUVERTES, premier point). Ce chantier fermerait **trois** dettes d'un geste — le lien de grain
-   matière du Journal, le `null` de `pilotageLinks.ts:91`, et « Papa valide un diagnostic sans
-   pouvoir le LIRE ».
-4. **Hors chantier, quand tu veux** : le sort des données de dev (§ DETTES — passations 53 à 56 et
-   les 14 `Gap`). 🔴 **Lire d'abord la note sur `skill_mastery`** : le semis n'est pas entièrement
-   réversible.
+1. 🔴 **Pousser + PR.** Rien n'est sur `origin`. `git push -u origin feat/agenda-intitule-referentiel`,
+   puis PR. ⚠️ **Six décisions dans un seul commit** — le corps du message les énumère ; la PR doit
+   les reprendre, sinon la relecture ne saura pas ce qu'elle relit.
+2. 🔴 **Migrer la PROD** (`a1b2c3d4e5f8`) — sinon l'agenda plante côté serveur dès le déploiement.
+3. **Écrire les six sections de `TROUBLESHOOTING.md`** (§ PIÈGES ci-dessus). C'est le contrôle qui
+   manque pour que ce chantier puisse être élagué de ce fichier à la clôture suivante.
+4. **Le candidat le plus mûr ensuite** : le **couplage 2 (§11)** — deck de révision par chapitre +
+   extension du non-scheduling. Il débloque « réviser » ET le plan de préparation, les deux
+   manques que ce chantier a nommés sans les combler.
+5. **Toujours en attente** : 🔴 **ouvrir LE diagnostic depuis Papa** (§ DETTES du chantier #107).
+   ⚠️ **Ce n'est PAS la refonte T0/T_n** — liste d'attente, read-before-code déjà écrit au
+   `BACKLOG.md`, **à ne pas refaire**.
 
 
 ## Dettes SURVIVANTES des chantiers élagués

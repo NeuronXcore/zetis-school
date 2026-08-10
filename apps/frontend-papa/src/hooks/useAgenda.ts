@@ -6,7 +6,8 @@ import {
   type CurriculumChapter,
 } from "@zetis/types";
 import { type SubjectOption } from "../components/agenda/AgendaBatchEntry";
-import { fetchActiveSchoolYear, fetchChapters } from "../lib/curriculum";
+import { type LessonOption } from "../components/agenda/LabelField";
+import { fetchActiveSchoolYear, fetchChapters, fetchLessons } from "../lib/curriculum";
 import {
   archiveAgendaItem,
   createAgendaItems,
@@ -54,16 +55,18 @@ export interface UseAgenda {
   toggleStudentEntry: (enabled: boolean) => Promise<void>;
 }
 
-/** Matières de l'année active + chapitres du référentiel, chargés à la demande.
+/** Matières de l'année active + chapitres du référentiel + intitulés de cours, à la demande.
  *
  * Séparé de `useAgenda` parce que ce sont des données de RÉFÉRENTIEL, pas d'agenda : elles ne
  * changent pas quand une échéance bouge, et les recharger à chaque mutation serait du bruit.
  * Le chapitre est facultatif partout (ADR-0025 §11) — un référentiel vide n'empêche jamais
- * d'enregistrer une échéance. */
+ * d'enregistrer une échéance, et l'intitulé retombe alors en texte libre (addendum §13.1). */
 export function useAgendaReferential() {
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [chaptersBySys, setChaptersBySys] = useState<Record<number, CurriculumChapter[]>>({});
   const [chaptersLoading, setChaptersLoading] = useState<Set<number>>(new Set());
+  const [lessonsByChapter, setLessonsByChapter] = useState<Record<number, LessonOption[]>>({});
+  const [lessonsLoading, setLessonsLoading] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchActiveSchoolYear()
@@ -91,7 +94,48 @@ export function useAgendaReferential() {
       );
   }, []);
 
-  return { subjects, chaptersBySys, chaptersLoading, loadChapters };
+  // Intitulés proposés pour un chapitre — même patron que `loadChapters`, à trois différences
+  // près, toutes voulues :
+  //
+  // 1. On ne garde que `{id, title}`, et seulement pour les leçons **validées** (addendum
+  //    ADR-0025 §13.2). Le filtre vit ICI et nulle part ailleurs : `label` est la seule chaîne de
+  //    l'agenda que Massimo lit, et deux composants la consomment — une seule règle, un seul
+  //    endroit. L'`id` s'est ajouté au §15 : c'est lui qui ouvrira le cours chez Massimo.
+  // 2. Un `Set` d'ids en cours, pas un id unique comme `useSubjects.chapterLessonsLoadingId` :
+  //    la grille de saisie a plusieurs lignes sur des chapitres différents qui chargent en même
+  //    temps, un accordéon n'en a qu'un.
+  // 3. `catch → []` : un référentiel injoignable fait retomber l'intitulé en texte libre, il ne
+  //    bloque jamais une saisie.
+  const loadLessons = useCallback((chapterId: number) => {
+    setLessonsLoading((s) => new Set(s).add(chapterId));
+    fetchLessons(chapterId)
+      .then((rows) =>
+        setLessonsByChapter((all) => ({
+          ...all,
+          [chapterId]: rows
+            .filter((l) => l.status === "validated")
+            .map((l) => ({ id: l.id, title: l.title })),
+        })),
+      )
+      .catch(() => setLessonsByChapter((all) => ({ ...all, [chapterId]: [] })))
+      .finally(() =>
+        setLessonsLoading((s) => {
+          const next = new Set(s);
+          next.delete(chapterId);
+          return next;
+        }),
+      );
+  }, []);
+
+  return {
+    subjects,
+    chaptersBySys,
+    chaptersLoading,
+    loadChapters,
+    lessonsByChapter,
+    lessonsLoading,
+    loadLessons,
+  };
 }
 
 export function useAgenda(): UseAgenda {

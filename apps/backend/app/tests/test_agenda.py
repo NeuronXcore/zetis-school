@@ -41,7 +41,7 @@ def _create_parent_item(client: TestClient, **kwargs) -> dict:
         "due_on": kwargs.get("due_on", (today_local() + timedelta(days=2)).isoformat()),
         "kind": kwargs.get("kind", "devoir"),
     }
-    for key in ("subject_id", "chapter_id", "parent_note"):
+    for key in ("subject_id", "chapter_id", "lesson_id", "parent_note"):
         if key in kwargs:
             payload[key] = kwargs[key]
     response = client.post(f"{PILOT}/items", json={"items": [payload]})
@@ -124,7 +124,7 @@ def test_parent_edit_marks_the_item_for_massimo(papa: TestClient) -> None:
         assert created.json()["edited_by_parent"] is False
 
         app.dependency_overrides[get_current_user] = lambda: PAPA
-        patched = papa.patch(f"{PILOT}/items/{item_id}", json={"label": "Exercices 12 à 15"})
+        patched = papa.patch(f"{PILOT}/items/{item_id}", json={"label": "Relire la leçon"})
         assert patched.status_code == 200
         assert patched.json()["edited_by_parent_at"] is not None
 
@@ -454,6 +454,146 @@ def test_upcoming_only_controls_and_hand_ins_bounded(papa: TestClient) -> None:
     assert all(row["has_plan"] is False for row in rows)
     assert [row["days_left"] for row in rows] == sorted(row["days_left"] for row in rows)
     assert "Trop loin" not in [row["label"] for row in rows]
+
+
+def test_upcoming_exclut_la_lecon_a_apprendre(papa: TestClient) -> None:
+    """⚠️ VERROU addendum §14.3 — `lecon` DÉCLENCHE la production mais n'entre PAS ici.
+
+    C'est le premier `kind` dans ce cas, et la dissymétrie est voulue : `UpcomingItemOut` ne porte
+    aucun champ `kind`, donc « contrôle jeudi » et « leçon pour demain » s'afficheraient sous une
+    forme identique pour deux gravités différentes — et la section, plafonnée à 4, verrait les
+    leçons chasser les contrôles.
+    """
+    today = today_local()
+    _create_parent_item(
+        papa, kind="lecon", label="Leçon à apprendre", due_on=(today + timedelta(days=1)).isoformat()
+    )
+    _create_parent_item(
+        papa, kind="controle", label="Contrôle", due_on=(today + timedelta(days=3)).isoformat()
+    )
+
+    _as_massimo()
+    rows = papa.get(f"{STUDENT}/upcoming").json()
+    assert [row["label"] for row in rows] == ["Contrôle"]
+
+
+def _seed_deux_chapitres(client_db) -> tuple[int, int, int]:
+    """Deux chapitres, une leçon dans le premier. Rend `(chapitre_a, chapitre_b, lecon_a)`."""
+    _, Session = client_db
+    with Session() as db:
+        # ⚠️ `Chapter` n'a PAS de `subject_id` : il se rattache par `theme_id` (place pédagogique)
+        # ou `school_year_subject_id` (ancrage temporel), les deux nullables. Ni l'un ni l'autre
+        # n'est nécessaire ici — la garde du §15 ne regarde que le couple leçon/chapitre.
+        a = m.Chapter(name="La phrase complexe")
+        b = m.Chapter(name="Le récit")
+        db.add_all([a, b])
+        db.flush()
+        lecon = m.Lesson(chapter_id=a.id, title="Juxtaposition et coordination", created_by="parent")
+        db.add(lecon)
+        db.commit()
+        return a.id, b.id, lecon.id
+
+
+def test_une_lecon_hors_du_chapitre_est_refusee_en_422(papa: TestClient, client_db) -> None:
+    """⚠️ VERROU §15 — une leçon étrangère au chapitre produirait un lien qui dépose Massimo
+    au hasard. Mieux vaut un 422 franc qu'une adresse fausse.
+
+    Le cas se produit sans mauvaise volonté : Papa choisit un intitulé dans la liste d'un
+    chapitre, **puis change de chapitre**. Le front efface la leçon ; un client qui l'oublierait
+    est arrêté ici.
+    """
+    chapitre_a, chapitre_b, lecon_a = _seed_deux_chapitres(client_db)
+
+    ok = papa.post(
+        f"{PILOT}/items",
+        json={
+            "items": [
+                {
+                    "label": "Juxtaposition et coordination",
+                    "due_on": (today_local() + timedelta(days=2)).isoformat(),
+                    "chapter_id": chapitre_a,
+                    "lesson_id": lecon_a,
+                }
+            ]
+        },
+    )
+    assert ok.status_code == 201, ok.text
+
+    refuse = papa.post(
+        f"{PILOT}/items",
+        json={
+            "items": [
+                {
+                    "label": "Juxtaposition et coordination",
+                    "due_on": (today_local() + timedelta(days=2)).isoformat(),
+                    "chapter_id": chapitre_b,  # ← l'autre chapitre
+                    "lesson_id": lecon_a,
+                }
+            ]
+        },
+    )
+    assert refuse.status_code == 422, refuse.text
+
+
+def test_changer_de_chapitre_seul_ne_laisse_pas_une_lecon_perimee(
+    papa: TestClient, client_db
+) -> None:
+    """Le contrôle porte sur l'état RÉSULTANT, pas sur le corps du PATCH.
+
+    Papa ne patche QUE le chapitre : la leçon posée plus tôt devient périmée. Lire seulement
+    `data` laisserait passer exactement ce cas — celui qui produit le lien faux.
+    """
+    chapitre_a, chapitre_b, lecon_a = _seed_deux_chapitres(client_db)
+    item = _create_parent_item(papa, chapter_id=chapitre_a, lesson_id=lecon_a)
+
+    refuse = papa.patch(f"{PILOT}/items/{item['id']}", json={"chapter_id": chapitre_b})
+    assert refuse.status_code == 422, refuse.text
+
+    # Le geste correct — changer les deux ensemble — passe.
+    ok = papa.patch(
+        f"{PILOT}/items/{item['id']}", json={"chapter_id": chapitre_b, "lesson_id": None}
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["lesson_id"] is None
+
+
+def test_massimo_recoit_de_quoi_ouvrir_son_cours(papa: TestClient, client_db) -> None:
+    """§15 — `lesson_id` et `chapter_id` sont servis à Massimo : ce sont des ADRESSES.
+
+    ⚠️ Et rien d'autre ne s'ouvre au passage : `parent_note`, `dismissed_at` et les horodatages
+    restent absents de sa frontière, sans exception.
+    """
+    chapitre_a, _, lecon_a = _seed_deux_chapitres(client_db)
+    _create_parent_item(
+        papa,
+        due_on=today_local().isoformat(),
+        chapter_id=chapitre_a,
+        lesson_id=lecon_a,
+        parent_note="à surveiller",
+    )
+
+    _as_massimo()
+    today = today_local()
+    rows = papa.get(
+        f"{STUDENT}/items", params={"from": today.isoformat(), "to": today.isoformat()}
+    ).json()
+    assert rows[0]["lesson_id"] == lecon_a
+    assert rows[0]["chapter_id"] == chapitre_a
+    for interdit in ("parent_note", "dismissed_at", "created_at", "edited_by_parent_at"):
+        assert interdit not in rows[0], f"{interdit} a fuité dans la frontière élève"
+
+
+def test_une_lecon_se_saisit_se_corrige_et_se_coche(papa: TestClient) -> None:
+    """Le 4ᵉ type n'introduit AUCUNE branche : il vit comme les trois autres."""
+    item = _create_parent_item(papa, kind="lecon", label="Le passé composé")
+    assert item["kind"] == "lecon"
+
+    patched = papa.patch(f"{PILOT}/items/{item['id']}", json={"kind": "controle"})
+    assert patched.status_code == 200
+    assert patched.json()["kind"] == "controle"
+
+    _as_massimo()
+    assert papa.post(f"{STUDENT}/items/{item['id']}/done").status_code == 200
 
 
 def test_upcoming_drops_done_and_dismissed(papa: TestClient) -> None:

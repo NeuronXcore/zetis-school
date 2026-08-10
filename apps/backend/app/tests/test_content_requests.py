@@ -229,7 +229,7 @@ def test_chat_empty_notion_is_honest_and_requests_cours_without_offering_eli5(
     client_db, monkeypatch
 ) -> None:
     """Déclencheur (b) + décision 2026-07-30 : la notion n'a AUCUN contenu validé (pas de cours).
-    ELI5 inventerait → on ne l'offre PAS. ZETIS est honnête (« je le note pour Papa ») et enregistre
+    ELI5 inventerait → on ne l'offre PAS. ZETIS est honnête (« je le note ») et enregistre
     une demande de `cours`. Aucune action (rien de validé à ouvrir).
 
     ⚠️ FIXTURE mise à jour le 2026-08-01 (les assertions, elles, sont inchangées) : le faux
@@ -250,7 +250,7 @@ def test_chat_empty_notion_is_honest_and_requests_cours_without_offering_eli5(
     resp = _say(client, sid, text=RESOLVING)
     body = resp.json()
     assert body["action"] is None  # rien de validé → pas d'ELI5 génératif offert
-    assert "Papa" in body["reply"]  # honnêteté
+    assert "je le note" in body["reply"]  # honnêteté
     db = Session()
     rows = db.query(m.ContentRequest).all()
     assert len(rows) == 1 and rows[0].content_kind == "cours"
@@ -276,7 +276,7 @@ def test_chat_eli5_intent_on_cousless_notion_does_not_generate(client_db, monkey
     _use_chat_llm(_chat_intent({"kind": "open_notion", "tool": "eli5"}))
     sid = _open(client)
     body = _say(client, sid, text=RESOLVING).json()
-    assert body["action"] is None and "Papa" in body["reply"]
+    assert body["action"] is None and "je le note" in body["reply"]
     db = Session()
     rows = db.query(m.ContentRequest).all()
     assert len(rows) == 1 and rows[0].content_kind == "cours"
@@ -307,7 +307,7 @@ def test_chat_eli5_offered_when_cours_exists(client_db, monkeypatch) -> None:
 
 def test_chat_never_promises_papa_without_recording(client_db, monkeypatch) -> None:
     """Anti-régression (review) : un outil HORS mapping (`quiz`/`capsule`, que `notion_panel` expose
-    bel et bien, ou une valeur hallucinée) promettait « je le note pour Papa » SANS rien enregistrer.
+    bel et bien, ou une valeur hallucinée) promettait « je le note » SANS rien enregistrer.
     La promesse doit toujours être tenue → repli sur `cours`."""
     client, Session = client_db
     skill_id = _skill_id(Session)
@@ -326,7 +326,7 @@ def test_chat_never_promises_papa_without_recording(client_db, monkeypatch) -> N
     _use_chat_llm(_chat_intent({"kind": "open_notion", "tool": "quiz"}))
     sid = _open(client)
     body = _say(client, sid, text=RESOLVING).json()
-    assert "Papa" in body["reply"]  # la promesse est faite…
+    assert "je le note" in body["reply"]  # la promesse est faite…
     db = Session()
     rows = db.query(m.ContentRequest).all()
     assert len(rows) == 1 and rows[0].content_kind == "cours"  # … et elle est TENUE

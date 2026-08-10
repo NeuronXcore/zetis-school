@@ -25,11 +25,13 @@ interface Props {
   /** Items par date, lus depuis la liste vivante (la coche s'y reflète immédiatement). */
   itemsByDate: Record<string, AgendaItemStudent[]>;
   onPickDay: (date: string) => void;
+  /** Jour actuellement ouvert sous la bande (addendum §17), ou `null`. */
+  pickedDay?: string | null;
 }
 
 const DAY_NAMES = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
 
-export function AgendaWeekStrip({ days, itemsByDate, onPickDay }: Props) {
+export function AgendaWeekStrip({ days, itemsByDate, onPickDay, pickedDay }: Props) {
   return (
     <div
       className="grid grid-cols-7 gap-1.5 sm:gap-2 xl:grid-cols-[repeat(auto-fit,minmax(0,1fr))] xl:grid-flow-col"
@@ -49,12 +51,16 @@ export function AgendaWeekStrip({ days, itemsByDate, onPickDay }: Props) {
             key={day.date}
             type="button"
             onClick={() => onPickDay(day.date)}
+            aria-expanded={pickedDay === day.date}
+            // ⚠️ Le jour OUVERT porte une marque distincte de celle d'aujourd'hui, et elle ne la
+            // remplace pas : les deux se cumulent quand Massimo ouvre le jour même. Le cyan dit
+            // « on est ici dans le temps », l'anneau blanc dit « c'est ce que tu regardes ».
             className={`flex flex-col items-center gap-1 rounded-2xl px-1 py-2 transition-colors ${
               isToday
                 ? // Seul jour marqué : encadré + halo cyan.
                   "border border-cyan-400/60 bg-cyan-400/5 shadow-[0_0_18px_-6px_rgba(34,211,238,0.6)]"
                 : "border border-transparent hover:bg-white/5"
-            }`}
+            } ${pickedDay === day.date ? "ring-2 ring-white/70" : ""}`}
           >
             <span className="text-[10px] uppercase tracking-wide text-zetis-muted">
               {DAY_NAMES[jsDate.getDay()]}
@@ -77,11 +83,19 @@ export function AgendaWeekStrip({ days, itemsByDate, onPickDay }: Props) {
             {/* Points fixes : jours à venir seulement (le serveur rend `[]` sur le passé). */}
             <span className="flex h-5 flex-wrap items-center justify-center gap-0.5">
               {items.slice(0, 3).map((item) => {
-                // Un contrôle porte un anneau fuchsia : le seul marqueur de nature, et il ne
-                // change jamais de couleur en approchant (pas de jauge d'urgence).
-                const shape = `h-4 w-4 rounded-[22%] ${
-                  item.kind === "controle" ? "ring-1 ring-fuchsia-400/80" : ""
-                } ${item.done ? "opacity-40" : ""}`;
+                // Deux marqueurs de nature, et aucun ne change de couleur en approchant (pas de
+                // jauge d'urgence) : le fuchsia du contrôle, et l'indigo — plus calme — de la
+                // leçon à apprendre. Le devoir et le rendu n'en portent aucun.
+                //
+                // ⚠️ Le teal a été essayé puis écarté sur MESURE : 16° de teinte seulement le
+                // séparaient de l'émeraude « ajouté par papa » de la ligne d'item.
+                const ring =
+                  item.kind === "controle"
+                    ? "ring-1 ring-fuchsia-400/80"
+                    : item.kind === "lecon"
+                      ? "ring-1 ring-indigo-400/70"
+                      : "";
+                const shape = `h-4 w-4 rounded-[22%] ${ring} ${item.done ? "opacity-40" : ""}`;
                 const icon = item.subject ? subjectIconFor(item.subject.slug) : undefined;
                 // Repli sans asset (ou item sans matière) : une pastille neutre, jamais un
                 // emoji codé en dur — et jamais un `<img>` cassé.

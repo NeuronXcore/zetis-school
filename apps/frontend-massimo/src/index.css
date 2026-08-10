@@ -342,3 +342,26 @@ body {
     opacity: 1;
   }
 }
+
+/* ── Leçon visée par un lien d'agenda (addendum ADR-0025 §15/§16).
+   Massimo arrive de son agenda sur une page qui liste des dizaines de leçons : il doit voir la
+   SIENNE tout de suite. Un anneau discret ne suffisait pas — mesuré à l'écran le 2026-08-10.
+
+   Le cadre lumineux PULSE TROIS FOIS PUIS SE REPOSE, il ne clignote pas indéfiniment. Une
+   pulsation perpétuelle serait un aimant à attention permanent sur une page de lecture, et le
+   registre de Massimo est calme (ADR-0024 §5). L'animation part et finit sur l'état de repos :
+   sous prefers-reduced-motion, le cadre est simplement là, sans mouvement — il reste lisible,
+   c'est LUI l'information, pas le clignotement. */
+@keyframes zetis-lecon-visee {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(129, 140, 248, 0.5),
+      0 0 16px 0 rgba(99, 102, 241, 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(165, 180, 252, 0.95),
+      0 0 28px 4px rgba(99, 102, 241, 0.6);
+  }
+}

@@ -16,7 +16,14 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import AgendaItem, AppSetting, LearningEvent, StudentProfile, Subject
+from app.db.models import (
+    AgendaItem,
+    AppSetting,
+    LearningEvent,
+    Lesson,
+    StudentProfile,
+    Subject,
+)
 from app.modules.activity.events import (
     EVENT_AGENDA_ITEM_CREATED,
     EVENT_AGENDA_ITEM_DONE,
@@ -37,6 +44,14 @@ _NON_TRACE_EVENTS = NON_WORK_EVENTS
 
 # « Ce qui arrive » ne montre QUE ce qui a une échéance qu'on prépare (§6). Un devoir du
 # lendemain n'y a pas sa place : il est déjà dans la bande.
+#
+# ⚠️ **`lecon` en est VOLONTAIREMENT absent** (addendum §14.3), alors qu'il DÉCLENCHE la production
+# — c'est le premier `kind` dans ce cas, et la dissymétrie est voulue. Trois raisons, par ordre de
+# force : (1) `UpcomingItemOut` ne porte **aucun champ `kind`**, donc « contrôle jeudi » et « leçon
+# pour demain » s'afficheraient sous une forme identique pour deux gravités différentes ; (2) la
+# section est plafonnée à 4 et les leçons, fréquentes, chasseraient les contrôles de la seule
+# surface qui sert à les anticiper ; (3) c'est le motif ci-dessus, mot pour mot.
+# Réversible — mais en donnant d'abord un `kind` à `UpcomingItemOut`, pas avant.
 UPCOMING_KINDS = ("controle", "rendu")
 
 
@@ -107,6 +122,11 @@ def student_out(item: AgendaItem, subjects: dict[int, Subject]) -> dict:
         "done": item.done_at is not None,
         "created_by": item.created_by,
         "edited_by_parent": item.edited_by_parent_at is not None,
+        # Adresses de contenu, pas données sur lui (addendum §15) : elles servent le lien
+        # « lire le cours ». Le contenu pointé est de toute façon déjà atteignable à la main, et
+        # la route de lecture refuse tout ce qui n'est pas validé (ADR-0009 §9).
+        "lesson_id": item.lesson_id,
+        "chapter_id": item.chapter_id,
     }
 
 
@@ -117,6 +137,7 @@ def pilot_out(item: AgendaItem, subjects: dict[int, Subject]) -> dict:
         "subject": _subject_ref(subjects, item.subject_id),
         "subject_id": item.subject_id,
         "chapter_id": item.chapter_id,
+        "lesson_id": item.lesson_id,
         "due_on": item.due_on,
         "kind": item.kind,
         "created_by": item.created_by,
@@ -346,16 +367,38 @@ def create_student_item(db: Session, *, student_id: int, data: dict) -> AgendaIt
     return item
 
 
+def _check_lesson_belongs(db: Session, lesson_id: int | None, chapter_id: int | None) -> None:
+    """422 si la leçon pointée n'est pas dans le chapitre déclaré (addendum §15).
+
+    Le cas se produit sans mauvaise volonté : Papa choisit un intitulé dans la liste d'un
+    chapitre, **puis change de chapitre**. Le front efface alors la leçon, mais un client qui
+    l'oublierait produirait un lien qui déposerait Massimo au hasard — exactement ce que
+    `pilotageLinks` refuse en rendant `null`. Mieux vaut un 422 franc qu'une adresse fausse.
+    """
+    if lesson_id is None:
+        return
+    lesson = db.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Leçon inconnue.")
+    if chapter_id is not None and lesson.chapter_id != chapter_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Cette leçon n'appartient pas au chapitre indiqué.",
+        )
+
+
 def create_parent_items(db: Session, *, student_id: int, items: list[dict]) -> list[AgendaItem]:
     """Saisie Papa, EN LOT (§9) : une semaine relevée sur l'ENT part en une requête."""
     created: list[AgendaItem] = []
     for data in items:
+        _check_lesson_belongs(db, data.get("lesson_id"), data.get("chapter_id"))
         item = AgendaItem(
             student_id=student_id,
             label=data["label"],
             due_on=data["due_on"],
             subject_id=data.get("subject_id"),
             chapter_id=data.get("chapter_id"),
+            lesson_id=data.get("lesson_id"),
             kind=data.get("kind") or "devoir",
             parent_note=data.get("parent_note"),
             created_by="parent",  # forcé serveur.
@@ -374,7 +417,7 @@ def create_parent_items(db: Session, *, student_id: int, items: list[dict]) -> l
 # Champs éditables, par autorité. `created_by`, `done_at`, `dismissed_at` n'y figurent nulle
 # part : l'immuabilité de `created_by` est tenue par cette liste, pas par une garde disséminée.
 _STUDENT_EDITABLE = ("label", "due_on", "subject_id", "kind")
-_PARENT_EDITABLE = ("label", "due_on", "subject_id", "chapter_id", "kind")
+_PARENT_EDITABLE = ("label", "due_on", "subject_id", "chapter_id", "lesson_id", "kind")
 
 
 def _apply(item: AgendaItem, data: dict, allowed: tuple[str, ...]) -> None:
@@ -407,6 +450,14 @@ def patch_parent_item(db: Session, *, student_id: int, item_id: int, data: dict)
         # devient une validation parentale et l'agenda un instrument de contrôle (§2b).
         raise AgendaForbidden("Seul Massimo coche ses échéances.")
     item = _get(db, student_id=student_id, item_id=item_id)
+    # ⚠️ Contrôlé sur l'état RÉSULTANT, pas sur le corps : Papa peut ne patcher que le chapitre,
+    # et rendre périmée une leçon posée plus tôt. Lire seulement `data` laisserait passer
+    # exactement ce cas — celui qui produit un lien qui dépose Massimo au hasard.
+    _check_lesson_belongs(
+        db,
+        data.get("lesson_id", item.lesson_id),
+        data.get("chapter_id", item.chapter_id),
+    )
     _apply(item, data, _PARENT_EDITABLE)
     if item.created_by == "student":
         item.edited_by_parent_at = _now()

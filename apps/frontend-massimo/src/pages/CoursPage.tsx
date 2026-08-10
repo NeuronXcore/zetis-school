@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import {
   type StudentCours,
@@ -10,6 +10,7 @@ import {
 import { PageHeader } from "../components/PageHeader";
 import { SubjectBackLink } from "../components/SubjectBackLink";
 import { fetchStudentCours, fetchStudentLessonCours } from "../lib/cours";
+import { resolveFocusLesson } from "../lib/coursFocus";
 import { fetchSubjectQuizzes } from "../lib/quiz";
 import { type QuizSessionState } from "./QuizSessionPage";
 
@@ -26,6 +27,18 @@ const MARKDOWN_STYLES =
 export function CoursPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  // Lien profond depuis l'agenda (addendum ADR-0025 §15) : `?lesson=` ou, en repli, `?chapter=`.
+  // L'URL n'est PAS nettoyée après coup, contrairement à `/quiz` et `/eli5` — ces deux-là
+  // DÉCLENCHENT une action (ouvrir un deck, lancer une session) et doivent éviter de la rejouer
+  // au rechargement. Ici le paramètre ne fait que désigner : le garder rend la page partageable
+  // et le rechargement idempotent.
+  const [params] = useSearchParams();
+  const urlLessonId = Number(params.get("lesson")) || null;
+  const focusChapterId = Number(params.get("chapter")) || null;
+  // `?title=` — rattrapage des échéances sans `lesson_id` (§15.6). La règle vit dans un module
+  // pur : elle se teste sans rendre la page, et elle est bornée là plutôt qu'ici.
+  const focusTitle = params.get("title");
+  const leconVisee = useRef<HTMLLIElement | null>(null);
   const [cours, setCours] = useState<StudentCours | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +55,20 @@ export function CoursPage() {
     try {
       const data = await fetchStudentCours(slug);
       setCours(data);
-      // Premier chapitre avec des leçons déplié d'office : action immédiate.
-      setExpandedId(data.chapters.find((c) => c.lessons.length > 0)?.id ?? null);
+      // Le chapitre visé par le lien profond d'abord ; à défaut, le premier chapitre avec des
+      // leçons — action immédiate.
+      //
+      // ⚠️ **Repli silencieux ASSUMÉ** : le serveur ne sert que du validé (ADR-0009 §9), donc une
+      // leçon dévalidée après la saisie de l'échéance n'est tout simplement plus là. Massimo
+      // atterrit alors sur le premier chapitre plutôt que sur une page qui l'accuserait d'un lien
+      // mort — un enfant n'a rien à faire d'un message d'erreur technique.
+      const vise =
+        (urlLessonId !== null
+          ? data.chapters.find((c) => c.lessons.some((l) => l.id === urlLessonId))
+          : focusChapterId !== null
+            ? data.chapters.find((c) => c.id === focusChapterId)
+            : undefined) ?? data.chapters.find((c) => c.lessons.length > 0);
+      setExpandedId(vise?.id ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
     } finally {
@@ -58,11 +83,30 @@ export function CoursPage() {
     } catch {
       setQuizByLesson({});
     }
-  }, [slug]);
+  }, [slug, urlLessonId, focusChapterId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // La leçon encadrée : l'identifiant s'il existe, sinon le rattrapage par titre exact (§15.6).
+  // Calculée APRÈS le chargement — le titre ne se résout que contre les leçons servies.
+  const focusLessonId = useMemo(
+    () => resolveFocusLesson(cours, { lessonId: urlLessonId, chapterId: focusChapterId, title: focusTitle }),
+    [cours, urlLessonId, focusChapterId, focusTitle],
+  );
+
+  // Un cadre lumineux hors de l'écran n'éclaire rien : la matière peut porter treize chapitres.
+  // Après le rendu du chapitre déplié, on amène la leçon sous les yeux — `center` et non `start`,
+  // pour qu'elle arrive avec son contexte au lieu d'être collée en haut.
+  useEffect(() => {
+    if (!leconVisee.current) return;
+    leconVisee.current.scrollIntoView({
+      block: "center",
+      // Le défilement animé fait partie de ce que `prefers-reduced-motion` veut éteindre.
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }, [cours, focusLessonId]);
 
   async function openLesson(lesson: StudentLessonRef) {
     setReadingLoading(true);
@@ -147,7 +191,21 @@ export function CoursPage() {
                   {chapter.lessons.map((lesson) => (
                     <li
                       key={lesson.id}
-                      className="flex flex-wrap items-center justify-between gap-2"
+                      ref={lesson.id === focusLessonId ? leconVisee : undefined}
+                      // La leçon venue de l'agenda porte un CADRE LUMINEUX, et elle n'est pas
+                      // ouverte d'office : elle n'a pas toujours de contenu (`has_content`), et
+                      // une modale qui s'ouvre sur du vide se lit comme une panne. Massimo voit
+                      // où il doit aller ; il décide d'y aller.
+                      //
+                      // Le cadre pulse TROIS FOIS puis se repose — une pulsation perpétuelle
+                      // serait un aimant à attention sur une page de lecture. Sous
+                      // prefers-reduced-motion il ne bouge pas : c'est le CADRE l'information,
+                      // pas le clignotement.
+                      className={`flex flex-wrap items-center justify-between gap-2 rounded-lg ${
+                        lesson.id === focusLessonId
+                          ? "bg-indigo-400/10 px-2 py-2 shadow-[0_0_0_1px_rgba(129,140,248,0.5),0_0_16px_0_rgba(99,102,241,0.28)] motion-safe:animate-[zetis-lecon-visee_1.1s_ease-in-out_3]"
+                          : ""
+                      }`}
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">📄 {lesson.title}</p>

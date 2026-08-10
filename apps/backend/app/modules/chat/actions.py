@@ -161,7 +161,9 @@ def _notion_menu(db: Session, skill_id: int) -> ActionResult:
     if not items:
         # Rien de validé à offrir → honnêteté (ZETIS ne fabrique pas, il oriente vers l'existant).
         return ActionResult(
-            note=f"Je n'ai pas encore de contenu validé sur « {name} » — je le note pour Papa.",
+            # §16 — l'adulte ne se nomme pas dans l'espace de Massimo. ZETIS parle déjà à la
+            # première personne ici : « je le note » suffit, et ne fait de personne un tiers.
+            note=f"Je n'ai pas encore de contenu validé sur « {name} » — je le note.",
             meta={**meta, "items": 0},
         )
     if len(items) == 1:
@@ -198,7 +200,7 @@ def _open_notion(
             return ActionResult(
                 action=ChatAction(
                     kind="request_notion",
-                    label=f"Demander à Papa d'ajouter « {label_text} »",
+                    label=f"Ajouter « {label_text} » à mon programme",
                     text=label_text,
                     confirm=True,
                 ),
@@ -248,7 +250,7 @@ def _open_notion(
             "content_request": {"skill_id": skill_id, "content_kind": content_kind},
         }
         return ActionResult(
-            note=f"Je n'ai pas encore de {_TOOL_WORD.get(tool, 'contenu')} sur « {name} » — je le note pour Papa.",
+            note=f"Je n'ai pas encore de {_TOOL_WORD.get(tool, 'contenu')} sur « {name} » — je le note.",
             meta=meta,
         )
     route, label = _notion_route(

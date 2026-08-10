@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { type AgendaItemPilot, type AgendaKind, type CurriculumChapter } from "@zetis/types";
 import { Button, Input, Select } from "@zetis/ui";
-import { kindLabel, longDayLabel } from "../../lib/agendaModel";
+import { AGENDA_KINDS, kindLabel, longDayLabel } from "../../lib/agendaModel";
 import { type SubjectOption } from "./AgendaBatchEntry";
+import { LabelField, type LessonOption } from "./LabelField";
 
 // Panneau de détail d'une échéance.
 //
@@ -12,7 +13,7 @@ import { type SubjectOption } from "./AgendaBatchEntry";
 //   2. l'édition d'un item de Massimo PRÉVIENT qu'elle sera visible chez lui ;
 //   3. « Archiver », jamais « Supprimer ».
 
-const KINDS: AgendaKind[] = ["devoir", "controle", "rendu"];
+// La liste vit dans `agendaModel` : les deux surfaces d'édition la partagent (addendum §14).
 
 interface Props {
   item: AgendaItemPilot;
@@ -23,6 +24,7 @@ interface Props {
     due_on: string;
     kind: AgendaKind;
     chapter_id: number | null;
+    lesson_id: number | null;
   }) => Promise<void>;
   onSaveNote: (note: string | null) => Promise<void>;
   onArchive: () => void;
@@ -32,6 +34,11 @@ interface Props {
   chaptersBySys: Record<number, CurriculumChapter[]>;
   chaptersLoading: Set<number>;
   onNeedChapters: (sysId: number) => void;
+  /** Cours VALIDÉS par `chapter_id` (addendum ADR-0025 §13, §15). Facultatifs : sans eux
+   *  l'intitulé reste le champ texte qu'il a toujours été. */
+  lessonsByChapter?: Record<number, LessonOption[]>;
+  lessonsLoading?: Set<number>;
+  onNeedLessons?: (chapterId: number) => void;
   /** Ouvre le Commander scopé sur ce chapitre. Optionnel : le panneau reste montable seul
    *  (tests, réutilisation) sans exiger le hook des missions. */
   onCommandMissions?: (chapterId: number) => void;
@@ -48,12 +55,16 @@ export function AgendaDetailPanel({
   chaptersBySys,
   chaptersLoading,
   onNeedChapters,
+  lessonsByChapter,
+  lessonsLoading,
+  onNeedLessons,
   onCommandMissions,
 }: Props) {
   const [label, setLabel] = useState(item.label);
   const [dueOn, setDueOn] = useState(item.due_on);
   const [kind, setKind] = useState<AgendaKind>(item.kind);
   const [chapterId, setChapterId] = useState<number | null>(item.chapter_id);
+  const [lessonId, setLessonId] = useState<number | null>(item.lesson_id);
   const [note, setNote] = useState(item.parent_note ?? "");
 
   // Changer d'item réinitialise le formulaire : sans ça, la saisie en cours suivrait la
@@ -63,8 +74,17 @@ export function AgendaDetailPanel({
     setDueOn(item.due_on);
     setKind(item.kind);
     setChapterId(item.chapter_id);
+    setLessonId(item.lesson_id);
     setNote(item.parent_note ?? "");
-  }, [item.id, item.label, item.due_on, item.kind, item.chapter_id, item.parent_note]);
+  }, [
+    item.id,
+    item.label,
+    item.due_on,
+    item.kind,
+    item.chapter_id,
+    item.lesson_id,
+    item.parent_note,
+  ]);
 
   // ⚠️ Les chapitres sont indexés par `school_year_subject_id`, l'item ne connaît que
   // `subject_id` : la correspondance vit dans `subjects` (`useAgendaReferential`), on la lit,
@@ -77,12 +97,24 @@ export function AgendaDetailPanel({
     if (sysId !== null && chaptersBySys[sysId] === undefined) onNeedChapters(sysId);
   }, [sysId, chaptersBySys, onNeedChapters]);
 
+  // Les intitulés suivent le chapitre EN COURS D'ÉDITION (`chapterId`), pas `item.chapter_id` :
+  // changer de chapitre doit changer la liste proposée avant d'enregistrer quoi que ce soit.
+  const lessons = chapterId !== null ? (lessonsByChapter?.[chapterId] ?? []) : [];
+  const loadingLessons = chapterId !== null && (lessonsLoading?.has(chapterId) ?? false);
+
+  useEffect(() => {
+    if (chapterId !== null && lessonsByChapter?.[chapterId] === undefined) onNeedLessons?.(chapterId);
+  }, [chapterId, lessonsByChapter, onNeedLessons]);
+
   const byStudent = item.created_by === "student";
   const dirty =
     label !== item.label ||
     dueOn !== item.due_on ||
     kind !== item.kind ||
-    chapterId !== item.chapter_id;
+    chapterId !== item.chapter_id ||
+    // Sans cette ligne, rattacher la leçon SANS toucher au libellé (le cas normal : Papa
+    // choisit le même titre dans la liste) laisserait « Enregistrer » désactivé.
+    lessonId !== item.lesson_id;
   const noteDirty = note !== (item.parent_note ?? "");
 
   return (
@@ -118,10 +150,25 @@ export function AgendaDetailPanel({
         </p>
       )}
 
-      <label className="flex flex-col gap-1 text-xs text-papa-muted">
+      {/* Pas un `<label>` : `LabelField` peut rendre un bouton (« ↩ choisir un cours »), et un
+          bouton dans un label déclenche le contrôle associé au clic. Le nom accessible vient de
+          l'`aria-label` porté par le champ lui-même. */}
+      <div className="flex flex-col gap-1 text-xs text-papa-muted">
         Intitulé
-        <Input value={label} onChange={(e) => setLabel(e.target.value)} />
-      </label>
+        {/* `key` sur l'item : changer d'échéance remonte le champ, sinon le mode « texte libre »
+            demandé pour l'item précédent suivrait la sélection. */}
+        <LabelField
+          key={item.id}
+          value={label}
+          onChange={(value, picked) => {
+            setLabel(value);
+            setLessonId(picked);
+          }}
+          lessons={lessons}
+          loading={loadingLessons}
+          disabled={saving}
+        />
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1 text-xs text-papa-muted">
@@ -131,7 +178,7 @@ export function AgendaDetailPanel({
         <label className="flex flex-col gap-1 text-xs text-papa-muted">
           Type
           <Select value={kind} onChange={(e) => setKind(e.target.value as AgendaKind)}>
-            {KINDS.map((value) => (
+            {AGENDA_KINDS.map((value) => (
               <option key={value} value={value}>
                 {kindLabel(value)}
               </option>
@@ -155,7 +202,12 @@ export function AgendaDetailPanel({
             value={chapterId ?? ""}
             aria-label="Chapitre"
             disabled={saving || (sysId !== null && chaptersLoading.has(sysId))}
-            onChange={(e) => setChapterId(e.target.value ? Number(e.target.value) : null)}
+            // ⚠️ La leçon tombe avec le chapitre : sans ça, elle resterait rattachée à l'ancien
+            // et le serveur refuserait en 422 (§15) — après que l'écran ait menti.
+            onChange={(e) => {
+              setChapterId(e.target.value ? Number(e.target.value) : null);
+              setLessonId(null);
+            }}
           >
             <option value="">
               {chapters.length === 0 ? "— aucun chapitre au programme —" : "— aucun —"}
@@ -186,17 +238,25 @@ export function AgendaDetailPanel({
            `create_command_missions` prend déjà `due_date` + `force_priority`. C'est un bouton.
            ⚠️ Et c'est un GESTE de Papa, jamais le scan : produire du contenu sans clic est décidé
            (ADR-0035), PRESCRIRE du travail à Massimo sans clic ne l'est pas. */
-        <button
-          type="button"
-          disabled={!onCommandMissions}
-          onClick={() => onCommandMissions?.(chapterId)}
-          title={
-            onCommandMissions ? undefined : "Disponible depuis la page Agenda"
-          }
-          className="rounded-lg border border-papa-accent/40 px-3 py-2 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/10 disabled:opacity-40"
-        >
-          🎯 Commander les missions de ce chapitre
-        </button>
+        <div className="flex flex-col gap-2 rounded-lg border border-papa-border bg-papa-bg px-3 py-2.5">
+          <p className="text-xs font-medium text-papa-muted">
+            Ce que ZETIS peut faire de cette échéance
+          </p>
+          <button
+            type="button"
+            disabled={!onCommandMissions}
+            onClick={() => onCommandMissions?.(chapterId)}
+            title={onCommandMissions ? undefined : "Disponible depuis la page Agenda"}
+            className="rounded-lg border border-papa-accent/40 px-3 py-2 text-xs font-semibold text-papa-accent transition-colors hover:bg-papa-accent/10 disabled:opacity-40"
+          >
+            🎯 Commander les missions de ce chapitre
+          </button>
+          <p className="text-[11px] leading-relaxed text-papa-muted">
+            Massimo les recevra dans ses missions — découvrir, verbaliser, reconstruire la carte,
+            mini-quiz. <b className="text-papa-text/80">Réviser les cartes du chapitre</b> n'est pas
+            encore possible.
+          </p>
+        </div>
       )}
 
       {/* Refus n°1 : l'état est une pastille EN LECTURE SEULE. Aucune affordance de coche
@@ -260,7 +320,14 @@ export function AgendaDetailPanel({
           disabled={saving || (!dirty && !noteDirty)}
           onClick={() => {
             void (async () => {
-              if (dirty) await onSave({ label, due_on: dueOn, kind, chapter_id: chapterId });
+              if (dirty)
+                await onSave({
+                  label,
+                  due_on: dueOn,
+                  kind,
+                  chapter_id: chapterId,
+                  lesson_id: lessonId,
+                });
               if (noteDirty) await onSaveNote(note.trim() === "" ? null : note);
             })();
           }}

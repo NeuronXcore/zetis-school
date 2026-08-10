@@ -23,6 +23,7 @@ function item(overrides: Partial<AgendaItemPilot> = {}): AgendaItemPilot {
     subject: { id: 7, name: "Mathématiques", icon: null } as never,
     subject_id: 7,
     chapter_id: null,
+    lesson_id: null,
     due_on: "2026-08-10",
     kind: "controle",
     created_by: "parent",
@@ -36,7 +37,15 @@ function item(overrides: Partial<AgendaItemPilot> = {}): AgendaItemPilot {
   };
 }
 
-function renderPanel(overrides: Partial<AgendaItemPilot> = {}, onSave = vi.fn()) {
+const COURS = [
+  { id: 91, title: "Additionner des fractions" },
+  { id: 92, title: "Comparer deux fractions" },
+];
+function renderPanel(
+  overrides: Partial<AgendaItemPilot> = {},
+  onSave = vi.fn(),
+  lessonsByChapter: Record<number, { id: number; title: string }[]> = { 3: COURS },
+) {
   const utils = render(
     <AgendaDetailPanel
       item={item(overrides)}
@@ -49,6 +58,9 @@ function renderPanel(overrides: Partial<AgendaItemPilot> = {}, onSave = vi.fn())
       chaptersBySys={{ 42: CHAPITRES }}
       chaptersLoading={new Set()}
       onNeedChapters={vi.fn()}
+      lessonsByChapter={lessonsByChapter}
+      lessonsLoading={new Set()}
+      onNeedLessons={vi.fn()}
     />,
   );
   return { ...utils, onSave };
@@ -91,5 +103,48 @@ describe("AgendaDetailPanel — le chapitre", () => {
     // garantit qu'aucun n'introduira une affordance de complétion côté Papa.
     const { container } = renderPanel({ chapter_id: 3 });
     expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+  });
+});
+
+describe("AgendaDetailPanel — l'intitulé (addendum ADR-0025 §13)", () => {
+  it("NON-RÉGRESSION — un item existant s'ouvre inchangé, en texte libre", () => {
+    // Un `label` saisi à la main ne figure dans aucune liste. Le panneau doit être IDENTIQUE à
+    // ce qu'il était tant que Papa n'a rien demandé : le bascule en menu écraserait un libellé
+    // que Massimo lit déjà dans son agenda.
+    renderPanel({ chapter_id: 3, label: "Contrôle chapitre 3" });
+
+    const champ = screen.getByLabelText("Intitulé") as HTMLInputElement;
+    expect(champ.tagName).toBe("INPUT");
+    expect(champ.value).toBe("Contrôle chapitre 3");
+  });
+
+  it("propose les cours du chapitre après « ↩ choisir un cours », et les envoie tels quels", async () => {
+    const { onSave } = renderPanel({ chapter_id: 3, label: "Contrôle chapitre 3" });
+
+    fireEvent.click(screen.getByRole("button", { name: /choisir un cours/ }));
+    fireEvent.change(screen.getByLabelText("Intitulé"), {
+      target: { value: "Additionner des fractions" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Enregistrer/ }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ label: "Additionner des fractions", chapter_id: 3 }),
+    );
+  });
+
+  it("suit le chapitre EN COURS D'ÉDITION, pas celui enregistré", () => {
+    // Changer de chapitre doit changer la liste proposée AVANT d'enregistrer quoi que ce soit.
+    // Lire `item.chapter_id` au lieu de l'état local proposerait les cours de l'ancien chapitre.
+    renderPanel({ chapter_id: 4, label: "" }, vi.fn(), { 3: COURS, 4: [] });
+    expect(screen.getByLabelText("Intitulé").tagName).toBe("INPUT");
+
+    fireEvent.change(screen.getByLabelText("Chapitre"), { target: { value: "3" } });
+    expect(screen.getByLabelText("Intitulé").tagName).toBe("SELECT");
+  });
+
+  it("sans chapitre, l'intitulé reste le champ texte qu'il a toujours été", () => {
+    renderPanel({ chapter_id: null });
+    expect(screen.getByLabelText("Intitulé").tagName).toBe("INPUT");
+    expect(screen.queryByRole("button", { name: /choisir un cours/ })).toBeNull();
   });
 });

@@ -7,7 +7,9 @@
 // Papa. `parent_note` n'existe QUE sur le second — elle n'est jamais servie à l'élève, et le
 // serveur en a un test-verrou sur le JSON sérialisé.
 
-export type AgendaKind = "devoir" | "controle" | "rendu";
+// `lecon` = « leçon à apprendre » (addendum §14). Miroir de `AGENDA_KINDS` — l'ordre est celui
+// du tuple Python, et il est celui des menus de saisie.
+export type AgendaKind = "devoir" | "lecon" | "controle" | "rendu";
 export type AgendaCreator = "student" | "parent";
 
 export interface AgendaSubjectRef {
@@ -29,6 +31,11 @@ export interface AgendaItemStudent {
   created_by: AgendaCreator;
   /** Marqueur « complété par papa » : booléen dérivé. L'horodatage exact reste Papa-only. */
   edited_by_parent: boolean;
+  /** Où mène l'échéance (addendum §15) — la leçon d'abord, le chapitre en repli. Ce sont des
+   *  ADRESSES de contenu, pas des données sur Massimo : `parent_note`, `dismissed_at` et les
+   *  horodatages restent interdits ici, sans exception. */
+  lesson_id: number | null;
+  chapter_id: number | null;
 }
 
 export interface AgendaDay {
@@ -68,6 +75,9 @@ export interface AgendaItemPilot {
   subject_id: number | null;
   /** Scope pédagogique choisi dans le référentiel — clé de l'analyse du Lot 3 (ADR-0025 §11). */
   chapter_id: number | null;
+  /** Leçon pointée (addendum §15). Sert à POINTER, jamais à scoper une production : le
+   *  déclencheur et le Commander restent scopés par `chapter_id`. */
+  lesson_id: number | null;
   due_on: string;
   kind: AgendaKind;
   created_by: AgendaCreator;
@@ -86,6 +96,9 @@ export interface AgendaItemDraft {
   due_on: string;
   subject_id?: number | null;
   chapter_id?: number | null;
+  /** Renseigné quand l'intitulé a été choisi dans la liste des cours du chapitre (§13.1).
+   *  ⚠️ Le serveur refuse en **422** une leçon étrangère au `chapter_id` envoyé. */
+  lesson_id?: number | null;
   kind: AgendaKind;
   parent_note?: string | null;
 }
@@ -95,6 +108,7 @@ export interface AgendaItemPatch {
   due_on?: string;
   subject_id?: number | null;
   chapter_id?: number | null;
+  lesson_id?: number | null;
   kind?: AgendaKind;
 }
 

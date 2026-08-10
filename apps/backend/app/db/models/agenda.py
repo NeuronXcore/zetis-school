@@ -18,7 +18,13 @@ from app.db.base import Base, TimestampMixin
 
 # Vocabulaire fermé, validé côté schéma Pydantic (pas d'Enum SQL : une valeur nouvelle ne doit
 # pas coûter une migration sur une table aussi jeune).
-AGENDA_KINDS = ("devoir", "controle", "rendu")
+#
+# `lecon` ajouté le 2026-08-10 (addendum §14) — et la promesse ci-dessus a tenu : zéro migration.
+# Il manquait le travail le PLUS accompagnable par ZETIS : des exercices se font sans lui, une
+# leçon s'apprend avec ce qu'il produit (fiche, quiz, cartes). ⚠️ Toute valeur ajoutée ici doit
+# être arbitrée dans les DEUX constantes de `production/triggers.py` — voir le piège du
+# `.get(kind, 9)` qui y est documenté.
+AGENDA_KINDS = ("devoir", "lecon", "controle", "rendu")
 AGENDA_CREATORS = ("student", "parent")
 
 
@@ -47,6 +53,14 @@ class AgendaItem(Base, TimestampMixin):
     # « échéance » du Commander (ADR-0018 §1). Posée dès maintenant, exploitée au Lot 3 :
     # colonne nullable sans logique, plutôt qu'une seconde migration sur une table neuve.
     chapter_id: Mapped[int | None] = mapped_column(ForeignKey("chapters.id"), nullable=True)
+    # Addendum §15 — **RÉVOQUE le §13.3**, qui avait écarté cette colonne au motif qu'elle
+    # « n'alimenterait aujourd'hui aucun moteur ». Le motif était exact ; le consommateur qui
+    # manquait existe : le lien de l'agenda de Massimo vers SON cours. Le §13 fait déjà choisir
+    # la leçon à Papa dans une liste — l'information était produite puis jetée.
+    #
+    # ⚠️ Ce n'est PAS un scope de production : le déclencheur et le Commander restent scopés par
+    # `chapter_id` (`resolve_chapter_notions`). Cette colonne ne sert qu'à POINTER.
+    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True)
     # `Date` et non `DateTime` : une échéance est un JOUR.
     # NOMMAGE VOLONTAIRE : surtout pas `due_date`. Sur les missions (ADR-0018 §1) ce nom porte la
     # sémantique INVERSE — informationnelle, Papa-only, jamais exposée à l'élève. Ici la date est
