@@ -354,6 +354,34 @@ génération manuelle — le plan est un service rendu à Massimo, pas un objet 
 ⚠️ **« cochée », jamais « faite »** (§14.7) — la Décision 5 ayant retenu (A), c'est la seule
 formulation vraie : le serveur ne sait rien d'autre qu'un `done_at` posé par une route élève.
 
+### 8. « Ce qui arrive » consomme `has_plan` — et le « Préparer · bientôt » meurt
+
+> 🔴 **AJOUTÉE le 2026-08-10, VUE À L'ÉCRAN** pendant la vérification de la Session B — aucun test
+> ne la désignait. Amendement validé par le commanditaire.
+
+`UpcomingCard` portait depuis le Lot 1 un bouton **grisé** « Préparer · bientôt », au titre de
+l'ADR-0024 §4 (*« montrer la porte à venir montre le chemin »*). **Cette justification est morte
+avec ce chantier** : le plan existe, et « bientôt » est devenu un **mensonge affiché à Massimo**.
+
+Pire : `has_plan` a été ajouté au contrat par la Session A **pour cette carte**, et n'avait
+**aucun consommateur** — un champ servi, testé, et mort.
+
+| `has_plan` | Rendu |
+|---|---|
+| `true` | un bouton **« ✦ Ton plan »** — les mots exacts de l'encadré qu'il ouvre |
+| `false` | **rien.** Ni grisé, ni « bientôt », ni espace réservé |
+
+**Le `false` est définitif, pas transitoire** : une échéance sans chapitre, ou à J+1, n'aura
+**jamais** de plan. Lui promettre « bientôt » serait mentir une seconde fois.
+
+⚠️ **Ce n'est pas un revirement sur l'ADR-0024 §4.** Là-bas, le gris dit *« Papa ne l'a pas encore
+produit »* sur un catalogue fait pour être parcouru. Ici, il disait *« ZETIS ne sait pas encore le
+faire »* — et ZETIS sait, désormais. Le premier est une **attente**, le second était une **dette**.
+
+🔴 **Le bouton déplie « la suite » avant de défiler.** L'échéance visée est à J+2 ou plus, donc dans
+la section repliée : une ancre seule n'aurait rien trouvé, et le bouton serait redevenu mort deux
+lignes après qu'on ait tué le précédent.
+
 ## Périmètre
 
 **Slice A — backend.** Table + migration ; composition depuis `resolve_panoply` ; règle de
@@ -361,7 +389,8 @@ répartition §3 ; génération-figement §4 ; révocation sur déplacement de d
 `has_plan` réellement servis ; route de coche ; test-verrous.
 
 **Slice B — Massimo.** Le `✦` sur le jour dans la bande, le plan **sous l'échéance** (Décision
-2 ter), les étapes cliquables **au grain réellement atteignable** (Décision 2 quater), la coche.
+2 ter), les étapes cliquables **au grain réellement atteignable** (Décision 2 quater), la coche, et
+la mort du « Préparer · bientôt » de « Ce qui arrive » (Décision 8).
 
 **Slice C — Papa.** La ligne de lecture (Décision 7).
 
@@ -425,6 +454,11 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
   reviendra à la première relecture qui trouvera le libellé « trop vague ».
 - **Test-verrou** — une échéance **sans matière** rend ses étapes **sans lien**, et la coche
   reste. Le plan ne disparaît pas faute de destination.
+- 🔴 **Test-verrou** — plus aucun **« bientôt »** sur `UpcomingCard`, `has_plan` vrai ou faux
+  (Décision 8). ⚠️ Le saboter en remettant le bouton grisé doit **rougir** : c'est le contrôle de
+  l'étape 4bis porté dans le CODE, et non dans un document que personne ne relit.
+- **Test-verrou** — `has_plan` faux ⇒ **aucun bouton**, ni grisé, ni explicatif. Et sans rappel
+  `onOpenPlan`, aucun bouton non plus : la garde est portée par le **rendu**, pas par l'appelant.
 - Mise à jour de `docs/frontend-massimo/page-agenda.md` (`plan_steps` cesse d'être « vide en Lot 1 »)
   et de `docs/frontend-papa/page-agenda.md`.
 - **Relecture visuelle humaine AVANT la PR**, sur les deux interfaces.
@@ -463,3 +497,7 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
    écartée** : son déclencheur est le jour où Papa demandera à lire autre chose qu'une déclaration.
 6. ✅ `step_type = lesson` reste mort — et la décision est motivée, pas subie.
 7. ✅ Papa **lit** le plan, ne le pilote pas.
+8. ✅ **AJOUTÉE le 2026-08-10, vue À L'ÉCRAN** : « Ce qui arrive » consomme `has_plan`. Le bouton
+   grisé **« Préparer · bientôt »** est **retiré** — la fonctionnalité qu'il annonçait est livrée,
+   donc « bientôt » était devenu faux. `has_plan` vrai ⇒ **« ✦ Ton plan »**, qui déplie « la suite »
+   et défile jusqu'au plan ; `has_plan` faux ⇒ **rien**, définitivement.
