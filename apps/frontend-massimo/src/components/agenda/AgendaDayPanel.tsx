@@ -1,4 +1,4 @@
-import { type AgendaItemStudent } from "@zetis/types";
+import { type AgendaItemStudent, type AgendaPlanStep } from "@zetis/types";
 import { AgendaItemRow } from "./AgendaItemRow";
 import { longDayLabel } from "../../lib/agendaSections";
 
@@ -23,9 +23,23 @@ interface Props {
   onClose: () => void;
   onToggle: (item: AgendaItemStudent) => void;
   onDismiss: (item: AgendaItemStudent) => void;
+  /** Plans indexés par échéance (ADR-0050). ⚠️ **Ce panneau montre le plan de SES échéances, pas
+   *  les étapes qui tombent CE jour-là** : ce sont deux questions différentes, et c'est la
+   *  seconde que le `✦` de la bande porte. Un plan se lit sous ce qu'il prépare. */
+  planByItem?: Record<number, AgendaPlanStep[]>;
+  onToggleStep?: (step: AgendaPlanStep) => void;
 }
 
-export function AgendaDayPanel({ date, items, traces, onClose, onToggle, onDismiss }: Props) {
+export function AgendaDayPanel({
+  date,
+  items,
+  traces,
+  onClose,
+  onToggle,
+  onDismiss,
+  planByItem,
+  onToggleStep,
+}: Props) {
   const aujourdhui = new Date();
   aujourdhui.setHours(0, 0, 0, 0);
   const passe = new Date(`${date}T00:00:00`) < aujourdhui;
@@ -61,6 +75,8 @@ export function AgendaDayPanel({ date, items, traces, onClose, onToggle, onDismi
               tone={passe && !item.done ? "resume" : "normal"}
               onToggle={() => onToggle(item)}
               onDismiss={() => onDismiss(item)}
+              planSteps={planByItem?.[item.id]}
+              onToggleStep={onToggleStep}
             />
           ))}
         </div>

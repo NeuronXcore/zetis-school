@@ -52,6 +52,23 @@ export function AgendaPage() {
     });
   };
 
+  /** « ✦ Ton plan » depuis « Ce qui arrive » → le plan, qui vit SOUS l'échéance (ADR-0050).
+   *
+   *  🔴 **Il faut DÉPLIER « la suite » avant de défiler.** Une échéance à J+2 ou plus y est
+   *  repliée : une ancre seule ne trouverait rien et le bouton serait mort — le défaut même que
+   *  le retrait du « Préparer · bientôt » vient de corriger, réintroduit deux lignes plus bas.
+   *
+   *  `block: "center"` et non `"nearest"` : c'est le PLAN qu'on vient voir, pas le titre de
+   *  l'échéance ; il est sous elle, et « nearest » le laisserait hors écran. */
+  const openPlan = (id: number) => {
+    setLaterOpen(true);
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`agenda-item-${id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
   /** Traces du jour ouvert — `null` sur un jour à venir, jamais `0` (§7 : un jour qui n'est pas
    *  encore arrivé n'a pas de case vide). Le contrat serveur ne distingue pas `0` de « pas de
    *  donnée » ; on le respecte en n'affichant la ligne que si elle est positive. */
@@ -89,6 +106,8 @@ export function AgendaPage() {
             onClose={() => setPickedDay(null)}
             onToggle={(item) => agenda.toggleDone(item)}
             onDismiss={(item) => agenda.dismiss(item)}
+            planByItem={agenda.planByItem}
+            onToggleStep={agenda.toggleStep}
           />
         )}
 
@@ -101,12 +120,18 @@ export function AgendaPage() {
             // l'y inviter serait une impasse.
             <Calm>Rien de noté pour aujourd'hui.</Calm>
           ) : (
+            // Le plan se passe à TOUTES les sections, sans exception de section : c'est le
+            // SERVEUR qui décide où il y en a un (jours à venir seulement), et le recopier ici
+            // en règle d'affichage ferait une seconde source de vérité. « À reprendre » n'en
+            // reçoit donc jamais, sans qu'on l'ait écrit nulle part.
             today.map((item) => (
               <AgendaItemRow
                 key={item.id}
                 item={item}
                 onToggle={() => agenda.toggleDone(item)}
                 onDismiss={() => agenda.dismiss(item)}
+                planSteps={agenda.planByItem[item.id]}
+                onToggleStep={agenda.toggleStep}
               />
             ))
           )}
@@ -122,6 +147,8 @@ export function AgendaPage() {
                 item={item}
                 onToggle={() => agenda.toggleDone(item)}
                 onDismiss={() => agenda.dismiss(item)}
+                planSteps={agenda.planByItem[item.id]}
+                onToggleStep={agenda.toggleStep}
               />
             ))
           )}
@@ -147,6 +174,8 @@ export function AgendaPage() {
                     showDate
                     onToggle={() => agenda.toggleDone(item)}
                     onDismiss={() => agenda.dismiss(item)}
+                    planSteps={agenda.planByItem[item.id]}
+                    onToggleStep={agenda.toggleStep}
                   />
                 ))}
               </div>
@@ -158,7 +187,7 @@ export function AgendaPage() {
         {agenda.upcoming.length > 0 && (
           <Section title="Ce qui arrive">
             {agenda.upcoming.map((item) => (
-              <UpcomingCard key={item.id} item={item} />
+              <UpcomingCard key={item.id} item={item} onOpenPlan={() => openPlan(item.id)} />
             ))}
           </Section>
         )}
@@ -177,6 +206,8 @@ export function AgendaPage() {
                 tone="resume"
                 onToggle={() => agenda.toggleDone(item)}
                 onDismiss={() => agenda.dismiss(item)}
+                planSteps={agenda.planByItem[item.id]}
+                onToggleStep={agenda.toggleStep}
               />
             ))}
             {/* ⚠️ Le nombre n'apparaît QUE sur le bouton de dépliage, jamais comme un compteur

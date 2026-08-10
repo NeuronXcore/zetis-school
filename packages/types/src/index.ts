@@ -88,6 +88,8 @@ export {
   type AgendaItemPilot,
   type AgendaItemStudent,
   type AgendaKind,
+  type AgendaPlanStep,
+  type AgendaPlanStepKind,
   type AgendaSettings,
   type AgendaSubjectRef,
   type AgendaUpcomingItem,

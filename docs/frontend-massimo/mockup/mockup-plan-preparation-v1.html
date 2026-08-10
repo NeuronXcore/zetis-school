@@ -90,6 +90,7 @@
     display:flex; align-items:center; justify-content:center; font-size:10px; color:transparent; flex:0 0 auto; }
   .step.done .tick { border-color:rgba(52,211,153,.7); background:rgba(52,211,153,.2); color:#6ee7b7; }
   .step.done .lbl { text-decoration:line-through; opacity:.6; }
+  .step .lbl { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .step .when { margin-left:auto; font-size:10.5px; color:var(--zetis-muted); flex:0 0 auto; }
   .step .ico { flex:0 0 auto; }
 
@@ -162,16 +163,16 @@
             <span class="sub">1 sur 3</span>
           </div>
           <div class="step done">
-            <span class="tick">✓</span><span class="ico">📖</span>
-            <span class="lbl">Lire la fiche</span><span class="when">mar. 11</span>
+            <span class="tick">✓</span><span class="ico">🗒️</span>
+            <span class="lbl">Lire les fiches</span><span class="when">mar. 11</span>
           </div>
           <div class="step">
             <span class="tick">✓</span><span class="ico">🃏</span>
-            <span class="lbl">Réviser les cartes</span><span class="when">mer. 12</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span>
           </div>
           <div class="step">
             <span class="tick">✓</span><span class="ico">🎯</span>
-            <span class="lbl">Petit quiz</span><span class="when">jeu. 13</span>
+            <span class="lbl">Choisir un quiz</span><span class="when">jeu. 13</span>
           </div>
         </div>
       </div>
@@ -193,9 +194,9 @@
         <div class="plan">
           <div class="plan-head"><span>✦ Ton plan</span><span class="sub">0 sur 2</span></div>
           <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
-            <span class="lbl">Réviser les cartes</span><span class="when">mar. 11</span></div>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mar. 11</span></div>
           <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
-            <span class="lbl">Petit quiz</span><span class="when">mar. 11</span></div>
+            <span class="lbl">Choisir un quiz</span><span class="when">mar. 11</span></div>
         </div>
       </div>
       <div class="legend">
@@ -221,7 +222,7 @@
         <div class="plan">
           <div class="plan-head" style="color:var(--zetis-muted);"><span>✦ Ton plan</span><span class="sub">bientôt</span></div>
           <div class="step" style="opacity:.42; cursor:not-allowed;">
-            <span class="tick">✓</span><span class="ico">📖</span>
+            <span class="tick">✓</span><span class="ico">🗒️</span>
             <span class="lbl">Pas encore de plan</span><span class="when">—</span></div>
         </div>
       </div>
@@ -290,10 +291,10 @@
       <div class="glass-card">
         <div class="plan">
           <div class="plan-head"><span>✦ Ton plan</span><span class="sub">1 sur 3</span></div>
-          <div class="step done"><span class="tick">✓</span><span class="ico">📖</span>
-            <span class="lbl">Lire la fiche</span><span class="when">mar. 11</span></div>
+          <div class="step done"><span class="tick">✓</span><span class="ico">🗒️</span>
+            <span class="lbl">Lire les fiches</span><span class="when">mar. 11</span></div>
           <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
-            <span class="lbl">Réviser les cartes</span><span class="when">mer. 12</span></div>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span></div>
         </div>
       </div>
       <div class="legend">
@@ -308,9 +309,9 @@
         <div class="plan">
           <div class="plan-head"><span>✦ Ton plan</span><span class="sub">1 sur 3</span></div>
           <div class="step done"><span class="tick">✓</span><span class="ico">🃏</span>
-            <span class="lbl">Réviser les cartes</span><span class="when">8 cartes revues</span></div>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">8 cartes revues</span></div>
           <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
-            <span class="lbl">Petit quiz</span><span class="when">mer. 12</span></div>
+            <span class="lbl">Choisir un quiz</span><span class="when">mer. 12</span></div>
         </div>
       </div>
       <div class="legend">
@@ -320,6 +321,91 @@
         <br><br>
         ⚠️ <b>REPORTÉE, pas écartée</b> — la donnée existe déjà. Son déclencheur est nommé : le
         jour où Papa demandera à lire autre chose qu'une déclaration.
+      </div>
+    </div>
+  </div>
+
+  <!-- D -->
+  <div class="block-label">D — 🔴 Décision 2 quater &nbsp;·&nbsp; le libellé nomme le grain qu'il atteint</div>
+  <div class="block-note">
+    Ajoutée <b>au câblage</b>, le 2026-08-10. Cette maquette portait « Lire la fiche » et « Petit
+    quiz » — deux promesses que le dépôt <b>ne peut pas tenir</b> :
+    <code>FichesPage</code> ne lit aucun <code>searchParams</code> et <code>QuizPage</code> ne lit
+    que <code>subject</code>. Fabriquer <code>/fiches?fiche=&lt;id&gt;</code> aurait produit un lien
+    qui s'ouvre sur une page qui <b>ignore</b> son paramètre : un cul-de-sac qui a l'air de marcher.
+  </div>
+  <div class="phones">
+    <div class="phone bad">
+      <div class="phone-cap">✗ Ce que cette maquette disait</div>
+      <div class="glass-card">
+        <div class="plan">
+          <div class="plan-head"><span>✦ Ton plan</span><span class="sub">0 sur 3</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">📖</span>
+            <span class="lbl">Lire la fiche</span><span class="when">mar. 11</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
+            <span class="lbl">Petit quiz</span><span class="when">jeu. 13</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="ko">« Lire la fiche » promet UNE fiche et en ouvre une liste.</span>
+        Et <b>📖 est déjà la puce « lire le cours »</b>, deux lignes plus haut sur la même carte —
+        collision invisible tant qu'on ne regarde pas la carte entière.
+      </div>
+    </div>
+
+    <div class="phone good">
+      <div class="phone-cap">✓ Ce qui est livré</div>
+      <div class="glass-card">
+        <div class="plan">
+          <div class="plan-head"><span>✦ Ton plan</span><span class="sub">0 sur 3</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🗒️</span>
+            <span class="lbl">Lire les fiches</span><span class="when">mar. 11</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
+            <span class="lbl">Choisir un quiz</span><span class="when">jeu. 13</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="ok">Le grain se dit par le PLURIEL et par le VERBE</span>, pas en répétant la
+        matière : « les fiches » ouvre une liste, « choisir » annonce qu'on choisira. Seule la
+        révision garde le grain fin — <b>parce que sa destination l'a vraiment</b> : c'est le deck
+        chapitre de l'<code>adr-0049</code>.
+        <br><br>
+        🔴 <b>« Lire les fiches de Mathématiques » a été essayé, puis MESURÉ dans le DOM</b> :
+        193 px pour 151 disponibles (202 px avec « Physique-Chimie »). Ce qui se coupait, c'était
+        <b>le nom de la matière</b> — l'information même que l'allongement portait. Et elle est
+        déjà sur la carte, deux lignes plus haut.
+        <br><br>
+        ⚠️ <code>resource_id</code> reste persisté et <b>inutilisé</b> pour la fiche et le quiz —
+        la donnée est juste, c'est la route qui manque.
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="phone-cap">🔴 Une seule porte vers le deck</div>
+      <div class="glass-card">
+        <div class="item-head"><span class="kind controle">Contrôle</span><span class="when-r">dans 4 jours</span></div>
+        <div class="item-title">Multiplication de fractions</div>
+        <div class="item-meta">Mathématiques · <b>8 cartes servables</b></div>
+        <div class="absence">— la porte « 🃏 Réviser ce chapitre · 8 cartes » n'est pas rendue —</div>
+        <div class="plan">
+          <div class="plan-head"><span>✦ Ton plan</span><span class="sub">0 sur 2</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🃏</span>
+            <span class="lbl">Réviser ce chapitre</span><span class="when">mer. 12</span></div>
+          <div class="step"><span class="tick">✓</span><span class="ico">🎯</span>
+            <span class="lbl">Choisir un quiz</span><span class="when">jeu. 13</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        La porte de l'<code>adr-0049</code> et l'étape <code>revision</code> mènent au <b>même
+        deck</b>, sous la même condition serveur. Deux boutons identiques à trois lignes d'écart :
+        <b>le plan absorbe la porte</b> — sa version est datée et elle se coche.
+        <br><br>
+        ⚠️ Le « 8 cartes » part avec la porte. Sur un bouton pressable tout de suite c'est une
+        <b>offre</b> ; sur une étape datée de mercredi, ça devient un <b>quota pour mercredi</b>.
       </div>
     </div>
   </div>

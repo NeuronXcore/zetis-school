@@ -114,8 +114,17 @@ export function AgendaWeekStrip({ days, itemsByDate, onPickDay, pickedDay }: Pro
               })}
             </span>
 
-            {/* Emplacement du plan de préparation (Lot 2) : prévu, JAMAIS occupé en Lot 1 —
-                `plan_steps` est toujours vide, et rien de grisé ne le remplace en attendant. */}
+            {/* Le `✦` du plan de préparation (ADR-0050) — occupé depuis le 2026-08-10, après
+                deux chantiers d'attente. Il dit seulement *« il y a quelque chose à faire ce
+                jour-là »* ; le plan lui-même se lit **sous l'échéance qu'il prépare** (Décision
+                2 ter), jamais ici.
+
+                ⚠️ Ce `✦` compte les étapes de TOUTES les échéances de ce jour — c'est la seule
+                information que le jour porte, et elle suffit à un repère de 10 px.
+
+                ⚠️ La hauteur `h-3` est réservée sur TOUS les jours, allumé ou non : sans elle,
+                les colonnes à `✦` seraient plus hautes que les autres et la bande sauterait
+                d'un jour à l'autre. */}
             <span className="h-3 text-[10px] leading-3 text-violet-300">
               {day.plan_steps.length > 0 ? "✦" : ""}
             </span>

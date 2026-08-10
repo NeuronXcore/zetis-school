@@ -4,8 +4,8 @@
 // et une échéance qui NOMME un cours y donne accès — sans jamais offrir un lien vers nulle part.
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
-import { type AgendaItemStudent, type AgendaKind } from "@zetis/types";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { type AgendaItemStudent, type AgendaPlanStep } from "@zetis/types";
 import { AgendaItemRow } from "./AgendaItemRow";
 
 function item(over: Partial<AgendaItemStudent> = {}): AgendaItemStudent {
@@ -147,6 +147,162 @@ describe("AgendaItemRow — la porte de révision par chapitre", () => {
       "en retard",
       "due",
     ]) {
+      expect(container.textContent?.toLowerCase()).not.toContain(interdit);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// LE PLAN DE PRÉPARATION (ADR-0050) — l'échéance dit QUOI, le plan dit COMMENT s'y prendre
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+function etape(over: Partial<AgendaPlanStep> & { id: number; kind: AgendaPlanStep["kind"] }) {
+  return {
+    agenda_item_id: 1,
+    day_offset: 1,
+    skill_id: null,
+    resource_id: null,
+    done: false,
+    ...over,
+  } satisfies AgendaPlanStep;
+}
+
+/** Un contrôle de maths le vendredi 14 août 2026, avec son plan. */
+const avecPlan = (steps: AgendaPlanStep[], over: Partial<AgendaItemStudent> = {}) => {
+  const onToggleStep = vi.fn();
+  const vue = render(
+    <MemoryRouter>
+      <AgendaItemRow
+        item={item({
+          due_on: "2026-08-14",
+          kind: "controle",
+          chapter_id: 12,
+          label: "Multiplication de fractions",
+          subject: { id: 3, name: "Mathématiques", slug: "maths", color: null },
+          ...over,
+        })}
+        onToggle={vi.fn()}
+        onDismiss={vi.fn()}
+        planSteps={steps}
+        onToggleStep={onToggleStep}
+      />
+    </MemoryRouter>,
+  );
+  return { ...vue, onToggleStep };
+};
+
+const TROIS_ETAPES = [
+  etape({ id: 1, kind: "fiche", day_offset: 3, done: true }),
+  etape({ id: 2, kind: "revision", day_offset: 2 }),
+  etape({ id: 3, kind: "quiz", day_offset: 1 }),
+];
+
+describe("AgendaItemRow — le plan de préparation", () => {
+  it("🔴 VERROU — sans étape, le bloc du plan n'EXISTE PAS dans le DOM", () => {
+    // La très grande majorité des échéances n'a PAS de plan (il faut un chapitre et au moins
+    // 2 jours). Un encadré vide sur chacune ferait de l'agenda une page de manques — c'est le
+    // « bouton mort » du §14.6, à l'échelle de la page entière.
+    const { container } = avecPlan([]);
+    expect(container.textContent).not.toContain("Ton plan");
+    expect(container.textContent).not.toContain("bientôt");
+    expect(container.querySelector("[disabled]")).toBeNull();
+  });
+
+  it("rend les étapes dans l'ordre reçu, chacune avec SON jour", () => {
+    // ⚠️ Le tri vient de `groupPlanByItem` (module pur, verrouillé là-bas) : ce composant ne
+    // réordonne rien. Le jour, lui, se reconstruit ici depuis `due_on` et l'offset.
+    avecPlan(TROIS_ETAPES);
+    expect(screen.getByText("Lire les fiches")).toBeInTheDocument();
+    expect(screen.getByText("Réviser ce chapitre")).toBeInTheDocument();
+    expect(screen.getByText("Choisir un quiz")).toBeInTheDocument();
+    // Vendredi 14 : offset 3 ⇒ mardi 11, offset 2 ⇒ mercredi 12, offset 1 ⇒ jeudi 13.
+    expect(screen.getByText("mar. 11")).toBeInTheDocument();
+    expect(screen.getByText("mer. 12")).toBeInTheDocument();
+    expect(screen.getByText("jeu. 13")).toBeInTheDocument();
+  });
+
+  it("🔴 VERROU — aucune route inventée n'atteint le DOM", () => {
+    // Le pendant de rendu du verrou de `planStepTarget` : ce qui compte au bout de la chaîne,
+    // c'est le `href` réellement posé. `/fiches?fiche=77` s'ouvrirait sur une page qui ignore
+    // le paramètre — un cul-de-sac qui a l'air de marcher.
+    avecPlan([
+      etape({ id: 1, kind: "fiche", resource_id: 77 }),
+      etape({ id: 3, kind: "quiz", resource_id: 88 }),
+    ]);
+    const fiche = screen.getByRole("link", { name: /Lire les fiches/ });
+    const quiz = screen.getByRole("link", { name: /Choisir un quiz/ });
+    expect(fiche).toHaveAttribute("href", "/fiches/maths");
+    expect(quiz).toHaveAttribute("href", "/quiz?subject=maths&from=maths");
+  });
+
+  it("compte l'AVANCÉE, jamais le reste à faire", () => {
+    // « 1 sur 3 » monte ; « 2 restantes » décompterait. Le §7 interdit tout compteur d'arriéré.
+    const { container } = avecPlan(TROIS_ETAPES);
+    expect(screen.getByText("1 sur 3")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/restant|en retard|manqué/i);
+  });
+
+  it("cocher une étape remonte CETTE étape, et rien d'autre", () => {
+    const { onToggleStep } = avecPlan(TROIS_ETAPES);
+    fireEvent.click(screen.getAllByRole("button", { name: /Cocher l'étape/ })[0]);
+    expect(onToggleStep).toHaveBeenCalledTimes(1);
+    // La première du DOM est la première du tableau reçu — celle qui est déjà cochée porte
+    // « Décocher », donc le premier « Cocher » est l'étape 2.
+    expect(onToggleStep.mock.calls[0][0].id).toBe(2);
+  });
+
+  it("VERROU §14.7 — l'étape se COCHE, elle ne se « fait » pas", () => {
+    // Cocher ne prouve rien : c'est une déclaration de Massimo (Décision 5, option A). Un
+    // libellé « fait » ferait croire que ZETIS a constaté quelque chose.
+    avecPlan(TROIS_ETAPES);
+    // ⚠️ L'assertion vise les coches D'ÉTAPE, pas toutes les coches de la carte : celle de
+    // l'échéance dit bien « Marquer comme fait », et c'est correct — une échéance SE fait, une
+    // étape de plan se coche seulement.
+    const coches = screen.getAllByRole("button", { name: /l'étape/ });
+    expect(coches).toHaveLength(3);
+    for (const coche of coches) {
+      expect(coche.getAttribute("aria-label")).not.toMatch(/fait/i);
+    }
+  });
+
+  it("🔴 VERROU — la porte de l'ADR-0049 s'efface quand le plan porte déjà la révision", () => {
+    // Les deux mènent au MÊME deck, et leurs conditions serveur sont la même. Sans cette garde,
+    // la carte afficherait deux boutons vers la même destination à trois lignes d'écart. La
+    // version du plan gagne : elle est datée et elle se coche.
+    avecPlan(TROIS_ETAPES, { revisable_cards: 8 });
+    // ⚠️ L'assertion porte sur le NOMBRE de portes, pas sur l'absence du libellé : l'étape du
+    // plan porte le même. C'est justement ce qui rend le doublon possible — et invisible à un
+    // test écrit trop vite.
+    const portes = screen.getAllByRole("link", { name: /Réviser ce chapitre/ });
+    expect(portes).toHaveLength(1);
+    // Et celle qui reste est celle du PLAN : elle porte son jour.
+    expect(portes[0].textContent).toContain("mer. 12");
+    // Le « 8 cartes » de la porte s'en va avec elle : sur une étape datée de mercredi, un
+    // compte deviendrait un quota pour mercredi.
+    expect(screen.queryByText("8 cartes")).toBeNull();
+  });
+
+  it("la porte reste quand le plan ne porte PAS la révision", () => {
+    // Contre-épreuve : la garde ne doit pas effacer la porte pour un plan sans étape `revision`.
+    avecPlan([etape({ id: 1, kind: "fiche" })], { revisable_cards: 8 });
+    expect(screen.getByRole("link", { name: /Réviser ce chapitre/ })).toBeInTheDocument();
+  });
+
+  it("VERROU — sans matière, l'étape reste et se coche, mais n'est PAS un lien", () => {
+    // Faire disparaître l'étape trouerait le plan ; un lien vers la racine serait une petite
+    // trahison. Elle reste en texte, et sa coche — le seul geste qui lui donne un état — marche.
+    const { onToggleStep } = avecPlan([etape({ id: 1, kind: "fiche" })], { subject: null });
+    expect(screen.getByText("Lire les fiches")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Lire les fiches/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Cocher l'étape/ }));
+    expect(onToggleStep).toHaveBeenCalledTimes(1);
+  });
+
+  it("🔴 VERROU — la mécanique du plan reste INVISIBLE", () => {
+    // Massimo lit « mardi 11 : lire les fiches de maths ». Il ne lit jamais « offset », ni
+    // « étape 2/3 générée », ni le vocabulaire du rétro-planning.
+    const { container } = avecPlan(TROIS_ETAPES);
+    for (const interdit of ["offset", "rétro", "généré", "planif", "resource"]) {
       expect(container.textContent?.toLowerCase()).not.toContain(interdit);
     }
   });
