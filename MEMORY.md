@@ -7,12 +7,12 @@
 ## État à la reprise
 
 **Chantier : l'agenda devient utilisable — SIX décisions en une session (addenda ADR-0025 §13 →
-§17).** ✅ **COMMITÉ le 2026-08-10 sur `feat/agenda-intitule-referentiel`.** 🔴 **NON POUSSÉ,
-AUCUNE PR.**
+§17).** ✅ **COMMITÉ, POUSSÉ, et PR ouverte le 2026-08-10** — PR
+**[#108](https://github.com/NeuronXcore/zetis-school/pull/108)**, en attente de relecture.
 
 | | |
 |---|---|
-| **Branche** | `feat/agenda-intitule-referentiel` — un seul commit, **rien sur `origin`** |
+| **Branche** | `feat/agenda-intitule-referentiel`, commit **`a6aaf1b`** — poussée sur `origin`, PR **#108** OUVERTE (56 fichiers, +3620/−252) |
 | **Migration** | 🔴 **`a1b2c3d4e5f8`** (`agenda_items.lesson_id`) — **appliquée en DEV UNIQUEMENT, la prod reste à faire**. Le Postgres prod ne publie aucun port (délibéré) : passer par le conteneur |
 | **Suites** | Backend **1149** · Papa **784** · Massimo **582** · `tsc -b` propre sur les deux fronts |
 | ✅ **Relecture visuelle** | **FAITE sur les DEUX interfaces**, et elle a rapporté **quatre** défauts que les tests ne voyaient pas — voir plus bas |
@@ -261,10 +261,11 @@ Aucun fichier à moitié écrit. L'arbre est propre, tout est commité.
 
 ### ▶▶ PROCHAIN PAS
 
-1. 🔴 **Pousser + PR.** Rien n'est sur `origin`. `git push -u origin feat/agenda-intitule-referentiel`,
-   puis PR. ⚠️ **Six décisions dans un seul commit** — le corps du message les énumère ; la PR doit
-   les reprendre, sinon la relecture ne saura pas ce qu'elle relit.
+1. ✅ ~~Commit~~ · ✅ ~~push~~ · ✅ ~~PR **#108**~~ — faits le 2026-08-10, et **cette section a été
+   remise au réel dans la foulée** (étape 4bis, `docs/WORKFLOW.md §5`) : l'annonce « non poussé,
+   aucune PR » a vécu moins d'une heure. **Reste la relecture, puis le merge.**
 2. 🔴 **Migrer la PROD** (`a1b2c3d4e5f8`) — sinon l'agenda plante côté serveur dès le déploiement.
+   ⚠️ **Après le merge**, et repasser ici pour l'écrire.
 3. **Écrire les six sections de `TROUBLESHOOTING.md`** (§ PIÈGES ci-dessus). C'est le contrôle qui
    manque pour que ce chantier puisse être élagué de ce fichier à la clôture suivante.
 4. **Le candidat le plus mûr ensuite** : le **couplage 2 (§11)** — deck de révision par chapitre +
