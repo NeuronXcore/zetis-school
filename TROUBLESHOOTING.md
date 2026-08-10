@@ -4715,3 +4715,111 @@ Aucun des quatre n'était détectable par un test, et c'est instructif :
 **Parade** : mesurer **dans le DOM** (`getComputedStyle`, `getBoundingClientRect`) plutôt que juger
 sur capture — le panneau rend à 800 px et écrase les écarts. Les deux premiers défauts n'étaient
 pas visibles à l'œil sur la capture ; ils l'étaient dans les nombres.
+
+## Le deck de révision par chapitre (ADR-0049) — 2026-08-10
+
+Six pièges **réellement payés** pendant le chantier. Ceux que le prompt de slice avait nommés
+d'avance et qui ont donc été évités ne sont pas ici : ils sont dans le prompt.
+
+### 1. 🔴 `memory` ne peut pas importer `missions` — le cycle casse `app.main`
+
+L'ADR prescrivait de réutiliser `_ordered_chapter_skill_ids` (module `missions`) depuis
+`memory/service.py`. Le contrôle « est-ce que `memory` importe déjà `missions` ? » répond **non** et
+rassure à tort : c'est **l'inverse** qu'il fallait chercher. `missions/service.py:46` importe
+`memory.service`, et l'ajout crée la chaîne
+
+```
+memory.service → missions.command → missions.pilot → missions.service → memory.service
+ImportError: cannot import name 'interval_from_score' from partially initialized module
+```
+
+**L'app entière cesse de s'importer.** Le cycle n'était pas un accident mécanique : `memory` est la
+couche basse, lui faire remonter la dépendance inverse la couche. La traversée a été déplacée dans
+`app/modules/lesson_resolution.py`, le résolveur neutre — dont l'en-tête invitait explicitement
+cette convergence.
+
+> ⚠️ **Le réflexe à garder** : avant de câbler un import entre deux modules, chercher les **deux**
+> sens. `grep "from app.modules.X" app/modules/Y/` ne dit que la moitié.
+
+### 2. 🔴 Mon test du cycle était FAUX et concluait « pas de cycle »
+
+Premier essai : écrire une copie du module avec l'import ajouté (`_probe_cycle.py`), puis
+l'importer. Résultat : **« pas de cycle »** — et c'était faux. Le module sonde porte un **autre
+nom**, donc `app.modules.memory.service` avait déjà fini de s'importer par la chaîne normale au
+moment où la sonde chargeait.
+
+**Un cycle d'import ne se teste que dans un interpréteur NEUF, sur le vrai fichier**, et depuis
+plusieurs portes d'entrée :
+
+```bash
+.venv/bin/python -c "import app.main"
+.venv/bin/python -c "import app.modules.memory.service"   # le pire cas
+```
+
+Sans ce second essai, l'app serait partie cassée avec un test vert à l'appui.
+
+### 3. 🔴 Le verrou central était VERT sur son sabotage — 4ᵉ occurrence du motif
+
+Le verrou « une carte `pending` n'est jamais servie » protège la clause `due_at IS NOT NULL`, celle
+qu'on supprime par erreur en croyant supprimer la clause d'échéance. **Retirer la clause laissait le
+test vert.**
+
+Cause : la carte de test portait `status="pending"`, donc elle était exclue **deux fois** — par le
+filtre de statut *et* par l'échéance nulle. Les deux clauses se recouvrent sur elle, et le test ne
+mesurait jamais celle qu'il prétendait tenir.
+
+**Il faut une carte au statut ACTIF et à l'échéance NULLE** — l'anomalie de données que cette
+clause, et elle seule, arrête.
+
+> ⚠️ **Motif généralisable** : quand deux gardes se recouvrent sur le cas de test, saboter l'une ne
+> rougit pas. Choisir un cas où **une seule** garde s'applique, sinon le verrou tient l'autre.
+
+### 4. Réécrire un bloc de constantes en supprime une, et seule la suite le dit
+
+En insérant `REVIEW_SESSION_MAX_CHAPTER` par un remplacement de bloc, `REVIEW_SESSION_FLASH = 5` a
+disparu. Six tests existants ont rougi immédiatement (`NameError`) — c'est exactement ce que la
+non-régression sert à attraper, et la raison de lancer la suite **avant** d'ajouter les siens.
+
+### 5. 🔴 `npx tsc` refuse de tourner, et le `&& echo "OK"` ment
+
+```
+This is not the tsc command you are looking for
+```
+
+`npx` (sans `--no-install`) refuse quand TypeScript n'est pas au paquet courant — et comme la
+commande finit par `| tail -8`, le pipeline **réussit**, donc le `&& echo "tsc OK"` s'affiche. Deux
+fois de suite, un typecheck annoncé vert n'avait pas tourné.
+
+Le binaire réel est `apps/frontend-massimo/node_modules/.bin/tsc`, et il faut `tsc -b` par paquet :
+
+```bash
+(cd packages/types && ../../apps/frontend-massimo/node_modules/.bin/tsc -b)
+(cd apps/frontend-massimo && node_modules/.bin/tsc -b)
+(cd apps/frontend-papa && ../frontend-massimo/node_modules/.bin/tsc -b)
+```
+
+> ⚠️ **Un `echo "OK"` après un pipeline ne prouve rien** : il teste le code de sortie du DERNIER
+> maillon (`tail`), pas du premier.
+
+### 6. Une fixture de Massimo était déjà incomplète, depuis des jours
+
+`src/lib/agendaSections.test.ts` déclarait rendre un `AgendaItemStudent` en omettant `lesson_id` et
+`chapter_id` — **deux champs requis**, absents depuis l'addendum §15. Rien ne l'avait signalé :
+`apps/frontend-massimo/tsconfig.app.json` **exclut** `src/**/*.test.ts(x)`.
+
+**Un `tsc -b` vert ne prouve rien sur les tests de Massimo.** Ceux de Papa, eux, sont typecheckés —
+d'où l'asymétrie observée au chantier précédent (six erreurs côté Papa, silence côté Massimo).
+
+Pour les vérifier vraiment, hors du `tsconfig` du projet :
+
+```bash
+cd apps/frontend-massimo && node_modules/.bin/tsc --noEmit --jsx react-jsx \
+  --module esnext --target es2022 --moduleResolution bundler --strict --skipLibCheck \
+  src/**/*.test.ts*   # ignorer les erreurs de matchers jest-dom : elles viennent du setup absent
+```
+
+### Ce qui a servi et qui était DÉJÀ écrit ici
+
+`import.meta.url` rend un chemin tronqué sous vitest — consigné par `src/voix-de-zetis.test.ts`, et
+retrouvé à l'identique en écrivant le verrou de dépôt de ce chantier. `process.cwd()` est la
+racine du paquet.

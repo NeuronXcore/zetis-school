@@ -6,84 +6,65 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-**Chantier : l'agenda devient utilisable — SIX décisions en une session (addenda ADR-0025 §13 →
-§17).** ✅ **MERGÉ le 2026-08-10 — PR
-[#108](https://github.com/NeuronXcore/zetis-school/pull/108), squash `526b9b8`.** Rien à reprendre,
-rien à ré-implémenter.
+**Chantier : le deck de révision par chapitre — ADR-0049, le couplage 2 du §11 de l'ADR-0025.**
+🟡 **PR [#109](https://github.com/NeuronXcore/zetis-school/pull/109) OUVERTE, PAS ENCORE MERGÉE.**
 
 | | |
 |---|---|
-| **Merge** | PR **#108**, **squash `526b9b8`** sur `main`, **parent `5035dce`** — vérifié. Le détail des 3 commits d'origine : `git log --oneline 5035dce..feat/agenda-intitule-referentiel` |
-| **Branche** | `feat/agenda-intitule-referentiel` — 🔴 **CONSERVÉE sur `origin`, ne pas supprimer sans consigne** (`delete_branch_on_merge: false`). **Onze** branches de chantier dorment ainsi |
-| **Migration** | ✅ **`a1b2c3d4e5f8` APPLIQUÉE EN PROD** le 2026-08-10, après le merge. Prod à la tête, colonne + FK vérifiées, 476 notions / 119 leçons intactes. Sauvegardes : `~/zetis-backups/zetis-prod-20260810-*.sql` |
-| **Suites** | Backend **1149** · Papa **784** · Massimo **582** · `tsc -b` propre sur les deux fronts |
-| ✅ **Relecture visuelle** | **FAITE sur les DEUX interfaces**, par le commanditaire lui-même — elle a rapporté **quatre** défauts que les tests ne voyaient pas, voir plus bas |
-| **Commande** | ⚠️ Commit, push, PR et merge demandés **explicitement** par le user : **dérogation assumée** au `CLAUDE.md` (« l'humain vérifie puis committe ») |
+| **Branche** | `feat/deck-revision-chapitre`, commit **`20b4ad2`**, poussée. Base `7d4823c` |
+| **Cadrage** | `adr-0049` **`Accepté`** + sa ligne `DECISIONS.md` — sur **`main`**, commit `7d4823c`, **poussé**. ⚠️ Ils ne sont PAS dans la PR, et c'est voulu |
+| **Migration** | **AUCUNE** — l'effet réutilise `SpacedReviewAttempt.is_consolidation`, qui existe |
+| **Suites** | Backend **1159** · Massimo **594** · Papa **784** · `tsc -b` vert sur les trois |
+| ✅ **Relecture visuelle** | **FAITE le 2026-08-10**, après l'ouverture de la PR. **Aucun défaut remonté** — formulation volontaire, ce n'est pas « rien relevé », que rien ne me permet d'affirmer |
+| **Commande** | ⚠️ Commit, push et PR demandés **explicitement** par le user : dérogation assumée au `CLAUDE.md` |
 
-### Les six décisions, dans l'ordre où elles ont été prises
+### Ce que le chantier a livré
 
-Chacune a son addendum dans `docs/decisions/`, sa ligne dans `DECISIONS.md`, son entrée CHANGELOG
-(**0.66.0 → 0.71.0**) et ses test-verrous **sabotés et rougis**.
+Sur une échéance datée dont le chapitre a des cartes servables, Massimo lit **« 🃏 Réviser ce
+chapitre · N cartes »**. Le deck sert les cartes du chapitre — **y compris non dues**, c'est son
+objet — et **n'écrit aucun état SRS**.
 
-1. **§13 — l'intitulé se choisit dans le référentiel.** Le champ texte devient un menu des cours
-   **validés** du chapitre + « ✏️ Autre (texte libre) ». Zéro backend : `GET /api/chapters/{id}/lessons`
-   et `fetchLessons` existaient.
-2. **§14 — « leçon à apprendre », 4ᵉ `kind`** (`lecon`) + **le Commander sort de sa cachette**
-   (puce 🎯 au niveau de l'item). Aucune migration : `AGENDA_KINDS` est un tuple sans Enum SQL.
-   §14.7 : Papa lit **« ✓ coché »**, plus jamais « ✓ fait ».
-3. **§15 — l'échéance mène à son cours.** 🔴 **RÉVOQUE le §13.3 le jour même** : colonne
-   `lesson_id`. §15.6 : **rattrapage par titre exact** pour les échéances qui n'en ont pas.
-4. **§16 — Papa n'existe pas dans l'espace de Massimo.** « ajouté par ZETIS ». Cinq surfaces + le
-   module `chat` du serveur. Deux verrous de dépôt.
-5. **§17 — la bande ouvre un jour**, et le plafond de « À reprendre » passe du **filtrage** à
-   l'**affichage** (3 + dépliage).
+### DÉCISIONS ACTIVES — à relire, pas à rouvrir
 
-### 🔴 CE QUE LA RELECTURE VISUELLE A RAPPORTÉ — quatre défauts, zéro test rouge
-
-Les trois suites étaient vertes **et tous les verrous avaient été sabotés**. L'écran a quand même
-rendu quatre choses :
-
-1. 🔴 **Le teal de la leçon était à 16° de teinte de l'émeraude d'à côté** (oklch 181 vs 165, même
-   clarté, même chroma) — indiscernables sur deux badges de 10 px, et l'émeraude **veut dire
-   « Papa »** chez Massimo. Passé à l'**indigo** (110°). *Aucun test ne mesure une teinte.*
-2. **La puce 🎯 dans l'angle mangeait un tiers de la largeur du titre** sur une carte de **81 px**.
-   Passée **sous** la carte en vue semaine. *Aucun test ne mesure une colonne.*
-3. **Taper un jour passé ne faisait RIEN** — `scrollToDay` sortait en silence, et le serveur ne
-   renvoie jamais d'échéance sur le passé : le tap était muet sur **tous** les jours passés.
-4. **Retirer le placeholder laissait l'intitulé sans nom** sous `lg` (en-têtes masqués) — remis en
-   **repère** (`Intitulé`), pas en exemple.
-
-> **La leçon de la session** : cinq des six décisions sont nées d'une relecture à l'écran, pas
-> d'un test. Les tests ont protégé les invariants ; ils n'ont vu **aucun** des quatre défauts.
-
-### DÉCISIONS ACTIVES du chantier PRÉCÉDENT (#107, mergé) — à relire, pas à rouvrir
-
-- **Le résumé est calculé SERVEUR**, une règle par type, un seul endroit.
-- **Une ROUTE, pas un `BlockedTargetOut`** : celui-ci exige `lesson_id` **et** `chapter_id`, or un
-  diagnostic n'a aucune leçon, `curriculum_lessons` en a sept, `srs_cards_generate` n'a qu'un
-  `skill_id`. Le réutiliser fabriquerait des valeurs.
-- 🔴 **Rien produit ⇒ aucune route**, aux deux étages. Test-verrou aux deux.
-- ⚠️ **`avertissement` est AMBRE, jamais rouge** — ne rien produire parce que tout existait déjà est
-  un résultat *correct*.
-- **Le libellé nomme sa destination ET son grain.** « voir les diagnostics d'Histoire-Géo → » est
-  acceptable là où « Produire le quiz de cette notion → » ne l'était pas (`adr-0047` Décision 8) :
-  **le défaut n'était pas le grain matière, c'était l'écart entre grain promis et grain servi.**
-- **`?subject=` est un AMORÇAGE**, pas une synchronisation. Le `focus` du bandeau reste local.
-- **La longueur du cours ne s'affiche pas** : `content_chars` vit sur la trace `parent`, exclue.
+1. **L'invariant du §11** : ni `due_at`, ni `interval_days`, ni `last_reviewed_at` ne bougent.
+2. **La porte est l'échéance d'agenda, et ELLE SEULE.** 🔴 Le drill-in permanent depuis `/revision`
+   est l'option (b), **écartée** — un verrou de dépôt interdit toute occurrence du deck chapitre
+   sous `pages/Revision*`. Il paraîtra manquant : **c'est décidé, pas oublié.**
+3. **Deck vide ⇒ la porte n'EXISTE PAS.** Ni gris, ni explication. Pas le cas de l'`adr-0024` §4.
+4. 🔴 **Le client déclare un CONTEXTE, jamais un EFFET.** L'attempt porte `{chapter: id}`, le
+   serveur revalide. Un booléen `non_scheduling` piloté par le client est **écarté par écrit**.
+5. **XP PLEIN (5)**, `reason = "review_chapter"` — pas les 2 XP du re-tour.
+6. On retire `due_at <= now`, **et rien d'autre** : `due_at IS NOT NULL` et le filtre de statut
+   restent, sinon les cartes `pending` seraient servies.
+7. La traversée chapitre → notions vit dans **`lesson_resolution.py`** (résolveur neutre), plus
+   dans `missions` — un cycle d'import l'imposait.
 
 ### EN COURS — rien d'instable
 
-Aucun fichier à moitié écrit. L'arbre est propre, tout est commité.
+Arbre propre au moment du commit. `CHANGELOG.md` **0.72.0**, `TROUBLESHOOTING.md` sa section, et ce
+fichier restent **non commités** — ils sont la clôture, à committer sur la branche.
 
-### ✅ PIÈGES de la session agenda — ÉCRITS dans `TROUBLESHOOTING.md`
+### ✅ PIÈGES du chantier — ÉCRITS dans `TROUBLESHOOTING.md`
 
-Section **« L'agenda devient utilisable — six addenda ADR-0025 §13→§17 — 2026-08-10 »**, **dix
-sous-sections** : le verrou front qui aurait été vert sur trois phrases fabriquées côté serveur ·
-`_KIND_PRIORITY.get(kind, 9)` et son défaut muet · `alembic current` qui répond le DEV
-(`ZETIS_DATABASE_URL`) · `internal: true` qui rend la publication de port inopérante · `tail -3`
-aveugle au marqueur de `pg_dump` 16 · le `PATCH` partiel qui périme une donnée · `Chapter` sans
-`subject_id` · les clics du panneau navigateur qui ne déclenchent pas React · l'octet NUL dans un
-fichier écrit · et ce que **quatre défauts visuels** disent des tests.
+Section **« Le deck de révision par chapitre (ADR-0049) — 2026-08-10 »**, **six** sous-sections :
+le cycle `memory → missions` qui casse `app.main` · **mon test de cycle invalide qui concluait
+« pas de cycle »** · 🔴 **le verrou central vert sur son sabotage** (4ᵉ occurrence) · la constante
+supprimée en réécrivant un bloc · **`npx tsc` qui ne tourne pas sous un `echo OK`** · la fixture de
+Massimo déjà incomplète avant le chantier.
+
+### ⚠️ DETTES NÉES DE CE CHANTIER
+
+- 🔴 **Les tests de Massimo ne sont PAS typecheckés** (`tsconfig.app.json` les exclut) — la fixture
+  `agendaSections.test.ts` omettait **déjà** `lesson_id` et `chapter_id` avant ce chantier. Les
+  trois fixtures sont complétées ; **la dette de typecheck reste entière**.
+- ⚠️ **Le nom du chapitre n'existe pas côté Massimo** — l'en-tête de session porte l'intitulé de
+  l'échéance. Le correctif propre serait un `chapter_name` au payload serveur.
+- ⚠️ `revisable_counts` fait **une requête par chapitre distinct** de la page.
+- ⚠️ **Le chemin « carte non due » n'a jamais tourné en vrai** : les cartes du chapitre 6 étaient
+  dues. Tenu par les tests seulement.
+- ⚠️ **Donnée de dev** : l'échéance **19** est avancée au **11/08** (au lieu du 16/09) pour que les
+  deux états soient côte à côte sur `/agenda`.
+
 
 ### ⚠️ DETTES OUVERTES du chantier PRÉCÉDENT (#107)
 
@@ -263,23 +244,33 @@ fichier écrit · et ce que **quatre défauts visuels** disent des tests.
 
 ### ▶▶ PROCHAIN PAS
 
-1. ✅ ~~Commit~~ · ✅ ~~push~~ · ✅ ~~PR #108~~ · ✅ ~~merge (squash `526b9b8`)~~ ·
-   ✅ ~~**migration prod**~~ · ✅ ~~**étape 4bis**~~ — **tout fait le 2026-08-10**, et cette section
-   a été remise au réel **dans l'heure** de chaque geste (`docs/WORKFLOW.md §5`). Les annonces
-   « non poussé », « PR ouverte » et « prod à faire » n'ont jamais survécu à leur péremption.
-   **Ce chantier est CLOS.**
-2. ✅ ~~`TROUBLESHOOTING.md`~~ — **les QUATRE contrôles du `WORKFLOW.md §6.3` passent** : ADR ✅
-   (cinq addenda) · `TROUBLESHOOTING.md` ✅ (1 section, 10 sous-sections) · `CHANGELOG.md` ✅
-   (0.66.0 → 0.71.0) · dettes remontées ✅. 👉 **Cette section peut être ÉLAGUÉE de ce fichier à la
-   clôture du chantier suivant** — ses dettes survivantes sont à remonter au § du même nom.
-3. 🔴 **PROCHAIN CHANTIER : `/ouverture`** depuis un `main` propre.
-   ⚠️ **Ce n'est PAS la refonte T0/T_n** — liste d'attente, read-before-code déjà écrit au
-   `BACKLOG.md`, **à ne pas refaire**.
-4. **Le candidat le plus mûr** : le **couplage 2 (§11)** — deck de révision par chapitre +
-   extension du non-scheduling. Il débloque « réviser » **et** le plan de préparation, les deux
-   manques que ce chantier a nommés sans les combler, et que le §14.6 refuse explicitement de
-   promettre tant qu'ils n'existent pas.
-5. **Toujours en attente** : 🔴 **ouvrir LE diagnostic depuis Papa** (§ DETTES du chantier #107).
+> ⚠️ Le chantier agenda (#108) est **CLOS** : commit, push, merge (squash `526b9b8`), migration
+> prod et étape 4bis, tous faits le 2026-08-10. Ses quatre contrôles du `WORKFLOW.md §6.3`
+> passaient (ADR · `TROUBLESHOOTING` · `CHANGELOG` 0.66→0.71 · dettes remontées), et son récit a
+> été **élagué de ce fichier** à la clôture du présent chantier — ses dettes survivent aux §§
+> ci-dessus.
+
+1. ✅ ~~Commit~~ · ✅ ~~push~~ · ✅ ~~PR #109~~ — faits le 2026-08-10, **sur demande explicite du
+   user** (dérogation assumée). ✅ ~~Relecture visuelle~~ — faite, **aucun défaut remonté**.
+2. 🔴 **RESTE À COMMITTER sur la branche** : `CHANGELOG.md` **0.72.0**, la section
+   `TROUBLESHOOTING.md`, et ce fichier. Ils sont écrits, **pas commités**.
+3. 🔴 **MERGER la PR #109**, puis **étape 4bis** (`docs/WORKFLOW.md §5`) — remettre ce fichier au
+   réel **dans l'heure**, et surtout **ÉTEINDRE LES ANNONCES « À FAIRE »** là où ce chantier était
+   promis :
+   - `docs/decisions/adr-0025-addendum-lecon-a-apprendre.md` **§14.6** dit encore *« le couplage 2
+     du §11, livré à 0 % »* et *« aucune affordance de l'agenda ne doit suggérer une session de
+     révision »* — **les deux sont devenus faux** ;
+   - `docs/frontend-massimo/page-revision.md` §« Hors périmètre V1 » ;
+   - `DECISIONS.md`, l. 319 et 323, qui portent le même « livré à 0 % ».
+   ⚠️ **Aucun des quatre contrôles de l'étape 4bis ne demande ce geste-là** — c'est le cinquième,
+   et c'est celui qui a manqué vingt-quatre heures sur l'`adr-0044`.
+4. **AUCUNE migration à poser en prod** pour ce chantier. ⚠️ Mais deux migrations héritées y
+   restent dues (§ DETTES) — vérifier avant de croire la prod à jour.
+5. **Le chantier suivant, désormais débloqué** : le **plan de préparation** (`plan_steps`, câblé et
+   vide, §8 rôle 1 de l'ADR-0025). Le §14.6 le faisait dépendre du couplage 2 ; ses étapes sont
+   « lire la fiche · mini-quiz · **réviser les cartes du chapitre** », et la troisième existe enfin.
+   ⚠️ Il demandera d'abord de trancher `step_type = lesson`, **déclaré mais mort**.
+6. **Toujours en attente** : 🔴 **ouvrir LE diagnostic depuis Papa** (§ DETTES du chantier #107).
 
 
 ## Dettes SURVIVANTES des chantiers élagués
