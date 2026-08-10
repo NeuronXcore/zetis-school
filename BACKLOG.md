@@ -615,6 +615,106 @@ deux chapitres consécutifs. C'est mesurable dès aujourd'hui, et c'est le motif
 d'exister**. Il ne se construit pas « pour être sûr » — il se construit le jour où l'écart est
 observé.
 
+## Ce qu'une passation de diagnostic a montré — 1 DÉFAUT + 2 candidats (2026-08-11)
+
+> Relevé par le commanditaire sur la page Diagnostic de Papa, passation **56** (Histoire-Géo,
+> 9 août, 8 notions, 50 %). **Tout ce qui suit est vérifié en base**, pas déduit de l'écran.
+>
+> Le décor : les 8 notions se répartissent sur **deux leçons seulement** — la **25**
+> (*« La crise de l'Ancien Régime… »*, `draft`, cours **écrit**, 4 notions dont 3 en lacune) et la
+> **26** (*« 1789 : l'année de la rupture révolutionnaire »*, `draft`, cours **VIDE**, 4 notions
+> dont 3 en lacune).
+
+### 🔴 DÉFAUT — on peut valider un cours VIDE, et la page invite à le faire
+
+`set_lesson_validation` (`apps/backend/app/modules/curriculum/service.py:1139`) ne vérifie **que le
+statut** (`draft`, sinon 409). **Aucune garde sur le contenu.** Une leçon dont
+`content_markdown` est vide peut donc passer `validated`.
+
+Or la page Diagnostic affiche, sur les trois lacunes de la leçon **26**, le bouton
+« **Valider le cours de cette leçon →** ». Le suivre produirait une leçon **validée sans une ligne
+à lire**, que Massimo pourra ouvrir — et que le gate de l'ADR-0011 laissera passer, puisqu'il
+filtre sur `validated`.
+
+🔴 **Ce n'est pas une hypothèse : c'est la dette du 2026-08-04**, *« 39 leçons `validated` VIDES
+font mentir le motif du gate »*. La page ne crée pas le défaut, **elle y conduit**.
+
+**Correctif minimal** : refuser la validation d'une leçon au cours vide (409, comme le statut), et
+que la surface propose alors **« Rédiger le cours »** — la route existe déjà
+(`POST /lessons/{id}/generate-content`, ADR-0041 §4). ⚠️ Vérifier d'abord les **autres appelants**
+de `set_lesson_validation` : `validate_all_lessons`, `validate_all_chapters`,
+`validate_all_active_year` et `equip_notion` (qui passe `by=` depuis le correctif du 2026-08-02).
+Une garde posée au mauvais étage casserait la validation en lot.
+
+### 🟡 CANDIDAT — la page présente N lacunes là où il y a N cours à traiter
+
+Six lacunes, **six fois le même paragraphe de cinq lignes**, et six boutons qui ne font que **deux**
+gestes distincts. Deux validations résolvent les six.
+
+C'est la famille des « trois plans identiques » de l'agenda (ADR-0050) : l'écran **multiplie une
+cause** au lieu de la nommer. L'information utile — *deux cours à traiter, l'un écrit, l'autre
+vide* — est noyée dans la répétition.
+
+**Arbitrages à rendre** : regrouper par **leçon** plutôt que par notion (et alors, que devient une
+lacune sans leçon ?) · ou garder la liste par notion mais ne dire la cause **qu'une fois** · et
+distinguer visuellement « cours écrit à valider » de « cours à écrire », qui ne demandent pas le
+même geste.
+
+⚠️ **Ne pas fusionner les lacunes en base** : le grain de la `Gap` est la **notion**, et c'est juste
+— c'est le **rendu** qui groupe, jamais la donnée.
+
+### 🟡 CANDIDAT — l'aveu de Massimo pèse moins qu'un score
+
+Sur *Prise de la Bastille* : **80 %**, palier « en cours », **aucune lacune ouverte** — et Massimo
+écrit lui-même « **J'ai deviné.** ». Sur la leçon 26, celle dont le cours est vide.
+
+⚠️ **Le bandeau ne ment pas**, et c'est important pour ne pas corriger à côté : il dit *« rien à
+signaler **sur les conditions** de cette passation »*, ce qui est exact — l'ADR-0048 mesure les
+conditions de passation (triche), **pas la confiance dans une réponse**. Ce n'est donc pas un bug :
+c'est un **trou entre deux mécanismes** qui se rencontrent sur un même écran, la verbalisation de
+l'`adr-0043` et la fiabilité de l'`adr-0048`.
+
+Le fond reste : **une notion à 40 % sans commentaire ouvre une lacune ; une notion à 80 % avec
+« j'ai deviné » n'en ouvre aucune.**
+
+**Arbitrages** : la verbalisation doit-elle peser sur le **palier**, sur la **lacune**, ou
+seulement **alerter** ? · qui l'interprète — un LLM local, ou un simple relevé de présence de la
+phrase ? · et 🔴 **le risque à ne pas prendre** : si dire « j'ai deviné » coûte à Massimo (une
+lacune de plus, un palier qui baisse), **il cessera de le dire**. La franchise ne doit jamais être
+tarifée. Une lecture pour Papa est probablement plus juste qu'un effet automatique.
+
+⚠️ **Un fait déjà collecté et sans consommateur** : `reliability_json` de la passation 56 porte
+`acquises_sans_trace: 1` — une notion acquise sans trace d'activité. Aucun indice, aucun
+déclencheur. Le signal existe, il ne sert à rien.
+
+### 🔴🔴 IL N'Y A PAS DE SIGNAL À ATTENDRE — c'est déjà l'état de la base
+
+J'avais d'abord écrit ici *« le signal qui dirait d'ouvrir : une leçon `validated` vide »*. **La
+requête a été lancée, et elle est déjà positive — largement** (base de DEV, 2026-08-11) :
+
+```sql
+select count(*) filter (where status='validated' and coalesce(content_markdown,'')='') from lessons;
+```
+
+| | |
+|---|---|
+| Leçons `validated` **VIDES** | 🔴 **50** |
+| Leçons `validated` au total | 88 |
+| **Part du corpus validé qui est vide** | **57 %** |
+| Brouillons vides (normal, en attente de rédaction) | 60 |
+
+**Ce n'est donc pas un risque à surveiller, c'est une situation installée.** Et elle a **grossi** :
+la dette du 2026-08-04 en comptait **39**, il y en a **50**.
+
+⚠️ **Conséquence à mesurer avant tout correctif** : le gate de l'ADR-0011 filtre sur
+`status = 'validated'` **et rien d'autre**. Ces 50 leçons sont donc, par contrat, **servables à
+Massimo** — reste à établir combien sont réellement atteignables depuis une surface, et par
+laquelle. C'est le **premier read-before-code** du chantier, avant toute garde ajoutée.
+
+🔴 **Et la garde seule ne suffira pas** : elle empêche d'en créer de nouvelles, elle ne dit rien
+des 50 existantes. Il faudra trancher leur sort — les repasser en `draft`, leur commander une
+rédaction, ou les archiver — et **ce n'est pas une décision technique**.
+
 ## Dettes nommées — consignées, non traitées
 
 ### Nées du chantier ADR-0046 (2026-08-08)
