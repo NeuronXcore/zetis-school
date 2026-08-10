@@ -7,13 +7,13 @@
 ## État à la reprise
 
 **Chantier : le plan de préparation — ADR-0050**, qui réalise le §8 rôle 1 de l'ADR-0025 (le rôle
-de « traducteur »). ✅ **COMPLET — les trois sessions sont livrées et commitées.**
-🔴 **RIEN N'EST POUSSÉ, ET IL N'Y A PAS DE PR.**
+de « traducteur »). ✅ **COMPLET — les trois sessions sont livrées, commitées et POUSSÉES.**
+🔴 **Il n'y a PAS ENCORE DE PR**, et la relecture visuelle humaine la précède.
 
 | | |
 |---|---|
-| **Branche** | `feat/plan-de-preparation`, forkée à **`03b38d2`**. 🔴 **10 commits d'avance sur `origin`** — `git log --oneline origin/feat/plan-de-preparation..HEAD` |
-| 🔴 **`main`** | **4 commits d'ADR non poussés** (`origin/main` est resté à `03b38d2`). Sept commits d'ADR-0050 en tout : `fab8a6a` `3a04900` `03b38d2` **avant** le fork, `98c5de1` `17b2ffd` `b1fc862` `9689a27` **après**, tous re-mergés dans la branche |
+| **Branche** | `feat/plan-de-preparation`, forkée à **`03b38d2`**, **poussée et à jour** (`0 0`). Son contenu : `git log --oneline main..feat/plan-de-preparation` |
+| **`main`** | **poussé et à jour**. Sept commits d'ADR-0050 : `fab8a6a` `3a04900` `03b38d2` **avant** le fork, `98c5de1` `17b2ffd` `b1fc862` `9689a27` **après**, tous re-mergés dans la branche |
 | 🔴 **Migration** | **`b2c3d4e5f9a1`** — appliquée en DEV, downgrade/upgrade rejoués. **PAS en prod**, et elle ne peut pas y aller avant le merge (l'entrypoint fait `upgrade head` au démarrage). ⚠️ **Combien de révisions sont dues, on ne le sait PAS** — voir ci-dessous |
 | **Suites** | Backend **1181** · Massimo **626** · Papa **794**. **25 sabotages, 25 rougissements** — 12 (B) + 7 (C) + **6 d'une CLASSE neuve** : *« la surface disparaît »* |
 | ⏳ **Relecture visuelle** | 🔴 **PAS FAITE PAR L'HUMAIN** — l'ADR la veut AVANT la PR. Les deux interfaces ont été vues et **mesurées dans le DOM** par Claude, ce n'est pas la même chose |
@@ -312,8 +312,8 @@ Section `feat/plan-de-preparation`. Les trois qui coûteraient le plus à redéc
    **Ce qu'il faut regarder ensuite** : les deux
    arbitrages d'écran du § plus haut (la porte absorbée, l'icône `🗒️`), et les **trois plans
    identiques** sur les trois échéances de fractions.
-2. **Pousser `main`** (4 commits d'ADR) **puis la branche** (10 commits). Dans cet ordre : la
-   branche référence des décisions qui doivent exister sur `main`.
+2. ✅ ~~Pousser `main` puis la branche~~ — **FAIT le 2026-08-10**, dans cet ordre (la branche
+   référence des décisions qui doivent exister sur `main`), les deux vérifiés à `0 0`.
 3. **Ouvrir la PR**, la faire relire, merger en **squash**.
 4. 🔴 **APRÈS le merge : poser `b2c3d4e5f9a1` en prod.**
 
