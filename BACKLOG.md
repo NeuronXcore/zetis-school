@@ -515,6 +515,106 @@ Une lacune de 4e qui se **rouvre après remédiation** — c'est la signature d'
 dessous, et c'est précisément ce qu'aucune mesure actuelle ne peut voir. À surveiller sur les
 `gaps` : une `Gap` résolue puis rouverte sur la même notion.
 
+## La déclaration et la preuve peuvent diverger — 🟡 CANDIDAT, NON CADRÉ (2026-08-11)
+
+> **Né d'une question du commanditaire**, posée après la relecture de l'agenda :
+> *« comment s'assurer que Massimo ne fait pas que cocher les cases des devoirs sans lire les
+> leçons ? »* Aucune ligne de code écrite. Ce qui suit est l'analyse, pour que le cadrage — s'il a
+> lieu — ne reparte pas de zéro **et ne reparte pas dans la mauvaise direction**.
+
+### 🔴 Le verbe « s'assurer » est le piège, et le dépôt le sait déjà
+
+**On ne peut pas vérifier une lecture.** Tout mécanisme qui essaie devient de la surveillance, et
+deux décisions existantes s'y opposent frontalement :
+
+- **ADR-0025 §2a** — le marqueur « complété par ZETIS » existe pour que *« la surveillance ne rentre
+  pas par la porte de service »* ;
+- **ADR-0025 §2b** — Papa ne coche pas, parce que *« si le parent coche, la case devient une
+  validation parentale et l'agenda devient un instrument de contrôle »*.
+
+Une case qu'il faudrait **mériter** fait exactement ce que le §2b refuse, avec un pas de plus.
+
+### ✅ Ce qui protège déjà : cocher ne rapporte RIEN
+
+`done_at` ne crédite **aucun XP** et ne déclenche **aucune célébration** — ADR-0050 Décision 5, dont
+le motif tient en une phrase : *« sinon Massimo apprend à cocher »*. Et **jouer l'activité ne coche
+rien** : les deux sont délibérément déconnectés.
+
+**Le système est donc déjà construit pour que lui mentir soit sans intérêt.** Le risque n'est pas
+qu'il triche ZETIS — c'est que **personne ne remarque qu'il ne travaille pas**. Ce n'est pas la même
+question, et elle a une bien meilleure réponse.
+
+### La question utile : l'ÉCART entre ce qui est déclaré et ce qui a eu lieu
+
+ZETIS détient déjà des preuves **qu'on ne peut pas cocher** — elles ont eu lieu ou non :
+
+| Source | Ce qu'elle prouve |
+|---|---|
+| `SpacedReviewAttempt` | une session de cartes a réellement tourné |
+| `quiz_attempts` | un quiz a été passé, avec un score |
+| `learning_events` | l'activité — ce sont les points verts de la bande |
+| `skill_mastery_history` | les bascules de palier |
+| le diagnostic + `fiabilite` (ADR-0048) | ZETIS sait déjà **douter de sa propre mesure** |
+
+Le signal recherché n'est donc pas *« a-t-il coché ? »* mais **« il coche, et rien d'autre ne
+bouge »**. Une semaine où `done_at` se remplit pendant que `learning_events` reste vide est lisible
+**aujourd'hui, sans une ligne d'instrumentation neuve**.
+
+✅ **Et l'ADR-0050 a déjà nommé son propre signal d'échec** : des étapes cochées **en rafale le
+dernier jour** (le plan est subi) ou **jamais** (il n'est pas lu) — lisible dans `done_at` contre
+`day_offset`.
+
+⚠️ **La réciproque compte autant** : *« il ne coche pas mais tout bouge »* est un bon élève qui
+n'aime pas les cases. Ça ne doit **surtout pas** être présenté comme un manquement.
+
+### 🔴 Les quatre choses à NE PAS construire
+
+1. **Un chronomètre de lecture** — il mesure la présence, pas l'attention, et enseigne à laisser
+   l'onglet ouvert.
+2. **Un quiz-péage avant d'autoriser la coche** — l'agenda devient un examen, et la coche est
+   *« le seul geste qui rend l'objet sien »*.
+3. **Un taux d'assiduité affiché à Massimo** — c'est le compteur d'arriéré que le §7 interdit sous
+   toutes ses formes.
+4. **Basculer la coche en « prouvée »** (option B de l'ADR-0050 Décision 5, **reportée**). Son
+   déclencheur est écrit — *le jour où Papa demandera à lire autre chose qu'une déclaration* — et
+   « je doute qu'il lise » n'est pas ce déclencheur. Ça mettrait **deux sémantiques sur une seule
+   case**, ce que la décision refuse explicitement.
+
+### Le levier de conception : que la SUITE le révèle, à Massimo d'abord
+
+`CLAUDE.md` prescrit *récupération active* et *verbalisation par Massimo*. Traduit ici : **ne pas
+surveiller la lecture, demander ce que la lecture produit.**
+
+C'est ce que le plan de préparation fait déjà sans le dire — il coche « lu le cours », et l'étape
+suivante est un quiz sur cette notion ou les cartes du chapitre. **S'il n'a pas lu, il le découvre
+lui-même, seul, sans que personne le lui dise.** Le levier n'est donc pas un verrou : c'est de
+rendre l'étape suivante **courte et immédiate**, pour que l'écart se manifeste tout de suite plutôt
+qu'au contrôle.
+
+### Les arbitrages à rendre à l'ouverture — aucun n'est tranché
+
+1. **Où vit la lecture ?** Dashboard Papa (une carte de plus), page Progression, ou le Cahier de
+   bord ? Elle n'a **aucune place chez Massimo** — c'est le seul point déjà acquis.
+2. **Quelle fenêtre ?** Une semaine glissante, ou l'horizon du dashboard ? Trop court = du bruit ;
+   trop long = un constat qui arrive après le contrôle.
+3. **Quel seuil, et faut-il un seuil ?** Le dépôt a déjà payé des seuils *« choisis au cadrage,
+   jamais éprouvés sur des données réelles »* (ADR-0048). Une **phrase qui décrit** vaut peut-être
+   mieux qu'un ratio qui juge.
+4. **Comment on l'écrit à Papa.** *« Massimo a coché 6 échéances cette semaine ; aucune activité
+   n'a été enregistrée sur les notions correspondantes »* est un **constat**. « Assiduité : 12 % »
+   est une note, et ce n'est pas l'enfant qu'on évalue ici.
+5. **Est-ce même une surface ?** Ça pourrait n'être qu'une entrée du **Cahier de bord IA**, écrite
+   quand l'écart apparaît, plutôt qu'un indicateur permanent qui s'allume toutes les semaines.
+
+### Le signal qui dirait qu'il faut l'ouvrir sans attendre
+
+Un chapitre dont **toutes** les échéances sont cochées et dont la **maîtrise ne bouge pas** — sur
+deux chapitres consécutifs. C'est mesurable dès aujourd'hui, et c'est le motif exact de la question.
+
+⚠️ **Et le contre-signal** : si les preuves suivent les coches, ce chantier n'a **aucune raison
+d'exister**. Il ne se construit pas « pour être sûr » — il se construit le jour où l'écart est
+observé.
+
 ## Dettes nommées — consignées, non traitées
 
 ### Nées du chantier ADR-0046 (2026-08-08)
