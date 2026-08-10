@@ -205,6 +205,26 @@ chapitre.
 > porte six notions testables. C'est voulu : le plan dit **par où commencer**, pas **tout ce qu'on
 > pourrait faire**. La panoplie complète reste accessible depuis la galaxie et la page matière.
 
+### 2 ter. L'étape dit CE QU'ELLE PRÉPARE — le contrat porte `agenda_item_id`
+
+> 🔴 **AJOUTÉE le 2026-08-10**, au read-before-code de la Session B. La rédaction d'origine mettait
+> `plan_steps` sur le **jour** (contrat du Lot 1) et refusait `agenda_item_id` à l'étape, au motif
+> qu'il serait « de la mécanique ». **Le motif était faux, et il rendait la maquette
+> inconstructible.** Amendement validé par le commanditaire.
+
+`PlanStepOut` porte **`agenda_item_id`**. Le plan se rend **sous l'échéance qu'il prépare** ; le
+jour, lui, garde `plan_steps` pour allumer son `✦` dans la bande. **Un seul payload sert les deux
+surfaces**, et aucune migration : la colonne existe depuis la Décision 1.
+
+**Pourquoi le refuser était une erreur.** Sur une semaine à deux contrôles, une étape posée sous le
+jour flotte sans dire ce qu'elle prépare : *« réviser les cartes »* — de quel chapitre ? Le contrat
+du jour date du **Lot 1**, écrit quand le plan n'existait pas ; il n'a jamais eu à répondre à cette
+question.
+
+⚠️ **`agenda_item_id` n'est pas un rouage, c'est le SUJET de l'étape.** Le commentaire d'origine
+rangeait dans « mécanique » l'information qui lui donne son sens. `sort_order`, lui, reste dehors —
+c'est bien un rouage.
+
 ### 3. Rétro-planifié sur les jours restants, borné, et jamais la veille au soir
 
 Les étapes sont réparties de **demain jusqu'à la veille de l'échéance** — jamais le jour même :
@@ -350,6 +370,10 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
    part ailleurs »*) aurait produit une étape ouvrant sur un **400**.
 2 bis. ✅ **AJOUTÉE le 2026-08-10** : une étape par **TYPE**, jamais par notion. Trois types, donc
    trois étapes au maximum — le plafond cesse d'être arbitraire. `cours` et `eli5` exclus.
+2 ter. ✅ **AJOUTÉE le 2026-08-10**, au read-before-code de la Session B : `PlanStepOut` porte
+   **`agenda_item_id`**, et le plan se rend **sous l'échéance**. Le refuser rendait la maquette
+   inconstructible et laissait les étapes orphelines sur une semaine à deux contrôles. **Aucune
+   migration.**
 3. ✅ Rétro-planning **borné à 3**, de demain à la veille, jamais le jour de l'échéance ; aucun
    plan à J+0 ou J+1.
 4. ✅ Figé à la première lecture ; **révoqué** si la date bouge, coches comprises.
