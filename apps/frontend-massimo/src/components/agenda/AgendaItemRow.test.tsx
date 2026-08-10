@@ -302,6 +302,10 @@ describe("AgendaItemRow — le plan de préparation", () => {
     // Massimo lit « mardi 11 : lire les fiches de maths ». Il ne lit jamais « offset », ni
     // « étape 2/3 générée », ni le vocabulaire du rétro-planning.
     const { container } = avecPlan(TROIS_ETAPES);
+    // ⚠️ **ANCRE POSITIVE, et elle n'est pas décorative** : sans elle, ce verrou passerait sur un
+    // plan qui ne se rend pas DU TOUT. *Un test qui n'assert qu'une absence ne verrouille rien
+    // tant qu'une présence ne l'accompagne pas* — la règle a coûté deux verrous ce chantier.
+    expect(screen.getByText("Ton plan")).toBeInTheDocument();
     for (const interdit of ["offset", "rétro", "généré", "planif", "resource"]) {
       expect(container.textContent?.toLowerCase()).not.toContain(interdit);
     }

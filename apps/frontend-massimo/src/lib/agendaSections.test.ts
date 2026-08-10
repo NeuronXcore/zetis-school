@@ -294,7 +294,15 @@ describe("planStepTarget — le grain réellement atteignable (Décision 2 quate
   it("l'icône de la fiche ne se confond pas avec celle du cours", () => {
     // 📖 est déjà la puce « lire le cours », deux lignes plus haut sur la MÊME carte. La
     // maquette du cadrage portait 📖 ; elle n'avait pas la puce sous les yeux.
-    expect(planStepTarget(step({ id: 10, kind: "fiche" }), CONTROLE).icon).not.toBe("📖");
+    //
+    // ⚠️ On assert l'ÉGALITÉ, pas seulement la différence : `not.toBe("📖")` passerait sur une
+    // icône vide, ou sur `undefined`. Une assertion de non-égalité n'est pas un verrou.
+    expect(planStepTarget(step({ id: 10, kind: "fiche" }), CONTROLE).icon).toBe("🗒️");
+    // Et les trois types restent distincts entre eux — sinon le plan devient illisible.
+    const icones = (["fiche", "revision", "quiz"] as const).map(
+      (kind) => planStepTarget(step({ id: 1, kind }), CONTROLE).icon,
+    );
+    expect(new Set(icones).size).toBe(3);
   });
 });
 

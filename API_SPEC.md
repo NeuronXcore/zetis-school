@@ -1968,13 +1968,41 @@ days[]: { date, offset, traces, fixed_items[], plan_steps[] }
   venir). Nombre de **natures d'activité distinctes** du jour (types d'événement, navigation
   exclue), plafonné à `AGENDA_TRACES_CAP` — pas une durée, pas un score. Une rafale de révision
   vaut 1. `traces = 0` et « pas de donnée » sont **le même état**.
-- `fixed_items[]` : **uniquement si `date >= today`**, `[]` sinon.
-- `plan_steps[]` : toujours `[]` en Lot 1 (champ au contrat, rempli au Lot 2).
+- `fixed_items[]` : **uniquement si `date >= today`**, `[]` sinon. Chaque item porte aussi
+  `lesson_id` / `chapter_id` (adresses de contenu, addendum §15) et **`revisable_cards`** — combien
+  de cartes le deck de son chapitre servirait, **plafond compris** (ADR-0049). `0` ⇒ la surface ne
+  rend **aucune** porte de révision.
+- `plan_steps[]` : **rempli depuis l'ADR-0050** (il valait `[]` en dur depuis le Lot 1). Les étapes
+  qui tombent **ce jour-là**, toutes échéances confondues, `[]` sur un jour passé.
+  ```txt
+  { id, agenda_item_id, kind, day_offset, skill_id, resource_id, done }
+  ```
+  ⚠️ **`agenda_item_id` est le SUJET de l'étape, pas un rouage** (Décision 2 ter) : le client rend
+  le plan **sous l'échéance qu'il prépare**, et n'utilise le groupement par jour que pour allumer
+  son `✦` dans la bande. Un seul payload, deux surfaces.
+  ⚠️ **`day_offset` compte à REBOURS** : `1` = la veille, jamais `0`.
+  🔴 **Cette lecture COMPOSE le plan si elle est la première** (§8 rôle 1) — c'est une écriture
+  assumée dans un `GET`, et elle commit.
 
 #### GET `/upcoming`
 
 `kind ∈ (controle, rendu)`, non fait, non archivé, horizon 21 jours, **max 4**, trié par date.
 → `{ id, label, subject, due_on, days_left, has_plan }`.
+
+`has_plan` est vrai **si et seulement si** le plan a au moins une étape — un `has_plan` optimiste
+ferait apparaître un signe qui n'ouvre rien.
+
+#### POST `/plan-steps/{id}/done` · POST `/plan-steps/{id}/undone`
+
+Massimo **coche** une étape de son plan (ADR-0050 Décision 5, option A). → `PlanStepOut`.
+
+🔴 **Aucun XP, aucune célébration, aucune écriture pédagogique** — ni `skill_mastery`, ni SRS, ni
+`evidence`. *Cocher ne prouve rien* (ADR-0025 §3) ; récompenser le geste apprendrait à cocher.
+
+⚠️ **Jouer l'activité ne passe jamais par ici** : une session de cartes ne coche aucune étape, et
+cocher n'exige pas d'avoir joué. La variante « prouvée par la trace » est **reportée**.
+
+Étape inexistante, ou appartenant à l'échéance d'un autre élève → **404**, jamais 403.
 
 #### GET `/items?from=&to=`
 
@@ -2014,11 +2042,28 @@ jamais en date.
 
 ### Pilotage Papa — `/api/agenda`
 
-`require_parent`. Schéma `AgendaItemPilotOut`.
+`require_parent`. Schéma `AgendaItemPilotOut` — sur-ensemble de la vue élève (`parent_note`,
+`dismissed_at`, horodatages), plus **`plan_steps_total` / `plan_steps_done`** (ADR-0050
+Décision 7).
+
+> 🔴 **Deux entiers, JAMAIS les étapes.** Servir les étapes à Papa ferait du plan un objet de
+> pilotage : il lirait ce que ZETIS a proposé, puis voudrait le corriger — et le plan cesserait
+> d'être un service rendu à Massimo. Un test-verrou assert sur le **JSON sérialisé** qu'aucun
+> `day_offset`, `sort_order` ni `resource_id` n'atteint cette frontière.
+>
+> 🔴 **AUCUNE de ces routes ne COMPOSE de plan.** Elles passent par `plan_counts` — un compteur
+> **pur et en lot** —, jamais par `get_or_create_plan`. Sinon Papa figerait le plan de son fils en
+> relevant l'ENT le dimanche soir, sur un référentiel antérieur aux fiches qu'il s'apprête à
+> valider. Même frontière que `done_at` : il lit, il n'écrit pas.
+>
+> ⚠️ **Toutes** les routes ci-dessous servent ces deux champs, y compris les unitaires : une
+> réponse qui rendrait un compte périmé mentirait juste après le geste qui l'a changé — le cas
+> concret est le `PATCH` de `due_on`, qui **supprime** le plan et doit répondre `0/0`.
 
 #### GET `/items?from=&to=`
 
-Archivés inclus, marqués.
+Archivés inclus, marqués. ⚠️ Un item archivé **garde son plan** : `drop_plan` n'est appelé que
+sur un déplacement de date, jamais à l'archivage.
 
 #### POST `/items`
 

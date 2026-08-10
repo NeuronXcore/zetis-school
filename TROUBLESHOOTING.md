@@ -4823,3 +4823,157 @@ cd apps/frontend-massimo && node_modules/.bin/tsc --noEmit --jsx react-jsx \
 `import.meta.url` rend un chemin tronqué sous vitest — consigné par `src/voix-de-zetis.test.ts`, et
 retrouvé à l'identique en écrivant le verrou de dépôt de ce chantier. `process.cwd()` est la
 racine du paquet.
+
+---
+
+## Le plan de préparation (ADR-0050) — 2026-08-10
+
+> Trois sessions, branche `feat/plan-de-preparation`. **Dix-neuf sabotages, dix-neuf
+> rougissements** — mais **six** de mes verrous ont d'abord été **verts** sur le leur, dont deux
+> motifs que le dépôt n'avait jamais rencontrés. C'est le rendement de la manœuvre, pas son échec.
+
+### 🔴 Composer dans un `GET` : le plan existait, et n'existait pas
+
+`get_or_create_plan` est appelé depuis des **lectures** (la bande, « ce qui arrive »), et ces
+routes ne committent pas. Un `db.flush()` seul assignait les ids, servait le plan au client…
+puis la transaction était annulée en fin de requête.
+
+**Symptôme** : le plan s'affichait, avec des ids plausibles, et la coche répondait **404**. Chaque
+lecture recomposait tout. **Aucun test d'affichage ne pouvait le voir** — le payload était juste.
+
+**Parade** : `db.commit()` + `db.refresh()`, avec un commentaire qui assume l'écriture dans un
+`GET` — c'est *la « première lecture »* du §8, le moment même où le plan naît.
+
+⚠️ **Conséquence à connaître** : la **surface qui lit en premier fige le plan**. C'est pour ça que
+le pilotage de Papa passe par un compteur **pur** (`plan_counts`) et non par `get_or_create_plan`
+— sinon Papa figerait le plan de son fils en relevant l'ENT le dimanche soir.
+
+### 🔴 Deux motifs NEUFS de verrou vert sur son sabotage
+
+Le dépôt connaissait déjà « la contre-épreuve mal visée » et « la garde double qui sauve le test ».
+En voici deux autres, tous deux payés le 2026-08-10.
+
+**1. Les deux réponses coïncident.** Le verrou disait : *« déplacer la date rend `0/0` »*. Or
+déplacer la date **supprime** le plan — donc un `pilot_out(plan={})` fautif rend **exactement la
+même chose** que le code correct. Le test ne pouvait pas les distinguer.
+→ **Parade** : il faut un cas où la bonne réponse est **non nulle**. Ici, `PUT /items/{id}/note`,
+qui ne touche pas au plan et doit rendre `3/1`.
+→ **Règle générale** : *un verrou qui n'assert que sur la valeur d'absence ne verrouille rien tant
+qu'un cas de présence ne l'accompagne pas.*
+
+**2. L'assertion trop large qu'on ne peut pas resserrer.** Le verrou cherchait « faites » dans
+**tout le panneau** pour tenir le §14.7. Il passait sur le sabotage (`« 3 cochées faites par lui »`
+ne contient ni « étapes faites » ni « 3 faites ») — et l'élargir à `/faites?/` était impossible :
+le panneau contient légitimement *« marquer cette échéance comme faite »*.
+→ **Parade** : viser **la phrase**, pas le conteneur. `screen.getByText(/ZETIS a proposé/)`, puis
+assert sur son `textContent`.
+
+### 🔴 La généralisation, trouvée par un audit APRÈS coup : six verrous sans ancre positive
+
+Les deux motifs ci-dessus sont deux cas d'une même règle, qu'on peut chercher **systématiquement** :
+
+> **Un verrou qui n'assert qu'une ABSENCE ne verrouille rien tant qu'une PRÉSENCE ne
+> l'accompagne pas.** Un écran vide satisfait toute assertion négative aussi bien qu'un écran
+> correct.
+
+Les dix-neuf sabotages du chantier étaient rouges, et pourtant **six verrous** n'assertaient qu'une
+absence — *« la mécanique reste invisible »*, *« jamais fait »*, *« aucune affordance de
+pilotage »*, *« plus aucune annonce pas-encore-possible »*, *« Papa ne reçoit jamais les étapes »*,
+et une icône assertée par `not.toBe()`. **Aucun des sabotages existants ne les visait** : ils
+faisaient tous varier un comportement, jamais **disparaître la surface**.
+
+**Parade — une CLASSE de sabotage à jouer une fois par chantier** : faire disparaître ce que le
+verrou est censé constater (`{false && (…)}`, un service qui rend `[]`, un paragraphe supprimé).
+Six sur six passaient avant l'ajout des ancres ; six sur six rougissent après.
+
+⚠️ **Corollaire d'écriture** : `expect(x).not.toBe("📖")` n'est **pas** un verrou — il passe sur
+`""`, sur `undefined`, sur tout sauf une valeur. Asserter l'**égalité**, et la distinction entre
+frères (`new Set(icônes).size === 3`) si c'est ça qu'on veut tenir.
+
+⚠️ **Et le sabotage lui-même se rate** : couper la *moitié* d'une phrase laissait l'ancre matcher
+sur le reste, et rendait le verrou vert. **Deuxième sabotage mal visé du chantier.** Quand un
+sabotage ne rougit pas, la première hypothèse est qu'il est mal visé — pas que le verrou est
+mauvais.
+
+### 🔴 Asserter sur un id de ligne est faux sous SQLite
+
+SQLite **réattribue les rowids après un `DELETE`**. Un plan supprimé puis recomposé revient donc
+avec `{1, 2, 3}` : **deux sabotages sont passés verts**. Asserter sur la **promesse** (la coche est
+perdue / survit), jamais sur l'identité.
+
+### 🔴 `npx tsc` ne lance pas TypeScript — et `| tail` masque l'échec
+
+`npx tsc` répond *« This is not the tsc command you are looking for »* et sort en erreur. Comme la
+commande finissait par `| tail`, **le pipeline réussissait** et le `&& echo "tsc OK"` s'affichait.
+J'ai annoncé un typecheck vert qui n'avait jamais tourné.
+
+**Parade** : le binaire réel est `apps/<app>/node_modules/.bin/tsc`, lancé **par paquet** (`tsc -b`),
+et **sans pipe** — ou avec `${PIPESTATUS[0]}`.
+
+⚠️ **Asymétrie à connaître** : `tsc -b` **vérifie les tests de Papa** (il y a attrapé les trois
+fixtures périmées d'un coup) et **PAS ceux de Massimo** — `tsconfig.app.json` les exclut. Une
+fixture incomplète y passe en silence, pour la troisième fois.
+
+### 🔴 Deux activités sur trois ne sont pas adressables par URL
+
+`FichesPage` ne lit **aucun** `searchParams` ; `QuizPage` ne lit que `subject` (et `from`). Il
+n'existe ni `/fiches?fiche=<id>` ni `/quiz?quiz=<id>`. J'avais écrit les deux.
+
+**Pourquoi c'est grave** : un lien vers un paramètre ignoré s'ouvre **sur la bonne page**, sans
+erreur, sans log — un cul-de-sac qui a l'air de marcher. **Aucun test de rendu ne le voit** : le
+lien existe, il est cliquable, son `href` est bien formé.
+
+**Parade** : ne prendre les destinations que dans `subjectRouteFor` / `notionRouteFor` (LA table de
+routage), et nommer le grain dans le libellé (règle `adr-0047`). Un test-verrou assert que
+l'identifiant de ressource **n'apparaît nulle part** dans le `href`.
+
+### ⚠️ Un libellé mesuré vaut mieux qu'un libellé raisonné : 193 px pour 151
+
+Pour nommer le grain, j'ai écrit « Lire les fiches de \<matière\> » — et je l'ai **mesuré dans le
+DOM** : **193 px pour 151 disponibles** sur une carte de téléphone, 202 px avec « Physique-Chimie ».
+Ce qui se coupait à l'ellipse était **le nom de la matière**, c'est-à-dire l'information même que
+l'allongement servait à porter.
+
+**Parade** : le grain se dit par le **pluriel** et par le **verbe** — « Lire les fiches »,
+« Choisir un quiz ». La matière est déjà sur la carte, deux lignes plus haut.
+
+**La méthode, réutilisable** : cloner le nœud du libellé, le passer en `white-space:nowrap;
+width:auto`, mesurer `scrollWidth` contre le `clientWidth` réel. Trois lignes de JS dans la page,
+et la question est tranchée.
+
+### ⚠️ Une annonce d'indisponibilité survit à sa livraison
+
+Deux trouvées **à l'écran**, aucune désignée par un test :
+
+- `UpcomingCard` (Massimo) promettait « Préparer · **bientôt** » — placeholder du Lot 1, devenu
+  faux le jour où le plan a été livré. Et `has_plan`, ajouté au contrat **pour cette carte**,
+  n'avait **aucun consommateur**.
+- `AgendaDetailPanel` (Papa) affirmait *« **Réviser les cartes du chapitre** n'est pas encore
+  possible »* — faux depuis le merge de l'`adr-0049`, **la veille**. Contrôle 4bis manqué à sa
+  clôture.
+
+**Parade adoptée** : les deux sont désormais tenues par un **test-verrou dans le code**, pas par
+une ligne de document. *« Plus aucun "bientôt" sur cette carte »* rougit si on le remet.
+
+⚠️ **Le test qui trouve ça n'existe pas** : c'est un champ servi sans consommateur. Le signe à
+chercher à chaque clôture est *« quel champ ai-je ajouté au contrat que personne ne lit ? »*.
+
+### ⚠️ `Quiz` n'a aucun `skill_id`, et les deux moitiés du plan n'ont pas le même périmètre
+
+- `Quiz` est rattaché à la **leçon** : la panoplie joint par `lesson_id`, donc **toutes les notions
+  d'une leçon résolvent le même quiz**.
+- `resolve_panoply` exige l'année active + `school_year_subject` + chapitre validé ;
+  `ordered_chapter_skill_ids` **n'exige rien**. Un chapitre peut donc résoudre des notions dont
+  aucune n'a de panoplie.
+- **La fenêtre des échéances doit être plus large que celle des jours** : une étape tombe *avant*
+  son échéance, donc un contrôle situé juste après la bande porte des étapes **dedans**.
+
+### ⚠️ Le panneau navigateur : les clics expirent, le JS passe
+
+Sur une longue session, `computer{action:"left_click"}` s'est mis à expirer à 30 s **sans erreur
+applicative** (aucun log console, aucune requête réseau). Le pane était en cause, pas l'app.
+
+**Parade** : vérifier par `read_console_messages` + `read_network_requests` que **rien n'est
+parti** — c'est ce qui distingue un clic non délivré d'un bug — puis déclencher le geste par
+`javascript_tool` (`element.click()`), qui exerce le vrai chemin React → lib → réseau. La preuve
+reste bonne : le `POST … /done → 200` et la persistance après rechargement ont été constatés.

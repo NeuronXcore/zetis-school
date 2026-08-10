@@ -139,6 +139,8 @@ describe("AgendaWeekBoard — le plan de préparation, en lecture", () => {
     // Le seul fait connu est qu'il a touché une case. Le reste de cette page l'écrit déjà
     // correctement (« ✓ coché »), et l'étiquette du plan ne doit pas rouvrir la brèche.
     const { container } = renderBoard([item({ plan_steps_total: 3, plan_steps_done: 3 })]);
+    // ⚠️ **ANCRE POSITIVE** : sans elle, ce verrou passerait sur une étiquette qui a disparu.
+    expect(etiquettePlan()).toHaveTextContent("✦ 3/3");
     expect(container.textContent).not.toMatch(/faite?s?\b/i);
     expect(container.textContent).not.toMatch(/terminé|complété|réussi/i);
   });

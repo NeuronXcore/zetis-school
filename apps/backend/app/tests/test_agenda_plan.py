@@ -510,7 +510,12 @@ def test_papa_ne_recoit_JAMAIS_les_etapes_elles_memes(papa: TestClient, client_d
     _item(papa, jours=5, chapitre=chapitre)
     _plan_du_jour(papa)
 
-    brut = json.dumps(_grille(papa))
+    grille = _grille(papa)
+    # ⚠️ **ANCRE POSITIVE, et elle n'est pas décorative** : sans elle, ce verrou passerait sur une
+    # grille VIDE — il prouverait « aucune étape servie » sur une réponse qui ne sert rien.
+    assert grille and grille[0]["plan_steps_total"] == 3
+
+    brut = json.dumps(grille)
     for interdit in ("day_offset", "sort_order", "resource_id", "plan_steps\"", "steps\":"):
         assert interdit not in brut, f"« {interdit} » ne doit jamais atteindre Papa"
 

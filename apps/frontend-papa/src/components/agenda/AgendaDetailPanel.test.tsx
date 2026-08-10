@@ -201,6 +201,9 @@ describe("AgendaDetailPanel — le plan de préparation", () => {
     // service rendu à Massimo ; le donner à corriger le transformerait en prescription d'adulte,
     // et l'agenda redeviendrait le carnet que l'ADR-0025 §8 refuse.
     renderPanel({ chapter_id: 3, plan_steps_total: 3, plan_steps_done: 1 });
+    // ⚠️ **ANCRE POSITIVE** : sans elle, ce verrou passerait sur une section qui a disparu — il
+    // prouverait « aucun bouton » sur un écran qui ne montre rien du tout.
+    expect(screen.getByText(/ZETIS a proposé/)).toBeInTheDocument();
     for (const interdit of [/générer/i, /régénérer/i, /recomposer/i, /modifier le plan/i, /étape/i]) {
       expect(screen.queryByRole("button", { name: interdit })).toBeNull();
     }
@@ -212,6 +215,9 @@ describe("AgendaDetailPanel — le plan de préparation", () => {
     // livraison est pire qu'un silence : elle décourage un geste devenu possible.
     // ⚠️ Saboter en remettant la phrase doit ROUGIR : c'est l'étape 4bis portée dans le CODE.
     const { container } = renderPanel({ chapter_id: 3 });
+    // ⚠️ **ANCRE POSITIVE** : sans elle, supprimer tout le bloc « ce que ZETIS peut faire »
+    // ferait passer ce verrou — il constaterait l'absence d'un mensonge sur un écran muet.
+    expect(screen.getByText(/réviser les cartes de ce chapitre/)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/pas encore possible/i);
     expect(container.textContent).not.toMatch(/n'est pas encore/i);
   });
