@@ -6,11 +6,15 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ▶ CHANTIER COMPLET — `fix/agenda-trois-defauts` (2026-08-10 au soir → 2026-08-11), **PR #111 OUVERTE**
+### ✅ CHANTIER MERGÉ — `fix/agenda-trois-defauts` (2026-08-10 au soir → 2026-08-11), PR #111
 
-Trois défauts de l'agenda, **tous trouvés par la RELECTURE HUMAINE** de l'ADR-0050, **tous
-corrigés et vérifiés à l'écran**. Aucun n'était visible à un test : les 25 sabotages du chantier
-faisaient varier des **comportements**, jamais des **destinations** ni des **recouvrements**.
+**CINQ défauts de l'agenda** — quatre au tableau ci-dessous, **plus un trouvé pendant la relecture
+elle-même** (§ juste après). Tous corrigés, tous vérifiés à l'écran. **Aucun n'était visible à un
+test** : les 25 sabotages du chantier précédent faisaient varier des **comportements**, jamais des
+**destinations** ni des **recouvrements**.
+
+🔴 **Trois sont nés des clics du commanditaire, en quinze minutes.** C'est le second chiffrage du
+dépôt sur ce que la relecture humaine achète, après les cinq défauts de l'ADR-0048.
 
 | Défaut | Correction | Nature |
 |---|---|---|
@@ -489,42 +493,46 @@ et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dé
 
 ### ▶▶ PROCHAIN PAS
 
-**Le chantier est COMPLET et NON COMMITÉ.** Branche `fix/agenda-trois-defauts`, forkée à
-`9bca7bc` (= tête de `main` = `origin/main`, vérifiés à la clôture). **Un commit**, 27 fichiers
-(dont 5 de documentation écrits par la clôture), poussé — local et distant à `0 0`. **PR
-[#111](https://github.com/NeuronXcore/zetis-school/pull/111) OUVERTE**, `fix/agenda-trois-defauts`
-→ `main`, **pas encore mergée**. La tête de branche ne s'écrit pas ici — voir
-`git log --oneline main..HEAD`.
+✅ **Le chantier est MERGÉ.** PR [#111](https://github.com/NeuronXcore/zetis-school/pull/111),
+squash **`f18276d`** — 27 fichiers, `+1275 / −235`. Branche `fix/agenda-trois-defauts` **SUPPRIMÉE**,
+locale et distante (vérifié). `main` à **`0 0`** avec `origin`. ⚠️ Un commit de `main` s'était
+glissé entre le fork et le merge : `7831d68` (l'entrée `BACKLOG.md` ci-dessous) — sans conflit,
+aucun des 3 commits de la PR ne touchait ce fichier.
 
-⚠️ **Le squash et la suppression de branche s'écriront à l'étape 4bis**, après le merge — pas
-avant, sinon ce fichier annonce un état qui n'existe pas.
+1. ✅ ~~**LA RELECTURE VISUELLE HUMAINE**~~ — **FAITE le 2026-08-11, et elle a rapporté.**
+   Elle a produit le **cinquième défaut** du chantier (le `✕` de fermeture indiscernable du
+   masquage, § ci-dessus), trouvé **après** que les deux mauvaises croix avaient déjà été
+   retirées. 🔴 **C'est la leçon la plus transposable de la session** : un test qui aurait vérifié
+   « la croix de masquage a disparu » serait passé, et l'écran continuait de dire *« fais
+   disparaître ça »*. **La conformité d'un composant ne dit rien de ce que l'écran raconte.**
+2. ✅ ~~commit → push → PR → merge~~ — **FAITS le 2026-08-11.**
+3. ✅ ~~**Contrôle 4bis sur les annonces devenues fausses**~~ — passé : les deux `page-agenda.md`
+   ont été mis à jour par la clôture puis par le correctif du `▴`, `API_SPEC.md` porte les deux
+   routes neuves, `CHANGELOG.md` **0.74.0**, `TROUBLESHOOTING.md` sa section. Aucun document
+   n'annonce plus la croix comme universelle, ni le panneau de jour comme muet sur les étapes.
+4. ▶ **MAINTENANT : `/ouverture` est BLOQUÉE tant que le cadrage n'a pas eu lieu.**
+   Le chantier suivant est **« Papa peut LIRE un diagnostic »**, choisi le 2026-08-10 et **pas
+   encore cadré** : il lui faut sa session `maquette → spec → ADR-0051 → prompt`, **sur `main`,
+   sans une ligne de code**.
 
-1. 🔴 **LA RELECTURE VISUELLE HUMAINE — c'est la porte, et elle n'est pas franchie.**
-   Trois défauts sont nés de **vos** clics ce soir, en quinze minutes, et **aucun des 25 sabotages
-   du chantier précédent ne les visait**. Ce qui reste à voir de vos yeux :
-   - **la croix a disparu de toutes les cartes** (phase 0, les cinq échéances de dev sont
-     `created_by=parent`) — c'est le changement le plus visible, et je n'ai pas pu le revoir au
-     panneau, la session y ayant été perdue ;
-   - **le bloc « ✦ Ce jour-là, tu prépares »** sur MER 12, qui répondait « rien de noté » ;
-   - **l'absence de doublon** quand on ouvre MAR 11 ;
-   - et les deux arbitrages d'écran hérités de l'ADR-0050 (§ REMONTÉ ci-dessus), vus par l'agent
-     et jamais par vous.
-   Serveurs : `http://localhost:5173/agenda` (Massimo), `http://localhost:5174/agenda` (Papa).
-2. ✅ ~~commit → push → PR~~ — **FAITS le 2026-08-11**, commit unique, poussé, **PR #111 ouverte**.
-   Reste le **merge en squash**, puis l'**étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici le
-   squash et l'état réel de la branche. 🔴 **Le merge est la seule chose que la relecture du
-   point 1 doit précéder** — la PR peut rester ouverte le temps qu'il faut.
-3. ⚠️ **Un contrôle 4bis nommé d'avance** : la spec `docs/frontend-massimo/page-agenda.md` a été
-   mise à jour par cette clôture ; vérifier qu'aucun autre document n'annonce encore la croix
-   comme universelle, ni le panneau de jour comme muet sur les étapes.
-4. Ensuite seulement, **`/ouverture`** — le chantier suivant est **« Papa peut LIRE un
-   diagnostic »**, choisi le 2026-08-10 et **pas encore cadré** : il lui faut sa session
-   `maquette → spec → ADR-0051 → prompt`, sur `main`, sans une ligne de code.
    Son read-before-code est **déjà fait** et vaut d'être relu avant : `GET /diagnostics/quizzes/{id}`
    existe mais est inutilisable pour la relecture **deux fois** — elle cache la bonne réponse et
    l'explication (docstring de `get_quiz_for_taking`), et `_servable_quiz_or_404` exige
    `validated`, donc un diagnostic `pending` répond **404**. Le résolveur neutre `_quiz_or_404`
-   existe déjà et son docstring **réserve** l'autre aux routes de Massimo.
+   existe déjà et son docstring **réserve** l'autre aux routes de Massimo. Le `null` de
+   `pilotageLinks.ts` tombera avec ce chantier.
+
+   ⚠️ **Quatre arbitrages l'attendent, aucun tranché** : où l'on lit (le code penche pour
+   `/diagnostics`), si lire permet de trancher au même endroit, ce que montre une question
+   (énoncé · choix · bonne réponse · explication · **la notion visée**, qui est le vrai critère de
+   qualité), et le rejet partiel — probablement hors périmètre, mais à nommer plutôt qu'à laisser
+   flotter.
+
+5. ⏭️ **Un autre candidat vient d'entrer au `BACKLOG.md`** (`7831d68`) : *« la déclaration et la
+   preuve peuvent diverger »* — né de la question « comment s'assurer que Massimo ne coche pas
+   sans lire ». 🔴 **Il porte son propre CONTRE-signal** : si les preuves suivent les coches, il
+   n'a aucune raison d'exister. Il ne se construit pas « pour être sûr ».
+
 
 
 ## Dettes SURVIVANTES des chantiers élagués
