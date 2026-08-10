@@ -7,8 +7,10 @@
 ## État à la reprise
 
 **Chantier : le plan de préparation — ADR-0050**, qui réalise le §8 rôle 1 de l'ADR-0025 (le rôle
-de « traducteur »). ✅ **COMPLET — les trois sessions sont livrées, commitées et POUSSÉES.**
-🔴 **Il n'y a PAS ENCORE DE PR**, et la relecture visuelle humaine la précède.
+de « traducteur »). ✅ **COMPLET — livré, poussé, et la PR
+[#110](https://github.com/NeuronXcore/zetis-school/pull/110) est OUVERTE** (`MERGEABLE`).
+🔴 **NE PAS MERGER avant la relecture visuelle humaine** — l'ADR la voulait *avant* la PR ; elle
+est donc due **avant le merge**, et le corps de la PR le dit en premier.
 
 | | |
 |---|---|
@@ -314,7 +316,9 @@ Section `feat/plan-de-preparation`. Les trois qui coûteraient le plus à redéc
    identiques** sur les trois échéances de fractions.
 2. ✅ ~~Pousser `main` puis la branche~~ — **FAIT le 2026-08-10**, dans cet ordre (la branche
    référence des décisions qui doivent exister sur `main`), les deux vérifiés à `0 0`.
-3. **Ouvrir la PR**, la faire relire, merger en **squash**.
+3. ✅ ~~Ouvrir la PR~~ — **#110, OUVERTE le 2026-08-10**, `MERGEABLE`, 35 fichiers.
+   🔴 **Le merge attend la relecture du point 1**, pas l'inverse. Merger en **squash**, et
+   **NE PAS supprimer la branche** tant que l'étape 4bis n'est pas faite.
 4. 🔴 **APRÈS le merge : poser `b2c3d4e5f9a1` en prod.**
 
    🔴 **NE PAS SE FIER AU NOMBRE DE RÉVISIONS DUES : deux sources du dépôt se contredisent**, et
