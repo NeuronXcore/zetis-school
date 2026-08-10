@@ -7,16 +7,18 @@
 ## État à la reprise
 
 **Chantier : l'agenda devient utilisable — SIX décisions en une session (addenda ADR-0025 §13 →
-§17).** ✅ **COMMITÉ, POUSSÉ, et PR ouverte le 2026-08-10** — PR
-**[#108](https://github.com/NeuronXcore/zetis-school/pull/108)**, en attente de relecture.
+§17).** ✅ **MERGÉ le 2026-08-10 — PR
+[#108](https://github.com/NeuronXcore/zetis-school/pull/108), squash `526b9b8`.** Rien à reprendre,
+rien à ré-implémenter.
 
 | | |
 |---|---|
-| **Branche** | `feat/agenda-intitule-referentiel`, commit **`a6aaf1b`** — poussée sur `origin`, PR **#108** OUVERTE (56 fichiers, +3620/−252) |
-| **Migration** | 🔴 **`a1b2c3d4e5f8`** (`agenda_items.lesson_id`) — **appliquée en DEV UNIQUEMENT, la prod reste à faire**. Le Postgres prod ne publie aucun port (délibéré) : passer par le conteneur |
+| **Merge** | PR **#108**, **squash `526b9b8`** sur `main`, **parent `5035dce`** — vérifié. Le détail des 3 commits d'origine : `git log --oneline 5035dce..feat/agenda-intitule-referentiel` |
+| **Branche** | `feat/agenda-intitule-referentiel` — 🔴 **CONSERVÉE sur `origin`, ne pas supprimer sans consigne** (`delete_branch_on_merge: false`). **Onze** branches de chantier dorment ainsi |
+| **Migration** | ✅ **`a1b2c3d4e5f8` APPLIQUÉE EN PROD** le 2026-08-10, après le merge. Prod à la tête, colonne + FK vérifiées, 476 notions / 119 leçons intactes. Sauvegardes : `~/zetis-backups/zetis-prod-20260810-*.sql` |
 | **Suites** | Backend **1149** · Papa **784** · Massimo **582** · `tsc -b` propre sur les deux fronts |
-| ✅ **Relecture visuelle** | **FAITE sur les DEUX interfaces**, et elle a rapporté **quatre** défauts que les tests ne voyaient pas — voir plus bas |
-| **Commande** | ⚠️ Le user a demandé le commit explicitement, **dérogation assumée** au `CLAUDE.md` (« l'humain committe ») |
+| ✅ **Relecture visuelle** | **FAITE sur les DEUX interfaces**, par le commanditaire lui-même — elle a rapporté **quatre** défauts que les tests ne voyaient pas, voir plus bas |
+| **Commande** | ⚠️ Commit, push, PR et merge demandés **explicitement** par le user : **dérogation assumée** au `CLAUDE.md` (« l'humain vérifie puis committe ») |
 
 ### Les six décisions, dans l'ordre où elles ont été prises
 
@@ -241,17 +243,18 @@ Aucun fichier à moitié écrit. L'arbre est propre, tout est commité.
 
 ### ⚠️ DETTES NÉES DU CHANTIER AGENDA
 
-- 🔴 **La migration `a1b2c3d4e5f8` n'est pas en prod, et c'est VOLONTAIRE.** La prod a été portée le
-  2026-08-10 au **dernier mergé, `e2f3a4b5c6d7`** — pas plus loin. Motif :
-  `infra/docker/backend-entrypoint.sh:6` fait `alembic upgrade head` **à chaque démarrage** ; une
+- ✅ ~~**Migration prod**~~ — **FAITE le 2026-08-10, en deux temps et c'était le bon ordre.**
+  D'abord jusqu'au dernier **mergé** (`e2f3a4b5c6d7`) pendant que la PR #108 était ouverte, puis
+  jusqu'à la tête (`a1b2c3d4e5f8`) **après** le merge. Motif du découpage, à retenir :
+  `infra/docker/backend-entrypoint.sh:6` fait `alembic upgrade head` **à chaque démarrage** — une
   révision présente en base mais absente de `main` ferait échouer le démarrage sur *« Can't locate
-  revision »*. 👉 **Migrer `a1b2c3d4e5f8` APRÈS le merge de la PR #108**, pas avant.
+  revision »*. **Ne jamais poser en prod une révision qui n'est pas sur `main`.**
   ⚠️ Trois pièges rencontrés ce jour-là, tous consignés dans la mémoire `migrer-la-base-prod` :
   la variable est **`ZETIS_DATABASE_URL`** (`DATABASE_URL` est ignorée **en silence**, et alembic
   répond alors la révision du DEV) ; le réseau `interne` est `internal: true`, donc **publier un
   port ne marche pas** sans attacher aussi `externe` ; et `tail -3` ne voit plus le marqueur de
-  `pg_dump` 16. Sauvegarde du jour : `~/zetis-backups/zetis-prod-20260810-151428-*.sql` (621 K,
-  marqueur vérifié).
+  `pg_dump` 16. **Deux** sauvegardes, une par étape : `~/zetis-backups/zetis-prod-20260810-*.sql`
+  (621 K chacune, marqueur vérifié).
 - 🔴 **Les pièges ci-dessus ne sont pas dans `TROUBLESHOOTING.md`.** Six sections à écrire.
 - ⚠️ **Le Commander n'est TOUJOURS pas idempotent** — commander deux fois la même échéance crée des
   doublons (`Mission` n'a aucune référence à l'agenda). La dette existait déjà (addendum ADR-0035) ;
@@ -270,19 +273,23 @@ Aucun fichier à moitié écrit. L'arbre est propre, tout est commité.
 
 ### ▶▶ PROCHAIN PAS
 
-1. ✅ ~~Commit~~ · ✅ ~~push~~ · ✅ ~~PR **#108**~~ — faits le 2026-08-10, et **cette section a été
-   remise au réel dans la foulée** (étape 4bis, `docs/WORKFLOW.md §5`) : l'annonce « non poussé,
-   aucune PR » a vécu moins d'une heure. **Reste la relecture, puis le merge.**
-2. 🔴 **Migrer la PROD** (`a1b2c3d4e5f8`) — sinon l'agenda plante côté serveur dès le déploiement.
-   ⚠️ **Après le merge**, et repasser ici pour l'écrire.
-3. **Écrire les six sections de `TROUBLESHOOTING.md`** (§ PIÈGES ci-dessus). C'est le contrôle qui
-   manque pour que ce chantier puisse être élagué de ce fichier à la clôture suivante.
-4. **Le candidat le plus mûr ensuite** : le **couplage 2 (§11)** — deck de révision par chapitre +
-   extension du non-scheduling. Il débloque « réviser » ET le plan de préparation, les deux
-   manques que ce chantier a nommés sans les combler.
-5. **Toujours en attente** : 🔴 **ouvrir LE diagnostic depuis Papa** (§ DETTES du chantier #107).
+1. ✅ ~~Commit~~ · ✅ ~~push~~ · ✅ ~~PR #108~~ · ✅ ~~merge (squash `526b9b8`)~~ ·
+   ✅ ~~**migration prod**~~ · ✅ ~~**étape 4bis**~~ — **tout fait le 2026-08-10**, et cette section
+   a été remise au réel **dans l'heure** de chaque geste (`docs/WORKFLOW.md §5`). Les annonces
+   « non poussé », « PR ouverte » et « prod à faire » n'ont jamais survécu à leur péremption.
+   **Ce chantier est CLOS.**
+2. 🔴 **Écrire les six sections de `TROUBLESHOOTING.md`** (§ PIÈGES ci-dessus). C'est **le seul des
+   quatre contrôles du `WORKFLOW.md §6.3` qui manque** — ADR ✅ (cinq addenda) · `CHANGELOG.md` ✅
+   (0.66.0 → 0.71.0) · dettes remontées ✅. Sans lui, ce chantier ne peut pas être élagué d'ici à
+   la clôture suivante.
+3. 🔴 **PROCHAIN CHANTIER : `/ouverture`** depuis un `main` propre.
    ⚠️ **Ce n'est PAS la refonte T0/T_n** — liste d'attente, read-before-code déjà écrit au
    `BACKLOG.md`, **à ne pas refaire**.
+4. **Le candidat le plus mûr** : le **couplage 2 (§11)** — deck de révision par chapitre +
+   extension du non-scheduling. Il débloque « réviser » **et** le plan de préparation, les deux
+   manques que ce chantier a nommés sans les combler, et que le §14.6 refuse explicitement de
+   promettre tant qu'ils n'existent pas.
+5. **Toujours en attente** : 🔴 **ouvrir LE diagnostic depuis Papa** (§ DETTES du chantier #107).
 
 
 ## Dettes SURVIVANTES des chantiers élagués
