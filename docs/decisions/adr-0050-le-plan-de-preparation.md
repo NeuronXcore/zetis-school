@@ -225,6 +225,49 @@ question.
 rangeait dans « mécanique » l'information qui lui donne son sens. `sort_order`, lui, reste dehors —
 c'est bien un rouage.
 
+### 2 quater. Une étape mène au grain MATIÈRE — et son libellé le dit
+
+> 🔴 **AJOUTÉE le 2026-08-10**, au câblage de la Session B. L'ADR supposait partout que *« les
+> étapes sont cliquables **vers leur activité** »* (Périmètre, slice B). **Deux activités sur trois
+> ne sont pas adressables par URL** — et le `resource_id` que la Décision 2 fait persister n'avait
+> donc, à la livraison, **aucun consommateur capable de l'utiliser**. Amendement validé par le
+> commanditaire (option 1 sur trois exposées).
+
+**Ce que le dépôt permet vraiment**, vérifié dans `App.tsx` et dans chaque page :
+
+| Étape | Grain réellement atteignable | Route |
+|---|---|---|
+| `fiche` | **la matière** — `FichesPage` ne lit **aucun** `searchParams` | `/fiches/<slug>` |
+| `revision` | **le chapitre** ✅ — le deck de l'`adr-0049` | `/revision/session` + `location.state` |
+| `quiz` | **la matière** — `QuizPage` ne lit que `subject` (et `from`) | `/quiz?subject=<slug>&from=<slug>` |
+
+**Alors le libellé nomme sa destination ET son grain** — c'est la règle de l'`adr-0047`, appliquée
+ici parce qu'elle a été écrite pour exactement ce défaut : *« Lire la fiche »* promet **une** fiche
+et en ouvrirait une liste. Les libellés servis sont donc **« Lire les fiches de \<matière\> »** et
+**« Un quiz de \<matière\> »** ; seul `revision` garde un libellé au grain fin — **« Réviser ce
+chapitre »** — parce que sa destination l'est.
+
+🔴 **On ne fabrique aucune route.** `/fiches?fiche=` et `/quiz?quiz=` n'existent pas ; les écrire
+aurait produit deux liens qui déposent Massimo sur une page qui ignore son paramètre — un
+cul-de-sac silencieux, pire qu'un lien absent parce qu'il a l'air de marcher.
+
+⚠️ **`resource_id` reste persisté et reste inutilisé pour `fiche` et `quiz`, délibérément.** La
+donnée est juste ; c'est la route qui manque. Le jour où l'une des deux devient adressable, le plan
+gagne le grain fin **sans migration ni recomposition**.
+
+**Les deux autres sorties, écartées mais datées :**
+
+- **Charger le quiz puis naviguer vers `/quiz/session` avec l'état** (le mode `quiz` de
+  `notionRoutes.ts`, qui existe). **Reportée, pas écartée** : elle donne le grain fin au quiz au
+  prix d'une latence et d'un **cas d'échec à traiter sur un écran d'enfant** — un plan qui ne
+  s'ouvre pas est un plan cassé. Son déclencheur : le jour où l'on accepte ce cas d'échec ailleurs.
+- **Rendre `/fiches` et `/quiz` adressables par id.** C'est un chantier à soi, sur deux pages que
+  ce chantier ne touche pas.
+
+> ⚠️ **Ce que Massimo perd, dit franchement** : l'étape `fiche` le dépose sur les fiches de la
+> matière, pas sur celle de son chapitre. C'est un pas de plus. Le plan continue de tenir son rôle
+> du §8 — dire **par où commencer** — mais il ne téléporte pas.
+
 ### 3. Rétro-planifié sur les jours restants, borné, et jamais la veille au soir
 
 Les étapes sont réparties de **demain jusqu'à la veille de l'échéance** — jamais le jour même :
@@ -302,8 +345,8 @@ formulation vraie : le serveur ne sait rien d'autre qu'un `done_at` posé par un
 répartition §3 ; génération-figement §4 ; révocation sur déplacement de date ; `plan_steps` et
 `has_plan` réellement servis ; route de coche ; test-verrous.
 
-**Slice B — Massimo.** Le plan sous le jour dans la bande (`✦`), les étapes cliquables vers leur
-activité, la coche.
+**Slice B — Massimo.** Le `✦` sur le jour dans la bande, le plan **sous l'échéance** (Décision
+2 ter), les étapes cliquables **au grain réellement atteignable** (Décision 2 quater), la coche.
 
 **Slice C — Papa.** La ligne de lecture (Décision 7).
 
@@ -354,6 +397,15 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
 - **Test-verrou** — une étape se coche **même si l'activité n'a jamais été jouée**, et l'inverse :
   jouer l'activité ne coche **rien**. C'est ce qui distingue (A) de (B), et sans lui la frontière
   se franchirait par inadvertance.
+- 🔴 **Test-verrou** — aucune étape ne pointe vers une route **inventée** : `fiche` mène à
+  `/fiches/<slug>` et `quiz` à `/quiz?subject=<slug>` (Décision 2 quater). ⚠️ Le saboter en
+  remettant `?fiche=<id>` doit **rougir** — la page ignore le paramètre, le lien s'ouvre sur un
+  cul-de-sac silencieux, et **aucun test de rendu ne le verrait** : le lien existe, il est
+  cliquable, il a l'air de marcher.
+- **Test-verrou** — le libellé d'une étape `fiche` ou `quiz` **nomme la matière** (Décision
+  2 quater) ; `revision` garde *« ce chapitre »*, parce que sa destination l'est vraiment.
+- **Test-verrou** — une échéance **sans matière** rend ses étapes **sans lien**, et la coche
+  reste. Le plan ne disparaît pas faute de destination.
 - Mise à jour de `docs/frontend-massimo/page-agenda.md` (`plan_steps` cesse d'être « vide en Lot 1 »)
   et de `docs/frontend-papa/page-agenda.md`.
 - **Relecture visuelle humaine AVANT la PR**, sur les deux interfaces.
@@ -374,6 +426,12 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
    **`agenda_item_id`**, et le plan se rend **sous l'échéance**. Le refuser rendait la maquette
    inconstructible et laissait les étapes orphelines sur une semaine à deux contrôles. **Aucune
    migration.**
+2 quater. ✅ **AJOUTÉE le 2026-08-10**, au câblage de la Session B : une étape mène au **grain
+   réellement atteignable** — la matière pour `fiche` et `quiz`, le chapitre pour `revision` — et
+   **son libellé le dit** (règle de l'`adr-0047`). `/fiches?fiche=` et `/quiz?quiz=` **n'existent
+   pas** ; les écrire aurait produit des liens qui ont l'air de marcher. `resource_id` reste
+   persisté et inutilisé pour deux types sur trois, **délibérément**. La variante « charger le quiz
+   puis `/quiz/session` » est **reportée, pas écartée**.
 3. ✅ Rétro-planning **borné à 3**, de demain à la veille, jamais le jour de l'échéance ; aucun
    plan à J+0 ou J+1.
 4. ✅ Figé à la première lecture ; **révoqué** si la date bouge, coches comprises.
