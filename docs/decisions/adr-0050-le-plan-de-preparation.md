@@ -354,6 +354,33 @@ génération manuelle — le plan est un service rendu à Massimo, pas un objet 
 ⚠️ **« cochée », jamais « faite »** (§14.7) — la Décision 5 ayant retenu (A), c'est la seule
 formulation vraie : le serveur ne sait rien d'autre qu'un `done_at` posé par une route élève.
 
+> 🔴 **PRÉCISÉE le 2026-08-10**, au read-before-code de la Session C. La rédaction d'origine
+> disait *« en lecture »* sans dire **ce que lire ne doit pas faire**, et laissait croire à une
+> slice front — alors que `AgendaItemPilotOut` ne portait **aucune** information de plan.
+
+**7.1 — Lire la grille de Papa ne COMPOSE aucun plan.** Le §8 dit *« composé à la première
+lecture »* : la première lecture **de Massimo**. Si le pilotage passait par `get_or_create_plan`,
+**Papa figerait le plan de son fils** en relevant l'ENT le dimanche soir — sur un état du
+référentiel antérieur aux fiches qu'il s'apprête justement à valider. La surface de pilotage
+**constate**, elle ne provoque pas : même frontière que `done_at`, que Papa lit et n'écrit jamais
+(§2b). D'où un compteur **pur et en lot**, `plan_counts`, distinct de `get_or_create_plan`.
+
+**7.2 — Deux entiers, jamais les étapes.** `plan_steps_total` et `plan_steps_done`, et rien
+d'autre. Servir les étapes à Papa lui ferait lire ce que ZETIS a proposé, donc lui donnerait envie
+de le **corriger** — et le plan cesserait d'être un service pour devenir une prescription d'adulte.
+
+**7.3 — Aux deux densités, comme l'état.** Une étiquette **`✦ 1/3`** dans la grille (là où Papa
+balaie), la phrase complète dans le panneau de détail (là où il lit). Ce n'est pas une extension
+de périmètre : c'est **exactement** ce que le dépôt fait déjà pour l'état (`✓ coché` en étiquette,
+*« seul Massimo peut cocher »* en phrase).
+
+**7.4 — `0` étape ⇒ AUCUNE surface**, ni étiquette ni section. Même règle que partout ailleurs
+dans cet ADR : la plupart des échéances n'ont pas de plan, et un `✦ 0/0` sur chacune ferait de la
+grille un tableau de manques — un manque dont **Papa n'est pas l'auteur**.
+
+⚠️ **Les archivés gardent leur compte.** `drop_plan` n'est appelé que sur un déplacement de date,
+jamais à l'archivage — cohérent avec le §2c (*« le masquage reste visible côté pilotage »*).
+
 ### 8. « Ce qui arrive » consomme `has_plan` — et le « Préparer · bientôt » meurt
 
 > 🔴 **AJOUTÉE le 2026-08-10, VUE À L'ÉCRAN** pendant la vérification de la Session B — aucun test
@@ -459,6 +486,23 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
   l'étape 4bis porté dans le CODE, et non dans un document que personne ne relit.
 - **Test-verrou** — `has_plan` faux ⇒ **aucun bouton**, ni grisé, ni explicatif. Et sans rappel
   `onOpenPlan`, aucun bouton non plus : la garde est portée par le **rendu**, pas par l'appelant.
+- 🔴 **Test-verrou** — lire la grille de Papa ne crée **aucune** ligne dans `agenda_plan_steps`
+  (Décision 7.1), puis la lecture de Massimo en crée trois. ⚠️ L'échéance du test doit être
+  **réellement composable**, sinon il passe sans rien prouver. Le saboter en composant depuis
+  `get_or_create_plan` doit **rougir**.
+- 🔴 **Test-verrou** — une route unitaire qui ne touche pas au plan (`PUT /note`) rend le **vrai**
+  compte. ⚠️ Le test « déplacer la date rend `0/0` » ne suffit pas et l'a prouvé : le plan venant
+  d'être supprimé, un `plan={}` fautif donne la **même** réponse que le code correct.
+- **Test-verrou** — la réponse Papa ne contient **ni `day_offset`, ni `sort_order`, ni
+  `resource_id`, ni la liste des étapes** (Décision 7.2), asserté sur le **JSON sérialisé**.
+- **Test-verrou** — `0` étape ⇒ aucune étiquette dans la grille, aucune section dans le panneau.
+- **Test-verrou** — la phrase du plan dit « cochée », **jamais** « faite ». ⚠️ L'assertion doit
+  viser **la phrase**, pas le panneau : celui-ci contient légitimement *« marquer cette échéance
+  comme faite »*, et une assertion large passait sur son sabotage.
+- 🔴 **Test-verrou (étape 4bis, porté dans le CODE)** — le panneau Papa ne contient plus
+  *« Réviser les cartes du chapitre **n'est pas encore possible** »*. C'était vrai jusqu'au merge
+  de l'`adr-0049`, et faux depuis. Une annonce d'indisponibilité qui survit à sa livraison est
+  pire qu'un silence : elle décourage un geste devenu possible.
 - Mise à jour de `docs/frontend-massimo/page-agenda.md` (`plan_steps` cesse d'être « vide en Lot 1 »)
   et de `docs/frontend-papa/page-agenda.md`.
 - **Relecture visuelle humaine AVANT la PR**, sur les deux interfaces.
@@ -496,7 +540,10 @@ Les deux se lisent dans `done_at` par rapport à `day_offset`, **sans instrument
    deux options et de leur maquette ; conforme à la recommandation. **(B) est REPORTÉE, pas
    écartée** : son déclencheur est le jour où Papa demandera à lire autre chose qu'une déclaration.
 6. ✅ `step_type = lesson` reste mort — et la décision est motivée, pas subie.
-7. ✅ Papa **lit** le plan, ne le pilote pas.
+7. ✅ Papa **lit** le plan, ne le pilote pas. **PRÉCISÉE le 2026-08-10** : lire ne **compose**
+   rien (7.1 — sinon Papa figerait le plan de son fils en relevant l'ENT) ; **deux entiers, jamais
+   les étapes** (7.2) ; aux **deux densités**, comme l'état (7.3) ; `0` étape ⇒ **aucune surface**
+   (7.4). ⚠️ Ce n'était **pas** une slice front : le contrat pilote ne portait rien.
 8. ✅ **AJOUTÉE le 2026-08-10, vue À L'ÉCRAN** : « Ce qui arrive » consomme `has_plan`. Le bouton
    grisé **« Préparer · bientôt »** est **retiré** — la fonctionnalité qu'il annonçait est livrée,
    donc « bientôt » était devenu faux. `has_plan` vrai ⇒ **« ✦ Ton plan »**, qui déplie « la suite »
