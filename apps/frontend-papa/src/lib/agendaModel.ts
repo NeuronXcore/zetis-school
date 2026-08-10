@@ -5,7 +5,7 @@
 // `agenda_item_missed` n'existe pas côté serveur (ADR-0025 §3) ; produire ici un
 // « n en retard » contournerait l'invariant par l'affichage. Les compteurs retenus sont leurs
 // inverses positifs.
-import { type AgendaItemPilot } from "@zetis/types";
+import { type AgendaItemPilot, type AgendaKind } from "@zetis/types";
 
 export type AgendaPeriod = "current" | "next" | "ahead" | "archived";
 
@@ -153,8 +153,12 @@ export function loadPercent(count: number, maxCount: number): number {
   return Math.round((count / maxCount) * 100);
 }
 
+// « Leçon à apprendre » en toutes lettres, jamais « Leçon » : la formulation longue est LE geste
+// de l'addendum §14 — c'est l'ambiguïté du mot « devoir » (exercices à faire ≠ cours à apprendre)
+// qui a fait ajouter ce type.
 const KIND_LABELS: Record<string, string> = {
   devoir: "Devoir",
+  lecon: "Leçon à apprendre",
   controle: "Contrôle",
   rendu: "Rendu",
 };
@@ -162,6 +166,13 @@ const KIND_LABELS: Record<string, string> = {
 export function kindLabel(kind: string): string {
   return KIND_LABELS[kind] ?? kind;
 }
+
+/** L'ordre des types dans les menus de saisie — miroir de `AGENDA_KINDS` côté serveur.
+ *
+ *  Les DEUX surfaces d'édition l'importent : la grille de saisie en lot et le panneau de détail
+ *  avaient chacune leur liste, et la grille dupliquait en plus les libellés. Un `kind` ajouté à
+ *  l'une et pas à l'autre serait saisissable à la création et invisible à la correction. */
+export const AGENDA_KINDS: AgendaKind[] = ["devoir", "lecon", "controle", "rendu"];
 
 /** Date lisible pour l'en-tête du panneau de détail (« jeudi 30 juillet »). */
 export function longDayLabel(isoDate: string): string {

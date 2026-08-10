@@ -395,8 +395,9 @@ export function DiagnosticPage() {
           </p>
           <h2 className="mb-2 text-lg font-extrabold">Rien à mesurer pour l'instant</h2>
           <p className="mx-auto max-w-md text-sm leading-relaxed text-zetis-muted">
-            Papa prépare les diagnostics depuis son espace. Dès qu'il en laisse passer un, il
-            apparaît ici.
+            {/* §16 — réécrit, pas remplacé : « depuis son espace » et « il en laisse passer un »
+                désignaient une personne et son écran. Le sujet devient ZETIS, la phrase aussi. */}
+            ZETIS prépare les diagnostics. Dès qu'il y en a un pour toi, il apparaît ici.
           </p>
         </section>
       )}

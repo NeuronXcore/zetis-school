@@ -200,12 +200,12 @@ def test_intent_open_notion_unavailable_never_hallucinates_a_route(client_db, mo
     assert action and action["kind"] == "request_notion"  # offre d'ajout, pas une route
     assert action["route"] is None and action["confirm"] is True
     assert "fractions" in action["text"]
-    assert "programme" in body["reply"] or "Papa" in body["reply"]  # honnêteté (§3)
+    assert "programme" in body["reply"] or "je le note" in body["reply"]  # honnêteté (§3)
 
 
 def test_resolve_action_anchors_only_available_content(client_db, monkeypatch) -> None:
     """§1/§3 (unité) : l'action est construite depuis `galaxy.notion_panel` ; un contenu non
-    `available` ne produit AUCUNE route (et annonce une demande à Papa)."""
+    `available` ne produit AUCUNE route (et annonce que ZETIS note la demande)."""
     from app.modules.chat import actions
     from app.tests.fakes import FakeEmbeddingProvider
 
@@ -223,7 +223,7 @@ def test_resolve_action_anchors_only_available_content(client_db, monkeypatch) -
             {"kind": "eli5", "available": True},
             {"kind": "fiche", "available": True, "fiche_id": 7},
             {"kind": "mindmap", "available": True, "mindmap_id": 5},
-            {"kind": "revision", "available": False},  # contenu absent (probe « demande à Papa »)
+            {"kind": "revision", "available": False},  # contenu absent (probe « je le note »)
         ],
     }
     monkeypatch.setattr(actions, "notion_panel", lambda db, skill_id: panel)
@@ -237,8 +237,8 @@ def test_resolve_action_anchors_only_available_content(client_db, monkeypatch) -
     assert resolve("fiche").action.route == "/fiches/mathematiques"
     assert resolve("mindmap").action.route == "/mindmaps/reconstruire/5"  # ciblage par id de carte
     assert resolve("eli5").action.route.startswith("/eli5?skill_id=42")  # cours validé → ELI5 offert
-    rev = resolve("revision")  # contenu absent → pas d'action + demande à Papa
-    assert rev.action is None and "Papa" in (rev.note or "")
+    rev = resolve("revision")  # contenu absent → pas d'action + « je le note »
+    assert rev.action is None and "je le note" in (rev.note or "")
     db.close()
 
 

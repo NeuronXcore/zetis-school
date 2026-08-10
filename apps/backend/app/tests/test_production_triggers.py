@@ -222,6 +222,46 @@ def test_un_controle_passe_avant_un_devoir(client_db) -> None:
         assert ordre[1] == devoir.id
 
 
+def test_une_lecon_a_apprendre_declenche_un_lot(client_db) -> None:
+    """`lecon` est déclencheur au même titre que `controle` (addendum ADR-0025 §14.2).
+
+    C'est le type pour lequel produire a le plus de sens : des exercices se font sans ZETIS, une
+    leçon s'apprend avec ce qu'il produit.
+    """
+    _, Session = client_db
+    with Session() as db:
+        chapter = _seed(db)
+        _arm(db)
+        lecon = _controle(db, chapter, kind="lecon")
+
+        ordre = [i.id for i in triggers.eligible_items(db, student_id=lecon.student_id)]
+        assert ordre == [lecon.id]
+
+
+def test_ordre_des_trois_kinds_declencheurs(client_db) -> None:
+    """⚠️ LE verrou qui attrape l'oubli de `_KIND_PRIORITY`.
+
+    `_KIND_PRIORITY.get(kind, 9)` ne lève rien : un `kind` ajouté à `TRIGGERING_KINDS` mais absent
+    de la table de priorité tombe en 9 et passe **systématiquement dernier**, sans qu'aucun autre
+    test ne rougisse — le lot part quand même, il part juste toujours en dernier.
+
+    Les dates sont volontairement dans l'ordre INVERSE de la priorité attendue : si le tri par
+    date primait, l'ordre servi serait exactement le contraire.
+    """
+    _, Session = client_db
+    with Session() as db:
+        chapter = _seed(db)
+        _arm(db)
+        devoir = _controle(db, chapter, kind="devoir", days=1)
+        lecon = _controle(db, chapter, kind="lecon", days=2)
+        controle = _controle(db, chapter, kind="controle", days=6)
+
+        ordre = [i.id for i in triggers.eligible_items(db, student_id=devoir.student_id)]
+        assert ordre == [controle.id, lecon.id, devoir.id], (
+            "l'ordre attendu est contrôle → leçon → devoir, quelles que soient les dates"
+        )
+
+
 def test_un_item_archive_ne_declenche_rien(client_db) -> None:
     """Un item archivé ne demande plus rien."""
     _, Session = client_db

@@ -79,12 +79,56 @@ visible que la bascule n'a pas encore eu lieu, sans en faire un reproche.
 
 ### Saisie en lot
 
-Une grille de lignes vides — `matière` · `intitulé` · `date` · `type` · **`chapitre`** —
+Une grille de lignes vides — `matière` · **`chapitre`** · `intitulé` · `date` · `type` —
 « Ajouter une ligne », puis **un seul envoi** (`POST /api/agenda/items` accepte une liste).
+L'ordre des colonnes suit la cascade : chaque menu alimente le suivant, de gauche à droite.
 
 Le **chapitre** (référentiel de l'année active, facultatif) est la colonne la plus rentable de
 la grille : c'est elle qui rend l'échéance analysable (ADR-0025 §11) sans aucun LLM. Un item
 sans chapitre reste parfaitement valide — il n'est simplement pas exploitable pour l'analyse.
+
+> **L'intitulé est un menu depuis le 2026-08-10** (addendum ADR-0025 §13) : les **cours validés**
+> du chapitre choisi, plus une option **« ✏️ Autre (texte libre) »**. Ce que Papa y tapait existe
+> déjà en base — la page Matières l'affiche, `lessons.title` — et le retaper le faisait dériver.
+>
+> La porte de sortie n'est pas un compromis : c'est le cas **majoritaire** d'un `devoir`, qui
+> s'énonce par des consignes et des références de manuel, presque jamais par le titre d'un cours du
+> référentiel — le menu ne peut donc pas le proposer. **Sans chapitre, pas de menu** — le champ
+> reste un texte, comme le sélecteur de chapitre n'affiche jamais un menu vide.
+>
+> ⚠️ **Aucun placeholder d'exemple** (retiré le 2026-08-10) : l'en-tête de colonne dit déjà
+> « Intitulé », et depuis le §13 le champ est un menu dès qu'un chapitre est choisi — un exemple
+> de saisie libre y proposait la mauvaise habitude.
+>
+> ⚠️ Les cours **non validés sont exclus**, et ce n'est pas de la cohérence d'affichage :
+> `label` est la **seule chaîne de l'agenda que Massimo lit**. Conséquence assumée — sur un
+> chapitre dont les leçons sont en brouillon, la liste est vide et l'intitulé reste libre.
+>
+> ⚠️ **Rien de ce que Papa a tapé n'est effacé** : un texte saisi *avant* le chapitre survit au
+> choix du chapitre. C'est la seule transition capable de perdre une saisie, et un test-verrou
+> la garde.
+
+#### Les quatre types
+
+Le vocabulaire est celui du **collège**, pas celui de ZETIS.
+
+| Type | Ce que c'est | Déclenche la production | « Ce qui arrive » chez Massimo |
+|---|---|---|---|
+| `devoir` *(défaut)* | des exercices à faire pour une date | ✅ en dernier | ❌ — déjà dans la bande |
+| `lecon` — **« Leçon à apprendre »** | un cours à mémoriser | ✅ **en 2ᵉ** | ❌ *(voir addendum §14.3)* |
+| `controle` | une évaluation annoncée | ✅ **en 1ᵉʳ** | ✅ |
+| `rendu` | un exposé, un dossier, un projet à remettre | ❌ jamais | ✅ |
+
+> **`lecon` ajouté le 2026-08-10** (addendum ADR-0025 §14). Il manquait le travail que ZETIS sait
+> le mieux accompagner : des exercices se font sans lui, une leçon s'apprend avec ce qu'il produit.
+> Le libellé est **« Leçon à apprendre » en toutes lettres** — c'est l'ambiguïté du mot « devoir »
+> qui a fait ajouter ce type.
+>
+> ⚠️ C'est le **premier `kind` qui déclenche sans être annoncé** dans « ce qui arrive ». La
+> dissymétrie est voulue : `UpcomingItemOut` ne porte aucun champ `kind`, la section est plafonnée
+> à 4, et les leçons — fréquentes — y chasseraient les contrôles.
+>
+> ⚠️ **Le seul KPI qui lit le type reste `contrôles à venir`** : il ne compte que `controle`.
 
 Le mode d'usage réel est « je relève l'ENT du dimanche soir », pas « j'ajoute un devoir ». Un
 formulaire item-par-item produirait le même abandon qu'une page vide.
@@ -95,7 +139,10 @@ Sept colonnes. Sous chaque jour, un trait de **charge** (nombre d'échéances) �
 performance. Chaque item porte :
 
 - son **origine** (`par Massimo` / `par vous`) ;
-- son **état** (`à faire` / `✓ fait`) ;
+- son **état** (`à faire` / `✓ coché`) — **jamais « fait »** (addendum §14.7) : le seul fait connu
+  est que Massimo a touché une case, et §3 le dit sans détour (« cocher ne prouve rien »). Papa
+  **lit** une déclaration dont il n'est pas l'auteur ; chez Massimo, le bouton reste « marquer
+  comme fait », parce que lui la **produit** ;
 - le cas échéant `corrigé` (édité par Papa) et `masqué par Massimo` (atténué, **jamais
   disparu**).
 
@@ -108,6 +155,12 @@ réintroduire par la couleur.
 Intitulé · date · type · **chapitre** éditables ; **état en lecture seule** ; **note privée**
 (`parent_note`) avec la mention explicite qu'elle n'est jamais servie à Massimo ; actions
 Enregistrer / Archiver.
+
+> **L'intitulé y est le même menu qu'à la saisie** (addendum ADR-0025 §13), branché sur le
+> chapitre **en cours d'édition** — changer de chapitre change la liste avant tout enregistrement.
+> **Non-régression voulue** : un item existant porte presque toujours un libellé qui ne figure
+> dans aucune liste ; il s'affiche **inchangé, en texte libre**, et rien ne bouge tant que Papa
+> ne clique pas « ↩ choisir un cours ». Ce bouton **vide le champ**, et son libellé le dit.
 
 > **Le chapitre est éditable ICI depuis le 2026-08-03** (addendum ADR-0035). Il ne l'était qu'à la
 > saisie en lot : un item mal saisi — ou saisi par Massimo, qui n'a aucun sélecteur — restait
@@ -124,6 +177,20 @@ Enregistrer / Archiver.
 ✅ **Livré le 2026-08-03** : sur une échéance portant un `chapter_id`, le bouton **« 🎯 Commander
 les missions de ce chapitre »** ouvre la modale existante **pré-remplie** (porte `deadline`,
 chapitre de l'item, `due_date` = son échéance, `force_priority` armé).
+
+> **Sorti de sa cachette le 2026-08-10** (addendum ADR-0025 §14.5). Il fallait jusque-là **ouvrir
+> le panneau de détail** *et* que l'échéance porte déjà un chapitre — une capacité livrée que
+> personne ne trouve est, à l'usage, une capacité absente. Une **puce 🎯** apparaît désormais sur
+> l'item lui-même, dans la vue semaine comme dans la liste plate.
+>
+> ⚠️ **Jamais de bouton mort** : la disponibilité se calcule **sur la page**, une fois
+> (`commandFor` rend un geste ou `null`). Il faut un chapitre **et** une matière rattachée à
+> l'année active — `sysId` peut être `null`. Une échéance archivée n'en porte pas.
+>
+> Le panneau **nomme ce que ZETIS peut faire** de l'échéance, et pas seulement ce qu'il ne pourra
+> pas : ce que Massimo recevra (découvrir · verbaliser · reconstruire · mini-quiz) et, en toutes
+> lettres, que **« réviser les cartes du chapitre » n'est pas encore possible**. Un dispositif qui
+> se tait sur ses capacités est indistinguable d'un dispositif qui n'en a pas.
 
 > **Aucune ligne de backend** : `resolve_chapter_notions` est déjà scopé par chapitre,
 > `create_command_missions` prend déjà `due_date` + `force_priority`, `gate: "deadline"` existait

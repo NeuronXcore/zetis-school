@@ -271,11 +271,13 @@ function SubjectScreen({
           </button>
         </div>
 
-        {/* Champ sans match : état vide bienveillant + « Dis à Papa d'ajouter ». */}
+        {/* Champ sans match : état vide bienveillant + « Dis à ZETIS d'ajouter » (§16 — l'adulte
+            ne se nomme plus dans l'espace de Massimo). Ici, contrairement au chat, ZETIS n'est pas
+            en train de parler à la première personne : le nommer se lit naturellement. */}
         {eli5.noMatch && (
           <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
             {eli5.requested ? (
-              <p>C'est noté&nbsp;! Papa pourra l'ajouter à ton programme&nbsp;👍</p>
+              <p>C'est noté&nbsp;! ZETIS pourra l'ajouter à ton programme&nbsp;👍</p>
             ) : (
               <>
                 <p>Cette notion n'est pas encore dans ton programme.</p>
@@ -285,7 +287,7 @@ function SubjectScreen({
                   disabled={eli5.requesting}
                   className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 font-medium text-amber-100 transition-colors hover:bg-amber-300/20 disabled:opacity-60"
                 >
-                  {eli5.requesting ? "…" : `📨 Dis à Papa d'ajouter « ${eli5.question.trim()} »`}
+                  {eli5.requesting ? "…" : `📨 Dis à ZETIS d'ajouter « ${eli5.question.trim()} »`}
                 </button>
               </>
             )}

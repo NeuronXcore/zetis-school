@@ -1,5 +1,6 @@
 import { type AgendaItemPilot } from "@zetis/types";
 import { type AgendaColumn, loadPercent } from "../../lib/agendaModel";
+import { CommandChip } from "./CommandChip";
 
 // Charge de la semaine — registre ANALYTIQUE (tableau, sept colonnes).
 //
@@ -14,9 +15,12 @@ interface Props {
   columns: AgendaColumn[];
   selectedId: number | null;
   onSelect: (item: AgendaItemPilot) => void;
+  /** Rend le geste « commander les missions », ou `null` si l'échéance ne s'y prête pas.
+   *  Facultatif : le tableau reste montable seul (tests) sans le hook des missions. */
+  commandFor?: (item: AgendaItemPilot) => (() => void) | null;
 }
 
-export function AgendaWeekBoard({ columns, selectedId, onSelect }: Props) {
+export function AgendaWeekBoard({ columns, selectedId, onSelect, commandFor }: Props) {
   const maxCount = Math.max(1, ...columns.map((column) => column.items.length));
 
   return (
@@ -52,6 +56,7 @@ export function AgendaWeekBoard({ columns, selectedId, onSelect }: Props) {
                 item={item}
                 selected={item.id === selectedId}
                 onSelect={() => onSelect(item)}
+                commandFor={commandFor}
               />
             ))}
           </div>
@@ -65,39 +70,60 @@ function AgendaBoardItem({
   item,
   selected,
   onSelect,
+  commandFor,
 }: {
   item: AgendaItemPilot;
   selected: boolean;
   onSelect: () => void;
+  commandFor?: (item: AgendaItemPilot) => (() => void) | null;
 }) {
+  // La puce est un FRÈRE du bouton, jamais un enfant : un bouton dans un bouton n'est pas du
+  // HTML valide, et le clic irait aux deux.
+  //
+  // `below` et non `corner` : la colonne fait ~80 px, la largeur du texte est la ressource rare.
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      style={{ borderLeftColor: item.subject?.color ?? undefined }}
-      className={`w-full rounded-md border-l-2 bg-papa-surface-2 px-2 py-1.5 text-left transition-colors hover:bg-papa-surface-2/70 ${
-        selected ? "ring-1 ring-papa-accent" : ""
-      } ${
-        // Masqué par Massimo : atténué, JAMAIS disparu. Le parent voit tout, l'enfant voit ce
-        // qui le concerne (asymétrie assumée, ADR-0025 §2c).
-        item.dismissed_at ? "opacity-50" : ""
-      } ${item.subject?.color ? "" : "border-l-papa-border"}`}
-    >
-      <p className="text-xs font-medium leading-snug">{item.label}</p>
-      <div className="mt-1 flex flex-wrap gap-1">
-        <AgendaTags item={item} />
-      </div>
-    </button>
+    <div>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        style={{ borderLeftColor: item.subject?.color ?? undefined }}
+        className={`w-full rounded-md border-l-2 bg-papa-surface-2 px-2 py-1.5 text-left transition-colors hover:bg-papa-surface-2/70 ${
+          selected ? "ring-1 ring-papa-accent" : ""
+        } ${
+          // Masqué par Massimo : atténué, JAMAIS disparu. Le parent voit tout, l'enfant voit ce
+          // qui le concerne (asymétrie assumée, ADR-0025 §2c).
+          item.dismissed_at ? "opacity-50" : ""
+        } ${item.subject?.color ? "" : "border-l-papa-border"}`}
+      >
+        <p className="text-xs font-medium leading-snug">{item.label}</p>
+        <div className="mt-1 flex flex-wrap gap-1">
+          <AgendaTags item={item} />
+        </div>
+      </button>
+      <CommandChip item={item} commandFor={commandFor} placement="below" />
+    </div>
   );
 }
 
 /** Étiquettes d'un item. Le vocabulaire est volontairement neutre : « à faire » et non
- *  « en retard », « ✓ fait » et non un score. */
+ *  « en retard », « ✓ coché » et non un score.
+ *
+ *  ⚠️ **« coché », JAMAIS « fait »** (corrigé le 2026-08-10, addendum §14.7). L'étiquette disait
+ *  « ✓ fait » — une complétion que rien ne permet d'affirmer. Le seul fait connu est que Massimo
+ *  a touché une case ; l'ADR-0025 §3 est explicite (« cocher ne prouve rien »), et le reste de
+ *  cette page l'écrivait déjà correctement (« cochés par Massimo », « Pas encore coché »).
+ *  L'asymétrie avec l'interface de Massimo est VOULUE : lui déclare (« marquer comme fait »),
+ *  Papa LIT une déclaration dont il n'est pas l'auteur. */
 export function AgendaTags({ item }: { item: AgendaItemPilot }) {
   return (
     <>
       {item.kind === "controle" && <Tag className="bg-fuchsia-500/15 text-fuchsia-300">contrôle</Tag>}
+      {/* Teinte calme, distincte du fuchsia du contrôle : une leçon à apprendre est du travail
+          ordinaire, pas une échéance qui menace (addendum §14.4).
+          ⚠️ Indigo et non teal : sur CETTE carte, l'étiquette voisine « ✓ coché » est émeraude, et
+          le teal n'en était séparé que de 16° de teinte — mesuré à l'écran, indiscernable. */}
+      {item.kind === "lecon" && <Tag className="bg-indigo-500/15 text-indigo-300">leçon</Tag>}
       {item.kind === "rendu" && <Tag className="bg-sky-500/15 text-sky-300">rendu</Tag>}
       <Tag
         className={
@@ -120,7 +146,7 @@ export function AgendaTags({ item }: { item: AgendaItemPilot }) {
               "bg-papa-surface text-papa-muted"
         }
       >
-        {item.done_at ? "✓ fait" : "à faire"}
+        {item.done_at ? "✓ coché" : "à faire"}
       </Tag>
     </>
   );

@@ -150,6 +150,49 @@ export function subjectRouteFor(kind: GalaxyActionKind, subjectSlug: string): st
   }
 }
 
+/** Où mène une échéance de l'agenda — son cours (addendum ADR-0025 §15).
+ *
+ *  Une échéance qui NOMME un cours sans y donner accès oblige Massimo à le retrouver à la main
+ *  dans sa matière : c'est le reproche que `pilotageLinks.ts` fait déjà, côté Papa, à une cellule
+ *  sans lien. L'agenda est la surface où ce reproche coûte le plus cher — c'est la seule que
+ *  Massimo ouvre en sachant ce qu'il a à faire.
+ *
+ *  **Trois précisions, dans cet ordre**, parce que l'échéance n'en porte pas toujours autant :
+ *  la leçon (Papa l'a choisie dans la liste), sinon le chapitre, sinon la matière seule.
+ *
+ *  ⚠️ **`null` quand il n'y a rien à ouvrir**, jamais un lien vers la racine : même discipline
+ *  que `pilotageLink`. Une échéance sans matière n'a pas de page de cours, et un lien qui
+ *  déposerait Massimo au hasard est pire que pas de lien.
+ *
+ *  ⚠️ **Indépendant du `kind`.** Un devoir rattaché à un cours y mène aussi ; recopier ici une
+ *  règle de type en ferait une seconde source de vérité — celle de `TRIGGERING_KINDS` a divergé
+ *  le jour même où `devoir` y est entré (addendum ADR-0035 §3).
+ */
+export function agendaCourseRoute(item: {
+  subject: { slug: string } | null;
+  label?: string;
+  lesson_id: number | null;
+  chapter_id: number | null;
+}): string | null {
+  if (!item.subject) return null;
+  const base = `/subjects/${encodeURIComponent(item.subject.slug)}/cours`;
+  if (item.lesson_id !== null) return `${base}?lesson=${item.lesson_id}`;
+  if (item.chapter_id !== null) {
+    // Le lien DIT ce qu'il cherche (§15.6). Une échéance peut porter un chapitre sans porter de
+    // leçon — toutes celles saisies avant le 2026-08-10, et toutes celles dont l'intitulé a été
+    // tapé à la main. Son libellé est pourtant, souvent, le titre EXACT d'un cours du chapitre.
+    //
+    // ⚠️ Ce n'est pas la résolution « texte libre → leçon » que le §13.3 a écartée : le
+    // rapprochement est une **égalité stricte** dans un **chapitre déjà connu**, il ne persiste
+    // rien, et son pire cas est l'état actuel — le chapitre déplié, sans cadre.
+    const titre = item.label?.trim();
+    return titre
+      ? `${base}?chapter=${item.chapter_id}&title=${encodeURIComponent(titre)}`
+      : `${base}?chapter=${item.chapter_id}`;
+  }
+  return base;
+}
+
 /** Portée réelle d'une activité, quand elle est plus large que la notion.
  *
  *  `quiz` et `revision` n'ont AUCUN identifiant par notion (hors v1 ADR-0027, cibles

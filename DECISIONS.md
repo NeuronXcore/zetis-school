@@ -247,6 +247,218 @@
     j'ai à étudier » reste servie par le bandeau d'Accueil et la bande glissante. **Test-verrou** :
     le badge ne bouge ni quand une échéance franchit sa date, ni quand un item est coché.
     Implémentation **dans le lot `adr-0030`**, jamais isolément — Accepté (2026-08-01)
+  - `docs/decisions/adr-0025-addendum-intitule-depuis-le-referentiel.md` — **Addendum ADR-0025 §13
+    — l'intitulé se choisit dans le référentiel** : la grille de saisie Papa a quatre colonnes
+    utiles, trois sont des menus du référentiel (matière, **chapitre** §11, type) et la quatrième —
+    **intitulé** — était restée un champ texte vide, alors que ce que Papa y tape existe déjà en
+    base à trois clics de là (page **Matières**, `lessons.title`). **Ne révoque rien** : §8 (« le
+    texte brut est conservé ») reste entier — on change la façon de **produire** `label`, pas ce que
+    `label` **est** ; c'est la direction que §8 énonçait déjà pour la phase 0 (« Papa sélectionne
+    matière, date et chapitre dans des menus ») et le raisonnement par lequel `adr-0018 §1` a
+    **écarté le texte libre au profit de la sélection dans le référentiel**. **Un `<select>` des
+    cours du chapitre + option « ✏️ Autre (texte libre) »** — la porte de sortie n'est pas un
+    compromis mais le cas **majoritaire** d'un `kind = devoir`, qui s'énonce « Exercices 12 à 15
+    p. 45 » et n'est le titre d'aucun cours ; **sans chapitre, pas de menu** (même jurisprudence que
+    le sélecteur de chapitre, qui n'affiche jamais un menu vide). **Les cours `validated`
+    seulement**, comme la page Matières — et le motif n'est pas la cohérence d'affichage mais la
+    frontière `adr-0009 §9` : **`label` est la seule chaîne de l'agenda que Massimo lit**, un titre
+    rédigé par le modèle et non relu l'atteindrait par cette porte sans passer par la validation
+    Papa ; **conséquence assumée et visible** — sur un chapitre en brouillon la liste est vide et
+    l'intitulé reste libre. **Aucun `lesson_id` persisté** : le `chapter_id` de §11 ouvre déjà **les
+    deux** portes (production `adr-0035`, Commander de missions), toutes deux scopées par
+    **chapitre** (`resolve_chapter_notions`) — une colonne de plus n'alimenterait aucun moteur et
+    coûterait une migration sur une table que §11 a déjà fait migrer ; ce qui part au serveur est
+    **le titre tel quel**, `trim()` compris et rien d'autre. **Le geste de Papa n'est jamais
+    écrasé** : texte libre saisi **avant** le chapitre → choisir le chapitre ne bascule pas le champ
+    et n'efface rien (seule transition capable de perdre une saisie, interdite et testée) ; le
+    passage inverse **vide** le champ et son libellé le dit, l'alternative mettant l'écran en
+    désaccord avec ce qui sera enregistré. **Aux deux surfaces** — grille **et** panneau de détail,
+    ce dernier ayant reçu son sélecteur de chapitre à l'addendum `adr-0035 §3` pour la raison exacte
+    qui vaut ici (un item saisi par Massimo n'a aucun sélecteur et resterait stérile). **Zéro
+    backend, zéro migration, zéro type partagé nouveau** : `GET /api/chapters/{id}/lessons` et
+    `fetchLessons` existent. ⚠️ Coûts : la liste vide d'un chapitre en brouillon n'explique pas
+    **pourquoi** (le renvoi vers Programme existe sur Matières, pas ici) ; un appel réseau par
+    chapitre déplié ; et une pente à surveiller, celle de rendre l'intitulé **obligatoirement** issu
+    du menu. À revoir si la saisie élève s'ouvre (§10) : Massimo n'a aucun sélecteur, et §8 rôles
+    2–3 redeviendrait la question — Accepté (2026-08-10)
+  - `docs/decisions/adr-0025-addendum-lecon-a-apprendre.md` — **Addendum ADR-0025 §14 — « leçon à
+    apprendre », le quatrième type** : le vocabulaire des types est celui du collège (`devoir`
+    défaut, `controle`, `rendu`) et il **manquait le travail le plus accompagnable** — le
+    commanditaire a buté dessus à la relecture (« devoir = cours à apprendre ? » — **non**, un devoir
+    ce sont des exercices qu'on FAIT). Des exercices se font sans ZETIS ; **une leçon s'apprend avec
+    ce qu'il produit** (fiche, quiz, cartes) : le type le plus utile au dispositif était le seul
+    absent du menu. **`AGENDA_KINDS` gagne `lecon`** — `String(15)` sans Enum SQL, `_KIND_PATTERN`
+    dérivé du tuple, **aucune migration** (le modèle avait écrit le motif : « une valeur nouvelle ne
+    doit pas coûter une migration »). **Trois décisions de comportement, écrites pour être
+    challengées** : (a) **il déclenche la production**, `TRIGGERING_KINDS = (controle, lecon,
+    devoir)` ; (b) **priorité 1, DEVANT le devoir** — même raisonnement que l'addendum `adr-0035 §1`
+    (« trier, c'est décider qui passe en dernier »), le contrôle gardant la tête parce que c'est lui
+    qu'on mesure ; (c) **absent de « ce qui arrive »**, `UPCOMING_KINDS` inchangé — trois raisons par
+    ordre de force : `UpcomingItemOut` **ne porte aucun champ `kind`** (Massimo ne distinguerait pas
+    « contrôle jeudi » de « leçon pour demain », deux gravités sous une forme identique), la section
+    est **plafonnée à 4** et les leçons chasseraient les contrôles de la seule surface qui sert à les
+    anticiper, et c'est le motif exact qui a exclu `devoir`. **Réversible** : une constante et son
+    test — à rouvrir en donnant d'abord un `kind` à `UpcomingItemOut`, pas avant. ⚠️ **Piège
+    verrouillé** : `_KIND_PRIORITY.get(kind, 9)` — ajouter `lecon` à `TRIGGERING_KINDS` en oubliant
+    la table de priorité le ferait tomber en 9, donc passer **systématiquement dernier, sans qu'aucun
+    test ne rougisse** (le lot part quand même) ; un test-verrou fixe l'ordre des trois. **Marque
+    Massimo calme, JAMAIS le fuchsia** (réservé au contrôle) ni le rouge (interdit transverse §7) —
+    aujourd'hui seul `controle` porte une marque, `rendu` est indistinguable d'un `devoir`. **§14.5 —
+    le Commander cesse d'être enterré** : « 🎯 Commander les missions de ce chapitre » est livré
+    depuis le 2026-08-03 (`adr-0035 §3`) mais exige d'**ouvrir le panneau de détail** ET que
+    l'échéance porte **déjà** un chapitre — **une capacité livrée que personne ne trouve est, à
+    l'usage, une capacité absente** ; l'action remonte au niveau de l'item et le panneau **nomme ce
+    que ZETIS peut faire**, pas seulement ce qu'il ne pourra pas (raisonnement des `SKIP_*` de
+    `triggers.py` appliqué à l'écran), le bloc restant **indépendant du `kind`** pour ne pas
+    recréer la seconde source de vérité qui a divergé le jour même où `devoir` est entré. **§14.6 —
+    refus explicite de promettre « réviser »** : la question qui a ouvert le chantier était « comment
+    demander à Massimo de réviser depuis l'agenda ? » et la réponse honnête est **on ne peut pas
+    encore** — aucune mission ne porte de session de cartes (`step_type` sans SRS, et **`lesson` est
+    déclaré mais MORT**, absent de `_build_steps` et `_STEP_PALETTE`), le deck n'accepte que
+    `mix_day | mix_flash | {subject}` (**pas de chapitre**), le non-scheduling `is_consolidation` est
+    **borné au même jour civil, même carte**. C'est le **couplage 2 du §11, livré à 0 %** : tant
+    qu'il n'existe pas, **aucune affordance ne doit suggérer une session de révision** (un bouton
+    mort se lit comme une panne). **Corollaire d'ordonnancement** : le **plan de préparation**
+    (§8 rôle 1, dont `plan_steps` est l'emplacement câblé et rempli en dur à `[]`) vient **APRÈS** le
+    couplage 2 — ses étapes sont « lire la fiche · mini-quiz · **réviser les cartes du chapitre** »,
+    le construire d'abord serait le poser sur le trou. ⚠️ Coût nouveau : rendre le Commander visible
+    **augmente la probabilité du double clic**, or il **n'est pas idempotent** (`Mission` n'a aucune
+    référence à l'agenda) — dette déjà écrite en `adr-0035`, rendue plus probable ici, **obligatoire
+    à corriger avant tout déclenchement automatique**. **§14.7 — Papa lit « coché », jamais
+    « fait »** : relevé à la relecture (« coché par Massimo ne veut pas dire effectué »),
+    l'étiquette d'état des cartes et de la liste affirmait **« ✓ fait »**, une complétion que rien
+    ne permet d'établir alors que le **§3 de l'ADR l'écrit noir sur blanc** (« cocher ne prouve
+    rien, ne pas cocher ne prouve rien ») ; **le reste de la page était déjà juste** (KPI « cochés
+    par Massimo », panneau « Coché par Massimo » / « Pas encore coché ») — **une seule étiquette
+    contredisait les deux autres surfaces, et c'était celle qu'on lit le plus souvent**. Même motif
+    que l'addendum `adr-0041` sur le Journal : **un mot qui veut dire une chose pour la machine et
+    une autre pour le lecteur**. **L'asymétrie avec Massimo est VOULUE et conservée** — son bouton
+    reste « marquer comme fait » : il **déclare**, et cette déclaration est à lui (§2b, « le seul
+    geste qui rend l'objet sien ») ; Papa **lit une déclaration dont il n'est pas l'auteur**, il
+    doit voir le geste et non la conclusion. **« à faire » ne change pas** : ce n'est pas une
+    affirmation sur Massimo mais ce que le collège demande. ⚠️ Le test-verrou exploite que
+    « à faire » **ne contient pas** « fait » — l'assertion ne se déclenche que sur une vraie
+    affirmation de complétion — Accepté (2026-08-10)
+  - `docs/decisions/adr-0025-addendum-lien-vers-le-cours.md` — **Addendum ADR-0025 §15 —
+    l'échéance mène à son cours** : 🔴 **RÉVOQUE le §13.3 (« aucun `lesson_id` persisté »), écrit
+    le matin même**. Depuis le §13, Papa choisit l'intitulé **dans la liste des cours du
+    chapitre** : l'agenda de Massimo affiche donc **mot pour mot le titre d'une leçon qui existe
+    en base**, sans lui donner aucun moyen de l'ouvrir. C'est le reproche que `pilotageLinks.ts`
+    fait déjà côté Papa (« une cellule qui affiche un état sans y donner accès oblige à retrouver
+    l'objet à la main »), et l'agenda est la surface où il coûte le plus cher — **la seule que
+    Massimo ouvre en sachant ce qu'il a à faire**. **Pourquoi la révocation est légitime** : le
+    §13.3 écartait la colonne au motif qu'elle « n'alimenterait aujourd'hui aucun moteur » —
+    argument **juste, et portant sur les MOTEURS** (production, Commander), qui restent scopés par
+    `chapter_id` et le demeurent ; il ne prévoyait pas un consommateur d'un autre genre, **un
+    lien**. Une donnée que personne ne lit ne vaut pas une migration ; une donnée qui ouvre la
+    bonne page à un enfant, si. **Migration `a1b2c3d4e5f8`** (FK nullable, **aucun backfill** — la
+    rétro-attribution supposerait de deviner, `provenance.py §F.4` refuse ce geste ailleurs pour la
+    même raison). ⚠️ **La colonne POINTE, elle ne scope rien** : un `lesson_id` qui se mettrait à
+    scoper un lot ferait produire une leçon isolée là où tout le dispositif raisonne par chapitre.
+    **Cascade de précision décroissante** `lesson` → `chapter` → matière → **`null`** : jamais un
+    lien vers la racine (même discipline que `pilotageLink`) — **un lien qui n'ouvre rien de
+    pertinent est pire qu'un lien absent, il enseigne à ne plus cliquer**. La leçon est
+    **SOULIGNÉE, pas ouverte d'office** (elle n'a pas toujours de `has_content`, et une modale sur
+    du vide se lit comme une panne), et le repli est **silencieux** quand elle a été dévalidée
+    depuis (ADR-0009 §9 ne sert que du validé) — un enfant n'a rien à faire d'un message de lien
+    mort. **Indépendant du `kind`** : un devoir rattaché à un cours y mène aussi ; recopier une
+    règle de type au front en ferait une seconde source de vérité, celle de `TRIGGERING_KINDS`
+    ayant divergé **le jour même** où `devoir` y est entré. ⚠️ **Deux champs pilot-only s'ouvrent à
+    la frontière élève** (`lesson_id`, `chapter_id`) — première fois, et assumé : **ce ne sont pas
+    des données SUR Massimo, ce sont des adresses de contenu qu'il peut déjà atteindre à la main** ;
+    `parent_note`, `dismissed_at` et les horodatages **restent interdits**, le test de non-fuite
+    les nomme un par un et a été **étendu, pas assoupli**. **Deux gardes contre la leçon périmée**,
+    les deux nécessaires : le front efface `lesson_id` au changement de chapitre, et le serveur
+    refuse en **422** — en contrôlant **l'état RÉSULTANT et non le corps de la requête**, parce
+    qu'un `PATCH` du seul chapitre rend la leçon périmée et que lire `data` seul laisserait passer
+    exactement ce cas. ⚠️ Coûts : une décision révoquée **le jour même de son écriture** (le §13 a
+    été pris sans connaître la demande qui a suivi, pas contre elle), deux champs à défendre à
+    chaque relecture, et un repli silencieux qu'aucun test d'écran ne couvrira complètement.
+    🔴 **Migration appliquée en DEV uniquement — la prod reste à faire**. **§15.6 (ajouté le même
+    jour) — rattrapage par titre EXACT pour les échéances sans `lesson_id`** : relevé à l'écran
+    (« "La phrase complexe : juxtaposition et coordination" ne s'entoure pas d'un cadre coloré ») —
+    l'item portait `chapter_id: 2` et **`lesson_id: null`**, la cascade fonctionnait mais n'avait
+    **rien à désigner**. Cas **non marginal** : toutes les échéances antérieures au §15 sont dans cet
+    état, et celles dont l'intitulé est tapé à la main le resteront — or leur libellé est souvent le
+    titre **mot pour mot** d'un cours du chapitre, l'information est là mais pas stockée comme
+    identifiant. Le lien **dit ce qu'il cherche** (`?chapter=N&title=<libellé>`) et la page encadre
+    la leçon dont le titre est identique. 🔴 **Ne rouvre PAS le §13.3** (résolution « texte libre →
+    leçon », écartée le matin même sur le précédent `adr-0018 §1`) — **trois bornes** l'en séparent :
+    **égalité stricte** au `trim()` près (jamais une similarité, jamais un embedding) ; **dans le
+    chapitre visé UNIQUEMENT** — deux chapitres peuvent porter des leçons homonymes, c'est le **seul
+    cas où ce rattrapage pourrait mentir**, et un test-verrou le tient (élargir la fenêtre à la
+    matière le fait rougir **sur la mauvaise leçon**) ; **rien n'est persisté** — le résultat décide
+    d'un **cadre**, pas d'une donnée, aucun `lesson_id` n'est écrit et la rétro-attribution reste
+    refusée. **Son pire cas est l'état d'avant** (chapitre déplié, sans cadre) : ce qui l'autorise,
+    c'est qu'il **ne peut pas produire d'action fausse**, là où `adr-0018 §1` refusait une résolution
+    floue qui **composait des missions**. **L'identifiant prime toujours** : avec `lesson_id`, le
+    titre n'est même pas regardé — Accepté (2026-08-10)
+  - `docs/decisions/adr-0025-addendum-voix-de-zetis.md` — **Addendum ADR-0025 §16 — Papa n'existe
+    pas dans l'espace de Massimo** : **amende le §2a** (le marqueur de co-édition reste, l'auteur
+    nommé change) et porte **au-delà de l'agenda** — cinq surfaces de l'app Massimo (agenda, chat,
+    ELI5, diagnostic, capsules) **plus le module `chat` du serveur**. **Ne crée aucune doctrine
+    neuve** : il généralise la décision du **2026-08-02 sur les missions** (« une mission arrive
+    dans la voix de ZETIS, quel que soit qui l'a créée ; "👤 par Papa" aurait dû changer d'auteur le
+    jour où ZETIS produit seul — la voix du monde de Massimo doit tenir dans le temps »), restée
+    jusqu'ici cantonnée à une seule page. **Le §2a tient entier** : il exigeait que Massimo sache
+    qu'un **AUTRE** a touché son agenda, **jamais de le nommer** — c'est l'altérité qui protège, pas
+    l'identité ; un item non écrit par lui porte toujours son marqueur, la correction reste
+    annoncée en priorité. ⚠️ **Le §16 porte sur ce que Massimo LIT, jamais sur ce que le produit
+    FAIT** : Papa pilote, valide, saisit l'agenda et trie les demandes, inchangé. **Remplacement
+    NON mécanique — deux réécritures** : (a) là où **ZETIS parle à la première personne** (le chat,
+    où Massimo s'adresse à lui), le nommer en ferait un **tiers dans sa propre conversation** → « je
+    le note » et non « je le note pour ZETIS » ; (b) là où la phrase décrivait **une personne et son
+    écran** (« Papa prépare les diagnostics **depuis son espace**, dès qu'**il** en laisse passer
+    un »), la phrase entière a été refaite. **Deux verrous de dépôt, et il en FALLAIT deux** :
+    ⚠️ le libellé du bouton de demande du chat est **fabriqué côté SERVEUR** (`ChatAction.label`,
+    servi tel quel) — un verrou limité au frontend aurait été **vert sur trois phrases fautives**,
+    dont celle que Massimo lit le plus souvent quand ZETIS n'a pas de contenu. Balayage de dépôt
+    plutôt qu'un test par écran : la règle est transverse, et un test par surface laisserait passer
+    la sixième. Commentaires exclus — **la doctrine s'écrit et doit pouvoir nommer Papa pour
+    expliquer pourquoi il ne s'affiche pas** ; les identifiants de code (`askPapaToAdd`, `_as_papa`)
+    non plus, un identifiant ne se lit pas à l'écran. ⚠️ Coûts : **quatre tests existants** mis à
+    jour — ils protégeaient l'invariant « ZETIS annonce qu'il note plutôt que de faire semblant
+    d'avoir le contenu », qui n'a pas bougé, et leurs assertions portent désormais sur **la promesse
+    elle-même** (« je le note ») plutôt que sur son destinataire, ce qui est un **meilleur témoin** ;
+    et une **perte d'information assumée** — Massimo ne saura plus qu'un humain répond à sa demande,
+    prix d'une voix qui tient dans le temps — Accepté (2026-08-10)
+  - `docs/decisions/adr-0025-addendum-jour-ouvert.md` — **Addendum ADR-0025 §17 — la bande ouvre un
+    jour, et le passé cesse d'être hors d'atteinte** : relevé **à l'écran** par le commanditaire
+    (« 3 points verts au dim 9 et sam 8, il ne se passe rien »), et **deux choses s'y cachaient**.
+    (1) **Les points verts ne sont pas des devoirs** — ce sont les **traces d'activité** du §7
+    (`traces: 3`, `fixed_items: []` vérifié sur l'API) : la confusion est le symptôme, pas la cause.
+    (2) **Le tap ne répondait pas** : `scrollToDay` faisait défiler vers le premier item du jour et
+    **sortait en silence** quand il n'y en avait pas — or le serveur ne renvoie **JAMAIS** d'échéance
+    sur un jour passé (§6, asymétrie serveur), donc le tap était muet sur **tous** les jours passés,
+    c'est-à-dire précisément là où des points étaient allumés. **Un jour qui MONTRE quelque chose et
+    ne répond pas se lit comme une panne** — même raisonnement que les `SKIP_*` de `triggers.py`,
+    appliqué à un tap. **§17.1 — la bande OUVRE un jour** (panneau **sous la bande**, pas en bas de
+    page : la réponse à un tap arrive là où le doigt s'est posé ; retaper referme) et **le panneau
+    répond TOUJOURS** — échéances cochables avec leur lien vers le cours (§15) · « Rien à rendre ce
+    jour-là » (passé) · « Rien de noté pour ce jour » (à venir) · « tu as travaillé N fois » quand
+    le jour porte des traces. ⚠️ **`0` trace ne se rend pas** : le contrat ne distingue pas `0` de
+    « pas de donnée » (§7), et « tu as travaillé 0 fois » fabriquerait le constat d'absence interdit.
+    **RÉVOQUE la phrase « la bande est un index, pas une seconde liste »** de
+    `page-agenda.md` — mais **ce qu'elle protégeait est conservé** : la bande n'ouvre qu'**UN** jour
+    à la fois, à la demande, et le panneau se referme ; ce n'est pas une liste, c'est une réponse.
+    **§17.2 — le plafond de « À reprendre » CHANGE DE NATURE, il ne disparaît pas** : il vivait dans
+    `splitSections`, donc **au FILTRAGE** — au-delà de trois, les items passés non faits n'étaient
+    pas cachés, ils étaient **HORS D'ATTEINTE**, rien nulle part ne permettait d'y revenir ; il
+    devient un plafond d'**AFFICHAGE** (3 d'emblée + « voir N autres ▾ »). **Le §7 n'est pas
+    rouvert, il est RELU** : ce qu'il interdit, c'est un écran qui s'allonge **TOUT SEUL** (« une
+    section qui s'allonge redevient la liste d'arriéré ») — un dépliage que Massimo **ouvre** est son
+    geste, pas une dette qui pousse sous ses yeux. ⚠️ **Le nombre n'apparaît QUE sur le bouton**,
+    jamais à côté du titre : « À reprendre · 8 » serait exactement le compteur d'arriéré interdit ;
+    « voir 5 autres » dit ce que le geste va ouvrir et **disparaît une fois ouvert**. **§17.3 — le
+    vocabulaire ne bouge pas** : la demande parlait de « devoirs **en retard** », mot interdit sur
+    les surfaces de Massimo (§7) et qui le **reste** — la fonction est livrée sous le nom **« à
+    reprendre »**, ambre doux. **Seul point où la livraison s'écarte de la lettre de la demande, et
+    c'est délibéré** : le §7 protège un enfant d'un écran qui lui reproche quelque chose. ⚠️ Coûts :
+    une phrase de spec révoquée trois semaines après son écriture ; un panneau de plus sur une page
+    dont la sobriété est un objectif ; et une tentation permanente, qu'aucun test ne clôt, de faire
+    du dépliage un compteur (« 8 à reprendre ») — nommée ici pour être reconnue quand elle
+    reviendra. **Observation attendue** : si le dépliage n'est jamais ouvert, le plafond de filtrage
+    avait raison — Accepté (2026-08-10)
 - `docs/decisions/adr-0026-chat-zetis-memoire.md` — **Chat ZETIS : mémoire éphémère,
   traçabilité typée, signal déclaratif** : le verbatim de conversation est **éphémère par
   construction** — M1 en Redis (TTL `CHAT_SESSION_TTL_MINUTES=120`, purge à la clôture),

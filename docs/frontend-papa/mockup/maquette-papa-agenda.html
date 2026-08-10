@@ -254,7 +254,7 @@
     document.getElementById("rows").innerHTML = Array.from({length:rows}).map((_,i)=>`
       <div class="batch-row">
         <select><option value="">— matière —</option>${opts}</select>
-        <input type="text" placeholder="ex. Exercices 12 à 15 p. 45">
+        <input type="text" placeholder="">
         <input type="date">
         <select><option>Devoir</option><option>Contrôle</option><option>Rendu</option></select>
         <button class="row-del" onclick="rows=Math.max(1,rows-1);renderRows()">✕</button>

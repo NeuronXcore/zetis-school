@@ -194,7 +194,7 @@ describe("ChatPage", () => {
     });
   });
 
-  it("action request_notion (notion hors-programme) → carte « Demander à Papa » → enregistre + remercie", async () => {
+  it("action request_notion (notion hors-programme) → carte « Ajouter à mon programme » → enregistre + remercie", async () => {
     const mockRequest = vi.mocked(requestNotion);
     mockRequest.mockResolvedValue({} as never);
     mockSend.mockResolvedValue({
@@ -203,7 +203,7 @@ describe("ChatPage", () => {
       tool_suggestion: null,
       action: {
         kind: "request_notion",
-        label: "Demander à Papa d'ajouter « le verbe être en espagnol »",
+        label: "Ajouter « le verbe être en espagnol » à mon programme",
         text: "le verbe être en espagnol",
         confirm: true,
       },
@@ -211,14 +211,14 @@ describe("ChatPage", () => {
     renderPage();
     ask("le verbe être en espagnol");
     await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("idle"));
-    fireEvent.click(screen.getByRole("button", { name: /Demander à Papa/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ajouter .* à mon programme/ }));
     // Enregistre la demande (précédent ELI5), PAS une génération.
     await waitFor(() =>
       expect(mockRequest).toHaveBeenCalledWith("le verbe être en espagnol"),
     );
     // Confirmation affichée, carte retirée.
     expect(await screen.findByText(/C'est noté/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Demander à Papa/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Ajouter .* à mon programme/ })).toBeNull();
   });
 
   it("request_notion en ÉCHEC → jamais de « c'est noté », la carte reste (anti-régression review)", async () => {
@@ -230,7 +230,7 @@ describe("ChatPage", () => {
       tool_suggestion: null,
       action: {
         kind: "request_notion",
-        label: "Demander à Papa d'ajouter « les nombres complexes »",
+        label: "Ajouter « les nombres complexes » à mon programme",
         text: "les nombres complexes",
         confirm: true,
       },
@@ -238,12 +238,12 @@ describe("ChatPage", () => {
     renderPage();
     ask("les nombres complexes");
     await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("idle"));
-    fireEvent.click(screen.getByRole("button", { name: /Demander à Papa/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ajouter .* à mon programme/ }));
     await waitFor(() => expect(mockRequest).toHaveBeenCalled());
     // Rien n'est parti → pas de fausse confirmation, et la carte reste tapable pour réessayer.
     expect(screen.queryByText(/C'est noté/)).toBeNull();
-    expect(screen.getByRole("button", { name: /Demander à Papa/ })).toBeTruthy();
-    expect(await screen.findByText(/pas réussi à prévenir Papa/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Ajouter .* à mon programme/ })).toBeTruthy();
+    expect(await screen.findByText(/pas réussi à noter ta demande/)).toBeTruthy();
   });
 
   it("voix + action navigate → navigation DIRECTE, sans carte", async () => {

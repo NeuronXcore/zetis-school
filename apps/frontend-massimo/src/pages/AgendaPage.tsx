@@ -4,8 +4,10 @@ import { PageHeader } from "../components/PageHeader";
 import { NeonBackdrop } from "../components/glass";
 import { AgendaItemRow } from "../components/agenda/AgendaItemRow";
 import { AgendaWeekStrip } from "../components/agenda/AgendaWeekStrip";
+import { AgendaDayPanel } from "../components/agenda/AgendaDayPanel";
 import { UpcomingCard } from "../components/agenda/UpcomingCard";
 import { useAgenda } from "../hooks/useAgenda";
+import { RESUME_MAX } from "../lib/agendaSections";
 
 // Page `/agenda` de Massimo (ADR-0025, Lot 1) — ce que l'école lui demande.
 //
@@ -23,6 +25,8 @@ import { useAgenda } from "../hooks/useAgenda";
 export function AgendaPage() {
   const agenda = useAgenda();
   const [laterOpen, setLaterOpen] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
 
   const itemsByDate = useMemo(() => {
     const map: Record<string, AgendaItemStudent[]> = {};
@@ -30,21 +34,28 @@ export function AgendaPage() {
     return map;
   }, [agenda.items]);
 
-  /** La bande est un INDEX : un tap fait défiler vers les items du jour, il n'ouvre rien. */
-  const scrollToDay = (date: string) => {
-    const first = itemsByDate[date]?.[0];
-    if (!first) return;
-    // Déplie « plus tard » si la cible y est cachée, sinon le défilement viserait le vide.
-    if (date > agenda.sections.today[0]?.due_on) setLaterOpen(true);
+  /** La bande OUVRE un jour (addendum §17). Elle n'était qu'un index : un tap faisait défiler
+   *  vers les items du jour — et **ne faisait rien** sur un jour qui n'en a pas, c'est-à-dire sur
+   *  tous les jours passés, dont le serveur ne renvoie jamais d'échéance (§6, asymétrie).
+   *  Des points de trace allumés sous un jour muet se lisent comme une panne.
+   *
+   *  Retaper le jour ouvert le referme : c'est la seule façon de sortir sans chercher un ✕. */
+  const pickDay = (date: string) => {
+    setPickedDay((current) => (current === date ? null : date));
     requestAnimationFrame(() => {
-      document.getElementById(`agenda-item-${first.id}`)?.scrollIntoView({
+      document.getElementById("agenda-jour")?.scrollIntoView({
         // `prefers-reduced-motion` : la préférence système est respectée par le navigateur
         // pour `smooth` ; on ne force aucune animation supplémentaire.
         behavior: "smooth",
-        block: "center",
+        block: "nearest",
       });
     });
   };
+
+  /** Traces du jour ouvert — `null` sur un jour à venir, jamais `0` (§7 : un jour qui n'est pas
+   *  encore arrivé n'a pas de case vide). Le contrat serveur ne distingue pas `0` de « pas de
+   *  donnée » ; on le respecte en n'affichant la ligne que si elle est positive. */
+  const pickedTraces = agenda.week?.days.find((d) => d.date === pickedDay)?.traces ?? null;
 
   const { today, tomorrow, later, resume } = agenda.sections;
   const nothingNow = today.length === 0 && tomorrow.length === 0;
@@ -62,9 +73,23 @@ export function AgendaPage() {
             <AgendaWeekStrip
               days={agenda.week.days}
               itemsByDate={itemsByDate}
-              onPickDay={scrollToDay}
+              onPickDay={pickDay}
+              pickedDay={pickedDay}
             />
           </section>
+        )}
+
+        {/* 1 bis — Le jour ouvert (addendum §17). Placé SOUS la bande et non en bas de page :
+            c'est la réponse à un tap, elle doit arriver là où le doigt vient de se poser. */}
+        {pickedDay && (
+          <AgendaDayPanel
+            date={pickedDay}
+            items={itemsByDate[pickedDay] ?? []}
+            traces={pickedTraces}
+            onClose={() => setPickedDay(null)}
+            onToggle={(item) => agenda.toggleDone(item)}
+            onDismiss={(item) => agenda.dismiss(item)}
+          />
         )}
 
         {/* 2 — Composer : ABSENT en Lot 1 (rien n'occupe cet espace, rien ne le grise). */}
@@ -138,11 +163,13 @@ export function AgendaPage() {
           </Section>
         )}
 
-        {/* 5 — À reprendre : 3 au maximum, SANS compteur et sans « et N autres ». La section
-            ne grossit pas — c'est le mécanisme anti-dette. */}
+        {/* 5 — À reprendre : TROIS d'emblée, le reste derrière un dépliage (addendum §17).
+            Le plafond protégeait d'un écran qui s'allonge tout seul ; il rendait aussi les plus
+            anciens inaccessibles. Le dépliage est un GESTE de Massimo — la section ne grossit
+            toujours pas sans qu'il le demande. */}
         {resume.length > 0 && (
           <Section title="À reprendre">
-            {resume.map((item) => (
+            {(resumeOpen ? resume : resume.slice(0, RESUME_MAX)).map((item) => (
               <AgendaItemRow
                 key={item.id}
                 item={item}
@@ -152,6 +179,19 @@ export function AgendaPage() {
                 onDismiss={() => agenda.dismiss(item)}
               />
             ))}
+            {/* ⚠️ Le nombre n'apparaît QUE sur le bouton de dépliage, jamais comme un compteur
+                posé à côté du titre : « À reprendre · 8 » serait le compteur d'arriéré que le §7
+                interdit. Ici il dit ce que le geste va ouvrir, et il disparaît une fois ouvert. */}
+            {!resumeOpen && resume.length > RESUME_MAX && (
+              <button
+                type="button"
+                onClick={() => setResumeOpen(true)}
+                className="self-start rounded-lg px-1 py-1 text-xs text-zetis-muted underline-offset-2 transition-colors hover:text-white hover:underline motion-reduce:transition-none"
+              >
+                voir {resume.length - RESUME_MAX} autre
+                {resume.length - RESUME_MAX > 1 ? "s" : ""} ▾
+              </button>
+            )}
           </Section>
         )}
 

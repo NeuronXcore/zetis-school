@@ -121,15 +121,61 @@ le présume jamais. Sur téléphone, la grille se replie en **deux rangées de 7
 |---|---|---|
 | jours passés | 0 à 3 **traces allumées**, sans réceptacle | point fixe, libellé, case vide |
 | aujourd'hui | encadré + halo cyan, seul jour marqué | — |
-| jours futurs | pictogrammes des points fixes ; `controle` = anneau fuchsia | trace, bouton « + » |
+| jours futurs | pictogrammes des points fixes ; `controle` = anneau fuchsia, `lecon` = anneau teal | trace, bouton « + » |
 
 Un jour passé sans trace **ne rend rien** : visuellement identique à un jour hors plage
 (ADR-0025 §7 — une case grise en attente est un décompte de jours manqués). Une trace ne
 s'efface jamais.
 
+> **Deux marqueurs de nature, depuis le 2026-08-10** (addendum ADR-0025 §14.4) : le fuchsia du
+> `controle`, et le **teal** — plus calme — de la `lecon` (« leçon à apprendre »). `devoir` et
+> `rendu` n'en portent aucun.
+>
+> ⚠️ **Le fuchsia reste RÉSERVÉ au contrôle**, et un test-verrou le tient. Une leçon à apprendre
+> est du travail **ordinaire** : elle se repère, elle n'alarme pas. Diluer le fuchsia sur un second
+> type lui ferait perdre son sens — c'est le seul signal de gravité de l'écran. Ni l'émeraude (elle
+> veut dire « Papa »), ni le rouge (interdit transverse, §7).
+>
+> Aucun marqueur ne change de couleur en approchant : pas de jauge d'urgence.
+
+> **« 📖 lire le cours » depuis le 2026-08-10** (addendum ADR-0025 §15). Une échéance qui NOMME un
+> cours sans y donner accès oblige Massimo à le retrouver à la main — c'est le reproche que
+> `pilotageLinks.ts` fait déjà, côté Papa, à une cellule sans lien.
+>
+> **Trois précisions, dans cet ordre** : la leçon (`?lesson=`, chapitre déplié et leçon
+> **encadrée**), sinon le chapitre (`?chapter=&title=`), sinon la page de cours de la matière.
+>
+> ⚠️ **Rattrapage par titre (§15.6)** : sans `lesson_id` — toutes les échéances antérieures au
+> 2026-08-10, et celles dont l'intitulé est tapé à la main — le lien **emporte le libellé** et la
+> page encadre la leçon **du chapitre visé** dont le titre est **exactement identique**. Égalité
+> stricte, jamais hors du chapitre, rien de persisté : le pire cas est l'état d'avant, le chapitre
+> déplié sans cadre.
+> ⚠️ **`null` quand il n'y a pas de matière** — jamais un lien vers la racine : un lien qui n'ouvre
+> rien de pertinent enseigne à ne plus cliquer.
+>
+> ⚠️ La leçon est **soulignée, pas ouverte d'office** : elle n'a pas toujours de contenu, et une
+> modale sur du vide se lit comme une panne. Si elle a été dévalidée depuis, le repli sur le
+> premier chapitre est **silencieux** — un enfant n'a rien à faire d'un message de lien mort.
+>
+> ⚠️ **Indépendant du `kind`** : un devoir rattaché à un cours y mène aussi.
+
 `plan_steps` (✦ sous le jour) : emplacement prévu, **vide en Lot 1**.
 
-Tap sur un jour → scroll vers ses items. **La bande est un index, pas une seconde liste.**
+**Tap sur un jour → il s'ouvre, sous la bande** (addendum §17, 2026-08-10). Le panneau porte son
+travail, cochable, avec le lien vers le cours ; et **il répond toujours** — « Rien à rendre ce
+jour-là » sur un jour passé sans échéance, « Rien de noté pour ce jour » sur un jour à venir, plus
+« tu as travaillé N fois » quand le jour porte des traces. Retaper le jour ouvert le referme.
+
+> **Révoque « la bande est un index, pas une seconde liste »**, et pour une raison trouvée à
+> l'écran : le tap faisait défiler vers le premier item du jour et **sortait en silence** quand il
+> n'y en avait pas — c'est-à-dire sur **tous les jours passés**, dont le serveur ne renvoie jamais
+> d'échéance (§6). Des points de trace allumés sous un jour muet se lisent comme une panne.
+>
+> **Ce que la phrase protégeait est conservé** : la bande n'ouvre **qu'un** jour à la fois, à la
+> demande, et le panneau se referme. Ce n'est pas une liste, c'est une réponse.
+>
+> ⚠️ **`0` trace ne se rend pas** : le contrat ne distingue pas `0` de « pas de donnée », et
+> « tu as travaillé 0 fois » serait le constat d'absence que le §7 interdit.
 
 ### 2. Composer (`AgendaComposer`) — **Lot 1 bis**
 
@@ -164,8 +210,19 @@ visuel de la carte va à ce qui est réellement faisable.
 
 ### 5. À reprendre
 
-Items passés non faits, ambre doux, **sans compteur**, **3 affichés au maximum** quel qu'en
-soit le nombre. La section ne grossit pas : c'est le mécanisme anti-dette.
+Items passés non faits, ambre doux, **sans compteur**, **3 affichés d'emblée** — le reste derrière
+un dépliage (« voir 5 autres ▾ »), depuis l'addendum §17.
+
+> **Le plafond a changé de nature, il n'a pas disparu.** Il était appliqué au **filtrage** : au-delà
+> de trois, les items étaient **hors d'atteinte**, pas seulement invisibles. Il est désormais un
+> plafond d'**affichage**, que Massimo lève d'un geste.
+>
+> **Le §7 n'est pas rouvert, il est relu** : ce qu'il interdit, c'est un écran qui s'allonge **tout
+> seul**. Un dépliage qu'on ouvre est un geste, pas une dette qui pousse sous les yeux.
+>
+> ⚠️ **Le nombre n'apparaît QUE sur le bouton**, jamais à côté du titre : « À reprendre · 8 » serait
+> le compteur d'arriéré interdit ; « voir 5 autres » dit ce que le geste va ouvrir, et disparaît une
+> fois ouvert.
 
 ## Bandeau Accueil
 
@@ -211,6 +268,10 @@ dans `packages/types/src/agenda.ts`. Schéma élève `AgendaItemStudentOut` — 
   **uniquement** si `date >= today`. **L'asymétrie est calculée serveur, jamais côté client.**
 - `GET /upcoming` → `kind ∈ (controle, rendu)`, non fait, non archivé, horizon 21 jours,
   **max 4** : `{ id, label, subject, due_on, days_left, has_plan }`.
+  ⚠️ **`lecon` en est volontairement absent** alors qu'il DÉCLENCHE la production côté serveur —
+  premier `kind` dans ce cas (addendum §14.3). Motifs : la sortie **ne porte aucun `kind`**, donc
+  « contrôle jeudi » et « leçon pour demain » s'afficheraient identiques pour deux gravités
+  différentes ; et à 4 places, les leçons chasseraient les contrôles.
 - `GET /items?from=&to=` → liste plate (alimente Aujourd'hui / Demain / À reprendre).
 - `POST /items` → `created_by` forcé à `student` **côté serveur**, jamais lu du corps.
   **403 tant que `AGENDA_STUDENT_ENTRY_ENABLED` est fermé** (phase 0).
@@ -227,7 +288,9 @@ dans `packages/types/src/agenda.ts`. Schéma élève `AgendaItemStudentOut` — 
 | Item sans matière | rendu sans pictogramme, accent neutre — jamais bloqué à la saisie |
 | Phase 0, aucun item saisi par Papa | ligne calme + flux ZETIS non daté ; **jamais** « ajoute tes devoirs » |
 | Parsing indisponible (Lot 2) | item créé quand même, sans étiquette |
-| Item passé non fait, > 3 | 3 affichés, les autres silencieusement omis — **aucun « et 7 autres »** |
+| Item passé non fait, > 3 | 3 affichés + « voir N autres ▾ » (§17) — le nombre **sur le bouton**, jamais à côté du titre |
+| Jour tapé sans échéance | « Rien à rendre ce jour-là » (passé) / « Rien de noté pour ce jour » (à venir) — **jamais le silence** |
+| Jour tapé avec `traces = 0` ou `null` | la ligne « tu as travaillé… » **n'est pas rendue** |
 
 ## Hors périmètre
 

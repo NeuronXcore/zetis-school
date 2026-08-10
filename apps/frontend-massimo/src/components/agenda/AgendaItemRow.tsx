@@ -1,6 +1,8 @@
+import { Link } from "react-router-dom";
 import { type AgendaItemStudent } from "@zetis/types";
 import { subjectIconFor } from "../../lib/subjectIcons";
 import { originLabel, shortDayLabel } from "../../lib/agendaSections";
+import { agendaCourseRoute } from "../../lib/notionRoutes";
 
 // Un item de l'agenda de Massimo.
 //
@@ -30,6 +32,7 @@ export function AgendaItemRow({
   onDismiss,
 }: Props) {
   const origin = originLabel(item);
+  const coursRoute = agendaCourseRoute(item);
   return (
     <div
       id={`agenda-item-${item.id}`}
@@ -80,6 +83,18 @@ export function AgendaItemRow({
               ◆ contrôle
             </span>
           )}
+          {/* Une leçon à apprendre est du travail ORDINAIRE, pas une échéance qui menace : elle
+              se repère, elle n'alarme pas. Ni le fuchsia (réservé au contrôle), ni le rouge
+              (interdit transverse §7).
+              ⚠️ **Ni le teal**, essayé d'abord et MESURÉ à l'écran le 2026-08-10 : à 16° de teinte
+              de l'émeraude d'à côté (oklch 181 vs 165, même clarté, même chroma), les deux badges
+              de 10 px étaient indiscernables — et l'émeraude porte un sens que Massimo apprend
+              sans explication, « ça vient de papa ». L'indigo est à 110°. */}
+          {item.kind === "lecon" && (
+            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-indigo-400/40">
+              ◆ leçon
+            </span>
+          )}
           {showDate && <span>{shortDayLabel(item.due_on)}</span>}
           {/* Émeraude = la couleur de l'interface de Papa. Massimo apprend le code sans
               explication, et rien ne bouge dans son agenda sans qu'il le voie (§2a). */}
@@ -87,6 +102,17 @@ export function AgendaItemRow({
             <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/40">
               {origin}
             </span>
+          )}
+          {/* Une échéance qui NOMME un cours sans y donner accès oblige Massimo à le retrouver à
+              la main (addendum §15). `null` quand il n'y a rien à ouvrir — jamais un lien vers
+              la racine. Indépendant du `kind` : un devoir rattaché à un cours y mène aussi. */}
+          {coursRoute && (
+            <Link
+              to={coursRoute}
+              className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-zetis-muted underline-offset-2 transition-colors hover:text-white hover:underline"
+            >
+              📖 lire le cours
+            </Link>
           )}
         </div>
       </div>

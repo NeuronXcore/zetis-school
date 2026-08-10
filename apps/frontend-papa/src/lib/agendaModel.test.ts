@@ -20,6 +20,7 @@ function item(over: Partial<AgendaItemPilot> & { id: number; due_on: string }): 
     subject: null,
     subject_id: null,
     chapter_id: null,
+    lesson_id: null,
     kind: "devoir",
     created_by: "parent",
     parent_note: null,

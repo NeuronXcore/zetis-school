@@ -48,13 +48,24 @@ logger = logging.getLogger(__name__)
 # le contrôle qui l'obtient.
 #
 # `rendu` reste légal et non émis — le patron « le modèle anticipe, le code n'anticipe pas » tient.
-TRIGGERING_KINDS = ("controle", "devoir")
+#
+# **`lecon` ajouté le 2026-08-10** (addendum ADR-0025 §14). C'est le type pour lequel produire a le
+# plus de sens : des exercices se font sans ZETIS, une leçon s'apprend avec ce qu'il produit.
+TRIGGERING_KINDS = ("controle", "lecon", "devoir")
 
 # Ordre de priorité quand le régulateur est serré. Le scan crée les lots dans l'ordre et s'arrête
 # quand le plafond refuse : trier ici, c'est décider QUI passe en dernier — et ce n'est pas le
 # contrôle. Sans ce tri, trois devoirs saisis le dimanche mangeraient la semaine entière et le
 # contrôle du jeudi partirait bredouille.
-_KIND_PRIORITY = {"controle": 0, "devoir": 1}
+#
+# ⚠️ **CETTE TABLE SE MODIFIE EN MÊME TEMPS QUE `TRIGGERING_KINDS`, JAMAIS APRÈS.** Le `.get(…, 9)`
+# du tri plus bas ne lève rien : un `kind` déclencheur absent d'ici tombe en priorité 9 et passe
+# **systématiquement dernier**, sans qu'aucun test ne rougisse — le lot part quand même, il part
+# juste toujours en dernier. Un test-verrou fixe l'ordre des trois valeurs déclenchantes.
+#
+# `lecon` devant `devoir` : même raisonnement que le contrôle devant les deux — trier, c'est
+# décider qui passe en dernier, et ce n'est pas ce qui bénéficie le plus du contenu produit.
+_KIND_PRIORITY = {"controle": 0, "lecon": 1, "devoir": 2}
 
 # Les motifs de non-déclenchement, nommés. Un scan qui ne fait rien SANS DIRE POURQUOI est
 # indistinguable d'un scan en panne — et il tourne la nuit, quand personne ne regarde.

@@ -199,7 +199,9 @@ export function ChatPage() {
         setAction(null);
         setRequestedNotion(text);
       } catch {
-        setError("Je n'ai pas réussi à prévenir Papa — réessaie dans un instant.");
+        // ⚠️ Ici Massimo parle À ZETIS : « je n'ai pas réussi à prévenir ZETIS » ferait de ZETIS
+        // un tiers dans sa propre conversation. La première personne est la forme juste (§16).
+        setError("Je n'ai pas réussi à noter ta demande — réessaie dans un instant.");
       }
     },
     [],
@@ -569,10 +571,12 @@ export function ChatPage() {
           onOpen={() => runAction(action)}
         />
       )}
-      {/* Notion hors-programme : ZETIS ne l'a pas → carte OPT-IN pour demander à Papa de l'ajouter
-          (jamais une génération). Le tap enregistre la demande ; ZETIS remercie. */}
+      {/* Notion hors-programme : ZETIS ne l'a pas → carte OPT-IN pour la faire ajouter au
+          programme (jamais une génération). Le tap enregistre la demande ; ZETIS remercie.
+          ⚠️ Le nom de l'adulte a disparu de l'étiquette le 2026-08-10 (§16) : Massimo parle à
+          ZETIS, et ZETIS ne se désigne pas à la 3ᵉ personne dans sa propre conversation. */}
       {!speaking && action?.kind === "request_notion" && action.text && (
-        <div className="chat-offer" role="group" aria-label="Demander à Papa">
+        <div className="chat-offer" role="group" aria-label="Ajouter à mon programme">
           <div className="chat-offer-row">
             <button
               type="button"
@@ -586,7 +590,7 @@ export function ChatPage() {
       )}
       {!speaking && requestedNotion && (
         <p className="chat-quota" role="status">
-          📩 C'est noté&nbsp;! Papa verra ta demande pour «&nbsp;{requestedNotion}&nbsp;».
+          📩 C'est noté&nbsp;! Je garde ta demande pour «&nbsp;{requestedNotion}&nbsp;».
         </p>
       )}
 
