@@ -75,24 +75,15 @@ rendu quatre choses :
 
 Aucun fichier à moitié écrit. L'arbre est propre, tout est commité.
 
-### ⚠️ PIÈGES de la session agenda — à porter dans `TROUBLESHOOTING.md`
+### ✅ PIÈGES de la session agenda — ÉCRITS dans `TROUBLESHOOTING.md`
 
-**Non encore écrits dans `TROUBLESHOOTING.md`** — c'est la dette de clôture de ce chantier.
-
-- 🔴 **Un verrou frontend seul aurait été VERT sur trois phrases fautives** : le libellé du bouton
-  de demande du chat de Massimo est **fabriqué côté SERVEUR** (`ChatAction.label`, servi tel quel).
-  D'où deux verrous (§16.4). **Le réflexe « je balaie le front » ne suffit pas.**
-- 🔴 **`_KIND_PRIORITY.get(kind, 9)` ne lève rien** : un `kind` ajouté à `TRIGGERING_KINDS` mais
-  absent de la table de priorité passe **systématiquement dernier**, **sans qu'aucun test ne
-  rougisse** — le lot part quand même. Démontré par sabotage.
-- ⚠️ **Contrôler l'état RÉSULTANT, pas le corps de la requête** : un `PATCH` du seul `chapter_id`
-  rend un `lesson_id` périmé. Lire `data` seul laisse passer exactement ce cas.
-- ⚠️ **`Chapter` n'a PAS de `subject_id`** (`theme_id` / `school_year_subject_id`, les deux
-  nullables) — deux tests écrits dessus ont planté à l'écriture.
-- ⚠️ **Panneau navigateur** : `computer left_click` par `ref` ET par coordonnées n'a **pas
-  déclenché React** ; `element.click()` en JS a fonctionné. `form_input` par `ref` marche.
-- ⚠️ **Un octet NUL s'est glissé dans un fichier écrit par Write** (`" free-text"` rendu `\0`),
-  invisible au Read, détecté par `od -c` après un échec d'Edit inexplicable.
+Section **« L'agenda devient utilisable — six addenda ADR-0025 §13→§17 — 2026-08-10 »**, **dix
+sous-sections** : le verrou front qui aurait été vert sur trois phrases fabriquées côté serveur ·
+`_KIND_PRIORITY.get(kind, 9)` et son défaut muet · `alembic current` qui répond le DEV
+(`ZETIS_DATABASE_URL`) · `internal: true` qui rend la publication de port inopérante · `tail -3`
+aveugle au marqueur de `pg_dump` 16 · le `PATCH` partiel qui périme une donnée · `Chapter` sans
+`subject_id` · les clics du panneau navigateur qui ne déclenchent pas React · l'octet NUL dans un
+fichier écrit · et ce que **quatre défauts visuels** disent des tests.
 
 ### ⚠️ DETTES OUVERTES du chantier PRÉCÉDENT (#107)
 
@@ -255,7 +246,6 @@ Aucun fichier à moitié écrit. L'arbre est propre, tout est commité.
   port ne marche pas** sans attacher aussi `externe` ; et `tail -3` ne voit plus le marqueur de
   `pg_dump` 16. **Deux** sauvegardes, une par étape : `~/zetis-backups/zetis-prod-20260810-*.sql`
   (621 K chacune, marqueur vérifié).
-- 🔴 **Les pièges ci-dessus ne sont pas dans `TROUBLESHOOTING.md`.** Six sections à écrire.
 - ⚠️ **Le Commander n'est TOUJOURS pas idempotent** — commander deux fois la même échéance crée des
   doublons (`Mission` n'a aucune référence à l'agenda). La dette existait déjà (addendum ADR-0035) ;
   **le §14.5 l'a rendue plus probable** en remontant l'action au niveau de l'item. **Obligatoire à
@@ -278,10 +268,10 @@ Aucun fichier à moitié écrit. L'arbre est propre, tout est commité.
    a été remise au réel **dans l'heure** de chaque geste (`docs/WORKFLOW.md §5`). Les annonces
    « non poussé », « PR ouverte » et « prod à faire » n'ont jamais survécu à leur péremption.
    **Ce chantier est CLOS.**
-2. 🔴 **Écrire les six sections de `TROUBLESHOOTING.md`** (§ PIÈGES ci-dessus). C'est **le seul des
-   quatre contrôles du `WORKFLOW.md §6.3` qui manque** — ADR ✅ (cinq addenda) · `CHANGELOG.md` ✅
-   (0.66.0 → 0.71.0) · dettes remontées ✅. Sans lui, ce chantier ne peut pas être élagué d'ici à
-   la clôture suivante.
+2. ✅ ~~`TROUBLESHOOTING.md`~~ — **les QUATRE contrôles du `WORKFLOW.md §6.3` passent** : ADR ✅
+   (cinq addenda) · `TROUBLESHOOTING.md` ✅ (1 section, 10 sous-sections) · `CHANGELOG.md` ✅
+   (0.66.0 → 0.71.0) · dettes remontées ✅. 👉 **Cette section peut être ÉLAGUÉE de ce fichier à la
+   clôture du chantier suivant** — ses dettes survivantes sont à remonter au § du même nom.
 3. 🔴 **PROCHAIN CHANTIER : `/ouverture`** depuis un `main` propre.
    ⚠️ **Ce n'est PAS la refonte T0/T_n** — liste d'attente, read-before-code déjà écrit au
    `BACKLOG.md`, **à ne pas refaire**.

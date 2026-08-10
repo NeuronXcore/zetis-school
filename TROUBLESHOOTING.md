@@ -4587,3 +4587,131 @@ def test_x(client_db):
 Et **`AIJob.created_at` est NOT NULL sans défaut serveur** : un `m.AIJob(...)` monté à la main dans
 un test doit le porter, sinon `IntegrityError` sur SQLite. `_seed_year` rend `(student, subject,
 chapter)`, pas le seul chapitre.
+
+## L'agenda devient utilisable — six addenda ADR-0025 §13→§17 — 2026-08-10
+
+> Chantier où **cinq décisions sur six sont nées de l'écran, aucune d'un test**. Les trois suites
+> étaient vertes et **tous les verrous avaient été sabotés puis rougis** — et l'œil a quand même
+> rapporté quatre défauts. Les pièges ci-dessous sont ceux qui reviendront.
+
+### 🔴 Un verrou de dépôt limité au FRONT aurait été vert sur trois phrases fautives
+
+Le §16 exige qu'aucune chaîne rendue à Massimo ne nomme l'adulte. Un test balayant
+`apps/frontend-massimo/src` semblait suffire — il ne l'était pas : **le libellé du bouton de
+demande du chat est fabriqué côté SERVEUR** (`chat/actions.py`, `ChatAction.label`, servi tel quel
+et rendu par `📩 {action.label}`). Deux `note=` du même module étaient dans le même cas.
+
+Trois phrases fautives, dont **celle que Massimo lit le plus souvent** quand ZETIS n'a pas de
+contenu — et le verrou front les aurait déclarées absentes.
+
+**Parade** : avant d'écrire un verrou de vocabulaire, chercher **qui compose la phrase**, pas où
+elle s'affiche. `grep -rn '"[^"]*<mot>' apps/backend/app/modules` a suffi à les trouver. Le dépôt a
+maintenant **deux** verrous jumeaux (`src/voix-de-zetis.test.ts`, `app/tests/test_voix_de_zetis.py`).
+
+### 🔴 `_KIND_PRIORITY.get(kind, 9)` — un défaut silencieux qu'aucun test existant n'attrape
+
+`production/triggers.py` tient deux constantes : `TRIGGERING_KINDS` (qui déclenche) et
+`_KIND_PRIORITY` (dans quel ordre). Ajouter un `kind` à la première **sans** l'ajouter à la seconde
+le fait tomber en priorité **9** : il passe systématiquement **dernier**, et le régulateur le
+sacrifie en premier.
+
+⚠️ **Rien ne rougit** — le lot part quand même. Vérifié par sabotage : en retirant `lecon` de
+`_KIND_PRIORITY`, le test « la leçon déclenche un lot » restait **vert**, seul le test d'ordre
+tombait.
+
+**Parade** : les deux constantes se modifient **ensemble**, et un test fixe l'ordre des trois
+valeurs déclenchantes avec des **dates inverses de la priorité attendue** — sinon un tri par date
+donnerait le même résultat et le test ne prouverait rien.
+
+### 🔴 `alembic current` répond la révision du DEV, et rien ne dit qu'on s'est trompé de base
+
+`app/core/config.py` porte `env_prefix="ZETIS_"`. La variable est donc **`ZETIS_DATABASE_URL`** —
+`DATABASE_URL` est **ignorée en silence**, les réglages retombent sur le défaut (localhost:5432),
+et `alembic current` répond la révision du **dev** avec l'air de parler à la prod.
+
+C'est arrivé le 2026-08-10 : dev et prod ont répondu `a1b2c3d4e5f8` toutes les deux. Sans le
+discriminant, l'`upgrade` partait sur le dev.
+
+**Parade** : le discriminant n'est pas une formalité — `alembic current` doit rendre une révision
+**DIFFÉRENTE** de celle du dev, et un second contrôle indépendant (un compte de lignes : la prod
+portait 476 notions / 119 leçons, le dev 457 / 157) confirme qu'on parle bien à l'autre base.
+
+### 🔴 Publier un port sur un réseau `internal: true` est accepté puis inopérant
+
+`docker-compose.prod.yml` met le postgres sur le réseau `interne`, déclaré `internal: true`. Un
+override `ports: ["5433:5432"]` est **accepté** — `docker compose config` montre
+`published: "5433"`, `docker inspect` montre le `PortBindings` — et **rien n'écoute sur l'hôte**.
+`docker port` rend vide, `nc -z` échoue.
+
+**Parade** : attacher aussi le conteneur au réseau non-interne qui existe déjà :
+
+```yaml
+services:
+  postgres:
+    networks: [interne, externe]
+    ports: ["5433:5432"]
+```
+
+### ⚠️ `tail -3` ne voit plus le marqueur de fin de `pg_dump` 16
+
+Le contrôle « le dump porte-t-il `PostgreSQL database dump complete` ? » se faisait sur les
+dernières lignes. **pg_dump 16 écrit une ligne `\unrestrict <token>` APRÈS le marqueur**, plus des
+lignes vides : `tail -3 | grep -c` rend **0** sur un dump parfaitement complet.
+
+Une sauvegarde de 621 Ko, stderr vide, a été déclarée tronquée à tort — et la migration s'est
+arrêtée pour rien.
+
+**Parade** : `grep -c "dump complete" "$F"` sur le fichier entier, jamais sur sa fin.
+
+### ⚠️ Un `PATCH` partiel rend une donnée périmée — contrôler l'état RÉSULTANT, pas le corps
+
+Une échéance porte `chapter_id` et `lesson_id`, et la leçon doit appartenir au chapitre. La garde
+lisait le corps de la requête : elle attrapait bien un couple incohérent envoyé ensemble, et
+**laissait passer** un `PATCH` qui ne change QUE le chapitre — la leçon posée plus tôt devenait
+étrangère, et le lien de Massimo pointait ailleurs.
+
+**Parade** : `data.get("champ", item.champ)` pour chacun des deux, puis contrôler le couple
+résultant. Le test qui distingue les deux comportements patche **un seul** des deux champs.
+
+### ⚠️ `Chapter` n'a pas de `subject_id`
+
+Il se rattache par `theme_id` (place pédagogique) **ou** `school_year_subject_id` (ancrage
+temporel), **les deux nullables**. Deux tests écrits sur `m.Chapter(name=…, subject_id=…)` ont
+planté avec `TypeError: 'subject_id' is an invalid keyword argument`.
+
+**Parade** : pour un test qui n'a besoin que du chapitre, `m.Chapter(name=…)` suffit — les deux
+rattachements sont facultatifs.
+
+### ⚠️ Panneau navigateur — `left_click` n'a pas déclenché React, ni par `ref` ni par coordonnées
+
+Sur la grille de saisie Papa, `computer left_click` par `ref` **et** par coordonnées calculées
+(rect × échelle 800/viewport) n'ont **rien** déclenché : le bouton était bien à l'endroit visé, et
+le handler React ne partait pas. Aucune erreur, aucun retour — le clic « réussit ».
+
+**Parade** : `form_input` par `ref` fonctionne pour les `<select>` et `<input>` ; pour un bouton,
+`javascript_tool` avec `element.click()` déclenche bien le handler React. Et **vérifier l'effet**
+(une requête réseau, un changement de DOM) plutôt que le retour du clic.
+
+### ⚠️ Un octet NUL peut se glisser dans un fichier écrit par `Write`
+
+Une constante écrite `" free-text"` s'est retrouvée en base sous la forme `"\0free-text"`. Le
+`Read` l'affichait comme une espace ordinaire ; seul un `Edit` échouant sans raison apparente
+(« String to replace not found ») a mis la puce à l'oreille.
+
+**Parade** : quand un `Edit` échoue sur une chaîne qu'on lit à l'écran, `od -c` sur la ligne, ou
+`python3 -c "print(open(f,'rb').read().count(b'\x00'))"`. Réécrire le fichier entier corrige.
+
+### 🔴 Ce que quatre défauts visuels disent des tests
+
+Aucun des quatre n'était détectable par un test, et c'est instructif :
+
+| Défaut | Ce qu'aucun test ne fait |
+|---|---|
+| teal à **16° de teinte** de l'émeraude voisine (oklch 181 vs 165, même L, même C) | mesurer une teinte, et savoir qu'une couleur voisine porte **déjà un sens** |
+| puce dans l'angle mangeant **un tiers** de la largeur du titre (carte de 81 px) | mesurer une colonne |
+| **silence** du tap sur un jour passé | tester un geste qui n'a aucun effet |
+| champ laissé **sans nom** sous `lg` (en-têtes masqués) | voir qu'un `aria-label` ne remplace pas un repère visible |
+
+**Parade** : mesurer **dans le DOM** (`getComputedStyle`, `getBoundingClientRect`) plutôt que juger
+sur capture — le panneau rend à 800 px et écrase les écarts. Les deux premiers défauts n'étaient
+pas visibles à l'œil sur la capture ; ils l'étaient dans les nombres.
