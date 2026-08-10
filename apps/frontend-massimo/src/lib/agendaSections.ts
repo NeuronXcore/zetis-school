@@ -144,3 +144,31 @@ export function bannerUpcoming(
 ): AgendaUpcomingItem[] {
   return items.slice(0, max);
 }
+
+/** L'état de routeur qui lance la session du deck CHAPITRE depuis une échéance (ADR-0049).
+ *
+ *  Le runner `/revision/session` existe déjà et n'est pas modifié : il lit `location.state`.
+ *  Cette fonction ne fait que le composer — d'où sa place ici, dans un module pur et testé,
+ *  plutôt que dans le JSX de la ligne d'agenda.
+ *
+ *  ⚠️ **`label` porte l'intitulé de l'ÉCHÉANCE, pas le nom du chapitre** — et c'est une
+ *  contrainte, pas un choix : `AgendaItemStudent` sert `chapter_id`, jamais le nom du chapitre.
+ *  L'intitulé est ce que Massimo vient de taper, donc l'en-tête de session prolonge son geste au
+ *  lieu d'annoncer un objet qu'il n'a pas vu. Si l'écart gêne à la relecture, le correctif propre
+ *  est un `chapter_name` au payload serveur — pas une reconstitution côté client.
+ *
+ *  ⚠️ **Rend `null` quand le chapitre est absent** : appeler cette fonction sur une échéance sans
+ *  chapitre est un bug d'appelant, pas un cas à rattraper en fabriquant un deck.
+ */
+export function revisionSessionState(item: AgendaItemStudent): {
+  deck: { chapter: number };
+  label: string;
+  subjectSlug?: string;
+} | null {
+  if (item.chapter_id === null) return null;
+  return {
+    deck: { chapter: item.chapter_id },
+    label: item.label,
+    subjectSlug: item.subject?.slug,
+  };
+}

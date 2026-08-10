@@ -16,31 +16,17 @@ dans l'ADR-0017 — une mission composite les casserait.
 from datetime import date
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import Chapter, Lesson, LessonSkill, Mission, MissionStep, Skill
+from app.db.models import Chapter, Mission, MissionStep, Skill
 from app.modules.evidence import service as evidence
+# La traversée chapitre → notions vit dans le résolveur NEUTRE (ADR-0049) : `memory` en a besoin
+# aussi, et `memory → missions` inverserait la couche (cycle d'import, `missions.service` importe
+# déjà `memory.service`). Elle était définie ici jusqu'au 2026-08-10.
+from app.modules.lesson_resolution import ordered_chapter_skill_ids
 from app.modules.missions import pilot
 from app.modules.missions import service as msvc
-
-
-def _ordered_chapter_skill_ids(db: Session, chapter_id: int) -> list[int]:
-    """Notions (skill_id) des leçons validées d'un chapitre, sans doublon, en ordre curriculum."""
-    rows = db.execute(
-        select(LessonSkill.skill_id)
-        .join(Lesson, Lesson.id == LessonSkill.lesson_id)
-        .where(Lesson.chapter_id == chapter_id, Lesson.status == "validated")
-        .order_by(Lesson.sort_order, LessonSkill.skill_id)
-    ).all()
-    ordered: list[int] = []
-    seen: set[int] = set()
-    for (skill_id,) in rows:
-        if skill_id not in seen:
-            seen.add(skill_id)
-            ordered.append(skill_id)
-    return ordered
 
 
 def resolve_chapter_notions(db: Session, student, chapter_id: int) -> dict:
@@ -54,7 +40,7 @@ def resolve_chapter_notions(db: Session, student, chapter_id: int) -> dict:
     max_skills = settings.mission_command_max_skills
 
     notions = []
-    for skill_id in _ordered_chapter_skill_ids(db, chapter_id):
+    for skill_id in ordered_chapter_skill_ids(db, chapter_id):
         skill = db.get(Skill, skill_id)
         if skill is None:
             continue

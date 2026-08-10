@@ -9,6 +9,7 @@ n'accueille que ce qui a une date dans le monde réel — ZETIS ne se donne jama
 lui-même). Il ne crédite aucun XP et ne touche aucune table de progression.
 """
 
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -24,6 +25,7 @@ from app.db.models import (
     StudentProfile,
     Subject,
 )
+from app.modules.memory.service import chapter_servable_counts
 from app.modules.activity.events import (
     EVENT_AGENDA_ITEM_CREATED,
     EVENT_AGENDA_ITEM_DONE,
@@ -111,8 +113,31 @@ def _subject_ref(subjects: dict[int, Subject], subject_id: int | None) -> dict |
     }
 
 
-def student_out(item: AgendaItem, subjects: dict[int, Subject]) -> dict:
-    """Vue Massimo. `parent_note` n'est pas filtrée : elle n'est jamais construite."""
+def revisable_counts(
+    db: Session, *, student_id: int, items: Sequence[AgendaItem]
+) -> dict[int, int]:
+    """Cartes que le deck de révision servirait, par chapitre — **EN LOT** (ADR-0049 §2).
+
+    L'agenda rend sept jours d'items d'un coup : interroger chapitre par chapitre dans la boucle
+    de rendu ferait N×2 requêtes par page. La déduplication est faite plus bas (deux échéances
+    peuvent viser le même chapitre).
+    """
+    chapter_ids = [item.chapter_id for item in items if item.chapter_id is not None]
+    if not chapter_ids:
+        return {}
+    return chapter_servable_counts(db, student_id, chapter_ids)
+
+
+def student_out(
+    item: AgendaItem, subjects: dict[int, Subject], *, revisable: dict[int, int]
+) -> dict:
+    """Vue Massimo. `parent_note` n'est pas filtrée : elle n'est jamais construite.
+
+    ⚠️ `revisable` est un paramètre **obligatoire**, sans valeur par défaut, et c'est délibéré :
+    un défaut à `{}` ferait qu'un appelant distrait rendrait `revisable_cards = 0` — donc
+    **ferait disparaître la porte de révision sans qu'aucun test ne rougisse**. Mieux vaut un
+    `TypeError` bruyant qu'une capacité qui s'éteint en silence.
+    """
     return {
         "id": item.id,
         "label": item.label,
@@ -127,7 +152,26 @@ def student_out(item: AgendaItem, subjects: dict[int, Subject]) -> dict:
         # la route de lecture refuse tout ce qui n'est pas validé (ADR-0009 §9).
         "lesson_id": item.lesson_id,
         "chapter_id": item.chapter_id,
+        # Combien de cartes le deck de ce chapitre servirait, PLAFOND COMPRIS (ADR-0049 §2/§3).
+        # `0` ⇒ la surface ne rend AUCUNE porte : ni bouton grisé, ni bouton qui explique, rien.
+        # Le calcul est serveur ; une surface qui recompterait serait la seconde source de vérité
+        # qui a divergé le jour même au §14.5.
+        "revisable_cards": revisable.get(item.chapter_id, 0) if item.chapter_id else 0,
     }
+
+
+def student_out_one(db: Session, item: AgendaItem, *, student_id: int) -> dict:
+    """`student_out` pour un item seul — les routes unitaires (créer, cocher, masquer…).
+
+    Elles renvoient l'item mis à jour, et la porte de révision doit y être **aussi** juste que
+    dans la bande : un item recoché qui perdrait sa porte serait un bug invisible aux tests de
+    liste.
+    """
+    return student_out(
+        item,
+        subjects_index(db),
+        revisable=revisable_counts(db, student_id=student_id, items=[item]),
+    )
 
 
 def pilot_out(item: AgendaItem, subjects: dict[int, Subject]) -> dict:
@@ -219,6 +263,8 @@ def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
     for item in items:
         by_day.setdefault(item.due_on, []).append(item)
     traces = traces_by_day(db, student_id=student_id, first=first, last=min(last, today))
+    # Une seule résolution de servabilité pour toute la bande (ADR-0049 §2).
+    revisable = revisable_counts(db, student_id=student_id, items=items)
 
     days = []
     for offset in range(-settings.agenda_band_days_before, settings.agenda_band_days_after + 1):
@@ -231,7 +277,10 @@ def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
                 "offset": offset,
                 "traces": traces.get(day, 0) if past_or_today else None,
                 "fixed_items": (
-                    [student_out(item, subjects) for item in by_day.get(day, [])]
+                    [
+                        student_out(item, subjects, revisable=revisable)
+                        for item in by_day.get(day, [])
+                    ]
                     if future_or_today
                     else []
                 ),
@@ -279,7 +328,8 @@ def upcoming(db: Session, *, student_id: int) -> list[dict]:
 def list_student_items(db: Session, *, student_id: int, first: date, last: date) -> list[dict]:
     subjects = subjects_index(db)
     items = _items_between(db, student_id=student_id, first=first, last=last)
-    return [student_out(item, subjects) for item in items]
+    revisable = revisable_counts(db, student_id=student_id, items=items)
+    return [student_out(item, subjects, revisable=revisable) for item in items]
 
 
 def list_pilot_items(db: Session, *, student_id: int, first: date, last: date) -> list[dict]:

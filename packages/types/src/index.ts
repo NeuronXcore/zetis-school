@@ -233,6 +233,7 @@ export {
   type SrsCardsOverview,
   type SrsCardUpdate,
   type SrsDeleteResult,
+  type ReviewChapterDeck,
   type SrsNotion,
   type SrsNotionState,
   type SrsOverviewSubject,

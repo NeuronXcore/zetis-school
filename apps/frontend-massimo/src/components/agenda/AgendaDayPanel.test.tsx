@@ -24,6 +24,7 @@ function item(over: Partial<AgendaItemStudent> = {}): AgendaItemStudent {
     edited_by_parent: false,
     lesson_id: null,
     chapter_id: null,
+    revisable_cards: 0,
     ...over,
   };
 }

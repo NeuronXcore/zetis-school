@@ -15,6 +15,7 @@ from app.db.models import (
 )
 from app.modules.activity.events import EVENT_REVIEW_ATTEMPTED, log_learning_event
 from app.modules.gamification.service import award_xp
+from app.modules.lesson_resolution import ordered_chapter_skill_ids
 
 
 def interval_from_score(score: int) -> int:
@@ -78,6 +79,10 @@ def get_due_cards(db: Session, *, student_id: int) -> list[SpacedReviewCard]:
 # est invisible côté Massimo (cf. page-revision.md §Plafonds).
 REVIEW_SESSION_MAX_MIX = 12  # « Mélange du jour » (toutes matières)
 REVIEW_SESSION_MAX_SUBJECT = 8  # deck matière
+# Deck chapitre (ADR-0049) — aligné sur le deck matière, et volontairement PAS relevé avant un
+# contrôle : ce plafond borne UNE session, pas la révision (rien n'empêche d'en lancer une
+# seconde). Un mur de 20 cartes serait la pression anxiogène que `CLAUDE.md` §gamification interdit.
+REVIEW_SESSION_MAX_CHAPTER = 8
 REVIEW_SESSION_FLASH = 5  # « Mélange éclair »
 
 # XP : récompense l'EFFORT, pas le score (aucune incitation à s'auto-noter « Facile »).
@@ -85,6 +90,12 @@ XP_PER_REVIEW = 5  # premier passage du jour, quel que soit le rating
 XP_PER_CONSOLIDATION = 2  # re-tour immédiat (planification inchangée)
 XP_REASON_REVIEW = "review"
 XP_REASON_CONSOLIDATION = "review_consolidation"
+# Session chapitre (ADR-0049 Décision 5) : XP PLEIN, pas les 2 XP du re-tour. Ceux-là paient une
+# répétition peu coûteuse (la même carte trois minutes plus tard), PAS l'absence de
+# replanification — une session chapitre demande le même effort qu'une session normale, et
+# sous-payer précisément la session qu'on veut voir avant un contrôle serait une contre-incitation.
+# La `reason` distincte est ce qui rend la série lisible (§Le signal qui dirait qu'on s'est trompé).
+XP_REASON_REVIEW_CHAPTER = "review_chapter"
 
 # Intervalles MVP (rating → délai en jours). PAS de SM-2 : `ease_factor` reste à sa
 # valeur par défaut (réserve d'évolution, docs/ai/spaced-memory.md §Adaptation).
@@ -256,34 +267,116 @@ def interleave(cards: list, key: Callable[[object], str]) -> list:
     return result
 
 
+def chapter_card_conditions(db: Session, student_id: int):
+    """Clauses WHERE des cartes SERVABLES d'un chapitre — **sans clause d'échéance** (ADR-0049 §3).
+
+    C'est la seule sélection du module qui sert des cartes **non dues** : c'est tout l'objet du
+    deck chapitre (réviser avant un contrôle, pas quand l'oubli le réclame).
+
+    🔴 **Une seule clause de `_due_conditions` tombe : `due_at <= now`.** Les deux autres restent, et
+    ce n'est pas décoratif :
+
+    - `due_at IS NOT NULL` écarte les cartes **`pending`** — générées sans cours validé (ADR-0013),
+      donc jamais montrables à Massimo. C'est LA clause qu'on supprime par erreur en croyant
+      supprimer l'échéance, et le test-verrou `test_chapter_deck_never_serves_pending_cards` existe
+      pour rougir ce jour-là.
+    - le filtre de statut écarte aussi `suspended` (notion orpheline) et `archived`.
+    """
+    return (
+        SpacedReviewCard.student_id == student_id,
+        SpacedReviewCard.due_at.is_not(None),
+        SpacedReviewCard.status.not_in(INACTIVE_CARD_STATUSES),
+    )
+
+
+def chapter_servable_count(db: Session, student_id: int, chapter_id: int) -> int:
+    """Nombre de cartes que le deck de ce chapitre servirait — **plafond compris** (ADR-0049 §2).
+
+    C'est le nombre qu'une surface affiche, et c'est lui qui décide si la porte EXISTE : à zéro,
+    aucune affordance n'est rendue — ni bouton grisé, ni bouton qui explique, **rien**
+    (*« un bouton mort se lit comme une panne »*, addendum ADR-0025 §14.6).
+
+    ⚠️ **Le calcul vit ICI, jamais côté client** : le plafond vit ici, et une surface qui le
+    recopierait mentirait le jour où il bouge — c'est le raisonnement de `session_size`, et c'est
+    la seconde source de vérité qui a divergé le jour même au §14.5 du chantier agenda.
+    """
+    skill_ids = ordered_chapter_skill_ids(db, chapter_id)
+    if not skill_ids:
+        return 0
+    total = (
+        db.scalar(
+            select(func.count(SpacedReviewCard.id)).where(
+                *chapter_card_conditions(db, student_id),
+                SpacedReviewCard.skill_id.in_(skill_ids),
+            )
+        )
+        or 0
+    )
+    return min(REVIEW_SESSION_MAX_CHAPTER, total)
+
+
+def chapter_servable_counts(db: Session, student_id: int, chapter_ids: list[int]) -> dict[int, int]:
+    """Version EN LOT de `chapter_servable_count`, pour une page entière d'échéances.
+
+    L'agenda rend jusqu'à sept jours d'items d'un coup ; appeler la version unitaire dans la boucle
+    de rendu ferait N×2 requêtes par page. Les doublons sont dédupliqués (deux échéances peuvent
+    viser le même chapitre).
+    """
+    return {cid: chapter_servable_count(db, student_id, cid) for cid in dict.fromkeys(chapter_ids)}
+
+
 def build_session(
-    db: Session, student: StudentProfile, *, deck: str, subject_slug: str | None = None
+    db: Session,
+    student: StudentProfile,
+    *,
+    deck: str,
+    subject_slug: str | None = None,
+    chapter_id: int | None = None,
 ) -> list[dict]:
     """Construit la liste de cartes d'une session, bornée et ordonnée côté serveur.
 
-    `deck` ∈ {"mix_day", "mix_flash", "subject"} (+ `subject_slug` pour un deck matière).
-    Sélection : cartes dues triées par `due_at` croissant (les plus anciennes d'abord),
-    plafonnées selon le deck, puis entrelacées pour les mélanges. Le payload n'expose
-    AUCUN champ de planification (`due_at`, `interval_days`, `ease_factor`).
+    `deck` ∈ {"mix_day", "mix_flash", "subject", "chapter"} (+ `subject_slug` / `chapter_id`).
+    Sélection : cartes triées par `due_at` croissant (les plus anciennes d'abord), plafonnées
+    selon le deck, puis entrelacées pour les mélanges. Le payload n'expose AUCUN champ de
+    planification (`due_at`, `interval_days`, `ease_factor`).
+
+    ⚠️ Le deck `chapter` est le seul à servir des cartes **non dues** — cf.
+    `chapter_card_conditions`. Le tri `due_at` croissant y garde tout son sens : les plus en
+    retard d'abord, puis les plus proches de l'être.
     """
     now = _now()
     stmt = (
         select(SpacedReviewCard, Subject.slug)
         .join(Skill, SpacedReviewCard.skill_id == Skill.id)
         .join(Subject, Skill.subject_id == Subject.id)
-        .where(*_due_conditions(student.id, now))
         .order_by(SpacedReviewCard.due_at.asc(), SpacedReviewCard.id.asc())
     )
 
     if deck == "mix_day":
+        stmt = stmt.where(*_due_conditions(student.id, now))
         cap, mix = REVIEW_SESSION_MAX_MIX, True
     elif deck == "mix_flash":
+        stmt = stmt.where(*_due_conditions(student.id, now))
         cap, mix = REVIEW_SESSION_FLASH, True
     elif deck == "subject":
         if not subject_slug:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Matière manquante.")
-        stmt = stmt.where(Subject.slug == subject_slug)
+        stmt = stmt.where(*_due_conditions(student.id, now), Subject.slug == subject_slug)
         cap, mix = REVIEW_SESSION_MAX_SUBJECT, False
+    elif deck == "chapter":
+        if not chapter_id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Chapitre manquant.")
+        # Un chapitre est d'une seule matière : pas d'entrelacement (comme le deck matière).
+        skill_ids = ordered_chapter_skill_ids(db, chapter_id)
+        if not skill_ids:
+            # Chapitre inconnu, sans leçon validée, ou dont aucune leçon ne porte de notion.
+            # Le 400 tombe plus bas, indiscernable des autres causes.
+            skill_ids = [0]
+        stmt = stmt.where(
+            *chapter_card_conditions(db, student.id),
+            SpacedReviewCard.skill_id.in_(skill_ids),
+        )
+        cap, mix = REVIEW_SESSION_MAX_CHAPTER, False
     else:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Deck inconnu.")
 
@@ -293,6 +386,15 @@ def build_session(
         # Matière inconnue OU sans carte due → même 400 (indiscernable, pas de fuite).
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "Aucune carte à réviser pour cette matière."
+        )
+
+    if deck == "chapter" and not rows:
+        # Chapitre inexistant, sans leçon validée, ou sans carte servable → LE MÊME 400.
+        # Indiscernable comme celui de la matière : un élève ne doit pas pouvoir sonder
+        # l'existence d'un chapitre. La Décision 2 fait qu'un clic ne l'atteint jamais — cette
+        # garde défend la route, elle ne pilote pas l'écran.
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Aucune carte à réviser pour ce chapitre."
         )
 
     selected = interleave(rows, key=lambda r: r[1]) if mix else rows
@@ -308,15 +410,43 @@ def build_session(
 
 
 def record_attempt(
-    db: Session, student: StudentProfile, card_id: int, rating: str
+    db: Session,
+    student: StudentProfile,
+    card_id: int,
+    rating: str,
+    *,
+    chapter_id: int | None = None,
 ) -> dict:
-    """Enregistre une note de carte et crédite l'XP.
+    """Enregistre une note de carte et crédite l'XP. **Trois branches, pas deux.**
 
-    Consolidation détectée CÔTÉ SERVEUR (pas de flag client) : si la carte a déjà un
-    attempt du même élève aujourd'hui (jour civil serveur), c'est un re-tour →
-    planification inchangée, XP réduit. Sinon, replanification selon le rating (XP plein,
-    quel que soit le rating). Une carte inexistante ou d'un autre élève → 404 (pas de
-    fuite d'existence).
+    | Branche | Replanifie ? | XP | `reason` |
+    |---|---|---|---|
+    | Passage normal | oui, selon le rating | 5 | `review` |
+    | **Re-tour** (même carte, même jour) | non | 2 | `review_consolidation` |
+    | **Session chapitre** (ADR-0049) | non | **5** | `review_chapter` |
+
+    **Re-tour : détecté CÔTÉ SERVEUR**, sans rien demander au client — la carte a déjà un attempt
+    du même élève aujourd'hui (jour civil serveur). Rien ne change ici.
+
+    🔴 **Session chapitre : le client déclare un CONTEXTE, jamais un EFFET** (ADR-0049 Décision 4).
+    Le serveur ne peut pas déduire l'origine d'un attempt — la même carte est servie par le
+    mélange, le deck matière et le deck chapitre, et l'attempt est identique dans les trois cas.
+    Le client passe donc `chapter_id`, et **le serveur le revalide** : il re-résout le chapitre et
+    vérifie que la carte lui appartient réellement. **Un contexte faux est IGNORÉ EN SILENCE** —
+    l'attempt est traité normalement, sans erreur ni mention.
+
+    ⚠️ **Ce n'est pas l'abandon de la doctrine « pas de flag client », c'est sa précision.** Un
+    booléen `non_scheduling` piloté par le client aurait laissé un bug front éteindre la
+    planification **en silence** sur des sessions normales : le SRS se dégraderait sans qu'aucun
+    écran ne change. Ici, le pire cas d'un client menteur est de demander le non-scheduling sur une
+    carte qui appartient **vraiment** au chapitre nommé — c'est-à-dire le cas où il est légitime.
+
+    L'effet persisté est `SpacedReviewAttempt.is_consolidation=True` dans les deux branches non
+    planifiantes : tous ses lecteurs le lisent comme *« cet attempt n'a pas mesuré l'oubli »*, ce
+    qui est exactement vrai des deux. La distinction, elle, vit dans `XPEvent.reason` et dans le
+    payload de `learning_events` — **zéro migration**.
+
+    Une carte inexistante ou d'un autre élève → 404 (pas de fuite d'existence).
     """
     if rating not in VALID_RATINGS:  # défense (le router garde déjà via Literal → 422)
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Note de révision inconnue.")
@@ -339,16 +469,33 @@ def record_attempt(
             SpacedReviewAttempt.reviewed_at >= day_start,
         )
     )
-    is_consolidation = bool(already_today)
+    is_retour = bool(already_today)
+
+    # Revalidation SERVEUR du contexte proposé par le client (cf. docstring) : le chapitre est
+    # re-résolu, et la carte doit lui appartenir. Sinon → `False`, silencieusement.
+    is_chapter_session = bool(
+        chapter_id and card.skill_id in set(ordered_chapter_skill_ids(db, chapter_id))
+    )
 
     skill = db.get(Skill, card.skill_id)
     subject_id = skill.subject_id if skill is not None else None
 
+    # Les deux branches non planifiantes partagent l'effet ; elles diffèrent par l'XP et la raison.
+    is_consolidation = is_retour or is_chapter_session
+
     if is_consolidation:
-        # Re-tour : tracé, mais `due_at` / `interval_days` / `last_reviewed_at` intacts
-        # (un « Bien » à 3 min ne doit pas honnêtement envoyer la carte à 7 jours).
+        # Ni re-tour ni session chapitre ne déplacent la carte : `due_at` / `interval_days` /
+        # `last_reviewed_at` intacts. Pour le re-tour, un « Bien » à 3 min ne doit pas honnêtement
+        # envoyer la carte à 7 jours ; pour la session chapitre, la carte n'était pas due et
+        # avancer sa programmation dégraderait la mesure de l'oubli jusqu'à des mois plus tard
+        # (ADR-0025 §11, l'invariant du chantier).
         next_due_at = card.due_at
-        xp, reason = XP_PER_CONSOLIDATION, XP_REASON_CONSOLIDATION
+        if is_retour:
+            # Le re-tour l'emporte : deux passages le même jour restent une répétition peu
+            # coûteuse, même à l'intérieur d'une session chapitre.
+            xp, reason = XP_PER_CONSOLIDATION, XP_REASON_CONSOLIDATION
+        else:
+            xp, reason = XP_PER_REVIEW, XP_REASON_REVIEW_CHAPTER
     else:
         interval = RATING_INTERVALS[rating]
         card.interval_days = interval
@@ -383,6 +530,9 @@ def record_attempt(
             "rating": rating,
             "is_consolidation": is_consolidation,
             "xp": xp,
+            # Ce qui distingue un re-tour d'une session chapitre — `is_consolidation` est vrai
+            # pour les deux. `None` sur un passage normal.
+            "deck_chapter_id": chapter_id if is_chapter_session else None,
         },
     )
     db.commit()

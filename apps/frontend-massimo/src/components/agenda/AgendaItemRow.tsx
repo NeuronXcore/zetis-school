@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { type AgendaItemStudent } from "@zetis/types";
 import { subjectIconFor } from "../../lib/subjectIcons";
-import { originLabel, shortDayLabel } from "../../lib/agendaSections";
+import { originLabel, revisionSessionState, shortDayLabel } from "../../lib/agendaSections";
 import { agendaCourseRoute } from "../../lib/notionRoutes";
 
 // Un item de l'agenda de Massimo.
@@ -33,6 +33,10 @@ export function AgendaItemRow({
 }: Props) {
   const origin = originLabel(item);
   const coursRoute = agendaCourseRoute(item);
+  // `revisable_cards > 0` implique un chapitre côté serveur, mais on ne le SUPPOSE pas : la
+  // porte n'existe que si les deux sont vrais. Une garde de moins serait une porte ouverte sur
+  // un deck sans chapitre.
+  const revisionState = item.revisable_cards > 0 ? revisionSessionState(item) : null;
   return (
     <div
       id={`agenda-item-${item.id}`}
@@ -115,6 +119,40 @@ export function AgendaItemRow({
             </Link>
           )}
         </div>
+
+        {/* La porte du deck de révision par chapitre (ADR-0049 Décision 1).
+
+            🔴 **`revisable_cards === 0` ⇒ RIEN.** Pas de bouton grisé, pas de bouton qui
+            explique, pas d'espace réservé — l'échéance reste entière et ne promet simplement
+            rien. Un chapitre sans leçon validée, ou sans cartes générées, résout zéro carte :
+            *« un bouton mort se lit comme une panne, et une promesse non tenue coûte plus cher
+            que l'absence »* (addendum ADR-0025 §14.6).
+
+            ⚠️ Ce n'est PAS le cas de l'ADR-0024 §4 (catalogue, indisponible grisé) : là-bas le
+            gris dit « Papa ne l'a pas encore produit » sur un écran fait pour être parcouru.
+            Ici, Massimo regarde une date — le gris n'y dirait rien d'actionnable.
+
+            ⚠️ Le nombre vient du SERVEUR, plafond compris. On ne le recalcule jamais : le
+            plafond vit côté serveur, et une surface qui le recopierait mentirait le jour où il
+            bouge (c'est la seconde source de vérité qui a divergé le jour même au §14.5).
+
+            Placement : SOUS la ligne de puces, en pleine largeur. Pas dans l'angle — au chantier
+            agenda, une puce d'angle a mangé un tiers de la largeur du titre sur une carte de
+            81 px, et aucun test ne mesure une colonne. */}
+        {revisionState && (
+          <Link
+            to="/revision/session"
+            state={revisionState}
+            className="mt-2 flex items-center gap-2 rounded-xl border border-cyan-400/35 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-slate-100 transition-colors hover:border-cyan-400/60 motion-reduce:transition-none"
+          >
+            <span aria-hidden>🃏</span>
+            <span>Réviser ce chapitre</span>
+            {/* Ce que la session servira VRAIMENT, jamais un arriéré. */}
+            <span className="ml-auto text-cyan-300">
+              {item.revisable_cards} carte{item.revisable_cards > 1 ? "s" : ""}
+            </span>
+          </Link>
+        )}
       </div>
 
       <button

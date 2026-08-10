@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { type ReviewCard, type ReviewRating } from "@zetis/types";
-import { cappedCount, computeTier, useReviewSession } from "./useReviewSession";
+import {
+  cappedCount,
+  chapterContext,
+  computeTier,
+  useReviewSession,
+} from "./useReviewSession";
 
 vi.mock("../lib/reviews", () => ({
   startReviewSession: vi.fn(),
@@ -170,5 +175,47 @@ describe("useReviewSession", () => {
     await answer(result, "good", "summary");
     act(() => result.current.finish());
     expect(result.current.status).toBe("done");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// LE CONTEXTE DE SESSION CHAPITRE (ADR-0049 Décision 4)
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+describe("chapterContext — l'écho du deck, jamais une décision", () => {
+  it("rend le contexte pour un deck chapitre, et rien pour les autres", () => {
+    expect(chapterContext({ chapter: 12 })).toEqual({ chapter: 12 });
+    expect(chapterContext("mix_day")).toBeUndefined();
+    expect(chapterContext("mix_flash")).toBeUndefined();
+    expect(chapterContext({ subject: "histoire" })).toBeUndefined();
+    expect(chapterContext(null)).toBeUndefined();
+  });
+});
+
+describe("useReviewSession — le deck accompagne CHAQUE note", () => {
+  it("🔴 VERROU — toutes les notes d'une session chapitre portent le contexte", async () => {
+    // Un contexte posé sur la première note seulement laisserait les suivantes replanifier les
+    // cartes : l'invariant de l'ADR-0025 §11 serait tenu sur une carte et violé sur les autres.
+    const { result } = renderHook(() => useReviewSession({ chapter: 12 }));
+    await waitFor(() => expect(result.current.status).toBe("front"));
+
+    await answer(result, "good", "front");
+    await answer(result, "again", "summary");
+
+    expect(vi.mocked(submitReviewAttempt).mock.calls).toHaveLength(2);
+    for (const call of vi.mocked(submitReviewAttempt).mock.calls) {
+      expect(call[2]).toEqual({ chapter: 12 });
+    }
+  });
+
+  it("VERROU — une session ordinaire n'envoie AUCUN contexte", () => {
+    // Le corps de la requête doit rester `{rating}` à l'identique hors deck chapitre : un
+    // contexte parasite sur un mélange ferait taire la replanification de cartes réellement dues.
+    return (async () => {
+      const { result } = renderHook(() => useReviewSession("mix_day"));
+      await waitFor(() => expect(result.current.status).toBe("front"));
+      await answer(result, "good", "front");
+      expect(vi.mocked(submitReviewAttempt).mock.calls[0][2]).toBeUndefined();
+    })();
   });
 });

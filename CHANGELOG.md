@@ -1,5 +1,65 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.72.0 — Réviser avant un contrôle, sans déplacer la programmation
+
+Le **couplage 2 du §11 de l'ADR-0025**, resté à 0 % depuis. La question qui avait ouvert le
+chantier agenda était *« comment demander à Massimo de réviser ? »* ; la réponse honnête était
+**on ne peut pas encore**, et le §14.6 avait interdit d'en donner l'illusion — *« un bouton mort se
+lit comme une panne »*. Cette version lève l'interdiction en construisant ce qu'elle protégeait.
+
+Sur une échéance datée dont le chapitre a des cartes servables, Massimo lit **« 🃏 Réviser ce
+chapitre · 8 cartes »**. Le deck sert les cartes du chapitre — **y compris celles qui ne sont pas
+dues**, c'est tout son objet — et la session **n'écrit aucun état SRS**.
+
+### L'invariant, et pourquoi il n'est pas négociable
+
+Le SRS mesure l'oubli. Lire une carte trop tôt fausse son prochain intervalle, et un contrôle en
+juillet dégraderait la programmation jusqu'en octobre. Ni `due_at`, ni `interval_days`, ni
+`last_reviewed_at` ne bougent — vérifié en base après une session réelle : huit cartes intactes.
+
+### Le client déclare un CONTEXTE, jamais un EFFET
+
+Le serveur ne peut pas deviner qu'un attempt vient d'une session chapitre : la même carte est
+servie par le mélange, le deck matière et le deck chapitre, et l'attempt est identique. La doctrine
+« pas de flag client » est donc **précisée**, pas abandonnée — l'attempt porte `{chapter: id}`, le
+serveur re-résout le chapitre et vérifie que la carte lui appartient. **Un contexte faux est ignoré
+en silence.**
+
+Un booléen `non_scheduling` piloté par le client a été écarté explicitement : un bug front aurait
+éteint la planification **sans qu'aucun écran ne change** — la panne la plus coûteuse et la moins
+visible du dépôt.
+
+### Quand le deck serait vide, la porte n'existe pas
+
+Ni bouton grisé, ni bouton qui explique : **rien**. Un chapitre sans leçon validée résout zéro
+notion, donc zéro carte. L'échéance reste entière et lisible, elle ne promet simplement pas.
+
+⚠️ Ce n'est **pas** le cas de l'ADR-0024 §4 (catalogue, indisponible grisé) : là-bas le gris dit
+*« Papa ne l'a pas encore produit »* sur un écran fait pour être parcouru. Ici Massimo regarde une
+date.
+
+### XP plein, et une raison à lui
+
+**5 XP par carte**, pas les 2 du re-tour : ceux-là paient une répétition à trois minutes, pas
+l'absence de replanification. Sous-payer précisément la session qu'on veut voir avant un contrôle
+serait une contre-incitation. `reason = "review_chapter"`, ce qui rend la série lisible — et permet
+de surveiller le pari : si l'usage du mélange baisse pendant que celui du deck chapitre monte,
+c'est la cannibalisation, et la réponse sera de borner le deck dans le temps.
+
+### Ce que le read-before-code a corrigé
+
+`Skill` n'a **aucun** `chapter_id` : la traversée passe par les leçons validées, et existait déjà —
+mais dans `missions`, d'où `memory` ne peut pas l'importer (`missions.service` importe déjà
+`memory.service`, le cycle casse `app.main`). Elle vit désormais dans `lesson_resolution`, le
+résolveur neutre.
+
+**Zéro migration** : l'effet réutilise `is_consolidation`, dont tous les lecteurs restent corrects.
+
+Écarté : le drill-in permanent depuis `/revision`, qui porte le risque de *blocked practice* — un
+verrou de dépôt l'interdit.
+
+ADR-0049 · PR #109 · Backend 1159 · Massimo 594 · Papa 784.
+
 ## 0.71.0 — L'échéance retrouve son cours même sans identifiant
 
 Relevé à l'écran : *« La phrase complexe : juxtaposition et coordination » ne s'entoure pas d'un

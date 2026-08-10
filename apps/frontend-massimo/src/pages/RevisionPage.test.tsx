@@ -106,3 +106,29 @@ describe("RevisionPage — écran des decks", () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// VERROU DE DÉPÔT — la porte du deck chapitre n'entre PAS sur /revision (ADR-0049)
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+describe("VERROU de dépôt — le drill-in permanent est une option ÉCARTÉE", () => {
+  it("aucune trace du deck chapitre sous src/pages/Revision*", async () => {
+    // La Décision 1 a retenu la porte (a) — l'échéance d'agenda — et ÉCARTÉ (b), le drill-in
+    // permanent depuis le deck matière, au motif du *blocked practice* : une porte permanente
+    // peut devenir le chemin par défaut, au détriment du mélange entrelacé.
+    //
+    // Ce verrou attrape la dérive nommée d'avance : « tant qu'on y est, mettons-la aussi sur
+    // /revision ». Si elle devient souhaitable un jour, c'est un ADR qui l'ouvre — pas un test
+    // qu'on supprime.
+    // ⚠️ `process.cwd()`, PAS `import.meta.url` : ce dernier rend un chemin tronqué sous vitest.
+    // Le piège est déjà consigné dans `src/voix-de-zetis.test.ts` — vérifié, pas supposé.
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const racine = join(process.cwd(), "src", "pages");
+    for (const fichier of ["RevisionPage.tsx", "RevisionSessionPage.tsx"]) {
+      const src = readFileSync(join(racine, fichier), "utf8");
+      expect(src, `${fichier} ne doit pas porter le deck chapitre`).not.toMatch(/\bchapter\b/);
+      expect(src, `${fichier} ne doit pas porter le deck chapitre`).not.toMatch(/chapitre/i);
+    }
+  });
+});

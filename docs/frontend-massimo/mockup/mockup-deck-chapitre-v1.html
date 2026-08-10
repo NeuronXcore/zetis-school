@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS — Mockup Deck de révision par chapitre (Massimo) — ADR-0049</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --zetis-bg: #0a0d1c;
+    --zetis-primary: #6366f1;
+    --zetis-cyan: #22d3ee;
+    --zetis-fuchsia: #d946ef;
+    --zetis-amber: #f5a524;
+    --zetis-fg: #eef0ff;
+    --zetis-muted: #8b91b8;
+    --zetis-glass: rgba(255, 255, 255, 0.055);
+    --zetis-glass-border: rgba(255, 255, 255, 0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--zetis-bg);
+    color: var(--zetis-fg);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .neon-backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .neon-backdrop::before, .neon-backdrop::after {
+    content: ""; position: absolute; border-radius: 50%; filter: blur(110px); opacity: .3;
+  }
+  .neon-backdrop::before { width: 520px; height: 520px; top: -140px; left: -120px; background: var(--zetis-primary); }
+  .neon-backdrop::after  { width: 460px; height: 460px; bottom: -160px; right: -100px; background: var(--zetis-fuchsia); opacity: .16; }
+
+  .app { position: relative; z-index: 1; max-width: 1120px; margin: 0 auto; padding: 30px 20px 70px; }
+
+  .wordmark {
+    font-family: "Syncopate", sans-serif; font-weight: 700;
+    font-size: 14px; letter-spacing: .35em; color: var(--zetis-fg);
+    text-align: center; margin-bottom: 4px; opacity: .9;
+  }
+  .wordmark span { color: var(--zetis-cyan); }
+
+  .doc-title { text-align: center; font-size: 22px; font-weight: 800; margin: 14px 0 4px; }
+  .doc-sub { text-align: center; color: var(--zetis-muted); font-size: 13.5px; margin-bottom: 4px; }
+  .doc-adr { text-align: center; font-size: 12px; color: var(--zetis-cyan); letter-spacing: .12em; text-transform: uppercase; font-weight: 700; margin-bottom: 26px; }
+
+  .note {
+    max-width: 760px; margin: 0 auto 30px; padding: 14px 18px;
+    border-left: 3px solid var(--zetis-amber);
+    background: rgba(245, 165, 36, .07);
+    border-radius: 0 12px 12px 0; font-size: 13.5px; line-height: 1.6; color: #f0e2c8;
+  }
+  .note strong { color: var(--zetis-amber); }
+  .note code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; background: rgba(255,255,255,.07); padding: 1px 5px; border-radius: 5px; }
+
+  .block-label {
+    font-size: 11.5px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--zetis-muted); margin: 40px 4px 6px; display: flex; align-items: center; gap: 10px;
+  }
+  .block-label::after { content: ""; flex: 1; height: 1px; background: var(--zetis-glass-border); }
+  .block-note { font-size: 13px; color: var(--zetis-muted); margin: 0 4px 18px; line-height: 1.6; max-width: 820px; }
+  .block-note b { color: var(--zetis-fg); }
+
+  .phones { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+
+  .phone {
+    width: 336px; flex: 0 0 336px;
+    border: 1px solid var(--zetis-glass-border); border-radius: 28px;
+    padding: 18px 15px 22px; background: rgba(255,255,255,.018);
+  }
+  .phone-cap {
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--zetis-muted); font-weight: 700; text-align: center; margin-bottom: 14px;
+  }
+  .phone.good { border-color: rgba(34, 211, 238, .38); }
+  .phone.good .phone-cap { color: var(--zetis-cyan); }
+  .phone.bad { border-color: rgba(244, 63, 94, .38); }
+  .phone.bad .phone-cap { color: #fb7185; }
+  /* Option écartée : conservée comme trace, jamais comme spécification. */
+  .phone.discarded { opacity: .42; filter: saturate(.35); position: relative; }
+  /* Le badge se pose SUR la bordure haute, pas dans le flux : à l'intérieur, il chevauchait
+     le libellé centré du téléphone (« PAR MATIÈ|OPTION ÉCARTÉE|RE »). */
+  .phone.discarded { margin-top: 10px; }
+  .phone.discarded::after {
+    content: "OPTION ÉCARTÉE"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 9.5px; font-weight: 800; letter-spacing: .13em;
+    padding: 3px 10px; border-radius: 999px;
+    background: #1a1020; color: #fb7185; border: 1px solid rgba(244,63,94,.44);
+  }
+
+  .page-title { display: flex; align-items: center; justify-content: center; gap: 9px; font-size: 20px; font-weight: 800; margin: 4px 0 4px; }
+  .page-sub { text-align: center; color: var(--zetis-muted); font-size: 13px; margin-bottom: 18px; }
+
+  .section-label-s {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--zetis-muted); margin: 18px 2px 10px;
+  }
+
+  .glass-card {
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    border-radius: 18px; padding: 15px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+
+  /* ── Carte d'échéance (agenda Massimo) ── */
+  .item { margin-bottom: 10px; }
+  .item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .kind {
+    font-size: 9.5px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px;
+  }
+  .kind.controle { background: rgba(217, 70, 239, .17); color: #f0abfc; border: 1px solid rgba(217,70,239,.35); }
+  .when { font-size: 11.5px; color: var(--zetis-muted); font-weight: 600; margin-left: auto; }
+  .item-title { font-size: 15px; font-weight: 700; line-height: 1.35; }
+  .item-meta { font-size: 12px; color: var(--zetis-muted); margin-top: 4px; }
+
+  /* ── La PORTE ── */
+  .door {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    margin-top: 13px; padding: 12px 14px; border-radius: 14px; cursor: pointer;
+    background: linear-gradient(135deg, rgba(34,211,238,.16), rgba(99,102,241,.14));
+    border: 1px solid rgba(34, 211, 238, .38);
+    color: var(--zetis-fg); font-size: 14px; font-weight: 700;
+    font-family: inherit; text-align: left;
+  }
+  .door .ico { font-size: 17px; }
+  .door .count { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--zetis-cyan); }
+  .door:hover { border-color: rgba(34,211,238,.6); }
+
+  .door.dead {
+    background: rgba(255,255,255,.03);
+    border: 1px dashed rgba(255,255,255,.16);
+    color: var(--zetis-muted); cursor: not-allowed;
+  }
+  .door.dead .count { color: var(--zetis-muted); font-weight: 600; }
+
+  .absence {
+    margin-top: 13px; padding: 11px 14px; border-radius: 12px;
+    border: 1px dashed rgba(255,255,255,.10);
+    font-size: 11.5px; color: rgba(139,145,184,.55); font-style: italic; text-align: center;
+  }
+
+  /* ── Decks matière (porte b) ── */
+  .decks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .disc { display: flex; flex-direction: column; align-items: center; gap: 7px; cursor: pointer; }
+  .disc-circle {
+    width: 74px; height: 74px; border-radius: 50%;
+    background: linear-gradient(140deg, rgba(99,102,241,.30), rgba(34,211,238,.16));
+    border: 1px solid var(--zetis-glass-border);
+    display: flex; align-items: center; justify-content: center; font-size: 27px; position: relative;
+  }
+  .disc-circle .badge {
+    position: absolute; top: -3px; right: -3px; min-width: 22px; height: 22px; padding: 0 5px;
+    border-radius: 999px; background: var(--zetis-cyan); color: #062028;
+    font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  }
+  .disc-name { font-size: 12px; font-weight: 600; text-align: center; line-height: 1.25; }
+  .disc.open .disc-circle { border-color: rgba(34,211,238,.55); }
+
+  .chapters { margin-top: 13px; display: flex; flex-direction: column; gap: 7px; }
+  .chapter-row {
+    display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-radius: 12px;
+    background: rgba(255,255,255,.035); border: 1px solid var(--zetis-glass-border);
+    font-size: 13px; cursor: pointer;
+  }
+  .chapter-row .n { margin-left: auto; font-size: 11.5px; font-weight: 700; color: var(--zetis-cyan); }
+
+  /* ── Session ── */
+  .sess-top { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; font-size: 12px; color: var(--zetis-muted); }
+  .dots { margin-left: auto; display: flex; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.18); }
+  .dot.on { background: var(--zetis-cyan); }
+  .flash {
+    min-height: 178px; display: flex; align-items: center; justify-content: center;
+    text-align: center; font-size: 17px; font-weight: 600; line-height: 1.45; padding: 22px 16px;
+  }
+  .ratings { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 13px; }
+  .rating {
+    padding: 11px 8px; border-radius: 12px; font-size: 12.5px; font-weight: 700;
+    border: 1px solid var(--zetis-glass-border); background: rgba(255,255,255,.04);
+    text-align: center; cursor: pointer; font-family: inherit; color: var(--zetis-fg);
+  }
+  .rating.again { border-color: rgba(245,165,36,.35); color: #fbd38d; }
+
+  .why {
+    margin-top: 14px; padding: 12px 14px; border-radius: 12px;
+    background: rgba(99,102,241,.10); border: 1px solid rgba(99,102,241,.26);
+    font-size: 12.5px; line-height: 1.6; color: #c7cbf5;
+  }
+  .why b { color: var(--zetis-fg); }
+
+  .legend { margin: 12px 4px 0; font-size: 12.5px; color: var(--zetis-muted); line-height: 1.65; max-width: 820px; }
+  .legend b { color: var(--zetis-fg); }
+  .legend .ko { color: #fb7185; font-weight: 700; }
+  .legend .ok { color: var(--zetis-cyan); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="neon-backdrop"></div>
+
+<div class="app">
+  <div class="wordmark">ZE<span>T</span>IS</div>
+  <div class="doc-title">Le deck de révision par chapitre</div>
+  <div class="doc-sub">Interface de Massimo — couplage 2 du §11 de l'ADR-0025, resté à 0 %</div>
+  <div class="doc-adr">ADR-0049 · maquette v1 · 2026-08-10</div>
+
+  <div class="note">
+    <strong>Décision 1 tranchée le 2026-08-10 : la porte est l'échéance d'agenda — bloc A —
+    et elle seule.</strong> Cette maquette avait servi à la trancher : les blocs A et B montraient
+    les deux portes possibles à la même échelle, pour qu'elles se comparent à l'œil et pas sur le
+    papier. <strong>Le bloc B est conservé comme trace de l'option écartée</strong>, il ne se
+    construit pas. Le bloc C montre <strong>l'état vide</strong> — celui qu'aucun test ne regarde
+    et que la Décision 2 tranche. Le bloc D montre la session elle-même.
+    <br><br>
+    ⚠️ <strong>La mécanique SRS reste invisible</strong> (<code>page-revision.md</code> §Règles UX) :
+    nulle part Massimo ne lit que « cette session ne modifie pas ta programmation ». Il voit une
+    session de révision sur un chapitre. Le reste est l'affaire du serveur.
+  </div>
+
+  <!-- ════════════ A ════════════ -->
+  <div class="block-label">A — Porte (a) · depuis l'échéance d'agenda &nbsp;·&nbsp; ✅ RETENUE</div>
+  <div class="block-note">
+    La porte vit sur l'échéance qui la justifie. <b>Coût front presque nul</b> :
+    <code>AgendaItemStudentOut</code> sert déjà <code>chapter_id</code> à Massimo depuis les
+    addenda §11 et §15. C'est la seule option qui débloque le <b>plan de préparation</b>
+    (<code>plan_steps</code>), raison écrite pour laquelle ce chantier passe en premier.
+  </div>
+  <div class="phones">
+    <div class="phone good">
+      <div class="phone-cap">Agenda · ce qui arrive</div>
+      <div class="page-title">📅 Ton agenda</div>
+      <div class="page-sub">Ce qui arrive cette semaine</div>
+
+      <div class="glass-card item">
+        <div class="item-head">
+          <span class="kind controle">Contrôle</span>
+          <span class="when">jeudi · dans 3 jours</span>
+        </div>
+        <div class="item-title">La Révolution française</div>
+        <div class="item-meta">Histoire-Géo · ajouté par ZETIS</div>
+        <button class="door">
+          <span class="ico">🃏</span>
+          <span>Réviser ce chapitre</span>
+          <span class="count">8 cartes</span>
+        </button>
+      </div>
+
+      <div class="glass-card item">
+        <div class="item-head">
+          <span class="kind controle">Contrôle</span>
+          <span class="when">lundi · dans 7 jours</span>
+        </div>
+        <div class="item-title">Le théorème de Pythagore</div>
+        <div class="item-meta">Mathématiques · ajouté par ZETIS</div>
+        <button class="door">
+          <span class="ico">🃏</span>
+          <span>Réviser ce chapitre</span>
+          <span class="count">5 cartes</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="phone-cap">Le même écran, agenda vide</div>
+      <div class="page-title">📅 Ton agenda</div>
+      <div class="page-sub">Ce qui arrive cette semaine</div>
+      <div class="glass-card" style="text-align:center; padding:34px 18px;">
+        <div style="font-size:34px; margin-bottom:10px;">🌤️</div>
+        <div style="font-size:14.5px; font-weight:700; margin-bottom:5px;">Rien de prévu pour l'instant</div>
+        <div style="font-size:12.5px; color:var(--zetis-muted); line-height:1.55;">
+          Tu peux quand même réviser quand tu veux, avec tes decks.
+        </div>
+      </div>
+      <div class="legend" style="margin-top:16px;">
+        ⚠️ <b>Le coût de la porte (a), montré plutôt que dit</b> : tant que Papa ne saisit
+        aucune échéance avec chapitre, <b>la capacité est invisible</b>. Elle existe et ne se voit
+        pas. C'est le prix de l'interdiction du bouton mort.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ B ════════════ -->
+  <div class="block-label">B — Porte (b) · drill-in depuis le deck matière &nbsp;·&nbsp; ✗ ÉCARTÉE</div>
+  <div class="block-note">
+    🔴 <b>Écartée le 2026-08-10 — conservée ici comme trace de l'option, pas comme spécification.
+    Ne pas la construire.</b>
+    <br><br>
+    La porte aurait vécu sur <code>/revision</code>, en permanence. <b>Toujours disponible</b>, elle
+    ne dépendait d'aucune saisie de Papa — mais elle demande un <b>endpoint neuf</b> (« chapitres
+    servables d'une matière », que <code>summary</code> ne sait pas rendre), un écran de plus et son
+    propre état vide. Et c'est la forme exacte que <code>page-revision.md</code> avait rangée en V2,
+    au motif du <b>blocked practice</b> : une porte permanente peut devenir le chemin par défaut, au
+    détriment du mélange entrelacé.
+  </div>
+  <div class="phones">
+    <div class="phone discarded">
+      <div class="phone-cap">Révision · par matière</div>
+      <div class="page-title">🗂️ Révision</div>
+      <div class="page-sub">Choisis ton deck</div>
+      <div class="section-label-s">Par matière</div>
+      <div class="decks">
+        <div class="disc open">
+          <div class="disc-circle">📜<span class="badge">12</span></div>
+          <div class="disc-name">Histoire-Géo</div>
+        </div>
+        <div class="disc">
+          <div class="disc-circle">📐<span class="badge">5</span></div>
+          <div class="disc-name">Maths</div>
+        </div>
+        <div class="disc">
+          <div class="disc-circle">🧪<span class="badge">3</span></div>
+          <div class="disc-name">SVT</div>
+        </div>
+      </div>
+      <div class="chapters">
+        <div class="chapter-row"><span>▸</span><span>La Révolution française</span><span class="n">8</span></div>
+        <div class="chapter-row"><span>▸</span><span>L'Empire napoléonien</span><span class="n">4</span></div>
+      </div>
+      <div class="legend" style="margin-top:14px;">
+        Les chapitres <b>sans carte servable ne sont pas listés</b> — même règle qu'en (a) :
+        une ligne inerte est un bouton mort couché.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ C ════════════ -->
+  <div class="block-label">C — 🔴 L'état vide · ce que la Décision 2 tranche</div>
+  <div class="block-note">
+    Un chapitre <b>sans leçon validée</b> résout zéro notion, donc zéro carte — et un chapitre aux
+    leçons validées mais <b>sans cartes générées</b> donne le même vide. C'est l'état que les
+    tests ne regardent jamais, et c'est celui qui décide de la qualité perçue.
+  </div>
+  <div class="phones">
+    <div class="phone bad">
+      <div class="phone-cap">✗ Ce qu'on REFUSE</div>
+      <div class="glass-card item">
+        <div class="item-head">
+          <span class="kind controle">Contrôle</span>
+          <span class="when">jeudi · dans 3 jours</span>
+        </div>
+        <div class="item-title">Les séismes et les volcans</div>
+        <div class="item-meta">SVT · ajouté par ZETIS</div>
+        <button class="door dead">
+          <span class="ico">🃏</span>
+          <span>Réviser ce chapitre</span>
+          <span class="count">bientôt</span>
+        </button>
+      </div>
+      <div class="legend" style="margin-top:14px;">
+        <span class="ko">Un bouton mort se lit comme une panne.</span> Massimo n'a rien à corriger :
+        ce qui manque est du travail de Papa, sur un écran qui n'en parle pas. Le gris n'y dit rien
+        d'actionnable — seulement <i>« quelque chose te manque »</i>.
+      </div>
+    </div>
+
+    <div class="phone good">
+      <div class="phone-cap">✓ Ce qu'on FAIT</div>
+      <div class="glass-card item">
+        <div class="item-head">
+          <span class="kind controle">Contrôle</span>
+          <span class="when">jeudi · dans 3 jours</span>
+        </div>
+        <div class="item-title">Les séismes et les volcans</div>
+        <div class="item-meta">SVT · ajouté par ZETIS</div>
+        <div class="absence">— aucune porte, aucun espace réservé —</div>
+      </div>
+      <div class="legend" style="margin-top:14px;">
+        <span class="ok">La porte n'existe pas.</span> L'échéance reste entière et lisible ;
+        elle ne promet simplement rien. La <b>servabilité vient du serveur</b> — la surface ne
+        recompte jamais les cartes, sinon c'est une seconde source de vérité, celle qui a divergé
+        le jour même au §14.5.
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="phone-cap">Pour mémoire · le cas ADR-0024 §4</div>
+      <div class="section-label-s">Par matière — deck grisé</div>
+      <div class="decks">
+        <div class="disc">
+          <div class="disc-circle" style="background:rgba(255,255,255,.04); opacity:.5;">🧪</div>
+          <div class="disc-name" style="opacity:.55;">SVT<br><span style="font-size:10.5px;">à venir</span></div>
+        </div>
+      </div>
+      <div class="legend" style="margin-top:14px;">
+        ⚠️ <b>Le gris reste légitime ICI, et la distinction se perd vite</b> : sur la grille des
+        decks, Massimo <b>parcourt un catalogue</b>, et le gris dit <i>« Papa ne l'a pas encore
+        produit »</i> — information utile sur un écran fait pour ça. Sur une échéance, il ne
+        parcourt rien : il regarde une date.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ D ════════════ -->
+  <div class="block-label">D — La session · identique à toutes les autres, et c'est voulu</div>
+  <div class="block-note">
+    Aucun écran neuf : la session chapitre réutilise le runner existant
+    (<code>/revision/session</code>). Le seul écart visible est le <b>nom du deck</b>.
+  </div>
+  <div class="phones">
+    <div class="phone good">
+      <div class="phone-cap">Session · deck chapitre</div>
+      <div class="glass-card">
+        <div class="sess-top">
+          <span>← Quitter</span>
+          <span style="color:var(--zetis-fg); font-weight:700;">📜 La Révolution française</span>
+          <span class="dots"><i class="dot on"></i><i class="dot on"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
+        </div>
+        <div class="flash">Quel événement marque le début<br>de la Révolution française ?</div>
+        <div class="ratings">
+          <button class="rating again">🔄 À revoir</button>
+          <button class="rating">🤔 Difficile</button>
+          <button class="rating">🙂 Bien</button>
+          <button class="rating">⚡ Facile</button>
+        </div>
+      </div>
+      <div class="why">
+        <b>Ce que Massimo ne voit jamais</b> — que cette session ne déplace aucune de ses cartes,
+        qu'elles n'étaient pas dues, ni le mot « chapitre » traité comme une mécanique. Il révise
+        avant son contrôle. <b>Le serveur, lui, ne replanifie rien</b> : c'est l'invariant du
+        §11, et il est entièrement invisible.
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="phone-cap">Fin de session</div>
+      <div class="glass-card" style="text-align:center; padding:30px 18px;">
+        <div style="font-size:40px; margin-bottom:10px;">🎉</div>
+        <div style="font-size:17px; font-weight:800; margin-bottom:6px;">8 cartes revues !</div>
+        <div style="font-size:13px; color:var(--zetis-muted); line-height:1.55; margin-bottom:16px;">
+          Tu es prêt pour jeudi.
+        </div>
+        <div style="display:inline-flex; align-items:center; gap:7px; padding:8px 16px; border-radius:999px;
+                    background:rgba(34,211,238,.14); border:1px solid rgba(34,211,238,.34);
+                    font-size:14px; font-weight:800; color:var(--zetis-cyan);">
+          ⚡ +40 XP
+        </div>
+      </div>
+      <div class="legend" style="margin-top:14px;">
+        <b>40 XP, pas 16.</b> L'XP paie l'<b>effort</b>, et une session chapitre en demande autant
+        qu'une session normale — les 2 XP du re-tour paient une répétition à trois minutes, pas
+        l'absence de replanification. Sous-payer la session qu'on veut voir avant un contrôle
+        serait une contre-incitation (Décision 5).
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

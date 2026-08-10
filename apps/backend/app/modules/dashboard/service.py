@@ -194,9 +194,20 @@ def _review_attempts(
     C'est la seule donnée du dépôt qui mesure la mémoire elle-même plutôt qu'un palier de maîtrise :
     une carte revue, une note, une date. `SpacedReviewAttempt` la porte depuis la slice SRS.
 
-    ⚠️ Les re-tours de consolidation (`is_consolidation`) sont **exclus** : un 2e passage de la même
-    carte le même jour est sans effet sur la planification (cf. le modèle), le compter doublerait
-    une révision qui n'a eu lieu qu'une fois.
+    ⚠️ Les attempts `is_consolidation` sont **exclus**, et depuis l'ADR-0049 ils recouvrent **deux**
+    situations, pas une — d'où la règle, réécrite pour couvrir les deux :
+
+    **`is_consolidation` veut dire « cet attempt n'a pas mesuré l'oubli ».** Cette vue-là ne compte
+    que ce qui le mesure.
+
+    - **Re-tour** (même carte, même jour) : la révision n'a eu lieu qu'une fois, la compter deux
+      fois la doublerait.
+    - **Session chapitre** (ADR-0049) : la carte **n'était pas due**. Massimo a révisé avant un
+      contrôle, ce qui est du vrai travail — mais ce n'est pas une mesure d'oubli, et l'y faire
+      entrer ferait passer pour de la mémoire ce qui n'est que de la préparation.
+
+    ⚠️ Le travail lui-même n'est pas perdu pour autant : il reste dans le journal d'activité
+    (`review_attempted`), dans l'XP (`reason = "review_chapter"`) et dans la régularité douce.
     """
     rows = db.execute(
         select(Skill.subject_id, SpacedReviewAttempt.rating, SpacedReviewAttempt.reviewed_at)

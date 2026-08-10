@@ -6,12 +6,18 @@ import {
   daysLeftLabel,
   isoDay,
   originLabel,
+  revisionSessionState,
   splitSections,
 } from "./agendaSections";
 
 // Mercredi 29 juillet 2026.
 const TODAY = new Date(2026, 6, 29);
 
+// ⚠️ Cette fabrique omettait `lesson_id` et `chapter_id` — deux champs REQUIS d'un
+// `AgendaItemStudent` — depuis l'addendum §15, sans que rien ne le signale : les tests de
+// Massimo sont exclus de `tsconfig.app.json`, donc `tsc -b` reste vert sur des fixtures
+// incomplètes. Complétée le 2026-08-10 en ajoutant `revisable_cards` (ADR-0049), qui l'aurait
+// cassée pour la troisième fois en silence.
 function item(over: Partial<AgendaItemStudent> & { id: number; due_on: string }): AgendaItemStudent {
   return {
     label: `item ${over.id}`,
@@ -20,6 +26,9 @@ function item(over: Partial<AgendaItemStudent> & { id: number; due_on: string })
     done: false,
     created_by: "parent",
     edited_by_parent: false,
+    lesson_id: null,
+    chapter_id: null,
+    revisable_cards: 0,
     ...over,
   };
 }
@@ -135,5 +144,45 @@ describe("bannerItems", () => {
       TODAY,
     );
     expect(bannerItems(sections).map((i) => i.id)).toEqual([1, 2, 3]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// LE DECK CHAPITRE (ADR-0049)
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+describe("revisionSessionState — ce que la porte transmet au runner", () => {
+  it("compose le deck chapitre depuis l'échéance", () => {
+    const state = revisionSessionState(
+      item({
+        id: 1,
+        due_on: "2026-09-10",
+        chapter_id: 12,
+        label: "La Révolution française",
+        subject: { id: 3, name: "Histoire-Géo", slug: "histoire-geo", color: null },
+      }),
+    );
+    expect(state).toEqual({
+      deck: { chapter: 12 },
+      label: "La Révolution française",
+      subjectSlug: "histoire-geo",
+    });
+  });
+
+  it("VERROU — sans chapitre, aucun deck n'est fabriqué", () => {
+    // Rendre un deck ici ouvrirait une session sur un chapitre inventé. `null` force l'appelant
+    // à ne pas afficher la porte, ce qui est la Décision 2.
+    expect(revisionSessionState(item({ id: 1, due_on: "2026-09-10", chapter_id: null }))).toBeNull();
+  });
+
+  it("l'en-tête porte l'intitulé de l'ÉCHÉANCE, faute de nom de chapitre", () => {
+    // `AgendaItemStudent` sert `chapter_id`, jamais le nom du chapitre. L'intitulé est ce que
+    // Massimo vient de taper : l'en-tête prolonge son geste au lieu d'annoncer un objet qu'il
+    // n'a pas vu. Le correctif propre, s'il faut le nom, est un champ serveur — pas une
+    // reconstitution côté client.
+    const state = revisionSessionState(
+      item({ id: 1, due_on: "2026-09-10", chapter_id: 4, label: "Contrôle de jeudi" }),
+    );
+    expect(state?.label).toBe("Contrôle de jeudi");
   });
 });

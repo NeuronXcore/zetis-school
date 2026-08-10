@@ -20,6 +20,7 @@ function item(over: Partial<AgendaItemStudent> = {}): AgendaItemStudent {
     edited_by_parent: false,
     lesson_id: null,
     chapter_id: null,
+    revisable_cards: 0,
     ...over,
   };
 }
@@ -93,5 +94,60 @@ describe("AgendaItemRow — le lien vers le cours (§15)", () => {
     // `TRIGGERING_KINDS` a divergé le jour même où `devoir` y est entré.
     ligne({ kind: "devoir", lesson_id: 42 });
     expect(lien()).toHaveAttribute("href", "/subjects/francais/cours?lesson=42");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// LA PORTE DU DECK CHAPITRE (ADR-0049) — et surtout, son ABSENCE
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+const porte = () => screen.queryByRole("link", { name: /Réviser ce chapitre/ });
+
+describe("AgendaItemRow — la porte de révision par chapitre", () => {
+  it("🔴 VERROU — sans carte servable, la porte n'EXISTE PAS dans le DOM", () => {
+    // ⚠️ L'assertion porte sur l'ABSENCE, jamais sur un `disabled` : un bouton désactivé
+    // passerait un test écrit à l'envers, et c'est exactement l'écran que la Décision 2 refuse.
+    // « Un bouton mort se lit comme une panne » (addendum ADR-0025 §14.6).
+    const { container } = ligne({ chapter_id: 4, revisable_cards: 0 });
+    expect(porte()).toBeNull();
+    // Ni bouton grisé, ni bouton qui explique, ni espace réservé : RIEN.
+    expect(container.textContent).not.toContain("Réviser");
+    expect(container.textContent).not.toContain("bientôt");
+    expect(container.querySelector("[disabled]")).toBeNull();
+  });
+
+  it("VERROU — un chapitre absent ne rend aucune porte, même si le compte est > 0", () => {
+    // Deux gardes, pas une : un compte sans chapitre serait une porte vers un deck inexistant.
+    ligne({ chapter_id: null, revisable_cards: 3 });
+    expect(porte()).toBeNull();
+  });
+
+  it("avec des cartes servables, la porte mène à la session du deck chapitre", () => {
+    ligne({ chapter_id: 12, revisable_cards: 5, label: "La Révolution française" });
+    const lien = porte();
+    expect(lien).toHaveAttribute("href", "/revision/session");
+    // Le nombre annoncé est celui du SERVEUR, plafond compris — jamais recalculé ici.
+    expect(screen.getByText("5 cartes")).toBeInTheDocument();
+  });
+
+  it("le singulier est respecté (une carte, pas « 1 cartes »)", () => {
+    ligne({ chapter_id: 12, revisable_cards: 1 });
+    expect(screen.getByText("1 carte")).toBeInTheDocument();
+  });
+
+  it("🔴 VERROU — la mécanique SRS reste INVISIBLE sur la ligne", () => {
+    // Massimo révise avant son contrôle. Il ne lit jamais que la session ne déplace pas ses
+    // cartes, ni « non planifiant », ni « supplémentaire » — c'est l'affaire du serveur.
+    const { container } = ligne({ chapter_id: 12, revisable_cards: 5 });
+    for (const interdit of [
+      "planif",
+      "intervalle",
+      "programmation",
+      "supplémentaire",
+      "en retard",
+      "due",
+    ]) {
+      expect(container.textContent?.toLowerCase()).not.toContain(interdit);
+    }
   });
 });
