@@ -636,10 +636,39 @@ def set_done(db: Session, *, student_id: int, item_id: int, done: bool) -> Agend
 
 
 def dismiss(db: Session, *, student_id: int, item_id: int) -> AgendaItem:
-    """Massimo masque un item, y compris de Papa. Archivage, jamais suppression (§2c)."""
+    """Massimo masque un item. Archivage, jamais suppression (§2c).
+
+    ⚠️ **Corrigé le 2026-08-10** : cette docstring disait *« y compris de Papa »*, ce que
+    contredisent et le §2c (*« ce masquage reste visible côté pilotage »*) et `list_pilot_items`
+    trente lignes plus haut, qui passe `include_archived=True`. Le code avait raison ; la phrase
+    aurait envoyé une session future « réparer » un comportement juste.
+    """
     item = _get(db, student_id=student_id, item_id=item_id)
     if item.dismissed_at is None:
         item.dismissed_at = _now()
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def undismiss(db: Session, *, student_id: int, item_id: int) -> AgendaItem:
+    """Le masquage se rattrape — symétrique de `dismiss`, comme `set_done(done=False)` l'est de
+    `set_done(done=True)`.
+
+    🔴 **Né d'un défaut trouvé à la RELECTURE HUMAINE, le 2026-08-10.** `dismiss` n'avait aucun
+    contraire — ni ici, ni en route, ni via `_STUDENT_EDITABLE`/`_PARENT_EDITABLE` d'où
+    `dismissed_at` est exclu. Un tap de Massimo sur la croix retirait donc un devoir de son
+    agenda **définitivement, et pour tout le monde** : Papa le voyait encore dans ses archives,
+    mais ne pouvait que le **ressaisir à la main**.
+
+    ⚠️ **Le §2c n'avait rien décidé là-dessus** — il tranche « masquer ≠ supprimer » et « le
+    pilotage continue de voir ». L'irréversibilité n'était pas un choix, c'était un oubli, que
+    l'asymétrie avec `undone` désignait dans le même routeur.
+
+    Idempotent, comme `dismiss` : démasquer un item visible ne fait rien et ne casse pas.
+    """
+    item = _get(db, student_id=student_id, item_id=item_id)
+    item.dismissed_at = None
     db.commit()
     db.refresh(item)
     return item
@@ -649,6 +678,16 @@ def archive(db: Session, *, student_id: int, item_id: int) -> AgendaItem:
     """« Suppression » côté Papa = archivage. La ligne reste en base : Papa n'efface jamais un
     item de Massimo."""
     return dismiss(db, student_id=student_id, item_id=item_id)
+
+
+def restore(db: Session, *, student_id: int, item_id: int) -> AgendaItem:
+    """Papa rend à Massimo une échéance archivée — le pendant de `archive`.
+
+    C'est la moitié PARENTALE du rattrapage, et celle qui compte quand le geste n'était pas
+    accidentel : un enfant qui masque un contrôle a besoin qu'un adulte puisse le remettre.
+    Prolonge l'asymétrie que le §2c pose déjà (*« le parent voit tout »*) — il la rend agissante.
+    """
+    return undismiss(db, student_id=student_id, item_id=item_id)
 
 
 def mark_agenda_seen(db: Session, *, student_id: int) -> None:

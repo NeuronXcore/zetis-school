@@ -47,6 +47,16 @@ co-édition non dite est vécue comme un bug.
    silencieuse** — Papa décide en sachant que ce sera vu.
 3. **Archiver, pas supprimer.** Libellé « Archiver », `ConfirmDialog` obligatoire, ligne
    conservée, filtre « Archivés » pour la retrouver.
+4. **Et RENDRE, depuis le 2026-08-11.** Sur une ligne archivée, le panneau porte « **Rendre à
+   Massimo** » à la place d'« Archiver » — `POST /items/{id}/restore`. **Aucun `ConfirmDialog`** ici,
+   contrairement à « Archiver » : rendre une échéance ne détruit rien et se re-défait d'un clic ;
+   confirmer un geste sûr n'ajoute que de la friction.
+
+   > 🔴 **C'est la moitié parentale du rattrapage de la croix ✕ de Massimo.** Jusque-là Papa
+   > **voyait** l'archive sous son filtre sans **aucun moyen de la remettre** : `dismissed_at` est
+   > hors de `_STUDENT_EDITABLE` comme de `_PARENT_EDITABLE`, et le seul recours était de ressaisir
+   > l'échéance à la main. Le §2c donne au parent de **voir** tout ; ce bouton lui donne d'**agir**,
+   > ce qui compte quand le masquage était une esquive et non un faux mouvement.
 
 ## Phase 0 — Papa est le seul à saisir (ADR-0025 §10)
 
@@ -158,7 +168,9 @@ réintroduire par la couleur.
 
 Intitulé · date · type · **chapitre** éditables ; **état en lecture seule** ; **plan de
 préparation en lecture seule** ; **note privée** (`parent_note`) avec la mention explicite qu'elle
-n'est jamais servie à Massimo ; actions Enregistrer / Archiver.
+n'est jamais servie à Massimo ; actions Enregistrer / **Archiver** — ou **Rendre à Massimo** quand
+la ligne est déjà archivée (les deux ne coexistent jamais : proposer d'archiver ce qui l'est déjà
+serait un bouton mort).
 
 > **Le plan de préparation — quatrième refus** (`adr-0050` Décision 7, 2026-08-10).
 > *« ZETIS a proposé **3 étapes** à Massimo, réparties jusqu'à la veille. **1 cochée** par lui. »*

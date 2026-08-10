@@ -50,6 +50,7 @@ function renderPanel(
   overrides: Partial<AgendaItemPilot> = {},
   onSave = vi.fn(),
   lessonsByChapter: Record<number, { id: number; title: string }[]> = { 3: COURS },
+  onRestore = vi.fn(),
 ) {
   const utils = render(
     <AgendaDetailPanel
@@ -59,6 +60,7 @@ function renderPanel(
       onSave={onSave}
       onSaveNote={vi.fn()}
       onArchive={vi.fn()}
+      onRestore={onRestore}
       subjects={SUBJECTS}
       chaptersBySys={{ 42: CHAPITRES }}
       chaptersLoading={new Set()}
@@ -68,7 +70,7 @@ function renderPanel(
       onNeedLessons={vi.fn()}
     />,
   );
-  return { ...utils, onSave };
+  return { ...utils, onSave, onRestore };
 }
 
 describe("AgendaDetailPanel — le chapitre", () => {
@@ -220,5 +222,25 @@ describe("AgendaDetailPanel — le plan de préparation", () => {
     expect(screen.getByText(/réviser les cartes de ce chapitre/)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/pas encore possible/i);
     expect(container.textContent).not.toMatch(/n'est pas encore/i);
+  });
+
+  it("🔴 VERROU — une échéance archivée peut être RENDUE, et une échéance vivante ne le peut pas", () => {
+    // Défaut trouvé à la relecture humaine du 2026-08-10 : Massimo masquait un devoir d'un tap,
+    // Papa le VOYAIT sous « Archivés » et n'avait **aucun moyen de le remettre** — `dismissed_at`
+    // est hors de `_STUDENT_EDITABLE` comme de `_PARENT_EDITABLE`. Seul recours : le ressaisir.
+    //
+    // ⚠️ **Les deux sens sont vérifiés, et il en faut deux.** Un test qui n'affirmerait que la
+    // présence du bouton passerait sur un panneau qui l'affiche TOUJOURS — donc qui proposerait
+    // de « rendre » une échéance qui n'est pas partie.
+    renderPanel({ dismissed_at: null });
+    expect(screen.queryByRole("button", { name: /rendre à massimo/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /archiver/i })).toBeInTheDocument();
+
+    const archivee = renderPanel({ dismissed_at: "2026-08-10T18:53:00Z" });
+    const rendre = archivee.getAllByRole("button", { name: /rendre à massimo/i }).at(-1)!;
+    // Et « Archiver » disparaît : proposer d'archiver ce qui l'est déjà serait un bouton mort.
+    expect(archivee.getAllByRole("button", { name: /^archiver$/i })).toHaveLength(1);
+    fireEvent.click(rendre);
+    expect(archivee.onRestore).toHaveBeenCalledTimes(1);
   });
 });

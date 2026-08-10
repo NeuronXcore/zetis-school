@@ -6,115 +6,205 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-**Chantier : le plan de préparation — ADR-0050**, qui réalise le §8 rôle 1 de l'ADR-0025 (le rôle
-de « traducteur »). ✅ **MERGÉ dans `main`** — PR
-[#110](https://github.com/NeuronXcore/zetis-school/pull/110), squash **`fa45576`**, le 2026-08-10.
+### ▶ CHANTIER COMPLET — `fix/agenda-trois-defauts` (2026-08-10 au soir → 2026-08-11), **PR #111 OUVERTE**
 
-| | |
-|---|---|
-| **Branche** | `feat/plan-de-preparation`, forkée à **`03b38d2`**, **CONSERVÉE** (locale et distante, à `a80c70f`) — demandé explicitement au merge |
-| **`main`** | **à jour, `fa45576`**. Sept commits d'ADR-0050 l'ont précédé (`fab8a6a` `3a04900` `03b38d2` avant le fork, `98c5de1` `17b2ffd` `b1fc862` `9689a27` après), plus `b6e5b63` pour l'index `DECISIONS.md` |
-| 🔴 **Migration** | **`b2c3d4e5f9a1`** — appliquée en DEV, downgrade/upgrade rejoués. **PAS en prod.** Elle peut désormais y aller (elle est sur `main`). ⚠️ **Combien de révisions sont dues, on ne le sait PAS** — voir le § PROCHAIN PAS |
-| **Suites** | Backend **1181** · Massimo **626** · Papa **794**. **25 sabotages, 25 rougissements** — 12 (B) + 7 (C) + **6 d'une CLASSE neuve** : *« la surface disparaît »* |
-| 🔴 **Relecture visuelle** | **JAMAIS FAITE — et le chantier a été mergé quand même**, sur décision du commanditaire du 2026-08-10, après deux signalements. L'ADR-0050 la mettait au Suivi, **avant la PR**. Les deux interfaces ont été vues et mesurées dans le DOM **par Claude** ; ce n'est pas la même chose, et le dépôt en a déjà payé le prix |
+Trois défauts de l'agenda, **tous trouvés par la RELECTURE HUMAINE** de l'ADR-0050, **tous
+corrigés et vérifiés à l'écran**. Aucun n'était visible à un test : les 25 sabotages du chantier
+faisaient varier des **comportements**, jamais des **destinations** ni des **recouvrements**.
 
-> 🔴 **Ce merge s'ajoute à une série que le dépôt tient déjà** — #79 (bandeau Massimo, *« mergé sans
-> avoir jamais été VU »*), #89, #91. Ce n'est pas un reproche à consigner, c'est un **signal** : la
-> relecture visuelle a rapporté, sur l'ADR-0048, **cinq défauts qu'aucun des 43 sabotages rouges
-> n'avait vus** — c'est le seul chiffrage du dépôt sur ce qu'elle achète.
->
-> **Ce qui reste donc à regarder un jour, sur `main`** : la porte de révision absorbée par le plan,
-> l'icône `🗒️`, et les **trois plans identiques** sur trois échéances d'un même chapitre.
+| Défaut | Correction | Nature |
+|---|---|---|
+| La croix ✕ sans retour | `undismiss` + `restore`, « Masqué · Annuler » (20 s) chez Massimo, « Rendre à Massimo » chez Papa | **trou** — le §2c ne disait rien de l'irréversibilité |
+| **La croix visait les devoirs de l'école** | elle ne s'affiche plus que sur `created_by === "student"` | 🔴 **tension INTERNE à l'ADR-0025** (voir ci-dessous) |
+| Un jour `✦` qui ouvrait sur du vide | `preparationsForDay` + bloc « ✦ Ce jour-là, tu prépares » | **trou** — l'ADR-0050 décide le marqueur, jamais ce que fait le clic |
+| Le jour ouvert doublait sa section | sections d'un jour retirées, multi-jours filtrées | 🔴 **l'addendum §17.1 l'interdisait déjà** |
 
-### Ce que le chantier a livré, en une phrase par session
+🔴 **CINQUIÈME défaut, trouvé PENDANT la relecture (2026-08-11), et le plus instructif** : le
+bouton qui **referme le panneau du jour** portait le **même glyphe et le même `className`** que la
+croix de masquage. Un panneau à trois devoirs affichait donc **trois `✕` indiscernables** — un qui
+referme, deux qui archivent définitivement. **C'est très probablement là que les deux devoirs de
+dev sont partis la veille.** Le commanditaire a lu le survivant comme un masquage, *après* que les
+deux autres avaient été retirés — la preuve que le retrait ne suffisait pas.
+Il est devenu **`▴`**, le vocabulaire que la page emploie déjà (« Replier la suite ▴ »).
+⚠️ **Ce bouton n'était couvert par AUCUN test** — ni libellé, ni comportement. Il l'est maintenant,
+dans les deux sens (aucune croix sur un panneau d'items de l'école ; la croix subsiste sur un item
+de Massimo).
 
-`plan_steps` et `has_plan` étaient **au contrat et MORTS depuis le Lot 1** (`[]` et `False` en dur,
-aux deux étages). Ils sont remplis, et lus par les deux interfaces.
+**Suites à la clôture** : backend **1185** (+4) · Massimo **636** (+10) · Papa **795** (+1), deux
+typechecks verts. **8 sabotages joués, 8 rougissements** — dont la classe *« la surface disparaît »*, qui
+avait piégé six verrous au chantier précédent : mes verrous y survivent **grâce à l'assertion de
+présence**, systématiquement posée AVANT l'assertion négative.
 
-- **A — backend.** Sur une échéance datée à chapitre, ZETIS compose jusqu'à **3 étapes**
-  (`fiche` · `revision` · `quiz`), de demain à **la veille**, **jamais le jour J**. Table
-  `agenda_plan_steps` + migration ; `modules/agenda/plan.py` porte **tout le cycle de vie**
-  (composition, figement, révocation sur déplacement de date) ; 2 routes de coche.
-- **B — Massimo.** Le `✦` s'allume dans la bande sur les jours porteurs ; le plan se rend **sous
-  l'échéance** qu'il prépare ; les étapes mènent au **grain réellement atteignable** ; la coche est
-  optimiste et déclarative. Le plan **absorbe** la porte de révision de l'`adr-0049` quand il la
-  porte déjà. Le « Préparer · bientôt » de « Ce qui arrive » est **mort**.
-- **C — Papa.** `✦ 1/3` dans la grille, la phrase dans le panneau, **en lecture seule**. Lire le
-  pilotage ne **compose** aucun plan.
+⚠️ **Trois constats de couverture, à ne pas perdre** :
+- `test_delete_is_archiving_not_deletion` (préexistant) **reste VERT** sur le sabotage
+  « la bande ne rend plus rien » — il n'assert qu'une absence. Signalé, **pas corrigé**.
+- **`AgendaPage` de Massimo n'a AUCUN test de rendu** (lacune préexistante) : le défaut du
+  doublement, qui vivait là, n'est donc verrouillé **par aucun test**. Il est vérifié à l'écran
+  et dans le DOM (ancres `agenda-item-<id>` passées de 4 à 2), pas par une suite. **C'est la
+  dette la plus nette de ce correctif** — celui des trois qui violait une décision écrite est
+  aussi le seul sans verrou.
+- Les tests de Massimo **restent non typecheckés** ; ceux de Papa le sont, et `tsc -b` y a
+  attrapé la prop `onRestore` manquante d'une fixture **dans la seconde**. L'asymétrie s'est
+  redémontrée toute seule.
 
-### 🔴 DÉCISIONS ACTIVES — à relire, JAMAIS à rouvrir
+⚠️ **Aucun ADR** : arbitrage explicite du commanditaire (« correctif direct sur la branche »),
+la documentation suit à la clôture. Deux surfaces neuves ne sont donc figées que par le code et
+ses verrous — c'est la dette assumée de ce choix, la même qu'en PR #89.
 
-L'ADR a été **amendé SEPT FOIS**, toujours par un read-before-code ou par une mesure à l'écran,
-jamais par confort. Les rouvrir referait les erreurs :
+**Vérifié en vrai, pas seulement en test** : masquer → « Annuler » → la carte revient et
+`dismissed_at` retombe à `NULL` en base ; « Rendre à Massimo » depuis le filtre « Archivés » de
+Papa → idem. Fixture dev remise en l'état (items 1 et 2 ré-archivés).
 
-1. **Décision 2** — chaque étape interroge le prédicat de **SON grain** : `resolve_panoply`
-   (notion) pour `fiche`/`quiz`, **`chapter_servable_count`** (chapitre) pour `revision`. La
-   panoplie filtre sur le `status` seul, le deck exige aussi `due_at IS NOT NULL` : composer
-   `revision` depuis la panoplie donne une étape qui ouvre sur un **400**. ⚠️ La règle de
-   l'addendum `adr-0024` n'est pas « tout passe par `resolve_panoply` », c'est **« un seul
-   prédicat par question »** — trois réponses légitimes coexistent à « peut-on réviser ceci ».
-2. **Décision 2 bis** — **une étape par TYPE, jamais par notion**. `cours` et `eli5` exclus.
-3. **Décision 2 ter** — `PlanStepOut` porte **`agenda_item_id`** : c'est le **sujet** de l'étape,
-   pas un rouage. Sans lui la maquette est inconstructible et les étapes flottent.
-4. **Décision 4** — figé à la première lecture ; **révoqué si `due_on` change**, coches comprises.
-5. **Décision 5 (A)** — cocher est une **déclaration** : aucun XP, et **jouer l'activité ne coche
-   rien**. L'option « prouvée » est **REPORTÉE**, pas écartée.
-6. **Décision 2 quater** — 🔴 **deux activités sur trois ne sont PAS adressables par URL** :
-   `FichesPage` ne lit **aucun** `searchParams`, `QuizPage` ne lit que `subject`. Les étapes mènent
-   donc au **grain réellement atteignable** (matière pour `fiche`/`quiz`, chapitre pour `revision`),
-   et **aucune route n'est fabriquée** — `/fiches?fiche=<id>` s'ouvrirait sur une page qui ignore
-   son paramètre, et **aucun test de rendu ne le verrait**. `resource_id` reste servi et
-   **inutilisé** pour deux types sur trois : la donnée est juste, c'est la route qui manque.
-   ⚠️ **Corrigée le jour même sur MESURE** : le libellé ne répète **pas** la matière (193 px pour
-   151 disponibles — c'est le nom de la matière qui se coupait). Le grain se dit par le **pluriel**
-   et par le **verbe** : « Lire les fiches », « Choisir un quiz », « Réviser ce chapitre ».
-7. **Décision 7, précisée en 7.1–7.4** — 🔴 **lire le pilotage de Papa ne COMPOSE aucun plan**
-   (`plan_counts`, pur et en lot, ≠ `get_or_create_plan`). Sinon Papa figerait le plan de son fils
-   en relevant l'ENT le dimanche soir. **Deux entiers, jamais les étapes.** Aux **deux densités**,
-   comme l'état. `0` étape ⇒ **aucune surface**.
-8. **Décision 8** — « Ce qui arrive » consomme `has_plan`. Le bouton grisé « Préparer · bientôt »
-   est **retiré** : la fonctionnalité qu'il annonçait est livrée, donc « bientôt » était devenu
-   faux. ⚠️ Ce **n'est pas** un revirement sur l'ADR-0024 §4 — là-bas le gris est une **attente**
-   (« Papa ne l'a pas encore produit »), ici c'était une **dette** (« ZETIS ne sait pas le faire »).
+### 🔴🔴 BUG DE PRODUCTION TROUVÉ PAR ACCIDENT — le plan lisait l'heure d'UTC (2026-08-11)
 
-### ⚠️ Deux arbitrages d'ÉCRAN, pris par Claude, à confirmer à la relecture
+✅ **CORRIGÉ** sur cette branche, sur décision explicite du commanditaire (hors du périmètre
+annoncé, donc signalé d'abord, jamais contourné).
 
-1. **Le plan ABSORBE la porte de l'`adr-0049`** quand il porte une étape `revision` : mêmes
-   conditions serveur, même destination, sinon deux boutons identiques à trois lignes d'écart. La
-   version du plan gagne — elle est **datée** et elle se **coche**. Le « N cartes » part avec la
-   porte (sur une étape datée de mercredi, ce serait un **quota pour mercredi**).
-2. **L'icône de la fiche est `🗒️`, pas `📖`** — la puce « 📖 lire le cours » est deux lignes plus
-   haut sur la même carte. La maquette du cadrage portait `📖` ; elle n'avait pas la puce sous les
-   yeux.
+Quatre tests backend sont passés au rouge entre 21 h 35 et 00 h 16 **sans qu'une ligne du code
+concerné ait bougé** : `test_agenda_plan` ×2, `test_dashboard` ×1, `test_reviews` ×1.
+✅ **Vérifié par `git stash` : les quatre échouent AUSSI sur `main` nu.** Ce n'est pas ce
+chantier — et ce n'est pas non plus « des tests qui alternent selon l'heure ».
 
-### ✅ PIÈGES — tous consignés dans `TROUBLESHOOTING.md`
+**La cause, à `apps/backend/app/modules/agenda/plan.py:56`** :
+```python
+def _today() -> date:
+    """Isolé pour être figé dans les tests (patron `_now` du module `memory`)."""
+    return datetime.now(timezone.utc).date()   # 🔴 UTC
+```
+Tout le reste de l'agenda date en **Europe/Paris** (`today_local()`). Mesuré à 00 h 16 :
+`_today()` → **2026-08-10**, `today_local()` → **2026-08-11**. **Un jour d'écart.**
 
-Section `feat/plan-de-preparation`. Les trois qui coûteraient le plus à redécouvrir :
+🔴 **Ce n'est pas un artefact de test, c'est ce que Massimo verrait.** Entre **minuit et 2 h**
+(été ; minuit–1 h en hiver), `jours_restants = (item.due_on - _today()).days` vaut **un de
+trop** : une échéance de DEMAIN est vue comme J+2, donc ZETIS **compose un plan là où la
+Décision 3 l'interdit** (« aucun plan à J+0 ou J+1 »), avec une étape datée **d'aujourd'hui ou
+de la veille**. Un ado qui ouvre son agenda à 00 h 30 est dans la fenêtre.
 
-- 🔴 **Le plan était composé pendant un `GET` qui ne commit JAMAIS** — servi avec des ids, puis
-  annulé au rollback. La coche répondait **404** et aucun test d'affichage ne l'aurait vu.
-- 🔴 **SIX de mes verrous ont été VERTS sur leur sabotage**, dont **deux motifs neufs** : une
-  assertion qui ne distingue pas le code correct d'un défaut **quand les deux réponses
-  coïncident** ; et une assertion trop large qu'on ne peut pas resserrer sans casser un texte
-  légitime voisin.
-- 🔴 **Puis un AUDIT systématique en a trouvé six autres**, tous du même mal généralisé :
-  > *Un verrou qui n'assert qu'une **absence** ne verrouille rien tant qu'une **présence** ne
-  > l'accompagne pas — un écran vide satisfait toute assertion négative.*
+**Correctif : `today_local()`** — l'isolation de la fonction (pour figer les tests) reste,
+seule la SOURCE change. Suite backend **1185**, verte à 00 h 30, c'est-à-dire **dans la fenêtre
+même qui cassait tout une heure plus tôt**.
 
-  Les 19 sabotages étaient rouges et ne les visaient pas : ils faisaient varier un
-  **comportement**, jamais **disparaître la surface**. D'où une **classe de sabotage à rejouer
-  une fois par chantier** — `{false && (…)}`, un service qui rend `[]`, un paragraphe supprimé.
-  6/6 passaient avant les ancres, 6/6 rougissent après.
-  ⚠️ `expect(x).not.toBe("📖")` n'est **pas** un verrou : il passe sur `""` et sur `undefined`.
-- 🔴 **`npx tsc` ne lance PAS TypeScript** dans ce dépôt, et `| tail` masque l'échec du pipeline.
+🔴 **Et le doute sur « une seule cause » était fondé : il y en avait DEUX, et un seul bug.**
+- `test_agenda_plan` ×2 → **le produit avait tort** (le vrai bug, ci-dessus) ;
+- `test_reviews` ×1 et `test_dashboard` ×1 → **le produit avait RAISON, les tests avaient
+  tort** : ils datent leur décor en UTC (`datetime.now(timezone.utc).date()`) et comparent à un
+  serveur qui date en Paris (`local_day`). Corrigés côté test (`today_local` / `local_day`).
+  ⚠️ **Si je les avais « corrigés » côté produit, j'aurais cassé trois modules pour faire
+  passer deux tests faux.** C'est exactement pourquoi on ne suppose pas la cause commune.
 
-### ⚠️ DETTES NÉES DE CE CHANTIER
+✅ La dette **« deux tests de `test_dashboard.py` alternent au rouge selon l'heure —
+pré-existants, non corrigés »** est ÉTEINTE : ce n'était pas une bizarrerie de tests, c'était
+un attendu calculé dans le mauvais fuseau. ⚠️ Un seul des deux s'est manifesté cette nuit ;
+l'autre est peut-être encore là, dans une autre fenêtre horaire.
 
-- 🔴 **Migration `b2c3d4e5f9a1` non posée en prod.**
-- 🔴 **Trois échéances d'un MÊME chapitre affichent trois plans IDENTIQUES**, aux mêmes jours.
-  Conséquence directe de la **Décision 1 gelée** (« un plan par échéance ») — vu à l'écran le
-  2026-08-10, **pas rouvert**. Arbitrage produit à poser un jour : plan par échéance, ou par
-  chapitre ?
+🔴 **LE VERROU POSÉ EST UN VERROU D'INVARIANT, PAS DE COMPORTEMENT** —
+`test_le_plan_date_dans_LE_MEME_fuseau_que_le_reste_de_l_agenda` compare `plan._today()` à
+`today_local()`. Motif, et c'est la leçon la plus transposable de la nuit :
+> **Les deux tests de comportement voisins n'ont attrapé ce bug que parce qu'on les a lancés à
+> 00 h 16. Vingt-deux heures par jour, ils étaient VERTS sur du code faux.** Un verrou qui ne
+> mord que deux heures sur vingt-quatre n'est pas un verrou, c'est une loterie.
+
+⚠️ **À chercher ailleurs** : `datetime.now(timezone.utc).date()` partout où une date CIVILE est
+attendue. Le patron correct est `today_local()` / `local_day()`. La docstring de
+`test_dashboard.py` promet en tête *« aucun test ne doit se mettre à échouer une nuit de
+passage à l'heure d'été »* — elle a été démentie par un test du même fichier.
+
+### 🔴 LA CROIX ✕ — la question posée à l'écran, et la tension qu'elle a exhumée (2026-08-11)
+
+*« Faut-il garder les croix qui font disparaître les devoirs ? »* La réponse ne s'est pas prise
+à l'opinion : **l'ADR-0025 se contredit à trente lignes d'intervalle**, et il faut le savoir
+avant de rouvrir quoi que ce soit ici.
+
+- **§2c** donne le masquage à Massimo, au titre de la **réciprocité** — Papa archive, donc
+  l'enfant n'est pas passif sur sa propre page. Motif : **autonomie**, jamais évitement.
+- **§1**, qui justifie qu'on montre les dates à un enfant, écrit ceci d'une échéance scolaire :
+  > *« elle existe déjà dans le monde de Massimo — écrite dans son agenda papier, annoncée en
+  > classe. La masquer ne supprime pas la pression : elle supprime seulement **son moyen de
+  > s'organiser**. »*
+
+Le §1 parlait de « ne pas afficher », mais le raisonnement vaut mot pour mot pour le bouton :
+**une croix sur un devoir de l'école faisait exactement ce que l'ADR passe son §1 à refuser.**
+
+⚠️ **Ce qui a fait pencher, et qui n'est pas une opinion** : le bouton ne distingue pas ses
+trois usages (doublon — que le **§2d rend ATTENDU**, « doublons tolérés, aucune fusion » —,
+échéance annulée en classe, et évitement), parce que son libellé décrit un **mécanisme**
+(« Masquer ») et jamais une **raison**.
+
+**Retenu (commanditaire, 2026-08-11) : la réciprocité devient VRAIE** — on retire ce qu'ON a
+écrit, pas ce que l'école a demandé. Une condition, `created_by === "student"`, **aucune
+décision révoquée**. En phase 0 la croix disparaît de partout (Massimo ne saisit pas, §10) et
+elle **revient d'elle-même** quand Papa ouvre la saisie, là où le §2c tient vraiment. Les
+doublons du §2d restent traités par Papa, qui les crée et que la saisie prévient.
+
+⚠️ **Conséquence assumée** : le bandeau « Masqué · Annuler » devient **inatteignable en phase
+0**. Il n'est pas mort — `undismiss` porte le « Rendre à Massimo » de Papa, actif tout de suite
+— et il reprend vie avec la saisie. **Le retirer réintroduirait le défaut de la veille.**
+
+**2 sabotages, 2 rougissements** (croix partout → le verrou « aucune croix sur un item de
+l'adulte » tombe ; garde inversée → **les deux** tombent) : les deux sens sont verrouillés
+séparément, ce qui interdit aussi bien de rendre la croix universelle que de la supprimer.
+⚠️ **Non revu au panneau navigateur** : la session y a été perdue et je n'entre pas de mot de
+passe. Le résultat attendu en dev est simple — **les cinq échéances sont `created_by=parent`,
+donc plus AUCUNE croix sur les cartes**, seule celle qui ferme le jour subsiste.
+
+---
+
+## ⬆️ REMONTÉ de l'ADR-0050 à son élagage (2026-08-11) — ce qui reste OUVERT
+
+> Le récit du chantier « plan de préparation » est retiré : ses **quatre contrôles passent** —
+> `docs/decisions/adr-0050-le-plan-de-preparation.md` ✅, `TROUBLESHOOTING.md`
+> §`feat/plan-de-preparation` ✅, `CHANGELOG.md` **0.73.0** ✅. Ce qui suit est le **quatrième
+> contrôle** : ce que la section laissait ouvert et qui n'existe nulle part ailleurs.
+> Le détail se retrouve par `git log -p MEMORY.md`.
+
+### ⚠️ Les deux arbitrages d'ÉCRAN de l'ADR-0050 — VUS par l'agent, jamais par l'humain
+
+Ils étaient marqués « à confirmer à la relecture ». **Regardés et mesurés le 2026-08-10 au soir,
+et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dépôt distingue les deux.
+
+1. **Le plan ABSORBE la porte de l'`adr-0049`** quand il porte une étape `revision`. ✅ Vérifié :
+   les deux variantes cohabitent sur le même écran — `Réviser ce chapitre · **8 cartes**` sur la
+   carte sans plan, `Réviser ce chapitre · **mer. 12**` dans le plan. Le « N cartes » part bien
+   avec la porte.
+2. **L'icône de la fiche est `🗒️`, pas `📖`.** ✅ Vérifié : les deux cohabitent sur la même carte
+   (« 📖 lire le cours » deux lignes plus haut) et se distinguent.
+
+### 🔴 Deux RÈGLES de méthode, qui ne sont pas de l'historique — elles ont resservi cette nuit
+
+- **Un verrou qui n'assert qu'une ABSENCE ne verrouille rien tant qu'une PRÉSENCE ne
+  l'accompagne pas** — un écran vide satisfait toute assertion négative. Appliquée
+  systématiquement cette session ; c'est elle qui a fait survivre mes verrous au sabotage
+  « la surface disparaît ». ⚠️ `expect(x).not.toBe("📖")` n'est **pas** un verrou : il passe sur
+  `""` et sur `undefined`.
+- 🔴 **`npx tsc` ne lance PAS TypeScript dans ce dépôt** (seul `tsc -b` le fait), et un `| head`
+  ou `| tail` **masque le code de sortie** — `echo $?` rend alors celui de `head`. Les deux
+  pièges se sont représentés cette nuit, à une heure d'intervalle.
+
+
+### ⚠️ DETTES HÉRITÉES DE L'ADR-0050 — le plan de préparation (mergé, PR #110)
+
+- ✅ ~~**Migration `b2c3d4e5f9a1` non posée en prod.**~~ — **POSÉE le 2026-08-10 au soir.** Deux
+  pièges neufs, consignés dans la mémoire `migrer-la-base-prod-zetis` : le **`pg_dump` de l'hôte
+  est en 14.18 contre un serveur 16.14**, il refuse et laisse un fichier de **0 octet** qui a l'air
+  d'être une sauvegarde (passer par celui du conteneur) ; et l'exposition temporaire du port se
+  fait par un **override hors dépôt**, jamais en éditant `docker-compose.prod.yml` — un oubli de
+  rétablissement publierait la base dans Git.
+- 🔴 **Trois échéances d'un MÊME chapitre affichent des plans redondants.** Conséquence directe de
+  la **Décision 1 gelée** (« un plan par échéance ») — **pas rouvert**. Arbitrage produit à poser
+  un jour : plan par échéance, ou par chapitre ?
+
+  ⚠️ **Relevé plus précisément le 2026-08-10 au soir, en dépliant « la suite » :** ce ne sont pas
+  « trois plans identiques ». Ce sont **deux identiques** (*Division* et *Multiplication*, toutes
+  deux au **ven. 14** : `🗒️ mar. 11` · `🃏 mer. 12` · `🎯 jeu. 13`) **plus un TRONQUÉ** —
+  *Comparaison*, au **jeu. 13**, n'a que 2 étapes (`🗒️ mar. 11` · `🃏 mer. 12`) parce que sa veille
+  tombe un jour plus tôt. **8 étapes au total**, ce qui recoupe les 8 lignes en base.
+
+  🔴 **Le vrai symptôme n'est donc pas la répétition des plans, c'est la répétition des GESTES** :
+  Massimo lit « Lire les fiches » **trois fois** pour le mar. 11, « Réviser ce chapitre » **trois
+  fois** pour le mer. 12, « Choisir un quiz » **deux fois** pour le jeu. 13 — sur le même chapitre.
+  ⚠️ **Et la bande le CACHE** : elle n'allume qu'**un seul `✦` par jour** quel que soit le nombre
+  d'étapes portées. La redondance n'apparaît qu'une fois « la suite » dépliée, ce qui explique
+  qu'elle ait pu passer inaperçue.
 - ⚠️ **`resource_id` est persisté et inutilisé** pour `fiche` et `quiz`. La variante « charger le
   quiz puis `/quiz/session` » (patron `mode: "quiz"` de `notionRoutes`) est **reportée, pas
   écartée** : son déclencheur est le jour où l'on accepte un cas d'échec de chargement sur un écran
@@ -122,9 +212,65 @@ Section `feat/plan-de-preparation`. Les trois qui coûteraient le plus à redéc
 - ⚠️ **Les tests de Massimo ne sont TOUJOURS PAS typecheckés** (`tsconfig.app.json` les exclut) —
   ceux de Papa le sont, et `tsc -b` y a attrapé les trois fixtures périmées d'un coup. L'asymétrie
   est une dette, pas un choix.
-- ⚠️ **Le `✦` et les points de `traces` n'ont jamais été vus se croiser** — et ne le peuvent pas en
-  théorie (étapes au futur, traces au passé). Mesuré en revanche : **toutes les colonnes de la
-  bande font 111 px**, allumées ou non.
+- ✅ ~~**Le `✦` et les points de `traces` n'ont jamais été vus se croiser**~~ — **VUS le
+  2026-08-10** : points verts sur VEN 7 → LUN 10, `✦` sur MAR 11 / MER 12 / JEU 13. Les deux
+  familles cohabitent bien dans la bande, sur des jours distincts, comme la théorie le disait.
+  Mesuré par ailleurs : **toutes les colonnes de la bande font 111 px**, allumées ou non.
+
+- 🔴 **UN JOUR MARQUÉ `✦` DANS LA BANDE OUVRE SUR « Rien de noté pour ce jour. »** — trouvé par la
+  **RELECTURE HUMAINE** le 2026-08-10, reproductible sans rien masquer : cliquer **MER 12**.
+
+  **Ce n'est PAS une décision violée** — et c'est important pour ne pas partir corriger à côté.
+  L'ADR-0050 a **délibérément** mis le `✦` sur le **jour** et le plan **sous l'échéance**
+  (Décision 2 ter, ADR l.216 et l.418). La règle *« jamais un `✦` qui n'ouvre rien »* est la
+  **Décision 7.4, et elle vise la GRILLE DE PAPA**, pas la bande de Massimo. **C'est un trou entre
+  deux décisions**, exactement comme la croix ✕ — donc réparable sans rien rouvrir.
+
+  **Cause, dans le code** : `AgendaDayPanel` branche sur `items.length` — les `fixed_items` du
+  jour, et rien d'autre ; `planByItem` n'est distribué **qu'aux items présents ce jour-là**. Un
+  jour qui porte des étapes sans porter d'échéance tombe donc dans la branche vide.
+
+  🔴 **Et la combinaison des Décisions 3 et 2 ter rend le défaut STRUCTUREL, pas accidentel** : la
+  Décision 3 répartit les étapes de demain à **la veille**, **jamais le jour de l'échéance**. Une
+  étape ne tombe donc **jamais** sur le jour de ce qu'elle prépare. Un jour `✦` n'a de contenu que
+  s'il porte, **par coïncidence**, une échéance *sans rapport*. En dev : MAR 11 et JEU 13 sont
+  sauvés par hasard (ils portent leurs propres échéances), **MER 12 ne l'est pas**.
+  **Autrement dit : le défaut est le cas NORMAL, et les deux jours qui semblent corrects sont
+  l'accident.**
+
+  ⚠️ **C'est ce qui a rendu le signalement confus** : dans l'état où les items 16 et 19 étaient
+  masqués, MAR 11 perdait ses icônes (la bande filtre les masqués, `service.py:323`) **mais gardait
+  son `✦`** (venu des plans des fractions) — d'où un jour marqué qui répond « rien de noté ». Le
+  rechargement a résolu le symptôme ; **il n'a pas résolu le défaut**, que MER 12 exhibe toujours.
+
+  **Doctrine applicable** : *« une porte ouverte sur du vide »*, addendum ADR-0024 — citée **deux
+  fois dans l'ADR-0050 lui-même** (l.73, l.165). À traiter avec le correctif de la croix.
+
+- 🔴 **OUVRIR UN JOUR AFFICHE SES ÉCHÉANCES DEUX FOIS** — trouvé par la **RELECTURE HUMAINE** le
+  2026-08-10 (*« il y en a un en trop »*). Cliquer **MAR 11** rend le panneau « MARDI 11 AOÛT »
+  **et** la section « DEMAIN », avec les mêmes cartes.
+
+  🔴 **Et cette fois ce n'est PAS un trou : l'addendum §17.1 nomme exactement ce défaut et le
+  déclare évité** — *« la bande **ne devient pas une seconde liste qui doublerait les sections**.
+  Elle ouvre un jour à la fois, à la demande, et le panneau se referme. Ce n'est pas une liste,
+  c'est une réponse. »* ⚠️ Son argument est la **transience** ; à l'écran, la transience
+  n'empêche rien — **tant que le panneau est ouvert, l'item est là deux fois**. La lettre peut se
+  lire comme ayant anticipé le recouvrement, l'intention est violée.
+
+  **Cause** : `AgendaPage.tsx` rend `AgendaDayPanel` (l.101) **sans aucune interaction** avec les
+  sections qui suivent — « Aujourd'hui » (l.117) et « Demain » (l.140) sont rendues
+  **inconditionnellement**, sans garde sur `pickedDay`.
+
+  **Mesuré dans le DOM, MAR 11 ouvert** : chaque libellé ×2, la porte « Réviser ce chapitre ·
+  8 cartes » ×2, **5 croix à l'écran** (2 + 2 + celle qui ferme le jour), et surtout —
+  🔴 **`id="agenda-item-16"` et `id="agenda-item-19"` EXISTENT EN DOUBLE dans le DOM** (4 ancres
+  pour 2 items). Des `id` HTML dupliqués sont invalides, et `openPlan()` (l.63-69) repose sur
+  `getElementById`, qui rend **le premier du document**. ⚠️ **Aucune défaillance visible n'a été
+  observée** de ce fait — la note vaut pour l'ambiguïté introduite, pas pour un bug constaté.
+
+  **Portée** : tout jour dont la section est visible — aujourd'hui et demain **toujours**, les
+  jours suivants **dès que « la suite » est dépliée**. Le panneau ne double pas *parfois*, il
+  double **chaque fois que la destination est déjà à l'écran**.
 
 ### ⚠️ DETTES OUVERTES du chantier PRÉCÉDENT (#107)
 
@@ -307,49 +453,79 @@ Section `feat/plan-de-preparation`. Les trois qui coûteraient le plus à redéc
   lectures de Massimo pendant la vérification. Archivables sans risque ; les étapes tombent avec
   leur échéance (FK `CASCADE`).
 
+- 🔴 **LA CROIX ✕ DE MASSIMO EST SANS RETOUR — trouvée par la RELECTURE HUMAINE, le 2026-08-10.**
+  **Correction décidée le jour même, PAS ENCORE FAITE** (véhicule à choisir après la relecture).
+
+  **Ce qui est conforme, et qu'il ne faut pas « corriger »** : ce n'est **pas** une suppression.
+  `dismiss()` pose `dismissed_at`, la ligne reste en base (§2c « Suppression = archivage »), et
+  Papa la retrouve — **filtre « Archivés »** de sa page Agenda, où elle s'affiche « masqué · à
+  faire ». Vérifié en base ET aux deux écrans.
+
+  **Ce qui est le défaut** : le geste est **irréversible, et par personne**.
+  - **aucune route `undismiss`** — alors que dans le MÊME routeur `done` a `undone`
+    (`router.py:111`) et `plan-steps/done` a `plan-steps/undone` (`:141`). **Seul `dismiss` n'a
+    pas son contraire**, et c'est ce qui désigne l'oubli plutôt que le choix ;
+  - `dismissed_at` est exclu de `_STUDENT_EDITABLE` **ET** de `_PARENT_EDITABLE`
+    (`service.py:542`) : **Papa non plus** ne peut rendre l'échéance, il ne peut que la ressaisir ;
+  - **aucune confirmation** — un tap sur un écran d'enfant, sur un bouton qui dit « Masquer »
+    sans qu'aucun démasquage n'existe.
+
+  🔴 **Et l'ADR-0025 §2c ne décide RIEN sur l'irréversibilité** : il tranche « masquer ≠
+  supprimer » et « le masquage reste visible côté pilotage ». **C'est un trou, pas une décision
+  tenue** — donc le réparer ne rouvre rien.
+
+  **Retenu (commanditaire, 2026-08-10)** : (A) `POST /items/{id}/undismiss`, strict symétrique de
+  `undone`, + un **« Masqué · Annuler » court** à la place de la carte chez Massimo — pas de
+  dialogue de confirmation sur un écran d'enfant ; **et** (C) un **« rendre à Massimo »** sur la
+  ligne archivée du pilotage de Papa.
+
+  ⚠️ **Une docstring MENT et enverrait une session future casser un comportement juste** :
+  `dismiss()` dit *« Massimo masque un item, y compris de Papa »*, ce que contredisent le §2c
+  **et** `list_pilot_items` trois lignes plus haut (*« archivés INCLUS »*). Le code a raison.
+
+  ⚠️ **Fixture** : les items **16** et **19** ont été masqués pendant le test puis **restaurés**
+  (`update agenda_items set dismissed_at = null where id in (16,19)`). Les items **1** et **2**
+  restent masqués **exprès** — sans eux, le filtre « Archivés » de Papa n'a rien à montrer.
+
 ### ▶▶ PROCHAIN PAS
 
-**Le chantier est MERGÉ. Il reste deux gestes, et un rendez-vous manqué.**
+**Le chantier est COMPLET et NON COMMITÉ.** Branche `fix/agenda-trois-defauts`, forkée à
+`9bca7bc` (= tête de `main` = `origin/main`, vérifiés à la clôture). **Un commit**, 27 fichiers
+(dont 5 de documentation écrits par la clôture), poussé — local et distant à `0 0`. **PR
+[#111](https://github.com/NeuronXcore/zetis-school/pull/111) OUVERTE**, `fix/agenda-trois-defauts`
+→ `main`, **pas encore mergée**. La tête de branche ne s'écrit pas ici — voir
+`git log --oneline main..HEAD`.
 
-1. ⏳ **RELECTURE VISUELLE — sautée, à faire sur `main`.** Elle n'est plus une porte avant le
-   merge (il a eu lieu), elle est devenue une **dette d'observation**. Les deux serveurs de dev
-   tournent sur la paire par défaut — `http://localhost:5173/agenda` (Massimo) et
-   `http://localhost:5174/agenda` (Papa). **Trois** des cinq échéances de dev portent un plan
-   (8 étapes, toutes décochées) ; les deux autres n'en ont pas — **et c'est l'absence qu'il faut
-   regarder en premier**, c'est l'état principal.
-   **Ensuite** : la porte de révision absorbée, l'icône `🗒️`, et les **trois plans identiques**
-   sur les trois échéances de fractions.
-2. ✅ ~~Pousser `main` puis la branche~~ — **FAIT le 2026-08-10**, dans cet ordre, vérifiés `0 0`.
-3. ✅ ~~Ouvrir la PR, merger en squash~~ — **#110 MERGÉE le 2026-08-10**, squash **`fa45576`**,
-   **branche CONSERVÉE** (locale et distante). 🔴 **Mergée SANS la relecture du point 1.**
-4. 🔴 **MAINTENANT : poser `b2c3d4e5f9a1` en prod** — c'est le geste le plus urgent, et il est
-   enfin permis (la révision est sur `main`).
+⚠️ **Le squash et la suppression de branche s'écriront à l'étape 4bis**, après le merge — pas
+avant, sinon ce fichier annonce un état qui n'existe pas.
 
-   🔴 **NE PAS SE FIER AU NOMBRE DE RÉVISIONS DUES : deux sources du dépôt se contredisent**, et
-   c'est le 2026-08-10 qui les a fabriquées toutes les deux.
-   - la mémoire `migrer-la-base-prod-zetis` dit prod à **`e2f3a4b5c6d7`** (elle a été écrite à
-     13:17, **après la 1ʳᵉ étape et jamais mise à jour après la 2ᵈᵉ**) ;
-   - le § « DETTES NÉES DU CHANTIER AGENDA` ci-dessus dit **deux temps**, donc prod à
-     **`a1b2c3d4e5f8`**.
+1. 🔴 **LA RELECTURE VISUELLE HUMAINE — c'est la porte, et elle n'est pas franchie.**
+   Trois défauts sont nés de **vos** clics ce soir, en quinze minutes, et **aucun des 25 sabotages
+   du chantier précédent ne les visait**. Ce qui reste à voir de vos yeux :
+   - **la croix a disparu de toutes les cartes** (phase 0, les cinq échéances de dev sont
+     `created_by=parent`) — c'est le changement le plus visible, et je n'ai pas pu le revoir au
+     panneau, la session y ayant été perdue ;
+   - **le bloc « ✦ Ce jour-là, tu prépares »** sur MER 12, qui répondait « rien de noté » ;
+   - **l'absence de doublon** quand on ouvre MAR 11 ;
+   - et les deux arbitrages d'écran hérités de l'ADR-0050 (§ REMONTÉ ci-dessus), vus par l'agent
+     et jamais par vous.
+   Serveurs : `http://localhost:5173/agenda` (Massimo), `http://localhost:5174/agenda` (Papa).
+2. ✅ ~~commit → push → PR~~ — **FAITS le 2026-08-11**, commit unique, poussé, **PR #111 ouverte**.
+   Reste le **merge en squash**, puis l'**étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici le
+   squash et l'état réel de la branche. 🔴 **Le merge est la seule chose que la relecture du
+   point 1 doit précéder** — la PR peut rester ouverte le temps qu'il faut.
+3. ⚠️ **Un contrôle 4bis nommé d'avance** : la spec `docs/frontend-massimo/page-agenda.md` a été
+   mise à jour par cette clôture ; vérifier qu'aucun autre document n'annonce encore la croix
+   comme universelle, ni le panneau de jour comme muet sur les étapes.
+4. Ensuite seulement, **`/ouverture`** — le chantier suivant est **« Papa peut LIRE un
+   diagnostic »**, choisi le 2026-08-10 et **pas encore cadré** : il lui faut sa session
+   `maquette → spec → ADR-0051 → prompt`, sur `main`, sans une ligne de code.
+   Son read-before-code est **déjà fait** et vaut d'être relu avant : `GET /diagnostics/quizzes/{id}`
+   existe mais est inutilisable pour la relecture **deux fois** — elle cache la bonne réponse et
+   l'explication (docstring de `get_quiz_for_taking`), et `_servable_quiz_or_404` exige
+   `validated`, donc un diagnostic `pending` répond **404**. Le résolveur neutre `_quiz_or_404`
+   existe déjà et son docstring **réserve** l'autre aux routes de Massimo.
 
-   La chaîne locale est `e2f3a4b5c6d7 → a1b2c3d4e5f8 → b2c3d4e5f9a1 (head)` — donc **une** révision
-   due si la seconde source dit vrai, **deux** si c'est la première. **La question se tranche par
-   UNE commande, et par elle seule** (le conteneur prod ne tourne pas en local ; seul le dev
-   `zetis-*` est up) :
-   ```bash
-   ZETIS_DATABASE_URL="postgresql+psycopg://zetis:<mdp>@127.0.0.1:5433/zetis" .venv/bin/alembic current
-   ```
-   ⚠️ Trois rappels qui ont déjà coûté : la variable est **`ZETIS_DATABASE_URL`** (`DATABASE_URL`
-   est ignorée **en silence** et alembic répond alors la révision du DEV — c'est **le** piège) ; le
-   réseau `interne` est `internal: true`, donc publier un port ne suffit pas ; et
-   `backend-entrypoint.sh` fait `alembic upgrade head` **à chaque démarrage** — ne jamais poser en
-   prod une révision absente de `main`.
-5. 🔴 **Étape 4bis, et son cinquième contrôle** : éteindre les annonces devenues fausses.
-   ⚠️ **Deux l'ont déjà été DANS le code de ce chantier** — le « Préparer · bientôt » de Massimo
-   et le « Réviser les cartes du chapitre n'est pas encore possible » de Papa, ce dernier étant un
-   contrôle **manqué à la clôture de l'`adr-0049`**. Vérifier ce qui annonce encore le plan comme
-   à venir : `adr-0025` §8 et §14.6.
-6. Puis **`/ouverture`** sur le chantier suivant, depuis un `main` propre.
 
 ## Dettes SURVIVANTES des chantiers élagués
 

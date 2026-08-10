@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AgendaItemStudent,
   type AgendaPlanStep,
@@ -13,6 +13,7 @@ import {
   markAgendaSeen,
   setAgendaItemDone,
   setAgendaPlanStepDone,
+  undismissAgendaItem,
 } from "../lib/agenda";
 import {
   type AgendaSections,
@@ -53,9 +54,26 @@ export interface UseAgenda {
    *  aucune célébration (Décision 5, option A). */
   toggleStep: (step: AgendaPlanStep) => void;
   dismiss: (item: AgendaItemStudent) => void;
+  /** Le dernier item masqué, TANT QU'IL EST RATTRAPABLE — `null` sinon.
+   *
+   *  🔴 La croix ✕ n'avait aucun retour : le devoir quittait l'agenda **définitivement**, et
+   *  Papa lui-même ne pouvait que le ressaisir (`dismissed_at` est hors des deux listes de
+   *  champs éditables). Défaut trouvé à la relecture humaine du 2026-08-10 ; le §2c de
+   *  l'ADR-0025 n'avait rien décidé sur l'irréversibilité, il tranchait « masquer ≠ supprimer ». */
+  undoable: AgendaItemStudent | null;
+  undoDismiss: () => void;
 }
 
 const EMPTY: AgendaSections = { today: [], tomorrow: [], later: [], resume: [] };
+
+/** Fenêtre de rattrapage du masquage.
+ *
+ *  ⚠️ **Généreuse exprès.** Le geste à rattraper est un tap accidentel sur un écran de
+ *  téléphone : le temps de comprendre que la carte a disparu, de la chercher, puis de vouloir la
+ *  ramener. Les 5 s d'un « toast » habituel sont calibrées pour un adulte qui savait ce qu'il
+ *  faisait. Au-delà de cette fenêtre, le rattrapage reste possible **chez Papa**, qui voit
+ *  l'archive et peut la rendre — c'est la seconde moitié du correctif, et le filet du filet. */
+const UNDO_MS = 20_000;
 
 export function useAgenda(): UseAgenda {
   const [week, setWeek] = useState<AgendaWeek | null>(null);
@@ -63,6 +81,8 @@ export function useAgenda(): UseAgenda {
   const [items, setItems] = useState<AgendaItemStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [today] = useState(() => new Date());
+  const [undoable, setUndoable] = useState<AgendaItemStudent | null>(null);
+  const undoTimer = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     const [weekData, upcomingData] = await Promise.all([
@@ -142,11 +162,41 @@ export function useAgenda(): UseAgenda {
     [],
   );
 
-  const dismiss = useCallback((item: AgendaItemStudent) => {
-    setItems((all) => all.filter((i) => i.id !== item.id));
-    setUpcoming((all) => all.filter((u) => u.id !== item.id));
-    dismissAgendaItem(item.id).catch(() => void load());
+  const dismiss = useCallback(
+    (item: AgendaItemStudent) => {
+      setItems((all) => all.filter((i) => i.id !== item.id));
+      setUpcoming((all) => all.filter((u) => u.id !== item.id));
+      // Le masquage devient RATTRAPABLE (relecture humaine du 2026-08-10) : il ne se
+      // confirme pas d'avance — un dialogue sur l'écran d'un enfant met une friction sur
+      // chaque geste, y compris les bons — il se DÉFAIT après coup.
+      setUndoable(item);
+      if (undoTimer.current !== null) window.clearTimeout(undoTimer.current);
+      undoTimer.current = window.setTimeout(() => setUndoable(null), UNDO_MS);
+      dismissAgendaItem(item.id).catch(() => void load());
+    },
+    [load],
+  );
+
+  /** Rend l'item masqué à l'agenda. Optimiste comme le masquage : `splitSections` retrie par
+   *  date, l'item retrouve donc sa place sans qu'on ait à mémoriser son index. */
+  const undoDismiss = useCallback(() => {
+    setUndoable((item) => {
+      if (item === null) return null;
+      if (undoTimer.current !== null) window.clearTimeout(undoTimer.current);
+      setItems((all) => (all.some((i) => i.id === item.id) ? all : [...all, item]));
+      undismissAgendaItem(item.id).catch(() => void load());
+      return null;
+    });
   }, [load]);
+
+  // Le minuteur ne survit pas au démontage : sans ça, `setUndoable` s'exécuterait sur un
+  // composant parti, et React le signalerait en console à chaque navigation.
+  useEffect(
+    () => () => {
+      if (undoTimer.current !== null) window.clearTimeout(undoTimer.current);
+    },
+    [],
+  );
 
   return {
     week,
@@ -159,5 +209,7 @@ export function useAgenda(): UseAgenda {
     toggleDone,
     toggleStep,
     dismiss,
+    undoable,
+    undoDismiss,
   };
 }

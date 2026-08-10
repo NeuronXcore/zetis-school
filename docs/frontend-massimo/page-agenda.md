@@ -87,9 +87,32 @@ reste ouvert et lié à la réconciliation de `navigation.md`, restée au BACKLO
 En Lot 1, **le composer n'existe pas** côté Massimo : Papa alimente l'agenda, ZETIS ne crée
 aucun item, et la page se remplit du flux ZETIS non daté déjà fusionné dans la surface.
 
-Massimo **coche et masque** dès le premier jour — cocher n'est pas remplir, et c'est le seul
-geste qui rend l'objet sien. Sans lui, l'objet n'aurait pas d'état (Papa est en 403 sur
-`done_at`).
+Massimo **coche** dès le premier jour — cocher n'est pas remplir, et c'est le seul geste qui rend
+l'objet sien. Sans lui, l'objet n'aurait pas d'état (Papa est en 403 sur `done_at`).
+
+🔴 **La croix ✕ ne vise que ce que Massimo a écrit LUI-MÊME** (`created_by == "student"`,
+2026-08-11). En Lot 1 il ne saisit rien : **elle n'apparaît donc sur aucune carte**, et elle
+revient d'elle-même à l'ouverture de la saisie.
+
+> **Motif — l'ADR-0025 se contredisait à trente lignes d'intervalle.** Le §2c donne le masquage au
+> titre de la **réciprocité** (Papa archive, l'enfant n'est pas passif sur sa page) ; le §1, qui
+> justifie qu'on montre les dates à un enfant, écrit d'une échéance scolaire : *« elle existe déjà
+> dans le monde de Massimo — écrite dans son agenda papier, annoncée en classe. La masquer ne
+> supprime pas la pression : elle supprime seulement **son moyen de s'organiser**. »* Une croix sur
+> un devoir de l'école faisait exactement ce que le §1 refuse. **On retire ce qu'on a écrit, pas ce
+> que l'école a demandé** — le §2c n'est pas révoqué, il devient vrai.
+>
+> ⚠️ Les **doublons de saisie**, que le §2d rend *attendus*, restent traités par Papa — qui les
+> crée, et que la grille prévient.
+
+**Le masquage se RATTRAPE** (même date). Un bandeau « Masqué : *…* · **Annuler** » s'affiche sous
+la bande pendant 20 s — un retour **après** le geste, jamais une confirmation avant : un dialogue
+mettrait une friction sur chaque masquage, y compris les bons, et ne servirait à rien quand le
+geste est volontaire puis regretté. Au-delà, **Papa peut rendre l'échéance** depuis son pilotage.
+
+> 🔴 Jusque-là le geste était **sans retour, pour tout le monde** : aucune route ne le défaisait, et
+> `dismissed_at` est hors des champs éditables des **deux** autorités — Papa ne pouvait que
+> ressaisir. Le §2c tranchait « masquer ≠ supprimer » ; il n'avait rien dit de l'irréversibilité.
 
 **Aucun composer grisé, aucune mention « bientôt ».** ADR-0024 §4 grise du *contenu non encore
 produit* ; griser un composer griserait une *capacité retirée à l'enfant*. L'ouverture (Lot 1
@@ -218,6 +241,30 @@ cours ».
 travail, cochable, avec le lien vers le cours ; et **il répond toujours** — « Rien à rendre ce
 jour-là » sur un jour passé sans échéance, « Rien de noté pour ce jour » sur un jour à venir, plus
 « tu as travaillé N fois » quand le jour porte des traces. Retaper le jour ouvert le referme.
+
+🔴 **Le bouton de fermeture est un `▴`, jamais un `✕`** (2026-08-11). Il portait le **même glyphe et
+le même style** que la croix de masquage des cartes : un panneau à trois devoirs affichait donc
+**trois `✕` indiscernables**, un qui referme et deux qui archivent définitivement — et c'est très
+probablement là que deux devoirs de la base de dev sont partis. Le chevron est le vocabulaire
+**déjà employé par la page** (« Replier la suite ▴ ») : un même geste, un même signe.
+
+🔴 **Deux corrections nées de la relecture humaine du 2026-08-10 — le panneau mentait deux fois.**
+
+1. **Il montre ce que le jour PRÉPARE** — bloc « ✦ Ce jour-là, tu prépares », une ligne par étape,
+   chacune nommant l'échéance visée (« Réviser ce chapitre · *pour Multiplication de fractions ·
+   ven. 14* »). Sans lui, un jour marqué `✦` dans la bande s'ouvrait sur *« Rien de noté pour ce
+   jour »*. ⚠️ **Le défaut était STRUCTUREL** : la Décision 3 de l'ADR-0050 place les étapes de
+   demain à **la veille**, jamais le jour de l'échéance — une étape ne tombe donc **jamais** sur le
+   jour de ce qu'elle prépare, et un jour `✦` n'avait de contenu que par coïncidence.
+   🔴 **Aucune coche dans ce bloc** : l'étape se coche **sous son échéance**, où le plan vit
+   (Décision 2 ter). Deux cases pour un même état, c'est le défaut n°2 ci-dessous.
+2. **Le jour ouvert ne DOUBLE plus sa section.** Ouvrir MAR 11 rendait le panneau *et* la section
+   « Demain », mêmes cartes, deux coches, deux ✕, et l'ancre `agenda-item-<id>` **en double dans
+   le DOM**. L'addendum §17.1 l'interdisait déjà (*« la bande ne devient pas une seconde liste qui
+   doublerait les sections »*) en s'appuyant sur la transience du panneau — mais **tant qu'il est
+   ouvert, l'item est là deux fois**. Les sections d'**un** jour (« Aujourd'hui », « Demain ») sont
+   donc **retirées**, jamais vidées : les vider ferait dire « Rien de noté pour demain » sous deux
+   devoirs affichés trois lignes plus haut. Les sections multi-jours sont filtrées.
 
 > **Révoque « la bande est un index, pas une seconde liste »**, et pour une raison trouvée à
 > l'écran : le tap faisait défiler vers le premier item du jour et **sortait en silence** quand il
@@ -349,7 +396,11 @@ dans `packages/types/src/agenda.ts`. Schéma élève `AgendaItemStudentOut` — 
   **403 tant que `AGENDA_STUDENT_ENTRY_ENABLED` est fermé** (phase 0).
 - `PATCH /items/{id}` → uniquement sur ses propres items (403 sinon), même verrou de flag.
 - `POST /items/{id}/done` · `/undone` → bascule `done_at`, sur **tous** les items.
-- `POST /items/{id}/dismiss` → masque un item, y compris de Papa (masquage visible côté Papa).
+- `POST /items/{id}/dismiss` → masque un item (archivage ; **reste visible côté pilotage**).
+  ⚠️ L'affordance est bornée aux items `created_by == "student"` — c'est l'écran qui borne, pas la
+  route.
+- `POST /items/{id}/undismiss` → **le défait**, symétrique de `undone`. Sert le « Annuler » du
+  bandeau de rattrapage.
 
 ## États limites
 

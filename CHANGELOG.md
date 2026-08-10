@@ -1,5 +1,55 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.74.0 — Ce que l'œil a vu et qu'aucun test ne regardait
+
+Quatre défauts de l'agenda, **trois trouvés par le commanditaire en quinze minutes devant
+l'écran**, le quatrième par accident en les vérifiant. Aucun n'était visible à un test : les
+sabotages de la 0.73.0 faisaient varier des **comportements**, jamais des **destinations** ni des
+**recouvrements**.
+
+**La croix ✕ ne fait plus disparaître les devoirs de l'école.** Elle ne vise désormais que ce que
+Massimo a écrit lui-même — en phase 0 il ne saisit rien, donc **elle n'apparaît plus**. L'ADR-0025
+se contredisait à trente lignes d'intervalle : le §2c donnait le masquage au titre de la
+réciprocité, quand le §1 dit d'une échéance scolaire que *« la masquer ne supprime pas la pression :
+elle supprime seulement son moyen de s'organiser »*. On retire ce qu'on a écrit, pas ce que l'école
+a demandé. Le §2c n'est pas révoqué — il devient vrai, et il reviendra avec la saisie.
+
+**Et le masquage se rattrape**, ce qu'il ne faisait pour personne : un « Masqué · **Annuler** » de
+20 s chez Massimo, un « **Rendre à Massimo** » sur la ligne archivée chez Papa. Jusque-là un tap
+retirait un devoir **définitivement** — `dismissed_at` est hors des champs éditables des deux
+autorités, et Papa ne pouvait que ressaisir. Un retour **après** le geste, jamais une confirmation
+avant : un dialogue met de la friction sur chaque masquage, y compris les bons.
+
+**Un jour marqué `✦` tient sa promesse.** Il s'ouvrait sur *« Rien de noté pour ce jour »* — et le
+défaut était **structurel** : les étapes vont de demain à la veille, jamais le jour de l'échéance,
+donc une étape ne tombe **jamais** sur le jour de ce qu'elle prépare. Le panneau nomme maintenant ce
+que le jour prépare, et pour quelle échéance.
+
+**Le jour ouvert ne double plus sa section.** Ouvrir mardi rendait le panneau *et* « Demain », mêmes
+cartes, deux coches, deux ✕, et l'ancre `agenda-item-<id>` en double dans le DOM. L'addendum §17.1
+l'interdisait déjà, en s'appuyant sur la transience du panneau — mais tant qu'il est ouvert, l'item
+est là deux fois.
+
+**Et le bouton qui referme le jour est devenu un `▴`.** Il portait le même glyphe et le même style
+que la croix de masquage : un panneau à trois devoirs montrait **trois `✕` indiscernables**, un qui
+referme et deux qui archivent pour toujours. Trouvé à la relecture — le commanditaire a lu le
+survivant comme un masquage, *après* que les deux autres avaient déjà été retirés. Le chevron est
+le vocabulaire que la page emploie deux blocs plus bas (« Replier la suite ▴ »). Ce bouton n'était
+couvert par **aucun test** : ni son libellé, ni son comportement.
+
+🔴 **Bug de production corrigé au passage : le plan lisait l'heure d'UTC.** Entre **minuit et 2 h**,
+`jours_restants` valait un de trop — une échéance de demain passait pour J+2, et ZETIS composait un
+plan que l'ADR-0050 interdit, daté d'aujourd'hui. ⚠️ Deux autres tests tombaient dans la même
+fenêtre **pour la raison inverse** (le produit avait raison, les tests dataient en UTC) : les
+« corriger » côté produit aurait cassé trois modules pour faire passer deux tests faux.
+
+> **Le verrou posé est un verrou d'invariant, pas de comportement** — les deux tests voisins
+> n'avaient attrapé ce bug que parce qu'on les a lancés à 00 h 16. Vingt-deux heures par jour, ils
+> étaient verts sur du code faux. Un verrou qui ne mord que deux heures sur vingt-quatre n'est pas
+> un verrou.
+
+**Aucune migration.**
+
 ## 0.73.0 — L'échéance dit quoi, le plan dit par où commencer
 
 L'agenda savait annoncer *« contrôle de fractions, vendredi »*. Il ne savait pas répondre à la

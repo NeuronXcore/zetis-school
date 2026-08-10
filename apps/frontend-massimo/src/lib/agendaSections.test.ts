@@ -9,6 +9,7 @@ import {
   originLabel,
   planStepDayLabel,
   planStepTarget,
+  preparationsForDay,
   revisionSessionState,
   splitSections,
 } from "./agendaSections";
@@ -377,5 +378,55 @@ describe("groupPlanByItem — le plan se lit sous ce qu'il prépare", () => {
   it("aucun jour à étapes ⇒ un objet VIDE, jamais des clés à liste vide", () => {
     // Une clé présente avec `[]` ferait rendre un encadré « Ton plan » vide sur l'échéance.
     expect(groupPlanByItem([day("2026-08-11", 1, [])])).toEqual({});
+  });
+
+  describe("preparationsForDay — l'AUTRE question, celle que le ✦ pose", () => {
+    // 🔴 Défaut trouvé à la relecture humaine du 2026-08-10 : la bande allumait un `✦` sur un
+    // jour d'après ses `plan_steps`, et le panneau de ce jour ne rendait que ses `fixed_items`.
+    // Cliquer MER 12 répondait « Rien de noté pour ce jour ».
+    //
+    // ⚠️ **Le défaut était le cas NORMAL** : la Décision 3 place les étapes de demain à la
+    // veille, JAMAIS le jour de l'échéance — une étape ne tombe donc jamais sur le jour de ce
+    // qu'elle prépare. Les jours qui semblaient corrects l'étaient par coïncidence.
+    const ECHEANCES = [
+      item({ id: 10, due_on: "2026-08-14", label: "Multiplication de fractions" }),
+      item({ id: 11, due_on: "2026-08-13", label: "Comparaison de fractions" }),
+    ];
+
+    it("rend les étapes du jour, chacune avec l'ÉCHÉANCE qu'elle prépare", () => {
+      const preps = preparationsForDay(
+        day("2026-08-12", 2, [
+          step({ id: 5, kind: "revision", agenda_item_id: 10 }),
+          step({ id: 6, kind: "revision", agenda_item_id: 11 }),
+        ]),
+        ECHEANCES,
+      );
+      // ⚠️ **ANCRE POSITIVE d'abord** : sans elle, un `return []` satisferait tout ce qui suit.
+      expect(preps).toHaveLength(2);
+      // Échéance la plus PROCHE en tête : ce qui arrive en premier se prépare en premier.
+      expect(preps.map((p) => p.item.label)).toEqual([
+        "Comparaison de fractions",
+        "Multiplication de fractions",
+      ]);
+      expect(preps[0].step.id).toBe(6);
+    });
+
+    it("un jour sans étape ne prépare rien, et `undefined` ne casse pas", () => {
+      expect(preparationsForDay(day("2026-08-15", 5, []), ECHEANCES)).toEqual([]);
+      // Le jour ouvert peut être hors de la bande servie (repli de `useAgenda`).
+      expect(preparationsForDay(undefined, ECHEANCES)).toEqual([]);
+    });
+
+    it("🔴 une étape dont l'échéance est HORS FENÊTRE est omise, jamais rendue « pour ??? »", () => {
+      const preps = preparationsForDay(
+        day("2026-08-12", 2, [
+          step({ id: 7, kind: "quiz", agenda_item_id: 999 }),
+          step({ id: 8, kind: "fiche", agenda_item_id: 10 }),
+        ]),
+        ECHEANCES,
+      );
+      // La bonne survit — sans cette assertion, un filtre trop large passerait le test.
+      expect(preps.map((p) => p.step.id)).toEqual([8]);
+    });
   });
 });

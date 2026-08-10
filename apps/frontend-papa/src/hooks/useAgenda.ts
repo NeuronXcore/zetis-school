@@ -14,6 +14,7 @@ import {
   fetchAgendaItems,
   fetchAgendaSettings,
   patchAgendaItem,
+  restoreAgendaItem,
   setAgendaNote,
   setAgendaSettings,
 } from "../lib/agenda";
@@ -52,6 +53,9 @@ export interface UseAgenda {
   updateItem: (id: number, body: AgendaItemPatch) => Promise<void>;
   updateNote: (id: number, note: string | null) => Promise<void>;
   archive: (id: number) => Promise<void>;
+  /** Rend à Massimo une échéance archivée — le pendant d'`archive`, absent jusqu'au 2026-08-10.
+   *  Sert autant à défaire un archivage de Papa qu'à rattraper un masquage de Massimo. */
+  restore: (id: number) => Promise<void>;
   toggleStudentEntry: (enabled: boolean) => Promise<void>;
 }
 
@@ -211,6 +215,7 @@ export function useAgenda(): UseAgenda {
     updateItem: (id, body) => mutate(() => patchAgendaItem(id, body), "Modification impossible"),
     updateNote: (id, note) => mutate(() => setAgendaNote(id, note), "Note non enregistrée"),
     archive: (id) => mutate(() => archiveAgendaItem(id), "Archivage impossible"),
+    restore: (id) => mutate(() => restoreAgendaItem(id), "Restitution impossible"),
     toggleStudentEntry: async (enabled) => {
       setError(null);
       try {

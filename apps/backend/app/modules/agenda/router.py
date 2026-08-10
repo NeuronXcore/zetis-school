@@ -118,8 +118,19 @@ def student_undone(item_id: int, db: Session = Depends(get_db)) -> dict:
 
 @student_router.post("/items/{item_id}/dismiss", response_model=AgendaItemStudentOut)
 def student_dismiss(item_id: int, db: Session = Depends(get_db)) -> dict:
-    """Masque un item, y compris de Papa (le masquage reste visible côté pilotage)."""
+    """Masque un item. Archivage, jamais suppression — le masquage reste visible côté pilotage."""
     item = service.dismiss(db, student_id=get_default_student(db).id, item_id=item_id)
+    return service.student_out_one(db, item, student_id=get_default_student(db).id)
+
+
+@student_router.post("/items/{item_id}/undismiss", response_model=AgendaItemStudentOut)
+def student_undismiss(item_id: int, db: Session = Depends(get_db)) -> dict:
+    """Massimo se ravise — strict symétrique de `dismiss`, comme `undone` l'est de `done`.
+
+    🔴 Son absence était le défaut : la croix ✕ retirait un devoir **définitivement**, et le seul
+    recours de Papa était de le ressaisir. Relecture humaine du 2026-08-10.
+    """
+    item = service.undismiss(db, student_id=get_default_student(db).id, item_id=item_id)
     return service.student_out_one(db, item, student_id=get_default_student(db).id)
 
 
@@ -246,4 +257,16 @@ def pilot_delete(item_id: int, db: Session = Depends(get_db)) -> dict:
     """ARCHIVAGE, pas suppression : la ligne reste en base (§2c). D'où un 200 avec l'item
     archivé, et non un 204 — la réponse dit ce qui s'est réellement passé."""
     item = service.archive(db, student_id=get_default_student(db).id, item_id=item_id)
+    return service.pilot_out_one(db, item)
+
+
+@router.post("/items/{item_id}/restore", response_model=AgendaItemPilotOut)
+def pilot_restore(item_id: int, db: Session = Depends(get_db)) -> dict:
+    """Papa rend à Massimo une échéance archivée — le pendant de `DELETE /items/{id}`.
+
+    La moitié parentale du rattrapage : quand le masquage n'était pas un faux mouvement mais une
+    esquive, c'est à l'adulte de remettre le devoir dans l'agenda. Rend l'item **visible**, donc
+    un `AgendaItemPilotOut` dont `dismissed_at` est retombé à `null`.
+    """
+    item = service.restore(db, student_id=get_default_student(db).id, item_id=item_id)
     return service.pilot_out_one(db, item)

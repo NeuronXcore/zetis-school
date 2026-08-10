@@ -202,6 +202,10 @@ export function AgendaPapaPage() {
                   onCommandMissions={(chapterId) => commandFor(chapterId)(current)?.()}
                   onSaveNote={(note) => agenda.updateNote(current.id, note)}
                   onArchive={() => setToArchive(current)}
+                  // Pas de ConfirmDialog ici, contrairement à « Archiver » : rendre une échéance
+                  // ne détruit rien et se re-défait d'un clic. Confirmer un geste sûr n'ajoute
+                  // que de la friction.
+                  onRestore={() => void agenda.restore(current.id)}
                 />
               )}
               <StudentEntrySwitch

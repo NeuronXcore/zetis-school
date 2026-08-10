@@ -2026,7 +2026,25 @@ Bascule `done_at`. Autorisé sur **tous** les items, y compris ceux de Papa.
 
 #### POST `/items/{id}/dismiss`
 
-Masque un item, y compris de Papa. Le masquage reste visible côté pilotage.
+Masque un item. **Archivage, jamais suppression** (§2c) : la ligne reste en base, et le masquage
+**reste visible côté pilotage** (`GET /api/parent/agenda/items` sert les archivés).
+
+⚠️ **L'affordance ne vise que ce que Massimo a écrit lui-même** (`created_by == "student"`,
+2026-08-11). Le §2c donne le masquage au titre de la **réciprocité** ; le §1 du même ADR dit d'une
+échéance scolaire que *« la masquer ne supprime pas la pression, elle supprime seulement son moyen
+de s'organiser »*. On retire ce qu'on a écrit, pas ce que l'école a demandé. **La route, elle,
+reste générale** — c'est l'écran qui borne, pas le serveur.
+
+#### POST `/items/{id}/undismiss`
+
+**Le pendant de `dismiss`**, comme `undone` l'est de `done`. Remet `dismissed_at` à `null` ;
+idempotent. Répond un `AgendaItemStudentOut` — donc **sans `dismissed_at`**, qui n'atteint jamais
+Massimo (§2c, test de non-fuite dédié).
+
+🔴 **Son absence était un défaut**, trouvé à la relecture humaine du 2026-08-10 : un tap sur la
+croix retirait un devoir **définitivement**, et Papa lui-même ne pouvait que le ressaisir —
+`dismissed_at` est hors de `_STUDENT_EDITABLE` comme de `_PARENT_EDITABLE`. Le §2c tranchait
+« masquer ≠ supprimer », il n'avait rien dit de l'irréversibilité.
 
 #### POST `/seen` → 204
 
@@ -2089,6 +2107,16 @@ pour que le refus soit explicite : silencieusement ignoré, il laisserait croire
 
 **Archivage** (`dismissed_at`), la ligne reste en base. Répond **200 avec l'item archivé** (et
 non 204) : la réponse dit ce qui s'est réellement passé.
+
+#### POST `/items/{id}/restore`
+
+**Le pendant de `DELETE`** — rend à Massimo une échéance archivée. Répond l'item avec
+`dismissed_at` retombé à `null`.
+
+C'est la **moitié parentale du rattrapage de la croix** (2026-08-11), et celle qui compte quand le
+masquage était une esquive et non un faux mouvement : jusque-là Papa **voyait** l'archive sous son
+filtre « Archivés » sans pouvoir la rendre. Prolonge l'asymétrie que le §2c pose déjà — *« le
+parent voit tout »* — en la rendant agissante.
 
 #### GET · PUT `/settings`
 

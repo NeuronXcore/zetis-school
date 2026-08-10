@@ -4,6 +4,71 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/agenda-trois-defauts` — relecture humaine de l'ADR-0050 — 2026-08-10 → 11
+
+> Trois défauts trouvés **par l'œil du commanditaire en quinze minutes**, plus un quatrième
+> trouvé par accident en vérifiant. **Aucun n'était visible à un test.**
+
+### 🔴 Le plan datait en UTC pendant que tout l'agenda datait en Europe/Paris
+
+`plan._today()` rendait `datetime.now(timezone.utc).date()`. Entre **minuit et 2 h** (été ;
+minuit–1 h en hiver) cette date est **la veille** de `today_local()`. Donc
+`jours_restants = due_on - _today()` valait **un de trop** : une échéance de DEMAIN passait pour
+J+2, et ZETIS **composait un plan que la Décision 3 interdit**, avec une étape datée
+d'aujourd'hui. **Ce n'est pas un artefact de test** — c'est ce qu'un enfant voit à 00 h 30.
+
+**Parade** : `today_local()` partout où une date **civile** est attendue. Chercher
+`datetime.now(timezone.utc).date()` dans le reste du dépôt.
+
+### 🔴 Deux tests échouaient à la même heure **pour la raison INVERSE** — le produit avait raison
+
+`test_reviews` et `test_dashboard` tombaient dans la même fenêtre, et il aurait été naturel de
+conclure à une cause unique. **Faux** : eux datent leur décor en **UTC** et comparent à un serveur
+qui date en **Paris** (`local_day`). Le défaut était dans les tests.
+
+> 🔴 **Les « corriger » côté produit aurait cassé trois modules pour faire passer deux tests
+> faux.** Quand plusieurs tests tombent ensemble, la cause commune est une **hypothèse**, pas un
+> fait : il faut la vérifier test par test.
+
+**Parade de diagnostic** : `git stash` puis relancer sur `main` nu. Si ça échoue aussi, ce n'est
+pas le chantier — et on sait alors quoi chercher.
+
+### 🔴 Un verrou qui ne mord que deux heures sur vingt-quatre n'est pas un verrou
+
+Les deux tests de comportement qui gardaient le rétro-planning n'ont attrapé le bug ci-dessus
+**que parce qu'on les a lancés à 00 h 16**. Vingt-deux heures par jour, ils étaient **verts sur du
+code faux**.
+
+**Parade** : quand un invariant peut se formuler directement, le tester directement.
+`assert plan._today() == today_local()` mord à n'importe quelle heure, là où un test de
+comportement dépend du moment où on le lance.
+
+### 🔴 `pg_dump` de l'hôte (14.18) refuse un serveur 16.14 — et laisse un fichier de 0 octet
+
+*« aborting because of server version mismatch »*, avec un `.sql` **vide** qui ressemble à une
+sauvegarde. **Parade** : passer par le binaire du conteneur —
+`docker exec -e PGPASSWORD=… zetis-prod-postgres-1 pg_dump -U zetis -d zetis > "$OUT"`, puis
+vérifier par `grep -c "dump complete"` (jamais `tail` : pg_dump 16 écrit après le marqueur).
+
+### 🔴 `nc -z 127.0.0.1 <port>` déclare « fermé » un serveur Vite qui tourne
+
+Vite lie **`[::1]` (IPv6 seul)**, `nc -z 127.0.0.1` teste l'IPv4. Les deux frontends étaient up
+depuis le début et annoncés fermés — j'ai lancé un doublon. **Parade** : `lsof -nP -iTCP -sTCP:LISTEN`,
+qui montre `TCP [::1]:5173 (LISTEN)`.
+
+### ⚠️ Et le doublon a déclenché la dette `launch.json` consignée deux fois
+
+`preview_start {name:"massimo"}` a glissé sur le port **59169** (`autoPort: true`), que le
+`cors_origins` **par défaut** du backend (5173/5174 exactement) refuse. Symptôme muet :
+`/health` répond **200 sans en-tête `access-control-allow-origin`**.
+
+### ⚠️ Deux pièges de shell qui ont menti sur un résultat
+
+- **`echo "exit=$?"` après un pipe rend le code de `head`, pas celui de `tsc`.** J'ai cru un
+  typecheck vert sur une commande qui ne le prouvait pas. **Parade** : pas de pipe, ou `PIPESTATUS`.
+- **Le `cd` PERSISTE entre deux appels Bash.** Après un `cd apps/backend`, un `grep
+  apps/backend/...` échoue en « No such file ». Rencontré deux fois. **Parade** : chemins absolus.
+
 ## Chantier `feat/lacunes-permettent-d-agir` — ADR-0047, Session B — 2026-08-09
 
 ### 🔴 Une destination qui EXISTE ne garantit pas qu'elle puisse tenir la promesse du lien

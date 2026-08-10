@@ -201,6 +201,45 @@ export function groupPlanByItem(days: AgendaDay[]): Record<number, AgendaPlanSte
   return out;
 }
 
+/** Une étape qui tombe un jour donné, avec l'échéance qu'elle prépare. */
+export interface DayPreparation {
+  step: AgendaPlanStep;
+  /** L'échéance visée — le **sujet** de l'étape (ADR-0050 Décision 2 ter), sans quoi la ligne
+   *  flotte : « réviser ce chapitre » — lequel ? */
+  item: AgendaItemStudent;
+}
+
+/** Ce qu'un jour PRÉPARE — l'autre question, celle que le `✦` de la bande porte vraiment.
+ *
+ *  🔴 **`groupPlanByItem` répond à « quel est le plan de cette échéance ? ». Ce n'est PAS la même
+ *  question que « qu'est-ce qui tombe ce jour-là ? »**, et le panneau du jour ouvert répondait à
+ *  la première en croyant répondre à la seconde — d'où un jour marqué `✦` qui s'ouvrait sur
+ *  *« Rien de noté pour ce jour »* (relecture humaine du 2026-08-10).
+ *
+ *  ⚠️ **Le défaut était STRUCTUREL, pas anecdotique** : la Décision 3 répartit les étapes de
+ *  demain à **la veille**, jamais le jour de l'échéance. Une étape ne tombe donc **jamais** sur
+ *  le jour de ce qu'elle prépare, et un jour `✦` n'avait de contenu que s'il portait, par
+ *  coïncidence, une échéance sans rapport.
+ *
+ *  Trié par échéance la plus proche : ce qui arrive en premier se prépare en premier. `id`
+ *  départage deux étapes visant la même échéance. */
+export function preparationsForDay(
+  day: AgendaDay | undefined,
+  items: AgendaItemStudent[],
+): DayPreparation[] {
+  if (!day) return [];
+  const byId = new Map(items.map((item) => [item.id, item]));
+  return day.plan_steps
+    .flatMap((step) => {
+      const item = byId.get(step.agenda_item_id);
+      // Une étape dont l'échéance est hors de la fenêtre servie n'est pas rendue : la nommer
+      // « pour ??? » serait pire que l'omettre. N'arrive pas sur la bande, dont les items sont
+      // dérivés de la même fenêtre (`useAgenda`) — la garde couvre la dérive future.
+      return item ? [{ step, item }] : [];
+    })
+    .sort((a, b) => a.item.due_on.localeCompare(b.item.due_on) || a.step.id - b.step.id);
+}
+
 /** Ce qu'une étape du plan propose, et où elle mène **vraiment**. */
 export interface PlanStepTarget {
   icon: string;

@@ -67,6 +67,18 @@ export async function archiveAgendaItem(id: number): Promise<AgendaItemPilot> {
   return asJson(await fetch(`${BASE}/items/${id}`, { method: "DELETE", headers: authHeader() }));
 }
 
+/** Rend à Massimo une échéance archivée — le pendant d'`archiveAgendaItem`.
+ *
+ *  🔴 **Il n'existait pas, et c'était la moitié grave du défaut** : quand Massimo masquait un
+ *  contrôle depuis son agenda, Papa le voyait sous « Archivés » sans **aucun moyen de le
+ *  remettre** — `dismissed_at` est hors des champs éditables des deux autorités. Le seul recours
+ *  était de ressaisir l'échéance à la main. Relecture humaine du 2026-08-10. */
+export async function restoreAgendaItem(id: number): Promise<AgendaItemPilot> {
+  return asJson(
+    await fetch(`${BASE}/items/${id}/restore`, { method: "POST", headers: authHeader() }),
+  );
+}
+
 export async function fetchAgendaSettings(): Promise<AgendaSettings> {
   return asJson(await fetch(`${BASE}/settings`, { headers: authHeader() }));
 }

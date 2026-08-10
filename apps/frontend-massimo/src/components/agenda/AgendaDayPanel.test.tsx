@@ -5,7 +5,7 @@
 // pas se lisent comme une panne. Ce panneau répond toujours.
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { type AgendaItemStudent } from "@zetis/types";
 import { AgendaDayPanel } from "./AgendaDayPanel";
 
@@ -84,5 +84,95 @@ describe("AgendaDayPanel", () => {
     panneau({ date: DEMAIN, items: [] });
     expect(screen.getByText(/Rien de noté pour ce jour/)).toBeInTheDocument();
     expect(screen.queryByText(/Rien à rendre ce jour-là/)).toBeNull();
+  });
+
+  describe("🔴 le ✦ tient sa promesse (relecture humaine du 2026-08-10)", () => {
+    // La bande allume un `✦` d'après les `plan_steps` du JOUR ; le panneau ne rendait que les
+    // `fixed_items` du jour. Deux questions différentes — et la Décision 3 garantit qu'elles ne
+    // coïncident JAMAIS (une étape tombe toujours avant l'échéance qu'elle prépare). Un jour
+    // marqué s'ouvrait donc sur « Rien de noté pour ce jour ».
+    const CONTROLE = item({
+      id: 42,
+      due_on: DEMAIN,
+      label: "Multiplication de fractions",
+      chapter_id: 8,
+    });
+    const PREPARATIONS = [
+      {
+        step: {
+          id: 5,
+          agenda_item_id: 42,
+          kind: "revision" as const,
+          day_offset: 1,
+          skill_id: null,
+          resource_id: null,
+          done: false,
+        },
+        item: CONTROLE,
+      },
+    ];
+
+    it("un jour qui ne porte QUE des étapes les montre, au lieu de dire « rien »", () => {
+      panneau({ date: DEMAIN, items: [], preparations: PREPARATIONS });
+      // ANCRE POSITIVE — sans elle, un bloc supprimé satisferait l'assertion négative.
+      expect(screen.getByText(/Ce jour-là, tu prépares/)).toBeInTheDocument();
+      expect(screen.getByText("Réviser ce chapitre")).toBeInTheDocument();
+      // Le SUJET de l'étape : sans lui la ligne flotte (« réviser » — quoi ?).
+      expect(screen.getByText(/Multiplication de fractions/)).toBeInTheDocument();
+      // 🔴 Et surtout : la phrase de vide MEURT. C'est le défaut lui-même.
+      expect(screen.queryByText(/Rien de noté pour ce jour/)).toBeNull();
+    });
+
+    it("🔴 VERROU — une étape ne se coche PAS ici : sa case vit sous l'échéance", () => {
+      // Deux cases pour un même état, c'est le défaut que le reste de ce correctif retire.
+      // Ces lignes MÈNENT à l'activité, elles ne la déclarent pas.
+      const { container } = panneau({ date: DEMAIN, items: [], preparations: PREPARATIONS });
+      expect(screen.getByText(/Ce jour-là, tu prépares/)).toBeInTheDocument();
+      expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+      const bloc = screen.getByText(/Ce jour-là, tu prépares/).parentElement!;
+      expect(bloc.querySelectorAll("button")).toHaveLength(0);
+    });
+
+    it("sans étape, le jour vide dit toujours qu'il est vide", () => {
+      // La correction ne doit pas faire taire l'état vide légitime — c'est tout le §17.1.
+      panneau({ date: DEMAIN, items: [], preparations: [] });
+      expect(screen.getByText(/Rien de noté pour ce jour/)).toBeInTheDocument();
+      expect(screen.queryByText(/Ce jour-là, tu prépares/)).toBeNull();
+    });
+  });
+
+  describe("🔴 le bouton de fermeture ne peut plus se confondre avec un masquage", () => {
+    // Ce bouton portait le MÊME glyphe et le MÊME `className` que la croix de masquage des
+    // cartes : un panneau à trois devoirs affichait **trois ✕ indiscernables**, un qui referme et
+    // deux qui archivent définitivement. Le commanditaire l'a lu comme un masquage à la relecture
+    // du 2026-08-11 — après que la croix de masquage avait déjà été retirée.
+    //
+    // ⚠️ Il n'était couvert par **aucun test** : ni `aria-label`, ni comportement.
+
+    it("le jour se replie par ▴, et le panneau ne porte AUCUNE croix", () => {
+      const onClose = vi.fn();
+      const { container } = panneau({
+        items: [item(), item({ id: 2, label: "Fiche de lecture" })],
+        onClose,
+      });
+
+      // ⚠️ **ANCRE POSITIVE D'ABORD** : sans elle, un panneau qui ne rendrait plus rien du tout
+      // satisferait l'assertion négative qui suit.
+      const replier = screen.getByRole("button", { name: /replier/i });
+      fireEvent.click(replier);
+      expect(onClose).toHaveBeenCalledTimes(1);
+
+      // 🔴 Le verrou : sur un panneau plein de devoirs de l'ÉCOLE (`created_by: "parent"` par
+      // défaut dans la fabrique), plus une seule croix à l'écran.
+      expect(container.textContent).not.toContain("✕");
+    });
+
+    it("et la croix reste possible sur ce que Massimo a écrit lui-même", () => {
+      // Le pendant obligatoire : un test qui n'aurait que l'assertion ci-dessus passerait sur une
+      // croix supprimée PARTOUT — donc sur la révocation du §2c, qui n'a pas été décidée.
+      const { container } = panneau({ items: [item({ created_by: "student" })] });
+      expect(container.textContent).toContain("✕");
+      expect(screen.getByRole("button", { name: /masquer/i })).toBeInTheDocument();
+    });
   });
 });

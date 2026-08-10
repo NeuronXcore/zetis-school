@@ -28,6 +28,8 @@ interface Props {
   }) => Promise<void>;
   onSaveNote: (note: string | null) => Promise<void>;
   onArchive: () => void;
+  /** Rend l'échéance archivée à l'agenda de Massimo — le pendant d'`onArchive`. */
+  onRestore: () => void;
   /** Référentiel de l'année active — porté par la PAGE, qui l'a déjà pour la grille de saisie.
    *  Le recharger ici en ferait un second chargeur pour la même donnée. */
   subjects: SubjectOption[];
@@ -51,6 +53,7 @@ export function AgendaDetailPanel({
   onSave,
   onSaveNote,
   onArchive,
+  onRestore,
   subjects,
   chaptersBySys,
   chaptersLoading,
@@ -388,6 +391,17 @@ export function AgendaDetailPanel({
         {!item.dismissed_at && (
           <Button size="sm" variant="ghost" disabled={saving} onClick={onArchive}>
             Archiver
+          </Button>
+        )}
+        {/* Le pendant d'« Archiver », et la moitié PARENTALE du rattrapage de la croix ✕.
+            🔴 Jusqu'au 2026-08-10, une échéance masquée par Massimo était visible ici sans être
+            récupérable : `dismissed_at` est hors des champs éditables des DEUX autorités, et le
+            seul recours de Papa était de la ressaisir à la main. Le §2c donne au parent de
+            **voir** tout — ce bouton lui donne d'**agir**, ce qui compte quand le masquage était
+            une esquive et non un faux mouvement. */}
+        {item.dismissed_at && (
+          <Button size="sm" variant="ghost" disabled={saving} onClick={onRestore}>
+            Rendre à Massimo
           </Button>
         )}
       </div>

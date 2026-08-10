@@ -311,3 +311,26 @@ describe("AgendaItemRow — le plan de préparation", () => {
     }
   });
 });
+
+describe("🔴 la croix ✕ ne vise que ce que Massimo a écrit (2026-08-11)", () => {
+  // Le §2c donne le masquage au titre de la RÉCIPROCITÉ — Papa archive, l'enfant n'est pas
+  // passif sur sa page. Mais le §1 du même ADR, trente lignes plus haut, dit d'une échéance
+  // scolaire : « la masquer ne supprime pas la pression, elle supprime seulement son moyen de
+  // s'organiser ». Une croix sur un devoir de l'école faisait donc ce que l'ADR passe son §1
+  // à refuser. On retire ce qu'ON a écrit, pas ce que l'école a demandé.
+
+  it("aucune croix sur une échéance saisie par l'adulte", () => {
+    ligne({ created_by: "parent" });
+    // ⚠️ **ANCRE POSITIVE D'ABORD** : sans elle, ce verrou passerait sur une ligne qui ne se rend
+    // pas du tout — une carte vide satisfait n'importe quelle assertion négative.
+    expect(screen.getByText("Le passé composé")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /masquer/i })).toBeNull();
+  });
+
+  it("la croix REVIENT sur une échéance que Massimo a saisie lui-même", () => {
+    // Le pendant obligatoire : un test qui n'aurait que le cas ci-dessus passerait sur une croix
+    // supprimée PARTOUT — donc sur la révocation du §2c, qui n'a pas été décidée.
+    ligne({ created_by: "student" });
+    expect(screen.getByRole("button", { name: /masquer/i })).toBeInTheDocument();
+  });
+});
