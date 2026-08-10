@@ -1,4 +1,4 @@
-from app.db.models.agenda import AgendaItem
+from app.db.models.agenda import AgendaItem, AgendaPlanStep
 from app.db.models.ai import AIJob
 from app.db.models.assessment import Quiz, QuizAnswer, QuizAttempt, QuizQuestion
 from app.db.models.content import Capsule, Fiche, Mindmap, MindmapAttempt
@@ -81,5 +81,6 @@ __all__ = [
     "ProductionRefusal",
     "ProductionRun",
     "AgendaItem",
+    "AgendaPlanStep",
     "AppSetting",
 ]

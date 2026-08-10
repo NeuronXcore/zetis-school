@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.modules.agenda import plan
 from app.modules.agenda import service
 from app.modules.agenda.schemas import (
     AgendaItemParentCreate,
@@ -20,6 +21,7 @@ from app.modules.agenda.schemas import (
     AgendaItemPilotOut,
     AgendaItemStudentCreate,
     AgendaItemStudentOut,
+    PlanStepOut,
     AgendaItemStudentPatch,
     AgendaItemsParentCreate,
     AgendaNoteRequest,
@@ -119,6 +121,28 @@ def student_dismiss(item_id: int, db: Session = Depends(get_db)) -> dict:
     """Masque un item, y compris de Papa (le masquage reste visible côté pilotage)."""
     item = service.dismiss(db, student_id=get_default_student(db).id, item_id=item_id)
     return service.student_out_one(db, item, student_id=get_default_student(db).id)
+
+
+@student_router.post("/plan-steps/{step_id}/done", response_model=PlanStepOut)
+def student_plan_step_done(step_id: int, db: Session = Depends(get_db)) -> dict:
+    """Massimo coche une étape de son plan de préparation (ADR-0050).
+
+    🔴 **Aucun XP, aucune célébration** — le geste est déclaratif, il ne se récompense pas, sinon
+    Massimo apprend à cocher (§3). Et **il n'existe aucune route Papa symétrique** : cocher
+    appartient à Massimo, comme pour les échéances elles-mêmes (§2b).
+    """
+    step = plan.set_step_done(
+        db, student_id=get_default_student(db).id, step_id=step_id, done=True
+    )
+    return plan.step_out(step)
+
+
+@student_router.post("/plan-steps/{step_id}/undone", response_model=PlanStepOut)
+def student_plan_step_undone(step_id: int, db: Session = Depends(get_db)) -> dict:
+    step = plan.set_step_done(
+        db, student_id=get_default_student(db).id, step_id=step_id, done=False
+    )
+    return plan.step_out(step)
 
 
 @student_router.post("/seen", status_code=status.HTTP_204_NO_CONTENT)

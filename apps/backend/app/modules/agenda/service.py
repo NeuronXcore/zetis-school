@@ -25,6 +25,7 @@ from app.db.models import (
     StudentProfile,
     Subject,
 )
+from app.modules.agenda import plan as plan_mod
 from app.modules.memory.service import chapter_servable_counts
 from app.modules.activity.events import (
     EVENT_AGENDA_ITEM_CREATED,
@@ -241,6 +242,35 @@ def traces_by_day(db: Session, *, student_id: int, first: date, last: date) -> d
     return {day: min(cap, len(types)) for day, types in kinds.items() if types}
 
 
+def plan_steps_by_day(
+    db: Session, *, student_id: int, first: date, last: date
+) -> dict[date, list[dict]]:
+    """Les étapes de plan qui tombent chaque jour de la fenêtre (ADR-0050).
+
+    ⚠️ **La fenêtre des ÉCHÉANCES est plus large que celle des JOURS**, et c'est le point subtil
+    de cette fonction : une étape tombe *avant* son échéance. Un contrôle qui a lieu trois jours
+    après la fin de la bande porte donc des étapes **dans** la bande. Ne chercher que les
+    échéances de la fenêtre les ferait disparaître, sans erreur et sans test rouge.
+
+    Le plan est composé **à la demande** ici (`get_or_create_plan`) : c'est la « première lecture »
+    du §8 rôle 1. Lire la bande est donc ce qui fait naître les plans — voulu, et la seule
+    alternative serait un job de fond pour un objet que personne ne regarde peut-être jamais.
+    """
+    items = _items_between(
+        db,
+        student_id=student_id,
+        first=first,
+        last=last + timedelta(days=plan_mod.PLAN_MAX_STEPS),
+    )
+    out: dict[date, list[dict]] = {}
+    for item in items:
+        for step in plan_mod.get_or_create_plan(db, item):
+            jour = item.due_on - timedelta(days=step.day_offset)
+            if first <= jour <= last:
+                out.setdefault(jour, []).append(plan_mod.step_out(step))
+    return out
+
+
 def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
     """Bande GLISSANTE de 7 jours (§6) : 3 jours avant l'ancre, l'ancre, 3 jours après.
 
@@ -265,6 +295,7 @@ def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
     traces = traces_by_day(db, student_id=student_id, first=first, last=min(last, today))
     # Une seule résolution de servabilité pour toute la bande (ADR-0049 §2).
     revisable = revisable_counts(db, student_id=student_id, items=items)
+    steps_by_day = plan_steps_by_day(db, student_id=student_id, first=first, last=last)
 
     days = []
     for offset in range(-settings.agenda_band_days_before, settings.agenda_band_days_after + 1):
@@ -284,7 +315,9 @@ def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
                     if future_or_today
                     else []
                 ),
-                "plan_steps": [],  # Lot 2 — champ au contrat, jamais rempli ici.
+                # Le plan de préparation (ADR-0050). ⚠️ Jamais sur un jour PASSÉ : une étape
+                # qu'on ne peut plus faire n'est pas une aide, c'est un reproche (§7).
+                "plan_steps": steps_by_day.get(day, []) if future_or_today else [],
             }
         )
     return {"anchor": anchor, "days": days}
@@ -319,7 +352,9 @@ def upcoming(db: Session, *, student_id: int) -> list[dict]:
             "subject": _subject_ref(subjects, item.subject_id),
             "due_on": item.due_on,
             "days_left": (item.due_on - today).days,
-            "has_plan": False,  # Lot 2.
+            # ADR-0050 : vrai SI ET SEULEMENT SI le plan a au moins une étape. Un `has_plan`
+            # optimiste ferait apparaître un « ✦ » qui n'ouvre rien — le bouton mort du §14.6.
+            "has_plan": bool(plan_mod.get_or_create_plan(db, item)),
         }
         for item in rows
     ]
@@ -508,6 +543,14 @@ def patch_parent_item(db: Session, *, student_id: int, item_id: int, data: dict)
         data.get("lesson_id", item.lesson_id),
         data.get("chapter_id", item.chapter_id),
     )
+    # 🔴 Le plan de préparation est une FONCTION DE LA DATE (ADR-0050 Décision 4) : si `due_on`
+    # change, les jours qu'il porte ne veulent plus rien dire. On le supprime, coches comprises.
+    #
+    # ⚠️ Testé sur la PRÉSENCE de la clé et sur un changement RÉEL de valeur, jamais sur
+    # `data.get("due_on")` : celui-ci vaut `None` aussi quand Papa ne patche pas la date, et le
+    # chantier agenda a déjà payé « le PATCH partiel qui périme une donnée ».
+    if "due_on" in data and data["due_on"] != item.due_on:
+        plan_mod.drop_plan(db, item)
     _apply(item, data, _PARENT_EDITABLE)
     if item.created_by == "student":
         item.edited_by_parent_at = _now()
