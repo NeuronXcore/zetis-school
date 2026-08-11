@@ -115,8 +115,20 @@ def test_generate_then_lesson_crud_flow(client_db, poster_et_executer) -> None:
     assert manual["sort_order"] == 3  # append après les générées
     assert manual["notions"][0]["name"] == "Règle des signes"
 
-    # Validation unitaire : draft → validated ; rejouer → 409 (draft uniquement).
+    # 🔴 VERROU (2026-08-11) — on ne valide pas un cours VIDE. Ce test validait jusque-là une
+    # leçon générée dont le cours n'avait jamais été rédigé, et attendait 200 : **il exerçait le
+    # défaut**. Valider ainsi donnait à Massimo une leçon sans une ligne, que le gate de
+    # l'ADR-0011 (qui filtre sur le seul `status`) laissait passer — 50 leçons `validated` sur 88
+    # étaient dans ce cas le jour du correctif.
     first_id = lessons[0]["id"]
+    assert client.post(f"/api/lessons/{first_id}/validate").status_code == 409
+    # ⚠️ Et REJETER une leçon vide reste permis : c'est exactement ce qu'on archive.
+    assert client.post(f"/api/lessons/{lessons[2]['id']}/reject").status_code == 200
+
+    # Validation unitaire, une fois le cours écrit : draft → validated ; rejouer → 409.
+    with Session() as db:
+        db.get(m.Lesson, first_id).content_markdown = "## Le cours\n\nUne vraie ligne."
+        db.commit()
     res = client.post(f"/api/lessons/{first_id}/validate")
     assert res.status_code == 200
     assert res.json()["status"] == "validated"
@@ -300,3 +312,49 @@ def test_content_audit_and_manual_edit_flow(client_db, executer_travail, poster_
         client.patch(f"/api/lessons/{first_id}", json={"content": "<div></div>"}).status_code
         == 422
     )
+
+
+def test_le_lot_saute_les_cours_vides_et_le_DIT(client_db) -> None:
+    """🔴 VERROU (2026-08-11) — le lot valide ce qui est écrit, saute le reste, et le compte.
+
+    C'est le chemin qui a produit **26 des 50 leçons `validated` vides** mesurées en base
+    (`validated_by='parent_bulk'`). Le valider en bloc donnait à Massimo des leçons sans une
+    ligne, que le gate de l'ADR-0011 — qui filtre sur le seul `status` — laissait passer.
+
+    ⚠️ **Le lot SAUTE, il ne refuse pas** : un 409 à la première leçon vide n'aurait rien validé
+    du tout, et Papa n'aurait eu aucun moyen d'avancer sur le reste du chapitre.
+
+    ⚠️ **Et il DIT ce qu'il a sauté.** Sans `skipped_empty_count`, Papa lit « 2 validées » là où
+    il en attendait 3 et rien ne lui dit pourquoi — un manque silencieux se lit comme une panne.
+    C'est l'assertion qui distingue ce correctif d'une simple garde.
+    """
+    _as_papa()
+    client, Session = client_db
+    chapter_id = _seed_validated_chapter(Session)
+
+    with Session() as db:
+        for rang, contenu in enumerate(["## Écrit", "   ", "## Écrit aussi"]):
+            db.add(
+                m.Lesson(
+                    chapter_id=chapter_id,
+                    title=f"Leçon {rang}",
+                    status="draft",
+                    created_by="ai",
+                    sort_order=rang,
+                    content_markdown=contenu,
+                )
+            )
+        db.commit()
+
+    res = client.post(f"/api/chapters/{chapter_id}/lessons/validate-all")
+    assert res.status_code == 200
+    # ⚠️ ANCRE POSITIVE d'abord : sans elle, un lot qui ne validerait PLUS RIEN satisferait
+    # l'assertion sur les sautées. Le blanc « \x20\x20\x20 » compte comme vide (`.strip()`).
+    assert res.json() == {"validated_count": 2, "skipped_empty_count": 1}
+
+    with Session() as db:
+        etats = {
+            l.title: l.status
+            for l in db.scalars(select(m.Lesson).where(m.Lesson.chapter_id == chapter_id)).all()
+        }
+    assert etats == {"Leçon 0": "validated", "Leçon 1": "draft", "Leçon 2": "validated"}

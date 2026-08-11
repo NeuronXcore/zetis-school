@@ -358,8 +358,21 @@ def create_manual_chapter(
     return chapter
 
 
-def validate_all_lessons(db: Session, chapter_id: int) -> int:
-    """Passe en `validated` toutes les leçons `draft` d'un chapitre. Renvoie le compte.
+def validate_all_lessons(db: Session, chapter_id: int) -> tuple[int, int]:
+    """Passe en `validated` les leçons `draft` d'un chapitre **dont le cours est écrit**.
+
+    Rend `(validées, sautées_parce_que_vides)`.
+
+    🔴 **Les leçons au cours VIDE sont SAUTÉES, pas refusées** (2026-08-11) — c'est la différence
+    avec la validation unitaire, qui répond 409. Un lot qui s'interromprait à la première leçon
+    vide ne validerait rien du tout ; un lot qui les validerait quand même est ce qui a produit
+    **26 des 50 leçons `validated` vides** mesurées en base ce jour-là (`parent_bulk`, donc ce
+    chemin exactement).
+
+    ⚠️ **Le compte des sautées REMONTE jusqu'à l'écran**, et ce n'est pas un ornement : sans lui,
+    Papa clique « tout valider », lit « 3 validées » là où il attendait 8, et rien ne lui dit
+    pourquoi. Un manque silencieux se lit comme une panne.
+
 
     Même geste que `validate_all_chapters` un étage plus bas : un raccourci de la validation
     unitaire, pas une décision différente. Seules les `draft` sont touchées — une leçon
@@ -375,10 +388,16 @@ def validate_all_lessons(db: Session, chapter_id: int) -> int:
     lessons = db.scalars(
         select(Lesson).where(Lesson.chapter_id == chapter_id, Lesson.status == "draft")
     ).all()
+    validees = 0
+    sautees = 0
     for lesson in lessons:
+        if not (lesson.content_markdown or "").strip():
+            sautees += 1
+            continue
         mark_validated(lesson, PARENT_BULK, field="status")
+        validees += 1
     db.commit()
-    return len(lessons)
+    return validees, sautees
 
 
 def validate_all_chapters(db: Session, school_year_subject_id: int) -> int:
@@ -1142,6 +1161,26 @@ def set_lesson_validation(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Leçon {lesson_id} au statut '{lesson.status}' : "
             "seule une leçon 'draft' peut être validée ou rejetée.",
+        )
+    # 🔴 **ON NE VALIDE PAS UN COURS VIDE** (2026-08-11). Le statut ne disait rien du contenu :
+    # une leçon sans une ligne pouvait passer `validated`, et le gate de l'ADR-0011 — qui filtre
+    # sur `status` **et rien d'autre** — la servait alors à Massimo. Mesuré en base le jour du
+    # correctif : **50 leçons `validated` sur 88 étaient VIDES**, dont 23 par ce chemin exact.
+    # La dette était consignée depuis le 2026-08-04 (« 39 leçons validated VIDES ») ; elle avait
+    # grossi.
+    #
+    # ⚠️ **Rejeter reste toujours permis** : une leçon vide est précisément ce qu'on archive.
+    # La garde ne vise que `validate`.
+    #
+    # ⚠️ **Transparent pour la production** : `equip_notion` et `equip_piece` ne valident jamais
+    # un cours vide — ils appellent `generate_lesson_content` **avant**. Si cette garde y tombe,
+    # c'est que la rédaction a rendu du vide en silence, et leur `try/except` par pièce le
+    # remontera en erreur de pièce au lieu de le laisser passer. C'est le comportement voulu.
+    if action == "validate" and not (lesson.content_markdown or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Leçon {lesson_id} : son cours est vide. Valider ne donnerait rien à lire "
+            "à Massimo — il faut d'abord le rédiger (ou rejeter la leçon).",
         )
     if action == "validate":
         mark_validated(lesson, by, field="status")

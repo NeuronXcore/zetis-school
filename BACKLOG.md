@@ -625,6 +625,29 @@ observé.
 > **26** (*« 1789 : l'année de la rupture révolutionnaire »*, `draft`, cours **VIDE**, 4 notions
 > dont 3 en lacune).
 
+### ✅ ~~🔴 DÉFAUT — on peut valider un cours VIDE~~ — **CORRIGÉ le 2026-08-11**
+
+> **Ce qui a été fait** (branche `fix/cours-vide-non-validable`) :
+> `set_lesson_validation` répond **409** sur un cours vide (le rejet reste permis) ;
+> `validate_all_lessons` **saute** les vides plutôt que planter le lot, et **rend leur nombre** ;
+> la page Couverture l'affiche en clair. **3 sabotages, 3 rougissements.**
+>
+> ⚠️ **Le read-before-code a démenti DEUX de mes hypothèses**, et c'est ce qui a rendu le
+> correctif juste :
+> 1. *« `create_manual_lesson` est la source des 50 »* — **faux**, il en explique **1** (et elle
+>    précède le correctif de provenance du 2026-08-03). Les 49 autres viennent du **lot** (26,
+>    `parent_bulk`) et de l'**unitaire** (23, `parent`).
+> 2. *« la garde casserait la production »* — **faux** : `equip_notion` et `equip_piece` ne
+>    valident jamais un cours vide, ils appellent `generate_lesson_content` **avant**.
+>
+> 🔴 **CE QUI RESTE OUVERT, ET QUI N'EST PAS TECHNIQUE : les 50 leçons déjà validées et vides.**
+> La garde empêche d'en créer de nouvelles ; elle ne dit rien des existantes. Trois issues, et
+> c'est **une décision produit** : les repasser en `draft`, leur commander une rédaction, ou les
+> archiver. ⚠️ Chacune a un coût différent pour Massimo — un `draft` retire de son écran quelque
+> chose qu'il pouvait déjà ouvrir.
+
+<details><summary>Le constat d'origine, conservé</summary>
+
 ### 🔴 DÉFAUT — on peut valider un cours VIDE, et la page invite à le faire
 
 `set_lesson_validation` (`apps/backend/app/modules/curriculum/service.py:1139`) ne vérifie **que le
@@ -645,6 +668,8 @@ que la surface propose alors **« Rédiger le cours »** — la route existe dé
 de `set_lesson_validation` : `validate_all_lessons`, `validate_all_chapters`,
 `validate_all_active_year` et `equip_notion` (qui passe `by=` depuis le correctif du 2026-08-02).
 Une garde posée au mauvais étage casserait la validation en lot.
+
+</details>
 
 ### 🟡 CANDIDAT — la page présente N lacunes là où il y a N cours à traiter
 

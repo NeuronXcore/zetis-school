@@ -247,6 +247,46 @@ describe("CouverturePage — validation en lot", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Valider les 1 leçons$/ }));
     await waitFor(() => expect(validateAllLessons).toHaveBeenCalledWith(9));
   });
+
+  it("🔴 VERROU — ce que le lot a SAUTÉ se lit à l'écran, et rien ne s'affiche s'il n'a rien sauté", async () => {
+    // Le serveur saute désormais les leçons au cours VIDE (2026-08-11) : les valider donnerait à
+    // Massimo une page blanche que le gate de l'ADR-0011 laisserait passer — 50 leçons
+    // `validated` sur 88 étaient dans ce cas. Sans ce message, Papa clique, voit la ligne
+    // inchangée, et n'a AUCUN moyen de savoir pourquoi : un manque silencieux se lit comme une
+    // panne. C'est ce message qui distingue le correctif d'une garde muette.
+    vi.mocked(validateAllLessons).mockResolvedValue({
+      validated_count: 0,
+      skipped_empty_count: 2,
+    } as never);
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([BLOCKED, FIVE_STATES]));
+    renderPage();
+    await screen.findByText("Bloquée");
+    await expandSubject();
+    fireEvent.click(screen.getByRole("button", { name: /Valider les 1 leçons/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Valider les 1 leçons$/ }));
+
+    const avis = await screen.findByText(/2 leçons non validées/);
+    expect(avis.textContent).toMatch(/son cours est vide/);
+    // ⚠️ Le pluriel se règle sur le compte — « 1 leçon non validée » au singulier.
+    expect(avis.textContent).not.toMatch(/2 leçon non/);
+  });
+
+  it("🔴 VERROU — l'autre sens : aucun avis quand le lot n'a rien sauté", async () => {
+    // Sans ce pendant, un avis affiché EN PERMANENCE passerait le test ci-dessus.
+    vi.mocked(validateAllLessons).mockResolvedValue({
+      validated_count: 1,
+      skipped_empty_count: 0,
+    } as never);
+    vi.mocked(fetchCoverage).mockResolvedValue(coverageWith([BLOCKED, FIVE_STATES]));
+    renderPage();
+    await screen.findByText("Bloquée");
+    await expandSubject();
+    fireEvent.click(screen.getByRole("button", { name: /Valider les 1 leçons/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Valider les 1 leçons$/ }));
+
+    await waitFor(() => expect(validateAllLessons).toHaveBeenCalled());
+    expect(screen.queryByText(/son cours est vide/)).toBeNull();
+  });
 });
 
 describe("CouverturePage — nuancier de provenance (§F)", () => {

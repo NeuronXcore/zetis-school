@@ -40,11 +40,22 @@ export function gesteDe(gap: OpenGap): GesteLacune | null {
 
   switch (gap.content_state) {
     case "cours_brouillon":
-      if (!gap.lesson_id) return null;
+      // 🔴 **LES TROIS CRANS, ou rien** (2026-08-11). Le lien s'écrivait `/programme?lesson=<id>`
+      // — et `ProgrammePage` ne **sélectionne** une matière que sur `?subject=`, ne **déplie** un
+      // chapitre que sur `?chapter=`, et ne met en évidence que dans `LessonsPanel`, lequel n'est
+      // monté que si un chapitre est déplié. Sans matière, donc, **rien ne s'ouvrait** : Papa
+      // atterrissait sur la page dans son état par défaut. Le lien existait, était cliquable, son
+      // `href` était bien formé — exactement le *« cul-de-sac qui a l'air de marcher »* de
+      // l'ADR-0050, qu'aucun test de rendu ne voit.
+      //
+      // ⚠️ La garde exige les TROIS : servir le lien avec deux crans rouvrirait le même défaut un
+      // cran plus bas (la leçon connue, le chapitre replié). Mieux vaut aucune action qu'une
+      // action qui égare — c'est la règle que cette fonction tient déjà pour `mission_id`.
+      if (!gap.lesson_id || !gap.subject_id || !gap.chapter_id) return null;
       return {
         kind: "lien",
         libelle: "Valider le cours de cette leçon →",
-        href: `/programme?lesson=${gap.lesson_id}`,
+        href: `/programme?subject=${gap.subject_id}&chapter=${gap.chapter_id}&lesson=${gap.lesson_id}`,
         motif:
           "Une leçon existe, son cours est en brouillon : la voie « quiz ancré sur la notion » " +
           "refuse tant qu'il n'est pas validé.",
@@ -62,11 +73,14 @@ export function gesteDe(gap: OpenGap): GesteLacune | null {
       };
 
     case "ok":
-      if (!gap.lesson_id) return null;
+      // Même garde et même href que `cours_brouillon` ci-dessus — **c'était le même lien mort**,
+      // et le corriger d'un seul côté aurait laissé « Relire la leçon » égarer Papa exactement
+      // comme « Valider le cours » le faisait.
+      if (!gap.lesson_id || !gap.subject_id || !gap.chapter_id) return null;
       return {
         kind: "lien",
         libelle: "Relire la leçon →",
-        href: `/programme?lesson=${gap.lesson_id}`,
+        href: `/programme?subject=${gap.subject_id}&chapter=${gap.chapter_id}&lesson=${gap.lesson_id}`,
         // ⚠️ Un geste de VÉRIFICATION, pas de production : la section porte déjà son bouton
         // « Créer N missions ». Doubler l'action au niveau ligne créerait deux chemins pour la
         // même chose, avec deux portées différentes (le bouton ignore le filtre, la ligne non).

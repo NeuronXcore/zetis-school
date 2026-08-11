@@ -127,6 +127,15 @@ export interface OpenGap {
    *  ⚠️ Une notion porte jusqu'à quatre leçons. Le départage n'est pas fait ici : il suit l'ordre
    *  que `lessons_by_skill` établit déjà côté serveur (`updated_at` décroissant, puis `id`). */
   lesson_id?: number | null;
+  /** Les deux crans qui manquaient au lien de la ligne (2026-08-11). `gesteLacune` construisait
+   *  `/programme?lesson=<id>` — or la page ne SÉLECTIONNE une matière que sur `?subject=` et ne
+   *  déplie un chapitre que sur `?chapter=`. Sans eux, `LessonsPanel` n'était jamais monté et le
+   *  `?lesson=` allait à un composant absent de l'écran.
+   *
+   *  ⚠️ **Les trois vont ensemble ou pas du tout** : un lien qui n'en porte que deux rouvre le
+   *  cul-de-sac un cran plus bas (le chapitre replié). */
+  subject_id?: number | null;
+  chapter_id?: number | null;
   /** La mission `planned|active` qui couvre déjà la notion — la plus prioritaire quand il y en a
    *  plusieurs, suivant l'ordre d'`active_missions`. Non nul exactement quand
    *  `has_active_mission` est vrai : les deux sortent de la même passe. */
