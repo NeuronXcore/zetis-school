@@ -122,14 +122,23 @@ cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
 - 🔴 **`ACTION_UI` porte toujours la collision « carte »** : « Reconstruire la **carte** » (mindmap)
   et « Réviser mes **cartes** » (SRS) coexistent dans le panneau de notion. Table **partagée avec
   la Galaxy et le chat** — hors périmètre, non traité.
-- 🔴 **Un test de `QuizPage` est INSTABLE en suite complète — DEUX occurrences le 2026-08-11** :
-  « le nettoyage d'URL ne mange QUE `subject` — `from` doit survivre ». Relevé : **2 échecs** sur
-  des runs complets, et **0 sur 3 runs complets consécutifs** juste après, plus **10/10 en
-  isolation**. Le fichier n'a été touché par **aucun** chantier de la journée (aucun diff), et il
-  n'importe rien de `data/mock`. **Interférence entre fichiers de test**, pas une régression.
-  Piste : un voisin qui mocke `react-router-dom`, `useSearchParams` ou `../lib/quiz` sans
-  `mockReset`. ⚠️ Un test intermittent finit par être ignoré — et il masque alors une vraie
-  régression.
+- ✅ **Le test instable de `QuizPage` est RÉPARÉ le 2026-08-11** — et **la cause écrite ici était
+  FAUSSE**. Ce fichier annonçait « interférence entre fichiers de test » ; la reproduction l'a
+  démentie.
+
+  **Reproduit volontairement sous charge** (backend + suite Papa lancés en parallèle), à la 4ᵉ
+  tentative — 8 runs à vide n'avaient rien donné :
+  `AssertionError: expected 'subject=svt&from=svt' not to contain 'subject='`.
+
+  **Vraie cause** : le test attendait l'affichage des quiz (`findByText`) puis lisait l'URL. Or
+  ces deux choses passent par **deux chemins d'état indépendants** — l'état de la page d'un côté,
+  le routeur de l'autre — et rien ne garantit que React les commite dans le même rendu. Sous
+  charge, la liste s'affichait avant que la sonde ait reçu les nouveaux paramètres.
+  **On attendait A pour asserter B.**
+
+  **Correction** : les deux assertions passent dans un `waitFor`. L'invariant est **intact** —
+  sabotage rejoué (faire manger `from` par le nettoyage) : le test rougit toujours. Vérifié
+  **8/8 sous la charge exacte** qui le faisait tomber.
 - ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4) — **remonté de l'élagage de
   l'ADR-0051**, toujours ouvert, toujours hors périmètre.
 - ✅ **RÉSIDU DE DEV RÉSOLU le 2026-08-11** — le **quiz 56** (Mathématiques, 40 questions), resté
