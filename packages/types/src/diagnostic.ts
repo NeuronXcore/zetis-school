@@ -207,3 +207,54 @@ export interface DiagnosticPortee {
    *  et la page remplace la portée par son absence expliquée. */
   notions: DiagnosticPorteeNotion[];
 }
+
+/** `GET /api/diagnostics/quizzes/{id}/relecture` — ce que Papa relit avant de trancher (adr-0051).
+ *
+ *  ⚠️ **Ne pas confondre avec `PapaQuizQuestion`** (`quiz.ts`), qui sert la même intention pour les
+ *  quiz de mission. Quatre de ses champs sont absents ici — `difficulty`, `source`, `status`,
+ *  `sort_order` — parce qu'ils sont **constants par construction** sur un diagnostic : les routes
+ *  d'édition et de retrait du module `quizzes` lui sont fermées. Servir un champ constant invite à
+ *  le lire comme s'il pouvait varier.
+ *
+ *  `question_type` est absent pour la même raison : un diagnostic est `mcq` et rien d'autre.
+ */
+export interface DiagnosticRelectureQuestion {
+  id: number;
+  prompt_markdown: string;
+  choices_json: string[];
+  /** Index du bon choix dans `choices_json`.
+   *
+   *  🔴 `null` = **clé illisible**, et c'est une information à afficher, pas à masquer. Le serveur
+   *  refuse de coercer : désigner le mauvais choix comme bonne réponse serait le pire défaut
+   *  possible sur l'écran dont le seul rôle est de vérifier cette clé-là. */
+  correct_answer_json: number | null;
+  /** Le texte que Massimo lira **après** avoir répondu. Il se relit ici, sans quoi la moitié de ce
+   *  qu'on valide n'aura jamais été vue. */
+  explanation_markdown: string | null;
+}
+
+/** Les questions d'UNE notion. 🔴 C'est le GROUPE qui porte la notion, jamais la question.
+ *
+ *  Répétée sous chaque question, la notion devient du bruit qu'on cesse de lire. Portée par
+ *  l'en-tête, elle pose la question à Papa — *« ces cinq-là mesurent-elles bien celle-ci ? »*. Le
+ *  défaut cherché est un **écart** entre un titre et N contenus, et un écart ne se voit que si les
+ *  deux termes sont présentés comme tels.
+ */
+export interface DiagnosticRelectureNotion {
+  skill_id: number | null;
+  /** 🔴 `null` quand la notion manque — **jamais `"Notion"`**, contrairement à la vue élève. Un
+   *  repli qui ressemble à un nom ferait passer un défaut de génération pour une notion. Le client
+   *  écrit « — notion non renseignée — ». */
+  skill_name: string | null;
+  questions: DiagnosticRelectureQuestion[];
+}
+
+export interface DiagnosticRelecture {
+  quiz_id: number;
+  title: string;
+  subject: string;
+  /** Le volume du lot — c'est lui qui commande la forme de l'écran (40 au maximum). */
+  total: number;
+  /** ⚠️ Peut n'avoir qu'**un** groupe : `MAX_SKILLS = 8` est un plafond, pas une forme. */
+  notions: DiagnosticRelectureNotion[];
+}

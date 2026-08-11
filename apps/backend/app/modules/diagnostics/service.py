@@ -441,6 +441,79 @@ def get_quiz_for_taking(db: Session, quiz_id: int) -> dict:
     }
 
 
+def get_quiz_for_relecture(db: Session, quiz_id: int) -> dict:
+    """Le questionnaire tel que PAPA doit le relire (ADR-0051 Décision 5).
+
+    Frère de `get_quiz_for_taking`, et son exact opposé sur les deux points qui comptent : il passe
+    par **`_quiz_or_404`** (donc un diagnostic `pending` s'ouvre — c'est tout l'objet du chantier)
+    et il sert **la clé et l'explication**, que la vue élève retire.
+
+    🔴 **Les questions sont GROUPÉES PAR NOTION, et le groupement est fait ici.** C'est le serveur
+    qui connaît `sort_order` ; deux clients en inventeraient deux ordres. Et la forme porte la
+    décision : le défaut qu'une relecture peut attraper est un **écart** entre une notion annoncée
+    et cinq questions, et un écart ne se voit que si les deux termes sont présentés comme tels.
+
+    L'ordre des groupes est celui de leur **première** question. On ne découpe pas en tranches :
+    le générateur écrit bien un bloc par notion (`for skill in skills`, `sort_order` incrémental,
+    vérifié en base — 0 `sort_order` nul, 0 doublon), mais un regroupement par identifiant survit
+    à une question qu'on insérerait un jour au milieu, pour le même coût.
+
+    ⚠️ **`skill_name` vaut `None` quand la notion manque — JAMAIS `"Notion"`.** Le repli de
+    `get_quiz_for_taking` est bon pour un enfant, qui n'a pas à lire un trou de génération ; ici il
+    ferait exactement l'inverse de ce qu'on demande à Papa, en donnant à un défaut l'apparence
+    d'une notion. C'est le client qui écrit « — notion non renseignée — ».
+
+    ⚠️ **`correct_answer_json` est servi `None` s'il n'est pas un index exploitable.** Les 304
+    questions de diagnostic en base portent toutes un nombre, et le générateur en écrit un par
+    construction (`int(q.get("correct_index", 0))`) — mais coercer en silence désignerait le
+    **mauvais** choix comme bonne réponse, ce qui est pire que de dire qu'on ne sait pas.
+
+    ⚠️ **Ni `difficulty`, ni `source`, ni `status`, ni `sort_order`** — les quatre champs que
+    `_papa_question_out` sert en plus. Sur un diagnostic ils sont constants par construction
+    (`add_manual_question` et `retire` de `quizzes` sont fermés à ce type par
+    `_mission_quiz_or_404`) : les servir donnerait à croire qu'ils peuvent varier.
+    """
+    quiz = _quiz_or_404(db, quiz_id)
+    subject = db.get(Subject, quiz.subject_id)
+    rows = db.execute(
+        select(QuizQuestion, Skill)
+        .outerjoin(Skill, Skill.id == QuizQuestion.skill_id)
+        .where(QuizQuestion.quiz_id == quiz_id)
+        .order_by(QuizQuestion.sort_order, QuizQuestion.id)
+    ).all()
+
+    notions: list[dict] = []
+    par_notion: dict[int | None, dict] = {}
+    for question, skill in rows:
+        groupe = par_notion.get(question.skill_id)
+        if groupe is None:
+            groupe = {
+                "skill_id": question.skill_id,
+                "skill_name": skill.name if skill is not None else None,
+                "questions": [],
+            }
+            par_notion[question.skill_id] = groupe
+            notions.append(groupe)
+        cle = question.correct_answer_json
+        groupe["questions"].append(
+            {
+                "id": question.id,
+                "prompt_markdown": question.prompt_markdown,
+                "choices_json": [str(c) for c in (question.choices_json or [])],
+                "correct_answer_json": cle if isinstance(cle, int) and not isinstance(cle, bool) else None,
+                "explanation_markdown": question.explanation_markdown,
+            }
+        )
+
+    return {
+        "quiz_id": quiz.id,
+        "title": quiz.title,
+        "subject": subject.name if subject is not None else "",
+        "total": len(rows),
+        "notions": notions,
+    }
+
+
 def _upsert_gap(db: Session, *, student_id: int, subject_id: int, skill_id: int, score: int) -> None:
     existing = db.scalar(
         select(Gap).where(

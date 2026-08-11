@@ -4,6 +4,50 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/papa-lit-un-diagnostic` — ADR-0051, Session A — 2026-08-11
+
+### 🔴 « Reprendre la forme de X » : vérifier ce que X sert EN PLUS
+
+Le prompt de slice disait *« réutilise la forme de `_papa_question_out` »*. Elle en sert **cinq**
+champs de plus que le besoin : `question_type`, `difficulty`, `source`, `status`, `sort_order`.
+Sur un diagnostic ils sont **constants par construction** — `mcq` en dur à la génération, et les
+routes d'édition et de retrait du module `quizzes` lui sont fermées par `_mission_quiz_or_404`.
+Mesuré : 304 questions de diagnostic, **0 retirée, toutes `generated`**.
+
+Les servir aurait donné à croire qu'ils peuvent varier, et la première session frontend qui aurait
+essayé d'afficher un `status` l'aurait découvert seule.
+
+**Parade** : « reprendre la forme de X » se lit **la forme UTILE de X**. Ouvrir X, lister ce qu'il
+sert, et se demander champ par champ *« celui-ci peut-il varier ici ? »*. Un champ constant servi
+est une invitation à écrire du code mort.
+
+### ⚠️ Le décor de test existait déjà — le protocole parlait de la vérification à l'écran
+
+Le protocole du prompt annonçait *« la surface n'a aucun décor, tu dois le fabriquer »*. Vrai —
+**mais seulement pour la vérification manuelle**. Côté tests, `test_diagnostic_gate.py` porte déjà
+`_diagnostic_pending(db)`, qui pose un diagnostic `pending` avec sa question directement en base.
+
+**Parade** : avant d'écrire une fabrique de décor, `grep -rn "def _" app/tests/` sur le module
+concerné. Ici le fichier à réutiliser était même **nommé** dans la liste de lecture du prompt.
+
+### ⚠️ `packages/types` n'a AUCUN build — les types partagés ne se typecheckent pas seuls
+
+`packages/types/package.json` n'a ni `scripts`, ni `tsconfig` de build : `main` et `types` pointent
+directement sur `./src/index.ts`. Un `tsc -b` lancé dans ce dossier ne fait **rien**, et `npx tsc`
+y répond *« This is not the tsc command you are looking for »* (le piège déjà consigné deux fois).
+
+Les types partagés ne sont donc vérifiés **que par les applications qui les consomment**. Un type
+cassé qui n'est importé nulle part ne fera rougir personne.
+
+**Parade** : après toute modification de `packages/types`, lancer le typecheck des **deux** fronts —
+`apps/frontend-papa/node_modules/.bin/tsc -b --noEmit` et l'équivalent Massimo. ⚠️ Et lancer le
+binaire local, pas `npx`.
+
+### ⚠️ `python` n'existe pas sur le PATH de ce dépôt
+
+`python -m pytest` répond `command not found`. L'interpréteur est **`apps/backend/.venv/bin/python`**,
+et lui seul. C'est trois secondes perdues à chaque session qui l'oublie.
+
 ## Chantier `fix/cours-vide-non-validable` — PR #112 — 2026-08-11
 
 ### 🔴 Un `status` ne dit rien d'un CONTENU — 50 leçons `validated` étaient vides

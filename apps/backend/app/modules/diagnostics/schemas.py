@@ -36,6 +36,63 @@ class DiagnosticQuizOut(BaseModel):
     questions: list[DiagQuestionOut]
 
 
+class RelectureQuestionOut(BaseModel):
+    """Une question telle que PAPA la relit : les cinq éléments, clé et explication comprises.
+
+    ⚠️ **Quatre champs de `PapaQuestionOut` sont volontairement absents** — `difficulty`, `source`,
+    `status`, `sort_order`. Sur un diagnostic ils sont constants par construction (les routes
+    d'édition et de retrait de `quizzes` sont fermées à ce type par `_mission_quiz_or_404`) :
+    mesuré, 304 questions de diagnostic, 0 retirée, toutes `generated`. Servir un champ constant
+    invite à le lire comme s'il pouvait varier.
+
+    ⚠️ `question_type` est absent pour la même raison : un diagnostic est `mcq` **en dur**
+    (`service.py`, la génération). Le jour où ce n'est plus vrai, c'est le champ qu'il faut ajouter
+    — et le rendu du client qui doit changer avec.
+    """
+
+    id: int
+    prompt_markdown: str
+    choices_json: list[str]
+    # 🔴 `None` = clé illisible, et c'est une information. Coercer en silence désignerait le
+    # MAUVAIS choix comme bonne réponse — sur une surface dont le seul rôle est de vérifier
+    # justement ça.
+    correct_answer_json: int | None
+    explanation_markdown: str | None
+
+
+class RelectureNotionOut(BaseModel):
+    """Les questions d'UNE notion. C'est le groupe qui porte la notion, pas la question.
+
+    🔴 `skill_name` vaut `None` quand la notion manque — **jamais `"Notion"`**, contrairement à
+    `DiagQuestionOut` qui sert la vue élève. Le repli est bon pour un enfant ; ici il donnerait à un
+    défaut de génération l'apparence d'une notion, sur l'écran fait pour repérer ce défaut-là.
+    Le client écrit « — notion non renseignée — ».
+    """
+
+    skill_id: int | None
+    skill_name: str | None
+    questions: list[RelectureQuestionOut]
+
+
+class DiagnosticRelectureOut(BaseModel):
+    """Le questionnaire complet, pour la relecture de Papa (ADR-0051 Décision 5).
+
+    ⚠️ Ce schéma doit **déclarer chaque clé** : `response_model` filtre en silence tout champ non
+    déclaré, et le dépôt s'est fait avoir deux fois de suite sur ce motif (ADR-0045 puis ADR-0047).
+
+    ⚠️ **`notions` peut n'avoir qu'UN groupe.** `MAX_SKILLS = 8` est un plafond, pas une forme :
+    4 diagnostics de la base de dev portent 2 questions sur une seule notion.
+    """
+
+    quiz_id: int
+    title: str
+    subject: str
+    # Le compte de questions du LOT, servi plutôt que recalculé côté client : c'est le volume que
+    # Papa s'apprête à relire, et il commande la forme de l'écran (40 au maximum, ADR-0051 §4).
+    total: int
+    notions: list[RelectureNotionOut]
+
+
 class DiagnosticQuizListItem(BaseModel):
     """Ce que la page de Massimo doit pouvoir HIÉRARCHISER (ADR-0044 Décision 6).
 
