@@ -12,7 +12,11 @@ const NOM = {
   eli5: ["explication", "explications"],
   fiche: ["fiche", "fiches"],
   capsule: ["capsule", "capsules"],
-  mindmap: ["carte", "cartes"],
+  // ⚠️ « mindmap » et non « carte », corrigé le 2026-08-11 sur signalement du user. La bande
+  // annonçait « 1 carte » (mindmap) à trois pastilles de « 8 cartes à revoir » (SRS) : deux
+  // destinations différentes sous le même mot, et le lien vers les mindmaps se lisait comme
+  // absent. C'est le nom que la barre latérale montre à Massimo (`navigation.ts`).
+  mindmap: ["mindmap", "mindmaps"],
   revision: ["carte à revoir", "cartes à revoir"],
   quiz: ["quiz", "quiz"],
 } as const;

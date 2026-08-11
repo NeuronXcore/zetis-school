@@ -318,5 +318,8 @@ export {
   type GalaxySubjectRef,
   type PanoplyChapter,
   type PanoplyNotion,
+  type ResumeItem,
   type SubjectPanoply,
+  type SubjectResume,
+  type SubjectXP,
 } from "./galaxy";

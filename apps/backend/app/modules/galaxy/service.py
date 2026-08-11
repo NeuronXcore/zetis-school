@@ -34,6 +34,7 @@ from app.db.models import (
 )
 from app.modules.curriculum.service import _active_year_or_404
 from app.modules.eli5.service import get_default_student
+from app.modules.gamification import service as gamification
 from app.modules.lesson_resolution import lessons_by_skill
 from app.modules.evidence import service as evidence
 from app.modules.memory.service import INACTIVE_CARD_STATUSES
@@ -159,26 +160,33 @@ def overview(db: Session) -> dict:
         .order_by(Subject.sort_order, Subject.id)
     ).all()
 
-    mastery = evidence.mastery_by_skill(db, student_id=get_default_student(db).id)
+    student = get_default_student(db)
+    mastery = evidence.mastery_by_skill(db, student_id=student.id)
     per_subject: dict[int, list[int]] = {}
     for notion in _visible_notions(db):
         per_subject.setdefault(notion["subject_id"], []).append(notion["skill_id"])
 
+    # ⚠️ UN SEUL agrégat pour toutes les matières, lu AVANT la boucle. Appeler
+    # `subject_xp_summary` par matière rejouerait le `group_by` à chaque tour — un N+1 sur la
+    # page qui liste justement toutes les matières.
+    xp_par_matiere = gamification.xp_by_subject(db, student).by_subject
+
     out = []
     for subject_id, name, slug in subjects:
         skill_ids = per_subject.get(subject_id, [])
-        lit = sum(
-            1
-            for skill_id in skill_ids
-            if normalize_status((mastery.get(skill_id) or {}).get("status")) != "unknown"
-        )
+        statuts = [normalize_status((mastery.get(skill_id) or {}).get("status")) for skill_id in skill_ids]
         out.append(
             {
                 "subject_id": subject_id,
                 "name": name,
                 "slug": slug,
-                "lit": lit,
+                "lit": sum(1 for statut in statuts if statut != "unknown"),
                 "total": len(skill_ids),
+                "xp": gamification.xp_block(xp_par_matiere.get(subject_id, 0)),
+                # Ce que Massimo TIENT. Aucun pendant « à renforcer » n'est calculé ici : le §5
+                # interdit de classer les matières, et désigner les faibles en est la forme la
+                # plus directe.
+                "mastered": sum(1 for statut in statuts if statut == "mastered"),
             }
         )
     return {"subjects": out}
@@ -644,11 +652,23 @@ def subject_panoply(db: Session, subject_slug: str) -> dict:
         )
 
     subject_ref = {"subject_id": subject.id, "name": subject.name, "slug": subject.slug}
+    student = get_default_student(db)
+
+    # L'effort de Massimo dans cette matière (addendum ADR-0024 « page matière onglets »).
+    #
+    # ⚠️ Calculé AVANT le repli `chapters: []`, et servi dans les deux cas : le XP appartient à
+    # l'élève, pas au catalogue. Une matière dont Papa a dévalidé les chapitres ne doit pas
+    # effacer le travail déjà fait.
+    #
+    # Le calcul vit dans `gamification`, qui est le grand livre de l'économie XP : ni le cumul par
+    # matière (`xp_by_subject`, ADR-0038 §3) ni le barème de niveau ne sont réécrits ici. Une
+    # seconde façon de compter l'XP est exactement la dette que `SubjectXP` prévient d'éviter.
+    xp_ref = gamification.subject_xp_summary(db, student, subject_id=subject.id)
+
     notions = _visible_notions(db, subject_id=subject.id)
     if not notions:
-        return {"subject": subject_ref, "chapters": []}
+        return {"subject": subject_ref, "subject_xp": xp_ref, "chapters": []}
 
-    student = get_default_student(db)
     mastery = evidence.mastery_by_skill(db, student_id=student.id)
     panoply = resolve_panoply(
         db, student_id=student.id, skill_ids=[n["skill_id"] for n in notions]
@@ -680,4 +700,157 @@ def subject_panoply(db: Session, subject_slug: str) -> dict:
             }
         )
 
-    return {"subject": subject_ref, "chapters": chapters}
+    return {"subject": subject_ref, "subject_xp": xp_ref, "chapters": chapters}
+
+
+# --- « Reprendre » : le dernier contenu RÉOUVRABLE d'une matière -------------------------------
+#
+# Le doc de page refusait cette carte depuis le 2026-08-01 (« aucune route ne sert cette donnée,
+# et l'inventer aurait menti »). Le read-before-code du 2026-08-11 a levé la réserve : les
+# payloads de `learning_events` portent bien de quoi rouvrir — mais **pas pour tous les types**.
+#
+# 🔴 **Ne sont servis QUE les types qui se rouvrent EXACTEMENT**, et c'est tout l'intérêt de la
+# carte :
+#   • `cours` → `/subjects/:slug/cours?lesson=<id>`, qui met la leçon en avant (le lien profond
+#     existe depuis l'addendum ADR-0025 §15, ajouté pour l'agenda) ;
+#   • `quiz`  → la session du quiz, par son `quiz_id`.
+#
+# **Écartés, et ce n'est pas un oubli** : `fiche` (aucun lien profond — `/fiches/:slug` ouvre le
+# deck) et `revision` (`/revision?subject=` LANCE une nouvelle session, il ne reprend rien).
+# Nommer un contenu précis pour atterrir sur une liste, c'est la dette `capsule_id` déjà
+# consignée (« le libellé sur-promet ») et le bouton mort de l'ADR-0050. Mieux vaut trois cartes
+# que deux mensonges.
+#
+# ⚠️ **Frontière avec `activity`, dont la doctrine est inverse** (« un enfant chronométré
+# travaille pour le chronomètre ») : aucune minute, aucune session, aucun compte, aucun score ne
+# sort d'ici. Un signet, pas une mesure.
+
+# ⚠️ **Table EXPLICITE `event_type → (kind, clé de payload)`**, et surtout pas une liste de types
+# avec un `else` implicite. Écrit ainsi après un sabotage du 2026-08-11 : une première version
+# faisait `kind = "cours" if ... else "quiz"`, si bien qu'ajouter `fiche_viewed` à la liste
+# l'étiquetait en QUIZ — filtré seulement par accident, parce que son payload n'a pas de
+# `quiz_id`. Le test-verrou restait vert sur du code faux. Ici, un type absent de la table
+# n'entre pas, et il n'existe aucune branche par défaut pour le rattraper.
+RESUME_KINDS: dict[str, tuple[str, str]] = {
+    "lesson_viewed": ("cours", "lesson_id"),
+    "quiz_attempted": ("quiz", "quiz_id"),
+}
+RESUME_EVENTS = tuple(RESUME_KINDS)
+RESUME_LIMIT = 3
+# Fenêtre de balayage du journal, bornée serveur. Large devant `RESUME_LIMIT` pour absorber les
+# répétitions (rouvrir dix fois la même leçon ne doit pas vider la carte de ses autres entrées).
+RESUME_SCAN = 80
+
+
+def subject_resume(db: Session, subject_slug: str) -> dict:
+    """Les derniers contenus de cette matière que Massimo peut ROUVRIR tels quels.
+
+    404 si la matière est inconnue ou hors année active — comme la panoplie. `items: []` si rien
+    n'est réouvrable : un état normal, pas une erreur.
+
+    🔴 **Le contenu doit être ENCORE VISIBLE**, pas seulement avoir été vu : une leçon que Papa a
+    dévalidée depuis, ou un quiz archivé, sont retirés. Sans ce filtre, la carte ouvrirait une
+    porte sur du vide — le défaut que l'addendum du 2026-07-30 a déjà coûté une fois. Le gate de
+    visibilité n'est pas réécrit ici : il vient de `_visible_notions`, le prédicat unique.
+    """
+    from fastapi import HTTPException, status as http_status
+
+    subject = db.scalars(select(Subject).where(Subject.slug == subject_slug)).first()
+    if subject is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject_slug} » inconnue.",
+        )
+    year = _active_year_or_404(db)
+    if db.scalar(
+        select(SchoolYearSubject.id).where(
+            SchoolYearSubject.school_year_id == year.id,
+            SchoolYearSubject.subject_id == subject.id,
+        )
+    ) is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=f"Matière « {subject.name} » absente de l'année active.",
+        )
+
+    student = get_default_student(db)
+    rows = db.execute(
+        select(LearningEvent.event_type, LearningEvent.payload_json, LearningEvent.created_at)
+        .where(
+            LearningEvent.student_id == student.id,
+            LearningEvent.subject_id == subject.id,
+            LearningEvent.event_type.in_(RESUME_EVENTS),
+        )
+        .order_by(LearningEvent.created_at.desc())
+        .limit(RESUME_SCAN)
+    ).all()
+
+    # Dédupe : une leçon rouverte dix fois ne compte qu'une, à sa date la plus récente. Sans
+    # cela, la carte afficherait trois fois le même contenu.
+    seen: set[tuple[str, int]] = set()
+    candidats: list[dict] = []
+    for event_type, payload, created_at in rows:
+        mapping = RESUME_KINDS.get(event_type)
+        if mapping is None:
+            continue  # aucune branche par défaut : un type non déclaré n'est pas deviné
+        kind, cle = mapping
+        target = (payload or {}).get(cle)
+        if not isinstance(target, int):
+            continue  # payload incomplet : on ne devine pas
+        if (kind, target) in seen:
+            continue
+        seen.add((kind, target))
+        candidats.append({"kind": kind, "target_id": target, "at": created_at})
+
+    lesson_ids = [c["target_id"] for c in candidats if c["kind"] == "cours"]
+    quiz_ids = [c["target_id"] for c in candidats if c["kind"] == "quiz"]
+
+    # Titres résolus SERVEUR, et jamais lus depuis le payload : `lesson_title` y est figé à
+    # l'instant du clic, donc périmé si la leçon a été renommée depuis.
+    lessons: dict[int, str] = {}
+    if lesson_ids:
+        # Encore visibles = encore dans la chaîne année active → chapitre validé → leçon validée.
+        visibles = {n["lesson_id"] for n in _visible_notions(db, subject_id=subject.id)}
+        lessons = {
+            row_id: title
+            for row_id, title in db.execute(
+                select(Lesson.id, Lesson.title).where(Lesson.id.in_(lesson_ids))
+            ).all()
+            if row_id in visibles
+        }
+
+    quizzes: dict[int, str] = {}
+    if quiz_ids:
+        from app.db.models import Quiz
+
+        quizzes = dict(
+            db.execute(
+                select(Quiz.id, Quiz.title).where(
+                    Quiz.id.in_(quiz_ids),
+                    Quiz.subject_id == subject.id,
+                    # `archived` = retiré par Papa, mais conservé pour ses tentatives
+                    # (ADR-0014 Décision 3). Rouvrable : non.
+                    Quiz.status != "archived",
+                    Quiz.validation_status == "validated",
+                )
+            ).all()
+        )
+
+    items = []
+    for candidat in candidats:
+        titre = (lessons if candidat["kind"] == "cours" else quizzes).get(candidat["target_id"])
+        if titre is None:
+            continue  # disparu ou dévalidé depuis : on ne propose pas une porte fermée
+        items.append(
+            {
+                "kind": candidat["kind"],
+                "title": titre,
+                "target_id": candidat["target_id"],
+                "at": candidat["at"].isoformat() if candidat["at"] else None,
+            }
+        )
+        if len(items) >= RESUME_LIMIT:
+            break
+
+    return {"subject": {"subject_id": subject.id, "name": subject.name, "slug": subject.slug},
+            "items": items}

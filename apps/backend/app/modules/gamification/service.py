@@ -121,9 +121,18 @@ def _badges(
 
 
 def xp_history(
-    db: Session, student: StudentProfile, *, days: int = XP_HISTORY_DEFAULT_DAYS
+    db: Session,
+    student: StudentProfile,
+    *,
+    days: int = XP_HISTORY_DEFAULT_DAYS,
+    subject_id: int | None = None,
 ) -> dict:
     """Les jours où Massimo a GAGNÉ du XP, du plus ancien au plus récent.
+
+    `subject_id` restreint à une matière (addendum ADR-0024 « page matière onglets »). Le contrat
+    ci-dessous **ne change pas** avec le filtre : une matière sans aucun gain rend `days: []`, et
+    surtout pas une suite de zéros. Le garde-fou vaut d'autant plus filtré — une matière travaillée
+    un jour sur dix aurait, en série dense, neuf creux sur dix à lire comme des manques.
 
     **Les jours sans gain sont ABSENTS du résultat** — jamais à zéro. C'est le garde-fou de
     l'addendum ADR-0024 « Accueil vivant » §A : la donnée d'absence n'existe pas, donc rien en
@@ -142,10 +151,15 @@ def xp_history(
     window = max(1, min(days, XP_HISTORY_MAX_DAYS))
     since = datetime.now(timezone.utc) - timedelta(days=window)
 
+    query = select(XPEvent).where(XPEvent.student_id == student.id, XPEvent.created_at >= since)
+    if subject_id is not None:
+        # ⚠️ Filtre STRICT : l'XP non imputé à une matière (`subject_id IS NULL` — connexion, chat)
+        # n'entre dans aucune courbe de matière. L'y verser gonflerait toutes les matières du même
+        # montant et rendrait la somme des courbes supérieure au total.
+        query = query.where(XPEvent.subject_id == subject_id)
+
     per_day: dict[date, int] = {}
-    for event in db.scalars(
-        select(XPEvent).where(XPEvent.student_id == student.id, XPEvent.created_at >= since)
-    ):
+    for event in db.scalars(query):
         day = local_day(event.created_at)
         per_day[day] = per_day.get(day, 0) + event.amount
 
@@ -211,6 +225,42 @@ def xp_by_subject(db: Session, student: StudentProfile) -> SubjectXP:
         by_subject.setdefault(subject_id, 0)
 
     return SubjectXP(by_subject=by_subject, unattributed_xp=unattributed)
+
+
+def xp_block(total: int) -> dict:
+    """`{total, level, into_level, for_next}` à partir d'un cumul déjà connu.
+
+    Sert les appelants qui agrègent **plusieurs** matières d'un coup (la vue d'ensemble de la
+    galaxie) : ils lisent `xp_by_subject` UNE fois, puis appellent ceci par matière. Passer par
+    `subject_xp_summary` en boucle rejouerait l'agrégat à chaque tour — un N+1 sur la page qui
+    liste justement toutes les matières.
+
+    Le barème reste **privé à ce module** : l'appelant reçoit un niveau, il ne le calcule pas.
+    """
+    level, into = _level_from_xp(total)
+    return {"total": total, "level": level, "into_level": into, "for_next": XP_PER_LEVEL}
+
+
+def subject_xp_summary(db: Session, student: StudentProfile, *, subject_id: int) -> dict:
+    """L'effort de Massimo dans UNE matière : `{total, level, into_level, for_next}`.
+
+    Sert l'en-tête de la page matière (addendum ADR-0024 « page matière onglets »). Le barème de
+    niveau reste **privé à ce module** : l'appelant reçoit un niveau déjà calculé, il n'a pas à
+    connaître `XP_PER_LEVEL` ni à le reproduire. C'est ce qui garantit qu'un futur barème non
+    linéaire ne se rediscutera qu'ici.
+
+    Le cumul délègue à `xp_by_subject` — **seul endroit du dépôt** qui répond à « combien d'XP dans
+    cette matière » (ADR-0038 §3). Coût assumé : il agrège toutes les matières là où une seule est
+    demandée. Un `SUM(...)` ciblé serait moins cher et créerait un second chemin de comptage, donc
+    une divergence garantie au premier correctif — c'est le troc que fait `SubjectXP`, pas un oubli.
+
+    ⚠️ **Ce que cette fonction ne dit PAS** : ce que Massimo vaut. Aucun pourcentage, aucun
+    `mastery_score`. Un XP monte quand on travaille et ne redescend jamais ; c'est précisément ce
+    qui le distingue d'un score, et ce qui l'autorise sur une surface enfant (ADR-0024 §5 révisé).
+    """
+    total = xp_by_subject(db, student).by_subject.get(subject_id, 0)
+    level, into = _level_from_xp(total)
+    return {"total": total, "level": level, "into_level": into, "for_next": XP_PER_LEVEL}
 
 
 def xp_by_reason(db: Session, student: StudentProfile, *, subject_id: int) -> list[dict]:

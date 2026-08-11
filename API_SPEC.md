@@ -755,9 +755,15 @@ Niveau = `total_xp // 100 + 1`. `recent` = les **5 derniers** événements XP, n
 > un seul jour manqué. `regularity` (module `motivation`) les remplace — un compte hebdomadaire
 > qui ne peut pas casser.
 
-### GET `/gamification/history?days=90` (élève)
+### GET `/gamification/history?days=90&subject=<slug>` (élève)
 
 Les jours où Massimo a **gagné** du XP, du plus ancien au plus récent. Jour **Europe/Paris**.
+
+`subject=<slug>` **(ajouté 2026-08-11, addendum ADR-0024 « page matière onglets »)** restreint à
+une matière — la courbe de la page matière. **404 sur un slug inconnu**, jamais une série vide :
+une courbe vide se lirait « tu n'as rien fait ici » alors que la vraie réponse est « cette matière
+n'existe pas ». Filtre **strict** : l'XP non imputé (`subject_id IS NULL` — connexion, chat)
+n'entre dans **aucune** courbe de matière, sinon la somme des courbes dépasserait le total.
 
 ```json
 { "days": [{ "date": "2026-07-29", "xp": 60 }, { "date": "2026-07-31", "xp": 120 }] }
@@ -1709,8 +1715,23 @@ Vue d'ensemble. `lit` = notions dont le statut n'est ni `unknown` ni absent — 
 jamais un pourcentage (aucun score par matière, ADR-0024 §5).
 
 ```json
-{ "subjects": [{ "subject_id": 3, "name": "SVT", "slug": "svt", "lit": 11, "total": 16 }] }
+{ "subjects": [{ "subject_id": 3, "name": "SVT", "slug": "svt", "lit": 11, "total": 16,
+                "xp": { "total": 640, "level": 7, "into_level": 40, "for_next": 100 },
+                "mastered": 4 }] }
 ```
+
+`xp` et `mastered` **ajoutés le 2026-08-11** pour débrancher la grille `/matieres` de ses données
+mockées. **Aucune requête supplémentaire** : `mastered` se tire de la maîtrise déjà chargée, `xp`
+d'un **seul** agrégat pour toutes les matières.
+
+🔴 **L'ORDRE de ce tableau est celui du RÉFÉRENTIEL** (`Subject.sort_order`), et le rester est une
+décision : trier par `xp`, `lit` ou `mastered` ferait de la liste un **podium** — la mise en
+concurrence des matières que l'ADR-0024 §5 interdit nommément. Le client ne réordonne pas non plus.
+Deux test-verrous le tiennent, un serveur et un client.
+
+⚠️ **`mastered` n'a AUCUN pendant « à renforcer », et ne doit pas en gagner** : désigner les
+matières faibles est la forme la plus directe de ce classement, et `CLAUDE.md` tient les
+diagnostics parentaux hors de l'écran de l'enfant. Ce qu'il y a à travailler se dit en **mission**.
 
 ### GET `/student/galaxy/all`
 
@@ -1787,10 +1808,17 @@ rendu en liste. C'est le **repli sans WebGL** de `zetis-galaxy.md §11`.
 
 ```json
 { "subject": { "subject_id": 3, "name": "SVT", "slug": "svt" },
+  "subject_xp": { "total": 640, "level": 7, "into_level": 40, "for_next": 100 },
   "chapters": [{ "chapter_id": 10, "title": "La cellule",
                  "notions": [{ "skill_id": 88, "name": "Mitose", "status": "learning",
                                "actions": [ /* les 7, comme ci-dessus */ ] }] }] }
 ```
+
+- `subject_xp` **ajouté le 2026-08-11** (addendum ADR-0024 « page matière onglets »). Il dit
+  l'**EFFORT** de Massimo dans la matière, jamais ce qu'il y vaut : un XP compte ce qui a été
+  **fait** et ne peut que monter — c'est ce qui l'autorise sur une surface enfant là où un score
+  reste interdit. **Servi MÊME quand `chapters` est vide** : le XP appartient à l'élève, pas au
+  catalogue. Une requête SQL de plus (14 → **15**).
 
 - Même chaîne de visibilité que les autres routes élève ; **404** matière inconnue ou hors année
   active ; `chapters: []` si elle existe mais n'a rien de validé (état positif, pas une erreur).
@@ -1805,6 +1833,34 @@ rendu en liste. C'est le **repli sans WebGL** de `zetis-galaxy.md §11`.
 > validées donnera donc **1** ici et **3** sur `/student/fiches/summary`. Les deux nombres sont
 > justes et ne répondent pas à la même question : « ce que je peux ouvrir depuis mes notions »
 > contre « ce que le catalogue contient ». Dédupliquer par `Set` est obligatoire.
+
+### GET `/student/subjects/{subject_slug}/resume`
+
+**Les derniers contenus que Massimo peut ROUVRIR tels quels** (addendum ADR-0024 « page matière
+onglets », 2026-08-11). Alimente la carte « Reprendre » de la vue d'ensemble.
+
+```json
+{ "subject": { "subject_id": 3, "name": "SVT", "slug": "svt" },
+  "items": [{ "kind": "cours", "title": "Mitose", "target_id": 12,
+              "at": "2026-08-10T09:14:00+00:00" }] }
+```
+
+🔴 **`kind` ne vaut que `cours` ou `quiz`**, et ce n'est pas une restriction temporaire : ce sont
+les deux seules surfaces adressables **par identifiant**. `fiche` ouvre son deck (`/fiches/:slug`)
+et `revision` **LANCE** une nouvelle session — les servir ferait nommer un contenu précis pour
+atterrir ailleurs, la dette « le libellé sur-promet » déjà consignée sur `capsule_id`.
+
+- **Le contenu doit être ENCORE VISIBLE**, pas seulement avoir été vu : une leçon dévalidée depuis
+  ou un quiz archivé sont **retirés**. Sans ce filtre, la carte ouvrirait une porte sur du vide.
+  Le gate n'est pas réécrit — il vient de `_visible_notions`, le prédicat unique.
+- **`title` est résolu SERVEUR**, jamais lu depuis `learning_events.payload_json` : celui-ci fige
+  le titre à l'instant du clic, donc il est périmé dès que Papa renomme.
+- **Dédupliqué** par `(kind, target_id)`, 3 entrées au plus, fenêtre de balayage bornée serveur.
+- ⚠️ **Aucune minute, aucune session, aucun compte, aucun score.** Frontière avec le module
+  `activity`, dont la doctrine est inverse (*« un enfant chronométré travaille pour le
+  chronomètre »*) : c'est un **signet**, pas une mesure. Le `at` servi n'est d'ailleurs **pas
+  rendu** par le client — « il y a 6 jours » ferait un rappel de ce que Massimo n'a **pas** fait.
+- **404** matière inconnue ou hors année active ; `items: []` est un état **normal**.
 
 ### GET `/content-requests` · GET `/content-requests/count` (Papa)
 

@@ -4,6 +4,119 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/page-matiere-onglets` — addendum ADR-0024, chantiers A+B+C — 2026-08-11
+
+### 🔴 Un `else` implicite rend un test-verrou VERT sur du code faux
+
+Le service « Reprendre » choisissait le type d'un contenu ainsi :
+
+```python
+kind = "cours" if event_type == "lesson_viewed" else "quiz"   # ← faux
+```
+
+Le test-verrou « `fiche` et `revision` ne se rouvrent pas » **passait**. Sabotage joué : ajouter
+`fiche_viewed` à la liste des types lus. **Le test est resté VERT** — parce que `fiche_viewed`
+était étiqueté « quiz », puis écarté **par accident** (son payload n'a pas de `quiz_id`).
+
+**Cause** : la branche `else` attrape tout ce qui n'est pas explicitement nommé. Le filtrage réel
+reposait sur la *forme du payload*, pas sur une décision.
+
+**Parade** : une table explicite, **sans branche par défaut** —
+`RESUME_KINDS: dict[str, tuple[str, str]]` (`event_type → (kind, clé de payload)`). Un type absent
+de la table `continue`. Le même sabotage rougit désormais.
+
+> ⚠️ **La leçon dépasse ce fichier** : un sabotage qui reste vert ne dit pas « le test est
+> faible », il dit **« regarde le code de plus près »**. Ici c'était un défaut de conception.
+
+### 🔴 `NON_ACTIVITY_EVENTS` n'est pas le filtre « ce que Massimo a travaillé »
+
+Le plan de chantier disait de filtrer `NON_ACTIVITY_EVENTS` pour lire `learning_events`. **C'est
+le mauvais filtre**, et `activity/events.py` porte déjà le récit du bug : il ne contient que les
+deux événements d'agenda, alors que `login` et `page_viewed` sont aussi du non-travail — d'où
+*« se connecter suffisait à suspendre la production pendant cinq minutes »*.
+
+**Parade** : `NON_WORK_EVENTS` (= `{login, page_viewed} | NON_ACTIVITY_EVENTS`). Mieux encore, et
+c'est ce qui a été retenu : **partir d'une liste POSITIVE** de types lus, jamais d'une exclusion —
+une exclusion oublie toujours le type qu'on ajoutera demain.
+
+### ⚠️ Deux routes annoncées « à créer » existaient déjà
+
+Le plan annonçait un `SUM(xp_events.amount)` par matière et une route
+`GET /api/student/subjects/overview`. **Les deux existaient** :
+
+- `gamification.xp_by_subject()` (ADR-0038 §3) — son docstring prévient même qu'*« en servir une
+  seconde façon de le compter serait la dette que ce chantier vient solder »* ;
+- `GET /api/student/galaxy` sert **déjà** une ligne par matière, docstring compris (*« un COMPTE
+  d'étoiles allumées […] ne classe pas ses matières »*).
+
+**Parade** : avant d'écrire un agrégat, chercher qui répond déjà à la question **en français**
+(« combien d'XP dans cette matière »), pas seulement par nom de fonction.
+
+⚠️ **Corollaire de perf** : `xp_by_subject` agrège TOUTES les matières. L'appeler dans une boucle
+sur les matières est un N+1 **sur la page qui les liste toutes**. Le lire **une fois avant la
+boucle**, et exposer un `xp_block(total)` public pour garder le barème de niveau privé.
+
+### ⚠️ Le panneau Browser et Chrome sont deux navigateurs, avec deux sessions
+
+Se connecter dans Chrome ne connecte pas le panneau Browser (`localStorage.zetis_token` y reste
+absent). Deux allers-retours perdus à demander une connexion déjà faite… ailleurs.
+
+**Parade** : vérifier la session **là où on va cliquer** —
+`localStorage.getItem("zetis_token")` — avant de demander quoi que ce soit à l'humain.
+
+### 🔴 Chrome refuse de se redimensionner : mesurer le mobile par une IFRAME
+
+`resize_window` rend « Successfully resized » et `window.innerWidth` **reste à 1920** (fenêtre
+plein écran macOS). Sans mesure mobile, deux défauts seraient passés (barre d'onglets coupée,
+cibles de touche à 16 px).
+
+**Parade** : injecter une iframe de 390 px dans la page authentifiée. Une iframe a **sa propre
+fenêtre d'affichage**, donc les media queries s'évaluent pour de vrai, et la session est partagée.
+
+```js
+const f = document.createElement('iframe');
+f.src = '/subjects/mathematiques';
+f.style.cssText = 'position:fixed;top:0;left:0;width:390px;height:844px;z-index:2147483647';
+document.body.appendChild(f);
+// puis mesurer DANS f.contentDocument : scrollWidth, hauteurs de boutons, éléments hors cadre
+```
+
+⚠️ **Mesurer, pas juger sur capture** : `d.documentElement.scrollWidth > innerWidth` pour le
+débordement, et `getBoundingClientRect().height < 44` pour les cibles de touche.
+
+⚠️ **`querySelector('aside')` attrape la barre latérale du layout**, pas le rail de la page. Viser
+par `aria-label`.
+
+### ⚠️ Deux de mes propres tests étaient faux — et verts
+
+1. **`findByText("SVT")`** : ambigu dès que le rail droit affiche aussi une échéance de SVT.
+2. **`await screen.findAllByRole("link")`** : se résout sur « Voir ma galaxie », rendu **avant** le
+   chargement des matières. Le test **courait à vide** et n'aurait jamais rougi.
+
+**Parade** : ancrer l'attente sur une valeur **unique** de la donnée attendue (ici « 640 XP »),
+jamais sur un rôle générique ni sur un texte qui peut apparaître deux fois.
+
+### ⚠️ Un test-verrou peut rougir pour la MAUVAISE raison
+
+Un sabotage sans rapport (retrait du filtre par matière) a fait rougir le test de l'anneau, parce
+qu'il attendait `findByText("2")` — et une échéance « 2 jours » venait d'entrer dans la page.
+Recentré sur l'`aria-label` de l'anneau. **Un test qui se casse pour une raison qui n'est pas la
+sienne ne prouve rien.**
+
+### ⚠️ `cd X && cat >> …` court-circuite l'écriture quand on est DÉJÀ dans X
+
+`cd apps/backend` échoue (« no such file or directory ») quand le shell y est déjà : le `&&`
+annule le `cat >>`, le heredoc est consommé, **rien n'est écrit**, et la commande suivante rend un
+compte de tests inchangé qu'on lit comme un succès.
+
+**Parade** : `pwd` d'abord (le répertoire de travail **persiste** entre les appels), et vérifier
+l'écriture (`grep -c "^def test_"`) plutôt que de se fier au run qui suit.
+
+### ⚠️ `app.routes` n'est pas à plat (piège déjà consigné, retouché)
+
+Lister les routes par `app.routes` rend **`[]`** : un contrôle « telle route existe » écrit dessus
+passe à vide. Vérifier par les **tests** ou par `/openapi.json`.
+
 ## Chantier `feat/papa-lit-un-diagnostic` — ADR-0051, Session A — 2026-08-11
 
 ### 🔴 « Reprendre la forme de X » : vérifier ce que X sert EN PLUS

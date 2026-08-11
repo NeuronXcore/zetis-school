@@ -76,8 +76,13 @@ export async function fetchGamificationSummary(): Promise<GamificationSummary> {
  * complétez jamais** : une courbe dense reconstruite à partir d'elle redescendrait à zéro à
  * chaque absence, et ce cadrage de perte est exactement ce que le contrat empêche
  * (addendum ADR-0024 « Accueil vivant » §A). */
-export async function fetchXpHistory(days = 90): Promise<XpHistory> {
+export async function fetchXpHistory(days = 90, subjectSlug?: string): Promise<XpHistory> {
+  const params = new URLSearchParams({ days: String(days) });
+  // `subject` restreint à une matière (addendum ADR-0024 « page matière onglets »). Un slug
+  // inconnu rend 404 et non une série vide : une courbe vide se lirait « tu n'as rien fait ici »
+  // là où la vraie réponse est « cette matière n'existe pas ».
+  if (subjectSlug) params.set("subject", subjectSlug);
   return asJson(
-    await fetch(`${API_URL}/api/gamification/history?days=${days}`, { headers: headers() }),
+    await fetch(`${API_URL}/api/gamification/history?${params}`, { headers: headers() }),
   );
 }

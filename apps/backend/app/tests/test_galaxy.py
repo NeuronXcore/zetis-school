@@ -774,3 +774,271 @@ def test_une_matiere_sans_rien_de_valide_rend_un_etat_positif(client_db):
     body = client.get("/api/student/subjects/svt/panoply").json()
     assert body["chapters"] == []
     assert body["subject"]["slug"] == "svt"
+
+
+# --- L'effort de Massimo dans la matière (addendum ADR-0024 « page matière onglets ») ----------
+
+
+def _award(TestSession, student_id: int, subject_id: int | None, amount: int) -> None:
+    db = TestSession()
+    db.add(
+        m.XPEvent(
+            student_id=student_id,
+            subject_id=subject_id,
+            amount=amount,
+            reason="quiz_completed",
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+    db.commit()
+    db.close()
+
+
+def test_la_page_matiere_annonce_le_xp_et_le_niveau_de_la_matiere(client_db):
+    """Le XP dit ce que Massimo a FAIT. Autorisé depuis la révision de lecture du §5 : il ne peut
+    que monter, donc il ne peut pas être une mauvaise note."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _award(TestSession, ids["student_id"], ids["subject_id"], 250)
+
+    xp = client.get("/api/student/subjects/svt/panoply").json()["subject_xp"]
+    # Barème existant `_level_from_xp` : 250 XP → niveau 3, 50 acquis dans le niveau.
+    assert xp == {"total": 250, "level": 3, "into_level": 50, "for_next": 100}
+
+
+def test_le_xp_de_la_matiere_ignore_le_xp_non_imputé(client_db):
+    """`XPEvent.subject_id` est nullable (connexion, chat). Verser cet XP dans chaque matière les
+    gonflerait toutes du même montant et ferait dépasser le total à la somme des matières."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _award(TestSession, ids["student_id"], ids["subject_id"], 60)
+    _award(TestSession, ids["student_id"], None, 500)
+
+    assert client.get("/api/student/subjects/svt/panoply").json()["subject_xp"]["total"] == 60
+
+
+def test_le_xp_survit_a_une_matiere_devalidée(client_db):
+    """Le XP appartient à l'ÉLÈVE, pas au catalogue. Si Papa dévalide les chapitres, le travail
+    déjà fait ne doit pas disparaître de l'écran — sinon l'effort de Massimo dépend d'un geste
+    d'adulte sur lequel il n'a aucune prise."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession, chapter_validation="pending")
+    _award(TestSession, ids["student_id"], ids["subject_id"], 130)
+
+    body = client.get("/api/student/subjects/svt/panoply").json()
+    assert body["chapters"] == [], "le repli doit bien être exercé"
+    assert body["subject_xp"]["total"] == 130
+
+
+def test_le_bloc_xp_ne_contient_aucun_pourcentage_ni_mastery(client_db):
+    """Test-verrou. Le §5 n'est PAS levé sur les pourcentages : seul l'effort passe, jamais un
+    score. Un champ servi finit toujours par être affiché."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _award(TestSession, ids["student_id"], ids["subject_id"], 70)
+
+    xp = client.get("/api/student/subjects/svt/panoply").json()["subject_xp"]
+    assert set(xp) == {"total", "level", "into_level", "for_next"}
+    interdits = {"percent", "percentage", "pourcentage", "mastery", "mastery_score", "score"}
+    assert not (set(xp) & interdits)
+
+
+# --- La courbe d'XP d'une matière -------------------------------------------------------------
+
+
+def test_l_historique_xp_se_filtre_par_matiere(client_db):
+    """`?subject=` restreint à une matière — sinon la courbe de SVT raconterait les maths."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _award(TestSession, ids["student_id"], ids["subject_id"], 40)
+    _award(TestSession, ids["student_id"], None, 900)
+
+    filtre = client.get("/api/gamification/history?subject=svt").json()["days"]
+    global_ = client.get("/api/gamification/history").json()["days"]
+
+    assert sum(d["xp"] for d in filtre) == 40
+    assert sum(d["xp"] for d in global_) == 940
+
+
+def test_l_historique_filtré_reste_CREUX_jamais_une_suite_de_zeros(client_db):
+    """🔴 Le contrat de série creuse de l'addendum « Accueil vivant » §A tient AUSSI filtré, et il
+    y pèse plus lourd : une matière travaillée un jour sur dix aurait, en série dense, neuf creux
+    sur dix à lire comme des manques."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _award(TestSession, ids["student_id"], ids["subject_id"], 25)
+
+    days = client.get("/api/gamification/history?subject=svt").json()["days"]
+    assert len(days) == 1, "un seul jour a rapporté, un seul jour existe"
+    assert all(d["xp"] > 0 for d in days)
+
+
+def test_une_matiere_sans_aucun_gain_rend_une_serie_vide(client_db):
+    """Vide, et surtout pas une suite de zéros : la donnée d'absence n'existe pas."""
+    client, TestSession = client_db
+    _seed_svt(TestSession)
+    assert client.get("/api/gamification/history?subject=svt").json()["days"] == []
+
+
+def test_un_slug_inconnu_est_un_404_jamais_une_courbe_vide(client_db):
+    """Une série vide se lirait « tu n'as rien fait ici » alors que la vraie réponse est « cette
+    matière n'existe pas ». C'est la porte ouverte sur du vide déjà payée le 2026-07-30."""
+    client, _ = client_db
+    assert client.get("/api/gamification/history?subject=latin").status_code == 404
+
+
+# --- La grille des matières ne devient pas un podium (addendum ADR-0024 §1) --------------------
+
+
+def test_la_vue_d_ensemble_annonce_le_xp_et_ce_que_massimo_tient(client_db):
+    """Débranchement de la grille `/matieres` : XP, niveau et compte de notions tenues."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _award(TestSession, ids["student_id"], ids["subject_id"], 320)
+    _set_mastery(TestSession, ids["student_id"], ids["mitose_id"], "mastered", 95)
+
+    svt = next(
+        s for s in client.get("/api/student/galaxy").json()["subjects"] if s["slug"] == "svt"
+    )
+    assert svt["xp"] == {"total": 320, "level": 4, "into_level": 20, "for_next": 100}
+    assert svt["mastered"] == 1
+
+
+def test_l_ordre_des_matieres_est_celui_du_PROGRAMME_jamais_un_podium(client_db):
+    """🔴 TEST-VERROU exigé par l'addendum ADR-0024 §1.
+
+    Le XP est autorisé sur cette surface, mais **il ne doit jamais ORDONNER**. Trier par XP
+    ferait de la liste un classement — la mise en concurrence des matières que le §5 interdit
+    nommément. Rien dans le code ne l'empêche : seul ce test le tient.
+    """
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    db = TestSession()
+    # Deux matières de plus dans l'année active, volontairement placées AVANT SVT au programme.
+    year_id = db.scalar(select(m.SchoolYear.id).where(m.SchoolYear.status == "active"))
+    for nom, slug, rang in [("Francais", "francais", 0), ("Anglais", "anglais", 1)]:
+        subject = m.Subject(name=nom, slug=slug, sort_order=rang)
+        db.add(subject)
+        db.flush()
+        db.add(m.SchoolYearSubject(school_year_id=year_id, subject_id=subject.id))
+    db.commit()
+    db.close()
+    # SVT (`sort_order=2`, dernière au programme) est ECRASANTE en XP.
+    _award(TestSession, ids["student_id"], ids["subject_id"], 5000)
+
+    slugs = [s["slug"] for s in client.get("/api/student/galaxy").json()["subjects"]]
+    assert slugs == ["francais", "anglais", "svt"], (
+        "l'ordre doit etre celui du referentiel ; SVT et ses 5000 XP ne remontent pas"
+    )
+
+
+def test_aucun_pendant_a_renforcer_ne_sort_de_la_vue_d_ensemble(client_db):
+    """🔴 TEST-VERROU. `mastered` dit ce que Massimo TIENT. Aucun champ symétrique ne doit
+    apparaître : désigner les matières faibles est la forme la plus directe du classement que
+    le §5 interdit, et `CLAUDE.md` tient les diagnostics parentaux hors de l'écran de l'enfant.
+    Ce qu'il y a à travailler se dit en MISSION — un geste, pas un verdict."""
+    client, TestSession = client_db
+    _seed_svt(TestSession)
+
+    svt = next(
+        s for s in client.get("/api/student/galaxy").json()["subjects"] if s["slug"] == "svt"
+    )
+    interdits = {"weak", "fragile", "to_reinforce", "gaps", "risk", "risque", "lacunes", "behind"}
+    assert not (set(svt) & interdits), f"champ de verdict servi a l'enfant : {set(svt) & interdits}"
+
+
+# --- « Reprendre » : une carte qui NOMME un contenu doit l'OUVRIR ------------------------------
+
+
+def _log(TestSession, student_id, subject_id, event_type, payload, days_ago=0):
+    db = TestSession()
+    db.add(
+        m.LearningEvent(
+            student_id=student_id,
+            subject_id=subject_id,
+            event_type=event_type,
+            payload_json=payload,
+            created_at=datetime.now(timezone.utc) - timedelta(days=days_ago),
+        )
+    )
+    db.commit()
+    db.close()
+
+
+def test_reprendre_sert_le_dernier_cours_ouvert_avec_son_titre_a_jour(client_db):
+    """Le titre est résolu SERVEUR, jamais lu depuis le payload : celui-ci fige le titre à
+    l'instant du clic, donc il est périmé dès que Papa renomme."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _log(TestSession, ids["student_id"], ids["subject_id"], "lesson_viewed",
+         {"lesson_id": ids["lesson_id"], "lesson_title": "ANCIEN TITRE PERIME"})
+
+    items = client.get("/api/student/subjects/svt/resume").json()["items"]
+    assert len(items) == 1
+    assert items[0]["kind"] == "cours"
+    assert items[0]["target_id"] == ids["lesson_id"]
+    assert items[0]["title"] == "Mitose", "le titre vient de la BASE, pas du journal"
+
+
+def test_reprendre_ne_propose_PAS_un_cours_devalide_depuis(client_db):
+    """🔴 TEST-VERROU. Une carte qui nomme un contenu doit l'ouvrir. Si Papa a dévalidé le
+    chapitre depuis, la page cible ne montrera plus rien : c'est la porte ouverte sur du vide
+    que l'addendum du 2026-07-30 a déjà coûtée une fois."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession, chapter_validation="pending")
+    _log(TestSession, ids["student_id"], ids["subject_id"], "lesson_viewed",
+         {"lesson_id": ids["lesson_id"]})
+
+    assert client.get("/api/student/subjects/svt/resume").json()["items"] == []
+
+
+def test_reprendre_ecarte_fiche_et_revision_qui_ne_se_rouvrent_PAS(client_db):
+    """🔴 TEST-VERROU. `fiche` n'a aucun lien profond (`/fiches/:slug` ouvre le deck) et
+    `revision` LANCE une nouvelle session. Les servir ferait nommer un contenu précis pour
+    atterrir ailleurs — la dette « le libellé sur-promet » déjà consignée sur `capsule_id`."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _log(TestSession, ids["student_id"], ids["subject_id"], "fiche_viewed", {"fiche_id": 1})
+    _log(TestSession, ids["student_id"], ids["subject_id"], "review_attempted", {"card_id": 9})
+
+    assert client.get("/api/student/subjects/svt/resume").json()["items"] == []
+
+
+def test_reprendre_dedoublonne_un_contenu_rouvert_plusieurs_fois(client_db):
+    """Rouvrir dix fois la même leçon ne doit pas remplir la carte de dix fois la même ligne."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    for jour in range(4):
+        _log(TestSession, ids["student_id"], ids["subject_id"], "lesson_viewed",
+             {"lesson_id": ids["lesson_id"]}, days_ago=jour)
+
+    assert len(client.get("/api/student/subjects/svt/resume").json()["items"]) == 1
+
+
+def test_reprendre_ignore_un_payload_sans_identifiant(client_db):
+    """On ne devine pas : un payload incomplet ne produit aucune carte."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _log(TestSession, ids["student_id"], ids["subject_id"], "lesson_viewed", {})
+
+    assert client.get("/api/student/subjects/svt/resume").json()["items"] == []
+
+
+def test_reprendre_ne_sert_aucune_MESURE_de_l_activite(client_db):
+    """🔴 TEST-VERROU de frontière avec `activity`, dont la doctrine est inverse (« un enfant
+    chronométré travaille pour le chronomètre »). Cette carte est un SIGNET, pas une mesure :
+    aucune minute, aucune session, aucun compte, aucun score n'en sort."""
+    client, TestSession = client_db
+    ids = _seed_svt(TestSession)
+    _log(TestSession, ids["student_id"], ids["subject_id"], "lesson_viewed",
+         {"lesson_id": ids["lesson_id"]})
+
+    item = client.get("/api/student/subjects/svt/resume").json()["items"][0]
+    interdits = {"minutes", "duration", "seconds", "sessions", "count", "score", "streak"}
+    assert not (set(item) & interdits)
+
+
+def test_reprendre_404_sur_une_matiere_inconnue(client_db):
+    client, TestSession = client_db
+    _seed_svt(TestSession)
+    assert client.get("/api/student/subjects/latin/resume").status_code == 404

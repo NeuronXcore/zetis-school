@@ -18,6 +18,7 @@ from app.modules.galaxy.schemas import (
     GalaxyOverviewOut,
     GalaxyTimelineOut,
     SubjectPanoplyOut,
+    SubjectResumeOut,
 )
 
 student_router = APIRouter(
@@ -44,6 +45,17 @@ def subject_panoply(subject_slug: str, db: Session = Depends(get_db)) -> dict:
     404 si la matière est inconnue ou hors année active ; `chapters: []` si rien n'est validé.
     """
     return service.subject_panoply(db, subject_slug)
+
+
+@subjects_router.get("/{subject_slug}/resume", response_model=SubjectResumeOut)
+def subject_resume(subject_slug: str, db: Session = Depends(get_db)) -> dict:
+    """Les derniers contenus de cette matière que Massimo peut ROUVRIR tels quels.
+
+    Seulement `cours` et `quiz` : ce sont les deux seules surfaces adressables par identifiant.
+    Un contenu dévalidé ou archivé depuis n'est pas proposé — une carte qui nomme un contenu
+    doit l'ouvrir, sans quoi elle ouvre une porte sur du vide.
+    """
+    return service.subject_resume(db, subject_slug)
 
 
 @student_router.get("", response_model=GalaxyOverviewOut)

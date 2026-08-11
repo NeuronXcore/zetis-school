@@ -1,20 +1,18 @@
 import { useEffect, useState } from "react";
+import type { GalaxySubject } from "@zetis/types";
 import { fetchGamificationSummary } from "../lib/gamification";
-import {
-  type Capsule,
-  type Subject,
-  PROFILE,
-  RECOMMENDED_CAPSULE,
-  SUBJECTS,
-} from "../data/mock";
+import { fetchGalaxyOverview } from "../lib/galaxy";
 
-// Hook de données de la page Matières. Toute la logique (API + dérivations) vit ici :
-// le composant reste purement présentationnel.
+// Données de la page Matières. Toute la logique vit ici : le composant reste présentationnel.
 //
-// Branché en direct : gamification/summary (niveau, XP, série).
-// Encore mockés (endpoints inexistants côté backend) : liste des matières, objectifs
-// de la semaine, capsule recommandée. Mock typé + fallback isolés ici — aucune donnée
-// pédagogique durable stockée côté front.
+// **Débranché du mock le 2026-08-11** (addendum ADR-0024 « page matière onglets »). La page
+// affichait jusque-là « Niveau 5 », « 62 % du chapitre » et une « Meilleure matière » tirés de
+// `data/mock.ts` — trois choses fausses, dont deux interdites par l'ADR-0024 §5 (pourcentage,
+// classement des matières).
+//
+// ⚠️ **Aucune route n'a été créée.** `GET /api/student/galaxy` servait déjà une ligne par
+// matière ; elle porte désormais aussi `xp` et `mastered`. Le plan de chantier annonçait une
+// route neuve : le read-before-code l'a démentie.
 
 export interface Progression {
   level: number;
@@ -27,74 +25,50 @@ export interface Progression {
 export interface MatieresData {
   loading: boolean;
   error: string | null;
-  /** true quand la gamification a répondu (sinon valeurs de repli). */
-  live: boolean;
-  progression: Progression;
-  subjects: Subject[];
-  recommendedCapsule: Capsule;
-  bestSubject: Subject;
-}
-
-// Repli si la gamification n'a pas (encore) répondu : valeurs du profil mocké.
-const FALLBACK_PROGRESSION: Progression = {
-  level: PROFILE.level,
-  xpIntoLevel: PROFILE.xp,
-  xpForNext: PROFILE.nextLevelXp,
-  totalXp: PROFILE.xp,
-  levelProgress: Math.round((PROFILE.xp / PROFILE.nextLevelXp) * 100),
-};
-
-// TODO(api) : remplacer par GET /api/subjects (maîtrise par matière en direct).
-const MOCK_SUBJECTS = SUBJECTS;
-// TODO(api) : remplacer par l'endpoint « capsule recommandée ».
-const MOCK_CAPSULE = RECOMMENDED_CAPSULE;
-
-// Meilleure matière = progression la plus avancée (dérivé du mock tant que la
-// maîtrise par matière n'est pas exposée par la gamification).
-function pickBestSubject(subjects: Subject[]): Subject {
-  return subjects.reduce((best, s) => (s.progress > best.progress ? s : best), subjects[0]);
+  progression: Progression | null;
+  /** ⚠️ **Dans l'ordre du PROGRAMME, servi par le serveur.** Ne jamais trier ici : par XP, par
+   *  `mastered` ou par `lit`, la grille deviendrait un podium — la mise en concurrence des
+   *  matières que le §5 interdit. Un test-verrou serveur tient l'ordre ; celui-ci le respecte. */
+  subjects: GalaxySubject[];
 }
 
 export function useMatieres(): MatieresData {
-  const [progression, setProgression] = useState<Progression>(FALLBACK_PROGRESSION);
-  const [live, setLive] = useState(false);
+  const [progression, setProgression] = useState<Progression | null>(null);
+  const [subjects, setSubjects] = useState<GalaxySubject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    fetchGamificationSummary()
-      .then((s) => {
+    // `allSettled` : une gamification en panne ne doit pas emporter la liste des matières, et
+    // réciproquement. Massimo voit toujours ses matières, même dégradées.
+    void Promise.allSettled([fetchGamificationSummary(), fetchGalaxyOverview()]).then(
+      ([summary, overview]) => {
         if (!active) return;
-        setProgression({
-          level: s.level,
-          xpIntoLevel: s.xp_into_level,
-          xpForNext: s.xp_for_next,
-          totalXp: s.total_xp,
-          levelProgress:
-            s.xp_for_next > 0 ? Math.round((s.xp_into_level / s.xp_for_next) * 100) : 0,
-        });
-        setLive(true);
-      })
-      .catch((e: unknown) => {
-        if (!active) return;
-        setError(e instanceof Error ? e.message : "Erreur de chargement");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+        if (summary.status === "fulfilled") {
+          const s = summary.value;
+          setProgression({
+            level: s.level,
+            xpIntoLevel: s.xp_into_level,
+            xpForNext: s.xp_for_next,
+            totalXp: s.total_xp,
+            levelProgress:
+              s.xp_for_next > 0 ? Math.round((s.xp_into_level / s.xp_for_next) * 100) : 0,
+          });
+        }
+        if (overview.status === "fulfilled") setSubjects(overview.value.subjects);
+        // L'erreur n'est levée que si TOUT a échoué : une page à moitié servie vaut mieux
+        // qu'un écran d'erreur chez un enfant.
+        if (summary.status === "rejected" && overview.status === "rejected") {
+          setError("Erreur de chargement");
+        }
+        setLoading(false);
+      },
+    );
     return () => {
       active = false;
     };
   }, []);
 
-  return {
-    loading,
-    error,
-    live,
-    progression,
-    subjects: MOCK_SUBJECTS,
-    recommendedCapsule: MOCK_CAPSULE,
-    bestSubject: pickBestSubject(MOCK_SUBJECTS),
-  };
+  return { loading, error, progression, subjects };
 }

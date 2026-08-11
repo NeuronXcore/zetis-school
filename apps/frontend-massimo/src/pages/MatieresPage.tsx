@@ -1,48 +1,89 @@
+// Grille des matières de Massimo — la porte d'entrée de son travail.
+//
+// **Réécrite le 2026-08-11** (addendum ADR-0024 « page matière onglets », chantier B), cadrée
+// sur le wireframe `/matieres` du user. Elle était **100 % mockée** et contredisait l'ADR-0024
+// §5 sur trois points : un « Niveau 5 » faux, un « 62 % du chapitre » (pourcentage interdit) et
+// une tuile « Meilleure matière » — un classement des matières, interdit nommément.
+//
+// Ce qui a changé sur le fond : la page dit maintenant l'EFFORT (XP, niveau) et un COMPTE de
+// notions travaillées, tous deux servis par le serveur. Ce qu'elle ne dit toujours pas : aucun
+// pourcentage, aucun classement, aucun verdict sur une matière.
 import { Link } from "react-router-dom";
-import { GlassPanel, NEON_BAR_FILL, NEON_BUTTON, NeonBackdrop } from "../components/glass";
+import { GlassPanel, NEON_BUTTON, NeonBackdrop } from "../components/glass";
+import { SubjectSideRail } from "../components/matiere/SubjectSideRail";
 import { SubjectTile } from "../components/SubjectTile";
-import { type Subject } from "../data/mock";
-import { type MotivationWeek } from "@zetis/types";
-import { type Progression, useMatieres } from "../hooks/useMatieres";
+import { useAllUpcoming } from "../hooks/useSubjectUpcoming";
+import { useMatieres, type Progression } from "../hooks/useMatieres";
 import { useMotivationWeek } from "../hooks/useMotivationWeek";
-import { WeekDots } from "../components/motivation/WeekDots";
 
-// Page Matières de Massimo — même « matière » visuelle que le login (verre + néon).
-// Aucune logique métier ici : les données viennent du hook useMatieres.
 export function MatieresPage() {
-  const { progression, subjects, recommendedCapsule, bestSubject } = useMatieres();
-  const week = useMotivationWeek();
+  const { loading, error, progression, subjects } = useMatieres();
+  const { week } = useMotivationWeek();
+  const upcoming = useAllUpcoming();
 
   return (
     <div className="relative isolate -m-6 min-h-full overflow-hidden bg-[#000010] p-6 text-white">
       <NeonBackdrop />
-      <div className="relative mx-auto flex max-w-5xl flex-col gap-5">
-        <GlobalProgress progression={progression} />
-        <CapsuleCard
-          notion={recommendedCapsule.notion}
-          subject={recommendedCapsule.subject}
-          durationMin={recommendedCapsule.durationMin}
-        />
-        <SubjectsGrid subjects={subjects} />
-        <WeekStrip week={week.week} bestSubject={bestSubject} />
+      <div className="relative mx-auto max-w-6xl">
+        <h1 className="text-2xl font-bold">Mes matières</h1>
+
+        <div className="mt-4 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="flex min-w-0 flex-col gap-5">
+            {progression && <GlobalProgress progression={progression} />}
+
+            {loading && <p className="text-sm text-slate-400">Un instant…</p>}
+
+            {/* Une seule panne visible, et douce : jamais un code HTTP chez un enfant. */}
+            {!loading && error && (
+              <p className="text-sm text-slate-400">
+                Tes matières n'ont pas voulu s'afficher. Réessaie dans un moment.
+              </p>
+            )}
+
+            {!loading && !error && subjects.length === 0 && (
+              // État POSITIF : l'absence de programme est l'état du catalogue de Papa.
+              <p className="text-sm text-slate-400">Tes matières arrivent bientôt.</p>
+            )}
+
+            {subjects.length > 0 && (
+              <section>
+                {/* ⚠️ `subjects` est rendu DANS L'ORDRE REÇU — celui du programme. Aucun `sort`
+                    ici, ni par XP, ni par notions travaillées : la grille deviendrait un podium,
+                    et le §5 interdit de mettre les matières en concurrence. */}
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                  {subjects.map((subject) => (
+                    <SubjectTile key={subject.subject_id} subject={subject} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Le même rail que la page matière — mêmes règles, mêmes reformulations. Ici les
+              échéances ne sont pas filtrées : on est au-dessus des matières. */}
+          <SubjectSideRail week={week} upcoming={upcoming} />
+        </div>
       </div>
     </div>
   );
 }
 
-// 1. Bandeau « Progression globale » + lien vers la page Progression.
+/** Le bandeau de progression globale : niveau, XP, et la porte vers la galaxie.
+ *
+ *  ⚠️ La barre mesure l'avancée dans le NIVEAU — un compteur d'effort qui se remplit et se vide
+ *  en montant d'un cran. Ce n'est pas un taux de maîtrise, et aucun pourcentage n'est écrit. */
 function GlobalProgress({ progression }: { progression: Progression }) {
   return (
     <GlassPanel className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300/80">
-            Progression globale
+            Tout ce que tu as gagné
           </p>
           <p className="mt-1 text-lg font-bold">Niveau {progression.level}</p>
           <p className="text-sm text-slate-400">
-            {progression.xpIntoLevel} / {progression.xpForNext} XP vers le niveau{" "}
-            {progression.level + 1}
+            {progression.totalXp} XP · encore {progression.xpForNext - progression.xpIntoLevel}{" "}
+            pour le niveau {progression.level + 1}
           </p>
         </div>
         <Link to="/galaxy" className={NEON_BUTTON}>
@@ -50,102 +91,11 @@ function GlobalProgress({ progression }: { progression: Progression }) {
         </Link>
       </div>
       <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
-        <div className={NEON_BAR_FILL} style={{ width: `${progression.levelProgress}%` }} />
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-cyan-300"
+          style={{ width: `${progression.levelProgress}%` }}
+        />
       </div>
     </GlassPanel>
-  );
-}
-
-// 2. Carte « Capsule IA dispo » (mise en avant).
-// Pas de route de lecture par capsule (`/capsules/:id`) côté routeur : « Regarder »
-// pointe vers la page Capsules existante (la plus proche).
-function CapsuleCard({
-  notion,
-  subject,
-  durationMin,
-}: {
-  notion: string;
-  subject: string;
-  durationMin: number;
-}) {
-  return (
-    <GlassPanel className="flex flex-wrap items-center justify-between gap-4 border-cyan-400/30 bg-cyan-400/5 p-5">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300/80">
-          Capsule IA dispo
-        </p>
-        <p className="mt-1 text-lg font-bold">{notion}</p>
-        <p className="text-sm text-slate-400">
-          {subject} · {durationMin} min
-        </p>
-      </div>
-      <Link to="/capsules" className={NEON_BUTTON}>
-        ▶ Regarder
-      </Link>
-    </GlassPanel>
-  );
-}
-
-// 3. Grille des 8 matières.
-function SubjectsGrid({ subjects }: { subjects: Subject[] }) {
-  return (
-    <section>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">
-        Tes matières
-      </h2>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {subjects.map((subject) => (
-          <SubjectTile key={subject.slug} subject={subject} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// 4. Bande « Cette semaine ».
-//
-// La tuile « Série en cours » (streak) et la tuile « Objectifs de la semaine » ont été retirées
-// ensemble. La première affichait une série qui tombait à zéro après un seul jour manqué — la
-// mécanique la plus contraire à l'esprit du produit. La seconde affichait `PROFILE.consolidatedThisWeek`,
-// une constante codée en dur, ET portait le même nom que l'engagement hebdomadaire que Massimo
-// choisit désormais lui-même : deux « objectifs de la semaine » différents ne pouvaient pas
-// coexister dans la même app.
-function WeekStrip({
-  week,
-  bestSubject,
-}: {
-  week: MotivationWeek | null;
-  bestSubject: Subject;
-}) {
-  return (
-    <section>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">
-        Cette semaine
-      </h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {/* Rappel discret de « Ma semaine », dont le geste d'engagement vit sur l'accueil : on
-            montre l'état ici, on ne redemande pas de s'engager à chaque page. */}
-        <GlassPanel className="p-4 sm:col-span-2">
-          <p className="text-xs text-slate-400">Ma semaine</p>
-          {week ? (
-            <div className="mt-2">
-              <WeekDots week={week} compact />
-              <p className="mt-2 text-sm text-slate-300">
-                {week.days_done} jour{week.days_done > 1 ? "s" : ""} cette semaine
-                {week.goal_days != null && ` · objectif ${week.goal_days}`}
-              </p>
-            </div>
-          ) : (
-            <p className="mt-2 text-sm text-slate-400">—</p>
-          )}
-        </GlassPanel>
-
-        <GlassPanel className="p-4">
-          <p className="text-xs text-slate-400">Meilleure matière</p>
-          <p className="mt-1 text-lg font-bold text-slate-100">{bestSubject.name}</p>
-          <p className="text-xs text-slate-500">{bestSubject.progress}% du chapitre</p>
-        </GlassPanel>
-      </div>
-    </section>
   );
 }
