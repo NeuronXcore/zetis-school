@@ -118,23 +118,29 @@ cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
   isolation. Fichier **jamais touché** ce chantier (aucun diff). Interférence entre fichiers.
 - ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4) — **remonté de l'élagage de
   l'ADR-0051**, toujours ouvert, toujours hors périmètre.
-- 🔴 **RÉSIDU DE DEV EN BASE, remonté de l'ADR-0051 et VÉRIFIÉ TOUJOURS VIVANT le 2026-08-11** :
-  le **quiz 56** (Mathématiques, 40 questions) a servi de décor de relecture et est resté
-  `pending`. Contrôle : `select id, validation_status from quizzes where id=56;` → `pending`.
-  Le laisser ainsi fait croire à un diagnostic en attente sur la page de Papa.
+- ✅ **RÉSIDU DE DEV RÉSOLU le 2026-08-11** — le **quiz 56** (Mathématiques, 40 questions), resté
+  `pending` après avoir servi de décor de relecture à l'ADR-0051, est repassé `validated`.
+  Contrôle : `select count(*) from quizzes where quiz_type='diagnostic' and
+  validation_status='pending';` → **0**.
 
-  ```sql
-  update quizzes set validation_status='validated', validated_by='parent', validated_at=now()
-  where id=56;
-  ```
+  ⚠️ **Le SQL documenté a été suivi À UN CHAMP PRÈS, et c'est délibéré.** Il écrivait
+  `validated_by='parent', validated_at=now()` : cela aurait affirmé que Papa a **relu** ce quiz.
+  Il ne l'a pas fait — c'était un décor. Le relevé le montre : les **4** diagnostics réellement
+  relus dans l'UI portent `parent` (30, 31, 55, 57), les **14** autres ont `validated_by` **vide**.
+  Écrire `parent` aurait fait du 56 le seul à revendiquer une relecture qui n'a pas eu lieu.
+  Seul `validation_status` a été touché. **Ne pas « compléter » les deux autres champs.**
 - ⚠️ **Décor d'agenda VOLONTAIRE, vérifié conforme** : les items **1** et **2** restent masqués
   exprès (sans eux, le filtre « Archivés » de Papa n'a rien à montrer) ; les items **16** et **19**
   ont bien été restaurés. Ne pas « corriger » les deux premiers.
-- 🔴 **`docs/frontend-massimo/page-capsules-ia.md` est TOUJOURS modifié dans l'arbre de travail**
-  (33 ajouts / 36 retraits) et **n'appartient à aucun chantier**. Il traînait déjà à l'ouverture de
-  cette session et a été **délibérément tenu hors du commit `e152d7b`**. Personne ne sait d'où il
-  vient : `git diff docs/frontend-massimo/page-capsules-ia.md` avant de le committer ou de le
-  jeter. Le laisser traîner le fera un jour entrer dans un commit qui n'est pas le sien.
+- ✅ **`docs/frontend-massimo/page-capsules-ia.md` — RÉGRESSION IDENTIFIÉE ET RESTAURÉE** le
+  2026-08-11. Il traînait modifié dans l'arbre **sans appartenir à aucun chantier**, et a survécu
+  à une clôture complète, un merge et une journée. Enquête : son contenu était la spec
+  **d'initialisation du dépôt (29 juin)**, remise à l'identique par-dessus celle du 3 juillet —
+  effaçant la description de fonctions **livrées et mergées** (PR #23 et #25 : capsules validées
+  et rendues en MP4, étagères, lecteur plein écran, célébration, bouton son) et réintroduisant
+  « Massimo peut demander une capsule », qui **contredit** le livré. Restauré, arbre propre.
+  **Le récit et la parade sont dans `TROUBLESHOOTING.md`** — une clôture qui ne lit que sa propre
+  liste de fichiers laisse passer ce genre de chose.
 - ⚠️ **Le rail arrive après ~1 500 px de défilement sur téléphone** : l'échéance réelle est en bas
   de page. Acceptable pour un rappel qui a l'Accueil et l'Agenda comme surfaces propres — mais
   c'est un choix, pas une fatalité. Signalé au commanditaire, non tranché.
@@ -145,10 +151,10 @@ cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
 dans la foulée du merge (statut de l'ADR passé à **Accepté**, `DECISIONS.md` aligné, ce fichier
 remis au réel).
 
-🔴 **DEUX RÉSIDUS À DÉFAIRE AVANT AUTRE CHOSE**, tous deux vérifiés vivants — voir « DETTES
-OUVERTES » : le **quiz 56** resté `pending` en base de dev, et
-`docs/frontend-massimo/page-capsules-ia.md` **modifié dans l'arbre de travail sans appartenir à
-aucun chantier** (il a traversé toute cette session sans être commité, volontairement).
+✅ **Les deux résidus de fin de session sont RÉSOLUS** (2026-08-11) : le quiz 56 est repassé
+`validated`, et `page-capsules-ia.md` a été **restauré** — il portait la spec du 29 juin remise
+par-dessus celle du livré, une régression de documentation qui avait survécu à une clôture et à
+un merge. Le récit est dans `TROUBLESHOOTING.md`. **Arbre de travail propre.**
 
 **▶ Le chantier suivant se choisit au `BACKLOG.md`.**
 
