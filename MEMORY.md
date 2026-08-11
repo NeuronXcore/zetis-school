@@ -106,16 +106,29 @@ cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
 
 ### 🧾 DETTES OUVERTES
 
-- 🔴 **`data/mock.ts` est devenu largement mort** (`SUBJECTS`, `Subject`, `Capsule`, `getSubject`)
-  après le débranchement de la grille. `PROFILE` sert **encore** de repli à `MassimoBannerHeader`.
-  Un mock qui traîne finit par réalimenter un écran — c'est exactement ce qui a fait vivre
-  « Niveau 5 » et « 62 % du chapitre » depuis la Phase 1.
+- ✅ **`data/mock.ts` ÉLAGUÉ le 2026-08-11** — **255 → 31 lignes**. Dix exports morts supprimés
+  (`ChapterStatus`, `Chapter`, `Subject`, `Capsule`, `SUBJECTS`, `getSubject`,
+  `RECOMMENDED_CAPSULE`, `CAPSULES`, `DIAGNOSTIC_RESULT`, `MINDMAP`).
+
+  ⚠️ **Le contrôle fiable est l'IMPORT, pas le `grep -w`** : celui-ci prétendait `SUBJECTS` vivant
+  dans 5 fichiers — tous des **homonymes locaux** (`SubjectDeckGrid.test.tsx` définit son propre
+  `SUBJECTS`). Un seul import existait dans tout le dépôt.
+
+  **`PROFILE` survit** (repli du bandeau XP, seul consommateur `MassimoBannerHeader`, verrouillé
+  par son test). 🔴 **Dette laissée** : ce repli affiche des chiffres FAUX (niveau 7, 1240 XP) en
+  cas de panne réseau — même motif que `SUBJECTS`, en plus petit. Trancher est une **décision
+  produit** (montrer un faux nombre, ou ne rien montrer), pas un nettoyage.
 - 🔴 **`ACTION_UI` porte toujours la collision « carte »** : « Reconstruire la **carte** » (mindmap)
   et « Réviser mes **cartes** » (SRS) coexistent dans le panneau de notion. Table **partagée avec
   la Galaxy et le chat** — hors périmètre, non traité.
-- ⚠️ **Un test de `QuizPage` est INSTABLE en suite complète** : « le nettoyage d'URL ne mange QUE
-  `subject` — `from` doit survivre » a échoué **une fois** sur un run complet, puis 6/6 en
-  isolation. Fichier **jamais touché** ce chantier (aucun diff). Interférence entre fichiers.
+- 🔴 **Un test de `QuizPage` est INSTABLE en suite complète — DEUX occurrences le 2026-08-11** :
+  « le nettoyage d'URL ne mange QUE `subject` — `from` doit survivre ». Relevé : **2 échecs** sur
+  des runs complets, et **0 sur 3 runs complets consécutifs** juste après, plus **10/10 en
+  isolation**. Le fichier n'a été touché par **aucun** chantier de la journée (aucun diff), et il
+  n'importe rien de `data/mock`. **Interférence entre fichiers de test**, pas une régression.
+  Piste : un voisin qui mocke `react-router-dom`, `useSearchParams` ou `../lib/quiz` sans
+  `mockReset`. ⚠️ Un test intermittent finit par être ignoré — et il masque alors une vraie
+  régression.
 - ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4) — **remonté de l'élagage de
   l'ADR-0051**, toujours ouvert, toujours hors périmètre.
 - ✅ **RÉSIDU DE DEV RÉSOLU le 2026-08-11** — le **quiz 56** (Mathématiques, 40 questions), resté
