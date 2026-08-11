@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ZETIS — Papa · Lire un diagnostic avant de trancher (maquette v1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   v1 — Papa peut LIRE un diagnostic avant de le laisser passer (ADR-0051).
+
+   Le défaut n'est pas « on ne peut pas lire ». C'est que la boucle se referme
+   sur du vide :
+     · `/diagnostics`, cran « chez toi · à relire » → « Ouvrir dans la file de
+       relecture → » (crans.ts:80, adr-0045 D5) ;
+     · `/relecture`, ligne diagnostic → `reviewLink()` rend `null`
+       (pilotageLinks.ts:91) — commentaire daté et assumé : « Papa tranche
+       donc sans lire ».
+   Papa est conduit à la file POUR TRANCHER, et la file est le seul endroit
+   qui ne peut pas lui montrer sur quoi.
+
+   🔴 LES DONNÉES SONT RELEVÉES EN BASE DE DEV LE 2026-08-11, pas inventées.
+   Requêtes sur `quizzes` / `quiz_questions` / `skills` :
+     · 18 diagnostics en base — 🔴 TOUS `validated`. Zéro `pending`, zéro
+       `rejected` : la surface dessinée ici N'A AUCUN DÉCOR (bloc C3).
+     · TROIS générations cohabitent, et l'écran doit tenir les trois :
+         40 questions (8 notions × 5) → 3 diagnostics : 55, 56, 57
+         16 questions (8 notions × 2) → 11 : 8, 9, 15, 17-20, 28-31
+          2 questions                 →  4 : 2, 3, 4, 5
+       Les 40 viennent de l'adr-0043 D3 (QUESTIONS_PER_SKILL : 2 → 5).
+     · 304 questions de diagnostic au total : 0 sans notion, 0 sans
+       explication, 0 retirée, toutes `generated`.
+     · 0 diagnostic SANS question : l'état vide du bloc C1 est un chemin de
+       code, pas un état observé.
+     · Contenu affiché ci-dessous : quiz 57, Histoire-Géo — les 8 notions et
+       les 3 premières questions sont COPIÉES de la base, verbatim.
+
+   🔴 CE QUE LA DONNÉE A CORRIGÉ DANS LE CADRAGE. Le plan disait « ses 8
+   questions ». C'est FAUX : un diagnostic récent en porte 40 (8 notions × 5,
+   adr-0043 D3). Une liste plate de 40 questions est un mur — et un mur se
+   survole, il ne se relit pas. D'où le groupement PAR NOTION, qui n'est pas
+   une commodité de mise en page : c'est la forme qui rend visible le seul
+   défaut qu'on cherche (une question juste posée sur la mauvaise notion).
+
+   Tokens repris VERBATIM de `apps/frontend-papa/src/index.css`.
+   ========================================================================= */
+:root{
+  --papa-bg:#0a0f1a;
+  --papa-surface:#111a28;
+  --papa-surface-2:#18243a;
+  --papa-border:#243348;
+  --papa-text:#e6edf6;
+  --papa-muted:#8595ac;
+  --papa-accent:#10b981;
+  --papa-accent-2:#38bdf8;
+  --papa-warn:#f59e0b;
+
+  --accent-wash:rgba(16,185,129,.13);
+  --accent-line:rgba(16,185,129,.34);
+  --warn-wash:rgba(245,158,11,.11);
+  --warn-line:rgba(245,158,11,.38);
+  --sky-wash:rgba(56,189,248,.12);
+  --sky-line:rgba(56,189,248,.34);
+  --void:#5c6b82;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;padding:40px 24px 80px;
+  background:var(--papa-bg);color:var(--papa-text);
+  font-family:'Instrument Sans',system-ui,sans-serif;
+  font-size:15px;line-height:1.55;
+}
+.wrap{max-width:920px;margin:0 auto}
+h1{font-family:Archivo,sans-serif;font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+h2.ecran{
+  font-family:Archivo,sans-serif;font-size:13px;text-transform:uppercase;
+  letter-spacing:.14em;margin:44px 0 4px;color:var(--papa-accent);
+}
+h2.ecran.avant{color:var(--void)}
+.sub{color:var(--papa-muted);font-size:14px;margin:0 0 22px}
+.note{
+  border:1px solid var(--accent-line);background:var(--accent-wash);
+  border-radius:12px;padding:14px 16px;margin:0 0 8px;font-size:13.5px;
+}
+.note.warn{border-color:var(--warn-line);background:var(--warn-wash)}
+.note.plat{border-color:var(--papa-border);background:var(--papa-surface);color:var(--papa-muted)}
+.note b{color:var(--papa-text)}
+.note p{margin:6px 0 0}
+.note p:first-child{margin-top:0}
+code{font-family:'IBM Plex Mono',monospace;font-size:.9em;color:var(--papa-accent-2)}
+
+/* --- l'écran --- */
+.ecran-cadre{
+  border:1px solid var(--papa-border);border-radius:16px;
+  background:var(--papa-bg);padding:22px;margin-top:12px;
+}
+.panneau{
+  border:1px solid var(--papa-border);background:var(--papa-surface);
+  border-radius:14px;padding:20px;
+}
+.surtitre{
+  font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--papa-muted);margin:0;
+}
+.surtitre .acteur{color:var(--papa-warn);font-weight:600}
+.surtitre .acteur.sky{color:var(--papa-accent-2)}
+.panneau h3{font-family:Archivo,sans-serif;font-size:21px;margin:4px 0 0}
+.panneau .chapeau{color:var(--papa-muted);font-size:13.5px;margin:12px 0 0;max-width:62ch}
+.panneau .chapeau b{color:var(--papa-text)}
+
+/* --- la ligne de volume : ce qu'il y a à relire --- */
+.volume{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;
+  margin:18px 0 10px;padding-top:16px;border-top:1px solid var(--papa-border);
+}
+.volume .compte{font-family:Archivo,sans-serif;font-size:15px;font-weight:700}
+.volume .detail{color:var(--papa-muted);font-size:12.5px}
+
+/* --- le groupe de notion --- */
+ul.notions{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+li.notion{
+  border:1px solid var(--papa-border);background:var(--papa-surface-2);
+  border-radius:11px;overflow:hidden;
+}
+li.notion.ouverte{border-color:var(--accent-line)}
+.notion-tete{
+  display:flex;align-items:center;gap:11px;
+  padding:11px 14px;cursor:pointer;
+}
+.chevron{color:var(--papa-muted);font-size:11px;width:11px;flex:0 0 auto}
+.notion-nom{font-weight:600;font-size:14.5px}
+.notion-compte{
+  margin-left:auto;font-family:'IBM Plex Mono',monospace;
+  font-size:11.5px;color:var(--papa-muted);
+}
+
+/* --- la question --- */
+ol.questions{
+  list-style:none;margin:0;padding:0 14px 14px;
+  display:flex;flex-direction:column;gap:10px;
+}
+li.question{
+  border:1px solid var(--papa-border);background:var(--papa-surface);
+  border-radius:10px;padding:13px 15px;
+}
+.q-num{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;
+  color:var(--papa-muted);letter-spacing:.04em;
+}
+.q-enonce{font-size:14px;margin:4px 0 10px;line-height:1.5}
+ul.choix{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+ul.choix li{
+  font-size:13.5px;padding:6px 11px;border-radius:8px;
+  border:1px solid transparent;color:var(--papa-text);
+  display:flex;align-items:center;gap:8px;
+}
+ul.choix li.cle{
+  border-color:var(--accent-line);background:var(--accent-wash);
+  color:var(--papa-accent);font-weight:600;
+}
+ul.choix li .marque{
+  margin-left:auto;font-family:'IBM Plex Mono',monospace;
+  font-size:10.5px;font-weight:700;letter-spacing:.08em;
+}
+.q-explication{
+  margin:10px 0 0;padding:9px 12px;border-radius:8px;
+  border-left:2px solid var(--sky-line);background:var(--sky-wash);
+  font-size:13px;color:var(--papa-muted);
+}
+.q-explication b{color:var(--papa-accent-2);font-weight:600}
+
+/* --- les deux verdicts --- */
+.verdicts{
+  display:flex;flex-wrap:wrap;align-items:center;gap:12px;
+  margin-top:20px;padding-top:16px;border-top:1px solid var(--papa-border);
+}
+.btn-primaire{
+  border:0;border-radius:10px;background:var(--papa-accent);color:#042f1f;
+  font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:13.5px;
+  padding:9px 17px;cursor:pointer;
+}
+.btn-fantome{
+  border:1px solid transparent;border-radius:10px;background:transparent;
+  color:var(--papa-muted);font-family:'Instrument Sans',sans-serif;
+  font-size:13.5px;padding:9px 15px;cursor:pointer;
+}
+.btn-fantome:hover{border-color:var(--papa-border);color:var(--papa-text)}
+.verdicts .apres{
+  color:var(--papa-muted);font-size:12px;flex-basis:100%;margin:0;
+}
+
+/* --- l'état vide --- */
+.vide{
+  border:1px dashed var(--papa-border);border-radius:12px;
+  padding:18px;background:rgba(17,26,40,.5);
+}
+.vide p{margin:0}
+.vide p+p{margin-top:6px;color:var(--papa-muted);font-size:13.5px}
+
+/* --- la file de relecture, ligne --- */
+.file-ligne{
+  display:flex;flex-wrap:wrap;align-items:center;gap:12px;
+  border:1px solid var(--papa-border);background:var(--papa-surface);
+  border-radius:12px;padding:11px 16px;
+}
+.file-picto{
+  width:26px;height:26px;border-radius:8px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:13px;
+  border:1px solid var(--sky-line);background:var(--sky-wash);
+}
+.file-titre{font-weight:600;font-size:14px}
+.file-fil{color:var(--papa-muted);font-size:12px}
+.file-gestes{margin-left:auto;display:flex;align-items:center;gap:8px}
+.lien-voir{
+  color:var(--papa-accent-2);font-size:13px;text-decoration:none;
+  border-bottom:1px solid var(--sky-line);
+}
+.lien-voir.mort{color:var(--void);border-bottom-style:dashed;border-color:var(--void)}
+.btn-file{
+  border:1px solid var(--papa-border);border-radius:8px;background:transparent;
+  color:var(--papa-text);font-size:12.5px;padding:5px 11px;cursor:pointer;
+  font-family:'Instrument Sans',sans-serif;
+}
+.btn-file.valider{border-color:var(--accent-line);color:var(--papa-accent)}
+
+table.faits{
+  width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;
+}
+table.faits th,table.faits td{
+  text-align:left;padding:7px 10px;border-bottom:1px solid var(--papa-border);
+  vertical-align:top;
+}
+table.faits th{
+  color:var(--papa-muted);font-weight:600;font-size:11.5px;
+  text-transform:uppercase;letter-spacing:.08em;
+}
+hr.sep{border:0;border-top:1px solid var(--papa-border);margin:38px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Papa peut lire un diagnostic avant de le laisser passer</h1>
+<p class="sub">
+  Maquette v1 · ADR-0051 · <b>page Diagnostic de Papa</b> — le cran « chez toi · à relire ».
+  Contenu et volumes <b>relevés en base de dev le 2026-08-11</b> (quiz 57, Histoire-Géo).
+</p>
+
+<div class="note warn">
+  <p>🔴 <b>Ce que ce chantier referme.</b> Aujourd'hui la boucle se ferme sur du vide :
+  <code>/diagnostics</code> envoie Papa vers <code>/relecture?kind=diagnostic</code> pour
+  trancher, et <code>reviewLink()</code> y rend <code>null</code> — la file est le seul endroit
+  qui ne peut pas lui montrer sur quoi il tranche.</p>
+  <p>Un diagnostic n'est pas un contenu de confort : il écrit <code>SkillMastery</code> et ouvre
+  des <code>Gap</code>. <b>Une question juste posée sur la mauvaise notion ouvre une lacune
+  fausse</b>, avec un signal fort. Le gate de l'ADR-0043 existe pour ça, et il est traversé à
+  l'aveugle.</p>
+</div>
+
+<div class="note">
+  <p>🔴 <b>Le chiffre qui a corrigé la conception, et qui n'était écrit nulle part.</b> Le cadrage
+  parlait de « ses 8 questions ». Un diagnostic récent en porte <b>40</b> — 8 notions × 5
+  (ADR-0043 Décision 3, <code>QUESTIONS_PER_SKILL</code> passé de 2 à 5). <b>Trois générations
+  cohabitent en base</b> — 3 diagnostics à 40, 11 à 16, 4 à 2 — et l'écran doit tenir les trois.</p>
+  <p><b>Une liste plate de 40 questions est un mur, et un mur se survole.</b> Le groupement par
+  notion n'est donc pas de la mise en page : c'est la forme qui rend visible le seul défaut qu'on
+  cherche — <i>ces cinq questions prétendent mesurer « Monarchie absolue » ; est-ce qu'elles la
+  mesurent ?</i></p>
+</div>
+
+<!-- ================================================================== -->
+<h2 class="ecran">Bloc A — le panneau, replié · ce que Papa voit en arrivant</h2>
+<p class="sub">
+  Le sur-titre, le titre et le chapeau sont ceux qui sont <b>déjà livrés</b>
+  (<code>PanneauSansMesure</code>, ADR-0045 D6). Ce qui est neuf commence au trait.
+</p>
+
+<div class="ecran-cadre">
+  <div class="panneau">
+    <p class="surtitre"><span class="acteur">chez toi</span> · à relire</p>
+    <h3>Diagnostic Histoire-Géo</h3>
+    <p class="chapeau">
+      Le questionnaire existe et attend ta relecture. <b>Rien n'est visible par Massimo</b>, et
+      rien ne le sera tant que tu ne l'auras pas relu : c'est un gate, pas un délai.
+    </p>
+
+    <div class="volume">
+      <span class="compte">40 questions</span>
+      <span class="detail">· 8 notions, 5 questions chacune · générées le 10 août</span>
+    </div>
+
+    <ul class="notions">
+      <li class="notion"><div class="notion-tete">
+        <span class="chevron">▸</span><span class="notion-nom">Société d'ordres</span>
+        <span class="notion-compte">5 questions</span></div></li>
+      <li class="notion"><div class="notion-tete">
+        <span class="chevron">▸</span><span class="notion-nom">États généraux</span>
+        <span class="notion-compte">5 questions</span></div></li>
+      <li class="notion"><div class="notion-tete">
+        <span class="chevron">▸</span><span class="notion-nom">Crise financière</span>
+        <span class="notion-compte">5 questions</span></div></li>
+      <li class="notion"><div class="notion-tete">
+        <span class="chevron">▸</span><span class="notion-nom">Monarchie absolue</span>
+        <span class="notion-compte">5 questions</span></div></li>
+      <li class="notion"><div class="notion-tete">
+        <span class="chevron">▸</span><span class="notion-nom">Serment du Jeu de paume</span>
+        <span class="notion-compte">5 questions</span></div></li>
+      <li class="notion"><div class="notion-tete">
+        <span class="chevron">▸</span><span class="notion-nom">Prise de la Bastille</span>
+        <span class="notion-compte">5 questions</span></div></li>
+      <li class="notion"><div class="notion-tete">
+        <span class="chevron">▸</span><span class="notion-nom">Nuit du 4 août</span>
+        <span class="notion-compte">5 questions</span></div></li>
+      <li class="notion"><div class="notion-tete">
+        <span class="chevron">▸</span><span class="notion-nom">Abolition des privilèges</span>
+        <span class="notion-compte">5 questions</span></div></li>
+    </ul>
+
+    <div class="verdicts">
+      <button class="btn-primaire">Laisser passer</button>
+      <button class="btn-fantome">Refuser ce lot</button>
+      <p class="apres">
+        « Laisser passer » le rend visible à Massimo. « Refuser ce lot » le sort de la file sans
+        rien effacer.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="note plat">
+  <p><b>Ce que la liste des notions dit à elle seule, avant tout dépliage.</b> Les huit noms sont
+  les huit notions <i>que ce diagnostic prétend mesurer</i>. Un nom hors sujet, un doublon, une
+  notion qui n'a rien à faire dans le chapitre : ça se voit en huit lignes, sans lire une seule
+  question. C'est le premier niveau de relecture, et il est gratuit.</p>
+  <p>🔴 <b>Aucun compteur d'avancement</b> — pas de « 3/8 relues », pas de barre. ADR-0039 §7 :
+  un compteur transforme « relire ce qui compte » en « vider la file ». Les chevrons ne gardent
+  aucune mémoire de ce qui a été ouvert.</p>
+</div>
+
+<!-- ================================================================== -->
+<h2 class="ecran">Bloc B — une notion dépliée · les cinq éléments d'une question</h2>
+<p class="sub">
+  Énoncé · choix · <b>bonne réponse</b> · <b>explication</b> · <b>notion visée</b>.
+  Les trois questions ci-dessous sont copiées de la base, verbatim.
+</p>
+
+<div class="ecran-cadre">
+  <ul class="notions">
+    <li class="notion ouverte">
+      <div class="notion-tete">
+        <span class="chevron">▾</span><span class="notion-nom">Société d'ordres</span>
+        <span class="notion-compte">5 questions</span>
+      </div>
+      <ol class="questions">
+
+        <li class="question">
+          <p class="q-num">Question 1 / 5</p>
+          <p class="q-enonce">
+            Dans la société d'ordres de l'Ancien Régime, quel groupe était considéré comme le
+            « Tiers État » ?
+          </p>
+          <ul class="choix">
+            <li>La noblesse et le clergé</li>
+            <li class="cle">Les artisans, les paysans et les bourgeois<span class="marque">✓ CLÉ</span></li>
+            <li>Le roi et ses conseillers</li>
+            <li>Les soldats de l'armée royale</li>
+          </ul>
+          <p class="q-explication">
+            <b>Ce que Massimo lira après coup —</b> Le Tiers État regroupait tous ceux qui ne
+            faisaient pas partie des deux premiers ordres privilégiés (noblesse et clergé), soit
+            environ 98 % de la population.
+          </p>
+        </li>
+
+        <li class="question">
+          <p class="q-num">Question 2 / 5</p>
+          <p class="q-enonce">
+            Quelle était la principale caractéristique des privilèges dont bénéficiaient le clergé
+            et la noblesse ?
+          </p>
+          <ul class="choix">
+            <li>Ils devaient payer beaucoup d'impôts</li>
+            <li class="cle">Ils étaient exemptés de la plupart des impôts directs<span class="marque">✓ CLÉ</span></li>
+            <li>Ils n'avaient aucun droit juridique</li>
+            <li>Ils devaient travailler pour le roi</li>
+          </ul>
+          <p class="q-explication">
+            <b>Ce que Massimo lira après coup —</b> Les privilégiés (clergé et noblesse) ne
+            payaient pas ou peu d'impôts directs à l'État, contrairement au Tiers État qui
+            supportait la charge fiscale.
+          </p>
+        </li>
+
+        <li class="question">
+          <p class="q-num">Question 3 / 5</p>
+          <p class="q-enonce">
+            Comment s'appelait le système juridique basé sur des règles différentes selon que
+            l'on appartenait à un ordre privilégié ou au Tiers État ?
+          </p>
+          <ul class="choix">
+            <li>L'égalité devant la loi</li>
+            <li>La justice royale unique</li>
+            <li class="cle">Les privilèges et les statuts particuliers<span class="marque">✓ CLÉ</span></li>
+            <li>Le droit commun universel</li>
+          </ul>
+          <p class="q-explication">
+            <b>Ce que Massimo lira après coup —</b> Chaque ordre avait ses propres règles,
+            tribunaux et traitements juridiques. On ne jugeait pas un noble comme on jugeait un
+            roturier.
+          </p>
+        </li>
+
+      </ol>
+    </li>
+  </ul>
+</div>
+
+<div class="note">
+  <p>🔴 <b>La notion visée n'est PAS une étiquette sur chaque question : c'est le groupe.</b>
+  Répétée cinq fois de suite, elle devient du bruit qu'on cesse de lire. Portée par l'en-tête du
+  groupe, elle est <b>la question posée à Papa</b> — « ces cinq-là mesurent-elles bien celle-ci ? ».
+  L'erreur qu'on cherche est un <i>écart</i> entre un titre et cinq contenus, et un écart ne se
+  voit que si les deux termes sont présentés comme tels.</p>
+  <p><b>L'explication est relue, pas seulement la clé.</b> C'est le texte que Massimo aura sous
+  les yeux après sa réponse — la seule partie du diagnostic qui lui <i>enseigne</i> quelque chose.
+  La laisser passer sans l'avoir vue serait relire la moitié de ce qu'on valide. Elle est marquée
+  comme telle à l'écran (« ce que Massimo lira après coup »), pour qu'on sache <b>qui</b> la lit.</p>
+</div>
+
+<div class="note plat">
+  <p><b>Un diagnostic est <code>mcq</code> et rien d'autre</b> — en dur dans
+  <code>diagnostics/service.py:203</code>. Le <code>KeyView</code> de
+  <code>QuizInspectModal</code> couvre sept formats : le réutiliser importerait
+  <b>six branches mortes</b> pour un cas. Le rendu ci-dessus est direct.</p>
+  <p>⚠️ Sa ligne d'en-tête — « <i>c'est le SEUL endroit où la clé et l'explication sont
+  visibles</i> » — devient fausse le jour de la livraison, et se réécrit dans le même chantier.</p>
+</div>
+
+<!-- ================================================================== -->
+<h2 class="ecran">Bloc C — les états qu'aucune donnée de dev ne montre</h2>
+
+<h2 class="ecran avant" style="font-size:12px;margin-top:26px">C1 · un diagnostic sans question</h2>
+<div class="ecran-cadre">
+  <div class="panneau">
+    <p class="surtitre"><span class="acteur">chez toi</span> · à relire</p>
+    <h3>Diagnostic Anglais</h3>
+    <div class="volume" style="margin-bottom:0;border-top:1px solid var(--papa-border)"></div>
+    <div class="vide" style="margin-top:14px">
+      <p><b>Ce diagnostic ne contient aucune question.</b></p>
+      <p>Il n'y a rien à relire, et rien à laisser passer : un lot vide mesurerait zéro notion.
+      Le refuser est le seul geste qui ait un sens.</p>
+    </div>
+    <div class="verdicts">
+      <button class="btn-fantome">Refuser ce lot</button>
+      <p class="apres">
+        🔴 « Laisser passer » <b>n'existe pas ici</b> — pas grisé, pas désactivé : absent.
+        Un bouton grisé dirait « bientôt » ; il n'y a pas de bientôt.
+      </p>
+    </div>
+  </div>
+</div>
+<div class="note plat">
+  <p>Même règle que l'ADR-0049 Décision 2 (<i>la porte n'existe pas quand le deck serait vide</i>)
+  et que l'ADR-0050 Décision 7.4. ⚠️ Le motif est le miroir exact du défaut corrigé le 2026-08-11
+  sur les cours vides : <b>on ne valide pas ce qu'on ne lit pas</b>, et un questionnaire sans
+  question est le cas limite de la même phrase.</p>
+</div>
+
+<h2 class="ecran avant" style="font-size:12px;margin-top:26px">C2 · après le verdict, sans rechargement</h2>
+<div class="ecran-cadre">
+  <div class="panneau">
+    <p class="surtitre"><span class="acteur sky">chez Massimo</span> · pas encore passé</p>
+    <h3>Diagnostic Histoire-Géo</h3>
+    <p class="chapeau">
+      Tu l'as relu et proposé. Aucune tentative n'a été enregistrée : il n'y a donc
+      <b>ni score, ni palier, ni lacune</b> — et il n'y en aura pas tant qu'il ne l'aura pas passé.
+    </p>
+  </div>
+</div>
+<div class="note plat">
+  <p>La ligne du rail passe de <b>chez toi</b> (ambre) à <b>chez Massimo</b> (bleu), et le panneau
+  devient celui qui existe déjà. <b>Aucun rechargement</b> : patron optimiste du dépôt
+  (<code>reviewActions</code>, <code>DemandesPage::triageContent</code>) — recharger ferait sauter
+  le rail sous le curseur. En cas d'échec de l'appel, la ligne est rétablie où elle était.</p>
+  <p>⚠️ Le questionnaire <b>reste lisible</b> après le verdict. Un diagnostic passé se relit aussi :
+  c'est ce qui permet de comprendre un score. Ce qui disparaît, ce sont les <b>deux verdicts</b>,
+  pas la lecture.</p>
+</div>
+
+<h2 class="ecran avant" style="font-size:12px;margin-top:26px">C3 · 🔴 cette surface n'a aucun décor en base de dev</h2>
+<div class="note warn">
+  <table class="faits">
+    <tr><th>Fait mesuré (2026-08-11)</th><th>Conséquence pour la slice</th></tr>
+    <tr>
+      <td><b>18 diagnostics en base, TOUS <code>validated</code></b> — zéro <code>pending</code>,
+      zéro <code>rejected</code>.</td>
+      <td>Le cran « chez toi · à relire » <b>ne s'affiche pour aucun</b>. La slice doit fabriquer
+      son décor (générer un diagnostic, ou basculer un existant) — et le dire, plutôt que de
+      conclure « ça marche » sur un rail vide.</td>
+    </tr>
+    <tr>
+      <td><b>Trois générations</b> : 3 diagnostics à <b>40</b> questions, 11 à <b>16</b>, 4 à
+      <b>2</b>.</td>
+      <td>Les trois volumes doivent tenir à l'écran. C'est 40 qui commande la forme — et 2 qui
+      rappelle qu'un groupement de notions peut n'avoir qu'<b>une</b> ligne.</td>
+    </tr>
+    <tr>
+      <td><b>0</b> diagnostic sans question.</td>
+      <td>L'état vide du bloc C1 est un <b>chemin de code</b>, pas un état observé. Il s'écrit, il
+      ne se constate pas.</td>
+    </tr>
+    <tr>
+      <td>304 questions : <b>0</b> sans notion, <b>0</b> sans explication, <b>0</b> retirée.</td>
+      <td>Les cas dégradés ne s'observent pas — ils s'écrivent. <code>skill_id</code> est
+      <b>nullable</b> et <code>get_quiz_for_taking</code> replie déjà sur « Notion » : le groupe
+      sans notion existe dans le code, jamais dans la base.</td>
+    </tr>
+  </table>
+  <p>⚠️ Ce n'est pas une note d'intendance. Le dépôt a déjà payé deux fois le fait de conclure sur
+  un décor absent — <code>test_delete_is_archiving_not_deletion</code> vert sur « la bande ne rend
+  plus rien », et le verrou central de l'ADR-0049 vert sur son sabotage. <b>Un verrou qui n'assert
+  qu'une absence ne verrouille rien tant qu'une présence ne l'accompagne pas.</b></p>
+</div>
+
+<hr class="sep">
+
+<!-- ================================================================== -->
+<h2 class="ecran">Le lien de la file — ce qui tombe</h2>
+<p class="sub">
+  <code>/relecture?kind=diagnostic</code>, une ligne de la sixième famille. Avant / après.
+</p>
+
+<div class="ecran-cadre">
+  <p class="surtitre" style="margin-bottom:9px">Aujourd'hui</p>
+  <div class="file-ligne">
+    <span class="file-picto">🎯</span>
+    <div>
+      <div class="file-titre">Diagnostic — Histoire-Géo</div>
+      <div class="file-fil">Histoire-Géo</div>
+    </div>
+    <div class="file-gestes">
+      <span class="lien-voir mort">— pas de lien —</span>
+      <button class="btn-file valider">Valider</button>
+      <button class="btn-file">Rejeter</button>
+    </div>
+  </div>
+
+  <p class="surtitre" style="margin:20px 0 9px">Après</p>
+  <div class="file-ligne">
+    <span class="file-picto">🎯</span>
+    <div>
+      <div class="file-titre">Diagnostic — Histoire-Géo</div>
+      <div class="file-fil">Histoire-Géo · 40 questions</div>
+    </div>
+    <div class="file-gestes">
+      <a class="lien-voir" href="#">Voir →</a>
+      <button class="btn-file valider">Valider</button>
+      <button class="btn-file">Rejeter</button>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <p><b>« Voir → » mène à <code>/diagnostics?subject=&lt;subject_id&gt;&amp;focus=&lt;quiz_id&gt;</code></b> —
+  la convention des cinq autres familles, appliquée à la sixième. La file sert déjà
+  <code>id</code>, <code>subject_id</code> et <code>subject_slug</code> pour un diagnostic :
+  <b>le lien ne coûte aucun backend</b>.</p>
+  <p>⚠️ <code>chapter_id</code> et <code>lesson_id</code> sont <code>NULL</code> <b>par
+  construction</b> pour cette famille (<code>review_queue/service.py</code>) — la branche explicite
+  de <code>reviewLink</code> reste nécessaire, elle ne se replie pas sur le cas générique.</p>
+  <p>🔴 <b>La file ne gagne AUCUN geste.</b> Valider, Rejeter, et un lien « Voir » vers le pilotage
+  du type : c'est exactement ce que l'ADR-0039 §8 lui accorde, ni plus. Le questionnaire ne s'y
+  affiche pas.</p>
+</div>
+
+<div class="note warn">
+  <p>🔴 <b>Et une promesse meurt avec cette livraison.</b> L'action principale du cran
+  « chez toi · à relire » est aujourd'hui <b>« Ouvrir dans la file de relecture → »</b>
+  (<code>crans.ts:80</code>, ADR-0045 Décision 5). Une fois qu'on lit et qu'on tranche ici, elle
+  renverrait Papa vers la page qui le renvoie ici : un aller-retour qui ne montre rien.</p>
+  <p>Elle est <b>remplacée</b> par la lecture en place. L'ADR-0051 doit le dire en nommant le texte
+  qu'il périme — un ADR qui laisse vivre la phrase qu'il contredit fabrique la prochaine session
+  perdue (règle appliquée à l'ADR-0043 §6).</p>
+</div>
+
+<hr class="sep">
+
+<!-- ================================================================== -->
+<h2 class="ecran">Ce que cette maquette ne montre pas, et pourquoi</h2>
+<div class="note plat">
+  <table class="faits">
+    <tr><th>Absent</th><th>Motif</th></tr>
+    <tr>
+      <td><b>Éditer / retirer une question</b></td>
+      <td>Le verdict porte sur le <b>lot</b>, jamais sur une question — « relire n'est pas
+      produire » (ADR-0039 §8). ⚠️ La capacité existe déjà côté serveur et n'est pas exposée :
+      <code>PATCH /api/quiz-questions/{id}</code> et <code>/retire</code> résolvent par
+      <code>_question_or_404</code>, <b>sans aucun contrôle de type de quiz</b>. Consigné au
+      <code>BACKLOG.md</code>.</td>
+    </tr>
+    <tr>
+      <td><b>Régénérer le diagnostic</b></td>
+      <td>Geste de production. « Refuser ce lot » puis relancer depuis le bouton de tête est le
+      chemin existant, et il passe par une décision explicite.</td>
+    </tr>
+    <tr>
+      <td><b>Un compteur « 3/8 relues »</b></td>
+      <td>ADR-0039 §7, hérité de la Couverture §F.2.</td>
+    </tr>
+    <tr>
+      <td><b>« Voir la page de Massimo → »</b></td>
+      <td>Différée par l'amendement de l'ADR-0045 D5 : aucun lien inter-app n'existe, et les
+      routes de Massimo répondent <b>403</b> à un rôle parent. Reste au <code>BACKLOG.md</code>.</td>
+    </tr>
+  </table>
+</div>
+
+</div>
+</body>
+</html>

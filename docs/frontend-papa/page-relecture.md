@@ -56,6 +56,19 @@ Groupée par famille, dans **l'ordre du curriculum** (matière → chapitre → 
 Le fil d'un **chapitre** s'arrête à sa matière, et **c'est l'information** : c'est lui le nœud, ses
 leçons ne peuvent pas être validées avant lui. Celui d'une **capsule** peut n'avoir aucun chapitre.
 
+> **`[0051]` La sixième famille a enfin son « Voir → ».** `reviewLink()` rendait `null` pour un
+> diagnostic — *« Papa tranche donc sans lire »*, commentaire daté et assumé — faute d'une page
+> capable d'ouvrir un diagnostic précis. L'`adr-0051` construit cette page : le lien mène désormais
+> à `/diagnostics?subject=<subject_id>&focus=<quiz_id>`.
+>
+> ⚠️ **La file ne gagne AUCUN geste.** Valider, Rejeter, et un lien « Voir » vers le pilotage du
+> type : c'est exactement ce que le §8 lui accorde. Le questionnaire ne s'affiche pas ici — une
+> famille qui montrerait son contenu dans la file n'aurait plus besoin du lien, et les cinq autres,
+> elles, l'ont.
+>
+> ⚠️ Le fil d'un **diagnostic** s'arrête à sa matière : `chapter_id` et `lesson_id` sont `NULL`
+> **par construction** pour cette famille — un diagnostic mesure une matière, pas une leçon.
+
 ### Actions
 
 **Valider** part directement. **Rejeter** passe par un `ConfirmDialog` : valider est réversible par

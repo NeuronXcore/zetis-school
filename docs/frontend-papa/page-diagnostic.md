@@ -14,6 +14,14 @@
 > Maquette : `docs/frontend-papa/mockup/mockup-papa-diagnostic-v4-optimisations.html`.
 > Chantier : `prompts/claude-code/prompts-claude-code-adr-0045.md`.
 > **Les passages amendés portent la mention `[0045]`.**
+>
+> **Amendée par l'`adr-0051`** (2026-08-11) — **Papa peut LIRE un diagnostic avant de le laisser
+> passer**. Le cran « chez toi · à relire » cesse d'être un renvoi vers la file de relecture : le
+> questionnaire s'y déplie, groupé par notion, et les deux verdicts vivent à côté de ce qu'on vient
+> de lire. 🔴 **Cet ADR PÉRIME l'action principale du tableau `[0045]` ci-dessous.**
+> Maquette : `docs/frontend-papa/mockup/mockup-papa-lire-diagnostic-v1.html`.
+> Chantier : `prompts/claude-code/prompts-claude-code-adr-0051.md`.
+> **Les passages amendés portent la mention `[0051]`.**
 
 ## Ce que la page répond
 
@@ -195,8 +203,16 @@ des trois stations, et c'est le seul rendu honnête. Mais il ne doit pas pour au
 
 | Cran | Action principale | Action secondaire |
 |---|---|---|
-| **chez toi** · à relire | Ouvrir dans la file de relecture → | Refuser ce lot |
+| **chez toi** · à relire | ~~Ouvrir dans la file de relecture →~~ **`[0051]` la lecture EN PLACE + « Laisser passer »** | Refuser ce lot |
 | **chez Massimo** · pas encore passé | *(différée — voir ci-dessous)* | Retirer la proposition |
+
+> 🔴 **`[0051]` L'action principale du premier cran est PÉRIMÉE.** Une fois que le questionnaire se
+> lit ici, « Ouvrir dans la file de relecture → » renverrait Papa vers la page qui le renvoie
+> ici — un aller-retour qui ne montre rien. `actionPrincipale()` ne rend plus de lien pour le cran
+> `genere`, et disparaît avec lui : elle ne servait plus qu'un cas sur trois.
+>
+> ⚠️ **Ce n'est pas un revirement.** L'action était la seule sortie possible tant que la lecture
+> n'existait nulle part. C'est sa raison d'être qui disparaît, pas sa justesse.
 
 > 🔴 **« Voir la page de Massimo → » est DIFFÉRÉE**, et pas par oubli : elle ne peut pas rendre ce
 > qu'elle annonce. Aucun lien inter-app n'existe (`VITE_API_URL` est la seule variable du front
@@ -213,6 +229,63 @@ aucune migration : c'est une surface qui manque, pas une capacité.
 🔴 **« Retirer la proposition » est destructif du point de vue de Massimo** — le diagnostic
 disparaît de sa page. Elle demande une confirmation, et **sa formulation ne désigne aucun
 manquement de sa part** : le refus va au lot, jamais à l'enfant.
+
+#### `[0051]` Le questionnaire se lit ICI, groupé par notion
+
+**Le panneau du cran « chez toi · à relire » porte le questionnaire.** Pas un lien vers lui : lui.
+
+> **Pourquoi c'est ici et pas dans la file.** L'`adr-0039` §8 accorde à `/relecture` trois choses —
+> *Valider, Rejeter, et un lien « Voir » vers le pilotage du type*. Les cinq autres familles ont
+> ce lien ; la sixième rendait `null`, faute d'une page capable d'ouvrir un diagnostic précis.
+> Cette section est cette page.
+
+**Le volume commande la forme.** Un diagnostic récent porte **40 questions** — 8 notions × 5
+(`adr-0043` D3). Une liste plate de 40 est un mur, et un mur se survole.
+
+- **Les huit notions sont listées, repliées.** C'est déjà un niveau de relecture : un nom
+  hors-sujet, un doublon, une notion étrangère au chapitre se voient en huit lignes, sans ouvrir
+  une seule question.
+- **Une notion dépliée montre ses cinq questions**, chacune avec **énoncé · choix · bonne réponse ·
+  explication**.
+- 🔴 **La notion visée est l'EN-TÊTE DU GROUPE, jamais une étiquette par question.** Répétée cinq
+  fois, elle devient du bruit. Portée par le groupe, elle pose la question à Papa — *« ces cinq-là
+  mesurent-elles bien celle-ci ? »*. Le défaut cherché est un **écart** entre un titre et cinq
+  contenus, et un écart ne se voit que si les deux termes sont présentés comme tels.
+- **L'explication est marquée comme ce qu'elle est** — *« ce que Massimo lira après coup »*. C'est
+  la seule partie du diagnostic qui lui **enseigne** quelque chose ; la laisser passer sans l'avoir
+  vue, ce serait relire la moitié de ce qu'on valide.
+
+⚠️ **Une notion absente se rend `— notion non renseignée —`**, jamais `Notion`. Le cas n'existe pas
+en base ; il existe dans le code (`skill_id` est *nullable*). Un repli qui ressemble à un nom de
+notion ferait passer un défaut de génération pour une notion.
+
+⚠️ **Un diagnostic est `mcq` et rien d'autre** (`diagnostics/service.py:203`, en dur). Le rendu est
+direct : le `KeyView` de `QuizInspectModal` couvre sept formats, six seraient morts ici.
+
+#### `[0051]` Les deux verdicts vivent à côté de ce qu'on vient de lire
+
+**« Laisser passer »** (principal) et **« Refuser ce lot »** (secondaire, déjà livré).
+**On ne tranche pas ce qu'on n'a pas lu** — séparer la lecture du verdict reconstruirait, d'un cran
+plus loin, le défaut que cette section referme.
+
+`/relecture` **garde ses deux verdicts** : deux portes vers le même appel, pas deux vérités. Les
+deux passent par `POST /api/diagnostics/quizzes/{id}/validate|reject`.
+
+- **Après un verdict, la ligne change de cran sans rechargement** — `génère` → `propose` pour
+  « Laisser passer », sortie du rail pour « Refuser ». Patron optimiste du dépôt
+  (`reviewActions`, `DemandesPage::triageContent`) ; recharger ferait sauter le rail sous le
+  curseur. En cas d'échec, la ligne est rétablie où elle était.
+- 🔴 **Le questionnaire reste lisible après le verdict**, y compris sur un diagnostic passé : c'est
+  ce qui permet de comprendre un score. Ce qui disparaît, ce sont les **deux verdicts**, pas la
+  lecture.
+- 🔴 **Sur un diagnostic sans question, « Laisser passer » N'EXISTE PAS** — pas grisé, pas
+  désactivé : absent. Un lot vide mesurerait zéro notion ; le refuser est le seul geste qui ait un
+  sens. Même règle que l'`adr-0049` D2 et l'`adr-0050` D7.4, et miroir exact du défaut du cours
+  vide corrigé le 2026-08-11 : *on ne valide pas ce qu'on ne lit pas.*
+
+**Aucun compteur.** Pas de « 3/8 relues », pas de barre : `adr-0039` §7, un compteur transforme
+« relire ce qui compte » en « vider la file ». Les chevrons ne gardent aucune mémoire de ce qui a
+été ouvert.
 
 #### La portée — comparaison entre passations
 
@@ -377,6 +450,40 @@ cran invisible** de la seule route qui listait les diagnostics. C'est voulu : ce
 de Massimo. Mais Papa a besoin de voir exactement ce que Massimo ne voit pas encore, d'où une
 surface de lecture dédiée côté Papa — bandeau, rail et matières jamais mesurées, en un appel.
 
+### `[0051]` Ce qu'il faut pour lire un diagnostic : **une route, et rien d'autre**
+
+**`GET /api/diagnostics/quizzes/{quiz_id}/relecture`** — `require_parent`, lecture seule.
+Rend le titre, la matière, le compte total, et les questions **groupées par notion** dans l'ordre de
+`sort_order` : par question, `prompt_markdown` · `choices_json` · `correct_answer_json` ·
+`explanation_markdown` · `skill_id` · `skill_name`.
+
+| Besoin | Ce qui le porte déjà |
+|---|---|
+| Ouvrir un diagnostic **non relu** | **`_quiz_or_404`** (`diagnostics/service.py:368`), le résolveur neutre — sa docstring dit déjà *« C'est le résolveur de PAPA : relire suppose de pouvoir ouvrir ce qui n'est pas encore relu »* |
+| La forme du payload | `_papa_question_out` (`quizzes/service.py`) et le type `PapaQuizQuestion` de `packages/types` — la **forme**, pas le gate |
+| Les deux verdicts | `POST /quizzes/{id}/validate` et `/reject`, et leurs clients `validateDiagnostic()` / `rejectDiagnostic()` |
+| Le lien de la file | `review_queue` sert **déjà** `id`, `subject_id`, `subject_slug` pour un diagnostic |
+
+🔴 **Pourquoi une route de plus plutôt que celle qui existe.** `GET /api/quizzes/{id}` →
+`get_quiz_papa` rend **exactement** ces cinq éléments, `skill_name` compris, et elle est
+`require_parent`. Mais elle résout par **`_mission_quiz_or_404`** : un diagnostic répond 404.
+Élargir ce résolveur ouvrirait du même coup `regenerate`, `add_question` et `delete_quiz` aux
+diagnostics — **cinq gestes de production pour un besoin de lecture, et en silence** : aucune ligne
+de page ne changerait, aucun test ne rougirait.
+
+⚠️ **Le gate de Massimo n'est pas touché.** `_servable_quiz_or_404` garde ses trois routes élève et
+répond toujours **404** — pas 403 — sur un diagnostic non relu.
+
+⚠️ **Le groupement par notion est fait SERVEUR.** C'est lui qui connaît `sort_order` ; deux clients
+n'ont pas à en inventer deux.
+
+🔴 **Zéro migration.** Ce chantier lit un contenu qui existe déjà en base.
+
+🔴 **Et la surface décrite ici n'a AUCUN décor en base de dev** : au 2026-08-11, **18 diagnostics,
+tous `validated`** — zéro `pending`, zéro `rejected`. Le cran « chez toi · à relire » ne s'affiche
+pour aucun. La slice doit fabriquer son décor et le **dire** ; conclure « ça marche » sur un rail
+vide est un mode d'échec déjà payé deux fois dans ce dépôt.
+
 **La portée est calculable, y compris pour le passé** : `quiz_answers` n'est jamais écrasée (une
 réponse par question, **y compris non répondue**), et la clé inter-passations est
 `quiz_questions.skill_id`, stable même si chaque passation est un `quiz_id` neuf.
@@ -531,9 +638,32 @@ est maîtresse et l'URL ne la suit pas. Synchroniser dans les deux sens ferait d
 une seconde source de vérité pour un filtre qui n'en demande pas, et rendrait le retour arrière du
 navigateur imprévisible.
 
-⚠️ **Le `focus` du bandeau reste strictement LOCAL** — il n'entre pas dans l'URL. Un `?subject=`
+⚠️ **Le filtre du bandeau reste strictement LOCAL** — il n'entre pas dans l'URL. Un `?subject=`
 illisible ne présélectionne rien et ne casse rien (test dédié).
 
-🔴 **Ce que cette page ne sait toujours PAS faire** : ouvrir **UN** diagnostic précis, ses questions
-sous les yeux. C'est pour ça que le lien du Journal est de grain matière et le **dit**. Tant que ce
-manque tient, `reviewLink` rend `null` pour un diagnostic et Papa valide sans pouvoir lire.
+~~🔴 **Ce que cette page ne sait toujours PAS faire** : ouvrir **UN** diagnostic précis, ses
+questions sous les yeux.~~ → **levé par l'`adr-0051`**, ci-dessous.
+
+## `[0051]` La page ouvre UN diagnostic précis
+
+`?focus=<quiz_id>` **amorce la sélection du rail** sur ce diagnostic. C'est la destination du lien
+« Voir → » de la file de relecture, qui rend enfin
+`/diagnostics?subject=<subject_id>&focus=<quiz_id>` au lieu de `null` — la convention
+`?subject=&focus=` des cinq autres familles, appliquée à la sixième.
+
+⚠️ **Amorçage, pas synchronisation**, exactement comme `?subject=` : le paramètre sert d'état
+initial, la sélection du rail est ensuite maîtresse et l'URL ne la suit pas.
+
+⚠️ **Un `?focus=` illisible, ou qui désigne un diagnostic hors de l'année active, ne présélectionne
+rien et ne casse rien** — la sélection par défaut reprend (la passation la plus récente). Un lien
+périmé ne doit pas produire un écran d'erreur.
+
+🔴 **Le mot `focus` était déjà pris DANS LE COMPOSANT** par le filtre du bandeau (`[0045]` §2, état
+local). C'est **le paramètre d'URL qui garde le nom** — la convention du dépôt vaut plus qu'un nom
+de variable — et **l'état local du bandeau qui est renommé `filtre`**. Inventer `?passation=` pour
+éviter la gêne aurait coûté une exception permanente pour épargner un renommage de trois lignes.
+
+⚠️ **La file sert déjà tout ce qu'il faut** : `id` (= `quiz_id`), `subject_id` et `subject_slug`,
+avec `chapter_id` / `lesson_id` à `NULL` **par construction** pour cette famille. Le lien ne coûte
+**aucun backend**, et la branche explicite de `reviewLink` reste nécessaire — le cas générique
+exige un chapitre et une leçon.
