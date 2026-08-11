@@ -715,6 +715,70 @@ laquelle. C'est le **premier read-before-code** du chantier, avant toute garde a
 des 50 existantes. Il faudra trancher leur sort — les repasser en `draft`, leur commander une
 rédaction, ou les archiver — et **ce n'est pas une décision technique**.
 
+## Le geste d'une lacune ne dit pas OÙ il va — 🟡 CANDIDAT (2026-08-11)
+
+> Trouvé à l'écran juste après le correctif des trois crans (PR #112) : le lien mène désormais au
+> bon endroit, mais **pas forcément à celui qu'on attendait**, et rien ne prévient.
+
+### Le fait, mesuré
+
+Une notion peut être portée par **plusieurs leçons**. `lessons_by_skill` les trie par
+`updated_at` **décroissant** (puis `id`), et `etat_et_lecon` retient la première `validated` —
+sinon la première tout court. **Rien de tout cela n'est dit à l'écran.**
+
+Cas réel, base de dev : la notion **« Monarchie absolue »**, lacune d'un diagnostic sur **la
+Révolution française**, porte deux leçons —
+
+| Leçon | Chapitre | Modifiée le | |
+|---|---|---|---|
+| **79** — *Les grandes puissances européennes au XVIII<sup>e</sup>* | **31** | 2026-07-30 | ← retenue |
+| 25 — *La crise de l'Ancien Régime* | 34 | 2026-07-03 | |
+
+Papa clique « Valider le cours de **cette leçon** » depuis un diagnostic sur la Révolution, et
+atterrit sur *« Les grandes puissances européennes »*. La destination est **plausible et pas
+attendue** — et il n'a aucun moyen de savoir pourquoi.
+
+### ⚠️ Ce n'est PAS un défaut — c'est une règle du dépôt non appliquée ici
+
+Le départage est un **arbitrage documenté** (`OpenGap.lesson_id` : *« une notion porte jusqu'à
+quatre leçons ; le départage suit l'ordre que `lessons_by_skill` établit déjà côté serveur »*).
+Il ne se rouvre pas.
+
+🔴 **En revanche le dépôt a une règle exactement pour ça, et elle n'est pas tenue** :
+
+> *« Le libellé nomme sa destination ET son grain »* — règle de l'`adr-0047`, réappliquée par
+> l'ADR-0050 Décision 2 quater, qui a fait remplacer « Lire la fiche » par « Lire les fiches »
+> parce que le singulier promettait une fiche précise.
+
+Ici le libellé dit **« cette leçon »** — un singulier qui désigne — sans jamais nommer laquelle.
+C'est le même défaut de promesse, sur une autre surface.
+
+### Les arbitrages à rendre
+
+1. **Nommer la destination dans le libellé** — « Valider le cours de *Les grandes puissances…* ».
+   ⚠️ Mesurer avant : c'est exactement ce que l'ADR-0050 a dû **annuler** sur les étapes du plan,
+   le nom se coupant à l'ellipse (193 px pour 151). Une carte de lacune est plus large qu'une
+   étape d'agenda, mais ça se mesure, ça ne se suppose pas.
+2. **Ou afficher le titre de la leçon sur la carte de lacune**, hors du bouton — l'information
+   sans la contrainte de largeur du libellé.
+3. **Ou dire qu'il y en a plusieurs** (« 2 leçons portent cette notion ») et laisser choisir. Le
+   plus honnête, le plus cher.
+
+### 🔴 Ce qu'il ne faut PAS faire
+
+- **Toucher au tri de `lessons_by_skill`.** Il est partagé par `etat_contenu`, `etat_et_lecon`,
+  `lecons_visees`, la Couverture et la production. Changer son départage pour arranger une
+  surface le changerait partout, en silence.
+- **Fusionner les lacunes.** Le grain de la `Gap` est la **notion**, et c'est juste.
+- **Faire porter le choix à Papa dans l'URL.** Le lien doit rester un lien ; s'il faut choisir,
+  c'est la carte qui pose la question, pas la barre d'adresse.
+
+### Le signal qui dirait d'ouvrir
+
+Papa validant un cours **qu'il ne cherchait pas** — ou demandant « pourquoi ce chapitre ? ». Le
+premier se verra dans `validated_by='parent'` sur une leçon d'un chapitre sans rapport avec le
+diagnostic d'origine ; le second se dira tout seul.
+
 ## Dettes nommées — consignées, non traitées
 
 ### Nées du chantier ADR-0046 (2026-08-08)
