@@ -6,10 +6,11 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — `feat/papa-lit-un-diagnostic` (ADR-0051), **les DEUX slices livrées**
+### ✅ CHANTIER MERGÉ — ADR-0051, PR #113, squash **`239d6e9`**
 
-**Base `465dc56`.** ⚠️ **Ni PR ni merge encore** : il reste le push, la PR, et surtout la
-**relecture visuelle humaine**, que le Suivi de l'ADR exige **avant** le merge.
+**Parent `a1364db`. Branche supprimée** (locale et distante), `main` à `0 0`, **rien à pousser**.
+Cadré, livré, relu et mergé **le même jour**. Aucune migration, un endpoint neuf.
+`CHANGELOG.md` **0.76.0** · `TROUBLESHOOTING.md` une section, huit sous-sections.
 
 🔴 **Le défaut est refermé, et le parcours a été joué EN VRAI** (2026-08-11, base de dev) :
 `/relecture?kind=diagnostic` → « Voir → » → `/diagnostics?subject=2&focus=56` → panneau
@@ -480,20 +481,24 @@ et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dé
 
 ### ▶▶ PROCHAIN PAS
 
-### 1. ▶ PUSH → PR → **RELECTURE VISUELLE** → merge → 4bis
+### 1. ✅ L'ADR-0051 EST CLOS — étape 4bis FAITE le 2026-08-11
 
-Les deux slices sont commitées sur la branche. Il reste, dans cet ordre :
+**Rien à reprendre de ce chantier.** Cadré, livré en deux slices, relu à l'écran, mergé
+(squash `239d6e9`), branche supprimée, `main` à `0 0`. Les annonces « à faire » ont été **éteintes
+dans l'heure du merge** — `DECISIONS.md` et ici — comme pour les `adr-0047` et `adr-0048`, et non
+après vingt-quatre heures comme celle de l'`adr-0044`.
 
-1. **`git push`** — la branche est en avance ;
-2. **ouvrir la PR** ;
-3. 🔴 **LA RELECTURE VISUELLE HUMAINE, AVANT LE MERGE.** C'est la seule étape non délégable, et le
-   Suivi de l'ADR l'exige. **Le décor est prêt et vous attend** : le **quiz 56** (Mathématiques,
-   40 questions, 8 notions × 5) est laissé en `pending` exprès. Lien direct :
-   `/diagnostics?subject=2&focus=56`. Servez-vous aussi de la file : `/relecture?kind=diagnostic`
-   porte désormais son « Voir → ».
-4. **merge**, puis l'**étape 4bis** (`WORKFLOW.md` §5) : remettre ce fichier au réel — squash, n° de
-   PR, branche supprimée — et **éteindre l'annonce du chantier là où elle était promise**
-   (`BACKLOG.md`, `DECISIONS.md`, ici).
+🔴 **UN RÉSIDU DE DEV À DÉFAIRE, et lui seul** : le **quiz 56** (Mathématiques, 40 questions) a
+servi de **décor de relecture** et est resté `pending`. Ce n'est pas un état voulu — le laisser
+ainsi ferait croire à un diagnostic en attente sur la page de Papa. À repasser `validated` :
+
+```sql
+update quizzes set validation_status='validated', validated_by='parent', validated_at=now()
+where id=56;
+```
+
+**▶ Le chantier suivant se choisit au `BACKLOG.md`.** Les décisions qui attendent y sont, et l'une
+d'elles a **gagné une cause** pendant cette session (voir §2).
 
 **Les trois contrôles du §Suivi de l'ADR, tous PASSÉS** : la ligne d'en-tête de `QuizInspectModal`
 est réécrite ✅ · `actionPrincipale()` a disparu ✅ · aucun test ne verrouille plus
