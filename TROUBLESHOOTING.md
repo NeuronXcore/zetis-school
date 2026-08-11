@@ -6,6 +6,47 @@
 
 ## Chantier `feat/page-matiere-onglets` — addendum ADR-0024, chantiers A+B+C — 2026-08-11
 
+### 🔴 Une clôture qui ne regarde QUE ses propres fichiers laisse passer une régression étrangère
+
+`docs/frontend-massimo/page-capsules-ia.md` était modifié dans l'arbre à l'ouverture de la session,
+sans appartenir à aucun chantier. Il a survécu à **une clôture complète, un merge et une journée**
+avant que quiconque regarde ce qu'il contenait.
+
+**Ce qu'il contenait** : la spec **d'initialisation du dépôt (29 juin)**, restaurée à l'identique
+par-dessus celle du 3 juillet — vérifié, contenu byte-à-byte identique une fois les lignes vides
+ignorées. Elle effaçait la description de fonctions **livrées et mergées** (PR #23 et #25) :
+capsules « validées et rendues » en MP4, étagères par matière → chapitre, lecteur plein écran avec
+comptage `onEnded`, célébration mini-victoire, bouton son partagé avec Papa. Et elle réintroduisait
+« Massimo peut demander une capsule », qui **contredit** le comportement livré.
+
+**Cause** : la session précédente (ADR-0051) a réécrit un fichier de doc hors de son périmètre, et
+sa clôture a commité **sa propre liste** de fichiers sans lire le reste de `git status`.
+
+**Pourquoi ça coûte cher** : une spec revenue à son état d'avant implémentation fait croire à la
+session suivante que le travail **reste à faire**. `CLAUDE.md` dit *« mettre à jour la documentation
+si l'implémentation diverge »* — pas l'inverse.
+
+**Parade, deux gestes** :
+
+1. À la **clôture**, lire `git status` **en entier**, pas seulement la liste des fichiers qu'on
+   croit avoir touchés. Tout fichier modifié qu'on ne s'explique pas se **regarde** avant de
+   committer ou de laisser.
+2. Devant un fichier orphelin, la question n'est pas « est-ce à moi ? » mais **« est-ce une
+   avancée ou un retour en arrière ? »**. Le contrôle tient en une commande :
+
+```bash
+# la version de l'arbre correspond-elle à une version HISTORIQUE du fichier ?
+courant=$(git hash-object <fichier>)
+for c in $(git log --format=%H -- <fichier>); do
+  [ "$(git rev-parse "$c:<fichier>")" = "$courant" ] && git log -1 --oneline "$c"
+done
+```
+
+Une correspondance avec une version **ancienne** = régression, pas travail en cours.
+
+> ⚠️ **Le point 6 de `/cloture` ne couvre pas ce cas** : il vérifie les faits qu'on a **écrits**,
+> il ne regarde pas ce qui traîne à côté. Les deux contrôles sont complémentaires.
+
 ### 🔴 Un `else` implicite rend un test-verrou VERT sur du code faux
 
 Le service « Reprendre » choisissait le type d'un contenu ainsi :
