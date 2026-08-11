@@ -423,23 +423,50 @@ les 2 de #112 sont nés de l'œil du commanditaire, jamais d'un test.
 > *« fais disparaître ça »* par un autre bouton, au même endroit, dans le même style.
 > **La conformité d'un composant ne dit rien de ce que l'écran raconte.**
 
-### 1. ▶ Ce qui vient : `/ouverture` est BLOQUÉE, et c'est normal
+### 1. ✅ CADRÉ le 2026-08-11 — `/ouverture` s'est arrêtée à son §2, et c'était le bon geste
 
-Le chantier suivant est **« Papa peut LIRE un diagnostic »**, choisi le 2026-08-10 et **toujours
-pas cadré**. Il lui faut sa session `maquette → spec → ADR-0051 → prompt`, **sur `main`, sans une
-ligne de code**.
+**« Papa peut LIRE un diagnostic » est cadré.** `/ouverture` a été appelée sur un `main` propre à
+`0 0`, et **bloquée à son §2** : l'ADR, la maquette, la spec et le prompt étaient tous absents
+(deuxième fois après le 2026-08-01 — le garde-fou a fonctionné). La session de cadrage a suivi,
+**sur `main`, sans une ligne de code**.
 
-Son read-before-code est **déjà fait** et vaut d'être relu avant :
-`GET /diagnostics/quizzes/{id}` existe mais est inutilisable pour la relecture **deux fois** —
-elle cache la bonne réponse et l'explication (docstring de `get_quiz_for_taking`), et
-`_servable_quiz_or_404` exige `validated`, donc un diagnostic `pending` répond **404**. Le
-résolveur neutre `_quiz_or_404` existe déjà et son docstring **réserve** l'autre aux routes de
-Massimo. Le `null` de `pilotageLinks.ts` tombera avec ce chantier.
+**Neuf fichiers, NON COMMITÉS, et ils ne vont pas au même endroit** (`WORKFLOW.md` §2bis) :
 
-⚠️ **Quatre arbitrages l'attendent, aucun tranché** : où l'on lit (le code penche pour
-`/diagnostics`), si lire permet de trancher au même endroit, ce que montre une question (énoncé ·
-choix · bonne réponse · explication · **la notion visée**, le vrai critère de qualité), et le
-rejet partiel — hors périmètre probable, mais à nommer plutôt qu'à laisser flotter.
+| Lot | Fichiers | Quand |
+|---|---|---|
+| **`main`** — les décisions | `docs/decisions/adr-0051-papa-peut-lire-un-diagnostic.md` (neuf) · `DECISIONS.md` · `BACKLOG.md` · `MEMORY.md` · `TROUBLESHOOTING.md` | **AVANT** `/ouverture` |
+| **la branche** `feat/papa-lit-un-diagnostic` | `docs/frontend-papa/mockup/mockup-papa-lire-diagnostic-v1.html` (neuf) · `prompts/claude-code/prompts-claude-code-adr-0051.md` (neuf) · `page-diagnostic.md` et `page-relecture.md` amendées `[0051]` | c'est `/ouverture` qui la crée |
+
+🔴 **L'ordre n'est pas décoratif** : `/ouverture` **s'arrête** si elle voit `DECISIONS.md` modifié.
+Le lot `main` part donc en premier, sinon la commande suivante bloque sur ce qu'on vient de faire.
+
+🔴 **Le read-before-code a rapporté DEUX faits que ce fichier ignorait, et les deux ont changé la
+conception** :
+
+1. **`GET /api/quizzes/{id}` → `get_quiz_papa` sert DÉJÀ la bonne forme** — clé, explication,
+   `skill_id` **et `skill_name`** — sous `require_parent`. Mais elle résout par
+   `_mission_quiz_or_404` : un diagnostic y répond **404**. La forme existe, le gate l'écarte.
+   Et `patch_question` / `retire_question` passent par `_question_or_404` **sans contrôle de
+   type** : **on peut déjà MODIFIER ce qu'on ne peut pas LIRE.**
+2. 🔴 **Un diagnostic récent porte 40 questions, pas 8** (8 notions × 5 depuis l'`adr-0043` D3).
+   Une liste plate de 40 est un mur — d'où le groupement **par notion**, qui devient une décision
+   de fond et pas une commodité de mise en page.
+   ⚠️ **Trois générations cohabitent** : 3 diagnostics à **40**, 11 à **16**, 4 à **2**, et
+   **0 sans question**. L'écran doit tenir les trois — à 2 questions, un groupement par notion n'a
+   qu'**une** ligne.
+
+⚠️ **Les quatre arbitrages sont TRANCHÉS** (Décisions 1 à 4) : on lit **en place** sur
+`/diagnostics`, on **tranche au même endroit**, une question montre **les cinq** éléments notion
+comprise, et le **rejet partiel est hors périmètre** — nommé, au `BACKLOG.md`.
+
+🔴 **L'`adr-0045` D5 est AMENDÉE** : son action principale « Ouvrir dans la file de relecture → »
+meurt avec ce chantier (elle renverrait vers la page qui renvoie ici).
+
+🔴 **La surface à construire n'a AUCUN décor en base de dev** : 18 diagnostics, **tous
+`validated`**. La slice devra en fabriquer un et le dire.
+
+**Prochain pas** : commit humain de l'ADR + `DECISIONS.md` **sur `main`**, puis
+`/ouverture papa-lit-un-diagnostic ADR-0051` — qui doit alors **passer** son §2.
 
 ### 2. 🔴 TROIS DÉCISIONS VOUS ATTENDENT au `BACKLOG.md` — aucune n'est technique
 
@@ -451,6 +478,12 @@ toutes nées de ce que l'écran a montré :
 | **Les 50 leçons `validated` et VIDES** | `draft`, rédaction, ou archivage — un `draft` **retire de l'écran de Massimo** ce qu'il pouvait déjà ouvrir |
 | **La déclaration contre la preuve** | 🔴 porte son propre **CONTRE-signal** : si les preuves suivent les coches, ce chantier n'a **aucune raison d'exister**. Il ne se construit pas « pour être sûr » |
 | **Le geste ne dit pas OÙ il va** | une règle du dépôt (`adr-0047`) non appliquée, pas un défaut — ⚠️ **ne pas toucher au tri de `lessons_by_skill`**, partagé par cinq appelants |
+
+⚠️ **Une QUATRIÈME est entrée au cadrage du 2026-08-11** : **le rejet partiel d'un diagnostic**,
+hors périmètre **nommé** de l'`adr-0051` (Décision 4). Trois issues, aucune tranchée — l'ouvrir, la
+fermer (poser le contrôle de type manquant sur `_question_or_404`), ou ne rien faire et l'écrire.
+🔴 **Ne pas élargir `_mission_quiz_or_404` « tant qu'on y est »** : il garde six routes, et
+l'élargir ouvrirait `regenerate`, `add_question` et `delete_quiz` aux diagnostics **en silence**.
 
 ### 3. ⚠️ Données de DEV laissées telles quelles
 

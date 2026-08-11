@@ -804,6 +804,53 @@ Papa validant un cours **qu'il ne cherchait pas** — ou demandant « pourquoi c
 premier se verra dans `validated_by='parent'` sur une leçon d'un chapitre sans rapport avec le
 diagnostic d'origine ; le second se dira tout seul.
 
+## Le rejet PARTIEL d'un diagnostic — 🟡 CANDIDAT, hors périmètre nommé de l'`adr-0051` (2026-08-11)
+
+> Écarté **explicitement** au cadrage de l'`adr-0051` (Décision 4), pas oublié. Le verdict de Papa
+> porte sur le **lot** ; retirer une question est un geste de **production**, et *« relire n'est pas
+> produire »* (`adr-0039` §8).
+
+### 🔴 Le fait, mesuré au read-before-code — la capacité EXISTE DÉJÀ, et n'est pas exposée
+
+`patch_question` et `retire_question` (`quizzes/service.py`) résolvent par `_question_or_404`,
+**sans aucun contrôle de type de quiz**. Donc, aujourd'hui, sous `require_parent` :
+
+| Route | Sur une question de diagnostic |
+|---|---|
+| `PATCH /api/quiz-questions/{id}` | **acceptée** — l'énoncé, les choix, la clé et l'explication se modifient |
+| `POST /api/quiz-questions/{id}/retire` | **acceptée** — la question passe `retired` |
+| `GET /api/quizzes/{id}` (lecture) | **404** — `_mission_quiz_or_404` l'écarte |
+
+**L'asymétrie est inversée par rapport à l'intuition : l'écriture est ouverte, la lecture est
+fermée.** Ce n'est pas une faille — les trois sont `require_parent` — mais aucune UI ne l'expose,
+et personne ne l'avait écrit.
+
+### Les arbitrages à rendre — aucun n'est tranché
+
+1. **Ouvrir le rejet partiel** : retirer une question fautive, puis laisser passer le lot, plutôt
+   que refuser 40 questions pour une. Les endpoints existent et fonctionnent. ⚠️ Il faudra alors
+   dire **pourquoi la règle « relire n'est pas produire » vaut pour les fiches et pas ici**.
+2. **Fermer la porte** : poser le contrôle de type manquant sur `_question_or_404`. ⚠️ Ça
+   modifierait le module `quizzes`, et ça fermerait peut-être la porte par laquelle l'option 1
+   entrerait.
+3. **Ne rien faire, et l'écrire** : la capacité reste ouverte et non exposée. C'est l'état actuel,
+   assumé.
+
+### 🔴 Ce qu'il ne faut PAS faire
+
+- **Élargir `_mission_quiz_or_404`** pour « pendant qu'on y est » rendre la lecture symétrique. Il
+  garde **six** routes du module `quizzes` : `regenerate`, `add_question` et `delete_quiz` en
+  dépendent. L'élargir ouvrirait cinq gestes de production **en silence** — aucune ligne de page ne
+  changerait, aucun test ne rougirait. C'est l'alternative (a) écartée par l'`adr-0051`.
+- **Faire remonter Éditer / Retirer dans `/relecture`.** La file est une surface de décision, pas
+  un poste de travail (`adr-0039` §8, et l'en-tête de `reviewActions.ts` le redit).
+
+### Le signal qui dirait d'ouvrir
+
+Papa **refusant des lots pour une ou deux questions** — lisible sans instrumentation : un
+`validation_status='rejected'` suivi d'une regénération de la même matière dans la journée. C'est
+le même signal que le §« Le signal qui dirait qu'on s'est trompé » de l'`adr-0051`.
+
 ## Dettes nommées — consignées, non traitées
 
 ### Nées du chantier ADR-0046 (2026-08-08)

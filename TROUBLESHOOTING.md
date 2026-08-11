@@ -5084,3 +5084,110 @@ applicative** (aucun log console, aucune requête réseau). Le pane était en ca
 parti** — c'est ce qui distingue un clic non délivré d'un bug — puis déclencher le geste par
 `javascript_tool` (`element.click()`), qui exerce le vrai chemin React → lib → réseau. La preuve
 reste bonne : le `POST … /done → 200` et la persistance après rechargement ont été constatés.
+
+## Le cadrage « Papa peut lire un diagnostic » (ADR-0051) — 2026-08-11
+
+> Session de **cadrage**, sur `main`, sans une ligne de code. Les quatre premiers pièges sont des
+> pièges de **cadrage**, pas d'exécution : ils font écrire une décision fausse, ce qui coûte plus
+> cher qu'un bug.
+
+### 🔴 Un read-before-code qui reste dans SON module rate ce que le module voisin fait déjà
+
+`MEMORY.md` portait un read-before-code **juste et incomplet** : *« `GET /diagnostics/quizzes/{id}`
+est inutilisable pour la relecture deux fois — elle cache la clé et l'explication, et un `pending`
+répond 404 »*. Exact. Mais il n'avait regardé que le module `diagnostics`.
+
+Or **`quizzes.get_quiz_papa` sert déjà exactement la forme cherchée** — `correct_answer_json`,
+`explanation_markdown`, `skill_id` **et `skill_name`** — sous `require_parent`, et la seule chose
+qui l'écarte est son résolveur (`_mission_quiz_or_404`). Un cadrage bâti sur le constat partiel
+aurait **inventé un payload** au lieu de reprendre une forme qui existe, et le prompt de slice
+aurait envoyé la session écrire un contrat déjà écrit.
+
+**Parade** : quand un besoin ressemble à ce qu'une **autre famille** sait déjà faire (ici : lire un
+quiz avec ses clés), aller lire l'autre module **avant** de conclure « ça n'existe pas ». Deux
+modules évaluatifs volontairement indépendants (`quizzes` / `diagnostics`, décision écrite dans
+`scoring.py`) partagent quand même des **formes** — l'indépendance porte sur le couplage, pas sur
+le vocabulaire.
+
+### 🔴 L'ÉCRITURE peut être plus ouverte que la LECTURE — on vérifie le mauvais gate
+
+Réflexe naturel en auditant un gate : lister les routes qui **lisent**. Ici les deux résolveurs de
+lecture sont étroits (`_mission_quiz_or_404`, `_servable_quiz_or_404`) — et **`_question_or_404`,
+celui des routes d'écriture, n'a aucun contrôle de type**. Résultat mesuré :
+
+| Route (toutes `require_parent`) | Sur une question de diagnostic |
+|---|---|
+| `PATCH /api/quiz-questions/{id}` | **acceptée** |
+| `POST /api/quiz-questions/{id}/retire` | **acceptée** |
+| `GET /api/quizzes/{id}` | **404** |
+
+**On peut modifier ce qu'on ne peut pas lire.** Ce n'est pas une faille (le rôle protège), mais
+l'asymétrie est **inversée** par rapport à l'intuition, et personne ne l'avait écrit.
+
+**Parade** : quand on relève un gate, lister **toutes** les routes qui touchent le même objet, pas
+seulement celles qui le servent. Le gate le plus large est rarement celui qu'on regarde.
+
+### 🔴 Un chiffre de cadrage faux ne se voit pas en relisant la doc — il se mesure
+
+Le cadrage annonçait *« ses 8 questions »*. Le chiffre venait de la **structure** (8 notions
+mesurées) et personne ne l'avait confronté au réel : depuis l'`adr-0043` D3
+(`QUESTIONS_PER_SKILL` : 2 → 5), un diagnostic récent porte **40 questions**. Une requête l'a dit
+en trois secondes ; **aucun document du dépôt ne portait le nombre**.
+
+Et ce n'était pas un détail de rédaction : **40 commande la forme de l'écran**. Une liste plate de
+40 questions est un mur, et c'est ce chiffre qui a fait du groupement par notion une décision de
+fond au lieu d'une commodité de mise en page.
+
+**Parade** : tout cadrage d'une **surface de lecture** mesure le volume réel en base avant de
+dessiner. `select count(*) … group by` coûte moins qu'une maquette à refaire.
+
+### 🔴 Et le même piège s'est rejoué DANS la correction — une soustraction n'est pas une mesure
+
+Après avoir mesuré « 3 diagnostics à 40 questions » sur 18, j'ai écrit *« les **15** antérieurs en
+portent 16 »*. Personne ne l'a mesuré : `18 − 3 = 15` est une **déduction**, et elle est fausse.
+La distribution réelle, relevée à la clôture :
+
+| Questions | Diagnostics | Ids |
+|---|---|---|
+| 40 (8 notions × 5) | 3 | 55, 56, 57 |
+| 16 (8 notions × 2) | **11** | 8, 9, 15, 17–20, 28–31 |
+| **2** | **4** | 2, 3, 4, 5 |
+
+**Trois générations, pas deux** — et la troisième change le dessin : à 2 questions, un groupement
+par notion n'a qu'**une** ligne. La phrase fausse était partie dans **trois** documents (ADR,
+maquette, `DECISIONS.md`) avant d'être attrapée par le point 6 de `/cloture`.
+
+**Parade** : quand un ensemble est partitionné, **compter chaque part**, jamais en déduire une par
+soustraction. Le total qui tombe juste (3 + 15 = 18) est précisément ce qui rend l'erreur
+invisible à la relecture. ⚠️ Et la vérification a rapporté un **second** fait au passage :
+**0 diagnostic sans question** — l'état vide dessiné dans la maquette est un chemin de code, pas un
+état observé.
+
+### ⚠️ La surface qu'on cadre peut n'avoir AUCUN décor — le mesurer, pas le supposer
+
+Relevé le 2026-08-11 : **18 diagnostics en base de dev, tous `validated`**. Zéro `pending`, zéro
+`rejected`. Le cran « chez toi · à relire », qui est **toute** la surface du chantier, ne s'affiche
+donc pour aucun. Sur 304 questions : 0 sans notion, 0 sans explication, 0 retirée — **les cas
+dégradés existent dans le code et jamais dans la base**.
+
+Le constat n° 6 de l'`adr-0045` disait déjà *« le cran "généré" n'existe pas en base de dev »* ;
+personne ne l'avait remesuré pour la famille entière.
+
+**Parade** : l'écrire dans le prompt de slice, pas seulement dans l'ADR. Une session qui ne
+fabrique pas son décor vérifie un écran vide et le rapporte vert — motif déjà payé deux fois
+(`test_delete_is_archiving_not_deletion`, le verrou central de l'`adr-0049`).
+
+### ⚠️ Le panneau navigateur rend une capture NOIRE sur une page longue, DOM intact
+
+Frère du piège ci-dessus (« les clics expirent, le JS passe »), symptôme différent. Sur une
+maquette de **5 535 px** de haut, après un `scrollIntoView` réussi, `computer{screenshot}` a rendu
+une image **entièrement noire** — et un `scroll` avait expiré à 30 s juste avant, le pane étant
+signalé « hidden ». L'app n'était pas en cause : le document était correct.
+
+**Parade** : **mesurer dans le DOM, pas sur la capture.** Un `javascript_tool` qui rend
+`getBoundingClientRect()`, les comptes d'éléments et `scrollWidth > clientWidth` prouve la
+géométrie sans dépendre du rendu du pane. Ici : 3 questions, **une clé par question**,
+3 explications, aucun débordement horizontal — vérifié pendant que la capture était noire.
+
+⚠️ `scroll_amount` est **plafonné à 10**, et un dépassement rend une erreur de validation, pas un
+scroll tronqué.
