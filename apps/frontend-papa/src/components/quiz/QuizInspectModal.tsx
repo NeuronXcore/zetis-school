@@ -9,7 +9,13 @@ import { formatLabel } from "../../lib/quizPilotage";
 
 // Modale d'inspection d'un quiz (page Papa « Quiz — pilotage »). PRÉSENTATIONNELLE : toute la
 // logique (fetch/patch/retire/add/regenerate/delete) est portée par le hook via les callbacks.
-// Asymétrie serveur assumée : c'est le SEUL endroit où la clé et l'explication sont visibles.
+// Asymétrie serveur assumée : la clé et l'explication ne sont JAMAIS servies à Massimo.
+//
+// ⚠️ **Ce n'est plus le seul endroit où Papa les voit** (adr-0051, 2026-08-11). La page Diagnostic
+// les rend aussi, pour la relecture d'un diagnostic — via `QuestionnaireRelecture`, un composant
+// distinct et volontairement plus pauvre : un diagnostic est `mcq` et rien d'autre, là où le
+// `KeyView` ci-dessous couvre sept formats. Réutiliser celui-ci là-bas aurait importé six branches
+// mortes ; réutiliser celui-là ici perdrait six formats. Les deux coexistent, et c'est écrit.
 
 interface Props {
   detail: PapaQuizDetail;

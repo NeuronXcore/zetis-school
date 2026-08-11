@@ -6,10 +6,22 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### 🔶 CHANTIER EN COURS — `feat/papa-lit-un-diagnostic` (ADR-0051), **slice A LIVRÉE**
+### ✅ CHANTIER COMPLET — `feat/papa-lit-un-diagnostic` (ADR-0051), **les DEUX slices livrées**
 
-**Base `465dc56`. La branche RESTE VIVANTE** : la slice B (Papa) n'est pas faite, et c'est elle qui
-porte l'écran. **Ni PR, ni merge** tant qu'elle manque — la moitié livrée n'a aucun consommateur.
+**Base `465dc56`.** ⚠️ **Ni PR ni merge encore** : il reste le push, la PR, et surtout la
+**relecture visuelle humaine**, que le Suivi de l'ADR exige **avant** le merge.
+
+🔴 **Le défaut est refermé, et le parcours a été joué EN VRAI** (2026-08-11, base de dev) :
+`/relecture?kind=diagnostic` → « Voir → » → `/diagnostics?subject=2&focus=56` → panneau
+« chez toi · à relire », ses 8 groupes, « Laisser passer » → panneau « chez Massimo · pas encore
+passé », et la base écrit `validated` / `validated_by='parent'`. La boucle qui se refermait sur du
+vide se ferme sur le questionnaire.
+
+**Ce qui est fait — slice B, Papa.** `QuestionnaireRelecture` (composant neuf, présentationnel)
+monté sur **les trois crans** : les deux panneaux l'affichent, seul « chez toi » y adjoint les
+verdicts. `reviewLink` rend `/diagnostics?subject=&focus=<quiz_id>` au lieu de `null`. La page
+amorce sa sélection sur `?focus=`. `actionPrincipale()` **supprimée**, l'état local `focus` du
+bandeau renommé `filtre`, et la ligne d'en-tête de `QuizInspectModal` réécrite.
 
 **Ce qui est fait — slice A, backend.** `GET /api/diagnostics/quizzes/{quiz_id}/relecture`,
 `require_parent`, lecture seule. Elle résout par le **`_quiz_or_404` qui existait déjà** (le
@@ -27,25 +39,50 @@ par question `prompt_markdown`, `choices_json`, `correct_answer_json`, `explanat
    générateur écrit des blocs contigus (vérifié en base : 0 `sort_order` nul, 0 doublon), mais le
    décor de test **entrelace exprès** — il est plus dur que la réalité, et il le restera.
 
-**Suites à la clôture** : backend **1194** (1186 + les 8 du fichier neuf) · `tsc -b --noEmit` **0**
-sur Papa et Massimo. **6 sabotages, 6 rougissements.** 🔴 **ZÉRO test existant modifié** — le `git
-diff` sur `apps/backend/app/tests/` est vide, la seule évolution est un fichier neuf.
+🔴 **DEUX arbitrages de la slice B ont été rendus par le commanditaire, sur stop-on-blocker.**
+Le prompt et l'ADR divergeaient, et la session s'est **arrêtée avant d'écrire une ligne** :
 
-⚠️ **La route n'a AUCUN consommateur jusqu'à la slice B.** C'est attendu et borné (le motif que
-l'`adr-0036-addendum-file-sans-consommateur` nomme), mais ça se dit : si la slice B n'arrive pas,
-c'est du code mort qu'aucun test ne signalera comme tel.
+1. **L'ADR était plus large que le prompt.** La D2 dit *« le questionnaire reste lisible après le
+   verdict, y compris sur un diagnostic passé »*, mais le prompt ne décrivait que le cran
+   « chez toi ». Suivre le prompt aurait livré une surface **contredisant sa propre décision** —
+   le diagnostic devenait illisible au moment où il a enfin un score à expliquer.
+   → **Option 1 retenue : les trois crans**, d'où le composant partagé.
+2. **Supprimer `actionPrincipale()` aurait détruit une protection que l'ADR ne vise pas.** Son
+   `return null` pour le cran « proposé » figeait une **décision** (« Voir la page de Massimo » est
+   impossible : routes `require_child`, 403 à un rôle parent), avec un commentaire disant que sa
+   chute devait signaler une réouverture.
+   → **Elle a CHANGÉ DE SUPPORT** : elle vit dans `PanneauPassation.test.tsx`, sur le rendu.
 
-⚠️ **Vérifié sur la VRAIE base**, pas seulement sur le décor SQLite, à travers le `response_model` :
-quiz **57** (40 questions, 8 groupes de 5), **31** (16, 8 groupes de 2), **2** (2, **1 seul
-groupe**). Le dernier est le cas que le read-before-code avait signalé — `MAX_SKILLS = 8` est un
-**plafond, pas une forme**.
+**Suites à la clôture** : backend **1194** · Papa **814** (795 → +19) · Massimo **636** ·
+`tsc -b --noEmit` **0** sur les deux fronts. **13 sabotages, 13 rougissements** (6 en A, 7 en B).
 
-### ▶ CE QUI N'A PAS ÉTÉ VU
+⚠️ **Trois tests existants ont bougé en slice B, et AUCUN n'a été affaibli.** Deux **changent
+d'objet** (ils verrouillaient le lien que la D1 bis périme, ils vérifient maintenant ce qui le
+remplace) ; le troisième a changé de support (ci-dessus). Trois fabriques ont gagné
+`relecture={null}` — on donne aux fixtures ce que le composant exige. 🔴 Le `git diff` sur les tests
+de la slice A, lui, est **resté vide**.
 
-- **Aucune interface** — slice A backend seule, rien à regarder à l'écran.
-- **La route n'a pas été appelée sur le serveur de dev avec un vrai jeton parent.** Le `TestClient`
-  exerce la pile HTTP complète, `response_model` compris ; la traversée `require_parent` en
-  conditions réelles n'a été jouée que par le test.
+⚠️ **Vérifié sur la VRAIE base** à travers le `response_model` : quiz **57** (40 questions,
+8 groupes de 5), **31** (16, 8 groupes de 2), **2** (2, **1 seul groupe**). Le dernier est le cas
+que le read-before-code avait signalé — `MAX_SKILLS = 8` est un **plafond, pas une forme**.
+
+### ▶ CE QUI A ÉTÉ MESURÉ À L'ÉCRAN — et ce qui reste à VOTRE œil
+
+**Mesuré dans le DOM, pas jugé sur capture** :
+
+- **40 questions repliées TIENNENT d'un écran, verdicts compris.** Panneau amené en haut : titre à
+  262 px, « Laisser passer » à 932 px, viewport 1013. Aucun débordement horizontal.
+- **Le chevron des groupes est à 5,10 : 1 de contraste** — AA passé pour du texte normal. J'avais
+  cru y voir un défaut ; la mesure l'a démenti.
+- ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4). **Pré-existant, hors
+  périmètre, signalé non traité** — les huit groupes ne disent donc pas au survol qu'ils s'ouvrent.
+
+🔴 **CE QUI RESTE DÛ, ET QUI N'EST PAS UNE FORMALITÉ — la relecture visuelle humaine.** Sur les
+deux derniers chantiers, **cinq décisions d'écran sont nées de l'œil du commanditaire et aucune
+d'un test**. Une question ouverte, laissée exprès : **les choix NON-clé sont rendus sans bordure ni
+fond**, là où la bonne réponse a son cadre vert. C'est **conforme à la maquette validée**, mais sur
+du contenu réel les quatre options se lisent comme des lignes libres plutôt que comme un ensemble.
+Rien n'a été changé — dévier de la maquette après coup serait une décision, pas une correction.
 
 ## ⬆️ REMONTÉ de l'élagage de `fix/cours-vide-non-validable` (PR #112, squash `a9026d2`)
 
@@ -429,40 +466,36 @@ et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dé
 
 ### ▶▶ PROCHAIN PAS
 
-### 1. ▶ LA SLICE B — c'est elle qui reste, et elle porte tout l'écran
+### 1. ▶ PUSH → PR → **RELECTURE VISUELLE** → merge → 4bis
 
-**Colle le bloc `SESSION B — Papa` de `prompts/claude-code/prompts-claude-code-adr-0051.md`, après
-`/slice`.** La slice A a livré la route ; personne ne l'appelle encore.
+Les deux slices sont commitées sur la branche. Il reste, dans cet ordre :
 
-Ce qu'elle doit faire, dans l'ordre où ça compte :
+1. **`git push`** — la branche est en avance ;
+2. **ouvrir la PR** ;
+3. 🔴 **LA RELECTURE VISUELLE HUMAINE, AVANT LE MERGE.** C'est la seule étape non délégable, et le
+   Suivi de l'ADR l'exige. **Le décor est prêt et vous attend** : le **quiz 56** (Mathématiques,
+   40 questions, 8 notions × 5) est laissé en `pending` exprès. Lien direct :
+   `/diagnostics?subject=2&focus=56`. Servez-vous aussi de la file : `/relecture?kind=diagnostic`
+   porte désormais son « Voir → ».
+4. **merge**, puis l'**étape 4bis** (`WORKFLOW.md` §5) : remettre ce fichier au réel — squash, n° de
+   PR, branche supprimée — et **éteindre l'annonce du chantier là où elle était promise**
+   (`BACKLOG.md`, `DECISIONS.md`, ici).
 
-1. le panneau du cran « chez toi · à relire » porte le questionnaire — **huit notions repliées**,
-   dépliables sur leurs questions (énoncé · choix · clé · explication) ;
-2. **« Laisser passer »** à côté de « Refuser ce lot » (déjà livré, son dialogue est verrouillé par
-   un test de doctrine — le reprendre, pas le réécrire) ;
-3. `reviewLink()` rend `/diagnostics?subject=<id>&focus=<quiz_id>` au lieu de `null` ;
-4. `/diagnostics` **amorce** sa sélection sur `?focus=` ;
-5. 🔴 **renommer l'état local `focus` du bandeau en `filtre`** — le mot revient au paramètre d'URL ;
-6. 🔴 **supprimer `actionPrincipale()`** de `crans.ts` (ADR-0051 D1 bis) et vérifier qu'aucun test
-   ne verrouille encore `/relecture?kind=diagnostic` comme action principale du cran `genere` ;
-7. réécrire la ligne d'en-tête de `QuizInspectModal.tsx` — *« c'est le SEUL endroit où la clé et
-   l'explication sont visibles »* devient faux à cette livraison.
+**Les trois contrôles du §Suivi de l'ADR, tous PASSÉS** : la ligne d'en-tête de `QuizInspectModal`
+est réécrite ✅ · `actionPrincipale()` a disparu ✅ · aucun test ne verrouille plus
+`/relecture?kind=diagnostic` comme action principale ✅.
 
-🔴 **ELLE DEVRA FABRIQUER SON DÉCOR.** 18 diagnostics en base de dev, **tous `validated`** : le
-cran qu'elle construit ne s'affiche aujourd'hui pour **aucun**. Générer, ou basculer un existant en
-`pending` — et **dire lequel**. Un écran vide satisfait toute vérification négative.
+> 🔴 **Le premier ne passait PAS, et c'est le point 6 de `/cloture` qui l'a attrapé.** La slice B
+> l'avait annoncé fait ; il ne l'était pas. La phrase *« c'est le SEUL endroit où la clé et
+> l'explication sont visibles »* est restée fausse jusqu'à la clôture. **Une vérification par
+> commande vaut mieux qu'une case cochée** — c'est exactement ce que cette étape existe pour
+> empêcher, et c'est sa deuxième prise en deux clôtures.
 
-⚠️ **Le contrat servi par la slice A est exactement** `quiz_id · title · subject · total ·
-notions[]`, et rien d'autre. Il ne porte **pas** `validation_status` : le cran vient du rail, qui le
-sert déjà. Si la slice B en a besoin d'un autre, **c'est un stop-on-blocker**, pas un ajout discret.
+⚠️ **Le contrat servi est exactement** `quiz_id · title · subject · total · notions[]`. Il ne porte
+**pas** `validation_status` : le cran vient du rail, qui le sert déjà.
 
-⚠️ **Les quatre arbitrages sont TRANCHÉS** (ADR-0051 D1 à D4) : on lit en place, on tranche au même
-endroit, une question montre les cinq éléments notion comprise, le rejet partiel est hors périmètre.
-On les **relit**, on ne les rouvre pas.
-
-🔴 **RELECTURE VISUELLE HUMAINE DUE AVANT LE MERGE.** Sur les deux derniers chantiers, **cinq
-décisions d'écran sont nées de l'œil du commanditaire et aucune d'un test** — et cette surface est
-du même genre : elle ne casse rien quand elle se trompe, elle **laisse passer**.
+⚠️ **Les quatre arbitrages restent TRANCHÉS** (ADR-0051 D1 à D4). On les **relit**, on ne les
+rouvre pas — y compris le rejet partiel, hors périmètre et consigné au `BACKLOG.md`.
 
 ### 2. 🔴 TROIS DÉCISIONS VOUS ATTENDENT au `BACKLOG.md` — aucune n'est technique
 
@@ -488,7 +521,15 @@ l'élargir ouvrirait `regenerate`, `add_question` et `delete_quiz` aux diagnosti
 - **Curriculum** : les **50 leçons `validated` vides** (dont le chapitre 26, cible de trois
   lacunes du diagnostic Histoire-Géo) et le **chapitre 31** — 2 cours écrits, 2 vides — qui est le
   seul décor exerçant les deux moitiés du lot d'un coup.
-- Les serveurs de dev (5173 / 5174 / 8000) tournaient encore à la clôture.
+- 🔴 **Diagnostic : le quiz 56 est laissé en `pending` EXPRÈS** (2026-08-11). Mathématiques,
+  40 questions, 8 notions × 5, **zéro passation**. C'est **le décor de votre relecture visuelle** —
+  sans lui, le cran « chez toi · à relire » ne s'affiche pour aucun des 18 diagnostics. Il a été
+  basculé, validé pour prouver le verdict, puis **remis en `pending`**. À remettre `validated`
+  quand la relecture sera faite.
+- **Un fichier modifié hors chantier** dans l'arbre : `docs/frontend-massimo/page-capsules-ia.md`
+  (33+/36−). Il n'appartient à aucune slice de l'ADR-0051 — ne pas le laisser partir dans un
+  `git add -A`.
+- Les serveurs de dev (5174 / 8000) tournaient encore à la clôture.
 
 
 ## Dettes SURVIVANTES des chantiers élagués

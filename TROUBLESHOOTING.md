@@ -43,6 +43,60 @@ cassé qui n'est importé nulle part ne fera rougir personne.
 `apps/frontend-papa/node_modules/.bin/tsc -b --noEmit` et l'équivalent Massimo. ⚠️ Et lancer le
 binaire local, pas `npx`.
 
+### 🔴 Le §4 a mordu — supprimer une fonction aurait supprimé une DÉCISION avec elle
+
+Le prompt de la Session B disait, point 6 : *« supprime `actionPrincipale()` »*. La fonction
+rendait trois cas, et **ils ne mouraient pas de la même mort** :
+
+| Cas | Verrouillé par | Sort |
+|---|---|---|
+| cran `genere` → `/relecture?kind=diagnostic` | `crans.test.ts` + `DiagnosticsPapaPage.test.tsx` | **périmé par l'ADR** ✅ |
+| cran `passe` → `null` | `crans.test.ts` | disparaît sans reste ✅ |
+| **cran `propose` → `null`** | `crans.test.ts` | 🔴 **une DÉCISION, pas un manque** |
+
+Le troisième figeait l'impossibilité de « Voir la page de Massimo → » (routes `require_child`,
+**403** à un rôle parent) — et son commentaire disait explicitement que sa chute devait signaler une
+réouverture. Le supprimer **par effet de bord** aurait rouvert la question en silence.
+
+**Parade, appliquée** : la session s'est arrêtée AVANT d'écrire une ligne, et la protection a
+**changé de support** — elle vit désormais dans `PanneauPassation.test.tsx`, sur le *rendu*, ce qui
+est même plus proche de ce qu'elle protège.
+
+⚠️ **La leçon générale** : quand on supprime un helper, lister ses cas **un par un** et demander
+pour chacun *« est-ce que l'ADR le périme, ou est-ce qu'il tombe avec le reste ? »*. Un helper qui
+rend `null` pour plusieurs raisons différentes en fige plusieurs, et le compilateur ne dit lequel.
+
+### 🔴 L'ADR peut être PLUS LARGE que son propre prompt — relire les deux, pas l'un
+
+L'ADR-0051 D2 dit *« le questionnaire reste lisible après le verdict, **y compris sur un diagnostic
+passé** »*. Le prompt de la Session B ne décrivait que le cran « chez toi ». Or `PanneauSansMesure`
+ne s'affiche que sur `cran !== "passe"` : le troisième cran est un **autre composant**, que le
+prompt ne mentionne nulle part.
+
+Suivre le prompt à la lettre aurait livré une surface **contredisant la décision qu'elle réalise** —
+le diagnostic devenait illisible au moment précis où il a un score à expliquer. Et **aucun test ne
+l'aurait vu** : tous les verrous écrits portaient sur le cran « chez toi ».
+
+**Parade** : le prompt est une *mise en œuvre* de l'ADR, pas son résumé. Quand le read-before-code
+liste les fichiers, vérifier que **chaque décision de l'ADR a un fichier en face**. Ici la D2 n'en
+avait pas.
+
+### ⚠️ `findByText` sur le chapeau ne garantit pas que le reste du panneau est là
+
+Un test cliquait « Laisser passer » après `await screen.findByText(/attend ta relecture/)`. Le
+chapeau est rendu **immédiatement** ; le bouton, lui, n'apparaît qu'une fois le questionnaire
+chargé (on ne laisse pas passer ce qu'on n'a pas vu). Le `getByRole` qui suivait échouait.
+
+**Parade** : attendre **l'élément qu'on va utiliser** (`findByRole`), pas un voisin arrivé plus
+tôt. Deux données chargées par deux `useEffect` distincts n'arrivent pas ensemble, même quand elles
+finissent dans le même panneau.
+
+### ⚠️ `getByText` sur un fragment qui apparaît deux fois
+
+`getByText(/2 questions/)` a échoué en `getMultipleElementsFoundError` : la chaîne existe sur la
+ligne de volume **et** sur le badge du groupe. Cibler par le détail unique
+(« 1 notion, 2 questions chacune ») plutôt que par le fragment.
+
 ### ⚠️ `python` n'existe pas sur le PATH de ce dépôt
 
 `python -m pytest` répond `command not found`. L'interpréteur est **`apps/backend/.venv/bin/python`**,
