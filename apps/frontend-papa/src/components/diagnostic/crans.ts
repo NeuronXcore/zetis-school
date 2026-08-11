@@ -68,14 +68,22 @@ export const RETRAIT: Record<
   },
 };
 
-/** L'action principale d'un cran non passé, ou `null` quand il n'en a pas.
- *
- *  🔴 **Le cran « proposé » n'en a PAS, et c'est un amendement écrit, pas un oubli.** « Voir la page
- *  de Massimo → » ne peut pas rendre ce qu'elle annonce : aucun lien inter-app n'existe, et surtout
- *  cette page appelle des routes `require_child` qui répondent **403** à un rôle parent
- *  (`auth/deps.py:55`). Papa y verrait une erreur, jamais ce que Massimo voit. La décision produit
- *  qui la débloquerait est au `BACKLOG.md`. */
-export function actionPrincipale(cran: DiagnosticCran): { libelle: string; to: string } | null {
-  if (cran !== "genere") return null;
-  return { libelle: "Ouvrir dans la file de relecture →", to: "/relecture?kind=diagnostic" };
-}
+// 🔴 **`actionPrincipale()` A ÉTÉ SUPPRIMÉE (adr-0051 Décision 1 bis).** Elle rendait, pour le seul
+// cran « généré », un lien « Ouvrir dans la file de relecture → » vers `/relecture?kind=diagnostic`.
+//
+// Ce lien était la SEULE sortie possible tant que la lecture n'existait nulle part — et il est
+// devenu un aller-retour le jour où le questionnaire s'est déplié ici : la file renvoie vers cette
+// page, cette page renvoyait vers la file, et ni l'une ni l'autre ne montrait les questions.
+// L'ADR-0045 D5 est amendée en conséquence, et le dit.
+//
+// ⚠️ **Ce n'est pas un revirement** : l'action était juste, c'est sa raison d'être qui a disparu.
+//
+// 🔴 **ET CE QU'ELLE PROTÉGEAIT NE DISPARAÎT PAS AVEC ELLE.** Son `return null` pour le cran
+// « proposé » figeait une DÉCISION, pas un manque : « Voir la page de Massimo → » ne peut pas
+// rendre ce qu'elle annonce — aucun lien inter-app n'existe, et cette page appelle des routes
+// `require_child` qui répondent **403** à un rôle parent (`auth/deps.py:55`). Papa y verrait une
+// erreur, jamais ce que Massimo voit. La décision produit qui la débloquerait est au `BACKLOG.md`.
+//
+// Cette protection a **changé de support** : elle vit désormais dans un test de rendu du panneau
+// (`PanneauPassation.test.tsx`), qui vérifie que le cran « proposé » n'offre aucun lien de sortie.
+// La supprimer par effet de bord en supprimant cette fonction aurait été une régression masquée.

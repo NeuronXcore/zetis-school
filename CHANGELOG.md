@@ -1,5 +1,61 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.76.0 — Papa peut lire un diagnostic avant de le laisser passer
+
+Le gate de l'ADR-0043 interpose un humain entre la génération d'un diagnostic et Massimo. **Cet
+humain tranchait à l'aveugle.** La page `/diagnostics` envoyait Papa vers la file de relecture pour
+décider ; la file, elle, ne savait pas lui montrer sur quoi — son lien « Voir → » rendait `null`,
+faute d'une page capable d'ouvrir un diagnostic précis. La boucle se refermait sur du vide.
+
+Ce n'est pas un contenu de confort : une passation écrit `SkillMastery` et ouvre des `Gap`. Une
+question parfaitement juste, posée sur **la mauvaise notion**, ouvre une lacune fausse avec un
+signal fort — et commande ensuite missions et cartes de révision.
+
+**Le questionnaire se lit désormais EN PLACE**, dans le panneau de la page Diagnostic, et les deux
+verdicts vivent à côté de ce qu'on vient de lire : *Laisser passer* et *Refuser ce lot*. On ne
+tranche pas ce qu'on n'a pas lu — séparer la lecture du verdict aurait reconstruit le même défaut
+d'un cran plus loin. `/relecture` garde ses deux verdicts : **deux portes vers le même appel, pas
+deux vérités.**
+
+🔴 **Les questions sont groupées PAR NOTION, et c'est une décision, pas de la mise en page.** Un
+diagnostic récent en porte **40** (8 notions × 5 depuis l'ADR-0043) : une liste plate est un mur, et
+un mur se survole. Portée par l'en-tête du groupe, la notion **pose la question à Papa** — *« ces
+cinq-là mesurent-elles bien celle-ci ? »*. Le défaut qu'une relecture peut attraper est un **écart**
+entre un titre et ses contenus, et un écart ne se voit que si les deux termes sont présentés comme
+tels. Les groupes arrivent **repliés** : les huit noms suffisent déjà à repérer un hors-sujet.
+
+Une question montre les **cinq** éléments : énoncé, choix, **bonne réponse**, **explication** et
+notion visée. L'explication est marquée *« ce que Massimo lira après coup »* — c'est la seule partie
+du diagnostic qui lui enseigne quelque chose ; la laisser passer sans l'avoir vue, ce serait relire
+la moitié de ce qu'on valide.
+
+**Deux refus explicites.** Une clé illisible est servie `null`, **jamais coercée** : désigner le
+mauvais choix comme bonne réponse serait le pire défaut possible sur l'écran dont le seul rôle est
+de vérifier cette clé. Et une notion absente s'écrit *« — notion non renseignée — »*, **jamais
+« Notion »** : un repli qui ressemble à un nom ferait passer un défaut de génération pour une
+notion.
+
+🔴 **Une promesse meurt avec cette version.** L'action principale du cran « chez toi · à relire »
+était *« Ouvrir dans la file de relecture → »* (ADR-0045 D5). Elle renvoyait vers la page qui
+renvoie ici : l'ADR-0051 la **périme** et la remplace par la lecture en place. Ce n'est pas un
+revirement — c'était la seule sortie possible tant que la lecture n'existait nulle part.
+
+**Zéro migration, un endpoint neuf** (`GET /api/diagnostics/quizzes/{id}/relecture`), sur le
+résolveur neutre qui existait déjà et dont la docstring annonçait cet usage sans qu'aucune route ne
+l'exerce. Le gate de Massimo n'est pas touché : ses trois routes rendent toujours **404**.
+
+🔴 **La relecture visuelle a rapporté un défaut de plus, et aucun test ne pouvait le voir.** Les
+choix **non-clé** n'avaient ni bordure ni fond : les quatre options se lisaient comme des lignes
+libres, pas comme un ensemble — « un choix encadré au milieu de trois phrases ». Or c'est la qualité
+des **distracteurs** que Papa juge autant que celle de la clé. Les quatre portent désormais un
+cadre ; la clé garde ses quatre signaux (bordure, fond, graisse, `✓ CLÉ`).
+
+⚠️ **Hors périmètre, nommé** : le rejet partiel — écarter *une* question au lieu du lot. Le verdict
+porte sur le lot, *relire n'est pas produire*. Consigné au `BACKLOG.md` avec le fait mesuré au
+passage : `PATCH /api/quiz-questions/{id}` et `/retire` acceptent **déjà** une question de
+diagnostic, sans contrôle de type. On peut modifier ce qu'on ne peut pas lire — l'asymétrie est
+inversée par rapport à l'intuition.
+
 ## 0.75.0 — On ne valide plus un cours vide
 
 Le statut d'une leçon ne disait **rien de son contenu**. Une leçon sans une ligne pouvait passer

@@ -314,6 +314,54 @@ Questions à passer — **sans** la bonne réponse :
 `{ quiz_id, title, subject, questions: [{ id, prompt, choices, skill_id, skill_name }] }`.
 `404` si le diagnostic n'est pas relu.
 
+### GET `/diagnostics/quizzes/{id}/relecture` (Papa) — ADR-0051
+
+Le questionnaire tel que **Papa** le relit, **y compris non relu** — c'est tout l'objet du chantier :
+
+```json
+{
+  "quiz_id": 57, "title": "Diagnostic — Histoire-Géo", "subject": "Histoire-Géo", "total": 40,
+  "notions": [
+    { "skill_id": 12, "skill_name": "Société d'ordres",
+      "questions": [
+        { "id": 901, "prompt_markdown": "…", "choices_json": ["…"],
+          "correct_answer_json": 1, "explanation_markdown": "…" }
+      ] }
+  ]
+}
+```
+
+🔴 **Frère de la route ci-dessus, et son exact opposé sur les deux points qui comptent** : elle
+résout par le résolveur **neutre** (`_quiz_or_404`), donc un diagnostic `pending` **s'ouvre** ; et
+elle sert **la clé et l'explication**, que la vue élève retire. Le gate de Massimo n'est pas touché.
+
+🔴 **Les questions sont GROUPÉES PAR NOTION, et le groupement est fait SERVEUR** — c'est lui qui
+connaît `sort_order`, deux clients en inventeraient deux ordres. L'ordre des groupes est celui de
+leur première question. La forme porte la décision : le défaut qu'une relecture peut attraper est un
+**écart** entre une notion annoncée et ses questions.
+
+⚠️ **`skill_name` vaut `null` quand la notion manque — jamais `"Notion"`**, contrairement à la vue
+élève. Un repli qui ressemble à un nom ferait passer un défaut de génération pour une notion ; le
+client écrit « — notion non renseignée — ».
+
+⚠️ **`correct_answer_json` vaut `null` si la clé n'est pas un index exploitable.** Coercer
+désignerait le **mauvais** choix comme bonne réponse, sur l'écran dont le seul rôle est de la
+vérifier.
+
+⚠️ **Ni `question_type`, ni `difficulty`, ni `source`, ni `status`, ni `sort_order`** — les cinq
+champs que `PapaQuizQuestion` (module `quizzes`) sert en plus. Sur un diagnostic ils sont constants
+par construction : `mcq` en dur, et les routes d'édition/retrait de `quizzes` lui sont fermées.
+Servir un champ constant invite à le lire comme s'il pouvait varier.
+
+⚠️ **`notions` peut n'avoir qu'UN groupe** : `MAX_SKILLS = 8` est un plafond, pas une forme.
+`404` sur un quiz qui n'est pas un diagnostic — `_quiz_or_404` filtre sur `quiz_type`.
+
+> **Pourquoi une route de plus** alors que `GET /api/quizzes/{id}` sert déjà la même forme sous
+> `require_parent` : elle résout par `_mission_quiz_or_404`. L'élargir ouvrirait du même coup
+> `regenerate`, `add_question` et `delete_quiz` aux diagnostics — **cinq gestes de production pour
+> un besoin de lecture, et en silence**. Alternative (a) de l'ADR-0051, écartée. Précédent exact :
+> `GET /diagnostics/apercu`, née de la même cause (ADR-0043 §3).
+
 ### GET `/diagnostics/mes-resultats/{attempt_id}` (Massimo) — ADR-0044 §5
 
 Rend le résultat d'une passation de Massimo, **dans la forme enfant**, par la même fabrique que

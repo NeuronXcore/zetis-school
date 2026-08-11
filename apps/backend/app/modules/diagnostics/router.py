@@ -14,6 +14,7 @@ from app.modules.diagnostics.schemas import (
     DiagnosticGenerateResponse,
     DiagnosticQuizListItem,
     DiagnosticQuizOut,
+    DiagnosticRelectureOut,
     DiagnosticResultOut,
     DiagnosticResultSummary,
     DiagnosticSubmitRequest,
@@ -80,6 +81,28 @@ def quiz_questions(
     quiz_id: int, db: Session = Depends(get_db), _: dict = Depends(get_current_user)
 ) -> dict:
     return service.get_quiz_for_taking(db, quiz_id)
+
+
+@router.get("/quizzes/{quiz_id}/relecture", response_model=DiagnosticRelectureOut)
+def quiz_relecture(
+    quiz_id: int, db: Session = Depends(get_db), _: dict = Depends(require_parent)
+) -> dict:
+    """Papa ouvre un diagnostic pour le relire — **y compris non relu** (ADR-0051 Décision 5).
+
+    🔴 **La route de Papa, et c'est ce qui la rend nécessaire.** `GET /quizzes/{id}` juste au-dessus
+    est celle de Massimo : elle gate sur `validated` et retire la clé et l'explication. Un `pending`
+    y répond 404 — correct, et exactement ce qui rendait la relecture impossible.
+
+    ⚠️ **Une route de plus plutôt que celle qui existe déjà, et c'est un arbitrage écrit.**
+    `GET /api/quizzes/{id}` (module `quizzes`) sert la même forme sous `require_parent`, mais résout
+    par `_mission_quiz_or_404`. L'élargir ouvrirait du même coup `regenerate`, `add_question` et
+    `delete_quiz` aux diagnostics — **cinq gestes de production pour un besoin de lecture**, sans
+    qu'une ligne de page change ni qu'un test rougisse. Alternative (a) de l'ADR-0051, écartée.
+
+    Précédent exact : `GET /api/diagnostics/apercu`, née de la même cause (ADR-0043 §3) — *un gate
+    ne se pose pas sans se demander qui perd la vue au passage.*
+    """
+    return service.get_quiz_for_relecture(db, quiz_id)
 
 
 @router.post("/quizzes/{quiz_id}/submit", response_model=DiagnosticResultOut)

@@ -6,6 +6,7 @@
 import type {
   DiagnosticApercu,
   DiagnosticPortee,
+  DiagnosticRelecture,
   DiagnosticResult,
   DiagnosticSubjectRef,
 } from "@zetis/types";
@@ -88,6 +89,20 @@ export async function fetchApercu(): Promise<DiagnosticApercu> {
 export async function fetchResultDetail(attemptId: number): Promise<DiagnosticResultSummary> {
   return asJson(
     await fetch(`${API_URL}/api/diagnostics/results/${attemptId}`, { headers: headers() }),
+  );
+}
+
+/** Le questionnaire d'UN diagnostic, tel que Papa le relit (adr-0051).
+ *
+ *  🔴 **Ce n'est PAS `GET /diagnostics/quizzes/{id}`** — celle-là est la route de Massimo : elle
+ *  gate sur `validated` (un `pending` répond 404, exactement ce qu'on veut ouvrir) et retire la
+ *  bonne réponse et l'explication. Celle-ci passe par le résolveur neutre et sert les deux.
+ *
+ *  Les questions arrivent **groupées par notion**, le groupement étant fait serveur : deux clients
+ *  en inventeraient deux ordres. */
+export async function fetchRelecture(quizId: number): Promise<DiagnosticRelecture> {
+  return asJson(
+    await fetch(`${API_URL}/api/diagnostics/quizzes/${quizId}/relecture`, { headers: headers() }),
   );
 }
 

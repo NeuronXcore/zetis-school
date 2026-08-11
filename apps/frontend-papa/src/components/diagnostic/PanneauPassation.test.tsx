@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { DiagnosticResult } from "@zetis/types";
-import { PanneauPassation } from "./PanneauPassation";
+import type { DiagnosticRailEntry, DiagnosticRelecture, DiagnosticResult } from "@zetis/types";
+import { PanneauPassation, PanneauSansMesure } from "./PanneauPassation";
 
 // La station ② du Diagnostic — « ce qui a été ouvert ».
 //
@@ -42,6 +42,7 @@ function renderPanneau(detail = resultat(), subjectSlug = "francais") {
         rang={2}
         subjectSlug={subjectSlug}
         onRemesurer={() => {}}
+        relecture={null}
       />
     </MemoryRouter>,
   );
@@ -94,5 +95,114 @@ describe("« Voir la lacune → » transporte la matière (ADR-0047 §8)", () =>
       "href",
       "/quiz?subject=3",
     );
+  });
+});
+
+// ==================================================================================================
+// LA PROTECTION DÉPLACÉE — adr-0051 D1 bis
+// ==================================================================================================
+
+/** 🔴 **Ce bloc REPREND la protection que portait `crans.test.ts::actionPrincipale("propose")`.**
+ *
+ *  La fonction a été supprimée avec l'adr-0051 (son lien « Ouvrir dans la file de relecture → »
+ *  renvoyait vers la page qui renvoie ici). Mais son `return null` pour le cran « proposé » ne
+ *  figeait pas un manque : il figeait une **DÉCISION**. « Voir la page de Massimo → » ne peut pas
+ *  rendre ce qu'elle annonce — aucun lien inter-app n'existe, et cette page appelle des routes
+ *  `require_child` qui répondent **403** à un rôle parent (`auth/deps.py:55`).
+ *
+ *  Laisser cette protection mourir avec la fonction aurait été une régression masquée : la
+ *  question pourrait se rouvrir sans que rien ne rougisse. Elle a donc changé de SUPPORT — elle
+ *  porte désormais sur le rendu, ce qui est même plus proche de ce qu'elle protège.
+ *
+ *  ⚠️ Si ce test tombe, c'est que quelqu'un a rouvert la question sans passer par le `BACKLOG`. */
+function entree(cran: "genere" | "propose"): DiagnosticRailEntry {
+  return {
+    cle: `quiz-${cran}`,
+    cran,
+    quiz_id: 42,
+    attempt_id: null,
+    subject_id: 3,
+    subject: "Mathématiques",
+    subject_slug: "mathematiques",
+    date: "2026-08-01T09:00:00Z",
+    notions_count: 8,
+    score_percent: null,
+    rang: null,
+    fiabilite_verdict: null,
+  };
+}
+
+const RELECTURE: DiagnosticRelecture = {
+  quiz_id: 42,
+  title: "Diagnostic — Mathématiques",
+  subject: "Mathématiques",
+  total: 1,
+  notions: [
+    {
+      skill_id: 7,
+      skill_name: "Nombres relatifs",
+      questions: [
+        {
+          id: 901,
+          prompt_markdown: "(-3) + 5 ?",
+          choices_json: ["2", "-8"],
+          correct_answer_json: 0,
+          explanation_markdown: "On avance de 5 depuis -3.",
+        },
+      ],
+    },
+  ],
+};
+
+function renderSansMesure(cran: "genere" | "propose", relecture: DiagnosticRelecture | null = RELECTURE) {
+  render(
+    <MemoryRouter>
+      <PanneauSansMesure
+        entree={entree(cran)}
+        onRetirer={() => {}}
+        retraitEnCours={false}
+        relecture={relecture}
+        onLaisserPasser={() => {}}
+        verdictEnCours={false}
+      />
+    </MemoryRouter>,
+  );
+}
+
+describe("le cran « proposé » n'offre AUCUN lien de sortie — décision différée, pas oubli", () => {
+  it("🔴 aucun lien vers l'app de Massimo, et le panneau n'est pas vide pour autant", () => {
+    renderSansMesure("propose");
+
+    // ABSENCE — la protection déplacée.
+    expect(screen.queryAllByRole("link").length).toBe(0);
+
+    // 🔴 PRÉSENCES qui lui donnent son sens : un panneau qui ne rendrait RIEN satisferait
+    // l'assertion ci-dessus. Le cran proposé reste lisible et actionnable.
+    expect(screen.getByText(/Tu l'as relu et proposé/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retirer la proposition" })).toBeTruthy();
+    expect(screen.getByText("Nombres relatifs")).toBeTruthy();
+  });
+
+  it("🔴 il ne porte PAS « Laisser passer » — le verdict a déjà été rendu", () => {
+    renderSansMesure("propose");
+
+    expect(screen.queryByRole("button", { name: "Laisser passer" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Retirer la proposition" })).toBeTruthy();
+  });
+
+  it("le cran « généré », lui, porte les deux verdicts et le questionnaire", () => {
+    renderSansMesure("genere");
+
+    expect(screen.getByRole("button", { name: "Laisser passer" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Refuser ce lot" })).toBeTruthy();
+    expect(screen.getByText("Nombres relatifs")).toBeTruthy();
+  });
+
+  it("🔴 tant que le questionnaire n'est pas chargé, « Laisser passer » est ABSENT", () => {
+    // On ne laisse pas passer ce qu'on n'a pas encore vu. Absent, pas grisé.
+    renderSansMesure("genere", null);
+
+    expect(screen.queryByRole("button", { name: "Laisser passer" })).toBeNull();
+    expect(screen.getByText(/Chargement du questionnaire/)).toBeTruthy();
   });
 });

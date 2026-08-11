@@ -1,17 +1,31 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DiagnosticApercu, DiagnosticPortee, DiagnosticResult } from "@zetis/types";
+import type {
+  DiagnosticApercu,
+  DiagnosticPortee,
+  DiagnosticRelecture,
+  DiagnosticResult,
+} from "@zetis/types";
 
 vi.mock("../lib/diagnostic", () => ({
   fetchApercu: vi.fn(),
   fetchResultDetail: vi.fn(),
   fetchPortee: vi.fn(),
+  fetchRelecture: vi.fn(),
   generateDiagnostic: vi.fn(),
   rejectDiagnostic: vi.fn(),
+  validateDiagnostic: vi.fn(),
 }));
 
-import { fetchApercu, fetchPortee, fetchResultDetail, rejectDiagnostic } from "../lib/diagnostic";
+import {
+  fetchApercu,
+  fetchPortee,
+  fetchRelecture,
+  fetchResultDetail,
+  rejectDiagnostic,
+  validateDiagnostic,
+} from "../lib/diagnostic";
 import { DiagnosticsPapaPage } from "./DiagnosticsPapaPage";
 
 // Page Papa « Diagnostic » (adr-0043, session C).
@@ -95,6 +109,38 @@ const DETAIL: DiagnosticResult = {
   ],
 };
 
+/** Le questionnaire servi par `GET /quizzes/{id}/relecture` (adr-0051).
+ *
+ *  Deux questions sur UNE notion : le minimum pour que le groupe ait un en-tête et un compte. */
+const RELECTURE: DiagnosticRelecture = {
+  quiz_id: 42,
+  title: "Diagnostic — Mathématiques",
+  subject: "Mathématiques",
+  total: 2,
+  notions: [
+    {
+      skill_id: 7,
+      skill_name: "Nombres relatifs",
+      questions: [
+        {
+          id: 901,
+          prompt_markdown: "(-3) + 5 ?",
+          choices_json: ["2", "-8"],
+          correct_answer_json: 0,
+          explanation_markdown: "On avance de 5 depuis -3.",
+        },
+        {
+          id: 902,
+          prompt_markdown: "(-2) × (-4) ?",
+          choices_json: ["8", "-8"],
+          correct_answer_json: 0,
+          explanation_markdown: "Deux négatifs font un positif.",
+        },
+      ],
+    },
+  ],
+};
+
 const PORTEE: DiagnosticPortee = {
   subject_id: 3,
   subject: "Mathématiques",
@@ -147,6 +193,7 @@ describe("DiagnosticsPapaPage", () => {
     vi.mocked(fetchApercu).mockResolvedValue(structuredClone(APERCU));
     vi.mocked(fetchResultDetail).mockResolvedValue(structuredClone(DETAIL));
     vi.mocked(fetchPortee).mockResolvedValue(structuredClone(PORTEE));
+    vi.mocked(fetchRelecture).mockResolvedValue(structuredClone(RELECTURE));
   });
 
   // ================================================================================================
@@ -358,12 +405,62 @@ describe("DiagnosticsPapaPage", () => {
     });
   }
 
-  it("🔴 le cran « généré » porte DEUX actions", async () => {
+  it("🔴 le cran « généré » porte le QUESTIONNAIRE et DEUX verdicts (adr-0051 D1, D2)", async () => {
+    // 🔴 **Ce test a CHANGÉ D'OBJET, il n'a pas été affaibli.** Il vérifiait
+    // « Ouvrir dans la file de relecture » — un lien vers la page qui, elle, renvoyait ici faute de
+    // savoir ouvrir un diagnostic précis : la boucle se refermait sur du vide. L'adr-0051 D1 bis
+    // périme cette action ; ce qui la remplace est vérifié à la même place.
     railDe("genere");
     renderPage();
     await screen.findByText(/attend ta relecture/);
 
-    expect(screen.getByText(/Ouvrir dans la file de relecture/)).toBeTruthy();
+    // Le questionnaire est LÀ, avec son volume et sa notion en en-tête de groupe.
+    // ⚠️ Le volume se cible par son DÉTAIL (« 1 notion, 2 questions chacune ») : « 2 questions »
+    // seul apparaît deux fois — sur la ligne de volume et sur le badge du groupe.
+    expect(await screen.findByText("Nombres relatifs")).toBeTruthy();
+    expect(screen.getByText(/1 notion, 2 questions chacune/)).toBeTruthy();
+
+    // Et les DEUX verdicts, à côté de ce qu'on vient de lire.
+    expect(screen.getByRole("button", { name: "Laisser passer" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Refuser ce lot" })).toBeTruthy();
+
+    // 🔴 Ce qui a disparu a disparu POUR DE BON — l'assertion négative n'est ici qu'en
+    // accompagnement des présences ci-dessus, jamais seule (un écran vide la satisferait).
+    expect(screen.queryByText(/Ouvrir dans la file de relecture/)).toBeNull();
+  });
+
+  it("🔴 « Laisser passer » appelle POST /validate et rend la main au défaut", async () => {
+    railDe("genere");
+    vi.mocked(validateDiagnostic).mockResolvedValue(undefined);
+    renderPage();
+    // ⚠️ `findByRole`, pas `getByRole` après un `findByText` sur le chapeau : le chapeau est rendu
+    // AVANT que le questionnaire n'arrive, et « Laisser passer » n'apparaît qu'avec lui — on ne
+    // laisse pas passer ce qu'on n'a pas encore vu.
+    fireEvent.click(await screen.findByRole("button", { name: "Laisser passer" }));
+
+    await waitFor(() => expect(vi.mocked(validateDiagnostic)).toHaveBeenCalledWith(42));
+    // Le rail est rechargé : la ligne a changé de cran, garder la sélection afficherait
+    // « chez toi · à relire » sur un diagnostic parti chez Massimo.
+    await waitFor(() => expect(vi.mocked(fetchApercu).mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it("🔴 sur un lot VIDE, « Laisser passer » est ABSENT — pas grisé", async () => {
+    // Un bouton grisé dirait « bientôt » ; sur un questionnaire sans question il n'y a pas de
+    // bientôt. Même règle que l'adr-0049 D2 et l'adr-0050 D7.4.
+    railDe("genere");
+    vi.mocked(fetchRelecture).mockResolvedValue({
+      quiz_id: 42,
+      title: "Diagnostic vide",
+      subject: "Mathématiques",
+      total: 0,
+      notions: [],
+    });
+    renderPage();
+    await screen.findByText(/ne contient aucune question/);
+
+    expect(screen.queryByRole("button", { name: "Laisser passer" })).toBeNull();
+    // ⚠️ La PRÉSENCE qui donne son sens à l'absence : refuser reste possible, et c'est le seul
+    // geste qui ait un sens sur un lot vide.
     expect(screen.getByRole("button", { name: "Refuser ce lot" })).toBeTruthy();
   });
 

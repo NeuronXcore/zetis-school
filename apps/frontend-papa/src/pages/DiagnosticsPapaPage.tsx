@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SubjectFilterChips } from "@zetis/ui";
-import type { DiagnosticApercu, DiagnosticPortee, DiagnosticRailEntry, DiagnosticResult } from "@zetis/types";
+import type {
+  DiagnosticApercu,
+  DiagnosticPortee,
+  DiagnosticRailEntry,
+  DiagnosticRelecture,
+  DiagnosticResult,
+} from "@zetis/types";
 import { PageHeader } from "../components/PageHeader";
 import { DiagnosticIcon } from "../components/DiagnosticIcon";
 import { BandeauInstrument } from "../components/diagnostic/BandeauInstrument";
@@ -16,7 +22,14 @@ import {
   matieresNonMesurees,
   type DiagnosticFocus,
 } from "../components/diagnostic/focus";
-import { fetchApercu, fetchPortee, fetchResultDetail, rejectDiagnostic } from "../lib/diagnostic";
+import {
+  fetchApercu,
+  fetchPortee,
+  fetchRelecture,
+  fetchResultDetail,
+  rejectDiagnostic,
+  validateDiagnostic,
+} from "../lib/diagnostic";
 
 // Page Papa « Diagnostic » (adr-0043) — refonte complète.
 //
@@ -50,25 +63,38 @@ export function DiagnosticsPapaPage() {
   // ferait de la barre d'adresse une seconde source de vérité pour un filtre qui n'en demande pas,
   // et rendrait le retour arrière du navigateur imprévisible.
   //
-  // ⚠️ Le `focus` du bandeau, lui, reste **strictement local** : il n'est pas dans l'URL et ne le
-  // devient pas ici. Ouvrir UN diagnostic précis reste dû, et c'est un chantier à part.
+  // ⚠️ 🔴 **`?focus=<quiz_id>` AMORCE la sélection du rail** (adr-0051 D1) — c'est la destination du
+  // « Voir → » de la file de relecture, qui rendait `null` faute d'une page capable d'ouvrir un
+  // diagnostic précis. Même règle que `?subject=` : un AMORÇAGE, pas une synchronisation.
+  //
+  // ⚠️ **Le mot `focus` était déjà pris ICI** par le filtre du bandeau (adr-0045 D2). C'est le
+  // paramètre d'URL qui garde le nom — la convention `?subject=&focus=` vaut pour les six familles
+  // et ne s'excepte pas — et l'état local qui a été renommé `filtre`. Inventer `?passation=` aurait
+  // coûté une exception permanente pour épargner un renommage de trois lignes.
   const [parametres] = useSearchParams();
   const [subjectId, setSubjectId] = useState<number | null>(() => {
     const brut = Number(parametres.get("subject"));
     return Number.isInteger(brut) && brut > 0 ? brut : null;
   });
+  const [quizAmorce] = useState<number | null>(() => {
+    const brut = Number(parametres.get("focus"));
+    return Number.isInteger(brut) && brut > 0 ? brut : null;
+  });
   // Matière présélectionnée quand la modale est ouverte par « Remesurer cette matière → »
   // (ADR-0048). `null` pour le bouton de tête, qui n'en vise aucune.
   const [remesurer, setRemesurer] = useState<number | null>(null);
-  // Le focus du bandeau (adr-0045). LOCAL à cette page : un seul consommateur, et `DashboardFocus`
+  // Le filtre du bandeau (adr-0045). LOCAL à cette page : un seul consommateur, et `DashboardFocus`
   // est une union fermée du dashboard — l'élargir pour un second usage serait payer une abstraction
-  // pour un cas.
-  const [focus, setFocus] = useState<DiagnosticFocus | null>(null);
+  // pour un cas. ⚠️ **Renommé de `focus` à `filtre` par l'adr-0051** : le mot `focus` désigne
+  // désormais l'objet visé par l'URL, comme sur les cinq autres pages de pilotage.
+  const [filtre, setFiltre] = useState<DiagnosticFocus | null>(null);
   const [selection, setSelection] = useState<DiagnosticRailEntry | null>(null);
   const [detail, setDetail] = useState<DiagnosticResult | null>(null);
   const [portee, setPortee] = useState<DiagnosticPortee | null>(null);
+  const [relecture, setRelecture] = useState<DiagnosticRelecture | null>(null);
   const [dialogOuvert, setDialogOuvert] = useState(false);
   const [retraitEnCours, setRetraitEnCours] = useState(false);
+  const [verdictEnCours, setVerdictEnCours] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
@@ -77,11 +103,25 @@ export function DiagnosticsPapaPage() {
       setApercu(donnees);
       // Sélection par défaut : la passation la plus récente. Ouvrir sur du vide obligerait Papa à
       // cliquer pour voir ce qu'il vient chercher.
-      setSelection((courante) => courante ?? donnees.rail.find((e) => e.cran === "passe") ?? donnees.rail[0] ?? null);
+      //
+      // ⚠️ **`?focus=` passe AVANT le défaut, et seulement à la première charge** (`courante ??`) :
+      // c'est un amorçage. Un identifiant illisible, ou qui vise un diagnostic hors de l'année
+      // active, ne trouve rien et **laisse le défaut reprendre** — un lien périmé ne doit pas
+      // produire un écran d'erreur.
+      setSelection(
+        (courante) =>
+          courante ??
+          (quizAmorce !== null
+            ? donnees.rail.find((e) => e.quiz_id === quizAmorce)
+            : undefined) ??
+          donnees.rail.find((e) => e.cran === "passe") ??
+          donnees.rail[0] ??
+          null,
+      );
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Chargement impossible");
     }
-  }, []);
+  }, [quizAmorce]);
 
   useEffect(() => {
     void charger();
@@ -113,6 +153,31 @@ export function DiagnosticsPapaPage() {
     };
   }, [selection]);
 
+  // Le questionnaire de la ligne sélectionnée (adr-0051). SÉPARÉ du couple `détail + portée`
+  // ci-dessus, parce qu'il ne dépend pas des mêmes conditions : celui-là exige une passation
+  // (`attempt_id`), celui-ci n'exige qu'un `quiz_id` — donc il se charge aussi sur les DEUX crans
+  // non passés, qui sont précisément ceux qu'on vient relire.
+  useEffect(() => {
+    let annule = false;
+    if (selection === null) {
+      setRelecture(null);
+      return;
+    }
+    const quizId = selection.quiz_id;
+    setRelecture(null);
+    void (async () => {
+      try {
+        const r = await fetchRelecture(quizId);
+        if (!annule) setRelecture(r);
+      } catch (cause: unknown) {
+        if (!annule) setError(cause instanceof Error ? cause.message : "Lecture impossible");
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, [selection]);
+
   // ⚠️ Les deux filtres se COMPOSENT, dans cet ordre : la pastille de matière, puis le focus. Le
   // rail ne se re-trie jamais — l'ordre vient du serveur, et deux tris pour la même liste
   // finiraient par se contredire.
@@ -125,18 +190,18 @@ export function DiagnosticsPapaPage() {
     const parMatiere = (apercu?.rail ?? []).filter(
       (e) => subjectId === null || e.subject_id === subjectId,
     );
-    return filtrerRail(parMatiere, focus, nonMesurees);
-  }, [apercu, subjectId, focus, nonMesurees]);
+    return filtrerRail(parMatiere, filtre, nonMesurees);
+  }, [apercu, subjectId, filtre, nonMesurees]);
 
   // 🔴 Le bloc « Jamais généré » FAIT PARTIE du rail : il subit les mêmes filtres. Il était passé
   // BRUT jusqu'ici, donc filtrer sur une matière laissait apparaître les quatre autres.
   const jamaisGenereVisible = useMemo(
-    () => filtrerJamaisGenere(apercu?.jamais_genere ?? [], focus, subjectId),
-    [apercu, focus, subjectId],
+    () => filtrerJamaisGenere(apercu?.jamais_genere ?? [], filtre, subjectId),
+    [apercu, filtre, subjectId],
   );
 
   const basculerFocus = useCallback((cible: DiagnosticFocus) => {
-    setFocus((courant) => (courant === cible ? null : cible));
+    setFiltre((courant) => (courant === cible ? null : cible));
   }, []);
 
   /** Le geste secondaire des deux crans non passés — « Refuser ce lot » / « Retirer la proposition ».
@@ -146,6 +211,33 @@ export function DiagnosticsPapaPage() {
    *  celle-ci laisserait le panneau sur une ligne absente, exactement le défaut que ce chantier
    *  refuse de reproduire. D'où le `setSelection(null)` AVANT le rechargement, qui rend la main au
    *  choix par défaut. */
+  /** « Laisser passer » — le verdict PRINCIPAL du cran « chez toi » (adr-0051 Décision 2).
+   *
+   *  🔴 **Le même patron optimiste que `retirer`, et pour la même raison** : la ligne change de
+   *  cran (`genere` → `propose`), et `charger()` conserve la sélection courante. La garder
+   *  laisserait le panneau afficher « chez toi · à relire » sur un diagnostic qui vient de partir
+   *  chez Massimo — un écran qui ment sur ce qu'il montre. D'où le `setSelection(null)` AVANT le
+   *  rechargement, exactement comme au retrait.
+   *
+   *  ⚠️ **Aucune confirmation.** Valider est réversible (« Retirer la proposition » existe et
+   *  n'a aucune précondition d'état) ; rejeter ne l'est pas, et c'est lui qui porte le dialogue.
+   *  Même arbitrage que la file de relecture (adr-0039 §Actions). */
+  const laisserPasser = useCallback(
+    async (entree: DiagnosticRailEntry) => {
+      setVerdictEnCours(true);
+      try {
+        await validateDiagnostic(entree.quiz_id);
+        setSelection(null);
+        await charger();
+      } catch (cause: unknown) {
+        setError(cause instanceof Error ? cause.message : "Validation impossible");
+      } finally {
+        setVerdictEnCours(false);
+      }
+    },
+    [charger],
+  );
+
   const retirer = useCallback(
     async (entree: DiagnosticRailEntry) => {
       setRetraitEnCours(true);
@@ -178,7 +270,7 @@ export function DiagnosticsPapaPage() {
       // 🔴 Les DEUX filtres tombent avant de sélectionner. Sans ça, la jauge pourrait ouvrir un
       // panneau dont la ligne n'est pas dans le rail — le défaut pré-existant qu'on refuse de
       // reproduire par une porte neuve.
-      setFocus(null);
+      setFiltre(null);
       setSubjectId(null);
       setSelection(entree);
     };
@@ -215,7 +307,7 @@ export function DiagnosticsPapaPage() {
       {apercu && (
         <BandeauInstrument
           jauges={apercu.jauges}
-          focus={focus}
+          focus={filtre}
           onFocus={basculerFocus}
           onPlusAncienne={ouvrirPlusAncienne}
         />
@@ -223,18 +315,18 @@ export function DiagnosticsPapaPage() {
 
       {/* 🔴 Un focus est un filtre NOMMÉ, jamais une troncature : il dit ce qu'il montre ET comment
           en sortir. Une coupe silencieuse ferait croire à une couverture complète. */}
-      {focus !== null && (
+      {filtre !== null && (
         <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-papa-accent/40 bg-papa-accent/10 px-3 py-2 text-sm">
           <span>
             Le rail ne montre que{" "}
             <strong className="font-medium text-papa-accent">
-              {libelleFocus(focus, compteFocus(focus, railVisible, jamaisGenereVisible))}
+              {libelleFocus(filtre, compteFocus(filtre, railVisible, jamaisGenereVisible))}
             </strong>
             .
           </span>
           <button
             type="button"
-            onClick={() => setFocus(null)}
+            onClick={() => setFiltre(null)}
             className="ml-auto rounded-lg border border-papa-border px-2.5 py-1 text-xs text-papa-muted hover:border-papa-accent hover:text-papa-text"
           >
             Tout revoir ✕
@@ -258,7 +350,7 @@ export function DiagnosticsPapaPage() {
           jamaisGenere={jamaisGenereVisible}
           selection={selection?.cle ?? null}
           onSelect={setSelection}
-          filtreActif={subjectId !== null || focus !== null}
+          filtreActif={subjectId !== null || filtre !== null}
         />
 
         <div>
@@ -278,6 +370,9 @@ export function DiagnosticsPapaPage() {
               entree={selection}
               onRetirer={() => void retirer(selection)}
               retraitEnCours={retraitEnCours}
+              relecture={relecture}
+              onLaisserPasser={() => void laisserPasser(selection)}
+              verdictEnCours={verdictEnCours}
             />
           ) : detail ? (
             <PanneauPassation
@@ -285,6 +380,7 @@ export function DiagnosticsPapaPage() {
               portee={portee}
               rang={selection.rang}
               subjectSlug={selection.subject_slug}
+              relecture={relecture}
               onRemesurer={(sid) => {
                 setRemesurer(sid);
                 setDialogOuvert(true);

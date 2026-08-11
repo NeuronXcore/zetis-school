@@ -83,12 +83,15 @@ export function reviewLink(item: ReviewItem): string | null {
   if (kind === "capsule") {
     return `/capsules?subject=${subjectId}&focus=${item.id}`;
   }
-  // 🔴 **`null` ASSUMÉ, et daté.** La page `/diagnostics` ne sait pas encore ouvrir un diagnostic
-  // précis : sa refonte est la session C de l'adr-0043. L'y envoyer maintenant déposerait Papa sur
-  // une page qui ne montre que des résultats passés — exactement le « lien au hasard » que le
-  // commentaire ci-dessus refuse. Papa tranche donc sans lire, ce qui n'est pas pire qu'avant
-  // (aucune relecture n'existait), mais reste un état intermédiaire.
-  if (kind === "diagnostic") return null;
+  // 🔴 **Le `null` est TOMBÉ (adr-0051).** Il était assumé et daté : `/diagnostics` ne savait pas
+  // ouvrir un diagnostic précis, et l'y envoyer aurait déposé Papa sur une page de résultats
+  // passés — le « lien au hasard » que le commentaire ci-dessus refuse. Il tranchait donc **sans
+  // lire**, sur une mesure qui écrit `skill_mastery` et ouvre des `Gap`.
+  //
+  // La sixième famille suit désormais la convention des cinq autres. ⚠️ Sans passer par la branche
+  // générique pour autant : `chapter_id` et `lesson_id` sont `NULL` **par construction** pour un
+  // diagnostic (il mesure une matière, pas une leçon), et le cas générique exige les deux.
+  if (kind === "diagnostic") return `/diagnostics?subject=${subjectId}&focus=${item.id}`;
   if (chapterId === null || lessonId === null) return null;
   if (kind === "lesson") {
     return pilotageLink("cours", { subjectId, chapterId, lessonId, objectId: item.id });
