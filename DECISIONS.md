@@ -225,7 +225,8 @@
     de `quiz_id` dans son payload), test-verrou **vert sur du code faux** → **table explicite**
     `event_type → (kind, clé)`, **sans branche par défaut** ; le même sabotage rougit désormais.
     12 test-verrous (7 backend, 5 front), sabotages joués sur le gate de visibilité, l'élargissement
-    des types et le lien profond — Proposé (2026-08-11)
+    des types et le lien profond — **Accepté (2026-08-11), LIVRÉ et MERGÉ le jour même** :
+    PR #114, squash `4a320ae`, branche supprimée. `CHANGELOG.md` **0.77.0**.
   - `docs/decisions/adr-0024-addendum-galaxie-animee.md` — **Galaxie animée : tout voir, et voir ça
     arriver** — troisième addendum à l'`adr-0024` en une journée, après quatre amendements : il
     révise le §6 (plafond de nœuds) et complète le §C du premier addendum — celui-ci décide ce qui

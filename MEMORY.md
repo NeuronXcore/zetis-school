@@ -6,15 +6,17 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ⏳ CHANTIER COMPLET, RIEN N'EST COMMITÉ — `feat/page-matiere-onglets`
+### ✅ CHANTIER MERGÉ — addendum ADR-0024, PR #114, squash **`4a320ae`**
 
-**Base `c86174d` (= tête de `main`). Zéro commit sur la branche : tout est dans l'arbre de
-travail.** Prochain pas au point « PROCHAIN PAS » ci-dessous.
+**Base `c86174d`. Branche `feat/page-matiere-onglets` supprimée** (locale et distante),
+`main == origin/main`, **rien à pousser** — les trois vérifiés par commande le 2026-08-11.
+Cadré, livré, relu à l'écran et mergé **le même jour**. Aucune migration.
+`CHANGELOG.md` **0.77.0** · `TROUBLESHOOTING.md` une section, huit sous-sections.
 
-🔴 **`main` est EN AVANCE D'UN COMMIT sur `origin/main`** (`c86174d`, « docs: étape 4bis »), et la
-clôture précédente écrivait « `main` à `0 0`, rien à pousser » — **c'était faux**. Contrôle refait
-le 2026-08-11 : `git rev-list --left-right --count origin/main...main` rend `0  1`. Ce commit part
-avec le reste.
+> ⚠️ **Un défaut de la clôture PRÉCÉDENTE a été attrapé ici** : elle écrivait « `main` à `0 0`,
+> rien à pousser » alors que `c86174d` n'avait **jamais été poussé**
+> (`git rev-list --left-right --count origin/main...main` rendait `0  1`). C'est la troisième
+> prise du point 6 de `/cloture` en trois clôtures. **Une case cochée ne vaut pas une commande.**
 
 **Le cadrage** : le commanditaire a fourni **9 wireframes** noir & blanc (1 pour `/matieres`,
 8 pour `/subjects/:slug`) et tranché deux choses d'emblée — le **sélecteur de classe des maquettes
@@ -128,19 +130,27 @@ cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
 - ⚠️ **Décor d'agenda VOLONTAIRE, vérifié conforme** : les items **1** et **2** restent masqués
   exprès (sans eux, le filtre « Archivés » de Papa n'a rien à montrer) ; les items **16** et **19**
   ont bien été restaurés. Ne pas « corriger » les deux premiers.
-- ⚠️ **`docs/frontend-massimo/page-capsules-ia.md` est modifié dans l'arbre et N'EST PAS de ce
-  chantier.** Il traînait déjà à l'ouverture. **Ne pas le committer avec cette branche.**
+- 🔴 **`docs/frontend-massimo/page-capsules-ia.md` est TOUJOURS modifié dans l'arbre de travail**
+  (33 ajouts / 36 retraits) et **n'appartient à aucun chantier**. Il traînait déjà à l'ouverture de
+  cette session et a été **délibérément tenu hors du commit `e152d7b`**. Personne ne sait d'où il
+  vient : `git diff docs/frontend-massimo/page-capsules-ia.md` avant de le committer ou de le
+  jeter. Le laisser traîner le fera un jour entrer dans un commit qui n'est pas le sien.
 - ⚠️ **Le rail arrive après ~1 500 px de défilement sur téléphone** : l'échéance réelle est en bas
   de page. Acceptable pour un rappel qui a l'Accueil et l'Agenda comme surfaces propres — mais
   c'est un choix, pas une fatalité. Signalé au commanditaire, non tranché.
 
 ### ▶ PROCHAIN PAS
 
-**Le commanditaire vérifie (diff + tests), puis committe lui-même.** Ensuite : push de la branche
-**et de `main`** (le commit `c86174d` n'est pas poussé), puis PR, puis merge, puis **étape 4bis**
-(`docs/WORKFLOW.md §5`) pour remettre ce fichier au réel — squash, n° de PR, branche supprimée.
+**Rien à reprendre de ce chantier.** Il est clos : mergé, branche supprimée, étape 4bis faite
+dans la foulée du merge (statut de l'ADR passé à **Accepté**, `DECISIONS.md` aligné, ce fichier
+remis au réel).
 
-Le nombre de commits et la tête de branche ne s'écrivent pas ici : `git log --oneline main..HEAD`.
+🔴 **DEUX RÉSIDUS À DÉFAIRE AVANT AUTRE CHOSE**, tous deux vérifiés vivants — voir « DETTES
+OUVERTES » : le **quiz 56** resté `pending` en base de dev, et
+`docs/frontend-massimo/page-capsules-ia.md` **modifié dans l'arbre de travail sans appartenir à
+aucun chantier** (il a traversé toute cette session sans être commité, volontairement).
+
+**▶ Le chantier suivant se choisit au `BACKLOG.md`.**
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 

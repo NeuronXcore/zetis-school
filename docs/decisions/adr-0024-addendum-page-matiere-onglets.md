@@ -2,7 +2,12 @@
 
 ## Statut
 
-Proposé — 2026-08-11.
+**Accepté — 2026-08-11, livré le jour même** (chantiers A + B + C), **mergé** : PR #114,
+squash `4a320ae`, branche `feat/page-matiere-onglets` supprimée.
+
+Cadré, livré et relu à l'écran dans la même session. **Aucune migration.** Deux endpoints
+étendus (`panoply`, `/gamification/history`), un servi plus riche (`/student/galaxy`), un neuf
+(`/student/subjects/{slug}/resume`).
 
 > S'appuie sur : `adr-0024 §5` (doctrine de progression — un COMPTE jamais un pourcentage, aucun
 > `mastery_score` affiché, aucun classement), son addendum `page-matiere-index-notions`
