@@ -46,6 +46,15 @@ export interface DiagnosticGap {
   /** Relu en base à chaque affichage — c'est le badge, pas un filtre d'affichage. */
   status: "open" | "in_progress" | "resolved" | "ignored" | string;
   content_state: DiagnosticContentState;
+  /** Où le geste doit MENER (2026-08-11). Sans eux, « Valider le cours de cette leçon » ne
+   *  construisait que `/programme?subject=` : la matière s'ouvrait et Papa se retrouvait devant
+   *  tous ses chapitres, sans rien qui désigne la leçon.
+   *
+   *  ⚠️ **Les deux vont ensemble ou pas du tout** — `ProgrammePage` a besoin de `subject` pour
+   *  sélectionner, `chapter` pour déplier, `lesson` pour mettre en évidence. Un `lesson_id` seul
+   *  rouvrirait le cul-de-sac un cran plus bas. Le front ne rend le lien que si les deux sont là. */
+  lesson_id?: number | null;
+  chapter_id?: number | null;
 }
 
 export interface DiagnosticResult {

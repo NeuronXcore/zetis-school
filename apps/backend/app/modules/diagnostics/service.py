@@ -32,6 +32,7 @@ from app.modules.content_state import (
     CONTENU_COURS_BROUILLON,
     CONTENU_OK,
     etat_contenu,
+    etat_et_lecon,
 )
 from app.modules.lesson_resolution import lessons_by_skill
 from app.modules.review_queue.service import active_year_id
@@ -750,17 +751,29 @@ def lacunes_de_passation(db: Session, *, student_id: int, skill_ids: list[int]) 
         )
         .order_by(Gap.id)
     ).all()
-    etats = etat_contenu(db, [gap.skill_id for gap, _s in rows])
+    # 🔴 `etat_et_lecon` et NON `etat_contenu` (2026-08-11) : la même passe rend l'état **et** la
+    # leçon visée, sans une requête de plus (son docstring interdit justement d'appeler les deux
+    # projections dans un même flux). Sans `lesson_id`/`chapter_id`, le geste « Valider le cours de
+    # cette leçon » ne pouvait mener qu'à `/programme?subject=` — la matière s'ouvrait, et Papa se
+    # retrouvait devant TOUS les chapitres, sans rien qui désigne la leçon. Signalé à l'écran par
+    # le commanditaire : *« je clique mais je n'arrive pas de façon ciblée et je suis perdu »*.
+    etats = etat_et_lecon(db, [gap.skill_id for gap, _s in rows])
     par_notion: dict[int, dict] = {}
     for gap, skill in rows:
         # Une notion peut porter plusieurs lignes (cf. la dette de dédup) : la DERNIÈRE gagne, car
         # c'est elle qui porte l'état le plus récent. `order_by(Gap.id)` rend l'ordre déterministe.
+        etat, lecon = etats.get(gap.skill_id, (CONTENU_OK, None))
         par_notion[gap.skill_id] = {
             "skill_id": gap.skill_id,
             "skill_name": skill.name if skill is not None else "Notion",
             "severity": gap.severity,
             "status": gap.status,
-            "content_state": etats.get(gap.skill_id, CONTENU_OK),
+            "content_state": etat,
+            # ⚠️ Les deux vont ENSEMBLE ou pas du tout : un `lesson_id` sans son `chapter_id`
+            # rouvrirait le même cul-de-sac un cran plus bas (la matière et la leçon connues, le
+            # chapitre replié). Le front ne rend le lien que si les deux sont là.
+            "lesson_id": lecon.id if lecon is not None else None,
+            "chapter_id": lecon.chapter_id if lecon is not None else None,
         }
     return list(par_notion.values())
 

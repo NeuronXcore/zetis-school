@@ -315,10 +315,21 @@ export function PanneauPassation({
                       un diagnostic de Français pour la liste complète, toutes matières — le
                       cul-de-sac CIRCULAIRE que l'ADR-0047 cite en Contexte comme motif du
                       chantier. Il transporte désormais la matière, et ça ne coûte aucun champ. */}
+                  {/* 🔴 **Le lien porte les TROIS crans** depuis le 2026-08-11 (matière, chapitre,
+                      leçon). Il n'en portait qu'un : la matière s'ouvrait, et Papa arrivait devant
+                      TOUS ses chapitres sans rien qui désigne la leçon à valider — signalé à
+                      l'écran, *« je n'arrive pas de façon ciblée et je suis perdu »*.
+
+                      ⚠️ **Repli sur ce qu'on a.** Si le serveur ne sert pas `chapter_id` (notion
+                      sans leçon, contrat plus ancien), on retombe sur la matière seule plutôt que
+                      d'écrire `chapter=undefined` — dégrader vaut mieux que fabriquer une URL
+                      fausse, et c'est la règle que `gesteLacune` tient déjà. */}
                   <Link
                     to={
                       lacune.content_state === "cours_brouillon"
-                        ? `/programme?subject=${detail.subject_id ?? ""}`
+                        ? `/programme?subject=${detail.subject_id ?? ""}` +
+                          (lacune.chapter_id ? `&chapter=${lacune.chapter_id}` : "") +
+                          (lacune.lesson_id ? `&lesson=${lacune.lesson_id}` : "")
                         : lacune.content_state === "aucune_lecon"
                           ? `/quiz?subject=${detail.subject_id ?? ""}`
                           : `/lacunes?subject=${subjectSlug}`

@@ -152,6 +152,17 @@ class GapOut(BaseModel):
     # leçon le quiz s'ancre sur la notion, avec une leçon en brouillon la voie notion REFUSE. Le
     # geste de Papa diffère : produire, ou valider le cours.
     content_state: str = "ok"
+    # 🔴 **Où le geste doit mener** (2026-08-11). Sans ces deux champs, « Valider le cours de cette
+    # leçon » ne pouvait construire que `/programme?subject=` : la matière s'ouvrait et Papa se
+    # retrouvait devant TOUS ses chapitres, sans rien qui désigne la leçon. Un lien bien formé,
+    # cliquable, et qui ne mène nulle part de précis — le motif que l'ADR-0050 nomme *« un
+    # cul-de-sac qui a l'air de marcher »*.
+    #
+    # ⚠️ **Les deux vont ENSEMBLE ou pas du tout.** `ProgrammePage` a besoin de `subject` pour
+    # sélectionner, de `chapter` pour déplier, et de `lesson` pour mettre en évidence : servir
+    # `lesson_id` seul rouvrirait le même cul-de-sac un cran plus bas, le chapitre restant replié.
+    lesson_id: int | None = None
+    chapter_id: int | None = None
 
 
 class DiagnosticGapEleveOut(BaseModel):

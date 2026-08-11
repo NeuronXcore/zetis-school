@@ -31,6 +31,10 @@ function gap(overrides: Partial<OpenGap> = {}): OpenGap {
     status: "open",
     first_detected_at: "2026-07-12T10:00:00+02:00",
     has_active_mission: false,
+    // ⚠️ Servis avec `lesson_id` depuis le 2026-08-11 : un geste vers `/programme` exige les TROIS
+    // crans (matière pour sélectionner, chapitre pour déplier, leçon pour mettre en évidence).
+    subject_id: 7,
+    chapter_id: 3,
     ...overrides,
   };
 }
@@ -354,14 +358,14 @@ describe("le geste de la ligne", () => {
 
     expect(await screen.findByRole("link", { name: /Valider le cours/ })).toHaveAttribute(
       "href",
-      "/programme?lesson=24",
+      "/programme?subject=7&chapter=3&lesson=24",
     );
     expect(screen.getByRole("link", { name: /Relire la leçon/ })).toHaveAttribute(
       "href",
-      "/programme?lesson=48",
+      "/programme?subject=7&chapter=3&lesson=48",
     );
     // 🔴 La notion couverte porte AUSSI `lesson_id: 99` : si l'ordre des conditions s'inversait,
-    // ce lien deviendrait `/programme?lesson=99` et le test le verrait.
+    // ce lien deviendrait `/programme?…&lesson=99` et le test le verrait.
     expect(screen.getByRole("link", { name: /Voir la mission/ })).toHaveAttribute(
       "href",
       "/missions?focus=56",
@@ -406,7 +410,12 @@ describe("le geste de la ligne", () => {
     // les garantit ensemble, les décors de test non. Aucun lien mort ne doit sortir.
     vi.mocked(fetchOpenGaps).mockResolvedValue([
       gap({ skill_id: 1, skill_name: "Sans mission_id", has_active_mission: true }),
-      gap({ skill_id: 2, skill_name: "Sans lesson_id", content_state: "cours_brouillon" }),
+      gap({
+        skill_id: 2,
+        skill_name: "Sans lesson_id",
+        content_state: "cours_brouillon",
+        lesson_id: undefined,
+      }),
     ]);
     renderPage();
 

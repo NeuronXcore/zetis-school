@@ -146,6 +146,19 @@ def open_gaps(db: Session, *, student_id: int) -> list[dict]:
             "lesson_id": (
                 lecon.id if (lecon := etats.get(gap.skill_id, (CONTENU_OK, None))[1]) else None
             ),
+            # 🔴 **`subject_id` et `chapter_id` : les deux crans qui manquaient au lien**
+            # (2026-08-11). `gesteLacune` construisait `/programme?lesson=<id>` — or la page ne
+            # SÉLECTIONNE une matière que sur `?subject=` et ne déplie un chapitre que sur
+            # `?chapter=`. Sans eux, `LessonsPanel` n'était jamais monté et le `?lesson=` était
+            # passé à un composant absent de l'écran : Papa atterrissait sur la page Programme
+            # dans son état par défaut. Le lien existait, était cliquable, bien formé — et ne
+            # menait nulle part.
+            #
+            # ⚠️ `subject_id` sort de la ligne `Gap` déjà sélectionnée (**gratuit**, comme `source`
+            # l'était deux chantiers plus tôt) ; `chapter_id` sort de la leçon **déjà résolue**
+            # ci-dessus. Aucune requête de plus, et la Décision 5 de l'ADR-0047 tient toujours.
+            "subject_id": gap.subject_id,
+            "chapter_id": lecon.chapter_id if lecon else None,
             "mission_id": missions.get(gap.skill_id),
         }
         for gap, skill, subject in rows

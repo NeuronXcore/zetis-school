@@ -17,6 +17,12 @@ function gap(overrides: Partial<OpenGap> = {}): OpenGap {
     severity: "medium",
     status: "open",
     has_active_mission: false,
+    // ⚠️ **`subject_id` et `chapter_id` par défaut depuis le 2026-08-11** : le serveur les sert
+    // désormais avec `lesson_id`, et un geste vers `/programme` exige les TROIS. Les omettre ici
+    // ferait rendre `null` à tous les tests qui ne parlent pas d'absence — la fabrique doit
+    // représenter une lacune RÉALISTE, les cas dégradés se demandent explicitement.
+    subject_id: 7,
+    chapter_id: 3,
     ...overrides,
   };
 }
@@ -38,16 +44,30 @@ describe("l'ordre des conditions", () => {
 
 describe("chaque état mène où son libellé le promet", () => {
   it("`cours_brouillon` ouvre la leçon EN BROUILLON, pas la matière", () => {
-    const geste = gesteDe(gap({ content_state: "cours_brouillon", lesson_id: 24 }));
+    // 🔴 **LES TROIS CRANS** (2026-08-11). L'href ne portait que `?lesson=` — or la page ne
+    // sélectionne une matière que sur `?subject=` et ne déplie un chapitre que sur `?chapter=`,
+    // et `LessonsPanel` n'est monté que si un chapitre est déplié. Papa atterrissait donc sur la
+    // page Programme dans son état par défaut : *« je n'arrive pas de façon ciblée et je suis
+    // perdu »*. Ce test verrouillait l'href CASSÉ.
+    const geste = gesteDe(
+      gap({ content_state: "cours_brouillon", lesson_id: 24, subject_id: 7, chapter_id: 3 }),
+    );
     expect(geste).toEqual(
-      expect.objectContaining({ kind: "lien", href: "/programme?lesson=24" }),
+      expect.objectContaining({
+        kind: "lien",
+        href: "/programme?subject=7&chapter=3&lesson=24",
+      }),
     );
     expect(geste?.libelle).toContain("Valider le cours");
   });
 
   it("`ok` ouvre la leçon validée, et son geste est de VÉRIFICATION", () => {
-    const geste = gesteDe(gap({ content_state: "ok", lesson_id: 48 }));
-    expect(geste).toEqual(expect.objectContaining({ href: "/programme?lesson=48" }));
+    const geste = gesteDe(
+      gap({ content_state: "ok", lesson_id: 48, subject_id: 7, chapter_id: 3 }),
+    );
+    expect(geste).toEqual(
+      expect.objectContaining({ href: "/programme?subject=7&chapter=3&lesson=48" }),
+    );
     // Pas « Créer une mission » : la section porte déjà ce bouton, avec une autre portée.
     expect(geste?.libelle).toBe("Relire la leçon →");
   });
@@ -87,8 +107,30 @@ describe("🔴 aucun geste plutôt qu'un geste mort", () => {
   });
 
   it("🔴 `cours_brouillon` et `ok` SANS `lesson_id` ne rendent rien", () => {
-    expect(gesteDe(gap({ content_state: "cours_brouillon" }))).toBeNull();
-    expect(gesteDe(gap({ content_state: "ok" }))).toBeNull();
+    expect(gesteDe(gap({ content_state: "cours_brouillon", lesson_id: undefined }))).toBeNull();
+    expect(gesteDe(gap({ content_state: "ok", lesson_id: undefined }))).toBeNull();
+  });
+
+  it("🔴 ni SANS `subject_id` ou SANS `chapter_id` — les trois crans, ou aucun geste", () => {
+    // Un lien à deux crans rouvrirait le cul-de-sac un cran plus bas : la leçon connue, le
+    // chapitre replié, donc `LessonsPanel` toujours pas monté. Mieux vaut aucune action qu'une
+    // action qui égare — la règle que cette fonction tient déjà pour `mission_id`.
+    for (const etat of ["cours_brouillon", "ok"]) {
+      expect(
+        gesteDe(gap({ content_state: etat, lesson_id: 24, subject_id: undefined })),
+        etat,
+      ).toBeNull();
+      expect(
+        gesteDe(gap({ content_state: etat, lesson_id: 24, chapter_id: undefined })),
+        etat,
+      ).toBeNull();
+      // ⚠️ ANCRE POSITIVE : les trois réunis rendent bien un geste — sans elle, une fonction qui
+      // rendrait TOUJOURS `null` passerait ce verrou.
+      expect(
+        gesteDe(gap({ content_state: etat, lesson_id: 24, subject_id: 7, chapter_id: 3 })),
+        etat,
+      ).not.toBeNull();
+    }
   });
 });
 
