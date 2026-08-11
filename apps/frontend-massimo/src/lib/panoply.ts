@@ -4,6 +4,7 @@ import type {
   StudentContentRequestBody,
   StudentContentRequestResult,
   SubjectPanoply,
+  SubjectResume,
 } from "@zetis/types";
 import { API_URL, authClient } from "./authClient";
 
@@ -49,6 +50,19 @@ export async function createContentRequest(
       method: "POST",
       headers: headers(true),
       body: JSON.stringify(body),
+    }),
+  );
+}
+
+/** `GET /api/student/subjects/{slug}/resume` — les derniers contenus RÉOUVRABLES de la matière.
+ *
+ *  Seulement `cours` et `quiz` : les deux seules surfaces adressables par identifiant. Le
+ *  serveur écarte aussi tout contenu dévalidé ou archivé depuis — une carte qui nomme un
+ *  contenu doit l'ouvrir. `items: []` est un état normal. */
+export async function fetchSubjectResume(slug: string): Promise<SubjectResume> {
+  return asJson(
+    await fetch(`${API_URL}/api/student/subjects/${encodeURIComponent(slug)}/resume`, {
+      headers: headers(),
     }),
   );
 }

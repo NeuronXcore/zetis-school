@@ -27,12 +27,24 @@ export type GalaxyActionKind =
  *
  *  `lit` est un COMPTE d'étoiles allumées, jamais un pourcentage : la page répond à
  *  « où j'en suis », elle ne note pas Massimo et ne classe pas ses matières. */
+/** Une matière en vue d'ensemble — `GET /api/student/galaxy`.
+ *
+ *  ⚠️ **L'ordre du tableau est celui du PROGRAMME**, et le client ne le réordonne jamais.
+ *  Trier par `xp`, `lit` ou `mastered` ferait de la liste un podium — la mise en concurrence
+ *  des matières que l'ADR-0024 §5 interdit nommément. Un test-verrou serveur le tient. */
 export interface GalaxySubject {
   subject_id: number;
   name: string;
   slug: string;
+  /** Notions déjà travaillées. Un COMPTE d'étoiles allumées, jamais un pourcentage. */
   lit: number;
   total: number;
+  /** L'effort de Massimo dans cette matière (addendum ADR-0024 « page matière onglets »). */
+  xp: SubjectXP;
+  /** Ce que Massimo TIENT. ⚠️ **Aucun pendant « à renforcer » n'existe, et ne doit pas être
+   *  ajouté** : désigner les matières faibles est la forme la plus directe du classement que
+   *  le §5 interdit. Ce qu'il y a à travailler se dit en MISSION — un geste, pas un verdict. */
+  mastered: number;
 }
 
 export interface GalaxyOverview {
@@ -174,6 +186,50 @@ export interface PanoplyChapter {
   notions: PanoplyNotion[];
 }
 
+/** Ce que Massimo a GAGNÉ dans une matière — jamais ce qu'il y vaut
+ *  (addendum ADR-0024 « page matière onglets », 2026-08-11).
+ *
+ *  Autorisé par une **révision de lecture** du §5, qui interdit de *noter Massimo* et de *mettre
+ *  ses matières en concurrence*. Un XP ne fait ni l'un ni l'autre : il compte ce qui a été
+ *  **fait**, il ne peut que **monter**, et sur la page d'UNE matière il n'y a rien à côté de quoi
+ *  se comparer.
+ *
+ *  ⚠️ **C'est la juxtaposition qui est interdite, pas le nombre.** Sur `/matieres`, ces valeurs ne
+ *  doivent jamais ORDONNER ni DÉSIGNER : aucun tri par XP, aucune « meilleure matière ». Rien dans
+ *  ce type ne l'empêche — seul l'ADR le tient.
+ *
+ *  ⚠️ **Toujours pas de pourcentage, toujours pas de `mastery_score`.** N'ajoutez rien ici : ce
+ *  bloc dit l'effort, la maîtrise reste un `status` par notion. */
+export interface SubjectXP {
+  total: number;
+  level: number;
+  into_level: number;
+  for_next: number;
+}
+
+/** Un contenu que Massimo peut ROUVRIR tel quel (addendum ADR-0024 « page matière onglets »).
+ *
+ *  🔴 **`kind` ne vaut que `cours` ou `quiz`**, et ce n'est pas une restriction temporaire : ce
+ *  sont les deux seules surfaces adressables par identifiant. `fiche` ouvre son deck, `revision`
+ *  LANCE une session — nommer un contenu précis pour atterrir ailleurs serait la dette « le
+ *  libellé sur-promet », déjà consignée sur `capsule_id`.
+ *
+ *  ⚠️ `title` est résolu SERVEUR, jamais lu depuis le journal (qui fige le titre à l'instant du
+ *  clic, donc le périme dès que Papa renomme). */
+export interface ResumeItem {
+  kind: "cours" | "quiz";
+  title: string;
+  target_id: number;
+  at: string | null;
+}
+
+/** `GET /api/student/subjects/{slug}/resume`. `items: []` quand rien n'est réouvrable — un état
+ *  normal, jamais une erreur : la carte ne se rend pas dans ce cas. */
+export interface SubjectResume {
+  subject: GalaxySubjectRef;
+  items: ResumeItem[];
+}
+
 /** `GET /api/student/subjects/{slug}/panoply` — l'index de notions d'une matière
  *  (addendum ADR-0024).
  *
@@ -184,5 +240,8 @@ export interface PanoplyChapter {
  *  `chapters: []` quand la matière n'a encore rien de validé — un état positif, pas une erreur. */
 export interface SubjectPanoply {
   subject: GalaxySubjectRef;
+  /** ⚠️ Servi **même quand `chapters` est vide** : le XP appartient à l'élève, pas au catalogue.
+   *  Une matière dont Papa a dévalidé les chapitres ne doit pas effacer le travail déjà fait. */
+  subject_xp: SubjectXP;
   chapters: PanoplyChapter[];
 }

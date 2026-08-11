@@ -95,6 +95,137 @@
     prennent `MAX(id)` par leçon, donc une leçon à 3 fiches compte **1** sur la page matière et
     **3** sur `/fiches` — **les deux sont justes**, ils ne répondent pas à la même question.
     **Point ouvert** : la page **n'a jamais été vue à l'écran par l'agent** — Accepté (2026-08-01)
+  - `docs/decisions/adr-0024-addendum-page-matiere-onglets.md` — **Addendum ADR-0024 — la page
+    matière porte l'effort de Massimo, et se range en onglets** — *cadré sur **9 wireframes** noir
+    & blanc du user (1 pour `/matieres`, 8 pour `/subjects/:slug`)* : la page de 2026-08-01 fait ce
+    pour quoi elle a été écrite, mais elle **n'annonce rien de ce que Massimo a fait**, elle est
+    **peu dense**, et un chapitre à 55 notions déplié est un **mur**. **Décision centrale — une
+    LECTURE d'ADR révisée, pas l'ADR** : l'addendum `index-notions` écrivait que la page Phase 1
+    « contredit le §5 sur trois points : **un niveau, un XP par matière**, et une "meilleure
+    matière" » ; les **deux premiers sont révisés**, le troisième confirmé. Le §5 énonce **deux
+    torts distincts** — *noter Massimo* et *mettre les matières en concurrence* — et le XP n'en
+    commet aucun **par lui-même** : un score de maîtrise dit ce qu'il **vaut** et peut **descendre**,
+    le XP dit ce qu'il a **fait** et ne peut que monter (c'est le seul nombre de l'app qui ne peut
+    pas être une mauvaise note, et `CLAUDE.md` l'autorise déjà explicitement) ; le second tort ne
+    naît pas du nombre mais de sa **JUXTAPOSITION**, or sur la page d'**une** matière il n'y a rien
+    à côté de quoi se comparer. D'où une **frontière au lieu d'un interdit global** : XP et niveau
+    **autorisés sur la page d'une matière**, et **sur `/matieres` ils ne doivent jamais ORDONNER ni
+    DÉSIGNER** — ordre du programme, aucun tri par XP, aucune « meilleure matière ». ⚠️ **Rien
+    n'empêche techniquement ce tri : seule cette page l'interdit** — test-verrou dû au chantier B.
+    **Ce qui ne bouge pas** : l'anneau « 66 % Maîtrisé » et les barres « 72 % acquis » des maquettes
+    sont **refusés**, l'anneau passe **en COMPTES** dans les libellés d'enfant de `starStyle` —
+    **zéro requête**, les états sont déjà dans la panoplie chargée ; `mastery_score` toujours ni
+    affiché ni sérialisé. 🔴 **§2 bis, né de la RELECTURE VISUELLE et vu par AUCUN test** (la
+    version d'origine passait les 46) : l'anneau rendait d'abord les CINQ états, et sur SVT —
+    **78 « À découvrir » sur 80** — c'était un **disque gris à 97,5 %** qui ne disait pas « voilà
+    où tu en es » mais « tu n'as presque rien fait ». Le §5 tranche seul (« un COMPTE d'**étoiles
+    allumées** » : la galaxie ne dessine pas le noir entre les étoiles) → `unknown` **exclu des
+    segments ET de la légende**, et surtout **le compte des non-commencées n'apparaît NULLE PART**
+    — « 2 travaillées » à côté de « 78 à découvrir » **reconstituerait « 2 sur 80 »**, le ratio
+    interdit rentré par la porte de derrière ; rien de commencé → **la carte ne s'affiche pas**
+    (un anneau vide serait un réceptacle vide). Deux test-verrous, **vérifiés par sabotage**.
+    ⚠️ Second défaut vu au même moment : la courbe XP se retire sous 2 jours de gain, et un
+    `lg:grid-cols-2` figé laissait **une demi-page vide** — la grille ne se dédouble désormais que
+    si les deux cartes existent. 🔴 **§3 bis, deux corrections de plus nées de la relecture** :
+    (a) l'onglet mindmap s'appelait **« Cartes »** juste avant « Révisions », et le user a lu
+    qu'**il manquait un lien vers les mindmaps** — le lien était là, sous un nom qui désigne déjà
+    autre chose (`ACTION_UI` : « Reconstruire la **carte** » / « Réviser mes **cartes** ») ;
+    l'onglet ET la bande prennent le nom de la barre latérale (**« Mindmaps »**, `navigation.ts`),
+    test-verrou interdisant de nommer « carte » deux destinations — ⚠️ **dette laissée hors
+    périmètre** : `ACTION_UI` porte encore la collision, table partagée avec la Galaxy et le chat.
+    (b) **la barre d'onglets DÉFILAIT** sous 500 px : mesurée à 390 px elle se coupait après
+    « Fiches » sans **aucun signal qu'on pouvait faire défiler** — 3 surfaces sur 7 introuvables
+    sur le poste le plus contraint de Massimo, soit le même défaut en pire → **`flex-wrap`**,
+    vérifié DANS LE DOM (7 onglets, **0 hors cadre**, 2 lignes, `scrollWidth == viewport`), et
+    **2 cibles de touche sous 44 px** corrigées au passage (« ← Matières » 20 px, « Tout voir »
+    16 px) alors que la spec de page l'exige. **RAIL DROIT livré à coût serveur NUL** — le
+    read-before-code a montré que tout existait : `AgendaUpcomingItem` porte déjà **`subject.slug`**
+    (filtre CLIENT sur une liste déjà bornée serveur, **aucune route ajoutée**), `UpcomingCard` et
+    `WeekDots` réutilisés tels quels, `UpcomingCard` gagnant seulement un `hideSubject` **additif**
+    (défaut `false` → l'agenda global inchangé) parce que répéter « Mathématiques » sur la page de
+    Mathématiques mange la largeur du rail — **vu à l'écran**. 🔑 Le contrat confirme la
+    distinction du §6 à la source : `days_left` est documenté « décompte **SUBI** […] **jamais
+    fabriqué** » — c'est ce qui sépare l'échéance du professeur de la pression inventée par ZETIS.
+    Trois états vides assumés (pas d'objectif → **invitation, jamais reproche** ; aucune échéance →
+    **aucune carte** ; `week` non chargée → aucune carte). **7 test-verrous, 2 vérifiés par
+    sabotage** (objectif passé à l'impératif, filtre par matière retiré). ⚠️ Un sabotage a aussi
+    démasqué une **fragilité dans un de mes propres tests** (`getByText("2")` ambigu dès qu'une
+    échéance à 2 jours entre dans la page) → recentré sur l'`aria-label` de l'anneau.
+    **Onglets** `Vue d'ensemble · Chapitres · Cours · Fiches · Cartes · Révisions · Quiz`, bâtis sur
+    la table partagée `subjectRouteFor` — le motif « pas un launcher » est **maintenu et ne
+    s'applique pas** : ce qui rendait la Phase 1 inerte, c'est que ses tuiles **ne menaient nulle
+    part** (3 sur 4 sans `onClick`) ; « Missions » et « Progression » des maquettes sont **écartés**,
+    faute de route par matière. 🔴 **Read-before-code, deux hypothèses des maquettes invalidées** :
+    la table `themes` contient **UNE ligne en tout** et **ZÉRO chapitre sur 79** porte un `theme_id`
+    — les « thèmes » dessinés (`Grammar`, `Reading`) sont des **domaines de compétence** qui
+    n'existent nulle part, le bloc se bâtit donc sur les **chapitres réels** et **s'appelle « Mes
+    chapitres »** (ne pas nommer « thème » ce qui est un chapitre, sinon la prochaine lecture croira
+    les thèmes livrés) ; et **« XP 120 / 200 » par thème n'est PAS calculable** — `xp_events` n'a ni
+    `theme_id`, ni `chapter_id`, ni `skill_id`, il s'arrête à la matière, **remplir `themes` n'y
+    changerait rien**. **L'index de notions ne disparaît pas** (aucune des 8 maquettes ne le
+    reprend) : arbre, panoplie et surtout **« Demander à ZETIS tout ce qui manque »** — le **seul
+    geste** que Massimo peut poser face à un contenu absent — passent **sans réécriture** sous
+    l'onglet Chapitres, les tests suivent le composant et **ne doivent pas être adaptés pour
+    passer** — livré : sur les **44** tests du fichier, seul le **helper de rendu** change
+    d'adresse (`?onglet=chapitres`), **43 assertions intactes**, et le 44ᵉ (« ni niveau, ni XP,
+    ni pourcentage ») est **révoqué à moitié** puis remplacé par **trois** tests (interdit de
+    pourcentage sur CHACUNE des deux vues + exigence XP/niveau) → **46**. **Trois formulations des maquettes refusées**, chacune heurtant une règle écrite de
+    `CLAUDE.md` : « **Atteins** le niveau 15 » (objectif **imposé** → la carte affiche l'engagement
+    que Massimo s'est **donné**, `goal_days`), « 5 questions **à revoir** » (c'est l'**arriéré** →
+    `session_size`, jamais `due_count`), et « **Risque DNB : élevé** / Lacunes 5e : importantes /
+    Points critiques » (analyse **parentale** — la donnée vit dans une route `require_parent` — et
+    classer 8 matières par risque serait de surcroît le classement du §5). **Backend : deux ajouts,
+    AUCUNE migration** — `subject_xp` dans la panoplie via `SUM(xp_events.amount)` filtré
+    `subject_id` passé dans le barème **existant** `_level_from_xp` (14 → 15 requêtes, l'en-tête
+    reste à **deux appels**), et param `subject` sur `/history` 🔴 **contrat de série creuse
+    conservé** (jours sans gain **omis**, jamais à zéro) avec courbe **en CUMUL** — une courbe
+    journalière dense rejouerait le cadrage de perte que ce contrat empêche. **Hors périmètre du chantier A** :
+    remplissage de `themes`, sélecteur de classe des maquettes **déclaré faux par le user**,
+    refonte de la barre latérale.
+    **CHANTIER B — la grille `/matieres` débranchée du mock, SANS ROUTE NEUVE** : le plan
+    annonçait `GET /api/student/subjects/overview` ; le read-before-code l'a **démentie** —
+    `GET /api/student/galaxy` servait **déjà** une ligne par matière, et son docstring portait
+    déjà la doctrine (« un COMPTE d'étoiles allumées […] **ne classe pas ses matières** »). Elle
+    gagne `xp` et `mastered`, **à coût de requête nul** (`mastered` tiré de la maîtrise déjà
+    chargée ; `xp` d'**un seul** `xp_by_subject` lu AVANT la boucle — appeler `subject_xp_summary`
+    par matière aurait été un N+1 sur la page qui les liste toutes, d'où un `xp_block()` public
+    qui garde le barème privé). **Disparaissent** : « Niveau 5 » faux, « 62 % du chapitre »
+    (pourcentage interdit), tuile **« Meilleure matière »** (classement interdit), et la carte
+    « Capsule IA dispo » entièrement mockée. 🔴 **Écart ASSUMÉ avec l'arbitrage du user** qui
+    voulait garder « Points solides / À renforcer » : la donnée (`to_reinforce`, lacunes, risque)
+    vit derrière `require_parent`, et en bâtir un équivalent enfant reviendrait à créer un
+    **classement des matières par faiblesse** — le §5 exactement. La grille dit donc ce que
+    Massimo TIENT et **rien de symétrique** ; ce qu'il y a à travailler a déjà sa surface enfant,
+    du bon côté : les **missions**. **4 test-verrous, 3 vérifiés par sabotage** (tri par XP
+    serveur ET client, pourcentage réintroduit). ⚠️ Deux défauts vus À L'ÉCRAN, invisibles aux
+    tests : « **0 XP** sous une barre vide » sur Espagnol (se lit comme un score nul → ni barre ni
+    nombre à zéro), et mes propres tests ancrés sur `findByText("SVT")` — **ambigu**, le rail
+    affiche aussi « SVT » — et sur `findAllByRole("link")` qui se résolvait sur « Voir ma galaxie »
+    **avant** le chargement des matières, donc **courait à vide**. ⚠️ `data/mock.ts` devient
+    largement mort (`SUBJECTS`, `Subject`, `Capsule`, `getSubject`) — nettoyage signalé, hors
+    périmètre ; `PROFILE` sert encore de repli à `MassimoBannerHeader`.
+    **CHANTIER C — « Reprendre » livré, §7** : le doc de page la refusait depuis le 2026-08-01
+    (« aucune route ne sert cette donnée, et l'inventer aurait menti ») ; **les deux réserves sont
+    levées** — les payloads portent bien de quoi rouvrir (`lesson_viewed → {lesson_id}`,
+    `quiz_attempted → {quiz_id}`) — et l'une **démentait le plan** : filtrer
+    `NON_ACTIVITY_EVENTS` était le **mauvais filtre** (le bug déjà consigné : « se connecter
+    suffisait à suspendre la production »), résolu en partant d'une **liste positive** de types
+    plutôt que d'une exclusion. 🔴 **Mais pas pour tous les types, et c'est LA décision** : `fiche`
+    n'a **aucun lien profond** et `revision` **LANCE** une session — les servir ferait nommer un
+    contenu précis pour atterrir ailleurs (dette « le libellé sur-promet », `capsule_id`) ; **seuls
+    `cours` et `quiz`**, mieux vaut deux cartes vraies que quatre approximatives. Le cours ouvre
+    **SA** leçon (`?lesson=`, lien profond ADR-0025 §15 réutilisé tel quel — **vérifié à l'écran** :
+    chapitre déplié, leçon mise en avant) ; **titre résolu SERVEUR** (le journal le fige au clic,
+    donc le périme) ; contenu dévalidé/archivé **non proposé** (gate `_visible_notions`, prédicat
+    unique) ; ⚠️ **aucune date, aucune durée** — le `at` servi n'est **pas rendu**, « il y a 6 jours »
+    ferait un rappel de ce que Massimo **n'a pas** fait (frontière avec `activity` : un **signet**,
+    pas une mesure). Route `GET /api/student/subjects/{slug}/resume`, **aucune migration**.
+    🔴 **Un sabotage a démasqué un défaut de CONCEPTION, pas un test faible** : `kind = "cours" if
+    ... else "quiz"` étiquetait `fiche_viewed` en **quiz**, écarté seulement **par accident** (pas
+    de `quiz_id` dans son payload), test-verrou **vert sur du code faux** → **table explicite**
+    `event_type → (kind, clé)`, **sans branche par défaut** ; le même sabotage rougit désormais.
+    12 test-verrous (7 backend, 5 front), sabotages joués sur le gate de visibilité, l'élargissement
+    des types et le lien profond — Proposé (2026-08-11)
   - `docs/decisions/adr-0024-addendum-galaxie-animee.md` — **Galaxie animée : tout voir, et voir ça
     arriver** — troisième addendum à l'`adr-0024` en une journée, après quatre amendements : il
     révise le §6 (plafond de nœuds) et complète le §C du premier addendum — celui-ci décide ce qui

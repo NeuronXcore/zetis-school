@@ -27,11 +27,16 @@ import { daysLeftLabel, shortDayLabel } from "../../lib/agendaSections";
 export function UpcomingCard({
   item,
   onOpenPlan,
+  hideSubject = false,
 }: {
   item: AgendaUpcomingItem;
   /** Amène Massimo au plan de cette échéance. L'appelant sait où il est rendu (il peut être dans
    *  une section repliée) — d'où le rappel plutôt qu'une ancre posée ici. */
   onOpenPlan?: () => void;
+  /** Sur une surface DÉJÀ scopée à une matière (le rail de `/subjects/:slug`), répéter son nom
+   *  sur chaque échéance ne dit rien et mange la largeur. Défaut `false` : l'agenda global, où
+   *  la matière est l'information qui distingue les lignes, ne change pas d'un pixel. */
+  hideSubject?: boolean;
 }) {
   return (
     <div
@@ -50,7 +55,7 @@ export function UpcomingCard({
       <div className="min-w-0 flex-1">
         <p className="text-sm leading-snug">{item.label}</p>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-zetis-muted">
-          {item.subject && (
+          {item.subject && !hideSubject && (
             <span className="inline-flex items-center gap-1">
               {subjectIconFor(item.subject.slug) && (
                 <img

@@ -1,5 +1,21 @@
-# Page Massimo — Matière dédiée (index de notions)
+# Page Massimo — Matière dédiée (coquille à onglets + index de notions)
 
+> **Refonte du 2026-08-11** — *addendum ADR-0024 « la page matière porte l'effort de Massimo, et se
+> range en onglets »*, cadré sur **9 wireframes** du user. La page devient une **coquille à
+> onglets** : une vue d'ensemble, puis les surfaces qui existent déjà. **L'index de notions n'est
+> pas supprimé — il devient l'onglet « Chapitres »**, sans réécriture (§4 à §7 ci-dessous restent
+> valables tels quels ; côté tests, seul le helper de rendu change d'adresse — 43 assertions sur
+> 44 sont intactes, la 44ᵉ est révoquée à moitié par l'encadré ci-dessous).
+>
+> Deux interdits de la version du 2026-08-01 sont **levés** : **le XP et le niveau par matière**.
+> L'ADR-0024 §5 ne les nomme pas — il interdit « aucun score par matière, aucun pourcentage, aucun
+> classement », et son motif est double : *ne pas noter Massimo*, *ne pas mettre ses matières en
+> concurrence*. Un score de maîtrise dit ce que Massimo **vaut** et peut **descendre** ; le XP dit
+> ce qu'il a **fait** et ne peut que monter. Et la mise en concurrence naît de la **juxtaposition**,
+> or sur la page d'**une** matière il n'y a rien à côté de quoi se comparer. `CLAUDE.md` autorise
+> d'ailleurs XP et niveaux explicitement. **Ce qui reste interdit ici** : pourcentage, barre de
+> maîtrise, badge de maîtrise, « meilleure matière », `mastery_score`.
+>
 > **Réécriture complète du 2026-08-01.** La version précédente datait de la Phase 1 : un launcher au
 > grain matière (en-tête « Niveau 5 · 320 XP », quatre tuiles, « Notions à renforcer »). Elle était
 > **antérieure à la doctrine ADR-0024 §5** et la contredisait sur trois points. Rien n'en est repris
@@ -13,22 +29,111 @@
 
 ## Objectif
 
-Donner à Massimo **la surface de travail d'une matière** : voir toutes ses notions, chercher, et
-ouvrir n'importe quel outil ZETIS sur n'importe laquelle — en un tap, sans repasser par sept decks
-séparés.
+Donner à Massimo **la surface de travail d'une matière** : voir ce qu'il y a fait, voir toutes ses
+notions, chercher, et ouvrir n'importe quel outil ZETIS sur n'importe laquelle — en un tap, sans
+repasser par sept decks séparés.
 
-La page répond à trois questions, dans cet ordre : *où j'en étais ?*, *où est la notion que je
-cherche ?*, *qu'est-ce que ZETIS sait faire de celle-là ?*
+La page répond à quatre questions, dans cet ordre : *qu'est-ce que j'ai fait ici ?*, *où j'en
+étais ?*, *où est la notion que je cherche ?*, *qu'est-ce que ZETIS sait faire de celle-là ?*
 
 Route : `/subjects/:slug`.
+
+## Structure d'ensemble (2026-08-11)
+
+```txt
+Matières › SVT                                          [ Voir en galaxie → ]
+┌──────────────────────────────────────────────────────────────────────────┐
+│ [picto]  SVT · Niveau 7                                                  │
+│          ▓▓▓▓▓▓▓░░░  XP 660 / 700                                        │
+├──────────────────────────────────────────────────────────────────────────┤
+│ Vue d'ensemble │ Chapitres │ Cours │ Fiches │ Cartes │ Révisions │ Quiz   │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Onglets** : ce sont des **liens vers les surfaces qui existent déjà**, construits sur la table
+partagée `subjectRouteFor` — **aucune destination n'est inventée**. Le motif « pas un launcher
+d'outils » (§ Ce qu'elle N'EST PAS) est **maintenu** et ne s'applique pas : ce qui rendait la page
+de Phase 1 inerte, c'est que ses tuiles **ne menaient nulle part**.
+
+> ⚠️ **Un onglet qui ne mène nulle part est la faute que cette page interdit** — même signalement
+> qu'en 2026-08-01 sur la pastille `quiz`, cliquée en vain et lue comme une panne.
+
+**Écartés des maquettes** : « Missions » et « Progression », faute de route par matière. Missions
+reste global ; la progression garde le bouton « Voir en galaxie → ».
+
+### Onglet « Vue d'ensemble »
+
+- **Ma progression en SVT** — un anneau et **des comptes**, jamais un pourcentage : « 13 maîtrisées ·
+  8 en construction · 4 à renforcer · 3 à découvrir », dans les cinq libellés d'enfant de
+  `starStyle`. **Zéro requête** : les états sont déjà dans la panoplie chargée.
+- **Évolution de tes XP** — courbe **en cumul** sur 30 jours.
+  🔴 Le contrat de `/api/gamification/history` est **une série creuse** : les jours sans gain sont
+  **omis**, jamais à zéro. **Ne jamais la densifier** — une courbe journalière redescendrait à
+  chaque absence, et ce cadrage de perte est exactement ce que le contrat empêche.
+- **Mes chapitres** — cartes des chapitres réels : nom, « N notions », « N prêtes », bouton.
+  ⚠️ **Ce ne sont pas des « thèmes »**, et le mot est proscrit ici : la table `themes` est vide
+  (1 ligne, **0 chapitre sur 79** rattaché). Nommer « thème » ce qui est un chapitre ferait croire
+  à la prochaine lecture que les thèmes ont été livrés.
+  ⚠️ **Pas de « XP n / 200 » par chapitre** : `xp_events` n'a ni `theme_id`, ni `chapter_id`, ni
+  `skill_id` — il s'arrête à la matière. Ce chiffre des maquettes **n'est pas calculable**.
+### Reprendre
+
+Les derniers contenus que Massimo peut **rouvrir tels quels**, entre l'anneau et les chapitres :
+c'est la reprise du fil, pas une exploration.
+
+🔴 **`cours` et `quiz` UNIQUEMENT**, filtrés serveur — les deux seules surfaces adressables par
+identifiant. `fiche` ouvre son deck, `revision` **lance** une nouvelle session : les afficher
+ferait nommer un contenu précis pour atterrir ailleurs (dette « le libellé sur-promet », déjà
+consignée sur `capsule_id`, et bouton mort de l'ADR-0050).
+
+- Le cours ouvre **sa** leçon — `?lesson=<id>`, le lien profond de l'addendum ADR-0025 §15 : il
+  déplie le chapitre et met la leçon en avant.
+- Le **titre est résolu serveur**, jamais lu depuis le journal (qui fige le titre au clic, donc
+  le périme dès que Papa renomme).
+- Un contenu **dévalidé ou archivé depuis n'est pas proposé** — une carte qui nomme un contenu
+  doit l'ouvrir.
+- ⚠️ **Aucune date, aucune durée, aucun compte.** Le serveur sert un `at` qui n'est pas rendu :
+  « il y a 6 jours » ferait de cette carte un rappel de ce que Massimo **n'a pas** fait.
+- ⚠️ Rien à rouvrir → **aucune carte**.
+
+Contrat : `GET /api/student/subjects/{slug}/resume`.
+
+### Rail droit
+
+Trois cartes, à droite sur `lg` et **sous le contenu** en dessous — jamais dans un tiroir : sur
+téléphone, ce qui se replie ne se rouvre pas. **Zéro requête serveur ajoutée** (`subject.slug`
+voyage déjà avec chaque échéance ; le filtre est client).
+
+1. **« Ce que je me suis donné »** — l'engagement de la semaine (`goal_days`, module `motivation`).
+   ⚠️ **Rien à l'impératif** : la maquette disait « *Atteins* le niveau 15 », `CLAUDE.md` interdit
+   l'objectif imposé. Sans objectif → une invitation (« En choisir un »), jamais un reproche.
+   ⚠️ **Le geste d'engagement ne se refait pas ici** — il vit sur l'Accueil (doctrine déjà écrite
+   dans `MatieresPage`) ; on montre l'état, on ne redemande pas à chaque page.
+   ⚠️ **Jamais « il t'en reste N »** : `MotivationWeek` n'a aucun champ `remaining`, et l'UI ne
+   doit pas en fabriquer un par soustraction.
+2. **« Ce qui arrive en <matière> »** — les échéances **réelles du cahier de texte**, filtrées sur
+   la matière. 🔴 **Jamais `due_count`, jamais un arriéré** : `days_left` est un décompte **subi**
+   (le contrôle existe, que ZETIS l'affiche ou non) — c'est ce qui la sépare de la pression
+   quotidienne interdite. **Aucune échéance → aucune carte.**
+   Réutilise `UpcomingCard` avec `hideSubject` (on est déjà dans la matière) et **sans**
+   `onOpenPlan` : le plan de préparation vit sur l'Agenda, et un bouton mort se lit comme une panne.
+3. **« Tu bloques ? »** — l'entrée du chat depuis la matière. La seule carte reprise sans
+   reformulation : demander de l'aide est un geste positif.
+
+### Onglet « Chapitres »
+
+L'index de notions, **inchangé** : §2 (recherche), §4 (chapitres → notions), §5 (panneau de
+notion), §6 (demander à ZETIS) ci-dessous. Ses composants ne sont pas réécrits.
 
 ## Ce qu'elle N'EST PAS
 
 - **Pas un launcher d'outils.** Les sept surfaces par matière (`/fiches/:slug`, `/mindmaps/:slug`,
   `/subjects/:slug/cours`, `/revision?subject=`, …) existent déjà et gardent leurs entrées propres.
   Reproduire leurs tuiles ici en ferait un doublon appauvri — c'est ce qui rendait la page inerte.
-- **Pas une page de progression.** Aucun niveau, aucun XP, aucun pourcentage, aucun classement de
-  matières. La progression, c'est la Galaxy.
+- **Pas une page de progression.** ~~Aucun niveau, aucun XP,~~ **révisé le 2026-08-11** : niveau et
+  XP de la matière sont désormais affichés (ils disent l'**effort**, pas la maîtrise — voir
+  l'encadré de tête). Restent bannis : **aucun pourcentage, aucun classement de matières**. La
+  progression fine, c'est la Galaxy.
 - **Pas une seconde constellation.** Elle rend le **même modèle**, en liste — elle **est** le repli
   sans WebGL promis par `zetis-galaxy.md §11`. Contrainte dure : **aucun chunk 3D**, ni en import
   statique ni en `import()`.
@@ -70,8 +175,17 @@ et **garde l'apparence des autres**.
 Pictogramme de marque (`subjectIconFor`, **jamais d'emoji** — `design-system.md §Pictogrammes`),
 nom de la matière, et un décompte **du catalogue** : « 3 chapitres · 9 notions ».
 
-**Interdits, par héritage ADR-0024 §5** : niveau, XP, pourcentage, barre de progression, badge de
-maîtrise, « meilleure matière ». Le décompte décrit ce qui existe, pas ce que vaut Massimo.
+**Depuis le 2026-08-11**, l'en-tête porte aussi le **niveau et le XP de la matière** — « SVT ·
+Niveau 7 », barre + « XP 660 / 700 ». Le niveau se dérive du **barème existant** `_level_from_xp`
+(`XP_PER_LEVEL = 100`) ; on n'en invente pas un second.
+
+**Toujours interdits ici** : pourcentage, barre de **maîtrise**, badge de maîtrise, « meilleure
+matière », `mastery_score`. Le décompte décrit ce qui existe ; le XP décrit ce que Massimo a
+**fait** — ni l'un ni l'autre ne dit ce qu'il vaut.
+
+> ⚠️ **Et sur la grille `/matieres`, le XP et le niveau ne doivent jamais ORDONNER ni DÉSIGNER** :
+> ordre du programme, aucun tri par XP, aucune « meilleure matière ». C'est là que le §5 mord
+> vraiment — la mise en concurrence naît de la juxtaposition, pas du nombre.
 
 Un bouton fantôme **« Voir en galaxie → »** vers `/galaxy?subject=<slug>` : les deux rendus du même
 modèle se pointent l'un l'autre.
@@ -255,9 +369,14 @@ retour physique iPhone.
   `REVIEW_SESSION_MAX_SUBJECT`) — **jamais `due_count`**.
 - `POST /api/student/content-requests` — **nouvelle** (addendum ADR-0027), `require_child`, écriture
   seule. Aucun `GET`, aucun `PATCH` élève.
+- `GET /api/gamification/history?subject=<slug>` — **filtre ajouté le 2026-08-11** pour la courbe
+  de la vue d'ensemble. 🔴 **Série creuse par contrat** : les jours sans gain sont omis, jamais à
+  zéro. Tracer en **cumul**.
 
-**Deux appels, et deux seulement.** Les comptes de la bande (§3) sont **dérivés** de la panoplie,
-pas d'appels supplémentaires — voir la réserve sur `MAX(id)` au §3.
+**Deux appels pour l'en-tête et l'index, et deux seulement.** Le bloc `subject_xp` voyage dans la
+panoplie (une requête SQL de plus, 14 → 15) plutôt que dans un troisième appel. Les comptes de la
+bande (§3) et ceux de l'anneau sont **dérivés** de la panoplie, pas d'appels supplémentaires — voir
+la réserve sur `MAX(id)` au §3. La courbe XP, secondaire, paie son propre appel.
 
 Aucune donnée pédagogique durable stockée côté front. Toute la logique vit dans un hook
 (`useSubjectPanoply`) ; le composant ne calcule aucune règle métier.
@@ -267,6 +386,15 @@ Aucune donnée pédagogique durable stockée côté front. Toute la logique vit 
 - Une action principale par écran ; vocabulaire d'enfant, jamais d'atelier (pas de statut de
   validation, pas de badge `IA`/`Manuel`, pas d'action d'édition).
 - **Aucun rouge, aucun vocabulaire d'échec**, nulle part.
+- **Aucun objectif à l'impératif.** `CLAUDE.md` interdit l'objectif imposé (« un objectif subi se
+  fuit, un objectif qu'on s'est donné se tient »). Le rail affiche l'engagement que Massimo s'est
+  **donné** (`goal_days`), jamais « Atteins le niveau 15 ».
+- **Aucun arriéré.** Ni `due_count`, ni « n questions à revoir », ni décompte de retard, sous
+  aucune forme. Les échéances affichées viennent de l'**agenda réel** (cahier de texte) ; ZETIS
+  n'en fabrique pas.
+- **Aucun diagnostic parental.** Ni « à renforcer » chiffré comme un verdict, ni « lacunes », ni
+  « risque » — ces données vivent derrière `require_parent`, et `CLAUDE.md` les tient hors de
+  l'écran de l'enfant.
 - **L'or `#ffcf47` n'apparaît pas** : il est réservé à l'état « ZETIS parle » dans toute l'interface
   Massimo. La page n'a que **deux** couleurs porteuses de sens : le **cyan** du disponible, et
   l'**orange** `--color-zetis-request` de la demande.

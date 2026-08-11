@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import type { ReviewsSummary, SubjectPanoply } from "@zetis/types";
+import type {
+  AgendaUpcomingItem,
+  MotivationWeek,
+  ReviewsSummary,
+  SubjectPanoply,
+} from "@zetis/types";
 import { MatiereDetailPage } from "./MatiereDetailPage";
 
 const navigateMock = vi.hoisted(() => vi.fn());
@@ -19,16 +24,35 @@ vi.mock("../lib/panoply", () => ({
     }
   },
   fetchSubjectPanoply: vi.fn(),
+  fetchSubjectResume: vi.fn(),
   createContentRequest: vi.fn(),
 }));
+vi.mock("../lib/quiz", () => ({ fetchQuizById: vi.fn() }));
 vi.mock("../lib/reviews", () => ({ fetchReviewsSummary: vi.fn() }));
+vi.mock("../lib/gamification", () => ({ fetchXpHistory: vi.fn() }));
+// Le rail droit : l'engagement de Massimo et ses échéances réelles.
+vi.mock("../lib/motivation", () => ({ fetchWeek: vi.fn(), updateWeekGoal: vi.fn() }));
+vi.mock("../lib/agenda", () => ({ fetchAgendaUpcoming: vi.fn() }));
 
-import { PanoplyError, createContentRequest, fetchSubjectPanoply } from "../lib/panoply";
+import { fetchAgendaUpcoming } from "../lib/agenda";
+import { fetchXpHistory } from "../lib/gamification";
+import { fetchWeek } from "../lib/motivation";
+import {
+  PanoplyError,
+  createContentRequest,
+  fetchSubjectPanoply,
+  fetchSubjectResume,
+} from "../lib/panoply";
+import { fetchQuizById } from "../lib/quiz";
 import { fetchReviewsSummary } from "../lib/reviews";
 
 // SVT : deux chapitres, trois notions, chacune choisie pour un cas précis.
 const PANOPLY: SubjectPanoply = {
   subject: { subject_id: 1, name: "SVT", slug: "svt" },
+  // 250 XP → niveau 3, 50 acquis dans le niveau (barème `XP_PER_LEVEL = 100`). Les valeurs sont
+  // calculées SERVEUR : le front n'a aucun barème à reproduire, et un test qui recalculerait ici
+  // vérifierait sa propre arithmétique plutôt que le contrat.
+  subject_xp: { total: 250, level: 3, into_level: 50, for_next: 100 },
   chapters: [
     {
       chapter_id: 10,
@@ -101,7 +125,70 @@ const SUMMARY: ReviewsSummary = {
   ],
 };
 
+// L'engagement que Massimo s'est DONNÉ : 3 jours faits, objectif 4. Jamais imposé.
+const SEMAINE: MotivationWeek = {
+  week_start: "2026-08-10",
+  days: [
+    { date: "2026-08-10", active: true, is_today: false },
+    { date: "2026-08-11", active: true, is_today: true },
+    { date: "2026-08-12", active: false, is_today: false },
+    { date: "2026-08-13", active: true, is_today: false },
+    { date: "2026-08-14", active: false, is_today: false },
+    { date: "2026-08-15", active: false, is_today: false },
+    { date: "2026-08-16", active: false, is_today: false },
+  ],
+  days_done: 3,
+  today_done: true,
+  goal_days: 4,
+  goal_met: false,
+};
+
+// ⚠️ Deux matières : le rail de SVT ne doit montrer QUE l'échéance de SVT.
+const ECHEANCES: AgendaUpcomingItem[] = [
+  {
+    id: 1,
+    label: "Contrôle sur la cellule",
+    subject: { id: 1, slug: "svt", name: "SVT", color: null },
+    due_on: "2026-08-14",
+    days_left: 3,
+    has_plan: false,
+  },
+  {
+    id: 2,
+    label: "Rendu d'exposé",
+    subject: { id: 2, slug: "anglais", name: "Anglais", color: null },
+    due_on: "2026-08-13",
+    days_left: 2,
+    has_plan: false,
+  },
+];
+
+// ⚠️ `cours` et `quiz` UNIQUEMENT : le serveur écarte `fiche` et `revision`, qui ne se
+// rouvrent pas à l'identique. Ces fixtures ne doivent jamais en contenir d'autres.
+const REPRISE = [
+  { kind: "cours" as const, title: "Mitose", target_id: 3, at: "2026-08-10T10:00:00Z" },
+  { kind: "quiz" as const, title: "Quiz cellule", target_id: 8, at: "2026-08-09T10:00:00Z" },
+];
+
+/** L'INDEX DE NOTIONS — recherche, accordéon, panoplie, demandes.
+ *
+ *  ⚠️ Depuis le 2026-08-11 (addendum ADR-0024 « page matière onglets »), l'index n'est plus la
+ *  vue par défaut : il vit sous `?onglet=chapitres`. **Seule cette adresse a changé.** Aucune
+ *  assertion des tests écrits avant cette date n'a été touchée — ce qu'ils vérifiaient hier, ils
+ *  le vérifient encore, au même endroit du DOM. C'est la condition qui rendait le déplacement
+ *  acceptable. */
 function renderPage(slug = "svt") {
+  return render(
+    <MemoryRouter initialEntries={[`/subjects/${slug}?onglet=chapitres`]}>
+      <Routes>
+        <Route path="/subjects/:slug" element={<MatiereDetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+/** La VUE D'ENSEMBLE — anneau, courbe d'XP, cartes de chapitres (l'onglet par défaut). */
+function renderApercu(slug = "svt") {
   return render(
     <MemoryRouter initialEntries={[`/subjects/${slug}`]}>
       <Routes>
@@ -133,18 +220,102 @@ beforeEach(() => {
   vi.mocked(fetchSubjectPanoply).mockReset().mockResolvedValue(PANOPLY);
   vi.mocked(fetchReviewsSummary).mockReset().mockResolvedValue(SUMMARY);
   vi.mocked(createContentRequest).mockReset().mockResolvedValue({ requested: [] });
+  // ⚠️ Série CREUSE : trois jours de travail, et surtout PAS les 27 autres à zéro. C'est le
+  // contrat de la route (addendum ADR-0024 « Accueil vivant » §A), et la fixture doit le
+  // refléter — une fixture dense laisserait passer un composant qui suppose des zéros.
+  vi.mocked(fetchXpHistory)
+    .mockReset()
+    .mockResolvedValue({
+      days: [
+        { date: "2026-07-20", xp: 40 },
+        { date: "2026-07-28", xp: 90 },
+        { date: "2026-08-09", xp: 120 },
+      ],
+    });
+  vi.mocked(fetchWeek).mockReset().mockResolvedValue(SEMAINE);
+  vi.mocked(fetchSubjectResume).mockReset().mockResolvedValue({
+    subject: { subject_id: 1, name: "SVT", slug: "svt" },
+    items: REPRISE,
+  });
+  vi.mocked(fetchQuizById).mockReset().mockResolvedValue({ id: 8, title: "Quiz cellule" } as never);
+  // Deux échéances, dont UNE en anglais : le rail ne doit montrer que celle de SVT.
+  vi.mocked(fetchAgendaUpcoming).mockReset().mockResolvedValue(ECHEANCES);
 });
 
 // --- Verrous de doctrine (ADR-0024 §5) ---------------------------------------------------
 
 describe("MatiereDetailPage — ce que la page ne dit JAMAIS", () => {
-  it("n'affiche ni niveau, ni XP, ni pourcentage, ni barre de progression", async () => {
-    // La version d'avant ce chantier ouvrait sur « Niveau 5 · 320 XP ». La progression, c'est
-    // la Galaxy ; cette page décrit un CATALOGUE, elle ne note pas Massimo.
+  // ⚠️ RÉVOCATION PARTIELLE, 2026-08-11 (addendum ADR-0024 « page matière onglets »).
+  //
+  // Ce verrou interdisait « ni niveau, ni XP, ni pourcentage, ni barre de progression » d'un
+  // seul tenant. Sa MOITIÉ XP/niveau est levée : l'ADR-0024 §5 ne les nomme pas — il interdit
+  // de *noter Massimo* et de *mettre ses matières en concurrence*, et un XP ne fait ni l'un ni
+  // l'autre (il compte ce qui a été FAIT, il ne peut que monter). L'interdit venait du doc de
+  // page, qui avait étendu l'ADR de lui-même.
+  //
+  // 🔴 **L'autre moitié n'est PAS levée, et elle est renforcée ci-dessous** : elle doit désormais
+  // tenir À CÔTÉ d'une vraie barre d'XP, ce qui est un test plus dur qu'avant.
+  it("n'affiche AUCUN pourcentage et AUCUN score de maîtrise", async () => {
     const { container } = renderPage();
     await screen.findByRole("heading", { name: "SVT" });
-    expect(container.textContent).not.toMatch(/niveau|\bxp\b|%|mastery|score/i);
-    expect(screen.queryByRole("progressbar")).toBeNull();
+    // ⚠️ `%` seul, et « acquis » PRÉCÉDÉ d'un nombre : « Bien acquis » est l'un des cinq
+    // libellés d'enfant de `starStyle`, parfaitement légitime. C'est « 72 % acquis » des
+    // maquettes qui est interdit, pas le mot.
+    expect(container.textContent).not.toMatch(/%|mastery|score|\d\s*acquis/i);
+  });
+
+  it("n'affiche aucun pourcentage NON PLUS sur la vue d'ensemble", async () => {
+    // ⚠️ C'est là que les maquettes en portaient : « 66 % Maîtrisé » au centre de l'anneau et
+    // « 72 % acquis » sur les cartes. Refusés — l'anneau rend des COMPTES.
+    const { container } = renderApercu();
+    await screen.findByRole("heading", { name: "SVT" });
+    // ⚠️ `%` seul, et « acquis » PRÉCÉDÉ d'un nombre : « Bien acquis » est l'un des cinq
+    // libellés d'enfant de `starStyle`, parfaitement légitime. C'est « 72 % acquis » des
+    // maquettes qui est interdit, pas le mot.
+    expect(container.textContent).not.toMatch(/%|mastery|score|\d\s*acquis/i);
+  });
+
+  it("affiche le XP et le niveau de la matière — l'effort, jamais la note", async () => {
+    renderApercu();
+    // 250 XP → niveau 3 (barème `XP_PER_LEVEL = 100`), 50 acquis dans le niveau.
+    expect(await screen.findByText(/Niveau 3/)).toBeInTheDocument();
+    expect(screen.getByText(/250 XP/)).toBeInTheDocument();
+  });
+
+  it("l'anneau ne montre QUE ce qui est allumé — jamais « À découvrir »", async () => {
+    // 🔴 TEST-VERROU, né de la relecture à l'écran du 2026-08-11 sur données réelles : SVT a
+    // 78 notions « À découvrir » sur 80. L'anneau était un disque gris à 97,5 % — il ne disait
+    // pas « voilà où tu en es », il disait « tu n'as presque rien fait ».
+    //
+    // L'ADR-0024 §5 : « la vue d'ensemble affiche un COMPTE d'étoiles allumées ». La galaxie ne
+    // dessine pas le noir entre les étoiles. Et « 2 travaillées » à côté de « 78 à découvrir »
+    // reconstituerait « 2 sur 80 » — le ratio interdit, réintroduit par la porte de derrière.
+    // ⚠️ On vise l'`aria-label` de l'anneau, jamais un `getByText("2")` nu : le rail droit
+    // affiche aussi des nombres de jours, et un sabotage a montré que le test devenait ambigu
+    // dès qu'une échéance à 2 jours entrait dans la page. Un test qui se casse pour une raison
+    // qui n'est pas la sienne ne prouve rien.
+    const { container } = renderApercu();
+    await screen.findByLabelText(/^2 notions travaillées en SVT$/);
+    expect(screen.getByText("Bien acquis")).toBeInTheDocument();
+    expect(screen.getByText("On commence")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/À découvrir/);
+    // Ni le compte des non-commencées, ni le total du catalogue en face de lui.
+    expect(container.textContent).not.toMatch(/\bsur 3\b/);
+  });
+
+  it("l'anneau ne s'affiche pas DU TOUT quand rien n'est commencé", async () => {
+    // Un anneau vide serait un réceptacle vide — et les cartes de chapitres juste en dessous
+    // sont la vraie invitation à entrer.
+    vi.mocked(fetchSubjectPanoply).mockResolvedValue({
+      ...PANOPLY,
+      chapters: PANOPLY.chapters.map((c) => ({
+        ...c,
+        notions: c.notions.map((n) => ({ ...n, status: "unknown" as const })),
+      })),
+    });
+    const { container } = renderApercu();
+    await screen.findByText(/Mes chapitres/i);
+    expect(container.textContent).not.toMatch(/Où j'en suis|travaillées/i);
   });
 
   it("n'affiche AUCUN rouge et AUCUN or (l'or est réservé à « ZETIS parle »)", async () => {
@@ -234,9 +405,22 @@ describe("MatiereDetailPage — ce que ZETIS a pour la matière", () => {
     expect(screen.getByLabelText("2 fiches en SVT")).toBeInTheDocument();
     // Regex : la capsule n'est pas ouvrable depuis ici, son libellé porte donc un suffixe.
     expect(screen.getByLabelText(/1 capsule en SVT/)).toBeInTheDocument();
-    expect(screen.getByLabelText("1 carte en SVT")).toBeInTheDocument();
+    // ⚠️ « mindmap », pas « carte » — corrigé le 2026-08-11. Cette pastille annonçait « 1 carte »
+    // à trois pastilles de « 8 cartes à revoir » : le même mot pour deux destinations, et le lien
+    // vers les mindmaps se lisait comme absent. Les deux libellés doivent rester DISTINCTS.
+    expect(screen.getByLabelText("1 mindmap en SVT")).toBeInTheDocument();
     expect(screen.getByLabelText("1 quiz en SVT")).toBeInTheDocument();
     expect(screen.getByLabelText("8 cartes à revoir en SVT")).toBeInTheDocument();
+  });
+
+  it("ne nomme JAMAIS « carte » deux destinations différentes", async () => {
+    // 🔴 TEST-VERROU né d'un signalement du user. La mindmap et la révision SRS sont deux
+    // surfaces distinctes ; les appeler pareil fait disparaître l'une des deux à la lecture.
+    renderPage();
+    const mindmap = await screen.findByLabelText(/mindmap en SVT/);
+    expect(mindmap.getAttribute("href")).toContain("/mindmaps/");
+    // Aucune pastille de mindmap ne doit se présenter comme une « carte » tout court.
+    expect(screen.queryByLabelText(/^\d+ cartes? en SVT/)).toBeNull();
   });
 
   it("compte des RESSOURCES, pas des notions — deux notions d'une même leçon font UNE fiche", async () => {
@@ -278,7 +462,7 @@ describe("MatiereDetailPage — ce que ZETIS a pour la matière", () => {
 
     expect(lien("2 cours en SVT")).toBe("/subjects/svt/cours");
     expect(lien("2 fiches en SVT")).toBe("/fiches/svt");
-    expect(lien("1 carte en SVT")).toBe("/mindmaps/svt");
+    expect(lien("1 mindmap en SVT")).toBe("/mindmaps/svt");
     expect(lien("8 cartes à revoir en SVT")).toBe("/revision?subject=svt&from=svt");
   });
 
@@ -606,6 +790,11 @@ describe("MatiereDetailPage — demander à ZETIS", () => {
     fireEvent.click(screen.getByRole("button", { name: /Demander Lire la fiche à ZETIS/ }));
     await screen.findByText("C'est noté par ZETIS");
 
+    // ⚠️ Le RAIL DROIT est retiré du balayage, et c'est une précision de portée, pas un
+    // affaiblissement : il affiche les échéances réelles du cahier de texte (« dans 3 jours »),
+    // qui sont un décompte **subi** — le contrôle existe que ZETIS l'affiche ou non. Ce verrou
+    // vise ce que ZETIS **annonce** de sa propre production, pas ce que le professeur a posé.
+    container.querySelector("aside")?.remove();
     expect(container.textContent).not.toMatch(
       /je te le prépare|je m'en occupe|en cours de|bientôt prêt|d'ici|dans \d|en attente/i,
     );
@@ -693,5 +882,117 @@ describe("MatiereDetailPage — plancher d'accessibilité", () => {
     fireEvent.click(chapitre);
     expect(chapitre.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByRole("button", { name: /Mitose/ })).toBeInTheDocument();
+  });
+});
+
+// --- Rail droit : ce que Massimo s'est donné, ce que l'école lui a donné -----------------
+//
+// Les trois cartes viennent des maquettes du 2026-08-11, et AUCUNE n'y est reprise telle
+// quelle : chacune heurtait une règle écrite de `CLAUDE.md` sur l'interface enfant. Ces tests
+// verrouillent les reformulations, pas la présence des cartes.
+
+describe("MatiereDetailPage — le rail droit", () => {
+  it("affiche l'engagement que Massimo S'EST DONNÉ, jamais un ordre", async () => {
+    // 🔴 La maquette disait « **Atteins** le niveau 15 avant les vacances d'hiver ! ».
+    // `CLAUDE.md` : « objectif imposé à l'enfant — un objectif subi se fuit, un objectif qu'on
+    // s'est donné se tient ».
+    const { container } = renderApercu();
+    expect(await screen.findByText(/3 jours cette semaine · objectif 4/)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/Atteins|Tu dois|Il faut que/i);
+  });
+
+  it("ne dit JAMAIS combien il en reste à faire", async () => {
+    // `MotivationWeek` n'a aucun champ `remaining` — le type le dit : « rien ne peut se lire
+    // comme une punition ». L'UI ne doit pas en fabriquer un par soustraction.
+    const { container } = renderApercu();
+    await screen.findByText(/3 jours cette semaine/);
+    expect(container.textContent).not.toMatch(/il t'en reste|plus qu'|encore \d+ jours?\b/i);
+  });
+
+  it("propose de s'engager sans culpabiliser quand aucun objectif n'est pris", async () => {
+    vi.mocked(fetchWeek).mockResolvedValue({ ...SEMAINE, goal_days: null, goal_met: false });
+    const { container } = renderApercu();
+    expect(await screen.findByText(/pas encore donné d'objectif/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /En choisir un/ })).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/dommage|tu aurais dû|raté|oubli/i);
+  });
+
+  it("ne montre que les échéances DE CETTE MATIÈRE", async () => {
+    renderApercu();
+    expect(await screen.findByText("Contrôle sur la cellule")).toBeInTheDocument();
+    // L'échéance d'anglais est servie par la même route et ne doit PAS fuiter ici.
+    expect(screen.queryByText("Rendu d'exposé")).toBeNull();
+  });
+
+  it("n'affiche AUCUN arriéré — les échéances viennent de l'agenda, pas de ZETIS", async () => {
+    // 🔴 TEST-VERROU. La maquette portait « Quiz : School vocabulary — 5 questions à revoir ».
+    // C'est `due_count`, l'arriéré : la pression quotidienne que `CLAUDE.md` interdit. Le
+    // résumé de révision servi par la fixture en annonce 42 — il ne doit apparaître nulle part.
+    const { container } = renderApercu();
+    await screen.findByText("Contrôle sur la cellule");
+    expect(container.textContent).not.toContain("42");
+    expect(container.textContent).not.toMatch(/questions? à revoir|en retard|arriéré/i);
+  });
+
+  it("la carte des échéances DISPARAÎT quand la matière n'en a aucune", async () => {
+    // Un « à ne pas oublier » vide installerait l'idée qu'il devrait toujours y avoir quelque
+    // chose à ne pas oublier.
+    vi.mocked(fetchAgendaUpcoming).mockResolvedValue([ECHEANCES[1]]); // anglais seulement
+    const { container } = renderApercu();
+    await screen.findByRole("heading", { name: "SVT" });
+    expect(container.textContent).not.toMatch(/Ce qui arrive en SVT/);
+  });
+
+  it("ouvre le chat depuis la matière où Massimo bloque", async () => {
+    renderApercu();
+    const lien = await screen.findByRole("link", { name: /Parler à ZETIS/ });
+    expect(lien.getAttribute("href")).toBe("/chat");
+  });
+});
+
+
+// --- « Reprendre » : une carte qui NOMME un contenu doit l'OUVRIR -------------------------
+
+describe("MatiereDetailPage — reprendre son dernier contenu", () => {
+  it("ouvre le cours SUR SA LEÇON, pas sur la liste", async () => {
+    // 🔴 TEST-VERROU. Nommer « Mitose » puis atterrir sur la liste des cours serait la dette
+    // « le libellé sur-promet », déjà consignée sur `capsule_id`. `?lesson=` met la leçon en
+    // avant (lien profond de l'addendum ADR-0025 §15).
+    renderApercu();
+    fireEvent.click(await screen.findByRole("button", { name: /Mitose/ }));
+    expect(navigateMock).toHaveBeenCalledWith("/subjects/svt/cours?lesson=3", undefined);
+  });
+
+  it("relance le quiz par son identifiant, jamais la grille", async () => {
+    renderApercu();
+    fireEvent.click(await screen.findByRole("button", { name: /Quiz cellule/ }));
+    await waitFor(() => expect(fetchQuizById).toHaveBeenCalledWith(8));
+  });
+
+  it("n'affiche AUCUNE date ni durée", async () => {
+    // Le serveur sert bien un `at`, et il ne doit pas être rendu : « il y a 6 jours » ferait de
+    // cette carte un rappel de ce que Massimo n'a PAS fait — la lecture du temps que « Mon
+    // ciel » évite déjà en n'ayant aucun axe.
+    const { container } = renderApercu();
+    await screen.findByRole("button", { name: /Mitose/ });
+    expect(container.textContent).not.toMatch(/il y a|hier|2026-08|jours? ·|min\b/i);
+  });
+
+  it("la carte DISPARAÎT quand rien n'est réouvrable", async () => {
+    // Un « Reprendre » vide installerait l'idée qu'il devrait toujours y avoir quelque chose
+    // en cours.
+    vi.mocked(fetchSubjectResume).mockResolvedValue({
+      subject: { subject_id: 1, name: "SVT", slug: "svt" },
+      items: [],
+    });
+    const { container } = renderApercu();
+    await screen.findByRole("heading", { name: "SVT" });
+    expect(container.textContent).not.toMatch(/Reprendre/);
+  });
+
+  it("une panne de la reprise n'emporte pas la page", async () => {
+    vi.mocked(fetchSubjectResume).mockRejectedValue(new Error("panne"));
+    renderApercu();
+    expect(await screen.findByRole("heading", { name: "SVT" })).toBeInTheDocument();
   });
 });

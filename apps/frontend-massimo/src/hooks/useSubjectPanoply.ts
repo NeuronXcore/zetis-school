@@ -7,10 +7,19 @@ import type {
   ContentRequestKind,
   GalaxyAction,
   GalaxyActionKind,
+  GalaxyStatus,
   GalaxySubjectRef,
   PanoplyNotion,
+  ResumeItem,
+  SubjectXP,
 } from "@zetis/types";
-import { PanoplyError, createContentRequest, fetchSubjectPanoply } from "../lib/panoply";
+import { type XpHistoryDay, fetchXpHistory } from "../lib/gamification";
+import {
+  PanoplyError,
+  createContentRequest,
+  fetchSubjectPanoply,
+  fetchSubjectResume,
+} from "../lib/panoply";
 import { fetchReviewsSummary } from "../lib/reviews";
 import { matchesQuery } from "../lib/searchFold";
 import {
@@ -37,6 +46,20 @@ export interface PanoplyChapterView {
  *  Massimo se pose avant d'ouvrir un chapitre : y a-t-il quelque chose à faire là-dedans ? */
 function countReady(notions: PanoplyNotion[]): number {
   return notions.filter((notion) => notion.actions.some((action) => action.available)).length;
+}
+
+/** L'ordre des cinq états, du plus sombre au plus lumineux. Recopié plutôt qu'importé de
+ *  `@zetis/ui/galaxy` : ce hook ne doit connaître aucune couleur ni aucun libellé — c'est le
+ *  composant qui les demande à `starStyle`. Ici on ne décide que de l'ORDRE et du filtre. */
+const STATUSES: GalaxyStatus[] = ["mastered", "solid", "learning", "weak", "unknown"];
+
+/** Combien de notions dans chaque état — l'anneau de la vue d'ensemble.
+ *
+ *  Un COMPTE, jamais un pourcentage (ADR-0024 §5, non levé). L'addendum du 2026-08-11 a rendu le
+ *  XP légitime parce qu'il mesure l'EFFORT ; la maîtrise, elle, reste un état par notion. */
+export interface StatusCount {
+  status: GalaxyStatus;
+  count: number;
 }
 
 /** Un type de contenu que ZETIS a pour cette matière, et combien il en a. */
@@ -127,6 +150,30 @@ export interface UseSubjectPanoply {
   chapterCount: number;
   notionCount: number;
 
+  /** Ce que Massimo a GAGNÉ dans cette matière (addendum ADR-0024 « page matière onglets »).
+   *  `null` tant que la panoplie n'a pas répondu — jamais un zéro d'attente, qui se lirait comme
+   *  un vrai zéro. */
+  subjectXp: SubjectXP | null;
+
+  /** Combien de notions dans chaque état, du plus lumineux au plus sombre.
+   *
+   *  ⚠️ **Les états à zéro sont ABSENTS**, même règle que la bande de catalogue : lister
+   *  « 0 maîtrisée » serait dresser l'inventaire de ce qui manque. Un état à zéro n'a d'ailleurs
+   *  aucun segment dans l'anneau — l'afficher en légende désignerait un vide.
+   *
+   *  Insensible au filtre de recherche : l'anneau décrit la matière, pas les résultats. */
+  statusCounts: StatusCount[];
+
+  /** Les jours où Massimo a gagné du XP dans cette matière, sur 30 jours.
+   *  🔴 **Série CREUSE par contrat** — les jours sans gain sont absents, jamais à zéro. Ne jamais
+   *  la compléter : la tracer en gains journaliers redescendrait à chaque absence. Le composant
+   *  la rend en CUMUL, qui ne peut que monter. */
+  xpDays: XpHistoryDay[];
+
+  /** Les derniers contenus RÉOUVRABLES de la matière — `cours` et `quiz` seulement, filtrés
+   *  serveur. Vide = aucune carte rendue. */
+  resume: ResumeItem[];
+
   /** Ce que servirait la session de révision de cette matière. `0` → aucune pastille.
    *  JAMAIS `due_count` : un compteur d'arriéré est la pression quotidienne interdite. */
   reviewSessionSize: number;
@@ -163,7 +210,16 @@ const TOAST_MS = 2800;
 // l'interlocuteur de Massimo est ZETIS — le même que dans le chat.
 export const REQUEST_TOAST = "C'est noté par ZETIS";
 
-export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
+/** Fenêtre de la courbe XP de la matière. 30 jours comme les maquettes — assez pour voir une
+ *  progression, assez court pour qu'un mois calme ne noie pas une semaine de travail. */
+const XP_CURVE_DAYS = 30;
+
+export function useSubjectPanoply(
+  slug: string | undefined,
+  /** Chapitre à déplier d'emblée (`?chapitre=` — on arrive depuis une carte de la vue
+   *  d'ensemble). `null` = tous repliés, le défaut du 2026-08-01. */
+  openChapterId: number | null = null,
+): UseSubjectPanoply {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [subject, setSubject] = useState<GalaxySubjectRef | null>(null);
@@ -171,6 +227,9 @@ export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
     { chapter_id: number; title: string; notions: PanoplyNotion[] }[]
   >([]);
   const [reviewSessionSize, setReviewSessionSize] = useState(0);
+  const [subjectXp, setSubjectXp] = useState<SubjectXP | null>(null);
+  const [xpDays, setXpDays] = useState<XpHistoryDay[]>([]);
+  const [resume, setResume] = useState<ResumeItem[]>([]);
 
   const [query, setQuery] = useState("");
   const [openIds, setOpenIds] = useState<Set<number> | null>(null);
@@ -183,32 +242,45 @@ export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
     let active = true;
     setLoading(true);
     setNotFound(false);
-    // `allSettled` et jamais `all` : un résumé de révision en panne ne doit pas emporter
-    // l'index des notions — Massimo doit toujours voir sa matière, même dégradée.
-    void Promise.allSettled([fetchSubjectPanoply(slug), fetchReviewsSummary()]).then(
-      ([panoply, reviews]) => {
-        if (!active) return;
-        if (panoply.status === "fulfilled") {
-          setSubject(panoply.value.subject);
-          setRawChapters(panoply.value.chapters);
-          // TOUS les chapitres sont repliés à l'ouverture (décision du 2026-08-01). L'index
-          // s'ouvre donc sur la carte de la matière — la liste des chapitres — et non sur le
-          // contenu de l'un d'eux : Massimo choisit où il entre. La recherche, elle, ouvre
-          // d'office ce qu'elle trouve, donc rien ne reste caché quand on cherche.
-          setOpenIds(new Set());
-        } else {
-          setNotFound(panoply.reason instanceof PanoplyError && panoply.reason.status === 404);
-        }
-        if (reviews.status === "fulfilled") {
-          const mine = reviews.value.subjects.find((s) => s.slug === slug);
-          setReviewSessionSize(mine?.session_size ?? 0);
-        }
-        setLoading(false);
-      },
-    );
+    // `allSettled` et jamais `all` : un résumé de révision ou une courbe en panne ne doivent pas
+    // emporter l'index des notions — Massimo doit toujours voir sa matière, même dégradée.
+    void Promise.allSettled([
+      fetchSubjectPanoply(slug),
+      fetchReviewsSummary(),
+      fetchXpHistory(XP_CURVE_DAYS, slug),
+      fetchSubjectResume(slug),
+    ]).then(([panoply, reviews, history, dernier]) => {
+      if (!active) return;
+      if (panoply.status === "fulfilled") {
+        setSubject(panoply.value.subject);
+        setRawChapters(panoply.value.chapters);
+        // Servi même sur une matière sans chapitre validé : le XP appartient à l'élève, pas au
+        // catalogue de Papa.
+        setSubjectXp(panoply.value.subject_xp);
+        // TOUS les chapitres sont repliés à l'ouverture (décision du 2026-08-01), SAUF celui
+        // que l'URL désigne — on arrive alors d'une carte de la vue d'ensemble, et se retrouver
+        // devant une liste repliée après avoir tapé sur un chapitre précis serait un cul-de-sac.
+        // La recherche, elle, ouvre d'office ce qu'elle trouve.
+        setOpenIds(new Set(openChapterId === null ? [] : [openChapterId]));
+      } else {
+        setNotFound(panoply.reason instanceof PanoplyError && panoply.reason.status === 404);
+      }
+      if (reviews.status === "fulfilled") {
+        const mine = reviews.value.subjects.find((s) => s.slug === slug);
+        setReviewSessionSize(mine?.session_size ?? 0);
+      }
+      // ⚠️ Posée telle quelle, JAMAIS complétée : les jours sans gain sont absents par contrat.
+      if (history.status === "fulfilled") setXpDays(history.value.days);
+      if (dernier.status === "fulfilled") setResume(dernier.value.items);
+      setLoading(false);
+    });
     return () => {
       active = false;
     };
+    // `openChapterId` est volontairement HORS des dépendances : il ne sert qu'à l'ouverture. L'y
+    // mettre relancerait les trois appels réseau à chaque fois que Massimo replie ou déplie un
+    // chapitre — et écraserait au passage ce qu'il vient d'ouvrir à la main.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   useEffect(() => {
@@ -264,6 +336,20 @@ export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
     () => rawChapters.reduce((sum, c) => sum + c.notions.length, 0),
     [rawChapters],
   );
+
+  // Sur `rawChapters`, comme la bande de catalogue : l'anneau décrit la MATIÈRE, il ne rétrécit
+  // pas pendant qu'on tape dans la recherche.
+  const statusCounts = useMemo<StatusCount[]>(() => {
+    const tally = new Map<GalaxyStatus, number>();
+    for (const chapter of rawChapters) {
+      for (const notion of chapter.notions) {
+        tally.set(notion.status, (tally.get(notion.status) ?? 0) + 1);
+      }
+    }
+    return STATUSES.map((status) => ({ status, count: tally.get(status) ?? 0 })).filter(
+      (entry) => entry.count > 0,
+    );
+  }, [rawChapters]);
 
   const toggleChapter = useCallback((chapterId: number) => {
     setOpenIds((prev) => {
@@ -340,6 +426,10 @@ export function useSubjectPanoply(slug: string | undefined): UseSubjectPanoply {
     subject,
     chapterCount: rawChapters.length,
     notionCount,
+    subjectXp,
+    statusCounts,
+    xpDays,
+    resume,
     reviewSessionSize,
     catalogue,
     query,

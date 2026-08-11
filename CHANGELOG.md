@@ -1,5 +1,55 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.77.0 — Les pages Matière disent enfin ce que Massimo y a fait
+
+Cadré sur **9 wireframes** noir & blanc, et sur une phrase du commanditaire : *« voir ses XP est
+positif pour Massimo »*. Trois chantiers, **aucune migration**.
+
+**Le XP revient sur la page d'une matière — et c'est une révision de LECTURE de l'ADR-0024 §5, pas
+sa révocation.** Le §5 énonce deux torts : *noter Massimo* et *mettre ses matières en concurrence*.
+Un XP ne commet ni l'un ni l'autre par lui-même — un score de maîtrise dit ce que l'enfant **vaut**
+et peut **descendre** ; un XP dit ce qu'il a **fait** et ne peut que monter. C'est le seul nombre de
+l'app qui ne peut pas être une mauvaise note. Le second tort, lui, ne naît pas du nombre mais de sa
+**juxtaposition** : sur la page d'**une** matière, il n'y a rien à côté de quoi se comparer. D'où
+une frontière plutôt qu'un interdit — et sur la grille, **l'ordre du programme, jamais un podium**,
+tenu par deux test-verrous parce que rien d'autre ne le tient.
+
+**Ce qui reste interdit n'a pas bougé.** Les « 66 % Maîtrisé » et « 72 % acquis » des maquettes sont
+refusés : l'anneau rend des **comptes**. Et il ne montre **que ce qui est allumé** — sur SVT, qui
+porte 78 notions « À découvrir » sur 80, la première version était un disque gris à 97,5 % qui ne
+disait pas *voilà où tu en es* mais *tu n'as presque rien fait*. Le compte des non-commencées
+n'apparaît nulle part : « 2 travaillées » à côté de « 78 à découvrir » reconstituerait le ratio
+que le §5 interdit.
+
+**La page devient une coquille à sept onglets**, tous des liens vers des surfaces déjà livrées —
+ce qui les sépare du launcher de Phase 1, dont trois tuiles sur quatre ne menaient nulle part.
+L'index de notions, sa panoplie et surtout **« Demander à ZETIS tout ce qui manque »** — le seul
+geste que Massimo puisse poser face à un contenu absent — sont **déplacés sans une ligne de
+réécriture** sous l'onglet Chapitres.
+
+**La grille `/matieres` quitte son mock.** Elle affichait depuis la Phase 1 un « Niveau 5 » faux, un
+« 62 % du chapitre » interdit et une tuile « Meilleure matière » — un classement. Aucune route neuve
+n'a été nécessaire : `GET /api/student/galaxy` servait déjà une ligne par matière.
+
+**« Reprendre » existe enfin, et seulement pour ce qui se rouvre vraiment.** La carte était refusée
+depuis le 2026-08-01 (*« aucune route ne sert cette donnée, et l'inventer aurait menti »*). Les
+payloads du journal portent bien de quoi rouvrir — mais **pas pour tous les types** : `fiche` n'a
+aucun lien profond, `revision` **lance** une nouvelle session. Seuls `cours` et `quiz` sont servis.
+Mieux vaut deux cartes vraies que quatre approximatives.
+
+**Trois formulations des maquettes ont été refusées**, chacune heurtant une règle écrite : *« Atteins
+le niveau 15 »* (objectif imposé → l'engagement que Massimo s'est **donné**), *« 5 questions à
+revoir »* (l'arriéré → le plafond de session), et *« Risque DNB / Lacunes / Points critiques »*
+(analyse parentale sur l'écran de l'enfant).
+
+**La relecture visuelle a rapporté quatre défauts qu'aucun test ne voyait**, dont deux nés de l'œil
+du commanditaire — l'onglet mindmap nommé « Cartes », lu comme un **lien manquant**, et sa version
+aggravée sur téléphone : la barre d'onglets **défilait** sans le dire, rendant trois surfaces sur
+sept introuvables.
+
+Douze sabotages joués, onze rougissent. **Le douzième est resté vert et a démasqué un défaut de
+conception** — un `else` implicite qui étiquetait n'importe quel type de contenu en « quiz ».
+
 ## 0.76.0 — Papa peut lire un diagnostic avant de le laisser passer
 
 Le gate de l'ADR-0043 interpose un humain entre la génération d'un diagnostic et Massimo. **Cet

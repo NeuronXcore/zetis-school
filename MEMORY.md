@@ -6,98 +6,149 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — ADR-0051, PR #113, squash **`239d6e9`**
+### ⏳ CHANTIER COMPLET, RIEN N'EST COMMITÉ — `feat/page-matiere-onglets`
 
-**Parent `a1364db`. Branche supprimée** (locale et distante), `main` à `0 0`, **rien à pousser**.
-Cadré, livré, relu et mergé **le même jour**. Aucune migration, un endpoint neuf.
-`CHANGELOG.md` **0.76.0** · `TROUBLESHOOTING.md` une section, huit sous-sections.
+**Base `c86174d` (= tête de `main`). Zéro commit sur la branche : tout est dans l'arbre de
+travail.** Prochain pas au point « PROCHAIN PAS » ci-dessous.
 
-🔴 **Le défaut est refermé, et le parcours a été joué EN VRAI** (2026-08-11, base de dev) :
-`/relecture?kind=diagnostic` → « Voir → » → `/diagnostics?subject=2&focus=56` → panneau
-« chez toi · à relire », ses 8 groupes, « Laisser passer » → panneau « chez Massimo · pas encore
-passé », et la base écrit `validated` / `validated_by='parent'`. La boucle qui se refermait sur du
-vide se ferme sur le questionnaire.
+🔴 **`main` est EN AVANCE D'UN COMMIT sur `origin/main`** (`c86174d`, « docs: étape 4bis »), et la
+clôture précédente écrivait « `main` à `0 0`, rien à pousser » — **c'était faux**. Contrôle refait
+le 2026-08-11 : `git rev-list --left-right --count origin/main...main` rend `0  1`. Ce commit part
+avec le reste.
 
-**Ce qui est fait — slice B, Papa.** `QuestionnaireRelecture` (composant neuf, présentationnel)
-monté sur **les trois crans** : les deux panneaux l'affichent, seul « chez toi » y adjoint les
-verdicts. `reviewLink` rend `/diagnostics?subject=&focus=<quiz_id>` au lieu de `null`. La page
-amorce sa sélection sur `?focus=`. `actionPrincipale()` **supprimée**, l'état local `focus` du
-bandeau renommé `filtre`, et la ligne d'en-tête de `QuizInspectModal` réécrite.
+**Le cadrage** : le commanditaire a fourni **9 wireframes** noir & blanc (1 pour `/matieres`,
+8 pour `/subjects/:slug`) et tranché deux choses d'emblée — le **sélecteur de classe des maquettes
+est FAUX** (ignoré), et **« voir ses XP est positif pour Massimo »**. Un ADR neuf en est sorti :
+`docs/decisions/adr-0024-addendum-page-matiere-onglets.md`, **Proposé**.
 
-**Ce qui est fait — slice A, backend.** `GET /api/diagnostics/quizzes/{quiz_id}/relecture`,
-`require_parent`, lecture seule. Elle résout par le **`_quiz_or_404` qui existait déjà** (le
-résolveur neutre, dont la docstring annonçait cet usage sans qu'aucune route ne l'exerce) et rend
-le questionnaire **groupé par notion** : `quiz_id`, `title`, `subject`, `total`, `notions[]` — et
-par question `prompt_markdown`, `choices_json`, `correct_answer_json`, `explanation_markdown`.
-**Zéro migration.** Le gate de Massimo n'est **pas touché** : ses trois routes rendent toujours 404.
+**TROIS chantiers livrés d'affilée, aucune migration, sur la même branche** (le commanditaire les
+a demandés à la suite ; ils forment un seul arc et n'ont pas été séparés).
 
-**Deux décisions prises dans la slice, à ne pas défaire :**
+#### A — la page matière devient une coquille à onglets
 
-1. **Une clé illisible est servie `None`, jamais coercée.** Les 304 questions de diagnostic portent
-   toutes un entier et le générateur en écrit un par construction — mais coercer désignerait le
-   **mauvais** choix comme bonne réponse, sur l'écran dont le seul rôle est de vérifier cette clé.
-2. **Le groupement se fait par identifiant de notion, pas par tranches de `sort_order`.** Le
-   générateur écrit des blocs contigus (vérifié en base : 0 `sort_order` nul, 0 doublon), mais le
-   décor de test **entrelace exprès** — il est plus dur que la réalité, et il le restera.
+En-tête avec **niveau et XP de la matière**, sept onglets (`Vue d'ensemble · Chapitres · Cours ·
+Fiches · Mindmaps · Révisions · Quiz`) bâtis sur la table partagée `subjectRouteFor`, anneau **en
+COMPTES**, courbe d'XP **en cumul**, cartes de chapitres, et un **rail droit** à trois cartes.
+L'index de notions (recherche, panoplie, « Demander à ZETIS ») est **déplacé sans réécriture**
+sous l'onglet Chapitres.
 
-🔴 **DEUX arbitrages de la slice B ont été rendus par le commanditaire, sur stop-on-blocker.**
-Le prompt et l'ADR divergeaient, et la session s'est **arrêtée avant d'écrire une ligne** :
+Backend : `subject_xp` dans la panoplie, param `subject` sur `/api/gamification/history`.
 
-1. **L'ADR était plus large que le prompt.** La D2 dit *« le questionnaire reste lisible après le
-   verdict, y compris sur un diagnostic passé »*, mais le prompt ne décrivait que le cran
-   « chez toi ». Suivre le prompt aurait livré une surface **contredisant sa propre décision** —
-   le diagnostic devenait illisible au moment où il a enfin un score à expliquer.
-   → **Option 1 retenue : les trois crans**, d'où le composant partagé.
-2. **Supprimer `actionPrincipale()` aurait détruit une protection que l'ADR ne vise pas.** Son
-   `return null` pour le cran « proposé » figeait une **décision** (« Voir la page de Massimo » est
-   impossible : routes `require_child`, 403 à un rôle parent), avec un commentaire disant que sa
-   chute devait signaler une réouverture.
-   → **Elle a CHANGÉ DE SUPPORT** : elle vit dans `PanneauPassation.test.tsx`, sur le rendu.
+#### B — la grille `/matieres` débranchée de son mock
 
-**Suites à la clôture** : backend **1194** · Papa **814** (795 → +19) · Massimo **636** ·
-`tsc -b --noEmit` **0** sur les deux fronts. **13 sabotages, 13 rougissements** (6 en A, 7 en B).
+Elle affichait « Niveau 5 », « 62 % du chapitre » et une tuile « Meilleure matière » **tirés de
+`data/mock.ts`**. Tout est parti. **Aucune route neuve** : `GET /api/student/galaxy` servait déjà
+une ligne par matière ; elle gagne `xp` et `mastered`, à coût de requête nul.
 
-⚠️ **Trois tests existants ont bougé en slice B, et AUCUN n'a été affaibli.** Deux **changent
-d'objet** (ils verrouillaient le lien que la D1 bis périme, ils vérifient maintenant ce qui le
-remplace) ; le troisième a changé de support (ci-dessus). Trois fabriques ont gagné
-`relecture={null}` — on donne aux fixtures ce que le composant exige. 🔴 Le `git diff` sur les tests
-de la slice A, lui, est **resté vide**.
+#### C — « Reprendre mon dernier contenu »
 
-⚠️ **Vérifié sur la VRAIE base** à travers le `response_model` : quiz **57** (40 questions,
-8 groupes de 5), **31** (16, 8 groupes de 2), **2** (2, **1 seul groupe**). Le dernier est le cas
-que le read-before-code avait signalé — `MAX_SKILLS = 8` est un **plafond, pas une forme**.
+Route neuve `GET /api/student/subjects/{slug}/resume`. **Seuls `cours` et `quiz`** y passent :
+ce sont les deux seules surfaces adressables par identifiant. Le cours ouvre **SA** leçon
+(`?lesson=`), vérifié à l'écran.
 
-### ▶ CE QUI A ÉTÉ MESURÉ À L'ÉCRAN — et ce qui reste à VOTRE œil
+### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-**Mesuré dans le DOM, pas jugé sur capture** :
+Toutes dans l'addendum ADR-0024 « page matière onglets ». Les cinq qui coûteraient le plus cher à
+défaire par ignorance :
 
-- **40 questions repliées TIENNENT d'un écran, verdicts compris.** Panneau amené en haut : titre à
-  262 px, « Laisser passer » à 932 px, viewport 1013. Aucun débordement horizontal.
-- **Le chevron des groupes est à 5,10 : 1 de contraste** — AA passé pour du texte normal. J'avais
-  cru y voir un défaut ; la mesure l'a démenti.
-- ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4). **Pré-existant, hors
-  périmètre, signalé non traité** — les huit groupes ne disent donc pas au survol qu'ils s'ouvrent.
+1. **XP et niveau sont autorisés sur la page d'UNE matière** — c'est une **révision de lecture** du
+   §5, pas une révocation. Le §5 interdit de *noter Massimo* et de *mettre ses matières en
+   concurrence* ; un XP ne fait ni l'un ni l'autre (il compte ce qui a été FAIT, il ne peut que
+   monter). ⚠️ **Sur `/matieres`, ils ne doivent jamais ORDONNER ni DÉSIGNER** — deux test-verrous,
+   un serveur un client, et **rien d'autre** ne l'empêche.
+2. **Aucun pourcentage, nulle part.** L'anneau rend des comptes ; les « 66 % Maîtrisé » et
+   « 72 % acquis » des maquettes sont **refusés**.
+3. **L'anneau n'affiche QUE ce qui est allumé** — `unknown` exclu des segments ET de la légende, et
+   le compte des non-commencées n'apparaît **nulle part** (« 2 travaillées » + « 78 à découvrir »
+   reconstituerait « 2 sur 80 »).
+4. **« Reprendre » ne sert que ce qui se rouvre exactement.** `fiche` (pas de lien profond) et
+   `revision` (lance une session) sont écartés — mieux vaut deux cartes vraies que quatre
+   approximatives.
+5. **Le rail dit l'engagement que Massimo s'est DONNÉ**, jamais un objectif à l'impératif ; ses
+   échéances viennent de l'**agenda réel**, jamais de `due_count`.
 
-### ✅ LA RELECTURE VISUELLE A EU LIEU (2026-08-11) — et elle a rapporté
+### ⚠️ UN ÉCART ASSUMÉ AVEC UN ARBITRAGE DU COMMANDITAIRE
 
-🔴 **Un sixième défaut d'écran né de l'œil du commanditaire, et aucun test ne pouvait le voir.**
-*« Les 4 options se lisent mal, mets-leur un cadre. »*
+Sur la grille, il avait choisi **« reformuler au positif »** en gardant « Points solides /
+À renforcer ». **La première moitié est livrée, la seconde NON** : le read-before-code a montré
+ensuite que la donnée (`to_reinforce`, lacunes, risque) vit derrière `require_parent`, et qu'en
+bâtir un équivalent enfant reviendrait à créer un **classement des matières par faiblesse** — le §5
+exactement. Ce qu'il y a à travailler a déjà sa surface enfant, du bon côté : les **missions**.
+**Signalé au commanditaire, qui n'a pas redemandé la liste.** À rouvrir s'il le souhaite, avec
+l'addendum qui va avec.
 
-Les choix **non-clé** portaient `border-transparent` et aucun fond : ils se lisaient comme des
-**lignes libres**, pas comme un ensemble. On voyait « un choix encadré au milieu de trois phrases »
-au lieu de « voici les quatre choix, celui-ci est le bon ». Or Papa doit juger les **distracteurs**
-autant que la clé — c'est la moitié de ce qui fait qu'une question mesure ou non.
+### 🎯 CE QUE LES SABOTAGES ONT APPRIS
 
-⚠️ **Les verrous passaient tous** : ils vérifiaient que la clé est marquée et que les quatre textes
-sont rendus. Les deux étaient vrais. **La conformité d'un composant ne dit rien de ce que l'écran
-raconte** — la leçon du 5ᵉ défaut de la PR #111, reproduite à l'identique.
+**Douze sabotages joués, onze rougissent.** Le douzième est resté **VERT** et c'est le plus
+instructif de la session : il a démasqué un **défaut de conception**, pas un test faible. Détail
+dans `TROUBLESHOOTING.md`.
 
-→ **Les quatre options ont un cadre.** La clé garde **quatre** signaux : bordure accent, fond
-teinté, graisse 600 contre 400, et le mot `✓ CLÉ`. La couleur ne porte jamais l'information seule.
-**La maquette a été alignée dans le même geste**, avec le motif — sans quoi une session future
-l'aurait relue et serait revenue en arrière.
+⚠️ **Deux de mes propres tests étaient faux** — ancrés sur un texte ambigu, ou courant à vide sur
+un élément rendu trop tôt. Les deux ont été démasqués par sabotage, pas par relecture.
 
-⚠️ **Ce correctif est POSTÉRIEUR à l'ouverture de la PR #113** : elle ne le décrit pas.
+### 👁️ LA RELECTURE VISUELLE A EU LIEU — et elle a rapporté quatre défauts
+
+**Aucun n'était visible d'un test**, et deux venaient de l'œil du commanditaire :
+
+1. **L'anneau était un disque gris** (SVT : 78 « À découvrir » sur 80) — il disait « tu n'as
+   presque rien fait ».
+2. **Une demi-page vide** quand la courbe se retire (moins de 2 jours de gain).
+3. **L'onglet mindmap s'appelait « Cartes »**, juste avant « Révisions » — le commanditaire a lu
+   qu'**il manquait un lien vers les mindmaps**.
+4. **La barre d'onglets DÉFILAIT sous 500 px** : elle se coupait après « Fiches », sans **aucun**
+   signal — trois surfaces sur sept introuvables sur téléphone.
+
+**Mesuré dans le DOM, jamais jugé sur capture** (Chrome refusait de se redimensionner : sonde
+iframe de 390 px dans la session authentifiée) : `scrollWidth == viewport`, 7 onglets **0 hors
+cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
+
+### 🧾 DETTES OUVERTES
+
+- 🔴 **`data/mock.ts` est devenu largement mort** (`SUBJECTS`, `Subject`, `Capsule`, `getSubject`)
+  après le débranchement de la grille. `PROFILE` sert **encore** de repli à `MassimoBannerHeader`.
+  Un mock qui traîne finit par réalimenter un écran — c'est exactement ce qui a fait vivre
+  « Niveau 5 » et « 62 % du chapitre » depuis la Phase 1.
+- 🔴 **`ACTION_UI` porte toujours la collision « carte »** : « Reconstruire la **carte** » (mindmap)
+  et « Réviser mes **cartes** » (SRS) coexistent dans le panneau de notion. Table **partagée avec
+  la Galaxy et le chat** — hors périmètre, non traité.
+- ⚠️ **Un test de `QuizPage` est INSTABLE en suite complète** : « le nettoyage d'URL ne mange QUE
+  `subject` — `from` doit survivre » a échoué **une fois** sur un run complet, puis 6/6 en
+  isolation. Fichier **jamais touché** ce chantier (aucun diff). Interférence entre fichiers.
+- ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4) — **remonté de l'élagage de
+  l'ADR-0051**, toujours ouvert, toujours hors périmètre.
+- 🔴 **RÉSIDU DE DEV EN BASE, remonté de l'ADR-0051 et VÉRIFIÉ TOUJOURS VIVANT le 2026-08-11** :
+  le **quiz 56** (Mathématiques, 40 questions) a servi de décor de relecture et est resté
+  `pending`. Contrôle : `select id, validation_status from quizzes where id=56;` → `pending`.
+  Le laisser ainsi fait croire à un diagnostic en attente sur la page de Papa.
+
+  ```sql
+  update quizzes set validation_status='validated', validated_by='parent', validated_at=now()
+  where id=56;
+  ```
+- ⚠️ **Décor d'agenda VOLONTAIRE, vérifié conforme** : les items **1** et **2** restent masqués
+  exprès (sans eux, le filtre « Archivés » de Papa n'a rien à montrer) ; les items **16** et **19**
+  ont bien été restaurés. Ne pas « corriger » les deux premiers.
+- ⚠️ **`docs/frontend-massimo/page-capsules-ia.md` est modifié dans l'arbre et N'EST PAS de ce
+  chantier.** Il traînait déjà à l'ouverture. **Ne pas le committer avec cette branche.**
+- ⚠️ **Le rail arrive après ~1 500 px de défilement sur téléphone** : l'échéance réelle est en bas
+  de page. Acceptable pour un rappel qui a l'Accueil et l'Agenda comme surfaces propres — mais
+  c'est un choix, pas une fatalité. Signalé au commanditaire, non tranché.
+
+### ▶ PROCHAIN PAS
+
+**Le commanditaire vérifie (diff + tests), puis committe lui-même.** Ensuite : push de la branche
+**et de `main`** (le commit `c86174d` n'est pas poussé), puis PR, puis merge, puis **étape 4bis**
+(`docs/WORKFLOW.md §5`) pour remettre ce fichier au réel — squash, n° de PR, branche supprimée.
+
+Le nombre de commits et la tête de branche ne s'écrivent pas ici : `git log --oneline main..HEAD`.
+
+## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
+
+> Le récit est retiré. **Les trois premiers contrôles passent** —
+> `docs/decisions/adr-0051-papa-peut-lire-un-diagnostic.md` ✅, `TROUBLESHOOTING.md`
+> §`feat/papa-lit-un-diagnostic` ✅, `CHANGELOG.md` **0.76.0** ✅. Le **quatrième** a trouvé une
+> dette vivante, remontée dans « DETTES OUVERTES » ci-dessus (`cursor: default`).
+> Le détail se retrouve par `git log -p MEMORY.md`.
 
 ## ⬆️ REMONTÉ de l'élagage de `fix/cours-vide-non-validable` (PR #112, squash `a9026d2`)
 
@@ -479,7 +530,11 @@ et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dé
   (`update agenda_items set dismissed_at = null where id in (16,19)`). Les items **1** et **2**
   restent masqués **exprès** — sans eux, le filtre « Archivés » de Papa n'a rien à montrer.
 
-### ▶▶ PROCHAIN PAS
+### 📁 CONTEXTE DU CHANTIER PRÉCÉDENT — clos, conservé pour ses dettes
+
+> ⚠️ Ce bloc n'est plus un « prochain pas » : il l'était tant que l'ADR-0051 était le chantier
+> actif. **Le seul PROCHAIN PAS du fichier est celui de la section active**, tout en haut.
+> Son résidu de dev (quiz 56) a été **remonté** dans « DETTES OUVERTES ».
 
 ### 1. ✅ L'ADR-0051 EST CLOS — étape 4bis FAITE le 2026-08-11
 
@@ -487,15 +542,6 @@ et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dé
 (squash `239d6e9`), branche supprimée, `main` à `0 0`. Les annonces « à faire » ont été **éteintes
 dans l'heure du merge** — `DECISIONS.md` et ici — comme pour les `adr-0047` et `adr-0048`, et non
 après vingt-quatre heures comme celle de l'`adr-0044`.
-
-🔴 **UN RÉSIDU DE DEV À DÉFAIRE, et lui seul** : le **quiz 56** (Mathématiques, 40 questions) a
-servi de **décor de relecture** et est resté `pending`. Ce n'est pas un état voulu — le laisser
-ainsi ferait croire à un diagnostic en attente sur la page de Papa. À repasser `validated` :
-
-```sql
-update quizzes set validation_status='validated', validated_by='parent', validated_at=now()
-where id=56;
-```
 
 **▶ Le chantier suivant se choisit au `BACKLOG.md`.** Les décisions qui attendent y sont, et l'une
 d'elles a **gagné une cause** pendant cette session (voir §2).
