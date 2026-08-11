@@ -22,6 +22,25 @@ juste : la création manuelle n'explique **qu'une** de ces 50 leçons (pas 50), 
 **transparente pour la production** — `equip_notion` rédige le cours *avant* de le valider, il ne
 l'a jamais validé vide.
 
+## Et le geste d'une lacune mène ENFIN à sa leçon
+
+Le même bouton, dans la même session : *« je clique mais je n'arrive pas de façon ciblée sur cette
+leçon et je suis perdu »*. Le lien existait, était cliquable, son `href` était bien formé — et il
+ne menait nulle part de précis.
+
+La page Programme a besoin de **trois crans** : `?subject=` pour **sélectionner** la matière,
+`?chapter=` pour **déplier**, `?lesson=` pour **mettre en évidence** — et le panneau des leçons
+n'est monté que si un chapitre est déplié. Les deux surfaces étaient cassées, différemment : le
+Diagnostic n'envoyait que la matière (Papa arrivait devant **tous** les chapitres), les Lacunes ne
+envoyaient que la leçon (**rien ne s'ouvrait**, le paramètre allant à un composant absent de
+l'écran). Le troisième lien, « Relire la leçon », portait le même défaut.
+
+La donnée manquait au contrat — servie désormais **à coût nul** : `subject_id` était déjà sur la
+ligne `Gap` sélectionnée, `chapter_id` sort de la leçon que le résolveur d'état résolvait déjà.
+
+⚠️ **Trois crans, ou aucun geste** : un lien qui n'en porterait que deux rouvrirait le cul-de-sac
+un cran plus bas, le chapitre restant replié.
+
 🔴 **Ce que ce correctif ne fait PAS** : les 50 leçons déjà validées et vides restent là. Les
 repasser en `draft`, leur commander une rédaction ou les archiver est une **décision produit**,
 pas un correctif — chacune retire ou laisse quelque chose sur l'écran de Massimo.

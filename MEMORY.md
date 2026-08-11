@@ -6,152 +6,71 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — `fix/agenda-trois-defauts` (2026-08-10 au soir → 2026-08-11), PR #111
+### ✅ CHANTIER MERGÉ — `fix/cours-vide-non-validable`, PR #112, squash **`a9026d2`**
 
-**CINQ défauts de l'agenda** — quatre au tableau ci-dessous, **plus un trouvé pendant la relecture
-elle-même** (§ juste après). Tous corrigés, tous vérifiés à l'écran. **Aucun n'était visible à un
-test** : les 25 sabotages du chantier précédent faisaient varier des **comportements**, jamais des
-**destinations** ni des **recouvrements**.
+Deux défauts, **tous deux trouvés à l'écran par le commanditaire**, sur la même page et le même
+bouton. Branche **supprimée**, `main` à `0 0`.
 
-🔴 **Trois sont nés des clics du commanditaire, en quinze minutes.** C'est le second chiffrage du
-dépôt sur ce que la relecture humaine achète, après les cinq défauts de l'ADR-0048.
+**1 — On ne validait pas ce qu'on lisait.** Le `status` d'une leçon ne disait **rien de son
+contenu** : une leçon sans une ligne pouvait passer `validated`, et le gate de l'ADR-0011 — qui
+filtre sur le seul `status` — la servait à Massimo. 🔴 **Mesuré : 50 leçons `validated` sur 88
+étaient VIDES (57 %)**, quand la dette du 2026-08-04 en comptait 39.
+→ unitaire **409** (le **rejet reste permis**, c'est ce qu'on archive) ; le lot **SAUTE** au lieu
+de planter (un 409 à la première aurait bloqué tout le chapitre) et **compte ce qu'il a sauté
+jusqu'à l'écran** — la page Couverture **jetait** le résultat, la garde aurait été muette.
 
-| Défaut | Correction | Nature |
-|---|---|---|
-| La croix ✕ sans retour | `undismiss` + `restore`, « Masqué · Annuler » (20 s) chez Massimo, « Rendre à Massimo » chez Papa | **trou** — le §2c ne disait rien de l'irréversibilité |
-| **La croix visait les devoirs de l'école** | elle ne s'affiche plus que sur `created_by === "student"` | 🔴 **tension INTERNE à l'ADR-0025** (voir ci-dessous) |
-| Un jour `✦` qui ouvrait sur du vide | `preparationsForDay` + bloc « ✦ Ce jour-là, tu prépares » | **trou** — l'ADR-0050 décide le marqueur, jamais ce que fait le clic |
-| Le jour ouvert doublait sa section | sections d'un jour retirées, multi-jours filtrées | 🔴 **l'addendum §17.1 l'interdisait déjà** |
+**2 — Le geste ne menait nulle part de précis.** `ProgrammePage` exige **TROIS crans** —
+`?subject=` sélectionne, `?chapter=` déplie, `?lesson=` met en évidence — et `LessonsPanel` n'est
+monté que si un chapitre est déplié. Les surfaces n'en envoyaient qu'un, **différemment** : le
+Diagnostic la matière seule (tous les chapitres en vrac), les Lacunes la leçon seule (**rien ne
+s'ouvrait**). Le troisième lien, « Relire la leçon », portait le même défaut.
+→ `subject_id` + `chapter_id` servis, **à coût nul** ; règle posée : **trois crans ou aucun geste**.
 
-🔴 **CINQUIÈME défaut, trouvé PENDANT la relecture (2026-08-11), et le plus instructif** : le
-bouton qui **referme le panneau du jour** portait le **même glyphe et le même `className`** que la
-croix de masquage. Un panneau à trois devoirs affichait donc **trois `✕` indiscernables** — un qui
-referme, deux qui archivent définitivement. **C'est très probablement là que les deux devoirs de
-dev sont partis la veille.** Le commanditaire a lu le survivant comme un masquage, *après* que les
-deux autres avaient été retirés — la preuve que le retrait ne suffisait pas.
-Il est devenu **`▴`**, le vocabulaire que la page emploie déjà (« Replier la suite ▴ »).
-⚠️ **Ce bouton n'était couvert par AUCUN test** — ni libellé, ni comportement. Il l'est maintenant,
-dans les deux sens (aucune croix sur un panneau d'items de l'école ; la croix subsiste sur un item
-de Massimo).
+### 🔴 CE QUE CE CHANTIER N'A PAS FAIT — et qui est une DÉCISION, pas un correctif
 
-**Suites à la clôture** : backend **1185** (+4) · Massimo **636** (+10) · Papa **795** (+1), deux
-typechecks verts. **8 sabotages joués, 8 rougissements** — dont la classe *« la surface disparaît »*, qui
-avait piégé six verrous au chantier précédent : mes verrous y survivent **grâce à l'assertion de
-présence**, systématiquement posée AVANT l'assertion négative.
+**Les 50 leçons déjà `validated` et vides sont toujours là.** La garde empêche d'en créer ; elle ne
+dit rien des existantes. Trois issues, toutes à votre main : les repasser en `draft`, leur commander
+une rédaction, ou les archiver. ⚠️ **Chacune a un coût différent pour Massimo** — un `draft`
+*retire de son écran* quelque chose qu'il pouvait déjà ouvrir. Consignée au `BACKLOG.md`.
 
-⚠️ **Trois constats de couverture, à ne pas perdre** :
-- `test_delete_is_archiving_not_deletion` (préexistant) **reste VERT** sur le sabotage
-  « la bande ne rend plus rien » — il n'assert qu'une absence. Signalé, **pas corrigé**.
-- **`AgendaPage` de Massimo n'a AUCUN test de rendu** (lacune préexistante) : le défaut du
-  doublement, qui vivait là, n'est donc verrouillé **par aucun test**. Il est vérifié à l'écran
-  et dans le DOM (ancres `agenda-item-<id>` passées de 4 à 2), pas par une suite. **C'est la
-  dette la plus nette de ce correctif** — celui des trois qui violait une décision écrite est
-  aussi le seul sans verrou.
-- Les tests de Massimo **restent non typecheckés** ; ceux de Papa le sont, et `tsc -b` y a
-  attrapé la prop `onRestore` manquante d'une fixture **dans la seconde**. L'asymétrie s'est
-  redémontrée toute seule.
+### ⚠️ Deux hypothèses DÉMENTIES par le read-before-code — à ne pas refaire
 
-⚠️ **Aucun ADR** : arbitrage explicite du commanditaire (« correctif direct sur la branche »),
-la documentation suit à la clôture. Deux surfaces neuves ne sont donc figées que par le code et
-ses verrous — c'est la dette assumée de ce choix, la même qu'en PR #89.
+1. *« `create_manual_lesson` est la source des 50 »* — **faux**, il en explique **1** (antérieure au
+   correctif de provenance du 2026-08-03). Les 49 autres : **26** par le lot (`parent_bulk`),
+   **23** par l'unitaire (`parent`).
+2. *« la garde casserait la production »* — **faux** : `equip_notion` et `equip_piece` appellent
+   `generate_lesson_content` **avant** de valider. La garde y est transparente.
 
-**Vérifié en vrai, pas seulement en test** : masquer → « Annuler » → la carte revient et
-`dismissed_at` retombe à `NULL` en base ; « Rendre à Massimo » depuis le filtre « Archivés » de
-Papa → idem. Fixture dev remise en l'état (items 1 et 2 ré-archivés).
-
-### 🔴🔴 BUG DE PRODUCTION TROUVÉ PAR ACCIDENT — le plan lisait l'heure d'UTC (2026-08-11)
-
-✅ **CORRIGÉ** sur cette branche, sur décision explicite du commanditaire (hors du périmètre
-annoncé, donc signalé d'abord, jamais contourné).
-
-Quatre tests backend sont passés au rouge entre 21 h 35 et 00 h 16 **sans qu'une ligne du code
-concerné ait bougé** : `test_agenda_plan` ×2, `test_dashboard` ×1, `test_reviews` ×1.
-✅ **Vérifié par `git stash` : les quatre échouent AUSSI sur `main` nu.** Ce n'est pas ce
-chantier — et ce n'est pas non plus « des tests qui alternent selon l'heure ».
-
-**La cause, à `apps/backend/app/modules/agenda/plan.py:56`** :
-```python
-def _today() -> date:
-    """Isolé pour être figé dans les tests (patron `_now` du module `memory`)."""
-    return datetime.now(timezone.utc).date()   # 🔴 UTC
-```
-Tout le reste de l'agenda date en **Europe/Paris** (`today_local()`). Mesuré à 00 h 16 :
-`_today()` → **2026-08-10**, `today_local()` → **2026-08-11**. **Un jour d'écart.**
-
-🔴 **Ce n'est pas un artefact de test, c'est ce que Massimo verrait.** Entre **minuit et 2 h**
-(été ; minuit–1 h en hiver), `jours_restants = (item.due_on - _today()).days` vaut **un de
-trop** : une échéance de DEMAIN est vue comme J+2, donc ZETIS **compose un plan là où la
-Décision 3 l'interdit** (« aucun plan à J+0 ou J+1 »), avec une étape datée **d'aujourd'hui ou
-de la veille**. Un ado qui ouvre son agenda à 00 h 30 est dans la fenêtre.
-
-**Correctif : `today_local()`** — l'isolation de la fonction (pour figer les tests) reste,
-seule la SOURCE change. Suite backend **1185**, verte à 00 h 30, c'est-à-dire **dans la fenêtre
-même qui cassait tout une heure plus tôt**.
-
-🔴 **Et le doute sur « une seule cause » était fondé : il y en avait DEUX, et un seul bug.**
-- `test_agenda_plan` ×2 → **le produit avait tort** (le vrai bug, ci-dessus) ;
-- `test_reviews` ×1 et `test_dashboard` ×1 → **le produit avait RAISON, les tests avaient
-  tort** : ils datent leur décor en UTC (`datetime.now(timezone.utc).date()`) et comparent à un
-  serveur qui date en Paris (`local_day`). Corrigés côté test (`today_local` / `local_day`).
-  ⚠️ **Si je les avais « corrigés » côté produit, j'aurais cassé trois modules pour faire
-  passer deux tests faux.** C'est exactement pourquoi on ne suppose pas la cause commune.
-
-✅ La dette **« deux tests de `test_dashboard.py` alternent au rouge selon l'heure —
-pré-existants, non corrigés »** est ÉTEINTE : ce n'était pas une bizarrerie de tests, c'était
-un attendu calculé dans le mauvais fuseau. ⚠️ Un seul des deux s'est manifesté cette nuit ;
-l'autre est peut-être encore là, dans une autre fenêtre horaire.
-
-🔴 **LE VERROU POSÉ EST UN VERROU D'INVARIANT, PAS DE COMPORTEMENT** —
-`test_le_plan_date_dans_LE_MEME_fuseau_que_le_reste_de_l_agenda` compare `plan._today()` à
-`today_local()`. Motif, et c'est la leçon la plus transposable de la nuit :
-> **Les deux tests de comportement voisins n'ont attrapé ce bug que parce qu'on les a lancés à
-> 00 h 16. Vingt-deux heures par jour, ils étaient VERTS sur du code faux.** Un verrou qui ne
-> mord que deux heures sur vingt-quatre n'est pas un verrou, c'est une loterie.
-
-⚠️ **À chercher ailleurs** : `datetime.now(timezone.utc).date()` partout où une date CIVILE est
-attendue. Le patron correct est `today_local()` / `local_day()`. La docstring de
-`test_dashboard.py` promet en tête *« aucun test ne doit se mettre à échouer une nuit de
-passage à l'heure d'été »* — elle a été démentie par un test du même fichier.
-
-### 🔴 LA CROIX ✕ — la question posée à l'écran, et la tension qu'elle a exhumée (2026-08-11)
-
-*« Faut-il garder les croix qui font disparaître les devoirs ? »* La réponse ne s'est pas prise
-à l'opinion : **l'ADR-0025 se contredit à trente lignes d'intervalle**, et il faut le savoir
-avant de rouvrir quoi que ce soit ici.
-
-- **§2c** donne le masquage à Massimo, au titre de la **réciprocité** — Papa archive, donc
-  l'enfant n'est pas passif sur sa propre page. Motif : **autonomie**, jamais évitement.
-- **§1**, qui justifie qu'on montre les dates à un enfant, écrit ceci d'une échéance scolaire :
-  > *« elle existe déjà dans le monde de Massimo — écrite dans son agenda papier, annoncée en
-  > classe. La masquer ne supprime pas la pression : elle supprime seulement **son moyen de
-  > s'organiser**. »*
-
-Le §1 parlait de « ne pas afficher », mais le raisonnement vaut mot pour mot pour le bouton :
-**une croix sur un devoir de l'école faisait exactement ce que l'ADR passe son §1 à refuser.**
-
-⚠️ **Ce qui a fait pencher, et qui n'est pas une opinion** : le bouton ne distingue pas ses
-trois usages (doublon — que le **§2d rend ATTENDU**, « doublons tolérés, aucune fusion » —,
-échéance annulée en classe, et évitement), parce que son libellé décrit un **mécanisme**
-(« Masquer ») et jamais une **raison**.
-
-**Retenu (commanditaire, 2026-08-11) : la réciprocité devient VRAIE** — on retire ce qu'ON a
-écrit, pas ce que l'école a demandé. Une condition, `created_by === "student"`, **aucune
-décision révoquée**. En phase 0 la croix disparaît de partout (Massimo ne saisit pas, §10) et
-elle **revient d'elle-même** quand Papa ouvre la saisie, là où le §2c tient vraiment. Les
-doublons du §2d restent traités par Papa, qui les crée et que la saisie prévient.
-
-⚠️ **Conséquence assumée** : le bandeau « Masqué · Annuler » devient **inatteignable en phase
-0**. Il n'est pas mort — `undismiss` porte le « Rendre à Massimo » de Papa, actif tout de suite
-— et il reprend vie avec la saisie. **Le retirer réintroduirait le défaut de la veille.**
-
-**2 sabotages, 2 rougissements** (croix partout → le verrou « aucune croix sur un item de
-l'adulte » tombe ; garde inversée → **les deux** tombent) : les deux sens sont verrouillés
-séparément, ce qui interdit aussi bien de rendre la croix universelle que de la supprimer.
-⚠️ **Non revu au panneau navigateur** : la session y a été perdue et je n'entre pas de mot de
-passe. Le résultat attendu en dev est simple — **les cinq échéances sont `created_by=parent`,
-donc plus AUCUNE croix sur les cartes**, seule celle qui ferme le jour subsiste.
+**Suites à la clôture** : backend **1186** · Papa **798** · Massimo **636**, typechecks verts.
+**4 sabotages, 4 rougissements.** ⚠️ **Cinq tests existants ont dû bouger** — ils verrouillaient
+l'href **cassé** ou **exerçaient** le défaut du cours vide ; corrigés en donnant aux fabriques ce
+que le serveur sert désormais, **jamais** en affaiblissant une assertion.
 
 ---
+
+## ⬆️ REMONTÉ de l'élagage du chantier agenda (PR #111) — ce qui reste OUVERT
+
+> Le récit de `fix/agenda-trois-defauts` (squash `f18276d`) est retiré. **Le 1ᵉʳ des quatre
+> contrôles ÉCHOUE** — voir ci-dessous. Les trois autres passent : `TROUBLESHOOTING.md`
+> §`fix/agenda-trois-defauts` ✅, `CHANGELOG.md` **0.74.0** ✅, dettes remontées ✅.
+> Le détail se retrouve par `git log -p MEMORY.md`.
+
+- 🔴 **CE CHANTIER N'A AUCUN ADR** — arbitrage explicite du commanditaire (« correctif direct sur
+  la branche »). Cinq défauts corrigés, dont deux surfaces neuves (le rattrapage du masquage, le
+  bloc « ✦ Ce jour-là, tu prépares ») **figées par le seul code et ses verrous**. C'est la dette
+  assumée de ce choix, et **la même qu'en PR #89**, où elle avait fini par coûter un addendum
+  rétroactif.
+- 🔴 **`AgendaPage` de Massimo n'a AUCUN test de rendu** (lacune préexistante). Le défaut du
+  doublement — **le seul des cinq qui violait une décision écrite** (§17.1) — est vérifié à
+  l'écran et dans le DOM, **par aucune suite**.
+- ⚠️ **`test_delete_is_archiving_not_deletion` reste VERT** sur le sabotage « la bande ne rend plus
+  rien » : il n'assert qu'une absence. Signalé, non corrigé.
+- ⚠️ **Les tests de Massimo ne sont toujours pas typecheckés** (`tsconfig.app.json` les exclut) ;
+  ceux de Papa le sont, et `tsc -b` y a attrapé une prop manquante **dans la seconde**.
+- ⚠️ **Piste ouverte du bug de fuseau** : chercher les autres `datetime.now(timezone.utc).date()`
+  du dépôt partout où une date **CIVILE** est attendue. Le patron correct est `today_local()` /
+  `local_day()`. Un seul des deux tests « qui alternent selon l'heure » s'est manifesté cette
+  nuit — l'autre attend peut-être dans une autre fenêtre.
 
 ## ⬆️ REMONTÉ de l'ADR-0050 à son élagage (2026-08-11) — ce qui reste OUVERT
 
@@ -493,46 +412,54 @@ et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dé
 
 ### ▶▶ PROCHAIN PAS
 
-✅ **Le chantier est MERGÉ.** PR [#111](https://github.com/NeuronXcore/zetis-school/pull/111),
-squash **`f18276d`** — 27 fichiers, `+1275 / −235`. Branche `fix/agenda-trois-defauts` **SUPPRIMÉE**,
-locale et distante (vérifié). `main` à **`0 0`** avec `origin`. ⚠️ Un commit de `main` s'était
-glissé entre le fork et le merge : `7831d68` (l'entrée `BACKLOG.md` ci-dessous) — sans conflit,
-aucun des 3 commits de la PR ne touchait ce fichier.
+✅ **Les DEUX chantiers de la session sont mergés**, branches supprimées, `main` à `0 0` :
+PR **#111** (`f18276d`, l'agenda) puis PR **#112** (`a9026d2`, le cours vide et le lien).
+Les relectures visuelles ont été **faites, et les deux ont rapporté** — le 5ᵉ défaut de #111 et
+les 2 de #112 sont nés de l'œil du commanditaire, jamais d'un test.
 
-1. ✅ ~~**LA RELECTURE VISUELLE HUMAINE**~~ — **FAITE le 2026-08-11, et elle a rapporté.**
-   Elle a produit le **cinquième défaut** du chantier (le `✕` de fermeture indiscernable du
-   masquage, § ci-dessus), trouvé **après** que les deux mauvaises croix avaient déjà été
-   retirées. 🔴 **C'est la leçon la plus transposable de la session** : un test qui aurait vérifié
-   « la croix de masquage a disparu » serait passé, et l'écran continuait de dire *« fais
-   disparaître ça »*. **La conformité d'un composant ne dit rien de ce que l'écran raconte.**
-2. ✅ ~~commit → push → PR → merge~~ — **FAITS le 2026-08-11.**
-3. ✅ ~~**Contrôle 4bis sur les annonces devenues fausses**~~ — passé : les deux `page-agenda.md`
-   ont été mis à jour par la clôture puis par le correctif du `▴`, `API_SPEC.md` porte les deux
-   routes neuves, `CHANGELOG.md` **0.74.0**, `TROUBLESHOOTING.md` sa section. Aucun document
-   n'annonce plus la croix comme universelle, ni le panneau de jour comme muet sur les étapes.
-4. ▶ **MAINTENANT : `/ouverture` est BLOQUÉE tant que le cadrage n'a pas eu lieu.**
-   Le chantier suivant est **« Papa peut LIRE un diagnostic »**, choisi le 2026-08-10 et **pas
-   encore cadré** : il lui faut sa session `maquette → spec → ADR-0051 → prompt`, **sur `main`,
-   sans une ligne de code**.
+🔴 **LA LEÇON LA PLUS TRANSPOSABLE DE LA SESSION**, et elle vaut au-delà de ZETIS :
+> Le 5ᵉ défaut a été trouvé **APRÈS** le correctif des deux premiers. Un test qui aurait vérifié
+> « la croix de masquage a disparu » serait passé — pendant que l'écran continuait de dire
+> *« fais disparaître ça »* par un autre bouton, au même endroit, dans le même style.
+> **La conformité d'un composant ne dit rien de ce que l'écran raconte.**
 
-   Son read-before-code est **déjà fait** et vaut d'être relu avant : `GET /diagnostics/quizzes/{id}`
-   existe mais est inutilisable pour la relecture **deux fois** — elle cache la bonne réponse et
-   l'explication (docstring de `get_quiz_for_taking`), et `_servable_quiz_or_404` exige
-   `validated`, donc un diagnostic `pending` répond **404**. Le résolveur neutre `_quiz_or_404`
-   existe déjà et son docstring **réserve** l'autre aux routes de Massimo. Le `null` de
-   `pilotageLinks.ts` tombera avec ce chantier.
+### 1. ▶ Ce qui vient : `/ouverture` est BLOQUÉE, et c'est normal
 
-   ⚠️ **Quatre arbitrages l'attendent, aucun tranché** : où l'on lit (le code penche pour
-   `/diagnostics`), si lire permet de trancher au même endroit, ce que montre une question
-   (énoncé · choix · bonne réponse · explication · **la notion visée**, qui est le vrai critère de
-   qualité), et le rejet partiel — probablement hors périmètre, mais à nommer plutôt qu'à laisser
-   flotter.
+Le chantier suivant est **« Papa peut LIRE un diagnostic »**, choisi le 2026-08-10 et **toujours
+pas cadré**. Il lui faut sa session `maquette → spec → ADR-0051 → prompt`, **sur `main`, sans une
+ligne de code**.
 
-5. ⏭️ **Un autre candidat vient d'entrer au `BACKLOG.md`** (`7831d68`) : *« la déclaration et la
-   preuve peuvent diverger »* — né de la question « comment s'assurer que Massimo ne coche pas
-   sans lire ». 🔴 **Il porte son propre CONTRE-signal** : si les preuves suivent les coches, il
-   n'a aucune raison d'exister. Il ne se construit pas « pour être sûr ».
+Son read-before-code est **déjà fait** et vaut d'être relu avant :
+`GET /diagnostics/quizzes/{id}` existe mais est inutilisable pour la relecture **deux fois** —
+elle cache la bonne réponse et l'explication (docstring de `get_quiz_for_taking`), et
+`_servable_quiz_or_404` exige `validated`, donc un diagnostic `pending` répond **404**. Le
+résolveur neutre `_quiz_or_404` existe déjà et son docstring **réserve** l'autre aux routes de
+Massimo. Le `null` de `pilotageLinks.ts` tombera avec ce chantier.
 
+⚠️ **Quatre arbitrages l'attendent, aucun tranché** : où l'on lit (le code penche pour
+`/diagnostics`), si lire permet de trancher au même endroit, ce que montre une question (énoncé ·
+choix · bonne réponse · explication · **la notion visée**, le vrai critère de qualité), et le
+rejet partiel — hors périmètre probable, mais à nommer plutôt qu'à laisser flotter.
+
+### 2. 🔴 TROIS DÉCISIONS VOUS ATTENDENT au `BACKLOG.md` — aucune n'est technique
+
+Elles sont entrées par **trois commits sur `main`** (`85a60bc`, `e267902`) pendant cette session,
+toutes nées de ce que l'écran a montré :
+
+| Décision | Ce qui la rend non triviale |
+|---|---|
+| **Les 50 leçons `validated` et VIDES** | `draft`, rédaction, ou archivage — un `draft` **retire de l'écran de Massimo** ce qu'il pouvait déjà ouvrir |
+| **La déclaration contre la preuve** | 🔴 porte son propre **CONTRE-signal** : si les preuves suivent les coches, ce chantier n'a **aucune raison d'exister**. Il ne se construit pas « pour être sûr » |
+| **Le geste ne dit pas OÙ il va** | une règle du dépôt (`adr-0047`) non appliquée, pas un défaut — ⚠️ **ne pas toucher au tri de `lessons_by_skill`**, partagé par cinq appelants |
+
+### 3. ⚠️ Données de DEV laissées telles quelles
+
+- **Agenda** : items **1** et **2** ré-archivés **exprès** — sans eux, le filtre « Archivés » de
+  Papa n'a rien à montrer.
+- **Curriculum** : les **50 leçons `validated` vides** (dont le chapitre 26, cible de trois
+  lacunes du diagnostic Histoire-Géo) et le **chapitre 31** — 2 cours écrits, 2 vides — qui est le
+  seul décor exerçant les deux moitiés du lot d'un coup.
+- Les serveurs de dev (5173 / 5174 / 8000) tournaient encore à la clôture.
 
 
 ## Dettes SURVIVANTES des chantiers élagués

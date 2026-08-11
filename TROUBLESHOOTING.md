@@ -4,6 +4,48 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/cours-vide-non-validable` — PR #112 — 2026-08-11
+
+### 🔴 Un `status` ne dit rien d'un CONTENU — 50 leçons `validated` étaient vides
+
+`set_lesson_validation` ne vérifiait que `status == "draft"`. Une leçon sans une ligne passait donc
+`validated`, et le gate de l'ADR-0011 — qui filtre sur **le seul `status`** — la servait à Massimo :
+une page blanche au bout d'un lien. **50 sur 88, soit 57 % du corpus validé.**
+
+**Parade** : la garde vit dans `set_lesson_validation` (409), et le lot **saute** au lieu de
+planter. ⚠️ **Deux comportements différents pour la même règle, et c'est voulu** : un 409 à la
+première leçon vide d'un lot empêcherait de valider tout le reste du chapitre.
+
+### 🔴 Quand plusieurs tests rougissent, la cause commune est une HYPOTHÈSE
+
+Quatre tests sont tombés en posant la garde. Deux **exerçaient le défaut** (ils validaient une
+leçon générée sans contenu et attendaient 200) ; deux comparaient un **dict entier** à qui un champ
+venait d'être ajouté. Rien à voir entre les deux moitiés.
+
+**Parade** : lire chaque échec avant de toucher au code commun. Et quand un champ neuf ne concerne
+qu'une partie des appelants, lui donner **son propre schéma** plutôt qu'un défaut sur le parent —
+les deux tests des lots de chapitres n'ont alors pas eu à bouger, et **un test qu'on ne modifie pas
+est un test qui garde encore**.
+
+### 🔴 Un lien peut être bien formé, cliquable, et ne mener nulle part
+
+`/programme?lesson=<id>` : `ProgrammePage` ne **sélectionne** une matière que sur `?subject=`, ne
+**déplie** un chapitre que sur `?chapter=`, et `LessonsPanel` — seul à lire `?lesson=` — n'est monté
+que si un chapitre est déplié. Le paramètre partait donc à un composant **absent de l'écran**.
+
+⚠️ **Trois surfaces le portaient, deux variantes** : le Diagnostic n'envoyait que la matière (tous
+les chapitres en vrac), les deux gestes des Lacunes que la leçon (rien ne s'ouvrait). Corriger l'un
+sans l'autre laissait Papa égaré par le second.
+
+**Parade** : quand un lien vise un grain fin, vérifier **ce que la page destination lit vraiment**
+avant de construire l'URL. Aucun test de rendu ne voit ce défaut : le lien existe, il est cliquable,
+son `href` est valide.
+
+### ⚠️ Un `?champ=` optionnel au contrat casse `> 0` en TypeScript
+
+`skipped_empty_count?: number` puis `res.skipped_empty_count > 0` → erreur de compilation.
+`?? 0` à la lecture, et le défaut reste au contrat : les lots de chapitres n'ont rien à sauter.
+
 ## Chantier `fix/agenda-trois-defauts` — relecture humaine de l'ADR-0050 — 2026-08-10 → 11
 
 > Trois défauts trouvés **par l'œil du commanditaire en quinze minutes**, plus un quatrième
