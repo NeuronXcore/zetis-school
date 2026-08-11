@@ -745,7 +745,45 @@ rédaction, ou les archiver — et **ce n'est pas une décision technique**.
 > Trouvé à l'écran juste après le correctif des trois crans (PR #112) : le lien mène désormais au
 > bon endroit, mais **pas forcément à celui qu'on attendait**, et rien ne prévient.
 
-### Le fait, mesuré
+### 🔴 LA CAUSE ÉCRITE ICI ÉTAIT FAUSSE — corrigée le 2026-08-11 au soir, sur mesure
+
+> La première rédaction (ci-dessous, conservée) attribuait la surprise au **départage entre
+> plusieurs leçons**. Elle était tirée d'un seul cas. **Cinq cas sur six la démentent**, et la
+> correction *simplifie* la réparation au lieu de la compliquer.
+
+**Le fait qui a tout déplacé** : sur la même passation Histoire-Géo, les **six** lacunes ouvertes —
+
+| Notion | Leçons qui la portent | Mène à |
+|---|---|---|
+| Société d'ordres | **1** | 25 — *La crise de l'Ancien Régime…* |
+| États généraux | **1** | 25 — *La crise de l'Ancien Régime…* |
+| Abolition des privilèges | **1** | 26 — *1789 : l'année de la rupture…* |
+| Nuit du 4 août | **1** | 26 — *1789 : l'année de la rupture…* |
+| Serment du Jeu de paume | **1** | 26 — *1789 : l'année de la rupture…* |
+| Monarchie absolue | 2 | 79 — *Les grandes puissances européennes…* |
+
+🔴 **Cinq notions sur six ne portent qu'UNE leçon.** Aucun tri, aucun départage, aucune ambiguïté —
+**et la surprise est là quand même** : le commanditaire a cliqué sur « Société d'ordres » et est
+tombé sur *« La crise de l'Ancien Régime »*. Le lien était **juste**.
+
+**La vraie cause est plus simple et plus générale** : *une notion et sa leçon ne portent presque
+jamais le même nom*. C'est le rapport normal entre un **grain fin** (la notion) et son **contenant**
+(la leçon) — ce n'est pas un accident de données, c'est la structure du référentiel. Le libellé
+« cette leçon » surprend donc **à chaque clic**, pas seulement quand plusieurs candidats existent.
+
+⚠️ **Conséquence pour la réparation : elle est PLUS COURTE que ce que cette entrée annonçait.** Il
+n'y a ni ambiguïté à arbitrer, ni « 2 leçons portent cette notion » à afficher. Il suffit que le
+libellé **nomme sa destination**. L'arbitrage 3 ci-dessous perd donc sa raison d'être dans le cas
+général — il ne resterait utile que pour le cas minoritaire (une notion sur six ici).
+
+🔴 **Et un SECOND candidat se confirme dans le même relevé** : trois lacunes mènent à la leçon 26,
+deux à la leçon 25. **Six lacunes pour TROIS cours à traiter.** C'est exactement l'entrée
+« la page présente N lacunes là où il y a N cours à traiter » (2026-08-11, six lacunes pour deux
+cours) — mesurée une seconde fois, sur d'autres données.
+
+---
+
+### La rédaction d'origine, conservée — elle décrit le cas MINORITAIRE
 
 Une notion peut être portée par **plusieurs leçons**. `lessons_by_skill` les trie par
 `updated_at` **décroissant** (puis `id`), et `etat_et_lecon` retient la première `validated` —
@@ -762,6 +800,9 @@ Révolution française**, porte deux leçons —
 Papa clique « Valider le cours de **cette leçon** » depuis un diagnostic sur la Révolution, et
 atterrit sur *« Les grandes puissances européennes »*. La destination est **plausible et pas
 attendue** — et il n'a aucun moyen de savoir pourquoi.
+
+⚠️ **Ce cas existe, mais il est l'exception** — une notion sur six sur la passation mesurée. Le
+défaut, lui, est sur les six.
 
 ### ⚠️ Ce n'est PAS un défaut — c'est une règle du dépôt non appliquée ici
 
@@ -787,7 +828,18 @@ C'est le même défaut de promesse, sur une autre surface.
 2. **Ou afficher le titre de la leçon sur la carte de lacune**, hors du bouton — l'information
    sans la contrainte de largeur du libellé.
 3. **Ou dire qu'il y en a plusieurs** (« 2 leçons portent cette notion ») et laisser choisir. Le
-   plus honnête, le plus cher.
+   plus honnête, le plus cher. ⚠️ **Devenu marginal** avec la correction de cause ci-dessus : il ne
+   sert que le cas d'une notion sur six. Ne pas le mettre en tête de la conception.
+
+### Le signal qui dirait d'ouvrir
+
+Papa validant un cours **qu'il ne cherchait pas** — ou demandant « pourquoi ce chapitre ? ». Le
+premier se verra dans `validated_by='parent'` sur une leçon d'un chapitre sans rapport avec le
+diagnostic d'origine ; le second se dira tout seul.
+
+🔴 **Le second s'est produit le 2026-08-11 au soir** — *« je clique pour valider le cours de cette
+leçon, le lien ouvre "La crise de l'Ancien Régime" »*. Le signal a été émis, il n'est plus à
+attendre.
 
 ### 🔴 Ce qu'il ne faut PAS faire
 
@@ -797,12 +849,8 @@ C'est le même défaut de promesse, sur une autre surface.
 - **Fusionner les lacunes.** Le grain de la `Gap` est la **notion**, et c'est juste.
 - **Faire porter le choix à Papa dans l'URL.** Le lien doit rester un lien ; s'il faut choisir,
   c'est la carte qui pose la question, pas la barre d'adresse.
-
-### Le signal qui dirait d'ouvrir
-
-Papa validant un cours **qu'il ne cherchait pas** — ou demandant « pourquoi ce chapitre ? ». Le
-premier se verra dans `validated_by='parent'` sur une leçon d'un chapitre sans rapport avec le
-diagnostic d'origine ; le second se dira tout seul.
+- 🔴 **Concevoir la réparation autour du départage.** C'était l'erreur de la première rédaction :
+  cinq notions sur six n'ont qu'une leçon, et le défaut est sur les six.
 
 ## Le rejet PARTIEL d'un diagnostic — 🟡 CANDIDAT, hors périmètre nommé de l'`adr-0051` (2026-08-11)
 
