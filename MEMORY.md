@@ -77,12 +77,26 @@ que le read-before-code avait signalé — `MAX_SKILLS = 8` est un **plafond, pa
 - ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4). **Pré-existant, hors
   périmètre, signalé non traité** — les huit groupes ne disent donc pas au survol qu'ils s'ouvrent.
 
-🔴 **CE QUI RESTE DÛ, ET QUI N'EST PAS UNE FORMALITÉ — la relecture visuelle humaine.** Sur les
-deux derniers chantiers, **cinq décisions d'écran sont nées de l'œil du commanditaire et aucune
-d'un test**. Une question ouverte, laissée exprès : **les choix NON-clé sont rendus sans bordure ni
-fond**, là où la bonne réponse a son cadre vert. C'est **conforme à la maquette validée**, mais sur
-du contenu réel les quatre options se lisent comme des lignes libres plutôt que comme un ensemble.
-Rien n'a été changé — dévier de la maquette après coup serait une décision, pas une correction.
+### ✅ LA RELECTURE VISUELLE A EU LIEU (2026-08-11) — et elle a rapporté
+
+🔴 **Un sixième défaut d'écran né de l'œil du commanditaire, et aucun test ne pouvait le voir.**
+*« Les 4 options se lisent mal, mets-leur un cadre. »*
+
+Les choix **non-clé** portaient `border-transparent` et aucun fond : ils se lisaient comme des
+**lignes libres**, pas comme un ensemble. On voyait « un choix encadré au milieu de trois phrases »
+au lieu de « voici les quatre choix, celui-ci est le bon ». Or Papa doit juger les **distracteurs**
+autant que la clé — c'est la moitié de ce qui fait qu'une question mesure ou non.
+
+⚠️ **Les verrous passaient tous** : ils vérifiaient que la clé est marquée et que les quatre textes
+sont rendus. Les deux étaient vrais. **La conformité d'un composant ne dit rien de ce que l'écran
+raconte** — la leçon du 5ᵉ défaut de la PR #111, reproduite à l'identique.
+
+→ **Les quatre options ont un cadre.** La clé garde **quatre** signaux : bordure accent, fond
+teinté, graisse 600 contre 400, et le mot `✓ CLÉ`. La couleur ne porte jamais l'information seule.
+**La maquette a été alignée dans le même geste**, avec le motif — sans quoi une session future
+l'aurait relue et serait revenue en arrière.
+
+⚠️ **Ce correctif est POSTÉRIEUR à l'ouverture de la PR #113** : elle ne le décrit pas.
 
 ## ⬆️ REMONTÉ de l'élagage de `fix/cours-vide-non-validable` (PR #112, squash `a9026d2`)
 

@@ -44,6 +44,12 @@ revirement — c'était la seule sortie possible tant que la lecture n'existait 
 résolveur neutre qui existait déjà et dont la docstring annonçait cet usage sans qu'aucune route ne
 l'exerce. Le gate de Massimo n'est pas touché : ses trois routes rendent toujours **404**.
 
+🔴 **La relecture visuelle a rapporté un défaut de plus, et aucun test ne pouvait le voir.** Les
+choix **non-clé** n'avaient ni bordure ni fond : les quatre options se lisaient comme des lignes
+libres, pas comme un ensemble — « un choix encadré au milieu de trois phrases ». Or c'est la qualité
+des **distracteurs** que Papa juge autant que celle de la clé. Les quatre portent désormais un
+cadre ; la clé garde ses quatre signaux (bordure, fond, graisse, `✓ CLÉ`).
+
 ⚠️ **Hors périmètre, nommé** : le rejet partiel — écarter *une* question au lieu du lot. Le verdict
 porte sur le lot, *relire n'est pas produire*. Consigné au `BACKLOG.md` avec le fait mesuré au
 passage : `PATCH /api/quiz-questions/{id}` et `/retire` acceptent **déjà** une question de

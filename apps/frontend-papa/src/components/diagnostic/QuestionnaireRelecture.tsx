@@ -41,6 +41,20 @@ export function libelleVolume(relecture: DiagnosticRelecture): string {
   return notions;
 }
 
+/** Un choix proposé à Massimo. La clé porte trois signaux, jamais un seul.
+ *
+ *  🔴 **Les quatre options ont TOUTES un cadre** — trouvé à la relecture visuelle du 2026-08-11 par
+ *  le commanditaire. Sans bordure, les non-clé se lisaient comme des **lignes libres** et non comme
+ *  un ensemble : on ne voyait plus « voici les quatre choix, celui-ci est le bon », on voyait un
+ *  choix encadré posé au milieu de trois phrases. Or c'est précisément ce que Papa doit juger — la
+ *  qualité des **distracteurs** autant que celle de la clé.
+ *
+ *  ⚠️ **Aucun test ne pouvait le voir**, et c'est le motif habituel : les verrous vérifiaient que
+ *  la clé est marquée et que les quatre textes sont rendus. Les deux passaient. **La conformité
+ *  d'un composant ne dit rien de ce que l'écran raconte.**
+ *
+ *  La clé reste distinguée par **trois** choses — bordure accent, fond teinté, graisse — plus le
+ *  mot `✓ CLÉ`. La couleur ne porte jamais l'information seule (`crans.ts`, règle du dépôt). */
 function Choix({ texte, cle }: { texte: string; cle: boolean }) {
   return (
     <li
@@ -48,7 +62,7 @@ function Choix({ texte, cle }: { texte: string; cle: boolean }) {
         "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm",
         cle
           ? "border-papa-accent/40 bg-papa-accent/10 font-semibold text-papa-accent"
-          : "border-transparent text-papa-text",
+          : "border-papa-border bg-papa-surface-2/40 text-papa-text",
       ].join(" ")}
     >
       <span>{texte}</span>
