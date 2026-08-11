@@ -106,7 +106,8 @@ cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
 
 ### 🧾 DETTES OUVERTES
 
-- ✅ **`data/mock.ts` ÉLAGUÉ le 2026-08-11** — **255 → 31 lignes**. Dix exports morts supprimés
+- ✅ **`data/mock.ts` ÉLAGUÉ le 2026-08-11** — **255 → 31 lignes**, **mergé** : PR #115, squash
+  `cfbb8b1`, branche `chore/mock-mort` supprimée. Dix exports morts supprimés
   (`ChapterStatus`, `Chapter`, `Subject`, `Capsule`, `SUBJECTS`, `getSubject`,
   `RECOMMENDED_CAPSULE`, `CAPSULES`, `DIAGNOSTIC_RESULT`, `MINDMAP`).
 
