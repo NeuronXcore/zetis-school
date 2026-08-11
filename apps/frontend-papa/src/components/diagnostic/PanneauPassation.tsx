@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ConfirmDialog } from "@zetis/ui";
-import type { DiagnosticPortee, DiagnosticRailEntry, DiagnosticResult } from "@zetis/types";
+import type {
+  DiagnosticPortee,
+  DiagnosticRailEntry,
+  DiagnosticRelecture,
+  DiagnosticResult,
+} from "@zetis/types";
 import { BandeFiabilite } from "./BandeFiabilite";
 import { PorteeEscalier } from "./PorteeEscalier";
+import { QuestionnaireRelecture } from "./QuestionnaireRelecture";
 import { badgeLacune, motifLacune, palierLabel, palierTon } from "./paliers";
-import { actionPrincipale, CRAN_TEXTE, RETRAIT } from "./crans";
+import { CRAN_TEXTE, RETRAIT } from "./crans";
 
 // Le panneau d'une passation : la portée, puis les trois stations — ce qui a été mesuré, ce qui a
 // été ouvert, ce que ZETIS en a produit. Dans cet ordre, et sans sauter d'étape.
@@ -44,6 +50,16 @@ export interface PanneauSansMesureProps {
    *  qui doit oublier une sélection dont la ligne vient de sortir du rail. */
   onRetirer: () => void;
   retraitEnCours: boolean;
+  /** Le questionnaire (adr-0051). `null` = pas encore chargé. */
+  relecture: DiagnosticRelecture | null;
+  /** `POST /validate` — le geste PRINCIPAL du cran « chez toi » (adr-0051 Décision 2).
+   *
+   *  🔴 **Il vit ICI, à côté de ce qu'on vient de lire.** On ne tranche pas ce qu'on n'a pas lu :
+   *  renvoyer Papa vers la file pour trancher reconstruirait, d'un cran plus loin, le défaut exact
+   *  que ce chantier referme. `/relecture` garde ses deux verdicts — deux portes vers le même
+   *  appel, pas deux vérités. */
+  onLaisserPasser: () => void;
+  verdictEnCours: boolean;
 }
 
 /** L'état « pas encore de mesure » — les deux premiers crans du témoin.
@@ -58,12 +74,21 @@ export function PanneauSansMesure({
   entree,
   onRetirer,
   retraitEnCours,
+  relecture,
+  onLaisserPasser,
+  verdictEnCours,
 }: PanneauSansMesureProps) {
   const [dialogue, setDialogue] = useState(false);
   const genere = entree.cran === "genere";
   const texte = CRAN_TEXTE[entree.cran];
-  const principale = actionPrincipale(entree.cran);
   const retrait = RETRAIT[genere ? "genere" : "propose"];
+  // 🔴 **ABSENT, pas grisé, quand il n'y a rien à laisser passer** — lot vide, ou pas encore
+  // chargé. Un bouton grisé dirait « bientôt » ; ici il n'y a pas de bientôt, et sur un lot vide
+  // il n'y en aura jamais. Même règle que l'adr-0049 D2 et l'adr-0050 D7.4.
+  //
+  // ⚠️ Et il n'apparaît que sur le cran « chez toi » : un diagnostic déjà proposé est déjà passé
+  // par ce verdict.
+  const peutLaisserPasser = genere && relecture !== null && relecture.total > 0;
 
   return (
     <div className="rounded-xl border border-papa-border bg-papa-surface p-5">
@@ -89,14 +114,21 @@ export function PanneauSansMesure({
         )}
       </p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        {principale && (
-          <Link
-            to={principale.to}
-            className="inline-flex rounded-lg border border-papa-accent/50 px-3 py-1.5 text-sm text-papa-accent hover:bg-papa-accent/10"
+      {/* 🔴 Le questionnaire, EN PLACE (adr-0051 D1). Avant lui, ce cran portait « Ouvrir dans la
+          file de relecture → » — un lien vers la page qui, elle, ne savait pas ouvrir un
+          diagnostic précis et renvoyait ici. La boucle se refermait sur du vide. */}
+      <QuestionnaireRelecture relecture={relecture} />
+
+      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-papa-border pt-4">
+        {peutLaisserPasser && (
+          <button
+            type="button"
+            onClick={onLaisserPasser}
+            disabled={verdictEnCours}
+            className="inline-flex rounded-lg bg-papa-accent px-4 py-2 text-sm font-bold text-papa-bg disabled:opacity-60"
           >
-            {principale.libelle}
-          </Link>
+            Laisser passer
+          </button>
         )}
         <button
           type="button"
@@ -143,6 +175,12 @@ export interface PanneauPassationProps {
    *  fait daté, au même titre que le score. La seule réponse à « à confirmer » est une SECONDE
    *  mesure — c'est littéralement ce que le mot demande. */
   onRemesurer: (subjectId: number | null) => void;
+  /** Le questionnaire de CETTE passation (adr-0051 Décision 2). `null` = pas encore chargé.
+   *
+   *  🔴 Il est servi ici **sans aucun verdict** : ils ont déjà été rendus, et proposer de refuser
+   *  une mesure qui a déjà écrit `skill_mastery` n'aurait pas de sens. Ce qui disparaît après un
+   *  verdict, ce sont les gestes — pas la lecture. */
+  relecture: DiagnosticRelecture | null;
 }
 
 export function PanneauPassation({
@@ -151,6 +189,7 @@ export function PanneauPassation({
   rang,
   subjectSlug,
   onRemesurer,
+  relecture,
 }: PanneauPassationProps) {
   const grains = new Set(detail.per_skill.map((s) => s.questions_count).filter(Boolean));
   const marche = grains.size === 1 ? Math.round(100 / [...grains][0]) : null;
@@ -374,6 +413,22 @@ export function PanneauPassation({
           Commander une production →
         </Link>
       </Station>
+
+      {/* 🔴 **Le questionnaire reste lisible APRÈS le verdict** (adr-0051 Décision 2), et c'est ici
+          qu'il prend tout son sens : c'est ce qui permet de comprendre un score. Une notion à 40 %
+          ne dit rien tant qu'on n'a pas vu les questions qui l'ont mesurée.
+
+          Ce qui disparaît sur ce cran, ce sont les **deux verdicts**, pas la lecture — ils ont
+          déjà été rendus. Un panneau qui rendrait les questions ET les verdicts sur une passation
+          déjà faite proposerait de refuser une mesure qui a déjà écrit `skill_mastery`. */}
+      <section className="rounded-xl border border-papa-border bg-papa-surface p-4">
+        <h3 className="font-semibold">Les questions de cette passation</h3>
+        <p className="mt-1 text-xs leading-relaxed text-papa-muted">
+          Ce que Massimo a eu sous les yeux, avec les bonnes réponses et les explications qu'il a
+          lues après coup.
+        </p>
+        <QuestionnaireRelecture relecture={relecture} />
+      </section>
     </div>
   );
 }

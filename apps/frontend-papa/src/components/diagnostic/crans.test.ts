@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionPrincipale, CRAN_TEXTE, RETRAIT } from "./crans";
+import { CRAN_TEXTE, RETRAIT } from "./crans";
 
 // Le vocabulaire des crans (adr-0045, Décisions 5 et 6). Verrous de DOCTRINE : ils ne portent pas
 // sur un rendu, ils portent sur ce que le produit s'autorise à écrire.
@@ -58,20 +58,18 @@ describe("RETRAIT", () => {
   });
 });
 
-describe("actionPrincipale", () => {
-  it("le cran « généré » ouvre la file de relecture", () => {
-    expect(actionPrincipale("genere")?.to).toBe("/relecture?kind=diagnostic");
-  });
-
-  it("🔴 le cran « proposé » n'en a pas — DIFFÉRÉE, et c'est écrit", () => {
-    // « Voir la page de Massimo → » ne peut pas rendre ce qu'elle annonce : aucun lien inter-app
-    // n'existe, et cette page appelle des routes `require_child` qui répondent 403 à un rôle
-    // parent. Ce test fige l'absence pour qu'elle reste une DÉCISION et non un oubli — s'il tombe,
-    // c'est que quelqu'un a rouvert la question sans passer par le `BACKLOG`.
-    expect(actionPrincipale("propose")).toBeNull();
-  });
-
-  it("un diagnostic passé n'a pas d'action de cran", () => {
-    expect(actionPrincipale("passe")).toBeNull();
-  });
-});
+// 🔴 **Le bloc `actionPrincipale` a été RETIRÉ avec la fonction (adr-0051 D1 bis).**
+//
+// Ses trois cas ne meurent pas de la même mort, et c'est ce qui a fait s'arrêter la session :
+//
+// - « le cran généré ouvre la file de relecture » et son pendant de rendu dans
+//   `DiagnosticsPapaPage.test.tsx` verrouillaient un comportement que l'ADR **périme** : le lien
+//   renvoyait vers la page qui renvoie ici. Ils changent d'objet — ils vérifient désormais que le
+//   questionnaire est là où était le lien ;
+// - « un diagnostic passé n'a pas d'action de cran » disparaît sans reste : la fonction n'existe
+//   plus ;
+// - 🔴 **« le cran proposé n'en a pas » NE DISPARAÎT PAS.** Il figeait une DÉCISION — « Voir la
+//   page de Massimo → » est impossible tant que les routes de Massimo répondent 403 à un rôle
+//   parent — et son commentaire disait explicitement que sa chute devait signaler une réouverture.
+//   Le supprimer par effet de bord aurait été une régression masquée. **Il a changé de support** :
+//   il vit dans `PanneauPassation.test.tsx`, sur le rendu du panneau.

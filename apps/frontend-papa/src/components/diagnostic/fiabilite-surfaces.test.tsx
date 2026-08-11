@@ -111,6 +111,7 @@ describe("le mot de Massimo, dans la station ①", () => {
           rang={3}
           subjectSlug="histoire-geographie"
           onRemesurer={vi.fn()}
+          relecture={null}
         />
       </MemoryRouter>,
     );
@@ -131,6 +132,7 @@ describe("le mot de Massimo, dans la station ①", () => {
           rang={3}
           subjectSlug="histoire-geographie"
           onRemesurer={vi.fn()}
+          relecture={null}
         />
       </MemoryRouter>,
     );

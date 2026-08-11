@@ -65,6 +65,32 @@ describe("reviewLink — où va Papa pour LIRE avant de trancher", () => {
     ).toBe("/programme?subject=3&chapter=9");
   });
 
+  it("🔴 la SIXIÈME famille a enfin son « Voir → » (adr-0051)", () => {
+    // Il rendait `null` : `/diagnostics` ne savait pas ouvrir un diagnostic précis, et Papa
+    // tranchait donc SANS LIRE sur une mesure qui écrit `skill_mastery` et ouvre des `Gap`.
+    //
+    // ⚠️ Le cas ne passe PAS par la branche générique : `chapter_id` et `lesson_id` sont `NULL`
+    // par construction pour cette famille (un diagnostic mesure une matière, pas une leçon), et le
+    // cas générique exige les deux — il aurait rendu `null` pour une autre raison.
+    expect(
+      reviewLink({
+        ...ITEM,
+        kind: "diagnostic",
+        id: 57,
+        lesson_id: null,
+        lesson: null,
+        chapter_id: null,
+        chapter: null,
+      }),
+    ).toBe("/diagnostics?subject=3&focus=57");
+  });
+
+  it("sans matière, aucun lien — pour le diagnostic comme pour les autres", () => {
+    expect(
+      reviewLink({ ...ITEM, kind: "diagnostic", id: 57, subject_id: null, subject: null }),
+    ).toBeNull();
+  });
+
   it("une capsule va sur SA page, sans passer par une leçon", () => {
     expect(
       reviewLink({ ...ITEM, kind: "capsule", id: 12, lesson_id: null, chapter_id: null }),
