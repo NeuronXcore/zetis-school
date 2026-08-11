@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useSearchParams } from "react-router-dom";
 import type { QuizSubjectSummary, StudentQuiz } from "@zetis/types";
 import { QuizPage } from "./QuizPage";
@@ -82,9 +82,24 @@ describe("QuizPage — lien profond par matière", () => {
     );
     await screen.findByText(/Les fractions/);
 
-    const url = screen.getByTestId("url").textContent ?? "";
-    expect(url).toContain("from=svt"); // le rétrolien survit
-    expect(url).not.toContain("subject="); // l'ouverture ne se rejoue pas au retour
+    // 🔴 `waitFor`, et non une lecture immédiate. L'affichage des quiz et le nettoyage d'URL
+    // passent par DEUX chemins d'état indépendants — l'état de la page d'un côté, le routeur de
+    // l'autre — et rien ne garantit que React les commite dans le même rendu. Attendre le
+    // premier pour lire le second était une COURSE.
+    //
+    // Elle s'est manifestée deux fois le 2026-08-11 en suite complète, puis a été **reproduite
+    // volontairement sous charge** (backend + Papa lancés en parallèle) :
+    //   AssertionError: expected 'subject=svt&from=svt' not to contain 'subject='
+    // Le nettoyage avait bien eu lieu — la sonde ne l'avait pas encore vu.
+    //
+    // ⚠️ Les DEUX assertions restent dans le `waitFor` : si le nettoyage mangeait aussi `from`,
+    // la condition ne serait jamais satisfaite et le test échouerait. L'invariant est intact,
+    // seule sa synchronisation est corrigée. **On attend ce qu'on assère.**
+    await waitFor(() => {
+      const url = screen.getByTestId("url").textContent ?? "";
+      expect(url).toContain("from=svt"); // le rétrolien survit
+      expect(url).not.toContain("subject="); // l'ouverture ne se rejoue pas au retour
+    });
   });
 
   it("une matière inconnue laisse la grille, SANS message d'échec", async () => {

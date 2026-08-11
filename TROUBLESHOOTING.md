@@ -4,6 +4,67 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/quizpage-test-instable` — 2026-08-11
+
+### 🔴 Attendre A pour asserter B est une COURSE, même quand A « vient après » B
+
+Un test de `QuizPage` échouait **une fois sur huit environ**, seulement en suite complète.
+
+```js
+await screen.findByText(/Les fractions/);            // A : la liste des quiz s'affiche
+const url = screen.getByTestId("url").textContent;   // B : l'URL nettoyée
+expect(url).not.toContain("subject=");
+```
+
+Le raisonnement paraissait solide : dans le composant, `setSearchParams` est appelé
+**synchroniquement** dans l'effet, **avant** que le `fetch` des quiz ne résolve. B devait donc
+précéder A, et attendre A suffisait.
+
+**Il ne suffit pas.** A et B passent par **deux chemins d'état indépendants** — l'état local de la
+page pour la liste, le routeur pour l'URL — et rien ne garantit que React les commite dans le
+**même rendu**. Sous charge, la liste s'affiche pendant que la sonde porte encore les anciens
+paramètres.
+
+**Parade** : mettre l'assertion dans un `waitFor`. **On attend ce qu'on assère**, jamais un
+voisin qu'on croit ordonné.
+
+```js
+await waitFor(() => {
+  const url = screen.getByTestId("url").textContent ?? "";
+  expect(url).toContain("from=svt");
+  expect(url).not.toContain("subject=");
+});
+```
+
+⚠️ **Garder les DEUX assertions dans le `waitFor`** : si le nettoyage mangeait aussi `from`, la
+condition ne serait jamais satisfaite et le test échouerait. L'invariant reste entier — sabotage
+rejoué pour le prouver. Un `waitFor` autour d'**une seule** assertion aurait affaibli le verrou.
+
+### ⚠️ Un intermittent ne se corrige pas sans être REPRODUIT
+
+Ce fichier a d'abord porté une cause **fausse** — « interférence entre fichiers de test » — écrite
+d'après le symptôme (passe en isolation, échoue en suite). Plausible, et démentie par la
+reproduction.
+
+**8 runs de la suite complète à vide n'ont rien donné.** L'échec n'est apparu qu'en recréant la
+**contention** qui régnait lors des deux occurrences réelles :
+
+```bash
+for i in $(seq 1 8); do
+  ( cd apps/backend && .venv/bin/python -m pytest app/tests -q >/dev/null 2>&1 ) &
+  ( pnpm --filter @zetis/frontend-papa test >/dev/null 2>&1 ) &
+  pnpm --filter @zetis/frontend-massimo test 2>&1 | grep -E "^ *Tests "
+  wait
+done
+```
+
+Tombé au 4ᵉ run — avec le **message d'erreur exact**, qui a désigné la vraie cause en une ligne.
+La même boucle sert ensuite de **preuve du correctif** : 8/8 après.
+
+⚠️ **Un symptôme « passe seul, échoue en groupe » évoque l'interférence, mais il évoque tout
+autant une course que la charge révèle.** Les deux se distinguent par le message d'erreur — pas
+par l'intuition.
+
 ## Chantier `feat/page-matiere-onglets` — addendum ADR-0024, chantiers A+B+C — 2026-08-11
 
 ### 🔴 Une clôture qui ne regarde QUE ses propres fichiers laisse passer une régression étrangère
