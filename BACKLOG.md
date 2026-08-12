@@ -1466,6 +1466,19 @@ Papa avant la passation. Écarté du périmètre, mentionné ici pour qu'on ne l
   **suppositions**, pas des mesures. Réponse prévue si ça ne tient pas : un **niveau de détail
   adaptatif** (notions révélées au-delà d'un certain zoom) — à ne **pas** décider avant d'avoir
   regardé.
+- 🔴 **Le panneau de notion de `/galaxy` SORT DE L'ÉCRAN sur téléphone — mesuré le 2026-08-12.**
+  À un viewport de **390 px**, le bord droit des boutons du panneau tombe à **484 px** : **94 px
+  hors cadre**, sur **tous** les boutons, et la légende de statuts (« À découvrir · 78 »…) se
+  superpose au panneau. Reproduit **après rechargement propre** — ce n'est pas un artefact de
+  redimensionnement à chaud.
+
+  C'est le **poste le plus contraint de Massimo** : sur son iPhone, la moitié droite du panneau
+  d'une notion n'existe pas. Le même panneau, sur la page matière, tient parfaitement à la même
+  largeur (`NotionPanel`) — la comparaison des deux devrait donner la cause.
+
+  ⚠️ **Trouvé de biais**, en vérifiant un libellé pendant le chantier « collision carte ». Aucun
+  test ne le voit : la suite Massimo est verte, et `NotionActionPanel.test.tsx` ne mesure aucune
+  géométrie. Consigné plutôt que corrigé au vol — ce n'est pas une collision de vocabulaire.
 
 - Trop de pages avant le cycle pédagogique complet.
 - Données mockées qui ne sont jamais reliées au backend.

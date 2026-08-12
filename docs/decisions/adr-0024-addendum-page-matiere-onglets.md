@@ -134,9 +134,26 @@ Aucune n'était visible d'un test.
   « 8 **cartes à revoir** » trois pastilles plus loin. Un test-verrou interdit désormais de nommer
   « carte » deux destinations différentes.
 
-  > ⚠️ **Dette laissée hors périmètre, sciemment** : `ACTION_UI` porte encore la collision
-  > (« Reconstruire la carte » / « Réviser mes cartes »), et cette table est partagée avec la
-  > Galaxy et le chat. La corriger dépasse cette page.
+  > ✅ **Dette PAYÉE le 2026-08-12.** Elle était laissée hors périmètre sciemment : `ACTION_UI`
+  > portait encore la collision (« Reconstruire la carte » / « Réviser mes cartes »), et cette
+  > table est partagée par cinq surfaces (panneau de notion, pastilles, bande de catalogue,
+  > Galaxy, chat) — la corriger dépassait cette page.
+  >
+  > **`mindmap` y dit désormais « Reconstruire la mindmap ».** La collision se lève de ce
+  > côté-là et pas de l'autre : « carte » au sens SRS est le sens déjà tenu partout ailleurs
+  > (« 8 cartes à revoir », « 5 cartes » sur une échéance, « Refaire un tour (3 cartes) ») et il
+  > vient du modèle lui-même (`Card`, module `memory`). Rebaptiser la révision aurait déplacé le
+  > problème et cassé un vocabulaire que Massimo a déjà appris. Le **geste** reste (« Reconstruire »
+  > — c'est bien de mémoire qu'il la refait) ; seule la **chose** est renommée, du nom que la barre
+  > latérale lui montre tous les jours.
+  >
+  > Le verrou du §3 bis ne regardait que la bande de catalogue et n'aurait jamais vu la collision
+  > revenir par les quatre autres surfaces. Un second, posé sur la **table** elle-même, s'y ajoute :
+  > `apps/frontend-massimo/src/lib/notionActionUi.test.ts`.
+  >
+  > Une chaîne identique dormait dans une **seconde** table (`MissionsPage.STEP_META`), dans un
+  > champ `action` que **rien ne rendait**. Champ supprimé plutôt que renommé — les deux tables
+  > restent distinctes, elles habillent deux choses différentes.
 
 - **La barre d'onglets défilait horizontalement sous 500 px.** Mesuré à 390 px : elle se coupait
   après « Fiches », et **rien ne signalait qu'on pouvait faire défiler** — trois surfaces sur sept

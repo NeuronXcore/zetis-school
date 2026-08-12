@@ -6,205 +6,140 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — addendum ADR-0024, PR #114, squash **`4a320ae`**
+### ✅ CHANTIER COMPLET — la collision « carte » d'`ACTION_UI` est levée
 
-**Base `c86174d`. Branche `feat/page-matiere-onglets` supprimée** (locale et distante),
-`main == origin/main`, **rien à pousser** — les trois vérifiés par commande le 2026-08-11.
-Cadré, livré, relu à l'écran et mergé **le même jour**. Aucune migration.
-`CHANGELOG.md` **0.77.0** · `TROUBLESHOOTING.md` une section, huit sous-sections.
+**Branche `feat/action-ui-collision-carte`, base `dd37cd5`** (= tête de `main` à l'ouverture,
+`main == origin/main` vérifié par commande). **Non poussée, aucune PR.** Aucune migration, aucune
+route, aucun contrat d'API touché. Le détail des commits se lit par
+`git log --oneline main..HEAD` — il ne s'écrit pas ici.
 
-> ⚠️ **Un défaut de la clôture PRÉCÉDENTE a été attrapé ici** : elle écrivait « `main` à `0 0`,
-> rien à pousser » alors que `c86174d` n'avait **jamais été poussé**
-> (`git rev-list --left-right --count origin/main...main` rendait `0  1`). C'est la troisième
-> prise du point 6 de `/cloture` en trois clôtures. **Une case cochée ne vaut pas une commande.**
+`CHANGELOG.md` **0.78.0** · `TROUBLESHOOTING.md` une section, quatre sous-sections.
 
-**Le cadrage** : le commanditaire a fourni **9 wireframes** noir & blanc (1 pour `/matieres`,
-8 pour `/subjects/:slug`) et tranché deux choses d'emblée — le **sélecteur de classe des maquettes
-est FAUX** (ignoré), et **« voir ses XP est positif pour Massimo »**. Un ADR neuf en est sorti :
-`docs/decisions/adr-0024-addendum-page-matiere-onglets.md`, **Proposé**.
+**Ce qu'il corrige.** `ACTION_UI` (`apps/frontend-massimo/src/lib/notionActionUi.ts`) est LA table
+d'habillage des sept activités d'une notion — une source unique, partagée par **cinq** surfaces
+(panneau de notion, pastilles, bande de catalogue, Galaxy, chat). Deux de ses libellés se suivaient
+dans le **même panneau** et disaient le même mot pour deux destinations sans rapport :
+« Reconstruire la **carte** » (mindmap) au-dessus de « Réviser mes **cartes** » (SRS).
 
-**TROIS chantiers livrés d'affilée, aucune migration, sur la même branche** (le commanditaire les
-a demandés à la suite ; ils forment un seul arc et n'ont pas été séparés).
+Ce n'était pas une hypothèse : un cran plus haut, le même défaut avait fait conclure au
+commanditaire qu'**il manquait un lien vers les mindmaps** (l'onglet s'appelait « Cartes », juste
+avant « Révisions »). Corrigé le 2026-08-11 sur l'onglet et la bande ; la **table** portait encore
+la collision — dette écrite dans l'addendum ADR-0024 §3 bis, **soldée ici**.
 
-#### A — la page matière devient une coquille à onglets
+**Ce qui a été fait**, en un mot chacun :
 
-En-tête avec **niveau et XP de la matière**, sept onglets (`Vue d'ensemble · Chapitres · Cours ·
-Fiches · Mindmaps · Révisions · Quiz`) bâtis sur la table partagée `subjectRouteFor`, anneau **en
-COMPTES**, courbe d'XP **en cumul**, cartes de chapitres, et un **rail droit** à trois cartes.
-L'index de notions (recherche, panoplie, « Demander à ZETIS ») est **déplacé sans réécriture**
-sous l'onglet Chapitres.
-
-Backend : `subject_xp` dans la panoplie, param `subject` sur `/api/gamification/history`.
-
-#### B — la grille `/matieres` débranchée de son mock
-
-Elle affichait « Niveau 5 », « 62 % du chapitre » et une tuile « Meilleure matière » **tirés de
-`data/mock.ts`**. Tout est parti. **Aucune route neuve** : `GET /api/student/galaxy` servait déjà
-une ligne par matière ; elle gagne `xp` et `mastered`, à coût de requête nul.
-
-#### C — « Reprendre mon dernier contenu »
-
-Route neuve `GET /api/student/subjects/{slug}/resume`. **Seuls `cours` et `quiz`** y passent :
-ce sont les deux seules surfaces adressables par identifiant. Le cours ouvre **SA** leçon
-(`?lesson=`), vérifié à l'écran.
+- `mindmap` dit désormais **« Reconstruire la mindmap »**. `revision` **ne bouge pas**.
+- **Verrou neuf sur la table** : `lib/notionActionUi.test.ts`.
+- `MissionsPage.STEP_META` : champ `action` **supprimé** (jamais rendu).
+- Quatre commentaires qui citaient l'ancien état comme justification, remis au réel.
+- Addendum ADR-0024 §3 bis : la dette passe de « laissée » à **payée**.
 
 ### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-Toutes dans l'addendum ADR-0024 « page matière onglets ». Les cinq qui coûteraient le plus cher à
-défaire par ignorance :
-
-1. **XP et niveau sont autorisés sur la page d'UNE matière** — c'est une **révision de lecture** du
-   §5, pas une révocation. Le §5 interdit de *noter Massimo* et de *mettre ses matières en
-   concurrence* ; un XP ne fait ni l'un ni l'autre (il compte ce qui a été FAIT, il ne peut que
-   monter). ⚠️ **Sur `/matieres`, ils ne doivent jamais ORDONNER ni DÉSIGNER** — deux test-verrous,
-   un serveur un client, et **rien d'autre** ne l'empêche.
-2. **Aucun pourcentage, nulle part.** L'anneau rend des comptes ; les « 66 % Maîtrisé » et
-   « 72 % acquis » des maquettes sont **refusés**.
-3. **L'anneau n'affiche QUE ce qui est allumé** — `unknown` exclu des segments ET de la légende, et
-   le compte des non-commencées n'apparaît **nulle part** (« 2 travaillées » + « 78 à découvrir »
-   reconstituerait « 2 sur 80 »).
-4. **« Reprendre » ne sert que ce qui se rouvre exactement.** `fiche` (pas de lien profond) et
-   `revision` (lance une session) sont écartés — mieux vaut deux cartes vraies que quatre
-   approximatives.
-5. **Le rail dit l'engagement que Massimo s'est DONNÉ**, jamais un objectif à l'impératif ; ses
-   échéances viennent de l'**agenda réel**, jamais de `due_count`.
-
-### ⚠️ UN ÉCART ASSUMÉ AVEC UN ARBITRAGE DU COMMANDITAIRE
-
-Sur la grille, il avait choisi **« reformuler au positif »** en gardant « Points solides /
-À renforcer ». **La première moitié est livrée, la seconde NON** : le read-before-code a montré
-ensuite que la donnée (`to_reinforce`, lacunes, risque) vit derrière `require_parent`, et qu'en
-bâtir un équivalent enfant reviendrait à créer un **classement des matières par faiblesse** — le §5
-exactement. Ce qu'il y a à travailler a déjà sa surface enfant, du bon côté : les **missions**.
-**Signalé au commanditaire, qui n'a pas redemandé la liste.** À rouvrir s'il le souhaite, avec
-l'addendum qui va avec.
+1. **La collision se lève du côté MINDMAP, jamais du côté révision.** « Carte » au sens SRS vient
+   du **modèle** (`Card`, module `memory`) et est tenu partout ailleurs dans l'app (« 8 cartes à
+   revoir », « 5 cartes » sur une échéance, « Refaire un tour (3 cartes) »). Rebaptiser la révision
+   lèverait bien le doublon — et casserait un vocabulaire que Massimo a déjà appris.
+2. **Le GESTE reste « Reconstruire »**, seule la CHOSE est renommée. C'est bien de mémoire que
+   Massimo la refait ; c'est ce qui distingue l'activité de la lecture d'une mindmap.
+3. **« Reconstruire la mindmap » ne doit PAS être raccourci pour gagner une ligne sur `/galaxy`.**
+   Arbitrage du commanditaire, pris sur mesures (voir la dette ci-dessous). L'interdit est écrit
+   dans la table elle-même, là où on serait tenté de le défaire.
+4. **`ACTION_UI` et `MissionsPage.STEP_META` restent DEUX tables.** Elles habillent deux choses
+   différentes (activités d'une notion / étapes d'une mission). Les fusionner a été écarté.
+5. **Ce que l'interdit de `notionRoutes.ts` couvre vraiment** : il disait « on ne touche pas
+   `ACTION_UI` », c'était trop large. Il interdit d'y mettre un texte vrai sur **une seule**
+   surface (la portée : `SCOPE_NOTE`) — pas un renommage, qui s'applique partout à l'identique.
+   **Restreint, pas révoqué.**
 
 ### 🎯 CE QUE LES SABOTAGES ONT APPRIS
 
-**Douze sabotages joués, onze rougissent.** Le douzième est resté **VERT** et c'est le plus
-instructif de la session : il a démasqué un **défaut de conception**, pas un test faible. Détail
-dans `TROUBLESHOOTING.md`.
+**Deux sabotages joués sur mon propre verrou, et le second est celui qui compte.**
 
-⚠️ **Deux de mes propres tests étaient faux** — ancrés sur un texte ambigu, ou courant à vide sur
-un élément rendu trop tôt. Les deux ont été démasqués par sabotage, pas par relecture.
+| Sabotage | « pas de doublon » | les deux autres assertions |
+|---|---|---|
+| remettre « Reconstruire la carte » | 🔴 rouge | 🔴 rouges |
+| renommer la **révision** (correction du mauvais côté) | ✅ **VERTE** | 🔴 rouges |
 
-### 👁️ LA RELECTURE VISUELLE A EU LIEU — et elle a rapporté quatre défauts
+🔴 **Un verrou d'unicité écrit naïvement est vert sur une correction fausse.** Il doit dire **quel
+côté garde le mot**. Quatrième occurrence du motif « mon test-verrou central était vert sur un
+sabotage » — la première **cherchée** plutôt que trouvée par hasard.
 
-**Aucun n'était visible d'un test**, et deux venaient de l'œil du commanditaire :
+### 👁️ LA RELECTURE VISUELLE A EU LIEU — et elle a rapporté deux choses
 
-1. **L'anneau était un disque gris** (SVT : 78 « À découvrir » sur 80) — il disait « tu n'as
-   presque rien fait ».
-2. **Une demi-page vide** quand la courbe se retire (moins de 2 jours de gain).
-3. **L'onglet mindmap s'appelait « Cartes »**, juste avant « Révisions » — le commanditaire a lu
-   qu'**il manquait un lien vers les mindmaps**.
-4. **La barre d'onglets DÉFILAIT sous 500 px** : elle se coupait après « Fiches », sans **aucun**
-   signal — trois surfaces sur sept introuvables sur téléphone.
+Menée sur la session authentifiée du commanditaire, **mesures dans le DOM, jamais jugées sur
+capture**. Cinq surfaces passées : page matière (1594 px **et** 390 px), pastilles, `/galaxy`
+(1594 px **et** 390 px), `/missions`. Le menu du chat n'a pas été déclenché (conditionnel).
 
-**Mesuré dans le DOM, jamais jugé sur capture** (Chrome refusait de se redimensionner : sonde
-iframe de 390 px dans la session authentifiée) : `scrollWidth == viewport`, 7 onglets **0 hors
-cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
+1. 🔴 **Une régression de ce chantier, arbitrée** : sur `/galaxy` à 390 px, le budget de texte du
+   bouton est de **146 px** ; l'ancien libellé faisait **144 px** (il tenait **à 2 px près**, par
+   chance), le nouveau en fait **172** et passe à deux lignes. **Accepté** — trois autres libellés
+   de ce panneau passent déjà à la ligne. Sur la page matière, la surface principale, il tient sur
+   une ligne aux deux largeurs.
+2. 🔴 **Un défaut ANTÉRIEUR, trouvé de biais** → au `BACKLOG.md`, voir dettes ci-dessous.
+
+**Aucun des deux n'était visible d'un test** : la suite est verte de bout en bout, et
+`NotionActionPanel.test.tsx` ne mesure aucune géométrie.
 
 ### 🧾 DETTES OUVERTES
 
-- ✅ **`data/mock.ts` ÉLAGUÉ le 2026-08-11** — **255 → 31 lignes**, **mergé** : PR #115, squash
-  `cfbb8b1`, branche `chore/mock-mort` supprimée. Dix exports morts supprimés
-  (`ChapterStatus`, `Chapter`, `Subject`, `Capsule`, `SUBJECTS`, `getSubject`,
-  `RECOMMENDED_CAPSULE`, `CAPSULES`, `DIAGNOSTIC_RESULT`, `MINDMAP`).
-
-  ⚠️ **Le contrôle fiable est l'IMPORT, pas le `grep -w`** : celui-ci prétendait `SUBJECTS` vivant
-  dans 5 fichiers — tous des **homonymes locaux** (`SubjectDeckGrid.test.tsx` définit son propre
-  `SUBJECTS`). Un seul import existait dans tout le dépôt.
-
-  **`PROFILE` survit** (repli du bandeau XP, seul consommateur `MassimoBannerHeader`, verrouillé
-  par son test). 🔴 **Dette laissée** : ce repli affiche des chiffres FAUX (niveau 7, 1240 XP) en
-  cas de panne réseau — même motif que `SUBJECTS`, en plus petit. Trancher est une **décision
-  produit** (montrer un faux nombre, ou ne rien montrer), pas un nettoyage.
-- 🔴 **`ACTION_UI` porte toujours la collision « carte »** — **SEUL point ouvert de ce fichier**,
-  et **prochain chantier** (session neuve, contexte de la session du 2026-08-11 épuisé).
-
-  `lib/notionActionUi.ts` : `mindmap → « Reconstruire la carte »` et
-  `revision → « Réviser mes cartes »` se suivent **dans le même panneau de notion** et désignent
-  deux surfaces sans rapport.
-
-  ⚠️ **Ce n'est pas une hypothèse.** Le même défaut, un cran plus haut, a fait dire au
-  commanditaire qu'**il manquait un lien vers les mindmaps** : l'onglet s'appelait « Cartes »,
-  juste avant « Révisions ». Corrigé sur l'onglet et la bande (addendum ADR-0024 §3 bis), pas
-  dans la table.
-
-  **Cinq consommateurs, relevés le 2026-08-11** — c'est ce qui en fait un chantier et non un
-  renommage : `matiere/NotionPanel.tsx`, `matiere/PanoplyDots.tsx` (`aria-label`),
-  `matiere/SubjectCatalogueBand.tsx` (icônes seulement — elle a sa **propre** table `NOM`, déjà
-  corrigée), `galaxy/NotionActionPanel.tsx`, `pages/ChatPage.tsx`.
-
-  ⚠️ **Trois pièges à lever avant de renommer** : `galaxy/NotionActionPanel.test.tsx` **verrouille**
-  au moins un de ces libellés ; `lib/notionRoutes.ts` porte un commentaire disant explicitement
-  *« On ne touche pas `ACTION_UI` »* (à propos de `SCOPE_NOTE`) — à lire en entier, il peut porter
-  une raison à respecter ou à révoquer ; et `MissionsPage.tsx` contient les mêmes chaînes, à
-  vérifier (issues de la table, ou écrites en dur ?).
-
-  **Vocabulaire imposé** : l'app nomme cette surface **« Mindmaps »** (`lib/navigation.ts`), et
-  c'est le nom retenu le 2026-08-11. Mais les libellés d'`ACTION_UI` sont des **ordres** adressés
-  à l'enfant (« Lire la fiche », « Me tester »), pas des noms de choses.
-- ✅ **Le test instable de `QuizPage` est RÉPARÉ le 2026-08-11**, **mergé** : PR #116, squash
-  `a24f383`, branche supprimée — et **la cause écrite ici était FAUSSE**. Ce fichier annonçait « interférence entre fichiers de test » ; la reproduction l'a
-  démentie.
-
-  **Reproduit volontairement sous charge** (backend + suite Papa lancés en parallèle), à la 4ᵉ
-  tentative — 8 runs à vide n'avaient rien donné :
-  `AssertionError: expected 'subject=svt&from=svt' not to contain 'subject='`.
-
-  **Vraie cause** : le test attendait l'affichage des quiz (`findByText`) puis lisait l'URL. Or
-  ces deux choses passent par **deux chemins d'état indépendants** — l'état de la page d'un côté,
-  le routeur de l'autre — et rien ne garantit que React les commite dans le même rendu. Sous
-  charge, la liste s'affichait avant que la sonde ait reçu les nouveaux paramètres.
-  **On attendait A pour asserter B.**
-
-  **Correction** : les deux assertions passent dans un `waitFor`. L'invariant est **intact** —
-  sabotage rejoué (faire manger `from` par le nettoyage) : le test rougit toujours. Vérifié
-  **8/8 sous la charge exacte** qui le faisait tomber.
-- ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4) — **remonté de l'élagage de
-  l'ADR-0051**, toujours ouvert, toujours hors périmètre.
-- ✅ **RÉSIDU DE DEV RÉSOLU le 2026-08-11** — le **quiz 56** (Mathématiques, 40 questions), resté
-  `pending` après avoir servi de décor de relecture à l'ADR-0051, est repassé `validated`.
-  Contrôle : `select count(*) from quizzes where quiz_type='diagnostic' and
-  validation_status='pending';` → **0**.
-
-  ⚠️ **Le SQL documenté a été suivi À UN CHAMP PRÈS, et c'est délibéré.** Il écrivait
-  `validated_by='parent', validated_at=now()` : cela aurait affirmé que Papa a **relu** ce quiz.
-  Il ne l'a pas fait — c'était un décor. Le relevé le montre : les **4** diagnostics réellement
-  relus dans l'UI portent `parent` (30, 31, 55, 57), les **14** autres ont `validated_by` **vide**.
-  Écrire `parent` aurait fait du 56 le seul à revendiquer une relecture qui n'a pas eu lieu.
-  Seul `validation_status` a été touché. **Ne pas « compléter » les deux autres champs.**
-- ⚠️ **Décor d'agenda VOLONTAIRE, vérifié conforme** : les items **1** et **2** restent masqués
-  exprès (sans eux, le filtre « Archivés » de Papa n'a rien à montrer) ; les items **16** et **19**
-  ont bien été restaurés. Ne pas « corriger » les deux premiers.
-- ✅ **`docs/frontend-massimo/page-capsules-ia.md` — RÉGRESSION IDENTIFIÉE ET RESTAURÉE** le
-  2026-08-11. Il traînait modifié dans l'arbre **sans appartenir à aucun chantier**, et a survécu
-  à une clôture complète, un merge et une journée. Enquête : son contenu était la spec
-  **d'initialisation du dépôt (29 juin)**, remise à l'identique par-dessus celle du 3 juillet —
-  effaçant la description de fonctions **livrées et mergées** (PR #23 et #25 : capsules validées
-  et rendues en MP4, étagères, lecteur plein écran, célébration, bouton son) et réintroduisant
-  « Massimo peut demander une capsule », qui **contredit** le livré. Restauré, arbre propre.
-  **Le récit et la parade sont dans `TROUBLESHOOTING.md`** — une clôture qui ne lit que sa propre
-  liste de fichiers laisse passer ce genre de chose.
-- ⚠️ **Le rail arrive après ~1 500 px de défilement sur téléphone** : l'échéance réelle est en bas
-  de page. Acceptable pour un rappel qui a l'Accueil et l'Agenda comme surfaces propres — mais
-  c'est un choix, pas une fatalité. Signalé au commanditaire, non tranché.
+- 🔴 **Le panneau de notion de `/galaxy` SORT DE L'ÉCRAN sur téléphone** — **né de la relecture de
+  ce chantier, mais antérieur à lui**. À 390 px de viewport, le bord droit des boutons tombe à
+  **484 px** : **94 px hors cadre**, sur **tous** les boutons, légende de statuts par-dessus.
+  Reproduit **après rechargement propre**. Sur l'iPhone de Massimo, la moitié droite du panneau
+  d'une notion n'existe pas. **Au `BACKLOG.md`** (§ Bugs / risques à surveiller), avec la piste :
+  le **même** panneau tient parfaitement à la même largeur sur la page matière (`NotionPanel`) —
+  comparer les deux devrait donner la cause.
+- ⚠️ **`docs/frontend-massimo/mockup/maquette-massimo-galaxy.html` porte encore l'ancien libellé.**
+  C'est une **maquette**, pas une spec de page : elle n'est pas dans la liste des documents de
+  structure du rituel de clôture, et un artefact de cadrage n'a pas vocation à suivre le code.
+  Laissée telle quelle **sciemment** — à trancher si quelqu'un s'en sert comme référence.
+- 🔴 **Le repli `PROFILE` affiche des chiffres FAUX** (niveau 7, 1240 XP) en cas de panne réseau —
+  survivant de l'élagage de `data/mock.ts` (PR #115), seul consommateur `MassimoBannerHeader`,
+  verrouillé par son test. Trancher est une **décision produit** (montrer un faux nombre, ou ne
+  rien montrer), pas un nettoyage.
+- ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4) — remonté de l'élagage de
+  l'ADR-0051, **toujours ouvert**, toujours hors périmètre.
+- ⚠️ **Le rail arrive après ~1 500 px de défilement sur téléphone** (page matière) : l'échéance
+  réelle est en bas de page. Acceptable pour un rappel qui a l'Accueil et l'Agenda comme surfaces
+  propres — mais c'est un choix. **Signalé au commanditaire, non tranché.**
+- ⚠️ **« Points solides / À renforcer » sur `/matieres` : moitié livrée, moitié refusée.** Le
+  commanditaire avait choisi « reformuler au positif » ; le read-before-code a montré ensuite que
+  la donnée vit derrière `require_parent` et qu'en bâtir un équivalent enfant créerait un
+  **classement des matières par faiblesse** — ce que l'ADR-0024 §5 interdit. **Signalé, non
+  redemandé.** À rouvrir avec l'addendum qui va avec, s'il le souhaite.
 
 ### ▶ PROCHAIN PAS
 
-**Rien à reprendre de ce chantier.** Il est clos : mergé, branche supprimée, étape 4bis faite
-dans la foulée du merge (statut de l'ADR passé à **Accepté**, `DECISIONS.md` aligné, ce fichier
-remis au réel).
+**Ce chantier est COMPLET et commité, mais NI POUSSÉ NI MERGÉ.** La première action de reprise est
+donc, dans cet ordre :
 
-✅ **Les deux résidus de fin de session sont RÉSOLUS** (2026-08-11) : le quiz 56 est repassé
-`validated`, et `page-capsules-ia.md` a été **restauré** — il portait la spec du 29 juin remise
-par-dessus celle du livré, une régression de documentation qui avait survécu à une clôture et à
-un merge. Le récit est dans `TROUBLESHOOTING.md`. **Arbre de travail propre.**
+1. `git push -u origin feat/action-ui-collision-carte`
+2. ouvrir la **PR**, puis merger
+3. 🔴 **étape 4bis** (`docs/WORKFLOW.md §5`) — revenir remettre CE fichier au réel : squash, n° de
+   PR, « branche supprimée », « rien à pousser », vérifiés **par commande** et non recopiés.
 
-**▶ PROCHAIN CHANTIER : lever la collision « carte » d'`ACTION_UI`** — dernier point ouvert,
-tout est instruit dans « DETTES OUVERTES » ci-dessus (les cinq consommateurs, les trois pièges,
-le vocabulaire imposé). À faire en **session neuve**. Ensuite seulement, le `BACKLOG.md`.
+**▶ CHANTIER SUIVANT, DÉJÀ CADRÉ AVEC LE COMMANDITAIRE** (2026-08-12, rien d'implémenté) :
+**le défilement de la mindmap en mode Reconstruire.**
+
+- **Le défaut** : dans `packages/ui/src/components/mindmap/MindmapWorkspace.tsx`, l'empilement est
+  ① barre des modes → ② consigne + pastilles → ③ canvas `clamp(520px, 74vh, 840px)` → ④ `NodeBank`.
+  Les puces à glisser sont **sous** le canvas : **le glisser-déposer traverse la limite de
+  défilement**. Ce n'est pas un problème de consigne — déplacer la seule phrase ne corrigerait rien.
+- **Décidé** : remonter **toute la banque** sous la ligne « Replace les étiquettes blanchies »
+  (déjà en haut, `MindmapWorkspace.tsx` l. 586) **ET** raccourcir le canvas en mode `build` — sinon
+  banque + 74vh dépassent encore l'écran. Ordre de grandeur visé : `clamp(380px, 58vh, 660px)`.
+- 🔴 **« ET pour les 2 modes » est irréalisable tel quel, signalé et tranché** : `NodeBank`
+  n'existe **qu'en mode `build`**. **Mémorise (`train`) n'a aucune banque** — on clique les « · · · »
+  sur le canvas, et sa consigne, ses pastilles et son bouton « Passe suivante ▸ » sont **déjà en
+  haut** (l. 570). Mémorise **n'a pas le défaut**.
+- ⚠️ **Brique partagée par TROIS surfaces** : `MindmapSubjectPage` (pleine page),
+  `MindmapMissionModal` (Massimo) et `MindmapPreviewModal` (Papa). Les deux dernières sont des
+  **modales** — c'est ce qui a fait écarter le **plein écran** pour l'instant (une modale dans une
+  modale, à cadrer par un ADR). Le plein écran reste souhaitable et **non tranché**.
+- ⚠️ Ce chantier **n'a pas encore d'ADR**. Le dépôt a payé trois fois l'absence d'ADR sur un
+  correctif « direct » (#89, #111, `fix/cours-vide-non-validable`) — dont une fois un addendum
+  rétroactif. À trancher à l'ouverture.
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 

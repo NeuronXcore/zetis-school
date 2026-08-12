@@ -16,6 +16,10 @@ const NOM = {
   // annonçait « 1 carte » (mindmap) à trois pastilles de « 8 cartes à revoir » (SRS) : deux
   // destinations différentes sous le même mot, et le lien vers les mindmaps se lisait comme
   // absent. C'est le nom que la barre latérale montre à Massimo (`navigation.ts`).
+  //
+  // `ACTION_UI` a suivi le 2026-08-12 (« Reconstruire la mindmap ») : la même règle tient
+  // désormais des deux côtés, et un test-verrou la tient dans chacun — ici
+  // `MatiereDetailPage.test.tsx`, là `lib/notionActionUi.test.ts`.
   mindmap: ["mindmap", "mindmaps"],
   revision: ["carte à revoir", "cartes à revoir"],
   quiz: ["quiz", "quiz"],

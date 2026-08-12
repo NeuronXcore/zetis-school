@@ -129,7 +129,10 @@ describe("NotionActionPanel — destinations", () => {
       "mindmap",
       { kind: "mindmap", available: true, mindmap_id: 44 },
       "/mindmaps/reconstruire/44",
-      /Reconstruire la carte/,
+      // « la mindmap » et non « la carte » depuis le 2026-08-12 : ce libellé se lisait deux lignes
+      // au-dessus de « Réviser mes cartes ». L'invariant vit dans `lib/notionActionUi.test.ts` ;
+      // ici on ne fait que cliquer sur le bouton par son nom.
+      /Reconstruire la mindmap/,
     ],
     [
       "revision",
