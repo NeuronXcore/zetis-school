@@ -122,8 +122,8 @@ cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
 - 🔴 **`ACTION_UI` porte toujours la collision « carte »** : « Reconstruire la **carte** » (mindmap)
   et « Réviser mes **cartes** » (SRS) coexistent dans le panneau de notion. Table **partagée avec
   la Galaxy et le chat** — hors périmètre, non traité.
-- ✅ **Le test instable de `QuizPage` est RÉPARÉ le 2026-08-11** — et **la cause écrite ici était
-  FAUSSE**. Ce fichier annonçait « interférence entre fichiers de test » ; la reproduction l'a
+- ✅ **Le test instable de `QuizPage` est RÉPARÉ le 2026-08-11**, **mergé** : PR #116, squash
+  `a24f383`, branche supprimée — et **la cause écrite ici était FAUSSE**. Ce fichier annonçait « interférence entre fichiers de test » ; la reproduction l'a
   démentie.
 
   **Reproduit volontairement sous charge** (backend + suite Papa lancés en parallèle), à la 4ᵉ
