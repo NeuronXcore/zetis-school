@@ -1479,6 +1479,16 @@ Papa avant la passation. Écarté du périmètre, mentionné ici pour qu'on ne l
   ⚠️ **Trouvé de biais**, en vérifiant un libellé pendant le chantier « collision carte ». Aucun
   test ne le voit : la suite Massimo est verte, et `NotionActionPanel.test.tsx` ne mesure aucune
   géométrie. Consigné plutôt que corrigé au vol — ce n'est pas une collision de vocabulaire.
+- ⚠️ **`/matieres` déborde de 8 px horizontalement — mesuré le 2026-08-12.** `main.scrollWidth`
+  vaut **398** pour un `clientWidth` de **390**. Cause identifiée : la page fait `-m-6 … p-6`, qui
+  annule le padding de `main` puis le rétablit — mais les marges négatives débordent sa boîte de
+  contenu. `main` étant en `overflow-auto`, **l'écran se laisse tirer de côté au doigt** ; à la
+  souris on ne le voit jamais.
+
+  ⚠️ **C'est exactement le genre d'effet qui se rapporte comme « c'est coupé »** — et c'est
+  pourquoi il est consigné ici plutôt que corrigé au vol : ce n'était **pas** la cause du titre de
+  l'Accueil (qui, lui, est à **zéro** débordement, mesuré). Deux défauts d'apparence voisine, deux
+  causes sans rapport. L'Accueil a été corrigé le 2026-08-12 ; celui-ci reste ouvert.
 
 - Trop de pages avant le cycle pédagogique complet.
 - Données mockées qui ne sont jamais reliées au backend.

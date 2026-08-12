@@ -1,5 +1,36 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.80.2 — Le titre de page cesse d'être seul au bord de l'écran
+
+Sur l'Accueil de Massimo, « Bonjour Massimo 👋 » rejoint la colonne de texte des cartes. Idem sur
+« Mes matières ». Premier écran, tous les jours.
+
+**Le défaut n'était pas celui qui avait été noté.** Il était consigné comme « le titre est **coupé**
+à gauche sur iPhone ». La mesure dit l'inverse : à 390 px le texte tenait sur une ligne avec **136 px
+de marge**, et rien de la page ne sortait du cadre. Le titre était seulement le **seul** texte à
+`x = 16` — les quarante autres commençaient à 33, 37 ou 41 selon le padding de leur carte. L'œil
+prend la colonne des cartes pour la marge de la page, et un titre qui en sort se lit comme coupé.
+Même chose vécue, autre chose à réparer.
+
+**Les cartes n'ont pas bougé** : elles gardent le bord du conteneur, que prescrit la maquette v3
+(`padding: 26px 20px`, `h1` sans retrait). On n'a pas corrigé le design — on a sorti le titre de la
+seule position que plus rien d'autre n'occupait.
+
+> 🔴 **Le correctif évident était faux.** `PageHeader` titre dix pages : une ligne semblait tout
+> régler. Elle y a été posée, **puis retirée après mesure** — la moitié de ces pages alignent leurs
+> **libellés de section** sur le bord du conteneur : `/agenda` en a sept (« Aujourd'hui »,
+> « Demain », « Ce qui arrive »…), `/revision` deux. Le titre n'y est pas seul : il leur est
+> *aligné*. Le rentrer aurait cassé cet alignement — un défaut neuf pour en corriger un autre.
+>
+> La règle est donc **conditionnelle par page** (*« quand le titre serait le seul texte au bord »*)
+> et ne peut pas vivre dans un composant partagé. Écrite dans `lib/pageTitle.ts`, rappelée dans
+> `PageHeader.tsx`.
+
+**Aucun test n'a été ajouté, et c'est délibéré** : jsdom n'a pas de moteur de mise en page,
+`getBoundingClientRect` y rend des zéros. La preuve de cette version est **visuelle** — Accueil et
+Matières à 32 px contre 33 pour les cartes, `/agenda` inchangé à 16 en contrôle de non-régression,
+bureau à 489 contre 490. 668 tests Massimo verts, `tsc -b` exit 0.
+
 ## 0.80.1 — Les avertissements cessent d'être décoratifs
 
 **Cette version ne livre rien à Massimo**, et ne change **aucun comportement** : les valeurs HTTP
